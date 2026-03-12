@@ -450,14 +450,27 @@ router.get('/', (req, res) => {
   </main>
 
   <!-- Bottom Navigation -->
-  <nav class="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg bottom-nav">
-    <div class="grid grid-cols-5 text-center text-xs">
-      <a href="/" class="py-3 text-gray-500"><div class="text-xl">🏠</div><div>Home</div></a>
-      <a href="/delivery" class="py-3 text-gray-500"><div class="text-xl">🚚</div><div>Giao</div></a>
-      <a href="/sale" class="py-3 text-gray-500"><div class="text-xl">🍺</div><div>Bán</div></a>
-      <a href="/customers" class="py-3 text-gray-500"><div class="text-xl">👤</div><div>KH</div></a>
-      <a href="/report" class="py-3 text-amber-600 font-semibold"><div class="text-xl">📊</div><div>BK</div></a>
-    </div>
+  <nav class="bottomnav fixed bottom-0 left-0 right-0">
+    <a href="/" class="py-3">
+      <div class="text-xl">🏠</div>
+      <div class="text-xs">Home</div>
+    </a>
+    <a href="/delivery" class="py-3">
+      <div class="text-xl">🚚</div>
+      <div class="text-xs">Giao</div>
+    </a>
+    <a href="/sale" class="py-3">
+      <div class="text-xl">🍺</div>
+      <div class="text-xs">Bán hàng</div>
+    </a>
+    <a href="/customers" class="py-3">
+      <div class="text-xl">👤</div>
+      <div class="text-xs">Khách</div>
+    </a>
+    <a href="/report" class="py-3 active">
+      <div class="text-xl">📊</div>
+      <div class="text-xs">Báo cáo</div>
+    </a>
   </nav>
 
   <script>
@@ -621,16 +634,12 @@ router.get('/profit-product', (req, res) => {
       `).join('')}
     </div>
   </main>
-  <nav class="fixed bottom-0 left-0 right-0 bg-white border-t bottom-nav">
-    <div class="grid grid-cols-5 text-center text-xs">
-      <a href="/" class="py-3 text-gray-500"><div class="text-xl">🏠</div><div>Home</div></a>
-      <a href="/delivery" class="py-3 text-gray-500"><div class="text-xl">🚚</div><div>Giao</div></a>
-      <a href="/sale" class="py-3 text-gray-500"><div class="text-xl">🍺</div><div>Bán</div></a>
-      <a href="/customers" class="py-3 text-gray-500"><div class="text-xl">👤</div><div>KH</div></a>
-      <a href="/report" class="py-3 text-amber-600 font-semibold"><div class="text-xl">📊</div><div>BK</div></a>
-    </div>
-  </nav>
+  <div id="bottomNavContainer"></div>
   <script>if (!isLoggedIn()) { window.location.href = '/login'; }</script>
+  <script>
+    const bottomNav = getBottomNav('/report');
+    document.getElementById('bottomNavContainer').innerHTML = bottomNav;
+  </script>
 </body>
 </html>
   `);
@@ -721,14 +730,27 @@ router.get('/profit-customer', (req, res) => {
       `).join('')}
     </div>
   </main>
-  <nav class="fixed bottom-0 left-0 right-0 bg-white border-t bottom-nav">
-    <div class="grid grid-cols-5 text-center text-xs">
-      <a href="/" class="py-3 text-gray-500"><div class="text-xl">🏠</div><div>Home</div></a>
-      <a href="/delivery" class="py-3 text-gray-500"><div class="text-xl">🚚</div><div>Giao</div></a>
-      <a href="/sale" class="py-3 text-gray-500"><div class="text-xl">🍺</div><div>Bán</div></a>
-      <a href="/customers" class="py-3 text-gray-500"><div class="text-xl">👤</div><div>KH</div></a>
-      <a href="/report" class="py-3 text-amber-600 font-semibold"><div class="text-xl">📊</div><div>BK</div></a>
-    </div>
+  <nav class="bottomnav fixed bottom-0 left-0 right-0">
+    <a href="/" class="py-3">
+      <div class="text-xl">🏠</div>
+      <div class="text-xs">Home</div>
+    </a>
+    <a href="/delivery" class="py-3">
+      <div class="text-xl">🚚</div>
+      <div class="text-xs">Giao</div>
+    </a>
+    <a href="/sale" class="py-3">
+      <div class="text-xl">🍺</div>
+      <div class="text-xs">Bán hàng</div>
+    </a>
+    <a href="/customers" class="py-3">
+      <div class="text-xl">👤</div>
+      <div class="text-xs">Khách</div>
+    </a>
+    <a href="/report" class="py-3 active">
+      <div class="text-xl">📊</div>
+      <div class="text-xs">Báo cáo</div>
+    </a>
   </nav>
   <script>if (!isLoggedIn()) { window.location.href = '/login'; }</script>
 </body>
@@ -813,14 +835,27 @@ router.get('/cashflow', (req, res) => {
       `).join('')}
     </div>
   </main>
-  <nav class="fixed bottom-0 left-0 right-0 bg-white border-t bottom-nav">
-    <div class="grid grid-cols-5 text-center text-xs">
-      <a href="/" class="py-3 text-gray-500"><div class="text-xl">🏠</div><div>Home</div></a>
-      <a href="/delivery" class="py-3 text-gray-500"><div class="text-xl">🚚</div><div>Giao</div></a>
-      <a href="/sale" class="py-3 text-gray-500"><div class="text-xl">🍺</div><div>Bán</div></a>
-      <a href="/customers" class="py-3 text-gray-500"><div class="text-xl">👤</div><div>KH</div></a>
-      <a href="/report" class="py-3 text-amber-600 font-semibold"><div class="text-xl">📊</div><div>BK</div></a>
-    </div>
+  <nav class="bottomnav fixed bottom-0 left-0 right-0">
+    <a href="/" class="py-3">
+      <div class="text-xl">🏠</div>
+      <div class="text-xs">Home</div>
+    </a>
+    <a href="/delivery" class="py-3">
+      <div class="text-xl">🚚</div>
+      <div class="text-xs">Giao</div>
+    </a>
+    <a href="/sale" class="py-3">
+      <div class="text-xl">🍺</div>
+      <div class="text-xs">Bán hàng</div>
+    </a>
+    <a href="/customers" class="py-3">
+      <div class="text-xl">👤</div>
+      <div class="text-xs">Khách</div>
+    </a>
+    <a href="/report" class="py-3 active">
+      <div class="text-xl">📊</div>
+      <div class="text-xs">Báo cáo</div>
+    </a>
   </nav>
   <script>if (!isLoggedIn()) { window.location.href = '/login'; }</script>
 </body>
