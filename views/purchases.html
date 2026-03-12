@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nhập hàng</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#1e40af">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="stylesheet" href="/css/tailwind.css">
+  <link rel="stylesheet" href="/css/unified.css">
+  <script src="/js/auth.js"></script>
+  <script>requireAuth();</script>
+  <style>
+    .animate-fade { animation: fade 0.3s ease-in; }
+    @keyframes fade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .bottom-nav { max-width: 500px; margin: auto; left: 0; right: 0; }
+    button, a { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+    button:active { transform: scale(0.96); }
+    .card { transition: transform 0.2s, box-shadow 0.2s; }
+    .card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+  </style>
+</head>
+<body class="bg-gray-100 text-gray-800 min-h-screen pb-20">
+  <header class="sticky top-0 bg-white border-b z-50">
+    <div class="flex items-center justify-between px-4 h-12 max-w-md mx-auto">
+      <div class="flex items-center gap-2">
+        <span class="text-xl">📥</span>
+        <span class="font-semibold text-sm">Nhập hàng</span>
+      </div>
+      <div class="flex gap-3 text-xl">
+        <a href="/" class="text-gray-500 hover:bg-gray-100 px-2 rounded">🏠</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="p-4 pb-24 max-w-md mx-auto animate-fade">
+    <!-- Tab Navigation -->
+    <div class="flex gap-2 mb-4">
+      <button onclick="switchTab('new')" id="tabNew" class="flex-1 py-2 bg-blue-600 text-white rounded-lg font-medium">📝 Nhập mới</button>
+      <button onclick="switchTab('history')" id="tabHistory" class="flex-1 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium">📋 Lịch sử</button>
+    </div>
+
+    <!-- Loading -->
+    <div id="loading" class="text-center py-8">
+      <div class="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto"></div>
+      <div class="text-gray-500 mt-2">Đang tải...</div>
+    </div>
+
+    <!-- New Purchase Form -->
+    <div id="newPurchaseSection" class="hidden">
+      <div class="bg-white rounded-xl shadow-sm border p-4 mb-4">
+        <h3 class="font-bold text-lg mb-3">📦 Chọn sản phẩm</h3>
+        <div class="space-y-2 max-h-80 overflow-y-auto" id="productList">
+          <!-- Products loaded via JS -->
+        </div>
+      </div>
+
+      <!-- Cart Summary -->
+      <div class="bg-white rounded-xl shadow-sm border p-4 mb-4 sticky top-24">
+        <h3 class="font-bold text-lg mb-2">🛒 Giỏ nhập hàng</h3>
+        <div id="cartItems" class="space-y-2 mb-3 max-h-40 overflow-y-auto">
+          <div class="text-gray-500 text-sm">Chưa chọn sản phẩm nào</div>
+        </div>
+        <div class="border-t pt-2 flex justify-between items-center">
+          <div class="font-bold text-lg">Tổng tiền:</div>
+          <div id="cartTotal" class="text-xl font-bold text-green-600">0 ₫</div>
+        </div>
+        <input type="text" id="purchaseNote" placeholder="Ghi chú (tùy chọn)" class="w-full border rounded-lg px-3 py-2 mt-3">
+        <button onclick="submitPurchase()" id="submitBtn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl mt-3 disabled:opacity-50" disabled>
+          ✅ Xác nhận nhập hàng
+        </button>
+      </div>
+    </div>
+
+    <!-- Purchase History -->
+    <div id="historySection" class="hidden">
+      <div class="space-y-3" id="historyList">
+        <!-- History loaded via JS -->
+      </div>
+    </div>
+  </main>
+
+  <!-- Bottom Navigation -->
+  <nav class="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg bottom-nav">
+    <div class="grid grid-cols-5 text-center text-xs">
+      <a href="/" class="py-3 text-gray-500"><div class="text-xl">🏠</div><div>Home</div></a>
+      <a href="/customers" class="py-3 text-gray-500"><div class="text-xl">👤</div><div>KH</div></a>
+      <a href="/sale" class="py-3 text-gray-500"><div class="text-xl">🍺</div><div>Bán</div></a>
+      <a href="/stock" class="py-3 text-green-600 font-semibold"><div class="text-xl">📦</div><div>Kho</div></a>
+      <a href="/report" class="py-3 text-gray-500"><div class="text-xl">📊</div><div>BK</div></a>
+    </div>
+  </nav>
+
+  <!-- Load purchases JS -->
+  <script src="/js/purchases.js"></script>
+  
+  <script>
+    // Load data on page load
+    async function loadData() {
+      try {
+        const res = await fetch('/purchases/data');
+        const data = await res.json();
+        
+        // Render products
+        const productList = document.getElementById('productList');
+        productList.innerHTML = data.products.map(p => `
+          <div class="flex items-center gap-2 p-2 border rounded-lg ${p.cost_price > 0 ? 'bg-green-50' : 'bg-gray-50'}">
+            <div class="flex-1">
+              <div class="font-medium">${p.name}</div>
+              <div class="text-sm text-gray-500">Giá vốn: <span class="text-green-600 font-medium">${formatVND(p.cost_price || 0)}</span> | Tồn: ${p.stock}</div>
+            </div>
+            <input type="number" 
+              id="qty-${p.id}" 
+              data-product-id="${p.id}" 
+              data-cost="${p.cost_price || 0}"
+              data-name="${p.name}"
+              min="0" 
+              placeholder="SL" 
+              class="w-16 text-center border rounded-lg py-1 px-2"
+              onchange="updateCart()">
+          </div>
+        `).join('');
+        
+        // Render history
+        const historyList = document.getElementById('historyList');
+        if (data.purchases.length > 0) {
+          historyList.innerHTML = data.purchases.map(p => `
+            <div class="bg-white rounded-xl shadow-sm border p-4">
+              <div class="flex justify-between items-start mb-2">
+                <div>
+                  <div class="font-bold text-lg">${formatVND(p.total_amount)}</div>
+                  <div class="text-sm text-gray-500">${new Date(p.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+                </div>
+                <button onclick="deletePurchase(${p.id})" class="text-red-500 text-sm">🗑️ Xóa</button>
+              </div>
+              <div class="text-sm text-gray-600">${p.items_summary || 'Không có chi tiết'}</div>
+              ${p.note ? `<div class="text-sm text-gray-500 mt-1">📝 ${p.note}</div>` : ''}
+            </div>
+          `).join('');
+        } else {
+          historyList.innerHTML = '<div class="text-center text-gray-500 py-8">Chưa có phiếu nhập nào</div>';
+        }
+        
+        // Hide loading, show content
+        document.getElementById('loading').classList.add('hidden');
+        document.getElementById('newPurchaseSection').classList.remove('hidden');
+        
+      } catch (err) {
+        console.error('Failed to load data:', err);
+        document.getElementById('loading').innerHTML = '<div class="text-red-500">Lỗi tải dữ liệu</div>';
+      }
+    }
+    
+    loadData();
+  </script>
+  
+  <script>
+  // Check authentication
+  if (!isLoggedIn()) { window.location.href = '/login'; }
+  
+  if ('serviceWorker' in navigator) {
+    if (!navigator.serviceWorker.controller) {
+      navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW registration failed:', err));
+    }
+  }
+  </script>
+</body>
+</html>

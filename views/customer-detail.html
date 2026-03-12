@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chi tiết khách hàng</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#16a34a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="stylesheet" href="/css/tailwind.css">
+  <link rel="stylesheet" href="/css/unified.css">
+  <script src="/js/auth.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>requireAuth();</script>
+  <style>
+    .animate-fade { animation: fade 0.3s ease-in; }
+    @keyframes fade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .bottom-nav { max-width: 500px; margin: auto; left: 0; right: 0; }
+    canvas { width: 100% !important; height: auto !important; }
+    .skeleton { background: linear-gradient(90deg, #e0e0e0 25%, #f0f0f0 50%, #e0e0e0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
+    @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+    button, a { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+    button:active { transform: scale(0.96); }
+  </style>
+</head>
+<body class="bg-gray-100 text-gray-800 min-h-screen pb-20">
+  <div id="app"></div>
+
+  <!-- Invoice Modal -->
+  <div id="invoiceModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6">
+      <button onclick="closeInvoiceModal()" class="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-2xl font-bold">&times;</button>
+      <div id="invoiceContent"></div>
+      <button onclick="closeInvoiceModal()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-xl mt-4">Đóng</button>
+    </div>
+  </div>
+
+  <script>
+    // Get customer ID from URL
+    const customerId = window.location.pathname.split('/').pop();
+    let customerData = null;
+    let selectedYear = new Date().getFullYear();
+    let selectedMonth = new Date().getMonth() + 1;
+
+    // Format VND
+    function formatVND(amount) {
+      return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+    }
+
+    // Format date
+    function formatDate(dateStr) {
+      if (!dateStr) return 'N/A';
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('vi-VN');
+    }
+
+    // Tab switching
+    function switchTab(tabName) {
+      // Update tab buttons
+      ['history', 'kegs', 'debt'].forEach(tab => {
+        const btn = document.getElementById('tab-' + tab);
+        const content = document.getElementById('tab-content-' + tab);
+        if (tab === tabName) {
+          btn.classList.remove('text-gray-500', 'border-transparent');
+          btn.classList.add('text-green-600', 'border-green-600');
+          content.classList.remove('hidden');
+        } else {
+          btn.classList.remove('text-green-600', 'border-green-600');
+          btn.classList.add('text-gray-500', 'border-transparent');
+          content.classList.add('hidden');
+        }
+      });
+      
+      // Load content if needed
+      if (tabName === 'kegs') loadKegsHistory();
+      if (tabName === 'debt') loadDebtHistory();
+    }
+
+    // Load kegs history
+    async function loadKegsHistory() {
+      const container = document.getElementById('kegsContent');
+      container.innerHTML = '<div class="text-center py-8 text-gray-500">Đang tải...</div>';
+      
+      try {
+        const res = await fetch(`/api/customers/${customerId}/keg-history`);
+        const data = await res.json();
+        
+        if (!data.history || data.history.length === 0) {
+          container.innerHTML = '<div class="text-center py-8 text-gray-500">Chưa có lịch sử vỏ bình</div>';
+          return;
+        }
+        
+        let html = `
+          <div class="bg-purple-50 rounded-xl p-4 mb-4 border border-purple-200">
+            <div class="text-sm text-purple-600 font-medium mb-1">📦 Tổng vỏ bình</div>
+            <div class="text-2xl font-bold text-purple-700">${data.currentBalance || 0} bình</div>
+          </div>
+        `;
+        
+        data.history.forEach(item => {
+          const change = (item.deliver_kegs || 0) - (item.return_kegs || 0);
+          const changeClass = change >= 0 ? 'text-green-600' : 'text-red-600';
+          const changeText = change >= 0 ? `+${change}` : change;
+          
+          html += `
+            <div class="bg-white rounded-xl p-4 shadow-sm border">
+              <div class="flex justify-between items-center">
+                <div class="font-bold">📅 ${formatDate(item.date)}</div>
+                <div class="font-bold ${changeClass}">${changeText}</div>
+              </div>
+              <div class="mt-2 text-sm flex justify-between">
+                <span class="text-green-600">+${item.deliver_kegs || 0} giao</span>
+                <span class="text-orange-600">-${item.return_kegs || 0} thu</span>
+              </div>
+              <div class="text-sm text-gray-500 mt-1">
+                Còn lại: ${item.keg_balance_after || 0}
+              </div>
+            </div>
+          `;
+        });
+        
+        container.innerHTML = html;
+      } catch (err) {
+        container.innerHTML = '<div class="text-center py-8 text-red-500">Lỗi tải dữ liệu</div>';
+      }
+    }
+
+    // Load debt history
+    async function loadDebtHistory() {
+      const container = document.getElementById('debtContent');
+      container.innerHTML = '<div class="text-center py-8 text-gray-500">Đang tải...</div>';
+      
+      try {
+        const res = await fetch(`/api/customers/${customerId}/debt`);
+        const data = await res.json();
+        
+        let html = '';
+        
+        // Current debt summary
+        if (data.currentDebt > 0) {
+          html += `
+            <div class="bg-red-50 rounded-xl p-4 mb-4 border border-red-200">
+              <div class="text-sm text-red-600 font-medium mb-1">💰 Công nợ hiện tại</div>
+              <div class="text-2xl font-bold text-red-700">${formatVND(data.currentDebt)}</div>
+            </div>
+          `;
+        } else {
+          html += `
+            <div class="bg-green-50 rounded-xl p-4 mb-4 border border-green-200">
+              <div class="text-sm text-green-600 font-medium mb-1">💰 Tình trạng</div>
+              <div class="text-xl font-bold text-green-700">Không có công nợ</div>
+            </div>
+          `;
+        }
+        
+        if (!data.transactions || data.transactions.length === 0) {
+          container.innerHTML = html + '<div class="text-center py-4 text-gray-500">Chưa có giao dịch công nợ</div>';
+          return;
+        }
+        
+        data.transactions.forEach(item => {
+          const isPayment = item.type === 'payment';
+          const amountClass = isPayment ? 'text-green-600' : 'text-red-600';
+          const amountText = isPayment ? `-${formatVND(item.amount)}` : `+${formatVND(item.amount)}`;
+          
+          html += `
+            <div class="bg-white rounded-xl p-4 shadow-sm border">
+              <div class="flex justify-between items-center">
+                <div class="font-bold">📅 ${formatDate(item.date)}</div>
+                <div class="font-bold ${amountClass}">${amountText}</div>
+              </div>
+              <div class="mt-2 text-sm text-gray-500">
+                ${item.note || (isPayment ? 'Thanh toán' : 'Ghi nợ')}
+              </div>
+              <div class="text-sm text-gray-500">
+                Còn lại: ${formatVND(item.balance_after || 0)}
+              </div>
+            </div>
+          `;
+        });
+        
+        container.innerHTML = html;
+      } catch (err) {
+        container.innerHTML = '<div class="text-center py-8 text-red-500">Lỗi tải dữ liệu</div>';
+      }
+    }
+
+    // Load customer data
+    async function loadCustomerDetail() {
+      const app = document.getElementById('app');
+      app.innerHTML = `
+        <div class="max-w-md mx-auto bg-white min-h-screen">
+          <!-- Header -->
+          <div class="bg-green-600 text-white p-4 flex items-center gap-3 sticky top-0 z-10">
+            <a href="/customers" class="text-2xl">←</a>
+            <div class="flex-1">
+              <h1 class="text-xl font-bold" id="customerName">Đang tải...</h1>
+              <p class="text-sm text-green-100" id="customerPhone"></p>
+            </div>
+            <button onclick="editCustomerInfo()" class="bg-white text-green-600 px-3 py-1 rounded-lg text-sm font-medium">✏️ Sửa</button>
+          </div>
+
+          <!-- Stats Cards -->
+          <div class="p-4 space-y-3">
+            <div class="grid grid-cols-2 gap-3">
+              <div class="bg-blue-50 rounded-xl p-4">
+                <div class="text-sm text-blue-600">📦 Vỏ đang giữ</div>
+                <div class="text-2xl font-bold text-blue-700" id="kegBalance">0</div>
+              </div>
+              <div class="bg-green-50 rounded-xl p-4">
+                <div class="text-sm text-green-600">💰 Tổng doanh thu</div>
+                <div class="text-xl font-bold text-green-700" id="totalRevenue">0</div>
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div class="bg-orange-50 rounded-xl p-4">
+                <div class="text-sm text-orange-600">🍺 Tháng này</div>
+                <div class="text-2xl font-bold text-orange-700"><span id="monthlyKegs">0</span> bình</div>
+              </div>
+              <div class="bg-purple-50 rounded-xl p-4">
+                <div class="text-sm text-purple-600">🚚 Gần nhất</div>
+                <div class="text-lg font-bold text-purple-700" id="lastSale">--</div>
+              </div>
+            </div>
+
+            <!-- Month Filter -->
+            <div class="bg-white rounded-xl p-4 border">
+              <label class="block text-sm font-medium mb-2">📅 Lọc theo tháng</label>
+              <select id="monthFilter" onchange="onMonthChange()" class="w-full border-2 border-gray-200 rounded-lg px-4 py-3 text-lg">
+                ${getMonthOptions()}
+              </select>
+            </div>
+
+            <!-- Fridge Info -->
+            <div class="bg-indigo-50 rounded-xl p-4 border border-indigo-200">
+              <div class="flex items-center justify-between mb-2">
+                <div class="font-semibold text-indigo-800">❄️ Tủ lạnh</div>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div class="bg-white rounded-lg p-3 text-center">
+                  <div class="text-2xl font-bold text-indigo-600" id="horizontalFridgeCount">0</div>
+                  <div class="text-xs text-gray-500">Tủ nằm</div>
+                </div>
+                <div class="bg-white rounded-lg p-3 text-center">
+                  <div class="text-2xl font-bold text-indigo-600" id="verticalFridgeCount">0</div>
+                  <div class="text-xs text-gray-500">Tủ đứng</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab Buttons -->
+          <div class="flex border-b border-gray-200 mb-3">
+            <button onclick="switchTab('history')" id="tab-history" class="flex-1 py-2 px-4 text-center font-medium text-green-600 border-b-2 border-green-600">
+              📋 Lịch sử
+            </button>
+            <button onclick="switchTab('kegs')" id="tab-kegs" class="flex-1 py-2 px-4 text-center font-medium text-gray-500 border-b-2 border-transparent">
+              🍺 Vỏ bình
+            </button>
+            <button onclick="switchTab('debt')" id="tab-debt" class="flex-1 py-2 px-4 text-center font-medium text-gray-500 border-b-2 border-transparent">
+              💰 Công nợ
+            </button>
+          </div>
+
+          <!-- Sales History Tab -->
+          <div id="tab-content-history">
+            <div id="salesHistory" class="space-y-3">
+              <div class="text-center py-8 text-gray-500">Đang tải...</div>
+            </div>
+          </div>
+
+          <!-- Kegs Tab -->
+          <div id="tab-content-kegs" class="hidden">
+            <div id="kegsContent" class="space-y-3">
+              <div class="text-center py-8 text-gray-500">Đang tải...</div>
+            </div>
+          </div>
+
+          <!-- Debt Tab -->
+          <div id="tab-content-debt" class="hidden">
+            <div id="debtContent" class="space-y-3">
+              <div class="text-center py-8 text-gray-500">Đang tải...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom Nav -->
+        <nav class="bottom-nav fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex justify-around py-2 z-40">
+          <a href="/sale" class="flex flex-col items-center text-gray-500 p-2">
+            <span class="text-xl">🏠</span>
+            <span class="text-xs">Bán hàng</span>
+          </a>
+          <a href="/stock" class="flex flex-col items-center text-gray-500 p-2">
+            <span class="text-xl">📦</span>
+            <span class="text-xs">Kho</span>
+          </a>
+          <a href="/customers" class="flex flex-col items-center text-green-600 p-2">
+            <span class="text-xl">👤</span>
+            <span class="text-xs">Khách</span>
+          </a>
+          <a href="/purchases" class="flex flex-col items-center text-gray-500 p-2">
+            <span class="text-xl">🚚</span>
+            <span class="text-xs">Nhập</span>
+          </a>
+        </nav>
+      `;
+
+      // Load customer info
+      await loadCustomerInfo();
+      
+      // Load stats
+      await loadCustomerStats();
+      
+      // Load sales history
+      await loadSalesHistory();
+    }
+
+    // Get month options for select
+    function getMonthOptions() {
+      const now = new Date();
+      let options = '<option value="">Tất cả</option>';
+      
+      for (let i = 0; i < 12; i++) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const value = `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}`;
+        const label = `${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
+        options += `<option value="${value}" ${value === `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}` ? 'selected' : ''}>${label}</option>`;
+      }
+      return options;
+    }
+
+    // Load customer basic info
+    async function loadCustomerInfo() {
+      try {
+        const res = await fetch(`/api/customers/${customerId}`);
+        const data = await res.json();
+        
+        if (data) {
+          customerData = data;
+          document.getElementById('customerName').textContent = data.name;
+          document.getElementById('customerPhone').textContent = data.phone || 'Chưa có SĐT';
+          
+          // Display fridge info
+          document.getElementById('horizontalFridgeCount').textContent = data.horizontal_fridge || 0;
+          document.getElementById('verticalFridgeCount').textContent = data.vertical_fridge || 0;
+        }
+      } catch (err) {
+        console.error('Error loading customer:', err);
+      }
+    }
+
+    // Load customer stats
+    async function loadCustomerStats() {
+      try {
+        const res = await fetch(`/api/customers/${customerId}/stats?year=${selectedYear}&month=${selectedMonth}`);
+        const data = await res.json();
+        
+        document.getElementById('kegBalance').textContent = data.kegBalance || 0;
+        document.getElementById('totalRevenue').textContent = formatVND(data.totalRevenue || 0);
+        document.getElementById('monthlyKegs').textContent = data.monthlyKegs || 0;
+        
+        if (data.lastSaleDaysAgo !== null) {
+          let daysText = '';
+          if (data.lastSaleDaysAgo === 0) daysText = 'Hôm nay';
+          else if (data.lastSaleDaysAgo === 1) daysText = 'Hôm qua';
+          else daysText = `${data.lastSaleDaysAgo} ngày trước`;
+          document.getElementById('lastSale').textContent = daysText;
+        } else {
+          document.getElementById('lastSale').textContent = 'Chưa có';
+        }
+      } catch (err) {
+        console.error('Error loading stats:', err);
+      }
+    }
+
+    // Load sales history
+    async function loadSalesHistory() {
+      const container = document.getElementById('salesHistory');
+      container.innerHTML = '<div class="text-center py-8 text-gray-500">Đang tải...</div>';
+      
+      try {
+        const filter = document.getElementById('monthFilter').value;
+        let url = `/api/customers/${customerId}/sales`;
+        if (filter) {
+          const [year, month] = filter.split('-');
+          url += `?year=${year}&month=${month}`;
+        }
+        
+        const res = await fetch(url);
+        const data = await res.json();
+        
+        // Show monthly totals if filtering by month
+        let monthlySummaryHtml = '';
+        if (filter && (data.monthlyTotal > 0 || data.monthlyQty > 0) && data.sales.length > 0) {
+          monthlySummaryHtml = `
+            <div class="bg-green-50 rounded-xl p-4 mb-4 border border-green-200">
+              <div class="text-sm text-green-600 font-medium mb-2">📊 Tổng tháng ${filter}</div>
+              <div class="flex justify-between">
+                <div class="text-xl font-bold text-green-700">${formatVND(data.monthlyTotal)}</div>
+                <div class="text-xl font-bold text-green-700">${data.monthlyQty} bình</div>
+              </div>
+            </div>
+          `;
+        }
+        
+        if (data.sales.length === 0) {
+          container.innerHTML = '<div class="text-center py-8 text-gray-500">Chưa có lịch sử giao hàng</div>';
+          return;
+        }
+        
+        let html = monthlySummaryHtml;
+        data.sales.forEach((sale, index) => {
+          const kegChange = (sale.deliver_kegs || 0) - (sale.return_kegs || 0);
+          const isLast = index === data.sales.length - 1;
+          const isReplacement = sale.type === 'replacement';
+          
+          // Style for replacement orders
+          const dateClass = isReplacement ? 'text-orange-600' : 'text-green-600';
+          const totalClass = isReplacement ? 'text-orange-600' : 'text-green-600';
+          const dotClass = isReplacement ? 'bg-orange-500' : 'bg-green-500';
+          
+          html += `
+            <div class="flex gap-3">
+              <!-- Timeline line -->
+              <div class="flex flex-col items-center">
+                <div class="w-3 h-3 ${dotClass} rounded-full"></div>
+                ${!isLast ? '<div class="w-0.5 bg-gray-300 flex-1 min-h-[60px]"></div>' : ''}
+              </div>
+              
+              <!-- Timeline content -->
+              <div class="flex-1 pb-4">
+                <div class="bg-white rounded-xl p-4 shadow-sm border ${isReplacement ? 'bg-orange-50' : ''}">
+                  <div class="flex justify-between items-center mb-2">
+                    <div class="font-bold ${dateClass}">📅 ${formatDate(sale.date)}${isReplacement ? ' 🔁' : ''}</div>
+                    <div class="font-bold ${totalClass}">${isReplacement ? '0 đ' : formatVND(sale.total)}</div>
+                  </div>
+                  <div class="grid grid-cols-2 gap-2 text-sm">
+                    <div class="bg-yellow-50 rounded-lg p-2">
+                      <div class="text-yellow-600">🍺 Bia</div>
+                      <div class="font-bold">${sale.item_count || 0}</div>
+                    </div>
+                    <div class="bg-purple-50 rounded-lg p-2">
+                      <div class="text-purple-600">📦 Vỏ còn</div>
+                      <div class="font-bold">${sale.keg_balance_after || 0}</div>
+                    </div>
+                  </div>
+                  <div class="mt-2 pt-2 border-t flex justify-between text-sm">
+                    <span class="text-green-600">+${sale.deliver_kegs || 0} giao</span>
+                    <span class="text-orange-600">-${sale.return_kegs || 0} thu</span>
+                  </div>
+                  <button onclick="viewInvoice(${sale.id})" class="mt-3 w-full py-2 bg-blue-50 text-blue-600 rounded-lg text-sm font-medium hover:bg-blue-100">
+                    👁 Xem hóa đơn
+                  </button>
+                </div>
+              </div>
+            </div>
+          `;
+        });
+        
+        container.innerHTML = html;
+      } catch (err) {
+        console.error('Error loading sales:', err);
+        container.innerHTML = '<div class="text-center py-8 text-red-500">Lỗi tải dữ liệu</div>';
+      }
+    }
+
+    // Month filter change
+    function onMonthChange() {
+      const filter = document.getElementById('monthFilter').value;
+      if (filter) {
+        const [year, month] = filter.split('-');
+        selectedYear = parseInt(year);
+        selectedMonth = parseInt(month);
+      } else {
+        selectedYear = new Date().getFullYear();
+        selectedMonth = new Date().getMonth() + 1;
+      }
+      loadCustomerStats();
+      loadSalesHistory();
+    }
+
+    // Edit customer info
+    function editCustomerInfo() {
+      if (!customerData) return;
+      window.location.href = `/customers?edit=${customerData.id}`;
+    }
+
+    // Invoice Modal
+    let invoiceModal = null;
+
+    async function viewInvoice(saleId) {
+      try {
+        const res = await fetch('/api/sales/' + saleId);
+        if (!res.ok) throw new Error('Not found');
+        const data = await res.json();
+        showInvoiceModal(data);
+      } catch (err) {
+        console.error(err);
+        alert('Không thể tải hóa đơn');
+      }
+    }
+
+    function showInvoiceModal(sale) {
+      const modal = document.getElementById('invoiceModal');
+      if (!modal) return;
+
+      const itemsHtml = sale.items.map(item => `
+        <div class="flex justify-between py-2 border-b">
+          <div>
+            <div class="font-medium">${item.name}</div>
+            <div class="text-sm text-gray-500">${item.quantity} x ${formatVND(item.price)}</div>
+          </div>
+          <div class="font-bold">${formatVND(item.quantity * item.price)}</div>
+        </div>
+      `).join('');
+
+      document.getElementById('invoiceContent').innerHTML = `
+        <div class="text-center mb-4">
+          <div class="text-lg font-bold">HÓA ĐƠN #${sale.id}</div>
+          <div class="text-sm text-gray-500">${formatDate(sale.date)}</div>
+        </div>
+        <div class="bg-gray-50 rounded-xl p-3 mb-4">
+          <div class="font-medium">${sale.customer_name}</div>
+        </div>
+        <div class="mb-4">
+          ${itemsHtml}
+        </div>
+        <div class="flex justify-between py-2 border-b">
+          <span>Tổng cộng:</span>
+          <span class="font-bold text-green-600 text-2xl">${formatVND(sale.total)}</span>
+        </div>
+        ${sale.type === 'replacement' ? '<div class="text-center py-2 text-orange-600 font-bold">🔁 Đổi bia lỗi</div>' : ''}
+        ${(sale.deliver_kegs || sale.return_kegs) ? `
+        <div class="mt-4 bg-purple-50 rounded-xl p-3">
+          <div class="text-sm text-purple-600 font-medium mb-1">📦 Vỏ bình</div>
+          <div class="flex justify-between text-sm">
+            <span>Giao: +${sale.deliver_kegs || 0}</span>
+            <span>Thu: -${sale.return_kegs || 0}</span>
+          </div>
+        </div>
+        ` : ''}
+      `;
+
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeInvoiceModal() {
+      const modal = document.getElementById('invoiceModal');
+      if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      }
+    }
+
+    // Initialize
+    loadCustomerDetail();
+  </script>
+</body>
+</html>

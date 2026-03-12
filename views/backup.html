@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sao lưu - Beer POS</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#1e40af">
+  <link rel="stylesheet" href="/css/tailwind.css">
+  <link rel="stylesheet" href="/css/unified.css">
+  <script src="/js/auth.js"></script>
+  <script>requireAuth();</script>
+  <style>
+    button, a { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+    .card { transition: transform 0.2s, box-shadow 0.2s; }
+    .card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+  </style>
+</head>
+<body class="bg-gray-100 text-gray-800 min-h-screen pb-20">
+  <!-- TOP BAR -->
+  <header class="sticky top-0 bg-white border-b z-50">
+    <div class="flex items-center justify-between px-4 h-12 max-w-md mx-auto">
+      <div class="flex items-center gap-2">
+        <span class="text-xl">💾</span>
+        <span class="font-semibold text-sm">Sao lưu</span>
+      </div>
+      <div class="flex gap-3 text-xl">
+        <a href="/" class="text-gray-500 hover:bg-gray-100 px-2 rounded">🏠</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="p-4 pb-24 max-w-md mx-auto">
+    <!-- Status -->
+    <div id="statusSection" class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
+      <div class="flex items-center gap-2">
+        <div class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+        <span class="font-medium text-blue-700">Auto backup: <span id="autoStatus">Đang bật</span></span>
+      </div>
+      <div class="text-sm text-blue-600 mt-1">Tự động sao lưu mỗi ngày lúc 00:00</div>
+      <div id="lastBackupInfo" class="text-xs text-gray-500 mt-2 pt-2 border-t">
+        Đang tải...
+      </div>
+    </div>
+
+    <!-- Manual Backup Button -->
+    <button onclick="createBackup()" id="backupBtn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-xl mb-4 flex items-center justify-center gap-2">
+      <span>💾</span> Sao lưu ngay
+    </button>
+
+    <!-- Backups List -->
+    <div class="bg-white rounded-xl shadow-sm border p-4">
+      <h2 class="font-bold text-lg mb-3">📁 Danh sách backup</h2>
+      <div id="backupList" class="space-y-2">
+        <div class="text-gray-500 text-center py-4">Đang tải...</div>
+      </div>
+    </div>
+
+    <!-- Auto Backup Settings -->
+    <div class="bg-white rounded-xl shadow-sm border p-4 mt-4">
+      <h2 class="font-bold text-lg mb-3">⚙️ Cài đặt tự động</h2>
+      <div class="flex items-center justify-between">
+        <span class="font-medium">Auto backup</span>
+        <button onclick="toggleAutoBackup()" id="autoBackupToggle" class="w-12 h-6 bg-green-500 rounded-full relative transition-colors">
+          <div class="w-5 h-5 bg-white rounded-full absolute top-0.5 right-0.5"></div>
+        </button>
+      </div>
+    </div>
+  </main>
+
+  <!-- Bottom Navigation -->
+  <nav class="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg" style="max-width: 500px; margin: auto; left: 0; right: 0;">
+    <div class="grid grid-cols-5 text-center text-xs">
+      <a href="/" class="py-2 text-gray-500"><div class="text-xl">🏠</div><div>Home</div></a>
+      <a href="/customers" class="py-2 text-gray-500"><div class="text-xl">👤</div><div>KH</div></a>
+      <a href="/sale" class="py-2 text-gray-500"><div class="text-xl">🍺</div><div>Bán</div></a>
+      <a href="/stock" class="py-2 text-gray-500"><div class="text-xl">📦</div><div>Kho</div></a>
+      <a href="/report" class="py-2 text-gray-500"><div class="text-xl">📊</div><div>BK</div></a>
+    </div>
+  </nav>
+
+  <script>
+    async function loadBackups() {
+      try {
+        const res = await fetch('/api/backup/list');
+        const data = await res.json();
+        
+        const list = document.getElementById('backupList');
+        
+        if (!data.backups || data.backups.length === 0) {
+          list.innerHTML = '<div class="text-gray-500 text-center py-4">Chưa có backup nào</div>';
+          document.getElementById('lastBackupInfo').innerHTML = 'Chưa có backup nào';
+          return;
+        }
+        
+        // Show last backup time
+        const lastBackup = data.backups[0];
+        const lastDate = new Date(lastBackup.created);
+        const now = new Date();
+        const diffMs = now - lastDate;
+        const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+        const diffMins = Math.floor(diffMs / (1000 * 60));
+        
+        let lastBackupText = '';
+        if (diffMins < 60) {
+          lastBackupText = diffMins + ' phút trước';
+        } else if (diffHours < 24) {
+          lastBackupText = diffHours + ' giờ trước';
+        } else {
+          lastBackupText = lastDate.toLocaleDateString('vi-VN');
+        }
+        
+        document.getElementById('lastBackupInfo').innerHTML = 
+          '📄 Backup gần nhất: <b>' + lastBackupText + '</b> (' + lastDate.toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit'}) + ')';
+        
+        list.innerHTML = data.backups.slice(0, 10).map(b => {
+          const date = new Date(b.created).toLocaleString('vi-VN');
+          return '<div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">' +
+            '<div>' +
+              '<div class="font-medium text-sm">' + b.name + '</div>' +
+              '<div class="text-xs text-gray-500">' + date + ' • ' + b.size + '</div>' +
+            '</div>' +
+            '<div class="flex gap-2">' +
+              '<button onclick="downloadBackup(\'' + b.name + '\')" class="px-3 py-1 bg-blue-500 text-white rounded text-xs">⬇️</button>' +
+              '<button onclick="restoreBackup(\'' + b.name + '\')" class="px-3 py-1 bg-orange-500 text-white rounded text-xs">🔄</button>' +
+            '</div>' +
+          '</div>';
+        }).join('');
+        
+      } catch (err) {
+        document.getElementById('backupList').innerHTML = '<div class="text-red-500 text-center py-4">Lỗi tải dữ liệu</div>';
+      }
+    }
+    
+    async function createBackup() {
+      const btn = document.getElementById('backupBtn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="animate-spin">⏳</span> Đang sao lưu...';
+      
+      try {
+        const res = await fetch('/api/backup/create');
+        const data = await res.json();
+        
+        if (data.success) {
+          alert('✅ ' + data.message);
+          loadBackups();
+        } else {
+          alert('❌ ' + (data.error || 'Lỗi'));
+        }
+      } catch (err) {
+        alert('❌ Lỗi: ' + err.message);
+      }
+      
+      btn.disabled = false;
+      btn.innerHTML = '<span>💾</span> Sao lưu ngay';
+    }
+    
+    async function downloadBackup(filename) {
+      window.location.href = '/api/backup/download/' + filename;
+    }
+    
+    async function restoreBackup(filename) {
+      if (!confirm('⚠️ Khôi phục từ "' + filename + '"?\n\nLưu ý: Database hiện tại sẽ được ghi đè!')) {
+        return;
+      }
+      
+      if (!confirm('Bạn chắc chắn muốn khôi phục?')) {
+        return;
+      }
+      
+      try {
+        const res = await fetch('/api/backup/restore', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filename })
+        });
+        
+        const data = await res.json();
+        
+        if (data.success) {
+          alert('✅ ' + data.message + '\nVui lòng khởi động lại server!');
+        } else {
+          alert('❌ ' + (data.error || 'Lỗi'));
+        }
+      } catch (err) {
+        alert('❌ Lỗi: ' + err.message);
+      }
+    }
+    
+    function toggleAutoBackup() {
+      // Placeholder - would need API to toggle
+      alert('Tính năng đang phát triển');
+    }
+    
+    // Load on start
+    loadBackups();
+  </script>
+
+  <script>
+  // Check authentication
+  if (!isLoggedIn()) { window.location.href = '/login'; }
+  
+  if ('serviceWorker' in navigator) {
+    if (!navigator.serviceWorker.controller) {
+      navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW registration failed:', err));
+    }
+  }
+  </script>
+</body>
+</html>

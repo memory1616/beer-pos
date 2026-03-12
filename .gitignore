@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Database
+*.sqlite
+*.db
+
+# Environment
+.env
+.env.local
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Backup
+backup/

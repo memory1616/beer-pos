@@ -1,0 +1,546 @@
+// Customers Page JavaScript
+// Tách riêng để dễ bảo trì và cache
+
+function formatVND(amount) {
+  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+}
+
+// Toast notification
+function showToast(message, type = 'success') {
+  const toast = document.createElement('div');
+  const bgColor = type === 'success' ? 'bg-green-500' : (type === 'error' ? 'bg-red-500' : 'bg-blue-500');
+  toast.className = `fixed top-4 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg z-50 transform transition-all duration-300 translate-x-full`;
+  toast.textContent = message;
+  document.body.appendChild(toast);
+
+  setTimeout(() => toast.classList.remove('translate-x-full'), 100);
+  setTimeout(() => {
+    toast.classList.add('translate-x-full');
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
+}
+
+let customers = [];
+let products = [];
+
+function initCustomersPage(data) {
+  customers = data.customers;
+  products = data.products;
+  renderCustomers();
+}
+
+function renderCustomers() {
+  const container = document.getElementById('customersList');
+  const search = document.getElementById('searchInput').value.toLowerCase();
+
+  const filtered = customers.filter(c => c.name.toLowerCase().includes(search));
+
+  if (filtered.length === 0) {
+    container.innerHTML = '<div class="text-center text-gray-500 py-8">Không có khách hàng nào</div>';
+    return;
+  }
+
+  container.innerHTML = filtered.map(c => {
+    const hasLocation = c.lat && c.lng;
+    
+    // Status badge based on daily average and days since last order
+    // 🟢 hoạt động (trung bình ngày > 10 bình)
+    // 🟡 ít mua (trung bình ngày < 5 bình)
+    // 🔴 7 ngày chưa mua
+    let statusBadge = '';
+    let statusClass = '';
+    if (c.days_since_last_order !== null && c.days_since_last_order !== undefined) {
+      if (c.days_since_last_order >= 7) {
+        statusBadge = '🔴';
+        statusClass = 'text-red-600';
+      } else if (c.daily_avg < 5) {
+        statusBadge = '🟡';
+        statusClass = 'text-yellow-600';
+      } else {
+        statusBadge = '🟢';
+        statusClass = 'text-green-600';
+      }
+    } else {
+      statusBadge = '🟡';
+      statusClass = 'text-yellow-600';
+    }
+
+    return `
+      <div class="card customer-card" data-name="${c.name.toLowerCase()}">
+        <div class="flex justify-between">
+          <div class="flex-1">
+            <div class="flex items-center gap-2">
+              <a href="/customers/${c.id}" class="font-bold text-base hover:text-green-600">${c.name}</a>
+              <span class="text-lg" title="${statusClass.includes('red') ? '7+ ngày chưa mua' : (statusClass.includes('yellow') ? 'Ít mua' : 'Hoạt động')}">${statusBadge}</span>
+            </div>
+            <div class="text-gray-500 text-sm">${c.phone || 'Chưa có SĐT'}</div>
+          </div>
+          <div class="text-right text-sm">
+            <span class="font-bold">📦 ${c.keg_balance || 0} vỏ</span>
+            ${((c.horizontal_fridge || 0) > 0 || (c.vertical_fridge || 0) > 0) ? `<div class="text-indigo-600 font-medium">❄️ ${c.horizontal_fridge || 0} + 🥶 ${c.vertical_fridge || 0}</div>` : ''}
+            ${c.daily_avg > 0 ? `<div class="text-green-600 font-medium">TB: ${c.daily_avg.toFixed(1)} bình/ngày</div>` : ''}
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-2 mt-3">
+          <button onclick="getLocation(${c.id})" class="flex-1 px-3 py-2 bg-orange-100 text-orange-700 rounded-lg font-medium text-sm">
+            📍 GPS
+          </button>
+          <button onclick="editCustomer(${c.id}, '${c.name}', '${c.phone || ''}', ${c.deposit})" class="flex-1 px-3 py-2 bg-blue-100 text-blue-700 rounded-lg font-medium text-sm">
+            ✏️ Sửa
+          </button>
+          <button onclick="showPriceModal(${c.id}, '${c.name}')" class="flex-1 px-3 py-2 bg-green-100 text-green-700 rounded-lg font-medium text-sm">
+            💰 Giá
+          </button>
+          <button onclick="deleteCustomer(${c.id})" class="px-3 py-2 bg-red-100 text-red-600 rounded-lg">
+            🗑️
+          </button>
+        </div>
+        <div class="mt-2 pt-2 border-t flex justify-between items-center">
+          <div class="text-sm">
+            <span class="text-gray-500">Đặt cọc: </span>
+            <span class="font-medium ${c.deposit > 0 ? 'text-blue-600' : 'text-gray-400'}">${formatVND(c.deposit)}</span>
+          </div>
+          <button onclick="editKegBalance(${c.id}, ${c.keg_balance}, '${c.name}')" class="text-xs text-blue-500 underline">✏️ Sửa vỏ</button>
+        </div>
+        ${c.last_sale_date ? '<div class="text-xs text-gray-400 mt-1">Mua lần cuối: ' + new Date(c.last_sale_date).toLocaleDateString('vi-VN') + '</div>' : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+function showModal(id) {
+  document.getElementById(id).classList.remove('hidden');
+  document.getElementById(id).classList.add('flex');
+}
+
+function hideModal(id) {
+  document.getElementById(id).classList.add('hidden');
+  document.getElementById(id).classList.remove('flex');
+}
+
+async function saveKegBalance() {
+  const customerId = document.getElementById('kegCustomerId').value;
+  const newBalance = parseInt(document.getElementById('kegBalanceInput').value);
+  const note = document.getElementById('kegNote').value;
+
+  if (isNaN(newBalance) || newBalance < 0) {
+    alert('Số bình không hợp lệ!');
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/payments/keg/update-balance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ customerId: parseInt(customerId), balance: newBalance, note: note })
+    });
+
+    if (res.ok) {
+      alert(`✅ Cập nhật vỏ thành công!\n\nSố vỏ còn tại quán: ${newBalance}`);
+      hideModal('kegModal');
+      location.reload();
+    } else {
+      const data = await res.json();
+      alert(data.error || 'Lỗi khi lưu');
+    }
+  } catch (e) {
+    alert('Lỗi kết nối: ' + e.message);
+  }
+}
+
+let searchTimeout;
+function filterCustomers() {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => {
+    renderCustomers();
+  }, 200);
+}
+
+function editCustomer(id, name, phone, deposit) {
+  document.getElementById('editId').value = id;
+  document.getElementById('editName').value = name;
+  document.getElementById('editPhone').value = phone;
+  document.getElementById('editDeposit').value = deposit;
+  
+  // Load fridge counts
+  fetch('/api/customers/' + id)
+    .then(res => res.json())
+    .then(data => {
+      document.getElementById('editHorizontalFridge').value = data.horizontal_fridge || 0;
+      document.getElementById('editVerticalFridge').value = data.vertical_fridge || 0;
+    });
+  
+  showModal('editModal');
+}
+
+async function saveCustomerEdit() {
+  const id = document.getElementById('editId').value;
+  const name = document.getElementById('editName').value;
+  const phone = document.getElementById('editPhone').value || null;
+  const deposit = parseFloat(document.getElementById('editDeposit').value) || 0;
+  const horizontal_fridge = parseInt(document.getElementById('editHorizontalFridge').value) || 0;
+  const vertical_fridge = parseInt(document.getElementById('editVerticalFridge').value) || 0;
+  
+  if (!id) {
+    alert('Lỗi: Không tìm thấy ID khách hàng');
+    return;
+  }
+  
+  if (!name || name.trim() === '') {
+    alert('Vui lòng nhập tên khách hàng');
+    return;
+  }
+  
+  try {
+    const res = await fetch('/api/customers/' + id, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, phone, deposit, horizontal_fridge, vertical_fridge })
+    });
+    
+    if (res.ok) {
+      hideModal('editModal');
+      location.reload();
+    } else {
+      const data = await res.json();
+      alert(data.error || 'Cập nhật thất bại');
+    }
+  } catch (e) {
+    alert('Lỗi kết nối: ' + e.message);
+  }
+}
+
+function showPriceModal(id, name) {
+  document.getElementById('priceCustomerName').textContent = name;
+  document.getElementById('priceList').innerHTML = '<div class="text-gray-500 text-center py-4">Đang tải sản phẩm...</div>';
+  
+  // Load products and existing prices in parallel
+  Promise.all([
+    fetch('/api/products').then(res => {
+      if (!res.ok) throw new Error('Failed to load products');
+      return res.json();
+    }),
+    fetch('/api/products/prices?customerId=' + id).then(res => {
+      if (!res.ok) throw new Error('Failed to load prices');
+      return res.json();
+    })
+  ]).then(([products, existingPrices]) => {
+    const productPrices = {};
+    existingPrices.forEach(p => {
+      productPrices[p.product_id] = p.price;
+    });
+    
+    const container = document.getElementById('priceList');
+    if (products.length === 0) {
+      container.innerHTML = '<div class="text-gray-500 text-center py-4">Chưa có sản phẩm nào</div>';
+      return;
+    }
+    
+    let html = '';
+    products.forEach(p => {
+      const price = productPrices[p.id] || '';
+      html += '<div class="flex justify-between items-center py-2 border-b">' +
+        '<div class="font-medium">' + p.name + '</div>' +
+        '<input type="number" data-product="' + p.id + '" value="' + price + '" ' +
+        'class="border p-2 w-28 rounded text-right" placeholder="Giá">' +
+      '</div>';
+    });
+    container.innerHTML = html;
+    window.currentPriceCustomerId = id;
+  }).catch(err => {
+    console.error('Error loading data:', err);
+    document.getElementById('priceList').innerHTML = '<div class="text-red-500 text-center py-4">❌ Lỗi tải dữ liệu: ' + err.message + '</div>';
+  });
+  
+  showModal('priceModal');
+}
+
+async function savePrices() {
+  const customerId = window.currentPriceCustomerId;
+  if (!customerId) return;
+  
+  const inputs = document.querySelectorAll('#priceList input');
+  const prices = [];
+  
+  inputs.forEach(i => {
+    const price = i.value;
+    if (price) {
+      prices.push({
+        product_id: parseInt(i.dataset.product),
+        price: parseFloat(price)
+      });
+    }
+  });
+  
+  const res = await fetch('/api/products/prices/bulk', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ customer_id: customerId, prices: prices })
+  });
+  
+  if (res.ok) {
+    alert('Đã lưu bảng giá!');
+    hideModal('priceModal');
+    location.reload();
+  } else {
+    alert('Lưu thất bại');
+  }
+}
+
+let addProductsLoaded = false;
+function toggleAddPrices() {
+  const priceFields = document.getElementById('addPriceFields');
+  const toggleBtn = document.getElementById('togglePriceBtn');
+  
+  if (priceFields.classList.contains('hidden')) {
+    priceFields.classList.remove('hidden');
+    toggleBtn.textContent = '− Ẩn giá';
+    if (!addProductsLoaded) loadAddProducts();
+  } else {
+    priceFields.classList.add('hidden');
+    toggleBtn.textContent = '+ Thêm giá';
+  }
+}
+
+async function loadAddProducts() {
+  try {
+    const res = await fetch('/api/products');
+    if (!res.ok) throw new Error('Failed to load products');
+    const products = await res.json();
+    
+    const container = document.getElementById('addPriceList');
+    if (products.length === 0) {
+      container.innerHTML = '<div class="text-gray-500 text-sm text-center py-2">Chưa có sản phẩm nào</div>';
+    } else {
+      container.innerHTML = products.map(p => 
+        '<div class="flex items-center justify-between py-2 border-b border-gray-100">' +
+          '<span class="text-sm font-medium text-gray-700">' + p.name + '</span>' +
+          '<input type="number" name="price_' + p.id + '" data-product="' + p.id + '" ' +
+            'class="border border-gray-300 rounded px-2 py-1 w-24 text-right text-sm" ' +
+            'placeholder="Giá">' +
+        '</div>'
+      ).join('');
+      addProductsLoaded = true;
+    }
+  } catch (e) {
+    console.error('Failed to load products:', e);
+  }
+}
+
+document.getElementById('addForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const data = Object.fromEntries(new FormData(e.target));
+  data.deposit = parseFloat(data.deposit) || 0;
+  data.horizontal_fridge = parseInt(data.horizontal_fridge) || 0;
+  data.vertical_fridge = parseInt(data.vertical_fridge) || 0;
+  
+  const prices = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (key.startsWith('price_') && value) {
+      const productId = key.replace('price_', '');
+      prices[productId] = parseFloat(value);
+    }
+  }
+  data.prices = prices;
+  
+  const res = await fetch('/api/customers', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  if (res.ok) location.reload();
+  else alert('Thêm thất bại');
+});
+
+document.getElementById('editForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  saveCustomerEdit();
+});
+
+async function deleteCustomer(id) {
+  if (!confirm('Xóa khách hàng?')) return;
+  const res = await fetch('/api/customers/' + id, { method: 'DELETE' });
+  if (res.ok) location.reload();
+  else alert('Xóa thất bại');
+}
+
+function getLocation(customerId) {
+  document.getElementById('locationCustomerId').value = customerId;
+  document.getElementById('manualLat').value = '';
+  document.getElementById('manualLng').value = '';
+  document.getElementById('gpsStatus').innerHTML = '';
+  document.getElementById('detectedAddress').innerHTML = '';
+  window.detectedAddress = null;
+  showModal('locationModal');
+
+  // Auto-trigger GPS after modal opens
+  setTimeout(() => {
+    if (navigator.geolocation) {
+      getGPSLocation();
+    }
+  }, 500);
+}
+
+function getGPSLocation() {
+  const customerId = document.getElementById('locationCustomerId').value;
+  const statusEl = document.getElementById('gpsStatus');
+  const addressEl = document.getElementById('detectedAddress');
+
+  if (!navigator.geolocation) {
+    statusEl.innerHTML = '<p class="text-red-500">❌ Trình duyệt không hỗ trợ lấy vị trí</p><p class="text-sm text-gray-500">Vui lòng nhập thủ công</p>';
+    return;
+  }
+
+  // Show loading
+  statusEl.innerHTML = `
+    <div class="animate-pulse">
+      <p class="text-blue-500">⏳ Đang lấy vị trí GPS...</p>
+      <p class="text-xs text-gray-400">⏱ Chờ quyền truy cập...</p>
+    </div>
+    <button onclick="getGPSLocation()" class="mt-2 text-sm text-orange-600 hover:text-orange-800 underline">
+      Thử lại
+    </button>
+  `;
+
+  const options = {
+    enableHighAccuracy: true,
+    timeout: 20000,
+    maximumAge: 0
+  };
+
+  navigator.geolocation.getCurrentPosition(
+    async (position) => {
+      const lat = position.coords.latitude;
+      const lng = position.coords.longitude;
+      const accuracy = Math.round(position.coords.accuracy);
+
+      // Display accuracy
+      let accuracyText = '';
+      if (accuracy <= 10) {
+        accuracyText = '<span class="text-green-600">Rất tốt (≤10m)</span>';
+      } else if (accuracy <= 50) {
+        accuracyText = '<span class="text-yellow-600">Tốt (≤50m)</span>';
+      } else if (accuracy <= 100) {
+        accuracyText = '<span class="text-orange-600">Trung bình (≤100m)</span>';
+      } else {
+        accuracyText = '<span class="text-red-600">Kém (>100m)</span>';
+      }
+
+      statusEl.innerHTML = `<p class="text-green-600">✅ Đã lấy được vị trí!</p>
+        <p class="text-sm text-gray-600">Độ chính xác: ${accuracyText}</p>
+        <p class="text-xs text-gray-500">Tọa độ: ${lat.toFixed(6)}, ${lng.toFixed(6)}</p>`;
+
+      // Fill in the coordinates
+      document.getElementById('manualLat').value = lat.toFixed(6);
+      document.getElementById('manualLng').value = lng.toFixed(6);
+
+      // Try reverse geocoding to get address
+      try {
+        addressEl.innerHTML = '<p class="text-blue-500">⏳ Đang lấy địa chỉ...</p>';
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`);
+        const data = await res.json();
+
+        if (data.display_name) {
+          addressEl.innerHTML = `<p class="text-sm text-gray-700">📍 ${data.display_name}</p>
+            <button onclick="useDetectedAddress('${data.display_name.replace(/'/g, "\\'")}')" class="mt-2 text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+              Sử dụng địa chỉ này
+            </button>`;
+          // Store the address for later use
+          window.detectedAddress = data.display_name;
+        }
+      } catch (err) {
+        console.log('Reverse geocoding failed:', err);
+        addressEl.innerHTML = '<p class="text-gray-400">Không thể lấy địa chỉ</p>';
+      }
+    },
+    (error) => {
+      let errorMsg = 'Lỗi không xác định';
+      switch (error.code) {
+        case error.PERMISSION_DENIED:
+          errorMsg = '❌ Bạn đã từ chối cho phép truy cập vị trí';
+          break;
+        case error.POSITION_UNAVAILABLE:
+          errorMsg = '❌ Không thể xác định vị trí';
+          break;
+        case error.TIMEOUT:
+          errorMsg = '❌ Hết thời gian chờ';
+          break;
+      }
+      statusEl.innerHTML = `
+        <p class="text-red-500 font-medium">${errorMsg}</p>
+        <p class="text-sm text-gray-500 mt-1">Vui lòng nhập thủ công hoặc thử lại</p>
+        <button onclick="getGPSLocation()" class="mt-3 px-4 py-2 bg-orange-500 text-white rounded-lg text-sm hover:bg-orange-600">
+          📍 Thử lại
+        </button>
+      `;
+    },
+    options
+  );
+}
+
+function useDetectedAddress(address) {
+  // Store the address to be saved with coordinates
+  window.detectedAddress = address;
+  alert('Địa chỉ đã được chọn! Bấm "Lưu" để lưu tọa độ và địa chỉ.');
+}
+
+async function saveManualLocation() {
+  const customerId = document.getElementById('locationCustomerId').value;
+  const lat = parseFloat(document.getElementById('manualLat').value);
+  const lng = parseFloat(document.getElementById('manualLng').value);
+  const address = window.detectedAddress || null;
+
+  if (isNaN(lat) || isNaN(lng)) {
+    alert('Vui lòng nhập đầy đủ vĩ độ và kinh độ!');
+    return;
+  }
+
+  // Validate coordinate ranges for Vietnam
+  if (lat < 8 || lat > 24 || lng < 102 || lng > 110) {
+    if (!confirm('Tọa độ có vẻ không nằm trong Việt Nam. Bạn có muốn tiếp tục không?')) {
+      return;
+    }
+  }
+
+  try {
+    const res = await fetch('/api/customers/location', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customerId: parseInt(customerId),
+        lat,
+        lng,
+        address
+      })
+    });
+
+    const data = await res.json();
+    if (res.ok) {
+      hideModal('locationModal');
+      window.detectedAddress = null;
+      showToast('Đã cập nhật vị trí!', 'success');
+      location.reload();
+    } else {
+      alert('Cập nhật thất bại: ' + (data.error || 'Lỗi không xác định'));
+    }
+  } catch (err) {
+    alert('Lỗi kết nối: ' + err.message);
+  }
+}
+
+function editKegBalance(id, balance, name) {
+  document.getElementById('kegCustomerId').value = id;
+  document.getElementById('kegCustomerName').textContent = name;
+  document.getElementById('kegBalanceInput').value = balance;
+  document.getElementById('kegNote').value = '';
+  showModal('kegModal');
+}
+
+// Initialize bottom nav active state
+const path = window.location.pathname;
+document.querySelectorAll('.bottom-nav a').forEach(a => {
+  const href = a.getAttribute('href');
+  if (href === path || (path === '/' && href === '/')) {
+    a.classList.add('bg-blue-50', 'text-blue-600');
+  }
+});

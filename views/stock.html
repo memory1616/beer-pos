@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kho hàng</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#16a34a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="stylesheet" href="/css/tailwind.css">
+  <link rel="stylesheet" href="/css/unified.css">
+  <script src="/js/auth.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>requireAuth();</script>
+  <style>
+    .animate-fade { animation: fade 0.3s ease-in; }
+    @keyframes fade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .bottom-nav { max-width: 500px; margin: auto; left: 0; right: 0; }
+    button, a { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+    button:active { transform: scale(0.96); }
+    .card { transition: transform 0.2s, box-shadow 0.2s; }
+    .card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+  </style>
+</head>
+<body class="bg-gray-100 text-gray-800 min-h-screen pb-20">
+  <div id="app"></div>
+
+  <!-- Floating Add Button -->
+  <button onclick="openProductModal()" class="fixed bottom-24 right-4 w-14 h-14 bg-green-600 text-white rounded-full shadow-xl flex items-center justify-center text-2xl font-bold transition-all duration-200 hover:scale-105 z-40">
+    +
+  </button>
+
+  <!-- Product Modal -->
+  <div id="productModal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-sm animate-fade">
+      <div class="p-4 border-b flex justify-between items-center">
+        <h3 id="modalTitle" class="font-bold text-lg">Thêm sản phẩm</h3>
+        <button onclick="closeProductModal()" class="text-2xl text-gray-400 hover:text-gray-600">&times;</button>
+      </div>
+      <form id="productForm" class="p-4 space-y-3">
+        <input type="hidden" id="productId">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Tên sản phẩm</label>
+          <input type="text" id="productName" required class="w-full border rounded-lg px-3 py-2" placeholder="Nhập tên sản phẩm">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Loại bao bì</label>
+          <select id="productType" class="w-full border rounded-lg px-3 py-2">
+            <option value="keg">📦 Bình (Keg)</option>
+            <option value="pet">🧴 Chai Nhựa (Pet)</option>
+            <option value="can">🥫 Lon (Can)</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Giá vốn (VNĐ)</label>
+          <input type="number" id="productCostPrice" step="1000" class="w-full border rounded-lg px-3 py-2" placeholder="0">
+        </div>
+        <div id="stockField">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Số lượng tồn</label>
+          <input type="number" id="productStock" class="w-full border rounded-lg px-3 py-2" placeholder="0">
+        </div>
+        <div class="flex gap-2 pt-2">
+          <button type="button" onclick="closeProductModal()" class="flex-1 py-2 border rounded-lg text-gray-600">Huỷ</button>
+          <button type="submit" class="flex-1 py-2 bg-blue-600 text-white rounded-lg font-medium">Lưu</button>
+        </div>
+        <button type="button" id="deleteProductBtn" onclick="deleteProduct()" class="w-full py-2 text-red-600 border border-red-200 rounded-lg mt-2 hidden">🗑️ Xoá sản phẩm</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Purchase Edit Modal -->
+  <div id="purchaseModal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-sm animate-fade max-h-[80vh] flex flex-col">
+      <div class="p-4 border-b flex justify-between items-center">
+        <h3 class="font-bold text-lg">Sửa đơn nhập</h3>
+        <button onclick="closePurchaseModal()" class="text-2xl text-gray-400 hover:text-gray-600">&times;</button>
+      </div>
+      <form id="editPurchaseForm" class="p-4 space-y-3 overflow-y-auto flex-1">
+        <input type="hidden" id="editPurchaseId">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
+          <input type="text" id="editPurchaseNote" class="w-full border rounded-lg px-3 py-2" placeholder="Ghi chú...">
+        </div>
+        <div id="editPurchaseItems" class="space-y-2 max-h-48 overflow-y-auto">
+          <!-- Items loaded via JS -->
+        </div>
+        <div class="flex gap-2 pt-2">
+          <button type="button" onclick="closePurchaseModal()" class="flex-1 py-2 border rounded-lg text-gray-600">Huỷ</button>
+          <button type="submit" class="flex-1 py-2 bg-blue-600 text-white rounded-lg font-medium">Lưu</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // Initialize layout
+    document.getElementById('app').innerHTML = 
+      getHeader('Kho hàng', '📦') +
+      getContent(`
+        <!-- Loading -->
+        <div id="loading" class="text-center py-8">
+          <div class="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto"></div>
+          <div class="text-gray-500 mt-2">Đang tải...</div>
+        </div>
+
+        <div id="contentSection" class="hidden">
+          <!-- STOCK SUMMARY -->
+          <div class="section-title">Tổng tồn kho</div>
+          <div class="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl shadow p-4 text-white mb-4">
+            <div class="text-4xl font-bold" id="totalStock">0</div>
+            <div class="text-sm opacity-90">bình các loại</div>
+          </div>
+
+          <!-- PRODUCT GRID -->
+          <div class="mb-4">
+            <div class="section-title">Danh sách sản phẩm</div>
+            <div class="grid grid-cols-2 gap-3" id="productList">
+              <!-- Products loaded via JS -->
+            </div>
+          </div>
+
+          <!-- IMPORT FORM -->
+          <div class="card mb-4">
+            <h3 class="font-bold text-base mb-3">📥 Nhập hàng</h3>
+            <div id="importProducts" class="space-y-2 max-h-80 overflow-y-auto mb-3">
+              <!-- Products loaded via JS -->
+            </div>
+            <div class="border-t pt-3 mt-3">
+              <div class="flex justify-between items-center mb-3">
+                <span class="font-medium">Tổng cộng:</span>
+                <span id="importTotal" class="text-xl font-bold text-blue-600">0 VNĐ</span>
+              </div>
+              <button type="button" onclick="submitImport()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-xl">
+                ✅ Nhập kho
+              </button>
+            </div>
+          </div>
+
+          <!-- Purchase History -->
+          <div id="purchaseHistorySection" class="card mb-4">
+            <h3 class="font-bold text-base mb-3">📋 Lịch sử nhập hàng</h3>
+            <div id="purchaseHistoryList">
+              <!-- Loaded via JS -->
+            </div>
+          </div>
+        </div>
+      `) +
+      getBottomNav('/stock');
+  </script>
+
+  <!-- Load Stock JS -->
+  <script src="/js/stock.js"></script>
+  
+  <script>
+    async function loadData() {
+      try {
+        const res = await fetch('/stock/data');
+        const data = await res.json();
+        
+        // Initialize stock page
+        initStockPage(data);
+        
+        // Hide loading, show content
+        document.getElementById('loading').classList.add('hidden');
+        document.getElementById('contentSection').classList.remove('hidden');
+        
+      } catch (err) {
+        console.error('Failed to load data:', err);
+        document.getElementById('loading').innerHTML = '<div class="text-red-500">Lỗi tải dữ liệu</div>';
+      }
+    }
+    
+    loadData();
+  </script>
+  
+  <script>
+  // Check authentication
+  if (!isLoggedIn()) { window.location.href = '/login'; }
+  
+  if ('serviceWorker' in navigator) {
+    if (!navigator.serviceWorker.controller) {
+      navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW registration failed:', err));
+    }
+  }
+  </script>
+</body>
+</html>

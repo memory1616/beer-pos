@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Khách hàng</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#16a34a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="stylesheet" href="/css/tailwind.css">
+  <link rel="stylesheet" href="/css/unified.css">
+  <script src="/js/auth.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>requireAuth();</script>
+  <style>
+    .animate-fade { animation: fade 0.3s ease-in; }
+    @keyframes fade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .bottom-nav { max-width: 500px; margin: auto; left: 0; right: 0; }
+    canvas { width: 100% !important; height: auto !important; }
+    .skeleton { background: linear-gradient(90deg, #e0e0e0 25%, #f0f0f0 50%, #e0e0e0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
+    @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+    button, a { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+    button:active { transform: scale(0.96); }
+    .card { transition: transform 0.2s, box-shadow 0.2s; }
+    .card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+  </style>
+</head>
+<body class="bg-gray-100 text-gray-800 min-h-screen pb-20">
+  <div id="app"></div>
+
+  <!-- Floating Add Button -->
+  <button onclick="showModal('addModal')" class="fixed bottom-24 right-4 w-14 h-14 bg-blue-600 text-white rounded-full shadow-xl flex items-center justify-center text-2xl font-bold transition-all duration-200 hover:scale-105 z-40">
+    +
+  </button>
+
+  <!-- Add Modal -->
+  <div id="addModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-lg p-6 max-w-md w-full max-h-[85vh] overflow-y-auto">
+      <h2 class="text-xl font-semibold mb-4">Thêm khách hàng</h2>
+      <form id="addForm" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Tên khách hàng</label>
+          <input type="text" name="name" required class="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-green-500" placeholder="Nhập tên khách">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Điện thoại</label>
+          <input type="text" name="phone" class="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-green-500" placeholder="Số điện thoại">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Đặt cọc (VNĐ)</label>
+          <input type="number" name="deposit" value="0" class="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-green-500">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Tủ lạnh nằm (❄️)</label>
+          <input type="number" name="horizontal_fridge" id="addHorizontalFridge" value="0" min="0" class="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-green-500">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Tủ mát đứng (🥶)</label>
+          <input type="number" name="vertical_fridge" id="addVerticalFridge" value="0" min="0" class="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-green-500">
+        </div>
+        <div class="border-t pt-4 mt-4">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="font-semibold text-gray-800">💰 Bảng giá riêng</h3>
+            <button type="button" onclick="toggleAddPrices()" id="togglePriceBtn" class="text-sm text-blue-600 font-medium">+ Thêm giá</button>
+          </div>
+          <div id="addPriceFields" class="space-y-2 hidden">
+            <div id="addPriceList" class="space-y-2 max-h-40 overflow-y-auto">
+              <div class="text-gray-500 text-sm text-center py-2">Đang tải sản phẩm...</div>
+            </div>
+          </div>
+        </div>
+        <div class="flex gap-2">
+          <button type="button" onclick="hideModal('addModal')" class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-3 rounded-lg">Hủy</button>
+          <button type="submit" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-lg">Thêm</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Edit Modal -->
+  <div id="editModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-lg p-6 max-w-md w-full">
+      <h2 class="text-xl font-semibold mb-4">Sửa khách hàng</h2>
+      <form id="editForm" class="space-y-4">
+        <input type="hidden" name="id" id="editId">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Tên</label>
+          <input type="text" name="name" id="editName" required class="w-full border border-gray-300 rounded-lg px-4 py-4 text-lg focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Điện thoại</label>
+          <input type="text" name="phone" id="editPhone" class="w-full border border-gray-300 rounded-lg px-4 py-4 text-lg focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Đặt cọc (VNĐ)</label>
+          <input type="number" name="deposit" id="editDeposit" class="w-full border border-gray-300 rounded-lg px-4 py-4 text-lg focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Tủ lạnh nằm (❄️)</label>
+          <input type="number" name="horizontal_fridge" id="editHorizontalFridge" value="0" min="0" class="w-full border border-gray-300 rounded-lg px-4 py-4 text-lg focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Tủ mát đứng (🥶)</label>
+          <input type="number" name="vertical_fridge" id="editVerticalFridge" value="0" min="0" class="w-full border border-gray-300 rounded-lg px-4 py-4 text-lg focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div class="flex gap-2">
+          <button type="button" onclick="hideModal('editModal')" class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-3 rounded-lg">Hủy</button>
+          <button type="button" onclick="saveCustomerEdit()" class="flex-1 bg-blue-600 transition-all duration-200 hover:scale-105 text-white font-semibold py-3 rounded-lg">Lưu</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Price Modal -->
+  <div id="priceModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-lg p-6 max-w-md w-full max-h-[80vh] overflow-y-auto">
+      <h2 class="text-xl font-semibold mb-4">Đặt giá cho <span id="priceCustomerName"></span></h2>
+      <div id="priceList" class="space-y-3 mb-4">
+        <div class="text-gray-500 text-center py-4">Đang tải sản phẩm...</div>
+      </div>
+      <div class="flex gap-2">
+        <button type="button" onclick="hideModal('priceModal')" class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-3 rounded-lg">Hủy</button>
+        <button type="button" onclick="savePrices()" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-lg">Lưu bảng giá</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Keg Balance Edit Modal -->
+  <div id="kegModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-lg p-6 max-w-sm w-full">
+      <h2 class="text-xl font-semibold mb-4">✏️ Sửa số bình</h2>
+      <p class="text-gray-600 mb-4">Khách: <span id="kegCustomerName" class="font-bold"></span></p>
+      <input type="hidden" id="kegCustomerId">
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-gray-700 mb-1">Số bình đang giữ</label>
+        <input type="number" id="kegBalanceInput" min="0" class="w-full border-2 border-gray-200 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-blue-500">
+      </div>
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-gray-700 mb-1">Ghi chú (tùy chọn)</label>
+        <input type="text" id="kegNote" placeholder="Lý do thay đổi..." class="w-full border-2 border-gray-200 rounded-lg px-4 py-3">
+      </div>
+      <div class="flex gap-2">
+        <button type="button" onclick="hideModal('kegModal')" class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-3 rounded-lg">Hủy</button>
+        <button type="button" onclick="saveKegBalance()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg">Lưu</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Location Modal -->
+  <div id="locationModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-lg p-6 max-w-sm w-full">
+      <h2 class="text-xl font-semibold mb-4">📍 Cập nhật vị trí</h2>
+      <input type="hidden" id="locationCustomerId">
+      <button onclick="getGPSLocation()" class="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-4 rounded-lg flex items-center justify-center gap-2">
+        📍 Lấy vị trí GPS
+      </button>
+      <div id="gpsStatus" class="mt-3 text-center text-sm"></div>
+      <div id="detectedAddress" class="mt-2 text-center text-sm"></div>
+      <div class="my-4 text-center text-gray-500">- hoặc -</div>
+      <div class="space-y-3">
+        <input type="text" id="manualLat" placeholder="Vĩ độ (lat)" class="w-full border rounded-lg px-3 py-2">
+        <input type="text" id="manualLng" placeholder="Kinh độ (lng)" class="w-full border rounded-lg px-3 py-2">
+        <button onclick="saveManualLocation()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg">
+          Lưu tọa độ
+        </button>
+      </div>
+      <button type="button" onclick="hideModal('locationModal')" class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-3 rounded-lg w-full mt-3">Hủy</button>
+    </div>
+  </div>
+
+  <script>
+    // Initialize layout
+    document.getElementById('app').innerHTML = 
+      getHeader('Khách hàng', '👤') +
+      getContent(`
+        <!-- Loading -->
+        <div id="loading" class="text-center py-8">
+          <div class="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto"></div>
+          <div class="text-gray-500 mt-2">Đang tải...</div>
+        </div>
+
+        <div id="contentSection" class="hidden">
+          <!-- Search -->
+          <div class="mb-4">
+            <input type="text" id="searchInput" placeholder="🔍 Tìm khách hàng..." class="w-full border border-gray-300 rounded-xl px-4 py-4 text-lg bg-white shadow-sm" onkeyup="filterCustomers()">
+          </div>
+
+          <!-- Customers List - CRM Cards -->
+          <div id="customersList" class="space-y-3">
+            <!-- Loaded via JS -->
+          </div>
+        </div>
+      `) +
+      getBottomNav('/customers');
+  </script>
+
+  <!-- Load Customers JS -->
+  <script src="/js/customers.js"></script>
+  
+  <script>
+    async function loadData() {
+      try {
+        const res = await fetch('/customers/data');
+        const data = await res.json();
+        
+        // Initialize customers page
+        initCustomersPage(data);
+        
+        // Hide loading, show content
+        document.getElementById('loading').classList.add('hidden');
+        document.getElementById('contentSection').classList.remove('hidden');
+        
+      } catch (err) {
+        console.error('Failed to load data:', err);
+        document.getElementById('loading').innerHTML = '<div class="text-red-500">Lỗi tải dữ liệu</div>';
+      }
+    }
+    
+    loadData();
+  </script>
+  
+  <script>
+  // Check authentication
+  if (!isLoggedIn()) { window.location.href = '/login'; }
+  
+  if ('serviceWorker' in navigator) {
+    if (!navigator.serviceWorker.controller) {
+      navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW registration failed:', err));
+    }
+  }
+  </script>
+  <script src="/sync.js"></script>
+</body>
+</html>

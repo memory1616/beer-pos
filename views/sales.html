@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bán hàng</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#16a34a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="stylesheet" href="/css/tailwind.css">
+  <link rel="stylesheet" href="/css/unified.css">
+  <script src="/js/auth.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>requireAuth();</script>
+  <style>
+    .animate-fade { animation: fade 0.3s ease-in; }
+    @keyframes fade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .bottom-nav { max-width: 500px; margin: auto; left: 0; right: 0; }
+    canvas { width: 100% !important; height: auto !important; }
+    .skeleton { background: linear-gradient(90deg, #e0e0e0 25%, #f0f0f0 50%, #e0e0e0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
+    @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+    button, a { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+    .card { transition: transform 0.2s, box-shadow 0.2s; }
+    .card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    button:active { transform: scale(0.96); }
+  </style>
+</head>
+<body class="bg-gray-100 text-gray-800 min-h-screen pb-20">
+  <div id="app"></div>
+
+  <!-- Invoice Modal -->
+  <div id="invoiceModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-2xl w-full max-w-md p-6 relative">
+      <button onclick="closeInvoice()" class="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-2xl font-bold w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100">&times;</button>
+      <div class="text-center mb-4">
+        <div class="text-xl font-bold">HÓA ĐƠN</div>
+        <div class="text-5xl font-bold text-green-600 mt-2" id="invoiceTotal">0 ₫</div>
+      </div>
+      <div id="invoiceContent" class="text-sm"></div>
+      <div class="mt-4 text-center">
+        <div class="text-sm font-medium text-gray-600 mb-2">💳 Phương thức thanh toán: Chuyển khoản QR</div>
+        <img id="qrCode" src="" class="w-48 mx-auto" alt="QR Code">
+        <p class="text-xs text-gray-500 mt-2">Quét QR thanh toán</p>
+      </div>
+      <button onclick="closeInvoice()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-xl mt-4">Đóng</button>
+    </div>
+  </div>
+
+  <!-- Keg Modal -->
+  <div id="kegModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-2xl w-full max-w-md p-6 relative">
+      <button onclick="closeKegModal()" class="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-2xl font-bold w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100">&times;</button>
+      <div class="text-center mb-4">
+        <div class="text-xl font-bold">📦 Cập nhật vỏ bình</div>
+      </div>
+      
+      <div class="bg-gray-50 rounded-xl p-4 mb-4">
+        <div class="text-center">
+          <div class="text-sm text-gray-500">Bia đã bán</div>
+          <div class="text-2xl font-bold" id="kegBeerQuantity">0</div>
+        </div>
+      </div>
+      
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium mb-2">📦 Giao vỏ</label>
+          <div class="flex gap-2 items-center">
+            <button onclick="addKegDeliver(10)" class="w-14 py-3 bg-green-100 text-green-700 rounded-lg font-bold">+10</button>
+            <button onclick="addKegDeliver(20)" class="w-14 py-3 bg-green-100 text-green-700 rounded-lg font-bold">+20</button>
+            <input type="number" id="kegDeliver" value="0" class="flex-1 min-w-0 border-2 border-gray-200 rounded-lg px-3 py-3 text-center text-lg font-bold" inputmode="numeric">
+          </div>
+        </div>
+        
+        <div>
+          <label class="block text-sm font-medium mb-2">🔄 Thu vỏ</label>
+          <div class="flex gap-2 items-center">
+            <button onclick="addKegReturn(10)" class="w-14 py-3 bg-orange-100 text-orange-700 rounded-lg font-bold">+10</button>
+            <button onclick="addKegReturn(20)" class="w-14 py-3 bg-orange-100 text-orange-700 rounded-lg font-bold">+20</button>
+            <button onclick="returnAllKegs()" class="px-2 py-3 bg-red-100 text-red-700 rounded-lg font-bold text-xs">Hết</button>
+            <input type="number" id="kegReturn" value="0" class="flex-1 min-w-0 border-2 border-gray-200 rounded-lg px-3 py-3 text-center text-lg font-bold" inputmode="numeric">
+          </div>
+        </div>
+        
+        <div class="bg-blue-50 rounded-xl p-4">
+          <div class="flex justify-between mb-2">
+            <span class="text-gray-600">Vỏ hiện tại:</span>
+            <span class="font-bold" id="kegCurrentBalance">0</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-gray-600">Sau khi giao/thu:</span>
+            <span class="font-bold text-green-600" id="kegNewBalance">0</span>
+          </div>
+        </div>
+        
+        <div id="kegModalWarning" class="hidden bg-red-50 text-red-600 rounded-xl p-3 text-center text-sm">
+          ⚠️ Số vỏ thu lớn hơn số vỏ khách đang giữ
+        </div>
+      </div>
+      
+      <button onclick="saveKegUpdate()" id="kegSaveBtn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-xl text-lg">
+        💾 Lưu
+      </button>
+    </div>
+  </div>
+
+  <!-- Replacement Modal -->
+  <div id="replacementModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-2xl w-full max-w-md p-6 relative">
+      <button onclick="closeReplacementModal()" class="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-2xl font-bold w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100">&times;</button>
+      <div class="text-center mb-4">
+        <div class="text-xl font-bold">🔁 Đổi bia lỗi</div>
+      </div>
+      
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium mb-2">👤 Khách hàng</label>
+          <select id="replacementCustomer" class="w-full border-2 border-gray-200 rounded-lg px-3 py-3" onchange="loadReplacementProducts()">
+            <option value="">-- Chọn khách hàng --</option>
+          </select>
+        </div>
+        
+        <div>
+          <label class="block text-sm font-medium mb-2">🍺 Sản phẩm</label>
+          <select id="replacementProduct" class="w-full border-2 border-gray-200 rounded-lg px-3 py-3">
+            <option value="">-- Chọn sản phẩm --</option>
+          </select>
+        </div>
+        
+        <div>
+          <label class="block text-sm font-medium mb-2">📝 Số lượng</label>
+          <input type="number" id="replacementQty" value="1" min="1" class="w-full border-2 border-gray-200 rounded-lg px-3 py-3 text-center text-lg font-bold">
+        </div>
+        
+        <div>
+          <label class="block text-sm font-medium mb-2">💬 Lý do</label>
+          <select id="replacementReason" class="w-full border-2 border-gray-200 rounded-lg px-3 py-3">
+            <option value="Bia hư">Bia hư</option>
+            <option value="Bia chua">Bia chua</option>
+            <option value="Bia hết hạn">Bia hết hạn</option>
+            <option value="Khác">Khác</option>
+          </select>
+        </div>
+        
+        <div class="bg-orange-50 rounded-xl p-3 text-center text-sm text-orange-700">
+          ⚠️ Hàng sẽ được trừ khỏi kho, không tính tiền
+        </div>
+      </div>
+      
+      <button onclick="submitReplacement()" class="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-4 rounded-xl text-lg mt-4">
+        ✅ Xác nhận đổi
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // Initialize layout
+    document.getElementById('app').innerHTML = 
+      getHeader('Bán hàng', '🍺') +
+      getContent(`
+        <!-- Loading -->
+        <div id="loading" class="text-center py-8">
+          <div class="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto"></div>
+          <div class="text-gray-500 mt-2">Đang tải...</div>
+        </div>
+
+        <div id="contentSection" class="hidden">
+          <!-- Chọn khách hàng (optional) -->
+          <div class="card mb-4">
+            <label class="block text-sm font-bold text-gray-700 mb-2">👤 Chọn khách hàng (không bắt buộc)</label>
+            <select id="customerSelect" onchange="updatePrices()" class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-lg bg-white focus:ring-2 focus:ring-green-500 focus:border-green-500">
+              <option value="">📋 Khách lẻ (giá thường)</option>
+            </select>
+          </div>
+
+          <!-- Sản phẩm - Dạng danh sách như nhập hàng -->
+          <div class="card mb-4">
+            <h3 class="font-bold text-base mb-3">🍺 Sản phẩm</h3>
+            <div id="saleProducts" class="space-y-2 max-h-80 overflow-y-auto mb-3">
+              <!-- Products loaded via JS -->
+            </div>
+            <div class="border-t pt-3 mt-3">
+              <div class="flex justify-between items-center mb-3">
+                <span class="font-medium">Tổng cộng:</span>
+                <span id="totalAmount" class="text-xl font-bold text-green-600">0 VNĐ</span>
+              </div>
+              <button onclick="submitSale()" id="sellBtn" class="w-full bg-green-600 text-white font-bold py-4 rounded-xl text-lg disabled:opacity-50" disabled>
+                ✅ Bán hàng
+              </button>
+              <button onclick="openReplacementModal()" class="w-full mt-2 bg-orange-100 text-orange-700 font-bold py-3 rounded-xl">
+                🔁 Đổi bia lỗi
+              </button>
+              <button onclick="updateSale()" id="updateBtn" class="w-full bg-orange-600 text-white font-bold py-4 rounded-xl text-lg hidden">
+                💾 Cập nhật
+              </button>
+              <button onclick="cancelEdit()" id="cancelEditBtn" class="w-full mt-2 bg-gray-500 text-white font-bold py-3 rounded-xl hidden">
+                Huỷ
+              </button>
+            </div>
+          </div>
+
+          <!-- Sales History -->
+          <div class="card mb-4">
+            <h3 class="font-bold text-base mb-3">📋 Lịch sử bán hàng</h3>
+            <div id="salesHistoryList">
+              <!-- Loaded via JS -->
+            </div>
+          </div>
+        </div>
+      `) +
+      getBottomNav('/sales');
+  </script>
+
+  <!-- Load Sales JS -->
+  <script src="/js/sales.js"></script>
+  
+  <script>
+    async function loadData() {
+      try {
+        const res = await fetch('/sale/data');
+        const data = await res.json();
+        
+        // Initialize sales page with data
+        initSalesPage(data);
+        
+        // Hide loading, show content
+        document.getElementById('loading').classList.add('hidden');
+        document.getElementById('contentSection').classList.remove('hidden');
+        
+      } catch (err) {
+        console.error('Failed to load data:', err);
+        document.getElementById('loading').innerHTML = '<div class="text-red-500">Lỗi tải dữ liệu</div>';
+      }
+    }
+    
+    loadData();
+  </script>
+  
+  <script>
+  // Check authentication
+  if (!isLoggedIn()) { window.location.href = '/login'; }
+  
+  if ('serviceWorker' in navigator) {
+    if (!navigator.serviceWorker.controller) {
+      navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW registration failed:', err));
+    }
+  }
+  </script>
+</body>
+</html>

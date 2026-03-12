@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Đăng nhập - Beer POS</title>
+  <link rel="stylesheet" href="/css/tailwind.css">
+  <style>
+    body {
+      background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+      min-height: 100vh;
+    }
+    .glass {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+    }
+  </style>
+</head>
+<body class="flex items-center justify-center p-4">
+  <div class="glass rounded-2xl shadow-2xl p-8 w-full max-w-md">
+    <!-- Logo -->
+    <div class="text-center mb-8">
+      <div class="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4">🍺</div>
+      <h1 class="text-2xl font-bold text-gray-800">Beer POS Pro</h1>
+      <p class="text-gray-500">Vui lòng đăng nhập để tiếp tục</p>
+    </div>
+
+    <!-- Error Message -->
+    <div id="error" class="hidden bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4 text-center"></div>
+
+    <!-- Login Form -->
+    <form id="loginForm" onsubmit="handleLogin(event)">
+      <div class="mb-4">
+        <label class="block text-gray-700 font-medium mb-2">Tên đăng nhập</label>
+        <input 
+          type="text" 
+          id="username" 
+          name="username"
+          class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+          placeholder="admin"
+          required
+          autocomplete="username"
+        >
+      </div>
+
+      <div class="mb-6">
+        <label class="block text-gray-700 font-medium mb-2">Mật khẩu</label>
+        <input 
+          type="password" 
+          id="password" 
+          name="password"
+          class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+          placeholder="••••••••"
+          required
+          autocomplete="current-password"
+        >
+      </div>
+
+      <button 
+        type="submit" 
+        id="submitBtn"
+        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
+      >
+        <span>Đăng nhập</span>
+      </button>
+    </form>
+
+    <!-- Demo Info -->
+    <div class="mt-6 text-center text-sm text-gray-500">
+      <p>Demo: admin / beer123</p>
+    </div>
+  </div>
+
+  <script>
+    // Check if already logged in
+    const token = localStorage.getItem('sessionToken');
+    if (token) {
+      // Try to validate token by calling API
+      fetch('/api/ping', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      }).then(() => {
+        window.location.href = '/';
+      }).catch(() => {
+        localStorage.removeItem('sessionToken');
+      });
+    }
+
+    async function handleLogin(e) {
+      e.preventDefault();
+      
+      const btn = document.getElementById('submitBtn');
+      const errorDiv = document.getElementById('error');
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+      
+      btn.disabled = true;
+      btn.innerHTML = '<span class="animate-spin">⏳</span> Đang đăng nhập...';
+      errorDiv.classList.add('hidden');
+      
+      try {
+        const res = await fetch('/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        
+        const data = await res.json();
+        
+        if (data.success) {
+          // Store token
+          localStorage.setItem('sessionToken', data.token);
+          window.location.href = data.redirect || '/';
+        } else {
+          errorDiv.textContent = data.error || 'Đăng nhập thất bại';
+          errorDiv.classList.remove('hidden');
+        }
+      } catch (err) {
+        errorDiv.textContent = 'Lỗi kết nối: ' + err.message;
+        errorDiv.classList.remove('hidden');
+      }
+      
+      btn.disabled = false;
+      btn.innerHTML = '<span>Đăng nhập</span>';
+    }
+
+    // Handle Enter key
+    document.getElementById('password').addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        handleLogin(e);
+      }
+    });
+  </script>
+</body>
+</html>

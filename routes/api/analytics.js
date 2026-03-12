@@ -1,0 +1,224 @@
+const express = require('express');
+const router = express.Router();
+const db = require('../../database');
+
+function formatVND(amount) {
+  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+}
+
+// GET /api/analytics/profit-by-product - Lợi nhuận theo sản phẩm
+router.get('/profit-by-product', (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    
+    let query = `
+      SELECT 
+        p.id,
+        p.name,
+        p.type,
+        SUM(si.quantity) as total_qty,
+        SUM(si.quantity * si.price) as revenue,
+        SUM(si.quantity * si.cost_price) as cost,
+        SUM(si.profit) as profit
+      FROM sale_items si
+      JOIN products p ON p.id = si.product_id
+      JOIN sales s ON s.id = si.sale_id
+    `;
+    
+    const params = [];
+    if (startDate && endDate) {
+      query += ` WHERE s.date >= ? AND s.date <= ?`;
+      params.push(startDate + ' 00:00:00', endDate + ' 23:59:59');
+    }
+    
+    query += ` GROUP BY p.id ORDER BY profit DESC`;
+    
+    const results = db.prepare(query).all(...params);
+    
+    const totalRevenue = results.reduce((sum, r) => sum + r.revenue, 0);
+    const totalCost = results.reduce((sum, r) => sum + r.cost, 0);
+    const totalProfit = results.reduce((sum, r) => sum + r.profit, 0);
+    
+    res.json({ 
+      products: results,
+      summary: { totalRevenue, totalCost, totalProfit }
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error getting profit by product' });
+  }
+});
+
+// GET /api/analytics/profit-by-customer - Lợi nhuận theo khách hàng
+router.get('/profit-by-customer', (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    
+    let query = `
+      SELECT 
+        c.id,
+        c.name,
+        COUNT(s.id) as total_orders,
+        SUM(s.total) as revenue,
+        SUM(s.total - (SELECT SUM(si.quantity * si.cost_price) FROM sale_items si WHERE si.sale_id = s.id)) as profit
+      FROM sales s
+      JOIN customers c ON c.id = s.customer_id
+    `;
+    
+    const params = [];
+    if (startDate && endDate) {
+      query += ` WHERE s.date >= ? AND s.date <= ?`;
+      params.push(startDate + ' 00:00:00', endDate + ' 23:59:59');
+    }
+    
+    query += ` GROUP BY c.id ORDER BY profit DESC`;
+    
+    const results = db.prepare(query).all(...params);
+    
+    const totalRevenue = results.reduce((sum, r) => sum + r.revenue, 0);
+    const totalProfit = results.reduce((sum, r) => sum + r.profit, 0);
+    
+    res.json({ 
+      customers: results,
+      summary: { totalRevenue, totalProfit }
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error getting profit by customer' });
+  }
+});
+
+// GET /api/analytics/daily-cashflow - Báo cáo dòng tiền hàng ngày
+router.get('/daily-cashflow', (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    
+    const today = new Date().toISOString().split('T')[0];
+    const start = startDate || today;
+    const end = endDate || today;
+    
+    // Doanh thu bán hàng theo ngày
+    const salesByDay = db.prepare(`
+      SELECT 
+        date(date) as day,
+        SUM(total) as revenue,
+        SUM(profit) as profit,
+        COUNT(*) as orders
+      FROM sales
+      WHERE date >= ? AND date <= ?
+      GROUP BY date(date)
+      ORDER BY day DESC
+    `).all(start + ' 00:00:00', end + ' 23:59:59');
+    
+    // Chi phí mua hàng theo ngày (nếu có bảng purchases)
+    let purchasesByDay = [];
+    try {
+      purchasesByDay = db.prepare(`
+        SELECT 
+          date(date) as day,
+          SUM(total) as expense
+        FROM purchases
+        WHERE date >= ? AND date <= ?
+        GROUP BY date(date)
+      `).all(start + ' 00:00:00', end + ' 23:59:59') || [];
+    } catch (e) {
+      purchasesByDay = [];
+    }
+    
+    // Merge sales and purchases
+    const allDays = new Set([...salesByDay.map(s => s.day), ...purchasesByDay.map(p => p.day)]);
+    const cashflow = [];
+    
+    allDays.forEach(day => {
+      const sale = salesByDay.find(s => s.day === day) || { revenue: 0, profit: 0, orders: 0 };
+      const purchase = purchasesByDay.find(p => p.day === day) || { expense: 0 };
+      cashflow.push({
+        day,
+        revenue: sale.revenue,
+        profit: sale.profit,
+        expense: purchase.expense,
+        netCash: sale.revenue - purchase.expense,
+        orders: sale.orders
+      });
+    });
+    
+    cashflow.sort((a, b) => b.day.localeCompare(a.day));
+    
+    const totalRevenue = cashflow.reduce((sum, r) => sum + r.revenue, 0);
+    const totalExpense = cashflow.reduce((sum, r) => sum + r.expense, 0);
+    const totalProfit = cashflow.reduce((sum, r) => sum + r.profit, 0);
+    const netCash = totalRevenue - totalExpense;
+    
+    res.json({ 
+      daily: cashflow,
+      summary: { totalRevenue, totalExpense, totalProfit, netCash }
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error getting cashflow' });
+  }
+});
+
+// GET /api/analytics/customer-history/:customerId - Lịch sử mua hàng của khách
+router.get('/customer-history/:customerId', (req, res) => {
+  try {
+    const { customerId } = req.params;
+    const { limit = 20 } = req.query;
+    
+    // Thông tin khách hàng
+    const customer = db.prepare(`
+      SELECT id, name, phone, address, lat, lng
+      FROM customers WHERE id = ?
+    `).get(customerId);
+    
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+    
+    // Lịch sử đơn hàng
+    const orders = db.prepare(`
+      SELECT 
+        s.id,
+        s.date,
+        s.total,
+        s.profit,
+        s.type,
+        s.note,
+        COUNT(si.id) as items_count
+      FROM sales s
+      LEFT JOIN sale_items si ON si.sale_id = s.id
+      WHERE s.customer_id = ?
+      GROUP BY s.id
+      ORDER BY s.date DESC
+      LIMIT ?
+    `).all(customerId, parseInt(limit));
+    
+    // Chi tiết từng đơn
+    const orderDetails = orders.map(order => {
+      const items = db.prepare(`
+        SELECT si.product_id, p.name, si.quantity, si.price, si.cost_price, si.profit
+        FROM sale_items si
+        JOIN products p ON p.id = si.product_id
+        WHERE si.sale_id = ?
+      `).all(order.id);
+      
+      return { ...order, items };
+    });
+    
+    // Tổng kết
+    const summary = db.prepare(`
+      SELECT 
+        COUNT(*) as total_orders,
+        SUM(total) as total_revenue,
+        SUM(profit) as total_profit
+      FROM sales WHERE customer_id = ?
+    `).get(customerId);
+    
+    res.json({ customer, orders: orderDetails, summary });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error getting customer history' });
+  }
+});
+
+module.exports = router;
