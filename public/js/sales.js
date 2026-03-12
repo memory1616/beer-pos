@@ -88,16 +88,16 @@ function renderSaleProducts() {
           </div>
         </div>
         <div class="flex gap-2">
-          <button type="button" onclick="adjustQty(${p.id}, -10)" class="flex-1 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 font-bold text-sm">-10</button>
-          <button type="button" onclick="adjustQty(${p.id}, -1)" class="flex-1 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 font-bold">-1</button>
+          <button type="button" onclick="adjustQty(${p.id}, -10)" class="flex-1 py-3 bg-gray-200 rounded-xl hover:bg-gray-300 font-bold text-sm">-10</button>
+          <button type="button" onclick="adjustQty(${p.id}, -1)" class="flex-1 py-3 bg-gray-200 rounded-xl hover:bg-gray-300 font-bold text-lg">-1</button>
           <input type="number" id="qty-${p.id}" min="0" max="${p.stock}" placeholder="SL" 
-            class="flex-1 border rounded-lg px-2 py-2 text-center font-medium" 
+            class="flex-1 border-2 border-amber-200 rounded-2xl px-4 py-3 text-center text-2xl font-bold bg-amber-50 focus:border-amber-500" 
             onchange="updateSaleData(${p.id}, 'quantity', this.value)"
             oninput="updateSaleData(${p.id}, 'quantity', this.value)">
-          <button type="button" onclick="adjustQty(${p.id}, 1)" class="flex-1 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 font-bold">+1</button>
-          <button type="button" onclick="adjustQty(${p.id}, 10)" class="flex-1 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 font-bold text-sm">+10</button>
+          <button type="button" onclick="adjustQty(${p.id}, 1)" class="flex-1 py-3 bg-gray-200 rounded-xl hover:bg-gray-300 font-bold text-lg">+1</button>
+          <button type="button" onclick="adjustQty(${p.id}, 10)" class="flex-1 py-3 bg-gray-200 rounded-xl hover:bg-gray-300 font-bold text-sm">+10</button>
           <input type="number" id="price-${p.id}" step="1000" placeholder="Giá" 
-            class="w-24 border rounded-lg px-3 py-2 text-right font-medium" 
+            class="w-28 border-2 border-amber-200 rounded-2xl px-4 py-3 text-right font-bold text-lg focus:border-amber-500" 
             value="${price}"
             onchange="updateSaleData(${p.id}, 'price', this.value)"
             oninput="updateSaleData(${p.id}, 'price', this.value)">
