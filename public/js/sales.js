@@ -80,27 +80,36 @@ function renderSaleProducts() {
     const price = p.sell_price || 0;
     const isLowStock = p.stock < 5;
     return `
-      <div class="bg-white rounded-xl p-3 shadow-sm ${isLowStock ? 'border border-orange-300 bg-orange-50' : ''}">
-        <div class="flex justify-between items-start mb-2">
-          <div class="flex-1">
-            <div class="font-semibold text-gray-800">${p.name}</div>
+      <div class="bg-white rounded-xl p-4 shadow-sm ${isLowStock ? 'border border-orange-300 bg-orange-50' : ''}">
+        <div class="flex justify-between items-center gap-3 mb-3">
+          <div>
+            <div class="font-semibold text-gray-800 text-lg">${p.name}</div>
             <div class="text-xs text-gray-500">Tồn kho: ${p.stock}</div>
           </div>
+          <div class="text-right">
+            <div class="text-sm text-gray-500">Giá</div>
+            <input type="number" id="price-${p.id}" step="1000"
+              class="w-32 border-2 border-amber-200 rounded-2xl px-3 py-2 text-right font-bold text-lg focus:border-amber-500"
+              value="${price}"
+              onchange="updateSaleData(${p.id}, 'price', this.value)"
+              oninput="updateSaleData(${p.id}, 'price', this.value)">
+          </div>
         </div>
-        <div class="flex gap-2">
-          <button type="button" onclick="adjustQty(${p.id}, -10)" class="flex-1 py-3 bg-gray-200 rounded-xl hover:bg-gray-300 font-bold text-sm">-10</button>
-          <button type="button" onclick="adjustQty(${p.id}, -1)" class="flex-1 py-3 bg-gray-200 rounded-xl hover:bg-gray-300 font-bold text-lg">-1</button>
-          <input type="number" id="qty-${p.id}" min="0" max="${p.stock}" placeholder="SL" 
-            class="flex-1 border-2 border-amber-200 rounded-2xl px-4 py-3 text-center text-2xl font-bold bg-amber-50 focus:border-amber-500" 
-            onchange="updateSaleData(${p.id}, 'quantity', this.value)"
-            oninput="updateSaleData(${p.id}, 'quantity', this.value)">
-          <button type="button" onclick="adjustQty(${p.id}, 1)" class="flex-1 py-3 bg-gray-200 rounded-xl hover:bg-gray-300 font-bold text-lg">+1</button>
-          <button type="button" onclick="adjustQty(${p.id}, 10)" class="flex-1 py-3 bg-gray-200 rounded-xl hover:bg-gray-300 font-bold text-sm">+10</button>
-          <input type="number" id="price-${p.id}" step="1000" placeholder="Giá" 
-            class="w-28 border-2 border-amber-200 rounded-2xl px-4 py-3 text-right font-bold text-lg focus:border-amber-500" 
-            value="${price}"
-            onchange="updateSaleData(${p.id}, 'price', this.value)"
-            oninput="updateSaleData(${p.id}, 'price', this.value)">
+        <div class="flex flex-col gap-3">
+          <div class="flex items-center justify-between gap-6">
+            <button type="button" onclick="adjustQty(${p.id}, -1)" class="w-16 h-14 rounded-xl bg-gray-200 hover:bg-gray-300 text-xl font-bold">-</button>
+            <input type="number" id="qty-${p.id}" min="0" max="${p.stock}" placeholder="0"
+              class="w-24 h-14 border-2 border-amber-400 rounded-xl text-center text-2xl font-bold border-dashed"
+              onchange="updateSaleData(${p.id}, 'quantity', this.value)"
+              oninput="updateSaleData(${p.id}, 'quantity', this.value)">
+            <button type="button" onclick="adjustQty(${p.id}, 1)" class="w-16 h-14 rounded-xl bg-amber-400 hover:bg-amber-500 text-white text-xl font-bold">+</button>
+          </div>
+          <div class="flex items-center justify-center gap-4">
+            <button type="button" onclick="adjustQty(${p.id}, 1)" class="w-20 py-3 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-xl font-bold text-sm">+1</button>
+            <button type="button" onclick="adjustQty(${p.id}, 5)" class="w-20 py-3 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-xl font-bold text-sm">+5</button>
+            <button type="button" onclick="adjustQty(${p.id}, 10)" class="w-20 py-3 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-xl font-bold text-sm">+10</button>
+            <button type="button" onclick="adjustQty(${p.id}, 20)" class="w-20 py-3 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-xl font-bold text-sm">+20</button>
+          </div>
         </div>
       </div>
     `;
