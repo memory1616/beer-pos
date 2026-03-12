@@ -18,7 +18,7 @@ router.get('/', (req, res) => {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sản phẩm</title>
   <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#1e40af">
+  <meta name="theme-color" content="#f59e0b">
   <link rel="stylesheet" href="/css/tailwind.css">
   <link rel="stylesheet" href="/css/unified.css">
 </head>

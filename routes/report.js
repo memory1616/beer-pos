@@ -196,7 +196,7 @@ router.get('/', (req, res) => {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Báo cáo - Beer POS</title>
   <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#16a34a">
+  <meta name="theme-color" content="#f59e0b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="stylesheet" href="/css/tailwind.css">
   <script src="/js/auth.js"></script>
@@ -236,7 +236,7 @@ router.get('/', (req, res) => {
           <div class="text-xl mb-1">👥</div>
           <div class="text-xs font-medium">Lợi nhuận<br>khách hàng</div>
         </a>
-        <a href="/report/cashflow" class="card text-center py-3 bg-green-50 border-green-200">
+        <a href="/report/cashflow" class="card text-center py-3 bg-amber-50 border-green-200">
           <div class="text-xl mb-1">💰</div>
           <div class="text-xs font-medium">Dòng tiền</div>
         </a>
@@ -246,11 +246,11 @@ router.get('/', (req, res) => {
     <!-- Period Selector -->
     <div class="mb-4">
       <div class="flex gap-2 overflow-x-auto pb-2">
-        <a href="/report?period=today" class="px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${period === 'today' ? 'bg-green-600 text-white' : 'bg-white border'}">Hôm nay</a>
-        <a href="/report?period=yesterday" class="px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${period === 'yesterday' ? 'bg-green-600 text-white' : 'bg-white border'}">Hôm qua</a>
-        <a href="/report?period=week" class="px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${period === 'week' ? 'bg-green-600 text-white' : 'bg-white border'}">7 ngày</a>
-        <a href="/report?period=thisMonth" class="px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${period === 'thisMonth' ? 'bg-green-600 text-white' : 'bg-white border'}">Tháng này</a>
-        <a href="/report?period=lastMonth" class="px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${period === 'lastMonth' ? 'bg-green-600 text-white' : 'bg-white border'}">Tháng trước</a>
+        <a href="/report?period=today" class="px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${period === 'today' ? 'bg-amber-600 text-white' : 'bg-white border'}">Hôm nay</a>
+        <a href="/report?period=yesterday" class="px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${period === 'yesterday' ? 'bg-amber-600 text-white' : 'bg-white border'}">Hôm qua</a>
+        <a href="/report?period=week" class="px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${period === 'week' ? 'bg-amber-600 text-white' : 'bg-white border'}">7 ngày</a>
+        <a href="/report?period=thisMonth" class="px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${period === 'thisMonth' ? 'bg-amber-600 text-white' : 'bg-white border'}">Tháng này</a>
+        <a href="/report?period=lastMonth" class="px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${period === 'lastMonth' ? 'bg-amber-600 text-white' : 'bg-white border'}">Tháng trước</a>
       </div>
     </div>
 
@@ -260,7 +260,7 @@ router.get('/', (req, res) => {
       <div class="grid grid-cols-2 gap-3">
         <div class="card">
           <div class="text-xs text-gray-500">Doanh thu</div>
-          <div class="text-xl font-bold text-green-600">${formatVND(periodStats.revenue)}</div>
+          <div class="text-xl font-bold text-amber-600">${formatVND(periodStats.revenue)}</div>
         </div>
         <div class="card">
           <div class="text-xs text-gray-500">Lợi nhuận</div>
@@ -316,7 +316,7 @@ router.get('/', (req, res) => {
               </div>
             </div>
             <div class="text-right">
-              <div class="font-bold text-green-600">${formatVND(c.revenue)}</div>
+              <div class="font-bold text-amber-600">${formatVND(c.revenue)}</div>
             </div>
           </div>
         `).join('')}
@@ -362,7 +362,7 @@ router.get('/', (req, res) => {
             totalDisplay = '<span class="font-bold text-orange-600">0 đ</span>';
             rowClass = 'bg-orange-50';
           } else {
-            totalDisplay = '<span class="font-bold text-green-600">' + formatVND(s.total) + '</span>';
+            totalDisplay = '<span class="font-bold text-amber-600">' + formatVND(s.total) + '</span>';
           }
           
           return '<div class="flex justify-between items-center p-2 border-b ' + rowClass + '">' +
@@ -421,7 +421,7 @@ router.get('/', (req, res) => {
             totalDisplay = '<span class="font-bold text-orange-600">0 đ</span>';
             rowClass = 'bg-orange-50';
           } else {
-            totalDisplay = '<span class="font-bold text-green-600">' + formatVND(s.total) + '</span>';
+            totalDisplay = '<span class="font-bold text-amber-600">' + formatVND(s.total) + '</span>';
           }
           
           return '<div class="flex justify-between items-center p-2 border-b ' + rowClass + '">' +
@@ -456,7 +456,7 @@ router.get('/', (req, res) => {
       <a href="/delivery" class="py-3 text-gray-500"><div class="text-xl">🚚</div><div>Giao</div></a>
       <a href="/sale" class="py-3 text-gray-500"><div class="text-xl">🍺</div><div>Bán</div></a>
       <a href="/customers" class="py-3 text-gray-500"><div class="text-xl">👤</div><div>KH</div></a>
-      <a href="/report" class="py-3 text-green-600 font-semibold"><div class="text-xl">📊</div><div>BK</div></a>
+      <a href="/report" class="py-3 text-amber-600 font-semibold"><div class="text-xl">📊</div><div>BK</div></a>
     </div>
   </nav>
 
@@ -568,7 +568,7 @@ router.get('/profit-product', (req, res) => {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Lợi nhuận theo sản phẩm - Beer POS</title>
   <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#9333ea">
+  <meta name="theme-color" content="#f59e0b">
   <link rel="stylesheet" href="/css/tailwind.css">
   <script src="/js/auth.js"></script>
   <style>
@@ -627,7 +627,7 @@ router.get('/profit-product', (req, res) => {
       <a href="/delivery" class="py-3 text-gray-500"><div class="text-xl">🚚</div><div>Giao</div></a>
       <a href="/sale" class="py-3 text-gray-500"><div class="text-xl">🍺</div><div>Bán</div></a>
       <a href="/customers" class="py-3 text-gray-500"><div class="text-xl">👤</div><div>KH</div></a>
-      <a href="/report" class="py-3 text-green-600 font-semibold"><div class="text-xl">📊</div><div>BK</div></a>
+      <a href="/report" class="py-3 text-amber-600 font-semibold"><div class="text-xl">📊</div><div>BK</div></a>
     </div>
   </nav>
   <script>if (!isLoggedIn()) { window.location.href = '/login'; }</script>
@@ -672,7 +672,7 @@ router.get('/profit-customer', (req, res) => {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Lợi nhuận theo khách hàng - Beer POS</title>
   <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#2563eb">
+  <meta name="theme-color" content="#f59e0b">
   <link rel="stylesheet" href="/css/tailwind.css">
   <script src="/js/auth.js"></script>
   <style>
@@ -727,7 +727,7 @@ router.get('/profit-customer', (req, res) => {
       <a href="/delivery" class="py-3 text-gray-500"><div class="text-xl">🚚</div><div>Giao</div></a>
       <a href="/sale" class="py-3 text-gray-500"><div class="text-xl">🍺</div><div>Bán</div></a>
       <a href="/customers" class="py-3 text-gray-500"><div class="text-xl">👤</div><div>KH</div></a>
-      <a href="/report" class="py-3 text-green-600 font-semibold"><div class="text-xl">📊</div><div>BK</div></a>
+      <a href="/report" class="py-3 text-amber-600 font-semibold"><div class="text-xl">📊</div><div>BK</div></a>
     </div>
   </nav>
   <script>if (!isLoggedIn()) { window.location.href = '/login'; }</script>
@@ -767,7 +767,7 @@ router.get('/cashflow', (req, res) => {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dòng tiền - Beer POS</title>
   <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#16a34a">
+  <meta name="theme-color" content="#f59e0b">
   <link rel="stylesheet" href="/css/tailwind.css">
   <script src="/js/auth.js"></script>
   <style>
@@ -805,7 +805,7 @@ router.get('/cashflow', (req, res) => {
               <div class="text-xs text-gray-500">${d.orders} đơn hàng</div>
             </div>
             <div class="text-right">
-              <div class="font-bold text-green-600">+${formatVND(d.revenue || 0)}</div>
+              <div class="font-bold text-amber-600">+${formatVND(d.revenue || 0)}</div>
               <div class="text-xs text-blue-600">+${formatVND(d.profit || 0)}</div>
             </div>
           </div>
@@ -819,7 +819,7 @@ router.get('/cashflow', (req, res) => {
       <a href="/delivery" class="py-3 text-gray-500"><div class="text-xl">🚚</div><div>Giao</div></a>
       <a href="/sale" class="py-3 text-gray-500"><div class="text-xl">🍺</div><div>Bán</div></a>
       <a href="/customers" class="py-3 text-gray-500"><div class="text-xl">👤</div><div>KH</div></a>
-      <a href="/report" class="py-3 text-green-600 font-semibold"><div class="text-xl">📊</div><div>BK</div></a>
+      <a href="/report" class="py-3 text-amber-600 font-semibold"><div class="text-xl">📊</div><div>BK</div></a>
     </div>
   </nav>
   <script>if (!isLoggedIn()) { window.location.href = '/login'; }</script>

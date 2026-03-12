@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bán hàng</title>
   <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#16a34a">
+  <meta name="theme-color" content="#f59e0b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="stylesheet" href="/css/tailwind.css">
   <link rel="stylesheet" href="/css/unified.css">
@@ -34,7 +34,7 @@
       <button onclick="closeInvoice()" class="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-2xl font-bold w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100">&times;</button>
       <div class="text-center mb-4">
         <div class="text-xl font-bold">HÓA ĐƠN</div>
-        <div class="text-5xl font-bold text-green-600 mt-2" id="invoiceTotal">0 ₫</div>
+        <div class="text-5xl font-bold text-amber-600 mt-2" id="invoiceTotal">0 ₫</div>
       </div>
       <div id="invoiceContent" class="text-sm"></div>
       <div class="mt-4 text-center">
@@ -65,8 +65,8 @@
         <div>
           <label class="block text-sm font-medium mb-2">📦 Giao vỏ</label>
           <div class="flex gap-2 items-center">
-            <button onclick="addKegDeliver(10)" class="w-14 py-3 bg-green-100 text-green-700 rounded-lg font-bold">+10</button>
-            <button onclick="addKegDeliver(20)" class="w-14 py-3 bg-green-100 text-green-700 rounded-lg font-bold">+20</button>
+            <button onclick="addKegDeliver(10)" class="w-14 py-3 bg-amber-100 text-amber-700 rounded-lg font-bold">+10</button>
+            <button onclick="addKegDeliver(20)" class="w-14 py-3 bg-amber-100 text-amber-700 rounded-lg font-bold">+20</button>
             <input type="number" id="kegDeliver" value="0" class="flex-1 min-w-0 border-2 border-gray-200 rounded-lg px-3 py-3 text-center text-lg font-bold" inputmode="numeric">
           </div>
         </div>
@@ -88,7 +88,7 @@
           </div>
           <div class="flex justify-between">
             <span class="text-gray-600">Sau khi giao/thu:</span>
-            <span class="font-bold text-green-600" id="kegNewBalance">0</span>
+            <span class="font-bold text-amber-600" id="kegNewBalance">0</span>
           </div>
         </div>
         
@@ -97,7 +97,7 @@
         </div>
       </div>
       
-      <button onclick="saveKegUpdate()" id="kegSaveBtn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-xl text-lg">
+      <button onclick="saveKegUpdate()" id="kegSaveBtn" class="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-4 rounded-xl text-lg">
         💾 Lưu
       </button>
     </div>
@@ -181,9 +181,9 @@
             <div class="border-t pt-3 mt-3">
               <div class="flex justify-between items-center mb-3">
                 <span class="font-medium">Tổng cộng:</span>
-                <span id="totalAmount" class="text-xl font-bold text-green-600">0 VNĐ</span>
+                <span id="totalAmount" class="text-xl font-bold text-amber-600">0 VNĐ</span>
               </div>
-              <button onclick="submitSale()" id="sellBtn" class="w-full bg-green-600 text-white font-bold py-4 rounded-xl text-lg disabled:opacity-50" disabled>
+              <button onclick="submitSale()" id="sellBtn" class="w-full bg-amber-600 text-white font-bold py-4 rounded-xl text-lg disabled:opacity-50" disabled>
                 ✅ Bán hàng
               </button>
               <button onclick="openReplacementModal()" class="w-full mt-2 bg-orange-100 text-orange-700 font-bold py-3 rounded-xl">

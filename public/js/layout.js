@@ -2,7 +2,7 @@
 
 // Generate standard header
 function getHeader(title, icons = '') {
-  return getHeaderWithActions(title, icons, '<a href="/" class="text-gray-500 hover:bg-gray-100 px-2 rounded">🏠</a>');
+  return getHeaderWithActions(title, icons, '<a href="/" class="text-amber-600 hover:bg-amber-50 px-2 rounded">🏠</a>');
 }
 
 // Generate header with custom actions
@@ -29,14 +29,14 @@ function getContent(content) {
   `;
 }
 
-// Generate bottom navigation
+// Generate bottom navigation - Mobile optimized
 function getBottomNav(currentPage) {
   const pages = [
     { href: '/', icon: '🏠', label: 'Home' },
-    { href: '/customers', icon: '👤', label: 'KH' },
-    { href: '/sale', icon: '🍺', label: 'Bán' },
+    { href: '/customers', icon: '👤', label: 'Khách' },
+    { href: '/sale', icon: '🍺', label: 'Bán hàng' },
     { href: '/stock', icon: '📦', label: 'Kho' },
-    { href: '/report', icon: '📊', label: 'BK' }
+    { href: '/report', icon: '📊', label: 'Báo cáo' }
   ];
   
   return `

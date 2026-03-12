@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Nhập hàng</title>
   <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#1e40af">
+  <meta name="theme-color" content="#f59e0b">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="stylesheet" href="/css/tailwind.css">
   <link rel="stylesheet" href="/css/unified.css">
@@ -64,10 +64,10 @@
         </div>
         <div class="border-t pt-2 flex justify-between items-center">
           <div class="font-bold text-lg">Tổng tiền:</div>
-          <div id="cartTotal" class="text-xl font-bold text-green-600">0 ₫</div>
+          <div id="cartTotal" class="text-xl font-bold text-amber-600">0 ₫</div>
         </div>
         <input type="text" id="purchaseNote" placeholder="Ghi chú (tùy chọn)" class="w-full border rounded-lg px-3 py-2 mt-3">
-        <button onclick="submitPurchase()" id="submitBtn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl mt-3 disabled:opacity-50" disabled>
+        <button onclick="submitPurchase()" id="submitBtn" class="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-3 rounded-xl mt-3 disabled:opacity-50" disabled>
           ✅ Xác nhận nhập hàng
         </button>
       </div>
@@ -87,7 +87,7 @@
       <a href="/" class="py-3 text-gray-500"><div class="text-xl">🏠</div><div>Home</div></a>
       <a href="/customers" class="py-3 text-gray-500"><div class="text-xl">👤</div><div>KH</div></a>
       <a href="/sale" class="py-3 text-gray-500"><div class="text-xl">🍺</div><div>Bán</div></a>
-      <a href="/stock" class="py-3 text-green-600 font-semibold"><div class="text-xl">📦</div><div>Kho</div></a>
+      <a href="/stock" class="py-3 text-amber-600 font-semibold"><div class="text-xl">📦</div><div>Kho</div></a>
       <a href="/report" class="py-3 text-gray-500"><div class="text-xl">📊</div><div>BK</div></a>
     </div>
   </nav>
@@ -105,10 +105,10 @@
         // Render products
         const productList = document.getElementById('productList');
         productList.innerHTML = data.products.map(p => `
-          <div class="flex items-center gap-2 p-2 border rounded-lg ${p.cost_price > 0 ? 'bg-green-50' : 'bg-gray-50'}">
+          <div class="flex items-center gap-2 p-2 border rounded-lg ${p.cost_price > 0 ? 'bg-amber-50' : 'bg-gray-50'}">
             <div class="flex-1">
               <div class="font-medium">${p.name}</div>
-              <div class="text-sm text-gray-500">Giá vốn: <span class="text-green-600 font-medium">${formatVND(p.cost_price || 0)}</span> | Tồn: ${p.stock}</div>
+              <div class="text-sm text-gray-500">Giá vốn: <span class="text-amber-600 font-medium">${formatVND(p.cost_price || 0)}</span> | Tồn: ${p.stock}</div>
             </div>
             <input type="number" 
               id="qty-${p.id}" 

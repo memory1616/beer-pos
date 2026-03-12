@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Khách hàng</title>
   <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#16a34a">
+  <meta name="theme-color" content="#f59e0b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="stylesheet" href="/css/tailwind.css">
   <link rel="stylesheet" href="/css/unified.css">
@@ -40,23 +40,23 @@
       <form id="addForm" class="space-y-4">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Tên khách hàng</label>
-          <input type="text" name="name" required class="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-green-500" placeholder="Nhập tên khách">
+          <input type="text" name="name" required class="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-amber-500" placeholder="Nhập tên khách">
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Điện thoại</label>
-          <input type="text" name="phone" class="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-green-500" placeholder="Số điện thoại">
+          <input type="text" name="phone" class="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-amber-500" placeholder="Số điện thoại">
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Đặt cọc (VNĐ)</label>
-          <input type="number" name="deposit" value="0" class="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-green-500">
+          <input type="number" name="deposit" value="0" class="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-amber-500">
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Tủ lạnh nằm (❄️)</label>
-          <input type="number" name="horizontal_fridge" id="addHorizontalFridge" value="0" min="0" class="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-green-500">
+          <input type="number" name="horizontal_fridge" id="addHorizontalFridge" value="0" min="0" class="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-amber-500">
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Tủ mát đứng (🥶)</label>
-          <input type="number" name="vertical_fridge" id="addVerticalFridge" value="0" min="0" class="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-green-500">
+          <input type="number" name="vertical_fridge" id="addVerticalFridge" value="0" min="0" class="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-amber-500">
         </div>
         <div class="border-t pt-4 mt-4">
           <div class="flex items-center justify-between mb-3">
@@ -71,7 +71,7 @@
         </div>
         <div class="flex gap-2">
           <button type="button" onclick="hideModal('addModal')" class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-3 rounded-lg">Hủy</button>
-          <button type="submit" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-lg">Thêm</button>
+          <button type="submit" class="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-semibold py-3 rounded-lg">Thêm</button>
         </div>
       </form>
     </div>
@@ -120,7 +120,7 @@
       </div>
       <div class="flex gap-2">
         <button type="button" onclick="hideModal('priceModal')" class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-3 rounded-lg">Hủy</button>
-        <button type="button" onclick="savePrices()" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-lg">Lưu bảng giá</button>
+        <button type="button" onclick="savePrices()" class="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-semibold py-3 rounded-lg">Lưu bảng giá</button>
       </div>
     </div>
   </div>

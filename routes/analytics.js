@@ -80,7 +80,7 @@ router.get('/', (req, res) => {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Phân tích</title>
   <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#1e40af">
+  <meta name="theme-color" content="#f59e0b">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="stylesheet" href="/css/tailwind.css">
   <link rel="stylesheet" href="/css/unified.css">
@@ -113,7 +113,7 @@ router.get('/', (req, res) => {
     <div class="grid grid-cols-2 gap-4 mb-4">
       <div class="bg-white rounded-2xl shadow-sm border p-5">
         <div class="text-gray-500 text-sm">💰 Hôm nay</div>
-        <div class="text-2xl font-bold text-green-600">${formatVND(todayStats.revenue)}</div>
+        <div class="text-2xl font-bold text-amber-600">${formatVND(todayStats.revenue)}</div>
       </div>
       <div class="bg-white rounded-2xl shadow-sm border p-5">
         <div class="text-gray-500 text-sm">📈 Lợi nhuận HT</div>
@@ -150,7 +150,7 @@ router.get('/', (req, res) => {
       ${topCustomers.length > 0 ? topCustomers.map((c, i) => `
         <div class="flex justify-between items-center p-2 border-b">
           <div><span class="font-bold">${i+1}.</span> ${c.name}</div>
-          <div class="font-bold text-green-600">${formatVND(c.revenue)}</div>
+          <div class="font-bold text-amber-600">${formatVND(c.revenue)}</div>
         </div>
       `).join('') : '<div class="text-gray-500">Chưa có dữ liệu</div>'}
     </div>

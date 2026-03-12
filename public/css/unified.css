@@ -2,13 +2,13 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 :root {
-  --color-primary: #16a34a;
-  --color-primary-light: #22c55e;
-  --color-bg: #f1f5f9;
+  --color-primary: #f59e0b;
+  --color-primary-light: #fbbf24;
+  --color-bg: #fffbeb;
   --color-card: #ffffff;
-  --color-border: #e5e7eb;
+  --color-border: #fcd34d;
   --color-text: #111827;
-  --color-muted: #6b7280;
+  --color-muted: #92400e;
   --color-info: #2563eb;
   --color-warning: #f97316;
   --color-danger: #dc2626;
@@ -76,8 +76,8 @@ body {
   left: 0;
   right: 0;
   background: white;
-  border-top: 1px solid var(--color-border);
-  box-shadow: 0 -4px 20px rgba(0,0,0,0.05);
+  border-top: 3px solid var(--color-primary);
+  box-shadow: 0 -4px 20px rgba(245,158,11,0.15);
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   text-align: center;
@@ -136,7 +136,7 @@ button:active, .btn:active, a:active {
   padding: 14px;
   border-radius: 12px;
   font-weight: 600;
-  box-shadow: 0 6px 18px rgba(34,197,94,0.35);
+  box-shadow: 0 6px 18px rgba(245,158,11,0.35);
   cursor: pointer;
   width: 100%;
 }
@@ -229,7 +229,7 @@ main {
 .bg-white { background: white; }
 .bg-gray-50 { background: #f9fafb; }
 .bg-gray-100 { background: #f3f4f6; }
-.bg-green-50 { background: #f0fdf4; }
+.bg-amber-50 { background: #fffbeb; }
 .bg-blue-50 { background: #eff6ff; }
 .bg-red-50 { background: #fef2f2; }
 
@@ -317,7 +317,7 @@ main {
   font-weight: 600;
 }
 
-.badge-success { background: #dcfce7; color: #166534; }
+.badge-success { background: #fffbeb; color: #92400e; }
 .badge-warning { background: #fef3c7; color: #92400e; }
 .badge-danger { background: #fee2e2; color: #991b1b; }
 .badge-info { background: #dbeafe; color: #1e40af; }
@@ -494,6 +494,7 @@ main {
   display: inline-block;
 }
 
+.status-dot.amber { background: #f59e0b; }
 .status-dot.green { background: #22c55e; }
 .status-dot.yellow { background: #eab308; }
 .status-dot.red { background: #ef4444; }

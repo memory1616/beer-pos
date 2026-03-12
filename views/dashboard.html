@@ -5,11 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dashboard - Beer POS</title>
   <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#16a34a">
+  <meta name="theme-color" content="#f59e0b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="stylesheet" href="/css/tailwind.css">
   <link rel="stylesheet" href="/css/unified.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="/js/auth.js"></script>
   <script src="/js/layout.js"></script>
 </head>
 <body class="bg-gray-100 text-gray-800 min-h-screen pb-20">
@@ -18,7 +19,7 @@
   <script>
     // Initialize layout
     const headerActions = `
-      <a href="/sale" class="text-green-600 hover:bg-green-50 px-2 rounded">➕</a>
+      <a href="/sale" class="text-amber-600 hover:bg-amber-50 px-2 rounded">➕</a>
       <a href="/report" class="text-blue-600 hover:bg-blue-50 px-2 rounded">📊</a>
       <button onclick="logout()" class="text-red-500 hover:bg-red-50 px-2 rounded">🚪</button>
     `;
@@ -39,7 +40,7 @@
             <div class="grid grid-cols-2 gap-3">
               <div class="card">
                 <div class="text-xs text-gray-500">Doanh thu</div>
-                <div class="text-2xl font-bold text-green-600" id="todayRevenue">0</div>
+                <div class="text-2xl font-bold text-amber-600" id="todayRevenue">0</div>
               </div>
               <div class="card">
                 <div class="text-xs text-gray-500">Bán ra</div>
@@ -58,8 +59,8 @@
                   <div class="text-xl font-bold text-blue-600" id="kegInStock">0</div>
                   <div class="text-xs text-gray-500">Kho</div>
                 </div>
-                <div class="bg-green-50 rounded-lg p-2">
-                  <div class="text-xl font-bold text-green-600" id="kegAtCustomers">0</div>
+                <div class="bg-amber-50 rounded-lg p-2">
+                  <div class="text-xl font-bold text-amber-600" id="kegAtCustomers">0</div>
                   <div class="text-xs text-gray-500">Khách</div>
                 </div>
                 <div class="bg-purple-50 rounded-lg p-2">
@@ -74,7 +75,7 @@
           <div class="mb-4">
             <div class="section-title">Thao tác nhanh</div>
             <div class="grid grid-cols-6 gap-1">
-              <a href="/sale" class="bg-green-500 text-white rounded-xl p-2 text-center">
+              <a href="/sale" class="bg-amber-500 text-white rounded-xl p-2 text-center">
                 <div class="text-xl">🍺</div>
                 <div class="text-xs font-medium">Bán</div>
               </a>
@@ -119,9 +120,9 @@
             
             <!-- Revenue Stats Summary -->
             <div id="revenueStats" class="grid grid-cols-3 gap-2 mb-3">
-              <div class="bg-green-50 rounded-lg p-2 text-center">
+              <div class="bg-amber-50 rounded-lg p-2 text-center">
                 <div class="text-xs text-gray-500">Tổng</div>
-                <div class="font-bold text-green-600 text-sm" id="totalRevenue6M">-</div>
+                <div class="font-bold text-amber-600 text-sm" id="totalRevenue6M">-</div>
               </div>
               <div class="bg-blue-50 rounded-lg p-2 text-center">
                 <div class="text-xs text-gray-500">TB/tháng</div>

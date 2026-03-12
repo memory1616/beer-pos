@@ -45,7 +45,7 @@ router.get('/', (req, res) => {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Quản lý thiết bị - Beer POS</title>
   <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#6366f1">
+  <meta name="theme-color" content="#f59e0b">
   <link rel="stylesheet" href="/css/tailwind.css">
   <script src="/js/auth.js"></script>
   <link rel="stylesheet" href="/css/unified.css">
@@ -64,7 +64,7 @@ router.get('/', (req, res) => {
         <a href="/" class="text-gray-500 hover:text-gray-700 p-1">←</a>
         <span class="font-semibold">Quản lý thiết bị</span>
       </div>
-      <button onclick="openModal()" class="text-green-600 font-medium text-sm flex items-center gap-1">
+      <button onclick="openModal()" class="text-amber-600 font-medium text-sm flex items-center gap-1">
         <span class="text-lg">+</span> Nhập tủ
       </button>
     </div>
@@ -78,11 +78,11 @@ router.get('/', (req, res) => {
       </div>
       <div class="grid grid-cols-2 gap-3">
         <div class="card p-3 text-center bg-green-50">
-          <div class="text-2xl font-bold text-green-600">${availableHorizontal}</div>
+          <div class="text-2xl font-bold text-amber-600">${availableHorizontal}</div>
           <div class="text-xs text-gray-600">❄️ Tủ nằm</div>
         </div>
         <div class="card p-3 text-center bg-green-50">
-          <div class="text-2xl font-bold text-green-600">${availableVertical}</div>
+          <div class="text-2xl font-bold text-amber-600">${availableVertical}</div>
           <div class="text-xs text-gray-600">🥶 Tủ đứng</div>
         </div>
       </div>
