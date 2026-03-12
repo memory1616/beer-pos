@@ -80,35 +80,15 @@ function renderSaleProducts() {
     const price = p.sell_price || 0;
     const isLowStock = p.stock < 5;
     return `
-      <div class="bg-white rounded-xl p-4 shadow-sm ${isLowStock ? 'border border-orange-300 bg-orange-50' : ''}">
-        <div class="flex justify-between items-center gap-3 mb-3">
+      <div class="bg-white rounded-2xl p-5 shadow-sm ${isLowStock ? 'border-2 border-orange-300 bg-orange-50' : ''}" style="height: 110px;" onclick="toggleQtyControl(${p.id})">
+        <div class="flex flex-col justify-between h-full">
           <div>
-            <div class="font-semibold text-gray-800 text-lg">${p.name}</div>
-            <div class="text-xs text-gray-500">Tồn kho: ${p.stock}</div>
+            <div class="font-semibold text-gray-800 text-lg" style="font-size: 20px; font-weight: 600;">${p.name}</div>
+            <div class="text-xs text-gray-500">Tồn: ${p.stock}</div>
           </div>
-          <div class="text-right">
-            <div class="text-sm text-gray-500">Giá</div>
-            <input type="number" id="price-${p.id}" step="1000"
-              class="w-32 border-2 border-amber-200 rounded-2xl px-3 py-2 text-right font-bold text-lg focus:border-amber-500"
-              value="${price}"
-              onchange="updateSaleData(${p.id}, 'price', this.value)"
-              oninput="updateSaleData(${p.id}, 'price', this.value)">
-          </div>
-        </div>
-        <div class="flex flex-col gap-3">
-          <div class="flex items-center justify-between gap-6">
-            <button type="button" onclick="adjustQty(${p.id}, -1)" class="w-16 h-14 rounded-xl bg-gray-200 hover:bg-gray-300 text-xl font-bold">-</button>
-            <input type="number" id="qty-${p.id}" min="0" max="${p.stock}" placeholder="0"
-              class="w-24 h-14 border-2 border-amber-400 rounded-xl text-center text-2xl font-bold border-dashed"
-              onchange="updateSaleData(${p.id}, 'quantity', this.value)"
-              oninput="updateSaleData(${p.id}, 'quantity', this.value)">
-            <button type="button" onclick="adjustQty(${p.id}, 1)" class="w-16 h-14 rounded-xl bg-amber-400 hover:bg-amber-500 text-white text-xl font-bold">+</button>
-          </div>
-          <div class="flex items-center justify-center gap-4">
-            <button type="button" onclick="adjustQty(${p.id}, 1)" class="w-20 py-3 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-xl font-bold text-sm">+1</button>
-            <button type="button" onclick="adjustQty(${p.id}, 5)" class="w-20 py-3 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-xl font-bold text-sm">+5</button>
-            <button type="button" onclick="adjustQty(${p.id}, 10)" class="w-20 py-3 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-xl font-bold text-sm">+10</button>
-            <button type="button" onclick="adjustQty(${p.id}, 20)" class="w-20 py-3 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-xl font-bold text-sm">+20</button>
+          <div class="flex justify-between items-end">
+            <div class="text-amber-600 font-bold text-xl" style="font-size: 18px;">${formatVND(price)}</div>
+            <div id="qty-display-${p.id}" class="text-gray-400 text-sm">+</div>
           </div>
         </div>
       </div>
@@ -129,6 +109,84 @@ function adjustQty(productId, amount) {
   
   input.value = newValue;
   updateSaleData(productId, 'quantity', newValue);
+}
+
+// Toggle quantity control modal
+let currentEditingProduct = null;
+
+function toggleQtyControl(productId) {
+  const product = products.find(p => p.id === productId);
+  if (!product) return;
+  
+  currentEditingProduct = productId;
+  const currentQty = saleData[productId] ? saleData[productId].quantity : 0;
+  const currentPrice = saleData[productId] ? saleData[productId].price : product.sell_price;
+  
+  const modal = document.createElement('div');
+  modal.id = 'qtyModal';
+  modal.className = 'fixed inset-0 bg-black/50 flex items-end z-50';
+  modal.onclick = function(e) {
+    if (e.target === modal) closeQtyModal();
+  };
+  
+  modal.innerHTML = `
+    <div class="bg-white w-full max-w-md mx-auto rounded-t-2xl p-5 pb-8" style="border-radius: 20px 20px 0 0;">
+      <div class="flex justify-between items-center mb-4">
+        <div class="font-bold text-xl" style="font-size: 22px; font-weight: 600;">${product.name}</div>
+        <button onclick="closeQtyModal()" class="text-gray-500 text-2xl">&times;</button>
+      </div>
+      <div class="text-sm text-gray-500 mb-4">Tồn kho: ${product.stock}</div>
+      
+      <div class="flex items-center justify-between gap-6 mb-6">
+        <button type="button" onclick="adjustQtyModal(${productId}, -1)" class="w-16 h-14 rounded-xl bg-gray-200 hover:bg-gray-300 text-xl font-bold">-</button>
+        <input type="number" id="qty-${productId}" min="0" max="${product.stock}" value="${currentQty}"
+          class="w-28 h-14 border-2 border-amber-400 rounded-xl text-center text-2xl font-bold"
+          onchange="updateSaleData(${productId}, 'quantity', this.value)"
+          oninput="updateSaleData(${productId}, 'quantity', this.value)">
+        <button type="button" onclick="adjustQtyModal(${productId}, 1)" class="w-16 h-14 rounded-xl bg-amber-400 hover:bg-amber-500 text-white text-xl font-bold">+</button>
+      </div>
+      
+      <div class="flex items-center justify-center gap-3 mb-6">
+        <button type="button" onclick="adjustQtyModal(${productId}, 1)" class="w-20 py-3 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-xl font-bold text-sm">+1</button>
+        <button type="button" onclick="adjustQtyModal(${productId}, 5)" class="w-20 py-3 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-xl font-bold text-sm">+5</button>
+        <button type="button" onclick="adjustQtyModal(${productId}, 10)" class="w-20 py-3 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-xl font-bold text-sm">+10</button>
+        <button type="button" onclick="adjustQtyModal(${productId}, 20)" class="w-20 py-3 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-xl font-bold text-sm">+20</button>
+      </div>
+      
+      <div class="mb-4">
+        <label class="block text-sm font-medium mb-2">Giá bán</label>
+        <input type="number" id="price-${productId}" step="1000" value="${currentPrice}"
+          class="w-full border-2 border-amber-200 rounded-xl px-4 py-3 text-right text-xl font-bold"
+          onchange="updateSaleData(${productId}, 'price', this.value)"
+          oninput="updateSaleData(${productId}, 'price', this.value)">
+      </div>
+      
+      <button onclick="closeQtyModal()" class="w-full bg-amber-500 text-white font-bold py-4 rounded-xl text-xl">
+        Xác nhận
+      </button>
+    </div>
+  `;
+  
+  document.body.appendChild(modal);
+}
+
+function adjustQtyModal(productId, amount) {
+  const input = document.getElementById('qty-' + productId);
+  const current = parseInt(input.value) || 0;
+  const product = products.find(p => p.id === productId);
+  const maxStock = product ? product.stock : 999;
+  
+  let newValue = current + amount;
+  if (newValue < 0) newValue = 0;
+  if (newValue > maxStock) newValue = maxStock;
+  
+  input.value = newValue;
+  updateSaleData(productId, 'quantity', newValue);
+}
+
+function closeQtyModal() {
+  const modal = document.getElementById('qtyModal');
+  if (modal) modal.remove();
 }
 
 function updateSaleData(productId, field, value) {
@@ -152,16 +210,36 @@ function updateSaleData(productId, field, value) {
 function updateSaleTotal() {
   let total = 0;
   let hasItems = false;
+  let itemCount = 0;
+  let cartHtml = '';
   
   Object.keys(saleData).forEach(productId => {
     const item = saleData[productId];
     if (item.quantity > 0 && item.price > 0) {
+      const product = products.find(p => p.id == productId);
       total += item.quantity * item.price;
       hasItems = true;
+      itemCount += item.quantity;
+      cartHtml += `<div class="flex justify-between"><span>${product ? product.name : 'SP'}</span><span>x${item.quantity}</span></div>`;
+      
+      // Update card display
+      const qtyDisplay = document.getElementById('qty-display-' + productId);
+      if (qtyDisplay) {
+        qtyDisplay.innerHTML = `<span class="text-amber-600 font-bold text-lg">x${item.quantity}</span>`;
+      }
+    } else {
+      // Clear display if no qty
+      const qtyDisplay = document.getElementById('qty-display-' + productId);
+      if (qtyDisplay) {
+        qtyDisplay.innerHTML = '+';
+        qtyDisplay.className = 'text-gray-400 text-sm';
+      }
     }
   });
   
   document.getElementById('totalAmount').textContent = formatVND(total);
+  document.getElementById('itemCount').textContent = itemCount + ' items';
+  document.getElementById('cartItems').innerHTML = cartHtml || '<div class="text-gray-400 text-center">Chưa có sản phẩm</div>';
   document.getElementById('sellBtn').disabled = !hasItems;
 }
 

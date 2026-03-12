@@ -172,19 +172,23 @@
             </select>
           </div>
 
-          <!-- Sản phẩm - Dạng danh sách như nhập hàng -->
-          <div class="card mb-4">
-            <h3 class="font-bold text-base mb-3">🍺 Sản phẩm</h3>
-            <div id="saleProducts" class="space-y-2 max-h-80 overflow-y-auto mb-3">
-              <!-- Products loaded via JS -->
-            </div>
-            <div class="border-t pt-3 mt-3">
-              <div class="flex justify-between items-center mb-3">
-                <span class="font-medium">Tổng cộng:</span>
-                <span id="totalAmount" class="text-xl font-bold text-amber-600">0 VNĐ</span>
+          <!-- Sản phẩm - Dạng grid card -->
+          <div id="saleProducts" class="grid grid-cols-2 gap-3 mb-32"></div>
+
+          <!-- Bottom Drawer - Hóa đơn -->
+          <div class="fixed bottom-16 left-0 right-0 bg-white border-t shadow-lg pb-safe max-w-md mx-auto" style="border-top-left-radius: 20px; border-top-right-radius: 20px;">
+            <div class="p-4">
+              <div class="flex justify-between items-center mb-2">
+                <span class="font-bold text-lg">🧾 Hoá đơn</span>
+                <span id="itemCount" class="text-sm text-gray-500">0 items</span>
               </div>
-              <button onclick="submitSale()" id="sellBtn" class="w-full bg-amber-600 text-white font-bold py-4 rounded-xl text-lg disabled:opacity-50" disabled>
-                ✅ Bán hàng
+              <div id="cartItems" class="text-sm text-gray-600 mb-3 max-h-20 overflow-y-auto"></div>
+              <div class="flex justify-between items-center mb-3 pt-2 border-t">
+                <span class="font-semibold">Tổng cộng:</span>
+                <span id="totalAmount" class="text-2xl font-bold text-amber-600">0 VNĐ</span>
+              </div>
+              <button onclick="submitSale()" id="sellBtn" class="w-full bg-amber-500 text-white font-bold py-4 rounded-xl text-xl disabled:opacity-50" disabled>
+                💰 THANH TOÁN
               </button>
               <button onclick="openReplacementModal()" class="w-full mt-2 bg-orange-100 text-orange-700 font-bold py-3 rounded-xl">
                 🔁 Đổi bia lỗi
