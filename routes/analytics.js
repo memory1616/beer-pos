@@ -90,7 +90,7 @@ router.get('/', (req, res) => {
     @keyframes fade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     .pb-safe { padding-bottom: env(safe-area-inset-bottom, 20px); }
     .pt-safe { padding-top: env(safe-area-inset-top, 20px); }
-    .bottom-nav { max-width: 500px; margin: auto; left: 0; right: 0; }
+    .bottomnav { max-width: 500px; margin: auto; left: 0; right: 0; }
     .skeleton { background: linear-gradient(90deg, #e0e0e0 25%, #f0f0f0 50%, #e0e0e0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
     @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
     button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
@@ -156,14 +156,27 @@ router.get('/', (req, res) => {
     </div>
   </main>
 
-  <nav class="fixed bottom-0 left-0 right-0 bg-white border-t z-50 pb-safe bottom-nav">
-    <div class="grid grid-cols-5 text-center text-sm">
-      <a href="/" class="py-3"><div class="text-2xl">🏠</div><div>Home</div></a>
-      <a href="/customers" class="py-3"><div class="text-2xl">👤</div><div>KH</div></a>
-      <a href="/sale" class="py-3"><div class="text-2xl">🍺</div><div>Bán</div></a>
-      <a href="/stock" class="py-3"><div class="text-2xl">📦</div><div>Kho</div></a>
-      <a href="/analytics" class="py-3 bg-blue-50"><div class="text-2xl">📊</div><div class="font-medium">BK</div></a>
-    </div>
+  <nav class="bottomnav pb-safe">
+    <a href="/">
+      <span class="icon">🏠</span>
+      <span>Home</span>
+    </a>
+    <a href="/delivery">
+      <span class="icon">🚚</span>
+      <span>Giao</span>
+    </a>
+    <a href="/sale">
+      <span class="icon">🍺</span>
+      <span>Bán</span>
+    </a>
+    <a href="/customers">
+      <span class="icon">👤</span>
+      <span>KH</span>
+    </a>
+    <a href="/devices">
+      <span class="icon">📦</span>
+      <span>TB</span>
+    </a>
   </nav>
 
   <script>

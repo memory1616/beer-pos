@@ -15,7 +15,7 @@
   <style>
     .animate-fade { animation: fade 0.3s ease-in; }
     @keyframes fade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-    .bottom-nav { max-width: 500px; margin: auto; left: 0; right: 0; }
+    .bottomnav { max-width: 500px; margin: auto; left: 0; right: 0; }
     canvas { width: 100% !important; height: auto !important; }
     .skeleton { background: linear-gradient(90deg, #e0e0e0 25%, #f0f0f0 50%, #e0e0e0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
     @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
@@ -169,9 +169,10 @@
   </div>
 
   <script>
-    // Initialize layout
-    document.getElementById('app').innerHTML = 
-      getHeader('Khách hàng', '👤') +
+    (async () => {
+      await loadVersion();
+      document.getElementById('app').innerHTML = 
+        getHeader('Khách hàng', '👤') +
       getContent(`
         <!-- Loading -->
         <div id="loading" class="text-center py-8">
@@ -192,6 +193,7 @@
         </div>
       `) +
       getBottomNav('/customers');
+    })();
   </script>
 
   <!-- Load Customers JS -->

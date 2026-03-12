@@ -117,15 +117,13 @@ router.get('/', (req, res) => {
     LIMIT 10
   `).all(startDate, endDate);
   
-  // All time stats - use subquery to avoid duplicate counting
+  // All time stats - chỉ dùng subquery, không JOIN, đảm bảo tổng toàn bộ thời gian
   const allTimeStats = db.prepare(`
     SELECT 
       (SELECT COALESCE(SUM(total), 0) FROM sales) as revenue,
       (SELECT COALESCE(SUM(profit), 0) FROM sales) as profit,
       (SELECT COUNT(*) FROM sales) as order_count,
-      COALESCE(SUM(si.quantity), 0) as total_quantity
-    FROM sale_items si
-    JOIN sales s ON s.id = si.sale_id
+      (SELECT COALESCE(SUM(quantity), 0) FROM sale_items) as total_quantity
   `).get();
   
   // Recent sales with pagination
@@ -199,15 +197,21 @@ router.get('/', (req, res) => {
   <meta name="theme-color" content="#f59e0b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="stylesheet" href="/css/tailwind.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="/js/auth.js"></script>
   <link rel="stylesheet" href="/css/unified.css">
   <script src="/js/layout.js"></script>
   <style>
     .animate-fade { animation: fade 0.25s ease-out; }
     @keyframes fade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-    .bottom-nav { max-width: 500px; margin: auto; left: 0; right: 0; }
+    .bottomnav { max-width: 500px; margin: auto; left: 0; right: 0; }
     button, a { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
     button:active { transform: scale(0.96); }
+
+    /* Fix selection highlight: tránh xanh khi bôi/copy */
+    ::selection { background: transparent; }
+    * { user-select: none; }
+    .card-value { user-select: text; }
   </style>
 </head>
 <body class="bg-gray-100 text-gray-800 min-h-screen pb-20">
@@ -243,14 +247,14 @@ router.get('/', (req, res) => {
       </div>
     </div>
 
-    <!-- Period Selector -->
+    <!-- Period Selector - grid 5 nút, không scroll; tab chọn màu mạnh (blue-600/white) -->
     <div class="mb-4">
-      <div class="flex gap-2 overflow-x-auto pb-2">
-        <a href="/report?period=today" class="px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${period === 'today' ? 'bg-amber-600 text-white' : 'bg-white border'}">Hôm nay</a>
-        <a href="/report?period=yesterday" class="px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${period === 'yesterday' ? 'bg-amber-600 text-white' : 'bg-white border'}">Hôm qua</a>
-        <a href="/report?period=week" class="px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${period === 'week' ? 'bg-amber-600 text-white' : 'bg-white border'}">7 ngày</a>
-        <a href="/report?period=thisMonth" class="px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${period === 'thisMonth' ? 'bg-amber-600 text-white' : 'bg-white border'}">Tháng này</a>
-        <a href="/report?period=lastMonth" class="px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${period === 'lastMonth' ? 'bg-amber-600 text-white' : 'bg-white border'}">Tháng trước</a>
+      <div class="grid grid-cols-5 gap-2">
+        <a href="/report?period=today" class="px-2 py-2.5 rounded-xl text-xs font-medium text-center ${period === 'today' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}">Hôm nay</a>
+        <a href="/report?period=yesterday" class="px-2 py-2.5 rounded-xl text-xs font-medium text-center ${period === 'yesterday' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}">Hôm qua</a>
+        <a href="/report?period=week" class="px-2 py-2.5 rounded-xl text-xs font-medium text-center ${period === 'week' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}">7 ngày</a>
+        <a href="/report?period=thisMonth" class="px-2 py-2.5 rounded-xl text-xs font-medium text-center ${period === 'thisMonth' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}">Tháng này</a>
+        <a href="/report?period=lastMonth" class="px-2 py-2.5 rounded-xl text-xs font-medium text-center ${period === 'lastMonth' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}">Tháng trước</a>
       </div>
     </div>
 
@@ -259,45 +263,51 @@ router.get('/', (req, res) => {
       <div class="section-title">${periodLabel}</div>
       <div class="grid grid-cols-2 gap-3">
         <div class="card">
-          <div class="text-xs text-gray-500">Doanh thu</div>
-          <div class="text-xl font-bold text-amber-600">${formatVND(periodStats.revenue)}</div>
+          <div class="text-xs text-gray-700">Doanh thu</div>
+          <div class="text-xl font-bold text-amber-600 card-value">${formatVND(periodStats.revenue)}</div>
         </div>
         <div class="card">
-          <div class="text-xs text-gray-500">Lợi nhuận</div>
-          <div class="text-xl font-bold text-blue-600">${formatVND(periodStats.profit)}</div>
+          <div class="text-xs text-gray-700">Lợi nhuận</div>
+          <div class="text-xl font-bold text-blue-600 card-value">${formatVND(periodStats.profit)}</div>
         </div>
         <div class="card">
-          <div class="text-xs text-gray-500">Đơn hàng</div>
-          <div class="text-xl font-bold">${periodStats.order_count}</div>
+          <div class="text-xs text-gray-700">Đơn hàng</div>
+          <div class="text-xl font-bold card-value">${periodStats.order_count}</div>
         </div>
         <div class="card">
-          <div class="text-xs text-gray-500">Sản phẩm</div>
-          <div class="text-xl font-bold text-orange-600">${periodStats.total_quantity}</div>
+          <div class="text-xs text-gray-700">Sản phẩm</div>
+          <div class="text-xl font-bold text-orange-600 card-value">${periodStats.total_quantity}</div>
         </div>
       </div>
     </div>
 
-    <!-- All Time Stats -->
+    <!-- Chart theo kỳ đã chọn -->
+    <div class="mb-4">
+      <div class="section-title">Biểu đồ doanh thu</div>
+      <div class="card">
+        <canvas id="periodRevenueChart" style="height: 180px;"></canvas>
+      </div>
+    </div>
+
+    <!-- All Time Stats - layout grid card giống dashboard -->
     <div class="mb-4">
       <div class="section-title">Tất cả thời gian</div>
-      <div class="card bg-gradient-to-r from-green-500 to-green-600 text-white">
-        <div class="grid grid-cols-2 gap-4">
-          <div>
-            <div class="text-xs opacity-80">Doanh thu</div>
-            <div class="text-lg font-bold">${formatVND(allTimeStats.revenue)}</div>
-          </div>
-          <div>
-            <div class="text-xs opacity-80">Lợi nhuận</div>
-            <div class="text-lg font-bold">${formatVND(allTimeStats.profit)}</div>
-          </div>
-          <div>
-            <div class="text-xs opacity-80">Đơn hàng</div>
-            <div class="text-lg font-bold">${allTimeStats.order_count}</div>
-          </div>
-          <div>
-            <div class="text-xs opacity-80">Sản phẩm</div>
-            <div class="text-lg font-bold">${allTimeStats.total_quantity}</div>
-          </div>
+      <div class="grid grid-cols-2 gap-3 mt-2">
+        <div class="p-3 bg-white rounded-xl border border-amber-400">
+          <div class="text-xs text-gray-700">Doanh thu</div>
+          <div class="text-lg font-bold text-amber-600 card-value">${formatVND(allTimeStats.revenue)}</div>
+        </div>
+        <div class="p-3 bg-white rounded-xl border border-amber-400">
+          <div class="text-xs text-gray-700">Lợi nhuận</div>
+          <div class="text-lg font-bold text-blue-600 card-value">${formatVND(allTimeStats.profit)}</div>
+        </div>
+        <div class="p-3 bg-white rounded-xl border border-amber-400">
+          <div class="text-xs text-gray-700">Đơn hàng</div>
+          <div class="text-lg font-bold card-value">${allTimeStats.order_count}</div>
+        </div>
+        <div class="p-3 bg-white rounded-xl border border-amber-400">
+          <div class="text-xs text-gray-700">Sản phẩm</div>
+          <div class="text-lg font-bold text-orange-600 card-value">${allTimeStats.total_quantity}</div>
         </div>
       </div>
     </div>
@@ -306,13 +316,13 @@ router.get('/', (req, res) => {
     <div class="mb-4">
       <div class="section-title">🏆 Top khách hàng</div>
       <div class="space-y-2">
-        ${topCustomers.length === 0 ? '<div class="text-gray-500 text-center py-4">Chưa có dữ liệu</div>' : topCustomers.map((c, i) => `
+        ${topCustomers.length === 0 ? '<div class="text-gray-700 text-center py-4">Chưa có dữ liệu</div>' : topCustomers.map((c, i) => `
           <div class="card flex justify-between items-center">
             <div class="flex items-center gap-3">
               <div class="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${i === 0 ? 'bg-yellow-400 text-yellow-900' : i === 1 ? 'bg-gray-300 text-gray-700' : i === 2 ? 'bg-orange-300 text-orange-900' : 'bg-gray-100 text-gray-600'}">${i + 1}</div>
               <div>
                 <div class="font-bold text-sm">${c.name}</div>
-                <div class="text-xs text-gray-500">${c.order_count} đơn • ${c.quantity} sản phẩm</div>
+                <div class="text-xs text-gray-700">${c.order_count} đơn • ${c.quantity} sản phẩm</div>
               </div>
             </div>
             <div class="text-right">
@@ -327,18 +337,18 @@ router.get('/', (req, res) => {
     <div class="mb-4">
       <div class="section-title">🍺 Top sản phẩm bán chạy</div>
       <div class="space-y-2">
-        ${topProducts.length === 0 ? '<div class="text-gray-500 text-center py-4">Chưa có dữ liệu</div>' : topProducts.map((p, i) => `
+        ${topProducts.length === 0 ? '<div class="text-gray-700 text-center py-4">Chưa có dữ liệu</div>' : topProducts.map((p, i) => `
           <div class="card flex justify-between items-center">
             <div class="flex items-center gap-3">
               <div class="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${i === 0 ? 'bg-yellow-400 text-yellow-900' : i === 1 ? 'bg-gray-300 text-gray-700' : i === 2 ? 'bg-orange-300 text-orange-900' : 'bg-gray-100 text-gray-600'}">${i + 1}</div>
               <div>
                 <div class="font-bold text-sm">${p.name}</div>
-                <div class="text-xs text-gray-500">Doanh thu: ${formatVND(p.revenue)}</div>
+                <div class="text-xs text-gray-700">Doanh thu: ${formatVND(p.revenue)}</div>
               </div>
             </div>
             <div class="text-right">
               <div class="font-bold text-orange-600">${p.quantity_sold}</div>
-              <div class="text-xs text-gray-500">sản phẩm</div>
+              <div class="text-xs text-gray-700">sản phẩm</div>
             </div>
           </div>
         `).join('')}
@@ -347,9 +357,9 @@ router.get('/', (req, res) => {
 
     <!-- Recent Sales -->
     <div class="mb-4">
-      <div class="section-title">📋 Đơn hàng gần đây <span class="text-xs font-normal text-gray-500">(${total} đơn)</span></div>
+      <div class="section-title">📋 Đơn hàng gần đây <span class="text-xs font-normal text-gray-700">(${total} đơn)</span></div>
       <div class="space-y-1" id="recentSalesList">
-        ${recentSales.length === 0 ? '<div class="text-gray-500 text-center py-4">Chưa có đơn hàng</div>' : recentSales.map(s => {
+        ${recentSales.length === 0 ? '<div class="text-gray-700 text-center py-4">Chưa có đơn hàng</div>' : recentSales.map(s => {
           const date = new Date(s.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
           const hasKegUpdate = (s.deliver_kegs || 0) > 0 || (s.return_kegs || 0) > 0;
           
@@ -362,17 +372,17 @@ router.get('/', (req, res) => {
             totalDisplay = '<span class="font-bold text-orange-600">0 đ</span>';
             rowClass = 'bg-orange-50';
           } else {
-            totalDisplay = '<span class="font-bold text-amber-600">' + formatVND(s.total) + '</span>';
+            totalDisplay = '<span class="font-bold text-green-600">' + formatVND(s.total) + '</span>';
           }
           
           return '<div class="flex justify-between items-center p-2 border-b ' + rowClass + '">' +
             '<div>' +
               '<div class="font-medium">#' + s.id + ' - ' + (s.customer_name || 'Khách lẻ') + ' ' + typeBadge + '</div>' +
-              '<div class="text-xs text-gray-500">' + date + (hasKegUpdate ? ' • 📦' : '') + '</div>' +
+              '<div class="text-xs text-gray-700">' + date + (hasKegUpdate ? ' • 📦' : '') + '</div>' +
             '</div>' +
             '<div class="text-right">' +
               totalDisplay +
-              (s.type !== 'replacement' ? '<div class="text-xs ' + (s.profit > 0 ? 'text-blue-600' : 'text-red-500') + '">+' + formatVND(s.profit) + '</div>' : '') +
+              (s.type !== 'replacement' ? '<div class="text-xs ' + (s.profit > 0 ? 'text-green-600' : 'text-red-500') + '">+' + formatVND(s.profit) + '</div>' : '') +
             '</div>' +
           '</div>';
         }).join('')}
@@ -387,10 +397,69 @@ router.get('/', (req, res) => {
     <script>
       const currentPeriod = '${period}';
       const reportSalesPagination = { page: ${page}, totalPages: ${totalPages}, total: ${total} };
+      const dailyStats = ${JSON.stringify(dailyStats || [])};
       
       function formatVND(amount) {
         return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
       }
+
+      // Render chart: doanh thu theo ngày (kỳ đã chọn)
+      (function renderPeriodChart() {
+        const canvas = document.getElementById('periodRevenueChart');
+        if (!canvas || typeof Chart === 'undefined') return;
+
+        const ctx = canvas.getContext('2d');
+        const rows = Array.isArray(dailyStats) ? dailyStats.slice().reverse() : [];
+        const labels = rows.map(r => {
+          try {
+            return new Date(r.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+          } catch (e) {
+            return String(r.date || '');
+          }
+        });
+        const revenueData = rows.map(r => Number(r.revenue || 0));
+
+        if (labels.length === 0) {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.font = '14px Inter';
+          ctx.fillStyle = '#6b7280';
+          ctx.textAlign = 'center';
+          ctx.fillText('Chưa có dữ liệu', canvas.width / 2, canvas.height / 2);
+          return;
+        }
+
+        new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels,
+            datasets: [{
+              label: 'Doanh thu',
+              data: revenueData,
+              backgroundColor: 'rgba(245, 158, 11, 0.35)',
+              borderColor: 'rgba(245, 158, 11, 1)',
+              borderWidth: 1,
+              borderRadius: 6
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  label: (ctx) => ' ' + formatVND(ctx.raw || 0)
+                }
+              }
+            },
+            scales: {
+              y: {
+                ticks: { callback: (v) => formatVND(v) }
+              }
+            }
+          }
+        });
+      })();
       
       async function loadReportSales(newPage) {
         if (newPage < 1 || newPage > reportSalesPagination.totalPages) return;
@@ -404,7 +473,7 @@ router.get('/', (req, res) => {
         
         const container = document.getElementById('recentSalesList');
         if (data.sales.length === 0) {
-          container.innerHTML = '<div class="text-gray-500 text-center py-4">Chưa có đơn hàng</div>';
+          container.innerHTML = '<div class="text-gray-700 text-center py-4">Chưa có đơn hàng</div>';
           return;
         }
         
@@ -421,17 +490,17 @@ router.get('/', (req, res) => {
             totalDisplay = '<span class="font-bold text-orange-600">0 đ</span>';
             rowClass = 'bg-orange-50';
           } else {
-            totalDisplay = '<span class="font-bold text-amber-600">' + formatVND(s.total) + '</span>';
+            totalDisplay = '<span class="font-bold text-green-600">' + formatVND(s.total) + '</span>';
           }
           
           return '<div class="flex justify-between items-center p-2 border-b ' + rowClass + '">' +
             '<div>' +
               '<div class="font-medium">#' + s.id + ' - ' + (s.customer_name || 'Khách lẻ') + ' ' + typeBadge + '</div>' +
-              '<div class="text-xs text-gray-500">' + date + (hasKegUpdate ? ' • 📦' : '') + '</div>' +
+              '<div class="text-xs text-gray-700">' + date + (hasKegUpdate ? ' • 📦' : '') + '</div>' +
             '</div>' +
             '<div class="text-right">' +
               totalDisplay +
-              (s.type !== 'replacement' ? '<div class="text-xs ' + (s.profit > 0 ? 'text-blue-600' : 'text-red-500') + '">+' + formatVND(s.profit) + '</div>' : '') +
+              (s.type !== 'replacement' ? '<div class="text-xs ' + (s.profit > 0 ? 'text-green-600' : 'text-red-500') + '">+' + formatVND(s.profit) + '</div>' : '') +
             '</div>' +
           '</div>';
         }).join('');
@@ -449,32 +518,13 @@ router.get('/', (req, res) => {
     </script>
   </main>
 
-  <!-- Bottom Navigation -->
-  <nav class="bottomnav fixed bottom-0 left-0 right-0">
-    <a href="/" class="py-3">
-      <div class="text-xl">🏠</div>
-      <div class="text-xs">Home</div>
-    </a>
-    <a href="/delivery" class="py-3">
-      <div class="text-xl">🚚</div>
-      <div class="text-xs">Giao</div>
-    </a>
-    <a href="/sale" class="py-3">
-      <div class="text-xl">🍺</div>
-      <div class="text-xs">Bán hàng</div>
-    </a>
-    <a href="/customers" class="py-3">
-      <div class="text-xl">👤</div>
-      <div class="text-xs">Khách</div>
-    </a>
-    <a href="/report" class="py-3 active">
-      <div class="text-xl">📊</div>
-      <div class="text-xs">Báo cáo</div>
-    </a>
-  </nav>
-
+  <div id="bottomNavContainer"></div>
   <script>
     if (!isLoggedIn()) { window.location.href = '/login'; }
+  </script>
+  <script>
+    const bottomNav = getBottomNav('/report');
+    document.getElementById('bottomNavContainer').innerHTML = bottomNav;
   </script>
 </body>
 </html>
@@ -585,7 +635,7 @@ router.get('/profit-product', (req, res) => {
   <link rel="stylesheet" href="/css/tailwind.css">
   <script src="/js/auth.js"></script>
   <style>
-    .bottom-nav { max-width: 500px; margin: auto; }
+    .bottomnav { max-width: 500px; margin: auto; }
   </style>
 </head>
 <body class="bg-gray-100 text-gray-800 min-h-screen pb-20">
@@ -615,19 +665,19 @@ router.get('/profit-product', (req, res) => {
       </div>
     </div>
     <div class="space-y-2">
-      ${products.length === 0 ? '<div class="text-gray-500 text-center py-4">Chưa có dữ liệu</div>' : products.map((p, i) => `
+      ${products.length === 0 ? '<div class="text-gray-700 text-center py-4">Chưa có dữ liệu</div>' : products.map((p, i) => `
         <div class="card">
           <div class="flex justify-between items-center">
             <div class="flex items-center gap-3">
               <div class="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${i === 0 ? 'bg-yellow-400 text-yellow-900' : i === 1 ? 'bg-gray-300 text-gray-700' : i === 2 ? 'bg-orange-300 text-orange-900' : 'bg-gray-100 text-gray-600'}">${i + 1}</div>
               <div>
                 <div class="font-bold">${p.name}</div>
-                <div class="text-xs text-gray-500">${p.total_qty} sản phẩm</div>
+                <div class="text-xs text-gray-700">${p.total_qty} sản phẩm</div>
               </div>
             </div>
             <div class="text-right">
               <div class="font-bold text-purple-600">${formatVND(p.profit || 0)}</div>
-              <div class="text-xs text-gray-500">${((p.profit || 0) / (p.revenue || 1) * 100).toFixed(1)}%</div>
+              <div class="text-xs text-gray-700">${((p.profit || 0) / (p.revenue || 1) * 100).toFixed(1)}%</div>
             </div>
           </div>
         </div>
@@ -685,7 +735,7 @@ router.get('/profit-customer', (req, res) => {
   <link rel="stylesheet" href="/css/tailwind.css">
   <script src="/js/auth.js"></script>
   <style>
-    .bottom-nav { max-width: 500px; margin: auto; }
+    .bottomnav { max-width: 500px; margin: auto; }
   </style>
 </head>
 <body class="bg-gray-100 text-gray-800 min-h-screen pb-20">
@@ -711,48 +761,31 @@ router.get('/profit-customer', (req, res) => {
       </div>
     </div>
     <div class="space-y-2">
-      ${customers.length === 0 ? '<div class="text-gray-500 text-center py-4">Chưa có dữ liệu</div>' : customers.map((c, i) => `
+      ${customers.length === 0 ? '<div class="text-gray-700 text-center py-4">Chưa có dữ liệu</div>' : customers.map((c, i) => `
         <a href="/customers/${c.id}" class="card block">
           <div class="flex justify-between items-center">
             <div class="flex items-center gap-3">
               <div class="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${i === 0 ? 'bg-yellow-400 text-yellow-900' : i === 1 ? 'bg-gray-300 text-gray-700' : i === 2 ? 'bg-orange-300 text-orange-900' : 'bg-gray-100 text-gray-600'}">${i + 1}</div>
               <div>
                 <div class="font-bold">${c.name}</div>
-                <div class="text-xs text-gray-500">${c.total_orders} đơn hàng</div>
+                <div class="text-xs text-gray-700">${c.total_orders} đơn hàng</div>
               </div>
             </div>
             <div class="text-right">
               <div class="font-bold text-blue-600">${formatVND(c.profit || 0)}</div>
-              <div class="text-xs text-gray-500">${formatVND(c.revenue || 0)}</div>
+              <div class="text-xs text-gray-700">${formatVND(c.revenue || 0)}</div>
             </div>
           </div>
         </a>
       `).join('')}
     </div>
   </main>
-  <nav class="bottomnav fixed bottom-0 left-0 right-0">
-    <a href="/" class="py-3">
-      <div class="text-xl">🏠</div>
-      <div class="text-xs">Home</div>
-    </a>
-    <a href="/delivery" class="py-3">
-      <div class="text-xl">🚚</div>
-      <div class="text-xs">Giao</div>
-    </a>
-    <a href="/sale" class="py-3">
-      <div class="text-xl">🍺</div>
-      <div class="text-xs">Bán hàng</div>
-    </a>
-    <a href="/customers" class="py-3">
-      <div class="text-xl">👤</div>
-      <div class="text-xs">Khách</div>
-    </a>
-    <a href="/report" class="py-3 active">
-      <div class="text-xl">📊</div>
-      <div class="text-xs">Báo cáo</div>
-    </a>
-  </nav>
+  <div id="bottomNavContainer"></div>
   <script>if (!isLoggedIn()) { window.location.href = '/login'; }</script>
+  <script>
+    const bottomNav = getBottomNav('/report');
+    document.getElementById('bottomNavContainer').innerHTML = bottomNav;
+  </script>
 </body>
 </html>
   `);
@@ -793,7 +826,7 @@ router.get('/cashflow', (req, res) => {
   <link rel="stylesheet" href="/css/tailwind.css">
   <script src="/js/auth.js"></script>
   <style>
-    .bottom-nav { max-width: 500px; margin: auto; }
+    .bottomnav { max-width: 500px; margin: auto; }
   </style>
 </head>
 <body class="bg-gray-100 text-gray-800 min-h-screen pb-20">
@@ -819,12 +852,12 @@ router.get('/cashflow', (req, res) => {
       </div>
     </div>
     <div class="space-y-2">
-      ${salesByDay.length === 0 ? '<div class="text-gray-500 text-center py-4">Chưa có dữ liệu</div>' : salesByDay.map(d => `
+      ${salesByDay.length === 0 ? '<div class="text-gray-700 text-center py-4">Chưa có dữ liệu</div>' : salesByDay.map(d => `
         <div class="card">
           <div class="flex justify-between items-center">
             <div>
               <div class="font-bold">${new Date(d.day).toLocaleDateString('vi-VN')}</div>
-              <div class="text-xs text-gray-500">${d.orders} đơn hàng</div>
+              <div class="text-xs text-gray-700">${d.orders} đơn hàng</div>
             </div>
             <div class="text-right">
               <div class="font-bold text-amber-600">+${formatVND(d.revenue || 0)}</div>
@@ -835,29 +868,12 @@ router.get('/cashflow', (req, res) => {
       `).join('')}
     </div>
   </main>
-  <nav class="bottomnav fixed bottom-0 left-0 right-0">
-    <a href="/" class="py-3">
-      <div class="text-xl">🏠</div>
-      <div class="text-xs">Home</div>
-    </a>
-    <a href="/delivery" class="py-3">
-      <div class="text-xl">🚚</div>
-      <div class="text-xs">Giao</div>
-    </a>
-    <a href="/sale" class="py-3">
-      <div class="text-xl">🍺</div>
-      <div class="text-xs">Bán hàng</div>
-    </a>
-    <a href="/customers" class="py-3">
-      <div class="text-xl">👤</div>
-      <div class="text-xs">Khách</div>
-    </a>
-    <a href="/report" class="py-3 active">
-      <div class="text-xl">📊</div>
-      <div class="text-xs">Báo cáo</div>
-    </a>
-  </nav>
+  <div id="bottomNavContainer"></div>
   <script>if (!isLoggedIn()) { window.location.href = '/login'; }</script>
+  <script>
+    const bottomNav = getBottomNav('/report');
+    document.getElementById('bottomNavContainer').innerHTML = bottomNav;
+  </script>
 </body>
 </html>
   `);

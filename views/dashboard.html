@@ -24,9 +24,12 @@
       <button onclick="logout()" class="text-red-500 hover:bg-red-50 px-2 rounded">🚪</button>
     `;
     
-    document.getElementById('app').innerHTML = 
-      getHeaderWithActions('Gia Huy', '🍺', headerActions) +
-      getContent(`
+    (async () => {
+      try {
+        if (typeof loadVersion === 'function') await loadVersion();
+        document.getElementById('app').innerHTML = 
+        getHeaderWithActions('Gia Huy', '🍺', headerActions) +
+        getContent(`
         <!-- Loading -->
         <div id="loading" class="text-center py-8">
           <div class="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto"></div>
@@ -74,30 +77,14 @@
           <!-- QUICK ACTIONS SECTION -->
           <div class="mb-4">
             <div class="section-title">Thao tác nhanh</div>
-            <div class="grid grid-cols-6 gap-1">
-              <a href="/sale" class="bg-amber-500 text-white rounded-xl p-2 text-center">
-                <div class="text-xl">🍺</div>
-                <div class="text-xs font-medium">Bán</div>
-              </a>
-              <a href="/delivery" class="bg-red-500 text-white rounded-xl p-2 text-center">
+            <div class="grid grid-cols-2 gap-2">
+              <a href="/delivery" class="bg-red-500 text-white rounded-xl p-3 text-center">
                 <div class="text-xl">🚚</div>
-                <div class="text-xs font-medium">Giao</div>
+                <div class="text-sm font-medium">Giao</div>
               </a>
-              <a href="/customers" class="bg-blue-500 text-white rounded-xl p-2 text-center">
-                <div class="text-xl">👤</div>
-                <div class="text-xs font-medium">KH</div>
-              </a>
-              <a href="/stock" class="bg-purple-500 text-white rounded-xl p-2 text-center">
-                <div class="text-xl">📦</div>
-                <div class="text-xs font-medium">Kho</div>
-              </a>
-              <a href="/devices" class="bg-indigo-500 text-white rounded-xl p-2 text-center">
+              <a href="/devices" class="bg-indigo-500 text-white rounded-xl p-3 text-center">
                 <div class="text-xl">🧊</div>
-                <div class="text-xs font-medium">Tủ</div>
-              </a>
-              <a href="/report" class="bg-orange-500 text-white rounded-xl p-2 text-center">
-                <div class="text-xl">📊</div>
-                <div class="text-xs font-medium">BK</div>
+                <div class="text-sm font-medium">Tủ</div>
               </a>
             </div>
           </div>
@@ -149,6 +136,19 @@
         </div>
       `) +
       getBottomNav('/');
+      } catch (err) {
+        console.error('Dashboard init error:', err);
+        document.getElementById('app').innerHTML = `
+          <div class="max-w-md mx-auto p-4">
+            <div class="card border-red-200 bg-red-50">
+              <div class="font-bold text-red-700 mb-1">Lỗi tải Dashboard</div>
+              <div class="text-sm text-red-600 break-words">${String(err && err.message ? err.message : err)}</div>
+              <div class="text-xs text-gray-500 mt-2">Mở DevTools Console để xem chi tiết.</div>
+            </div>
+          </div>
+        `;
+      }
+    })();
   </script>
 
   <!-- Load Dashboard JS -->
@@ -160,6 +160,10 @@
     async function loadData() {
       try {
         const res = await fetch('/data');
+        if (!res.ok) {
+          const text = await res.text().catch(() => '');
+          throw new Error('HTTP ' + res.status + (text ? (': ' + text.slice(0, 200)) : ''));
+        }
         const data = await res.json();
         
         // Initialize dashboard with data

@@ -149,39 +149,26 @@ document.getElementById('editPurchaseForm').addEventListener('submit', async (e)
 function renderImportForm(products) {
   const container = document.getElementById('importProducts');
   
+  // Layout rõ ràng: tên SP, giá vốn 1 dòng, chỉ ô SL (không lặp giá)
   container.innerHTML = products.map(p => `
-    <div class="flex items-center gap-2 p-2 border rounded-lg bg-gray-50">
-      <div class="flex-1 min-w-0">
-        <div class="font-medium text-sm truncate">${p.name}</div>
-        <div class="text-xs text-gray-500">Giá vốn: ${formatVND(p.cost_price || 0)}</div>
-      </div>
-      <input type="number" id="qty-${p.id}" min="0" placeholder="SL" 
-        class="w-16 border rounded px-2 py-1 text-center" 
-        onchange="updateImportData(${p.id}, 'quantity', this.value)"
-        oninput="updateImportData(${p.id}, 'quantity', this.value)">
-      <input type="number" id="cost-${p.id}" step="1000" placeholder="TT" 
-        class="w-20 border rounded px-2 py-1 text-right" 
-        value="${p.cost_price || 0}"
-        onchange="updateImportData(${p.id}, 'costPrice', this.value)"
-        oninput="updateImportData(${p.id}, 'costPrice', this.value)">
+    <div class="p-3 border border-gray-200 rounded-xl bg-gray-50">
+      <div class="text-sm font-semibold text-gray-800">${p.name}</div>
+      <div class="text-xs text-gray-600 mt-0.5">Giá vốn: ${formatVND(p.cost_price || 0)} · Tồn: ${p.stock}</div>
+      <input type="number" id="qty-${p.id}" min="0" placeholder="Nhập SL"
+        class="mt-2 w-full border-2 border-gray-200 rounded-lg p-2.5 text-center font-medium"
+        onchange="updateImportData(${p.id}, this.value)"
+        oninput="updateImportData(${p.id}, this.value)">
     </div>
   `).join('');
   
-  // Initialize importData
   importData = {};
 }
 
-function updateImportData(productId, field, value) {
+function updateImportData(productId, value) {
   if (!importData[productId]) {
-    importData[productId] = { quantity: 0, costPrice: 0 };
+    importData[productId] = { quantity: 0 };
   }
-  
-  if (field === 'quantity') {
-    importData[productId].quantity = parseInt(value) || 0;
-  } else {
-    importData[productId].costPrice = parseFloat(value) || 0;
-  }
-  
+  importData[productId].quantity = parseInt(value) || 0;
   calculateImportTotal();
 }
 
@@ -190,29 +177,40 @@ function calculateImportTotal() {
   Object.keys(importData).forEach(productId => {
     const item = importData[productId];
     if (item.quantity > 0) {
-      total += item.quantity * item.costPrice;
+      const product = currentProducts.find(p => p.id == productId);
+      const costPrice = product ? (product.cost_price || 0) : 0;
+      total += item.quantity * costPrice;
     }
   });
-  
-  document.getElementById('importTotal').textContent = formatVND(total);
+  const el = document.getElementById('importTotal');
+  if (el) el.textContent = formatVND(total);
 }
 
 async function submitImport() {
-  // Collect items with quantity > 0
   const items = [];
   Object.keys(importData).forEach(productId => {
     const item = importData[productId];
-    if (item.quantity > 0 && item.costPrice > 0) {
-      items.push({
-        productId: parseInt(productId),
-        quantity: item.quantity,
-        costPrice: item.costPrice
-      });
+    if (item.quantity > 0) {
+      const product = currentProducts.find(p => p.id == productId);
+      const costPrice = product ? (product.cost_price || 0) : 0;
+      if (costPrice > 0) {
+        items.push({
+          productId: parseInt(productId),
+          quantity: item.quantity,
+          costPrice: costPrice
+        });
+      } else {
+        items.push({
+          productId: parseInt(productId),
+          quantity: item.quantity,
+          costPrice: 0
+        });
+      }
     }
   });
   
   if (items.length === 0) {
-    alert('Vui lòng nhập số lượng và thành tiền');
+    alert('Vui lòng nhập số lượng');
     return;
   }
   

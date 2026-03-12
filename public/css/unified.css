@@ -4,11 +4,11 @@
 :root {
   --color-primary: #f59e0b;
   --color-primary-light: #fbbf24;
-  --color-bg: #fffbeb;
+  --color-bg: #f8fafc;
   --color-card: #ffffff;
-  --color-border: #fcd34d;
+  --color-border: #f59e0b;
   --color-text: #111827;
-  --color-muted: #92400e;
+  --color-muted: #6b7280;
   --color-info: #2563eb;
   --color-warning: #f97316;
   --color-danger: #dc2626;
@@ -104,6 +104,10 @@ body {
   font-weight: 600;
   transform: translateY(-2px);
 }
+
+/* Text contrast: nền sáng → chữ đậm; nền đậm → chữ trắng (contrast ≥ 4.5) */
+.text-main { color: #111827; }
+.text-muted { color: #6b7280; }
 
 /* Card */
 .card {

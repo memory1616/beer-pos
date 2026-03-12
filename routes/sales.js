@@ -17,7 +17,7 @@ router.get('/', (req, res) => {
 // API: Get sales page data
 router.get('/data', (req, res) => {
   const customers = db.prepare('SELECT * FROM customers ORDER BY name').all();
-  const products = db.prepare('SELECT * FROM products WHERE stock > 0 ORDER BY name').all();
+  const products = db.prepare('SELECT * FROM products ORDER BY name').all();
   
   // Get prices for each customer-product combination
   const prices = db.prepare('SELECT * FROM prices').all();

@@ -30,7 +30,7 @@ router.get('/', (req, res) => {
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <style>
     .pb-safe { padding-bottom: env(safe-area-inset-bottom, 20px); }
-    .bottom-nav { max-width: 500px; margin: auto; }
+    .bottomnav { max-width: 500px; margin: auto; }
     #map { height: 50vh; border-radius: 12px; }
     .delivery-card { transition: all 0.2s; }
     .delivery-card:active { transform: scale(0.98); }
@@ -138,14 +138,27 @@ router.get('/', (req, res) => {
     </div>
   </div>
 
-  <nav class="fixed bottom-0 left-0 right-0 bg-white border-t z-50 pb-safe bottom-nav">
-    <div class="grid grid-cols-5 text-center text-sm">
-      <a href="/" class="py-3"><div class="text-2xl">🏠</div><div>Home</div></a>
-      <a href="/customers" class="py-3"><div class="text-2xl">👤</div><div>KH</div></a>
-      <a href="/sale" class="py-3"><div class="text-2xl">🍺</div><div>Bán</div></a>
-      <a href="/stock" class="py-3"><div class="text-2xl">📦</div><div>Kho</div></a>
-      <a href="/analytics" class="py-3"><div class="text-2xl">📊</div><div>BK</div></a>
-    </div>
+  <nav class="bottomnav pb-safe">
+    <a href="/">
+      <span class="icon">🏠</span>
+      <span>Home</span>
+    </a>
+    <a href="/delivery" class="active">
+      <span class="icon">🚚</span>
+      <span>Giao</span>
+    </a>
+    <a href="/sale">
+      <span class="icon">🍺</span>
+      <span>Bán</span>
+    </a>
+    <a href="/customers">
+      <span class="icon">👤</span>
+      <span>KH</span>
+    </a>
+    <a href="/devices">
+      <span class="icon">📦</span>
+      <span>TB</span>
+    </a>
   </nav>
 
   <script>

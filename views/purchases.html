@@ -14,7 +14,7 @@
   <style>
     .animate-fade { animation: fade 0.3s ease-in; }
     @keyframes fade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-    .bottom-nav { max-width: 500px; margin: auto; left: 0; right: 0; }
+    .bottomnav { max-width: 500px; margin: auto; left: 0; right: 0; }
     button, a { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
     button:active { transform: scale(0.96); }
     .card { transition: transform 0.2s, box-shadow 0.2s; }
@@ -50,8 +50,8 @@
     <!-- New Purchase Form -->
     <div id="newPurchaseSection" class="hidden">
       <div class="bg-white rounded-xl shadow-sm border p-4 mb-4">
-        <h3 class="font-bold text-lg mb-3">📦 Chọn sản phẩm</h3>
-        <div class="space-y-2 max-h-80 overflow-y-auto" id="productList">
+        <h3 class="font-bold text-lg mb-3">📦 Nhập hàng</h3>
+        <div class="space-y-4 max-h-96 overflow-y-auto" id="productList">
           <!-- Products loaded via JS -->
         </div>
       </div>
@@ -82,14 +82,27 @@
   </main>
 
   <!-- Bottom Navigation -->
-  <nav class="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg bottom-nav">
-    <div class="grid grid-cols-5 text-center text-xs">
-      <a href="/" class="py-3 text-gray-500"><div class="text-xl">🏠</div><div>Home</div></a>
-      <a href="/customers" class="py-3 text-gray-500"><div class="text-xl">👤</div><div>KH</div></a>
-      <a href="/sale" class="py-3 text-gray-500"><div class="text-xl">🍺</div><div>Bán</div></a>
-      <a href="/stock" class="py-3 text-amber-600 font-semibold"><div class="text-xl">📦</div><div>Kho</div></a>
-      <a href="/report" class="py-3 text-gray-500"><div class="text-xl">📊</div><div>BK</div></a>
-    </div>
+  <nav class="bottomnav">
+    <a href="/">
+      <span class="icon">🏠</span>
+      <span>Home</span>
+    </a>
+    <a href="/delivery">
+      <span class="icon">🚚</span>
+      <span>Giao</span>
+    </a>
+    <a href="/sale">
+      <span class="icon">🍺</span>
+      <span>Bán</span>
+    </a>
+    <a href="/customers">
+      <span class="icon">👤</span>
+      <span>KH</span>
+    </a>
+    <a href="/devices" class="active">
+      <span class="icon">📦</span>
+      <span>TB</span>
+    </a>
   </nav>
 
   <!-- Load purchases JS -->
@@ -102,23 +115,22 @@
         const res = await fetch('/purchases/data');
         const data = await res.json();
         
-        // Render products
+        // Render products - layout rõ ràng: tên SP, giá vốn 1 dòng, ô SL
         const productList = document.getElementById('productList');
         productList.innerHTML = data.products.map(p => `
-          <div class="flex items-center gap-2 p-2 border rounded-lg ${p.cost_price > 0 ? 'bg-amber-50' : 'bg-gray-50'}">
-            <div class="flex-1">
-              <div class="font-medium">${p.name}</div>
-              <div class="text-sm text-gray-500">Giá vốn: <span class="text-amber-600 font-medium">${formatVND(p.cost_price || 0)}</span> | Tồn: ${p.stock}</div>
-            </div>
-            <input type="number" 
-              id="qty-${p.id}" 
-              data-product-id="${p.id}" 
+          <div class="p-3 border border-gray-200 rounded-xl ${p.cost_price > 0 ? 'bg-amber-50/50' : 'bg-gray-50'}">
+            <div class="text-sm font-semibold text-gray-800">${p.name}</div>
+            <div class="text-xs text-gray-600 mt-0.5">Giá vốn: ${formatVND(p.cost_price || 0)} · Tồn: ${p.stock}</div>
+            <input type="number"
+              id="qty-${p.id}"
+              data-product-id="${p.id}"
               data-cost="${p.cost_price || 0}"
               data-name="${p.name}"
-              min="0" 
-              placeholder="SL" 
-              class="w-16 text-center border rounded-lg py-1 px-2"
-              onchange="updateCart()">
+              min="0"
+              placeholder="Nhập SL"
+              class="mt-2 w-full border-2 border-gray-200 rounded-lg p-2.5 text-center font-medium"
+              onchange="updateCart()"
+              oninput="updateCart()">
           </div>
         `).join('');
         

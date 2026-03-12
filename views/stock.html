@@ -15,7 +15,7 @@
   <style>
     .animate-fade { animation: fade 0.3s ease-in; }
     @keyframes fade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-    .bottom-nav { max-width: 500px; margin: auto; left: 0; right: 0; }
+    .bottomnav { max-width: 500px; margin: auto; left: 0; right: 0; }
     button, a { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
     button:active { transform: scale(0.96); }
     .card { transition: transform 0.2s, box-shadow 0.2s; }
@@ -93,9 +93,10 @@
   </div>
 
   <script>
-    // Initialize layout
-    document.getElementById('app').innerHTML = 
-      getHeader('Kho hàng', '📦') +
+    (async () => {
+      await loadVersion();
+      document.getElementById('app').innerHTML = 
+        getHeader('Kho hàng', '📦') +
       getContent(`
         <!-- Loading -->
         <div id="loading" class="text-center py-8">
@@ -121,14 +122,14 @@
 
           <!-- IMPORT FORM -->
           <div class="card mb-4">
-            <h3 class="font-bold text-base mb-3">📥 Nhập hàng</h3>
-            <div id="importProducts" class="space-y-2 max-h-80 overflow-y-auto mb-3">
+            <h3 class="font-bold text-base mb-3">📦 Nhập hàng</h3>
+            <div id="importProducts" class="space-y-4 max-h-96 overflow-y-auto mb-3">
               <!-- Products loaded via JS -->
             </div>
             <div class="border-t pt-3 mt-3">
               <div class="flex justify-between items-center mb-3">
-                <span class="font-medium">Tổng cộng:</span>
-                <span id="importTotal" class="text-xl font-bold text-blue-600">0 VNĐ</span>
+                <span class="font-medium">Tổng tiền:</span>
+                <span id="importTotal" class="text-xl font-bold text-blue-600">0 ₫</span>
               </div>
               <button type="button" onclick="submitImport()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-xl">
                 ✅ Nhập kho
@@ -146,6 +147,7 @@
         </div>
       `) +
       getBottomNav('/stock');
+    })();
   </script>
 
   <!-- Load Stock JS -->

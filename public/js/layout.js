@@ -1,4 +1,16 @@
 // Layout System - Tách layout để dùng chung cho tất cả pages
+let appVersion = '1.0.0';
+
+// Load version from version.json
+async function loadVersion() {
+  try {
+    const res = await fetch('/version.json');
+    const data = await res.json();
+    appVersion = data.version || '1.0.0';
+  } catch (e) {
+    appVersion = '1.0.0';
+  }
+}
 
 // Generate standard header
 function getHeader(title, icons = '') {
@@ -11,7 +23,10 @@ function getHeaderWithActions(title, icons = '', actions = '') {
     <header class="topbar">
       <div class="logo">
         <span class="logo-icon">${icons}</span>
-        <span class="logo-text">${title}</span>
+        <div class="flex flex-col leading-tight">
+          <span class="logo-text">${title}</span>
+          <span class="text-[10px] text-gray-400 -mt-0.5">v${appVersion}</span>
+        </div>
       </div>
       <div class="actions">
         ${actions}
@@ -33,12 +48,12 @@ function getContent(content) {
 function getBottomNav(currentPage) {
   const pages = [
     { href: '/', icon: '🏠', label: 'Home' },
-    { href: '/customers', icon: '👤', label: 'Khách' },
-    { href: '/sale', icon: '🍺', label: 'Bán hàng' },
+    { href: '/customers', icon: '👤', label: 'KH' },
+    { href: '/sale', icon: '🍺', label: 'Bán' },
     { href: '/stock', icon: '📦', label: 'Kho' },
-    { href: '/report', icon: '📊', label: 'Báo cáo' }
+    { href: '/report', icon: '📊', label: 'Báo Cáo' }
   ];
-  
+
   return `
     <nav class="bottomnav">
       ${pages.map(p => `
@@ -70,3 +85,6 @@ function getCardSkeleton() {
     </div>
   `;
 }
+
+// Auto-load version on script load
+loadVersion();

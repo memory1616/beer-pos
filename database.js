@@ -24,6 +24,7 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     stock INTEGER DEFAULT 0,
+    damaged_stock INTEGER DEFAULT 0,
     cost_price REAL DEFAULT 0,
     sell_price REAL DEFAULT 0,
     type TEXT DEFAULT 'keg', -- 'keg' = bình, 'pet' = chai nhựa, 'can' = lon
@@ -53,6 +54,7 @@ db.exec(`
     keg_balance_after INTEGER DEFAULT 0,
     type TEXT DEFAULT 'sale',
     note TEXT,
+    status TEXT DEFAULT 'completed',
     FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL
   );
 
@@ -69,6 +71,16 @@ db.exec(`
     cost_price REAL DEFAULT 0,
     profit REAL DEFAULT 0,
     FOREIGN KEY (sale_id) REFERENCES sales(id) ON DELETE CASCADE,
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+  );
+
+  -- Damaged products table (theo dõi bia lỗi/hư)
+  CREATE TABLE IF NOT EXISTS damaged_products (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    product_id INTEGER NOT NULL,
+    quantity INTEGER NOT NULL,
+    reason TEXT,
+    date TEXT DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
   );
 
@@ -371,6 +383,54 @@ try {
   console.log('Added note column to sales');
 } catch (e) {
   // Column already exists
+}
+
+// Migration: Add status column to sales if not exists
+try {
+  db.exec(`ALTER TABLE sales ADD COLUMN status TEXT DEFAULT 'completed'`);
+  console.log('Added status column to sales');
+} catch (e) {
+  // Column already exists
+}
+
+// Migration: Add return tracking columns to sales if not exists
+try {
+  db.exec(`ALTER TABLE sales ADD COLUMN returned_amount REAL DEFAULT 0`);
+  console.log('Added returned_amount column to sales');
+} catch (e) {
+  // Column already exists
+}
+
+try {
+  db.exec(`ALTER TABLE sales ADD COLUMN returned_quantity INTEGER DEFAULT 0`);
+  console.log('Added returned_quantity column to sales');
+} catch (e) {
+  // Column already exists
+}
+
+// Migration: Add damaged_stock column to products if not exists
+try {
+  db.exec(`ALTER TABLE products ADD COLUMN damaged_stock INTEGER DEFAULT 0`);
+  console.log('Added damaged_stock column to products');
+} catch (e) {
+  // Column already exists
+}
+
+// Migration: Create damaged_products table if not exists
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS damaged_products (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      product_id INTEGER NOT NULL,
+      quantity INTEGER NOT NULL,
+      reason TEXT,
+      date TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+    )
+  `);
+  console.log('Created damaged_products table');
+} catch (e) {
+  // Table already exists
 }
 
 // Devices table for managing equipment (tủ nằm, tủ đứng)

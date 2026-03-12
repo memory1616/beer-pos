@@ -222,6 +222,7 @@ router.get('/', (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 5;
   const month = req.query.month; // format: YYYY-MM, e.g. "2026-03"
+  const status = req.query.status; // 'completed', 'returned', 'cancelled', hoặc 'all'
   
   let whereClause = "WHERE s.type = 'sale'";
   let params = [];
@@ -229,6 +230,15 @@ router.get('/', (req, res) => {
   if (month) {
     whereClause += " AND strftime('%Y-%m', s.date) = ?";
     params.push(month);
+  }
+  
+  // Filter theo status (mặc định chỉ lấy completed)
+  if (status && status !== 'all') {
+    whereClause += " AND s.status = ?";
+    params.push(status);
+  } else if (!status) {
+    // Mặc định chỉ hiển thị hóa đơn chưa trả
+    whereClause += " AND (s.status IS NULL OR s.status != 'returned')";
   }
   
   // Get total count
@@ -310,6 +320,164 @@ router.post('/replacement', (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Tạo đơn đổi bia thất bại' });
+  }
+});
+
+// POST /api/sales/:id/return - Trả hàng (hoàn tiền, hoàn kho, điều chỉnh vỏ)
+router.post('/:id/return', (req, res) => {
+  const saleId = req.params.id;
+  const { returnType = 'stock_return', reason } = req.body; // 'stock_return' hoặc 'damage_return'
+  
+  try {
+    // Lấy thông tin hóa đơn
+    const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId);
+    if (!sale) return res.status(404).json({ error: 'Không tìm thấy hóa đơn' });
+    
+    // Kiểm tra nếu đã trả hàng rồi
+    if (sale.status === 'returned') {
+      return res.status(400).json({ error: 'Hóa đơn này đã được trả hàng' });
+    }
+    
+    // Lấy chi tiết sản phẩm trong hóa đơn
+    const items = db.prepare('SELECT * WHERE sale_id = ?').all(saleId);
+    
+    if (returnType === 'stock_return') {
+      // Trả lại kho - cộng lại tồn kho sản phẩm
+      for (const item of items) {
+        db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(item.quantity, item.product_id);
+      }
+    } else if (returnType === 'damage_return') {
+      // Bia lỗi - ghi nhận vào bảng hàng lỗi, không cộng kho
+      for (const item of items) {
+        db.prepare('UPDATE products SET damaged_stock = damaged_stock + ? WHERE id = ?').run(item.quantity, item.product_id);
+        db.prepare('INSERT INTO damaged_products (product_id, quantity, reason) VALUES (?, ?, ?)').run(
+          item.product_id, item.quantity, reason || 'Bia lỗi/hư'
+        );
+      }
+    }
+    
+    // Cập nhật số vỏ: khách trả lại vỏ đã giao, thu hồi vỏ đã thu trước đó
+    const deliverKegs = sale.deliver_kegs || 0;
+    const returnKegs = sale.return_kegs || 0;
+    
+    // Cập nhật tồn kho vỏ của khách hàng nếu có
+    if (sale.customer_id) {
+      const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(sale.customer_id);
+      if (customer) {
+        const currentKegBalance = customer.keg_balance || 0;
+        // Trừ đi số vỏ đã giao, cộng lại số vỏ đã thu
+        const newKegBalance = currentKegBalance - deliverKegs + returnKegs;
+        db.prepare('UPDATE customers SET keg_balance = ? WHERE id = ?').run(newKegBalance, sale.customer_id);
+      }
+    }
+    
+    // Cập nhật trạng thái hóa đơn với loại return
+    db.prepare("UPDATE sales SET status = 'returned', type = ? WHERE id = ?").run(returnType, saleId);
+    
+    res.json({ 
+      success: true, 
+      message: returnType === 'stock_return' ? 'Đã trả hàng (trả lại kho)' : 'Đã ghi nhận bia lỗi',
+      returnedAmount: sale.total,
+      returnedItems: items.length,
+      returnedKegs: deliverKegs,
+      returnType
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Trả hàng thất bại' });
+  }
+});
+
+// POST /api/sales/:id/return-items - Trả một phần hàng (chọn sản phẩm và số lượng)
+router.post('/:id/return-items', (req, res) => {
+  const saleId = req.params.id;
+  const { items: returnItems, returnType = 'stock_return', reason } = req.body;
+  
+  if (!returnItems || !Array.isArray(returnItems) || returnItems.length === 0) {
+    return res.status(400).json({ error: 'Danh sách sản phẩm trống' });
+  }
+  
+  try {
+    // Lấy thông tin hóa đơn
+    const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId);
+    if (!sale) return res.status(404).json({ error: 'Không tìm thấy hóa đơn' });
+    
+    // Lấy chi tiết sản phẩm trong hóa đơn
+    const saleItems = db.prepare('SELECT * FROM sale_items WHERE sale_id = ?').all(saleId);
+    
+    let totalReturnAmount = 0;
+    let totalReturnQty = 0;
+    let returnedKegs = 0;
+    
+    for (const returnItem of returnItems) {
+      const { productId, quantity } = returnItem;
+      
+      // Tìm sản phẩm trong hóa đơn
+      const saleItem = saleItems.find(si => si.product_id === productId);
+      if (!saleItem) {
+        return res.status(400).json({ error: 'Sản phẩm không có trong hóa đơn' });
+      }
+      
+      // Kiểm tra số lượng trả không vượt quá số lượng đã mua
+      const maxQty = saleItem.quantity;
+      if (quantity > maxQty) {
+        return res.status(400).json({ error: `Số lượng trả (${quantity}) vượt quá số lượng mua (${maxQty})` });
+      }
+      
+      // Tính tiền hoàn
+      const itemAmount = saleItem.price * quantity;
+      totalReturnAmount += itemAmount;
+      totalReturnQty += quantity;
+      
+      // Xử lý kho tùy loại return
+      if (returnType === 'stock_return') {
+        // Trả lại kho - cộng lại tồn kho
+        db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(quantity, productId);
+      } else if (returnType === 'damage_return') {
+        // Bia lỗi - ghi nhận vào bảng hàng lỗi
+        db.prepare('UPDATE products SET damaged_stock = damaged_stock + ? WHERE id = ?').run(quantity, productId);
+        db.prepare('INSERT INTO damaged_products (product_id, quantity, reason) VALUES (?, ?, ?)').run(
+          productId, quantity, reason || 'Bia lỗi/hư'
+        );
+      }
+    }
+    
+    // Tính số vỏ tương ứng với tỷ lệ trả
+    const returnRatio = totalReturnQty / saleItems.reduce((sum, si) => sum + si.quantity, 0);
+    returnedKegs = Math.round((sale.deliver_kegs || 0) * returnRatio);
+    
+    // Cập nhật tồn kho vỏ của khách hàng
+    if (sale.customer_id && returnedKegs > 0) {
+      const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(sale.customer_id);
+      if (customer) {
+        const currentKegBalance = customer.keg_balance || 0;
+        const newKegBalance = currentKegBalance - returnedKegs;
+        db.prepare('UPDATE customers SET keg_balance = ? WHERE id = ?').run(newKegBalance, sale.customer_id);
+      }
+    }
+    
+    // Cập nhật hóa đơn gốc: trừ tiền và đánh dấu có partial return
+    const currentReturnAmount = sale.returned_amount || 0;
+    const currentReturnQty = sale.returned_quantity || 0;
+    db.prepare(`
+      UPDATE sales 
+      SET total = total - ?, 
+          returned_amount = ?,
+          returned_quantity = ?,
+          status = CASE WHEN (returned_amount + ?) >= total THEN 'returned' ELSE status END
+      WHERE id = ?
+    `).run(totalReturnAmount, currentReturnAmount + totalReturnAmount, currentReturnQty + totalReturnQty, totalReturnAmount, saleId);
+    
+    res.json({ 
+      success: true, 
+      message: returnType === 'stock_return' ? 'Đã trả hàng (trả lại kho)' : 'Đã ghi nhận bia lỗi',
+      returnedAmount: totalReturnAmount,
+      returnedQuantity: totalReturnQty,
+      returnedKegs
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Trả hàng thất bại: ' + err.message });
   }
 });
 
