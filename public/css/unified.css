@@ -509,8 +509,350 @@ main {
   .bottomnav {
     max-width: 100%;
   }
-  
+
   main {
     padding: 12px;
   }
+}
+
+/* =======================
+   GRAB-LIKE EXPENSE UI
+   ======================= */
+
+/* Quick Action Buttons - Grab style */
+.quick-action-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.quick-action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 12px;
+  border-radius: 16px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+  position: relative;
+  overflow: hidden;
+}
+
+.quick-action-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 100%);
+  pointer-events: none;
+}
+
+.quick-action-btn:active {
+  transform: scale(0.95) translateY(2px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.quick-action-btn .icon {
+  font-size: 32px;
+  margin-bottom: 8px;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
+}
+
+.quick-action-btn .label {
+  font-size: 14px;
+  font-weight: 700;
+  color: white;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+
+.quick-action-btn.fuel {
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+}
+
+.quick-action-btn.food {
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+}
+
+.quick-action-btn.repair {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+}
+
+.quick-action-btn.other {
+  background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+}
+
+/* Quick Add Modal - Bottom Sheet Style */
+.quick-add-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  z-index: 100;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: fadeIn 0.2s ease;
+}
+
+.quick-add-sheet {
+  background: white;
+  border-radius: 24px 24px 0 0;
+  width: 100%;
+  max-width: 500px;
+  padding: 24px;
+  padding-bottom: calc(24px + env(safe-area-inset-bottom, 0));
+  animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.2);
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.quick-add-sheet .handle {
+  width: 40px;
+  height: 4px;
+  background: #e5e7eb;
+  border-radius: 2px;
+  margin: 0 auto 20px;
+}
+
+.quick-add-sheet .amount-input {
+  font-size: 36px;
+  font-weight: 700;
+  text-align: center;
+  border: none;
+  background: #f9fafb;
+  border-radius: 16px;
+  padding: 20px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.quick-add-sheet .amount-input:focus {
+  outline: none;
+  background: #f0fdf4;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2);
+}
+
+.quick-add-sheet .quick-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.quick-add-sheet .quick-amount {
+  background: #f3f4f6;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.quick-add-sheet .quick-amount:active {
+  transform: scale(0.95);
+  background: #e5e7eb;
+}
+
+.quick-add-sheet .save-btn {
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  color: white;
+  border: none;
+  padding: 18px;
+  border-radius: 16px;
+  font-size: 18px;
+  font-weight: 700;
+  width: 100%;
+  margin-top: 20px;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(34, 197, 94, 0.4);
+  transition: all 0.2s;
+}
+
+.quick-add-sheet .save-btn:active {
+  transform: scale(0.98);
+}
+
+/* Expense Summary Card - Grab style */
+.expense-summary {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: 0 8px 24px rgba(239, 68, 68, 0.35);
+  margin-bottom: 16px;
+}
+
+.expense-summary .total-label {
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+.expense-summary .total-amount {
+  font-size: 32px;
+  font-weight: 800;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.expense-summary .breakdown {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255,255,255,0.2);
+}
+
+.expense-summary .breakdown-item {
+  text-align: center;
+  background: rgba(255,255,255,0.15);
+  padding: 10px 8px;
+  border-radius: 12px;
+}
+
+.expense-summary .breakdown-item .icon {
+  font-size: 20px;
+}
+
+.expense-summary .breakdown-item .value {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.expense-summary .breakdown-item .label {
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+/* Floating Action Button - Grab style */
+.fab {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: fixed;
+  bottom: 90px;
+  right: 20px;
+  z-index: 40;
+}
+
+.fab:active {
+  transform: scale(0.9);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.fab.primary {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+  font-size: 28px;
+}
+
+/* Nav Highlight - Special tab */
+.nav-highlight {
+  position: relative;
+}
+
+.nav-highlight::after {
+  content: '';
+  position: absolute;
+  top: 8px;
+  right: 50%;
+  transform: translateX(50%);
+  width: 6px;
+  height: 6px;
+  background: #ef4444;
+  border-radius: 50%;
+}
+
+.nav-highlight.active::after {
+  background: #ef4444;
+}
+
+/* Smooth animations */
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+.animate-pulse-slow {
+  animation: pulse 2s infinite;
+}
+
+/* List item with swipe-like feedback */
+.expense-item {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  background: white;
+  border-radius: 16px;
+  margin-bottom: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.expense-item:active {
+  transform: scale(0.98);
+  background: #f9fafb;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.expense-item .icon-wrapper {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  margin-right: 14px;
+}
+
+.expense-item .icon-wrapper.fuel { background: #fff7ed; }
+.expense-item .icon-wrapper.food { background: #f0fdf4; }
+.expense-item .icon-wrapper.repair { background: #eff6ff; }
+.expense-item .icon-wrapper.other { background: #f3f4f6; }
+
+.expense-item .content {
+  flex: 1;
+}
+
+.expense-item .title {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.expense-item .subtitle {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.expense-item .amount {
+  font-weight: 700;
+  font-size: 16px;
+  color: #ef4444;
 }

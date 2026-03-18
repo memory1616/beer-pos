@@ -44,24 +44,27 @@ function getContent(content) {
   `;
 }
 
-// Generate bottom navigation - Mobile optimized
+// Generate bottom navigation - Mobile optimized (Grab-style)
 function getBottomNav(currentPage) {
   const pages = [
-    { href: '/', icon: '🏠', label: 'Home' },
-    { href: '/customers', icon: '👤', label: 'KH' },
+    { href: '/', icon: '🏠', label: 'Trang chủ' },
     { href: '/sale', icon: '🍺', label: 'Bán' },
-    { href: '/stock', icon: '📦', label: 'Kho' },
-    { href: '/report', icon: '📊', label: 'Báo Cáo' }
+    { href: '/expenses', icon: '💸', label: 'Chi phí', highlight: true },
+    { href: '/customers', icon: '👤', label: 'Khách' },
+    { href: '/report', icon: '📊', label: 'Báo cáo' }
   ];
 
   return `
     <nav class="bottomnav">
-      ${pages.map(p => `
-        <a href="${p.href}" class="${currentPage === p.href ? 'active' : ''}">
+      ${pages.map(p => {
+        const isActive = currentPage === p.href;
+        const highlightClass = p.highlight ? 'nav-highlight' : '';
+        return `
+        <a href="${p.href}" class="${isActive ? 'active' : ''} ${highlightClass}">
           <span class="icon">${p.icon}</span>
           <span>${p.label}</span>
         </a>
-      `).join('')}
+      `}).join('')}
     </nav>
   `;
 }
