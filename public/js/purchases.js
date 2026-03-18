@@ -4,20 +4,27 @@
 let cart = [];
 
 function switchTab(tab) {
+  const newSection = document.getElementById('newPurchaseSection');
+  const historySection = document.getElementById('historySection');
+  const tabNew = document.getElementById('tabNew');
+  const tabHistory = document.getElementById('tabHistory');
+  
+  if (!newSection || !historySection || !tabNew || !tabHistory) return;
+  
   if (tab === 'new') {
-    document.getElementById('newPurchaseSection').classList.remove('hidden');
-    document.getElementById('historySection').classList.add('hidden');
-    document.getElementById('tabNew').classList.add('bg-blue-600', 'text-white');
-    document.getElementById('tabNew').classList.remove('bg-gray-200', 'text-gray-700');
-    document.getElementById('tabHistory').classList.remove('bg-blue-600', 'text-white');
-    document.getElementById('tabHistory').classList.add('bg-gray-200', 'text-gray-700');
+    newSection.classList.remove('hidden');
+    historySection.classList.add('hidden');
+    tabNew.classList.add('bg-blue-600', 'text-white');
+    tabNew.classList.remove('bg-gray-200', 'text-gray-700');
+    tabHistory.classList.remove('bg-blue-600', 'text-white');
+    tabHistory.classList.add('bg-gray-200', 'text-gray-700');
   } else {
-    document.getElementById('newPurchaseSection').classList.add('hidden');
-    document.getElementById('historySection').classList.remove('hidden');
-    document.getElementById('tabHistory').classList.add('bg-blue-600', 'text-white');
-    document.getElementById('tabHistory').classList.remove('bg-gray-200', 'text-gray-700');
-    document.getElementById('tabNew').classList.remove('bg-blue-600', 'text-white');
-    document.getElementById('tabNew').classList.add('bg-gray-200', 'text-gray-700');
+    newSection.classList.add('hidden');
+    historySection.classList.remove('hidden');
+    tabHistory.classList.add('bg-blue-600', 'text-white');
+    tabHistory.classList.remove('bg-gray-200', 'text-gray-700');
+    tabNew.classList.remove('bg-blue-600', 'text-white');
+    tabNew.classList.add('bg-gray-200', 'text-gray-700');
   }
 }
 
@@ -86,7 +93,8 @@ async function submitPurchase() {
     
     if (res.ok) {
       alert('✅ Nhập hàng thành công!\nTổng tiền: ' + formatVND(data.total_amount));
-      location.reload();
+      // Reload and switch to history tab
+      window.location.href = '/purchases?tab=history';
     } else {
       alert('❌ Lỗi: ' + (data.error || 'Không rõ lỗi'));
       submitBtn.disabled = false;
@@ -97,6 +105,10 @@ async function submitPurchase() {
     submitBtn.disabled = false;
     submitBtn.textContent = '✅ Xác nhận nhập hàng';
   }
+}
+
+function editPurchase(id) {
+  window.location.href = '/purchases?tab=history&edit=' + id;
 }
 
 async function deletePurchase(id) {

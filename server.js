@@ -26,6 +26,15 @@ app.use(bodyParser.json({ limit: '10mb' })); // Limit request body size
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Debug: Log all requests
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} ${req.method} ${req.url}`);
+  if (req.method === 'POST' && req.url === '/api/expenses') {
+    console.log('  POST body:', req.body);
+  }
+  next();
+});
+
 // View engine for HTML templates
 app.set('view engine', 'html');
 app.engine('html', require('ejs').renderFile);
@@ -103,17 +112,10 @@ function cleanupOldBackups(backupDir) {
   }
 }
 
-// Schedule daily backup at midnight
-cron.schedule('0 0 * * *', () => {
-  createBackup({ hourly: false });
+// Schedule daily backup at 23:00 (11 PM)
+cron.schedule('0 23 * * *', () => {
+  createBackup({ daily: true });
 });
-
-// Schedule hourly backup during working hours (6 AM - 10 PM)
-for (let hour = 6; hour <= 22; hour++) {
-  cron.schedule(`0 ${hour} * * *`, () => {
-    createBackup({ hourly: true });
-  });
-}
 
 // ==================== WEB ROUTES ====================
 app.use('/login', require('./routes/login'));
@@ -129,6 +131,7 @@ app.use('/purchases', require('./routes/purchases'));
 app.use('/report', require('./routes/report'));
 app.use('/backup', require('./routes/backup'));
 app.use('/devices', require('./routes/devices'));
+app.use('/expenses', require('./routes/expenses'));
 
 // ==================== API ROUTES ====================
 app.use('/api/customers', require('./routes/api/customers'));
@@ -142,6 +145,7 @@ app.use('/api/purchases', require('./routes/api/purchases'));
 app.use('/api/backup', require('./routes/api/backup'));
 app.use('/api/settings', require('./routes/api/settings'));
 app.use('/api/devices', require('./routes/api/devices'));
+app.use('/api/expenses', require('./routes/api/expenses'));
 
 // ==================== SYNC API ====================
 // Simple sync endpoints for cloud backup

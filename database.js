@@ -489,4 +489,25 @@ try {
   console.log('Settings table may already exist:', e.message);
 }
 
+// Expenses table for tracking operational costs
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS expenses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      category TEXT NOT NULL,
+      amount REAL NOT NULL,
+      description TEXT,
+      date TEXT DEFAULT CURRENT_TIMESTAMP,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  console.log('Created expenses table');
+
+  // Create index for faster date queries
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_expenses_category ON expenses(category)`);
+} catch (e) {
+  console.log('Expenses table may already exist:', e.message);
+}
+
 module.exports = db;

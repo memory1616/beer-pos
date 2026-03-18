@@ -19,6 +19,42 @@ function initDashboard(data) {
   document.getElementById('kegAtCustomers').textContent = data.kegStats.atCustomers;
   document.getElementById('kegTotal').textContent = data.kegStats.total;
   
+  // Set expense data - calculate net profit
+  const todayProfit = data.todayStats.profit - (data.expenses?.today || 0);
+  const monthProfit = data.monthStats.profit - (data.expenses?.month || 0);
+  
+  // Store for later use
+  window.dashboardData = {
+    ...data,
+    netProfit: {
+      today: todayProfit,
+      month: monthProfit
+    }
+  };
+  
+  // Display profit with expenses deducted
+  const profitEl = document.getElementById('todayProfit');
+  const monthProfitEl = document.getElementById('monthProfit');
+  const monthExpensesEl = document.getElementById('monthExpenses');
+  
+  if (todayProfit >= 0) {
+    profitEl.textContent = formatVND(todayProfit);
+    profitEl.className = 'text-xl font-bold text-green-600';
+  } else {
+    profitEl.textContent = formatVND(todayProfit);
+    profitEl.className = 'text-xl font-bold text-red-600';
+  }
+  
+  if (monthProfit >= 0) {
+    monthProfitEl.textContent = formatVND(monthProfit);
+    monthProfitEl.className = 'text-xl font-bold text-green-600';
+  } else {
+    monthProfitEl.textContent = formatVND(monthProfit);
+    monthProfitEl.className = 'text-xl font-bold text-red-600';
+  }
+  
+  monthExpensesEl.textContent = formatVND(data.expenses?.month || 0);
+  
   // Render low stock
   if (data.lowStockProducts && data.lowStockProducts.length > 0) {
     const section = document.getElementById('lowStockSection');

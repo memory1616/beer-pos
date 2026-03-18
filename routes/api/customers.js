@@ -22,7 +22,23 @@ function validateId(id) {
 // GET /api/customers
 router.get('/', (req, res) => {
   try {
-    const customers = db.prepare('SELECT * FROM customers ORDER BY name').all();
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth() + 1;
+    const currentMonthStr = currentMonth.toString().padStart(2, '0');
+    
+    const customers = db.prepare(`
+      SELECT c.*, COALESCE(cm.monthly_kegs, 0) as monthly_liters
+      FROM customers c
+      LEFT JOIN (
+        SELECT customer_id, COALESCE(SUM(si.quantity), 0) as monthly_kegs
+        FROM sales s
+        JOIN sale_items si ON si.sale_id = s.id
+        WHERE s.type = 'sale' AND strftime('%Y', s.date) = ? AND strftime('%m', s.date) = ?
+        GROUP BY customer_id
+      ) cm ON cm.customer_id = c.id
+      ORDER BY c.name
+    `).all(currentYear.toString(), currentMonthStr);
+    
     res.json(customers);
   } catch (err) {
     console.error('Error fetching customers:', err);
@@ -114,26 +130,100 @@ router.put('/:id', (req, res) => {
     vertical_fridge:   vertical_fridge  ?? existing.vertical_fridge,
   };
 
-  db.prepare(`
-    UPDATE customers
-    SET name = ?, phone = ?, deposit = ?, lat = ?, lng = ?, keg_balance = ?, debt = ?, address = ?, note = ?, horizontal_fridge = ?, vertical_fridge = ?
-    WHERE id = ?
-  `).run(
-    updated.name,
-    updated.phone,
-    updated.deposit,
-    updated.lat,
-    updated.lng,
-    updated.keg_balance,
-    updated.debt,
-    updated.address,
-    updated.note,
-    updated.horizontal_fridge,
-    updated.vertical_fridge,
-    id
-  );
+  // Calculate fridge difference
+  const oldHorizontal = existing.horizontal_fridge || 0;
+  const newHorizontal = updated.horizontal_fridge || 0;
+  const oldVertical = existing.vertical_fridge || 0;
+  const newVertical = updated.vertical_fridge || 0;
 
-  res.json({ success: true });
+  const horizontalDiff = newHorizontal - oldHorizontal;
+  const verticalDiff = newVertical - oldVertical;
+
+  try {
+    // Update customer info
+    db.prepare(`
+      UPDATE customers
+      SET name = ?, phone = ?, deposit = ?, lat = ?, lng = ?, keg_balance = ?, debt = ?, address = ?, note = ?, horizontal_fridge = ?, vertical_fridge = ?
+      WHERE id = ?
+    `).run(
+      updated.name,
+      updated.phone,
+      updated.deposit,
+      updated.lat,
+      updated.lng,
+      updated.keg_balance,
+      updated.debt,
+      updated.address,
+      updated.note,
+      updated.horizontal_fridge,
+      updated.vertical_fridge,
+      id
+    );
+
+    // Update devices (fridges) - assign or release based on difference
+    const now = new Date().toISOString();
+    
+    // Handle horizontal fridge (tủ nằm)
+    if (horizontalDiff > 0) {
+      // Need to assign more devices: find available horizontal devices
+      const availableDevices = db.prepare(`
+        SELECT id FROM devices 
+        WHERE type = 'horizontal' AND status = 'available' 
+        LIMIT ?
+      `).all(horizontalDiff);
+      
+      for (const device of availableDevices) {
+        db.prepare(`
+          UPDATE devices SET status = 'in_use', customer_id = ?, assigned_date = ? WHERE id = ?
+        `).run(id, now, device.id);
+      }
+    } else if (horizontalDiff < 0) {
+      // Release devices: find devices assigned to this customer
+      const assignedDevices = db.prepare(`
+        SELECT id FROM devices 
+        WHERE type = 'horizontal' AND customer_id = ? AND status = 'in_use'
+        LIMIT ?
+      `).all(id, Math.abs(horizontalDiff));
+      
+      for (const device of assignedDevices) {
+        db.prepare(`
+          UPDATE devices SET status = 'available', customer_id = NULL, assigned_date = NULL WHERE id = ?
+        `).run(device.id);
+      }
+    }
+
+    // Handle vertical fridge (tủ đứng)
+    if (verticalDiff > 0) {
+      const availableDevices = db.prepare(`
+        SELECT id FROM devices 
+        WHERE type = 'vertical' AND status = 'available' 
+        LIMIT ?
+      `).all(verticalDiff);
+      
+      for (const device of availableDevices) {
+        db.prepare(`
+          UPDATE devices SET status = 'in_use', customer_id = ?, assigned_date = ? WHERE id = ?
+        `).run(id, now, device.id);
+      }
+    } else if (verticalDiff < 0) {
+      const assignedDevices = db.prepare(`
+        SELECT id FROM devices 
+        WHERE type = 'vertical' AND customer_id = ? AND status = 'in_use'
+        LIMIT ?
+      `).all(id, Math.abs(verticalDiff));
+      
+      for (const device of assignedDevices) {
+        db.prepare(`
+          UPDATE devices SET status = 'available', customer_id = NULL, assigned_date = NULL WHERE id = ?
+        `).run(device.id);
+      }
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error updating customer:', err);
+    res.status(500).json({ error: 'Lỗi cập nhật khách hàng' });
+  }
 });
 
 // DELETE /api/customers/:id

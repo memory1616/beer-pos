@@ -215,11 +215,17 @@
         const data = await res.json();
         
         // Initialize sales page with data
-        initSalesPage(data);
-        
+        try {
+          initSalesPage(data);
+        } catch (e) {
+          console.error('Init error:', e);
+        }
+
         // Hide loading, show content
-        document.getElementById('loading').classList.add('hidden');
-        document.getElementById('contentSection').classList.remove('hidden');
+        const loading = document.getElementById('loading');
+        const contentSection = document.getElementById('contentSection');
+        if (loading) loading.classList.add('hidden');
+        if (contentSection) contentSection.classList.remove('hidden');
         
       } catch (err) {
         console.error('Failed to load data:', err);

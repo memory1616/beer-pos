@@ -231,10 +231,14 @@ async function submitImport() {
 
 function renderProducts(products) {
   const productList = document.getElementById('productList');
+  const totalStockEl = document.getElementById('totalStock');
+  
+  if (!productList || !totalStockEl) return;
+  
   const totalStock = products.reduce((sum, p) => sum + p.stock, 0);
   const lowStockProducts = products.filter(p => p.stock < 5);
 
-  document.getElementById('totalStock').textContent = totalStock;
+  totalStockEl.textContent = totalStock;
 
   // Add low stock alert section at top if there are low stock products
   let lowStockAlert = '';

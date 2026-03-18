@@ -78,6 +78,11 @@
       <div class="space-y-3" id="historyList">
         <!-- History loaded via JS -->
       </div>
+      <div id="historyPagination" class="hidden mt-4 flex items-center justify-between">
+        <button type="button" id="historyPrev" class="px-4 py-2 rounded-lg bg-amber-100 text-amber-800 font-medium disabled:opacity-50" disabled>← Trước</button>
+        <span id="historyPageInfo" class="text-sm text-gray-600">Trang 1 / 1</span>
+        <button type="button" id="historyNext" class="px-4 py-2 rounded-lg bg-amber-100 text-amber-800 font-medium disabled:opacity-50" disabled>Sau →</button>
+      </div>
     </div>
   </main>
 
@@ -105,14 +110,73 @@
     </a>
   </nav>
 
-  <!-- Load purchases JS -->
+  <!-- Load purchases JS first -->
   <script src="/js/purchases.js"></script>
   
   <script>
+    // Check URL for tab parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    const initialTab = urlParams.get('tab') || 'history';
+    
+    const HISTORY_PAGE_SIZE = 5;
+    let allPurchases = [];
+    let historyCurrentPage = 1;
+    
+    function renderHistoryPage() {
+      const historyList = document.getElementById('historyList');
+      const pagination = document.getElementById('historyPagination');
+      const prevBtn = document.getElementById('historyPrev');
+      const nextBtn = document.getElementById('historyNext');
+      const pageInfo = document.getElementById('historyPageInfo');
+      
+      if (!historyList) return;
+      
+      const total = allPurchases.length;
+      const totalPages = Math.max(1, Math.ceil(total / HISTORY_PAGE_SIZE));
+      historyCurrentPage = Math.min(historyCurrentPage, totalPages);
+      const start = (historyCurrentPage - 1) * HISTORY_PAGE_SIZE;
+      const pagePurchases = allPurchases.slice(start, start + HISTORY_PAGE_SIZE);
+      
+      if (total === 0) {
+        historyList.innerHTML = '<div class="text-center text-gray-500 py-8">Chưa có phiếu nhập nào</div>';
+        if (pagination) pagination.classList.add('hidden');
+        return;
+      }
+      
+      historyList.innerHTML = pagePurchases.map(p => {
+        const dateStr = new Date(p.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        const count = p.item_count != null ? p.item_count : (p.items_summary ? p.items_summary.split(',').length : 0);
+        return `
+        <div class="bg-white rounded-xl shadow-sm border p-4 flex items-center justify-between gap-3">
+          <div class="flex-1 min-w-0">
+            <div class="font-bold text-gray-800">Đơn #${p.id}</div>
+            <div class="text-sm text-gray-500 mt-0.5">${dateStr} • ${count} sản phẩm</div>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            <span class="font-bold text-blue-600 text-lg">${formatVND(p.total_amount)}</span>
+            <button onclick="editPurchase(${p.id})" class="p-1.5 rounded hover:bg-amber-100 text-amber-600" title="Sửa">✏️</button>
+            <button onclick="deletePurchase(${p.id})" class="p-1.5 rounded hover:bg-red-100 text-gray-500" title="Xóa">🗑️</button>
+          </div>
+        </div>`;
+      }).join('');
+      
+      if (pagination) {
+        pagination.classList.remove('hidden');
+        pageInfo.textContent = 'Trang ' + historyCurrentPage + ' / ' + totalPages;
+        prevBtn.disabled = historyCurrentPage <= 1;
+        nextBtn.disabled = historyCurrentPage >= totalPages;
+      }
+    }
+    
+    function goToHistoryPage(page) {
+      historyCurrentPage = page;
+      renderHistoryPage();
+    }
+    
     // Load data on page load
     async function loadData() {
       try {
-        const res = await fetch('/purchases/data');
+        const res = await fetch('/purchases/data?t=' + Date.now(), { cache: 'no-store' });
         const data = await res.json();
         
         // Render products - layout rõ ràng: tên SP, giá vốn 1 dòng, ô SL
@@ -134,33 +198,32 @@
           </div>
         `).join('');
         
-        // Render history
-        const historyList = document.getElementById('historyList');
-        if (data.purchases.length > 0) {
-          historyList.innerHTML = data.purchases.map(p => `
-            <div class="bg-white rounded-xl shadow-sm border p-4">
-              <div class="flex justify-between items-start mb-2">
-                <div>
-                  <div class="font-bold text-lg">${formatVND(p.total_amount)}</div>
-                  <div class="text-sm text-gray-500">${new Date(p.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
-                </div>
-                <button onclick="deletePurchase(${p.id})" class="text-red-500 text-sm">🗑️ Xóa</button>
-              </div>
-              <div class="text-sm text-gray-600">${p.items_summary || 'Không có chi tiết'}</div>
-              ${p.note ? `<div class="text-sm text-gray-500 mt-1">📝 ${p.note}</div>` : ''}
-            </div>
-          `).join('');
-        } else {
-          historyList.innerHTML = '<div class="text-center text-gray-500 py-8">Chưa có phiếu nhập nào</div>';
+        // Lưu toàn bộ đơn nhập, hiển thị 5 đơn/trang
+        allPurchases = data.purchases || [];
+        historyCurrentPage = 1;
+        renderHistoryPage();
+        
+        // Gắn sự kiện phân trang
+        const prevBtn = document.getElementById('historyPrev');
+        const nextBtn = document.getElementById('historyNext');
+        if (prevBtn) prevBtn.onclick = () => goToHistoryPage(historyCurrentPage - 1);
+        if (nextBtn) nextBtn.onclick = () => goToHistoryPage(historyCurrentPage + 1);
+        
+        // Switch to the appropriate tab
+        try {
+          switchTab(initialTab);
+        } catch (e) {
+          console.error('Switch tab error:', e);
         }
         
-        // Hide loading, show content
-        document.getElementById('loading').classList.add('hidden');
-        document.getElementById('newPurchaseSection').classList.remove('hidden');
+        // Hide loading
+        const loading = document.getElementById('loading');
+        if (loading) loading.classList.add('hidden');
         
       } catch (err) {
         console.error('Failed to load data:', err);
-        document.getElementById('loading').innerHTML = '<div class="text-red-500">Lỗi tải dữ liệu</div>';
+        const loading = document.getElementById('loading');
+        if (loading) loading.innerHTML = '<div class="text-red-500">Lỗi tải dữ liệu</div>';
       }
     }
     

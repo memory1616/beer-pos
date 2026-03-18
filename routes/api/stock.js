@@ -171,7 +171,7 @@ router.post('/set', (req, res) => {
   }
 });
 
-// POST /api/stock/multiple - Nhập kho nhiều sản phẩm
+// POST /api/stock/multiple - Nhập kho nhiều sản phẩm (cũng lưu lịch sử nhập hàng)
 router.post('/multiple', (req, res) => {
   const { items, note } = req.body;
 
@@ -180,25 +180,47 @@ router.post('/multiple', (req, res) => {
   }
 
   try {
-    const updateStmt = db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?');
-    const results = [];
-
+    // Tính tổng tiền
+    let totalAmount = 0;
+    const validItems = [];
+    
     for (const item of items) {
       const prodId = validateId(item.productId);
       const qty = parseInt(item.quantity);
+      const costPrice = parseFloat(item.costPrice) || 0;
 
       if (!prodId || isNaN(qty) || qty <= 0) {
         continue;
       }
 
-      updateStmt.run(qty, prodId);
-      const product = db.prepare('SELECT * FROM products WHERE id = ?').get(prodId);
+      totalAmount += qty * costPrice;
+      validItems.push({ productId: prodId, quantity: qty, unitPrice: costPrice });
+    }
+
+    if (validItems.length === 0) {
+      return res.status(400).json({ error: 'Danh sách sản phẩm không hợp lệ' });
+    }
+
+    // Tạo phiếu nhập hàng
+    const purchaseResult = db.prepare('INSERT INTO purchases (total_amount, note) VALUES (?, ?)').run(totalAmount, note || 'Nhập kho');
+    const purchaseId = purchaseResult.lastInsertRowid;
+
+    // Cập nhật tồn kho và lưu chi tiết
+    const updateStmt = db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?');
+    const insertItemStmt = db.prepare('INSERT INTO purchase_items (purchase_id, product_id, quantity, unit_price, total_price) VALUES (?, ?, ?, ?, ?)');
+    const results = [];
+
+    for (const item of validItems) {
+      updateStmt.run(item.quantity, item.productId);
+      insertItemStmt.run(purchaseId, item.productId, item.quantity, item.unitPrice, item.quantity * item.unitPrice);
+      
+      const product = db.prepare('SELECT * FROM products WHERE id = ?').get(item.productId);
       if (product) {
         results.push(product);
       }
     }
 
-    res.json(results);
+    res.json({ purchase_id: purchaseId, total_amount: totalAmount, items: results });
   } catch (err) {
     console.error('Error bulk importing stock:', err);
     res.status(500).json({ error: 'Lỗi khi nhập kho' });

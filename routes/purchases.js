@@ -19,10 +19,11 @@ router.get('/data', (req, res) => {
   const products = db.prepare('SELECT * FROM products ORDER BY name').all();
   const purchases = db.prepare(`
     SELECT p.*, 
-      (SELECT GROUP_CONCAT(pi.quantity || 'x ' || pr.name) FROM purchase_items pi JOIN products pr ON pi.product_id = pr.id WHERE pi.purchase_id = p.id) as items_summary
+      (SELECT GROUP_CONCAT(pi.quantity || 'x ' || pr.name) FROM purchase_items pi JOIN products pr ON pi.product_id = pr.id WHERE pi.purchase_id = p.id) as items_summary,
+      (SELECT COUNT(*) FROM purchase_items WHERE purchase_id = p.id) as item_count
     FROM purchases p 
     ORDER BY p.date DESC
-    LIMIT 20
+    LIMIT 50
   `).all();
   
   res.json({ products, purchases });

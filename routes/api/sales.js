@@ -224,7 +224,7 @@ router.get('/', (req, res) => {
   const month = req.query.month; // format: YYYY-MM, e.g. "2026-03"
   const status = req.query.status; // 'completed', 'returned', 'cancelled', hoặc 'all'
   
-  let whereClause = "WHERE s.type = 'sale'";
+  let whereClause = "WHERE s.type IN ('sale', 'replacement', 'damage_return')";
   let params = [];
   
   if (month) {
@@ -237,8 +237,8 @@ router.get('/', (req, res) => {
     whereClause += " AND s.status = ?";
     params.push(status);
   } else if (!status) {
-    // Mặc định chỉ hiển thị hóa đơn chưa trả
-    whereClause += " AND (s.status IS NULL OR s.status != 'returned')";
+    // Mặc định hiển thị hóa đơn chưa trả + đơn đổi bia lỗi
+    whereClause += " AND (s.status IS NULL OR s.status != 'returned' OR s.type IN ('replacement', 'damage_return'))";
   }
   
   // Get total count
@@ -491,14 +491,17 @@ router.delete('/:id', (req, res) => {
     
     const items = db.prepare('SELECT * FROM sale_items WHERE sale_id = ?').all(saleId);
     
-    for (const item of items) {
-      db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(item.quantity, item.product_id);
+    // Chỉ restore stock cho hóa đơn bán (không restore cho đơn đổi bia lỗi)
+    if (sale.type === 'sale') {
+      for (const item of items) {
+        db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(item.quantity, item.product_id);
+      }
     }
     
     db.prepare('DELETE FROM sale_items WHERE sale_id = ?').run(saleId);
     db.prepare('DELETE FROM sales WHERE id = ?').run(saleId);
     
-    res.json({ success: true, message: 'Đã xóa hóa đơn và hoàn kho' });
+    res.json({ success: true, message: 'Đã xóa hóa đơn' + (sale.type === 'sale' ? ' và hoàn kho' : '') });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Xóa hóa đơn thất bại' });
@@ -516,9 +519,11 @@ router.put('/:id', (req, res) => {
     
     const oldItems = db.prepare('SELECT * FROM sale_items WHERE sale_id = ?').all(saleId);
     
-    // Hoàn kho cũ
-    for (const item of oldItems) {
-      db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(item.quantity, item.product_id);
+    // Hoàn kho cũ (chỉ với hóa đơn bán, không với đổi bia lỗi)
+    if (currentSale.type === 'sale') {
+      for (const item of oldItems) {
+        db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(item.quantity, item.product_id);
+      }
     }
     
     // Xóa các sale_items cũ
@@ -534,7 +539,10 @@ router.put('/:id', (req, res) => {
         return res.status(400).json({ error: 'Không đủ hàng: ' + (product ? product.name : 'Unknown') });
       }
       
-      db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(item.quantity, item.productId);
+      // Trừ kho (chỉ với hóa đơn bán)
+      if (currentSale.type === 'sale') {
+        db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(item.quantity, item.productId);
+      }
       
       // Use provided price or fallback to sell_price
       let price = item.price || product.sell_price || 0;

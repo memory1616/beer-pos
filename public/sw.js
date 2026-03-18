@@ -1,4 +1,4 @@
-const CACHE_NAME = "beer-pos-v5";
+const CACHE_NAME = "beer-pos-v6";
 
 // URLs to cache for full offline
 const urlsToCache = [
@@ -11,10 +11,7 @@ const urlsToCache = [
   "/purchases",
   "/delivery",
   "/products",
-  "/analytics",
-  "/analysis",
   "/backup",
-  "/kegs",
   "/manifest.json",
   "/icon-192.png",
   "/icon-512.png",

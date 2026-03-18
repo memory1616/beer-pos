@@ -64,9 +64,14 @@ router.get('/', (req, res) => {
         <a href="/" class="text-gray-500 hover:text-gray-700 p-1">←</a>
         <span class="font-semibold">Quản lý thiết bị</span>
       </div>
-      <button onclick="openModal()" class="text-amber-600 font-medium text-sm flex items-center gap-1">
-        <span class="text-lg">+</span> Nhập tủ
-      </button>
+      <div class="flex items-center gap-2">
+        <button onclick="openEditModal()" class="text-blue-600 font-medium text-sm flex items-center gap-1">
+          ✏️ Sửa kho
+        </button>
+        <button onclick="openModal()" class="text-amber-600 font-medium text-sm flex items-center gap-1">
+          <span class="text-lg">+</span> Nhập tủ
+        </button>
+      </div>
     </div>
   </header>
 
@@ -194,6 +199,35 @@ router.get('/', (req, res) => {
     </div>
   </div>
 
+  <!-- Modal sửa tồn kho -->
+  <div id="editModal" class="modal fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
+    <div class="bg-white rounded-xl w-full max-w-sm">
+      <div class="p-4 border-b flex items-center justify-between">
+        <h3 class="font-semibold">Sửa tồn kho</h3>
+        <button onclick="closeEditModal()" class="text-gray-500 hover:text-gray-700">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      <form id="editForm" onsubmit="submitEditForm(event)" class="p-4 space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">❄️ Tủ nằm tồn kho</label>
+          <input type="number" name="horizontal" min="0" value="${availableHorizontal}" required
+            class="w-full border rounded-lg px-3 py-2 text-center text-lg">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">🥶 Tủ đứng tồn kho</label>
+          <input type="number" name="vertical" min="0" value="${availableVertical}" required
+            class="w-full border rounded-lg px-3 py-2 text-center text-lg">
+        </div>
+        <button type="submit" class="w-full bg-blue-500 text-white py-3 rounded-lg font-medium">
+          Lưu thay đổi
+        </button>
+      </form>
+    </div>
+  </div>
+
   <!-- Bottom Navigation -->
   <nav class="fixed bottom-0 left-0 right-0 bg-white border-t bottom-nav">
     <div class="grid grid-cols-5 text-center text-xs">
@@ -210,6 +244,9 @@ router.get('/', (req, res) => {
     
     function openModal() { document.getElementById('addModal').classList.add('active'); }
     function closeModal() { document.getElementById('addModal').classList.remove('active'); }
+    
+    function openEditModal() { document.getElementById('editModal').classList.add('active'); }
+    function closeEditModal() { document.getElementById('editModal').classList.remove('active'); }
     
     function submitForm(e) {
       e.preventDefault();
@@ -229,6 +266,29 @@ router.get('/', (req, res) => {
       .then(data => {
         if (data.success) {
           closeModal();
+          location.reload();
+        } else {
+          alert(data.message || 'Có lỗi xảy ra');
+        }
+      })
+      .catch(err => alert('Có lỗi xảy ra'));
+    }
+
+    function submitEditForm(e) {
+      e.preventDefault();
+      const form = e.target;
+      const horizontal = parseInt(form.horizontal.value) || 0;
+      const vertical = parseInt(form.vertical.value) || 0;
+      
+      fetch('/devices/adjust', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ horizontal, vertical })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          closeEditModal();
           location.reload();
         } else {
           alert(data.message || 'Có lỗi xảy ra');
@@ -264,6 +324,53 @@ router.post('/', (req, res) => {
       const serialNumber = serial ? (quantity > 1 ? `${serial}-${i+1}` : serial) : null;
       const deviceName = quantity > 1 ? `${baseName} #${i+1}` : baseName;
       stmt.run(deviceName, type, serialNumber);
+    }
+    
+    res.json({ success: true });
+  } catch (err) {
+    res.json({ success: false, message: err.message });
+  }
+});
+
+// POST /devices/adjust - Adjust inventory
+router.post('/adjust', (req, res) => {
+  const { horizontal, vertical } = req.body;
+  
+  try {
+    // Get current available counts
+    const currentHorizontal = db.prepare(`SELECT COUNT(*) as count FROM devices WHERE type = 'horizontal' AND status = 'available'`).get().count;
+    const currentVertical = db.prepare(`SELECT COUNT(*) as count FROM devices WHERE type = 'vertical' AND status = 'available'`).get().count;
+    
+    // Adjust horizontal
+    if (horizontal !== currentHorizontal) {
+      if (horizontal > currentHorizontal) {
+        // Add more
+        const toAdd = horizontal - currentHorizontal;
+        const stmt = db.prepare(`INSERT INTO devices (name, type, status) VALUES (?, 'horizontal', 'available')`);
+        for (let i = 0; i < toAdd; i++) {
+          stmt.run(`Tủ Nằm ${currentHorizontal + i + 1}`);
+        }
+      } else {
+        // Remove excess (delete oldest available)
+        const toRemove = currentHorizontal - horizontal;
+        db.prepare(`DELETE FROM devices WHERE type = 'horizontal' AND status = 'available' ORDER BY id LIMIT ?`).run(toRemove);
+      }
+    }
+    
+    // Adjust vertical
+    if (vertical !== currentVertical) {
+      if (vertical > currentVertical) {
+        // Add more
+        const toAdd = vertical - currentVertical;
+        const stmt = db.prepare(`INSERT INTO devices (name, type, status) VALUES (?, 'vertical', 'available')`);
+        for (let i = 0; i < toAdd; i++) {
+          stmt.run(`Tủ Đứng ${currentVertical + i + 1}`);
+        }
+      } else {
+        // Remove excess (delete oldest available)
+        const toRemove = currentVertical - vertical;
+        db.prepare(`DELETE FROM devices WHERE type = 'vertical' AND status = 'available' ORDER BY id LIMIT ?`).run(toRemove);
+      }
     }
     
     res.json({ success: true });

@@ -26,12 +26,22 @@ let products = [];
 function initCustomersPage(data) {
   customers = data.customers;
   products = data.products;
+  
+  // Update customer count
+  const countEl = document.getElementById('customerCount');
+  if (countEl) {
+    countEl.textContent = customers.length;
+  }
+  
   renderCustomers();
 }
 
 function renderCustomers() {
   const container = document.getElementById('customersList');
-  const search = document.getElementById('searchInput').value.toLowerCase();
+  if (!container) return;
+  
+  const searchInput = document.getElementById('searchInput');
+  const search = searchInput ? searchInput.value.toLowerCase() : '';
 
   const filtered = customers.filter(c => c.name.toLowerCase().includes(search));
 
@@ -78,7 +88,7 @@ function renderCustomers() {
           <div class="text-right text-sm">
             <span class="font-bold">📦 ${c.keg_balance || 0} vỏ</span>
             ${((c.horizontal_fridge || 0) > 0 || (c.vertical_fridge || 0) > 0) ? `<div class="text-indigo-600 font-medium">❄️ ${c.horizontal_fridge || 0} + 🥶 ${c.vertical_fridge || 0}</div>` : ''}
-            ${c.daily_avg > 0 ? `<div class="text-green-600 font-medium">TB: ${c.daily_avg.toFixed(1)} bình/ngày</div>` : ''}
+            ${c.monthly_liters > 0 ? `<div class="text-green-600 font-medium">${c.monthly_liters} bình</div>` : ''}
           </div>
         </div>
         <div class="flex flex-wrap gap-2 mt-3">

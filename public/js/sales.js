@@ -751,6 +751,13 @@ async function loadSalesHistory() {
         <button onclick="openKegModal(${sale.id})" class="text-purple-500 text-sm px-1">📦</button>
         <button onclick="editSale(${sale.id})" class="text-orange-500 text-sm px-1">✏️</button>
       `;
+    } else if (sale.type === 'replacement') {
+      // Đơn đổi bia lỗi: cho phép xem, sửa và xóa
+      actionButtons = `
+        <button onclick="viewSale(${sale.id})" class="text-blue-500 text-sm px-1">👁️</button>
+        <button onclick="editSale(${sale.id})" class="text-orange-500 text-sm px-1">✏️</button>
+        <button onclick="deleteSale(${sale.id})" class="text-red-500 text-sm px-1">🗑️</button>
+      `;
     } else if (isReturned) {
       actionButtons = `<button onclick="viewSale(${sale.id})" class="text-blue-500 text-sm px-1">👁️</button>`;
     }

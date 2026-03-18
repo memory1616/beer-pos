@@ -27,11 +27,23 @@ router.get('/data', (req, res) => {
       p.note,
       (SELECT COUNT(*) FROM purchase_items WHERE purchase_id = p.id) as item_count
     FROM purchases p
-    ORDER BY p.date DESC
+    ORDER BY datetime(p.date) DESC
     LIMIT 5
   `).all();
   
-  res.json({ products, purchases });
+  // Device statistics
+  const deviceStats = db.prepare(`
+    SELECT 
+      SUM(CASE WHEN type = 'horizontal' THEN 1 ELSE 0 END) as total_horizontal,
+      SUM(CASE WHEN type = 'vertical' THEN 1 ELSE 0 END) as total_vertical,
+      SUM(CASE WHEN type = 'horizontal' AND status = 'available' THEN 1 ELSE 0 END) as available_horizontal,
+      SUM(CASE WHEN type = 'horizontal' AND status = 'in_use' THEN 1 ELSE 0 END) as in_use_horizontal,
+      SUM(CASE WHEN type = 'vertical' AND status = 'available' THEN 1 ELSE 0 END) as available_vertical,
+      SUM(CASE WHEN type = 'vertical' AND status = 'in_use' THEN 1 ELSE 0 END) as in_use_vertical
+    FROM devices
+  `).get();
+  
+  res.json({ products, purchases, deviceStats });
 });
 
 module.exports = router;

@@ -26,7 +26,7 @@
   <div id="app"></div>
 
   <!-- Floating Add Button -->
-  <button onclick="openProductModal()" class="fixed bottom-24 right-4 w-14 h-14 bg-amber-600 text-white rounded-full shadow-xl flex items-center justify-center text-2xl font-bold transition-all duration-200 hover:scale-105 z-40">
+  <button onclick="openProductModal()" class="fixed bottom-24 right-4 w-14 h-14 bg-blue-600 text-white rounded-full shadow-xl flex items-center justify-center text-2xl font-bold transition-all duration-200 hover:scale-105 z-40">
     +
   </button>
 
@@ -160,11 +160,17 @@
         const data = await res.json();
         
         // Initialize stock page
-        initStockPage(data);
+        try {
+          initStockPage(data);
+        } catch (e) {
+          console.error('Init error:', e);
+        }
         
         // Hide loading, show content
-        document.getElementById('loading').classList.add('hidden');
-        document.getElementById('contentSection').classList.remove('hidden');
+        const loading = document.getElementById('loading');
+        const contentSection = document.getElementById('contentSection');
+        if (loading) loading.classList.add('hidden');
+        if (contentSection) contentSection.classList.remove('hidden');
         
       } catch (err) {
         console.error('Failed to load data:', err);
