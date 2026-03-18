@@ -2,6 +2,26 @@ const express = require('express');
 const router = express.Router();
 const db = require('../../database');
 
+// Expense type mapping
+const EXPENSE_TYPES = {
+  'Xăng dầu': 'fuel',
+  'Khấu hao': 'fuel',
+  'Hư hỏng': 'repair',
+  'Điện nước': 'other',
+  'Nhân công': 'food',
+  'Thuê mặt bằng': 'other',
+  'Bảo trì': 'repair',
+  'Marketing': 'other',
+  'Khác': 'other'
+};
+
+const TYPE_ICONS = {
+  'fuel': '⛽',
+  'food': '🍜',
+  'repair': '🔧',
+  'other': '📦'
+};
+
 // Get all expenses with optional date range
 router.get('/', (req, res) => {
   try {
@@ -23,7 +43,7 @@ router.get('/', (req, res) => {
       params.push(category);
     }
     
-    sql += ' ORDER BY date DESC, id DESC';
+    sql += ' ORDER BY date DESC, time DESC, id DESC';
     
     const expenses = db.prepare(sql).all(...params);
     res.json(expenses);
@@ -33,13 +53,53 @@ router.get('/', (req, res) => {
   }
 });
 
+// Get today's expenses by type
+router.get('/today', (req, res) => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Get all expenses today
+    const expenses = db.prepare(`
+      SELECT * FROM expenses WHERE date = ? ORDER BY time DESC
+    `).all(today);
+    
+    // Group by type
+    const byType = {
+      fuel: { total: 0, items: [] },
+      food: { total: 0, items: [] },
+      repair: { total: 0, items: [] },
+      other: { total: 0, items: [] }
+    };
+    
+    let total = 0;
+    expenses.forEach(e => {
+      const type = e.type || 'other';
+      if (byType[type]) {
+        byType[type].total += e.amount;
+        byType[type].items.push(e);
+      }
+      total += e.amount;
+    });
+    
+    res.json({
+      date: today,
+      total: total,
+      byType: byType,
+      expenses: expenses
+    });
+  } catch (err) {
+    console.error('Error fetching today expenses:', err);
+    res.status(500).json({ error: 'Failed to fetch today expenses' });
+  }
+});
+
 // Get expense summary by category
 router.get('/summary', (req, res) => {
   try {
     const { startDate, endDate } = req.query;
     
     let sql = `
-      SELECT category, SUM(amount) as total
+      SELECT category, type, SUM(amount) as total
       FROM expenses
       WHERE 1=1
     `;
@@ -106,7 +166,7 @@ router.get('/:id', (req, res) => {
 // Create new expense
 router.post('/', (req, res) => {
   try {
-    const { category, amount, description, date } = req.body;
+    const { category, amount, description, date, type, km, order_id, is_auto } = req.body;
     
     console.log('POST /api/expenses body:', req.body);
     
@@ -114,10 +174,26 @@ router.post('/', (req, res) => {
       return res.status(400).json({ error: 'Category and amount are required' });
     }
     
+    // Determine type from category if not provided
+    const expenseType = type || EXPENSE_TYPES[category] || 'other';
+    const now = new Date();
+    const time = now.toTimeString().split(' ')[0].substring(0, 5); // HH:MM
+    const expenseDate = date || now.toISOString().split('T')[0];
+    
     const result = db.prepare(`
-      INSERT INTO expenses (category, amount, description, date)
-      VALUES (?, ?, ?, ?)
-    `).run(category, amount, description || null, date || new Date().toISOString().split('T')[0]);
+      INSERT INTO expenses (category, type, amount, description, date, time, km, order_id, is_auto)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      category,
+      expenseType,
+      amount,
+      description || null,
+      expenseDate,
+      time,
+      km || null,
+      order_id || null,
+      is_auto ? 1 : 0
+    );
     
     const expense = db.prepare('SELECT * FROM expenses WHERE id = ?').get(result.lastInsertRowid);
     res.status(201).json(expense);
@@ -127,10 +203,55 @@ router.post('/', (req, res) => {
   }
 });
 
+// Quick add expense (Xăng/Ăn/Sửa)
+router.post('/quick', (req, res) => {
+  try {
+    const { expenseType, amount, note, km } = req.body;
+    
+    console.log('POST /api/expenses/quick body:', req.body);
+    
+    if (!expenseType || !amount) {
+      return res.status(400).json({ error: 'expenseType and amount are required' });
+    }
+    
+    // Map type to category
+    const categoryMap = {
+      'fuel': 'Xăng dầu',
+      'food': 'Nhân công',
+      'repair': 'Hư hỏng',
+      'other': 'Khác'
+    };
+    
+    const category = categoryMap[expenseType] || 'Khác';
+    const now = new Date();
+    const time = now.toTimeString().split(' ')[0].substring(0, 5);
+    const date = now.toISOString().split('T')[0];
+    
+    const result = db.prepare(`
+      INSERT INTO expenses (category, type, amount, description, date, time, km, is_auto)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+    `).run(
+      category,
+      expenseType,
+      amount,
+      note || null,
+      date,
+      time,
+      km || null
+    );
+    
+    const expense = db.prepare('SELECT * FROM expenses WHERE id = ?').get(result.lastInsertRowid);
+    res.status(201).json(expense);
+  } catch (err) {
+    console.error('Error quick adding expense:', err);
+    res.status(500).json({ error: 'Failed to quick add expense' });
+  }
+});
+
 // Update expense
 router.put('/:id', (req, res) => {
   try {
-    const { category, amount, description, date } = req.body;
+    const { category, amount, description, date, type, km, order_id, is_auto } = req.body;
     const { id } = req.params;
     
     const existing = db.prepare('SELECT * FROM expenses WHERE id = ?').get(id);
@@ -140,13 +261,17 @@ router.put('/:id', (req, res) => {
     
     db.prepare(`
       UPDATE expenses
-      SET category = ?, amount = ?, description = ?, date = ?
+      SET category = ?, type = ?, amount = ?, description = ?, date = ?, km = ?, order_id = ?, is_auto = ?
       WHERE id = ?
     `).run(
       category || existing.category,
+      type || existing.type,
       amount || existing.amount,
       description !== undefined ? description : existing.description,
       date || existing.date,
+      km !== undefined ? km : existing.km,
+      order_id !== undefined ? order_id : existing.order_id,
+      is_auto !== undefined ? (is_auto ? 1 : 0) : existing.is_auto,
       id
     );
     

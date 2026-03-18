@@ -495,9 +495,14 @@ try {
     CREATE TABLE IF NOT EXISTS expenses (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       category TEXT NOT NULL,
+      type TEXT DEFAULT 'other',
       amount REAL NOT NULL,
       description TEXT,
       date TEXT DEFAULT CURRENT_TIMESTAMP,
+      time TEXT DEFAULT CURRENT_TIMESTAMP,
+      km INTEGER,
+      order_id INTEGER,
+      is_auto INTEGER DEFAULT 0,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -506,8 +511,40 @@ try {
   // Create index for faster date queries
   db.exec(`CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_expenses_category ON expenses(category)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_expenses_type ON expenses(type)`);
 } catch (e) {
   console.log('Expenses table may already exist:', e.message);
+}
+
+// Migration: Add new expense fields if not exists
+try {
+  db.exec(`ALTER TABLE expenses ADD COLUMN type TEXT DEFAULT 'other'`);
+} catch (e) {
+  // Column already exists
+}
+
+try {
+  db.exec(`ALTER TABLE expenses ADD COLUMN time TEXT DEFAULT CURRENT_TIMESTAMP`);
+} catch (e) {
+  // Column already exists
+}
+
+try {
+  db.exec(`ALTER TABLE expenses ADD COLUMN km INTEGER`);
+} catch (e) {
+  // Column already exists
+}
+
+try {
+  db.exec(`ALTER TABLE expenses ADD COLUMN order_id INTEGER`);
+} catch (e) {
+  // Column already exists
+}
+
+try {
+  db.exec(`ALTER TABLE expenses ADD COLUMN is_auto INTEGER DEFAULT 0`);
+} catch (e) {
+  // Column already exists
 }
 
 module.exports = db;

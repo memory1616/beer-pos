@@ -149,6 +149,23 @@ router.get('/data', (req, res) => {
     SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE date >= ?
   `).get(monthStartStr);
   
+  // Get today's expenses by type
+  const todayExpensesByType = db.prepare(`
+    SELECT type, COALESCE(SUM(amount), 0) as total 
+    FROM expenses 
+    WHERE date LIKE ?
+    GROUP BY type
+  `).all(today + '%');
+  
+  // Convert to object
+  const expensesByType = { fuel: 0, food: 0, repair: 0, other: 0 };
+  todayExpensesByType.forEach(e => {
+    const type = e.type || 'other';
+    if (expensesByType[type] !== undefined) {
+      expensesByType[type] = e.total;
+    }
+  });
+  
   // Get today's expenses
   const todayExpenses = db.prepare(`
     SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE date LIKE ?
@@ -171,7 +188,8 @@ router.get('/data', (req, res) => {
     customerAlerts,
     expenses: {
       month: monthExpenses.total || 0,
-      today: todayExpenses.total || 0
+      today: todayExpenses.total || 0,
+      todayByType: expensesByType
     }
   });
 });

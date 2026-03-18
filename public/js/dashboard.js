@@ -37,6 +37,20 @@ function initDashboard(data) {
   const monthProfitEl = document.getElementById('monthProfit');
   const monthExpensesEl = document.getElementById('monthExpenses');
   
+  // Show today's expenses breakdown
+  const todayExpensesEl = document.getElementById('todayExpenses');
+  if (todayExpensesEl) {
+    todayExpensesEl.textContent = formatVND(data.expenses?.today || 0);
+  }
+  
+  // Show today's expenses by type
+  const todayFuelEl = document.getElementById('todayFuel');
+  const todayFoodEl = document.getElementById('todayFood');
+  const todayRepairEl = document.getElementById('todayRepair');
+  if (todayFuelEl) todayFuelEl.textContent = formatVND(data.expenses?.todayByType?.fuel || 0);
+  if (todayFoodEl) todayFoodEl.textContent = formatVND(data.expenses?.todayByType?.food || 0);
+  if (todayRepairEl) todayRepairEl.textContent = formatVND(data.expenses?.todayByType?.repair || 0);
+  
   if (todayProfit >= 0) {
     profitEl.textContent = formatVND(todayProfit);
     profitEl.className = 'text-xl font-bold text-green-600';
