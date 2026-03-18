@@ -39,10 +39,25 @@ router.get('/', (req, res) => {
 
   // Build category summary HTML
   let categoryHtml = '';
+  const categoryIcons = {
+    'Xăng dầu': '⛽',
+    'Khấu hao': '📉',
+    'Hư hỏng': '🔧',
+    'Điện nước': '💡',
+    'Nhân công': '👷',
+    'Thuê mặt bằng': '🏪',
+    'Bảo trì': '🛠️',
+    'Marketing': '📢',
+    'Khác': '📋'
+  };
   if (categorySummary.length > 0) {
     categoryHtml = categorySummary.map(c => {
-      return '<div class="flex justify-between items-center py-2 border-b last:border-0">' +
-        '<span class="text-gray-600">' + c.category + '</span>' +
+      const icon = categoryIcons[c.category] || '📋';
+      return '<div class="flex justify-between items-center py-3 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors px-2 -mx-2 rounded-lg">' +
+        '<div class="flex items-center gap-3">' +
+          '<span class="text-xl">' + icon + '</span>' +
+          '<span class="text-gray-700 font-medium">' + c.category + '</span>' +
+        '</div>' +
         '<span class="font-bold text-red-600">' + formatVND(c.total) + '</span>' +
         '</div>';
     }).join('');
@@ -56,15 +71,22 @@ router.get('/', (req, res) => {
     expensesHtml = recentExpenses.map(e => {
       const dateStr = new Date(e.date).toLocaleDateString('vi-VN');
       const desc = e.description || '';
-      return '<div class="flex justify-between items-center py-3 border-b last:border-0" data-id="' + e.id + '">' +
+      const icon = categoryIcons[e.category] || '📋';
+      return '<div class="flex justify-between items-center py-3 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors" data-id="' + e.id + '">' +
+        '<div class="flex items-center gap-3 flex-1">' +
+        '<span class="text-2xl">' + icon + '</span>' +
         '<div class="flex-1">' +
-        '<div class="font-medium">' + e.category + '</div>' +
+        '<div class="font-semibold text-gray-800">' + e.category + '</div>' +
         '<div class="text-sm text-gray-500">' + desc + '</div>' +
-        '<div class="text-xs text-gray-400">' + dateStr + '</div>' +
+        '<div class="text-xs text-gray-400 mt-0.5">' + dateStr + '</div>' +
         '</div>' +
-        '<div class="text-right">' +
-        '<div class="font-bold text-red-600">' + formatVND(e.amount) + '</div>' +
-        '<button onclick="deleteExpense(' + e.id + ')" class="text-xs text-red-400 hover:text-red-600 mt-1">Xóa</button>' +
+        '</div>' +
+        '<div class="text-right ml-3">' +
+        '<div class="font-bold text-red-600 text-lg">' + formatVND(e.amount) + '</div>' +
+        '<div class="flex gap-2 mt-1 justify-end">' +
+        '<button onclick="editExpense(' + e.id + ', \'' + e.category.replace(/'/g, "\\'") + '\', ' + e.amount + ', \'' + e.date + '\', \'' + (e.description || '').replace(/'/g, "\\'") + '\')" class="text-xs text-blue-500 hover:text-blue-700 px-2 py-1 hover:bg-blue-50 rounded">Sửa</button>' +
+        '<button onclick="deleteExpense(' + e.id + ')" class="text-xs text-red-400 hover:text-red-600 px-2 py-1 hover:bg-red-50 rounded">Xóa</button>' +
+        '</div>' +
         '</div>' +
         '</div>';
     }).join('');
@@ -109,8 +131,9 @@ router.get('/', (req, res) => {
 '  <!-- Add Expense Modal -->' +
 '  <div id="addExpenseModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4 z-50">' +
 '    <div class="bg-white rounded-lg p-6 max-w-sm w-full">' +
-'      <h2 class="text-xl font-semibold mb-4">Thêm chi phí</h2>' +
+'      <h2 id="expenseModalTitle" class="text-xl font-semibold mb-4">Thêm chi phí</h2>' +
 '      <form id="addExpenseForm" class="space-y-4">' +
+'        <input type="hidden" id="expenseId">' +
 '        <div>' +
 '          <label class="block text-sm font-medium text-gray-700 mb-1">Loại chi phí</label>' +
 '          <select name="category" required class="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-red-500">' +
@@ -120,7 +143,7 @@ router.get('/', (req, res) => {
 '        </div>' +
 '        <div>' +
 '          <label class="block text-sm font-medium text-gray-700 mb-1">Số tiền (VNĐ)</label>' +
-'          <input type="number" name="amount" required min="1000" step="1000" class="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-red-500" placeholder="Nhập số tiền">' +
+'          <input type="text" name="amount" required min="1000" step="1000" data-format-number class="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-red-500" placeholder="Nhập số tiền" inputmode="decimal">' +
 '        </div>' +
 '        <div>' +
 '          <label class="block text-sm font-medium text-gray-700 mb-1">Ngày</label>' +
@@ -133,7 +156,7 @@ router.get('/', (req, res) => {
 '      </form>' +
 '      <div class="flex gap-2 mt-4">' +
 '        <button type="button" onclick="hideModal(\'addExpenseModal\')" class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-3 rounded-lg">Hủy</button>' +
-'        <button type="submit" form="addExpenseForm" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-3 rounded-lg">Lưu</button>' +
+'        <button type="button" onclick="submitExpense()" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-3 rounded-lg">Lưu</button>' +
 '      </div>' +
 '    </div>' +
 '  </div>' +
@@ -146,7 +169,7 @@ router.get('/', (req, res) => {
 '        getHeader(\'Chi phí\', \'💸\') +' +
 '        getContent(`' +
 '          <!-- Month Summary -->' +
-'          <div class="mb-4 p-4 bg-red-500 rounded-xl shadow text-white">' +
+'          <div class="mb-4 p-5 bg-gradient-to-r from-red-500 to-red-600 rounded-xl shadow-lg text-white">' +
 '            <div class="text-sm opacity-90">Tổng chi phí tháng này</div>' +
 '            <div class="text-3xl font-bold" id="monthTotal">' + formatVND(monthExpenses.total) + '</div>' +
 '          </div>' +
@@ -186,50 +209,64 @@ router.get('/', (req, res) => {
 '      document.getElementById(id).classList.remove(\'flex\');' +
 '    }' +
 '' +
-'    // Wait for DOM to be ready before adding event listeners' +
-'    document.addEventListener(\'DOMContentLoaded\', function() {' +
+'    function editExpense(id, category, amount, date, description) {' +
+'      document.querySelector(\'#addExpenseModal h2\').textContent = \'Sửa chi phí\';' +
+'      document.getElementById(\'expenseId\').value = id;' +
+'      document.querySelector(\'select[name="category"]\').value = category;' +
+'      document.querySelector(\'input[name="amount"]\').value = amount;' +
+'      document.querySelector(\'input[name="date"]\').value = date;' +
+'      document.querySelector(\'textarea[name="description"]\').value = description || \'\';' +
+'      showModal(\'addExpenseModal\');' +
+'    }' +
+'' +
+'    async function submitExpense() {' +
+'      const id = document.getElementById(\'expenseId\').value;' +
 '      const form = document.getElementById(\'addExpenseForm\');' +
-'      if (!form) {' +
-'        console.error(\'Form not found!\');' +
+'      const formData = new FormData(form);' +
+'      const category = formData.get(\'category\');' +
+'      const amountInput = form.querySelector(\'input[name="amount"]\');' +
+'      const amount = parseFloat(parseFormattedNumber(amountInput.value));' +
+'      const date = formData.get(\'date\');' +
+'      const description = formData.get(\'description\') || null;' +
+'' +
+'      console.log(\'Submitting:\', { id, category, amount, date, description });' +
+'' +
+'      if (!category || !amount || !date) {' +
+'        alert(\'Vui lòng điền đầy đủ thông tin!\');' +
 '        return;' +
 '      }' +
-'      form.addEventListener(\'submit\', async (e) => {' +
-'        e.preventDefault();' +
-'        const formData = new FormData(e.target);' +
-'        const category = formData.get(\'category\');' +
-'        const amount = parseFloat(formData.get(\'amount\'));' +
-'        const date = formData.get(\'date\');' +
-'        const description = formData.get(\'description\') || null;' +
 '' +
-'        console.log(\'Submitting:\', { category, amount, date, description });' +
+'      try {' +
+'        let url = \'/api/expenses\';' +
+'        let method = \'POST\';' +
 '' +
-'        if (!category || !amount || !date) {' +
-'          alert(\'Vui lòng điền đầy đủ thông tin!\');' +
-'          return;' +
+'        if (id) {' +
+'          url = \'/api/expenses/\' + id;' +
+'          method = \'PUT\';' +
 '        }' +
 '' +
-'        try {' +
-'          const res = await fetch(\'/api/expenses\', {' +
-'            method: \'POST\',' +
-'            headers: { \'Content-Type\': \'application/json\' },' +
-'            body: JSON.stringify({ category, amount, date, description })' +
-'          });' +
+'        const res = await fetch(url, {' +
+'          method: method,' +
+'          headers: { \'Content-Type\': \'application/json\' },' +
+'          body: JSON.stringify({ category, amount, date, description })' +
+'        });' +
 '' +
-'          console.log(\'Response status:\', res.status);' +
-'          if (res.ok) {' +
-'            hideModal(\'addExpenseModal\');' +
-'            e.target.reset();' +
-'            document.getElementById(\'addExpenseForm\').querySelector(\'input[name="date"]\').value = \'' + today + '\';' +
-'            location.reload();' +
-'          } else {' +
-'            const err = await res.json();' +
-'            alert(err.error || \'Lỗi khi lưu\');' +
-'          }' +
-'        } catch (err) {' +
-'          alert(\'Lỗi kết nối: \' + err.message);' +
+'        console.log(\'Response status:\', res.status);' +
+'        if (res.ok) {' +
+'          hideModal(\'addExpenseModal\');' +
+'          form.reset();' +
+'          document.getElementById(\'expenseId\').value = \'\';' +
+'          document.querySelector(\'#addExpenseModal h2\').textContent = \'Thêm chi phí\';' +
+'          document.querySelector(\'input[name="date"]\').value = \'' + today + '\';' +
+'          location.reload();' +
+'        } else {' +
+'          const err = await res.json();' +
+'          alert(err.error || \'Lỗi khi lưu\');' +
 '        }' +
-'      });' +
-'    });' +
+'      } catch (err) {' +
+'        alert(\'Lỗi kết nối: \' + err.message);' +
+'      }' +
+'    }' +
 '' +
 '    async function deleteExpense(id) {' +
 '      if (!confirm(\'Xóa chi phí này?\')) return;' +
@@ -246,6 +283,7 @@ router.get('/', (req, res) => {
 '      }' +
 '    }' +
 '  </script>' +
+'  <script src="/js/numfmt.js"></script>' +
 '  <script src="/sync.js"></script>' +
 '</body>' +
 '</html>');

@@ -19,55 +19,10 @@ function initDashboard(data) {
   document.getElementById('kegAtCustomers').textContent = data.kegStats.atCustomers;
   document.getElementById('kegTotal').textContent = data.kegStats.total;
   
-  // Set expense data - calculate net profit
-  const todayProfit = data.todayStats.profit - (data.expenses?.today || 0);
-  const monthProfit = data.monthStats.profit - (data.expenses?.month || 0);
-  
   // Store for later use
   window.dashboardData = {
-    ...data,
-    netProfit: {
-      today: todayProfit,
-      month: monthProfit
-    }
+    ...data
   };
-  
-  // Display profit with expenses deducted
-  const profitEl = document.getElementById('todayProfit');
-  const monthProfitEl = document.getElementById('monthProfit');
-  const monthExpensesEl = document.getElementById('monthExpenses');
-  
-  // Show today's expenses breakdown
-  const todayExpensesEl = document.getElementById('todayExpenses');
-  if (todayExpensesEl) {
-    todayExpensesEl.textContent = formatVND(data.expenses?.today || 0);
-  }
-  
-  // Show today's expenses by type
-  const todayFuelEl = document.getElementById('todayFuel');
-  const todayFoodEl = document.getElementById('todayFood');
-  const todayRepairEl = document.getElementById('todayRepair');
-  if (todayFuelEl) todayFuelEl.textContent = formatVND(data.expenses?.todayByType?.fuel || 0);
-  if (todayFoodEl) todayFoodEl.textContent = formatVND(data.expenses?.todayByType?.food || 0);
-  if (todayRepairEl) todayRepairEl.textContent = formatVND(data.expenses?.todayByType?.repair || 0);
-  
-  if (todayProfit >= 0) {
-    profitEl.textContent = formatVND(todayProfit);
-    profitEl.className = 'text-xl font-bold text-green-600';
-  } else {
-    profitEl.textContent = formatVND(todayProfit);
-    profitEl.className = 'text-xl font-bold text-red-600';
-  }
-  
-  if (monthProfit >= 0) {
-    monthProfitEl.textContent = formatVND(monthProfit);
-    monthProfitEl.className = 'text-xl font-bold text-green-600';
-  } else {
-    monthProfitEl.textContent = formatVND(monthProfit);
-    monthProfitEl.className = 'text-xl font-bold text-red-600';
-  }
-  
-  monthExpensesEl.textContent = formatVND(data.expenses?.month || 0);
   
   // Render low stock
   if (data.lowStockProducts && data.lowStockProducts.length > 0) {

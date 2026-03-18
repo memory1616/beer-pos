@@ -339,12 +339,15 @@ router.post('/:id/return', (req, res) => {
     }
     
     // Lấy chi tiết sản phẩm trong hóa đơn
-    const items = db.prepare('SELECT * WHERE sale_id = ?').all(saleId);
+    const items = db.prepare('SELECT * FROM sale_items WHERE sale_id = ?').all(saleId);
+    
+    let totalReturnProfit = 0;
     
     if (returnType === 'stock_return') {
       // Trả lại kho - cộng lại tồn kho sản phẩm
       for (const item of items) {
         db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(item.quantity, item.product_id);
+        totalReturnProfit += item.profit || 0;
       }
     } else if (returnType === 'damage_return') {
       // Bia lỗi - ghi nhận vào bảng hàng lỗi, không cộng kho
@@ -353,6 +356,7 @@ router.post('/:id/return', (req, res) => {
         db.prepare('INSERT INTO damaged_products (product_id, quantity, reason) VALUES (?, ?, ?)').run(
           item.product_id, item.quantity, reason || 'Bia lỗi/hư'
         );
+        totalReturnProfit += item.profit || 0;
       }
     }
     
@@ -371,8 +375,8 @@ router.post('/:id/return', (req, res) => {
       }
     }
     
-    // Cập nhật trạng thái hóa đơn với loại return
-    db.prepare("UPDATE sales SET status = 'returned', type = ? WHERE id = ?").run(returnType, saleId);
+    // Cập nhật trạng thái hóa đơn với loại return (bao gồm cập nhật lợi nhuận)
+    db.prepare("UPDATE sales SET status = 'returned', type = ?, total = 0, profit = 0 WHERE id = ?").run(returnType, saleId);
     
     res.json({ 
       success: true, 
@@ -456,17 +460,39 @@ router.post('/:id/return-items', (req, res) => {
       }
     }
     
-    // Cập nhật hóa đơn gốc: trừ tiền và đánh dấu có partial return
+    // Cập nhật hóa đơn gốc: trừ tiền, trừ lợi nhuận và đánh dấu có partial return
     const currentReturnAmount = sale.returned_amount || 0;
     const currentReturnQty = sale.returned_quantity || 0;
+    const currentReturnProfit = sale.returned_profit || 0;
+    
+    // Tính lợi nhuận của hàng trả
+    let totalReturnProfit = 0;
+    for (const returnItem of returnItems) {
+      const saleItem = saleItems.find(si => si.product_id === returnItem.productId);
+      if (saleItem) {
+        const ratio = returnItem.quantity / saleItem.quantity;
+        totalReturnProfit += (saleItem.profit || 0) * ratio;
+      }
+    }
+    
     db.prepare(`
       UPDATE sales 
       SET total = total - ?, 
+          profit = profit - ?,
           returned_amount = ?,
           returned_quantity = ?,
+          returned_profit = ?,
           status = CASE WHEN (returned_amount + ?) >= total THEN 'returned' ELSE status END
       WHERE id = ?
-    `).run(totalReturnAmount, currentReturnAmount + totalReturnAmount, currentReturnQty + totalReturnQty, totalReturnAmount, saleId);
+    `).run(
+      totalReturnAmount, 
+      totalReturnProfit,
+      currentReturnAmount + totalReturnAmount, 
+      currentReturnQty + totalReturnQty,
+      currentReturnProfit + totalReturnProfit,
+      totalReturnAmount, 
+      saleId
+    );
     
     res.json({ 
       success: true, 

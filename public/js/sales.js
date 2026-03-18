@@ -83,7 +83,7 @@ function renderSaleProducts() {
     const price = p._displayPrice || p.sell_price || 0;
     const currentPrice = (saleData[p.id] && saleData[p.id].price !== undefined) ? saleData[p.id].price : (p.sell_price || 0);
     const isLowStock = p.stock < 5;
-    const currentQty = saleData[p.id] ? saleData[p.id].quantity : 0;
+    const currentQty = saleData[p.id] ? saleData[p.id].quantity : '';
     const priceLine = isKhachLe
       ? `Giá bán (đ): <input type="number" id="price-input-${p.id}" value="${currentPrice}" min="0" step="1000" inputmode="numeric"
            class="w-24 py-1 px-2 border border-gray-200 rounded-lg text-right text-sm font-medium inline-block"
@@ -94,7 +94,7 @@ function renderSaleProducts() {
       <div class="p-3 border border-gray-200 rounded-xl ${isLowStock ? 'bg-orange-50/50 border-orange-200' : 'bg-gray-50'}">
         <div class="text-sm font-semibold text-gray-800">${p.name}</div>
         <div class="text-xs text-gray-600 mt-0.5">${priceLine}</div>
-        <input type="number" id="qty-${p.id}" min="0" max="${p.stock}" value="${currentQty}" data-stock="${p.stock}"
+        <input type="number" id="qty-${p.id}" min="0" max="${p.stock}" value="${currentQty > 0 ? currentQty : ''}" data-stock="${p.stock}"
           placeholder="Nhập SL"
           class="mt-2 w-full border-2 border-gray-200 rounded-lg p-2.5 text-center font-medium"
           onchange="updateSaleData(${p.id}, 'quantity', this.value); updateSaleTotal();"
@@ -129,7 +129,7 @@ function toggleQtyControl(productId) {
   if (!product) return;
   
   currentEditingProduct = productId;
-  const currentQty = saleData[productId] ? saleData[productId].quantity : 0;
+  const currentQty = saleData[productId] ? saleData[productId].quantity : '';
   const currentPrice = saleData[productId] ? saleData[productId].price : (product._displayPrice || product.sell_price);
   
   const modal = document.createElement('div');

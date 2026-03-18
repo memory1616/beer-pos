@@ -46,7 +46,7 @@ function renderCustomers() {
   const filtered = customers.filter(c => c.name.toLowerCase().includes(search));
 
   if (filtered.length === 0) {
-    container.innerHTML = '<div class="text-center text-gray-500 py-8">Không có khách hàng nào</div>';
+    container.innerHTML = '<div class="text-center text-gray-500 py-8 bg-white rounded-xl shadow-sm">Không có khách hàng nào</div>';
     return;
   }
 
@@ -59,60 +59,83 @@ function renderCustomers() {
     // 🔴 7 ngày chưa mua
     let statusBadge = '';
     let statusClass = '';
+    let statusBg = '';
     if (c.days_since_last_order !== null && c.days_since_last_order !== undefined) {
       if (c.days_since_last_order >= 7) {
         statusBadge = '🔴';
         statusClass = 'text-red-600';
+        statusBg = 'bg-red-50';
       } else if (c.daily_avg < 5) {
         statusBadge = '🟡';
         statusClass = 'text-yellow-600';
+        statusBg = 'bg-yellow-50';
       } else {
         statusBadge = '🟢';
         statusClass = 'text-green-600';
+        statusBg = 'bg-green-50';
       }
     } else {
       statusBadge = '🟡';
       statusClass = 'text-yellow-600';
+      statusBg = 'bg-yellow-50';
     }
 
     return `
-      <div class="card customer-card" data-name="${c.name.toLowerCase()}">
-        <div class="flex justify-between">
+      <div class="card customer-card hover:shadow-lg transition-all duration-200 bg-white rounded-xl border border-gray-100" data-name="${c.name.toLowerCase()}">
+        <div class="flex justify-between items-start">
           <div class="flex-1">
-            <div class="flex items-center gap-2">
-              <a href="/customers/${c.id}" class="font-bold text-base hover:text-green-600">${c.name}</a>
-              <span class="text-lg" title="${statusClass.includes('red') ? '7+ ngày chưa mua' : (statusClass.includes('yellow') ? 'Ít mua' : 'Hoạt động')}">${statusBadge}</span>
+            <div class="flex items-center gap-2 mb-1">
+              <a href="/customers/${c.id}" class="font-bold text-lg text-gray-800 hover:text-green-600">${c.name}</a>
+              <span class="text-xl" title="${statusClass.includes('red') ? '7+ ngày chưa mua' : (statusClass.includes('yellow') ? 'Ít mua' : 'Hoạt động')}">${statusBadge}</span>
             </div>
-            <div class="text-gray-500 text-sm">${c.phone || 'Chưa có SĐT'}</div>
+            <div class="text-gray-500 text-sm flex items-center gap-1">
+              <span>📱</span> ${c.phone || 'Chưa có SĐT'}
+            </div>
           </div>
-          <div class="text-right text-sm">
-            <span class="font-bold">📦 ${c.keg_balance || 0} vỏ</span>
-            ${((c.horizontal_fridge || 0) > 0 || (c.vertical_fridge || 0) > 0) ? `<div class="text-indigo-600 font-medium">❄️ ${c.horizontal_fridge || 0} + 🥶 ${c.vertical_fridge || 0}</div>` : ''}
-            ${c.monthly_liters > 0 ? `<div class="text-green-600 font-medium">${c.monthly_liters} bình</div>` : ''}
+          <div class="text-right">
+            <div class="inline-flex items-center gap-1 px-3 py-1.5 bg-amber-50 rounded-lg border border-amber-200">
+              <span class="text-amber-600 font-bold">📦 ${c.keg_balance || 0}</span>
+              <span class="text-xs text-amber-500">vỏ</span>
+            </div>
+            ${((c.horizontal_fridge || 0) > 0 || (c.vertical_fridge || 0) > 0) ? `
+              <div class="mt-1 text-xs text-indigo-600 font-medium">
+                ❄️ ${c.horizontal_fridge || 0} + 🥶 ${c.vertical_fridge || 0}
+              </div>
+            ` : ''}
+            ${c.monthly_liters > 0 ? `
+              <div class="mt-1 text-xs text-green-600 font-medium flex items-center justify-end gap-1">
+                <span>📈</span> ${c.monthly_liters} bình/tháng
+              </div>
+            ` : ''}
           </div>
         </div>
-        <div class="flex flex-wrap gap-2 mt-3">
-          <button onclick="getLocation(${c.id})" class="flex-1 px-3 py-2 bg-orange-100 text-orange-700 rounded-lg font-medium text-sm">
+        
+        <div class="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-100">
+          <button onclick="getLocation(${c.id})" class="flex-1 px-3 py-2.5 bg-gradient-to-r from-orange-50 to-orange-100 text-orange-700 rounded-lg font-medium text-sm border border-orange-200 hover:from-orange-100 hover:to-orange-150 transition-all">
             📍 GPS
           </button>
-          <button onclick="editCustomer(${c.id}, '${c.name}', '${c.phone || ''}', ${c.deposit})" class="flex-1 px-3 py-2 bg-blue-100 text-blue-700 rounded-lg font-medium text-sm">
+          <button onclick="editCustomer(${c.id}, '${c.name}', '${c.phone || ''}', ${c.deposit})" class="flex-1 px-3 py-2.5 bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 rounded-lg font-medium text-sm border border-blue-200 hover:from-blue-100 hover:to-blue-150 transition-all">
             ✏️ Sửa
           </button>
-          <button onclick="showPriceModal(${c.id}, '${c.name}')" class="flex-1 px-3 py-2 bg-green-100 text-green-700 rounded-lg font-medium text-sm">
+          <button onclick="showPriceModal(${c.id}, '${c.name}')" class="flex-1 px-3 py-2.5 bg-gradient-to-r from-green-50 to-green-100 text-green-700 rounded-lg font-medium text-sm border border-green-200 hover:from-green-100 hover:to-green-150 transition-all">
             💰 Giá
           </button>
-          <button onclick="deleteCustomer(${c.id})" class="px-3 py-2 bg-red-100 text-red-600 rounded-lg">
+          <button onclick="deleteCustomer(${c.id})" class="px-3 py-2.5 bg-red-50 text-red-500 rounded-lg border border-red-100 hover:bg-red-100 transition-all">
             🗑️
           </button>
         </div>
-        <div class="mt-2 pt-2 border-t flex justify-between items-center">
-          <div class="text-sm">
-            <span class="text-gray-500">Đặt cọc: </span>
-            <span class="font-medium ${c.deposit > 0 ? 'text-blue-600' : 'text-gray-400'}">${formatVND(c.deposit)}</span>
+        
+        <div class="mt-3 pt-3 border-t border-gray-100 flex justify-between items-center">
+          <div class="text-sm flex items-center gap-2">
+            <span class="text-gray-400">💵 Đặt cọc:</span>
+            <span class="font-semibold ${c.deposit > 0 ? 'text-blue-600' : 'text-gray-400'}">${formatVND(c.deposit)}</span>
           </div>
-          <button onclick="editKegBalance(${c.id}, ${c.keg_balance}, '${c.name}')" class="text-xs text-blue-500 underline">✏️ Sửa vỏ</button>
+          <div class="flex items-center gap-3">
+            <button onclick="editKegBalance(${c.id}, ${c.keg_balance}, '${c.name}')" class="text-xs text-blue-500 hover:text-blue-700 hover:bg-blue-50 px-2 py-1 rounded transition-colors">✏️ Sửa vỏ</button>
+            ${hasLocation ? '<span class="text-green-500 text-xs" title="Đã có vị trí">✅</span>' : ''}
+          </div>
         </div>
-        ${c.last_sale_date ? '<div class="text-xs text-gray-400 mt-1">Mua lần cuối: ' + new Date(c.last_sale_date).toLocaleDateString('vi-VN') + '</div>' : ''}
+        ${c.last_sale_date ? '<div class="text-xs text-gray-400 mt-2 flex items-center gap-1">🕐 Mua lần cuối: ' + new Date(c.last_sale_date).toLocaleDateString('vi-VN') + '</div>' : ''}
       </div>
     `;
   }).join('');
@@ -187,9 +210,9 @@ async function saveCustomerEdit() {
   const id = document.getElementById('editId').value;
   const name = document.getElementById('editName').value;
   const phone = document.getElementById('editPhone').value || null;
-  const deposit = parseFloat(document.getElementById('editDeposit').value) || 0;
-  const horizontal_fridge = parseInt(document.getElementById('editHorizontalFridge').value) || 0;
-  const vertical_fridge = parseInt(document.getElementById('editVerticalFridge').value) || 0;
+  const deposit = parseFormattedNumber(document.getElementById('editDeposit').value);
+  const horizontal_fridge = parseInt(document.getElementById('editHorizontalFridge').value.replace(/,/g, '')) || 0;
+  const vertical_fridge = parseInt(document.getElementById('editVerticalFridge').value.replace(/,/g, '')) || 0;
   
   if (!id) {
     alert('Lỗi: Không tìm thấy ID khách hàng');
@@ -251,12 +274,15 @@ function showPriceModal(id, name) {
       const price = productPrices[p.id] || '';
       html += '<div class="flex justify-between items-center py-2 border-b">' +
         '<div class="font-medium">' + p.name + '</div>' +
-        '<input type="number" data-product="' + p.id + '" value="' + price + '" ' +
+        '<input type="text" data-product="' + p.id + '" value="' + price + '" data-format-number inputmode="decimal" ' +
         'class="border p-2 w-28 rounded text-right" placeholder="Giá">' +
       '</div>';
     });
     container.innerHTML = html;
     window.currentPriceCustomerId = id;
+    
+    // Initialize number format for new inputs
+    initAllNumberFormats();
   }).catch(err => {
     console.error('Error loading data:', err);
     document.getElementById('priceList').innerHTML = '<div class="text-red-500 text-center py-4">❌ Lỗi tải dữ liệu: ' + err.message + '</div>';
@@ -273,11 +299,12 @@ async function savePrices() {
   const prices = [];
   
   inputs.forEach(i => {
-    const price = i.value;
-    if (price) {
+    const rawValue = i.value.replace(/,/g, '');
+    const price = parseFloat(rawValue);
+    if (!isNaN(price)) {
       prices.push({
         product_id: parseInt(i.dataset.product),
-        price: parseFloat(price)
+        price: price
       });
     }
   });
@@ -325,12 +352,15 @@ async function loadAddProducts() {
       container.innerHTML = products.map(p => 
         '<div class="flex items-center justify-between py-2 border-b border-gray-100">' +
           '<span class="text-sm font-medium text-gray-700">' + p.name + '</span>' +
-          '<input type="number" name="price_' + p.id + '" data-product="' + p.id + '" ' +
+          '<input type="text" name="price_' + p.id + '" data-product="' + p.id + '" data-format-number inputmode="decimal" ' +
             'class="border border-gray-300 rounded px-2 py-1 w-24 text-right text-sm" ' +
             'placeholder="Giá">' +
         '</div>'
       ).join('');
       addProductsLoaded = true;
+      
+      // Initialize number format for new inputs
+      initAllNumberFormats();
     }
   } catch (e) {
     console.error('Failed to load products:', e);
@@ -340,15 +370,15 @@ async function loadAddProducts() {
 document.getElementById('addForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const data = Object.fromEntries(new FormData(e.target));
-  data.deposit = parseFloat(data.deposit) || 0;
-  data.horizontal_fridge = parseInt(data.horizontal_fridge) || 0;
-  data.vertical_fridge = parseInt(data.vertical_fridge) || 0;
+  data.deposit = parseFormattedNumber(data.deposit);
+  data.horizontal_fridge = parseInt(String(data.horizontal_fridge).replace(/,/g, '')) || 0;
+  data.vertical_fridge = parseInt(String(data.vertical_fridge).replace(/,/g, '')) || 0;
   
   const prices = {};
   for (const [key, value] of Object.entries(data)) {
     if (key.startsWith('price_') && value) {
       const productId = key.replace('price_', '');
-      prices[productId] = parseFloat(value);
+      prices[productId] = parseFloat(String(value).replace(/,/g, ''));
     }
   }
   data.prices = prices;

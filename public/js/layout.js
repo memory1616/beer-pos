@@ -48,19 +48,35 @@ function getContent(content) {
 function getBottomNav(currentPage) {
   const pages = [
     { href: '/', icon: '🏠', label: 'Trang chủ' },
-    { href: '/sale', icon: '🍺', label: 'Bán' },
-    { href: '/expenses', icon: '💸', label: 'Chi phí', highlight: true },
     { href: '/customers', icon: '👤', label: 'Khách' },
+    { href: '/sale', icon: '🍺', label: 'Bán' },
+    { href: '/stock', icon: '📦', label: 'Kho' },
     { href: '/report', icon: '📊', label: 'Báo cáo' }
   ];
+
+  // Add expenses as floating button (not in bottom nav)
+  // If current page is expenses, we'll show a different nav
+  if (currentPage === '/expenses') {
+    return `
+      <nav class="bottomnav">
+        ${pages.map(p => {
+          const isActive = currentPage === p.href;
+          return `
+          <a href="${p.href}" class="${isActive ? 'active' : ''}">
+            <span class="icon">${p.icon}</span>
+            <span>${p.label}</span>
+          </a>
+        `}).join('')}
+      </nav>
+    `;
+  }
 
   return `
     <nav class="bottomnav">
       ${pages.map(p => {
         const isActive = currentPage === p.href;
-        const highlightClass = p.highlight ? 'nav-highlight' : '';
         return `
-        <a href="${p.href}" class="${isActive ? 'active' : ''} ${highlightClass}">
+        <a href="${p.href}" class="${isActive ? 'active' : ''}">
           <span class="icon">${p.icon}</span>
           <span>${p.label}</span>
         </a>

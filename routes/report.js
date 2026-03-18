@@ -64,13 +64,21 @@ router.get('/', (req, res) => {
   // Revenue & Profit by period - use subquery to avoid duplicate counting
   const periodStats = db.prepare(`
     SELECT 
-      (SELECT COALESCE(SUM(total), 0) FROM sales WHERE date >= ? AND date <= ?) as revenue,
-      (SELECT COALESCE(SUM(profit), 0) FROM sales WHERE date >= ? AND date <= ?) as profit,
-      (SELECT COUNT(*) FROM sales WHERE date >= ? AND date <= ?) as order_count,
+      (SELECT COALESCE(SUM(total), 0) FROM sales WHERE date >= ? AND date <= ? AND status != 'returned') as revenue,
+      (SELECT COALESCE(SUM(profit), 0) FROM sales WHERE date >= ? AND date <= ? AND status != 'returned') as profit,
+      (SELECT COUNT(*) FROM sales WHERE date >= ? AND date <= ? AND status != 'returned') as order_count,
       COALESCE(SUM(si.quantity), 0) as total_quantity
     FROM sale_items si
-    JOIN sales s ON s.id = si.sale_id AND s.date >= ? AND s.date <= ?
+    JOIN sales s ON s.id = si.sale_id AND s.date >= ? AND s.date <= ? AND s.status != 'returned'
   `).get(startDate, endDate, startDate, endDate, startDate, endDate, startDate, endDate);
+  
+  // Get expenses for the period
+  const periodExpenses = db.prepare(`
+    SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE date >= ? AND date <= ?
+  `).get(startDate, endDate);
+  
+  // Calculate net profit (profit - expenses)
+  const netProfit = periodStats.profit - periodExpenses.total;
   
   // Daily stats for the period (last 7 days or 30 days)
   const dailyStats = db.prepare(`
@@ -81,7 +89,7 @@ router.get('/', (req, res) => {
       COALESCE(SUM(si.quantity), 0) as quantity
     FROM sales s
     LEFT JOIN sale_items si ON si.sale_id = s.id
-    WHERE s.date >= ? AND s.date <= ?
+    WHERE s.date >= ? AND s.date <= ? AND s.status != 'returned'
     GROUP BY s.date
     ORDER BY s.date DESC
     LIMIT 30
@@ -92,11 +100,11 @@ router.get('/', (req, res) => {
     SELECT 
       c.id,
       c.name,
-      (SELECT COALESCE(SUM(s2.total), 0) FROM sales s2 WHERE s2.customer_id = c.id AND s2.date >= ? AND s2.date <= ?) as revenue,
-      (SELECT COALESCE(SUM(si2.quantity), 0) FROM sale_items si2 JOIN sales s3 ON s3.id = si2.sale_id AND s3.customer_id = c.id AND s3.date >= ? AND s3.date <= ?) as quantity,
-      (SELECT COUNT(*) FROM sales s2 WHERE s2.customer_id = c.id AND s2.date >= ? AND s2.date <= ?) as order_count
+      (SELECT COALESCE(SUM(s2.total), 0) FROM sales s2 WHERE s2.customer_id = c.id AND s2.date >= ? AND s2.date <= ? AND s2.status != 'returned') as revenue,
+      (SELECT COALESCE(SUM(si2.quantity), 0) FROM sale_items si2 JOIN sales s3 ON s3.id = si2.sale_id AND s3.customer_id = c.id AND s3.date >= ? AND s3.date <= ? AND s3.status != 'returned') as quantity,
+      (SELECT COUNT(*) FROM sales s2 WHERE s2.customer_id = c.id AND s2.date >= ? AND s2.date <= ? AND s2.status != 'returned') as order_count
     FROM customers c
-    WHERE (SELECT SUM(s2.total) FROM sales s2 WHERE s2.customer_id = c.id AND s2.date >= ? AND s2.date <= ?) > 0
+    WHERE (SELECT SUM(s2.total) FROM sales s2 WHERE s2.customer_id = c.id AND s2.date >= ? AND s2.date <= ? AND s2.status != 'returned') > 0
     ORDER BY revenue DESC
     LIMIT 3
   `).all(startDate, endDate, startDate, endDate, startDate, endDate, startDate, endDate);
@@ -111,7 +119,7 @@ router.get('/', (req, res) => {
     FROM products p
     JOIN sale_items si ON si.product_id = p.id
     JOIN sales s ON s.id = si.sale_id
-    WHERE s.date >= ? AND s.date <= ?
+    WHERE s.date >= ? AND s.date <= ? AND s.status != 'returned'
     GROUP BY p.id
     ORDER BY quantity_sold DESC
     LIMIT 10
@@ -120,11 +128,19 @@ router.get('/', (req, res) => {
   // All time stats - chỉ dùng subquery, không JOIN, đảm bảo tổng toàn bộ thời gian
   const allTimeStats = db.prepare(`
     SELECT 
-      (SELECT COALESCE(SUM(total), 0) FROM sales) as revenue,
-      (SELECT COALESCE(SUM(profit), 0) FROM sales) as profit,
-      (SELECT COUNT(*) FROM sales) as order_count,
-      (SELECT COALESCE(SUM(quantity), 0) FROM sale_items) as total_quantity
+      (SELECT COALESCE(SUM(total), 0) FROM sales WHERE status != 'returned') as revenue,
+      (SELECT COALESCE(SUM(profit), 0) FROM sales WHERE status != 'returned') as profit,
+      (SELECT COUNT(*) FROM sales WHERE status != 'returned') as order_count,
+      (SELECT COALESCE(SUM(quantity), 0) FROM sale_items si JOIN sales s ON s.id = si.sale_id WHERE s.status != 'returned') as total_quantity
   `).get();
+  
+  // Get all time expenses
+  const allTimeExpenses = db.prepare(`
+    SELECT COALESCE(SUM(amount), 0) as total FROM expenses
+  `).get();
+  
+  // Calculate all time net profit
+  const allTimeNetProfit = allTimeStats.profit - allTimeExpenses.total;
   
   // Recent sales with pagination
   const now = new Date();
@@ -231,18 +247,18 @@ router.get('/', (req, res) => {
   <main class="p-4 pb-24 max-w-md mx-auto animate-fade">
     <!-- Quick Report Links -->
     <div class="mb-4">
-      <div class="grid grid-cols-3 gap-2">
-        <a href="/report/profit-product" class="card text-center py-3 bg-purple-50 border-purple-200">
-          <div class="text-xl mb-1">📦</div>
-          <div class="text-xs font-medium">Lợi nhuận<br>sản phẩm</div>
+      <div class="grid grid-cols-3 gap-3">
+        <a href="/report/profit-product" class="card text-center py-4 bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200 hover:shadow-md transition-all">
+          <div class="text-2xl mb-1">📦</div>
+          <div class="text-xs font-semibold text-purple-700">Lợi nhuận<br>sản phẩm</div>
         </a>
-        <a href="/report/profit-customer" class="card text-center py-3 bg-blue-50 border-blue-200">
-          <div class="text-xl mb-1">👥</div>
-          <div class="text-xs font-medium">Lợi nhuận<br>khách hàng</div>
+        <a href="/report/profit-customer" class="card text-center py-4 bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200 hover:shadow-md transition-all">
+          <div class="text-2xl mb-1">👥</div>
+          <div class="text-xs font-semibold text-blue-700">Lợi nhuận<br>khách hàng</div>
         </a>
-        <a href="/report/cashflow" class="card text-center py-3 bg-amber-50 border-green-200">
-          <div class="text-xl mb-1">💰</div>
-          <div class="text-xs font-medium">Dòng tiền</div>
+        <a href="/report/cashflow" class="card text-center py-4 bg-gradient-to-br from-green-50 to-green-100 border-green-200 hover:shadow-md transition-all">
+          <div class="text-2xl mb-1">💰</div>
+          <div class="text-xs font-semibold text-green-700">Dòng tiền</div>
         </a>
       </div>
     </div>
@@ -250,11 +266,11 @@ router.get('/', (req, res) => {
     <!-- Period Selector - grid 5 nút, không scroll; tab chọn màu mạnh (blue-600/white) -->
     <div class="mb-4">
       <div class="grid grid-cols-5 gap-2">
-        <a href="/report?period=today" class="px-2 py-2.5 rounded-xl text-xs font-medium text-center ${period === 'today' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}">Hôm nay</a>
-        <a href="/report?period=yesterday" class="px-2 py-2.5 rounded-xl text-xs font-medium text-center ${period === 'yesterday' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}">Hôm qua</a>
-        <a href="/report?period=week" class="px-2 py-2.5 rounded-xl text-xs font-medium text-center ${period === 'week' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}">7 ngày</a>
-        <a href="/report?period=thisMonth" class="px-2 py-2.5 rounded-xl text-xs font-medium text-center ${period === 'thisMonth' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}">Tháng này</a>
-        <a href="/report?period=lastMonth" class="px-2 py-2.5 rounded-xl text-xs font-medium text-center ${period === 'lastMonth' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}">Tháng trước</a>
+        <a href="/report?period=today" class="px-2 py-3 rounded-xl text-xs font-semibold text-center shadow-sm ${period === 'today' ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}">Hôm nay</a>
+        <a href="/report?period=yesterday" class="px-2 py-3 rounded-xl text-xs font-semibold text-center shadow-sm ${period === 'yesterday' ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}">Hôm qua</a>
+        <a href="/report?period=week" class="px-2 py-3 rounded-xl text-xs font-semibold text-center shadow-sm ${period === 'week' ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}">7 ngày</a>
+        <a href="/report?period=thisMonth" class="px-2 py-3 rounded-xl text-xs font-semibold text-center shadow-sm ${period === 'thisMonth' ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}">Tháng này</a>
+        <a href="/report?period=lastMonth" class="px-2 py-3 rounded-xl text-xs font-semibold text-center shadow-sm ${period === 'lastMonth' ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}">Tháng trước</a>
       </div>
     </div>
 
@@ -262,20 +278,46 @@ router.get('/', (req, res) => {
     <div class="mb-4">
       <div class="section-title">${periodLabel}</div>
       <div class="grid grid-cols-2 gap-3">
-        <div class="card">
-          <div class="text-xs text-gray-700">Doanh thu</div>
+        <div class="card bg-gradient-to-br from-amber-50 to-white border-amber-200">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="text-amber-500">💵</span>
+            <div class="text-xs text-amber-700 font-medium">Doanh thu</div>
+          </div>
           <div class="text-xl font-bold text-amber-600 card-value">${formatVND(periodStats.revenue)}</div>
         </div>
-        <div class="card">
-          <div class="text-xs text-gray-700">Lợi nhuận</div>
+        <div class="card bg-gradient-to-br from-blue-50 to-white border-blue-200">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="text-blue-500">📈</span>
+            <div class="text-xs text-blue-700 font-medium">Lợi nhuận gộp</div>
+          </div>
           <div class="text-xl font-bold text-blue-600 card-value">${formatVND(periodStats.profit)}</div>
         </div>
-        <div class="card">
-          <div class="text-xs text-gray-700">Đơn hàng</div>
-          <div class="text-xl font-bold card-value">${periodStats.order_count}</div>
+        <div class="card bg-gradient-to-br from-red-50 to-white border-red-200">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="text-red-500">📉</span>
+            <div class="text-xs text-red-700 font-medium">Chi phí</div>
+          </div>
+          <div class="text-xl font-bold text-red-600 card-value">-${formatVND(periodExpenses.total)}</div>
         </div>
-        <div class="card">
-          <div class="text-xs text-gray-700">Sản phẩm</div>
+        <div class="card bg-gradient-to-br from-indigo-50 to-indigo-100 border-indigo-300">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="text-indigo-600">✨</span>
+            <div class="text-xs text-indigo-700 font-medium">Lợi nhuận ròng</div>
+          </div>
+          <div class="text-xl font-bold text-indigo-700 card-value">${formatVND(netProfit)}</div>
+        </div>
+        <div class="card bg-gradient-to-br from-gray-50 to-white border-gray-200">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="text-gray-500">📋</span>
+            <div class="text-xs text-gray-600 font-medium">Đơn hàng</div>
+          </div>
+          <div class="text-xl font-bold text-gray-700 card-value">${periodStats.order_count}</div>
+        </div>
+        <div class="card bg-gradient-to-br from-orange-50 to-white border-orange-200">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="text-orange-500">🍺</span>
+            <div class="text-xs text-orange-700 font-medium">Sản phẩm</div>
+          </div>
           <div class="text-xl font-bold text-orange-600 card-value">${periodStats.total_quantity}</div>
         </div>
       </div>
@@ -291,22 +333,48 @@ router.get('/', (req, res) => {
 
     <!-- All Time Stats - layout grid card giống dashboard -->
     <div class="mb-4">
-      <div class="section-title">Tất cả thời gian</div>
+      <div class="section-title">📊 Tất cả thời gian</div>
       <div class="grid grid-cols-2 gap-3 mt-2">
-        <div class="p-3 bg-white rounded-xl border border-amber-400">
-          <div class="text-xs text-gray-700">Doanh thu</div>
+        <div class="p-3 bg-gradient-to-br from-amber-50 to-white rounded-xl border border-amber-300 shadow-sm">
+          <div class="flex items-center gap-1 mb-1">
+            <span class="text-amber-500">💵</span>
+            <div class="text-xs text-amber-700 font-medium">Doanh thu</div>
+          </div>
           <div class="text-lg font-bold text-amber-600 card-value">${formatVND(allTimeStats.revenue)}</div>
         </div>
-        <div class="p-3 bg-white rounded-xl border border-amber-400">
-          <div class="text-xs text-gray-700">Lợi nhuận</div>
+        <div class="p-3 bg-gradient-to-br from-blue-50 to-white rounded-xl border border-blue-300 shadow-sm">
+          <div class="flex items-center gap-1 mb-1">
+            <span class="text-blue-500">📈</span>
+            <div class="text-xs text-blue-700 font-medium">Lợi nhuận gộp</div>
+          </div>
           <div class="text-lg font-bold text-blue-600 card-value">${formatVND(allTimeStats.profit)}</div>
         </div>
-        <div class="p-3 bg-white rounded-xl border border-amber-400">
-          <div class="text-xs text-gray-700">Đơn hàng</div>
-          <div class="text-lg font-bold card-value">${allTimeStats.order_count}</div>
+        <div class="p-3 bg-gradient-to-br from-red-50 to-white rounded-xl border border-red-300 shadow-sm">
+          <div class="flex items-center gap-1 mb-1">
+            <span class="text-red-500">📉</span>
+            <div class="text-xs text-red-700 font-medium">Tổng chi phí</div>
+          </div>
+          <div class="text-lg font-bold text-red-600 card-value">-${formatVND(allTimeExpenses.total)}</div>
         </div>
-        <div class="p-3 bg-white rounded-xl border border-amber-400">
-          <div class="text-xs text-gray-700">Sản phẩm</div>
+        <div class="p-3 bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-xl border border-indigo-300 shadow-sm">
+          <div class="flex items-center gap-1 mb-1">
+            <span class="text-indigo-600">✨</span>
+            <div class="text-xs text-indigo-700 font-medium">Lợi nhuận ròng</div>
+          </div>
+          <div class="text-lg font-bold text-indigo-700 card-value">${formatVND(allTimeNetProfit)}</div>
+        </div>
+        <div class="p-3 bg-gradient-to-br from-gray-50 to-white rounded-xl border border-gray-300 shadow-sm">
+          <div class="flex items-center gap-1 mb-1">
+            <span class="text-gray-500">📋</span>
+            <div class="text-xs text-gray-600 font-medium">Đơn hàng</div>
+          </div>
+          <div class="text-lg font-bold text-gray-700 card-value">${allTimeStats.order_count}</div>
+        </div>
+        <div class="p-3 bg-gradient-to-br from-orange-50 to-white rounded-xl border border-orange-300 shadow-sm">
+          <div class="flex items-center gap-1 mb-1">
+            <span class="text-orange-500">🍺</span>
+            <div class="text-xs text-orange-700 font-medium">Sản phẩm</div>
+          </div>
           <div class="text-lg font-bold text-orange-600 card-value">${allTimeStats.total_quantity}</div>
         </div>
       </div>
@@ -316,13 +384,13 @@ router.get('/', (req, res) => {
     <div class="mb-4">
       <div class="section-title">🏆 Top khách hàng</div>
       <div class="space-y-2">
-        ${topCustomers.length === 0 ? '<div class="text-gray-700 text-center py-4">Chưa có dữ liệu</div>' : topCustomers.map((c, i) => `
-          <div class="card flex justify-between items-center">
+        ${topCustomers.length === 0 ? '<div class="text-gray-500 text-center py-4 bg-white rounded-xl">Chưa có dữ liệu</div>' : topCustomers.map((c, i) => `
+          <div class="card flex justify-between items-center hover:shadow-md transition-all">
             <div class="flex items-center gap-3">
-              <div class="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${i === 0 ? 'bg-yellow-400 text-yellow-900' : i === 1 ? 'bg-gray-300 text-gray-700' : i === 2 ? 'bg-orange-300 text-orange-900' : 'bg-gray-100 text-gray-600'}">${i + 1}</div>
+              <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm ${i === 0 ? 'bg-gradient-to-br from-yellow-400 to-yellow-500 text-yellow-900' : i === 1 ? 'bg-gradient-to-br from-gray-300 to-gray-400 text-gray-700' : i === 2 ? 'bg-gradient-to-br from-orange-300 to-orange-400 text-orange-900' : 'bg-gray-100 text-gray-600'}">${i + 1}</div>
               <div>
                 <div class="font-bold text-sm">${c.name}</div>
-                <div class="text-xs text-gray-700">${c.order_count} đơn • ${c.quantity} sản phẩm</div>
+                <div class="text-xs text-gray-500">${c.order_count} đơn · ${c.quantity} sản phẩm</div>
               </div>
             </div>
             <div class="text-right">
@@ -337,18 +405,18 @@ router.get('/', (req, res) => {
     <div class="mb-4">
       <div class="section-title">🍺 Top sản phẩm bán chạy</div>
       <div class="space-y-2">
-        ${topProducts.length === 0 ? '<div class="text-gray-700 text-center py-4">Chưa có dữ liệu</div>' : topProducts.map((p, i) => `
-          <div class="card flex justify-between items-center">
+        ${topProducts.length === 0 ? '<div class="text-gray-500 text-center py-4 bg-white rounded-xl">Chưa có dữ liệu</div>' : topProducts.map((p, i) => `
+          <div class="card flex justify-between items-center hover:shadow-md transition-all">
             <div class="flex items-center gap-3">
-              <div class="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${i === 0 ? 'bg-yellow-400 text-yellow-900' : i === 1 ? 'bg-gray-300 text-gray-700' : i === 2 ? 'bg-orange-300 text-orange-900' : 'bg-gray-100 text-gray-600'}">${i + 1}</div>
+              <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm ${i === 0 ? 'bg-gradient-to-br from-yellow-400 to-yellow-500 text-yellow-900' : i === 1 ? 'bg-gradient-to-br from-gray-300 to-gray-400 text-gray-700' : i === 2 ? 'bg-gradient-to-br from-orange-300 to-orange-400 text-orange-900' : 'bg-gray-100 text-gray-600'}">${i + 1}</div>
               <div>
                 <div class="font-bold text-sm">${p.name}</div>
-                <div class="text-xs text-gray-700">Doanh thu: ${formatVND(p.revenue)}</div>
+                <div class="text-xs text-gray-500">Doanh thu: ${formatVND(p.revenue)}</div>
               </div>
             </div>
             <div class="text-right">
               <div class="font-bold text-orange-600">${p.quantity_sold}</div>
-              <div class="text-xs text-gray-700">sản phẩm</div>
+              <div class="text-xs text-gray-500">sản phẩm</div>
             </div>
           </div>
         `).join('')}
@@ -357,9 +425,9 @@ router.get('/', (req, res) => {
 
     <!-- Recent Sales -->
     <div class="mb-4">
-      <div class="section-title">📋 Đơn hàng gần đây <span class="text-xs font-normal text-gray-700">(${total} đơn)</span></div>
-      <div class="space-y-1" id="recentSalesList">
-        ${recentSales.length === 0 ? '<div class="text-gray-700 text-center py-4">Chưa có đơn hàng</div>' : recentSales.map(s => {
+      <div class="section-title">📋 Đơn hàng gần đây <span class="text-xs font-normal text-gray-500">(${total} đơn)</span></div>
+      <div class="bg-white rounded-xl shadow-sm border overflow-hidden" id="recentSalesList">
+        ${recentSales.length === 0 ? '<div class="text-gray-500 text-center py-4">Chưa có đơn hàng</div>' : recentSales.map(s => {
           const date = new Date(s.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
           const hasKegUpdate = (s.deliver_kegs || 0) > 0 || (s.return_kegs || 0) > 0;
           
@@ -370,26 +438,26 @@ router.get('/', (req, res) => {
           if (s.type === 'replacement') {
             typeBadge = '<span class="bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded text-xs">🔁 Đổi lỗi</span>';
             totalDisplay = '<span class="font-bold text-orange-600">0 đ</span>';
-            rowClass = 'bg-orange-50';
+            rowClass = 'bg-orange-50/50';
           } else {
             totalDisplay = '<span class="font-bold text-green-600">' + formatVND(s.total) + '</span>';
           }
           
-          return '<div class="flex justify-between items-center p-2 border-b ' + rowClass + '">' +
-            '<div>' +
-              '<div class="font-medium">#' + s.id + ' - ' + (s.customer_name || 'Khách lẻ') + ' ' + typeBadge + '</div>' +
-              '<div class="text-xs text-gray-700">' + date + (hasKegUpdate ? ' • 📦' : '') + '</div>' +
+          return '<div class="flex justify-between items-center p-3 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors ' + rowClass + '">' +
+            '<div class="flex-1">' +
+              '<div class="font-medium text-sm">#' + s.id + ' - ' + (s.customer_name || 'Khách lẻ') + ' ' + typeBadge + '</div>' +
+              '<div class="text-xs text-gray-500 mt-0.5">' + date + (hasKegUpdate ? ' · 📦' : '') + '</div>' +
             '</div>' +
-            '<div class="text-right">' +
+            '<div class="text-right ml-3">' +
               totalDisplay +
               (s.type !== 'replacement' ? '<div class="text-xs ' + (s.profit > 0 ? 'text-green-600' : 'text-red-500') + '">+' + formatVND(s.profit) + '</div>' : '') +
             '</div>' +
           '</div>';
         }).join('')}
-        ${totalPages > 1 ? '<div class="flex justify-center items-center gap-2 mt-3 py-2" id="salesPagination">' +
-          '<button onclick="loadReportSales(' + (page - 1) + ')" ' + (page === 1 ? 'disabled' : '') + ' ' + 'class="px-3 py-1 rounded ' + (page === 1 ? 'bg-gray-200 text-gray-400' : 'bg-gray-200 text-gray-700 hover:bg-gray-300') + '">‹</button>' +
-          '<span class="text-sm text-gray-600">Trang ' + page + '/' + totalPages + '</span>' +
-          '<button onclick="loadReportSales(' + (page + 1) + ')" ' + (page === totalPages ? 'disabled' : '') + ' ' + 'class="px-3 py-1 rounded ' + (page === totalPages ? 'bg-gray-200 text-gray-400' : 'bg-gray-200 text-gray-700 hover:bg-gray-300') + '">›</button>' +
+        ${totalPages > 1 ? '<div class="flex justify-center items-center gap-2 mt-3 py-3 bg-gray-50" id="salesPagination">' +
+          '<button onclick="loadReportSales(' + (page - 1) + ')" ' + (page === 1 ? 'disabled' : '') + ' ' + 'class="px-4 py-2 rounded-lg ' + (page === 1 ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100 shadow-sm') + '">‹ Trước</button>' +
+          '<span class="text-sm text-gray-600 px-2">' + page + '/' + totalPages + '</span>' +
+          '<button onclick="loadReportSales(' + (page + 1) + ')" ' + (page === totalPages ? 'disabled' : '') + ' ' + 'class="px-4 py-2 rounded-lg ' + (page === totalPages ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100 shadow-sm') + '">Sau ›</button>' +
         '</div>' : ''}
       </div>
     </div>
@@ -607,6 +675,7 @@ router.get('/profit-product', (req, res) => {
     FROM sale_items si
     JOIN products p ON p.id = si.product_id
     JOIN sales s ON s.id = si.sale_id
+    WHERE s.status != 'returned'
   `;
   
   const params = [];
@@ -648,36 +717,36 @@ router.get('/profit-product', (req, res) => {
     </div>
   </header>
   <main class="p-4 pb-24 max-w-md mx-auto">
-    <div class="card bg-gradient-to-r from-purple-500 to-purple-600 text-white mb-4">
-      <div class="grid grid-cols-3 gap-2 text-center">
+    <div class="card bg-gradient-to-r from-purple-500 to-purple-600 text-white mb-4 shadow-lg">
+      <div class="grid grid-cols-3 gap-3 text-center py-2">
         <div>
           <div class="text-xs opacity-80">Doanh thu</div>
-          <div class="font-bold">${formatVND(totalRevenue)}</div>
+          <div class="font-bold text-lg">${formatVND(totalRevenue)}</div>
         </div>
         <div>
           <div class="text-xs opacity-80">Chi phí</div>
-          <div class="font-bold">${formatVND(totalCost)}</div>
+          <div class="font-bold text-lg">${formatVND(totalCost)}</div>
         </div>
         <div>
           <div class="text-xs opacity-80">Lợi nhuận</div>
-          <div class="font-bold">${formatVND(totalProfit)}</div>
+          <div class="font-bold text-lg">${formatVND(totalProfit)}</div>
         </div>
       </div>
     </div>
     <div class="space-y-2">
-      ${products.length === 0 ? '<div class="text-gray-700 text-center py-4">Chưa có dữ liệu</div>' : products.map((p, i) => `
-        <div class="card">
+      ${products.length === 0 ? '<div class="text-gray-500 text-center py-4 bg-white rounded-xl">Chưa có dữ liệu</div>' : products.map((p, i) => `
+        <div class="card hover:shadow-md transition-all">
           <div class="flex justify-between items-center">
             <div class="flex items-center gap-3">
-              <div class="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${i === 0 ? 'bg-yellow-400 text-yellow-900' : i === 1 ? 'bg-gray-300 text-gray-700' : i === 2 ? 'bg-orange-300 text-orange-900' : 'bg-gray-100 text-gray-600'}">${i + 1}</div>
+              <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm ${i === 0 ? 'bg-gradient-to-br from-yellow-400 to-yellow-500 text-yellow-900' : i === 1 ? 'bg-gradient-to-br from-gray-300 to-gray-400 text-gray-700' : i === 2 ? 'bg-gradient-to-br from-orange-300 to-orange-400 text-orange-900' : 'bg-gray-100 text-gray-600'}">${i + 1}</div>
               <div>
                 <div class="font-bold">${p.name}</div>
-                <div class="text-xs text-gray-700">${p.total_qty} sản phẩm</div>
+                <div class="text-xs text-gray-500">${p.total_qty} sản phẩm · ${formatVND(p.revenue)}</div>
               </div>
             </div>
             <div class="text-right">
               <div class="font-bold text-purple-600">${formatVND(p.profit || 0)}</div>
-              <div class="text-xs text-gray-700">${((p.profit || 0) / (p.revenue || 1) * 100).toFixed(1)}%</div>
+              <div class="text-xs text-gray-500">${((p.profit || 0) / (p.revenue || 1) * 100).toFixed(1)}%</div>
             </div>
           </div>
         </div>
@@ -708,6 +777,7 @@ router.get('/profit-customer', (req, res) => {
       SUM(s.profit) as profit
     FROM sales s
     JOIN customers c ON c.id = s.customer_id
+    WHERE s.status != 'returned'
   `;
   
   const params = [];
@@ -748,32 +818,32 @@ router.get('/profit-customer', (req, res) => {
     </div>
   </header>
   <main class="p-4 pb-24 max-w-md mx-auto">
-    <div class="card bg-gradient-to-r from-blue-500 to-blue-600 text-white mb-4">
-      <div class="grid grid-cols-2 gap-2 text-center">
+    <div class="card bg-gradient-to-r from-blue-500 to-blue-600 text-white mb-4 shadow-lg">
+      <div class="grid grid-cols-2 gap-3 text-center py-2">
         <div>
           <div class="text-xs opacity-80">Tổng doanh thu</div>
-          <div class="font-bold">${formatVND(totalRevenue)}</div>
+          <div class="font-bold text-lg">${formatVND(totalRevenue)}</div>
         </div>
         <div>
           <div class="text-xs opacity-80">Tổng lợi nhuận</div>
-          <div class="font-bold">${formatVND(totalProfit)}</div>
+          <div class="font-bold text-lg">${formatVND(totalProfit)}</div>
         </div>
       </div>
     </div>
     <div class="space-y-2">
-      ${customers.length === 0 ? '<div class="text-gray-700 text-center py-4">Chưa có dữ liệu</div>' : customers.map((c, i) => `
-        <a href="/customers/${c.id}" class="card block">
+      ${customers.length === 0 ? '<div class="text-gray-500 text-center py-4 bg-white rounded-xl">Chưa có dữ liệu</div>' : customers.map((c, i) => `
+        <a href="/customers/${c.id}" class="card block hover:shadow-md transition-all">
           <div class="flex justify-between items-center">
             <div class="flex items-center gap-3">
-              <div class="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${i === 0 ? 'bg-yellow-400 text-yellow-900' : i === 1 ? 'bg-gray-300 text-gray-700' : i === 2 ? 'bg-orange-300 text-orange-900' : 'bg-gray-100 text-gray-600'}">${i + 1}</div>
+              <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm ${i === 0 ? 'bg-gradient-to-br from-yellow-400 to-yellow-500 text-yellow-900' : i === 1 ? 'bg-gradient-to-br from-gray-300 to-gray-400 text-gray-700' : i === 2 ? 'bg-gradient-to-br from-orange-300 to-orange-400 text-orange-900' : 'bg-gray-100 text-gray-600'}">${i + 1}</div>
               <div>
                 <div class="font-bold">${c.name}</div>
-                <div class="text-xs text-gray-700">${c.total_orders} đơn hàng</div>
+                <div class="text-xs text-gray-500">${c.total_orders} đơn hàng</div>
               </div>
             </div>
             <div class="text-right">
               <div class="font-bold text-blue-600">${formatVND(c.profit || 0)}</div>
-              <div class="text-xs text-gray-700">${formatVND(c.revenue || 0)}</div>
+              <div class="text-xs text-gray-500">${formatVND(c.revenue || 0)}</div>
             </div>
           </div>
         </a>
@@ -806,7 +876,7 @@ router.get('/cashflow', (req, res) => {
       SUM(profit) as profit,
       COUNT(*) as orders
     FROM sales
-    WHERE date >= ? AND date <= ?
+    WHERE date >= ? AND date <= ? AND status != 'returned'
     GROUP BY date(date)
     ORDER BY day DESC
   `).all(start + ' 00:00:00', end + ' 23:59:59');
