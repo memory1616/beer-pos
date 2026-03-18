@@ -110,7 +110,7 @@ router.get('/', (req, res) => {
 '  <div id="addExpenseModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4 z-50">' +
 '    <div class="bg-white rounded-lg p-6 max-w-sm w-full">' +
 '      <h2 class="text-xl font-semibold mb-4">Thêm chi phí</h2>' +
-'      <form id="addExpenseForm" method="POST" class="space-y-4">' +
+'      <form id="addExpenseForm" class="space-y-4">' +
 '        <div>' +
 '          <label class="block text-sm font-medium text-gray-700 mb-1">Loại chi phí</label>' +
 '          <select name="category" required class="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-red-500">' +
