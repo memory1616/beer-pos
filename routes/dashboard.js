@@ -153,9 +153,9 @@ router.get('/data', (req, res) => {
   const todayExpensesByType = db.prepare(`
     SELECT type, COALESCE(SUM(amount), 0) as total 
     FROM expenses 
-    WHERE date LIKE ?
+    WHERE date = ?
     GROUP BY type
-  `).all(today + '%');
+  `).all(today);
   
   // Convert to object
   const expensesByType = { fuel: 0, food: 0, repair: 0, other: 0 };
@@ -168,8 +168,8 @@ router.get('/data', (req, res) => {
   
   // Get today's expenses
   const todayExpenses = db.prepare(`
-    SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE date LIKE ?
-  `).get(today + '%');
+    SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE date = ?
+  `).get(today);
 
   res.json({
     products: [], // Removed - not needed for dashboard display
