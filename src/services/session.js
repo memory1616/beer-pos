@@ -4,7 +4,7 @@
  * @module services/session
  */
 
-const db = require('../database');
+const db = require('../../database');
 
 const STORAGE_KEY = 'beer_pos_current_session';
 
