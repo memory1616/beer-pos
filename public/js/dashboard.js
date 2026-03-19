@@ -8,16 +8,22 @@ function formatVND(amount) {
 }
 
 function initDashboard(data) {
+  // Helper to safely set text content
+  const setText = (id, value) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+  };
+
   // Set today's revenue
-  document.getElementById('todayRevenue').textContent = formatVND(data.todayStats.revenue);
+  setText('todayRevenue', formatVND(data.todayStats.revenue));
 
   // Set today's units
-  document.getElementById('todayUnits').textContent = data.todayUnits.units;
+  setText('todayUnits', data.todayUnits.units);
   
   // Set keg stats
-  document.getElementById('kegInStock').textContent = data.kegStats.inStock;
-  document.getElementById('kegAtCustomers').textContent = data.kegStats.atCustomers;
-  document.getElementById('kegTotal').textContent = data.kegStats.total;
+  setText('kegInStock', data.kegStats.inStock);
+  setText('kegAtCustomers', data.kegStats.atCustomers);
+  setText('kegTotal', data.kegStats.total);
   
   // Store for later use
   window.dashboardData = {
@@ -28,18 +34,21 @@ function initDashboard(data) {
   if (data.lowStockProducts && data.lowStockProducts.length > 0) {
     const section = document.getElementById('lowStockSection');
     const list = document.getElementById('lowStockList');
-    section.classList.remove('hidden');
-    list.innerHTML = data.lowStockProducts.map(p => 
-      '<div class="flex justify-between text-sm"><span>' + p.name + '</span><span class="font-bold text-red-600">' + p.stock + ' bình</span></div>'
-    ).join('');
+    if (section && list) {
+      section.classList.remove('hidden');
+      list.innerHTML = data.lowStockProducts.map(p =>
+        '<div class="flex justify-between text-sm"><span>' + p.name + '</span><span class="font-bold text-red-600">' + p.stock + ' bình</span></div>'
+      ).join('');
+    }
   }
   
   // Render customer alerts (7+ days no order)
   if (data.customerAlerts && data.customerAlerts.length > 0) {
     const section = document.getElementById('customerAlertsSection');
     const list = document.getElementById('customerAlertsList');
-    section.classList.remove('hidden');
-    list.innerHTML = data.customerAlerts.map(c => {
+    if (section && list) {
+      section.classList.remove('hidden');
+      list.innerHTML = data.customerAlerts.map(c => {
       // Color based on days: 7-9 = yellow, 10-14 = orange, 14+ = red
       let colorClass = 'text-yellow-600';
       let bgClass = 'bg-yellow-100';
@@ -66,8 +75,9 @@ function initDashboard(data) {
   
   // Render recent sales
   const recentSales = document.getElementById('recentSales');
-  if (data.recentSales.length > 0) {
-    recentSales.innerHTML = data.recentSales.slice(0, 5).map(s => {
+  if (recentSales) {
+    if (data.recentSales.length > 0) {
+      recentSales.innerHTML = data.recentSales.slice(0, 5).map(s => {
       const date = new Date(s.date).toLocaleDateString('vi-VN');
       
       // Style based on sale type
@@ -100,6 +110,12 @@ function renderRevenueChart(dailyData) {
   const canvas = document.getElementById('revenueChart');
   if (!canvas) return;
 
+  // Helper to safely set text content
+  const setText = (id, value) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+  };
+
   const ctx = canvas.getContext('2d');
 
   // Check if there's data
@@ -111,9 +127,9 @@ function renderRevenueChart(dailyData) {
     ctx.fillText('Chưa có dữ liệu', canvas.width / 2, canvas.height / 2);
     
     // Reset stats
-    document.getElementById('totalRevenue6M').textContent = '-';
-    document.getElementById('avgRevenue6M').textContent = '-';
-    document.getElementById('growthRevenue6M').textContent = '-';
+    setText('totalRevenue6M', '-');
+    setText('avgRevenue6M', '-');
+    setText('growthRevenue6M', '-');
     return;
   }
 
@@ -131,16 +147,24 @@ function renderRevenueChart(dailyData) {
     growth = yesterday > 0 ? ((today - yesterday) / yesterday * 100) : 0;
   }
   
+  // Helper to safely set text content
+  const setText = (id, value) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+  };
+
   // Update stats display
-  document.getElementById('totalRevenue6M').textContent = formatVND(totalRevenue);
-  document.getElementById('avgRevenue6M').textContent = formatVND(avgRevenue);
+  setText('totalRevenue6M', formatVND(totalRevenue));
+  setText('avgRevenue6M', formatVND(avgRevenue));
   const growthEl = document.getElementById('growthRevenue6M');
-  if (revenues.length >= 2) {
-    growthEl.textContent = (growth >= 0 ? '+' : '') + growth.toFixed(0) + '%';
-    growthEl.className = 'font-bold text-sm ' + (growth >= 0 ? 'text-green-600' : 'text-red-600');
-  } else {
-    growthEl.textContent = '-';
-    growthEl.className = 'font-bold text-sm text-gray-400';
+  if (growthEl) {
+    if (revenues.length >= 2) {
+      growthEl.textContent = (growth >= 0 ? '+' : '') + growth.toFixed(0) + '%';
+      growthEl.className = 'font-bold text-sm ' + (growth >= 0 ? 'text-green-600' : 'text-red-600');
+    } else {
+      growthEl.textContent = '-';
+      growthEl.className = 'font-bold text-sm text-gray-400';
+    }
   }
 
   // Prepare data - last 14 days
