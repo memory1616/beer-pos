@@ -212,10 +212,13 @@ function updateSaleData(productId, field, value) {
     };
   }
   
+  // STEP 6: Input validation - prevent NaN and invalid values
   if (field === 'quantity') {
-    saleData[productId].quantity = parseInt(value) || 0;
+    const parsed = parseInt(value);
+    saleData[productId].quantity = (isNaN(parsed) || parsed < 0) ? 0 : parsed;
   } else if (field === 'price') {
-    saleData[productId].price = parseFloat(value) || 0;
+    const parsed = parseFloat(value);
+    saleData[productId].price = (isNaN(parsed) || parsed < 0) ? 0 : parsed;
   }
   
   updateSaleTotal();
@@ -382,23 +385,36 @@ function updateCartFromInputs() {
 async function submitSale() {
   const customerId = document.getElementById('customerSelect').value;
 
-  // Build items from saleData
+  // Build items from saleData - STEP 5: Use priceAtTime for price snapshot
   const items = [];
   Object.keys(saleData).forEach(productId => {
     const item = saleData[productId];
     if (item.quantity > 0 && item.price > 0) {
+      // STEP 5: Capture price at time of sale for historical accuracy
       items.push({
         productId: parseInt(productId),
         quantity: item.quantity,
-        price: item.price
+        price: item.price,
+        priceAtTime: item.price  // Snapshot price
       });
     }
   });
 
   if (items.length === 0) return showToast('Chưa chọn sản phẩm nào', 'error');
 
+  // STEP 6: Validate totals
   let total = items.reduce((sum, item) => sum + item.quantity * item.price, 0);
   if (total === 0) return showToast('Tổng tiền bằng 0, vui lòng kiểm tra lại giá sản phẩm', 'error');
+  
+  // STEP 6: Validate each item has valid quantity and price
+  for (const item of items) {
+    if (!item.quantity || item.quantity <= 0) {
+      return showToast('Số lượng sản phẩm phải lớn hơn 0', 'error');
+    }
+    if (!item.price || item.price < 0) {
+      return showToast('Giá sản phẩm không hợp lệ', 'error');
+    }
+  }
 
   // Show loading
   const btn = document.getElementById('sellBtn');

@@ -146,15 +146,15 @@ router.post('/', (req, res) => {
       }
 
       // Update products and insert sale_items
-      for (const item of items) {
-        db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(item.quantity, item.productId);
-        const product = db.prepare('SELECT * FROM products WHERE id = ?').get(item.productId);
-        const priceRecord = customerId ? db.prepare('SELECT * FROM prices WHERE customer_id = ? AND product_id = ?').get(customerId, item.productId) : null;
-        const price = priceRecord ? priceRecord.price : (item.price || product.sell_price || 0);
-        const costPrice = product.cost_price || 0;
-        const itemProfit = (price - costPrice) * item.quantity;
-        db.prepare('INSERT INTO sale_items (sale_id, product_id, quantity, price, cost_price, profit) VALUES (?, ?, ?, ?, ?, ?)').run(saleId, item.productId, item.quantity, price, costPrice, itemProfit);
-      }
+    for (const item of items) {
+      const product = db.prepare('SELECT * FROM products WHERE id = ?').get(item.productId);
+      const priceRecord = customerId ? db.prepare('SELECT * FROM prices WHERE customer_id = ? AND product_id = ?').get(customerId, item.productId) : null;
+      // STEP 5: Use snapshot price (priceAtTime) - this is the price at the time of sale
+      const price = priceRecord ? priceRecord.price : (item.price || product.sell_price || 0);
+      const costPrice = product.cost_price || 0;
+      const itemProfit = (price - costPrice) * item.quantity;
+      db.prepare('INSERT INTO sale_items (sale_id, product_id, quantity, price, cost_price, profit, price_at_time) VALUES (?, ?, ?, ?, ?, ?, ?)').run(saleId, item.productId, item.quantity, price, costPrice, itemProfit, price);
+    }
 
       // Update keg balance (only for registered customers)
       if (customerId && (deliverKegs !== 0 || returnKegs !== 0)) {
@@ -583,11 +583,12 @@ router.put('/:id', (req, res) => {
       
       const costPrice = product.cost_price || 0;
       const itemProfit = (price - costPrice) * item.quantity;
-      
+
       newTotal += price * item.quantity;
       newProfit += itemProfit;
-      
-      db.prepare('INSERT INTO sale_items (sale_id, product_id, quantity, price, cost_price, profit) VALUES (?, ?, ?, ?, ?, ?)').run(saleId, item.productId, item.quantity, price, costPrice, itemProfit);
+
+      // STEP 5: Store price_at_time for price snapshot
+      db.prepare('INSERT INTO sale_items (sale_id, product_id, quantity, price, cost_price, profit, price_at_time) VALUES (?, ?, ?, ?, ?, ?, ?)').run(saleId, item.productId, item.quantity, price, costPrice, itemProfit, price);
     }
     
     // Cập nhật hóa đơn

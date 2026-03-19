@@ -146,6 +146,7 @@ app.use('/api/backup', require('./routes/api/backup'));
 app.use('/api/settings', require('./routes/api/settings'));
 app.use('/api/devices', require('./routes/api/devices'));
 app.use('/api/expenses', require('./routes/api/expenses'));
+app.use('/api/session', require('./routes/api/session'));
 
 // ==================== SYNC API ====================
 // Simple sync endpoints for cloud backup

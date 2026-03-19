@@ -158,6 +158,13 @@ try {
   // Column already exists, ignore
 }
 
+// Migration: Add price_at_time for price snapshot (STEP 5)
+try {
+  db.exec(`ALTER TABLE sale_items ADD COLUMN price_at_time REAL DEFAULT 0`);
+} catch (e) {
+  // Column already exists
+}
+
 // Migration: Add debt, address, lat, lng to customers
 try {
   db.exec(`ALTER TABLE customers ADD COLUMN debt REAL DEFAULT 0`);
@@ -514,6 +521,27 @@ try {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_expenses_type ON expenses(type)`);
 } catch (e) {
   console.log('Expenses table may already exist:', e.message);
+}
+
+// Sessions table for daily session grouping (STEP 1 - Session Layer)
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS sessions (
+      id TEXT PRIMARY KEY,
+      date TEXT UNIQUE NOT NULL,
+      orders TEXT,
+      expenses TEXT,
+      total_revenue REAL DEFAULT 0,
+      total_expense REAL DEFAULT 0,
+      profit REAL DEFAULT 0,
+      created_at INTEGER,
+      updated_at INTEGER
+    )
+  `);
+  console.log('Created sessions table');
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_sessions_date ON sessions(date)`);
+} catch (e) {
+  console.log('Sessions table may already exist:', e.message);
 }
 
 // Migration: Add new expense fields if not exists

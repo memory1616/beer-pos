@@ -170,8 +170,24 @@ router.post('/', (req, res) => {
     
     console.log('POST /api/expenses body:', req.body);
     
+    // STEP 6 - Input Validation
     if (!category || !amount) {
       return res.status(400).json({ error: 'Category and amount are required' });
+    }
+    
+    // Validate amount - prevent NaN, negative, zero
+    const validatedAmount = Number(amount);
+    if (isNaN(validatedAmount) || validatedAmount <= 0) {
+      return res.status(400).json({ error: 'Amount must be a positive number' });
+    }
+    
+    // Validate quantity (km) if provided
+    let validatedKm = null;
+    if (km !== undefined && km !== null && km !== '') {
+      validatedKm = Number(km);
+      if (isNaN(validatedKm) || validatedKm < 0) {
+        return res.status(400).json({ error: 'KM must be a non-negative number' });
+      }
     }
     
     // Determine type from category if not provided
@@ -186,11 +202,11 @@ router.post('/', (req, res) => {
     `).run(
       category,
       expenseType,
-      amount,
+      validatedAmount,
       description || null,
       expenseDate,
       time,
-      km || null,
+      validatedKm,
       order_id || null,
       is_auto ? 1 : 0
     );
@@ -210,8 +226,24 @@ router.post('/quick', (req, res) => {
     
     console.log('POST /api/expenses/quick body:', req.body);
     
+    // STEP 6 - Input Validation
     if (!expenseType || !amount) {
       return res.status(400).json({ error: 'expenseType and amount are required' });
+    }
+    
+    // Validate amount - prevent NaN, negative, zero
+    const validatedAmount = Number(amount);
+    if (isNaN(validatedAmount) || validatedAmount <= 0) {
+      return res.status(400).json({ error: 'Amount must be a positive number' });
+    }
+    
+    // Validate km if provided
+    let validatedKm = null;
+    if (km !== undefined && km !== null && km !== '') {
+      validatedKm = Number(km);
+      if (isNaN(validatedKm) || validatedKm < 0) {
+        return res.status(400).json({ error: 'KM must be a non-negative number' });
+      }
     }
     
     // Map type to category
@@ -233,11 +265,11 @@ router.post('/quick', (req, res) => {
     `).run(
       category,
       expenseType,
-      amount,
+      validatedAmount,
       note || null,
       date,
       time,
-      km || null
+      validatedKm
     );
     
     const expense = db.prepare('SELECT * FROM expenses WHERE id = ?').get(result.lastInsertRowid);
