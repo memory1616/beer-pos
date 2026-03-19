@@ -147,12 +147,6 @@ function renderRevenueChart(dailyData) {
     growth = yesterday > 0 ? ((today - yesterday) / yesterday * 100) : 0;
   }
   
-  // Helper to safely set text content
-  const setText = (id, value) => {
-    const el = document.getElementById(id);
-    if (el) el.textContent = value;
-  };
-
   // Update stats display
   setText('totalRevenue6M', formatVND(totalRevenue));
   setText('avgRevenue6M', formatVND(avgRevenue));
