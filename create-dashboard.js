@@ -1,4 +1,6 @@
-// Dashboard Page JavaScript
+const fs = require('fs');
+
+const content = `// Dashboard Page JavaScript
 // Tách riêng để dễ bảo trì và cache
 
 let revenueChart = null;
@@ -8,52 +10,44 @@ function formatVND(amount) {
 }
 
 function initDashboard(data) {
-  // Set today's revenue
-  document.getElementById('todayRevenue').textContent = formatVND(data.todayStats.revenue);
-
-  // Set today's units
-  document.getElementById('todayUnits').textContent = data.todayUnits.units;
-  
-  // Set keg stats
-  document.getElementById('kegInStock').textContent = data.kegStats.inStock;
-  document.getElementById('kegAtCustomers').textContent = data.kegStats.atCustomers;
-  document.getElementById('kegTotal').textContent = data.kegStats.total;
-  
-  // Store for later use
-  window.dashboardData = {
-    ...data
+  const setText = (id, value) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
   };
+
+  setText('todayRevenue', formatVND(data.todayStats.revenue));
+  setText('todayUnits', data.todayUnits.units);
+  setText('kegInStock', data.kegStats.inStock);
+  setText('kegAtCustomers', data.kegStats.atCustomers);
+  setText('kegTotal', data.kegStats.total);
+
+  window.dashboardData = { ...data };
   
-  // Render low stock
   if (data.lowStockProducts && data.lowStockProducts.length > 0) {
     const section = document.getElementById('lowStockSection');
     const list = document.getElementById('lowStockList');
-    section.classList.remove('hidden');
-    list.innerHTML = data.lowStockProducts.map(p => 
-      '<div class="flex justify-between text-sm"><span>' + p.name + '</span><span class="font-bold text-red-600">' + p.stock + ' bình</span></div>'
-    ).join('');
+    if (section && list) {
+      section.classList.remove('hidden');
+      list.innerHTML = data.lowStockProducts.map(p =>
+        '<div class="flex justify-between text-sm"><span>' + p.name + '</span><span class="font-bold text-red-600">' + p.stock + ' bình</span></div>'
+      ).join('');
+    }
   }
   
-  // Render customer alerts (7+ days no order)
   if (data.customerAlerts && data.customerAlerts.length > 0) {
     const section = document.getElementById('customerAlertsSection');
     const list = document.getElementById('customerAlertsList');
-    section.classList.remove('hidden');
-    list.innerHTML = data.customerAlerts.map(c => {
-      // Color based on days: 7-9 = yellow, 10-14 = orange, 14+ = red
+    if (section && list) {
+      section.classList.remove('hidden');
+      list.innerHTML = data.customerAlerts.map(c => {
       let colorClass = 'text-yellow-600';
-      let bgClass = 'bg-yellow-100';
       if (c.days > 14) {
         colorClass = 'text-red-600';
-        bgClass = 'bg-red-100';
       } else if (c.days > 9) {
         colorClass = 'text-orange-500';
-        bgClass = 'bg-orange-100';
       }
-      
       const phoneBtn = c.phone ? 
         '<a href="tel:' + c.phone + '" class="ml-2 text-green-600 hover:bg-green-100 rounded px-1">📞</a>' : '';
-      
       return '<div class="flex justify-between items-center text-sm py-1">' +
         '<div class="flex items-center">' +
           '<a href="/customers/' + c.id + '" class="hover:text-green-600">' + c.name + '</a>' +
@@ -64,13 +58,11 @@ function initDashboard(data) {
     }).join('');
   }
   
-  // Render recent sales
   const recentSales = document.getElementById('recentSales');
-  if (data.recentSales.length > 0) {
-    recentSales.innerHTML = data.recentSales.slice(0, 5).map(s => {
+  if (recentSales) {
+    if (data.recentSales.length > 0) {
+      recentSales.innerHTML = data.recentSales.slice(0, 5).map(s => {
       const date = new Date(s.date).toLocaleDateString('vi-VN');
-      
-      // Style based on sale type
       let totalDisplay = '';
       let rowClass = '';
       if (s.type === 'replacement') {
@@ -79,7 +71,6 @@ function initDashboard(data) {
       } else {
         totalDisplay = '<span class="font-bold text-green-600">' + formatVND(s.total) + '</span>';
       }
-      
       return '<div class="flex justify-between items-center py-2 border-b ' + rowClass + '">' +
         '<div>' +
           '<div class="font-medium">' + s.customer_name + '</div>' +
@@ -92,7 +83,6 @@ function initDashboard(data) {
     recentSales.innerHTML = '<div class="text-gray-500 text-sm text-center py-4">Chưa có bán hàng nào</div>';
   }
   
-  // Render revenue chart - daily data for last 14 days
   renderRevenueChart(data.dailyRevenue);
 }
 
@@ -100,30 +90,30 @@ function renderRevenueChart(dailyData) {
   const canvas = document.getElementById('revenueChart');
   if (!canvas) return;
 
+  const setText = (id, value) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+  };
+
   const ctx = canvas.getContext('2d');
 
-  // Check if there's data
   if (!dailyData || dailyData.length === 0) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.font = '14px Inter';
     ctx.fillStyle = '#9ca3af';
     ctx.textAlign = 'center';
     ctx.fillText('Chưa có dữ liệu', canvas.width / 2, canvas.height / 2);
-    
-    // Reset stats
-    document.getElementById('totalRevenue6M').textContent = '-';
-    document.getElementById('avgRevenue6M').textContent = '-';
-    document.getElementById('growthRevenue6M').textContent = '-';
+    setText('totalRevenue6M', '-');
+    setText('avgRevenue6M', '-');
+    setText('growthRevenue6M', '-');
     return;
   }
 
-  // Calculate stats
   const revenues = dailyData.map(d => d.revenue);
   const profits = dailyData.map(d => d.profit);
   const totalRevenue = revenues.reduce((sum, r) => sum + r, 0);
   const avgRevenue = revenues.length > 0 ? totalRevenue / revenues.length : 0;
   
-  // Calculate growth (today vs yesterday)
   let growth = 0;
   if (revenues.length >= 2) {
     const today = revenues[revenues.length - 1];
@@ -131,19 +121,19 @@ function renderRevenueChart(dailyData) {
     growth = yesterday > 0 ? ((today - yesterday) / yesterday * 100) : 0;
   }
   
-  // Update stats display
-  document.getElementById('totalRevenue6M').textContent = formatVND(totalRevenue);
-  document.getElementById('avgRevenue6M').textContent = formatVND(avgRevenue);
+  setText('totalRevenue6M', formatVND(totalRevenue));
+  setText('avgRevenue6M', formatVND(avgRevenue));
   const growthEl = document.getElementById('growthRevenue6M');
-  if (revenues.length >= 2) {
-    growthEl.textContent = (growth >= 0 ? '+' : '') + growth.toFixed(0) + '%';
-    growthEl.className = 'font-bold text-sm ' + (growth >= 0 ? 'text-green-600' : 'text-red-600');
-  } else {
-    growthEl.textContent = '-';
-    growthEl.className = 'font-bold text-sm text-gray-400';
+  if (growthEl) {
+    if (revenues.length >= 2) {
+      growthEl.textContent = (growth >= 0 ? '+' : '') + growth.toFixed(0) + '%';
+      growthEl.className = 'font-bold text-sm ' + (growth >= 0 ? 'text-green-600' : 'text-red-600');
+    } else {
+      growthEl.textContent = '-';
+      growthEl.className = 'font-bold text-sm text-gray-400';
+    }
   }
 
-  // Prepare data - last 14 days
   const labels = dailyData.map(d => {
     const date = new Date(d.day);
     return date.getDate() + '/' + (date.getMonth() + 1);
@@ -153,12 +143,10 @@ function renderRevenueChart(dailyData) {
     revenueChart.destroy();
   }
   
-  // Create gradient for revenue bars
   const gradient = ctx.createLinearGradient(0, 0, 0, 250);
   gradient.addColorStop(0, '#22c55e');
   gradient.addColorStop(1, '#16a34a');
   
-  // Create gradient for profit line
   const profitGradient = ctx.createLinearGradient(0, 0, 0, 250);
   profitGradient.addColorStop(0, '#f59e0b');
   profitGradient.addColorStop(1, '#d97706');
@@ -220,22 +208,14 @@ function renderRevenueChart(dailyData) {
       },
       scales: {
         x: {
-          grid: {
-            display: false
-          },
-          ticks: {
-            font: { size: 10 }
-          }
+          grid: { display: false },
+          ticks: { font: { size: 10 } }
         },
         y: {
           position: 'left',
-          grid: {
-            color: '#f3f4f6'
-          },
+          grid: { color: '#f3f4f6' },
           ticks: {
-            callback: function(value) {
-              return formatVND(value);
-            },
+            callback: function(value) { return formatVND(value); },
             font: { size: 10 }
           }
         }
@@ -243,3 +223,7 @@ function renderRevenueChart(dailyData) {
     }
   });
 }
+`;
+
+fs.writeFileSync('public/js/dashboard.js', content);
+console.log('dashboard.js created');
