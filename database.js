@@ -16,6 +16,7 @@ db.exec(`
     phone TEXT,
     deposit REAL DEFAULT 0,
     keg_balance INTEGER DEFAULT 0,
+    archived INTEGER DEFAULT 0,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -218,6 +219,34 @@ try {
 } catch (e) {
   // Index may already exist, ignore
 }
+
+// Migration: Add archived column to customers (for soft-delete / lưu trữ)
+try {
+  db.exec(`ALTER TABLE customers ADD COLUMN archived INTEGER DEFAULT 0`);
+} catch (e) {
+  // Column already exists
+}
+
+// Index for archived customers
+try {
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_customers_archived ON customers(archived)`);
+} catch (e) {
+  // Index may already exist
+}
+
+// Sync migrations: Add updated_at for conflict detection ============
+// updated_at dùng cho sync - detect conflict (last-write-wins)
+const syncTables = [
+  'customers', 'products', 'sales', 'expenses', 'payments',
+  'keg_transactions', 'devices', 'prices', 'purchases', 'purchase_items'
+];
+syncTables.forEach(table => {
+  try {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN updated_at TEXT`);
+  } catch (e) {
+    // Column already exists
+  }
+});
 
 // Migration: Add type column to products (keg, pet, can)
 try {

@@ -7,7 +7,7 @@ const DISTRIBUTOR_NAME = 'Bia Tươi Gia Huy';
 // GET /delivery
 router.get('/', (req, res) => {
   const customers = db.prepare(`
-    SELECT * FROM customers WHERE lat IS NOT NULL AND lng IS NOT NULL ORDER BY name
+    SELECT * FROM customers WHERE archived = 0 AND lat IS NOT NULL AND lng IS NOT NULL ORDER BY name
   `).all();
 
   const settings = db.prepare('SELECT * FROM settings').all();
@@ -31,9 +31,29 @@ router.get('/', (req, res) => {
   <style>
     .pb-safe { padding-bottom: env(safe-area-inset-bottom, 20px); }
     .bottomnav { max-width: 500px; margin: auto; }
-    #map { height: 50vh; border-radius: 12px; }
+    /* Gói bản đồ trong stacking context riêng — Leaflet dùng z-index 400–1000 bên trong */
+    .delivery-map-wrap {
+      position: relative;
+      z-index: 0;
+      isolation: isolate;
+      overflow: hidden;
+      border-radius: 12px;
+      margin-bottom: 1rem;
+    }
+    .delivery-map-wrap #map {
+      height: 50vh;
+      margin-bottom: 0;
+    }
+    .delivery-map-wrap .leaflet-container { z-index: 0 !important; }
     .delivery-card { transition: all 0.2s; }
     .delivery-card:active { transform: scale(0.98); }
+    /* Modal cài đặt phải cao hơn mọi lớp Leaflet + thanh dưới */
+    #settingsModal { z-index: 10000 !important; }
+    .settings-modal-inner {
+      max-height: 85vh;
+      overflow-y: auto;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+    }
   </style>
 </head>
 <body class="bg-gray-100 text-gray-800 min-h-screen pb-24">
@@ -53,11 +73,14 @@ router.get('/', (req, res) => {
         <span class="text-gray-500">Khoảng cách: <span id="totalDistance" class="font-bold text-blue-600">0</span> km</span>
         <span class="text-gray-500">Phí vận chuyển: <span id="totalDeliveryFee" class="font-bold text-amber-600">0</span> ₫</span>
       </div>
+      <p class="text-xs text-gray-400 mt-1">📦 Xuất phát từ <strong>kho</strong> (bấm ⚙️ để cài). Bấm <strong>📍 Vị trí hiện tại</strong> nếu muốn tính từ xe/điện thoại.</p>
     </div>
   </header>
 
-  <main class="p-4 pb-24 max-w-md mx-auto">
-    <div id="map" class="mb-4"></div>
+  <main class="p-4 pt-14 pb-24 max-w-md mx-auto relative z-0">
+    <div class="delivery-map-wrap">
+      <div id="map"></div>
+    </div>
 
     <div class="flex gap-2 mb-4">
       <button onclick="getCurrentLocation()" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-lg flex items-center justify-center gap-2">
@@ -96,8 +119,8 @@ router.get('/', (req, res) => {
   </main>
 
   <!-- Settings Modal -->
-  <div id="settingsModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4 z-50">
-    <div class="bg-white rounded-lg p-6 max-w-sm w-full">
+  <div id="settingsModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4" style="z-index:10000">
+    <div class="bg-white rounded-lg p-6 max-w-sm w-full settings-modal-inner relative" style="z-index:10001">
       <h2 class="text-xl font-bold mb-4">⚙️ Cấu hình vận chuyển</h2>
 
       <div class="space-y-4">
@@ -329,7 +352,7 @@ router.get('/', (req, res) => {
         calculateDistance(defaultSettings.distributorLat, defaultSettings.distributorLng, lat, lng);
       const cost = calculateCost(distance);
 
-      if (confirm('Xác nhận giao hàng cho khách?\n\nKhoảng cách: ' + distance.toFixed(1) + ' km\nPhí vận chuyển: ' + cost.toLocaleString('vi-VN') + ' VNĐ')) {
+      if (confirm('Xác nhận giao hàng cho khách?\\n\\nKhoảng cách: ' + distance.toFixed(1) + ' km\\nPhí vận chuyển: ' + cost.toLocaleString('vi-VN') + ' VNĐ')) {
         // Navigate to sale page with customer info
         window.location.href = '/sale?customerId=' + customerId + '&deliveryCost=' + cost + '&distance=' + distance.toFixed(1);
       }
@@ -395,8 +418,9 @@ router.get('/', (req, res) => {
       }
     }
 
-    // Auto get location on load
-    getCurrentLocation();
+    // Luôn tính khoảng cách từ kho (⚙️) khi vào trang — không bắt buộc GPS
+    updateDistances();
+    // GPS: chỉ khi bấm "Vị trí hiện tại" để dùng vị trí xe/điện thoại làm điểm xuất phát
   </script>
 </body>
 </html>

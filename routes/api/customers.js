@@ -36,6 +36,7 @@ router.get('/', (req, res) => {
         WHERE s.type = 'sale' AND strftime('%Y', s.date) = ? AND strftime('%m', s.date) = ?
         GROUP BY customer_id
       ) cm ON cm.customer_id = c.id
+      WHERE c.archived = 0
       ORDER BY c.name
     `).all(currentYear.toString(), currentMonthStr);
     
@@ -226,6 +227,28 @@ router.put('/:id', (req, res) => {
   }
 });
 
+// PUT /api/customers/:id/archive - Archive/unarchive a customer
+router.put('/:id/archive', (req, res) => {
+  const id = validateId(req.params.id);
+  if (!id) {
+    return res.status(400).json({ error: 'ID không hợp lệ' });
+  }
+
+  const existing = db.prepare('SELECT * FROM customers WHERE id = ?').get(id);
+  if (!existing) {
+    return res.status(404).json({ error: 'Không tìm thấy khách hàng' });
+  }
+
+  const archived = existing.archived ? 0 : 1;
+  try {
+    db.prepare('UPDATE customers SET archived = ? WHERE id = ?').run(archived, id);
+    res.json({ success: true, archived });
+  } catch (err) {
+    console.error('Error archiving customer:', err);
+    res.status(500).json({ error: 'Lỗi khi lưu trữ khách hàng' });
+  }
+});
+
 // DELETE /api/customers/:id
 router.delete('/:id', (req, res) => {
   db.prepare('DELETE FROM customers WHERE id = ?').run(req.params.id);
@@ -364,7 +387,8 @@ router.get('/alerts', (req, res) => {
     SELECT id, name, phone, last_order_date,
       CAST(julianday('now') - julianday(last_order_date) AS INTEGER) as days
     FROM customers
-    WHERE last_order_date IS NOT NULL
+    WHERE archived = 0
+    AND last_order_date IS NOT NULL
     AND julianday('now') - julianday(last_order_date) >= 7
     ORDER BY days DESC
     LIMIT 10

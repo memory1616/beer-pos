@@ -50,7 +50,7 @@ router.get('/debt', (req, res) => {
         (SELECT MAX(date) FROM payments WHERE customer_id = c.id) as last_payment_date,
         (SELECT MAX(date) FROM sales WHERE customer_id = c.id AND type = 'sale') as last_order_date
       FROM customers c
-      WHERE c.debt > 0 OR c.deposit > 0
+      WHERE (c.debt > 0 OR c.deposit > 0) AND c.archived = 0
       ORDER BY c.debt DESC
     `).all();
 

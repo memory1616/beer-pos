@@ -72,10 +72,10 @@ router.get('/', (req, res) => {
     JOIN sales s ON s.id = si.sale_id AND s.date >= ? AND s.date <= ? AND s.status != 'returned'
   `).get(startDate, endDate, startDate, endDate, startDate, endDate, startDate, endDate);
   
-  // Get expenses for the period
+  // Get expenses for the period (expenses table only has date, no time)
   const periodExpenses = db.prepare(`
     SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE date >= ? AND date <= ?
-  `).get(startDate, endDate);
+  `).get(startDate.split(' ')[0], endDate.split(' ')[0]);
   
   // Calculate net profit (profit - expenses)
   const netProfit = periodStats.profit - periodExpenses.total;
@@ -104,7 +104,7 @@ router.get('/', (req, res) => {
       (SELECT COALESCE(SUM(si2.quantity), 0) FROM sale_items si2 JOIN sales s3 ON s3.id = si2.sale_id AND s3.customer_id = c.id AND s3.date >= ? AND s3.date <= ? AND s3.status != 'returned') as quantity,
       (SELECT COUNT(*) FROM sales s2 WHERE s2.customer_id = c.id AND s2.date >= ? AND s2.date <= ? AND s2.status != 'returned') as order_count
     FROM customers c
-    WHERE (SELECT SUM(s2.total) FROM sales s2 WHERE s2.customer_id = c.id AND s2.date >= ? AND s2.date <= ? AND s2.status != 'returned') > 0
+    WHERE c.archived = 0 AND (SELECT SUM(s2.total) FROM sales s2 WHERE s2.customer_id = c.id AND s2.date >= ? AND s2.date <= ? AND s2.status != 'returned') > 0
     ORDER BY revenue DESC
     LIMIT 3
   `).all(startDate, endDate, startDate, endDate, startDate, endDate, startDate, endDate);
@@ -244,7 +244,7 @@ router.get('/', (req, res) => {
     </div>
   </header>
 
-  <main class="p-4 pb-24 max-w-md mx-auto animate-fade">
+  <main class="p-4 pt-14 pb-24 max-w-md mx-auto animate-fade">
     <!-- Quick Report Links -->
     <div class="mb-4">
       <div class="grid grid-cols-3 gap-3">
@@ -255,10 +255,6 @@ router.get('/', (req, res) => {
         <a href="/report/profit-customer" class="card text-center py-4 bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200 hover:shadow-md transition-all">
           <div class="text-2xl mb-1">👥</div>
           <div class="text-xs font-semibold text-blue-700">Lợi nhuận<br>khách hàng</div>
-        </a>
-        <a href="/report/cashflow" class="card text-center py-4 bg-gradient-to-br from-green-50 to-green-100 border-green-200 hover:shadow-md transition-all">
-          <div class="text-2xl mb-1">💰</div>
-          <div class="text-xs font-semibold text-green-700">Dòng tiền</div>
         </a>
       </div>
     </div>
@@ -455,9 +451,9 @@ router.get('/', (req, res) => {
           '</div>';
         }).join('')}
         ${totalPages > 1 ? '<div class="flex justify-center items-center gap-2 mt-3 py-3 bg-gray-50" id="salesPagination">' +
-          '<button onclick="loadReportSales(' + (page - 1) + ')" ' + (page === 1 ? 'disabled' : '') + ' ' + 'class="px-4 py-2 rounded-lg ' + (page === 1 ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100 shadow-sm') + '">‹ Trước</button>' +
+          '<button type="button" onclick="loadReportSales(' + (page - 1) + ')" ' + (page === 1 ? 'disabled' : '') + ' class="px-4 py-2 rounded-lg min-w-[4rem] ' + (page === 1 ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100 shadow-sm') + '">‹ Trước</button>' +
           '<span class="text-sm text-gray-600 px-2">' + page + '/' + totalPages + '</span>' +
-          '<button onclick="loadReportSales(' + (page + 1) + ')" ' + (page === totalPages ? 'disabled' : '') + ' ' + 'class="px-4 py-2 rounded-lg ' + (page === totalPages ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100 shadow-sm') + '">Sau ›</button>' +
+          '<button type="button" onclick="loadReportSales(' + (page + 1) + ')" ' + (page === totalPages ? 'disabled' : '') + ' class="px-4 py-2 rounded-lg min-w-[4rem] ' + (page === totalPages ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100 shadow-sm') + '">Sau ›</button>' +
         '</div>' : ''}
       </div>
     </div>
@@ -574,10 +570,14 @@ router.get('/', (req, res) => {
         }).join('');
         
         if (reportSalesPagination.totalPages > 1) {
-          html += '<div class="flex justify-center items-center gap-2 mt-3 py-2" id="salesPagination">' +
-            '<button onclick="loadReportSales(' + (reportSalesPagination.page - 1) + ')" ' + (reportSalesPagination.page === 1 ? 'disabled' : '') + ' ' + 'class="px-3 py-1 rounded ' + (reportSalesPagination.page === 1 ? 'bg-gray-200 text-gray-400' : 'bg-gray-200 text-gray-700 hover:bg-gray-300') + '">‹</button>' +
-            '<span class="text-sm text-gray-600">Trang ' + reportSalesPagination.page + '/' + reportSalesPagination.totalPages + '</span>' +
-            '<button onclick="loadReportSales(' + (reportSalesPagination.page + 1) + ')" ' + (reportSalesPagination.page === reportSalesPagination.totalPages ? 'disabled' : '') + ' ' + 'class="px-3 py-1 rounded ' + (reportSalesPagination.page === reportSalesPagination.totalPages ? 'bg-gray-200 text-gray-400' : 'bg-gray-200 text-gray-700 hover:bg-gray-300') + '">›</button>' +
+          const p = reportSalesPagination.page;
+          const tp = reportSalesPagination.totalPages;
+          const prevDisabled = p === 1;
+          const nextDisabled = p === tp;
+          html += '<div class="flex justify-center items-center gap-2 mt-3 py-3 bg-gray-50" id="salesPagination">' +
+            '<button type="button" onclick="loadReportSales(' + (p - 1) + ')" ' + (prevDisabled ? 'disabled' : '') + ' class="px-4 py-2 rounded-lg min-w-[4rem] ' + (prevDisabled ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100 shadow-sm') + '">‹ Trước</button>' +
+            '<span class="text-sm text-gray-600 px-2">' + p + '/' + tp + '</span>' +
+            '<button type="button" onclick="loadReportSales(' + (p + 1) + ')" ' + (nextDisabled ? 'disabled' : '') + ' class="px-4 py-2 rounded-lg min-w-[4rem] ' + (nextDisabled ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100 shadow-sm') + '">Sau ›</button>' +
           '</div>';
         }
         
@@ -716,19 +716,19 @@ router.get('/profit-product', (req, res) => {
       </div>
     </div>
   </header>
-  <main class="p-4 pb-24 max-w-md mx-auto">
-    <div class="card bg-gradient-to-r from-purple-500 to-purple-600 text-white mb-4 shadow-lg">
+  <main class="p-4 pt-14 pb-24 max-w-md mx-auto">
+    <div class="mb-4 shadow-lg rounded-2xl p-4" style="background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%); color: #fff;">
       <div class="grid grid-cols-3 gap-3 text-center py-2">
         <div>
-          <div class="text-xs opacity-80">Doanh thu</div>
+          <div class="text-xs" style="opacity: 0.9;">Doanh thu</div>
           <div class="font-bold text-lg">${formatVND(totalRevenue)}</div>
         </div>
         <div>
-          <div class="text-xs opacity-80">Chi phí</div>
+          <div class="text-xs" style="opacity: 0.9;">Chi phí</div>
           <div class="font-bold text-lg">${formatVND(totalCost)}</div>
         </div>
         <div>
-          <div class="text-xs opacity-80">Lợi nhuận</div>
+          <div class="text-xs" style="opacity: 0.9;">Lợi nhuận</div>
           <div class="font-bold text-lg">${formatVND(totalProfit)}</div>
         </div>
       </div>
@@ -764,11 +764,37 @@ router.get('/profit-product', (req, res) => {
   `);
 });
 
-// GET /report/profit-customer - Báo cáo lợi nhuận theo khách hàng
+// GET /report/profit-customer - Báo cáo lợi nhuận theo khách hàng (theo tháng - năm)
 router.get('/profit-customer', (req, res) => {
-  const { startDate, endDate } = req.query;
-  
-  let query = `
+  const { month, year, startDate, endDate } = req.query;
+
+  const now = new Date();
+  let startStr, endStr, labelThangNam;
+
+  if (month && year) {
+    const y = parseInt(year, 10);
+    const m = parseInt(month, 10);
+    const lastDay = new Date(y, m, 0).getDate();
+    startStr = `${y}-${String(m).padStart(2, '0')}-01`;
+    endStr = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    const thang = ['', 'Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6', 'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'][m];
+    labelThangNam = thang + ' / ' + y;
+  } else if (startDate && endDate) {
+    startStr = startDate.split(' ')[0];
+    endStr = endDate.split(' ')[0];
+    labelThangNam = startStr + ' → ' + endStr;
+  } else {
+    const y = now.getFullYear();
+    const m = now.getMonth() + 1;
+    const lastDay = new Date(y, m, 0).getDate();
+    startStr = `${y}-${String(m).padStart(2, '0')}-01`;
+    endStr = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    const thang = ['', 'Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6', 'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'][m];
+    labelThangNam = thang + ' / ' + y;
+  }
+
+  const endStrFull = endStr.length <= 10 ? endStr + ' 23:59:59' : endStr;
+  const customers = db.prepare(`
     SELECT 
       c.id,
       c.name,
@@ -777,22 +803,26 @@ router.get('/profit-customer', (req, res) => {
       SUM(s.profit) as profit
     FROM sales s
     JOIN customers c ON c.id = s.customer_id
-    WHERE s.status != 'returned'
-  `;
-  
-  const params = [];
-  if (startDate && endDate) {
-    query += ` WHERE s.date >= ? AND s.date <= ?`;
-    params.push(startDate + ' 00:00:00', endDate + ' 23:59:59');
-  }
-  
-  query += ` GROUP BY c.id ORDER BY profit DESC`;
-  
-  const customers = db.prepare(query).all(...params);
-  
+    WHERE s.status != 'returned' AND s.type = 'sale' AND c.archived = 0
+      AND s.date >= ? AND s.date <= ?
+    GROUP BY c.id ORDER BY profit DESC
+  `).all(startStr, endStrFull);
+
   const totalRevenue = customers.reduce((sum, r) => sum + (r.revenue || 0), 0);
   const totalProfit = customers.reduce((sum, r) => sum + (r.profit || 0), 0);
-  
+
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  const selectedMonth = month ? parseInt(month, 10) : currentMonth;
+  const selectedYear = year ? parseInt(year, 10) : currentYear;
+
+  const monthOptions = [1,2,3,4,5,6,7,8,9,10,11,12].map(m => 
+    '<option value="' + m + '"' + (m === selectedMonth ? ' selected' : '') + '>Tháng ' + m + '</option>'
+  ).join('');
+  const yearOptions = [currentYear, currentYear - 1, currentYear - 2].map(y =>
+    '<option value="' + y + '"' + (y === selectedYear ? ' selected' : '') + '>' + y + '</option>'
+  ).join('');
+
   res.send(`
 <!DOCTYPE html>
 <html lang="vi">
@@ -803,9 +833,11 @@ router.get('/profit-customer', (req, res) => {
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#f59e0b">
   <link rel="stylesheet" href="/css/tailwind.css">
+  <link rel="stylesheet" href="/css/unified.css">
   <script src="/js/auth.js"></script>
   <style>
     .bottomnav { max-width: 500px; margin: auto; }
+    .filter-wrap { overflow: visible !important; }
   </style>
 </head>
 <body class="bg-gray-100 text-gray-800 min-h-screen pb-20">
@@ -817,21 +849,36 @@ router.get('/profit-customer', (req, res) => {
       </div>
     </div>
   </header>
-  <main class="p-4 pb-24 max-w-md mx-auto">
-    <div class="card bg-gradient-to-r from-blue-500 to-blue-600 text-white mb-4 shadow-lg">
+  <main class="p-4 pt-14 pb-24 max-w-md mx-auto">
+    <div style="background: #fef3c7; border-radius: 16px; border: 2px solid #f59e0b; padding: 16px; margin-bottom: 16px; overflow: visible;">
+      <div class="flex items-center gap-2 mb-3">
+        <span style="color: #92400e; font-size: 14px; font-weight: 600;">📅 Theo tháng - năm</span>
+      </div>
+      <div class="flex gap-2 items-center">
+        <select id="selMonth" style="flex: 1; border: 2px solid #f59e0b; border-radius: 8px; padding: 10px 12px; font-size: 14px; background: white; color: #1f2937; min-width: 0; outline: none;">
+          ${monthOptions}
+        </select>
+        <select id="selYear" style="flex: 1; border: 2px solid #f59e0b; border-radius: 8px; padding: 10px 12px; font-size: 14px; background: white; color: #1f2937; min-width: 0; outline: none;">
+          ${yearOptions}
+        </select>
+        <button type="button" onclick="applyMonthYear()" style="background: #ea580c; color: white; border: none; border-radius: 8px; padding: 8px 16px; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap;">Xem</button>
+      </div>
+      <div class="text-xs text-gray-500 mt-1">Đang xem: ${labelThangNam}</div>
+    </div>
+    <div class="mb-4 shadow-lg rounded-2xl p-4" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: #fff;">
       <div class="grid grid-cols-2 gap-3 text-center py-2">
         <div>
-          <div class="text-xs opacity-80">Tổng doanh thu</div>
+          <div class="text-xs" style="opacity: 0.9;">Tổng doanh thu</div>
           <div class="font-bold text-lg">${formatVND(totalRevenue)}</div>
         </div>
         <div>
-          <div class="text-xs opacity-80">Tổng lợi nhuận</div>
+          <div class="text-xs" style="opacity: 0.9;">Tổng lợi nhuận</div>
           <div class="font-bold text-lg">${formatVND(totalProfit)}</div>
         </div>
       </div>
     </div>
     <div class="space-y-2">
-      ${customers.length === 0 ? '<div class="text-gray-500 text-center py-4 bg-white rounded-xl">Chưa có dữ liệu</div>' : customers.map((c, i) => `
+      ${customers.length === 0 ? '<div class="text-gray-500 text-center py-4 bg-white rounded-xl">Chưa có dữ liệu trong tháng này</div>' : customers.map((c, i) => `
         <a href="/customers/${c.id}" class="card block hover:shadow-md transition-all">
           <div class="flex justify-between items-center">
             <div class="flex items-center gap-3">
@@ -853,94 +900,11 @@ router.get('/profit-customer', (req, res) => {
   <div id="bottomNavContainer"></div>
   <script>if (!isLoggedIn()) { window.location.href = '/login'; }</script>
   <script>
-    const bottomNav = getBottomNav('/report');
-    document.getElementById('bottomNavContainer').innerHTML = bottomNav;
-  </script>
-</body>
-</html>
-  `);
-});
-
-// GET /report/cashflow - Báo cáo dòng tiền
-router.get('/cashflow', (req, res) => {
-  const { startDate, endDate } = req.query;
-  
-  const today = new Date().toISOString().split('T')[0];
-  const start = startDate || today;
-  const end = endDate || today;
-  
-  const salesByDay = db.prepare(`
-    SELECT 
-      date(date) as day,
-      SUM(total) as revenue,
-      SUM(profit) as profit,
-      COUNT(*) as orders
-    FROM sales
-    WHERE date >= ? AND date <= ? AND status != 'returned'
-    GROUP BY date(date)
-    ORDER BY day DESC
-  `).all(start + ' 00:00:00', end + ' 23:59:59');
-  
-  const totalRevenue = salesByDay.reduce((sum, r) => sum + (r.revenue || 0), 0);
-  const totalProfit = salesByDay.reduce((sum, r) => sum + (r.profit || 0), 0);
-  
-  res.send(`
-<!DOCTYPE html>
-<html lang="vi">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dòng tiền - Beer POS</title>
-  <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#f59e0b">
-  <link rel="stylesheet" href="/css/tailwind.css">
-  <script src="/js/auth.js"></script>
-  <style>
-    .bottomnav { max-width: 500px; margin: auto; }
-  </style>
-</head>
-<body class="bg-gray-100 text-gray-800 min-h-screen pb-20">
-  <header class="sticky top-0 bg-white border-b z-50">
-    <div class="flex items-center justify-between px-4 h-12 max-w-md mx-auto">
-      <div class="flex items-center gap-2">
-        <a href="/report" class="text-gray-500">←</a>
-        <span class="font-semibold text-sm">Dòng tiền</span>
-      </div>
-    </div>
-  </header>
-  <main class="p-4 pb-24 max-w-md mx-auto">
-    <div class="card bg-gradient-to-r from-green-500 to-green-600 text-white mb-4">
-      <div class="grid grid-cols-2 gap-2 text-center">
-        <div>
-          <div class="text-xs opacity-80">Tổng thu</div>
-          <div class="font-bold">${formatVND(totalRevenue)}</div>
-        </div>
-        <div>
-          <div class="text-xs opacity-80">Lợi nhuận</div>
-          <div class="font-bold">${formatVND(totalProfit)}</div>
-        </div>
-      </div>
-    </div>
-    <div class="space-y-2">
-      ${salesByDay.length === 0 ? '<div class="text-gray-700 text-center py-4">Chưa có dữ liệu</div>' : salesByDay.map(d => `
-        <div class="card">
-          <div class="flex justify-between items-center">
-            <div>
-              <div class="font-bold">${new Date(d.day).toLocaleDateString('vi-VN')}</div>
-              <div class="text-xs text-gray-700">${d.orders} đơn hàng</div>
-            </div>
-            <div class="text-right">
-              <div class="font-bold text-amber-600">+${formatVND(d.revenue || 0)}</div>
-              <div class="text-xs text-blue-600">+${formatVND(d.profit || 0)}</div>
-            </div>
-          </div>
-        </div>
-      `).join('')}
-    </div>
-  </main>
-  <div id="bottomNavContainer"></div>
-  <script>if (!isLoggedIn()) { window.location.href = '/login'; }</script>
-  <script>
+    function applyMonthYear() {
+      const m = document.getElementById('selMonth').value;
+      const y = document.getElementById('selYear').value;
+      window.location.href = '/report/profit-customer?month=' + m + '&year=' + y;
+    }
     const bottomNav = getBottomNav('/report');
     document.getElementById('bottomNavContainer').innerHTML = bottomNav;
   </script>

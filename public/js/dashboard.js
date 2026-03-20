@@ -1,11 +1,8 @@
 // Dashboard Page JavaScript
 // Tách riêng để dễ bảo trì và cache
+// formatVND đã được định nghĩa trong format.js
 
 let revenueChart = null;
-
-function formatVND(amount) {
-  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
-}
 
 function initDashboard(data) {
   // Set today's revenue
@@ -24,36 +21,42 @@ function initDashboard(data) {
     ...data
   };
   
-  // Render low stock
+  // Render low stock (threshold from settings)
   if (data.lowStockProducts && data.lowStockProducts.length > 0) {
     const section = document.getElementById('lowStockSection');
     const list = document.getElementById('lowStockList');
+    const header = document.getElementById('lowStockHeader');
     section.classList.remove('hidden');
-    list.innerHTML = data.lowStockProducts.map(p => 
+    if (header && data.stockLowThreshold) {
+      header.textContent = '⚠️ Hàng sắp hết (dưới ' + data.stockLowThreshold + ')';
+    }
+    list.innerHTML = data.lowStockProducts.map(p =>
       '<div class="flex justify-between text-sm"><span>' + p.name + '</span><span class="font-bold text-red-600">' + p.stock + ' bình</span></div>'
     ).join('');
   }
   
-  // Render customer alerts (7+ days no order)
+  // Render customer alerts (configurable days no order)
   if (data.customerAlerts && data.customerAlerts.length > 0) {
     const section = document.getElementById('customerAlertsSection');
     const list = document.getElementById('customerAlertsList');
+    const header = document.getElementById('customerAlertsHeader');
     section.classList.remove('hidden');
+    if (header && data.customerAlertDays) {
+      header.textContent = '⚠️ KH ' + data.customerAlertDays + ' ngày chưa lấy bia';
+    }
     list.innerHTML = data.customerAlerts.map(c => {
-      // Color based on days: 7-9 = yellow, 10-14 = orange, 14+ = red
+      // Color based on days: threshold-1 = yellow, threshold*1.5 = orange, threshold*2+ = red
+      const threshold = data.customerAlertDays || 7;
       let colorClass = 'text-yellow-600';
-      let bgClass = 'bg-yellow-100';
-      if (c.days > 14) {
+      if (c.days > threshold * 2) {
         colorClass = 'text-red-600';
-        bgClass = 'bg-red-100';
-      } else if (c.days > 9) {
+      } else if (c.days > threshold * 1.5) {
         colorClass = 'text-orange-500';
-        bgClass = 'bg-orange-100';
       }
-      
-      const phoneBtn = c.phone ? 
+
+      const phoneBtn = c.phone ?
         '<a href="tel:' + c.phone + '" class="ml-2 text-green-600 hover:bg-green-100 rounded px-1">📞</a>' : '';
-      
+
       return '<div class="flex justify-between items-center text-sm py-1">' +
         '<div class="flex items-center">' +
           '<a href="/customers/' + c.id + '" class="hover:text-green-600">' + c.name + '</a>' +

@@ -6,7 +6,7 @@ const db = new Dexie('BeerPOS');
 
 // Define schema
 db.version(1).stores({
-  customers: '++id, name, phone, synced',
+  customers: '++id, name, phone, deposit, keg_balance, archived, synced',
   products: '++id, name, stock, cost_price, synced',
   sales: '++id, customer_id, date, total, profit, synced',
   sale_items: '++id, sale_id, product_id, quantity, price, synced',
@@ -229,7 +229,7 @@ async function pullFromCloud() {
       for (const customer of data.customers) {
         const existing = await db.customers.get(customer.id);
         if (!existing) {
-          await db.customers.add({ ...customer, synced: 1 });
+          await db.customers.add({ ...customer, synced: 1, archived: customer.archived || 0 });
           imported++;
         }
       }

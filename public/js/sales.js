@@ -1,60 +1,12 @@
 // Sales Page JavaScript
 // Tách riêng để dễ bảo trì và cache
+// formatVND, showLoading, hideLoading, showToast đã được định nghĩa trong utils.js
 
 let products = [];
 let priceMap = {};
 let customers = [];
 let editingSaleId = null;
 let saleData = {};
-
-function formatVND(amount) {
-  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
-}
-
-// Show loading indicator
-function showLoading(message = 'Đang xử lý...') {
-  let overlay = document.getElementById('loadingOverlay');
-  if (!overlay) {
-    overlay = document.createElement('div');
-    overlay.id = 'loadingOverlay';
-    overlay.className = 'fixed inset-0 bg-black/50 flex items-center justify-center z-50';
-    overlay.innerHTML = `
-      <div class="bg-white rounded-lg p-6 flex flex-col items-center shadow-xl">
-        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mb-4"></div>
-        <p class="text-gray-700 font-medium" id="loadingMessage">${message}</p>
-      </div>
-    `;
-    document.body.appendChild(overlay);
-  }
-  document.getElementById('loadingMessage').textContent = message;
-  overlay.classList.remove('hidden');
-}
-
-// Hide loading indicator
-function hideLoading() {
-  const overlay = document.getElementById('loadingOverlay');
-  if (overlay) {
-    overlay.classList.add('hidden');
-  }
-}
-
-// Show toast notification
-function showToast(message, type = 'success') {
-  const toast = document.createElement('div');
-  const bgColor = type === 'success' ? 'bg-green-500' : (type === 'error' ? 'bg-red-500' : 'bg-blue-500');
-  toast.className = `fixed top-4 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg z-50 transform transition-all duration-300 translate-x-full`;
-  toast.textContent = message;
-  document.body.appendChild(toast);
-
-  // Animate in
-  setTimeout(() => toast.classList.remove('translate-x-full'), 100);
-
-  // Remove after 3 seconds
-  setTimeout(() => {
-    toast.classList.add('translate-x-full');
-    setTimeout(() => toast.remove(), 300);
-  }, 3000);
-}
 
 function initSalesPage(data) {
   products = data.products;
@@ -808,16 +760,18 @@ function renderPagination() {
   
   if (totalPages <= 1) return;
   
+  const prevDisabled = page === 1;
+  const nextDisabled = page === totalPages;
   const paginationHTML = `
-    <div class="flex justify-center items-center gap-2 mt-4 py-2">
-      <button onclick="changeSalesPage(${page - 1})" ${page === 1 ? 'disabled' : ''} 
-        class="px-3 py-1 rounded ${page === 1 ? 'bg-gray-200 text-gray-400' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}">
-        ‹
+    <div class="flex justify-center items-center gap-2 mt-3 py-3 bg-gray-50">
+      <button type="button" onclick="changeSalesPage(${page - 1})" ${prevDisabled ? 'disabled' : ''}
+        class="px-4 py-2 rounded-lg min-w-[4rem] ${prevDisabled ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100 shadow-sm'}">
+        ‹ Trước
       </button>
-      <span class="text-sm text-gray-600">Trang ${page}/${totalPages}</span>
-      <button onclick="changeSalesPage(${page + 1})" ${page === totalPages ? 'disabled' : ''}
-        class="px-3 py-1 rounded ${page === totalPages ? 'bg-gray-200 text-gray-400' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}">
-        ›
+      <span class="text-sm text-gray-600 px-2">${page}/${totalPages}</span>
+      <button type="button" onclick="changeSalesPage(${page + 1})" ${nextDisabled ? 'disabled' : ''}
+        class="px-4 py-2 rounded-lg min-w-[4rem] ${nextDisabled ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100 shadow-sm'}">
+        Sau ›
       </button>
       <span class="text-xs text-gray-500 ml-2">(${total} đơn)</span>
     </div>

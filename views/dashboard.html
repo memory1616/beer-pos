@@ -96,13 +96,16 @@
 
           <!-- Low Stock Alert -->
           <div id="lowStockSection" class="hidden bg-red-50 rounded-xl border border-red-200 p-4 mb-4">
-            <div class="text-sm font-bold text-red-700 mb-2">⚠️ Hàng sắp hết</div>
+            <div class="flex justify-between items-center mb-2">
+              <div id="lowStockHeader" class="text-sm font-bold text-red-700">⚠️ Hàng sắp hết</div>
+              <button onclick="showAlertSettings()" class="text-xs text-blue-600 hover:text-blue-800">⚙️ Cài đặt</button>
+            </div>
             <div id="lowStockList" class="space-y-1"></div>
           </div>
 
           <!-- Customer Alerts (7+ days no order) -->
           <div id="customerAlertsSection" class="hidden bg-yellow-50 rounded-xl border border-yellow-200 p-4 mb-4">
-            <div class="text-sm font-bold text-yellow-700 mb-2">⚠️ KH 7 ngày chưa lấy bia</div>
+            <div id="customerAlertsHeader" class="text-sm font-bold text-yellow-700 mb-2">⚠️ KH 7 ngày chưa lấy bia</div>
             <div id="customerAlertsList" class="space-y-1"></div>
           </div>
 
@@ -202,6 +205,83 @@
   if ('serviceWorker' in navigator) {
     if (!navigator.serviceWorker.controller) {
       navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW registration failed:', err));
+    }
+  }
+  </script>
+
+  <!-- Alert Settings Modal -->
+  <div id="alertSettingsModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-xl w-full max-w-sm p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="font-bold text-lg">⚙️ Cài đặt cảnh báo</h3>
+        <button onclick="closeAlertSettings()" class="text-gray-500 hover:text-gray-700">✕</button>
+      </div>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">🔴 Ngưỡng tồn kho thấp</label>
+          <input type="number" id="stockLowThreshold" min="1" max="100" value="10"
+                 class="w-full border rounded-lg px-3 py-2" placeholder="VD: 10">
+          <p class="text-xs text-gray-500 mt-1">Báo khi số lượng tồn kho dưới giá trị này</p>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">🟡 Số ngày không đặt hàng</label>
+          <input type="number" id="customerAlertDays" min="1" max="365" value="7"
+                 class="w-full border rounded-lg px-3 py-2" placeholder="VD: 7">
+          <p class="text-xs text-gray-500 mt-1">Cảnh báo khách hàng không đặt hàng sau X ngày</p>
+        </div>
+      </div>
+      <div class="flex gap-2 mt-6">
+        <button onclick="closeAlertSettings()" class="flex-1 bg-gray-200 text-gray-800 py-3 rounded-lg font-medium">Hủy</button>
+        <button onclick="saveAlertSettings()" class="flex-1 bg-blue-600 text-white py-3 rounded-lg font-medium">💾 Lưu</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  async function showAlertSettings() {
+    const modal = document.getElementById('alertSettingsModal');
+    const thresholdInput = document.getElementById('stockLowThreshold');
+    const daysInput = document.getElementById('customerAlertDays');
+
+    // Load current values from settings
+    try {
+      const res = await fetch('/api/settings');
+      const settings = await res.json();
+      thresholdInput.value = settings.stock_low_threshold || 10;
+      daysInput.value = settings.customer_alert_days || 7;
+    } catch (e) {
+      thresholdInput.value = 10;
+      daysInput.value = 7;
+    }
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+  }
+
+  function closeAlertSettings() {
+    const modal = document.getElementById('alertSettingsModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }
+
+  async function saveAlertSettings() {
+    const threshold = document.getElementById('stockLowThreshold').value;
+    const days = document.getElementById('customerAlertDays').value;
+
+    try {
+      await fetch('/api/settings/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          stock_low_threshold: threshold,
+          customer_alert_days: days
+        })
+      });
+      closeAlertSettings();
+      alert('Đã lưu cài đặt! Trang sẽ tải lại.');
+      location.reload();
+    } catch (e) {
+      alert('Lỗi: ' + e.message);
     }
   }
   </script>

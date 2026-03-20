@@ -52,17 +52,21 @@ router.get('/data', (req, res) => {
     FROM sales WHERE type = 'sale' AND date >= ?
   `).get(monthStartStr, monthStartStr);
   
-  // Get low stock products - only needed fields, limit 10
+  // Get low stock threshold from settings (default: 10)
+  const stockThresholdSetting = db.prepare("SELECT value FROM settings WHERE key = 'stock_low_threshold'").get();
+  const stockLowThreshold = stockThresholdSetting ? parseInt(stockThresholdSetting.value) : 10;
+
+  // Get low stock products - using configurable threshold
   const lowStockProducts = db.prepare(`
-    SELECT id, name, stock FROM products WHERE stock < 5 ORDER BY stock ASC LIMIT 10
-  `).all();
+    SELECT id, name, stock FROM products WHERE stock < ? ORDER BY stock ASC LIMIT 10
+  `).all(stockLowThreshold);
   
   // Get keg stats - optimized with single query
   const kegStats = db.prepare(`
     SELECT 
       COALESCE((SELECT SUM(stock) FROM products WHERE type = 'keg'), 0) as inStock,
-      COALESCE((SELECT SUM(keg_balance) FROM customers), 0) as atCustomers,
-      COALESCE((SELECT SUM(stock) FROM products WHERE type = 'keg'), 0) + COALESCE((SELECT SUM(keg_balance) FROM customers), 0) as total
+      COALESCE((SELECT SUM(keg_balance) FROM customers WHERE archived = 0), 0) as atCustomers,
+      COALESCE((SELECT SUM(stock) FROM products WHERE type = 'keg'), 0) + COALESCE((SELECT SUM(keg_balance) FROM customers WHERE archived = 0), 0) as total
   `).get();
   
   // Get recent sales - add LIMIT 10
@@ -133,16 +137,21 @@ router.get('/data', (req, res) => {
     LIMIT 5
   `).all(monthStartStr);
   
-  // Get customer alerts (7+ days no order) - optimized
+  // Get customer alert days from settings (default: 7)
+  const customerAlertDaysSetting = db.prepare("SELECT value FROM settings WHERE key = 'customer_alert_days'").get();
+  const customerAlertDays = customerAlertDaysSetting ? parseInt(customerAlertDaysSetting.value) : 7;
+
+  // Get customer alerts (configurable days no order)
   const customerAlerts = db.prepare(`
     SELECT id, name, phone, last_order_date,
       CAST(julianday('now') - julianday(last_order_date) AS INTEGER) as days
     FROM customers
-    WHERE last_order_date IS NOT NULL
-    AND julianday('now') - julianday(last_order_date) >= 7
+    WHERE archived = 0
+    AND last_order_date IS NOT NULL
+    AND julianday('now') - julianday(last_order_date) >= ?
     ORDER BY days DESC
     LIMIT 10
-  `).all();
+  `).all(customerAlertDays);
   
   // Get monthly expenses
   const monthExpenses = db.prepare(`
@@ -180,6 +189,8 @@ router.get('/data', (req, res) => {
     monthUnits: { units: monthStats.units || 0 }, // Get from combined query
     topProducts,
     lowStockProducts,
+    stockLowThreshold, // Ngưỡng cảnh báo tồn kho (từ settings)
+    customerAlertDays, // Ngưỡng ngày không đặt hàng (từ settings)
     kegStats,
     recentSales,
     monthlyRevenue,

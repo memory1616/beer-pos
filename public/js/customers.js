@@ -21,18 +21,46 @@ function showToast(message, type = 'success') {
 }
 
 let customers = [];
+let archivedCustomers = [];
+let currentTab = 'active';
 let products = [];
 
 function initCustomersPage(data) {
   customers = data.customers;
+  archivedCustomers = data.archived || [];
   products = data.products;
   
-  // Update customer count
+  updateCount();
+  renderCustomers();
+}
+
+function updateCount() {
   const countEl = document.getElementById('customerCount');
-  if (countEl) {
+  if (!countEl) return;
+  if (currentTab === 'active') {
     countEl.textContent = customers.length;
+  } else {
+    countEl.textContent = archivedCustomers.length;
   }
-  
+}
+
+function switchCustomerTab(tab) {
+  currentTab = tab;
+  const tabActive = document.getElementById('tabActive');
+  const tabArchived = document.getElementById('tabArchived');
+  const archivedSection = document.getElementById('archivedSection');
+
+  if (tab === 'active') {
+    tabActive.className = 'flex-1 py-2.5 rounded-xl font-semibold text-sm transition-all bg-blue-600 text-white shadow';
+    tabArchived.className = 'flex-1 py-2.5 rounded-xl font-semibold text-sm transition-all bg-white text-gray-600 border border-gray-200 shadow-sm';
+    if (archivedSection) archivedSection.classList.add('hidden');
+  } else {
+    tabActive.className = 'flex-1 py-2.5 rounded-xl font-semibold text-sm transition-all bg-white text-gray-600 border border-gray-200 shadow-sm';
+    tabArchived.className = 'flex-1 py-2.5 rounded-xl font-semibold text-sm transition-all bg-gray-500 text-white shadow';
+    if (archivedSection) archivedSection.classList.remove('hidden');
+  }
+
+  updateCount();
   renderCustomers();
 }
 
@@ -43,7 +71,8 @@ function renderCustomers() {
   const searchInput = document.getElementById('searchInput');
   const search = searchInput ? searchInput.value.toLowerCase() : '';
 
-  const filtered = customers.filter(c => c.name.toLowerCase().includes(search));
+  const source = currentTab === 'active' ? customers : archivedCustomers;
+  const filtered = source.filter(c => c.name.toLowerCase().includes(search));
 
   if (filtered.length === 0) {
     container.innerHTML = '<div class="text-center text-gray-500 py-8 bg-white rounded-xl shadow-sm">Không có khách hàng nào</div>';
@@ -60,28 +89,30 @@ function renderCustomers() {
     let statusBadge = '';
     let statusClass = '';
     let statusBg = '';
-    if (c.days_since_last_order !== null && c.days_since_last_order !== undefined) {
-      if (c.days_since_last_order >= 7) {
-        statusBadge = '🔴';
-        statusClass = 'text-red-600';
-        statusBg = 'bg-red-50';
-      } else if (c.daily_avg < 5) {
+    if (currentTab === 'active') {
+      if (c.days_since_last_order !== null && c.days_since_last_order !== undefined) {
+        if (c.days_since_last_order >= 7) {
+          statusBadge = '🔴';
+          statusClass = 'text-red-600';
+          statusBg = 'bg-red-50';
+        } else if (c.daily_avg < 5) {
+          statusBadge = '🟡';
+          statusClass = 'text-yellow-600';
+          statusBg = 'bg-yellow-50';
+        } else {
+          statusBadge = '🟢';
+          statusClass = 'text-green-600';
+          statusBg = 'bg-green-50';
+        }
+      } else {
         statusBadge = '🟡';
         statusClass = 'text-yellow-600';
         statusBg = 'bg-yellow-50';
-      } else {
-        statusBadge = '🟢';
-        statusClass = 'text-green-600';
-        statusBg = 'bg-green-50';
       }
-    } else {
-      statusBadge = '🟡';
-      statusClass = 'text-yellow-600';
-      statusBg = 'bg-yellow-50';
     }
 
     return `
-      <div class="card customer-card hover:shadow-lg transition-all duration-200 bg-white rounded-xl border border-gray-100" data-name="${c.name.toLowerCase()}">
+      <div class="card customer-card hover:shadow-lg transition-all duration-200 bg-white rounded-xl border border-gray-100 ${c.archived ? 'opacity-70' : ''}" data-name="${c.name.toLowerCase()}">
         <div class="flex justify-between items-start">
           <div class="flex-1">
             <div class="flex items-center gap-2 mb-1">
@@ -110,6 +141,7 @@ function renderCustomers() {
           </div>
         </div>
         
+        ${currentTab === 'active' ? `
         <div class="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-100">
           <button onclick="getLocation(${c.id})" class="flex-1 px-3 py-2.5 bg-gradient-to-r from-orange-50 to-orange-100 text-orange-700 rounded-lg font-medium text-sm border border-orange-200 hover:from-orange-100 hover:to-orange-150 transition-all">
             📍 GPS
@@ -120,10 +152,20 @@ function renderCustomers() {
           <button onclick="showPriceModal(${c.id}, '${c.name}')" class="flex-1 px-3 py-2.5 bg-gradient-to-r from-green-50 to-green-100 text-green-700 rounded-lg font-medium text-sm border border-green-200 hover:from-green-100 hover:to-green-150 transition-all">
             💰 Giá
           </button>
-          <button onclick="deleteCustomer(${c.id})" class="px-3 py-2.5 bg-red-50 text-red-500 rounded-lg border border-red-100 hover:bg-red-100 transition-all">
-            🗑️
+          <button onclick="archiveCustomer(${c.id})" class="px-3 py-2.5 bg-gray-100 text-gray-500 rounded-lg border border-gray-200 hover:bg-gray-200 transition-all" title="Lưu trữ">
+            📦
           </button>
         </div>
+        ` : `
+        <div class="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-100">
+          <button onclick="unarchiveCustomer(${c.id})" class="flex-1 px-3 py-2.5 bg-gradient-to-r from-green-50 to-green-100 text-green-700 rounded-lg font-medium text-sm border border-green-200 hover:from-green-100 hover:to-green-150 transition-all">
+            📤 Khôi phục
+          </button>
+          <button onclick="deleteCustomer(${c.id})" class="px-3 py-2.5 bg-red-50 text-red-500 rounded-lg border border-red-100 hover:bg-red-100 transition-all">
+            🗑️ Xóa
+          </button>
+        </div>
+        `}
         
         <div class="mt-3 pt-3 border-t border-gray-100 flex justify-between items-center">
           <div class="text-sm flex items-center gap-2">
@@ -131,11 +173,14 @@ function renderCustomers() {
             <span class="font-semibold ${c.deposit > 0 ? 'text-blue-600' : 'text-gray-400'}">${formatVND(c.deposit)}</span>
           </div>
           <div class="flex items-center gap-3">
+            ${currentTab === 'active' ? `
             <button onclick="editKegBalance(${c.id}, ${c.keg_balance}, '${c.name}')" class="text-xs text-blue-500 hover:text-blue-700 hover:bg-blue-50 px-2 py-1 rounded transition-colors">✏️ Sửa vỏ</button>
+            ` : ''}
             ${hasLocation ? '<span class="text-green-500 text-xs" title="Đã có vị trí">✅</span>' : ''}
           </div>
         </div>
         ${c.last_sale_date ? '<div class="text-xs text-gray-400 mt-2 flex items-center gap-1">🕐 Mua lần cuối: ' + new Date(c.last_sale_date).toLocaleDateString('vi-VN') + '</div>' : ''}
+        ${c.archived ? '<div class="text-xs text-gray-400 mt-2 flex items-center gap-1">📦 Đã lưu trữ</div>' : ''}
       </div>
     `;
   }).join('');
@@ -181,10 +226,21 @@ async function saveKegBalance() {
   }
 }
 
-let searchTimeout;
 function filterCustomers() {
   clearTimeout(searchTimeout);
   searchTimeout = setTimeout(() => {
+    const searchInput = document.getElementById('searchInput');
+    const search = searchInput ? searchInput.value.toLowerCase() : '';
+    const source = currentTab === 'active' ? customers : archivedCustomers;
+    const filtered = source.filter(c => c.name.toLowerCase().includes(search));
+    const container = document.getElementById('customersList');
+    if (!container) return;
+    if (filtered.length === 0) {
+      container.innerHTML = '<div class="text-center text-gray-500 py-8 bg-white rounded-xl shadow-sm">Không có khách hàng nào</div>';
+      return;
+    }
+    // Use existing render logic
+    window._filtered = filtered;
     renderCustomers();
   }, 200);
 }
@@ -397,8 +453,32 @@ document.getElementById('editForm').addEventListener('submit', (e) => {
   saveCustomerEdit();
 });
 
+async function archiveCustomer(id) {
+  if (!confirm('Lưu trữ khách hàng này?\n\n- Khách sẽ không hiển thị khi bán hàng\n- Doanh thu vẫn giữ nguyên')) return;
+  const res = await fetch('/api/customers/' + id + '/archive', { method: 'PUT' });
+  if (res.ok) {
+    showToast('Đã lưu trữ khách hàng!', 'success');
+    location.reload();
+  } else {
+    const data = await res.json();
+    alert(data.error || 'Lỗi');
+  }
+}
+
+async function unarchiveCustomer(id) {
+  if (!confirm('Khôi phục khách hàng này?')) return;
+  const res = await fetch('/api/customers/' + id + '/archive', { method: 'PUT' });
+  if (res.ok) {
+    showToast('Đã khôi phục khách hàng!', 'success');
+    location.reload();
+  } else {
+    const data = await res.json();
+    alert(data.error || 'Lỗi');
+  }
+}
+
 async function deleteCustomer(id) {
-  if (!confirm('Xóa khách hàng?')) return;
+  if (!confirm('⚠️ XÓA VĨNH VIỄN khách hàng này?\n\nTất cả dữ liệu (đơn hàng, công nợ...) sẽ bị mất!\n\nKhuyến nghị: Nên dùng "Lưu trữ" thay vì xóa.')) return;
   const res = await fetch('/api/customers/' + id, { method: 'DELETE' });
   if (res.ok) location.reload();
   else alert('Xóa thất bại');

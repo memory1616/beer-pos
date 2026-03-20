@@ -63,17 +63,22 @@ async function editPurchase(purchaseId) {
     
     const itemsContainer = document.getElementById('editPurchaseItems');
     itemsContainer.innerHTML = itemsData.items.map(item => `
-      <div class="flex items-center gap-2 p-2 border rounded-lg bg-gray-50">
-        <div class="flex-1 min-w-0">
-          <div class="font-medium text-sm truncate">${item.product_name}</div>
-          <div class="text-xs text-gray-500">Giá vốn: ${formatVND(item.unit_price)}</div>
+      <div class="p-3 border border-amber-200 rounded-xl bg-amber-50/50 space-y-2">
+        <div class="font-medium text-sm text-gray-800 truncate">${item.product_name}</div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Số lượng</label>
+            <input type="number" data-item-id="${item.id}" data-product-id="${item.product_id}" 
+              min="0" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-center edit-qty" 
+              value="${item.quantity}">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Đơn giá (VNĐ)</label>
+            <input type="number" data-item-id="${item.id}" data-product-id="${item.product_id}" 
+              step="1000" min="0" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-right edit-cost" 
+              value="${item.unit_price}">
+          </div>
         </div>
-        <input type="number" data-item-id="${item.id}" data-product-id="${item.product_id}" 
-          min="0" placeholder="SL" class="w-16 border rounded px-2 py-1 text-center edit-qty" 
-          value="${item.quantity}">
-        <input type="number" data-item-id="${item.id}" data-product-id="${item.product_id}" 
-          step="1000" placeholder="TT" class="w-20 border rounded px-2 py-1 text-right edit-cost" 
-          value="${item.unit_price}">
       </div>
     `).join('');
     

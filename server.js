@@ -149,84 +149,8 @@ app.use('/api/expenses', require('./routes/api/expenses'));
 app.use('/api/session', require('./routes/api/session'));
 
 // ==================== SYNC API ====================
-// Simple sync endpoints for cloud backup
-const db = require('./database');
-
-// POST /api/sync/push - Push local changes to cloud (placeholder for cloud integration)
-app.post('/api/sync/push', (req, res) => {
-  const { cloudUrl } = req.body;
-
-  if (!cloudUrl) {
-    return res.status(400).json({ error: 'Cloud URL required' });
-  }
-
-  try {
-    // Get pending sync items
-    const pending = db.prepare(`
-      SELECT * FROM sync_queue
-      WHERE synced = 0
-      ORDER BY created_at ASC
-      LIMIT 50
-    `).all();
-
-    // In a real implementation, this would send data to cloud
-    // For now, just mark items as synced (local-only mode)
-    if (pending.length > 0) {
-      const ids = pending.map(p => p.id);
-      const placeholders = ids.map(() => '?').join(',');
-      db.prepare(`UPDATE sync_queue SET synced = 1 WHERE id IN (${placeholders})`).run(...ids);
-    }
-
-    res.json({
-      success: true,
-      synced: pending.length,
-      message: 'Data synced (local mode)'
-    });
-  } catch (err) {
-    console.error('Sync push error:', err);
-    res.status(500).json({ error: 'Sync failed: ' + err.message });
-  }
-});
-
-// POST /api/sync/pull - Pull data from cloud (placeholder for cloud integration)
-app.post('/api/sync/pull', (req, res) => {
-  const { cloudUrl, lastSync } = req.body;
-
-  if (!cloudUrl) {
-    return res.status(400).json({ error: 'Cloud URL required' });
-  }
-
-  try {
-    // In a real implementation, this would fetch data from cloud
-    // and merge with local database
-    // For now, return empty (local-only mode)
-
-    res.json({
-      success: true,
-      imported: 0,
-      message: 'No data to pull (local mode)'
-    });
-  } catch (err) {
-    console.error('Sync pull error:', err);
-    res.status(500).json({ error: 'Sync failed: ' + err.message });
-  }
-});
-
-// GET /api/sync/status - Get sync status
-app.get('/api/sync/status', (req, res) => {
-  try {
-    const pending = db.prepare('SELECT COUNT(*) as count FROM sync_queue WHERE synced = 0').get();
-    const lastSync = db.prepare("SELECT value FROM sync_meta WHERE key = 'last_sync'").get();
-
-    res.json({
-      pending: pending.count,
-      lastSync: lastSync ? lastSync.value : null
-    });
-  } catch (err) {
-    console.error('Sync status error:', err);
-    res.status(500).json({ error: 'Failed to get sync status' });
-  }
-});
+// Offline-first multi-device sync
+app.use('/api/sync', require('./routes/api/sync'));
 
 // ==================== HEALTH CHECK ====================
 app.get('/api/ping', (req, res) => {

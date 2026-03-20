@@ -49,6 +49,7 @@ router.get('/', (req, res) => {
     SELECT c.name, SUM(s.total) as revenue, COUNT(*) as orders
     FROM sales s
     JOIN customers c ON c.id = s.customer_id
+    WHERE c.archived = 0
     GROUP BY c.id
     ORDER BY revenue DESC
     LIMIT 5
@@ -108,7 +109,7 @@ router.get('/', (req, res) => {
     </div>
   </header>
 
-  <main class="p-4 pb-24 max-w-md mx-auto animate-fade">
+  <main class="p-4 pt-14 pb-24 max-w-md mx-auto animate-fade">
     <!-- Stats -->
     <div class="grid grid-cols-2 gap-4 mb-4">
       <div class="bg-white rounded-2xl shadow-sm border p-5">

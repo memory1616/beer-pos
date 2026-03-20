@@ -65,8 +65,8 @@ router.get('/history', (req, res) => {
 
 // GET /api/kegs/stats - Thống kê vỏ
 router.get('/stats', (req, res) => {
-  const totalAtCustomers = db.prepare('SELECT COALESCE(SUM(keg_balance), 0) as total FROM customers').get();
-  const customerCount = db.prepare('SELECT COUNT(*) as count FROM customers WHERE keg_balance > 0').get();
+  const totalAtCustomers = db.prepare('SELECT COALESCE(SUM(keg_balance), 0) as total FROM customers WHERE archived = 0').get();
+  const customerCount = db.prepare('SELECT COUNT(*) as count FROM customers WHERE keg_balance > 0 AND archived = 0').get();
   const recentTransactions = db.prepare(`
     SELECT COUNT(*) as count FROM keg_transactions 
     WHERE date >= datetime('now', '-7 days')
