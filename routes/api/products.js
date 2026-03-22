@@ -2,6 +2,22 @@ const express = require('express');
 const router = express.Router();
 const db = require('../../database');
 
+// ========== HELPER: Sync keg_stats.inventory with products stock ==========
+// Call this whenever product stock (type='keg') changes
+function syncKegInventory() {
+  try {
+    const result = db.prepare("SELECT COALESCE(SUM(stock), 0) as total FROM products WHERE type = 'keg'").get();
+    db.prepare('UPDATE keg_stats SET inventory = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run(result.total);
+    return result.total;
+  } catch (err) {
+    console.error('Sync keg inventory error:', err);
+    return null;
+  }
+}
+
+// Export for other routes
+module.exports.syncKegInventory = syncKegInventory;
+
 // Validate ID parameter
 function validateId(id) {
   const parsed = parseInt(id);
@@ -147,12 +163,30 @@ router.get('/:id', (req, res) => {
   res.json(product);
 });
 
+// Sync keg_stats.inventory with products stock (type='keg')
+function syncKegInventory() {
+  try {
+    const result = db.prepare("SELECT COALESCE(SUM(stock), 0) as total FROM products WHERE type = 'keg'").get();
+    db.prepare('UPDATE keg_stats SET inventory = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run(result.total);
+    return result.total;
+  } catch (err) {
+    console.error('Sync keg inventory error:', err);
+    return null;
+  }
+}
+
 // POST /api/products
 router.post('/', (req, res) => {
   const { name, stock, cost_price, type } = req.body;
   if (!name) return res.status(400).json({ error: 'Name required' });
   const productType = type || 'keg';
   const result = db.prepare('INSERT INTO products (name, stock, cost_price, type) VALUES (?, ?, ?, ?)').run(name, parseInt(stock) || 0, parseFloat(cost_price) || 0, productType);
+  
+  // Sync keg inventory if this is a keg product
+  if (productType === 'keg') {
+    syncKegInventory();
+  }
+  
   res.json({ id: result.lastInsertRowid, name, stock: parseInt(stock) || 0, cost_price: parseFloat(cost_price) || 0, type: productType });
 });
 
@@ -161,6 +195,12 @@ router.put('/:id', (req, res) => {
   const { name, stock, cost_price, type } = req.body;
   const productType = type || 'keg';
   db.prepare('UPDATE products SET name = ?, stock = ?, cost_price = ?, type = ? WHERE id = ?').run(name, parseInt(stock), parseFloat(cost_price) || 0, productType, req.params.id);
+  
+  // Sync keg inventory if this is a keg product
+  if (productType === 'keg') {
+    syncKegInventory();
+  }
+  
   res.json({ success: true });
 });
 

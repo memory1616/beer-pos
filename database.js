@@ -295,6 +295,19 @@ db.exec(`
   );
 `);
 
+// Keg inventory table (theo dõi kho vỏ bình tổng)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS keg_inventory (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    type TEXT NOT NULL CHECK(type IN ('incoming', 'outgoing', 'adjust')),
+    quantity INTEGER NOT NULL,
+    balance_after INTEGER NOT NULL,
+    source TEXT,
+    note TEXT,
+    date TEXT DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
 // Sync metadata table
 db.exec(`
   CREATE TABLE IF NOT EXISTS sync_meta (
@@ -302,7 +315,6 @@ db.exec(`
     value TEXT
   );
 `);
-
 // Keg transactions table (giao/thu vỏ bình)
 db.exec(`
   CREATE TABLE IF NOT EXISTS keg_transactions (
@@ -602,6 +614,93 @@ try {
   db.exec(`ALTER TABLE expenses ADD COLUMN is_auto INTEGER DEFAULT 0`);
 } catch (e) {
   // Column already exists
+}
+
+// Migration: Add keg_inventory table if not exists
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS keg_inventory (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL CHECK(type IN ('incoming', 'outgoing', 'adjust')),
+      quantity INTEGER NOT NULL,
+      balance_after INTEGER NOT NULL,
+      source TEXT,
+      note TEXT,
+      date TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  console.log('Created keg_inventory table');
+} catch (e) {
+  // Table may already exist
+}
+
+// Migration: Create index for keg_inventory
+try {
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_keg_inventory_date ON keg_inventory(date)`);
+  console.log('Created keg_inventory index');
+} catch (e) {
+  // Index may already exist
+}
+
+// Migration: Add keg_inventory_balance setting if not exists
+try {
+  db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('keg_inventory_balance', '0');
+  console.log('Added keg_inventory_balance setting');
+} catch (e) {
+  // Setting may already exist
+}
+
+// Keg Stats table - Centralized keg state management
+db.exec(`
+  CREATE TABLE IF NOT EXISTS keg_stats (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    inventory INTEGER DEFAULT 0,
+    empty_collected INTEGER DEFAULT 0,
+    customer_holding INTEGER DEFAULT 0,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT single_row CHECK (id = 1)
+  );
+`);
+
+// Initialize keg_stats with single row if empty
+try {
+  const count = db.prepare('SELECT COUNT(*) as count FROM keg_stats').get();
+  if (count.count === 0) {
+    db.prepare('INSERT INTO keg_stats (id, inventory, empty_collected, customer_holding) VALUES (1, 0, 0, 0)').run();
+    console.log('Initialized keg_stats table');
+  }
+} catch (e) {
+  // May already exist
+}
+
+// Index for keg_stats
+try {
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_keg_stats ON keg_stats(id)`);
+} catch (e) {
+  // Index may exist
+}
+
+// Keg Transactions Log table - for tracking all keg movements
+db.exec(`
+  CREATE TABLE IF NOT EXISTS keg_transactions_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    type TEXT NOT NULL CHECK(type IN ('deliver', 'collect', 'import', 'adjust')),
+    quantity INTEGER NOT NULL,
+    exchanged INTEGER DEFAULT 0,
+    purchased INTEGER DEFAULT 0,
+    inventory_after INTEGER NOT NULL,
+    empty_after INTEGER NOT NULL,
+    holding_after INTEGER NOT NULL,
+    note TEXT,
+    date TEXT DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
+// Index for keg_transactions_log
+try {
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_keg_tx_log_date ON keg_transactions_log(date)`);
+} catch (e) {
+  // Index may exist
 }
 
 module.exports = db;

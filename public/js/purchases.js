@@ -78,6 +78,7 @@ async function submitPurchase() {
   if (cart.length === 0) return alert('Chưa chọn sản phẩm nào');
   
   const note = document.getElementById('purchaseNote').value;
+  const deductKegs = parseInt(document.getElementById('deductKegs').value) || 0;
   const submitBtn = document.getElementById('submitBtn');
   submitBtn.disabled = true;
   submitBtn.textContent = '⏳ Đang xử lý...';
@@ -86,13 +87,18 @@ async function submitPurchase() {
     const res = await fetch('/api/purchases', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items: cart, note })
+      body: JSON.stringify({ items: cart, note, deductKegs })
     });
     
     const data = await res.json();
     
     if (res.ok) {
-      alert('✅ Nhập hàng thành công!\nTổng tiền: ' + formatVND(data.total_amount));
+      let message = '✅ Nhập hàng thành công!\nTổng tiền: ' + formatVND(data.total_amount);
+      if (deductKegs > 0 && data.inventoryBalance !== undefined) {
+        message += '\n\n📦 Đã trừ ' + deductKegs + ' vỏ khỏi kho vỏ';
+        message += '\nKho vỏ còn lại: ' + data.inventoryBalance + ' vỏ';
+      }
+      alert(message);
       // Reload and switch to history tab
       window.location.href = '/purchases?tab=history';
     } else {

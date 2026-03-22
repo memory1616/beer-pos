@@ -124,6 +124,7 @@ app.use('/customers', require('./routes/customers'));
 app.use('/sale', require('./routes/sales'));
 app.use('/sales', (req, res) => res.redirect('/sale'));
 app.use('/stock', require('./routes/stock'));
+app.use('/kegs', require('./routes/kegs'));
 app.use('/analytics', require('./routes/analytics'));
 app.use('/delivery', require('./routes/delivery'));
 app.use('/products', require('./routes/products'));

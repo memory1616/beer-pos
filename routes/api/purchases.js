@@ -4,7 +4,7 @@ const db = require('../../database');
 
 // POST /api/purchases - Tạo phiếu nhập hàng mới
 router.post('/', (req, res) => {
-  const { items, note } = req.body;
+  const { items, note, deductKegs = 0 } = req.body;
   
   if (!items || !Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: 'Danh sách sản phẩm trống' });
@@ -30,7 +30,32 @@ router.post('/', (req, res) => {
       db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(item.quantity, item.product_id);
     }
     
-    res.json({ id: purchaseId, total_amount: totalAmount, success: true });
+    // Nếu có đặt hàng vỏ (dùng vỏ thu về để đặt), trừ kho vỏ
+    let inventoryBalance = null;
+    if (deductKegs && deductKegs > 0) {
+      const balanceSetting = db.prepare("SELECT value FROM settings WHERE key = 'keg_inventory_balance'").get();
+      const currentBalance = balanceSetting ? parseInt(balanceSetting.value) : 0;
+      
+      if (currentBalance >= deductKegs) {
+        const newBalance = currentBalance - deductKegs;
+        db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('keg_inventory_balance', ?)").run(newBalance.toString());
+        
+        // Ghi log kho vỏ
+        db.prepare(`
+          INSERT INTO keg_inventory (type, quantity, balance_after, source, note)
+          VALUES ('outgoing', ?, ?, 'Đặt hàng nhà máy', ?)
+        `).run(deductKegs, newBalance, note || 'Đặt hàng nhà máy');
+        
+        inventoryBalance = newBalance;
+      }
+    }
+    
+    res.json({ 
+      id: purchaseId, 
+      total_amount: totalAmount, 
+      success: true,
+      inventoryBalance
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Lỗi tạo phiếu nhập' });
