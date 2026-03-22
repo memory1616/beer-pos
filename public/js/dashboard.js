@@ -5,16 +5,42 @@
 let revenueChart = null;
 
 function initDashboard(data) {
+  // Helper function to safely set text content
+  const setText = (id, value) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+  };
+
   // Set today's revenue
-  document.getElementById('todayRevenue').textContent = formatVND(data.todayStats.revenue);
+  setText('todayRevenue', formatVND(data.todayStats?.revenue || 0));
 
   // Set today's units
-  document.getElementById('todayUnits').textContent = data.todayUnits.units;
+  setText('todayUnits', data.todayUnits?.units || 0);
   
-  // Set keg stats
-  document.getElementById('kegInStock').textContent = data.kegStats.inStock;
-  document.getElementById('kegAtCustomers').textContent = data.kegStats.atCustomers;
-  document.getElementById('kegTotal').textContent = data.kegStats.total;
+  // Set keg stats - from keg state API
+  if (data.kegState) {
+    const inventory = data.kegState.inventory || 0;
+    const emptyCollected = data.kegState.emptyCollected || 0;
+    const customerHolding = data.kegState.customerHolding || 0;
+    const total = data.kegState.total || 0;
+    
+    setText('kegInventory', inventory);
+    setText('kegEmptyCollected', emptyCollected);
+    setText('kegCustomerHolding', customerHolding);
+    setText('kegTotal', total);
+    
+    // Calculate and set percentages
+    const inventoryPct = total > 0 ? Math.round((inventory / total) * 100) : 0;
+    const emptyPct = total > 0 ? Math.round((emptyCollected / total) * 100) : 0;
+    const customerPct = total > 0 ? Math.round((customerHolding / total) * 100) : 0;
+    
+    setText('kegInventoryPct', inventoryPct + '%');
+    setText('kegEmptyCollectedPct', emptyPct + '%');
+    setText('kegCustomerHoldingPct', customerPct + '%');
+  } else {
+    // Fallback to old format
+    setText('kegCustomerHolding', data.kegStats?.atCustomers || 0);
+  }
   
   // Store for later use
   window.dashboardData = {
@@ -26,13 +52,15 @@ function initDashboard(data) {
     const section = document.getElementById('lowStockSection');
     const list = document.getElementById('lowStockList');
     const header = document.getElementById('lowStockHeader');
-    section.classList.remove('hidden');
+    if (section) section.classList.remove('hidden');
     if (header && data.stockLowThreshold) {
       header.textContent = '⚠️ Hàng sắp hết (dưới ' + data.stockLowThreshold + ')';
     }
-    list.innerHTML = data.lowStockProducts.map(p =>
-      '<div class="flex justify-between text-sm"><span>' + p.name + '</span><span class="font-bold text-red-600">' + p.stock + ' bình</span></div>'
-    ).join('');
+    if (list) {
+      list.innerHTML = data.lowStockProducts.map(p =>
+        '<div class="flex justify-between text-sm"><span>' + p.name + '</span><span class="font-bold text-red-600">' + p.stock + ' bình</span></div>'
+      ).join('');
+    }
   }
   
   // Render customer alerts (configurable days no order)
@@ -40,59 +68,63 @@ function initDashboard(data) {
     const section = document.getElementById('customerAlertsSection');
     const list = document.getElementById('customerAlertsList');
     const header = document.getElementById('customerAlertsHeader');
-    section.classList.remove('hidden');
+    if (section) section.classList.remove('hidden');
     if (header && data.customerAlertDays) {
       header.textContent = '⚠️ KH ' + data.customerAlertDays + ' ngày chưa lấy bia';
     }
-    list.innerHTML = data.customerAlerts.map(c => {
-      // Color based on days: threshold-1 = yellow, threshold*1.5 = orange, threshold*2+ = red
-      const threshold = data.customerAlertDays || 7;
-      let colorClass = 'text-yellow-600';
-      if (c.days > threshold * 2) {
-        colorClass = 'text-red-600';
-      } else if (c.days > threshold * 1.5) {
-        colorClass = 'text-orange-500';
-      }
+    if (list) {
+      list.innerHTML = data.customerAlerts.map(c => {
+        // Color based on days: threshold-1 = yellow, threshold*1.5 = orange, threshold*2+ = red
+        const threshold = data.customerAlertDays || 7;
+        let colorClass = 'text-yellow-600';
+        if (c.days > threshold * 2) {
+          colorClass = 'text-red-600';
+        } else if (c.days > threshold * 1.5) {
+          colorClass = 'text-orange-500';
+        }
 
-      const phoneBtn = c.phone ?
-        '<a href="tel:' + c.phone + '" class="ml-2 text-green-600 hover:bg-green-100 rounded px-1">📞</a>' : '';
+        const phoneBtn = c.phone ?
+          '<a href="tel:' + c.phone + '" class="ml-2 text-green-600 hover:bg-green-100 rounded px-1">📞</a>' : '';
 
-      return '<div class="flex justify-between items-center text-sm py-1">' +
-        '<div class="flex items-center">' +
-          '<a href="/customers/' + c.id + '" class="hover:text-green-600">' + c.name + '</a>' +
-          phoneBtn +
-        '</div>' +
-        '<span class="font-bold ' + colorClass + '">' + c.days + ' ngày</span>' +
-      '</div>';
-    }).join('');
+        return '<div class="flex justify-between items-center text-sm py-1">' +
+          '<div class="flex items-center">' +
+            '<a href="/customers/' + c.id + '" class="hover:text-green-600">' + c.name + '</a>' +
+            phoneBtn +
+          '</div>' +
+          '<span class="font-bold ' + colorClass + '">' + c.days + ' ngày</span>' +
+        '</div>';
+      }).join('');
+    }
   }
   
   // Render recent sales
   const recentSales = document.getElementById('recentSales');
-  if (data.recentSales.length > 0) {
-    recentSales.innerHTML = data.recentSales.slice(0, 5).map(s => {
-      const date = new Date(s.date).toLocaleDateString('vi-VN');
-      
-      // Style based on sale type
-      let totalDisplay = '';
-      let rowClass = '';
-      if (s.type === 'replacement') {
-        totalDisplay = '<span class="font-bold text-orange-600">🔁 Đổi lỗi</span>';
-        rowClass = 'bg-orange-50';
-      } else {
-        totalDisplay = '<span class="font-bold text-green-600">' + formatVND(s.total) + '</span>';
-      }
-      
-      return '<div class="flex justify-between items-center py-2 border-b ' + rowClass + '">' +
-        '<div>' +
-          '<div class="font-medium">' + s.customer_name + '</div>' +
-          '<div class="text-xs text-gray-500">' + date + '</div>' +
-        '</div>' +
-        '<div>' + totalDisplay + '</div>' +
-      '</div>';
-    }).join('');
-  } else {
-    recentSales.innerHTML = '<div class="text-gray-500 text-sm text-center py-4">Chưa có bán hàng nào</div>';
+  if (recentSales) {
+    if (data.recentSales && data.recentSales.length > 0) {
+      recentSales.innerHTML = data.recentSales.slice(0, 5).map(s => {
+        const date = new Date(s.date).toLocaleDateString('vi-VN');
+        
+        // Style based on sale type
+        let totalDisplay = '';
+        let rowClass = '';
+        if (s.type === 'replacement') {
+          totalDisplay = '<span class="font-bold text-orange-600">🔁 Đổi lỗi</span>';
+          rowClass = 'bg-orange-50';
+        } else {
+          totalDisplay = '<span class="font-bold text-green-600">' + formatVND(s.total) + '</span>';
+        }
+        
+        return '<div class="flex justify-between items-center py-2 border-b ' + rowClass + '">' +
+          '<div>' +
+            '<div class="font-medium">' + s.customer_name + '</div>' +
+            '<div class="text-xs text-gray-500">' + date + '</div>' +
+          '</div>' +
+          '<div>' + totalDisplay + '</div>' +
+        '</div>';
+      }).join('');
+    } else {
+      recentSales.innerHTML = '<div class="text-gray-500 text-sm text-center py-4">Chưa có bán hàng nào</div>';
+    }
   }
   
   // Render revenue chart - daily data for last 14 days
@@ -105,6 +137,12 @@ function renderRevenueChart(dailyData) {
 
   const ctx = canvas.getContext('2d');
 
+  // Helper function to safely set text content
+  const setText = (id, value) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+  };
+
   // Check if there's data
   if (!dailyData || dailyData.length === 0) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -114,15 +152,15 @@ function renderRevenueChart(dailyData) {
     ctx.fillText('Chưa có dữ liệu', canvas.width / 2, canvas.height / 2);
     
     // Reset stats
-    document.getElementById('totalRevenue6M').textContent = '-';
-    document.getElementById('avgRevenue6M').textContent = '-';
-    document.getElementById('growthRevenue6M').textContent = '-';
+    setText('totalRevenue6M', '-');
+    setText('avgRevenue6M', '-');
+    setText('growthRevenue6M', '-');
     return;
   }
 
   // Calculate stats
-  const revenues = dailyData.map(d => d.revenue);
-  const profits = dailyData.map(d => d.profit);
+  const revenues = dailyData.map(d => d.revenue || 0);
+  const profits = dailyData.map(d => d.profit || 0);
   const totalRevenue = revenues.reduce((sum, r) => sum + r, 0);
   const avgRevenue = revenues.length > 0 ? totalRevenue / revenues.length : 0;
   
@@ -135,15 +173,19 @@ function renderRevenueChart(dailyData) {
   }
   
   // Update stats display
-  document.getElementById('totalRevenue6M').textContent = formatVND(totalRevenue);
-  document.getElementById('avgRevenue6M').textContent = formatVND(avgRevenue);
+  setText('totalRevenue6M', formatVND(totalRevenue));
+  setText('avgRevenue6M', formatVND(avgRevenue));
   const growthEl = document.getElementById('growthRevenue6M');
   if (revenues.length >= 2) {
-    growthEl.textContent = (growth >= 0 ? '+' : '') + growth.toFixed(0) + '%';
-    growthEl.className = 'font-bold text-sm ' + (growth >= 0 ? 'text-green-600' : 'text-red-600');
+    if (growthEl) {
+      growthEl.textContent = (growth >= 0 ? '+' : '') + growth.toFixed(0) + '%';
+      growthEl.className = 'font-bold text-sm ' + (growth >= 0 ? 'text-green-600' : 'text-red-600');
+    }
   } else {
-    growthEl.textContent = '-';
-    growthEl.className = 'font-bold text-sm text-gray-400';
+    if (growthEl) {
+      growthEl.textContent = '-';
+      growthEl.className = 'font-bold text-sm text-gray-400';
+    }
   }
 
   // Prepare data - last 14 days

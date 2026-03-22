@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../../database');
+const { syncKegInventory, updateCustomerKegBalance } = require('./products');
+const { updateCustomerKegBalance: updateCustomerKegBalance2 } = require('./payments');
 
 // Helper function to validate sale input
 function validateSaleInput(body) {
@@ -115,6 +117,12 @@ router.post('/', (req, res) => {
     // Use deliverKegs from request, or default to calculated keg quantity
     const finalDeliverKegs = deliverKegs > 0 ? deliverKegs : kegQuantity;
 
+    // Get current keg stats for validation
+    const kegStats = db.prepare('SELECT * FROM keg_stats WHERE id = 1').get();
+    
+    // Validate inventory has enough kegs if using inventory (optional - can be disabled)
+    // For now, we allow overselling since some businesses deliver from factory directly
+
     // Use transaction for atomic operations
     const createSale = db.transaction(() => {
       // Insert sale with calculated keg quantity
@@ -153,20 +161,26 @@ router.post('/', (req, res) => {
       const price = priceRecord ? priceRecord.price : (item.price || product.sell_price || 0);
       const costPrice = product.cost_price || 0;
       const itemProfit = (price - costPrice) * item.quantity;
+      db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(item.quantity, item.productId);
       db.prepare('INSERT INTO sale_items (sale_id, product_id, quantity, price, cost_price, profit, price_at_time) VALUES (?, ?, ?, ?, ?, ?, ?)').run(saleId, item.productId, item.quantity, price, costPrice, itemProfit, price);
     }
 
-      // Update keg balance (only for registered customers)
+      // Update customer keg balance (only for registered customers)
       if (customerId && (deliverKegs !== 0 || returnKegs !== 0)) {
-        db.prepare('UPDATE customers SET keg_balance = ? WHERE id = ?').run(newKegBalance, customerId);
-        
-        if (deliverKegs > 0) {
-          db.prepare('INSERT INTO keg_log (customer_id, change, note) VALUES (?, ?, ?)').run(customerId, deliverKegs, 'Giao vỏ - Đơn #' + saleId);
-        }
-        if (returnKegs > 0) {
-          db.prepare('INSERT INTO keg_log (customer_id, change, note) VALUES (?, ?, ?)').run(customerId, -returnKegs, 'Thu vỏ - Đơn #' + saleId);
-        }
+        updateCustomerKegBalance(customerId, newKegBalance);
       }
+      
+      // Get synced totals from source tables
+      const inventoryResult = db.prepare("SELECT COALESCE(SUM(stock), 0) as total FROM products WHERE type = 'keg'").get();
+      const totalHolding = db.prepare("SELECT COALESCE(SUM(keg_balance), 0) as total FROM customers").get();
+      const currentKegStats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
+      
+      // Update centralized keg_stats (inventory from products, customer from customers)
+      db.prepare(`
+        UPDATE keg_stats 
+        SET inventory = ?, empty_collected = ?, customer_holding = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = 1
+      `).run(inventoryResult.total, currentKegStats?.empty_collected || 0, totalHolding.total);
 
       return saleId;
     });
@@ -198,14 +212,8 @@ router.post('/update-kegs', (req, res) => {
       db.prepare('UPDATE sales SET deliver_kegs = ?, return_kegs = ?, keg_balance_after = ? WHERE id = ?')
         .run(deliver, returned, newKegBalance, saleId);
       
-      db.prepare('UPDATE customers SET keg_balance = ? WHERE id = ?').run(newKegBalance, customerId);
-      
-      if (deliver > 0) {
-        db.prepare('INSERT INTO keg_log (customer_id, change, note) VALUES (?, ?, ?)').run(customerId, deliver, 'Cập nhật vỏ - Đơn #' + saleId);
-      }
-      if (returned > 0) {
-        db.prepare('INSERT INTO keg_log (customer_id, change, note) VALUES (?, ?, ?)').run(customerId, -returned, 'Thu vỏ - Đơn #' + saleId);
-      }
+      // Update customer keg_balance and sync keg_stats
+      updateCustomerKegBalance(customerId, newKegBalance);
     });
     
     updateKegs();
@@ -326,7 +334,7 @@ router.post('/replacement', (req, res) => {
 // POST /api/sales/:id/return - Trả hàng (hoàn tiền, hoàn kho, điều chỉnh vỏ)
 router.post('/:id/return', (req, res) => {
   const saleId = req.params.id;
-  const { returnType = 'stock_return', reason } = req.body; // 'stock_return' hoặc 'damage_return'
+  const { returnType = 'stock_return', reason, addToInventory = true } = req.body; // 'stock_return' hoặc 'damage_return'
   
   try {
     // Lấy thông tin hóa đơn
@@ -371,8 +379,32 @@ router.post('/:id/return', (req, res) => {
         const currentKegBalance = customer.keg_balance || 0;
         // Trừ đi số vỏ đã giao, cộng lại số vỏ đã thu
         const newKegBalance = currentKegBalance - deliverKegs + returnKegs;
-        db.prepare('UPDATE customers SET keg_balance = ? WHERE id = ?').run(newKegBalance, sale.customer_id);
+        updateCustomerKegBalance(sale.customer_id, newKegBalance);
       }
+    }
+    
+    // THÊM MỚI: Cộng vỏ vào kho vỏ nếu addToInventory = true
+    let inventoryBalance = null;
+    if (addToInventory && deliverKegs > 0) {
+      const balanceSetting = db.prepare("SELECT value FROM settings WHERE key = 'keg_inventory_balance'").get();
+      const currentInventoryBalance = balanceSetting ? parseInt(balanceSetting.value) : 0;
+      const newInventoryBalance = currentInventoryBalance + deliverKegs;
+      
+      // Cập nhật kho vỏ
+      db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('keg_inventory_balance', ?)").run(newInventoryBalance.toString());
+      
+      // Ghi log kho vỏ
+      db.prepare(`
+        INSERT INTO keg_inventory (type, quantity, balance_after, source, note)
+        VALUES ('incoming', ?, ?, ?, ?)
+      `).run(
+        deliverKegs,
+        newInventoryBalance,
+        'Trả hàng - Đơn #' + saleId,
+        reason || 'Thu vỏ từ đơn trả hàng'
+      );
+      
+      inventoryBalance = newInventoryBalance;
     }
     
     // Cập nhật trạng thái hóa đơn với loại return (bao gồm cập nhật lợi nhuận)
@@ -384,7 +416,8 @@ router.post('/:id/return', (req, res) => {
       returnedAmount: sale.total,
       returnedItems: items.length,
       returnedKegs: deliverKegs,
-      returnType
+      returnType,
+      inventoryBalance
     });
   } catch (err) {
     console.error(err);
@@ -395,7 +428,7 @@ router.post('/:id/return', (req, res) => {
 // POST /api/sales/:id/return-items - Trả một phần hàng (chọn sản phẩm và số lượng)
 router.post('/:id/return-items', (req, res) => {
   const saleId = req.params.id;
-  const { items: returnItems, returnType = 'stock_return', reason } = req.body;
+  const { items: returnItems, returnType = 'stock_return', reason, addToInventory = true } = req.body;
   
   if (!returnItems || !Array.isArray(returnItems) || returnItems.length === 0) {
     return res.status(400).json({ error: 'Danh sách sản phẩm trống' });
@@ -456,8 +489,32 @@ router.post('/:id/return-items', (req, res) => {
       if (customer) {
         const currentKegBalance = customer.keg_balance || 0;
         const newKegBalance = currentKegBalance - returnedKegs;
-        db.prepare('UPDATE customers SET keg_balance = ? WHERE id = ?').run(newKegBalance, sale.customer_id);
+        updateCustomerKegBalance(sale.customer_id, newKegBalance);
       }
+    }
+    
+    // THÊM MỚI: Cộng vỏ vào kho vỏ nếu addToInventory = true
+    let inventoryBalance = null;
+    if (addToInventory && returnedKegs > 0) {
+      const balanceSetting = db.prepare("SELECT value FROM settings WHERE key = 'keg_inventory_balance'").get();
+      const currentInventoryBalance = balanceSetting ? parseInt(balanceSetting.value) : 0;
+      const newInventoryBalance = currentInventoryBalance + returnedKegs;
+      
+      // Cập nhật kho vỏ
+      db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('keg_inventory_balance', ?)").run(newInventoryBalance.toString());
+      
+      // Ghi log kho vỏ
+      db.prepare(`
+        INSERT INTO keg_inventory (type, quantity, balance_after, source, note)
+        VALUES ('incoming', ?, ?, ?, ?)
+      `).run(
+        returnedKegs,
+        newInventoryBalance,
+        'Trả một phần - Đơn #' + saleId,
+        reason || 'Thu vỏ từ đơn trả hàng'
+      );
+      
+      inventoryBalance = newInventoryBalance;
     }
     
     // Cập nhật hóa đơn gốc: trừ tiền, trừ lợi nhuận và đánh dấu có partial return
@@ -499,7 +556,8 @@ router.post('/:id/return-items', (req, res) => {
       message: returnType === 'stock_return' ? 'Đã trả hàng (trả lại kho)' : 'Đã ghi nhận bia lỗi',
       returnedAmount: totalReturnAmount,
       returnedQuantity: totalReturnQty,
-      returnedKegs
+      returnedKegs,
+      inventoryBalance
     });
   } catch (err) {
     console.error(err);

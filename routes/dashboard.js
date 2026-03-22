@@ -61,19 +61,23 @@ router.get('/data', (req, res) => {
     SELECT id, name, stock FROM products WHERE stock < ? ORDER BY stock ASC LIMIT 10
   `).all(stockLowThreshold);
   
-  // Get keg stats - optimized with single query
-  const kegStats = db.prepare(`
-    SELECT 
-      COALESCE((SELECT SUM(stock) FROM products WHERE type = 'keg'), 0) as inStock,
-      COALESCE((SELECT SUM(keg_balance) FROM customers WHERE archived = 0), 0) as atCustomers,
-      COALESCE((SELECT SUM(stock) FROM products WHERE type = 'keg'), 0) + COALESCE((SELECT SUM(keg_balance) FROM customers WHERE archived = 0), 0) as total
-  `).get();
+  // Get keg state - ALWAYS sync from source tables
+  const inventoryResult = db.prepare("SELECT COALESCE(SUM(stock), 0) as total FROM products WHERE type = 'keg'").get();
+  const customerResult = db.prepare("SELECT COALESCE(SUM(keg_balance), 0) as total FROM customers").get();
+  const kegStats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
+  
+  const kegState = {
+    inventory: inventoryResult.total,
+    emptyCollected: kegStats?.empty_collected || 0,
+    customerHolding: customerResult.total,
+    total: inventoryResult.total + (kegStats?.empty_collected || 0) + customerResult.total
+  };
   
   // Get recent sales - add LIMIT 10
   const recentSales = db.prepare(`
-    SELECT s.id, s.date, s.total, s.type, c.name as customer_name
+    SELECT s.id, s.date, s.total, s.type, COALESCE(c.name, 'Khách lẻ') as customer_name
     FROM sales s
-    JOIN customers c ON c.id = s.customer_id
+    LEFT JOIN customers c ON c.id = s.customer_id
     ORDER BY s.date DESC
     LIMIT 10
   `).all();
@@ -191,7 +195,7 @@ router.get('/data', (req, res) => {
     lowStockProducts,
     stockLowThreshold, // Ngưỡng cảnh báo tồn kho (từ settings)
     customerAlertDays, // Ngưỡng ngày không đặt hàng (từ settings)
-    kegStats,
+    kegState,
     recentSales,
     monthlyRevenue,
     dailyRevenue,
