@@ -10,11 +10,12 @@
   <link rel="stylesheet" href="/css/unified.css">
   <script src="/js/auth.js"></script>
   <script src="/js/layout.js"></script>
+  <script src="/js/utils.js"></script>
   <script>requireAuth();</script>
   <style>
     .animate-fade { animation: fade 0.3s ease-in; }
     @keyframes fade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-    .bottomnav { max-width: 500px; margin: auto; left: 0; right: 0; }
+    .bottomnav { max-width: 500px; margin-left: auto; margin-right: auto; }
     button, a { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
     button:active { transform: scale(0.96); }
     .stat-card { transition: transform 0.2s, box-shadow 0.2s; }
@@ -23,38 +24,65 @@
     .action-btn:hover { transform: translateY(-2px); }
     .action-btn:active { transform: scale(0.95); }
     .log-row:nth-child(even) { background: #f9fafb; }
+    .badge-deliver { background: #d1fae5; color: #065f46; }
+    .badge-collect { background: #dbeafe; color: #1e40af; }
+    .badge-import { background: #ede9fe; color: #5b21b6; }
+    .badge-adjust { background: #fef3c7; color: #92400e; }
+    .badge-sell_empty { background: #fce7f3; color: #9d174d; }
+    .delta-up { color: #16a34a; }
+    .delta-down { color: #dc2626; }
+    .delta-neutral { color: #6b7280; }
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    input[type=number] { -moz-appearance: textfield; }
   </style>
 </head>
-<body class="bg-gray-50 text-gray-800 min-h-screen pb-20">
+<body class="bg-gray-50 text-gray-800 min-h-screen pb-24">
   <div id="app" class="max-w-lg mx-auto px-3 pt-4">
     <!-- Header -->
     <div class="flex items-center justify-between mb-4">
       <h1 class="text-xl font-bold text-gray-800">🍺 Quản lý vỏ bia</h1>
-      <button onclick="init()" class="text-gray-400 hover:text-gray-600 text-xl" title="Làm mới">🔄</button>
+      <div class="flex gap-2">
+        <button onclick="syncKegs()" class="text-gray-400 hover:text-gray-600 text-xl" title="Đồng bộ">🔄</button>
+        <button onclick="openHistoryModal()" class="text-gray-400 hover:text-gray-600 text-xl" title="Lịch sử chi tiết">📋</button>
+      </div>
     </div>
 
     <!-- Stats Grid -->
     <div class="grid grid-cols-2 gap-3 mb-4">
-      <div class="stat-card bg-white rounded-xl border p-4 text-center shadow-sm">
+      <div class="stat-card bg-white rounded-xl border p-4 text-center shadow-sm cursor-pointer" onclick="openModal('adjustModal')">
         <div class="text-xs text-gray-500 mb-1">📦 Vỏ đầy (kho)</div>
         <div class="text-2xl font-bold text-emerald-600" id="statInventory">-</div>
+        <div class="text-xs text-gray-400 mt-0.5">Sẵn sàng giao</div>
       </div>
-      <div class="stat-card bg-white rounded-xl border p-4 text-center shadow-sm">
-        <div class="text-xs text-gray-500 mb-1">🔄 Vỏ rỗng</div>
+      <div class="stat-card bg-white rounded-xl border p-4 text-center shadow-sm cursor-pointer" onclick="openModal('adjustModal')">
+        <div class="text-xs text-gray-500 mb-1">🧹 Vỏ rỗng</div>
         <div class="text-2xl font-bold text-blue-600" id="statEmpty">-</div>
+        <div class="text-xs text-gray-400 mt-0.5">Chờ nạp lại</div>
       </div>
       <div class="stat-card bg-white rounded-xl border p-4 text-center shadow-sm">
         <div class="text-xs text-gray-500 mb-1">👥 Khách giữ</div>
         <div class="text-2xl font-bold text-purple-600" id="statHolding">-</div>
+        <div class="text-xs text-gray-400 mt-0.5">Chưa thu hồi</div>
       </div>
-      <div class="stat-card bg-white rounded-xl border p-4 text-center shadow-sm">
+      <div class="stat-card bg-white rounded-xl border p-4 text-center shadow-sm border-amber-200 bg-amber-50">
         <div class="text-xs text-gray-500 mb-1">📊 Tồn kho thực</div>
         <div class="text-2xl font-bold text-amber-600" id="statBalance">-</div>
+        <div class="text-xs text-gray-400 mt-0.5" id="statBalanceNote">Kho+Rỗng-Khách</div>
+      </div>
+    </div>
+
+    <!-- Balance Warning -->
+    <div id="balanceWarning" class="hidden bg-red-50 border border-red-200 rounded-xl p-3 mb-4 flex items-start gap-2">
+      <span class="text-xl">⚠️</span>
+      <div>
+        <div class="text-sm font-semibold text-red-700">Số vỏ trong kho sắp hết!</div>
+        <div class="text-xs text-red-600" id="balanceWarningMsg">Cần nhập thêm vỏ từ nhà máy.</div>
       </div>
     </div>
 
     <!-- Quick Actions -->
-    <div class="grid grid-cols-2 gap-3 mb-4">
+    <div class="grid grid-cols-3 gap-3 mb-4">
       <button onclick="openModal('deliverModal')" class="action-btn bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-center">
         <div class="text-2xl mb-1">📦</div>
         <div class="text-xs font-semibold text-emerald-700">Giao vỏ</div>
@@ -63,63 +91,62 @@
         <div class="text-2xl mb-1">🔄</div>
         <div class="text-xs font-semibold text-blue-700">Thu vỏ</div>
       </button>
-      <button onclick="openModal('adjustModal')" class="action-btn bg-amber-50 border border-amber-200 rounded-xl p-3 text-center">
-        <div class="text-2xl mb-1">⚙️</div>
-        <div class="text-xs font-semibold text-amber-700">Điều chỉnh vỏ rỗng</div>
-      </button>
-      <a href="/purchases" class="action-btn bg-gray-50 border border-gray-200 rounded-xl p-3 text-center no-underline">
+      <button onclick="openModal('importModal')" class="action-btn bg-purple-50 border border-purple-200 rounded-xl p-3 text-center">
         <div class="text-2xl mb-1">🏭</div>
-        <div class="text-xs font-semibold text-gray-700">Nhập vỏ</div>
-      </a>
+        <div class="text-xs font-semibold text-purple-700">Nhập vỏ</div>
+      </button>
     </div>
 
-    <!-- Transaction Log -->
+    <!-- Recent Transaction Log -->
     <div class="bg-white rounded-xl border shadow-sm overflow-hidden">
-      <div class="p-3 border-b bg-gray-50">
-        <h3 class="font-bold text-sm text-gray-700">📋 Lịch sử giao dịch</h3>
+      <div class="p-3 border-b flex justify-between items-center">
+        <h3 class="font-bold text-sm text-gray-700">📋 Giao dịch gần đây</h3>
+        <button onclick="openHistoryModal()" class="text-xs text-emerald-600 font-semibold">Xem tất cả →</button>
       </div>
-      <div class="overflow-x-auto">
+      <div class="max-h-64 overflow-y-auto">
         <table class="w-full text-xs">
           <thead>
-            <tr class="bg-gray-50 text-gray-500">
+            <tr class="bg-gray-50 text-gray-500 sticky top-0">
               <th class="py-2 px-2 text-left font-medium">Thời gian</th>
               <th class="py-2 px-2 text-left font-medium">Loại</th>
               <th class="py-2 px-2 text-center font-medium">SL</th>
-              <th class="py-2 px-2 text-center font-medium">Rỗng</th>
-              <th class="py-2 px-2 text-center font-medium">Holding</th>
+              <th class="py-2 px-2 text-center font-medium">Khách</th>
+              <th class="py-2 px-2 text-center font-medium">Ghi chú</th>
             </tr>
           </thead>
-          <tbody id="logBody">
-          </tbody>
+          <tbody id="logBody"></tbody>
         </table>
       </div>
     </div>
   </div>
 
-  <!-- Bottom Navigation -->
-  <nav class="bottomnav fixed bottom-0 w-full bg-white border-t shadow-lg z-40">
-    <div class="flex justify-around py-2 max-w-lg mx-auto">
-      <a href="/dashboard" class="flex flex-col items-center text-gray-400 hover:text-blue-600 text-xs no-underline">
-        <span class="text-lg">📊</span><span>Dashboard</span>
-      </a>
-      <a href="/sale" class="flex flex-col items-center text-gray-400 hover:text-blue-600 text-xs no-underline">
-        <span class="text-lg">💰</span><span>Bán hàng</span>
-      </a>
-      <a href="/kegs" class="flex flex-col items-center text-blue-600 font-bold text-xs no-underline">
-        <span class="text-lg">🍺</span><span>Vỏ bia</span>
-      </a>
-      <a href="/customers" class="flex flex-col items-center text-gray-400 hover:text-blue-600 text-xs no-underline">
-        <span class="text-lg">👥</span><span>Khách</span>
-      </a>
-      <a href="/purchases" class="flex flex-col items-center text-gray-400 hover:text-blue-600 text-xs no-underline">
-        <span class="text-lg">📦</span><span>Nhập hàng</span>
-      </a>
-    </div>
+  <!-- Bottom Navigation (.bottomnav = grid 5 cột; các <a> phải là con trực tiếp) -->
+  <nav class="bottomnav z-40" style="box-shadow: 0 -4px 16px rgba(0,0,0,0.08);">
+    <a href="/dashboard" class="text-gray-500 hover:text-emerald-600 min-w-0 px-0.5">
+      <span class="icon">📊</span>
+      <span class="leading-tight text-[10px] sm:text-[11px] whitespace-normal break-words max-w-full">Tổng quan</span>
+    </a>
+    <a href="/sale" class="text-gray-500 hover:text-emerald-600 min-w-0 px-0.5">
+      <span class="icon">💰</span>
+      <span class="leading-tight text-[10px] sm:text-[11px]">Bán</span>
+    </a>
+    <a href="/kegs" class="active min-w-0 px-0.5">
+      <span class="icon">🍺</span>
+      <span class="leading-tight text-[10px] sm:text-[11px]">Vỏ</span>
+    </a>
+    <a href="/customers" class="text-gray-500 hover:text-emerald-600 min-w-0 px-0.5">
+      <span class="icon">👥</span>
+      <span class="leading-tight text-[10px] sm:text-[11px]">Khách</span>
+    </a>
+    <a href="/purchases" class="text-gray-500 hover:text-emerald-600 min-w-0 px-0.5">
+      <span class="icon">📦</span>
+      <span class="leading-tight text-[10px] sm:text-[11px]">Nhập</span>
+    </a>
   </nav>
 
   <!-- ========== MODALS ========== -->
 
-  <!-- Giao vỏ modal -->
+  <!-- Giao vỏ -->
   <div id="deliverModal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
     <div class="bg-white rounded-2xl w-full max-w-sm animate-fade">
       <div class="p-4 border-b flex justify-between items-center">
@@ -127,24 +154,36 @@
         <button onclick="closeModal('deliverModal')" class="text-2xl text-gray-400 hover:text-gray-600">&times;</button>
       </div>
       <div class="p-4 space-y-3">
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Khách hàng</label>
-          <select id="deliverCustomer" class="w-full border rounded-lg px-3 py-2"></select>
+        <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-2 flex justify-between text-xs">
+          <span class="text-gray-600">Vỏ sẵn có:</span>
+          <span class="font-bold text-emerald-700" id="deliverAvailQty">-</span>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Số lượng vỏ</label>
-          <input type="number" id="deliverQty" min="1" value="1" class="w-full border rounded-lg px-3 py-2 text-center text-xl font-bold">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Khách hàng</label>
+          <select id="deliverCustomer" class="w-full border rounded-lg px-3 py-2">
+            <option value="">-- Chọn khách hàng --</option>
+          </select>
+        </div>
+        <div class="flex gap-2">
+          <div class="flex-1">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Số lượng vỏ</label>
+            <input type="number" id="deliverQty" min="1" value="1" class="w-full border rounded-lg px-3 py-2 text-center text-xl font-bold">
+          </div>
+          <div class="flex gap-1 mt-7">
+            <button onclick="adjustQty('deliverQty', -1)" class="w-8 h-10 border rounded-lg text-lg font-bold hover:bg-gray-100">−</button>
+            <button onclick="adjustQty('deliverQty', 1)" class="w-8 h-10 border rounded-lg text-lg font-bold hover:bg-gray-100">+</button>
+          </div>
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
-          <input type="text" id="deliverNote" class="w-full border rounded-lg px-3 py-2" placeholder="VD: Giao vỏ theo đơn hàng">
+          <input type="text" id="deliverNote" class="w-full border rounded-lg px-3 py-2" placeholder="VD: Theo đơn hàng">
         </div>
         <button onclick="submitDeliver()" class="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold mt-2">Xác nhận giao</button>
       </div>
     </div>
   </div>
 
-  <!-- Thu vỏ modal -->
+  <!-- Thu vỏ -->
   <div id="collectModal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
     <div class="bg-white rounded-2xl w-full max-w-sm animate-fade">
       <div class="p-4 border-b flex justify-between items-center">
@@ -152,13 +191,25 @@
         <button onclick="closeModal('collectModal')" class="text-2xl text-gray-400 hover:text-gray-600">&times;</button>
       </div>
       <div class="p-4 space-y-3">
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Khách hàng</label>
-          <select id="collectCustomer" class="w-full border rounded-lg px-3 py-2"></select>
+        <div class="bg-blue-50 border border-blue-200 rounded-xl p-2 flex justify-between text-xs">
+          <span class="text-gray-600">Vỏ khách đang giữ:</span>
+          <span class="font-bold text-blue-700" id="collectAvailQty">-</span>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Số lượng vỏ</label>
-          <input type="number" id="collectQty" min="1" value="1" class="w-full border rounded-lg px-3 py-2 text-center text-xl font-bold">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Khách hàng</label>
+          <select id="collectCustomer" class="w-full border rounded-lg px-3 py-2" onchange="updateCollectAvail()">
+            <option value="">-- Chọn khách hàng --</option>
+          </select>
+        </div>
+        <div class="flex gap-2">
+          <div class="flex-1">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Số lượng vỏ</label>
+            <input type="number" id="collectQty" min="1" value="1" class="w-full border rounded-lg px-3 py-2 text-center text-xl font-bold">
+          </div>
+          <div class="flex gap-1 mt-7">
+            <button onclick="adjustQty('collectQty', -1)" class="w-8 h-10 border rounded-lg text-lg font-bold hover:bg-gray-100">−</button>
+            <button onclick="adjustQty('collectQty', 1)" class="w-8 h-10 border rounded-lg text-lg font-bold hover:bg-gray-100">+</button>
+          </div>
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
@@ -169,7 +220,40 @@
     </div>
   </div>
 
-  <!-- Điều chỉnh vỏ rỗng modal -->
+  <!-- Nhập vỏ -->
+  <div id="importModal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-sm animate-fade">
+      <div class="p-4 border-b flex justify-between items-center">
+        <h3 class="font-bold text-lg text-purple-700">🏭 Nhập vỏ từ nhà máy</h3>
+        <button onclick="closeModal('importModal')" class="text-2xl text-gray-400 hover:text-gray-600">&times;</button>
+      </div>
+      <div class="p-4 space-y-3">
+        <div class="bg-purple-50 border border-purple-200 rounded-xl p-2 flex justify-between text-xs">
+          <span class="text-gray-600">Vỏ rỗng hiện có:</span>
+          <span class="font-bold text-purple-700" id="importAvailEmpty">-</span>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Đổi vỏ (trả rỗng → lấy đầy)</label>
+          <input type="number" id="importExchanged" min="0" value="0" class="w-full border rounded-lg px-3 py-2 text-center text-lg font-bold" oninput="updateImportTotal()">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Mua vỏ mới</label>
+          <input type="number" id="importPurchased" min="0" value="0" class="w-full border rounded-lg px-3 py-2 text-center text-lg font-bold" oninput="updateImportTotal()">
+        </div>
+        <div class="bg-purple-50 rounded-xl p-2 text-center text-xs">
+          <span class="text-gray-600">Tổng nhập: </span>
+          <span class="font-bold text-purple-700" id="importTotalDisplay">0 vỏ</span>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
+          <input type="text" id="importNote" class="w-full border rounded-lg px-3 py-2" placeholder="VD: Nhập từ Bia Sài Gòn">
+        </div>
+        <button onclick="submitImport()" class="w-full bg-purple-600 text-white py-3 rounded-xl font-bold mt-2">Xác nhận nhập</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Điều chỉnh vỏ rỗng -->
   <div id="adjustModal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
     <div class="bg-white rounded-2xl w-full max-w-sm animate-fade">
       <div class="p-4 border-b flex justify-between items-center">
@@ -178,8 +262,11 @@
       </div>
       <div class="p-4 space-y-3">
         <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm">
-          <span class="font-semibold">Vỏ rỗng hiện tại:</span>
-          <span id="currentEmptyDisplay" class="ml-2 font-bold text-amber-700">-</span>
+          <div class="flex justify-between mb-1">
+            <span class="text-gray-600">Vỏ rỗng hiện tại:</span>
+            <span class="font-bold text-amber-700" id="currentEmptyDisplay">-</span>
+          </div>
+          <div class="text-xs text-gray-500">Dùng khi thực tế khác sổ sách</div>
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Số lượng vỏ rỗng mới</label>
@@ -194,32 +281,84 @@
     </div>
   </div>
 
+  <!-- Lịch sử chi tiết -->
+  <div id="historyModal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-2">
+    <div class="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col animate-fade">
+      <div class="p-4 border-b flex justify-between items-center flex-shrink-0">
+        <h3 class="font-bold text-lg text-gray-800">📋 Lịch sử giao dịch vỏ</h3>
+        <button onclick="closeModal('historyModal')" class="text-2xl text-gray-400 hover:text-gray-600">&times;</button>
+      </div>
+
+      <!-- Filter tabs -->
+      <div class="px-3 pt-2 flex-shrink-0">
+        <div class="flex gap-2 overflow-x-auto pb-2">
+          <button onclick="setHistoryFilter('all')" id="filterAll" class="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 whitespace-nowrap">Tất cả</button>
+          <button onclick="setHistoryFilter('deliver')" id="filterDeliver" class="px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600 whitespace-nowrap">📦 Giao</button>
+          <button onclick="setHistoryFilter('collect')" id="filterCollect" class="px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600 whitespace-nowrap">🔄 Thu</button>
+          <button onclick="setHistoryFilter('import')" id="filterImport" class="px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600 whitespace-nowrap">🏭 Nhập</button>
+          <button onclick="setHistoryFilter('adjust')" id="filterAdjust" class="px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600 whitespace-nowrap">⚙️ Điều chỉnh</button>
+        </div>
+        <div class="flex gap-2 mb-2">
+          <select id="historyCustomerFilter" class="flex-1 border rounded-lg px-2 py-1 text-xs" onchange="loadHistory()">
+            <option value="">-- Tất cả khách --</option>
+          </select>
+          <select id="historyPageSize" class="border rounded-lg px-2 py-1 text-xs" onchange="loadHistory()">
+            <option value="20">20 dòng</option>
+            <option value="50" selected>50 dòng</option>
+            <option value="100">100 dòng</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Summary chips -->
+      <div class="px-3 pb-2 flex-shrink-0">
+        <div class="grid grid-cols-4 gap-2 text-center">
+          <div class="bg-emerald-50 rounded-lg p-2">
+            <div class="text-xs text-gray-500">Đã giao</div>
+            <div class="text-sm font-bold text-emerald-600" id="summaryDelivered">-</div>
+          </div>
+          <div class="bg-blue-50 rounded-lg p-2">
+            <div class="text-xs text-gray-500">Đã thu</div>
+            <div class="text-sm font-bold text-blue-600" id="summaryCollected">-</div>
+          </div>
+          <div class="bg-purple-50 rounded-lg p-2">
+            <div class="text-xs text-gray-500">Đã nhập</div>
+            <div class="text-sm font-bold text-purple-600" id="summaryImported">-</div>
+          </div>
+          <div class="bg-amber-50 rounded-lg p-2">
+            <div class="text-xs text-gray-500">Điều chỉnh</div>
+            <div class="text-sm font-bold text-amber-600" id="summaryAdjusted">-</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- History list -->
+      <div class="flex-1 overflow-y-auto px-3 pb-3" id="historyListContainer">
+        <div id="historyList"></div>
+        <div class="flex justify-between items-center mt-3 pt-2 border-t" id="historyPagination">
+          <button onclick="changeHistoryPage(-1)" id="historyPrevBtn" class="px-3 py-1 rounded-lg border text-xs font-semibold disabled:opacity-40">← Trước</button>
+          <span class="text-xs text-gray-500" id="historyPageInfo">Trang 1/1</span>
+          <button onclick="changeHistoryPage(1)" id="historyNextBtn" class="px-3 py-1 rounded-lg border text-xs font-semibold disabled:opacity-40">Sau →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
     let kegState = {};
-    let transactionLog = [];
     let customers = [];
+    let historyFilter = 'all';
+    let historyPage = 1;
+    let historyTotalPages = 1;
 
-    function formatVND(amount) {
-      return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount || 0);
-    }
-
+    // ========== LOADING ==========
     async function loadState() {
       try {
         const res = await fetch('/api/kegs/state');
         kegState = await res.json();
         renderStats();
       } catch (e) {
-        console.error('Load state error:', e);
-      }
-    }
-
-    async function loadLog() {
-      try {
-        const res = await fetch('/api/kegs/history');
-        transactionLog = await res.json();
-        renderLog();
-      } catch (e) {
-        console.error('Load log error:', e);
+        showToast('Lỗi tải trạng thái vỏ', 'error');
       }
     }
 
@@ -233,100 +372,317 @@
       }
     }
 
+    async function syncKegs() {
+      try {
+        const res = await fetch('/api/kegs/sync');
+        const data = await res.json();
+        if (data.success) {
+          kegState = data.after;
+          renderStats();
+          showToast('Đã đồng bộ dữ liệu vỏ!', 'success');
+        }
+      } catch (e) {
+        showToast('Lỗi đồng bộ', 'error');
+      }
+    }
+
+    async function loadRecentLog() {
+      try {
+        const res = await fetch('/api/kegs/history?limit=20');
+        const json = await res.json();
+        renderLog(json.data || []);
+      } catch (e) {
+        console.error('Load log error:', e);
+      }
+    }
+
+    // ========== RENDER ==========
+    function renderStats() {
+      const { inventory = 0, emptyCollected = 0, customerHolding = 0 } = kegState;
+      const balance = inventory + emptyCollected - customerHolding;
+
+      document.getElementById('statInventory').textContent = inventory;
+      document.getElementById('statEmpty').textContent = emptyCollected;
+      document.getElementById('statHolding').textContent = customerHolding;
+      document.getElementById('statBalance').textContent = balance;
+      document.getElementById('currentEmptyDisplay').textContent = emptyCollected + ' vỏ';
+      document.getElementById('deliverAvailQty').textContent = inventory + ' vỏ';
+      document.getElementById('collectAvailQty').textContent = 'Chọn khách';
+      document.getElementById('importAvailEmpty').textContent = emptyCollected + ' vỏ';
+
+      const warn = document.getElementById('balanceWarning');
+      if (inventory <= 5) {
+        warn.classList.remove('hidden');
+        document.getElementById('balanceWarningMsg').textContent = `Chỉ còn ${inventory} vỏ! Cần nhập thêm từ nhà máy.`;
+      } else {
+        warn.classList.add('hidden');
+      }
+
+      const note = document.getElementById('statBalanceNote');
+      if (balance < 0) {
+        note.textContent = '⚠️ Số âm! Kiểm tra ngay';
+        note.classList.add('text-red-600');
+      } else {
+        note.textContent = 'Kho+Rỗng-Khách';
+        note.classList.remove('text-red-600');
+      }
+    }
+
     function populateCustomerSelects() {
       const opts = '<option value="">-- Chọn khách hàng --</option>' +
-        customers.map(c => `<option value="${c.id}">${c.name}${c.keg_balance ? ' (' + c.keg_balance + ' vỏ)' : ''}</option>`).join('');
+        customers.map(c => `<option value="${c.id}">${c.name}${c.keg_balance ? ' [' + c.keg_balance + ' vỏ]' : ''}</option>`).join('');
       document.getElementById('deliverCustomer').innerHTML = opts;
       document.getElementById('collectCustomer').innerHTML = opts;
+
+      const histOpts = '<option value="">-- Tất cả khách --</option>' +
+        customers.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+      document.getElementById('historyCustomerFilter').innerHTML = histOpts;
+    }
+
+    function updateCollectAvail() {
+      const cid = document.getElementById('collectCustomer').value;
+      if (!cid) {
+        document.getElementById('collectAvailQty').textContent = 'Chọn khách';
+        return;
+      }
+      const c = customers.find(x => x.id == cid);
+      document.getElementById('collectAvailQty').textContent = (c?.keg_balance || 0) + ' vỏ';
+    }
+
+    function typeBadgeClass(type) {
+      const map = {
+        'deliver': 'badge-deliver',
+        'collect': 'badge-collect',
+        'import': 'badge-import',
+        'adjust': 'badge-adjust',
+        'sell_empty': 'badge-sell_empty'
+      };
+      return 'inline-block px-2 py-0.5 rounded-full text-xs font-semibold ' + (map[type] || 'bg-gray-100 text-gray-600');
     }
 
     function typeLabel(type) {
       const map = {
-        'deliver': '📦 Giao vỏ',
-        'collect': '🔄 Thu vỏ',
-        'import': '🏭 Nhập vỏ',
-        'collect_return': '🔄 Thu vỏ (trả hàng)',
+        'deliver': '📦 Giao',
+        'collect': '🔄 Thu',
+        'import': '🏭 Nhập',
+        'adjust': '⚙️ Điều chỉnh',
         'sell_empty': '💰 Bán vỏ rỗng'
       };
       return map[type] || type;
     }
 
-    function typeColor(type) {
-      const map = {
-        'deliver': 'text-emerald-600',
-        'collect': 'text-blue-600',
-        'import': 'text-purple-600',
-        'collect_return': 'text-blue-600',
-        'sell_empty': 'text-amber-600'
-      };
-      return map[type] || 'text-gray-600';
-    }
-
-    function renderStats() {
-      const { inventory = 0, emptyCollected = 0, customerHolding = 0 } = kegState;
-      const balance = inventory + emptyCollected - customerHolding;
-
-      document.getElementById('statInventory').textContent = inventory + ' vỏ';
-      document.getElementById('statEmpty').textContent = emptyCollected + ' vỏ';
-      document.getElementById('statHolding').textContent = customerHolding + ' vỏ';
-      document.getElementById('statBalance').textContent = balance + ' vỏ';
-      document.getElementById('currentEmptyDisplay').textContent = emptyCollected + ' vỏ';
-    }
-
-    function renderLog() {
+    function renderLog(data) {
       const el = document.getElementById('logBody');
-      if (!transactionLog || transactionLog.length === 0) {
-        el.innerHTML = '<tr><td colspan="5" class="text-center py-6 text-gray-400">Chưa có giao dịch nào</td></tr>';
+      if (!data || data.length === 0) {
+        el.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-gray-400">Chưa có giao dịch nào</td></tr>';
         return;
       }
-      el.innerHTML = transactionLog.slice(0, 50).map(log => {
+      el.innerHTML = data.slice(0, 20).map(log => {
         const date = new Date(log.date).toLocaleString('vi-VN', {
           day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
         });
+        const customer = log.customer_name || (log.customer_id ? '(#' + log.customer_id + ')' : '—');
+        const note = log.note || '—';
         return `
-          <tr class="log-row border-b border-gray-100">
+          <tr class="log-row border-b border-gray-100 hover:bg-emerald-50 cursor-pointer"
+              onclick='showLogDetail(${JSON.stringify(log).replace(/'/g, "\\'")})'>
             <td class="py-2 px-2 text-xs text-gray-500">${date}</td>
-            <td class="py-2 px-2 text-xs font-semibold ${typeColor(log.type)}">${typeLabel(log.type)}</td>
+            <td class="py-2 px-2"><span class="${typeBadgeClass(log.type)}">${typeLabel(log.type)}</span></td>
             <td class="py-2 px-2 text-xs text-center font-bold">${log.quantity}</td>
-            <td class="py-2 px-2 text-xs text-center text-blue-600">${log.empty_after}</td>
-            <td class="py-2 px-2 text-xs text-center text-purple-600">${log.holding_after}</td>
+            <td class="py-2 px-2 text-xs text-center text-purple-600 truncate max-w-16" title="${customer}">${customer}</td>
+            <td class="py-2 px-2 text-xs text-gray-400 truncate max-w-16" title="${note}">${note}</td>
           </tr>
         `;
       }).join('');
     }
 
+    function showLogDetail(log) {
+      const date = new Date(log.date).toLocaleString('vi-VN');
+      const customer = log.customer_name || (log.customer_id ? 'Khách #' + log.customer_id : '—');
+      const note = log.note || '—';
+      const msg = `${typeLabel(log.type)}\n`
+        + `Thời gian: ${date}\n`
+        + `Khách hàng: ${customer}\n`
+        + `Số lượng: ${log.quantity} vỏ\n`
+        + `Tồn kho: ${log.inventory_after} vỏ\n`
+        + `Vỏ rỗng: ${log.empty_after} vỏ\n`
+        + `Khách giữ: ${log.holding_after} vỏ\n`
+        + `Ghi chú: ${note}`;
+      alert(msg);
+    }
+
+    // ========== HISTORY MODAL ==========
+    function openHistoryModal() {
+      openModal('historyModal');
+      loadHistory();
+    }
+
+    function setHistoryFilter(type) {
+      historyFilter = type;
+      historyPage = 1;
+      document.querySelectorAll('[id^="filter"]').forEach(el => {
+        el.classList.remove('bg-emerald-100', 'text-emerald-700');
+        el.classList.add('bg-gray-100', 'text-gray-600');
+      });
+      const map = { all: 'All', deliver: 'Deliver', collect: 'Collect', import: 'Import', adjust: 'Adjust' };
+      const active = document.getElementById('filter' + map[type]);
+      if (active) {
+        active.classList.remove('bg-gray-100', 'text-gray-600');
+        active.classList.add('bg-emerald-100', 'text-emerald-700');
+      }
+      loadHistory();
+    }
+
+    async function loadHistory() {
+      const limit = parseInt(document.getElementById('historyPageSize')?.value || 50);
+      const customerId = document.getElementById('historyCustomerFilter')?.value;
+      let url = `/api/kegs/history?page=${historyPage}&limit=${limit}`;
+      if (historyFilter !== 'all') url += `&type=${historyFilter}`;
+      if (customerId) url += `&customer_id=${customerId}`;
+
+      try {
+        const res = await fetch(url);
+        const json = await res.json();
+        const data = json.data || [];
+        historyTotalPages = json.pages || 1;
+        renderHistoryList(data);
+        renderHistorySummary(data);
+        renderHistoryPagination();
+      } catch (e) {
+        console.error('Load history error:', e);
+      }
+    }
+
+    function renderHistoryList(data) {
+      const el = document.getElementById('historyList');
+      if (!data || data.length === 0) {
+        el.innerHTML = '<div class="text-center py-8 text-gray-400">Không có giao dịch nào</div>';
+        return;
+      }
+      el.innerHTML = data.map(log => {
+        const date = new Date(log.date).toLocaleString('vi-VN', {
+          day: '2-digit', month: '2-digit', year: 'numeric',
+          hour: '2-digit', minute: '2-digit'
+        });
+        const customer = log.customer_name || (log.customer_id ? 'Khách #' + log.customer_id : '—');
+        const importInfo = (log.exchanged || log.purchased)
+          ? `<div class="text-xs text-purple-600">Đổi: ${log.exchanged || 0} | Mới: ${log.purchased || 0}</div>`
+          : '';
+        const note = log.note ? `<div class="text-xs text-gray-400 italic mt-1">${log.note}</div>` : '';
+        return `
+          <div class="bg-gray-50 rounded-xl p-3 mb-2 border border-gray-100">
+            <div class="flex justify-between items-start mb-1">
+              <div class="flex items-center gap-2">
+                <span class="${typeBadgeClass(log.type)}">${typeLabel(log.type)}</span>
+                <span class="text-sm font-bold">${log.quantity} vỏ</span>
+              </div>
+              <span class="text-xs text-gray-500">${date}</span>
+            </div>
+            <div class="text-xs text-gray-600 mb-1">👤 ${customer}</div>
+            ${importInfo}
+            <div class="grid grid-cols-3 gap-1 mt-2 text-xs text-center">
+              <div class="bg-white rounded p-1">
+                <div class="text-gray-400">Tồn kho</div>
+                <div class="font-bold text-emerald-600">${log.inventory_after}</div>
+              </div>
+              <div class="bg-white rounded p-1">
+                <div class="text-gray-400">Vỏ rỗng</div>
+                <div class="font-bold text-blue-600">${log.empty_after}</div>
+              </div>
+              <div class="bg-white rounded p-1">
+                <div class="text-gray-400">Khách giữ</div>
+                <div class="font-bold text-purple-600">${log.holding_after}</div>
+              </div>
+            </div>
+            ${note}
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderHistorySummary(data) {
+      const totals = data.reduce((acc, log) => {
+        acc.delivered += log.type === 'deliver' ? log.quantity : 0;
+        acc.collected += log.type === 'collect' ? log.quantity : 0;
+        acc.imported += log.type === 'import' ? log.quantity : 0;
+        acc.adjusted += (log.type === 'adjust' || log.type === 'sell_empty') ? log.quantity : 0;
+        return acc;
+      }, { delivered: 0, collected: 0, imported: 0, adjusted: 0 });
+      document.getElementById('summaryDelivered').textContent = totals.delivered + ' vỏ';
+      document.getElementById('summaryCollected').textContent = totals.collected + ' vỏ';
+      document.getElementById('summaryImported').textContent = totals.imported + ' vỏ';
+      document.getElementById('summaryAdjusted').textContent = totals.adjusted + ' vỏ';
+    }
+
+    function renderHistoryPagination() {
+      const info = document.getElementById('historyPageInfo');
+      const prev = document.getElementById('historyPrevBtn');
+      const next = document.getElementById('historyNextBtn');
+      if (info) info.textContent = `Trang ${historyPage}/${historyTotalPages}`;
+      if (prev) prev.disabled = historyPage <= 1;
+      if (next) next.disabled = historyPage >= historyTotalPages;
+    }
+
+    function changeHistoryPage(dir) {
+      historyPage = Math.max(1, Math.min(historyTotalPages, historyPage + dir));
+      loadHistory();
+    }
+
+    // ========== MODAL HELPERS ==========
     function openModal(id) {
-      document.getElementById(id).classList.remove('hidden');
-      document.getElementById(id).classList.add('flex');
+      const el = document.getElementById(id);
+      el.classList.remove('hidden');
+      el.classList.add('flex');
     }
 
     function closeModal(id) {
-      document.getElementById(id).classList.add('hidden');
-      document.getElementById(id).classList.remove('flex');
+      const el = document.getElementById(id);
+      el.classList.add('hidden');
+      el.classList.remove('flex');
     }
 
+    function adjustQty(inputId, delta) {
+      const input = document.getElementById(inputId);
+      const newVal = Math.max(parseInt(input.min || 0), parseInt(input.value || 0) + delta);
+      input.value = newVal;
+    }
+
+    function updateImportTotal() {
+      const ex = parseInt(document.getElementById('importExchanged').value) || 0;
+      const pu = parseInt(document.getElementById('importPurchased').value) || 0;
+      document.getElementById('importTotalDisplay').textContent = (ex + pu) + ' vỏ';
+    }
+
+    // ========== SUBMIT HANDLERS ==========
     async function submitDeliver() {
       const customerId = document.getElementById('deliverCustomer').value;
       const qty = parseInt(document.getElementById('deliverQty').value);
       const note = document.getElementById('deliverNote').value;
-
-      if (!customerId || !qty) { alert('Vui lòng chọn khách hàng và số lượng'); return; }
-
-      const res = await fetch('/api/kegs/deliver', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customerId, quantity: qty, note })
-      });
-      const result = await res.json();
-      if (res.ok) {
-        alert(result.message);
-        closeModal('deliverModal');
-        document.getElementById('deliverNote').value = '';
-        loadCustomers();
-        loadState();
-        loadLog();
-      } else {
-        alert(result.error || 'Thất bại');
+      if (!customerId) { showToast('Vui lòng chọn khách hàng', 'error'); return; }
+      if (!qty || qty < 1) { showToast('Số lượng phải lớn hơn 0', 'error'); return; }
+      if (kegState.inventory < qty) {
+        showToast(`Không đủ vỏ! Chỉ còn ${kegState.inventory} vỏ`, 'error'); return;
+      }
+      try {
+        const res = await fetch('/api/kegs/deliver', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ customerId, quantity: qty, note })
+        });
+        const result = await res.json();
+        if (res.ok) {
+          showToast(`Đã giao ${qty} vỏ cho khách!`, 'success');
+          closeModal('deliverModal');
+          document.getElementById('deliverNote').value = '';
+          document.getElementById('deliverQty').value = 1;
+          await loadCustomers();
+          await loadState();
+          await loadRecentLog();
+        } else {
+          showToast(result.error || 'Thất bại', 'error');
+        }
+      } catch (e) {
+        showToast('Lỗi kết nối', 'error');
       }
     }
 
@@ -334,56 +690,103 @@
       const customerId = document.getElementById('collectCustomer').value;
       const qty = parseInt(document.getElementById('collectQty').value);
       const note = document.getElementById('collectNote').value;
+      if (!customerId) { showToast('Vui lòng chọn khách hàng', 'error'); return; }
+      if (!qty || qty < 1) { showToast('Số lượng phải lớn hơn 0', 'error'); return; }
+      try {
+        const res = await fetch('/api/kegs/collect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ customerId, quantity: qty, note })
+        });
+        const result = await res.json();
+        if (res.ok) {
+          showToast(`Đã thu ${qty} vỏ rỗng!`, 'success');
+          closeModal('collectModal');
+          document.getElementById('collectNote').value = '';
+          document.getElementById('collectQty').value = 1;
+          await loadCustomers();
+          await loadState();
+          await loadRecentLog();
+        } else {
+          showToast(result.error || 'Thất bại', 'error');
+        }
+      } catch (e) {
+        showToast('Lỗi kết nối', 'error');
+      }
+    }
 
-      if (!customerId || !qty) { alert('Vui lòng chọn khách hàng và số lượng'); return; }
-
-      const res = await fetch('/api/kegs/collect', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customerId, quantity: qty, note })
-      });
-      const result = await res.json();
-      if (res.ok) {
-        alert(result.message);
-        closeModal('collectModal');
-        document.getElementById('collectNote').value = '';
-        loadCustomers();
-        loadState();
-        loadLog();
-      } else {
-        alert(result.error || 'Thất bại');
+    async function submitImport() {
+      const exchanged = parseInt(document.getElementById('importExchanged').value) || 0;
+      const purchased = parseInt(document.getElementById('importPurchased').value) || 0;
+      const note = document.getElementById('importNote').value;
+      if (exchanged + purchased < 1) { showToast('Phải nhập ít nhất 1 vỏ', 'error'); return; }
+      try {
+        const res = await fetch('/api/kegs/import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ exchanged, purchased, note })
+        });
+        const result = await res.json();
+        if (res.ok) {
+          showToast(result.message, 'success');
+          closeModal('importModal');
+          document.getElementById('importExchanged').value = 0;
+          document.getElementById('importPurchased').value = 0;
+          document.getElementById('importNote').value = '';
+          document.getElementById('importTotalDisplay').textContent = '0 vỏ';
+          await loadState();
+          await loadRecentLog();
+        } else {
+          showToast(result.error || 'Thất bại', 'error');
+        }
+      } catch (e) {
+        showToast('Lỗi kết nối', 'error');
       }
     }
 
     async function submitAdjust() {
       const qty = parseInt(document.getElementById('adjustQty').value);
       const note = document.getElementById('adjustNote').value;
-
-      if (isNaN(qty) || qty < 0) { alert('Số lượng không hợp lệ'); return; }
-
-      const res = await fetch('/api/kegs/state', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ emptyCollected: qty, note })
-      });
-      const result = await res.json();
-      if (res.ok) {
-        alert('Đã cập nhật vỏ rỗng');
-        closeModal('adjustModal');
-        loadState();
-        loadLog();
-      } else {
-        alert(result.error || 'Thất bại');
+      if (isNaN(qty) || qty < 0) { showToast('Số lượng không hợp lệ', 'error'); return; }
+      try {
+        const res = await fetch('/api/kegs/state', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ emptyCollected: qty, note })
+        });
+        const result = await res.json();
+        if (res.ok) {
+          showToast('Đã cập nhật vỏ rỗng', 'success');
+          closeModal('adjustModal');
+          document.getElementById('adjustNote').value = '';
+          await loadState();
+          await loadRecentLog();
+        } else {
+          showToast(result.error || 'Thất bại', 'error');
+        }
+      } catch (e) {
+        showToast('Lỗi kết nối', 'error');
       }
     }
 
+    // ========== INIT ==========
     async function init() {
       await loadCustomers();
       await loadState();
-      await loadLog();
+      await loadRecentLog();
     }
-
     init();
+  </script>
+  <script src="/js/vendor/dexie.min.js"></script>
+  <script src="/db.js"></script>
+  <script src="/sync.js"></script>
+  <script>
+  // Service Worker — bật offline-first caching
+  if ('serviceWorker' in navigator) {
+    if (!navigator.serviceWorker.controller) {
+      navigator.serviceWorker.register('/sw.js').catch(err => console.log('[SW] Registration failed:', err));
+    }
+  }
   </script>
 </body>
 </html>

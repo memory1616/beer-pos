@@ -120,7 +120,8 @@
     </a>
   </nav>
 
-  <!-- Load purchases JS first -->
+  <!-- Load Utils (formatVND, showToast) then Purchases JS -->
+  <script src="/js/utils.js"></script>
   <script src="/js/purchases.js"></script>
   
   <script>
@@ -250,17 +251,20 @@
     loadData();
   </script>
   
+  <script src="/js/vendor/dexie.min.js"></script>
+  <script src="/db.js"></script>
   <script src="/js/debug.js"></script>
   <script>
   // Check authentication
   if (!isLoggedIn()) { window.location.href = '/login'; }
-  
-  // Disable service worker in development to avoid cache issues
-  // if ('serviceWorker' in navigator) {
-  //   if (!navigator.serviceWorker.controller) {
-  //     navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW registration failed:', err));
-  //   }
-  // }
+
+  // Service Worker — bật offline-first caching
+  if ('serviceWorker' in navigator) {
+    if (!navigator.serviceWorker.controller) {
+      navigator.serviceWorker.register('/sw.js').catch(err => console.log('[SW] Registration failed:', err));
+    }
+  }
   </script>
+  <script src="/sync.js"></script>
 </body>
 </html>

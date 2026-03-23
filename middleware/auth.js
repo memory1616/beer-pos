@@ -1,51 +1,78 @@
 // ==================== AUTHENTICATION ====================
-// Simple session-based authentication for Beer POS
+// Session-based auth for Beer POS
+// Token stored in httpOnly cookie (not localStorage) to prevent XSS theft
 const crypto = require('crypto');
 
-// In-memory session store (use Redis for production)
+// In-memory session store
 const sessions = {};
 
-// Config - change password here
+// Config from env (ADMIN_PASSWORD MUST be set in .env for security)
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+if (!ADMIN_PASSWORD) {
+  console.error('FATAL: ADMIN_PASSWORD is not set in environment variables.');
+  console.error('Please set ADMIN_PASSWORD in your .env file.');
+  process.exit(1);
+}
+
 const AUTH_CONFIG = {
-  username: 'admin',
-  password: 'beer123',  // CHANGE THIS PASSWORD!
-  sessionDuration: 24 * 60 * 60 * 1000 // 24 hours
+  username: process.env.ADMIN_USER || 'admin',
+  sessionDuration: parseInt(process.env.SESSION_DURATION_MS) || (24 * 60 * 60 * 1000), // 24h default
+  cookieName: 'session_token',
+  cookieSecure: process.env.NODE_ENV === 'production',
+  cookieSameSite: 'lax'
 };
 
-// Generate session token
+// Periodic cleanup of expired sessions (runs every 30 minutes)
+setInterval(() => {
+  const now = Date.now();
+  let cleaned = 0;
+  for (const token of Object.keys(sessions)) {
+    if (now > sessions[token].expiresAt) {
+      delete sessions[token];
+      cleaned++;
+    }
+  }
+  if (cleaned > 0) {
+    console.log(`[Auth] Cleaned up ${cleaned} expired session(s)`);
+  }
+}, 30 * 60 * 1000);
+
+// Generate a cryptographically random session token
 function generateToken() {
   return crypto.randomBytes(32).toString('hex');
 }
 
-// Auth middleware
+// Auth middleware — reads token from cookie OR Authorization header
 function requireAuth(req, res, next) {
-  const token = req.headers.authorization?.replace('Bearer ', '') || 
-                req.cookies?.sessionToken ||
-                req.query?.token;
-  
+  const cookieToken = req.cookies?.[AUTH_CONFIG.cookieName];
+  const headerToken = req.headers.authorization?.replace('Bearer ', '');
+  const queryToken = req.query?.token;
+
+  const token = cookieToken || headerToken || queryToken;
+
   if (!token) {
     return res.status(401).json({ error: 'Unauthorized', loginRequired: true });
   }
-  
+
   const session = sessions[token];
   if (!session) {
     return res.status(401).json({ error: 'Session expired', loginRequired: true });
   }
-  
+
   if (Date.now() > session.expiresAt) {
     delete sessions[token];
     return res.status(401).json({ error: 'Session expired', loginRequired: true });
   }
-  
+
   // Extend session on activity
   session.expiresAt = Date.now() + AUTH_CONFIG.sessionDuration;
   req.user = session;
   next();
 }
 
-// Login handler
+// Login — sets httpOnly cookie instead of returning token to JS
 function login(username, password) {
-  if (username === AUTH_CONFIG.username && password === AUTH_CONFIG.password) {
+  if (username === AUTH_CONFIG.username && password === ADMIN_PASSWORD) {
     const token = generateToken();
     sessions[token] = {
       username,
@@ -57,7 +84,7 @@ function login(username, password) {
   return null;
 }
 
-// Logout handler
+// Logout — clears the session and cookie
 function logout(token) {
   if (token && sessions[token]) {
     delete sessions[token];
@@ -75,10 +102,21 @@ function getSession(token) {
   return session;
 }
 
+// Middleware options for setting the auth cookie
+function cookieOptions() {
+  return {
+    httpOnly: true,
+    secure: AUTH_CONFIG.cookieSecure,
+    sameSite: AUTH_CONFIG.cookieSameSite,
+    maxAge: AUTH_CONFIG.sessionDuration
+  };
+}
+
 module.exports = {
   requireAuth,
   login,
   logout,
   getSession,
-  AUTH_CONFIG
+  AUTH_CONFIG,
+  cookieOptions
 };

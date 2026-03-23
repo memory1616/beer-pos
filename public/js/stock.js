@@ -1,12 +1,9 @@
 // Stock Page JavaScript
 // Tách riêng để dễ bảo trì và cache
+// formatVND, showToast được định nghĩa trong utils.js (global)
 
 let currentProducts = [];
 let importData = {}; // Store import data by productId
-
-function formatVND(amount) {
-  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
-}
 
 function initStockPage(data) {
   // Render products

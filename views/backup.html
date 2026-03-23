@@ -200,8 +200,17 @@
   <script>
   // Check authentication
   if (!isLoggedIn()) { window.location.href = '/login'; }
-  
-  // Disable service worker in development
+
+  // Service Worker — bật offline-first caching
+  if ('serviceWorker' in navigator) {
+    if (!navigator.serviceWorker.controller) {
+      navigator.serviceWorker.register('/sw.js').catch(err => console.log('[SW] Registration failed:', err));
+    }
+  }
   </script>
+  <script src="/js/vendor/dexie.min.js"></script>
+  <script src="/db.js"></script>
+  <script src="/js/utils.js"></script>
+  <script src="/sync.js"></script>
 </body>
 </html>

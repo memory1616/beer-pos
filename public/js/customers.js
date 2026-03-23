@@ -249,17 +249,45 @@ function editCustomer(id, name, phone, deposit) {
   document.getElementById('editId').value = id;
   document.getElementById('editName').value = name;
   document.getElementById('editPhone').value = phone;
-  document.getElementById('editDeposit').value = deposit;
-  
-  // Load fridge counts
+
+  const depEl = document.getElementById('editDeposit');
+  depEl.value = deposit != null ? String(deposit) : '0';
+  if (typeof formatNumberInput === 'function') {
+    formatNumberInput(depEl, true);
+  }
+
+  // Load fridge counts and exclude_expected
   fetch('/api/customers/' + id)
     .then(res => res.json())
     .then(data => {
       document.getElementById('editHorizontalFridge').value = data.horizontal_fridge || 0;
       document.getElementById('editVerticalFridge').value = data.vertical_fridge || 0;
+      document.getElementById('editExcludeExpected').checked = data.exclude_expected === 1;
     });
-  
+
   showModal('editModal');
+
+  // Auto focus vào Tên sau khi modal mở
+  setTimeout(() => {
+    const el = document.getElementById('editName');
+    if (el) { el.focus(); el.select(); }
+  }, 150);
+}
+
+// Nút + / − cho số lượng tủ
+function adjustQty(inputId, delta) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const min = parseInt(input.min) || 0;
+  let val = parseInt(input.value) || 0;
+  val = Math.max(min, val + delta);
+  input.value = val;
+  input.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+// Giữ input không âm
+function clampQty(input, _min) {
+  if (parseInt(input.value) < 0) input.value = 0;
 }
 
 async function saveCustomerEdit() {
@@ -267,26 +295,27 @@ async function saveCustomerEdit() {
   const name = document.getElementById('editName').value;
   const phone = document.getElementById('editPhone').value || null;
   const deposit = parseFormattedNumber(document.getElementById('editDeposit').value);
-  const horizontal_fridge = parseInt(document.getElementById('editHorizontalFridge').value.replace(/,/g, '')) || 0;
-  const vertical_fridge = parseInt(document.getElementById('editVerticalFridge').value.replace(/,/g, '')) || 0;
-  
+  const horizontal_fridge = parseInt(document.getElementById('editHorizontalFridge').value) || 0;
+  const vertical_fridge = parseInt(document.getElementById('editVerticalFridge').value) || 0;
+  const exclude_expected = document.getElementById('editExcludeExpected').checked ? 1 : 0;
+
   if (!id) {
     alert('Lỗi: Không tìm thấy ID khách hàng');
     return;
   }
-  
+
   if (!name || name.trim() === '') {
     alert('Vui lòng nhập tên khách hàng');
     return;
   }
-  
+
   try {
     const res = await fetch('/api/customers/' + id, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, phone, deposit, horizontal_fridge, vertical_fridge })
+      body: JSON.stringify({ name, phone, deposit, horizontal_fridge, vertical_fridge, exclude_expected })
     });
-    
+
     if (res.ok) {
       hideModal('editModal');
       location.reload();

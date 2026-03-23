@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../../database');
+const logger = require('../../src/utils/logger');
 
 function formatVND(amount) {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
@@ -44,7 +45,7 @@ router.get('/profit-by-product', (req, res) => {
       summary: { totalRevenue, totalCost, totalProfit }
     });
   } catch (err) {
-    console.error(err);
+    logger.error('Error fetching analytics', { error: err.message });
     res.status(500).json({ error: 'Error getting profit by product' });
   }
 });
@@ -60,7 +61,7 @@ router.get('/profit-by-customer', (req, res) => {
         c.name,
         COUNT(s.id) as total_orders,
         SUM(s.total) as revenue,
-        SUM(s.total - (SELECT SUM(si.quantity * si.cost_price) FROM sale_items si WHERE si.sale_id = s.id)) as profit
+        SUM(s.profit) as profit
       FROM sales s
       JOIN customers c ON c.id = s.customer_id
     `;
@@ -83,7 +84,7 @@ router.get('/profit-by-customer', (req, res) => {
       summary: { totalRevenue, totalProfit }
     });
   } catch (err) {
-    console.error(err);
+    logger.error('Error fetching analytics', { error: err.message });
     res.status(500).json({ error: 'Error getting profit by customer' });
   }
 });
@@ -154,7 +155,7 @@ router.get('/daily-cashflow', (req, res) => {
       summary: { totalRevenue, totalExpense, totalProfit, netCash }
     });
   } catch (err) {
-    console.error(err);
+    logger.error('Error fetching analytics', { error: err.message });
     res.status(500).json({ error: 'Error getting cashflow' });
   }
 });
@@ -216,7 +217,7 @@ router.get('/customer-history/:customerId', (req, res) => {
     
     res.json({ customer, orders: orderDetails, summary });
   } catch (err) {
-    console.error(err);
+    logger.error('Error fetching analytics', { error: err.message });
     res.status(500).json({ error: 'Error getting customer history' });
   }
 });

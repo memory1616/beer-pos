@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Đăng nhập - Beer POS</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#1e40af">
+  <meta name="mobile-web-app-capable" content="yes">
   <link rel="stylesheet" href="/css/tailwind.css">
   <style>
     body {
@@ -64,51 +67,37 @@
         <span>Đăng nhập</span>
       </button>
     </form>
-
-    <!-- Demo Info -->
-    <div class="mt-6 text-center text-sm text-gray-500">
-      <p>Demo: admin / beer123</p>
-    </div>
   </div>
 
   <script>
-    // Check if already logged in
-    const token = localStorage.getItem('sessionToken');
-    if (token) {
-      // Try to validate token by calling API
-      fetch('/api/ping', {
-        headers: { 'Authorization': 'Bearer ' + token }
-      }).then(() => {
-        window.location.href = '/';
-      }).catch(() => {
-        localStorage.removeItem('sessionToken');
-      });
+    // Check if already logged in (UI state — real auth validated by server via httpOnly cookie)
+    if (sessionStorage.getItem('auth_uid') === '1') {
+      window.location.href = '/';
     }
 
     async function handleLogin(e) {
       e.preventDefault();
-      
+
       const btn = document.getElementById('submitBtn');
       const errorDiv = document.getElementById('error');
       const username = document.getElementById('username').value;
       const password = document.getElementById('password').value;
-      
+
       btn.disabled = true;
       btn.innerHTML = '<span class="animate-spin">⏳</span> Đang đăng nhập...';
       errorDiv.classList.add('hidden');
-      
+
       try {
         const res = await fetch('/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username, password })
         });
-        
+
         const data = await res.json();
-        
+
         if (data.success) {
-          // Store token
-          localStorage.setItem('sessionToken', data.token);
+          sessionStorage.setItem('auth_uid', '1');
           window.location.href = data.redirect || '/';
         } else {
           errorDiv.textContent = data.error || 'Đăng nhập thất bại';
@@ -118,7 +107,7 @@
         errorDiv.textContent = 'Lỗi kết nối: ' + err.message;
         errorDiv.classList.remove('hidden');
       }
-      
+
       btn.disabled = false;
       btn.innerHTML = '<span>Đăng nhập</span>';
     }
@@ -129,6 +118,15 @@
         handleLogin(e);
       }
     });
+  </script>
+
+  <!-- Service Worker — cache trang login để offline -->
+  <script>
+  if ('serviceWorker' in navigator) {
+    if (!navigator.serviceWorker.controller) {
+      navigator.serviceWorker.register('/sw.js').catch(err => console.log('[SW] Registration failed:', err));
+    }
+  }
   </script>
 </body>
 </html>

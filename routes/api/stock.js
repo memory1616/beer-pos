@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../../database');
+const logger = require('../../src/utils/logger');
 const { syncKegInventory } = require('./products');
 
 // Validate ID parameter
@@ -65,7 +66,7 @@ router.get('/alerts', (req, res) => {
       products: products
     });
   } catch (err) {
-    console.error('Error fetching stock alerts:', err);
+    logger.error('Error fetching stock alerts', { error: err.message });
     res.status(500).json({ error: 'Lỗi khi lấy cảnh báo tồn kho' });
   }
 });
@@ -113,7 +114,7 @@ router.get('/history', (req, res) => {
       res.json([]);
     }
   } catch (err) {
-    console.error('Error fetching stock history:', err);
+    logger.error('Error fetching stock history', { error: err.message });
     res.status(500).json({ error: 'Lỗi khi lấy lịch sử kho' });
   }
 });
@@ -139,7 +140,7 @@ router.post('/', (req, res) => {
     db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(qty, prodId);
     res.json(db.prepare('SELECT * FROM products WHERE id = ?').get(prodId));
   } catch (err) {
-    console.error('Error importing stock:', err);
+    logger.error('Error importing stock', { error: err.message });
     res.status(500).json({ error: 'Lỗi khi nhập kho' });
   }
 });
@@ -167,7 +168,7 @@ router.post('/set', (req, res) => {
     db.prepare('UPDATE products SET stock = ? WHERE id = ?').run(parseInt(stock), prodId);
     res.json(db.prepare('SELECT * FROM products WHERE id = ?').get(prodId));
   } catch (err) {
-    console.error('Error setting stock:', err);
+    logger.error('Error setting stock', { error: err.message });
     res.status(500).json({ error: 'Lỗi khi cập nhật tồn kho' });
   }
 });
@@ -227,7 +228,7 @@ router.post('/multiple', (req, res) => {
     for (const item of validItems) {
       const product = db.prepare('SELECT type FROM products WHERE id = ?').get(item.productId);
       const productType = (product?.type || 'keg').toLowerCase();
-      if (['keg', 'can'].includes(productType)) {
+      if (['keg', 'box'].includes(productType)) {
         totalKegs += item.quantity;
       }
     }
@@ -248,7 +249,7 @@ router.post('/multiple', (req, res) => {
         VALUES ('import', ?, 0, ?, 0, ?)
       `).run(totalKegs, newEmpty, 'Nhập kho từ trang stock');
 
-      console.log('[STOCK MULTIPLE] Empty before:', currentEmpty, '| totalKegs:', totalKegs, '| Empty after:', newEmpty);
+      logger.debug('Stock multiple import', { emptyBefore: currentEmpty, totalKegs, emptyAfter: newEmpty });
     }
 
     // Sync keg inventory
@@ -256,7 +257,7 @@ router.post('/multiple', (req, res) => {
 
     res.json({ purchase_id: purchaseId, total_amount: totalAmount, items: results });
   } catch (err) {
-    console.error('Error bulk importing stock:', err);
+    logger.error('Error bulk importing stock', { error: err.message });
     res.status(500).json({ error: 'Lỗi khi nhập kho' });
   }
 });

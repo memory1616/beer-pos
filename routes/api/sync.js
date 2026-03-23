@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../../database');
+const logger = require('../../src/utils/logger');
 
 // ============ OFFLINE-FIRST SYNC ============
 // Hệ thống đồng bộ đa thiết bị:
@@ -66,7 +67,7 @@ router.post('/push', (req, res) => {
 
     res.json({ success: true, synced, conflicts, synced_at: new Date().toISOString() });
   } catch (err) {
-    console.error('Sync push error:', err);
+    logger.error('Sync push error', { error: err.message });
     res.status(500).json({ error: err.message });
   }
 });
@@ -81,15 +82,28 @@ router.post('/pull', (req, res) => {
     const changes = {};
 
     tablesToQuery.forEach(table => {
-      const rows = db.prepare(`
-        SELECT * FROM ${table}
-        WHERE (updated_at > ? AND updated_at IS NOT NULL) OR created_at > ?
-        ORDER BY updated_at ASC
-        LIMIT 1000
-      `).all(lastSync, lastSync);
+      try {
+        // Check if table exists and has required columns before querying
+        const tableInfo = db.prepare(`PRAGMA table_info(${table})`).all();
+        const columnNames = tableInfo.map(col => col.name);
+        const hasUpdatedAt = columnNames.includes('updated_at');
+        const hasCreatedAt = columnNames.includes('created_at');
 
-      if (rows.length > 0) {
-        changes[table] = rows;
+        if (!hasUpdatedAt && !hasCreatedAt) return; // Skip tables without sync columns
+
+        const rows = db.prepare(`
+          SELECT * FROM ${table}
+          WHERE (updated_at > ? AND updated_at IS NOT NULL) OR created_at > ?
+          ORDER BY updated_at ASC
+          LIMIT 1000
+        `).all(lastSync, lastSync);
+
+        if (rows.length > 0) {
+          changes[table] = rows;
+        }
+      } catch (tableErr) {
+        // Table doesn't exist, skip silently
+        logger.warn(`Skipping sync for non-existent table: ${table}`);
       }
     });
 
@@ -109,7 +123,7 @@ router.post('/pull', (req, res) => {
       lastSync
     });
   } catch (err) {
-    console.error('Sync pull error:', err);
+    logger.error('Sync pull error', { error: err.message });
     res.status(500).json({ error: err.message });
   }
 });

@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../../database');
+const logger = require('../../src/utils/logger');
 
 // Sanitize input
 function sanitizeInput(input) {
@@ -48,7 +49,7 @@ router.get('/', (req, res) => {
     const devices = db.prepare(query).all(...params);
     res.json(devices);
   } catch (err) {
-    console.error('Error fetching devices:', err);
+    logger.error('Error fetching devices', { error: err.message });
     res.status(500).json({ error: 'Lỗi khi lấy danh sách thiết bị' });
   }
 });
@@ -69,7 +70,7 @@ router.get('/:id', (req, res) => {
     if (!device) return res.status(404).json({ error: 'Không tìm thấy thiết bị' });
     res.json(device);
   } catch (err) {
-    console.error('Error fetching device:', err);
+    logger.error('Error fetching device', { error: err.message });
     res.status(500).json({ error: 'Lỗi khi lấy thiết bị' });
   }
 });
@@ -119,7 +120,7 @@ router.post('/', (req, res) => {
       message: 'Thêm thiết bị thành công' 
     });
   } catch (err) {
-    console.error('Error creating device:', err);
+    logger.error('Error creating device', { error: err.message });
     res.status(500).json({ error: 'Lỗi khi thêm thiết bị' });
   }
 });
@@ -182,7 +183,7 @@ router.put('/:id', (req, res) => {
     
     res.json({ message: 'Cập nhật thiết bị thành công' });
   } catch (err) {
-    console.error('Error updating device:', err);
+    logger.error('Error updating device', { error: err.message });
     res.status(500).json({ error: 'Lỗi khi cập nhật thiết bị' });
   }
 });
@@ -200,7 +201,7 @@ router.delete('/:id', (req, res) => {
     
     res.json({ message: 'Xóa thiết bị thành công' });
   } catch (err) {
-    console.error('Error deleting device:', err);
+    logger.error('Error deleting device', { error: err.message });
     res.status(500).json({ error: 'Lỗi khi xóa thiết bị' });
   }
 });
@@ -237,7 +238,7 @@ router.post('/:id/assign', (req, res) => {
     
     res.json({ message: 'Đã gán thiết bị cho khách hàng' });
   } catch (err) {
-    console.error('Error assigning device:', err);
+    logger.error('Error assigning device', { error: err.message });
     res.status(500).json({ error: 'Lỗi khi gán thiết bị' });
   }
 });
@@ -258,7 +259,7 @@ router.get('/stats/summary', (req, res) => {
     
     res.json(stats);
   } catch (err) {
-    console.error('Error fetching device stats:', err);
+    logger.error('Error fetching device stats', { error: err.message });
     res.status(500).json({ error: 'Lỗi khi lấy thống kê thiết bị' });
   }
 });

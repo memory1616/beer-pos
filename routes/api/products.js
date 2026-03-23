@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../../database');
+const logger = require('../../src/utils/logger');
 
 // ========== HELPER: Sync keg_stats.inventory with products stock ==========
 // Call this whenever product stock (type='keg') changes
@@ -14,10 +15,10 @@ function syncKegInventory() {
     
     const result = db.prepare("SELECT COALESCE(SUM(stock), 0) as total FROM products WHERE type = 'keg'").get();
     db.prepare('UPDATE keg_stats SET inventory = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run(result.total);
-    console.log('[SYNC] Keg inventory synced:', result.total);
+    logger.info('Keg inventory synced', { total: result.total });
     return result.total;
   } catch (err) {
-    console.error('Sync keg inventory error:', err);
+    logger.error('Sync keg inventory error', { error: err.message });
     return null;
   }
 }
@@ -63,8 +64,8 @@ function validateProductInput(body, isUpdate = false) {
   }
 
   // Validate type
-  if (type && !['keg', 'pet', 'can'].includes(type)) {
-    errors.push('Loại sản phẩm không hợp lệ (keg, pet, can)');
+  if (type && !['keg', 'pet', 'box'].includes(type)) {
+    errors.push('Loại sản phẩm không hợp lệ (keg, pet, box)');
   }
 
   return { valid: errors.length === 0, errors };
@@ -76,7 +77,7 @@ router.get('/', (req, res) => {
     const products = db.prepare('SELECT * FROM products ORDER BY name').all();
     res.json(products);
   } catch (err) {
-    console.error('Error fetching products:', err);
+    logger.error('Error fetching products', { error: err.message });
     res.status(500).json({ error: 'Lỗi khi lấy danh sách sản phẩm' });
   }
 });
@@ -95,7 +96,7 @@ router.get('/prices', (req, res) => {
     }
     res.json(db.prepare(`SELECT pr.*, c.name as customer_name, p.name as product_name FROM prices pr JOIN customers c ON pr.customer_id = c.id JOIN products p ON pr.product_id = p.id`).all());
   } catch (err) {
-    console.error('Error fetching prices:', err);
+    logger.error('Error fetching prices', { error: err.message });
     res.status(500).json({ error: 'Lỗi khi lấy danh sách giá' });
   }
 });
@@ -126,7 +127,7 @@ router.post('/prices', (req, res) => {
     db.prepare(`INSERT OR REPLACE INTO prices (customer_id, product_id, price) VALUES (?, ?, ?)`).run(custId, prodId, priceValue);
     res.json({ success: true });
   } catch (err) {
-    console.error('Error saving price:', err);
+    logger.error('Error saving price', { error: err.message });
     res.status(500).json({ error: 'Lỗi khi lưu giá' });
   }
 });
@@ -155,7 +156,7 @@ router.post('/prices/bulk', (req, res) => {
 
     res.json({ success: true });
   } catch (err) {
-    console.error('Error saving bulk prices:', err);
+    logger.error('Error saving bulk prices', { error: err.message });
     res.status(500).json({ error: 'Lỗi khi lưu giá' });
   }
 });
@@ -186,7 +187,7 @@ router.post('/', (req, res) => {
 router.put('/:id', (req, res) => {
   const { name, stock, cost_price, type } = req.body;
   const productType = type || 'keg';
-  db.prepare('UPDATE products SET name = ?, stock = ?, cost_price = ?, type = ? WHERE id = ?').run(name, parseInt(stock), parseFloat(cost_price) || 0, productType, req.params.id);
+    db.prepare('UPDATE products SET name = ?, stock = ?, cost_price = ?, type = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(name, parseInt(stock), parseFloat(cost_price) || 0, productType, req.params.id);
   
   // Sync keg inventory if this is a keg product
   if (productType === 'keg') {

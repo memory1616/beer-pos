@@ -4,6 +4,8 @@
  * @module storage
  */
 
+const logger = require('../utils/logger');
+
 const STORAGE_PREFIX = 'beer_pos_';
 
 /**
@@ -18,7 +20,7 @@ function saveData(key, data) {
     localStorage.setItem(fullKey, JSON.stringify(data));
     return true;
   } catch (e) {
-    console.error('Storage save error:', e);
+    logger.error('Storage save error', { error: e.message });
     return false;
   }
 }
@@ -39,7 +41,7 @@ function loadData(key, defaultValue) {
     }
     return JSON.parse(item);
   } catch (e) {
-    console.error('Storage load error:', e);
+    logger.error('Storage load error', { error: e.message });
     return defaultValue !== undefined ? defaultValue : [];
   }
 }
@@ -56,7 +58,7 @@ function removeData(key) {
     localStorage.removeItem(fullKey);
     return true;
   } catch (e) {
-    console.error('Storage remove error:', e);
+    logger.error('Storage remove error', { error: e.message });
     return false;
   }
 }
@@ -78,7 +80,7 @@ function clearAll() {
     keysToRemove.forEach(key => localStorage.removeItem(key));
     return true;
   } catch (e) {
-    console.error('Storage clear error:', e);
+    logger.error('Storage clear error', { error: e.message });
     return false;
   }
 }

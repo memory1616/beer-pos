@@ -1,6 +1,6 @@
 // Sales Page JavaScript
 // Tách riêng để dễ bảo trì và cache
-// formatVND, showLoading, hideLoading, showToast đã được định nghĩa trong utils.js
+// formatVND, showToast đã được định nghĩa trong utils.js
 
 let products = [];
 let priceMap = {};
@@ -223,7 +223,7 @@ function quickAddProduct(amount) {
 
   // Add to first product (or you can customize this logic)
   const product = availableProducts[0];
-  const input = document.getElementById('input-' + product.id);
+  const input = document.getElementById('qty-' + product.id);
   const currentQty = parseInt(input.value) || 0;
   const maxAdd = product.stock - currentQty;
   const toAdd = Math.min(amount, maxAdd);
@@ -234,20 +234,20 @@ function quickAddProduct(amount) {
   }
 
   input.value = currentQty + toAdd;
-  document.getElementById('qty-' + product.id).textContent = currentQty + toAdd;
-  updateCartFromInputs();
+  updateSaleData(product.id, 'quantity', currentQty + toAdd);
+  updateSaleTotal();
 }
 
 // Change quantity with +/- buttons
 function changeQty(productId, delta) {
-  const input = document.getElementById('input-' + productId);
+  const input = document.getElementById('qty-' + productId);
   if (input) {
     const currentVal = parseInt(input.value) || 0;
-    const stock = parseInt(input.dataset.stock);
+    const stock = parseInt(input.max) || 999;
     const newVal = Math.max(0, Math.min(currentVal + delta, stock));
     input.value = newVal;
-    document.getElementById('qty-' + productId).textContent = newVal;
-    updateCartFromInputs();
+    updateSaleData(productId, 'quantity', newVal);
+    updateSaleTotal();
   }
 }
 
@@ -310,19 +310,17 @@ function updateCartFromInputs() {
   let total = 0;
 
   products.forEach(p => {
-    const input = document.getElementById('input-' + p.id);
+    const input = document.getElementById('qty-' + p.id);
     const qty = parseInt(input.value) || 0;
     if (qty > 0) {
       const productId = p.id;
-      const stock = parseInt(input.dataset.stock);
-      const costPrice = parseFloat(input.dataset.costPrice) || 0;
-      const priceEl = document.getElementById('price-' + productId);
-      const price = parseFloat(priceEl.dataset.price) || 0;
+      const stock = parseInt(input.max) || 0;
+      const costPrice = p.cost_price || 0;
+      const price = p._displayPrice || p.sell_price || 0;
 
       if (qty > stock) {
         alert('Sản phẩm ' + p.name + ' không đủ tồn kho');
         input.value = stock;
-        document.getElementById('qty-' + productId).textContent = stock;
       }
 
       cart.push({ productId, quantity: qty, price, costPrice });
@@ -368,11 +366,9 @@ async function submitSale() {
     }
   }
 
-  // Show loading
   const btn = document.getElementById('sellBtn');
   btn.disabled = true;
   btn.textContent = 'Đang xử lý...';
-  showLoading('Đang tạo hóa đơn...');
 
   try {
     const res = await fetch('/api/sales', {
@@ -408,7 +404,6 @@ async function submitSale() {
     console.error('Sale error:', err);
     showToast('Lỗi kết nối, vui lòng thử lại', 'error');
   } finally {
-    hideLoading();
     btn.disabled = false;
     btn.textContent = 'Bán Hàng';
   }
@@ -428,7 +423,7 @@ let saleTotalQuantity = 0;
 function isPetBia(productName, productType) {
   // Ưu tiên kiểm tra type từ database
   if (productType === 'pet') return true;
-  if (productType === 'keg' || productType === 'can') return false;
+  if (productType === 'keg' || productType === 'box') return false;
   
   // Fallback: kiểm tra tên sản phẩm
   const name = (productName || '').toLowerCase();
@@ -437,23 +432,29 @@ function isPetBia(productName, productType) {
 
 async function openKegModal(saleId) {
   currentKegSaleId = saleId;
-  
+
   const res = await fetch('/api/sales/' + saleId);
   const sale = await res.json();
-  
+
   currentKegCustomerId = sale.customer_id;
-  
-  const customer = customers.find(c => c.id == sale.customer_id);
-  currentKegBalance = customer ? (customer.keg_balance || 0) : 0;
-  
+
+  // Lấy balance THỰC TẾ từ DB (không dùng customers array — có thể cũ)
+  const custRes = await fetch('/api/customers/' + sale.customer_id);
+  const custData = await custRes.json();
+  currentKegBalance = custData.keg_balance || 0;
+
   // Chỉ tính bia bom (lon/chai thủy tinh), không tính bia pet (chai nhựa)
   saleTotalQuantity = sale.items.reduce((sum, item) => {
     if (isPetBia(item.name, item.type)) return sum;
     return sum + item.quantity;
   }, 0);
-  
+
   document.getElementById('kegBeerQuantity').textContent = saleTotalQuantity;
-  
+
+  // Lưu giá trị TRƯỚC đó để tính delta khi preview
+  _kegModalPrevDeliver = sale.deliver_kegs || 0;
+  _kegModalPrevReturn = sale.return_kegs || 0;
+
   // Auto-fill: nếu chưa có deliver_kegs thì điền = số bia (chỉ bom, không pet)
   if (!sale.deliver_kegs || sale.deliver_kegs === 0) {
     document.getElementById('kegDeliver').value = saleTotalQuantity;
@@ -461,9 +462,9 @@ async function openKegModal(saleId) {
     document.getElementById('kegDeliver').value = sale.deliver_kegs;
   }
   document.getElementById('kegReturn').value = sale.return_kegs || 0;
-  
+
   updateKegModalPreview();
-  
+
   document.getElementById('kegModal').classList.remove('hidden');
   document.getElementById('kegModal').classList.add('flex');
 }
@@ -547,15 +548,20 @@ async function submitReplacement() {
 }
 
 function updateKegModalPreview() {
-  const deliverKegs = parseInt(document.getElementById('kegDeliver').value) || 0;
-  const returnKegs = parseInt(document.getElementById('kegReturn').value) || 0;
-  const newBalance = currentKegBalance + deliverKegs - returnKegs;
-  
+  const deliver = parseInt(String(document.getElementById('kegDeliver').value).trim(), 10) || 0;
+  const returned = parseInt(String(document.getElementById('kegReturn').value).trim(), 10) || 0;
+  // Dùng DELTA: chênh lệch so với giá trị TRƯỚC đó trong DB
+  // Tránh trường hợp mở modal lần 2: currentBalance đã bao gồm prevDeliver/prevReturn rồi
+  const deltaDeliver = deliver - _kegModalPrevDeliver;
+  const deltaReturn = returned - _kegModalPrevReturn;
+  const newBalance = currentKegBalance + deltaDeliver - deltaReturn;
+
   document.getElementById('kegCurrentBalance').textContent = currentKegBalance;
   document.getElementById('kegNewBalance').textContent = newBalance;
-  
+
   const warningEl = document.getElementById('kegModalWarning');
-  if (returnKegs > currentKegBalance) {
+  const heldFromThisSale = _kegModalPrevDeliver - _kegModalPrevReturn;
+  if (returned > heldFromThisSale) {
     warningEl.classList.remove('hidden');
   } else {
     warningEl.classList.add('hidden');
@@ -563,27 +569,30 @@ function updateKegModalPreview() {
 }
 
 function addKegDeliver(amount) {
-  const current = parseInt(document.getElementById('kegDeliver').value) || 0;
+  const current = parseInt(String(document.getElementById('kegDeliver').value).trim(), 10) || 0;
   document.getElementById('kegDeliver').value = current + amount;
   updateKegModalPreview();
 }
 
 function addKegReturn(amount) {
-  const current = parseInt(document.getElementById('kegReturn').value) || 0;
+  const current = parseInt(String(document.getElementById('kegReturn').value).trim(), 10) || 0;
   document.getElementById('kegReturn').value = current + amount;
   updateKegModalPreview();
 }
 
 function returnAllKegs() {
-  document.getElementById('kegReturn').value = currentKegBalance;
+  // Thu tất cả vỏ MỚI giao trong đơn này (chưa thu): prevDeliver - prevReturn
+  // Không cộng currentKegBalance vì newBalance đã có balance cũ rồi
+  const totalHeldFromThisSale = _kegModalPrevDeliver - _kegModalPrevReturn;
+  document.getElementById('kegReturn').value = Math.max(0, totalHeldFromThisSale);
   updateKegModalPreview();
 }
 
 async function saveKegUpdate() {
   if (!currentKegSaleId || !currentKegCustomerId) return;
   
-  const deliverKegs = parseInt(document.getElementById('kegDeliver').value) || 0;
-  const returnKegs = parseInt(document.getElementById('kegReturn').value) || 0;
+  const deliverKegs = parseInt(String(document.getElementById('kegDeliver').value).trim(), 10) || 0;
+  const returnKegs = parseInt(String(document.getElementById('kegReturn').value).trim(), 10) || 0;
   
   const res = await fetch('/api/sales/update-kegs', {
     method: 'POST',
@@ -593,11 +602,16 @@ async function saveKegUpdate() {
   
   const result = await res.json();
   if (res.ok) {
-    const newBalance = currentKegBalance + deliverKegs - returnKegs;
-    alert(`✅ Cập nhật vỏ thành công!\n\nSố vỏ còn tại quán: ${newBalance}`);
+    // Reload customers để đồng bộ UI
+    const custListRes = await fetch('/api/customers');
+    customers = await custListRes.json();
+    alert(`Cập nhật vỏ thành công!\n\nGiao: ${deliverKegs} | Thu: ${returnKegs}\nVỏ tại khách: ${result.newBalance}`);
     closeKegModal();
     loadSalesHistory();
-    showInvoiceModal(currentKegSaleId);
+    // Reload dashboard nếu đang ở trang dashboard để cập nhật empty_collected
+    if (window.location.pathname === '/' || window.location.pathname === '/dashboard') {
+      loadData();
+    }
   } else {
     alert(result.error || 'Cập nhật vỏ thất bại');
   }
@@ -667,6 +681,10 @@ let salesPagination = {
   month: new Date().toISOString().slice(0, 7) // Current month YYYY-MM
 };
 
+// ========== KEG MODAL STATE ==========
+let _kegModalPrevDeliver = 0;
+let _kegModalPrevReturn = 0;
+
 // ========== COLLECT KEG MODAL (Simple "Thu vỏ" modal) ==========
 let _collectKegSaleId = null;
 let _collectKegCustomerId = null;
@@ -714,20 +732,29 @@ async function submitCollectKeg() {
     return;
   }
 
-  const customer = customers.find(c => c.id == customerId);
-  const currentBalance = customer ? (customer.keg_balance || 0) : 0;
+  // Lấy balance THỰC TẾ từ DB (không dùng customers array — có thể cũ)
+  const custRes = await fetch('/api/customers/' + customerId);
+  const custData = await custRes.json();
+  const currentBalance = custData.keg_balance || 0;
 
-  // Lấy số vỏ đã giao / đã thu hiện tại
+  // Lấy số vỏ đã giao / đã thu hiện tại từ sale
   const saleRes = await fetch('/api/sales/' + saleId);
   const sale = await saleRes.json();
   const currentDelivered = sale.deliver_kegs || 0;
   const currentReturned = sale.return_kegs || 0;
 
-  // Số vỏ mới để thu: cộng dồn
-  const newReturned = currentReturned + collectQty;
-  // Nếu thu nhiều hơn đang giữ → clamp
-  const actualReturn = Math.min(collectQty, currentDelivered - currentReturned);
-  const newBalance = currentBalance + actualReturn;
+  // Số vỏ KHÁCH ĐANG GIỮ = đã giao - đã thu (tính trên DB)
+  const remaining = currentDelivered - currentReturned;
+  // Số vỏ thực sự có thể thu = tối thiểu của (số muốn thu và số còn lại)
+  const actualCollect = Math.min(collectQty, remaining);
+  if (actualCollect <= 0) {
+    alert('Không có vỏ để thu (khách không còn giữ vỏ)');
+    return;
+  }
+
+  // newReturned = tổng số vỏ đã thu (cộng dồn), không vượt quá delivered
+  const newReturned = Math.min(currentReturned + collectQty, currentDelivered);
+  const newBalance = currentBalance - actualCollect; // trừ vỏ đã thu khỏi khách
 
   const res = await fetch('/api/sales/update-kegs', {
     method: 'POST',
@@ -737,136 +764,22 @@ async function submitCollectKeg() {
   const result = await res.json();
 
   if (res.ok) {
-    alert(`Đã thu ${actualReturn} vỏ. Vỏ còn lại: ${currentDelivered - newReturned}`);
+    // Reload customers để đồng bộ UI
+    const custListRes = await fetch('/api/customers');
+    customers = await custListRes.json();
+    alert(`Đã thu ${actualCollect} vỏ. Vỏ tại khách: ${newBalance}`);
     closeCollectKegModal();
     loadSalesHistory();
+    // Reload dashboard nếu đang ở trang dashboard để cập nhật empty_collected
+    if (window.location.pathname === '/' || window.location.pathname === '/dashboard') {
+      loadData();
+    }
   } else {
     alert(result.error || 'Thu vỏ thất bại');
   }
 }
 
 // ========== SALES HISTORY RENDER ==========
-async function loadSalesHistory() {
-  const { page, limit, month } = salesPagination;
-  const res = await fetch(`/api/sales?page=${page}&limit=${limit}&month=${month}`);
-  const data = await res.json();
-
-  const salesHistory = data.sales;
-  salesPagination.total = data.total;
-  salesPagination.totalPages = data.totalPages;
-
-  const container = document.getElementById('salesHistoryList');
-  if (salesHistory.length === 0) {
-    container.innerHTML = '<p class="text-gray-400 text-center py-8 text-sm">Chưa có hóa đơn nào</p>';
-    renderPagination();
-    return;
-  }
-
-  // Group by date
-  const grouped = {};
-  for (const sale of salesHistory) {
-    const d = new Date(sale.date);
-    const dateKey = d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
-    if (!grouped[dateKey]) grouped[dateKey] = [];
-    grouped[dateKey].push(sale);
-  }
-
-  let html = '';
-  for (const [dateKey, sales] of Object.entries(grouped)) {
-    // Date header
-    html += `<div class="px-3 pt-4 pb-2"><span class="text-xs font-bold text-gray-400 uppercase tracking-wide">${dateKey}</span></div>`;
-
-    for (const sale of sales) {
-      const isReturned = sale.status === 'returned';
-      const customerName = sale.customer_name || 'Khách lẻ';
-      const timeStr = new Date(sale.date).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-
-      // Badge
-      let badge = '';
-      if (sale.type === 'replacement') {
-        badge = '<span class="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full text-xs font-medium">Đổi lỗi</span>';
-      } else if (isReturned) {
-        badge = sale.type === 'damage_return'
-          ? '<span class="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-xs font-medium">Bia lỗi</span>'
-          : '<span class="bg-red-100 text-red-600 px-2 py-0.5 rounded-full text-xs font-medium">Đã trả</span>';
-      }
-
-      // Total amount
-      let totalEl = '';
-      if (sale.type === 'replacement') {
-        totalEl = '<span class="text-2xl font-bold text-orange-500">0đ</span>';
-      } else if (isReturned) {
-        totalEl = '<span class="text-2xl font-bold text-gray-300 line-through">' + formatVND(sale.total) + '</span>';
-      } else {
-        totalEl = '<span class="text-2xl font-bold text-green-600">' + formatVND(sale.total) + '</span>';
-      }
-
-      // Trạng thái vỏ
-      const delivered = sale.deliver_kegs || 0;
-      const returned = sale.return_kegs || 0;
-      const remaining = delivered - returned;
-      let kegStatusEl = '';
-      if (delivered > 0) {
-        if (remaining === 0) {
-          kegStatusEl = `<span class="inline-flex items-center gap-1 text-xs font-medium text-green-600 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span>Đã thu đủ</span>`;
-        } else {
-          kegStatusEl = `<span class="inline-flex items-center gap-1 text-xs font-medium text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 bg-amber-500 rounded-full"></span>Chưa thu: ${remaining}/${delivered} vỏ</span>`;
-        }
-      } else {
-        kegStatusEl = `<span class="text-xs text-gray-400">-</span>`;
-      }
-
-      // Keg button
-      let kegBtn = '';
-      if (!isReturned && delivered > 0) {
-        if (remaining === 0) {
-          kegBtn = `<button disabled class="flex-1 text-xs font-medium text-green-600 bg-green-50 border border-green-200 rounded-lg py-2 px-2 cursor-not-allowed opacity-60">Đã thu</button>`;
-        } else {
-          kegBtn = `<button onclick="openCollectKegModal(${sale.id})" class="flex-1 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-lg py-2 px-2 hover:bg-blue-100 transition-colors">Thu vỏ</button>`;
-        }
-      } else {
-        kegBtn = `<div class="flex-1"></div>`;
-      }
-
-      // Row background
-      let cardBg = 'bg-white';
-      if (sale.type === 'replacement') cardBg = 'bg-orange-50/60';
-      else if (isReturned) cardBg = 'bg-red-50/50';
-
-      html += `
-        <div class="${cardBg} rounded-2xl shadow-sm border border-gray-100 mx-3 mb-3 p-4">
-          ${badge ? `<div class="mb-2">${badge}</div>` : ''}
-          <div class="flex justify-between items-start gap-3">
-            <div class="flex-1 min-w-0">
-              <div class="flex items-center gap-2 mb-1">
-                <span class="font-bold text-gray-800 text-base leading-tight">#${sale.id}</span>
-                <span class="font-semibold text-gray-700 text-sm truncate">${customerName}</span>
-              </div>
-              <div class="text-xs text-gray-400 mb-3">${timeStr}</div>
-              <div class="mb-2">${kegStatusEl}</div>
-            </div>
-            <div class="text-right shrink-0">${totalEl}</div>
-          </div>
-
-          <div class="border-t border-gray-100 pt-3 mt-3">
-            <div class="flex gap-2">
-              <button onclick="viewSale(${sale.id})" class="flex-1 flex items-center justify-center gap-1.5 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-100 rounded-lg py-2.5 hover:bg-blue-100 transition-colors">Xem</button>
-              <button onclick="editSale(${sale.id})" class="flex-1 flex items-center justify-center gap-1.5 text-sm font-medium text-orange-600 bg-orange-50 border border-orange-100 rounded-lg py-2.5 hover:bg-orange-100 transition-colors">Sửa</button>
-            </div>
-            <div class="flex gap-2 mt-2">
-              ${kegBtn}
-              <button onclick="deleteSale(${sale.id})" class="flex-1 flex items-center justify-center gap-1.5 text-sm font-medium text-red-600 bg-red-50 border border-red-100 rounded-lg py-2 hover:bg-red-100 transition-colors">Xóa</button>
-            </div>
-          </div>
-        </div>
-      `;
-    }
-  }
-
-  container.innerHTML = html;
-  renderPagination();
-}
-
 async function loadSalesHistory() {
   const { page, limit, month } = salesPagination;
   const res = await fetch(`/api/sales?page=${page}&limit=${limit}&month=${month}`);

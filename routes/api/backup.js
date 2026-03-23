@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const fs = require('fs');
 const path = require('path');
+const logger = require('../../src/utils/logger');
 
 const BACKUP_DIR = path.join(__dirname, '../backup');
 const DB_PATH = path.join(__dirname, '../database.sqlite');
@@ -28,7 +29,7 @@ router.get('/list', (req, res) => {
     
     res.json({ backups: files });
   } catch (error) {
-    console.error(error);
+    logger.error('List backups error', { error: error.message });
     res.status(500).json({ error: 'Failed to list backups' });
   }
 });
@@ -53,7 +54,7 @@ router.get('/create', (req, res) => {
       size: formatBytes(fs.statSync(backupPath).size)
     });
   } catch (error) {
-    console.error('Backup error:', error);
+    logger.error('Backup error', { error: error.message });
     res.status(500).json({ error: 'Backup failed: ' + error.message });
   }
 });
@@ -94,7 +95,7 @@ router.post('/restore', (req, res) => {
     
     res.json({ success: true, message: 'Database restored successfully. Please restart the server.' });
   } catch (error) {
-    console.error('Restore error:', error);
+    logger.error('Restore error', { error: error.message });
     res.status(500).json({ error: 'Restore failed: ' + error.message });
   }
 });
@@ -131,7 +132,7 @@ function cleanupOldBackups(keepCount) {
       fs.unlinkSync(path.join(BACKUP_DIR, f.name));
     });
   } catch (e) {
-    console.error('Cleanup error:', e);
+    logger.error('Cleanup error', { error: e.message });
   }
 }
 
@@ -153,7 +154,7 @@ function startAutoBackupScheduler() {
     try {
       config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
     } catch (e) {
-      console.log('Using default backup config');
+      logger.info('Using default backup config');
     }
   }
   
@@ -163,20 +164,20 @@ function startAutoBackupScheduler() {
     const lastBackup = getLastBackupTime();
     
     if (lastBackup && (now - lastBackup) > (config.intervalDays * 24 * 60 * 60 * 1000)) {
-      console.log('Running scheduled backup...');
+      logger.info('Running scheduled backup...');
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
       const backupFile = `backup-${timestamp}.db`;
       fs.copyFileSync(DB_PATH, path.join(BACKUP_DIR, backupFile));
-      console.log('Scheduled backup completed:', backupFile);
+      logger.info('Scheduled backup completed', { backupFile });
     }
     
     // Set interval for future backups
     setInterval(() => {
-      console.log('Running scheduled backup...');
+      logger.info('Running scheduled backup...');
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
       const backupFile = `backup-${timestamp}.db`;
       fs.copyFileSync(DB_PATH, path.join(BACKUP_DIR, backupFile));
-      console.log('Scheduled backup completed:', backupFile);
+      logger.info('Scheduled backup completed', { backupFile });
       cleanupOldBackups(30);
     }, config.intervalDays * 24 * 60 * 60 * 1000);
   }

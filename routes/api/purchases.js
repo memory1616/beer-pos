@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../../database');
+const logger = require('../../src/utils/logger');
 const { syncKegInventory } = require('./products');
 
 // POST /api/purchases - Tạo phiếu nhập hàng mới
@@ -16,8 +17,7 @@ router.post('/', (req, res) => {
     let totalAmount = 0;
     let totalKegs = 0;
     
-    console.log('[PURCHASE POST] ===== START =====');
-    console.log('[PURCHASE POST] Items received:', JSON.stringify(items));
+    logger.debug('Purchase create', { itemsCount: items.length });
     
     for (const item of items) {
       const productId = parseInt(item.product_id);
@@ -25,28 +25,27 @@ router.post('/', (req, res) => {
       
       // Lấy type của sản phẩm
       const product = db.prepare('SELECT id, name, type FROM products WHERE id = ?').get(productId);
-      console.log('[PURCHASE POST] Product ID', productId, ':', product);
+      logger.debug('Purchase item', { productId, product });
       
       if (product) {
         const productType = (product.type || 'keg').toLowerCase();
-        if (['keg', 'can'].includes(productType)) {
+        if (['keg', 'box'].includes(productType)) {
           const qty = parseInt(item.quantity) || 0;
           totalKegs += qty;
-          console.log('[PURCHASE POST] KEG/CAN found, added quantity:', qty);
+          logger.debug('KEG/BOX found', { productId, qty });
         } else {
-          console.log('[PURCHASE POST] PET product, skipped');
+          logger.debug('PET product, skipped');
         }
       } else {
-        console.log('[PURCHASE POST] Product not found for ID:', productId);
+        logger.debug('Product not found', { productId });
       }
     }
-    console.log('[PURCHASE POST] Final totalKegs:', totalKegs);
-    console.log('[PURCHASE POST] Final totalAmount:', totalAmount);
+    logger.debug('Purchase totals', { totalKegs, totalAmount });
     
     // ========== BƯỚC 2: Tạo phiếu nhập ==========
     const purchaseResult = db.prepare('INSERT INTO purchases (total_amount, note) VALUES (?, ?)').run(totalAmount, note || null);
     const purchaseId = purchaseResult.lastInsertRowid;
-    console.log('[PURCHASE POST] Created purchase ID:', purchaseId);
+    logger.debug('Purchase created', { purchaseId, totalAmount });
     
     // ========== BƯỚC 3: Thêm chi tiết và cập nhật tồn kho ==========
     for (const item of items) {
@@ -58,7 +57,7 @@ router.post('/', (req, res) => {
       db.prepare('INSERT INTO purchase_items (purchase_id, product_id, quantity, unit_price, total_price) VALUES (?, ?, ?, ?, ?)').run(purchaseId, productId, qty, unitPrice, totalPrice);
       db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(qty, productId);
     }
-    console.log('[PURCHASE POST] Updated product stock');
+    logger.debug('Product stock updated');
     
     // ========== BƯỚC 4: Cập nhật vỏ rỗng ==========
     // Nhập hàng từ nhà máy: dùng vỏ rỗng đi đổi bia → empty_collected GIẢM
@@ -71,7 +70,7 @@ router.post('/', (req, res) => {
     const newEmpty = Math.max(0, currentEmpty - totalKegs);
 
     db.prepare('UPDATE keg_stats SET empty_collected = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run(newEmpty);
-    console.log('[PURCHASE POST] Empty before:', currentEmpty, '| totalKegs:', totalKegs, '| Empty after:', newEmpty);
+    logger.debug('Empty kegs updated', { emptyBefore: currentEmpty, totalKegs, emptyAfter: newEmpty });
 
     if (totalKegs > 0) {
       db.prepare(`
@@ -83,7 +82,7 @@ router.post('/', (req, res) => {
     // ========== BƯỚC 5: Sync keg inventory ==========
     syncKegInventory();
     
-    console.log('[PURCHASE POST] ===== END =====');
+    logger.info('Purchase created successfully', { purchaseId, totalKegs, totalAmount });
     res.json({ 
       id: purchaseId, 
       total_amount: totalAmount, 
@@ -93,7 +92,7 @@ router.post('/', (req, res) => {
       emptyAfter: newEmpty
     });
   } catch (err) {
-    console.error('[PURCHASE POST] ERROR:', err);
+    logger.error('Purchase create error', { error: err.message });
     res.status(500).json({ error: 'Lỗi tạo phiếu nhập', details: err.message });
   }
 });
@@ -172,7 +171,7 @@ router.put('/:id', (req, res) => {
     
     res.json({ success: true });
   } catch (err) {
-    console.error(err);
+    logger.error('Purchase update error', { error: err.message });
     res.status(500).json({ error: 'Lỗi cập nhật đơn nhập' });
   }
 });
@@ -180,72 +179,53 @@ router.put('/:id', (req, res) => {
 // DELETE purchase
 router.delete('/:id', (req, res) => {
   const purchaseId = req.params.id;
-  console.log(`[DELETE PURCHASE] Starting delete for purchase ${purchaseId}`);
-  
-  // Kiểm tra đơn có tồn tại không
+  logger.debug('Purchase delete start', { purchaseId });
+
   const purchase = db.prepare('SELECT * FROM purchases WHERE id = ?').get(purchaseId);
   if (!purchase) {
-    console.log(`[DELETE PURCHASE] Purchase ${purchaseId} not found`);
     return res.status(404).json({ error: 'Không tìm thấy đơn nhập' });
   }
-  console.log(`[DELETE PURCHASE] Found purchase:`, purchase);
-  
+
   try {
-    // Lấy thông tin đơn nhập trước khi xóa
     const items = db.prepare('SELECT product_id, quantity FROM purchase_items WHERE purchase_id = ?').all(purchaseId);
-    console.log(`[DELETE PURCHASE] Found ${items.length} items to reverse`);
-    
-    // Tính số kegs trong đơn (chỉ keg và can, không tính pet)
+
     let totalKegs = 0;
     for (const item of items) {
       const product = db.prepare('SELECT type FROM products WHERE id = ?').get(item.product_id);
       const productType = (product?.type || 'keg').toLowerCase();
-      if (['keg', 'can'].includes(productType)) {
+      if (['keg', 'box'].includes(productType)) {
         totalKegs += item.quantity;
       }
     }
-    console.log(`[DELETE PURCHASE] Total kegs to restore: ${totalKegs}`);
-    
-    // Reverse stock (ensure stock doesn't go negative)
+
     for (const item of items) {
       const currentStock = db.prepare('SELECT stock FROM products WHERE id = ?').get(item.product_id);
       const newStock = Math.max(0, currentStock.stock - item.quantity);
-      console.log(`[DELETE PURCHASE] Reversing stock for product ${item.product_id}: ${currentStock.stock} - ${item.quantity} = ${newStock}`);
       db.prepare('UPDATE products SET stock = ? WHERE id = ?').run(newStock, item.product_id);
     }
-    console.log(`[DELETE PURCHASE] Stock reversed for all items`);
-    
-    // Delete purchase items first (due to foreign key)
+
     db.prepare('DELETE FROM purchase_items WHERE purchase_id = ?').run(purchaseId);
-    console.log(`[DELETE PURCHASE] Deleted purchase_items`);
-    
     db.prepare('DELETE FROM purchases WHERE id = ?').run(purchaseId);
-    console.log(`[DELETE PURCHASE] Deleted purchase record`);
-    
-    // Khôi phục empty_collected khi xóa đơn nhập (đảo ngược: nhập trừ → xóa cộng)
+
     if (totalKegs > 0) {
       const statsRow = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
       if (statsRow) {
         const newEmpty = statsRow.empty_collected + totalKegs;
         db.prepare('UPDATE keg_stats SET empty_collected = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run(newEmpty);
-        console.log(`[DELETE PURCHASE] Restored empty_collected + ${totalKegs}, new value: ${newEmpty}`);
       }
     }
-    
-    // Sync keg inventory
+
     try {
-      console.log(`[DELETE PURCHASE] Calling syncKegInventory...`);
       syncKegInventory();
-      console.log(`[DELETE PURCHASE] syncKegInventory completed`);
     } catch (syncErr) {
-      console.error('[DELETE PURCHASE] Sync keg inventory error:', syncErr);
+      logger.error('Purchase delete: syncKegInventory error', { error: syncErr.message });
     }
-    
-    console.log(`[DELETE PURCHASE] Delete completed successfully`);
+
+    logger.info('Purchase deleted', { purchaseId, totalKegs });
     res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE PURCHASE] ERROR:', err);
-    res.status(500).json({ error: 'Lỗi xóa đơn nhập', details: err.message, stack: err.stack });
+    logger.error('Purchase delete error', { purchaseId, error: err.message });
+    res.status(500).json({ error: 'Lỗi xóa đơn nhập' });
   }
 });
 

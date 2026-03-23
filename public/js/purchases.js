@@ -1,5 +1,6 @@
 // Purchases Page JavaScript
 // Tách riêng để dễ bảo trì và cache
+// formatVND, showToast được định nghĩa trong utils.js (global)
 
 let cart = [];
 
@@ -26,10 +27,6 @@ function switchTab(tab) {
     tabNew.classList.remove('bg-blue-600', 'text-white');
     tabNew.classList.add('bg-gray-200', 'text-gray-700');
   }
-}
-
-function formatVND(amount) {
-  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
 }
 
 function updateCart() {

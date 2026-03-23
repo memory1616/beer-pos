@@ -6,6 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const session = require('../../src/services/session');
+const logger = require('../../src/utils/logger');
 
 /**
  * GET /api/session/today - Get today's session
@@ -20,7 +21,7 @@ router.get('/today', (req, res) => {
       stats: stats
     });
   } catch (err) {
-    console.error('Error getting today session:', err);
+    logger.error('Error getting today session', { error: err.message });
     res.status(500).json({ error: 'Failed to get session' });
   }
 });
@@ -39,7 +40,7 @@ router.get('/:date', (req, res) => {
     
     res.json(sessionData);
   } catch (err) {
-    console.error('Error getting session:', err);
+    logger.error('Error getting session', { error: err.message });
     res.status(500).json({ error: 'Failed to get session' });
   }
 });
@@ -54,7 +55,7 @@ router.get('/stats/:date', (req, res) => {
     
     res.json(stats);
   } catch (err) {
-    console.error('Error getting session stats:', err);
+    logger.error('Error getting session stats', { error: err.message });
     res.status(500).json({ error: 'Failed to get session stats' });
   }
 });
@@ -76,7 +77,7 @@ router.post('/migrate', (req, res) => {
       ...result
     });
   } catch (err) {
-    console.error('Error migrating session:', err);
+    logger.error('Error migrating session', { error: err.message });
     res.status(500).json({ error: 'Failed to migrate session' });
   }
 });
@@ -89,7 +90,7 @@ router.get('/check-migration', (req, res) => {
     const migrationStatus = session.checkOldDataMigration();
     res.json(migrationStatus);
   } catch (err) {
-    console.error('Error checking migration:', err);
+    logger.error('Error checking migration status', { error: err.message });
     res.status(500).json({ error: 'Failed to check migration status' });
   }
 });

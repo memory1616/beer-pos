@@ -6,159 +6,146 @@
   <title>Dashboard - Beer POS</title>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#f59e0b">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="stylesheet" href="/css/tailwind.css">
   <link rel="stylesheet" href="/css/unified.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="/js/vendor/chart.umd.min.js"></script>
   <script src="/js/auth.js"></script>
   <script src="/js/layout.js"></script>
   <script src="/js/format.js"></script>
+  <script src="/js/vendor/dexie.min.js"></script>
+  <script src="/db.js"></script>
+  <script src="/js/utils.js"></script>
+  <script src="/sync.js"></script>
 </head>
 <body class="bg-gray-100 text-gray-800 min-h-screen pb-20">
   <div id="app"></div>
 
   <script src="/js/debug.js"></script>
   <script>
-    // Initialize layout
+    requireAuth();
+
     const headerActions = `
       <a href="/sale" class="text-amber-600 hover:bg-amber-50 px-2 rounded">➕</a>
       <a href="/report" class="text-blue-600 hover:bg-blue-50 px-2 rounded">📊</a>
+      <button onclick="showAlertSettings()" class="text-gray-600 hover:bg-gray-100 px-2 rounded" title="Cài đặt">⚙️</button>
       <button onclick="logout()" class="text-red-500 hover:bg-red-50 px-2 rounded">🚪</button>
     `;
-    
+
     (async () => {
       try {
         if (typeof loadVersion === 'function') await loadVersion();
-        document.getElementById('app').innerHTML = 
-        getHeaderWithActions('Gia Huy', '🍺', headerActions) +
-        getContent(`
-        <!-- Loading -->
-        <div id="loading" class="text-center py-8">
-          <div class="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto"></div>
-          <div class="text-gray-500 mt-2">Đang tải...</div>
-        </div>
+        document.getElementById('app').innerHTML =
+          getHeaderWithActions('Gia Huy', '🍺', headerActions) +
+          getContent(`
+          <div id="loading" class="text-center py-8">
+            <div class="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto"></div>
+            <div class="text-gray-500 mt-2">Đang tải...</div>
+          </div>
 
-        <div id="contentSection" class="hidden">
-          <!-- TODAY SECTION -->
-          <div class="mb-4">
-            <div class="section-title">Hôm nay</div>
-            <div class="grid grid-cols-2 gap-3">
+          <div id="contentSection" class="hidden">
+            <div class="mb-4">
+              <div class="section-title">Hôm nay</div>
+              <div class="grid grid-cols-2 gap-3">
+                <div class="card">
+                  <div class="text-xs text-gray-500">Doanh thu</div>
+                  <div class="text-2xl font-bold text-amber-600" id="todayRevenue">0</div>
+                </div>
+                <div class="card">
+                  <div class="text-xs text-gray-500">Bán ra</div>
+                  <div class="text-2xl font-bold text-blue-600" id="todayUnits">0</div>
+                  <div class="text-xs text-gray-400">bình</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="mb-4">
+              <div class="section-title">📦 Vỏ bình</div>
+              <div class="bg-white rounded-2xl p-5 mb-3 text-center shadow-lg border border-gray-100">
+                <div class="text-xs text-gray-500 uppercase tracking-wider font-medium">Tổng vỏ bình</div>
+                <div class="text-5xl font-bold text-blue-600 mt-1" id="kegTotal">0</div>
+              </div>
+              <div class="grid grid-cols-3 gap-3">
+                <div class="bg-white rounded-2xl p-4 text-center shadow-md border border-green-100">
+                  <div class="text-2xl font-bold text-green-600" id="kegInventory">0</div>
+                  <div class="text-sm font-medium text-gray-700 mt-1">Kho</div>
+                  <div class="text-xs text-gray-400 mt-1" id="kegInventoryPct">0%</div>
+                </div>
+                <div class="bg-white rounded-2xl p-4 text-center shadow-md border border-amber-100">
+                  <div class="text-2xl font-bold text-amber-500" id="kegCustomerHolding">0</div>
+                  <div class="text-sm font-medium text-gray-700 mt-1">Khách</div>
+                  <div class="text-xs text-gray-400 mt-1" id="kegCustomerHoldingPct">0%</div>
+                </div>
+                <div class="bg-white rounded-2xl p-4 text-center shadow-md border border-gray-200">
+                  <div class="text-2xl font-bold text-gray-400" id="kegEmptyCollected">0</div>
+                  <div class="text-sm font-medium text-gray-700 mt-1">Rỗng</div>
+                  <div class="text-xs text-gray-400 mt-1" id="kegEmptyCollectedPct">0%</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="mb-4">
+              <div class="section-title">Thao tác nhanh</div>
+              <div class="grid grid-cols-3 gap-2">
+                <a href="/delivery" class="bg-red-500 text-white rounded-xl p-3 text-center">
+                  <div class="text-xl">🚚</div>
+                  <div class="text-sm font-medium">Giao</div>
+                </a>
+                <a href="/devices" class="bg-indigo-500 text-white rounded-xl p-3 text-center">
+                  <div class="text-xl">🧊</div>
+                  <div class="text-sm font-medium">Tủ</div>
+                </a>
+                <a href="/expenses" class="bg-red-600 text-white rounded-xl p-3 text-center">
+                  <div class="text-xl">💸</div>
+                  <div class="text-sm font-medium">Chi phí</div>
+                </a>
+              </div>
+            </div>
+
+            <div id="lowStockSection" class="hidden bg-red-50 rounded-xl border border-red-200 p-4 mb-4">
+              <div class="flex justify-between items-center mb-2">
+                <div id="lowStockHeader" class="text-sm font-bold text-red-700">⚠️ Hàng sắp hết</div>
+                <button onclick="showAlertSettings()" class="text-xs text-blue-600 hover:text-blue-800">⚙️ Cài đặt</button>
+              </div>
+              <div id="lowStockList" class="space-y-1"></div>
+            </div>
+
+            <div id="customerAlertsSection" class="hidden bg-yellow-50 rounded-xl border border-yellow-200 p-4 mb-4">
+              <div id="customerAlertsHeader" class="text-sm font-bold text-yellow-700 mb-2">⚠️ Dưới mức kỳ vọng</div>
+              <div id="customerAlertsList" class="space-y-1"></div>
+            </div>
+
+            <div class="mb-4">
+              <div class="section-title">Doanh thu 6 tháng</div>
+              <div id="revenueStats" class="grid grid-cols-3 gap-2 mb-3">
+                <div class="bg-amber-50 rounded-lg p-2 text-center">
+                  <div class="text-xs text-gray-500">Tổng</div>
+                  <div class="font-bold text-amber-600 text-sm" id="totalRevenue6M">-</div>
+                </div>
+                <div class="bg-blue-50 rounded-lg p-2 text-center">
+                  <div class="text-xs text-gray-500">TB/tháng</div>
+                  <div class="font-bold text-blue-600 text-sm" id="avgRevenue6M">-</div>
+                </div>
+                <div class="bg-purple-50 rounded-lg p-2 text-center">
+                  <div class="text-xs text-gray-500">Tăng trưởng</div>
+                  <div class="font-bold text-purple-600 text-sm" id="growthRevenue6M">-</div>
+                </div>
+              </div>
               <div class="card">
-                <div class="text-xs text-gray-500">Doanh thu</div>
-                <div class="text-2xl font-bold text-amber-600" id="todayRevenue">0</div>
+                <canvas id="revenueChart" style="height: 220px;"></canvas>
               </div>
+            </div>
+
+            <div class="mb-4">
+              <div class="section-title">Bán gần đây</div>
               <div class="card">
-                <div class="text-xs text-gray-500">Bán ra</div>
-                <div class="text-2xl font-bold text-blue-600" id="todayUnits">0</div>
-                <div class="text-xs text-gray-400">bình</div>
+                <div id="recentSales" class="space-y-2"></div>
               </div>
             </div>
           </div>
-
-          <!-- KEG STATUS SECTION -->
-          <div class="mb-4">
-            <div class="section-title">📦 Vỏ bình</div>
-            
-            <!-- Total Keg - Large Display -->
-            <div class="bg-white rounded-2xl p-5 mb-3 text-center shadow-lg border border-gray-100">
-              <div class="text-xs text-gray-500 uppercase tracking-wider font-medium">Tổng vỏ bình</div>
-              <div class="text-5xl font-bold text-blue-600 mt-1" id="kegTotal">0</div>
-            </div>
-            
-            <!-- 3 Columns: Kho, Khách, Rỗng -->
-            <div class="grid grid-cols-3 gap-3">
-              <!-- Kho - Green -->
-              <div class="bg-white rounded-2xl p-4 text-center shadow-md border border-green-100">
-                <div class="text-2xl font-bold text-green-600" id="kegInventory">0</div>
-                <div class="text-sm font-medium text-gray-700 mt-1">Kho</div>
-                <div class="text-xs text-gray-400 mt-1" id="kegInventoryPct">0%</div>
-              </div>
-              
-              <!-- Khách - Orange -->
-              <div class="bg-white rounded-2xl p-4 text-center shadow-md border border-amber-100">
-                <div class="text-2xl font-bold text-amber-500" id="kegCustomerHolding">0</div>
-                <div class="text-sm font-medium text-gray-700 mt-1">Khách</div>
-                <div class="text-xs text-gray-400 mt-1" id="kegCustomerHoldingPct">0%</div>
-              </div>
-              
-              <!-- Rỗng - Gray -->
-              <div class="bg-white rounded-2xl p-4 text-center shadow-md border border-gray-200">
-                <div class="text-2xl font-bold text-gray-400" id="kegEmptyCollected">0</div>
-                <div class="text-sm font-medium text-gray-700 mt-1">Rỗng</div>
-                <div class="text-xs text-gray-400 mt-1" id="kegEmptyCollectedPct">0%</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- QUICK ACTIONS SECTION -->
-          <div class="mb-4">
-            <div class="section-title">Thao tác nhanh</div>
-            <div class="grid grid-cols-3 gap-2">
-              <a href="/delivery" class="bg-red-500 text-white rounded-xl p-3 text-center">
-                <div class="text-xl">🚚</div>
-                <div class="text-sm font-medium">Giao</div>
-              </a>
-              <a href="/devices" class="bg-indigo-500 text-white rounded-xl p-3 text-center">
-                <div class="text-xl">🧊</div>
-                <div class="text-sm font-medium">Tủ</div>
-              </a>
-              <a href="/expenses" class="bg-red-600 text-white rounded-xl p-3 text-center">
-                <div class="text-xl">💸</div>
-                <div class="text-sm font-medium">Chi phí</div>
-              </a>
-            </div>
-          </div>
-
-          <!-- Low Stock Alert -->
-          <div id="lowStockSection" class="hidden bg-red-50 rounded-xl border border-red-200 p-4 mb-4">
-            <div class="flex justify-between items-center mb-2">
-              <div id="lowStockHeader" class="text-sm font-bold text-red-700">⚠️ Hàng sắp hết</div>
-              <button onclick="showAlertSettings()" class="text-xs text-blue-600 hover:text-blue-800">⚙️ Cài đặt</button>
-            </div>
-            <div id="lowStockList" class="space-y-1"></div>
-          </div>
-
-          <!-- Customer Alerts (7+ days no order) -->
-          <div id="customerAlertsSection" class="hidden bg-yellow-50 rounded-xl border border-yellow-200 p-4 mb-4">
-            <div id="customerAlertsHeader" class="text-sm font-bold text-yellow-700 mb-2">⚠️ KH 7 ngày chưa lấy bia</div>
-            <div id="customerAlertsList" class="space-y-1"></div>
-          </div>
-
-          <!-- CHART SECTION -->
-          <div class="mb-4">
-            <div class="section-title">Doanh thu 6 tháng</div>
-            
-            <!-- Revenue Stats Summary -->
-            <div id="revenueStats" class="grid grid-cols-3 gap-2 mb-3">
-              <div class="bg-amber-50 rounded-lg p-2 text-center">
-                <div class="text-xs text-gray-500">Tổng</div>
-                <div class="font-bold text-amber-600 text-sm" id="totalRevenue6M">-</div>
-              </div>
-              <div class="bg-blue-50 rounded-lg p-2 text-center">
-                <div class="text-xs text-gray-500">TB/tháng</div>
-                <div class="font-bold text-blue-600 text-sm" id="avgRevenue6M">-</div>
-              </div>
-              <div class="bg-purple-50 rounded-lg p-2 text-center">
-                <div class="text-xs text-gray-500">Tăng trưởng</div>
-                <div class="font-bold text-purple-600 text-sm" id="growthRevenue6M">-</div>
-              </div>
-            </div>
-            
-            <div class="card">
-              <canvas id="revenueChart" style="height: 220px;"></canvas>
-            </div>
-          </div>
-
-          <!-- RECENT SALES SECTION -->
-          <div class="mb-4">
-            <div class="section-title">Bán gần đây</div>
-            <div class="card">
-              <div id="recentSales" class="space-y-2"></div>
-            </div>
-          </div>
-        </div>
-      `) +
-      getBottomNav('/');
+          `) +
+          getBottomNav('/');
       } catch (err) {
         console.error('Dashboard init error:', err);
         document.getElementById('app').innerHTML = `
@@ -166,7 +153,6 @@
             <div class="card border-red-200 bg-red-50">
               <div class="font-bold text-red-700 mb-1">Lỗi tải Dashboard</div>
               <div class="text-sm text-red-600 break-words">${String(err && err.message ? err.message : err)}</div>
-              <div class="text-xs text-gray-500 mt-2">Mở DevTools Console để xem chi tiết.</div>
             </div>
           </div>
         `;
@@ -174,80 +160,95 @@
     })();
   </script>
 
-  <!-- Load Dashboard JS -->
   <script src="/js/dashboard.js"></script>
 
   <script>
-    requireAuth();
-
-    async function loadData() {
-      try {
-        const res = await fetch('/data');
-        if (!res.ok) {
-          const text = await res.text().catch(() => '');
-          throw new Error('HTTP ' + res.status + (text ? (': ' + text.slice(0, 200)) : ''));
-        }
-        const data = await res.json();
-        
-        // Initialize dashboard with data
-        try {
-          initDashboard(data);
-        } catch (e) {
-          console.error('Init error:', e);
-        }
-        
-        // Hide loading, show content
-        const loading = document.getElementById('loading');
-        const contentSection = document.getElementById('contentSection');
-        if (loading) loading.classList.add('hidden');
-        if (contentSection) contentSection.classList.remove('hidden');
-        
-      } catch (err) {
-        console.error('Failed to load data:', err);
-        document.getElementById('loading').innerHTML = '<div class="text-red-500">Lỗi tải dữ liệu</div>';
-      }
+  async function loadData() {
+    try {
+      const res = await fetch('/data');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      if (typeof initDashboard === 'function') initDashboard(data);
+      const loading = document.getElementById('loading');
+      const contentSection = document.getElementById('contentSection');
+      if (loading) loading.classList.add('hidden');
+      if (contentSection) contentSection.classList.remove('hidden');
+    } catch (err) {
+      console.error('Failed to load data:', err);
+      document.getElementById('loading').innerHTML = '<div class="text-red-500 text-center py-4">Lỗi tải dữ liệu</div>';
     }
-    
-    loadData();
-  </script>
-  
-  <script src="/js/debug.js"></script>
-  <script>
-  // Check authentication on page load
-  if (!isLoggedIn()) {
-    window.location.href = '/login';
   }
-  
-  // Disable service worker in development to avoid cache issues
-  // if ('serviceWorker' in navigator) {
-  //   if (!navigator.serviceWorker.controller) {
-  //     navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW registration failed:', err));
-  //   }
-  // }
+
+  loadData();
+
+  if ('serviceWorker' in navigator) {
+    if (!navigator.serviceWorker.controller) {
+      navigator.serviceWorker.register('/sw.js').catch(err => console.log('[SW] Registration failed:', err));
+    }
+  }
   </script>
 
-  <!-- Alert Settings Modal -->
+  <!-- ========== ALERT + CLOUD SETTINGS MODAL ========== -->
   <div id="alertSettingsModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-4 z-50">
-    <div class="bg-white rounded-xl w-full max-w-sm p-6">
+    <div class="bg-white rounded-xl w-full max-w-sm p-6 max-h-[90vh] overflow-y-auto">
       <div class="flex justify-between items-center mb-4">
-        <h3 class="font-bold text-lg">⚙️ Cài đặt cảnh báo</h3>
-        <button onclick="closeAlertSettings()" class="text-gray-500 hover:text-gray-700">✕</button>
+        <h3 class="font-bold text-lg">⚙️ Cài đặt</h3>
+        <button onclick="closeAlertSettings()" class="text-gray-500 hover:text-gray-700 text-xl">✕</button>
       </div>
-      <div class="space-y-4">
+
+      <!-- Tab Navigation -->
+      <div class="flex border-b border-gray-200 mb-4">
+        <button id="tabAlertBtn" onclick="switchSettingsTab('alert')"
+          class="flex-1 py-2 text-sm font-medium text-blue-600 border-b-2 border-blue-600">⚠️ Cảnh báo</button>
+        <button id="tabCloudBtn" onclick="switchSettingsTab('cloud')"
+          class="flex-1 py-2 text-sm font-medium text-gray-400 border-b-2 border-transparent">☁️ Cloud</button>
+      </div>
+
+      <!-- Tab: Cảnh báo -->
+      <div id="tabAlert" class="space-y-4">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">🔴 Ngưỡng tồn kho thấp</label>
           <input type="number" id="stockLowThreshold" min="1" max="100" value="10"
                  class="w-full border rounded-lg px-3 py-2" placeholder="VD: 10">
-          <p class="text-xs text-gray-500 mt-1">Báo khi số lượng tồn kho dưới giá trị này</p>
+          <p class="text-xs text-gray-500 mt-1">Báo khi tồn kho dưới giá trị này</p>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">🟡 Số ngày không đặt hàng</label>
-          <input type="number" id="customerAlertDays" min="1" max="365" value="7"
-                 class="w-full border rounded-lg px-3 py-2" placeholder="VD: 7">
-          <p class="text-xs text-gray-500 mt-1">Cảnh báo khách hàng không đặt hàng sau X ngày</p>
+          <label class="block text-sm font-medium text-gray-700 mb-1">🟡 Kỳ vọng bình/tháng (chung)</label>
+          <input type="number" id="monthlyExpected" min="1" max="10000" value="300"
+                 class="w-full border rounded-lg px-3 py-2" placeholder="VD: 300">
+          <p class="text-xs text-gray-500 mt-1">Cảnh báo khách lấy ít hơn kỳ vọng</p>
         </div>
       </div>
-      <div class="flex gap-2 mt-6">
+
+      <!-- Tab: Cloud -->
+      <div id="tabCloud" class="space-y-4 hidden">
+        <div id="cloudStatusBox" class="bg-gray-50 rounded-xl p-3 text-sm">
+          <div class="font-semibold text-gray-700 mb-1">Trạng thái hiện tại:</div>
+          <div id="cloudStatusText" class="text-gray-500">Đang kiểm tra...</div>
+        </div>
+
+        <button id="becomeCloudBtn" onclick="becomeCloud()" class="w-full text-left p-3 rounded-xl border-2 border-blue-600 bg-white hover:bg-blue-50">
+          <div class="font-semibold text-blue-700">🖥️ Dùng máy này làm Cloud</div>
+          <div class="text-xs text-gray-500 mt-0.5">Các thiết bị khác tự động phát hiện máy này</div>
+        </button>
+
+        <button id="scanCloudBtn" onclick="scanForCloud()" class="w-full text-left p-3 rounded-xl border-2 border-gray-300 bg-white hover:bg-gray-50">
+          <div class="font-semibold text-gray-700">🔍 Tìm Cloud trong mạng LAN</div>
+          <div id="scanStatus" class="text-xs text-gray-500 mt-0.5">Quét các máy trong mạng...</div>
+        </button>
+
+        <div class="border border-gray-200 rounded-xl p-3">
+          <div class="text-xs font-semibold text-gray-700 mb-2">Hoặc nhập thủ công:</div>
+          <input id="cloudUrlInput" type="url" placeholder="http://192.168.1.x:3001"
+                 class="w-full border rounded-lg px-3 py-2 text-sm mb-2">
+          <button onclick="saveCloudUrl()" class="w-full bg-blue-600 text-white py-2 rounded-lg font-medium text-sm">
+            💾 Lưu URL Cloud
+          </button>
+        </div>
+      </div>
+
+      <!-- Chỉ nút Lưu cho tab Cảnh báo -->
+      <div id="alertSaveSection" class="flex gap-2 mt-6">
         <button onclick="closeAlertSettings()" class="flex-1 bg-gray-200 text-gray-800 py-3 rounded-lg font-medium">Hủy</button>
         <button onclick="saveAlertSettings()" class="flex-1 bg-blue-600 text-white py-3 rounded-lg font-medium">💾 Lưu</button>
       </div>
@@ -255,22 +256,63 @@
   </div>
 
   <script>
+  let currentSettingsTab = 'alert';
+
+  function switchSettingsTab(tab) {
+    currentSettingsTab = tab;
+    const alertTab = document.getElementById('tabAlert');
+    const cloudTab = document.getElementById('tabCloud');
+    const alertBtn = document.getElementById('tabAlertBtn');
+    const cloudBtn = document.getElementById('tabCloudBtn');
+    const saveSection = document.getElementById('alertSaveSection');
+
+    if (tab === 'alert') {
+      alertTab.classList.remove('hidden');
+      cloudTab.classList.add('hidden');
+      alertBtn.className = 'flex-1 py-2 text-sm font-medium text-blue-600 border-b-2 border-blue-600';
+      cloudBtn.className = 'flex-1 py-2 text-sm font-medium text-gray-400 border-b-2 border-transparent';
+      saveSection.classList.remove('hidden');
+    } else {
+      alertTab.classList.add('hidden');
+      cloudTab.classList.remove('hidden');
+      alertBtn.className = 'flex-1 py-2 text-sm font-medium text-gray-400 border-b-2 border-transparent';
+      cloudBtn.className = 'flex-1 py-2 text-sm font-medium text-blue-600 border-b-2 border-blue-600';
+      saveSection.classList.add('hidden');
+      refreshCloudTab();
+    }
+  }
+
+  async function refreshCloudTab() {
+    const statusEl = document.getElementById('cloudStatusText');
+    const input = document.getElementById('cloudUrlInput');
+    if (!statusEl) return;
+
+    const cloudUrl = getCloudUrl();
+    if (!cloudUrl) {
+      statusEl.innerHTML = '🔴 <span class="text-red-600"><strong>Chưa có Cloud</strong></span> — đang chạy độc lập';
+    } else if (!navigator.onLine) {
+      statusEl.innerHTML = '🔴 <span class="text-red-600"><strong>Offline</strong></span> — cloud: ' + cloudUrl;
+    } else {
+      statusEl.innerHTML = '🟢 <span class="text-green-600"><strong>Đã kết nối Cloud</strong></span><br><span class="text-xs text-gray-500">' + cloudUrl + '</span>';
+    }
+
+    if (input) input.value = cloudUrl;
+  }
+
   async function showAlertSettings() {
     const modal = document.getElementById('alertSettingsModal');
-    const thresholdInput = document.getElementById('stockLowThreshold');
-    const daysInput = document.getElementById('customerAlertDays');
 
-    // Load current values from settings
     try {
       const res = await fetch('/api/settings');
       const settings = await res.json();
-      thresholdInput.value = settings.stock_low_threshold || 10;
-      daysInput.value = settings.customer_alert_days || 7;
+      document.getElementById('stockLowThreshold').value = settings.stock_low_threshold || 10;
+      document.getElementById('monthlyExpected').value = settings.monthly_expected || 300;
     } catch (e) {
-      thresholdInput.value = 10;
-      daysInput.value = 7;
+      document.getElementById('stockLowThreshold').value = 10;
+      document.getElementById('monthlyExpected').value = 300;
     }
 
+    switchSettingsTab('alert');
     modal.classList.remove('hidden');
     modal.classList.add('flex');
   }
@@ -283,7 +325,7 @@
 
   async function saveAlertSettings() {
     const threshold = document.getElementById('stockLowThreshold').value;
-    const days = document.getElementById('customerAlertDays').value;
+    const monthly = document.getElementById('monthlyExpected').value;
 
     try {
       await fetch('/api/settings/batch', {
@@ -291,15 +333,98 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           stock_low_threshold: threshold,
-          customer_alert_days: days
+          monthly_expected: monthly
         })
       });
       closeAlertSettings();
-      alert('Đã lưu cài đặt! Trang sẽ tải lại.');
+      alert('Đã lưu cài đặt!');
       location.reload();
     } catch (e) {
       alert('Lỗi: ' + e.message);
     }
+  }
+
+  async function becomeCloud() {
+    const selfUrl = window.location.origin;
+    localStorage.setItem('cloudUrl', selfUrl);
+    localStorage.setItem('isCloudServer', 'true');
+    await refreshCloudTab();
+    if (navigator.onLine) {
+      showToast('☁️ Máy này đã là Cloud!', 'success');
+    }
+    await updateSmartStatus();
+  }
+
+  async function scanForCloud() {
+    const scanEl = document.getElementById('scanStatus');
+    if (!scanEl) return;
+    scanEl.innerHTML = '⏳ Đang quét...';
+
+    const localIP = await getLocalIP();
+    if (!localIP) {
+      scanEl.innerHTML = '❌ Không lấy được IP máy';
+      return;
+    }
+
+    const subnet = localIP.substring(0, localIP.lastIndexOf('.'));
+    const promises = [];
+    for (let i = 1; i <= 30; i++) {
+      const ip = `${subnet}.${i}`;
+      if (ip !== localIP) {
+        promises.push(checkDevice(ip, 3000));
+        promises.push(checkDevice(ip, 3001));
+      }
+    }
+
+    const results = await Promise.allSettled(promises);
+    const found = results.filter(r => r.status === 'fulfilled' && r.value).map(r => r.value);
+
+    if (found.length > 0) {
+      const cloud = found[0];
+      localStorage.setItem('cloudUrl', cloud.url);
+      localStorage.removeItem('isCloudServer');
+      scanEl.innerHTML = '✅ Tìm thấy: <strong>' + cloud.name + '</strong><br><span class="text-xs text-gray-500">' + cloud.url + '</span>';
+      setTimeout(async () => {
+        await refreshCloudTab();
+        await updateSmartStatus();
+        showToast('☁️ Đã kết nối: ' + cloud.name, 'success');
+      }, 1500);
+    } else {
+      scanEl.innerHTML = '❌ Không tìm thấy Cloud nào.<br><span class="text-xs">Đảm bảo máy Cloud đang bật và cùng mạng.</span>';
+    }
+  }
+
+  async function checkDevice(ip, port) {
+    try {
+      const ctrl = new AbortController();
+      const id = setTimeout(() => ctrl.abort(), 2000);
+      const res = await fetch(`http://${ip}:${port}/api/discover`, { signal: ctrl.signal, cache: 'no-store' });
+      clearTimeout(id);
+      if (res.ok) {
+        const data = await res.json();
+        return { ip, port, name: data.name || 'BeerPOS Cloud', url: data.url || `http://${ip}:${port}` };
+      }
+    } catch {}
+    return null;
+  }
+
+  async function getLocalIP() {
+    try {
+      const pc = new RTCPeerConnection({ iceServers: [] });
+      pc.createDataChannel('');
+      const offer = await pc.createOffer();
+      pc.setLocalDescription(offer);
+      return new Promise(resolve => {
+        pc.onicecandidate = e => {
+          if (e.candidate && e.candidate.candidate.includes('srflx')) {
+            const match = e.candidate.candidate.match(/(\d+\.\d+\.\d+\.\d+)/);
+            if (match) resolve(match[1]);
+          }
+        };
+        setTimeout(resolve, 3000);
+      });
+    } catch {}
+    return null;
   }
   </script>
 </body>

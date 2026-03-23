@@ -6,6 +6,7 @@
   <title>Chi tiết khách hàng</title>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#f59e0b">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="stylesheet" href="/css/tailwind.css">
   <link rel="stylesheet" href="/css/unified.css">
@@ -555,6 +556,18 @@
 
     // Initialize
     loadCustomerDetail();
+  </script>
+  <script src="/js/vendor/dexie.min.js"></script>
+  <script src="/db.js"></script>
+  <script src="/js/utils.js"></script>
+  <script src="/sync.js"></script>
+  <script>
+  // Service Worker — bật offline-first caching
+  if ('serviceWorker' in navigator) {
+    if (!navigator.serviceWorker.controller) {
+      navigator.serviceWorker.register('/sw.js').catch(err => console.log('[SW] Registration failed:', err));
+    }
+  }
   </script>
 </body>
 </html>

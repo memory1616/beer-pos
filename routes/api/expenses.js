@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../../database');
+const logger = require('../../src/utils/logger');
 
 // Expense type mapping
 const EXPENSE_TYPES = {
@@ -48,7 +49,7 @@ router.get('/', (req, res) => {
     const expenses = db.prepare(sql).all(...params);
     res.json(expenses);
   } catch (err) {
-    console.error('Error fetching expenses:', err);
+    logger.error('Error fetching expenses', { error: err.message });
     res.status(500).json({ error: 'Failed to fetch expenses' });
   }
 });
@@ -88,7 +89,7 @@ router.get('/today', (req, res) => {
       expenses: expenses
     });
   } catch (err) {
-    console.error('Error fetching today expenses:', err);
+    logger.error('Error fetching today expenses', { error: err.message });
     res.status(500).json({ error: 'Failed to fetch today expenses' });
   }
 });
@@ -119,7 +120,7 @@ router.get('/summary', (req, res) => {
     const summary = db.prepare(sql).all(...params);
     res.json(summary);
   } catch (err) {
-    console.error('Error fetching expense summary:', err);
+    logger.error('Error fetching expense summary', { error: err.message });
     res.status(500).json({ error: 'Failed to fetch expense summary' });
   }
 });
@@ -144,7 +145,7 @@ router.get('/total', (req, res) => {
     const result = db.prepare(sql).get(...params);
     res.json({ total: result.total || 0 });
   } catch (err) {
-    console.error('Error fetching total expenses:', err);
+    logger.error('Error fetching total expenses', { error: err.message });
     res.status(500).json({ error: 'Failed to fetch total expenses' });
   }
 });
@@ -158,7 +159,7 @@ router.get('/:id', (req, res) => {
     }
     res.json(expense);
   } catch (err) {
-    console.error('Error fetching expense:', err);
+    logger.error('Error fetching expense', { error: err.message });
     res.status(500).json({ error: 'Failed to fetch expense' });
   }
 });
@@ -168,7 +169,7 @@ router.post('/', (req, res) => {
   try {
     const { category, amount, description, date, type, km, order_id, is_auto } = req.body;
     
-    console.log('POST /api/expenses body:', req.body);
+    logger.debug('Create expense', { category, amount, type });
     
     // STEP 6 - Input Validation
     if (!category || !amount) {
@@ -214,7 +215,7 @@ router.post('/', (req, res) => {
     const expense = db.prepare('SELECT * FROM expenses WHERE id = ?').get(result.lastInsertRowid);
     res.status(201).json(expense);
   } catch (err) {
-    console.error('Error creating expense:', err);
+    logger.error('Error creating expense', { error: err.message });
     res.status(500).json({ error: 'Failed to create expense' });
   }
 });
@@ -224,7 +225,7 @@ router.post('/quick', (req, res) => {
   try {
     const { expenseType, amount, note, km } = req.body;
     
-    console.log('POST /api/expenses/quick body:', req.body);
+    logger.debug('Quick add expense', { expenseType, amount });
     
     // STEP 6 - Input Validation
     if (!expenseType || !amount) {
@@ -275,7 +276,7 @@ router.post('/quick', (req, res) => {
     const expense = db.prepare('SELECT * FROM expenses WHERE id = ?').get(result.lastInsertRowid);
     res.status(201).json(expense);
   } catch (err) {
-    console.error('Error quick adding expense:', err);
+    logger.error('Error quick adding expense', { error: err.message });
     res.status(500).json({ error: 'Failed to quick add expense' });
   }
 });
@@ -293,7 +294,7 @@ router.put('/:id', (req, res) => {
     
     db.prepare(`
       UPDATE expenses
-      SET category = ?, type = ?, amount = ?, description = ?, date = ?, km = ?, order_id = ?, is_auto = ?
+      SET category = ?, type = ?, amount = ?, description = ?, date = ?, km = ?, order_id = ?, is_auto = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `).run(
       category || existing.category,
@@ -310,7 +311,7 @@ router.put('/:id', (req, res) => {
     const expense = db.prepare('SELECT * FROM expenses WHERE id = ?').get(id);
     res.json(expense);
   } catch (err) {
-    console.error('Error updating expense:', err);
+    logger.error('Error updating expense', { error: err.message });
     res.status(500).json({ error: 'Failed to update expense' });
   }
 });
@@ -328,7 +329,7 @@ router.delete('/:id', (req, res) => {
     db.prepare('DELETE FROM expenses WHERE id = ?').run(id);
     res.json({ success: true, message: 'Expense deleted' });
   } catch (err) {
-    console.error('Error deleting expense:', err);
+    logger.error('Error deleting expense', { error: err.message });
     res.status(500).json({ error: 'Failed to delete expense' });
   }
 });

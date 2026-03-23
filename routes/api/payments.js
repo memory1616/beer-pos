@@ -1,16 +1,19 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../../database');
+const logger = require('../../src/utils/logger');
 
 // ========== HELPER: Update customer keg_balance & sync keg_stats.customer_holding ==========
-function updateCustomerKegBalance(customerId, newBalance) {
+function updateCustomerKegBalance(customerId, deliverKegs = 0, returnKegs = 0) {
   const custId = parseInt(customerId);
-  if (!custId || isNaN(newBalance)) return false;
-  
+  if (!custId) return false;
+
   const oldCustomer = db.prepare('SELECT keg_balance FROM customers WHERE id = ?').get(custId);
   if (!oldCustomer) return false;
-  
+
   const oldBalance = oldCustomer.keg_balance || 0;
+  // Luôn tính balance mới từ số dư THỰC TẾ trong DB
+  const newBalance = Math.max(0, oldBalance + deliverKegs - returnKegs);
   
   // Update customer
   db.prepare('UPDATE customers SET keg_balance = ? WHERE id = ?').run(newBalance, custId);
@@ -79,7 +82,7 @@ router.get('/debt', (req, res) => {
 
     res.json(customers);
   } catch (err) {
-    console.error('Error fetching debt:', err);
+    logger.error('Error fetching debt', { error: err.message });
     res.status(500).json({ error: 'Lỗi khi lấy danh sách công nợ' });
   }
 });
@@ -108,7 +111,7 @@ router.get('/history', (req, res) => {
 
     res.json([]);
   } catch (err) {
-    console.error('Error fetching payment history:', err);
+    logger.error('Error fetching payment history', { error: err.message });
     res.status(500).json({ error: 'Lỗi khi lấy lịch sử thanh toán' });
   }
 });
@@ -155,7 +158,7 @@ router.post('/', (req, res) => {
       message: `Đã thanh toán ${amountValue.toLocaleString('vi-VN')} VNĐ`
     });
   } catch (err) {
-    console.error('Payment error:', err);
+    logger.error('Payment error', { error: err.message });
     res.status(500).json({ error: 'Thanh toán thất bại: ' + err.message });
   }
 });
@@ -187,7 +190,7 @@ router.post('/customer/location', (req, res) => {
     }
     res.json({ success: true });
   } catch (err) {
-    console.error('Error updating location:', err);
+    logger.error('Error updating location', { error: err.message });
     res.status(500).json({ error: 'Cập nhật vị trí thất bại' });
   }
 });
@@ -232,7 +235,7 @@ router.post('/keg/update-balance', (req, res) => {
 
     res.json({ success: true, newBalance, change });
   } catch (err) {
-    console.error('Error updating keg balance:', err);
+    logger.error('Error updating keg balance', { error: err.message });
     res.status(500).json({ error: 'Cập nhật thất bại' });
   }
 });

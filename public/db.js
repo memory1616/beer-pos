@@ -4,13 +4,13 @@
 // Create Dexie database
 const db = new Dexie('BeerPOS');
 
-// Define schema
-db.version(1).stores({
+// Define schema — version 2 matches sw.js (v7+)
+db.version(2).stores({
   customers: '++id, name, phone, deposit, keg_balance, archived, synced',
   products: '++id, name, stock, cost_price, synced',
   sales: '++id, customer_id, date, total, profit, synced',
   sale_items: '++id, sale_id, product_id, quantity, price, synced',
-  sync_queue: '++id, type, action, data, synced, created_at'
+  sync_queue: '++id, entity, action, data, url, method, synced, created_at, retry_count'
 });
 
 // ==================== SALE FUNCTIONS ====================
@@ -273,12 +273,13 @@ window.addEventListener('online', () => {
   });
 });
 
-// Periodic sync every 60 seconds
-setInterval(() => {
-  if (navigator.onLine) {
-    syncAllData();
-  }
-}, 60000);
+// Periodic sync every 5 minutes (sync is handled by sync.js, this is a fallback)
+// Disabled to avoid double-sync — uncomment if sync.js is removed
+// setInterval(() => {
+//   if (navigator.onLine) {
+//     syncAllData();
+//   }
+// }, 300000);
 
 // Initial sync on load
 if (navigator.onLine) {

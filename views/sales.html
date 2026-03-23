@@ -6,6 +6,7 @@
   <title>Bán hàng</title>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#16a34a">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="stylesheet" href="/css/tailwind.css">
   <link rel="stylesheet" href="/css/unified.css">
@@ -72,7 +73,8 @@
           <div class="flex gap-2 items-center">
             <button onclick="addKegDeliver(10)" class="w-14 py-3 bg-green-100 text-green-700 rounded-lg font-bold">+10</button>
             <button onclick="addKegDeliver(20)" class="w-14 py-3 bg-green-100 text-green-700 rounded-lg font-bold">+20</button>
-            <input type="number" id="kegDeliver" value="0" class="flex-1 min-w-0 border-2 border-gray-200 rounded-lg px-3 py-3 text-center text-lg font-bold" inputmode="numeric">
+            <input type="number" id="kegDeliver" value="0" class="flex-1 min-w-0 border-2 border-gray-200 rounded-lg px-3 py-3 text-center text-lg font-bold" inputmode="numeric"
+              oninput="updateKegModalPreview()" onchange="updateKegModalPreview()">
           </div>
         </div>
         
@@ -82,7 +84,8 @@
             <button onclick="addKegReturn(10)" class="w-14 py-3 bg-orange-100 text-orange-700 rounded-lg font-bold">+10</button>
             <button onclick="addKegReturn(20)" class="w-14 py-3 bg-orange-100 text-orange-700 rounded-lg font-bold">+20</button>
             <button onclick="returnAllKegs()" class="px-2 py-3 bg-red-100 text-red-700 rounded-lg font-bold text-xs">Hết</button>
-            <input type="number" id="kegReturn" value="0" class="flex-1 min-w-0 border-2 border-gray-200 rounded-lg px-3 py-3 text-center text-lg font-bold" inputmode="numeric">
+            <input type="number" id="kegReturn" value="0" class="flex-1 min-w-0 border-2 border-gray-200 rounded-lg px-3 py-3 text-center text-lg font-bold" inputmode="numeric"
+              oninput="updateKegModalPreview()" onchange="updateKegModalPreview()">
           </div>
         </div>
         
@@ -262,17 +265,20 @@
     loadData();
   </script>
   
+  <script src="/js/vendor/dexie.min.js"></script>
+  <script src="/db.js"></script>
   <script src="/js/debug.js"></script>
   <script>
   // Check authentication
   if (!isLoggedIn()) { window.location.href = '/login'; }
-  
-  // Disable service worker in development to avoid cache issues
-  // if ('serviceWorker' in navigator) {
-  //   if (!navigator.serviceWorker.controller) {
-  //     navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW registration failed:', err));
-  //   }
-  // }
+
+  // Service Worker — bật offline-first caching
+  if ('serviceWorker' in navigator) {
+    if (!navigator.serviceWorker.controller) {
+      navigator.serviceWorker.register('/sw.js').catch(err => console.log('[SW] Registration failed:', err));
+    }
+  }
   </script>
+  <script src="/sync.js"></script>
 </body>
 </html>

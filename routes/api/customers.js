@@ -1,11 +1,18 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../../database');
+const logger = require('../../src/utils/logger');
 
-// Sanitize input to prevent XSS
+// Sanitize input to prevent XSS — encode HTML entities
 function sanitizeInput(input) {
   if (typeof input === 'string') {
-    return input.replace(/[<>'"]/g, '').trim();
+    return input
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#x27;')
+      .trim();
   }
   return input;
 }
@@ -42,7 +49,7 @@ router.get('/', (req, res) => {
     
     res.json(customers);
   } catch (err) {
-    console.error('Error fetching customers:', err);
+    logger.error('Error fetching customers', { error: err.message });
     res.status(500).json({ error: 'Lỗi khi lấy danh sách khách hàng' });
   }
 });
@@ -59,7 +66,7 @@ router.get('/:id', (req, res) => {
     
     res.json(customer);
   } catch (err) {
-    console.error('Error fetching customer:', err);
+    logger.error('Error fetching customer', { error: err.message });
     res.status(500).json({ error: 'Lỗi khi lấy thông tin khách hàng' });
   }
 });
@@ -100,7 +107,7 @@ router.post('/', (req, res) => {
 
     res.json({ id: customerId, name: sanitizedName, phone: sanitizedPhone, deposit: parseFloat(deposit) || 0, keg_balance: 0 });
   } catch (err) {
-    console.error('Error creating customer:', err);
+    logger.error('Error creating customer', { error: err.message });
     res.status(500).json({ error: 'Lỗi khi tạo khách hàng: ' + err.message });
   }
 });
@@ -114,7 +121,7 @@ router.put('/:id', (req, res) => {
     return res.status(404).json({ error: 'Không tìm thấy khách hàng' });
   }
 
-  const { name, phone, deposit, lat, lng, keg_balance, debt, address, note, horizontal_fridge, vertical_fridge } = req.body;
+  const { name, phone, deposit, lat, lng, keg_balance, debt, address, note, horizontal_fridge, vertical_fridge, exclude_expected } = req.body;
 
   // Keep existing values if not provided
   const updated = {
@@ -129,6 +136,7 @@ router.put('/:id', (req, res) => {
     note:             note             ?? existing.note,
     horizontal_fridge: horizontal_fridge ?? existing.horizontal_fridge,
     vertical_fridge:   vertical_fridge  ?? existing.vertical_fridge,
+    exclude_expected:  exclude_expected !== undefined ? exclude_expected : existing.exclude_expected,
   };
 
   // Calculate fridge difference
@@ -144,7 +152,7 @@ router.put('/:id', (req, res) => {
     // Update customer info
     db.prepare(`
       UPDATE customers
-      SET name = ?, phone = ?, deposit = ?, lat = ?, lng = ?, keg_balance = ?, debt = ?, address = ?, note = ?, horizontal_fridge = ?, vertical_fridge = ?
+      SET name = ?, phone = ?, deposit = ?, lat = ?, lng = ?, keg_balance = ?, debt = ?, address = ?, note = ?, horizontal_fridge = ?, vertical_fridge = ?, exclude_expected = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `).run(
       updated.name,
@@ -158,6 +166,7 @@ router.put('/:id', (req, res) => {
       updated.note,
       updated.horizontal_fridge,
       updated.vertical_fridge,
+      updated.exclude_expected,
       id
     );
 
@@ -222,7 +231,7 @@ router.put('/:id', (req, res) => {
 
     res.json({ success: true });
   } catch (err) {
-    console.error('Error updating customer:', err);
+    logger.error('Error updating customer', { error: err.message });
     res.status(500).json({ error: 'Lỗi cập nhật khách hàng' });
   }
 });
@@ -241,10 +250,10 @@ router.put('/:id/archive', (req, res) => {
 
   const archived = existing.archived ? 0 : 1;
   try {
-    db.prepare('UPDATE customers SET archived = ? WHERE id = ?').run(archived, id);
+    db.prepare('UPDATE customers SET archived = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(archived, id);
     res.json({ success: true, archived });
   } catch (err) {
-    console.error('Error archiving customer:', err);
+    logger.error('Error archiving customer', { error: err.message });
     res.status(500).json({ error: 'Lỗi khi lưu trữ khách hàng' });
   }
 });
@@ -273,9 +282,9 @@ router.post('/location', (req, res) => {
   try {
     let result;
     if (address) {
-      result = db.prepare('UPDATE customers SET lat = ?, lng = ?, address = ? WHERE id = ?').run(latNum, lngNum, address, customerId);
+      result = db.prepare('UPDATE customers SET lat = ?, lng = ?, address = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(latNum, lngNum, address, customerId);
     } else {
-      result = db.prepare('UPDATE customers SET lat = ?, lng = ? WHERE id = ?').run(latNum, lngNum, customerId);
+      result = db.prepare('UPDATE customers SET lat = ?, lng = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(latNum, lngNum, customerId);
     }
 
     if (result.changes === 0) {
@@ -284,7 +293,7 @@ router.post('/location', (req, res) => {
 
     res.json({ success: true });
   } catch (err) {
-    console.error('[location] Error:', err.message);
+    logger.error('Location update error', { error: err.message });
     res.status(500).json({ error: 'Lỗi database: ' + err.message });
   }
 });
@@ -295,7 +304,7 @@ router.post('/customer/location', (req, res) => {
   if (!customerId || lat === undefined || lng === undefined) {
     return res.status(400).json({ error: 'Thiếu thông tin' });
   }
-  db.prepare('UPDATE customers SET lat = ?, lng = ? WHERE id = ?').run(lat, lng, customerId);
+    db.prepare('UPDATE customers SET lat = ?, lng = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(lat, lng, customerId);
   res.json({ success: true });
 });
 
@@ -327,12 +336,15 @@ router.get('/:id/stats', (req, res) => {
   
   // Lần giao gần nhất
   const lastSale = db.prepare(`
-    SELECT date, julianday('now') - julianday(date) as days_ago FROM sales 
+    SELECT date, julianday('now') - julianday(date) as days_ago FROM sales
     WHERE customer_id = ? ORDER BY date DESC LIMIT 1
   `).get(customerId);
-  
+
+  // Lấy keg_balance trong 1 query duy nhất (thay vì query riêng ở res.json)
+  const customer = db.prepare('SELECT keg_balance FROM customers WHERE id = ?').get(customerId);
+
   res.json({
-    kegBalance: db.prepare('SELECT keg_balance FROM customers WHERE id = ?').get(customerId).keg_balance,
+    kegBalance: customer ? customer.keg_balance : 0,
     totalRevenue,
     monthlyRevenue,
     monthlyKegs,
@@ -381,19 +393,38 @@ router.get('/:id/sales', (req, res) => {
   res.json({ sales, monthlyTotal, monthlyQty });
 });
 
-// GET /api/customer-alerts - Get customers who haven't ordered in 7+ days
+// GET /api/customer-alerts - Khách dưới mức kỳ vọng bình/tháng
 router.get('/alerts', (req, res) => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const monthStartStr = `${year}-${month}-01`;
+
+  const monthlyExpectedSetting = db.prepare("SELECT value FROM settings WHERE key = 'monthly_expected'").get();
+  const monthlyExpected = monthlyExpectedSetting ? parseFloat(monthlyExpectedSetting.value) : 300;
+  const daysElapsed = now.getDate();
+  const daysInMonth = new Date(year, now.getMonth() + 1, 0).getDate();
+  const expectedUnits = monthlyExpected * daysElapsed / daysInMonth;
+
   const alerts = db.prepare(`
-    SELECT id, name, phone, last_order_date,
-      CAST(julianday('now') - julianday(last_order_date) AS INTEGER) as days
-    FROM customers
-    WHERE archived = 0
-    AND last_order_date IS NOT NULL
-    AND julianday('now') - julianday(last_order_date) >= 7
-    ORDER BY days DESC
+    SELECT c.id, c.name, c.phone, c.last_order_date,
+      COALESCE(mc.monthly_qty, 0) as monthly_qty,
+      ROUND(?) - COALESCE(mc.monthly_qty, 0) as shortfall
+    FROM customers c
+    LEFT JOIN (
+      SELECT s.customer_id, SUM(si.quantity) as monthly_qty
+      FROM sales s
+      JOIN sale_items si ON si.sale_id = s.id
+      WHERE s.type = 'sale' AND s.date >= ?
+      GROUP BY s.customer_id
+    ) mc ON mc.customer_id = c.id
+    WHERE c.archived = 0
+    AND c.exclude_expected = 0
+    AND ROUND(?) - COALESCE(mc.monthly_qty, 0) > 0
+    ORDER BY shortfall DESC
     LIMIT 10
-  `).all();
-  
+  `).all(expectedUnits, monthStartStr, expectedUnits);
+
   res.json(alerts);
 });
 

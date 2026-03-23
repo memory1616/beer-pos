@@ -29,6 +29,8 @@ function getHeaderWithActions(title, icons = '', actions = '') {
         </div>
       </div>
       <div class="actions">
+        <span id="onlineStatus" class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-400 mr-1">⏳</span>
+        <span id="syncStatus" class="text-xs text-gray-400 mr-1"></span>
         ${actions}
       </div>
     </header>
@@ -47,11 +49,11 @@ function getContent(content) {
 // Generate bottom navigation - Mobile optimized (Grab-style)
 function getBottomNav(currentPage) {
   const pages = [
-    { href: '/', icon: '🏠', label: 'Trang chủ' },
-    { href: '/customers', icon: '👤', label: 'Khách' },
+    { href: '/', icon: '🏠', label: 'Home' },
+    { href: '/customers', icon: '👤', label: 'KH' },
     { href: '/sale', icon: '🍺', label: 'Bán' },
     { href: '/stock', icon: '📦', label: 'Kho' },
-    { href: '/report', icon: '📊', label: 'Báo cáo' }
+    { href: '/report', icon: '📊', label: 'Báo Cáo' }
   ];
 
   // Add expenses as floating button (not in bottom nav)

@@ -10,6 +10,7 @@ node_modules/
 .env.local
 
 # Logs
+logs/
 *.log
 
 # IDE
@@ -22,5 +23,4 @@ node_modules/
 .DS_Store
 Thumbs.db
 
-# Backup
-backup/
+// Backup

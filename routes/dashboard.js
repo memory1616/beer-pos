@@ -145,17 +145,45 @@ router.get('/data', (req, res) => {
   const customerAlertDaysSetting = db.prepare("SELECT value FROM settings WHERE key = 'customer_alert_days'").get();
   const customerAlertDays = customerAlertDaysSetting ? parseInt(customerAlertDaysSetting.value) : 7;
 
+  // Kỳ vọng bình/tháng cho header dashboard
+  const monthlyExpectedSetting = db.prepare("SELECT value FROM settings WHERE key = 'monthly_expected'").get();
+  const monthlyExpected = monthlyExpectedSetting ? parseFloat(monthlyExpectedSetting.value) : 300;
+  const daysElapsed = now.getDate();
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const expectedUnits = Math.round(monthlyExpected * daysElapsed / daysInMonth);
+
   // Get customer alerts (configurable days no order)
   const customerAlerts = db.prepare(`
     SELECT id, name, phone, last_order_date,
       CAST(julianday('now') - julianday(last_order_date) AS INTEGER) as days
     FROM customers
     WHERE archived = 0
+    AND (exclude_expected IS NULL OR exclude_expected = 0)
     AND last_order_date IS NOT NULL
     AND julianday('now') - julianday(last_order_date) >= ?
     ORDER BY days DESC
     LIMIT 10
   `).all(customerAlertDays);
+
+  // KPI alerts: khách thấp hơn kỳ vọng bình/tháng (có filter exclude_expected)
+  const kpiAlerts = db.prepare(`
+    SELECT c.id, c.name, c.phone, c.last_order_date,
+      COALESCE(mc.monthly_qty, 0) as monthly_qty,
+      ROUND(?) - COALESCE(mc.monthly_qty, 0) as shortfall
+    FROM customers c
+    LEFT JOIN (
+      SELECT s.customer_id, SUM(si.quantity) as monthly_qty
+      FROM sales s
+      JOIN sale_items si ON si.sale_id = s.id
+      WHERE s.type = 'sale' AND s.date >= ?
+      GROUP BY s.customer_id
+    ) mc ON mc.customer_id = c.id
+    WHERE c.archived = 0
+    AND (c.exclude_expected IS NULL OR c.exclude_expected = 0)
+    AND ROUND(?) - COALESCE(mc.monthly_qty, 0) > 0
+    ORDER BY shortfall DESC
+    LIMIT 10
+  `).all(expectedUnits, monthStartStr, expectedUnits);
   
   // Get monthly expenses
   const monthExpenses = db.prepare(`
@@ -195,6 +223,11 @@ router.get('/data', (req, res) => {
     lowStockProducts,
     stockLowThreshold, // Ngưỡng cảnh báo tồn kho (từ settings)
     customerAlertDays, // Ngưỡng ngày không đặt hàng (từ settings)
+    monthlyExpected,   // Kỳ vọng bình/tháng (từ settings)
+    expectedUnits,     // Kỳ vọng đến hôm nay
+    daysElapsed,       // Số ngày đã qua
+    daysInMonth,       // Số ngày trong tháng
+    kpiAlerts,        // Cảnh báo KPI theo tháng (có lọc exclude_expected)
     kegState,
     recentSales,
     monthlyRevenue,

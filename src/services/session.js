@@ -5,6 +5,7 @@
  */
 
 const db = require('../../database');
+const logger = require('../utils/logger');
 
 const STORAGE_KEY = 'beer_pos_current_session';
 
@@ -72,7 +73,7 @@ function getSessionByDate(date) {
       updatedAt: row.updated_at
     };
   } catch (e) {
-    console.error('Error getting session by date:', e);
+    logger.error('Error getting session by date', { error: e.message });
     return null;
   }
 }
@@ -135,7 +136,7 @@ function refreshSessionData(session) {
       updatedAt: Date.now()
     };
   } catch (e) {
-    console.error('Error refreshing session data:', e);
+    logger.error('Error refreshing session data', { error: e.message });
     return session;
   }
 }
@@ -168,7 +169,7 @@ function saveSessionToDb(session) {
     );
     return true;
   } catch (e) {
-    console.error('Error saving session to db:', e);
+    logger.error('Error saving session to db', { error: e.message });
     return false;
   }
 }
@@ -268,10 +269,10 @@ function migrateToSessionFormat() {
     // Create index
     db.exec(`CREATE INDEX IF NOT EXISTS idx_sessions_date ON sessions(date)`);
     
-    console.log('Sessions table ready');
+    logger.info('Sessions table ready');
     return true;
   } catch (e) {
-    console.error('Error creating sessions table:', e);
+    logger.error('Error creating sessions table', { error: e.message });
     return false;
   }
 }
@@ -285,7 +286,7 @@ function checkOldDataMigration() {
     const hasOldExpenses = localStorage.getItem('beer_pos_expenses') !== null;
     
     if (hasOldOrders || hasOldExpenses) {
-      console.log('Old localStorage data found - migration available');
+      logger.info('Old localStorage data found - migration available');
       return {
         needsMigration: true,
         hasOldOrders,
@@ -374,10 +375,10 @@ function migrateOldData() {
     localStorage.removeItem('beer_pos_orders');
     localStorage.removeItem('beer_pos_expenses');
     
-    console.log(`Migrated ${migrated} sessions from old data`);
+    logger.info(`Migrated ${migrated} sessions from old data`);
     return { success: true, migrated };
   } catch (e) {
-    console.error('Error migrating old data:', e);
+    logger.error('Error migrating old data', { error: e.message });
     return { success: false, error: e.message };
   }
 }

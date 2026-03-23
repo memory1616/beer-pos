@@ -63,23 +63,27 @@ function initDashboard(data) {
     }
   }
   
-  // Render customer alerts (configurable days no order)
-  if (data.customerAlerts && data.customerAlerts.length > 0) {
+  // Render KPI alerts (thiếu bình so với kỳ vọng tháng, có lọc exclude_expected)
+  if (data.kpiAlerts && data.kpiAlerts.length > 0) {
     const section = document.getElementById('customerAlertsSection');
     const list = document.getElementById('customerAlertsList');
     const header = document.getElementById('customerAlertsHeader');
     if (section) section.classList.remove('hidden');
-    if (header && data.customerAlertDays) {
-      header.textContent = '⚠️ KH ' + data.customerAlertDays + ' ngày chưa lấy bia';
+    if (header) {
+      const monthly = data.monthlyExpected || 300;
+      const expected = Math.round(data.expectedUnits || 0);
+      const elapsed = data.daysElapsed || 0;
+      const total = data.daysInMonth || 0;
+      header.textContent = '⚠️ Dưới mức kỳ vọng (' + monthly + ' bình/tháng, kỳ vọng đạt ' + expected + ' bình sau ' + elapsed + '/' + total + ' ngày)';
     }
     if (list) {
-      list.innerHTML = data.customerAlerts.map(c => {
-        // Color based on days: threshold-1 = yellow, threshold*1.5 = orange, threshold*2+ = red
-        const threshold = data.customerAlertDays || 7;
+      list.innerHTML = data.kpiAlerts.map(c => {
+        const shortfall = Math.round(Number(c.shortfall) || 0);
+        const monthlyQty = Number(c.monthly_qty) || 0;
         let colorClass = 'text-yellow-600';
-        if (c.days > threshold * 2) {
+        if (shortfall > 50) {
           colorClass = 'text-red-600';
-        } else if (c.days > threshold * 1.5) {
+        } else if (shortfall > 20) {
           colorClass = 'text-orange-500';
         }
 
@@ -91,7 +95,10 @@ function initDashboard(data) {
             '<a href="/customers/' + c.id + '" class="hover:text-green-600">' + c.name + '</a>' +
             phoneBtn +
           '</div>' +
-          '<span class="font-bold ' + colorClass + '">' + c.days + ' ngày</span>' +
+          '<div class="text-right">' +
+            '<span class="font-bold ' + colorClass + '">-' + shortfall + ' bình</span>' +
+            '<span class="text-gray-400 text-xs ml-1">(' + monthlyQty + ' đã lấy)</span>' +
+          '</div>' +
         '</div>';
       }).join('');
     }

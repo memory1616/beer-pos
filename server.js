@@ -1,12 +1,16 @@
 // Beer POS Pro v2 - Simple Server
+process.env.TZ = 'Asia/Ho_Chi_Minh';
 require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
+const cookieParser = require('cookie-parser');
 const path = require('path');
 const fs = require('fs');
 const cron = require('node-cron');
 const rateLimit = require('express-rate-limit');
 const os = require('os');
+const logger = require('./src/utils/logger');
+const { getSession, AUTH_CONFIG } = require('./middleware/auth');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -42,6 +46,7 @@ app.use('/api', limiter);
 // Middleware
 app.use(bodyParser.json({ limit: '10mb' })); // Limit request body size
 app.use(bodyParser.urlencoded({ extended: true }));
+app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Favicon - inline SVG beer mug
@@ -50,12 +55,15 @@ app.get('/favicon.ico', (req, res) => {
   res.type('image/svg+xml').send(svg);
 });
 
-// Debug: Log all requests
+// Request logger — only log slow requests (>500ms) or errors
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} ${req.method} ${req.url}`);
-  if (req.method === 'POST' && req.url === '/api/expenses') {
-    console.log('  POST body:', req.body);
-  }
+  const start = Date.now();
+  res.on('finish', () => {
+    const ms = Date.now() - start;
+    if (ms > 500 || res.statusCode >= 400) {
+      logger.http(`${req.method} ${req.url} ${res.statusCode} ${ms}ms`);
+    }
+  });
   next();
 });
 
@@ -64,7 +72,7 @@ app.set('view engine', 'html');
 app.engine('html', require('ejs').renderFile);
 
 // Constants
-const DISTRIBUTOR_NAME = 'Bia Tươi Gia Huy';
+const DISTRIBUTOR_NAME = process.env.DISTRIBUTOR_NAME || 'Bia Tươi Gia Huy';
 
 // API Key - Disabled for local LAN app
 app.use('/api', (req, res, next) => {
@@ -101,14 +109,14 @@ function createBackup(options = {}) {
 
   try {
     fs.copyFileSync(dbPath, backupFile);
-    console.log(`[${now.toISOString()}] Auto backup created: backup-${timestamp}.db`);
+    logger.info(`Auto backup created: backup-${timestamp}.db`, { path: backupFile });
 
     // Clean old backups (keep last 30 days)
     cleanupOldBackups(backupDir);
 
     return { success: true, file: backupFile };
   } catch (e) {
-    console.error('Backup failed:', e.message);
+    logger.error('Backup failed', { error: e.message });
     return { success: false, error: e.message };
   }
 }
@@ -129,10 +137,10 @@ function cleanupOldBackups(backupDir) {
     const toDelete = files.slice(30);
     toDelete.forEach(f => {
       fs.unlinkSync(f.path);
-      console.log(`Deleted old backup: ${f.name}`);
+      logger.info(`Deleted old backup: ${f.name}`);
     });
   } catch (e) {
-    console.error('Cleanup error:', e.message);
+    logger.error('Cleanup error', { error: e.message });
   }
 }
 
@@ -177,15 +185,45 @@ app.use('/api/session', require('./routes/api/session'));
 // Offline-first multi-device sync
 app.use('/api/sync', require('./routes/api/sync'));
 
+// ==================== AUTH CHECK API ====================
+// Quick auth check for client-side redirects
+app.get('/api/auth/me', (req, res) => {
+  const cookieToken = req.cookies?.[AUTH_CONFIG.cookieName];
+  const headerToken = req.headers.authorization?.replace('Bearer ', '');
+  const token = cookieToken || headerToken;
+
+  if (!token) {
+    return res.status(401).json({ loggedIn: false });
+  }
+  const session = getSession(token);
+  if (!session) {
+    return res.status(401).json({ loggedIn: false });
+  }
+  res.json({ loggedIn: true, username: session.username });
+});
+
 // ==================== HEALTH CHECK ====================
 app.get('/api/ping', (req, res) => {
   res.json({ ok: true, timestamp: new Date().toISOString() });
 });
 
+// ==================== CLOUD DISCOVERY ====================
+// Giúp các thiết bị trong LAN tự động tìm cloud server
+app.get('/api/discover', (req, res) => {
+  const protocol = req.protocol;
+  const host = req.get('host') || `localhost:${PORT}`;
+  res.json({
+    cloud: true,
+    name: DISTRIBUTOR_NAME,
+    url: `${protocol}://${host}`,
+    version: '1.0.0'
+  });
+});
+
 // ==================== ERROR HANDLER ====================
 // Middleware xử lý lỗi - tránh crash server
 app.use((err, req, res, next) => {
-  console.error('Server Error:', err.message);
+  logger.error('Unhandled server error', { message: err.message, stack: err.stack });
   if (err.message && err.message.includes('SQLITE_CANTOPEN')) {
     return res.status(503).json({ error: 'Database not available' });
   }
@@ -201,33 +239,21 @@ app.use((req, res) => {
 // Prevent multiple instances
 const server = app.listen(PORT, HOST, () => {
   const networkIPs = getNetworkIPs();
-  
-  console.log('\n========================================');
-  console.log('🍺 Beer POS Pro v2');
-  console.log('========================================');
-  console.log(`Server started at: ${new Date().toISOString()}`);
-  console.log(`Build timestamp: ${process.env.BUILD_TIME || 'development'}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`Hostname: ${os.hostname()}`);
-  console.log('\n📍 Access URLs:');
-  console.log(`   Local:    http://localhost:${PORT}`);
-  console.log(`   Local:    http://127.0.0.1:${PORT}`);
-  
-  if (networkIPs.length > 0) {
-    console.log('\n🌐 Network URLs:');
-    networkIPs.forEach(({ name, ip }) => {
-      console.log(`   ${name}:  http://${ip}:${PORT}`);
-    });
-  }
-  
-  console.log('\n========================================\n');
+
+  logger.info('Beer POS Pro v2 started');
+  logger.info(`Server started at ${new Date().toISOString()}`);
+  logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  logger.info(`Hostname: ${os.hostname()}`);
+
+  const urls = [`http://localhost:${PORT}`, `http://127.0.0.1:${PORT}`];
+  networkIPs.forEach(({ name, ip }) => urls.push(`http://${ip}:${PORT}`));
+  logger.info(`Access URLs: ${urls.join(', ')}`);
 });
 
 // Handle server errors (e.g., port already in use)
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
-    console.error(`❌ Port ${PORT} is already in use!`);
-    console.error('Please stop the other server instance or use a different port.');
+    logger.error(`Port ${PORT} is already in use!`);
     process.exit(1);
   }
   throw err;

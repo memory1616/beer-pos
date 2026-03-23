@@ -28,7 +28,7 @@ db.exec(`
     damaged_stock INTEGER DEFAULT 0,
     cost_price REAL DEFAULT 0,
     sell_price REAL DEFAULT 0,
-    type TEXT DEFAULT 'keg', -- 'keg' = bình, 'pet' = chai nhựa, 'can' = lon
+    type TEXT DEFAULT 'keg', -- 'keg' = bình 1L, 'pet' = chai nhựa, 'box' = hộp 23L
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -227,6 +227,13 @@ try {
   // Column already exists
 }
 
+// Migration: Add exclude_expected column to customers (bỏ qua khỏi doanh số kỳ vọng)
+try {
+  db.exec(`ALTER TABLE customers ADD COLUMN exclude_expected INTEGER DEFAULT 0`);
+} catch (e) {
+  // Column already exists
+}
+
 // Index for archived customers
 try {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_customers_archived ON customers(archived)`);
@@ -248,7 +255,7 @@ syncTables.forEach(table => {
   }
 });
 
-// Migration: Add type column to products (keg, pet, can)
+// Migration: Add type column to products (keg, pet, box)
 try {
   db.exec(`ALTER TABLE products ADD COLUMN type TEXT DEFAULT 'keg'`);
 } catch (e) {
@@ -295,20 +302,16 @@ db.exec(`
   );
 `);
 
-// Keg inventory table (theo dõi kho vỏ bình tổng)
+// Keg inventory table (theo dõi kho vỏ bình rỗng)
 db.exec(`
   CREATE TABLE IF NOT EXISTS keg_inventory (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    type TEXT NOT NULL CHECK(type IN ('incoming', 'outgoing', 'adjust')),
-    quantity INTEGER NOT NULL,
-    balance_after INTEGER NOT NULL,
-    source TEXT,
-    note TEXT,
-    date TEXT DEFAULT CURRENT_TIMESTAMP
+    quantity INTEGER DEFAULT 0,
+    date TEXT DEFAULT CURRENT_TIMESTAMP,
+    note TEXT
   );
 `);
-
-// Sync metadata table
+// Sync metadata table (key-value store cho cloud sync)
 db.exec(`
   CREATE TABLE IF NOT EXISTS sync_meta (
     key TEXT PRIMARY KEY,
@@ -616,25 +619,7 @@ try {
   // Column already exists
 }
 
-// Migration: Add keg_inventory table if not exists
-try {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS keg_inventory (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      type TEXT NOT NULL CHECK(type IN ('incoming', 'outgoing', 'adjust')),
-      quantity INTEGER NOT NULL,
-      balance_after INTEGER NOT NULL,
-      source TEXT,
-      note TEXT,
-      date TEXT DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-  console.log('Created keg_inventory table');
-} catch (e) {
-  // Table may already exist
-}
-
-// Migration: Create index for keg_inventory
+// Index for keg_inventory
 try {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_keg_inventory_date ON keg_inventory(date)`);
   console.log('Created keg_inventory index');
@@ -642,10 +627,37 @@ try {
   // Index may already exist
 }
 
-// Migration: Add keg_inventory_balance setting if not exists
+// Migration: Initialize keg_inventory with zero row if empty
+try {
+  const count = db.prepare('SELECT COUNT(*) as count FROM keg_inventory').get();
+  if (count.count === 0) {
+    db.prepare('INSERT INTO keg_inventory (quantity) VALUES (0)').run();
+    console.log('Initialized keg_inventory table');
+  }
+} catch (e) {
+  // May already exist
+}
+
+  // Migration: Add keg_inventory_balance setting if not exists
 try {
   db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('keg_inventory_balance', '0');
   console.log('Added keg_inventory_balance setting');
+} catch (e) {
+  // Setting may already exist
+}
+
+// Migration: Add monthly_expected setting if not exists (kỳ vọng bình/tháng chung)
+try {
+  db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('monthly_expected', '200');
+  console.log('Added monthly_expected setting');
+} catch (e) {
+  // Setting may already exist
+}
+
+// Migration: Add box_to_keg_ratio setting (quy đổi box -> bình)
+try {
+  db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('box_to_keg_ratio', '23');
+  console.log('Added box_to_keg_ratio setting');
 } catch (e) {
   // Setting may already exist
 }
@@ -684,10 +696,12 @@ try {
 db.exec(`
   CREATE TABLE IF NOT EXISTS keg_transactions_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    type TEXT NOT NULL CHECK(type IN ('deliver', 'collect', 'import', 'adjust')),
+    type TEXT NOT NULL CHECK(type IN ('deliver', 'collect', 'import', 'adjust', 'sell_empty')),
     quantity INTEGER NOT NULL,
     exchanged INTEGER DEFAULT 0,
     purchased INTEGER DEFAULT 0,
+    customer_id INTEGER,
+    customer_name TEXT,
     inventory_after INTEGER NOT NULL,
     empty_after INTEGER NOT NULL,
     holding_after INTEGER NOT NULL,
@@ -696,11 +710,55 @@ db.exec(`
   );
 `);
 
+// Migration: add customer_id and customer_name columns if missing (backward compat)
+try {
+  const cols = db.prepare("PRAGMA table_info(keg_transactions_log)").all();
+  const colNames = cols.map(c => c.name);
+  if (!colNames.includes('customer_id')) {
+    db.exec("ALTER TABLE keg_transactions_log ADD COLUMN customer_id INTEGER");
+  }
+  if (!colNames.includes('customer_name')) {
+    db.exec("ALTER TABLE keg_transactions_log ADD COLUMN customer_name TEXT");
+  }
+  if (!colNames.includes('sell_empty')) {
+    db.exec("ALTER TABLE keg_transactions_log ADD COLUMN sell_empty INTEGER DEFAULT 0");
+  }
+} catch (e) {
+  // Columns may already exist
+}
+
 // Index for keg_transactions_log
 try {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_keg_tx_log_date ON keg_transactions_log(date)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_keg_tx_log_type ON keg_transactions_log(type)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_keg_tx_log_customer ON keg_transactions_log(customer_id)`);
 } catch (e) {
   // Index may exist
+}
+
+// Migration: Add updated_at/created_at to sale_items and keg_log (for sync queries)
+try {
+  db.exec(`ALTER TABLE sale_items ADD COLUMN updated_at TEXT`);
+} catch (e) {
+  // Column already exists
+}
+
+try {
+  db.exec(`ALTER TABLE sale_items ADD COLUMN created_at TEXT DEFAULT CURRENT_TIMESTAMP`);
+} catch (e) {
+  // Column already exists
+}
+
+try {
+  db.exec(`ALTER TABLE keg_log ADD COLUMN updated_at TEXT`);
+} catch (e) {
+  // Column already exists
+}
+
+try {
+  db.exec(`ALTER TABLE keg_log ADD COLUMN created_at TEXT DEFAULT CURRENT_TIMESTAMP`);
+} catch (e) {
+  // Column already exists
 }
 
 module.exports = db;

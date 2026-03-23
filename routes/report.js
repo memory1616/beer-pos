@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../database');
+const logger = require('../src/utils/logger');
 
 function formatVND(amount) {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
@@ -598,7 +599,7 @@ router.get('/', (req, res) => {
 </html>
   `);
   } catch (err) {
-    console.error('Report error:', err);
+    logger.error('Error generating report', { error: err.message });
     res.status(500).json({ error: err.message });
   }
 });

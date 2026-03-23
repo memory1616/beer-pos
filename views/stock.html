@@ -6,6 +6,7 @@
   <title>Kho hàng</title>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#f59e0b">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="stylesheet" href="/css/tailwind.css">
   <link rel="stylesheet" href="/css/unified.css">
@@ -48,7 +49,7 @@
           <select id="productType" class="w-full border rounded-lg px-3 py-2">
             <option value="keg">📦 Bình (Keg)</option>
             <option value="pet">🧴 Chai Nhựa (Pet)</option>
-            <option value="can">🥫 Lon (Can)</option>
+            <option value="box">📦 Hộp (Box) 23L</option>
           </select>
         </div>
         <div>
@@ -150,7 +151,8 @@
     })();
   </script>
 
-  <!-- Load Stock JS -->
+  <!-- Load Utils (formatVND, showToast) then Stock JS -->
+  <script src="/js/utils.js"></script>
   <script src="/js/stock.js"></script>
   
   <script>
@@ -182,11 +184,19 @@
   </script>
   
   <script src="/js/debug.js"></script>
+  <script src="/js/vendor/dexie.min.js"></script>
+  <script src="/db.js"></script>
+  <script src="/sync.js"></script>
   <script>
   // Check authentication
   if (!isLoggedIn()) { window.location.href = '/login'; }
-  
-  // Disable service worker in development
+
+  // Service Worker — bật offline-first caching
+  if ('serviceWorker' in navigator) {
+    if (!navigator.serviceWorker.controller) {
+      navigator.serviceWorker.register('/sw.js').catch(err => console.log('[SW] Registration failed:', err));
+    }
+  }
   </script>
 </body>
 </html>

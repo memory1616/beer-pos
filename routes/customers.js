@@ -24,7 +24,7 @@ router.get('/data', (req, res) => {
       COALESCE(cs.total_revenue, 0) as total_revenue,
       CASE 
         WHEN c.last_order_date IS NULL THEN NULL
-        ELSE CAST(julianday('now') - julianday(c.last_order_date) AS INTEGER)
+        ELSE CAST(julianday(date('now','localtime')) - julianday(date(c.last_order_date)) AS INTEGER)
       END as days_since_last_order
     FROM customers c
     LEFT JOIN (
@@ -53,7 +53,7 @@ router.get('/data', (req, res) => {
       COALESCE(cs.total_revenue, 0) as total_revenue,
       CASE 
         WHEN c.last_order_date IS NULL THEN NULL
-        ELSE CAST(julianday('now') - julianday(c.last_order_date) AS INTEGER)
+        ELSE CAST(julianday(date('now','localtime')) - julianday(date(c.last_order_date)) AS INTEGER)
       END as days_since_last_order
     FROM customers c
     LEFT JOIN (

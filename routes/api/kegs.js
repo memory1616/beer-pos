@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../../database');
+const logger = require('../../src/utils/logger');
+const { syncKegInventory } = require('./products');
 
 // ========== KEG STATE: SINGLE SOURCE OF TRUTH ==========
 // inventory  -> SUM(products.stock) WHERE type = 'keg'
@@ -66,7 +68,7 @@ router.get('/state', (req, res) => {
     const state = getKegState();
     res.json(state);
   } catch (err) {
-    console.error('Get keg state error:', err);
+    logger.error('Get keg state error', { error: err.message });
     res.status(500).json({ error: 'Lỗi: ' + err.message });
   }
 });
@@ -74,41 +76,49 @@ router.get('/state', (req, res) => {
 // POST /api/kegs/state - Update keg state
 // Only allow updating emptyCollected (inventory comes from products, customer from customers)
 router.post('/state', (req, res) => {
-  const { emptyCollected, inventory } = req.body;
-  
+  const { emptyCollected, inventory, note } = req.body;
+
   try {
+    const beforeState = getKegState();
+    let didAdjust = false;
+
     // Update empty_collected if provided
     if (emptyCollected !== undefined) {
       updateEmptyCollected(emptyCollected);
+      didAdjust = true;
     }
-    
+
     // If inventory is manually set, update products.stock
-    // This is a special case for adjusting inventory
     if (inventory !== undefined && inventory >= 0) {
       const currentInventory = getActualInventory();
       const diff = inventory - currentInventory;
-      
+
       if (diff !== 0) {
-        // Get first keg product to adjust
         const kegProduct = db.prepare(
           "SELECT id, stock FROM products WHERE type = 'keg' LIMIT 1"
         ).get();
-        
+
         if (kegProduct) {
           const newStock = Math.max(0, kegProduct.stock + diff);
           db.prepare('UPDATE products SET stock = ? WHERE id = ?').run(newStock, kegProduct.id);
         }
       }
     }
-    
-    const state = getKegState();
+
+    const newState = getKegState();
+
+    // Log adjust transaction
+    if (didAdjust) {
+      logKegTransaction('adjust', newState.emptyCollected, newState, { note });
+    }
+
     res.json({
       success: true,
       message: 'Đã cập nhật trạng thái vỏ',
-      state
+      state: newState
     });
   } catch (err) {
-    console.error('Update keg state error:', err);
+    logger.error('Update keg state error', { error: err.message });
     res.status(500).json({ error: 'Lỗi: ' + err.message });
   }
 });
@@ -138,12 +148,23 @@ router.get('/sync', (req, res) => {
       }
     });
   } catch (err) {
-    console.error('Sync keg error:', err);
+    logger.error('Sync keg error', { error: err.message });
     res.status(500).json({ error: 'Lỗi: ' + err.message });
   }
 });
 
-// ========== CORE KEG FUNCTIONS ==========
+/**
+ * Log a keg transaction to the history log (keg_transactions_log)
+ */
+function logKegTransaction(type, quantity, state, opts = {}) {
+  const { exchanged = 0, purchased = 0, customerId = null, customerName = null, note = null } = opts;
+  db.prepare(`
+    INSERT INTO keg_transactions_log
+      (type, quantity, exchanged, purchased, customer_id, customer_name, inventory_after, empty_after, holding_after, note)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(type, quantity, exchanged, purchased, customerId, customerName,
+         state.inventory, state.emptyCollected, state.customerHolding, note);
+}
 
 // 1. DELIVER KEGS - Giao bia cho khách
 router.post('/deliver', (req, res) => {
@@ -172,42 +193,41 @@ router.post('/deliver', (req, res) => {
       return res.status(400).json({ error: 'Không tìm thấy sản phẩm vỏ' });
     }
     
-    // Use transaction
+    const customer = customerId
+      ? db.prepare('SELECT id, name, keg_balance FROM customers WHERE id = ?').get(customerId)
+      : null;
+
     const deliver = db.transaction(() => {
-      // Update product stock
       db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?')
         .run(quantity, kegProduct.id);
-      
-      // Update customer keg balance
-      if (customerId) {
-        const customer = db.prepare('SELECT keg_balance FROM customers WHERE id = ?').get(customerId);
-        const newBalance = (customer?.keg_balance || 0) + quantity;
+
+      if (customerId && customer) {
+        const newBalance = (customer.keg_balance || 0) + quantity;
         db.prepare('UPDATE customers SET keg_balance = ? WHERE id = ?').run(newBalance, customerId);
-        
-        // Log transaction
+
         db.prepare(
           'INSERT INTO keg_transactions (customer_id, type, quantity, note) VALUES (?, ?, ?, ?)'
         ).run(customerId, 'delivery', quantity, note || 'Giao vỏ');
       }
+
+      // Sync inventory vì products.stock vừa thay đổi
+      syncKegInventory();
     });
-    
+
     deliver();
-    
+
     const newState = getKegState();
-    
-    // Log to history
-    db.prepare(`
-      INSERT INTO keg_transactions_log (type, quantity, inventory_after, empty_after, holding_after, note)
-      VALUES ('deliver', ?, ?, ?, ?, ?)
-    `).run(quantity, newState.inventory, newState.emptyCollected, newState.customerHolding, note || null);
-    
+    logKegTransaction('deliver', quantity, newState, {
+      customerId, customerName: customer?.name, note
+    });
+
     res.json({
       success: true,
       message: `Đã giao ${quantity} vỏ cho khách`,
       state: newState
     });
   } catch (err) {
-    console.error('Deliver keg error:', err);
+    logger.error('Deliver keg error', { error: err.message });
     res.status(500).json({ error: 'Lỗi: ' + err.message });
   }
 });
@@ -233,41 +253,37 @@ router.post('/collect', (req, res) => {
       }
     }
     
-    // Use transaction
+    const customer = customerId
+      ? db.prepare('SELECT id, name, keg_balance FROM customers WHERE id = ?').get(customerId)
+      : null;
+
     const collect = db.transaction(() => {
-      // Update customer keg balance
-      if (customerId) {
-        const customer = db.prepare('SELECT keg_balance FROM customers WHERE id = ?').get(customerId);
-        const newBalance = Math.max(0, (customer?.keg_balance || 0) - quantity);
+      if (customerId && customer) {
+        const newBalance = Math.max(0, (customer.keg_balance || 0) - quantity);
         db.prepare('UPDATE customers SET keg_balance = ? WHERE id = ?').run(newBalance, customerId);
-        
-        // Log transaction
+
         db.prepare(
           'INSERT INTO keg_transactions (customer_id, type, quantity, note) VALUES (?, ?, ?, ?)'
         ).run(customerId, 'return', quantity, note || 'Thu vỏ rỗng');
       }
-      
-      // Update empty collected
+
       updateEmptyCollected(state.emptyCollected + quantity);
     });
-    
+
     collect();
-    
+
     const newState = getKegState();
-    
-    // Log to history
-    db.prepare(`
-      INSERT INTO keg_transactions_log (type, quantity, inventory_after, empty_after, holding_after, note)
-      VALUES ('collect', ?, ?, ?, ?, ?)
-    `).run(quantity, newState.inventory, newState.emptyCollected, newState.customerHolding, note || null);
-    
+    logKegTransaction('collect', quantity, newState, {
+      customerId, customerName: customer?.name, note
+    });
+
     res.json({
       success: true,
       message: `Đã thu ${quantity} vỏ rỗng`,
       state: newState
     });
   } catch (err) {
-    console.error('Collect keg error:', err);
+    logger.error('Collect keg error', { error: err.message });
     res.status(500).json({ error: 'Lỗi: ' + err.message });
   }
 });
@@ -298,76 +314,66 @@ router.post('/import', (req, res) => {
       return res.status(400).json({ error: 'Không tìm thấy sản phẩm vỏ' });
     }
     
-    // Use transaction
     const importKegs = db.transaction(() => {
-      // Update empty collected (can go to 0, never negative)
       updateEmptyCollected(newEmptyCollected);
-      
-      // Update product stock
       db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?')
         .run(totalImported, kegProduct.id);
+      syncKegInventory();
     });
-    
+
     importKegs();
-    
+
     const newState = getKegState();
-    
-    // Log to history
-    db.prepare(`
-      INSERT INTO keg_transactions_log (type, quantity, exchanged, purchased, inventory_after, empty_after, holding_after, note)
-      VALUES ('import', ?, ?, ?, ?, ?, ?, ?)
-    `).run(totalImported, usedFromEmpty, purchased, newState.inventory, newState.emptyCollected, newState.customerHolding, note || null);
-    
+    logKegTransaction('import', totalImported, newState, {
+      exchanged: usedFromEmpty, purchased, note
+    });
+
     res.json({
       success: true,
       message: `Đã nhập ${totalImported} vỏ (đổi: ${usedFromEmpty}, mua mới: ${purchased})`,
       state: newState
     });
   } catch (err) {
-    console.error('Import keg error:', err);
+    logger.error('Import keg error', { error: err.message });
     res.status(500).json({ error: 'Lỗi: ' + err.message });
   }
 });
 
-// 4. SELL EMPTY KEGS - Bán vỏ rỗng (optional)
+// 4. SELL EMPTY KEGS - Bán vỏ rỗng (bán đi, ra khỏi hệ thống)
 router.post('/sell-empty', (req, res) => {
   const { quantity, note } = req.body;
-  
+
   if (!quantity || quantity < 1) {
     return res.status(400).json({ error: 'Số lượng phải lớn hơn 0' });
   }
-  
+
   try {
     const state = getKegState();
-    
+
     if (state.emptyCollected < quantity) {
       return res.status(400).json({
         error: `Không đủ vỏ rỗng. Có: ${state.emptyCollected} vỏ`
       });
     }
-    
-    // Use transaction
+
     const sellEmpty = db.transaction(() => {
       updateEmptyCollected(state.emptyCollected - quantity);
+      // Sync inventory để dashboard hiển thị đúng (inventory luôn = products.stock)
+      syncKegInventory();
     });
-    
+
     sellEmpty();
-    
+
     const newState = getKegState();
-    
-    // Log to history
-    db.prepare(`
-      INSERT INTO keg_transactions_log (type, quantity, inventory_after, empty_after, holding_after, note)
-      VALUES ('sell_empty', ?, ?, ?, ?, ?)
-    `).run(quantity, newState.inventory, newState.emptyCollected, newState.customerHolding, note || null);
-    
+    logKegTransaction('sell_empty', quantity, newState, { note });
+
     res.json({
       success: true,
       message: `Đã bán ${quantity} vỏ rỗng`,
       state: newState
     });
   } catch (err) {
-    console.error('Sell empty keg error:', err);
+    logger.error('Sell empty keg error', { error: err.message });
     res.status(500).json({ error: 'Lỗi: ' + err.message });
   }
 });
@@ -391,16 +397,84 @@ router.get('/stats', (req, res) => {
   res.json(state);
 });
 
-// GET /api/kegs/history - Transaction history
+// GET /api/kegs/history - Transaction history from log table
 router.get('/history', (req, res) => {
-  const history = db.prepare(`
-    SELECT k.*, c.name as customer_name
-    FROM keg_transactions k
-    LEFT JOIN customers c ON c.id = k.customer_id
-    ORDER BY k.date DESC
-    LIMIT 100
-  `).all();
-  res.json(history);
+  const { type, customer_id, from, to, page = 1, limit = 50 } = req.query;
+  const offset = (parseInt(page) - 1) * parseInt(limit);
+
+  try {
+    let where = [];
+    let params = [];
+
+    if (type) { where.push('type = ?'); params.push(type); }
+    if (customer_id) { where.push('customer_id = ?'); params.push(parseInt(customer_id)); }
+    if (from) { where.push('date >= ?'); params.push(from); }
+    if (to) { where.push('date <= ?'); params.push(to); }
+
+    const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
+
+    const history = db.prepare(`
+      SELECT * FROM keg_transactions_log
+      ${whereClause}
+      ORDER BY date DESC
+      LIMIT ? OFFSET ?
+    `).all(...params, parseInt(limit), offset);
+
+    const countRow = db.prepare(`
+      SELECT COUNT(*) as total FROM keg_transactions_log ${whereClause}
+    `).get(...params);
+
+    res.json({
+      data: history,
+      total: countRow.total,
+      page: parseInt(page),
+      limit: parseInt(limit),
+      pages: Math.ceil(countRow.total / parseInt(limit))
+    });
+  } catch (err) {
+    logger.error('Get keg history error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi: ' + err.message });
+  }
+});
+
+// GET /api/kegs/history-summary - Daily/weekly/monthly summary
+router.get('/history-summary', (req, res) => {
+  const { period = 'week' } = req.query; // day | week | month
+
+  try {
+    let dateGroup, dateFormat;
+    if (period === 'day') {
+      dateGroup = "strftime('%Y-%m-%d', date)";
+      dateFormat = '%Y-%m-%d';
+    } else if (period === 'month') {
+      dateGroup = "strftime('%Y-%m', date)";
+      dateFormat = '%Y-%m';
+    } else {
+      dateGroup = "strftime('%Y-W%W', date)";
+      dateFormat = '%Y-W%W';
+    }
+
+    const summary = db.prepare(`
+      SELECT
+        ${dateGroup} as period,
+        type,
+        SUM(quantity) as total_quantity,
+        COUNT(*) as tx_count,
+        SUM(CASE WHEN type = 'deliver' THEN quantity ELSE 0 END) as delivered,
+        SUM(CASE WHEN type = 'collect' THEN quantity ELSE 0 END) as collected,
+        SUM(CASE WHEN type = 'import' THEN quantity ELSE 0 END) as imported,
+        SUM(CASE WHEN type = 'adjust' THEN quantity ELSE 0 END) as adjusted
+      FROM keg_transactions_log
+      GROUP BY ${dateGroup}, type
+      ORDER BY period DESC
+      LIMIT 30
+    `).all();
+
+    res.json({ data: summary, period });
+  } catch (err) {
+    logger.error('Get keg summary error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi: ' + err.message });
+  }
 });
 
 module.exports = router;
