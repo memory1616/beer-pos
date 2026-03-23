@@ -200,12 +200,9 @@ router.get('/', (req, res) => {
       }
     });
   </script>
+  <script src="/js/debug.js"></script>
   <script>
-  if ('serviceWorker' in navigator) {
-    if (!navigator.serviceWorker.controller) {
-      navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW registration failed:', err));
-    }
-  }
+  // Disable service worker in development
   </script>
 </body>
 </html>

@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../../database');
-const { syncKegInventory, updateCustomerKegBalance } = require('./products');
-const { updateCustomerKegBalance: updateCustomerKegBalance2 } = require('./payments');
+const { syncKegInventory } = require('./products');
+const { updateCustomerKegBalance } = require('./payments');
 
 // Helper function to validate sale input
 function validateSaleInput(body) {
@@ -173,14 +173,14 @@ router.post('/', (req, res) => {
       // Get synced totals from source tables
       const inventoryResult = db.prepare("SELECT COALESCE(SUM(stock), 0) as total FROM products WHERE type = 'keg'").get();
       const totalHolding = db.prepare("SELECT COALESCE(SUM(keg_balance), 0) as total FROM customers").get();
-      const currentKegStats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
       
       // Update centralized keg_stats (inventory from products, customer from customers)
+      // IMPORTANT: Do NOT update empty_collected here - it's managed by purchases
       db.prepare(`
         UPDATE keg_stats 
-        SET inventory = ?, empty_collected = ?, customer_holding = ?, updated_at = CURRENT_TIMESTAMP
+        SET inventory = ?, customer_holding = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = 1
-      `).run(inventoryResult.total, currentKegStats?.empty_collected || 0, totalHolding.total);
+      `).run(inventoryResult.total, totalHolding.total);
 
       return saleId;
     });
@@ -383,28 +383,28 @@ router.post('/:id/return', (req, res) => {
       }
     }
     
-    // THÊM MỚI: Cộng vỏ vào kho vỏ nếu addToInventory = true
+    // THÊM MỚI: Cộng vỏ vào kho vỏ rỗng nếu addToInventory = true
     let inventoryBalance = null;
     if (addToInventory && deliverKegs > 0) {
-      const balanceSetting = db.prepare("SELECT value FROM settings WHERE key = 'keg_inventory_balance'").get();
-      const currentInventoryBalance = balanceSetting ? parseInt(balanceSetting.value) : 0;
-      const newInventoryBalance = currentInventoryBalance + deliverKegs;
+      // Lấy số vỏ rỗng hiện tại từ keg_stats
+      const stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
+      const currentEmpty = stats?.empty_collected || 0;
+      const newEmpty = currentEmpty + deliverKegs;
       
-      // Cập nhật kho vỏ
-      db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('keg_inventory_balance', ?)").run(newInventoryBalance.toString());
+      // Cập nhật kho vỏ rỗng
+      db.prepare('UPDATE keg_stats SET empty_collected = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run(newEmpty);
       
       // Ghi log kho vỏ
       db.prepare(`
-        INSERT INTO keg_inventory (type, quantity, balance_after, source, note)
-        VALUES ('incoming', ?, ?, ?, ?)
+        INSERT INTO keg_transactions_log (type, quantity, inventory_after, empty_after, holding_after, note)
+        VALUES ('collect_return', ?, 0, ?, 0, ?)
       `).run(
         deliverKegs,
-        newInventoryBalance,
-        'Trả hàng - Đơn #' + saleId,
+        newEmpty,
         reason || 'Thu vỏ từ đơn trả hàng'
       );
       
-      inventoryBalance = newInventoryBalance;
+      inventoryBalance = newEmpty;
     }
     
     // Cập nhật trạng thái hóa đơn với loại return (bao gồm cập nhật lợi nhuận)
@@ -493,28 +493,28 @@ router.post('/:id/return-items', (req, res) => {
       }
     }
     
-    // THÊM MỚI: Cộng vỏ vào kho vỏ nếu addToInventory = true
+    // THÊM MỚI: Cộng vỏ vào kho vỏ rỗng nếu addToInventory = true
     let inventoryBalance = null;
     if (addToInventory && returnedKegs > 0) {
-      const balanceSetting = db.prepare("SELECT value FROM settings WHERE key = 'keg_inventory_balance'").get();
-      const currentInventoryBalance = balanceSetting ? parseInt(balanceSetting.value) : 0;
-      const newInventoryBalance = currentInventoryBalance + returnedKegs;
+      // Lấy số vỏ rỗng hiện tại từ keg_stats
+      const stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
+      const currentEmpty = stats?.empty_collected || 0;
+      const newEmpty = currentEmpty + returnedKegs;
       
-      // Cập nhật kho vỏ
-      db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('keg_inventory_balance', ?)").run(newInventoryBalance.toString());
+      // Cập nhật kho vỏ rỗng
+      db.prepare('UPDATE keg_stats SET empty_collected = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run(newEmpty);
       
       // Ghi log kho vỏ
       db.prepare(`
-        INSERT INTO keg_inventory (type, quantity, balance_after, source, note)
-        VALUES ('incoming', ?, ?, ?, ?)
+        INSERT INTO keg_transactions_log (type, quantity, inventory_after, empty_after, holding_after, note)
+        VALUES ('collect_return', ?, 0, ?, 0, ?)
       `).run(
         returnedKegs,
-        newInventoryBalance,
-        'Trả một phần - Đơn #' + saleId,
+        newEmpty,
         reason || 'Thu vỏ từ đơn trả hàng'
       );
       
-      inventoryBalance = newInventoryBalance;
+      inventoryBalance = newEmpty;
     }
     
     // Cập nhật hóa đơn gốc: trừ tiền, trừ lợi nhuận và đánh dấu có partial return
@@ -568,24 +568,51 @@ router.post('/:id/return-items', (req, res) => {
 // DELETE /api/sales/:id - Xóa hóa đơn
 router.delete('/:id', (req, res) => {
   const saleId = req.params.id;
-  
+
   try {
     const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId);
     if (!sale) return res.status(404).json({ error: 'Không tìm thấy hóa đơn' });
-    
-    const items = db.prepare('SELECT * FROM sale_items WHERE sale_id = ?').all(saleId);
-    
-    // Chỉ restore stock cho hóa đơn bán (không restore cho đơn đổi bia lỗi)
-    if (sale.type === 'sale') {
-      for (const item of items) {
-        db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(item.quantity, item.product_id);
-      }
+
+    // Không cho xóa đơn đã trả hàng
+    if (sale.status === 'returned') {
+      return res.status(400).json({ error: 'Không thể xóa đơn đã trả hàng' });
     }
-    
-    db.prepare('DELETE FROM sale_items WHERE sale_id = ?').run(saleId);
-    db.prepare('DELETE FROM sales WHERE id = ?').run(saleId);
-    
-    res.json({ success: true, message: 'Đã xóa hóa đơn' + (sale.type === 'sale' ? ' và hoàn kho' : '') });
+
+    const items = db.prepare('SELECT * FROM sale_items WHERE sale_id = ?').all(saleId);
+
+    const deleteSaleTx = db.transaction(() => {
+      // 1. Hoàn kho sản phẩm (sale & replacement đều trừ stock lúc tạo)
+      if (sale.type === 'sale' || sale.type === 'replacement') {
+        for (const item of items) {
+          db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(item.quantity, item.product_id);
+        }
+      }
+
+      // 2. Hoàn keg_balance khách hàng (đảo ngược: deliver - return)
+      if (sale.customer_id && (sale.deliver_kegs !== 0 || sale.return_kegs !== 0)) {
+        const customer = db.prepare('SELECT keg_balance FROM customers WHERE id = ?').get(sale.customer_id);
+        const currentBalance = customer ? customer.keg_balance : 0;
+        const restoredBalance = currentBalance - sale.deliver_kegs + sale.return_kegs;
+        db.prepare('UPDATE customers SET keg_balance = ? WHERE id = ?').run(restoredBalance, sale.customer_id);
+      }
+
+      // 3. Sync keg_stats (inventory từ products, customer_holding từ customers)
+      const inventoryResult = db.prepare("SELECT COALESCE(SUM(stock), 0) as total FROM products WHERE type = 'keg'").get();
+      const totalHolding = db.prepare("SELECT COALESCE(SUM(keg_balance), 0) as total FROM customers").get();
+      db.prepare(`
+        UPDATE keg_stats
+        SET inventory = ?, customer_holding = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = 1
+      `).run(inventoryResult.total, totalHolding.total);
+
+      // 4. Xóa sale_items và sales
+      db.prepare('DELETE FROM sale_items WHERE sale_id = ?').run(saleId);
+      db.prepare('DELETE FROM sales WHERE id = ?').run(saleId);
+    });
+
+    deleteSaleTx();
+
+    res.json({ success: true, message: 'Đã xóa hóa đơn' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Xóa hóa đơn thất bại' });

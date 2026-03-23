@@ -285,12 +285,9 @@ router.post('/import', (req, res) => {
   try {
     const state = getKegState();
     
-    // Check if enough empty kegs to exchange
-    if (exchanged > 0 && state.emptyCollected < exchanged) {
-      return res.status(400).json({
-        error: `Không đủ vỏ rỗng để đổi. Có: ${state.emptyCollected} vỏ`
-      });
-    }
+    // Calculate actual used from empty kegs (never negative)
+    const usedFromEmpty = Math.min(state.emptyCollected, exchanged);
+    const newEmptyCollected = Math.max(0, state.emptyCollected - usedFromEmpty);
     
     // Get keg product
     const kegProduct = db.prepare(
@@ -303,8 +300,8 @@ router.post('/import', (req, res) => {
     
     // Use transaction
     const importKegs = db.transaction(() => {
-      // Update empty collected
-      updateEmptyCollected(state.emptyCollected - exchanged);
+      // Update empty collected (can go to 0, never negative)
+      updateEmptyCollected(newEmptyCollected);
       
       // Update product stock
       db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?')
@@ -319,11 +316,11 @@ router.post('/import', (req, res) => {
     db.prepare(`
       INSERT INTO keg_transactions_log (type, quantity, exchanged, purchased, inventory_after, empty_after, holding_after, note)
       VALUES ('import', ?, ?, ?, ?, ?, ?, ?)
-    `).run(totalImported, exchanged, purchased, newState.inventory, newState.emptyCollected, newState.customerHolding, note || null);
+    `).run(totalImported, usedFromEmpty, purchased, newState.inventory, newState.emptyCollected, newState.customerHolding, note || null);
     
     res.json({
       success: true,
-      message: `Đã nhập ${totalImported} vỏ (đổi: ${exchanged}, mua mới: ${purchased})`,
+      message: `Đã nhập ${totalImported} vỏ (đổi: ${usedFromEmpty}, mua mới: ${purchased})`,
       state: newState
     });
   } catch (err) {

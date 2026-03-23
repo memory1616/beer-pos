@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../../database');
+const { syncKegInventory } = require('./products');
 
 // Validate ID parameter
 function validateId(id) {
@@ -213,12 +214,45 @@ router.post('/multiple', (req, res) => {
     for (const item of validItems) {
       updateStmt.run(item.quantity, item.productId);
       insertItemStmt.run(purchaseId, item.productId, item.quantity, item.unitPrice, item.quantity * item.unitPrice);
-      
+
       const product = db.prepare('SELECT * FROM products WHERE id = ?').get(item.productId);
       if (product) {
         results.push(product);
       }
     }
+
+    // ========== Cập nhật vỏ rỗng ==========
+    // Nhập hàng từ nhà máy: dùng vỏ rỗng đi đổi bia → empty_collected GIẢM
+    let totalKegs = 0;
+    for (const item of validItems) {
+      const product = db.prepare('SELECT type FROM products WHERE id = ?').get(item.productId);
+      const productType = (product?.type || 'keg').toLowerCase();
+      if (['keg', 'can'].includes(productType)) {
+        totalKegs += item.quantity;
+      }
+    }
+
+    if (totalKegs > 0) {
+      let stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
+      if (!stats) {
+        db.prepare('INSERT INTO keg_stats (id, inventory, empty_collected, customer_holding) VALUES (1, 0, 0, 0)').run();
+        stats = { empty_collected: 0 };
+      }
+      const currentEmpty = stats.empty_collected || 0;
+      const newEmpty = Math.max(0, currentEmpty - totalKegs);
+
+      db.prepare('UPDATE keg_stats SET empty_collected = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run(newEmpty);
+
+      db.prepare(`
+        INSERT INTO keg_transactions_log (type, quantity, inventory_after, empty_after, holding_after, note)
+        VALUES ('import', ?, 0, ?, 0, ?)
+      `).run(totalKegs, newEmpty, 'Nhập kho từ trang stock');
+
+      console.log('[STOCK MULTIPLE] Empty before:', currentEmpty, '| totalKegs:', totalKegs, '| Empty after:', newEmpty);
+    }
+
+    // Sync keg inventory
+    syncKegInventory();
 
     res.json({ purchase_id: purchaseId, total_amount: totalAmount, items: results });
   } catch (err) {

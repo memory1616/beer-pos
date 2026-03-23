@@ -238,3 +238,4 @@ router.post('/keg/update-balance', (req, res) => {
 });
 
 module.exports = router;
+module.exports.updateCustomerKegBalance = updateCustomerKegBalance;

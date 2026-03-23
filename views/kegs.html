@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quản lý vỏ - Bia Tươi Gia Huy</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#059669">
+  <link rel="stylesheet" href="/css/tailwind.css">
+  <link rel="stylesheet" href="/css/unified.css">
+  <script src="/js/auth.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>requireAuth();</script>
+  <style>
+    .animate-fade { animation: fade 0.3s ease-in; }
+    @keyframes fade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .bottomnav { max-width: 500px; margin: auto; left: 0; right: 0; }
+    button, a { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+    button:active { transform: scale(0.96); }
+    .stat-card { transition: transform 0.2s, box-shadow 0.2s; }
+    .stat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .action-btn { transition: all 0.2s; }
+    .action-btn:hover { transform: translateY(-2px); }
+    .action-btn:active { transform: scale(0.95); }
+    .log-row:nth-child(even) { background: #f9fafb; }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-800 min-h-screen pb-20">
+  <div id="app" class="max-w-lg mx-auto px-3 pt-4">
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-4">
+      <h1 class="text-xl font-bold text-gray-800">🍺 Quản lý vỏ bia</h1>
+      <button onclick="init()" class="text-gray-400 hover:text-gray-600 text-xl" title="Làm mới">🔄</button>
+    </div>
+
+    <!-- Stats Grid -->
+    <div class="grid grid-cols-2 gap-3 mb-4">
+      <div class="stat-card bg-white rounded-xl border p-4 text-center shadow-sm">
+        <div class="text-xs text-gray-500 mb-1">📦 Vỏ đầy (kho)</div>
+        <div class="text-2xl font-bold text-emerald-600" id="statInventory">-</div>
+      </div>
+      <div class="stat-card bg-white rounded-xl border p-4 text-center shadow-sm">
+        <div class="text-xs text-gray-500 mb-1">🔄 Vỏ rỗng</div>
+        <div class="text-2xl font-bold text-blue-600" id="statEmpty">-</div>
+      </div>
+      <div class="stat-card bg-white rounded-xl border p-4 text-center shadow-sm">
+        <div class="text-xs text-gray-500 mb-1">👥 Khách giữ</div>
+        <div class="text-2xl font-bold text-purple-600" id="statHolding">-</div>
+      </div>
+      <div class="stat-card bg-white rounded-xl border p-4 text-center shadow-sm">
+        <div class="text-xs text-gray-500 mb-1">📊 Tồn kho thực</div>
+        <div class="text-2xl font-bold text-amber-600" id="statBalance">-</div>
+      </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="grid grid-cols-2 gap-3 mb-4">
+      <button onclick="openModal('deliverModal')" class="action-btn bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-center">
+        <div class="text-2xl mb-1">📦</div>
+        <div class="text-xs font-semibold text-emerald-700">Giao vỏ</div>
+      </button>
+      <button onclick="openModal('collectModal')" class="action-btn bg-blue-50 border border-blue-200 rounded-xl p-3 text-center">
+        <div class="text-2xl mb-1">🔄</div>
+        <div class="text-xs font-semibold text-blue-700">Thu vỏ</div>
+      </button>
+      <button onclick="openModal('adjustModal')" class="action-btn bg-amber-50 border border-amber-200 rounded-xl p-3 text-center">
+        <div class="text-2xl mb-1">⚙️</div>
+        <div class="text-xs font-semibold text-amber-700">Điều chỉnh vỏ rỗng</div>
+      </button>
+      <a href="/purchases" class="action-btn bg-gray-50 border border-gray-200 rounded-xl p-3 text-center no-underline">
+        <div class="text-2xl mb-1">🏭</div>
+        <div class="text-xs font-semibold text-gray-700">Nhập vỏ</div>
+      </a>
+    </div>
+
+    <!-- Transaction Log -->
+    <div class="bg-white rounded-xl border shadow-sm overflow-hidden">
+      <div class="p-3 border-b bg-gray-50">
+        <h3 class="font-bold text-sm text-gray-700">📋 Lịch sử giao dịch</h3>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-xs">
+          <thead>
+            <tr class="bg-gray-50 text-gray-500">
+              <th class="py-2 px-2 text-left font-medium">Thời gian</th>
+              <th class="py-2 px-2 text-left font-medium">Loại</th>
+              <th class="py-2 px-2 text-center font-medium">SL</th>
+              <th class="py-2 px-2 text-center font-medium">Rỗng</th>
+              <th class="py-2 px-2 text-center font-medium">Holding</th>
+            </tr>
+          </thead>
+          <tbody id="logBody">
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Navigation -->
+  <nav class="bottomnav fixed bottom-0 w-full bg-white border-t shadow-lg z-40">
+    <div class="flex justify-around py-2 max-w-lg mx-auto">
+      <a href="/dashboard" class="flex flex-col items-center text-gray-400 hover:text-blue-600 text-xs no-underline">
+        <span class="text-lg">📊</span><span>Dashboard</span>
+      </a>
+      <a href="/sale" class="flex flex-col items-center text-gray-400 hover:text-blue-600 text-xs no-underline">
+        <span class="text-lg">💰</span><span>Bán hàng</span>
+      </a>
+      <a href="/kegs" class="flex flex-col items-center text-blue-600 font-bold text-xs no-underline">
+        <span class="text-lg">🍺</span><span>Vỏ bia</span>
+      </a>
+      <a href="/customers" class="flex flex-col items-center text-gray-400 hover:text-blue-600 text-xs no-underline">
+        <span class="text-lg">👥</span><span>Khách</span>
+      </a>
+      <a href="/purchases" class="flex flex-col items-center text-gray-400 hover:text-blue-600 text-xs no-underline">
+        <span class="text-lg">📦</span><span>Nhập hàng</span>
+      </a>
+    </div>
+  </nav>
+
+  <!-- ========== MODALS ========== -->
+
+  <!-- Giao vỏ modal -->
+  <div id="deliverModal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-sm animate-fade">
+      <div class="p-4 border-b flex justify-between items-center">
+        <h3 class="font-bold text-lg text-emerald-700">📦 Giao vỏ cho khách</h3>
+        <button onclick="closeModal('deliverModal')" class="text-2xl text-gray-400 hover:text-gray-600">&times;</button>
+      </div>
+      <div class="p-4 space-y-3">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Khách hàng</label>
+          <select id="deliverCustomer" class="w-full border rounded-lg px-3 py-2"></select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Số lượng vỏ</label>
+          <input type="number" id="deliverQty" min="1" value="1" class="w-full border rounded-lg px-3 py-2 text-center text-xl font-bold">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
+          <input type="text" id="deliverNote" class="w-full border rounded-lg px-3 py-2" placeholder="VD: Giao vỏ theo đơn hàng">
+        </div>
+        <button onclick="submitDeliver()" class="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold mt-2">Xác nhận giao</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Thu vỏ modal -->
+  <div id="collectModal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-sm animate-fade">
+      <div class="p-4 border-b flex justify-between items-center">
+        <h3 class="font-bold text-lg text-blue-700">🔄 Thu vỏ rỗng</h3>
+        <button onclick="closeModal('collectModal')" class="text-2xl text-gray-400 hover:text-gray-600">&times;</button>
+      </div>
+      <div class="p-4 space-y-3">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Khách hàng</label>
+          <select id="collectCustomer" class="w-full border rounded-lg px-3 py-2"></select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Số lượng vỏ</label>
+          <input type="number" id="collectQty" min="1" value="1" class="w-full border rounded-lg px-3 py-2 text-center text-xl font-bold">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
+          <input type="text" id="collectNote" class="w-full border rounded-lg px-3 py-2" placeholder="VD: Thu vỏ từ khách">
+        </div>
+        <button onclick="submitCollect()" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold mt-2">Xác nhận thu</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Điều chỉnh vỏ rỗng modal -->
+  <div id="adjustModal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-sm animate-fade">
+      <div class="p-4 border-b flex justify-between items-center">
+        <h3 class="font-bold text-lg text-amber-700">⚙️ Điều chỉnh vỏ rỗng</h3>
+        <button onclick="closeModal('adjustModal')" class="text-2xl text-gray-400 hover:text-gray-600">&times;</button>
+      </div>
+      <div class="p-4 space-y-3">
+        <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm">
+          <span class="font-semibold">Vỏ rỗng hiện tại:</span>
+          <span id="currentEmptyDisplay" class="ml-2 font-bold text-amber-700">-</span>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Số lượng vỏ rỗng mới</label>
+          <input type="number" id="adjustQty" min="0" value="0" class="w-full border rounded-lg px-3 py-2 text-center text-xl font-bold">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
+          <input type="text" id="adjustNote" class="w-full border rounded-lg px-3 py-2" placeholder="VD: Kiểm kê kho vỏ">
+        </div>
+        <button onclick="submitAdjust()" class="w-full bg-amber-600 text-white py-3 rounded-xl font-bold mt-2">Cập nhật</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let kegState = {};
+    let transactionLog = [];
+    let customers = [];
+
+    function formatVND(amount) {
+      return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount || 0);
+    }
+
+    async function loadState() {
+      try {
+        const res = await fetch('/api/kegs/state');
+        kegState = await res.json();
+        renderStats();
+      } catch (e) {
+        console.error('Load state error:', e);
+      }
+    }
+
+    async function loadLog() {
+      try {
+        const res = await fetch('/api/kegs/history');
+        transactionLog = await res.json();
+        renderLog();
+      } catch (e) {
+        console.error('Load log error:', e);
+      }
+    }
+
+    async function loadCustomers() {
+      try {
+        const res = await fetch('/api/customers');
+        customers = await res.json();
+        populateCustomerSelects();
+      } catch (e) {
+        console.error('Load customers error:', e);
+      }
+    }
+
+    function populateCustomerSelects() {
+      const opts = '<option value="">-- Chọn khách hàng --</option>' +
+        customers.map(c => `<option value="${c.id}">${c.name}${c.keg_balance ? ' (' + c.keg_balance + ' vỏ)' : ''}</option>`).join('');
+      document.getElementById('deliverCustomer').innerHTML = opts;
+      document.getElementById('collectCustomer').innerHTML = opts;
+    }
+
+    function typeLabel(type) {
+      const map = {
+        'deliver': '📦 Giao vỏ',
+        'collect': '🔄 Thu vỏ',
+        'import': '🏭 Nhập vỏ',
+        'collect_return': '🔄 Thu vỏ (trả hàng)',
+        'sell_empty': '💰 Bán vỏ rỗng'
+      };
+      return map[type] || type;
+    }
+
+    function typeColor(type) {
+      const map = {
+        'deliver': 'text-emerald-600',
+        'collect': 'text-blue-600',
+        'import': 'text-purple-600',
+        'collect_return': 'text-blue-600',
+        'sell_empty': 'text-amber-600'
+      };
+      return map[type] || 'text-gray-600';
+    }
+
+    function renderStats() {
+      const { inventory = 0, emptyCollected = 0, customerHolding = 0 } = kegState;
+      const balance = inventory + emptyCollected - customerHolding;
+
+      document.getElementById('statInventory').textContent = inventory + ' vỏ';
+      document.getElementById('statEmpty').textContent = emptyCollected + ' vỏ';
+      document.getElementById('statHolding').textContent = customerHolding + ' vỏ';
+      document.getElementById('statBalance').textContent = balance + ' vỏ';
+      document.getElementById('currentEmptyDisplay').textContent = emptyCollected + ' vỏ';
+    }
+
+    function renderLog() {
+      const el = document.getElementById('logBody');
+      if (!transactionLog || transactionLog.length === 0) {
+        el.innerHTML = '<tr><td colspan="5" class="text-center py-6 text-gray-400">Chưa có giao dịch nào</td></tr>';
+        return;
+      }
+      el.innerHTML = transactionLog.slice(0, 50).map(log => {
+        const date = new Date(log.date).toLocaleString('vi-VN', {
+          day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
+        });
+        return `
+          <tr class="log-row border-b border-gray-100">
+            <td class="py-2 px-2 text-xs text-gray-500">${date}</td>
+            <td class="py-2 px-2 text-xs font-semibold ${typeColor(log.type)}">${typeLabel(log.type)}</td>
+            <td class="py-2 px-2 text-xs text-center font-bold">${log.quantity}</td>
+            <td class="py-2 px-2 text-xs text-center text-blue-600">${log.empty_after}</td>
+            <td class="py-2 px-2 text-xs text-center text-purple-600">${log.holding_after}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function openModal(id) {
+      document.getElementById(id).classList.remove('hidden');
+      document.getElementById(id).classList.add('flex');
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.add('hidden');
+      document.getElementById(id).classList.remove('flex');
+    }
+
+    async function submitDeliver() {
+      const customerId = document.getElementById('deliverCustomer').value;
+      const qty = parseInt(document.getElementById('deliverQty').value);
+      const note = document.getElementById('deliverNote').value;
+
+      if (!customerId || !qty) { alert('Vui lòng chọn khách hàng và số lượng'); return; }
+
+      const res = await fetch('/api/kegs/deliver', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerId, quantity: qty, note })
+      });
+      const result = await res.json();
+      if (res.ok) {
+        alert(result.message);
+        closeModal('deliverModal');
+        document.getElementById('deliverNote').value = '';
+        loadCustomers();
+        loadState();
+        loadLog();
+      } else {
+        alert(result.error || 'Thất bại');
+      }
+    }
+
+    async function submitCollect() {
+      const customerId = document.getElementById('collectCustomer').value;
+      const qty = parseInt(document.getElementById('collectQty').value);
+      const note = document.getElementById('collectNote').value;
+
+      if (!customerId || !qty) { alert('Vui lòng chọn khách hàng và số lượng'); return; }
+
+      const res = await fetch('/api/kegs/collect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerId, quantity: qty, note })
+      });
+      const result = await res.json();
+      if (res.ok) {
+        alert(result.message);
+        closeModal('collectModal');
+        document.getElementById('collectNote').value = '';
+        loadCustomers();
+        loadState();
+        loadLog();
+      } else {
+        alert(result.error || 'Thất bại');
+      }
+    }
+
+    async function submitAdjust() {
+      const qty = parseInt(document.getElementById('adjustQty').value);
+      const note = document.getElementById('adjustNote').value;
+
+      if (isNaN(qty) || qty < 0) { alert('Số lượng không hợp lệ'); return; }
+
+      const res = await fetch('/api/kegs/state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emptyCollected: qty, note })
+      });
+      const result = await res.json();
+      if (res.ok) {
+        alert('Đã cập nhật vỏ rỗng');
+        closeModal('adjustModal');
+        loadState();
+        loadLog();
+      } else {
+        alert(result.error || 'Thất bại');
+      }
+    }
+
+    async function init() {
+      await loadCustomers();
+      await loadState();
+      await loadLog();
+    }
+
+    init();
+  </script>
+</body>
+</html>

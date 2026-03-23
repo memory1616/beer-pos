@@ -7,9 +7,9 @@
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#16a34a">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="/js/auth.js"></script>
+  <link rel="stylesheet" href="/css/tailwind.css">
   <link rel="stylesheet" href="/css/unified.css">
+  <script src="/js/auth.js"></script>
   <script src="/js/layout.js"></script>
   <script>requireAuth();</script>
   <style>
@@ -105,6 +105,31 @@
       <button onclick="saveKegUpdate()" id="kegSaveBtn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-xl text-lg">
         💾 Lưu
       </button>
+    </div>
+  </div>
+
+  <!-- Collect Keg Modal (Simple "Thu vỏ") -->
+  <div id="collectKegModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-2xl w-full max-w-sm p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="font-bold text-lg text-blue-700">Thu vỏ</h3>
+        <button onclick="closeCollectKegModal()" class="text-2xl text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100">&times;</button>
+      </div>
+
+      <div id="collectKegInfo" class="bg-blue-50 border border-blue-100 rounded-xl p-3 text-sm text-blue-700 mb-4 text-center"></div>
+
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-gray-700 mb-2">Số vỏ thu về</label>
+        <input type="number" id="collectKegQty"
+          class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-center text-2xl font-bold focus:border-blue-400 focus:outline-none"
+          min="0" inputmode="numeric">
+        <div class="text-xs text-gray-400 mt-1 text-center">Nhập số vỏ thu về (tối đa = số vỏ còn lại)</div>
+      </div>
+
+      <div class="flex gap-3">
+        <button onclick="closeCollectKegModal()" class="flex-1 py-3 bg-gray-100 text-gray-600 font-semibold rounded-xl hover:bg-gray-200 transition-colors">Huỷ</button>
+        <button onclick="submitCollectKeg()" class="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors">Xác nhận</button>
+      </div>
     </div>
   </div>
 
@@ -237,15 +262,17 @@
     loadData();
   </script>
   
+  <script src="/js/debug.js"></script>
   <script>
   // Check authentication
   if (!isLoggedIn()) { window.location.href = '/login'; }
   
-  if ('serviceWorker' in navigator) {
-    if (!navigator.serviceWorker.controller) {
-      navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW registration failed:', err));
-    }
-  }
+  // Disable service worker in development to avoid cache issues
+  // if ('serviceWorker' in navigator) {
+  //   if (!navigator.serviceWorker.controller) {
+  //     navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW registration failed:', err));
+  //   }
+  // }
   </script>
 </body>
 </html>

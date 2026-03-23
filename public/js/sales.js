@@ -661,11 +661,211 @@ const itemsPerPage = 5;
 // Global state for pagination
 let salesPagination = {
   page: 1,
-  limit: 5,
+  limit: 10,
   total: 0,
   totalPages: 0,
   month: new Date().toISOString().slice(0, 7) // Current month YYYY-MM
 };
+
+// ========== COLLECT KEG MODAL (Simple "Thu vỏ" modal) ==========
+let _collectKegSaleId = null;
+let _collectKegCustomerId = null;
+
+async function openCollectKegModal(saleId) {
+  _collectKegSaleId = saleId;
+
+  const res = await fetch('/api/sales/' + saleId);
+  const sale = await res.json();
+  _collectKegCustomerId = sale.customer_id;
+
+  const customer = customers.find(c => c.id == sale.customer_id);
+  const currentBalance = customer ? (customer.keg_balance || 0) : 0;
+  const delivered = sale.deliver_kegs || 0;
+  const returned = sale.return_kegs || 0;
+  const remaining = delivered - returned; // số vỏ còn ở khách
+  const canCollect = remaining;
+
+  document.getElementById('collectKegInfo').textContent =
+    `Đã giao: ${delivered} vỏ · Đã thu: ${returned} vỏ · Còn lại: ${remaining} vỏ`;
+
+  const input = document.getElementById('collectKegQty');
+  input.value = remaining;
+  input.max = remaining;
+  input.placeholder = `0 - ${remaining}`;
+
+  document.getElementById('collectKegModal').classList.remove('hidden');
+  document.getElementById('collectKegModal').classList.add('flex');
+}
+
+function closeCollectKegModal() {
+  document.getElementById('collectKegModal').classList.add('hidden');
+  document.getElementById('collectKegModal').classList.remove('flex');
+  _collectKegSaleId = null;
+  _collectKegCustomerId = null;
+}
+
+async function submitCollectKeg() {
+  const saleId = _collectKegSaleId;
+  const customerId = _collectKegCustomerId;
+  const collectQty = parseInt(document.getElementById('collectKegQty').value) || 0;
+
+  if (collectQty < 0) {
+    alert('Số vỏ không hợp lệ');
+    return;
+  }
+
+  const customer = customers.find(c => c.id == customerId);
+  const currentBalance = customer ? (customer.keg_balance || 0) : 0;
+
+  // Lấy số vỏ đã giao / đã thu hiện tại
+  const saleRes = await fetch('/api/sales/' + saleId);
+  const sale = await saleRes.json();
+  const currentDelivered = sale.deliver_kegs || 0;
+  const currentReturned = sale.return_kegs || 0;
+
+  // Số vỏ mới để thu: cộng dồn
+  const newReturned = currentReturned + collectQty;
+  // Nếu thu nhiều hơn đang giữ → clamp
+  const actualReturn = Math.min(collectQty, currentDelivered - currentReturned);
+  const newBalance = currentBalance + actualReturn;
+
+  const res = await fetch('/api/sales/update-kegs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ saleId, customerId, deliver: currentDelivered, returned: newReturned })
+  });
+  const result = await res.json();
+
+  if (res.ok) {
+    alert(`Đã thu ${actualReturn} vỏ. Vỏ còn lại: ${currentDelivered - newReturned}`);
+    closeCollectKegModal();
+    loadSalesHistory();
+  } else {
+    alert(result.error || 'Thu vỏ thất bại');
+  }
+}
+
+// ========== SALES HISTORY RENDER ==========
+async function loadSalesHistory() {
+  const { page, limit, month } = salesPagination;
+  const res = await fetch(`/api/sales?page=${page}&limit=${limit}&month=${month}`);
+  const data = await res.json();
+
+  const salesHistory = data.sales;
+  salesPagination.total = data.total;
+  salesPagination.totalPages = data.totalPages;
+
+  const container = document.getElementById('salesHistoryList');
+  if (salesHistory.length === 0) {
+    container.innerHTML = '<p class="text-gray-400 text-center py-8 text-sm">Chưa có hóa đơn nào</p>';
+    renderPagination();
+    return;
+  }
+
+  // Group by date
+  const grouped = {};
+  for (const sale of salesHistory) {
+    const d = new Date(sale.date);
+    const dateKey = d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    if (!grouped[dateKey]) grouped[dateKey] = [];
+    grouped[dateKey].push(sale);
+  }
+
+  let html = '';
+  for (const [dateKey, sales] of Object.entries(grouped)) {
+    // Date header
+    html += `<div class="px-3 pt-4 pb-2"><span class="text-xs font-bold text-gray-400 uppercase tracking-wide">${dateKey}</span></div>`;
+
+    for (const sale of sales) {
+      const isReturned = sale.status === 'returned';
+      const customerName = sale.customer_name || 'Khách lẻ';
+      const timeStr = new Date(sale.date).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+
+      // Badge
+      let badge = '';
+      if (sale.type === 'replacement') {
+        badge = '<span class="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full text-xs font-medium">Đổi lỗi</span>';
+      } else if (isReturned) {
+        badge = sale.type === 'damage_return'
+          ? '<span class="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-xs font-medium">Bia lỗi</span>'
+          : '<span class="bg-red-100 text-red-600 px-2 py-0.5 rounded-full text-xs font-medium">Đã trả</span>';
+      }
+
+      // Total amount
+      let totalEl = '';
+      if (sale.type === 'replacement') {
+        totalEl = '<span class="text-2xl font-bold text-orange-500">0đ</span>';
+      } else if (isReturned) {
+        totalEl = '<span class="text-2xl font-bold text-gray-300 line-through">' + formatVND(sale.total) + '</span>';
+      } else {
+        totalEl = '<span class="text-2xl font-bold text-green-600">' + formatVND(sale.total) + '</span>';
+      }
+
+      // Trạng thái vỏ
+      const delivered = sale.deliver_kegs || 0;
+      const returned = sale.return_kegs || 0;
+      const remaining = delivered - returned;
+      let kegStatusEl = '';
+      if (delivered > 0) {
+        if (remaining === 0) {
+          kegStatusEl = `<span class="inline-flex items-center gap-1 text-xs font-medium text-green-600 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span>Đã thu đủ</span>`;
+        } else {
+          kegStatusEl = `<span class="inline-flex items-center gap-1 text-xs font-medium text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 bg-amber-500 rounded-full"></span>Chưa thu: ${remaining}/${delivered} vỏ</span>`;
+        }
+      } else {
+        kegStatusEl = `<span class="text-xs text-gray-400">-</span>`;
+      }
+
+      // Keg button
+      let kegBtn = '';
+      if (!isReturned && delivered > 0) {
+        if (remaining === 0) {
+          kegBtn = `<button disabled class="flex-1 text-xs font-medium text-green-600 bg-green-50 border border-green-200 rounded-lg py-2 px-2 cursor-not-allowed opacity-60">Đã thu</button>`;
+        } else {
+          kegBtn = `<button onclick="openCollectKegModal(${sale.id})" class="flex-1 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-lg py-2 px-2 hover:bg-blue-100 transition-colors">Thu vỏ</button>`;
+        }
+      } else {
+        kegBtn = `<div class="flex-1"></div>`;
+      }
+
+      // Row background
+      let cardBg = 'bg-white';
+      if (sale.type === 'replacement') cardBg = 'bg-orange-50/60';
+      else if (isReturned) cardBg = 'bg-red-50/50';
+
+      html += `
+        <div class="${cardBg} rounded-2xl shadow-sm border border-gray-100 mx-3 mb-3 p-4">
+          ${badge ? `<div class="mb-2">${badge}</div>` : ''}
+          <div class="flex justify-between items-start gap-3">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 mb-1">
+                <span class="font-bold text-gray-800 text-base leading-tight">#${sale.id}</span>
+                <span class="font-semibold text-gray-700 text-sm truncate">${customerName}</span>
+              </div>
+              <div class="text-xs text-gray-400 mb-3">${timeStr}</div>
+              <div class="mb-2">${kegStatusEl}</div>
+            </div>
+            <div class="text-right shrink-0">${totalEl}</div>
+          </div>
+
+          <div class="border-t border-gray-100 pt-3 mt-3">
+            <div class="flex gap-2">
+              <button onclick="viewSale(${sale.id})" class="flex-1 flex items-center justify-center gap-1.5 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-100 rounded-lg py-2.5 hover:bg-blue-100 transition-colors">Xem</button>
+              <button onclick="editSale(${sale.id})" class="flex-1 flex items-center justify-center gap-1.5 text-sm font-medium text-orange-600 bg-orange-50 border border-orange-100 rounded-lg py-2.5 hover:bg-orange-100 transition-colors">Sửa</button>
+            </div>
+            <div class="flex gap-2 mt-2">
+              ${kegBtn}
+              <button onclick="deleteSale(${sale.id})" class="flex-1 flex items-center justify-center gap-1.5 text-sm font-medium text-red-600 bg-red-50 border border-red-100 rounded-lg py-2 hover:bg-red-100 transition-colors">Xóa</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+  }
+
+  container.innerHTML = html;
+  renderPagination();
+}
 
 async function loadSalesHistory() {
   const { page, limit, month } = salesPagination;
@@ -712,21 +912,15 @@ async function loadSalesHistory() {
       totalDisplay = '<span class="font-bold text-green-600">' + formatVND(sale.total) + '</span>';
     }
     
-    // Chỉ hiển thị nút hành động cho hóa đơn chưa trả
-    if (sale.type !== 'replacement' && !isReturned) {
+    // Hiển thị nút hành động cho hóa đơn chưa trả
+    if (!isReturned) {
       actionButtons = `
         <button onclick="viewSale(${sale.id})" class="text-blue-500 text-sm px-1">👁️</button>
         <button onclick="openKegModal(${sale.id})" class="text-purple-500 text-sm px-1">📦</button>
         <button onclick="editSale(${sale.id})" class="text-orange-500 text-sm px-1">✏️</button>
-      `;
-    } else if (sale.type === 'replacement') {
-      // Đơn đổi bia lỗi: cho phép xem, sửa và xóa
-      actionButtons = `
-        <button onclick="viewSale(${sale.id})" class="text-blue-500 text-sm px-1">👁️</button>
-        <button onclick="editSale(${sale.id})" class="text-orange-500 text-sm px-1">✏️</button>
         <button onclick="deleteSale(${sale.id})" class="text-red-500 text-sm px-1">🗑️</button>
       `;
-    } else if (isReturned) {
+    } else {
       actionButtons = `<button onclick="viewSale(${sale.id})" class="text-blue-500 text-sm px-1">👁️</button>`;
     }
     

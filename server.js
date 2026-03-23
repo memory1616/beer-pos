@@ -1,13 +1,31 @@
 // Beer POS Pro v2 - Simple Server
+require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const path = require('path');
 const fs = require('fs');
 const cron = require('node-cron');
 const rateLimit = require('express-rate-limit');
+const os = require('os');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || '0.0.0.0';
+
+// Get network interfaces for logging
+function getNetworkIPs() {
+  const interfaces = os.networkInterfaces();
+  const ips = [];
+  
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name]) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        ips.push({ name, ip: iface.address });
+      }
+    }
+  }
+  return ips;
+}
 
 // Rate limiting configuration
 const limiter = rateLimit({
@@ -25,6 +43,12 @@ app.use('/api', limiter);
 app.use(bodyParser.json({ limit: '10mb' })); // Limit request body size
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Favicon - inline SVG beer mug
+app.get('/favicon.ico', (req, res) => {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🍺</text></svg>`;
+  res.type('image/svg+xml').send(svg);
+});
 
 // Debug: Log all requests
 app.use((req, res, next) => {
@@ -124,11 +148,11 @@ app.use('/customers', require('./routes/customers'));
 app.use('/sale', require('./routes/sales'));
 app.use('/sales', (req, res) => res.redirect('/sale'));
 app.use('/stock', require('./routes/stock'));
-app.use('/kegs', require('./routes/kegs'));
 app.use('/analytics', require('./routes/analytics'));
 app.use('/delivery', require('./routes/delivery'));
 app.use('/products', require('./routes/products'));
 app.use('/purchases', require('./routes/purchases'));
+app.use('/kegs', require('./routes/kegs'));
 app.use('/report', require('./routes/report'));
 app.use('/backup', require('./routes/backup'));
 app.use('/devices', require('./routes/devices'));
@@ -174,6 +198,37 @@ app.use((req, res) => {
 });
 
 // ==================== START SERVER ====================
-app.listen(PORT, () => {
-  console.log(`🍺 Beer POS Pro v2 running on port ${PORT}`);
+// Prevent multiple instances
+const server = app.listen(PORT, HOST, () => {
+  const networkIPs = getNetworkIPs();
+  
+  console.log('\n========================================');
+  console.log('🍺 Beer POS Pro v2');
+  console.log('========================================');
+  console.log(`Server started at: ${new Date().toISOString()}`);
+  console.log(`Build timestamp: ${process.env.BUILD_TIME || 'development'}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`Hostname: ${os.hostname()}`);
+  console.log('\n📍 Access URLs:');
+  console.log(`   Local:    http://localhost:${PORT}`);
+  console.log(`   Local:    http://127.0.0.1:${PORT}`);
+  
+  if (networkIPs.length > 0) {
+    console.log('\n🌐 Network URLs:');
+    networkIPs.forEach(({ name, ip }) => {
+      console.log(`   ${name}:  http://${ip}:${PORT}`);
+    });
+  }
+  
+  console.log('\n========================================\n');
+});
+
+// Handle server errors (e.g., port already in use)
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`❌ Port ${PORT} is already in use!`);
+    console.error('Please stop the other server instance or use a different port.');
+    process.exit(1);
+  }
+  throw err;
 });

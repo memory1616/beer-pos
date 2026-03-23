@@ -253,15 +253,12 @@
     loadData();
   </script>
   
+  <script src="/js/debug.js"></script>
   <script>
   // Check authentication
   if (!isLoggedIn()) { window.location.href = '/login'; }
   
-  if ('serviceWorker' in navigator) {
-    if (!navigator.serviceWorker.controller) {
-      navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW registration failed:', err));
-    }
-  }
+  // Disable service worker in development
   </script>
   <script src="/sync.js"></script>
 </body>

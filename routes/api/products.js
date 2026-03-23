@@ -6,17 +6,21 @@ const db = require('../../database');
 // Call this whenever product stock (type='keg') changes
 function syncKegInventory() {
   try {
+    // Ensure keg_stats row exists
+    const exists = db.prepare('SELECT COUNT(*) as count FROM keg_stats WHERE id = 1').get();
+    if (!exists || exists.count === 0) {
+      db.prepare('INSERT INTO keg_stats (id, inventory, empty_collected, customer_holding) VALUES (1, 0, 0, 0)').run();
+    }
+    
     const result = db.prepare("SELECT COALESCE(SUM(stock), 0) as total FROM products WHERE type = 'keg'").get();
     db.prepare('UPDATE keg_stats SET inventory = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run(result.total);
+    console.log('[SYNC] Keg inventory synced:', result.total);
     return result.total;
   } catch (err) {
     console.error('Sync keg inventory error:', err);
     return null;
   }
 }
-
-// Export for other routes
-module.exports.syncKegInventory = syncKegInventory;
 
 // Validate ID parameter
 function validateId(id) {
@@ -163,18 +167,6 @@ router.get('/:id', (req, res) => {
   res.json(product);
 });
 
-// Sync keg_stats.inventory with products stock (type='keg')
-function syncKegInventory() {
-  try {
-    const result = db.prepare("SELECT COALESCE(SUM(stock), 0) as total FROM products WHERE type = 'keg'").get();
-    db.prepare('UPDATE keg_stats SET inventory = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run(result.total);
-    return result.total;
-  } catch (err) {
-    console.error('Sync keg inventory error:', err);
-    return null;
-  }
-}
-
 // POST /api/products
 router.post('/', (req, res) => {
   const { name, stock, cost_price, type } = req.body;
@@ -211,3 +203,4 @@ router.delete('/:id', (req, res) => {
 });
 
 module.exports = router;
+module.exports.syncKegInventory = syncKegInventory;
