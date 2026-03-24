@@ -176,6 +176,7 @@ async function becomeCloud() {
 }
 
 async function getLocalIP() {
+  // Tầng 1: WebRTC ICE candidate (nhanh, không cần server)
   try {
     const pc = new RTCPeerConnection({ iceServers: [] });
     pc.createDataChannel('');
@@ -191,6 +192,19 @@ async function getLocalIP() {
       setTimeout(resolve, 3000);
     });
   } catch {}
+
+  // Tầng 2: Thử gọi /api/discover trên chính máy này (localhost)
+  // Server sẽ trả về mảng LAN IPs
+  try {
+    const res = await fetch('/api/discover?deviceId=self-probe', { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.lanIPs && data.lanIPs.length > 0) {
+        return data.lanIPs[0];
+      }
+    }
+  } catch {}
+
   return null;
 }
 

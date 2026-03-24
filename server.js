@@ -20,7 +20,7 @@ const HOST = process.env.HOST || '0.0.0.0';
 function getNetworkIPs() {
   const interfaces = os.networkInterfaces();
   const ips = [];
-  
+
   for (const name of Object.keys(interfaces)) {
     for (const iface of interfaces[name]) {
       if (iface.family === 'IPv4' && !iface.internal) {
@@ -220,12 +220,26 @@ app.get('/api/ping', (req, res) => {
 // ==================== CLOUD DISCOVERY ====================
 // Giúp các thiết bị trong LAN tự động tìm cloud server
 app.get('/api/discover', (req, res) => {
-  const protocol = req.protocol;
-  const host = req.get('host') || `localhost:${PORT}`;
+  // CORS for LAN cross-origin requests (browsers block cross-origin from LAN IPs)
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+
   const { deviceId } = req.query;
   const isCloudServer = process.env.IS_CLOUD_SERVER === 'true' || process.env.CLOUD_MODE === 'true';
 
-  // Track connected devices per cloud server
+  // Get all LAN IP addresses of this server (skip loopback/internal)
+  const interfaces = os.networkInterfaces();
+  const lanIPs = [];
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name]) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        lanIPs.push(iface.address);
+      }
+    }
+  }
+
   if (isCloudServer && deviceId) {
     try {
       db.prepare(`INSERT OR REPLACE INTO sync_meta (key, value) VALUES (?, ?)`)
@@ -236,10 +250,13 @@ app.get('/api/discover', (req, res) => {
   res.json({
     cloud: true,
     name: DISTRIBUTOR_NAME,
-    url: `${protocol}://${host}`,
+    // Array of all LAN IPs so client can pick the right one
+    lanIPs,
+    // Primary URL based on first found LAN IP (not req.get('host') which may be localhost)
+    url: lanIPs.length > 0 ? `http://${lanIPs[0]}:${PORT}` : null,
     version: '1.0.0',
     isCloudServer,
-    serverTime: new Date().toJSON()
+    serverTime: new Date().toISOString()
   });
 });
 
