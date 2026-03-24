@@ -11,35 +11,82 @@ function initDashboard(data) {
     if (el) el.textContent = value;
   };
 
-  // Set today's revenue
-  setText('todayRevenue', formatVND(data.todayStats?.revenue || 0));
+  // Today's revenue
+  const todayRevenue = data.todayStats?.revenue || 0;
+  const todayRevenueEl = document.getElementById('todayRevenue');
+  if (todayRevenueEl) {
+    if (todayRevenue === 0) {
+      todayRevenueEl.textContent = 'Chưa có dữ liệu hôm nay';
+      todayRevenueEl.className = 'text-base font-medium text-gray-400 italic';
+    } else {
+      todayRevenueEl.textContent = formatVND(todayRevenue);
+      todayRevenueEl.className = 'text-2xl font-bold text-amber-600';
+    }
+  }
 
   // Set today's units
   setText('todayUnits', data.todayUnits?.units || 0);
 
   // Net profit today (profit - expenses)
   const todayProfit = (data.todayStats?.profit || 0) - (data.expenses?.today || 0);
-  setText('todayProfit', formatVND(Math.max(0, todayProfit)));
-  // Highlight negative in red
   const todayProfitEl = document.getElementById('todayProfit');
   if (todayProfitEl) {
-    todayProfitEl.className = 'text-2xl font-bold ' + (todayProfit >= 0 ? 'text-green-600' : 'text-red-600');
+    if (todayProfit === 0) {
+      todayProfitEl.textContent = 'Chưa có dữ liệu hôm nay';
+      todayProfitEl.className = 'text-base font-medium text-gray-400 italic';
+    } else if (todayProfit > 0) {
+      todayProfitEl.textContent = formatVND(todayProfit);
+      todayProfitEl.className = 'text-2xl font-bold text-green-600';
+    } else {
+      todayProfitEl.textContent = formatVND(todayProfit);
+      todayProfitEl.className = 'text-2xl font-bold text-red-600';
+    }
   }
 
   // Today's expenses
-  setText('todayExpense', formatVND(data.expenses?.today || 0));
+  const todayExpenseAmt = data.expenses?.today || 0;
+  const todayExpenseEl = document.getElementById('todayExpense');
+  if (todayExpenseEl) {
+    if (todayExpenseAmt === 0) {
+      todayExpenseEl.textContent = 'Không có chi phí hôm nay';
+      todayExpenseEl.className = 'text-base font-medium text-gray-400 italic';
+    } else if (todayRevenue === 0) {
+      todayExpenseEl.textContent = formatVND(todayExpenseAmt);
+      todayExpenseEl.className = 'text-2xl font-bold text-orange-500';
+    } else {
+      todayExpenseEl.textContent = formatVND(todayExpenseAmt);
+      todayExpenseEl.className = 'text-2xl font-bold text-red-500';
+    }
+  }
 
   // Net profit this month (profit - expenses)
   const monthProfit = (data.monthStats?.profit || 0) - (data.expenses?.month || 0);
-  setText('monthProfit', formatVND(Math.max(0, monthProfit)));
-  // Highlight negative in red
   const monthProfitEl = document.getElementById('monthProfit');
   if (monthProfitEl) {
-    monthProfitEl.className = 'text-2xl font-bold ' + (monthProfit >= 0 ? 'text-green-600' : 'text-red-600');
+    if (monthProfit === 0) {
+      monthProfitEl.textContent = 'Chưa có dữ liệu';
+      monthProfitEl.className = 'text-base font-medium text-gray-400 italic';
+    } else if (monthProfit > 0) {
+      monthProfitEl.textContent = formatVND(monthProfit);
+      monthProfitEl.className = 'text-2xl font-bold text-green-600';
+    } else {
+      monthProfitEl.textContent = formatVND(monthProfit);
+      monthProfitEl.className = 'text-2xl font-bold text-red-600';
+    }
   }
 
   // Month's expenses
-  setText('monthExpense', formatVND(data.expenses?.month || 0));
+  const monthExpenseAmt = data.expenses?.month || 0;
+  const monthExpenseEl = document.getElementById('monthExpense');
+  if (monthExpenseEl) {
+    if (monthExpenseAmt === 0) {
+      monthExpenseEl.textContent = 'Không có chi phí';
+      monthExpenseEl.className = 'text-base font-medium text-gray-400 italic';
+    } else {
+      monthExpenseEl.textContent = formatVND(monthExpenseAmt);
+      monthExpenseEl.className = 'text-2xl font-bold text-red-500';
+    }
+  }
   
   // Set keg stats - from keg state API
   if (data.kegState) {
