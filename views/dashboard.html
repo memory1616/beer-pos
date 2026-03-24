@@ -58,6 +58,30 @@
                   <div class="text-xs text-gray-400">bình</div>
                 </div>
               </div>
+              <div class="grid grid-cols-2 gap-3 mt-3">
+                <div class="card">
+                  <div class="text-xs text-gray-500">Lợi nhuận hôm nay</div>
+                  <div class="text-2xl font-bold text-green-600" id="todayProfit">0</div>
+                </div>
+                <div class="card">
+                  <div class="text-xs text-gray-500">Chi phí hôm nay</div>
+                  <div class="text-2xl font-bold text-red-500" id="todayExpense">0</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="mb-4">
+              <div class="section-title">Tháng này</div>
+              <div class="grid grid-cols-2 gap-3">
+                <div class="card">
+                  <div class="text-xs text-gray-500">Lợi nhuận tháng</div>
+                  <div class="text-2xl font-bold text-green-600" id="monthProfit">0</div>
+                </div>
+                <div class="card">
+                  <div class="text-xs text-gray-500">Chi phí tháng</div>
+                  <div class="text-2xl font-bold text-red-500" id="monthExpense">0</div>
+                </div>
+              </div>
             </div>
 
             <div class="mb-4">
@@ -124,7 +148,7 @@
                   <div class="font-bold text-amber-600 text-sm" id="totalRevenue6M">-</div>
                 </div>
                 <div class="bg-blue-50 rounded-lg p-2 text-center">
-                  <div class="text-xs text-gray-500">TB/tháng</div>
+                  <div class="text-xs text-gray-500">LN/tháng</div>
                   <div class="font-bold text-blue-600 text-sm" id="avgRevenue6M">-</div>
                 </div>
                 <div class="bg-purple-50 rounded-lg p-2 text-center">
@@ -282,23 +306,6 @@
     }
   }
 
-  async function refreshCloudTab() {
-    const statusEl = document.getElementById('cloudStatusText');
-    const input = document.getElementById('cloudUrlInput');
-    if (!statusEl) return;
-
-    const cloudUrl = getCloudUrl();
-    if (!cloudUrl) {
-      statusEl.innerHTML = '🔴 <span class="text-red-600"><strong>Chưa có Cloud</strong></span> — đang chạy độc lập';
-    } else if (!navigator.onLine) {
-      statusEl.innerHTML = '🔴 <span class="text-red-600"><strong>Offline</strong></span> — cloud: ' + cloudUrl;
-    } else {
-      statusEl.innerHTML = '🟢 <span class="text-green-600"><strong>Đã kết nối Cloud</strong></span><br><span class="text-xs text-gray-500">' + cloudUrl + '</span>';
-    }
-
-    if (input) input.value = cloudUrl;
-  }
-
   async function showAlertSettings() {
     const modal = document.getElementById('alertSettingsModal');
 
@@ -344,88 +351,6 @@
     }
   }
 
-  async function becomeCloud() {
-    const selfUrl = window.location.origin;
-    localStorage.setItem('cloudUrl', selfUrl);
-    localStorage.setItem('isCloudServer', 'true');
-    await refreshCloudTab();
-    if (navigator.onLine) {
-      showToast('☁️ Máy này đã là Cloud!', 'success');
-    }
-    await updateSmartStatus();
-  }
-
-  async function scanForCloud() {
-    const scanEl = document.getElementById('scanStatus');
-    if (!scanEl) return;
-    scanEl.innerHTML = '⏳ Đang quét...';
-
-    const localIP = await getLocalIP();
-    if (!localIP) {
-      scanEl.innerHTML = '❌ Không lấy được IP máy';
-      return;
-    }
-
-    const subnet = localIP.substring(0, localIP.lastIndexOf('.'));
-    const promises = [];
-    for (let i = 1; i <= 30; i++) {
-      const ip = `${subnet}.${i}`;
-      if (ip !== localIP) {
-        promises.push(checkDevice(ip, 3000));
-        promises.push(checkDevice(ip, 3001));
-      }
-    }
-
-    const results = await Promise.allSettled(promises);
-    const found = results.filter(r => r.status === 'fulfilled' && r.value).map(r => r.value);
-
-    if (found.length > 0) {
-      const cloud = found[0];
-      localStorage.setItem('cloudUrl', cloud.url);
-      localStorage.removeItem('isCloudServer');
-      scanEl.innerHTML = '✅ Tìm thấy: <strong>' + cloud.name + '</strong><br><span class="text-xs text-gray-500">' + cloud.url + '</span>';
-      setTimeout(async () => {
-        await refreshCloudTab();
-        await updateSmartStatus();
-        showToast('☁️ Đã kết nối: ' + cloud.name, 'success');
-      }, 1500);
-    } else {
-      scanEl.innerHTML = '❌ Không tìm thấy Cloud nào.<br><span class="text-xs">Đảm bảo máy Cloud đang bật và cùng mạng.</span>';
-    }
-  }
-
-  async function checkDevice(ip, port) {
-    try {
-      const ctrl = new AbortController();
-      const id = setTimeout(() => ctrl.abort(), 2000);
-      const res = await fetch(`http://${ip}:${port}/api/discover`, { signal: ctrl.signal, cache: 'no-store' });
-      clearTimeout(id);
-      if (res.ok) {
-        const data = await res.json();
-        return { ip, port, name: data.name || 'BeerPOS Cloud', url: data.url || `http://${ip}:${port}` };
-      }
-    } catch {}
-    return null;
-  }
-
-  async function getLocalIP() {
-    try {
-      const pc = new RTCPeerConnection({ iceServers: [] });
-      pc.createDataChannel('');
-      const offer = await pc.createOffer();
-      pc.setLocalDescription(offer);
-      return new Promise(resolve => {
-        pc.onicecandidate = e => {
-          if (e.candidate && e.candidate.candidate.includes('srflx')) {
-            const match = e.candidate.candidate.match(/(\d+\.\d+\.\d+\.\d+)/);
-            if (match) resolve(match[1]);
-          }
-        };
-        setTimeout(resolve, 3000);
-      });
-    } catch {}
-    return null;
-  }
   </script>
 </body>
 </html>

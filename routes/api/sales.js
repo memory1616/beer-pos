@@ -201,10 +201,10 @@ router.post('/update-kegs', (req, res) => {
     const prevDeliver = sale?.deliver_kegs || 0;
     const prevReturned = sale?.return_kegs || 0;
 
-    // Tính DELTA: chênh lệch so với giá trị trước đó (để tránh cộng chồng)
-    const deltaDeliver = deliver - prevDeliver;   // đang giao thêm bao nhiêu
-    const deltaReturn  = returned - prevReturned;  // đang thu thêm bao nhiêu
-    const newlyCollected = Math.max(0, deltaReturn); // vỏ mới được thu thêm
+    // Tính DELTA để tránh cộng chồng khi mở modal lần 2
+    const deltaDeliver = deliver - prevDeliver;
+    const deltaReturn  = returned - prevReturned;
+    const newlyCollected = Math.max(0, deltaReturn);
 
     const customer = db.prepare('SELECT keg_balance FROM customers WHERE id = ?').get(customerId);
     const currentKegBalance = customer ? customer.keg_balance : 0;
@@ -215,7 +215,6 @@ router.post('/update-kegs', (req, res) => {
       db.prepare('UPDATE sales SET deliver_kegs = ?, return_kegs = ?, keg_balance_after = ? WHERE id = ?')
         .run(deliver, returned, newKegBalance, saleId);
 
-      // Update customer keg_balance — dùng DELTA để tránh cộng chồng deliver đã tính trước đó
       updateCustomerKegBalance(customerId, deltaDeliver, deltaReturn);
 
       // Cộng vỏ mới thu được vào kho vỏ rỗng
@@ -226,7 +225,6 @@ router.post('/update-kegs', (req, res) => {
         db.prepare('UPDATE keg_stats SET empty_collected = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1')
           .run(newEmpty);
 
-        // Ghi log (cần inventory_after, empty_after, holding_after — đều NOT NULL)
         const customer2 = db.prepare('SELECT name FROM customers WHERE id = ?').get(customerId);
         const updatedStats = db.prepare('SELECT inventory, empty_collected, customer_holding FROM keg_stats WHERE id = 1').get();
         db.prepare(`

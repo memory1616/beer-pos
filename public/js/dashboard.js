@@ -16,6 +16,30 @@ function initDashboard(data) {
 
   // Set today's units
   setText('todayUnits', data.todayUnits?.units || 0);
+
+  // Net profit today (profit - expenses)
+  const todayProfit = (data.todayStats?.profit || 0) - (data.expenses?.today || 0);
+  setText('todayProfit', formatVND(Math.max(0, todayProfit)));
+  // Highlight negative in red
+  const todayProfitEl = document.getElementById('todayProfit');
+  if (todayProfitEl) {
+    todayProfitEl.className = 'text-2xl font-bold ' + (todayProfit >= 0 ? 'text-green-600' : 'text-red-600');
+  }
+
+  // Today's expenses
+  setText('todayExpense', formatVND(data.expenses?.today || 0));
+
+  // Net profit this month (profit - expenses)
+  const monthProfit = (data.monthStats?.profit || 0) - (data.expenses?.month || 0);
+  setText('monthProfit', formatVND(Math.max(0, monthProfit)));
+  // Highlight negative in red
+  const monthProfitEl = document.getElementById('monthProfit');
+  if (monthProfitEl) {
+    monthProfitEl.className = 'text-2xl font-bold ' + (monthProfit >= 0 ? 'text-green-600' : 'text-red-600');
+  }
+
+  // Month's expenses
+  setText('monthExpense', formatVND(data.expenses?.month || 0));
   
   // Set keg stats - from keg state API
   if (data.kegState) {
@@ -168,22 +192,28 @@ function renderRevenueChart(dailyData) {
   // Calculate stats
   const revenues = dailyData.map(d => d.revenue || 0);
   const profits = dailyData.map(d => d.profit || 0);
+  const netProfits = dailyData.map(d => {
+    const profit = d.profit || 0;
+    const expense = (d.expenses || 0);
+    return Math.max(0, profit - expense);
+  });
   const totalRevenue = revenues.reduce((sum, r) => sum + r, 0);
   const avgRevenue = revenues.length > 0 ? totalRevenue / revenues.length : 0;
-  
-  // Calculate growth (today vs yesterday)
+  const totalNetProfit = netProfits.reduce((sum, n) => sum + n, 0);
+
+  // Calculate growth (today vs yesterday) - based on net profit
   let growth = 0;
-  if (revenues.length >= 2) {
-    const today = revenues[revenues.length - 1];
-    const yesterday = revenues[revenues.length - 2];
+  if (netProfits.length >= 2) {
+    const today = netProfits[netProfits.length - 1];
+    const yesterday = netProfits[netProfits.length - 2];
     growth = yesterday > 0 ? ((today - yesterday) / yesterday * 100) : 0;
   }
-  
+
   // Update stats display
   setText('totalRevenue6M', formatVND(totalRevenue));
-  setText('avgRevenue6M', formatVND(avgRevenue));
+  setText('avgRevenue6M', formatVND(totalNetProfit));
   const growthEl = document.getElementById('growthRevenue6M');
-  if (revenues.length >= 2) {
+  if (netProfits.length >= 2) {
     if (growthEl) {
       growthEl.textContent = (growth >= 0 ? '+' : '') + growth.toFixed(0) + '%';
       growthEl.className = 'font-bold text-sm ' + (growth >= 0 ? 'text-green-600' : 'text-red-600');
@@ -229,16 +259,16 @@ function renderRevenueChart(dailyData) {
           yAxisID: 'y'
         },
         {
-          label: 'Lợi nhuận',
-          data: profits,
+          label: 'Lợi nhuận ròng',
+          data: netProfits,
           type: 'line',
-          borderColor: '#f59e0b',
-          backgroundColor: profitGradient,
+          borderColor: '#16a34a',
+          backgroundColor: 'rgba(22, 163, 74, 0.1)',
           borderWidth: 2,
-          fill: false,
+          fill: true,
           tension: 0.3,
           pointRadius: 3,
-          pointBackgroundColor: '#f59e0b',
+          pointBackgroundColor: '#16a34a',
           yAxisID: 'y'
         }
       ]

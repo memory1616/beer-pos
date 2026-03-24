@@ -2,6 +2,16 @@ const CACHE_NAME = "beer-pos-v7";
 const DB_NAME = "BeerPOS";
 const STORE_SYNC_QUEUE = "sync_queue";
 
+// Cloud URL set by main thread via postMessage
+let _swCloudUrl = null;
+
+// Main thread → SW: pass cloud URL when it changes
+self.addEventListener('message', event => {
+  if (event.data?.type === 'SET_CLOUD_URL') {
+    _swCloudUrl = event.data.url || null;
+  }
+});
+
 // Open IndexedDB for offline queue
 function openDB() {
   return new Promise((resolve, reject) => {
@@ -173,8 +183,9 @@ async function processSyncQueue() {
 
     for (const item of all) {
       try {
-        const serverUrl = self.registration.scope;
-        const fullUrl = serverUrl.replace(/\/$/, "") + item.url;
+        // Prefer cloud URL if configured, else fall back to local server
+        const baseUrl = _swCloudUrl || self.registration.scope;
+        const fullUrl = baseUrl.replace(/\/$/, "") + item.url;
 
         const response = await fetch(fullUrl, {
           method: item.method,

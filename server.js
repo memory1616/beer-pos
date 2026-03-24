@@ -31,17 +31,27 @@ function getNetworkIPs() {
   return ips;
 }
 
-// Rate limiting configuration
+// Rate limiting configuration — skip /api/discover (LAN scan sends 500+ pings)
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // limit each IP to 100 requests per windowMs
   message: { error: 'Quá nhiều yêu cầu, vui lòng thử lại sau' },
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => req.baseUrl + req.path === '/api/discover',
 });
 
-// Apply rate limiting to all API routes
+// Apply rate limiting to all API routes (skipping /api/discover which is a LAN ping)
 app.use('/api', limiter);
+
+// CORS for LAN cloud sync — allows requests from any device in the network
+app.use('/api/sync', (req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
 
 // Middleware
 app.use(bodyParser.json({ limit: '10mb' })); // Limit request body size
@@ -212,11 +222,24 @@ app.get('/api/ping', (req, res) => {
 app.get('/api/discover', (req, res) => {
   const protocol = req.protocol;
   const host = req.get('host') || `localhost:${PORT}`;
+  const { deviceId } = req.query;
+  const isCloudServer = process.env.IS_CLOUD_SERVER === 'true' || process.env.CLOUD_MODE === 'true';
+
+  // Track connected devices per cloud server
+  if (isCloudServer && deviceId) {
+    try {
+      db.prepare(`INSERT OR REPLACE INTO sync_meta (key, value) VALUES (?, ?)`)
+        .run(`device_last_seen_${deviceId}`, new Date().toJSON());
+    } catch {}
+  }
+
   res.json({
     cloud: true,
     name: DISTRIBUTOR_NAME,
     url: `${protocol}://${host}`,
-    version: '1.0.0'
+    version: '1.0.0',
+    isCloudServer,
+    serverTime: new Date().toJSON()
   });
 });
 
@@ -236,6 +259,13 @@ app.use((req, res) => {
 });
 
 // ==================== START SERVER ====================
+// Detect cloud mode: if cloudUrl is set in env or starts as cloud
+const isCloudServer = process.env.IS_CLOUD_SERVER === 'true' || process.env.CLOUD_MODE === 'true';
+if (isCloudServer) {
+  process.env.IS_CLOUD_SERVER = 'true';
+  logger.info('Cloud server mode ENABLED');
+}
+
 // Prevent multiple instances
 const server = app.listen(PORT, HOST, () => {
   const networkIPs = getNetworkIPs();
@@ -244,6 +274,7 @@ const server = app.listen(PORT, HOST, () => {
   logger.info(`Server started at ${new Date().toISOString()}`);
   logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
   logger.info(`Hostname: ${os.hostname()}`);
+  if (isCloudServer) logger.info('Mode: Cloud Server');
 
   const urls = [`http://localhost:${PORT}`, `http://127.0.0.1:${PORT}`];
   networkIPs.forEach(({ name, ip }) => urls.push(`http://${ip}:${PORT}`));

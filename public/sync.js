@@ -1,6 +1,36 @@
 // Beer POS - Cloud Sync (hoạt động với SW queue)
 // Include this file in all pages (after layout.js)
 
+// ===== DEVICE ID — unique per browser/device =====
+
+function getOrCreateDeviceId() {
+  let deviceId = localStorage.getItem('deviceId');
+  if (!deviceId) {
+    // Generate a unique device ID based on random + timestamp
+    deviceId = 'dev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 10);
+    localStorage.setItem('deviceId', deviceId);
+  }
+  return deviceId;
+}
+
+// Per-cloud lastSync: map<cloudUrl, lastSyncTimestamp>
+// This lets a device connect to MULTIPLE cloud servers independently
+function getLastSyncForCloud(cloudUrl) {
+  const map = JSON.parse(localStorage.getItem('cloudLastSyncMap') || '{}');
+  return map[cloudUrl] || null;
+}
+
+function setLastSyncForCloud(cloudUrl, timestamp) {
+  const map = JSON.parse(localStorage.getItem('cloudLastSyncMap') || '{}');
+  map[cloudUrl] = timestamp;
+  localStorage.setItem('cloudLastSyncMap', JSON.stringify(map));
+}
+
+// Check if this device has ever synced with a given cloud
+function hasSyncedWithCloud(cloudUrl) {
+  return getLastSyncForCloud(cloudUrl) !== null;
+}
+
 // ===== CLOUD SETUP UI =====
 
 // Inject cloud setup modal only (no floating button — Cloud is in Dashboard ⚙️ → tab ☁️)
@@ -136,12 +166,32 @@ async function becomeCloud() {
   const selfUrl = window.location.origin;
   localStorage.setItem('cloudUrl', selfUrl);
   localStorage.setItem('isCloudServer', 'true');
+  syncCloudUrlToSW(selfUrl);
   await updateCloudModalStatus();
   await updateSmartStatus();
   if (navigator.onLine) {
     showToast('☁️ Máy này đã là Cloud! Các thiết bị khác sẽ tự động phát hiện.', 'success');
   }
   closeCloudModal();
+}
+
+async function getLocalIP() {
+  try {
+    const pc = new RTCPeerConnection({ iceServers: [] });
+    pc.createDataChannel('');
+    const offer = await pc.createOffer();
+    pc.setLocalDescription(offer);
+    return new Promise(resolve => {
+      pc.onicecandidate = e => {
+        if (e.candidate && e.candidate.candidate.includes('srflx')) {
+          const match = e.candidate.candidate.match(/(\d+\.\d+\.\d+\.\d+)/);
+          if (match) resolve(match[1]);
+        }
+      };
+      setTimeout(resolve, 3000);
+    });
+  } catch {}
+  return null;
 }
 
 // SCAN LAN for cloud server
@@ -157,30 +207,50 @@ async function scanForCloud() {
   }
 
   const subnet = localIP.substring(0, localIP.lastIndexOf('.'));
+  scanEl.innerHTML = '⏳ Đang quét subnet ' + subnet + '.x ...';
 
-  // Check common ports on subnet (1-30)
-  const promises = [];
-  for (let i = 1; i <= 30; i++) {
-    const ip = `${subnet}.${i}`;
-    if (ip === localIP) continue; // skip self
-    promises.push(checkDevice(ip, 3000));
-    promises.push(checkDevice(ip, 3001));
+  // Scan full subnet (1-254) in batches to avoid browser connection throttling
+  const BATCH = 25;
+  const found = [];
+
+  for (let start = 1; start <= 254; start += BATCH) {
+    const end = Math.min(start + BATCH - 1, 254);
+    const promises = [];
+    for (let i = start; i <= end; i++) {
+      const ip = `${subnet}.${i}`;
+      if (ip === localIP) continue; // skip self
+      promises.push(checkDevice(ip, 3000));
+      promises.push(checkDevice(ip, 3001));
+    }
+    const results = await Promise.allSettled(promises);
+    const batchFound = results
+      .filter(r => r.status === 'fulfilled' && r.value)
+      .map(r => r.value);
+    found.push(...batchFound);
+
+    // Update progress
+    const pct = Math.round((end / 254) * 100);
+    scanEl.innerHTML = `⏳ Đang quét... ${pct}%`;
+
+    // Small yield to keep UI responsive and avoid thundering herd
+    await new Promise(r => setTimeout(r, 50));
   }
-
-  const results = await Promise.allSettled(promises);
-  const found = results
-    .filter(r => r.status === 'fulfilled' && r.value)
-    .map(r => r.value);
 
   if (found.length > 0) {
     const cloud = found[0];
+    const prevSync = hasSyncedWithCloud(cloud.url);
     localStorage.setItem('cloudUrl', cloud.url);
     localStorage.removeItem('isCloudServer');
+    syncCloudUrlToSW(cloud.url);
     scanEl.innerHTML = '✅ Tìm thấy: <strong>' + cloud.name + '</strong><br><span style="font-size:12px;color:#6b7280">' + cloud.url + '</span>';
     setTimeout(async () => {
       await updateCloudModalStatus();
       await updateSmartStatus();
       showToast('☁️ Đã kết nối: ' + cloud.name, 'success');
+      if (!prevSync) {
+        showToast('🔄 Đồng bộ lần đầu — đang tải dữ liệu từ cloud...', 'info');
+        await doFirstSync(cloud.url);
+      }
       closeCloudModal();
     }, 1500);
   } else {
@@ -192,22 +262,35 @@ async function checkDevice(ip, port) {
   try {
     const ctrl = new AbortController();
     const id = setTimeout(() => ctrl.abort(), 2000);
-    const res = await fetch(`http://${ip}:${port}/api/discover`, {
+    const deviceId = getOrCreateDeviceId();
+    const res = await fetch(`http://${ip}:${port}/api/discover?deviceId=${encodeURIComponent(deviceId)}`, {
       signal: ctrl.signal,
       cache: 'no-store'
     });
     clearTimeout(id);
     if (res.ok) {
       const data = await res.json();
-      return { ip, port, name: data.name || 'BeerPOS Cloud', url: data.url || `http://${ip}:${port}` };
+      return {
+        ip,
+        port,
+        name: data.name || 'BeerPOS Cloud',
+        url: data.url || `http://${ip}:${port}`,
+        isCloudServer: data.isCloudServer || false
+      };
     }
   } catch {}
   return null;
 }
 window.checkDevice = checkDevice;
-window.getLocalIP = getLocalIP;
-
 // Save cloud URL manually
+// Tell SW the cloud URL so background sync can reach it
+function syncCloudUrlToSW(url) {
+  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+    navigator.serviceWorker.controller.postMessage({ type: 'SET_CLOUD_URL', url });
+  }
+}
+
+// Push cloud URL to SW when it changes
 function saveCloudUrl() {
   // syncCloudUrlInput = popup inject; cloudUrlInput = Dashboard tab ☁️
   const input =
@@ -217,13 +300,20 @@ function saveCloudUrl() {
   if (!input) return;
   const url = input.value.trim();
 
+  const prevSync = hasSyncedWithCloud(url);
   localStorage.setItem('cloudUrl', url);
   localStorage.removeItem('isCloudServer');
+  syncCloudUrlToSW(url);
   closeCloudModal();
   updateSmartStatus();
   if (navigator.onLine && url) {
-    syncNow();
-    showToast('☁️ Đã lưu: ' + url, 'success');
+    if (!prevSync) {
+      showToast('🔄 Đồng bộ lần đầu — đang tải dữ liệu...', 'info');
+      doFirstSync(url).then(() => showToast('☁️ Đã kết nối cloud', 'success'));
+    } else {
+      syncNow();
+      showToast('☁️ Đã lưu: ' + url, 'success');
+    }
   } else {
     showToast('☁️ Đã lưu: ' + url, 'success');
   }
@@ -243,6 +333,7 @@ if (document.readyState === 'loading') {
 function getCloudUrl() {
   return localStorage.getItem('cloudUrl') || '';
 }
+window.getCloudUrl = getCloudUrl;
 
 // Open IndexedDB (same DB name as sw.js)
 const SW_DB_NAME = 'BeerPOS';
@@ -284,9 +375,11 @@ async function countPendingQueue() {
   }
 }
 
-// Get last sync time
+// Get last sync time for current cloud
 function getLastSyncText() {
-  const lastSync = localStorage.getItem('lastSync');
+  const cloudUrl = getCloudUrl();
+  if (!cloudUrl) return '';
+  const lastSync = getLastSyncForCloud(cloudUrl);
   if (!lastSync) return '';
   const date = new Date(lastSync);
   const now = new Date();
@@ -373,6 +466,8 @@ async function updateSmartStatus() {
 async function syncQueueToCloud() {
   if (!navigator.onLine) return;
 
+  const cloudUrl = getCloudUrl();
+
   // Nếu máy này là Cloud Server → dữ liệu đã ở DB, chỉ clear queue
   const isCloudServer = localStorage.getItem('isCloudServer') === 'true';
   if (isCloudServer) {
@@ -414,13 +509,24 @@ async function syncQueueToCloud() {
     const res = await fetch('/api/sync/push', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ changes })
+      body: JSON.stringify({ changes, deviceId: getOrCreateDeviceId() })
     });
 
     if (res.ok) {
       const data = await res.json();
       console.log(`[Sync] Pushed ${data.synced || 0} items to server`);
-      localStorage.setItem('lastSync', new Date().toISOString());
+      const now = new Date().toISOString();
+      setLastSyncForCloud(cloudUrl, now);
+
+      // Clear synced items from queue so they're not re-pushed next time
+      const delTx = db.transaction(SW_STORE, 'readwrite');
+      const delStore = delTx.objectStore(SW_STORE);
+      const delIndex = delStore.index('synced');
+      const delReq = delIndex.openCursor(IDBKeyRange.only(0));
+      delReq.onsuccess = (e) => {
+        const cursor = e.target.result;
+        if (cursor) { cursor.delete(); cursor.continue(); }
+      };
     }
   } catch (e) {
     console.log('[Sync] Cloud push failed:', e.message);
@@ -432,19 +538,22 @@ async function pullFromCloud() {
   const cloudUrl = getCloudUrl();
   if (!cloudUrl || !navigator.onLine) return;
 
-  const lastSync = localStorage.getItem('lastSync') || '';
+  const lastSync = getLastSyncForCloud(cloudUrl) || '1970-01-01T00:00:00.000Z';
   try {
     const res = await fetch('/api/sync/pull', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cloudUrl, lastSync })
+      body: JSON.stringify({ cloudUrl, lastSync, deviceId: getOrCreateDeviceId() })
     });
     if (res.ok) {
       const data = await res.json();
       if (data.changes && Object.keys(data.changes).length > 0) {
-        localStorage.setItem('lastSync', data.serverTime);
+        setLastSyncForCloud(cloudUrl, data.serverTime);
         console.log('[Sync] Pulled changes, reloading...');
         location.reload();
+      } else {
+        // No changes but mark as synced so we don't re-pull unnecessarily
+        setLastSyncForCloud(cloudUrl, data.serverTime || new Date().toISOString());
       }
     }
   } catch (e) {
@@ -452,23 +561,96 @@ async function pullFromCloud() {
   }
 }
 
-// Sync now — push then pull
+// First sync: full pull from cloud (no push, no conflict risk)
+async function doFirstSync(cloudUrl) {
+  console.log('[Sync] 🔄 First-time sync with', cloudUrl);
+  try {
+    const res = await fetch('/api/sync/pull', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        cloudUrl,
+        lastSync: '1970-01-01T00:00:00.000Z',
+        deviceId: getOrCreateDeviceId(),
+        firstSync: true
+      })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setLastSyncForCloud(cloudUrl, data.serverTime || new Date().toISOString());
+      console.log('[Sync] ✅ First sync complete, data received:', JSON.stringify(data.changes || {}));
+      showToast('✅ Đã đồng bộ ' + Object.keys(data.changes || {}).length + ' bảng dữ liệu!', 'success');
+    } else {
+      console.warn('[Sync] First sync failed:', res.status);
+    }
+  } catch (e) {
+    console.error('[Sync] First sync error:', e.message);
+  }
+}
+
+// Sync now — for first sync: pull before push to avoid overwriting cloud data with empty local queue
 async function syncNow() {
   if (!navigator.onLine) {
     showToast('Không có mạng — đang chờ đẩy khi kết nối', 'info');
     return;
   }
+  const cloudUrl = getCloudUrl();
+  if (!cloudUrl) return;
+
   const pending = await countPendingQueue();
+  const isFirstSync = !hasSyncedWithCloud(cloudUrl);
+
+  // First sync: pull cloud data first so local queue won't overwrite it
+  if (isFirstSync) {
+    await doFirstSync(cloudUrl);
+  }
+
   if (pending > 0) {
     showToast(`Đang đẩy ${pending} thay đổi...`, 'info');
     await syncQueueToCloud();
   }
-  await pullFromCloud();
+
+  if (!isFirstSync) {
+    await pullFromCloud();
+  }
   await updateSmartStatus();
 }
 
 // Manual sync button handler — call this from UI
 window.syncNow = syncNow;
+
+// Refresh cloud tab in dashboard settings modal
+async function refreshCloudTab() {
+  const statusEl = document.getElementById('cloudStatusText');
+  const input = document.getElementById('cloudUrlInput');
+  if (!statusEl) return;
+
+  const cloudUrl = getCloudUrl();
+  const pending = await countPendingQueue();
+  if (!cloudUrl) {
+    statusEl.innerHTML = '🔴 <span class="text-red-600"><strong>Chưa có Cloud</strong></span> — đang chạy độc lập' +
+      (pending > 0 ? ` <span class="text-orange-500">(${pending} chờ đẩy)</span>` : '');
+  } else if (!navigator.onLine) {
+    statusEl.innerHTML = '🔴 <span class="text-red-600"><strong>Offline</strong></span> — cloud: ' + cloudUrl;
+  } else {
+    statusEl.innerHTML = '🟢 <span class="text-green-600"><strong>Đã kết nối Cloud</strong></span>' +
+      (pending > 0 ? ` <span class="text-orange-500">(${pending} chờ đẩy)</span>` : '') +
+      '<br><span class="text-xs text-gray-500">' + cloudUrl + '</span>';
+  }
+  if (input) input.value = cloudUrl;
+}
+
+window.becomeCloud = becomeCloud;
+window.scanForCloud = scanForCloud;
+window.checkDevice = checkDevice;
+window.saveCloudUrl = saveCloudUrl;
+window.refreshCloudTab = refreshCloudTab;
+window.getCloudUrl = getCloudUrl;
+window.syncQueueToCloud = syncQueueToCloud;
+window.pullFromCloud = pullFromCloud;
+window.doFirstSync = doFirstSync;
+window.hasSyncedWithCloud = hasSyncedWithCloud;
+window.getOrCreateDeviceId = getOrCreateDeviceId;
 
 // Download database backup
 function downloadBackup() {
@@ -504,19 +686,32 @@ window.addEventListener('offline', async () => {
   await updateSmartStatus();
 });
 
-// Auto-sync every 60 seconds
+// Auto-sync every 60 seconds (push queue + pull changes)
 setInterval(async () => {
   if (navigator.onLine) {
     await syncQueueToCloud();
+    // Pull cloud changes (skip full reload, just update local DB via reload)
+    const cloudUrl = getCloudUrl();
+    if (cloudUrl && hasSyncedWithCloud(cloudUrl)) {
+      await pullFromCloud();
+    }
   }
   await updateSmartStatus();
 }, 60000);
 
 // Initial status check
 setTimeout(async () => {
+  const cloudUrl = getCloudUrl();
+  if (cloudUrl) syncCloudUrlToSW(cloudUrl);
   await updateSmartStatus();
-  if (navigator.onLine && getCloudUrl()) {
-    setTimeout(() => syncNow(), 3000);
+  if (navigator.onLine && cloudUrl) {
+    const isFirst = !hasSyncedWithCloud(cloudUrl);
+    if (isFirst) {
+      console.log('[Sync] New cloud connection detected — initiating first sync');
+      await doFirstSync(cloudUrl);
+    } else {
+      setTimeout(() => syncNow(), 3000);
+    }
   }
 }, 2000);
 

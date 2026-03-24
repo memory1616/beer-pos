@@ -550,8 +550,6 @@ async function submitReplacement() {
 function updateKegModalPreview() {
   const deliver = parseInt(String(document.getElementById('kegDeliver').value).trim(), 10) || 0;
   const returned = parseInt(String(document.getElementById('kegReturn').value).trim(), 10) || 0;
-  // Dùng DELTA: chênh lệch so với giá trị TRƯỚC đó trong DB
-  // Tránh trường hợp mở modal lần 2: currentBalance đã bao gồm prevDeliver/prevReturn rồi
   const deltaDeliver = deliver - _kegModalPrevDeliver;
   const deltaReturn = returned - _kegModalPrevReturn;
   const newBalance = currentKegBalance + deltaDeliver - deltaReturn;
@@ -581,8 +579,6 @@ function addKegReturn(amount) {
 }
 
 function returnAllKegs() {
-  // Thu tất cả vỏ MỚI giao trong đơn này (chưa thu): prevDeliver - prevReturn
-  // Không cộng currentKegBalance vì newBalance đã có balance cũ rồi
   const totalHeldFromThisSale = _kegModalPrevDeliver - _kegModalPrevReturn;
   document.getElementById('kegReturn').value = Math.max(0, totalHeldFromThisSale);
   updateKegModalPreview();
@@ -602,13 +598,11 @@ async function saveKegUpdate() {
   
   const result = await res.json();
   if (res.ok) {
-    // Reload customers để đồng bộ UI
     const custListRes = await fetch('/api/customers');
     customers = await custListRes.json();
     alert(`Cập nhật vỏ thành công!\n\nGiao: ${deliverKegs} | Thu: ${returnKegs}\nVỏ tại khách: ${result.newBalance}`);
     closeKegModal();
     loadSalesHistory();
-    // Reload dashboard nếu đang ở trang dashboard để cập nhật empty_collected
     if (window.location.pathname === '/' || window.location.pathname === '/dashboard') {
       loadData();
     }
@@ -688,6 +682,10 @@ let _kegModalPrevReturn = 0;
 // ========== COLLECT KEG MODAL (Simple "Thu vỏ" modal) ==========
 let _collectKegSaleId = null;
 let _collectKegCustomerId = null;
+let _collectKegRemaining = 0;
+let _collectKegBalance = 0;
+let _collectKegDelivered = 0;
+let _collectKegReturned = 0;
 
 async function openCollectKegModal(saleId) {
   _collectKegSaleId = saleId;
@@ -697,22 +695,22 @@ async function openCollectKegModal(saleId) {
   _collectKegCustomerId = sale.customer_id;
 
   const customer = customers.find(c => c.id == sale.customer_id);
-  const currentBalance = customer ? (customer.keg_balance || 0) : 0;
-  const delivered = sale.deliver_kegs || 0;
-  const returned = sale.return_kegs || 0;
-  const remaining = delivered - returned; // số vỏ còn ở khách
-  const canCollect = remaining;
+  _collectKegBalance = customer ? (customer.keg_balance || 0) : 0;
+  _collectKegDelivered = sale.deliver_kegs || 0;
+  _collectKegReturned = sale.return_kegs || 0;
+  _collectKegRemaining = _collectKegDelivered - _collectKegReturned;
 
   document.getElementById('collectKegInfo').textContent =
-    `Đã giao: ${delivered} vỏ · Đã thu: ${returned} vỏ · Còn lại: ${remaining} vỏ`;
+    `Đã giao: ${_collectKegDelivered} vỏ · Đã thu: ${_collectKegReturned} vỏ · Còn lại: ${_collectKegRemaining} vỏ`;
 
   const input = document.getElementById('collectKegQty');
-  input.value = remaining;
-  input.max = remaining;
-  input.placeholder = `0 - ${remaining}`;
+  input.value = _collectKegRemaining;
+  input.max = _collectKegRemaining;
+  input.placeholder = `0 - ${_collectKegRemaining}`;
 
   document.getElementById('collectKegModal').classList.remove('hidden');
   document.getElementById('collectKegModal').classList.add('flex');
+  updateCollectKegPreview();
 }
 
 function closeCollectKegModal() {
@@ -720,57 +718,52 @@ function closeCollectKegModal() {
   document.getElementById('collectKegModal').classList.remove('flex');
   _collectKegSaleId = null;
   _collectKegCustomerId = null;
+  _collectKegRemaining = 0;
+  _collectKegBalance = 0;
+  _collectKegDelivered = 0;
+  _collectKegReturned = 0;
+}
+
+function updateCollectKegPreview() {
+  const qty = parseInt(document.getElementById('collectKegQty').value, 10) || 0;
+  const actualCollect = Math.min(qty, _collectKegRemaining);
+  const newBalance = _collectKegBalance - actualCollect;
+  document.getElementById('collectKegInfo').textContent =
+    `Thu: ${actualCollect} vỏ · Còn lại: ${_collectKegRemaining - actualCollect} vỏ · Vỏ tại khách: ${newBalance}`;
 }
 
 async function submitCollectKeg() {
   const saleId = _collectKegSaleId;
   const customerId = _collectKegCustomerId;
-  const collectQty = parseInt(document.getElementById('collectKegQty').value) || 0;
+  const collectQty = parseInt(document.getElementById('collectKegQty').value, 10) || 0;
 
   if (collectQty < 0) {
     alert('Số vỏ không hợp lệ');
     return;
   }
 
-  // Lấy balance THỰC TẾ từ DB (không dùng customers array — có thể cũ)
-  const custRes = await fetch('/api/customers/' + customerId);
-  const custData = await custRes.json();
-  const currentBalance = custData.keg_balance || 0;
-
-  // Lấy số vỏ đã giao / đã thu hiện tại từ sale
-  const saleRes = await fetch('/api/sales/' + saleId);
-  const sale = await saleRes.json();
-  const currentDelivered = sale.deliver_kegs || 0;
-  const currentReturned = sale.return_kegs || 0;
-
-  // Số vỏ KHÁCH ĐANG GIỮ = đã giao - đã thu (tính trên DB)
-  const remaining = currentDelivered - currentReturned;
-  // Số vỏ thực sự có thể thu = tối thiểu của (số muốn thu và số còn lại)
-  const actualCollect = Math.min(collectQty, remaining);
+  const actualCollect = Math.min(collectQty, _collectKegRemaining);
   if (actualCollect <= 0) {
     alert('Không có vỏ để thu (khách không còn giữ vỏ)');
     return;
   }
 
-  // newReturned = tổng số vỏ đã thu (cộng dồn), không vượt quá delivered
-  const newReturned = Math.min(currentReturned + collectQty, currentDelivered);
-  const newBalance = currentBalance - actualCollect; // trừ vỏ đã thu khỏi khách
+  const newReturned = Math.min(_collectKegReturned + collectQty, _collectKegDelivered);
+  const newBalance = _collectKegBalance - actualCollect;
 
   const res = await fetch('/api/sales/update-kegs', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ saleId, customerId, deliver: currentDelivered, returned: newReturned })
+    body: JSON.stringify({ saleId, customerId, deliver: _collectKegDelivered, returned: newReturned })
   });
   const result = await res.json();
 
   if (res.ok) {
-    // Reload customers để đồng bộ UI
     const custListRes = await fetch('/api/customers');
     customers = await custListRes.json();
     alert(`Đã thu ${actualCollect} vỏ. Vỏ tại khách: ${newBalance}`);
     closeCollectKegModal();
     loadSalesHistory();
-    // Reload dashboard nếu đang ở trang dashboard để cập nhật empty_collected
     if (window.location.pathname === '/' || window.location.pathname === '/dashboard') {
       loadData();
     }

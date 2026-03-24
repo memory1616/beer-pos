@@ -91,31 +91,59 @@ router.get('/data', (req, res) => {
     String(sixMonthsAgo.getDate()).padStart(2, '0');
   
   const monthlyRevenue = db.prepare(`
-    SELECT 
+    SELECT
       strftime('%Y-%m', date) as month,
       COALESCE(SUM(total), 0) as revenue,
       COALESCE(SUM(profit), 0) as profit
-    FROM sales 
+    FROM sales
     WHERE type = 'sale' AND date >= ?
     GROUP BY strftime('%Y-%m', date)
     ORDER BY month
   `).all(sixMonthsAgoStr);
+
+  // Get monthly expenses for the same period
+  const monthlyExpenses = db.prepare(`
+    SELECT strftime('%Y-%m', date) as month, COALESCE(SUM(amount), 0) as total
+    FROM expenses
+    WHERE date >= ?
+    GROUP BY strftime('%Y-%m', date)
+    ORDER BY month
+  `).all(sixMonthsAgoStr);
+
+  // Merge monthly expenses into monthlyRevenue
+  const monthExpenseMap = {};
+  monthlyExpenses.forEach(e => { monthExpenseMap[e.month] = e.total; });
+  monthlyRevenue.forEach(d => { d.expenses = monthExpenseMap[d.month] || 0; });
   
   // Get daily revenue for chart (last 14 days)
   const fourteenDaysAgo = new Date();
   fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 13);
   const fourteenDaysAgoStr = fourteenDaysAgo.toISOString().slice(0, 10);
-  
+
   const dailyRevenue = db.prepare(`
-    SELECT 
+    SELECT
       date as day,
       COALESCE(SUM(total), 0) as revenue,
       COALESCE(SUM(profit), 0) as profit
-    FROM sales 
+    FROM sales
     WHERE type = 'sale' AND date >= ?
     GROUP BY date(date)
     ORDER BY day
   `).all(fourteenDaysAgoStr);
+
+  // Get daily expenses for the same period (for net profit calculation)
+  const dailyExpenses = db.prepare(`
+    SELECT date as day, COALESCE(SUM(amount), 0) as total
+    FROM expenses
+    WHERE date >= ?
+    GROUP BY date(date)
+    ORDER BY day
+  `).all(fourteenDaysAgoStr);
+
+  // Merge daily expenses into dailyRevenue
+  const expenseMap = {};
+  dailyExpenses.forEach(e => { expenseMap[e.day] = e.total; });
+  dailyRevenue.forEach(d => { d.expenses = expenseMap[d.day] || 0; });
   
   // Get top products this month - optimized query
   const topProducts = db.prepare(`

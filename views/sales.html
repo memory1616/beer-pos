@@ -125,7 +125,8 @@
         <label class="block text-sm font-medium text-gray-700 mb-2">Số vỏ thu về</label>
         <input type="number" id="collectKegQty"
           class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-center text-2xl font-bold focus:border-blue-400 focus:outline-none"
-          min="0" inputmode="numeric">
+          min="0" inputmode="numeric"
+          oninput="updateCollectKegPreview()" onchange="updateCollectKegPreview()">
         <div class="text-xs text-gray-400 mt-1 text-center">Nhập số vỏ thu về (tối đa = số vỏ còn lại)</div>
       </div>
 
