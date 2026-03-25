@@ -410,7 +410,26 @@ async function submitSale() {
 }
 
 function closeInvoice() {
-  location.reload();
+  document.getElementById('invoiceModal').classList.add('hidden');
+  document.getElementById('invoiceModal').classList.remove('flex');
+}
+
+async function reloadPage() {
+  try {
+    const res = await fetch('/sale/data');
+    const data = await res.json();
+    products = data.products;
+    customers = data.customers;
+    saleData = {};
+    document.getElementById('customerSelect').value = '';
+    products.forEach(p => { p._displayPrice = p.sell_price || 0; });
+    renderSaleProducts();
+    updateSaleTotal();
+    await loadSalesHistory();
+    closeInvoice();
+  } catch (e) {
+    showToast('Lỗi tải dữ liệu', 'error');
+  }
 }
 
 // Keg Modal Functions
