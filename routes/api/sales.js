@@ -315,13 +315,18 @@ router.get('/:id', (req, res) => {
 // POST /api/sales/replacement - Đổi bia lỗi (xuất bù, không tính tiền)
 // gift=true: toàn bộ số lượng là tặng uống thử → trừ stock + cộng vỏ keg vào kho vỏ rỗng ngay
 router.post('/replacement', (req, res) => {
-  const { customer_id, product_id, quantity, reason, gift } = req.body;
+  const { customer_id, customer_name, product_id, quantity, reason, gift } = req.body;
 
-  if (!customer_id || !product_id || !quantity || quantity <= 0) {
+  if (!product_id || !quantity || quantity <= 0) {
     return res.status(400).json({ error: 'Thiếu thông tin cần thiết' });
   }
 
   const isGift = !!gift;
+  const isGuest = !customer_id;
+
+  if (!isGift && isGuest) {
+    return res.status(400).json({ error: 'Vui lòng chọn khách hàng' });
+  }
 
   try {
     const product = db.prepare('SELECT * FROM products WHERE id = ?').get(product_id);
@@ -332,36 +337,33 @@ router.post('/replacement', (req, res) => {
       return res.status(400).json({ error: `Không đủ hàng trong kho (cần ${quantity}, có ${product.stock})` });
     }
 
+    const note = isGift
+      ? `${reason || 'Bia hư'} — 🎁 Tặng uống thử`
+      : reason || 'Đổi bia lỗi';
+
     const doReplacement = db.transaction(() => {
-      // Create sale record
-      const note = isGift
-        ? `${reason || 'Bia hư'} — 🎁 Tặng uống thử`
-        : reason || 'Đổi bia lỗi';
       const result = db.prepare(`
         INSERT INTO sales (customer_id, total, type, note, date)
         VALUES (?, 0, 'replacement', ?, datetime('now'))
-      `).run(customer_id, note);
+      `).run(customer_id || null, note);
       const saleId = result.lastInsertRowid;
 
-      // Add sale item (free)
       db.prepare(`
         INSERT INTO sale_items (sale_id, product_id, quantity, price, cost_price, profit)
         VALUES (?, ?, ?, 0, ?, 0)
       `).run(saleId, product_id, quantity, product.cost_price);
 
-      // Trừ tồn kho
       db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(quantity, product_id);
 
-      // Nếu tặng uống thử → cộng vỏ keg vào kho vỏ rỗng ngay
       if (isGift) {
         const stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
         const newEmpty = (stats?.empty_collected || 0) + quantity;
         db.prepare('UPDATE keg_stats SET empty_collected = ? WHERE id = 1').run(newEmpty);
         db.prepare(`
           INSERT INTO keg_transactions_log
-            (type, quantity, exchanged, purchased, customer_id, inventory_after, empty_after, holding_after, note)
-          VALUES ('gift', ?, 0, 0, ?, ?, ?, 0, ?)
-        `).run(quantity, customer_id, product.stock - quantity, newEmpty, note);
+            (type, quantity, exchanged, purchased, customer_id, customer_name, inventory_after, empty_after, holding_after, note)
+          VALUES ('gift', ?, 0, 0, ?, ?, ?, ?, 0, ?)
+        `).run(quantity, customer_id || null, customer_name || 'Khách tặng', product.stock - quantity, newEmpty, note);
       }
 
       syncKegInventory();
@@ -371,7 +373,7 @@ router.post('/replacement', (req, res) => {
 
     const message = isGift
       ? `Đã đổi ${quantity} bia + tặng uống thử — vỏ keg đã vào kho vỏ rỗng`
-      : `Đã đổi ${quantity} bia lỗi — vỏ đổi đã vào kho vỏ rỗng`;
+      : `Đã đổi ${quantity} bia lỗi cho khách — vỏ đổi đã vào kho vỏ rỗng`;
 
     res.json({ success: true, message });
   } catch (err) {

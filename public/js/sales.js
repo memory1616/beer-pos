@@ -498,19 +498,29 @@ function closeKegModal() {
 // Replacement Modal Functions
 function openReplacementModal() {
   const customerSelect = document.getElementById('replacementCustomer');
-  customerSelect.innerHTML = '<option value="">-- Chọn khách hàng --</option>' + 
+  customerSelect.innerHTML = '<option value="">-- Chọn khách hàng --</option>' +
     customers.map(c => '<option value="' + c.id + '">' + c.name + '</option>').join('');
-  
+
   document.getElementById('replacementProduct').innerHTML = '<option value="">-- Chọn sản phẩm --</option>';
   document.getElementById('replacementQty').value = 1;
-  
+  document.getElementById('giftKegs').checked = false;
+  document.getElementById('giftGuestName').value = '';
+  toggleGiftMode();
+
   document.getElementById('replacementModal').classList.remove('hidden');
   document.getElementById('replacementModal').classList.add('flex');
 }
 
-function closeReplacementModal() {
-  document.getElementById('replacementModal').classList.add('hidden');
-  document.getElementById('replacementModal').classList.remove('flex');
+function toggleGiftMode() {
+  const isGift = document.getElementById('giftKegs').checked;
+  document.getElementById('giftGuestRow').classList.toggle('hidden', !isGift);
+  document.getElementById('replacementCustomerRow').classList.toggle('hidden', isGift);
+  // Clear customer selection when switching modes
+  if (isGift) {
+    document.getElementById('replacementCustomer').value = '';
+    // Load products for guest (no customer-specific pricing)
+    loadReplacementProductsForGuest();
+  }
 }
 
 function loadReplacementProducts() {
@@ -521,8 +531,12 @@ function loadReplacementProducts() {
     productSelect.innerHTML = '<option value="">-- Chọn sản phẩm --</option>';
     return;
   }
+  productSelect.innerHTML = '<option value="">-- Chọn sản phẩm --</option>' +
+    products.map(p => '<option value="' + p.id + '">' + p.name + ' (Tồn: ' + p.stock + ')</option>').join('');
+}
 
-  // Load all products for replacement
+function loadReplacementProductsForGuest() {
+  const productSelect = document.getElementById('replacementProduct');
   productSelect.innerHTML = '<option value="">-- Chọn sản phẩm --</option>' +
     products.map(p => '<option value="' + p.id + '">' + p.name + ' (Tồn: ' + p.stock + ')</option>').join('');
 }
@@ -533,9 +547,14 @@ async function submitReplacement() {
   const quantity = parseInt(document.getElementById('replacementQty').value) || 0;
   const reason = document.getElementById('replacementReason').value;
   const isGift = document.getElementById('giftKegs').checked;
+  const customerName = isGift ? (document.getElementById('giftGuestName').value.trim() || 'Khách tặng') : null;
 
-  if (!customerId || !productId || quantity <= 0) {
-    alert('Vui lòng chọn đầy đủ thông tin');
+  if (!productId || quantity <= 0) {
+    alert('Vui lòng chọn sản phẩm và số lượng');
+    return;
+  }
+  if (!isGift && !customerId) {
+    alert('Vui lòng chọn khách hàng');
     return;
   }
 
@@ -544,7 +563,8 @@ async function submitReplacement() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        customer_id: parseInt(customerId),
+        customer_id: customerId ? parseInt(customerId) : null,
+        customer_name: customerName,
         product_id: parseInt(productId),
         quantity,
         reason,

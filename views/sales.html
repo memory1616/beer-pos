@@ -144,7 +144,11 @@
       <button onclick="closeReplacementModal()" class="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-2xl font-bold w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100">&times;</button>
       <div class="text-xl font-bold mb-4">🔄 Đổi bia lỗi</div>
       <div class="space-y-4">
-        <div>
+        <div id="giftGuestRow" class="hidden">
+          <label class="block text-sm font-medium mb-2">👤 Tên khách tặng</label>
+          <input type="text" id="giftGuestName" placeholder="Nhập tên khách (không bắt buộc)" class="w-full border-2 border-amber-200 rounded-xl px-4 py-3 bg-white">
+        </div>
+        <div id="replacementCustomerRow">
           <label class="block text-sm font-medium mb-2">Khách hàng</label>
           <select id="replacementCustomer" onchange="loadReplacementProducts()" class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-white">
             <option value="">-- Chọn khách hàng --</option>
@@ -170,9 +174,9 @@
           </select>
         </div>
         <div class="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-          <input type="checkbox" id="giftKegs" class="w-5 h-5 accent-orange-500">
+          <input type="checkbox" id="giftKegs" onchange="toggleGiftMode()" class="w-5 h-5 accent-orange-500">
           <label for="giftKegs" class="text-sm font-semibold text-amber-800">
-            🎁 Tặng uống thử (bia trừ tồn kho, vỏ keg vào kho vỏ rỗng ngay)
+            🎁 Tặng uống thử (khách mới — vỏ keg vào kho vỏ rỗng ngay)
           </label>
         </div>
       </div>
