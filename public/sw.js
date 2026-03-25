@@ -1,4 +1,4 @@
-const CACHE_NAME = "beer-pos-v7";
+const CACHE_NAME = "beer-pos-v9";
 const DB_NAME = "BeerPOS";
 const STORE_SYNC_QUEUE = "sync_queue";
 
@@ -238,17 +238,31 @@ self.addEventListener("fetch", event => {
       event.respondWith(handleAPIMutation(event.request));
       return;
     }
+    // Non-API, non-GET: pass through normally
     return;
   }
 
-  // API GET requests — network only, no caching
-  if (url.pathname.startsWith("/api/")) {
+  // API GET requests — network first, cache for offline fallback
+  if (url.pathname.startsWith("/api/") && event.request.method === "GET") {
     event.respondWith(
-      fetch(event.request).catch(() => {
-        return new Response(JSON.stringify({ error: "Offline", queued: false }), {
-          status: 503,
-          headers: { "Content-Type": "application/json" }
-        });
+      caches.open(CACHE_NAME).then(async cache => {
+        // Try network first
+        try {
+          const response = await fetch(event.request);
+          if (response.ok) {
+            cache.put(event.request, response.clone());
+          }
+          return response;
+        } catch {
+          // Fall back to cache
+          const cached = await cache.match(event.request);
+          if (cached) return cached;
+          // Return offline-friendly response
+          return new Response(JSON.stringify({ error: "Offline", cached: false }), {
+            status: 503,
+            headers: { "Content-Type": "application/json" }
+          });
+        }
       })
     );
     return;
@@ -310,6 +324,16 @@ async function handleAPIMutation(request) {
 
     await queueForSync(method, url, body, headers);
 
+    // Trigger Background Sync API (works even when app is closed on Android/Chrome)
+    if ('serviceWorker' in self && 'sync' in self.registration) {
+      try {
+        await self.registration.sync.register('sync-queue');
+        console.log('[SW] Background sync registered');
+      } catch (syncErr) {
+        console.warn('[SW] Background sync not supported:', syncErr.message);
+      }
+    }
+
     // Return a user-friendly response
     return new Response(JSON.stringify({
       error: "Offline — đã lưu vào hàng đợi, sẽ đồng bộ khi có mạng",
@@ -323,4 +347,4 @@ async function handleAPIMutation(request) {
   }
 }
 
-console.log("[SW] BeerPOS Service Worker v7 loaded");
+console.log("[SW] BeerPOS Service Worker v9 loaded");
