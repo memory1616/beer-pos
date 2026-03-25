@@ -527,26 +527,15 @@ function loadReplacementProducts() {
     products.map(p => '<option value="' + p.id + '">' + p.name + ' (Tồn: ' + p.stock + ')</option>').join('');
 }
 
-function toggleGiftKegs() {
-  const checked = document.getElementById('giftKegs').checked;
-  document.getElementById('giftKegsRow').classList.toggle('hidden', !checked);
-}
-
 async function submitReplacement() {
   const customerId = document.getElementById('replacementCustomer').value;
   const productId = document.getElementById('replacementProduct').value;
   const quantity = parseInt(document.getElementById('replacementQty').value) || 0;
   const reason = document.getElementById('replacementReason').value;
-  const giftKegs = document.getElementById('giftKegs').checked;
-  const giftKegsQty = giftKegs ? (parseInt(document.getElementById('giftKegsQty').value) || 0) : 0;
+  const isGift = document.getElementById('giftKegs').checked;
 
   if (!customerId || !productId || quantity <= 0) {
     alert('Vui lòng chọn đầy đủ thông tin');
-    return;
-  }
-
-  if (giftKegs && giftKegsQty <= 0) {
-    alert('Số lượng keg tặng phải lớn hơn 0');
     return;
   }
 
@@ -557,23 +546,18 @@ async function submitReplacement() {
       body: JSON.stringify({
         customer_id: parseInt(customerId),
         product_id: parseInt(productId),
-        quantity: quantity,
-        reason: reason,
-        gift_kegs: giftKegsQty
+        quantity,
+        reason,
+        gift: isGift
       })
     });
 
     const data = await res.json();
-
     if (data.success) {
-      let msg = data.message;
-      if (giftKegs && giftKegsQty > 0) {
-        msg += '\n🎁 Đã cộng ' + giftKegsQty + ' keg vào kho vỏ rỗng.';
-      }
-      alert('✅ ' + msg);
+      alert('✅ ' + data.message);
       closeReplacementModal();
       loadSalesHistory();
-      loadProducts(); // Refresh stock
+      loadProducts();
     } else {
       alert('❌ ' + (data.error || 'Lỗi không xác định'));
     }
