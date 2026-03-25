@@ -11,10 +11,9 @@ function formatVND(amount) {
 router.get('/profit-by-product', (req, res) => {
   try {
     const { startDate, endDate } = req.query;
-    const limit = Math.min(parseInt(req.query.limit) || 200, 500);
-
+    
     let query = `
-      SELECT
+      SELECT 
         p.id,
         p.name,
         p.type,
@@ -26,22 +25,22 @@ router.get('/profit-by-product', (req, res) => {
       JOIN products p ON p.id = si.product_id
       JOIN sales s ON s.id = si.sale_id
     `;
-
+    
     const params = [];
     if (startDate && endDate) {
       query += ` WHERE s.date >= ? AND s.date <= ?`;
       params.push(startDate + ' 00:00:00', endDate + ' 23:59:59');
     }
-
-    query += ` GROUP BY p.id ORDER BY profit DESC LIMIT ?`;
-
-    const results = db.prepare(query).all(...params, limit);
-
+    
+    query += ` GROUP BY p.id ORDER BY profit DESC`;
+    
+    const results = db.prepare(query).all(...params);
+    
     const totalRevenue = results.reduce((sum, r) => sum + r.revenue, 0);
     const totalCost = results.reduce((sum, r) => sum + r.cost, 0);
     const totalProfit = results.reduce((sum, r) => sum + r.profit, 0);
-
-    res.json({
+    
+    res.json({ 
       products: results,
       summary: { totalRevenue, totalCost, totalProfit }
     });
@@ -55,10 +54,9 @@ router.get('/profit-by-product', (req, res) => {
 router.get('/profit-by-customer', (req, res) => {
   try {
     const { startDate, endDate } = req.query;
-    const limit = Math.min(parseInt(req.query.limit) || 200, 500);
-
+    
     let query = `
-      SELECT
+      SELECT 
         c.id,
         c.name,
         COUNT(s.id) as total_orders,
@@ -67,21 +65,21 @@ router.get('/profit-by-customer', (req, res) => {
       FROM sales s
       JOIN customers c ON c.id = s.customer_id
     `;
-
+    
     const params = [];
     if (startDate && endDate) {
       query += ` WHERE s.date >= ? AND s.date <= ?`;
       params.push(startDate + ' 00:00:00', endDate + ' 23:59:59');
     }
-
-    query += ` GROUP BY c.id ORDER BY profit DESC LIMIT ?`;
-
-    const results = db.prepare(query).all(...params, limit);
-
+    
+    query += ` GROUP BY c.id ORDER BY profit DESC`;
+    
+    const results = db.prepare(query).all(...params);
+    
     const totalRevenue = results.reduce((sum, r) => sum + r.revenue, 0);
     const totalProfit = results.reduce((sum, r) => sum + r.profit, 0);
-
-    res.json({
+    
+    res.json({ 
       customers: results,
       summary: { totalRevenue, totalProfit }
     });
@@ -102,7 +100,7 @@ router.get('/daily-cashflow', (req, res) => {
     
     // Doanh thu bán hàng theo ngày
     const salesByDay = db.prepare(`
-      SELECT
+      SELECT 
         date(date) as day,
         SUM(total) as revenue,
         SUM(profit) as profit,
@@ -111,7 +109,6 @@ router.get('/daily-cashflow', (req, res) => {
       WHERE date >= ? AND date <= ?
       GROUP BY date(date)
       ORDER BY day DESC
-      LIMIT 365
     `).all(start + ' 00:00:00', end + ' 23:59:59');
     
     // Chi phí mua hàng theo ngày (nếu có bảng purchases)
@@ -167,21 +164,21 @@ router.get('/daily-cashflow', (req, res) => {
 router.get('/customer-history/:customerId', (req, res) => {
   try {
     const { customerId } = req.params;
-    const limit = Math.min(parseInt(req.query.limit) || 20, 100);
-
+    const { limit = 20 } = req.query;
+    
     // Thông tin khách hàng
     const customer = db.prepare(`
       SELECT id, name, phone, address, lat, lng
       FROM customers WHERE id = ?
     `).get(customerId);
-
+    
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
-
-    // Lịch sử đơn hàng (với chi tiết trong 1 query thay vì N+1)
+    
+    // Lịch sử đơn hàng
     const orders = db.prepare(`
-      SELECT
+      SELECT 
         s.id,
         s.date,
         s.total,
@@ -195,41 +192,30 @@ router.get('/customer-history/:customerId', (req, res) => {
       GROUP BY s.id
       ORDER BY s.date DESC
       LIMIT ?
-    `).all(customerId, limit);
-
-    // Lấy tất cả items cho các orders trong 1 query (fix N+1)
-    if (orders.length > 0) {
-      const orderIds = orders.map(o => o.id);
-      const placeholders = orderIds.map(() => '?').join(',');
-      const allItems = db.prepare(`
-        SELECT si.sale_id, si.product_id, p.name, si.quantity, si.price, si.cost_price, si.profit
+    `).all(customerId, parseInt(limit));
+    
+    // Chi tiết từng đơn
+    const orderDetails = orders.map(order => {
+      const items = db.prepare(`
+        SELECT si.product_id, p.name, si.quantity, si.price, si.cost_price, si.profit
         FROM sale_items si
         JOIN products p ON p.id = si.product_id
-        WHERE si.sale_id IN (${placeholders})
-        ORDER BY si.sale_id
-      `).all(...orderIds);
-
-      // Map items về đúng order
-      const itemsMap = {};
-      allItems.forEach(item => {
-        if (!itemsMap[item.sale_id]) itemsMap[item.sale_id] = [];
-        itemsMap[item.sale_id].push(item);
-      });
-      orders.forEach(order => {
-        order.items = itemsMap[order.id] || [];
-      });
-    }
-
+        WHERE si.sale_id = ?
+      `).all(order.id);
+      
+      return { ...order, items };
+    });
+    
     // Tổng kết
     const summary = db.prepare(`
-      SELECT
+      SELECT 
         COUNT(*) as total_orders,
         SUM(total) as total_revenue,
         SUM(profit) as total_profit
       FROM sales WHERE customer_id = ?
     `).get(customerId);
-
-    res.json({ customer, orders, summary });
+    
+    res.json({ customer, orders: orderDetails, summary });
   } catch (err) {
     logger.error('Error fetching analytics', { error: err.message });
     res.status(500).json({ error: 'Error getting customer history' });

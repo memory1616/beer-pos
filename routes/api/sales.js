@@ -2,15 +2,8 @@ const express = require('express');
 const router = express.Router();
 const db = require('../../database');
 const logger = require('../../src/utils/logger');
-const { requireAuth } = require('../../middleware/auth');
-
-// Feature #13: Sử dụng modules mới
-const { createSale, updateSale, deleteSale, getSale, getSales } = require('../../src/modules/sales');
-const { updateCustomerKegBalanceTx, kegLedgerEntry } = require('../../src/modules/keg');
-const { syncKegInventory } = require('../../src/modules/inventory');
-
-// Feature #14: WebSocket broadcasts
-const { sendDashboardStats, sendKegState, notifyNewSale, notifyKegChange } = require('../../src/services/websocket');
+const { syncKegInventory } = require('./products');
+const { updateCustomerKegBalance } = require('./payments');
 
 // Helper function to validate sale input
 function validateSaleInput(body) {
@@ -88,6 +81,10 @@ router.post('/', (req, res) => {
       priceRows.forEach(r => { priceMap[r.product_id] = r.price; });
     }
 
+    // Get customer's current keg balance (if customerId is provided)
+    let currentKegBalance = 0;
+    let newKegBalance = 0;
+
     for (const item of items) {
       const product = productMap[item.productId];
       if (!product) return res.status(400).json({ error: 'Product not found: ' + item.productId });
@@ -122,16 +119,16 @@ router.post('/', (req, res) => {
 
     const finalDeliverKegs = deliverKegs > 0 ? deliverKegs : kegQuantity;
 
-    // Read current keg_balance BEFORE transaction so we can record the correct after-value
-    const currentKegBalance = customerId
-      ? (db.prepare('SELECT keg_balance FROM customers WHERE id = ?').get(customerId)?.keg_balance || 0)
-      : 0;
-    const kegBalanceAfter = Math.max(0, currentKegBalance + finalDeliverKegs - returnKegs);
+    if (customerId) {
+      const customer = db.prepare('SELECT keg_balance FROM customers WHERE id = ?').get(customerId);
+      currentKegBalance = customer ? customer.keg_balance : 0;
+      newKegBalance = currentKegBalance + finalDeliverKegs - returnKegs;
+    }
 
     // Use transaction for atomic operations
     const createSale = db.transaction(() => {
       // Insert sale with calculated keg quantity
-      const saleResult = db.prepare('INSERT INTO sales (customer_id, total, profit, deliver_kegs, return_kegs, keg_balance_after, type) VALUES (?, ?, ?, ?, ?, ?, ?)').run(customerId, total, profit, finalDeliverKegs, returnKegs, kegBalanceAfter, 'sale');
+      const saleResult = db.prepare('INSERT INTO sales (customer_id, total, profit, deliver_kegs, return_kegs, keg_balance_after, type) VALUES (?, ?, ?, ?, ?, ?, ?)').run(customerId, total, profit, finalDeliverKegs, returnKegs, newKegBalance, 'sale');
       const saleId = saleResult.lastInsertRowid;
 
       // Update customer last_order_date (if customerId)
@@ -163,9 +160,9 @@ router.post('/', (req, res) => {
         db.prepare('INSERT INTO sale_items (sale_id, product_id, quantity, price, cost_price, profit, price_at_time) VALUES (?, ?, ?, ?, ?, ?, ?)').run(saleId, item.productId, item.quantity, item.price, item.cost_price, item.profit, item.price);
       }
 
-      // Update customer keg balance + write ledger entries (SINGLE WRITE POINT)
+      // Update customer keg balance (only for registered customers)
       if (customerId && (finalDeliverKegs !== 0 || returnKegs !== 0)) {
-        updateCustomerKegBalanceTx(customerId, finalDeliverKegs, returnKegs, 'sale', saleId);
+        updateCustomerKegBalance(customerId, finalDeliverKegs, returnKegs);
       }
 
       // Get synced totals from source tables
@@ -182,11 +179,6 @@ router.post('/', (req, res) => {
     });
 
     const saleId = createSale();
-
-    // Feature #14: Broadcast WebSocket updates
-    sendDashboardStats();
-    sendKegState();
-    db.invalidateCache('dashboard');
 
     res.json({ success: true, id: saleId, total, profit });
   } catch (err) {
@@ -212,28 +204,48 @@ router.post('/update-kegs', (req, res) => {
     // Tính DELTA để tránh cộng chồng khi mở modal lần 2
     const deltaDeliver = deliver - prevDeliver;
     const deltaReturn  = returned - prevReturned;
+    const newlyCollected = Math.max(0, deltaReturn);
+
+    const customer = db.prepare('SELECT keg_balance FROM customers WHERE id = ?').get(customerId);
+    const currentKegBalance = customer ? customer.keg_balance : 0;
+    const newKegBalance = currentKegBalance + deltaDeliver - deltaReturn;
 
     // Use transaction for atomic operations
     const updateKegs = db.transaction(() => {
-      // Apply delta to customer's keg_balance first so we know the final value
-      let newBalance = 0;
-      if (deltaDeliver !== 0 || deltaReturn !== 0) {
-        const result = updateCustomerKegBalanceTx(customerId, deltaDeliver, deltaReturn, 'sale', parseInt(saleId));
-        newBalance = result?.newBalance || 0;
-      }
       db.prepare('UPDATE sales SET deliver_kegs = ?, return_kegs = ?, keg_balance_after = ? WHERE id = ?')
-        .run(deliver, returned, newBalance, saleId);
+        .run(deliver, returned, newKegBalance, saleId);
+
+      updateCustomerKegBalance(customerId, deltaDeliver, deltaReturn);
+
+      // Cộng vỏ mới thu được vào kho vỏ rỗng
+      if (newlyCollected > 0) {
+        const stats = db.prepare('SELECT inventory, empty_collected, customer_holding FROM keg_stats WHERE id = 1').get();
+        const currentEmpty = stats?.empty_collected || 0;
+        const newEmpty = currentEmpty + newlyCollected;
+        db.prepare('UPDATE keg_stats SET empty_collected = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1')
+          .run(newEmpty);
+
+        const customer2 = db.prepare('SELECT name FROM customers WHERE id = ?').get(customerId);
+        const updatedStats = db.prepare('SELECT inventory, empty_collected, customer_holding FROM keg_stats WHERE id = 1').get();
+        db.prepare(`
+          INSERT INTO keg_transactions_log
+            (type, quantity, customer_id, customer_name, inventory_after, empty_after, holding_after, note)
+          VALUES ('collect', ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          newlyCollected,
+          customerId,
+          customer2?.name || '',
+          updatedStats?.inventory || 0,
+          newEmpty,
+          updatedStats?.customer_holding || 0,
+          `Thu vỏ qua đơn hàng #${saleId}`
+        );
+      }
     });
 
     updateKegs();
 
-    const customer = db.prepare('SELECT keg_balance FROM customers WHERE id = ?').get(customerId);
-
-    // Feature #14: Broadcast WebSocket updates
-    sendKegState();
-    db.invalidateCache('dashboard');
-
-    res.json({ success: true, message: 'Đã cập nhật vỏ', newBalance: customer?.keg_balance || 0 });
+    res.json({ success: true, message: 'Đã cập nhật vỏ', newBalance: newKegBalance });
   } catch (err) {
     logger.error('Update kegs error', { error: err.message });
     res.status(500).json({ error: 'Cập nhật thất bại: ' + err.message });
@@ -246,15 +258,15 @@ router.get('/', (req, res) => {
   const limit = parseInt(req.query.limit) || 5;
   const month = req.query.month; // format: YYYY-MM, e.g. "2026-03"
   const status = req.query.status; // 'completed', 'returned', 'cancelled', hoặc 'all'
-
+  
   let whereClause = "WHERE s.type IN ('sale', 'replacement', 'damage_return')";
   let params = [];
-
+  
   if (month) {
     whereClause += " AND strftime('%Y-%m', s.date) = ?";
     params.push(month);
   }
-
+  
   // Filter theo status (mặc định chỉ lấy completed)
   if (status && status !== 'all') {
     whereClause += " AND s.status = ?";
@@ -263,23 +275,23 @@ router.get('/', (req, res) => {
     // Mặc định hiển thị hóa đơn chưa trả + đơn đổi bia lỗi
     whereClause += " AND (s.status IS NULL OR s.status != 'returned' OR s.type IN ('replacement', 'damage_return'))";
   }
-
+  
   // Get total count
   const totalCount = db.prepare(`SELECT COUNT(*) as count FROM sales s ${whereClause}`).get(...params);
-
+  
   // Get paginated sales
   const offset = (page - 1) * limit;
   const sales = db.prepare(`
-    SELECT s.*, COALESCE(c.name, 'Khách lẻ') as customer_name
-    FROM sales s
-    LEFT JOIN customers c ON s.customer_id = c.id
+    SELECT s.*, COALESCE(c.name, 'Khách lẻ') as customer_name 
+    FROM sales s 
+    LEFT JOIN customers c ON s.customer_id = c.id 
     ${whereClause}
-    ORDER BY s.date DESC
+    ORDER BY s.date DESC 
     LIMIT ? OFFSET ?
   `).all(...params, limit, offset);
-
-  res.json({
-    sales,
+  
+  res.json({ 
+    sales, 
     total: totalCount.count,
     page,
     limit,
@@ -303,7 +315,7 @@ router.get('/:id', (req, res) => {
 // POST /api/sales/replacement - Đổi bia lỗi (xuất bù, không tính tiền)
 router.post('/replacement', (req, res) => {
   const { customer_id, product_id, quantity, reason } = req.body;
-
+  
   if (!customer_id || !product_id || !quantity || quantity <= 0) {
     return res.status(400).json({ error: 'Thiếu thông tin cần thiết' });
   }
@@ -323,7 +335,7 @@ router.post('/replacement', (req, res) => {
       INSERT INTO sales (customer_id, total, type, note, date)
       VALUES (?, 0, 'replacement', ?, datetime('now'))
     `).run(customer_id, reason || 'Đổi bia lỗi');
-
+    
     const saleId = result.lastInsertRowid;
 
     // Add sale item
@@ -335,8 +347,8 @@ router.post('/replacement', (req, res) => {
     // Decrease product stock
     db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(quantity, product_id);
 
-    res.json({
-      success: true,
+    res.json({ 
+      success: true, 
       message: 'Đã tạo đơn đổi bia lỗi',
       saleId: saleId
     });
@@ -350,22 +362,22 @@ router.post('/replacement', (req, res) => {
 router.post('/:id/return', (req, res) => {
   const saleId = req.params.id;
   const { returnType = 'stock_return', reason, addToInventory = true } = req.body; // 'stock_return' hoặc 'damage_return'
-
+  
   try {
     // Lấy thông tin hóa đơn
     const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId);
     if (!sale) return res.status(404).json({ error: 'Không tìm thấy hóa đơn' });
-
+    
     // Kiểm tra nếu đã trả hàng rồi
     if (sale.status === 'returned') {
       return res.status(400).json({ error: 'Hóa đơn này đã được trả hàng' });
     }
-
+    
     // Lấy chi tiết sản phẩm trong hóa đơn
     const items = db.prepare('SELECT * FROM sale_items WHERE sale_id = ?').all(saleId);
-
+    
     let totalReturnProfit = 0;
-
+    
     if (returnType === 'stock_return') {
       // Trả lại kho - cộng lại tồn kho sản phẩm
       for (const item of items) {
@@ -382,26 +394,57 @@ router.post('/:id/return', (req, res) => {
         totalReturnProfit += item.profit || 0;
       }
     }
-
+    
     // Cập nhật số vỏ: khách trả lại vỏ đã giao, thu hồi vỏ đã thu trước đó
     const deliverKegs = sale.deliver_kegs || 0;
     const returnKegs = sale.return_kegs || 0;
-
-    // SINGLE WRITE POINT: handle keg balance + ledger in one transaction
-    if (sale.customer_id && (deliverKegs !== 0 || returnKegs !== 0)) {
-      updateCustomerKegBalanceTx(sale.customer_id, -deliverKegs, returnKegs, 'return_sale', parseInt(saleId));
+    
+    // Cập nhật tồn kho vỏ của khách hàng nếu có
+    if (sale.customer_id) {
+      const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(sale.customer_id);
+      if (customer) {
+        const currentKegBalance = customer.keg_balance || 0;
+        // Trừ đi số vỏ đã giao, cộng lại số vỏ đã thu
+        const newKegBalance = currentKegBalance - deliverKegs + returnKegs;
+        updateCustomerKegBalance(sale.customer_id, -deliverKegs, returnKegs);
+      }
     }
-
+    
+    // THÊM MỚI: Cộng vỏ vào kho vỏ rỗng nếu addToInventory = true
+    let inventoryBalance = null;
+    if (addToInventory && deliverKegs > 0) {
+      // Lấy số vỏ rỗng hiện tại từ keg_stats
+      const stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
+      const currentEmpty = stats?.empty_collected || 0;
+      const newEmpty = currentEmpty + deliverKegs;
+      
+      // Cập nhật kho vỏ rỗng
+      db.prepare('UPDATE keg_stats SET empty_collected = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run(newEmpty);
+      
+      // Ghi log kho vỏ
+      db.prepare(`
+        INSERT INTO keg_transactions_log (type, quantity, inventory_after, empty_after, holding_after, note)
+        VALUES ('collect_return', ?, 0, ?, 0, ?)
+      `).run(
+        deliverKegs,
+        newEmpty,
+        reason || 'Thu vỏ từ đơn trả hàng'
+      );
+      
+      inventoryBalance = newEmpty;
+    }
+    
     // Cập nhật trạng thái hóa đơn với loại return (bao gồm cập nhật lợi nhuận)
     db.prepare("UPDATE sales SET status = 'returned', type = ?, total = 0, profit = 0 WHERE id = ?").run(returnType, saleId);
-
-    res.json({
-      success: true,
+    
+    res.json({ 
+      success: true, 
       message: returnType === 'stock_return' ? 'Đã trả hàng (trả lại kho)' : 'Đã ghi nhận bia lỗi',
       returnedAmount: sale.total,
       returnedItems: items.length,
       returnedKegs: deliverKegs,
-      returnType
+      returnType,
+      inventoryBalance
     });
   } catch (err) {
     logger.error('Create replacement error', { error: err.message });
@@ -412,44 +455,44 @@ router.post('/:id/return', (req, res) => {
 // POST /api/sales/:id/return-items - Trả một phần hàng (chọn sản phẩm và số lượng)
 router.post('/:id/return-items', (req, res) => {
   const saleId = req.params.id;
-  const { items: returnItems, returnType = 'stock_return', reason } = req.body;
-
+  const { items: returnItems, returnType = 'stock_return', reason, addToInventory = true } = req.body;
+  
   if (!returnItems || !Array.isArray(returnItems) || returnItems.length === 0) {
     return res.status(400).json({ error: 'Danh sách sản phẩm trống' });
   }
-
+  
   try {
     // Lấy thông tin hóa đơn
     const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId);
     if (!sale) return res.status(404).json({ error: 'Không tìm thấy hóa đơn' });
-
+    
     // Lấy chi tiết sản phẩm trong hóa đơn
     const saleItems = db.prepare('SELECT * FROM sale_items WHERE sale_id = ?').all(saleId);
-
+    
     let totalReturnAmount = 0;
     let totalReturnQty = 0;
     let returnedKegs = 0;
-
+    
     for (const returnItem of returnItems) {
       const { productId, quantity } = returnItem;
-
+      
       // Tìm sản phẩm trong hóa đơn
       const saleItem = saleItems.find(si => si.product_id === productId);
       if (!saleItem) {
         return res.status(400).json({ error: 'Sản phẩm không có trong hóa đơn' });
       }
-
+      
       // Kiểm tra số lượng trả không vượt quá số lượng đã mua
       const maxQty = saleItem.quantity;
       if (quantity > maxQty) {
         return res.status(400).json({ error: `Số lượng trả (${quantity}) vượt quá số lượng mua (${maxQty})` });
       }
-
+      
       // Tính tiền hoàn
       const itemAmount = saleItem.price * quantity;
       totalReturnAmount += itemAmount;
       totalReturnQty += quantity;
-
+      
       // Xử lý kho tùy loại return
       if (returnType === 'stock_return') {
         // Trả lại kho - cộng lại tồn kho
@@ -462,21 +505,50 @@ router.post('/:id/return-items', (req, res) => {
         );
       }
     }
-
+    
     // Tính số vỏ tương ứng với tỷ lệ trả
     const returnRatio = totalReturnQty / saleItems.reduce((sum, si) => sum + si.quantity, 0);
     returnedKegs = Math.round((sale.deliver_kegs || 0) * returnRatio);
-
-    // SINGLE WRITE POINT: update keg balance + ledger in one transaction
+    
+    // Cập nhật tồn kho vỏ của khách hàng
     if (sale.customer_id && returnedKegs > 0) {
-      updateCustomerKegBalanceTx(sale.customer_id, 0, returnedKegs, 'return_sale', parseInt(saleId));
+      const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(sale.customer_id);
+      if (customer) {
+        const currentKegBalance = customer.keg_balance || 0;
+        const newKegBalance = currentKegBalance - returnedKegs;
+        updateCustomerKegBalance(sale.customer_id, 0, returnedKegs);
+      }
     }
-
+    
+    // THÊM MỚI: Cộng vỏ vào kho vỏ rỗng nếu addToInventory = true
+    let inventoryBalance = null;
+    if (addToInventory && returnedKegs > 0) {
+      // Lấy số vỏ rỗng hiện tại từ keg_stats
+      const stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
+      const currentEmpty = stats?.empty_collected || 0;
+      const newEmpty = currentEmpty + returnedKegs;
+      
+      // Cập nhật kho vỏ rỗng
+      db.prepare('UPDATE keg_stats SET empty_collected = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run(newEmpty);
+      
+      // Ghi log kho vỏ
+      db.prepare(`
+        INSERT INTO keg_transactions_log (type, quantity, inventory_after, empty_after, holding_after, note)
+        VALUES ('collect_return', ?, 0, ?, 0, ?)
+      `).run(
+        returnedKegs,
+        newEmpty,
+        reason || 'Thu vỏ từ đơn trả hàng'
+      );
+      
+      inventoryBalance = newEmpty;
+    }
+    
     // Cập nhật hóa đơn gốc: trừ tiền, trừ lợi nhuận và đánh dấu có partial return
     const currentReturnAmount = sale.returned_amount || 0;
     const currentReturnQty = sale.returned_quantity || 0;
     const currentReturnProfit = sale.returned_profit || 0;
-
+    
     // Tính lợi nhuận của hàng trả
     let totalReturnProfit = 0;
     for (const returnItem of returnItems) {
@@ -486,10 +558,10 @@ router.post('/:id/return-items', (req, res) => {
         totalReturnProfit += (saleItem.profit || 0) * ratio;
       }
     }
-
+    
     db.prepare(`
-      UPDATE sales
-      SET total = total - ?,
+      UPDATE sales 
+      SET total = total - ?, 
           profit = profit - ?,
           returned_amount = ?,
           returned_quantity = ?,
@@ -497,21 +569,22 @@ router.post('/:id/return-items', (req, res) => {
           status = CASE WHEN (returned_amount + ?) >= total THEN 'returned' ELSE status END
       WHERE id = ?
     `).run(
-      totalReturnAmount,
+      totalReturnAmount, 
       totalReturnProfit,
-      currentReturnAmount + totalReturnAmount,
+      currentReturnAmount + totalReturnAmount, 
       currentReturnQty + totalReturnQty,
       currentReturnProfit + totalReturnProfit,
-      totalReturnAmount,
+      totalReturnAmount, 
       saleId
     );
-
-    res.json({
-      success: true,
+    
+    res.json({ 
+      success: true, 
       message: returnType === 'stock_return' ? 'Đã trả hàng (trả lại kho)' : 'Đã ghi nhận bia lỗi',
       returnedAmount: totalReturnAmount,
       returnedQuantity: totalReturnQty,
-      returnedKegs
+      returnedKegs,
+      inventoryBalance
     });
   } catch (err) {
     logger.error('Create replacement error', { error: err.message });
@@ -520,7 +593,7 @@ router.post('/:id/return-items', (req, res) => {
 });
 
 // DELETE /api/sales/:id - Xóa hóa đơn
-router.delete('/:id', requireAuth, (req, res) => {
+router.delete('/:id', (req, res) => {
   const saleId = req.params.id;
 
   try {
@@ -542,12 +615,24 @@ router.delete('/:id', requireAuth, (req, res) => {
         }
       }
 
-      // 2. SINGLE WRITE POINT: Reverse customer keg balance (deliver - return = delta)
+      // 2. Hoàn keg_balance khách hàng (đảo ngược: deliver - return)
       if (sale.customer_id && (sale.deliver_kegs !== 0 || sale.return_kegs !== 0)) {
-        updateCustomerKegBalanceTx(sale.customer_id, -sale.deliver_kegs, sale.return_kegs, 'adjust', null);
+        const customer = db.prepare('SELECT keg_balance FROM customers WHERE id = ?').get(sale.customer_id);
+        const currentBalance = customer ? customer.keg_balance : 0;
+        const restoredBalance = currentBalance - sale.deliver_kegs + sale.return_kegs;
+        db.prepare('UPDATE customers SET keg_balance = ? WHERE id = ?').run(restoredBalance, sale.customer_id);
       }
 
-      // 3. Sync keg_stats (inventory từ products, customer_holding từ customers)
+      // 3. Trừ lại empty_collected nếu đơn này đã thu vỏ (hoàn ngược số vỏ đã thu)
+      if (sale.return_kegs > 0) {
+        const stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
+        if (stats) {
+          const newEmpty = Math.max(0, stats.empty_collected - sale.return_kegs);
+          db.prepare('UPDATE keg_stats SET empty_collected = ? WHERE id = 1').run(newEmpty);
+        }
+      }
+
+      // 4. Sync keg_stats (inventory từ products, customer_holding từ customers)
       const inventoryResult = db.prepare("SELECT COALESCE(SUM(stock), 0) as total FROM products WHERE type = 'keg'").get();
       const totalHolding = db.prepare("SELECT COALESCE(SUM(keg_balance), 0) as total FROM customers").get();
       db.prepare(`
@@ -556,64 +641,59 @@ router.delete('/:id', requireAuth, (req, res) => {
         WHERE id = 1
       `).run(inventoryResult.total, totalHolding.total);
 
-      // 4. Xóa sale_items và sales
+      // 5. Xóa sale_items và sales
       db.prepare('DELETE FROM sale_items WHERE sale_id = ?').run(saleId);
       db.prepare('DELETE FROM sales WHERE id = ?').run(saleId);
     });
 
     deleteSaleTx();
 
-    // Feature #14: Broadcast WebSocket updates
-    sendDashboardStats();
-    sendKegState();
-    db.invalidateCache('dashboard');
-
     res.json({ success: true, message: 'Đã xóa hóa đơn' });
   } catch (err) {
-    logger.error('Create replacement error', { error: 'Xóa hóa đơn thất bại: ' + err.message });
+    logger.error('Create replacement error', { error: err.message });
     res.status(500).json({ error: 'Xóa hóa đơn thất bại' });
   }
 });
 
 // PUT /api/sales/:id - Cập nhật hóa đơn
-router.put('/:id', requireAuth, (req, res) => {
+router.put('/:id', (req, res) => {
   const saleId = req.params.id;
   const { items, customerId } = req.body;
-
+  
   try {
     const currentSale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId);
     if (!currentSale) return res.status(404).json({ error: 'Không tìm thấy hóa đơn' });
-
+    
     const oldItems = db.prepare('SELECT * FROM sale_items WHERE sale_id = ?').all(saleId);
-
+    
     // Hoàn kho cũ (chỉ với hóa đơn bán, không với đổi bia lỗi)
     if (currentSale.type === 'sale') {
       for (const item of oldItems) {
         db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(item.quantity, item.product_id);
       }
     }
-
+    
     // Xóa các sale_items cũ
     db.prepare('DELETE FROM sale_items WHERE sale_id = ?').run(saleId);
-
+    
     // Thêm các sản phẩm mới
     let newTotal = 0;
     let newProfit = 0;
-
+    
     for (const item of items) {
       const product = db.prepare('SELECT * FROM products WHERE id = ?').get(item.productId);
       if (!product || product.stock < item.quantity) {
         return res.status(400).json({ error: 'Không đủ hàng: ' + (product ? product.name : 'Unknown') });
       }
-
+      
       // Trừ kho (chỉ với hóa đơn bán)
       if (currentSale.type === 'sale') {
         db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(item.quantity, item.productId);
       }
-
+      
       // Use provided price or fallback to sell_price
       let price = item.price || product.sell_price || 0;
-
+      
       // If customer has custom price, use that instead
       if (customerId) {
         const priceRecord = db.prepare('SELECT * FROM prices WHERE customer_id = ? AND product_id = ?').get(customerId, item.productId);
@@ -621,21 +701,20 @@ router.put('/:id', requireAuth, (req, res) => {
           price = priceRecord.price;
         }
       }
-
+      
       const costPrice = product.cost_price || 0;
       const itemProfit = (price - costPrice) * item.quantity;
 
       newTotal += price * item.quantity;
       newProfit += itemProfit;
 
+      // STEP 5: Store price_at_time for price snapshot
       db.prepare('INSERT INTO sale_items (sale_id, product_id, quantity, price, cost_price, profit, price_at_time) VALUES (?, ?, ?, ?, ?, ?, ?)').run(saleId, item.productId, item.quantity, price, costPrice, itemProfit, price);
     }
-
+    
     // Cập nhật hóa đơn
     db.prepare('UPDATE sales SET customer_id = ?, total = ?, profit = ? WHERE id = ?').run(customerId, newTotal, newProfit, saleId);
-
-    db.invalidateCache('dashboard');
-
+    
     res.json({ success: true, total: newTotal, profit: newProfit });
   } catch (err) {
     logger.error('Create replacement error', { error: err.message });

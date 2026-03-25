@@ -189,11 +189,9 @@ async function getLocalIP() {
           if (match) resolve(match[1]);
         }
       };
-      setTimeout(() => resolve(null), 3000);
+      setTimeout(resolve, 3000);
     });
-  } catch (e) {
-    // WebRTC failed, continue to fallback
-  }
+  } catch {}
 
   // Tầng 2: Thử gọi /api/discover trên chính máy này (localhost)
   // Server sẽ trả về mảng LAN IPs
@@ -205,19 +203,7 @@ async function getLocalIP() {
         return data.lanIPs[0];
       }
     }
-  } catch (e) {
-    // /api/discover failed, continue
-  }
-
-  // Tầng 3: Thử lấy IP từ window.location.hostname nếu truy cập qua LAN IP
-  try {
-    const hostname = window.location.hostname;
-    if (hostname && /^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
-      return hostname;
-    }
-  } catch (e) {
-    // ignore
-  }
+  } catch {}
 
   return null;
 }
@@ -225,15 +211,12 @@ async function getLocalIP() {
 // SCAN LAN for cloud server
 async function scanForCloud() {
   const scanEl = document.getElementById('syncScanStatus') || document.getElementById('scanStatus');
-  if (!scanEl) {
-    console.warn('[CloudScan] Element scanStatus/syncScanStatus not found — tab chưa mở?');
-    return;
-  }
-  scanEl.innerHTML = '⏳ Đang lấy IP máy...';
+  if (!scanEl) return;
+  scanEl.innerHTML = '⏳ Đang quét...';
 
   const localIP = await getLocalIP();
   if (!localIP) {
-    scanEl.innerHTML = '❌ Không lấy được IP máy. Thử nhập thủ công bên dưới.';
+    scanEl.innerHTML = '❌ Không lấy được IP máy';
     return;
   }
 
@@ -285,7 +268,7 @@ async function scanForCloud() {
       closeCloudModal();
     }, 1500);
   } else {
-    scanEl.innerHTML = '❌ Không tìm thấy Cloud nào trong mạng.<br><span style="font-size:12px;color:#6b7280">Đảm bảo: máy Cloud đang bật, cùng mạng LAN, và đã bật chế độ Cloud (IS_CLOUD_SERVER=true).</span>';
+    scanEl.innerHTML = '❌ Không tìm thấy Cloud nào.<br><span style="font-size:12px">Đảm bảo máy Cloud đang bật và cùng mạng.</span>';
   }
 }
 

@@ -1,31 +1,30 @@
 // ==================== AUTH UTILITY ====================
-// IMPORTANT: Token stored in httpOnly cookie (set by server on login).
-// localStorage keeps login state across browser restarts.
+// IMPORTANT: Token is now stored in an httpOnly cookie (set by server on login).
+// We use sessionStorage for UI state only — it auto-clears when tab/browser closes.
 // The actual auth is validated server-side via the httpOnly cookie.
-// Token is ALSO stored in localStorage for the Authorization header fallback.
 
-// Check if user is logged in (localStorage persistence)
+// Check if user is logged in (UI state only — server validates cookie)
 function isLoggedIn() {
-  return localStorage.getItem('auth_uid') === '1';
+  return sessionStorage.getItem('auth_uid') === '1';
 }
 
-// Logout — calls server to clear cookie + SQLite session, then clears localStorage
+// Logout — calls server to clear cookie, then clears UI state
 function logout() {
-  localStorage.removeItem('auth_uid');
-  localStorage.removeItem('sessionToken');
+  sessionStorage.removeItem('auth_uid');
+  // Server will clear httpOnly cookie via /login/logout
   window.location.href = '/login/logout';
 }
 
-// On successful login, UI persists auth state via localStorage
+// On successful login, UI remembers auth state via sessionStorage
 // (the real token is in the httpOnly cookie, sent automatically by browser)
 function markLoggedIn() {
-  localStorage.setItem('auth_uid', '1');
+  sessionStorage.setItem('auth_uid', '1');
 }
 
 // API fetch with Authorization header fallback
-// Token read from localStorage for the header; server validates httpOnly cookie
+// Token is read from sessionStorage for the header; server validates httpOnly cookie
 async function authFetch(url, options = {}) {
-  const token = localStorage.getItem('sessionToken');
+  const token = sessionStorage.getItem('sessionToken');
   const headers = {
     ...options.headers,
   };

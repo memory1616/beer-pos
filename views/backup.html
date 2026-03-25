@@ -2,18 +2,14 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sao lưu - Beer POS</title>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#f59e0b">
   <link rel="stylesheet" href="/css/tailwind.css">
   <link rel="stylesheet" href="/css/unified.css">
   <script src="/js/auth.js"></script>
-  <script>
-    (async () => {
-      if (!await requireAuth()) return;
-    })();
-  </script>
+  <script>requireAuth();</script>
   <style>
     button, a { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
     .card { transition: transform 0.2s, box-shadow 0.2s; }

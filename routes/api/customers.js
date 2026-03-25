@@ -32,14 +32,7 @@ router.get('/', (req, res) => {
     const currentYear = new Date().getFullYear();
     const currentMonth = new Date().getMonth() + 1;
     const currentMonthStr = currentMonth.toString().padStart(2, '0');
-
-    const page = Math.max(1, parseInt(req.query.page) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
-    const offset = (page - 1) * limit;
-
-    const countRow = db.prepare('SELECT COUNT(*) as total FROM customers WHERE archived = 0').get();
-    const total = countRow ? countRow.total : 0;
-
+    
     const customers = db.prepare(`
       SELECT c.*, COALESCE(cm.monthly_kegs, 0) as monthly_liters
       FROM customers c
@@ -52,15 +45,9 @@ router.get('/', (req, res) => {
       ) cm ON cm.customer_id = c.id
       WHERE c.archived = 0
       ORDER BY c.name
-      LIMIT ? OFFSET ?
-    `).all(currentYear.toString(), currentMonthStr, limit, offset);
-
-    res.json({
-      customers,
-      total,
-      page,
-      pages: Math.ceil(total / limit)
-    });
+    `).all(currentYear.toString(), currentMonthStr);
+    
+    res.json(customers);
   } catch (err) {
     logger.error('Error fetching customers', { error: err.message });
     res.status(500).json({ error: 'Lỗi khi lấy danh sách khách hàng' });
@@ -432,6 +419,7 @@ router.get('/alerts', (req, res) => {
       GROUP BY s.customer_id
     ) mc ON mc.customer_id = c.id
     WHERE c.archived = 0
+    AND c.exclude_expected = 0
     AND ROUND(?) - COALESCE(mc.monthly_qty, 0) > 0
     ORDER BY shortfall DESC
     LIMIT 10

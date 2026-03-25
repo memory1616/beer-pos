@@ -26,8 +26,7 @@ router.post('/', express.json(), (req, res) => {
     res.cookie(AUTH_CONFIG.cookieName, result.token, cookieOptions());
     res.json({
       success: true,
-      redirect: '/',
-      token: result.token
+      redirect: '/'
     });
   } else {
     res.status(401).json({

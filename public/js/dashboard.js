@@ -282,10 +282,15 @@ function renderRevenueChart(dailyData) {
     revenueChart.destroy();
   }
   
-  // Bar: amber (doanh thu), Line: indigo (lợi nhuận) - dễ phân biệt hơn
-  const barGradient = ctx.createLinearGradient(0, 0, 0, 250);
-  barGradient.addColorStop(0, 'rgba(245, 158, 11, 0.9)');
-  barGradient.addColorStop(1, 'rgba(217, 119, 6, 0.9)');
+  // Create gradient for revenue bars
+  const gradient = ctx.createLinearGradient(0, 0, 0, 250);
+  gradient.addColorStop(0, '#22c55e');
+  gradient.addColorStop(1, '#16a34a');
+  
+  // Create gradient for profit line
+  const profitGradient = ctx.createLinearGradient(0, 0, 0, 250);
+  profitGradient.addColorStop(0, '#f59e0b');
+  profitGradient.addColorStop(1, '#d97706');
 
   revenueChart = new Chart(ctx, {
     type: 'bar',
@@ -295,26 +300,22 @@ function renderRevenueChart(dailyData) {
         {
           label: 'Doanh thu',
           data: revenues,
-          backgroundColor: barGradient,
-          borderRadius: 6,
-          barThickness: 'flex',
-          barPercentage: 0.7,
-          categoryPercentage: 0.85,
+          backgroundColor: gradient,
+          borderRadius: 4,
+          barThickness: 16,
           yAxisID: 'y'
         },
         {
           label: 'Lợi nhuận ròng',
           data: netProfits,
           type: 'line',
-          borderColor: '#6366f1',
-          backgroundColor: 'rgba(99, 102, 241, 0.08)',
-          borderWidth: 2.5,
+          borderColor: '#16a34a',
+          backgroundColor: 'rgba(22, 163, 74, 0.1)',
+          borderWidth: 2,
           fill: true,
           tension: 0.3,
-          pointRadius: 4,
-          pointBackgroundColor: '#6366f1',
-          pointBorderColor: '#fff',
-          pointBorderWidth: 1,
+          pointRadius: 3,
+          pointBackgroundColor: '#16a34a',
           yAxisID: 'y'
         }
       ]
@@ -332,16 +333,13 @@ function renderRevenueChart(dailyData) {
           position: 'top',
           labels: {
             usePointStyle: true,
-            padding: 16,
-            font: { size: 12 }
+            padding: 15
           }
         },
         tooltip: {
-          backgroundColor: 'rgba(0,0,0,0.85)',
+          backgroundColor: 'rgba(0,0,0,0.8)',
           padding: 12,
           cornerRadius: 8,
-          titleFont: { size: 13 },
-          bodyFont: { size: 12 },
           callbacks: {
             label: function(ctx) {
               return ctx.dataset.label + ': ' + formatVND(ctx.raw);
@@ -355,16 +353,13 @@ function renderRevenueChart(dailyData) {
             display: false
           },
           ticks: {
-            font: { size: 11 },
-            maxRotation: 0,
-            autoSkip: true,
-            maxTicksLimit: 10
+            font: { size: 10 }
           }
         },
         y: {
           position: 'left',
           grid: {
-            color: 'rgba(0,0,0,0.06)'
+            color: '#f3f4f6'
           },
           ticks: {
             callback: function(value) {

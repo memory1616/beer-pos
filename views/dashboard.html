@@ -24,10 +24,11 @@
 
   <script src="/js/debug.js"></script>
   <script>
-    (async () => {
-      if (!await requireAuth()) return;
+    requireAuth();
 
-      const headerActions = `
+    const headerActions = `
+      <a href="/sale" class="text-amber-600 hover:bg-amber-50 px-2 rounded">➕</a>
+      <a href="/report" class="text-blue-600 hover:bg-blue-50 px-2 rounded">📊</a>
       <button onclick="showAlertSettings()" class="text-gray-600 hover:bg-gray-100 px-2 rounded" title="Cài đặt">⚙️</button>
       <button onclick="logout()" class="text-red-500 hover:bg-red-50 px-2 rounded">🚪</button>
     `;
@@ -187,7 +188,6 @@
         `;
       }
     })();
-    })();
   </script>
 
   <script src="/js/dashboard.js"></script>
@@ -196,10 +196,6 @@
   async function loadData() {
     try {
       const res = await fetch('/data');
-      if (res.status === 401) {
-        logout();
-        return;
-      }
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
       if (typeof initDashboard === 'function') initDashboard(data);
@@ -209,16 +205,12 @@
       if (contentSection) contentSection.classList.remove('hidden');
     } catch (err) {
       console.error('Failed to load data:', err);
-      const loading = document.getElementById('loading');
-      if (loading) loading.innerHTML = '<div class="text-red-500 text-center py-4">Lỗi tải dữ liệu</div>';
+      document.getElementById('loading').innerHTML = '<div class="text-red-500 text-center py-4">Lỗi tải dữ liệu</div>';
     }
   }
 
-  // Start loading data AFTER auth + UI init + function definition
   loadData();
-  </script>
 
-  <script>
   if ('serviceWorker' in navigator) {
     if (!navigator.serviceWorker.controller) {
       navigator.serviceWorker.register('/sw.js').catch(err => console.log('[SW] Registration failed:', err));
