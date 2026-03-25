@@ -632,8 +632,8 @@ router.delete('/:id', (req, res) => {
     const items = db.prepare('SELECT * FROM sale_items WHERE sale_id = ?').all(saleId);
 
     const deleteSaleTx = db.transaction(() => {
-      // 1. Hoàn kho sản phẩm (sale & replacement đều trừ stock lúc tạo)
-      if (sale.type === 'sale' || sale.type === 'replacement') {
+      // 1. Hoàn kho sản phẩm (sale, replacement, gift đều trừ stock lúc tạo)
+      if (sale.type === 'sale' || sale.type === 'replacement' || sale.type === 'gift') {
         for (const item of items) {
           db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(item.quantity, item.product_id);
         }
