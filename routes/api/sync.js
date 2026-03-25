@@ -13,6 +13,7 @@ const logger = require('../../src/utils/logger');
 const ENTITY_TO_TABLE = {
   'customer': 'customers', 'product': 'products', 'sale': 'sales',
   'expense': 'expenses', 'payment': 'payments', 'keg_transaction': 'keg_transactions',
+  'keg_ledger': 'keg_ledger',
   'device': 'devices', 'price': 'prices', 'purchase': 'purchases',
   'purchase_item': 'purchase_items'
 };
@@ -57,6 +58,9 @@ router.post('/push', (req, res) => {
           break;
         case 'keg_transaction':
           applyKegTransactionChange(action, entity_id, data);
+          break;
+        case 'keg_ledger':
+          applyKegLedgerChange(action, entity_id, data);
           break;
         default:
           // Generic handler for other entities
@@ -374,6 +378,47 @@ function applyKegTransactionChange(action, entity_id, data) {
   } else if (action === 'delete') {
     db.prepare('DELETE FROM keg_transactions WHERE id = ?').run(entity_id);
   }
+}
+
+/**
+ * Sync keg_ledger entries từ thiết bị khác.
+ * Ledger entries là immutable (chỉ INSERT, không UPDATE/DELETE vì đã có balance snapshot).
+ */
+function applyKegLedgerChange(action, entity_id, data) {
+  if (action === 'create') {
+    // Kiểm tra đã tồn tại chưa (theo source_type + source_id)
+    if (data.source_type && data.source_id) {
+      const exists = db.prepare(
+        'SELECT id FROM keg_ledger WHERE source_type = ? AND source_id = ? LIMIT 1'
+      ).get(data.source_type, data.source_id);
+      if (exists) return; // Đã có, bỏ qua
+    }
+    const {
+      source_type, source_id = null, customer_id = null,
+      quantity, pool_from, pool_to,
+      balance_after_inventory, balance_after_empty, balance_after_customer,
+      note = null, date = null
+    } = data;
+    db.prepare(`
+      INSERT INTO keg_ledger
+        (source_type, source_id, customer_id, quantity, pool_from, pool_to,
+         balance_after_inventory, balance_after_empty, balance_after_customer, note, date)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      source_type, source_id, customer_id,
+      quantity, pool_from, pool_to,
+      balance_after_inventory || 0, balance_after_empty || 0, balance_after_customer || 0,
+      note, date
+    );
+    // Sync keg_stats sau khi nhận ledger entry
+    const { syncKegStats } = require('../../src/keg/ledger');
+    syncKegStats({
+      inventory: balance_after_inventory || 0,
+      empty:     balance_after_empty     || 0,
+      customer:  balance_after_customer  || 0
+    });
+  }
+  // NOTE: 'update' và 'delete' không áp dụng cho ledger vì entries là immutable
 }
 
 module.exports = router;

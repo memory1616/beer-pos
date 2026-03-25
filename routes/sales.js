@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../database');
 const path = require('path');
+const { requireAuth } = require('../middleware/auth');
 
 const DISTRIBUTOR_NAME = 'Bia Tươi Gia Huy';
 
@@ -15,7 +16,7 @@ router.get('/', (req, res) => {
 });
 
 // API: Get sales page data
-router.get('/data', (req, res) => {
+router.get('/data', requireAuth, (req, res) => {
   const customers = db.prepare('SELECT * FROM customers WHERE archived = 0 ORDER BY name').all();
   const products = db.prepare('SELECT * FROM products ORDER BY name').all();
   

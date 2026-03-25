@@ -213,6 +213,7 @@ router.post('/', (req, res) => {
     );
     
     const expense = db.prepare('SELECT * FROM expenses WHERE id = ?').get(result.lastInsertRowid);
+    db.invalidateCache('dashboard');
     res.status(201).json(expense);
   } catch (err) {
     logger.error('Error creating expense', { error: err.message });
@@ -274,6 +275,7 @@ router.post('/quick', (req, res) => {
     );
     
     const expense = db.prepare('SELECT * FROM expenses WHERE id = ?').get(result.lastInsertRowid);
+    db.invalidateCache('dashboard');
     res.status(201).json(expense);
   } catch (err) {
     logger.error('Error quick adding expense', { error: err.message });
@@ -309,6 +311,7 @@ router.put('/:id', (req, res) => {
     );
     
     const expense = db.prepare('SELECT * FROM expenses WHERE id = ?').get(id);
+    db.invalidateCache('dashboard');
     res.json(expense);
   } catch (err) {
     logger.error('Error updating expense', { error: err.message });
@@ -327,6 +330,7 @@ router.delete('/:id', (req, res) => {
     }
     
     db.prepare('DELETE FROM expenses WHERE id = ?').run(id);
+    db.invalidateCache('dashboard');
     res.json({ success: true, message: 'Expense deleted' });
   } catch (err) {
     logger.error('Error deleting expense', { error: err.message });

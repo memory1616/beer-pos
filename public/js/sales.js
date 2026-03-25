@@ -599,8 +599,10 @@ async function saveKegUpdate() {
   const result = await res.json();
   if (res.ok) {
     const custListRes = await fetch('/api/customers');
-    customers = await custListRes.json();
-    alert(`Cập nhật vỏ thành công!\n\nGiao: ${deliverKegs} | Thu: ${returnKegs}\nVỏ tại khách: ${result.newBalance}`);
+    const custData = await custListRes.json();
+    customers = custData.customers;
+    const cust = customers.find(c => c.id == currentKegCustomerId);
+    alert(`Cập nhật vỏ thành công!\n\nGiao: ${deliverKegs} | Thu: ${returnKegs}\nVỏ tại khách: ${cust ? cust.keg_balance : result.newBalance}`);
     closeKegModal();
     loadSalesHistory();
     if (window.location.pathname === '/' || window.location.pathname === '/dashboard') {
@@ -636,7 +638,8 @@ async function showInvoiceModal(saleId) {
 
   const deliverKegs = sale.deliver_kegs || 0;
   const returnKegs = sale.return_kegs || 0;
-  const newBalance = sale.keg_balance_after || 0;
+  const cust = customers.find(c => c.id == sale.customer_id);
+  const currentBalance = cust ? (cust.keg_balance || 0) : (sale.keg_balance_after || 0);
   
   let kegHtml = '';
   if (deliverKegs > 0 || returnKegs > 0) {
@@ -647,7 +650,7 @@ async function showInvoiceModal(saleId) {
     if (returnKegs > 0) {
       kegHtml += '<div class="flex justify-between text-sm"><span class="text-gray-600">🔁 Thu vỏ</span><span class="font-semibold text-orange-600">-' + returnKegs + '</span></div>';
     }
-    kegHtml += '<div class="flex justify-between text-sm font-semibold pt-1"><span class="text-gray-700">Vỏ đang giữ:</span><span>' + newBalance + '</span></div></div>';
+    kegHtml += '<div class="flex justify-between text-sm font-semibold pt-1"><span class="text-gray-700">Vỏ đang giữ:</span><span>' + currentBalance + '</span></div></div>';
   }
   
   document.getElementById('invoiceContent').innerHTML = 

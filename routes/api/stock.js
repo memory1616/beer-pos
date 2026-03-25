@@ -2,7 +2,9 @@ const express = require('express');
 const router = express.Router();
 const db = require('../../database');
 const logger = require('../../src/utils/logger');
-const { syncKegInventory } = require('./products');
+
+// Feature #13: Sử dụng modules mới
+const { getInventory, getProductStock, getInventoryStats, syncKegInventory } = require('../../src/modules/inventory');
 
 // Validate ID parameter
 function validateId(id) {

@@ -3,25 +3,8 @@ const router = express.Router();
 const db = require('../../database');
 const logger = require('../../src/utils/logger');
 
-// ========== HELPER: Sync keg_stats.inventory with products stock ==========
-// Call this whenever product stock (type='keg') changes
-function syncKegInventory() {
-  try {
-    // Ensure keg_stats row exists
-    const exists = db.prepare('SELECT COUNT(*) as count FROM keg_stats WHERE id = 1').get();
-    if (!exists || exists.count === 0) {
-      db.prepare('INSERT INTO keg_stats (id, inventory, empty_collected, customer_holding) VALUES (1, 0, 0, 0)').run();
-    }
-    
-    const result = db.prepare("SELECT COALESCE(SUM(stock), 0) as total FROM products WHERE type = 'keg'").get();
-    db.prepare('UPDATE keg_stats SET inventory = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run(result.total);
-    logger.info('Keg inventory synced', { total: result.total });
-    return result.total;
-  } catch (err) {
-    logger.error('Sync keg inventory error', { error: err.message });
-    return null;
-  }
-}
+// Feature #13: Sử dụng modules mới
+const { syncKegInventory } = require('../../src/modules/inventory');
 
 // Validate ID parameter
 function validateId(id) {

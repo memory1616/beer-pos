@@ -105,7 +105,7 @@ router.get('/', (req, res) => {
       (SELECT COALESCE(SUM(si2.quantity), 0) FROM sale_items si2 JOIN sales s3 ON s3.id = si2.sale_id AND s3.customer_id = c.id AND s3.date >= ? AND s3.date <= ? AND s3.status != 'returned') as quantity,
       (SELECT COUNT(*) FROM sales s2 WHERE s2.customer_id = c.id AND s2.date >= ? AND s2.date <= ? AND s2.status != 'returned') as order_count
     FROM customers c
-    WHERE c.archived = 0 AND (SELECT SUM(s2.total) FROM sales s2 WHERE s2.customer_id = c.id AND s2.date >= ? AND s2.date <= ? AND s2.status != 'returned') > 0
+    WHERE (SELECT SUM(s2.total) FROM sales s2 WHERE s2.customer_id = c.id AND s2.date >= ? AND s2.date <= ? AND s2.status != 'returned') > 0
     ORDER BY revenue DESC
     LIMIT 3
   `).all(startDate, endDate, startDate, endDate, startDate, endDate, startDate, endDate);
@@ -208,7 +208,7 @@ router.get('/', (req, res) => {
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Báo cáo - Beer POS</title>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#f59e0b">
@@ -224,6 +224,47 @@ router.get('/', (req, res) => {
     .bottomnav { max-width: 500px; margin: auto; left: 0; right: 0; }
     button, a { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
     button:active { transform: scale(0.96); }
+
+    /* Hai nút báo cáo chi tiết — đồng bộ viền amber, dễ chạm */
+    .report-detail-link {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      min-height: 108px;
+      padding: 14px 10px;
+      background: #fff;
+      border: 2px solid rgba(251, 191, 36, 0.65);
+      border-radius: 18px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+      text-decoration: none;
+      transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    }
+    .report-detail-link:hover {
+      border-color: rgba(245, 158, 11, 0.95);
+      box-shadow: 0 6px 20px rgba(245, 158, 11, 0.12);
+    }
+    .report-detail-link:active {
+      transform: scale(0.97);
+    }
+    .report-detail-link .rd-icon {
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 14px;
+      font-size: 1.35rem;
+      line-height: 1;
+    }
+    .report-detail-link .rd-label {
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1.3;
+      text-align: center;
+      letter-spacing: 0.01em;
+    }
 
     /* Fix selection highlight: tránh xanh khi bôi/copy */
     ::selection { background: transparent; }
@@ -246,16 +287,17 @@ router.get('/', (req, res) => {
   </header>
 
   <main class="p-4 pt-14 pb-24 max-w-md mx-auto animate-fade">
-    <!-- Quick Report Links -->
+    <!-- Báo cáo chi tiết (2 nút — full width, viền amber đồng bộ phần THÁNG NÀY) -->
     <div class="mb-4">
-      <div class="grid grid-cols-3 gap-3">
-        <a href="/report/profit-product" class="card text-center py-4 bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200 hover:shadow-md transition-all">
-          <div class="text-2xl mb-1">📦</div>
-          <div class="text-xs font-semibold text-purple-700">Lợi nhuận<br>sản phẩm</div>
+      <div class="text-[10px] font-semibold uppercase tracking-wide text-amber-800/70 mb-2 px-0.5">Báo cáo chi tiết</div>
+      <div class="grid grid-cols-2 gap-3">
+        <a href="/report/profit-product" class="report-detail-link" aria-label="Lợi nhuận theo sản phẩm">
+          <span class="rd-icon bg-gradient-to-br from-violet-100 to-purple-50 text-violet-700 shadow-sm">📦</span>
+          <span class="rd-label text-violet-800">Lợi nhuận<br>sản phẩm</span>
         </a>
-        <a href="/report/profit-customer" class="card text-center py-4 bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200 hover:shadow-md transition-all">
-          <div class="text-2xl mb-1">👥</div>
-          <div class="text-xs font-semibold text-blue-700">Lợi nhuận<br>khách hàng</div>
+        <a href="/report/profit-customer" class="report-detail-link" aria-label="Lợi nhuận theo khách hàng">
+          <span class="rd-icon bg-gradient-to-br from-indigo-100 to-blue-50 text-indigo-800 shadow-sm">👥</span>
+          <span class="rd-label text-indigo-900">Lợi nhuận<br>khách hàng</span>
         </a>
       </div>
     </div>
@@ -698,7 +740,7 @@ router.get('/profit-product', (req, res) => {
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Lợi nhuận theo sản phẩm - Beer POS</title>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#f59e0b">
@@ -765,38 +807,43 @@ router.get('/profit-product', (req, res) => {
   `);
 });
 
-// GET /report/profit-customer - Báo cáo lợi nhuận theo khách hàng (theo tháng - năm)
+// GET /report/profit-customer - Báo cáo lợi nhuận theo khách hàng (theo tháng - năm hoặc năm)
 router.get('/profit-customer', (req, res) => {
-  const { month, year, startDate, endDate } = req.query;
+  const { month, year, startDate, endDate, mode } = req.query;
 
   const now = new Date();
   let startStr, endStr, labelThangNam;
+  const viewMode = mode === 'year' ? 'year' : 'month';
 
-  if (month && year) {
+  if (viewMode === 'year' && year) {
+    const y = parseInt(year, 10);
+    startStr = `${y}-01-01`;
+    endStr = `${y}-12-31 23:59:59`;
+    labelThangNam = `Năm ${y}`;
+  } else if (month && year) {
     const y = parseInt(year, 10);
     const m = parseInt(month, 10);
     const lastDay = new Date(y, m, 0).getDate();
     startStr = `${y}-${String(m).padStart(2, '0')}-01`;
-    endStr = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    endStr = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')} 23:59:59`;
     const thang = ['', 'Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6', 'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'][m];
     labelThangNam = thang + ' / ' + y;
   } else if (startDate && endDate) {
     startStr = startDate.split(' ')[0];
-    endStr = endDate.split(' ')[0];
-    labelThangNam = startStr + ' → ' + endStr;
+    endStr = startDate.split(' ')[0] + ' 23:59:59';
+    labelThangNam = startStr + ' → ' + endDate.split(' ')[0];
   } else {
     const y = now.getFullYear();
     const m = now.getMonth() + 1;
     const lastDay = new Date(y, m, 0).getDate();
     startStr = `${y}-${String(m).padStart(2, '0')}-01`;
-    endStr = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    endStr = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')} 23:59:59`;
     const thang = ['', 'Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6', 'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'][m];
     labelThangNam = thang + ' / ' + y;
   }
 
-  const endStrFull = endStr.length <= 10 ? endStr + ' 23:59:59' : endStr;
   const customers = db.prepare(`
-    SELECT 
+    SELECT
       c.id,
       c.name,
       COUNT(s.id) as total_orders,
@@ -804,10 +851,10 @@ router.get('/profit-customer', (req, res) => {
       SUM(s.profit) as profit
     FROM sales s
     JOIN customers c ON c.id = s.customer_id
-    WHERE s.status != 'returned' AND s.type = 'sale' AND c.archived = 0
+    WHERE s.status != 'returned' AND s.type = 'sale'
       AND s.date >= ? AND s.date <= ?
     GROUP BY c.id ORDER BY profit DESC
-  `).all(startStr, endStrFull);
+  `).all(startStr, endStr);
 
   const totalRevenue = customers.reduce((sum, r) => sum + (r.revenue || 0), 0);
   const totalProfit = customers.reduce((sum, r) => sum + (r.profit || 0), 0);
@@ -817,7 +864,7 @@ router.get('/profit-customer', (req, res) => {
   const selectedMonth = month ? parseInt(month, 10) : currentMonth;
   const selectedYear = year ? parseInt(year, 10) : currentYear;
 
-  const monthOptions = [1,2,3,4,5,6,7,8,9,10,11,12].map(m => 
+  const monthOptions = [1,2,3,4,5,6,7,8,9,10,11,12].map(m =>
     '<option value="' + m + '"' + (m === selectedMonth ? ' selected' : '') + '>Tháng ' + m + '</option>'
   ).join('');
   const yearOptions = [currentYear, currentYear - 1, currentYear - 2].map(y =>
@@ -829,13 +876,14 @@ router.get('/profit-customer', (req, res) => {
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Lợi nhuận theo khách hàng - Beer POS</title>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#f59e0b">
   <link rel="stylesheet" href="/css/tailwind.css">
   <link rel="stylesheet" href="/css/unified.css">
   <script src="/js/auth.js"></script>
+  <script src="/js/layout.js"></script>
   <style>
     .bottomnav { max-width: 500px; margin: auto; }
     .filter-wrap { overflow: visible !important; }
@@ -853,18 +901,39 @@ router.get('/profit-customer', (req, res) => {
   <main class="p-4 pt-14 pb-24 max-w-md mx-auto">
     <div style="background: #fef3c7; border-radius: 16px; border: 2px solid #f59e0b; padding: 16px; margin-bottom: 16px; overflow: visible;">
       <div class="flex items-center gap-2 mb-3">
-        <span style="color: #92400e; font-size: 14px; font-weight: 600;">📅 Theo tháng - năm</span>
+        <span style="color: #92400e; font-size: 14px; font-weight: 600;">📅 Chọn kỳ thống kê</span>
       </div>
-      <div class="flex gap-2 items-center">
-        <select id="selMonth" style="flex: 1; border: 2px solid #f59e0b; border-radius: 8px; padding: 10px 12px; font-size: 14px; background: white; color: #1f2937; min-width: 0; outline: none;">
-          ${monthOptions}
-        </select>
-        <select id="selYear" style="flex: 1; border: 2px solid #f59e0b; border-radius: 8px; padding: 10px 12px; font-size: 14px; background: white; color: #1f2937; min-width: 0; outline: none;">
-          ${yearOptions}
-        </select>
-        <button type="button" onclick="applyMonthYear()" style="background: #ea580c; color: white; border: none; border-radius: 8px; padding: 8px 16px; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap;">Xem</button>
+
+      <!-- Tab switcher -->
+      <div class="flex gap-1 mb-3 p-1 rounded-xl" style="background: #fde68a;">
+        <button type="button" id="tabMonth" onclick="switchMode('month')" class="flex-1 py-2 rounded-lg text-sm font-semibold transition-all" style="${viewMode === 'month' ? 'background:white;color:#92400e;box-shadow:0 1px 3px rgba(0,0,0,0.15)' : 'background:transparent;color:#b45309'}">Theo tháng</button>
+        <button type="button" id="tabYear" onclick="switchMode('year')" class="flex-1 py-2 rounded-lg text-sm font-semibold transition-all" style="${viewMode === 'year' ? 'background:white;color:#92400e;box-shadow:0 1px 3px rgba(0,0,0,0.15)' : 'background:transparent;color:#b45309'}">Theo năm</button>
       </div>
-      <div class="text-xs text-gray-500 mt-1">Đang xem: ${labelThangNam}</div>
+
+      <!-- Theo tháng -->
+      <div id="panelMonth" style="${viewMode === 'year' ? 'display:none' : ''}">
+        <div class="flex gap-2 items-center">
+          <select id="selMonth" style="flex: 1; border: 2px solid #f59e0b; border-radius: 8px; padding: 10px 12px; font-size: 14px; background: white; color: #1f2937; min-width: 0; outline: none;">
+            ${monthOptions}
+          </select>
+          <select id="selYearMonth" style="flex: 1; border: 2px solid #f59e0b; border-radius: 8px; padding: 10px 12px; font-size: 14px; background: white; color: #1f2937; min-width: 0; outline: none;">
+            ${yearOptions}
+          </select>
+          <button type="button" onclick="applyMonthYear()" style="background: #ea580c; color: white; border: none; border-radius: 8px; padding: 8px 16px; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap;">Xem</button>
+        </div>
+      </div>
+
+      <!-- Theo năm -->
+      <div id="panelYear" style="${viewMode !== 'year' ? 'display:none' : ''}">
+        <div class="flex gap-2 items-center">
+          <select id="selYear" style="flex: 1; border: 2px solid #f59e0b; border-radius: 8px; padding: 10px 12px; font-size: 14px; background: white; color: #1f2937; min-width: 0; outline: none;">
+            ${yearOptions}
+          </select>
+          <button type="button" onclick="applyYear()" style="background: #ea580c; color: white; border: none; border-radius: 8px; padding: 8px 16px; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap;">Xem</button>
+        </div>
+      </div>
+
+      <div class="text-xs text-gray-500 mt-2">Đang xem: ${labelThangNam}</div>
     </div>
     <div class="mb-4 shadow-lg rounded-2xl p-4" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: #fff;">
       <div class="grid grid-cols-2 gap-3 text-center py-2">
@@ -901,10 +970,31 @@ router.get('/profit-customer', (req, res) => {
   <div id="bottomNavContainer"></div>
   <script>if (!isLoggedIn()) { window.location.href = '/login'; }</script>
   <script>
+    function switchMode(mode) {
+      const tabMonth = document.getElementById('tabMonth');
+      const tabYear = document.getElementById('tabYear');
+      const panelMonth = document.getElementById('panelMonth');
+      const panelYear = document.getElementById('panelYear');
+      if (mode === 'year') {
+        tabYear.style.cssText = 'flex:1;py-2:rounded-lg;text-sm:font-semibold;transition-all;background:white;color:#92400e;box-shadow:0 1px 3px rgba(0,0,0,0.15)';
+        tabMonth.style.cssText = 'flex:1;py-2:rounded-lg;text-sm:font-semibold;transition-all;background:transparent;color:#b45309';
+        panelYear.style.display = '';
+        panelMonth.style.display = 'none';
+      } else {
+        tabMonth.style.cssText = 'flex:1;py-2:rounded-lg;text-sm:font-semibold;transition-all;background:white;color:#92400e;box-shadow:0 1px 3px rgba(0,0,0,0.15)';
+        tabYear.style.cssText = 'flex:1;py-2:rounded-lg;text-sm:font-semibold;transition-all;background:transparent;color:#b45309';
+        panelMonth.style.display = '';
+        panelYear.style.display = 'none';
+      }
+    }
     function applyMonthYear() {
       const m = document.getElementById('selMonth').value;
-      const y = document.getElementById('selYear').value;
+      const y = document.getElementById('selYearMonth').value;
       window.location.href = '/report/profit-customer?month=' + m + '&year=' + y;
+    }
+    function applyYear() {
+      const y = document.getElementById('selYear').value;
+      window.location.href = '/report/profit-customer?mode=year&year=' + y;
     }
     const bottomNav = getBottomNav('/report');
     document.getElementById('bottomNavContainer').innerHTML = bottomNav;

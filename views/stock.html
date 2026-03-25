@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Kho hàng</title>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#f59e0b">
@@ -12,7 +12,11 @@
   <link rel="stylesheet" href="/css/unified.css">
   <script src="/js/auth.js"></script>
   <script src="/js/layout.js"></script>
-  <script>requireAuth();</script>
+  <script>
+    (async () => {
+      if (!await requireAuth()) return;
+    })();
+  </script>
   <style>
     .animate-fade { animation: fade 0.3s ease-in; }
     @keyframes fade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -159,6 +163,10 @@
     async function loadData() {
       try {
         const res = await fetch('/stock/data');
+        if (res.status === 401) {
+          logout();
+          return;
+        }
         const data = await res.json();
         
         // Initialize stock page
@@ -176,7 +184,8 @@
         
       } catch (err) {
         console.error('Failed to load data:', err);
-        document.getElementById('loading').innerHTML = '<div class="text-red-500">Lỗi tải dữ liệu</div>';
+        const loading = document.getElementById('loading');
+        if (loading) loading.innerHTML = '<div class="text-red-500">Lỗi tải dữ liệu</div>';
       }
     }
     

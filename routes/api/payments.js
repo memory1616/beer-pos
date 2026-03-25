@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../../database');
 const logger = require('../../src/utils/logger');
+const { updateCustomerKegBalanceTx } = require('../../src/keg/service');
 
 // ========== HELPER: Update customer keg_balance & sync keg_stats.customer_holding ==========
 function updateCustomerKegBalance(customerId, deliverKegs = 0, returnKegs = 0) {
@@ -195,7 +196,7 @@ router.post('/customer/location', (req, res) => {
   }
 });
 
-// POST /api/payments/keg/update-balance - Cập nhật số bình
+// POST /api/payments/keg/update-balance - Cập nhật số bình (thủ công)
 router.post('/keg/update-balance', (req, res) => {
   const { customerId, balance, note } = req.body;
 
@@ -217,23 +218,13 @@ router.post('/keg/update-balance', (req, res) => {
 
     const oldBalance = customer.keg_balance || 0;
     const newBalance = parseInt(balance);
-    const change = newBalance - oldBalance;
+    const delta = newBalance - oldBalance;
 
-    // Update customer keg_balance
-    db.prepare('UPDATE customers SET keg_balance = ? WHERE id = ?').run(newBalance, custId);
-
-    // Update keg_stats.customer_holding (sum of all customer keg_balance)
-    const totalHolding = db.prepare('SELECT COALESCE(SUM(keg_balance), 0) as total FROM customers').get();
-    db.prepare('UPDATE keg_stats SET customer_holding = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run(totalHolding.total);
-
-    // Log the change
-    if (change !== 0) {
-      db.prepare('INSERT INTO keg_log (customer_id, change, note) VALUES (?, ?, ?)').run(custId, change, note || 'Điều chỉnh số bình');
-    } else if (note) {
-      db.prepare('INSERT INTO keg_log (customer_id, change, note) VALUES (?, ?, ?)').run(custId, 0, note);
+    if (delta !== 0) {
+      updateCustomerKegBalanceTx(custId, delta > 0 ? delta : 0, delta < 0 ? Math.abs(delta) : 0, 'adjust', null);
     }
 
-    res.json({ success: true, newBalance, change });
+    res.json({ success: true, newBalance, change: delta });
   } catch (err) {
     logger.error('Error updating keg balance', { error: err.message });
     res.status(500).json({ error: 'Cập nhật thất bại' });
@@ -241,4 +232,3 @@ router.post('/keg/update-balance', (req, res) => {
 });
 
 module.exports = router;
-module.exports.updateCustomerKegBalance = updateCustomerKegBalance;

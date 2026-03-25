@@ -81,8 +81,9 @@ router.post('/', (req, res) => {
     
     // ========== BƯỚC 5: Sync keg inventory ==========
     syncKegInventory();
-    
+
     logger.info('Purchase created successfully', { purchaseId, totalKegs, totalAmount });
+    db.invalidateCache('dashboard');
     res.json({ 
       id: purchaseId, 
       total_amount: totalAmount, 
@@ -165,10 +166,12 @@ router.put('/:id', (req, res) => {
     
     // Sync keg inventory
     syncKegInventory();
-    
+
     // Update purchase record
     db.prepare('UPDATE purchases SET total_amount = ?, note = ? WHERE id = ?').run(totalAmount, note || null, req.params.id);
-    
+
+    db.invalidateCache('dashboard');
+
     res.json({ success: true });
   } catch (err) {
     logger.error('Purchase update error', { error: err.message });
@@ -222,6 +225,7 @@ router.delete('/:id', (req, res) => {
     }
 
     logger.info('Purchase deleted', { purchaseId, totalKegs });
+    db.invalidateCache('dashboard');
     res.json({ success: true });
   } catch (err) {
     logger.error('Purchase delete error', { purchaseId, error: err.message });

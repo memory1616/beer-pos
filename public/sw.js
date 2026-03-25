@@ -1,4 +1,4 @@
-const CACHE_NAME = "beer-pos-v7";
+const CACHE_NAME = "beer-pos-v8";
 const DB_NAME = "BeerPOS";
 const STORE_SYNC_QUEUE = "sync_queue";
 
@@ -254,23 +254,21 @@ self.addEventListener("fetch", event => {
     return;
   }
 
-  // Navigation requests — network first, fallback to cache
+  // Navigation requests — network only, never cache (avoids serving stale login/dashboard)
   if (event.request.mode === "navigate") {
     event.respondWith(
-      fetch(event.request)
-        .then(response => {
-          if (response.ok) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
-          }
-          return response;
-        })
-        .catch(() => {
-          return caches.match(event.request).then(response => {
-            return response || caches.match("/");
-          });
-        })
+      fetch(event.request).catch(() => {
+        return caches.match(event.request).then(response => {
+          return response || caches.match("/");
+        });
+      })
     );
+    return;
+  }
+
+  // Login page — always network, never serve from cache
+  if (url.pathname === "/login" || url.pathname === "/login/") {
+    event.respondWith(fetch(event.request));
     return;
   }
 
@@ -323,4 +321,4 @@ async function handleAPIMutation(request) {
   }
 }
 
-console.log("[SW] BeerPOS Service Worker v7 loaded");
+console.log("[SW] BeerPOS Service Worker v8 loaded");

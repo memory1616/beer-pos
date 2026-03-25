@@ -49,7 +49,6 @@ router.get('/', (req, res) => {
     SELECT c.name, SUM(s.total) as revenue, COUNT(*) as orders
     FROM sales s
     JOIN customers c ON c.id = s.customer_id
-    WHERE c.archived = 0
     GROUP BY c.id
     ORDER BY revenue DESC
     LIMIT 5
@@ -78,7 +77,7 @@ router.get('/', (req, res) => {
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Phân tích</title>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#f59e0b">

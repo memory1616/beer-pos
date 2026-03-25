@@ -2,129 +2,232 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Đăng nhập - Beer POS</title>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#1e40af">
   <meta name="mobile-web-app-capable" content="yes">
   <link rel="stylesheet" href="/css/tailwind.css">
   <style>
+    *,*::before,*::after {
+      -webkit-tap-highlight-color: transparent;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    input, [contenteditable] {
+      -webkit-user-select: text;
+      user-select: text;
+    }
     body {
-      background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+      background: linear-gradient(160deg, #0f172a 0%, #1e3a8a 45%, #1d4ed8 100%);
       min-height: 100vh;
+      min-height: 100dvh;
     }
-    .glass {
-      background: rgba(255, 255, 255, 0.95);
-      backdrop-filter: blur(10px);
+    .login-card {
+      background: #fff;
+      border-radius: 20px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
     }
+    .login-row {
+      display: flex;
+      align-items: stretch;
+      width: 100%;
+      min-height: 54px;
+      background: #f3f4f6;
+      border: 2px solid #d1d5db;
+      border-radius: 14px;
+      transition: border-color 0.15s ease, background 0.15s ease;
+      overflow: hidden;
+    }
+    .login-row:focus-within {
+      background: #fff;
+      border-color: #2563eb;
+    }
+    .login-icon {
+      flex-shrink: 0;
+      width: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #e5e7eb;
+      color: #6b7280;
+    }
+    .login-icon svg {
+      width: 20px;
+      height: 20px;
+    }
+    .login-row:focus-within .login-icon {
+      background: #dbeafe;
+      color: #2563eb;
+    }
+    .login-x {
+      flex: 1;
+      min-width: 0;
+    }
+    .login-x input {
+      display: block;
+      width: 100%;
+      height: 100%;
+      min-height: 54px;
+      padding: 0 14px;
+      border: 0;
+      background: transparent;
+      font-size: 16px;
+      line-height: 54px;
+      color: #111827;
+      outline: none;
+      -webkit-appearance: none;
+      appearance: none;
+      border-radius: 0;
+    }
+    .login-x input::placeholder {
+      color: #9ca3af;
+    }
+    .login-x input:-webkit-autofill {
+      -webkit-box-shadow: 0 0 0 100px #f3f4f6 inset !important;
+      -webkit-text-fill-color: #111827 !important;
+    }
+    .login-row:focus-within .login-x input:-webkit-autofill {
+      -webkit-box-shadow: 0 0 0 100px #fff inset !important;
+    }
+    .login-btn {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      min-height: 54px;
+      border: 0;
+      border-radius: 14px;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      background: #2563eb;
+      color: #fff;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
+      transition: background 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    .login-btn:hover { background: #1d4ed8; }
+    .login-btn:active { transform: scale(0.98); box-shadow: none; }
+    .login-btn:disabled { opacity: 0.7; cursor: not-allowed; }
   </style>
 </head>
-<body class="flex items-center justify-center p-4">
-  <div class="glass rounded-2xl shadow-2xl p-8 w-full max-w-md">
-    <!-- Logo -->
-    <div class="text-center mb-8">
-      <div class="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4">🍺</div>
-      <h1 class="text-2xl font-bold text-gray-800">Beer POS Pro</h1>
-      <p class="text-gray-500">Vui lòng đăng nhập để tiếp tục</p>
+<body>
+  <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;min-height:100dvh;padding:16px;">
+    <div class="login-card" style="padding:32px;width:100%;max-width:400px;">
+
+      <!-- Logo -->
+      <div style="text-align:center;margin-bottom:32px;">
+        <div style="width:72px;height:72px;background:linear-gradient(135deg,#2563eb,#4338ca);border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:40px;margin:0 auto 20px;box-shadow:0 8px 24px rgba(37,99,235,0.35);line-height:1;">🍺</div>
+        <div style="font-size:22px;font-weight:700;color:#111827;letter-spacing:-0.02em;">Beer POS Pro</div>
+        <div style="font-size:14px;color:#6b7280;margin-top:4px;">Đăng nhập để tiếp tục</div>
+      </div>
+
+      <!-- Error -->
+      <div id="error" style="display:none;background:#fef2f2;border:1px solid #fecaca;color:#dc2626;padding:12px 16px;border-radius:12px;margin-bottom:16px;text-align:center;font-size:14px;"></div>
+
+      <!-- Form -->
+      <form id="loginForm" onsubmit="return handleLogin(event)">
+        <div style="margin-bottom:20px;">
+          <div style="font-size:14px;font-weight:600;color:#374151;margin-bottom:8px;">Tên đăng nhập</div>
+          <div class="login-row">
+            <div class="login-icon" aria-hidden="true">
+              <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+            </div>
+            <div class="login-x">
+              <input
+                type="text"
+                id="username"
+                name="username"
+                placeholder="Nhập tên đăng nhập"
+                autocomplete="username"
+                autocorrect="off"
+                autocapitalize="none"
+                spellcheck="false"
+              >
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-bottom:28px;">
+          <div style="font-size:14px;font-weight:600;color:#374151;margin-bottom:8px;">Mật khẩu</div>
+          <div class="login-row">
+            <div class="login-icon" aria-hidden="true">
+              <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+            </div>
+            <div class="login-x">
+              <input
+                type="password"
+                id="password"
+                name="password"
+                placeholder="Nhập mật khẩu"
+                autocomplete="current-password"
+                autocorrect="off"
+                autocapitalize="none"
+                spellcheck="false"
+              >
+            </div>
+          </div>
+        </div>
+
+        <button type="submit" id="submitBtn" class="login-btn">Đăng nhập</button>
+      </form>
+
     </div>
-
-    <!-- Error Message -->
-    <div id="error" class="hidden bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4 text-center"></div>
-
-    <!-- Login Form -->
-    <form id="loginForm" onsubmit="handleLogin(event)">
-      <div class="mb-4">
-        <label class="block text-gray-700 font-medium mb-2">Tên đăng nhập</label>
-        <input 
-          type="text" 
-          id="username" 
-          name="username"
-          class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-          placeholder="admin"
-          required
-          autocomplete="username"
-        >
-      </div>
-
-      <div class="mb-6">
-        <label class="block text-gray-700 font-medium mb-2">Mật khẩu</label>
-        <input 
-          type="password" 
-          id="password" 
-          name="password"
-          class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-          placeholder="••••••••"
-          required
-          autocomplete="current-password"
-        >
-      </div>
-
-      <button 
-        type="submit" 
-        id="submitBtn"
-        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
-      >
-        <span>Đăng nhập</span>
-      </button>
-    </form>
   </div>
 
   <script>
-    // Check if already logged in (UI state — real auth validated by server via httpOnly cookie)
-    if (sessionStorage.getItem('auth_uid') === '1') {
+    if (localStorage.getItem('auth_uid') === '1') {
       window.location.href = '/';
     }
 
-    async function handleLogin(e) {
+    function handleLogin(e) {
       e.preventDefault();
+      var btn = document.getElementById('submitBtn');
+      var errorDiv = document.getElementById('error');
+      var username = document.getElementById('username').value;
+      var password = document.getElementById('password').value;
 
-      const btn = document.getElementById('submitBtn');
-      const errorDiv = document.getElementById('error');
-      const username = document.getElementById('username').value;
-      const password = document.getElementById('password').value;
+      if (!username || !password) {
+        errorDiv.textContent = 'Vui lòng nhập đầy đủ thông tin';
+        errorDiv.style.display = 'block';
+        return;
+      }
 
       btn.disabled = true;
-      btn.innerHTML = '<span class="animate-spin">⏳</span> Đang đăng nhập...';
-      errorDiv.classList.add('hidden');
+      btn.textContent = 'Đang đăng nhập…';
+      errorDiv.style.display = 'none';
 
-      try {
-        const res = await fetch('/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password })
+      fetch('/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username, password: password })
+      }).then(function(res) { return res.json(); })
+        .then(function(data) {
+          if (data.success) {
+            localStorage.setItem('auth_uid', '1');
+            if (data.token) localStorage.setItem('sessionToken', data.token);
+            window.location.href = data.redirect || '/';
+          } else {
+            errorDiv.textContent = data.error || 'Đăng nhập thất bại';
+            errorDiv.style.display = 'block';
+            btn.disabled = false;
+            btn.textContent = 'Đăng nhập';
+          }
+        }).catch(function(err) {
+          errorDiv.textContent = 'Lỗi kết nối: ' + err.message;
+          errorDiv.style.display = 'block';
+          btn.disabled = false;
+          btn.textContent = 'Đăng nhập';
         });
-
-        const data = await res.json();
-
-        if (data.success) {
-          sessionStorage.setItem('auth_uid', '1');
-          window.location.href = data.redirect || '/';
-        } else {
-          errorDiv.textContent = data.error || 'Đăng nhập thất bại';
-          errorDiv.classList.remove('hidden');
-        }
-      } catch (err) {
-        errorDiv.textContent = 'Lỗi kết nối: ' + err.message;
-        errorDiv.classList.remove('hidden');
-      }
-
-      btn.disabled = false;
-      btn.innerHTML = '<span>Đăng nhập</span>';
     }
-
-    // Handle Enter key
-    document.getElementById('password').addEventListener('keypress', function(e) {
-      if (e.key === 'Enter') {
-        handleLogin(e);
-      }
-    });
   </script>
 
-  <!-- Service Worker — cache trang login để offline -->
   <script>
   if ('serviceWorker' in navigator) {
     if (!navigator.serviceWorker.controller) {
-      navigator.serviceWorker.register('/sw.js').catch(err => console.log('[SW] Registration failed:', err));
+      navigator.serviceWorker.register('/sw.js').catch(function() {});
     }
   }
   </script>

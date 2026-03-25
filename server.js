@@ -2,6 +2,7 @@
 process.env.TZ = 'Asia/Ho_Chi_Minh';
 require('dotenv').config();
 const express = require('express');
+const http = require('http'); // Feature #14: For WebSocket
 const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
 const path = require('path');
@@ -11,6 +12,10 @@ const rateLimit = require('express-rate-limit');
 const os = require('os');
 const logger = require('./src/utils/logger');
 const { getSession, AUTH_CONFIG } = require('./middleware/auth');
+const { migrateSalesToLedger } = require('./src/modules/keg');
+
+// Feature #14: WebSocket initialization
+const { initWebSocket, broadcast, sendDashboardStats, sendKegState } = require('./src/services/websocket');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -32,6 +37,9 @@ function getNetworkIPs() {
 }
 
 // Rate limiting configuration — skip /api/discover (LAN scan sends 500+ pings)
+
+// Migration: đồng bộ sales cũ vào keg_ledger (chạy 1 lần)
+migrateSalesToLedger();
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // limit each IP to 100 requests per windowMs
@@ -84,9 +92,11 @@ app.engine('html', require('ejs').renderFile);
 // Constants
 const DISTRIBUTOR_NAME = process.env.DISTRIBUTOR_NAME || 'Bia Tươi Gia Huy';
 
-// API Key - Disabled for local LAN app
+// API routes - require authentication (except /session and /customers/login)
+const { requireAuth } = require('./middleware/auth');
 app.use('/api', (req, res, next) => {
-  next();
+  if (req.path === '/session' || req.path === '/customers/login') return next();
+  requireAuth(req, res, next);
 });
 
 // Helper function to format VNĐ
@@ -190,6 +200,8 @@ app.use('/api/settings', require('./routes/api/settings'));
 app.use('/api/devices', require('./routes/api/devices'));
 app.use('/api/expenses', require('./routes/api/expenses'));
 app.use('/api/session', require('./routes/api/session'));
+// Feature #12: Audit log API
+app.use('/api/audit', require('./routes/api/audit'));
 
 // ==================== SYNC API ====================
 // Offline-first multi-device sync
@@ -284,7 +296,22 @@ if (isCloudServer) {
 }
 
 // Prevent multiple instances
-const server = app.listen(PORT, HOST, () => {
+// Feature #14: Use http.Server for WebSocket support
+const server = http.createServer(app);
+
+// Initialize WebSocket
+initWebSocket(server);
+
+// Schedule periodic dashboard stats broadcast (every 30 seconds)
+cron.schedule('*/30 * * * * *', () => {
+  try {
+    broadcast('dashboard:ping', { serverTime: new Date().toISOString() });
+  } catch (e) {
+    // Ignore errors in cron
+  }
+});
+
+server.listen(PORT, HOST, () => {
   const networkIPs = getNetworkIPs();
 
   logger.info('Beer POS Pro v2 started');
@@ -292,10 +319,12 @@ const server = app.listen(PORT, HOST, () => {
   logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
   logger.info(`Hostname: ${os.hostname()}`);
   if (isCloudServer) logger.info('Mode: Cloud Server');
+  logger.info('WebSocket: Enabled (socket.io)');
 
   const urls = [`http://localhost:${PORT}`, `http://127.0.0.1:${PORT}`];
   networkIPs.forEach(({ name, ip }) => urls.push(`http://${ip}:${PORT}`));
   logger.info(`Access URLs: ${urls.join(', ')}`);
+  logger.info(`WebSocket URL: ws://localhost:${PORT}`);
 });
 
 // Handle server errors (e.g., port already in use)
