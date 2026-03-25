@@ -523,6 +523,11 @@ function toggleGiftMode() {
   }
 }
 
+function closeReplacementModal() {
+  document.getElementById('replacementModal').classList.add('hidden');
+  document.getElementById('replacementModal').classList.remove('flex');
+}
+
 function loadReplacementProducts() {
   const customerId = document.getElementById('replacementCustomer').value;
   const productSelect = document.getElementById('replacementProduct');
