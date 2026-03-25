@@ -516,15 +516,20 @@ function closeReplacementModal() {
 function loadReplacementProducts() {
   const customerId = document.getElementById('replacementCustomer').value;
   const productSelect = document.getElementById('replacementProduct');
-  
+
   if (!customerId) {
     productSelect.innerHTML = '<option value="">-- Chọn sản phẩm --</option>';
     return;
   }
-  
+
   // Load all products for replacement
-  productSelect.innerHTML = '<option value="">-- Chọn sản phẩm --</option>' + 
+  productSelect.innerHTML = '<option value="">-- Chọn sản phẩm --</option>' +
     products.map(p => '<option value="' + p.id + '">' + p.name + ' (Tồn: ' + p.stock + ')</option>').join('');
+}
+
+function toggleGiftKegs() {
+  const checked = document.getElementById('giftKegs').checked;
+  document.getElementById('giftKegsRow').classList.toggle('hidden', !checked);
 }
 
 async function submitReplacement() {
@@ -532,12 +537,19 @@ async function submitReplacement() {
   const productId = document.getElementById('replacementProduct').value;
   const quantity = parseInt(document.getElementById('replacementQty').value) || 0;
   const reason = document.getElementById('replacementReason').value;
-  
+  const giftKegs = document.getElementById('giftKegs').checked;
+  const giftKegsQty = giftKegs ? (parseInt(document.getElementById('giftKegsQty').value) || 0) : 0;
+
   if (!customerId || !productId || quantity <= 0) {
     alert('Vui lòng chọn đầy đủ thông tin');
     return;
   }
-  
+
+  if (giftKegs && giftKegsQty <= 0) {
+    alert('Số lượng keg tặng phải lớn hơn 0');
+    return;
+  }
+
   try {
     const res = await fetch('/api/sales/replacement', {
       method: 'POST',
@@ -546,14 +558,19 @@ async function submitReplacement() {
         customer_id: parseInt(customerId),
         product_id: parseInt(productId),
         quantity: quantity,
-        reason: reason
+        reason: reason,
+        gift_kegs: giftKegsQty
       })
     });
-    
+
     const data = await res.json();
-    
+
     if (data.success) {
-      alert('✅ ' + data.message);
+      let msg = data.message;
+      if (giftKegs && giftKegsQty > 0) {
+        msg += '\n🎁 Đã cộng ' + giftKegsQty + ' keg vào kho vỏ rỗng.';
+      }
+      alert('✅ ' + msg);
       closeReplacementModal();
       loadSalesHistory();
       loadProducts(); // Refresh stock
