@@ -710,21 +710,31 @@ db.exec(`
   );
 `);
 
-// Migration: add customer_id and customer_name columns if missing (backward compat)
+// Migration: add 'gift' type to keg_transactions_log (CHECK constraint cannot be altered directly)
 try {
-  const cols = db.prepare("PRAGMA table_info(keg_transactions_log)").all();
-  const colNames = cols.map(c => c.name);
-  if (!colNames.includes('customer_id')) {
-    db.exec("ALTER TABLE keg_transactions_log ADD COLUMN customer_id INTEGER");
-  }
-  if (!colNames.includes('customer_name')) {
-    db.exec("ALTER TABLE keg_transactions_log ADD COLUMN customer_name TEXT");
-  }
-  if (!colNames.includes('sell_empty')) {
-    db.exec("ALTER TABLE keg_transactions_log ADD COLUMN sell_empty INTEGER DEFAULT 0");
-  }
+  db.exec(`
+    ALTER TABLE keg_transactions_log RENAME TO _keg_tx_log_old
+  `);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS keg_transactions_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL CHECK(type IN ('deliver', 'collect', 'import', 'adjust', 'sell_empty', 'gift')),
+      quantity INTEGER NOT NULL,
+      exchanged INTEGER DEFAULT 0,
+      purchased INTEGER DEFAULT 0,
+      customer_id INTEGER,
+      customer_name TEXT,
+      inventory_after INTEGER NOT NULL,
+      empty_after INTEGER NOT NULL,
+      holding_after INTEGER NOT NULL,
+      note TEXT,
+      date TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  db.exec(`INSERT INTO keg_transactions_log SELECT * FROM _keg_tx_log_old`);
+  db.exec(`DROP TABLE _keg_tx_log_old`);
 } catch (e) {
-  // Columns may already exist
+  // Migration already applied or other error
 }
 
 // Index for keg_transactions_log
