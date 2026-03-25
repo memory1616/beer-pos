@@ -582,7 +582,6 @@ async function submitReplacement() {
       alert('✅ ' + data.message);
       closeReplacementModal();
       loadSalesHistory();
-      loadProducts();
     } else {
       alert('❌ ' + (data.error || 'Lỗi không xác định'));
     }
