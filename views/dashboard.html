@@ -178,7 +178,7 @@
             </div>
           </div>
           `) +
-          getBottomNav('/');
+          getBottomNav('/admin/');
       } catch (err) {
         console.error('Dashboard init error:', err);
         document.getElementById('app').innerHTML = `
@@ -198,7 +198,7 @@
   <script>
   async function loadData() {
     try {
-      const res = await fetch('/data');
+      const res = await fetch('/admin/data');
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
       if (typeof initDashboard === 'function') initDashboard(data);

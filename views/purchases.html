@@ -189,7 +189,7 @@
     // Load data on page load
     async function loadData() {
       try {
-        const res = await fetch('/purchases/data?t=' + Date.now(), { cache: 'no-store' });
+        const res = await fetch('/admin/purchases/data?t=' + Date.now(), { cache: 'no-store' });
         const data = await res.json();
         
         // Load keg inventory balance

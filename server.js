@@ -213,19 +213,31 @@ app.use('/admin', (req, res, next) => {
     return _origFetch.call(window, input, init);
   };
 
-  // Patch location.href setter for known navigation paths
-  var _navPaths = ['/','/login','/login/logout','/logout','/dashboard','/customers','/sale','/sales',
-    '/stock','/analytics','/delivery','/products','/purchases','/kegs','/report',
-    '/backup','/devices','/expenses','/admin'];
-  Object.defineProperty(window.location, 'href', {
-    set: function(v) {
-      if (typeof v === 'string' && v.charAt(0) === '/' && v.indexOf('/api/') !== 0) {
-        var normalized = v.replace(/\/+$/, '') || '/';
-        if (_navPaths.indexOf(normalized) !== -1) {
-          v = _base + (normalized === '/' ? '' : normalized);
-        }
-      }
-      window.location.assign(v);
+  // Patch ALL location navigation methods to always prefix with /admin
+  var _origAssign = window.location.assign.bind(window.location);
+  var _origReplace = window.location.replace.bind(window.location);
+  var _origHrefDesc = Object.getOwnPropertyDescriptor(window.location, 'href');
+  window.location.assign = function(url) {
+    if (typeof url === 'string' && url.charAt(0) === '/' && url.indexOf('/api/') !== 0 && url.indexOf(_base) !== 0) {
+      url = _base + url;
+    }
+    return _origAssign(url);
+  };
+  window.location.replace = function(url) {
+    if (typeof url === 'string' && url.charAt(0) === '/' && url.indexOf('/api/') !== 0 && url.indexOf(_base) !== 0) {
+      url = _base + url;
+    }
+    return _origReplace(url);
+  };
+
+  // Intercept ALL <a href="/..."> clicks — prefix with /admin automatically
+  document.addEventListener('click', function(e) {
+    var a = e.target.closest('a');
+    if (!a) return;
+    var href = a.getAttribute('href');
+    if (typeof href === 'string' && href.charAt(0) === '/' && href.indexOf('/api/') !== 0 && href.indexOf(_base) !== 0) {
+      e.preventDefault();
+      window.location.assign(href);
     }
   });
 

@@ -242,7 +242,7 @@
           </div>
         </div>
       `) +
-      getBottomNav('/sale');
+      getBottomNav('/admin/sale');
     })();
   </script>
 
@@ -253,7 +253,7 @@
   <script>
     async function loadData() {
       try {
-        const res = await fetch('/sale/data');
+        const res = await fetch('/admin/sale/data');
         const data = await res.json();
         
         // Initialize sales page with data

@@ -500,7 +500,7 @@
           </div>
         </div>
       `) +
-      getBottomNav('/customers');
+      getBottomNav('/admin/customers');
     })();
   </script>
 
@@ -510,7 +510,7 @@
   <script>
     async function loadData() {
       try {
-        const res = await fetch('/customers/data');
+        const res = await fetch('/admin/customers/data');
         const data = await res.json();
         
         // Initialize customers page
