@@ -1,4 +1,4 @@
-const CACHE_NAME = "beer-pos-v13";
+const CACHE_NAME = "beer-pos-v14";
 const DB_NAME = "BeerPOS";
 const STORE_SYNC_QUEUE = "sync_queue";
 
@@ -105,6 +105,12 @@ const urlsToCache = [
   "/",
   "/admin",
   "/admin/",
+  "/admin/delivery",
+  "/admin/delivery/",
+  "/admin/devices",
+  "/admin/devices/",
+  "/admin/expenses",
+  "/admin/expenses/",
   "/admin/customers",
   "/admin/sale",
   "/admin/stock",
@@ -292,6 +298,7 @@ self.addEventListener("fetch", event => {
     event.respondWith(
       fetch(event.request)
         .then(response => {
+          // Follow redirects server-side by fetching the final URL directly
           if (response.ok) {
             const clone = response.clone();
             caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
@@ -300,7 +307,9 @@ self.addEventListener("fetch", event => {
         })
         .catch(() => {
           return caches.match(event.request).then(response => {
-            return response || caches.match("/");
+            if (response) return response;
+            // Final fallback
+            return caches.match("/");
           });
         })
     );
@@ -366,4 +375,4 @@ async function handleAPIMutation(request) {
   }
 }
 
-console.log("[SW] BeerPOS Service Worker v13 loaded");
+console.log("[SW] BeerPOS Service Worker v14 loaded");
