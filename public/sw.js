@@ -92,7 +92,6 @@ async function queueForSync(method, url, body, headers) {
 // URLs to cache for full offline
 const urlsToCache = [
   "/",
-  "/admin/login",
   "/admin/customers",
   "/admin/sale",
   "/admin/stock",
@@ -239,6 +238,12 @@ self.addEventListener("fetch", event => {
       return;
     }
     // Non-API, non-GET: pass through normally
+    return;
+  }
+
+  // Login page — always network only, never cache (contains dynamic auth logic)
+  if (url.pathname === '/admin/login') {
+    event.respondWith(fetch(event.request));
     return;
   }
 
