@@ -69,6 +69,15 @@ app.get('/favicon.ico', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'icon-192.png'));
 });
 
+// Service Worker — always fresh, never cache (contains routing logic that must stay current)
+app.get('/sw.js', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.type('application/javascript');
+  res.sendFile(path.join(__dirname, 'public', 'sw.js'));
+});
+
 // Request logger — only log slow requests (>500ms) or errors
 app.use((req, res, next) => {
   const start = Date.now();
