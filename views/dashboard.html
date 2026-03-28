@@ -53,22 +53,22 @@
             <div class="mb-4">
               <div class="section-title">Hôm nay</div>
               <div class="grid grid-cols-2 gap-3">
-                <div class="card" onclick="location.href='/report'" style="cursor:pointer" title="Xem báo cáo doanh thu">
+                <div class="card" onclick="location.href=window.BASE_PATH+'/report'" style="cursor:pointer" title="Xem báo cáo doanh thu">
                   <div class="text-xs text-gray-500">Doanh thu</div>
                   <div id="todayRevenue">0</div>
                 </div>
-                <div class="card" onclick="location.href='/sales'" style="cursor:pointer" title="Xem lịch sử bán hàng">
+                <div class="card" onclick="location.href=window.BASE_PATH+'/sale'" style="cursor:pointer" title="Xem lịch sử bán hàng">
                   <div class="text-xs text-gray-500">Bán ra</div>
                   <div class="text-2xl font-bold text-blue-600" id="todayUnits">0</div>
                   <div class="text-xs text-gray-400">bình</div>
                 </div>
               </div>
               <div class="grid grid-cols-2 gap-3 mt-3">
-                <div class="card" onclick="location.href='/report'" style="cursor:pointer" title="Xem chi tiết lợi nhuận">
+                <div class="card" onclick="location.href=window.BASE_PATH+'/report'" style="cursor:pointer" title="Xem chi tiết lợi nhuận">
                   <div class="text-xs text-gray-500">Lợi nhuận hôm nay</div>
                   <div id="todayProfit">0</div>
                 </div>
-                <div class="card" onclick="location.href='/expenses'" style="cursor:pointer" title="Xem chi phí hôm nay">
+                <div class="card" onclick="location.href=window.BASE_PATH+'/expenses'" style="cursor:pointer" title="Xem chi phí hôm nay">
                   <div class="text-xs text-gray-500">Chi phí hôm nay</div>
                   <div id="todayExpense">0</div>
                 </div>
@@ -78,11 +78,11 @@
             <div class="mb-4">
               <div class="section-title">Tháng này</div>
               <div class="grid grid-cols-2 gap-3">
-                <div class="card" onclick="location.href='/report'" style="cursor:pointer" title="Xem chi tiết lợi nhuận tháng">
+                <div class="card" onclick="location.href=window.BASE_PATH+'/report'" style="cursor:pointer" title="Xem chi tiết lợi nhuận tháng">
                   <div class="text-xs text-gray-500">Lợi nhuận tháng</div>
                   <div id="monthProfit">0</div>
                 </div>
-                <div class="card" onclick="location.href='/expenses'" style="cursor:pointer" title="Xem chi phí tháng">
+                <div class="card" onclick="location.href=window.BASE_PATH+'/expenses'" style="cursor:pointer" title="Xem chi phí tháng">
                   <div class="text-xs text-gray-500">Chi phí tháng</div>
                   <div id="monthExpense">0</div>
                 </div>
@@ -96,21 +96,21 @@
                 <div class="text-5xl font-bold text-blue-600 mt-1" id="kegTotal">0</div>
               </div>
               <div class="grid grid-cols-3 gap-3">
-                <div onclick="location.href='/kegs'" style="cursor:pointer" title="Xem kho vỏ">
+                <div onclick="location.href=window.BASE_PATH+'/kegs'" style="cursor:pointer" title="Xem kho vỏ">
                   <div class="bg-white rounded-2xl p-4 text-center shadow-md border border-green-100 min-w-0">
                     <div class="text-2xl font-bold text-green-600" id="kegInventory">0</div>
                     <div class="text-sm font-medium text-gray-700 mt-1">Kho</div>
                     <div class="text-xs text-gray-400 mt-1" id="kegInventoryPct">0%</div>
                   </div>
                 </div>
-                <div onclick="location.href='/customers'" style="cursor:pointer" title="Xem khách giữ vỏ">
+                <div onclick="location.href=window.BASE_PATH+'/customers'" style="cursor:pointer" title="Xem khách giữ vỏ">
                   <div class="bg-white rounded-2xl p-4 text-center shadow-md border border-amber-100 min-w-0">
                     <div class="text-2xl font-bold text-amber-500" id="kegCustomerHolding">0</div>
                     <div class="text-sm font-medium text-gray-700 mt-1">Khách</div>
                     <div class="text-xs text-gray-400 mt-1" id="kegCustomerHoldingPct">0%</div>
                   </div>
                 </div>
-                <div onclick="location.href='/purchases'" style="cursor:pointer" title="Xem lịch sử nhập vỏ">
+                <div onclick="location.href=window.BASE_PATH+'/purchases'" style="cursor:pointer" title="Xem lịch sử nhập vỏ">
                   <div class="bg-white rounded-2xl p-4 text-center shadow-md border border-gray-200 min-w-0">
                     <div class="text-2xl font-bold text-gray-400" id="kegEmptyCollected">0</div>
                     <div class="text-sm font-medium text-gray-700 mt-1">Rỗng</div>

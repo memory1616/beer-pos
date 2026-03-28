@@ -178,6 +178,11 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'landing.html'));
 });
 
+// Redirect /login → /admin/login (legacy URL used by inline scripts in HTML)
+app.get('/login', (req, res) => {
+  res.redirect('/admin/login');
+});
+
 // Admin app — serve ALL admin routes under /admin prefix
 // Inject <base href="/admin"> + comprehensive BASE_PATH script so ALL existing
 // fetch() calls, location.href assignments, and SW registrations work correctly
