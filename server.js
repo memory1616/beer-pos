@@ -164,21 +164,103 @@ cron.schedule('0 23 * * *', () => {
 });
 
 // ==================== WEB ROUTES ====================
-app.use('/login', require('./routes/login'));
-app.use('/', require('./routes/dashboard'));
-app.use('/customers', require('./routes/customers'));
-app.use('/sale', require('./routes/sales'));
-app.use('/sales', (req, res) => res.redirect('/sale'));
-app.use('/stock', require('./routes/stock'));
-app.use('/analytics', require('./routes/analytics'));
-app.use('/delivery', require('./routes/delivery'));
-app.use('/products', require('./routes/products'));
-app.use('/purchases', require('./routes/purchases'));
-app.use('/kegs', require('./routes/kegs'));
-app.use('/report', require('./routes/report'));
-app.use('/backup', require('./routes/backup'));
-app.use('/devices', require('./routes/devices'));
-app.use('/expenses', require('./routes/expenses'));
+// Landing page at root
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'landing.html'));
+});
+
+// Admin app — serve ALL admin routes under /admin prefix
+// Inject <base href="/admin"> + comprehensive BASE_PATH script so ALL existing
+// fetch() calls, location.href assignments, and SW registrations work correctly
+app.use('/admin', (req, res, next) => {
+  const origSendFile = res.sendFile.bind(res);
+  res.sendFile = function(filepath, options, callback) {
+    if (String(filepath).endsWith('.html')) {
+      return fs.readFile(filepath, 'utf8', (err, html) => {
+        if (err) return origSendFile(filepath, options, callback);
+
+        // Inject <base> tag if missing
+        if (!html.includes('<base')) {
+          html = html.replace('<head>', '<head><base href="/admin">');
+        }
+
+        // Inject comprehensive BASE_PATH patch script
+        // This patches fetch(), location.href setters, and SW.register()
+        const patchScript = `<script>
+(function() {
+  var _base = '/admin';
+  window.BASE_PATH = _base;
+
+  // Patch fetch() to prefix relative paths starting with / (skip /api/* which are root-mounted)
+  var _origFetch = window.fetch;
+  window.fetch = function(input, init) {
+    var url = typeof input === 'string' ? input : (input && input.url);
+    if (url && url.charAt(0) === '/' && url.indexOf('/api/') !== 0) {
+      var cloned = typeof input === 'string'
+        ? _base + input
+        : Object.assign({}, input, { url: _base + input.url });
+      return _origFetch.call(window, cloned, init);
+    }
+    return _origFetch.call(window, input, init);
+  };
+
+  // Patch location.href setter for known navigation paths
+  var _navPaths = ['/','/login','/logout','/dashboard','/customers','/sale','/sales',
+    '/stock','/analytics','/delivery','/products','/purchases','/kegs','/report',
+    '/backup','/devices','/expenses','/admin'];
+  Object.defineProperty(window.location, 'href', {
+    set: function(v) {
+      if (typeof v === 'string' && v.charAt(0) === '/' && v.indexOf('/api/') !== 0) {
+        var normalized = v.replace(/\/+$/, '') || '/';
+        if (_navPaths.indexOf(normalized) !== -1) {
+          v = _base + (normalized === '/' ? '' : normalized);
+        }
+      }
+      window.location.assign(v);
+    }
+  });
+
+  // Patch serviceWorker.register() to use BASE_PATH
+  if (navigator && navigator.serviceWorker) {
+    var _origReg = navigator.serviceWorker.register.bind(navigator.serviceWorker);
+    navigator.serviceWorker.register = function(scriptURL, options) {
+      if (typeof scriptURL === 'string' && scriptURL.charAt(0) === '/') {
+        scriptURL = _base + scriptURL;
+      }
+      return _origReg(scriptURL, options);
+    };
+  }
+})();
+</script>`;
+
+        if (!html.includes('window.BASE_PATH')) {
+          html = html.replace('</head>', patchScript + '</head>');
+        }
+
+        res.type('text/html').send(html);
+      });
+    }
+    return origSendFile(filepath, options, callback);
+  };
+  next();
+});
+
+// Mount all admin routes under /admin
+app.use('/admin/login', require('./routes/login'));
+app.use('/admin', require('./routes/dashboard'));
+app.use('/admin/customers', require('./routes/customers'));
+app.use('/admin/sale', require('./routes/sales'));
+app.use('/admin/sales', (req, res) => res.redirect('/admin/sale'));
+app.use('/admin/stock', require('./routes/stock'));
+app.use('/admin/analytics', require('./routes/analytics'));
+app.use('/admin/delivery', require('./routes/delivery'));
+app.use('/admin/products', require('./routes/products'));
+app.use('/admin/purchases', require('./routes/purchases'));
+app.use('/admin/kegs', require('./routes/kegs'));
+app.use('/admin/report', require('./routes/report'));
+app.use('/admin/backup', require('./routes/backup'));
+app.use('/admin/devices', require('./routes/devices'));
+app.use('/admin/expenses', require('./routes/expenses'));
 
 // ==================== API ROUTES ====================
 app.use('/api/customers', require('./routes/api/customers'));

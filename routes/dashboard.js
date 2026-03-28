@@ -16,7 +16,7 @@ router.get('/', (req, res) => {
 
 // GET /dashboard - Redirect to /
 router.get('/dashboard', (req, res) => {
-  res.redirect('/');
+  res.redirect('/admin');
 });
 
 // API: Get dashboard data

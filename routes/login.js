@@ -10,7 +10,7 @@ router.get('/', (req, res) => {
                 req.query?.token;
 
   if (token && getSession(token)) {
-    return res.redirect('/');
+    return res.redirect('/admin');
   }
 
   res.sendFile(path.join(__dirname, '../views/login.html'));
@@ -27,7 +27,7 @@ router.post('/', express.json(), (req, res) => {
     res.json({
       success: true,
       token: result.token,
-      redirect: '/'
+      redirect: '/admin'
     });
   } else {
     res.status(401).json({
@@ -45,7 +45,7 @@ router.get('/logout', (req, res) => {
 
   logout(token);
   res.clearCookie(AUTH_CONFIG.cookieName);
-  res.redirect('/login');
+  res.redirect('/admin/login');
 });
 
 module.exports = router;

@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bia Tươi Tây Ninh - Cung cấp bia tươi giá sỉ</title>
+  <meta name="description" content="Cung cấp bia tươi giá rẻ cho quán nhậu, nhà hàng tại Tây Ninh và khu vực">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Inter', sans-serif; background: #fffbeb; color: #1f2937; line-height: 1.6; }
+
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 1.25rem; }
+
+    /* ─── NAVBAR ─── */
+    .navbar {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      background: rgba(255,251,235,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(245,158,11,0.15);
+      transition: box-shadow 0.3s;
+    }
+    .navbar.scrolled { box-shadow: 0 2px 20px rgba(245,158,11,0.12); }
+    .navbar-inner {
+      display: flex; align-items: center; justify-content: space-between;
+      height: 64px;
+    }
+    .nav-logo {
+      display: flex; align-items: center; gap: 0.5rem;
+      font-weight: 800; font-size: 1.2rem; color: #b45309;
+      text-decoration: none;
+    }
+    .nav-logo span { font-size: 1.6rem; }
+    .nav-links { display: flex; gap: 0.25rem; list-style: none; }
+    .nav-links a {
+      padding: 0.4rem 0.85rem; border-radius: 8px;
+      color: #92400e; font-weight: 500; font-size: 0.875rem;
+      text-decoration: none; transition: all 0.2s;
+    }
+    .nav-links a:hover { background: #fef3c7; color: #b45309; }
+    .nav-admin {
+      background: #f59e0b !important; color: #fff !important;
+      font-weight: 600 !important; border-radius: 8px !important;
+      box-shadow: 0 2px 8px rgba(245,158,11,0.35);
+    }
+    .nav-admin:hover { background: #d97706 !important; transform: translateY(-1px); }
+    .mobile-menu-btn { display: none; background: none; border: none; cursor: pointer; padding: 0.5rem; }
+
+    /* ─── HERO ─── */
+    .hero {
+      min-height: 100vh;
+      display: flex; align-items: center;
+      position: relative; overflow: hidden;
+      padding: 80px 0 60px;
+    }
+    .hero-bg {
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse at 70% 40%, rgba(251,191,36,0.25) 0%, transparent 65%),
+                  radial-gradient(ellipse at 20% 80%, rgba(245,158,11,0.15) 0%, transparent 55%);
+    }
+    .hero-float {
+      position: absolute; font-size: 5rem; opacity: 0.07;
+      animation: float 6s ease-in-out infinite;
+    }
+    .hero-float:nth-child(1) { top: 10%; right: 8%; animation-delay: 0s; }
+    .hero-float:nth-child(2) { bottom: 15%; left: 5%; animation-delay: 2s; }
+    .hero-float:nth-child(3) { top: 40%; right: 15%; animation-delay: 4s; font-size: 3rem; }
+    @keyframes float {
+      0%, 100% { transform: translateY(0) rotate(0deg); }
+      50% { transform: translateY(-20px) rotate(5deg); }
+    }
+    .hero-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 4rem;
+      align-items: center; position: relative; z-index: 1;
+    }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      background: #fef3c7; border: 1px solid #fcd34d;
+      color: #92400e; font-size: 0.8rem; font-weight: 600;
+      padding: 0.3rem 0.85rem; border-radius: 999px;
+      margin-bottom: 1.2rem;
+    }
+    .hero-title {
+      font-size: clamp(2.5rem, 5vw, 4.2rem);
+      font-weight: 900; line-height: 1.05;
+      color: #78350f; letter-spacing: -0.03em;
+      margin-bottom: 1.2rem;
+    }
+    .hero-title .accent { color: #f59e0b; }
+    .hero-sub {
+      font-size: 1.15rem; color: #78716c; margin-bottom: 2rem;
+      max-width: 500px; line-height: 1.7;
+    }
+    .hero-ctas { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 2.5rem; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      padding: 0.75rem 1.5rem; border-radius: 12px;
+      font-weight: 600; font-size: 0.95rem;
+      text-decoration: none; transition: all 0.2s; cursor: pointer;
+      border: none; font-family: inherit;
+    }
+    .btn-primary {
+      background: #f59e0b; color: #fff;
+      box-shadow: 0 4px 14px rgba(245,158,11,0.4);
+    }
+    .btn-primary:hover { background: #d97706; transform: translateY(-2px); box-shadow: 0 6px 20px rgba(245,158,11,0.45); }
+    .btn-outline {
+      background: #fff; color: #92400e; border: 2px solid #fcd34d;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .btn-outline:hover { background: #fef3c7; transform: translateY(-2px); }
+    .btn-outline-dark {
+      background: #78350f; color: #fff; border: 2px solid #78350f;
+    }
+    .btn-outline-dark:hover { background: #451a03; transform: translateY(-2px); }
+    .hero-stats {
+      display: flex; gap: 2rem; padding-top: 1.5rem;
+      border-top: 1px solid rgba(245,158,11,0.2);
+    }
+    .hero-stat-num {
+      font-size: 1.8rem; font-weight: 800; color: #f59e0b;
+      line-height: 1;
+    }
+    .hero-stat-label { font-size: 0.78rem; color: #a8a29e; font-weight: 500; margin-top: 0.2rem; }
+
+    .hero-visual {
+      display: flex; justify-content: center; align-items: center;
+      position: relative;
+    }
+    .beer-illustration {
+      width: 100%; max-width: 420px;
+      background: linear-gradient(145deg, #fffbeb, #fef9c3);
+      border-radius: 2rem;
+      padding: 3rem 2rem;
+      box-shadow: 0 20px 60px rgba(245,158,11,0.2), 0 0 0 1px rgba(245,158,11,0.1);
+      text-align: center;
+    }
+    .beer-illustration .keg-icon { font-size: 7rem; line-height: 1; margin-bottom: 1rem; }
+    .beer-illustration .keg-label {
+      font-size: 0.85rem; color: #a16207; font-weight: 600;
+      background: #fef3c7; display: inline-block;
+      padding: 0.25rem 0.75rem; border-radius: 999px;
+      margin-bottom: 0.5rem;
+    }
+    .beer-illustration .keg-name {
+      font-size: 1.3rem; font-weight: 800; color: #78350f;
+    }
+    .beer-illustration .keg-price {
+      font-size: 1.5rem; font-weight: 800; color: #f59e0b;
+      margin-top: 0.3rem;
+    }
+    .beer-illustration .keg-tag {
+      font-size: 0.75rem; color: #a8a29e; margin-top: 0.3rem;
+    }
+    .floating-tag {
+      position: absolute; background: #fff;
+      border-radius: 12px; padding: 0.6rem 1rem;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+      font-size: 0.8rem; font-weight: 600;
+      animation: float-tag 5s ease-in-out infinite;
+    }
+    .floating-tag.ft1 { top: 10%; right: -10px; animation-delay: 0s; color: #16a34a; }
+    .floating-tag.ft2 { bottom: 15%; left: -10px; animation-delay: 1.5s; color: #2563eb; }
+    .floating-tag.ft3 { top: 50%; right: -20px; animation-delay: 3s; color: #dc2626; }
+    @keyframes float-tag {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+
+    /* ─── TRUST BAR ─── */
+    .trust-bar {
+      background: #78350f; padding: 1.25rem 0;
+    }
+    .trust-inner {
+      display: flex; justify-content: center; gap: 2.5rem; flex-wrap: wrap;
+    }
+    .trust-item {
+      display: flex; align-items: center; gap: 0.6rem;
+      color: #fde68a; font-size: 0.875rem; font-weight: 500;
+    }
+    .trust-icon { font-size: 1.3rem; }
+
+    /* ─── PRODUCTS ─── */
+    .section { padding: 5rem 0; }
+    .section-header { text-align: center; margin-bottom: 3rem; }
+    .section-eyebrow {
+      display: inline-block; font-size: 0.78rem; font-weight: 700;
+      color: #f59e0b; text-transform: uppercase; letter-spacing: 0.1em;
+      margin-bottom: 0.75rem;
+    }
+    .section-title {
+      font-size: clamp(1.8rem, 3vw, 2.6rem);
+      font-weight: 800; color: #78350f;
+      letter-spacing: -0.02em; line-height: 1.2;
+    }
+    .section-sub { color: #a8a29e; font-size: 1rem; margin-top: 0.75rem; max-width: 500px; margin-left: auto; margin-right: auto; }
+    .products-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1.25rem;
+    }
+    .product-card {
+      background: #fff; border-radius: 1.25rem;
+      padding: 1.75rem 1.5rem;
+      border: 1px solid rgba(245,158,11,0.12);
+      transition: all 0.3s;
+      position: relative; overflow: hidden;
+    }
+    .product-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0;
+      height: 3px; background: linear-gradient(90deg, #f59e0b, #fbbf24);
+      opacity: 0; transition: opacity 0.3s;
+    }
+    .product-card:hover { transform: translateY(-4px); box-shadow: 0 12px 32px rgba(245,158,11,0.15); border-color: rgba(245,158,11,0.3); }
+    .product-card:hover::before { opacity: 1; }
+    .product-emoji { font-size: 3rem; margin-bottom: 1rem; display: block; }
+    .product-type {
+      display: inline-block; font-size: 0.7rem; font-weight: 700;
+      color: #d97706; background: #fef3c7;
+      padding: 0.2rem 0.6rem; border-radius: 999px; margin-bottom: 0.6rem;
+      text-transform: uppercase; letter-spacing: 0.05em;
+    }
+    .product-name { font-size: 1.1rem; font-weight: 700; color: #78350f; margin-bottom: 0.3rem; }
+    .product-desc { font-size: 0.82rem; color: #a8a29e; margin-bottom: 1rem; line-height: 1.5; }
+    .product-price { font-size: 1.5rem; font-weight: 800; color: #f59e0b; }
+    .product-price-unit { font-size: 0.75rem; font-weight: 500; color: #a8a29e; }
+    .product-badge {
+      position: absolute; top: 1rem; right: 1rem;
+      font-size: 0.65rem; font-weight: 700;
+      background: #fef3c7; color: #92400e;
+      padding: 0.2rem 0.5rem; border-radius: 6px;
+    }
+    .product-badge.popular { background: #fce7f3; color: #be185d; }
+    .product-badge.hot { background: #fee2e2; color: #dc2626; }
+
+    /* ─── WHY US ─── */
+    .why-section { background: #fff; border-radius: 2rem; margin: 0 1.25rem; padding: 4rem 3rem; }
+    .why-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 2rem; margin-top: 2.5rem; }
+    .why-item { text-align: center; padding: 1.5rem 1rem; }
+    .why-icon-wrap {
+      width: 64px; height: 64px; border-radius: 1rem;
+      background: #fffbeb; display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 1rem; font-size: 1.8rem;
+    }
+    .why-title { font-weight: 700; color: #78350f; margin-bottom: 0.4rem; }
+    .why-desc { font-size: 0.85rem; color: #78716c; line-height: 1.6; }
+
+    /* ─── PRICING ─── */
+    .pricing-bg { background: #78350f; border-radius: 2rem; margin: 0 1.25rem; padding: 4rem 3rem; color: #fff; }
+    .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-top: 2.5rem; }
+    .pricing-item {
+      background: rgba(255,255,255,0.1); border-radius: 1rem;
+      padding: 1.5rem; text-align: center;
+      border: 1px solid rgba(255,255,255,0.15);
+    }
+    .pricing-item .price { font-size: 2rem; font-weight: 800; color: #fbbf24; }
+    .pricing-item .label { font-size: 0.82rem; color: #fde68a; margin-bottom: 0.3rem; }
+    .pricing-item .note { font-size: 0.72rem; color: rgba(255,255,255,0.5); margin-top: 0.3rem; }
+
+    /* ─── CTA BANNER ─── */
+    .cta-banner {
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      border-radius: 2rem; margin: 0 1.25rem;
+      padding: 4rem 3rem; text-align: center; color: #fff;
+      position: relative; overflow: hidden;
+    }
+    .cta-banner::before {
+      content: ''; position: absolute; top: -50%; left: -20%;
+      width: 60%; height: 200%;
+      background: rgba(255,255,255,0.06); border-radius: 50%;
+    }
+    .cta-banner h2 { font-size: clamp(1.6rem, 3vw, 2.2rem); font-weight: 800; margin-bottom: 0.75rem; position: relative; }
+    .cta-banner p { font-size: 1rem; opacity: 0.9; margin-bottom: 2rem; position: relative; }
+    .cta-banner .btn-light {
+      background: #fff; color: #92400e;
+      font-weight: 700; font-size: 1rem;
+      padding: 0.85rem 2rem;
+      border-radius: 12px; border: none; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      transition: all 0.2s; text-decoration: none;
+      position: relative;
+    }
+    .cta-banner .btn-light:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,0.2); }
+
+    /* ─── CONTACT ─── */
+    .contact-section { padding: 5rem 0; }
+    .contact-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; align-items: start; }
+    .contact-info { display: flex; flex-direction: column; gap: 1.25rem; }
+    .contact-item {
+      display: flex; align-items: flex-start; gap: 1rem;
+      background: #fff; border-radius: 1rem;
+      padding: 1.25rem; border: 1px solid rgba(245,158,11,0.12);
+    }
+    .contact-icon { font-size: 1.5rem; margin-top: 0.1rem; }
+    .contact-label { font-size: 0.75rem; color: #a8a29e; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+    .contact-value { font-size: 1rem; font-weight: 600; color: #78350f; }
+    .contact-map {
+      background: #fff; border-radius: 1.25rem; overflow: hidden;
+      border: 1px solid rgba(245,158,11,0.12);
+      min-height: 300px;
+    }
+    .contact-map iframe { width: 100%; height: 100%; min-height: 320px; border: none; }
+
+    /* ─── FOOTER ─── */
+    .footer { background: #451a03; color: rgba(255,255,255,0.5); padding: 2rem 0; text-align: center; }
+    .footer-logo { font-size: 1.2rem; font-weight: 800; color: #fbbf24; margin-bottom: 0.5rem; }
+    .footer p { font-size: 0.8rem; }
+    .footer a { color: rgba(255,255,255,0.6); text-decoration: none; }
+    .footer a:hover { color: #fbbf24; }
+
+    /* ─── SCROLL ANIMATIONS ─── */
+    .reveal { opacity: 0; transform: translateY(30px); transition: all 0.7s ease; }
+    .reveal.visible { opacity: 1; transform: translateY(0); }
+
+    /* ─── RESPONSIVE ─── */
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+      .nav-links.open {
+        display: flex; flex-direction: column; position: absolute;
+        top: 64px; left: 0; right: 0; background: #fffbeb;
+        border-bottom: 1px solid rgba(245,158,11,0.15);
+        padding: 0.75rem; gap: 0.25rem;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+      }
+      .nav-links.open a { border-radius: 8px; }
+      .mobile-menu-btn { display: block; }
+      .hero-grid { grid-template-columns: 1fr; gap: 2.5rem; text-align: center; }
+      .hero-ctas { justify-content: center; }
+      .hero-stats { justify-content: center; }
+      .hero-visual { order: -1; }
+      .beer-illustration { max-width: 280px; padding: 2rem 1.5rem; }
+      .beer-illustration .keg-icon { font-size: 5rem; }
+      .floating-tag { display: none; }
+      .why-section, .pricing-bg, .cta-banner { margin: 0; border-radius: 1rem; padding: 3rem 1.5rem; }
+      .contact-grid { grid-template-columns: 1fr; }
+      .trust-inner { gap: 1.25rem; }
+    }
+
+    @media (max-width: 480px) {
+      .hero-stats { gap: 1.25rem; }
+      .hero-stat-num { font-size: 1.4rem; }
+      .products-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ─── NAVBAR ─── -->
+  <nav class="navbar" id="navbar">
+    <div class="container navbar-inner">
+      <a href="/" class="nav-logo"><span>🍺</span> Bia Tươi Tây Ninh</a>
+      <ul class="nav-links" id="navLinks">
+        <li><a href="#san-pham">Sản phẩm</a></li>
+        <li><a href="#vi-sao">Vì sao chọn</a></li>
+        <li><a href="#bang-gia">Bảng giá</a></li>
+        <li><a href="#lien-he">Liên hệ</a></li>
+        <li><a href="/admin" class="nav-admin">Đăng nhập quản lý</a></li>
+      </ul>
+      <button class="mobile-menu-btn" onclick="toggleMenu()" aria-label="Menu">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#92400e" stroke-width="2">
+          <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ─── HERO ─── -->
+  <section class="hero">
+    <div class="hero-bg"></div>
+    <div class="hero-float">🍺</div>
+    <div class="hero-float">🍻</div>
+    <div class="hero-float">🥂</div>
+    <div class="container hero-grid">
+      <div class="hero-content">
+        <div class="hero-badge">
+          <span>📍 Tây Ninh</span> Giao tận nơi toàn khu vực
+        </div>
+        <h1 class="hero-title">
+          Bia Tươi<br><span class="accent">Giá Sỉ Tốt Nhất</span>
+        </h1>
+        <p class="hero-sub">
+          Chuyên cung cấp bia tươi nhập khẩu cho quán nhậu, nhà hàng,
+          tiệc sinh nhật tại Tây Ninh. Giá cực tốt — giao hàng nhanh chóng.
+        </p>
+        <div class="hero-ctas">
+          <a href="tel:0909123456" class="btn btn-primary">📞 Gọi ngay</a>
+          <a href="https://zalo.me/0909123456" target="_blank" class="btn btn-outline">💬 Zalo</a>
+          <a href="/admin" class="btn btn-outline-dark">🔐 Đăng nhập quản lý</a>
+        </div>
+        <div class="hero-stats">
+          <div>
+            <div class="hero-stat-num">100+</div>
+            <div class="hero-stat-label">Khách hàng</div>
+          </div>
+          <div>
+            <div class="hero-stat-num">24h</div>
+            <div class="hero-stat-label">Giao nhanh</div>
+          </div>
+          <div>
+            <div class="hero-stat-num">5★</div>
+            <div class="hero-stat-label">Đánh giá</div>
+          </div>
+        </div>
+      </div>
+      <div class="hero-visual">
+        <div class="beer-illustration">
+          <div class="keg-icon">🍺</div>
+          <div class="keg-label">Keg 30L · Nhập khẩu</div>
+          <div class="keg-name">Heineken Fresh</div>
+          <div class="keg-price">2.450.000đ</div>
+          <div class="keg-tag">Giá sỉ · Miễn phí vận chuyển</div>
+        </div>
+        <div class="floating-tag ft1">✓ Cam kết bia tươi</div>
+        <div class="floating-tag ft2">🚚 Giao trong ngày</div>
+        <div class="floating-tag ft3">💰 Giá tốt nhất</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── TRUST BAR ─── -->
+  <div class="trust-bar">
+    <div class="container trust-inner">
+      <div class="trust-item"><span class="trust-icon">🏆</span> Nhập khẩu chính hãng</div>
+      <div class="trust-item"><span class="trust-icon">🚚</span> Giao hàng tận nơi</div>
+      <div class="trust-item"><span class="trust-icon">💰</span> Giá sỉ cạnh tranh</div>
+      <div class="trust-item"><span class="trust-icon">📞</span> Hỗ trợ 24/7</div>
+    </div>
+  </div>
+
+  <!-- ─── PRODUCTS ─── -->
+  <section class="section" id="san-pham">
+    <div class="container">
+      <div class="section-header reveal">
+        <div class="section-eyebrow">Danh mục sản phẩm</div>
+        <h2 class="section-title">Bia Tươi Đa Dạng<br>Đáp Ứng Mọi Nhu Cầu</h2>
+        <p class="section-sub">Từ bia vàng nhẹ đến bia đen đậm đà, phù hợp mọi quán bar và nhà hàng</p>
+      </div>
+      <div class="products-grid">
+        <div class="product-card reveal">
+          <span class="product-badge hot">🔥 Bán chạy</span>
+          <span class="product-emoji">🍺</span>
+          <div class="product-type">Bia vàng</div>
+          <div class="product-name">Heineken Fresh</div>
+          <div class="product-desc">Bia vàng Hà Lan, vị nhẹ, thơm hoa bia. Phù hợp mọi đối tượng.</div>
+          <div class="product-price">2.450.000đ <span class="product-price-unit">/ Keg 30L</span></div>
+        </div>
+        <div class="product-card reveal">
+          <span class="product-badge popular">⭐ Yêu thích</span>
+          <span class="product-emoji">🍻</span>
+          <div class="product-type">Bia vàng</div>
+          <div class="product-name">Carlsberg Special</div>
+          <div class="product-desc">Hương vị Đan Mạch cổ điển, cân bằng hoàn hảo giữa đắng và ngọt.</div>
+          <div class="product-price">2.250.000đ <span class="product-price-unit">/ Keg 30L</span></div>
+        </div>
+        <div class="product-card reveal">
+          <span class="product-badge">✨ Đặc biệt</span>
+          <span class="product-emoji">🍷</span>
+          <div class="product-type">Bia đen</div>
+          <div class="product-name">Guinness Draught</div>
+          <div class="product-desc">Bia đen Ireland, thơm nồng, vị đậm đà. Tạo khác biệt cho thực đơn.</div>
+          <div class="product-price">2.650.000đ <span class="product-price-unit">/ Keg 30L</span></div>
+        </div>
+        <div class="product-card reveal">
+          <span class="product-emoji">🥂</span>
+          <div class="product-type">Bia vàng cao cấp</div>
+          <div class="product-name">Stella Artois</div>
+          <div class="product-desc">Bia Bỉ thanh lịch, phong cách sang trọng cho nhà hàng cao cấp.</div>
+          <div class="product-price">2.850.000đ <span class="product-price-unit">/ Keg 30L</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── WHY US ─── -->
+  <section class="section" id="vi-sao">
+    <div class="container">
+      <div class="why-section">
+        <div class="section-header reveal">
+          <div class="section-eyebrow">Tại sao chọn chúng tôi</div>
+          <h2 class="section-title">Vì Sao 100+ Quán<br>Chọn Bia Tươi Tây Ninh?</h2>
+        </div>
+        <div class="why-grid">
+          <div class="why-item reveal">
+            <div class="why-icon-wrap">💰</div>
+            <div class="why-title">Giá Sỉ Cực Tốt</div>
+            <div class="why-desc">Nhập trực tiếp từ nhà phân phối, bỏ qua trung gian. Tiết kiệm đến 15% chi phí.</div>
+          </div>
+          <div class="why-item reveal">
+            <div class="why-icon-wrap">🚚</div>
+            <div class="why-title">Giao Hàng Nhanh</div>
+            <div class="why-desc">Giao trong ngày hoặc đặt trước theo lịch. Miễn phí vận chuyển cho đơn từ 2 keg.</div>
+          </div>
+          <div class="why-item reveal">
+            <div class="why-icon-wrap">🍺</div>
+            <div class="why-title">Bia Tươi Đảm Bảo</div>
+            <div class="why-desc">Hàng nhập khẩu chính hãng, bảo quản đúng chuẩn, đảm bảo độ tươi ngon.</div>
+          </div>
+          <div class="why-item reveal">
+            <div class="why-icon-wrap">🤝</div>
+            <div class="why-title">Hỗ Trợ Tận Tâm</div>
+            <div class="why-desc">Tư vấn setup tủ bia, hỗ trợ kỹ thuật, chính sách công nợ linh hoạt cho khách quen.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── PRICING ─── -->
+  <section class="section" id="bang-gia">
+    <div class="container">
+      <div class="pricing-bg">
+        <div class="section-header reveal" style="color:#fff">
+          <div class="section-eyebrow" style="color:#fbbf24">Bảng giá tham khảo</div>
+          <h2 class="section-title" style="color:#fff">Giá Cực Tốt<br>Cho Đại Lý & Quán</h2>
+          <p class="section-sub" style="color:rgba(255,255,255,0.6)">Liên hệ để nhận báo giá chính xác theo số lượng</p>
+        </div>
+        <div class="pricing-grid">
+          <div class="pricing-item reveal">
+            <div class="label">Heineken Keg 30L</div>
+            <div class="price">2.450.000đ</div>
+            <div class="note">Đã có VAT</div>
+          </div>
+          <div class="pricing-item reveal">
+            <div class="label">Carlsberg Keg 30L</div>
+            <div class="price">2.250.000đ</div>
+            <div class="note">Đã có VAT</div>
+          </div>
+          <div class="pricing-item reveal">
+            <div class="label">Guinness Keg 30L</div>
+            <div class="price">2.650.000đ</div>
+            <div class="note">Đã có VAT</div>
+          </div>
+          <div class="pricing-item reveal">
+            <div class="label">Stella Artois Keg 30L</div>
+            <div class="price">2.850.000đ</div>
+            <div class="note">Đã có VAT</div>
+          </div>
+        </div>
+        <div style="text-align:center;margin-top:2rem;position:relative">
+          <a href="tel:0909123456" class="btn btn-light">📞 Liên hệ báo giá ngay</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── CTA BANNER ─── -->
+  <section class="section">
+    <div class="container">
+      <div class="cta-banner reveal">
+        <h2>Sẵn Sàng Đồng Hành<br>Cùng Quán Của Bạn?</h2>
+        <p>Gọi ngay hoặc nhắn Zalo để được tư vấn miễn phí và báo giá tốt nhất</p>
+        <a href="tel:0909123456" class="btn-light">📞 0909 123 456</a>
+        <span style="display:inline-block;margin:0 0.5rem;font-weight:700;opacity:0.6">hoặc</span>
+        <a href="https://zalo.me/0909123456" target="_blank" class="btn-light" style="background:rgba(255,255,255,0.15);color:#fff;border:2px solid rgba(255,255,255,0.4)">💬 Nhắn Zalo</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── CONTACT ─── -->
+  <section class="contact-section" id="lien-he">
+    <div class="container">
+      <div class="section-header reveal">
+        <div class="section-eyebrow">Liên hệ</div>
+        <h2 class="section-title">Kết Nối Với<br>Chúng Tôi Ngay</h2>
+      </div>
+      <div class="contact-grid reveal">
+        <div class="contact-info">
+          <div class="contact-item">
+            <span class="contact-icon">📞</span>
+            <div>
+              <div class="contact-label">Điện thoại</div>
+              <a href="tel:0909123456" class="contact-value">0909 123 456</a>
+            </div>
+          </div>
+          <div class="contact-item">
+            <span class="contact-icon">💬</span>
+            <div>
+              <div class="contact-label">Zalo</div>
+              <a href="https://zalo.me/0909123456" target="_blank" class="contact-value">0909 123 456</a>
+            </div>
+          </div>
+          <div class="contact-item">
+            <span class="contact-icon">📍</span>
+            <div>
+              <div class="contact-label">Địa chỉ</div>
+              <div class="contact-value">Tây Ninh, Việt Nam</div>
+            </div>
+          </div>
+          <div class="contact-item">
+            <span class="contact-icon">🕐</span>
+            <div>
+              <div class="contact-label">Giờ làm việc</div>
+              <div class="contact-value">6:00 — 22:00 (Thứ 2 — CN)</div>
+            </div>
+          </div>
+          <div class="contact-item">
+            <span class="contact-icon">🔐</span>
+            <div>
+              <div class="contact-label">Quản lý</div>
+              <a href="/admin" class="contact-value">Đăng nhập hệ thống →</a>
+            </div>
+          </div>
+        </div>
+        <div class="contact-map">
+          <iframe
+            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d501084.37669829936!2d105.8!3d11.3!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3174d71c9c5d0b87%3A0x6a7e1d9c3c3c3c3c!2zVOG6qW0gTmluaA!5e0!3m2!1svi!2s!4v1700000000000!5m2!1svi!2s"
+            loading="lazy"
+            referrerpolicy="no-referrer-when-downgrade"
+            title="Vị trí Bia Tươi Tây Ninh">
+          </iframe>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── FOOTER ─── -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-logo">🍺 Bia Tươi Tây Ninh</div>
+      <p>© 2026 Bia Tươi Tây Ninh. Cung cấp bia tươi giá sỉ cho quán nhậu, nhà hàng toàn khu vực.</p>
+      <p style="margin-top:0.5rem"><a href="/admin">Đăng nhập quản lý</a></p>
+    </div>
+  </footer>
+
+  <script>
+    // Navbar scroll effect
+    window.addEventListener('scroll', () => {
+      document.getElementById('navbar').classList.toggle('scrolled', window.scrollY > 20);
+    });
+
+    // Mobile menu toggle
+    function toggleMenu() {
+      document.getElementById('navLinks').classList.toggle('open');
+    }
+
+    // Scroll reveal
+    const revealEls = document.querySelectorAll('.reveal');
+    const revealObserver = new IntersectionObserver((entries) => {
+      entries.forEach((entry, i) => {
+        if (entry.isIntersecting) {
+          setTimeout(() => entry.target.classList.add('visible'), i * 80);
+          revealObserver.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.1 });
+    revealEls.forEach(el => revealObserver.observe(el));
+  </script>
+</body>
+</html>
