@@ -2,7 +2,7 @@
   "name": "Beer POS Pro - Bia Tươi",
   "short_name": "BeerPOS",
   "description": "Ứng dụng bán hàng bia tươi - hoạt động offline, đồng bộ đám mây",
-  "start_url": "/",
+  "start_url": "/admin?source=pwa",
   "display": "standalone",
   "background_color": "#0f172a",
   "theme_color": "#1e40af",
