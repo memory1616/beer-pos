@@ -193,7 +193,7 @@
   <script src="/sync.js"></script>
   <script>
   // Check authentication
-  if (!isLoggedIn()) { window.location.href = '/login'; }
+  if (!isLoggedIn()) { window.location.href = window.BASE_PATH + '/login'; }
 
   // Service Worker — bật offline-first caching
   if ('serviceWorker' in navigator) {

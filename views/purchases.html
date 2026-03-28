@@ -32,7 +32,7 @@
         <span class="font-semibold text-sm">Nhập hàng</span>
       </div>
       <div class="flex gap-3 text-xl">
-        <a href="/" class="text-gray-500 hover:bg-gray-100 px-2 rounded">🏠</a>
+        <a href="/admin" class="text-gray-500 hover:bg-gray-100 px-2 rounded">🏠</a>
       </div>
     </div>
   </header>
@@ -101,23 +101,23 @@
 
   <!-- Bottom Navigation -->
   <nav class="bottomnav">
-    <a href="/">
+    <a href="/admin">
       <span class="icon">🏠</span>
       <span>Home</span>
     </a>
-    <a href="/delivery">
+    <a href="/admin/delivery">
       <span class="icon">🚚</span>
       <span>Giao</span>
     </a>
-    <a href="/sale">
+    <a href="/admin/sale">
       <span class="icon">🍺</span>
       <span>Bán</span>
     </a>
-    <a href="/customers">
+    <a href="/admin/customers">
       <span class="icon">👤</span>
       <span>KH</span>
     </a>
-    <a href="/devices" class="active">
+    <a href="/admin/devices" class="active">
       <span class="icon">📦</span>
       <span>TB</span>
     </a>
@@ -259,7 +259,7 @@
   <script src="/js/debug.js"></script>
   <script>
   // Check authentication
-  if (!isLoggedIn()) { window.location.href = '/login'; }
+  if (!isLoggedIn()) { window.location.href = window.BASE_PATH + '/login'; }
 
   // Service Worker — bật offline-first caching
   if ('serviceWorker' in navigator) {
