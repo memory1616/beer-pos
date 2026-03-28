@@ -1,4 +1,4 @@
-const CACHE_NAME = "beer-pos-v15";
+const CACHE_NAME = "beer-pos-v16";
 const DB_NAME = "BeerPOS";
 const STORE_SYNC_QUEUE = "sync_queue";
 
@@ -249,8 +249,13 @@ self.addEventListener("fetch", event => {
     return;
   }
 
-  // API GET requests — network first, cache for offline fallback
+  // API GET requests — network only, never cache (especially auth endpoints)
   if (url.pathname.startsWith("/api/") && event.request.method === "GET") {
+    // NEVER cache auth endpoints — stale auth response causes logout loop
+    if (url.pathname.startsWith("/api/auth")) {
+      event.respondWith(fetch(event.request));
+      return;
+    }
     event.respondWith(
       caches.open(CACHE_NAME).then(async cache => {
         try {
@@ -340,4 +345,4 @@ async function handleAPIMutation(request) {
   }
 }
 
-console.log("[SW] BeerPOS Service Worker v15 loaded");
+console.log("[SW] BeerPOS Service Worker v16 loaded");
