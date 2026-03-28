@@ -204,10 +204,7 @@ router.post('/deliver', (req, res) => {
       if (customerId && customer) {
         const newBalance = (customer.keg_balance || 0) + quantity;
         db.prepare('UPDATE customers SET keg_balance = ? WHERE id = ?').run(newBalance, customerId);
-
-        db.prepare(
-          'INSERT INTO keg_transactions (customer_id, type, quantity, note) VALUES (?, ?, ?, ?)'
-        ).run(customerId, 'delivery', quantity, note || 'Giao vỏ');
+        // (logKegTransaction already called below after transaction)
       }
 
       // Sync inventory vì products.stock vừa thay đổi
@@ -261,10 +258,7 @@ router.post('/collect', (req, res) => {
       if (customerId && customer) {
         const newBalance = Math.max(0, (customer.keg_balance || 0) - quantity);
         db.prepare('UPDATE customers SET keg_balance = ? WHERE id = ?').run(newBalance, customerId);
-
-        db.prepare(
-          'INSERT INTO keg_transactions (customer_id, type, quantity, note) VALUES (?, ?, ?, ?)'
-        ).run(customerId, 'return', quantity, note || 'Thu vỏ rỗng');
+        // (logKegTransaction already called below after transaction)
       }
 
       updateEmptyCollected(state.emptyCollected + quantity);

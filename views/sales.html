@@ -8,9 +8,12 @@
   <meta name="theme-color" content="#16a34a">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="icon" type="image/png" href="/icon-192.png">
   <link rel="stylesheet" href="/css/tailwind.css">
   <link rel="stylesheet" href="/css/unified.css">
   <script src="/js/auth.js"></script>
+  <script src="/js/dark-mode.js"></script>
   <script src="/js/layout.js"></script>
   <script>requireAuth();</script>
   <style>
@@ -28,22 +31,20 @@
 <body class="bg-gray-100 text-gray-800 min-h-screen pb-20">
   <div id="app"></div>
 
-  <!-- Invoice Modal - Layout chuẩn POS -->
-  <div id="invoiceModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 p-4">
-    <div class="bg-white rounded-2xl w-full max-w-md p-6 relative max-h-[90vh] overflow-y-auto">
-      <button onclick="closeInvoice()" class="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-2xl font-bold w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100">&times;</button>
+  <!-- Invoice Modal - Full screen nhưng giữ layout cũ -->
+  <div id="invoiceModal" class="fixed inset-0 bg-black/80 hidden items-center justify-center z-50">
+    <div class="bg-white w-full h-full max-w-full p-6 relative overflow-y-auto flex flex-col" style="max-width: 100vw !important; border-radius: 0 !important;">
+      <button onclick="closeInvoice()" class="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-2xl font-bold w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 z-10">&times;</button>
       <div class="text-center mb-3">
         <div class="text-xl font-bold">HÓA ĐƠN</div>
         <div id="invoiceTotal" class="text-green-600 mt-2" style="font-size: 36px; font-weight: 700;">0 ₫</div>
       </div>
-      <div id="invoiceContent" class="text-sm invoice-pos-content"></div>
-      <div class="mt-4 pt-4 border-t border-gray-200 text-center">
+      <div id="invoiceContent" class="text-sm invoice-pos-content flex-1 overflow-y-auto px-2"></div>
+      <div class="mt-4 pt-4 border-t border-gray-200 text-center flex-shrink-0">
         <p class="text-sm font-medium text-gray-700 mb-2">Phương thức thanh toán</p>
         <img id="qrCode" src="" class="w-48 mx-auto" alt="QR Code">
         <p class="text-xs text-gray-500 mt-2">Quét QR thanh toán</p>
       </div>
-      <button onclick="closeInvoice()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-xl mt-4">Đóng</button>
-      <button onclick="reloadPage()" class="w-full mt-2 bg-gray-100 text-gray-600 font-semibold py-2.5 rounded-xl text-sm">🔄 Cập nhật tồn kho</button>
     </div>
   </div>
   <style>
@@ -140,7 +141,7 @@
 
   <!-- Đổi bia lỗi Modal -->
   <div id="replacementModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 p-4">
-    <div class="bg-white rounded-2xl w-full max-w-md p-6 relative">
+    <div class="bg-white rounded-2xl w-full max-w-md min-w-0 p-6 relative">
       <button onclick="closeReplacementModal()" class="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-2xl font-bold w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100">&times;</button>
       <div class="text-xl font-bold mb-4">🔄 Đổi bia lỗi</div>
       <div class="space-y-4">
@@ -162,7 +163,7 @@
         </div>
         <div>
           <label class="block text-sm font-medium mb-2">Số lượng</label>
-          <input type="number" id="replacementQty" value="1" min="1" class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-center text-lg font-bold">
+          <input type="number" id="replacementQty" value="1" min="1" class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-left text-lg font-bold">
         </div>
         <div>
           <label class="block text-sm font-medium mb-2">Lý do</label>
@@ -173,9 +174,9 @@
             <option value="Khác">Khác</option>
           </select>
         </div>
-        <div class="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-          <input type="checkbox" id="giftKegs" onchange="toggleGiftMode()" class="w-5 h-5 accent-orange-500">
-          <label for="giftKegs" class="text-sm font-semibold text-amber-800">
+        <div class="grid grid-cols-[auto_minmax(0,1fr)] gap-3 items-start bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+          <input type="checkbox" id="giftKegs" onchange="toggleGiftMode()" class="w-5 h-5 mt-0.5 accent-orange-500 self-start">
+          <label for="giftKegs" class="block max-w-full text-sm font-semibold text-amber-800 leading-snug break-words">
             🎁 Tặng uống thử (khách mới — vỏ keg vào kho vỏ rỗng ngay)
           </label>
         </div>

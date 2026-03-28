@@ -1,33 +1,35 @@
 // ==================== AUTH UTILITY ====================
-// IMPORTANT: Token is now stored in an httpOnly cookie (set by server on login).
-// We use sessionStorage for UI state only — it auto-clears when tab/browser closes.
-// The actual auth is validated server-side via the httpOnly cookie.
+// Token stored in localStorage for persistence across browser sessions.
+// Logout only clears when user explicitly logs out.
 
-// Check if user is logged in (UI state only — server validates cookie)
-function isLoggedIn() {
-  return sessionStorage.getItem('auth_uid') === '1';
+const SESSION_KEY = 'beer_session_token';
+
+// Read token from localStorage (primary) or cookie (fallback)
+function getToken() {
+  return localStorage.getItem(SESSION_KEY) || null;
 }
 
-// Logout — calls server to clear cookie, then clears UI state
+// Check if user is logged in (UI state — verified with server)
+function isLoggedIn() {
+  return !!localStorage.getItem('auth_uid');
+}
+
+// Logout — clears local state, then call server to clear cookie
 function logout() {
-  sessionStorage.removeItem('auth_uid');
-  // Server will clear httpOnly cookie via /login/logout
+  localStorage.removeItem('auth_uid');
+  localStorage.removeItem(SESSION_KEY);
   window.location.href = '/login/logout';
 }
 
-// On successful login, UI remembers auth state via sessionStorage
-// (the real token is in the httpOnly cookie, sent automatically by browser)
+// On successful login — store UI state + token
 function markLoggedIn() {
-  sessionStorage.setItem('auth_uid', '1');
+  localStorage.setItem('auth_uid', '1');
 }
 
-// API fetch with Authorization header fallback
-// Token is read from sessionStorage for the header; server validates httpOnly cookie
+// API fetch that includes token in Authorization header
 async function authFetch(url, options = {}) {
-  const token = sessionStorage.getItem('sessionToken');
-  const headers = {
-    ...options.headers,
-  };
+  const token = localStorage.getItem(SESSION_KEY);
+  const headers = { ...options.headers };
   if (token) {
     headers['Authorization'] = 'Bearer ' + token;
   }
@@ -35,23 +37,39 @@ async function authFetch(url, options = {}) {
   const response = await fetch(url, { ...options, headers });
 
   if (response.status === 401) {
-    const data = await response.json().catch(() => ({}));
-    if (data.loginRequired) {
-      logout();
-      throw new Error('Login required');
-    }
+    logout();
+    throw new Error('Login required');
   }
 
   return response;
 }
 
-// Check auth on page load — redirect if not logged in
+// Check auth on page load — verify session with server via /api/auth/me
 async function requireAuth() {
-  if (!isLoggedIn()) {
-    window.location.href = '/login';
+  const token = localStorage.getItem(SESSION_KEY);
+  if (!token) {
+    window.location.replace('/login');
     return false;
   }
-  return true;
+
+  // Verify session with server
+  let res;
+  try {
+    res = await fetch('/api/auth/me', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+  } catch (_) {
+    window.location.replace('/login');
+    return false;
+  }
+
+  if (res.ok) {
+    localStorage.setItem('auth_uid', '1');
+    return true;
+  }
+
+  logout();
+  return false;
 }
 
 // Export for use in other scripts
@@ -61,4 +79,5 @@ if (typeof window !== 'undefined') {
   window.logout = logout;
   window.authFetch = authFetch;
   window.requireAuth = requireAuth;
+  window.getToken = getToken;
 }

@@ -10,6 +10,7 @@ const cron = require('node-cron');
 const rateLimit = require('express-rate-limit');
 const os = require('os');
 const logger = require('./src/utils/logger');
+const db = require('./database');
 const { getSession, AUTH_CONFIG } = require('./middleware/auth');
 
 const app = express();
@@ -44,9 +45,12 @@ const limiter = rateLimit({
 // Apply rate limiting to all API routes (skipping /api/discover which is a LAN ping)
 app.use('/api', limiter);
 
-// CORS for LAN cloud sync — allows requests from any device in the network
+// CORS for LAN cloud sync — configurable origin for production
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || '*';
 app.use('/api/sync', (req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  const origin = req.headers.origin;
+  const allowed = ALLOWED_ORIGIN === '*' ? '*' : (origin === ALLOWED_ORIGIN ? origin : '');
+  res.setHeader('Access-Control-Allow-Origin', allowed);
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.sendStatus(204);
@@ -59,10 +63,10 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Favicon - inline SVG beer mug
+// Favicon — serve icon-192.png so the browser tab always shows the PWA icon
 app.get('/favicon.ico', (req, res) => {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🍺</text></svg>`;
-  res.type('image/svg+xml').send(svg);
+  res.type('image/png');
+  res.sendFile(path.join(__dirname, 'public', 'icon-192.png'));
 });
 
 // Request logger — only log slow requests (>500ms) or errors
@@ -228,6 +232,7 @@ app.get('/api/discover', (req, res) => {
 
   const { deviceId } = req.query;
   const isCloudServer = process.env.IS_CLOUD_SERVER === 'true' || process.env.CLOUD_MODE === 'true';
+  const cloudDomain = process.env.CLOUD_DOMAIN || null;
 
   // Get all LAN IP addresses of this server (skip loopback/internal)
   const interfaces = os.networkInterfaces();
@@ -247,14 +252,15 @@ app.get('/api/discover', (req, res) => {
     } catch {}
   }
 
+  // Prefer cloud domain (internet access) over LAN IP
+  const primaryUrl = cloudDomain || (lanIPs.length > 0 ? `http://${lanIPs[0]}:${PORT}` : null);
+
   res.json({
     cloud: true,
     name: DISTRIBUTOR_NAME,
-    // Array of all LAN IPs so client can pick the right one
     lanIPs,
-    // Primary URL based on first found LAN IP (not req.get('host') which may be localhost)
-    url: lanIPs.length > 0 ? `http://${lanIPs[0]}:${PORT}` : null,
-    version: '1.0.0',
+    url: primaryUrl,
+    domain: cloudDomain,          // Internet URL (for remote clients)
     isCloudServer,
     serverTime: new Date().toISOString()
   });

@@ -95,6 +95,24 @@ router.post('/', (req, res) => {
     );
     const customerId = result.lastInsertRowid;
 
+    // Assign devices (fridges) to the new customer
+    const now = new Date().toISOString();
+    const numHorizontal = parseInt(horizontal_fridge) || 0;
+    const numVertical = parseInt(vertical_fridge) || 0;
+
+    if (numHorizontal > 0) {
+      const available = db.prepare(`SELECT id FROM devices WHERE type = 'horizontal' AND status = 'available' LIMIT ?`).all(numHorizontal);
+      for (const device of available) {
+        db.prepare(`UPDATE devices SET status = 'in_use', customer_id = ?, assigned_date = ? WHERE id = ?`).run(customerId, now, device.id);
+      }
+    }
+    if (numVertical > 0) {
+      const available = db.prepare(`SELECT id FROM devices WHERE type = 'vertical' AND status = 'available' LIMIT ?`).all(numVertical);
+      for (const device of available) {
+        db.prepare(`UPDATE devices SET status = 'in_use', customer_id = ?, assigned_date = ? WHERE id = ?`).run(customerId, now, device.id);
+      }
+    }
+
     // Save prices if provided
     if (prices && typeof prices === 'object') {
       const insertPrice = db.prepare('INSERT OR REPLACE INTO prices (customer_id, product_id, price) VALUES (?, ?, ?)');

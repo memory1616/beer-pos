@@ -1,35 +1,41 @@
-// BeerPOS PM2 Ecosystem Configuration
 module.exports = {
-  apps: [
-    {
-      name: 'beerpos-local',
-      script: './server.js',
-      cwd: './',
-      env: {
-        PORT: 3000,
-        HOST: '0.0.0.0',
-        NODE_ENV: 'production'
-      },
-      instances: 1,
-      autorestart: true,
-      watch: false,
-      max_memory_restart: '500M'
+  apps: [{
+    name: 'beerpos',
+    script: 'server.js',
+    instances: 1,
+    exec_mode: 'cluster',
+    env: {
+      NODE_ENV: 'production',
+      PORT: 3000,
+      HOST: '127.0.0.1',
+      IS_CLOUD_SERVER: 'true',
+      CLOUD_MODE: 'true',
+      SESSION_SECRET: process.env.SESSION_SECRET || 'change-me-in-production',
+      DISTRIBUTOR_NAME: 'BeerPOS Cloud',
+      TRUST_PROXY: 'true',
+      ALLOWED_ORIGIN: 'https://your-domain.com',
     },
-    {
-      name: 'beerpos-cloud',
-      script: './server.js',
-      cwd: './',
-      env: {
-        PORT: 3001,
-        HOST: '0.0.0.0',
-        NODE_ENV: 'production',
-        IS_CLOUD_SERVER: 'true',
-        CLOUD_MODE: 'true'
-      },
-      instances: 1,
-      autorestart: true,
-      watch: false,
-      max_memory_restart: '500M'
-    }
-  ]
+    error_file: 'logs/err.log',
+    out_file: 'logs/out.log',
+    log_date_format: 'YYYY-MM-DD HH:mm:ss',
+    max_memory_restart: '500M',
+    autorestart: true,
+    restart_delay: 4000,
+    max_restarts: 10,
+    exp_backoff_restart_delay: 100,
+    watch: false,
+    ignore_watch: [
+      'node_modules',
+      'logs',
+      'backup',
+      'public',
+      'views',
+      'src',
+      'routes',
+      'middleware',
+      'database.sqlite',
+      'database.sqlite-*',
+      '*.log',
+    ],
+  }],
 };

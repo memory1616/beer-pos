@@ -1,6 +1,6 @@
 // ==================== AUTHENTICATION ====================
 // Session-based auth for Beer POS
-// Token stored in httpOnly cookie (not localStorage) to prevent XSS theft
+// Token is returned to client on login and stored in localStorage.
 const crypto = require('crypto');
 
 // In-memory session store
@@ -16,7 +16,7 @@ if (!ADMIN_PASSWORD) {
 
 const AUTH_CONFIG = {
   username: process.env.ADMIN_USER || 'admin',
-  sessionDuration: parseInt(process.env.SESSION_DURATION_MS) || (24 * 60 * 60 * 1000), // 24h default
+  sessionDuration: parseInt(process.env.SESSION_DURATION_MS) || (30 * 24 * 60 * 60 * 1000), // 30 days
   cookieName: 'session_token',
   cookieSecure: process.env.NODE_ENV === 'production',
   cookieSameSite: 'lax'
@@ -105,10 +105,9 @@ function getSession(token) {
 // Middleware options for setting the auth cookie
 function cookieOptions() {
   return {
-    httpOnly: true,
+    maxAge: AUTH_CONFIG.sessionDuration,
     secure: AUTH_CONFIG.cookieSecure,
-    sameSite: AUTH_CONFIG.cookieSameSite,
-    maxAge: AUTH_CONFIG.sessionDuration
+    sameSite: AUTH_CONFIG.cookieSameSite
   };
 }
 

@@ -31,6 +31,7 @@ function getHeaderWithActions(title, icons = '', actions = '') {
       <div class="actions">
         <span id="onlineStatus" class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-400 mr-1">⏳</span>
         <span id="syncStatus" class="text-xs text-gray-400 mr-1"></span>
+        <button id="themeToggle" onclick="window.__darkMode && window.__darkMode.cycle()" title="Chế độ sáng" style="background:none;border:none;cursor:pointer;font-size:18px;padding:4px 6px;border-radius:6px;">☀️</button>
         ${actions}
       </div>
     </header>

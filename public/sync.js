@@ -251,19 +251,21 @@ async function scanForCloud() {
   }
 
   if (found.length > 0) {
-    const cloud = found[0];
-    const prevSync = hasSyncedWithCloud(cloud.url);
-    localStorage.setItem('cloudUrl', cloud.url);
+    // Prefer internet domain over LAN IP for remote/cloud deployment
+    const cloud = found.find(c => c.domain) || found[0];
+    const cloudUrl = cloud.domain || cloud.url;
+    const prevSync = hasSyncedWithCloud(cloudUrl);
+    localStorage.setItem('cloudUrl', cloudUrl);
     localStorage.removeItem('isCloudServer');
-    syncCloudUrlToSW(cloud.url);
-    scanEl.innerHTML = '✅ Tìm thấy: <strong>' + cloud.name + '</strong><br><span style="font-size:12px;color:#6b7280">' + cloud.url + '</span>';
+    syncCloudUrlToSW(cloudUrl);
+    scanEl.innerHTML = '✅ Tìm thấy: <strong>' + cloud.name + '</strong><br><span style="font-size:12px;color:#6b7280">' + cloudUrl + '</span>';
     setTimeout(async () => {
       await updateCloudModalStatus();
       await updateSmartStatus();
       showToast('☁️ Đã kết nối: ' + cloud.name, 'success');
       if (!prevSync) {
         showToast('🔄 Đồng bộ lần đầu — đang tải dữ liệu từ cloud...', 'info');
-        await doFirstSync(cloud.url);
+        await doFirstSync(cloudUrl);
       }
       closeCloudModal();
     }, 1500);

@@ -75,17 +75,21 @@ Beer/
 - quantity (INTEGER)
 - price (REAL)
 
-### keg_log
+### keg_transactions_log
 - id (INTEGER PRIMARY KEY)
-- customer_id (INTEGER)
-- change (INTEGER) - positive for delivery, negative for return
-- date (TEXT)
+- type (TEXT) — deliver, collect, import, adjust, sell_empty, gift
+- quantity (INTEGER)
+- exchanged / purchased (INTEGER)
+- customer_id / customer_name (INTEGER / TEXT)
+- inventory_after / empty_after / holding_after (INTEGER) — snapshot after transaction
 - note (TEXT)
+- date (TEXT)
 
 ## Important Notes
 
-- Every keg transaction is logged in the `keg_log` table
-- Customer keg_balance should only be used for display; always query `keg_log` for accurate history
+- Every keg movement is logged in the `keg_transactions_log` table
+- `keg_stats` holds the current state; `keg_transactions_log` holds the history
+- Customer keg_balance should only be used for display; always query `keg_transactions_log` for accurate history
 - Custom prices are set per customer-product combination
 - All sales transactions update stock, keg balance, and create log entries atomically
 

@@ -1,27 +1,41 @@
-# Dependencies
-node_modules/
-
-# Database
-*.sqlite
-*.db
-
 # Environment
 .env
 .env.local
+.env.production
+.env.*.local
+
+# Deploy scripts (keep template only)
+deploy/
+!deploy/nginx.conf
 
 # Logs
 logs/
-*.log
+src/logs/
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
+# Database
+*.sqlite
+*.sqlite-*
+*.db
+
+# Backup
+backup/
 
 # OS
 .DS_Store
 Thumbs.db
-cookies.txt
 
-// Backup
+# PM2
+.pm2/
+
+# Dependencies
+node_modules/
+
+# Build output
+public/css/tailwind.css
+
+# Temp / debug files
+cookies.txt
+err.txt
+out.txt
+run_out.txt
+server_out.txt

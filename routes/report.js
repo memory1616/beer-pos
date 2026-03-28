@@ -213,9 +213,12 @@ router.get('/', (req, res) => {
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#f59e0b">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="icon" type="image/png" href="/icon-192.png">
   <link rel="stylesheet" href="/css/tailwind.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="/js/auth.js"></script>
+  <script src="/js/dark-mode.js"></script>
   <link rel="stylesheet" href="/css/unified.css">
   <script src="/js/layout.js"></script>
   <style>
@@ -702,6 +705,8 @@ router.get('/profit-product', (req, res) => {
   <title>Lợi nhuận theo sản phẩm - Beer POS</title>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#f59e0b">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="icon" type="image/png" href="/icon-192.png">
   <link rel="stylesheet" href="/css/tailwind.css">
   <script src="/js/auth.js"></script>
   <style>
@@ -833,8 +838,11 @@ router.get('/profit-customer', (req, res) => {
   <title>Lợi nhuận theo khách hàng - Beer POS</title>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#f59e0b">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="icon" type="image/png" href="/icon-192.png">
   <link rel="stylesheet" href="/css/tailwind.css">
   <link rel="stylesheet" href="/css/unified.css">
+  <script src="/js/dark-mode.js"></script>
   <script src="/js/auth.js"></script>
   <style>
     .bottomnav { max-width: 500px; margin: auto; }

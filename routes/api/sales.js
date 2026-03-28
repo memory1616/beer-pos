@@ -136,24 +136,6 @@ router.post('/', (req, res) => {
         db.prepare('UPDATE customers SET last_order_date = CURRENT_TIMESTAMP WHERE id = ?').run(customerId);
       }
 
-      // Update customer monthly summary (if customerId) - only for sales, not replacements
-      if (customerId && total > 0) {
-        const saleDate = new Date();
-        const year = saleDate.getFullYear();
-        const month = saleDate.getMonth() + 1;
-        const totalQuantity = saleItems
-          .filter(item => item.type !== 'pet')
-          .reduce((sum, item) => sum + item.quantity, 0);
-        db.prepare(`
-          INSERT INTO customer_monthly (customer_id, year, month, quantity, revenue, orders)
-          VALUES (?, ?, ?, ?, ?, 1)
-          ON CONFLICT(customer_id, year, month) DO UPDATE SET
-            quantity = quantity + excluded.quantity,
-            revenue = revenue + excluded.revenue,
-            orders = orders + 1
-        `).run(customerId, year, month, totalQuantity, total);
-      }
-
       // Update products and insert sale_items (reuse pre-loaded data — no extra queries)
       for (const item of saleItems) {
         db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(item.quantity, item.productId);
@@ -648,11 +630,24 @@ router.delete('/:id', (req, res) => {
       }
 
       // 3. Trừ lại empty_collected nếu đơn này đã thu vỏ (hoàn ngược số vỏ đã thu)
-      if (sale.return_kegs > 0) {
+      //    — skip nếu là gift vì bước 3b xử lý riêng
+      if (sale.return_kegs > 0 && sale.type !== 'gift') {
         const stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
         if (stats) {
           const newEmpty = Math.max(0, stats.empty_collected - sale.return_kegs);
           db.prepare('UPDATE keg_stats SET empty_collected = ? WHERE id = 1').run(newEmpty);
+        }
+      }
+
+      // 3b. Hoàn empty_collected với đơn tặng uống thử (vỏ đã vào kho vỏ rỗng lúc tạo)
+      if (sale.type === 'gift') {
+        const stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
+        if (stats) {
+          for (const item of items) {
+            const newEmpty = Math.max(0, stats.empty_collected - item.quantity);
+            db.prepare('UPDATE keg_stats SET empty_collected = ? WHERE id = 1').run(newEmpty);
+            stats.empty_collected = newEmpty;
+          }
         }
       }
 

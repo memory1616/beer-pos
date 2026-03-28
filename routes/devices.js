@@ -46,8 +46,11 @@ router.get('/', (req, res) => {
   <title>Quản lý thiết bị - Beer POS</title>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#f59e0b">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="icon" type="image/png" href="/icon-192.png">
   <link rel="stylesheet" href="/css/tailwind.css">
   <script src="/js/auth.js"></script>
+  <script src="/js/dark-mode.js"></script>
   <link rel="stylesheet" href="/css/unified.css">
   <script src="/js/layout.js"></script>
   <style>

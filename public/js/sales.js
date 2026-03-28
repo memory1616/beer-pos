@@ -414,24 +414,6 @@ function closeInvoice() {
   document.getElementById('invoiceModal').classList.remove('flex');
 }
 
-async function reloadPage() {
-  try {
-    const res = await fetch('/sale/data');
-    const data = await res.json();
-    products = data.products;
-    customers = data.customers;
-    saleData = {};
-    document.getElementById('customerSelect').value = '';
-    products.forEach(p => { p._displayPrice = p.sell_price || 0; });
-    renderSaleProducts();
-    updateSaleTotal();
-    await loadSalesHistory();
-    closeInvoice();
-  } catch (e) {
-    showToast('Lỗi tải dữ liệu', 'error');
-  }
-}
-
 // Keg Modal Functions
 let currentKegSaleId = null;
 let currentKegCustomerId = null;
@@ -661,6 +643,7 @@ async function showInvoiceModal(saleId) {
   
   const dateStr = new Date(sale.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const customerName = sale.customer_name || 'Khách lẻ';
+  const isGift = sale.type === 'gift';
   
   // Sản phẩm: layout 2 dòng chuẩn POS (tên rõ, đơn giá + thành tiền căn phải)
   let itemsHtml = '';
@@ -694,14 +677,24 @@ async function showInvoiceModal(saleId) {
     kegHtml += '<div class="flex justify-between text-sm font-semibold pt-1"><span class="text-gray-700">Vỏ đang giữ:</span><span>' + newBalance + '</span></div></div>';
   }
   
+  const giftBadge = isGift ? '<div class="text-center mb-2"><span class="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-xs font-semibold">🎁 Tặng uống thử</span></div>' : '';
+  
   document.getElementById('invoiceContent').innerHTML = 
+    giftBadge +
     '<div class="text-sm text-gray-500 mb-1">' + dateStr + '</div>' +
     '<div class="text-sm font-medium text-gray-700 mb-3">Khách: ' + customerName + '</div>' +
     '<div class="border-t border-gray-200 pt-2">' + itemsHtml + '</div>' +
     kegHtml;
   
   document.getElementById('invoiceTotal').textContent = formatVND(sale.total);
-  document.getElementById('qrCode').src = 'https://img.vietqr.io/image/970415-107875230331-compact2.png?amount=' + sale.total + '&addInfo=Chuyen%20Khoan%20' + sale.id;
+  
+  const qrSection = document.querySelector('#invoiceModal .mt-4.pt-4.border-t.border-gray-200');
+  if (isGift) {
+    qrSection.classList.add('hidden');
+  } else {
+    qrSection.classList.remove('hidden');
+    document.getElementById('qrCode').src = 'https://img.vietqr.io/image/970415-107875230331-compact2.png?amount=' + sale.total + '&addInfo=Chuyen%20Khoan%20' + sale.id;
+  }
   
   document.getElementById('invoiceModal').classList.remove('hidden');
   document.getElementById('invoiceModal').classList.add('flex');
@@ -845,7 +838,11 @@ async function loadSalesHistory() {
     let rowClass = '';
     let actionButtons = '';
     
-    if (sale.type === 'replacement') {
+    if (sale.type === 'gift') {
+      typeBadge = '<span class="bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded text-xs">🎁 Tặng uống thử</span>';
+      totalDisplay = '<span class="font-bold text-yellow-600">0 đ</span>';
+      rowClass = 'bg-yellow-50';
+    } else if (sale.type === 'replacement') {
       typeBadge = '<span class="bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded text-xs">🔁 Đổi lỗi</span>';
       totalDisplay = '<span class="font-bold text-orange-600">0 đ</span>';
       rowClass = 'bg-orange-50';

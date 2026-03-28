@@ -19,8 +19,11 @@ router.get('/', (req, res) => {
   <title>Sản phẩm</title>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#f59e0b">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="icon" type="image/png" href="/icon-192.png">
   <link rel="stylesheet" href="/css/tailwind.css">
   <link rel="stylesheet" href="/css/unified.css">
+  <script src="/js/dark-mode.js"></script>
 </head>
 <body class="bg-gray-100 text-gray-800 min-h-screen pb-20">
   <header class="topbar">

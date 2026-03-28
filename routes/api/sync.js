@@ -12,7 +12,7 @@ const logger = require('../../src/utils/logger');
 // Entity name → table name mapping
 const ENTITY_TO_TABLE = {
   'customer': 'customers', 'product': 'products', 'sale': 'sales',
-  'expense': 'expenses', 'payment': 'payments', 'keg_transaction': 'keg_transactions',
+  'expense': 'expenses', 'payment': 'payments', 'keg_transaction': 'keg_transactions_log',
   'device': 'devices', 'price': 'prices', 'purchase': 'purchases',
   'purchase_item': 'purchase_items'
 };
@@ -351,11 +351,11 @@ function applyPaymentChange(action, entity_id, data) {
 
 function applyKegTransactionChange(action, entity_id, data) {
   if (action === 'create' || action === 'update') {
-    const exists = db.prepare('SELECT id FROM keg_transactions WHERE id = ?').get(entity_id);
+    const exists = db.prepare('SELECT id FROM keg_transactions_log WHERE id = ?').get(entity_id);
     if (exists) {
       const { customer_id, type, quantity, note, date } = data;
       db.prepare(`
-        UPDATE keg_transactions SET
+        UPDATE keg_transactions_log SET
           customer_id = COALESCE(?, customer_id),
           type = COALESCE(?, type),
           quantity = COALESCE(?, quantity),
@@ -367,12 +367,12 @@ function applyKegTransactionChange(action, entity_id, data) {
     } else {
       const { customer_id, type, quantity, note = '', date } = data;
       db.prepare(`
-        INSERT INTO keg_transactions (id, customer_id, type, quantity, note, date)
+        INSERT INTO keg_transactions_log (id, customer_id, type, quantity, note, date)
         VALUES (?, ?, ?, ?, ?, ?)
       `).run(entity_id, customer_id, type, quantity, note, date);
     }
   } else if (action === 'delete') {
-    db.prepare('DELETE FROM keg_transactions WHERE id = ?').run(entity_id);
+    db.prepare('DELETE FROM keg_transactions_log WHERE id = ?').run(entity_id);
   }
 }
 

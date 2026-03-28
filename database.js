@@ -1,11 +1,97 @@
 const Database = require('better-sqlite3');
 const path = require('path');
+const fs = require('fs');
+
+const logger = console;
 
 const dbPath = path.join(__dirname, 'database.sqlite');
 const db = new Database(dbPath);
 
 // Enable foreign keys
 db.pragma('foreign_keys = ON');
+
+// ========== MIGRATION: Merge keg_log + keg_transactions → keg_transactions_log ==========
+// Run before creating tables so CREATE TABLE IF NOT EXISTS is safe
+try {
+  const logCount = db.prepare('SELECT COUNT(*) as c FROM keg_log').get();
+  const txCount  = db.prepare('SELECT COUNT(*) as c FROM keg_transactions').get();
+
+  if ((logCount?.c || 0) > 0) {
+    db.prepare(`
+      INSERT INTO keg_transactions_log
+        (type, quantity, exchanged, purchased, customer_id, customer_name,
+         inventory_after, empty_after, holding_after, note, date)
+      SELECT
+        'adjust' as type,
+        COALESCE(change, 0) as quantity,
+        0, 0,
+        customer_id, NULL,
+        0, 0, 0,
+        COALESCE(note, '') as note,
+        COALESCE(date, CURRENT_TIMESTAMP) as date
+      FROM keg_log
+    `).run();
+    logger.log('Migrated', logCount.c, 'rows from keg_log → keg_transactions_log');
+  }
+
+  if ((txCount?.c || 0) > 0) {
+    db.prepare(`
+      INSERT INTO keg_transactions_log
+        (type, quantity, exchanged, purchased, customer_id, customer_name,
+         inventory_after, empty_after, holding_after, note, date)
+      SELECT
+        CASE type
+          WHEN 'delivery' THEN 'deliver'
+          WHEN 'return'  THEN 'collect'
+          ELSE type
+        END as type,
+        quantity,
+        0, 0,
+        customer_id, NULL,
+        0, 0, 0,
+        COALESCE(note, '') as note,
+        COALESCE(date, CURRENT_TIMESTAMP) as date
+      FROM keg_transactions
+    `).run();
+    logger.log('Migrated', txCount.c, 'rows from keg_transactions → keg_transactions_log');
+  }
+
+  // Safe to drop old tables (data already migrated)
+  db.exec('DROP TABLE IF EXISTS keg_log');
+  db.exec('DROP TABLE IF EXISTS keg_transactions');
+  logger.log('Dropped legacy keg tables (keg_log, keg_transactions)');
+} catch (e) {
+  logger.log('Keg migration note:', e.message);
+}
+
+// ========== PERFORMANCE PRAGMAS ==========
+db.pragma('journal_mode = WAL');
+db.pragma('synchronous = NORMAL');
+db.pragma('cache_size = -64000');
+db.pragma('temp_store = MEMORY');
+db.pragma('legacy_file_format = OFF');
+
+// ========== KEG TRANSACTIONS LOG — single table for all keg movements ==========
+// Create FIRST so migration (below) can use it on existing DB
+db.exec(`
+  CREATE TABLE IF NOT EXISTS keg_transactions_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    type TEXT NOT NULL CHECK(type IN ('deliver','collect','import','adjust','sell_empty','gift')),
+    quantity INTEGER NOT NULL,
+    exchanged INTEGER DEFAULT 0,
+    purchased INTEGER DEFAULT 0,
+    customer_id INTEGER,
+    customer_name TEXT,
+    inventory_after INTEGER NOT NULL,
+    empty_after INTEGER NOT NULL,
+    holding_after INTEGER NOT NULL,
+    note TEXT,
+    date TEXT DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+try { db.exec(`CREATE INDEX IF NOT EXISTS idx_keg_tx_log_date ON keg_transactions_log(date)`); } catch (_) {}
+try { db.exec(`CREATE INDEX IF NOT EXISTS idx_keg_tx_log_type ON keg_transactions_log(type)`); } catch (_) {}
+try { db.exec(`CREATE INDEX IF NOT EXISTS idx_keg_tx_log_customer ON keg_transactions_log(customer_id)`); } catch (_) {}
 
 // Create tables
 db.exec(`
@@ -83,16 +169,6 @@ db.exec(`
     reason TEXT,
     date TEXT DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
-  );
-
-  -- Keg log table (transaction history)
-  CREATE TABLE IF NOT EXISTS keg_log (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    customer_id INTEGER NOT NULL,
-    change INTEGER NOT NULL,
-    date TEXT DEFAULT CURRENT_TIMESTAMP,
-    note TEXT,
-    FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
   );
 
   -- Purchases/Imports table (theo dõi nhập hàng)
@@ -245,7 +321,7 @@ try {
 // updated_at dùng cho sync - detect conflict (last-write-wins)
 const syncTables = [
   'customers', 'products', 'sales', 'expenses', 'payments',
-  'keg_transactions', 'devices', 'prices', 'purchases', 'purchase_items'
+  'keg_transactions_log', 'devices', 'prices', 'purchases', 'purchase_items'
 ];
 syncTables.forEach(table => {
   try {
@@ -262,20 +338,8 @@ try {
   // Column already exists, ignore
 }
 
-// Customer monthly summary table (for fast dashboard queries)
-db.exec(`
-  CREATE TABLE IF NOT EXISTS customer_monthly (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    customer_id INTEGER NOT NULL,
-    year INTEGER NOT NULL,
-    month INTEGER NOT NULL,
-    quantity INTEGER DEFAULT 0,
-    revenue REAL DEFAULT 0,
-    orders INTEGER DEFAULT 0,
-    UNIQUE(customer_id, year, month),
-    FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
-  );
-`);
+// Customer monthly summary — DENORMALIZED, removed (replaced by real-time query on sales)
+db.exec(`DROP TABLE IF EXISTS customer_monthly`);
 
 // Payments table (theo dõi thanh toán công nợ)
 db.exec(`
@@ -302,15 +366,6 @@ db.exec(`
   );
 `);
 
-// Keg inventory table (theo dõi kho vỏ bình rỗng)
-db.exec(`
-  CREATE TABLE IF NOT EXISTS keg_inventory (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    quantity INTEGER DEFAULT 0,
-    date TEXT DEFAULT CURRENT_TIMESTAMP,
-    note TEXT
-  );
-`);
 // Sync metadata table (key-value store cho cloud sync)
 db.exec(`
   CREATE TABLE IF NOT EXISTS sync_meta (
@@ -318,19 +373,6 @@ db.exec(`
     value TEXT
   );
 `);
-// Keg transactions table (giao/thu vỏ bình)
-db.exec(`
-  CREATE TABLE IF NOT EXISTS keg_transactions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    customer_id INTEGER NOT NULL,
-    type TEXT NOT NULL,
-    quantity INTEGER NOT NULL,
-    note TEXT,
-    date TEXT DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
-  );
-`);
-
 // Helper function to add to sync queue
 function addToSyncQueue(entity, entityId, action, data) {
   try {
@@ -619,25 +661,7 @@ try {
   // Column already exists
 }
 
-// Index for keg_inventory
-try {
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_keg_inventory_date ON keg_inventory(date)`);
-  console.log('Created keg_inventory index');
-} catch (e) {
-  // Index may already exist
-}
-
-// Migration: Initialize keg_inventory with zero row if empty
-try {
-  const count = db.prepare('SELECT COUNT(*) as count FROM keg_inventory').get();
-  if (count.count === 0) {
-    db.prepare('INSERT INTO keg_inventory (quantity) VALUES (0)').run();
-    console.log('Initialized keg_inventory table');
-  }
-} catch (e) {
-  // May already exist
-}
-
+// (keg_inventory table removed — keg_stats is the single source of truth for keg state)
   // Migration: Add keg_inventory_balance setting if not exists
 try {
   db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('keg_inventory_balance', '0');
@@ -710,43 +734,8 @@ db.exec(`
   );
 `);
 
-// Migration: add 'gift' type to keg_transactions_log (CHECK constraint cannot be altered directly)
-try {
-  db.exec(`
-    ALTER TABLE keg_transactions_log RENAME TO _keg_tx_log_old
-  `);
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS keg_transactions_log (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      type TEXT NOT NULL CHECK(type IN ('deliver', 'collect', 'import', 'adjust', 'sell_empty', 'gift')),
-      quantity INTEGER NOT NULL,
-      exchanged INTEGER DEFAULT 0,
-      purchased INTEGER DEFAULT 0,
-      customer_id INTEGER,
-      customer_name TEXT,
-      inventory_after INTEGER NOT NULL,
-      empty_after INTEGER NOT NULL,
-      holding_after INTEGER NOT NULL,
-      note TEXT,
-      date TEXT DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-  db.exec(`INSERT INTO keg_transactions_log SELECT * FROM _keg_tx_log_old`);
-  db.exec(`DROP TABLE _keg_tx_log_old`);
-} catch (e) {
-  // Migration already applied or other error
-}
-
-// Index for keg_transactions_log
-try {
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_keg_tx_log_date ON keg_transactions_log(date)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_keg_tx_log_type ON keg_transactions_log(type)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_keg_tx_log_customer ON keg_transactions_log(customer_id)`);
-} catch (e) {
-  // Index may exist
-}
-
-// Migration: Add updated_at/created_at to sale_items and keg_log (for sync queries)
+// (keg_transactions_log table and indexes already created at top of file)
+// Index for keg_transactions_log (keg_log table removed — use keg_transactions_log)
 try {
   db.exec(`ALTER TABLE sale_items ADD COLUMN updated_at TEXT`);
 } catch (e) {
@@ -759,16 +748,71 @@ try {
   // Column already exists
 }
 
+// ========== CONSTRAINTS: CHECK enums ==========
+// Add CHECK constraints for columns that accept limited values
+// These are idempotent — harmless if constraint already exists
+const addConstraint = (sql) => {
+  try { db.exec(sql); } catch (e) { /* already exists or table missing */ }
+};
+
+addConstraint(`ALTER TABLE sales ADD CONSTRAINT chk_sales_type  CHECK (type  IN ('sale','replacement','gift'))`);
+addConstraint(`ALTER TABLE sales ADD CONSTRAINT chk_sales_status CHECK (status IN ('completed','returned'))`);
+addConstraint(`ALTER TABLE products ADD CONSTRAINT chk_products_type CHECK (type IN ('keg','pet','box'))`);
+
+// ========== ADDITIONAL INDEXES ==========
+const addIndex = (sql) => {
+  try { db.exec(sql); } catch (e) { /* already exists */ }
+};
+addIndex(`CREATE INDEX IF NOT EXISTS idx_sales_date_type ON sales(date, type)`);
+addIndex(`CREATE INDEX IF NOT EXISTS idx_sale_items_product ON sale_items(product_id)`);
+addIndex(`CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date)`);
+
+// ========== AUTO BACKUP — runs every day at 2 AM ==========
 try {
-  db.exec(`ALTER TABLE keg_log ADD COLUMN updated_at TEXT`);
+  const cron = require('node-cron');
+  const backupDir = path.join(__dirname, 'backups');
+  if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
+
+  cron.schedule('0 2 * * *', () => {
+    const timestamp = new Date().toISOString().slice(0, 10);
+    const backupPath = path.join(backupDir, `db_${timestamp}.sqlite`);
+    try {
+      db.backup(backupPath);
+      logger.log('[BACKUP] SQLite backup saved:', backupPath);
+    } catch (e) {
+      logger.error('[BACKUP] Failed:', e.message);
+    }
+    // Keep only last 30 backups
+    try {
+      const files = fs.readdirSync(backupDir)
+        .filter(f => f.startsWith('db_') && f.endsWith('.sqlite'))
+        .sort()
+        .reverse();
+      files.slice(30).forEach(f => fs.unlinkSync(path.join(backupDir, f)));
+    } catch (_) {}
+  }, { timezone: 'Asia/Ho_Chi_Minh' });
+
+  logger.log('[BACKUP] Daily cron scheduled (2 AM)');
 } catch (e) {
-  // Column already exists
+  logger.log('[BACKUP] node-cron not available, auto-backup disabled');
 }
 
-try {
-  db.exec(`ALTER TABLE keg_log ADD COLUMN created_at TEXT DEFAULT CURRENT_TIMESTAMP`);
-} catch (e) {
-  // Column already exists
+// ========== EXPORT HELPERS for other modules ==========
+// logKegTransaction — unified function used by kegs.js, payments.js, stock.js
+function logKegTransaction(type, quantity, state, opts = {}) {
+  const { exchanged = 0, purchased = 0, customerId = null, customerName = null, note = null } = opts;
+  try {
+    db.prepare(`
+      INSERT INTO keg_transactions_log
+        (type, quantity, exchanged, purchased, customer_id, customer_name,
+         inventory_after, empty_after, holding_after, note)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(type, quantity, exchanged, purchased, customerId, customerName,
+           state.inventory, state.emptyCollected, state.customerHolding, note);
+  } catch (e) {
+    logger.error('logKegTransaction error:', e.message);
+  }
 }
 
 module.exports = db;
+module.exports.logKegTransaction = logKegTransaction;

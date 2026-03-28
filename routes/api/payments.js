@@ -3,6 +3,30 @@ const router = express.Router();
 const db = require('../../database');
 const logger = require('../../src/utils/logger');
 
+// Helper: log keg balance adjustment to keg_transactions_log
+function logKegBalanceChange(customerId, change, note) {
+  const state = {
+    inventory: 0,
+    emptyCollected: 0,
+    customerHolding: 0,
+  };
+  try {
+    const inv = db.prepare("SELECT COALESCE(SUM(stock),0) as t FROM products WHERE type='keg'").get();
+    const emp = db.prepare('SELECT COALESCE(empty_collected,0) as t FROM keg_stats WHERE id=1').get();
+    const hold = db.prepare('SELECT COALESCE(SUM(keg_balance),0) as t FROM customers').get();
+    state.inventory = inv?.t || 0;
+    state.emptyCollected = emp?.t || 0;
+    state.customerHolding = hold?.t || 0;
+  } catch (_) {}
+
+  db.prepare(`
+    INSERT INTO keg_transactions_log
+      (type, quantity, exchanged, purchased, customer_id, inventory_after, empty_after, holding_after, note)
+    VALUES (?, ?, 0, 0, ?, ?, ?, ?, ?)
+  `).run('adjust', change, customerId, state.inventory, state.emptyCollected, state.customerHolding,
+    note || 'Điều chỉnh số bình');
+}
+
 // ========== HELPER: Update customer keg_balance & sync keg_stats.customer_holding ==========
 function updateCustomerKegBalance(customerId, deliverKegs = 0, returnKegs = 0) {
   const custId = parseInt(customerId);
@@ -226,11 +250,11 @@ router.post('/keg/update-balance', (req, res) => {
     const totalHolding = db.prepare('SELECT COALESCE(SUM(keg_balance), 0) as total FROM customers').get();
     db.prepare('UPDATE keg_stats SET customer_holding = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run(totalHolding.total);
 
-    // Log the change
+    // Log the change to unified keg_transactions_log
     if (change !== 0) {
-      db.prepare('INSERT INTO keg_log (customer_id, change, note) VALUES (?, ?, ?)').run(custId, change, note || 'Điều chỉnh số bình');
+      logKegBalanceChange(custId, change, note || 'Điều chỉnh số bình');
     } else if (note) {
-      db.prepare('INSERT INTO keg_log (customer_id, change, note) VALUES (?, ?, ?)').run(custId, 0, note);
+      logKegBalanceChange(custId, 0, note);
     }
 
     res.json({ success: true, newBalance, change });

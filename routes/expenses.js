@@ -105,8 +105,10 @@ router.get('/', (req, res) => {
 '  <link rel="manifest" href="/manifest.json">' +
 '  <meta name="theme-color" content="#f59e0b">' +
 '  <link rel="apple-touch-icon" href="/icon-192.png">' +
+'  <link rel="icon" type="image/png" href="/icon-192.png">' +
 '  <link rel="stylesheet" href="/css/tailwind.css">' +
 '  <link rel="stylesheet" href="/css/unified.css">' +
+'  <script src="/js/dark-mode.js"></script>' +
 '  <script src="/js/auth.js"></script>' +
 '  <script src="/js/layout.js"></script>' +
 '  <script>requireAuth();</script>' +

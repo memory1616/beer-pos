@@ -7,7 +7,10 @@
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#1e40af">
   <meta name="mobile-web-app-capable" content="yes">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="icon" type="image/png" href="/icon-192.png">
   <link rel="stylesheet" href="/css/tailwind.css">
+  <script src="/js/dark-mode.js"></script>
   <style>
     body {
       background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
@@ -16,6 +19,21 @@
     .glass {
       background: rgba(255, 255, 255, 0.95);
       backdrop-filter: blur(10px);
+    }
+    /* Dark mode for login page */
+    [data-theme="dark"] body { background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%); }
+    [data-theme="dark"] .glass { background: rgba(30, 41, 59, 0.95); }
+    [data-theme="dark"] .glass h1,
+    [data-theme="dark"] .glass label { color: #f1f5f9; }
+    [data-theme="dark"] input {
+      background: rgba(15, 23, 42, 0.8);
+      border-color: #475569;
+      color: #f1f5f9;
+    }
+    [data-theme="dark"] input::placeholder { color: #94a3b8; }
+    [data-theme="dark"] input:focus {
+      border-color: #60a5fa;
+      box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.15);
     }
   </style>
 </head>
@@ -70,10 +88,26 @@
   </div>
 
   <script>
-    // Check if already logged in (UI state — real auth validated by server via httpOnly cookie)
-    if (sessionStorage.getItem('auth_uid') === '1') {
-      window.location.href = '/';
-    }
+    // Check if already logged in — must verify with server to avoid loop after server restart
+    (async () => {
+      if (localStorage.getItem('auth_uid') === '1') {
+        const token = localStorage.getItem('beer_session_token');
+        if (token) {
+          try {
+            const res = await fetch('/api/auth/me', {
+              headers: { 'Authorization': 'Bearer ' + token }
+            });
+            if (res.ok) {
+              window.location.href = '/';
+              return;
+            }
+          } catch (_) {}
+        }
+        // Server session invalid (e.g. server restarted) — clear local state
+        localStorage.removeItem('auth_uid');
+        localStorage.removeItem('beer_session_token');
+      }
+    })();
 
     async function handleLogin(e) {
       e.preventDefault();
@@ -97,7 +131,10 @@
         const data = await res.json();
 
         if (data.success) {
-          sessionStorage.setItem('auth_uid', '1');
+          if (data.token) {
+            localStorage.setItem('beer_session_token', data.token);
+          }
+          localStorage.setItem('auth_uid', '1');
           window.location.href = data.redirect || '/';
         } else {
           errorDiv.textContent = data.error || 'Đăng nhập thất bại';
