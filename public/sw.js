@@ -1,4 +1,4 @@
-const CACHE_NAME = "beer-pos-v11";
+const CACHE_NAME = "beer-pos-v12";
 const DB_NAME = "BeerPOS";
 const STORE_SYNC_QUEUE = "sync_queue";
 
@@ -10,6 +10,17 @@ self.addEventListener('message', event => {
   if (event.data?.type === 'SET_CLOUD_URL') {
     _swCloudUrl = event.data.url || null;
   }
+});
+
+// Clear old caches on activation (migration-safe)
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    caches.keys().then(keys => {
+      return Promise.all(
+        keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))
+      );
+    })
+  );
 });
 
 // Open IndexedDB for offline queue
@@ -92,6 +103,7 @@ async function queueForSync(method, url, body, headers) {
 // URLs to cache for full offline
 const urlsToCache = [
   "/",
+  "/admin/",
   "/admin/customers",
   "/admin/sale",
   "/admin/stock",
@@ -101,6 +113,7 @@ const urlsToCache = [
   "/admin/backup",
   "/admin/kegs",
   "/admin/expenses",
+  "/admin/login",
   "/manifest.json",
   "/icon-192.png",
   "/icon-512.png",

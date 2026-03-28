@@ -41,21 +41,21 @@
       "name": "Bán hàng",
       "short_name": "Bán",
       "description": "Mở trang bán hàng",
-      "url": "/sale",
+      "url": "/admin/sale",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     },
     {
       "name": "Khách hàng",
       "short_name": "KH",
       "description": "Danh sách khách hàng",
-      "url": "/customers",
+      "url": "/admin/customers",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     },
     {
       "name": "Tồn kho",
       "short_name": "Kho",
       "description": "Xem tồn kho",
-      "url": "/stock",
+      "url": "/admin/stock",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     }
   ]

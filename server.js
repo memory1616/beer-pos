@@ -204,7 +204,7 @@ app.use('/admin', (req, res, next) => {
   var _origFetch = window.fetch;
   window.fetch = function(input, init) {
     var url = typeof input === 'string' ? input : (input && input.url);
-    if (url && url.charAt(0) === '/' && url.indexOf('/api/') !== 0) {
+    if (url && url.charAt(0) === '/' && !url.startsWith('/api/') && !url.startsWith(_base)) {
       var cloned = typeof input === 'string'
         ? _base + input
         : Object.assign({}, input, { url: _base + input.url });
@@ -218,13 +218,13 @@ app.use('/admin', (req, res, next) => {
   var _origReplace = window.location.replace.bind(window.location);
   var _origHrefDesc = Object.getOwnPropertyDescriptor(window.location, 'href');
   window.location.assign = function(url) {
-    if (typeof url === 'string' && url.charAt(0) === '/' && url.indexOf('/api/') !== 0 && url.indexOf(_base) !== 0) {
+    if (typeof url === 'string' && url.charAt(0) === '/' && !url.startsWith('/api/') && !url.startsWith(_base)) {
       url = _base + url;
     }
     return _origAssign(url);
   };
   window.location.replace = function(url) {
-    if (typeof url === 'string' && url.charAt(0) === '/' && url.indexOf('/api/') !== 0 && url.indexOf(_base) !== 0) {
+    if (typeof url === 'string' && url.charAt(0) === '/' && !url.startsWith('/api/') && !url.startsWith(_base)) {
       url = _base + url;
     }
     return _origReplace(url);
@@ -235,7 +235,7 @@ app.use('/admin', (req, res, next) => {
     var a = e.target.closest('a');
     if (!a) return;
     var href = a.getAttribute('href');
-    if (typeof href === 'string' && href.charAt(0) === '/' && href.indexOf('/api/') !== 0 && href.indexOf(_base) !== 0) {
+    if (typeof href === 'string' && href.charAt(0) === '/' && !href.startsWith('/api/') && !href.startsWith(_base)) {
       e.preventDefault();
       window.location.assign(href);
     }
