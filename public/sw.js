@@ -1,4 +1,4 @@
-const CACHE_NAME = "beer-pos-v14";
+const CACHE_NAME = "beer-pos-v15";
 const DB_NAME = "BeerPOS";
 const STORE_SYNC_QUEUE = "sync_queue";
 
@@ -100,27 +100,9 @@ async function queueForSync(method, url, body, headers) {
   }
 }
 
-// URLs to cache for full offline
+// URLs to cache for full offline — HTML pages are NOT cached here because
+// navigation always goes to network (BASE_PATH is injected by Express per-request)
 const urlsToCache = [
-  "/",
-  "/admin",
-  "/admin/",
-  "/admin/delivery",
-  "/admin/delivery/",
-  "/admin/devices",
-  "/admin/devices/",
-  "/admin/expenses",
-  "/admin/expenses/",
-  "/admin/customers",
-  "/admin/sale",
-  "/admin/stock",
-  "/admin/report",
-  "/admin/purchases",
-  "/admin/products",
-  "/admin/backup",
-  "/admin/kegs",
-  "/admin/expenses",
-  "/admin/login",
   "/manifest.json",
   "/icon-192.png",
   "/icon-512.png",
@@ -261,7 +243,7 @@ self.addEventListener("fetch", event => {
     return;
   }
 
-  // Login page — always network only, never cache (contains dynamic auth logic)
+  // Login page — always network only, never cache
   if (url.pathname === '/admin/login') {
     event.respondWith(fetch(event.request));
     return;
@@ -271,7 +253,6 @@ self.addEventListener("fetch", event => {
   if (url.pathname.startsWith("/api/") && event.request.method === "GET") {
     event.respondWith(
       caches.open(CACHE_NAME).then(async cache => {
-        // Try network first
         try {
           const response = await fetch(event.request);
           if (response.ok) {
@@ -279,10 +260,8 @@ self.addEventListener("fetch", event => {
           }
           return response;
         } catch {
-          // Fall back to cache
           const cached = await cache.match(event.request);
           if (cached) return cached;
-          // Return offline-friendly response
           return new Response(JSON.stringify({ error: "Offline", cached: false }), {
             status: 503,
             headers: { "Content-Type": "application/json" }
@@ -293,26 +272,12 @@ self.addEventListener("fetch", event => {
     return;
   }
 
-  // Navigation requests — network first, fallback to cache
+  // Navigation requests — ALWAYS go to network, never cache.
+  // HTML pages are dynamic (auth-based, BASE_PATH-patched by Express).
+  // Caching them causes stale HTML with missing BASE_PATH → fetch wrong API →
+  // 401 → logout → location.href → redirect loop.
   if (event.request.mode === "navigate") {
-    event.respondWith(
-      fetch(event.request)
-        .then(response => {
-          // Follow redirects server-side by fetching the final URL directly
-          if (response.ok) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
-          }
-          return response;
-        })
-        .catch(() => {
-          return caches.match(event.request).then(response => {
-            if (response) return response;
-            // Final fallback
-            return caches.match("/");
-          });
-        })
-    );
+    event.respondWith(fetch(event.request));
     return;
   }
 
@@ -375,4 +340,4 @@ async function handleAPIMutation(request) {
   }
 }
 
-console.log("[SW] BeerPOS Service Worker v14 loaded");
+console.log("[SW] BeerPOS Service Worker v15 loaded");
