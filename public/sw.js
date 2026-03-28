@@ -1,4 +1,4 @@
-const CACHE_NAME = "beer-pos-v12";
+const CACHE_NAME = "beer-pos-v13";
 const DB_NAME = "BeerPOS";
 const STORE_SYNC_QUEUE = "sync_queue";
 
@@ -103,6 +103,7 @@ async function queueForSync(method, url, body, headers) {
 // URLs to cache for full offline
 const urlsToCache = [
   "/",
+  "/admin",
   "/admin/",
   "/admin/customers",
   "/admin/sale",
@@ -365,4 +366,4 @@ async function handleAPIMutation(request) {
   }
 }
 
-console.log("[SW] BeerPOS Service Worker v11 loaded");
+console.log("[SW] BeerPOS Service Worker v13 loaded");
