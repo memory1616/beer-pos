@@ -1,4 +1,4 @@
-const CACHE_NAME = "beer-pos-v9";
+const CACHE_NAME = "beer-pos-v10";
 const DB_NAME = "BeerPOS";
 const STORE_SYNC_QUEUE = "sync_queue";
 
@@ -92,7 +92,7 @@ async function queueForSync(method, url, body, headers) {
 // URLs to cache for full offline
 const urlsToCache = [
   "/",
-  "/login",
+  "/admin/login",
   "/customers",
   "/sale",
   "/stock",

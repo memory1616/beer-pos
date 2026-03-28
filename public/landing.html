@@ -40,12 +40,6 @@
       text-decoration: none; transition: all 0.2s;
     }
     .nav-links a:hover { background: #fef3c7; color: #b45309; }
-    .nav-admin {
-      background: #f59e0b !important; color: #fff !important;
-      font-weight: 600 !important; border-radius: 8px !important;
-      box-shadow: 0 2px 8px rgba(245,158,11,0.35);
-    }
-    .nav-admin:hover { background: #d97706 !important; transform: translateY(-1px); }
     .mobile-menu-btn { display: none; background: none; border: none; cursor: pointer; padding: 0.5rem; }
 
     /* ─── HERO ─── */
@@ -111,10 +105,6 @@
       box-shadow: 0 2px 8px rgba(0,0,0,0.06);
     }
     .btn-outline:hover { background: #fef3c7; transform: translateY(-2px); }
-    .btn-outline-dark {
-      background: #78350f; color: #fff; border: 2px solid #78350f;
-    }
-    .btn-outline-dark:hover { background: #451a03; transform: translateY(-2px); }
     .hero-stats {
       display: flex; gap: 2rem; padding-top: 1.5rem;
       border-top: 1px solid rgba(245,158,11,0.2);
@@ -355,7 +345,6 @@
         <li><a href="#vi-sao">Vì sao chọn</a></li>
         <li><a href="#bang-gia">Bảng giá</a></li>
         <li><a href="#lien-he">Liên hệ</a></li>
-        <li><a href="/admin" class="nav-admin">Đăng nhập quản lý</a></li>
       </ul>
       <button class="mobile-menu-btn" onclick="toggleMenu()" aria-label="Menu">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#92400e" stroke-width="2">
@@ -386,7 +375,6 @@
         <div class="hero-ctas">
           <a href="tel:0909123456" class="btn btn-primary">📞 Gọi ngay</a>
           <a href="https://zalo.me/0909123456" target="_blank" class="btn btn-outline">💬 Zalo</a>
-          <a href="/admin" class="btn btn-outline-dark">🔐 Đăng nhập quản lý</a>
         </div>
         <div class="hero-stats">
           <div>
@@ -594,13 +582,6 @@
               <div class="contact-value">6:00 — 22:00 (Thứ 2 — CN)</div>
             </div>
           </div>
-          <div class="contact-item">
-            <span class="contact-icon">🔐</span>
-            <div>
-              <div class="contact-label">Quản lý</div>
-              <a href="/admin" class="contact-value">Đăng nhập hệ thống →</a>
-            </div>
-          </div>
         </div>
         <div class="contact-map">
           <iframe
@@ -619,7 +600,6 @@
     <div class="container">
       <div class="footer-logo">🍺 Bia Tươi Tây Ninh</div>
       <p>© 2026 Bia Tươi Tây Ninh. Cung cấp bia tươi giá sỉ cho quán nhậu, nhà hàng toàn khu vực.</p>
-      <p style="margin-top:0.5rem"><a href="/admin">Đăng nhập quản lý</a></p>
     </div>
   </footer>
 

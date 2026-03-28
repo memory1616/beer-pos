@@ -205,7 +205,7 @@ app.use('/admin', (req, res, next) => {
   };
 
   // Patch location.href setter for known navigation paths
-  var _navPaths = ['/','/login','/logout','/dashboard','/customers','/sale','/sales',
+  var _navPaths = ['/','/login','/login/logout','/logout','/dashboard','/customers','/sale','/sales',
     '/stock','/analytics','/delivery','/products','/purchases','/kegs','/report',
     '/backup','/devices','/expenses','/admin'];
   Object.defineProperty(window.location, 'href', {

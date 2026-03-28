@@ -1,6 +1,6 @@
 module.exports = {
   apps: [{
-    name: 'beerpos',
+    name: 'beer-pos',
     script: 'server.js',
     instances: 1,
     exec_mode: 'cluster',
@@ -13,7 +13,7 @@ module.exports = {
       SESSION_SECRET: process.env.SESSION_SECRET || 'change-me-in-production',
       DISTRIBUTOR_NAME: 'BeerPOS Cloud',
       TRUST_PROXY: 'true',
-      ALLOWED_ORIGIN: 'https://your-domain.com',
+      ALLOWED_ORIGIN: 'https://biatuoitayninh.store',
     },
     error_file: 'logs/err.log',
     out_file: 'logs/out.log',

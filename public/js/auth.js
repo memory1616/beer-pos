@@ -4,6 +4,16 @@
 
 const SESSION_KEY = 'beer_session_token';
 
+// Admin app lives under /admin; location.replace() is not patched by BASE_PATH script
+function adminLoginHref() {
+  const b = typeof window !== 'undefined' && window.BASE_PATH;
+  return (b ? String(b).replace(/\/$/, '') : '/admin') + '/login';
+}
+
+function adminLogoutHref() {
+  return adminLoginHref() + '/logout';
+}
+
 // Read token from localStorage (primary) or cookie (fallback)
 function getToken() {
   return localStorage.getItem(SESSION_KEY) || null;
@@ -18,7 +28,7 @@ function isLoggedIn() {
 function logout() {
   localStorage.removeItem('auth_uid');
   localStorage.removeItem(SESSION_KEY);
-  window.location.href = '/login/logout';
+  window.location.href = adminLogoutHref();
 }
 
 // On successful login — store UI state + token
@@ -48,7 +58,7 @@ async function authFetch(url, options = {}) {
 async function requireAuth() {
   const token = localStorage.getItem(SESSION_KEY);
   if (!token) {
-    window.location.replace('/login');
+    window.location.replace(adminLoginHref());
     return false;
   }
 
@@ -59,7 +69,7 @@ async function requireAuth() {
       headers: { 'Authorization': 'Bearer ' + token }
     });
   } catch (_) {
-    window.location.replace('/login');
+    window.location.replace(adminLoginHref());
     return false;
   }
 
