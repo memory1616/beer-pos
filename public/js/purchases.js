@@ -96,7 +96,7 @@ async function submitPurchase() {
       }
       alert(message);
       // Reload and switch to history tab
-      window.location.href = '/purchases?tab=history';
+      window.location.href = window.BASE_PATH + '/purchases?tab=history';
     } else {
       alert('❌ Lỗi: ' + (data.error || 'Không rõ lỗi'));
       submitBtn.disabled = false;
@@ -110,7 +110,7 @@ async function submitPurchase() {
 }
 
 function editPurchase(id) {
-  window.location.href = '/purchases?tab=history&edit=' + id;
+  window.location.href = window.BASE_PATH + '/purchases?tab=history&edit=' + id;
 }
 
 async function deletePurchase(id) {

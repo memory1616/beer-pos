@@ -163,7 +163,7 @@ function initDashboard(data) {
 
         return '<div class="flex justify-between items-center text-sm py-1">' +
           '<div class="flex items-center">' +
-            '<a href="/customers/' + c.id + '" class="hover:text-green-600">' + c.name + '</a>' +
+            '<a href="/admin/customers/' + c.id + '" class="hover:text-green-600">' + c.name + '</a>' +
             phoneBtn +
           '</div>' +
           '<div class="text-right">' +

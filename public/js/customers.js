@@ -116,7 +116,7 @@ function renderCustomers() {
         <div class="flex justify-between items-start">
           <div class="flex-1">
             <div class="flex items-center gap-2 mb-1">
-              <a href="/customers/${c.id}" class="font-bold text-lg text-gray-800 hover:text-green-600">${c.name}</a>
+              <a href="/admin/customers/${c.id}" class="font-bold text-lg text-gray-800 hover:text-green-600">${c.name}</a>
               <span class="text-xl" title="${statusClass.includes('red') ? '7+ ngày chưa mua' : (statusClass.includes('yellow') ? 'Ít mua' : 'Hoạt động')}">${statusBadge}</span>
             </div>
             <div class="text-gray-500 text-sm flex items-center gap-1">
