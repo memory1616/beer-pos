@@ -98,7 +98,7 @@
               headers: { 'Authorization': 'Bearer ' + token }
             });
             if (res.ok) {
-              window.location.href = '/';
+              window.location.href = '/admin';
               return;
             }
           } catch (_) {}
@@ -122,7 +122,7 @@
       errorDiv.classList.add('hidden');
 
       try {
-        const res = await fetch('/login', {
+        const res = await fetch('/admin/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username, password })

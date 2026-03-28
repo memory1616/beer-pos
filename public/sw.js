@@ -1,4 +1,4 @@
-const CACHE_NAME = "beer-pos-v10";
+const CACHE_NAME = "beer-pos-v11";
 const DB_NAME = "BeerPOS";
 const STORE_SYNC_QUEUE = "sync_queue";
 
@@ -93,15 +93,15 @@ async function queueForSync(method, url, body, headers) {
 const urlsToCache = [
   "/",
   "/admin/login",
-  "/customers",
-  "/sale",
-  "/stock",
-  "/report",
-  "/purchases",
-  "/products",
-  "/backup",
-  "/kegs",
-  "/expenses",
+  "/admin/customers",
+  "/admin/sale",
+  "/admin/stock",
+  "/admin/report",
+  "/admin/purchases",
+  "/admin/products",
+  "/admin/backup",
+  "/admin/kegs",
+  "/admin/expenses",
   "/manifest.json",
   "/icon-192.png",
   "/icon-512.png",
@@ -347,4 +347,4 @@ async function handleAPIMutation(request) {
   }
 }
 
-console.log("[SW] BeerPOS Service Worker v9 loaded");
+console.log("[SW] BeerPOS Service Worker v11 loaded");
