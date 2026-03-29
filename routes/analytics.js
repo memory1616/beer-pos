@@ -87,8 +87,8 @@ router.get('/', (req, res) => {
   <link rel="icon" type="image/png" href="/icon-192.png">
   <link rel="stylesheet" href="/css/tailwind.css">
   <link rel="stylesheet" href="/css/unified.css">
-  <script src="/js/dark-mode.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="/js/dark-mode.js"><\/script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"><\/script>
   <style>
     .animate-fade { animation: fade 0.3s ease-in; }
     @keyframes fade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -202,11 +202,11 @@ router.get('/', (req, res) => {
         scales: { y: { beginAtZero: true } }
       }
     });
-  </script>
-  <script src="/js/debug.js"></script>
+  <\/script>
+  <script src="/js/debug.js"><\/script>
   <script>
   // Disable service worker in development
-  </script>
+  <\/script>
 </body>
 </html>
   `);

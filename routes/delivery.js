@@ -30,9 +30,9 @@ router.get('/', (req, res, next) => {
   <link rel="icon" type="image/png" href="/icon-192.png">
   <link rel="stylesheet" href="/css/tailwind.css">
   <link rel="stylesheet" href="/css/unified.css">
-  <script src="/js/dark-mode.js"></script>
+  <script src="/js/dark-mode.js"><\/script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"><\/script>
   <style>
     .pb-safe { padding-bottom: env(safe-area-inset-bottom, 20px); }
     .bottomnav { max-width: 500px; margin: auto; }
@@ -426,7 +426,7 @@ router.get('/', (req, res, next) => {
     // Luôn tính khoảng cách từ kho (⚙️) khi vào trang — không bắt buộc GPS
     updateDistances();
     // GPS: chỉ khi bấm "Vị trí hiện tại" để dùng vị trí xe/điện thoại làm điểm xuất phát
-  </script>
+  <\/script>
 </body>
 </html>
   `);

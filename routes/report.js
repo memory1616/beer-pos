@@ -216,11 +216,11 @@ router.get('/', (req, res) => {
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
   <link rel="stylesheet" href="/css/tailwind.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="/js/auth.js"></script>
-  <script src="/js/dark-mode.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"><\/script>
+  <script src="/js/auth.js"><\/script>
+  <script src="/js/dark-mode.js"><\/script>
   <link rel="stylesheet" href="/css/unified.css">
-  <script src="/js/layout.js"></script>
+  <script src="/js/layout.js"><\/script>
   <style>
     .animate-fade { animation: fade 0.25s ease-out; }
     @keyframes fade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -587,17 +587,17 @@ router.get('/', (req, res) => {
         
         container.innerHTML = html;
       }
-    </script>
+    <\/script>
   </main>
 
   <div id="bottomNavContainer"></div>
   <script>
     if (!isLoggedIn()) { window.location.href = '/login'; }
-  </script>
+  <\/script>
   <script>
     const bottomNav = getBottomNav('/report');
     document.getElementById('bottomNavContainer').innerHTML = bottomNav;
-  </script>
+  <\/script>
 </body>
 </html>
   `);
@@ -709,7 +709,7 @@ router.get('/profit-product', (req, res) => {
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
   <link rel="stylesheet" href="/css/tailwind.css">
-  <script src="/js/auth.js"></script>
+  <script src="/js/auth.js"><\/script>
   <style>
     .bottomnav { max-width: 500px; margin: auto; }
   </style>
@@ -761,11 +761,11 @@ router.get('/profit-product', (req, res) => {
     </div>
   </main>
   <div id="bottomNavContainer"></div>
-  <script>if (!isLoggedIn()) { window.location.href = '/login'; }</script>
+  <script>if (!isLoggedIn()) { window.location.href = '/login'; }<\/script>
   <script>
     const bottomNav = getBottomNav('/report');
     document.getElementById('bottomNavContainer').innerHTML = bottomNav;
-  </script>
+  <\/script>
 </body>
 </html>
   `);
@@ -844,8 +844,8 @@ router.get('/profit-customer', (req, res) => {
   <link rel="icon" type="image/png" href="/icon-192.png">
   <link rel="stylesheet" href="/css/tailwind.css">
   <link rel="stylesheet" href="/css/unified.css">
-  <script src="/js/dark-mode.js"></script>
-  <script src="/js/auth.js"></script>
+  <script src="/js/dark-mode.js"><\/script>
+  <script src="/js/auth.js"><\/script>
   <style>
     .bottomnav { max-width: 500px; margin: auto; }
     .filter-wrap { overflow: visible !important; }
@@ -909,7 +909,7 @@ router.get('/profit-customer', (req, res) => {
     </div>
   </main>
   <div id="bottomNavContainer"></div>
-  <script>if (!isLoggedIn()) { window.location.href = '/login'; }</script>
+  <script>if (!isLoggedIn()) { window.location.href = '/login'; }<\/script>
   <script>
     function applyMonthYear() {
       const m = document.getElementById('selMonth').value;
@@ -918,7 +918,7 @@ router.get('/profit-customer', (req, res) => {
     }
     const bottomNav = getBottomNav('/report');
     document.getElementById('bottomNavContainer').innerHTML = bottomNav;
-  </script>
+  <\/script>
 </body>
 </html>
   `);
