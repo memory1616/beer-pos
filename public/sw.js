@@ -1,18 +1,19 @@
-const CACHE_NAME = "beer-pos-v16";
+// BeerPOS Service Worker v17
+// Clean PWA: only cache static assets, never touch navigation or API
+const CACHE_NAME = "beer-pos-v17";
 const DB_NAME = "BeerPOS";
 const STORE_SYNC_QUEUE = "sync_queue";
 
 // Cloud URL set by main thread via postMessage
 let _swCloudUrl = null;
 
-// Main thread → SW: pass cloud URL when it changes
 self.addEventListener('message', event => {
   if (event.data?.type === 'SET_CLOUD_URL') {
     _swCloudUrl = event.data.url || null;
   }
 });
 
-// Clear old caches on activation (migration-safe)
+// Clear old caches on activation
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys => {
@@ -49,11 +50,8 @@ async function queueForSync(method, url, body, headers) {
     const db = await openDB();
     const tx = db.transaction(STORE_SYNC_QUEUE, "readwrite");
     const store = tx.objectStore(STORE_SYNC_QUEUE);
-
-    // Parse URL to get API path
     const apiPath = new URL(url).pathname;
 
-    // Infer entity from URL
     let entity = "unknown";
     if (apiPath.includes("/sales")) entity = "sale";
     else if (apiPath.includes("/customers")) entity = "customer";
@@ -64,10 +62,9 @@ async function queueForSync(method, url, body, headers) {
     else if (apiPath.includes("/kegs")) entity = "keg";
     else if (apiPath.includes("/devices")) entity = "device";
 
-    // Determine action from method
     const action = method === "DELETE" ? "delete"
-                 : method === "PUT" ? "update"
-                 : "create";
+                   : method === "PUT" ? "update"
+                   : "create";
 
     let parsedBody = {};
     try { parsedBody = JSON.parse(body); } catch {}
@@ -83,16 +80,12 @@ async function queueForSync(method, url, body, headers) {
       created_at: new Date().toISOString(),
       retry_count: 0
     });
-
     await tx.complete;
-    console.log(`[SW] Queued ${method} ${apiPath} for sync`);
 
-    // Notify all clients about queued item
     const clients = await self.clients.matchAll();
     clients.forEach(client => {
       client.postMessage({ type: "SYNC_QUEUED" });
     });
-
     return true;
   } catch (err) {
     console.error("[SW] Failed to queue:", err);
@@ -100,8 +93,7 @@ async function queueForSync(method, url, body, headers) {
   }
 }
 
-// URLs to cache for full offline — HTML pages are NOT cached here because
-// navigation always goes to network (BASE_PATH is injected by Express per-request)
+// URLs to cache — static assets ONLY
 const urlsToCache = [
   "/manifest.json",
   "/icon-192.png",
@@ -117,12 +109,12 @@ const urlsToCache = [
   "/css/unified.css"
 ];
 
-// Install - cache all URLs
+// Install
 self.addEventListener("install", event => {
   console.log("[SW] Installing...");
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => {
-      console.log("[SW] Caching all static assets...");
+      console.log("[SW] Caching static assets...");
       return cache.addAll(urlsToCache).catch(err => {
         console.warn("[SW] Some URLs failed to cache:", err);
       });
@@ -133,7 +125,7 @@ self.addEventListener("install", event => {
   );
 });
 
-// Activate - clean old caches
+// Activate
 self.addEventListener("activate", event => {
   console.log("[SW] Activating...");
   event.waitUntil(
@@ -153,15 +145,15 @@ self.addEventListener("activate", event => {
   );
 });
 
-// Background sync event
+// Background sync
 self.addEventListener("sync", event => {
-  console.log("[SW] Background sync event:", event.tag);
+  console.log("[SW] Background sync:", event.tag);
   if (event.tag === "sync-queue" || event.tag === "sync-all") {
     event.waitUntil(processSyncQueue());
   }
 });
 
-// Process all queued items from IndexedDB
+// Process queued items
 async function processSyncQueue() {
   try {
     const db = await openDB();
@@ -176,15 +168,14 @@ async function processSyncQueue() {
     });
 
     if (!all || all.length === 0) {
-      console.log("[SW] No pending items to sync");
+      console.log("[SW] No pending items");
       return;
     }
 
-    console.log(`[SW] Processing ${all.length} queued items`);
+    console.log(`[SW] Syncing ${all.length} items`);
 
     for (const item of all) {
       try {
-        // Prefer cloud URL if configured, else fall back to local server
         const baseUrl = _swCloudUrl || self.registration.scope;
         const fullUrl = baseUrl.replace(/\/$/, "") + item.url;
 
@@ -200,7 +191,6 @@ async function processSyncQueue() {
         });
 
         if (response.ok) {
-          // Mark as synced
           const updateTx = db.transaction(STORE_SYNC_QUEUE, "readwrite");
           await new Promise((resolve, reject) => {
             const req = updateTx.objectStore(STORE_SYNC_QUEUE).delete(item.id);
@@ -212,13 +202,11 @@ async function processSyncQueue() {
           console.warn(`[SW] ✗ Failed (${response.status}): ${item.method} ${item.url}`);
         }
       } catch (err) {
-        console.warn(`[SW] ✗ Network error for ${item.method} ${item.url}:`, err.message);
-        // Stop processing — we're offline
+        console.warn(`[SW] ✗ Network error: ${item.method} ${item.url}:`, err.message);
         break;
       }
     }
 
-    // Notify clients
     const clients = await self.clients.matchAll();
     clients.forEach(client => {
       client.postMessage({ type: "SYNC_COMPLETE" });
@@ -228,59 +216,30 @@ async function processSyncQueue() {
   }
 }
 
-// Fetch handler
+// Fetch handler — CLEAN: only cache static assets, pass through everything else
 self.addEventListener("fetch", event => {
   const url = new URL(event.request.url);
 
-  // Skip non-GET for caching decisions (process separately)
-  if (event.request.method !== "GET" && event.request.method !== "HEAD") {
-    // API write requests — try network, queue if offline
-    if (url.pathname.startsWith("/api/")) {
-      event.respondWith(handleAPIMutation(event.request));
-      return;
-    }
-    // Non-API, non-GET: pass through normally
-    return;
-  }
-
-  // Login page — always network only, never cache
-  if (url.pathname === '/admin/login') {
+  // NEVER cache auth endpoints
+  if (url.pathname.startsWith("/api/auth")) {
     event.respondWith(fetch(event.request));
     return;
   }
 
-  // API GET requests — network only, never cache (especially auth endpoints)
-  if (url.pathname.startsWith("/api/") && event.request.method === "GET") {
-    // NEVER cache auth endpoints — stale auth response causes logout loop
-    if (url.pathname.startsWith("/api/auth")) {
-      event.respondWith(fetch(event.request));
-      return;
-    }
-    event.respondWith(
-      caches.open(CACHE_NAME).then(async cache => {
-        try {
-          const response = await fetch(event.request);
-          if (response.ok) {
-            cache.put(event.request, response.clone());
-          }
-          return response;
-        } catch {
-          const cached = await cache.match(event.request);
-          if (cached) return cached;
-          return new Response(JSON.stringify({ error: "Offline", cached: false }), {
-            status: 503,
-            headers: { "Content-Type": "application/json" }
-          });
-        }
-      })
-    );
+  // API mutations (POST/PUT/DELETE) — queue if offline
+  if (url.pathname.startsWith("/api/") && event.request.method !== "GET" && event.request.method !== "HEAD") {
+    event.respondWith(handleAPIMutation(event.request));
     return;
   }
 
-  // Navigation requests — ALWAYS go to network, never cache.
-  // HTML pages are dynamic (auth-based, BASE_PATH-patched by Express).
-  // Caching them causes stale HTML with missing BASE_PATH → fetch wrong API →
-  // 401 → logout → location.href → redirect loop.
+  // API GET — network only, never cache
+  if (url.pathname.startsWith("/api/")) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
+  // Navigation — ALWAYS network only, never cache
+  // This prevents the redirect loop entirely
   if (event.request.mode === "navigate") {
     event.respondWith(fetch(event.request));
     return;
@@ -301,13 +260,12 @@ self.addEventListener("fetch", event => {
   );
 });
 
-// Handle API mutations (POST/PUT/DELETE) — queue if offline
+// Handle API mutations — queue if offline
 async function handleAPIMutation(request) {
   try {
     const response = await fetch(request);
     return response;
   } catch (err) {
-    // Offline — queue the request
     const url = request.url;
     const method = request.method;
 
@@ -322,27 +280,24 @@ async function handleAPIMutation(request) {
 
     await queueForSync(method, url, body, headers);
 
-    // Trigger Background Sync API (works even when app is closed on Android/Chrome)
     if ('serviceWorker' in self && 'sync' in self.registration) {
       try {
         await self.registration.sync.register('sync-queue');
-        console.log('[SW] Background sync registered');
       } catch (syncErr) {
         console.warn('[SW] Background sync not supported:', syncErr.message);
       }
     }
 
-    // Return a user-friendly response
     return new Response(JSON.stringify({
       error: "Offline — đã lưu vào hàng đợi, sẽ đồng bộ khi có mạng",
       queued: true,
       url: new URL(url).pathname,
       method
     }), {
-      status: 202, // Accepted
+      status: 202,
       headers: { "Content-Type": "application/json" }
     });
   }
 }
 
-console.log("[SW] BeerPOS Service Worker v16 loaded");
+console.log("[SW] BeerPOS Service Worker v17 loaded");

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <script>window.BASE_PATH = '/admin';</script>
+  <script>window.BASE_PATH = '/';</script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Đăng nhập - Beer POS</title>
@@ -99,7 +99,7 @@
               headers: { 'Authorization': 'Bearer ' + token }
             });
             if (res.ok) {
-              window.location.href = '/admin';
+              window.location.href = '/';
               return;
             }
           } catch (_) {}
@@ -123,7 +123,7 @@
       errorDiv.classList.add('hidden');
 
       try {
-        const res = await fetch('/admin/login', {
+        const res = await fetch('/auth/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username, password })

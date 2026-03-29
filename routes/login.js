@@ -10,7 +10,7 @@ router.get('/', (req, res) => {
                 req.query?.token;
 
   if (token && getSession(token)) {
-    return res.redirect('/admin');
+    return res.redirect('/'); // Admin is at root /
   }
 
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
@@ -31,7 +31,7 @@ router.post('/', express.json(), (req, res) => {
     res.json({
       success: true,
       token: result.token,
-      redirect: '/admin'
+      redirect: '/' // Admin is at root /
     });
   } else {
     res.status(401).json({
@@ -49,7 +49,7 @@ router.get('/logout', (req, res) => {
 
   logout(token);
   res.clearCookie(AUTH_CONFIG.cookieName);
-  res.redirect('/admin/login');
+  res.redirect('/login');
 });
 
 module.exports = router;

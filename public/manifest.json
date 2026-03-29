@@ -1,8 +1,8 @@
 {
-  "name": "Beer POS Pro - Bia Tươi",
+  "name": "BeerPOS - Quản lý",
   "short_name": "BeerPOS",
-  "description": "Ứng dụng bán hàng bia tươi - hoạt động offline, đồng bộ đám mây",
-  "start_url": "/admin",
+  "description": "Ứng dụng quản lý bán hàng bia tươi - hoạt động offline, đồng bộ đám mây",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#0f172a",
   "theme_color": "#1e40af",
@@ -41,21 +41,21 @@
       "name": "Bán hàng",
       "short_name": "Bán",
       "description": "Mở trang bán hàng",
-      "url": "/admin/sale",
+      "url": "/sale",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     },
     {
       "name": "Khách hàng",
       "short_name": "KH",
       "description": "Danh sách khách hàng",
-      "url": "/admin/customers",
+      "url": "/customers",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     },
     {
       "name": "Tồn kho",
       "short_name": "Kho",
       "description": "Xem tồn kho",
-      "url": "/admin/stock",
+      "url": "/stock",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     }
   ]

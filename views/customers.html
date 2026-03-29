@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <script>window.BASE_PATH = '/admin';</script>
+  <script>window.BASE_PATH = '/';</script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Khách hàng</title>
@@ -501,7 +501,7 @@
           </div>
         </div>
       `) +
-      getBottomNav('/admin/customers');
+      getBottomNav('/customers');
     })();
   </script>
 
@@ -511,7 +511,7 @@
   <script>
     async function loadData() {
       try {
-        const res = await fetch('/admin/customers/data');
+        const res = await fetch('/customers/data');
         const data = await res.json();
         
         // Initialize customers page
@@ -542,7 +542,7 @@
   <script src="/js/debug.js"></script>
   <script>
   // Check authentication
-  if (!isLoggedIn()) { window.location.href = window.BASE_PATH + '/login'; }
+  if (!isLoggedIn()) { window.location.href = '/login'; }
 
   // Service Worker — bật offline-first caching
   if ('serviceWorker' in navigator) {

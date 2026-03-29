@@ -4,14 +4,13 @@
 
 const SESSION_KEY = 'beer_session_token';
 
-// Admin app lives under /admin; location.replace() is not patched by BASE_PATH script
+// Simple login/logout URLs — admin app is at root /
 function adminLoginHref() {
-  const b = typeof window !== 'undefined' && window.BASE_PATH;
-  return (b ? String(b).replace(/\/$/, '') : '/admin') + '/login';
+  return '/login';
 }
 
 function adminLogoutHref() {
-  return adminLoginHref() + '/logout';
+  return '/login'; // Server clears cookie server-side
 }
 
 // Read token from localStorage (primary) or cookie (fallback)
@@ -28,7 +27,12 @@ function isLoggedIn() {
 function logout() {
   localStorage.removeItem('auth_uid');
   localStorage.removeItem(SESSION_KEY);
-  window.location.href = adminLogoutHref();
+  // Clear server-side cookie
+  fetch('/auth/logout', { method: 'POST', credentials: 'include' })
+    .catch(() => {})
+    .finally(() => {
+      window.location.href = adminLogoutHref();
+    });
 }
 
 // On successful login — store UI state + token
@@ -44,7 +48,7 @@ async function authFetch(url, options = {}) {
     headers['Authorization'] = 'Bearer ' + token;
   }
 
-  const response = await fetch(url, { ...options, headers });
+  const response = await fetch(url, { ...options, headers, credentials: 'include' });
 
   if (response.status === 401) {
     logout();
@@ -58,7 +62,7 @@ async function authFetch(url, options = {}) {
 async function requireAuth() {
   const token = localStorage.getItem(SESSION_KEY);
   if (!token) {
-    window.location.replace(adminLoginHref());
+    window.location.href = adminLoginHref();
     return false;
   }
 
@@ -66,10 +70,11 @@ async function requireAuth() {
   let res;
   try {
     res = await fetch('/api/auth/me', {
-      headers: { 'Authorization': 'Bearer ' + token }
+      headers: { 'Authorization': 'Bearer ' + token },
+      credentials: 'include'
     });
   } catch (_) {
-    window.location.replace(adminLoginHref());
+    window.location.href = adminLoginHref();
     return false;
   }
 

@@ -17,59 +17,64 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 
-// Get network interfaces for logging
-function getNetworkIPs() {
-  const interfaces = os.networkInterfaces();
-  const ips = [];
+// Environment: 'admin' or 'public'
+// Detected by nginx X-App-Mode header, or fallback by Host header
+const ADMIN_DOMAIN = process.env.ADMIN_DOMAIN || 'admin.biatuoitayninh.store';
+const PUBLIC_DOMAIN = process.env.PUBLIC_DOMAIN || 'biatuoitayninh.store';
 
-  for (const name of Object.keys(interfaces)) {
-    for (const iface of interfaces[name]) {
-      if (iface.family === 'IPv4' && !iface.internal) {
-        ips.push({ name, ip: iface.address });
-      }
-    }
-  }
-  return ips;
+function getAppMode(req) {
+  // nginx sets this header to tell Express which app is being served
+  if (req.headers['x-app-mode'] === 'admin') return 'admin';
+  if (req.headers['x-app-mode'] === 'public') return 'public';
+  // Fallback by Host header
+  const host = (req.headers.host || '').split(':')[0].toLowerCase();
+  if (host === ADMIN_DOMAIN || host.endsWith('.admin.' + PUBLIC_DOMAIN.replace('www.', ''))) return 'admin';
+  return 'public';
 }
 
-// Rate limiting configuration — skip /api/discover (LAN scan sends 500+ pings)
+// Rate limiting — skip /api/discover (LAN scan pings)
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: 100,
   message: { error: 'Quá nhiều yêu cầu, vui lòng thử lại sau' },
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => req.baseUrl + req.path === '/api/discover',
+  skip: (req) => req.path === '/api/discover',
 });
-
-// Apply rate limiting to all API routes (skipping /api/discover which is a LAN ping)
 app.use('/api', limiter);
 
-// CORS for LAN cloud sync — configurable origin for production
-const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || '*';
-app.use('/api/sync', (req, res, next) => {
+// CORS — allow admin subdomain to call API from public domain (for sync)
+app.use('/api', (req, res, next) => {
   const origin = req.headers.origin;
-  const allowed = ALLOWED_ORIGIN === '*' ? '*' : (origin === ALLOWED_ORIGIN ? origin : '');
-  res.setHeader('Access-Control-Allow-Origin', allowed);
+  // Allow admin subdomain and localhost for dev
+  const allowedOrigins = [
+    `https://${ADMIN_DOMAIN}`,
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+  ];
+  if (allowedOrigins.includes(origin) || origin === '*') {
+    res.setHeader('Access-Control-Allow-Origin', origin === '*' ? '*' : origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  }
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
 });
 
 // Middleware
-app.use(bodyParser.json({ limit: '10mb' })); // Limit request body size
+app.use(bodyParser.json({ limit: '10mb' }));
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Favicon — serve icon-192.png so the browser tab always shows the PWA icon
+// Favicon — always serve icon
 app.get('/favicon.ico', (req, res) => {
   res.type('image/png');
   res.sendFile(path.join(__dirname, 'public', 'icon-192.png'));
 });
 
-// Service Worker — always fresh, never cache (contains routing logic that must stay current)
+// Service Worker — always fresh, never cache
 app.get('/sw.js', (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   res.setHeader('Pragma', 'no-cache');
@@ -78,7 +83,52 @@ app.get('/sw.js', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'sw.js'));
 });
 
-// Request logger — only log slow requests (>500ms) or errors
+// PWA manifest — add headers for installability on iOS
+app.get('/manifest.json', (req, res) => {
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.type('application/json');
+  res.sendFile(path.join(__dirname, 'public', 'manifest.json'));
+});
+
+// Inject global app context into every HTML page served by Express
+// - window.APP_MODE: 'admin' | 'public'
+// - window.BASE_PATH: '/' (admin) | null (public)
+app.use((req, res, next) => {
+  const mode = getAppMode(req);
+  const origSendFile = res.sendFile.bind(res);
+
+  res.sendFile = function(filepath, options, callback) {
+    if (String(filepath).endsWith('.html')) {
+      const isAdmin = mode === 'admin';
+      const basePath = isAdmin ? '/' : null;
+
+      return fs.readFile(filepath, 'utf8', (err, html) => {
+        if (err) return origSendFile(filepath, options, callback);
+
+        // Inject base tag for admin (all relative links resolve correctly)
+        if (isAdmin && !html.includes('<base')) {
+          html = html.replace('<head>', '<head><base href="/">');
+        }
+
+        // Inject app context globals
+        const ctxScript = `<script>
+window.APP_MODE = '${mode}';
+window.BASE_PATH = ${basePath ? `'${basePath}'` : 'null'};
+</script>`;
+
+        if (!html.includes('window.APP_MODE')) {
+          html = html.replace('</head>', ctxScript + '</head>');
+        }
+
+        res.type('text/html').send(html);
+      });
+    }
+    return origSendFile(filepath, options, callback);
+  };
+  next();
+});
+
+// Request logger — log slow requests (>500ms) or errors
 app.use((req, res, next) => {
   const start = Date.now();
   res.on('finish', () => {
@@ -90,24 +140,17 @@ app.use((req, res, next) => {
   next();
 });
 
-// View engine for HTML templates
+// View engine
 app.set('view engine', 'html');
 app.engine('html', require('ejs').renderFile);
 
 // Constants
 const DISTRIBUTOR_NAME = process.env.DISTRIBUTOR_NAME || 'Bia Tươi Gia Huy';
 
-// API Key - Disabled for local LAN app
-app.use('/api', (req, res, next) => {
-  next();
-});
-
-// Helper function to format VNĐ
 function formatVND(amount) {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
 }
 
-// Make helpers available to all routes
 app.locals.formatVND = formatVND;
 app.locals.DISTRIBUTOR_NAME = DISTRIBUTOR_NAME;
 
@@ -119,24 +162,15 @@ function createBackup(options = {}) {
   const hour = String(now.getHours()).padStart(2, '0');
   const minute = String(now.getMinutes()).padStart(2, '0');
 
-  // Ensure backup directory exists
-  if (!fs.existsSync(backupDir)) {
-    fs.mkdirSync(backupDir, { recursive: true });
-  }
-
+  if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
   const dbPath = path.join(__dirname, 'database.sqlite');
-
-  // Create timestamped backup
   const timestamp = `${today}-${hour}${minute}`;
   const backupFile = path.join(backupDir, `backup-${timestamp}.db`);
 
   try {
     fs.copyFileSync(dbPath, backupFile);
-    logger.info(`Auto backup created: backup-${timestamp}.db`, { path: backupFile });
-
-    // Clean old backups (keep last 30 days)
+    logger.info(`Auto backup: backup-${timestamp}.db`);
     cleanupOldBackups(backupDir);
-
     return { success: true, file: backupFile };
   } catch (e) {
     logger.error('Backup failed', { error: e.message });
@@ -144,21 +178,13 @@ function createBackup(options = {}) {
   }
 }
 
-// Clean old backup files (keep last 30 days)
 function cleanupOldBackups(backupDir) {
   try {
     const files = fs.readdirSync(backupDir)
       .filter(f => f.startsWith('backup-') && f.endsWith('.db'))
-      .map(f => ({
-        name: f,
-        path: path.join(backupDir, f),
-        time: fs.statSync(path.join(backupDir, f)).mtime.getTime()
-      }))
+      .map(f => ({ name: f, path: path.join(backupDir, f), time: fs.statSync(path.join(backupDir, f)).mtime.getTime() }))
       .sort((a, b) => b.time - a.time);
-
-    // Keep only the 30 most recent files
-    const toDelete = files.slice(30);
-    toDelete.forEach(f => {
+    files.slice(30).forEach(f => {
       fs.unlinkSync(f.path);
       logger.info(`Deleted old backup: ${f.name}`);
     });
@@ -167,126 +193,43 @@ function cleanupOldBackups(backupDir) {
   }
 }
 
-// Schedule daily backup at 23:00 (11 PM)
-cron.schedule('0 23 * * *', () => {
-  createBackup({ daily: true });
-});
+cron.schedule('0 23 * * *', () => createBackup({ daily: true }));
 
 // ==================== WEB ROUTES ====================
-// Landing page at root
+
+// Landing page — public domain
 app.get('/', (req, res) => {
+  const mode = getAppMode(req);
+  if (mode === 'admin') {
+    // Admin subdomain: serve admin dashboard
+    return res.sendFile(path.join(__dirname, 'views', 'dashboard.html'));
+  }
+  // Public domain: serve landing page
   res.sendFile(path.join(__dirname, 'public', 'landing.html'));
 });
 
-// Redirect /login → /admin/login (legacy URL used by inline scripts in HTML)
+// Admin app pages — all at root for admin subdomain
 app.get('/login', (req, res) => {
-  res.redirect('/admin/login');
+  res.sendFile(path.join(__dirname, 'views', 'login.html'));
 });
 
-// Admin app — serve ALL admin routes under /admin prefix
-// Inject <base href="/admin"> + comprehensive BASE_PATH script so ALL existing
-// fetch() calls, location.href assignments, and SW registrations work correctly
-app.use('/admin', (req, res, next) => {
-  const origSendFile = res.sendFile.bind(res);
-  res.sendFile = function(filepath, options, callback) {
-    if (String(filepath).endsWith('.html')) {
-      return fs.readFile(filepath, 'utf8', (err, html) => {
-        if (err) return origSendFile(filepath, options, callback);
+app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'views', 'dashboard.html')));
+app.get('/customers', (req, res) => res.sendFile(path.join(__dirname, 'views', 'customers.html')));
+app.get('/customer/:id', (req, res) => res.sendFile(path.join(__dirname, 'views', 'customer-detail.html')));
+app.get('/sale', (req, res) => res.sendFile(path.join(__dirname, 'views', 'sales.html')));
+app.get('/stock', (req, res) => res.sendFile(path.join(__dirname, 'views', 'stock.html')));
+app.get('/analytics', (req, res) => res.sendFile(path.join(__dirname, 'views', 'analytics.html')));
+app.get('/delivery', (req, res) => res.sendFile(path.join(__dirname, 'views', 'delivery.html')));
+app.get('/products', (req, res) => res.sendFile(path.join(__dirname, 'views', 'products.html')));
+app.get('/purchases', (req, res) => res.sendFile(path.join(__dirname, 'views', 'purchases.html')));
+app.get('/kegs', (req, res) => res.sendFile(path.join(__dirname, 'views', 'kegs.html')));
+app.get('/report', (req, res) => res.sendFile(path.join(__dirname, 'views', 'report.html')));
+app.get('/backup', (req, res) => res.sendFile(path.join(__dirname, 'views', 'backup.html')));
+app.get('/devices', (req, res) => res.sendFile(path.join(__dirname, 'views', 'devices.html')));
+app.get('/expenses', (req, res) => res.sendFile(path.join(__dirname, 'views', 'expenses.html')));
 
-        // Inject <base> tag if missing
-        if (!html.includes('<base')) {
-          html = html.replace('<head>', '<head><base href="/admin">');
-        }
-
-        // Inject comprehensive BASE_PATH patch script
-        // This patches fetch(), location.href setters, and SW.register()
-        const patchScript = `<script>
-(function() {
-  var _base = '/admin';
-  window.BASE_PATH = _base;
-
-  // Patch fetch() to prefix relative paths starting with / (skip /api/* which are root-mounted)
-  var _origFetch = window.fetch;
-  window.fetch = function(input, init) {
-    var url = typeof input === 'string' ? input : (input && input.url);
-    if (url && url.charAt(0) === '/' && !url.startsWith('/api/') && !url.startsWith(_base)) {
-      var cloned = typeof input === 'string'
-        ? _base + input
-        : Object.assign({}, input, { url: _base + input.url });
-      return _origFetch.call(window, cloned, init);
-    }
-    return _origFetch.call(window, input, init);
-  };
-
-  // Patch ALL location navigation methods to always prefix with /admin
-  var _origAssign = window.location.assign.bind(window.location);
-  var _origReplace = window.location.replace.bind(window.location);
-  var _origHrefDesc = Object.getOwnPropertyDescriptor(window.location, 'href');
-  window.location.assign = function(url) {
-    if (typeof url === 'string' && url.charAt(0) === '/' && !url.startsWith('/api/') && !url.startsWith(_base)) {
-      url = _base + url;
-    }
-    return _origAssign(url);
-  };
-  window.location.replace = function(url) {
-    if (typeof url === 'string' && url.charAt(0) === '/' && !url.startsWith('/api/') && !url.startsWith(_base)) {
-      url = _base + url;
-    }
-    return _origReplace(url);
-  };
-
-  // Intercept ALL <a href="/..."> clicks — prefix with /admin automatically
-  document.addEventListener('click', function(e) {
-    var a = e.target.closest('a');
-    if (!a) return;
-    var href = a.getAttribute('href');
-    if (typeof href === 'string' && href.charAt(0) === '/' && !href.startsWith('/api/') && !href.startsWith(_base)) {
-      e.preventDefault();
-      window.location.assign(href);
-    }
-  });
-
-  // Patch serviceWorker.register() to use BASE_PATH
-  if (navigator && navigator.serviceWorker) {
-    var _origReg = navigator.serviceWorker.register.bind(navigator.serviceWorker);
-    navigator.serviceWorker.register = function(scriptURL, options) {
-      if (typeof scriptURL === 'string' && scriptURL.charAt(0) === '/') {
-        scriptURL = _base + scriptURL;
-      }
-      return _origReg(scriptURL, options);
-    };
-  }
-})();
-</script>`;
-
-        if (!html.includes('window.BASE_PATH')) {
-          html = html.replace('</head>', patchScript + '</head>');
-        }
-
-        res.type('text/html').send(html);
-      });
-    }
-    return origSendFile(filepath, options, callback);
-  };
-  next();
-});
-
-// Mount all admin routes under /admin
-app.use('/admin/login', require('./routes/login'));
-app.use('/admin', require('./routes/dashboard'));
-app.use('/admin/customers', require('./routes/customers'));
-app.use('/admin/sale', require('./routes/sales'));
-app.use('/admin/sales', (req, res) => res.redirect('/admin/sale'));
-app.use('/admin/stock', require('./routes/stock'));
-app.use('/admin/analytics', require('./routes/analytics'));
-app.use('/admin/delivery', require('./routes/delivery'));
-app.use('/admin/products', require('./routes/products'));
-app.use('/admin/purchases', require('./routes/purchases'));
-app.use('/admin/kegs', require('./routes/kegs'));
-app.use('/admin/report', require('./routes/report'));
-app.use('/admin/backup', require('./routes/backup'));
-app.use('/admin/devices', require('./routes/devices'));
-app.use('/admin/expenses', require('./routes/expenses'));
+// Redirect legacy /admin/* paths to clean paths
+app.use('/admin', (req, res) => res.redirect(req.path === '/admin' ? '/' : req.path));
 
 // ==================== API ROUTES ====================
 app.use('/api/customers', require('./routes/api/customers'));
@@ -302,25 +245,19 @@ app.use('/api/settings', require('./routes/api/settings'));
 app.use('/api/devices', require('./routes/api/devices'));
 app.use('/api/expenses', require('./routes/api/expenses'));
 app.use('/api/session', require('./routes/api/session'));
-
-// ==================== SYNC API ====================
-// Offline-first multi-device sync
 app.use('/api/sync', require('./routes/api/sync'));
 
-// ==================== AUTH CHECK API ====================
-// Quick auth check for client-side redirects
+// ==================== AUTH ====================
+app.use('/auth', require('./routes/login'));
+
+// ==================== AUTH CHECK ====================
 app.get('/api/auth/me', (req, res) => {
   const cookieToken = req.cookies?.[AUTH_CONFIG.cookieName];
   const headerToken = req.headers.authorization?.replace('Bearer ', '');
   const token = cookieToken || headerToken;
-
-  if (!token) {
-    return res.status(401).json({ loggedIn: false });
-  }
+  if (!token) return res.status(401).json({ loggedIn: false });
   const session = getSession(token);
-  if (!session) {
-    return res.status(401).json({ loggedIn: false });
-  }
+  if (!session) return res.status(401).json({ loggedIn: false });
   res.json({ loggedIn: true, username: session.username });
 });
 
@@ -330,9 +267,7 @@ app.get('/api/ping', (req, res) => {
 });
 
 // ==================== CLOUD DISCOVERY ====================
-// Giúp các thiết bị trong LAN tự động tìm cloud server
 app.get('/api/discover', (req, res) => {
-  // CORS for LAN cross-origin requests (browsers block cross-origin from LAN IPs)
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -340,9 +275,7 @@ app.get('/api/discover', (req, res) => {
 
   const { deviceId } = req.query;
   const isCloudServer = process.env.IS_CLOUD_SERVER === 'true' || process.env.CLOUD_MODE === 'true';
-  const cloudDomain = process.env.CLOUD_DOMAIN || null;
 
-  // Get all LAN IP addresses of this server (skip loopback/internal)
   const interfaces = os.networkInterfaces();
   const lanIPs = [];
   for (const name of Object.keys(interfaces)) {
@@ -360,7 +293,7 @@ app.get('/api/discover', (req, res) => {
     } catch {}
   }
 
-  // Prefer cloud domain (internet access) over LAN IP
+  const cloudDomain = process.env.CLOUD_DOMAIN || null;
   const primaryUrl = cloudDomain || (lanIPs.length > 0 ? `http://${lanIPs[0]}:${PORT}` : null);
 
   res.json({
@@ -368,51 +301,55 @@ app.get('/api/discover', (req, res) => {
     name: DISTRIBUTOR_NAME,
     lanIPs,
     url: primaryUrl,
-    domain: cloudDomain,          // Internet URL (for remote clients)
+    domain: cloudDomain,
     isCloudServer,
     serverTime: new Date().toISOString()
   });
 });
 
 // ==================== ERROR HANDLER ====================
-// Middleware xử lý lỗi - tránh crash server
 app.use((err, req, res, next) => {
-  logger.error('Unhandled server error', { message: err.message, stack: err.stack });
-  if (err.message && err.message.includes('SQLITE_CANTOPEN')) {
+  logger.error('Unhandled server error', { message: err.message });
+  if (err.message?.includes('SQLITE_CANTOPEN')) {
     return res.status(503).json({ error: 'Database not available' });
   }
   res.status(500).json({ error: 'Server error' });
 });
 
-// ==================== 404 HANDLER ====================
 app.use((req, res) => {
   res.status(404).json({ error: 'Not found' });
 });
 
-// ==================== START SERVER ====================
-// Detect cloud mode: if cloudUrl is set in env or starts as cloud
+// ==================== START ====================
 const isCloudServer = process.env.IS_CLOUD_SERVER === 'true' || process.env.CLOUD_MODE === 'true';
 if (isCloudServer) {
   process.env.IS_CLOUD_SERVER = 'true';
   logger.info('Cloud server mode ENABLED');
 }
 
-// Prevent multiple instances
+function getNetworkIPs() {
+  const interfaces = os.networkInterfaces();
+  const ips = [];
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name]) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        ips.push({ name, ip: iface.address });
+      }
+    }
+  }
+  return ips;
+}
+
 const server = app.listen(PORT, HOST, () => {
   const networkIPs = getNetworkIPs();
-
   logger.info('Beer POS Pro v2 started');
-  logger.info(`Server started at ${new Date().toISOString()}`);
+  logger.info(`Mode: ${isCloudServer ? 'Cloud Server' : 'Standard'}`);
   logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  logger.info(`Hostname: ${os.hostname()}`);
-  if (isCloudServer) logger.info('Mode: Cloud Server');
-
   const urls = [`http://localhost:${PORT}`, `http://127.0.0.1:${PORT}`];
-  networkIPs.forEach(({ name, ip }) => urls.push(`http://${ip}:${PORT}`));
+  networkIPs.forEach(({ ip }) => urls.push(`http://${ip}:${PORT}`));
   logger.info(`Access URLs: ${urls.join(', ')}`);
 });
 
-// Handle server errors (e.g., port already in use)
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
     logger.error(`Port ${PORT} is already in use!`);

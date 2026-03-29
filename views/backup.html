@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <script>window.BASE_PATH = '/admin';</script>
+  <script>window.BASE_PATH = '/';</script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sao lưu - Beer POS</title>
@@ -29,7 +29,7 @@
         <span class="font-semibold text-sm">Sao lưu</span>
       </div>
       <div class="flex gap-3 text-xl">
-        <a href="/admin" class="text-gray-500 hover:bg-gray-100 px-2 rounded">🏠</a>
+        <a href="/" class="text-gray-500 hover:bg-gray-100 px-2 rounded">🏠</a>
       </div>
     </div>
   </header>
@@ -75,11 +75,11 @@
   <!-- Bottom Navigation -->
   <nav class="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg" style="max-width: 500px; margin: auto; left: 0; right: 0;">
     <div class="grid grid-cols-5 text-center text-xs">
-      <a href="/admin" class="py-2 text-gray-500"><div class="text-xl">🏠</div><div>Home</div></a>
-      <a href="/admin/customers" class="py-2 text-gray-500"><div class="text-xl">👤</div><div>KH</div></a>
-      <a href="/admin/sale" class="py-2 text-gray-500"><div class="text-xl">🍺</div><div>Bán</div></a>
-      <a href="/admin/stock" class="py-2 text-gray-500"><div class="text-xl">📦</div><div>Kho</div></a>
-      <a href="/admin/report" class="py-2 text-gray-500"><div class="text-xl">📊</div><div>BK</div></a>
+      <a href="/" class="py-2 text-gray-500"><div class="text-xl">🏠</div><div>Home</div></a>
+      <a href="/customers" class="py-2 text-gray-500"><div class="text-xl">👤</div><div>KH</div></a>
+      <a href="/sale" class="py-2 text-gray-500"><div class="text-xl">🍺</div><div>Bán</div></a>
+      <a href="/stock" class="py-2 text-gray-500"><div class="text-xl">📦</div><div>Kho</div></a>
+      <a href="/report" class="py-2 text-gray-500"><div class="text-xl">📊</div><div>BK</div></a>
     </div>
   </nav>
 
@@ -203,7 +203,7 @@
   <script src="/js/debug.js"></script>
   <script>
   // Check authentication
-  if (!isLoggedIn()) { window.location.href = window.BASE_PATH + '/login'; }
+  if (!isLoggedIn()) { window.location.href = '/login'; }
 
   // Service Worker — bật offline-first caching
   if ('serviceWorker' in navigator) {
