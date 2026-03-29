@@ -225,7 +225,7 @@ app.get('/delivery', (req, res) => res.sendFile(path.join(__dirname, 'views', 'd
 app.get('/products', (req, res) => res.sendFile(path.join(__dirname, 'views', 'products.html')));
 app.get('/purchases', (req, res) => res.sendFile(path.join(__dirname, 'views', 'purchases.html')));
 app.get('/kegs', (req, res) => res.sendFile(path.join(__dirname, 'views', 'kegs.html')));
-app.get('/report', (req, res) => res.sendFile(path.join(__dirname, 'views', 'report.html')));
+// /report is handled by routes/report.js (serves full HTML page)
 app.get('/backup', (req, res) => res.sendFile(path.join(__dirname, 'views', 'backup.html')));
 app.get('/devices', (req, res) => res.sendFile(path.join(__dirname, 'views', 'devices.html')));
 app.get('/expenses', (req, res) => res.sendFile(path.join(__dirname, 'views', 'expenses.html')));
@@ -258,6 +258,7 @@ app.use('/sale', require('./routes/sales'));
 app.use('/stock', require('./routes/stock'));
 app.use('/purchases', require('./routes/purchases'));
 app.use('/dashboard', require('./routes/dashboard'));
+app.use('/report', require('./routes/report'));
 
 // ==================== AUTH CHECK ====================
 app.get('/api/auth/me', (req, res) => {
