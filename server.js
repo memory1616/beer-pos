@@ -95,9 +95,13 @@ app.get('/manifest.json', (req, res) => {
 // Inject global app context into every HTML page served by Express
 // - window.APP_MODE: 'admin' | 'public'
 // - window.BASE_PATH: '/' (admin) | null (public)
+// - window.APP_VERSION: git hash or timestamp for cache busting
 app.use((req, res, next) => {
   const mode = getAppMode(req);
   const origSendFile = res.sendFile.bind(res);
+
+  // Build version string: git hash or fallback to build timestamp
+  const APP_VERSION = process.env.APP_VERSION || String(Date.now()).slice(0, 10);
 
   res.sendFile = function(filepath, options, callback) {
     if (String(filepath).endsWith('.html')) {
@@ -112,10 +116,21 @@ app.use((req, res, next) => {
           html = html.replace('<head>', '<head><base href="/">');
         }
 
+        // Inject version busting: append ?v=APP_VERSION to JS and CSS files
+        html = html.replace(/(<\s*(?:script|img|link)\s+[^>]*(?:src|href)\s*=\s*["'])(\/[^"']+)(")/gi, (match, prefix, path, suffix) => {
+          // Only bust version for local /js/ and /css/ assets
+          if (path.startsWith('/js/') || path.startsWith('/css/') || path === '/sw.js') {
+            const separator = path.includes('?') ? '&' : '?';
+            return `${prefix}${path}${separator}v=${APP_VERSION}${suffix}`;
+          }
+          return match;
+        });
+
         // Inject app context globals
         const ctxScript = `<script>
 window.APP_MODE = '${mode}';
 window.BASE_PATH = ${basePath ? `'${basePath}'` : 'null'};
+window.APP_VERSION = '${APP_VERSION}';
 </script>`;
 
         if (!html.includes('window.APP_MODE')) {

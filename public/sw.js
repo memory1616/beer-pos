@@ -1,6 +1,6 @@
-// BeerPOS Service Worker v18
+// BeerPOS Service Worker v19
 // Clean PWA: only cache static assets, never touch navigation or API
-const CACHE_NAME = "beer-pos-v18";
+const CACHE_NAME = "beer-pos-v19";
 const DB_NAME = "BeerPOS";
 const STORE_SYNC_QUEUE = "sync_queue";
 
@@ -93,18 +93,13 @@ async function queueForSync(method, url, body, headers) {
   }
 }
 
-// URLs to cache — static assets ONLY
+// URLs to cache — static assets ONLY (images, fonts, manifest)
+// JS files are intentionally omitted: browser fetches fresh copies each time
+// to ensure version busting works without waiting for SW update
 const urlsToCache = [
   "/manifest.json",
   "/icon-192.png",
   "/icon-512.png",
-  "/js/vendor/dexie.min.js",
-  "/js/vendor/chart.umd.min.js",
-  "/js/sync.js",
-  "/js/db.js",
-  "/js/numfmt.js",
-  "/js/auth.js",
-  "/js/layout.js?v=20260329",
   "/css/tailwind.css",
   "/css/unified.css"
 ];
@@ -300,4 +295,4 @@ async function handleAPIMutation(request) {
   }
 }
 
-console.log("[SW] BeerPOS Service Worker v17 loaded");
+console.log("[SW] BeerPOS Service Worker v19 loaded");
