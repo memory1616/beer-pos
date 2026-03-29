@@ -252,6 +252,13 @@ app.use('/api/sync', require('./routes/api/sync'));
 // ==================== AUTH ====================
 app.use('/auth', require('./routes/login'));
 
+// ==================== PAGE DATA ROUTES ====================
+app.use('/customers', require('./routes/customers'));
+app.use('/sale', require('./routes/sales'));
+app.use('/stock', require('./routes/stock'));
+app.use('/purchases', require('./routes/purchases'));
+app.use('/dashboard', require('./routes/dashboard'));
+
 // ==================== AUTH CHECK ====================
 app.get('/api/auth/me', (req, res) => {
   const cookieToken = req.cookies?.[AUTH_CONFIG.cookieName];

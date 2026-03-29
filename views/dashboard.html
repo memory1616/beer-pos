@@ -200,7 +200,7 @@
   <script>
   async function loadData() {
     try {
-      const res = await fetch('/data');
+      const res = await fetch('/dashboard/data');
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
       if (typeof initDashboard === 'function') initDashboard(data);
