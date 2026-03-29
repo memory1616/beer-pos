@@ -582,6 +582,20 @@ try {
   console.log('Settings table may already exist:', e.message);
 }
 
+// Expense Categories table — loại chi phí tự thêm, lưu trên server
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS expense_categories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  console.log('Created expense_categories table');
+} catch (e) {
+  console.log('expense_categories table may already exist:', e.message);
+}
+
 // Expenses table for tracking operational costs
 try {
   db.exec(`

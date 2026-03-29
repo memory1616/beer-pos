@@ -36,8 +36,19 @@ router.get('/', (req, res, next) => {
     SELECT * FROM expenses ORDER BY date DESC, id DESC LIMIT 20
   `).all();
 
-  // Expense categories (defaults + custom from localStorage injected via client)
+  // Expense categories (defaults + custom from DB)
   const defaultCategories = ['Xăng dầu', 'Khấu hao', 'Hư hỏng', 'Điện nước', 'Nhân công', 'Thuê mặt bằng', 'Bảo trì', 'Marketing', 'Khác'];
+
+  // Load custom categories from DB
+  let customCategories = [];
+  try {
+    const rows = db.prepare('SELECT name FROM expense_categories ORDER BY name ASC').all();
+    customCategories = rows.map(r => r.name);
+  } catch (e) {
+    logger.error('Error loading custom expense categories', { error: e.message });
+  }
+
+  const allCategories = [...defaultCategories, ...customCategories];
 
   const categoryIcons = {
     'Xăng dầu': '⛽',
@@ -51,7 +62,8 @@ router.get('/', (req, res, next) => {
     'Khác': '📋'
   };
 
-  const categories = defaultCategories;
+  const categories = allCategories;
+  const customCategoriesJson = JSON.stringify(customCategories);
   if (categorySummary.length > 0) {
     categoryHtml = categorySummary.map(c => {
       const icon = categoryIcons[c.category] || '📋';
@@ -116,6 +128,8 @@ router.get('/', (req, res, next) => {
 '  <script src="/js/layout.js?v=20260329"></script>' +
 '  <script>requireAuth();</script>' +
 '  <style>' +
+'    /* z-[60] không có trong tailwind.css đã build — modal loại chi phí phải nằm trên modal thêm chi phí (z-50) */' +
+'    #addCategoryModal { z-index: 60; }' +
 '    .animate-fade { animation: fade 0.3s ease-in; }' +
 '    @keyframes fade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }' +
 '    .pb-safe { padding-bottom: env(safe-area-inset-bottom, 20px); }' +
@@ -172,7 +186,7 @@ router.get('/', (req, res, next) => {
 '  </div>' +
 '' +
 '  <!-- Add Category Modal (inline) -->' +
-'  <div id="addCategoryModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4 z-[60]">' +
+'  <div id="addCategoryModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4">' +
 '    <div class="bg-white rounded-xl p-6 max-w-sm w-full">' +
 '      <h3 class="text-lg font-bold text-gray-800 mb-4">Thêm loại chi phí mới</h3>' +
 '      <input type="text" id="newCategoryName" maxlength="30" placeholder="VD: Thuê xe, Quảng cáo..." class="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-red-500 focus:outline-none mb-3">' +
@@ -185,7 +199,8 @@ router.get('/', (req, res, next) => {
 '  </div>' +
 '' +
 '  <script>' +
-'    const categories = ' + JSON.stringify(categories) + ';' +
+'    const categories = ' + JSON.stringify(allCategories) + ';' +
+'    const customCategories = ' + customCategoriesJson + ';' +
 '    ' +
 '    (async () => {' +
 '      document.getElementById(\'app\').innerHTML = ' +
@@ -214,7 +229,6 @@ router.get('/', (req, res, next) => {
 '          </div>' +
 '        `) +' +
 '        getBottomNav(\'/expenses\');' +
-'        populateCustomCategories();' +
 '    })();' +
 '  </script>' +
 '' +
@@ -237,12 +251,10 @@ router.get('/', (req, res, next) => {
 '      document.querySelector(\'#addExpenseModal h2\').textContent = \'Sửa chi phí\';' +
 '      document.getElementById(\'expenseId\').value = id;' +
 '      const catSelect = document.getElementById(\'catSelect\');' +
-'      const savedCats = JSON.parse(localStorage.getItem(\'expenseCategories\') || \'[]\');' +
-'      const allCats = [...categories, ...savedCats];' +
-'      if (!allCats.includes(category)) {' +
-'        savedCats.push(category);' +
-'        localStorage.setItem(\'expenseCategories\', JSON.stringify(savedCats));' +
+'      // Nếu loại chưa có trong dropdown, thêm vào (trường hợp hiếm gặp)' +
+'      if (!categories.includes(category) && !customCategories.includes(category)) {' +
 '        addCategoryToDropdown(category);' +
+'        customCategories.push(category);' +
 '      }' +
 '      catSelect.value = category;' +
 '      onCatChange(category);' +
@@ -276,7 +288,7 @@ router.get('/', (req, res, next) => {
 '      hideModal(\'addCategoryModal\');' +
 '    }' +
 
-'    function saveNewCategory() {' +
+'    async function saveNewCategory() {' +
 '      const input = document.getElementById(\'newCategoryName\');' +
 '      const errorEl = document.getElementById(\'newCatError\');' +
 '      const name = input.value.trim();' +
@@ -295,20 +307,37 @@ router.get('/', (req, res, next) => {
 '        input.classList.add(\'border-red-400\');' +
 '        return;' +
 '      }' +
-'      const saved = JSON.parse(localStorage.getItem(\'expenseCategories\') || \'[]\');' +
-'      if (saved.includes(name) || categories.includes(name)) {' +
+'      if (categories.includes(name) || customCategories.includes(name)) {' +
 '        errorEl.textContent = \'Loại chi phí này đã tồn tại.\';' +
 '        errorEl.classList.remove(\'hidden\');' +
 '        input.classList.add(\'border-red-400\');' +
 '        return;' +
 '      }' +
-'      saved.push(name);' +
-'      localStorage.setItem(\'expenseCategories\', JSON.stringify(saved));' +
-'      addCategoryToDropdown(name);' +
-'      hideAddCategory();' +
-'      const catSelect = document.getElementById(\'catSelect\');' +
-'      catSelect.value = name;' +
-'      onCatChange(name);' +
+'      try {' +
+'        const res = await fetch(\'/api/expenses/categories\', {' +
+'          method: \'POST\',' +
+'          headers: { \'Content-Type\': \'application/json\' },' +
+'          body: JSON.stringify({ name })' +
+'        });' +
+'        const data = await res.json();' +
+'        if (res.ok) {' +
+'          customCategories.push(name);' +
+'          categories.push(name);' +
+'          addCategoryToDropdown(name);' +
+'          hideAddCategory();' +
+'          const catSelect = document.getElementById(\'catSelect\');' +
+'          catSelect.value = name;' +
+'          onCatChange(name);' +
+'        } else {' +
+'          errorEl.textContent = data.error || \'Không thể thêm loại chi phí.\';' +
+'          errorEl.classList.remove(\'hidden\');' +
+'          input.classList.add(\'border-red-400\');' +
+'        }' +
+'      } catch (err) {' +
+'        errorEl.textContent = \'Lỗi kết nối: \' + err.message;' +
+'        errorEl.classList.remove(\'hidden\');' +
+'        input.classList.add(\'border-red-400\');' +
+'      }' +
 '    }' +
 
 '    function addCategoryToDropdown(name) {' +
@@ -321,14 +350,8 @@ router.get('/', (req, res, next) => {
 '      catSelect.insertBefore(opt, customOpt || null);' +
 '    }' +
 
-'    function populateCustomCategories() {' +
-'      const saved = JSON.parse(localStorage.getItem(\'expenseCategories\') || \'[]\');' +
-'      saved.forEach(cat => addCategoryToDropdown(cat));' +
-'    }' +
-
 '    function getAllCategories() {' +
-'      const saved = JSON.parse(localStorage.getItem(\'expenseCategories\') || \'[]\');' +
-'      return [...categories, ...saved];' +
+'      return [...categories];' +
 '    }' +
 '' +
 '    async function submitExpense() {' +
@@ -342,11 +365,19 @@ router.get('/', (req, res, next) => {
 '          alert(\'Vui lòng nhập tên loại chi phí.\');' +
 '          return;' +
 '        }' +
-'        const saved = JSON.parse(localStorage.getItem(\'expenseCategories\') || \'[]\');' +
-'        if (!saved.includes(category) && !categories.includes(category)) {' +
-'          saved.push(category);' +
-'          localStorage.setItem(\'expenseCategories\', JSON.stringify(saved));' +
-'          addCategoryToDropdown(category);' +
+'        if (!categories.includes(category) && !customCategories.includes(category)) {' +
+'          try {' +
+'            const res = await fetch(\'/api/expenses/categories\', {' +
+'              method: \'POST\',' +
+'              headers: { \'Content-Type\': \'application/json\' },' +
+'              body: JSON.stringify({ name: category })' +
+'            });' +
+'            if (res.ok) {' +
+'              customCategories.push(category);' +
+'              categories.push(category);' +
+'              addCategoryToDropdown(category);' +
+'            }' +
+'          } catch (_) {}' +
 '        }' +
 '      }' +
 '      const amountInput = form.querySelector(\'input[name="amount"]\');' +

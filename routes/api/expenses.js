@@ -334,4 +334,55 @@ router.delete('/:id', (req, res) => {
   }
 });
 
+// Get all custom expense categories
+router.get('/categories/all', (req, res) => {
+  try {
+    const categories = db.prepare('SELECT * FROM expense_categories ORDER BY name ASC').all();
+    res.json(categories);
+  } catch (err) {
+    logger.error('Error fetching expense categories', { error: err.message });
+    res.status(500).json({ error: 'Failed to fetch expense categories' });
+  }
+});
+
+// Add a new expense category
+router.post('/categories', (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name || typeof name !== 'string' || name.trim().length < 2) {
+      return res.status(400).json({ error: 'Tên loại chi phí phải có ít nhất 2 ký tự.' });
+    }
+    const trimmed = name.trim();
+
+    // Check duplicate
+    const existing = db.prepare('SELECT id FROM expense_categories WHERE name = ?').get(trimmed);
+    if (existing) {
+      return res.status(409).json({ error: 'Loại chi phí này đã tồn tại.' });
+    }
+
+    const result = db.prepare('INSERT INTO expense_categories (name) VALUES (?)').run(trimmed);
+    const category = db.prepare('SELECT * FROM expense_categories WHERE id = ?').get(result.lastInsertRowid);
+    res.status(201).json(category);
+  } catch (err) {
+    logger.error('Error creating expense category', { error: err.message });
+    res.status(500).json({ error: 'Failed to create expense category' });
+  }
+});
+
+// Delete an expense category
+router.delete('/categories/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const existing = db.prepare('SELECT * FROM expense_categories WHERE id = ?').get(id);
+    if (!existing) {
+      return res.status(404).json({ error: 'Loại chi phí không tồn tại.' });
+    }
+    db.prepare('DELETE FROM expense_categories WHERE id = ?').run(id);
+    res.json({ success: true, message: 'Đã xóa loại chi phí.' });
+  } catch (err) {
+    logger.error('Error deleting expense category', { error: err.message });
+    res.status(500).json({ error: 'Failed to delete expense category' });
+  }
+});
+
 module.exports = router;

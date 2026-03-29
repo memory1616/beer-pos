@@ -826,64 +826,69 @@ async function loadSalesHistory() {
     return;
   }
   
-  container.innerHTML = salesHistory.map(sale => {
+  container.innerHTML = '<div class="flex flex-col gap-2">' +
+    salesHistory.map(sale => {
     const date = new Date(sale.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
     const customerName = sale.customer_name || 'Khách lẻ';
     const hasKegUpdate = (sale.deliver_kegs || 0) > 0 || (sale.return_kegs || 0) > 0;
     const isReturned = sale.status === 'returned';
     
-    // Style based on sale type
-    let typeBadge = '';
-    let totalDisplay = '';
-    let rowClass = '';
-    let actionButtons = '';
-    
-    if (sale.type === 'gift') {
-      typeBadge = '<span class="bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded text-xs">🎁 Tặng uống thử</span>';
-      totalDisplay = '<span class="font-bold text-yellow-600">0 đ</span>';
-      rowClass = 'bg-yellow-50';
-    } else if (sale.type === 'replacement') {
-      typeBadge = '<span class="bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded text-xs">🔁 Đổi lỗi</span>';
-      totalDisplay = '<span class="font-bold text-orange-600">0 đ</span>';
-      rowClass = 'bg-orange-50';
-    } else if (isReturned) {
-      // Phân biệt trả lại kho và bia lỗi
-      if (sale.type === 'damage_return') {
-        typeBadge = '<span class="bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded text-xs">⚠️ Bia lỗi</span>';
-      } else {
-        typeBadge = '<span class="bg-red-100 text-red-700 px-1.5 py-0.5 rounded text-xs">🔴 Đã trả hàng</span>';
-      }
-      totalDisplay = '<span class="font-bold text-gray-400 line-through">' + formatVND(sale.total) + '</span>';
-      rowClass = 'bg-red-50 opacity-70';
-    } else {
-      totalDisplay = '<span class="font-bold text-green-600">' + formatVND(sale.total) + '</span>';
-    }
-    
-    // Hiển thị nút hành động cho hóa đơn chưa trả
-    if (!isReturned) {
-      actionButtons = `
-        <button onclick="viewSale(${sale.id})" class="text-blue-500 text-sm px-1">👁️</button>
-        <button onclick="openKegModal(${sale.id})" class="text-purple-500 text-sm px-1">📦</button>
-        <button onclick="editSale(${sale.id})" class="text-orange-500 text-sm px-1">✏️</button>
-        <button onclick="deleteSale(${sale.id})" class="text-red-500 text-sm px-1">🗑️</button>
-      `;
-    } else {
-      actionButtons = `<button onclick="viewSale(${sale.id})" class="text-blue-500 text-sm px-1">👁️</button>`;
-    }
-    
+    // ── Sales History Card v2 ──
+    // Mỗi hóa đơn là 1 card riêng, có shadow, bo tròn, phân cách rõ ràng
+    const kegIcon = (sale.deliver_kegs || 0) > 0
+      ? `<span class="inline-flex items-center gap-0.5 text-xs text-green-600 font-medium"><span>📦</span><span>+${sale.deliver_kegs}</span></span>`
+      : (sale.return_kegs || 0) > 0
+      ? `<span class="inline-flex items-center gap-0.5 text-xs text-orange-600 font-medium"><span>🔄</span><span>-${sale.return_kegs}</span></span>`
+      : '';
+    const badgeClass = sale.type === 'gift' ? 'bg-amber-100 text-amber-700'
+      : sale.type === 'replacement' ? 'bg-orange-100 text-orange-700'
+      : isReturned ? 'bg-red-100 text-red-600'
+      : 'bg-green-100 text-green-700';
+    const badgeText = sale.type === 'gift' ? '🎁 Tặng thử'
+      : sale.type === 'replacement' ? '🔁 Đổi lỗi'
+      : isReturned ? (sale.type === 'damage_return' ? '⚠️ Bia lỗi' : '🔴 Đã trả')
+      : '✔ Hoàn tất';
+    const totalClass = sale.type === 'gift' || sale.type === 'replacement' ? 'text-orange-500'
+      : isReturned ? 'text-gray-400 line-through'
+      : 'text-green-600';
+    const cardBg = sale.type === 'gift' ? 'bg-amber-50/60'
+      : sale.type === 'replacement' ? 'bg-orange-50/60'
+      : isReturned ? 'bg-red-50/60'
+      : 'bg-white';
+    const borderAccent = sale.type === 'gift' ? 'border-l-4 border-amber-400'
+      : sale.type === 'replacement' ? 'border-l-4 border-orange-400'
+      : isReturned ? 'border-l-4 border-red-300'
+      : 'border-l-4 border-green-400';
+
     return `
-      <div class="flex justify-between items-center p-2 border-b ${rowClass}">
-        <div>
-          <div class="font-medium">#${sale.id} - ${customerName} ${typeBadge}</div>
-          <div class="text-xs text-gray-500">${date}${hasKegUpdate ? ' • 📦' : ''}</div>
+      <div class="flex items-center gap-3 p-3 ${cardBg} ${borderAccent} rounded-xl shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+           onclick="viewSale(${sale.id})">
+        <!-- Left: number + name + meta -->
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-base font-bold text-gray-800">${customerName}</span>
+            <span class="px-2 py-0.5 ${badgeClass} rounded-full text-xs font-semibold">${badgeText}</span>
+          </div>
+          <div class="flex items-center gap-2 mt-1 flex-wrap">
+            <span class="text-xs text-gray-400">#${sale.id}</span>
+            <span class="text-xs text-gray-400">·</span>
+            <span class="text-xs text-gray-400">${date}</span>
+            ${kegIcon ? `<span class="text-xs text-gray-300">·</span>${kegIcon}` : ''}
+          </div>
         </div>
-        <div class="flex items-center gap-1">
-          ${totalDisplay}
-          ${actionButtons}
+        <!-- Right: total + actions -->
+        <div class="flex-shrink-0 text-right">
+          <div class="text-base font-bold ${totalClass}">${formatVND(sale.total)}</div>
+          ${!isReturned ? `
+          <div class="flex items-center justify-end gap-1 mt-1" onclick="event.stopPropagation()">
+            <button onclick="openKegModal(${sale.id})" class="w-7 h-7 rounded-full bg-purple-100 text-purple-600 text-xs flex items-center justify-center hover:bg-purple-200 transition-colors" title="Giao thu bình">📦</button>
+            <button onclick="editSale(${sale.id})" class="w-7 h-7 rounded-full bg-orange-100 text-orange-600 text-xs flex items-center justify-center hover:bg-orange-200 transition-colors" title="Sửa">✏️</button>
+            <button onclick="deleteSale(${sale.id})" class="w-7 h-7 rounded-full bg-red-100 text-red-500 text-xs flex items-center justify-center hover:bg-red-200 transition-colors" title="Xóa">🗑️</button>
+          </div>` : ''}
         </div>
       </div>
     `;
-  }).join('');
+  }).join('') + '</div>';
   
   // Render pagination
   renderPagination();
