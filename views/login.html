@@ -123,7 +123,7 @@
       errorDiv.classList.add('hidden');
 
       try {
-        const res = await fetch('/auth/login', {
+        const res = await fetch('/auth/', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username, password })
