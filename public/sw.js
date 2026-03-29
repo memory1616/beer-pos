@@ -104,7 +104,7 @@ const urlsToCache = [
   "/js/db.js",
   "/js/numfmt.js",
   "/js/auth.js",
-  "/js/layout.js",
+  "/js/layout.js?v=20260329",
   "/css/tailwind.css",
   "/css/unified.css"
 ];

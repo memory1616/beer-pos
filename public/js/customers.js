@@ -687,9 +687,11 @@ function editKegBalance(id, balance, name) {
 
 // Initialize bottom nav active state
 const path = window.location.pathname;
+const homePath = path === '/' || path === '/dashboard';
 document.querySelectorAll('.bottomnav a').forEach(a => {
   const href = a.getAttribute('href');
-  if (href === path || (path === '/' && href === '/')) {
+  const homeHref = href === '/' || href === '/dashboard';
+  if (href === path || (homePath && homeHref)) {
     a.classList.add('active');
   }
 });

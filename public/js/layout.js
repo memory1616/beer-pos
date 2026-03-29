@@ -14,7 +14,7 @@ async function loadVersion() {
 
 // Generate standard header
 function getHeader(title, icons = '') {
-  return getHeaderWithActions(title, icons, '<a href="/dashboard" class="text-amber-600 hover:bg-amber-50 px-2 rounded" title="Dashboard">🏠</a>');
+  return getHeaderWithActions(title, icons, '<a href="/" class="text-amber-600 hover:bg-amber-50 px-2 rounded" title="Dashboard">🏠</a>');
 }
 
 // Generate header with custom actions
@@ -56,7 +56,7 @@ function isHomeActive(currentPage) {
 function getBottomNav(currentPage) {
   const BASE = '/';
   const pages = [
-    { href: '/dashboard', icon: '🏠', label: 'Home' },
+    { href: '/', icon: '🏠', label: 'Home', home: true },
     { href: BASE + 'customers', icon: '👤', label: 'KH' },
     { href: BASE + 'sale', icon: '🍺', label: 'Bán' },
     { href: BASE + 'stock', icon: '📦', label: 'Kho' },
@@ -64,9 +64,10 @@ function getBottomNav(currentPage) {
   ];
 
   const navItem = (p) => {
-    const isActive = p.href === '/dashboard' ? isHomeActive(currentPage) : currentPage === p.href;
+    const isActive = p.home ? isHomeActive(currentPage) : currentPage === p.href;
+    const homeAttr = p.home ? ' data-nav-home="1"' : '';
     return `
-        <a href="${p.href}" class="${isActive ? 'active' : ''}">
+        <a href="${p.href}" class="${isActive ? 'active' : ''}"${homeAttr}>
           <span class="icon">${p.icon}</span>
           <span>${p.label}</span>
         </a>`;
@@ -111,3 +112,26 @@ function getCardSkeleton() {
 
 // Auto-load version on script load
 loadVersion();
+
+// Một số Chrome/PWA (standalone) chặn điều hướng thường → about:blank#blocked; ép tải lại cùng tab.
+function installBottomNavHomeNavigationFix() {
+  document.addEventListener(
+    'click',
+    function (e) {
+      const a = e.target.closest && e.target.closest('.bottomnav a[data-nav-home]');
+      if (!a) return;
+      if (e.defaultPrevented || e.button !== 0) return;
+      if (e.ctrlKey || e.metaKey || e.shiftKey) return;
+      e.preventDefault();
+      window.location.assign(a.href || '/');
+    },
+    true
+  );
+}
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', installBottomNavHomeNavigationFix);
+  } else {
+    installBottomNavHomeNavigationFix();
+  }
+}
