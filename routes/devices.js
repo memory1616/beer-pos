@@ -1,9 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../database');
+const logger = require('../src/utils/logger');
 
 // GET /devices - Simple device management by customer
-router.get('/', (req, res) => {
+router.get('/', (req, res, next) => {
+  try {
   // Get customers with fridge counts directly from customers table
   const customers = db.prepare(`
     SELECT 
@@ -52,7 +54,7 @@ router.get('/', (req, res) => {
   <script src="/js/auth.js"></script>
   <script src="/js/dark-mode.js"></script>
   <link rel="stylesheet" href="/css/unified.css">
-  <script src="/js/layout.js"></script>
+  <script src="/js/layout.js?v=20260329"></script>
   <style>
     .bottom-nav { max-width: 500px; margin: auto; }
     input, button, a { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
@@ -303,6 +305,10 @@ router.get('/', (req, res) => {
 </body>
 </html>
   `);
+  } catch (err) {
+    logger.error('GET /devices page failed', { message: err.message, stack: err.stack });
+    next(err);
+  }
 });
 
 // POST /devices - Add new device

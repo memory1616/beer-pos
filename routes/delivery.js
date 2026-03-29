@@ -1,11 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../database');
+const logger = require('../src/utils/logger');
 
 const DISTRIBUTOR_NAME = 'Bia Tươi Gia Huy';
 
 // GET /delivery
-router.get('/', (req, res) => {
+router.get('/', (req, res, next) => {
+  try {
   const customers = db.prepare(`
     SELECT * FROM customers WHERE archived = 0 AND lat IS NOT NULL AND lng IS NOT NULL ORDER BY name
   `).all();
@@ -427,6 +429,10 @@ router.get('/', (req, res) => {
 </body>
 </html>
   `);
+  } catch (err) {
+    logger.error('GET /delivery page failed', { message: err.message, stack: err.stack });
+    next(err);
+  }
 });
 
 module.exports = router;

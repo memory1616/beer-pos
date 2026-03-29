@@ -1,13 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../database');
+const logger = require('../src/utils/logger');
 
 function formatVND(amount) {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
 }
 
 // GET /expenses - Main expenses page
-router.get('/', (req, res) => {
+router.get('/', (req, res, next) => {
+  try {
   const today = new Date().toISOString().split('T')[0];
   
   // Get current month stats
@@ -110,7 +112,7 @@ router.get('/', (req, res) => {
 '  <link rel="stylesheet" href="/css/unified.css">' +
 '  <script src="/js/dark-mode.js"></script>' +
 '  <script src="/js/auth.js"></script>' +
-'  <script src="/js/layout.js"></script>' +
+'  <script src="/js/layout.js?v=20260329"></script>' +
 '  <script>requireAuth();</script>' +
 '  <style>' +
 '    .animate-fade { animation: fade 0.3s ease-in; }' +
@@ -289,6 +291,10 @@ router.get('/', (req, res) => {
 '  <script src="/sync.js"></script>' +
 '</body>' +
 '</html>');
+  } catch (err) {
+    logger.error('GET /expenses page failed', { message: err.message, stack: err.stack });
+    next(err);
+  }
 });
 
 module.exports = router;

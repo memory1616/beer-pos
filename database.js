@@ -661,6 +661,18 @@ try {
   // Column already exists
 }
 
+// Migration: DB cũ có thể tạo bảng expenses trước khi có cột category → mọi query GROUP BY category sẽ lỗi
+try {
+  db.exec(`ALTER TABLE expenses ADD COLUMN category TEXT DEFAULT 'Khác'`);
+} catch (e) {
+  // Column already exists
+}
+try {
+  db.exec(`UPDATE expenses SET category = 'Khác' WHERE category IS NULL OR TRIM(category) = ''`);
+} catch (e) {
+  // ignore
+}
+
 // (keg_inventory table removed — keg_stats is the single source of truth for keg state)
   // Migration: Add keg_inventory_balance setting if not exists
 try {

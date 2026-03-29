@@ -320,9 +320,22 @@ app.get('/api/discover', (req, res) => {
 
 // ==================== ERROR HANDLER ====================
 app.use((err, req, res, next) => {
-  logger.error('Unhandled server error', { message: err.message });
+  logger.error('Unhandled server error', { message: err.message, stack: err.stack });
   if (err.message?.includes('SQLITE_CANTOPEN')) {
     return res.status(503).json({ error: 'Database not available' });
+  }
+  const wantsHtml = req.method === 'GET' && !req.path.startsWith('/api') && req.accepts('html');
+  if (wantsHtml) {
+    res.type('html');
+    return res.status(500).send(
+      '<!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+        '<title>Lỗi máy chủ</title></head><body style="font-family:system-ui;padding:1.5rem;max-width:32rem">' +
+        '<h1 style="color:#b91c1c">Lỗi máy chủ (500)</h1>' +
+        '<p>Vui lòng thử lại sau hoặc gửi log cho admin.</p>' +
+        '<pre style="background:#f3f4f6;padding:12px;border-radius:8px;overflow:auto;font-size:12px">' +
+        String(err.message || err).replace(/</g, '&lt;') +
+        '</pre></body></html>'
+    );
   }
   res.status(500).json({ error: 'Server error' });
 });
