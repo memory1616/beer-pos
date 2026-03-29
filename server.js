@@ -41,6 +41,7 @@ const limiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => req.path === '/api/discover',
+  validate: { xForwardedForHeader: false },
 });
 app.use('/api', limiter);
 
