@@ -21,17 +21,32 @@
   -webkit-font-smoothing: antialiased;
 }
 
+html {
+  overflow-x: clip;
+}
+
 body {
   background: var(--color-bg);
   color: var(--color-text);
-  padding-top: var(--topbar-height);
-  padding-bottom: var(--bottomnav-height);
   margin: 0;
+  overflow-x: clip;
+  max-width: 100vw;
+  box-sizing: border-box;
 }
 
-/* Topbar */
+/* Tailwind .pb-20 / .pb-24 trên body có specificity thắng `body { padding-* }` — gộp safe-area vào đây */
+body.min-h-screen {
+  padding-top: calc(var(--topbar-height) + env(safe-area-inset-top, 0px));
+  padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+}
+
+body.min-h-screen.pb-24 {
+  padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* Topbar — PWA / iOS: tránh chồng lên status bar (viewport-fit=cover + black-translucent) */
 .topbar {
-  height: var(--topbar-height);
+  height: calc(var(--topbar-height) + env(safe-area-inset-top, 0px));
   position: fixed;
   top: 0;
   left: 0;
@@ -41,7 +56,11 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 16px;
+  padding: 0;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-left: calc(16px + env(safe-area-inset-left, 0px));
+  padding-right: calc(16px + env(safe-area-inset-right, 0px));
+  box-sizing: border-box;
   box-shadow: 0 2px 10px rgba(0,0,0,0.05);
   z-index: 50;
 }
@@ -50,11 +69,20 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
-.topbar .logo-icon { font-size: 20px; }
-.topbar .logo-text { font-weight: 600; font-size: 16px; }
-.topbar .actions { display: flex; gap: 12px; font-size: 18px; }
+.topbar .logo-icon { font-size: 20px; flex-shrink: 0; }
+.topbar .logo-text { font-weight: 600; font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topbar .actions {
+  display: flex;
+  gap: 8px;
+  font-size: 18px;
+  flex-shrink: 0;
+  align-items: center;
+  flex-wrap: nowrap;
+}
 .topbar .actions a, .topbar .actions button {
   color: var(--color-muted);
   padding: 4px 8px;
@@ -68,9 +96,9 @@ body {
   background: var(--color-bg);
 }
 
-/* Bottom Navigation */
+/* Bottom Navigation — home indicator / gesture bar */
 .bottomnav {
-  height: var(--bottomnav-height);
+  height: calc(var(--bottomnav-height) + env(safe-area-inset-bottom, 0px));
   position: fixed;
   bottom: 0;
   left: 0;
@@ -85,6 +113,10 @@ body {
   max-width: 500px;
   margin: 0 auto;
   z-index: 50;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+  box-sizing: border-box;
 }
 
 .bottomnav a {
@@ -117,6 +149,8 @@ body {
   border: 1px solid var(--color-border);
   box-shadow: 0 2px 10px rgba(0,0,0,0.04);
   transition: .2s;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .card:hover {
@@ -210,8 +244,26 @@ input:focus, select:focus {
 main {
   padding: 16px;
   padding-bottom: 96px;
-  max-width: 500px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  max-width: min(500px, 100%);
+  width: 100%;
   margin: 0 auto;
+  box-sizing: border-box;
+}
+
+/* Cạnh tai thỏ: Tailwind .p-4 có specificity cao hơn selector `main` — ép bằng main + class */
+main.page-enter.max-w-md,
+main.page-enter.p-4 {
+  padding-left: max(1rem, env(safe-area-inset-left, 0px));
+  padding-right: max(1rem, env(safe-area-inset-right, 0px));
+  max-width: min(28rem, 100%);
+  box-sizing: border-box;
+}
+
+/* Tailwind grid: ô không bị nở quá 50% / 33% khi số tiền dài */
+.grid > * {
+  min-width: 0;
 }
 
 /* Utilities */

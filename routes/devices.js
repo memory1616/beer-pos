@@ -44,7 +44,7 @@ router.get('/', (req, res, next) => {
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Quản lý thiết bị - Beer POS</title>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#f59e0b">
