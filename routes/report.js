@@ -212,7 +212,7 @@ router.get('/', (req, res) => {
   <title>Báo cáo - Beer POS</title>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#f59e0b">
-  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
   <link rel="stylesheet" href="/css/tailwind.css">
@@ -705,6 +705,7 @@ router.get('/profit-product', (req, res) => {
   <title>Lợi nhuận theo sản phẩm - Beer POS</title>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#f59e0b">
+  <meta name="mobile-web-app-capable" content="yes">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
   <link rel="stylesheet" href="/css/tailwind.css">
@@ -838,6 +839,7 @@ router.get('/profit-customer', (req, res) => {
   <title>Lợi nhuận theo khách hàng - Beer POS</title>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#f59e0b">
+  <meta name="mobile-web-app-capable" content="yes">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
   <link rel="stylesheet" href="/css/tailwind.css">

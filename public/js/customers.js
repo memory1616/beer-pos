@@ -514,20 +514,42 @@ async function deleteCustomer(id) {
 }
 
 function getLocation(customerId) {
+  // Find the customer data to check if GPS already exists
+  const customer = customers.find(c => c.id === customerId) || archivedCustomers.find(c => c.id === customerId);
+  const hasExistingGPS = customer && customer.lat && customer.lng;
+
   document.getElementById('locationCustomerId').value = customerId;
   document.getElementById('manualLat').value = '';
   document.getElementById('manualLng').value = '';
   document.getElementById('gpsStatus').innerHTML = '';
   document.getElementById('detectedAddress').innerHTML = '';
+  document.getElementById('existingGPSInfo').innerHTML = '';
+  document.getElementById('updateGPSSection').classList.add('hidden');
   window.detectedAddress = null;
   showModal('locationModal');
 
-  // Auto-trigger GPS after modal opens
-  setTimeout(() => {
-    if (navigator.geolocation) {
-      getGPSLocation();
-    }
-  }, 500);
+  if (hasExistingGPS) {
+    // Customer already has GPS — show existing info, don't auto-update
+    document.getElementById('existingGPSInfo').innerHTML = `
+      <div class="bg-green-50 border border-green-200 rounded-lg p-3 mb-3">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-green-600 font-semibold text-sm">✅ Đã có vị trí</span>
+        </div>
+        <div class="text-xs text-gray-600 mb-1">📍 ${customer.lat.toFixed(6)}, ${customer.lng.toFixed(6)}</div>
+        ${customer.address ? '<div class="text-xs text-gray-500">' + customer.address + '</div>' : ''}
+      </div>
+    `;
+    document.getElementById('manualLat').value = customer.lat.toFixed(6);
+    document.getElementById('manualLng').value = customer.lng.toFixed(6);
+    document.getElementById('updateGPSSection').classList.remove('hidden');
+  } else {
+    // No GPS yet — auto-trigger GPS acquisition
+    setTimeout(() => {
+      if (navigator.geolocation) {
+        getGPSLocation();
+      }
+    }, 500);
+  }
 }
 
 function getGPSLocation() {

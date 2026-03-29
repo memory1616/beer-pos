@@ -19,6 +19,7 @@ router.get('/', (req, res) => {
   <title>Sản phẩm</title>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#f59e0b">
+  <meta name="mobile-web-app-capable" content="yes">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
   <link rel="stylesheet" href="/css/tailwind.css">
