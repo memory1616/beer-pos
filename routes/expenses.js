@@ -36,11 +36,9 @@ router.get('/', (req, res, next) => {
     SELECT * FROM expenses ORDER BY date DESC, id DESC LIMIT 20
   `).all();
 
-  // Expense categories
-  const categories = ['Xăng dầu', 'Khấu hao', 'Hư hỏng', 'Điện nước', 'Nhân công', 'Thuê mặt bằng', 'Bảo trì', 'Marketing', 'Khác'];
+  // Expense categories (defaults + custom from localStorage injected via client)
+  const defaultCategories = ['Xăng dầu', 'Khấu hao', 'Hư hỏng', 'Điện nước', 'Nhân công', 'Thuê mặt bằng', 'Bảo trì', 'Marketing', 'Khác'];
 
-  // Build category summary HTML
-  let categoryHtml = '';
   const categoryIcons = {
     'Xăng dầu': '⛽',
     'Khấu hao': '📉',
@@ -52,6 +50,8 @@ router.get('/', (req, res, next) => {
     'Marketing': '📢',
     'Khác': '📋'
   };
+
+  const categories = defaultCategories;
   if (categorySummary.length > 0) {
     categoryHtml = categorySummary.map(c => {
       const icon = categoryIcons[c.category] || '📋';
@@ -141,10 +141,15 @@ router.get('/', (req, res, next) => {
 '        <input type="hidden" id="expenseId">' +
 '        <div>' +
 '          <label class="block text-sm font-medium text-gray-700 mb-1">Loại chi phí</label>' +
-'          <select name="category" required class="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-red-500">' +
-'            <option value="">-- Chọn loại --</option>' +
-            optionsHtml +
-'          </select>' +
+'          <div class="flex gap-2 items-start">' +
+'            <select name="category" required id="catSelect" onchange="onCatChange(this.value)" class="flex-1 w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-red-500">' +
+'              <option value="">-- Chọn loại --</option>' +
+              optionsHtml +
+'              <option value="__custom__">+ Thêm loại mới...</option>' +
+'            </select>' +
+'            <button type="button" onclick="showAddCategoryModal()" title="Thêm loại chi phí" class="flex-shrink-0 w-10 h-10 bg-red-100 hover:bg-red-200 text-red-600 rounded-lg flex items-center justify-center text-lg font-bold mt-0.5 transition-colors">+</button>' +
+'          </div>' +
+'          <input type="text" id="customCatInput" placeholder="Nhập tên loại chi phí mới..." class="hidden mt-2 w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-red-500">' +
 '        </div>' +
 '        <div>' +
 '          <label class="block text-sm font-medium text-gray-700 mb-1">Số tiền (VNĐ)</label>' +
@@ -162,6 +167,19 @@ router.get('/', (req, res, next) => {
 '      <div class="flex gap-2 mt-4">' +
 '        <button type="button" onclick="hideModal(\'addExpenseModal\')" class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-3 rounded-lg">Hủy</button>' +
 '        <button type="button" onclick="submitExpense()" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-3 rounded-lg">Lưu</button>' +
+'      </div>' +
+'    </div>' +
+'  </div>' +
+'' +
+'  <!-- Add Category Modal (inline) -->' +
+'  <div id="addCategoryModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4 z-[60]">' +
+'    <div class="bg-white rounded-xl p-6 max-w-sm w-full">' +
+'      <h3 class="text-lg font-bold text-gray-800 mb-4">Thêm loại chi phí mới</h3>' +
+'      <input type="text" id="newCategoryName" maxlength="30" placeholder="VD: Thuê xe, Quảng cáo..." class="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-red-500 focus:outline-none mb-3">' +
+'      <p id="newCatError" class="hidden text-red-500 text-sm mb-2"></p>' +
+'      <div class="flex gap-2">' +
+'        <button onclick="hideAddCategory()" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 rounded-lg transition-colors">Hủy</button>' +
+'        <button onclick="saveNewCategory()" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-3 rounded-lg transition-colors">Lưu</button>' +
 '      </div>' +
 '    </div>' +
 '  </div>' +
@@ -196,6 +214,7 @@ router.get('/', (req, res, next) => {
 '          </div>' +
 '        `) +' +
 '        getBottomNav(\'/expenses\');' +
+'        populateCustomCategories();' +
 '    })();' +
 '  </script>' +
 '' +
@@ -217,18 +236,119 @@ router.get('/', (req, res, next) => {
 '    function editExpense(id, category, amount, date, description) {' +
 '      document.querySelector(\'#addExpenseModal h2\').textContent = \'Sửa chi phí\';' +
 '      document.getElementById(\'expenseId\').value = id;' +
-'      document.querySelector(\'select[name="category"]\').value = category;' +
+'      const catSelect = document.getElementById(\'catSelect\');' +
+'      const savedCats = JSON.parse(localStorage.getItem(\'expenseCategories\') || \'[]\');' +
+'      const allCats = [...categories, ...savedCats];' +
+'      if (!allCats.includes(category)) {' +
+'        savedCats.push(category);' +
+'        localStorage.setItem(\'expenseCategories\', JSON.stringify(savedCats));' +
+'        addCategoryToDropdown(category);' +
+'      }' +
+'      catSelect.value = category;' +
+'      onCatChange(category);' +
 '      document.querySelector(\'input[name="amount"]\').value = amount;' +
 '      document.querySelector(\'input[name="date"]\').value = date;' +
 '      document.querySelector(\'textarea[name="description"]\').value = description || \'\';' +
 '      showModal(\'addExpenseModal\');' +
+'    }' +
+
+'    function onCatChange(val) {' +
+'      const customInput = document.getElementById(\'customCatInput\');' +
+'      if (val === \'__custom__\') {' +
+'        customInput.classList.remove(\'hidden\');' +
+'        customInput.focus();' +
+'      } else {' +
+'        customInput.classList.add(\'hidden\');' +
+'        customInput.value = \'\';' +
+'      }' +
+'    }' +
+
+'    function showAddCategoryModal() {' +
+'      document.getElementById(\'newCategoryName\').value = \'\';' +
+'      document.getElementById(\'newCatError\').classList.add(\'hidden\');' +
+'      document.getElementById(\'newCategoryName\').classList.remove(\'border-red-400\');' +
+'      document.getElementById(\'newCategoryName\').classList.add(\'border-gray-300\');' +
+'      showModal(\'addCategoryModal\');' +
+'      setTimeout(() => document.getElementById(\'newCategoryName\').focus(), 100);' +
+'    }' +
+
+'    function hideAddCategory() {' +
+'      hideModal(\'addCategoryModal\');' +
+'    }' +
+
+'    function saveNewCategory() {' +
+'      const input = document.getElementById(\'newCategoryName\');' +
+'      const errorEl = document.getElementById(\'newCatError\');' +
+'      const name = input.value.trim();' +
+'      errorEl.classList.add(\'hidden\');' +
+'      input.classList.remove(\'border-red-400\');' +
+'      input.classList.add(\'border-gray-300\');' +
+'      if (!name) {' +
+'        errorEl.textContent = \'Vui lòng nhập tên loại chi phí.\';' +
+'        errorEl.classList.remove(\'hidden\');' +
+'        input.classList.add(\'border-red-400\');' +
+'        return;' +
+'      }' +
+'      if (name.length < 2) {' +
+'        errorEl.textContent = \'Tên loại phải có ít nhất 2 ký tự.\';' +
+'        errorEl.classList.remove(\'hidden\');' +
+'        input.classList.add(\'border-red-400\');' +
+'        return;' +
+'      }' +
+'      const saved = JSON.parse(localStorage.getItem(\'expenseCategories\') || \'[]\');' +
+'      if (saved.includes(name) || categories.includes(name)) {' +
+'        errorEl.textContent = \'Loại chi phí này đã tồn tại.\';' +
+'        errorEl.classList.remove(\'hidden\');' +
+'        input.classList.add(\'border-red-400\');' +
+'        return;' +
+'      }' +
+'      saved.push(name);' +
+'      localStorage.setItem(\'expenseCategories\', JSON.stringify(saved));' +
+'      addCategoryToDropdown(name);' +
+'      hideAddCategory();' +
+'      const catSelect = document.getElementById(\'catSelect\');' +
+'      catSelect.value = name;' +
+'      onCatChange(name);' +
+'    }' +
+
+'    function addCategoryToDropdown(name) {' +
+'      const catSelect = document.getElementById(\'catSelect\');' +
+'      if (!catSelect) return;' +
+'      const customOpt = catSelect.querySelector(\'option[value="__custom__"]\');' +
+'      const opt = document.createElement(\'option\');' +
+'      opt.value = name;' +
+'      opt.textContent = name;' +
+'      catSelect.insertBefore(opt, customOpt || null);' +
+'    }' +
+
+'    function populateCustomCategories() {' +
+'      const saved = JSON.parse(localStorage.getItem(\'expenseCategories\') || \'[]\');' +
+'      saved.forEach(cat => addCategoryToDropdown(cat));' +
+'    }' +
+
+'    function getAllCategories() {' +
+'      const saved = JSON.parse(localStorage.getItem(\'expenseCategories\') || \'[]\');' +
+'      return [...categories, ...saved];' +
 '    }' +
 '' +
 '    async function submitExpense() {' +
 '      const id = document.getElementById(\'expenseId\').value;' +
 '      const form = document.getElementById(\'addExpenseForm\');' +
 '      const formData = new FormData(form);' +
-'      const category = formData.get(\'category\');' +
+'      let category = formData.get(\'category\');' +
+'      if (category === \'__custom__\') {' +
+'        category = form.querySelector(\'#customCatInput\').value.trim();' +
+'        if (!category) {' +
+'          alert(\'Vui lòng nhập tên loại chi phí.\');' +
+'          return;' +
+'        }' +
+'        const saved = JSON.parse(localStorage.getItem(\'expenseCategories\') || \'[]\');' +
+'        if (!saved.includes(category) && !categories.includes(category)) {' +
+'          saved.push(category);' +
+'          localStorage.setItem(\'expenseCategories\', JSON.stringify(saved));' +
+'          addCategoryToDropdown(category);' +
+'        }' +
+'      }' +
 '      const amountInput = form.querySelector(\'input[name="amount"]\');' +
 '      const amount = parseFloat(parseFormattedNumber(amountInput.value));' +
 '      const date = formData.get(\'date\');' +
