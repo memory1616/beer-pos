@@ -863,7 +863,7 @@ async function loadSalesHistory() {
     return `
       <div class="flex items-center gap-3 p-3 ${cardBg} ${borderAccent} rounded-xl shadow-sm hover:shadow-md transition-shadow cursor-pointer"
            onclick="viewSale(${sale.id})">
-        <!-- Left: number + name + meta -->
+        <!-- Left: number + name + meta — min-w-0 bắt buộc để flex co lại, không đẩy tiền xuống dòng -->
         <div class="flex-1 min-w-0">
           <div class="flex items-center gap-2 flex-wrap">
             <span class="text-base font-bold text-gray-800">${customerName}</span>
@@ -876,9 +876,9 @@ async function loadSalesHistory() {
             ${kegIcon ? `<span class="text-xs text-gray-300">·</span>${kegIcon}` : ''}
           </div>
         </div>
-        <!-- Right: total + actions -->
-        <div class="flex-shrink-0 text-right">
-          <div class="text-base font-bold ${totalClass}">${formatVND(sale.total)}</div>
+        <!-- Right: total + actions — shrink-0 để không bị flex co, nowrap giữ tiền trên 1 dòng -->
+        <div class="flex-shrink-0 overflow-hidden text-right">
+          <div class="text-base font-bold ${totalClass} whitespace-nowrap">${formatVND(sale.total)}</div>
           ${!isReturned ? `
           <div class="flex items-center justify-end gap-1 mt-1" onclick="event.stopPropagation()">
             <button onclick="openKegModal(${sale.id})" class="w-7 h-7 rounded-full bg-purple-100 text-purple-600 text-xs flex items-center justify-center hover:bg-purple-200 transition-colors" title="Giao thu bình">📦</button>
