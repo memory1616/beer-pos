@@ -14,6 +14,7 @@ const db = require('./database');
 const { getSession, AUTH_CONFIG } = require('./middleware/auth');
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 
