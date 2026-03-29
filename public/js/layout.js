@@ -51,7 +51,7 @@ function getContent(content) {
 function getBottomNav(currentPage) {
   const BASE = '/';
   const pages = [
-    { href: BASE + '/', icon: '🏠', label: 'Home' },
+    { href: '/', icon: '🏠', label: 'Home' },
     { href: BASE + 'customers', icon: '👤', label: 'KH' },
     { href: BASE + 'sale', icon: '🍺', label: 'Bán' },
     { href: BASE + 'stock', icon: '📦', label: 'Kho' },
