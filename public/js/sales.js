@@ -877,12 +877,12 @@ async function loadSalesHistory() {
           <!-- Dòng 3: tổng tiền -->
           <div class="text-xl font-bold ${totalColor} mt-0.5">💰 ${formatVND(sale.total)}</div>
           <!-- Dòng 4: nút hành động — click không ảnh hưởng card -->
-          <div class="flex items-center gap-2 mt-1 flex-wrap" onclick="event.stopPropagation()">
-            <button onclick="viewSale(${sale.id})" class="flex-1 min-w-[4rem] py-2 rounded-lg bg-blue-50 text-blue-600 text-sm font-medium hover:bg-blue-100 transition-colors">👁 Hoá Đơn</button>
+          <div class="flex items-center gap-1.5 mt-1 flex-wrap justify-between" onclick="event.stopPropagation()">
+            <button onclick="viewSale(${sale.id})" class="flex-1 py-1.5 px-1 rounded-lg bg-blue-50 text-blue-600 text-xs font-medium hover:bg-blue-100 transition-colors text-center">👁 Hoá Đơn</button>
             ${!isReturned ? `
-            <button onclick="openKegModal(${sale.id})" class="flex-1 min-w-[4rem] py-2 rounded-lg bg-purple-50 text-purple-600 text-sm font-medium hover:bg-purple-100 transition-colors">📦 Thu Vỏ</button>
-            <button onclick="editSale(${sale.id})" class="flex-1 min-w-[4rem] py-2 rounded-lg bg-orange-50 text-orange-600 text-sm font-medium hover:bg-orange-100 transition-colors">✏️ Sửa</button>
-            <button onclick="deleteSale(${sale.id})" class="flex-1 min-w-[4rem] py-2 rounded-lg bg-red-50 text-red-500 text-sm font-medium hover:bg-red-100 transition-colors">🗑 Xóa</button>` : ''}
+            <button onclick="openKegModal(${sale.id})" class="flex-1 py-1.5 px-1 rounded-lg bg-purple-50 text-purple-600 text-xs font-medium hover:bg-purple-100 transition-colors text-center">📦 Thu Vỏ</button>
+            <button onclick="editSale(${sale.id})" class="flex-1 py-1.5 px-1 rounded-lg bg-orange-50 text-orange-600 text-xs font-medium hover:bg-orange-100 transition-colors text-center">✏️ Sửa</button>
+            <button onclick="deleteSale(${sale.id})" class="flex-1 py-1.5 px-1 rounded-lg bg-red-50 text-red-500 text-xs font-medium hover:bg-red-100 transition-colors text-center">🗑 Xóa</button>` : ''}
           </div>
         </div>
       </div>
