@@ -220,15 +220,11 @@ app.get('/customers', (req, res) => res.sendFile(path.join(__dirname, 'views', '
 app.get('/customer/:id', (req, res) => res.sendFile(path.join(__dirname, 'views', 'customer-detail.html')));
 app.get('/sale', (req, res) => res.sendFile(path.join(__dirname, 'views', 'sales.html')));
 app.get('/stock', (req, res) => res.sendFile(path.join(__dirname, 'views', 'stock.html')));
-app.get('/analytics', (req, res) => res.sendFile(path.join(__dirname, 'views', 'analytics.html')));
-app.get('/delivery', (req, res) => res.sendFile(path.join(__dirname, 'views', 'delivery.html')));
-app.get('/products', (req, res) => res.sendFile(path.join(__dirname, 'views', 'products.html')));
 app.get('/purchases', (req, res) => res.sendFile(path.join(__dirname, 'views', 'purchases.html')));
 app.get('/kegs', (req, res) => res.sendFile(path.join(__dirname, 'views', 'kegs.html')));
 // /report is handled by routes/report.js (serves full HTML page)
 app.get('/backup', (req, res) => res.sendFile(path.join(__dirname, 'views', 'backup.html')));
-app.get('/devices', (req, res) => res.sendFile(path.join(__dirname, 'views', 'devices.html')));
-app.get('/expenses', (req, res) => res.sendFile(path.join(__dirname, 'views', 'expenses.html')));
+// analytics, delivery, products, devices, expenses: HTML do routes/*.js (không dùng views/*.html)
 
 // Redirect legacy /admin/* paths to clean paths
 app.use('/admin', (req, res) => res.redirect(req.path === '/admin' ? '/' : req.path));
@@ -258,6 +254,11 @@ app.use('/sale', require('./routes/sales'));
 app.use('/stock', require('./routes/stock'));
 app.use('/purchases', require('./routes/purchases'));
 app.use('/dashboard', require('./routes/dashboard'));
+app.use('/analytics', require('./routes/analytics'));
+app.use('/delivery', require('./routes/delivery'));
+app.use('/products', require('./routes/products'));
+app.use('/devices', require('./routes/devices'));
+app.use('/expenses', require('./routes/expenses'));
 app.use('/report', require('./routes/report'));
 
 // ==================== AUTH CHECK ====================

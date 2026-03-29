@@ -14,7 +14,7 @@ async function loadVersion() {
 
 // Generate standard header
 function getHeader(title, icons = '') {
-  return getHeaderWithActions(title, icons, '<a href="/" class="text-amber-600 hover:bg-amber-50 px-2 rounded">🏠</a>');
+  return getHeaderWithActions(title, icons, '<a href="/dashboard" class="text-amber-600 hover:bg-amber-50 px-2 rounded" title="Dashboard">🏠</a>');
 }
 
 // Generate header with custom actions
@@ -47,44 +47,44 @@ function getContent(content) {
   `;
 }
 
+// Home = dashboard (explicit URL; / also serves dashboard on admin)
+function isHomeActive(currentPage) {
+  return currentPage === '/dashboard' || currentPage === '/';
+}
+
 // Generate bottom navigation - Mobile optimized (Grab-style)
 function getBottomNav(currentPage) {
   const BASE = '/';
   const pages = [
-    { href: '/', icon: '🏠', label: 'Home' },
+    { href: '/dashboard', icon: '🏠', label: 'Home' },
     { href: BASE + 'customers', icon: '👤', label: 'KH' },
     { href: BASE + 'sale', icon: '🍺', label: 'Bán' },
     { href: BASE + 'stock', icon: '📦', label: 'Kho' },
     { href: BASE + 'report', icon: '📊', label: 'Báo Cáo' }
   ];
 
+  const navItem = (p) => {
+    const isActive = p.href === '/dashboard' ? isHomeActive(currentPage) : currentPage === p.href;
+    return `
+        <a href="${p.href}" class="${isActive ? 'active' : ''}">
+          <span class="icon">${p.icon}</span>
+          <span>${p.label}</span>
+        </a>`;
+  };
+
   // Add expenses as floating button (not in bottom nav)
   // If current page is expenses, we'll show a different nav
   if (currentPage === '/expenses') {
     return `
       <nav class="bottomnav">
-        ${pages.map(p => {
-          const isActive = currentPage === p.href;
-          return `
-          <a href="${p.href}" class="${isActive ? 'active' : ''}">
-            <span class="icon">${p.icon}</span>
-            <span>${p.label}</span>
-          </a>
-        `}).join('')}
+        ${pages.map(p => navItem(p)).join('')}
       </nav>
     `;
   }
 
   return `
     <nav class="bottomnav">
-      ${pages.map(p => {
-        const isActive = currentPage === p.href;
-        return `
-        <a href="${p.href}" class="${isActive ? 'active' : ''}">
-          <span class="icon">${p.icon}</span>
-          <span>${p.label}</span>
-        </a>
-      `}).join('')}
+      ${pages.map(p => navItem(p)).join('')}
     </nav>
   `;
 }
