@@ -55,8 +55,8 @@ router.get('/data', (req, res) => {
       COALESCE(SUM(total), 0) as revenue,
       COALESCE(SUM(profit), 0) as profit,
       COUNT(*) as orders,
-      COALESCE((SELECT SUM(si.quantity) FROM sale_items si JOIN sales s ON si.sale_id = s.id WHERE s.type = 'sale' AND datetime(s.date, '+7 hours') LIKE ?), 0) as units
-    FROM sales WHERE type = 'sale' AND datetime(s.date, '+7 hours') LIKE ?
+      COALESCE((SELECT SUM(si.quantity) FROM sale_items si JOIN sales ss ON si.sale_id = ss.id WHERE ss.type = 'sale' AND datetime(ss.date, '+7 hours') LIKE ?), 0) as units
+    FROM sales WHERE type = 'sale' AND datetime(date, '+7 hours') LIKE ?
   `).get(today + '%', today + '%');
 
   // Get monthly stats
@@ -64,7 +64,7 @@ router.get('/data', (req, res) => {
     SELECT
       COALESCE(SUM(total), 0) as revenue,
       COALESCE(SUM(profit), 0) as profit,
-      COALESCE((SELECT SUM(si.quantity) FROM sale_items si JOIN sales s ON si.sale_id = s.id WHERE s.type = 'sale' AND datetime(s.date, '+7 hours') >= ?), 0) as units
+      COALESCE((SELECT SUM(si.quantity) FROM sale_items si JOIN sales ss ON si.sale_id = ss.id WHERE ss.type = 'sale' AND datetime(ss.date, '+7 hours') >= ?), 0) as units
     FROM sales WHERE type = 'sale' AND datetime(date, '+7 hours') >= ?
   `).get(monthStartStr, monthStartStr);
   
