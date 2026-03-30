@@ -123,10 +123,10 @@ router.get('/', (req, res, next) => {
 '  <link rel="icon" type="image/png" href="/icon-192.png">' +
 '  <link rel="stylesheet" href="/css/tailwind.css">' +
 '  <link rel="stylesheet" href="/css/unified.css">' +
-'  <script src="/js/dark-mode.js"><\/script>' +
-'  <script src="/js/auth.js"><\/script>' +
-'  <script src="/js/layout.js?v=20260329"><\/script>' +
-'  <script>requireAuth();<\/script>' +
+'  <script src="/js/dark-mode.js"></script>' +
+'  <script src="/js/auth.js"></script>' +
+'  <script src="/js/layout.js?v=20260329"></script>' +
+'  <script>requireAuth();</script>' +
 '  <style>' +
 '    /* z-[60] không có trong tailwind.css đã build — modal loại chi phí phải nằm trên modal thêm chi phí (z-50) */' +
 '    #addCategoryModal { z-index: 60; }' +
@@ -230,7 +230,7 @@ router.get('/', (req, res, next) => {
 '        `) +' +
 '        getBottomNav(\'/expenses\');' +
 '    })();' +
-'  <' + '/script>' +
+'  </script>' +
 '' +
 '  <script>' +
 '    function formatVND(amount) {' +
@@ -438,9 +438,9 @@ router.get('/', (req, res, next) => {
 '        alert(\'Lỗi kết nối\');' +
 '      }' +
 '    }' +
-'  <' + '/script>' +
-'  <script src="/js/numfmt.js"><\/script>' +
-'  <script src="/sync.js"><\/script>' +
+'  </script>' +
+'  <script src="/js/numfmt.js"></script>' +
+'  <script src="/sync.js"></script>' +
 '</body>' +
 '</html>');
   } catch (err) {
