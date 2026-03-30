@@ -128,7 +128,6 @@ router.get('/', (req, res, next) => {
 '  <script src="/js/layout.js?v=20260329"></script>' +
 '  <script>requireAuth();</script>' +
 '  <style>' +
-'    /* z-[60] không có trong tailwind.css đã build — modal loại chi phí phải nằm trên modal thêm chi phí (z-50) */' +
 '    #addCategoryModal { z-index: 60; }' +
 '    .animate-fade { animation: fade 0.3s ease-in; }' +
 '    @keyframes fade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }' +
@@ -140,10 +139,6 @@ router.get('/', (req, res, next) => {
 '  </style>' +
 '</head>' +
 '<body class="bg-gray-100 text-gray-800 min-h-screen pb-24">' +
-'<script>' +
-'    function showModal(id) { var el = document.getElementById(id); if (el) { el.classList.remove(\'hidden\'); el.classList.add(\'flex\'); } }' +
-'    function hideModal(id) { var el = document.getElementById(id); if (el) { el.classList.add(\'hidden\'); el.classList.remove(\'flex\'); } }' +
-'</script>' +
 '  <div id="app"></div>' +
 '' +
 '  <!-- Floating Add Button -->' +
@@ -203,242 +198,83 @@ router.get('/', (req, res, next) => {
 '  </div>' +
 '' +
 '  <script>' +
-'    const categories = ' + JSON.stringify(allCategories) + ';' +
-'    const customCategories = ' + customCategoriesJson + ';' +
-'    ' +
-'    (async () => {' +
-'      document.getElementById(\'app\').innerHTML = ' +
-'        getHeader(\'Chi phí\', \'💸\') +' +
-'        getContent(`' +
-'          <div class="mb-4 p-5 bg-gradient-to-r from-red-500 to-red-600 rounded-xl shadow-lg text-white">' +
-'            <div class="text-sm opacity-90">Tổng chi phí tháng này</div>' +
-'            <div class="text-3xl font-bold" id="monthTotal">' + formatVND(monthExpenses.total) + '</div>' +
-'          </div>' +
+'    var categories = ' + JSON.stringify(allCategories) + ';' +
+'    var customCategories = ' + customCategoriesJson + ';' +
+'    var _today = "' + today + '";' +
 '' +
-'          <div class="bg-white rounded-xl shadow-sm border p-4 mb-4">' +
-'            <h3 class="font-semibold text-gray-700 mb-3">📊 Chi phí theo loại</h3>' +
-'            <div id="categoryList">' +
-'              ' + categoryHtml + '' +
-'            </div>' +
-'          </div>' +
+'    function showModal(id) { document.getElementById(id).classList.remove("hidden"); document.getElementById(id).classList.add("flex"); }' +
+'    function hideModal(id) { document.getElementById(id).classList.add("hidden"); document.getElementById(id).classList.remove("flex"); }' +
+'    function onCatChange(val) { var el = document.getElementById("customCatInput"); if (val === "__custom__") { el.classList.remove("hidden"); el.focus(); } else { el.classList.add("hidden"); el.value = ""; } }' +
+'    function showAddCategoryModal() { document.getElementById("newCategoryName").value = ""; document.getElementById("newCatError").classList.add("hidden"); document.getElementById("newCategoryName").classList.remove("border-red-400"); document.getElementById("newCategoryName").classList.add("border-gray-300"); showModal("addCategoryModal"); setTimeout(function() { document.getElementById("newCategoryName").focus(); }, 100); }' +
+'    function hideAddCategory() { hideModal("addCategoryModal"); }' +
+'    function addCategoryToDropdown(name) { var sel = document.getElementById("catSelect"); if (!sel) return; var opt = document.createElement("option"); opt.value = name; opt.textContent = name; var customOpt = sel.querySelector("option[value=__custom__]"); sel.insertBefore(opt, customOpt || null); }' +
+'    function getAllCategories() { return categories.slice(); }' +
 '' +
-'          <div class="bg-white rounded-xl shadow-sm border p-4">' +
-'            <h3 class="font-semibold text-gray-700 mb-3">📋 Chi phí gần đây</h3>' +
-'            <div id="expenseList">' +
-'              ' + expensesHtml + '' +
-'            </div>' +
-'          </div>' +
-'        `) +' +
-'        getBottomNav(\'/expenses\');' +
-'    })();' +
-'  <\/script>' +
-'' +
-'  <script>' +
-'    function formatVND(amount) {' +
-'      return new Intl.NumberFormat(\'vi-VN\', { style: \'currency\', currency: \'VND\' }).format(amount);' +
+'    function submitExpense() {' +
+'      var id = document.getElementById("expenseId").value;' +
+'      var form = document.getElementById("addExpenseForm");' +
+'      var formData = new FormData(form);' +
+'      var cat = formData.get("category");' +
+'      if (cat === "__custom__") { cat = document.getElementById("customCatInput").value.trim(); if (!cat) { alert("Vui lòng nhập tên loại chi phí."); return; } }' +
+'      var amountEl = form.querySelector("input[name=amount]");' +
+'      var amount = parseFloat(amountEl.value.replace(/[^0-9]/g, ""));' +
+'      var date = formData.get("date");' +
+'      var desc = formData.get("description") || null;' +
+'      if (!cat || !amount || !date) { alert("Vui lòng điền đầy đủ thông tin!"); return; }' +
+'      var url = "/api/expenses"; var method = "POST";' +
+'      if (id) { url = "/api/expenses/" + id; method = "PUT"; }' +
+'      fetch(url, { method: method, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ category: cat, amount: amount, date: date, description: desc }) }).then(function(res) { if (res.ok) { hideModal("addExpenseModal"); form.reset(); document.getElementById("expenseId").value = ""; var t = document.querySelector("#addExpenseModal h2"); if (t) t.textContent = "Thêm chi phí"; document.querySelector("input[name=date]").value = _today; location.reload(); } else { return res.json(); } }).then(function(e) { if (e && e.error) alert(e.error); }).catch(function(e) { alert("Lỗi: " + e.message); });' +
 '    }' +
 '' +
-'    function showModal(id) {' +
-'      document.getElementById(id).classList.remove(\'hidden\');' +
-'      document.getElementById(id).classList.add(\'flex\');' +
-'    }' +
-'' +
-'    function hideModal(id) {' +
-'      document.getElementById(id).classList.add(\'hidden\');' +
-'      document.getElementById(id).classList.remove(\'flex\');' +
-'    }' +
+'    function deleteExpense(id) { if (!confirm("Xóa chi phí này?")) return; fetch("/api/expenses/" + id, { method: "DELETE" }).then(function(res) { if (res.ok) location.reload(); else alert("Xóa thất bại"); }).catch(function() { alert("Lỗi kết nối"); }); }' +
 '' +
 '    function editExpense(id, category, amount, date, description) {' +
-'      document.querySelector(\'#addExpenseModal h2\').textContent = \'Sửa chi phí\';' +
-'      document.getElementById(\'expenseId\').value = id;' +
-'      const catSelect = document.getElementById(\'catSelect\');' +
-'      // Nếu loại chưa có trong dropdown, thêm vào (trường hợp hiếm gặp)' +
-'      if (!categories.includes(category) && !customCategories.includes(category)) {' +
-'        addCategoryToDropdown(category);' +
-'        customCategories.push(category);' +
-'      }' +
-'      catSelect.value = category;' +
+'      var title = document.querySelector("#addExpenseModal h2"); if (title) title.textContent = "Sửa chi phí";' +
+'      document.getElementById("expenseId").value = id;' +
+'      var catSel = document.getElementById("catSelect");' +
+'      if (!categories.includes(category) && !customCategories.includes(category)) { addCategoryToDropdown(category); customCategories.push(category); }' +
+'      catSel.value = category;' +
 '      onCatChange(category);' +
-'      document.querySelector(\'input[name="amount"]\').value = amount;' +
-'      document.querySelector(\'input[name="date"]\').value = date;' +
-'      document.querySelector(\'textarea[name="description"]\').value = description || \'\';' +
-'      showModal(\'addExpenseModal\');' +
+'      var amountInput = form.querySelector("input[name=amount]"); if (amountInput) amountInput.value = amount;' +
+'      var dateInput = form.querySelector("input[name=date]"); if (dateInput) dateInput.value = date;' +
+'      var descInput = form.querySelector("textarea[name=description]"); if (descInput) descInput.value = description || "";' +
+'      showModal("addExpenseModal");' +
 '    }' +
-
-'    function onCatChange(val) {' +
-'      const customInput = document.getElementById(\'customCatInput\');' +
-'      if (val === \'__custom__\') {' +
-'        customInput.classList.remove(\'hidden\');' +
-'        customInput.focus();' +
-'      } else {' +
-'        customInput.classList.add(\'hidden\');' +
-'        customInput.value = \'\';' +
-'      }' +
-'    }' +
-
-'    function showAddCategoryModal() {' +
-'      document.getElementById(\'newCategoryName\').value = \'\';' +
-'      document.getElementById(\'newCatError\').classList.add(\'hidden\');' +
-'      document.getElementById(\'newCategoryName\').classList.remove(\'border-red-400\');' +
-'      document.getElementById(\'newCategoryName\').classList.add(\'border-gray-300\');' +
-'      showModal(\'addCategoryModal\');' +
-'      setTimeout(() => document.getElementById(\'newCategoryName\').focus(), 100);' +
-'    }' +
-
-'    function hideAddCategory() {' +
-'      hideModal(\'addCategoryModal\');' +
-'    }' +
-
+'' +
 '    async function saveNewCategory() {' +
-'      const input = document.getElementById(\'newCategoryName\');' +
-'      const errorEl = document.getElementById(\'newCatError\');' +
-'      const name = input.value.trim();' +
-'      errorEl.classList.add(\'hidden\');' +
-'      input.classList.remove(\'border-red-400\');' +
-'      input.classList.add(\'border-gray-300\');' +
-'      if (!name) {' +
-'        errorEl.textContent = \'Vui lòng nhập tên loại chi phí.\';' +
-'        errorEl.classList.remove(\'hidden\');' +
-'        input.classList.add(\'border-red-400\');' +
-'        return;' +
-'      }' +
-'      if (name.length < 2) {' +
-'        errorEl.textContent = \'Tên loại phải có ít nhất 2 ký tự.\';' +
-'        errorEl.classList.remove(\'hidden\');' +
-'        input.classList.add(\'border-red-400\');' +
-'        return;' +
-'      }' +
-'      if (categories.includes(name) || customCategories.includes(name)) {' +
-'        errorEl.textContent = \'Loại chi phí này đã tồn tại.\';' +
-'        errorEl.classList.remove(\'hidden\');' +
-'        input.classList.add(\'border-red-400\');' +
-'        return;' +
-'      }' +
+'      var input = document.getElementById("newCategoryName");' +
+'      var errorEl = document.getElementById("newCatError");' +
+'      var name = input.value.trim();' +
+'      errorEl.classList.add("hidden");' +
+'      input.classList.remove("border-red-400"); input.classList.add("border-gray-300");' +
+'      if (!name) { errorEl.textContent = "Vui lòng nhập tên loại chi phí."; errorEl.classList.remove("hidden"); input.classList.add("border-red-400"); return; }' +
+'      if (name.length < 2) { errorEl.textContent = "Tên loại phải có ít nhất 2 ký tự."; errorEl.classList.remove("hidden"); input.classList.add("border-red-400"); return; }' +
+'      if (categories.includes(name) || customCategories.includes(name)) { errorEl.textContent = "Loại chi phí này đã tồn tại."; errorEl.classList.remove("hidden"); input.classList.add("border-red-400"); return; }' +
 '      try {' +
-'        const res = await fetch(\'/api/expenses/categories\', {' +
-'          method: \'POST\',' +
-'          headers: { \'Content-Type\': \'application/json\' },' +
-'          body: JSON.stringify({ name })' +
-'        });' +
-'        const data = await res.json();' +
-'        if (res.ok) {' +
-'          customCategories.push(name);' +
-'          categories.push(name);' +
-'          addCategoryToDropdown(name);' +
-'          hideAddCategory();' +
-'          const catSelect = document.getElementById(\'catSelect\');' +
-'          catSelect.value = name;' +
-'          onCatChange(name);' +
-'        } else {' +
-'          errorEl.textContent = data.error || \'Không thể thêm loại chi phí.\';' +
-'          errorEl.classList.remove(\'hidden\');' +
-'          input.classList.add(\'border-red-400\');' +
-'        }' +
-'      } catch (err) {' +
-'        errorEl.textContent = \'Lỗi kết nối: \' + err.message;' +
-'        errorEl.classList.remove(\'hidden\');' +
-'        input.classList.add(\'border-red-400\');' +
-'      }' +
+'        var res = await fetch("/api/expenses/categories", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: name }) });' +
+'        var data = await res.json();' +
+'        if (res.ok) { customCategories.push(name); categories.push(name); addCategoryToDropdown(name); hideAddCategory(); var catSel = document.getElementById("catSelect"); catSel.value = name; onCatChange(name); }' +
+'        else { errorEl.textContent = data.error || "Không thể thêm loại chi phí."; errorEl.classList.remove("hidden"); input.classList.add("border-red-400"); }' +
+'      } catch (err) { errorEl.textContent = "Lỗi kết nối: " + err.message; errorEl.classList.remove("hidden"); input.classList.add("border-red-400"); }' +
 '    }' +
-
-'    function addCategoryToDropdown(name) {' +
-'      const catSelect = document.getElementById(\'catSelect\');' +
-'      if (!catSelect) return;' +
-'      const customOpt = catSelect.querySelector(\'option[value="__custom__"]\');' +
-'      const opt = document.createElement(\'option\');' +
-'      opt.value = name;' +
-'      opt.textContent = name;' +
-'      catSelect.insertBefore(opt, customOpt || null);' +
-'    }' +
-
-'    function getAllCategories() {' +
-'      return [...categories];' +
-'    }' +
-'' +
-'    async function submitExpense() {' +
-'      const id = document.getElementById(\'expenseId\').value;' +
-'      const form = document.getElementById(\'addExpenseForm\');' +
-'      const formData = new FormData(form);' +
-'      let category = formData.get(\'category\');' +
-'      if (category === \'__custom__\') {' +
-'        category = form.querySelector(\'#customCatInput\').value.trim();' +
-'        if (!category) {' +
-'          alert(\'Vui lòng nhập tên loại chi phí.\');' +
-'          return;' +
-'        }' +
-'        if (!categories.includes(category) && !customCategories.includes(category)) {' +
-'          try {' +
-'            const res = await fetch(\'/api/expenses/categories\', {' +
-'              method: \'POST\',' +
-'              headers: { \'Content-Type\': \'application/json\' },' +
-'              body: JSON.stringify({ name: category })' +
-'            });' +
-'            if (res.ok) {' +
-'              customCategories.push(category);' +
-'              categories.push(category);' +
-'              addCategoryToDropdown(category);' +
-'            }' +
-'          } catch (_) {}' +
-'        }' +
-'      }' +
-'      const amountInput = form.querySelector(\'input[name="amount"]\');' +
-'      const amount = parseFloat(parseFormattedNumber(amountInput.value));' +
-'      const date = formData.get(\'date\');' +
-'      const description = formData.get(\'description\') || null;' +
-'' +
-'      console.log(\'Submitting:\', { id, category, amount, date, description });' +
-'' +
-'      if (!category || !amount || !date) {' +
-'        alert(\'Vui lòng điền đầy đủ thông tin!\');' +
-'        return;' +
-'      }' +
-'' +
-'      try {' +
-'        let url = \'/api/expenses\';' +
-'        let method = \'POST\';' +
-'' +
-'        if (id) {' +
-'          url = \'/api/expenses/\' + id;' +
-'          method = \'PUT\';' +
-'        }' +
-'' +
-'        const res = await fetch(url, {' +
-'          method: method,' +
-'          headers: { \'Content-Type\': \'application/json\' },' +
-'          body: JSON.stringify({ category, amount, date, description })' +
-'        });' +
-'' +
-'        console.log(\'Response status:\', res.status);' +
-'        if (res.ok) {' +
-'          hideModal(\'addExpenseModal\');' +
-'          form.reset();' +
-'          document.getElementById(\'expenseId\').value = \'\';' +
-'          document.querySelector(\'#addExpenseModal h2\').textContent = \'Thêm chi phí\';' +
-'          document.querySelector(\'input[name="date"]\').value = \'' + today + '\';' +
-'          location.reload();' +
-'        } else {' +
-'          const err = await res.json();' +
-'          alert(err.error || \'Lỗi khi lưu\');' +
-'        }' +
-'      } catch (err) {' +
-'        alert(\'Lỗi kết nối: \' + err.message);' +
-'      }' +
-'    }' +
-'' +
-'    async function deleteExpense(id) {' +
-'      if (!confirm(\'Xóa chi phí này?\')) return;' +
-'      ' +
-'      try {' +
-'        const res = await fetch(\'/api/expenses/\' + id, { method: \'DELETE\' });' +
-'        if (res.ok) {' +
-'          location.reload();' +
-'        } else {' +
-'          alert(\'Xóa thất bại\');' +
-'        }' +
-'      } catch (err) {' +
-'        alert(\'Lỗi kết nối\');' +
-'      }' +
-'    }' +
+'  </script>' +
+'  <script>' +
+'    (async function() {' +
+'      document.getElementById("app").innerHTML = getHeader("Chi phí", "💸") + getContent(`' +
+'        <div class="mb-4 p-5 bg-gradient-to-r from-red-500 to-red-600 rounded-xl shadow-lg text-white">' +
+'          <div class="text-sm opacity-90">Tổng chi phí tháng này</div>' +
+'          <div class="text-3xl font-bold">' + formatVND(monthExpenses.total) + '</div>' +
+'        </div>' +
+'        <div class="bg-white rounded-xl shadow-sm border p-4 mb-4">' +
+'          <h3 class="font-semibold text-gray-700 mb-3">📊 Chi phí theo loại</h3>' +
+'          <div>' + categoryHtml + '</div>' +
+'        </div>' +
+'        <div class="bg-white rounded-xl shadow-sm border p-4">' +
+'          <h3 class="font-semibold text-gray-700 mb-3">📋 Chi phí gần đây</h3>' +
+'          <div>' + expensesHtml + '</div>' +
+'        </div>' +
+'      `) + getBottomNav("/expenses");' +
+'    })();' +
 '  </script>' +
 '  <script src="/js/numfmt.js"></script>' +
 '  <script src="/sync.js"></script>' +
