@@ -7,6 +7,18 @@ const logger = console;
 const dbPath = path.join(__dirname, 'database.sqlite');
 const db = new Database(dbPath);
 
+// Helper: get current Vietnam date string (YYYY-MM-DD) in Asia/Ho_Chi_Minh timezone
+function getVietnamDateStr() {
+  const now = new Date();
+  const vn = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+  return vn.getUTCFullYear() + '-' +
+    String(vn.getUTCMonth() + 1).padStart(2, '0') + '-' +
+    String(vn.getUTCDate()).padStart(2, '0');
+}
+
+// Export for use in other modules
+module.exports = { db, getVietnamDateStr };
+
 // Enable foreign keys
 db.pragma('foreign_keys = ON');
 
@@ -840,5 +852,7 @@ function logKegTransaction(type, quantity, state, opts = {}) {
   }
 }
 
+// getVietnamDateStr already added at top of file — see above
 module.exports = db;
+module.exports.getVietnamDateStr = getVietnamDateStr;
 module.exports.logKegTransaction = logKegTransaction;

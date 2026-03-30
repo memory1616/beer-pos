@@ -194,8 +194,9 @@ router.post('/', (req, res) => {
     // Determine type from category if not provided
     const expenseType = type || EXPENSE_TYPES[category] || 'other';
     const now = new Date();
-    const time = now.toTimeString().split(' ')[0].substring(0, 5); // HH:MM
-    const expenseDate = date || now.toISOString().split('T')[0];
+    const vnNow = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+    const time = String(vnNow.getUTCHours()).padStart(2, '0') + ':' + String(vnNow.getUTCMinutes()).padStart(2, '0');
+    const expenseDate = date || (vnNow.getUTCFullYear() + '-' + String(vnNow.getUTCMonth() + 1).padStart(2, '0') + '-' + String(vnNow.getUTCDate()).padStart(2, '0'));
     
     const result = db.prepare(`
       INSERT INTO expenses (category, type, amount, description, date, time, km, order_id, is_auto)
@@ -257,8 +258,9 @@ router.post('/quick', (req, res) => {
     
     const category = categoryMap[expenseType] || 'Khác';
     const now = new Date();
-    const time = now.toTimeString().split(' ')[0].substring(0, 5);
-    const date = now.toISOString().split('T')[0];
+    const vnNow = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+    const time = String(vnNow.getUTCHours()).padStart(2, '0') + ':' + String(vnNow.getUTCMinutes()).padStart(2, '0');
+    const date = vnNow.getUTCFullYear() + '-' + String(vnNow.getUTCMonth() + 1).padStart(2, '0') + '-' + String(vnNow.getUTCDate()).padStart(2, '0');
     
     const result = db.prepare(`
       INSERT INTO expenses (category, type, amount, description, date, time, km, is_auto)

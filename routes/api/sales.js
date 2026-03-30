@@ -127,13 +127,14 @@ router.post('/', (req, res) => {
 
     // Use transaction for atomic operations
     const createSale = db.transaction(() => {
-      // Insert sale with calculated keg quantity
-      const saleResult = db.prepare('INSERT INTO sales (customer_id, total, profit, deliver_kegs, return_kegs, keg_balance_after, type) VALUES (?, ?, ?, ?, ?, ?, ?)').run(customerId, total, profit, finalDeliverKegs, returnKegs, newKegBalance, 'sale');
+      // Insert sale with Vietnam-local date
+      const saleDate = db.getVietnamDateStr();
+      const saleResult = db.prepare('INSERT INTO sales (customer_id, date, total, profit, deliver_kegs, return_kegs, keg_balance_after, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(customerId, saleDate, total, profit, finalDeliverKegs, returnKegs, newKegBalance, 'sale');
       const saleId = saleResult.lastInsertRowid;
 
       // Update customer last_order_date (if customerId)
       if (customerId) {
-        db.prepare('UPDATE customers SET last_order_date = CURRENT_TIMESTAMP WHERE id = ?').run(customerId);
+        db.prepare("UPDATE customers SET last_order_date = datetime('now', '+7 hours') WHERE id = ?").run(customerId);
       }
 
       // Update products and insert sale_items (reuse pre-loaded data — no extra queries)
@@ -324,10 +325,11 @@ router.post('/replacement', (req, res) => {
       : reason || 'Đổi bia lỗi';
 
     const doReplacement = db.transaction(() => {
+      const saleDate = db.getVietnamDateStr();
       const result = db.prepare(`
         INSERT INTO sales (customer_id, total, type, note, date)
-        VALUES (?, 0, 'replacement', ?, datetime('now'))
-      `).run(customer_id || null, note);
+        VALUES (?, 0, 'replacement', ?, ?)
+      `).run(customer_id || null, note, saleDate);
       const saleId = result.lastInsertRowid;
 
       db.prepare(`
