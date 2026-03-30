@@ -1104,93 +1104,95 @@
         <h2 class="section-title">Quán bán như thế nào?</h2>
       </div>
       <!--
-        Video container: poster fallback + click-to-play.
-        Neu video khong autoplay duoc (mobile), hien thi anh poster + nut play.
-        Khi nguoi bam -> video.play() -> autoplay thanh cong.
+        Khung co aspect-ratio de khong bi sup (video position:absolute truoc day lam vo hinh).
+        Chi an nut play khi su kien playing — khong an o loadeddata (neu play() bi block se thanh man hinh den).
       -->
-      <div style="max-width:800px;margin:0 auto;border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow);background:#000;position:relative;" id="videoWrapper">
-        <!-- Poster / Fallback hinh anh -->
-        <img
-          id="videoPoster"
-          src="/landing-assets/video-poster.svg"
-          alt="Video bia tuoi — nhan play de xem"
-          style="width:100%;display:block;max-height:min(75vh,520px);object-fit:contain;background:#1a0a00;"
-        >
-        <!-- Nut play fallback (hien khi video dang load hoac bi block) -->
-        <div id="videoPlayBtn" style="
-          position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-          width:72px;height:72px;border-radius:50%;
-          background:rgba(0,0,0,0.6);border:3px solid #FFD700;
-          display:flex;align-items:center;justify-content:center;cursor:pointer;
-          transition:transform 0.2s,background 0.2s;z-index:5;
-        " onclick="playVideo()" aria-label="Play video">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="#FFD700">
-            <polygon points="5,3 19,12 5,21"/>
-          </svg>
-        </div>
-        <!-- Video: preload=metadata de nhanh, muted required cho mobile autoplay -->
+      <div id="videoWrapper" style="position:relative;width:100%;max-width:800px;margin:0 auto;border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow);background:#1a0a00;aspect-ratio:16/9;max-height:min(75vh,520px);">
         <video id="beerHookVideo"
+          poster="/landing-assets/video-poster.svg"
           preload="metadata"
           muted
           loop
           playsinline
           webkit-playsinline
-          style="width:100%;display:block;max-height:min(75vh,520px);object-fit:contain;background:#000;position:absolute;top:0;left:0;"
+          disablepictureinpicture
+          style="width:100%;height:100%;display:block;object-fit:contain;background:#000;vertical-align:top;"
         >
           <source src="/landing-assets/beer-mobile.mp4" type="video/mp4">
-          <!-- Neu browser khong ho tro mp4, hien thi poster -->
-          Trinh duyet khong ho tro video. <a href="/landing-assets/beer-mobile.mp4" style="color:#FFD700;">Tai video tai day.</a>
+          Trình duyệt không hỗ trợ video. <a href="/landing-assets/beer-mobile.mp4" style="color:#FFD700;">Tải video</a>
         </video>
+        <div id="videoPlayBtn" style="
+          position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+          pointer-events:none;
+        ">
+          <button type="button" id="videoPlayBtnInner" onclick="window.beerHookPlay && window.beerHookPlay()" aria-label="Phát video"
+            style="
+              pointer-events:auto;width:72px;height:72px;border-radius:50%;border:3px solid #FFD700;
+              background:rgba(0,0,0,0.55);cursor:pointer;display:flex;align-items:center;justify-content:center;
+              transition:transform 0.2s,background 0.2s;
+            ">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="#FFD700" aria-hidden="true">
+              <polygon points="5,3 19,12 5,21"/>
+            </svg>
+          </button>
+        </div>
       </div>
       <script>
         (function () {
-          var wrapper = document.getElementById('videoWrapper');
-          var poster  = document.getElementById('videoPoster');
-          var playBtn = document.getElementById('videoPlayBtn');
-          var v       = document.getElementById('beerHookVideo');
+          var playWrap = document.getElementById('videoPlayBtn');
+          var v = document.getElementById('beerHookVideo');
           if (!v) return;
 
-          function tryPlay() {
+          function showPlayUi(show) {
+            if (!playWrap) return;
+            playWrap.style.display = show ? 'flex' : 'none';
+          }
+
+          function tryPlayMuted() {
+            v.muted = true;
+            v.defaultMuted = true;
+            v.setAttribute('muted', '');
             var p = v.play();
             if (p && typeof p.catch === 'function') {
-              p.catch(function (err) {
-                /* Autoplay bi block -> hien thi nut play, khong hien loi */
+              p.catch(function () {
+                showPlayUi(true);
               });
             }
           }
 
-          /* Video da san sang -> an poster, hien video, play */
-          v.addEventListener('loadeddata', function () {
-            if (poster)  poster.style.display  = 'none';
-            if (playBtn) playBtn.style.display  = 'none';
-            tryPlay();
+          /* Chi an nut khi video THAT SU dang chay */
+          v.addEventListener('playing', function () {
+            showPlayUi(false);
           });
 
-          /* iOS Safari: can tuong tac trc khi play -> nut play */
-          v.addEventListener('play', function () {
-            if (poster)  poster.style.display  = 'none';
-            if (playBtn) playBtn.style.display = 'none';
+          v.addEventListener('pause', function () {
+            if (!v.ended) showPlayUi(true);
           });
 
-          /* Nut play duoc bam -> play video */
-          window.playVideo = function () {
+          v.addEventListener('error', function () {
+            showPlayUi(true);
+          });
+
+          window.beerHookPlay = function () {
             v.muted = false;
-            v.currentTime = 0;
-            v.play().catch(function () {});
-            if (playBtn) playBtn.style.display = 'none';
+            v.play().catch(function () {
+              v.muted = true;
+              tryPlayMuted();
+            });
           };
 
-          /* IntersectionObserver: chi play khi video vao man hinh */
+          v.addEventListener('loadeddata', tryPlayMuted);
+          if (v.readyState >= 2) tryPlayMuted();
+
           var io = new IntersectionObserver(function (entries) {
             entries.forEach(function (e) {
-              if (e.isIntersecting) tryPlay();
+              if (e.isIntersecting) tryPlayMuted();
             });
           }, { threshold: 0.15 });
           io.observe(v);
 
-          /* Tab quay lai -> resume play */
           document.addEventListener('visibilitychange', function () {
-            if (!document.hidden) tryPlay();
+            if (!document.hidden) tryPlayMuted();
           });
         })();
       </script>
