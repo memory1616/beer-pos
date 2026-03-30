@@ -99,6 +99,13 @@
       0%, 100% { box-shadow: 0 6px 24px rgba(198, 40, 40, 0.45), 0 0 0 0 rgba(198, 40, 40, 0.4); }
       50% { box-shadow: 0 6px 24px rgba(198, 40, 40, 0.45), 0 0 0 8px rgba(198, 40, 40, 0); }
     }
+    @keyframes zaloPulse {
+      0%, 100% { transform: scale(1); }
+      15% { transform: scale(1.1); }
+      30% { transform: scale(1); }
+      45% { transform: scale(1.07); }
+      60% { transform: scale(1); }
+    }
     .btn-pulse { animation: pulse 2s ease-in-out infinite; }
     .btn-pulse:hover { animation: none; }
 
@@ -681,6 +688,12 @@
           <a class="btn btn-primary btn-pulse" href="tel:0974012652">📞 Gọi 0974 012 652</a>
           <a class="btn btn-gold" href="https://zalo.me/0974012652" target="_blank" rel="noopener">💬 Nhắn Zalo nhận giá sỉ + giữ khu vực</a>
         </div>
+        <p style="font-size:0.85rem;color:#6b6358;margin-top:-0.5rem;">
+          ⏳ Trung bình quán mới có khách sau 1–3 ngày setup
+        </p>
+        <p style="font-size:0.8rem;color:#6b6358;">
+          ✔ Có sẵn hàng mỗi ngày · ✔ Giao nhanh · ✔ Hỗ trợ tận nơi
+        </p>
         <div class="hero-pills">
           <span class="hero-pill">1L chai inox</span>
           <span class="hero-pill">900ml chai nhựa (bia vàng)</span>
@@ -775,8 +788,8 @@
             </tr>
             <tr style="background:rgba(255,249,232,0.5);border-bottom:1px solid rgba(26,18,8,0.06);">
               <td style="padding:0.85rem 1.25rem;font-weight:600;">Lợi nhuận / Lít</td>
-              <td style="padding:0.85rem 1.25rem;text-align:center;font-weight:800;color:#2e7d32;">~25–30K (30–50%)</td>
-              <td style="padding:0.85rem 1.25rem;text-align:center;color:var(--muted);">~10–15K (10–20%)</td>
+              <td style="padding:0.85rem 1.25rem;text-align:center;font-weight:800;color:#2e7d32;">Biên lợi nhuận 30–50%</td>
+              <td style="padding:0.85rem 1.25rem;text-align:center;color:var(--muted);">Biên lợi nhuận 10–20%</td>
             </tr>
             <tr style="background:#fff;border-bottom:1px solid rgba(26,18,8,0.06);">
               <td style="padding:0.85rem 1.25rem;font-weight:600;">Khách uống nhanh?</td>
@@ -811,19 +824,12 @@
         <span class="eyebrow">🎬 Xem thực tế</span>
         <h2 class="section-title">Quán bán như thế nào?</h2>
       </div>
-      <!-- VIDEO: Upload video thực tế vào /public/videos/ rồi bỏ comment dòng dưới -->
-      <!-- <video autoplay muted loop playsinline src="/videos/beer.mp4" style="width:100%;border-radius:var(--radius-lg);display:block;max-width:800px;margin:0 auto;box-shadow:var(--shadow);"></video> -->
-      <div class="video-placeholder reveal" style="background:linear-gradient(145deg,#1e1810,#0a0908);border-radius:var(--radius-lg);aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:1rem;box-shadow:var(--shadow);border:4px solid rgba(255,204,0,0.3);">
-        <div style="font-size:3.5rem;">🍺</div>
-        <p style="color:rgba(245,240,230,0.7);font-weight:600;text-align:center;padding:0 1.5rem;font-size:0.95rem;">
-          Video quán thực tế<br>
-          <span style="font-size:0.82rem;opacity:0.7;">(Video bia đang rót / quán đông khách / khách phản hồi)</span>
+      <!-- VIDEO: Upload video thực tế vào /public/videos/beer.mp4 -->
+      <video autoplay muted loop playsinline src="/videos/beer.mp4" style="width:100%;border-radius:var(--radius-lg);display:block;max-width:800px;margin:0 auto;box-shadow:var(--shadow);" poster="https://via.placeholder.com/800x450/1a1208/ffcc00?text=+VIDEO+BIA+ROT">
+        <p style="text-align:center;color:#6b6358;font-size:0.88rem;padding:1rem;">
+          💡 Video quán thực tế — quay bia rót / quán đông khách / khách cụng ly để tăng chuyển đổi mạnh nhất.
         </p>
-        <p style="color:var(--yellow);font-size:0.78rem;font-weight:700;letter-spacing:0.05em;">THAY VIDEO TẠI ĐÂY — tỷ lệ chuyển đổi tăng x2</p>
-      </div>
-      <p style="text-align:center;margin-top:1rem;margin-bottom:3rem;color:var(--muted);font-size:0.88rem;" class="reveal">
-        💡 Video thật quán đông khách > Ảnh mockup. Nếu có video, upload lên và thay vào placeholder này.
-      </p>
+      </video>
     </div>
   </section>
 
@@ -837,22 +843,25 @@
         <div class="proof-card">
           <img src="/images/freezer.svg" alt="Tủ bia thực tế" loading="lazy" decoding="async" onerror="this.onerror=null; this.src='https://via.placeholder.com/600x400/ffcc00/1a1208?text=+TAI+ANH+THUC+TE'">
           <div class="proof-info">
-            <div class="proof-label">Quán thực tế — Dĩ An</div>
-            <div class="proof-stat">100–200L/ngày</div>
+            <div class="proof-label">Quán A — Dĩ An</div>
+            <div class="proof-stat">Bán ~120L/ngày</div>
+            <p style="font-size:0.8rem;color:#6b6358;margin-top:4px;">"Khách uống đều, quay lại nhiều"</p>
           </div>
         </div>
         <div class="proof-card">
           <img src="/images/banner.svg" alt="Banner dựng ngoài trời" loading="lazy" decoding="async" onerror="this.onerror=null; this.src='https://via.placeholder.com/600x400/fff3d4/c62828?text=+BANNER+THUC+TE'">
           <div class="proof-info">
-            <div class="proof-label">Setup bảng hiệu</div>
-            <div class="proof-stat">Thu hút khách mạnh</div>
+            <div class="proof-label">Quán B — Thủ Đức</div>
+            <div class="proof-stat">Bán ~180L/ngày</div>
+            <p style="font-size:0.8rem;color:#6b6358;margin-top:4px;">"Khách gọi bia đen kèm nước ngọt rất kích thích"</p>
           </div>
         </div>
         <div class="proof-card">
           <img src="/images/freezer.svg" alt="Tủ bia quán đông" loading="lazy" decoding="async" onerror="this.onerror=null; this.src='https://via.placeholder.com/600x400/ffcc00/1a1208?text=+TAI+ANH+THUC+TE'">
           <div class="proof-info">
-            <div class="proof-label">Quán đông — Tây Ninh</div>
-            <div class="proof-stat">200–300L/ngày</div>
+            <div class="proof-label">Quán C — Tây Ninh</div>
+            <div class="proof-stat">Bán ~250L/ngày</div>
+            <p style="font-size:0.8rem;color:#6b6358;margin-top:4px;">"Tuần đầu đã thu hồi tiền tủ"</p>
           </div>
         </div>
       </div>
@@ -1096,6 +1105,7 @@
         <!-- FOMO BANNER -->
         <div style="background:rgba(255,204,0,0.2);border:2px solid var(--yellow);border-radius:12px;padding:0.75rem 1.25rem;margin-bottom:1.25rem;display:inline-block;position:relative;z-index:1;">
           <span style="font-size:1.1rem;">🔥 CHỈ NHẬN <strong>5 QUÁN / KHU VỰC</strong> — ĐĂNG KÝ SỚM ĐỂ GIỮ CHỖ</span>
+          <p style="font-size:0.8rem;margin-top:4px;">⏳ Thường full khu vực trong 3–7 ngày</p>
         </div>
         <h2>⚡ Chốt khách — bắt đầu ngay</h2>
         <p>Muốn mở quán? Quán đang bán yếu? Muốn thêm sản phẩm lời cao? Đây là mô hình dễ làm — nhanh thu hồi vốn.</p>
@@ -1152,7 +1162,7 @@
   <!-- STICKY CTA -->
   <div class="sticky-cta">
     <a class="sticky-btn call" href="tel:0974012652">📞 GỌI NGAY</a>
-    <a class="sticky-btn zalo" href="https://zalo.me/0974012652" target="_blank" rel="noopener">💬 ZALO</a>
+    <a class="sticky-btn zalo" href="https://zalo.me/0974012652" target="_blank" rel="noopener" style="animation:zaloPulse 3s ease-in-out infinite;">💬 ZALO</a>
   </div>
 
   <!-- POPUP -->
