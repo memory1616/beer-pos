@@ -34,6 +34,11 @@ router.get('/dashboard', (req, res) => {
 
 // API: Get dashboard data
 router.get('/data', (req, res) => {
+  // Set no-cache headers for this JSON endpoint (app-level middleware may miss mounted sub-paths)
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+
+  try {
   // Get today's date in Vietnam time (UTC+7)
   const now = getVietnamNow();
   const year = now.getUTCFullYear();
@@ -277,6 +282,10 @@ router.get('/data', (req, res) => {
       todayByType: expensesByType
     }
   });
+  } catch (err) {
+    console.error('[/dashboard/data] Error:', err.message, err.stack);
+    res.status(500).json({ error: 'Internal server error', detail: err.message });
+  }
 });
 
 module.exports = router;
