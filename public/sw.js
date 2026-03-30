@@ -1,6 +1,6 @@
-// BeerPOS Service Worker v19
+// BeerPOS Service Worker v20
 // Clean PWA: only cache static assets, never touch navigation or API
-const CACHE_NAME = "beer-pos-v19";
+const CACHE_NAME = "beer-pos-v20";
 const DB_NAME = "BeerPOS";
 const STORE_SYNC_QUEUE = "sync_queue";
 
@@ -233,6 +233,13 @@ self.addEventListener("fetch", event => {
     return;
   }
 
+  // Page JSON endpoints (/dashboard/data, /sale/data, …) — NEVER cache.
+  // Previously these matched the static branch and were cached forever → stale "Hôm nay".
+  if (url.pathname.endsWith("/data")) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
   // Navigation — ALWAYS network only, never cache
   // This prevents the redirect loop entirely
   if (event.request.mode === "navigate") {
@@ -295,4 +302,4 @@ async function handleAPIMutation(request) {
   }
 }
 
-console.log("[SW] BeerPOS Service Worker v19 loaded");
+console.log("[SW] BeerPOS Service Worker v20 loaded");

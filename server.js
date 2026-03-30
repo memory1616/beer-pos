@@ -68,6 +68,14 @@ app.use('/api', (req, res, next) => {
 app.use(bodyParser.json({ limit: '10mb' }));
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cookieParser());
+// Dynamic JSON "page data" — must not be cached by browsers/CDN (PWA SW used to cache these)
+app.use((req, res, next) => {
+  if (req.method === 'GET' && req.path.endsWith('/data')) {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+  }
+  next();
+});
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Favicon — always serve icon
