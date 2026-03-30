@@ -230,7 +230,7 @@ router.get('/', (req, res, next) => {
 '        `) +' +
 '        getBottomNav(\'/expenses\');' +
 '    })();' +
-'  </script>' +
+'  <\/script>' +
 '' +
 '  <script>' +
 '    function formatVND(amount) {' +
