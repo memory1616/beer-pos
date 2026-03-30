@@ -1094,30 +1094,35 @@
         <span class="eyebrow">🎬 Xem thực tế</span>
         <h2 class="section-title">Quán bán như thế nào?</h2>
       </div>
-      <!-- VIDEO: 4K nặng — nên có bản 1080p để web tải nhanh. Poster chỉ biến mất khi video phát được (autoplay hoặc bấm Play). -->
-      <div style="max-width:800px;margin:0 auto;border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow);background:#0d0a08;">
-        <video id="beerHookVideo" autoplay muted loop playsinline preload="auto"
+      <!-- VIDEO: không poster / không controls — chỉ autoplay (muted + playsinline). -->
+      <div style="max-width:800px;margin:0 auto;border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow);background:#000;">
+        <video id="beerHookVideo" autoplay muted loop playsinline webkit-playsinline preload="auto"
           src="/landing-assets/beer-web.mp4"
-          style="width:100%;display:block;max-height:min(75vh,520px);object-fit:contain;background:#000;"
-          poster="/landing-assets/hero-freezer.png"
-          controls>
-          <p style="text-align:center;color:#6b6358;font-size:0.88rem;padding:1rem;">
-            💡 Trình duyệt không phát được MP4 — vui lòng thử Chrome hoặc bấm Play.
-          </p>
+          style="width:100%;display:block;max-height:min(75vh,520px);object-fit:contain;background:#000;">
         </video>
       </div>
       <script>
         (function () {
           var v = document.getElementById('beerHookVideo');
           if (!v) return;
+          v.muted = true;
+          v.defaultMuted = true;
+          v.setAttribute('muted', '');
           function tryPlay() {
             var p = v.play();
             if (p && typeof p.catch === 'function') p.catch(function () {});
           }
-          v.addEventListener('canplay', tryPlay, { once: true });
+          v.addEventListener('loadeddata', tryPlay);
+          v.addEventListener('canplay', tryPlay);
           if (v.readyState >= 2) tryPlay();
-          v.addEventListener('error', function () {
-            v.poster = '/landing-assets/hero-freezer.png';
+          var io = new IntersectionObserver(function (entries) {
+            entries.forEach(function (e) {
+              if (e.isIntersecting) tryPlay();
+            });
+          }, { threshold: 0.15 });
+          io.observe(v);
+          document.addEventListener('visibilitychange', function () {
+            if (!document.hidden) tryPlay();
           });
         })();
       </script>
