@@ -206,13 +206,11 @@ router.get('/', (req, res, next) => {
 '      document.getElementById(\'app\').innerHTML = ' +
 '        getHeader(\'Chi phí\', \'💸\') +' +
 '        getContent(`' +
-'          <!-- Month Summary -->' +
 '          <div class="mb-4 p-5 bg-gradient-to-r from-red-500 to-red-600 rounded-xl shadow-lg text-white">' +
 '            <div class="text-sm opacity-90">Tổng chi phí tháng này</div>' +
 '            <div class="text-3xl font-bold" id="monthTotal">' + formatVND(monthExpenses.total) + '</div>' +
 '          </div>' +
 '' +
-'          <!-- Category Summary -->' +
 '          <div class="bg-white rounded-xl shadow-sm border p-4 mb-4">' +
 '            <h3 class="font-semibold text-gray-700 mb-3">📊 Chi phí theo loại</h3>' +
 '            <div id="categoryList">' +
@@ -220,7 +218,6 @@ router.get('/', (req, res, next) => {
 '            </div>' +
 '          </div>' +
 '' +
-'          <!-- Recent Expenses -->' +
 '          <div class="bg-white rounded-xl shadow-sm border p-4">' +
 '            <h3 class="font-semibold text-gray-700 mb-3">📋 Chi phí gần đây</h3>' +
 '            <div id="expenseList">' +
