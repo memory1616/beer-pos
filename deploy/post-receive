@@ -1,0 +1,28 @@
+#!/bin/bash
+# ============================================================
+# Git Post-Receive Hook - Auto-Deploy on push
+# Install: cp deploy/post-receive /root/.githooks/post-receive
+#         chmod +x /root/.githooks/post-receive
+# ============================================================
+
+DEPLOY_SCRIPT="/root/beer-pos/deploy/deploy.sh"
+DEPLOY_LOG="/var/log/beerpos-deploy.log"
+
+# ── Check if this is a push to main branch ──
+while read oldrev newrev refname; do
+    branch=$(echo "$refname" | sed 's/refs\/heads\///')
+    
+    if [ "$branch" = "main" ]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Deploy triggered: main branch updated" >> "$DEPLOY_LOG"
+        
+        # Run deploy script in background
+        if [ -f "$DEPLOY_SCRIPT" ]; then
+            bash "$DEPLOY_SCRIPT" >> "$DEPLOY_LOG" 2>&1 &
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] Deploy started in background (PID: $!)" >> "$DEPLOY_LOG"
+        else
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: Deploy script not found: $DEPLOY_SCRIPT" >> "$DEPLOY_LOG"
+        fi
+    else
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Skipping deploy: pushed to '$branch' (not main)" >> "$DEPLOY_LOG"
+    fi
+done

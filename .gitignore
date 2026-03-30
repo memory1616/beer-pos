@@ -4,9 +4,14 @@
 .env.production
 .env.*.local
 
-# Deploy scripts (keep template only)
+# Deploy scripts
 deploy/
+!deploy/deploy.sh
+!deploy/deploy.bat
+!deploy/post-receive
+!deploy/DEPLOY.md
 !deploy/nginx.conf
+!deploy/.env.production
 
 # Logs
 logs/

@@ -297,6 +297,44 @@ app.get('/api/auth/me', (req, res) => {
   res.json({ loggedIn: true, username: session.username });
 });
 
+// ==================== WEBHOOK DEPLOY ====================
+// POST /webhook/deploy - Trigger auto-deploy (protected by secret token)
+const DEPLOY_WEBHOOK_SECRET = process.env.DEPLOY_WEBHOOK_SECRET || null;
+
+app.post('/webhook/deploy', async (req, res) => {
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.replace(/^Bearer\s+/i, '') || req.body?.token || req.query?.token;
+  
+  // If secret is configured, validate it
+  if (DEPLOY_WEBHOOK_SECRET && token !== DEPLOY_WEBHOOK_SECRET) {
+    logger.warn('Webhook deploy rejected: invalid token');
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  
+  const { exec } = require('child_process');
+  const deployScript = path.join(__dirname, 'deploy', 'deploy.sh');
+  
+  if (!fs.existsSync(deployScript)) {
+    return res.status(500).json({ error: 'Deploy script not found' });
+  }
+  
+  logger.info('Webhook deploy triggered');
+  
+  // Run deploy script asynchronously
+  exec(`bash "${deployScript}"`, { cwd: __dirname }, (err, stdout, stderr) => {
+    if (err) {
+      logger.error('Deploy failed', { error: err.message });
+      return; // Don't respond to webhook request after timeout
+    }
+    if (stdout) logger.info('Deploy output: ' + stdout.trim());
+    if (stderr) logger.warn('Deploy stderr: ' + stderr.trim());
+    logger.info('Deploy completed successfully');
+  });
+  
+  // Respond immediately to avoid timeout
+  res.json({ ok: true, message: 'Deploy started' });
+});
+
 // ==================== HEALTH CHECK ====================
 app.get('/api/ping', (req, res) => {
   res.json({ ok: true, timestamp: new Date().toISOString() });
