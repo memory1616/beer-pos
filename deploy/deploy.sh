@@ -85,6 +85,16 @@ fi
 
 pm2 save 2>&1 || true
 
+# ── 3b. Đồng bộ landing + static cho nginx (root /var/www/beer-pos)
+# Nếu không bước này: trang chủ vẫn là landing.html CŨ, thiếu FAB/chatbot dù git đã pull
+WEB_ROOT="/var/www/beer-pos"
+log_step "Syncing public → nginx web root ($WEB_ROOT)..."
+mkdir -p "$WEB_ROOT/images" "$WEB_ROOT/landing-assets" "$WEB_ROOT/videos"
+cp -f "$APP_DIR/public/landing.html" "$WEB_ROOT/landing.html"
+[ -d "$APP_DIR/public/images" ] && cp -rf "$APP_DIR/public/images/"* "$WEB_ROOT/images/" 2>/dev/null || true
+[ -d "$APP_DIR/public/landing-assets" ] && cp -rf "$APP_DIR/public/landing-assets/"* "$WEB_ROOT/landing-assets/" 2>/dev/null || true
+log "${GREEN}✓${NC} landing.html + static synced"
+
 # ── 4. Wait and verify ──
 log_step "Verifying deployment..."
 sleep 3
