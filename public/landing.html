@@ -686,6 +686,8 @@
       </div>
       <div class="hero-visual-wrap">
         <div class="hero-visual-bg" aria-hidden="true"></div>
+        <!-- THAY THẾ: Dùng ảnh thật của tủ bia / quán đông khách / bia đang rót -->
+        <!-- Ví dụ: <img class="hero-img" src="/images/real-beer-freezer.jpg" ...> -->
         <img class="hero-img" src="/landing-assets/hero-bottle-gold.png" width="440" height="440" alt="Chai inox NEWDOBEER 1L và cốc bia tươi" loading="eager" decoding="async" onerror="this.style.display='none'">
         <div class="hero-badge-float">🔥 BÁN CHẠY NHẤT</div>
         <div class="hero-badge-hot">18K/LÍT</div>
@@ -742,6 +744,81 @@
     </div>
   </section>
 
+  <!-- COMPARISON TABLE SECTION -->
+  <section class="section" id="so-sanh">
+    <div class="container">
+      <div class="section-header reveal">
+        <span class="eyebrow">⚖️ So sánh nhanh</span>
+        <h2 class="section-title">Bia tươi vs Nước ngọt — Ai lời hơn?</h2>
+        <p class="section-sub">Cùng 1 khách, cùng 1 bill — tính lại xem.</p>
+      </div>
+      <div style="max-width:720px;margin:0 auto;" class="reveal">
+        <table style="width:100%;border-collapse:collapse;border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);">
+          <thead>
+            <tr style="background:var(--ink);color:#fff;">
+              <th style="padding:1rem 1.25rem;text-align:left;font-size:0.9rem;font-weight:700;">Tiêu chí</th>
+              <th style="padding:1rem 1.25rem;text-align:center;font-size:0.9rem;font-weight:700;background:linear-gradient(135deg,#8b0000,#c62828);">🍺 Bia tươi</th>
+              <th style="padding:1rem 1.25rem;text-align:center;font-size:0.9rem;font-weight:700;background:#f5f5f5;color:var(--ink);">🥤 Nước ngọt</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="background:#fff;border-bottom:1px solid rgba(26,18,8,0.06);">
+              <td style="padding:0.85rem 1.25rem;font-weight:600;">Giá nhập / bán</td>
+              <td style="padding:0.85rem 1.25rem;text-align:center;font-weight:800;color:var(--red);">18–25K/L → 40–50K/L</td>
+              <td style="padding:0.85rem 1.25rem;text-align:center;color:var(--muted);">10–15K → 20–30K</td>
+            </tr>
+            <tr style="background:rgba(255,249,232,0.5);border-bottom:1px solid rgba(26,18,8,0.06);">
+              <td style="padding:0.85rem 1.25rem;font-weight:600;">Lợi nhuận / Lít</td>
+              <td style="padding:0.85rem 1.25rem;text-align:center;font-weight:800;color:#2e7d32;">~25–30K (30–50%)</td>
+              <td style="padding:0.85rem 1.25rem;text-align:center;color:var(--muted);">~10–15K (10–20%)</td>
+            </tr>
+            <tr style="background:#fff;border-bottom:1px solid rgba(26,18,8,0.06);">
+              <td style="padding:0.85rem 1.25rem;font-weight:600;">Khách uống nhanh?</td>
+              <td style="padding:0.85rem 1.25rem;text-align:center;font-weight:800;color:#2e7d32;">🍺 Nhanh — gọi thêm</td>
+              <td style="padding:0.85rem 1.25rem;text-align:center;color:var(--muted);">Trung bình — 1 ly là đủ</td>
+            </tr>
+            <tr style="background:rgba(255,249,232,0.5);border-bottom:1px solid rgba(26,18,8,0.06);">
+              <td style="padding:0.85rem 1.25rem;font-weight:600;">Gây chú ý khách mới?</td>
+              <td style="padding:0.85rem 1.25rem;text-align:center;font-weight:800;color:#2e7d32;">✅ Tủ bia lạ mắt, hút khách</td>
+              <td style="padding:0.85rem 1.25rem;text-align:center;color:var(--muted);">❌ Quá bình thường</td>
+            </tr>
+            <tr style="background:#fff;">
+              <td style="padding:0.85rem 1.25rem;font-weight:600;">Thu hồi vốn</td>
+              <td style="padding:0.85rem 1.25rem;text-align:center;font-weight:800;color:#2e7d32;">⚡ 1–2 tuần</td>
+              <td style="padding:0.85rem 1.25rem;text-align:center;color:var(--muted);">Chậm hơn nhiều</td>
+            </tr>
+          </tbody>
+        </table>
+        <p style="text-align:center;margin-top:1.25rem;font-weight:700;color:var(--ink-soft);">
+          💡 <strong>Kết luận:</strong> Bia tươi lời gấp 2–3 lần nước ngọt trên cùng 1 đơn hàng.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- VIDEO HOOK SECTION -->
+  <!-- THAY THẾ: Upload video quay quán / bia rót / khách uống vào src -->
+  <!-- <video class="video-hook" autoplay muted loop playsinline src="/videos/beer-pour.mp4"></video> -->
+  <section class="section" style="padding-top:0;padding-bottom:0;" id="video-hook">
+    <div class="container" style="max-width:800px;margin:0 auto;">
+      <div class="section-header reveal" style="margin-bottom:1.5rem;">
+        <span class="eyebrow">🎬 Xem thực tế</span>
+        <h2 class="section-title">Quán bán như thế nào?</h2>
+      </div>
+      <div class="video-placeholder reveal" style="background:linear-gradient(145deg,#1e1810,#0a0908);border-radius:var(--radius-lg);aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:1rem;box-shadow:var(--shadow);border:4px solid rgba(255,204,0,0.3);">
+        <div style="font-size:3.5rem;">🍺</div>
+        <p style="color:rgba(245,240,230,0.7);font-weight:600;text-align:center;padding:0 1.5rem;font-size:0.95rem;">
+          Video quán thực tế<br>
+          <span style="font-size:0.82rem;opacity:0.7;">(Video bia đang rót / quán đông khách / khách phản hồi)</span>
+        </p>
+        <p style="color:var(--yellow);font-size:0.78rem;font-weight:700;letter-spacing:0.05em;">THAY VIDEO TẠI ĐÂY — tỷ lệ chuyển đổi tăng x2</p>
+      </div>
+      <p style="text-align:center;margin-top:1rem;margin-bottom:3rem;color:var(--muted);font-size:0.88rem;" class="reveal">
+        💡 Video thật quán đông khách > Ảnh mockup. Nếu có video, upload lên và thay vào placeholder này.
+      </p>
+    </div>
+  </section>
+
   <section class="section" id="social-proof">
     <div class="container">
       <div class="section-header reveal">
@@ -750,24 +827,27 @@
       </div>
       <div class="proof-grid reveal">
         <div class="proof-card">
-          <img src="/landing-assets/proof-1.jpg" alt="Quán nhỏ bán bia tươi" loading="lazy" decoding="async" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 400 300%22 fill=%22%23fff3d4%22%3E%3Crect width=%22400%22 height=%22300%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-size=%2240%22%3E🍺%3C/text%3E%3C/svg%3E'">
+          <img src="/landing-assets/proof-1.jpg" alt="Quán bia tươi" loading="lazy" decoding="async" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 400 300%22 fill=%22%23fff3d4%22%3E%3Crect width=%22400%22 height=%22300%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-size=%2240%22%3E🍺%3C/text%3E%3C/svg%3E'">
           <div class="proof-info">
-            <div class="proof-label">Quán nhỏ</div>
-            <div class="proof-stat">50–100L/ngày</div>
+            <div class="proof-label">Quán A – Dĩ An, Bình Dương</div>
+            <div class="proof-stat">120L/ngày — bán ổn định</div>
+            <p style="font-size:0.82rem;color:var(--muted);margin-top:0.35rem;font-style:italic;">"Khách quay lại nhiều, không phải ai cũng uống được bia đen nhưng dân nhậu thích lắm"</p>
           </div>
         </div>
         <div class="proof-card">
-          <img src="/landing-assets/proof-2.jpg" alt="Quán đông bán bia tươi" loading="lazy" decoding="async" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 400 300%22 fill=%22%23fff3d4%22%3E%3Crect width=%22400%22 height=%22300%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-size=%2240%22%3E🍻%3C/text%3E%3C/svg%3E'">
+          <img src="/landing-assets/proof-2.jpg" alt="Quán BBQ bán bia tươi" loading="lazy" decoding="async" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 400 300%22 fill=%22%23fff3d4%22%3E%3Crect width=%22400%22 height=%22300%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-size=%2240%22%3E🍻%3C/text%3E%3C/svg%3E'">
           <div class="proof-info">
-            <div class="proof-label">Quán đông</div>
-            <div class="proof-stat">150–200L/ngày</div>
+            <div class="proof-label">Quán B – Thủ Đức, TP.HCM</div>
+            <div class="proof-stat">180L/ngày — cao điểm cuối tuần</div>
+            <p style="font-size:0.82rem;color:var(--muted);margin-top:0.35rem;font-style:italic;">"Mở thêm bia đen, bill tăng 40%. Khách gọi bia đen kèm nước ngọt rất kích thích"</p>
           </div>
         </div>
         <div class="proof-card">
-          <img src="/landing-assets/proof-3.jpg" alt="Quán bán đắt khách" loading="lazy" decoding="async" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 400 300%22 fill=%22%23fff3d4%22%3E%3Crect width=%22400%22 height=%22300%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-size=%2240%22%3E🎉%3C/text%3E%3C/svg%3E'">
+          <img src="/landing-assets/proof-3.jpg" alt="Quán nhậu đông khách" loading="lazy" decoding="async" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 400 300%22 fill=%22%23fff3d4%22%3E%3Crect width=%22400%22 height=%22300%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-size=%2240%22%3E🎉%3C/text%3E%3C/svg%3E'">
           <div class="proof-info">
-            <div class="proof-label">Quán đắt khách</div>
-            <div class="proof-stat">200–300L/ngày</div>
+            <div class="proof-label">Quán C – Tây Ninh</div>
+            <div class="proof-stat">250L/ngày — khai trương 2 tháng</div>
+            <p style="font-size:0.82rem;color:var(--muted);margin-top:0.35rem;font-style:italic;">"Setup mất 1 ngày, tuần đầu đã thu hồi tiền tủ. Khách thấy tủ bia lạ mắt ghé vào thử"</p>
           </div>
         </div>
       </div>
@@ -785,6 +865,40 @@
       </div>
     </div>
   </div>
+
+  <!-- PAIN POINT SECTION -->
+  <section class="section section-alt" id="dau-dau">
+    <div class="container">
+      <div class="section-header reveal">
+        <span class="eyebrow">❌ Bạn đang gặp vấn đề?</span>
+        <h2 class="section-title">Nếu bạn đang nghĩ như thế này...</h2>
+      </div>
+      <div class="check-grid reveal">
+        <div class="check-card">
+          <span class="icon" style="background:linear-gradient(135deg,#ffcdd2,#ef9a9a);">⚠️</span>
+          <div><strong>Quán ít khách, bán không ổn định?</strong><p>Doanh thu lên xuống thất thường, không có món "gây sốt".</p></div>
+        </div>
+        <div class="check-card">
+          <span class="icon" style="background:linear-gradient(135deg,#ffcdd2,#ef9a9a);">⚠️</span>
+          <div><strong>Đồ uống lợi nhuận thấp?</strong><p>Tính ra chi phí + nhân sự + điện nước = lời ít quá.</p></div>
+        </div>
+        <div class="check-card">
+          <span class="icon" style="background:linear-gradient(135deg,#ffcdd2,#ef9a9a);">⚠️</span>
+          <div><strong>Muốn thêm món dễ bán nhưng chưa biết chọn gì?</strong><p>Sợ đầu tư sai, sợ hàng ứ đọng, sợ không phù hợp khách.</p></div>
+        </div>
+        <div class="check-card">
+          <span class="icon" style="background:linear-gradient(135deg,#ffcdd2,#ef9a9a);">⚠️</span>
+          <div><strong>Bán rồi mà không dư được tiền?</strong><p>Vòng quay chậm, vốn trôi nổi, cuối tháng không tích lũy được.</p></div>
+        </div>
+      </div>
+      <div style="text-align:center;margin-top:2rem;" class="reveal">
+        <div style="background:linear-gradient(135deg,var(--amber),#fff9e0);border:2px solid var(--yellow);border-radius:var(--radius-lg);padding:1.5rem;max-width:560px;margin:0 auto;">
+          <p style="font-size:1.05rem;font-weight:800;color:var(--ink);margin-bottom:0.5rem;">👉 Bia tươi là giải pháp dễ triển khai nhất</p>
+          <p style="color:var(--muted);font-size:0.92rem;">Ít vốn đầu vào · Bán nhanh thu tiền ngay · Không cần kinh nghiệm bán bia</p>
+        </div>
+      </div>
+    </div>
+  </section>
 
   <section class="section section-alt" id="ly-do">
     <div class="container">
@@ -974,9 +1088,16 @@
   <section class="section" style="padding-top:0">
     <div class="container">
       <div class="cta-strong reveal">
+        <!-- FOMO BANNER -->
+        <div style="background:rgba(255,204,0,0.2);border:2px solid var(--yellow);border-radius:12px;padding:0.75rem 1.25rem;margin-bottom:1.25rem;display:inline-block;position:relative;z-index:1;">
+          <span style="font-size:1.1rem;">🔥 CHỈ NHẬN <strong>5 QUÁN / KHU VỰC</strong> — ĐĂNG KÝ SỚM ĐỂ GIỮ CHỖ</span>
+        </div>
         <h2>⚡ Chốt khách — bắt đầu ngay</h2>
         <p>Muốn mở quán? Quán đang bán yếu? Muốn thêm sản phẩm lời cao? Đây là mô hình dễ làm — nhanh thu hồi vốn.</p>
-        <a class="btn btn-gold" href="https://zalo.me/0974012652" target="_blank" rel="noopener">Nhắn Zalo — nhận báo giá & tư vấn</a>
+        <div style="display:flex;flex-wrap:wrap;gap:0.65rem;justify-content:center;position:relative;z-index:1;margin-bottom:0.75rem;">
+          <a class="btn btn-gold" href="https://zalo.me/0974012652" target="_blank" rel="noopener">💬 Nhắn Zalo giữ khu vực ngay</a>
+        </div>
+        <p style="font-size:0.82rem;opacity:0.75;position:relative;z-index:1;">Nhắn ngay — kèm báo giá + tư vấn setup chi tiết. Không mua cũng được tư vấn.</p>
       </div>
     </div>
   </section>
@@ -1028,19 +1149,11 @@
 
   <!-- POPUP -->
   <div class="popup-overlay" id="popupOverlay">
-    <div class="popup">
-      <h3>Bạn đang muốn:</h3>
-      <div class="popup-options">
-        <label class="popup-option">
-          <input type="checkbox" name="interest" value="open">
-          <span>🏠 Mở quán</span>
-        </label>
-        <label class="popup-option">
-          <input type="checkbox" name="interest" value="wholesale">
-          <span>📦 Lấy sỉ</span>
-        </label>
-      </div>
-      <a class="btn btn-primary" href="https://zalo.me/0974012652" target="_blank" rel="noopener">👉 Nhận báo giá ngay</a>
+    <div class="popup" style="position:relative;">
+      <button type="button" onclick="closePopup()" class="popup-close" aria-label="Đóng">×</button>
+      <h3>Nhận báo giá nhanh</h3>
+      <p style="color:var(--muted);font-size:0.92rem;margin-bottom:1.25rem;">Chúng tôi sẽ gửi giá + mô hình setup ngay qua Zalo — nhanh, miễn phí.</p>
+      <a class="btn btn-primary" href="https://zalo.me/0974012652" target="_blank" rel="noopener">💬 Nhắn Zalo nhận báo giá</a>
       <button type="button" onclick="closePopup()" style="display:block;margin:1rem auto 0;background:none;border:none;color:var(--muted);cursor:pointer;font-size:0.85rem;text-decoration:underline;">Đóng</button>
     </div>
   </div>
