@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bia Tươi Tây Ninh — Bia tươi &amp; bia đen công nghệ Đức | Giá sỉ quán</title>
-  <meta name="description" content="Bia tươi nguyên chất, bia đen &amp; bia vàng NEWDOBEER — công nghệ Đức. Giá sỉ tốt, hỗ trợ setup tủ mát, banner, giao hàng Tây Ninh và khu vực. Hotline 0974 012 652.">
+  <title>Bia Tươi Tây Ninh — Bia tươi & bia đen công nghệ Đức | Giá sỉ quán</title>
+  <meta name="description" content="Bia tươi nguyên chất, bia đen & bia vàng NEWDOBEER — công nghệ Đức. Giá sỉ tốt, hỗ trợ setup tủ mát, banner, giao hàng Tây Ninh và khu vực. Hotline 0974 012 652.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,600&display=swap" rel="stylesheet">
@@ -78,17 +78,29 @@
       color: #fff;
       box-shadow: 0 6px 24px rgba(198, 40, 40, 0.45);
     }
-    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(198, 40, 40, 0.5); }
+    .btn-primary:hover { transform: translateY(-3px); box-shadow: 0 10px 28px rgba(198, 40, 40, 0.5); }
     .btn-gold {
       background: linear-gradient(135deg, var(--yellow), var(--yellow-deep));
       color: var(--ink);
       box-shadow: 0 4px 20px rgba(245, 184, 0, 0.45);
     }
-    .btn-gold:hover { transform: translateY(-2px); }
+    .btn-gold:hover { transform: translateY(-3px); }
     .btn-outline {
       background: #fff; color: var(--ink); border: 2px solid rgba(26, 18, 8, 0.15);
     }
     .btn-outline:hover { border-color: var(--red); color: var(--red); }
+
+    /* PULSE ANIMATION */
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.04); }
+    }
+    @keyframes pulseGlow {
+      0%, 100% { box-shadow: 0 6px 24px rgba(198, 40, 40, 0.45), 0 0 0 0 rgba(198, 40, 40, 0.4); }
+      50% { box-shadow: 0 6px 24px rgba(198, 40, 40, 0.45), 0 0 0 8px rgba(198, 40, 40, 0); }
+    }
+    .btn-pulse { animation: pulse 2s ease-in-out infinite; }
+    .btn-pulse:hover { animation: none; }
 
     /* HERO */
     .hero {
@@ -115,20 +127,30 @@
     }
     .hero-kicker strong { color: var(--red); }
     .hero h1 {
-      font-size: clamp(2rem, 4.2vw, 3.35rem);
+      font-size: clamp(1.8rem, 4vw, 3rem);
       font-weight: 900; line-height: 1.08; letter-spacing: -0.03em;
-      color: var(--ink); margin-bottom: 0.75rem;
+      color: var(--ink); margin-bottom: 0.5rem;
     }
     .hero h1 .line-red {
       display: block; color: var(--red);
       text-shadow: 0 0 1px rgba(255,255,255,0.8);
     }
-    .hero-tagline {
-      font-size: clamp(1rem, 2vw, 1.2rem);
-      font-weight: 800; color: var(--ink-soft);
+    .hero-sub {
+      background: linear-gradient(90deg, var(--red-bright), #a50000);
+      color: #fff;
+      font-weight: 800; font-size: 0.95rem;
+      padding: 0.5rem 1rem; border-radius: 10px;
       margin-bottom: 1rem;
+      display: inline-block;
     }
-    .hero-tagline span { color: var(--red); }
+    .hero-trust {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      background: rgba(255, 204, 0, 0.2);
+      border: 1px solid var(--yellow);
+      color: var(--ink-soft); font-size: 0.85rem; font-weight: 700;
+      padding: 0.4rem 1rem; border-radius: 999px; margin-bottom: 1.25rem;
+    }
+    .hero-trust strong { color: var(--red); }
     .hero-lead {
       font-size: 1rem; color: var(--muted); max-width: 32rem; margin-bottom: 1.5rem;
     }
@@ -157,12 +179,22 @@
       filter: drop-shadow(0 24px 40px rgba(0,0,0,0.35));
     }
     .hero-badge-float {
-      position: absolute; bottom: 8%; right: 0;
+      position: absolute; top: -5%; right: 0;
       background: var(--red); color: #fff;
+      font-weight: 800; font-size: 0.85rem;
+      padding: 0.6rem 1rem; border-radius: 10px;
+      transform: rotate(8deg);
+      box-shadow: 0 8px 24px rgba(198, 40, 40, 0.4);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    .hero-badge-hot {
+      position: absolute; bottom: 15%; left: 0;
+      background: linear-gradient(135deg, var(--yellow), var(--yellow-deep));
+      color: var(--ink);
       font-weight: 800; font-size: 0.75rem;
       padding: 0.5rem 0.85rem; border-radius: 10px;
-      transform: rotate(-4deg);
-      box-shadow: 0 8px 24px rgba(198, 40, 40, 0.4);
+      transform: rotate(-5deg);
+      box-shadow: 0 6px 20px rgba(245, 184, 0, 0.5);
     }
 
     /* AUDIENCE */
@@ -205,6 +237,92 @@
     .section-sub { margin-top: 0.75rem; font-size: 1rem; color: var(--muted); }
     .section-dark .section-sub { color: rgba(245, 240, 230, 0.65); }
 
+    /* PRICING SECTION */
+    .pricing-card {
+      background: linear-gradient(135deg, var(--amber), #fff9e0);
+      border: 2px solid var(--yellow);
+      border-radius: var(--radius-lg);
+      padding: 2rem;
+      max-width: 600px;
+      margin: 0 auto;
+      text-align: center;
+      box-shadow: 0 8px 32px rgba(255, 204, 0, 0.2);
+    }
+    .pricing-card h3 {
+      font-size: 1.35rem; font-weight: 900; margin-bottom: 1.25rem;
+      display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+    }
+    .pricing-list {
+      list-style: none;
+      display: flex; flex-direction: column; gap: 0.85rem;
+      margin-bottom: 1.5rem;
+    }
+    .pricing-list li {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 0.75rem 1rem; background: #fff;
+      border-radius: 12px; font-weight: 600;
+      border: 1px solid rgba(255, 204, 0, 0.4);
+    }
+    .pricing-list li span { color: var(--red); font-weight: 800; font-size: 1.1rem; }
+    .pricing-note {
+      font-size: 0.9rem; color: var(--ink-soft);
+      display: flex; align-items: center; justify-content: center; gap: 0.4rem;
+    }
+
+    /* PROFIT MODEL */
+    .profit-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1.25rem; margin-bottom: 1.5rem;
+    }
+    .profit-item {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 204, 0, 0.25);
+      border-radius: var(--radius); padding: 1.5rem;
+      text-align: center;
+    }
+    .profit-item .value {
+      font-size: 1.85rem; font-weight: 900; color: var(--yellow);
+      margin-bottom: 0.35rem;
+    }
+    .profit-item .label {
+      font-size: 0.88rem; opacity: 0.85;
+    }
+    .profit-income {
+      background: linear-gradient(90deg, rgba(255, 204, 0, 0.15), rgba(198, 40, 40, 0.15));
+      border: 1px solid rgba(255, 204, 0, 0.4);
+      border-radius: var(--radius); padding: 1.25rem;
+      text-align: center; font-weight: 800; font-size: 1.1rem;
+      color: #fff; margin-bottom: 1.5rem;
+    }
+    .profit-income strong { color: var(--yellow); }
+
+    /* SOCIAL PROOF */
+    .proof-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 1.25rem; margin-bottom: 1.5rem;
+    }
+    .proof-card {
+      background: linear-gradient(145deg, #fff9e8, #ffe8a8);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: 0 8px 28px rgba(26, 18, 8, 0.1);
+      transition: transform 0.25s;
+    }
+    .proof-card:hover { transform: translateY(-4px) scale(1.02); }
+    .proof-card img {
+      width: 100%; height: 180px; object-fit: cover;
+    }
+    .proof-card .proof-info {
+      padding: 1rem;
+      text-align: center;
+    }
+    .proof-card .proof-label {
+      font-weight: 800; color: var(--ink-soft); font-size: 0.9rem;
+    }
+    .proof-card .proof-stat {
+      color: var(--red); font-weight: 900; font-size: 1rem;
+    }
+
     /* CHECKLIST */
     .check-grid {
       display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -216,7 +334,9 @@
       border: 1px solid rgba(26, 18, 8, 0.08);
       box-shadow: 0 8px 28px rgba(26, 18, 8, 0.06);
       display: flex; gap: 0.85rem; align-items: flex-start;
+      transition: transform 0.25s, box-shadow 0.25s;
     }
+    .check-card:hover { transform: translateY(-4px); box-shadow: 0 12px 36px rgba(26, 18, 8, 0.12); }
     .check-card .icon {
       flex-shrink: 0; width: 36px; height: 36px;
       background: linear-gradient(135deg, var(--yellow), #ffe566);
@@ -249,10 +369,21 @@
       min-height: 280px;
       display: flex; align-items: center; justify-content: center;
       box-shadow: var(--shadow);
+      position: relative;
     }
     .product-visual img {
       width: 100%; max-height: 380px; object-fit: contain;
       padding: 1rem;
+    }
+    .product-badge {
+      position: absolute; top: 12px; left: 12px;
+      background: linear-gradient(135deg, var(--red-bright), var(--red));
+      color: #fff; font-weight: 800; font-size: 0.72rem;
+      padding: 0.4rem 0.75rem; border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(198, 40, 40, 0.4);
+    }
+    .product-badge.green {
+      background: linear-gradient(135deg, #2e7d32, #1b5e20);
     }
     .product-visual.light-bg {
       background: linear-gradient(145deg, #fff9e8, #ffe8a8);
@@ -317,7 +448,7 @@
       box-shadow: var(--shadow);
       border: 4px solid #fff;
     }
-    .support-photo img { width: 100%; height: auto; display: block; }
+    .support-photo img { width: 100%; height: auto; display: block; object-fit: cover; }
 
     /* CERTS */
     .cert-row {
@@ -404,6 +535,70 @@
     }
     .brand-strip p { font-size: 0.95rem; color: var(--muted); margin-top: 0.75rem; }
 
+    /* STICKY CTA */
+    .sticky-cta {
+      position: fixed; bottom: 20px; right: 20px; z-index: 999;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .sticky-btn {
+      display: flex; align-items: center; gap: 8px;
+      padding: 12px 18px; border-radius: 50px;
+      font-weight: 800; font-size: 0.85rem; text-decoration: none;
+      box-shadow: 0 6px 24px rgba(0,0,0,0.2);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .sticky-btn:hover { transform: translateY(-3px); box-shadow: 0 10px 32px rgba(0,0,0,0.25); }
+    .sticky-btn.call {
+      background: linear-gradient(135deg, var(--red-bright), var(--red));
+      color: #fff;
+    }
+    .sticky-btn.zalo {
+      background: linear-gradient(135deg, #0068ff, #004ec2);
+      color: #fff;
+    }
+
+    /* POPUP */
+    .popup-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+      z-index: 1000; display: none; align-items: center; justify-content: center;
+      padding: 1rem;
+    }
+    .popup-overlay.show { display: flex; }
+    .popup {
+      background: #fff; border-radius: var(--radius-lg);
+      padding: 2rem; max-width: 420px; width: 100%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      animation: slideUp 0.35s ease;
+    }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .popup h3 {
+      font-size: 1.25rem; font-weight: 900; margin-bottom: 1rem;
+      color: var(--ink);
+    }
+    .popup-options {
+      display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1.25rem;
+    }
+    .popup-option {
+      display: flex; align-items: center; gap: 0.75rem;
+      padding: 0.85rem 1rem; border-radius: 12px;
+      background: var(--amber); border: 2px solid var(--yellow);
+      cursor: pointer; transition: background 0.2s;
+    }
+    .popup-option:hover { background: #ffe8a8; }
+    .popup-option input { width: 20px; height: 20px; accent-color: var(--red); }
+    .popup-option label {
+      font-weight: 600; cursor: pointer; flex: 1;
+    }
+    .popup .btn { width: 100%; }
+    .popup-close {
+      position: absolute; top: 12px; right: 12px;
+      background: none; border: none; font-size: 1.5rem;
+      cursor: pointer; color: var(--muted); line-height: 1;
+    }
+
     /* REVEAL */
     .reveal { opacity: 0; transform: translateY(24px); transition: opacity 0.65s ease, transform 0.65s ease; }
     .reveal.visible { opacity: 1; transform: translateY(0); }
@@ -423,6 +618,7 @@
       .hero-pills { justify-content: center; }
       .hero-visual-wrap { order: -1; }
       .hero-badge-float { right: 5%; }
+      .hero-badge-hot { left: 5%; }
       .product-row, .product-row.reverse { grid-template-columns: 1fr; direction: ltr; }
       .three-cols { grid-template-columns: 1fr; }
       .support-grid { grid-template-columns: 1fr; }
@@ -430,6 +626,9 @@
       .policy-grid { grid-template-columns: 1fr; }
       .brand-strip-inner { grid-template-columns: 1fr; text-align: center; }
       .cta-strong { margin: 0; border-radius: var(--radius); }
+      .proof-grid { grid-template-columns: 1fr; }
+      .sticky-cta { bottom: 15px; right: 15px; }
+      .sticky-btn { padding: 10px 14px; font-size: 0.8rem; }
     }
   </style>
 </head>
@@ -445,9 +644,8 @@
         <li><a href="#giai-phap">Giải pháp</a></li>
         <li><a href="#ly-do">Lý do chọn</a></li>
         <li><a href="#san-pham">Sản phẩm</a></li>
-        <li><a href="#bao-quan">Bảo quản</a></li>
-        <li><a href="#ho-tro">Hỗ trợ quán</a></li>
-        <li><a href="#chat-luong">Chất lượng</a></li>
+        <li><a href="#loi-nhuan">Lợi nhuận</a></li>
+        <li><a href="#ho-tro">Hỗ trợ</a></li>
         <li><a href="#lien-he">Liên hệ</a></li>
       </ul>
       <button type="button" class="mobile-menu-btn" onclick="toggleMenu()" aria-label="Mở menu">
@@ -461,18 +659,22 @@
   <header class="hero">
     <div class="container hero-grid">
       <div>
-        <div class="hero-kicker"><strong>🍺 BIA TƯƠI TÂY NINH</strong> · Phân phối &amp; setup thiết bị</div>
+        <div class="hero-kicker"><strong>🍺 BIA TƯƠI TÂY NINH</strong> · Phân phối & setup thiết bị</div>
         <h1>
-          Bia tươi — bia đen
-          <span class="line-red">công nghệ Đức</span>
+          BIA TƯƠI 18K/LÍT – BÁN CỰC CHẠY
+          <span class="line-red">→ MỞ QUÁN 1 NGÀY – THU TIỀN NGAY</span>
         </h1>
-        <p class="hero-tagline">Giá tốt · Dễ bán · <span>Lợi nhuận cao</span></p>
+        <div class="hero-sub">🔥 5L TẶNG 1L – CHỈ ÁP DỤNG 30 NGÀY</div>
+        <div class="hero-trust">
+          <span>👥</span>
+          <strong>+100 quán</strong> đang bán mỗi ngày
+        </div>
         <p class="hero-lead">
-          Chai inox 1L &amp; chai nhựa 900ml — bia vàng best seller và bia đen đậm đà cho quán nhậu, BBQ, quán mới mở.
+          Chai inox 1L & chai nhựa 900ml — bia vàng best seller và bia đen đậm đà cho quán nhậu, BBQ, quán mới mở.
           Không thanh trùng, vị ổn định, kèm mô hình bán và hỗ trợ setup thực tế.
         </p>
         <div class="hero-ctas">
-          <a class="btn btn-primary" href="tel:0974012652">📞 Gọi 0974 012 652</a>
+          <a class="btn btn-primary btn-pulse" href="tel:0974012652">📞 Gọi 0974 012 652</a>
           <a class="btn btn-gold" href="https://zalo.me/0974012652" target="_blank" rel="noopener">💬 Nhắn Zalo báo giá</a>
         </div>
         <div class="hero-pills">
@@ -484,13 +686,95 @@
       </div>
       <div class="hero-visual-wrap">
         <div class="hero-visual-bg" aria-hidden="true"></div>
-        <img class="hero-img" src="/landing-assets/hero-bottle-gold.png" width="440" height="440" alt="Chai inox NEWDOBEER 1L và cốc bia tươi">
-        <div class="hero-badge-float">1 Lít · NEWDOBEER</div>
+        <img class="hero-img" src="/landing-assets/hero-bottle-gold.png" width="440" height="440" alt="Chai inox NEWDOBEER 1L và cốc bia tươi" loading="eager" decoding="async" onerror="this.style.display='none'">
+        <div class="hero-badge-float">🔥 BÁN CHẠY NHẤT</div>
+        <div class="hero-badge-hot">18K/LÍT</div>
       </div>
     </div>
   </header>
 
-  <div class="audience" id="giai-phap">
+  <section class="section section-alt" id="giai-phap">
+    <div class="container">
+      <div class="pricing-card reveal">
+        <h3>💰 Giá tham khảo</h3>
+        <ul class="pricing-list">
+          <li>
+            <span>Bia vàng</span>
+            <span>Từ 18K/L</span>
+          </li>
+          <li>
+            <span>Bia đen</span>
+            <span>Từ 25K/L</span>
+          </li>
+        </ul>
+        <p class="pricing-note">👉 Giá sỉ tốt hơn khi lấy số lượng</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section-dark" id="loi-nhuan">
+    <div class="container">
+      <div class="section-header reveal">
+        <span class="eyebrow">📈 Mô hình lợi nhuận</span>
+        <h2 class="section-title">Biên lợi nhuận 30% – 50% — Thu tiền mỗi ngày</h2>
+        <p class="section-sub">Đã có +100 quán đang bán thực tế, thu nhận ổn định.</p>
+      </div>
+      <div class="profit-grid reveal">
+        <div class="profit-item">
+          <div class="value">30%–50%</div>
+          <div class="label">Biên lợi nhuận</div>
+        </div>
+        <div class="profit-item">
+          <div class="value">50–100L</div>
+          <div class="label">Quán nhỏ / ngày</div>
+        </div>
+        <div class="profit-item">
+          <div class="value">150–300L</div>
+          <div class="label">Quán đông / ngày</div>
+        </div>
+      </div>
+      <div class="profit-income reveal">
+        → Thu nhập <strong>vài trăm đến hơn 1 triệu/ngày</strong>
+      </div>
+      <div style="text-align:center">
+        <a class="btn btn-gold" href="https://zalo.me/0974012652" target="_blank" rel="noopener">📩 Nhắn Zalo nhận giá nhập & setup chi tiết</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="social-proof">
+    <div class="container">
+      <div class="section-header reveal">
+        <span class="eyebrow">📸 Khách đang bán thực tế</span>
+        <h2 class="section-title">Hàng trăm quán đã & đang bán mỗi ngày</h2>
+      </div>
+      <div class="proof-grid reveal">
+        <div class="proof-card">
+          <img src="/landing-assets/proof-1.jpg" alt="Quán nhỏ bán bia tươi" loading="lazy" decoding="async" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 400 300%22 fill=%22%23fff3d4%22%3E%3Crect width=%22400%22 height=%22300%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-size=%2240%22%3E🍺%3C/text%3E%3C/svg%3E'">
+          <div class="proof-info">
+            <div class="proof-label">Quán nhỏ</div>
+            <div class="proof-stat">50–100L/ngày</div>
+          </div>
+        </div>
+        <div class="proof-card">
+          <img src="/landing-assets/proof-2.jpg" alt="Quán đông bán bia tươi" loading="lazy" decoding="async" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 400 300%22 fill=%22%23fff3d4%22%3E%3Crect width=%22400%22 height=%22300%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-size=%2240%22%3E🍻%3C/text%3E%3C/svg%3E'">
+          <div class="proof-info">
+            <div class="proof-label">Quán đông</div>
+            <div class="proof-stat">150–200L/ngày</div>
+          </div>
+        </div>
+        <div class="proof-card">
+          <img src="/landing-assets/proof-3.jpg" alt="Quán bán đắt khách" loading="lazy" decoding="async" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 400 300%22 fill=%22%23fff3d4%22%3E%3Crect width=%22400%22 height=%22300%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-size=%2240%22%3E🎉%3C/text%3E%3C/svg%3E'">
+          <div class="proof-info">
+            <div class="proof-label">Quán đắt khách</div>
+            <div class="proof-stat">200–300L/ngày</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="audience">
     <div class="container audience-inner">
       <span class="audience-label">👉 Giải pháp dành cho:</span>
       <div class="audience-tags">
@@ -506,7 +790,7 @@
     <div class="container">
       <div class="section-header reveal">
         <span class="eyebrow">⚡ Lý do khách chọn bạn</span>
-        <h2 class="section-title">Không chỉ rẻ — mà dễ bán &amp; dễ giữ khách</h2>
+        <h2 class="section-title">Không chỉ rẻ — mà dễ bán & dễ giữ khách</h2>
         <p class="section-sub">Mô hình đã test thực tế: bán nhanh, quay vòng tiền tốt.</p>
       </div>
       <div class="check-grid">
@@ -533,7 +817,7 @@
       </div>
       <p class="highlight-bar reveal">👉 <strong>Mô hình đã test thực tế:</strong> bán nhanh — quay vòng tiền tốt.</p>
       <figure style="margin-top:2.5rem;text-align:center" class="reveal">
-        <img src="/landing-assets/hero-freezer.png" width="1000" height="560" alt="Tủ trưng bia tươi bia đen 1 lít tại điểm bán" style="width:100%;max-width:920px;height:auto;border-radius:var(--radius-lg);box-shadow:var(--shadow);border:4px solid #fff">
+        <img src="/landing-assets/hero-freezer.png" width="1000" height="560" alt="Tủ trưng bia tươi bia đen 1 lít tại điểm bán" loading="lazy" decoding="async" style="width:100%;max-width:920px;height:auto;border-radius:var(--radius-lg);box-shadow:var(--shadow);border:4px solid #fff;object-fit:cover" onerror="this.style.display='none'">
         <figcaption style="margin-top:0.75rem;font-size:0.88rem;color:var(--muted);font-weight:600">Tủ mát trưng bày — chai inox 1L, đủ sức gây chú ý khách qua đường</figcaption>
       </figure>
     </div>
@@ -543,18 +827,19 @@
     <div class="container">
       <div class="section-header reveal">
         <span class="eyebrow">🍺 Sản phẩm chủ lực</span>
-        <h2 class="section-title">Bia đen &amp; bia vàng — đúng dòng quý vị đang kinh doanh</h2>
-        <p class="section-sub">Partner / NEWDOBEER — công nghệ Đức, dung tích &amp; nồng độ chuẩn cho quán.</p>
+        <h2 class="section-title">Bia đen & bia vàng — đúng dòng quý vị đang kinh doanh</h2>
+        <p class="section-sub">Partner / NEWDOBEER — công nghệ Đức, dung tích & nồng độ chuẩn cho quán.</p>
       </div>
       <div class="product-showcase">
         <article class="product-row reveal">
           <div class="product-visual">
-            <img src="/landing-assets/product-black.png" width="600" height="400" alt="Bia đen Partner chai inox 1L và cốc bia đen">
+            <img src="/landing-assets/product-black.png" width="600" height="400" alt="Bia đen Partner chai inox 1L và cốc bia đen" loading="lazy" decoding="async" onerror="this.style.display='none'">
+            <span class="product-badge green">🔥 LỢI NHUẬN CAO</span>
           </div>
           <div class="product-body">
             <div class="label-row">🖤 Bia đen</div>
             <h3>Đậm đà, khác biệt</h3>
-            <p class="hook">💥 Dành cho khách “uống có gu”</p>
+            <p class="hook">💥 Dành cho khách "uống có gu"</p>
             <ul class="spec-list">
               <li>Màu đen sang trọng, bọt dày mịn lâu tan</li>
               <li>Hương caramel — socola — cà phê nhẹ</li>
@@ -563,12 +848,14 @@
             <div class="product-meta">
               <span class="meta-chip">Dung tích: 1L</span>
               <span class="meta-chip">Nồng độ: 4.5%</span>
+              <span class="meta-chip">25K/L</span>
             </div>
           </div>
         </article>
         <article class="product-row reverse reveal">
           <div class="product-visual light-bg">
-            <img src="/landing-assets/product-yellow-pet.png" width="600" height="400" alt="Bia vàng DonaBeer chai nhựa 900ml và cốc bia vàng">
+            <img src="/landing-assets/product-yellow-pet.png" width="600" height="400" alt="Bia vàng DonaBeer chai nhựa 900ml và cốc bia vàng" loading="lazy" decoding="async" onerror="this.style.display='none'">
+            <span class="product-badge">🔥 BÁN CHẠY NHẤT</span>
           </div>
           <div class="product-body">
             <div class="label-row">🍺 Bia vàng · Best seller</div>
@@ -582,7 +869,7 @@
             <div class="product-meta">
               <span class="meta-chip">1L (chai inox)</span>
               <span class="meta-chip">900ml (chai nhựa)</span>
-              <span class="meta-chip">4.3% — 4.5%</span>
+              <span class="meta-chip">18K/L</span>
             </div>
           </div>
         </article>
@@ -593,7 +880,7 @@
   <section class="section section-dark" id="bao-quan">
     <div class="container">
       <div class="section-header reveal">
-        <span class="eyebrow">🧊 Hệ thống bảo quản &amp; giao hàng</span>
+        <span class="eyebrow">🧊 Hệ thống bảo quản & giao hàng</span>
         <h2 class="section-title">Lạnh chuẩn — giao đúng hẹn — không đứt hàng</h2>
         <p class="section-sub">Chuỗi lạnh và giao hàng ổn định để quán bán đều tay.</p>
       </div>
@@ -630,7 +917,7 @@
           <li><span class="tick">✔</span> Hỗ trợ kỹ thuật tận nơi</li>
         </ul>
         <div class="support-photo">
-          <img src="/landing-assets/setup-freezer.png" width="640" height="400" alt="Tủ mát trưng bày bia tươi bia đen tại quán">
+          <img src="/landing-assets/setup-freezer.png" width="640" height="400" alt="Tủ mát trưng bày bia tươi bia đen tại quán" loading="lazy" decoding="async" onerror="this.style.display='none'">
         </div>
       </div>
       <p style="text-align:center;margin-top:2rem;color:var(--muted);font-weight:600;" class="reveal">
@@ -641,7 +928,7 @@
 
   <section class="section brand-strip">
     <div class="container brand-strip-inner reveal">
-      <img src="/landing-assets/banner-standee.png" width="400" height="560" alt="Banner NEWDOBEER bia tươi bia đen công nghệ Đức">
+      <img src="/landing-assets/banner-standee.png" width="400" height="560" alt="Banner NEWDOBEER bia tươi bia đen công nghệ Đức" loading="lazy" decoding="async" onerror="this.style.display='none'">
       <div>
         <span class="eyebrow">Thương hiệu đồng hành</span>
         <h2 class="section-title" style="text-align:left">NEWDOBEER — bia tươi nguyên chất, hương vị tự nhiên</h2>
@@ -689,7 +976,7 @@
       <div class="cta-strong reveal">
         <h2>⚡ Chốt khách — bắt đầu ngay</h2>
         <p>Muốn mở quán? Quán đang bán yếu? Muốn thêm sản phẩm lời cao? Đây là mô hình dễ làm — nhanh thu hồi vốn.</p>
-        <a class="btn btn-gold" href="https://zalo.me/0974012652" target="_blank" rel="noopener">Nhắn Zalo — nhận báo giá &amp; tư vấn</a>
+        <a class="btn btn-gold" href="https://zalo.me/0974012652" target="_blank" rel="noopener">Nhắn Zalo — nhận báo giá & tư vấn</a>
       </div>
     </div>
   </section>
@@ -728,10 +1015,35 @@
 
   <footer class="footer">
     <div class="container">
-      <p><strong>🍺 Bia Tươi Tây Ninh</strong> — Bia tươi &amp; bia đen công nghệ Đức (NEWDOBEER / Partner).</p>
+      <p><strong>🍺 Bia Tươi Tây Ninh</strong> — Bia tươi & bia đen công nghệ Đức (NEWDOBEER / Partner).</p>
       <p style="margin-top:0.5rem;">© 2026 · Hotline <a href="tel:0974012652" style="color:rgba(255,204,0,0.85);">0974 012 652</a></p>
     </div>
   </footer>
+
+  <!-- STICKY CTA -->
+  <div class="sticky-cta">
+    <a class="sticky-btn call" href="tel:0974012652">📞 GỌI NGAY</a>
+    <a class="sticky-btn zalo" href="https://zalo.me/0974012652" target="_blank" rel="noopener">💬 ZALO</a>
+  </div>
+
+  <!-- POPUP -->
+  <div class="popup-overlay" id="popupOverlay">
+    <div class="popup">
+      <h3>Bạn đang muốn:</h3>
+      <div class="popup-options">
+        <label class="popup-option">
+          <input type="checkbox" name="interest" value="open">
+          <span>🏠 Mở quán</span>
+        </label>
+        <label class="popup-option">
+          <input type="checkbox" name="interest" value="wholesale">
+          <span>📦 Lấy sỉ</span>
+        </label>
+      </div>
+      <a class="btn btn-primary" href="https://zalo.me/0974012652" target="_blank" rel="noopener">👉 Nhận báo giá ngay</a>
+      <button type="button" onclick="closePopup()" style="display:block;margin:1rem auto 0;background:none;border:none;color:var(--muted);cursor:pointer;font-size:0.85rem;text-decoration:underline;">Đóng</button>
+    </div>
+  </div>
 
   <script>
     window.addEventListener('scroll', function () {
@@ -755,6 +1067,27 @@
       });
     }, { threshold: 0.12 });
     revealEls.forEach(function (el) { revealObserver.observe(el); });
+
+    // Popup
+    var popupShown = false;
+    function showPopup() {
+      if (!popupShown) {
+        popupShown = true;
+        document.getElementById('popupOverlay').classList.add('show');
+      }
+    }
+    function closePopup() {
+      document.getElementById('popupOverlay').classList.remove('show');
+    }
+    document.getElementById('popupOverlay').addEventListener('click', function(e) {
+      if (e.target === this) closePopup();
+    });
+    setTimeout(showPopup, 8000);
+
+    // Close popup on CTA click
+    document.querySelectorAll('.popup .btn').forEach(function(btn) {
+      btn.addEventListener('click', closePopup);
+    });
   </script>
 </body>
 </html>
