@@ -315,10 +315,22 @@
       overflow: hidden;
       box-shadow: 0 8px 28px rgba(26, 18, 8, 0.1);
       transition: transform 0.25s;
+      position: relative;
     }
     .proof-card:hover { transform: translateY(-4px) scale(1.02); }
     .proof-card img {
       width: 100%; height: 200px; object-fit: cover;
+    }
+    .proof-card .proof-badge {
+      position: absolute;
+      top: 10px; left: 10px;
+      background: var(--red);
+      color: #fff;
+      font-size: 0.68rem;
+      font-weight: 800;
+      padding: 3px 8px;
+      border-radius: 6px;
+      letter-spacing: 0.5px;
     }
     .proof-card .proof-info {
       padding: 1rem;
@@ -476,11 +488,33 @@
       display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; max-width: 720px; margin: 0 auto;
     }
     .policy-card {
-      background: linear-gradient(135deg, #fff9e8, #fff);
+      background: #fff9e8;
       border: 1px solid rgba(198, 40, 40, 0.2);
       border-radius: var(--radius); padding: 1.5rem; text-align: center;
     }
     .policy-card h4 { font-size: 1.15rem; margin-bottom: 0.35rem; color: var(--red); }
+
+    /* FINAL CTA */
+    .final-cta {
+      background: linear-gradient(135deg, var(--red-bright), var(--red));
+      color: #fff;
+      padding: 3rem 0;
+      text-align: center;
+    }
+    .final-cta h2 {
+      font-size: 1.5rem;
+      margin-bottom: 1rem;
+    }
+    .final-cta p {
+      font-size: 1rem;
+      margin-bottom: 1.5rem;
+      line-height: 1.8;
+    }
+    .final-cta p strong {
+      display: block;
+      font-size: 1.05rem;
+      margin-bottom: 0.25rem;
+    }
 
     /* CTA STRIP */
     .cta-strong {
@@ -564,6 +598,16 @@
       background: linear-gradient(135deg, #0068ff, #004ec2);
       color: #fff;
     }
+    .sticky-btn.zalo::after {
+      content: "HOT";
+      background: #ffcc00;
+      color: #000;
+      font-size: 10px;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 6px;
+      margin-left: 6px;
+    }
 
     /* POPUP */
     .popup-overlay {
@@ -643,7 +687,8 @@
      ============================================ */
   .chat-fab {
     position: fixed;
-    bottom: 88px;
+    /* Cao hơn cột sticky GỌI NGAY + ZALO (≈20+2×btn+gap) để không bị đè */
+    bottom: 156px;
     right: 20px;
     z-index: 9998;
     display: flex;
@@ -674,7 +719,7 @@
 
   .chat-box {
     position: fixed;
-    bottom: 148px;
+    bottom: 218px;
     right: 20px;
     z-index: 9999;
     width: 320px;
@@ -848,7 +893,7 @@
 
   /* Mobile bottom sheet */
   @media (max-width: 480px) {
-    .chat-fab { bottom: 80px; right: 12px; }
+    .chat-fab { bottom: 132px; right: 12px; }
     .chat-box {
       bottom: 0; right: 0; left: 0;
       width: 100%; height: 80vh;
@@ -890,14 +935,17 @@
       <div>
         <div class="hero-kicker"><strong>🍺 BIA TƯƠI TÂY NINH</strong> · Phân phối & setup thiết bị</div>
         <h1>
-          BIA TƯƠI 18K/LÍT – BÁN CỰC CHẠY
-          <span class="line-red">→ MỞ QUÁN 1 NGÀY – THU TIỀN NGAY</span>
+          BIA TƯƠI GIÁ SỈ — DỄ BÁN
+          <span class="line-red">→ QUÁN MỚI CŨNG BÁN ĐƯỢC NGAY</span>
         </h1>
-        <div class="hero-sub">🔥 5L TẶNG 1L – CHỈ ÁP DỤNG 30 NGÀY</div>
+        <div class="hero-sub">🔥 Setup có khách trong 1–3 ngày — không cần kinh nghiệm</div>
         <div class="hero-trust">
           <span>👥</span>
-          <strong>+100 quán</strong> đang bán mỗi ngày
+          <strong>Hơn 100+ quán</strong> đang nhập mỗi ngày
         </div>
+        <p style="color:#c62828;font-weight:800;font-size:0.9rem;margin-top:0.5rem;">
+          🔥 Chỉ nhận 5 quán / khu vực — thường full trong 3–7 ngày
+        </p>
         <p class="hero-lead">
           Chai inox 1L & chai nhựa 900ml — bia vàng best seller và bia đen đậm đà cho quán nhậu, BBQ, quán mới mở.
           Không thanh trùng, vị ổn định, kèm mô hình bán và hỗ trợ setup thực tế.
@@ -906,12 +954,10 @@
           🔥 Quán mới vẫn bán được — không cần kinh nghiệm
         </p>
         <div class="hero-ctas">
-          <a class="btn btn-primary btn-pulse" href="tel:0974012652">📞 Gọi 0974 012 652</a>
-          <a class="btn btn-gold" href="https://zalo.me/0974012652" target="_blank" rel="noopener">💬 Nhắn Zalo nhận giá sỉ + giữ khu vực</a>
+          <a class="btn btn-primary" href="tel:0974012652">📞 Gọi 0974 012 652</a>
+          <a class="btn btn-gold" href="https://zalo.me/0974012652" target="_blank" rel="noopener">💬 Nhắn Zalo nhận báo giá ngay <span style="font-size:0.78rem;">(còn slot khu vực)</span></a>
         </div>
-        <p style="font-size:0.85rem;color:#6b6358;margin-top:-0.5rem;">
-          ⏳ Trung bình quán mới có khách sau 1–3 ngày setup
-        </p>
+        <p style="font-size:0.82rem;color:#c62828;margin-top:0.4rem;font-weight:700;">⏳ Trả lời trong 2–5 phút</p>
         <p style="font-size:0.8rem;color:#6b6358;">
           ✔ Có sẵn hàng mỗi ngày · ✔ Giao nhanh · ✔ Hỗ trợ tận nơi
         </p>
@@ -927,7 +973,7 @@
         <!-- Khi có ảnh thật: thay src="/images/freezer.jpg" -->
         <img class="hero-img" src="/images/freezer.svg" width="520" height="380" alt="Tủ bia tươi đầy chai inox thực tế" loading="eager" decoding="async" onerror="this.onerror=null; this.src='https://via.placeholder.com/520x380/ffcc00/1a1208?text=+ANH+TU+BIA+THUC+TE'">
         <div class="hero-badge-float">🔥 BÁN CHẠY NHẤT</div>
-        <div class="hero-badge-hot">18K/LÍT</div>
+        <div class="hero-badge-hot">🔥 BÁN CHẠY</div>
         <!-- Badge HÀNG LUÔN CÓ SẴN -->
         <div style="position:absolute;bottom:8%;right:0;background:linear-gradient(135deg,#2e7d32,#1b5e20);color:#fff;font-weight:800;font-size:0.7rem;padding:0.45rem 0.75rem;border-radius:8px;transform:rotate(3deg);box-shadow:0 4px 14px rgba(46,125,50,0.4);">🔥 HÀNG LUÔN CÓ SẴN</div>
       </div>
@@ -935,21 +981,98 @@
     </div>
   </header>
 
+  <!-- PAIN POINT SECTION -->
+  <section class="section section-alt" id="dau-dau">
+    <div class="container">
+      <div class="section-header reveal">
+        <span class="eyebrow">❌ Bạn đang gặp vấn đề?</span>
+        <h2 class="section-title">Nếu bạn đang nghĩ như thế này...</h2>
+      </div>
+      <div class="check-grid reveal">
+        <div class="check-card">
+          <span class="icon" style="background:#ffcdd2;">⚠️</span>
+          <div><strong>Quán ít khách, bán không ổn định?</strong><p>Doanh thu lên xuống thất thường, không có món "gây sốt".</p></div>
+        </div>
+        <div class="check-card">
+          <span class="icon" style="background:#ffcdd2;">⚠️</span>
+          <div><strong>Đồ uống lợi nhuận thấp?</strong><p>Tính ra chi phí + nhân sự + điện nước = lời ít quá.</p></div>
+        </div>
+        <div class="check-card">
+          <span class="icon" style="background:#ffcdd2;">⚠️</span>
+          <div><strong>Muốn thêm món dễ bán nhưng chưa biết chọn gì?</strong><p>Sợ đầu tư sai, sợ hàng ứ đọng, sợ không phù hợp khách.</p></div>
+        </div>
+        <div class="check-card">
+          <span class="icon" style="background:#ffcdd2;">⚠️</span>
+          <div><strong>Bán rồi mà không dư được tiền?</strong><p>Vòng quay chậm, vốn trôi nổi, cuối tháng không tích lũy được.</p></div>
+        </div>
+      </div>
+      <div style="text-align:center;margin-top:2rem;" class="reveal">
+        <div style="background:linear-gradient(135deg,var(--amber),#fff9e0);border:2px solid var(--yellow);border-radius:var(--radius-lg);padding:1.5rem;max-width:560px;margin:0 auto;">
+          <p style="font-size:1.05rem;font-weight:800;color:var(--ink);margin-bottom:0.5rem;">👉 Bia tươi là giải pháp dễ triển khai nhất</p>
+          <p style="color:var(--muted);font-size:0.92rem;">Ít vốn đầu vào · Bán nhanh thu tiền ngay · Không cần kinh nghiệm bán bia</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <section class="section section-alt" id="giai-phap">
     <div class="container">
-      <div class="pricing-card reveal">
-        <h3>💰 Giá tham khảo</h3>
+      <div class="section-header reveal">
+        <span class="eyebrow">💰 Chính sách giá linh hoạt</span>
+        <h2 class="section-title">Giá sỉ tối ưu — phù hợp mọi mô hình quán</h2>
+        <p class="section-sub">Không công khai giá để đảm bảo quyền lợi đại lý mỗi khu vực.</p>
+      </div>
+      <div class="pricing-card reveal" style="max-width:480px;margin:0 auto;">
         <ul class="pricing-list">
-          <li>
-            <span>Bia vàng</span>
-            <span>Từ 18K/L</span>
-          </li>
-          <li>
-            <span>Bia đen</span>
-            <span>Từ 25K/L</span>
-          </li>
+          <li><span>Giá sỉ theo khu vực</span><span>✔</span></li>
+          <li><span>Chiết khấu theo sản lượng</span><span>✔</span></li>
+          <li><span>Ưu đãi cho quán mới</span><span>✔</span></li>
         </ul>
-        <p class="pricing-note">👉 Giá sỉ tốt hơn khi lấy số lượng</p>
+        <p class="pricing-note">👉 Nhắn Zalo nhận báo giá riêng cho quán của bạn</p>
+        <div style="text-align:center;margin-top:1.25rem;">
+          <a class="btn btn-gold" href="https://zalo.me/0974012652" target="_blank" rel="noopener">💬 Nhắn Zalo nhận báo giá riêng</a>
+        </div>
+        <p style="text-align:center;margin-top:1rem;font-size:0.82rem;color:var(--muted);">
+          🔒 Giá được bảo mật theo từng khu vực
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="social-proof">
+    <div class="container">
+      <div class="section-header reveal">
+        <span class="eyebrow">📸 Khách đang bán thực tế</span>
+        <h2 class="section-title">Hàng trăm quán đã & đang bán mỗi ngày</h2>
+      </div>
+      <div class="proof-grid reveal">
+        <div class="proof-card">
+          <img src="/images/freezer.svg" alt="Tủ bia thực tế" loading="lazy" decoding="async" onerror="this.onerror=null; this.src='https://via.placeholder.com/600x400/ffcc00/1a1208?text=+ANH+QUAN+THUC+TE'">
+          <div class="proof-badge">ẢNH THỰC TẾ</div>
+          <div class="proof-info">
+            <div class="proof-label">Quán anh H. — Tây Ninh</div>
+            <div class="proof-stat">Bán ~180L/ngày sau 5 ngày setup</div>
+            <p style="font-size:0.8rem;color:#6b6358;margin-top:4px;">"Khách uống nhanh, gọi thêm liên tục"</p>
+          </div>
+        </div>
+        <div class="proof-card">
+          <img src="/images/banner.svg" alt="Banner dựng ngoài trời" loading="lazy" decoding="async" onerror="this.onerror=null; this.src='https://via.placeholder.com/600x400/fff3d4/c62828?text=+BANNER+THUC+TE'">
+          <div class="proof-badge">ẢNH THỰC TẾ</div>
+          <div class="proof-info">
+            <div class="proof-label">Quán chị M. — Thủ Đức</div>
+            <div class="proof-stat">Bán ~220L/ngày sau 1 tuần</div>
+            <p style="font-size:0.8rem;color:#6b6358;margin-top:4px;">"Bia đen kèm nước ngọt — khách rất kích thích"</p>
+          </div>
+        </div>
+        <div class="proof-card">
+          <img src="/images/freezer.svg" alt="Tủ bia quán đông" loading="lazy" decoding="async" onerror="this.onerror=null; this.src='https://via.placeholder.com/600x400/ffcc00/1a1208?text=+ANH+QUAN+THUC+TE'">
+          <div class="proof-badge">ẢNH THỰC TẾ</div>
+          <div class="proof-info">
+            <div class="proof-label">Quán anh T. — Dĩ An</div>
+            <div class="proof-stat">Thu hồi vốn sau 14 ngày đầu</div>
+            <p style="font-size:0.8rem;color:#6b6358;margin-top:4px;">"Tuần đầu đã thu hồi tiền tủ"</p>
+          </div>
+        </div>
       </div>
     </div>
   </section>
@@ -976,10 +1099,16 @@
         </div>
       </div>
       <div class="profit-income reveal">
+        💰 1 ngày = tiền thuê mặt bằng
+      </div>
+      <div class="profit-income reveal">
         → Thu nhập <strong>vài trăm đến hơn 1 triệu/ngày</strong>
       </div>
+      <p style="text-align:center;color:#ffcc00;font-weight:700;font-size:0.92rem;margin:0.75rem 0;" class="reveal">
+        🔥 Nhiều quán hoàn vốn trong 7–14 ngày
+      </p>
       <div style="text-align:center">
-        <a class="btn btn-gold" href="https://zalo.me/0974012652" target="_blank" rel="noopener">📩 Nhắn Zalo nhận giá nhập & setup chi tiết</a>
+        <a class="btn btn-gold" href="https://zalo.me/0974012652" target="_blank" rel="noopener">📩 Nhắn Zalo nhận báo giá & setup chi tiết</a>
       </div>
     </div>
   </section>
@@ -1004,7 +1133,7 @@
           <tbody>
             <tr style="background:#fff;border-bottom:1px solid rgba(26,18,8,0.06);">
               <td style="padding:0.85rem 1.25rem;font-weight:600;">Giá nhập / Lít</td>
-              <td style="padding:0.85rem 1.25rem;text-align:center;font-weight:800;color:var(--red);">18–25K</td>
+              <td style="padding:0.85rem 1.25rem;text-align:center;font-weight:800;color:var(--red);">Giá sỉ cạnh tranh</td>
               <td style="padding:0.85rem 1.25rem;text-align:center;color:var(--muted);">10–15K</td>
             </tr>
             <tr style="background:rgba(255,249,232,0.5);border-bottom:1px solid rgba(26,18,8,0.06);">
@@ -1054,41 +1183,6 @@
     </div>
   </section>
 
-  <section class="section" id="social-proof">
-    <div class="container">
-      <div class="section-header reveal">
-        <span class="eyebrow">📸 Khách đang bán thực tế</span>
-        <h2 class="section-title">Hàng trăm quán đã & đang bán mỗi ngày</h2>
-      </div>
-      <div class="proof-grid reveal">
-        <div class="proof-card">
-          <img src="/images/freezer.svg" alt="Tủ bia thực tế" loading="lazy" decoding="async" onerror="this.onerror=null; this.src='https://via.placeholder.com/600x400/ffcc00/1a1208?text=+TAI+ANH+THUC+TE'">
-          <div class="proof-info">
-            <div class="proof-label">Quán A — Dĩ An</div>
-            <div class="proof-stat">Bán ~120L/ngày</div>
-            <p style="font-size:0.8rem;color:#6b6358;margin-top:4px;">"Khách uống đều, quay lại nhiều"</p>
-          </div>
-        </div>
-        <div class="proof-card">
-          <img src="/images/banner.svg" alt="Banner dựng ngoài trời" loading="lazy" decoding="async" onerror="this.onerror=null; this.src='https://via.placeholder.com/600x400/fff3d4/c62828?text=+BANNER+THUC+TE'">
-          <div class="proof-info">
-            <div class="proof-label">Quán B — Thủ Đức</div>
-            <div class="proof-stat">Bán ~180L/ngày</div>
-            <p style="font-size:0.8rem;color:#6b6358;margin-top:4px;">"Khách gọi bia đen kèm nước ngọt rất kích thích"</p>
-          </div>
-        </div>
-        <div class="proof-card">
-          <img src="/images/freezer.svg" alt="Tủ bia quán đông" loading="lazy" decoding="async" onerror="this.onerror=null; this.src='https://via.placeholder.com/600x400/ffcc00/1a1208?text=+TAI+ANH+THUC+TE'">
-          <div class="proof-info">
-            <div class="proof-label">Quán C — Tây Ninh</div>
-            <div class="proof-stat">Bán ~250L/ngày</div>
-            <p style="font-size:0.8rem;color:#6b6358;margin-top:4px;">"Tuần đầu đã thu hồi tiền tủ"</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
   <div class="audience">
     <div class="container audience-inner">
       <span class="audience-label">👉 Giải pháp dành cho:</span>
@@ -1100,40 +1194,6 @@
       </div>
     </div>
   </div>
-
-  <!-- PAIN POINT SECTION -->
-  <section class="section section-alt" id="dau-dau">
-    <div class="container">
-      <div class="section-header reveal">
-        <span class="eyebrow">❌ Bạn đang gặp vấn đề?</span>
-        <h2 class="section-title">Nếu bạn đang nghĩ như thế này...</h2>
-      </div>
-      <div class="check-grid reveal">
-        <div class="check-card">
-          <span class="icon" style="background:linear-gradient(135deg,#ffcdd2,#ef9a9a);">⚠️</span>
-          <div><strong>Quán ít khách, bán không ổn định?</strong><p>Doanh thu lên xuống thất thường, không có món "gây sốt".</p></div>
-        </div>
-        <div class="check-card">
-          <span class="icon" style="background:linear-gradient(135deg,#ffcdd2,#ef9a9a);">⚠️</span>
-          <div><strong>Đồ uống lợi nhuận thấp?</strong><p>Tính ra chi phí + nhân sự + điện nước = lời ít quá.</p></div>
-        </div>
-        <div class="check-card">
-          <span class="icon" style="background:linear-gradient(135deg,#ffcdd2,#ef9a9a);">⚠️</span>
-          <div><strong>Muốn thêm món dễ bán nhưng chưa biết chọn gì?</strong><p>Sợ đầu tư sai, sợ hàng ứ đọng, sợ không phù hợp khách.</p></div>
-        </div>
-        <div class="check-card">
-          <span class="icon" style="background:linear-gradient(135deg,#ffcdd2,#ef9a9a);">⚠️</span>
-          <div><strong>Bán rồi mà không dư được tiền?</strong><p>Vòng quay chậm, vốn trôi nổi, cuối tháng không tích lũy được.</p></div>
-        </div>
-      </div>
-      <div style="text-align:center;margin-top:2rem;" class="reveal">
-        <div style="background:linear-gradient(135deg,var(--amber),#fff9e0);border:2px solid var(--yellow);border-radius:var(--radius-lg);padding:1.5rem;max-width:560px;margin:0 auto;">
-          <p style="font-size:1.05rem;font-weight:800;color:var(--ink);margin-bottom:0.5rem;">👉 Bia tươi là giải pháp dễ triển khai nhất</p>
-          <p style="color:var(--muted);font-size:0.92rem;">Ít vốn đầu vào · Bán nhanh thu tiền ngay · Không cần kinh nghiệm bán bia</p>
-        </div>
-      </div>
-    </div>
-  </section>
 
   <section class="section section-alt" id="ly-do">
     <div class="container">
@@ -1197,7 +1257,6 @@
             <div class="product-meta">
               <span class="meta-chip">Dung tích: 1L</span>
               <span class="meta-chip">Nồng độ: 4.5%</span>
-              <span class="meta-chip">25K/L</span>
             </div>
           </div>
         </article>
@@ -1218,7 +1277,6 @@
             <div class="product-meta">
               <span class="meta-chip">1L (chai inox)</span>
               <span class="meta-chip">900ml (chai nhựa)</span>
-              <span class="meta-chip">18K/L</span>
             </div>
           </div>
         </article>
@@ -1371,12 +1429,26 @@
     </div>
   </section>
 
+  <!-- FINAL CTA SECTION -->
+  <section class="final-cta">
+    <div class="container">
+      <h2>⚠️ Nếu bạn còn đang phân vân...</h2>
+      <p>
+        → Người khác đã mở trước bạn<br>
+        → Khách đã uống ở quán khác<br>
+        → Khu vực có thể bị giữ mất
+      </p>
+      <a class="btn btn-gold" href="https://zalo.me/0974012652" target="_blank" rel="noopener" style="font-size:1rem;padding:14px 32px;">💬 Nhắn Zalo giữ khu vực ngay</a>
+    </div>
+  </section>
+
   <footer class="footer">
     <div class="container">
       <p><strong>🍺 Bia Tươi Tây Ninh</strong> — Bia tươi & bia đen công nghệ Đức (NEWDOBEER / Partner).</p>
       <p style="margin-top:0.5rem;font-size:0.8rem;">Phục vụ: Tây Ninh – Bình Dương – TP.HCM</p>
       <p style="margin-top:0.5rem;">© 2026 · Hotline <a href="tel:0974012652" style="color:rgba(255,204,0,0.85);">0974 012 652</a></p>
       <p style="margin-top:0.5rem;color:#c62828;font-weight:700;font-size:0.8rem;">⚠️ Số lượng khu vực có hạn</p>
+      <p style="margin-top:0.5rem;color:rgba(255,255,255,0.55);font-size:0.78rem;">🔒 Giá được bảo mật theo từng khu vực</p>
     </div>
   </footer>
 
@@ -1391,7 +1463,7 @@
     <div class="popup" style="position:relative;">
       <button type="button" onclick="closePopup()" class="popup-close" aria-label="Đóng">×</button>
       <h3>Nhận báo giá nhanh</h3>
-      <p style="color:var(--muted);font-size:0.92rem;margin-bottom:1.25rem;">Chúng tôi sẽ gửi giá + mô hình setup ngay qua Zalo — nhanh, miễn phí.</p>
+      <p style="color:var(--muted);font-size:0.92rem;margin-bottom:1.25rem;">Chúng tôi sẽ gửi báo giá + mô hình setup ngay qua Zalo — nhanh, miễn phí.</p>
       <a class="btn btn-primary" href="https://zalo.me/0974012652" target="_blank" rel="noopener">💬 Nhắn Zalo nhận báo giá</a>
       <button type="button" onclick="closePopup()" style="display:block;margin:1rem auto 0;background:none;border:none;color:var(--muted);cursor:pointer;font-size:0.85rem;text-decoration:underline;">Đóng</button>
     </div>
@@ -1464,15 +1536,12 @@
     <div class="chat-body" id="chatBody"></div>
 
     <div class="chat-replies" id="chatReplies">
-      <div class="chat-reply-btn" onclick="reply('prices')">📋 Xem giá</div>
-      <div class="chat-reply-btn" onclick="reply('setup')">🏪 Mở quán</div>
-      <div class="chat-reply-btn" onclick="reply('profit')">📈 Lợi nhuận</div>
-      <div class="chat-reply-btn" onclick="reply('call')">📞 Gọi ngay</div>
+      <div class="chat-reply-btn" onclick="reply('start')">💬 Bắt đầu tư vấn</div>
     </div>
 
     <div class="chat-cta-wrap" id="chatCtaWrap" style="display:none;">
       <a class="chat-cta-btn" href="https://zalo.me/0974012652" target="_blank" rel="noopener" onclick="trackChat('zalo_cta_click')">
-        💬 Nhắn Zalo nhận báo giá
+        💬 Nhắn Zalo ngay — giữ khu vực
       </a>
     </div>
   </div>
@@ -1482,10 +1551,20 @@
     var chatOpen = false;
     var msgCount = 0;
 
-    var INTRO_MSG = 'Chào anh/chị! 👋\nMình đang quan tâm:';
+    var INTRO_MSG = 'Chào anh/chị! 👋\nMình hỏi nhanh để tư vấn đúng nhé:';
 
     function sendIntro() {
       bot(INTRO_MSG, 700);
+      setTimeout(function() {
+        bot('👉 Anh/chị đang:', 400);
+        setTimeout(function() {
+          showReplies([
+            '🏪 Mở quán mới',
+            '🍺 Đang bán rồi',
+            '🤔 Tìm hiểu thêm'
+          ]);
+        }, 900);
+      }, 700);
     }
 
     window.toggleChat = function() {
@@ -1550,6 +1629,26 @@
       document.getElementById('chatReplies').style.display = 'none';
     }
 
+    function showReplies(labels) {
+      var container = document.getElementById('chatReplies');
+      container.innerHTML = '';
+      labels.forEach(function(label) {
+        var btn = document.createElement('div');
+        btn.className = 'chat-reply-btn';
+        btn.textContent = label;
+        btn.onclick = function() {
+          if (label === '🏪 Mở quán mới') reply('new');
+          else if (label === '🍺 Đang bán rồi') reply('existing');
+          else if (label === '🤔 Tìm hiểu thêm') reply('profit');
+          else if (label === 'Thử trước') reply('try');
+          else if (label === 'Làm luôn') reply('now');
+          else if (label === 'Cần báo giá') reply('close');
+        };
+        container.appendChild(btn);
+      });
+      container.style.display = 'flex';
+    }
+
     function showCta() {
       document.getElementById('chatCtaWrap').style.display = 'block';
       document.getElementById('chatReplies').style.display = 'none';
@@ -1571,45 +1670,192 @@
       hideReplies();
       trackChat('click_' + type);
 
-      switch(type) {
-
-        case 'prices':
-          addMsg('📋 Xem giá', 'user');
-          botSeq([
-            'Bia vàng: từ 20K/L\nBia đen: từ 26K/L',
-            'Giá đã bao gồm phí vận chuyển.\n\nAnh/chị đang bán hay chuẩn bị mở quán?'
+      // === 1. START: Hook → show 3 options ===
+      if (type === 'start') {
+        addMsg('Bắt đầu', 'user');
+        botSeq([
+          'Chào anh/chị! 👋',
+          '👉 Anh/chị đang:',
+        ]);
+        setTimeout(function() {
+          showReplies([
+            '🏪 Mở quán mới',
+            '🍺 Đang bán rồi',
+            '🤔 Tìm hiểu thêm'
           ]);
-          break;
+        }, 1200);
+        return;
+      }
 
-        case 'setup':
-          addMsg('🏪 Mở quán', 'user');
+      // === 2a. NEW SHOP ===
+      if (type === 'new') {
+        addMsg('🏪 Mở quán mới', 'user');
+        botSeq([
+          'Ok chuẩn luôn 👍',
+          'Bên em setup trọn gói:',
+          '✔ Tủ bia + banner',
+          '✔ Hướng dẫn bán',
+          '✔ Setup trong 1 ngày',
+          '👉 Quán mới vẫn bán được ngay',
+          'Anh/chị mở ở khu vực nào ạ?',
+        ]);
+        setTimeout(function() {
+          bot('Em nói thật luôn 👇', 500);
+          setTimeout(function() {
+            botSeq([
+              'Bia tươi là món dễ bán nhất trong quán nhậu hiện tại',
+              '✔ Khách thấy là gọi',
+              '✔ Uống nhanh → gọi thêm',
+              '✔ Không cần bán cũng tự chạy',
+            ]);
+          }, 800);
+        }, 5000);
+        setTimeout(function() {
           botSeq([
-            'Bên em setup trọn gói cho quán mới:',
-            '✔ Tủ mát / tủ bia\n✔ Banner — bảng hiệu\n✔ Hướng dẫn bán chi tiết\n✔ Đào tạo nhanh 15 phút',
-            '👉 Setup trong 1 ngày là xong.\nAnh/chị mở ở khu vực nào?',
-            'Nếu cần, mình gửi báo giá chi tiết qua Zalo nhé!'
+            'Hiện bên em đang làm cho hơn 100+ quán',
+            '👉 Tây Ninh, Bình Dương, Thủ Đức đều có',
+            'Khách quay lại rất đều',
           ]);
-          break;
-
-        case 'profit':
-          addMsg('📈 Lợi nhuận', 'user');
+        }, 10000);
+        setTimeout(function() {
           botSeq([
             '📈 Biên lợi nhuận: 30–50%',
-            'Quán nhỏ: 50–100L/ngày\n→ Thu 300K–600K/ngày',
-            'Quán đông: 150–300L/ngày\n→ Thu 1–2 triệu/ngày',
-            '💰 Có quán tuần đầu đã thu hồi tiền tủ!'
+            'Quán nhỏ: vài trăm/ngày',
+            'Quán đông: 1–2 triệu/ngày',
+            '🔥 Có quán hoàn vốn rất nhanh',
           ]);
-          break;
-
-        case 'call':
-          addMsg('📞 Gọi ngay', 'user');
+        }, 15000);
+        setTimeout(function() {
+          bot('👉 Em hỏi thật: anh/chị muốn thử nhỏ trước hay làm luôn cho quán?', 500);
           setTimeout(function() {
-            bot('📞 0974 012 652\nMình đang nghe — gọi trực tiếp nhanh nhất!', 500);
-            setTimeout(function() { trackChat('call_click'); }, 800);
-          }, 400);
-          break;
+            showReplies(['Thử trước', 'Làm luôn', 'Cần báo giá']);
+          }, 900);
+        }, 18500);
+        return;
+      }
+
+      // === 2b. EXISTING SHOP ===
+      if (type === 'existing') {
+        addMsg('🍺 Đang bán rồi', 'user');
+        botSeq([
+          'Ok 👍',
+          'Hiện nhiều quán thêm bia tươi:',
+          '→ khách gọi nhiều hơn',
+          '→ bill tăng rõ',
+          '→ quay lại nhiều',
+          'Quán mình đông nhất buổi nào ạ?',
+        ]);
+        setTimeout(function() {
+          botSeq([
+            'Em nói thật luôn 👇',
+            'Bia tươi là món dễ bán nhất trong quán nhậu hiện tại',
+            '✔ Khách thấy là gọi',
+            '✔ Uống nhanh → gọi thêm',
+            '✔ Không cần bán cũng tự chạy',
+          ]);
+        }, 5000);
+        setTimeout(function() {
+          botSeq([
+            '📈 Biên lợi nhuận: 30–50%',
+            'Quán nhỏ: vài trăm/ngày',
+            'Quán đông: 1–2 triệu/ngày',
+            '🔥 Có quán hoàn vốn rất nhanh',
+          ]);
+        }, 10000);
+        setTimeout(function() {
+          botSeq([
+            'Hiện bên em đang làm cho hơn 100+ quán',
+            '👉 Tây Ninh, Bình Dương, Thủ Đức đều có',
+            'Khách quay lại rất đều',
+          ]);
+        }, 14500);
+        setTimeout(function() {
+          bot('👉 Em hỏi thật: anh/chị muốn thử nhỏ trước hay làm luôn cho quán?', 500);
+          setTimeout(function() {
+            showReplies(['Thử trước', 'Làm luôn', 'Cần báo giá']);
+          }, 900);
+        }, 18000);
+        return;
+      }
+
+      // === 3. LEARN MORE / PROFIT ===
+      if (type === 'profit') {
+        addMsg('🤔 Tìm hiểu thêm', 'user');
+        botSeq([
+          '📈 Biên lợi nhuận: 30–50%',
+          'Quán nhỏ: vài trăm/ngày',
+          'Quán đông: 1–2 triệu/ngày',
+          '🔥 Có quán hoàn vốn rất nhanh',
+        ]);
+        setTimeout(function() {
+          botSeq([
+            'Hiện bên em đang làm cho hơn 100+ quán',
+            '👉 Tây Ninh, Bình Dương, Thủ Đức đều có',
+            'Khách quay lại rất đều',
+          ]);
+        }, 4500);
+        setTimeout(function() {
+          bot('👉 Em hỏi thật: anh/chị muốn thử nhỏ trước hay làm luôn cho quán?', 500);
+          setTimeout(function() {
+            showReplies(['Thử trước', 'Làm luôn', 'Cần báo giá']);
+          }, 900);
+        }, 9000);
+        return;
+      }
+
+      // === 4a. TRY FIRST ===
+      if (type === 'try') {
+        addMsg('Thử trước', 'user');
+        botSeq([
+          'Ok 👍',
+          'Bên em không public giá',
+          '👉 Em gửi chi tiết qua Zalo cho mình nhé',
+          '🔥 Bên em chỉ nhận 5 quán/khu vực',
+        ]);
+        setTimeout(function() {
+          bot('🔥 Bên em chỉ nhận 5 quán/khu vực nên cần giữ slot trước', 500);
+          setTimeout(showCta, 800);
+        }, 5000);
+        return;
+      }
+
+      // === 4b. DO IT NOW ===
+      if (type === 'now') {
+        addMsg('Làm luôn', 'user');
+        botSeq([
+          'Ok 👍',
+          'Bên em không public giá để giữ khu vực',
+          '👉 Em gửi chi tiết + báo giá qua Zalo cho mình nhé',
+          '🔥 Bên em chỉ nhận 5 quán/khu vực nên cần giữ slot trước',
+        ]);
+        setTimeout(showCta, 5000);
+        return;
+      }
+
+      // === 5. NEED PRICE QUOTE ===
+      if (type === 'close') {
+        addMsg('Cần báo giá', 'user');
+        botSeq([
+          'Ok 👍',
+          'Bên em không public giá',
+          '👉 Em gửi chi tiết qua Zalo cho mình nhé',
+          '🔥 Bên em chỉ nhận 5 quán/khu vực',
+        ]);
+        setTimeout(function() {
+          bot('🔥 Bên em chỉ nhận 5 quán/khu vực nên cần giữ slot trước', 500);
+          setTimeout(showCta, 800);
+        }, 5000);
+        return;
       }
     };
+
+    // Auto-open chatbot after 5 seconds
+    setTimeout(function() {
+      var fab = document.getElementById('chatFab');
+      if (fab && getComputedStyle(fab).display !== 'none') {
+        toggleChat();
+      }
+    }, 5000);
   })();
   </script>
   <!-- ============================================ -->
