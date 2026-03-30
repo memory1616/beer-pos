@@ -609,48 +609,6 @@
       margin-left: 6px;
     }
 
-    /* POPUP */
-    .popup-overlay {
-      position: fixed; inset: 0; background: rgba(0,0,0,0.6);
-      z-index: 1000; display: none; align-items: center; justify-content: center;
-      padding: 1rem;
-    }
-    .popup-overlay.show { display: flex; }
-    .popup {
-      background: #fff; border-radius: var(--radius-lg);
-      padding: 2rem; max-width: 420px; width: 100%;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-      animation: slideUp 0.35s ease;
-    }
-    @keyframes slideUp {
-      from { opacity: 0; transform: translateY(30px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-    .popup h3 {
-      font-size: 1.25rem; font-weight: 900; margin-bottom: 1rem;
-      color: var(--ink);
-    }
-    .popup-options {
-      display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1.25rem;
-    }
-    .popup-option {
-      display: flex; align-items: center; gap: 0.75rem;
-      padding: 0.85rem 1rem; border-radius: 12px;
-      background: var(--amber); border: 2px solid var(--yellow);
-      cursor: pointer; transition: background 0.2s;
-    }
-    .popup-option:hover { background: #ffe8a8; }
-    .popup-option input { width: 20px; height: 20px; accent-color: var(--red); }
-    .popup-option label {
-      font-weight: 600; cursor: pointer; flex: 1;
-    }
-    .popup .btn { width: 100%; }
-    .popup-close {
-      position: absolute; top: 12px; right: 12px;
-      background: none; border: none; font-size: 1.5rem;
-      cursor: pointer; color: var(--muted); line-height: 1;
-    }
-
     /* REVEAL */
     .reveal { opacity: 0; transform: translateY(24px); transition: opacity 0.65s ease, transform 0.65s ease; }
     .reveal.visible { opacity: 1; transform: translateY(0); }
@@ -971,7 +929,7 @@
       <div class="hero-visual-wrap">
         <!-- THAY ẢNH: Dùng ảnh tủ bia thật — tủ mở đầy chai inox thực tế -->
         <!-- Khi có ảnh thật: thay src="/images/freezer.jpg" -->
-        <img class="hero-img" src="/images/freezer.svg" width="520" height="380" alt="Tủ bia tươi đầy chai inox thực tế" loading="eager" decoding="async" onerror="this.onerror=null; this.src='https://via.placeholder.com/520x380/ffcc00/1a1208?text=+ANH+TU+BIA+THUC+TE'">
+        <img class="hero-img" src="/landing-assets/hero-freezer.png" width="520" height="380" alt="Tủ bia tươi đầy chai inox thực tế" loading="eager" decoding="async">
         <div class="hero-badge-float">🔥 BÁN CHẠY NHẤT</div>
         <div class="hero-badge-hot">🔥 BÁN CHẠY</div>
         <!-- Badge HÀNG LUÔN CÓ SẴN -->
@@ -1035,44 +993,6 @@
         <p style="text-align:center;margin-top:1rem;font-size:0.82rem;color:var(--muted);">
           🔒 Giá được bảo mật theo từng khu vực
         </p>
-      </div>
-    </div>
-  </section>
-
-  <section class="section" id="social-proof">
-    <div class="container">
-      <div class="section-header reveal">
-        <span class="eyebrow">📸 Khách đang bán thực tế</span>
-        <h2 class="section-title">Hàng trăm quán đã & đang bán mỗi ngày</h2>
-      </div>
-      <div class="proof-grid reveal">
-        <div class="proof-card">
-          <img src="/images/freezer.svg" alt="Tủ bia thực tế" loading="lazy" decoding="async" onerror="this.onerror=null; this.src='https://via.placeholder.com/600x400/ffcc00/1a1208?text=+ANH+QUAN+THUC+TE'">
-          <div class="proof-badge">ẢNH THỰC TẾ</div>
-          <div class="proof-info">
-            <div class="proof-label">Quán anh H. — Tây Ninh</div>
-            <div class="proof-stat">Bán ~180L/ngày sau 5 ngày setup</div>
-            <p style="font-size:0.8rem;color:#6b6358;margin-top:4px;">"Khách uống nhanh, gọi thêm liên tục"</p>
-          </div>
-        </div>
-        <div class="proof-card">
-          <img src="/images/banner.svg" alt="Banner dựng ngoài trời" loading="lazy" decoding="async" onerror="this.onerror=null; this.src='https://via.placeholder.com/600x400/fff3d4/c62828?text=+BANNER+THUC+TE'">
-          <div class="proof-badge">ẢNH THỰC TẾ</div>
-          <div class="proof-info">
-            <div class="proof-label">Quán chị M. — Thủ Đức</div>
-            <div class="proof-stat">Bán ~220L/ngày sau 1 tuần</div>
-            <p style="font-size:0.8rem;color:#6b6358;margin-top:4px;">"Bia đen kèm nước ngọt — khách rất kích thích"</p>
-          </div>
-        </div>
-        <div class="proof-card">
-          <img src="/images/freezer.svg" alt="Tủ bia quán đông" loading="lazy" decoding="async" onerror="this.onerror=null; this.src='https://via.placeholder.com/600x400/ffcc00/1a1208?text=+ANH+QUAN+THUC+TE'">
-          <div class="proof-badge">ẢNH THỰC TẾ</div>
-          <div class="proof-info">
-            <div class="proof-label">Quán anh T. — Dĩ An</div>
-            <div class="proof-stat">Thu hồi vốn sau 14 ngày đầu</div>
-            <p style="font-size:0.8rem;color:#6b6358;margin-top:4px;">"Tuần đầu đã thu hồi tiền tủ"</p>
-          </div>
-        </div>
       </div>
     </div>
   </section>
@@ -1226,7 +1146,7 @@
       </div>
       <p class="highlight-bar reveal">👉 <strong>Mô hình đã test thực tế:</strong> bán nhanh — quay vòng tiền tốt.</p>
       <figure style="margin-top:2.5rem;text-align:center" class="reveal">
-        <img src="/images/freezer.svg" width="1000" height="560" alt="Tủ bia thực tế tại quán" loading="lazy" decoding="async" style="width:100%;max-width:920px;height:auto;border-radius:var(--radius-lg);box-shadow:var(--shadow);border:4px solid #fff;object-fit:cover" onerror="this.onerror=null; this.src='https://via.placeholder.com/600x400/ffcc00/1a1208?text=+TAI+ANH+THUC+TE'">
+        <img src="/landing-assets/setup-freezer.png" width="1000" height="560" alt="Tủ bia thực tế tại quán" loading="lazy" decoding="async" style="width:100%;max-width:920px;height:auto;border-radius:var(--radius-lg);box-shadow:var(--shadow);border:4px solid #fff;object-fit:cover">
         <figcaption style="margin-top:0.75rem;font-size:0.88rem;color:var(--muted);font-weight:600">Tủ mát trưng bày — chai inox 1L, đủ sức gây chú ý khách qua đường</figcaption>
       </figure>
     </div>
@@ -1242,7 +1162,7 @@
       <div class="product-showcase">
         <article class="product-row reveal">
           <div class="product-visual">
-            <img src="/images/beer-black.svg" width="600" height="400" alt="Chai bia đen thực tế" loading="lazy" decoding="async" onerror="this.onerror=null; this.src='https://via.placeholder.com/400x600/1a1208/ffcc00?text=+BIA+DEN'">
+            <img src="/landing-assets/product-black.png" width="600" height="400" alt="Chai bia đen thực tế" loading="lazy" decoding="async">
             <span class="product-badge green">🔥 LỢI NHUẬN CAO</span>
           </div>
           <div class="product-body">
@@ -1262,7 +1182,7 @@
         </article>
         <article class="product-row reverse reveal">
           <div class="product-visual light-bg">
-            <img src="/images/beer-yellow.svg" width="600" height="400" alt="Chai bia vàng thực tế" loading="lazy" decoding="async" onerror="this.onerror=null; this.src='https://via.placeholder.com/400x600/ffcc00/1a1208?text=+BIA+VANG'">
+            <img src="/landing-assets/product-yellow-pet.png" width="600" height="400" alt="Chai bia vàng thực tế" loading="lazy" decoding="async">
             <span class="product-badge">🔥 BÁN CHẠY NHẤT</span>
           </div>
           <div class="product-body">
@@ -1324,7 +1244,7 @@
           <li><span class="tick">✔</span> Hỗ trợ kỹ thuật tận nơi</li>
         </ul>
         <div class="support-photo">
-          <img src="/images/freezer.svg" width="640" height="400" alt="Tủ mát trưng bày bia thực tế tại quán" loading="lazy" decoding="async" onerror="this.onerror=null; this.src='https://via.placeholder.com/600x400/ffcc00/1a1208?text=+TAI+ANH+THUC+TE'">
+          <img src="/landing-assets/setup-freezer.png" width="640" height="400" alt="Tủ mát trưng bày bia thực tế tại quán" loading="lazy" decoding="async">
         </div>
       </div>
       <p style="text-align:center;margin-top:2rem;color:var(--muted);font-weight:600;" class="reveal">
@@ -1335,7 +1255,7 @@
 
   <section class="section brand-strip">
     <div class="container brand-strip-inner reveal">
-      <img src="/images/banner.svg" width="400" height="560" alt="Banner standee thực tế" loading="lazy" decoding="async" onerror="this.onerror=null; this.src='https://via.placeholder.com/600x400/fff3d4/c62828?text=+BANNER+THUC+TE'">
+      <img src="/landing-assets/banner-standee.png" width="400" height="560" alt="Banner standee thực tế" loading="lazy" decoding="async">
       <div>
         <span class="eyebrow">Thương hiệu đồng hành</span>
         <h2 class="section-title" style="text-align:left">NEWDOBEER — bia tươi nguyên chất, hương vị tự nhiên</h2>
@@ -1458,17 +1378,6 @@
     <a class="sticky-btn zalo" href="https://zalo.me/0974012652" target="_blank" rel="noopener" style="animation:zaloPulse 3s ease-in-out infinite;">💬 ZALO</a>
   </div>
 
-  <!-- POPUP -->
-  <div class="popup-overlay" id="popupOverlay">
-    <div class="popup" style="position:relative;">
-      <button type="button" onclick="closePopup()" class="popup-close" aria-label="Đóng">×</button>
-      <h3>Nhận báo giá nhanh</h3>
-      <p style="color:var(--muted);font-size:0.92rem;margin-bottom:1.25rem;">Chúng tôi sẽ gửi báo giá + mô hình setup ngay qua Zalo — nhanh, miễn phí.</p>
-      <a class="btn btn-primary" href="https://zalo.me/0974012652" target="_blank" rel="noopener">💬 Nhắn Zalo nhận báo giá</a>
-      <button type="button" onclick="closePopup()" style="display:block;margin:1rem auto 0;background:none;border:none;color:var(--muted);cursor:pointer;font-size:0.85rem;text-decoration:underline;">Đóng</button>
-    </div>
-  </div>
-
   <script>
     window.addEventListener('scroll', function () {
       document.getElementById('navbar').classList.toggle('scrolled', window.scrollY > 16);
@@ -1492,26 +1401,6 @@
     }, { threshold: 0.12 });
     revealEls.forEach(function (el) { revealObserver.observe(el); });
 
-    // Popup
-    var popupShown = false;
-    function showPopup() {
-      if (!popupShown) {
-        popupShown = true;
-        document.getElementById('popupOverlay').classList.add('show');
-      }
-    }
-    function closePopup() {
-      document.getElementById('popupOverlay').classList.remove('show');
-    }
-    document.getElementById('popupOverlay').addEventListener('click', function(e) {
-      if (e.target === this) closePopup();
-    });
-    setTimeout(showPopup, 8000);
-
-    // Close popup on CTA click
-    document.querySelectorAll('.popup .btn').forEach(function(btn) {
-      btn.addEventListener('click', closePopup);
-    });
   </script>
   <!-- ============================================
        CHATBOT WIDGET
