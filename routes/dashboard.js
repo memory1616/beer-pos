@@ -50,7 +50,7 @@ router.get('/data', (req, res) => {
       COALESCE(SUM(total), 0) as revenue,
       COALESCE(SUM(profit), 0) as profit,
       COUNT(*) as orders,
-      COALESCE((SELECT SUM(si.quantity) FROM sale_items si JOIN sales s ON si.sale_id = s.id WHERE s.date LIKE ?), 0) as units
+      COALESCE((SELECT SUM(si.quantity) FROM sale_items si JOIN sales s ON si.sale_id = s.id WHERE s.type = 'sale' AND datetime(s.date, '+7 hours') LIKE ?), 0) as units
     FROM sales WHERE type = 'sale' AND datetime(s.date, '+7 hours') LIKE ?
   `).get(today + '%', today + '%');
 
@@ -59,7 +59,7 @@ router.get('/data', (req, res) => {
     SELECT
       COALESCE(SUM(total), 0) as revenue,
       COALESCE(SUM(profit), 0) as profit,
-      COALESCE((SELECT SUM(si.quantity) FROM sale_items si JOIN sales s ON si.sale_id = s.id WHERE s.type = 'sale' AND s.date >= ?), 0) as units
+      COALESCE((SELECT SUM(si.quantity) FROM sale_items si JOIN sales s ON si.sale_id = s.id WHERE s.type = 'sale' AND datetime(s.date, '+7 hours') >= ?), 0) as units
     FROM sales WHERE type = 'sale' AND datetime(date, '+7 hours') >= ?
   `).get(monthStartStr, monthStartStr);
   
@@ -186,7 +186,7 @@ router.get('/data', (req, res) => {
   const monthlyExpectedSetting = db.prepare("SELECT value FROM settings WHERE key = 'monthly_expected'").get();
   const monthlyExpected = monthlyExpectedSetting ? parseFloat(monthlyExpectedSetting.value) : 300;
   const daysElapsed = now.getUTCDate();
-  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const daysInMonth = new Date(Date.UTC(year, now.getUTCMonth() + 1, 0)).getUTCDate();
   const expectedUnits = Math.round(monthlyExpected * daysElapsed / daysInMonth);
 
   // Get customer alerts (configurable days no order) - uses Vietnam time for 'now'
