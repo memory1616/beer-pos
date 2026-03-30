@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
+    "build": "echo 'No build step required'",
     "build:css": "npx @tailwindcss/cli -i ./public/css/styles.css -o ./public/css/tailwind.css --minify",
     "watch:css": "npx @tailwindcss/cli -i ./public/css/styles.css -o ./public/css/tailwind.css --watch",
     "build:vendor": "node scripts/build-vendor.js"
