@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="450" viewBox="0 0 800 450">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a0a00"/>
+      <stop offset="100%" style="stop-color:#2d1500"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFD700"/>
+      <stop offset="100%" style="stop-color:#FFA500"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="30%" r="60%">
+      <stop offset="0%" style="stop-color:#FFD700;stop-opacity:0.3"/>
+      <stop offset="100%" style="stop-color:#FFD700;stop-opacity:0"/>
+    </radialGradient>
+  </defs>
+  <rect width="800" height="450" fill="url(#bg)"/>
+  <rect width="800" height="450" fill="url(#glow)"/>
+  <!-- Foam -->
+  <ellipse cx="400" cy="180" rx="90" ry="25" fill="#FFF8DC" opacity="0.9"/>
+  <ellipse cx="385" cy="175" rx="60" ry="18" fill="#FFFACD"/>
+  <ellipse cx="420" cy="182" rx="45" ry="15" fill="#FFF8E1"/>
+  <!-- Beer body -->
+  <path d="M340,185 Q340,260 355,290 L365,380 Q367,395 380,395 L420,395 Q433,395 435,380 L445,290 Q460,260 460,185 Z" fill="#E6A800" opacity="0.85"/>
+  <path d="M355,190 Q355,255 368,280 L375,360 L425,360 L432,280 Q445,255 445,190 Z" fill="#FFB800" opacity="0.7"/>
+  <!-- Glass reflection -->
+  <path d="M360,195 Q358,270 368,295 L375,360 L385,360 L375,295 Q365,270 363,195 Z" fill="#FFD54F" opacity="0.3"/>
+  <!-- Tap -->
+  <rect x="385" y="60" width="30" height="60" rx="6" fill="#8B7355"/>
+  <rect x="395" y="40" width="10" height="25" rx="3" fill="#A0522D"/>
+  <rect x="390" y="115" width="20" height="25" rx="4" fill="#654321"/>
+  <circle cx="400" cy="135" r="5" fill="#2d1500"/>
+  <!-- Beer stream -->
+  <path d="M400,140 Q402,155 400,185" stroke="#FFB300" stroke-width="6" fill="none" opacity="0.8"/>
+  <path d="M398,142 Q400,157 398,185" stroke="#FFE082" stroke-width="2" fill="none" opacity="0.6"/>
+  <!-- Bubbles -->
+  <circle cx="375" cy="220" r="4" fill="#FFE082" opacity="0.5"/>
+  <circle cx="420" cy="250" r="3" fill="#FFD54F" opacity="0.4"/>
+  <circle cx="390" cy="300" r="5" fill="#FFE082" opacity="0.3"/>
+  <circle cx="430" cy="330" r="3" fill="#FFD54F" opacity="0.4"/>
+  <circle cx="365" cy="340" r="4" fill="#FFE082" opacity="0.3"/>
+  <!-- Text -->
+  <text x="400" y="430" font-family="Arial Black, sans-serif" font-size="22" font-weight="900" fill="#FFD700" text-anchor="middle" opacity="0.9"><z BIA TUOI TÂY NINH</text>
+  <!-- Play button overlay -->
+  <circle cx="400" cy="220" r="38" fill="#000" opacity="0.55"/>
+  <circle cx="400" cy="220" r="35" fill="none" stroke="#FFD700" stroke-width="2.5" opacity="0.8"/>
+  <polygon points="392,204 392,236 422,220" fill="#FFD700" opacity="0.95"/>
+</svg>

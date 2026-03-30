@@ -1086,41 +1086,109 @@
   </section>
 
   <!-- VIDEO HOOK SECTION -->
-  <!-- THAY THẾ: Upload video quay quán / bia rót / khách uống vào src -->
-  <!-- <video class="video-hook" autoplay muted loop playsinline src="/videos/beer-pour.mp4"></video> -->
+  <!--
+    MOBILE AUTOPLAY FIX GUIDE:
+    1. Dung lượng: nen < 5MB, < 10s, 720p. Neu co the, tao video ngan 3-5s:
+       ffmpeg -i input.mp4 -vf "scale=1280:720" -r 30 -c:v libx264 -profile:v baseline -level 3.0 \
+         -pix_fmt yuv420p -c:a aac -b:a 96k -movflags +faststart -y beer-teaser.mp4
+    2. Neu video van khong autoplay tren iOS, thu:
+       - Them controls vao the <video> (iOS bat buoc can controls de play)
+       - Hoac dung video poster + click-to-play (da lam o duoi)
+    3. Neu 16MB van qua nang: doi src thanh /landing-assets/beer-web.mp4 (14MB)
+       hoac tao video moi < 5MB nhu huong dan o buoc 1
+  -->
   <section class="section" style="padding-top:0;padding-bottom:0;" id="video-hook">
     <div class="container" style="max-width:800px;margin:0 auto;">
       <div class="section-header reveal" style="margin-bottom:1.5rem;">
         <span class="eyebrow">🎬 Xem thực tế</span>
         <h2 class="section-title">Quán bán như thế nào?</h2>
       </div>
-      <!-- VIDEO: không poster / không controls — chỉ autoplay (muted + playsinline). -->
-      <div style="max-width:800px;margin:0 auto;border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow);background:#000;">
-        <video id="beerHookVideo" autoplay muted loop playsinline webkit-playsinline preload="auto"
-          src="/landing-assets/beer-mobile.mp4"
-          style="width:100%;display:block;max-height:min(75vh,520px);object-fit:contain;background:#000;">
+      <!--
+        Video container: poster fallback + click-to-play.
+        Neu video khong autoplay duoc (mobile), hien thi anh poster + nut play.
+        Khi nguoi bam -> video.play() -> autoplay thanh cong.
+      -->
+      <div style="max-width:800px;margin:0 auto;border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow);background:#000;position:relative;" id="videoWrapper">
+        <!-- Poster / Fallback hinh anh -->
+        <img
+          id="videoPoster"
+          src="/landing-assets/video-poster.svg"
+          alt="Video bia tuoi — nhan play de xem"
+          style="width:100%;display:block;max-height:min(75vh,520px);object-fit:contain;background:#1a0a00;"
+        >
+        <!-- Nut play fallback (hien khi video dang load hoac bi block) -->
+        <div id="videoPlayBtn" style="
+          position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+          width:72px;height:72px;border-radius:50%;
+          background:rgba(0,0,0,0.6);border:3px solid #FFD700;
+          display:flex;align-items:center;justify-content:center;cursor:pointer;
+          transition:transform 0.2s,background 0.2s;z-index:5;
+        " onclick="playVideo()" aria-label="Play video">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="#FFD700">
+            <polygon points="5,3 19,12 5,21"/>
+          </svg>
+        </div>
+        <!-- Video: preload=metadata de nhanh, muted required cho mobile autoplay -->
+        <video id="beerHookVideo"
+          preload="metadata"
+          muted
+          loop
+          playsinline
+          webkit-playsinline
+          style="width:100%;display:block;max-height:min(75vh,520px);object-fit:contain;background:#000;position:absolute;top:0;left:0;"
+        >
+          <source src="/landing-assets/beer-mobile.mp4" type="video/mp4">
+          <!-- Neu browser khong ho tro mp4, hien thi poster -->
+          Trinh duyet khong ho tro video. <a href="/landing-assets/beer-mobile.mp4" style="color:#FFD700;">Tai video tai day.</a>
         </video>
       </div>
       <script>
         (function () {
-          var v = document.getElementById('beerHookVideo');
+          var wrapper = document.getElementById('videoWrapper');
+          var poster  = document.getElementById('videoPoster');
+          var playBtn = document.getElementById('videoPlayBtn');
+          var v       = document.getElementById('beerHookVideo');
           if (!v) return;
-          v.muted = true;
-          v.defaultMuted = true;
-          v.setAttribute('muted', '');
+
           function tryPlay() {
             var p = v.play();
-            if (p && typeof p.catch === 'function') p.catch(function () {});
+            if (p && typeof p.catch === 'function') {
+              p.catch(function (err) {
+                /* Autoplay bi block -> hien thi nut play, khong hien loi */
+              });
+            }
           }
-          v.addEventListener('loadeddata', tryPlay);
-          v.addEventListener('canplay', tryPlay);
-          if (v.readyState >= 2) tryPlay();
+
+          /* Video da san sang -> an poster, hien video, play */
+          v.addEventListener('loadeddata', function () {
+            if (poster)  poster.style.display  = 'none';
+            if (playBtn) playBtn.style.display  = 'none';
+            tryPlay();
+          });
+
+          /* iOS Safari: can tuong tac trc khi play -> nut play */
+          v.addEventListener('play', function () {
+            if (poster)  poster.style.display  = 'none';
+            if (playBtn) playBtn.style.display = 'none';
+          });
+
+          /* Nut play duoc bam -> play video */
+          window.playVideo = function () {
+            v.muted = false;
+            v.currentTime = 0;
+            v.play().catch(function () {});
+            if (playBtn) playBtn.style.display = 'none';
+          };
+
+          /* IntersectionObserver: chi play khi video vao man hinh */
           var io = new IntersectionObserver(function (entries) {
             entries.forEach(function (e) {
               if (e.isIntersecting) tryPlay();
             });
           }, { threshold: 0.15 });
           io.observe(v);
+
+          /* Tab quay lai -> resume play */
           document.addEventListener('visibilitychange', function () {
             if (!document.hidden) tryPlay();
           });
