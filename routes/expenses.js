@@ -98,7 +98,7 @@ router.get('/', (req, res, next) => {
         '<div class="text-right ml-3">' +
         '<div class="font-bold text-red-600 text-lg">' + formatVND(e.amount) + '</div>' +
         '<div class="flex gap-2 mt-1 justify-end">' +
-        '<button onclick="editExpense(' + e.id + ', \'' + e.category.replace(/'/g, "\\'") + '\', ' + e.amount + ', \'' + e.date + '\', \'' + (e.description || '').replace(/'/g, "\\'") + '\')" class="text-xs text-blue-500 hover:text-blue-700 px-2 py-1 hover:bg-blue-50 rounded">Sửa</button>' +
+        '<button onclick="editExpense(' + e.id + ', \'' + (e.category || '').replace(/'/g, "\\'").replace(/"/g, '\\"') + '\', ' + e.amount + ', \'' + e.date + '\', \'' + (e.description || '').replace(/'/g, "\\'").replace(/"/g, '\\"') + '\')" class="text-xs text-blue-500 hover:text-blue-700 px-2 py-1 hover:bg-blue-50 rounded">Sửa</button>' +
         '<button onclick="deleteExpense(' + e.id + ')" class="text-xs text-red-400 hover:text-red-600 px-2 py-1 hover:bg-red-50 rounded">Xóa</button>' +
         '</div>' +
         '</div>' +
@@ -140,6 +140,10 @@ router.get('/', (req, res, next) => {
 '  </style>' +
 '</head>' +
 '<body class="bg-gray-100 text-gray-800 min-h-screen pb-24">' +
+'<script>' +
+'    function showModal(id) { var el = document.getElementById(id); if (el) { el.classList.remove(\'hidden\'); el.classList.add(\'flex\'); } }' +
+'    function hideModal(id) { var el = document.getElementById(id); if (el) { el.classList.add(\'hidden\'); el.classList.remove(\'flex\'); } }' +
+'</script>' +
 '  <div id="app"></div>' +
 '' +
 '  <!-- Floating Add Button -->' +
@@ -214,14 +218,14 @@ router.get('/', (req, res, next) => {
 '          <div class="bg-white rounded-xl shadow-sm border p-4 mb-4">' +
 '            <h3 class="font-semibold text-gray-700 mb-3">📊 Chi phí theo loại</h3>' +
 '            <div id="categoryList">' +
-              categoryHtml +
+'              ' + categoryHtml + '' +
 '            </div>' +
 '          </div>' +
 '' +
 '          <div class="bg-white rounded-xl shadow-sm border p-4">' +
 '            <h3 class="font-semibold text-gray-700 mb-3">📋 Chi phí gần đây</h3>' +
 '            <div id="expenseList">' +
-              expensesHtml +
+'              ' + expensesHtml + '' +
 '            </div>' +
 '          </div>' +
 '        `) +' +
