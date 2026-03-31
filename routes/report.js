@@ -89,18 +89,17 @@ router.get('/', (req, res) => {
   // Calculate net profit (profit - expenses)
   const netProfit = periodStats.profit - periodExpenses.total;
   
-  // Daily stats for the period (last 7 days or 30 days)
+  // Daily stats — KHÔNG JOIN sale_items khi SUM(s.total): mỗi đơn nhiều dòng item → nhân đôi doanh thu trên biểu đồ
   const dailyStats = db.prepare(`
     SELECT 
-      s.date,
+      date(s.date) as date,
       COALESCE(SUM(s.total), 0) as revenue,
       COALESCE(SUM(s.profit), 0) as profit,
-      COALESCE(SUM(si.quantity), 0) as quantity
+      COALESCE(SUM((SELECT COALESCE(SUM(si.quantity), 0) FROM sale_items si WHERE si.sale_id = s.id)), 0) as quantity
     FROM sales s
-    LEFT JOIN sale_items si ON si.sale_id = s.id
     WHERE date(s.date) >= date(?) AND date(s.date) <= date(?) AND (s.status IS NULL OR s.status != 'returned')
-    GROUP BY s.date
-    ORDER BY s.date DESC
+    GROUP BY date(s.date)
+    ORDER BY date(s.date) DESC
     LIMIT 30
   `).all(startDate, endDate);
   
@@ -655,7 +654,31 @@ router.get('/sales', (req, res) => {
 
 // GET /report/profit-product - Báo cáo lợi nhuận theo sản phẩm
 router.get('/profit-product', (req, res) => {
-  const { startDate, endDate } = req.query;
+  const { month, year, startDate, endDate } = req.query;
+  const now = new Date();
+  let startStr, endStr, labelThangNam;
+
+  if (month && year) {
+    const y = parseInt(year, 10);
+    const m = parseInt(month, 10);
+    const lastDay = new Date(y, m, 0).getDate();
+    startStr = `${y}-${String(m).padStart(2, '0')}-01`;
+    endStr = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    const thang = ['', 'Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6', 'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'][m];
+    labelThangNam = thang + ' / ' + y;
+  } else if (startDate && endDate) {
+    startStr = startDate.split(' ')[0];
+    endStr = endDate.split(' ')[0];
+    labelThangNam = startStr + ' → ' + endStr;
+  } else {
+    const y = now.getFullYear();
+    const m = now.getMonth() + 1;
+    const lastDay = new Date(y, m, 0).getDate();
+    startStr = `${y}-${String(m).padStart(2, '0')}-01`;
+    endStr = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    const thang = ['', 'Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6', 'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'][m];
+    labelThangNam = thang + ' / ' + y;
+  }
   
   let query = `
     SELECT 
@@ -673,11 +696,9 @@ router.get('/profit-product', (req, res) => {
   `;
   
   const params = [];
-  if (startDate && endDate) {
-    const d0 = String(startDate).split(' ')[0];
-    const d1 = String(endDate).split(' ')[0];
+  if (startStr && endStr) {
     query += ` AND date(s.date) >= date(?) AND date(s.date) <= date(?)`;
-    params.push(d0, d1);
+    params.push(startStr, endStr);
   }
   
   query += ` GROUP BY p.id ORDER BY profit DESC`;
@@ -687,6 +708,17 @@ router.get('/profit-product', (req, res) => {
   const totalRevenue = products.reduce((sum, r) => sum + (r.revenue || 0), 0);
   const totalCost = products.reduce((sum, r) => sum + (r.cost || 0), 0);
   const totalProfit = products.reduce((sum, r) => sum + (r.profit || 0), 0);
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  const selectedMonth = month ? parseInt(month, 10) : currentMonth;
+  const selectedYear = year ? parseInt(year, 10) : currentYear;
+
+  const monthOptions = [1,2,3,4,5,6,7,8,9,10,11,12].map(m => 
+    '<option value="' + m + '"' + (m === selectedMonth ? ' selected' : '') + '>Tháng ' + m + '</option>'
+  ).join('');
+  const yearOptions = [currentYear, currentYear - 1, currentYear - 2].map(y =>
+    '<option value="' + y + '"' + (y === selectedYear ? ' selected' : '') + '>' + y + '</option>'
+  ).join('');
   
   res.send(`
 <!DOCTYPE html>
@@ -716,6 +748,20 @@ router.get('/profit-product', (req, res) => {
     </div>
   </header>
   <main class="p-4 pt-14 pb-24 max-w-md mx-auto">
+    <form class="bg-white rounded-2xl p-3 border shadow-sm mb-4" method="GET" action="/report/profit-product">
+      <div class="flex items-center justify-between gap-2">
+        <div class="text-sm font-semibold text-gray-700">${labelThangNam || ''}</div>
+        <div class="flex gap-2">
+          <select name="month" class="border rounded-lg px-2 py-2 text-sm">
+            ${monthOptions}
+          </select>
+          <select name="year" class="border rounded-lg px-2 py-2 text-sm">
+            ${yearOptions}
+          </select>
+          <button type="submit" class="px-3 py-2 rounded-lg bg-purple-600 text-white text-sm font-semibold">Xem</button>
+        </div>
+      </div>
+    </form>
     <div class="mb-4 shadow-lg rounded-2xl p-4" style="background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%); color: #fff;">
       <div class="grid grid-cols-3 gap-3 text-center py-2">
         <div>
