@@ -9,17 +9,31 @@ function formatVND(amount) {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
 }
 
-// Get current time in Vietnam (UTC+7)
-function getVietnamNow() {
+// Get Vietnam date string from system clock (no timezone magic)
+function getVietnamDateStr() {
   const now = new Date();
-  return new Date(now.getTime() + 7 * 60 * 60 * 1000);
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 }
 
-// Format a Date (assumed Vietnam time) to YYYY-MM-DD string
-function toDateStr(date) {
-  return date.getUTCFullYear() + '-' +
-    String(date.getUTCMonth() + 1).padStart(2, '0') + '-' +
-    String(date.getUTCDate()).padStart(2, '0');
+// Get first day of current month in Vietnam (system) timezone
+function getVietnamMonthStart() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  return `${y}-${m}-01`;
+}
+
+// Get N days ago date string
+function getVietnamDaysAgo(days) {
+  const now = new Date();
+  now.setDate(now.getDate() - days);
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 }
 
 // GET / - Serve HTML file
@@ -39,15 +53,12 @@ router.get('/data', (req, res) => {
   res.setHeader('Pragma', 'no-cache');
 
   try {
-  // Get today's date in Vietnam time (UTC+7)
-  const now = getVietnamNow();
-  const year = now.getUTCFullYear();
-  const month = String(now.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(now.getUTCDate()).padStart(2, '0');
-  const today = `${year}-${month}-${day}`;
-
-  const monthStart = new Date(Date.UTC(year, now.getUTCMonth(), 1));
-  const monthStartStr = toDateStr(monthStart);
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const today = getVietnamDateStr();
+  const monthStartStr = getVietnamMonthStart();
+  const fourteenDaysAgoStr = getVietnamDaysAgo(13); // 13 days ago = last 14 days
 
   // Get today's stats
   const todayStats = db.prepare(`
@@ -55,17 +66,17 @@ router.get('/data', (req, res) => {
       COALESCE(SUM(total), 0) as revenue,
       COALESCE(SUM(profit), 0) as profit,
       COUNT(*) as orders,
-      COALESCE((SELECT SUM(si.quantity) FROM sale_items si JOIN sales ss ON si.sale_id = ss.id WHERE ss.type = 'sale' AND datetime(ss.date, '+7 hours') LIKE ?), 0) as units
-    FROM sales WHERE type = 'sale' AND datetime(date, '+7 hours') LIKE ?
-  `).get(today + '%', today + '%');
+      COALESCE((SELECT SUM(si.quantity) FROM sale_items si JOIN sales ss ON si.sale_id = ss.id WHERE ss.type = 'sale' AND date(ss.date) = ?), 0) as units
+    FROM sales WHERE type = 'sale' AND date(date) = ?
+  `).get(today, today);
 
   // Get monthly stats
   const monthStats = db.prepare(`
     SELECT
       COALESCE(SUM(total), 0) as revenue,
       COALESCE(SUM(profit), 0) as profit,
-      COALESCE((SELECT SUM(si.quantity) FROM sale_items si JOIN sales ss ON si.sale_id = ss.id WHERE ss.type = 'sale' AND datetime(ss.date, '+7 hours') >= ?), 0) as units
-    FROM sales WHERE type = 'sale' AND datetime(date, '+7 hours') >= ?
+      COALESCE((SELECT SUM(si.quantity) FROM sale_items si JOIN sales ss ON si.sale_id = ss.id WHERE ss.type = 'sale' AND date(ss.date) >= ?), 0) as units
+    FROM sales WHERE type = 'sale' AND date(date) >= ?
   `).get(monthStartStr, monthStartStr);
   
   // Get low stock threshold from settings (default: 10)
@@ -99,28 +110,28 @@ router.get('/data', (req, res) => {
   `).all();
   
   // Get monthly revenue for chart (last 6 months)
-  const sixMonthsAgo = getVietnamNow();
-  sixMonthsAgo.setUTCMonth(sixMonthsAgo.getUTCMonth() - 5);
-  sixMonthsAgo.setUTCDate(1);
-  const sixMonthsAgoStr = toDateStr(sixMonthsAgo);
+  const sixMonthsAgoDate = new Date();
+  sixMonthsAgoDate.setMonth(sixMonthsAgoDate.getMonth() - 5);
+  sixMonthsAgoDate.setDate(1);
+  const sixMonthsAgoStr = `${sixMonthsAgoDate.getFullYear()}-${String(sixMonthsAgoDate.getMonth() + 1).padStart(2, '0')}-01`;
 
   const monthlyRevenue = db.prepare(`
     SELECT
-      strftime('%Y-%m', datetime(date, '+7 hours')) as month,
+      strftime('%Y-%m', date(date)) as month,
       COALESCE(SUM(total), 0) as revenue,
       COALESCE(SUM(profit), 0) as profit
     FROM sales
-    WHERE type = 'sale' AND datetime(date, '+7 hours') >= ?
-    GROUP BY strftime('%Y-%m', datetime(date, '+7 hours'))
+    WHERE type = 'sale' AND date(date) >= ?
+    GROUP BY strftime('%Y-%m', date(date))
     ORDER BY month
   `).all(sixMonthsAgoStr);
 
   // Get monthly expenses for the same period
   const monthlyExpenses = db.prepare(`
-    SELECT strftime('%Y-%m', datetime(date, '+7 hours')) as month, COALESCE(SUM(amount), 0) as total
+    SELECT strftime('%Y-%m', date(date)) as month, COALESCE(SUM(amount), 0) as total
     FROM expenses
-    WHERE datetime(date, '+7 hours') >= ?
-    GROUP BY strftime('%Y-%m', datetime(date, '+7 hours'))
+    WHERE date(date) >= ?
+    GROUP BY strftime('%Y-%m', date(date))
     ORDER BY month
   `).all(sixMonthsAgoStr);
 
@@ -130,27 +141,23 @@ router.get('/data', (req, res) => {
   monthlyRevenue.forEach(d => { d.expenses = monthExpenseMap[d.month] || 0; });
   
   // Get daily revenue for chart (last 14 days)
-  const fourteenDaysAgo = getVietnamNow();
-  fourteenDaysAgo.setUTCDate(fourteenDaysAgo.getUTCDate() - 13);
-  const fourteenDaysAgoStr = toDateStr(fourteenDaysAgo);
-
   const dailyRevenue = db.prepare(`
     SELECT
-      date(datetime(date, '+7 hours')) as day,
+      date(date) as day,
       COALESCE(SUM(total), 0) as revenue,
       COALESCE(SUM(profit), 0) as profit
     FROM sales
-    WHERE type = 'sale' AND datetime(date, '+7 hours') >= ?
-    GROUP BY date(datetime(date, '+7 hours'))
+    WHERE type = 'sale' AND date(date) >= ?
+    GROUP BY date(date)
     ORDER BY day
   `).all(fourteenDaysAgoStr);
 
   // Get daily expenses for the same period (for net profit calculation)
   const dailyExpenses = db.prepare(`
-    SELECT date(datetime(date, '+7 hours')) as day, COALESCE(SUM(amount), 0) as total
+    SELECT date(date) as day, COALESCE(SUM(amount), 0) as total
     FROM expenses
-    WHERE datetime(date, '+7 hours') >= ?
-    GROUP BY date(datetime(date, '+7 hours'))
+    WHERE date(date) >= ?
+    GROUP BY date(date)
     ORDER BY day
   `).all(fourteenDaysAgoStr);
 
@@ -165,7 +172,7 @@ router.get('/data', (req, res) => {
     FROM sale_items si
     JOIN products p ON si.product_id = p.id
     JOIN sales s ON si.sale_id = s.id
-    WHERE s.type = 'sale' AND datetime(s.date, '+7 hours') >= ?
+    WHERE s.type = 'sale' AND date(s.date) >= ?
     GROUP BY p.id
     ORDER BY total_qty DESC
     LIMIT 5
@@ -177,7 +184,7 @@ router.get('/data', (req, res) => {
     FROM sales s
     JOIN customers c ON s.customer_id = c.id
     JOIN sale_items si ON si.sale_id = s.id
-    WHERE s.type = 'sale' AND datetime(s.date, '+7 hours') >= ?
+    WHERE s.type = 'sale' AND date(s.date) >= ?
     GROUP BY c.id
     ORDER BY total DESC
     LIMIT 5
@@ -190,19 +197,19 @@ router.get('/data', (req, res) => {
   // Kỳ vọng bình/tháng cho header dashboard
   const monthlyExpectedSetting = db.prepare("SELECT value FROM settings WHERE key = 'monthly_expected'").get();
   const monthlyExpected = monthlyExpectedSetting ? parseFloat(monthlyExpectedSetting.value) : 300;
-  const daysElapsed = now.getUTCDate();
-  const daysInMonth = new Date(Date.UTC(year, now.getUTCMonth() + 1, 0)).getUTCDate();
+  const daysElapsed = now.getDate();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
   const expectedUnits = Math.round(monthlyExpected * daysElapsed / daysInMonth);
 
   // Get customer alerts (configurable days no order) - uses Vietnam time for 'now'
   const customerAlerts = db.prepare(`
     SELECT id, name, phone, last_order_date,
-      CAST(julianday('now', '+7 hours') - julianday(last_order_date) AS INTEGER) as days
+      CAST(julianday('now') - julianday(last_order_date) AS INTEGER) as days
     FROM customers
     WHERE archived = 0
     AND (exclude_expected IS NULL OR exclude_expected = 0)
     AND last_order_date IS NOT NULL
-    AND julianday('now', '+7 hours') - julianday(last_order_date) >= ?
+    AND julianday('now') - julianday(last_order_date) >= ?
     ORDER BY days DESC
     LIMIT 10
   `).all(customerAlertDays);
@@ -217,7 +224,7 @@ router.get('/data', (req, res) => {
       SELECT s.customer_id, SUM(si.quantity) as monthly_qty
       FROM sales s
       JOIN sale_items si ON si.sale_id = s.id
-      WHERE s.type = 'sale' AND datetime(s.date, '+7 hours') >= ?
+      WHERE s.type = 'sale' AND date(s.date) >= ?
       GROUP BY s.customer_id
     ) mc ON mc.customer_id = c.id
     WHERE c.archived = 0
@@ -229,7 +236,7 @@ router.get('/data', (req, res) => {
   
   // Get monthly expenses
   const monthExpenses = db.prepare(`
-    SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE datetime(date, '+7 hours') >= ?
+    SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE date(date) >= ?
   `).get(monthStartStr);
   
   // Get today's expenses by type
