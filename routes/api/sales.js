@@ -88,9 +88,7 @@ router.post('/', (req, res) => {
     for (const item of items) {
       const product = productMap[item.productId];
       if (!product) return res.status(400).json({ error: 'Product not found: ' + item.productId });
-      if (product.stock < item.quantity) {
-        return res.status(400).json({ error: 'Insufficient stock: ' + product.name });
-      }
+      // Allow negative stock
 
       // Use customer price if available, otherwise use provided or default price
       let price = priceMap[item.productId] || item.price || product.sell_price || 0;
@@ -316,9 +314,7 @@ router.post('/replacement', (req, res) => {
     if (!product) {
       return res.status(400).json({ error: 'Không tìm thấy sản phẩm' });
     }
-    if (product.stock < quantity) {
-      return res.status(400).json({ error: `Không đủ hàng trong kho (cần ${quantity}, có ${product.stock})` });
-    }
+    // Allow negative stock
 
     const note = isGift
       ? `${reason || 'Bia hư'} — 🎁 Tặng uống thử`
@@ -703,9 +699,7 @@ router.put('/:id', (req, res) => {
     
     for (const item of items) {
       const product = db.prepare('SELECT * FROM products WHERE id = ?').get(item.productId);
-      if (!product || product.stock < item.quantity) {
-        return res.status(400).json({ error: 'Không đủ hàng: ' + (product ? product.name : 'Unknown') });
-      }
+      // Allow negative stock
       
       // Trừ kho (chỉ với hóa đơn bán)
       if (currentSale.type === 'sale') {
