@@ -8,7 +8,7 @@ let importData = {}; // Store import data by productId
 function initStockPage(data) {
   // Render products
   currentProducts = data.products;
-  renderProducts(data.products);
+  renderProducts(data.products, data.totalStockPositive);
   
   // Render import form
   renderImportForm(data.products);
@@ -231,13 +231,16 @@ async function submitImport() {
   }
 }
 
-function renderProducts(products) {
+function renderProducts(products, serverTotalStockPositive) {
   const productList = document.getElementById('productList');
   const totalStockEl = document.getElementById('totalStock');
   
   if (!productList || !totalStockEl) return;
   
-  const totalStock = products.reduce((sum, p) => sum + Math.max(0, Number(p.stock) || 0), 0);
+  const totalStock =
+    typeof serverTotalStockPositive === 'number' && !Number.isNaN(serverTotalStockPositive)
+      ? serverTotalStockPositive
+      : products.reduce((sum, p) => sum + Math.max(0, Number(p.stock) || 0), 0);
   const lowStockProducts = products.filter(p => p.stock < 5);
 
   totalStockEl.textContent = totalStock;

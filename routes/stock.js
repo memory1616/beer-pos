@@ -17,7 +17,8 @@ router.get('/', (req, res) => {
 // API: Get stock page data
 router.get('/data', (req, res) => {
   const products = db.prepare('SELECT * FROM products ORDER BY name').all();
-  
+  const totalStockPositive = products.reduce((sum, p) => sum + Math.max(0, Number(p.stock) || 0), 0);
+
   // Query purchase history - last 5 purchases, sorted by date descending
   const purchases = db.prepare(`
     SELECT 
@@ -43,7 +44,7 @@ router.get('/data', (req, res) => {
     FROM devices
   `).get();
   
-  res.json({ products, purchases, deviceStats });
+  res.json({ products, purchases, deviceStats, totalStockPositive });
 });
 
 module.exports = router;
