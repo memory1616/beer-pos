@@ -874,34 +874,23 @@ async function loadSalesHistory() {
     const kegDisplay = (sale.deliver_kegs || 0) > 0 ? `📦 ${sale.deliver_kegs}L`
       : (sale.return_kegs || 0) > 0 ? `🔄 ${sale.return_kegs}L`
       : '';
-    const typeColor = sale.type === 'gift' ? 'text-amber-700 bg-amber-100'
-      : sale.type === 'replacement' ? 'text-orange-700 bg-orange-100'
-      : isReturned ? 'text-red-600 bg-red-100'
-      : 'text-green-700 bg-green-100';
-    const typeLabel = sale.type === 'gift' ? '🎁 Tặng thử'
-      : sale.type === 'replacement' ? '🔁 Đổi lỗi'
-      : isReturned ? (sale.type === 'damage_return' ? '⚠️ Bia lỗi' : '🔴 Đã trả')
-      : '';
-    const totalColor = sale.type === 'gift' || sale.type === 'replacement' ? 'text-orange-500'
-      : isReturned ? 'text-gray-400 line-through'
-      : 'text-green-600';
+    const isReplacement = sale.type === 'replacement';
     const cardBg = sale.type === 'gift' ? 'bg-amber-50/60'
-      : sale.type === 'replacement' ? 'bg-orange-50/60'
-      : isReturned ? 'bg-red-50/60'
+      : isReplacement ? 'bg-orange-50/60'
       : 'bg-white';
     const leftBorder = sale.type === 'gift' ? 'border-l-4 border-amber-400'
-      : sale.type === 'replacement' ? 'border-l-4 border-orange-400'
-      : isReturned ? 'border-l-4 border-red-300'
+      : isReplacement ? 'border-l-4 border-orange-400'
       : 'border-l-4 border-green-400';
+    const totalColor = sale.type === 'gift' || sale.type === 'replacement' ? 'text-orange-500'
+      : 'text-green-600';
 
     return `
       <div class="p-3 ${cardBg} ${leftBorder} rounded-xl shadow-sm hover:shadow-md transition-shadow">
         <div class="flex flex-col gap-0.5">
-          <!-- Dòng 1: ID + tên + badge -->
+          <!-- Dòng 1: ID + tên -->
           <div class="flex items-center gap-2 flex-wrap">
             <span class="text-sm font-bold text-gray-500">#${sale.id}</span>
             <span class="text-base font-bold text-gray-800">${customerName}</span>
-            ${typeLabel ? `<span class="px-2 py-0.5 ${typeColor} rounded-full text-xs font-semibold">${typeLabel}</span>` : ''}
           </div>
           <!-- Dòng 2: ngày + bình -->
           <div class="flex items-center gap-3 text-xs text-gray-400">
