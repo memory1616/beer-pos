@@ -70,15 +70,15 @@ router.get('/', (req, res) => {
   const { startDate, endDate, todayKey } = getDateRange(period);
   
   // Revenue & Profit by period — dùng date(col) vì sales.date lưu YYYY-MM-DD (không giờ);
-  // so sánh chuỗi với 'YYYY-MM-DD 00:00:00' khiến '2026-03-31' < '2026-03-31 00:00:00' → mất toàn bộ đơn
+  // status NULL: WHERE status != 'returned' loại hết dòng (NULL != 'returned' là UNKNOWN) → dashboard vẫn có số, báo cáo 0
+  // total_quantity là scalar subquery (không FROM sale_items) để luôn có 1 dòng, kể cả hôm nay không có dòng sale_items
   const periodStats = db.prepare(`
     SELECT 
-      (SELECT COALESCE(SUM(total), 0) FROM sales WHERE date(date) >= date(?) AND date(date) <= date(?) AND status != 'returned') as revenue,
-      (SELECT COALESCE(SUM(profit), 0) FROM sales WHERE date(date) >= date(?) AND date(date) <= date(?) AND status != 'returned') as profit,
-      (SELECT COUNT(*) FROM sales WHERE date(date) >= date(?) AND date(date) <= date(?) AND status != 'returned') as order_count,
-      COALESCE(SUM(si.quantity), 0) as total_quantity
-    FROM sale_items si
-    JOIN sales s ON s.id = si.sale_id AND date(s.date) >= date(?) AND date(s.date) <= date(?) AND s.status != 'returned'
+      (SELECT COALESCE(SUM(total), 0) FROM sales WHERE date(date) >= date(?) AND date(date) <= date(?) AND (status IS NULL OR status != 'returned')) as revenue,
+      (SELECT COALESCE(SUM(profit), 0) FROM sales WHERE date(date) >= date(?) AND date(date) <= date(?) AND (status IS NULL OR status != 'returned')) as profit,
+      (SELECT COUNT(*) FROM sales WHERE date(date) >= date(?) AND date(date) <= date(?) AND (status IS NULL OR status != 'returned')) as order_count,
+      (SELECT COALESCE(SUM(si.quantity), 0) FROM sale_items si JOIN sales s ON s.id = si.sale_id
+        WHERE date(s.date) >= date(?) AND date(s.date) <= date(?) AND (s.status IS NULL OR s.status != 'returned')) as total_quantity
   `).get(startDate, endDate, startDate, endDate, startDate, endDate, startDate, endDate);
   
   // Get expenses for the period (date có thể là YYYY-MM-DD)
@@ -98,7 +98,7 @@ router.get('/', (req, res) => {
       COALESCE(SUM(si.quantity), 0) as quantity
     FROM sales s
     LEFT JOIN sale_items si ON si.sale_id = s.id
-    WHERE date(s.date) >= date(?) AND date(s.date) <= date(?) AND s.status != 'returned'
+    WHERE date(s.date) >= date(?) AND date(s.date) <= date(?) AND (s.status IS NULL OR s.status != 'returned')
     GROUP BY s.date
     ORDER BY s.date DESC
     LIMIT 30
@@ -109,11 +109,11 @@ router.get('/', (req, res) => {
     SELECT 
       c.id,
       c.name,
-      (SELECT COALESCE(SUM(s2.total), 0) FROM sales s2 WHERE s2.customer_id = c.id AND date(s2.date) >= date(?) AND date(s2.date) <= date(?) AND s2.status != 'returned') as revenue,
-      (SELECT COALESCE(SUM(si2.quantity), 0) FROM sale_items si2 JOIN sales s3 ON s3.id = si2.sale_id AND s3.customer_id = c.id AND date(s3.date) >= date(?) AND date(s3.date) <= date(?) AND s3.status != 'returned') as quantity,
-      (SELECT COUNT(*) FROM sales s2 WHERE s2.customer_id = c.id AND date(s2.date) >= date(?) AND date(s2.date) <= date(?) AND s2.status != 'returned') as order_count
+      (SELECT COALESCE(SUM(s2.total), 0) FROM sales s2 WHERE s2.customer_id = c.id AND date(s2.date) >= date(?) AND date(s2.date) <= date(?) AND (s2.status IS NULL OR s2.status != 'returned')) as revenue,
+      (SELECT COALESCE(SUM(si2.quantity), 0) FROM sale_items si2 JOIN sales s3 ON s3.id = si2.sale_id AND s3.customer_id = c.id AND date(s3.date) >= date(?) AND date(s3.date) <= date(?) AND (s3.status IS NULL OR s3.status != 'returned')) as quantity,
+      (SELECT COUNT(*) FROM sales s2 WHERE s2.customer_id = c.id AND date(s2.date) >= date(?) AND date(s2.date) <= date(?) AND (s2.status IS NULL OR s2.status != 'returned')) as order_count
     FROM customers c
-    WHERE c.archived = 0 AND (SELECT SUM(s2.total) FROM sales s2 WHERE s2.customer_id = c.id AND date(s2.date) >= date(?) AND date(s2.date) <= date(?) AND s2.status != 'returned') > 0
+    WHERE c.archived = 0 AND (SELECT SUM(s2.total) FROM sales s2 WHERE s2.customer_id = c.id AND date(s2.date) >= date(?) AND date(s2.date) <= date(?) AND (s2.status IS NULL OR s2.status != 'returned')) > 0
     ORDER BY revenue DESC
     LIMIT 3
   `).all(startDate, endDate, startDate, endDate, startDate, endDate, startDate, endDate);
@@ -128,7 +128,7 @@ router.get('/', (req, res) => {
     FROM products p
     JOIN sale_items si ON si.product_id = p.id
     JOIN sales s ON s.id = si.sale_id
-    WHERE date(s.date) >= date(?) AND date(s.date) <= date(?) AND s.status != 'returned'
+    WHERE date(s.date) >= date(?) AND date(s.date) <= date(?) AND (s.status IS NULL OR s.status != 'returned')
     GROUP BY p.id
     ORDER BY quantity_sold DESC
     LIMIT 10
@@ -137,10 +137,10 @@ router.get('/', (req, res) => {
   // All time stats - chỉ dùng subquery, không JOIN, đảm bảo tổng toàn bộ thời gian
   const allTimeStats = db.prepare(`
     SELECT 
-      (SELECT COALESCE(SUM(total), 0) FROM sales WHERE status != 'returned') as revenue,
-      (SELECT COALESCE(SUM(profit), 0) FROM sales WHERE status != 'returned') as profit,
-      (SELECT COUNT(*) FROM sales WHERE status != 'returned') as order_count,
-      (SELECT COALESCE(SUM(quantity), 0) FROM sale_items si JOIN sales s ON s.id = si.sale_id WHERE s.status != 'returned') as total_quantity
+      (SELECT COALESCE(SUM(total), 0) FROM sales WHERE (status IS NULL OR status != 'returned')) as revenue,
+      (SELECT COALESCE(SUM(profit), 0) FROM sales WHERE (status IS NULL OR status != 'returned')) as profit,
+      (SELECT COUNT(*) FROM sales WHERE (status IS NULL OR status != 'returned')) as order_count,
+      (SELECT COALESCE(SUM(quantity), 0) FROM sale_items si JOIN sales s ON s.id = si.sale_id WHERE (s.status IS NULL OR s.status != 'returned')) as total_quantity
   `).get();
   
   // Get all time expenses
@@ -669,7 +669,7 @@ router.get('/profit-product', (req, res) => {
     FROM sale_items si
     JOIN products p ON p.id = si.product_id
     JOIN sales s ON s.id = si.sale_id
-    WHERE s.status != 'returned'
+    WHERE (s.status IS NULL OR s.status != 'returned')
   `;
   
   const params = [];
@@ -803,7 +803,7 @@ router.get('/profit-customer', (req, res) => {
       SUM(s.profit) as profit
     FROM sales s
     JOIN customers c ON c.id = s.customer_id
-    WHERE s.status != 'returned' AND s.type = 'sale' AND c.archived = 0
+    WHERE (s.status IS NULL OR s.status != 'returned') AND s.type = 'sale' AND c.archived = 0
       AND date(s.date) >= date(?) AND date(s.date) <= date(?)
     GROUP BY c.id ORDER BY profit DESC
   `).all(startDay, endDay);
