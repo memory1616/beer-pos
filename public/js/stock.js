@@ -237,7 +237,7 @@ function renderProducts(products) {
   
   if (!productList || !totalStockEl) return;
   
-  const totalStock = products.reduce((sum, p) => sum + p.stock, 0);
+  const totalStock = products.reduce((sum, p) => sum + Math.max(0, Number(p.stock) || 0), 0);
   const lowStockProducts = products.filter(p => p.stock < 5);
 
   totalStockEl.textContent = totalStock;

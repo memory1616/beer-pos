@@ -22,6 +22,10 @@ module.exports = { db, getVietnamDateStr };
 // Enable foreign keys
 db.pragma('foreign_keys = ON');
 
+// Tổng bình keg trong kho: chỉ cộng tồn dương (âm không tính vào vỏ hiện hữu)
+db.SQL_KEG_WAREHOUSE_POSITIVE_STOCK =
+  "SELECT COALESCE(SUM(CASE WHEN stock > 0 THEN stock ELSE 0 END), 0) as total FROM products WHERE type = 'keg'";
+
 // ========== MIGRATION: Merge keg_log + keg_transactions → keg_transactions_log ==========
 // Run before creating tables so CREATE TABLE IF NOT EXISTS is safe
 try {

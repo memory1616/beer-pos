@@ -89,7 +89,7 @@ router.get('/data', (req, res) => {
   `).all(stockLowThreshold);
   
   // Get keg state - ALWAYS sync from source tables
-  const inventoryResult = db.prepare("SELECT COALESCE(SUM(stock), 0) as total FROM products WHERE type = 'keg'").get();
+  const inventoryResult = db.prepare(db.SQL_KEG_WAREHOUSE_POSITIVE_STOCK).get();
   const customerResult = db.prepare("SELECT COALESCE(SUM(keg_balance), 0) as total FROM customers").get();
   const kegStats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
   

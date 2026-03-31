@@ -11,10 +11,10 @@ function logKegBalanceChange(customerId, change, note) {
     customerHolding: 0,
   };
   try {
-    const inv = db.prepare("SELECT COALESCE(SUM(stock),0) as t FROM products WHERE type='keg'").get();
+    const inv = db.prepare(db.SQL_KEG_WAREHOUSE_POSITIVE_STOCK).get();
     const emp = db.prepare('SELECT COALESCE(empty_collected,0) as t FROM keg_stats WHERE id=1').get();
     const hold = db.prepare('SELECT COALESCE(SUM(keg_balance),0) as t FROM customers').get();
-    state.inventory = inv?.t || 0;
+    state.inventory = inv?.total || 0;
     state.emptyCollected = emp?.t || 0;
     state.customerHolding = hold?.t || 0;
   } catch (_) {}
