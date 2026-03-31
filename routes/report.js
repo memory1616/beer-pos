@@ -733,9 +733,12 @@ router.get('/profit-product', (req, res) => {
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
   <link rel="stylesheet" href="/css/tailwind.css">
+  <link rel="stylesheet" href="/css/unified.css">
+  <script src="/js/dark-mode.js"></script>
   <script src="/js/auth.js"></script>
   <style>
     .bottomnav { max-width: 500px; margin: auto; }
+    .filter-wrap { overflow: visible !important; }
   </style>
 </head>
 <body class="bg-gray-100 text-gray-800 min-h-screen pb-20">
@@ -748,20 +751,21 @@ router.get('/profit-product', (req, res) => {
     </div>
   </header>
   <main class="p-4 pt-14 pb-24 max-w-md mx-auto">
-    <form class="bg-white rounded-2xl p-3 border shadow-sm mb-4" method="GET" action="/report/profit-product">
-      <div class="flex items-center justify-between gap-2">
-        <div class="text-sm font-semibold text-gray-700">${labelThangNam || ''}</div>
-        <div class="flex gap-2">
-          <select name="month" class="border rounded-lg px-2 py-2 text-sm">
-            ${monthOptions}
-          </select>
-          <select name="year" class="border rounded-lg px-2 py-2 text-sm">
-            ${yearOptions}
-          </select>
-          <button type="submit" class="px-3 py-2 rounded-lg bg-purple-600 text-white text-sm font-semibold">Xem</button>
-        </div>
+    <div class="filter-wrap" style="background: #fef3c7; border-radius: 16px; border: 2px solid #f59e0b; padding: 16px; margin-bottom: 16px; overflow: visible;">
+      <div class="flex items-center gap-2 mb-3">
+        <span style="color: #92400e; font-size: 14px; font-weight: 600;">📅 Theo tháng - năm</span>
       </div>
-    </form>
+      <div class="flex gap-2 items-center">
+        <select id="selMonthProd" style="flex: 1; border: 2px solid #f59e0b; border-radius: 8px; padding: 10px 12px; font-size: 14px; background: white; color: #1f2937; min-width: 0; outline: none;">
+          ${monthOptions}
+        </select>
+        <select id="selYearProd" style="flex: 1; border: 2px solid #f59e0b; border-radius: 8px; padding: 10px 12px; font-size: 14px; background: white; color: #1f2937; min-width: 0; outline: none;">
+          ${yearOptions}
+        </select>
+        <button type="button" onclick="applyMonthYearProduct()" style="background: #ea580c; color: white; border: none; border-radius: 8px; padding: 8px 16px; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap;">Xem</button>
+      </div>
+      <div class="text-xs text-gray-500 mt-1">Đang xem: ${labelThangNam}</div>
+    </div>
     <div class="mb-4 shadow-lg rounded-2xl p-4" style="background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%); color: #fff;">
       <div class="grid grid-cols-3 gap-3 text-center py-2">
         <div>
@@ -801,6 +805,11 @@ router.get('/profit-product', (req, res) => {
   <div id="bottomNavContainer"></div>
   <script>if (!isLoggedIn()) { window.location.href = '/login'; }</script>
   <script>
+    function applyMonthYearProduct() {
+      const m = document.getElementById('selMonthProd').value;
+      const y = document.getElementById('selYearProd').value;
+      window.location.href = '/report/profit-product?month=' + m + '&year=' + y;
+    }
     const bottomNav = getBottomNav('/report');
     document.getElementById('bottomNavContainer').innerHTML = bottomNav;
   </script>
