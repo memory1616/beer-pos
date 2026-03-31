@@ -5,36 +5,30 @@ const logger = require('../../src/utils/logger');
 const { syncKegInventory } = require('./products');
 
 // ========== KEG STATE: SINGLE SOURCE OF TRUTH ==========
-// inventory  -> SUM(stock>0) per keg product (âm không tính)
-// empty      -> keg_stats.empty_collected (manual input)
+// inventory  -> SUM(stock>0) keg (hiển thị ô Kho)
+// total      -> SUM(stock) keg + empty + customer (đại số kho, có âm)
+// empty      -> keg_stats.empty_collected
 // customer   -> SUM(customers.keg_balance)
-// total      -> computed
 
 /**
  * Get REAL-time keg state from source tables
  * This is the ONLY source of truth for keg counts
  */
 function getKegState() {
-  // Get inventory from products (source of truth)
-  const inventoryResult = db.prepare(db.SQL_KEG_WAREHOUSE_POSITIVE_STOCK).get();
-  
-  // Get customer holding from customers (source of truth)
+  const inventoryPositive = db.prepare(db.SQL_KEG_WAREHOUSE_POSITIVE_STOCK).get();
+  const inventoryRaw = db.prepare(db.SQL_KEG_WAREHOUSE_RAW_STOCK).get();
   const customerResult = db.prepare(
     "SELECT COALESCE(SUM(keg_balance), 0) as total FROM customers"
   ).get();
-  
-  // Get empty collected (manual, stored value)
   const stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
   const emptyCollected = stats?.empty_collected || 0;
-  
-  const inventory = inventoryResult.total;
   const customerHolding = customerResult.total;
-  
+  const inventory = inventoryPositive.total;
   return {
     inventory,
     emptyCollected,
     customerHolding,
-    total: inventory + emptyCollected + customerHolding
+    total: inventoryRaw.total + emptyCollected + customerHolding
   };
 }
 
@@ -52,7 +46,7 @@ function updateEmptyCollected(newValue) {
  * Get actual inventory from products (for validation)
  */
 function getActualInventory() {
-  const result = db.prepare(db.SQL_KEG_WAREHOUSE_POSITIVE_STOCK).get();
+  const result = db.prepare(db.SQL_KEG_WAREHOUSE_RAW_STOCK).get();
   return result.total;
 }
 

@@ -89,15 +89,18 @@ router.get('/data', (req, res) => {
   `).all(stockLowThreshold);
   
   // Get keg state - ALWAYS sync from source tables
-  const inventoryResult = db.prepare(db.SQL_KEG_WAREHOUSE_POSITIVE_STOCK).get();
+  const inventoryPositive = db.prepare(db.SQL_KEG_WAREHOUSE_POSITIVE_STOCK).get();
+  const inventoryRaw = db.prepare(db.SQL_KEG_WAREHOUSE_RAW_STOCK).get();
   const customerResult = db.prepare("SELECT COALESCE(SUM(keg_balance), 0) as total FROM customers").get();
   const kegStats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
-  
+  const emptyCollected = kegStats?.empty_collected || 0;
+  const customerHolding = customerResult.total;
+  // Kho: chỉ hiện tồn dương. Tổng vỏ: cộng đại số kho (trừ nợ âm) + khách + rỗng
   const kegState = {
-    inventory: inventoryResult.total,
-    emptyCollected: kegStats?.empty_collected || 0,
-    customerHolding: customerResult.total,
-    total: inventoryResult.total + (kegStats?.empty_collected || 0) + customerResult.total
+    inventory: inventoryPositive.total,
+    emptyCollected,
+    customerHolding,
+    total: inventoryRaw.total + emptyCollected + customerHolding
   };
   
   // Get recent sales - add LIMIT 10

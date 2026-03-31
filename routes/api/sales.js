@@ -147,7 +147,7 @@ router.post('/', (req, res) => {
       }
 
       // Get synced totals from source tables
-      const inventoryResult = db.prepare(db.SQL_KEG_WAREHOUSE_POSITIVE_STOCK).get();
+      const inventoryResult = db.prepare(db.SQL_KEG_WAREHOUSE_RAW_STOCK).get();
       const totalHolding = db.prepare("SELECT COALESCE(SUM(keg_balance), 0) as total FROM customers").get();
 
       db.prepare(`
@@ -650,7 +650,7 @@ router.delete('/:id', (req, res) => {
       }
 
       // 4. Sync keg_stats (inventory từ products, customer_holding từ customers)
-      const inventoryResult = db.prepare(db.SQL_KEG_WAREHOUSE_POSITIVE_STOCK).get();
+      const inventoryResult = db.prepare(db.SQL_KEG_WAREHOUSE_RAW_STOCK).get();
       const totalHolding = db.prepare("SELECT COALESCE(SUM(keg_balance), 0) as total FROM customers").get();
       db.prepare(`
         UPDATE keg_stats

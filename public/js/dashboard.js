@@ -100,10 +100,12 @@ function initDashboard(data) {
     setText('kegCustomerHolding', customerHolding);
     setText('kegTotal', total);
     
-    // Calculate and set percentages
-    const inventoryPct = total > 0 ? Math.round((inventory / total) * 100) : 0;
-    const emptyPct = total > 0 ? Math.round((emptyCollected / total) * 100) : 0;
-    const customerPct = total > 0 ? Math.round((customerHolding / total) * 100) : 0;
+    // % theo 3 ô Kho/Khách/Rỗng (tổng hiển thị); TỔNG VỎ có thể nhỏ hơn khi kho âm
+    const sumCards = inventory + emptyCollected + customerHolding;
+    const pctBase = sumCards > 0 ? sumCards : (total > 0 ? total : 1);
+    const inventoryPct = Math.round((inventory / pctBase) * 100);
+    const emptyPct = Math.round((emptyCollected / pctBase) * 100);
+    const customerPct = Math.round((customerHolding / pctBase) * 100);
     
     setText('kegInventoryPct', inventoryPct + '%');
     setText('kegEmptyCollectedPct', emptyPct + '%');

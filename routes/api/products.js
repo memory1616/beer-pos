@@ -13,7 +13,7 @@ function syncKegInventory() {
       db.prepare('INSERT INTO keg_stats (id, inventory, empty_collected, customer_holding) VALUES (1, 0, 0, 0)').run();
     }
     
-    const result = db.prepare(db.SQL_KEG_WAREHOUSE_POSITIVE_STOCK).get();
+    const result = db.prepare(db.SQL_KEG_WAREHOUSE_RAW_STOCK).get();
     db.prepare('UPDATE keg_stats SET inventory = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run(result.total);
     logger.info('Keg inventory synced', { total: result.total });
     return result.total;
