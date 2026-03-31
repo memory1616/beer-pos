@@ -1,6 +1,6 @@
-// BeerPOS Service Worker v20
+// BeerPOS Service Worker v21
 // Clean PWA: only cache static assets, never touch navigation or API
-const CACHE_NAME = "beer-pos-v20";
+const CACHE_NAME = "beer-pos-v21";
 const DB_NAME = "BeerPOS";
 const STORE_SYNC_QUEUE = "sync_queue";
 
@@ -302,4 +302,4 @@ async function handleAPIMutation(request) {
   }
 }
 
-console.log("[SW] BeerPOS Service Worker v20 loaded");
+console.log("[SW] BeerPOS Service Worker v21 loaded");

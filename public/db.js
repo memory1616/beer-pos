@@ -4,13 +4,21 @@
 // Create Dexie database
 const db = new Dexie('BeerPOS');
 
-// Define schema — version 2 matches sw.js (v7+)
-db.version(2).stores({
+// Define schema — version 3 matches routing columns
+db.version(3).stores({
   customers: '++id, name, phone, deposit, keg_balance, archived, synced',
   products: '++id, name, stock, cost_price, synced',
   sales: '++id, customer_id, date, total, profit, synced',
   sale_items: '++id, sale_id, product_id, quantity, price, synced',
   sync_queue: '++id, entity, action, data, url, method, synced, created_at, retry_count'
+}).upgrade(tx => {
+  // Add routing fields to existing sales
+  return tx.table('sales').toCollection().modify(sale => {
+    if (sale.distance_km === undefined) sale.distance_km = null;
+    if (sale.duration_min === undefined) sale.duration_min = null;
+    if (sale.route_index === undefined) sale.route_index = 0;
+    if (sale.route_polyline === undefined) sale.route_polyline = null;
+  });
 });
 
 // ==================== SALE FUNCTIONS ====================

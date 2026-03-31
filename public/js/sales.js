@@ -396,7 +396,21 @@ async function submitSale() {
       document.getElementById('customerSelect').value = '';
       loadSalesHistory();
       showToast('Bán hàng thành công!', 'success');
-      showInvoiceModal(result.id);
+      try {
+        await showInvoiceModal(result.id);
+      } catch(err) {
+        console.error('Lỗi hiển thị hóa đơn:', err);
+        // Fallback: hiện modal rỗng với thông tin cơ bản
+        const modal = document.getElementById('invoiceModal');
+        if (modal) {
+          document.getElementById('invoiceTotal').textContent = formatVND(result.total || 0);
+          document.getElementById('invoiceContent').innerHTML =
+            '<div class="text-center text-gray-500 py-8">Đơn hàng #'+ result.id +'</div>';
+          document.getElementById('qrCode').src = '';
+          modal.classList.remove('hidden');
+          modal.classList.add('flex');
+        }
+      }
     } else {
       showToast(result.error || 'Bán hàng thất bại', 'error');
     }
@@ -638,23 +652,32 @@ async function saveKegUpdate() {
 }
 
 async function showInvoiceModal(saleId) {
+  const modal = document.getElementById('invoiceModal');
+  if (!modal) {
+    console.error('Không tìm thấy phần tử #invoiceModal');
+    return;
+  }
+
   const res = await fetch('/api/sales/' + saleId);
+  if (!res.ok) {
+    console.error('Không lấy được dữ liệu hóa đơn:', res.status);
+    return;
+  }
   const sale = await res.json();
   
   const dateStr = new Date(sale.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const customerName = sale.customer_name || 'Khách lẻ';
   const isGift = sale.type === 'gift';
   
-  // Sản phẩm: layout 2 dòng chuẩn POS (tên rõ, đơn giá + thành tiền căn phải)
   let itemsHtml = '';
-  sale.items.forEach(item => {
-    const unitPrice = item.price;
-    const totalPrice = item.price * item.quantity;
+  (sale.items || []).forEach(item => {
+    const unitPrice = item.price || 0;
+    const totalPrice = unitPrice * (item.quantity || 0);
     itemsHtml += `
       <div class="invoice-item">
-        <div class="invoice-name">🍺 ${item.name}</div>
+        <div class="invoice-name">🍺 ${item.name || 'Sản phẩm'}</div>
         <div class="invoice-row">
-          <span>${item.quantity} × ${formatVND(unitPrice)}</span>
+          <span>${item.quantity || 0} × ${formatVND(unitPrice)}</span>
           <span class="invoice-total">${formatVND(totalPrice)}</span>
         </div>
       </div>
@@ -679,25 +702,36 @@ async function showInvoiceModal(saleId) {
   
   const giftBadge = isGift ? '<div class="text-center mb-2"><span class="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-xs font-semibold">🎁 Tặng uống thử</span></div>' : '';
   
-  document.getElementById('invoiceContent').innerHTML = 
-    giftBadge +
-    '<div class="text-sm text-gray-500 mb-1">' + dateStr + '</div>' +
-    '<div class="text-sm font-medium text-gray-700 mb-3">Khách: ' + customerName + '</div>' +
-    '<div class="border-t border-gray-200 pt-2">' + itemsHtml + '</div>' +
-    kegHtml;
-  
-  document.getElementById('invoiceTotal').textContent = formatVND(sale.total);
-  
-  const qrSection = document.querySelector('#invoiceModal .mt-4.pt-4.border-t.border-gray-200');
-  if (isGift) {
-    qrSection.classList.add('hidden');
-  } else {
-    qrSection.classList.remove('hidden');
-    document.getElementById('qrCode').src = 'https://img.vietqr.io/image/970415-107875230331-compact2.png?amount=' + sale.total + '&addInfo=Chuyen%20Khoan%20' + sale.id;
+  const invoiceContent = document.getElementById('invoiceContent');
+  if (invoiceContent) {
+    invoiceContent.innerHTML = 
+      giftBadge +
+      '<div class="text-sm text-gray-500 mb-1">' + dateStr + '</div>' +
+      '<div class="text-sm font-medium text-gray-700 mb-3">Khách: ' + customerName + '</div>' +
+      '<div class="border-t border-gray-200 pt-2">' + itemsHtml + '</div>' +
+      kegHtml;
   }
   
-  document.getElementById('invoiceModal').classList.remove('hidden');
-  document.getElementById('invoiceModal').classList.add('flex');
+  const invoiceTotal = document.getElementById('invoiceTotal');
+  if (invoiceTotal) {
+    invoiceTotal.textContent = formatVND(sale.total || 0);
+  }
+  
+  const qrSection = document.querySelector('#invoiceModal .mt-4.pt-4.border-t.border-gray-200');
+  if (qrSection) {
+    if (isGift) {
+      qrSection.classList.add('hidden');
+    } else {
+      qrSection.classList.remove('hidden');
+      const qrCode = document.getElementById('qrCode');
+      if (qrCode) {
+        qrCode.src = 'https://img.vietqr.io/image/970415-107875230331-compact2.png?amount=' + (sale.total || 0) + '&addInfo=Chuyen%20Khoan%20' + sale.id;
+      }
+    }
+  }
+  
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
 }
 
 let currentPage = 1;
@@ -847,7 +881,7 @@ async function loadSalesHistory() {
     const typeLabel = sale.type === 'gift' ? '🎁 Tặng thử'
       : sale.type === 'replacement' ? '🔁 Đổi lỗi'
       : isReturned ? (sale.type === 'damage_return' ? '⚠️ Bia lỗi' : '🔴 Đã trả')
-      : '✔ Hoàn tất';
+      : '';
     const totalColor = sale.type === 'gift' || sale.type === 'replacement' ? 'text-orange-500'
       : isReturned ? 'text-gray-400 line-through'
       : 'text-green-600';
@@ -867,7 +901,7 @@ async function loadSalesHistory() {
           <div class="flex items-center gap-2 flex-wrap">
             <span class="text-sm font-bold text-gray-500">#${sale.id}</span>
             <span class="text-base font-bold text-gray-800">${customerName}</span>
-            <span class="px-2 py-0.5 ${typeColor} rounded-full text-xs font-semibold">${typeLabel}</span>
+            ${typeLabel ? `<span class="px-2 py-0.5 ${typeColor} rounded-full text-xs font-semibold">${typeLabel}</span>` : ''}
           </div>
           <!-- Dòng 2: ngày + bình -->
           <div class="flex items-center gap-3 text-xs text-gray-400">

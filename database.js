@@ -513,6 +513,35 @@ try {
   // Column already exists
 }
 
+// Migration: Add routing columns for real driving distance/duration
+try {
+  db.exec(`ALTER TABLE sales ADD COLUMN distance_km REAL`);
+  console.log('Added distance_km column to sales');
+} catch (e) {
+  // Column already exists
+}
+
+try {
+  db.exec(`ALTER TABLE sales ADD COLUMN duration_min INTEGER`);
+  console.log('Added duration_min column to sales');
+} catch (e) {
+  // Column already exists
+}
+
+try {
+  db.exec(`ALTER TABLE sales ADD COLUMN route_index INTEGER DEFAULT 0`);
+  console.log('Added route_index column to sales');
+} catch (e) {
+  // Column already exists
+}
+
+try {
+  db.exec(`ALTER TABLE sales ADD COLUMN route_polyline TEXT`);
+  console.log('Added route_polyline column to sales');
+} catch (e) {
+  // Column already exists
+}
+
 // Migration: Add damaged_stock column to products if not exists
 try {
   db.exec(`ALTER TABLE products ADD COLUMN damaged_stock INTEGER DEFAULT 0`);

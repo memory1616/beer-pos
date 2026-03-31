@@ -29,7 +29,15 @@ function getAppMode(req) {
   if (req.headers['x-app-mode'] === 'public') return 'public';
   // Fallback by Host header
   const host = (req.headers.host || '').split(':')[0].toLowerCase();
-  if (host === ADMIN_DOMAIN || host.endsWith('.admin.' + PUBLIC_DOMAIN.replace('www.', ''))) return 'admin';
+  // Support localhost development + production domains
+  if (
+    host === ADMIN_DOMAIN ||
+    host.endsWith('.admin.' + PUBLIC_DOMAIN.replace('www.', '')) ||
+    host === 'admin.localhost' ||
+    host === 'localhost' ||
+    host === '127.0.0.1' ||
+    host.startsWith('admin.')
+  ) return 'admin';
   return 'public';
 }
 
@@ -243,7 +251,6 @@ app.get('/login', (req, res) => {
 app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'views', 'dashboard.html')));
 app.get('/customers', (req, res) => res.sendFile(path.join(__dirname, 'views', 'customers.html')));
 app.get('/customer/:id', (req, res) => res.sendFile(path.join(__dirname, 'views', 'customer-detail.html')));
-app.get('/sale', (req, res) => res.sendFile(path.join(__dirname, 'views', 'sales.html')));
 app.get('/stock', (req, res) => res.sendFile(path.join(__dirname, 'views', 'stock.html')));
 app.get('/purchases', (req, res) => res.sendFile(path.join(__dirname, 'views', 'purchases.html')));
 app.get('/kegs', (req, res) => res.sendFile(path.join(__dirname, 'views', 'kegs.html')));
@@ -269,6 +276,7 @@ app.use('/api/devices', require('./routes/api/devices'));
 app.use('/api/expenses', require('./routes/api/expenses'));
 app.use('/api/session', require('./routes/api/session'));
 app.use('/api/sync', require('./routes/api/sync'));
+app.use('/api/routing', require('./routes/api/routing'));
 
 // ==================== AUTH ====================
 app.use('/auth', require('./routes/login'));
