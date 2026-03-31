@@ -7,14 +7,23 @@ function formatVND(amount) {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
 }
 
+// Helper: get Vietnam date string (YYYY-MM-DD) - fix timezone issue
+function getVietnamDateStr() {
+  const now = new Date();
+  const vn = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+  return vn.getUTCFullYear() + '-' +
+    String(vn.getUTCMonth() + 1).padStart(2, '0') + '-' +
+    String(vn.getUTCDate()).padStart(2, '0');
+}
+
 function getDateRange(period) {
   const now = new Date();
+  const vn = new Date(now.getTime() + 7 * 60 * 60 * 1000); // Vietnam timezone (UTC+7)
   let startDate, endDate;
   
-  // Sử dụng local date thay vì UTC
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
+  const year = vn.getUTCFullYear();
+  const month = String(vn.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(vn.getUTCDate()).padStart(2, '0');
   const today = `${year}-${month}-${day}`;
   
   endDate = today + ' 23:59:59';
@@ -22,34 +31,31 @@ function getDateRange(period) {
   if (period === 'today') {
     startDate = today + ' 00:00:00';
   } else if (period === 'yesterday') {
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-    const y = yesterday.getFullYear();
-    const m = String(yesterday.getMonth() + 1).padStart(2, '0');
-    const d = String(yesterday.getDate()).padStart(2, '0');
+    const yesterday = new Date(vn);
+    yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+    const y = yesterday.getUTCFullYear();
+    const m = String(yesterday.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(yesterday.getUTCDate()).padStart(2, '0');
     startDate = `${y}-${m}-${d} 00:00:00`;
     endDate = `${y}-${m}-${d} 23:59:59`;
   } else if (period === 'week') {
-    const weekAgo = new Date(now);
-    weekAgo.setDate(weekAgo.getDate() - 7);
-    const y = weekAgo.getFullYear();
-    const m = String(weekAgo.getMonth() + 1).padStart(2, '0');
-    const d = String(weekAgo.getDate()).padStart(2, '0');
+    const weekAgo = new Date(vn);
+    weekAgo.setUTCDate(weekAgo.getUTCDate() - 7);
+    const y = weekAgo.getUTCFullYear();
+    const m = String(weekAgo.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(weekAgo.getUTCDate()).padStart(2, '0');
     startDate = `${y}-${m}-${d} 00:00:00`;
   } else if (period === 'thisMonth') {
-    // Tháng này - từ ngày 1 đến hôm nay
     startDate = `${year}-${month}-01 00:00:00`;
   } else if (period === 'lastMonth') {
-    // Tháng trước - full month
-    const lastMonth = new Date(now);
-    lastMonth.setMonth(lastMonth.getMonth() - 1);
-    const y = lastMonth.getFullYear();
-    const m = String(lastMonth.getMonth() + 1).padStart(2, '0');
-    const lastMonthDays = new Date(y, lastMonth.getMonth() + 1, 0).getDate();
+    const lastMonth = new Date(vn);
+    lastMonth.setUTCMonth(lastMonth.getUTCMonth() - 1);
+    const y = lastMonth.getUTCFullYear();
+    const m = String(lastMonth.getUTCMonth() + 1).padStart(2, '0');
+    const lastMonthDays = new Date(y, lastMonth.getUTCMonth() + 1, 0).getUTCDate();
     startDate = `${y}-${m}-01 00:00:00`;
-    endDate = `${y}-${m}-${lastMonthDays} 23:59:59`;
+    endDate = `${y}-${m}-${String(lastMonthDays).padStart(2, '0')} 23:59:59`;
   } else {
-    // Default: tháng này
     startDate = `${year}-${month}-01 00:00:00`;
   }
   

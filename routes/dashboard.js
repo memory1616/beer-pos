@@ -9,31 +9,31 @@ function formatVND(amount) {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
 }
 
-// Get Vietnam date string from system clock (no timezone magic)
+// Helper: get Vietnam date string (YYYY-MM-DD) - fix timezone for cloud servers
 function getVietnamDateStr() {
   const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+  const vn = new Date(now.getTime() + 7 * 60 * 60 * 1000); // UTC+7
+  return vn.getUTCFullYear() + '-' +
+    String(vn.getUTCMonth() + 1).padStart(2, '0') + '-' +
+    String(vn.getUTCDate()).padStart(2, '0');
 }
 
-// Get first day of current month in Vietnam (system) timezone
+// Get first day of current month in Vietnam timezone
 function getVietnamMonthStart() {
   const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  return `${y}-${m}-01`;
+  const vn = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+  return vn.getUTCFullYear() + '-' +
+    String(vn.getUTCMonth() + 1).padStart(2, '0') + '-01';
 }
 
-// Get N days ago date string
+// Get N days ago date string in Vietnam timezone
 function getVietnamDaysAgo(days) {
   const now = new Date();
-  now.setDate(now.getDate() - days);
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+  const vn = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+  vn.setUTCDate(vn.getUTCDate() - days);
+  return vn.getUTCFullYear() + '-' +
+    String(vn.getUTCMonth() + 1).padStart(2, '0') + '-' +
+    String(vn.getUTCDate()).padStart(2, '0');
 }
 
 // GET / - Serve HTML file
