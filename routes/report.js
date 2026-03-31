@@ -59,29 +59,31 @@ function getDateRange(period) {
     startDate = `${year}-${month}-01 00:00:00`;
   }
   
-  return { startDate, endDate };
+  // YYYY-MM-DD (VN) — dùng cho WHERE date(s.date) = ? tránh lệch với server TZ
+  return { startDate, endDate, todayKey: today };
 }
 
 // GET /report
 router.get('/', (req, res) => {
   try {
   const period = req.query.period || 'thisMonth';
-  const { startDate, endDate } = getDateRange(period);
+  const { startDate, endDate, todayKey } = getDateRange(period);
   
-  // Revenue & Profit by period - use subquery to avoid duplicate counting
+  // Revenue & Profit by period — dùng date(col) vì sales.date lưu YYYY-MM-DD (không giờ);
+  // so sánh chuỗi với 'YYYY-MM-DD 00:00:00' khiến '2026-03-31' < '2026-03-31 00:00:00' → mất toàn bộ đơn
   const periodStats = db.prepare(`
     SELECT 
-      (SELECT COALESCE(SUM(total), 0) FROM sales WHERE date >= ? AND date <= ? AND status != 'returned') as revenue,
-      (SELECT COALESCE(SUM(profit), 0) FROM sales WHERE date >= ? AND date <= ? AND status != 'returned') as profit,
-      (SELECT COUNT(*) FROM sales WHERE date >= ? AND date <= ? AND status != 'returned') as order_count,
+      (SELECT COALESCE(SUM(total), 0) FROM sales WHERE date(date) >= date(?) AND date(date) <= date(?) AND status != 'returned') as revenue,
+      (SELECT COALESCE(SUM(profit), 0) FROM sales WHERE date(date) >= date(?) AND date(date) <= date(?) AND status != 'returned') as profit,
+      (SELECT COUNT(*) FROM sales WHERE date(date) >= date(?) AND date(date) <= date(?) AND status != 'returned') as order_count,
       COALESCE(SUM(si.quantity), 0) as total_quantity
     FROM sale_items si
-    JOIN sales s ON s.id = si.sale_id AND s.date >= ? AND s.date <= ? AND s.status != 'returned'
+    JOIN sales s ON s.id = si.sale_id AND date(s.date) >= date(?) AND date(s.date) <= date(?) AND s.status != 'returned'
   `).get(startDate, endDate, startDate, endDate, startDate, endDate, startDate, endDate);
   
-  // Get expenses for the period (expenses table only has date, no time)
+  // Get expenses for the period (date có thể là YYYY-MM-DD)
   const periodExpenses = db.prepare(`
-    SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE date >= ? AND date <= ?
+    SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE date(date) >= date(?) AND date(date) <= date(?)
   `).get(startDate.split(' ')[0], endDate.split(' ')[0]);
   
   // Calculate net profit (profit - expenses)
@@ -96,7 +98,7 @@ router.get('/', (req, res) => {
       COALESCE(SUM(si.quantity), 0) as quantity
     FROM sales s
     LEFT JOIN sale_items si ON si.sale_id = s.id
-    WHERE s.date >= ? AND s.date <= ? AND s.status != 'returned'
+    WHERE date(s.date) >= date(?) AND date(s.date) <= date(?) AND s.status != 'returned'
     GROUP BY s.date
     ORDER BY s.date DESC
     LIMIT 30
@@ -107,11 +109,11 @@ router.get('/', (req, res) => {
     SELECT 
       c.id,
       c.name,
-      (SELECT COALESCE(SUM(s2.total), 0) FROM sales s2 WHERE s2.customer_id = c.id AND s2.date >= ? AND s2.date <= ? AND s2.status != 'returned') as revenue,
-      (SELECT COALESCE(SUM(si2.quantity), 0) FROM sale_items si2 JOIN sales s3 ON s3.id = si2.sale_id AND s3.customer_id = c.id AND s3.date >= ? AND s3.date <= ? AND s3.status != 'returned') as quantity,
-      (SELECT COUNT(*) FROM sales s2 WHERE s2.customer_id = c.id AND s2.date >= ? AND s2.date <= ? AND s2.status != 'returned') as order_count
+      (SELECT COALESCE(SUM(s2.total), 0) FROM sales s2 WHERE s2.customer_id = c.id AND date(s2.date) >= date(?) AND date(s2.date) <= date(?) AND s2.status != 'returned') as revenue,
+      (SELECT COALESCE(SUM(si2.quantity), 0) FROM sale_items si2 JOIN sales s3 ON s3.id = si2.sale_id AND s3.customer_id = c.id AND date(s3.date) >= date(?) AND date(s3.date) <= date(?) AND s3.status != 'returned') as quantity,
+      (SELECT COUNT(*) FROM sales s2 WHERE s2.customer_id = c.id AND date(s2.date) >= date(?) AND date(s2.date) <= date(?) AND s2.status != 'returned') as order_count
     FROM customers c
-    WHERE c.archived = 0 AND (SELECT SUM(s2.total) FROM sales s2 WHERE s2.customer_id = c.id AND s2.date >= ? AND s2.date <= ? AND s2.status != 'returned') > 0
+    WHERE c.archived = 0 AND (SELECT SUM(s2.total) FROM sales s2 WHERE s2.customer_id = c.id AND date(s2.date) >= date(?) AND date(s2.date) <= date(?) AND s2.status != 'returned') > 0
     ORDER BY revenue DESC
     LIMIT 3
   `).all(startDate, endDate, startDate, endDate, startDate, endDate, startDate, endDate);
@@ -126,7 +128,7 @@ router.get('/', (req, res) => {
     FROM products p
     JOIN sale_items si ON si.product_id = p.id
     JOIN sales s ON s.id = si.sale_id
-    WHERE s.date >= ? AND s.date <= ? AND s.status != 'returned'
+    WHERE date(s.date) >= date(?) AND date(s.date) <= date(?) AND s.status != 'returned'
     GROUP BY p.id
     ORDER BY quantity_sold DESC
     LIMIT 10
@@ -149,8 +151,7 @@ router.get('/', (req, res) => {
   // Calculate all time net profit
   const allTimeNetProfit = allTimeStats.profit - allTimeExpenses.total;
   
-  // Recent sales with pagination
-  const now = new Date();
+  // Recent sales with pagination — cùng ngày VN với getDateRange (todayKey), không dùng new Date() server
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 5;
   const offset = (page - 1) * limit;
@@ -163,32 +164,23 @@ router.get('/', (req, res) => {
   `;
   
   let countQuery = `SELECT COUNT(*) as total FROM sales s`;
-  let params = [];
   let whereClause = '';
   
-  // Filter by period
   if (period === 'thisMonth') {
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    whereClause = ` WHERE strftime('%Y-%m', s.date) = '${year}-${month}'`;
+    const ym = todayKey.slice(0, 7);
+    whereClause = ` WHERE strftime('%Y-%m', s.date) = '${ym}'`;
   } else if (period === 'lastMonth') {
-    const lastMonth = new Date(now);
-    lastMonth.setMonth(lastMonth.getMonth() - 1);
-    const y = lastMonth.getFullYear();
-    const m = String(lastMonth.getMonth() + 1).padStart(2, '0');
-    whereClause = ` WHERE strftime('%Y-%m', s.date) = '${y}-${m}'`;
+    const ym = startDate.split(' ')[0].slice(0, 7);
+    whereClause = ` WHERE strftime('%Y-%m', s.date) = '${ym}'`;
   } else if (period === 'today') {
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    whereClause = ` WHERE date(s.date) = '${year}-${month}-${day}'`;
+    whereClause = ` WHERE date(s.date) = date('${todayKey}')`;
   } else if (period === 'yesterday') {
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-    const y = yesterday.getFullYear();
-    const m = String(yesterday.getMonth() + 1).padStart(2, '0');
-    const d = String(yesterday.getDate()).padStart(2, '0');
-    whereClause = ` WHERE date(s.date) = '${y}-${m}-${d}'`;
+    const yk = startDate.split(' ')[0];
+    whereClause = ` WHERE date(s.date) = date('${yk}')`;
+  } else if (period === 'week') {
+    const d0 = startDate.split(' ')[0];
+    const d1 = endDate.split(' ')[0];
+    whereClause = ` WHERE date(s.date) >= date('${d0}') AND date(s.date) <= date('${d1}')`;
   }
   
   countQuery += whereClause;
@@ -619,8 +611,7 @@ router.get('/sales', (req, res) => {
   const limit = parseInt(req.query.limit) || 5;
   const offset = (page - 1) * limit;
   const period = req.query.period || 'thisMonth';
-  
-  const now = new Date();
+  const { startDate, endDate, todayKey } = getDateRange(period);
   
   let salesQuery = `
     SELECT s.id, s.customer_id, s.date, s.total, s.profit, s.type, s.deliver_kegs, s.return_kegs, c.name as customer_name,
@@ -633,27 +624,20 @@ router.get('/sales', (req, res) => {
   let whereClause = '';
   
   if (period === 'thisMonth') {
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    whereClause = ` WHERE strftime('%Y-%m', s.date) = '${year}-${month}'`;
+    const ym = todayKey.slice(0, 7);
+    whereClause = ` WHERE strftime('%Y-%m', s.date) = '${ym}'`;
   } else if (period === 'lastMonth') {
-    const lastMonth = new Date(now);
-    lastMonth.setMonth(lastMonth.getMonth() - 1);
-    const y = lastMonth.getFullYear();
-    const m = String(lastMonth.getMonth() + 1).padStart(2, '0');
-    whereClause = ` WHERE strftime('%Y-%m', s.date) = '${y}-${m}'`;
+    const ym = startDate.split(' ')[0].slice(0, 7);
+    whereClause = ` WHERE strftime('%Y-%m', s.date) = '${ym}'`;
   } else if (period === 'today') {
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    whereClause = ` WHERE date(s.date) = '${year}-${month}-${day}'`;
+    whereClause = ` WHERE date(s.date) = date('${todayKey}')`;
   } else if (period === 'yesterday') {
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-    const y = yesterday.getFullYear();
-    const m = String(yesterday.getMonth() + 1).padStart(2, '0');
-    const d = String(yesterday.getDate()).padStart(2, '0');
-    whereClause = ` WHERE date(s.date) = '${y}-${m}-${d}'`;
+    const yk = startDate.split(' ')[0];
+    whereClause = ` WHERE date(s.date) = date('${yk}')`;
+  } else if (period === 'week') {
+    const d0 = startDate.split(' ')[0];
+    const d1 = endDate.split(' ')[0];
+    whereClause = ` WHERE date(s.date) >= date('${d0}') AND date(s.date) <= date('${d1}')`;
   }
   
   countQuery += whereClause;
@@ -690,8 +674,10 @@ router.get('/profit-product', (req, res) => {
   
   const params = [];
   if (startDate && endDate) {
-    query += ` WHERE s.date >= ? AND s.date <= ?`;
-    params.push(startDate + ' 00:00:00', endDate + ' 23:59:59');
+    const d0 = String(startDate).split(' ')[0];
+    const d1 = String(endDate).split(' ')[0];
+    query += ` AND date(s.date) >= date(?) AND date(s.date) <= date(?)`;
+    params.push(d0, d1);
   }
   
   query += ` GROUP BY p.id ORDER BY profit DESC`;
@@ -806,7 +792,8 @@ router.get('/profit-customer', (req, res) => {
     labelThangNam = thang + ' / ' + y;
   }
 
-  const endStrFull = endStr.length <= 10 ? endStr + ' 23:59:59' : endStr;
+  const startDay = startStr.split(' ')[0];
+  const endDay = endStr.split(' ')[0];
   const customers = db.prepare(`
     SELECT 
       c.id,
@@ -817,9 +804,9 @@ router.get('/profit-customer', (req, res) => {
     FROM sales s
     JOIN customers c ON c.id = s.customer_id
     WHERE s.status != 'returned' AND s.type = 'sale' AND c.archived = 0
-      AND s.date >= ? AND s.date <= ?
+      AND date(s.date) >= date(?) AND date(s.date) <= date(?)
     GROUP BY c.id ORDER BY profit DESC
-  `).all(startStr, endStrFull);
+  `).all(startDay, endDay);
 
   const totalRevenue = customers.reduce((sum, r) => sum + (r.revenue || 0), 0);
   const totalProfit = customers.reduce((sum, r) => sum + (r.profit || 0), 0);
