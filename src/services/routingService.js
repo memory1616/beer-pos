@@ -1,11 +1,11 @@
 /**
  * Routing Service - Real driving distance & route optimization
- * Uses Google Maps Directions API with simple caching
+ * Uses OSRM (free, no API key) with Google Directions API as fallback
  */
 
 const https = require('https');
 
-// Simple in-memory cache (would be better with Redis in production)
+// Simple in-memory cache
 const routeCache = new Map();
 const CACHE_TTL = 30 * 60 * 1000; // 30 minutes
 
@@ -53,61 +53,112 @@ function decodePolyline(encoded) {
 }
 
 /**
- * Get route between two points using Google Maps Directions API
+ * Get route between two points using OSRM (free, no API key) with Google as fallback
  * @param {Object} origin - { lat, lng }
  * @param {Object} destination - { lat, lng }
  * @returns {Promise<{distance_km: number, duration_min: number, polyline: string}>}
  */
 async function getRoute(origin, destination) {
-  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
-  
-  if (!apiKey) {
-    throw new Error('GOOGLE_MAPS_API_KEY not configured');
-  }
-
-  // Create cache key
   const cacheKey = `${origin.lat},${origin.lng}-${destination.lat},${destination.lng}`;
-  
-  // Check cache
+
   const cached = routeCache.get(cacheKey);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
     return cached.data;
   }
 
+  try {
+    const result = await getOsrmRoute(origin, destination);
+    routeCache.set(cacheKey, { timestamp: Date.now(), data: result });
+    return result;
+  } catch (osrmErr) {
+    console.warn('[Routing] OSRM failed, trying Google:', osrmErr.message);
+    try {
+      const result = await getGoogleRoute(origin, destination);
+      routeCache.set(cacheKey, { timestamp: Date.now(), data: result });
+      return result;
+    } catch (googleErr) {
+      throw new Error('No routing service available: ' + googleErr.message);
+    }
+  }
+}
+
+/**
+ * Get route via OSRM (public server, no API key needed)
+ * @param {Object} origin - { lat, lng }
+ * @param {Object} destination - { lat, lng }
+ */
+async function getOsrmRoute(origin, destination) {
+  const url =
+    `https://router.project-osrm.org/route/v1/driving/${origin.lng},${origin.lat};${destination.lng},${destination.lat}` +
+    `?overview=full&geometries=geojson&steps=false`;
+
+  return new Promise((resolve, reject) => {
+    https.get(url, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          const json = JSON.parse(data);
+          if (json.code === 'Ok' && json.routes && json.routes.length > 0) {
+            const r = json.routes[0];
+            const response = {
+              distance_km: r.distance / 1000,
+              duration_min: Math.round(r.duration / 60),
+              polyline: JSON.stringify(r.geometry), // GeoJSON
+              decodedPath: r.geometry.coordinates.map(([lng, lat]) => [lat, lng])
+            };
+            resolve(response);
+          } else {
+            reject(new Error('OSRM error: ' + json.code));
+          }
+        } catch (e) {
+          reject(new Error('OSRM parse error'));
+        }
+      });
+    }).on('error', (e) => reject(new Error('OSRM network error: ' + e.message)));
+  });
+}
+
+/**
+ * Get route via Google Maps Directions API (fallback, requires API key)
+ * @param {Object} origin - { lat, lng }
+ * @param {Object} destination - { lat, lng }
+ */
+async function getGoogleRoute(origin, destination) {
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+
+  if (!apiKey) {
+    throw new Error('GOOGLE_MAPS_API_KEY not configured');
+  }
+
   const originStr = `${origin.lat},${origin.lng}`;
   const destStr = `${destination.lat},${destination.lng}`;
-  
+
   const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${originStr}&destination=${destStr}&mode=driving&key=${apiKey}`;
 
   return new Promise((resolve, reject) => {
     https.get(url, (res) => {
       let data = '';
-      
+
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
         try {
           const result = JSON.parse(data);
-          
+
           if (result.status === 'OK' && result.routes.length > 0) {
             const route = result.routes[0];
             const leg = route.legs[0];
-            
+
             const response = {
-              distance_km: leg.distance.value / 1000, // Convert meters to km
-              duration_min: Math.round(leg.duration.value / 60), // Convert seconds to minutes
+              distance_km: leg.distance.value / 1000,
+              duration_min: Math.round(leg.duration.value / 60),
               polyline: route.overview_polyline.points,
-              decodedPath: decodePolyline(route.overview_polyline.points) // Array of [lat, lng]
+              decodedPath: decodePolyline(route.overview_polyline.points)
             };
-            
-            // Cache the result
-            routeCache.set(cacheKey, {
-              timestamp: Date.now(),
-              data: response
-            });
-            
+
             resolve(response);
           } else if (result.status === 'ZERO_RESULTS') {
-            reject(new Error('No driving route found between these points'));
+            reject(new Error('No driving route found'));
           } else {
             reject(new Error(`Google API error: ${result.status}`));
           }

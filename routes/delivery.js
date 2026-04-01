@@ -264,23 +264,15 @@ router.get('/', (req, res, next) => {
       return R * c;
     }
 
-    // Get real driving distance from API
+    // Get real driving distance from OSRM (free) or Google (fallback)
     async function getRealRoute(originLat, originLng, destLat, destLng) {
-      if (!hasGoogleApi) {
-        return {
-          distance_km: calculateDistance(originLat, originLng, destLat, destLng),
-          duration_min: 0,
-          polyline: null
-        };
-      }
-      
       try {
         const res = await fetch('/api/routing/route?originLat=' + originLat + '&originLng=' + originLng + '&destLat=' + destLat + '&destLng=' + destLng);
+        if (!res.ok) throw new Error('API error ' + res.status);
         const data = await res.json();
         return data;
       } catch (e) {
-        console.error('Route API error:', e);
-        // Fallback to straight-line
+        console.warn('Route API failed, using straight-line:', e.message);
         return {
           distance_km: calculateDistance(originLat, originLng, destLat, destLng),
           duration_min: 0,
@@ -319,17 +311,11 @@ router.get('/', (req, res, next) => {
           const lng = parseFloat(card.dataset.lng);
           const name = card.dataset.name;
           
-          let distance;
-          if (hasGoogleApi) {
-            const route = await getRealRoute(originLat, originLng, lat, lng);
-            distance = route.distance_km;
-            card.dataset.realDistance = route.distance_km;
-            card.dataset.duration = route.duration_min;
-            card.dataset.polyline = route.polyline || '';
-          } else {
-            distance = calculateDistance(originLat, originLng, lat, lng);
-            card.dataset.realDistance = distance;
-          }
+          const route = await getRealRoute(originLat, originLng, lat, lng);
+          distance = route.distance_km;
+          card.dataset.realDistance = route.distance_km;
+          card.dataset.duration = route.duration_min;
+          card.dataset.polyline = route.polyline || '';
           
           withDistances.push({ card, distance, lat, lng, name });
         }
@@ -367,30 +353,28 @@ router.get('/', (req, res, next) => {
             const prevLng = index === 0 ? originLng : withDistances[index - 1].lng;
             
             let routeLine;
-            
-            if (hasGoogleApi) {
-              // Fetch real route between consecutive points
-              const route = await getRealRoute(prevLat, prevLng, customer.lat, customer.lng);
-              if (route.polyline) {
+
+            // Fetch real route between consecutive points
+            const route = await getRealRoute(prevLat, prevLng, customer.lat, customer.lng);
+            if (route.polyline) {
+              try {
+                // OSRM returns GeoJSON (parsed JSON string), Google returns encoded polyline
+                let latLngs;
                 try {
+                  const geojson = JSON.parse(route.polyline);
+                  latLngs = geojson.coordinates.map(([lng, lat]) => [lat, lng]);
+                } catch {
+                  // Google encoded polyline fallback
                   const decoded = decodePolyline(route.polyline);
-                  routeLine = L.polyline(decoded, {
-                    color: '#8b5cf6',
-                    weight: 4,
-                    opacity: 0.8
-                  }).addTo(map);
-                  routePolylines.push(routeLine);
-                } catch (e) {
-                  // Fallback to straight line
-                  routeLine = L.polyline([[prevLat, prevLng], [customer.lat, customer.lng]], {
-                    color: '#8b5cf6',
-                    weight: 3,
-                    opacity: 0.7
-                  }).addTo(map);
-                  routePolylines.push(routeLine);
+                  latLngs = decoded;
                 }
-              } else {
-                // Fallback to straight line if no polyline
+                routeLine = L.polyline(latLngs, {
+                  color: '#8b5cf6',
+                  weight: 4,
+                  opacity: 0.8
+                }).addTo(map);
+                routePolylines.push(routeLine);
+              } catch (e) {
                 routeLine = L.polyline([[prevLat, prevLng], [customer.lat, customer.lng]], {
                   color: '#8b5cf6',
                   weight: 3,
@@ -399,7 +383,7 @@ router.get('/', (req, res, next) => {
                 routePolylines.push(routeLine);
               }
             } else {
-              // No Google API - draw straight line
+              // Straight line fallback
               routeLine = L.polyline([[prevLat, prevLng], [customer.lat, customer.lng]], {
                 color: '#8b5cf6',
                 weight: 3,
@@ -414,8 +398,7 @@ router.get('/', (req, res, next) => {
         await updateDistances();
         
         const totalDist = withDistances.reduce((sum, d) => sum + d.distance, 0);
-        const method = hasGoogleApi ? 'thực tế' : 'đường thẳng';
-        alert('Đã tối ưu lộ trình! (' + method + ')\\nTổng khoảng cách: ' + totalDist.toFixed(1) + ' km');
+        alert('Đã tối ưu lộ trình! (đường đi thực tế)\nTổng khoảng cách: ' + totalDist.toFixed(1) + ' km');
       } catch (e) {
         console.error('Route optimization error:', e);
         alert('Lỗi tối ưu lộ trình: ' + e.message);
@@ -425,7 +408,7 @@ router.get('/', (req, res, next) => {
       }
     }
 
-    // Update all distances and costs
+    // Update all distances and costs — uses real driving distance from OSRM
     async function updateDistances() {
       const originLat = currentLat || defaultSettings.distributorLat;
       const originLng = currentLng || defaultSettings.distributorLng;
@@ -433,39 +416,58 @@ router.get('/', (req, res, next) => {
       let totalDistance = 0;
       let totalDuration = 0;
       let totalFee = 0;
+      let updated = 0;
+      const cards = Array.from(document.querySelectorAll('.delivery-card'));
 
-      for (const card of document.querySelectorAll('.delivery-card')) {
+      for (const card of cards) {
         const lat = parseFloat(card.dataset.lat);
         const lng = parseFloat(card.dataset.lng);
-        
-        let distance, duration;
-        
-        // Use cached real distance if available
-        if (hasGoogleApi && card.dataset.realDistance) {
-          distance = parseFloat(card.dataset.realDistance);
-          duration = parseInt(card.dataset.duration) || Math.round(distance / 30 * 60); // Estimate: 30km/h avg
+
+        // Check if we already have a cached real distance for this card
+        if (card.dataset.realDistance) {
+          const distance = parseFloat(card.dataset.realDistance);
+          const duration = parseInt(card.dataset.duration) || Math.round(distance / 30 * 60);
+          const cost = calculateCost(distance);
+          card.querySelector('.distance').textContent = distance.toFixed(1);
+          card.querySelector('.delivery-fee').textContent = cost.toLocaleString('vi-VN') + ' ₫';
+          totalDistance += distance;
+          totalDuration += duration;
+          totalFee += cost;
+          updated++;
         } else {
-          distance = calculateDistance(originLat, originLng, lat, lng);
-          duration = Math.round(distance / 30 * 60);
-        }
-        
-        const cost = calculateCost(distance);
+          // Fetch real driving distance via OSRM
+          card.querySelector('.distance').textContent = '...';
+          card.querySelector('.delivery-fee').textContent = '...';
 
-        card.querySelector('.distance').textContent = distance.toFixed(1);
-        card.querySelector('.delivery-fee').textContent = cost.toLocaleString('vi-VN') + ' ₫';
-        if (card.dataset.duration) {
-          const durDisplay = card.querySelector('.duration');
-          if (durDisplay) durDisplay.textContent = Math.round(duration) + ' ph';
-        }
+          try {
+            const route = await getRealRoute(originLat, originLng, lat, lng);
+            card.dataset.realDistance = route.distance_km;
+            card.dataset.duration = route.duration_min;
+            card.dataset.polyline = route.polyline || '';
 
-        totalDistance += distance;
-        totalDuration += duration;
-        totalFee += cost;
+            const distance = route.distance_km;
+            const duration = route.duration_min;
+            const cost = calculateCost(distance);
+            card.querySelector('.distance').textContent = distance.toFixed(1);
+            card.querySelector('.delivery-fee').textContent = cost.toLocaleString('vi-VN') + ' ₫';
+            totalDistance += distance;
+            totalDuration += duration;
+            totalFee += cost;
+          } catch (e) {
+            console.warn('Distance calc failed for', card.dataset.name, e.message);
+            const distance = calculateDistance(originLat, originLng, lat, lng);
+            const cost = calculateCost(distance);
+            card.querySelector('.distance').textContent = distance.toFixed(1);
+            card.querySelector('.delivery-fee').textContent = cost.toLocaleString('vi-VN') + ' ₫';
+            totalDistance += distance;
+            totalFee += cost;
+          }
+          updated++;
+        }
       }
 
       document.getElementById('totalDistance').textContent = totalDistance.toFixed(1);
-      
-      // Add duration display if we have real route data
+
       let durationDisplay = document.getElementById('totalDuration');
       if (!durationDisplay) {
         durationDisplay = document.createElement('span');
@@ -473,7 +475,7 @@ router.get('/', (req, res, next) => {
         document.querySelector('#totalDistance').parentElement.appendChild(durationDisplay);
       }
       durationDisplay.textContent = ' | ' + Math.round(totalDuration) + ' ph';
-      
+
       document.getElementById('totalDeliveryFee').textContent = totalFee.toLocaleString('vi-VN');
     }
 
@@ -540,15 +542,12 @@ router.get('/', (req, res, next) => {
         distance = parseFloat(card.dataset.realDistance);
         duration = parseInt(card.dataset.duration) || 0;
         polyline = card.dataset.polyline || '';
-      } else if (hasGoogleApi) {
-        // Fetch real route
+      } else {
+        // Fetch real driving distance
         const route = await getRealRoute(originLat, originLng, lat, lng);
         distance = route.distance_km;
         duration = route.duration_min;
         polyline = route.polyline || '';
-      } else {
-        distance = calculateDistance(originLat, originLng, lat, lng);
-        duration = Math.round(distance / 30 * 60);
       }
       
       const cost = calculateCost(distance);
