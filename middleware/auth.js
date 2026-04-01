@@ -1,5 +1,7 @@
 // ==================== PERSISTENT AUTH SESSIONS (SQLite) ====================
 // auth_sessions table — survives PM2 restarts unlike in-memory store
+const db = require('../database.js');
+
 try {
   db.exec(`
     CREATE TABLE IF NOT EXISTS auth_sessions (
