@@ -1,8 +1,8 @@
-// ==================== PERSISTENT SESSIONS (SQLite) ====================
-// Session table — survives PM2 restarts unlike in-memory store
+// ==================== PERSISTENT AUTH SESSIONS (SQLite) ====================
+// auth_sessions table — survives PM2 restarts unlike in-memory store
 try {
   db.exec(`
-    CREATE TABLE IF NOT EXISTS sessions (
+    CREATE TABLE IF NOT EXISTS auth_sessions (
       token TEXT PRIMARY KEY,
       username TEXT NOT NULL,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -10,39 +10,39 @@ try {
       last_active INTEGER NOT NULL
     )
   `);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at)`);
-  console.log('Created sessions table (SQLite-backed)');
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_auth_sessions_expires ON auth_sessions(expires_at)`);
+  console.log('Created auth_sessions table (SQLite-backed)');
 } catch (e) {
-  console.log('Sessions table note:', e.message);
+  console.log('auth_sessions table note:', e.message);
 }
 
 // Periodic cleanup of expired sessions (runs every 30 minutes)
 setInterval(() => {
   const now = Date.now();
-  const cleaned = db.prepare(`DELETE FROM sessions WHERE expires_at < ?`).run(now).changes;
+  const cleaned = db.prepare(`DELETE FROM auth_sessions WHERE expires_at < ?`).run(now).changes;
   if (cleaned > 0) console.log(`[Auth] Cleaned up ${cleaned} expired session(s)`);
 }, 30 * 60 * 1000);
 
 function dbGetSession(token) {
   if (!token) return null;
   const now = Date.now();
-  const row = db.prepare(`SELECT * FROM sessions WHERE token = ? AND expires_at > ?`).get(token, now);
+  const row = db.prepare(`SELECT * FROM auth_sessions WHERE token = ? AND expires_at > ?`).get(token, now);
   if (!row) return null;
-  // Extend session on activity (there's a race here but acceptable for a small app)
-  db.prepare(`UPDATE sessions SET last_active = ? WHERE token = ?`).run(now, token);
+  // Extend session on activity
+  db.prepare(`UPDATE auth_sessions SET last_active = ? WHERE token = ?`).run(now, token);
   return { username: row.username, createdAt: new Date(row.created_at).getTime(), expiresAt: row.expires_at };
 }
 
 function dbSaveSession(token, username, expiresAt) {
   db.prepare(`
-    INSERT OR REPLACE INTO sessions (token, username, created_at, expires_at, last_active)
+    INSERT OR REPLACE INTO auth_sessions (token, username, created_at, expires_at, last_active)
     VALUES (?, ?, datetime('now'), ?, ?)
   `).run(token, username, expiresAt, Date.now());
 }
 
 function dbDeleteSession(token) {
   if (!token) return;
-  db.prepare(`DELETE FROM sessions WHERE token = ?`).run(token);
+  db.prepare(`DELETE FROM auth_sessions WHERE token = ?`).run(token);
 }
 
 // ==================== AUTHENTICATION ====================
