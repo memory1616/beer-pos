@@ -19,11 +19,17 @@ try {
 }
 
 // Periodic cleanup of expired sessions (runs every 30 minutes)
-setInterval(() => {
-  const now = Date.now();
-  const cleaned = db.prepare(`DELETE FROM auth_sessions WHERE expires_at < ?`).run(now).changes;
-  if (cleaned > 0) console.log(`[Auth] Cleaned up ${cleaned} expired session(s)`);
-}, 30 * 60 * 1000);
+let cleanupHandle = null;
+try {
+  cleanupHandle = setInterval(() => {
+    if (typeof db === 'undefined') return;
+    const now = Date.now();
+    const cleaned = db.prepare(`DELETE FROM auth_sessions WHERE expires_at < ?`).run(now).changes;
+    if (cleaned > 0) console.log(`[Auth] Cleaned up ${cleaned} expired session(s)`);
+  }, 30 * 60 * 1000);
+} catch (e) {
+  console.log('[Auth] Session cleanup not available:', e.message);
+}
 
 function dbGetSession(token) {
   if (!token) return null;

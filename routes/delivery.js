@@ -461,7 +461,7 @@ router.get('/', (req, res, next) => {
         totalDistance += distance;
         totalDuration += duration;
         totalFee += cost;
-      });
+      }
 
       document.getElementById('totalDistance').textContent = totalDistance.toFixed(1);
       
