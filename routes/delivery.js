@@ -312,11 +312,11 @@ router.get('/', (req, res, next) => {
           const name = card.dataset.name;
           
           const route = await getRealRoute(originLat, originLng, lat, lng);
-          distance = route.distance_km;
+          const distance = route.distance_km;
           card.dataset.realDistance = route.distance_km;
           card.dataset.duration = route.duration_min;
           card.dataset.polyline = route.polyline || '';
-          
+
           withDistances.push({ card, distance, lat, lng, name });
         }
         
