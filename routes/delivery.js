@@ -537,7 +537,7 @@ router.get('/', (req, res, next) => {
       const originLng = currentLng || defaultSettings.distributorLng;
       
       // Check if we have cached real distance
-      const card = document.querySelector(`.delivery-card[data-lat="${lat}"][data-lng="${lng}"]`);
+      const card = document.querySelector(".delivery-card[data-lat=" + lat + "][data-lng=" + lng + "]");
       if (card && card.dataset.realDistance) {
         distance = parseFloat(card.dataset.realDistance);
         duration = parseInt(card.dataset.duration) || 0;
