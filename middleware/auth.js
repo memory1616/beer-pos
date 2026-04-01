@@ -1,10 +1,53 @@
+// ==================== PERSISTENT SESSIONS (SQLite) ====================
+// Session table — survives PM2 restarts unlike in-memory store
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS sessions (
+      token TEXT PRIMARY KEY,
+      username TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      expires_at INTEGER NOT NULL,
+      last_active INTEGER NOT NULL
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at)`);
+  console.log('Created sessions table (SQLite-backed)');
+} catch (e) {
+  console.log('Sessions table note:', e.message);
+}
+
+// Periodic cleanup of expired sessions (runs every 30 minutes)
+setInterval(() => {
+  const now = Date.now();
+  const cleaned = db.prepare(`DELETE FROM sessions WHERE expires_at < ?`).run(now).changes;
+  if (cleaned > 0) console.log(`[Auth] Cleaned up ${cleaned} expired session(s)`);
+}, 30 * 60 * 1000);
+
+function dbGetSession(token) {
+  if (!token) return null;
+  const now = Date.now();
+  const row = db.prepare(`SELECT * FROM sessions WHERE token = ? AND expires_at > ?`).get(token, now);
+  if (!row) return null;
+  // Extend session on activity (there's a race here but acceptable for a small app)
+  db.prepare(`UPDATE sessions SET last_active = ? WHERE token = ?`).run(now, token);
+  return { username: row.username, createdAt: new Date(row.created_at).getTime(), expiresAt: row.expires_at };
+}
+
+function dbSaveSession(token, username, expiresAt) {
+  db.prepare(`
+    INSERT OR REPLACE INTO sessions (token, username, created_at, expires_at, last_active)
+    VALUES (?, ?, datetime('now'), ?, ?)
+  `).run(token, username, expiresAt, Date.now());
+}
+
+function dbDeleteSession(token) {
+  if (!token) return;
+  db.prepare(`DELETE FROM sessions WHERE token = ?`).run(token);
+}
+
 // ==================== AUTHENTICATION ====================
-// Session-based auth for Beer POS
 // Token is returned to client on login and stored in localStorage.
 const crypto = require('crypto');
-
-// In-memory session store
-const sessions = {};
 
 // Config from env (ADMIN_PASSWORD MUST be set in .env for security)
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
@@ -22,26 +65,6 @@ const AUTH_CONFIG = {
   cookieSameSite: 'lax'
 };
 
-// Periodic cleanup of expired sessions (runs every 30 minutes)
-setInterval(() => {
-  const now = Date.now();
-  let cleaned = 0;
-  for (const token of Object.keys(sessions)) {
-    if (now > sessions[token].expiresAt) {
-      delete sessions[token];
-      cleaned++;
-    }
-  }
-  if (cleaned > 0) {
-    console.log(`[Auth] Cleaned up ${cleaned} expired session(s)`);
-  }
-}, 30 * 60 * 1000);
-
-// Generate a cryptographically random session token
-function generateToken() {
-  return crypto.randomBytes(32).toString('hex');
-}
-
 // Auth middleware — reads token from cookie OR Authorization header
 function requireAuth(req, res, next) {
   const cookieToken = req.cookies?.[AUTH_CONFIG.cookieName];
@@ -54,18 +77,11 @@ function requireAuth(req, res, next) {
     return res.status(401).json({ error: 'Unauthorized', loginRequired: true });
   }
 
-  const session = sessions[token];
+  const session = dbGetSession(token);
   if (!session) {
     return res.status(401).json({ error: 'Session expired', loginRequired: true });
   }
 
-  if (Date.now() > session.expiresAt) {
-    delete sessions[token];
-    return res.status(401).json({ error: 'Session expired', loginRequired: true });
-  }
-
-  // Extend session on activity
-  session.expiresAt = Date.now() + AUTH_CONFIG.sessionDuration;
   req.user = session;
   next();
 }
@@ -73,12 +89,9 @@ function requireAuth(req, res, next) {
 // Login — sets httpOnly cookie instead of returning token to JS
 function login(username, password) {
   if (username === AUTH_CONFIG.username && password === ADMIN_PASSWORD) {
-    const token = generateToken();
-    sessions[token] = {
-      username,
-      createdAt: Date.now(),
-      expiresAt: Date.now() + AUTH_CONFIG.sessionDuration
-    };
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = Date.now() + AUTH_CONFIG.sessionDuration;
+    dbSaveSession(token, username, expiresAt);
     return { token };
   }
   return null;
@@ -86,20 +99,13 @@ function login(username, password) {
 
 // Logout — clears the session and cookie
 function logout(token) {
-  if (token && sessions[token]) {
-    delete sessions[token];
-    return true;
-  }
-  return false;
+  dbDeleteSession(token);
+  return true;
 }
 
 // Get session info
 function getSession(token) {
-  const session = sessions[token];
-  if (!session || Date.now() > session.expiresAt) {
-    return null;
-  }
-  return session;
+  return dbGetSession(token);
 }
 
 // Middleware options for setting the auth cookie

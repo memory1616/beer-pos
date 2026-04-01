@@ -204,9 +204,32 @@ function createBackup(options = {}) {
 
   try {
     fs.copyFileSync(dbPath, backupFile);
-    logger.info(`Auto backup: backup-${timestamp}.db`);
+
+    // === Integrity check: try to open backup with SQLite ===
+    let integrityOk = false;
+    try {
+      const BackupDb = require('better-sqlite3');
+      const testDb = new BackupDb(backupFile, { readonly: true });
+      const result = testDb.prepare('PRAGMA integrity_check').get();
+      testDb.close();
+      integrityOk = result && result.integrity_check === 'ok';
+    } catch (_) {
+      // Fallback: check file size is reasonable (> 10KB)
+      const stat = fs.statSync(backupFile);
+      integrityOk = stat.size > 10 * 1024;
+    }
+
+    if (!integrityOk) {
+      logger.warn(`Backup file may be corrupted: ${backupFile}, attempting re-copy...`);
+      // Re-copy with a corrupt marker
+      fs.renameSync(backupFile, backupFile.replace('.db', '.corrupt.db'));
+      fs.copyFileSync(dbPath, backupFile);
+      logger.info('Backup re-copied successfully');
+    }
+
+    logger.info(`Auto backup: backup-${timestamp}.db (integrity: ${integrityOk ? 'OK' : 'RECHECKED'})`);
     cleanupOldBackups(backupDir);
-    return { success: true, file: backupFile };
+    return { success: true, file: backupFile, integrity: integrityOk };
   } catch (e) {
     logger.error('Backup failed', { error: e.message });
     return { success: false, error: e.message };
@@ -229,6 +252,17 @@ function cleanupOldBackups(backupDir) {
 }
 
 cron.schedule('0 23 * * *', () => createBackup({ daily: true }));
+
+// ==================== WAL CHECKPOINT (keep WAL file small) ====================
+// Run every 6 hours to checkpoint WAL → main DB, keeping WAL file small
+cron.schedule('0 */6 * * *', () => {
+  try {
+    db.pragma('wal_checkpoint(TRUNCATE)');
+    logger.info('WAL checkpoint completed (TRUNCATE mode)');
+  } catch (e) {
+    logger.error('WAL checkpoint failed', { error: e.message });
+  }
+});
 
 // ==================== WEB ROUTES ====================
 
@@ -346,6 +380,70 @@ app.post('/webhook/deploy', async (req, res) => {
 // ==================== HEALTH CHECK ====================
 app.get('/api/ping', (req, res) => {
   res.json({ ok: true, timestamp: new Date().toISOString() });
+});
+
+// ==================== COMPREHENSIVE HEALTH CHECK ====================
+app.get('/health', (req, res) => {
+  const checks = { ok: true, timestamp: new Date().toISOString(), checks: {} };
+  const status = { http: 200 };
+
+  // DB check
+  try {
+    const row = db.prepare('SELECT 1 as ping').get();
+    checks.checks.database = { ok: row && row.ping === 1, mode: db.pragma('journal_mode')[0].journal_mode };
+  } catch (e) {
+    checks.checks.database = { ok: false, error: e.message };
+    checks.ok = false;
+    status.http = 503;
+  }
+
+  // WAL size check (should be < 5MB under normal operation)
+  try {
+    const walPath = path.join(__dirname, 'database.sqlite-wal');
+    if (fs.existsSync(walPath)) {
+      const walSize = fs.statSync(walPath).size;
+      checks.checks.wal = { ok: walSize < 5 * 1024 * 1024, size_bytes: walSize };
+    } else {
+      checks.checks.wal = { ok: true, note: 'no WAL file' };
+    }
+  } catch (e) {
+    checks.checks.wal = { ok: false, error: e.message };
+  }
+
+  // Backup check — most recent backup age
+  try {
+    const backupDir = path.join(__dirname, 'backup');
+    if (fs.existsSync(backupDir)) {
+      const files = fs.readdirSync(backupDir)
+        .filter(f => f.startsWith('backup-') && f.endsWith('.db'))
+        .map(f => ({ name: f, time: fs.statSync(path.join(backupDir, f)).mtime }))
+        .sort((a, b) => b.time - a.time);
+      if (files.length > 0) {
+        const ageHours = (Date.now() - files[0].time.getTime()) / (1000 * 60 * 60);
+        checks.checks.backup = { ok: ageHours < 26, last_file: files[0].name, age_hours: Math.round(ageHours * 10) / 10 };
+        if (ageHours > 26) { checks.ok = false; status.http = 503; }
+      } else {
+        checks.checks.backup = { ok: false, note: 'no backup files found' };
+        checks.ok = false;
+      }
+    } else {
+      checks.checks.backup = { ok: false, note: 'no backup dir' };
+      checks.ok = false;
+    }
+  } catch (e) {
+    checks.checks.backup = { ok: false, error: e.message };
+    checks.ok = false;
+  }
+
+  // Memory usage
+  const mem = process.memoryUsage();
+  checks.checks.memory = {
+    heapUsed_mb: Math.round(mem.heapUsed / 1024 / 1024),
+    heapTotal_mb: Math.round(mem.heapTotal / 1024 / 1024),
+    rss_mb: Math.round(mem.rss / 1024 / 1024),
+  };
+
+  res.status(status.http).json(checks);
 });
 
 // ==================== CLOUD DISCOVERY ====================

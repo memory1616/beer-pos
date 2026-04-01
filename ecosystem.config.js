@@ -3,11 +3,11 @@ module.exports = {
     name: 'beer-pos',
     script: 'server.js',
     instances: 1,
-    exec_mode: 'cluster',
+    exec_mode: 'fork',
     env: {
       NODE_ENV: 'production',
       PORT: 3000,
-      HOST: '127.0.0.1',
+      HOST: '0.0.0.0',
       IS_CLOUD_SERVER: 'true',
       CLOUD_MODE: 'true',
       SESSION_SECRET: process.env.SESSION_SECRET || 'change-me-in-production',
