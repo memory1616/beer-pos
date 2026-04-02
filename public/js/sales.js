@@ -37,12 +37,20 @@ function renderSaleProducts() {
     const isLowStock = p.stock < 5;
     const currentQty = saleData[p.id] ? saleData[p.id].quantity : '';
     const priceLine = isKhachLe
-      ? `Giá bán: <span class="text-amber-700 font-bold">${formatVND(currentPrice)}</span> · Tồn: <span class="${p.stock < 5 ? 'text-red-500' : 'text-gray-500'}">${p.stock}</span>`
+      ? `· Tồn: <span class="${p.stock < 5 ? 'text-red-500 font-semibold' : 'text-gray-500'}">${p.stock}</span>`
       : `Giá: <span class="text-amber-700 font-bold">${formatVND(price)}</span> · Tồn: <span class="${p.stock < 5 ? 'text-red-500' : 'text-gray-500'}">${p.stock}</span>`;
+    const priceField = isKhachLe
+      ? `<label class="block text-xs font-semibold text-amber-700 mt-2 mb-1">Giá bán (đ)</label>
+        <input type="number" id="price-${p.id}" min="0" step="1000" value="${currentPrice > 0 ? currentPrice : ''}" placeholder="Nhập giá"
+          class="w-full border-2 border-amber-400 rounded-xl p-3 text-center text-lg font-bold text-amber-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-400 focus:outline-none"
+          onchange="updateSaleData(${p.id}, 'price', this.value); updateSaleTotal();"
+          oninput="updateSaleData(${p.id}, 'price', this.value); updateSaleTotal();">`
+      : '';
     return `
       <div class="p-3 border-2 ${isLowStock ? 'border-orange-300 bg-orange-50/40' : 'border-amber-200 bg-amber-50/30'} rounded-xl transition-all">
         <div class="text-sm font-bold text-gray-900">${p.name}</div>
         <div class="text-xs text-gray-600 mt-0.5">${priceLine}</div>
+        ${priceField}
         <input type="number" id="qty-${p.id}" min="0" max="${p.stock}" value="${currentQty > 0 ? currentQty : ''}" data-stock="${p.stock}"
           placeholder="Nhập SL"
           class="mt-2 w-full border-2 border-amber-400 rounded-xl p-3 text-center text-lg font-bold focus:border-amber-500 focus:ring-1 focus:ring-amber-400 focus:outline-none ${currentQty > 0 ? 'bg-amber-100/60' : ''}"
@@ -203,11 +211,11 @@ function updateSaleTotal() {
   if (sellBtn) {
     sellBtn.disabled = !hasItems;
     if (hasItems) {
-      sellBtn.classList.add('shadow-md', 'from-green-500', 'to-green-600');
-      sellBtn.classList.remove('opacity-40', 'shadow-none');
+      sellBtn.classList.add('shadow-md');
+      sellBtn.classList.remove('shadow-none');
     } else {
-      sellBtn.classList.remove('shadow-md', 'from-green-500', 'to-green-600');
-      sellBtn.classList.add('opacity-40', 'shadow-none');
+      sellBtn.classList.remove('shadow-md');
+      sellBtn.classList.add('shadow-none');
     }
   }
 }
