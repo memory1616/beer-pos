@@ -1,12 +1,10 @@
 {
-  "version": "2.0.3",
-  "build": "20260402",
+  "version": "2.0.4",
+  "build": "20260402b",
   "date": "2026-04-02",
   "changelog": [
-    "fix: topbar/bottomnav dark mode now uses CSS variables",
-    "feat: exponential backoff retry in SW sync queue",
-    "feat: haptic feedback API (window.haptic)",
-    "feat: mobile UX CSS utilities (44px touch, toast animations, offline banner)",
-    "feat: SW v22"
+    "fix: rebuild unified.css — remove duplicate sections and broken formatting",
+    "fix: normalize view line endings (LF/CRLF consistency)",
+    "refactor: complete semantic theme system coverage across all views/routes"
   ]
 }
