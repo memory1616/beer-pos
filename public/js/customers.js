@@ -8,8 +8,8 @@ function formatVND(amount) {
 // Toast notification
 function showToast(message, type = 'success') {
   const toast = document.createElement('div');
-  const bgColor = type === 'success' ? 'bg-success' : (type === 'error' ? 'bg-danger' : 'bg-info');
-  toast.className = `fixed top-4 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg z-50 transform transition-all duration-300 translate-x-full`;
+  const bgClass = type === 'success' ? 'bg-success' : (type === 'error' ? 'bg-danger' : 'bg-info');
+  toast.className = `fixed top-4 right-4 ${bgClass} text-main px-6 py-3 rounded-lg shadow-lg z-50 transform transition-all duration-300 translate-x-full`;
   toast.textContent = message;
   document.body.appendChild(toast);
 

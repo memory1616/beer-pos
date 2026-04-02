@@ -267,7 +267,7 @@
   </button>
 
   <!-- Add Modal -->
-  <div id="addModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-4 z-50">
+  <div id="addModal" class="fixed inset-0 bg-overlay hidden items-center justify-center p-4 z-50">
     <div class="card p-4 max-w-md w-full max-h-[85vh] flex flex-col">
       <h2 class="text-xl font-semibold text-main mb-4">Thêm khách hàng</h2>
       <form id="addForm" class="modal-body space-y-4">
@@ -312,7 +312,7 @@
 
   <!-- Edit Modal: mobile = bottom sheet, nội dung cuộn, nút cố định dưới -->
   <div id="editModal" class="fixed inset-0 z-50 hidden flex-col justify-end sm:justify-center sm:items-center bg-black/50 p-0 sm:p-4 overscroll-none" role="dialog" aria-modal="true" aria-labelledby="editModalTitle">
-    <div class="edit-modal-sheet bg-white w-full max-w-md max-h-[min(92dvh,900px)] sm:max-h-[85vh] rounded-t-2xl sm:rounded-xl shadow-xl flex flex-col overflow-hidden mx-auto sm:mx-0">
+    <div class="bg-card w-full max-w-md max-h-[min(92dvh,900px)] sm:max-h-[85vh] rounded-t-2xl sm:rounded-xl shadow-xl flex flex-col overflow-hidden mx-auto sm:mx-0">
       <div class="flex-shrink-0 px-4 pt-3 pb-3 border-b border-muted flex items-center justify-between gap-2">
         <h2 id="editModalTitle" class="text-base sm:text-lg font-semibold text-main pr-2">Sửa khách hàng</h2>
         <button type="button" onclick="hideModal('editModal')" class="min-w-[44px] min-h-[44px] flex items-center justify-center text-2xl leading-none text-muted rounded-full hover:bg-bg-hover active:bg-bg-hover touch-manipulation" aria-label="Đóng">×</button>
@@ -393,7 +393,7 @@
   </div>
 
   <!-- Price Modal -->
-  <div id="priceModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-4 z-50">
+  <div id="priceModal" class="fixed inset-0 bg-overlay hidden items-center justify-center p-4 z-50">
     <div class="card p-6 max-w-md w-full max-h-[80vh] overflow-y-auto">
       <h2 class="text-xl font-semibold text-main mb-4">Đặt giá cho <span id="priceCustomerName"></span></h2>
       <div id="priceList" class="space-y-3 mb-4">
@@ -407,7 +407,7 @@
   </div>
 
   <!-- Keg Balance Edit Modal -->
-  <div id="kegModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-4 z-50">
+  <div id="kegModal" class="fixed inset-0 bg-overlay hidden items-center justify-center p-4 z-50">
     <div class="card p-6 max-w-sm w-full">
       <h2 class="text-xl font-semibold text-main mb-4">✏️ Sửa số bình</h2>
       <p class="text-muted mb-4">Khách: <span id="kegCustomerName" class="font-bold text-main"></span></p>
@@ -428,7 +428,7 @@
   </div>
 
   <!-- Location Modal -->
-  <div id="locationModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-4 z-50">
+  <div id="locationModal" class="fixed inset-0 bg-overlay hidden items-center justify-center p-4 z-50">
     <div class="card p-6 max-w-sm w-full">
       <h2 class="text-xl font-semibold text-main mb-4">📍 Cập nhật vị trí</h2>
       <input type="hidden" id="locationCustomerId">

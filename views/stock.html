@@ -34,8 +34,8 @@
   </button>
 
   <!-- Product Modal -->
-  <div id="productModal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
-    <div class="bg-white rounded-2xl w-full max-w-sm animate-fade">
+  <div id="productModal" class="fixed inset-0 bg-overlay z-50 hidden items-center justify-center p-4">
+    <div class="bg-card rounded-xl w-full max-w-sm">
       <div class="p-4 border-b border-muted flex justify-between items-center">
         <h3 id="modalTitle" class="font-bold text-lg text-main">Thêm sản phẩm</h3>
         <button onclick="closeProductModal()" class="text-2xl text-muted hover:text-main">&times;</button>
@@ -44,7 +44,7 @@
         <input type="hidden" id="productId">
         <div>
           <label class="block text-sm font-medium text-main mb-1">Tên sản phẩm</label>
-          <input type="text" id="productName" required class="w-full border border-muted rounded-lg px-3 py-2 focus:ring-2 focus:ring-amber-500" placeholder="Nhập tên sản phẩm">
+          <input type="text" id="productName" required class="w-full border border-muted rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary" placeholder="Nhập tên sản phẩm">
         </div>
         <div>
           <label class="block text-sm font-medium text-main mb-1">Loại bao bì</label>
@@ -56,11 +56,11 @@
         </div>
         <div>
           <label class="block text-sm font-medium text-main mb-1">Giá vốn (VNĐ)</label>
-          <input type="number" id="productCostPrice" step="1000" class="w-full border border-muted rounded-lg px-3 py-2 focus:ring-2 focus:ring-amber-500" placeholder="0">
+          <input type="number" id="productCostPrice" step="1000" class="w-full border border-muted rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary" placeholder="0">
         </div>
         <div id="stockField">
           <label class="block text-sm font-medium text-main mb-1">Số lượng tồn</label>
-          <input type="number" id="productStock" class="w-full border border-muted rounded-lg px-3 py-2 focus:ring-2 focus:ring-amber-500" placeholder="0">
+          <input type="number" id="productStock" class="w-full border border-muted rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary" placeholder="0">
         </div>
         <div class="flex gap-2 pt-2">
           <button type="button" onclick="closeProductModal()" class="btn btn-ghost flex-1 h-11">Huỷ</button>
@@ -72,8 +72,8 @@
   </div>
 
   <!-- Purchase Edit Modal -->
-  <div id="purchaseModal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
-    <div class="bg-white rounded-2xl w-full max-w-sm animate-fade max-h-[80vh] flex flex-col">
+  <div id="purchaseModal" class="fixed inset-0 bg-overlay z-50 hidden items-center justify-center p-4">
+    <div class="bg-card rounded-xl w-full max-w-sm max-h-[80vh] flex flex-col">
       <div class="p-4 border-b border-muted flex justify-between items-center">
         <h3 class="font-bold text-lg text-main">Sửa đơn nhập</h3>
         <button onclick="closePurchaseModal()" class="text-2xl text-muted hover:text-main">&times;</button>
@@ -82,7 +82,7 @@
         <input type="hidden" id="editPurchaseId">
         <div>
           <label class="block text-sm font-medium text-main mb-1">Ghi chú</label>
-          <input type="text" id="editPurchaseNote" class="w-full border border-muted rounded-lg px-3 py-2 focus:ring-2 focus:ring-amber-500" placeholder="Ghi chú...">
+          <input type="text" id="editPurchaseNote" class="w-full border border-muted rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary" placeholder="Ghi chú...">
         </div>
         <div id="editPurchaseItems" class="space-y-3 max-h-64 overflow-y-auto pr-1">
           <!-- Items loaded via JS -->

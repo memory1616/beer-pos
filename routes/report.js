@@ -385,7 +385,7 @@ router.get('/', (req, res) => {
     <div class="mb-4">
       <div class="section-title">🏆 Top khách hàng</div>
       <div class="space-y-2">
-        ${topCustomers.length === 0 ? '<div class="text-muted text-center py-4 bg-white rounded-xl">Chưa có dữ liệu</div>' : topCustomers.map((c, i) => `
+        ${topCustomers.length === 0 ? '<div class="empty-state">Chưa có dữ liệu</div>' : topCustomers.map((c, i) => `
           <div class="card flex justify-between items-center hover:shadow-md transition-all">
             <div class="flex items-center gap-3">
               <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm ${i === 0 ? 'bg-primary/20 text-primary' : i === 1 ? 'bg-muted text-muted' : i === 2 ? 'bg-warning/20 text-warning' : 'bg-bg text-muted'}">${i + 1}</div>
@@ -406,7 +406,7 @@ router.get('/', (req, res) => {
     <div class="mb-4">
       <div class="section-title">🍺 Top sản phẩm bán chạy</div>
       <div class="space-y-2">
-        ${topProducts.length === 0 ? '<div class="text-muted text-center py-4 bg-white rounded-xl">Chưa có dữ liệu</div>' : topProducts.map((p, i) => `
+        ${topProducts.length === 0 ? '<div class="empty-state">Chưa có dữ liệu</div>' : topProducts.map((p, i) => `
           <div class="card flex justify-between items-center hover:shadow-md transition-all">
             <div class="flex items-center gap-3">
               <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm ${i === 0 ? 'bg-primary/20 text-primary' : i === 1 ? 'bg-muted text-muted' : i === 2 ? 'bg-warning/20 text-warning' : 'bg-bg text-muted'}">${i + 1}</div>
@@ -427,7 +427,7 @@ router.get('/', (req, res) => {
     <!-- Recent Sales -->
     <div class="mb-4">
       <div class="section-title">📋 Đơn hàng gần đây <span class="text-xs font-normal text-muted">(${total} đơn)</span></div>
-      <div class="bg-white rounded-xl shadow-sm border overflow-hidden" id="recentSalesList">
+      <div class="card overflow-hidden" id="recentSalesList">
         ${recentSales.length === 0 ? '<div class="text-muted text-center py-4">Chưa có đơn hàng</div>' : recentSales.map(s => {
           const date = new Date(s.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
           const hasKegUpdate = (s.deliver_kegs || 0) > 0 || (s.return_kegs || 0) > 0;
@@ -787,7 +787,7 @@ router.get('/profit-product', (req, res) => {
       </div>
     </div>
     <div class="space-y-2">
-      ${products.length === 0 ? '<div class="text-muted text-center py-4 bg-white rounded-xl">Chưa có dữ liệu</div>' : products.map((p, i) => `
+      ${products.length === 0 ? '<div class="empty-state">Chưa có dữ liệu</div>' : products.map((p, i) => `
         <div class="card hover:shadow-md transition-all">
           <div class="flex justify-between items-center">
             <div class="flex items-center gap-3">
@@ -954,7 +954,7 @@ router.get('/profit-customer', (req, res) => {
       </div>
     </div>
     <div class="space-y-2">
-      ${customers.length === 0 ? '<div class="text-muted text-center py-4 bg-white rounded-xl">Chưa có dữ liệu trong tháng này</div>' : customers.map((c, i) => `
+      ${customers.length === 0 ? '<div class="empty-state">Chưa có dữ liệu trong tháng này</div>' : customers.map((c, i) => `
         <a href="/customers/${c.id}" class="card block hover:shadow-md transition-all">
           <div class="flex justify-between items-center">
             <div class="flex items-center gap-3">
@@ -1147,8 +1147,8 @@ router.get('/import-purchases', (req, res) => {
     </div>
     <div class="section-title text-xs font-bold text-muted uppercase tracking-wide mb-2">Chi tiết phiếu nhập</div>
     <div class="space-y-2 mb-6">
-      ${purchasesList.length === 0 ? '<div class="text-muted text-center py-4 bg-white rounded-xl border border-amber-100">Chưa có phiếu nhập trong tháng này</div>' : purchasesList.map((p) => `
-        <div class="card border-amber-200 bg-white hover:shadow-md transition-all">
+      ${purchasesList.length === 0 ? '<div class="empty-state border-primary/20">Chưa có phiếu nhập trong tháng này</div>' : purchasesList.map((p) => `
+        <div class="card border-primary/20 hover:shadow-md transition-all">
           <div class="flex justify-between items-start gap-2 mb-1">
             <div class="font-bold text-primary">#${p.id}</div>
             <div class="text-xs font-medium text-main whitespace-nowrap">🗓 ${formatPurchaseDay(p.date)}</div>
@@ -1161,7 +1161,7 @@ router.get('/import-purchases', (req, res) => {
     </div>
     <div class="section-title text-xs font-bold text-muted uppercase tracking-wide mb-2">Tổng hợp theo sản phẩm</div>
     <div class="space-y-2">
-      ${byProduct.length === 0 ? '<div class="text-muted text-center py-4 bg-white rounded-xl border border-amber-100">Không có dòng hàng</div>' : byProduct.map((row, i) => `
+      ${byProduct.length === 0 ? '<div class="empty-state border-primary/20">Không có dòng hàng</div>' : byProduct.map((row, i) => `
         <div class="card border-emerald-100 hover:shadow-md transition-all">
           <div class="flex justify-between items-center gap-2">
             <div class="flex items-center gap-3 min-w-0">

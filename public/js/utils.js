@@ -123,7 +123,7 @@ const Utils = {
     if (!overlay) {
       overlay = document.createElement('div');
       overlay.id = 'loadingOverlay';
-      overlay.className = 'fixed inset-0 bg-black/50 flex items-center justify-center z-50';
+      overlay.className = 'fixed inset-0 bg-overlay flex items-center justify-center z-50';
       overlay.innerHTML = `
         <div class="card p-6 flex flex-col items-center shadow-xl">
           <div class="spinner mb-4"></div>
@@ -154,7 +154,7 @@ const Utils = {
     type = type || 'success';
     const bgColor = type === 'success' ? 'bg-success' : (type === 'error' ? 'bg-danger' : 'bg-info');
     const toast = document.createElement('div');
-    toast.className = `fixed top-4 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg z-50 transform transition-all duration-300 translate-x-full`;
+    toast.className = `fixed top-4 right-4 ${bgColor} text-main px-6 py-3 rounded-lg shadow-lg z-50 transform transition-all duration-300 translate-x-full`;
     toast.textContent = message;
     document.body.appendChild(toast);
 

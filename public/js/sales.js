@@ -98,7 +98,7 @@ function toggleQtyControl(productId) {
   
   const modal = document.createElement('div');
   modal.id = 'qtyModal';
-  modal.className = 'fixed inset-0 bg-black/50 flex items-end z-50';
+  modal.className = 'fixed inset-0 bg-overlay flex items-end z-50';
   modal.onclick = function(e) {
     if (e.target === modal) closeQtyModal();
   };
@@ -1064,9 +1064,9 @@ async function confirmReturnSale(id) {
 
   // Tạo modal
   const modalHtml = `
-    <div id="returnModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div id="returnModal" class="fixed inset-0 bg-overlay flex items-center justify-center z-50 p-4">
       <div class="card w-full max-w-md max-h-[80vh] overflow-hidden">
-        <div class="p-4 border-b border-muted bg-primary text-white">
+        <div class="p-4 border-b border-muted bg-primary text-main">
           <h3 class="font-bold text-lg">↩️ TRẢ HÀNG</h3>
           <div class="text-sm opacity-80">#${id} - ${customerName}</div>
         </div>

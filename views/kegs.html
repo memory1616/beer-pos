@@ -153,8 +153,8 @@
   <!-- ========== MODALS ========== -->
 
   <!-- Giao vỏ -->
-  <div id="deliverModal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
-    <div class="bg-white rounded-2xl w-full max-w-sm animate-fade">
+  <div id="deliverModal" class="fixed inset-0 bg-overlay z-50 hidden items-center justify-center p-4">
+    <div class="bg-card rounded-xl w-full max-w-sm">
       <div class="p-4 border-b border-muted flex justify-between items-center">
         <h3 class="font-bold text-lg text-success">📦 Giao vỏ cho khách</h3>
         <button onclick="closeModal('deliverModal')" class="text-2xl text-muted hover:text-main">&times;</button>
@@ -190,8 +190,8 @@
   </div>
 
   <!-- Thu vỏ -->
-  <div id="collectModal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
-    <div class="bg-white rounded-2xl w-full max-w-sm animate-fade">
+  <div id="collectModal" class="fixed inset-0 bg-overlay z-50 hidden items-center justify-center p-4">
+    <div class="bg-card rounded-xl w-full max-w-sm animate-fade">
       <div class="p-4 border-b border-muted flex justify-between items-center">
         <h3 class="font-bold text-lg text-info">🔄 Thu vỏ rỗng</h3>
         <button onclick="closeModal('collectModal')" class="text-2xl text-muted hover:text-main">&times;</button>
@@ -227,8 +227,8 @@
   </div>
 
   <!-- Nhập vỏ -->
-  <div id="importModal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
-    <div class="bg-white rounded-2xl w-full max-w-sm animate-fade">
+  <div id="importModal" class="fixed inset-0 bg-overlay z-50 hidden items-center justify-center p-4">
+    <div class="bg-card rounded-xl w-full max-w-sm animate-fade">
       <div class="p-4 border-b border-muted flex justify-between items-center">
         <h3 class="font-bold text-lg text-secondary">🏭 Nhập vỏ từ nhà máy</h3>
         <button onclick="closeModal('importModal')" class="text-2xl text-muted hover:text-main">&times;</button>
@@ -260,8 +260,8 @@
   </div>
 
   <!-- Điều chỉnh vỏ rỗng -->
-  <div id="adjustModal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
-    <div class="bg-white rounded-2xl w-full max-w-sm animate-fade">
+  <div id="adjustModal" class="fixed inset-0 bg-overlay z-50 hidden items-center justify-center p-4">
+    <div class="bg-card rounded-xl w-full max-w-sm animate-fade">
       <div class="p-4 border-b border-muted flex justify-between items-center">
         <h3 class="font-bold text-lg text-warning">⚙️ Điều chỉnh vỏ rỗng</h3>
         <button onclick="closeModal('adjustModal')" class="text-2xl text-muted hover:text-main">&times;</button>
@@ -288,8 +288,8 @@
   </div>
 
   <!-- Lịch sử chi tiết -->
-  <div id="historyModal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-2">
-    <div class="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col animate-fade">
+  <div id="historyModal" class="fixed inset-0 bg-overlay z-50 hidden items-center justify-center p-2">
+    <div class="bg-card rounded-xl w-full max-w-lg max-h-[90vh] flex flex-col animate-fade">
       <div class="p-4 border-b border-muted flex justify-between items-center flex-shrink-0">
         <h3 class="font-bold text-lg text-main">📋 Lịch sử giao dịch vỏ</h3>
         <button onclick="closeModal('historyModal')" class="text-2xl text-muted hover:text-main">&times;</button>

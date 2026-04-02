@@ -94,7 +94,7 @@ router.get('/', (req, res, next) => {
       <button onclick="getCurrentLocation()" class="flex-1 btn btn-primary flex items-center justify-center gap-2">
         📍 Vị trí hiện tại
       </button>
-      <button onclick="optimizeRoute()" class="flex-1 bg-secondary hover:bg-secondary/80 text-white py-2 px-4 rounded-lg flex items-center justify-center gap-2">
+      <button onclick="optimizeRoute()" class="flex-1 btn btn-secondary">
         ⚡ Tối ưu lộ trình
       </button>
     </div>
@@ -127,7 +127,7 @@ router.get('/', (req, res, next) => {
   </main>
 
   <!-- Settings Modal -->
-  <div id="settingsModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-4" style="z-index:10000">
+  <div id="settingsModal" class="fixed inset-0 bg-overlay hidden items-center justify-center p-4" style="z-index:10000">
     <div class="card p-6 max-w-sm w-full settings-modal-inner relative" style="z-index:10001">
       <h2 class="text-xl font-bold mb-4">⚙️ Cấu hình vận chuyển</h2>
 
@@ -511,7 +511,7 @@ router.get('/', (req, res, next) => {
 
           userMarker = L.marker([currentLat, currentLng], {
             icon: L.divIcon({
-              className: 'bg-primary rounded-full w-4 h-4 border-2 border-white',
+              className: 'bg-primary rounded-full w-4 h-4 border-2 border-muted',
               iconSize: [16, 16]
             })
           }).addTo(map).bindPopup('📍 Vị trí của bạn').openPopup();

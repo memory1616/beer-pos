@@ -1,7 +1,7 @@
 // Shared debug utilities
 function initDebugBadge() {
   const html = `
-    <div id="debugBadge" class="fixed top-2 right-2 z-50 bg-black/70 text-white text-xs px-2 py-1 rounded pointer-events-none">
+    <div id="debugBadge" class="fixed top-2 right-2 z-50 bg-overlay-70 text-main text-xs px-2 py-1 rounded pointer-events-none">
       <span id="debugHostname"></span>:<span id="debugPort"></span> | <span id="debugBuildTime"></span>
     </div>
   `;

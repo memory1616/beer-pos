@@ -9,23 +9,23 @@ function switchTab(tab) {
   const historySection = document.getElementById('historySection');
   const tabNew = document.getElementById('tabNew');
   const tabHistory = document.getElementById('tabHistory');
-  
+
   if (!newSection || !historySection || !tabNew || !tabHistory) return;
-  
+
   if (tab === 'new') {
     newSection.classList.remove('hidden');
     historySection.classList.add('hidden');
-    tabNew.classList.add('bg-info', 'text-white');
-    tabNew.classList.remove('bg-bg', 'text-muted');
-    tabHistory.classList.remove('bg-info', 'text-white');
-    tabHistory.classList.add('bg-bg', 'text-muted');
+    tabNew.classList.add('active');
+    tabNew.classList.remove('not-active');
+    tabHistory.classList.remove('active');
+    tabHistory.classList.add('not-active');
   } else {
     newSection.classList.add('hidden');
     historySection.classList.remove('hidden');
-    tabHistory.classList.add('bg-info', 'text-white');
-    tabHistory.classList.remove('bg-bg', 'text-muted');
-    tabNew.classList.remove('bg-info', 'text-white');
-    tabNew.classList.add('bg-bg', 'text-muted');
+    tabHistory.classList.add('active');
+    tabHistory.classList.remove('not-active');
+    tabNew.classList.remove('active');
+    tabNew.classList.add('not-active');
   }
 }
 

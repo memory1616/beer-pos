@@ -108,7 +108,7 @@ router.get('/', (req, res, next) => {
           <span class="text-xs text-muted">(${horizontalCustomers.length} khách)</span>
         </div>
         ${horizontalCustomers.length === 0 ? `
-          <div class="text-xs text-muted px-3 py-4 bg-white rounded-lg border border-dashed text-center">
+          <div class="empty-state text-xs text-muted px-3 py-4">
             Chưa có khách giữ tủ nằm
           </div>
         ` : `
@@ -135,7 +135,7 @@ router.get('/', (req, res, next) => {
           <span class="text-xs text-muted">(${verticalCustomers.length} khách)</span>
         </div>
         ${verticalCustomers.length === 0 ? `
-          <div class="text-xs text-muted px-3 py-4 bg-white rounded-lg border border-dashed text-center">
+          <div class="empty-state text-xs text-muted px-3 py-4">
             Chưa có khách giữ tủ đứng
           </div>
         ` : `
@@ -158,8 +158,8 @@ router.get('/', (req, res, next) => {
   </main>
 
   <!-- Modal nhập tủ -->
-  <div id="addModal" class="modal fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
-    <div class="bg-white rounded-xl w-full max-w-sm">
+  <div id="addModal" class="modal fixed inset-0 bg-overlay z-50 items-center justify-center p-4">
+    <div class="bg-card rounded-xl w-full max-w-sm">
       <div class="p-4 border-b flex items-center justify-between">
         <h3 class="font-semibold">Nhập tủ mới</h3>
         <button onclick="closeModal()" class="text-muted hover:text-primary">
@@ -206,8 +206,8 @@ router.get('/', (req, res, next) => {
   </div>
 
   <!-- Modal sửa tồn kho -->
-  <div id="editModal" class="modal fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
-    <div class="bg-white rounded-xl w-full max-w-sm">
+  <div id="editModal" class="modal fixed inset-0 bg-overlay z-50 items-center justify-center p-4">
+    <div class="bg-card rounded-xl w-full max-w-sm">
       <div class="p-4 border-b flex items-center justify-between">
         <h3 class="font-semibold">Sửa tồn kho</h3>
         <button onclick="closeEditModal()" class="text-muted hover:text-primary">
@@ -235,7 +235,7 @@ router.get('/', (req, res, next) => {
   </div>
 
   <!-- Bottom Navigation -->
-  <nav class="fixed bottom-0 left-0 right-0 bg-white border-t bottom-nav">
+  <nav class="fixed bottom-0 left-0 right-0 bg-card border-t bottom-nav">
     <div class="grid grid-cols-5 text-center text-xs">
       <a href="/" class="py-3 text-muted"><div class="text-xl">🏠</div><div>Home</div></a>
       <a href="/delivery" class="py-3 text-muted"><div class="text-xl">🚚</div><div>Giao</div></a>

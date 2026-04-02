@@ -24,7 +24,7 @@
   </style>
 </head>
 <body class="bg-main text-primary min-h-screen pb-20">
-  <header class="sticky top-0 bg-white border-b border-muted z-50">
+  <header class="sticky top-0 bg-card border-b border-muted z-50">
     <div class="flex items-center justify-between px-4 h-12 max-w-md mx-auto">
       <div class="flex items-center gap-2">
         <span class="text-xl">📥</span>
@@ -39,8 +39,8 @@
   <main class="p-4 pt-14 pb-24 max-w-md mx-auto animate-fade">
     <!-- Tab Navigation -->
     <div class="flex gap-2 mb-4">
-      <button onclick="switchTab('new')" id="tabNew" class="btn btn-primary flex-1 h-11">📝 Nhập mới</button>
-      <button onclick="switchTab('history')" id="tabHistory" class="btn btn-secondary flex-1 h-11">📋 Lịch sử</button>
+      <button onclick="switchTab('new')" id="tabNew" class="tab-btn active flex-1">📝 Nhập mới</button>
+      <button onclick="switchTab('history')" id="tabHistory" class="tab-btn flex-1">📋 Lịch sử</button>
     </div>
 
     <!-- Loading -->

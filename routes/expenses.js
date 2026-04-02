@@ -247,7 +247,7 @@ router.get('/', (req, res, next) => {
 '  </button>' +
 '' +
 '  <!-- Add Expense Modal -->' +
-'  <div id="addExpenseModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-4 z-50">' +
+'  <div id="addExpenseModal" class="fixed inset-0 bg-overlay hidden items-center justify-center p-4 z-50">' +
 '    <div class="card p-6 max-w-sm w-full">' +
 '      <h2 id="expenseModalTitle" class="text-xl font-semibold mb-4">Thêm chi phí</h2>' +
 '      <form id="addExpenseForm" class="space-y-4">' +
@@ -285,7 +285,7 @@ router.get('/', (req, res, next) => {
 '  </div>' +
 '' +
 '  <!-- Add Category Modal (inline) -->' +
-'  <div id="addCategoryModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-4">' +
+'  <div id="addCategoryModal" class="fixed inset-0 bg-overlay hidden items-center justify-center p-4">' +
 '    <div class="card p-6 max-w-sm w-full">' +
 '      <h3 class="text-lg font-bold text-main mb-4">Thêm loại chi phí mới</h3>' +
 '      <input type="text" id="newCategoryName" maxlength="30" placeholder="VD: Thuê xe, Quảng cáo..." class="w-full border border-muted rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-primary focus:outline-none mb-3">' +
