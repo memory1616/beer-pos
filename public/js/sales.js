@@ -37,18 +37,15 @@ function renderSaleProducts() {
     const isLowStock = p.stock < 5;
     const currentQty = saleData[p.id] ? saleData[p.id].quantity : '';
     const priceLine = isKhachLe
-      ? `Giá bán (đ): <input type="number" id="price-input-${p.id}" value="${currentPrice}" min="0" step="1000" inputmode="numeric"
-           class="w-24 py-1 px-2 border border-gray-200 rounded-lg text-right text-sm font-medium inline-block"
-           onchange="updateSaleData(${p.id}, 'price', this.value); updateSaleTotal();"
-           oninput="updateSaleData(${p.id}, 'price', this.value); updateSaleTotal();"> · Tồn: ${p.stock}`
-      : `Giá bán: ${formatVND(price)} · Tồn: ${p.stock}`;
+      ? `Giá bán: <span class="text-amber-700 font-bold">${formatVND(currentPrice)}</span> · Tồn: <span class="${p.stock < 5 ? 'text-red-500' : 'text-gray-500'}">${p.stock}</span>`
+      : `Giá: <span class="text-amber-700 font-bold">${formatVND(price)}</span> · Tồn: <span class="${p.stock < 5 ? 'text-red-500' : 'text-gray-500'}">${p.stock}</span>`;
     return `
-      <div class="p-3 border border-gray-200 rounded-xl ${isLowStock ? 'bg-orange-50/50 border-orange-200' : 'bg-gray-50'}">
-        <div class="text-sm font-semibold text-gray-800">${p.name}</div>
+      <div class="p-3 border-2 ${isLowStock ? 'border-orange-300 bg-orange-50/40' : 'border-amber-200 bg-amber-50/30'} rounded-xl transition-all">
+        <div class="text-sm font-bold text-gray-900">${p.name}</div>
         <div class="text-xs text-gray-600 mt-0.5">${priceLine}</div>
         <input type="number" id="qty-${p.id}" min="0" max="${p.stock}" value="${currentQty > 0 ? currentQty : ''}" data-stock="${p.stock}"
           placeholder="Nhập SL"
-          class="mt-2 w-full border-2 border-gray-200 rounded-lg p-2.5 text-center font-medium"
+          class="mt-2 w-full border-2 border-amber-400 rounded-xl p-3 text-center text-lg font-bold focus:border-amber-500 focus:ring-1 focus:ring-amber-400 focus:outline-none ${currentQty > 0 ? 'bg-amber-100/60' : ''}"
           onchange="updateSaleData(${p.id}, 'quantity', this.value); updateSaleTotal();"
           oninput="updateSaleData(${p.id}, 'quantity', this.value); updateSaleTotal();">
       </div>
@@ -203,7 +200,16 @@ function updateSaleTotal() {
   if (cartEl) cartEl.innerHTML = cartHtml || '<div class="text-gray-400 text-center">Chưa có sản phẩm</div>';
   
   const sellBtn = document.getElementById('sellBtn');
-  if (sellBtn) sellBtn.disabled = !hasItems;
+  if (sellBtn) {
+    sellBtn.disabled = !hasItems;
+    if (hasItems) {
+      sellBtn.classList.add('shadow-md', 'from-green-500', 'to-green-600');
+      sellBtn.classList.remove('opacity-40', 'shadow-none');
+    } else {
+      sellBtn.classList.remove('shadow-md', 'from-green-500', 'to-green-600');
+      sellBtn.classList.add('opacity-40', 'shadow-none');
+    }
+  }
 }
 
 // Quick add product for fast sales
@@ -419,7 +425,7 @@ async function submitSale() {
     showToast('Lỗi kết nối, vui lòng thử lại', 'error');
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Bán Hàng';
+    btn.textContent = '✔ Bán hàng';
   }
 }
 
@@ -881,7 +887,7 @@ async function loadSalesHistory() {
     const leftBorder = sale.type === 'gift' ? 'border-l-4 border-amber-400'
       : isReplacement ? 'border-l-4 border-orange-400'
       : 'border-l-4 border-green-400';
-    const totalColor = sale.type === 'gift' || sale.type === 'replacement' ? 'text-orange-500'
+    const totalColor = sale.type === 'gift' || sale.type === 'replacement' ? 'text-red-600'
       : 'text-green-600';
 
     return `
@@ -889,8 +895,8 @@ async function loadSalesHistory() {
         <div class="flex flex-col gap-0.5">
           <!-- Dòng 1: ID + tên -->
           <div class="flex items-center gap-2 flex-wrap">
-            <span class="text-sm font-bold text-gray-500">#${sale.id}</span>
-            <span class="text-base font-bold text-gray-800">${customerName}</span>
+            <span class="text-xs font-semibold text-gray-400">#${sale.id}</span>
+            <span class="text-base font-bold text-gray-900">${customerName}</span>
           </div>
           <!-- Dòng 2: ngày + bình -->
           <div class="flex items-center gap-3 text-xs text-gray-400">
@@ -898,14 +904,14 @@ async function loadSalesHistory() {
             ${kegDisplay ? `<span>${kegDisplay}</span>` : ''}
           </div>
           <!-- Dòng 3: tổng tiền -->
-          <div class="text-xl font-bold ${totalColor} mt-0.5">💰 ${formatVND(sale.total)}</div>
-          <!-- Dòng 4: nút hành động — click không ảnh hưởng card -->
-          <div class="flex items-center gap-1.5 mt-1 flex-wrap justify-between" onclick="event.stopPropagation()">
-            <button onclick="viewSale(${sale.id})" class="flex-1 py-1.5 px-1 rounded-lg bg-blue-50 text-blue-600 text-xs font-medium hover:bg-blue-100 transition-colors text-center">👁 Hoá Đơn</button>
+          <div class="text-2xl font-bold ${totalColor} mt-0.5">💰 ${formatVND(sale.total)}</div>
+          <!-- Dòng 4: nút hành động -->
+          <div class="flex items-center gap-1.5 mt-2 flex-wrap justify-between" onclick="event.stopPropagation()">
+            <button onclick="viewSale(${sale.id})" class="flex-1 py-2 px-1 rounded-xl bg-blue-50 text-blue-600 text-xs font-bold hover:bg-blue-100 transition-colors text-center border border-blue-200">👁 Hoá Đơn</button>
             ${!isReturned ? `
-            <button onclick="openKegModal(${sale.id})" class="flex-1 py-1.5 px-1 rounded-lg bg-purple-50 text-purple-600 text-xs font-medium hover:bg-purple-100 transition-colors text-center">📦 Thu Vỏ</button>
-            <button onclick="editSale(${sale.id})" class="flex-1 py-1.5 px-1 rounded-lg bg-orange-50 text-orange-600 text-xs font-medium hover:bg-orange-100 transition-colors text-center">✏️ Sửa</button>
-            <button onclick="deleteSale(${sale.id})" class="flex-1 py-1.5 px-1 rounded-lg bg-red-50 text-red-500 text-xs font-medium hover:bg-red-100 transition-colors text-center">🗑 Xóa</button>` : ''}
+            <button onclick="openKegModal(${sale.id})" class="flex-1 py-2 px-1 rounded-xl bg-amber-50 text-amber-700 text-xs font-bold hover:bg-amber-100 transition-colors text-center border border-amber-200">📦 Thu Vỏ</button>
+            <button onclick="editSale(${sale.id})" class="flex-1 py-2 px-1 rounded-xl bg-orange-50 text-orange-600 text-xs font-bold hover:bg-orange-100 transition-colors text-center border border-orange-200">✏️ Sửa</button>
+            <button onclick="deleteSale(${sale.id})" class="flex-1 py-2 px-1 rounded-xl bg-red-50 text-red-500 text-xs font-bold hover:bg-red-100 transition-colors text-center border border-red-200">🗑 Xóa</button>` : ''}
           </div>
         </div>
       </div>

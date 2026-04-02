@@ -58,6 +58,12 @@ router.get('/', (req, res, next) => {
     ORDER BY date DESC, id DESC LIMIT 50
   `).all(startDay, endDay);
 
+  const expenseCountRow = db.prepare(`
+    SELECT COUNT(*) as n FROM expenses
+    WHERE date(date) >= date(?) AND date(date) <= date(?)
+  `).get(startDay, endDay);
+  const expenseCount = expenseCountRow ? expenseCountRow.n : 0;
+
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth() + 1;
   const selectedMonth = month ? parseInt(month, 10) : currentMonth;
@@ -76,23 +82,37 @@ router.get('/', (req, res, next) => {
   const selYm = selectedYear * 100 + selectedMonth;
   const totalExpenseLabel = curYm === selYm ? 'Tổng chi phí tháng này' : ('Tổng chi phí — ' + labelThangNam);
 
-  // Bộ lọc giống /report/profit-customer (nền vàng, viền cam)
+  // Bộ lọc trùng markup/style với /report/profit-customer
   const selectStyle = 'flex: 1; border: 2px solid #f59e0b; border-radius: 8px; padding: 10px 12px; font-size: 14px; background: white; color: #1f2937; min-width: 0; outline: none;';
   const filterBlockHtml =
     '<div style="background: #fef3c7; border-radius: 16px; border: 2px solid #f59e0b; padding: 16px; margin-bottom: 16px; overflow: visible;">' +
     '<div class="flex items-center gap-2 mb-3">' +
-    '<span style="color: #92400e; font-size: 14px; font-weight: 600;">📅 Lọc theo tháng &amp; năm</span>' +
+    '<span style="color: #92400e; font-size: 14px; font-weight: 600;">📅 Theo tháng - năm</span>' +
     '</div>' +
-    '<div class="flex gap-2 items-center flex-wrap">' +
-    '<select id="expSelMonth" style="' + selectStyle + ' min-width: 108px;">' +
+    '<div class="flex gap-2 items-center">' +
+    '<select id="expSelMonth" style="' + selectStyle + '">' +
     monthOptions +
     '</select>' +
-    '<select id="expSelYear" style="' + selectStyle + ' min-width: 88px;">' +
+    '<select id="expSelYear" style="' + selectStyle + '">' +
     yearOptions +
     '</select>' +
     '<button type="button" onclick="applyExpMonthYear()" style="background: #ea580c; color: white; border: none; border-radius: 8px; padding: 8px 16px; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap;">Xem</button>' +
     '</div>' +
-    '<div class="text-xs text-gray-500 mt-2">Đang xem: <strong>' + labelThangNam + '</strong></div>' +
+    '<div class="text-xs text-gray-500 mt-1">Đang xem: ' + labelThangNam + '</div>' +
+    '</div>';
+
+  const summaryBlockHtml =
+    '<div class="mb-4 shadow-lg rounded-2xl p-4" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: #fff;">' +
+    '<div class="grid grid-cols-2 gap-3 text-center py-2">' +
+    '<div>' +
+    '<div class="text-xs" style="opacity: 0.9;">' + totalExpenseLabel + '</div>' +
+    '<div class="font-bold text-lg">' + formatVND(monthExpenses.total) + '</div>' +
+    '</div>' +
+    '<div>' +
+    '<div class="text-xs" style="opacity: 0.9;">Giao dịch</div>' +
+    '<div class="font-bold text-lg">' + expenseCount + '</div>' +
+    '</div>' +
+    '</div>' +
     '</div>';
 
   // Expense categories (defaults + custom from DB)
@@ -127,16 +147,17 @@ router.get('/', (req, res, next) => {
   if (categorySummary.length > 0) {
     categoryHtml = categorySummary.map(c => {
       const icon = categoryIcons[c.category] || '📋';
-      return '<div class="flex justify-between items-center py-3 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors px-2 -mx-2 rounded-lg">' +
+      return '<div class="card hover:shadow-md transition-all">' +
+        '<div class="flex justify-between items-center">' +
         '<div class="flex items-center gap-3">' +
           '<span class="text-xl">' + icon + '</span>' +
-          '<span class="text-gray-800 font-bold">' + c.category + '</span>' +
+          '<span class="font-bold text-gray-800">' + c.category + '</span>' +
         '</div>' +
         '<span class="font-bold text-blue-600">' + formatVND(c.total) + '</span>' +
-        '</div>';
+        '</div></div>';
     }).join('');
   } else {
-    categoryHtml = '<div class="text-gray-500 text-center py-4">Chưa có chi phí trong tháng này</div>';
+    categoryHtml = '<div class="text-gray-500 text-center py-4 bg-white rounded-xl">Chưa có chi phí trong tháng này</div>';
   }
 
   // Build recent expenses HTML
@@ -146,26 +167,27 @@ router.get('/', (req, res, next) => {
       const dateStr = new Date(e.date).toLocaleDateString('vi-VN');
       const desc = e.description || '';
       const icon = categoryIcons[e.category] || '📋';
-      return '<div class="flex justify-between items-center py-3 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors" data-id="' + e.id + '">' +
-        '<div class="flex items-center gap-3 flex-1">' +
-        '<span class="text-2xl">' + icon + '</span>' +
-        '<div class="flex-1">' +
+      return '<div class="card hover:shadow-md transition-all" data-id="' + e.id + '">' +
+        '<div class="flex justify-between items-start gap-2">' +
+        '<div class="flex items-start gap-3 flex-1 min-w-0">' +
+        '<span class="text-2xl flex-shrink-0">' + icon + '</span>' +
+        '<div class="flex-1 min-w-0">' +
         '<div class="font-bold text-gray-800">' + e.category + '</div>' +
-        '<div class="text-sm text-gray-500">' + desc + '</div>' +
-        '<div class="text-xs text-gray-400 mt-0.5">' + dateStr + '</div>' +
+        (desc ? '<div class="text-sm text-gray-500">' + desc + '</div>' : '') +
+        '<div class="text-xs text-gray-500 mt-0.5">' + dateStr + '</div>' +
         '</div>' +
         '</div>' +
-        '<div class="text-right ml-3">' +
-        '<div class="font-bold text-blue-600 text-lg">' + formatVND(e.amount) + '</div>' +
+        '<div class="text-right flex-shrink-0">' +
+        '<div class="font-bold text-blue-600">' + formatVND(e.amount) + '</div>' +
         '<div class="flex gap-2 mt-1 justify-end">' +
-        '<button onclick="editExpense(' + e.id + ', \'' + (e.category || '').replace(/'/g, "\\'").replace(/"/g, '\\"') + '\', ' + e.amount + ', \'' + e.date + '\', \'' + (e.description || '').replace(/'/g, "\\'").replace(/"/g, '\\"') + '\')" class="text-xs text-blue-500 hover:text-blue-700 px-2 py-1 hover:bg-blue-50 rounded">Sửa</button>' +
-        '<button onclick="deleteExpense(' + e.id + ')" class="text-xs text-red-400 hover:text-red-600 px-2 py-1 hover:bg-red-50 rounded">Xóa</button>' +
+        '<button type="button" onclick="editExpense(' + e.id + ', \'' + (e.category || '').replace(/'/g, "\\'").replace(/"/g, '\\"') + '\', ' + e.amount + ', \'' + e.date + '\', \'' + (e.description || '').replace(/'/g, "\\'").replace(/"/g, '\\"') + '\')" class="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 hover:bg-blue-50 rounded">Sửa</button>' +
+        '<button type="button" onclick="deleteExpense(' + e.id + ')" class="text-xs text-red-500 hover:text-red-700 px-2 py-1 hover:bg-red-50 rounded">Xóa</button>' +
         '</div>' +
         '</div>' +
-        '</div>';
+        '</div></div>';
     }).join('');
   } else {
-    expensesHtml = '<div class="text-gray-500 text-center py-4">Chưa có chi phí trong tháng này</div>';
+    expensesHtml = '<div class="text-gray-500 text-center py-4 bg-white rounded-xl">Chưa có chi phí trong tháng này</div>';
   }
 
   const optionsHtml = categories.map(c => '<option value="' + c + '">' + c + '</option>').join('');
@@ -185,7 +207,7 @@ router.get('/', (req, res, next) => {
 '  <link rel="stylesheet" href="/css/unified.css">' +
 '  <script src="/js/dark-mode.js"></script>' +
 '  <script src="/js/auth.js"></script>' +
-'  <script src="/js/layout.js?v=20260402"></script>' +
+'  <script src="/js/layout.js?v=20260403"></script>' +
 '  <script>requireAuth();</script>' +
 '  <style>' +
 '    #addCategoryModal { z-index: 60; }' +
@@ -193,13 +215,31 @@ router.get('/', (req, res, next) => {
 '    @keyframes fade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }' +
 '    .pb-safe { padding-bottom: env(safe-area-inset-bottom, 20px); }' +
 '    .pt-safe { padding-top: env(safe-area-inset-top, 20px); }' +
-'    .bottomnav { max-width: 500px; margin: auto; left: 0; right: 0; }' +
+'    .bottomnav { max-width: 500px; margin: auto; }' +
 '    button, a { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }' +
 '    button:active { transform: scale(0.96); }' +
+'    .filter-wrap { overflow: visible !important; }' +
 '  </style>' +
 '</head>' +
 '<body class="bg-gray-100 text-gray-800 min-h-screen pb-24">' +
-'  <div id="app"></div>' +
+'  <header class="sticky top-0 bg-white border-b z-50">' +
+'    <div class="flex items-center justify-between px-4 h-12 max-w-md mx-auto">' +
+'      <div class="flex items-center gap-2">' +
+'        <a href="/report" class="text-gray-500 hover:text-gray-700" title="Báo cáo">←</a>' +
+'        <span class="font-semibold text-sm">Chi phí</span>' +
+'      </div>' +
+'    </div>' +
+'  </header>' +
+'  <main class="p-4 pt-14 pb-24 max-w-md mx-auto">' +
+    filterBlockHtml +
+    summaryBlockHtml +
+'    <div class="section-title">📊 Chi phí theo loại</div>' +
+'    <div class="space-y-2 mb-4">' + categoryHtml + '</div>' +
+'    <div class="section-title">📋 Chi phí gần đây</div>' +
+'    <p class="text-xs text-gray-500 mb-2">Trong kỳ đã chọn (tối đa 50 dòng)</p>' +
+'    <div class="space-y-2">' + expensesHtml + '</div>' +
+'  </main>' +
+'  <div id="bottomNavContainer"></div>' +
 '' +
 '  <!-- Floating Add Button -->' +
 '  <button onclick="showModal(\'addExpenseModal\')" class="fixed bottom-24 right-4 w-14 h-14 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-xl flex items-center justify-center text-2xl font-bold transition-all duration-200 hover:scale-105 z-40">' +
@@ -325,28 +365,14 @@ router.get('/', (req, res, next) => {
 '      } catch (err) { errorEl.textContent = "Lỗi kết nối: " + err.message; errorEl.classList.remove("hidden"); input.classList.add("border-red-400"); }' +
 '    }' +
 '  </script>' +
-'  <script>' +
-'    (async function() {' +
-'      document.getElementById("app").innerHTML = getHeader("Chi phí", "💸") + getContent(`' +
-        filterBlockHtml +
-'        <div class="mb-4 shadow-lg rounded-2xl p-5" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: #fff;">' +
-'        <div class="text-sm text-center" style="opacity: 0.9;">' + totalExpenseLabel + '</div>' +
-'        <div class="text-3xl font-bold text-center mt-1">' + formatVND(monthExpenses.total) + '</div>' +
-'        </div>' +
-'        <div class="card mb-4">' +
-'          <h3 class="font-bold text-gray-800 mb-3">📊 Chi phí theo loại</h3>' +
-'          <div>' + categoryHtml + '</div>' +
-'        </div>' +
-'        <div class="card">' +
-'          <h3 class="font-bold text-gray-800 mb-1">📋 Chi phí gần đây</h3>' +
-'          <p class="text-xs text-gray-500 -mt-2 mb-3">Trong kỳ đã chọn (tối đa 50 dòng)</p>' +
-'          <div>' + expensesHtml + '</div>' +
-'        </div>' +
-'      `) + getBottomNav("/expenses");' +
-'    })();' +
-'  </script>' +
 '  <script src="/js/numfmt.js"></script>' +
 '  <script src="/sync.js"></script>' +
+'  <script>' +
+'    (function() {' +
+'      var el = document.getElementById("bottomNavContainer");' +
+'      if (el && typeof getBottomNav === "function") el.innerHTML = getBottomNav("/report");' +
+'    })();' +
+'  </script>' +
 '</body>' +
 '</html>');
   } catch (err) {
