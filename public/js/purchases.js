@@ -55,7 +55,7 @@ function renderCart() {
   
   if (cart.length === 0) {
     cartEl.innerHTML = '<div class="text-muted text-sm">Chưa chọn sản phẩm nào</div>';
-    totalEl.textContent = '0 ₫';
+    totalEl.textContent = '0 đ';
     submitBtn.disabled = true;
     return;
   }

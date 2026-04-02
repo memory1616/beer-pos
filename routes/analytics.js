@@ -5,7 +5,10 @@ const db = require('../database');
 const DISTRIBUTOR_NAME = 'Bia Tươi Gia Huy';
 
 function formatVND(amount) {
-  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+  if (amount === null || amount === undefined || amount === '') return '0 đ';
+  const num = Number(amount);
+  if (isNaN(num)) return '0 đ';
+  return new Intl.NumberFormat('vi-VN').format(num) + ' đ';
 }
 
 // GET /analytics

@@ -179,7 +179,7 @@ router.post('/', (req, res) => {
     res.json({
       success: true,
       newDebt: newDebt,
-      message: `Đã thanh toán ${amountValue.toLocaleString('vi-VN')} VNĐ`
+      message: `Đã thanh toán ${amountValue.toLocaleString('vi-VN')} đ`
     });
   } catch (err) {
     logger.error('Payment error', { error: err.message });

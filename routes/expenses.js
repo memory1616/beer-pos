@@ -4,7 +4,10 @@ const db = require('../database');
 const logger = require('../src/utils/logger');
 
 function formatVND(amount) {
-  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+  if (amount === null || amount === undefined || amount === '') return '0 đ';
+  const num = Number(amount);
+  if (isNaN(num)) return '0 đ';
+  return new Intl.NumberFormat('vi-VN').format(num) + ' đ';
 }
 
 // GET /expenses - Main expenses page (lọc theo tháng/năm giống /report/profit-customer)
@@ -265,7 +268,7 @@ router.get('/', (req, res, next) => {
 '          <input type="text" id="customCatInput" placeholder="Nhập tên loại chi phí mới..." class="hidden mt-2 w-full border border-muted rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-primary">' +
 '        </div>' +
 '        <div>' +
-'          <label class="block text-sm font-medium text-main mb-1">Số tiền (VNĐ)</label>' +
+'          <label class="block text-sm font-medium text-main mb-1">Số tiền (đ)</label>' +
 '          <input type="text" name="amount" required min="1000" step="1000" data-format-number class="w-full border border-muted rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-primary" placeholder="Nhập số tiền" inputmode="decimal">' +
 '        </div>' +
 '        <div>' +

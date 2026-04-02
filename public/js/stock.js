@@ -70,7 +70,7 @@ async function editPurchase(purchaseId) {
               value="${item.quantity}">
           </div>
           <div>
-            <label class="block text-xs font-medium text-main mb-1">Đơn giá (VNĐ)</label>
+            <label class="block text-xs font-medium text-main mb-1">Đơn giá (đ)</label>
             <input type="number" data-item-id="${item.id}" data-product-id="${item.product_id}"
               step="1000" min="0" class="w-full border border-primary rounded-lg px-3 py-2 text-right focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none edit-cost"
               value="${item.unit_price}">

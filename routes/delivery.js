@@ -79,7 +79,7 @@ router.get('/', (req, res, next) => {
     <div class="px-4 pb-2">
       <div class="flex items-center justify-between text-sm">
         <span class="text-muted">Khoảng cách: <span id="totalDistance" class="font-bold text-info">0</span> km</span>
-        <span class="text-muted">Phí vận chuyển: <span id="totalDeliveryFee" class="font-bold text-money">0</span> ₫</span>
+        <span class="text-muted">Phí vận chuyển: <span id="totalDeliveryFee" class="font-bold text-money">0 đ</span></span>
       </div>
       <p class="text-xs text-muted mt-1">📦 Xuất phát từ <strong>kho</strong> (bấm ⚙️ để cài). Bấm <strong>📍 Vị trí hiện tại</strong> nếu muốn tính từ xe/điện thoại.</p>
     </div>
@@ -133,13 +133,13 @@ router.get('/', (req, res, next) => {
 
       <div class="space-y-4">
         <div>
-          <label class="block text-sm font-medium text-main mb-1">Phí/km (VNĐ)</label>
+          <label class="block text-sm font-medium text-main mb-1">Phí/km (đ)</label>
           <input type="number" id="deliveryCostPerKm" value="${settingsObj.delivery_cost_per_km || 3000}"
                  class="w-full border border-muted rounded-lg px-3 py-2" min="0" step="100">
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-main mb-1">Phí cơ bản (VNĐ)</label>
+          <label class="block text-sm font-medium text-main mb-1">Phí cơ bản (đ)</label>
           <input type="number" id="deliveryBaseCost" value="${settingsObj.delivery_base_cost || 0}"
                  class="w-full border border-muted rounded-lg px-3 py-2" min="0">
         </div>
@@ -429,7 +429,7 @@ router.get('/', (req, res, next) => {
           const duration = parseInt(card.dataset.duration) || Math.round(distance / 30 * 60);
           const cost = calculateCost(distance);
           card.querySelector('.distance').textContent = distance.toFixed(1);
-          card.querySelector('.delivery-fee').textContent = cost.toLocaleString('vi-VN') + ' ₫';
+          card.querySelector('.delivery-fee').textContent = cost.toLocaleString('vi-VN') + ' đ';
           totalDistance += distance;
           totalDuration += duration;
           totalFee += cost;
@@ -449,7 +449,7 @@ router.get('/', (req, res, next) => {
             const duration = route.duration_min;
             const cost = calculateCost(distance);
             card.querySelector('.distance').textContent = distance.toFixed(1);
-            card.querySelector('.delivery-fee').textContent = cost.toLocaleString('vi-VN') + ' ₫';
+            card.querySelector('.delivery-fee').textContent = cost.toLocaleString('vi-VN') + ' đ';
             totalDistance += distance;
             totalDuration += duration;
             totalFee += cost;
@@ -458,7 +458,7 @@ router.get('/', (req, res, next) => {
             const distance = calculateDistance(originLat, originLng, lat, lng);
             const cost = calculateCost(distance);
             card.querySelector('.distance').textContent = distance.toFixed(1);
-            card.querySelector('.delivery-fee').textContent = cost.toLocaleString('vi-VN') + ' ₫';
+            card.querySelector('.delivery-fee').textContent = cost.toLocaleString('vi-VN') + ' đ';
             totalDistance += distance;
             totalFee += cost;
           }
@@ -476,7 +476,7 @@ router.get('/', (req, res, next) => {
       }
       durationDisplay.textContent = ' | ' + Math.round(totalDuration) + ' ph';
 
-      document.getElementById('totalDeliveryFee').textContent = totalFee.toLocaleString('vi-VN');
+      document.getElementById('totalDeliveryFee').textContent = totalFee.toLocaleString('vi-VN') + ' đ';
     }
 
     // Initialize map
@@ -553,7 +553,7 @@ router.get('/', (req, res, next) => {
       const cost = calculateCost(distance);
       const timeStr = duration > 0 ? '\\nThời gian: ' + duration + ' phút' : '';
       
-      if (confirm('Xác nhận giao hàng cho khách?' + timeStr + '\\n\\nKhoảng cách: ' + distance.toFixed(1) + ' km\\nPhí vận chuyển: ' + cost.toLocaleString('vi-VN') + ' VNĐ')) {
+      if (confirm('Xác nhận giao hàng cho khách?' + timeStr + '\\n\\nKhoảng cách: ' + distance.toFixed(1) + ' km\\nPhí vận chuyển: ' + cost.toLocaleString('vi-VN') + ' đ')) {
         // Navigate to sale page with customer info
         let url = '/sale?customerId=' + customerId + '&deliveryCost=' + cost + '&distance=' + distance.toFixed(1);
         if (duration > 0) url += '&duration=' + duration;

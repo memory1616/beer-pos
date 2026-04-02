@@ -8,19 +8,10 @@ const Utils = {
    * Format number as Vietnamese Dong currency
    */
   formatMoney: function(amount) {
-    if (amount === null || amount === undefined || amount === '') {
-      return '0 ₫';
-    }
+    if (amount === null || amount === undefined || amount === '') return '0 đ';
     const num = Number(amount);
-    if (isNaN(num)) {
-      return '0 ₫';
-    }
-    return new Intl.NumberFormat('vi-VN', {
-      style: 'currency',
-      currency: 'VND',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(num);
+    if (isNaN(num)) return '0 đ';
+    return new Intl.NumberFormat('vi-VN').format(num) + ' đ';
   },
 
   /**

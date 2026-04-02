@@ -4,7 +4,10 @@ const db = require('../database');
 const logger = require('../src/utils/logger');
 
 function formatVND(amount) {
-  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+  if (amount === null || amount === undefined || amount === '') return '0 đ';
+  const num = Number(amount);
+  if (isNaN(num)) return '0 đ';
+  return new Intl.NumberFormat('vi-VN').format(num) + ' đ';
 }
 
 // Helper: get Vietnam date string (YYYY-MM-DD) - fix timezone issue
@@ -469,7 +472,10 @@ router.get('/', (req, res) => {
       const dailyStats = ${JSON.stringify(dailyStats || [])};
       
       function formatVND(amount) {
-        return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+        if (amount === null || amount === undefined || amount === '') return '0 đ';
+        const num = Number(amount);
+        if (isNaN(num)) return '0 đ';
+        return new Intl.NumberFormat('vi-VN').format(num) + ' đ';
       }
 
       // Render chart: doanh thu theo ngày (kỳ đã chọn)

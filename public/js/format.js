@@ -7,24 +7,17 @@ const Format = {
   /**
    * Format number as Vietnamese Dong currency
    * @param {number|string|null|undefined} amount - Number to format
-   * @returns {string} Formatted string (e.g., "1.000.000 ₫")
+   * @returns {string} Formatted string (e.g., "1.000.000 đ")
    */
   money: function(amount) {
     if (amount === null || amount === undefined || amount === '') {
-      return '0 ₫';
+      return '0 đ';
     }
-    
     const num = Number(amount);
     if (isNaN(num)) {
-      return '0 ₫';
+      return '0 đ';
     }
-    
-    return new Intl.NumberFormat('vi-VN', {
-      style: 'currency',
-      currency: 'VND',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(num);
+    return new Intl.NumberFormat('vi-VN').format(num) + ' đ';
   },
 
   /**

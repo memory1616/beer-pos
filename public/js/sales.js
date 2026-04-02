@@ -207,14 +207,14 @@ function updateSaleTotal() {
       const name = product ? product.name : 'SP';
       cartHtml += '<div class="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 text-sm py-1.5 border-b border-primary/20 last:border-0">' +
         '<span class="font-semibold text-main min-w-0 flex-1 truncate">' + name + '</span>' +
-        '<span class="text-muted shrink-0 tabular-nums">' + formatVND(item.price) + ' × ' + item.quantity + '</span>' +
-        '<span class="font-bold text-money shrink-0 tabular-nums w-full text-right sm:w-auto sm:text-left">' + formatVND(lineTotal) + '</span></div>';
+        '<span class="text-muted shrink-0 tabular-nums">' + Format.number(item.price) + ' đ × ' + item.quantity + '</span>' +
+        '<span class="font-bold text-money shrink-0 tabular-nums w-full text-right sm:w-auto sm:text-left">' + Format.number(lineTotal) + ' đ</span></div>';
     }
   });
   
   const totalEl = document.getElementById('totalAmount');
   if (totalEl) {
-    const formatted = formatVND(total).replace(' ₫', '');
+    const formatted = Format.number(total);
     totalEl.innerHTML = '<span class="value">' + formatted + '</span><span class="unit"> đ</span>';
   }
   
@@ -755,7 +755,7 @@ async function showInvoiceModal(saleId) {
   
   const invoiceTotal = document.getElementById('invoiceTotal');
   if (invoiceTotal) {
-    const formatted = formatVND(sale.total || 0).replace(' ₫', '');
+    const formatted = Format.number(sale.total || 0);
     invoiceTotal.innerHTML = '<span class="value">' + formatted + '</span><span class="unit"> đ</span>';
   }
   
@@ -936,7 +936,7 @@ async function loadSalesHistory() {
       : 'border-l-4 border-success';
 
     const qtyLabel = itemsQty > 0 ? '📦 ' + itemsQty + 'L' : '';
-    const saleMoney = typeof Format !== 'undefined' ? Format.number(sale.total) : formatVND(sale.total).replace(' ₫', '');
+    const saleMoney = typeof Format !== 'undefined' ? Format.number(sale.total) : formatVND(sale.total).replace(' đ', '');
 
     return `
       <div class="order-item ${badgeLeft}">
