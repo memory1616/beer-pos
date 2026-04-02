@@ -783,10 +783,10 @@ const itemsPerPage = 5;
 // Global state for pagination
 let salesPagination = {
   page: 1,
-  limit: 10,
+  limit: 20,
   total: 0,
   totalPages: 0,
-  month: new Date().toISOString().slice(0, 7) // Current month YYYY-MM
+  month: 'all'
 };
 
 // ========== KEG MODAL STATE ==========
@@ -901,13 +901,24 @@ function formatSaleListDate(raw) {
 // ========== SALES HISTORY RENDER ==========
 async function loadSalesHistory() {
   const { page, limit, month } = salesPagination;
-  const res = await fetch(`/api/sales?page=${page}&limit=${limit}&month=${month}`);
-  const data = await res.json();
-  
+  const monthParam = month !== 'all' ? `&month=${month}` : '';
+  let data;
+  try {
+    const res = await fetch(`/api/sales?page=${page}&limit=${limit}${monthParam}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    data = await res.json();
+  } catch (err) {
+    console.error('loadSalesHistory error:', err);
+    const container = document.getElementById('salesHistoryList');
+    if (container) container.innerHTML =
+      '<p class="text-danger text-center py-4">Không tải được lịch sử. Kiểm tra kết nối server.</p>';
+    return;
+  }
+
   const salesHistory = data.sales;
   salesPagination.total = data.total;
   salesPagination.totalPages = data.totalPages;
-  
+
   const container = document.getElementById('salesHistoryList');
   if (salesHistory.length === 0) {
     container.innerHTML = '<p class="text-muted text-center py-4">Chưa có hóa đơn nào</p>';
