@@ -1,10 +1,9 @@
 {
-  "version": "2.0.4",
-  "build": "20260402b",
+  "version": "2.0.5",
+  "build": "20260402c",
   "date": "2026-04-02",
   "changelog": [
-    "fix: rebuild unified.css — remove duplicate sections and broken formatting",
-    "fix: normalize view line endings (LF/CRLF consistency)",
-    "refactor: complete semantic theme system coverage across all views/routes"
+    "fix: remove gradient-info from customers header; clean dashboard btn-danger inline styles",
+    "fix: complete UI refactor cleanup across all views"
   ]
 }
