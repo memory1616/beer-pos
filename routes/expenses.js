@@ -7,34 +7,90 @@ function formatVND(amount) {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
 }
 
-// GET /expenses - Main expenses page
+// GET /expenses - Main expenses page (lọc theo tháng/năm giống /report/profit-customer)
 router.get('/', (req, res, next) => {
   try {
   const today = new Date().toISOString().split('T')[0];
-  
-  // Get current month stats
-  const startOfMonth = new Date();
-  startOfMonth.setDate(1);
-  const startOfMonthStr = startOfMonth.toISOString().split('T')[0];
-  
-  // Get total expenses this month
+  const { month, year } = req.query;
+
+  const now = new Date();
+  let startStr;
+  let endStr;
+  let labelThangNam;
+
+  if (month && year) {
+    const y = parseInt(year, 10);
+    const m = parseInt(month, 10);
+    const lastDay = new Date(y, m, 0).getDate();
+    startStr = `${y}-${String(m).padStart(2, '0')}-01`;
+    endStr = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    const thangLabels = ['', 'Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6', 'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'];
+    labelThangNam = thangLabels[m] + ' / ' + y;
+  } else {
+    const y = now.getFullYear();
+    const m = now.getMonth() + 1;
+    const lastDay = new Date(y, m, 0).getDate();
+    startStr = `${y}-${String(m).padStart(2, '0')}-01`;
+    endStr = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    const thangLabels = ['', 'Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6', 'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'];
+    labelThangNam = thangLabels[m] + ' / ' + y;
+  }
+
+  const startDay = startStr.split(' ')[0];
+  const endDay = endStr.split(' ')[0];
+
   const monthExpenses = db.prepare(`
-    SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE date >= ?
-  `).get(startOfMonthStr);
-  
-  // Get expense summary by category this month
+    SELECT COALESCE(SUM(amount), 0) as total FROM expenses
+    WHERE date(date) >= date(?) AND date(date) <= date(?)
+  `).get(startDay, endDay);
+
   const categorySummary = db.prepare(`
     SELECT category, SUM(amount) as total
     FROM expenses
-    WHERE date >= ?
+    WHERE date(date) >= date(?) AND date(date) <= date(?)
     GROUP BY category
     ORDER BY total DESC
-  `).all(startOfMonthStr);
-  
-  // Get recent expenses
+  `).all(startDay, endDay);
+
   const recentExpenses = db.prepare(`
-    SELECT * FROM expenses ORDER BY date DESC, id DESC LIMIT 20
-  `).all();
+    SELECT * FROM expenses
+    WHERE date(date) >= date(?) AND date(date) <= date(?)
+    ORDER BY date DESC, id DESC LIMIT 50
+  `).all(startDay, endDay);
+
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  const selectedMonth = month ? parseInt(month, 10) : currentMonth;
+  const selectedYear = year ? parseInt(year, 10) : currentYear;
+
+  const monthOptions = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((m) =>
+    '<option value="' + m + '"' + (m === selectedMonth ? ' selected' : '') + '>Tháng ' + m + '</option>'
+  ).join('');
+  const yearSpan = 8;
+  const yearOptions = Array.from({ length: yearSpan }, (_, i) => currentYear - i).map((y) =>
+    '<option value="' + y + '"' + (y === selectedYear ? ' selected' : '') + '>' + y + '</option>'
+  ).join('');
+
+  const vnForLabel = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+  const curYm = vnForLabel.getUTCFullYear() * 100 + (vnForLabel.getUTCMonth() + 1);
+  const selYm = selectedYear * 100 + selectedMonth;
+  const totalExpenseLabel = curYm === selYm ? 'Tổng chi phí tháng này' : ('Tổng chi phí — ' + labelThangNam);
+
+  // Bộ lọc nằm trong thẻ đỏ để luôn thấy (không chỉ khối vàng phía trên)
+  const filterInsideSummaryHtml =
+    '<div class="mb-4 pb-4 border-b border-white/25">' +
+    '<div class="text-xs font-semibold text-white/95 mb-2">📅 Lọc theo tháng &amp; năm</div>' +
+    '<div class="flex gap-2 items-stretch flex-wrap">' +
+    '<select id="expSelMonth" class="flex-1 min-w-[108px] rounded-lg px-3 py-2.5 text-sm text-gray-900 bg-white border-0 shadow-sm">' +
+    monthOptions +
+    '</select>' +
+    '<select id="expSelYear" class="flex-1 min-w-[88px] rounded-lg px-3 py-2.5 text-sm text-gray-900 bg-white border-0 shadow-sm">' +
+    yearOptions +
+    '</select>' +
+    '<button type="button" onclick="applyExpMonthYear()" class="shrink-0 bg-white text-red-600 font-bold px-4 py-2.5 rounded-lg text-sm shadow-sm active:scale-[0.98]">Xem</button>' +
+    '</div>' +
+    '<p class="text-xs text-white/85 mt-2">Đang xem: <strong>' + labelThangNam + '</strong></p>' +
+    '</div>';
 
   // Expense categories (defaults + custom from DB)
   const defaultCategories = ['Xăng dầu', 'Khấu hao', 'Hư hỏng', 'Điện nước', 'Nhân công', 'Thuê mặt bằng', 'Bảo trì', 'Marketing', 'Khác'];
@@ -64,6 +120,7 @@ router.get('/', (req, res, next) => {
 
   const categories = allCategories;
   const customCategoriesJson = JSON.stringify(customCategories);
+  let categoryHtml;
   if (categorySummary.length > 0) {
     categoryHtml = categorySummary.map(c => {
       const icon = categoryIcons[c.category] || '📋';
@@ -76,7 +133,7 @@ router.get('/', (req, res, next) => {
         '</div>';
     }).join('');
   } else {
-    categoryHtml = '<div class="text-gray-500 text-center py-4">Chưa có chi phí nào</div>';
+    categoryHtml = '<div class="text-gray-500 text-center py-4">Chưa có chi phí trong tháng này</div>';
   }
 
   // Build recent expenses HTML
@@ -105,7 +162,7 @@ router.get('/', (req, res, next) => {
         '</div>';
     }).join('');
   } else {
-    expensesHtml = '<div class="text-gray-500 text-center py-4">Chưa có chi phí nào</div>';
+    expensesHtml = '<div class="text-gray-500 text-center py-4">Chưa có chi phí trong tháng này</div>';
   }
 
   const optionsHtml = categories.map(c => '<option value="' + c + '">' + c + '</option>').join('');
@@ -125,7 +182,7 @@ router.get('/', (req, res, next) => {
 '  <link rel="stylesheet" href="/css/unified.css">' +
 '  <script src="/js/dark-mode.js"></script>' +
 '  <script src="/js/auth.js"></script>' +
-'  <script src="/js/layout.js?v=20260329"></script>' +
+'  <script src="/js/layout.js?v=20260402"></script>' +
 '  <script>requireAuth();</script>' +
 '  <style>' +
 '    #addCategoryModal { z-index: 60; }' +
@@ -206,6 +263,12 @@ router.get('/', (req, res, next) => {
 '    function hideModal(id) { document.getElementById(id).classList.add("hidden"); document.getElementById(id).classList.remove("flex"); }' +
 '    function onCatChange(val) { var el = document.getElementById("customCatInput"); if (val === "__custom__") { el.classList.remove("hidden"); el.focus(); } else { el.classList.add("hidden"); el.value = ""; } }' +
 '    function showAddCategoryModal() { document.getElementById("newCategoryName").value = ""; document.getElementById("newCatError").classList.add("hidden"); document.getElementById("newCategoryName").classList.remove("border-red-400"); document.getElementById("newCategoryName").classList.add("border-gray-300"); showModal("addCategoryModal"); setTimeout(function() { document.getElementById("newCategoryName").focus(); }, 100); }' +
+'    function applyExpMonthYear() {' +
+'      var m = document.getElementById("expSelMonth").value;' +
+'      var y = document.getElementById("expSelYear").value;' +
+'      window.location.href = "/expenses?month=" + m + "&year=" + y;' +
+'    }' +
+'' +
 '    function hideAddCategory() { hideModal("addCategoryModal"); }' +
 '    function addCategoryToDropdown(name) { var sel = document.getElementById("catSelect"); if (!sel) return; var opt = document.createElement("option"); opt.value = name; opt.textContent = name; var customOpt = sel.querySelector("option[value=__custom__]"); sel.insertBefore(opt, customOpt || null); }' +
 '    function getAllCategories() { return categories.slice(); }' +
@@ -229,6 +292,7 @@ router.get('/', (req, res, next) => {
 '    function deleteExpense(id) { if (!confirm("Xóa chi phí này?")) return; fetch("/api/expenses/" + id, { method: "DELETE" }).then(function(res) { if (res.ok) location.reload(); else alert("Xóa thất bại"); }).catch(function() { alert("Lỗi kết nối"); }); }' +
 '' +
 '    function editExpense(id, category, amount, date, description) {' +
+'      var form = document.getElementById("addExpenseForm"); if (!form) return;' +
 '      var title = document.querySelector("#addExpenseModal h2"); if (title) title.textContent = "Sửa chi phí";' +
 '      document.getElementById("expenseId").value = id;' +
 '      var catSel = document.getElementById("catSelect");' +
@@ -262,15 +326,17 @@ router.get('/', (req, res, next) => {
 '    (async function() {' +
 '      document.getElementById("app").innerHTML = getHeader("Chi phí", "💸") + getContent(`' +
 '        <div class="mb-4 p-5 bg-gradient-to-r from-red-500 to-red-600 rounded-xl shadow-lg text-white">' +
-'          <div class="text-sm opacity-90">Tổng chi phí tháng này</div>' +
-'          <div class="text-3xl font-bold">' + formatVND(monthExpenses.total) + '</div>' +
+        filterInsideSummaryHtml +
+'        <div class="text-sm opacity-90">' + totalExpenseLabel + '</div>' +
+'        <div class="text-3xl font-bold">' + formatVND(monthExpenses.total) + '</div>' +
 '        </div>' +
-'        <div class="bg-white rounded-xl shadow-sm border p-4 mb-4">' +
+'        <div class="bg-white rounded-xl shadow-sm border-2 border-amber-200 p-4 mb-4">' +
 '          <h3 class="font-semibold text-gray-700 mb-3">📊 Chi phí theo loại</h3>' +
 '          <div>' + categoryHtml + '</div>' +
 '        </div>' +
-'        <div class="bg-white rounded-xl shadow-sm border p-4">' +
+'        <div class="bg-white rounded-xl shadow-sm border-2 border-amber-200 p-4">' +
 '          <h3 class="font-semibold text-gray-700 mb-3">📋 Chi phí gần đây</h3>' +
+'          <p class="text-xs text-gray-500 -mt-2 mb-3">Trong kỳ đã chọn (tối đa 50 dòng)</p>' +
 '          <div>' + expensesHtml + '</div>' +
 '        </div>' +
 '      `) + getBottomNav("/expenses");' +
