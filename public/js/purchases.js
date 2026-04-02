@@ -67,7 +67,7 @@ function renderCart() {
     return '<div class="flex justify-between text-sm"><span>' + item.quantity + 'x ' + item.name + '</span><span class="font-medium">' + formatVND(itemTotal) + '</span></div>';
   }).join('');
   
-  totalEl.textContent = formatVND(total);
+  totalEl.innerHTML = '<span class="value">' + formatVND(total).replace(' đ', '') + '</span><span class="unit"> đ</span>';
   submitBtn.disabled = false;
 }
 

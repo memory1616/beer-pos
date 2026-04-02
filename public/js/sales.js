@@ -368,7 +368,8 @@ function updateCartFromInputs() {
     }
   });
 
-  document.getElementById('totalAmount').textContent = formatVND(total);
+  const formatted = Format.number(total);
+  document.getElementById('totalAmount').innerHTML = '<span class="value">' + formatted + '</span><span class="unit"> đ</span>';
   document.getElementById('sellBtn').disabled = cart.length === 0;
 }
 
@@ -444,7 +445,7 @@ async function submitSale() {
         // Fallback: hiện modal rỗng với thông tin cơ bản
         const modal = document.getElementById('invoiceModal');
         if (modal) {
-          document.getElementById('invoiceTotal').textContent = formatVND(result.total || 0);
+          document.getElementById('invoiceTotal').innerHTML = '<span class="value">' + Format.number(result.total || 0) + '</span><span class="unit"> đ</span>';
           document.getElementById('invoiceContent').innerHTML =
             '<div class="text-center text-muted py-8">Đơn hàng #'+ result.id +'</div>';
           document.getElementById('qrCode').src = '';
@@ -1159,9 +1160,10 @@ function calculateReturnTotal() {
     total += qty * price;
   });
   
+  const formatted = Format.number(total);
   const previewEl = document.getElementById('returnPreview');
   if (previewEl) {
-    previewEl.textContent = formatVND(total);
+    previewEl.innerHTML = '<span class="value">' + formatted + '</span><span class="unit"> đ</span>';
   }
   
   return total;

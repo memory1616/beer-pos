@@ -185,7 +185,7 @@ function calculateImportTotal() {
     }
   });
   const el = document.getElementById('importTotal');
-  if (el) el.textContent = formatVND(total);
+  if (el) el.innerHTML = '<span class="value">' + formatVND(total).replace(' đ', '') + '</span><span class="unit"> đ</span>';
 }
 
 async function submitImport() {
