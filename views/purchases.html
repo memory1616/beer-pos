@@ -160,7 +160,7 @@
         const dateStr = new Date(p.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
         const count = p.item_count != null ? p.item_count : (p.items_summary ? p.items_summary.split(',').length : 0);
         return `
-        <div class="bg-white rounded-xl shadow-sm border border-muted p-4 flex items-center justify-between gap-3">
+        <div class="card p-4 flex items-center justify-between gap-3">
           <div class="flex-1 min-w-0">
             <div class="font-bold text-main">Đơn #${p.id}</div>
             <div class="text-sm text-muted mt-0.5">${dateStr} • ${count} sản phẩm</div>
