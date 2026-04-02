@@ -8,7 +8,7 @@ function formatVND(amount) {
 // Toast notification
 function showToast(message, type = 'success') {
   const toast = document.createElement('div');
-  const bgColor = type === 'success' ? 'bg-green-500' : (type === 'error' ? 'bg-red-500' : 'bg-blue-500');
+  const bgColor = type === 'success' ? 'bg-success' : (type === 'error' ? 'bg-danger' : 'bg-info');
   toast.className = `fixed top-4 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg z-50 transform transition-all duration-300 translate-x-full`;
   toast.textContent = message;
   document.body.appendChild(toast);
@@ -51,12 +51,12 @@ function switchCustomerTab(tab) {
   const archivedSection = document.getElementById('archivedSection');
 
   if (tab === 'active') {
-    tabActive.className = 'flex-1 py-2.5 rounded-xl font-semibold text-sm transition-all bg-blue-600 text-white shadow';
-    tabArchived.className = 'flex-1 py-2.5 rounded-xl font-semibold text-sm transition-all bg-white text-gray-600 border border-gray-200 shadow-sm';
+    tabActive.className = 'btn btn-primary flex-1 h-11 text-sm rounded-xl shadow';
+    tabArchived.className = 'btn btn-ghost flex-1 h-11 text-sm rounded-xl shadow';
     if (archivedSection) archivedSection.classList.add('hidden');
   } else {
-    tabActive.className = 'flex-1 py-2.5 rounded-xl font-semibold text-sm transition-all bg-white text-gray-600 border border-gray-200 shadow-sm';
-    tabArchived.className = 'flex-1 py-2.5 rounded-xl font-semibold text-sm transition-all bg-gray-500 text-white shadow';
+    tabActive.className = 'btn btn-ghost flex-1 h-11 text-sm rounded-xl shadow';
+    tabArchived.className = 'btn btn-secondary flex-1 h-11 text-sm rounded-xl shadow';
     if (archivedSection) archivedSection.classList.remove('hidden');
   }
 
@@ -75,7 +75,7 @@ function renderCustomers() {
   const filtered = source.filter(c => c.name.toLowerCase().includes(search));
 
   if (filtered.length === 0) {
-    container.innerHTML = '<div class="text-center text-gray-500 py-8 bg-white rounded-xl shadow-sm">Không có khách hàng nào</div>';
+    container.innerHTML = '<div class="text-center text-muted py-8 card">Không có khách hàng nào</div>';
     return;
   }
 
@@ -114,12 +114,12 @@ function renderCustomers() {
 
         <div class="flex justify-between items-start mt-3 gap-3">
           <div class="flex flex-col gap-1">
-            <div class="inline-flex items-center gap-1 px-3 py-1.5 bg-amber-50 rounded-lg border border-amber-200">
-              <span class="text-amber-600 font-bold text-lg">📦 ${c.keg_balance || 0}</span>
-              <span class="text-xs text-amber-500">vỏ</span>
+            <div class="card p-2">
+              <span class="text-primary font-bold text-lg">📦 ${c.keg_balance || 0}</span>
+              <span class="text-xs text-muted ml-1">vỏ</span>
             </div>
             ${((c.horizontal_fridge || 0) > 0 || (c.vertical_fridge || 0) > 0) ? `
-              <div class="text-xs text-indigo-600 font-medium">
+              <div class="text-xs text-info font-medium">
                 ❄️ ${c.horizontal_fridge || 0} + 🥶 ${c.vertical_fridge || 0}
               </div>
             ` : ''}
@@ -150,7 +150,7 @@ function renderCustomers() {
           </div>
           <div class="flex items-center gap-3">
             ${currentTab === 'active' ? `
-            <button onclick="editKegBalance(${c.id}, ${c.keg_balance}, '${c.name}')" class="text-xs text-info hover:text-blue-700 px-2 py-1 rounded transition-colors">✏️ Sửa vỏ</button>
+            <button onclick="editKegBalance(${c.id}, ${c.keg_balance}, '${c.name}')" class="text-xs text-info hover:text-info px-2 py-1 rounded transition-colors">✏️ Sửa vỏ</button>
             ` : ''}
             ${hasLocation ? '<span class="text-success text-xs" title="Đã có vị trí">✅</span>' : ''}
           </div>
@@ -306,7 +306,7 @@ async function saveCustomerEdit() {
 
 function showPriceModal(id, name) {
   document.getElementById('priceCustomerName').textContent = name;
-  document.getElementById('priceList').innerHTML = '<div class="text-gray-500 text-center py-4">Đang tải sản phẩm...</div>';
+  document.getElementById('priceList').innerHTML = '<div class="text-muted text-center py-4">Đang tải sản phẩm...</div>';
   
   // Load products and existing prices in parallel
   Promise.all([
@@ -326,7 +326,7 @@ function showPriceModal(id, name) {
     
     const container = document.getElementById('priceList');
     if (products.length === 0) {
-      container.innerHTML = '<div class="text-gray-500 text-center py-4">Chưa có sản phẩm nào</div>';
+      container.innerHTML = '<div class="text-muted text-center py-4">Chưa có sản phẩm nào</div>';
       return;
     }
     
@@ -346,7 +346,7 @@ function showPriceModal(id, name) {
     initAllNumberFormats();
   }).catch(err => {
     console.error('Error loading data:', err);
-    document.getElementById('priceList').innerHTML = '<div class="text-red-500 text-center py-4">❌ Lỗi tải dữ liệu: ' + err.message + '</div>';
+    document.getElementById('priceList').innerHTML = '<div class="text-danger text-center py-4">❌ Lỗi tải dữ liệu: ' + err.message + '</div>';
   });
   
   showModal('priceModal');
@@ -408,13 +408,13 @@ async function loadAddProducts() {
     
     const container = document.getElementById('addPriceList');
     if (products.length === 0) {
-      container.innerHTML = '<div class="text-gray-500 text-sm text-center py-2">Chưa có sản phẩm nào</div>';
+      container.innerHTML = '<div class="text-muted text-sm text-center py-2">Chưa có sản phẩm nào</div>';
     } else {
-      container.innerHTML = products.map(p => 
-        '<div class="flex items-center justify-between py-2 border-b border-gray-100">' +
-          '<span class="text-sm font-medium text-gray-700">' + p.name + '</span>' +
+      container.innerHTML = products.map(p =>
+        '<div class="flex items-center justify-between py-2 border-b border-muted">' +
+          '<span class="text-sm font-medium text-main">' + p.name + '</span>' +
           '<input type="text" name="price_' + p.id + '" data-product="' + p.id + '" data-format-number inputmode="decimal" ' +
-            'class="border border-gray-300 rounded px-2 py-1 w-24 text-right text-sm" ' +
+            'class="border border-primary rounded px-2 py-1 w-24 text-right text-sm focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none" ' +
             'placeholder="Giá">' +
         '</div>'
       ).join('');
@@ -507,12 +507,12 @@ function getLocation(customerId) {
   if (hasExistingGPS) {
     // Customer already has GPS — show existing info, don't auto-update
     document.getElementById('existingGPSInfo').innerHTML = `
-      <div class="bg-green-50 border border-green-200 rounded-lg p-3 mb-3">
+      <div class="card p-3 mb-3">
         <div class="flex items-center gap-2 mb-2">
-          <span class="text-green-600 font-semibold text-sm">✅ Đã có vị trí</span>
+          <span class="badge badge-success">✅ Đã có vị trí</span>
         </div>
-        <div class="text-xs text-gray-600 mb-1">📍 ${customer.lat.toFixed(6)}, ${customer.lng.toFixed(6)}</div>
-        ${customer.address ? '<div class="text-xs text-gray-500">' + customer.address + '</div>' : ''}
+        <div class="text-xs text-muted mb-1">📍 ${customer.lat.toFixed(6)}, ${customer.lng.toFixed(6)}</div>
+        ${customer.address ? '<div class="text-xs text-muted">' + customer.address + '</div>' : ''}
       </div>
     `;
     document.getElementById('manualLat').value = customer.lat.toFixed(6);
@@ -534,17 +534,17 @@ function getGPSLocation() {
   const addressEl = document.getElementById('detectedAddress');
 
   if (!navigator.geolocation) {
-    statusEl.innerHTML = '<p class="text-red-500">❌ Trình duyệt không hỗ trợ lấy vị trí</p><p class="text-sm text-gray-500">Vui lòng nhập thủ công</p>';
+    statusEl.innerHTML = '<p class="text-danger">❌ Trình duyệt không hỗ trợ lấy vị trí</p><p class="text-sm text-muted">Vui lòng nhập thủ công</p>';
     return;
   }
 
   // Show loading
   statusEl.innerHTML = `
     <div class="animate-pulse">
-      <p class="text-blue-500">⏳ Đang lấy vị trí GPS...</p>
-      <p class="text-xs text-gray-400">⏱ Chờ quyền truy cập...</p>
+      <p class="text-info">⏳ Đang lấy vị trí GPS...</p>
+      <p class="text-xs text-muted">⏱ Chờ quyền truy cập...</p>
     </div>
-    <button onclick="getGPSLocation()" class="mt-2 text-sm text-orange-600 hover:text-orange-800 underline">
+    <button onclick="getGPSLocation()" class="mt-2 text-sm text-warning hover:text-warning font-medium underline">
       Thử lại
     </button>
   `;
@@ -564,18 +564,18 @@ function getGPSLocation() {
       // Display accuracy
       let accuracyText = '';
       if (accuracy <= 10) {
-        accuracyText = '<span class="text-green-600">Rất tốt (≤10m)</span>';
+        accuracyText = '<span class="text-success">Rất tốt (≤10m)</span>';
       } else if (accuracy <= 50) {
-        accuracyText = '<span class="text-yellow-600">Tốt (≤50m)</span>';
+        accuracyText = '<span class="text-success">Tốt (≤50m)</span>';
       } else if (accuracy <= 100) {
-        accuracyText = '<span class="text-orange-600">Trung bình (≤100m)</span>';
+        accuracyText = '<span class="text-warning">Trung bình (≤100m)</span>';
       } else {
-        accuracyText = '<span class="text-red-600">Kém (>100m)</span>';
+        accuracyText = '<span class="text-danger">Kém (>100m)</span>';
       }
 
-      statusEl.innerHTML = `<p class="text-green-600">✅ Đã lấy được vị trí!</p>
-        <p class="text-sm text-gray-600">Độ chính xác: ${accuracyText}</p>
-        <p class="text-xs text-gray-500">Tọa độ: ${lat.toFixed(6)}, ${lng.toFixed(6)}</p>`;
+      statusEl.innerHTML = `<p class="text-success">✅ Đã lấy được vị trí!</p>
+        <p class="text-sm text-muted">Độ chính xác: ${accuracyText}</p>
+        <p class="text-xs text-muted">Tọa độ: ${lat.toFixed(6)}, ${lng.toFixed(6)}</p>`;
 
       // Fill in the coordinates
       document.getElementById('manualLat').value = lat.toFixed(6);
@@ -583,13 +583,13 @@ function getGPSLocation() {
 
       // Try reverse geocoding to get address
       try {
-        addressEl.innerHTML = '<p class="text-blue-500">⏳ Đang lấy địa chỉ...</p>';
+        addressEl.innerHTML = '<p class="text-info">⏳ Đang lấy địa chỉ...</p>';
         const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`);
         const data = await res.json();
 
         if (data.display_name) {
-          addressEl.innerHTML = `<p class="text-sm text-gray-700">📍 ${data.display_name}</p>
-            <button onclick="useDetectedAddress('${data.display_name.replace(/'/g, "\\'")}')" class="mt-2 text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+          addressEl.innerHTML = `<p class="text-sm text-main">📍 ${data.display_name}</p>
+            <button onclick="useDetectedAddress('${data.display_name.replace(/'/g, "\\'")}')" class="mt-2 text-xs btn btn-secondary btn-sm">
               Sử dụng địa chỉ này
             </button>`;
           // Store the address for later use
@@ -597,7 +597,7 @@ function getGPSLocation() {
         }
       } catch (err) {
         console.log('Reverse geocoding failed:', err);
-        addressEl.innerHTML = '<p class="text-gray-400">Không thể lấy địa chỉ</p>';
+        addressEl.innerHTML = '<p class="text-muted">Không thể lấy địa chỉ</p>';
       }
     },
     (error) => {
@@ -614,9 +614,9 @@ function getGPSLocation() {
           break;
       }
       statusEl.innerHTML = `
-        <p class="text-red-500 font-medium">${errorMsg}</p>
-        <p class="text-sm text-gray-500 mt-1">Vui lòng nhập thủ công hoặc thử lại</p>
-        <button onclick="getGPSLocation()" class="mt-3 px-4 py-2 bg-orange-500 text-white rounded-lg text-sm hover:bg-orange-600">
+        <p class="text-danger font-medium">${errorMsg}</p>
+        <p class="text-sm text-muted mt-1">Vui lòng nhập thủ công hoặc thử lại</p>
+        <button onclick="getGPSLocation()" class="mt-3 px-4 py-2 btn btn-warning text-sm">
           📍 Thử lại
         </button>
       `;

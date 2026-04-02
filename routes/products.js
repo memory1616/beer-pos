@@ -26,7 +26,7 @@ router.get('/', (req, res) => {
   <link rel="stylesheet" href="/css/unified.css">
   <script src="/js/dark-mode.js"></script>
 </head>
-<body class="bg-gray-100 text-gray-800 min-h-screen pb-20">
+<body class="bg-bg text-main min-h-screen pb-20">
   <header class="topbar">
     <div class="logo">
       <a href="/" style="color: var(--color-muted);">←</a>
@@ -35,13 +35,13 @@ router.get('/', (req, res) => {
   </header>
   <main class="page-enter">
     ${products.map(p => `
-      <div class="bg-white p-4 rounded-lg shadow">
-        <div class="font-bold">${p.name}</div>
-        <div class="text-gray-600">Tồn kho: ${p.stock} | Giá vốn: ${formatVND(p.cost_price || 0)}</div>
+      <div class="card p-4">
+        <div class="font-bold text-main">${p.name}</div>
+        <div class="text-muted">Tồn kho: ${p.stock} | Giá vốn: ${formatVND(p.cost_price || 0)}</div>
       </div>
     `).join('')}
   </div>
-  <a href="/" class="block mt-4 text-center text-blue-600">← Quay lại</a>
+  <a href="/" class="block mt-4 text-center text-info">← Quay lại</a>
 </body>
 </html>
   `);

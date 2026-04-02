@@ -14,7 +14,7 @@ async function loadVersion() {
 
 // Generate standard header
 function getHeader(title, icons = '') {
-  return getHeaderWithActions(title, icons, '<a href="/" class="text-amber-600 hover:bg-amber-50 px-2 rounded" title="Dashboard">🏠</a>');
+  return getHeaderWithActions(title, icons, '<a href="/" class="text-primary hover:bg-primary/10 px-2 rounded" title="Dashboard">🏠</a>');
 }
 
 // Generate header with custom actions
@@ -25,12 +25,12 @@ function getHeaderWithActions(title, icons = '', actions = '') {
         <span class="logo-icon">${icons}</span>
         <div class="flex flex-col leading-tight">
           <span class="logo-text">${title}</span>
-          <span class="text-[10px] text-gray-400 -mt-0.5">v${appVersion}</span>
+          <span class="text-[10px] text-muted -mt-0.5">v${appVersion}</span>
         </div>
       </div>
       <div class="actions">
-        <span id="onlineStatus" class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-400 mr-1">⏳</span>
-        <span id="syncStatus" class="text-xs text-gray-400 mr-1"></span>
+        <span id="onlineStatus" class="text-xs px-2 py-0.5 rounded-full bg-bg text-muted mr-1">⏳</span>
+        <span id="syncStatus" class="text-xs text-muted mr-1"></span>
         <button id="themeToggle" onclick="window.__darkMode && window.__darkMode.cycle()" title="Chế độ sáng" style="background:none;border:none;cursor:pointer;font-size:18px;padding:4px 6px;border-radius:6px;">☀️</button>
         ${actions}
       </div>
@@ -94,8 +94,8 @@ function getBottomNav(currentPage) {
 function getSkeleton(lines = 3) {
   return Array(lines).fill(0).map(() => `
     <div class="animate-pulse mb-3">
-      <div class="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-      <div class="h-4 bg-gray-200 rounded w-1/2"></div>
+      <div class="h-4 bg-muted rounded w-3/4 mb-2"></div>
+      <div class="h-4 bg-muted rounded w-1/2"></div>
     </div>
   `).join('');
 }
@@ -104,8 +104,8 @@ function getSkeleton(lines = 3) {
 function getCardSkeleton() {
   return `
     <div class="card mb-3 animate-pulse">
-      <div class="h-4 bg-gray-200 rounded w-1/3 mb-3"></div>
-      <div class="h-8 bg-gray-200 rounded w-1/2"></div>
+      <div class="h-4 bg-muted rounded w-1/3 mb-3"></div>
+      <div class="h-8 bg-muted rounded w-1/2"></div>
     </div>
   `;
 }

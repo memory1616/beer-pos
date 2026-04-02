@@ -231,16 +231,16 @@ router.get('/', (req, res) => {
     .card-value { user-select: text; }
   </style>
 </head>
-<body class="bg-gray-100 text-gray-800 min-h-screen pb-20">
+<body class="bg-bg text-main min-h-screen pb-20">
   <!-- TOP BAR -->
-  <header class="sticky top-0 bg-white border-b z-50">
+  <header class="sticky top-0 bg-card border-b border-muted z-50">
     <div class="flex items-center justify-between px-4 h-12 max-w-md mx-auto">
       <div class="flex items-center gap-2">
         <span class="text-xl">📊</span>
         <span class="font-semibold text-sm">Báo cáo</span>
       </div>
       <div class="flex gap-3 text-xl">
-        <a href="/" class="text-gray-500 hover:bg-gray-100 px-2 rounded">🏠</a>
+        <a href="/" class="text-muted hover:bg-bg-hover px-2 rounded">🏠</a>
       </div>
     </div>
   </header>
@@ -249,17 +249,17 @@ router.get('/', (req, res) => {
     <!-- Quick Report Links -->
     <div class="mb-4">
       <div class="grid grid-cols-3 gap-3">
-        <a href="/report/profit-product" class="card text-center py-4 bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200 hover:shadow-md transition-all">
+        <a href="/report/profit-product" class="card text-center py-4 bg-primary/10 border-primary/20 hover:shadow-md transition-all">
           <div class="text-2xl mb-1">📦</div>
-          <div class="text-xs font-semibold text-purple-700">Lợi nhuận<br>sản phẩm</div>
+          <div class="text-xs font-semibold text-primary">Lợi nhuận<br>sản phẩm</div>
         </a>
-        <a href="/report/profit-customer" class="card text-center py-4 bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200 hover:shadow-md transition-all">
+        <a href="/report/profit-customer" class="card text-center py-4 bg-info/10 border-info/20 hover:shadow-md transition-all">
           <div class="text-2xl mb-1">👥</div>
-          <div class="text-xs font-semibold text-blue-700">Lợi nhuận<br>khách hàng</div>
+          <div class="text-xs font-semibold text-info">Lợi nhuận<br>khách hàng</div>
         </a>
-        <a href="/report/import-purchases" class="card text-center py-4 bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200 hover:shadow-md transition-all">
+        <a href="/report/import-purchases" class="card text-center py-4 bg-success/10 border-success/20 hover:shadow-md transition-all">
           <div class="text-2xl mb-1">📥</div>
-          <div class="text-xs font-semibold text-emerald-800">Báo cáo<br>nhập hàng</div>
+          <div class="text-xs font-semibold text-success">Báo cáo<br>nhập hàng</div>
         </a>
       </div>
     </div>
@@ -267,11 +267,11 @@ router.get('/', (req, res) => {
     <!-- Period Selector - grid 5 nút, không scroll; tab chọn màu mạnh (blue-600/white) -->
     <div class="mb-4">
       <div class="grid grid-cols-5 gap-2">
-        <a href="/report?period=today" class="px-2 py-3 rounded-xl text-xs font-semibold text-center shadow-sm ${period === 'today' ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}">Hôm nay</a>
-        <a href="/report?period=yesterday" class="px-2 py-3 rounded-xl text-xs font-semibold text-center shadow-sm ${period === 'yesterday' ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}">Hôm qua</a>
-        <a href="/report?period=week" class="px-2 py-3 rounded-xl text-xs font-semibold text-center shadow-sm ${period === 'week' ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}">7 ngày</a>
-        <a href="/report?period=thisMonth" class="px-2 py-3 rounded-xl text-xs font-semibold text-center shadow-sm ${period === 'thisMonth' ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}">Tháng này</a>
-        <a href="/report?period=lastMonth" class="px-2 py-3 rounded-xl text-xs font-semibold text-center shadow-sm ${period === 'lastMonth' ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}">Tháng trước</a>
+        <a href="/report?period=today" class="px-2 py-3 rounded-xl text-xs font-semibold text-center shadow-sm ${period === 'today' ? 'btn btn-primary' : 'bg-card text-muted hover:bg-bg-hover'}">Hôm nay</a>
+        <a href="/report?period=yesterday" class="px-2 py-3 rounded-xl text-xs font-semibold text-center shadow-sm ${period === 'yesterday' ? 'btn btn-primary' : 'bg-card text-muted hover:bg-bg-hover'}">Hôm qua</a>
+        <a href="/report?period=week" class="px-2 py-3 rounded-xl text-xs font-semibold text-center shadow-sm ${period === 'week' ? 'btn btn-primary' : 'bg-card text-muted hover:bg-bg-hover'}">7 ngày</a>
+        <a href="/report?period=thisMonth" class="px-2 py-3 rounded-xl text-xs font-semibold text-center shadow-sm ${period === 'thisMonth' ? 'btn btn-primary' : 'bg-card text-muted hover:bg-bg-hover'}">Tháng này</a>
+        <a href="/report?period=lastMonth" class="px-2 py-3 rounded-xl text-xs font-semibold text-center shadow-sm ${period === 'lastMonth' ? 'btn btn-primary' : 'bg-card text-muted hover:bg-bg-hover'}">Tháng trước</a>
       </div>
     </div>
 
@@ -279,47 +279,47 @@ router.get('/', (req, res) => {
     <div class="mb-4">
       <div class="section-title">${periodLabel}</div>
       <div class="grid grid-cols-2 gap-3">
-        <div class="card bg-gradient-to-br from-amber-50 to-white border-amber-200">
+        <div class="card bg-primary/10 border-primary/20">
           <div class="flex items-center gap-2 mb-1">
-            <span class="text-amber-500">💵</span>
-            <div class="text-xs text-amber-700 font-medium">Doanh thu</div>
+            <span class="text-primary">💵</span>
+            <div class="text-xs text-primary font-medium">Doanh thu</div>
           </div>
-          <div class="text-xl font-bold text-amber-600 card-value">${formatVND(periodStats.revenue)}</div>
+          <div class="text-xl font-bold text-money card-value">${formatVND(periodStats.revenue)}</div>
         </div>
-        <div class="card bg-gradient-to-br from-blue-50 to-white border-blue-200">
+        <div class="card bg-info/10 border-info/20">
           <div class="flex items-center gap-2 mb-1">
-            <span class="text-blue-500">📈</span>
-            <div class="text-xs text-blue-700 font-medium">Lợi nhuận gộp</div>
+            <span class="text-info">📈</span>
+            <div class="text-xs text-info font-medium">Lợi nhuận gộp</div>
           </div>
-          <div class="text-xl font-bold text-blue-600 card-value">${formatVND(periodStats.profit)}</div>
+          <div class="text-xl font-bold text-success card-value">${formatVND(periodStats.profit)}</div>
         </div>
-        <div class="card bg-gradient-to-br from-red-50 to-white border-red-200">
+        <div class="card bg-danger/10 border-danger/20">
           <div class="flex items-center gap-2 mb-1">
-            <span class="text-red-500">📉</span>
-            <div class="text-xs text-red-700 font-medium">Chi phí</div>
+            <span class="text-danger">📉</span>
+            <div class="text-xs text-danger font-medium">Chi phí</div>
           </div>
-          <div class="text-xl font-bold text-red-600 card-value">-${formatVND(periodExpenses.total)}</div>
+          <div class="text-xl font-bold text-danger card-value">-${formatVND(periodExpenses.total)}</div>
         </div>
-        <div class="card bg-gradient-to-br from-indigo-50 to-indigo-100 border-indigo-300">
+        <div class="card bg-secondary/10 border-secondary/20">
           <div class="flex items-center gap-2 mb-1">
-            <span class="text-indigo-600">✨</span>
-            <div class="text-xs text-indigo-700 font-medium">Lợi nhuận ròng</div>
+            <span class="text-secondary">✨</span>
+            <div class="text-xs text-secondary font-medium">Lợi nhuận ròng</div>
           </div>
-          <div class="text-xl font-bold text-indigo-700 card-value">${formatVND(netProfit)}</div>
+          <div class="text-xl font-bold text-secondary card-value">${formatVND(netProfit)}</div>
         </div>
-        <div class="card bg-gradient-to-br from-gray-50 to-white border-gray-200">
+        <div class="card">
           <div class="flex items-center gap-2 mb-1">
-            <span class="text-gray-500">📋</span>
-            <div class="text-xs text-gray-600 font-medium">Đơn hàng</div>
+            <span class="text-muted">📋</span>
+            <div class="text-xs text-muted font-medium">Đơn hàng</div>
           </div>
-          <div class="text-xl font-bold text-gray-700 card-value">${periodStats.order_count}</div>
+          <div class="text-xl font-bold text-main card-value">${periodStats.order_count}</div>
         </div>
-        <div class="card bg-gradient-to-br from-orange-50 to-white border-orange-200">
+        <div class="card bg-warning/10 border-warning/20">
           <div class="flex items-center gap-2 mb-1">
-            <span class="text-orange-500">🍺</span>
-            <div class="text-xs text-orange-700 font-medium">Sản phẩm</div>
+            <span class="text-warning">🍺</span>
+            <div class="text-xs text-warning font-medium">Sản phẩm</div>
           </div>
-          <div class="text-xl font-bold text-orange-600 card-value">${periodStats.total_quantity}</div>
+          <div class="text-xl font-bold text-warning card-value">${periodStats.total_quantity}</div>
         </div>
       </div>
     </div>
@@ -336,47 +336,47 @@ router.get('/', (req, res) => {
     <div class="mb-4">
       <div class="section-title">📊 Tất cả thời gian</div>
       <div class="grid grid-cols-2 gap-3 mt-2">
-        <div class="p-3 bg-gradient-to-br from-amber-50 to-white rounded-xl border border-amber-300 shadow-sm">
+        <div class="card bg-primary/10 border-primary/30">
           <div class="flex items-center gap-1 mb-1">
-            <span class="text-amber-500">💵</span>
-            <div class="text-xs text-amber-700 font-medium">Doanh thu</div>
+            <span class="text-primary">💵</span>
+            <div class="text-xs text-primary font-medium">Doanh thu</div>
           </div>
-          <div class="text-lg font-bold text-amber-600 card-value">${formatVND(allTimeStats.revenue)}</div>
+          <div class="text-lg font-bold text-money card-value">${formatVND(allTimeStats.revenue)}</div>
         </div>
-        <div class="p-3 bg-gradient-to-br from-blue-50 to-white rounded-xl border border-blue-300 shadow-sm">
+        <div class="card bg-info/10 border-info/30">
           <div class="flex items-center gap-1 mb-1">
-            <span class="text-blue-500">📈</span>
-            <div class="text-xs text-blue-700 font-medium">Lợi nhuận gộp</div>
+            <span class="text-info">📈</span>
+            <div class="text-xs text-info font-medium">Lợi nhuận gộp</div>
           </div>
-          <div class="text-lg font-bold text-blue-600 card-value">${formatVND(allTimeStats.profit)}</div>
+          <div class="text-lg font-bold text-success card-value">${formatVND(allTimeStats.profit)}</div>
         </div>
-        <div class="p-3 bg-gradient-to-br from-red-50 to-white rounded-xl border border-red-300 shadow-sm">
+        <div class="card bg-danger/10 border-danger/30">
           <div class="flex items-center gap-1 mb-1">
-            <span class="text-red-500">📉</span>
-            <div class="text-xs text-red-700 font-medium">Tổng chi phí</div>
+            <span class="text-danger">📉</span>
+            <div class="text-xs text-danger font-medium">Tổng chi phí</div>
           </div>
-          <div class="text-lg font-bold text-red-600 card-value">-${formatVND(allTimeExpenses.total)}</div>
+          <div class="text-lg font-bold text-danger card-value">-${formatVND(allTimeExpenses.total)}</div>
         </div>
-        <div class="p-3 bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-xl border border-indigo-300 shadow-sm">
+        <div class="card bg-secondary/10 border-secondary/30">
           <div class="flex items-center gap-1 mb-1">
-            <span class="text-indigo-600">✨</span>
-            <div class="text-xs text-indigo-700 font-medium">Lợi nhuận ròng</div>
+            <span class="text-secondary">✨</span>
+            <div class="text-xs text-secondary font-medium">Lợi nhuận ròng</div>
           </div>
-          <div class="text-lg font-bold text-indigo-700 card-value">${formatVND(allTimeNetProfit)}</div>
+          <div class="text-lg font-bold text-secondary card-value">${formatVND(allTimeNetProfit)}</div>
         </div>
-        <div class="p-3 bg-gradient-to-br from-gray-50 to-white rounded-xl border border-gray-300 shadow-sm">
+        <div class="card">
           <div class="flex items-center gap-1 mb-1">
-            <span class="text-gray-500">📋</span>
-            <div class="text-xs text-gray-600 font-medium">Đơn hàng</div>
+            <span class="text-muted">📋</span>
+            <div class="text-xs text-muted font-medium">Đơn hàng</div>
           </div>
-          <div class="text-lg font-bold text-gray-700 card-value">${allTimeStats.order_count}</div>
+          <div class="text-lg font-bold text-main card-value">${allTimeStats.order_count}</div>
         </div>
-        <div class="p-3 bg-gradient-to-br from-orange-50 to-white rounded-xl border border-orange-300 shadow-sm">
+        <div class="card bg-warning/10 border-warning/30">
           <div class="flex items-center gap-1 mb-1">
-            <span class="text-orange-500">🍺</span>
-            <div class="text-xs text-orange-700 font-medium">Sản phẩm</div>
+            <span class="text-warning">🍺</span>
+            <div class="text-xs text-warning font-medium">Sản phẩm</div>
           </div>
-          <div class="text-lg font-bold text-orange-600 card-value">${allTimeStats.total_quantity}</div>
+          <div class="text-lg font-bold text-warning card-value">${allTimeStats.total_quantity}</div>
         </div>
       </div>
     </div>
@@ -385,17 +385,17 @@ router.get('/', (req, res) => {
     <div class="mb-4">
       <div class="section-title">🏆 Top khách hàng</div>
       <div class="space-y-2">
-        ${topCustomers.length === 0 ? '<div class="text-gray-500 text-center py-4 bg-white rounded-xl">Chưa có dữ liệu</div>' : topCustomers.map((c, i) => `
+        ${topCustomers.length === 0 ? '<div class="text-muted text-center py-4 bg-white rounded-xl">Chưa có dữ liệu</div>' : topCustomers.map((c, i) => `
           <div class="card flex justify-between items-center hover:shadow-md transition-all">
             <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm ${i === 0 ? 'bg-gradient-to-br from-yellow-400 to-yellow-500 text-yellow-900' : i === 1 ? 'bg-gradient-to-br from-gray-300 to-gray-400 text-gray-700' : i === 2 ? 'bg-gradient-to-br from-orange-300 to-orange-400 text-orange-900' : 'bg-gray-100 text-gray-600'}">${i + 1}</div>
+              <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm ${i === 0 ? 'bg-primary/20 text-primary' : i === 1 ? 'bg-muted text-muted' : i === 2 ? 'bg-warning/20 text-warning' : 'bg-bg text-muted'}">${i + 1}</div>
               <div>
                 <div class="font-bold text-sm">${c.name}</div>
-                <div class="text-xs text-gray-500">${c.order_count} đơn · ${c.quantity} sản phẩm</div>
+                <div class="text-xs text-muted">${c.order_count} đơn · ${c.quantity} sản phẩm</div>
               </div>
             </div>
             <div class="text-right">
-              <div class="font-bold text-amber-600">${formatVND(c.revenue)}</div>
+              <div class="font-bold text-primary">${formatVND(c.revenue)}</div>
             </div>
           </div>
         `).join('')}
@@ -406,18 +406,18 @@ router.get('/', (req, res) => {
     <div class="mb-4">
       <div class="section-title">🍺 Top sản phẩm bán chạy</div>
       <div class="space-y-2">
-        ${topProducts.length === 0 ? '<div class="text-gray-500 text-center py-4 bg-white rounded-xl">Chưa có dữ liệu</div>' : topProducts.map((p, i) => `
+        ${topProducts.length === 0 ? '<div class="text-muted text-center py-4 bg-white rounded-xl">Chưa có dữ liệu</div>' : topProducts.map((p, i) => `
           <div class="card flex justify-between items-center hover:shadow-md transition-all">
             <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm ${i === 0 ? 'bg-gradient-to-br from-yellow-400 to-yellow-500 text-yellow-900' : i === 1 ? 'bg-gradient-to-br from-gray-300 to-gray-400 text-gray-700' : i === 2 ? 'bg-gradient-to-br from-orange-300 to-orange-400 text-orange-900' : 'bg-gray-100 text-gray-600'}">${i + 1}</div>
+              <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm ${i === 0 ? 'bg-primary/20 text-primary' : i === 1 ? 'bg-muted text-muted' : i === 2 ? 'bg-warning/20 text-warning' : 'bg-bg text-muted'}">${i + 1}</div>
               <div>
                 <div class="font-bold text-sm">${p.name}</div>
-                <div class="text-xs text-gray-500">Doanh thu: ${formatVND(p.revenue)}</div>
+                <div class="text-xs text-muted">Doanh thu: ${formatVND(p.revenue)}</div>
               </div>
             </div>
             <div class="text-right">
-              <div class="font-bold text-orange-600">${p.quantity_sold}</div>
-              <div class="text-xs text-gray-500">sản phẩm</div>
+              <div class="font-bold text-warning">${p.quantity_sold}</div>
+              <div class="text-xs text-muted">sản phẩm</div>
             </div>
           </div>
         `).join('')}
@@ -426,9 +426,9 @@ router.get('/', (req, res) => {
 
     <!-- Recent Sales -->
     <div class="mb-4">
-      <div class="section-title">📋 Đơn hàng gần đây <span class="text-xs font-normal text-gray-500">(${total} đơn)</span></div>
+      <div class="section-title">📋 Đơn hàng gần đây <span class="text-xs font-normal text-muted">(${total} đơn)</span></div>
       <div class="bg-white rounded-xl shadow-sm border overflow-hidden" id="recentSalesList">
-        ${recentSales.length === 0 ? '<div class="text-gray-500 text-center py-4">Chưa có đơn hàng</div>' : recentSales.map(s => {
+        ${recentSales.length === 0 ? '<div class="text-muted text-center py-4">Chưa có đơn hàng</div>' : recentSales.map(s => {
           const date = new Date(s.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
           const hasKegUpdate = (s.deliver_kegs || 0) > 0 || (s.return_kegs || 0) > 0;
           
@@ -437,28 +437,28 @@ router.get('/', (req, res) => {
           let rowClass = '';
           
           if (s.type === 'replacement') {
-            typeBadge = '<span class="bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded text-xs">🔁 Đổi lỗi</span>';
-            totalDisplay = '<span class="font-bold text-orange-600">0 đ</span>';
-            rowClass = 'bg-orange-50/50';
+            typeBadge = '<span class="bg-warning/10 text-warning px-1.5 py-0.5 rounded text-xs">🔁 Đổi lỗi</span>';
+            totalDisplay = '<span class="font-bold text-warning">0 đ</span>';
+            rowClass = 'bg-warning/5/50';
           } else {
-            totalDisplay = '<span class="font-bold text-green-600">' + formatVND(s.total) + '</span>';
+            totalDisplay = '<span class="font-bold text-success">' + formatVND(s.total) + '</span>';
           }
           
-          return '<div class="flex justify-between items-center p-3 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors ' + rowClass + '">' +
+          return '<div class="flex justify-between items-center p-3 border-b border-muted last:border-0 hover:bg-hover transition-colors ' + rowClass + '">' +
             '<div class="flex-1">' +
               '<div class="font-medium text-sm">#' + s.id + ' - ' + (s.customer_name || 'Khách lẻ') + ' ' + typeBadge + '</div>' +
-              '<div class="text-xs text-gray-500 mt-0.5">' + date + (hasKegUpdate ? ' · 📦' : '') + '</div>' +
+              '<div class="text-xs text-muted mt-0.5">' + date + (hasKegUpdate ? ' · 📦' : '') + '</div>' +
             '</div>' +
             '<div class="text-right ml-3">' +
               totalDisplay +
-              (s.type !== 'replacement' ? '<div class="text-xs ' + (s.profit > 0 ? 'text-green-600' : 'text-red-500') + '">+' + formatVND(s.profit) + '</div>' : '') +
+              (s.type !== 'replacement' ? '<div class="text-xs ' + (s.profit > 0 ? 'text-success' : 'text-danger') + '">+' + formatVND(s.profit) + '</div>' : '') +
             '</div>' +
           '</div>';
         }).join('')}
-        ${totalPages > 1 ? '<div class="flex justify-center items-center gap-2 mt-3 py-3 bg-gray-50" id="salesPagination">' +
-          '<button type="button" onclick="loadReportSales(' + (page - 1) + ')" ' + (page === 1 ? 'disabled' : '') + ' class="px-4 py-2 rounded-lg min-w-[4rem] ' + (page === 1 ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100 shadow-sm') + '">‹ Trước</button>' +
-          '<span class="text-sm text-gray-600 px-2">' + page + '/' + totalPages + '</span>' +
-          '<button type="button" onclick="loadReportSales(' + (page + 1) + ')" ' + (page === totalPages ? 'disabled' : '') + ' class="px-4 py-2 rounded-lg min-w-[4rem] ' + (page === totalPages ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100 shadow-sm') + '">Sau ›</button>' +
+        ${totalPages > 1 ? '<div class="flex justify-center items-center gap-2 mt-3 py-3 bg-card" id="salesPagination">' +
+          '<button type="button" onclick="loadReportSales(' + (page - 1) + ')" ' + (page === 1 ? 'disabled' : '') + ' class="px-4 py-2 rounded-lg min-w-[4rem] ' + (page === 1 ? 'bg-muted text-muted cursor-not-allowed' : 'bg-card border border-muted text-primary hover:bg-hover shadow-sm') + '">‹ Trước</button>' +
+          '<span class="text-sm text-main px-2">' + page + '/' + totalPages + '</span>' +
+          '<button type="button" onclick="loadReportSales(' + (page + 1) + ')" ' + (page === totalPages ? 'disabled' : '') + ' class="px-4 py-2 rounded-lg min-w-[4rem] ' + (page === totalPages ? 'bg-muted text-muted cursor-not-allowed' : 'bg-card border border-muted text-primary hover:bg-hover shadow-sm') + '">Sau ›</button>' +
         '</div>' : ''}
       </div>
     </div>
@@ -542,7 +542,7 @@ router.get('/', (req, res) => {
         
         const container = document.getElementById('recentSalesList');
         if (data.sales.length === 0) {
-          container.innerHTML = '<div class="text-gray-700 text-center py-4">Chưa có đơn hàng</div>';
+          container.innerHTML = '<div class="text-primary text-center py-4">Chưa có đơn hàng</div>';
           return;
         }
         
@@ -555,21 +555,21 @@ router.get('/', (req, res) => {
           let rowClass = '';
           
           if (s.type === 'replacement') {
-            typeBadge = '<span class="bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded text-xs">🔁 Đổi lỗi</span>';
-            totalDisplay = '<span class="font-bold text-orange-600">0 đ</span>';
-            rowClass = 'bg-orange-50';
+            typeBadge = '<span class="bg-warning/10 text-warning px-1.5 py-0.5 rounded text-xs">🔁 Đổi lỗi</span>';
+            totalDisplay = '<span class="font-bold text-warning">0 đ</span>';
+            rowClass = 'bg-warning/5';
           } else {
-            totalDisplay = '<span class="font-bold text-green-600">' + formatVND(s.total) + '</span>';
+            totalDisplay = '<span class="font-bold text-success">' + formatVND(s.total) + '</span>';
           }
           
           return '<div class="flex justify-between items-center p-2 border-b ' + rowClass + '">' +
             '<div>' +
               '<div class="font-medium">#' + s.id + ' - ' + (s.customer_name || 'Khách lẻ') + ' ' + typeBadge + '</div>' +
-              '<div class="text-xs text-gray-700">' + date + (hasKegUpdate ? ' • 📦' : '') + '</div>' +
+              '<div class="text-xs text-primary">' + date + (hasKegUpdate ? ' • 📦' : '') + '</div>' +
             '</div>' +
             '<div class="text-right">' +
               totalDisplay +
-              (s.type !== 'replacement' ? '<div class="text-xs ' + (s.profit > 0 ? 'text-green-600' : 'text-red-500') + '">+' + formatVND(s.profit) + '</div>' : '') +
+              (s.type !== 'replacement' ? '<div class="text-xs ' + (s.profit > 0 ? 'text-success' : 'text-danger') + '">+' + formatVND(s.profit) + '</div>' : '') +
             '</div>' +
           '</div>';
         }).join('');
@@ -579,10 +579,10 @@ router.get('/', (req, res) => {
           const tp = reportSalesPagination.totalPages;
           const prevDisabled = p === 1;
           const nextDisabled = p === tp;
-          html += '<div class="flex justify-center items-center gap-2 mt-3 py-3 bg-gray-50" id="salesPagination">' +
-            '<button type="button" onclick="loadReportSales(' + (p - 1) + ')" ' + (prevDisabled ? 'disabled' : '') + ' class="px-4 py-2 rounded-lg min-w-[4rem] ' + (prevDisabled ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100 shadow-sm') + '">‹ Trước</button>' +
-            '<span class="text-sm text-gray-600 px-2">' + p + '/' + tp + '</span>' +
-            '<button type="button" onclick="loadReportSales(' + (p + 1) + ')" ' + (nextDisabled ? 'disabled' : '') + ' class="px-4 py-2 rounded-lg min-w-[4rem] ' + (nextDisabled ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100 shadow-sm') + '">Sau ›</button>' +
+            html += '<div class="flex justify-center items-center gap-2 mt-3 py-3 bg-card" id="salesPagination">' +
+              '<button type="button" onclick="loadReportSales(' + (p - 1) + ')" ' + (prevDisabled ? 'disabled' : '') + ' class="px-4 py-2 rounded-lg min-w-[4rem] ' + (prevDisabled ? 'bg-muted text-muted cursor-not-allowed' : 'bg-card border border-muted text-primary hover:bg-hover shadow-sm') + '">‹ Trước</button>' +
+            '<span class="text-sm text-main px-2">' + p + '/' + tp + '</span>' +
+              '<button type="button" onclick="loadReportSales(' + (p + 1) + ')" ' + (nextDisabled ? 'disabled' : '') + ' class="px-4 py-2 rounded-lg min-w-[4rem] ' + (nextDisabled ? 'bg-muted text-muted cursor-not-allowed' : 'bg-card border border-muted text-primary hover:bg-hover shadow-sm') + '">Sau ›</button>' +
           '</div>';
         }
         
@@ -745,11 +745,11 @@ router.get('/profit-product', (req, res) => {
     .filter-wrap { overflow: visible !important; }
   </style>
 </head>
-<body class="bg-gray-100 text-gray-800 min-h-screen pb-20">
-  <header class="sticky top-0 bg-white border-b z-50">
+<body class="bg-bg text-main min-h-screen pb-20">
+  <header class="sticky top-0 bg-card border-b border-muted z-50">
     <div class="flex items-center justify-between px-4 h-12 max-w-md mx-auto">
       <div class="flex items-center gap-2">
-        <a href="/report" class="text-gray-500">←</a>
+        <a href="/report" class="text-muted">←</a>
         <span class="font-semibold text-sm">Lợi nhuận sản phẩm</span>
       </div>
     </div>
@@ -768,7 +768,7 @@ router.get('/profit-product', (req, res) => {
         </select>
         <button type="button" onclick="applyMonthYearProduct()" style="background: #ea580c; color: white; border: none; border-radius: 8px; padding: 8px 16px; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap;">Xem</button>
       </div>
-      <div class="text-xs text-gray-500 mt-1">Đang xem: ${labelThangNam}</div>
+      <div class="text-xs text-muted mt-1">Đang xem: ${labelThangNam}</div>
     </div>
     <div class="mb-4 shadow-lg rounded-2xl p-4" style="background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%); color: #fff;">
       <div class="grid grid-cols-3 gap-3 text-center py-2">
@@ -787,19 +787,19 @@ router.get('/profit-product', (req, res) => {
       </div>
     </div>
     <div class="space-y-2">
-      ${products.length === 0 ? '<div class="text-gray-500 text-center py-4 bg-white rounded-xl">Chưa có dữ liệu</div>' : products.map((p, i) => `
+      ${products.length === 0 ? '<div class="text-muted text-center py-4 bg-white rounded-xl">Chưa có dữ liệu</div>' : products.map((p, i) => `
         <div class="card hover:shadow-md transition-all">
           <div class="flex justify-between items-center">
             <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm ${i === 0 ? 'bg-gradient-to-br from-yellow-400 to-yellow-500 text-yellow-900' : i === 1 ? 'bg-gradient-to-br from-gray-300 to-gray-400 text-gray-700' : i === 2 ? 'bg-gradient-to-br from-orange-300 to-orange-400 text-orange-900' : 'bg-gray-100 text-gray-600'}">${i + 1}</div>
+              <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm ${i === 0 ? 'bg-primary/20 text-primary' : i === 1 ? 'bg-muted text-muted' : i === 2 ? 'bg-warning/20 text-warning' : 'bg-bg text-muted'}">${i + 1}</div>
               <div>
                 <div class="font-bold">${p.name}</div>
-                <div class="text-xs text-gray-500">${p.total_qty} sản phẩm · ${formatVND(p.revenue)}</div>
+                <div class="text-xs text-muted">${p.total_qty} sản phẩm · ${formatVND(p.revenue)}</div>
               </div>
             </div>
             <div class="text-right">
-              <div class="font-bold text-purple-600">${formatVND(p.profit || 0)}</div>
-              <div class="text-xs text-gray-500">${((p.profit || 0) / (p.revenue || 1) * 100).toFixed(1)}%</div>
+              <div class="font-bold text-secondary">${formatVND(p.profit || 0)}</div>
+              <div class="text-xs text-muted">${((p.profit || 0) / (p.revenue || 1) * 100).toFixed(1)}%</div>
             </div>
           </div>
         </div>
@@ -912,11 +912,11 @@ router.get('/profit-customer', (req, res) => {
     .filter-wrap { overflow: visible !important; }
   </style>
 </head>
-<body class="bg-gray-100 text-gray-800 min-h-screen pb-20">
-  <header class="sticky top-0 bg-white border-b z-50">
+<body class="bg-bg text-main min-h-screen pb-20">
+  <header class="sticky top-0 bg-card border-b border-muted z-50">
     <div class="flex items-center justify-between px-4 h-12 max-w-md mx-auto">
       <div class="flex items-center gap-2">
-        <a href="/report" class="text-gray-500">←</a>
+        <a href="/report" class="text-muted">←</a>
         <span class="font-semibold text-sm">Lợi nhuận khách hàng</span>
       </div>
     </div>
@@ -935,7 +935,7 @@ router.get('/profit-customer', (req, res) => {
         </select>
         <button type="button" onclick="applyMonthYear()" style="background: #ea580c; color: white; border: none; border-radius: 8px; padding: 8px 16px; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap;">Xem</button>
       </div>
-      <div class="text-xs text-gray-500 mt-1">Đang xem: ${labelThangNam}</div>
+      <div class="text-xs text-muted mt-1">Đang xem: ${labelThangNam}</div>
     </div>
     <div class="mb-4 shadow-lg rounded-2xl p-4" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: #fff;">
       <div class="grid grid-cols-3 gap-2 text-center py-2">
@@ -954,19 +954,19 @@ router.get('/profit-customer', (req, res) => {
       </div>
     </div>
     <div class="space-y-2">
-      ${customers.length === 0 ? '<div class="text-gray-500 text-center py-4 bg-white rounded-xl">Chưa có dữ liệu trong tháng này</div>' : customers.map((c, i) => `
+      ${customers.length === 0 ? '<div class="text-muted text-center py-4 bg-white rounded-xl">Chưa có dữ liệu trong tháng này</div>' : customers.map((c, i) => `
         <a href="/customers/${c.id}" class="card block hover:shadow-md transition-all">
           <div class="flex justify-between items-center">
             <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm ${i === 0 ? 'bg-gradient-to-br from-yellow-400 to-yellow-500 text-yellow-900' : i === 1 ? 'bg-gradient-to-br from-gray-300 to-gray-400 text-gray-700' : i === 2 ? 'bg-gradient-to-br from-orange-300 to-orange-400 text-orange-900' : 'bg-gray-100 text-gray-600'}">${i + 1}</div>
+              <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm ${i === 0 ? 'bg-primary/20 text-primary' : i === 1 ? 'bg-muted text-muted' : i === 2 ? 'bg-warning/20 text-warning' : 'bg-bg text-muted'}">${i + 1}</div>
               <div>
                 <div class="font-bold">${c.name}</div>
-                <div class="text-xs text-gray-500">${c.total_orders} đơn hàng · ${c.total_bins || 0} bình</div>
+                <div class="text-xs text-muted">${c.total_orders} đơn hàng · ${c.total_bins || 0} bình</div>
               </div>
             </div>
             <div class="text-right">
-              <div class="font-bold text-blue-600">${formatVND(c.profit || 0)}</div>
-              <div class="text-xs text-gray-500">${formatVND(c.revenue || 0)}</div>
+              <div class="font-bold text-info">${formatVND(c.profit || 0)}</div>
+              <div class="text-xs text-muted">${formatVND(c.revenue || 0)}</div>
             </div>
           </div>
         </a>
@@ -1104,11 +1104,11 @@ router.get('/import-purchases', (req, res) => {
     .filter-wrap { overflow: visible !important; }
   </style>
 </head>
-<body class="bg-gray-100 text-gray-800 min-h-screen pb-20">
-  <header class="sticky top-0 bg-white border-b z-50">
+<body class="bg-bg text-main min-h-screen pb-20">
+  <header class="sticky top-0 bg-card border-b border-muted z-50">
     <div class="flex items-center justify-between px-4 h-12 max-w-md mx-auto">
       <div class="flex items-center gap-2">
-        <a href="/report" class="text-gray-500">←</a>
+        <a href="/report" class="text-muted">←</a>
         <span class="font-semibold text-sm">Báo cáo nhập hàng</span>
       </div>
     </div>
@@ -1127,7 +1127,7 @@ router.get('/import-purchases', (req, res) => {
         </select>
         <button type="button" onclick="applyMonthYearImport()" style="background: #ea580c; color: white; border: none; border-radius: 8px; padding: 8px 16px; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap;">Xem</button>
       </div>
-      <div class="text-xs text-gray-500 mt-1">Đang xem: ${labelThangNam}</div>
+      <div class="text-xs text-muted mt-1">Đang xem: ${labelThangNam}</div>
     </div>
     <div class="mb-4 shadow-lg rounded-2xl p-4" style="background: linear-gradient(135deg, #059669 0%, #0d9488 100%); color: #fff;">
       <div class="grid grid-cols-3 gap-2 text-center py-2">
@@ -1145,40 +1145,40 @@ router.get('/import-purchases', (req, res) => {
         </div>
       </div>
     </div>
-    <div class="section-title text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Chi tiết phiếu nhập</div>
+    <div class="section-title text-xs font-bold text-muted uppercase tracking-wide mb-2">Chi tiết phiếu nhập</div>
     <div class="space-y-2 mb-6">
-      ${purchasesList.length === 0 ? '<div class="text-gray-500 text-center py-4 bg-white rounded-xl border border-amber-100">Chưa có phiếu nhập trong tháng này</div>' : purchasesList.map((p) => `
+      ${purchasesList.length === 0 ? '<div class="text-muted text-center py-4 bg-white rounded-xl border border-amber-100">Chưa có phiếu nhập trong tháng này</div>' : purchasesList.map((p) => `
         <div class="card border-amber-200 bg-white hover:shadow-md transition-all">
           <div class="flex justify-between items-start gap-2 mb-1">
-            <div class="font-bold text-gray-900">#${p.id}</div>
-            <div class="text-xs font-medium text-gray-600 whitespace-nowrap">🗓 ${formatPurchaseDay(p.date)}</div>
+            <div class="font-bold text-primary">#${p.id}</div>
+            <div class="text-xs font-medium text-main whitespace-nowrap">🗓 ${formatPurchaseDay(p.date)}</div>
           </div>
-          <div class="text-lg font-bold text-emerald-700 mb-1">${formatVND(p.total_amount || 0)}</div>
-          ${p.items_summary ? `<div class="text-xs text-gray-600 leading-snug">${String(p.items_summary).replace(/,/g, ', ')}</div>` : ''}
-          ${p.note ? `<div class="text-xs text-gray-500 mt-1 italic">${String(p.note)}</div>` : ''}
+          <div class="text-lg font-bold text-success mb-1">${formatVND(p.total_amount || 0)}</div>
+          ${p.items_summary ? `<div class="text-xs text-main leading-snug">${String(p.items_summary).replace(/,/g, ', ')}</div>` : ''}
+          ${p.note ? `<div class="text-xs text-muted mt-1 italic">${String(p.note)}</div>` : ''}
         </div>
       `).join('')}
     </div>
-    <div class="section-title text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Tổng hợp theo sản phẩm</div>
+    <div class="section-title text-xs font-bold text-muted uppercase tracking-wide mb-2">Tổng hợp theo sản phẩm</div>
     <div class="space-y-2">
-      ${byProduct.length === 0 ? '<div class="text-gray-500 text-center py-4 bg-white rounded-xl border border-amber-100">Không có dòng hàng</div>' : byProduct.map((row, i) => `
+      ${byProduct.length === 0 ? '<div class="text-muted text-center py-4 bg-white rounded-xl border border-amber-100">Không có dòng hàng</div>' : byProduct.map((row, i) => `
         <div class="card border-emerald-100 hover:shadow-md transition-all">
           <div class="flex justify-between items-center gap-2">
             <div class="flex items-center gap-3 min-w-0">
-              <div class="w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shadow-sm shrink-0 ${i === 0 ? 'bg-gradient-to-br from-amber-300 to-amber-400 text-amber-900' : 'bg-emerald-50 text-emerald-800'}">${i + 1}</div>
+              <div class="w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shadow-sm shrink-0 ${i === 0 ? 'bg-primary/20 text-primary' : 'bg-success/10 text-success'}">${i + 1}</div>
               <div class="min-w-0">
                 <div class="font-bold truncate">${row.name}</div>
-                <div class="text-xs text-gray-500">${row.qty} đơn vị</div>
+                <div class="text-xs text-muted">${row.qty} đơn vị</div>
               </div>
             </div>
             <div class="text-right shrink-0">
-              <div class="font-bold text-emerald-700">${formatVND(row.amount || 0)}</div>
+              <div class="font-bold text-success">${formatVND(row.amount || 0)}</div>
             </div>
           </div>
         </div>
       `).join('')}
     </div>
-    <p class="text-center mt-4"><a href="/purchases?tab=history" class="text-sm text-amber-700 font-semibold underline">Mở trang nhập hàng</a></p>
+    <p class="text-center mt-4"><a href="/purchases?tab=history" class="text-sm text-primary font-semibold underline">Mở trang nhập hàng</a></p>
   </main>
   <div id="bottomNavContainer"></div>
   <script>if (!isLoggedIn()) { window.location.href = '/login'; }</script>

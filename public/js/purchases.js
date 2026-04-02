@@ -15,17 +15,17 @@ function switchTab(tab) {
   if (tab === 'new') {
     newSection.classList.remove('hidden');
     historySection.classList.add('hidden');
-    tabNew.classList.add('bg-blue-600', 'text-white');
-    tabNew.classList.remove('bg-gray-200', 'text-gray-700');
-    tabHistory.classList.remove('bg-blue-600', 'text-white');
-    tabHistory.classList.add('bg-gray-200', 'text-gray-700');
+    tabNew.classList.add('bg-info', 'text-white');
+    tabNew.classList.remove('bg-bg', 'text-muted');
+    tabHistory.classList.remove('bg-info', 'text-white');
+    tabHistory.classList.add('bg-bg', 'text-muted');
   } else {
     newSection.classList.add('hidden');
     historySection.classList.remove('hidden');
-    tabHistory.classList.add('bg-blue-600', 'text-white');
-    tabHistory.classList.remove('bg-gray-200', 'text-gray-700');
-    tabNew.classList.remove('bg-blue-600', 'text-white');
-    tabNew.classList.add('bg-gray-200', 'text-gray-700');
+    tabHistory.classList.add('bg-info', 'text-white');
+    tabHistory.classList.remove('bg-bg', 'text-muted');
+    tabNew.classList.remove('bg-info', 'text-white');
+    tabNew.classList.add('bg-bg', 'text-muted');
   }
 }
 
@@ -54,7 +54,7 @@ function renderCart() {
   const submitBtn = document.getElementById('submitBtn');
   
   if (cart.length === 0) {
-    cartEl.innerHTML = '<div class="text-gray-500 text-sm">Chưa chọn sản phẩm nào</div>';
+    cartEl.innerHTML = '<div class="text-muted text-sm">Chưa chọn sản phẩm nào</div>';
     totalEl.textContent = '0 ₫';
     submitBtn.disabled = true;
     return;

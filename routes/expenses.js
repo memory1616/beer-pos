@@ -98,7 +98,7 @@ router.get('/', (req, res, next) => {
     '</select>' +
     '<button type="button" onclick="applyExpMonthYear()" style="background: #ea580c; color: white; border: none; border-radius: 8px; padding: 8px 16px; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap;">Xem</button>' +
     '</div>' +
-    '<div class="text-xs text-gray-500 mt-1">Đang xem: ' + labelThangNam + '</div>' +
+    '<div class="text-xs text-muted mt-1">Đang xem: ' + labelThangNam + '</div>' +
     '</div>';
 
   const summaryBlockHtml =
@@ -151,13 +151,13 @@ router.get('/', (req, res, next) => {
         '<div class="flex justify-between items-center">' +
         '<div class="flex items-center gap-3">' +
           '<span class="text-xl">' + icon + '</span>' +
-          '<span class="font-bold text-gray-800">' + c.category + '</span>' +
+          '<span class="font-bold text-main">' + c.category + '</span>' +
         '</div>' +
-        '<span class="font-bold text-blue-600">' + formatVND(c.total) + '</span>' +
+        '<span class="font-bold text-money">' + formatVND(c.total) + '</span>' +
         '</div></div>';
     }).join('');
   } else {
-    categoryHtml = '<div class="text-gray-500 text-center py-4 bg-white rounded-xl">Chưa có chi phí trong tháng này</div>';
+    categoryHtml = '<div class="card text-center py-4">Chưa có chi phí trong tháng này</div>';
   }
 
   // Build recent expenses HTML
@@ -172,22 +172,22 @@ router.get('/', (req, res, next) => {
         '<div class="flex items-start gap-3 flex-1 min-w-0">' +
         '<span class="text-2xl flex-shrink-0">' + icon + '</span>' +
         '<div class="flex-1 min-w-0">' +
-        '<div class="font-bold text-gray-800">' + e.category + '</div>' +
-        (desc ? '<div class="text-sm text-gray-500">' + desc + '</div>' : '') +
-        '<div class="text-xs text-gray-500 mt-0.5">' + dateStr + '</div>' +
+        '<div class="font-bold text-main">' + e.category + '</div>' +
+        (desc ? '<div class="text-sm text-muted">' + desc + '</div>' : '') +
+        '<div class="text-xs text-muted mt-0.5">' + dateStr + '</div>' +
         '</div>' +
         '</div>' +
         '<div class="text-right flex-shrink-0">' +
-        '<div class="font-bold text-blue-600">' + formatVND(e.amount) + '</div>' +
+        '<div class="font-bold text-money">' + formatVND(e.amount) + '</div>' +
         '<div class="flex gap-2 mt-1 justify-end">' +
-        '<button type="button" onclick="editExpense(' + e.id + ', \'' + (e.category || '').replace(/'/g, "\\'").replace(/"/g, '\\"') + '\', ' + e.amount + ', \'' + e.date + '\', \'' + (e.description || '').replace(/'/g, "\\'").replace(/"/g, '\\"') + '\')" class="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 hover:bg-blue-50 rounded">Sửa</button>' +
-        '<button type="button" onclick="deleteExpense(' + e.id + ')" class="text-xs text-red-500 hover:text-red-700 px-2 py-1 hover:bg-red-50 rounded">Xóa</button>' +
+        '<button type="button" onclick="editExpense(' + e.id + ', \'' + (e.category || '').replace(/'/g, "\\'").replace(/"/g, '\\"') + '\', ' + e.amount + ', \'' + e.date + '\', \'' + (e.description || '').replace(/'/g, "\\'").replace(/"/g, '\\"') + '\')" class="btn btn-ghost btn-sm">Sửa</button>' +
+        '<button type="button" onclick="deleteExpense(' + e.id + ')" class="btn btn-danger btn-sm">Xóa</button>' +
         '</div>' +
         '</div>' +
         '</div></div>';
     }).join('');
   } else {
-    expensesHtml = '<div class="text-gray-500 text-center py-4 bg-white rounded-xl">Chưa có chi phí trong tháng này</div>';
+    expensesHtml = '<div class="card text-center py-4">Chưa có chi phí trong tháng này</div>';
   }
 
   const optionsHtml = categories.map(c => '<option value="' + c + '">' + c + '</option>').join('');
@@ -221,11 +221,11 @@ router.get('/', (req, res, next) => {
 '    .filter-wrap { overflow: visible !important; }' +
 '  </style>' +
 '</head>' +
-'<body class="bg-gray-100 text-gray-800 min-h-screen pb-24">' +
-'  <header class="sticky top-0 bg-white border-b z-50">' +
+'<body class="bg-bg text-main min-h-screen pb-24">' +
+'  <header class="sticky top-0 bg-card border-b border-muted z-50">' +
 '    <div class="flex items-center justify-between px-4 h-12 max-w-md mx-auto">' +
 '      <div class="flex items-center gap-2">' +
-'        <a href="/report" class="text-gray-500 hover:text-gray-700" title="Báo cáo">←</a>' +
+'        <a href="/report" class="text-muted hover:text-main" title="Báo cáo">←</a>' +
 '        <span class="font-semibold text-sm">Chi phí</span>' +
 '      </div>' +
 '    </div>' +
@@ -236,63 +236,63 @@ router.get('/', (req, res, next) => {
 '    <div class="section-title">📊 Chi phí theo loại</div>' +
 '    <div class="space-y-2 mb-4">' + categoryHtml + '</div>' +
 '    <div class="section-title">📋 Chi phí gần đây</div>' +
-'    <p class="text-xs text-gray-500 mb-2">Trong kỳ đã chọn (tối đa 50 dòng)</p>' +
+'    <p class="text-xs text-muted mb-2">Trong kỳ đã chọn (tối đa 50 dòng)</p>' +
 '    <div class="space-y-2">' + expensesHtml + '</div>' +
 '  </main>' +
 '  <div id="bottomNavContainer"></div>' +
 '' +
 '  <!-- Floating Add Button -->' +
-'  <button onclick="showModal(\'addExpenseModal\')" class="fixed bottom-24 right-4 w-14 h-14 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-xl flex items-center justify-center text-2xl font-bold transition-all duration-200 hover:scale-105 z-40">' +
+'  <button onclick="showModal(\'addExpenseModal\')" class="fixed bottom-24 right-4 w-14 h-14 btn btn-primary rounded-full shadow-xl flex items-center justify-center text-2xl font-bold transition-all duration-200 hover:scale-105 z-40">' +
 '    +' +
 '  </button>' +
 '' +
 '  <!-- Add Expense Modal -->' +
-'  <div id="addExpenseModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4 z-50">' +
-'    <div class="bg-white rounded-lg p-6 max-w-sm w-full">' +
+'  <div id="addExpenseModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-4 z-50">' +
+'    <div class="card p-6 max-w-sm w-full">' +
 '      <h2 id="expenseModalTitle" class="text-xl font-semibold mb-4">Thêm chi phí</h2>' +
 '      <form id="addExpenseForm" class="space-y-4">' +
 '        <input type="hidden" id="expenseId">' +
 '        <div>' +
-'          <label class="block text-sm font-medium text-gray-700 mb-1">Loại chi phí</label>' +
+'          <label class="block text-sm font-medium text-main mb-1">Loại chi phí</label>' +
 '          <div class="flex gap-2 items-start">' +
-'            <select name="category" required id="catSelect" onchange="onCatChange(this.value)" class="flex-1 w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-blue-500">' +
+'            <select name="category" required id="catSelect" onchange="onCatChange(this.value)" class="flex-1 w-full border border-muted rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-primary">' +
 '              <option value="">-- Chọn loại --</option>' +
               optionsHtml +
 '              <option value="__custom__">+ Thêm loại mới...</option>' +
 '            </select>' +
-'            <button type="button" onclick="showAddCategoryModal()" title="Thêm loại chi phí" class="flex-shrink-0 w-10 h-10 bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-lg flex items-center justify-center text-lg font-bold mt-0.5 transition-colors">+</button>' +
+'            <button type="button" onclick="showAddCategoryModal()" title="Thêm loại chi phí" class="flex-shrink-0 w-10 h-10 bg-info/20 text-info rounded-lg flex items-center justify-center text-lg font-bold mt-0.5 transition-colors">+</button>' +
 '          </div>' +
-'          <input type="text" id="customCatInput" placeholder="Nhập tên loại chi phí mới..." class="hidden mt-2 w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-blue-500">' +
+'          <input type="text" id="customCatInput" placeholder="Nhập tên loại chi phí mới..." class="hidden mt-2 w-full border border-muted rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-primary">' +
 '        </div>' +
 '        <div>' +
-'          <label class="block text-sm font-medium text-gray-700 mb-1">Số tiền (VNĐ)</label>' +
-'          <input type="text" name="amount" required min="1000" step="1000" data-format-number class="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-blue-500" placeholder="Nhập số tiền" inputmode="decimal">' +
+'          <label class="block text-sm font-medium text-main mb-1">Số tiền (VNĐ)</label>' +
+'          <input type="text" name="amount" required min="1000" step="1000" data-format-number class="w-full border border-muted rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-primary" placeholder="Nhập số tiền" inputmode="decimal">' +
 '        </div>' +
 '        <div>' +
-'          <label class="block text-sm font-medium text-gray-700 mb-1">Ngày</label>' +
-'          <input type="date" name="date" required value="' + today + '" class="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-blue-500">' +
+'          <label class="block text-sm font-medium text-main mb-1">Ngày</label>' +
+'          <input type="date" name="date" required value="' + today + '" class="w-full border border-muted rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-primary">' +
 '        </div>' +
 '        <div>' +
-'          <label class="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>' +
-'          <textarea name="description" rows="2" class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500" placeholder="Ghi chú thêm (tùy chọn)"></textarea>' +
+'          <label class="block text-sm font-medium text-main mb-1">Ghi chú</label>' +
+'          <textarea name="description" rows="2" class="w-full border border-muted rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary" placeholder="Ghi chú thêm (tùy chọn)"></textarea>' +
 '        </div>' +
 '      </form>' +
 '      <div class="flex gap-2 mt-4">' +
-'        <button type="button" onclick="hideModal(\'addExpenseModal\')" class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-3 rounded-lg">Hủy</button>' +
-'        <button type="button" onclick="submitExpense()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg">Lưu</button>' +
+'        <button type="button" onclick="hideModal(\'addExpenseModal\')" class="flex-1 btn btn-ghost">Hủy</button>' +
+'        <button type="button" onclick="submitExpense()" class="flex-1 btn btn-primary">Lưu</button>' +
 '      </div>' +
 '    </div>' +
 '  </div>' +
 '' +
 '  <!-- Add Category Modal (inline) -->' +
-'  <div id="addCategoryModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4">' +
-'    <div class="bg-white rounded-xl p-6 max-w-sm w-full">' +
-'      <h3 class="text-lg font-bold text-gray-800 mb-4">Thêm loại chi phí mới</h3>' +
-'      <input type="text" id="newCategoryName" maxlength="30" placeholder="VD: Thuê xe, Quảng cáo..." class="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-blue-500 focus:outline-none mb-3">' +
-'      <p id="newCatError" class="hidden text-red-500 text-sm mb-2"></p>' +
+'  <div id="addCategoryModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-4">' +
+'    <div class="card p-6 max-w-sm w-full">' +
+'      <h3 class="text-lg font-bold text-main mb-4">Thêm loại chi phí mới</h3>' +
+'      <input type="text" id="newCategoryName" maxlength="30" placeholder="VD: Thuê xe, Quảng cáo..." class="w-full border border-muted rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-primary focus:outline-none mb-3">' +
+'      <p id="newCatError" class="hidden text-danger text-sm mb-2"></p>' +
 '      <div class="flex gap-2">' +
-'        <button onclick="hideAddCategory()" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 rounded-lg transition-colors">Hủy</button>' +
-'        <button onclick="saveNewCategory()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition-colors">Lưu</button>' +
+'        <button onclick="hideAddCategory()" class="flex-1 btn btn-ghost">Hủy</button>' +
+'        <button onclick="saveNewCategory()" class="flex-1 btn btn-primary">Lưu</button>' +
 '      </div>' +
 '    </div>' +
 '  </div>' +
@@ -305,7 +305,7 @@ router.get('/', (req, res, next) => {
 '    function showModal(id) { document.getElementById(id).classList.remove("hidden"); document.getElementById(id).classList.add("flex"); }' +
 '    function hideModal(id) { document.getElementById(id).classList.add("hidden"); document.getElementById(id).classList.remove("flex"); }' +
 '    function onCatChange(val) { var el = document.getElementById("customCatInput"); if (val === "__custom__") { el.classList.remove("hidden"); el.focus(); } else { el.classList.add("hidden"); el.value = ""; } }' +
-'    function showAddCategoryModal() { document.getElementById("newCategoryName").value = ""; document.getElementById("newCatError").classList.add("hidden"); document.getElementById("newCategoryName").classList.remove("border-red-400"); document.getElementById("newCategoryName").classList.add("border-gray-300"); showModal("addCategoryModal"); setTimeout(function() { document.getElementById("newCategoryName").focus(); }, 100); }' +
+'    function showAddCategoryModal() { document.getElementById("newCategoryName").value = ""; document.getElementById("newCatError").classList.add("hidden"); document.getElementById("newCategoryName").classList.remove("border-danger"); document.getElementById("newCategoryName").classList.add("border-muted"); showModal("addCategoryModal"); setTimeout(function() { document.getElementById("newCategoryName").focus(); }, 100); }' +
 '    function applyExpMonthYear() {' +
 '      var m = document.getElementById("expSelMonth").value;' +
 '      var y = document.getElementById("expSelYear").value;' +
@@ -353,16 +353,16 @@ router.get('/', (req, res, next) => {
 '      var errorEl = document.getElementById("newCatError");' +
 '      var name = input.value.trim();' +
 '      errorEl.classList.add("hidden");' +
-'      input.classList.remove("border-red-400"); input.classList.add("border-gray-300");' +
-'      if (!name) { errorEl.textContent = "Vui lòng nhập tên loại chi phí."; errorEl.classList.remove("hidden"); input.classList.add("border-red-400"); return; }' +
-'      if (name.length < 2) { errorEl.textContent = "Tên loại phải có ít nhất 2 ký tự."; errorEl.classList.remove("hidden"); input.classList.add("border-red-400"); return; }' +
-'      if (categories.includes(name) || customCategories.includes(name)) { errorEl.textContent = "Loại chi phí này đã tồn tại."; errorEl.classList.remove("hidden"); input.classList.add("border-red-400"); return; }' +
+'      input.classList.remove("border-danger"); input.classList.add("border-muted");' +
+'      if (!name) { errorEl.textContent = "Vui lòng nhập tên loại chi phí."; errorEl.classList.remove("hidden"); input.classList.add("border-danger"); return; }' +
+'      if (name.length < 2) { errorEl.textContent = "Tên loại phải có ít nhất 2 ký tự."; errorEl.classList.remove("hidden"); input.classList.add("border-danger"); return; }' +
+'      if (categories.includes(name) || customCategories.includes(name)) { errorEl.textContent = "Loại chi phí này đã tồn tại."; errorEl.classList.remove("hidden"); input.classList.add("border-danger"); return; }' +
 '      try {' +
 '        var res = await fetch("/api/expenses/categories", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: name }) });' +
 '        var data = await res.json();' +
 '        if (res.ok) { customCategories.push(name); categories.push(name); addCategoryToDropdown(name); hideAddCategory(); var catSel = document.getElementById("catSelect"); catSel.value = name; onCatChange(name); }' +
-'        else { errorEl.textContent = data.error || "Không thể thêm loại chi phí."; errorEl.classList.remove("hidden"); input.classList.add("border-red-400"); }' +
-'      } catch (err) { errorEl.textContent = "Lỗi kết nối: " + err.message; errorEl.classList.remove("hidden"); input.classList.add("border-red-400"); }' +
+'        else { errorEl.textContent = data.error || "Không thể thêm loại chi phí."; errorEl.classList.remove("hidden"); input.classList.add("border-danger"); }' +
+'      } catch (err) { errorEl.textContent = "Lỗi kết nối: " + err.message; errorEl.classList.remove("hidden"); input.classList.add("border-danger"); }' +
 '    }' +
 '  </script>' +
 '  <script src="/js/numfmt.js"></script>' +

@@ -100,37 +100,37 @@ router.get('/', (req, res) => {
     button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
   </style>
 </head>
-<body class="bg-gray-100 text-gray-800 min-h-screen pb-24">
-  <header class="sticky top-0 bg-white/90 backdrop-blur border-b shadow-sm z-50 pt-safe">
+<body class="bg-bg text-main min-h-screen pb-24">
+  <header class="sticky top-0 bg-card/90 backdrop-blur border-b border-muted shadow-sm z-50 pt-safe">
     <div class="flex items-center justify-between px-4 py-3">
       <div class="flex items-center gap-2">
-        <a href="/" class="text-gray-600">←</a>
-        <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">🍺</div>
-        <span class="font-bold text-gray-800">${DISTRIBUTOR_NAME}</span>
+        <a href="/" class="text-muted">←</a>
+        <div class="w-8 h-8 btn btn-primary flex items-center justify-center font-bold">🍺</div>
+        <span class="font-bold text-main">${DISTRIBUTOR_NAME}</span>
       </div>
-      <div class="text-sm text-gray-500">Phân tích</div>
+      <div class="text-sm text-muted">Phân tích</div>
     </div>
   </header>
 
   <main class="p-4 pt-14 pb-24 max-w-md mx-auto animate-fade">
     <!-- Stats -->
     <div class="grid grid-cols-2 gap-4 mb-4">
-      <div class="bg-white rounded-2xl shadow-sm border p-5">
-        <div class="text-gray-500 text-sm">💰 Hôm nay</div>
-        <div class="text-2xl font-bold text-amber-600">${formatVND(todayStats.revenue)}</div>
+      <div class="card p-5">
+        <div class="text-muted text-sm">💰 Hôm nay</div>
+        <div class="text-2xl font-bold text-money">${formatVND(todayStats.revenue)}</div>
       </div>
-      <div class="bg-white rounded-2xl shadow-sm border p-5">
-        <div class="text-gray-500 text-sm">📈 Lợi nhuận HT</div>
-        <div class="text-2xl font-bold text-blue-600">${formatVND(todayStats.profit)}</div>
+      <div class="card p-5">
+        <div class="text-muted text-sm">📈 Lợi nhuận HT</div>
+        <div class="text-2xl font-bold text-success">${formatVND(todayStats.profit)}</div>
       </div>
-      <div class="bg-white rounded-2xl shadow-sm border p-5">
-        <div class="text-gray-500 text-sm">🧾 Tháng này</div>
-        <div class="text-2xl font-bold text-purple-600">${formatVND(monthStats.revenue)}</div>
+      <div class="card p-5">
+        <div class="text-muted text-sm">🧾 Tháng này</div>
+        <div class="text-2xl font-bold text-primary">${formatVND(monthStats.revenue)}</div>
       </div>
     </div>
 
     <!-- Chart -->
-    <div class="bg-white rounded-2xl shadow-sm border p-5 mb-4">
+    <div class="card p-5 mb-4">
       <h2 class="font-bold text-lg mb-3">📈 Doanh thu 6 tháng</h2>
       <div class="h-52 w-full">
         <canvas id="revenueChart"></canvas>
@@ -138,25 +138,25 @@ router.get('/', (req, res) => {
     </div>
 
     <!-- Top Products -->
-    <div class="bg-white rounded-2xl shadow-sm border p-5 mb-4">
+    <div class="card p-5 mb-4">
       <h2 class="font-bold text-lg mb-3">🏆 Top sản phẩm</h2>
       ${topProducts.length > 0 ? topProducts.map((p, i) => `
-        <div class="flex justify-between items-center p-2 border-b">
+        <div class="flex justify-between items-center p-2 border-b border-muted">
           <div><span class="font-bold">${i+1}.</span> ${p.name}</div>
           <div class="font-bold">${p.qty} bình</div>
         </div>
-      `).join('') : '<div class="text-gray-500">Chưa có dữ liệu</div>'}
+      `).join('') : '<div class="text-muted">Chưa có dữ liệu</div>'}
     </div>
 
     <!-- Top Customers -->
-    <div class="bg-white rounded-2xl shadow-sm border p-5 mb-4">
+    <div class="card p-5 mb-4">
       <h2 class="font-bold text-lg mb-3">👑 Top khách hàng</h2>
       ${topCustomers.length > 0 ? topCustomers.map((c, i) => `
-        <div class="flex justify-between items-center p-2 border-b">
+        <div class="flex justify-between items-center p-2 border-b border-muted">
           <div><span class="font-bold">${i+1}.</span> ${c.name}</div>
-          <div class="font-bold text-amber-600">${formatVND(c.revenue)}</div>
+          <div class="font-bold text-money">${formatVND(c.revenue)}</div>
         </div>
-      `).join('') : '<div class="text-gray-500">Chưa có dữ liệu</div>'}
+      `).join('') : '<div class="text-muted">Chưa có dữ liệu</div>'}
     </div>
   </main>
 

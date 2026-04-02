@@ -9,7 +9,7 @@ let revenueChart = null;
  * Số lớn + "đ" nhỏ thấp hơn → nhìn xịn như app tài chính.
  * @param {HTMLElement|null} el
  * @param {number} amount
- * @param {string} colorClass - ví dụ 'text-yellow-400'
+ * @param {string} colorClass - ví dụ 'text-success'
  * @param {{ numClass?: string, sufClass?: string, size?: 'sm'|'lg' }} [opts]
  *   size 'sm' = card nhỏ (text-sm), 'lg' = card lớn (text-3xl)
  */
@@ -48,9 +48,9 @@ function initDashboard(data) {
   if (todayRevenueEl) {
     if (todayRevenue === 0) {
       todayRevenueEl.textContent = 'Chưa có dữ liệu hôm nay';
-      todayRevenueEl.className = 'text-base font-medium text-gray-400 italic';
+      todayRevenueEl.className = 'text-base font-medium text-muted italic';
     } else {
-      setMoneyAmount(todayRevenueEl, todayRevenue, 'text-yellow-400', { size: 'lg' });
+      setMoneyAmount(todayRevenueEl, todayRevenue, 'text-primary', { size: 'lg' });
     }
   }
 
@@ -63,11 +63,11 @@ function initDashboard(data) {
   if (todayProfitEl) {
     if (todayProfit === 0) {
       todayProfitEl.textContent = 'Chưa có dữ liệu hôm nay';
-      todayProfitEl.className = 'text-base font-medium text-gray-400 italic';
+      todayProfitEl.className = 'text-base font-medium text-muted italic';
     } else if (todayProfit > 0) {
-      setMoneyAmount(todayProfitEl, todayProfit, 'text-green-400', { size: 'lg' });
+      setMoneyAmount(todayProfitEl, todayProfit, 'text-success', { size: 'lg' });
     } else {
-      setMoneyAmount(todayProfitEl, todayProfit, 'text-red-400', { size: 'lg' });
+      setMoneyAmount(todayProfitEl, todayProfit, 'text-danger', { size: 'lg' });
     }
   }
 
@@ -77,11 +77,9 @@ function initDashboard(data) {
   if (todayExpenseEl) {
     if (todayExpenseAmt === 0) {
       todayExpenseEl.textContent = 'Không có chi phí hôm nay';
-      todayExpenseEl.className = 'text-base font-medium text-gray-400 italic';
-    } else if (todayRevenue === 0) {
-      setMoneyAmount(todayExpenseEl, todayExpenseAmt, 'text-yellow-400', { size: 'lg' });
+      todayExpenseEl.className = 'text-base font-medium text-muted italic';
     } else {
-      setMoneyAmount(todayExpenseEl, todayExpenseAmt, 'text-red-400', { size: 'lg' });
+      setMoneyAmount(todayExpenseEl, todayExpenseAmt, 'text-danger', { size: 'lg' });
     }
   }
 
@@ -91,11 +89,11 @@ function initDashboard(data) {
   if (monthProfitEl) {
     if (monthProfit === 0) {
       monthProfitEl.textContent = 'Chưa có dữ liệu';
-      monthProfitEl.className = 'text-base font-medium text-gray-400 italic';
+      monthProfitEl.className = 'text-base font-medium text-muted italic';
     } else if (monthProfit > 0) {
-      setMoneyAmount(monthProfitEl, monthProfit, 'text-green-400', { size: 'lg' });
+      setMoneyAmount(monthProfitEl, monthProfit, 'text-success', { size: 'lg' });
     } else {
-      setMoneyAmount(monthProfitEl, monthProfit, 'text-red-400', { size: 'lg' });
+      setMoneyAmount(monthProfitEl, monthProfit, 'text-danger', { size: 'lg' });
     }
   }
 
@@ -105,9 +103,9 @@ function initDashboard(data) {
   if (monthExpenseEl) {
     if (monthExpenseAmt === 0) {
       monthExpenseEl.textContent = 'Không có chi phí';
-      monthExpenseEl.className = 'text-base font-medium text-gray-400 italic';
+      monthExpenseEl.className = 'text-base font-medium text-muted italic';
     } else {
-      setMoneyAmount(monthExpenseEl, monthExpenseAmt, 'text-red-400', { size: 'lg' });
+      setMoneyAmount(monthExpenseEl, monthExpenseAmt, 'text-danger', { size: 'lg' });
     }
   }
   
@@ -154,7 +152,7 @@ function initDashboard(data) {
     }
     if (list) {
       list.innerHTML = data.lowStockProducts.map(p =>
-        '<div class="flex justify-between text-sm"><span>' + p.name + '</span><span class="font-bold text-red-600">' + p.stock + ' bình</span></div>'
+        '<div class="flex justify-between text-sm"><span>' + p.name + '</span><span class="font-bold text-danger">' + p.stock + ' bình</span></div>'
       ).join('');
     }
   }
@@ -176,24 +174,24 @@ function initDashboard(data) {
       list.innerHTML = data.kpiAlerts.map(c => {
         const shortfall = Math.round(Number(c.shortfall) || 0);
         const monthlyQty = Number(c.monthly_qty) || 0;
-        let colorClass = 'text-yellow-600';
+        let colorClass = 'text-warning';
         if (shortfall > 50) {
-          colorClass = 'text-red-600';
+          colorClass = 'text-danger';
         } else if (shortfall > 20) {
-          colorClass = 'text-orange-500';
+          colorClass = 'text-warning';
         }
 
         const phoneBtn = c.phone ?
-          '<a href="tel:' + c.phone + '" class="ml-2 text-green-600 hover:bg-green-100 rounded px-1">📞</a>' : '';
+          '<a href="tel:' + c.phone + '" class="ml-2 text-success hover:bg-success/10 rounded px-1">📞</a>' : '';
 
         return '<div class="flex justify-between items-center text-sm py-1">' +
           '<div class="flex items-center">' +
-            '<a href="/customers/' + c.id + '" class="hover:text-green-600">' + c.name + '</a>' +
+            '<a href="/customers/' + c.id + '" class="hover:text-success">' + c.name + '</a>' +
             phoneBtn +
           '</div>' +
           '<div class="text-right">' +
             '<span class="font-bold ' + colorClass + '">-' + shortfall + ' bình</span>' +
-            '<span class="text-gray-400 text-xs ml-1">(' + monthlyQty + ' đã lấy)</span>' +
+            '<span class="text-muted text-xs ml-1">(' + monthlyQty + ' đã lấy)</span>' +
           '</div>' +
         '</div>';
       }).join('');
@@ -283,13 +281,13 @@ function renderRevenueChart(dailyData) {
   const totalRev6El = document.getElementById('totalRevenue6M');
   const avgRev6El = document.getElementById('avgRevenue6M');
   if (totalRev6El) {
-    setMoneyAmount(totalRev6El, totalRevenue, 'text-yellow-400', {
+    setMoneyAmount(totalRev6El, totalRevenue, 'text-primary', {
       numClass: 'text-sm font-bold tracking-tight tabular-nums',
       sufClass: 'text-xs mb-0.5 opacity-70 shrink-0'
     });
   }
   if (avgRev6El) {
-    setMoneyAmount(avgRev6El, totalNetProfit, 'text-blue-400', {
+    setMoneyAmount(avgRev6El, totalNetProfit, 'text-success', {
       numClass: 'text-sm font-bold tracking-tight tabular-nums',
       sufClass: 'text-xs mb-0.5 opacity-70 shrink-0'
     });
@@ -298,12 +296,12 @@ function renderRevenueChart(dailyData) {
   if (netProfits.length >= 2) {
     if (growthEl) {
       growthEl.textContent = (growth >= 0 ? '+' : '') + growth.toFixed(0) + '%';
-      growthEl.className = 'font-bold text-sm ' + (growth >= 0 ? 'text-green-600' : 'text-red-600');
+      growthEl.className = 'font-bold text-sm ' + (growth >= 0 ? 'text-success' : 'text-danger');
     }
   } else {
     if (growthEl) {
       growthEl.textContent = '-';
-      growthEl.className = 'font-bold text-sm text-gray-400';
+      growthEl.className = 'font-bold text-sm text-muted';
     }
   }
 

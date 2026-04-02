@@ -41,23 +41,23 @@ function renderSaleProducts() {
     const isLowStock = p.stock < 5;
     const currentQty = saleData[p.id] ? saleData[p.id].quantity : '';
     const priceLine = isKhachLe
-      ? `· Tồn: <span class="${p.stock < 5 ? 'text-red-500 font-semibold' : 'text-gray-500'}">${p.stock}</span>`
-      : `Giá: <span class="text-amber-700 font-bold">${formatVND(price)}</span> · Tồn: <span class="${p.stock < 5 ? 'text-red-500' : 'text-gray-500'}">${p.stock}</span>`;
+      ? `· Tồn: <span class="${p.stock < 5 ? 'text-danger font-semibold' : 'text-muted'}">${p.stock}</span>`
+      : `Giá: <span class="text-primary font-bold">${formatVND(price)}</span> · Tồn: <span class="${p.stock < 5 ? 'text-danger' : 'text-muted'}">${p.stock}</span>`;
     const priceField = isKhachLe
-      ? `<label class="block text-xs font-semibold text-amber-700 mt-2 mb-1">Giá bán (đ)</label>
+      ? `<label class="block text-xs font-semibold text-primary mt-2 mb-1">Giá bán (đ)</label>
         <input type="number" id="price-${p.id}" min="0" step="1000" value="${priceInputVal}" placeholder="Nhập giá"
-          class="w-full border-2 border-amber-400 rounded-xl p-3 text-center text-lg font-bold text-amber-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-400 focus:outline-none"
+          class="w-full border-2 border-primary rounded-xl p-3 text-center text-lg font-bold text-main focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
           onchange="updateSaleData(${p.id}, 'price', this.value); updateSaleTotal();"
           oninput="updateSaleData(${p.id}, 'price', this.value); updateSaleTotal();">`
       : '';
     return `
-      <div class="p-3 border-2 ${isLowStock ? 'border-orange-300 bg-orange-50/40' : 'border-amber-200 bg-amber-50/30'} rounded-xl transition-all">
-        <div class="text-sm font-bold text-gray-900">${p.name}</div>
-        <div class="text-xs text-gray-600 mt-0.5">${priceLine}</div>
+      <div class="p-3 border-2 ${isLowStock ? 'border-warning bg-warning/5' : 'border-primary bg-primary/5'} rounded-xl transition-all">
+        <div class="text-sm font-bold text-main">${p.name}</div>
+        <div class="text-xs text-muted mt-0.5">${priceLine}</div>
         ${priceField}
         <input type="number" id="qty-${p.id}" min="0" max="${p.stock}" value="${currentQty > 0 ? currentQty : ''}" data-stock="${p.stock}"
           placeholder="Nhập SL"
-          class="mt-2 w-full border-2 border-amber-400 rounded-xl p-3 text-center text-lg font-bold focus:border-amber-500 focus:ring-1 focus:ring-amber-400 focus:outline-none ${currentQty > 0 ? 'bg-amber-100/60' : ''}"
+          class="mt-2 w-full border-2 border-primary rounded-xl p-3 text-center text-lg font-bold focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none ${currentQty > 0 ? 'bg-primary/10' : ''}"
           onchange="updateSaleData(${p.id}, 'quantity', this.value); updateSaleTotal();"
           oninput="updateSaleData(${p.id}, 'quantity', this.value); updateSaleTotal();">
       </div>
@@ -101,42 +101,42 @@ function toggleQtyControl(productId) {
   };
   
   modal.innerHTML = `
-    <div class="bg-white w-full max-w-md mx-auto rounded-t-2xl p-5 pb-8" style="border-radius: 20px 20px 0 0;">
-      <div class="bg-white rounded-xl p-4 shadow mb-4">
+    <div class="card w-full max-w-md mx-auto rounded-t-2xl p-5 pb-8">
+      <div class="card mb-4">
         <div class="flex justify-between items-start">
           <div class="flex-1">
-            <div class="font-semibold text-gray-800 break-words whitespace-normal text-lg">${product.name}</div>
-            <div class="text-sm text-gray-500 mt-1">Tồn kho: ${product.stock}</div>
+            <div class="font-semibold text-main break-words whitespace-normal text-lg">${product.name}</div>
+            <div class="text-sm text-muted mt-1">Tồn kho: ${product.stock}</div>
           </div>
-          <button onclick="closeQtyModal()" class="text-gray-500 text-2xl ml-2">&times;</button>
+          <button onclick="closeQtyModal()" class="text-muted text-2xl ml-2">&times;</button>
         </div>
       </div>
-      
+
       <div class="flex items-center justify-between gap-6 mb-6">
-        <button type="button" onclick="adjustQtyModal(${productId}, -1)" class="flex-1 h-14 rounded-xl bg-gray-200 hover:bg-gray-300 text-xl font-bold">-</button>
+        <button type="button" onclick="adjustQtyModal(${productId}, -1)" class="btn btn-ghost flex-1 h-14 text-xl font-bold">-</button>
         <input type="number" id="qty-${productId}" min="0" max="${product.stock}" value="${currentQty}"
-          class="flex-1 h-14 border-2 border-amber-400 rounded-xl text-center text-2xl font-bold"
+          class="flex-1 h-14 border-2 border-primary rounded-xl text-center text-2xl font-bold focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
           onchange="updateSaleData(${productId}, 'quantity', this.value)"
           oninput="updateSaleData(${productId}, 'quantity', this.value)">
-        <button type="button" onclick="adjustQtyModal(${productId}, 1)" class="flex-1 h-14 rounded-xl bg-amber-400 hover:bg-amber-500 text-white text-xl font-bold">+</button>
+        <button type="button" onclick="adjustQtyModal(${productId}, 1)" class="btn btn-primary flex-1 h-14 text-xl font-bold">+</button>
       </div>
-      
+
       <div class="flex items-center justify-center gap-3 mb-6">
-        <button type="button" onclick="adjustQtyModal(${productId}, 1)" class="flex-1 py-3 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-xl font-bold text-sm">+1</button>
-        <button type="button" onclick="adjustQtyModal(${productId}, 5)" class="flex-1 py-3 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-xl font-bold text-sm">+5</button>
-        <button type="button" onclick="adjustQtyModal(${productId}, 10)" class="flex-1 py-3 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-xl font-bold text-sm">+10</button>
-        <button type="button" onclick="adjustQtyModal(${productId}, 20)" class="flex-1 py-3 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-xl font-bold text-sm">+20</button>
+        <button type="button" onclick="adjustQtyModal(${productId}, 1)" class="btn btn-warning flex-1 py-3 text-sm font-bold">+1</button>
+        <button type="button" onclick="adjustQtyModal(${productId}, 5)" class="btn btn-warning flex-1 py-3 text-sm font-bold">+5</button>
+        <button type="button" onclick="adjustQtyModal(${productId}, 10)" class="btn btn-warning flex-1 py-3 text-sm font-bold">+10</button>
+        <button type="button" onclick="adjustQtyModal(${productId}, 20)" class="btn btn-warning flex-1 py-3 text-sm font-bold">+20</button>
       </div>
-      
+
       <div class="mb-4">
-        <label class="block text-sm font-medium mb-2">Giá bán</label>
+        <label class="block text-sm font-medium text-main mb-2">Giá bán</label>
         <input type="number" id="price-${productId}" step="1000" value="${currentPrice}"
-          class="w-full border-2 border-amber-200 rounded-xl px-4 py-3 text-right text-xl font-bold"
+          class="w-full border-2 border-primary rounded-xl px-4 py-3 text-right text-xl font-bold focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
           onchange="updateSaleData(${productId}, 'price', this.value)"
           oninput="updateSaleData(${productId}, 'price', this.value)">
       </div>
-      
-      <button onclick="closeQtyModal()" class="w-full bg-amber-500 text-white font-bold py-4 rounded-xl text-xl">
+
+      <button onclick="closeQtyModal()" class="btn btn-primary w-full h-14 text-xl">
         Xác nhận
       </button>
     </div>
@@ -200,10 +200,10 @@ function updateSaleTotal() {
       hasItems = true;
       itemCount += item.quantity;
       const name = product ? product.name : 'SP';
-      cartHtml += '<div class="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 text-sm py-1.5 border-b border-amber-100/80 last:border-0">' +
-        '<span class="font-semibold text-gray-800 min-w-0 flex-1 truncate">' + name + '</span>' +
-        '<span class="text-gray-500 shrink-0 tabular-nums">' + formatVND(item.price) + ' × ' + item.quantity + '</span>' +
-        '<span class="font-bold text-green-700 shrink-0 tabular-nums w-full text-right sm:w-auto sm:text-left">' + formatVND(lineTotal) + '</span></div>';
+      cartHtml += '<div class="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 text-sm py-1.5 border-b border-primary/20 last:border-0">' +
+        '<span class="font-semibold text-main min-w-0 flex-1 truncate">' + name + '</span>' +
+        '<span class="text-muted shrink-0 tabular-nums">' + formatVND(item.price) + ' × ' + item.quantity + '</span>' +
+        '<span class="font-bold text-money shrink-0 tabular-nums w-full text-right sm:w-auto sm:text-left">' + formatVND(lineTotal) + '</span></div>';
     }
   });
   
@@ -217,14 +217,14 @@ function updateSaleTotal() {
   if (itemCountEl) itemCountEl.textContent = itemCount + ' items';
   
   const cartEl = document.getElementById('cartItems');
-  if (cartEl) cartEl.innerHTML = cartHtml || '<div class="text-gray-400 text-center">Chưa có sản phẩm</div>';
+  if (cartEl) cartEl.innerHTML = cartHtml || '<div class="text-muted text-center">Chưa có sản phẩm</div>';
 
   const previewEl = document.getElementById('saleCartPreview');
   if (previewEl) {
     if (!cartHtml) {
       previewEl.innerHTML = '<div class="max-h-40 overflow-y-auto">' + cartHtml + '</div>';
     } else {
-      previewEl.innerHTML = '<div class="text-xs font-bold text-amber-800 mb-1">Đơn đang bán</div><div class="max-h-40 overflow-y-auto">' + cartHtml + '</div>';
+      previewEl.innerHTML = '<div class="text-xs font-bold text-primary mb-1">Đơn đang bán</div><div class="max-h-40 overflow-y-auto">' + cartHtml + '</div>';
     }
   }
 
@@ -440,7 +440,7 @@ async function submitSale() {
         if (modal) {
           document.getElementById('invoiceTotal').textContent = formatVND(result.total || 0);
           document.getElementById('invoiceContent').innerHTML =
-            '<div class="text-center text-gray-500 py-8">Đơn hàng #'+ result.id +'</div>';
+            '<div class="text-center text-muted py-8">Đơn hàng #'+ result.id +'</div>';
           document.getElementById('qrCode').src = '';
           modal.classList.remove('hidden');
           modal.classList.add('flex');
@@ -725,25 +725,25 @@ async function showInvoiceModal(saleId) {
   
   let kegHtml = '';
   if (deliverKegs > 0 || returnKegs > 0) {
-    kegHtml = '<div class="border-t border-gray-200 pt-3 mt-3 space-y-1">';
+    kegHtml = '<div class="border-t border-muted pt-3 mt-3 space-y-1">';
     if (deliverKegs > 0) {
-      kegHtml += '<div class="flex justify-between text-sm"><span class="text-gray-600">📦 Giao vỏ</span><span class="font-semibold text-green-600">+' + deliverKegs + '</span></div>';
+      kegHtml += '<div class="flex justify-between text-sm"><span class="text-muted">📦 Giao vỏ</span><span class="font-semibold text-success">+' + deliverKegs + '</span></div>';
     }
     if (returnKegs > 0) {
-      kegHtml += '<div class="flex justify-between text-sm"><span class="text-gray-600">🔁 Thu vỏ</span><span class="font-semibold text-orange-600">-' + returnKegs + '</span></div>';
+      kegHtml += '<div class="flex justify-between text-sm"><span class="text-muted">🔁 Thu vỏ</span><span class="font-semibold text-warning">-' + returnKegs + '</span></div>';
     }
-    kegHtml += '<div class="flex justify-between text-sm font-semibold pt-1"><span class="text-gray-700">Vỏ đang giữ:</span><span>' + newBalance + '</span></div></div>';
+    kegHtml += '<div class="flex justify-between text-sm font-semibold pt-1"><span class="text-main">Vỏ đang giữ:</span><span>' + newBalance + '</span></div></div>';
   }
-  
-  const giftBadge = isGift ? '<div class="text-center mb-2"><span class="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-xs font-semibold">🎁 Tặng uống thử</span></div>' : '';
-  
+
+  const giftBadge = isGift ? '<div class="text-center mb-2"><span class="badge badge-warning">🎁 Tặng uống thử</span></div>' : '';
+
   const invoiceContent = document.getElementById('invoiceContent');
   if (invoiceContent) {
-    invoiceContent.innerHTML = 
+    invoiceContent.innerHTML =
       giftBadge +
-      '<div class="text-sm text-gray-500 mb-1">' + dateStr + '</div>' +
-      '<div class="text-sm font-medium text-gray-700 mb-3">Khách: ' + customerName + '</div>' +
-      '<div class="border-t border-gray-200 pt-2">' + itemsHtml + '</div>' +
+      '<div class="text-sm text-muted mb-1">' + dateStr + '</div>' +
+      '<div class="text-sm font-medium text-main mb-3">Khách: ' + customerName + '</div>' +
+      '<div class="border-t border-muted pt-2">' + itemsHtml + '</div>' +
       kegHtml;
   }
   
@@ -753,7 +753,7 @@ async function showInvoiceModal(saleId) {
     invoiceTotal.innerHTML = '<span class="value">' + formatted + '</span><span class="unit"> đ</span>';
   }
   
-  const qrSection = document.querySelector('#invoiceModal .mt-4.pt-4.border-t.border-gray-200');
+  const qrSection = document.querySelector('#invoiceModal .mt-4.pt-4.border-t.border-muted');
   if (qrSection) {
     if (isGift) {
       qrSection.classList.add('hidden');
@@ -903,7 +903,7 @@ async function loadSalesHistory() {
   
   const container = document.getElementById('salesHistoryList');
   if (salesHistory.length === 0) {
-    container.innerHTML = '<p class="text-gray-500 text-center py-4">Chưa có hóa đơn nào</p>';
+    container.innerHTML = '<p class="text-muted text-center py-4">Chưa có hóa đơn nào</p>';
     renderPagination();
     return;
   }
@@ -980,17 +980,17 @@ function renderPagination() {
   const prevDisabled = page === 1;
   const nextDisabled = page === totalPages;
   const paginationHTML = `
-    <div class="flex justify-center items-center gap-2 mt-3 py-3 bg-gray-50">
+    <div class="flex justify-center items-center gap-2 mt-3 py-3 bg-bg">
       <button type="button" onclick="changeSalesPage(${page - 1})" ${prevDisabled ? 'disabled' : ''}
-        class="px-4 py-2 rounded-lg min-w-[4rem] ${prevDisabled ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100 shadow-sm'}">
+        class="px-4 py-2 rounded-lg min-w-[4rem] ${prevDisabled ? 'bg-bg text-muted cursor-not-allowed' : 'btn btn-ghost px-4 h-10 shadow-sm'}">
         ‹ Trước
       </button>
-      <span class="text-sm text-gray-600 px-2">${page}/${totalPages}</span>
+      <span class="text-sm text-muted px-2">${page}/${totalPages}</span>
       <button type="button" onclick="changeSalesPage(${page + 1})" ${nextDisabled ? 'disabled' : ''}
-        class="px-4 py-2 rounded-lg min-w-[4rem] ${nextDisabled ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100 shadow-sm'}">
+        class="px-4 py-2 rounded-lg min-w-[4rem] ${nextDisabled ? 'bg-bg text-muted cursor-not-allowed' : 'btn btn-ghost px-4 h-10 shadow-sm'}">
         Sau ›
       </button>
-      <span class="text-xs text-gray-500 ml-2">(${total} đơn)</span>
+      <span class="text-xs text-muted ml-2">(${total} đơn)</span>
     </div>
   `;
   
@@ -1040,72 +1040,72 @@ async function confirmReturnSale(id) {
   
   // Tạo HTML cho danh sách sản phẩm có thể trả
   const itemsHtml = sale.items.map(item => `
-    <div class="flex items-center justify-between py-2 border-b">
+    <div class="flex items-center justify-between py-2 border-b border-muted">
       <div>
-        <div class="font-medium">${item.name}</div>
-        <div class="text-xs text-gray-500">Giá: ${formatVND(item.price)} | Đã mua: ${item.quantity}</div>
+        <div class="font-medium text-main">${item.name}</div>
+        <div class="text-xs text-muted">Giá: ${formatVND(item.price)} | Đã mua: ${item.quantity}</div>
       </div>
       <div class="flex items-center gap-2">
-        <input type="number" id="return_qty_${item.product_id}" 
+        <input type="number" id="return_qty_${item.product_id}"
           data-price="${item.price}"
           min="0" max="${item.quantity}" value="0"
-          class="w-16 border-2 border-gray-200 rounded px-2 py-1 text-center"
+          class="w-16 border-2 border-primary rounded px-2 py-1 text-center focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
           placeholder="0" onchange="updateReturnPreview(this, ${item.quantity})" oninput="updateReturnPreview(this, ${item.quantity})">
-        <span class="text-xs text-gray-500">/${item.quantity}</span>
+        <span class="text-xs text-muted">/${item.quantity}</span>
       </div>
     </div>
   `).join('');
-  
+
   // Tạo modal
   const modalHtml = `
-    <div id="returnModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div class="bg-white rounded-xl w-full max-w-md max-h-[80vh] overflow-hidden">
-        <div class="p-4 border-b bg-amber-500 text-white">
+    <div id="returnModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div class="card w-full max-w-md max-h-[80vh] overflow-hidden">
+        <div class="p-4 border-b border-muted bg-primary text-white">
           <h3 class="font-bold text-lg">↩️ TRẢ HÀNG</h3>
-          <div class="text-sm opacity-90">#${id} - ${customerName}</div>
+          <div class="text-sm opacity-80">#${id} - ${customerName}</div>
         </div>
-        
+
         <div class="p-4 overflow-y-auto max-h-[40vh]">
-          <div class="font-medium mb-2">Chọn sản phẩm và số lượng trả:</div>
+          <div class="font-medium text-main mb-2">Chọn sản phẩm và số lượng trả:</div>
           ${itemsHtml}
-          
-          <div class="mt-4 p-3 bg-gray-100 rounded-lg">
+
+          <div class="mt-4 p-3 card">
             <div class="flex justify-between">
-              <span>Tổng tiền hoàn:</span>
-              <span id="returnPreview" class="font-bold text-amber-600">0 ₫</span>
+              <span class="text-main">Tổng tiền hoàn:</span>
+              <span id="returnPreview" class="font-bold text-money">0 đ</span>
             </div>
           </div>
         </div>
-        
-        <div class="p-4 border-t">
-          <div class="font-medium mb-2">Loại trả:</div>
+
+        <div class="p-4 border-t border-muted">
+          <div class="font-medium text-main mb-2">Loại trả:</div>
           <div class="flex gap-2 mb-4">
             <label class="flex-1 cursor-pointer">
-              <input type="radio" name="returnType" value="stock_return" checked 
+              <input type="radio" name="returnType" value="stock_return" checked
                 class="mr-2" onchange="updateReturnType()">
               <span class="text-sm">📦 Trả lại kho</span>
             </label>
             <label class="flex-1 cursor-pointer">
-              <input type="radio" name="returnType" value="damage_return" 
+              <input type="radio" name="returnType" value="damage_return"
                 class="mr-2" onchange="updateReturnType()">
               <span class="text-sm">⚠️ Bia lỗi</span>
             </label>
           </div>
-          
+
           <div id="reasonInput" class="mb-4 hidden">
-            <label class="block text-sm font-medium mb-1">Lý do:</label>
-            <input type="text" id="returnReason" 
-              class="w-full border-2 border-gray-200 rounded px-3 py-2"
+            <label class="block text-sm font-medium text-main mb-1">Lý do:</label>
+            <input type="text" id="returnReason"
+              class="w-full border-2 border-primary rounded px-3 py-2 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
               placeholder="Bia hư, chua,...">
           </div>
-          
+
           <div class="flex gap-2">
-            <button onclick="closeReturnModal()" 
-              class="flex-1 py-3 bg-gray-200 text-gray-700 rounded-lg font-medium">
+            <button onclick="closeReturnModal()"
+              class="btn btn-ghost flex-1 py-3">
               Hủy
             </button>
-            <button onclick="submitPartialReturn(${id})" 
-              class="flex-1 py-3 bg-amber-500 text-white rounded-lg font-bold">
+            <button onclick="submitPartialReturn(${id})"
+              class="btn btn-warning flex-1 py-3">
               Xác nhận
             </button>
           </div>

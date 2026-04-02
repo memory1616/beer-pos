@@ -43,14 +43,14 @@
     input[type=number] { -moz-appearance: textfield; }
   </style>
 </head>
-<body class="bg-gray-50 text-gray-800 min-h-screen pb-24">
+<body class="bg-main text-primary min-h-screen pb-24">
   <div id="app" class="max-w-lg mx-auto px-3 pt-4">
     <!-- Header -->
     <div class="flex items-center justify-between mb-4">
-      <h1 class="text-xl font-bold text-gray-800">🍺 Quản lý vỏ bia</h1>
+      <h1 class="text-xl font-bold text-primary">🍺 Quản lý vỏ bia</h1>
       <div class="flex gap-2">
-        <button onclick="syncKegs()" class="text-gray-400 hover:text-gray-600 text-xl" title="Đồng bộ">🔄</button>
-        <button onclick="openHistoryModal()" class="text-gray-400 hover:text-gray-600 text-xl" title="Lịch sử chi tiết">📋</button>
+        <button onclick="syncKegs()" class="text-muted hover:text-main text-xl" title="Đồng bộ">🔄</button>
+        <button onclick="openHistoryModal()" class="text-muted hover:text-main text-xl" title="Lịch sử chi tiết">📋</button>
       </div>
     </div>
 
@@ -112,7 +112,7 @@
       <div class="max-h-64 overflow-y-auto">
         <table class="w-full text-xs">
           <thead>
-            <tr class="bg-gray-50 text-gray-500 sticky top-0">
+            <tr class="bg-bg text-muted sticky top-0">
               <th class="py-2 px-2 text-left font-medium">Thời gian</th>
               <th class="py-2 px-2 text-left font-medium">Loại</th>
               <th class="py-2 px-2 text-center font-medium">SL</th>
@@ -128,11 +128,11 @@
 
   <!-- Bottom Navigation (.bottomnav = grid 5 cột; các <a> phải là con trực tiếp) -->
   <nav class="bottomnav z-40" style="box-shadow: 0 -4px 16px rgba(0,0,0,0.08);">
-    <a href="/dashboard" class="text-gray-500 hover:text-emerald-600 min-w-0 px-0.5">
+    <a href="/dashboard" class="hover:text-success min-w-0 px-0.5">
       <span class="icon">📊</span>
       <span class="leading-tight text-[10px] sm:text-[11px] sm:whitespace-normal sm:break-words sm:max-w-full">Tổng quan</span>
     </a>
-    <a href="/sale" class="text-gray-500 hover:text-emerald-600 min-w-0 px-0.5">
+    <a href="/sale" class="hover:text-success min-w-0 px-0.5">
       <span class="icon">💰</span>
       <span class="leading-tight text-[10px] sm:text-[11px]">Bán</span>
     </a>
@@ -140,11 +140,11 @@
       <span class="icon">🍺</span>
       <span class="leading-tight text-[10px] sm:text-[11px]">Vỏ</span>
     </a>
-    <a href="/customers" class="text-gray-500 hover:text-emerald-600 min-w-0 px-0.5">
+    <a href="/customers" class="hover:text-success min-w-0 px-0.5">
       <span class="icon">👥</span>
       <span class="leading-tight text-[10px] sm:text-[11px]">Khách</span>
     </a>
-    <a href="/purchases" class="text-gray-500 hover:text-emerald-600 min-w-0 px-0.5">
+    <a href="/purchases" class="hover:text-success min-w-0 px-0.5">
       <span class="icon">📦</span>
       <span class="leading-tight text-[10px] sm:text-[11px]">Nhập</span>
     </a>
@@ -427,10 +427,10 @@
       const note = document.getElementById('statBalanceNote');
       if (balance < 0) {
         note.textContent = '⚠️ Số âm! Kiểm tra ngay';
-        note.classList.add('text-red-600');
+        note.classList.add('text-danger');
       } else {
         note.textContent = 'Kho+Rỗng-Khách';
-        note.classList.remove('text-red-600');
+        note.classList.remove('text-danger');
       }
     }
 
@@ -463,7 +463,7 @@
         'adjust': 'badge-adjust',
         'sell_empty': 'badge-sell_empty'
       };
-      return 'inline-block px-2 py-0.5 rounded-full text-xs font-semibold ' + (map[type] || 'bg-gray-100 text-gray-600');
+      return 'inline-block px-2 py-0.5 rounded-full text-xs font-semibold ' + (map[type] || 'badge-secondary');
     }
 
     function typeLabel(type) {

@@ -28,7 +28,7 @@
     button:active { transform: scale(0.96); }
   </style>
 </head>
-<body class="bg-gray-100 text-gray-800 min-h-screen pb-20">
+<body class="bg-main text-primary min-h-screen pb-20">
   <div id="app"></div>
 
   <!-- Invoice Modal -->
@@ -66,12 +66,12 @@
         const btn = document.getElementById('tab-' + tab);
         const content = document.getElementById('tab-content-' + tab);
         if (tab === tabName) {
-          btn.classList.remove('text-gray-500', 'border-transparent');
-          btn.classList.add('text-amber-600', 'border-green-600');
+          btn.classList.remove('text-muted', 'border-transparent');
+          btn.classList.add('text-primary', 'border-primary');
           content.classList.remove('hidden');
         } else {
-          btn.classList.remove('text-amber-600', 'border-green-600');
-          btn.classList.add('text-gray-500', 'border-transparent');
+          btn.classList.remove('text-primary', 'border-primary');
+          btn.classList.add('text-muted', 'border-transparent');
           content.classList.add('hidden');
         }
       });
@@ -291,19 +291,19 @@
 
         <!-- Bottom Nav -->
         <nav class="bottomnav">
-          <a href="/sale" class="flex flex-col items-center text-gray-500 p-2">
+          <a href="/sale" class="hover:text-success p-2">
             <span class="text-xl">🏠</span>
             <span class="text-xs">Bán hàng</span>
           </a>
-          <a href="/stock" class="flex flex-col items-center text-gray-500 p-2">
+          <a href="/stock" class="hover:text-success p-2">
             <span class="text-xl">📦</span>
             <span class="text-xs">Kho</span>
           </a>
-          <a href="/customers" class="flex flex-col items-center text-amber-600 p-2">
+          <a href="/customers" class="active p-2">
             <span class="text-xl">👤</span>
             <span class="text-xs">Khách</span>
           </a>
-          <a href="/purchases" class="flex flex-col items-center text-gray-500 p-2">
+          <a href="/purchases" class="hover:text-success p-2">
             <span class="text-xl">🚚</span>
             <span class="text-xs">Nhập</span>
           </a>
@@ -514,7 +514,7 @@
         <div class="flex justify-between py-2 border-b">
           <div>
             <div class="font-medium">${item.name}</div>
-            <div class="text-sm text-gray-500">${item.quantity} x ${formatVND(item.price)}</div>
+            <div class="text-sm text-muted">${item.quantity} x ${formatVND(item.price)}</div>
           </div>
           <div class="font-bold">${formatVND(item.quantity * item.price)}</div>
         </div>

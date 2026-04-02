@@ -125,9 +125,9 @@ const Utils = {
       overlay.id = 'loadingOverlay';
       overlay.className = 'fixed inset-0 bg-black/50 flex items-center justify-center z-50';
       overlay.innerHTML = `
-        <div class="bg-white rounded-lg p-6 flex flex-col items-center shadow-xl">
-          <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mb-4"></div>
-          <p class="text-gray-700 font-medium" id="loadingMessage">${message}</p>
+        <div class="card p-6 flex flex-col items-center shadow-xl">
+          <div class="spinner mb-4"></div>
+          <p class="text-main font-medium" id="loadingMessage">${message}</p>
         </div>
       `;
       document.body.appendChild(overlay);
@@ -152,7 +152,7 @@ const Utils = {
    */
   showToast: function(message, type) {
     type = type || 'success';
-    const bgColor = type === 'success' ? 'bg-green-500' : (type === 'error' ? 'bg-red-500' : 'bg-blue-500');
+    const bgColor = type === 'success' ? 'bg-success' : (type === 'error' ? 'bg-danger' : 'bg-info');
     const toast = document.createElement('div');
     toast.className = `fixed top-4 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg z-50 transform transition-all duration-300 translate-x-full`;
     toast.textContent = message;

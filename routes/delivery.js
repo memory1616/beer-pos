@@ -64,24 +64,24 @@ router.get('/', (req, res, next) => {
     }
   </style>
 </head>
-<body class="bg-gray-100 text-gray-800 min-h-screen pb-24">
-  <header class="sticky top-0 bg-white/90 backdrop-blur border-b shadow-sm z-50 pb-safe">
+<body class="bg-bg text-main min-h-screen pb-24">
+  <header class="sticky top-0 bg-card/90 backdrop-blur border-b border-muted shadow-sm z-50 pb-safe">
     <div class="flex items-center justify-between px-4 py-3">
       <div class="flex items-center gap-2">
-        <a href="/" class="text-gray-600">←</a>
-        <span class="font-bold">${DISTRIBUTOR_NAME}</span>
+        <a href="/" class="text-muted">←</a>
+        <span class="font-bold text-main">${DISTRIBUTOR_NAME}</span>
       </div>
       <div class="flex items-center gap-2">
-        <button onclick="showSettings()" class="text-gray-600 p-2">⚙️</button>
-        <span class="text-sm text-gray-500">Giao hàng</span>
+        <button onclick="showSettings()" class="text-muted p-2">⚙️</button>
+        <span class="text-sm text-muted">Giao hàng</span>
       </div>
     </div>
     <div class="px-4 pb-2">
       <div class="flex items-center justify-between text-sm">
-        <span class="text-gray-500">Khoảng cách: <span id="totalDistance" class="font-bold text-blue-600">0</span> km</span>
-        <span class="text-gray-500">Phí vận chuyển: <span id="totalDeliveryFee" class="font-bold text-amber-600">0</span> ₫</span>
+        <span class="text-muted">Khoảng cách: <span id="totalDistance" class="font-bold text-info">0</span> km</span>
+        <span class="text-muted">Phí vận chuyển: <span id="totalDeliveryFee" class="font-bold text-money">0</span> ₫</span>
       </div>
-      <p class="text-xs text-gray-400 mt-1">📦 Xuất phát từ <strong>kho</strong> (bấm ⚙️ để cài). Bấm <strong>📍 Vị trí hiện tại</strong> nếu muốn tính từ xe/điện thoại.</p>
+      <p class="text-xs text-muted mt-1">📦 Xuất phát từ <strong>kho</strong> (bấm ⚙️ để cài). Bấm <strong>📍 Vị trí hiện tại</strong> nếu muốn tính từ xe/điện thoại.</p>
     </div>
   </header>
 
@@ -91,33 +91,33 @@ router.get('/', (req, res, next) => {
     </div>
 
     <div class="flex gap-2 mb-4">
-      <button onclick="getCurrentLocation()" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-lg flex items-center justify-center gap-2">
+      <button onclick="getCurrentLocation()" class="flex-1 btn btn-primary flex items-center justify-center gap-2">
         📍 Vị trí hiện tại
       </button>
-      <button onclick="optimizeRoute()" class="flex-1 bg-purple-500 hover:bg-purple-600 text-white py-2 px-4 rounded-lg flex items-center justify-center gap-2">
+      <button onclick="optimizeRoute()" class="flex-1 bg-secondary hover:bg-secondary/80 text-white py-2 px-4 rounded-lg flex items-center justify-center gap-2">
         ⚡ Tối ưu lộ trình
       </button>
     </div>
 
     <div id="customersList" class="space-y-2">
       ${customers.map(c => `
-        <div class="delivery-card bg-white rounded-lg shadow p-3" data-lat="${c.lat}" data-lng="${c.lng}" data-name="${c.name}">
+        <div class="delivery-card card p-3" data-lat="${c.lat}" data-lng="${c.lng}" data-name="${c.name}">
           <div class="flex justify-between items-start">
             <div>
-              <div class="font-bold">${c.name}</div>
-              <div class="text-sm text-gray-500">${c.phone || ''}</div>
+              <div class="font-bold text-main">${c.name}</div>
+              <div class="text-sm text-muted">${c.phone || ''}</div>
             </div>
             <div class="text-right">
-              <div class="text-sm text-gray-500">Khoảng cách: <span class="distance font-bold text-blue-600">-</span> km</div>
-              <div class="text-sm font-bold text-amber-600 delivery-fee">-</div>
+              <div class="text-sm text-muted">Khoảng cách: <span class="distance font-bold text-info">-</span> km</div>
+              <div class="text-sm font-bold text-money delivery-fee">-</div>
             </div>
           </div>
           <div class="flex gap-2 mt-2">
             <a href="https://www.google.com/maps/dir/?api=1&destination=${c.lat},${c.lng}"
                target="_blank"
-               class="flex-1 text-center bg-blue-100 text-blue-700 py-2 rounded-lg text-sm">📍 Chỉ đường</a>
+               class="flex-1 text-center btn btn-secondary btn-sm">📍 Chỉ đường</a>
             <button onclick="startDelivery(${c.lat}, ${c.lng}, ${c.id})"
-                    class="flex-1 bg-amber-500 text-white py-2 rounded-lg text-sm">
+                    class="flex-1 btn btn-warning btn-sm">
               🚀 Giao hàng
             </button>
           </div>
@@ -127,44 +127,44 @@ router.get('/', (req, res, next) => {
   </main>
 
   <!-- Settings Modal -->
-  <div id="settingsModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4" style="z-index:10000">
-    <div class="bg-white rounded-lg p-6 max-w-sm w-full settings-modal-inner relative" style="z-index:10001">
+  <div id="settingsModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-4" style="z-index:10000">
+    <div class="card p-6 max-w-sm w-full settings-modal-inner relative" style="z-index:10001">
       <h2 class="text-xl font-bold mb-4">⚙️ Cấu hình vận chuyển</h2>
 
       <div class="space-y-4">
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Phí/km (VNĐ)</label>
+          <label class="block text-sm font-medium text-main mb-1">Phí/km (VNĐ)</label>
           <input type="number" id="deliveryCostPerKm" value="${settingsObj.delivery_cost_per_km || 3000}"
-                 class="w-full border rounded-lg px-3 py-2" min="0" step="100">
+                 class="w-full border border-muted rounded-lg px-3 py-2" min="0" step="100">
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Phí cơ bản (VNĐ)</label>
+          <label class="block text-sm font-medium text-main mb-1">Phí cơ bản (VNĐ)</label>
           <input type="number" id="deliveryBaseCost" value="${settingsObj.delivery_base_cost || 0}"
-                 class="w-full border rounded-lg px-3 py-2" min="0">
+                 class="w-full border border-muted rounded-lg px-3 py-2" min="0">
         </div>
 
-        <div class="border-t pt-4">
-          <label class="block text-sm font-medium text-gray-700 mb-1">📍 Vị trí kho/xưởng</label>
+        <div class="border-t border-muted pt-4">
+          <label class="block text-sm font-medium text-main mb-1">📍 Vị trí kho/xưởng</label>
           <div class="grid grid-cols-2 gap-2">
             <div>
-              <label class="text-xs text-gray-500">Vĩ độ</label>
+              <label class="text-xs text-muted">Vĩ độ</label>
               <input type="number" id="distributorLat" value="${settingsObj.distributor_lat || 10.8231}"
-                     class="w-full border rounded-lg px-3 py-2" step="0.0001">
+                     class="w-full border border-muted rounded-lg px-3 py-2" step="0.0001">
             </div>
             <div>
-              <label class="text-xs text-gray-500">Kinh độ</label>
+              <label class="text-xs text-muted">Kinh độ</label>
               <input type="number" id="distributorLng" value="${settingsObj.distributor_lng || 106.6297}"
-                     class="w-full border rounded-lg px-3 py-2" step="0.0001">
+                     class="w-full border border-muted rounded-lg px-3 py-2" step="0.0001">
             </div>
           </div>
-          <button onclick="getDistributorLocation()" class="mt-2 text-sm text-blue-600">📍 Lấy vị trí hiện tại</button>
+          <button onclick="getDistributorLocation()" class="mt-2 text-sm text-info">📍 Lấy vị trí hiện tại</button>
         </div>
       </div>
 
       <div class="flex gap-2 mt-6">
-        <button onclick="hideSettings()" class="flex-1 bg-gray-300 text-gray-800 py-3 rounded-lg">Hủy</button>
-        <button onclick="saveSettings()" class="flex-1 bg-blue-600 text-white py-3 rounded-lg">Lưu</button>
+        <button onclick="hideSettings()" class="flex-1 btn btn-ghost">Hủy</button>
+        <button onclick="saveSettings()" class="flex-1 btn btn-primary">Lưu</button>
       </div>
     </div>
   </div>
@@ -511,7 +511,7 @@ router.get('/', (req, res, next) => {
 
           userMarker = L.marker([currentLat, currentLng], {
             icon: L.divIcon({
-              className: 'bg-blue-500 rounded-full w-4 h-4 border-2 border-white',
+              className: 'bg-primary rounded-full w-4 h-4 border-2 border-white',
               iconSize: [16, 16]
             })
           }).addTo(map).bindPopup('📍 Vị trí của bạn').openPopup();

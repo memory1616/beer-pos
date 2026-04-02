@@ -23,7 +23,7 @@ function renderPurchaseHistory(purchases) {
   const container = document.getElementById('purchaseHistoryList');
   
   if (purchases.length === 0) {
-    container.innerHTML = '<div class="text-gray-500 text-center py-2">Chưa có lịch sử nhập hàng</div>';
+    container.innerHTML = '<div class="text-muted text-center py-2">Chưa có lịch sử nhập hàng</div>';
     return;
   }
   
@@ -34,12 +34,12 @@ function renderPurchaseHistory(purchases) {
       <div class="flex justify-between items-center p-2 border-b">
         <div>
           <div class="font-medium">Đơn #${p.id}</div>
-          <div class="text-xs text-gray-500">${formattedDate} • ${p.item_count} sản phẩm</div>
+          <div class="text-xs text-muted">${formattedDate} • ${p.item_count} sản phẩm</div>
         </div>
         <div class="flex items-center gap-2">
-          <div class="font-bold text-blue-600">${formatVND(p.total_amount)}</div>
-          <button onclick="editPurchase(${p.id})" class="text-blue-500 text-sm">✏️</button>
-          <button onclick="deletePurchase(${p.id})" class="text-red-500 text-sm">🗑️</button>
+          <div class="font-bold text-money">${formatVND(p.total_amount)}</div>
+          <button onclick="editPurchase(${p.id})" class="text-info text-sm">✏️</button>
+          <button onclick="deletePurchase(${p.id})" class="text-danger text-sm">🗑️</button>
         </div>
       </div>
     `;
@@ -60,19 +60,19 @@ async function editPurchase(purchaseId) {
     
     const itemsContainer = document.getElementById('editPurchaseItems');
     itemsContainer.innerHTML = itemsData.items.map(item => `
-      <div class="p-3 border border-amber-200 rounded-xl bg-amber-50/50 space-y-2">
-        <div class="font-medium text-sm text-gray-800 truncate">${item.product_name}</div>
+      <div class="card p-3 space-y-2">
+        <div class="font-medium text-sm text-main truncate">${item.product_name}</div>
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Số lượng</label>
-            <input type="number" data-item-id="${item.id}" data-product-id="${item.product_id}" 
-              min="0" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-center edit-qty" 
+            <label class="block text-xs font-medium text-main mb-1">Số lượng</label>
+            <input type="number" data-item-id="${item.id}" data-product-id="${item.product_id}"
+              min="0" class="w-full border border-primary rounded-lg px-3 py-2 text-center focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none edit-qty"
               value="${item.quantity}">
           </div>
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Đơn giá (VNĐ)</label>
-            <input type="number" data-item-id="${item.id}" data-product-id="${item.product_id}" 
-              step="1000" min="0" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-right edit-cost" 
+            <label class="block text-xs font-medium text-main mb-1">Đơn giá (VNĐ)</label>
+            <input type="number" data-item-id="${item.id}" data-product-id="${item.product_id}"
+              step="1000" min="0" class="w-full border border-primary rounded-lg px-3 py-2 text-right focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none edit-cost"
               value="${item.unit_price}">
           </div>
         </div>
@@ -153,11 +153,11 @@ function renderImportForm(products) {
   
   // Layout rõ ràng: tên SP, giá vốn 1 dòng, chỉ ô SL (không lặp giá)
   container.innerHTML = products.map(p => `
-    <div class="p-3 border border-gray-200 rounded-xl bg-gray-50">
-      <div class="text-sm font-semibold text-gray-800">${p.name}</div>
-      <div class="text-xs text-gray-600 mt-0.5">Giá vốn: ${formatVND(p.cost_price || 0)} · Tồn: ${p.stock}</div>
+    <div class="card p-3">
+      <div class="text-sm font-semibold text-main">${p.name}</div>
+      <div class="text-xs text-muted mt-0.5">Giá vốn: ${formatVND(p.cost_price || 0)} · Tồn: ${p.stock}</div>
       <input type="number" id="qty-${p.id}" min="0" placeholder="Nhập SL"
-        class="mt-2 w-full border-2 border-gray-200 rounded-lg p-2.5 text-center font-medium"
+        class="mt-2 w-full border-2 border-primary rounded-lg p-2.5 text-center font-medium focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
         onchange="updateImportData(${p.id}, this.value)"
         oninput="updateImportData(${p.id}, this.value)">
     </div>
@@ -248,12 +248,12 @@ function renderProducts(products, serverTotalStockPositive) {
   // Add low stock alert section at top if there are low stock products
   let lowStockAlert = '';
   if (lowStockProducts.length > 0) {
-    lowStockAlert = `
-      <div class="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-        <div class="text-sm font-bold text-red-700 mb-2">⚠️ Tồn kho thấp (${lowStockProducts.length})</div>
+      lowStockAlert = `
+      <div class="card mb-3 border-danger">
+        <div class="text-sm font-bold text-danger mb-2">⚠️ Tồn kho thấp (${lowStockProducts.length})</div>
         <div class="flex flex-wrap gap-1">
           ${lowStockProducts.map(p => `
-            <span class="text-xs bg-red-100 text-red-700 px-2 py-1 rounded">
+            <span class="badge badge-danger">
               ${p.name}: <b>${p.stock}</b>
             </span>
           `).join('')}
@@ -263,15 +263,15 @@ function renderProducts(products, serverTotalStockPositive) {
   }
 
   productList.innerHTML = lowStockAlert + products.map(p => `
-    <div class="card product-card ${p.stock < 5 ? 'border-red-300 bg-red-50' : 'border-gray-200'}">
+    <div class="card product-card ${p.stock < 5 ? 'border-danger' : 'border-muted'}">
       <div class="flex justify-between items-start mb-1">
-        <div class="font-bold text-sm">${p.name}</div>
+        <div class="font-bold text-sm text-main">${p.name}</div>
         ${p.stock < 5 ? '<span class="badge badge-danger">⚠️ Sắp hết</span>' : ''}
       </div>
-      <div class="text-xs text-gray-500 mb-2">Giá vốn: ${formatVND(p.cost_price || 0)}</div>
+      <div class="text-xs text-muted mb-2">Giá vốn: ${formatVND(p.cost_price || 0)}</div>
       <div class="flex justify-between items-center">
-        <div class="text-lg font-bold ${p.stock < 5 ? 'text-red-600' : 'text-green-600'}">${p.stock}</div>
-        <button onclick="openProductModal(${p.id})" class="text-xs text-blue-500 underline">✏️ Sửa</button>
+        <div class="text-lg font-bold ${p.stock < 5 ? 'text-danger' : 'text-success'}">${p.stock}</div>
+        <button onclick="openProductModal(${p.id})" class="text-xs text-info underline">✏️ Sửa</button>
       </div>
     </div>
   `).join('');

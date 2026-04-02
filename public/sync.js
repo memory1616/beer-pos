@@ -420,14 +420,14 @@ async function updateSmartStatus() {
   // Offline
   if (!navigator.onLine) {
     el.textContent = '🔴 Offline';
-    el.className = 'text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700';
+    el.className = 'badge badge-danger';
     if (syncEl) {
       if (pending > 0) {
         syncEl.textContent = `⏳ ${pending} chờ đẩy`;
-        syncEl.className = 'text-xs text-orange-500 font-medium';
+        syncEl.className = 'text-xs text-warning font-medium';
       } else {
         syncEl.textContent = '⚠️ Không kết nối';
-        syncEl.className = 'text-xs text-gray-400';
+        syncEl.className = 'text-xs text-muted';
       }
     }
     return;
@@ -436,14 +436,14 @@ async function updateSmartStatus() {
   // No cloud URL configured — still show pending queue status
   if (!cloudUrl) {
     el.textContent = '🟡 Cục bộ';
-    el.className = 'text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700';
+    el.className = 'badge badge-warning';
     if (syncEl) {
       if (pending > 0) {
         syncEl.textContent = `📴 ${pending} chờ đẩy lên server`;
-        syncEl.className = 'text-xs text-orange-500 font-medium';
+        syncEl.className = 'text-xs text-warning font-medium';
       } else {
         syncEl.textContent = '📴 Không có cloud';
-        syncEl.className = 'text-xs text-gray-400';
+        syncEl.className = 'text-xs text-muted';
       }
     }
     return;
@@ -454,15 +454,15 @@ async function updateSmartStatus() {
     const res = await fetch('/api/ping', { cache: 'no-store' });
     if (res.ok) {
       el.textContent = '🟢 Online';
-      el.className = 'text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700';
+      el.className = 'badge badge-success';
       if (syncEl) {
         if (pending > 0) {
           syncEl.textContent = `📤 ${pending} chờ đẩy`;
-          syncEl.className = 'text-xs text-blue-500 font-medium';
+          syncEl.className = 'text-xs text-info font-medium';
         } else {
           const syncText = getLastSyncText();
           syncEl.textContent = syncText ? `✓ ${syncText}` : '✓ Đã đồng bộ';
-          syncEl.className = 'text-xs text-green-600';
+          syncEl.className = 'text-xs text-success';
         }
       }
     } else {
@@ -470,10 +470,10 @@ async function updateSmartStatus() {
     }
   } catch {
     el.textContent = '🟡 Lỗi mạng';
-    el.className = 'text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700';
+    el.className = 'badge badge-warning';
     if (syncEl) {
       syncEl.textContent = pending > 0 ? `⏳ ${pending} chờ` : '⚠️ Không kết nối server';
-      syncEl.className = 'text-xs text-orange-500';
+      syncEl.className = 'text-xs text-warning';
     }
   }
 }
@@ -644,14 +644,14 @@ async function refreshCloudTab() {
   const cloudUrl = getCloudUrl();
   const pending = await countPendingQueue();
   if (!cloudUrl) {
-    statusEl.innerHTML = '🔴 <span class="text-red-600"><strong>Chưa có Cloud</strong></span> — đang chạy độc lập' +
-      (pending > 0 ? ` <span class="text-orange-500">(${pending} chờ đẩy)</span>` : '');
+    statusEl.innerHTML = '🔴 <span class="text-danger"><strong>Chưa có Cloud</strong></span> — đang chạy độc lập' +
+      (pending > 0 ? ` <span class="text-warning">(${pending} chờ đẩy)</span>` : '');
   } else if (!navigator.onLine) {
-    statusEl.innerHTML = '🔴 <span class="text-red-600"><strong>Offline</strong></span> — cloud: ' + cloudUrl;
+    statusEl.innerHTML = '🔴 <span class="text-danger"><strong>Offline</strong></span> — cloud: ' + cloudUrl;
   } else {
-    statusEl.innerHTML = '🟢 <span class="text-green-600"><strong>Đã kết nối Cloud</strong></span>' +
-      (pending > 0 ? ` <span class="text-orange-500">(${pending} chờ đẩy)</span>` : '') +
-      '<br><span class="text-xs text-gray-500">' + cloudUrl + '</span>';
+    statusEl.innerHTML = '🟢 <span class="text-success"><strong>Đã kết nối Cloud</strong></span>' +
+      (pending > 0 ? ` <span class="text-warning">(${pending} chờ đẩy)</span>` : '') +
+      '<br><span class="text-xs text-muted">' + cloudUrl + '</span>';
   }
   if (input) input.value = cloudUrl;
 }
