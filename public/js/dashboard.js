@@ -4,6 +4,26 @@
 
 let revenueChart = null;
 
+/**
+ * Hiển thị số tiền: số + "đ" cùng hàng (flex), không bị xuống dòng giữa số và đơn vị.
+ * @param {HTMLElement|null} el
+ * @param {number} amount
+ * @param {string} colorClass - ví dụ 'text-orange-500'
+ * @param {{ numClass?: string, sufClass?: string }} [opts]
+ */
+function setMoneyAmount(el, amount, colorClass, opts) {
+  if (!el || typeof Format === 'undefined') return;
+  opts = opts || {};
+  var numClass = opts.numClass || 'text-[28px] font-bold leading-none tabular-nums';
+  var sufClass = opts.sufClass || 'text-sm shrink-0';
+  el.className = 'min-w-0';
+  el.innerHTML =
+    '<div class="flex items-baseline gap-1 min-w-0 overflow-hidden ' + (colorClass || '') + '">' +
+    '<span class="' + numClass + '">' + Format.number(amount) + '</span>' +
+    '<span class="' + sufClass + '">đ</span>' +
+    '</div>';
+}
+
 function initDashboard(data) {
   // Helper function to safely set text content
   const setText = (id, value) => {
@@ -19,8 +39,7 @@ function initDashboard(data) {
       todayRevenueEl.textContent = 'Chưa có dữ liệu hôm nay';
       todayRevenueEl.className = 'text-base font-medium text-gray-400 italic';
     } else {
-      todayRevenueEl.textContent = formatVND(todayRevenue);
-      todayRevenueEl.className = 'text-2xl font-bold text-amber-600';
+      setMoneyAmount(todayRevenueEl, todayRevenue, 'text-orange-500');
     }
   }
 
@@ -35,11 +54,9 @@ function initDashboard(data) {
       todayProfitEl.textContent = 'Chưa có dữ liệu hôm nay';
       todayProfitEl.className = 'text-base font-medium text-gray-400 italic';
     } else if (todayProfit > 0) {
-      todayProfitEl.textContent = formatVND(todayProfit);
-      todayProfitEl.className = 'text-2xl font-bold text-green-600';
+      setMoneyAmount(todayProfitEl, todayProfit, 'text-green-600');
     } else {
-      todayProfitEl.textContent = formatVND(todayProfit);
-      todayProfitEl.className = 'text-2xl font-bold text-red-600';
+      setMoneyAmount(todayProfitEl, todayProfit, 'text-red-600');
     }
   }
 
@@ -51,11 +68,9 @@ function initDashboard(data) {
       todayExpenseEl.textContent = 'Không có chi phí hôm nay';
       todayExpenseEl.className = 'text-base font-medium text-gray-400 italic';
     } else if (todayRevenue === 0) {
-      todayExpenseEl.textContent = formatVND(todayExpenseAmt);
-      todayExpenseEl.className = 'text-2xl font-bold text-orange-500';
+      setMoneyAmount(todayExpenseEl, todayExpenseAmt, 'text-orange-500');
     } else {
-      todayExpenseEl.textContent = formatVND(todayExpenseAmt);
-      todayExpenseEl.className = 'text-2xl font-bold text-red-500';
+      setMoneyAmount(todayExpenseEl, todayExpenseAmt, 'text-red-500');
     }
   }
 
@@ -67,11 +82,9 @@ function initDashboard(data) {
       monthProfitEl.textContent = 'Chưa có dữ liệu';
       monthProfitEl.className = 'text-base font-medium text-gray-400 italic';
     } else if (monthProfit > 0) {
-      monthProfitEl.textContent = formatVND(monthProfit);
-      monthProfitEl.className = 'text-2xl font-bold text-green-600';
+      setMoneyAmount(monthProfitEl, monthProfit, 'text-green-600');
     } else {
-      monthProfitEl.textContent = formatVND(monthProfit);
-      monthProfitEl.className = 'text-2xl font-bold text-red-600';
+      setMoneyAmount(monthProfitEl, monthProfit, 'text-red-600');
     }
   }
 
@@ -83,8 +96,7 @@ function initDashboard(data) {
       monthExpenseEl.textContent = 'Không có chi phí';
       monthExpenseEl.className = 'text-base font-medium text-gray-400 italic';
     } else {
-      monthExpenseEl.textContent = formatVND(monthExpenseAmt);
-      monthExpenseEl.className = 'text-2xl font-bold text-red-500';
+      setMoneyAmount(monthExpenseEl, monthExpenseAmt, 'text-red-500');
     }
   }
   
@@ -258,9 +270,21 @@ function renderRevenueChart(dailyData) {
     growth = yesterday > 0 ? ((today - yesterday) / yesterday * 100) : 0;
   }
 
-  // Update stats display
-  setText('totalRevenue6M', formatVND(totalRevenue));
-  setText('avgRevenue6M', formatVND(totalNetProfit));
+  // Update stats display (flex số + đ, không xuống dòng)
+  const totalRev6El = document.getElementById('totalRevenue6M');
+  const avgRev6El = document.getElementById('avgRevenue6M');
+  if (totalRev6El) {
+    setMoneyAmount(totalRev6El, totalRevenue, 'text-amber-600', {
+      numClass: 'text-sm font-bold tabular-nums',
+      sufClass: 'text-xs shrink-0'
+    });
+  }
+  if (avgRev6El) {
+    setMoneyAmount(avgRev6El, totalNetProfit, 'text-blue-600', {
+      numClass: 'text-sm font-bold tabular-nums',
+      sufClass: 'text-xs shrink-0'
+    });
+  }
   const growthEl = document.getElementById('growthRevenue6M');
   if (netProfits.length >= 2) {
     if (growthEl) {
