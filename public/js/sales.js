@@ -20,7 +20,8 @@ function initSalesPage(data) {
   
   // Render products in list format (like import form)
   renderSaleProducts();
-  
+  updateSaleTotal();
+
   // Load history
   loadSalesHistory();
 }
@@ -34,6 +35,9 @@ function renderSaleProducts() {
   container.innerHTML = products.map(p => {
     const price = p._displayPrice || p.sell_price || 0;
     const currentPrice = (saleData[p.id] && saleData[p.id].price !== undefined) ? saleData[p.id].price : (p.sell_price || 0);
+    const priceInputVal = (saleData[p.id] && saleData[p.id].price !== undefined)
+      ? saleData[p.id].price
+      : (p.sell_price != null && p.sell_price !== '' ? p.sell_price : '');
     const isLowStock = p.stock < 5;
     const currentQty = saleData[p.id] ? saleData[p.id].quantity : '';
     const priceLine = isKhachLe
@@ -41,7 +45,7 @@ function renderSaleProducts() {
       : `Giá: <span class="text-amber-700 font-bold">${formatVND(price)}</span> · Tồn: <span class="${p.stock < 5 ? 'text-red-500' : 'text-gray-500'}">${p.stock}</span>`;
     const priceField = isKhachLe
       ? `<label class="block text-xs font-semibold text-amber-700 mt-2 mb-1">Giá bán (đ)</label>
-        <input type="number" id="price-${p.id}" min="0" step="1000" value="${currentPrice > 0 ? currentPrice : ''}" placeholder="Nhập giá"
+        <input type="number" id="price-${p.id}" min="0" step="1000" value="${priceInputVal}" placeholder="Nhập giá"
           class="w-full border-2 border-amber-400 rounded-xl p-3 text-center text-lg font-bold text-amber-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-400 focus:outline-none"
           onchange="updateSaleData(${p.id}, 'price', this.value); updateSaleTotal();"
           oninput="updateSaleData(${p.id}, 'price', this.value); updateSaleTotal();">`
@@ -191,10 +195,15 @@ function updateSaleTotal() {
     const item = saleData[productId];
     if (item.quantity > 0 && item.price > 0) {
       const product = products.find(p => p.id == productId);
-      total += item.quantity * item.price;
+      const lineTotal = item.quantity * item.price;
+      total += lineTotal;
       hasItems = true;
       itemCount += item.quantity;
-      cartHtml += `<div class="flex justify-between"><span>${product ? product.name : 'SP'}</span><span>x${item.quantity}</span></div>`;
+      const name = product ? product.name : 'SP';
+      cartHtml += '<div class="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 text-sm py-1.5 border-b border-amber-100/80 last:border-0">' +
+        '<span class="font-semibold text-gray-800 min-w-0 flex-1 truncate">' + name + '</span>' +
+        '<span class="text-gray-500 shrink-0 tabular-nums">' + formatVND(item.price) + ' × ' + item.quantity + '</span>' +
+        '<span class="font-bold text-green-700 shrink-0 tabular-nums w-full text-right sm:w-auto sm:text-left">' + formatVND(lineTotal) + '</span></div>';
     }
   });
   
@@ -206,16 +215,25 @@ function updateSaleTotal() {
   
   const cartEl = document.getElementById('cartItems');
   if (cartEl) cartEl.innerHTML = cartHtml || '<div class="text-gray-400 text-center">Chưa có sản phẩm</div>';
-  
+
+  const previewEl = document.getElementById('saleCartPreview');
+  if (previewEl) {
+    if (!cartHtml) {
+      previewEl.innerHTML = '<p class="text-center text-gray-500 text-sm leading-snug px-1">Chưa có hàng trong giỏ — nhập <span class="text-amber-700 font-semibold">Số lượng</span> (và <span class="text-amber-700 font-semibold">giá</span> nếu khách lẻ)</p>';
+    } else {
+      previewEl.innerHTML = '<div class="text-xs font-bold text-amber-800 mb-1">Đơn đang bán</div><div class="max-h-40 overflow-y-auto">' + cartHtml + '</div>';
+    }
+  }
+
   const sellBtn = document.getElementById('sellBtn');
   if (sellBtn) {
     sellBtn.disabled = !hasItems;
     if (hasItems) {
-      sellBtn.classList.add('shadow-md');
-      sellBtn.classList.remove('shadow-none');
+      sellBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+      sellBtn.classList.add('shadow-md', 'hover:from-green-600', 'hover:to-green-700');
     } else {
-      sellBtn.classList.remove('shadow-md');
-      sellBtn.classList.add('shadow-none');
+      sellBtn.classList.add('opacity-50', 'cursor-not-allowed');
+      sellBtn.classList.remove('shadow-md', 'hover:from-green-600', 'hover:to-green-700');
     }
   }
 }

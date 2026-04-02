@@ -894,6 +894,7 @@ router.get('/profit-customer', (req, res) => {
   <link rel="stylesheet" href="/css/unified.css">
   <script src="/js/dark-mode.js"></script>
   <script src="/js/auth.js"></script>
+  <script src="/js/layout.js?v=20260403"></script>
   <style>
     .bottomnav { max-width: 500px; margin: auto; }
     .filter-wrap { overflow: visible !important; }
@@ -964,8 +965,10 @@ router.get('/profit-customer', (req, res) => {
       const y = document.getElementById('selYear').value;
       window.location.href = '/report/profit-customer?month=' + m + '&year=' + y;
     }
-    const bottomNav = getBottomNav('/report');
-    document.getElementById('bottomNavContainer').innerHTML = bottomNav;
+    (function() {
+      var el = document.getElementById('bottomNavContainer');
+      if (el && typeof getBottomNav === 'function') el.innerHTML = getBottomNav('/report');
+    })();
   </script>
 </body>
 </html>
