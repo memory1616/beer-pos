@@ -1,9 +1,8 @@
 {
-  "version": "2.0.5",
-  "build": "20260402c",
+  "version": "2.0.6",
+  "build": "20260402d",
   "date": "2026-04-02",
   "changelog": [
-    "fix: remove gradient-info from customers header; clean dashboard btn-danger inline styles",
-    "fix: complete UI refactor cleanup across all views"
+    "fix: prevent double đ by using innerHTML with .value/.unit spans instead of textContent on .money elements"
   ]
 }
