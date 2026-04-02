@@ -5,20 +5,31 @@
 let revenueChart = null;
 
 /**
- * Hiển thị số tiền: số + "đ" cùng hàng (flex), không bị xuống dòng giữa số và đơn vị.
+ * Hiển thị số tiền: flex 1 hàng, không xuống dòng, chuẩn fintech.
+ * Số lớn + "đ" nhỏ thấp hơn → nhìn xịn như app tài chính.
  * @param {HTMLElement|null} el
  * @param {number} amount
- * @param {string} colorClass - ví dụ 'text-orange-500'
- * @param {{ numClass?: string, sufClass?: string }} [opts]
+ * @param {string} colorClass - ví dụ 'text-yellow-400'
+ * @param {{ numClass?: string, sufClass?: string, size?: 'sm'|'lg' }} [opts]
+ *   size 'sm' = card nhỏ (text-sm), 'lg' = card lớn (text-3xl)
  */
 function setMoneyAmount(el, amount, colorClass, opts) {
   if (!el || typeof Format === 'undefined') return;
   opts = opts || {};
-  var numClass = opts.numClass || 'text-[28px] font-bold leading-none tabular-nums';
-  var sufClass = opts.sufClass || 'text-sm shrink-0';
+  var isLarge = opts.size === 'lg';
+
+  // Number: font lớn hơn "đ", tracking-tight cho gọn gàng
+  var numClass = opts.numClass ||
+    (isLarge
+      ? 'text-3xl font-bold tracking-tight leading-none tabular-nums'
+      : 'text-[22px] font-bold tracking-tight leading-none tabular-nums');
+
+  // "đ": nhỏ hơn, thấp xuống (mb-0.5), mờ hơn để không cạnh tranh với số
+  var sufClass = opts.sufClass || 'text-xs mb-0.5 opacity-70 shrink-0';
+
   el.className = 'min-w-0';
   el.innerHTML =
-    '<div class="flex items-baseline gap-1 min-w-0 overflow-hidden ' + (colorClass || '') + '">' +
+    '<div class="flex items-end gap-0.5 min-w-0 overflow-hidden whitespace-nowrap ' + (colorClass || '') + '">' +
     '<span class="' + numClass + '">' + Format.number(amount) + '</span>' +
     '<span class="' + sufClass + '">đ</span>' +
     '</div>';
@@ -39,7 +50,7 @@ function initDashboard(data) {
       todayRevenueEl.textContent = 'Chưa có dữ liệu hôm nay';
       todayRevenueEl.className = 'text-base font-medium text-gray-400 italic';
     } else {
-      setMoneyAmount(todayRevenueEl, todayRevenue, 'text-orange-500');
+      setMoneyAmount(todayRevenueEl, todayRevenue, 'text-yellow-400', { size: 'lg' });
     }
   }
 
@@ -54,9 +65,9 @@ function initDashboard(data) {
       todayProfitEl.textContent = 'Chưa có dữ liệu hôm nay';
       todayProfitEl.className = 'text-base font-medium text-gray-400 italic';
     } else if (todayProfit > 0) {
-      setMoneyAmount(todayProfitEl, todayProfit, 'text-green-600');
+      setMoneyAmount(todayProfitEl, todayProfit, 'text-green-400', { size: 'lg' });
     } else {
-      setMoneyAmount(todayProfitEl, todayProfit, 'text-red-600');
+      setMoneyAmount(todayProfitEl, todayProfit, 'text-red-400', { size: 'lg' });
     }
   }
 
@@ -68,9 +79,9 @@ function initDashboard(data) {
       todayExpenseEl.textContent = 'Không có chi phí hôm nay';
       todayExpenseEl.className = 'text-base font-medium text-gray-400 italic';
     } else if (todayRevenue === 0) {
-      setMoneyAmount(todayExpenseEl, todayExpenseAmt, 'text-orange-500');
+      setMoneyAmount(todayExpenseEl, todayExpenseAmt, 'text-yellow-400', { size: 'lg' });
     } else {
-      setMoneyAmount(todayExpenseEl, todayExpenseAmt, 'text-red-500');
+      setMoneyAmount(todayExpenseEl, todayExpenseAmt, 'text-red-400', { size: 'lg' });
     }
   }
 
@@ -82,9 +93,9 @@ function initDashboard(data) {
       monthProfitEl.textContent = 'Chưa có dữ liệu';
       monthProfitEl.className = 'text-base font-medium text-gray-400 italic';
     } else if (monthProfit > 0) {
-      setMoneyAmount(monthProfitEl, monthProfit, 'text-green-600');
+      setMoneyAmount(monthProfitEl, monthProfit, 'text-green-400', { size: 'lg' });
     } else {
-      setMoneyAmount(monthProfitEl, monthProfit, 'text-red-600');
+      setMoneyAmount(monthProfitEl, monthProfit, 'text-red-400', { size: 'lg' });
     }
   }
 
@@ -96,7 +107,7 @@ function initDashboard(data) {
       monthExpenseEl.textContent = 'Không có chi phí';
       monthExpenseEl.className = 'text-base font-medium text-gray-400 italic';
     } else {
-      setMoneyAmount(monthExpenseEl, monthExpenseAmt, 'text-red-500');
+      setMoneyAmount(monthExpenseEl, monthExpenseAmt, 'text-red-400', { size: 'lg' });
     }
   }
   
@@ -200,10 +211,14 @@ function initDashboard(data) {
         let totalDisplay = '';
         let rowClass = '';
         if (s.type === 'replacement') {
-          totalDisplay = '<span class="font-bold text-orange-600">🔁 Đổi lỗi</span>';
-          rowClass = 'bg-orange-50';
+          totalDisplay = '<span class="font-bold text-yellow-400">🔁 Đổi lỗi</span>';
+          rowClass = 'bg-yellow-50';
         } else {
-          totalDisplay = '<span class="font-bold text-green-600">' + formatVND(s.total) + '</span>';
+          totalDisplay =
+            '<span class="flex items-end gap-0.5 whitespace-nowrap text-green-400">' +
+            '<span class="text-sm font-bold tracking-tight tabular-nums">' + Format.number(s.total) + '</span>' +
+            '<span class="text-xs mb-0.5 opacity-70">đ</span>' +
+            '</span>';
         }
         
         return '<div class="flex justify-between items-center py-2 border-b ' + rowClass + '">' +
@@ -274,15 +289,15 @@ function renderRevenueChart(dailyData) {
   const totalRev6El = document.getElementById('totalRevenue6M');
   const avgRev6El = document.getElementById('avgRevenue6M');
   if (totalRev6El) {
-    setMoneyAmount(totalRev6El, totalRevenue, 'text-amber-600', {
-      numClass: 'text-sm font-bold tabular-nums',
-      sufClass: 'text-xs shrink-0'
+    setMoneyAmount(totalRev6El, totalRevenue, 'text-yellow-400', {
+      numClass: 'text-sm font-bold tracking-tight tabular-nums',
+      sufClass: 'text-xs mb-0.5 opacity-70 shrink-0'
     });
   }
   if (avgRev6El) {
-    setMoneyAmount(avgRev6El, totalNetProfit, 'text-blue-600', {
-      numClass: 'text-sm font-bold tabular-nums',
-      sufClass: 'text-xs shrink-0'
+    setMoneyAmount(avgRev6El, totalNetProfit, 'text-blue-400', {
+      numClass: 'text-sm font-bold tracking-tight tabular-nums',
+      sufClass: 'text-xs mb-0.5 opacity-70 shrink-0'
     });
   }
   const growthEl = document.getElementById('growthRevenue6M');
