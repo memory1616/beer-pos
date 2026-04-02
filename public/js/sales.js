@@ -46,6 +46,7 @@ function renderSaleProducts() {
     const priceField = isKhachLe
       ? `<label class="block text-xs font-semibold text-primary mt-2 mb-1">Giá bán (đ)</label>
         <input type="number" id="price-${p.id}" min="0" step="1000" value="${priceInputVal}" placeholder="Nhập giá"
+          inputmode="decimal" enterkeyhint="done"
           class="w-full border-2 border-primary rounded-xl p-3 text-center text-lg font-bold text-main focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
           onchange="updateSaleData(${p.id}, 'price', this.value); updateSaleTotal();"
           oninput="updateSaleData(${p.id}, 'price', this.value); updateSaleTotal();">`
@@ -57,6 +58,7 @@ function renderSaleProducts() {
         ${priceField}
         <input type="number" id="qty-${p.id}" min="0" max="${p.stock}" value="${currentQty > 0 ? currentQty : ''}" data-stock="${p.stock}"
           placeholder="Nhập SL"
+          inputmode="numeric" enterkeyhint="done"
           class="mt-2 w-full border-2 border-primary rounded-xl p-3 text-center text-lg font-bold focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none ${currentQty > 0 ? 'bg-primary/10' : ''}"
           onchange="updateSaleData(${p.id}, 'quantity', this.value); updateSaleTotal();"
           oninput="updateSaleData(${p.id}, 'quantity', this.value); updateSaleTotal();">
@@ -67,6 +69,7 @@ function renderSaleProducts() {
 
 // Quick adjust quantity (inline -10, -, +, +10)
 function adjustQty(productId, amount) {
+  haptic && haptic('light');
   const input = document.getElementById('qty-' + productId);
   if (!input) return;
   const current = parseInt(input.value) || 0;
@@ -113,30 +116,32 @@ function toggleQtyControl(productId) {
       </div>
 
       <div class="flex items-center justify-between gap-6 mb-6">
-        <button type="button" onclick="adjustQtyModal(${productId}, -1)" class="btn btn-ghost flex-1 h-14 text-xl font-bold">-</button>
+        <button type="button" onclick="adjustQtyModal(${productId}, -1); haptic('light')" class="btn btn-ghost flex-1 h-14 text-xl font-bold">-</button>
         <input type="number" id="qty-${productId}" min="0" max="${product.stock}" value="${currentQty}"
+          inputmode="numeric" enterkeyhint="done" autofocus
           class="flex-1 h-14 border-2 border-primary rounded-xl text-center text-2xl font-bold focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
           onchange="updateSaleData(${productId}, 'quantity', this.value)"
           oninput="updateSaleData(${productId}, 'quantity', this.value)">
-        <button type="button" onclick="adjustQtyModal(${productId}, 1)" class="btn btn-primary flex-1 h-14 text-xl font-bold">+</button>
+        <button type="button" onclick="adjustQtyModal(${productId}, 1); haptic('light')" class="btn btn-primary flex-1 h-14 text-xl font-bold">+</button>
       </div>
 
       <div class="flex items-center justify-center gap-3 mb-6">
-        <button type="button" onclick="adjustQtyModal(${productId}, 1)" class="btn btn-warning flex-1 py-3 text-sm font-bold">+1</button>
-        <button type="button" onclick="adjustQtyModal(${productId}, 5)" class="btn btn-warning flex-1 py-3 text-sm font-bold">+5</button>
-        <button type="button" onclick="adjustQtyModal(${productId}, 10)" class="btn btn-warning flex-1 py-3 text-sm font-bold">+10</button>
-        <button type="button" onclick="adjustQtyModal(${productId}, 20)" class="btn btn-warning flex-1 py-3 text-sm font-bold">+20</button>
+        <button type="button" onclick="adjustQtyModal(${productId}, 1); haptic('light')" class="btn btn-warning flex-1 py-3 text-sm font-bold">+1</button>
+        <button type="button" onclick="adjustQtyModal(${productId}, 5); haptic('light')" class="btn btn-warning flex-1 py-3 text-sm font-bold">+5</button>
+        <button type="button" onclick="adjustQtyModal(${productId}, 10); haptic('light')" class="btn btn-warning flex-1 py-3 text-sm font-bold">+10</button>
+        <button type="button" onclick="adjustQtyModal(${productId}, 20); haptic('light')" class="btn btn-warning flex-1 py-3 text-sm font-bold">+20</button>
       </div>
 
       <div class="mb-4">
         <label class="block text-sm font-medium text-main mb-2">Giá bán</label>
         <input type="number" id="price-${productId}" step="1000" value="${currentPrice}"
+          inputmode="decimal" enterkeyhint="done"
           class="w-full border-2 border-primary rounded-xl px-4 py-3 text-right text-xl font-bold focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
           onchange="updateSaleData(${productId}, 'price', this.value)"
           oninput="updateSaleData(${productId}, 'price', this.value)">
       </div>
 
-      <button onclick="closeQtyModal()" class="btn btn-primary w-full h-14 text-xl">
+      <button onclick="closeQtyModal(); haptic('medium')" class="btn btn-primary w-full h-14 text-xl">
         Xác nhận
       </button>
     </div>
@@ -419,6 +424,7 @@ async function submitSale() {
 
     const result = await res.json();
     if (res.ok) {
+      haptic && haptic('success');
       // Reset form
       saleData = {};
       // Reset all product display prices to default

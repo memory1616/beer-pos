@@ -1,6 +1,6 @@
-// BeerPOS Service Worker v21
+// BeerPOS Service Worker v22
 // Clean PWA: only cache static assets, never touch navigation or API
-const CACHE_NAME = "beer-pos-v21";
+const CACHE_NAME = "beer-pos-v22";
 const DB_NAME = "BeerPOS";
 const STORE_SYNC_QUEUE = "sync_queue";
 
@@ -148,7 +148,7 @@ self.addEventListener("sync", event => {
   }
 });
 
-// Process queued items
+// Process queued items with exponential backoff retry
 async function processSyncQueue() {
   try {
     const db = await openDB();
@@ -170,6 +170,13 @@ async function processSyncQueue() {
     console.log(`[SW] Syncing ${all.length} items`);
 
     for (const item of all) {
+      // Exponential backoff: wait (2^retry_count) * 500ms before retrying
+      if (item.retry_count > 0) {
+        const delay = Math.min((1 << item.retry_count) * 500, 30000);
+        console.log(`[SW] Backoff ${delay}ms for item (attempt ${item.retry_count + 1})`);
+        await new Promise(r => setTimeout(r, delay));
+      }
+
       try {
         const baseUrl = _swCloudUrl || self.registration.scope;
         const fullUrl = baseUrl.replace(/\/$/, "") + item.url;
@@ -194,11 +201,15 @@ async function processSyncQueue() {
           });
           console.log(`[SW] ✓ Synced: ${item.method} ${item.url}`);
         } else {
-          console.warn(`[SW] ✗ Failed (${response.status}): ${item.method} ${item.url}`);
+          // Server error — increment retry count
+          await incrementRetryCount(item.id, item.retry_count || 0);
+          console.warn(`[SW] ✗ Failed (${response.status}): ${item.method} ${item.url} — queued for retry`);
         }
       } catch (err) {
+        // Network error — increment retry count
+        await incrementRetryCount(item.id, item.retry_count || 0);
         console.warn(`[SW] ✗ Network error: ${item.method} ${item.url}:`, err.message);
-        break;
+        // Don't break on network error — try next items
       }
     }
 
@@ -209,6 +220,41 @@ async function processSyncQueue() {
   } catch (err) {
     console.error("[SW] processSyncQueue error:", err);
   }
+}
+
+// Increment retry count for an item, delete after max retries (max 6 = ~32s backoff)
+async function incrementRetryCount(id, currentCount) {
+  const MAX_RETRIES = 6;
+  if (currentCount >= MAX_RETRIES) {
+    // Max retries reached — delete from queue (give up silently)
+    const db = await openDB();
+    const tx = db.transaction(STORE_SYNC_QUEUE, "readwrite");
+    await new Promise((resolve, reject) => {
+      const req = tx.objectStore(STORE_SYNC_QUEUE).delete(id);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+    console.warn(`[SW] Max retries reached — dropped item id ${id}`);
+    return;
+  }
+  const db = await openDB();
+  const tx = db.transaction(STORE_SYNC_QUEUE, "readwrite");
+  const store = tx.objectStore(STORE_SYNC_QUEUE);
+  await new Promise((resolve, reject) => {
+    const getReq = store.get(id);
+    getReq.onsuccess = () => {
+      const record = getReq.result;
+      if (record) {
+        record.retry_count = (record.retry_count || 0) + 1;
+        const putReq = store.put(record);
+        putReq.onsuccess = () => resolve();
+        putReq.onerror = () => reject(putReq.error);
+      } else {
+        resolve();
+      }
+    };
+    getReq.onerror = () => reject(getReq.error);
+  });
 }
 
 // Fetch handler — CLEAN: only cache static assets, pass through everything else
@@ -302,4 +348,4 @@ async function handleAPIMutation(request) {
   }
 }
 
-console.log("[SW] BeerPOS Service Worker v21 loaded");
+console.log("[SW] BeerPOS Service Worker v22 loaded");

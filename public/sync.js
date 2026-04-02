@@ -40,59 +40,46 @@ function initCloudUI() {
   // Modal
   const modal = document.createElement('div');
   modal.id = 'cloudSetupModal';
-  modal.style.cssText = `
-    position: fixed; inset: 0; z-index: 1000;
-    background: rgba(0,0,0,0.5);
-    display: none;
-    align-items: center;
-    justify-content: center;
-    padding: 16px;
-  `;
+  modal.className = 'cloud-modal';
   modal.innerHTML = `
-    <div id="cloudSetupCard" style="background:white;border-radius:16px;padding:24px;max-width:380px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-        <h2 style="font-size:18px;font-weight:700;color:#111">☁️ Cài đặt Cloud</h2>
-        <button id="syncCloseCloudBtn" type="button" style="background:none;border:none;font-size:24px;cursor:pointer;padding:4px;line-height:1;color:#9ca3af">×</button>
+    <div class="cloud-card">
+      <div class="cloud-card-header">
+        <h2 class="cloud-card-title">☁️ Cài đặt Cloud</h2>
+        <button id="syncCloseCloudBtn" type="button" class="cloud-card-close">×</button>
       </div>
 
       <!-- Current status (IDs prefixed sync* — tránh trùng với tab Cloud trên Dashboard) -->
-      <div id="syncCloudStatusBox" style="background:#f9fafb;border-radius:10px;padding:12px;margin-bottom:16px;font-size:14px">
-        <div style="font-weight:600;color:#374151;margin-bottom:4px">Trạng thái hiện tại:</div>
-        <div id="syncCloudStatusText" style="color:#6b7280">Đang kiểm tra...</div>
+      <div class="cloud-status-box">
+        <div class="cloud-status-label">Trạng thái hiện tại:</div>
+        <div id="syncCloudStatusText" class="cloud-status-text">Đang kiểm tra...</div>
       </div>
 
       <div style="display:flex;flex-direction:column;gap:10px">
-        <button id="syncBecomeCloudBtn" type="button" style="
-          width:100%;padding:14px 16px;border-radius:12px;border:2px solid #1e40af;
-          background:white;color:#1e40af;font-size:15px;font-weight:600;cursor:pointer;text-align:left">
+        <button id="syncBecomeCloudBtn" type="button" class="cloud-option-btn">
           🖥️ <strong>Dùng máy này làm Cloud</strong>
-          <div style="font-weight:400;font-size:13px;margin-top:2px;color:#6b7280">
+          <div style="font-weight:400;font-size:13px;margin-top:2px;color:var(--color-text-secondary)">
             Các thiết bị khác tự động phát hiện máy này
           </div>
         </button>
 
-        <button id="syncScanCloudBtn" type="button" style="
-          width:100%;padding:14px 16px;border-radius:12px;border:2px solid #d1d5db;
-          background:white;color:#374151;font-size:15px;font-weight:600;cursor:pointer;text-align:left">
+        <button id="syncScanCloudBtn" type="button" class="cloud-option-btn">
           🔍 <strong>Tìm Cloud trong mạng LAN</strong>
-          <div id="syncScanStatus" style="font-weight:400;font-size:13px;margin-top:2px;color:#6b7280">
+          <div id="syncScanStatus" style="font-weight:400;font-size:13px;margin-top:2px;color:var(--color-text-secondary)">
             Quét các máy trong mạng...
           </div>
         </button>
 
-        <div style="border:1px solid #e5e7eb;border-radius:12px;padding:12px">
-          <div style="font-size:13px;font-weight:600;color:#374151;margin-bottom:8px">Hoặc nhập thủ công:</div>
+        <div class="cloud-manual-box">
+          <div class="cloud-manual-label">Hoặc nhập thủ công:</div>
           <input id="syncCloudUrlInput" type="url" placeholder="http://192.168.1.x:3000"
-            style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:15px;box-sizing:border-box">
-          <button id="syncSaveCloudUrlBtn" type="button" style="
-            width:100%;margin-top:8px;padding:10px;border-radius:8px;
-            border:none;background:#1e40af;color:white;font-weight:600;cursor:pointer;font-size:14px">
+            class="cloud-input">
+          <button id="syncSaveCloudUrlBtn" type="button" class="btn btn-secondary" style="margin-top:8px;width:100%">
             Lưu URL Cloud
           </button>
         </div>
       </div>
 
-      <div id="syncPendingQueueInfo" style="margin-top:16px;padding:10px;background:#fef3c7;border-radius:8px;font-size:13px;color:#92400e;display:none">
+      <div id="syncPendingQueueInfo" class="cloud-pending">
         <strong>⚠️</strong> Có <span id="syncPendingCount">0</span> thay đổi đang chờ đẩy lên cloud
       </div>
     </div>
@@ -153,11 +140,11 @@ async function updateCloudModalStatus() {
   if (input) input.value = cloudUrl;
 
   if (!cloudUrl) {
-    statusEl.innerHTML = '🔴 <span style="color:#dc2626"><strong>Chưa có Cloud</strong></span> — thiết bị đang chạy độc lập';
+    statusEl.innerHTML = '🔴 <span style="color:var(--color-danger)"><strong>Chưa có Cloud</strong></span> — thiết bị đang chạy độc lập';
   } else if (!navigator.onLine) {
-    statusEl.innerHTML = '🔴 <span style="color:#dc2626"><strong>Offline</strong></span> — cloud: ' + cloudUrl;
+    statusEl.innerHTML = '🔴 <span style="color:var(--color-danger)"><strong>Offline</strong></span> — cloud: ' + cloudUrl;
   } else {
-    statusEl.innerHTML = '🟢 <span style="color:#16a34a"><strong>Đã kết nối Cloud</strong></span><br><span style="font-size:12px;color:#6b7280">' + cloudUrl + '</span>';
+    statusEl.innerHTML = '🟢 <span style="color:var(--color-success)"><strong>Đã kết nối Cloud</strong></span><br><span style="font-size:12px;color:var(--color-text-secondary)">' + cloudUrl + '</span>';
   }
 }
 
@@ -258,7 +245,7 @@ async function scanForCloud() {
     localStorage.setItem('cloudUrl', cloudUrl);
     localStorage.removeItem('isCloudServer');
     syncCloudUrlToSW(cloudUrl);
-    scanEl.innerHTML = '✅ Tìm thấy: <strong>' + cloud.name + '</strong><br><span style="font-size:12px;color:#6b7280">' + cloudUrl + '</span>';
+    scanEl.innerHTML = '✅ Tìm thấy: <strong>' + cloud.name + '</strong><br><span style="font-size:12px;color:var(--color-text-secondary)">' + cloudUrl + '</span>';
     setTimeout(async () => {
       await updateCloudModalStatus();
       await updateSmartStatus();

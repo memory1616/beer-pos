@@ -64,3 +64,17 @@
   // Wire up toggle button once DOM is ready
   document.addEventListener('DOMContentLoaded', updateIcon);
 })();
+
+// ===== Haptic Feedback — call on button tap =====
+window.haptic = function(type = 'light') {
+  if (!navigator.vibrate) return;
+  const patterns = {
+    light: 10,
+    medium: 25,
+    heavy: 50,
+    success: [10, 50, 10],
+    error: [50, 30, 50],
+  };
+  const p = patterns[type] || 10;
+  navigator.vibrate(p);
+};
