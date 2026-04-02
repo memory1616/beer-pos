@@ -904,50 +904,63 @@ async function loadSalesHistory() {
     return;
   }
   
-  container.innerHTML = '<div class="flex flex-col gap-2">' +
+  container.innerHTML = '<div class="flex flex-col gap-3">' +
     salesHistory.map(sale => {
     const date = formatSaleListDate(sale.date);
     const customerName = sale.customer_name || 'Khách lẻ';
     const isReturned = sale.status === 'returned';
     const itemsQty = parseInt(sale.items_qty, 10) || 0;
-    
-    const kegDisplay = (sale.deliver_kegs || 0) > 0 ? '📦 ' + sale.deliver_kegs + 'L'
-      : (sale.return_kegs || 0) > 0 ? '🔄 ' + sale.return_kegs + 'L'
-      : '';
-    const isReplacement = sale.type === 'replacement';
-    const cardBg = sale.type === 'gift' ? 'bg-amber-50/60'
-      : isReplacement ? 'bg-orange-50/60'
-      : 'bg-white';
-    const leftBorder = sale.type === 'gift' ? 'border-l-4 border-amber-400'
-      : isReplacement ? 'border-l-4 border-orange-400'
-      : 'border-l-4 border-green-400';
-    const totalColor = sale.type === 'gift' || sale.type === 'replacement' ? 'text-red-600'
-      : 'text-green-600';
 
-    const kegRow = kegDisplay
-      ? '<div class="flex items-center gap-3 text-xs text-gray-500"><span>' + kegDisplay + '</span></div>'
+    const isReplacement = sale.type === 'replacement';
+    const isGift = sale.type === 'gift';
+
+    const badgeHtml = isReplacement
+      ? '<span class="text-xs font-bold text-yellow-300">🔁 Đổi lỗi</span>'
+      : isGift
+      ? '<span class="text-xs font-bold text-yellow-300">🎁 Tặng thử</span>'
       : '';
+    const badgeLeft = isReplacement
+      ? 'border-l-4 border-yellow-400'
+      : isGift
+      ? 'border-l-4 border-amber-400'
+      : 'border-l-4 border-green-400';
+
+    const totalColor = isGift || isReplacement ? 'text-yellow-300' : 'text-green-400';
+
+    const qtyLabel = itemsQty > 0 ? '📦 ' + itemsQty + 'L' : '';
 
     return `
-      <div class="p-3 ${cardBg} ${leftBorder} rounded-xl shadow-sm hover:shadow-md transition-shadow">
-        <div class="flex flex-col gap-0.5">
-          <div class="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-x-2 gap-y-1 items-center w-full">
-            <div class="min-w-0 flex flex-wrap items-baseline gap-x-2 gap-y-0">
-              <span class="text-xs font-semibold text-gray-400 shrink-0">#${sale.id}</span>
-              <span class="text-base font-bold text-gray-900 break-words leading-tight">${customerName}</span>
-            </div>
-            <span class="text-xs sm:text-sm font-bold text-amber-800 tabular-nums shrink-0 whitespace-nowrap text-right" title="Tổng số lượng đã bán">🍺 ${itemsQty}</span>
-            <span class="text-xs sm:text-sm font-semibold text-gray-600 tabular-nums shrink-0 whitespace-nowrap text-right" title="Ngày bán">🗓 ${date}</span>
+      <div class="bg-gray-800 rounded-xl p-4 space-y-3 ${badgeLeft}">
+        <!-- Dòng 1: Tên + ngày -->
+        <div class="flex justify-between items-center">
+          <div class="flex items-center gap-2 min-w-0 flex-1">
+            <span class="text-xs font-semibold text-gray-400 shrink-0">#${sale.id}</span>
+            <span class="font-semibold text-white truncate">${customerName}</span>
+            ${badgeHtml ? '<span class="shrink-0">' + badgeHtml + '</span>' : ''}
           </div>
-          ${kegRow}
-          <div class="text-2xl font-bold ${totalColor} mt-0.5">💰 ${formatVND(sale.total)}</div>
-          <div class="flex items-center gap-1.5 mt-2 flex-wrap justify-between" onclick="event.stopPropagation()">
-            <button onclick="viewSale(${sale.id})" class="flex-1 py-2 px-1 rounded-xl bg-blue-50 text-blue-600 text-xs font-bold hover:bg-blue-100 transition-colors text-center border border-blue-200">👁 Hoá Đơn</button>
-            ${!isReturned ? `
-            <button onclick="openKegModal(${sale.id})" class="flex-1 py-2 px-1 rounded-xl bg-amber-50 text-amber-700 text-xs font-bold hover:bg-amber-100 transition-colors text-center border border-amber-200">📦 Thu Vỏ</button>
-            <button onclick="editSale(${sale.id})" class="flex-1 py-2 px-1 rounded-xl bg-orange-50 text-orange-600 text-xs font-bold hover:bg-orange-100 transition-colors text-center border border-orange-200">✏️ Sửa</button>
-            <button onclick="deleteSale(${sale.id})" class="flex-1 py-2 px-1 rounded-xl bg-red-50 text-red-500 text-xs font-bold hover:bg-red-100 transition-colors text-center border border-red-200">🗑 Xóa</button>` : ''}
+          <div class="text-sm text-gray-400 whitespace-nowrap shrink-0 ml-2">
+            🗓 ${date}
           </div>
+        </div>
+
+        <!-- Dòng 2: Tiền + số lượng -->
+        <div class="flex justify-between items-end">
+          <!-- Tiền -->
+          <div class="flex items-baseline gap-1 text-green-400 whitespace-nowrap">
+            <span class="text-2xl font-bold">${typeof Format !== 'undefined' ? Format.number(sale.total) : formatVND(sale.total).replace(' ₫', '')}</span>
+            <span class="text-sm opacity-70">đ</span>
+          </div>
+          <!-- Số lượng -->
+          ${qtyLabel ? '<div class="text-sm text-gray-400 whitespace-nowrap">' + qtyLabel + '</div>' : ''}
+        </div>
+
+        <!-- Dòng 3: Actions -->
+        <div class="flex gap-2 pt-1">
+          <button onclick="viewSale(${sale.id})" class="flex-1 py-2 text-sm bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors">Hóa đơn</button>
+          ${!isReturned ? `
+          <button onclick="openCollectKegModal(${sale.id})" class="flex-1 py-2 text-sm bg-amber-500 text-white rounded-lg font-medium hover:bg-amber-600 transition-colors">Thu vỏ</button>
+          <button onclick="editSale(${sale.id})" class="flex-1 py-2 text-sm bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-500 transition-colors">Sửa</button>
+          <button onclick="deleteSale(${sale.id})" class="flex-1 py-2 text-sm bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors">Xóa</button>` : ''}
         </div>
       </div>
     `;
