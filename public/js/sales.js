@@ -8,19 +8,74 @@ let customers = [];
 let editingSaleId = null;
 let saleData = {};
 
+/** Giá bán mặc định từ sản phẩm (SQLite / Dexie có thể dùng sell_price hoặc price) */
+function effectiveSellPrice(p) {
+  if (!p) return 0;
+  const v = p.sell_price != null ? p.sell_price : p.price;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** Giá theo khách từ payload /sale/data (không cần fetch thêm — tránh mobile lỗi 0 đ) */
+function lookupPriceMap(customerId, productId) {
+  if (customerId == null || customerId === '' || !priceMap) return undefined;
+  const row = priceMap[customerId] || priceMap[String(customerId)];
+  if (!row) return undefined;
+  const v = row[productId] ?? row[String(productId)];
+  if (v == null || v === '') return undefined;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+/**
+ * Áp giá hiển thị + saleData.price khi có khách.
+ * apiPrices: null → chỉ dùng priceMap + sell_price; array → ưu tiên hàng từ API (mới nhất).
+ */
+function applyResolvedPrices(customerId, apiPrices) {
+  if (!customerId) {
+    products.forEach(p => {
+      p._displayPrice = effectiveSellPrice(p);
+      if (saleData[p.id]) {
+        saleData[p.id].price = effectiveSellPrice(p);
+      }
+    });
+    return;
+  }
+  products.forEach(p => {
+    let row = null;
+    if (Array.isArray(apiPrices)) {
+      row = apiPrices.find(x => x.product_id === p.id) || null;
+    }
+    if (row && row.price != null && row.price !== '') {
+      const unit = Number(row.price) || 0;
+      p._displayPrice = unit;
+      saleData[p.id] = saleData[p.id] || { quantity: 0, price: unit };
+      saleData[p.id].price = unit;
+      return;
+    }
+    const mapped = lookupPriceMap(customerId, p.id);
+    if (mapped != null) {
+      p._displayPrice = mapped;
+      saleData[p.id] = saleData[p.id] || { quantity: 0, price: mapped };
+      saleData[p.id].price = mapped;
+    } else {
+      p._displayPrice = effectiveSellPrice(p);
+    }
+  });
+}
+
 function initSalesPage(data) {
   products = data.products;
   customers = data.customers;
-  priceMap = data.priceMap;
-  
+  priceMap = data.priceMap || {};
+
   // Render customer select - include "Khach le" option
   const customerSelect = document.getElementById('customerSelect');
-  customerSelect.innerHTML = '<option value="">📋 Khách lẻ (giá thường)</option>' + 
+  customerSelect.innerHTML = '<option value="">📋 Khách lẻ (giá thường)</option>' +
     customers.map(c => '<option value="' + c.id + '">' + c.name + ' (' + c.keg_balance + ' bình)</option>').join('');
-  
-  // Render products in list format (like import form)
-  renderSaleProducts();
-  updateSaleTotal();
+
+  // Giá: ưu tiên priceMap cùng /sale/data, sau đó (nếu online) làm mới từ API
+  updatePrices();
 
   // Load history
   loadSalesHistory();
@@ -33,11 +88,12 @@ function renderSaleProducts() {
 
   // Layout giống Nhập hàng: thẻ từng SP, tên + 1 dòng giá/tồn + ô Nhập SL
   container.innerHTML = products.map(p => {
-    const price = p._displayPrice || p.sell_price || 0;
-    const currentPrice = (saleData[p.id] && saleData[p.id].price !== undefined) ? saleData[p.id].price : (p.sell_price || 0);
+    const defUnit = p._displayPrice != null ? Number(p._displayPrice) : effectiveSellPrice(p);
+    const price = Number.isFinite(defUnit) ? defUnit : effectiveSellPrice(p);
+    const currentPrice = (saleData[p.id] && saleData[p.id].price !== undefined) ? saleData[p.id].price : effectiveSellPrice(p);
     const priceInputVal = (saleData[p.id] && saleData[p.id].price !== undefined)
       ? saleData[p.id].price
-      : (p.sell_price != null && p.sell_price !== '' ? p.sell_price : '');
+      : (effectiveSellPrice(p) || '');
     const isLowStock = p.stock < 5;
     const currentQty = saleData[p.id] ? saleData[p.id].quantity : '';
     const priceLine = isKhachLe
@@ -94,7 +150,9 @@ function toggleQtyControl(productId) {
   
   currentEditingProduct = productId;
   const currentQty = saleData[productId] ? saleData[productId].quantity : '';
-  const currentPrice = saleData[productId] ? saleData[productId].price : (product._displayPrice || product.sell_price);
+  const currentPrice = saleData[productId]
+    ? saleData[productId].price
+    : (product._displayPrice != null ? Number(product._displayPrice) : effectiveSellPrice(product));
   
   const modal = document.createElement('div');
   modal.id = 'qtyModal';
@@ -174,7 +232,9 @@ function updateSaleData(productId, field, value) {
     const product = products.find(p => p.id === productId);
     saleData[productId] = {
       quantity: 0,
-      price: product._displayPrice || product.sell_price || 0
+      price: (product && product._displayPrice != null && product._displayPrice !== '')
+        ? Number(product._displayPrice)
+        : effectiveSellPrice(product)
     };
   }
   
@@ -293,49 +353,34 @@ function changeQty(productId, delta) {
 
 function updatePrices() {
   const customerId = document.getElementById('customerSelect').value;
-  
-  // Store customer prices in products for display
-  if (customerId) {
-    fetch('/api/products/prices?customerId=' + customerId)
-      .then(res => res.json())
-      .then(prices => {
-        // Update price in products array and saleData
-        products.forEach(p => {
-          const customerPrice = prices.find(price => price.product_id === p.id);
-          if (customerPrice) {
-            // Store the customer price for display
-            p._displayPrice = customerPrice.price;
-            // Also update saleData
-            saleData[p.id] = saleData[p.id] || { quantity: 0, price: customerPrice.price };
-            saleData[p.id].price = customerPrice.price;
-          } else {
-            p._displayPrice = p.sell_price || 0;
-          }
-        });
-        // Re-render products to show new prices
-        renderSaleProducts();
-        updateSaleTotal();
-      })
-      .catch(err => {
-        console.error('Error loading prices:', err);
-        // Reset to default prices
-        products.forEach(p => {
-          p._displayPrice = p.sell_price || 0;
-        });
-        renderSaleProducts();
-        updateSaleTotal();
-      });
-  } else {
-    // Khách lẻ: dùng giá mặc định, user sẽ nhập giá trong ô
-    products.forEach(p => {
-      p._displayPrice = p.sell_price || 0;
-      if (saleData[p.id]) {
-        saleData[p.id].price = p.sell_price || 0;
-      }
-    });
-    renderSaleProducts();
-    updateSaleTotal();
+
+  applyResolvedPrices(customerId, null);
+  renderSaleProducts();
+  updateSaleTotal();
+
+  if (!customerId || !navigator.onLine) {
+    return;
   }
+
+  fetch('/api/products/prices?customerId=' + encodeURIComponent(customerId))
+    .then(res => {
+      if (!res.ok) {
+        throw new Error('HTTP ' + res.status);
+      }
+      return res.json();
+    })
+    .then(prices => {
+      if (!Array.isArray(prices)) {
+        return;
+      }
+      applyResolvedPrices(customerId, prices);
+      renderSaleProducts();
+      updateSaleTotal();
+    })
+    .catch(err => {
+      console.error('Error loading prices:', err);
+      // Giữ giá từ priceMap + sell_price (đã áp ở trên)
+    });
 }
 
 function updateCartFromInputs() {
@@ -356,7 +401,7 @@ function updateCartFromInputs() {
       const productId = p.id;
       const stock = parseInt(input.max) || 0;
       const costPrice = p.cost_price || 0;
-      const price = p._displayPrice || p.sell_price || 0;
+      const price = p._displayPrice != null ? Number(p._displayPrice) : effectiveSellPrice(p);
 
       if (qty > stock) {
         alert('Sản phẩm ' + p.name + ' không đủ tồn kho');
@@ -428,14 +473,10 @@ async function submitSale() {
       haptic && haptic('success');
       // Reset form
       saleData = {};
-      // Reset all product display prices to default
-      products.forEach(p => {
-        p._displayPrice = p.sell_price || 0;
-      });
+      document.getElementById('customerSelect').value = '';
+      applyResolvedPrices('', null);
       renderSaleProducts();
       updateSaleTotal();
-      // Reset customer select
-      document.getElementById('customerSelect').value = '';
       loadSalesHistory();
       showToast('Bán hàng thành công!', 'success');
       try {
@@ -1265,28 +1306,24 @@ async function editSale(id) {
   document.getElementById('cancelEditBtn').classList.remove('hidden');
 
   document.getElementById('customerSelect').value = sale.customer_id || '';
-  
-  // Load customer prices first if customer is selected
+
   if (sale.customer_id) {
-    await fetch('/api/products/prices?customerId=' + sale.customer_id)
-      .then(res => res.json())
-      .then(prices => {
-        products.forEach(p => {
-          const customerPrice = prices.find(price => price.product_id === p.id);
-          p._displayPrice = customerPrice ? customerPrice.price : p.sell_price;
-        });
-      })
-      .catch(() => {
-        products.forEach(p => {
-          p._displayPrice = p.sell_price;
-        });
-      });
+    applyResolvedPrices(sale.customer_id, null);
+    try {
+      const pres = await fetch('/api/products/prices?customerId=' + encodeURIComponent(sale.customer_id));
+      if (pres.ok) {
+        const prices = await pres.json();
+        if (Array.isArray(prices)) {
+          applyResolvedPrices(sale.customer_id, prices);
+        }
+      }
+    } catch (e) {
+      console.error('editSale prices:', e);
+    }
   } else {
-    products.forEach(p => {
-      p._displayPrice = p.sell_price;
-    });
+    applyResolvedPrices('', null);
   }
-  
+
   renderSaleProducts();
 
   // Reset all quantities
@@ -1298,7 +1335,7 @@ async function editSale(id) {
       qtyInput.value = '';
     }
     if (priceInput) {
-      priceInput.value = p._displayPrice || p.sell_price || 0;
+      priceInput.value = p._displayPrice != null ? Number(p._displayPrice) : effectiveSellPrice(p);
     }
   });
 
@@ -1332,10 +1369,7 @@ function cancelEdit() {
 
   document.getElementById('customerSelect').value = '';
 
-  // Reset product display prices to default
-  products.forEach(p => {
-    p._displayPrice = p.sell_price || 0;
-  });
+  applyResolvedPrices('', null);
   renderSaleProducts();
   updateSaleTotal();
 }
