@@ -23,12 +23,12 @@
     @keyframes fade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     .bottomnav { max-width: 500px; margin: auto; left: 0; right: 0; }
     canvas { width: 100% !important; height: auto !important; }
-    .skeleton { background: linear-gradient(90deg, #e0e0e0 25%, #f0f0f0 50%, #e0e0e0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
+    .skeleton { background: linear-gradient(90deg, var(--color-bg-hover) 25%, var(--color-card-hover) 50%, var(--color-bg-hover) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
     @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
     button, a { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
     button:active { transform: scale(0.96); }
     .card { transition: transform 0.2s, box-shadow 0.2s; }
-    .card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
     /* iOS keyboard fix */
     .modal-body { flex: 1; overflow-y: auto; }
     .modal-footer { flex-shrink: 0; }
@@ -48,7 +48,7 @@
     #editModal .edit-section-title {
       font-size: 13px;
       font-weight: 600;
-      color: #6b7280;
+      color: var(--color-text-secondary);
       margin-top: 16px;
       margin-bottom: 8px;
     }
@@ -58,14 +58,14 @@
     #editModal .edit-field-label {
       display: block;
       font-size: 13px;
-      color: #6b7280;
+      color: var(--color-text-secondary);
       margin-bottom: 4px;
       font-weight: 500;
     }
     #editModal .edit-block {
       padding-bottom: 12px;
       margin-bottom: 16px;
-      border-bottom: 1px solid #f3f4f6;
+      border-bottom: 1px solid var(--color-border);
     }
     #editModal .edit-block:last-of-type {
       border-bottom: none;
@@ -82,9 +82,9 @@
       width: 36px;
       height: 36px;
       border-radius: 10px;
-      background: #f3f4f6;
-      border: 1px solid #e5e7eb;
-      color: #374151;
+      background: var(--color-bg);
+      border: 1px solid var(--color-border);
+      color: var(--color-text);
       font-size: 18px;
       font-weight: 500;
       display: flex;
@@ -95,20 +95,20 @@
       transition: all 0.15s ease;
       -webkit-tap-highlight-color: transparent;
     }
-    #editModal .qty-btn:active { transform: scale(0.92); background: #e5e7eb; }
+    #editModal .qty-btn:active { transform: scale(0.92); background: var(--color-bg-hover); }
     #editModal .qty-btn.minus { border-radius: 10px 0 0 10px; border-right: none; }
     #editModal .qty-btn.plus  { border-radius: 0 10px 10px 0; border-left: none; }
     #editModal .qty-wrapper {
       display: flex;
       align-items: stretch;
-      border: 1px solid #e5e7eb;
+      border: 1px solid var(--color-border);
       border-radius: 12px;
       overflow: hidden;
-      background: #fff;
+      background: var(--color-card);
     }
     #editModal .qty-wrapper:focus-within {
-      border-color: #2563eb;
-      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+      border-color: var(--color-info);
+      box-shadow: 0 0 0 2px rgba(59,99,235,0.2);
     }
     #editModal .qty-input {
       width: 100%;
@@ -117,7 +117,7 @@
       text-align: center;
       font-size: 16px;
       font-weight: 500;
-      color: #111827;
+      color: var(--color-text);
       background: transparent;
       padding: 0 4px;
       min-width: 0;
@@ -140,15 +140,15 @@
       display: flex;
       align-items: stretch;
       max-width: 100%;
-      border: 1px solid #e5e7eb;
+      border: 1px solid var(--color-border);
       border-radius: 12px;
       overflow: hidden;
-      background: #fff;
+      background: var(--color-card);
       transition: box-shadow 0.15s ease, border-color 0.15s ease;
     }
     #editModal .edit-money-wrap:focus-within {
-      border-color: #2563eb;
-      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+      border-color: var(--color-info);
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
     }
     #editModal .edit-money-input {
       flex: 1;
@@ -164,9 +164,9 @@
       padding: 0 14px;
       font-size: 16px;
       font-weight: 700;
-      color: #374151;
-      background: #f3f4f6;
-      border-left: 1px solid #e5e7eb;
+      color: var(--color-text);
+      background: var(--color-bg);
+      border-left: 1px solid var(--color-border);
       flex-shrink: 0;
     }
     /* Tuỳ chọn — grid 2 cột, không tràn ngang */
@@ -175,8 +175,8 @@
       overflow: hidden;
       box-sizing: border-box;
       border-radius: 12px;
-      border: 1px solid #e5e7eb;
-      background: #f9fafb;
+      border: 1px solid var(--color-border);
+      background: var(--color-bg);
       padding: 12px 14px;
     }
     #editModal .edit-option-row {
@@ -194,7 +194,7 @@
       height: 22px;
       margin: 1px 0 0 0;
       cursor: pointer;
-      accent-color: #2563eb;
+      accent-color: var(--color-info);
       flex-shrink: 0;
     }
     #editModal .edit-option-copy {
@@ -206,12 +206,12 @@
       font-size: 14px;
       line-height: 1.4;
       font-weight: 600;
-      color: #111827;
+      color: var(--color-text);
     }
     #editModal .edit-option-desc {
       font-size: 13px;
       line-height: 1.4;
-      color: #6b7280;
+      color: var(--color-text-secondary);
       margin-top: 4px;
     }
     /* Footer: hai nút cân bằng */
@@ -225,9 +225,9 @@
       min-width: 0;
       height: 48px;
       border-radius: 12px;
-      border: 1px solid #d1d5db;
+      border: 1px solid var(--color-border);
       background: transparent;
-      color: #6b7280;
+      color: var(--color-text-secondary);
       font-size: 16px;
       font-weight: 600;
     }
@@ -237,13 +237,13 @@
       height: 48px;
       border-radius: 12px;
       border: none;
-      background: #2563eb;
+      background: var(--color-info);
       color: #fff;
       font-size: 16px;
       font-weight: 600;
     }
-    #editModal .edit-btn-save:active { background: #1d4ed8; }
-    #editModal .edit-btn-cancel:active { background: #f3f4f6; }
+    #editModal .edit-btn-save:active { background: var(--color-info-dark); }
+    #editModal .edit-btn-cancel:active { background: var(--color-bg-hover); }
     #editModal .edit-footer button:active { transform: scale(0.99); }
     /* Focus transition inputs */
     #editModal .edit-input-compact {
@@ -251,21 +251,11 @@
     }
     #editModal .edit-input-compact:focus {
       outline: none;
-      border-color: #2563eb;
-      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+      border-color: var(--color-info);
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.15);
     }
     /* Disable overscroll bounce */
     #editModal form { overscroll-behavior: contain; }
-    .animate-fade { animation: fade 0.3s ease-in; }
-    @keyframes fade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-    .bottomnav { max-width: 500px; margin: auto; left: 0; right: 0; }
-    canvas { width: 100% !important; height: auto !important; }
-    .skeleton { background: linear-gradient(90deg, #e0e0e0 25%, #f0f0f0 50%, #e0e0e0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
-    @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
-    button, a { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-    button:active { transform: scale(0.96); }
-    .card { transition: transform 0.2s, box-shadow 0.2s; }
-    .card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
   </style>
 </head>
 <body class="bg-gray-100 text-gray-800 min-h-screen pb-20">
@@ -282,40 +272,40 @@
       <h2 class="text-xl font-semibold mb-4">Thêm khách hàng</h2>
       <form id="addForm" class="modal-body space-y-4">
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Tên khách hàng</label>
-          <input type="text" name="name" required class="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-amber-500" placeholder="Nhập tên khách">
+          <label class="block text-sm font-medium text-main mb-1">Tên khách hàng</label>
+          <input type="text" name="name" required class="w-full border border-muted rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-amber-500" placeholder="Nhập tên khách">
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Điện thoại</label>
-          <input type="text" name="phone" class="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-amber-500" placeholder="Số điện thoại">
+          <label class="block text-sm font-medium text-main mb-1">Điện thoại</label>
+          <input type="text" name="phone" class="w-full border border-muted rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-amber-500" placeholder="Số điện thoại">
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Đặt cọc (VNĐ)</label>
-          <input type="text" name="deposit" value="0" data-format-number inputmode="decimal" class="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-amber-500">
+          <label class="block text-sm font-medium text-main mb-1">Đặt cọc (VNĐ)</label>
+          <input type="text" name="deposit" value="0" data-format-number inputmode="decimal" class="w-full border border-muted rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-amber-500">
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Tủ lạnh nằm (❄️)</label>
-          <input type="text" name="horizontal_fridge" id="addHorizontalFridge" value="0" min="0" data-format-number inputmode="decimal" class="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-amber-500">
+          <label class="block text-sm font-medium text-main mb-1">Tủ lạnh nằm (❄️)</label>
+          <input type="text" name="horizontal_fridge" id="addHorizontalFridge" value="0" min="0" data-format-number inputmode="decimal" class="w-full border border-muted rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-amber-500">
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Tủ mát đứng (🥶)</label>
-          <input type="text" name="vertical_fridge" id="addVerticalFridge" value="0" min="0" data-format-number inputmode="decimal" class="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-amber-500">
+          <label class="block text-sm font-medium text-main mb-1">Tủ mát đứng (🥶)</label>
+          <input type="text" name="vertical_fridge" id="addVerticalFridge" value="0" min="0" data-format-number inputmode="decimal" class="w-full border border-muted rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-amber-500">
         </div>
         <div class="border-t pt-4 mt-4">
           <div class="flex items-center justify-between mb-3">
-            <h3 class="font-semibold text-gray-800">💰 Bảng giá riêng</h3>
-            <button type="button" onclick="toggleAddPrices()" id="togglePriceBtn" class="text-sm text-blue-600 font-medium">+ Thêm giá</button>
+            <h3 class="font-semibold text-main">💰 Bảng giá riêng</h3>
+            <button type="button" onclick="toggleAddPrices()" id="togglePriceBtn" class="text-sm text-info font-medium">+ Thêm giá</button>
           </div>
           <div id="addPriceFields" class="space-y-2 hidden">
             <div id="addPriceList" class="space-y-2 max-h-40 overflow-y-auto">
-              <div class="text-gray-500 text-sm text-center py-2">Đang tải sản phẩm...</div>
+              <div class="text-muted text-sm text-center py-2">Đang tải sản phẩm...</div>
             </div>
           </div>
         </div>
       </form>
       <div class="modal-footer flex gap-2 mt-4 pt-4 border-t bg-white">
-        <button type="button" onclick="hideModal('addModal')" class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-3 rounded-lg">Hủy</button>
-        <button type="submit" form="addForm" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg">Thêm</button>
+        <button type="button" onclick="hideModal('addModal')" class="btn btn-ghost flex-1 h-14">Hủy</button>
+        <button type="submit" form="addForm" class="btn btn-primary flex-1 h-14">Thêm</button>
       </div>
     </div>
   </div>

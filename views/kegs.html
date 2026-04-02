@@ -25,19 +25,19 @@
     button, a { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
     button:active { transform: scale(0.96); }
     .stat-card { transition: transform 0.2s, box-shadow 0.2s; }
-    .stat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .stat-card:hover { transform: translateY(-2px); }
     .action-btn { transition: all 0.2s; }
     .action-btn:hover { transform: translateY(-2px); }
     .action-btn:active { transform: scale(0.95); }
-    .log-row:nth-child(even) { background: #f9fafb; }
-    .badge-deliver { background: #d1fae5; color: #065f46; }
-    .badge-collect { background: #dbeafe; color: #1e40af; }
-    .badge-import { background: #ede9fe; color: #5b21b6; }
-    .badge-adjust { background: #fef3c7; color: #92400e; }
-    .badge-sell_empty { background: #fce7f3; color: #9d174d; }
-    .delta-up { color: #16a34a; }
-    .delta-down { color: #dc2626; }
-    .delta-neutral { color: #6b7280; }
+    .log-row:nth-child(even) { background: var(--color-bg); }
+    .badge-deliver { background: rgba(34,197,94,0.15); color: var(--color-success); }
+    .badge-collect { background: rgba(37,99,235,0.15); color: var(--color-info); }
+    .badge-import { background: rgba(139,92,246,0.15); color: #7c3aed; }
+    .badge-adjust { background: rgba(245,158,11,0.15); color: var(--color-warning); }
+    .badge-sell_empty { background: rgba(236,72,153,0.15); color: #db2777; }
+    .delta-up { color: var(--color-success); }
+    .delta-down { color: var(--color-danger); }
+    .delta-neutral { color: var(--color-text-secondary); }
     input[type=number]::-webkit-inner-spin-button,
     input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
     input[type=number] { -moz-appearance: textfield; }
@@ -56,58 +56,58 @@
 
     <!-- Stats Grid -->
     <div class="grid grid-cols-2 gap-3 mb-4">
-      <div class="stat-card bg-white rounded-xl border p-4 text-center shadow-sm cursor-pointer" onclick="openModal('adjustModal')">
-        <div class="text-xs text-gray-500 mb-1">📦 Vỏ đầy (kho)</div>
-        <div class="text-2xl font-bold text-emerald-600" id="statInventory">-</div>
-        <div class="text-xs text-gray-400 mt-0.5">Sẵn sàng giao</div>
+      <div class="stat-card card text-center cursor-pointer" onclick="openModal('adjustModal')">
+        <div class="text-xs text-muted mb-1">📦 Vỏ đầy (kho)</div>
+        <div class="text-2xl font-bold text-success" id="statInventory">-</div>
+        <div class="text-xs text-muted mt-0.5">Sẵn sàng giao</div>
       </div>
-      <div class="stat-card bg-white rounded-xl border p-4 text-center shadow-sm cursor-pointer" onclick="openModal('adjustModal')">
-        <div class="text-xs text-gray-500 mb-1">🧹 Vỏ rỗng</div>
-        <div class="text-2xl font-bold text-blue-600" id="statEmpty">-</div>
-        <div class="text-xs text-gray-400 mt-0.5">Chờ nạp lại</div>
+      <div class="stat-card card text-center cursor-pointer" onclick="openModal('adjustModal')">
+        <div class="text-xs text-muted mb-1">🧹 Vỏ rỗng</div>
+        <div class="text-2xl font-bold text-info" id="statEmpty">-</div>
+        <div class="text-xs text-muted mt-0.5">Chờ nạp lại</div>
       </div>
-      <div class="stat-card bg-white rounded-xl border p-4 text-center shadow-sm">
-        <div class="text-xs text-gray-500 mb-1">👥 Khách giữ</div>
-        <div class="text-2xl font-bold text-purple-600" id="statHolding">-</div>
-        <div class="text-xs text-gray-400 mt-0.5">Chưa thu hồi</div>
+      <div class="stat-card card text-center">
+        <div class="text-xs text-muted mb-1">👥 Khách giữ</div>
+        <div class="text-2xl font-bold text-secondary" id="statHolding">-</div>
+        <div class="text-xs text-muted mt-0.5">Chưa thu hồi</div>
       </div>
-      <div class="stat-card bg-white rounded-xl border p-4 text-center shadow-sm border-amber-200 bg-amber-50">
-        <div class="text-xs text-gray-500 mb-1">📊 Tồn kho thực</div>
-        <div class="text-2xl font-bold text-amber-600" id="statBalance">-</div>
-        <div class="text-xs text-gray-400 mt-0.5" id="statBalanceNote">Kho+Rỗng-Khách</div>
+      <div class="stat-card card text-center">
+        <div class="text-xs text-muted mb-1">📊 Tồn kho thực</div>
+        <div class="text-2xl font-bold text-warning" id="statBalance">-</div>
+        <div class="text-xs text-muted mt-0.5" id="statBalanceNote">Kho+Rỗng-Khách</div>
       </div>
     </div>
 
     <!-- Balance Warning -->
-    <div id="balanceWarning" class="hidden bg-red-50 border border-red-200 rounded-xl p-3 mb-4 flex items-start gap-2">
+    <div id="balanceWarning" class="hidden card p-3 mb-4 flex items-start gap-2 border-danger">
       <span class="text-xl">⚠️</span>
       <div>
-        <div class="text-sm font-semibold text-red-700">Số vỏ trong kho sắp hết!</div>
-        <div class="text-xs text-red-600" id="balanceWarningMsg">Cần nhập thêm vỏ từ nhà máy.</div>
+        <div class="text-sm font-semibold text-danger">Số vỏ trong kho sắp hết!</div>
+        <div class="text-xs text-danger mt-0.5" id="balanceWarningMsg">Cần nhập thêm vỏ từ nhà máy.</div>
       </div>
     </div>
 
     <!-- Quick Actions -->
     <div class="grid grid-cols-3 gap-3 mb-4">
-      <button onclick="openModal('deliverModal')" class="action-btn bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-center">
+      <button onclick="openModal('deliverModal')" class="action-btn card p-3 text-center">
         <div class="text-2xl mb-1">📦</div>
-        <div class="text-xs font-semibold text-emerald-700">Giao vỏ</div>
+        <div class="text-xs font-semibold text-success">Giao vỏ</div>
       </button>
-      <button onclick="openModal('collectModal')" class="action-btn bg-blue-50 border border-blue-200 rounded-xl p-3 text-center">
+      <button onclick="openModal('collectModal')" class="action-btn card p-3 text-center">
         <div class="text-2xl mb-1">🔄</div>
-        <div class="text-xs font-semibold text-blue-700">Thu vỏ</div>
+        <div class="text-xs font-semibold text-info">Thu vỏ</div>
       </button>
-      <button onclick="openModal('importModal')" class="action-btn bg-purple-50 border border-purple-200 rounded-xl p-3 text-center">
+      <button onclick="openModal('importModal')" class="action-btn card p-3 text-center">
         <div class="text-2xl mb-1">🏭</div>
-        <div class="text-xs font-semibold text-purple-700">Nhập vỏ</div>
+        <div class="text-xs font-semibold text-secondary">Nhập vỏ</div>
       </button>
     </div>
 
     <!-- Recent Transaction Log -->
-    <div class="bg-white rounded-xl border shadow-sm overflow-hidden">
-      <div class="p-3 border-b flex justify-between items-center">
-        <h3 class="font-bold text-sm text-gray-700">📋 Giao dịch gần đây</h3>
-        <button onclick="openHistoryModal()" class="text-xs text-emerald-600 font-semibold">Xem tất cả →</button>
+    <div class="card overflow-hidden">
+      <div class="p-3 border-b border-muted flex justify-between items-center">
+        <h3 class="font-bold text-sm text-main">📋 Giao dịch gần đây</h3>
+        <button onclick="openHistoryModal()" class="text-xs text-success font-semibold">Xem tất cả →</button>
       </div>
       <div class="max-h-64 overflow-y-auto">
         <table class="w-full text-xs">
@@ -155,36 +155,36 @@
   <!-- Giao vỏ -->
   <div id="deliverModal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
     <div class="bg-white rounded-2xl w-full max-w-sm animate-fade">
-      <div class="p-4 border-b flex justify-between items-center">
-        <h3 class="font-bold text-lg text-emerald-700">📦 Giao vỏ cho khách</h3>
-        <button onclick="closeModal('deliverModal')" class="text-2xl text-gray-400 hover:text-gray-600">&times;</button>
+      <div class="p-4 border-b border-muted flex justify-between items-center">
+        <h3 class="font-bold text-lg text-success">📦 Giao vỏ cho khách</h3>
+        <button onclick="closeModal('deliverModal')" class="text-2xl text-muted hover:text-main">&times;</button>
       </div>
       <div class="p-4 space-y-3">
-        <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-2 flex justify-between text-xs">
-          <span class="text-gray-600">Vỏ sẵn có:</span>
-          <span class="font-bold text-emerald-700" id="deliverAvailQty">-</span>
+        <div class="card p-2 text-xs">
+          <div class="flex justify-between text-muted">Vỏ sẵn có:</div>
+          <div class="font-bold text-success" id="deliverAvailQty">-</div>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Khách hàng</label>
-          <select id="deliverCustomer" class="w-full border rounded-lg px-3 py-2">
+          <label class="block text-sm font-medium text-main mb-1">Khách hàng</label>
+          <select id="deliverCustomer" class="w-full border border-muted rounded-lg px-3 py-2">
             <option value="">-- Chọn khách hàng --</option>
           </select>
         </div>
         <div class="flex gap-2">
           <div class="flex-1">
-            <label class="block text-sm font-medium text-gray-700 mb-1">Số lượng vỏ</label>
-            <input type="number" id="deliverQty" min="1" value="1" class="w-full border rounded-lg px-3 py-2 text-center text-xl font-bold">
+            <label class="block text-sm font-medium text-main mb-1">Số lượng vỏ</label>
+            <input type="number" id="deliverQty" min="1" value="1" class="w-full border border-muted rounded-lg px-3 py-2 text-center text-xl font-bold">
           </div>
           <div class="flex gap-1 mt-7">
-            <button onclick="adjustQty('deliverQty', -1)" class="w-8 h-10 border rounded-lg text-lg font-bold hover:bg-gray-100">−</button>
-            <button onclick="adjustQty('deliverQty', 1)" class="w-8 h-10 border rounded-lg text-lg font-bold hover:bg-gray-100">+</button>
+            <button onclick="adjustQty('deliverQty', -1)" class="btn btn-ghost w-8 h-10 text-lg p-0">−</button>
+            <button onclick="adjustQty('deliverQty', 1)" class="btn btn-ghost w-8 h-10 text-lg p-0">+</button>
           </div>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
-          <input type="text" id="deliverNote" class="w-full border rounded-lg px-3 py-2" placeholder="VD: Theo đơn hàng">
+          <label class="block text-sm font-medium text-main mb-1">Ghi chú</label>
+          <input type="text" id="deliverNote" class="w-full border border-muted rounded-lg px-3 py-2" placeholder="VD: Theo đơn hàng">
         </div>
-        <button onclick="submitDeliver()" class="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold mt-2">Xác nhận giao</button>
+        <button onclick="submitDeliver()" class="btn btn-success w-full h-12 mt-2">Xác nhận giao</button>
       </div>
     </div>
   </div>
@@ -192,36 +192,36 @@
   <!-- Thu vỏ -->
   <div id="collectModal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
     <div class="bg-white rounded-2xl w-full max-w-sm animate-fade">
-      <div class="p-4 border-b flex justify-between items-center">
-        <h3 class="font-bold text-lg text-blue-700">🔄 Thu vỏ rỗng</h3>
-        <button onclick="closeModal('collectModal')" class="text-2xl text-gray-400 hover:text-gray-600">&times;</button>
+      <div class="p-4 border-b border-muted flex justify-between items-center">
+        <h3 class="font-bold text-lg text-info">🔄 Thu vỏ rỗng</h3>
+        <button onclick="closeModal('collectModal')" class="text-2xl text-muted hover:text-main">&times;</button>
       </div>
       <div class="p-4 space-y-3">
-        <div class="bg-blue-50 border border-blue-200 rounded-xl p-2 flex justify-between text-xs">
-          <span class="text-gray-600">Vỏ khách đang giữ:</span>
-          <span class="font-bold text-blue-700" id="collectAvailQty">-</span>
+        <div class="card p-2 text-xs">
+          <div class="flex justify-between text-muted">Vỏ khách đang giữ:</div>
+          <div class="font-bold text-info" id="collectAvailQty">-</div>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Khách hàng</label>
-          <select id="collectCustomer" class="w-full border rounded-lg px-3 py-2" onchange="updateCollectAvail()">
+          <label class="block text-sm font-medium text-main mb-1">Khách hàng</label>
+          <select id="collectCustomer" class="w-full border border-muted rounded-lg px-3 py-2" onchange="updateCollectAvail()">
             <option value="">-- Chọn khách hàng --</option>
           </select>
         </div>
         <div class="flex gap-2">
           <div class="flex-1">
-            <label class="block text-sm font-medium text-gray-700 mb-1">Số lượng vỏ</label>
-            <input type="number" id="collectQty" min="1" value="1" class="w-full border rounded-lg px-3 py-2 text-center text-xl font-bold">
+            <label class="block text-sm font-medium text-main mb-1">Số lượng vỏ</label>
+            <input type="number" id="collectQty" min="1" value="1" class="w-full border border-muted rounded-lg px-3 py-2 text-center text-xl font-bold">
           </div>
           <div class="flex gap-1 mt-7">
-            <button onclick="adjustQty('collectQty', -1)" class="w-8 h-10 border rounded-lg text-lg font-bold hover:bg-gray-100">−</button>
-            <button onclick="adjustQty('collectQty', 1)" class="w-8 h-10 border rounded-lg text-lg font-bold hover:bg-gray-100">+</button>
+            <button onclick="adjustQty('collectQty', -1)" class="btn btn-ghost w-8 h-10 text-lg p-0">−</button>
+            <button onclick="adjustQty('collectQty', 1)" class="btn btn-ghost w-8 h-10 text-lg p-0">+</button>
           </div>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
-          <input type="text" id="collectNote" class="w-full border rounded-lg px-3 py-2" placeholder="VD: Thu vỏ từ khách">
+          <label class="block text-sm font-medium text-main mb-1">Ghi chú</label>
+          <input type="text" id="collectNote" class="w-full border border-muted rounded-lg px-3 py-2" placeholder="VD: Thu vỏ từ khách">
         </div>
-        <button onclick="submitCollect()" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold mt-2">Xác nhận thu</button>
+        <button onclick="submitCollect()" class="btn btn-info w-full h-12 mt-2">Xác nhận thu</button>
       </div>
     </div>
   </div>
@@ -229,32 +229,32 @@
   <!-- Nhập vỏ -->
   <div id="importModal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
     <div class="bg-white rounded-2xl w-full max-w-sm animate-fade">
-      <div class="p-4 border-b flex justify-between items-center">
-        <h3 class="font-bold text-lg text-purple-700">🏭 Nhập vỏ từ nhà máy</h3>
-        <button onclick="closeModal('importModal')" class="text-2xl text-gray-400 hover:text-gray-600">&times;</button>
+      <div class="p-4 border-b border-muted flex justify-between items-center">
+        <h3 class="font-bold text-lg text-secondary">🏭 Nhập vỏ từ nhà máy</h3>
+        <button onclick="closeModal('importModal')" class="text-2xl text-muted hover:text-main">&times;</button>
       </div>
       <div class="p-4 space-y-3">
-        <div class="bg-purple-50 border border-purple-200 rounded-xl p-2 flex justify-between text-xs">
-          <span class="text-gray-600">Vỏ rỗng hiện có:</span>
-          <span class="font-bold text-purple-700" id="importAvailEmpty">-</span>
+        <div class="card p-2 text-xs text-center">
+          <span class="text-muted">Vỏ rỗng hiện có: </span>
+          <span class="font-bold text-secondary" id="importAvailEmpty">-</span>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Đổi vỏ (trả rỗng → lấy đầy)</label>
-          <input type="number" id="importExchanged" min="0" value="0" class="w-full border rounded-lg px-3 py-2 text-center text-lg font-bold" oninput="updateImportTotal()">
+          <label class="block text-sm font-medium text-main mb-1">Đổi vỏ (trả rỗng → lấy đầy)</label>
+          <input type="number" id="importExchanged" min="0" value="0" class="w-full border border-muted rounded-lg px-3 py-2 text-center text-lg font-bold focus:ring-2 focus:ring-primary" oninput="updateImportTotal()">
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Mua vỏ mới</label>
-          <input type="number" id="importPurchased" min="0" value="0" class="w-full border rounded-lg px-3 py-2 text-center text-lg font-bold" oninput="updateImportTotal()">
+          <label class="block text-sm font-medium text-main mb-1">Mua vỏ mới</label>
+          <input type="number" id="importPurchased" min="0" value="0" class="w-full border border-muted rounded-lg px-3 py-2 text-center text-lg font-bold focus:ring-2 focus:ring-primary" oninput="updateImportTotal()">
         </div>
-        <div class="bg-purple-50 rounded-xl p-2 text-center text-xs">
-          <span class="text-gray-600">Tổng nhập: </span>
-          <span class="font-bold text-purple-700" id="importTotalDisplay">0 vỏ</span>
+        <div class="card p-2 text-center text-xs">
+          <span class="text-muted">Tổng nhập: </span>
+          <span class="font-bold text-secondary" id="importTotalDisplay">0 vỏ</span>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
-          <input type="text" id="importNote" class="w-full border rounded-lg px-3 py-2" placeholder="VD: Nhập từ Bia Sài Gòn">
+          <label class="block text-sm font-medium text-main mb-1">Ghi chú</label>
+          <input type="text" id="importNote" class="w-full border border-muted rounded-lg px-3 py-2" placeholder="VD: Nhập từ Bia Sài Gòn">
         </div>
-        <button onclick="submitImport()" class="w-full bg-purple-600 text-white py-3 rounded-xl font-bold mt-2">Xác nhận nhập</button>
+        <button onclick="submitImport()" class="btn btn-secondary w-full h-12 mt-2">Xác nhận nhập</button>
       </div>
     </div>
   </div>
@@ -262,27 +262,27 @@
   <!-- Điều chỉnh vỏ rỗng -->
   <div id="adjustModal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
     <div class="bg-white rounded-2xl w-full max-w-sm animate-fade">
-      <div class="p-4 border-b flex justify-between items-center">
-        <h3 class="font-bold text-lg text-amber-700">⚙️ Điều chỉnh vỏ rỗng</h3>
-        <button onclick="closeModal('adjustModal')" class="text-2xl text-gray-400 hover:text-gray-600">&times;</button>
+      <div class="p-4 border-b border-muted flex justify-between items-center">
+        <h3 class="font-bold text-lg text-warning">⚙️ Điều chỉnh vỏ rỗng</h3>
+        <button onclick="closeModal('adjustModal')" class="text-2xl text-muted hover:text-main">&times;</button>
       </div>
       <div class="p-4 space-y-3">
-        <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm">
+        <div class="card p-3 text-sm">
           <div class="flex justify-between mb-1">
-            <span class="text-gray-600">Vỏ rỗng hiện tại:</span>
-            <span class="font-bold text-amber-700" id="currentEmptyDisplay">-</span>
+            <span class="text-muted">Vỏ rỗng hiện tại:</span>
+            <span class="font-bold text-warning" id="currentEmptyDisplay">-</span>
           </div>
-          <div class="text-xs text-gray-500">Dùng khi thực tế khác sổ sách</div>
+          <div class="text-xs text-muted">Dùng khi thực tế khác sổ sách</div>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Số lượng vỏ rỗng mới</label>
-          <input type="number" id="adjustQty" min="0" value="0" class="w-full border rounded-lg px-3 py-2 text-center text-xl font-bold">
+          <label class="block text-sm font-medium text-main mb-1">Số lượng vỏ rỗng mới</label>
+          <input type="number" id="adjustQty" min="0" value="0" class="w-full border border-muted rounded-lg px-3 py-2 text-center text-xl font-bold focus:ring-2 focus:ring-primary">
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
-          <input type="text" id="adjustNote" class="w-full border rounded-lg px-3 py-2" placeholder="VD: Kiểm kê kho vỏ">
+          <label class="block text-sm font-medium text-main mb-1">Ghi chú</label>
+          <input type="text" id="adjustNote" class="w-full border border-muted rounded-lg px-3 py-2" placeholder="VD: Kiểm kê kho vỏ">
         </div>
-        <button onclick="submitAdjust()" class="w-full bg-amber-600 text-white py-3 rounded-xl font-bold mt-2">Cập nhật</button>
+        <button onclick="submitAdjust()" class="btn btn-warning w-full h-12 mt-2">Cập nhật</button>
       </div>
     </div>
   </div>
@@ -290,25 +290,25 @@
   <!-- Lịch sử chi tiết -->
   <div id="historyModal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-2">
     <div class="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col animate-fade">
-      <div class="p-4 border-b flex justify-between items-center flex-shrink-0">
-        <h3 class="font-bold text-lg text-gray-800">📋 Lịch sử giao dịch vỏ</h3>
-        <button onclick="closeModal('historyModal')" class="text-2xl text-gray-400 hover:text-gray-600">&times;</button>
+      <div class="p-4 border-b border-muted flex justify-between items-center flex-shrink-0">
+        <h3 class="font-bold text-lg text-main">📋 Lịch sử giao dịch vỏ</h3>
+        <button onclick="closeModal('historyModal')" class="text-2xl text-muted hover:text-main">&times;</button>
       </div>
 
       <!-- Filter tabs -->
       <div class="px-3 pt-2 flex-shrink-0">
         <div class="flex gap-2 overflow-x-auto pb-2">
-          <button onclick="setHistoryFilter('all')" id="filterAll" class="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 whitespace-nowrap">Tất cả</button>
-          <button onclick="setHistoryFilter('deliver')" id="filterDeliver" class="px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600 whitespace-nowrap">📦 Giao</button>
-          <button onclick="setHistoryFilter('collect')" id="filterCollect" class="px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600 whitespace-nowrap">🔄 Thu</button>
-          <button onclick="setHistoryFilter('import')" id="filterImport" class="px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600 whitespace-nowrap">🏭 Nhập</button>
-          <button onclick="setHistoryFilter('adjust')" id="filterAdjust" class="px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600 whitespace-nowrap">⚙️ Điều chỉnh</button>
+          <button onclick="setHistoryFilter('all')" id="filterAll" class="px-3 py-1 rounded-full text-xs font-semibold bg-success/20 text-success whitespace-nowrap">Tất cả</button>
+          <button onclick="setHistoryFilter('deliver')" id="filterDeliver" class="px-3 py-1 rounded-full text-xs font-semibold bg-bg text-muted whitespace-nowrap">📦 Giao</button>
+          <button onclick="setHistoryFilter('collect')" id="filterCollect" class="px-3 py-1 rounded-full text-xs font-semibold bg-bg text-muted whitespace-nowrap">🔄 Thu</button>
+          <button onclick="setHistoryFilter('import')" id="filterImport" class="px-3 py-1 rounded-full text-xs font-semibold bg-bg text-muted whitespace-nowrap">🏭 Nhập</button>
+          <button onclick="setHistoryFilter('adjust')" id="filterAdjust" class="px-3 py-1 rounded-full text-xs font-semibold bg-bg text-muted whitespace-nowrap">⚙️ Điều chỉnh</button>
         </div>
         <div class="flex gap-2 mb-2">
-          <select id="historyCustomerFilter" class="flex-1 border rounded-lg px-2 py-1 text-xs" onchange="loadHistory()">
+          <select id="historyCustomerFilter" class="flex-1 border border-muted rounded-lg px-2 py-1 text-xs" onchange="loadHistory()">
             <option value="">-- Tất cả khách --</option>
           </select>
-          <select id="historyPageSize" class="border rounded-lg px-2 py-1 text-xs" onchange="loadHistory()">
+          <select id="historyPageSize" class="border border-muted rounded-lg px-2 py-1 text-xs" onchange="loadHistory()">
             <option value="20">20 dòng</option>
             <option value="50" selected>50 dòng</option>
             <option value="100">100 dòng</option>
@@ -319,21 +319,21 @@
       <!-- Summary chips -->
       <div class="px-3 pb-2 flex-shrink-0">
         <div class="grid grid-cols-4 gap-2 text-center">
-          <div class="bg-emerald-50 rounded-lg p-2">
-            <div class="text-xs text-gray-500">Đã giao</div>
-            <div class="text-sm font-bold text-emerald-600" id="summaryDelivered">-</div>
+          <div class="card p-2">
+            <div class="text-xs text-muted">Đã giao</div>
+            <div class="text-sm font-bold text-success" id="summaryDelivered">-</div>
           </div>
-          <div class="bg-blue-50 rounded-lg p-2">
-            <div class="text-xs text-gray-500">Đã thu</div>
-            <div class="text-sm font-bold text-blue-600" id="summaryCollected">-</div>
+          <div class="card p-2">
+            <div class="text-xs text-muted">Đã thu</div>
+            <div class="text-sm font-bold text-info" id="summaryCollected">-</div>
           </div>
-          <div class="bg-purple-50 rounded-lg p-2">
-            <div class="text-xs text-gray-500">Đã nhập</div>
-            <div class="text-sm font-bold text-purple-600" id="summaryImported">-</div>
+          <div class="card p-2">
+            <div class="text-xs text-muted">Đã nhập</div>
+            <div class="text-sm font-bold text-secondary" id="summaryImported">-</div>
           </div>
-          <div class="bg-amber-50 rounded-lg p-2">
-            <div class="text-xs text-gray-500">Điều chỉnh</div>
-            <div class="text-sm font-bold text-amber-600" id="summaryAdjusted">-</div>
+          <div class="card p-2">
+            <div class="text-xs text-muted">Điều chỉnh</div>
+            <div class="text-sm font-bold text-warning" id="summaryAdjusted">-</div>
           </div>
         </div>
       </div>
@@ -341,10 +341,10 @@
       <!-- History list -->
       <div class="flex-1 overflow-y-auto px-3 pb-3" id="historyListContainer">
         <div id="historyList"></div>
-        <div class="flex justify-between items-center mt-3 pt-2 border-t" id="historyPagination">
-          <button onclick="changeHistoryPage(-1)" id="historyPrevBtn" class="px-3 py-1 rounded-lg border text-xs font-semibold disabled:opacity-40">← Trước</button>
-          <span class="text-xs text-gray-500" id="historyPageInfo">Trang 1/1</span>
-          <button onclick="changeHistoryPage(1)" id="historyNextBtn" class="px-3 py-1 rounded-lg border text-xs font-semibold disabled:opacity-40">Sau →</button>
+        <div class="flex justify-between items-center mt-3 pt-2 border-t border-muted" id="historyPagination">
+          <button onclick="changeHistoryPage(-1)" id="historyPrevBtn" class="btn btn-secondary px-3 h-9 text-xs" disabled>← Trước</button>
+          <span class="text-xs text-muted" id="historyPageInfo">Trang 1/1</span>
+          <button onclick="changeHistoryPage(1)" id="historyNextBtn" class="btn btn-secondary px-3 h-9 text-xs" disabled>Sau →</button>
         </div>
       </div>
     </div>
@@ -480,7 +480,7 @@
     function renderLog(data) {
       const el = document.getElementById('logBody');
       if (!data || data.length === 0) {
-        el.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-gray-400">Chưa có giao dịch nào</td></tr>';
+        el.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-muted">Chưa có giao dịch nào</td></tr>';
         return;
       }
       el.innerHTML = data.slice(0, 20).map(log => {
@@ -490,13 +490,13 @@
         const customer = log.customer_name || (log.customer_id ? '(#' + log.customer_id + ')' : '—');
         const note = log.note || '—';
         return `
-          <tr class="log-row border-b border-gray-100 hover:bg-emerald-50 cursor-pointer"
+          <tr class="log-row border-b border-muted hover:bg-success/5 cursor-pointer"
               onclick='showLogDetail(${JSON.stringify(log).replace(/'/g, "\\'")})'>
-            <td class="py-2 px-2 text-xs text-gray-500">${date}</td>
+            <td class="py-2 px-2 text-xs text-muted">${date}</td>
             <td class="py-2 px-2"><span class="${typeBadgeClass(log.type)}">${typeLabel(log.type)}</span></td>
-            <td class="py-2 px-2 text-xs text-center font-bold">${log.quantity}</td>
-            <td class="py-2 px-2 text-xs text-center text-purple-600 truncate max-w-16" title="${customer}">${customer}</td>
-            <td class="py-2 px-2 text-xs text-gray-400 truncate max-w-16" title="${note}">${note}</td>
+            <td class="py-2 px-2 text-xs text-center font-bold text-main">${log.quantity}</td>
+            <td class="py-2 px-2 text-xs text-center text-secondary truncate max-w-16" title="${customer}">${customer}</td>
+            <td class="py-2 px-2 text-xs text-muted truncate max-w-16" title="${note}">${note}</td>
           </tr>
         `;
       }).join('');
@@ -527,14 +527,14 @@
       historyFilter = type;
       historyPage = 1;
       document.querySelectorAll('[id^="filter"]').forEach(el => {
-        el.classList.remove('bg-emerald-100', 'text-emerald-700');
-        el.classList.add('bg-gray-100', 'text-gray-600');
+        el.classList.remove('bg-success/20', 'text-success');
+        el.classList.add('bg-bg', 'text-muted');
       });
       const map = { all: 'All', deliver: 'Deliver', collect: 'Collect', import: 'Import', adjust: 'Adjust' };
       const active = document.getElementById('filter' + map[type]);
       if (active) {
-        active.classList.remove('bg-gray-100', 'text-gray-600');
-        active.classList.add('bg-emerald-100', 'text-emerald-700');
+        active.classList.remove('bg-bg', 'text-muted');
+        active.classList.add('bg-success/20', 'text-success');
       }
       loadHistory();
     }
@@ -562,7 +562,7 @@
     function renderHistoryList(data) {
       const el = document.getElementById('historyList');
       if (!data || data.length === 0) {
-        el.innerHTML = '<div class="text-center py-8 text-gray-400">Không có giao dịch nào</div>';
+        el.innerHTML = '<div class="text-center py-8 text-muted">Không có giao dịch nào</div>';
         return;
       }
       el.innerHTML = data.map(log => {
@@ -572,32 +572,32 @@
         });
         const customer = log.customer_name || (log.customer_id ? 'Khách #' + log.customer_id : '—');
         const importInfo = (log.exchanged || log.purchased)
-          ? `<div class="text-xs text-purple-600">Đổi: ${log.exchanged || 0} | Mới: ${log.purchased || 0}</div>`
+          ? `<div class="text-xs text-secondary">Đổi: ${log.exchanged || 0} | Mới: ${log.purchased || 0}</div>`
           : '';
-        const note = log.note ? `<div class="text-xs text-gray-400 italic mt-1">${log.note}</div>` : '';
+        const note = log.note ? `<div class="text-xs text-muted italic mt-1">${log.note}</div>` : '';
         return `
-          <div class="bg-gray-50 rounded-xl p-3 mb-2 border border-gray-100">
+          <div class="card p-3 mb-2">
             <div class="flex justify-between items-start mb-1">
               <div class="flex items-center gap-2">
                 <span class="${typeBadgeClass(log.type)}">${typeLabel(log.type)}</span>
-                <span class="text-sm font-bold">${log.quantity} vỏ</span>
+                <span class="text-sm font-bold text-main">${log.quantity} vỏ</span>
               </div>
-              <span class="text-xs text-gray-500">${date}</span>
+              <span class="text-xs text-muted">${date}</span>
             </div>
-            <div class="text-xs text-gray-600 mb-1">👤 ${customer}</div>
+            <div class="text-xs text-muted mb-1">👤 ${customer}</div>
             ${importInfo}
             <div class="grid grid-cols-3 gap-1 mt-2 text-xs text-center">
-              <div class="bg-white rounded p-1">
-                <div class="text-gray-400">Tồn kho</div>
-                <div class="font-bold text-emerald-600">${log.inventory_after}</div>
+              <div class="bg-bg rounded p-1">
+                <div class="text-muted">Tồn kho</div>
+                <div class="font-bold text-success">${log.inventory_after}</div>
               </div>
-              <div class="bg-white rounded p-1">
-                <div class="text-gray-400">Vỏ rỗng</div>
-                <div class="font-bold text-blue-600">${log.empty_after}</div>
+              <div class="bg-bg rounded p-1">
+                <div class="text-muted">Vỏ rỗng</div>
+                <div class="font-bold text-info">${log.empty_after}</div>
               </div>
-              <div class="bg-white rounded p-1">
-                <div class="text-gray-400">Khách giữ</div>
-                <div class="font-bold text-purple-600">${log.holding_after}</div>
+              <div class="bg-bg rounded p-1">
+                <div class="text-muted">Khách giữ</div>
+                <div class="font-bold text-secondary">${log.holding_after}</div>
               </div>
             </div>
             ${note}

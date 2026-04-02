@@ -21,19 +21,17 @@
     .bottomnav { max-width: 500px; margin: auto; left: 0; right: 0; }
     button, a { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
     button:active { transform: scale(0.96); }
-    .card { transition: transform 0.2s, box-shadow 0.2s; }
-    .card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
   </style>
 </head>
 <body class="bg-gray-100 text-gray-800 min-h-screen pb-20">
-  <header class="sticky top-0 bg-white border-b z-50">
+  <header class="sticky top-0 bg-white border-b border-muted z-50">
     <div class="flex items-center justify-between px-4 h-12 max-w-md mx-auto">
       <div class="flex items-center gap-2">
         <span class="text-xl">📥</span>
-        <span class="font-semibold text-sm">Nhập hàng</span>
+        <span class="font-semibold text-sm text-main">Nhập hàng</span>
       </div>
       <div class="flex gap-3 text-xl">
-        <a href="/">🏠</a>
+        <a href="/" class="text-muted hover:bg-bg-hover px-2 rounded">🏠</a>
       </div>
     </div>
   </header>
@@ -41,29 +39,29 @@
   <main class="p-4 pt-14 pb-24 max-w-md mx-auto animate-fade">
     <!-- Tab Navigation -->
     <div class="flex gap-2 mb-4">
-      <button onclick="switchTab('new')" id="tabNew" class="flex-1 py-2 bg-blue-600 text-white rounded-lg font-medium">📝 Nhập mới</button>
-      <button onclick="switchTab('history')" id="tabHistory" class="flex-1 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium">📋 Lịch sử</button>
+      <button onclick="switchTab('new')" id="tabNew" class="btn btn-primary flex-1 h-11">📝 Nhập mới</button>
+      <button onclick="switchTab('history')" id="tabHistory" class="btn btn-secondary flex-1 h-11">📋 Lịch sử</button>
     </div>
 
     <!-- Loading -->
     <div id="loading" class="text-center py-8">
-      <div class="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto"></div>
-      <div class="text-gray-500 mt-2">Đang tải...</div>
+      <div class="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full mx-auto"></div>
+      <div class="text-muted mt-2">Đang tải...</div>
     </div>
 
     <!-- New Purchase Form -->
     <div id="newPurchaseSection" class="hidden">
       <!-- Keg Inventory Status -->
-      <div id="kegInventorySection" class="bg-green-50 border border-green-200 rounded-xl p-3 mb-4">
+      <div id="kegInventorySection" class="card p-3 mb-4">
         <div class="flex items-center justify-between">
           <div>
-            <div class="text-xs text-green-700">Kho vỏ</div>
-            <div class="text-xl font-bold text-green-600" id="kegInventoryDisplay">-</div>
+            <div class="text-xs text-muted">Kho vỏ</div>
+            <div class="text-xl font-bold text-success" id="kegInventoryDisplay">-</div>
           </div>
-          <a href="/kegs" class="text-xs text-blue-600 hover:text-blue-800">📋 Quản lý</a>
+          <a href="/kegs" class="text-xs text-info font-medium hover:bg-bg-hover px-2 py-1 rounded">📋 Quản lý</a>
       </div>
 
-      <div class="bg-white rounded-xl shadow-sm border p-4 mb-4">
+      <div class="card p-4 mb-4">
         <h3 class="font-bold text-lg mb-3">📦 Nhập hàng</h3>
         <div class="space-y-4 max-h-96 overflow-y-auto" id="productList">
           <!-- Products loaded via JS -->
@@ -71,17 +69,17 @@
       </div>
 
       <!-- Cart Summary -->
-      <div class="bg-white rounded-xl shadow-sm border p-4 mb-4 sticky top-24">
+      <div class="card p-4 mb-4 sticky top-24">
         <h3 class="font-bold text-lg mb-2">🛒 Giỏ nhập hàng</h3>
         <div id="cartItems" class="space-y-2 mb-3 max-h-40 overflow-y-auto">
-          <div class="text-gray-500 text-sm">Chưa chọn sản phẩm nào</div>
+          <div class="text-muted text-sm text-center py-2">Chưa chọn sản phẩm nào</div>
         </div>
-        <div class="border-t pt-2 flex justify-between items-center">
-          <div class="font-bold text-lg">Tổng tiền:</div>
-          <div id="cartTotal" class="text-xl font-bold text-amber-600">0 ₫</div>
+        <div class="border-t border-muted pt-2 flex justify-between items-center">
+          <div class="font-bold text-lg text-main">Tổng tiền:</div>
+          <div id="cartTotal" class="money text-money text-xl">0 <span class="unit">đ</span></div>
         </div>
-        <input type="text" id="purchaseNote" placeholder="Ghi chú (tùy chọn)" class="w-full border rounded-lg px-3 py-2 mt-3">
-        <button onclick="submitPurchase()" id="submitBtn" class="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-3 rounded-xl mt-3 disabled:opacity-50" disabled>
+        <input type="text" id="purchaseNote" placeholder="Ghi chú (tùy chọn)" class="w-full border border-muted rounded-lg px-3 py-2 mt-3 focus:ring-2 focus:ring-amber-500">
+        <button onclick="submitPurchase()" id="submitBtn" class="btn btn-primary w-full h-12 mt-3" disabled>
           ✅ Xác nhận nhập hàng
         </button>
       </div>
@@ -93,9 +91,9 @@
         <!-- History loaded via JS -->
       </div>
       <div id="historyPagination" class="hidden mt-4 flex items-center justify-between">
-        <button type="button" id="historyPrev" class="px-4 py-2 rounded-lg bg-amber-100 text-amber-800 font-medium disabled:opacity-50" disabled>← Trước</button>
-        <span id="historyPageInfo" class="text-sm text-gray-600">Trang 1 / 1</span>
-        <button type="button" id="historyNext" class="px-4 py-2 rounded-lg bg-amber-100 text-amber-800 font-medium disabled:opacity-50" disabled>Sau →</button>
+        <button type="button" id="historyPrev" class="btn btn-secondary px-4 h-10" disabled>← Trước</button>
+        <span id="historyPageInfo" class="text-sm text-muted">Trang 1 / 1</span>
+        <button type="button" id="historyNext" class="btn btn-secondary px-4 h-10" disabled>Sau →</button>
       </div>
     </div>
   </main>
@@ -153,7 +151,7 @@
       const pagePurchases = allPurchases.slice(start, start + HISTORY_PAGE_SIZE);
       
       if (total === 0) {
-        historyList.innerHTML = '<div class="text-center text-gray-500 py-8">Chưa có phiếu nhập nào</div>';
+        historyList.innerHTML = '<div class="text-center text-muted py-8">Chưa có phiếu nhập nào</div>';
         if (pagination) pagination.classList.add('hidden');
         return;
       }
@@ -162,15 +160,15 @@
         const dateStr = new Date(p.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
         const count = p.item_count != null ? p.item_count : (p.items_summary ? p.items_summary.split(',').length : 0);
         return `
-        <div class="bg-white rounded-xl shadow-sm border p-4 flex items-center justify-between gap-3">
+        <div class="bg-white rounded-xl shadow-sm border border-muted p-4 flex items-center justify-between gap-3">
           <div class="flex-1 min-w-0">
-            <div class="font-bold text-gray-800">Đơn #${p.id}</div>
-            <div class="text-sm text-gray-500 mt-0.5">${dateStr} • ${count} sản phẩm</div>
+            <div class="font-bold text-main">Đơn #${p.id}</div>
+            <div class="text-sm text-muted mt-0.5">${dateStr} • ${count} sản phẩm</div>
           </div>
           <div class="flex items-center gap-2 shrink-0">
-            <span class="font-bold text-blue-600 text-lg">${formatVND(p.total_amount)}</span>
-            <button onclick="editPurchase(${p.id})" class="p-1.5 rounded hover:bg-amber-100 text-amber-600" title="Sửa">✏️</button>
-            <button onclick="deletePurchase(${p.id})" class="p-1.5 rounded hover:bg-red-100 text-gray-500" title="Xóa">🗑️</button>
+            <span class="money text-money text-lg">${formatVND(p.total_amount)} <span class="unit">đ</span></span>
+            <button onclick="editPurchase(${p.id})" class="btn btn-ghost text-warning h-8 w-8 text-base p-0" title="Sửa">✏️</button>
+            <button onclick="deletePurchase(${p.id})" class="btn btn-ghost text-muted h-8 w-8 text-base p-0" title="Xóa">🗑️</button>
           </div>
         </div>`;
       }).join('');
@@ -207,9 +205,9 @@
         // Render products - layout rõ ràng: tên SP, giá vốn 1 dòng, ô SL
         const productList = document.getElementById('productList');
         productList.innerHTML = data.products.map(p => `
-          <div class="p-3 border border-gray-200 rounded-xl ${p.cost_price > 0 ? 'bg-amber-50/50' : 'bg-gray-50'}">
-            <div class="text-sm font-semibold text-gray-800">${p.name}</div>
-            <div class="text-xs text-gray-600 mt-0.5">Giá vốn: ${formatVND(p.cost_price || 0)} · Tồn: ${p.stock}</div>
+          <div class="p-3 border border-muted rounded-xl ${p.cost_price > 0 ? 'bg-primary/5' : 'bg-bg'}">
+            <div class="text-sm font-semibold text-main">${p.name}</div>
+            <div class="text-xs text-muted mt-0.5">Giá vốn: ${formatVND(p.cost_price || 0)} · Tồn: ${p.stock}</div>
             <input type="number"
               id="qty-${p.id}"
               data-product-id="${p.id}"
@@ -217,7 +215,7 @@
               data-name="${p.name}"
               min="0"
               placeholder="Nhập SL"
-              class="mt-2 w-full border-2 border-gray-200 rounded-lg p-2.5 text-center font-medium"
+              class="mt-2 w-full border-2 border-muted rounded-lg p-2.5 text-center font-medium focus:ring-2 focus:ring-primary"
               onchange="updateCart()"
               oninput="updateCart()">
           </div>
@@ -248,7 +246,7 @@
       } catch (err) {
         console.error('Failed to load data:', err);
         const loading = document.getElementById('loading');
-        if (loading) loading.innerHTML = '<div class="text-red-500">Lỗi tải dữ liệu</div>';
+        if (loading) loading.innerHTML = '<div class="text-danger text-center py-8">Lỗi tải dữ liệu</div>';
       }
     }
     

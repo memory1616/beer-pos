@@ -206,31 +206,25 @@ function initDashboard(data) {
     if (data.recentSales && data.recentSales.length > 0) {
       recentSales.innerHTML = data.recentSales.slice(0, 5).map(s => {
         const date = new Date(s.date).toLocaleDateString('vi-VN');
-        
-        // Style based on sale type
-        let totalDisplay = '';
-        let rowClass = '';
+
+        let moneyHtml = '';
         if (s.type === 'replacement') {
-          totalDisplay = '<span class="font-bold text-yellow-400">🔁 Đổi lỗi</span>';
-          rowClass = 'bg-yellow-50';
+          moneyHtml = '<span class="badge badge-warning">🔁 Đổi lỗi</span>';
         } else {
-          totalDisplay =
-            '<span class="flex items-end gap-0.5 whitespace-nowrap text-green-400">' +
-            '<span class="text-sm font-bold tracking-tight tabular-nums">' + Format.number(s.total) + '</span>' +
-            '<span class="text-xs mb-0.5 opacity-70">đ</span>' +
-            '</span>';
+          const formatted = Format.number(s.total);
+          moneyHtml = '<span class="money text-money">' + formatted + '<span class="unit"> đ</span></span>';
         }
-        
-        return '<div class="flex justify-between items-center py-2 border-b ' + rowClass + '">' +
+
+        return '<div class="flex justify-between items-center py-3 border-b border-muted">' +
           '<div>' +
-            '<div class="font-medium">' + s.customer_name + '</div>' +
-            '<div class="text-xs text-gray-500">' + date + '</div>' +
+            '<div class="font-semibold text-main">' + s.customer_name + '</div>' +
+            '<div class="text-xs text-muted mt-0.5">' + date + '</div>' +
           '</div>' +
-          '<div>' + totalDisplay + '</div>' +
+          '<div>' + moneyHtml + '</div>' +
         '</div>';
       }).join('');
     } else {
-      recentSales.innerHTML = '<div class="text-gray-500 text-sm text-center py-4">Chưa có bán hàng nào</div>';
+      recentSales.innerHTML = '<div class="text-muted text-sm text-center py-4">Chưa có bán hàng nào</div>';
     }
   }
   

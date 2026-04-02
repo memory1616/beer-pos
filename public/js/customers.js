@@ -81,106 +81,82 @@ function renderCustomers() {
 
   container.innerHTML = filtered.map(c => {
     const hasLocation = c.lat && c.lng;
-    
-    // Status badge based on daily average and days since last order
-    // 🟢 hoạt động (trung bình ngày > 10 bình)
-    // 🟡 ít mua (trung bình ngày < 5 bình)
-    // 🔴 7 ngày chưa mua
+
     let statusBadge = '';
-    let statusClass = '';
-    let statusBg = '';
+    let badgeClass = '';
     if (currentTab === 'active') {
       if (c.days_since_last_order !== null && c.days_since_last_order !== undefined) {
         if (c.days_since_last_order >= 7) {
           statusBadge = '🔴';
-          statusClass = 'text-red-600';
-          statusBg = 'bg-red-50';
+          badgeClass = 'badge-danger';
         } else if (c.daily_avg < 5) {
           statusBadge = '🟡';
-          statusClass = 'text-yellow-600';
-          statusBg = 'bg-yellow-50';
+          badgeClass = 'badge-warning';
         } else {
           statusBadge = '🟢';
-          statusClass = 'text-green-600';
-          statusBg = 'bg-green-50';
+          badgeClass = 'badge-success';
         }
       } else {
         statusBadge = '🟡';
-        statusClass = 'text-yellow-600';
-        statusBg = 'bg-yellow-50';
+        badgeClass = 'badge-warning';
       }
     }
 
     return `
-      <div class="card customer-card hover:shadow-lg transition-all duration-200 bg-white rounded-xl border border-gray-100 ${c.archived ? 'opacity-70' : ''}" data-name="${c.name.toLowerCase()}">
-        <div class="flex justify-between items-start">
-          <div class="flex-1">
-            <div class="flex items-center gap-2 mb-1">
-              <a href="/customers/${c.id}" class="font-bold text-lg text-gray-800 hover:text-green-600">${c.name}</a>
-              <span class="text-xl" title="${statusClass.includes('red') ? '7+ ngày chưa mua' : (statusClass.includes('yellow') ? 'Ít mua' : 'Hoạt động')}">${statusBadge}</span>
-            </div>
-            <div class="text-gray-500 text-sm flex items-center gap-1">
-              <span>📱</span> ${c.phone || 'Chưa có SĐT'}
-            </div>
+      <div class="order-item ${c.archived ? 'opacity-70' : ''}" data-name="${c.name.toLowerCase()}">
+        <div class="order-header">
+          <div class="flex items-center gap-2 flex-1 min-w-0">
+            <a href="/customers/${c.id}" class="order-title hover:text-primary">${c.name}</a>
+            ${statusBadge ? '<span class="badge ' + badgeClass + '">' + statusBadge + '</span>' : ''}
           </div>
-          <div class="text-right">
+          <span class="order-meta">📱 ${c.phone || 'Chưa có SĐT'}</span>
+        </div>
+
+        <div class="flex justify-between items-start mt-3 gap-3">
+          <div class="flex flex-col gap-1">
             <div class="inline-flex items-center gap-1 px-3 py-1.5 bg-amber-50 rounded-lg border border-amber-200">
-              <span class="text-amber-600 font-bold">📦 ${c.keg_balance || 0}</span>
+              <span class="text-amber-600 font-bold text-lg">📦 ${c.keg_balance || 0}</span>
               <span class="text-xs text-amber-500">vỏ</span>
             </div>
             ${((c.horizontal_fridge || 0) > 0 || (c.vertical_fridge || 0) > 0) ? `
-              <div class="mt-1 text-xs text-indigo-600 font-medium">
+              <div class="text-xs text-indigo-600 font-medium">
                 ❄️ ${c.horizontal_fridge || 0} + 🥶 ${c.vertical_fridge || 0}
               </div>
             ` : ''}
             ${c.monthly_liters > 0 ? `
-              <div class="mt-1 text-xs text-green-600 font-medium flex items-center justify-end gap-1">
-                <span>📈</span> ${c.monthly_liters} bình/tháng
-              </div>
+              <div class="text-xs text-success font-medium">📈 ${c.monthly_liters} bình/tháng</div>
             ` : ''}
           </div>
         </div>
-        
+
         ${currentTab === 'active' ? `
-        <div class="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-100">
-          <button onclick="getLocation(${c.id})" class="flex-1 px-3 py-2.5 bg-gradient-to-r from-orange-50 to-orange-100 text-orange-700 rounded-lg font-medium text-sm border border-orange-200 hover:from-orange-100 hover:to-orange-150 transition-all">
-            📍 GPS
-          </button>
-          <button onclick="editCustomer(${c.id}, '${c.name}', '${c.phone || ''}', ${c.deposit})" class="flex-1 px-3 py-2.5 bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 rounded-lg font-medium text-sm border border-blue-200 hover:from-blue-100 hover:to-blue-150 transition-all">
-            ✏️ Sửa
-          </button>
-          <button onclick="showPriceModal(${c.id}, '${c.name}')" class="flex-1 px-3 py-2.5 bg-gradient-to-r from-green-50 to-green-100 text-green-700 rounded-lg font-medium text-sm border border-green-200 hover:from-green-100 hover:to-green-150 transition-all">
-            💰 Giá
-          </button>
-          <button onclick="archiveCustomer(${c.id})" class="px-3 py-2.5 bg-gray-100 text-gray-500 rounded-lg border border-gray-200 hover:bg-gray-200 transition-all" title="Lưu trữ">
-            📦
-          </button>
+        <div class="order-actions mt-3 pt-3 border-t border-muted">
+          <button onclick="getLocation(${c.id})" class="btn btn-ghost btn-sm">📍 GPS</button>
+          <button onclick="editCustomer(${c.id}, '${c.name}', '${c.phone || ''}', ${c.deposit})" class="btn btn-ghost btn-sm">✏️ Sửa</button>
+          <button onclick="showPriceModal(${c.id}, '${c.name}')" class="btn btn-ghost btn-sm">💰 Giá</button>
+          <button onclick="archiveCustomer(${c.id})" class="btn btn-ghost btn-sm" title="Lưu trữ">📦</button>
         </div>
         ` : `
-        <div class="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-100">
-          <button onclick="unarchiveCustomer(${c.id})" class="flex-1 px-3 py-2.5 bg-gradient-to-r from-green-50 to-green-100 text-green-700 rounded-lg font-medium text-sm border border-green-200 hover:from-green-100 hover:to-green-150 transition-all">
-            📤 Khôi phục
-          </button>
-          <button onclick="deleteCustomer(${c.id})" class="px-3 py-2.5 bg-red-50 text-red-500 rounded-lg border border-red-100 hover:bg-red-100 transition-all">
-            🗑️ Xóa
-          </button>
+        <div class="order-actions mt-3 pt-3 border-t border-muted">
+          <button onclick="unarchiveCustomer(${c.id})" class="btn btn-ghost btn-sm">📤 Khôi phục</button>
+          <button onclick="deleteCustomer(${c.id})" class="btn btn-danger btn-sm">🗑️ Xóa</button>
         </div>
         `}
-        
-        <div class="mt-3 pt-3 border-t border-gray-100 flex justify-between items-center">
+
+        <div class="flex justify-between items-center mt-3 pt-3 border-t border-muted">
           <div class="text-sm flex items-center gap-2">
-            <span class="text-gray-400">💵 Đặt cọc:</span>
-            <span class="font-semibold ${c.deposit > 0 ? 'text-blue-600' : 'text-gray-400'}">${formatVND(c.deposit)}</span>
+            <span class="text-muted">💵 Đặt cọc:</span>
+            <span class="font-semibold ${c.deposit > 0 ? 'text-info' : 'text-muted'}">${formatVND(c.deposit)}</span>
           </div>
           <div class="flex items-center gap-3">
             ${currentTab === 'active' ? `
-            <button onclick="editKegBalance(${c.id}, ${c.keg_balance}, '${c.name}')" class="text-xs text-blue-500 hover:text-blue-700 hover:bg-blue-50 px-2 py-1 rounded transition-colors">✏️ Sửa vỏ</button>
+            <button onclick="editKegBalance(${c.id}, ${c.keg_balance}, '${c.name}')" class="text-xs text-info hover:text-blue-700 px-2 py-1 rounded transition-colors">✏️ Sửa vỏ</button>
             ` : ''}
-            ${hasLocation ? '<span class="text-green-500 text-xs" title="Đã có vị trí">✅</span>' : ''}
+            ${hasLocation ? '<span class="text-success text-xs" title="Đã có vị trí">✅</span>' : ''}
           </div>
         </div>
-        ${c.last_sale_date ? '<div class="text-xs text-gray-400 mt-2 flex items-center gap-1">🕐 Mua lần cuối: ' + new Date(c.last_sale_date).toLocaleDateString('vi-VN') + '</div>' : ''}
-        ${c.archived ? '<div class="text-xs text-gray-400 mt-2 flex items-center gap-1">📦 Đã lưu trữ</div>' : ''}
+        ${c.last_sale_date ? '<div class="text-xs text-muted mt-2">🕐 Mua lần cuối: ' + new Date(c.last_sale_date).toLocaleDateString('vi-VN') + '</div>' : ''}
+        ${c.archived ? '<div class="text-xs text-muted mt-2">📦 Đã lưu trữ</div>' : ''}
       </div>
     `;
   }).join('');
@@ -236,7 +212,7 @@ function filterCustomers() {
     const container = document.getElementById('customersList');
     if (!container) return;
     if (filtered.length === 0) {
-      container.innerHTML = '<div class="text-center text-gray-500 py-8 bg-white rounded-xl shadow-sm">Không có khách hàng nào</div>';
+      container.innerHTML = '<div class="text-center text-muted py-8">Không có khách hàng nào</div>';
       return;
     }
     // Use existing render logic

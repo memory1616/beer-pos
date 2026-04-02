@@ -34,9 +34,9 @@
   <!-- Invoice Modal -->
   <div id="invoiceModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 p-4">
     <div class="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6">
-      <button onclick="closeInvoiceModal()" class="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-2xl font-bold">&times;</button>
+      <button onclick="closeInvoiceModal()" class="absolute top-4 right-4 text-muted hover:text-main text-2xl font-bold">&times;</button>
       <div id="invoiceContent"></div>
-      <button onclick="closeInvoiceModal()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-xl mt-4">Đóng</button>
+      <button onclick="closeInvoiceModal()" class="btn btn-primary w-full h-12 mt-4">Đóng</button>
     </div>
   </div>
 
@@ -84,40 +84,40 @@
     // Load kegs history
     async function loadKegsHistory() {
       const container = document.getElementById('kegsContent');
-      container.innerHTML = '<div class="text-center py-8 text-gray-500">Đang tải...</div>';
+      container.innerHTML = '<div class="text-center py-8 text-muted">Đang tải...</div>';
       
       try {
         const res = await fetch(`/api/customers/${customerId}/keg-history`);
         const data = await res.json();
         
         if (!data.history || data.history.length === 0) {
-          container.innerHTML = '<div class="text-center py-8 text-gray-500">Chưa có lịch sử vỏ bình</div>';
+          container.innerHTML = '<div class="text-center py-8 text-muted">Chưa có lịch sử vỏ bình</div>';
           return;
         }
         
         let html = `
-          <div class="bg-purple-50 rounded-xl p-4 mb-4 border border-purple-200">
-            <div class="text-sm text-purple-600 font-medium mb-1">📦 Tổng vỏ bình</div>
-            <div class="text-2xl font-bold text-purple-700">${data.currentBalance || 0} bình</div>
+          <div class="card p-4 mb-4">
+            <div class="text-sm text-muted font-medium mb-1">📦 Tổng vỏ bình</div>
+            <div class="text-2xl font-bold text-secondary">${data.currentBalance || 0} bình</div>
           </div>
         `;
-        
+
         data.history.forEach(item => {
           const change = (item.deliver_kegs || 0) - (item.return_kegs || 0);
-          const changeClass = change >= 0 ? 'text-amber-600' : 'text-red-600';
+          const changeClass = change >= 0 ? 'text-warning' : 'text-danger';
           const changeText = change >= 0 ? `+${change}` : change;
-          
+
           html += `
-            <div class="bg-white rounded-xl p-4 shadow-sm border">
+            <div class="card p-4 mb-2">
               <div class="flex justify-between items-center">
-                <div class="font-bold">📅 ${formatDate(item.date)}</div>
+                <div class="font-bold text-main">📅 ${formatDate(item.date)}</div>
                 <div class="font-bold ${changeClass}">${changeText}</div>
               </div>
               <div class="mt-2 text-sm flex justify-between">
-                <span class="text-amber-600">+${item.deliver_kegs || 0} giao</span>
-                <span class="text-orange-600">-${item.return_kegs || 0} thu</span>
+                <span class="text-warning">+${item.deliver_kegs || 0} giao</span>
+                <span class="text-danger">-${item.return_kegs || 0} thu</span>
               </div>
-              <div class="text-sm text-gray-500 mt-1">
+              <div class="text-sm text-muted mt-1">
                 Còn lại: ${item.keg_balance_after || 0}
               </div>
             </div>
@@ -126,14 +126,14 @@
         
         container.innerHTML = html;
       } catch (err) {
-        container.innerHTML = '<div class="text-center py-8 text-red-500">Lỗi tải dữ liệu</div>';
+        container.innerHTML = '<div class="text-center py-8 text-danger">Lỗi tải dữ liệu</div>';
       }
     }
 
     // Load debt history
     async function loadDebtHistory() {
       const container = document.getElementById('debtContent');
-      container.innerHTML = '<div class="text-center py-8 text-gray-500">Đang tải...</div>';
+      container.innerHTML = '<div class="text-center py-8 text-muted">Đang tải...</div>';
       
       try {
         const res = await fetch(`/api/customers/${customerId}/debt`);
@@ -144,40 +144,40 @@
         // Current debt summary
         if (data.currentDebt > 0) {
           html += `
-            <div class="bg-red-50 rounded-xl p-4 mb-4 border border-red-200">
-              <div class="text-sm text-red-600 font-medium mb-1">💰 Công nợ hiện tại</div>
-              <div class="text-2xl font-bold text-red-700">${formatVND(data.currentDebt)}</div>
+            <div class="card p-4 mb-4 border-danger">
+              <div class="text-sm text-danger font-medium mb-1">💰 Công nợ hiện tại</div>
+              <div class="text-2xl font-bold text-danger">${formatVND(data.currentDebt)}</div>
             </div>
           `;
         } else {
           html += `
-            <div class="bg-amber-50 rounded-xl p-4 mb-4 border border-green-200">
-              <div class="text-sm text-amber-600 font-medium mb-1">💰 Tình trạng</div>
-              <div class="text-xl font-bold text-amber-700">Không có công nợ</div>
+            <div class="card p-4 mb-4">
+              <div class="text-sm text-success font-medium mb-1">💰 Tình trạng</div>
+              <div class="text-xl font-bold text-success">Không có công nợ</div>
             </div>
           `;
         }
-        
+
         if (!data.transactions || data.transactions.length === 0) {
-          container.innerHTML = html + '<div class="text-center py-4 text-gray-500">Chưa có giao dịch công nợ</div>';
+          container.innerHTML = html + '<div class="text-center py-4 text-muted">Chưa có giao dịch công nợ</div>';
           return;
         }
-        
+
         data.transactions.forEach(item => {
           const isPayment = item.type === 'payment';
-          const amountClass = isPayment ? 'text-amber-600' : 'text-red-600';
+          const amountClass = isPayment ? 'text-success' : 'text-danger';
           const amountText = isPayment ? `-${formatVND(item.amount)}` : `+${formatVND(item.amount)}`;
-          
+
           html += `
-            <div class="bg-white rounded-xl p-4 shadow-sm border">
+            <div class="card p-4 mb-2">
               <div class="flex justify-between items-center">
-                <div class="font-bold">📅 ${formatDate(item.date)}</div>
+                <div class="font-bold text-main">📅 ${formatDate(item.date)}</div>
                 <div class="font-bold ${amountClass}">${amountText}</div>
               </div>
-              <div class="mt-2 text-sm text-gray-500">
+              <div class="mt-2 text-sm text-muted">
                 ${item.note || (isPayment ? 'Thanh toán' : 'Ghi nợ')}
               </div>
-              <div class="text-sm text-gray-500">
+              <div class="text-sm text-muted">
                 Còn lại: ${formatVND(item.balance_after || 0)}
               </div>
             </div>
@@ -186,7 +186,7 @@
         
         container.innerHTML = html;
       } catch (err) {
-        container.innerHTML = '<div class="text-center py-8 text-red-500">Lỗi tải dữ liệu</div>';
+        container.innerHTML = '<div class="text-center py-8 text-danger">Lỗi tải dữ liệu</div>';
       }
     }
 
@@ -196,73 +196,73 @@
       app.innerHTML = `
         <div class="max-w-md mx-auto bg-white min-h-screen">
           <!-- Header -->
-          <div class="bg-amber-600 text-white p-4 flex items-center gap-3 sticky top-0 z-10">
+          <div class="bg-primary text-white p-4 flex items-center gap-3 sticky top-0 z-10">
             <a href="/customers" class="text-2xl">←</a>
             <div class="flex-1">
               <h1 class="text-xl font-bold" id="customerName">Đang tải...</h1>
-              <p class="text-sm text-amber-100" id="customerPhone"></p>
+              <p class="text-sm text-white/70" id="customerPhone"></p>
             </div>
-            <button onclick="editCustomerInfo()" class="bg-white text-amber-600 px-3 py-1 rounded-lg text-sm font-medium">✏️ Sửa</button>
+            <button onclick="editCustomerInfo()" class="bg-white text-primary px-3 py-1 rounded-lg text-sm font-medium">✏️ Sửa</button>
           </div>
 
           <!-- Stats Cards -->
           <div class="p-4 space-y-3">
             <div class="grid grid-cols-2 gap-3">
-              <div class="bg-blue-50 rounded-xl p-4">
-                <div class="text-sm text-blue-600">📦 Vỏ đang giữ</div>
-                <div class="text-2xl font-bold text-blue-700" id="kegBalance">0</div>
+              <div class="card p-4">
+                <div class="text-sm text-info">📦 Vỏ đang giữ</div>
+                <div class="text-2xl font-bold text-info" id="kegBalance">0</div>
               </div>
-              <div class="bg-amber-50 rounded-xl p-4">
-                <div class="text-sm text-amber-600">💰 Tổng doanh thu</div>
-                <div class="text-xl font-bold text-amber-700" id="totalRevenue">0</div>
+              <div class="card p-4">
+                <div class="text-sm text-primary">💰 Tổng doanh thu</div>
+                <div class="text-xl font-bold text-primary"><span id="totalRevenue">0</span></div>
               </div>
             </div>
             <div class="grid grid-cols-2 gap-3">
-              <div class="bg-orange-50 rounded-xl p-4">
-                <div class="text-sm text-orange-600">🍺 Tháng này</div>
-                <div class="text-2xl font-bold text-orange-700"><span id="monthlyKegs">0</span> bình</div>
+              <div class="card p-4">
+                <div class="text-sm text-warning">🍺 Tháng này</div>
+                <div class="text-2xl font-bold text-warning"><span id="monthlyKegs">0</span> bình</div>
               </div>
-              <div class="bg-purple-50 rounded-xl p-4">
-                <div class="text-sm text-purple-600">🚚 Gần nhất</div>
-                <div class="text-lg font-bold text-purple-700" id="lastSale">--</div>
+              <div class="card p-4">
+                <div class="text-sm text-secondary">🚚 Gần nhất</div>
+                <div class="text-lg font-bold text-secondary" id="lastSale">--</div>
               </div>
             </div>
 
             <!-- Month Filter -->
-            <div class="bg-white rounded-xl p-4 border">
-              <label class="block text-sm font-medium mb-2">📅 Lọc theo tháng</label>
-              <select id="monthFilter" onchange="onMonthChange()" class="w-full border-2 border-gray-200 rounded-lg px-4 py-3 text-lg">
+            <div class="card p-4">
+              <label class="block text-sm font-medium text-main mb-2">📅 Lọc theo tháng</label>
+              <select id="monthFilter" onchange="onMonthChange()" class="w-full border-2 border-muted rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-primary">
                 ${getMonthOptions()}
               </select>
             </div>
 
             <!-- Fridge Info -->
-            <div class="bg-indigo-50 rounded-xl p-4 border border-indigo-200">
+            <div class="card p-4 border-secondary">
               <div class="flex items-center justify-between mb-2">
-                <div class="font-semibold text-indigo-800">❄️ Tủ lạnh</div>
+                <div class="font-semibold text-secondary">❄️ Tủ lạnh</div>
               </div>
               <div class="grid grid-cols-2 gap-3">
-                <div class="bg-white rounded-lg p-3 text-center">
-                  <div class="text-2xl font-bold text-indigo-600" id="horizontalFridgeCount">0</div>
-                  <div class="text-xs text-gray-500">Tủ nằm</div>
+                <div class="bg-bg rounded-lg p-3 text-center">
+                  <div class="text-2xl font-bold text-secondary" id="horizontalFridgeCount">0</div>
+                  <div class="text-xs text-muted">Tủ nằm</div>
                 </div>
-                <div class="bg-white rounded-lg p-3 text-center">
-                  <div class="text-2xl font-bold text-indigo-600" id="verticalFridgeCount">0</div>
-                  <div class="text-xs text-gray-500">Tủ đứng</div>
+                <div class="bg-bg rounded-lg p-3 text-center">
+                  <div class="text-2xl font-bold text-secondary" id="verticalFridgeCount">0</div>
+                  <div class="text-xs text-muted">Tủ đứng</div>
                 </div>
               </div>
             </div>
           </div>
 
           <!-- Tab Buttons -->
-          <div class="flex border-b border-gray-200 mb-3">
-            <button onclick="switchTab('history')" id="tab-history" class="flex-1 py-2 px-4 text-center font-medium text-amber-600 border-b-2 border-green-600">
+          <div class="flex border-b border-muted mb-3">
+            <button onclick="switchTab('history')" id="tab-history" class="flex-1 py-2 px-4 text-center font-medium text-primary border-b-2 border-primary">
               📋 Lịch sử
             </button>
-            <button onclick="switchTab('kegs')" id="tab-kegs" class="flex-1 py-2 px-4 text-center font-medium text-gray-500 border-b-2 border-transparent">
+            <button onclick="switchTab('kegs')" id="tab-kegs" class="flex-1 py-2 px-4 text-center font-medium text-muted border-b-2 border-transparent">
               🍺 Vỏ bình
             </button>
-            <button onclick="switchTab('debt')" id="tab-debt" class="flex-1 py-2 px-4 text-center font-medium text-gray-500 border-b-2 border-transparent">
+            <button onclick="switchTab('debt')" id="tab-debt" class="flex-1 py-2 px-4 text-center font-medium text-muted border-b-2 border-transparent">
               💰 Công nợ
             </button>
           </div>
@@ -270,27 +270,27 @@
           <!-- Sales History Tab -->
           <div id="tab-content-history">
             <div id="salesHistory" class="space-y-3">
-              <div class="text-center py-8 text-gray-500">Đang tải...</div>
+              <div class="text-center py-8 text-muted">Đang tải...</div>
             </div>
           </div>
 
           <!-- Kegs Tab -->
           <div id="tab-content-kegs" class="hidden">
             <div id="kegsContent" class="space-y-3">
-              <div class="text-center py-8 text-gray-500">Đang tải...</div>
+              <div class="text-center py-8 text-muted">Đang tải...</div>
             </div>
           </div>
 
           <!-- Debt Tab -->
           <div id="tab-content-debt" class="hidden">
             <div id="debtContent" class="space-y-3">
-              <div class="text-center py-8 text-gray-500">Đang tải...</div>
+              <div class="text-center py-8 text-muted">Đang tải...</div>
             </div>
           </div>
         </div>
 
         <!-- Bottom Nav -->
-        <nav class="bottomnav fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex justify-around py-2 z-40">
+        <nav class="bottomnav">
           <a href="/sale" class="flex flex-col items-center text-gray-500 p-2">
             <span class="text-xl">🏠</span>
             <span class="text-xs">Bán hàng</span>
@@ -381,7 +381,7 @@
     // Load sales history
     async function loadSalesHistory() {
       const container = document.getElementById('salesHistory');
-      container.innerHTML = '<div class="text-center py-8 text-gray-500">Đang tải...</div>';
+      container.innerHTML = '<div class="text-center py-8 text-muted">Đang tải...</div>';
       
       try {
         const filter = document.getElementById('monthFilter').value;
@@ -398,18 +398,18 @@
         let monthlySummaryHtml = '';
         if (filter && (data.monthlyTotal > 0 || data.monthlyQty > 0) && data.sales.length > 0) {
           monthlySummaryHtml = `
-            <div class="bg-amber-50 rounded-xl p-4 mb-4 border border-green-200">
-              <div class="text-sm text-amber-600 font-medium mb-2">📊 Tổng tháng ${filter}</div>
+            <div class="card p-4 mb-4">
+              <div class="text-sm text-primary font-medium mb-2">📊 Tổng tháng ${filter}</div>
               <div class="flex justify-between">
-                <div class="text-xl font-bold text-amber-700">${formatVND(data.monthlyTotal)}</div>
-                <div class="text-xl font-bold text-amber-700">${data.monthlyQty} bình</div>
+                <div class="money text-money text-xl">${formatVND(data.monthlyTotal)}</div>
+                <div class="text-xl font-bold text-primary">${data.monthlyQty} bình</div>
               </div>
             </div>
           `;
         }
         
         if (data.sales.length === 0) {
-          container.innerHTML = '<div class="text-center py-8 text-gray-500">Chưa có lịch sử giao hàng</div>';
+          container.innerHTML = '<div class="text-center py-8 text-muted">Chưa có lịch sử giao hàng</div>';
           return;
         }
         
@@ -420,40 +420,41 @@
           const isReplacement = sale.type === 'replacement';
           
           // Style for replacement orders
-          const dateClass = isReplacement ? 'text-orange-600' : 'text-amber-600';
-          const totalClass = isReplacement ? 'text-orange-600' : 'text-amber-600';
-          const dotClass = isReplacement ? 'bg-orange-500' : 'bg-amber-500';
-          
+          const dateClass = isReplacement ? 'text-warning' : 'text-primary';
+          const totalClass = isReplacement ? 'text-warning' : 'text-primary';
+          const dotClass = isReplacement ? 'bg-warning' : 'bg-primary';
+          const cardClass = isReplacement ? 'bg-warning/5' : '';
+
           html += `
             <div class="flex gap-3">
               <!-- Timeline line -->
               <div class="flex flex-col items-center">
                 <div class="w-3 h-3 ${dotClass} rounded-full"></div>
-                ${!isLast ? '<div class="w-0.5 bg-gray-300 flex-1 min-h-[60px]"></div>' : ''}
+                ${!isLast ? '<div class="w-0.5 bg-muted flex-1 min-h-[60px]"></div>' : ''}
               </div>
-              
+
               <!-- Timeline content -->
               <div class="flex-1 pb-4">
-                <div class="bg-white rounded-xl p-4 shadow-sm border ${isReplacement ? 'bg-orange-50' : ''}">
+                <div class="card p-4 ${cardClass}">
                   <div class="flex justify-between items-center mb-2">
                     <div class="font-bold ${dateClass}">📅 ${formatDate(sale.date)}${isReplacement ? ' 🔁' : ''}</div>
-                    <div class="font-bold ${totalClass}">${isReplacement ? '0 đ' : formatVND(sale.total)}</div>
+                    <div class="money text-money ${totalClass}">${isReplacement ? '0 đ' : formatVND(sale.total)}</div>
                   </div>
                   <div class="grid grid-cols-2 gap-2 text-sm">
-                    <div class="bg-yellow-50 rounded-lg p-2">
-                      <div class="text-yellow-600">🍺 Bia</div>
-                      <div class="font-bold">${sale.item_count || 0}</div>
+                    <div class="bg-primary/5 rounded-lg p-2">
+                      <div class="text-primary">🍺 Bia</div>
+                      <div class="font-bold text-main">${sale.item_count || 0}</div>
                     </div>
-                    <div class="bg-purple-50 rounded-lg p-2">
-                      <div class="text-purple-600">📦 Vỏ còn</div>
-                      <div class="font-bold">${sale.keg_balance_after || 0}</div>
+                    <div class="bg-secondary/10 rounded-lg p-2">
+                      <div class="text-secondary">📦 Vỏ còn</div>
+                      <div class="font-bold text-main">${sale.keg_balance_after || 0}</div>
                     </div>
                   </div>
-                  <div class="mt-2 pt-2 border-t flex justify-between text-sm">
-                    <span class="text-amber-600">+${sale.deliver_kegs || 0} giao</span>
-                    <span class="text-orange-600">-${sale.return_kegs || 0} thu</span>
+                  <div class="mt-2 pt-2 border-t border-muted flex justify-between text-sm">
+                    <span class="text-warning">+${sale.deliver_kegs || 0} giao</span>
+                    <span class="text-danger">-${sale.return_kegs || 0} thu</span>
                   </div>
-                  <button onclick="viewInvoice(${sale.id})" class="mt-3 w-full py-2 bg-blue-50 text-blue-600 rounded-lg text-sm font-medium hover:bg-blue-100">
+                  <button onclick="viewInvoice(${sale.id})" class="btn btn-secondary btn-sm w-full mt-3">
                     👁 Xem hóa đơn
                   </button>
                 </div>
@@ -465,7 +466,7 @@
         container.innerHTML = html;
       } catch (err) {
         console.error('Error loading sales:', err);
-        container.innerHTML = '<div class="text-center py-8 text-red-500">Lỗi tải dữ liệu</div>';
+        container.innerHTML = '<div class="text-center py-8 text-danger">Lỗi tải dữ liệu</div>';
       }
     }
 
@@ -521,26 +522,26 @@
 
       document.getElementById('invoiceContent').innerHTML = `
         <div class="text-center mb-4">
-          <div class="text-lg font-bold">HÓA ĐƠN #${sale.id}</div>
-          <div class="text-sm text-gray-500">${formatDate(sale.date)}</div>
+          <div class="text-lg font-bold text-main">HÓA ĐƠN #${sale.id}</div>
+          <div class="text-sm text-muted">${formatDate(sale.date)}</div>
         </div>
-        <div class="bg-gray-50 rounded-xl p-3 mb-4">
-          <div class="font-medium">${sale.customer_name}</div>
+        <div class="card p-3 mb-4">
+          <div class="font-medium text-main">${sale.customer_name}</div>
         </div>
         <div class="mb-4">
           ${itemsHtml}
         </div>
-        <div class="flex justify-between py-2 border-b">
-          <span>Tổng cộng:</span>
-          <span class="font-bold text-amber-600 text-2xl">${formatVND(sale.total)}</span>
+        <div class="flex justify-between py-2 border-b border-muted">
+          <span class="text-main">Tổng cộng:</span>
+          <span class="money text-money text-2xl">${formatVND(sale.total)}</span>
         </div>
-        ${sale.type === 'replacement' ? '<div class="text-center py-2 text-orange-600 font-bold">🔁 Đổi bia lỗi</div>' : ''}
+        ${sale.type === 'replacement' ? '<div class="text-center py-2 text-warning font-bold">🔁 Đổi bia lỗi</div>' : ''}
         ${(sale.deliver_kegs || sale.return_kegs) ? `
-        <div class="mt-4 bg-purple-50 rounded-xl p-3">
-          <div class="text-sm text-purple-600 font-medium mb-1">📦 Vỏ bình</div>
+        <div class="card p-3 mt-4">
+          <div class="text-sm text-secondary font-medium mb-1">📦 Vỏ bình</div>
           <div class="flex justify-between text-sm">
-            <span>Giao: +${sale.deliver_kegs || 0}</span>
-            <span>Thu: -${sale.return_kegs || 0}</span>
+            <span class="text-warning">Giao: +${sale.deliver_kegs || 0}</span>
+            <span class="text-danger">Thu: -${sale.return_kegs || 0}</span>
           </div>
         </div>
         ` : ''}

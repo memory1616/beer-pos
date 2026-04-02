@@ -208,7 +208,10 @@ function updateSaleTotal() {
   });
   
   const totalEl = document.getElementById('totalAmount');
-  if (totalEl) totalEl.textContent = formatVND(total);
+  if (totalEl) {
+    const formatted = formatVND(total).replace(' ₫', '');
+    totalEl.innerHTML = '<span class="value">' + formatted + '</span><span class="unit"> đ</span>';
+  }
   
   const itemCountEl = document.getElementById('itemCount');
   if (itemCountEl) itemCountEl.textContent = itemCount + ' items';
@@ -746,7 +749,8 @@ async function showInvoiceModal(saleId) {
   
   const invoiceTotal = document.getElementById('invoiceTotal');
   if (invoiceTotal) {
-    invoiceTotal.textContent = formatVND(sale.total || 0);
+    const formatted = formatVND(sale.total || 0).replace(' ₫', '');
+    invoiceTotal.innerHTML = '<span class="value">' + formatted + '</span><span class="unit"> đ</span>';
   }
   
   const qrSection = document.querySelector('#invoiceModal .mt-4.pt-4.border-t.border-gray-200');
@@ -915,52 +919,43 @@ async function loadSalesHistory() {
     const isGift = sale.type === 'gift';
 
     const badgeHtml = isReplacement
-      ? '<span class="text-xs font-bold text-gray-300">🔁 Đổi lỗi</span>'
+      ? '<span class="badge badge-warning">🔁 Đổi lỗi</span>'
       : isGift
-      ? '<span class="text-xs font-bold text-gray-300">🎁 Tặng thử</span>'
+      ? '<span class="badge badge-primary">🎁 Tặng thử</span>'
       : '';
     const badgeLeft = isReplacement
-      ? 'border-l-4 border-gray-600'
+      ? 'border-l-4 border-warning'
       : isGift
-      ? 'border-l-4 border-gray-600'
-      : 'border-l-4 border-green-400';
-
-    const totalColor = isGift || isReplacement ? 'text-gray-300' : 'text-green-400';
+      ? 'border-l-4 border-primary'
+      : 'border-l-4 border-success';
 
     const qtyLabel = itemsQty > 0 ? '📦 ' + itemsQty + 'L' : '';
+    const saleMoney = typeof Format !== 'undefined' ? Format.number(sale.total) : formatVND(sale.total).replace(' ₫', '');
 
     return `
-      <div class="bg-gray-800 rounded-xl p-4 space-y-3 ${badgeLeft}">
-        <!-- Dòng 1: Tên + ngày -->
-        <div class="flex justify-between items-center">
+      <div class="order-item ${badgeLeft}">
+        <div class="order-header">
           <div class="flex items-center gap-2 min-w-0 flex-1">
-            <span class="text-xs font-semibold text-gray-400 shrink-0">#${sale.id}</span>
-            <span class="font-semibold text-white truncate">${customerName}</span>
+            <span class="text-xs font-semibold text-muted shrink-0">#${sale.id}</span>
+            <span class="order-title">${customerName}</span>
             ${badgeHtml ? '<span class="shrink-0">' + badgeHtml + '</span>' : ''}
           </div>
-          <div class="text-sm text-gray-400 whitespace-nowrap shrink-0 ml-2">
-            🗓 ${date}
-          </div>
+          <span class="order-meta">📅 ${date}</span>
         </div>
 
-        <!-- Dòng 2: Tiền + số lượng -->
-        <div class="flex justify-between items-end">
-          <!-- Tiền -->
-          <div class="flex items-baseline gap-1 text-green-400 whitespace-nowrap">
-            <span class="text-2xl font-bold">${typeof Format !== 'undefined' ? Format.number(sale.total) : formatVND(sale.total).replace(' ₫', '')}</span>
-            <span class="text-sm opacity-70">đ</span>
+        <div class="order-footer">
+          <div class="flex items-baseline gap-1">
+            <span class="money text-money text-xl">${saleMoney} <span class="unit">đ</span></span>
           </div>
-          <!-- Số lượng -->
-          ${qtyLabel ? '<div class="text-sm text-gray-400 whitespace-nowrap">' + qtyLabel + '</div>' : ''}
+          ${qtyLabel ? '<span class="order-meta">' + qtyLabel + '</span>' : ''}
         </div>
 
-        <!-- Dòng 3: Actions -->
-        <div class="flex gap-2 pt-1">
-          <button onclick="viewSale(${sale.id})" class="flex-1 py-2 text-sm bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors">Hóa đơn</button>
+        <div class="order-actions">
+          <button onclick="viewSale(${sale.id})" class="btn btn-secondary btn-sm">Hóa đơn</button>
           ${!isReturned ? `
-          <button onclick="openCollectKegModal(${sale.id})" class="flex-1 py-2 text-sm bg-amber-500 text-white rounded-lg font-medium hover:bg-amber-600 transition-colors">Thu vỏ</button>
-          <button onclick="editSale(${sale.id})" class="flex-1 py-2 text-sm bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-500 transition-colors">Sửa</button>
-          <button onclick="deleteSale(${sale.id})" class="flex-1 py-2 text-sm bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors">Xóa</button>` : ''}
+          <button onclick="openCollectKegModal(${sale.id})" class="btn btn-warning btn-sm">Thu vỏ</button>
+          <button onclick="editSale(${sale.id})" class="btn btn-ghost btn-sm">Sửa</button>
+          <button onclick="deleteSale(${sale.id})" class="btn btn-danger btn-sm">Xóa</button>` : ''}
         </div>
       </div>
     `;
