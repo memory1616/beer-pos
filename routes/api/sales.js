@@ -263,7 +263,8 @@ router.get('/', (req, res) => {
   // Get paginated sales
   const offset = (page - 1) * limit;
   const sales = db.prepare(`
-    SELECT s.*, COALESCE(c.name, 'Khách lẻ') as customer_name 
+    SELECT s.*, COALESCE(c.name, 'Khách lẻ') as customer_name,
+      (SELECT COALESCE(SUM(si.quantity), 0) FROM sale_items si WHERE si.sale_id = s.id) as items_qty
     FROM sales s 
     LEFT JOIN customers c ON s.customer_id = c.id 
     ${whereClause}

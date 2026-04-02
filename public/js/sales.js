@@ -875,6 +875,18 @@ async function submitCollectKeg() {
   }
 }
 
+function formatSaleListDate(raw) {
+  if (!raw) return '—';
+  const s = String(raw).trim().split(/[\sT]/)[0];
+  const p = s.split('-');
+  if (p.length === 3) return p[2] + '/' + p[1] + '/' + p[0];
+  try {
+    return new Date(raw).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  } catch (e) {
+    return s;
+  }
+}
+
 // ========== SALES HISTORY RENDER ==========
 async function loadSalesHistory() {
   const { page, limit, month } = salesPagination;
@@ -894,16 +906,13 @@ async function loadSalesHistory() {
   
   container.innerHTML = '<div class="flex flex-col gap-2">' +
     salesHistory.map(sale => {
-    const date = new Date(sale.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const date = formatSaleListDate(sale.date);
     const customerName = sale.customer_name || 'Khách lẻ';
     const isReturned = sale.status === 'returned';
+    const itemsQty = parseInt(sale.items_qty, 10) || 0;
     
-    // ── Sales History Card — grid 2 cột: trái [#ID + tên], phải [ngày] (luôn cùng hàng, dễ nhìn)
-    // Dòng 2: 📦 Số lít bình (nếu có)
-    // Dòng 3: 💰 Tổng tiền
-    // Dòng 4: các nút hành động
-    const kegDisplay = (sale.deliver_kegs || 0) > 0 ? `📦 ${sale.deliver_kegs}L`
-      : (sale.return_kegs || 0) > 0 ? `🔄 ${sale.return_kegs}L`
+    const kegDisplay = (sale.deliver_kegs || 0) > 0 ? '📦 ' + sale.deliver_kegs + 'L'
+      : (sale.return_kegs || 0) > 0 ? '🔄 ' + sale.return_kegs + 'L'
       : '';
     const isReplacement = sale.type === 'replacement';
     const cardBg = sale.type === 'gift' ? 'bg-amber-50/60'
@@ -915,24 +924,23 @@ async function loadSalesHistory() {
     const totalColor = sale.type === 'gift' || sale.type === 'replacement' ? 'text-red-600'
       : 'text-green-600';
 
+    const kegRow = kegDisplay
+      ? '<div class="flex items-center gap-3 text-xs text-gray-500"><span>' + kegDisplay + '</span></div>'
+      : '';
+
     return `
       <div class="p-3 ${cardBg} ${leftBorder} rounded-xl shadow-sm hover:shadow-md transition-shadow">
         <div class="flex flex-col gap-0.5">
-          <!-- Hàng 1: grid — trái # + tên, phải ngày (không bị xuống dòng như flex hẹp) -->
-          <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 items-center w-full">
+          <div class="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-x-2 gap-y-1 items-center w-full">
             <div class="min-w-0 flex flex-wrap items-baseline gap-x-2 gap-y-0">
               <span class="text-xs font-semibold text-gray-400 shrink-0">#${sale.id}</span>
               <span class="text-base font-bold text-gray-900 break-words leading-tight">${customerName}</span>
             </div>
-            <span class="text-sm font-semibold text-gray-600 tabular-nums shrink-0 whitespace-nowrap text-right" title="Ngày bán">🗓 ${date}</span>
+            <span class="text-xs sm:text-sm font-bold text-amber-800 tabular-nums shrink-0 whitespace-nowrap text-right" title="Tổng số lượng đã bán">🍺 ${itemsQty}</span>
+            <span class="text-xs sm:text-sm font-semibold text-gray-600 tabular-nums shrink-0 whitespace-nowrap text-right" title="Ngày bán">🗓 ${date}</span>
           </div>
-          ${kegDisplay ? `<!-- Dòng 2: bình -->
-          <div class="flex items-center gap-3 text-xs text-gray-400">
-            <span>${kegDisplay}</span>
-          </div>` : ''}
-          <!-- Dòng 3: tổng tiền -->
+          ${kegRow}
           <div class="text-2xl font-bold ${totalColor} mt-0.5">💰 ${formatVND(sale.total)}</div>
-          <!-- Dòng 4: nút hành động -->
           <div class="flex items-center gap-1.5 mt-2 flex-wrap justify-between" onclick="event.stopPropagation()">
             <button onclick="viewSale(${sale.id})" class="flex-1 py-2 px-1 rounded-xl bg-blue-50 text-blue-600 text-xs font-bold hover:bg-blue-100 transition-colors text-center border border-blue-200">👁 Hoá Đơn</button>
             ${!isReturned ? `
