@@ -50,11 +50,7 @@ for i in 1 2 3; do
 done
 
 if echo "$GIT_PULL_OUTPUT" | grep -q "Already up to date."; then
-    log "No new commits to deploy"
-    if [ $STASHED -eq 1 ]; then
-        git stash pop
-    fi
-    exit 0
+    log "No new commits to pull"
 fi
 
 log "Git pull output: $GIT_PULL_OUTPUT"
@@ -63,8 +59,6 @@ log "Git pull output: $GIT_PULL_OUTPUT"
 if [ $STASHED -eq 1 ]; then
     git stash pop 2>/dev/null || true
 fi
-
-# ── 2. Install dependencies (if needed) ──
 if [ -f "package.json" ] && [ "package.json" -nt "node_modules" ]; then
     log_step "Installing npm dependencies..."
     npm install --production 2>&1 | tail -5
