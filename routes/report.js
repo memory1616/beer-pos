@@ -257,6 +257,10 @@ router.get('/', (req, res) => {
           <div class="text-2xl mb-1">👥</div>
           <div class="text-xs font-semibold text-blue-700">Lợi nhuận<br>khách hàng</div>
         </a>
+        <a href="/report/import-purchases" class="card text-center py-4 bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200 hover:shadow-md transition-all">
+          <div class="text-2xl mb-1">📥</div>
+          <div class="text-xs font-semibold text-emerald-800">Báo cáo<br>nhập hàng</div>
+        </a>
       </div>
     </div>
 
@@ -855,16 +859,24 @@ router.get('/profit-customer', (req, res) => {
       c.name,
       COUNT(s.id) as total_orders,
       SUM(s.total) as revenue,
-      SUM(s.profit) as profit
+      SUM(s.profit) as profit,
+      (SELECT COALESCE(SUM(si.quantity), 0)
+       FROM sale_items si
+       JOIN sales s2 ON s2.id = si.sale_id
+       WHERE s2.customer_id = c.id
+         AND (s2.status IS NULL OR s2.status != 'returned')
+         AND s2.type = 'sale'
+         AND date(s2.date) >= date(?) AND date(s2.date) <= date(?)) as total_bins
     FROM sales s
     JOIN customers c ON c.id = s.customer_id
     WHERE (s.status IS NULL OR s.status != 'returned') AND s.type = 'sale' AND c.archived = 0
       AND date(s.date) >= date(?) AND date(s.date) <= date(?)
     GROUP BY c.id ORDER BY profit DESC
-  `).all(startDay, endDay);
+  `).all(startDay, endDay, startDay, endDay);
 
   const totalRevenue = customers.reduce((sum, r) => sum + (r.revenue || 0), 0);
   const totalProfit = customers.reduce((sum, r) => sum + (r.profit || 0), 0);
+  const totalBins = customers.reduce((sum, r) => sum + (r.total_bins || 0), 0);
 
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth() + 1;
@@ -926,14 +938,18 @@ router.get('/profit-customer', (req, res) => {
       <div class="text-xs text-gray-500 mt-1">Đang xem: ${labelThangNam}</div>
     </div>
     <div class="mb-4 shadow-lg rounded-2xl p-4" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: #fff;">
-      <div class="grid grid-cols-2 gap-3 text-center py-2">
+      <div class="grid grid-cols-3 gap-2 text-center py-2">
         <div>
           <div class="text-xs" style="opacity: 0.9;">Tổng doanh thu</div>
-          <div class="font-bold text-lg">${formatVND(totalRevenue)}</div>
+          <div class="font-bold text-sm sm:text-lg leading-tight">${formatVND(totalRevenue)}</div>
         </div>
         <div>
           <div class="text-xs" style="opacity: 0.9;">Tổng lợi nhuận</div>
-          <div class="font-bold text-lg">${formatVND(totalProfit)}</div>
+          <div class="font-bold text-sm sm:text-lg leading-tight">${formatVND(totalProfit)}</div>
+        </div>
+        <div>
+          <div class="text-xs" style="opacity: 0.9;">Tổng số bình</div>
+          <div class="font-bold text-lg">${totalBins}</div>
         </div>
       </div>
     </div>
@@ -945,7 +961,7 @@ router.get('/profit-customer', (req, res) => {
               <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm ${i === 0 ? 'bg-gradient-to-br from-yellow-400 to-yellow-500 text-yellow-900' : i === 1 ? 'bg-gradient-to-br from-gray-300 to-gray-400 text-gray-700' : i === 2 ? 'bg-gradient-to-br from-orange-300 to-orange-400 text-orange-900' : 'bg-gray-100 text-gray-600'}">${i + 1}</div>
               <div>
                 <div class="font-bold">${c.name}</div>
-                <div class="text-xs text-gray-500">${c.total_orders} đơn hàng</div>
+                <div class="text-xs text-gray-500">${c.total_orders} đơn hàng · ${c.total_bins || 0} bình</div>
               </div>
             </div>
             <div class="text-right">
@@ -964,6 +980,213 @@ router.get('/profit-customer', (req, res) => {
       const m = document.getElementById('selMonth').value;
       const y = document.getElementById('selYear').value;
       window.location.href = '/report/profit-customer?month=' + m + '&year=' + y;
+    }
+    (function() {
+      var el = document.getElementById('bottomNavContainer');
+      if (el && typeof getBottomNav === 'function') el.innerHTML = getBottomNav('/report');
+    })();
+  </script>
+</body>
+</html>
+  `);
+});
+
+// GET /report/import-purchases - Báo cáo nhập hàng (theo tháng - năm, giống profit-customer)
+router.get('/import-purchases', (req, res) => {
+  const { month, year, startDate, endDate } = req.query;
+
+  const now = new Date();
+  let startStr, endStr, labelThangNam;
+
+  if (month && year) {
+    const y = parseInt(year, 10);
+    const m = parseInt(month, 10);
+    const lastDay = new Date(y, m, 0).getDate();
+    startStr = `${y}-${String(m).padStart(2, '0')}-01`;
+    endStr = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    const thang = ['', 'Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6', 'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'][m];
+    labelThangNam = thang + ' / ' + y;
+  } else if (startDate && endDate) {
+    startStr = startDate.split(' ')[0];
+    endStr = endDate.split(' ')[0];
+    labelThangNam = startStr + ' → ' + endStr;
+  } else {
+    const y = now.getFullYear();
+    const m = now.getMonth() + 1;
+    const lastDay = new Date(y, m, 0).getDate();
+    startStr = `${y}-${String(m).padStart(2, '0')}-01`;
+    endStr = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    const thang = ['', 'Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6', 'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'][m];
+    labelThangNam = thang + ' / ' + y;
+  }
+
+  const startDay = startStr.split(' ')[0];
+  const endDay = endStr.split(' ')[0];
+
+  const totals = db.prepare(`
+    SELECT COUNT(*) as slip_count, COALESCE(SUM(total_amount), 0) as total_amount
+    FROM purchases p
+    WHERE date(p.date) >= date(?) AND date(p.date) <= date(?)
+  `).get(startDay, endDay);
+
+  const qtyRow = db.prepare(`
+    SELECT COALESCE(SUM(pi.quantity), 0) as total_qty
+    FROM purchase_items pi
+    JOIN purchases p ON p.id = pi.purchase_id
+    WHERE date(p.date) >= date(?) AND date(p.date) <= date(?)
+  `).get(startDay, endDay);
+
+  const purchasesList = db.prepare(`
+    SELECT p.id, p.date, p.total_amount, p.note,
+      (SELECT GROUP_CONCAT(pi.quantity || '× ' || pr.name)
+       FROM purchase_items pi JOIN products pr ON pi.product_id = pr.id WHERE pi.purchase_id = p.id) as items_summary,
+      (SELECT COUNT(*) FROM purchase_items WHERE purchase_id = p.id) as line_count
+    FROM purchases p
+    WHERE date(p.date) >= date(?) AND date(p.date) <= date(?)
+    ORDER BY datetime(p.date) DESC, p.id DESC
+  `).all(startDay, endDay);
+
+  const byProduct = db.prepare(`
+    SELECT pr.id, pr.name,
+      SUM(pi.quantity) as qty,
+      COALESCE(SUM(pi.total_price), 0) as amount
+    FROM purchase_items pi
+    JOIN purchases p ON p.id = pi.purchase_id
+    JOIN products pr ON pr.id = pi.product_id
+    WHERE date(p.date) >= date(?) AND date(p.date) <= date(?)
+    GROUP BY pr.id
+    ORDER BY amount DESC, qty DESC
+  `).all(startDay, endDay);
+
+  const slipCount = totals?.slip_count || 0;
+  const totalAmount = totals?.total_amount || 0;
+  const totalQty = qtyRow?.total_qty || 0;
+
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  const selectedMonth = month ? parseInt(month, 10) : currentMonth;
+  const selectedYear = year ? parseInt(year, 10) : currentYear;
+
+  const monthOptions = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(m =>
+    '<option value="' + m + '"' + (m === selectedMonth ? ' selected' : '') + '>Tháng ' + m + '</option>'
+  ).join('');
+  const yearOptions = [currentYear, currentYear - 1, currentYear - 2].map(y =>
+    '<option value="' + y + '"' + (y === selectedYear ? ' selected' : '') + '>' + y + '</option>'
+  ).join('');
+
+  function formatPurchaseDay(raw) {
+    if (!raw) return '—';
+    const s = String(raw).trim().split(/[\sT]/)[0];
+    const p = s.split('-');
+    if (p.length === 3) return p[2] + '/' + p[1] + '/' + p[0];
+    return s;
+  }
+
+  res.send(`
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Báo cáo nhập hàng - Beer POS</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#f59e0b">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="icon" type="image/png" href="/icon-192.png">
+  <link rel="stylesheet" href="/css/tailwind.css">
+  <link rel="stylesheet" href="/css/unified.css">
+  <script src="/js/dark-mode.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/layout.js?v=20260403"></script>
+  <style>
+    .bottomnav { max-width: 500px; margin: auto; }
+    .filter-wrap { overflow: visible !important; }
+  </style>
+</head>
+<body class="bg-gray-100 text-gray-800 min-h-screen pb-20">
+  <header class="sticky top-0 bg-white border-b z-50">
+    <div class="flex items-center justify-between px-4 h-12 max-w-md mx-auto">
+      <div class="flex items-center gap-2">
+        <a href="/report" class="text-gray-500">←</a>
+        <span class="font-semibold text-sm">Báo cáo nhập hàng</span>
+      </div>
+    </div>
+  </header>
+  <main class="p-4 pt-14 pb-24 max-w-md mx-auto">
+    <div style="background: #fef3c7; border-radius: 16px; border: 2px solid #f59e0b; padding: 16px; margin-bottom: 16px; overflow: visible;">
+      <div class="flex items-center gap-2 mb-3">
+        <span style="color: #92400e; font-size: 14px; font-weight: 600;">📅 Theo tháng - năm</span>
+      </div>
+      <div class="flex gap-2 items-center">
+        <select id="selMonthImp" style="flex: 1; border: 2px solid #f59e0b; border-radius: 8px; padding: 10px 12px; font-size: 14px; background: white; color: #1f2937; min-width: 0; outline: none;">
+          ${monthOptions}
+        </select>
+        <select id="selYearImp" style="flex: 1; border: 2px solid #f59e0b; border-radius: 8px; padding: 10px 12px; font-size: 14px; background: white; color: #1f2937; min-width: 0; outline: none;">
+          ${yearOptions}
+        </select>
+        <button type="button" onclick="applyMonthYearImport()" style="background: #ea580c; color: white; border: none; border-radius: 8px; padding: 8px 16px; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap;">Xem</button>
+      </div>
+      <div class="text-xs text-gray-500 mt-1">Đang xem: ${labelThangNam}</div>
+    </div>
+    <div class="mb-4 shadow-lg rounded-2xl p-4" style="background: linear-gradient(135deg, #059669 0%, #0d9488 100%); color: #fff;">
+      <div class="grid grid-cols-3 gap-2 text-center py-2">
+        <div>
+          <div class="text-xs" style="opacity: 0.9;">Tổng tiền nhập</div>
+          <div class="font-bold text-sm leading-tight">${formatVND(totalAmount)}</div>
+        </div>
+        <div>
+          <div class="text-xs" style="opacity: 0.9;">Số phiếu</div>
+          <div class="font-bold text-lg">${slipCount}</div>
+        </div>
+        <div>
+          <div class="text-xs" style="opacity: 0.9;">Tổng SL</div>
+          <div class="font-bold text-lg">${totalQty}</div>
+        </div>
+      </div>
+    </div>
+    <div class="section-title text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Chi tiết phiếu nhập</div>
+    <div class="space-y-2 mb-6">
+      ${purchasesList.length === 0 ? '<div class="text-gray-500 text-center py-4 bg-white rounded-xl border border-amber-100">Chưa có phiếu nhập trong tháng này</div>' : purchasesList.map((p) => `
+        <div class="card border-amber-200 bg-white hover:shadow-md transition-all">
+          <div class="flex justify-between items-start gap-2 mb-1">
+            <div class="font-bold text-gray-900">#${p.id}</div>
+            <div class="text-xs font-medium text-gray-600 whitespace-nowrap">🗓 ${formatPurchaseDay(p.date)}</div>
+          </div>
+          <div class="text-lg font-bold text-emerald-700 mb-1">${formatVND(p.total_amount || 0)}</div>
+          ${p.items_summary ? `<div class="text-xs text-gray-600 leading-snug">${String(p.items_summary).replace(/,/g, ', ')}</div>` : ''}
+          ${p.note ? `<div class="text-xs text-gray-500 mt-1 italic">${String(p.note)}</div>` : ''}
+        </div>
+      `).join('')}
+    </div>
+    <div class="section-title text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Tổng hợp theo sản phẩm</div>
+    <div class="space-y-2">
+      ${byProduct.length === 0 ? '<div class="text-gray-500 text-center py-4 bg-white rounded-xl border border-amber-100">Không có dòng hàng</div>' : byProduct.map((row, i) => `
+        <div class="card border-emerald-100 hover:shadow-md transition-all">
+          <div class="flex justify-between items-center gap-2">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shadow-sm shrink-0 ${i === 0 ? 'bg-gradient-to-br from-amber-300 to-amber-400 text-amber-900' : 'bg-emerald-50 text-emerald-800'}">${i + 1}</div>
+              <div class="min-w-0">
+                <div class="font-bold truncate">${row.name}</div>
+                <div class="text-xs text-gray-500">${row.qty} đơn vị</div>
+              </div>
+            </div>
+            <div class="text-right shrink-0">
+              <div class="font-bold text-emerald-700">${formatVND(row.amount || 0)}</div>
+            </div>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+    <p class="text-center mt-4"><a href="/purchases?tab=history" class="text-sm text-amber-700 font-semibold underline">Mở trang nhập hàng</a></p>
+  </main>
+  <div id="bottomNavContainer"></div>
+  <script>if (!isLoggedIn()) { window.location.href = '/login'; }</script>
+  <script>
+    function applyMonthYearImport() {
+      var m = document.getElementById('selMonthImp').value;
+      var y = document.getElementById('selYearImp').value;
+      window.location.href = '/report/import-purchases?month=' + m + '&year=' + y;
     }
     (function() {
       var el = document.getElementById('bottomNavContainer');

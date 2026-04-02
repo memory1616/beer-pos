@@ -898,9 +898,8 @@ async function loadSalesHistory() {
     const customerName = sale.customer_name || 'Khách lẻ';
     const isReturned = sale.status === 'returned';
     
-    // ── Sales History Card v3 — layout block chuẩn mobile ──
-    // Dòng 1: [#ID] Tên khách · Badge trạng thái
-    // Dòng 2: 🗓 Ngày · 📦 Số lít bình
+    // ── Sales History Card — grid 2 cột: trái [#ID + tên], phải [ngày] (luôn cùng hàng, dễ nhìn)
+    // Dòng 2: 📦 Số lít bình (nếu có)
     // Dòng 3: 💰 Tổng tiền
     // Dòng 4: các nút hành động
     const kegDisplay = (sale.deliver_kegs || 0) > 0 ? `📦 ${sale.deliver_kegs}L`
@@ -919,16 +918,18 @@ async function loadSalesHistory() {
     return `
       <div class="p-3 ${cardBg} ${leftBorder} rounded-xl shadow-sm hover:shadow-md transition-shadow">
         <div class="flex flex-col gap-0.5">
-          <!-- Dòng 1: ID + tên -->
-          <div class="flex items-center gap-2 flex-wrap">
-            <span class="text-xs font-semibold text-gray-400">#${sale.id}</span>
-            <span class="text-base font-bold text-gray-900">${customerName}</span>
+          <!-- Hàng 1: grid — trái # + tên, phải ngày (không bị xuống dòng như flex hẹp) -->
+          <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 items-center w-full">
+            <div class="min-w-0 flex flex-wrap items-baseline gap-x-2 gap-y-0">
+              <span class="text-xs font-semibold text-gray-400 shrink-0">#${sale.id}</span>
+              <span class="text-base font-bold text-gray-900 break-words leading-tight">${customerName}</span>
+            </div>
+            <span class="text-sm font-semibold text-gray-600 tabular-nums shrink-0 whitespace-nowrap text-right" title="Ngày bán">🗓 ${date}</span>
           </div>
-          <!-- Dòng 2: ngày + bình -->
+          ${kegDisplay ? `<!-- Dòng 2: bình -->
           <div class="flex items-center gap-3 text-xs text-gray-400">
-            <span>🗓 ${date}</span>
-            ${kegDisplay ? `<span>${kegDisplay}</span>` : ''}
-          </div>
+            <span>${kegDisplay}</span>
+          </div>` : ''}
           <!-- Dòng 3: tổng tiền -->
           <div class="text-2xl font-bold ${totalColor} mt-0.5">💰 ${formatVND(sale.total)}</div>
           <!-- Dòng 4: nút hành động -->
