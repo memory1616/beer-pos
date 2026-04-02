@@ -27,6 +27,8 @@
     .card { transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s, background 0.2s; }
     .card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
     .card.active { border: 2px solid #f97316 !important; background: #fff7ed !important; }
+    #sellBtn.active { animation: pulse 0.4s ease; }
+    @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.02); } 100% { transform: scale(1); } }
     button:active { transform: scale(0.96); }
   </style>
 </head>
@@ -64,10 +66,10 @@
         <div class="text-xl font-bold text-gray-900">📦 Cập nhật vỏ bình</div>
       </div>
       
-      <div class="bg-amber-50 border-2 border-amber-200 rounded-xl p-4 mb-4">
+      <div class="bg-orange-50 border-2 border-orange-200 rounded-xl p-4 mb-4">
         <div class="text-center">
-          <div class="text-xs font-semibold text-amber-700 mb-1">Bia đã bán</div>
-          <div class="text-3xl font-bold text-amber-800" id="kegBeerQuantity">0</div>
+          <div class="text-xs font-semibold text-orange-700 mb-1">Bia đã bán</div>
+          <div class="text-3xl font-bold text-orange-800" id="kegBeerQuantity">0</div>
         </div>
       </div>
       
@@ -77,7 +79,7 @@
           <div class="flex gap-2 items-center">
             <button onclick="addKegDeliver(10)" class="w-14 py-3 bg-green-100 text-green-700 rounded-lg font-bold">+10</button>
             <button onclick="addKegDeliver(20)" class="w-14 py-3 bg-green-100 text-green-700 rounded-lg font-bold">+20</button>
-            <input type="number" id="kegDeliver" value="0" class="flex-1 min-w-0 border-2 border-amber-300 rounded-xl px-3 py-3 text-center text-lg font-bold focus:border-amber-400 focus:outline-none" inputmode="numeric"
+            <input type="number" id="kegDeliver" value="0" class="flex-1 min-w-0 border-2 border-gray-200 rounded-xl px-3 py-3 text-center text-lg font-bold focus:border-orange-400 focus:outline-none" inputmode="numeric"
               oninput="updateKegModalPreview()" onchange="updateKegModalPreview()">
           </div>
         </div>
@@ -88,7 +90,7 @@
             <button onclick="addKegReturn(10)" class="w-14 py-3 bg-orange-100 text-orange-700 rounded-lg font-bold">+10</button>
             <button onclick="addKegReturn(20)" class="w-14 py-3 bg-orange-100 text-orange-700 rounded-lg font-bold">+20</button>
             <button onclick="returnAllKegs()" class="px-2 py-3 bg-red-100 text-red-700 rounded-lg font-bold text-xs">Hết</button>
-            <input type="number" id="kegReturn" value="0" class="flex-1 min-w-0 border-2 border-amber-300 rounded-xl px-3 py-3 text-center text-lg font-bold focus:border-amber-400 focus:outline-none" inputmode="numeric"
+            <input type="number" id="kegReturn" value="0" class="flex-1 min-w-0 border-2 border-gray-200 rounded-xl px-3 py-3 text-center text-lg font-bold focus:border-orange-400 focus:outline-none" inputmode="numeric"
               oninput="updateKegModalPreview()" onchange="updateKegModalPreview()">
           </div>
         </div>
@@ -109,7 +111,7 @@
         </div>
       </div>
       
-      <button onclick="saveKegUpdate()" id="kegSaveBtn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-2xl text-lg shadow-lg transition-all">
+      <button onclick="saveKegUpdate()" id="kegSaveBtn" class="w-full h-14 flex items-center justify-center font-semibold rounded-xl text-base bg-green-600 hover:bg-green-700 text-white transition-all">
         💾 Lưu
       </button>
     </div>
@@ -128,15 +130,15 @@
       <div class="mb-4">
         <label class="block text-sm font-medium text-gray-700 mb-2">Số vỏ thu về</label>
         <input type="number" id="collectKegQty"
-          class="w-full border-2 border-amber-300 rounded-xl px-4 py-3 text-center text-2xl font-bold focus:border-amber-400 focus:outline-none"
+          class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-center text-2xl font-bold focus:border-orange-400 focus:outline-none"
           min="0" inputmode="numeric"
           oninput="updateCollectKegPreview()" onchange="updateCollectKegPreview()">
         <div class="text-xs text-gray-400 mt-1 text-center">Nhập số vỏ thu về (tối đa = số vỏ còn lại)</div>
       </div>
 
       <div class="flex gap-3">
-        <button onclick="closeCollectKegModal()" class="flex-1 py-3 bg-gray-100 text-gray-600 font-semibold rounded-xl hover:bg-gray-200 transition-colors">Huỷ</button>
-        <button onclick="submitCollectKeg()" class="flex-1 py-3 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl transition-colors shadow">Xác nhận</button>
+        <button onclick="closeCollectKegModal()" class="flex-1 h-14 flex items-center justify-center font-semibold rounded-xl text-base bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">Huỷ</button>
+        <button onclick="submitCollectKeg()" class="flex-1 h-14 flex items-center justify-center font-semibold rounded-xl text-base bg-orange-500 hover:bg-orange-600 text-white transition-colors">Xác nhận</button>
       </div>
     </div>
   </div>
@@ -148,42 +150,42 @@
       <div class="text-xl font-bold text-gray-900 mb-4">🔄 Đổi bia lỗi</div>
       <div class="space-y-4">
         <div id="giftGuestRow" class="hidden">
-          <label class="block text-xs font-semibold text-amber-700 mb-2">👤 Tên khách tặng</label>
-          <input type="text" id="giftGuestName" placeholder="Nhập tên khách (không bắt buộc)" class="w-full border-2 border-amber-200 rounded-xl px-4 py-3 bg-white focus:border-amber-400 focus:outline-none">
+          <label class="block text-xs font-semibold text-orange-700 mb-2">👤 Tên khách tặng</label>
+          <input type="text" id="giftGuestName" placeholder="Nhập tên khách (không bắt buộc)" class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-white focus:border-orange-400 focus:outline-none">
         </div>
         <div id="replacementCustomerRow">
-          <label class="block text-xs font-semibold text-amber-700 mb-2">👤 Khách hàng</label>
-          <select id="replacementCustomer" onchange="loadReplacementProducts()" class="w-full border-2 border-amber-300 rounded-xl px-4 py-3 bg-white focus:border-amber-400 focus:outline-none">
+          <label class="block text-xs font-semibold text-orange-700 mb-2">👤 Khách hàng</label>
+          <select id="replacementCustomer" onchange="loadReplacementProducts()" class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-white focus:border-orange-400 focus:outline-none">
             <option value="">-- Chọn khách hàng --</option>
           </select>
         </div>
         <div>
-          <label class="block text-xs font-semibold text-amber-700 mb-2">📦 Sản phẩm</label>
-          <select id="replacementProduct" class="w-full border-2 border-amber-300 rounded-xl px-4 py-3 bg-white focus:border-amber-400 focus:outline-none">
+          <label class="block text-xs font-semibold text-orange-700 mb-2">📦 Sản phẩm</label>
+          <select id="replacementProduct" class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-white focus:border-orange-400 focus:outline-none">
             <option value="">-- Chọn sản phẩm --</option>
           </select>
         </div>
         <div>
-          <label class="block text-xs font-semibold text-amber-700 mb-2">Số lượng</label>
-          <input type="number" id="replacementQty" value="1" min="1" class="w-full border-2 border-amber-300 rounded-xl px-4 py-3 text-center text-xl font-bold focus:border-amber-400 focus:outline-none">
+          <label class="block text-xs font-semibold text-orange-700 mb-2">Số lượng</label>
+          <input type="number" id="replacementQty" value="1" min="1" class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-center text-xl font-bold focus:border-orange-400 focus:outline-none">
         </div>
         <div>
-          <label class="block text-xs font-semibold text-amber-700 mb-2">Lý do</label>
-          <select id="replacementReason" class="w-full border-2 border-amber-300 rounded-xl px-4 py-3 bg-white focus:border-amber-400 focus:outline-none">
+          <label class="block text-xs font-semibold text-orange-700 mb-2">Lý do</label>
+          <select id="replacementReason" class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-white focus:border-orange-400 focus:outline-none">
             <option value="Bia hư">Bia hư</option>
             <option value="Bia chua">Bia chua</option>
             <option value="Bia hết hạn">Bia hết hạn</option>
             <option value="Khác">Khác</option>
           </select>
         </div>
-        <div class="grid grid-cols-[auto_minmax(0,1fr)] gap-3 items-start bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+        <div class="grid grid-cols-[auto_minmax(0,1fr)] gap-3 items-start bg-orange-50 border border-orange-200 rounded-xl px-4 py-3">
           <input type="checkbox" id="giftKegs" onchange="toggleGiftMode()" class="w-5 h-5 mt-0.5 accent-orange-500 self-start">
-          <label for="giftKegs" class="block max-w-full text-sm font-semibold text-amber-800 leading-snug break-words">
+          <label for="giftKegs" class="block max-w-full text-sm font-semibold text-orange-800 leading-snug break-words">
             🎁 Tặng uống thử (khách mới — vỏ keg vào kho vỏ rỗng ngay)
           </label>
         </div>
       </div>
-      <button type="button" onclick="submitReplacement()" class="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-4 rounded-2xl text-lg mt-4 shadow-md transition-colors">Xác nhận đổi</button>
+      <button type="button" onclick="submitReplacement()" class="w-full h-14 flex items-center justify-center font-semibold rounded-xl text-base bg-orange-500 hover:bg-orange-600 text-white transition-all mt-4">Xác nhận đổi</button>
     </div>
   </div>
 
@@ -228,8 +230,8 @@
 
         <div id="contentSection" class="hidden">
           <div class="card mb-4" style="border: 1px solid #e5e7eb;">
-            <label class="block text-xs font-semibold text-amber-700 mb-2">👤 Chọn khách hàng (không bắt buộc)</label>
-            <select id="customerSelect" onchange="updatePrices()" class="w-full border-2 border-amber-400 rounded-xl px-4 py-3 text-lg bg-white focus:ring-2 focus:ring-amber-400 focus:border-amber-400 text-gray-800">
+            <label class="block text-xs font-semibold text-orange-700 mb-2">👤 Chọn khách hàng (không bắt buộc)</label>
+            <select id="customerSelect" onchange="updatePrices()" class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-lg bg-white focus:ring-2 focus:ring-orange-400 focus:border-orange-400 text-gray-800">
               <option value="">📋 Khách lẻ (giá thường)</option>
             </select>
           </div>
@@ -238,23 +240,23 @@
             <h3 class="font-bold text-base text-gray-800 mb-3">📦 Sản phẩm</h3>
             <div id="saleProducts" class="space-y-3 mb-3">
             </div>
-            <div class="border-t-2 border-amber-200 pt-3 mt-3">
+            <div class="border-t-2 border-orange-200 pt-3 mt-3">
               <div class="flex justify-between items-center mb-3">
                 <span class="font-bold text-gray-700">Tổng tiền:</span>
                 <span id="totalAmount" class="text-2xl font-bold text-green-600">0 ₫</span>
               </div>
               <div id="saleCartPreview" class="mb-3 px-3 py-2 min-h-[3.5rem] flex flex-col justify-center text-gray-700" aria-live="polite">
               </div>
-              <button type="button" onclick="submitSale()" id="sellBtn" class="w-full min-h-[3.25rem] flex items-center justify-center font-bold py-3.5 rounded-2xl text-lg bg-green-600 border-2 border-green-700 text-white shadow-lg transition-all opacity-50 cursor-not-allowed" disabled>
-                ✔ Bán Hàng
+              <button type="button" onclick="submitSale()" id="sellBtn" class="w-full h-14 flex items-center justify-center font-semibold rounded-xl text-base bg-green-600 hover:bg-green-700 text-white transition-all opacity-50 cursor-not-allowed disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                <span class="mr-2">✔</span> Bán hàng
               </button>
-              <button type="button" onclick="openReplacementModal()" class="w-full mt-2 bg-red-50 text-red-600 font-bold py-3.5 rounded-2xl text-lg border border-red-200 hover:bg-red-100 transition-colors">
-                🔄 Đổi bia lỗi
+              <button type="button" onclick="openReplacementModal()" class="w-full h-14 mt-2 flex items-center justify-center font-semibold rounded-xl text-base border border-red-200 text-red-600 bg-white hover:bg-red-50 transition-all">
+                <span class="mr-2">🔄</span> Đổi bia lỗi
               </button>
-              <button type="button" onclick="updateSale()" id="updateBtn" class="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-4 rounded-2xl text-lg shadow-md hidden">
-                💾 Cập nhật
+              <button type="button" onclick="updateSale()" id="updateBtn" class="w-full h-14 flex items-center justify-center font-semibold rounded-xl text-base bg-orange-500 hover:bg-orange-600 text-white transition-all hidden">
+                <span class="mr-2">💾</span> Cập nhật
               </button>
-              <button type="button" onclick="cancelEdit()" id="cancelEditBtn" class="w-full mt-2 bg-gray-400 text-white font-bold py-3 rounded-2xl text-lg hidden">
+              <button type="button" onclick="cancelEdit()" id="cancelEditBtn" class="w-full h-14 mt-2 flex items-center justify-center font-semibold rounded-xl text-base bg-gray-400 hover:bg-gray-500 text-white transition-all hidden">
                 Huỷ
               </button>
             </div>
