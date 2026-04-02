@@ -76,20 +76,23 @@ router.get('/', (req, res, next) => {
   const selYm = selectedYear * 100 + selectedMonth;
   const totalExpenseLabel = curYm === selYm ? 'Tổng chi phí tháng này' : ('Tổng chi phí — ' + labelThangNam);
 
-  // Bộ lọc nằm trong thẻ đỏ để luôn thấy (không chỉ khối vàng phía trên)
-  const filterInsideSummaryHtml =
-    '<div class="mb-4 pb-4 border-b border-white/25">' +
-    '<div class="text-xs font-semibold text-white/95 mb-2">📅 Lọc theo tháng &amp; năm</div>' +
-    '<div class="flex gap-2 items-stretch flex-wrap">' +
-    '<select id="expSelMonth" class="flex-1 min-w-[108px] rounded-lg px-3 py-2.5 text-sm text-gray-900 bg-white border-0 shadow-sm">' +
+  // Bộ lọc giống /report/profit-customer (nền vàng, viền cam)
+  const selectStyle = 'flex: 1; border: 2px solid #f59e0b; border-radius: 8px; padding: 10px 12px; font-size: 14px; background: white; color: #1f2937; min-width: 0; outline: none;';
+  const filterBlockHtml =
+    '<div style="background: #fef3c7; border-radius: 16px; border: 2px solid #f59e0b; padding: 16px; margin-bottom: 16px; overflow: visible;">' +
+    '<div class="flex items-center gap-2 mb-3">' +
+    '<span style="color: #92400e; font-size: 14px; font-weight: 600;">📅 Lọc theo tháng &amp; năm</span>' +
+    '</div>' +
+    '<div class="flex gap-2 items-center flex-wrap">' +
+    '<select id="expSelMonth" style="' + selectStyle + ' min-width: 108px;">' +
     monthOptions +
     '</select>' +
-    '<select id="expSelYear" class="flex-1 min-w-[88px] rounded-lg px-3 py-2.5 text-sm text-gray-900 bg-white border-0 shadow-sm">' +
+    '<select id="expSelYear" style="' + selectStyle + ' min-width: 88px;">' +
     yearOptions +
     '</select>' +
-    '<button type="button" onclick="applyExpMonthYear()" class="shrink-0 bg-white text-red-600 font-bold px-4 py-2.5 rounded-lg text-sm shadow-sm active:scale-[0.98]">Xem</button>' +
+    '<button type="button" onclick="applyExpMonthYear()" style="background: #ea580c; color: white; border: none; border-radius: 8px; padding: 8px 16px; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap;">Xem</button>' +
     '</div>' +
-    '<p class="text-xs text-white/85 mt-2">Đang xem: <strong>' + labelThangNam + '</strong></p>' +
+    '<div class="text-xs text-gray-500 mt-2">Đang xem: <strong>' + labelThangNam + '</strong></div>' +
     '</div>';
 
   // Expense categories (defaults + custom from DB)
@@ -127,9 +130,9 @@ router.get('/', (req, res, next) => {
       return '<div class="flex justify-between items-center py-3 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors px-2 -mx-2 rounded-lg">' +
         '<div class="flex items-center gap-3">' +
           '<span class="text-xl">' + icon + '</span>' +
-          '<span class="text-gray-700 font-medium">' + c.category + '</span>' +
+          '<span class="text-gray-800 font-bold">' + c.category + '</span>' +
         '</div>' +
-        '<span class="font-bold text-red-600">' + formatVND(c.total) + '</span>' +
+        '<span class="font-bold text-blue-600">' + formatVND(c.total) + '</span>' +
         '</div>';
     }).join('');
   } else {
@@ -147,13 +150,13 @@ router.get('/', (req, res, next) => {
         '<div class="flex items-center gap-3 flex-1">' +
         '<span class="text-2xl">' + icon + '</span>' +
         '<div class="flex-1">' +
-        '<div class="font-semibold text-gray-800">' + e.category + '</div>' +
+        '<div class="font-bold text-gray-800">' + e.category + '</div>' +
         '<div class="text-sm text-gray-500">' + desc + '</div>' +
         '<div class="text-xs text-gray-400 mt-0.5">' + dateStr + '</div>' +
         '</div>' +
         '</div>' +
         '<div class="text-right ml-3">' +
-        '<div class="font-bold text-red-600 text-lg">' + formatVND(e.amount) + '</div>' +
+        '<div class="font-bold text-blue-600 text-lg">' + formatVND(e.amount) + '</div>' +
         '<div class="flex gap-2 mt-1 justify-end">' +
         '<button onclick="editExpense(' + e.id + ', \'' + (e.category || '').replace(/'/g, "\\'").replace(/"/g, '\\"') + '\', ' + e.amount + ', \'' + e.date + '\', \'' + (e.description || '').replace(/'/g, "\\'").replace(/"/g, '\\"') + '\')" class="text-xs text-blue-500 hover:text-blue-700 px-2 py-1 hover:bg-blue-50 rounded">Sửa</button>' +
         '<button onclick="deleteExpense(' + e.id + ')" class="text-xs text-red-400 hover:text-red-600 px-2 py-1 hover:bg-red-50 rounded">Xóa</button>' +
@@ -199,7 +202,7 @@ router.get('/', (req, res, next) => {
 '  <div id="app"></div>' +
 '' +
 '  <!-- Floating Add Button -->' +
-'  <button onclick="showModal(\'addExpenseModal\')" class="fixed bottom-24 right-4 w-14 h-14 bg-red-600 text-white rounded-full shadow-xl flex items-center justify-center text-2xl font-bold transition-all duration-200 hover:scale-105 z-40">' +
+'  <button onclick="showModal(\'addExpenseModal\')" class="fixed bottom-24 right-4 w-14 h-14 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-xl flex items-center justify-center text-2xl font-bold transition-all duration-200 hover:scale-105 z-40">' +
 '    +' +
 '  </button>' +
 '' +
@@ -212,31 +215,31 @@ router.get('/', (req, res, next) => {
 '        <div>' +
 '          <label class="block text-sm font-medium text-gray-700 mb-1">Loại chi phí</label>' +
 '          <div class="flex gap-2 items-start">' +
-'            <select name="category" required id="catSelect" onchange="onCatChange(this.value)" class="flex-1 w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-red-500">' +
+'            <select name="category" required id="catSelect" onchange="onCatChange(this.value)" class="flex-1 w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-blue-500">' +
 '              <option value="">-- Chọn loại --</option>' +
               optionsHtml +
 '              <option value="__custom__">+ Thêm loại mới...</option>' +
 '            </select>' +
-'            <button type="button" onclick="showAddCategoryModal()" title="Thêm loại chi phí" class="flex-shrink-0 w-10 h-10 bg-red-100 hover:bg-red-200 text-red-600 rounded-lg flex items-center justify-center text-lg font-bold mt-0.5 transition-colors">+</button>' +
+'            <button type="button" onclick="showAddCategoryModal()" title="Thêm loại chi phí" class="flex-shrink-0 w-10 h-10 bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-lg flex items-center justify-center text-lg font-bold mt-0.5 transition-colors">+</button>' +
 '          </div>' +
-'          <input type="text" id="customCatInput" placeholder="Nhập tên loại chi phí mới..." class="hidden mt-2 w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-red-500">' +
+'          <input type="text" id="customCatInput" placeholder="Nhập tên loại chi phí mới..." class="hidden mt-2 w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-blue-500">' +
 '        </div>' +
 '        <div>' +
 '          <label class="block text-sm font-medium text-gray-700 mb-1">Số tiền (VNĐ)</label>' +
-'          <input type="text" name="amount" required min="1000" step="1000" data-format-number class="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-red-500" placeholder="Nhập số tiền" inputmode="decimal">' +
+'          <input type="text" name="amount" required min="1000" step="1000" data-format-number class="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-blue-500" placeholder="Nhập số tiền" inputmode="decimal">' +
 '        </div>' +
 '        <div>' +
 '          <label class="block text-sm font-medium text-gray-700 mb-1">Ngày</label>' +
-'          <input type="date" name="date" required value="' + today + '" class="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-red-500">' +
+'          <input type="date" name="date" required value="' + today + '" class="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-blue-500">' +
 '        </div>' +
 '        <div>' +
 '          <label class="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>' +
-'          <textarea name="description" rows="2" class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-red-500" placeholder="Ghi chú thêm (tùy chọn)"></textarea>' +
+'          <textarea name="description" rows="2" class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500" placeholder="Ghi chú thêm (tùy chọn)"></textarea>' +
 '        </div>' +
 '      </form>' +
 '      <div class="flex gap-2 mt-4">' +
 '        <button type="button" onclick="hideModal(\'addExpenseModal\')" class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-3 rounded-lg">Hủy</button>' +
-'        <button type="button" onclick="submitExpense()" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-3 rounded-lg">Lưu</button>' +
+'        <button type="button" onclick="submitExpense()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg">Lưu</button>' +
 '      </div>' +
 '    </div>' +
 '  </div>' +
@@ -245,11 +248,11 @@ router.get('/', (req, res, next) => {
 '  <div id="addCategoryModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4">' +
 '    <div class="bg-white rounded-xl p-6 max-w-sm w-full">' +
 '      <h3 class="text-lg font-bold text-gray-800 mb-4">Thêm loại chi phí mới</h3>' +
-'      <input type="text" id="newCategoryName" maxlength="30" placeholder="VD: Thuê xe, Quảng cáo..." class="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-red-500 focus:outline-none mb-3">' +
+'      <input type="text" id="newCategoryName" maxlength="30" placeholder="VD: Thuê xe, Quảng cáo..." class="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-blue-500 focus:outline-none mb-3">' +
 '      <p id="newCatError" class="hidden text-red-500 text-sm mb-2"></p>' +
 '      <div class="flex gap-2">' +
 '        <button onclick="hideAddCategory()" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 rounded-lg transition-colors">Hủy</button>' +
-'        <button onclick="saveNewCategory()" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-3 rounded-lg transition-colors">Lưu</button>' +
+'        <button onclick="saveNewCategory()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition-colors">Lưu</button>' +
 '      </div>' +
 '    </div>' +
 '  </div>' +
@@ -325,17 +328,17 @@ router.get('/', (req, res, next) => {
 '  <script>' +
 '    (async function() {' +
 '      document.getElementById("app").innerHTML = getHeader("Chi phí", "💸") + getContent(`' +
-'        <div class="mb-4 p-5 bg-gradient-to-r from-red-500 to-red-600 rounded-xl shadow-lg text-white">' +
-        filterInsideSummaryHtml +
-'        <div class="text-sm opacity-90">' + totalExpenseLabel + '</div>' +
-'        <div class="text-3xl font-bold">' + formatVND(monthExpenses.total) + '</div>' +
+        filterBlockHtml +
+'        <div class="mb-4 shadow-lg rounded-2xl p-5" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: #fff;">' +
+'        <div class="text-sm text-center" style="opacity: 0.9;">' + totalExpenseLabel + '</div>' +
+'        <div class="text-3xl font-bold text-center mt-1">' + formatVND(monthExpenses.total) + '</div>' +
 '        </div>' +
-'        <div class="bg-white rounded-xl shadow-sm border-2 border-amber-200 p-4 mb-4">' +
-'          <h3 class="font-semibold text-gray-700 mb-3">📊 Chi phí theo loại</h3>' +
+'        <div class="card mb-4">' +
+'          <h3 class="font-bold text-gray-800 mb-3">📊 Chi phí theo loại</h3>' +
 '          <div>' + categoryHtml + '</div>' +
 '        </div>' +
-'        <div class="bg-white rounded-xl shadow-sm border-2 border-amber-200 p-4">' +
-'          <h3 class="font-semibold text-gray-700 mb-3">📋 Chi phí gần đây</h3>' +
+'        <div class="card">' +
+'          <h3 class="font-bold text-gray-800 mb-1">📋 Chi phí gần đây</h3>' +
 '          <p class="text-xs text-gray-500 -mt-2 mb-3">Trong kỳ đã chọn (tối đa 50 dòng)</p>' +
 '          <div>' + expensesHtml + '</div>' +
 '        </div>' +
