@@ -398,7 +398,7 @@ router.get('/', (req, res, next) => {
         await updateDistances();
         
         const totalDist = withDistances.reduce((sum, d) => sum + d.distance, 0);
-        alert('Đã tối ưu lộ trình! (đường đi thực tế)\nTổng khoảng cách: ' + totalDist.toFixed(1) + ' km');
+        alert('Đã tối ưu lộ trình! (đường đi thực tế)\\nTổng khoảng cách: ' + totalDist.toFixed(1) + ' km');
       } catch (e) {
         console.error('Route optimization error:', e);
         alert('Lỗi tối ưu lộ trình: ' + e.message);
