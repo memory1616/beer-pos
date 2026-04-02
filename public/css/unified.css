@@ -1092,7 +1092,8 @@ main.page-enter.p-4 {
 [data-theme="dark"] [style*="background:#f9fafb"] { background: #1e293b !important; }
 
 /* ── Additional semantic dark-mode overrides ── */
-[data-theme="dark"] .bg-gradient-to-r { background-image: linear-gradient(to right, rgba(251,191,36,0.3), rgba(251,191,36,0.15)) !important; }
+/* Do not override .bg-gradient-to-r globally: it replaced real from-/to- stops with a faint
+   amber wash, making text-white invisible on many buttons (only colorful emoji remained). */
 [data-theme="dark"] .text-opacity-90 { --tw-text-opacity: 0.9; }
 [data-theme="dark"] .shadow-sm { --tw-shadow-color: rgba(0,0,0,0.3); }
 [data-theme="dark"] .shadow-md { --tw-shadow-color: rgba(0,0,0,0.3); }
