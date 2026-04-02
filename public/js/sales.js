@@ -219,7 +219,7 @@ function updateSaleTotal() {
   const previewEl = document.getElementById('saleCartPreview');
   if (previewEl) {
     if (!cartHtml) {
-      previewEl.innerHTML = '<p class="text-center text-gray-500 text-sm leading-snug px-1">Chưa có hàng trong giỏ — nhập <span class="text-amber-700 font-semibold">Số lượng</span> (và <span class="text-amber-700 font-semibold">giá</span> nếu khách lẻ)</p>';
+      previewEl.innerHTML = '<div class="max-h-40 overflow-y-auto">' + cartHtml + '</div>';
     } else {
       previewEl.innerHTML = '<div class="text-xs font-bold text-amber-800 mb-1">Đơn đang bán</div><div class="max-h-40 overflow-y-auto">' + cartHtml + '</div>';
     }
@@ -915,17 +915,17 @@ async function loadSalesHistory() {
     const isGift = sale.type === 'gift';
 
     const badgeHtml = isReplacement
-      ? '<span class="text-xs font-bold text-yellow-300">🔁 Đổi lỗi</span>'
+      ? '<span class="text-xs font-bold text-gray-300">🔁 Đổi lỗi</span>'
       : isGift
-      ? '<span class="text-xs font-bold text-yellow-300">🎁 Tặng thử</span>'
+      ? '<span class="text-xs font-bold text-gray-300">🎁 Tặng thử</span>'
       : '';
     const badgeLeft = isReplacement
-      ? 'border-l-4 border-yellow-400'
+      ? 'border-l-4 border-gray-600'
       : isGift
-      ? 'border-l-4 border-amber-400'
+      ? 'border-l-4 border-gray-600'
       : 'border-l-4 border-green-400';
 
-    const totalColor = isGift || isReplacement ? 'text-yellow-300' : 'text-green-400';
+    const totalColor = isGift || isReplacement ? 'text-gray-300' : 'text-green-400';
 
     const qtyLabel = itemsQty > 0 ? '📦 ' + itemsQty + 'L' : '';
 
