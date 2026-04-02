@@ -302,6 +302,7 @@ app.use('/admin', (req, res) => res.redirect(req.path === '/admin' ? '/' : req.p
 app.use('/api/customers', require('./routes/api/customers'));
 app.use('/api/products', require('./routes/api/products'));
 app.use('/api/sales', require('./routes/api/sales'));
+app.use('/api/orders', require('./routes/api/orders'));
 app.use('/api/payments', require('./routes/api/payments'));
 app.use('/api/stock', require('./routes/api/stock'));
 app.use('/api/kegs', require('./routes/api/kegs'));

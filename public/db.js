@@ -3,6 +3,7 @@
 
 // Create Dexie database
 const db = new Dexie('BeerPOS');
+window.db = db; // expose for sync-orders.js
 
 // Define schema — version 3 matches routing columns
 db.version(3).stores({
