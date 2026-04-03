@@ -6,30 +6,20 @@ let products = [];
 let priceMap = {};
 let customers = [];
 let editingSaleId = null;
-/** true khi đang mở luồng Đổi bia lỗi — hiện Cập nhật/Huỷ trên form chính */
-let replacementFlowActive = false;
 let saleData = {};
 
-/** Nút Bán hàng vs Cập nhật/Huỷ: chỉ khi sửa HĐ hoặc đổi bia lỗi */
-function syncSaleActionButtons() {
-  const sellBtn = document.getElementById('sellBtn');
-  const updateBtn = document.getElementById('updateBtn');
-  const cancelEditBtn = document.getElementById('cancelEditBtn');
-  if (!sellBtn || !updateBtn || !cancelEditBtn) return;
-  const showEditActions = editingSaleId != null || replacementFlowActive;
-  sellBtn.classList.toggle('hidden', showEditActions);
-  updateBtn.classList.toggle('hidden', !showEditActions);
-  cancelEditBtn.classList.toggle('hidden', !showEditActions);
-}
-
-function confirmSaleFormAction() {
-  if (editingSaleId != null) return updateSale();
-  if (replacementFlowActive) return submitReplacement();
-}
-
-function cancelSaleFormAction() {
-  if (editingSaleId != null) return cancelEdit();
-  if (replacementFlowActive) return closeReplacementModal();
+/** Thanh Cập nhật/Huỷ khi sửa hóa đơn (không nằm cùng cụm Bán hàng / Đổi bia) */
+function syncSaleEditAuxSheet() {
+  const sheet = document.getElementById('saleEditAuxSheet');
+  const repBtn = document.getElementById('replacementOpenBtn');
+  const editing = editingSaleId != null;
+  if (sheet) sheet.classList.toggle('hidden', !editing);
+  if (repBtn) {
+    repBtn.disabled = editing;
+    repBtn.classList.toggle('opacity-50', editing);
+    repBtn.classList.toggle('cursor-not-allowed', editing);
+    repBtn.classList.toggle('pointer-events-none', editing);
+  }
 }
 
 /** Giá bán mặc định từ sản phẩm (SQLite / Dexie có thể dùng sell_price hoặc price) */
@@ -110,7 +100,7 @@ function initSalesPage(data) {
   // Load history
   loadSalesHistory();
 
-  syncSaleActionButtons();
+  syncSaleEditAuxSheet();
 }
 
 // Global keg state for validation
@@ -357,8 +347,10 @@ function updateSaleTotal() {
 
   const sellBtn = document.getElementById('sellBtn');
   if (sellBtn) {
-    sellBtn.disabled = !hasItems;
-    if (hasItems) {
+    const editing = editingSaleId != null;
+    const canSell = !editing && hasItems;
+    sellBtn.disabled = !canSell;
+    if (canSell) {
       sellBtn.classList.remove('opacity-50', 'cursor-not-allowed');
       sellBtn.classList.add('shadow-md', 'hover:from-green-600', 'hover:to-green-700');
     } else {
@@ -726,9 +718,6 @@ function openReplacementModal() {
   document.getElementById('giftGuestName').value = '';
   toggleGiftMode();
 
-  replacementFlowActive = true;
-  syncSaleActionButtons();
-
   document.getElementById('replacementModal').classList.remove('hidden');
   document.getElementById('replacementModal').classList.add('flex');
 }
@@ -748,8 +737,6 @@ function toggleGiftMode() {
 function closeReplacementModal() {
   document.getElementById('replacementModal').classList.add('hidden');
   document.getElementById('replacementModal').classList.remove('flex');
-  replacementFlowActive = false;
-  syncSaleActionButtons();
 }
 
 function loadReplacementProducts() {
@@ -1438,14 +1425,14 @@ async function editSale(id) {
   const res = await fetch('/api/sales/' + id);
   const sale = await res.json();
 
-  if (replacementFlowActive) {
-    document.getElementById('replacementModal').classList.add('hidden');
-    document.getElementById('replacementModal').classList.remove('flex');
-    replacementFlowActive = false;
+  const repModal = document.getElementById('replacementModal');
+  if (repModal && repModal.classList.contains('flex')) {
+    repModal.classList.add('hidden');
+    repModal.classList.remove('flex');
   }
 
   editingSaleId = id;
-  syncSaleActionButtons();
+  syncSaleEditAuxSheet();
 
   document.getElementById('customerSelect').value = sale.customer_id || '';
 
@@ -1511,7 +1498,7 @@ function cancelEdit() {
   editingSaleId = null;
   saleData = {};
 
-  syncSaleActionButtons();
+  syncSaleEditAuxSheet();
 
   document.getElementById('customerSelect').value = '';
   document.getElementById('saleDeliverKegs').value = 0;

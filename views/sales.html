@@ -203,7 +203,10 @@
           </label>
         </div>
       </div>
-      <button type="button" onclick="submitReplacement()" class="btn btn-warning w-full h-14 mt-4">Xác nhận đổi</button>
+      <div class="flex gap-2 mt-4">
+        <button type="button" onclick="closeReplacementModal()" class="btn btn-ghost flex-1 h-14">Huỷ</button>
+        <button type="button" onclick="submitReplacement()" class="btn btn-warning flex-1 h-14"><span class="mr-1">💾</span> Cập nhật</button>
+      </div>
     </div>
   </div>
 
@@ -211,7 +214,7 @@
   <script src="/sync-orders.js"></script>
   <script src="/js/utils.js"></script>
   <script src="/js/format.js"></script>
-  <script src="/js/sales.js?v=20260408"></script>
+  <script src="/js/sales.js?v=20260409"></script>
 
   <script>
     async function loadData() {
@@ -269,14 +272,8 @@
               <button type="button" onclick="submitSale()" id="sellBtn" class="btn btn-primary w-full h-14 mb-2" disabled>
                 <span class="mr-2">✔</span> Bán hàng
               </button>
-              <button type="button" onclick="openReplacementModal()" class="btn btn-ghost w-full h-14 mb-2 text-danger border-danger hover:bg-danger/10">
+              <button type="button" id="replacementOpenBtn" onclick="openReplacementModal()" class="btn btn-ghost w-full h-14 mb-2 text-danger border-danger hover:bg-danger/10">
                 <span class="mr-2">🔄</span> Đổi bia lỗi
-              </button>
-              <button type="button" onclick="confirmSaleFormAction()" id="updateBtn" class="btn btn-warning w-full h-14 hidden">
-                <span class="mr-2">💾</span> Cập nhật
-              </button>
-              <button type="button" onclick="cancelSaleFormAction()" id="cancelEditBtn" class="btn btn-ghost w-full h-14 hidden">
-                Huỷ
               </button>
             </div>
           </div>
@@ -318,6 +315,16 @@
               </div>
             </div>
             <div id="saleKegWarning" class="hidden mt-2 text-xs text-danger text-center">⚠️ Không đủ vỏ trong kho!</div>
+          </div>
+
+          <!-- Modal phụ: Cập nhật / Huỷ khi sửa hóa đơn (cố định phía trên bottom nav) -->
+          <div id="saleEditAuxSheet" class="hidden fixed left-0 right-0 z-[60] px-3 pt-3 pb-2 border-t-2 border-warning bg-card shadow-[0_-6px_24px_rgba(0,0,0,0.12)] rounded-t-2xl max-w-[500px] mx-auto"
+            style="bottom: calc(var(--bottomnav-height, 64px) + env(safe-area-inset-bottom, 0px));">
+            <div class="text-xs font-semibold text-warning text-center mb-2">Đang sửa hóa đơn</div>
+            <div class="flex gap-2">
+              <button type="button" onclick="cancelEdit()" class="btn btn-ghost flex-1 h-12">Huỷ</button>
+              <button type="button" onclick="updateSale()" class="btn btn-warning flex-1 h-12"><span class="mr-1">💾</span> Cập nhật</button>
+            </div>
           </div>
         </div>
         `) +

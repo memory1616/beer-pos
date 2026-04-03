@@ -57,7 +57,11 @@ function initDashboard(data) {
       todayRevenueEl.textContent = 'Chưa có dữ liệu hôm nay';
       todayRevenueEl.className = 'text-base font-medium text-muted italic';
     } else {
-      setMoneyAmount(todayRevenueEl, todayRevenue, 'text-primary', { size: 'stat' });
+      // Cùng cỡ số với ô vỏ bình (text-2xl), không dùng hàng phụ “bình”
+      setMoneyAmount(todayRevenueEl, todayRevenue, 'text-money', {
+        numClass: 'text-2xl font-bold tabular-nums tracking-tight leading-none whitespace-nowrap',
+        sufClass: 'text-sm font-semibold mb-0.5 opacity-80 shrink-0 tabular-nums'
+      });
     }
   }
 
@@ -180,7 +184,6 @@ function initDashboard(data) {
     if (list) {
       list.innerHTML = data.kpiAlerts.map(c => {
         const shortfall = Math.round(Number(c.shortfall) || 0);
-        const monthlyQty = Number(c.monthly_qty) || 0;
         let colorClass = 'text-warning';
         if (shortfall > 50) {
           colorClass = 'text-danger';
@@ -198,7 +201,6 @@ function initDashboard(data) {
           '</div>' +
           '<div class="text-right">' +
             '<span class="font-bold ' + colorClass + '">-' + shortfall + ' bình</span>' +
-            '<span class="text-muted text-xs ml-1">(' + monthlyQty + ' đã lấy)</span>' +
           '</div>' +
         '</div>';
       }).join('');
