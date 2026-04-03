@@ -12,17 +12,22 @@ router.get('/', (req, res, next) => {
     SELECT * FROM customers WHERE archived = 0 AND lat IS NOT NULL AND lng IS NOT NULL ORDER BY name
   `).all();
 
-  const settings = db.prepare('SELECT * FROM settings').all();
-  const settingsObj = {};
-  settings.forEach(s => settingsObj[s.key] = s.value);
-
-  // Parse numeric settings safely for JS embedding
+  // Safe defaults in case DB returns empty
   const numSettings = {
-    delivery_cost_per_km: parseFloat(settingsObj.delivery_cost_per_km) || 3000,
-    delivery_base_cost: parseFloat(settingsObj.delivery_base_cost) || 0,
-    distributor_lat: parseFloat(settingsObj.distributor_lat) || 10.8231,
-    distributor_lng: parseFloat(settingsObj.distributor_lng) || 106.6297,
+    delivery_cost_per_km: 3000,
+    delivery_base_cost: 0,
+    distributor_lat: 10.8231,
+    distributor_lng: 106.6297,
   };
+  const settings = db.prepare('SELECT * FROM settings').all();
+  if (settings.length > 0) {
+    const settingsObj = {};
+    settings.forEach(s => settingsObj[s.key] = s.value);
+    const p = parseFloat(settingsObj.delivery_cost_per_km);     if (!isNaN(p)) numSettings.delivery_cost_per_km = p;
+    const b = parseFloat(settingsObj.delivery_base_cost);       if (!isNaN(b)) numSettings.delivery_base_cost = b;
+    const la = parseFloat(settingsObj.distributor_lat);         if (!isNaN(la)) numSettings.distributor_lat = la;
+    const lo = parseFloat(settingsObj.distributor_lng);        if (!isNaN(lo)) numSettings.distributor_lng = lo;
+  }
 
   // Check if Google API key is configured
   const hasGoogleApi = process.env.GOOGLE_MAPS_API_KEY ? true : false;
@@ -142,13 +147,13 @@ router.get('/', (req, res, next) => {
       <div class="space-y-4">
         <div>
           <label class="block text-sm font-medium text-main mb-1">Phí/km (đ)</label>
-          <input type="number" id="deliveryCostPerKm" value="${settingsObj.delivery_cost_per_km || 3000}"
+          <input type="number" id="deliveryCostPerKm" value="${numSettings.delivery_cost_per_km}"
                  class="w-full border border-muted rounded-lg px-3 py-2" min="0" step="100">
         </div>
 
         <div>
           <label class="block text-sm font-medium text-main mb-1">Phí cơ bản (đ)</label>
-          <input type="number" id="deliveryBaseCost" value="${settingsObj.delivery_base_cost || 0}"
+          <input type="number" id="deliveryBaseCost" value="${numSettings.delivery_base_cost}"
                  class="w-full border border-muted rounded-lg px-3 py-2" min="0">
         </div>
 
@@ -157,12 +162,12 @@ router.get('/', (req, res, next) => {
           <div class="grid grid-cols-2 gap-2">
             <div>
               <label class="text-xs text-muted">Vĩ độ</label>
-              <input type="number" id="distributorLat" value="${settingsObj.distributor_lat || 10.8231}"
+              <input type="number" id="distributorLat" value="${numSettings.distributor_lat}"
                      class="w-full border border-muted rounded-lg px-3 py-2" step="0.0001">
             </div>
             <div>
               <label class="text-xs text-muted">Kinh độ</label>
-              <input type="number" id="distributorLng" value="${settingsObj.distributor_lng || 106.6297}"
+              <input type="number" id="distributorLng" value="${numSettings.distributor_lng}"
                      class="w-full border border-muted rounded-lg px-3 py-2" step="0.0001">
             </div>
           </div>
@@ -204,10 +209,10 @@ router.get('/', (req, res, next) => {
     const customers = ${JSON.stringify(customers)};
     const hasGoogleApi = ${hasGoogleApi};
     const defaultSettings = {
-      deliveryCostPerKm: ${numSettings.delivery_cost_per_km},
-      deliveryBaseCost: ${numSettings.delivery_base_cost},
-      distributorLat: ${numSettings.distributor_lat},
-      distributorLng: ${numSettings.distributor_lng}
+      deliveryCostPerKm: ${numSettings.delivery_cost_per_km ?? 0},
+      deliveryBaseCost: ${numSettings.delivery_base_cost ?? 0},
+      distributorLat: ${numSettings.distributor_lat ?? 0},
+      distributorLng: ${numSettings.distributor_lng ?? 0}
     };
 
     let currentLat = null;
@@ -552,8 +557,8 @@ router.get('/', (req, res, next) => {
 
     // Initialize map
     const mapCenter = [
-      ${numSettings.distributor_lat},
-      ${numSettings.distributor_lng}
+      ${numSettings.distributor_lat ?? 0},
+      ${numSettings.distributor_lng ?? 0}
     ];
     map = L.map('map').setView(mapCenter, 12);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
