@@ -77,9 +77,18 @@ function initSalesPage(data) {
   // Giá: ưu tiên priceMap cùng /sale/data, sau đó (nếu online) làm mới từ API
   updatePrices();
 
+  // Load keg state for inventory validation
+  fetch('/api/kegs/state')
+    .then(res => res.json())
+    .then(state => { kegState = state; })
+    .catch(() => {});
+
   // Load history
   loadSalesHistory();
 }
+
+// Global keg state for validation
+let kegState = {};
 
 function renderSaleProducts() {
   const container = document.getElementById('saleProducts');
@@ -306,6 +315,59 @@ function updateSaleTotal() {
   }
 }
 
+function updateKegSaleSection(customerId) {
+  const section = document.getElementById('kegSaleSection');
+  if (!section) return;
+
+  const deliverInput = document.getElementById('saleDeliverKegs');
+  const returnInput = document.getElementById('saleReturnKegs');
+  const balanceEl = document.getElementById('saleKegBalance');
+  const afterEl = document.getElementById('saleKegAfter');
+  const warningEl = document.getElementById('saleKegWarning');
+
+  if (!customerId) {
+    section.classList.add('hidden');
+    return;
+  }
+
+  section.classList.remove('hidden');
+
+  const customer = customers.find(c => c.id == customerId);
+  const currentBalance = customer ? (customer.keg_balance || 0) : 0;
+  if (balanceEl) balanceEl.textContent = currentBalance + ' vỏ';
+
+  updateSaleKegPreview();
+}
+
+function updateSaleKegPreview() {
+  const customerId = document.getElementById('customerSelect').value;
+  const deliverInput = document.getElementById('saleDeliverKegs');
+  const returnInput = document.getElementById('saleReturnKegs');
+  const balanceEl = document.getElementById('saleKegBalance');
+  const afterEl = document.getElementById('saleKegAfter');
+  const warningEl = document.getElementById('saleKegWarning');
+
+  const deliver = parseInt(deliverInput?.value) || 0;
+  const returned = parseInt(returnInput?.value) || 0;
+
+  const customer = customers.find(c => c.id == customerId);
+  const currentBalance = customer ? (customer.keg_balance || 0) : 0;
+  const afterBalance = currentBalance + deliver - returned;
+
+  if (afterEl) afterEl.textContent = afterBalance + ' vỏ';
+  if (balanceEl) balanceEl.textContent = currentBalance + ' vỏ';
+
+  // Check inventory
+  if (kegState && deliver > kegState.inventory) {
+    if (warningEl) {
+      warningEl.classList.remove('hidden');
+      warningEl.textContent = '⚠️ Không đủ vỏ! Kho chỉ còn ' + (kegState.inventory || 0) + ' vỏ';
+    }
+  } else {
+    if (warningEl) warningEl.classList.add('hidden');
+  }
+}
+
 // Quick add product for fast sales
 function quickAddProduct(amount) {
   const customerId = document.getElementById('customerSelect').value;
@@ -357,6 +419,7 @@ function updatePrices() {
   applyResolvedPrices(customerId, null);
   renderSaleProducts();
   updateSaleTotal();
+  updateKegSaleSection(customerId);
 
   if (!customerId || !navigator.onLine) {
     return;
@@ -438,6 +501,11 @@ async function submitSale() {
 
   if (items.length === 0) return showToast('Chưa chọn sản phẩm nào', 'error');
 
+  const deliverKegs = parseInt(document.getElementById('saleDeliverKegs')?.value) || 0;
+  if (deliverKegs > 0 && kegState.inventory < deliverKegs) {
+    return showToast('Không đủ vỏ! Kho chỉ còn ' + kegState.inventory + ' vỏ', 'error');
+  }
+
   // STEP 6: Validate totals
   let total = items.reduce((sum, item) => sum + item.quantity * item.price, 0);
   if (total === 0) return showToast('Tổng tiền bằng 0, vui lòng kiểm tra lại giá sản phẩm', 'error');
@@ -463,8 +531,8 @@ async function submitSale() {
       body: JSON.stringify({
         customerId: customerId ? parseInt(customerId) : null,
         items: items,
-        deliverKegs: 0,
-        returnKegs: 0
+        deliverKegs: deliverKegs,
+        returnKegs: parseInt(document.getElementById('saleReturnKegs').value) || 0
       })
     });
 
@@ -474,10 +542,17 @@ async function submitSale() {
       // Reset form
       saleData = {};
       document.getElementById('customerSelect').value = '';
+      document.getElementById('saleDeliverKegs').value = 0;
+      document.getElementById('saleReturnKegs').value = 0;
       applyResolvedPrices('', null);
       renderSaleProducts();
       updateSaleTotal();
+      updateKegSaleSection('');
       loadSalesHistory();
+      // Reload customers to get updated keg_balance
+      fetch('/api/customers').then(r => r.json()).then(c => { customers = c; });
+      // Reload keg state
+      fetch('/api/kegs/state').then(r => r.json()).then(s => { kegState = s; });
       showToast('Bán hàng thành công!', 'success');
       try {
         await showInvoiceModal(result.id);
@@ -1325,8 +1400,8 @@ async function editSale(id) {
   }
 
   renderSaleProducts();
-
-  // Reset all quantities
+  updateKegSaleSection(sale.customer_id || '');
+  updateSaleKegPreview();
   saleData = {};
   products.forEach(p => {
     const qtyInput = document.getElementById('qty-' + p.id);
@@ -1338,6 +1413,10 @@ async function editSale(id) {
       priceInput.value = p._displayPrice != null ? Number(p._displayPrice) : effectiveSellPrice(p);
     }
   });
+
+  // Pre-fill keg inputs from sale
+  document.getElementById('saleDeliverKegs').value = sale.deliver_kegs || 0;
+  document.getElementById('saleReturnKegs').value = sale.return_kegs || 0;
 
   // Set quantities from sale
   sale.items.forEach(item => {
@@ -1368,10 +1447,13 @@ function cancelEdit() {
   document.getElementById('cancelEditBtn').classList.add('hidden');
 
   document.getElementById('customerSelect').value = '';
+  document.getElementById('saleDeliverKegs').value = 0;
+  document.getElementById('saleReturnKegs').value = 0;
 
   applyResolvedPrices('', null);
   renderSaleProducts();
   updateSaleTotal();
+  updateKegSaleSection('');
 }
 
 async function updateSale() {

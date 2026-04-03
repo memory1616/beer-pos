@@ -713,6 +713,7 @@
           await loadCustomers();
           await loadState();
           await loadRecentLog();
+          updateCollectAvail();
         } else {
           showToast(result.error || 'Thất bại', 'error');
         }
