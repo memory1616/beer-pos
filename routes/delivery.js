@@ -16,6 +16,14 @@ router.get('/', (req, res, next) => {
   const settingsObj = {};
   settings.forEach(s => settingsObj[s.key] = s.value);
 
+  // Parse numeric settings safely for JS embedding
+  const numSettings = {
+    delivery_cost_per_km: parseFloat(settingsObj.delivery_cost_per_km) || 3000,
+    delivery_base_cost: parseFloat(settingsObj.delivery_base_cost) || 0,
+    distributor_lat: parseFloat(settingsObj.distributor_lat) || 10.8231,
+    distributor_lng: parseFloat(settingsObj.distributor_lng) || 106.6297,
+  };
+
   // Check if Google API key is configured
   const hasGoogleApi = process.env.GOOGLE_MAPS_API_KEY ? true : false;
 
@@ -196,10 +204,10 @@ router.get('/', (req, res, next) => {
     const customers = ${JSON.stringify(customers)};
     const hasGoogleApi = ${hasGoogleApi};
     const defaultSettings = {
-      deliveryCostPerKm: parseFloat(String(${settingsObj.delivery_cost_per_km || 3000}).match(/[\d.]+/)?.[0] || 3000),
-      deliveryBaseCost: parseFloat(String(${settingsObj.delivery_base_cost || 0}).match(/[\d.]+/)?.[0] || 0),
-      distributorLat: parseFloat(String(${settingsObj.distributor_lat || 10.8231}).match(/[\d.]+/)?.[0] || 10.8231),
-      distributorLng: parseFloat(String(${settingsObj.distributor_lng || 106.6297}).match(/[\d.]+/)?.[0] || 106.6297)
+      deliveryCostPerKm: ${numSettings.delivery_cost_per_km},
+      deliveryBaseCost: ${numSettings.delivery_base_cost},
+      distributorLat: ${numSettings.distributor_lat},
+      distributorLng: ${numSettings.distributor_lng}
     };
 
     let currentLat = null;
@@ -544,8 +552,8 @@ router.get('/', (req, res, next) => {
 
     // Initialize map
     const mapCenter = [
-      parseFloat(String(${settingsObj.distributor_lat || 10.8231}).match(/[\d.]+/)?.[0] || 10.8231),
-      parseFloat(String(${settingsObj.distributor_lng || 106.6297}).match(/[\d.]+/)?.[0] || 106.6297)
+      ${numSettings.distributor_lat},
+      ${numSettings.distributor_lng}
     ];
     map = L.map('map').setView(mapCenter, 12);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
