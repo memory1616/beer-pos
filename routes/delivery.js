@@ -196,10 +196,10 @@ router.get('/', (req, res, next) => {
     const customers = ${JSON.stringify(customers)};
     const hasGoogleApi = ${hasGoogleApi};
     const defaultSettings = {
-      deliveryCostPerKm: parseFloat('${settingsObj.delivery_cost_per_km || 3000}'),
-      deliveryBaseCost: parseFloat('${settingsObj.delivery_base_cost || 0}'),
-      distributorLat: parseFloat('${settingsObj.distributor_lat || 10.8231}'),
-      distributorLng: parseFloat('${settingsObj.distributor_lng || 106.6297}')
+      deliveryCostPerKm: parseFloat(String(${settingsObj.delivery_cost_per_km || 3000}).match(/[\d.]+/)?.[0] || 3000),
+      deliveryBaseCost: parseFloat(String(${settingsObj.delivery_base_cost || 0}).match(/[\d.]+/)?.[0] || 0),
+      distributorLat: parseFloat(String(${settingsObj.distributor_lat || 10.8231}).match(/[\d.]+/)?.[0] || 10.8231),
+      distributorLng: parseFloat(String(${settingsObj.distributor_lng || 106.6297}).match(/[\d.]+/)?.[0] || 106.6297)
     };
 
     let currentLat = null;
@@ -543,7 +543,10 @@ router.get('/', (req, res, next) => {
     }
 
     // Initialize map
-    const mapCenter = [parseFloat('${settingsObj.distributor_lat || 10.8231}'), parseFloat('${settingsObj.distributor_lng || 106.6297}')];
+    const mapCenter = [
+      parseFloat(String(${settingsObj.distributor_lat || 10.8231}).match(/[\d.]+/)?.[0] || 10.8231),
+      parseFloat(String(${settingsObj.distributor_lng || 106.6297}).match(/[\d.]+/)?.[0] || 106.6297)
+    ];
     map = L.map('map').setView(mapCenter, 12);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap'
