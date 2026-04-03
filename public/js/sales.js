@@ -955,18 +955,20 @@ async function openCollectKegModal(saleId) {
   const sale = await res.json();
   _collectKegCustomerId = sale.customer_id;
 
-  const customer = customers.find(c => c.id == sale.customer_id);
-  _collectKegBalance = customer ? (customer.keg_balance || 0) : 0;
+  // Lấy balance THỰC TẾ từ DB (không dùng customers array — có thể cũ)
+  const custRes = await fetch('/api/customers/' + sale.customer_id);
+  const custData = await custRes.json();
+  _collectKegBalance = custData.keg_balance || 0;
 
-  // Auto-fill "Số vỏ giao" = số vỏ đã giao trong hóa đơn
-  // "Thu về" = số vỏ đã thu trước đó (mặc định = số vỏ còn lại)
-  document.getElementById('collectKegDeliver').value = sale.deliver_kegs || 0;
   const delivered = sale.deliver_kegs || 0;
   const returned = sale.return_kegs || 0;
   const remaining = delivered - returned;
 
+  document.getElementById('collectKegDeliver').value = delivered;
   document.getElementById('collectKegReturn').value = remaining;
-  document.getElementById('collectKegRemaining').textContent = remaining;
+
+  document.getElementById('collectKegCurrentBalance').textContent =
+    `Hiện tại: ${_collectKegBalance} vỏ`;
 
   document.getElementById('collectKegModal').classList.remove('hidden');
   document.getElementById('collectKegModal').classList.add('flex');
@@ -984,11 +986,12 @@ function closeCollectKegModal() {
 function updateCollectKegPreview() {
   const deliver = parseInt(document.getElementById('collectKegDeliver').value, 10) || 0;
   const returned = parseInt(document.getElementById('collectKegReturn').value, 10) || 0;
-  const remaining = Math.max(0, deliver - returned);
+  const delta = deliver - returned;
+  const newBalance = _collectKegBalance + delta;
 
-  document.getElementById('collectKegRemaining').textContent = remaining;
+  document.getElementById('collectKegRemaining').textContent = newBalance + ' vỏ';
   document.getElementById('collectKegInfo').textContent =
-    `Đã giao: ${deliver} vỏ · Đã thu: ${returned} vỏ`;
+    `Hiện tại: ${_collectKegBalance} vỏ · Giao: +${deliver} · Thu: -${returned}`;
 }
 
 async function submitCollectKeg() {

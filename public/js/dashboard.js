@@ -10,26 +10,34 @@ let revenueChart = null;
  * @param {HTMLElement|null} el
  * @param {number} amount
  * @param {string} colorClass - ví dụ 'text-success'
- * @param {{ numClass?: string, sufClass?: string, size?: 'sm'|'lg' }} [opts]
- *   size 'sm' = card nhỏ (text-sm), 'lg' = card lớn (text-3xl)
+ * @param {{ numClass?: string, sufClass?: string, size?: 'sm'|'lg'|'stat' }} [opts]
+ *   stat = ô KPI 2 cột mobile (một dòng, cỡ chữ vừa); lg = số lớn; sm = mặc định cũ
  */
 function setMoneyAmount(el, amount, colorClass, opts) {
   if (!el || typeof Format === 'undefined') return;
   opts = opts || {};
   var isLarge = opts.size === 'lg';
+  var isStat = opts.size === 'stat';
 
-  // Number: font lớn hơn "đ", tracking-tight cho gọn gàng
-  var numClass = opts.numClass ||
-    (isLarge
-      ? 'text-3xl font-bold tracking-tight leading-none tabular-nums'
-      : 'text-[22px] font-bold tracking-tight leading-none tabular-nums');
+  // Number: KPI nửa màn hình — text nhỏ hơn text-3xl để không tràn / không ngắt dòng
+  var numClass = opts.numClass;
+  if (!numClass) {
+    if (isStat) {
+      numClass =
+        'text-sm font-bold leading-tight tabular-nums tracking-tight whitespace-nowrap sm:text-base';
+    } else if (isLarge) {
+      numClass = 'text-2xl font-bold tracking-tight leading-none tabular-nums whitespace-nowrap sm:text-3xl';
+    } else {
+      numClass = 'text-[22px] font-bold tracking-tight leading-none tabular-nums';
+    }
+  }
 
   // "đ": nhỏ hơn, thấp xuống (mb-0.5), mờ hơn để không cạnh tranh với số
-  var sufClass = opts.sufClass || 'text-xs mb-0.5 opacity-70 shrink-0';
+  var sufClass = opts.sufClass || 'text-[10px] sm:text-xs mb-0.5 opacity-70 shrink-0 whitespace-nowrap';
 
   el.className = 'min-w-0';
   el.innerHTML =
-    '<div class="flex items-end gap-0.5 min-w-0 overflow-hidden whitespace-nowrap ' + (colorClass || '') + '">' +
+    '<div class="card-stat-amount ' + (colorClass || '') + '">' +
     '<span class="' + numClass + '">' + Format.number(amount) + '</span>' +
     '<span class="' + sufClass + '">đ</span>' +
     '</div>';
@@ -50,7 +58,7 @@ function initDashboard(data) {
       todayRevenueEl.textContent = 'Chưa có dữ liệu hôm nay';
       todayRevenueEl.className = 'text-base font-medium text-muted italic';
     } else {
-      setMoneyAmount(todayRevenueEl, todayRevenue, 'text-primary', { size: 'lg' });
+      setMoneyAmount(todayRevenueEl, todayRevenue, 'text-primary', { size: 'stat' });
     }
   }
 
@@ -65,9 +73,9 @@ function initDashboard(data) {
       todayProfitEl.textContent = 'Chưa có dữ liệu hôm nay';
       todayProfitEl.className = 'text-base font-medium text-muted italic';
     } else if (todayProfit > 0) {
-      setMoneyAmount(todayProfitEl, todayProfit, 'text-success', { size: 'lg' });
+      setMoneyAmount(todayProfitEl, todayProfit, 'text-success', { size: 'stat' });
     } else {
-      setMoneyAmount(todayProfitEl, todayProfit, 'text-danger', { size: 'lg' });
+      setMoneyAmount(todayProfitEl, todayProfit, 'text-danger', { size: 'stat' });
     }
   }
 
@@ -79,7 +87,7 @@ function initDashboard(data) {
       todayExpenseEl.textContent = 'Không có chi phí hôm nay';
       todayExpenseEl.className = 'text-base font-medium text-muted italic';
     } else {
-      setMoneyAmount(todayExpenseEl, todayExpenseAmt, 'text-danger', { size: 'lg' });
+      setMoneyAmount(todayExpenseEl, todayExpenseAmt, 'text-danger', { size: 'stat' });
     }
   }
 
@@ -91,9 +99,9 @@ function initDashboard(data) {
       monthProfitEl.textContent = 'Chưa có dữ liệu';
       monthProfitEl.className = 'text-base font-medium text-muted italic';
     } else if (monthProfit > 0) {
-      setMoneyAmount(monthProfitEl, monthProfit, 'text-success', { size: 'lg' });
+      setMoneyAmount(monthProfitEl, monthProfit, 'text-success', { size: 'stat' });
     } else {
-      setMoneyAmount(monthProfitEl, monthProfit, 'text-danger', { size: 'lg' });
+      setMoneyAmount(monthProfitEl, monthProfit, 'text-danger', { size: 'stat' });
     }
   }
 
@@ -105,7 +113,7 @@ function initDashboard(data) {
       monthExpenseEl.textContent = 'Không có chi phí';
       monthExpenseEl.className = 'text-base font-medium text-muted italic';
     } else {
-      setMoneyAmount(monthExpenseEl, monthExpenseAmt, 'text-danger', { size: 'lg' });
+      setMoneyAmount(monthExpenseEl, monthExpenseAmt, 'text-danger', { size: 'stat' });
     }
   }
   
