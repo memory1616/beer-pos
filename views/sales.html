@@ -125,15 +125,30 @@
         <button onclick="closeCollectKegModal()" class="text-2xl text-muted hover:text-main w-8 h-8 flex items-center justify-center rounded-full hover:bg-bg-hover">&times;</button>
       </div>
 
-      <div id="collectKegInfo" class="card p-3 mb-4 text-center text-sm text-warning border-warning"></div>
+      <div class="card p-3 mb-4 text-center text-sm text-warning border-warning">
+        <div id="collectKegInfo" class="font-semibold"></div>
+      </div>
 
-      <div class="mb-4">
-        <label class="block text-sm font-medium text-main mb-2">Số vỏ thu về</label>
-        <input type="number" id="collectKegQty"
-          class="w-full border-2 border-primary rounded-xl px-4 py-3 text-center text-2xl font-bold focus:border-primary focus:outline-none"
-          min="0" inputmode="numeric"
-          oninput="updateCollectKegPreview()" onchange="updateCollectKegPreview()">
-        <div class="text-xs text-muted mt-1 text-center">Nhập số vỏ thu về (tối đa = số vỏ còn lại)</div>
+      <div class="grid grid-cols-2 gap-4 mb-4">
+        <div>
+          <label class="block text-xs font-medium text-main mb-2 text-center">Số vỏ giao</label>
+          <input type="number" id="collectKegDeliver"
+            class="w-full border-2 border-primary rounded-xl px-4 py-3 text-center text-lg font-bold focus:border-primary focus:outline-none"
+            min="0" inputmode="numeric"
+            oninput="updateCollectKegPreview()" onchange="updateCollectKegPreview()">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-main mb-2 text-center">Thu về</label>
+          <input type="number" id="collectKegReturn"
+            class="w-full border-2 border-primary rounded-xl px-4 py-3 text-center text-lg font-bold focus:border-primary focus:outline-none"
+            min="0" inputmode="numeric"
+            oninput="updateCollectKegPreview()" onchange="updateCollectKegPreview()">
+        </div>
+      </div>
+
+      <div class="card p-3 mb-4 text-center border-warning bg-warning/10">
+        <div class="text-xs text-muted mb-1">Vỏ còn lại tại khách</div>
+        <div id="collectKegRemaining" class="text-2xl font-bold text-warning">0</div>
       </div>
 
       <div class="flex gap-3">

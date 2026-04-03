@@ -245,7 +245,7 @@ router.get('/', (req, res, next) => {
 '  <div id="bottomNavContainer"></div>' +
 '' +
 '  <!-- Floating Add Button -->' +
-'  <button onclick="showModal(\'addExpenseModal\')" class="fixed bottom-24 right-4 w-14 h-14 btn btn-primary rounded-full shadow-xl flex items-center justify-center text-2xl font-bold transition-all duration-200 hover:scale-105 z-40">' +
+'  <button onclick="showModal(\'addExpenseModal\')" class="fixed bottom-24 right-4 w-14 h-14 bg-blue-600 text-white rounded-full shadow-xl flex items-center justify-center text-2xl font-bold transition-all duration-200 hover:scale-105 z-40">' +
 '    +' +
 '  </button>' +
 '' +
