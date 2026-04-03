@@ -14,7 +14,7 @@
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
   <link rel="stylesheet" href="/css/tailwind.css">
-  <link rel="stylesheet" href="/css/unified.css">
+  <link rel="stylesheet" href="/css/unified.css?v=20260411">
   <script src="/js/dark-mode.js"></script>
   <script src="/js/vendor/chart.umd.min.js"></script>
   <script src="/js/auth.js"></script>
@@ -49,7 +49,7 @@
             <div class="text-muted mt-2">Đang tải...</div>
           </div>
 
-          <div id="contentSection" class="hidden">
+          <div id="contentSection" class="hidden dashboard-page">
             <div class="mb-4">
               <div class="section-title">Hôm nay</div>
               <div class="grid grid-cols-2 gap-3">
@@ -69,13 +69,13 @@
                 </div>
               </div>
               <div class="grid grid-cols-2 gap-3 mt-3">
-                <div class="card card-sm">
+                <div class="card card-sm dashboard-stat-card">
                   <div class="text-xs text-muted">Lợi nhuận hôm nay</div>
-                  <div id="todayProfit" class="text-lg">Chưa có dữ liệu</div>
+                  <div id="todayProfit" class="text-lg w-full">Chưa có dữ liệu</div>
                 </div>
-                <div class="card card-sm">
+                <div class="card card-sm dashboard-stat-card">
                   <div class="text-xs text-muted">Chi phí hôm nay</div>
-                  <div id="todayExpense" class="text-lg">Chưa có dữ liệu</div>
+                  <div id="todayExpense" class="text-lg w-full">Chưa có dữ liệu</div>
                 </div>
               </div>
             </div>
@@ -83,13 +83,13 @@
             <div class="mb-4">
               <div class="section-title">Tháng này</div>
               <div class="grid grid-cols-2 gap-3">
-                <div class="card" onclick="location.href='/report'" style="cursor:pointer" title="Xem chi tiết lợi nhuận tháng">
+                <div class="card dashboard-stat-card" onclick="location.href='/report'" style="cursor:pointer" title="Xem chi tiết lợi nhuận tháng">
                   <div class="text-xs text-muted">Lợi nhuận tháng</div>
-                  <div id="monthProfit" class="money text-money text-lg"></div>
+                  <div id="monthProfit" class="money text-money text-lg w-full"></div>
                 </div>
-                <div class="card" onclick="location.href='/expenses'" style="cursor:pointer" title="Xem chi phí tháng">
+                <div class="card dashboard-stat-card" onclick="location.href='/expenses'" style="cursor:pointer" title="Xem chi phí tháng">
                   <div class="text-xs text-muted">Chi phí tháng</div>
-                  <div id="monthExpense" class="text-lg text-danger"></div>
+                  <div id="monthExpense" class="text-lg text-danger w-full"></div>
                 </div>
               </div>
             </div>
@@ -101,53 +101,53 @@
                 <div class="text-5xl font-bold text-info mt-1" id="kegTotal">0</div>
               </div>
               <div class="grid grid-cols-3 gap-3">
-                <div class="card" onclick="location.href='/kegs'" style="cursor:pointer" title="Xem kho vỏ">
-                  <div class="text-2xl font-bold text-success" id="kegInventory">0</div>
+                <div class="card dashboard-stat-card" onclick="location.href='/kegs'" style="cursor:pointer" title="Xem kho vỏ">
+                  <div class="text-2xl font-bold text-success tabular-nums leading-tight" id="kegInventory">0</div>
                   <div class="text-sm font-medium text-main mt-1">Kho</div>
-                  <div class="text-xs text-muted mt-1" id="kegInventoryPct">0%</div>
+                  <div class="text-xs text-muted mt-0.5 tabular-nums" id="kegInventoryPct">0%</div>
                 </div>
-                <div class="card" onclick="location.href='/customers'" style="cursor:pointer" title="Xem khách giữ vỏ">
-                  <div class="text-2xl font-bold text-warning" id="kegCustomerHolding">0</div>
+                <div class="card dashboard-stat-card" onclick="location.href='/customers'" style="cursor:pointer" title="Xem khách giữ vỏ">
+                  <div class="text-2xl font-bold text-warning tabular-nums leading-tight" id="kegCustomerHolding">0</div>
                   <div class="text-sm font-medium text-main mt-1">Khách</div>
-                  <div class="text-xs text-muted mt-1" id="kegCustomerHoldingPct">0%</div>
+                  <div class="text-xs text-muted mt-0.5 tabular-nums" id="kegCustomerHoldingPct">0%</div>
                 </div>
-                <div class="card" onclick="location.href='/purchases'" style="cursor:pointer" title="Xem lịch sử nhập vỏ">
-                  <div class="text-2xl font-bold text-secondary" id="kegEmptyCollected">0</div>
+                <div class="card dashboard-stat-card" onclick="location.href='/purchases'" style="cursor:pointer" title="Xem lịch sử nhập vỏ">
+                  <div class="text-2xl font-bold text-secondary tabular-nums leading-tight" id="kegEmptyCollected">0</div>
                   <div class="text-sm font-medium text-main mt-1">Rỗng</div>
-                  <div class="text-xs text-muted mt-1" id="kegEmptyCollectedPct">0%</div>
+                  <div class="text-xs text-muted mt-0.5 tabular-nums" id="kegEmptyCollectedPct">0%</div>
                 </div>
               </div>
             </div>
 
             <div class="mb-4">
               <div class="section-title">Thao tác nhanh</div>
-              <div class="grid grid-cols-3 gap-2">
-                <a href="/delivery" class="btn btn-danger" style="height:auto;padding:12px;">
-                  <span class="text-xl">🚚</span>
+              <div class="grid grid-cols-3 gap-2 dashboard-quick-actions">
+                <a href="/delivery" class="btn btn-danger dashboard-quick-btn">
+                  <span class="text-xl leading-none">🚚</span>
                   <span class="text-sm font-medium">Giao</span>
                 </a>
-                <a href="/devices" class="btn btn-secondary" style="height:auto;padding:12px;">
-                  <span class="text-xl">🧊</span>
+                <a href="/devices" class="btn btn-secondary dashboard-quick-btn">
+                  <span class="text-xl leading-none">🧊</span>
                   <span class="text-sm font-medium">Tủ</span>
                 </a>
-                <a href="/expenses" class="btn btn-danger">
-                  <span class="text-xl">💸</span>
+                <a href="/expenses" class="btn btn-danger dashboard-quick-btn">
+                  <span class="text-xl leading-none">💸</span>
                   <span class="text-sm font-medium">Chi phí</span>
                 </a>
               </div>
             </div>
 
-            <div id="lowStockSection" class="hidden card border-danger p-4 mb-4">
-              <div class="flex justify-between items-center mb-2">
+            <div id="lowStockSection" class="hidden card border-danger p-4 mb-4 text-center">
+              <div class="mb-3">
                 <div id="lowStockHeader" class="text-sm font-bold text-danger">⚠️ Hàng sắp hết</div>
-                <button onclick="showAlertSettings()" class="text-xs text-info font-medium">⚙️ Cài đặt</button>
+                <button type="button" onclick="showAlertSettings()" class="text-xs text-info font-medium mt-2 inline-block">⚙️ Cài đặt</button>
               </div>
-              <div id="lowStockList" class="space-y-1"></div>
+              <div id="lowStockList" class="space-y-0"></div>
             </div>
 
-            <div id="customerAlertsSection" class="hidden card border-warning p-4 mb-4">
-              <div id="customerAlertsHeader" class="text-sm font-bold text-warning mb-2">⚠️ Dưới mức kỳ vọng</div>
-              <div id="customerAlertsList" class="space-y-1"></div>
+            <div id="customerAlertsSection" class="hidden card border-warning p-4 mb-4 text-center">
+              <div id="customerAlertsHeader" class="text-sm font-bold text-warning mb-3">⚠️ Dưới mức kỳ vọng</div>
+              <div id="customerAlertsList" class="space-y-0"></div>
             </div>
 
             <div class="mb-4">
@@ -194,7 +194,7 @@
     })();
   </script>
 
-  <script src="/js/dashboard.js?v=20260410"></script>
+  <script src="/js/dashboard.js?v=20260411"></script>
 
   <script>
   async function loadData() {

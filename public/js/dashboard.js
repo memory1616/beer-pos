@@ -55,7 +55,7 @@ function initDashboard(data) {
   if (todayRevenueEl) {
     if (todayRevenue === 0) {
       todayRevenueEl.textContent = 'Chưa có dữ liệu hôm nay';
-      todayRevenueEl.className = 'text-base font-medium text-muted italic';
+      todayRevenueEl.className = 'text-base font-medium text-muted italic text-center w-full';
     } else {
       // Cùng cỡ số với ô vỏ bình (text-2xl), không dùng hàng phụ “bình”
       setMoneyAmount(todayRevenueEl, todayRevenue, 'text-money', {
@@ -74,7 +74,7 @@ function initDashboard(data) {
   if (todayProfitEl) {
     if (todayProfit === 0) {
       todayProfitEl.textContent = 'Chưa có dữ liệu hôm nay';
-      todayProfitEl.className = 'text-base font-medium text-muted italic';
+      todayProfitEl.className = 'text-base font-medium text-muted italic text-center w-full';
     } else if (todayProfit > 0) {
       setMoneyAmount(todayProfitEl, todayProfit, 'text-success', { size: 'stat' });
     } else {
@@ -88,7 +88,7 @@ function initDashboard(data) {
   if (todayExpenseEl) {
     if (todayExpenseAmt === 0) {
       todayExpenseEl.textContent = 'Không có chi phí hôm nay';
-      todayExpenseEl.className = 'text-base font-medium text-muted italic';
+      todayExpenseEl.className = 'text-base font-medium text-muted italic text-center w-full';
     } else {
       setMoneyAmount(todayExpenseEl, todayExpenseAmt, 'text-danger', { size: 'stat' });
     }
@@ -100,7 +100,7 @@ function initDashboard(data) {
   if (monthProfitEl) {
     if (monthProfit === 0) {
       monthProfitEl.textContent = 'Chưa có dữ liệu';
-      monthProfitEl.className = 'text-base font-medium text-muted italic';
+      monthProfitEl.className = 'text-base font-medium text-muted italic text-center w-full';
     } else if (monthProfit > 0) {
       setMoneyAmount(monthProfitEl, monthProfit, 'text-success', { size: 'stat' });
     } else {
@@ -114,7 +114,7 @@ function initDashboard(data) {
   if (monthExpenseEl) {
     if (monthExpenseAmt === 0) {
       monthExpenseEl.textContent = 'Không có chi phí';
-      monthExpenseEl.className = 'text-base font-medium text-muted italic';
+      monthExpenseEl.className = 'text-base font-medium text-muted italic text-center w-full';
     } else {
       setMoneyAmount(monthExpenseEl, monthExpenseAmt, 'text-danger', { size: 'stat' });
     }
@@ -163,7 +163,10 @@ function initDashboard(data) {
     }
     if (list) {
       list.innerHTML = data.lowStockProducts.map(p =>
-        '<div class="flex justify-between text-sm"><span>' + p.name + '</span><span class="font-bold text-danger">' + p.stock + ' bình</span></div>'
+        '<div class="text-sm py-2 border-b border-primary/10 last:border-0 text-center">' +
+          '<div class="font-medium text-main">' + p.name + '</div>' +
+          '<div class="font-bold text-danger mt-0.5 tabular-nums">' + p.stock + ' bình</div>' +
+        '</div>'
       ).join('');
     }
   }
@@ -192,16 +195,14 @@ function initDashboard(data) {
         }
 
         const phoneBtn = c.phone ?
-          '<a href="tel:' + c.phone + '" class="ml-2 text-success hover:bg-success/10 rounded px-1">📞</a>' : '';
+          '<a href="tel:' + c.phone + '" class="text-success hover:bg-success/10 rounded px-1 inline-block">📞</a>' : '';
 
-        return '<div class="flex justify-between items-center text-sm py-1">' +
-          '<div class="flex items-center">' +
-            '<a href="/customers/' + c.id + '" class="hover:text-success">' + c.name + '</a>' +
+        return '<div class="text-sm py-2 border-b border-primary/10 last:border-0 text-center">' +
+          '<div class="flex items-center justify-center flex-wrap gap-1">' +
+            '<a href="/customers/' + c.id + '" class="hover:text-success font-medium text-main">' + c.name + '</a>' +
             phoneBtn +
           '</div>' +
-          '<div class="text-right">' +
-            '<span class="font-bold ' + colorClass + '">-' + shortfall + ' bình</span>' +
-          '</div>' +
+          '<div class="font-bold ' + colorClass + ' mt-0.5 tabular-nums">-' + shortfall + ' bình</div>' +
         '</div>';
       }).join('');
     }
@@ -222,12 +223,10 @@ function initDashboard(data) {
           moneyHtml = '<span class="money text-money">' + formatted + '<span class="unit"> đ</span></span>';
         }
 
-        return '<div class="flex justify-between items-center py-3 border-b border-muted">' +
-          '<div>' +
-            '<div class="font-semibold text-main">' + s.customer_name + '</div>' +
-            '<div class="text-xs text-muted mt-0.5">' + date + '</div>' +
-          '</div>' +
-          '<div>' + moneyHtml + '</div>' +
+        return '<div class="py-3 border-b border-muted text-center">' +
+          '<div class="font-semibold text-main">' + s.customer_name + '</div>' +
+          '<div class="text-xs text-muted mt-0.5">' + date + '</div>' +
+          '<div class="mt-2 flex justify-center flex-wrap gap-1">' + moneyHtml + '</div>' +
         '</div>';
       }).join('');
     } else {

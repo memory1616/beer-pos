@@ -244,6 +244,40 @@ body.min-h-screen.pb-24 {
   text-align: center;
 }
 
+/* Dashboard — tiêu đề mục & thẻ KPI căn giữa */
+.dashboard-page .section-title {
+  text-align: center;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-primary);
+  margin-bottom: 0.75rem;
+}
+
+.dashboard-stat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  text-align: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.dashboard-page .dashboard-quick-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 4.5rem;
+  padding: 12px 8px !important;
+  height: auto !important;
+  text-align: center;
+  line-height: 1.2;
+}
+
 .card:hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow-md);
