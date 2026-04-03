@@ -278,13 +278,19 @@
                 <label class="block text-xs text-muted mb-1">Giao vỏ</label>
                 <input type="number" id="saleDeliverKegs" value="0" min="0"
                   class="w-full border-2 border-primary rounded-xl px-3 py-2 text-center font-bold focus:outline-none"
-                  inputmode="numeric" oninput="updateSaleKegPreview()" onchange="updateSaleKegPreview()">
+                  inputmode="numeric"
+                  onfocus="_kegDeliverManual = true"
+                  onblur="if(this.value !== '0' && this.value !== '') _kegDeliverManual = true; updateSaleKegPreview()"
+                  oninput="updateSaleKegPreview()" onchange="updateSaleKegPreview()">
               </div>
               <div class="flex-1 min-w-24">
                 <label class="block text-xs text-muted mb-1">Thu vỏ</label>
                 <input type="number" id="saleReturnKegs" value="0" min="0"
                   class="w-full border-2 border-primary rounded-xl px-3 py-2 text-center font-bold focus:outline-none"
-                  inputmode="numeric" oninput="updateSaleKegPreview()" onchange="updateSaleKegPreview()">
+                  inputmode="numeric"
+                  onfocus="_kegReturnManual = true"
+                  onblur="updateSaleKegPreview()"
+                  oninput="updateSaleKegPreview()" onchange="updateSaleKegPreview()">
               </div>
               <div class="flex-1 min-w-32">
                 <label class="block text-xs text-muted mb-1">Khách đang giữ</label>

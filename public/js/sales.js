@@ -255,8 +255,35 @@ function updateSaleData(productId, field, value) {
     const parsed = parseFloat(value);
     saleData[productId].price = (isNaN(parsed) || parsed < 0) ? 0 : parsed;
   }
-  
+
   updateSaleTotal();
+  autoFillKegFromCart();
+}
+
+// Track if user manually edited keg inputs (don't auto-overwrite manual edits)
+let _kegDeliverManual = false;
+let _kegReturnManual = false;
+
+function autoFillKegFromCart() {
+  const customerId = document.getElementById('customerSelect')?.value;
+  if (!customerId) return;
+
+  // Auto-fill "Giao vỏ" = total keg qty in cart (only if user hasn't manually typed)
+  if (!_kegDeliverManual) {
+    const totalKegQty = Object.keys(saleData).reduce((sum, productId) => {
+      const item = saleData[productId];
+      const product = products.find(p => p.id == productId);
+      if (item.quantity > 0 && product && product.type !== 'pet' && product.type !== 'box') {
+        return sum + item.quantity;
+      }
+      return sum;
+    }, 0);
+    const input = document.getElementById('saleDeliverKegs');
+    if (input && (input.value === '0' || input.value === '')) {
+      input.value = totalKegQty;
+      updateSaleKegPreview();
+    }
+  }
 }
 
 function updateSaleTotal() {
@@ -336,7 +363,12 @@ function updateKegSaleSection(customerId) {
   const currentBalance = customer ? (customer.keg_balance || 0) : 0;
   if (balanceEl) balanceEl.textContent = currentBalance + ' vỏ';
 
+  // Reset manual flags when switching customer (allow auto-fill again)
+  _kegDeliverManual = false;
+  _kegReturnManual = false;
+
   updateSaleKegPreview();
+  autoFillKegFromCart();
 }
 
 function updateSaleKegPreview() {
@@ -544,6 +576,8 @@ async function submitSale() {
       document.getElementById('customerSelect').value = '';
       document.getElementById('saleDeliverKegs').value = 0;
       document.getElementById('saleReturnKegs').value = 0;
+      _kegDeliverManual = false;
+      _kegReturnManual = false;
       applyResolvedPrices('', null);
       renderSaleProducts();
       updateSaleTotal();
@@ -1414,9 +1448,11 @@ async function editSale(id) {
     }
   });
 
-  // Pre-fill keg inputs from sale
+  // Pre-fill keg inputs from sale (treat as manual edit so auto-fill won't override)
   document.getElementById('saleDeliverKegs').value = sale.deliver_kegs || 0;
   document.getElementById('saleReturnKegs').value = sale.return_kegs || 0;
+  _kegDeliverManual = true;
+  _kegReturnManual = true;
 
   // Set quantities from sale
   sale.items.forEach(item => {
@@ -1454,6 +1490,8 @@ function cancelEdit() {
   renderSaleProducts();
   updateSaleTotal();
   updateKegSaleSection('');
+  _kegDeliverManual = false;
+  _kegReturnManual = false;
 }
 
 async function updateSale() {
