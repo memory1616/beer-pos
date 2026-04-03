@@ -53,14 +53,19 @@
             <div class="mb-4">
               <div class="section-title">Hôm nay</div>
               <div class="grid grid-cols-2 gap-3">
-                <div class="card card-sm">
+                <div class="card card-sm dashboard-kpi-today">
                   <div class="text-xs text-muted">Doanh thu</div>
-                  <div id="todayRevenue" class="money text-money text-lg">Chưa có dữ liệu hôm nay</div>
+                  <div class="dashboard-kpi-value-row">
+                    <div id="todayRevenue" class="min-w-0 money text-money">Chưa có dữ liệu hôm nay</div>
+                  </div>
+                  <div class="dashboard-kpi-sub" aria-hidden="true"><span class="invisible">bình</span></div>
                 </div>
-                <div class="card card-sm">
+                <div class="card card-sm dashboard-kpi-today">
                   <div class="text-xs text-muted">Bán ra</div>
-                  <div class="text-lg font-bold text-info" id="todayUnits">0</div>
-                  <div class="text-xs text-muted">bình</div>
+                  <div class="dashboard-kpi-value-row">
+                    <div class="text-sm font-bold tabular-nums text-info whitespace-nowrap sm:text-base" id="todayUnits">0</div>
+                  </div>
+                  <div class="dashboard-kpi-sub">bình</div>
                 </div>
               </div>
               <div class="grid grid-cols-2 gap-3 mt-3">

@@ -23,21 +23,20 @@ function setMoneyAmount(el, amount, colorClass, opts) {
   var numClass = opts.numClass;
   if (!numClass) {
     if (isStat) {
-      numClass =
-        'text-sm font-bold leading-tight tabular-nums tracking-tight whitespace-nowrap sm:text-base';
+      numClass = 'text-sm font-bold tabular-nums tracking-tight sm:text-base';
     } else if (isLarge) {
-      numClass = 'text-2xl font-bold tracking-tight leading-none tabular-nums whitespace-nowrap sm:text-3xl';
+      numClass = 'text-2xl font-bold tabular-nums tracking-tight leading-none whitespace-nowrap sm:text-3xl';
     } else {
-      numClass = 'text-[22px] font-bold tracking-tight leading-none tabular-nums';
+      numClass = 'text-[22px] font-bold tabular-nums tracking-tight leading-none';
     }
   }
 
   // "đ": nhỏ hơn, thấp xuống (mb-0.5), mờ hơn để không cạnh tranh với số
-  var sufClass = opts.sufClass || 'text-[10px] sm:text-xs mb-0.5 opacity-70 shrink-0 whitespace-nowrap';
+  var sufClass = opts.sufClass || 'text-[10px] sm:text-xs mb-0.5 opacity-70 shrink-0';
 
-  el.className = 'min-w-0';
+  el.className = 'min-w-0 text-center';
   el.innerHTML =
-    '<div class="card-stat-amount ' + (colorClass || '') + '">' +
+    '<div class="card-stat-amount justify-center ' + (colorClass || '') + '">' +
     '<span class="' + numClass + '">' + Format.number(amount) + '</span>' +
     '<span class="' + sufClass + '">đ</span>' +
     '</div>';

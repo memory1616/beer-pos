@@ -212,8 +212,36 @@ body.min-h-screen.pb-24 {
   white-space: nowrap;
 }
 
+/* Lịch sử nhập hàng (Kho): thẻ đơn lẻ, tổng tiền một dòng */
+.purchase-history-item {
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
 .card.card-sm {
   padding: 10px 12px;
+}
+
+/* Dashboard — KPI "Hôm nay": số căn giữa, cỡ tự scale theo độ rộng */
+.dashboard-kpi-today {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  text-align: center;
+}
+
+.dashboard-kpi-today .dashboard-kpi-value-row {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dashboard-kpi-today .dashboard-kpi-sub {
+  font-size: 12px;
+  line-height: 1rem;
+  color: var(--color-text-secondary);
+  text-align: center;
 }
 
 .card:hover {

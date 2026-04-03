@@ -19,6 +19,19 @@ function initStockPage(data) {
   }
 }
 
+/** Số tiền một dòng (tránh overflow-wrap:anywhere của .card cha) */
+function purchaseTotalHtml(amount) {
+  const n = Number(amount);
+  const num = Number.isFinite(n) ? n : 0;
+  const formatted = new Intl.NumberFormat('vi-VN').format(num);
+  return (
+    '<div class="card-stat-amount text-success justify-end text-sm sm:text-base font-bold">' +
+    '<span class="tabular-nums tracking-tight">' + formatted + '</span>' +
+    '<span class="text-[10px] sm:text-xs opacity-75 shrink-0">đ</span>' +
+    '</div>'
+  );
+}
+
 function renderPurchaseHistory(purchases) {
   const container = document.getElementById('purchaseHistoryList');
   
@@ -30,16 +43,22 @@ function renderPurchaseHistory(purchases) {
   container.innerHTML = purchases.map(p => {
     const date = new Date(p.date);
     const formattedDate = date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const count = p.item_count != null ? p.item_count : 0;
     return `
-      <div class="flex justify-between items-center p-2 border-b">
-        <div>
-          <div class="font-medium">Đơn #${p.id}</div>
-          <div class="text-xs text-muted">${formattedDate} • ${p.item_count} sản phẩm</div>
+      <div class="purchase-history-item rounded-xl border border-muted bg-bg/40 p-3 mb-2 last:mb-0">
+        <div class="flex items-start justify-between gap-2 min-w-0">
+          <div class="min-w-0 flex-1">
+            <div class="font-semibold text-primary">Đơn #${p.id}</div>
+            <div class="text-xs text-muted mt-0.5">${formattedDate} · ${count} sản phẩm</div>
+          </div>
+          <div class="flex items-center gap-0.5 shrink-0">
+            <button type="button" onclick="editPurchase(${p.id})" class="btn btn-ghost btn-sm min-w-[2.25rem] h-9 px-0" title="Sửa">✏️</button>
+            <button type="button" onclick="deletePurchase(${p.id})" class="btn btn-ghost btn-sm min-w-[2.25rem] h-9 px-0 text-danger" title="Xóa">🗑️</button>
+          </div>
         </div>
-        <div class="flex items-center gap-2">
-          <div class="font-bold text-money">${formatVND(p.total_amount)}</div>
-          <button onclick="editPurchase(${p.id})" class="text-info text-sm">✏️</button>
-          <button onclick="deletePurchase(${p.id})" class="text-danger text-sm">🗑️</button>
+        <div class="mt-2.5 pt-2.5 border-t border-muted/70 flex items-center justify-between gap-3 min-w-0">
+          <span class="text-xs text-muted shrink-0">Tổng tiền</span>
+          ${purchaseTotalHtml(p.total_amount)}
         </div>
       </div>
     `;

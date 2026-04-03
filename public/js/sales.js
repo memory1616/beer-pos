@@ -6,7 +6,31 @@ let products = [];
 let priceMap = {};
 let customers = [];
 let editingSaleId = null;
+/** true khi đang mở luồng Đổi bia lỗi — hiện Cập nhật/Huỷ trên form chính */
+let replacementFlowActive = false;
 let saleData = {};
+
+/** Nút Bán hàng vs Cập nhật/Huỷ: chỉ khi sửa HĐ hoặc đổi bia lỗi */
+function syncSaleActionButtons() {
+  const sellBtn = document.getElementById('sellBtn');
+  const updateBtn = document.getElementById('updateBtn');
+  const cancelEditBtn = document.getElementById('cancelEditBtn');
+  if (!sellBtn || !updateBtn || !cancelEditBtn) return;
+  const showEditActions = editingSaleId != null || replacementFlowActive;
+  sellBtn.classList.toggle('hidden', showEditActions);
+  updateBtn.classList.toggle('hidden', !showEditActions);
+  cancelEditBtn.classList.toggle('hidden', !showEditActions);
+}
+
+function confirmSaleFormAction() {
+  if (editingSaleId != null) return updateSale();
+  if (replacementFlowActive) return submitReplacement();
+}
+
+function cancelSaleFormAction() {
+  if (editingSaleId != null) return cancelEdit();
+  if (replacementFlowActive) return closeReplacementModal();
+}
 
 /** Giá bán mặc định từ sản phẩm (SQLite / Dexie có thể dùng sell_price hoặc price) */
 function effectiveSellPrice(p) {
@@ -85,6 +109,8 @@ function initSalesPage(data) {
 
   // Load history
   loadSalesHistory();
+
+  syncSaleActionButtons();
 }
 
 // Global keg state for validation
@@ -685,6 +711,11 @@ function closeKegModal() {
 
 // Replacement Modal Functions
 function openReplacementModal() {
+  if (editingSaleId != null) {
+    alert('Đang sửa hóa đơn. Vui lòng Huỷ hoặc Cập nhật trước.');
+    return;
+  }
+
   const customerSelect = document.getElementById('replacementCustomer');
   customerSelect.innerHTML = '<option value="">-- Chọn khách hàng --</option>' +
     customers.map(c => '<option value="' + c.id + '">' + c.name + '</option>').join('');
@@ -694,6 +725,9 @@ function openReplacementModal() {
   document.getElementById('giftKegs').checked = false;
   document.getElementById('giftGuestName').value = '';
   toggleGiftMode();
+
+  replacementFlowActive = true;
+  syncSaleActionButtons();
 
   document.getElementById('replacementModal').classList.remove('hidden');
   document.getElementById('replacementModal').classList.add('flex');
@@ -714,6 +748,8 @@ function toggleGiftMode() {
 function closeReplacementModal() {
   document.getElementById('replacementModal').classList.add('hidden');
   document.getElementById('replacementModal').classList.remove('flex');
+  replacementFlowActive = false;
+  syncSaleActionButtons();
 }
 
 function loadReplacementProducts() {
@@ -1402,11 +1438,14 @@ async function editSale(id) {
   const res = await fetch('/api/sales/' + id);
   const sale = await res.json();
 
-  editingSaleId = id;
+  if (replacementFlowActive) {
+    document.getElementById('replacementModal').classList.add('hidden');
+    document.getElementById('replacementModal').classList.remove('flex');
+    replacementFlowActive = false;
+  }
 
-  document.getElementById('sellBtn').classList.add('hidden');
-  document.getElementById('updateBtn').classList.remove('hidden');
-  document.getElementById('cancelEditBtn').classList.remove('hidden');
+  editingSaleId = id;
+  syncSaleActionButtons();
 
   document.getElementById('customerSelect').value = sale.customer_id || '';
 
@@ -1472,9 +1511,7 @@ function cancelEdit() {
   editingSaleId = null;
   saleData = {};
 
-  document.getElementById('sellBtn').classList.remove('hidden');
-  document.getElementById('updateBtn').classList.add('hidden');
-  document.getElementById('cancelEditBtn').classList.add('hidden');
+  syncSaleActionButtons();
 
   document.getElementById('customerSelect').value = '';
   document.getElementById('saleDeliverKegs').value = 0;
