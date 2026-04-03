@@ -84,82 +84,82 @@ function renderCustomers() {
 
   container.innerHTML = filtered.map(c => {
     const hasLocation = c.lat && c.lng;
+    const hFridge = c.horizontal_fridge || 0;
+    const vFridge = c.vertical_fridge || 0;
 
-    let statusBadge = '';
-    let badgeClass = '';
+    let statusDotClass = 'customer-status-dot--muted';
     if (currentTab === 'active') {
       if (c.days_since_last_order !== null && c.days_since_last_order !== undefined) {
         if (c.days_since_last_order >= 7) {
-          statusBadge = '🔴';
-          badgeClass = 'badge-danger';
+          statusDotClass = 'customer-status-dot--danger';
         } else if (c.daily_avg < 5) {
-          statusBadge = '🟡';
-          badgeClass = 'badge-warning';
+          statusDotClass = 'customer-status-dot--warning';
         } else {
-          statusBadge = '🟢';
-          badgeClass = 'badge-success';
+          statusDotClass = 'customer-status-dot--success';
         }
       } else {
-        statusBadge = '🟡';
-        badgeClass = 'badge-warning';
+        statusDotClass = 'customer-status-dot--warning';
       }
     }
 
-    return `
-      <div class="order-item ${c.archived ? 'opacity-70' : ''}" data-name="${c.name.toLowerCase()}">
-        <div class="order-header">
-          <div class="flex items-center gap-2 flex-1 min-w-0">
-            <a href="/customers/${c.id}" class="order-title hover:text-primary">${c.name}</a>
-            ${statusBadge ? '<span class="badge ' + badgeClass + '">' + statusBadge + '</span>' : ''}
-          </div>
-          <span class="order-meta">📱 ${c.phone || 'Chưa có SĐT'}</span>
-        </div>
+    const volumeLine = c.monthly_liters > 0
+      ? `<div class="customer-card-volume">📈 ${c.monthly_liters} bình/tháng</div>`
+      : '';
 
-        <div class="flex justify-between items-start mt-3 gap-3">
-          <div class="flex flex-col gap-1">
-            <div class="card p-2">
-              <span class="text-primary font-bold text-lg">📦 ${c.keg_balance || 0}</span>
-              <span class="text-xs text-muted ml-1">vỏ</span>
-            </div>
-            ${((c.horizontal_fridge || 0) > 0 || (c.vertical_fridge || 0) > 0) ? `
-              <div class="text-xs text-info font-medium">
-                ❄️ ${c.horizontal_fridge || 0} + 🥶 ${c.vertical_fridge || 0}
-              </div>
-            ` : ''}
-            ${c.monthly_liters > 0 ? `
-              <div class="text-xs text-success font-medium">📈 ${c.monthly_liters} bình/tháng</div>
-            ` : ''}
-          </div>
-        </div>
-
-        ${currentTab === 'active' ? `
-        <div class="order-actions mt-3 pt-3 border-t border-muted">
-          <button onclick="getLocation(${c.id})" class="btn btn-ghost btn-sm">📍 GPS</button>
-          <button onclick="editCustomer(${c.id}, '${c.name}', '${c.phone || ''}', ${c.deposit})" class="btn btn-ghost btn-sm">✏️ Sửa</button>
-          <button onclick="showPriceModal(${c.id}, '${c.name}')" class="btn btn-ghost btn-sm">💰 Giá</button>
-          <button onclick="archiveCustomer(${c.id})" class="btn btn-ghost btn-sm" title="Lưu trữ">📦</button>
+    const actionsBlock = currentTab === 'active' ? `
+        <div class="order-actions customer-card-actions">
+          <button type="button" onclick="getLocation(${c.id})" class="btn btn-ghost btn-sm">📍 GPS</button>
+          <button type="button" onclick="editCustomer(${c.id}, '${String(c.name).replace(/'/g, "\\'")}', '${String(c.phone || '').replace(/'/g, "\\'")}', ${c.deposit})" class="btn btn-ghost btn-sm">✏️ Sửa</button>
+          <button type="button" onclick="showPriceModal(${c.id}, '${String(c.name).replace(/'/g, "\\'")}')" class="btn btn-ghost btn-sm">💰 Giá</button>
+          <button type="button" onclick="archiveCustomer(${c.id})" class="btn btn-ghost btn-sm" title="Lưu trữ">📦</button>
         </div>
         ` : `
-        <div class="order-actions mt-3 pt-3 border-t border-muted">
-          <button onclick="unarchiveCustomer(${c.id})" class="btn btn-ghost btn-sm">📤 Khôi phục</button>
-          <button onclick="deleteCustomer(${c.id})" class="btn btn-danger btn-sm">🗑️ Xóa</button>
+        <div class="order-actions customer-card-actions">
+          <button type="button" onclick="unarchiveCustomer(${c.id})" class="btn btn-ghost btn-sm">📤 Khôi phục</button>
+          <button type="button" onclick="deleteCustomer(${c.id})" class="btn btn-danger btn-sm">🗑️ Xóa</button>
         </div>
-        `}
+        `;
 
-        <div class="flex justify-between items-center mt-3 pt-3 border-t border-muted">
-          <div class="text-sm flex items-center gap-2">
-            <span class="text-muted">💵 Đặt cọc:</span>
-            <span class="font-semibold ${c.deposit > 0 ? 'text-info' : 'text-muted'}">${formatVND(c.deposit)}</span>
+    return `
+      <div class="order-item ${c.archived ? 'opacity-70' : ''}" data-name="${c.name.toLowerCase()}">
+        <div class="customer-card-head">
+          <div class="customer-card-info">
+            <div class="customer-card-name-row">
+              <a href="/customers/${c.id}" class="order-title hover:text-primary">${c.name}</a>
+              <span class="customer-status-dot ${statusDotClass}" title="Trạng thái mua hàng"></span>
+            </div>
+            <div class="customer-card-phone">📱 ${c.phone || 'Chưa có SĐT'}</div>
+            ${volumeLine}
           </div>
-          <div class="flex items-center gap-3">
+          <div class="customer-card-keg-panel">
+            <div class="customer-keg-box">
+              <span class="customer-keg-box-icon">📦</span>
+              <span class="customer-keg-box-num">${c.keg_balance || 0}</span>
+              <span class="customer-keg-box-unit">vỏ</span>
+            </div>
+            <div class="customer-fridge-mini">
+              <span title="Tủ ngang">❄️ ${hFridge} +</span>
+              <span title="Tủ đứng">🥶 ${vFridge}</span>
+            </div>
+          </div>
+        </div>
+
+        ${actionsBlock}
+
+        <div class="customer-card-deposit-row">
+          <div class="flex items-center gap-2 flex-wrap min-w-0">
+            <span class="deposit-label">💵 Đặt cọc:</span>
+            <span class="deposit-amount ${c.deposit > 0 ? '' : 'text-muted'}">${formatVND(c.deposit)}</span>
+          </div>
+          <div class="flex items-center gap-2 flex-shrink-0">
             ${currentTab === 'active' ? `
-            <button onclick="editKegBalance(${c.id}, ${c.keg_balance}, '${c.name}')" class="text-xs text-info hover:text-info px-2 py-1 rounded transition-colors">✏️ Sửa vỏ</button>
+            <button type="button" onclick='editKegBalance(${c.id}, ${c.keg_balance || 0}, ${JSON.stringify(c.name)})' class="text-xs text-info font-semibold hover:underline px-1 py-0.5 bg-transparent border-0 cursor-pointer">✏️ Sửa vỏ</button>
             ` : ''}
             ${hasLocation ? '<span class="text-success text-xs" title="Đã có vị trí">✅</span>' : ''}
           </div>
         </div>
-        ${c.last_sale_date ? '<div class="text-xs text-muted mt-2">🕐 Mua lần cuối: ' + new Date(c.last_sale_date).toLocaleDateString('vi-VN') + '</div>' : ''}
-        ${c.archived ? '<div class="text-xs text-muted mt-2">📦 Đã lưu trữ</div>' : ''}
+        ${c.last_sale_date ? '<div class="customer-card-last">🕐 Mua lần cuối: ' + new Date(c.last_sale_date).toLocaleDateString('vi-VN') + '</div>' : ''}
+        ${c.archived ? '<div class="customer-card-last">📦 Đã lưu trữ</div>' : ''}
       </div>
     `;
   }).join('');

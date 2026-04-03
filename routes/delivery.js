@@ -264,21 +264,80 @@ router.get('/', (req, res, next) => {
       return R * c;
     }
 
-    // Get real driving distance from OSRM (free) or Google (fallback)
-    async function getRealRoute(originLat, originLng, destLat, destLng) {
+    // ─── Rate-limited request queue for routing API ─────────────────────────────────
+    const SESSION_CACHE_KEY = 'delivery_route_cache_v1';
+    const _routeCache = JSON.parse(sessionStorage.getItem(SESSION_CACHE_KEY) || '{}');
+    function _saveRouteCache() { try { sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(_routeCache)); } catch(e){} }
+
+    function _getCache(lat1, lng1, lat2, lng2) {
+      const k = `${Number(lat1).toFixed(5)},${Number(lng1).toFixed(5)}-${Number(lat2).toFixed(5)},${Number(lng2).toFixed(5)}`;
+      return _routeCache[k] || null;
+    }
+    function _setCache(lat1, lng1, lat2, lng2, data) {
+      const k = `${Number(lat1).toFixed(5)},${Number(lng1).toFixed(5)}-${Number(lat2).toFixed(5)},${Number(lng2).toFixed(5)}`;
+      _routeCache[k] = data;
+      _saveRouteCache();
+    }
+
+    // Queue state
+    let _queue = [];
+    let _queueRunning = false;
+    const QUEUE_DELAY_MS = 600;   // at most ~1 request/sec (OSRM limit)
+
+    function _enqueueRouteTask(task) {
+      return new Promise((resolve, reject) => {
+        _queue.push({ task, resolve, reject });
+        if (!_queueRunning) _processQueue();
+      });
+    }
+
+    async function _processQueue() {
+      if (_queue.length === 0) { _queueRunning = false; return; }
+      _queueRunning = true;
+      while (_queue.length > 0) {
+        const { task, resolve, reject } = _queue.shift();
+        try {
+          const result = await _fetchRouteWithRetry(task.originLat, task.originLng, task.destLat, task.destLng);
+          resolve(result);
+        } catch(e) {
+          reject(e);
+        }
+        if (_queue.length > 0) await _sleep(QUEUE_DELAY_MS);
+      }
+      _queueRunning = false;
+    }
+
+    function _sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+    async function _fetchRouteWithRetry(originLat, originLng, destLat, destLng, attempt = 0) {
+      const MAX_ATTEMPTS = 2;
       try {
         const res = await fetch('/api/routing/route?originLat=' + originLat + '&originLng=' + originLng + '&destLat=' + destLat + '&destLng=' + destLng);
+        if (res.status === 429) {
+          if (attempt < MAX_ATTEMPTS) {
+            const waitMs = (attempt + 1) * 1000; // 1s, 2s
+            console.warn('OSRM rate-limited (429), retrying in', waitMs, 'ms…');
+            await _sleep(waitMs);
+            return _fetchRouteWithRetry(originLat, originLng, destLat, destLng, attempt + 1);
+          }
+          throw new Error('429 Too Many Requests');
+        }
         if (!res.ok) throw new Error('API error ' + res.status);
         const data = await res.json();
+        _setCache(originLat, originLng, destLat, destLng, data);
         return data;
-      } catch (e) {
-        console.warn('Route API failed, using straight-line:', e.message);
-        return {
-          distance_km: calculateDistance(originLat, originLng, destLat, destLng),
-          duration_min: 0,
-          polyline: null
-        };
+      } catch(e) {
+        // Fallback: use straight-line Haversine distance
+        const dist = calculateDistance(originLat, originLng, destLat, destLng);
+        return { distance_km: dist, duration_min: 0, polyline: null };
       }
+    }
+
+    // Get real driving distance — now rate-limited & cached
+    async function getRealRoute(originLat, originLng, destLat, destLng) {
+      const cached = _getCache(originLat, originLng, destLat, destLng);
+      if (cached) return cached;
+      return _enqueueRouteTask({ originLat, originLng, destLat, destLng });
     }
 
     // Calculate delivery cost
@@ -286,11 +345,86 @@ router.get('/', (req, res, next) => {
       return Math.round(defaultSettings.deliveryBaseCost + (distance * defaultSettings.deliveryCostPerKm));
     }
 
+    // ─── Debounced updateDistances ─────────────────────────────────────────────────
+    let _distDebounceTimer = null;
+    async function updateDistances() {
+      clearTimeout(_distDebounceTimer);
+      _distDebounceTimer = setTimeout(() => _doUpdateDistances(), 500);
+    }
+
+    async function _doUpdateDistances() {
+      const originLat = currentLat || defaultSettings.distributorLat;
+      const originLng = currentLng || defaultSettings.distributorLng;
+
+      let totalDistance = 0;
+      let totalDuration = 0;
+      let totalFee = 0;
+      let updated = 0;
+      const cards = Array.from(document.querySelectorAll('.delivery-card'));
+
+      for (const card of cards) {
+        const lat = parseFloat(card.dataset.lat);
+        const lng = parseFloat(card.dataset.lng);
+
+        if (card.dataset.realDistance) {
+          const distance = parseFloat(card.dataset.realDistance);
+          const duration = parseInt(card.dataset.duration) || Math.round(distance / 30 * 60);
+          const cost = calculateCost(distance);
+          card.querySelector('.distance').textContent = distance.toFixed(1);
+          card.querySelector('.delivery-fee').textContent = cost.toLocaleString('vi-VN') + ' đ';
+          totalDistance += distance;
+          totalDuration += duration;
+          totalFee += cost;
+          updated++;
+        } else {
+          card.querySelector('.distance').textContent = '...';
+          card.querySelector('.delivery-fee').textContent = '...';
+
+          try {
+            const route = await getRealRoute(originLat, originLng, lat, lng);
+            card.dataset.realDistance = route.distance_km;
+            card.dataset.duration = route.duration_min;
+            card.dataset.polyline = route.polyline || '';
+
+            const distance = route.distance_km;
+            const duration = route.duration_min;
+            const cost = calculateCost(distance);
+            card.querySelector('.distance').textContent = distance.toFixed(1);
+            card.querySelector('.delivery-fee').textContent = cost.toLocaleString('vi-VN') + ' đ';
+            totalDistance += distance;
+            totalDuration += duration;
+            totalFee += cost;
+          } catch (e) {
+            console.warn('Distance calc failed for', card.dataset.name, e.message);
+            const distance = calculateDistance(originLat, originLng, lat, lng);
+            const cost = calculateCost(distance);
+            card.querySelector('.distance').textContent = distance.toFixed(1);
+            card.querySelector('.delivery-fee').textContent = cost.toLocaleString('vi-VN') + ' đ';
+            totalDistance += distance;
+            totalFee += cost;
+          }
+          updated++;
+        }
+      }
+
+      document.getElementById('totalDistance').textContent = totalDistance.toFixed(1);
+
+      let durationDisplay = document.getElementById('totalDuration');
+      if (!durationDisplay) {
+        durationDisplay = document.createElement('span');
+        durationDisplay.id = 'totalDuration';
+        document.querySelector('#totalDistance').parentElement.appendChild(durationDisplay);
+      }
+      durationDisplay.textContent = ' | ' + Math.round(totalDuration) + ' ph';
+
+      document.getElementById('totalDeliveryFee').textContent = totalFee.toLocaleString('vi-VN') + ' đ';
+    }
+
     // Optimize route using nearest neighbor algorithm (with real driving distance when API available)
     async function optimizeRoute() {
       const originLat = currentLat || defaultSettings.distributorLat;
       const originLng = currentLng || defaultSettings.distributorLng;
-      
+
       // Get all customer cards
       const cards = Array.from(document.querySelectorAll('.delivery-card'));
       
@@ -406,77 +540,6 @@ router.get('/', (req, res, next) => {
         btn.innerHTML = origText;
         btn.disabled = false;
       }
-    }
-
-    // Update all distances and costs — uses real driving distance from OSRM
-    async function updateDistances() {
-      const originLat = currentLat || defaultSettings.distributorLat;
-      const originLng = currentLng || defaultSettings.distributorLng;
-
-      let totalDistance = 0;
-      let totalDuration = 0;
-      let totalFee = 0;
-      let updated = 0;
-      const cards = Array.from(document.querySelectorAll('.delivery-card'));
-
-      for (const card of cards) {
-        const lat = parseFloat(card.dataset.lat);
-        const lng = parseFloat(card.dataset.lng);
-
-        // Check if we already have a cached real distance for this card
-        if (card.dataset.realDistance) {
-          const distance = parseFloat(card.dataset.realDistance);
-          const duration = parseInt(card.dataset.duration) || Math.round(distance / 30 * 60);
-          const cost = calculateCost(distance);
-          card.querySelector('.distance').textContent = distance.toFixed(1);
-          card.querySelector('.delivery-fee').textContent = cost.toLocaleString('vi-VN') + ' đ';
-          totalDistance += distance;
-          totalDuration += duration;
-          totalFee += cost;
-          updated++;
-        } else {
-          // Fetch real driving distance via OSRM
-          card.querySelector('.distance').textContent = '...';
-          card.querySelector('.delivery-fee').textContent = '...';
-
-          try {
-            const route = await getRealRoute(originLat, originLng, lat, lng);
-            card.dataset.realDistance = route.distance_km;
-            card.dataset.duration = route.duration_min;
-            card.dataset.polyline = route.polyline || '';
-
-            const distance = route.distance_km;
-            const duration = route.duration_min;
-            const cost = calculateCost(distance);
-            card.querySelector('.distance').textContent = distance.toFixed(1);
-            card.querySelector('.delivery-fee').textContent = cost.toLocaleString('vi-VN') + ' đ';
-            totalDistance += distance;
-            totalDuration += duration;
-            totalFee += cost;
-          } catch (e) {
-            console.warn('Distance calc failed for', card.dataset.name, e.message);
-            const distance = calculateDistance(originLat, originLng, lat, lng);
-            const cost = calculateCost(distance);
-            card.querySelector('.distance').textContent = distance.toFixed(1);
-            card.querySelector('.delivery-fee').textContent = cost.toLocaleString('vi-VN') + ' đ';
-            totalDistance += distance;
-            totalFee += cost;
-          }
-          updated++;
-        }
-      }
-
-      document.getElementById('totalDistance').textContent = totalDistance.toFixed(1);
-
-      let durationDisplay = document.getElementById('totalDuration');
-      if (!durationDisplay) {
-        durationDisplay = document.createElement('span');
-        durationDisplay.id = 'totalDuration';
-        document.querySelector('#totalDistance').parentElement.appendChild(durationDisplay);
-      }
-      durationDisplay.textContent = ' | ' + Math.round(totalDuration) + ' ph';
-
-      document.getElementById('totalDeliveryFee').textContent = totalFee.toLocaleString('vi-VN') + ' đ';
     }
 
     // Initialize map
