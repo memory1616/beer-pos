@@ -39,14 +39,22 @@ function getVietnamDaysAgo(days) {
     String(vn.getUTCDate()).padStart(2, '0');
 }
 
-// GET / - Serve HTML file
-router.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, '../views/dashboard.html'));
-});
-
 // GET /dashboard - Redirect to /
 router.get('/dashboard', (req, res) => {
   res.redirect('/');
+});
+
+// Serve HTML with no-cache headers to prevent browser/PWA caching stale pages
+function sendNoCacheHtml(res, filePath) {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.sendFile(path.join(__dirname, filePath));
+}
+
+// GET / - Serve HTML file
+router.get('/', (req, res) => {
+  sendNoCacheHtml(res, '../views/dashboard.html');
 });
 
 // API: Get dashboard data

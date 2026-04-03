@@ -5,6 +5,9 @@ const path = require('path');
 
 // GET /customers - Serve HTML file
 router.get('/', (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   res.sendFile(path.join(__dirname, '../views/customers.html'));
 });
 
@@ -78,6 +81,9 @@ router.get('/data', (req, res) => {
 
 // GET /customers/:id - Customer detail page
 router.get('/:id', (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   res.sendFile(path.join(__dirname, '../views/customer-detail.html'));
 });
 

@@ -14,6 +14,9 @@ function formatVND(amount) {
 
 // GET /sale - Serve HTML file
 router.get('/', (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   res.sendFile(path.join(__dirname, '../views/sales.html'));
 });
 
