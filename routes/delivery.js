@@ -196,10 +196,10 @@ router.get('/', (req, res, next) => {
     const customers = ${JSON.stringify(customers)};
     const hasGoogleApi = ${hasGoogleApi};
     const defaultSettings = {
-      deliveryCostPerKm: ${settingsObj.delivery_cost_per_km || 3000},
-      deliveryBaseCost: ${settingsObj.delivery_base_cost || 0},
-      distributorLat: ${settingsObj.distributor_lat || 10.8231},
-      distributorLng: ${settingsObj.distributor_lng || 106.6297}
+      deliveryCostPerKm: parseFloat('${settingsObj.delivery_cost_per_km || 3000}'),
+      deliveryBaseCost: parseFloat('${settingsObj.delivery_base_cost || 0}'),
+      distributorLat: parseFloat('${settingsObj.distributor_lat || 10.8231}'),
+      distributorLng: parseFloat('${settingsObj.distributor_lng || 106.6297}')
     };
 
     let currentLat = null;
@@ -543,7 +543,7 @@ router.get('/', (req, res, next) => {
     }
 
     // Initialize map
-    const mapCenter = [${settingsObj.distributor_lat || 10.8231}, ${settingsObj.distributor_lng || 106.6297}];
+    const mapCenter = [parseFloat('${settingsObj.distributor_lat || 10.8231}'), parseFloat('${settingsObj.distributor_lng || 106.6297}')];
     map = L.map('map').setView(mapCenter, 12);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap'
