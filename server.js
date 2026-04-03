@@ -119,7 +119,13 @@ app.use((req, res, next) => {
   const origSendFile = res.sendFile.bind(res);
 
   // Build version string: git hash or fallback to build timestamp
-  const APP_VERSION = process.env.APP_VERSION || String(Date.now()).slice(0, 10);
+  let APP_VERSION;
+  try {
+    const { execSync } = require('child_process');
+    APP_VERSION = execSync('git rev-parse --short HEAD', { cwd: __dirname }).toString().trim();
+  } catch {
+    APP_VERSION = String(Date.now()).slice(0, 10);
+  }
 
   res.sendFile = function(filepath, options, callback) {
     if (String(filepath).endsWith('.html')) {
@@ -134,12 +140,13 @@ app.use((req, res, next) => {
           html = html.replace('<head>', '<head><base href="/">');
         }
 
-        // Inject version busting: append ?v=APP_VERSION to JS and CSS files
+        // Inject version busting: append/replace ?v=APP_VERSION to JS and CSS files
         html = html.replace(/(<\s*(?:script|img|link)\s+[^>]*(?:src|href)\s*=\s*["'])(\/[^"']+)(")/gi, (match, prefix, path, suffix) => {
           // Only bust version for local /js/ and /css/ assets
           if (path.startsWith('/js/') || path.startsWith('/css/') || path === '/sw.js') {
-            const separator = path.includes('?') ? '&' : '?';
-            return `${prefix}${path}${separator}v=${APP_VERSION}${suffix}`;
+            // Remove existing ?v= param to avoid double ?v=...&v=...
+            const cleanPath = path.replace(/\?v=[^&]*/, '');
+            return `${prefix}${cleanPath}?v=${APP_VERSION}${suffix}`;
           }
           return match;
         });
