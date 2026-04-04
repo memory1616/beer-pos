@@ -80,17 +80,25 @@ router.get('/', (req, res) => {
   const period = req.query.period || 'thisMonth';
   const { startDate, endDate, todayKey } = getDateRange(period);
   
-  // Revenue & Profit by period — dùng date(col) vì sales.date lưu YYYY-MM-DD (không giờ);
-  // status NULL: WHERE status != 'returned' loại hết dòng (NULL != 'returned' là UNKNOWN) → dashboard vẫn có số, báo cáo 0
-  // total_quantity là scalar subquery (không FROM sale_items) để luôn có 1 dòng, kể cả hôm nay không có dòng sale_items
+  // PERFORMANCE: Single pass over period_sales for revenue/profit/order_count,
+  // plus one JOIN to sale_items for total_quantity (was: 5 full scans of sales table)
   const periodStats = db.prepare(`
-    SELECT 
-      (SELECT COALESCE(SUM(total), 0) FROM sales WHERE date(date) >= date(?) AND date(date) <= date(?) AND (status IS NULL OR status != 'returned')) as revenue,
-      (SELECT COALESCE(SUM(profit), 0) FROM sales WHERE date(date) >= date(?) AND date(date) <= date(?) AND (status IS NULL OR status != 'returned')) as profit,
-      (SELECT COUNT(*) FROM sales WHERE date(date) >= date(?) AND date(date) <= date(?) AND (status IS NULL OR status != 'returned')) as order_count,
-      (SELECT COALESCE(SUM(si.quantity), 0) FROM sale_items si JOIN sales s ON s.id = si.sale_id
-        WHERE date(s.date) >= date(?) AND date(s.date) <= date(?) AND (s.status IS NULL OR s.status != 'returned')) as total_quantity
-  `).get(startDate, endDate, startDate, endDate, startDate, endDate, startDate, endDate);
+    WITH period_sales AS (
+      SELECT id, total, profit FROM sales
+      WHERE date(date) >= date(?) AND date(date) <= date(?)
+        AND (status IS NULL OR status != 'returned')
+    )
+    SELECT
+      COALESCE(SUM(ps.total), 0) as revenue,
+      COALESCE(SUM(ps.profit), 0) as profit,
+      COUNT(*) as order_count,
+      COALESCE(SUM(si.total_qty), 0) as total_quantity
+    FROM period_sales ps
+    LEFT JOIN (
+      SELECT sale_id, COALESCE(SUM(quantity), 0) as total_qty
+      FROM sale_items GROUP BY sale_id
+    ) si ON si.sale_id = ps.id
+  `).get(startDate.split(' ')[0], endDate.split(' ')[0]);
   
   // Get expenses for the period (date có thể là YYYY-MM-DD)
   const periodExpenses = db.prepare(`
@@ -100,33 +108,57 @@ router.get('/', (req, res) => {
   // Calculate net profit (profit - expenses)
   const netProfit = periodStats.profit - periodExpenses.total;
   
-  // Daily stats — KHÔNG JOIN sale_items khi SUM(s.total): mỗi đơn nhiều dòng item → nhân đôi doanh thu trên biểu đồ
+  // PERFORMANCE: GROUP BY date with proper LEFT JOIN to sale_items (was: triple-nested correlated subquery per row)
   const dailyStats = db.prepare(`
-    SELECT 
+    SELECT
       date(s.date) as date,
       COALESCE(SUM(s.total), 0) as revenue,
       COALESCE(SUM(s.profit), 0) as profit,
-      COALESCE(SUM((SELECT COALESCE(SUM(si.quantity), 0) FROM sale_items si WHERE si.sale_id = s.id)), 0) as quantity
+      COALESCE(SUM(si.total_qty), 0) as quantity
     FROM sales s
-    WHERE date(s.date) >= date(?) AND date(s.date) <= date(?) AND (s.status IS NULL OR s.status != 'returned')
+    LEFT JOIN (
+      SELECT sale_id, COALESCE(SUM(quantity), 0) as total_qty
+      FROM sale_items GROUP BY sale_id
+    ) si ON si.sale_id = s.id
+    WHERE date(s.date) >= date(?) AND date(s.date) <= date(?)
+      AND (s.status IS NULL OR s.status != 'returned')
     GROUP BY date(s.date)
     ORDER BY date(s.date) DESC
     LIMIT 30
-  `).all(startDate, endDate);
+  `).all(startDate.split(' ')[0], endDate.split(' ')[0]);
   
-  // Top customers by revenue - use subquery to avoid duplicate counting
+  // PERFORMANCE: Single query replaces 5 correlated subqueries per customer row (was: triple-nested)
   const topCustomers = db.prepare(`
-    SELECT 
-      c.id,
-      c.name,
-      (SELECT COALESCE(SUM(s2.total), 0) FROM sales s2 WHERE s2.customer_id = c.id AND date(s2.date) >= date(?) AND date(s2.date) <= date(?) AND (s2.status IS NULL OR s2.status != 'returned')) as revenue,
-      (SELECT COALESCE(SUM(si2.quantity), 0) FROM sale_items si2 JOIN sales s3 ON s3.id = si2.sale_id AND s3.customer_id = c.id AND date(s3.date) >= date(?) AND date(s3.date) <= date(?) AND (s3.status IS NULL OR s3.status != 'returned')) as quantity,
-      (SELECT COUNT(*) FROM sales s2 WHERE s2.customer_id = c.id AND date(s2.date) >= date(?) AND date(s2.date) <= date(?) AND (s2.status IS NULL OR s2.status != 'returned')) as order_count
+    WITH customer_period AS (
+      SELECT customer_id,
+        COALESCE(SUM(total), 0) as revenue,
+        COUNT(*) as order_count
+      FROM sales
+      WHERE date(date) >= date(?) AND date(date) <= date(?)
+        AND (status IS NULL OR status != 'returned')
+        AND customer_id IS NOT NULL
+      GROUP BY customer_id
+    ),
+    customer_qty AS (
+      SELECT s.customer_id, COALESCE(SUM(si.quantity), 0) as qty
+      FROM sale_items si
+      JOIN sales s ON s.id = si.sale_id
+      WHERE date(s.date) >= date(?) AND date(s.date) <= date(?)
+        AND (s.status IS NULL OR s.status != 'returned')
+        AND s.customer_id IS NOT NULL
+      GROUP BY s.customer_id
+    )
+    SELECT c.id, c.name,
+      COALESCE(cp.revenue, 0) as revenue,
+      COALESCE(cq.qty, 0) as quantity,
+      COALESCE(cp.order_count, 0) as order_count
     FROM customers c
-    WHERE c.archived = 0 AND (SELECT SUM(s2.total) FROM sales s2 WHERE s2.customer_id = c.id AND date(s2.date) >= date(?) AND date(s2.date) <= date(?) AND (s2.status IS NULL OR s2.status != 'returned')) > 0
+    LEFT JOIN customer_period cp ON cp.customer_id = c.id
+    LEFT JOIN customer_qty cq ON cq.customer_id = c.id
+    WHERE c.archived = 0 AND COALESCE(cp.revenue, 0) > 0
     ORDER BY revenue DESC
     LIMIT 3
-  `).all(startDate, endDate, startDate, endDate, startDate, endDate, startDate, endDate);
+  `).all(startDate.split(' ')[0], endDate.split(' ')[0], startDate.split(' ')[0], endDate.split(' ')[0]);
   
   // Top products by quantity sold
   const topProducts = db.prepare(`
@@ -144,13 +176,20 @@ router.get('/', (req, res) => {
     LIMIT 10
   `).all(startDate, endDate);
   
-  // All time stats - chỉ dùng subquery, không JOIN, đảm bảo tổng toàn bộ thời gian
+  // All time stats — single CTE pass replaces 4 scalar subqueries
   const allTimeStats = db.prepare(`
-    SELECT 
-      (SELECT COALESCE(SUM(total), 0) FROM sales WHERE (status IS NULL OR status != 'returned')) as revenue,
-      (SELECT COALESCE(SUM(profit), 0) FROM sales WHERE (status IS NULL OR status != 'returned')) as profit,
-      (SELECT COUNT(*) FROM sales WHERE (status IS NULL OR status != 'returned')) as order_count,
-      (SELECT COALESCE(SUM(quantity), 0) FROM sale_items si JOIN sales s ON s.id = si.sale_id WHERE (s.status IS NULL OR s.status != 'returned')) as total_quantity
+    WITH sales_valid AS (
+      SELECT id, total, profit FROM sales WHERE (status IS NULL OR status != 'returned')
+    )
+    SELECT
+      COALESCE(SUM(sv.total), 0) as revenue,
+      COALESCE(SUM(sv.profit), 0) as profit,
+      COUNT(*) as order_count,
+      COALESCE(SUM(si.total_qty), 0) as total_quantity
+    FROM sales_valid sv
+    LEFT JOIN (
+      SELECT sale_id, COALESCE(SUM(quantity), 0) as total_qty FROM sale_items GROUP BY sale_id
+    ) si ON si.sale_id = sv.id
   `).get();
   
   // Get all time expenses
@@ -165,43 +204,52 @@ router.get('/', (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 5;
   const offset = (page - 1) * limit;
-  
+
+  // PERFORMANCE: LEFT JOIN to sale_items replaces correlated subquery (was: 1 subquery per row)
   let salesQuery = `
-    SELECT s.id, s.customer_id, s.date, s.total, s.profit, s.type, s.deliver_kegs, s.return_kegs, c.name as customer_name,
-      (SELECT COALESCE(SUM(si.quantity), 0) FROM sale_items si WHERE si.sale_id = s.id) as quantity
+    SELECT s.id, s.customer_id, s.date, s.total, s.profit, s.type, s.deliver_kegs, s.return_kegs,
+      c.name as customer_name,
+      COALESCE(si.total_qty, 0) as quantity
     FROM sales s
     LEFT JOIN customers c ON c.id = s.customer_id
+    LEFT JOIN (
+      SELECT sale_id, COALESCE(SUM(quantity), 0) as total_qty
+      FROM sale_items GROUP BY sale_id
+    ) si ON si.sale_id = s.id
   `;
-  
+
   let countQuery = `SELECT COUNT(*) as total FROM sales s`;
-  let whereClause = '';
-  
+  let queryParams = [];
+
   if (period === 'thisMonth') {
     const ym = todayKey.slice(0, 7);
-    whereClause = ` WHERE strftime('%Y-%m', s.date) = '${ym}'`;
+    whereClause = ` WHERE strftime('%Y-%m', s.date) = ?`;
+    queryParams.push(ym);
   } else if (period === 'lastMonth') {
     const ym = startDate.split(' ')[0].slice(0, 7);
-    whereClause = ` WHERE strftime('%Y-%m', s.date) = '${ym}'`;
+    whereClause = ` WHERE strftime('%Y-%m', s.date) = ?`;
+    queryParams.push(ym);
   } else if (period === 'today') {
-    whereClause = ` WHERE date(s.date) = date('${todayKey}')`;
+    whereClause = ` WHERE date(s.date) = ?`;
+    queryParams.push(todayKey);
   } else if (period === 'yesterday') {
-    const yk = startDate.split(' ')[0];
-    whereClause = ` WHERE date(s.date) = date('${yk}')`;
+    whereClause = ` WHERE date(s.date) = ?`;
+    queryParams.push(startDate.split(' ')[0]);
   } else if (period === 'week') {
-    const d0 = startDate.split(' ')[0];
-    const d1 = endDate.split(' ')[0];
-    whereClause = ` WHERE date(s.date) >= date('${d0}') AND date(s.date) <= date('${d1}')`;
+    whereClause = ` WHERE date(s.date) >= ? AND date(s.date) <= ?`;
+    queryParams.push(startDate.split(' ')[0], endDate.split(' ')[0]);
   }
-  
+
   countQuery += whereClause;
   salesQuery += whereClause;
-  
-  const total = db.prepare(countQuery).get().total;
+
+  const total = db.prepare(countQuery).get(...queryParams).total;
   const totalPages = Math.ceil(total / limit);
-  
-  salesQuery += ` ORDER BY s.date DESC, s.id DESC LIMIT ${limit} OFFSET ${offset}`;
-  
-  const recentSales = db.prepare(salesQuery).all();
+
+  salesQuery += ` ORDER BY s.date DESC, s.id DESC LIMIT ? OFFSET ?`;
+  queryParams.push(limit, offset);
+
+  const recentSales = db.prepare(salesQuery).all(...queryParams);
   
   const periodLabel = {
     'today': 'Hôm nay',
@@ -684,44 +732,55 @@ router.get('/sales', (req, res) => {
   const offset = (page - 1) * limit;
   const period = req.query.period || 'thisMonth';
   const { startDate, endDate, todayKey } = getDateRange(period);
-  
+
+  // PERFORMANCE: LEFT JOIN to sale_items replaces correlated subquery + parameterized WHERE
   let salesQuery = `
-    SELECT s.id, s.customer_id, s.date, s.total, s.profit, s.type, s.deliver_kegs, s.return_kegs, c.name as customer_name,
-      (SELECT COALESCE(SUM(si.quantity), 0) FROM sale_items si WHERE si.sale_id = s.id) as quantity
+    SELECT s.id, s.customer_id, s.date, s.total, s.profit, s.type, s.deliver_kegs, s.return_kegs,
+      c.name as customer_name,
+      COALESCE(si.total_qty, 0) as quantity
     FROM sales s
     LEFT JOIN customers c ON c.id = s.customer_id
+    LEFT JOIN (
+      SELECT sale_id, COALESCE(SUM(quantity), 0) as total_qty
+      FROM sale_items GROUP BY sale_id
+    ) si ON si.sale_id = s.id
   `;
-  
+
   let countQuery = `SELECT COUNT(*) as total FROM sales s`;
-  let whereClause = '';
-  
+  let queryParams = [];
+
   if (period === 'thisMonth') {
     const ym = todayKey.slice(0, 7);
-    whereClause = ` WHERE strftime('%Y-%m', s.date) = '${ym}'`;
+    salesQuery += ` WHERE strftime('%Y-%m', s.date) = ?`;
+    countQuery += ` WHERE strftime('%Y-%m', s.date) = ?`;
+    queryParams.push(ym);
   } else if (period === 'lastMonth') {
     const ym = startDate.split(' ')[0].slice(0, 7);
-    whereClause = ` WHERE strftime('%Y-%m', s.date) = '${ym}'`;
+    salesQuery += ` WHERE strftime('%Y-%m', s.date) = ?`;
+    countQuery += ` WHERE strftime('%Y-%m', s.date) = ?`;
+    queryParams.push(ym);
   } else if (period === 'today') {
-    whereClause = ` WHERE date(s.date) = date('${todayKey}')`;
+    salesQuery += ` WHERE date(s.date) = ?`;
+    countQuery += ` WHERE date(s.date) = ?`;
+    queryParams.push(todayKey);
   } else if (period === 'yesterday') {
-    const yk = startDate.split(' ')[0];
-    whereClause = ` WHERE date(s.date) = date('${yk}')`;
+    salesQuery += ` WHERE date(s.date) = ?`;
+    countQuery += ` WHERE date(s.date) = ?`;
+    queryParams.push(startDate.split(' ')[0]);
   } else if (period === 'week') {
-    const d0 = startDate.split(' ')[0];
-    const d1 = endDate.split(' ')[0];
-    whereClause = ` WHERE date(s.date) >= date('${d0}') AND date(s.date) <= date('${d1}')`;
+    salesQuery += ` WHERE date(s.date) >= ? AND date(s.date) <= ?`;
+    countQuery += ` WHERE date(s.date) >= ? AND date(s.date) <= ?`;
+    queryParams.push(startDate.split(' ')[0], endDate.split(' ')[0]);
   }
-  
-  countQuery += whereClause;
-  salesQuery += whereClause;
-  
-  const total = db.prepare(countQuery).get().total;
+
+  const total = db.prepare(countQuery).get(...queryParams).total;
   const totalPages = Math.ceil(total / limit);
-  
-  salesQuery += ` ORDER BY s.date DESC, s.id DESC LIMIT ${limit} OFFSET ${offset}`;
-  
-  const sales = db.prepare(salesQuery).all();
-  
+
+  salesQuery += ` ORDER BY s.date DESC, s.id DESC LIMIT ? OFFSET ?`;
+  queryParams.push(limit, offset);
+
+  const sales = db.prepare(salesQuery).all(...queryParams);
+
   res.json({ sales, total, page, limit, totalPages });
 });
 

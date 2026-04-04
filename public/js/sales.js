@@ -8,8 +8,34 @@ let customers = [];
 let editingSaleId = null;
 let saleData = {};
 
-/** Thanh Cập nhật/Huỷ khi sửa hóa đơn (không nằm cùng cụm Bán hàng / Đổi bia) */
-function syncSaleEditAuxSheet() {
+/** PERFORMANCE: O(1) Maps — rebuilt once when data loads, reused for all lookups */
+let _productById  = new Map();
+let _customerById = new Map();
+
+function _rebuildMaps() {
+  _productById.clear();
+  products.forEach(p => _productById.set(p.id, p));
+  _customerById.clear();
+  customers.forEach(c => _customerById.set(c.id, c));
+}
+
+function getProduct(productId) {
+  return _productById.get(Number(productId)) || null;
+}
+
+function getCustomer(customerId) {
+  if (!customerId) return null;
+  return _customerById.get(Number(customerId)) || null;
+}
+
+/** PERFORMANCE: Debounce — coalesces rapid keystrokes so updateSaleTotal runs once */
+function _debounce(fn, delay) {
+  let t;
+  return (...args) => {
+    clearTimeout(t);
+    t = setTimeout(() => fn(...args), delay);
+  };
+}
   const sheet = document.getElementById('saleEditAuxSheet');
   const repBtn = document.getElementById('replacementOpenBtn');
   const editing = editingSaleId != null;
@@ -83,6 +109,9 @@ function initSalesPage(data) {
   customers = data.customers;
   priceMap = data.priceMap || {};
 
+  // PERFORMANCE: rebuild O(1) Maps once after data loads
+  _rebuildMaps();
+
   // Render customer select - include "Khach le" option
   const customerSelect = document.getElementById('customerSelect');
   customerSelect.innerHTML = '<option value="">📋 Khách lẻ (giá thường)</option>' +
@@ -129,8 +158,8 @@ function renderSaleProducts() {
         <input type="number" id="price-${p.id}" min="0" step="1000" value="${priceInputVal}" placeholder="Nhập giá"
           inputmode="decimal" enterkeyhint="done"
           class="w-full border-2 border-primary rounded-xl p-3 text-center text-lg font-bold text-main focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
-          onchange="updateSaleData(${p.id}, 'price', this.value); updateSaleTotal();"
-          oninput="updateSaleData(${p.id}, 'price', this.value); updateSaleTotal();">`
+          onchange="updateSaleData(${p.id}, 'price', this.value);"
+          oninput="updateSaleData(${p.id}, 'price', this.value);">`
       : '';
     return `
       <div class="p-3 border-2 ${isLowStock ? 'border-warning bg-warning/5' : 'border-primary bg-primary/5'} rounded-xl transition-all">
@@ -141,8 +170,8 @@ function renderSaleProducts() {
           placeholder="Nhập SL"
           inputmode="numeric" enterkeyhint="done"
           class="mt-2 w-full border-2 border-primary rounded-xl p-3 text-center text-lg font-bold focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none ${currentQty > 0 ? 'bg-primary/10' : ''}"
-          onchange="updateSaleData(${p.id}, 'quantity', this.value); updateSaleTotal();"
-          oninput="updateSaleData(${p.id}, 'quantity', this.value); updateSaleTotal();">
+          onchange="updateSaleData(${p.id}, 'quantity', this.value);"
+          oninput="updateSaleData(${p.id}, 'quantity', this.value);">
       </div>
     `;
   }).join('');
@@ -154,7 +183,7 @@ function adjustQty(productId, amount) {
   const input = document.getElementById('qty-' + productId);
   if (!input) return;
   const current = parseInt(input.value) || 0;
-  const product = products.find(p => p.id === productId);
+  const product = getProduct(productId);
   const maxStock = product ? product.stock : 999;
   
   let newValue = current + amount;
@@ -170,7 +199,7 @@ function adjustQty(productId, amount) {
 let currentEditingProduct = null;
 
 function toggleQtyControl(productId) {
-  const product = products.find(p => p.id === productId);
+  const product = getProduct(productId);
   if (!product) return;
   
   currentEditingProduct = productId;
@@ -236,7 +265,7 @@ function toggleQtyControl(productId) {
 function adjustQtyModal(productId, amount) {
   const input = document.getElementById('qty-' + productId);
   const current = parseInt(input.value) || 0;
-  const product = products.find(p => p.id === productId);
+  const product = getProduct(productId);
   const maxStock = product ? product.stock : 999;
   
   let newValue = current + amount;
@@ -254,7 +283,7 @@ function closeQtyModal() {
 
 function updateSaleData(productId, field, value) {
   if (!saleData[productId]) {
-    const product = products.find(p => p.id === productId);
+    const product = getProduct(productId);
     saleData[productId] = {
       quantity: 0,
       price: (product && product._displayPrice != null && product._displayPrice !== '')
@@ -272,7 +301,7 @@ function updateSaleData(productId, field, value) {
     saleData[productId].price = (isNaN(parsed) || parsed < 0) ? 0 : parsed;
   }
 
-  updateSaleTotal();
+  _debouncedUpdateTotal();
   autoFillKegFromCart();
 }
 
@@ -288,7 +317,7 @@ function autoFillKegFromCart() {
   if (!_kegDeliverManual) {
     const totalKegQty = Object.keys(saleData).reduce((sum, productId) => {
       const item = saleData[productId];
-      const product = products.find(p => p.id == productId);
+      const product = getProduct(productId);
       if (item.quantity > 0 && product && product.type !== 'pet' && product.type !== 'box') {
         return sum + item.quantity;
       }
@@ -311,7 +340,7 @@ function updateSaleTotal() {
   Object.keys(saleData).forEach(productId => {
     const item = saleData[productId];
     if (item.quantity > 0 && item.price > 0) {
-      const product = products.find(p => p.id == productId);
+      const product = getProduct(productId);
       const lineTotal = item.quantity * item.price;
       total += lineTotal;
       hasItems = true;
@@ -377,7 +406,7 @@ function updateKegSaleSection(customerId) {
 
   section.classList.remove('hidden');
 
-  const customer = customers.find(c => c.id == customerId);
+  const customer = getCustomer(customerId);
   const currentBalance = customer ? (customer.keg_balance || 0) : 0;
   if (balanceEl) balanceEl.textContent = currentBalance + ' vỏ';
 
@@ -400,7 +429,7 @@ function updateSaleKegPreview() {
   const deliver = parseInt(deliverInput?.value) || 0;
   const returned = parseInt(returnInput?.value) || 0;
 
-  const customer = customers.find(c => c.id == customerId);
+  const customer = getCustomer(customerId);
   const currentBalance = customer ? (customer.keg_balance || 0) : 0;
   const afterBalance = currentBalance + deliver - returned;
 
@@ -602,7 +631,7 @@ async function submitSale() {
       updateKegSaleSection('');
       loadSalesHistory();
       // Reload customers to get updated keg_balance
-      fetch('/api/customers').then(r => r.json()).then(c => { customers = c; });
+      fetch('/api/customers').then(r => r.json()).then(c => { customers = c; _rebuildMaps(); });
       // Reload keg state
       fetch('/api/kegs/state').then(r => r.json()).then(s => { kegState = s; });
       showToast('Bán hàng thành công!', 'success');
@@ -867,6 +896,7 @@ async function saveKegUpdate() {
   if (res.ok) {
     const custListRes = await fetch('/api/customers');
     customers = await custListRes.json();
+    _rebuildMaps();
     alert(`Cập nhật vỏ thành công!\n\nGiao: ${deliverKegs} | Thu: ${returnKegs}\nVỏ tại khách: ${result.newBalance}`);
     closeKegModal();
     loadSalesHistory();
@@ -1061,6 +1091,7 @@ async function submitCollectKeg() {
   if (res.ok) {
     const custListRes = await fetch('/api/customers');
     customers = await custListRes.json();
+    _rebuildMaps();
     alert(`Cập nhật vỏ thành công!\n\nGiao: ${deliver} | Thu: ${returned}\nVỏ tại khách: ${result.newBalance}`);
     closeCollectKegModal();
     loadSalesHistory();
@@ -1085,85 +1116,7 @@ function formatSaleListDate(raw) {
 }
 
 // ========== SALES HISTORY RENDER ==========
-async function loadSalesHistory() {
-  const { page, limit, month } = salesPagination;
-  const monthParam = month !== 'all' ? `&month=${month}` : '';
-  let data;
-  try {
-    const res = await fetch(`/api/sales?page=${page}&limit=${limit}${monthParam}`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    data = await res.json();
-  } catch (err) {
-    console.error('loadSalesHistory error:', err);
-    const container = document.getElementById('salesHistoryList');
-    if (container) container.innerHTML =
-      '<p class="text-danger text-center py-4">Không tải được lịch sử. Kiểm tra kết nối server.</p>';
-    return;
-  }
-
-  const salesHistory = data.sales;
-  salesPagination.total = data.total;
-  salesPagination.totalPages = data.totalPages;
-
-  const container = document.getElementById('salesHistoryList');
-  if (salesHistory.length === 0) {
-    container.innerHTML = '<p class="text-muted text-center py-4">Chưa có hóa đơn nào</p>';
-    renderPagination();
-    return;
-  }
-  
-  container.innerHTML = '<div class="flex flex-col gap-3">' +
-    salesHistory.map(sale => {
-    const date = formatSaleListDate(sale.date);
-    const customerName = sale.customer_name || 'Khách lẻ';
-    const isReturned = sale.status === 'returned';
-    const itemsQty = parseInt(sale.items_qty, 10) || 0;
-
-    const isReplacement = sale.type === 'replacement';
-    const isGift = sale.type === 'gift';
-
-    const badgeHtml = isReplacement
-      ? '<span class="badge badge-warning">🔁 Đổi lỗi</span>'
-      : isGift
-      ? '<span class="badge badge-primary">🎁 Tặng thử</span>'
-      : '';
-    const badgeLeft = isReplacement
-      ? 'border-l-4 border-warning'
-      : isGift
-      ? 'border-l-4 border-primary'
-      : 'border-l-4 border-success';
-
-    const qtyLabel = itemsQty > 0 ? '📦 ' + itemsQty + 'L' : '';
-    const saleMoney = typeof Format !== 'undefined' ? Format.number(sale.total) : formatVND(sale.total).replace(' đ', '');
-
-    return `
-      <div class="order-item ${badgeLeft}">
-        <div class="order-header">
-          <div class="flex items-center gap-2 min-w-0 flex-1">
-            <span class="text-xs font-semibold text-muted shrink-0">#${sale.id}</span>
-            <span class="order-title">${customerName}</span>
-            ${badgeHtml ? '<span class="shrink-0">' + badgeHtml + '</span>' : ''}
-          </div>
-          <span class="order-meta">📅 ${date}</span>
-        </div>
-
-        <div class="order-footer">
-          <div class="flex items-baseline gap-1">
-            <div class="money text-money"><span class="value text-xl font-bold tabular-nums">${saleMoney}</span><span class="unit">đ</span></div>
-          </div>
-          ${qtyLabel ? '<span class="order-meta">' + qtyLabel + '</span>' : ''}
-        </div>
-
-        <div class="order-actions">
-          <button onclick="viewSale(${sale.id})" class="btn btn-secondary btn-sm">Hóa đơn</button>
-          ${!isReturned ? `
-          <button onclick="openCollectKegModal(${sale.id})" class="btn btn-warning btn-sm">Thu vỏ</button>
-          <button onclick="editSale(${sale.id})" class="btn btn-ghost btn-sm">Sửa</button>
-          <button onclick="deleteSale(${sale.id})" class="btn btn-danger btn-sm">Xóa</button>` : ''}
-        </div>
-      </div>
 // PERFORMANCE: Incremental DOM — each card has data-sale-id, only changed rows re-render.
-// cardMap caches DOM refs for O(1) patch updates (vs full re-render).
 const _saleCardMap = new Map();
 
 // Replace a single sale row in-place (no full re-render)
@@ -1689,3 +1642,7 @@ async function updateSale() {
     alert(result.error || 'Cập nhật thất bại');
   }
 }
+
+/** PERFORMANCE: Debounced updateSaleTotal — coalesces rapid keystrokes, max 1 call per 100ms.
+ *  Call this from updateSaleData() instead of updateSaleTotal() directly. */
+const _debouncedUpdateTotal = _debounce(updateSaleTotal, 100);
