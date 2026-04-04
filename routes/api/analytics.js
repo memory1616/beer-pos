@@ -197,17 +197,25 @@ router.get('/customer-history/:customerId', (req, res) => {
       LIMIT ?
     `).all(customerId, parseInt(limit));
     
-    // Chi tiết từng đơn
-    const orderDetails = orders.map(order => {
-      const items = db.prepare(`
-        SELECT si.product_id, p.name, si.quantity, si.price, si.cost_price, si.profit
+    // Chi tiết từng đơn - PERFORMANCE: Batch query to avoid N+1
+    if (orders.length === 0) {
+      orderDetails = [];
+    } else {
+      const orderIds = orders.map(o => o.id);
+      const allItems = db.prepare(`
+        SELECT si.sale_id, si.product_id, p.name, si.quantity, si.price, si.cost_price, si.profit
         FROM sale_items si
         JOIN products p ON p.id = si.product_id
-        WHERE si.sale_id = ?
-      `).all(order.id);
-      
-      return { ...order, items };
-    });
+        WHERE si.sale_id IN (${orderIds.map(() => '?').join(',')})
+      `).all(...orderIds);
+
+      const itemsBySale = {};
+      for (const item of allItems) {
+        if (!itemsBySale[item.sale_id]) itemsBySale[item.sale_id] = [];
+        itemsBySale[item.sale_id].push(item);
+      }
+      orderDetails = orders.map(o => ({ ...o, items: itemsBySale[o.id] || [] }));
+    }
     
     // Tổng kết
     const summary = db.prepare(`

@@ -34,37 +34,39 @@ async function createSaleOffline(customerId, items, total, profit) {
     synced: 0
   };
 
-  // Add sale to local DB
-  const saleId = await db.sales.add(saleData);
-  
-  // Add sale items and update stock
-  for (const item of items) {
-    await db.sale_items.add({
-      sale_id: saleId,
-      product_id: item.productId,
-      quantity: item.quantity,
-      price: item.price || 0,
-      cost_price: item.costPrice || 0,
-      synced: 0
-    });
+  // PERFORMANCE: Single transaction for ALL operations — 1x transaction vs N+1
+  let saleId;
+  await db.transaction('rw', [db.sales, db.sale_items, db.products, db.sync_queue], async () => {
+    saleId = await db.sales.add(saleData);
 
-    // UPDATE STOCK in local DB
-    const product = await db.products.get(item.productId);
-    if (product) {
-      await db.products.update(item.productId, {
-        stock: product.stock - item.quantity
+    // Batch all item operations
+    for (const item of items) {
+      await db.sale_items.add({
+        sale_id: saleId,
+        product_id: item.productId,
+        quantity: item.quantity,
+        price: item.price || 0,
+        cost_price: item.costPrice || 0,
+        synced: 0
       });
-    }
-  }
 
-  // Add to sync queue
-  await addToSyncQueue('sale', 'create', {
-    id: saleId,
-    customerId,
-    items,
-    total,
-    profit,
-    date: saleData.date
+      // UPDATE STOCK in local DB
+      const product = await db.products.get(item.productId);
+      if (product) {
+        await db.products.update(item.productId, {
+          stock: product.stock - item.quantity
+        });
+      }
+    }
+
+    // Add to sync queue
+    await db.sync_queue.add({
+      type: 'sale',
+      action: 'create',
+      data: JSON.stringify({ id: saleId, customerId, items, total, profit, date: saleData.date }),
+      synced: 0,
+      created_at: new Date().toISOString()
+    });
   });
 
   // Try to register background sync
@@ -167,26 +169,30 @@ async function syncAllData() {
   let syncedCount = 0;
   const syncedIds = [];
 
-  for (const item of pendingItems) {
-    try {
-      const response = await fetch(`${cloudUrl}/api/receive`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          entity: item.type,
-          entity_id: item.data?.id || null,
-          action: item.action,
-          data: JSON.parse(item.data || '{}'),
-          local_created_at: item.created_at
-        })
-      });
-
-      if (response.ok) {
-        syncedIds.push(item.id);
-        syncedCount++;
+  // PERFORMANCE: Parallel fetch — N requests simultaneously vs sequential
+  const BATCH_SIZE = 5;
+  for (let i = 0; i < pendingItems.length; i += BATCH_SIZE) {
+    const batch = pendingItems.slice(i, i + BATCH_SIZE);
+    const results = await Promise.all(batch.map(async item => {
+      try {
+        const response = await fetch(`${cloudUrl}/api/receive`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            entity: item.type,
+            entity_id: item.data?.id || null,
+            action: item.action,
+            data: JSON.parse(item.data || '{}'),
+            local_created_at: item.created_at
+          })
+        });
+        return response.ok ? item.id : null;
+      } catch {
+        return null;
       }
-    } catch (e) {
-      console.error('Sync error:', e.message);
+    }));
+    for (const id of results) {
+      if (id != null) { syncedIds.push(id); syncedCount++; }
     }
   }
 
@@ -217,42 +223,49 @@ async function pullFromCloud() {
     let imported = 0;
 
     // Import products
+    // PERFORMANCE: bulkPut/bulkAdd — single IndexedDB operation vs N
     if (data.products && data.products.length > 0) {
-      for (const product of data.products) {
-        const existing = await db.products.get(product.id);
-        if (existing) {
+      const toAdd = [];
+      for (const p of data.products) {
+        const ex = await db.products.get(p.id);
+        if (ex) {
           // Update stock if cloud has more
-          if (product.stock > existing.stock) {
-            await db.products.update(product.id, { stock: product.stock, synced: 1 });
+          if (p.stock > ex.stock) {
+            await db.products.update(p.id, { stock: p.stock, synced: 1 });
             imported++;
           }
         } else {
-          await db.products.add({ ...product, synced: 1 });
+          toAdd.push({ ...p, synced: 1 });
           imported++;
         }
       }
+      if (toAdd.length > 0) await db.products.bulkAdd(toAdd);
     }
 
     // Import customers
     if (data.customers && data.customers.length > 0) {
-      for (const customer of data.customers) {
-        const existing = await db.customers.get(customer.id);
-        if (!existing) {
-          await db.customers.add({ ...customer, synced: 1, archived: customer.archived || 0 });
+      const toAdd = [];
+      for (const c of data.customers) {
+        const ex = await db.customers.get(c.id);
+        if (!ex) {
+          toAdd.push({ ...c, synced: 1, archived: c.archived || 0 });
           imported++;
         }
       }
+      if (toAdd.length > 0) await db.customers.bulkAdd(toAdd);
     }
 
     // Import sales
     if (data.sales && data.sales.length > 0) {
-      for (const sale of data.sales) {
-        const existing = await db.sales.get(sale.id);
-        if (!existing) {
-          await db.sales.add({ ...sale, synced: 1 });
+      const toAdd = [];
+      for (const s of data.sales) {
+        const ex = await db.sales.get(s.id);
+        if (!ex) {
+          toAdd.push({ ...s, synced: 1 });
           imported++;
         }
       }
+      if (toAdd.length > 0) await db.sales.bulkAdd(toAdd);
     }
 
     localStorage.setItem('lastSync', new Date().toISOString());

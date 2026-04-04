@@ -24,6 +24,88 @@ function formatVND(amount) {
   return new Intl.NumberFormat('vi-VN').format(num) + ' đ';
 }
 
+// PERFORMANCE: Extract card rendering to separate function for virtual scroll
+function renderCustomerCard(c) {
+  const hasLocation = c.lat && c.lng;
+  const hFridge = c.horizontal_fridge || 0;
+  const vFridge = c.vertical_fridge || 0;
+
+  let statusDotClass = 'customer-status-dot--muted';
+  if (currentTab === 'active') {
+    if (c.days_since_last_order !== null && c.days_since_last_order !== undefined) {
+      if (c.days_since_last_order >= 7) {
+        statusDotClass = 'customer-status-dot--danger';
+      } else if (c.daily_avg < 5) {
+        statusDotClass = 'customer-status-dot--warning';
+      } else {
+        statusDotClass = 'customer-status-dot--success';
+      }
+    } else {
+      statusDotClass = 'customer-status-dot--warning';
+    }
+  }
+
+  const volumeLine = c.monthly_liters > 0
+    ? `<div class="customer-card-volume">📈 ${c.monthly_liters} bình/tháng</div>`
+    : '';
+
+  const actionsBlock = currentTab === 'active' ? `
+        <div class="order-actions customer-card-actions">
+          <button type="button" onclick="getLocation(${c.id})" class="btn btn-ghost btn-sm">📍 GPS</button>
+          <button type="button" onclick="editCustomer(${c.id}, '${String(c.name).replace(/'/g, "\\'")}', '${String(c.phone || '').replace(/'/g, "\\'")}', ${c.deposit})" class="btn btn-ghost btn-sm">✏️ Sửa</button>
+          <button type="button" onclick="showPriceModal(${c.id}, '${String(c.name).replace(/'/g, "\\'")}')" class="btn btn-ghost btn-sm">💰 Giá</button>
+          <button type="button" onclick="archiveCustomer(${c.id})" class="btn btn-ghost btn-sm" title="Lưu trữ">📦</button>
+        </div>
+        ` : `
+        <div class="order-actions customer-card-actions">
+          <button type="button" onclick="unarchiveCustomer(${c.id})" class="btn btn-ghost btn-sm">📤 Khôi phục</button>
+          <button type="button" onclick="deleteCustomer(${c.id})" class="btn btn-danger btn-sm">🗑️ Xóa</button>
+        </div>
+        `;
+
+  return `
+    <div class="order-item ${c.archived ? 'opacity-70' : ''}" data-customer-id="${c.id}" data-name="${c.name.toLowerCase()}">
+      <div class="customer-card-head">
+        <div class="customer-card-info">
+          <div class="customer-card-name-row">
+            <a href="/customers/${c.id}" class="order-title hover:text-primary">${c.name}</a>
+            <span class="customer-status-dot ${statusDotClass}" title="Trạng thái mua hàng"></span>
+          </div>
+          <div class="customer-card-phone">📱 ${c.phone || 'Chưa có SĐT'}</div>
+          ${volumeLine}
+        </div>
+        <div class="customer-card-keg-panel">
+          <div class="customer-keg-box">
+            <span class="customer-keg-box-icon">📦</span>
+            <span class="customer-keg-box-num">${c.keg_balance || 0}</span>
+            <span class="customer-keg-box-unit">vỏ</span>
+          </div>
+          <div class="customer-fridge-mini">
+            <span title="Tủ lạnh nằm">❄️ Tủ Nằm ${hFridge}</span>
+            <span title="Tủ mát đứng">🥶 Tủ Đứng ${vFridge}</span>
+          </div>
+        </div>
+      </div>
+
+      ${actionsBlock}
+
+      <div class="customer-card-deposit-row">
+        <div class="flex items-center gap-2 flex-wrap min-w-0">
+          <span class="deposit-label">💵 Đặt cọc:</span>
+          <span class="deposit-amount ${c.deposit > 0 ? '' : 'text-muted'}">${formatVND(c.deposit)}</span>
+        </div>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          ${currentTab === 'active' ? `
+          <button type="button" onclick='editKegBalance(${c.id}, ${c.keg_balance || 0}, ${JSON.stringify(c.name)})' class="text-xs text-info font-semibold hover:underline px-1 py-0.5 bg-transparent border-0 cursor-pointer">✏️ Sửa vỏ</button>
+          ` : ''}
+          ${hasLocation ? '<span class="text-success text-xs" title="Đã có vị trí">✅</span>' : ''}
+        </div>
+      </div>
+      ${c.last_sale_date ? '<div class="customer-card-last">🕐 Mua lần cuối: ' + new Date(c.last_sale_date).toLocaleDateString('vi-VN') + '</div>' : ''}
+      ${c.archived ? '<div class="customer-card-last">📦 Đã lưu trữ</div>' : ''}
+    </div>`;
+}
+
 // Toast notification
 function showToast(message, type = 'success') {
   const toast = document.createElement('div');
@@ -43,6 +125,15 @@ let customers = [];
 let archivedCustomers = [];
 let currentTab = 'active';
 let products = [];
+
+// PERFORMANCE: Virtual scroll pagination
+const PAGE_SIZE = 50;
+let _renderedCount = PAGE_SIZE;
+let _totalFiltered = 0;
+let _hasMore = true;
+let _loadMorePending = false;
+let _loadMoreEl = null; // sentinel element at list bottom
+let _observer = null;
 
 function initCustomersPage(data) {
   customers = data.customers;
@@ -80,105 +171,107 @@ function switchCustomerTab(tab) {
   }
 
   updateCount();
+  if (_observer) { _observer.disconnect(); _observer = null; }
   renderCustomers();
 }
 
 function renderCustomers() {
   const container = document.getElementById('customersList');
   if (!container) return;
-  
+
   const searchInput = document.getElementById('searchInput');
   const search = searchInput ? searchInput.value.toLowerCase() : '';
 
   const source = currentTab === 'active' ? customers : archivedCustomers;
   const filtered = source.filter(c => c.name.toLowerCase().includes(search));
 
+  _renderedCount = PAGE_SIZE;
+  _totalFiltered = filtered.length;
+  _hasMore = _renderedCount < _totalFiltered;
+
   if (filtered.length === 0) {
     container.innerHTML = '<div class="text-center text-muted py-8 card">Không có khách hàng nào</div>';
+    if (_observer) { _observer.disconnect(); _observer = null; }
     return;
   }
 
-  container.innerHTML = filtered.map(c => {
-    const hasLocation = c.lat && c.lng;
-    const hFridge = c.horizontal_fridge || 0;
-    const vFridge = c.vertical_fridge || 0;
+  // Render only first PAGE_SIZE items
+  const page = filtered.slice(0, PAGE_SIZE);
+  container.innerHTML = page.map(renderCustomerCard).join('');
 
-    let statusDotClass = 'customer-status-dot--muted';
-    if (currentTab === 'active') {
-      if (c.days_since_last_order !== null && c.days_since_last_order !== undefined) {
-        if (c.days_since_last_order >= 7) {
-          statusDotClass = 'customer-status-dot--danger';
-        } else if (c.daily_avg < 5) {
-          statusDotClass = 'customer-status-dot--warning';
-        } else {
-          statusDotClass = 'customer-status-dot--success';
-        }
-      } else {
-        statusDotClass = 'customer-status-dot--warning';
+  // Cache DOM refs for patchCustomerRow
+  _custCardMap.clear();
+  for (const c of page) {
+    const el = document.querySelector(`[data-customer-id="${c.id}"]`);
+    if (el) _custCardMap.set(c.id, el);
+  }
+
+  // Remove old sentinel/observer
+  if (_observer) { _observer.disconnect(); _observer = null; }
+  const oldSentinel = document.getElementById('_loadMoreSentinel');
+  if (oldSentinel) oldSentinel.remove();
+
+  if (_hasMore) {
+    // Add sentinel element
+    const sentinel = document.createElement('div');
+    sentinel.id = '_loadMoreSentinel';
+    sentinel.style.height = '1px';
+    container.appendChild(sentinel);
+
+    _loadMoreEl = sentinel;
+    _observer = new IntersectionObserver((entries) => {
+      const entry = entries[0];
+      if (entry.isIntersecting && _hasMore && !_loadMorePending) {
+        _loadMorePending = true;
+        _loadMore();
       }
-    }
+    }, { rootMargin: '300px' });
+    _observer.observe(sentinel);
+  }
+}
 
-    const volumeLine = c.monthly_liters > 0
-      ? `<div class="customer-card-volume">📈 ${c.monthly_liters} bình/tháng</div>`
-      : '';
+// PERFORMANCE: Load next page of customers
+async function _loadMore() {
+  const searchInput = document.getElementById('searchInput');
+  const search = searchInput ? searchInput.value.toLowerCase() : '';
+  const source = currentTab === 'active' ? customers : archivedCustomers;
+  const filtered = source.filter(c => c.name.toLowerCase().includes(search));
 
-    const actionsBlock = currentTab === 'active' ? `
-        <div class="order-actions customer-card-actions">
-          <button type="button" onclick="getLocation(${c.id})" class="btn btn-ghost btn-sm">📍 GPS</button>
-          <button type="button" onclick="editCustomer(${c.id}, '${String(c.name).replace(/'/g, "\\'")}', '${String(c.phone || '').replace(/'/g, "\\'")}', ${c.deposit})" class="btn btn-ghost btn-sm">✏️ Sửa</button>
-          <button type="button" onclick="showPriceModal(${c.id}, '${String(c.name).replace(/'/g, "\\'")}')" class="btn btn-ghost btn-sm">💰 Giá</button>
-          <button type="button" onclick="archiveCustomer(${c.id})" class="btn btn-ghost btn-sm" title="Lưu trữ">📦</button>
-        </div>
-        ` : `
-        <div class="order-actions customer-card-actions">
-          <button type="button" onclick="unarchiveCustomer(${c.id})" class="btn btn-ghost btn-sm">📤 Khôi phục</button>
-          <button type="button" onclick="deleteCustomer(${c.id})" class="btn btn-danger btn-sm">🗑️ Xóa</button>
-        </div>
-        `;
+  const start = _renderedCount;
+  const end = start + PAGE_SIZE;
+  const page = filtered.slice(start, end);
 
-    return `
-      <div class="order-item ${c.archived ? 'opacity-70' : ''}" data-customer-id="${c.id}" data-name="${c.name.toLowerCase()}">
-        <div class="customer-card-head">
-          <div class="customer-card-info">
-            <div class="customer-card-name-row">
-              <a href="/customers/${c.id}" class="order-title hover:text-primary">${c.name}</a>
-              <span class="customer-status-dot ${statusDotClass}" title="Trạng thái mua hàng"></span>
-            </div>
-            <div class="customer-card-phone">📱 ${c.phone || 'Chưa có SĐT'}</div>
-            ${volumeLine}
-          </div>
-          <div class="customer-card-keg-panel">
-            <div class="customer-keg-box">
-              <span class="customer-keg-box-icon">📦</span>
-              <span class="customer-keg-box-num">${c.keg_balance || 0}</span>
-              <span class="customer-keg-box-unit">vỏ</span>
-            </div>
-            <div class="customer-fridge-mini">
-              <span title="Tủ lạnh nằm">❄️ Tủ Nằm ${hFridge}</span>
-              <span title="Tủ mát đứng">🥶 Tủ Đứng ${vFridge}</span>
-            </div>
-          </div>
-        </div>
+  const container = document.getElementById('customersList');
 
-        ${actionsBlock}
+  for (const c of page) {
+    const html = renderCustomerCard(c);
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    const el = div.firstElementChild;
+    container.appendChild(el);
+    _custCardMap.set(c.id, el);
+  }
 
-        <div class="customer-card-deposit-row">
-          <div class="flex items-center gap-2 flex-wrap min-w-0">
-            <span class="deposit-label">💵 Đặt cọc:</span>
-            <span class="deposit-amount ${c.deposit > 0 ? '' : 'text-muted'}">${formatVND(c.deposit)}</span>
-          </div>
-          <div class="flex items-center gap-2 flex-shrink-0">
-            ${currentTab === 'active' ? `
-            <button type="button" onclick='editKegBalance(${c.id}, ${c.keg_balance || 0}, ${JSON.stringify(c.name)})' class="text-xs text-info font-semibold hover:underline px-1 py-0.5 bg-transparent border-0 cursor-pointer">✏️ Sửa vỏ</button>
-            ` : ''}
-            ${hasLocation ? '<span class="text-success text-xs" title="Đã có vị trí">✅</span>' : ''}
-          </div>
-        </div>
-        ${c.last_sale_date ? '<div class="customer-card-last">🕐 Mua lần cuối: ' + new Date(c.last_sale_date).toLocaleDateString('vi-VN') + '</div>' : ''}
-        ${c.archived ? '<div class="customer-card-last">📦 Đã lưu trữ</div>' : ''}
-      </div>
-    `;
-  }).join('');
+  _renderedCount += page.length;
+  _hasMore = _renderedCount < filtered.length;
+
+  // Move sentinel to bottom
+  const sentinel = document.getElementById('_loadMoreSentinel');
+  if (sentinel) sentinel.remove();
+  if (_hasMore) {
+    const newSentinel = document.createElement('div');
+    newSentinel.id = '_loadMoreSentinel';
+    newSentinel.style.height = '1px';
+    container.appendChild(newSentinel);
+    _loadMoreEl = newSentinel;
+    _observer.observe(newSentinel);
+  } else {
+    _loadMoreEl = null;
+    _observer.disconnect();
+    _observer = null;
+  }
+
+  _loadMorePending = false;
 }
 
 function showModal(id) {

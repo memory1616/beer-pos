@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Báo cáo</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#6366f1">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="icon" type="image/png" href="/icon-192.png">
+  <link rel="stylesheet" href="/css/tailwind.css">
+  <link rel="stylesheet" href="/css/unified.css">
+  <script src="/js/dark-mode.js"></script>
+  <style>
+    .pb-safe { padding-bottom: env(safe-area-inset-bottom, 20px); }
+    .bottomnav { max-width: 500px; margin: auto; }
+    .period-tab { background: var(--bg-secondary, #1f2937); color: var(--text-muted, #9ca3af); }
+    .period-tab.active { background: var(--accent, #6366f1); color: white; }
+    .report-tab { background: var(--bg-secondary, #1f2937); color: var(--text-muted, #9ca3af); }
+    .report-tab.active { background: var(--accent, #6366f1); color: white; }
+    .report-section { display: none; }
+    .report-section.active { display: block; }
+  </style>
+</head>
+<body class="bg-bg text-main min-h-screen pb-24">
+
+  <header class="sticky top-0 bg-card/90 backdrop-blur border-b border-muted shadow-sm z-50 pb-safe">
+    <div class="flex items-center justify-between px-4 py-3">
+      <div class="flex items-center gap-2">
+        <a href="/" class="text-muted">←</a>
+        <span class="font-bold text-main">Báo cáo</span>
+      </div>
+      <div class="text-right">
+        <div id="periodLabel" class="text-xs text-muted">...</div>
+        <div id="headerProfit" class="money text-money font-bold tabular-nums">0đ</div>
+      </div>
+    </div>
+    <div class="flex gap-1 px-4 pb-3 overflow-x-auto">
+      <button onclick="switchPeriod('today')" class="period-tab active px-3 py-1.5 rounded-lg text-sm whitespace-nowrap flex-1" data-period="today">Hôm nay</button>
+      <button onclick="switchPeriod('yesterday')" class="period-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap flex-1" data-period="yesterday">Hôm qua</button>
+      <button onclick="switchPeriod('week')" class="period-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap flex-1" data-period="week">Tuần</button>
+      <button onclick="switchPeriod('thisMonth')" class="period-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap flex-1" data-period="thisMonth">Tháng</button>
+    </div>
+  </header>
+
+  <main class="p-4 max-w-md mx-auto pt-14">
+    <div class="grid grid-cols-2 gap-3 mb-4">
+      <div class="card p-4 text-center">
+        <div class="text-sm text-muted mb-1">Doanh thu</div>
+        <div id="statRevenue" class="text-lg font-bold text-info tabular-nums">0đ</div>
+      </div>
+      <div class="card p-4 text-center">
+        <div class="text-sm text-muted mb-1">Lợi nhuận</div>
+        <div id="statProfit" class="text-lg font-bold text-success tabular-nums">0đ</div>
+      </div>
+      <div class="card p-4 text-center">
+        <div class="text-sm text-muted mb-1">Đơn hàng</div>
+        <div id="statOrders" class="text-lg font-bold tabular-nums">0</div>
+      </div>
+      <div class="card p-4 text-center">
+        <div class="text-sm text-muted mb-1">Chi phí</div>
+        <div id="statExpense" class="text-lg font-bold text-danger tabular-nums">0đ</div>
+      </div>
+    </div>
+
+    <div class="card p-4 mb-4">
+      <h3 class="font-bold mb-3">📈 Biểu đồ</h3>
+      <canvas id="chartCanvas" style="max-height:200px"></canvas>
+    </div>
+
+    <div class="flex gap-1 mb-4 overflow-x-auto">
+      <button onclick="switchReportTab('sales')" class="report-tab active px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-tab="sales">🍺 Bán hàng</button>
+      <button onclick="switchReportTab('products')" class="report-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-tab="products">📦 Theo SP</button>
+      <button onclick="switchReportTab('customers')" class="report-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-tab="customers">👤 Theo KH</button>
+    </div>
+
+    <div id="reportSales" class="report-section active space-y-2">
+      <div id="salesList" class="space-y-2"><div class="text-center text-muted py-4">Đang tải...</div></div>
+    </div>
+    <div id="reportProducts" class="report-section space-y-2">
+      <div id="productsList" class="space-y-2"><div class="text-center text-muted py-4">Đang tải...</div></div>
+    </div>
+    <div id="reportCustomers" class="report-section space-y-2">
+      <div id="customersList" class="space-y-2"><div class="text-center text-muted py-4">Đang tải...</div></div>
+    </div>
+  </main>
+
+  <nav class="bottomnav pb-safe">
+    <a href="/"><span class="icon">🏠</span><span>Home</span></a>
+    <a href="/delivery"><span class="icon">🚚</span><span>Giao</span></a>
+    <a href="/sale"><span class="icon">🍺</span><span>Bán</span></a>
+    <a href="/customers"><span class="icon">👤</span><span>KH</span></a>
+    <a href="/report" class="active"><span class="icon">📊</span><span>BC</span></a>
+  </nav>
+
+  <script src="/js/report.js"></script>
+  <script>(function(){ switchPeriod('thisMonth'); })();</script>
+</body>
+</html>

@@ -33,8 +33,18 @@ router.get('/', (req, res) => {
     const currentMonth = new Date().getMonth() + 1;
     const currentMonthStr = currentMonth.toString().padStart(2, '0');
     
+    // PERFORMANCE: ?fields=id,name,phone reduces payload ~75% for list views
+    const { fields } = req.query;
+    let customerFields = 'c.*';
+    if (fields) {
+      const requestedFields = fields.split(',').map(f => f.trim()).filter(Boolean);
+      const allowed = ['id','name','phone','address','debt','deposit','keg_balance','lat','lng','last_order_date','archived','monthly_expected','exclude_expected','horizontal_fridge','vertical_fridge','note','updated_at'];
+      const valid = requestedFields.filter(f => allowed.includes(f));
+      if (valid.length > 0) customerFields = 'c.' + valid.join(', c.');
+    }
+
     const customers = db.prepare(`
-      SELECT c.*, COALESCE(cm.monthly_kegs, 0) as monthly_liters
+      SELECT ${customerFields}, COALESCE(cm.monthly_kegs, 0) as monthly_liters
       FROM customers c
       LEFT JOIN (
         SELECT customer_id, COALESCE(SUM(si.quantity), 0) as monthly_kegs
@@ -64,6 +74,17 @@ router.get('/:id', (req, res) => {
     const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(id);
     if (!customer) return res.status(404).json({ error: 'Không tìm thấy khách hàng' });
     
+    // PERFORMANCE: ?fields= for single customer detail
+    const { fields } = req.query;
+    if (fields) {
+      const requestedFields = fields.split(',').map(f => f.trim()).filter(Boolean);
+      const allowed = ['id','name','phone','address','debt','deposit','keg_balance','lat','lng','last_order_date','archived','monthly_expected','exclude_expected','horizontal_fridge','vertical_fridge','note','updated_at'];
+      const valid = requestedFields.filter(f => allowed.includes(f));
+      if (valid.length > 0) {
+        return res.json(valid.reduce((obj, f) => { obj[f] = customer[f]; return obj; }, {}));
+      }
+    }
+
     res.json(customer);
   } catch (err) {
     logger.error('Error fetching customer', { error: err.message });

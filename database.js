@@ -840,6 +840,15 @@ const addIndex = (sql) => {
 addIndex(`CREATE INDEX IF NOT EXISTS idx_sales_date_type ON sales(date, type)`);
 addIndex(`CREATE INDEX IF NOT EXISTS idx_sale_items_product ON sale_items(product_id)`);
 addIndex(`CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date)`);
+// PERFORMANCE: Missing indexes identified during codebase scan
+// sync_queue: queries filter by synced=0, entity, or both
+addIndex(`CREATE INDEX IF NOT EXISTS idx_sync_queue_synced ON sync_queue(synced)`);
+addIndex(`CREATE INDEX IF NOT EXISTS idx_sync_queue_entity_synced ON sync_queue(entity, synced)`);
+// payments: debt report aggregates by customer_id
+addIndex(`CREATE INDEX IF NOT EXISTS idx_payments_customer ON payments(customer_id)`);
+// keg_transactions_log: compound index for type+date queries
+addIndex(`CREATE INDEX IF NOT EXISTS idx_keg_tx_log_type_date ON keg_transactions_log(type, date DESC)`);
+addIndex(`CREATE INDEX IF NOT EXISTS idx_keg_tx_log_customer_date ON keg_transactions_log(customer_id, date DESC)`);
 
 // ========== AUTO BACKUP — runs every day at 2 AM ==========
 try {

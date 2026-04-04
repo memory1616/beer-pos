@@ -5,6 +5,15 @@
 let currentProducts = [];
 let importData = {}; // Store import data by productId
 
+// PERFORMANCE: Virtual scroll pagination for product list
+const PAGE_SIZE = 30;
+let _renderedCount = PAGE_SIZE;
+let _totalFiltered = 0;
+let _hasMore = true;
+let _loadMorePending = false;
+let _observer = null;
+let _filteredProducts = [];
+
 function escapeHtmlAttr(s) {
   return String(s)
     .replace(/&/g, '&amp;')
@@ -16,7 +25,8 @@ function escapeHtmlAttr(s) {
 function initStockPage(data) {
   // Render products
   currentProducts = data.products;
-  renderProducts(data.products, data.totalStockPositive);
+  _filteredProducts = data.products;
+  _renderProductsPage(_filteredProducts.slice(0, PAGE_SIZE), data.totalStockPositive, _filteredProducts.length > PAGE_SIZE);
   
   // Render import form
   renderImportForm(data.products);
@@ -256,6 +266,129 @@ async function submitImport() {
     const err = await res.json();
     alert(err.error || 'Lỗi nhập hàng');
   }
+}
+
+// PERFORMANCE: Extract product card HTML for reuse in virtual scrolling
+function _productCardHtml(p, totalPositive) {
+  const low = p.stock < 5;
+  return `
+    <article class="card product-card product-card--interactive ${low ? 'border-danger' : 'border-muted'}"
+      role="button" tabindex="0" data-product-id="${p.id}"
+      aria-label="${escapeHtmlAttr(p.name)} — Tồn ${p.stock}. Nhấn để sửa"
+      onclick="openProductModal(${p.id})"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openProductModal(${p.id});}">
+      <div class="flex justify-between items-start gap-2">
+        <h3 class="product-card__name min-w-0 flex-1">${p.name}</h3>
+        ${low ? '<span class="badge badge-danger shrink-0 text-[10px]">Sắp hết</span>' : ''}
+      </div>
+      <div class="product-card__meta">Giá vốn · ${formatVND(p.cost_price || 0)}</div>
+      <div class="product-card__footer">
+        <div class="min-w-0">
+          <div class="product-card__qty-label">Tồn kho</div>
+          <div class="product-card__qty tabular-nums ${low ? 'text-danger' : 'text-success'}">${p.stock}</div>
+        </div>
+        <div class="product-card__edit-pill" aria-hidden="true"><span class="product-card__edit-icon">✏️</span><span>Sửa</span></div>
+      </div>
+    </article>
+  `;
+}
+
+// PERFORMANCE: Render a page of products
+function _renderProductsPage(pageProducts, totalPositive, hasMore) {
+  const container = document.getElementById('productList');
+  if (!container) return;
+
+  // If first page, clear container and add low stock alert
+  if (_renderedCount <= PAGE_SIZE) {
+    // Calculate low stock products from filtered products
+    const lowStockProducts = _filteredProducts.filter(p => p.stock < 5);
+    
+    // Build low stock alert HTML
+    let lowStockAlert = '';
+    if (lowStockProducts.length > 0) {
+      lowStockAlert = `
+        <div class="card mb-4 border-danger product-grid__full">
+          <div class="text-sm font-bold text-danger mb-2">⚠️ Tồn kho thấp (${lowStockProducts.length})</div>
+          <div class="flex flex-wrap gap-1">
+            ${lowStockProducts.map(p => `
+              <span class="badge badge-danger">
+                ${p.name}: <b>${p.stock}</b>
+              </span>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+    
+    container.innerHTML = lowStockAlert;
+  }
+
+  for (const p of pageProducts) {
+    const html = _productCardHtml(p, totalPositive);
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    container.appendChild(div.firstElementChild);
+  }
+
+  _hasMore = hasMore;
+
+  // Remove old sentinel/observer
+  if (_observer) { _observer.disconnect(); _observer = null; }
+  const oldSentinel = document.getElementById('_loadMoreSentinel');
+  if (oldSentinel) oldSentinel.remove();
+
+  if (_hasMore) {
+    const sentinel = document.createElement('div');
+    sentinel.id = '_loadMoreSentinel';
+    sentinel.style.height = '1px';
+    container.appendChild(sentinel);
+
+    _observer = new IntersectionObserver((entries) => {
+      const entry = entries[0];
+      if (entry.isIntersecting && _hasMore && !_loadMorePending) {
+        _loadMorePending = true;
+        _loadMoreProducts();
+      }
+    }, { rootMargin: '300px' });
+    _observer.observe(sentinel);
+  }
+}
+
+// PERFORMANCE: Load more products for virtual scroll
+async function _loadMoreProducts() {
+  const start = _renderedCount;
+  const end = start + PAGE_SIZE;
+  const page = _filteredProducts.slice(start, end);
+  const totalPositive = parseInt(document.getElementById('totalStock')?.textContent?.replace(/\D/g, '') || '0');
+
+  _renderProductsPage(page, totalPositive, end < _filteredProducts.length);
+  _renderedCount += page.length;
+  _loadMorePending = false;
+}
+
+// PERFORMANCE: Handle search input for virtual scroll
+let _stockSearchTimeout = null;
+function handleStockSearch(query) {
+  clearTimeout(_stockSearchTimeout);
+  _stockSearchTimeout = setTimeout(() => {
+    const search = query.toLowerCase().trim();
+    
+    // Filter products based on search query
+    if (search === '') {
+      _filteredProducts = currentProducts;
+    } else {
+      _filteredProducts = currentProducts.filter(p => 
+        p.name.toLowerCase().includes(search)
+      );
+    }
+    
+    // Reset pagination state
+    _renderedCount = PAGE_SIZE;
+    const totalPositive = parseInt(document.getElementById('totalStock')?.textContent?.replace(/\D/g, '') || '0');
+    
+    // Re-render first page
+    _renderProductsPage(_filteredProducts.slice(0, PAGE_SIZE), totalPositive, _filteredProducts.length > PAGE_SIZE);
+  }, 150); // Debounce 150ms
 }
 
 function renderProducts(products, serverTotalStockPositive) {

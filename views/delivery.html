@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Giao hàng</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#f59e0b">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="icon" type="image/png" href="/icon-192.png">
+  <link rel="stylesheet" href="/css/tailwind.css">
+  <link rel="stylesheet" href="/css/unified.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <script src="/js/dark-mode.js"></script>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <style>
+    .pb-safe { padding-bottom: env(safe-area-inset-bottom, 20px); }
+    .bottomnav { max-width: 500px; margin: auto; }
+    .delivery-map-wrap { position: relative; z-index: 0; isolation: isolate; overflow: hidden; border-radius: 12px; margin-bottom: 1rem; }
+    .delivery-map-wrap #map { height: 50vh; margin-bottom: 0; }
+    .delivery-map-wrap .leaflet-container { z-index: 0 !important; }
+    .delivery-card { transition: all 0.2s; cursor: pointer; }
+    .delivery-card:active { transform: scale(0.98); }
+    #settingsModal { z-index: 10000 !important; }
+    .settings-modal-inner { max-height: 85vh; overflow-y: auto; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); }
+  </style>
+</head>
+<body class="bg-bg text-main min-h-screen pb-24">
+  <!-- Inject delivery data from server -->
+  <script>
+    window.__DELIVERY_DATA__ = {{DELIVERY_DATA}};
+  </script>
+
+  <header class="sticky top-0 bg-card/90 backdrop-blur border-b border-muted shadow-sm z-50 pb-safe">
+    <div class="flex items-center justify-between px-4 py-3">
+      <div class="flex items-center gap-2">
+        <a href="/" class="text-muted">←</a>
+        <span class="font-bold text-main" id="distributorName">Bia Tuoi</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="showSettings()" class="text-muted p-2">⚙️</button>
+        <span class="text-sm text-muted">Giao hàng</span>
+      </div>
+    </div>
+    <div class="px-4 pb-2">
+      <div class="flex items-center justify-between text-sm">
+        <span class="text-muted">Khoảng cách: <span id="totalDistance" class="font-bold text-info">0</span> km</span>
+        <span class="text-muted">Phí vận chuyển: <span id="totalDeliveryFee" class="money text-money"><span class="value font-bold tabular-nums">0</span><span class="unit">đ</span></span></span>
+      </div>
+      <p class="text-xs text-muted mt-1">📦 Xuất phát từ <strong>kho</strong> (bấm ⚙️ để cài). Bấm <strong>📍 Vị trí hiện tại</strong> nếu muốn tính từ xe/điện thoại.</p>
+    </div>
+  </header>
+
+  <main class="p-4 pt-14 pb-24 max-w-md mx-auto relative z-0">
+    <div class="delivery-map-wrap">
+      <div id="map"></div>
+    </div>
+
+    <div class="section-title">🚚 Khách hàng</div>
+    <div class="flex gap-2 mb-4">
+      <button onclick="getCurrentLocation()" class="flex-1 btn btn-primary flex items-center justify-center gap-2">📍 Vị trí hiện tại</button>
+      <button onclick="optimizeRoute()" class="flex-1 btn btn-secondary">⚡ Tối ưu lộ trình</button>
+    </div>
+
+    <div id="customersList" class="space-y-2">
+      <!-- Rendered by delivery.js -->
+    </div>
+  </main>
+
+  <!-- Settings Modal -->
+  <div id="settingsModal" class="fixed inset-0 bg-overlay hidden items-center justify-center p-4" style="z-index:10000">
+    <div class="card p-6 max-w-sm w-full settings-modal-inner relative" style="z-index:10001">
+      <h2 class="text-xl font-bold mb-4">⚙️ Cấu hình vận chuyển</h2>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-main mb-1">Phí/km (đ)</label>
+          <input type="number" id="deliveryCostPerKm" class="w-full border border-muted rounded-lg px-3 py-2" min="0" step="100">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-main mb-1">Phí cơ bản (đ)</label>
+          <input type="number" id="deliveryBaseCost" class="w-full border border-muted rounded-lg px-3 py-2" min="0">
+        </div>
+        <div class="border-t border-muted pt-4">
+          <label class="block text-sm font-medium text-main mb-1">📍 Vị trí kho/xưởng</label>
+          <div class="grid grid-cols-2 gap-2">
+            <div><label class="text-xs text-muted">Vĩ độ</label><input type="number" id="distributorLat" class="w-full border border-muted rounded-lg px-3 py-2" step="0.0001"></div>
+            <div><label class="text-xs text-muted">Kinh độ</label><input type="number" id="distributorLng" class="w-full border border-muted rounded-lg px-3 py-2" step="0.0001"></div>
+          </div>
+          <button onclick="getDistributorLocation()" class="mt-2 text-sm text-info">📍 Lấy vị trí hiện tại</button>
+        </div>
+      </div>
+      <div class="flex gap-2 mt-6">
+        <button onclick="hideSettings()" class="flex-1 btn btn-ghost">Hủy</button>
+        <button onclick="saveSettings()" class="flex-1 btn btn-primary">Lưu</button>
+      </div>
+    </div>
+  </div>
+
+  <nav class="bottomnav pb-safe">
+    <a href="/"><span class="icon">🏠</span><span>Home</span></a>
+    <a href="/delivery" class="active"><span class="icon">🚚</span><span>Giao</span></a>
+    <a href="/sale"><span class="icon">🍺</span><span>Bán</span></a>
+    <a href="/customers"><span class="icon">👤</span><span>KH</span></a>
+    <a href="/devices"><span class="icon">📦</span><span>TB</span></a>
+  </nav>
+
+  <script src="/js/delivery.js"></script>
+</body>
+</html>

@@ -235,10 +235,15 @@ router.post('/update-kegs', (req, res) => {
 
 // GET /api/sales - Lấy danh sách hóa đơn (phân trang, mặc định tháng hiện tại)
 router.get('/', (req, res) => {
-  const page = parseInt(req.query.page) || 1;
-  const limit = parseInt(req.query.limit) || 5;
-  const month = req.query.month; // format: YYYY-MM, e.g. "2026-03"
-  const status = req.query.status; // 'completed', 'returned', 'cancelled', hoặc 'all'
+  // PERFORMANCE: ?fields=id,date,total,profit reduces payload for list views
+  const { fields, page, limit, month, status } = req.query;
+  let saleFields = 's.*';
+  if (fields) {
+    const requestedFields = fields.split(',').map(f => f.trim()).filter(Boolean);
+    const allowed = ['id','date','total','profit','customer_id','deliver_kegs','return_kegs','keg_balance_after','type','status','note','payment_status','distance_km','duration_min','route_index','route_polyline','returned_amount','returned_quantity','returned_profit'];
+    const valid = requestedFields.filter(f => allowed.includes(f));
+    if (valid.length > 0) saleFields = 's.' + valid.join(', s.');
+  }
   
   let whereClause = "WHERE s.type IN ('sale', 'replacement', 'damage_return')";
   let params = [];
@@ -263,10 +268,10 @@ router.get('/', (req, res) => {
   // Get paginated sales
   const offset = (page - 1) * limit;
   const sales = db.prepare(`
-    SELECT s.*, COALESCE(c.name, 'Khách lẻ') as customer_name,
+    SELECT ${saleFields}, COALESCE(c.name, 'Khách lẻ') as customer_name,
       (SELECT COALESCE(SUM(si.quantity), 0) FROM sale_items si WHERE si.sale_id = s.id) as items_qty
-    FROM sales s 
-    LEFT JOIN customers c ON s.customer_id = c.id 
+    FROM sales s
+    LEFT JOIN customers c ON s.customer_id = c.id
     ${whereClause}
     ORDER BY datetime(s.date) DESC, s.id DESC
     LIMIT ? OFFSET ?

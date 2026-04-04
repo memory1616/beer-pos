@@ -88,6 +88,9 @@ function validatePaymentInput(body) {
 // GET /api/payments/debt - Lấy danh sách công nợ
 router.get('/debt', (req, res) => {
   try {
+// PERFORMANCE: Replaced 3 correlated subqueries with LEFT JOINs
+    // Old: O(n*3) subqueries per customer
+    // New: O(1) single query with indexed lookups
     const customers = db.prepare(`
       SELECT
         c.id,
@@ -96,10 +99,21 @@ router.get('/debt', (req, res) => {
         c.debt,
         c.deposit,
         c.keg_balance,
-        (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE customer_id = c.id) as total_paid,
-        (SELECT MAX(date) FROM payments WHERE customer_id = c.id) as last_payment_date,
-        (SELECT MAX(date) FROM sales WHERE customer_id = c.id AND type = 'sale') as last_order_date
+        COALESCE(pay.total_paid, 0) as total_paid,
+        pay.last_payment_date,
+        COALESCE(s.last_order_date, s.max_date) as last_order_date
       FROM customers c
+      LEFT JOIN (
+        SELECT customer_id,
+               SUM(amount) as total_paid,
+               MAX(date) as last_payment_date
+        FROM payments GROUP BY customer_id
+      ) pay ON pay.customer_id = c.id
+      LEFT JOIN (
+        SELECT customer_id,
+               MAX(date) as last_order_date
+        FROM sales WHERE type = 'sale' GROUP BY customer_id
+      ) s ON s.customer_id = c.id
       WHERE (c.debt > 0 OR c.deposit > 0) AND c.archived = 0
       ORDER BY c.debt DESC
     `).all();

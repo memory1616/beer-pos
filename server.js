@@ -13,6 +13,16 @@ const crypto = require('crypto');
 const logger = require('./src/utils/logger');
 const db = require('./database');
 const { getSession, AUTH_CONFIG } = require('./middleware/auth');
+const compression = require('compression');
+
+// APP_VERSION: git hash or fallback to build timestamp (computed once at startup)
+let APP_VERSION;
+try {
+  const { execSync } = require('child_process');
+  APP_VERSION = execSync('git rev-parse --short HEAD', { cwd: __dirname }).toString().trim();
+} catch {
+  APP_VERSION = String(Date.now()).slice(0, 10);
+}
 
 const app = express();
 app.set('trust proxy', 1);
@@ -163,6 +173,7 @@ app.post(
 app.use(bodyParser.json({ limit: '10mb' }));
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cookieParser());
+app.use(compression());
 // Dynamic JSON "page data" — must not be cached by browsers/CDN (PWA SW used to cache these)
 app.use((req, res, next) => {
   // req.path is relative to this middleware's mount point; for top-level app.use it equals the full path
@@ -204,15 +215,6 @@ app.get('/manifest.json', (req, res) => {
 app.use((req, res, next) => {
   const mode = getAppMode(req);
   const origSendFile = res.sendFile.bind(res);
-
-  // Build version string: git hash or fallback to build timestamp
-  let APP_VERSION;
-  try {
-    const { execSync } = require('child_process');
-    APP_VERSION = execSync('git rev-parse --short HEAD', { cwd: __dirname }).toString().trim();
-  } catch {
-    APP_VERSION = String(Date.now()).slice(0, 10);
-  }
 
   res.sendFile = function(filepath, options, callback) {
     if (String(filepath).endsWith('.html')) {
@@ -423,7 +425,77 @@ app.use('/analytics', require('./routes/analytics'));
 app.use('/delivery', require('./routes/delivery'));
 app.use('/products', require('./routes/products'));
 app.use('/devices', require('./routes/devices'));
+// Serve expenses HTML
+app.get('/expenses', (req, res) => {
+  res.sendFile(path.join(__dirname, 'views', 'expenses.html'));
+});
 app.use('/expenses', require('./routes/expenses'));
+// Serve report HTML (data loaded client-side via /report/data)
+app.get('/report', (req, res) => {
+  res.sendFile(path.join(__dirname, 'views', 'report.html'));
+});
+
+// Report data API — must be BEFORE app.use('/report') to take priority
+app.get('/report/data', (req, res) => {
+  try {
+    var period = req.query.period || 'thisMonth';
+    var now = new Date();
+    var vn = new Date(now.getTime() + 7 * 3600000);
+    var year = vn.getUTCFullYear();
+    var month = String(vn.getUTCMonth() + 1).padStart(2, '0');
+    var day = String(vn.getUTCDate()).padStart(2, '0');
+    var today = year + '-' + month + '-' + day;
+    var startDate, endDate = today + ' 23:59:59';
+
+    if (period === 'today') {
+      startDate = today + ' 00:00:00';
+    } else if (period === 'yesterday') {
+      var yd = new Date(vn); yd.setUTCDate(yd.getUTCDate() - 1);
+      startDate = yd.getUTCFullYear() + '-' + String(yd.getUTCMonth()+1).padStart(2,'0') + '-' + String(yd.getUTCDate()).padStart(2,'0') + ' 00:00:00';
+      endDate = yd.getUTCFullYear() + '-' + String(yd.getUTCMonth()+1).padStart(2,'0') + '-' + String(yd.getUTCDate()).padStart(2,'0') + ' 23:59:59';
+    } else if (period === 'week') {
+      var wa = new Date(vn); wa.setUTCDate(wa.getUTCDate() - 7);
+      startDate = wa.getUTCFullYear() + '-' + String(wa.getUTCMonth()+1).padStart(2,'0') + '-' + String(wa.getUTCDate()).padStart(2,'0') + ' 00:00:00';
+    } else {
+      startDate = year + '-' + month + '-01 00:00:00';
+    }
+
+    var startDay = startDate.split(' ')[0];
+    var endDay = endDate.split(' ')[0];
+    var db2 = require('./database');
+
+    var sales = db2.prepare(
+      "SELECT s.id, s.customer_id, s.date, s.total, s.profit, s.type, s.deliver_kegs, s.return_kegs, COALESCE(c.name, 'Khách lẻ') as customer_name, (SELECT COALESCE(SUM(si.quantity), 0) FROM sale_items si WHERE si.sale_id = s.id) as quantity FROM sales s LEFT JOIN customers c ON c.id = s.customer_id WHERE s.date >= ? AND s.date <= ? AND (s.status IS NULL OR s.status != 'returned') ORDER BY datetime(s.date) DESC LIMIT 50"
+    ).all(startDate, endDate);
+
+    var revR = db2.prepare("SELECT COALESCE(SUM(total), 0) as t FROM sales WHERE date >= ? AND date <= ? AND type = 'sale' AND (status IS NULL OR status != 'returned')").get(startDate, endDate);
+    var profR = db2.prepare("SELECT COALESCE(SUM(profit), 0) as t FROM sales WHERE date >= ? AND date <= ? AND type = 'sale' AND (status IS NULL OR status != 'returned')").get(startDate, endDate);
+    var ordR = db2.prepare("SELECT COUNT(*) as t FROM sales WHERE date >= ? AND date <= ? AND type = 'sale' AND (status IS NULL OR status != 'returned')").get(startDate, endDate);
+    var totalRevenue = revR ? revR.t : 0;
+    var totalProfit = profR ? profR.t : 0;
+    var totalOrders = ordR ? ordR.t : 0;
+    var totalExpense = 0;
+    try { var expR = db2.prepare('SELECT COALESCE(SUM(amount), 0) as t FROM expenses WHERE date >= ? AND date <= ?').get(startDay, endDay); totalExpense = expR ? expR.t : 0; } catch(_){}
+
+    var daily = db2.prepare(
+      "SELECT date(s.date) as date, COALESCE(SUM(s.total), 0) as revenue, COALESCE(SUM(s.profit), 0) as profit FROM sales s WHERE s.date >= ? AND s.date <= ? AND (s.status IS NULL OR s.status != 'returned') GROUP BY date(s.date) ORDER BY date DESC LIMIT 30"
+    ).all(startDate, endDate);
+
+    var profitByProduct = db2.prepare(
+      'SELECT p.id, p.name, p.type, SUM(si.quantity) as total_qty, SUM(si.quantity * si.price) as revenue, SUM(si.quantity * si.cost_price) as cost, SUM(si.profit) as profit FROM sale_items si JOIN products p ON p.id = si.product_id JOIN sales s ON s.id = si.sale_id WHERE s.date >= ? AND s.date <= ? GROUP BY p.id ORDER BY profit DESC LIMIT 20'
+    ).all(startDate, endDate);
+
+    var profitByCustomer = db2.prepare(
+      "SELECT c.id, c.name, COUNT(s.id) as total_orders, SUM(s.total) as revenue, SUM(s.profit) as profit FROM sales s JOIN customers c ON c.id = s.customer_id WHERE s.date >= ? AND s.date <= ? AND s.type = 'sale' GROUP BY c.id ORDER BY profit DESC LIMIT 20"
+    ).all(startDate, endDate);
+
+    res.json({ sales, totalRevenue, totalProfit, totalOrders, totalExpense, daily, profitByProduct, profitByCustomer });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// routes/report.js handles remaining /report/* paths (profit by customer, etc.)
 app.use('/report', require('./routes/report'));
 
 // ==================== AUTH CHECK ====================
