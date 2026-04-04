@@ -54,7 +54,7 @@ let _dbPromise = null;
 function openDB() {
   if (!_dbPromise) {
     _dbPromise = new Promise((resolve, reject) => {
-      const req = indexedDB.open(DB_NAME, 2);
+      const req = indexedDB.open(DB_NAME, 30);
       req.onerror = () => reject(req.error);
       req.onsuccess = () => resolve(req.result);
       req.onupgradeneeded = (event) => {

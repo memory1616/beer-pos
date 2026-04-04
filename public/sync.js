@@ -432,7 +432,7 @@ const SW_STORE = 'sync_queue';
 
 function openSWDB() {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(SW_DB_NAME, 2);
+    const req = indexedDB.open(SW_DB_NAME, 30);
     req.onerror = () => reject(req.error);
     req.onsuccess = () => resolve(req.result);
     req.onupgradeneeded = (event) => {

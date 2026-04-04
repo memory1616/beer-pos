@@ -18,7 +18,7 @@ function getCloudUrl() {
 
 function openSWDB() {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open('BeerPOS', 2);
+    const request = indexedDB.open('BeerPOS', 30);
     request.onerror = () => reject(request.error);
     request.onsuccess = () => resolve(request.result);
     request.onupgradeneeded = (event) => {

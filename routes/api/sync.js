@@ -128,6 +128,45 @@ router.post('/pull', (req, res) => {
   }
 });
 
+// GET /api/sync/export - Lightweight export for local DB sync (used by db.js pullFromCloud)
+router.get('/export', (req, res) => {
+  try {
+    const since = req.query.since || '1970-01-01T00:00:00.000Z';
+
+    const result = {};
+    const tablesToQuery = ['customers', 'products', 'sales'];
+
+    tablesToQuery.forEach(table => {
+      try {
+        const tableInfo = db.prepare(`PRAGMA table_info(${table})`).all();
+        const columnNames = tableInfo.map(col => col.name);
+        const hasUpdatedAt = columnNames.includes('updated_at');
+        const hasCreatedAt = columnNames.includes('created_at');
+
+        if (!hasUpdatedAt && !hasCreatedAt) return;
+
+        const rows = db.prepare(`
+          SELECT * FROM ${table}
+          WHERE (updated_at > ? AND updated_at IS NOT NULL) OR created_at > ?
+          ORDER BY updated_at ASC
+          LIMIT 2000
+        `).all(since, since);
+
+        if (rows.length > 0) {
+          result[table] = rows;
+        }
+      } catch (tableErr) {
+        // Table doesn't exist, skip silently
+      }
+    });
+
+    res.json(result);
+  } catch (err) {
+    logger.error('Sync export error', { error: err.message });
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/sync/status - Check sync status
 router.get('/status', (req, res) => {
   try {
