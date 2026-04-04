@@ -1,6 +1,6 @@
 // Beer POS Pro v2 - Simple Server
 process.env.TZ = 'Asia/Ho_Chi_Minh';
-require('dotenv').config();
+require('dotenv').config({ path: __dirname + '/.env' });
 const express = require('express');
 const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
