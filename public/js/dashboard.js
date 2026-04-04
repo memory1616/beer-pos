@@ -37,6 +37,17 @@ function setMoneyAmount(el, amount, kind, opts) {
 }
 
 function initDashboard(data) {
+  // Set today's date in header
+  const dateEl = document.getElementById('dashboardDate');
+  if (dateEl) {
+    const now = new Date();
+    const days = ['Chủ Nhật','Thứ Hai','Thứ Ba','Thứ Tư','Thứ Năm','Thứ Sáu','Thứ Bảy'];
+    dateEl.textContent = days[now.getDay()] + ', ' +
+      now.getDate().toString().padStart(2,'0') + '/' +
+      (now.getMonth()+1).toString().padStart(2,'0') + '/' +
+      now.getFullYear();
+  }
+
   // Helper function to safely set text content
   const setText = (id, value) => {
     const el = document.getElementById(id);

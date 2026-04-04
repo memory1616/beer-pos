@@ -25,7 +25,7 @@
   <script src="/js/utils.js"></script>
   <script src="/sync.js"></script>
 </head>
-<body class="bg-main text-primary min-h-screen pb-20">
+<body class="bg-main text-primary min-h-screen">
   <div id="app"></div>
 
   <script src="/js/debug.js"></script>
@@ -49,100 +49,88 @@
             <div class="text-muted mt-2">Đang tải...</div>
           </div>
 
-          <div id="contentSection" class="hidden dashboard-page">
-            <div class="mb-4">
-              <div class="section-title">Hôm nay</div>
-              <div class="grid grid-cols-2 gap-3">
-                <div class="card card-sm dashboard-kpi-today dashboard-kpi-highlight">
-                  <div class="kpi-label"><span class="kpi-label-icon" aria-hidden="true">💰</span> Doanh thu</div>
-                  <div class="dashboard-kpi-value-row">
-                    <div id="todayRevenue" class="min-w-0 w-full">Chưa có dữ liệu hôm nay</div>
-                  </div>
-                  <div class="dashboard-kpi-sub min-h-[1rem]" aria-hidden="true"></div>
-                </div>
-                <div class="card card-sm dashboard-kpi-today">
-                  <div class="kpi-label"><span class="kpi-label-icon" aria-hidden="true">📦</span> Bán ra</div>
-                  <div class="dashboard-kpi-value-row">
-                    <div id="todayUnits" class="min-w-0 w-full">0</div>
-                  </div>
-                  <div class="dashboard-kpi-sub min-h-[1rem]" aria-hidden="true"></div>
+          <div id="contentSection" class="hidden dashboard-page" style="padding-bottom:100px">
+
+            <!-- Header: date -->
+            <div class="flex items-center justify-between mb-4 px-1">
+              <div class="text-xs text-muted font-medium" id="dashboardDate"></div>
+            </div>
+
+            <!-- Hôm nay -->
+            <div class="section-title">Hôm nay</div>
+            <div class="grid grid-cols-2 gap-3 mb-3">
+              <div class="card card--kpi-green">
+                <div class="kpi-label"><span class="kpi-label-icon" aria-hidden="true">💰</span> Doanh thu</div>
+                <div class="dashboard-kpi-value-row">
+                  <div id="todayRevenue" class="min-w-0 w-full">Chưa có dữ liệu hôm nay</div>
                 </div>
               </div>
-              <div class="grid grid-cols-2 gap-3 mt-3">
-                <div class="card card-sm dashboard-stat-card dashboard-kpi-highlight">
-                  <div class="kpi-label"><span class="kpi-label-icon" aria-hidden="true">📈</span> Lợi nhuận hôm nay</div>
-                  <div id="todayProfit" class="w-full min-w-0">Chưa có dữ liệu</div>
-                </div>
-                <div class="card card-sm dashboard-stat-card">
-                  <div class="kpi-label"><span class="kpi-label-icon" aria-hidden="true">💸</span> Chi phí hôm nay</div>
-                  <div id="todayExpense" class="w-full min-w-0">Chưa có dữ liệu</div>
+              <div class="card card--kpi-green">
+                <div class="kpi-label"><span class="kpi-label-icon" aria-hidden="true">📦</span> Bán ra</div>
+                <div class="dashboard-kpi-value-row">
+                  <div id="todayUnits" class="min-w-0 w-full">0</div>
                 </div>
               </div>
             </div>
-
-            <div class="mb-4">
-              <div class="section-title">Tháng này</div>
-              <div class="grid grid-cols-2 gap-3">
-                <div class="card dashboard-stat-card dashboard-kpi-highlight" onclick="location.href='/report'" style="cursor:pointer" title="Xem chi tiết lợi nhuận tháng">
-                  <div class="kpi-label"><span class="kpi-label-icon" aria-hidden="true">📈</span> Lợi nhuận tháng</div>
-                  <div id="monthProfit" class="w-full min-w-0"></div>
-                </div>
-                <div class="card dashboard-stat-card" onclick="location.href='/expenses'" style="cursor:pointer" title="Xem chi phí tháng">
-                  <div class="kpi-label"><span class="kpi-label-icon" aria-hidden="true">💸</span> Chi phí tháng</div>
-                  <div id="monthExpense" class="w-full min-w-0"></div>
-                </div>
+            <div class="grid grid-cols-2 gap-3 mb-6">
+              <div class="card card--kpi-emerald">
+                <div class="kpi-label"><span class="kpi-label-icon" aria-hidden="true">📈</span> Lợi nhuận</div>
+                <div id="todayProfit" class="w-full min-w-0">Chưa có dữ liệu</div>
+              </div>
+              <div class="card card--kpi-red">
+                <div class="kpi-label"><span class="kpi-label-icon" aria-hidden="true">💸</span> Chi phí</div>
+                <div id="todayExpense" class="w-full min-w-0">Chưa có dữ liệu</div>
               </div>
             </div>
 
-            <div class="mb-4">
-              <div class="section-title">📦 Vỏ bình</div>
-              <div class="card mb-3 text-center">
-                <div class="text-xs text-muted uppercase tracking-wider font-medium">Tổng vỏ bình</div>
-                <div class="text-5xl font-bold text-info mt-1" id="kegTotal">0</div>
+            <!-- Tháng này -->
+            <div class="section-title">Tháng này</div>
+            <div class="grid grid-cols-2 gap-3 mb-6">
+              <div class="card card--kpi-emerald" onclick="location.href='/report'" style="cursor:pointer" title="Xem chi tiết lợi nhuận tháng">
+                <div class="kpi-label"><span class="kpi-label-icon" aria-hidden="true">📈</span> Lợi nhuận</div>
+                <div id="monthProfit" class="w-full min-w-0"></div>
               </div>
-              <div class="grid grid-cols-3 gap-3">
-                <div class="card dashboard-stat-card" onclick="location.href='/kegs'" style="cursor:pointer" title="Xem kho vỏ">
-                  <div class="text-2xl font-bold text-success tabular-nums leading-tight" id="kegInventory">0</div>
-                  <div class="text-sm font-medium text-main mt-1">Kho</div>
-                  <div class="text-xs text-muted mt-0.5 tabular-nums" id="kegInventoryPct">0%</div>
-                </div>
-                <div class="card dashboard-stat-card" onclick="location.href='/customers'" style="cursor:pointer" title="Xem khách giữ vỏ">
-                  <div class="text-2xl font-bold text-warning tabular-nums leading-tight" id="kegCustomerHolding">0</div>
-                  <div class="text-sm font-medium text-main mt-1">Khách</div>
-                  <div class="text-xs text-muted mt-0.5 tabular-nums" id="kegCustomerHoldingPct">0%</div>
-                </div>
-                <div class="card dashboard-stat-card" onclick="location.href='/purchases'" style="cursor:pointer" title="Xem lịch sử nhập vỏ">
-                  <div class="text-2xl font-bold text-secondary tabular-nums leading-tight" id="kegEmptyCollected">0</div>
-                  <div class="text-sm font-medium text-main mt-1">Rỗng</div>
-                  <div class="text-xs text-muted mt-0.5 tabular-nums" id="kegEmptyCollectedPct">0%</div>
-                </div>
+              <div class="card card--kpi-red" onclick="location.href='/expenses'" style="cursor:pointer" title="Xem chi phí tháng">
+                <div class="kpi-label"><span class="kpi-label-icon" aria-hidden="true">💸</span> Chi phí</div>
+                <div id="monthExpense" class="w-full min-w-0"></div>
               </div>
             </div>
 
-            <div class="mb-4">
-              <div class="section-title">Thao tác nhanh</div>
-              <div class="grid grid-cols-3 gap-2 dashboard-quick-actions">
-                <a href="/delivery" class="btn btn-danger dashboard-quick-btn">
-                  <span class="text-xl leading-none">🚚</span>
-                  <span class="text-sm font-medium">Giao</span>
-                </a>
-                <a href="/devices" class="btn btn-secondary dashboard-quick-btn">
-                  <span class="text-xl leading-none">🧊</span>
-                  <span class="text-sm font-medium">Tủ</span>
-                </a>
-                <a href="/expenses" class="btn btn-danger dashboard-quick-btn">
-                  <span class="text-xl leading-none">💸</span>
-                  <span class="text-sm font-medium">Chi phí</span>
-                </a>
+            <!-- Vỏ bình -->
+            <div class="section-title">📦 Vỏ bình</div>
+            <div class="card mb-3 text-center">
+              <div class="text-xs text-muted uppercase tracking-wider font-medium">Tổng vỏ bình</div>
+              <div class="text-5xl font-bold text-info mt-1" id="kegTotal">0</div>
+            </div>
+            <div class="grid grid-cols-3 gap-3 mb-6">
+              <div class="card dashboard-stat-card" onclick="location.href='/kegs'" style="cursor:pointer" title="Xem kho vỏ">
+                <div class="text-2xl font-bold text-success tabular-nums leading-tight" id="kegInventory">0</div>
+                <div class="text-sm font-medium text-main mt-1">Kho</div>
+                <div class="text-xs text-muted mt-0.5 tabular-nums" id="kegInventoryPct">0%</div>
+              </div>
+              <div class="card dashboard-stat-card" onclick="location.href='/customers'" style="cursor:pointer" title="Xem khách giữ vỏ">
+                <div class="text-2xl font-bold text-warning tabular-nums leading-tight" id="kegCustomerHolding">0</div>
+                <div class="text-sm font-medium text-main mt-1">Khách</div>
+                <div class="text-xs text-muted mt-0.5 tabular-nums" id="kegCustomerHoldingPct">0%</div>
+              </div>
+              <div class="card dashboard-stat-card" onclick="location.href='/purchases'" style="cursor:pointer" title="Xem lịch sử nhập vỏ">
+                <div class="text-2xl font-bold text-secondary tabular-nums leading-tight" id="kegEmptyCollected">0</div>
+                <div class="text-sm font-medium text-main mt-1">Rỗng</div>
+                <div class="text-xs text-muted mt-0.5 tabular-nums" id="kegEmptyCollectedPct">0%</div>
               </div>
             </div>
 
-            <div id="lowStockSection" class="hidden card border-danger p-4 mb-4 text-center">
-              <div id="lowStockHeader" class="text-sm font-bold text-danger mb-3">⚠️ Hàng sắp hết</div>
-              <div id="lowStockList" class="space-y-0"></div>
+            <!-- Hàng sắp hết -->
+            <div id="lowStockSection" class="hidden mb-6">
+              <div class="section-title">⚠️ Hàng sắp hết</div>
+              <div class="card border-danger p-4">
+                <div id="lowStockHeader" class="text-sm font-bold text-danger mb-3">Hàng sắp hết</div>
+                <div id="lowStockList" class="space-y-0"></div>
+              </div>
             </div>
 
-            <div id="customerAlertsSection" class="hidden mb-4">
+            <!-- Dưới mức kỳ vọng -->
+            <div id="customerAlertsSection" class="hidden mb-6">
               <div class="section-title">Dưới mức kỳ vọng</div>
               <div class="card border-warning bg-warning/5">
                 <div id="customerAlertsHeader" class="text-xs text-warning/80 px-3 pt-3 pb-1"></div>
@@ -150,15 +138,16 @@
               </div>
             </div>
 
-            <div class="mb-4">
-              <div class="section-title">Doanh thu 6 tháng</div>
+            <!-- Doanh thu 6 tháng -->
+            <div class="mb-6">
+              <div class="section-title">Doanh thu 14 ngày</div>
               <div id="revenueStats" class="grid grid-cols-3 gap-2 mb-3">
                 <div class="card p-2 text-center min-w-0">
                   <div class="text-xs text-muted">Tổng</div>
                   <div class="font-bold text-primary text-sm min-w-0" id="totalRevenue6M">-</div>
                 </div>
                 <div class="card p-2 text-center min-w-0">
-                  <div class="text-xs text-muted">LN/tháng</div>
+                  <div class="text-xs text-muted">LN/ngày</div>
                   <div class="font-bold text-success text-sm min-w-0" id="avgRevenue6M">-</div>
                 </div>
                 <div class="card p-2 text-center">
@@ -171,12 +160,32 @@
               </div>
             </div>
 
-            <div class="mb-4">
+            <!-- Bán gần đây -->
+            <div class="mb-6">
               <div class="section-title">Bán gần đây</div>
               <div class="card">
                 <div id="recentSales"></div>
               </div>
             </div>
+
+            <!-- Quick action bar cố định đáy -->
+            <div class="dashboard-quick-bar">
+              <div class="dashboard-quick-bar-inner">
+                <a href="/delivery" class="qb-primary">
+                  <span class="qb-icon">🚚</span>
+                  <span>Giao</span>
+                </a>
+                <a href="/devices">
+                  <span class="qb-icon">🧊</span>
+                  <span>Tủ</span>
+                </a>
+                <a href="/expenses">
+                  <span class="qb-icon">💸</span>
+                  <span>Chi phí</span>
+                </a>
+              </div>
+            </div>
+
           </div>
           `) +
           getBottomNav('/dashboard');
@@ -194,7 +203,7 @@
     })();
   </script>
 
-  <script src="/js/dashboard.js?v=20260404-units-kpi"></script>
+  <script src="/js/dashboard.js?v=20260404-ui-opt"></script>
 
   <script>
   async function loadData() {
