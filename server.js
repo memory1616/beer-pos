@@ -97,12 +97,12 @@ app.post(
       return res.status(400).json({ error: 'Invalid body' });
     }
 
-    if (!GITHUB_WEBHOOK_SECRET) {
-      logger.error('POST /deploy: thiếu GITHUB_WEBHOOK_SECRET trong .env (trùng Secret trên GitHub)');
+    const sig = req.get('x-hub-signature-256');
+    const computedSecret = process.env.GITHUB_WEBHOOK_SECRET;
+    if (!computedSecret) {
+      logger.error('POST /deploy: GITHUB_WEBHOOK_SECRET is empty, process.env keys: ' + Object.keys(process.env).filter(k => k.includes('GITHUB') || k.includes('WEBHOOK')));
       return res.status(503).json({ error: 'Webhook chưa cấu hình secret trên server' });
     }
-
-    const sig = req.get('x-hub-signature-256');
     if (!verifyGithubSignature256(buf, sig)) {
       logger.warn('POST /deploy: chữ ký không hợp lệ');
       return res.status(401).json({ error: 'Unauthorized' });
