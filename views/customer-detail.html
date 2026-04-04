@@ -291,7 +291,12 @@
           </div>
         </div>
 
-        ${getBottomNav('/customers')}
+        <div id="bottomNavContainer"></div>
+        <script>
+          if (typeof getBottomNav === 'function') {
+            document.getElementById('bottomNavContainer').innerHTML = getBottomNav('/customers');
+          }
+        </script>
       `;
 
       // Load customer info

@@ -54,6 +54,13 @@
   </header>
 
   <main class="p-4 pt-14 pb-24 max-w-md mx-auto relative z-0">
+    <div id="bottomNavContainer"></div>
+    <script>
+      if (typeof getBottomNav === 'function') {
+        document.getElementById('bottomNavContainer').innerHTML = getBottomNav('/delivery');
+      }
+    </script>
+
     <div class="delivery-map-wrap">
       <div id="map"></div>
     </div>
@@ -97,8 +104,6 @@
       </div>
     </div>
   </div>
-
-  ${getBottomNav('/delivery')}
 
   <script src="/js/delivery.js"></script>
 </body>

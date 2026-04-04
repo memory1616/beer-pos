@@ -127,7 +127,12 @@
     </div>
   </div>
 
-  ${getBottomNav('/kegs')}
+  <div id="bottomNavContainer"></div>
+  <script>
+    if (typeof getBottomNav === 'function') {
+      document.getElementById('bottomNavContainer').innerHTML = getBottomNav('/kegs');
+    }
+  </script>
 
   <!-- ========== MODALS ========== -->
   <div id="deliverModal" class="fixed inset-0 bg-overlay z-50 hidden items-center justify-center p-4">

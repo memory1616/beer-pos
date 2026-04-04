@@ -46,6 +46,13 @@
   </header>
 
   <main class="p-4 max-w-md mx-auto pt-14">
+    <div id="bottomNavContainer"></div>
+    <script>
+      if (typeof getBottomNav === 'function') {
+        document.getElementById('bottomNavContainer').innerHTML = getBottomNav('/report');
+      }
+    </script>
+
     <div class="grid grid-cols-2 gap-3 mb-4">
       <div class="card p-4 text-center">
         <div class="text-sm text-muted mb-1">Doanh thu</div>
@@ -86,8 +93,6 @@
       <div id="customersList" class="space-y-2"><div class="text-center text-muted py-4">Đang tải...</div></div>
     </div>
   </main>
-
-  ${getBottomNav('/report')}
 
   <script src="/js/report.js"></script>
   <script>(function(){ switchPeriod('thisMonth'); })();</script>
