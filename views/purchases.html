@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="/css/unified.css?v=20260413b">
   <script src="/js/auth.js"></script>
   <script src="/js/dark-mode.js"></script>
+  <script src="/js/layout.js"></script>
   <script>requireAuth();</script>
   <style>
     .animate-fade { animation: fade 0.3s ease-in; }
@@ -95,29 +96,7 @@
     </div>
   </main>
 
-  <!-- Bottom Navigation -->
-  <nav class="bottomnav">
-    <a href="/">
-      <span class="icon">🏠</span>
-      <span>Home</span>
-    </a>
-    <a href="/delivery">
-      <span class="icon">🚚</span>
-      <span>Giao</span>
-    </a>
-    <a href="/sale">
-      <span class="icon">🍺</span>
-      <span>Bán</span>
-    </a>
-    <a href="/customers">
-      <span class="icon">👤</span>
-      <span>KH</span>
-    </a>
-    <a href="/devices"
-      <span class="icon">📦</span>
-      <span>TB</span>
-    </a>
-  </nav>
+  ${getBottomNav('/purchases')}
 
   <!-- Load Utils (formatVND, showToast) then Purchases JS -->
   <script src="/js/utils.js"></script>

@@ -291,25 +291,7 @@
           </div>
         </div>
 
-        <!-- Bottom Nav -->
-        <nav class="bottomnav">
-          <a href="/sale" class="hover:text-success p-2">
-            <span class="text-xl">🏠</span>
-            <span class="text-xs">Bán hàng</span>
-          </a>
-          <a href="/stock" class="hover:text-success p-2">
-            <span class="text-xl">📦</span>
-            <span class="text-xs">Kho</span>
-          </a>
-          <a href="/customers" class="active p-2">
-            <span class="text-xl">👤</span>
-            <span class="text-xs">Khách</span>
-          </a>
-          <a href="/purchases" class="hover:text-success p-2">
-            <span class="text-xl">🚚</span>
-            <span class="text-xs">Nhập</span>
-          </a>
-        </nav>
+        ${getBottomNav('/customers')}
       `;
 
       // Load customer info

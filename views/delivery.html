@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="/css/unified.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <script src="/js/dark-mode.js"></script>
+  <script src="/js/layout.js"></script>
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <style>
     .pb-safe { padding-bottom: env(safe-area-inset-bottom, 20px); }
@@ -97,13 +98,7 @@
     </div>
   </div>
 
-  <nav class="bottomnav pb-safe">
-    <a href="/"><span class="icon">🏠</span><span>Home</span></a>
-    <a href="/delivery" class="active"><span class="icon">🚚</span><span>Giao</span></a>
-    <a href="/sale"><span class="icon">🍺</span><span>Bán</span></a>
-    <a href="/customers"><span class="icon">👤</span><span>KH</span></a>
-    <a href="/devices"><span class="icon">📦</span><span>TB</span></a>
-  </nav>
+  ${getBottomNav('/delivery')}
 
   <script src="/js/delivery.js"></script>
 </body>

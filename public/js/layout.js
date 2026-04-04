@@ -53,6 +53,8 @@ function isHomeActive(currentPage) {
 }
 
 // Generate bottom navigation - Mobile optimized (Grab-style)
+// Supports: /dashboard, /, /customers, /sale, /stock, /report,
+//           /kegs, /delivery, /purchases, /backup, /customer-detail, /expenses
 function getBottomNav(currentPage) {
   const BASE = '/';
   const pages = [
@@ -72,16 +74,6 @@ function getBottomNav(currentPage) {
           <span>${p.label}</span>
         </a>`;
   };
-
-  // Add expenses as floating button (not in bottom nav)
-  // If current page is expenses, we'll show a different nav
-  if (currentPage === '/expenses') {
-    return `
-      <nav class="bottomnav">
-        ${pages.map(p => navItem(p)).join('')}
-      </nav>
-    `;
-  }
 
   return `
     <nav class="bottomnav">

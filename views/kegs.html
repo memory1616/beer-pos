@@ -15,13 +15,12 @@
   <link rel="stylesheet" href="/css/unified.css?v=20260414">
   <script src="/js/auth.js"></script>
   <script src="/js/dark-mode.js"></script>
-  <script src="/js/layout.js?v=20260402"></script>
+  <script src="/js/layout.js?v=20260404"></script>
   <script src="/js/utils.js"></script>
   <script>requireAuth();</script>
   <style>
     .animate-fade { animation: fade 0.3s ease-in; }
     @keyframes fade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-    .bottomnav { max-width: 500px; margin-left: auto; margin-right: auto; }
     button, a { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
     button:active { transform: scale(0.96); }
     .stat-card { transition: transform 0.2s, box-shadow 0.2s; }
@@ -128,33 +127,9 @@
     </div>
   </div>
 
-  <!-- Bottom Navigation (.bottomnav = grid 5 cột; các <a> phải là con trực tiếp) -->
-  <nav class="bottomnav z-40" style="box-shadow: 0 -4px 16px rgba(0,0,0,0.08);">
-    <a href="/dashboard" class="hover:text-success min-w-0 px-0.5">
-      <span class="icon">📊</span>
-      <span class="leading-tight text-[10px] sm:text-[11px] sm:whitespace-normal sm:break-words sm:max-w-full">Tổng quan</span>
-    </a>
-    <a href="/sale" class="hover:text-success min-w-0 px-0.5">
-      <span class="icon">💰</span>
-      <span class="leading-tight text-[10px] sm:text-[11px]">Bán</span>
-    </a>
-    <a href="/kegs" class="active min-w-0 px-0.5">
-      <span class="icon">🍺</span>
-      <span class="leading-tight text-[10px] sm:text-[11px]">Vỏ</span>
-    </a>
-    <a href="/customers" class="hover:text-success min-w-0 px-0.5">
-      <span class="icon">👥</span>
-      <span class="leading-tight text-[10px] sm:text-[11px]">Khách</span>
-    </a>
-    <a href="/purchases" class="hover:text-success min-w-0 px-0.5">
-      <span class="icon">📦</span>
-      <span class="leading-tight text-[10px] sm:text-[11px]">Nhập</span>
-    </a>
-  </nav>
+  ${getBottomNav('/kegs')}
 
   <!-- ========== MODALS ========== -->
-
-  <!-- Giao vỏ -->
   <div id="deliverModal" class="fixed inset-0 bg-overlay z-50 hidden items-center justify-center p-4">
     <div class="bg-card rounded-xl w-full max-w-sm">
       <div class="p-4 border-b border-muted flex justify-between items-center">
@@ -191,7 +166,6 @@
     </div>
   </div>
 
-  <!-- Thu vỏ -->
   <div id="collectModal" class="fixed inset-0 bg-overlay z-50 hidden items-center justify-center p-4">
     <div class="bg-card rounded-xl w-full max-w-sm animate-fade">
       <div class="p-4 border-b border-muted flex justify-between items-center">
@@ -228,7 +202,6 @@
     </div>
   </div>
 
-  <!-- Nhập vỏ -->
   <div id="importModal" class="fixed inset-0 bg-overlay z-50 hidden items-center justify-center p-4">
     <div class="bg-card rounded-xl w-full max-w-sm animate-fade">
       <div class="p-4 border-b border-muted flex justify-between items-center">
@@ -261,7 +234,6 @@
     </div>
   </div>
 
-  <!-- Điều chỉnh vỏ rỗng -->
   <div id="adjustModal" class="fixed inset-0 bg-overlay z-50 hidden items-center justify-center p-4">
     <div class="bg-card rounded-xl w-full max-w-sm animate-fade">
       <div class="p-4 border-b border-muted flex justify-between items-center">
@@ -289,15 +261,12 @@
     </div>
   </div>
 
-  <!-- Lịch sử chi tiết -->
   <div id="historyModal" class="fixed inset-0 bg-overlay z-50 hidden items-center justify-center p-2">
     <div class="bg-card rounded-xl w-full max-w-lg max-h-[90vh] flex flex-col animate-fade">
       <div class="p-4 border-b border-muted flex justify-between items-center flex-shrink-0">
         <h3 class="font-bold text-lg text-main">📋 Lịch sử giao dịch vỏ</h3>
         <button onclick="closeModal('historyModal')" class="text-2xl text-muted hover:text-main">&times;</button>
       </div>
-
-      <!-- Filter tabs -->
       <div class="px-3 pt-2 flex-shrink-0">
         <div class="flex gap-2 overflow-x-auto pb-2">
           <button onclick="setHistoryFilter('all')" id="filterAll" class="px-3 py-1 rounded-full text-xs font-semibold bg-success/20 text-success whitespace-nowrap">Tất cả</button>
@@ -317,8 +286,6 @@
           </select>
         </div>
       </div>
-
-      <!-- Summary chips -->
       <div class="px-3 pb-2 flex-shrink-0">
         <div class="grid grid-cols-4 gap-2 text-center">
           <div class="card stat-card--success p-2">
@@ -339,8 +306,6 @@
           </div>
         </div>
       </div>
-
-      <!-- History list -->
       <div class="flex-1 overflow-y-auto px-3 pb-3" id="historyListContainer">
         <div id="historyList"></div>
         <div class="flex justify-between items-center mt-3 pt-2 border-t border-muted" id="historyPagination">
@@ -353,6 +318,7 @@
   </div>
 
   <script>
+    // ========== INIT ==========
     let kegState = {};
     let customers = [];
     let historyFilter = 'all';

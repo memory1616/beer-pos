@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="/css/tailwind.css">
   <link rel="stylesheet" href="/css/unified.css">
   <script src="/js/dark-mode.js"></script>
+  <script src="/js/layout.js"></script>
   <!-- Load data via /expenses/data API instead of inline script -->
 </head>
 <body class="bg-bg text-main min-h-screen pb-24">
@@ -62,13 +63,7 @@
     </div>
   </main>
 
-  <nav class="bottomnav pb-safe">
-    <a href="/"><span class="icon">🏠</span><span>Home</span></a>
-    <a href="/delivery"><span class="icon">🚚</span><span>Giao</span></a>
-    <a href="/sale"><span class="icon">🍺</span><span>Bán</span></a>
-    <a href="/customers"><span class="icon">👤</span><span>KH</span></a>
-    <a href="/report"><span class="icon">📊</span><span>BC</span></a>
-  </nav>
+  ${getBottomNav('/expenses')}
 
   <!-- Add/Edit Expense Modal -->
   <div id="expenseModal" class="fixed inset-0 bg-overlay hidden items-center justify-center p-4" style="z-index:10000">
