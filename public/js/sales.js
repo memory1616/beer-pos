@@ -1041,14 +1041,6 @@ function updateCollectKegPreview() {
   const dR = deltaReturn === 0 ? '0' : (deltaReturn > 0 ? '+' + deltaReturn : String(deltaReturn));
   document.getElementById('collectKegInfo').textContent =
     `Hiện tại: ${_collectKegBalance} vỏ · Chênh so với đơn: giao ${dD}, thu ${dR}`;
-
-  // Cảnh báo nếu thu > giao (tương tự kegModalWarning)
-  const warnEl = document.getElementById('collectKegWarning');
-  if (returned > deliver) {
-    warnEl.classList.remove('hidden');
-  } else {
-    warnEl.classList.add('hidden');
-  }
 }
 
 async function submitCollectKeg() {
@@ -1059,10 +1051,6 @@ async function submitCollectKeg() {
 
   if (deliver < 0 || returned < 0) {
     alert('Số vỏ không hợp lệ');
-    return;
-  }
-  if (returned > deliver) {
-    alert('Số vỏ thu không được lớn hơn số vỏ giao');
     return;
   }
 

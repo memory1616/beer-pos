@@ -152,10 +152,6 @@
         <div id="collectKegCurrentBalance" class="text-xs text-muted mt-1"></div>
       </div>
 
-      <div id="collectKegWarning" class="hidden card p-3 mb-4 border-danger text-center text-sm text-danger">
-        ⚠️ Số vỏ thu được lớn hơn số vỏ giao
-      </div>
-
       <div class="flex gap-3">
         <button onclick="closeCollectKegModal()" class="btn btn-ghost flex-1 h-14">Huỷ</button>
         <button onclick="submitCollectKeg()" class="btn btn-warning flex-1 h-14">Xác nhận</button>
@@ -218,7 +214,7 @@
   <script src="/sync-orders.js"></script>
   <script src="/js/utils.js"></script>
   <script src="/js/format.js"></script>
-  <script src="/js/sales.js?v=20260404-collect-warning"></script>
+  <script src="/js/sales.js?v=20260404-no-collect-warning"></script>
 
   <script>
     async function loadData() {
