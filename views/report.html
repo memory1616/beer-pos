@@ -12,9 +12,10 @@
   <link rel="stylesheet" href="/css/tailwind.css">
   <link rel="stylesheet" href="/css/unified.css">
   <script src="/js/dark-mode.js"></script>
+  <script src="/js/layout.js"></script>
   <style>
     .pb-safe { padding-bottom: env(safe-area-inset-bottom, 20px); }
-    .bottomnav { max-width: 500px; margin: auto; }
+    .bottomnav { max-width: 500px; margin: auto; position: fixed !important; bottom: 0 !important; }
     .period-tab { background: var(--bg-secondary, #1f2937); color: var(--text-muted, #9ca3af); }
     .period-tab.active { background: var(--accent, #6366f1); color: white; }
     .report-tab { background: var(--bg-secondary, #1f2937); color: var(--text-muted, #9ca3af); }
@@ -86,13 +87,7 @@
     </div>
   </main>
 
-  <nav class="bottomnav pb-safe">
-    <a href="/"><span class="icon">🏠</span><span>Home</span></a>
-    <a href="/delivery"><span class="icon">🚚</span><span>Giao</span></a>
-    <a href="/sale"><span class="icon">🍺</span><span>Bán</span></a>
-    <a href="/customers"><span class="icon">👤</span><span>KH</span></a>
-    <a href="/report" class="active"><span class="icon">📊</span><span>BC</span></a>
-  </nav>
+  ${getBottomNav('/report')}
 
   <script src="/js/report.js"></script>
   <script>(function(){ switchPeriod('thisMonth'); })();</script>
