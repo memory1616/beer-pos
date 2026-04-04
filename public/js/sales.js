@@ -36,6 +36,8 @@ function _debounce(fn, delay) {
     t = setTimeout(() => fn(...args), delay);
   };
 }
+
+function syncSaleEditAuxSheet() {
   const sheet = document.getElementById('saleEditAuxSheet');
   const repBtn = document.getElementById('replacementOpenBtn');
   const editing = editingSaleId != null;
@@ -131,6 +133,9 @@ function initSalesPage(data) {
 
   syncSaleEditAuxSheet();
 }
+
+// Ensure syncSaleEditAuxSheet is defined BEFORE any caller tries to use it
+function syncSaleEditAuxSheet() {
 
 // Global keg state for validation
 let kegState = {};

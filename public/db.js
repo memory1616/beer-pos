@@ -1,9 +1,15 @@
 // Beer POS - IndexedDB (Dexie.js) for offline-first
 // This file provides local database functionality for offline operation
 
-// Create Dexie database
-const db = new Dexie('BeerPOS');
-window.db = db; // expose for sync-orders.js
+// Guard: prevent re-declaration if already loaded
+if (typeof window._dbInit !== 'undefined') {
+  // Already initialized, skip
+} else {
+  window._dbInit = true;
+
+  // Create Dexie database
+  const db = new Dexie('BeerPOS');
+  window.db = db; // expose for sync-orders.js
 
 // Define schema — version 3 matches routing columns
 db.version(3).stores({
@@ -323,3 +329,4 @@ if ('serviceWorker' in navigator) {
 }
 
 console.log('Dexie.js initialized - BeerPOS offline ready');
+} // end guard
