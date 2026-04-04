@@ -9,7 +9,7 @@ let revenueChart = null;
  * @param {HTMLElement|null} el
  * @param {number} amount
  * @param {'success'|'profit'|'danger'|'neutral'|'primary'} kind — primary = tổng tiền màu brand (chart)
- * @param {{ size?: 'lg'|'stat', compact?: boolean }} [opts] compact = ô biểu đồ nhỏ
+ * @param {{ size?: 'lg'|'stat', compact?: boolean, omitUnit?: boolean }} [opts] compact = ô biểu đồ nhỏ; omitUnit = không hiện "đ" (số bình bán ra)
  */
 function setMoneyAmount(el, amount, kind, opts) {
   if (!el || typeof Format === 'undefined') return;
@@ -26,11 +26,13 @@ function setMoneyAmount(el, amount, kind, opts) {
     primary: 'money-chart-primary'
   }[kind] || 'money-success';
 
+  var unitHtml = opts.omitUnit ? '' : '<span class="unit">đ</span>';
+
   el.className = 'min-w-0 text-center w-full';
   el.innerHTML =
     '<div class="money ' + sizeMod + ' ' + kindClass + '">' +
       '<span class="value">' + Format.number(amount) + '</span>' +
-      '<span class="unit">đ</span>' +
+      unitHtml +
     '</div>';
 }
 
@@ -54,8 +56,17 @@ function initDashboard(data) {
     }
   }
 
-  // Set today's units
-  setText('todayUnits', data.todayUnits?.units || 0);
+  // Today's units sold — cùng cỡ/màu với Doanh thu, không đơn vị "bình"
+  const todayUnits = data.todayUnits?.units || 0;
+  const todayUnitsEl = document.getElementById('todayUnits');
+  if (todayUnitsEl) {
+    if (todayUnits === 0) {
+      todayUnitsEl.textContent = 'Chưa có dữ liệu hôm nay';
+      todayUnitsEl.className = 'text-base font-medium text-muted italic text-center w-full';
+    } else {
+      setMoneyAmount(todayUnitsEl, todayUnits, 'success', { size: 'lg', omitUnit: true });
+    }
+  }
 
   // Net profit today (profit - expenses)
   const todayProfit = (data.todayStats?.profit || 0) - (data.expenses?.today || 0);

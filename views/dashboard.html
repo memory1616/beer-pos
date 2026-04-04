@@ -63,9 +63,9 @@
                 <div class="card card-sm dashboard-kpi-today">
                   <div class="kpi-label"><span class="kpi-label-icon" aria-hidden="true">📦</span> Bán ra</div>
                   <div class="dashboard-kpi-value-row">
-                    <div class="text-sm font-bold tabular-nums text-info whitespace-nowrap sm:text-base" id="todayUnits">0</div>
+                    <div id="todayUnits" class="min-w-0 w-full">0</div>
                   </div>
-                  <div class="dashboard-kpi-sub">bình</div>
+                  <div class="dashboard-kpi-sub min-h-[1rem]" aria-hidden="true"></div>
                 </div>
               </div>
               <div class="grid grid-cols-2 gap-3 mt-3">
@@ -138,10 +138,7 @@
             </div>
 
             <div id="lowStockSection" class="hidden card border-danger p-4 mb-4 text-center">
-              <div class="mb-3">
-                <div id="lowStockHeader" class="text-sm font-bold text-danger">⚠️ Hàng sắp hết</div>
-                <button type="button" onclick="showAlertSettings()" class="text-xs text-info font-medium mt-2 inline-block">⚙️ Cài đặt</button>
-              </div>
+              <div id="lowStockHeader" class="text-sm font-bold text-danger mb-3">⚠️ Hàng sắp hết</div>
               <div id="lowStockList" class="space-y-0"></div>
             </div>
 
@@ -197,7 +194,7 @@
     })();
   </script>
 
-  <script src="/js/dashboard.js?v=202604042"></script>
+  <script src="/js/dashboard.js?v=20260404-units-kpi"></script>
 
   <script>
   async function loadData() {
