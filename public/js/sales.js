@@ -655,18 +655,15 @@ function isPetBia(productName, productType) {
   return name.includes('pet') || name.includes('nhựa');
 }
 
-// Tổng đơn vị vỏ theo dòng hàng (bom + pet + hộp quy đổi) — gợi ý khi deliver_kegs trên DB nhỏ/sai so với hóa đơn.
+// Tổng vỏ keg theo dòng hàng (chỉ keg, không tính pet vì vỏ pet không thu lại)
 function sumShellUnitsFromSaleItems(items) {
   if (!items || !items.length) return 0;
-  var BOX_TO_KEG = 23;
   return items.reduce(function (sum, item) {
     var q = parseInt(item.quantity, 10) || 0;
     if (q <= 0) return sum;
     var t = String(item.type || '').toLowerCase();
-    if (t === 'keg' || t === 'pet') return sum + q;
-    if (t === 'box') return sum + q * BOX_TO_KEG;
-    if (isPetBia(item.name, item.type)) return sum + q;
-    return sum + q;
+    if (t === 'keg') return sum + q;
+    return sum;
   }, 0);
 }
 
