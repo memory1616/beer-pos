@@ -786,16 +786,26 @@
     }
     init();
   </script>
-  <script src="/js/vendor/dexie.min.js"></script>
-  <script src="/db.js"></script>
-  <script src="/sync.js"></script>
+  <!-- PERFORMANCE: db.js + sync.js non-blocking via requestIdleCallback -->
   <script>
-  // Service Worker — bật offline-first caching
-  if ('serviceWorker' in navigator) {
-    if (!navigator.serviceWorker.controller) {
-      navigator.serviceWorker.register('/sw.js').catch(err => console.log('[SW] Registration failed:', err));
+    var _ric = window.requestIdleCallback || function(cb) { return setTimeout(cb, 200); };
+    _ric(function() {
+      var s1 = document.createElement('script');
+      s1.src = '/js/vendor/dexie.min.js';
+      document.head.appendChild(s1);
+      var s2 = document.createElement('script');
+      s2.src = '/db.js';
+      document.head.appendChild(s2);
+      var s3 = document.createElement('script');
+      s3.src = '/sync.js';
+      document.head.appendChild(s3);
+    }, { timeout: 8000 });
+
+    if ('serviceWorker' in navigator) {
+      if (!navigator.serviceWorker.controller) {
+        navigator.serviceWorker.register('/sw.js').catch(function() {});
+      }
     }
-  }
   </script>
 </body>
 </html>

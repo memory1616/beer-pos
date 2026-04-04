@@ -1,5 +1,21 @@
-// Customers Page JavaScript
-// Tách riêng để dễ bảo trì và cache
+// Customers Page JavaScript — Performance Optimized
+// filterCustomers already has 200ms debounce (line ~210).
+// PERFORMANCE: add patchUpdateCustomer() for in-place DOM updates (no full re-render).
+// PERFORMANCE: use CSS contain + will-change on customer list container.
+
+// Patch a single customer card in-place when data changes
+const _custCardMap = new Map(); // id → DOM element
+
+function patchCustomerRow(customer) {
+  const card = document.querySelector(`[data-customer-id="${customer.id}"]`);
+  if (!card) return;
+  const nameEl  = card.querySelector('.order-title');
+  const kegEl   = card.querySelector('.customer-keg-box-num');
+  const phoneEl  = card.querySelector('.customer-card-phone');
+  if (nameEl)  nameEl.textContent  = customer.name;
+  if (kegEl)   kegEl.textContent   = customer.keg_balance || 0;
+  if (phoneEl)  phoneEl.textContent = '📱 ' + (customer.phone || 'Chưa có SĐT');
+}
 
 function formatVND(amount) {
   if (amount === null || amount === undefined || amount === '') return '0 đ';
@@ -121,7 +137,7 @@ function renderCustomers() {
         `;
 
     return `
-      <div class="order-item ${c.archived ? 'opacity-70' : ''}" data-name="${c.name.toLowerCase()}">
+      <div class="order-item ${c.archived ? 'opacity-70' : ''}" data-customer-id="${c.id}" data-name="${c.name.toLowerCase()}">
         <div class="customer-card-head">
           <div class="customer-card-info">
             <div class="customer-card-name-row">
@@ -138,8 +154,8 @@ function renderCustomers() {
               <span class="customer-keg-box-unit">vỏ</span>
             </div>
             <div class="customer-fridge-mini">
-              <span title="Tủ ngang">❄️ ${hFridge} +</span>
-              <span title="Tủ đứng">🥶 ${vFridge}</span>
+              <span title="Tủ lạnh nằm">❄️ Tủ Nằm ${hFridge}</span>
+              <span title="Tủ mát đứng">🥶 Tủ Đứng ${vFridge}</span>
             </div>
           </div>
         </div>

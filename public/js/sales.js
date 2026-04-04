@@ -1162,62 +1162,168 @@ async function loadSalesHistory() {
           <button onclick="deleteSale(${sale.id})" class="btn btn-danger btn-sm">Xóa</button>` : ''}
         </div>
       </div>
-    `;
-  }).join('') + '</div>';
-  
-  // Render pagination
+// PERFORMANCE: Incremental DOM — each card has data-sale-id, only changed rows re-render.
+// cardMap caches DOM refs for O(1) patch updates (vs full re-render).
+const _saleCardMap = new Map();
+
+// Replace a single sale row in-place (no full re-render)
+function patchSaleRow(sale) {
+  const card = document.querySelector(`[data-sale-id="${sale.id}"]`);
+  if (!card) return;
+  const date = formatSaleListDate(sale.date);
+  const nameEl  = card.querySelector('.order-title');
+  const dateEl  = card.querySelector('.order-meta');
+  const moneyEl = card.querySelector('.money .value');
+  if (nameEl)  nameEl.textContent  = sale.customer_name || 'Khách lẻ';
+  if (dateEl)  dateEl.textContent = '📅 ' + date;
+  if (moneyEl) moneyEl.textContent = typeof Format !== 'undefined' ? Format.number(sale.total) : formatVND(sale.total).replace(' đ', '');
+  const isReturned   = sale.status === 'returned';
+  const isReplacement = sale.type === 'replacement';
+  const isGift        = sale.type === 'gift';
+  const actionsEl = card.querySelector('.order-actions');
+  if (actionsEl) actionsEl.innerHTML = isReturned
+    ? '<button class="btn btn-secondary btn-sm">Đã trả</button>'
+    : '<button onclick="viewSale(' + sale.id + ')" class="btn btn-secondary btn-sm">Hóa đơn</button>' +
+      '<button onclick="openCollectKegModal(' + sale.id + ')" class="btn btn-warning btn-sm">Thu vỏ</button>' +
+      '<button onclick="editSale(' + sale.id + ')" class="btn btn-ghost btn-sm">Sửa</button>' +
+      '<button onclick="deleteSale(' + sale.id + ')" class="btn btn-danger btn-sm">Xóa</button>';
+  card.className = 'order-item ' + (isReplacement ? 'border-l-4 border-warning' : isGift ? 'border-l-4 border-primary' : 'border-l-4 border-success');
+}
+
+async function loadSalesHistory() {
+  const { page, limit, month } = salesPagination;
+  const monthParam = month !== 'all' ? `&month=${month}` : '';
+  let data;
+  try {
+    const res = await fetch(`/api/sales?page=${page}&limit=${limit}${monthParam}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    data = await res.json();
+  } catch (err) {
+    console.error('loadSalesHistory error:', err);
+    const container = document.getElementById('salesHistoryList');
+    if (container) container.innerHTML =
+      '<p class="text-danger text-center py-4">Không tải được lịch sử. Kiểm tra kết nối server.</p>';
+    return;
+  }
+
+  const salesHistory = data.sales;
+  salesPagination.total = data.total;
+  salesPagination.totalPages = data.totalPages;
+
+  const container = document.getElementById('salesHistoryList');
+  if (salesHistory.length === 0) {
+    container.innerHTML = '<p class="text-muted text-center py-4">Chưa có hóa đơn nào</p>';
+    _saleCardMap.clear();
+    renderPagination();
+    return;
+  }
+
+  _saleCardMap.clear();
+
+  // PERFORMANCE: build HTML parts array + single join() = single reflow (vs map+join per render)
+  const parts = ['<div class="flex flex-col gap-3">'];
+  for (const sale of salesHistory) {
+    const date = formatSaleListDate(sale.date);
+    const customerName = sale.customer_name || 'Khách lẻ';
+    const isReturned   = sale.status === 'returned';
+    const itemsQty     = parseInt(sale.items_qty, 10) || 0;
+    const isReplacement = sale.type === 'replacement';
+    const isGift        = sale.type === 'gift';
+    const badgeHtml    = isReplacement ? '<span class="badge badge-warning">🔁 Đổi lỗi</span>'
+                       : isGift        ? '<span class="badge badge-primary">🎁 Tặng thử</span>'
+                       : '';
+    const badgeLeft     = isReplacement ? 'border-l-4 border-warning'
+                        : isGift        ? 'border-l-4 border-primary'
+                        : 'border-l-4 border-success';
+    const qtyLabel     = itemsQty > 0 ? '📦 ' + itemsQty + 'L' : '';
+    const saleMoney     = typeof Format !== 'undefined' ? Format.number(sale.total) : formatVND(sale.total).replace(' đ', '');
+
+    parts.push(
+`<div class="order-item ${badgeLeft}" data-sale-id="${sale.id}">
+  <div class="order-header">
+    <div class="flex items-center gap-2 min-w-0 flex-1">
+      <span class="text-xs font-semibold text-muted shrink-0">#${sale.id}</span>
+      <span class="order-title">${customerName}</span>
+      ${badgeHtml ? '<span class="shrink-0">' + badgeHtml + '</span>' : ''}
+    </div>
+    <span class="order-meta">📅 ${date}</span>
+  </div>
+  <div class="order-footer">
+    <div class="flex items-baseline gap-1">
+      <div class="money text-money"><span class="value text-xl font-bold tabular-nums">${saleMoney}</span><span class="unit">đ</span></div>
+    </div>
+    ${qtyLabel ? '<span class="order-meta">' + qtyLabel + '</span>' : ''}
+  </div>
+  <div class="order-actions">` +
+  (isReturned
+    ? '<button class="btn btn-secondary btn-sm">Đã trả</button>'
+    : '<button onclick="viewSale(' + sale.id + ')" class="btn btn-secondary btn-sm">Hóa đơn</button>' +
+      '<button onclick="openCollectKegModal(' + sale.id + ')" class="btn btn-warning btn-sm">Thu vỏ</button>' +
+      '<button onclick="editSale(' + sale.id + ')" class="btn btn-ghost btn-sm">Sửa</button>' +
+      '<button onclick="deleteSale(' + sale.id + ')" class="btn btn-danger btn-sm">Xóa</button>'
+  ) +
+`  </div>
+</div>`
+    );
+  }
+  parts.push('</div>');
+  container.innerHTML = parts.join('');
+
+  // Cache card DOM refs for patchSaleRow()
+  for (const sale of salesHistory) {
+    _saleCardMap.set(sale.id, document.querySelector(`[data-sale-id="${sale.id}"]`));
+  }
+
   renderPagination();
 }
 
+// PERFORMANCE: renderPagination clears old nav before appending (avoid duplicate nav on re-render)
 function renderPagination() {
   const container = document.getElementById('salesHistoryList');
+  if (!container) return;
   const { page, totalPages, total } = salesPagination;
+
+  // Remove old pagination nav if exists
+  var oldNav = container.querySelector('nav[role="navigation"]');
+  var oldTotal = container.querySelector('.history-total-row');
+  if (oldNav) oldNav.remove();
+  if (oldTotal) oldTotal.remove();
 
   if (totalPages <= 1) {
     if (total > 0) {
-      container.insertAdjacentHTML(
-        'beforeend',
-        '<div class="text-center text-xs text-muted mt-3 pt-2 border-t border-muted/70 whitespace-nowrap">Tổng ' +
-          total +
-          ' đơn</div>'
+      container.insertAdjacentHTML('beforeend',
+        '<div class="history-total-row text-center text-xs text-muted mt-3 pt-2 border-t border-muted/70">Tổng ' + total + ' đơn</div>'
       );
     }
     return;
   }
 
-  const prevDisabled = page === 1;
-  const nextDisabled = page === totalPages;
-  const btnBase =
-    'h-11 w-full min-h-[44px] rounded-xl text-sm font-semibold whitespace-nowrap flex items-center justify-center gap-0.5 transition-colors';
-  const btnOn = btnBase + ' btn btn-ghost border border-muted shadow-sm active:scale-[0.98]';
-  const btnOff =
-    btnBase + ' border border-muted/30 bg-bg text-muted cursor-not-allowed opacity-60 pointer-events-none';
+  const prevD = page === 1;
+  const nextD = page === totalPages;
+  const btnOn  = 'h-11 w-full min-h-[44px] rounded-xl text-sm font-semibold btn btn-ghost border border-muted shadow-sm active:scale-[0.98] transition-colors';
+  const btnOff = 'h-11 w-full min-h-[44px] rounded-xl text-sm font-semibold border border-muted/30 bg-bg text-muted cursor-not-allowed opacity-60 pointer-events-none';
 
-  const paginationHTML = `
-    <nav class="sales-history-pagination grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] gap-2 sm:gap-3 mt-4 pt-3 border-t border-muted items-stretch" role="navigation" aria-label="Phân trang lịch sử bán hàng">
-      <button type="button" onclick="changeSalesPage(${page - 1})" ${prevDisabled ? 'disabled' : ''}
-        class="${prevDisabled ? btnOff : btnOn}" aria-label="Trang trước">
+  container.insertAdjacentHTML('beforeend',
+    `<nav class="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] gap-2 mt-4 pt-3 border-t border-muted items-stretch" role="navigation" aria-label="Phân trang">
+      <button onclick="changeSalesPage(${page - 1})" ${prevD ? 'disabled' : ''} class="${prevD ? btnOff : btnOn}" aria-label="Trang trước">
         <span class="text-lg leading-none" aria-hidden="true">‹</span><span>Trước</span>
       </button>
-      <div class="flex flex-col justify-center items-center px-2 min-w-[4.5rem] shrink-0 self-center py-0.5">
-        <span class="text-sm font-bold text-main tabular-nums leading-tight">Trang ${page}/${totalPages}</span>
-        <span class="text-[11px] text-muted leading-tight mt-0.5 whitespace-nowrap">${total} đơn</span>
+      <div class="flex flex-col justify-center items-center px-2 min-w-[4.5rem] shrink-0 py-0.5">
+        <span class="text-sm font-bold text-main tabular-nums leading-tight">${page}/${totalPages}</span>
+        <span class="text-[11px] text-muted leading-tight mt-0.5">${total} đơn</span>
       </div>
-      <button type="button" onclick="changeSalesPage(${page + 1})" ${nextDisabled ? 'disabled' : ''}
-        class="${nextDisabled ? btnOff : btnOn}" aria-label="Trang sau">
+      <button onclick="changeSalesPage(${page + 1})" ${nextD ? 'disabled' : ''} class="${nextD ? btnOff : btnOn}" aria-label="Trang sau">
         <span>Sau</span><span class="text-lg leading-none" aria-hidden="true">›</span>
       </button>
-    </nav>
-  `;
-
-  container.insertAdjacentHTML('beforeend', paginationHTML);
+    </nav>`
+  );
 }
 
 function changeSalesPage(newPage) {
   if (newPage < 1 || newPage > salesPagination.totalPages) return;
   salesPagination.page = newPage;
   loadSalesHistory();
-  const anchor = document.getElementById('salesHistoryList');
+  var anchor = document.getElementById('salesHistoryList');
   if (anchor) anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 

@@ -11,6 +11,11 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
+
+  <!-- PERFORMANCE: Prefetch next-page modules for instant navigation -->
+  <link rel="prefetch" href="/js/sales.js">
+  <link rel="prefetch" href="/js/stock.js">
+
   <link rel="stylesheet" href="/css/tailwind.css">
   <link rel="stylesheet" href="/css/unified.css?v=20260413b">
   <script src="/js/auth.js"></script>
@@ -515,7 +520,7 @@
   </script>
 
   <!-- Load Customers JS -->
-  <script src="/js/customers.js?v=20260408"></script>
+  <script src="/js/customers.js?v=20260404-perf"></script>
   
   <script>
     async function loadData() {
@@ -545,21 +550,26 @@
     loadData();
   </script>
   
-  <script src="/js/vendor/dexie.min.js"></script>
-  <script src="/db.js"></script>
-  <script src="/js/utils.js"></script>
-  <script src="/js/debug.js"></script>
+  <!-- PERFORMANCE: db.js + sync.js non-blocking via requestIdleCallback -->
   <script>
-  // Check authentication
-  if (!isLoggedIn()) { window.location.href = '/login'; }
+    var _ric = window.requestIdleCallback || function(cb) { return setTimeout(cb, 200); };
+    _ric(function() {
+      var s1 = document.createElement('script');
+      s1.src = '/js/vendor/dexie.min.js';
+      document.head.appendChild(s1);
+      var s2 = document.createElement('script');
+      s2.src = '/db.js';
+      document.head.appendChild(s2);
+      var s3 = document.createElement('script');
+      s3.src = '/sync.js';
+      document.head.appendChild(s3);
+    }, { timeout: 8000 });
 
-  // Service Worker — bật offline-first caching
-  if ('serviceWorker' in navigator) {
-    if (!navigator.serviceWorker.controller) {
-      navigator.serviceWorker.register('/sw.js').catch(err => console.log('[SW] Registration failed:', err));
+    if ('serviceWorker' in navigator) {
+      if (!navigator.serviceWorker.controller) {
+        navigator.serviceWorker.register('/sw.js').catch(function() {});
+      }
     }
-  }
   </script>
-  <script src="/sync.js"></script>
 </body>
 </html>

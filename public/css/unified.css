@@ -835,16 +835,19 @@ button:active, a:active { transform: scale(0.96); }
 
 .customer-fridge-mini {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 12px;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  font-size: 11px;
   color: var(--color-text-secondary);
+  line-height: 1.25;
 }
 
 .customer-fridge-mini span {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
+  white-space: nowrap;
 }
 
 .customer-card-actions.order-actions {

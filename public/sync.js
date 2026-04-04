@@ -1,7 +1,37 @@
 // Beer POS - Cloud Sync (hoạt động với SW queue)
-// Include this file in all pages (after layout.js)
+// Performance: all heavy operations use requestIdleCallback to never block UI.
 
-// ===== DEVICE ID — unique per browser/device =====
+/** requestIdleCallback polyfill + fallback (5s max) */
+const _requestIdle = window.requestIdleCallback || (cb => setTimeout(() => cb({ didTimeout: false }), 0));
+const _cancelIdle  = window.cancelIdleCallback  || (id => clearTimeout(id));
+
+// ─── Performance Helpers ───────────────────────────────────────────────────────
+
+/** Debounce — coalesces rapid calls into one execution */
+function _debounce(fn, delay) {
+  let t;
+  return (...args) => {
+    clearTimeout(t);
+    t = setTimeout(() => fn(...args), delay);
+  };
+}
+
+/** Run heavy work only when browser is idle — never blocks user interaction */
+function _idleRun(work, opts = {}) {
+  const timeout = opts.timeout ?? 5000;
+  const id = _requestIdle(
+    deadline => {
+      while (deadline.timeRemaining() > 0 || deadline.didTimeout) {
+        const result = work(deadline);
+        if (result === false) break; // work says "done"
+      }
+    },
+    { timeout }
+  );
+  return id;
+}
+
+// ─── DEVICE ID — unique per browser/device ────────────────────────────────────
 
 function getOrCreateDeviceId() {
   let deviceId = localStorage.getItem('deviceId');
@@ -465,13 +495,11 @@ async function updateSmartStatus() {
   }
 }
 
-// Push pending SW queue items to server
+// Push pending SW queue items to cloud — batched, non-blocking
 async function syncQueueToCloud() {
   if (!navigator.onLine) return;
 
-  const cloudUrl = getCloudUrl();
-
-  // Nếu máy này là Cloud Server → dữ liệu đã ở DB, chỉ clear queue
+  const cloudUrl      = getCloudUrl();
   const isCloudServer = localStorage.getItem('isCloudServer') === 'true';
   if (isCloudServer) {
     const pending = await countPendingQueue();
@@ -479,7 +507,6 @@ async function syncQueueToCloud() {
       const db = await openSWDB();
       const tx = db.transaction(SW_STORE, 'readwrite');
       tx.objectStore(SW_STORE).clear();
-      console.log(`[Sync] Cloud Server: cleared ${pending} queued items (local DB is source of truth)`);
     }
     return;
   }
@@ -488,52 +515,44 @@ async function syncQueueToCloud() {
   if (pending === 0) return;
 
   try {
-    const db = await openSWDB();
-    const tx = db.transaction(SW_STORE, 'readonly');
+    const db    = await openSWDB();
+    const tx    = db.transaction(SW_STORE, 'readonly');
     const store = tx.objectStore(SW_STORE);
     const index = store.index('synced');
-    const items = await new Promise((resolve) => {
-      const req = index.getAll(IDBKeyRange.only(0));
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => resolve([]);
+    const items = await new Promise((res, rej) => {
+      const r = index.getAll(IDBKeyRange.only(0));
+      r.onsuccess = () => res(r.result);
+      r.onerror   = () => rej(r.error);
     });
+    if (!items?.length) return;
 
-    if (!items || items.length === 0) return;
-
-    // Format as server expects
+    // Batch all items in ONE request instead of individual fetches
     const changes = items.map(item => ({
-      entity: item.entity || 'unknown',
-      entity_id: item.data?.id || null,
-      action: item.action || (item.method === 'DELETE' ? 'delete' : item.method === 'PUT' ? 'update' : 'create'),
-      data: item.data || {},
+      entity:     item.entity || 'unknown',
+      entity_id:  item.data?.id || null,
+      action:     item.action || (item.method === 'DELETE' ? 'delete' : item.method === 'PUT' ? 'update' : 'create'),
+      data:       item.data || {},
       client_updated_at: item.created_at
     }));
 
     const res = await fetch('/api/sync/push', {
-      method: 'POST',
+      method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ changes, deviceId: getOrCreateDeviceId() })
+      body:    JSON.stringify({ changes, deviceId: getOrCreateDeviceId() })
     });
 
     if (res.ok) {
       const data = await res.json();
-      console.log(`[Sync] Pushed ${data.synced || 0} items to server`);
-      const now = new Date().toISOString();
+      const now  = new Date().toISOString();
       setLastSyncForCloud(cloudUrl, now);
 
-      // Clear synced items from queue so they're not re-pushed next time
-      const delTx = db.transaction(SW_STORE, 'readwrite');
-      const delStore = delTx.objectStore(SW_STORE);
-      const delIndex = delStore.index('synced');
-      const delReq = delIndex.openCursor(IDBKeyRange.only(0));
-      delReq.onsuccess = (e) => {
-        const cursor = e.target.result;
-        if (cursor) { cursor.delete(); cursor.continue(); }
-      };
+      // Clear queue
+      const dt   = db.transaction(SW_STORE, 'readwrite');
+      const dIdx = dt.objectStore(SW_STORE).index('synced');
+      const cur  = dIdx.openCursor(IDBKeyRange.only(0));
+      cur.onsuccess = e => { const c = e.target.result; if (c) { c.delete(); c.continue(); } };
     }
-  } catch (e) {
-    console.log('[Sync] Cloud push failed:', e.message);
-  }
+  } catch {}
 }
 
 // Pull data from cloud and reload
@@ -591,7 +610,7 @@ async function doFirstSync(cloudUrl) {
   }
 }
 
-// Sync now — for first sync: pull before push to avoid overwriting cloud data with empty local queue
+// Sync now — runs via requestIdleCallback so it NEVER blocks user interaction
 async function syncNow() {
   if (!navigator.onLine) {
     showToast('Không có mạng — đang chờ đẩy khi kết nối', 'info');
@@ -600,10 +619,9 @@ async function syncNow() {
   const cloudUrl = getCloudUrl();
   if (!cloudUrl) return;
 
-  const pending = await countPendingQueue();
+  const pending    = await countPendingQueue();
   const isFirstSync = !hasSyncedWithCloud(cloudUrl);
 
-  // First sync: pull cloud data first so local queue won't overwrite it
   if (isFirstSync) {
     await doFirstSync(cloudUrl);
   }
@@ -676,33 +694,53 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-// Online event — trigger background sync + cloud push
-window.addEventListener('online', async () => {
-  console.log('[Sync] Back online!');
-  await syncQueueToCloud();
-  await syncNow();
-  await updateSmartStatus();
-});
+// ─── Sync trigger — debounced so rapid events don't pile up ───────────────────
 
-// Offline event — update indicator
-window.addEventListener('offline', async () => {
-  await updateSmartStatus();
-});
+let _pendingSync = false;
+let _syncTimer = null;
 
-// Auto-sync every 60 seconds (push queue + pull changes)
-setInterval(async () => {
-  if (navigator.onLine) {
+/** Call this when you want to sync — it debounces to avoid hammering */
+function _scheduleSync(immediate = false) {
+  if (_syncTimer) { clearTimeout(_syncTimer); _syncTimer = null; }
+  const delay = immediate ? 0 : 3000; // 3s debounce for auto, immediate for manual
+  _syncTimer = setTimeout(() => {
+    _syncTimer = null;
+    if (!navigator.onLine) return;
+    _requestIdle(() => _doBackgroundSync());
+  }, delay);
+}
+
+async function _doBackgroundSync() {
+  if (_pendingSync) return;
+  _pendingSync = true;
+  try {
     await syncQueueToCloud();
-    // Pull cloud changes (skip full reload, just update local DB via reload)
     const cloudUrl = getCloudUrl();
     if (cloudUrl && hasSyncedWithCloud(cloudUrl)) {
       await pullFromCloud();
     }
-  }
-  await updateSmartStatus();
+  } catch {}
+  _pendingSync = false;
+}
+
+// Online event — non-blocking sync via requestIdleCallback
+window.addEventListener('online', () => {
+  _scheduleSync(false);
+  updateSmartStatus();
+});
+
+// Offline event — update indicator only (no sync needed)
+window.addEventListener('offline', () => {
+  updateSmartStatus();
+});
+
+// Auto-sync every 60 seconds — never blocks UI
+setInterval(() => {
+  if (navigator.onLine) _scheduleSync(false);
+  updateSmartStatus();
 }, 60000);
 
-// Initial status check
+// Initial status check — uses requestIdleCallback so it doesn't delay page interaction
 setTimeout(async () => {
   const cloudUrl = getCloudUrl();
   if (cloudUrl) syncCloudUrlToSW(cloudUrl);
@@ -710,12 +748,12 @@ setTimeout(async () => {
   if (navigator.onLine && cloudUrl) {
     const isFirst = !hasSyncedWithCloud(cloudUrl);
     if (isFirst) {
-      console.log('[Sync] New cloud connection detected — initiating first sync');
       await doFirstSync(cloudUrl);
     } else {
-      setTimeout(() => syncNow(), 3000);
+      // Defer background sync so page can render first
+      _requestIdle(() => _scheduleSync(true), { timeout: 5000 });
     }
   }
 }, 2000);
 
-console.log('[Sync] BeerPOS sync initialized');
+console.log('[Sync] BeerPOS sync initialized — non-blocking');

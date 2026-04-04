@@ -1,10 +1,27 @@
-// BeerPOS Service Worker v27
-// Clean PWA: only cache static assets, never touch navigation or API
-const CACHE_NAME = "beer-pos-v28";
-const DB_NAME = "BeerPOS";
-const STORE_SYNC_QUEUE = "sync_queue";
+// BeerPOS Service Worker v29 — Performance Optimized
+// ─────────────────────────────────────────────────────
+// Strategies:
+//   • App Shell + JS/CSS  → Cache-First  (instant load after 1st visit)
+//   • API GET             → Stale-While-Revalidate  (fast + fresh)
+//   • API mutations        → Queue offline → Background Sync
+//   • Navigation          → Network-First (always fresh)
+// ─────────────────────────────────────────────────────
+const CACHE_NAME = 'beer-pos-v29';
+const DB_NAME    = 'BeerPOS';
+const STORE_SYNC = 'sync_queue';
 
-// Cloud URL set by main thread via postMessage
+// App Shell — must cache for instant PWA load
+const APP_SHELL = [
+  '/',
+  '/index.html',
+  '/manifest.json',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/css/tailwind.css',
+  '/css/unified.css',
+];
+
+// Cloud URL set by main thread
 let _swCloudUrl = null;
 
 self.addEventListener('message', event => {
@@ -13,350 +30,309 @@ self.addEventListener('message', event => {
   }
 });
 
-// Clear old caches on activation
-self.addEventListener('activate', event => {
-  event.waitUntil(
-    caches.keys().then(keys => {
-      return Promise.all(
-        keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))
-      );
-    })
-  );
-});
+// ─── IndexedDB ───────────────────────────────────────────────────────────────
 
-// Open IndexedDB for offline queue
 function openDB() {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 2);
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result);
-    request.onupgradeneeded = (event) => {
+    const req = indexedDB.open(DB_NAME, 2);
+    req.onerror = () => reject(req.error);
+    req.onsuccess = () => resolve(req.result);
+    req.onupgradeneeded = (event) => {
       const db = event.target.result;
-      if (!db.objectStoreNames.contains(STORE_SYNC_QUEUE)) {
-        const store = db.createObjectStore(STORE_SYNC_QUEUE, {
-          keyPath: "id",
-          autoIncrement: true
-        });
-        store.createIndex("synced", "synced", { unique: false });
-        store.createIndex("created_at", "created_at", { unique: false });
+      if (!db.objectStoreNames.contains(STORE_SYNC)) {
+        const store = db.createObjectStore(STORE_SYNC, { keyPath: 'id', autoIncrement: true });
+        store.createIndex('synced',     'synced',     { unique: false });
+        store.createIndex('created_at',  'created_at', { unique: false });
       }
     };
   });
 }
 
-// Save failed POST request to IndexedDB sync queue
+// ─── Sync Queue ──────────────────────────────────────────────────────────────
+
+const ENTITY_MAP = {
+  '/sales':    'sale',
+  '/customers':'customer',
+  '/products': 'product',
+  '/expenses': 'expense',
+  '/purchases':'purchase',
+  '/payments': 'payment',
+  '/kegs':     'keg',
+  '/devices':  'device',
+};
+
 async function queueForSync(method, url, body, headers) {
   try {
-    const db = await openDB();
-    const tx = db.transaction(STORE_SYNC_QUEUE, "readwrite");
-    const store = tx.objectStore(STORE_SYNC_QUEUE);
+    const db   = await openDB();
+    const tx   = db.transaction(STORE_SYNC, 'readwrite');
+    const store = tx.objectStore(STORE_SYNC);
     const apiPath = new URL(url).pathname;
 
-    let entity = "unknown";
-    if (apiPath.includes("/sales")) entity = "sale";
-    else if (apiPath.includes("/customers")) entity = "customer";
-    else if (apiPath.includes("/products")) entity = "product";
-    else if (apiPath.includes("/expenses")) entity = "expense";
-    else if (apiPath.includes("/purchases")) entity = "purchase";
-    else if (apiPath.includes("/payments")) entity = "payment";
-    else if (apiPath.includes("/kegs")) entity = "keg";
-    else if (apiPath.includes("/devices")) entity = "device";
-
-    const action = method === "DELETE" ? "delete"
-                   : method === "PUT" ? "update"
-                   : "create";
+    let entity = 'unknown';
+    for (const [key, val] of Object.entries(ENTITY_MAP)) {
+      if (apiPath.includes(key)) { entity = val; break; }
+    }
+    const action = method === 'DELETE' ? 'delete'
+                 : method === 'PUT'    ? 'update'
+                 : 'create';
 
     let parsedBody = {};
     try { parsedBody = JSON.parse(body); } catch {}
 
     await store.add({
-      entity,
-      action,
-      data: parsedBody,
-      url: apiPath,
+      entity, action,
+      data:    parsedBody,
+      url:     apiPath,
       method,
       headers: headers || {},
-      synced: 0,
-      created_at: new Date().toISOString(),
+      synced:      0,
+      created_at:  new Date().toISOString(),
       retry_count: 0
     });
     await tx.complete;
 
-    const clients = await self.clients.matchAll();
-    clients.forEach(client => {
-      client.postMessage({ type: "SYNC_QUEUED" });
+    self.clients.matchAll().then(clients => {
+      clients.forEach(c => c.postMessage({ type: 'SYNC_QUEUED' }));
     });
     return true;
   } catch (err) {
-    console.error("[SW] Failed to queue:", err);
     return false;
   }
 }
 
-// URLs to cache — static assets ONLY (images, fonts, manifest)
-// JS files are intentionally omitted: browser fetches fresh copies each time
-// to ensure version busting works without waiting for SW update
-const urlsToCache = [
-  "/manifest.json",
-  "/icon-192.png",
-  "/icon-512.png",
-  "/css/tailwind.css",
-  "/css/unified.css"
-];
+async function incrementRetryCount(id, currentCount) {
+  const MAX = 6;
+  if (currentCount >= MAX) {
+    const db = await openDB();
+    const tx = db.transaction(STORE_SYNC, 'readwrite');
+    tx.objectStore(STORE_SYNC).delete(id);
+    return;
+  }
+  const db = await openDB();
+  const tx = db.transaction(STORE_SYNC, 'readwrite');
+  const store = tx.objectStore(STORE_SYNC);
+  await new Promise((resolve, reject) => {
+    const req = store.get(id);
+    req.onsuccess = () => {
+      const r = req.result;
+      if (r) { r.retry_count++; store.put(r); }
+      resolve();
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
 
-// Install
-self.addEventListener("install", event => {
-  console.log("[SW] Installing...");
+// ─── Install ─────────────────────────────────────────────────────────────────
+
+self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => {
-      console.log("[SW] Caching static assets...");
-      return cache.addAll(urlsToCache).catch(err => {
-        console.warn("[SW] Some URLs failed to cache:", err);
-      });
-    }).then(() => {
-      self.skipWaiting();
-      console.log("[SW] Installed ✓");
-    })
+    caches.open(CACHE_NAME).then(async cache => {
+      // Performance: don't fail if some assets missing
+      await cache.addAll(APP_SHELL).catch(() => {});
+    }).then(() => self.skipWaiting())
   );
 });
 
-// Activate
-self.addEventListener("activate", event => {
-  console.log("[SW] Activating...");
+// ─── Activate ─────────────────────────────────────────────────────────────────
+
+self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then(cacheNames => {
-      return Promise.all(
-        cacheNames
-          .filter(name => name !== CACHE_NAME)
-          .map(name => {
-            console.log("[SW] Deleting old cache:", name);
-            return caches.delete(name);
-          })
-      );
-    }).then(() => {
-      self.clients.claim();
-      console.log("[SW] Activated ✓");
-    })
+    caches.keys().then(keys =>
+      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
+    ).then(() => self.clients.claim())
   );
 });
 
-// Background sync
-self.addEventListener("sync", event => {
-  console.log("[SW] Background sync:", event.tag);
-  if (event.tag === "sync-queue" || event.tag === "sync-all") {
+// ─── Background Sync ──────────────────────────────────────────────────────────
+
+self.addEventListener('sync', event => {
+  if (event.tag === 'sync-queue' || event.tag === 'sync-all') {
     event.waitUntil(processSyncQueue());
   }
 });
 
-// Process queued items with exponential backoff retry
 async function processSyncQueue() {
   try {
-    const db = await openDB();
-    const tx = db.transaction(STORE_SYNC_QUEUE, "readonly");
-    const store = tx.objectStore(STORE_SYNC_QUEUE);
-    const index = store.index("synced");
-
-    const all = await new Promise((resolve, reject) => {
-      const req = index.getAll(IDBKeyRange.only(0));
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
+    const db    = await openDB();
+    const tx    = db.transaction(STORE_SYNC, 'readonly');
+    const index = tx.objectStore(STORE_SYNC).index('synced');
+    const all   = await new Promise((res, rej) => {
+      const r = index.getAll(IDBKeyRange.only(0));
+      r.onsuccess = () => res(r.result);
+      r.onerror   = () => rej(r.error);
     });
 
-    if (!all || all.length === 0) {
-      console.log("[SW] No pending items");
-      return;
-    }
-
-    console.log(`[SW] Syncing ${all.length} items`);
+    if (!all?.length) return;
 
     for (const item of all) {
-      // Exponential backoff: wait (2^retry_count) * 500ms before retrying
       if (item.retry_count > 0) {
-        const delay = Math.min((1 << item.retry_count) * 500, 30000);
-        console.log(`[SW] Backoff ${delay}ms for item (attempt ${item.retry_count + 1})`);
-        await new Promise(r => setTimeout(r, delay));
+        await new Promise(r => setTimeout(r, Math.min((1 << item.retry_count) * 500, 30000)));
       }
-
       try {
-        const baseUrl = _swCloudUrl || self.registration.scope;
-        const fullUrl = baseUrl.replace(/\/$/, "") + item.url;
-
-        const response = await fetch(fullUrl, {
+        const base  = _swCloudUrl || self.registration.scope;
+        const full  = base.replace(/\/$/, '') + item.url;
+        const resp  = await fetch(full, {
           method: item.method,
-          headers: {
-            "Content-Type": "application/json",
-            ...item.headers
-          },
-          body: item.method !== "GET" && item.method !== "HEAD"
-            ? JSON.stringify(item.data)
-            : undefined
+          headers: { 'Content-Type': 'application/json', ...item.headers },
+          body: item.method !== 'GET' && item.method !== 'HEAD'
+              ? JSON.stringify(item.data) : undefined
         });
 
-        if (response.ok) {
-          const updateTx = db.transaction(STORE_SYNC_QUEUE, "readwrite");
-          await new Promise((resolve, reject) => {
-            const req = updateTx.objectStore(STORE_SYNC_QUEUE).delete(item.id);
-            req.onsuccess = () => resolve();
-            req.onerror = () => reject(req.error);
-          });
-          console.log(`[SW] ✓ Synced: ${item.method} ${item.url}`);
+        if (resp.ok) {
+          const dt  = db.transaction(STORE_SYNC, 'readwrite');
+          dt.objectStore(STORE_SYNC).delete(item.id);
         } else {
-          // Server error — increment retry count
           await incrementRetryCount(item.id, item.retry_count || 0);
-          console.warn(`[SW] ✗ Failed (${response.status}): ${item.method} ${item.url} — queued for retry`);
         }
-      } catch (err) {
-        // Network error — increment retry count
+      } catch {
         await incrementRetryCount(item.id, item.retry_count || 0);
-        console.warn(`[SW] ✗ Network error: ${item.method} ${item.url}:`, err.message);
-        // Don't break on network error — try next items
       }
     }
 
-    const clients = await self.clients.matchAll();
-    clients.forEach(client => {
-      client.postMessage({ type: "SYNC_COMPLETE" });
+    self.clients.matchAll().then(clients => {
+      clients.forEach(c => c.postMessage({ type: 'SYNC_COMPLETE' }));
     });
-  } catch (err) {
-    console.error("[SW] processSyncQueue error:", err);
+  } catch {}
+}
+
+// ─── Fetch Handler ────────────────────────────────────────────────────────────
+
+self.addEventListener('fetch', event => {
+  const url = new URL(event.request.url);
+
+  // Never cache auth
+  if (url.pathname.startsWith('/api/auth')) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
+  // Navigation — Network-First (always fresh page)
+  if (event.request.mode === 'navigate') {
+    event.respondWith(networkFirst(event.request));
+    return;
+  }
+
+  // API Mutations (POST/PUT/DELETE) → queue offline
+  if (url.pathname.startsWith('/api/') && event.request.method !== 'GET' && event.request.method !== 'HEAD') {
+    event.respondWith(handleMutation(event.request));
+    return;
+  }
+
+  // API GET → Stale-While-Revalidate (fast + fresh data)
+  if (url.pathname.startsWith('/api/')) {
+    event.respondWith(staleWhileRevalidate(event.request));
+    return;
+  }
+
+  // /page/data endpoints → Stale-While-Revalidate (1h cache)
+  if (url.pathname.endsWith('/data')) {
+    event.respondWith(staleWhileRevalidate(event.request, { maxAge: 3600 }));
+    return;
+  }
+
+  // App Shell & static assets → Cache-First (instant on repeat visits)
+  event.respondWith(cacheFirst(event.request));
+});
+
+// ─── Fetch Strategies ─────────────────────────────────────────────────────────
+
+/** Cache-First — best for static assets that rarely change */
+async function cacheFirst(request) {
+  const cached = await caches.match(request);
+  if (cached) return cached;
+  try {
+    const resp = await fetch(request);
+    if (resp.ok && request.method === 'GET') {
+      const cache = await caches.open(CACHE_NAME);
+      cache.put(request, resp.clone());
+    }
+    return resp;
+  } catch {
+    return new Response('Offline', { status: 503, headers: { 'Content-Type': 'text/plain' } });
   }
 }
 
-// Increment retry count for an item, delete after max retries (max 6 = ~32s backoff)
-async function incrementRetryCount(id, currentCount) {
-  const MAX_RETRIES = 6;
-  if (currentCount >= MAX_RETRIES) {
-    // Max retries reached — delete from queue (give up silently)
-    const db = await openDB();
-    const tx = db.transaction(STORE_SYNC_QUEUE, "readwrite");
-    await new Promise((resolve, reject) => {
-      const req = tx.objectStore(STORE_SYNC_QUEUE).delete(id);
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error);
-    });
-    console.warn(`[SW] Max retries reached — dropped item id ${id}`);
-    return;
+/** Network-First — best for navigation (always get latest HTML) */
+async function networkFirst(request) {
+  try {
+    const resp = await fetch(request);
+    return resp;
+  } catch {
+    const cached = await caches.match(request);
+    return cached || new Response('Offline', { status: 503 });
   }
-  const db = await openDB();
-  const tx = db.transaction(STORE_SYNC_QUEUE, "readwrite");
-  const store = tx.objectStore(STORE_SYNC_QUEUE);
-  await new Promise((resolve, reject) => {
-    const getReq = store.get(id);
-    getReq.onsuccess = () => {
-      const record = getReq.result;
-      if (record) {
-        record.retry_count = (record.retry_count || 0) + 1;
-        const putReq = store.put(record);
-        putReq.onsuccess = () => resolve();
-        putReq.onerror = () => reject(putReq.error);
-      } else {
-        resolve();
-      }
-    };
-    getReq.onerror = () => reject(getReq.error);
+}
+
+/**
+ * Stale-While-Revalidate — best for API data (serve cached immediately,
+ * fetch fresh in background). Falls back to cache if network fails.
+ */
+async function staleWhileRevalidate(request, opts = {}) {
+  const maxAge = opts.maxAge ?? 300; // default 5 min
+  const cache  = await caches.open(CACHE_NAME);
+  const cached = await cache.match(request);
+
+  // Fire fetch in background (non-blocking)
+  const fetchPromise = fetch(request).then(async resp => {
+    if (resp.ok && request.method === 'GET') {
+      // Add timestamp so we can expire old entries
+      const headers = new Headers(resp.headers);
+      headers.set('sw-time', String(Date.now()));
+      const clone = new Response(await resp.clone().text(), {
+        status: resp.status, statusText: resp.statusText, headers
+      });
+      await cache.put(request, clone);
+    }
+    return resp;
+  }).catch(() => null);
+
+  if (cached) {
+    // Serve stale immediately
+    const swTime = parseInt(cached.headers.get('sw-time') || '0', 10);
+    const age    = (Date.now() - swTime) / 1000;
+
+    if (age < maxAge) {
+      // Fresh enough — return cache without waiting for network
+      return cached;
+    }
+    // Stale but served — background refresh already fired
+    return cached;
+  }
+
+  // No cache — must wait for network
+  const resp = await fetchPromise;
+  return resp || new Response(JSON.stringify({ error: 'Offline' }), {
+    status: 503, headers: { 'Content-Type': 'application/json' }
   });
 }
 
-// Fetch handler — CLEAN: only cache static assets, pass through everything else
-self.addEventListener("fetch", event => {
-  const url = new URL(event.request.url);
+// ─── Mutation Handler ─────────────────────────────────────────────────────────
 
-  // NEVER cache auth endpoints
-  if (url.pathname.startsWith("/api/auth")) {
-    event.respondWith(fetch(event.request));
-    return;
-  }
-
-  // API mutations (POST/PUT/DELETE) — queue if offline
-  if (url.pathname.startsWith("/api/") && event.request.method !== "GET" && event.request.method !== "HEAD") {
-    event.respondWith(handleAPIMutation(event.request));
-    return;
-  }
-
-  // API GET — network only, never cache
-  if (url.pathname.startsWith("/api/")) {
-    event.respondWith(fetch(event.request));
-    return;
-  }
-
-  // Page JSON endpoints (/dashboard/data, /sale/data, …) — NEVER cache.
-  // Previously these matched the static branch and were cached forever → stale "Hôm nay".
-  if (url.pathname.endsWith("/data")) {
-    event.respondWith(fetch(event.request));
-    return;
-  }
-
-  // Navigation — ALWAYS network only, never cache
-  // This prevents the redirect loop entirely
-  if (event.request.mode === "navigate") {
-    event.respondWith(fetch(event.request));
-    return;
-  }
-
-  // Static assets — cache first, network fallback (with error handling to avoid crash)
-  event.respondWith(
-    (async () => {
-      const cached = await caches.match(event.request);
-      if (cached) return cached;
-
-      try {
-        const networkResponse = await fetch(event.request);
-
-        if (networkResponse.ok && event.request.method === "GET") {
-          const cache = await caches.open(CACHE_NAME);
-          cache.put(event.request, networkResponse.clone());
-        }
-
-        return networkResponse;
-      } catch (err) {
-        console.warn("[SW] Fetch failed:", event.request.url, err);
-        return new Response("Offline", {
-          status: 503,
-          headers: { "Content-Type": "text/plain" }
-        });
-      }
-    })()
-  );
-});
-
-// Handle API mutations — queue if offline
-async function handleAPIMutation(request) {
+async function handleMutation(request) {
   try {
-    const response = await fetch(request);
-    return response;
-  } catch (err) {
-    const url = request.url;
-    const method = request.method;
-
-    let body = "";
+    return await fetch(request);
+  } catch {
+    const method  = request.method;
+    const url     = request.url;
+    let body      = '';
+    let headers   = {};
     try {
-      const clonedReq = request.clone();
-      body = await clonedReq.text();
+      const cl = request.clone();
+      body    = await cl.text();
+      request.headers.forEach((v, k) => { headers[k] = v; });
     } catch {}
-
-    const headers = {};
-    request.headers.forEach((value, key) => { headers[key] = value; });
 
     await queueForSync(method, url, body, headers);
 
     if ('serviceWorker' in self && 'sync' in self.registration) {
-      try {
-        await self.registration.sync.register('sync-queue');
-      } catch (syncErr) {
-        console.warn('[SW] Background sync not supported:', syncErr.message);
-      }
+      self.registration.sync.register('sync-queue').catch(() => {});
     }
 
     return new Response(JSON.stringify({
-      error: "Offline — đã lưu vào hàng đợi, sẽ đồng bộ khi có mạng",
-      queued: true,
-      url: new URL(url).pathname,
+      error:   'Offline — đã lưu vào hàng đợi, sẽ đồng bộ khi có mạng',
+      queued:  true,
+      url:     new URL(url).pathname,
       method
-    }), {
-      status: 202,
-      headers: { "Content-Type": "application/json" }
-    });
+    }), { status: 202, headers: { 'Content-Type': 'application/json' } });
   }
 }
-
-console.log("[SW] BeerPOS Service Worker v28 loaded");
