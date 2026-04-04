@@ -38,10 +38,10 @@ router.get('/', (req, res, next) => {
     const name = c.name == null ? '' : c.name.replace(/"/g, '&quot;');
     const phone = (c.phone || '').replace(/"/g, '&quot;');
     return [
-      '<div class="delivery-card card p-3" data-lat="' + lat + '" data-lng="' + lng + '" data-name="' + name + '">',
-        '<div class="flex justify-between items-start">',
-          '<div><div class="font-bold text-main">' + name + '</div><div class="text-sm text-muted">' + phone + '</div></div>',
-          '<div class="text-right"><div class="text-sm text-muted">Khoảng cách: <span class="distance font-bold text-info">-</span> km</div><div class="delivery-fee"><div class="money text-money"><span class="value text-sm font-bold tabular-nums">-</span><span class="unit">d</span></div></div></div>',
+      '<div class="delivery-card card card--list-item" data-lat="' + lat + '" data-lng="' + lng + '" data-name="' + name + '">',
+        '<div class="flex justify-between items-start gap-3">',
+          '<div class="min-w-0 flex-1"><div class="font-bold text-main truncate">' + name + '</div><div class="text-sm text-muted">' + phone + '</div></div>',
+          '<div class="text-right shrink-0"><div class="text-sm text-muted">Khoảng cách: <span class="distance font-bold text-info">-</span> km</div><div class="delivery-fee mt-0.5"><div class="money text-money"><span class="value text-sm font-bold tabular-nums">-</span><span class="unit">đ</span></div></div></div>',
         '</div>',
         '<div class="flex gap-2 mt-2">',
           '<a href="https://www.google.com/maps/dir/?api=1&destination=' + lat + ',' + lng + '" target="_blank" class="flex-1 text-center btn btn-secondary btn-sm">D Chỉ đường</a>',
@@ -337,7 +337,7 @@ router.get('/', (req, res, next) => {
     '<link rel="apple-touch-icon" href="/icon-192.png">\n' +
     '<link rel="icon" type="image/png" href="/icon-192.png">\n' +
     '<link rel="stylesheet" href="/css/tailwind.css">\n' +
-    '<link rel="stylesheet" href="/css/unified.css?v=20260413b">\n' +
+    '<link rel="stylesheet" href="/css/unified.css?v=20260414">\n' +
     '<script src="/js/dark-mode.js"></' + 'script>\n' +
     '<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />\n' +
     '<script src="https://unpkg.com/leaflet/dist/leaflet.js"></' + 'script>\n' +

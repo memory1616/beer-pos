@@ -54,7 +54,7 @@ router.get('/', (req, res, next) => {
   <link rel="stylesheet" href="/css/tailwind.css">
   <script src="/js/auth.js"></script>
   <script src="/js/dark-mode.js"></script>
-  <link rel="stylesheet" href="/css/unified.css?v=20260413b">
+  <link rel="stylesheet" href="/css/unified.css?v=20260414">
   <script src="/js/layout.js?v=20260329"></script>
   <style>
     .bottom-nav { max-width: 500px; margin: auto; }
@@ -109,15 +109,13 @@ router.get('/', (req, res, next) => {
         ` : `
           <div class="space-y-2">
             ${horizontalCustomers.map(c => `
-              <a href="/customers/${c.id}" class="card p-3 flex items-center justify-between hover:bg-hover">
+              <div class="card card--list-item"><a href="/customers/${c.id}" class="flex justify-between items-center">
                 <div>
                   <div class="font-medium">${c.name}</div>
                   <div class="text-xs text-muted">${c.phone || ''}</div>
                 </div>
-                <span class="px-2 py-1 bg-info/10 text-info rounded-lg text-xs font-medium">
-                  ❄️ ${c.horizontal_fridge}
-                </span>
-              </a>
+                <span class="badge-pill bp-info">❄️ ${c.horizontal_fridge}</span>
+              </a></div>
             `).join('')}
           </div>
         `}
@@ -133,15 +131,13 @@ router.get('/', (req, res, next) => {
         ` : `
           <div class="space-y-2">
             ${verticalCustomers.map(c => `
-              <a href="/customers/${c.id}" class="card p-3 flex items-center justify-between hover:bg-hover">
+              <div class="card card--list-item"><a href="/customers/${c.id}" class="flex justify-between items-center">
                 <div>
                   <div class="font-medium">${c.name}</div>
                   <div class="text-xs text-muted">${c.phone || ''}</div>
                 </div>
-                <span class="px-2 py-1 bg-secondary/10 text-secondary rounded-lg text-xs font-medium">
-                  🥶 ${c.vertical_fridge}
-                </span>
-              </a>
+                <span class="badge-pill bp-info">🥶 ${c.vertical_fridge}</span>
+              </a></div>
             `).join('')}
           </div>
         `}

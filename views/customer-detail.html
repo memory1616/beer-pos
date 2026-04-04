@@ -12,7 +12,7 @@
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
   <link rel="stylesheet" href="/css/tailwind.css">
-  <link rel="stylesheet" href="/css/unified.css?v=20260413b">
+  <link rel="stylesheet" href="/css/unified.css?v=20260414">
   <script src="/js/auth.js"></script>
   <script src="/js/dark-mode.js"></script>
   <script src="/js/layout.js?v=20260402"></script>
@@ -99,9 +99,10 @@
         }
         
         let html = `
-          <div class="card p-4 mb-4">
-            <div class="text-sm text-muted font-medium mb-1">📦 Tổng vỏ bình</div>
-            <div class="text-2xl font-bold text-secondary">${data.currentBalance || 0} bình</div>
+          <div class="card stat-card--blue mb-4">
+            <div class="sc-label"><span class="sc-icon">📦</span> Tổng vỏ bình</div>
+            <div class="sc-value">${data.currentBalance || 0}</div>
+            <div class="sc-sub">bình</div>
           </div>
         `;
 
@@ -147,16 +148,16 @@
         // Current debt summary
         if (data.currentDebt > 0) {
           html += `
-            <div class="card p-4 mb-4 border-danger">
-              <div class="text-sm text-danger font-medium mb-1">💰 Công nợ hiện tại</div>
-              <div class="text-2xl font-bold text-danger">${formatVND(data.currentDebt)}</div>
+            <div class="card stat-card--danger mb-4">
+              <div class="sc-label"><span class="sc-icon">💰</span> Công nợ hiện tại</div>
+              <div class="sc-value">${formatVND(data.currentDebt)}</div>
             </div>
           `;
         } else {
           html += `
-            <div class="card p-4 mb-4">
-              <div class="text-sm text-success font-medium mb-1">💰 Tình trạng</div>
-              <div class="text-xl font-bold text-success">Không có công nợ</div>
+            <div class="card stat-card--success mb-4">
+              <div class="sc-label"><span class="sc-icon">💰</span> Tình trạng</div>
+              <div class="sc-value">Không có công nợ</div>
             </div>
           `;
         }
@@ -172,16 +173,13 @@
           const amountText = isPayment ? `-${formatVND(item.amount)}` : `+${formatVND(item.amount)}`;
 
           html += `
-            <div class="card p-4 mb-2">
+            <div class="card card--list-item mb-2">
               <div class="flex justify-between items-center">
-                <div class="font-bold text-main">📅 ${formatDate(item.date)}</div>
+                <div class="text-sm font-medium text-main">📅 ${formatDate(item.date)}</div>
                 <div class="font-bold ${amountClass}">${amountText}</div>
               </div>
-              <div class="mt-2 text-sm text-muted">
-                ${item.note || (isPayment ? 'Thanh toán' : 'Ghi nợ')}
-              </div>
-              <div class="text-sm text-muted">
-                Còn lại: ${formatVND(item.balance_after || 0)}
+              <div class="text-xs text-muted mt-1">
+                ${item.note || (isPayment ? 'Thanh toán' : 'Ghi nợ')} · Còn lại: ${formatVND(item.balance_after || 0)}
               </div>
             </div>
           `;
@@ -402,12 +400,10 @@
         let monthlySummaryHtml = '';
         if (filter && (data.monthlyTotal > 0 || data.monthlyQty > 0) && data.sales.length > 0) {
           monthlySummaryHtml = `
-            <div class="card p-4 mb-4">
-              <div class="text-sm text-primary font-medium mb-2">📊 Tổng tháng ${filter}</div>
-              <div class="flex justify-between">
-                <div class="money text-money"><span class="value text-xl font-bold tabular-nums">${formatVND(data.monthlyTotal)}</span><span class="unit">đ</span></div>
-                <div class="text-xl font-bold text-primary">${data.monthlyQty} bình</div>
-              </div>
+            <div class="card stat-card--blue mb-4">
+              <div class="sc-label"><span class="sc-icon">📊</span> Tổng tháng ${filter}</div>
+              <div class="sc-value">${formatVND(data.monthlyTotal)}</div>
+              <div class="sc-sub">${data.monthlyQty} bình</div>
             </div>
           `;
         }
@@ -439,9 +435,9 @@
 
               <!-- Timeline content -->
               <div class="flex-1 pb-4">
-                <div class="card p-4 ${cardClass}">
+                <div class="card card--list-item ${cardClass}">
                   <div class="flex justify-between items-center mb-2">
-                    <div class="font-bold ${dateClass}">📅 ${formatDate(sale.date)}${isReplacement ? ' 🔁' : ''}</div>
+                    <div class="text-sm font-semibold ${dateClass}">📅 ${formatDate(sale.date)}${isReplacement ? ' 🔁' : ''}</div>
                     <div class="money ${totalClass}"><span class="value text-sm font-bold tabular-nums">${isReplacement ? '0' : formatVND(sale.total)}</span><span class="unit">đ</span></div>
                   </div>
                   <div class="grid grid-cols-2 gap-2 text-sm">

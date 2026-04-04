@@ -12,7 +12,7 @@
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
   <link rel="stylesheet" href="/css/tailwind.css">
-  <link rel="stylesheet" href="/css/unified.css?v=20260413b">
+  <link rel="stylesheet" href="/css/unified.css?v=20260414">
   <script src="/js/auth.js"></script>
   <script src="/js/dark-mode.js"></script>
   <script src="/js/layout.js?v=20260402"></script>
@@ -79,11 +79,13 @@
     </div>
 
     <!-- Balance Warning -->
-    <div id="balanceWarning" class="hidden card p-3 mb-4 flex items-start gap-2 border-danger">
-      <span class="text-xl">⚠️</span>
-      <div>
-        <div class="text-sm font-semibold text-danger">Số vỏ trong kho sắp hết!</div>
-        <div class="text-xs text-danger mt-0.5" id="balanceWarningMsg">Cần nhập thêm vỏ từ nhà máy.</div>
+    <div id="balanceWarning" class="hidden card card--alert-danger mb-4">
+      <div class="flex items-start gap-3">
+        <span class="text-xl">⚠️</span>
+        <div>
+          <div class="text-sm font-semibold text-danger">Số vỏ trong kho sắp hết!</div>
+          <div class="text-xs text-danger mt-0.5" id="balanceWarningMsg">Cần nhập thêm vỏ từ nhà máy.</div>
+        </div>
       </div>
     </div>
 
@@ -319,20 +321,20 @@
       <!-- Summary chips -->
       <div class="px-3 pb-2 flex-shrink-0">
         <div class="grid grid-cols-4 gap-2 text-center">
-          <div class="card p-2">
-            <div class="text-xs text-muted">Đã giao</div>
+          <div class="card stat-card--success p-2">
+            <div class="text-xs text-muted mb-0.5">Đã giao</div>
             <div class="text-sm font-bold text-success" id="summaryDelivered">-</div>
           </div>
-          <div class="card p-2">
-            <div class="text-xs text-muted">Đã thu</div>
+          <div class="card stat-card--info p-2">
+            <div class="text-xs text-muted mb-0.5">Đã thu</div>
             <div class="text-sm font-bold text-info" id="summaryCollected">-</div>
           </div>
-          <div class="card p-2">
-            <div class="text-xs text-muted">Đã nhập</div>
-            <div class="text-sm font-bold text-secondary" id="summaryImported">-</div>
+          <div class="card stat-card--emerald p-2">
+            <div class="text-xs text-muted mb-0.5">Đã nhập</div>
+            <div class="text-sm font-bold" style="color:#059669" id="summaryImported">-</div>
           </div>
-          <div class="card p-2">
-            <div class="text-xs text-muted">Điều chỉnh</div>
+          <div class="card stat-card--warning p-2">
+            <div class="text-xs text-muted mb-0.5">Điều chỉnh</div>
             <div class="text-sm font-bold text-warning" id="summaryAdjusted">-</div>
           </div>
         </div>
@@ -576,7 +578,7 @@
           : '';
         const note = log.note ? `<div class="text-xs text-muted italic mt-1">${log.note}</div>` : '';
         return `
-          <div class="card p-3 mb-2">
+          <div class="card card--list-item mb-2">
             <div class="flex justify-between items-start mb-1">
               <div class="flex items-center gap-2">
                 <span class="${typeBadgeClass(log.type)}">${typeLabel(log.type)}</span>

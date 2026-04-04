@@ -227,7 +227,7 @@ router.get('/', (req, res) => {
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="/js/auth.js"></script>
   <script src="/js/dark-mode.js"></script>
-  <link rel="stylesheet" href="/css/unified.css?v=20260413b">
+  <link rel="stylesheet" href="/css/unified.css?v=20260414">
   <script src="/js/layout.js"></script>
   <style>
     .animate-fade { animation: fade 0.25s ease-out; }
@@ -377,47 +377,29 @@ router.get('/', (req, res) => {
     <div class="mb-4">
       <div class="section-title">${periodLabel}</div>
       <div class="grid grid-cols-2 gap-3">
-        <div class="card bg-primary/10 border-primary/20">
-          <div class="flex items-center gap-2 mb-1">
-            <span class="text-primary">💵</span>
-            <div class="text-xs text-primary font-medium">Doanh thu</div>
-          </div>
-          <div class="card-value"><div class="money text-money"><span class="value text-xl font-bold tabular-nums">${formatVNDNumber(periodStats.revenue)}</span><span class="unit">đ</span></div></div>
+        <div class="card stat-card--green">
+          <div class="sc-label"><span class="sc-icon">💵</span> Doanh thu</div>
+          <div class="sc-value text-xl"><div class="money text-money"><span class="value font-bold tabular-nums">${formatVNDNumber(periodStats.revenue)}</span><span class="unit">đ</span></div></div>
         </div>
-        <div class="card bg-info/10 border-info/20">
-          <div class="flex items-center gap-2 mb-1">
-            <span class="text-info">📈</span>
-            <div class="text-xs text-info font-medium">Lợi nhuận gộp</div>
-          </div>
-          <div class="text-xl font-bold text-success card-value">${formatVND(periodStats.profit)}</div>
+        <div class="card stat-card--emerald">
+          <div class="sc-label"><span class="sc-icon">📈</span> Lợi nhuận gộp</div>
+          <div class="sc-value text-xl" style="color:#059669">${formatVND(periodStats.profit)}</div>
         </div>
-        <div class="card bg-danger/10 border-danger/20">
-          <div class="flex items-center gap-2 mb-1">
-            <span class="text-danger">📉</span>
-            <div class="text-xs text-danger font-medium">Chi phí</div>
-          </div>
-          <div class="text-xl font-bold text-danger card-value">-${formatVND(periodExpenses.total)}</div>
+        <div class="card stat-card--danger">
+          <div class="sc-label"><span class="sc-icon">📉</span> Chi phí</div>
+          <div class="sc-value text-xl" style="color:#dc2626">-${formatVND(periodExpenses.total)}</div>
         </div>
-        <div class="card bg-secondary/10 border-secondary/20">
-          <div class="flex items-center gap-2 mb-1">
-            <span class="text-secondary">✨</span>
-            <div class="text-xs text-secondary font-medium">Lợi nhuận ròng</div>
-          </div>
-          <div class="text-xl font-bold text-secondary card-value">${formatVND(netProfit)}</div>
+        <div class="card stat-card--info">
+          <div class="sc-label"><span class="sc-icon">✨</span> Lợi nhuận ròng</div>
+          <div class="sc-value text-xl" style="color:#2563eb">${formatVND(netProfit)}</div>
         </div>
-        <div class="card">
-          <div class="flex items-center gap-2 mb-1">
-            <span class="text-muted">📋</span>
-            <div class="text-xs text-muted font-medium">Đơn hàng</div>
-          </div>
-          <div class="text-xl font-bold text-main card-value">${periodStats.order_count}</div>
+        <div class="card stat-card--success">
+          <div class="sc-label"><span class="sc-icon">📋</span> Đơn hàng</div>
+          <div class="sc-value text-xl">${periodStats.order_count}</div>
         </div>
-        <div class="card bg-warning/10 border-warning/20">
-          <div class="flex items-center gap-2 mb-1">
-            <span class="text-warning">🍺</span>
-            <div class="text-xs text-warning font-medium">Sản phẩm</div>
-          </div>
-          <div class="text-xl font-bold text-warning card-value">${periodStats.total_quantity}</div>
+        <div class="card stat-card--warning">
+          <div class="sc-label"><span class="sc-icon">🍺</span> Sản phẩm</div>
+          <div class="sc-value text-xl">${periodStats.total_quantity}</div>
         </div>
       </div>
     </div>
@@ -430,70 +412,54 @@ router.get('/', (req, res) => {
       </div>
     </div>
 
-    <!-- All Time Stats - layout grid card giống dashboard -->
+    <!-- All Time Stats -->
     <div class="mb-4">
-      <div class="section-title">📊 Tất cả thời gian</div>
-      <div class="grid grid-cols-2 gap-3 mt-2">
-        <div class="card bg-primary/10 border-primary/30">
-          <div class="flex items-center gap-1 mb-1">
-            <span class="text-primary">💵</span>
-            <div class="text-xs text-primary font-medium">Doanh thu</div>
-          </div>
-          <div class="card-value"><div class="money text-money"><span class="value text-lg font-bold tabular-nums">${formatVNDNumber(allTimeStats.revenue)}</span><span class="unit">đ</span></div></div>
+      <div class="section-title">Tất cả thời gian</div>
+      <div class="grid grid-cols-2 gap-3">
+        <div class="card stat-card--green">
+          <div class="sc-label"><span class="sc-icon">💵</span> Doanh thu</div>
+          <div class="sc-value"><div class="money text-money"><span class="value font-bold tabular-nums">${formatVNDNumber(allTimeStats.revenue)}</span><span class="unit">đ</span></div></div>
         </div>
-        <div class="card bg-info/10 border-info/30">
-          <div class="flex items-center gap-1 mb-1">
-            <span class="text-info">📈</span>
-            <div class="text-xs text-info font-medium">Lợi nhuận gộp</div>
-          </div>
-          <div class="text-lg font-bold text-success card-value">${formatVND(allTimeStats.profit)}</div>
+        <div class="card stat-card--emerald">
+          <div class="sc-label"><span class="sc-icon">📈</span> Lợi nhuận gộp</div>
+          <div class="sc-value" style="color:#059669">${formatVND(allTimeStats.profit)}</div>
         </div>
-        <div class="card bg-danger/10 border-danger/30">
-          <div class="flex items-center gap-1 mb-1">
-            <span class="text-danger">📉</span>
-            <div class="text-xs text-danger font-medium">Tổng chi phí</div>
-          </div>
-          <div class="text-lg font-bold text-danger card-value">-${formatVND(allTimeExpenses.total)}</div>
+        <div class="card stat-card--danger">
+          <div class="sc-label"><span class="sc-icon">📉</span> Tổng chi phí</div>
+          <div class="sc-value" style="color:#dc2626">-${formatVND(allTimeExpenses.total)}</div>
         </div>
-        <div class="card bg-secondary/10 border-secondary/30">
-          <div class="flex items-center gap-1 mb-1">
-            <span class="text-secondary">✨</span>
-            <div class="text-xs text-secondary font-medium">Lợi nhuận ròng</div>
-          </div>
-          <div class="text-lg font-bold text-secondary card-value">${formatVND(allTimeNetProfit)}</div>
+        <div class="card stat-card--info">
+          <div class="sc-label"><span class="sc-icon">✨</span> Lợi nhuận ròng</div>
+          <div class="sc-value" style="color:#2563eb">${formatVND(allTimeNetProfit)}</div>
         </div>
-        <div class="card">
-          <div class="flex items-center gap-1 mb-1">
-            <span class="text-muted">📋</span>
-            <div class="text-xs text-muted font-medium">Đơn hàng</div>
-          </div>
-          <div class="text-lg font-bold text-main card-value">${allTimeStats.order_count}</div>
+        <div class="card stat-card--success">
+          <div class="sc-label"><span class="sc-icon">📋</span> Đơn hàng</div>
+          <div class="sc-value">${allTimeStats.order_count}</div>
         </div>
-        <div class="card bg-warning/10 border-warning/30">
-          <div class="flex items-center gap-1 mb-1">
-            <span class="text-warning">🍺</span>
-            <div class="text-xs text-warning font-medium">Sản phẩm</div>
-          </div>
-          <div class="text-lg font-bold text-warning card-value">${allTimeStats.total_quantity}</div>
+        <div class="card stat-card--warning">
+          <div class="sc-label"><span class="sc-icon">🍺</span> Sản phẩm</div>
+          <div class="sc-value">${allTimeStats.total_quantity}</div>
         </div>
       </div>
     </div>
 
     <!-- Top Customers -->
     <div class="mb-4">
-      <div class="section-title">🏆 Top khách hàng</div>
+      <div class="section-title">Top khách hàng</div>
       <div class="space-y-2">
         ${topCustomers.length === 0 ? '<div class="empty-state">Chưa có dữ liệu</div>' : topCustomers.map((c, i) => `
-          <div class="card flex justify-between items-center hover:shadow-md transition-all">
-            <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm ${i === 0 ? 'bg-primary/20 text-primary' : i === 1 ? 'bg-muted text-muted' : i === 2 ? 'bg-warning/20 text-warning' : 'bg-bg text-muted'}">${i + 1}</div>
-              <div>
-                <div class="font-bold text-sm">${c.name}</div>
-                <div class="text-xs text-muted">${c.order_count} đơn · ${c.quantity} sản phẩm</div>
+          <div class="card card--list-item">
+            <div class="flex justify-between items-center">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm ${i === 0 ? 'bg-success/20 text-success' : i === 1 ? 'bg-info/20 text-info' : i === 2 ? 'bg-warning/20 text-warning' : 'bg-bg text-muted'}">${i + 1}</div>
+                <div>
+                  <div class="font-bold text-sm">${c.name}</div>
+                  <div class="text-xs text-muted">${c.order_count} đơn · ${c.quantity} sản phẩm</div>
+                </div>
               </div>
-            </div>
-            <div class="text-right">
-              <div class="font-bold text-primary">${formatVND(c.revenue)}</div>
+              <div class="text-right">
+                <div class="font-bold text-success">${formatVND(c.revenue)}</div>
+              </div>
             </div>
           </div>
         `).join('')}
@@ -502,20 +468,22 @@ router.get('/', (req, res) => {
 
     <!-- Top Products -->
     <div class="mb-4">
-      <div class="section-title">🍺 Top sản phẩm bán chạy</div>
+      <div class="section-title">Top sản phẩm bán chạy</div>
       <div class="space-y-2">
         ${topProducts.length === 0 ? '<div class="empty-state">Chưa có dữ liệu</div>' : topProducts.map((p, i) => `
-          <div class="card flex justify-between items-center hover:shadow-md transition-all">
-            <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm ${i === 0 ? 'bg-primary/20 text-primary' : i === 1 ? 'bg-muted text-muted' : i === 2 ? 'bg-warning/20 text-warning' : 'bg-bg text-muted'}">${i + 1}</div>
-              <div>
-                <div class="font-bold text-sm">${p.name}</div>
-                <div class="text-xs text-muted">Doanh thu: ${formatVND(p.revenue)}</div>
+          <div class="card card--list-item">
+            <div class="flex justify-between items-center">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm ${i === 0 ? 'bg-success/20 text-success' : i === 1 ? 'bg-info/20 text-info' : i === 2 ? 'bg-warning/20 text-warning' : 'bg-bg text-muted'}">${i + 1}</div>
+                <div>
+                  <div class="font-bold text-sm">${p.name}</div>
+                  <div class="text-xs text-muted">Doanh thu: ${formatVND(p.revenue)}</div>
+                </div>
               </div>
-            </div>
-            <div class="text-right">
-              <div class="font-bold text-warning">${p.quantity_sold}</div>
-              <div class="text-xs text-muted">sản phẩm</div>
+              <div class="text-right">
+                <div class="font-bold text-warning">${p.quantity_sold}</div>
+                <div class="text-xs text-muted">sản phẩm</div>
+              </div>
             </div>
           </div>
         `).join('')}
@@ -838,7 +806,7 @@ router.get('/profit-product', (req, res) => {
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
   <link rel="stylesheet" href="/css/tailwind.css">
-  <link rel="stylesheet" href="/css/unified.css?v=20260413b">
+  <link rel="stylesheet" href="/css/unified.css?v=20260414">
   <script src="/js/dark-mode.js"></script>
   <script src="/js/auth.js"></script>
   <style>
@@ -873,35 +841,35 @@ router.get('/profit-product', (req, res) => {
       </div>
       <div class="text-xs text-muted mt-1">Đang xem: ${labelThangNam}</div>
     </div>
-    <div class="mb-4 shadow-lg rounded-2xl p-4" style="background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%); color: #fff;">
-      <div class="grid grid-cols-3 gap-3 text-center py-2">
+    <div class="card card--summary-purple mb-4 rounded-2xl overflow-hidden shadow-lg">
+      <div class="grid grid-cols-3 gap-3 text-center py-4 px-4">
         <div>
-          <div class="text-xs" style="opacity: 0.9;">Doanh thu</div>
-          <div class="font-bold text-lg">${formatVND(totalRevenue)}</div>
+          <div class="sum-label">Doanh thu</div>
+          <div class="sum-value">${formatVND(totalRevenue)}</div>
         </div>
         <div>
-          <div class="text-xs" style="opacity: 0.9;">Chi phí</div>
-          <div class="font-bold text-lg">${formatVND(totalCost)}</div>
+          <div class="sum-label">Chi phí</div>
+          <div class="sum-value">${formatVND(totalCost)}</div>
         </div>
         <div>
-          <div class="text-xs" style="opacity: 0.9;">Lợi nhuận</div>
-          <div class="font-bold text-lg">${formatVND(totalProfit)}</div>
+          <div class="sum-label">Lợi nhuận</div>
+          <div class="sum-value">${formatVND(totalProfit)}</div>
         </div>
       </div>
     </div>
     <div class="space-y-2">
       ${products.length === 0 ? '<div class="empty-state">Chưa có dữ liệu</div>' : products.map((p, i) => `
-        <div class="card hover:shadow-md transition-all">
+        <div class="card card--list-item">
           <div class="flex justify-between items-center">
             <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm ${i === 0 ? 'bg-primary/20 text-primary' : i === 1 ? 'bg-muted text-muted' : i === 2 ? 'bg-warning/20 text-warning' : 'bg-bg text-muted'}">${i + 1}</div>
+              <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm ${i === 0 ? 'bg-success/20 text-success' : i === 1 ? 'bg-info/20 text-info' : i === 2 ? 'bg-warning/20 text-warning' : 'bg-bg text-muted'}">${i + 1}</div>
               <div>
                 <div class="font-bold">${p.name}</div>
                 <div class="text-xs text-muted">${p.total_qty} sản phẩm · ${formatVND(p.revenue)}</div>
               </div>
             </div>
             <div class="text-right">
-              <div class="font-bold text-secondary">${formatVND(p.profit || 0)}</div>
+              <div class="font-bold text-success">${formatVND(p.profit || 0)}</div>
               <div class="text-xs text-muted">${((p.profit || 0) / (p.revenue || 1) * 100).toFixed(1)}%</div>
             </div>
           </div>
@@ -1006,7 +974,7 @@ router.get('/profit-customer', (req, res) => {
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
   <link rel="stylesheet" href="/css/tailwind.css">
-  <link rel="stylesheet" href="/css/unified.css?v=20260413b">
+  <link rel="stylesheet" href="/css/unified.css?v=20260414">
   <script src="/js/dark-mode.js"></script>
   <script src="/js/auth.js"></script>
   <script src="/js/layout.js?v=20260403"></script>
@@ -1040,39 +1008,37 @@ router.get('/profit-customer', (req, res) => {
       </div>
       <div class="text-xs text-muted mt-1">Đang xem: ${labelThangNam}</div>
     </div>
-    <div class="mb-4 shadow-lg rounded-2xl p-4" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: #fff;">
-      <div class="grid grid-cols-3 gap-2 text-center py-2">
+    <div class="card card--summary-blue mb-4 rounded-2xl overflow-hidden shadow-lg">
+      <div class="grid grid-cols-3 gap-2 text-center py-4 px-4">
         <div>
-          <div class="text-xs" style="opacity: 0.9;">Tổng doanh thu</div>
-          <div class="font-bold text-sm sm:text-lg leading-tight">${formatVND(totalRevenue)}</div>
+          <div class="sum-label">Tổng doanh thu</div>
+          <div class="sum-value" style="font-size:1rem">${formatVND(totalRevenue)}</div>
         </div>
         <div>
-          <div class="text-xs" style="opacity: 0.9;">Tổng lợi nhuận</div>
-          <div class="font-bold text-sm sm:text-lg leading-tight">${formatVND(totalProfit)}</div>
+          <div class="sum-label">Tổng lợi nhuận</div>
+          <div class="sum-value" style="font-size:1rem">${formatVND(totalProfit)}</div>
         </div>
         <div>
-          <div class="text-xs" style="opacity: 0.9;">Tổng số bình</div>
-          <div class="font-bold text-lg">${totalBins}</div>
+          <div class="sum-label">Tổng số bình</div>
+          <div class="sum-value">${totalBins}</div>
         </div>
       </div>
     </div>
     <div class="space-y-2">
       ${customers.length === 0 ? '<div class="empty-state">Chưa có dữ liệu trong tháng này</div>' : customers.map((c, i) => `
-        <a href="/customers/${c.id}" class="card block hover:shadow-md transition-all">
-          <div class="flex justify-between items-center">
-            <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm ${i === 0 ? 'bg-primary/20 text-primary' : i === 1 ? 'bg-muted text-muted' : i === 2 ? 'bg-warning/20 text-warning' : 'bg-bg text-muted'}">${i + 1}</div>
-              <div>
-                <div class="font-bold">${c.name}</div>
-                <div class="text-xs text-muted">${c.total_orders} đơn hàng · ${c.total_bins || 0} bình</div>
-              </div>
-            </div>
-            <div class="text-right">
-              <div class="font-bold text-info">${formatVND(c.profit || 0)}</div>
-              <div class="text-xs text-muted">${formatVND(c.revenue || 0)}</div>
+        <div class="card card--list-item"><a href="/customers/${c.id}" class="flex justify-between items-center">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm ${i === 0 ? 'bg-success/20 text-success' : i === 1 ? 'bg-info/20 text-info' : i === 2 ? 'bg-warning/20 text-warning' : 'bg-bg text-muted'}">${i + 1}</div>
+            <div>
+              <div class="font-bold">${c.name}</div>
+              <div class="text-xs text-muted">${c.total_orders} đơn hàng · ${c.total_bins || 0} bình</div>
             </div>
           </div>
-        </a>
+          <div class="text-right">
+            <div class="font-bold text-success">${formatVND(c.profit || 0)}</div>
+            <div class="text-xs text-muted">${formatVND(c.revenue || 0)}</div>
+          </div>
+        </a></div>
       `).join('')}
     </div>
   </main>
@@ -1198,7 +1164,7 @@ router.get('/import-purchases', (req, res) => {
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
   <link rel="stylesheet" href="/css/tailwind.css">
-  <link rel="stylesheet" href="/css/unified.css?v=20260413b">
+  <link rel="stylesheet" href="/css/unified.css?v=20260414">
   <script src="/js/dark-mode.js"></script>
   <script src="/js/auth.js"></script>
   <script src="/js/layout.js?v=20260403"></script>
@@ -1234,29 +1200,29 @@ router.get('/import-purchases', (req, res) => {
       </div>
       <div class="text-xs text-muted mt-1">Đang xem: ${labelThangNam}</div>
     </div>
-    <div class="mb-4 shadow-lg rounded-2xl p-4" style="background: linear-gradient(135deg, #059669 0%, #0d9488 100%); color: #fff;">
-      <div class="grid grid-cols-3 gap-2 text-center py-2">
+    <div class="card card--summary-teal mb-4 rounded-2xl overflow-hidden shadow-lg">
+      <div class="grid grid-cols-3 gap-2 text-center py-4 px-4">
         <div>
-          <div class="text-xs" style="opacity: 0.9;">Tổng tiền nhập</div>
-          <div class="font-bold text-sm leading-tight">${formatVND(totalAmount)}</div>
+          <div class="sum-label">Tổng tiền nhập</div>
+          <div class="sum-value" style="font-size:1rem">${formatVND(totalAmount)}</div>
         </div>
         <div>
-          <div class="text-xs" style="opacity: 0.9;">Số phiếu</div>
-          <div class="font-bold text-lg">${slipCount}</div>
+          <div class="sum-label">Số phiếu</div>
+          <div class="sum-value">${slipCount}</div>
         </div>
         <div>
-          <div class="text-xs" style="opacity: 0.9;">Tổng SL</div>
-          <div class="font-bold text-lg">${totalQty}</div>
+          <div class="sum-label">Tổng SL</div>
+          <div class="sum-value">${totalQty}</div>
         </div>
       </div>
     </div>
     <div class="section-title text-xs font-bold text-muted uppercase tracking-wide mb-2">Chi tiết phiếu nhập</div>
     <div class="space-y-2 mb-6">
       ${purchasesList.length === 0 ? '<div class="empty-state border-primary/20">Chưa có phiếu nhập trong tháng này</div>' : purchasesList.map((p) => `
-        <div class="card border-primary/20 hover:shadow-md transition-all">
+        <div class="card card--list-item">
           <div class="flex justify-between items-start gap-2 mb-1">
             <div class="font-bold text-primary">#${p.id}</div>
-            <div class="text-xs font-medium text-main whitespace-nowrap">🗓 ${formatPurchaseDay(p.date)}</div>
+            <div class="text-xs font-medium text-muted whitespace-nowrap">🗓 ${formatPurchaseDay(p.date)}</div>
           </div>
           <div class="text-lg font-bold text-success mb-1">${formatVND(p.total_amount || 0)}</div>
           ${p.items_summary ? `<div class="text-xs text-main leading-snug">${String(p.items_summary).replace(/,/g, ', ')}</div>` : ''}
@@ -1267,10 +1233,10 @@ router.get('/import-purchases', (req, res) => {
     <div class="section-title text-xs font-bold text-muted uppercase tracking-wide mb-2">Tổng hợp theo sản phẩm</div>
     <div class="space-y-2">
       ${byProduct.length === 0 ? '<div class="empty-state border-primary/20">Không có dòng hàng</div>' : byProduct.map((row, i) => `
-        <div class="card border-emerald-100 hover:shadow-md transition-all">
+        <div class="card card--list-item">
           <div class="flex justify-between items-center gap-2">
             <div class="flex items-center gap-3 min-w-0">
-              <div class="w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shadow-sm shrink-0 ${i === 0 ? 'bg-primary/20 text-primary' : 'bg-success/10 text-success'}">${i + 1}</div>
+              <div class="w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shadow-sm shrink-0 ${i === 0 ? 'bg-success/20 text-success' : 'bg-info/20 text-info'}">${i + 1}</div>
               <div class="min-w-0">
                 <div class="font-bold truncate">${row.name}</div>
                 <div class="text-xs text-muted">${row.qty} đơn vị</div>

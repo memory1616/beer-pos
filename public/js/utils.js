@@ -186,21 +186,17 @@ const Utils = {
   }
 };
 
-// Backward compatibility - create global functions
+// Backward compatibility — delegate to Format.money() (loaded via format.js)
+// NOTE: format.js must be loaded BEFORE this file on pages that use formatVND
 function formatVND(amount) {
-  return Utils.formatMoney(amount);
-}
-
-function showLoading(message) {
-  return Utils.showLoading(message);
-}
-
-function hideLoading() {
-  return Utils.hideLoading();
-}
-
-function showToast(message, type) {
-  return Utils.showToast(message, type);
+  if (typeof Format !== 'undefined' && Format.money) {
+    return Format.money(amount);
+  }
+  // Fallback if Format is not yet loaded
+  if (amount === null || amount === undefined || amount === '') return '0 đ';
+  const num = Number(amount);
+  if (isNaN(num)) return '0 đ';
+  return new Intl.NumberFormat('vi-VN').format(num) + ' đ';
 }
 
 // Export for module usage

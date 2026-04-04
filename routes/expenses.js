@@ -105,15 +105,15 @@ router.get('/', (req, res, next) => {
     '</div>';
 
   const summaryBlockHtml =
-    '<div class="mb-4 rounded-2xl overflow-hidden shadow-lg" style="background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); color: #fff;">' +
+    '<div class="card card--summary-red mb-4 rounded-2xl overflow-hidden shadow-lg">' +
     '<div class="grid grid-cols-2 gap-3 text-center py-4 px-4">' +
     '<div>' +
-    '<div class="text-xs" style="opacity: 0.85;">' + totalExpenseLabel + '</div>' +
-    '<div class="font-bold text-xl mt-1">' + formatVND(monthExpenses.total) + '</div>' +
+    '<div class="sum-label">' + totalExpenseLabel + '</div>' +
+    '<div class="sum-value">' + formatVND(monthExpenses.total) + '</div>' +
     '</div>' +
     '<div>' +
-    '<div class="text-xs" style="opacity: 0.85;">Giao dịch</div>' +
-    '<div class="font-bold text-xl mt-1">' + expenseCount + '</div>' +
+    '<div class="sum-label">Giao dịch</div>' +
+    '<div class="sum-value">' + expenseCount + '</div>' +
     '</div>' +
     '</div>' +
     '</div>';
@@ -150,7 +150,7 @@ router.get('/', (req, res, next) => {
   if (categorySummary.length > 0) {
     categoryHtml = categorySummary.map(c => {
       const icon = categoryIcons[c.category] || '📋';
-      return '<div class="card hover:shadow-md transition-all">' +
+      return '<div class="card card--list-item">' +
         '<div class="flex justify-between items-center">' +
         '<div class="flex items-center gap-3">' +
           '<span class="text-xl">' + icon + '</span>' +
@@ -160,7 +160,7 @@ router.get('/', (req, res, next) => {
         '</div></div>';
     }).join('');
   } else {
-    categoryHtml = '<div class="card text-center py-4">Chưa có chi phí trong tháng này</div>';
+    categoryHtml = '<div class="card card--list-item text-center py-4">Chưa có chi phí trong tháng này</div>';
   }
 
   // Build recent expenses HTML
@@ -170,7 +170,7 @@ router.get('/', (req, res, next) => {
       const dateStr = new Date(e.date).toLocaleDateString('vi-VN');
       const desc = e.description || '';
       const icon = categoryIcons[e.category] || '📋';
-      return '<div class="card hover:shadow-md transition-all" data-id="' + e.id + '">' +
+      return '<div class="card card--list-item" data-id="' + e.id + '">' +
         '<div class="flex justify-between items-start gap-2">' +
         '<div class="flex items-start gap-3 flex-1 min-w-0">' +
         '<span class="text-2xl flex-shrink-0">' + icon + '</span>' +
@@ -190,7 +190,7 @@ router.get('/', (req, res, next) => {
         '</div></div>';
     }).join('');
   } else {
-    expensesHtml = '<div class="card text-center py-4">Chưa có chi phí trong tháng này</div>';
+    expensesHtml = '<div class="card card--list-item text-center py-4">Chưa có chi phí trong tháng này</div>';
   }
 
   const optionsHtml = categories.map(c => '<option value="' + c + '">' + c + '</option>').join('');
@@ -207,7 +207,7 @@ router.get('/', (req, res, next) => {
 '  <link rel="apple-touch-icon" href="/icon-192.png">' +
 '  <link rel="icon" type="image/png" href="/icon-192.png">' +
 '  <link rel="stylesheet" href="/css/tailwind.css">' +
-'  <link rel="stylesheet" href="/css/unified.css?v=20260413b">' +
+'  <link rel="stylesheet" href="/css/unified.css?v=20260414">' +
 '  <script src="/js/dark-mode.js"></script>' +
 '  <script src="/js/auth.js"></script>' +
 '  <script src="/js/layout.js?v=20260403"></script>' +

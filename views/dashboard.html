@@ -14,7 +14,7 @@
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
   <link rel="stylesheet" href="/css/tailwind.css">
-  <link rel="stylesheet" href="/css/unified.css?v=20260413">
+  <link rel="stylesheet" href="/css/unified.css?v=20260414">
   <script src="/js/dark-mode.js"></script>
   <script src="/js/vendor/chart.umd.min.js"></script>
   <script src="/js/auth.js"></script>
@@ -122,9 +122,9 @@
 
             <!-- Hàng sắp hết -->
             <div id="lowStockSection" class="hidden mb-6">
-              <div class="section-title">⚠️ Hàng sắp hết</div>
-              <div class="card border-danger p-4">
-                <div id="lowStockHeader" class="text-sm font-bold text-danger mb-3">Hàng sắp hết</div>
+              <div class="section-title">Hàng sắp hết</div>
+              <div class="card card--alert-danger">
+                <div id="lowStockHeader" class="text-sm font-bold text-danger mb-2">Hàng sắp hết</div>
                 <div id="lowStockList" class="space-y-0"></div>
               </div>
             </div>
@@ -132,8 +132,8 @@
             <!-- Dưới mức kỳ vọng -->
             <div id="customerAlertsSection" class="hidden mb-6">
               <div class="section-title">Dưới mức kỳ vọng</div>
-              <div class="card border-warning bg-warning/5">
-                <div id="customerAlertsHeader" class="text-xs text-warning/80 px-3 pt-3 pb-1"></div>
+              <div class="card card--alert-warning">
+                <div id="customerAlertsHeader" class="text-xs text-warning/80 mb-2"></div>
                 <div id="customerAlertsList"></div>
               </div>
             </div>
@@ -142,15 +142,15 @@
             <div class="mb-6">
               <div class="section-title">Doanh thu 14 ngày</div>
               <div id="revenueStats" class="grid grid-cols-3 gap-2 mb-3">
-                <div class="card p-2 text-center min-w-0">
+                <div class="card card--revenue-mini text-center min-w-0">
                   <div class="text-xs text-muted">Tổng</div>
-                  <div class="font-bold text-primary text-sm min-w-0" id="totalRevenue6M">-</div>
+                  <div class="font-bold text-success text-sm min-w-0" id="totalRevenue6M">-</div>
                 </div>
-                <div class="card p-2 text-center min-w-0">
+                <div class="card card--revenue-mini text-center min-w-0">
                   <div class="text-xs text-muted">LN/ngày</div>
                   <div class="font-bold text-success text-sm min-w-0" id="avgRevenue6M">-</div>
                 </div>
-                <div class="card p-2 text-center">
+                <div class="card card--revenue-mini text-center">
                   <div class="text-xs text-muted">Tăng trưởng</div>
                   <div class="font-bold text-success text-sm" id="growthRevenue6M">-</div>
                 </div>

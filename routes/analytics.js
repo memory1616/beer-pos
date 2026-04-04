@@ -89,7 +89,7 @@ router.get('/', (req, res) => {
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
   <link rel="stylesheet" href="/css/tailwind.css">
-  <link rel="stylesheet" href="/css/unified.css">
+  <link rel="stylesheet" href="/css/unified.css?v=20260414">
   <script src="/js/dark-mode.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
@@ -117,18 +117,18 @@ router.get('/', (req, res) => {
 
   <main class="p-4 pt-14 pb-24 max-w-md mx-auto animate-fade">
     <!-- Stats -->
-    <div class="grid grid-cols-2 gap-4 mb-4">
-      <div class="card p-5">
-        <div class="text-muted text-sm">💰 Hôm nay</div>
-        <div><div class="money text-money"><span class="value text-2xl font-bold tabular-nums">${formatVND(todayStats.revenue)}</span><span class="unit">đ</span></div></div>
+    <div class="grid grid-cols-2 gap-3 mb-4">
+      <div class="card stat-card--green">
+        <div class="sc-label"><span class="sc-icon">💰</span> Hôm nay</div>
+        <div class="sc-value text-xl"><div class="money text-money"><span class="value font-bold tabular-nums">${formatVND(todayStats.revenue)}</span><span class="unit">đ</span></div></div>
       </div>
-      <div class="card p-5">
-        <div class="text-muted text-sm">📈 Lợi nhuận HT</div>
-        <div class="text-2xl font-bold text-success">${formatVND(todayStats.profit)}</div>
+      <div class="card stat-card--emerald">
+        <div class="sc-label"><span class="sc-icon">📈</span> Lợi nhuận HT</div>
+        <div class="sc-value text-xl" style="color:#059669">${formatVND(todayStats.profit)}</div>
       </div>
-      <div class="card p-5">
-        <div class="text-muted text-sm">🧾 Tháng này</div>
-        <div class="text-2xl font-bold text-primary">${formatVND(monthStats.revenue)}</div>
+      <div class="card stat-card--blue">
+        <div class="sc-label"><span class="sc-icon">🧾</span> Tháng này</div>
+        <div class="sc-value text-xl" style="color:#2563eb">${formatVND(monthStats.revenue)}</div>
       </div>
     </div>
 
@@ -144,9 +144,14 @@ router.get('/', (req, res) => {
     <div class="card p-5 mb-4">
       <h2 class="font-bold text-lg mb-3">🏆 Top sản phẩm</h2>
       ${topProducts.length > 0 ? topProducts.map((p, i) => `
-        <div class="flex justify-between items-center p-2 border-b border-muted">
-          <div><span class="font-bold">${i+1}.</span> ${p.name}</div>
-          <div class="font-bold">${p.qty} bình</div>
+        <div class="card card--list-item mb-2 last:mb-0">
+          <div class="flex justify-between items-center">
+            <div class="flex items-center gap-2">
+              <div class="w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs bg-success/20 text-success">${i+1}</div>
+              <span class="font-medium">${p.name}</span>
+            </div>
+            <div class="font-bold text-success">${p.qty} bình</div>
+          </div>
         </div>
       `).join('') : '<div class="text-muted">Chưa có dữ liệu</div>'}
     </div>

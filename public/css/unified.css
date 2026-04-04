@@ -2671,3 +2671,167 @@ input:invalid:not(:placeholder-shown) { border-color: var(--color-danger) !impor
   border-bottom-color: rgba(251,191,36,0.25);
 }
 
+/* =========================   PREMIUM CARD SYSTEM v2   ========================= */
+/* Money Display — unified across all pages */
+.money-display {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.money-display .md-value {
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  font-variant-numeric: tabular-nums;
+}
+.money-display .md-unit {
+  font-size: 0.7em;
+  font-weight: 500;
+  opacity: 0.75;
+}
+
+/* Money size variants */
+.money-display.md-hero .md-value { font-size: 2rem; }
+.money-display.md-xl   .md-value { font-size: 1.5rem; }
+.money-display.md-lg   .md-value { font-size: 1.25rem; }
+.money-display.md-base .md-value { font-size: 1rem; }
+.money-display.md-sm   .md-value { font-size: 0.875rem; }
+
+/* Money color variants */
+.money-display.md-success  .md-value { color: #16a34a; }
+.money-display.md-danger   .md-value { color: #dc2626; }
+.money-display.md-warning  .md-value { color: #d97706; }
+.money-display.md-info     .md-value { color: #2563eb; }
+.money-display.md-muted    .md-value { color: #6b7280; }
+
+/* Dark money */
+[data-theme="dark"] .money-display.md-success  .md-value { color: #4ade80; }
+[data-theme="dark"] .money-display.md-danger   .md-value { color: #f87171; }
+[data-theme="dark"] .money-display.md-warning  .md-value { color: #fbbf24; }
+[data-theme="dark"] .money-display.md-info     .md-value { color: #60a5fa; }
+
+/* Summary Gradient Cards — replaces inline gradient styles */
+.card.card--summary-green  { background: linear-gradient(135deg,#16a34a,#15803d); color:#fff; border:none; box-shadow: 0 4px 16px rgba(34,197,94,0.25); }
+.card.card--summary-red    { background: linear-gradient(135deg,#dc2626,#991b1b); color:#fff; border:none; box-shadow: 0 4px 16px rgba(220,38,38,0.25); }
+.card.card--summary-blue   { background: linear-gradient(135deg,#2563eb,#1d4ed8); color:#fff; border:none; box-shadow: 0 4px 16px rgba(37,99,235,0.25); }
+.card.card--summary-purple { background: linear-gradient(135deg,#7c3aed,#6d28d9); color:#fff; border:none; box-shadow: 0 4px 16px rgba(139,92,246,0.25); }
+.card.card--summary-teal   { background: linear-gradient(135deg,#0d9488,#0f766e); color:#fff; border:none; box-shadow: 0 4px 16px rgba(13,148,136,0.25); }
+
+.card.card--summary-green  .sum-label,
+.card.card--summary-red    .sum-label,
+.card.card--summary-blue   .sum-label,
+.card.card--summary-purple .sum-label,
+.card.card--summary-teal   .sum-label { font-size: 0.75rem; opacity: 0.85; }
+
+.card.card--summary-green  .sum-value,
+.card.card--summary-red    .sum-value,
+.card.card--summary-blue   .sum-value,
+.card.card--summary-purple .sum-value,
+.card.card--summary-teal   .sum-value { font-size: 1.25rem; font-weight: 800; }
+
+/* Dark summary cards */
+[data-theme="dark"] .card.card--summary-green  { background: linear-gradient(135deg,#15803d,#166534); box-shadow: 0 4px 16px rgba(34,197,94,0.15); }
+[data-theme="dark"] .card.card--summary-red    { background: linear-gradient(135deg,#991b1b,#7f1d1d); box-shadow: 0 4px 16px rgba(220,38,38,0.15); }
+[data-theme="dark"] .card.card--summary-blue   { background: linear-gradient(135deg,#1d4ed8,#1e40af); box-shadow: 0 4px 16px rgba(37,99,235,0.15); }
+[data-theme="dark"] .card.card--summary-purple { background: linear-gradient(135deg,#6d28d9,#5b21b6); box-shadow: 0 4px 16px rgba(139,92,246,0.15); }
+[data-theme="dark"] .card.card--summary-teal   { background: linear-gradient(135deg,#0f766e,#115e59); box-shadow: 0 4px 16px rgba(13,148,136,0.15); }
+[data-theme="dark"] .card.card--summary-green  .sum-value { color: #4ade80; }
+[data-theme="dark"] .card.card--summary-red    .sum-value { color: #f87171; }
+[data-theme="dark"] .card.card--summary-blue   .sum-value { color: #60a5fa; }
+[data-theme="dark"] .card.card--summary-purple .sum-value { color: #c084fc; }
+[data-theme="dark"] .card.card--summary-teal   .sum-value { color: #2dd4bf; }
+
+/* List Item Cards — hover-friendly, consistent spacing */
+.card.card--list-item {
+  border-radius: 12px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-card);
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+  cursor: default;
+}
+.card.card--list-item:hover {
+  box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+  transform: translateY(-1px);
+}
+[data-theme="dark"] .card.card--list-item {
+  border-color: rgba(255,255,255,0.08);
+}
+[data-theme="dark"] .card.card--list-item:hover {
+  box-shadow: 0 4px 14px rgba(0,0,0,0.3);
+}
+
+/* Stat card hover scale — all stat-card variants */
+.card.stat-card--green:hover,
+.card.stat-card--blue:hover,
+.card.stat-card--amber:hover,
+.card.stat-card--emerald:hover,
+.card.stat-card--profit:hover,
+.card.stat-card--success:hover,
+.card.stat-card--red:hover,
+.card.stat-card--danger:hover,
+.card.stat-card--info:hover {
+  transform: scale(1.02);
+}
+[data-theme="dark"] .card.stat-card--green:hover,
+[data-theme="dark"] .card.stat-card--blue:hover,
+[data-theme="dark"] .card.stat-card--amber:hover {
+  transform: scale(1.02);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+}
+
+/* Badge Pills — consistent badge styling */
+.badge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.badge-pill.bp-success  { background: rgba(34,197,94,0.15);  color: #16a34a; }
+.badge-pill.bp-danger   { background: rgba(239,68,68,0.15);  color: #dc2626; }
+.badge-pill.bp-warning  { background: rgba(245,158,11,0.15); color: #d97706; }
+.badge-pill.bp-info     { background: rgba(59,130,246,0.15); color: #2563eb; }
+.badge-pill.bp-muted    { background: rgba(107,114,128,0.15); color: #6b7280; }
+[data-theme="dark"] .badge-pill.bp-success  { background: rgba(74,222,128,0.15); color: #4ade80; }
+[data-theme="dark"] .badge-pill.bp-danger   { background: rgba(248,113,113,0.15); color: #f87171; }
+[data-theme="dark"] .badge-pill.bp-warning  { background: rgba(251,191,36,0.15); color: #fbbf24; }
+[data-theme="dark"] .badge-pill.bp-info     { background: rgba(96,165,250,0.15); color: #60a5fa; }
+
+/* Revenue mini cards (dashboard) — compact list style */
+.card.card--revenue-mini {
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  transition: box-shadow 0.15s;
+}
+.card.card--revenue-mini:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+/* Alert card variants */
+.card.card--alert-danger {
+  border-left: 4px solid #dc2626;
+  background: rgba(254,226,226,0.5);
+  border-radius: 12px;
+  padding: 12px;
+}
+.card.card--alert-warning {
+  border-left: 4px solid #f59e0b;
+  background: rgba(254,243,199,0.5);
+  border-radius: 12px;
+  padding: 12px;
+}
+[data-theme="dark"] .card.card--alert-danger {
+  border-left-color: #f87171;
+  background: rgba(127,29,29,0.3);
+}
+[data-theme="dark"] .card.card--alert-warning {
+  border-left-color: #fbbf24;
+  background: rgba(120,53,15,0.3);
+}
