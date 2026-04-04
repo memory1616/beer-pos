@@ -15,7 +15,7 @@
   <link rel="icon" type="image/png" href="/icon-192.png">
 
   <!-- PERFORMANCE: Preload critical path — Chart.js renders canvas on first paint -->
-  <link rel="preload" href="/js/vendor/chart.umd.min.js" as="script" crossorigin="anonymous">
+  <link rel="preload" href="/js/vendor/chart.umd.min.js?v=09c3fcd" as="script">
   <link rel="preload" href="/css/tailwind.css" as="style">
   <link rel="preload" href="/css/unified.css?v=20260414" as="style">
 
@@ -32,7 +32,7 @@
   <script src="/js/dark-mode.js"></script>
   <!-- Heavy/deferred scripts (don't block first paint) -->
   <script src="/js/vendor/dexie.min.js" defer></script>
-  <script src="/js/layout.js?v=20260402" defer></script>
+  <script src="/js/layout.js?v=20260404"></script>
   <script src="/js/format.js" defer></script>
   <script src="/js/utils.js" defer></script>
   <!-- Chart.js (70KB minified) — needed for initial canvas render, load after auth -->
