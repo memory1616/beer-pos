@@ -982,6 +982,9 @@ let _kegModalPrevReturn = 0;
 let _collectKegSaleId = null;
 let _collectKegCustomerId = null;
 let _collectKegBalance = 0;
+/** Giá trị deliver/return đã lưu trên đơn — dùng tính preview (tránh cộng giao vỏ 2 lần vì balance DB đã + deliver) */
+let _collectKegPrevDeliver = 0;
+let _collectKegPrevReturn = 0;
 
 async function openCollectKegModal(saleId) {
   _collectKegSaleId = saleId;
@@ -997,6 +1000,8 @@ async function openCollectKegModal(saleId) {
 
   var recordedDeliver = sale.deliver_kegs || 0;
   var recordedReturn = sale.return_kegs || 0;
+  _collectKegPrevDeliver = recordedDeliver;
+  _collectKegPrevReturn = recordedReturn;
   var lineShellTotal = sumShellUnitsFromSaleItems(sale.items || []);
   // Nếu lúc bán chỉ ghi 5 vỏ nhưng hóa đơn 50 bom + 50 pet → gợi ý theo dòng hàng
   var effectiveDeliver = Math.max(recordedDeliver, lineShellTotal);
@@ -1019,17 +1024,23 @@ function closeCollectKegModal() {
   _collectKegSaleId = null;
   _collectKegCustomerId = null;
   _collectKegBalance = 0;
+  _collectKegPrevDeliver = 0;
+  _collectKegPrevReturn = 0;
 }
 
 function updateCollectKegPreview() {
   const deliver = parseInt(document.getElementById('collectKegDeliver').value, 10) || 0;
   const returned = parseInt(document.getElementById('collectKegReturn').value, 10) || 0;
-  const delta = deliver - returned;
-  const newBalance = _collectKegBalance + delta;
+  // Giống server update-kegs: chỉ cộng phần CHÊNH so với đơn (balance DB đã phản ánh deliver/return cũ)
+  const deltaDeliver = deliver - _collectKegPrevDeliver;
+  const deltaReturn = returned - _collectKegPrevReturn;
+  const newBalance = _collectKegBalance + deltaDeliver - deltaReturn;
 
   document.getElementById('collectKegRemaining').textContent = newBalance + ' vỏ';
+  const dD = deltaDeliver === 0 ? '0' : (deltaDeliver > 0 ? '+' + deltaDeliver : String(deltaDeliver));
+  const dR = deltaReturn === 0 ? '0' : (deltaReturn > 0 ? '+' + deltaReturn : String(deltaReturn));
   document.getElementById('collectKegInfo').textContent =
-    `Hiện tại: ${_collectKegBalance} vỏ · Giao: +${deliver} · Thu: -${returned}`;
+    `Hiện tại: ${_collectKegBalance} vỏ · Chênh so với đơn: giao ${dD}, thu ${dR}`;
 }
 
 async function submitCollectKeg() {
