@@ -430,10 +430,20 @@ function _invalidatePending() { _pendingCache.ts = 0; } // call after mutations
 const SW_DB_NAME = 'BeerPOS';
 const SW_STORE = 'sync_queue';
 
+// Retry wrapper to handle race conditions with other DB openers (db.js, sw.js)
 function openSWDB() {
-  return new Promise((resolve, reject) => {
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY = 100;
+
+  function attemptOpen(resolve, reject, attempt) {
     const req = indexedDB.open(SW_DB_NAME, 30);
-    req.onerror = () => reject(req.error);
+    req.onerror = () => {
+      if (attempt < MAX_RETRIES) {
+        setTimeout(() => attemptOpen(resolve, reject, attempt + 1), RETRY_DELAY);
+      } else {
+        reject(req.error);
+      }
+    };
     req.onsuccess = () => resolve(req.result);
     req.onupgradeneeded = (event) => {
       const db = event.target.result;
@@ -446,7 +456,9 @@ function openSWDB() {
         store.createIndex('created_at', 'created_at', { unique: false });
       }
     };
-  });
+  }
+
+  return new Promise((resolve, reject) => attemptOpen(resolve, reject, 0));
 }
 
 // Count pending items in SW queue — uses cache to avoid repeated DB queries

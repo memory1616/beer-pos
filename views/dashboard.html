@@ -234,19 +234,25 @@
   <!-- PERFORMANCE: sync + db load AFTER page is interactive (non-blocking) -->
   <script>
     var _ric = window.requestIdleCallback || function(cb) { return setTimeout(cb, 100); };
-    _ric(function() {
+    _ric(function waitForDexie() {
+      // Ensure Dexie is loaded before db.js (which depends on it)
+      if (typeof Dexie === 'undefined') {
+        _ric(waitForDexie, { timeout: 1000 });
+        return;
+      }
+
       var s1 = document.createElement('script');
-      s1.src = '/db.js';
+      s1.src = '/db.js?v=20260404b';
       document.head.appendChild(s1);
 
       var s2 = document.createElement('script');
-      s2.src = '/sync.js';
+      s2.src = '/sync.js?v=20260404b';
       document.head.appendChild(s2);
     }, { timeout: 5000 });
 
     if ('serviceWorker' in navigator) {
       if (!navigator.serviceWorker.controller) {
-        navigator.serviceWorker.register('/sw.js').catch(function() {});
+        navigator.serviceWorker.register('/sw.js?v=20260404b').catch(function() {});
       }
     }
   </script>
@@ -290,12 +296,12 @@
           <div id="cloudStatusText" class="text-muted">Đang kiểm tra...</div>
         </div>
 
-        <button id="becomeCloudBtn" onclick="becomeCloud()" class="w-full text-left p-3 rounded-xl border-2 border-info hover:bg-info/10 card">
+        <button id="becomeCloudBtn" data-action="becomeCloud" class="w-full text-left p-3 rounded-xl border-2 border-info hover:bg-info/10 card">
           <div class="font-semibold text-info">🖥️ Dùng máy này làm Cloud</div>
           <div class="text-xs text-muted mt-0.5">Các thiết bị khác tự động phát hiện máy này</div>
         </button>
 
-        <button id="scanCloudBtn" onclick="scanForCloud()" class="w-full text-left p-3 rounded-xl border-2 border-muted hover:bg-bg-hover card">
+        <button id="scanCloudBtn" data-action="scanForCloud" class="w-full text-left p-3 rounded-xl border-2 border-muted hover:bg-bg-hover card">
           <div class="font-semibold text-main">🔍 Tìm Cloud trong mạng LAN</div>
           <div id="scanStatus" class="text-xs text-muted mt-0.5">Quét các máy trong mạng...</div>
         </button>
@@ -304,7 +310,7 @@
           <div class="text-xs font-semibold text-main mb-2">Hoặc nhập thủ công:</div>
           <input id="cloudUrlInput" type="url" placeholder="http://192.168.1.x:3001"
                  class="w-full border border-muted rounded-lg px-3 py-2 text-sm focus:border-primary focus:ring-2 focus:ring-primary mb-2">
-          <button onclick="saveCloudUrl()" class="btn btn-primary w-full h-10 text-sm">
+          <button id="saveCloudUrlBtn" class="btn btn-primary w-full h-10 text-sm">
             💾 Lưu URL Cloud
           </button>
         </div>
@@ -390,6 +396,82 @@
     }
   }
 
+  // ===== CLOUD TAB EVENT LISTENERS (fix race condition) =====
+  // Cloud functions (becomeCloud, scanForCloud, saveCloudUrl) are defined in sync.js
+  // which is loaded via requestIdleCallback. We attach listeners here that:
+  // 1. Wait for sync.js to load
+  // 2. Then safely call the functions
+
+  function attachCloudListeners() {
+    const becomeBtn = document.getElementById('becomeCloudBtn');
+    const scanBtn = document.getElementById('scanCloudBtn');
+    const saveBtn = document.getElementById('saveCloudUrlBtn');
+
+    if (becomeBtn) {
+      becomeBtn.addEventListener('click', async () => {
+        if (typeof becomeCloud === 'function') {
+          await becomeCloud();
+        } else {
+          // Load sync.js dynamically if not yet loaded
+          await new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = '/sync.js?v=20260404b';
+            s.onload = resolve;
+            s.onerror = reject;
+            document.head.appendChild(s);
+          });
+          if (typeof becomeCloud === 'function') await becomeCloud();
+        }
+      });
+    }
+
+    if (scanBtn) {
+      scanBtn.addEventListener('click', async () => {
+        if (typeof scanForCloud === 'function') {
+          await scanForCloud();
+        } else {
+          await new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = '/sync.js?v=20260404b';
+            s.onload = resolve;
+            s.onerror = reject;
+            document.head.appendChild(s);
+          });
+          if (typeof scanForCloud === 'function') await scanForCloud();
+        }
+      });
+    }
+
+    if (saveBtn) {
+      saveBtn.addEventListener('click', async () => {
+        if (typeof saveCloudUrl === 'function') {
+          saveCloudUrl();
+        } else {
+          await new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = '/sync.js?v=20260404b';
+            s.onload = resolve;
+            s.onerror = reject;
+            document.head.appendChild(s);
+          });
+          if (typeof saveCloudUrl === 'function') saveCloudUrl();
+        }
+      });
+    }
+  }
+
+  // Try to attach immediately, and also after sync.js loads
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      attachCloudListeners();
+      // Re-attach after requestIdleCallback (when sync.js loads)
+      setTimeout(attachCloudListeners, 6000);
+    });
+  } else {
+    attachCloudListeners();
+    setTimeout(attachCloudListeners, 6000);
+  }
+
   // ===== A2HS INSTALL BANNER =====
   let deferredPrompt = null;
 
@@ -464,10 +546,12 @@
 
   // Register service worker
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js').then(reg => {
+    navigator.serviceWorker.register('/sw.js?v=20260404b').then(reg => {
       console.log('[App] Service Worker registered');
       reg.addEventListener('updatefound', () => {
-        showToast('App đã được cập nhật — tải lại trang để dùng phiên bản mới', 'info');
+        if (typeof showToast === 'function') {
+          showToast('App đã được cập nhật — tải lại trang để dùng phiên bản mới', 'info');
+        }
       });
     }).catch(err => console.warn('[App] SW registration failed:', err));
   }

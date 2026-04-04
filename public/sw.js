@@ -19,7 +19,7 @@
 //   • CORS opaque response guard
 // ─────────────────────────────────────────────────────
 
-const CACHE_NAME  = 'beer-pos-v30';
+const CACHE_NAME  = 'beer-pos-v31';
 const DB_NAME     = 'BeerPOS';
 const STORE_SYNC  = 'sync_queue';
 const MAX_RETRIES = 6;
@@ -49,28 +49,40 @@ self.addEventListener('message', event => {
 //   • DB version conflicts when multiple operations ran concurrently
 //   • incrementRetryCount opened DB twice per call (lines 106+111)
 
+// Retry wrapper to handle race conditions with other DB openers (db.js, sync.js)
 let _dbPromise = null;
 
 function openDB() {
-  if (!_dbPromise) {
-    _dbPromise = new Promise((resolve, reject) => {
-      const req = indexedDB.open(DB_NAME, 30);
-      req.onerror = () => reject(req.error);
-      req.onsuccess = () => resolve(req.result);
-      req.onupgradeneeded = (event) => {
-        const db = event.target.result;
-        if (!db.objectStoreNames.contains(STORE_SYNC)) {
-          const store = db.createObjectStore(STORE_SYNC, {
-            keyPath: 'id', autoIncrement: true
-          });
-          store.createIndex('synced',      'synced',      { unique: false });
-          store.createIndex('created_at',  'created_at',  { unique: false });
-          // Compound index for deduplication: same method+url → skip re-queue
-          store.createIndex('dedup', 'dedup_key', { unique: false });
-        }
-      };
-    });
+  if (_dbPromise) return _dbPromise;
+
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY = 100;
+
+  function attemptOpen(resolve, reject, attempt) {
+    const req = indexedDB.open(DB_NAME, 30);
+    req.onerror = () => {
+      if (attempt < MAX_RETRIES) {
+        setTimeout(() => attemptOpen(resolve, reject, attempt + 1), RETRY_DELAY);
+      } else {
+        reject(req.error);
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains(STORE_SYNC)) {
+        const store = db.createObjectStore(STORE_SYNC, {
+          keyPath: 'id', autoIncrement: true
+        });
+        store.createIndex('synced',      'synced',      { unique: false });
+        store.createIndex('created_at',  'created_at',  { unique: false });
+        // Compound index for deduplication: same method+url → skip re-queue
+        store.createIndex('dedup', 'dedup_key', { unique: false });
+      }
+    };
   }
+
+  _dbPromise = new Promise((resolve, reject) => attemptOpen(resolve, reject, 0));
   return _dbPromise;
 }
 
@@ -364,7 +376,17 @@ self.addEventListener('fetch', event => {
   }
 
   // API GET → Stale-While-Revalidate
+  // EXCEPT: critical real-time data uses Network-First to prevent stale UI
   if (parsed.pathname.startsWith('/api/')) {
+    // Critical data: dashboard, sales, stock, customers — always fresh
+    const CRITICAL_PATHS = ['/dashboard', '/sales', '/stock', '/customers', '/products', '/kegs'];
+    const isCritical = CRITICAL_PATHS.some(p => parsed.pathname.startsWith(p));
+
+    if (isCritical) {
+      event.respondWith(networkFirst(event.request));
+      return;
+    }
+
     const maxAge = parsed.pathname.endsWith('/data') ? 3600 : 300;
     event.respondWith(staleWhileRevalidate(event.request, { maxAge }));
     return;

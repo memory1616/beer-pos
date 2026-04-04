@@ -11,8 +11,8 @@ if (typeof window._dbInit !== 'undefined') {
   const db = new Dexie('BeerPOS');
   window.db = db; // expose for sync-orders.js
 
-// Define schema — version 3 matches routing columns
-db.version(3).stores({
+// Define schema — version 30 matches native IndexedDB version used by sync.js and sw.js
+db.version(30).stores({
   customers: '++id, name, phone, deposit, keg_balance, archived, synced',
   products: '++id, name, stock, cost_price, synced',
   sales: '++id, customer_id, date, total, profit, synced',
@@ -221,8 +221,18 @@ async function pullFromCloud() {
 
   try {
     const response = await fetch(`${cloudUrl}/api/export?since=${lastSync}`);
+    if (response.status === 503) {
+      // Cloud server temporarily unavailable — skip this sync cycle gracefully
+      console.log('[DB] Cloud server unavailable (503), skipping pull');
+      return { success: false, message: 'Server temporarily unavailable' };
+    }
+    if (response.status >= 500) {
+      // Server error — skip this sync cycle
+      console.log(`[DB] Cloud server error (${response.status}), skipping pull`);
+      return { success: false, message: `Server error (${response.status})` };
+    }
     if (!response.ok) {
-      throw new Error('Failed to fetch from cloud');
+      throw new Error(`Failed to fetch from cloud: ${response.status}`);
     }
 
     const data = await response.json();

@@ -163,7 +163,7 @@
   <script>
   if ('serviceWorker' in navigator) {
     if (!navigator.serviceWorker.controller) {
-      navigator.serviceWorker.register('/sw.js').catch(err => console.log('[SW] Registration failed:', err));
+      navigator.serviceWorker.register('/sw.js?v=20260404b').catch(err => console.log('[SW] Registration failed:', err));
     }
   }
   </script>

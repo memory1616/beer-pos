@@ -16,10 +16,20 @@ function getCloudUrl() {
 
 // ============ OPEN SW INDEXEDDB (same DB as sw.js) ============
 
+// Retry wrapper to handle race conditions with other DB openers
 function openSWDB() {
-  return new Promise((resolve, reject) => {
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY = 100;
+
+  function attemptOpen(resolve, reject, attempt) {
     const request = indexedDB.open('BeerPOS', 30);
-    request.onerror = () => reject(request.error);
+    request.onerror = () => {
+      if (attempt < MAX_RETRIES) {
+        setTimeout(() => attemptOpen(resolve, reject, attempt + 1), RETRY_DELAY);
+      } else {
+        reject(request.error);
+      }
+    };
     request.onsuccess = () => resolve(request.result);
     request.onupgradeneeded = (event) => {
       const db = event.target.result;
@@ -27,7 +37,9 @@ function openSWDB() {
         db.createObjectStore(ORDERS_STORE, { keyPath: 'id', autoIncrement: true });
       }
     };
-  });
+  }
+
+  return new Promise((resolve, reject) => attemptOpen(resolve, reject, 0));
 }
 
 // ============ PUSH: Save order to server ============
@@ -108,7 +120,16 @@ async function pullOrdersFromServer(since) {
   const target = cloudUrl ? cloudUrl + '/api/orders?' + sinceParam.slice(1) : `/api/orders?${sinceParam.slice(1)}`;
 
   try {
-    const res = await fetch(`/api/orders?${sinceParam.slice(1)}`);
+    const res = await fetch(target);
+    if (res.status === 503) {
+      // Cloud server temporarily unavailable — skip this sync cycle gracefully
+      console.log('[OrderSync] Cloud server unavailable (503), skipping pull');
+      return;
+    }
+    if (res.status >= 500) {
+      console.log(`[OrderSync] Cloud server error (${res.status}), skipping pull`);
+      return;
+    }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
     const data = await res.json();

@@ -55,7 +55,7 @@ router.get('/', (req, res, next) => {
   <script src="/js/auth.js"></script>
   <script src="/js/dark-mode.js"></script>
   <link rel="stylesheet" href="/css/unified.css?v=20260414">
-  <script src="/js/layout.js?v=20260329"></script>
+  <script src="/js/layout.js?v=20260404b"></script>
   <style>
     .bottom-nav { max-width: 500px; margin: auto; }
     input, button, a { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
