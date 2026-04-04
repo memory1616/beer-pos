@@ -287,7 +287,7 @@ router.get('/', (req, res) => {
             <span class="text-primary">💵</span>
             <div class="text-xs text-primary font-medium">Doanh thu</div>
           </div>
-          <div class="text-xl font-bold text-money card-value">${formatVND(periodStats.revenue)}</div>
+          <div class="card-value"><div class="money text-money"><span class="value text-xl font-bold tabular-nums">${formatVND(periodStats.revenue)}</span><span class="unit">đ</span></div></div>
         </div>
         <div class="card bg-info/10 border-info/20">
           <div class="flex items-center gap-2 mb-1">
@@ -344,7 +344,7 @@ router.get('/', (req, res) => {
             <span class="text-primary">💵</span>
             <div class="text-xs text-primary font-medium">Doanh thu</div>
           </div>
-          <div class="text-lg font-bold text-money card-value">${formatVND(allTimeStats.revenue)}</div>
+          <div class="card-value"><div class="money text-money"><span class="value text-lg font-bold tabular-nums">${formatVND(allTimeStats.revenue)}</span><span class="unit">đ</span></div></div>
         </div>
         <div class="card bg-info/10 border-info/30">
           <div class="flex items-center gap-1 mb-1">

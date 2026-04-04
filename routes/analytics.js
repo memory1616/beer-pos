@@ -120,7 +120,7 @@ router.get('/', (req, res) => {
     <div class="grid grid-cols-2 gap-4 mb-4">
       <div class="card p-5">
         <div class="text-muted text-sm">💰 Hôm nay</div>
-        <div class="text-2xl font-bold text-money">${formatVND(todayStats.revenue)}</div>
+        <div><div class="money text-money"><span class="value text-2xl font-bold tabular-nums">${formatVND(todayStats.revenue)}</span><span class="unit">đ</span></div></div>
       </div>
       <div class="card p-5">
         <div class="text-muted text-sm">📈 Lợi nhuận HT</div>
@@ -157,7 +157,7 @@ router.get('/', (req, res) => {
       ${topCustomers.length > 0 ? topCustomers.map((c, i) => `
         <div class="flex justify-between items-center p-2 border-b border-muted">
           <div><span class="font-bold">${i+1}.</span> ${c.name}</div>
-          <div class="font-bold text-money">${formatVND(c.revenue)}</div>
+          <div class="money text-money"><span class="value font-bold tabular-nums">${formatVND(c.revenue)}</span><span class="unit">đ</span></div>
         </div>
       `).join('') : '<div class="text-muted">Chưa có dữ liệu</div>'}
     </div>

@@ -8,9 +8,9 @@ const DISTRIBUTOR_NAME = 'Bia Tươi Gia Huy';
 // GET /delivery
 router.get('/', (req, res, next) => {
   try {
-  const customers = db.prepare(`
-    SELECT * FROM customers WHERE archived = 0 AND lat IS NOT NULL AND lng IS NOT NULL ORDER BY name
-  `).all();
+  const customers = db.prepare(
+    'SELECT * FROM customers WHERE archived = 0 AND lat IS NOT NULL AND lng IS NOT NULL ORDER BY name'
+  ).all();
 
   // Safe defaults in case DB returns empty
   const numSettings = {
@@ -92,7 +92,7 @@ router.get('/', (req, res, next) => {
     <div class="px-4 pb-2">
       <div class="flex items-center justify-between text-sm">
         <span class="text-muted">Khoảng cách: <span id="totalDistance" class="font-bold text-info">0</span> km</span>
-        <span class="text-muted">Phí vận chuyển: <span id="totalDeliveryFee" class="font-bold text-money">0 đ</span></span>
+        <span class="text-muted">Phí vận chuyển: <span id="totalDeliveryFee" class="money text-money"><span class="value font-bold tabular-nums">0</span><span class="unit">đ</span></span></span>
       </div>
       <p class="text-xs text-muted mt-1">📦 Xuất phát từ <strong>kho</strong> (bấm ⚙️ để cài). Bấm <strong>📍 Vị trí hiện tại</strong> nếu muốn tính từ xe/điện thoại.</p>
     </div>
@@ -122,7 +122,7 @@ router.get('/', (req, res, next) => {
             </div>
             <div class="text-right">
               <div class="text-sm text-muted">Khoảng cách: <span class="distance font-bold text-info">-</span> km</div>
-              <div class="text-sm font-bold text-money delivery-fee">-</div>
+              <div class="delivery-fee"><div class="money text-money"><span class="value text-sm font-bold tabular-nums">-</span><span class="unit">đ</span></div></div>
             </div>
           </div>
           <div class="flex gap-2 mt-2">
@@ -209,10 +209,10 @@ router.get('/', (req, res, next) => {
     const customers = ${JSON.stringify(customers)};
     const hasGoogleApi = ${hasGoogleApi};
     const defaultSettings = {
-      deliveryCostPerKm: ${numSettings.delivery_cost_per_km ?? 0},
-      deliveryBaseCost: ${numSettings.delivery_base_cost ?? 0},
-      distributorLat: ${numSettings.distributor_lat ?? 0},
-      distributorLng: ${numSettings.distributor_lng ?? 0}
+      deliveryCostPerKm: ${numSettings.delivery_cost_per_km || 0},
+      deliveryBaseCost: ${numSettings.delivery_base_cost || 0},
+      distributorLat: ${numSettings.distributor_lat || 0},
+      distributorLng: ${numSettings.distributor_lng || 0}
     };
 
     let currentLat = null;
@@ -557,8 +557,8 @@ router.get('/', (req, res, next) => {
 
     // Initialize map
     const mapCenter = [
-      ${numSettings.distributor_lat ?? 0},
-      ${numSettings.distributor_lng ?? 0}
+      ${numSettings.distributor_lat || 0},
+      ${numSettings.distributor_lng || 0}
     ];
     map = L.map('map').setView(mapCenter, 12);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {

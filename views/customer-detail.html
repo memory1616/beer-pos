@@ -404,7 +404,7 @@
             <div class="card p-4 mb-4">
               <div class="text-sm text-primary font-medium mb-2">📊 Tổng tháng ${filter}</div>
               <div class="flex justify-between">
-                <div class="money text-money text-xl">${formatVND(data.monthlyTotal)}</div>
+                <div class="money text-money"><span class="value text-xl font-bold tabular-nums">${formatVND(data.monthlyTotal)}</span><span class="unit">đ</span></div>
                 <div class="text-xl font-bold text-primary">${data.monthlyQty} bình</div>
               </div>
             </div>
@@ -441,7 +441,7 @@
                 <div class="card p-4 ${cardClass}">
                   <div class="flex justify-between items-center mb-2">
                     <div class="font-bold ${dateClass}">📅 ${formatDate(sale.date)}${isReplacement ? ' 🔁' : ''}</div>
-                    <div class="money text-money ${totalClass}">${isReplacement ? '0 đ' : formatVND(sale.total)}</div>
+                    <div class="money ${totalClass}"><span class="value text-sm font-bold tabular-nums">${isReplacement ? '0' : formatVND(sale.total)}</span><span class="unit">đ</span></div>
                   </div>
                   <div class="grid grid-cols-2 gap-2 text-sm">
                     <div class="bg-primary/5 rounded-lg p-2">
@@ -536,7 +536,7 @@
         </div>
         <div class="flex justify-between py-2 border-b border-muted">
           <span class="text-main">Tổng cộng:</span>
-          <span class="money text-money text-2xl">${formatVND(sale.total)}</span>
+          <div class="money text-money"><span class="value text-2xl font-bold tabular-nums">${formatVND(sale.total)}</span><span class="unit">đ</span></div>
         </div>
         ${sale.type === 'replacement' ? '<div class="text-center py-2 text-warning font-bold">🔁 Đổi bia lỗi</div>' : ''}
         ${(sale.deliver_kegs || sale.return_kegs) ? `

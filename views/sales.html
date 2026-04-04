@@ -41,7 +41,7 @@
       <button onclick="closeInvoice()" class="absolute top-4 right-4 text-muted hover:text-main text-2xl font-bold w-8 h-8 flex items-center justify-center rounded-full hover:bg-bg-hover z-10">&times;</button>
       <div class="text-center mb-3">
         <div class="text-xl font-bold text-main">HÓA ĐƠN</div>
-        <div id="invoiceTotal" class="money text-money mt-2" style="font-size: 36px; font-weight: 700;">0 <span class="unit">đ</span></div>
+        <div id="invoiceTotal" class="mt-2"><div class="money text-money"><span class="value" style="font-size: 36px; font-weight: 700;">0</span><span class="unit">đ</span></div></div>
       </div>
       <div id="invoiceContent" class="text-sm invoice-pos-content flex-1 overflow-y-auto px-2"></div>
       <div class="mt-4 pt-4 border-t border-muted text-center flex-shrink-0">
@@ -265,7 +265,7 @@
             <div class="border-t-2 border-primary pt-3 mt-3">
               <div class="flex justify-between items-center mb-3">
                 <span class="font-bold text-main">Tổng tiền:</span>
-                <span id="totalAmount" class="money text-money text-2xl">0 <span class="unit">đ</span></span>
+                <div id="totalAmount"><div class="money text-money"><span class="value text-2xl font-bold tabular-nums">0</span><span class="unit">đ</span></div></div>
               </div>
               <div id="saleCartPreview" class="mb-3 px-3 py-2 min-h-[3.5rem] flex flex-col justify-center text-main" aria-live="polite">
               </div>

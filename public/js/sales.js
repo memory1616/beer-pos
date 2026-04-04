@@ -320,7 +320,7 @@ function updateSaleTotal() {
       cartHtml += '<div class="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 text-sm py-1.5 border-b border-primary/20 last:border-0">' +
         '<span class="font-semibold text-main min-w-0 flex-1 truncate">' + name + '</span>' +
         '<span class="text-muted shrink-0 tabular-nums">' + Format.number(item.price) + ' đ × ' + item.quantity + '</span>' +
-        '<span class="font-bold text-money shrink-0 tabular-nums w-full text-right sm:w-auto sm:text-left">' + Format.number(lineTotal) + ' đ</span></div>';
+        '<div class="money text-money shrink-0 w-full text-right sm:w-auto sm:text-left"><span class="value text-sm font-bold tabular-nums">' + Format.number(lineTotal) + '</span><span class="unit">đ</span></div></div>';
     }
   });
   
@@ -1130,7 +1130,7 @@ async function loadSalesHistory() {
 
         <div class="order-footer">
           <div class="flex items-baseline gap-1">
-            <span class="money text-money text-xl">${saleMoney} <span class="unit">đ</span></span>
+            <div class="money text-money"><span class="value text-xl font-bold tabular-nums">${saleMoney}</span><span class="unit">đ</span></div>
           </div>
           ${qtyLabel ? '<span class="order-meta">' + qtyLabel + '</span>' : ''}
         </div>
@@ -1257,7 +1257,7 @@ async function confirmReturnSale(id) {
           <div class="mt-4 p-3 card">
             <div class="flex justify-between">
               <span class="text-main">Tổng tiền hoàn:</span>
-              <span id="returnPreview" class="font-bold text-money">0 đ</span>
+              <div class="money text-money"><span class="value font-bold tabular-nums">0</span><span class="unit">đ</span></div>
             </div>
           </div>
         </div>

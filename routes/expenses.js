@@ -156,7 +156,7 @@ router.get('/', (req, res, next) => {
           '<span class="text-xl">' + icon + '</span>' +
           '<span class="font-bold text-main">' + c.category + '</span>' +
         '</div>' +
-        '<span class="font-bold text-money">' + formatVND(c.total) + '</span>' +
+        '<div class="money text-money"><span class="value font-bold tabular-nums">' + formatVND(c.total) + '</span><span class="unit">đ</span></div>' +
         '</div></div>';
     }).join('');
   } else {
@@ -181,7 +181,7 @@ router.get('/', (req, res, next) => {
         '</div>' +
         '</div>' +
         '<div class="text-right flex-shrink-0">' +
-        '<div class="font-bold text-money">' + formatVND(e.amount) + '</div>' +
+        '<div class="money text-money"><span class="value font-bold tabular-nums">' + formatVND(e.amount) + '</span><span class="unit">đ</span></div>' +
         '<div class="flex gap-2 mt-1 justify-end">' +
         '<button type="button" onclick="editExpense(' + e.id + ', \'' + (e.category || '').replace(/'/g, "\\'").replace(/"/g, '\\"') + '\', ' + e.amount + ', \'' + e.date + '\', \'' + (e.description || '').replace(/'/g, "\\'").replace(/"/g, '\\"') + '\')" class="btn btn-ghost btn-sm">Sửa</button>' +
         '<button type="button" onclick="deleteExpense(' + e.id + ')" class="btn btn-danger btn-sm">Xóa</button>' +

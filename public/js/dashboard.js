@@ -5,40 +5,33 @@
 let revenueChart = null;
 
 /**
- * Hiển thị số tiền: flex 1 hàng, không xuống dòng, chuẩn fintech.
- * Số lớn + "đ" nhỏ thấp hơn → nhìn xịn như app tài chính.
+ * Hiển thị số tiền: dùng .money > .value + .unit (RULE 2).
+ * Đảm bảo UI đồng nhất toàn app.
  * @param {HTMLElement|null} el
  * @param {number} amount
- * @param {string} colorClass - ví dụ 'text-success'
- * @param {{ numClass?: string, sufClass?: string, size?: 'sm'|'lg'|'stat' }} [opts]
- *   stat = ô KPI 2 cột mobile (một dòng, cỡ chữ vừa); lg = số lớn; sm = mặc định cũ
+ * @param {string} colorClass - ví dụ 'text-success', 'text-money'
+ * @param {{ numClass?: string, size?: 'sm'|'lg'|'stat' }} [opts]
  */
 function setMoneyAmount(el, amount, colorClass, opts) {
   if (!el || typeof Format === 'undefined') return;
   opts = opts || {};
-  var isLarge = opts.size === 'lg';
-  var isStat = opts.size === 'stat';
 
-  // Number: KPI nửa màn hình — text nhỏ hơn text-3xl để không tràn / không ngắt dòng
   var numClass = opts.numClass;
   if (!numClass) {
-    if (isStat) {
-      numClass = 'text-sm font-bold tabular-nums tracking-tight sm:text-base';
-    } else if (isLarge) {
+    if (opts.size === 'lg') {
       numClass = 'text-2xl font-bold tabular-nums tracking-tight leading-none whitespace-nowrap sm:text-3xl';
+    } else if (opts.size === 'stat') {
+      numClass = 'text-sm font-bold tabular-nums tracking-tight sm:text-base';
     } else {
       numClass = 'text-[22px] font-bold tabular-nums tracking-tight leading-none';
     }
   }
 
-  // "đ": nhỏ hơn, thấp xuống (mb-0.5), mờ hơn để không cạnh tranh với số
-  var sufClass = opts.sufClass || 'text-[10px] sm:text-xs mb-0.5 opacity-70 shrink-0';
-
   el.className = 'min-w-0 text-center';
   el.innerHTML =
-    '<div class="card-stat-amount justify-center ' + (colorClass || '') + '">' +
-    '<span class="' + numClass + '">' + Format.number(amount) + '</span>' +
-    '<span class="' + sufClass + '">đ</span>' +
+    '<div class="money ' + (colorClass || '') + '">' +
+      '<span class="value ' + numClass + '">' + Format.number(amount) + '</span>' +
+      '<span class="unit text-[10px] sm:text-xs mb-0.5 opacity-70 shrink-0 tabular-nums">đ</span>' +
     '</div>';
 }
 
@@ -58,10 +51,7 @@ function initDashboard(data) {
       todayRevenueEl.className = 'text-base font-medium text-muted italic text-center w-full';
     } else {
       // Cùng cỡ số với ô vỏ bình (text-2xl), không dùng hàng phụ “bình”
-      setMoneyAmount(todayRevenueEl, todayRevenue, 'text-money', {
-        numClass: 'text-2xl font-bold tabular-nums tracking-tight leading-none whitespace-nowrap',
-        sufClass: 'text-sm font-semibold mb-0.5 opacity-80 shrink-0 tabular-nums'
-      });
+      setMoneyAmount(todayRevenueEl, todayRevenue, 'text-money', { size: 'lg' });
     }
   }
 
@@ -219,8 +209,8 @@ function initDashboard(data) {
         if (s.type === 'replacement') {
           moneyHtml = '<span class="badge badge-warning">🔁 Đổi lỗi</span>';
         } else {
-          const formatted = Format.number(s.total);
-          moneyHtml = '<span class="money text-money">' + formatted + '<span class="unit"> đ</span></span>';
+          moneyHtml = '<div class="money text-money"><span class="value text-base font-bold tabular-nums">' +
+            Format.number(s.total) + '</span><span class="unit text-xs">đ</span></div>';
         }
 
         return '<div class="py-3 border-b border-muted text-center">' +
