@@ -82,7 +82,7 @@ router.get('/', (req, res, next) => {
     <div class="flex items-center justify-between px-4 py-3">
       <div class="flex items-center gap-2">
         <a href="/" class="text-muted">←</a>
-        <span class="font-bold text-main">${DISTRIBUTOR_NAME}</span>
+        <span class="font-bold text-main"><%= DISTRIBUTOR_NAME %></span>
       </div>
       <div class="flex items-center gap-2">
         <button onclick="showSettings()" class="text-muted p-2">⚙️</button>
@@ -113,12 +113,12 @@ router.get('/', (req, res, next) => {
     </div>
 
     <div id="customersList" class="space-y-2">
-      ${customers.map(c => `
-        <div class="delivery-card card p-3" data-lat="${c.lat}" data-lng="${c.lng}" data-name="${c.name}">
+<% customers.forEach(function(c) { %>
+        <div class="delivery-card card p-3" data-lat="<%- c.lat %>" data-lng="<%- c.lng %>" data-name="<%- c.name %>">
           <div class="flex justify-between items-start">
             <div>
-              <div class="font-bold text-main">${c.name}</div>
-              <div class="text-sm text-muted">${c.phone || ''}</div>
+              <div class="font-bold text-main"><%- c.name %></div>
+              <div class="text-sm text-muted"><%- c.phone || '' %></div>
             </div>
             <div class="text-right">
               <div class="text-sm text-muted">Khoảng cách: <span class="distance font-bold text-info">-</span> km</div>
@@ -126,16 +126,16 @@ router.get('/', (req, res, next) => {
             </div>
           </div>
           <div class="flex gap-2 mt-2">
-            <a href="https://www.google.com/maps/dir/?api=1&destination=${c.lat},${c.lng}"
+            <a href="https://www.google.com/maps/dir/?api=1&destination=<%- c.lat %>,<%- c.lng %>"
                target="_blank"
                class="flex-1 text-center btn btn-secondary btn-sm">📍 Chỉ đường</a>
-            <button onclick="startDelivery(${c.lat}, ${c.lng}, ${c.id})"
+            <button onclick="startDelivery(<%- c.lat %>, <%- c.lng %>, <%- c.id %>)"
                     class="flex-1 btn btn-warning btn-sm">
               🚀 Giao hàng
             </button>
           </div>
         </div>
-      `).join('')}
+<% }); %>
     </div>
   </main>
 
@@ -147,13 +147,13 @@ router.get('/', (req, res, next) => {
       <div class="space-y-4">
         <div>
           <label class="block text-sm font-medium text-main mb-1">Phí/km (đ)</label>
-          <input type="number" id="deliveryCostPerKm" value="${numSettings.delivery_cost_per_km}"
+          <input type="number" id="deliveryCostPerKm" value="<%= numSettings.delivery_cost_per_km %>"
                  class="w-full border border-muted rounded-lg px-3 py-2" min="0" step="100">
         </div>
 
         <div>
           <label class="block text-sm font-medium text-main mb-1">Phí cơ bản (đ)</label>
-          <input type="number" id="deliveryBaseCost" value="${numSettings.delivery_base_cost}"
+          <input type="number" id="deliveryBaseCost" value="<%= numSettings.delivery_base_cost %>"
                  class="w-full border border-muted rounded-lg px-3 py-2" min="0">
         </div>
 
@@ -162,12 +162,12 @@ router.get('/', (req, res, next) => {
           <div class="grid grid-cols-2 gap-2">
             <div>
               <label class="text-xs text-muted">Vĩ độ</label>
-              <input type="number" id="distributorLat" value="${numSettings.distributor_lat}"
+              <input type="number" id="distributorLat" value="<%= numSettings.distributor_lat %>"
                      class="w-full border border-muted rounded-lg px-3 py-2" step="0.0001">
             </div>
             <div>
               <label class="text-xs text-muted">Kinh độ</label>
-              <input type="number" id="distributorLng" value="${numSettings.distributor_lng}"
+              <input type="number" id="distributorLng" value="<%= numSettings.distributor_lng %>"
                      class="w-full border border-muted rounded-lg px-3 py-2" step="0.0001">
             </div>
           </div>
@@ -206,13 +206,13 @@ router.get('/', (req, res, next) => {
   </nav>
 
   <script>
-    const customers = ${JSON.stringify(customers)};
-    const hasGoogleApi = ${hasGoogleApi};
+    const customers = (<%- JSON.stringify(customers) %>);
+    const hasGoogleApi = (<%- hasGoogleApi %>);
     const defaultSettings = {
-      deliveryCostPerKm: ${numSettings.delivery_cost_per_km || 0},
-      deliveryBaseCost: ${numSettings.delivery_base_cost || 0},
-      distributorLat: ${numSettings.distributor_lat || 0},
-      distributorLng: ${numSettings.distributor_lng || 0}
+      deliveryCostPerKm: (<%- numSettings.delivery_cost_per_km || 0 %>),
+      deliveryBaseCost: (<%- numSettings.delivery_base_cost || 0 %>),
+      distributorLat: (<%- numSettings.distributor_lat || 0 %>),
+      distributorLng: (<%- numSettings.distributor_lng || 0 %>)
     };
 
     let currentLat = null;
@@ -557,8 +557,8 @@ router.get('/', (req, res, next) => {
 
     // Initialize map
     const mapCenter = [
-      ${numSettings.distributor_lat || 0},
-      ${numSettings.distributor_lng || 0}
+      <%- numSettings.distributor_lat || 0 %>,
+      <%- numSettings.distributor_lng || 0 %>
     ];
     map = L.map('map').setView(mapCenter, 12);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
