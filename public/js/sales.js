@@ -962,13 +962,10 @@ async function showInvoiceModal(saleId) {
   modal.classList.add('flex');
 }
 
-let currentPage = 1;
-const itemsPerPage = 5;
-
-// Global state for pagination
+// Global state for pagination (API /api/sales?page=&limit=)
 let salesPagination = {
   page: 1,
-  limit: 20,
+  limit: 5,
   total: 0,
   totalPages: 0,
   month: 'all'
@@ -1172,35 +1169,47 @@ async function loadSalesHistory() {
   renderPagination();
 }
 
-function changePage(page) {
-  currentPage = page;
-  loadSalesHistory();
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
 function renderPagination() {
   const container = document.getElementById('salesHistoryList');
   const { page, totalPages, total } = salesPagination;
-  
-  if (totalPages <= 1) return;
-  
+
+  if (totalPages <= 1) {
+    if (total > 0) {
+      container.insertAdjacentHTML(
+        'beforeend',
+        '<div class="text-center text-xs text-muted mt-3 pt-2 border-t border-muted/70 whitespace-nowrap">Tổng ' +
+          total +
+          ' đơn</div>'
+      );
+    }
+    return;
+  }
+
   const prevDisabled = page === 1;
   const nextDisabled = page === totalPages;
+  const btnBase =
+    'h-11 w-full min-h-[44px] rounded-xl text-sm font-semibold whitespace-nowrap flex items-center justify-center gap-0.5 transition-colors';
+  const btnOn = btnBase + ' btn btn-ghost border border-muted shadow-sm active:scale-[0.98]';
+  const btnOff =
+    btnBase + ' border border-muted/30 bg-bg text-muted cursor-not-allowed opacity-60 pointer-events-none';
+
   const paginationHTML = `
-    <div class="flex justify-center items-center gap-2 mt-3 py-3 bg-bg">
+    <nav class="sales-history-pagination grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] gap-2 sm:gap-3 mt-4 pt-3 border-t border-muted items-stretch" role="navigation" aria-label="Phân trang lịch sử bán hàng">
       <button type="button" onclick="changeSalesPage(${page - 1})" ${prevDisabled ? 'disabled' : ''}
-        class="px-4 py-2 rounded-lg min-w-[4rem] ${prevDisabled ? 'bg-bg text-muted cursor-not-allowed' : 'btn btn-ghost px-4 h-10 shadow-sm'}">
-        ‹ Trước
+        class="${prevDisabled ? btnOff : btnOn}" aria-label="Trang trước">
+        <span class="text-lg leading-none" aria-hidden="true">‹</span><span>Trước</span>
       </button>
-      <span class="text-sm text-muted px-2">${page}/${totalPages}</span>
+      <div class="flex flex-col justify-center items-center px-2 min-w-[4.5rem] shrink-0 self-center py-0.5">
+        <span class="text-sm font-bold text-main tabular-nums leading-tight">Trang ${page}/${totalPages}</span>
+        <span class="text-[11px] text-muted leading-tight mt-0.5 whitespace-nowrap">${total} đơn</span>
+      </div>
       <button type="button" onclick="changeSalesPage(${page + 1})" ${nextDisabled ? 'disabled' : ''}
-        class="px-4 py-2 rounded-lg min-w-[4rem] ${nextDisabled ? 'bg-bg text-muted cursor-not-allowed' : 'btn btn-ghost px-4 h-10 shadow-sm'}">
-        Sau ›
+        class="${nextDisabled ? btnOff : btnOn}" aria-label="Trang sau">
+        <span>Sau</span><span class="text-lg leading-none" aria-hidden="true">›</span>
       </button>
-      <span class="text-xs text-muted ml-2">(${total} đơn)</span>
-    </div>
+    </nav>
   `;
-  
+
   container.insertAdjacentHTML('beforeend', paginationHTML);
 }
 
@@ -1208,6 +1217,8 @@ function changeSalesPage(newPage) {
   if (newPage < 1 || newPage > salesPagination.totalPages) return;
   salesPagination.page = newPage;
   loadSalesHistory();
+  const anchor = document.getElementById('salesHistoryList');
+  if (anchor) anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 async function viewSale(id) {
