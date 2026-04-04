@@ -227,7 +227,7 @@ router.get('/', (req, res) => {
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="/js/auth.js"></script>
   <script src="/js/dark-mode.js"></script>
-  <link rel="stylesheet" href="/css/unified.css">
+  <link rel="stylesheet" href="/css/unified.css?v=20260413b">
   <script src="/js/layout.js"></script>
   <style>
     .animate-fade { animation: fade 0.25s ease-out; }
@@ -838,7 +838,7 @@ router.get('/profit-product', (req, res) => {
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
   <link rel="stylesheet" href="/css/tailwind.css">
-  <link rel="stylesheet" href="/css/unified.css">
+  <link rel="stylesheet" href="/css/unified.css?v=20260413b">
   <script src="/js/dark-mode.js"></script>
   <script src="/js/auth.js"></script>
   <style>
@@ -1006,7 +1006,7 @@ router.get('/profit-customer', (req, res) => {
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
   <link rel="stylesheet" href="/css/tailwind.css">
-  <link rel="stylesheet" href="/css/unified.css">
+  <link rel="stylesheet" href="/css/unified.css?v=20260413b">
   <script src="/js/dark-mode.js"></script>
   <script src="/js/auth.js"></script>
   <script src="/js/layout.js?v=20260403"></script>
@@ -1198,7 +1198,7 @@ router.get('/import-purchases', (req, res) => {
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
   <link rel="stylesheet" href="/css/tailwind.css">
-  <link rel="stylesheet" href="/css/unified.css">
+  <link rel="stylesheet" href="/css/unified.css?v=20260413b">
   <script src="/js/dark-mode.js"></script>
   <script src="/js/auth.js"></script>
   <script src="/js/layout.js?v=20260403"></script>

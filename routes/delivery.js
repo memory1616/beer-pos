@@ -337,7 +337,7 @@ router.get('/', (req, res, next) => {
     '<link rel="apple-touch-icon" href="/icon-192.png">\n' +
     '<link rel="icon" type="image/png" href="/icon-192.png">\n' +
     '<link rel="stylesheet" href="/css/tailwind.css">\n' +
-    '<link rel="stylesheet" href="/css/unified.css">\n' +
+    '<link rel="stylesheet" href="/css/unified.css?v=20260413b">\n' +
     '<script src="/js/dark-mode.js"></' + 'script>\n' +
     '<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />\n' +
     '<script src="https://unpkg.com/leaflet/dist/leaflet.js"></' + 'script>\n' +
@@ -379,6 +379,7 @@ router.get('/', (req, res, next) => {
     '<div id="map"></div>\n' +
     '</div>\n' +
     '\n' +
+    '<div class="section-title">🚚 Khách hàng</div>\n' +
     '<div class="flex gap-2 mb-4">\n' +
     '<button onclick="getCurrentLocation()" class="flex-1 btn btn-primary flex items-center justify-center gap-2">📍 Vị trí hiện tại</button>\n' +
     '<button onclick="optimizeRoute()" class="flex-1 btn btn-secondary">⚡ Tối ưu lộ trình</button>\n' +

@@ -105,15 +105,15 @@ router.get('/', (req, res, next) => {
     '</div>';
 
   const summaryBlockHtml =
-    '<div class="mb-4 shadow-lg rounded-2xl p-4" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: #fff;">' +
-    '<div class="grid grid-cols-2 gap-3 text-center py-2">' +
+    '<div class="mb-4 rounded-2xl overflow-hidden shadow-lg" style="background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); color: #fff;">' +
+    '<div class="grid grid-cols-2 gap-3 text-center py-4 px-4">' +
     '<div>' +
-    '<div class="text-xs" style="opacity: 0.9;">' + totalExpenseLabel + '</div>' +
-    '<div class="font-bold text-lg">' + formatVND(monthExpenses.total) + '</div>' +
+    '<div class="text-xs" style="opacity: 0.85;">' + totalExpenseLabel + '</div>' +
+    '<div class="font-bold text-xl mt-1">' + formatVND(monthExpenses.total) + '</div>' +
     '</div>' +
     '<div>' +
-    '<div class="text-xs" style="opacity: 0.9;">Giao dịch</div>' +
-    '<div class="font-bold text-lg">' + expenseCount + '</div>' +
+    '<div class="text-xs" style="opacity: 0.85;">Giao dịch</div>' +
+    '<div class="font-bold text-xl mt-1">' + expenseCount + '</div>' +
     '</div>' +
     '</div>' +
     '</div>';
@@ -207,7 +207,7 @@ router.get('/', (req, res, next) => {
 '  <link rel="apple-touch-icon" href="/icon-192.png">' +
 '  <link rel="icon" type="image/png" href="/icon-192.png">' +
 '  <link rel="stylesheet" href="/css/tailwind.css">' +
-'  <link rel="stylesheet" href="/css/unified.css">' +
+'  <link rel="stylesheet" href="/css/unified.css?v=20260413b">' +
 '  <script src="/js/dark-mode.js"></script>' +
 '  <script src="/js/auth.js"></script>' +
 '  <script src="/js/layout.js?v=20260403"></script>' +

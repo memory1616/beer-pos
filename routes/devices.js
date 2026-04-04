@@ -54,7 +54,7 @@ router.get('/', (req, res, next) => {
   <link rel="stylesheet" href="/css/tailwind.css">
   <script src="/js/auth.js"></script>
   <script src="/js/dark-mode.js"></script>
-  <link rel="stylesheet" href="/css/unified.css">
+  <link rel="stylesheet" href="/css/unified.css?v=20260413b">
   <script src="/js/layout.js?v=20260329"></script>
   <style>
     .bottom-nav { max-width: 500px; margin: auto; }
@@ -84,17 +84,15 @@ router.get('/', (req, res, next) => {
   <main class="p-3 pb-24 max-w-md mx-auto">
     <!-- Available devices (tủ trong kho) -->
     <div class="mb-4">
-      <div class="text-sm font-semibold text-primary mb-2 flex items-center gap-2">
-        <span>📦 Tủ chưa dùng (kho)</span>
-      </div>
+      <div class="section-title">📦 Tủ chưa dùng (kho)</div>
       <div class="grid grid-cols-2 gap-3">
-        <div class="card p-3 text-center bg-success/10">
-          <div class="text-2xl font-bold text-primary">${availableHorizontal}</div>
-          <div class="text-xs text-muted">❄️ Tủ nằm</div>
+        <div class="card stat-card--success p-4 text-center">
+          <div class="sc-label"><span class="sc-icon">❄️</span> Tủ nằm</div>
+          <div class="sc-value">${availableHorizontal}</div>
         </div>
-        <div class="card p-3 text-center bg-success/10">
-          <div class="text-2xl font-bold text-primary">${availableVertical}</div>
-          <div class="text-xs text-muted">🥶 Tủ đứng</div>
+        <div class="card stat-card--info p-4 text-center">
+          <div class="sc-label"><span class="sc-icon">🥶</span> Tủ đứng</div>
+          <div class="sc-value">${availableVertical}</div>
         </div>
       </div>
     </div>
@@ -103,10 +101,7 @@ router.get('/', (req, res, next) => {
     <div class="space-y-4">
       <!-- Horizontal group -->
       <section>
-        <div class="text-sm font-semibold text-primary mb-2 flex items-center gap-2">
-          <span>❄️ Tủ lạnh nằm đang được giữ</span>
-          <span class="text-xs text-muted">(${horizontalCustomers.length} khách)</span>
-        </div>
+        <div class="section-title">❄️ Tủ lạnh nằm đang được giữ</div>
         ${horizontalCustomers.length === 0 ? `
           <div class="empty-state text-xs text-muted px-3 py-4">
             Chưa có khách giữ tủ nằm
@@ -130,10 +125,7 @@ router.get('/', (req, res, next) => {
 
       <!-- Vertical group -->
       <section>
-        <div class="text-sm font-semibold text-primary mb-2 flex items-center gap-2">
-          <span>🥶 Tủ mát đứng đang được giữ</span>
-          <span class="text-xs text-muted">(${verticalCustomers.length} khách)</span>
-        </div>
+        <div class="section-title">🥶 Tủ mát đứng đang được giữ</div>
         ${verticalCustomers.length === 0 ? `
           <div class="empty-state text-xs text-muted px-3 py-4">
             Chưa có khách giữ tủ đứng
