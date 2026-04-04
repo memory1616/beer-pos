@@ -655,6 +655,21 @@ function isPetBia(productName, productType) {
   return name.includes('pet') || name.includes('nhựa');
 }
 
+// Tổng đơn vị vỏ theo dòng hàng (bom + pet + hộp quy đổi) — gợi ý khi deliver_kegs trên DB nhỏ/sai so với hóa đơn.
+function sumShellUnitsFromSaleItems(items) {
+  if (!items || !items.length) return 0;
+  var BOX_TO_KEG = 23;
+  return items.reduce(function (sum, item) {
+    var q = parseInt(item.quantity, 10) || 0;
+    if (q <= 0) return sum;
+    var t = String(item.type || '').toLowerCase();
+    if (t === 'keg' || t === 'pet') return sum + q;
+    if (t === 'box') return sum + q * BOX_TO_KEG;
+    if (isPetBia(item.name, item.type)) return sum + q;
+    return sum + q;
+  }, 0);
+}
+
 async function openKegModal(saleId) {
   currentKegSaleId = saleId;
 
@@ -983,12 +998,15 @@ async function openCollectKegModal(saleId) {
   const custData = await custRes.json();
   _collectKegBalance = custData.keg_balance || 0;
 
-  const delivered = sale.deliver_kegs || 0;
-  const returned = sale.return_kegs || 0;
-  const remaining = delivered - returned;
+  var recordedDeliver = sale.deliver_kegs || 0;
+  var recordedReturn = sale.return_kegs || 0;
+  var lineShellTotal = sumShellUnitsFromSaleItems(sale.items || []);
+  // Nếu lúc bán chỉ ghi 5 vỏ nhưng hóa đơn 50 bom + 50 pet → gợi ý theo dòng hàng
+  var effectiveDeliver = Math.max(recordedDeliver, lineShellTotal);
+  var defaultReturn = Math.max(0, effectiveDeliver - recordedReturn);
 
-  document.getElementById('collectKegDeliver').value = delivered;
-  document.getElementById('collectKegReturn').value = remaining;
+  document.getElementById('collectKegDeliver').value = effectiveDeliver;
+  document.getElementById('collectKegReturn').value = defaultReturn;
 
   document.getElementById('collectKegCurrentBalance').textContent =
     `Hiện tại: ${_collectKegBalance} vỏ`;
