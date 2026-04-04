@@ -11,8 +11,22 @@ if (typeof window._dbInit !== 'undefined') {
   const db = new Dexie('BeerPOS');
   window.db = db; // expose for sync-orders.js
 
-// Define schema — version 30 matches native IndexedDB version used by sync.js and sw.js
-db.version(30).stores({
+  // ── Blocked handler: close stale connections before upgrade ─────────────────
+  // IndexedDB v30→v31 upgrade can be blocked by old tabs or cached SW instances
+  // holding version 3. Listen for the blocked event and force-close those
+  // connections by deleting the version-3 database, then re-open.
+  db.on('blocked', () => {
+    console.log('[DB] Upgrade blocked — clearing stale DB connections');
+    const staleReq = indexedDB.deleteDatabase('BeerPOS');
+    staleReq.onsuccess = staleReq.onerror = () => {
+      // Give blocked connections a moment to close, then re-open
+      setTimeout(() => db.open(), 200);
+    };
+  });
+
+// Define schema — version 31 forces all contexts (old tabs, cached SW, etc.)
+// to a clean state, fixing "Upgrade blocked by other connection holding version 3"
+db.version(31).stores({
   customers: '++id, name, phone, deposit, keg_balance, archived, synced',
   products: '++id, name, stock, cost_price, synced',
   sales: '++id, customer_id, date, total, profit, synced',

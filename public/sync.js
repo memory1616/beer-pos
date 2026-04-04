@@ -436,7 +436,7 @@ function openSWDB() {
   const RETRY_DELAY = 100;
 
   function attemptOpen(resolve, reject, attempt) {
-    const req = indexedDB.open(SW_DB_NAME, 30);
+    const req = indexedDB.open(SW_DB_NAME, 31);
     req.onerror = () => {
       if (attempt < MAX_RETRIES) {
         setTimeout(() => attemptOpen(resolve, reject, attempt + 1), RETRY_DELAY);

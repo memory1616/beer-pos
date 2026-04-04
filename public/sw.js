@@ -1,4 +1,4 @@
-// BeerPOS Service Worker v30 — Production Optimized
+// BeerPOS Service Worker v31 — Production Optimized
 // ─────────────────────────────────────────────────────
 // Caching strategies:
 //   • App Shell + JS/CSS        → Cache-First  (instant repeat load)
@@ -8,7 +8,7 @@
 //   • Navigation                 → Network-First (always fresh page)
 //   • Auth requests              → No-cache (always live)
 //
-// Performance optimizations (v30):
+// Performance optimizations (v31):
 //   • Singleton DB — one IndexedDB connection, reused across all operations
 //   • Batch sync — all queued items sent in ONE POST request
 //   • Precompiled entity regex — O(1) lookup instead of O(n) loop
@@ -17,6 +17,7 @@
 //   • SW message batching — one postMessage per sync cycle
 //   • Exponential backoff with jitter on retry
 //   • CORS opaque response guard
+//   • Version 31 forces all stale connections to close (fixes "blocked" errors)
 // ─────────────────────────────────────────────────────
 
 const CACHE_NAME  = 'beer-pos-v31';
@@ -59,7 +60,7 @@ function openDB() {
   const RETRY_DELAY = 100;
 
   function attemptOpen(resolve, reject, attempt) {
-    const req = indexedDB.open(DB_NAME, 30);
+    const req = indexedDB.open(DB_NAME, 31);
     req.onerror = () => {
       if (attempt < MAX_RETRIES) {
         setTimeout(() => attemptOpen(resolve, reject, attempt + 1), RETRY_DELAY);

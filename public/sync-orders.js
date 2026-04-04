@@ -16,13 +16,29 @@ function getCloudUrl() {
 
 // ============ OPEN SW INDEXEDDB (same DB as sw.js) ============
 
-// Retry wrapper to handle race conditions with other DB openers
+// PERFORMANCE: Singleton DB — open once, reuse across all functions.
+// Previously every function called openSWDB() again, causing:
+//   • ~10ms overhead per open (IndexedDB is async)
+//   • New connection per call → race conditions with other openers
+//   • "Upgrade blocked" errors when version changed
+// Now: one open, resolved promise cached in _dbPromise, all callers await it.
+
+let _dbPromise = null;
+
+// Retry wrapper to handle race conditions with other DB openers (db.js, sw.js)
+function getDB() {
+  if (!_dbPromise) {
+    _dbPromise = openSWDB();
+  }
+  return _dbPromise;
+}
+
 function openSWDB() {
   const MAX_RETRIES = 3;
   const RETRY_DELAY = 100;
 
   function attemptOpen(resolve, reject, attempt) {
-    const request = indexedDB.open('BeerPOS', 30);
+    const request = indexedDB.open('BeerPOS', 31);
     request.onerror = () => {
       if (attempt < MAX_RETRIES) {
         setTimeout(() => attemptOpen(resolve, reject, attempt + 1), RETRY_DELAY);
@@ -75,7 +91,7 @@ async function syncPendingOrders() {
   const cloudUrl = getCloudUrl();
   if (!cloudUrl) return;
 
-  const db = await openSWDB();
+  const db = await getDB();
   const tx = db.transaction(ORDERS_STORE, 'readonly');
   const store = tx.objectStore(ORDERS_STORE);
   const index = store.index('synced');
@@ -198,7 +214,7 @@ async function pullOrdersFromServer(since) {
 
 async function createOrder(orderData) {
   // orderData = { customerId, items, total, profit, deliverKegs, returnKegs, type, note }
-  const db = await openSWDB();
+  const db = await getDB();
   const tx = db.transaction(ORDERS_STORE, 'readwrite');
   const store = tx.objectStore(ORDERS_STORE);
 
