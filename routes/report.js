@@ -298,17 +298,30 @@ router.get('/', (req, res) => {
       flex-wrap: nowrap;
       gap: 8px;
       vertical-align: top;
+      min-width: min-content;
     }
+    /* Ghi đè .btn/.btn-primary (width:100%, min-height lớn) — chỉ tab đang chọn có class .btn */
     .report-filter-btn {
       flex: 0 0 auto;
+      flex-shrink: 0;
+      width: auto !important;
+      max-width: none;
       white-space: nowrap;
-      padding: 8px 10px;
-      border-radius: 12px;
+      min-height: unset !important;
+      padding: 6px 12px !important;
+      border-radius: 999px;
       font-size: 12px;
       font-weight: 600;
       text-align: center;
       line-height: 1.2;
+      box-sizing: border-box;
       box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .report-filter-outer .report-filter-btn.btn-primary {
+      background: linear-gradient(135deg, #f59e0b, #f97316);
+      color: #fff;
+      border: none;
+      box-shadow: 0 2px 8px rgba(245, 158, 11, 0.32);
     }
   </style>
 </head>

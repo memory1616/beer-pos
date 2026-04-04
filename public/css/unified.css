@@ -2191,7 +2191,9 @@ input:invalid:not(:placeholder-shown) { border-color: var(--color-danger) !impor
   flex-shrink: 0;
   text-align: right;
   display: flex;
-  align-items: center;
+  align-items: baseline;
+  gap: 4px;
+  justify-content: flex-end;
 }
 
 .dsh-money-val {

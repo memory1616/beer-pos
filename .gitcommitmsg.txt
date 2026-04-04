@@ -1,0 +1,7 @@
+fix dashboard recent-sales amount display; fix report filter-btn full-width
+
+- dashboard.js: render full Format.number(s.total) amount (remove split regex)
+- unified.css: .dsh-sale-money gap + align baseline; .report-filter-btn
+  width:auto + min-height:unset to override .btn{width:100%}
+- report.js: stronger .report-filter-btn overrides + orange gradient on active
+- dashboard.html: bump dashboard.js cache-bust query param to v=202604042

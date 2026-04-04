@@ -210,19 +210,14 @@ function initDashboard(data) {
           '</div>';
         }
 
-        const moneyVal = Format.number(s.total);
-        const moneyParts = moneyVal.split(/\D+/);
-        const mainPart = moneyParts[0] || moneyVal;
-        const restPart = moneyVal.replace(mainPart, '');
-
         return '<div class="dsh-sale-row">' +
           '<div class="dsh-sale-row-left">' +
             '<div class="dsh-customer-name">' + (s.customer_name || 'Khách vãng lai') + '</div>' +
             '<div class="dsh-sale-date">' + date + '</div>' +
           '</div>' +
           '<div class="dsh-sale-money">' +
-            '<span class="dsh-money-val">' + mainPart + '</span>' +
-            '<span class="dsh-money-unit"> đ</span>' +
+            '<span class="dsh-money-val">' + Format.number(s.total) + '</span>' +
+            '<span class="dsh-money-unit">đ</span>' +
           '</div>' +
         '</div>';
       }).join('');
