@@ -9,6 +9,7 @@ const fs = require('fs');
 const cron = require('node-cron');
 const rateLimit = require('express-rate-limit');
 const os = require('os');
+const crypto = require('crypto');
 const logger = require('./src/utils/logger');
 const db = require('./database');
 const { getSession, AUTH_CONFIG } = require('./middleware/auth');
@@ -71,6 +72,82 @@ app.use('/api', (req, res, next) => {
   if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
 });
+
+// ── GitHub webhook: POST /deploy (khớp Payload URL trên GitHub)
+// Phải dùng raw body + đặt TRƯỚC bodyParser.json để verify HMAC đúng.
+const GITHUB_WEBHOOK_SECRET = process.env.GITHUB_WEBHOOK_SECRET || '';
+
+function verifyGithubSignature256(payloadBuf, signatureHeader) {
+  if (!signatureHeader || !GITHUB_WEBHOOK_SECRET) return false;
+  const hmac = crypto.createHmac('sha256', GITHUB_WEBHOOK_SECRET);
+  const digest = 'sha256=' + hmac.update(payloadBuf).digest('hex');
+  try {
+    return crypto.timingSafeEqual(Buffer.from(digest), Buffer.from(signatureHeader));
+  } catch {
+    return false;
+  }
+}
+
+app.post(
+  '/deploy',
+  express.raw({ type: ['application/json', 'application/*+json'], limit: '10mb' }),
+  (req, res) => {
+    const buf = req.body;
+    if (!Buffer.isBuffer(buf)) {
+      return res.status(400).json({ error: 'Invalid body' });
+    }
+
+    if (!GITHUB_WEBHOOK_SECRET) {
+      logger.error('POST /deploy: thiếu GITHUB_WEBHOOK_SECRET trong .env (trùng Secret trên GitHub)');
+      return res.status(503).json({ error: 'Webhook chưa cấu hình secret trên server' });
+    }
+
+    const sig = req.get('x-hub-signature-256');
+    if (!verifyGithubSignature256(buf, sig)) {
+      logger.warn('POST /deploy: chữ ký không hợp lệ');
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const event = req.get('x-github-event') || '';
+    if (event === 'ping') {
+      return res.json({ ok: true, message: 'pong' });
+    }
+    if (event && event !== 'push') {
+      return res.json({ ok: true, ignored: event });
+    }
+
+    let payload;
+    try {
+      payload = JSON.parse(buf.toString('utf8'));
+    } catch {
+      return res.status(400).json({ error: 'Invalid JSON' });
+    }
+
+    const ref = payload.ref;
+    if (ref && ref !== 'refs/heads/main') {
+      return res.json({ ok: true, ignored_ref: ref });
+    }
+
+    const deployScript = path.join(__dirname, 'deploy', 'deploy.sh');
+    if (!fs.existsSync(deployScript)) {
+      return res.status(500).json({ error: 'Deploy script not found' });
+    }
+
+    logger.info('POST /deploy: push main — chạy deploy/deploy.sh');
+
+    const { exec } = require('child_process');
+    exec(`bash "${deployScript}"`, { cwd: __dirname }, (err, stdout, stderr) => {
+      if (err) logger.error('Deploy failed', { error: err.message });
+      else {
+        if (stdout) logger.info('Deploy output: ' + stdout.trim());
+        if (stderr) logger.warn('Deploy stderr: ' + stderr.trim());
+        logger.info('Deploy completed successfully');
+      }
+    });
+
+    return res.json({ ok: true, message: 'Deploy started' });
+  }
+);
 
 // Middleware
 app.use(bodyParser.json({ limit: '10mb' }));
