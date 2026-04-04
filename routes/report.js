@@ -241,20 +241,31 @@ router.get('/', (req, res) => {
     * { user-select: none; }
     .card-value { user-select: text; }
 
-    /* Tránh tràn ngang mobile: header + hàng kỳ */
+    /* Fixed header: full width, blur + shadow */
+    .report-page-header,
+    .report-page-header ~ div:not([class]) ~ header,
+    [z-50].bg-card {
+      /* Applied via .report-fixed-header class added inline */
+    }
     .report-page-header {
-      width: 100%;
-      max-width: 100%;
-      overflow: hidden;
-      box-sizing: border-box;
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--color-border);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
     }
     .report-page-header-inner {
       max-width: 28rem;
       margin-left: auto;
       margin-right: auto;
-      width: 100%;
-      min-width: 0;
-      box-sizing: border-box;
+    }
+    /* Sub-pages: apply same style to fixed header without report-page-header class */
+    header.fixed.top-0.left-0.right-0.z-50 {
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--color-border);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
     }
     .report-main {
       width: 100%;
@@ -303,14 +314,16 @@ router.get('/', (req, res) => {
 </head>
 <body class="bg-bg text-main min-h-screen pb-20">
   <!-- TOP BAR -->
-  <header class="sticky top-0 bg-card border-b border-muted z-50 report-page-header">
-    <div class="flex items-center justify-between px-4 h-12 report-page-header-inner">
-      <div class="flex items-center gap-2 min-w-0">
-        <span class="text-xl shrink-0">📊</span>
-        <span class="font-semibold text-sm truncate">Báo cáo</span>
-      </div>
-      <div class="flex gap-3 text-xl">
-        <a href="/" class="text-muted hover:bg-bg-hover px-2 rounded">🏠</a>
+  <header class="fixed top-0 left-0 right-0 z-50 report-page-header">
+    <div class="report-page-header-inner">
+      <div class="flex items-center justify-between px-4 h-12">
+        <div class="flex items-center gap-2 min-w-0">
+          <span class="text-xl shrink-0">📊</span>
+          <span class="font-semibold text-sm truncate">Báo cáo</span>
+        </div>
+        <div class="flex gap-3 text-xl shrink-0">
+          <a href="/" class="text-muted hover:bg-bg-hover px-2 rounded">🏠</a>
+        </div>
       </div>
     </div>
   </header>
@@ -821,11 +834,13 @@ router.get('/profit-product', (req, res) => {
   </style>
 </head>
 <body class="bg-bg text-main min-h-screen pb-20">
-  <header class="sticky top-0 bg-card border-b border-muted z-50">
-    <div class="flex items-center justify-between px-4 h-12 max-w-md mx-auto">
-      <div class="flex items-center gap-2">
-        <a href="/report" class="text-muted">←</a>
-        <span class="font-semibold text-sm">Lợi nhuận sản phẩm</span>
+  <header class="fixed top-0 left-0 right-0 z-50">
+    <div class="max-w-md mx-auto px-0">
+      <div class="flex items-center justify-between px-4 h-12">
+        <div class="flex items-center gap-2 min-w-0">
+          <a href="/report" class="text-muted shrink-0">←</a>
+          <span class="font-semibold text-sm truncate">Lợi nhuận sản phẩm</span>
+        </div>
       </div>
     </div>
   </header>
@@ -1180,11 +1195,13 @@ router.get('/import-purchases', (req, res) => {
   </style>
 </head>
 <body class="bg-bg text-main min-h-screen pb-20">
-  <header class="sticky top-0 bg-card border-b border-muted z-50">
-    <div class="flex items-center justify-between px-4 h-12 max-w-md mx-auto">
-      <div class="flex items-center gap-2">
-        <a href="/report" class="text-muted">←</a>
-        <span class="font-semibold text-sm">Báo cáo nhập hàng</span>
+  <header class="fixed top-0 left-0 right-0 z-50">
+    <div class="max-w-md mx-auto px-0">
+      <div class="flex items-center justify-between px-4 h-12">
+        <div class="flex items-center gap-2 min-w-0">
+          <a href="/report" class="text-muted shrink-0">←</a>
+          <span class="font-semibold text-sm truncate">Báo cáo nhập hàng</span>
+        </div>
       </div>
     </div>
   </header>
