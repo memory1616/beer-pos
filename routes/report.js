@@ -263,26 +263,37 @@ router.get('/', (req, res) => {
       margin-right: auto;
       box-sizing: border-box;
       min-width: 0;
+      overflow-x: clip;
     }
-    .report-filter-row {
-      display: flex;
-      flex-wrap: nowrap;
-      gap: 8px;
+    /* Lớp ngoài: bề rộng cố định theo main → cuộn được; flex 1 lớp hay bị min-width:auto giãn theo nút */
+    .report-filter-outer {
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
       overflow-x: auto;
+      overflow-y: hidden;
       padding-bottom: 6px;
-      margin: 0 -4px;
-      padding-left: 4px;
-      padding-right: 4px;
+      margin-left: -0.25rem;
+      margin-right: -0.25rem;
+      padding-left: 0.25rem;
+      padding-right: 0.25rem;
       -webkit-overflow-scrolling: touch;
       scrollbar-width: none;
+      overscroll-behavior-x: contain;
     }
-    .report-filter-row::-webkit-scrollbar { display: none; }
+    .report-filter-outer::-webkit-scrollbar { display: none; height: 0; }
+    .report-filter-row {
+      display: inline-flex;
+      flex-wrap: nowrap;
+      gap: 8px;
+      vertical-align: top;
+    }
     .report-filter-btn {
       flex: 0 0 auto;
       white-space: nowrap;
-      padding: 8px 12px;
+      padding: 8px 10px;
       border-radius: 12px;
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 600;
       text-align: center;
       line-height: 1.2;
@@ -323,14 +334,16 @@ router.get('/', (req, res) => {
       </div>
     </div>
 
-    <!-- Period: cuộn ngang trên mobile, không ép grid 5 cột -->
-    <div class="mb-4 w-full min-w-0">
-      <div class="report-filter-row">
+    <!-- Period: wrapper cuộn + hàng inline-flex (tránh flex min-width:auto làm tràn viewport) -->
+    <div class="mb-4 w-full min-w-0 max-w-full">
+      <div class="report-filter-outer">
+        <div class="report-filter-row">
         <a href="/report?period=today" class="report-filter-btn ${period === 'today' ? 'btn btn-primary' : 'bg-card text-muted border border-muted hover:bg-bg-hover'}">Hôm nay</a>
         <a href="/report?period=yesterday" class="report-filter-btn ${period === 'yesterday' ? 'btn btn-primary' : 'bg-card text-muted border border-muted hover:bg-bg-hover'}">Hôm qua</a>
         <a href="/report?period=week" class="report-filter-btn ${period === 'week' ? 'btn btn-primary' : 'bg-card text-muted border border-muted hover:bg-bg-hover'}">7 ngày</a>
         <a href="/report?period=thisMonth" class="report-filter-btn ${period === 'thisMonth' ? 'btn btn-primary' : 'bg-card text-muted border border-muted hover:bg-bg-hover'}">Tháng này</a>
         <a href="/report?period=lastMonth" class="report-filter-btn ${period === 'lastMonth' ? 'btn btn-primary' : 'bg-card text-muted border border-muted hover:bg-bg-hover'}">Tháng trước</a>
+        </div>
       </div>
     </div>
 

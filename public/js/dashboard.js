@@ -171,29 +171,25 @@ function initDashboard(data) {
       const expected = Math.round(data.expectedUnits || 0);
       const elapsed = data.daysElapsed || 0;
       const total = data.daysInMonth || 0;
-      header.textContent = '⚠️ Dưới mức kỳ vọng (' + monthly + ' bình/tháng, kỳ vọng đạt ' + expected + ' bình sau ' + elapsed + '/' + total + ' ngày)';
+      header.textContent = monthly + ' bình/tháng · kỳ vọng ' + expected + ' bình sau ' + elapsed + '/' + total + ' ngày';
     }
     if (list) {
-      list.innerHTML = data.kpiAlerts.map(c => {
-        const shortfall = Math.round(Number(c.shortfall) || 0);
-        let colorClass = 'text-warning';
-        if (shortfall > 50) {
-          colorClass = 'text-danger';
-        } else if (shortfall > 20) {
-          colorClass = 'text-warning';
-        }
-
-        const phoneBtn = c.phone ?
-          '<a href="tel:' + c.phone + '" class="text-success hover:bg-success/10 rounded px-1 inline-block">📞</a>' : '';
-
-        return '<div class="text-sm py-2 border-b border-primary/10 last:border-0 text-center">' +
-          '<div class="flex items-center justify-center flex-wrap gap-1">' +
-            '<a href="/customers/' + c.id + '" class="hover:text-success font-medium text-main">' + c.name + '</a>' +
-            phoneBtn +
-          '</div>' +
-          '<div class="font-bold ' + colorClass + ' mt-0.5 tabular-nums">-' + shortfall + ' bình</div>' +
-        '</div>';
-      }).join('');
+      if (!data.kpiAlerts || data.kpiAlerts.length === 0) {
+        list.innerHTML = '<div class="text-sm text-muted text-center py-4 px-3">Không có khách nào dưới mức</div>';
+      } else {
+        list.innerHTML = data.kpiAlerts.map(c => {
+          const shortfall = Math.round(Number(c.shortfall) || 0);
+          const cls = shortfall > 50 ? 'text-danger font-bold' : shortfall > 20 ? 'text-orange-500 font-semibold' : 'text-warning font-semibold';
+          const phoneBtn = c.phone ? '<a href="tel:' + c.phone + '" class="text-success shrink-0">📞</a>' : '';
+          return '<div class="dsh-sale-row">' +
+            '<div class="dsh-sale-row-left">' +
+              '<a href="/customers/' + c.id + '" class="dsh-customer-name">' + c.name + '</a>' +
+              phoneBtn +
+            '</div>' +
+            '<div class="' + cls + ' dsh-shortfall tabular-nums">Thiếu: ' + shortfall + ' bình</div>' +
+          '</div>';
+        }).join('');
+      }
     }
   }
   
@@ -204,18 +200,30 @@ function initDashboard(data) {
       recentSales.innerHTML = data.recentSales.slice(0, 5).map(s => {
         const date = new Date(s.date).toLocaleDateString('vi-VN');
 
-        let moneyHtml = '';
         if (s.type === 'replacement') {
-          moneyHtml = '<span class="badge badge-warning">🔁 Đổi lỗi</span>';
-        } else {
-          moneyHtml = '<div class="money money-success money--kpi-stat"><span class="value">' +
-            Format.number(s.total) + '</span><span class="unit">đ</span></div>';
+          return '<div class="dsh-sale-row">' +
+            '<div class="dsh-sale-row-left">' +
+              '<div class="dsh-customer-name">' + (s.customer_name || 'Khách vãng lai') + '</div>' +
+              '<div class="dsh-sale-date">' + date + '</div>' +
+            '</div>' +
+            '<div class="dsh-sale-money"><span class="badge badge-warning">Đổi lỗi</span></div>' +
+          '</div>';
         }
 
-        return '<div class="py-3 border-b border-muted text-center">' +
-          '<div class="font-semibold text-main">' + s.customer_name + '</div>' +
-          '<div class="text-xs text-muted mt-0.5">' + date + '</div>' +
-          '<div class="mt-2 flex justify-center flex-wrap gap-1">' + moneyHtml + '</div>' +
+        const moneyVal = Format.number(s.total);
+        const moneyParts = moneyVal.split(/\D+/);
+        const mainPart = moneyParts[0] || moneyVal;
+        const restPart = moneyVal.replace(mainPart, '');
+
+        return '<div class="dsh-sale-row">' +
+          '<div class="dsh-sale-row-left">' +
+            '<div class="dsh-customer-name">' + (s.customer_name || 'Khách vãng lai') + '</div>' +
+            '<div class="dsh-sale-date">' + date + '</div>' +
+          '</div>' +
+          '<div class="dsh-sale-money">' +
+            '<span class="dsh-money-val">' + mainPart + '</span>' +
+            '<span class="dsh-money-unit"> đ</span>' +
+          '</div>' +
         '</div>';
       }).join('');
     } else {
