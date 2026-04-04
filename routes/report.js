@@ -10,6 +10,14 @@ function formatVND(amount) {
   return new Intl.NumberFormat('vi-VN').format(num) + ' đ';
 }
 
+/** Chỉ số đã format — dùng trong .money > .value + .unit (không lặp "đ") */
+function formatVNDNumber(amount) {
+  if (amount === null || amount === undefined || amount === '') return '0';
+  const num = Number(amount);
+  if (isNaN(num)) return '0';
+  return new Intl.NumberFormat('vi-VN').format(num);
+}
+
 // Helper: get Vietnam date string (YYYY-MM-DD) - fix timezone issue
 function getVietnamDateStr() {
   const now = new Date();
@@ -232,15 +240,63 @@ router.get('/', (req, res) => {
     ::selection { background: transparent; }
     * { user-select: none; }
     .card-value { user-select: text; }
+
+    /* Tránh tràn ngang mobile: header + hàng kỳ */
+    .report-page-header {
+      width: 100%;
+      max-width: 100%;
+      overflow: hidden;
+      box-sizing: border-box;
+    }
+    .report-page-header-inner {
+      max-width: 28rem;
+      margin-left: auto;
+      margin-right: auto;
+      width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
+    }
+    .report-main {
+      width: 100%;
+      max-width: 28rem;
+      margin-left: auto;
+      margin-right: auto;
+      box-sizing: border-box;
+      min-width: 0;
+    }
+    .report-filter-row {
+      display: flex;
+      flex-wrap: nowrap;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 6px;
+      margin: 0 -4px;
+      padding-left: 4px;
+      padding-right: 4px;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .report-filter-row::-webkit-scrollbar { display: none; }
+    .report-filter-btn {
+      flex: 0 0 auto;
+      white-space: nowrap;
+      padding: 8px 12px;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: 600;
+      text-align: center;
+      line-height: 1.2;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
   </style>
 </head>
 <body class="bg-bg text-main min-h-screen pb-20">
   <!-- TOP BAR -->
-  <header class="sticky top-0 bg-card border-b border-muted z-50">
-    <div class="flex items-center justify-between px-4 h-12 max-w-md mx-auto">
-      <div class="flex items-center gap-2">
-        <span class="text-xl">📊</span>
-        <span class="font-semibold text-sm">Báo cáo</span>
+  <header class="sticky top-0 bg-card border-b border-muted z-50 report-page-header">
+    <div class="flex items-center justify-between px-4 h-12 report-page-header-inner">
+      <div class="flex items-center gap-2 min-w-0">
+        <span class="text-xl shrink-0">📊</span>
+        <span class="font-semibold text-sm truncate">Báo cáo</span>
       </div>
       <div class="flex gap-3 text-xl">
         <a href="/" class="text-muted hover:bg-bg-hover px-2 rounded">🏠</a>
@@ -248,7 +304,7 @@ router.get('/', (req, res) => {
     </div>
   </header>
 
-  <main class="p-4 pt-14 pb-24 max-w-md mx-auto animate-fade">
+  <main class="p-4 pt-14 pb-24 animate-fade report-main">
     <!-- Quick Report Links -->
     <div class="mb-4">
       <div class="grid grid-cols-3 gap-3">
@@ -267,14 +323,14 @@ router.get('/', (req, res) => {
       </div>
     </div>
 
-    <!-- Period Selector - grid 5 nút, không scroll; tab chọn màu mạnh (blue-600/white) -->
-    <div class="mb-4">
-      <div class="grid grid-cols-5 gap-2">
-        <a href="/report?period=today" class="px-2 py-3 rounded-xl text-xs font-semibold text-center shadow-sm ${period === 'today' ? 'btn btn-primary' : 'bg-card text-muted hover:bg-bg-hover'}">Hôm nay</a>
-        <a href="/report?period=yesterday" class="px-2 py-3 rounded-xl text-xs font-semibold text-center shadow-sm ${period === 'yesterday' ? 'btn btn-primary' : 'bg-card text-muted hover:bg-bg-hover'}">Hôm qua</a>
-        <a href="/report?period=week" class="px-2 py-3 rounded-xl text-xs font-semibold text-center shadow-sm ${period === 'week' ? 'btn btn-primary' : 'bg-card text-muted hover:bg-bg-hover'}">7 ngày</a>
-        <a href="/report?period=thisMonth" class="px-2 py-3 rounded-xl text-xs font-semibold text-center shadow-sm ${period === 'thisMonth' ? 'btn btn-primary' : 'bg-card text-muted hover:bg-bg-hover'}">Tháng này</a>
-        <a href="/report?period=lastMonth" class="px-2 py-3 rounded-xl text-xs font-semibold text-center shadow-sm ${period === 'lastMonth' ? 'btn btn-primary' : 'bg-card text-muted hover:bg-bg-hover'}">Tháng trước</a>
+    <!-- Period: cuộn ngang trên mobile, không ép grid 5 cột -->
+    <div class="mb-4 w-full min-w-0">
+      <div class="report-filter-row">
+        <a href="/report?period=today" class="report-filter-btn ${period === 'today' ? 'btn btn-primary' : 'bg-card text-muted border border-muted hover:bg-bg-hover'}">Hôm nay</a>
+        <a href="/report?period=yesterday" class="report-filter-btn ${period === 'yesterday' ? 'btn btn-primary' : 'bg-card text-muted border border-muted hover:bg-bg-hover'}">Hôm qua</a>
+        <a href="/report?period=week" class="report-filter-btn ${period === 'week' ? 'btn btn-primary' : 'bg-card text-muted border border-muted hover:bg-bg-hover'}">7 ngày</a>
+        <a href="/report?period=thisMonth" class="report-filter-btn ${period === 'thisMonth' ? 'btn btn-primary' : 'bg-card text-muted border border-muted hover:bg-bg-hover'}">Tháng này</a>
+        <a href="/report?period=lastMonth" class="report-filter-btn ${period === 'lastMonth' ? 'btn btn-primary' : 'bg-card text-muted border border-muted hover:bg-bg-hover'}">Tháng trước</a>
       </div>
     </div>
 
@@ -287,7 +343,7 @@ router.get('/', (req, res) => {
             <span class="text-primary">💵</span>
             <div class="text-xs text-primary font-medium">Doanh thu</div>
           </div>
-          <div class="card-value"><div class="money text-money"><span class="value text-xl font-bold tabular-nums">${formatVND(periodStats.revenue)}</span><span class="unit">đ</span></div></div>
+          <div class="card-value"><div class="money text-money"><span class="value text-xl font-bold tabular-nums">${formatVNDNumber(periodStats.revenue)}</span><span class="unit">đ</span></div></div>
         </div>
         <div class="card bg-info/10 border-info/20">
           <div class="flex items-center gap-2 mb-1">
@@ -344,7 +400,7 @@ router.get('/', (req, res) => {
             <span class="text-primary">💵</span>
             <div class="text-xs text-primary font-medium">Doanh thu</div>
           </div>
-          <div class="card-value"><div class="money text-money"><span class="value text-lg font-bold tabular-nums">${formatVND(allTimeStats.revenue)}</span><span class="unit">đ</span></div></div>
+          <div class="card-value"><div class="money text-money"><span class="value text-lg font-bold tabular-nums">${formatVNDNumber(allTimeStats.revenue)}</span><span class="unit">đ</span></div></div>
         </div>
         <div class="card bg-info/10 border-info/30">
           <div class="flex items-center gap-1 mb-1">
