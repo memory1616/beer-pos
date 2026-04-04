@@ -14,7 +14,7 @@
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
   <link rel="stylesheet" href="/css/tailwind.css">
-  <link rel="stylesheet" href="/css/unified.css?v=20260412">
+  <link rel="stylesheet" href="/css/unified.css?v=20260413">
   <script src="/js/dark-mode.js"></script>
   <script src="/js/vendor/chart.umd.min.js"></script>
   <script src="/js/auth.js"></script>
@@ -53,15 +53,15 @@
             <div class="mb-4">
               <div class="section-title">Hôm nay</div>
               <div class="grid grid-cols-2 gap-3">
-                <div class="card card-sm dashboard-kpi-today">
-                  <div class="text-xs text-muted">Doanh thu</div>
+                <div class="card card-sm dashboard-kpi-today dashboard-kpi-highlight">
+                  <div class="kpi-label"><span class="kpi-label-icon" aria-hidden="true">💰</span> Doanh thu</div>
                   <div class="dashboard-kpi-value-row">
-                    <div id="todayRevenue" class="min-w-0 money text-money">Chưa có dữ liệu hôm nay</div>
+                    <div id="todayRevenue" class="min-w-0 w-full">Chưa có dữ liệu hôm nay</div>
                   </div>
                   <div class="dashboard-kpi-sub min-h-[1rem]" aria-hidden="true"></div>
                 </div>
                 <div class="card card-sm dashboard-kpi-today">
-                  <div class="text-xs text-muted">Bán ra</div>
+                  <div class="kpi-label"><span class="kpi-label-icon" aria-hidden="true">📦</span> Bán ra</div>
                   <div class="dashboard-kpi-value-row">
                     <div class="text-sm font-bold tabular-nums text-info whitespace-nowrap sm:text-base" id="todayUnits">0</div>
                   </div>
@@ -69,13 +69,13 @@
                 </div>
               </div>
               <div class="grid grid-cols-2 gap-3 mt-3">
-                <div class="card card-sm dashboard-stat-card">
-                  <div class="text-xs text-muted">Lợi nhuận hôm nay</div>
-                  <div id="todayProfit" class="text-lg w-full">Chưa có dữ liệu</div>
+                <div class="card card-sm dashboard-stat-card dashboard-kpi-highlight">
+                  <div class="kpi-label"><span class="kpi-label-icon" aria-hidden="true">📈</span> Lợi nhuận hôm nay</div>
+                  <div id="todayProfit" class="w-full min-w-0">Chưa có dữ liệu</div>
                 </div>
                 <div class="card card-sm dashboard-stat-card">
-                  <div class="text-xs text-muted">Chi phí hôm nay</div>
-                  <div id="todayExpense" class="text-lg w-full">Chưa có dữ liệu</div>
+                  <div class="kpi-label"><span class="kpi-label-icon" aria-hidden="true">💸</span> Chi phí hôm nay</div>
+                  <div id="todayExpense" class="w-full min-w-0">Chưa có dữ liệu</div>
                 </div>
               </div>
             </div>
@@ -83,13 +83,13 @@
             <div class="mb-4">
               <div class="section-title">Tháng này</div>
               <div class="grid grid-cols-2 gap-3">
-                <div class="card dashboard-stat-card" onclick="location.href='/report'" style="cursor:pointer" title="Xem chi tiết lợi nhuận tháng">
-                  <div class="text-xs text-muted">Lợi nhuận tháng</div>
-                  <div id="monthProfit" class="money text-money text-lg w-full"></div>
+                <div class="card dashboard-stat-card dashboard-kpi-highlight" onclick="location.href='/report'" style="cursor:pointer" title="Xem chi tiết lợi nhuận tháng">
+                  <div class="kpi-label"><span class="kpi-label-icon" aria-hidden="true">📈</span> Lợi nhuận tháng</div>
+                  <div id="monthProfit" class="w-full min-w-0"></div>
                 </div>
                 <div class="card dashboard-stat-card" onclick="location.href='/expenses'" style="cursor:pointer" title="Xem chi phí tháng">
-                  <div class="text-xs text-muted">Chi phí tháng</div>
-                  <div id="monthExpense" class="text-lg text-danger w-full"></div>
+                  <div class="kpi-label"><span class="kpi-label-icon" aria-hidden="true">💸</span> Chi phí tháng</div>
+                  <div id="monthExpense" class="w-full min-w-0"></div>
                 </div>
               </div>
             </div>
@@ -194,7 +194,7 @@
     })();
   </script>
 
-  <script src="/js/dashboard.js?v=20260412"></script>
+  <script src="/js/dashboard.js?v=20260413"></script>
 
   <script>
   async function loadData() {

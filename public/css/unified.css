@@ -288,6 +288,68 @@ body.min-h-screen.pb-24 {
   min-width: 0;
 }
 
+/* KPI tiền: card nổi bật hơn, bo góc 16px */
+.dashboard-page .card.dashboard-kpi-today,
+.dashboard-page .card.dashboard-stat-card {
+  border-radius: 16px;
+  padding: 14px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.dashboard-page .card.dashboard-kpi-highlight {
+  border: 1px solid #fde68a;
+  background: #fffbeb;
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.12);
+}
+
+.dashboard-page .kpi-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+  line-height: 1.2;
+}
+
+.dashboard-page .kpi-label .kpi-label-icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+/* Số tiền KPI: cỡ lớn, dễ quét */
+.dashboard-page .money.money--kpi-hero .value {
+  font-size: clamp(22px, 5.2vw, 26px);
+}
+
+.dashboard-page .money.money--kpi-stat .value {
+  font-size: 22px;
+}
+
+.dashboard-page .money.money--chart-mini .value {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.25px;
+}
+
+.dashboard-page .money.money--chart-mini .unit {
+  font-size: 11px;
+}
+
+.money-chart-primary .value {
+  color: var(--color-primary);
+}
+
+[data-theme="dark"] .dashboard-page .card.dashboard-kpi-highlight {
+  background: rgba(251, 191, 36, 0.1);
+  border-color: rgba(251, 191, 36, 0.35);
+}
+
+[data-theme="dark"] .dashboard-page .kpi-label {
+  color: #94a3b8;
+}
+
 .dashboard-page .dashboard-quick-btn {
   display: flex;
   flex-direction: column;
@@ -503,27 +565,99 @@ button:active, a:active { transform: scale(0.96); }
 .money {
   display: inline-flex;
   align-items: baseline;
-  gap: 2px;
+  gap: 4px;
   font-variant-numeric: tabular-nums;
-  color: #16a34a;
   font-weight: 800;
 }
 
-.money .unit {
-  font-size: 0.65em;
-  font-weight: 600;
-  opacity: 0.75;
-  margin-bottom: 0.05em;
+.money .value {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+  transition: color 0.2s ease, transform 0.2s ease;
+  color: #16a34a;
 }
 
-/* Tiền màu đỏ (chi phí, nợ) */
-.money.danger, .money.text-danger { color: var(--color-danger); }
+.money .unit {
+  font-size: 13px;
+  font-weight: 500;
+  color: #6b7280;
+  opacity: 1;
+  margin-bottom: 0;
+  align-self: baseline;
+}
+
+/* Phân cấp màu tiền */
+.money-success .value,
+.money.text-money .value {
+  color: #16a34a;
+}
+
+.money-profit .value {
+  color: #15803d;
+}
+
+.money-danger .value,
+.money.danger .value,
+.money.text-danger .value {
+  color: #dc2626;
+}
+
+.money-neutral .value {
+  color: #374151;
+}
+
+/* Tiền màu đỏ (chi phí, nợ) — wrapper legacy */
+.money.danger,
+.money.text-danger {
+  color: inherit;
+}
 
 /* Tiền màu xám (chưa có dữ liệu) */
-.money.muted, .money.text-muted { color: var(--color-text-muted); font-weight: 400; }
+.money.muted,
+.money.text-muted {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+.money.muted .value,
+.money.text-muted .value {
+  color: inherit;
+  font-weight: 600;
+}
 
 /* Tiền primary (doanh thu/vàng) */
-.money.text-primary { color: var(--color-primary); }
+.money.text-primary .value {
+  color: var(--color-primary);
+}
+
+[data-theme="dark"] .money .unit {
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .money-success .value,
+[data-theme="dark"] .money.text-money .value {
+  color: #4ade80;
+}
+
+[data-theme="dark"] .money-profit .value {
+  color: #22c55e;
+}
+
+[data-theme="dark"] .money-danger .value,
+[data-theme="dark"] .money.text-danger .value {
+  color: #f87171;
+}
+
+[data-theme="dark"] .money-neutral .value {
+  color: #e2e8f0;
+}
+
+[data-theme="dark"] .money-chart-primary .value {
+  color: #fbbf24;
+}
 
 /* Sticky action bar — ghim trên bottom nav */
 .sticky-action {
@@ -562,18 +696,7 @@ button:active, a:active { transform: scale(0.96); }
   font-weight: 800;
 }
 
-.money .value {
-  font-weight: 700;
-  color: var(--color-success);
-  font-size: inherit;
-  line-height: 1.2;
-}
-
-.money .unit {
-  font-weight: 500;
-  color: var(--color-text-secondary);
-  font-size: 0.7em;
-}
+/* .money .value / .unit — định nghĩa chính ở block MONEY DISPLAY phía trên */
 
 /* =========================   ORDER ITEM / HISTORY CARD   ========================= */
 .order-item {

@@ -5,33 +5,32 @@
 let revenueChart = null;
 
 /**
- * Hiển thị số tiền: dùng .money > .value + .unit (RULE 2).
- * Đảm bảo UI đồng nhất toàn app.
+ * Hiển thị số tiền: .money > .value + .unit + phân cấp màu (unified.css).
  * @param {HTMLElement|null} el
  * @param {number} amount
- * @param {string} colorClass - ví dụ 'text-success', 'text-money'
- * @param {{ numClass?: string, size?: 'sm'|'lg'|'stat' }} [opts]
+ * @param {'success'|'profit'|'danger'|'neutral'|'primary'} kind — primary = tổng tiền màu brand (chart)
+ * @param {{ size?: 'lg'|'stat', compact?: boolean }} [opts] compact = ô biểu đồ nhỏ
  */
-function setMoneyAmount(el, amount, colorClass, opts) {
+function setMoneyAmount(el, amount, kind, opts) {
   if (!el || typeof Format === 'undefined') return;
   opts = opts || {};
+  var sizeMod = 'money--kpi-stat';
+  if (opts.compact) sizeMod = 'money--chart-mini';
+  else if (opts.size === 'lg') sizeMod = 'money--kpi-hero';
 
-  var numClass = opts.numClass;
-  if (!numClass) {
-    if (opts.size === 'lg') {
-      numClass = 'text-2xl font-bold tabular-nums tracking-tight leading-none whitespace-nowrap sm:text-3xl';
-    } else if (opts.size === 'stat') {
-      numClass = 'text-sm font-bold tabular-nums tracking-tight sm:text-base';
-    } else {
-      numClass = 'text-[22px] font-bold tabular-nums tracking-tight leading-none';
-    }
-  }
+  var kindClass = {
+    success: 'money-success',
+    profit: 'money-profit',
+    danger: 'money-danger',
+    neutral: 'money-neutral',
+    primary: 'money-chart-primary'
+  }[kind] || 'money-success';
 
-  el.className = 'min-w-0 text-center';
+  el.className = 'min-w-0 text-center w-full';
   el.innerHTML =
-    '<div class="money ' + (colorClass || '') + '">' +
-      '<span class="value ' + numClass + '">' + Format.number(amount) + '</span>' +
-      '<span class="unit text-[10px] sm:text-xs mb-0.5 opacity-70 shrink-0 tabular-nums">đ</span>' +
+    '<div class="money ' + sizeMod + ' ' + kindClass + '">' +
+      '<span class="value">' + Format.number(amount) + '</span>' +
+      '<span class="unit">đ</span>' +
     '</div>';
 }
 
@@ -51,7 +50,7 @@ function initDashboard(data) {
       todayRevenueEl.className = 'text-base font-medium text-muted italic text-center w-full';
     } else {
       // Cùng cỡ số với ô vỏ bình (text-2xl), không dùng hàng phụ “bình”
-      setMoneyAmount(todayRevenueEl, todayRevenue, 'text-money', { size: 'lg' });
+      setMoneyAmount(todayRevenueEl, todayRevenue, 'success', { size: 'lg' });
     }
   }
 
@@ -66,9 +65,9 @@ function initDashboard(data) {
       todayProfitEl.textContent = 'Chưa có dữ liệu hôm nay';
       todayProfitEl.className = 'text-base font-medium text-muted italic text-center w-full';
     } else if (todayProfit > 0) {
-      setMoneyAmount(todayProfitEl, todayProfit, 'text-success', { size: 'stat' });
+      setMoneyAmount(todayProfitEl, todayProfit, 'profit', { size: 'stat' });
     } else {
-      setMoneyAmount(todayProfitEl, todayProfit, 'text-danger', { size: 'stat' });
+      setMoneyAmount(todayProfitEl, todayProfit, 'danger', { size: 'stat' });
     }
   }
 
@@ -80,7 +79,7 @@ function initDashboard(data) {
       todayExpenseEl.textContent = 'Không có chi phí hôm nay';
       todayExpenseEl.className = 'text-base font-medium text-muted italic text-center w-full';
     } else {
-      setMoneyAmount(todayExpenseEl, todayExpenseAmt, 'text-danger', { size: 'stat' });
+      setMoneyAmount(todayExpenseEl, todayExpenseAmt, 'danger', { size: 'stat' });
     }
   }
 
@@ -92,9 +91,9 @@ function initDashboard(data) {
       monthProfitEl.textContent = 'Chưa có dữ liệu';
       monthProfitEl.className = 'text-base font-medium text-muted italic text-center w-full';
     } else if (monthProfit > 0) {
-      setMoneyAmount(monthProfitEl, monthProfit, 'text-success', { size: 'stat' });
+      setMoneyAmount(monthProfitEl, monthProfit, 'profit', { size: 'stat' });
     } else {
-      setMoneyAmount(monthProfitEl, monthProfit, 'text-danger', { size: 'stat' });
+      setMoneyAmount(monthProfitEl, monthProfit, 'danger', { size: 'stat' });
     }
   }
 
@@ -106,7 +105,7 @@ function initDashboard(data) {
       monthExpenseEl.textContent = 'Không có chi phí';
       monthExpenseEl.className = 'text-base font-medium text-muted italic text-center w-full';
     } else {
-      setMoneyAmount(monthExpenseEl, monthExpenseAmt, 'text-danger', { size: 'stat' });
+      setMoneyAmount(monthExpenseEl, monthExpenseAmt, 'danger', { size: 'stat' });
     }
   }
   
@@ -209,8 +208,8 @@ function initDashboard(data) {
         if (s.type === 'replacement') {
           moneyHtml = '<span class="badge badge-warning">🔁 Đổi lỗi</span>';
         } else {
-          moneyHtml = '<div class="money text-money"><span class="value text-base font-bold tabular-nums">' +
-            Format.number(s.total) + '</span><span class="unit text-xs">đ</span></div>';
+          moneyHtml = '<div class="money money-success money--kpi-stat"><span class="value">' +
+            Format.number(s.total) + '</span><span class="unit">đ</span></div>';
         }
 
         return '<div class="py-3 border-b border-muted text-center">' +
@@ -279,16 +278,10 @@ function renderRevenueChart(dailyData) {
   const totalRev6El = document.getElementById('totalRevenue6M');
   const avgRev6El = document.getElementById('avgRevenue6M');
   if (totalRev6El) {
-    setMoneyAmount(totalRev6El, totalRevenue, 'text-primary', {
-      numClass: 'text-sm font-bold tracking-tight tabular-nums',
-      sufClass: 'text-xs mb-0.5 opacity-70 shrink-0'
-    });
+    setMoneyAmount(totalRev6El, totalRevenue, 'primary', { compact: true });
   }
   if (avgRev6El) {
-    setMoneyAmount(avgRev6El, totalNetProfit, 'text-success', {
-      numClass: 'text-sm font-bold tracking-tight tabular-nums',
-      sufClass: 'text-xs mb-0.5 opacity-70 shrink-0'
-    });
+    setMoneyAmount(avgRev6El, totalNetProfit, 'profit', { compact: true });
   }
   const growthEl = document.getElementById('growthRevenue6M');
   if (netProfits.length >= 2) {
