@@ -12,7 +12,7 @@
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
   <link rel="stylesheet" href="/css/tailwind.css">
-  <link rel="stylesheet" href="/css/unified.css">
+  <link rel="stylesheet" href="/css/unified.css?v=20260413b">
   <script src="/js/auth.js"></script>
   <script src="/js/dark-mode.js"></script>
   <script src="/js/layout.js?v=20260402"></script>
@@ -480,9 +480,10 @@
 
         <div id="contentSection" class="hidden">
           <!-- Count & Search -->
-          <div class="card p-4 mb-4">
-            <div class="text-3xl font-bold" id="customerCount">0</div>
-            <div class="text-sm opacity-80">khách hàng</div>
+          <div class="card stat-card--green mb-4">
+            <div class="sc-label"><span class="sc-icon">👥</span> Khách hàng</div>
+            <div class="sc-value" id="customerCount">0</div>
+            <div class="sc-sub">đang hoạt động</div>
           </div>
 
           <!-- Tabs: Hoạt động / Đã lưu trữ -->

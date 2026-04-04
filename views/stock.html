@@ -12,7 +12,7 @@
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
   <link rel="stylesheet" href="/css/tailwind.css">
-  <link rel="stylesheet" href="/css/unified.css">
+  <link rel="stylesheet" href="/css/unified.css?v=20260413b">
   <script src="/js/auth.js"></script>
   <script src="/js/dark-mode.js"></script>
   <script src="/js/layout.js?v=20260402"></script>
@@ -110,10 +110,10 @@
         <div id="contentSection" class="hidden">
           <!-- STOCK SUMMARY -->
           <div class="section-title">Tổng tồn kho</div>
-          <div class="card p-4 mb-4">
-            <div class="text-muted text-sm mb-1">Tổng tồn kho</div>
-            <div class="text-4xl font-bold text-primary" id="totalStock">0</div>
-            <div class="text-sm text-muted mt-1">bình các loại</div>
+          <div class="card stat-card--green mb-4">
+            <div class="sc-label"><span class="sc-icon">📦</span> Tổng tồn kho</div>
+            <div class="sc-value text-primary" id="totalStock">0</div>
+            <div class="sc-sub">bình các loại</div>
           </div>
 
           <!-- PRODUCT GRID -->

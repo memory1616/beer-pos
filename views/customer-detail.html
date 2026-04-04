@@ -12,7 +12,7 @@
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
   <link rel="stylesheet" href="/css/tailwind.css">
-  <link rel="stylesheet" href="/css/unified.css">
+  <link rel="stylesheet" href="/css/unified.css?v=20260413b">
   <script src="/js/auth.js"></script>
   <script src="/js/dark-mode.js"></script>
   <script src="/js/layout.js?v=20260402"></script>
@@ -211,23 +211,24 @@
           <!-- Stats Cards -->
           <div class="p-4 space-y-3">
             <div class="grid grid-cols-2 gap-3">
-              <div class="card p-4">
-                <div class="text-sm text-info">📦 Vỏ đang giữ</div>
-                <div class="text-2xl font-bold text-info" id="kegBalance">0</div>
+              <div class="card stat-card--blue">
+                <div class="sc-label"><span class="sc-icon">📦</span> Vỏ đang giữ</div>
+                <div class="sc-value" id="kegBalance">0</div>
               </div>
-              <div class="card p-4">
-                <div class="text-sm text-primary">💰 Tổng doanh thu</div>
-                <div class="text-xl font-bold text-primary"><span id="totalRevenue">0</span></div>
+              <div class="card stat-card--green">
+                <div class="sc-label"><span class="sc-icon">💰</span> Tổng doanh thu</div>
+                <div class="sc-value text-xl" id="totalRevenue">0</div>
               </div>
             </div>
             <div class="grid grid-cols-2 gap-3">
-              <div class="card p-4">
-                <div class="text-sm text-warning">🍺 Tháng này</div>
-                <div class="text-2xl font-bold text-warning"><span id="monthlyKegs">0</span> bình</div>
+              <div class="card stat-card--amber">
+                <div class="sc-label"><span class="sc-icon">🍺</span> Tháng này</div>
+                <div class="sc-value text-base" id="monthlyKegs">0</div>
+                <div class="sc-sub">bình</div>
               </div>
-              <div class="card p-4">
-                <div class="text-sm text-secondary">🚚 Gần nhất</div>
-                <div class="text-lg font-bold text-secondary" id="lastSale">--</div>
+              <div class="card stat-card--info">
+                <div class="sc-label"><span class="sc-icon">🚚</span> Gần nhất</div>
+                <div class="sc-value text-sm" id="lastSale">--</div>
               </div>
             </div>
 

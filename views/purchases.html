@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
   <link rel="stylesheet" href="/css/tailwind.css">
-  <link rel="stylesheet" href="/css/unified.css">
+  <link rel="stylesheet" href="/css/unified.css?v=20260413b">
   <script src="/js/auth.js"></script>
   <script src="/js/dark-mode.js"></script>
   <script>requireAuth();</script>
@@ -52,16 +52,13 @@
     <!-- New Purchase Form -->
     <div id="newPurchaseSection" class="hidden">
       <!-- Keg Inventory Status -->
-      <div id="kegInventorySection" class="card p-3 mb-4">
-        <div class="flex items-center justify-between">
-          <div>
-            <div class="text-xs text-muted">Kho vỏ</div>
-            <div class="text-xl font-bold text-success" id="kegInventoryDisplay">-</div>
-          </div>
-          <a href="/kegs" class="text-xs text-info font-medium hover:bg-bg-hover px-2 py-1 rounded">📋 Quản lý</a>
+      <div id="kegInventorySection" class="card stat-card--green mb-4">
+        <div class="sc-label"><span class="sc-icon">📦</span> Kho vỏ</div>
+        <div class="sc-value" id="kegInventoryDisplay">-</div>
+        <div class="sc-sub"><a href="/kegs" class="text-xs text-blue-600 hover:underline">📋 Quản lý</a></div>
       </div>
 
-      <div class="card p-4 mb-4">
+      <div class="card stat-card--success mb-4">
         <h3 class="font-bold text-lg mb-3">📦 Nhập hàng</h3>
         <div class="space-y-4 max-h-96 overflow-y-auto" id="productList">
           <!-- Products loaded via JS -->
@@ -69,7 +66,7 @@
       </div>
 
       <!-- Cart Summary -->
-      <div class="card p-4 mb-4 sticky top-24">
+      <div class="card stat-card--profit mb-4 sticky top-24">
         <h3 class="font-bold text-lg mb-2">🛒 Giỏ nhập hàng</h3>
         <div id="cartItems" class="space-y-2 mb-3 max-h-40 overflow-y-auto">
           <div class="text-muted text-sm text-center py-2">Chưa chọn sản phẩm nào</div>
