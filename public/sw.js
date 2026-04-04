@@ -293,18 +293,29 @@ self.addEventListener("fetch", event => {
     return;
   }
 
-  // Static assets — cache first, network fallback
+  // Static assets — cache first, network fallback (with error handling to avoid crash)
   event.respondWith(
-    caches.match(event.request).then(response => {
-      if (response) return response;
-      return fetch(event.request).then(networkResponse => {
+    (async () => {
+      const cached = await caches.match(event.request);
+      if (cached) return cached;
+
+      try {
+        const networkResponse = await fetch(event.request);
+
         if (networkResponse.ok && event.request.method === "GET") {
-          const clone = networkResponse.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+          const cache = await caches.open(CACHE_NAME);
+          cache.put(event.request, networkResponse.clone());
         }
+
         return networkResponse;
-      });
-    })
+      } catch (err) {
+        console.warn("[SW] Fetch failed:", event.request.url, err);
+        return new Response("Offline", {
+          status: 503,
+          headers: { "Content-Type": "text/plain" }
+        });
+      }
+    })()
   );
 });
 
