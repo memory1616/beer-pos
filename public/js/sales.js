@@ -134,9 +134,6 @@ function initSalesPage(data) {
   syncSaleEditAuxSheet();
 }
 
-// Ensure syncSaleEditAuxSheet is defined BEFORE any caller tries to use it
-function syncSaleEditAuxSheet() {
-
 // Global keg state for validation
 let kegState = {};
 
