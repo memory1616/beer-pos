@@ -12,7 +12,7 @@
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
   <link rel="stylesheet" href="/css/tailwind.css">
-  <link rel="stylesheet" href="/css/unified.css?v=20260414">
+  <link rel="stylesheet" href="/css/unified.css?v=20260404c">
   <script src="/js/auth.js"></script>
   <script src="/js/dark-mode.js"></script>
   <script src="/js/layout.js?v=20260402"></script>
@@ -119,7 +119,7 @@
           <!-- PRODUCT GRID -->
           <div class="mb-4">
             <div class="section-title">Danh sách sản phẩm</div>
-            <div class="grid grid-cols-2 gap-3" id="productList">
+            <div class="product-grid" id="productList">
               <!-- Products loaded via JS -->
             </div>
           </div>
@@ -154,7 +154,7 @@
 
   <!-- Load Utils (formatVND, showToast) then Stock JS -->
   <script src="/js/utils.js"></script>
-  <script src="/js/stock.js?v=20260409"></script>
+  <script src="/js/stock.js?v=20260404"></script>
   
   <script>
     async function loadData() {

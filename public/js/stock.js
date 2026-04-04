@@ -5,6 +5,14 @@
 let currentProducts = [];
 let importData = {}; // Store import data by productId
 
+function escapeHtmlAttr(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 function initStockPage(data) {
   // Render products
   currentProducts = data.products;
@@ -268,7 +276,7 @@ function renderProducts(products, serverTotalStockPositive) {
   let lowStockAlert = '';
   if (lowStockProducts.length > 0) {
       lowStockAlert = `
-      <div class="card mb-3 border-danger">
+      <div class="card mb-0 border-danger product-grid__full">
         <div class="text-sm font-bold text-danger mb-2">⚠️ Tồn kho thấp (${lowStockProducts.length})</div>
         <div class="flex flex-wrap gap-1">
           ${lowStockProducts.map(p => `
@@ -281,19 +289,29 @@ function renderProducts(products, serverTotalStockPositive) {
     `;
   }
 
-  productList.innerHTML = lowStockAlert + products.map(p => `
-    <div class="card product-card ${p.stock < 5 ? 'border-danger' : 'border-muted'}">
-      <div class="flex justify-between items-start mb-1">
-        <div class="font-bold text-sm text-main">${p.name}</div>
-        ${p.stock < 5 ? '<span class="badge badge-danger">⚠️ Sắp hết</span>' : ''}
+  productList.innerHTML = lowStockAlert + products.map(p => {
+    const low = p.stock < 5;
+    return `
+    <article class="card product-card product-card--interactive ${low ? 'border-danger' : 'border-muted'}"
+      role="button" tabindex="0" data-product-id="${p.id}"
+      aria-label="${escapeHtmlAttr(p.name)} — Tồn ${p.stock}. Nhấn để sửa"
+      onclick="openProductModal(${p.id})"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openProductModal(${p.id});}">
+      <div class="flex justify-between items-start gap-2">
+        <h3 class="product-card__name min-w-0 flex-1">${p.name}</h3>
+        ${low ? '<span class="badge badge-danger shrink-0 text-[10px]">Sắp hết</span>' : ''}
       </div>
-      <div class="text-xs text-muted mb-2">Giá vốn: ${formatVND(p.cost_price || 0)}</div>
-      <div class="flex justify-between items-center">
-        <div class="text-lg font-bold ${p.stock < 5 ? 'text-danger' : 'text-success'}">${p.stock}</div>
-        <button onclick="openProductModal(${p.id})" class="text-xs text-info underline">✏️ Sửa</button>
+      <div class="product-card__meta">Giá vốn · ${formatVND(p.cost_price || 0)}</div>
+      <div class="product-card__footer">
+        <div class="min-w-0">
+          <div class="product-card__qty-label">Tồn kho</div>
+          <div class="product-card__qty tabular-nums ${low ? 'text-danger' : 'text-success'}">${p.stock}</div>
+        </div>
+        <div class="product-card__edit-pill" aria-hidden="true"><span class="product-card__edit-icon">✏️</span><span>Sửa</span></div>
       </div>
-    </div>
-  `).join('');
+    </article>
+  `;
+  }).join('');
 }
 
 // Product Modal Functions
