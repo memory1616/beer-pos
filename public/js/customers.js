@@ -17,6 +17,232 @@ function patchCustomerRow(customer) {
   if (phoneEl)  phoneEl.textContent = '📱 ' + (customer.phone || 'Chưa có SĐT');
 }
 
+// ========== PHONE UTILITY ==========
+// Normalize all phone formats to 0xxxxxxxxx
+const Phone = {
+  normalize(raw) {
+    if (!raw || typeof raw !== 'string') return '';
+    let digits = raw.replace(/\D/g, '');
+    if (digits.length === 11 && digits.startsWith('84')) {
+      digits = '0' + digits.slice(2);
+    } else if (digits.length === 12 && digits.startsWith('84')) {
+      digits = '0' + digits.slice(2);
+    }
+    return digits;
+  },
+  format(normalized) {
+    if (!normalized || normalized.length < 9) return normalized || '';
+    const p = normalized.replace(/\D/g, '');
+    if (p.length === 10) {
+      return p.slice(0, 4) + ' ' + p.slice(4, 7) + ' ' + p.slice(7);
+    }
+    return normalized;
+  },
+  isValid(normalized) {
+    const p = normalized || '';
+    return /^0\d{9}$/.test(p);
+  },
+  findDuplicate(normalized) {
+    if (!normalized || !Phone.isValid(normalized)) return null;
+    const allCustomers = [...customers, ...archivedCustomers];
+    const found = allCustomers.find(c => c.phone && Phone.normalize(c.phone) === normalized);
+    return found ? found.name : null;
+  },
+  getDisplayValue(inputEl) {
+    return Phone.format(Phone.normalize(inputEl.value));
+  }
+};
+
+// ========== STEPPER ==========
+function setupSteppers() {
+  document.querySelectorAll('[data-action="increment"], [data-action="decrement"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const targetId = btn.dataset.target;
+      const target = document.getElementById(targetId);
+      if (!target) return;
+      const min = parseInt(target.min) || 0;
+      const max = parseInt(target.max) || Infinity;
+      let val = parseInt(target.value) || 0;
+      val += btn.dataset.action === 'increment' ? 1 : -1;
+      val = Math.max(min, Math.min(max, val));
+      target.value = val;
+      target.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  });
+}
+
+// ========== KEYBOARD FLOW ==========
+function setupKeyboardFlow() {
+  const modal = document.getElementById('addModal');
+  if (!modal) return;
+  modal.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    const target = e.target;
+    if (target.tagName === 'BUTTON' || target.tagName === 'TEXTAREA' || target.type === 'submit' || target.type === 'checkbox') return;
+    if (e.shiftKey) { e.preventDefault(); focusPreviousField(target); return; }
+    e.preventDefault();
+    focusNextField(target);
+  });
+}
+
+function focusNextField(current) {
+  const fields = getFormFields('addForm');
+  const idx = fields.indexOf(current);
+  if (idx >= 0 && idx < fields.length - 1) {
+    const next = fields[idx + 1];
+    next.focus();
+    if (next.select) next.select();
+  } else {
+    submitAddForm();
+  }
+}
+
+function focusPreviousField(current) {
+  const fields = getFormFields('addForm');
+  const idx = fields.indexOf(current);
+  if (idx > 0) {
+    const prev = fields[idx - 1];
+    prev.focus();
+    if (prev.select) prev.select();
+  }
+}
+
+function getFormFields(formId) {
+  const form = document.getElementById(formId);
+  if (!form) return [];
+  return Array.from(form.querySelectorAll(
+    'input[data-field], select[data-field], textarea[data-field]'
+  )).filter(el => !el.disabled && !el.closest('.hidden'));
+}
+
+// ========== PHONE DUPLICATE CHECK (debounced) ==========
+let phoneCheckTimer = null;
+
+function schedulePhoneCheck() {
+  clearTimeout(phoneCheckTimer);
+  const input = document.getElementById('addPhone');
+  if (!input) return;
+  phoneCheckTimer = setTimeout(() => {
+    const raw = input.value || '';
+    const normalized = Phone.normalize(raw);
+    if (normalized.length >= 9) {
+      const dupName = Phone.findDuplicate(normalized);
+      const warningEl = document.getElementById('addPhoneWarning');
+      const dupNameEl = document.getElementById('addPhoneDupName');
+      if (dupName && !warningEl.classList.contains('shown')) {
+        warningEl.classList.remove('hidden');
+        warningEl.classList.add('shown');
+        if (dupNameEl) dupNameEl.textContent = '→ ' + dupName;
+        input.dataset.duplicateCustomer = dupName;
+        input.style.borderColor = 'var(--color-warning)';
+        input.style.boxShadow = '0 0 0 3px rgba(249,115,22,0.15)';
+      } else if (!dupName) {
+        clearPhoneWarning();
+      }
+    } else {
+      clearPhoneWarning();
+    }
+  }, 600);
+}
+
+function clearPhoneWarning() {
+  const warningEl = document.getElementById('addPhoneWarning');
+  const input = document.getElementById('addPhone');
+  if (warningEl) { warningEl.classList.add('hidden'); warningEl.classList.remove('shown'); }
+  if (input) {
+    delete input.dataset.duplicateCustomer;
+    input.style.borderColor = '';
+    input.style.boxShadow = '';
+  }
+}
+
+// ========== FORM VALIDATION ==========
+function validateAddForm() {
+  const name = document.getElementById('addName').value.trim();
+  const phone = document.getElementById('addPhone').value.trim();
+  if (!name) {
+    showToast('Vui lòng nhập tên khách hàng', 'error');
+    document.getElementById('addName').focus();
+    return null;
+  }
+  if (phone) {
+    const normalized = Phone.normalize(phone);
+    if (!Phone.isValid(normalized)) {
+      showToast('Số điện thoại không hợp lệ (cần 10 số, bắt đầu 0)', 'error');
+      document.getElementById('addPhone').focus();
+      return null;
+    }
+  }
+  return { name, phone: Phone.normalize(phone) || null };
+}
+
+// ========== SUBMIT ADD FORM ==========
+function submitAddForm() {
+  clearTimeout(phoneCheckTimer);
+  const validation = validateAddForm();
+  if (!validation) return;
+
+  const name = validation.name;
+  const phone = validation.phone;
+  const addPhoneInput = document.getElementById('addPhone');
+  const existingCustomer = addPhoneInput ? addPhoneInput.dataset.duplicateCustomer : null;
+
+  if (existingCustomer && phone) {
+    if (!confirm('SĐT đã tồn tại: "' + existingCustomer + '"\n\nBạn muốn cập nhật khách này thay vì tạo mới?')) {
+      return;
+    }
+  }
+
+  const data = { name, phone };
+  data.deposit = parseFormattedNumber(document.getElementById('addDeposit').value);
+  data.horizontal_fridge = parseInt(document.getElementById('addHorizontalFridge').value) || 0;
+  data.vertical_fridge = parseInt(document.getElementById('addVerticalFridge').value) || 0;
+
+  const prices = {};
+  document.querySelectorAll('#addPriceList input[data-product]').forEach(input => {
+    const raw = input.value.replace(/,/g, '');
+    const price = parseFloat(raw);
+    if (!isNaN(price) && price > 0) prices[input.dataset.product] = price;
+  });
+  if (Object.keys(prices).length > 0) data.prices = prices;
+
+  mutate(
+    function() {
+      return fetch('/api/customers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+        cache: 'no-store'
+      });
+    },
+    function(result) {
+      showToast('Đã thêm khách hàng thành công!', 'success');
+      hideModal('addModal');
+      resetAddForm();
+      if (currentTab === 'active') loadPageData('active');
+      else loadPageData('archived');
+    },
+    function() {
+      showToast('Lỗi khi thêm khách hàng', 'error');
+    }
+  );
+}
+
+function resetAddForm() {
+  document.getElementById('addName').value = '';
+  document.getElementById('addPhone').value = '';
+  document.getElementById('addDeposit').value = '0';
+  formatNumberInput(document.getElementById('addDeposit'), true);
+  document.getElementById('addHorizontalFridge').value = 0;
+  document.getElementById('addVerticalFridge').value = 0;
+  clearPhoneWarning();
+  const pf = document.getElementById('addPriceFields');
+  if (pf && !pf.classList.contains('hidden')) pf.classList.add('hidden');
+  const tb = document.getElementById('togglePriceBtn');
+  if (tb) tb.textContent = '+ Thêm giá';
+  addProductsLoaded = false;
+}
+
 function formatVND(amount) {
   if (amount === null || amount === undefined || amount === '') return '0 đ';
   const num = Number(amount);
@@ -289,9 +515,61 @@ function changeCustPage(newPage) {
   if (anchor) anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+// ========== SHOW/HIDE MODALS ==========
 function showModal(id) {
   document.getElementById(id).classList.remove('hidden');
   document.getElementById(id).classList.add('flex');
+
+  // Initialize add form when opened
+  if (id === 'addModal') {
+    initAddForm();
+  }
+}
+
+function initAddForm() {
+  // Autofocus on name field
+  setTimeout(() => {
+    const nameEl = document.getElementById('addName');
+    if (nameEl) { nameEl.focus(); }
+  }, 150);
+
+  // Format deposit input
+  const depEl = document.getElementById('addDeposit');
+  if (depEl) { formatNumberInput(depEl, true); }
+
+  // Setup steppers if not already
+  setupSteppers();
+
+  // Setup keyboard flow
+  setupKeyboardFlow();
+
+  // Auto-jump: name field contains only digits → move to phone
+  const nameInput = document.getElementById('addName');
+  if (nameInput) {
+    nameInput.addEventListener('input', () => {
+      const val = nameInput.value.trim();
+      if (/^\d+$/.test(val) && val.length >= 7) {
+        focusNextField(nameInput);
+      }
+    });
+  }
+
+  // Phone input listener — trigger duplicate check on input
+  const phoneInput = document.getElementById('addPhone');
+  if (phoneInput) {
+    phoneInput.addEventListener('input', schedulePhoneCheck);
+    phoneInput.addEventListener('blur', () => {
+      // Format on blur: show display format if valid
+      const raw = phoneInput.value || '';
+      const normalized = Phone.normalize(raw);
+      if (Phone.isValid(normalized)) {
+        phoneInput.value = Phone.format(normalized);
+      }
+    });
+  }
+
+  // Clear any previous warning
+  clearPhoneWarning();
 }
 
 function hideModal(id) {
@@ -521,14 +799,14 @@ let addProductsLoaded = false;
 function toggleAddPrices() {
   const priceFields = document.getElementById('addPriceFields');
   const toggleBtn = document.getElementById('togglePriceBtn');
-  
+
   if (priceFields.classList.contains('hidden')) {
     priceFields.classList.remove('hidden');
-    toggleBtn.textContent = '− Ẩn giá';
+    if (toggleBtn) toggleBtn.textContent = '− Ẩn giá';
     if (!addProductsLoaded) loadAddProducts();
   } else {
     priceFields.classList.add('hidden');
-    toggleBtn.textContent = '+ Thêm giá';
+    if (toggleBtn) toggleBtn.textContent = '+ Thêm giá';
   }
 }
 
@@ -560,42 +838,8 @@ async function loadAddProducts() {
   }
 }
 
-document.getElementById('addForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const data = Object.fromEntries(new FormData(e.target));
-  data.deposit = parseFormattedNumber(data.deposit);
-  data.horizontal_fridge = parseInt(String(data.horizontal_fridge).replace(/,/g, '')) || 0;
-  data.vertical_fridge = parseInt(String(data.vertical_fridge).replace(/,/g, '')) || 0;
-
-  const prices = {};
-  for (const [key, value] of Object.entries(data)) {
-    if (key.startsWith('price_') && value) {
-      const productId = key.replace('price_', '');
-      prices[productId] = parseFloat(String(value).replace(/,/g, ''));
-    }
-  }
-  data.prices = prices;
-
-  mutate(
-    function() {
-      return fetch('/api/customers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-        cache: 'no-store'
-      });
-    },
-    function(result) {
-      alert('Thêm khách hàng thành công!');
-      // Reload to show new customer
-      if (currentTab === 'active') loadPageData('active');
-      else loadPageData('archived');
-    },
-    function() {
-      location.reload();
-    }
-  );
-});
+// addForm submit is now handled by submitAddForm() via button onclick
+// Keep Enter key handling via keyboard flow setup in initAddForm
 
 document.getElementById('editForm').addEventListener('submit', (e) => {
   e.preventDefault();

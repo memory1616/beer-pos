@@ -26,7 +26,7 @@
   <link rel="prefetch" href="/js/stock.js">
 
   <link rel="stylesheet" href="/css/tailwind.css">
-  <link rel="stylesheet" href="/css/unified.css?v=20260414">
+  <link rel="stylesheet" href="/css/unified.css?v=20260405-clean">
 
   <!-- Critical-first: auth, dark-mode (sync, blocks page render) -->
   <script src="/js/auth.js"></script>
@@ -220,7 +220,7 @@
               </div>
             </div>
             <div class="grid grid-cols-2 gap-3 mb-6">
-              <div class="card card--kpi-emerald">
+              <div class="card card--kpi-green">
                 <div class="kpi-label"><span class="kpi-label-icon" aria-hidden="true">📈</span> Lợi nhuận</div>
                 <div id="todayProfit" class="w-full min-w-0">Chưa có dữ liệu</div>
               </div>
@@ -233,7 +233,7 @@
             <!-- Tháng này -->
             <div class="section-title">Tháng này</div>
             <div class="grid grid-cols-2 gap-3 mb-6">
-              <div class="card card--kpi-emerald" onclick="location.href='/report'" style="cursor:pointer" title="Xem chi tiết lợi nhuận tháng">
+              <div class="card card--kpi-green" onclick="location.href='/report'" style="cursor:pointer" title="Xem chi tiết lợi nhuận tháng">
                 <div class="kpi-label"><span class="kpi-label-icon" aria-hidden="true">📈</span> Lợi nhuận</div>
                 <div id="monthProfit" class="w-full min-w-0"></div>
               </div>
@@ -245,64 +245,64 @@
 
             <!-- Vỏ bình -->
             <div class="section-title">📦 Vỏ bình</div>
-            <div class="card mb-3 text-center">
-              <div class="text-xs text-muted uppercase tracking-wider font-medium">Tổng vỏ bình</div>
-              <div class="text-5xl font-bold text-info mt-1" id="kegTotal">0</div>
+            <div class="card mb-3 text-center" style="background:#1f2937;border:1px solid #374151;border-radius:16px;">
+              <div class="text-xs font-semibold uppercase tracking-wider mb-1" style="color:#9ca3af;">Tổng vỏ bình</div>
+              <div class="text-4xl font-extrabold mt-1" style="color:#f1f5f9;letter-spacing:-0.02em;" id="kegTotal">0</div>
             </div>
             <div class="grid grid-cols-3 gap-3 mb-6">
-              <div class="card dashboard-stat-card" onclick="location.href='/kegs'" style="cursor:pointer" title="Xem kho vỏ">
-                <div class="text-2xl font-bold text-success tabular-nums leading-tight" id="kegInventory">0</div>
-                <div class="text-sm font-medium text-main mt-1">Kho</div>
-                <div class="text-xs text-muted mt-0.5 tabular-nums" id="kegInventoryPct">0%</div>
+              <div class="card" style="background:#1f2937;border:1px solid #374151;border-radius:16px;padding:14px 10px;display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center;" onclick="location.href='/kegs'" style="cursor:pointer" title="Xem kho vỏ">
+                <div class="text-2xl font-extrabold tabular-nums leading-tight" style="color:#22c55e;letter-spacing:-0.02em;" id="kegInventory">0</div>
+                <div class="text-sm font-semibold mt-1" style="color:#e2e8f0;">Kho</div>
+                <div class="text-xs tabular-nums mt-0.5" style="color:#6b7280;" id="kegInventoryPct">0%</div>
               </div>
-              <div class="card dashboard-stat-card" onclick="location.href='/customers'" style="cursor:pointer" title="Xem khách giữ vỏ">
-                <div class="text-2xl font-bold text-warning tabular-nums leading-tight" id="kegCustomerHolding">0</div>
-                <div class="text-sm font-medium text-main mt-1">Khách</div>
-                <div class="text-xs text-muted mt-0.5 tabular-nums" id="kegCustomerHoldingPct">0%</div>
+              <div class="card" style="background:#1f2937;border:1px solid #374151;border-radius:16px;padding:14px 10px;display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center;" onclick="location.href='/customers'" style="cursor:pointer" title="Xem khách giữ vỏ">
+                <div class="text-2xl font-extrabold tabular-nums leading-tight" style="color:#f59e0b;letter-spacing:-0.02em;" id="kegCustomerHolding">0</div>
+                <div class="text-sm font-semibold mt-1" style="color:#e2e8f0;">Khách</div>
+                <div class="text-xs tabular-nums mt-0.5" style="color:#6b7280;" id="kegCustomerHoldingPct">0%</div>
               </div>
-              <div class="card dashboard-stat-card" onclick="location.href='/purchases'" style="cursor:pointer" title="Xem lịch sử nhập vỏ">
-                <div class="text-2xl font-bold text-secondary tabular-nums leading-tight" id="kegEmptyCollected">0</div>
-                <div class="text-sm font-medium text-main mt-1">Rỗng</div>
-                <div class="text-xs text-muted mt-0.5 tabular-nums" id="kegEmptyCollectedPct">0%</div>
+              <div class="card" style="background:#1f2937;border:1px solid #374151;border-radius:16px;padding:14px 10px;display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center;" onclick="location.href='/purchases'" style="cursor:pointer" title="Xem lịch sử nhập vỏ">
+                <div class="text-2xl font-extrabold tabular-nums leading-tight" style="color:#64748b;letter-spacing:-0.02em;" id="kegEmptyCollected">0</div>
+                <div class="text-sm font-semibold mt-1" style="color:#e2e8f0;">Rỗng</div>
+                <div class="text-xs tabular-nums mt-0.5" style="color:#6b7280;" id="kegEmptyCollectedPct">0%</div>
               </div>
             </div>
 
             <!-- Hàng sắp hết -->
             <div id="lowStockSection" class="hidden mb-6">
-              <div class="section-title">Hàng sắp hết</div>
+              <div class="section-title">⚠️ Hàng sắp hết</div>
               <div class="card card--alert-danger">
-                <div id="lowStockHeader" class="text-sm font-bold text-danger mb-2">Hàng sắp hết</div>
+                <div id="lowStockHeader" class="text-sm font-bold mb-3" style="color:#ef4444;">Hàng sắp hết</div>
                 <div id="lowStockList" class="space-y-0"></div>
               </div>
             </div>
 
             <!-- Dưới mức kỳ vọng -->
             <div id="customerAlertsSection" class="hidden mb-6">
-              <div class="section-title">Dưới mức kỳ vọng</div>
+              <div class="section-title">⚠️ Dưới mức kỳ vọng</div>
               <div class="card card--alert-warning">
-                <div id="customerAlertsHeader" class="text-xs text-warning/80 mb-2"></div>
+                <div id="customerAlertsHeader" class="text-xs mb-3" style="color:#9ca3af;"></div>
                 <div id="customerAlertsList"></div>
               </div>
             </div>
 
-            <!-- Doanh thu 6 tháng -->
+            <!-- Doanh thu 14 ngày -->
             <div class="mb-6">
               <div class="section-title">Doanh thu 14 ngày</div>
               <div id="revenueStats" class="grid grid-cols-3 gap-2 mb-3">
-                <div class="card card--revenue-mini text-center min-w-0">
-                  <div class="text-xs text-muted">Tổng</div>
-                  <div class="font-bold text-success text-sm min-w-0" id="totalRevenue6M">-</div>
+                <div class="card text-center min-w-0" style="background:#1f2937;border:1px solid #374151;border-radius:12px;padding:10px 8px;">
+                  <div class="text-xs mb-1" style="color:#6b7280;">Tổng</div>
+                  <div class="font-bold text-sm min-w-0" style="color:#f1f5f9;" id="totalRevenue6M">-</div>
                 </div>
-                <div class="card card--revenue-mini text-center min-w-0">
-                  <div class="text-xs text-muted">LN/ngày</div>
-                  <div class="font-bold text-success text-sm min-w-0" id="avgRevenue6M">-</div>
+                <div class="card text-center min-w-0" style="background:#1f2937;border:1px solid #374151;border-radius:12px;padding:10px 8px;">
+                  <div class="text-xs mb-1" style="color:#6b7280;">LN/ngày</div>
+                  <div class="font-bold text-sm min-w-0" style="color:#22c55e;" id="avgRevenue6M">-</div>
                 </div>
-                <div class="card card--revenue-mini text-center">
-                  <div class="text-xs text-muted">Tăng trưởng</div>
-                  <div class="font-bold text-success text-sm" id="growthRevenue6M">-</div>
+                <div class="card text-center" style="background:#1f2937;border:1px solid #374151;border-radius:12px;padding:10px 8px;">
+                  <div class="text-xs mb-1" style="color:#6b7280;">Tăng trưởng</div>
+                  <div class="font-bold text-sm" id="growthRevenue6M">-</div>
                 </div>
               </div>
-              <div class="card">
+              <div class="card" style="background:#1f2937;border:1px solid #374151;border-radius:16px;padding:12px;">
                 <canvas id="revenueChart" style="height: 220px;"></canvas>
               </div>
             </div>

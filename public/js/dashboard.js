@@ -174,9 +174,11 @@ function initDashboard(data) {
     }
     if (list) {
       list.innerHTML = data.lowStockProducts.map(p =>
-        '<div class="text-sm py-2 border-b border-primary/10 last:border-0 text-center">' +
-          '<div class="font-medium text-main">' + p.name + '</div>' +
-          '<div class="font-bold text-danger mt-0.5 tabular-nums">' + p.stock + ' bình</div>' +
+        '<div class="dsh-sale-row" style="padding:10px 0;">' +
+          '<div class="dsh-sale-row-left">' +
+            '<div class="text-sm font-semibold" style="color:#e2e8f0;">' + p.name + '</div>' +
+          '</div>' +
+          '<div class="font-bold tabular-nums" style="color:#ef4444;font-size:14px;flex-shrink:0;">' + p.stock + ' bình</div>' +
         '</div>'
       ).join('');
     }
@@ -331,15 +333,15 @@ function renderRevenueChart(dailyData) {
     revenueChart.destroy();
   }
   
-  // Create gradient for revenue bars
+  // Create gradient for revenue bars — clean green
   const gradient = ctx.createLinearGradient(0, 0, 0, 250);
   gradient.addColorStop(0, '#22c55e');
   gradient.addColorStop(1, '#16a34a');
-  
-  // Create gradient for profit line
+
+  // Create gradient for net profit line — blue for contrast
   const profitGradient = ctx.createLinearGradient(0, 0, 0, 250);
-  profitGradient.addColorStop(0, '#f59e0b');
-  profitGradient.addColorStop(1, '#d97706');
+  profitGradient.addColorStop(0, '#3b82f6');
+  profitGradient.addColorStop(1, '#2563eb');
 
   revenueChart = new Chart(ctx, {
     type: 'bar',
@@ -358,13 +360,13 @@ function renderRevenueChart(dailyData) {
           label: 'Lợi nhuận ròng',
           data: netProfits,
           type: 'line',
-          borderColor: '#16a34a',
-          backgroundColor: 'rgba(22, 163, 74, 0.1)',
+          borderColor: '#3b82f6',
+          backgroundColor: 'rgba(59, 130, 246, 0.1)',
           borderWidth: 2,
           fill: true,
           tension: 0.3,
           pointRadius: 3,
-          pointBackgroundColor: '#16a34a',
+          pointBackgroundColor: '#3b82f6',
           yAxisID: 'y'
         }
       ]
@@ -402,19 +404,21 @@ function renderRevenueChart(dailyData) {
             display: false
           },
           ticks: {
-            font: { size: 10 }
+            font: { size: 10 },
+            color: '#9ca3af'
           }
         },
         y: {
           position: 'left',
           grid: {
-            color: '#f3f4f6'
+            color: '#374151'
           },
           ticks: {
             callback: function(value) {
               return formatVND(value);
             },
-            font: { size: 10 }
+            font: { size: 10 },
+            color: '#9ca3af'
           }
         }
       }

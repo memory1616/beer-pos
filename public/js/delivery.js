@@ -88,7 +88,7 @@
     attempt = attempt || 0;
     try {
       var res = await fetch('/api/routing/route?originLat=' + originLat + '&originLng=' + originLng + '&destLat=' + destLat + '&destLng=' + destLng);
-      if (res.status === 429 && attempt < 2) { await new Promise(function(r) { setTimeout(r, (attempt+1)*1000); }); return _fetchRouteWithRetry(originLat, originLng, destLat, destLng, attempt+1); }
+      if ((res.status === 429 || res.status === 503) && attempt < 3) { await new Promise(function(r) { setTimeout(r, (attempt+1)*1500); }); return _fetchRouteWithRetry(originLat, originLng, destLat, destLng, attempt+1); }
       if (!res.ok) throw new Error('API error ' + res.status);
       var json = await res.json();
       _setCache(originLat, originLng, destLat, destLng, json);

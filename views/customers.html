@@ -260,6 +260,218 @@
     }
     /* Disable overscroll bounce */
     #editModal form { overscroll-behavior: contain; }
+
+    /* ===== ADD MODAL — POS UX STYLES ===== */
+    #addModal .add-section {
+      padding: 16px;
+      border-bottom: 1px solid var(--color-border);
+    }
+    #addModal .add-section:last-of-type {
+      border-bottom: none;
+      padding-bottom: 8px;
+    }
+
+    /* Section title */
+    #addModal .add-section-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--color-text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 10px;
+    }
+
+    /* Fields stack */
+    #addModal .add-fields-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Field label */
+    #addModal .add-field-label {
+      display: block;
+      font-size: 13px;
+      color: var(--color-text-secondary);
+      margin-bottom: 5px;
+      font-weight: 500;
+    }
+
+    /* Warning row (phone duplicate) */
+    #addModal .add-field-warning {
+      margin-top: 5px;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 2px;
+    }
+    #addModal .add-field-warning.hidden { display: none; }
+
+    /* Focus transition inputs */
+    #addModal .add-input-compact {
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    #addModal .add-input-compact:focus {
+      outline: none;
+      border-color: var(--color-info);
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.15);
+    }
+
+    /* Currency input wrapper */
+    #addModal .add-money-wrap {
+      display: flex;
+      align-items: stretch;
+      max-width: 100%;
+      border: 1px solid var(--color-border);
+      border-radius: 12px;
+      overflow: hidden;
+      background: var(--color-card);
+      transition: box-shadow 0.15s ease, border-color 0.15s ease;
+    }
+    #addModal .add-money-wrap:focus-within {
+      border-color: var(--color-info);
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
+    }
+    #addModal .add-money-suffix {
+      display: flex;
+      align-items: center;
+      padding: 0 14px;
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--color-text);
+      background: var(--color-bg);
+      border-left: 1px solid var(--color-border);
+      flex-shrink: 0;
+    }
+
+    /* Stepper grid */
+    #addModal .add-device-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 10px;
+      width: 100%;
+    }
+    #addModal .add-device-cell { min-width: 0; max-width: 100%; }
+
+    /* Stepper component */
+    #addModal .add-stepper-wrapper {
+      display: flex;
+      align-items: stretch;
+      border: 1px solid var(--color-border);
+      border-radius: 12px;
+      overflow: hidden;
+      background: var(--color-card);
+      transition: box-shadow 0.15s ease, border-color 0.15s ease;
+    }
+    #addModal .add-stepper-wrapper:focus-within {
+      border-color: var(--color-info);
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
+    }
+    #addModal .add-stepper-btn {
+      width: 48px;
+      height: 48px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 600;
+      background: var(--color-bg);
+      border: none;
+      cursor: pointer;
+      transition: background 0.15s ease, transform 0.1s ease;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      color: var(--color-text);
+    }
+    #addModal .add-stepper-btn.minus {
+      border-right: 1px solid var(--color-border);
+      border-radius: 12px 0 0 12px;
+    }
+    #addModal .add-stepper-btn.plus {
+      border-left: 1px solid var(--color-border);
+      border-radius: 0 12px 12px 0;
+    }
+    #addModal .add-stepper-btn:active {
+      transform: scale(0.92);
+      background: var(--color-bg-hover);
+    }
+    #addModal .add-stepper-input::-webkit-outer-spin-button,
+    #addModal .add-stepper-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    #addModal .add-stepper-input:focus { outline: none; }
+
+    /* Price toggle row */
+    #addModal .add-price-toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    #addModal .add-toggle-btn {
+      background: none;
+      border: none;
+      color: var(--color-info);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 6px;
+      transition: background 0.15s;
+      -webkit-tap-highlight-color: transparent;
+      min-height: 32px;
+      min-width: 32px;
+    }
+    #addModal .add-toggle-btn:active { background: rgba(37,99,235,0.1); }
+
+    /* Price body */
+    #addModal .add-price-body { padding-top: 4px; }
+    #addModal .add-price-body.hidden { display: none; }
+
+    /* Footer buttons */
+    #addModal .add-footer {
+      display: flex;
+      gap: 10px;
+      align-items: stretch;
+    }
+    #addModal .add-btn-cancel {
+      flex: 1;
+      min-width: 0;
+      height: 48px;
+      border-radius: 12px;
+      border: 1px solid var(--color-border);
+      background: transparent;
+      color: var(--color-text-secondary);
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #addModal .add-btn-save {
+      flex: 1;
+      min-width: 0;
+      height: 48px;
+      border-radius: 12px;
+      border: none;
+      background: linear-gradient(135deg, var(--color-success), var(--color-success-dark));
+      color: #fff;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: var(--shadow-success);
+      transition: filter 0.15s ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #addModal .add-btn-save:active { filter: brightness(0.95); }
+    #addModal .add-btn-cancel:active { background: var(--color-bg-hover); }
+    #addModal .add-footer button:active { transform: scale(0.99); }
+
+    /* Phone display format helper */
+    #addModal .phone-display-hint {
+      font-size: 12px;
+      color: var(--color-text-muted);
+      margin-top: 4px;
+    }
   </style>
 </head>
 <body class="bg-main text-primary body--app">
@@ -270,46 +482,140 @@
     +
   </button>
 
-  <!-- Add Modal -->
-  <div id="addModal" class="fixed inset-0 bg-overlay hidden items-center justify-center p-4 z-50">
-    <div class="card p-4 max-w-md w-full max-h-[85vh] flex flex-col">
-      <h2 class="text-xl font-semibold text-main mb-4">Thêm khách hàng</h2>
-      <form id="addForm" class="modal-body space-y-4">
-        <div>
-          <label class="block text-sm font-medium text-main mb-1">Tên khách hàng</label>
-          <input type="text" name="name" required class="w-full border border-primary rounded-lg px-4 py-3 text-lg focus:border-primary focus:ring-2 focus:ring-primary" placeholder="Nhập tên khách">
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-main mb-1">Điện thoại</label>
-          <input type="text" name="phone" class="w-full border border-primary rounded-lg px-4 py-3 text-lg focus:border-primary focus:ring-2 focus:ring-primary" placeholder="Số điện thoại">
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-main mb-1">Đặt cọc (đ)</label>
-          <input type="text" name="deposit" value="0" data-format-number inputmode="decimal" class="w-full border border-primary rounded-lg px-4 py-3 text-lg focus:border-primary focus:ring-2 focus:ring-primary">
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-main mb-1">Tủ lạnh nằm (❄️)</label>
-          <input type="text" name="horizontal_fridge" id="addHorizontalFridge" value="0" min="0" data-format-number inputmode="decimal" class="w-full border border-primary rounded-lg px-4 py-3 text-lg focus:border-primary focus:ring-2 focus:ring-primary">
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-main mb-1">Tủ mát đứng (🥶)</label>
-          <input type="text" name="vertical_fridge" id="addVerticalFridge" value="0" min="0" data-format-number inputmode="decimal" class="w-full border border-primary rounded-lg px-4 py-3 text-lg focus:border-primary focus:ring-2 focus:ring-primary">
-        </div>
-        <div class="border-t pt-4 mt-4">
-          <div class="flex items-center justify-between mb-3">
-            <h3 class="font-semibold text-main">💰 Bảng giá riêng</h3>
-            <button type="button" onclick="toggleAddPrices()" id="togglePriceBtn" class="text-sm text-info font-medium">+ Thêm giá</button>
+  <!-- Add Modal: POS-optimized UX — keyboard-first, 3-section layout, stepper inputs -->
+  <div id="addModal" class="fixed inset-0 z-50 hidden flex-col justify-end sm:justify-center sm:items-center bg-overlay p-0 sm:p-4 overscroll-none" role="dialog" aria-modal="true" aria-labelledby="addModalTitle">
+    <div class="bg-card w-full max-w-md max-h-[min(92dvh,900px)] sm:max-h-[85vh] rounded-t-2xl sm:rounded-xl shadow-xl flex flex-col overflow-hidden mx-auto sm:mx-0">
+      <!-- Header -->
+      <div class="flex-shrink-0 px-4 pt-3 pb-3 border-b border-muted flex items-center justify-between gap-2">
+        <h2 id="addModalTitle" class="text-base sm:text-lg font-semibold text-main pr-2">Thêm khách hàng</h2>
+        <button type="button" onclick="hideModal('addModal')" class="min-w-[44px] min-h-[44px] flex items-center justify-center text-2xl leading-none text-muted rounded-full hover:bg-bg-hover active:bg-bg-hover touch-manipulation" aria-label="Đóng">×</button>
+      </div>
+
+      <form id="addForm" class="flex-1 overflow-y-auto overscroll-contain modal-body touch-pan-y min-h-0" novalidate>
+
+        <!-- ===== SECTION 1: Thông tin cơ bản ===== -->
+        <div class="add-section">
+          <div class="add-section-title">Thông tin khách</div>
+          <div class="add-fields-stack">
+            <div class="min-w-0">
+              <label for="addName" class="add-field-label">Tên khách hàng</label>
+              <input
+                type="text"
+                name="name"
+                id="addName"
+                required
+                autocomplete="name"
+                enterkeyhint="next"
+                data-field="name"
+                placeholder="Nhập tên khách"
+                class="add-input-compact"
+                style="height:48px;padding:12px 14px;font-size:16px;line-height:1.25;border-radius:12px;border:1px solid var(--color-border);background:var(--color-card);box-sizing:border-box;width:100%;font-family:inherit;color:var(--color-text);">
+            </div>
+            <div class="min-w-0">
+              <label for="addPhone" class="add-field-label">Số điện thoại</label>
+              <input
+                type="tel"
+                name="phone"
+                id="addPhone"
+                inputmode="numeric"
+                autocomplete="tel"
+                enterkeyhint="next"
+                data-field="phone"
+                placeholder="0xxx xxx xxx"
+                class="add-input-compact"
+                style="height:48px;padding:12px 14px;font-size:16px;line-height:1.25;border-radius:12px;border:1px solid var(--color-border);background:var(--color-card);box-sizing:border-box;width:100%;font-family:inherit;color:var(--color-text);">
+              <div id="addPhoneWarning" class="add-field-warning hidden">
+                <span class="text-warning text-xs">⚠️ SĐT đã tồn tại</span>
+                <span id="addPhoneDupName" class="text-muted text-xs ml-1"></span>
+              </div>
+            </div>
           </div>
-          <div id="addPriceFields" class="space-y-2 hidden">
+        </div>
+
+        <!-- ===== SECTION 2: Công nợ & tài sản ===== -->
+        <div class="add-section">
+          <div class="add-section-title">Công nợ &amp; tài sản</div>
+
+          <!-- Đặt cọc — currency input -->
+          <div class="min-w-0 mb-3">
+            <label for="addDeposit" class="add-field-label">Đặt cọc</label>
+            <div class="add-money-wrap">
+              <input
+                type="text"
+                name="deposit"
+                id="addDeposit"
+                value="0"
+                data-format-number
+                inputmode="decimal"
+                enterkeyhint="next"
+                data-field="deposit"
+                placeholder="0"
+                class="add-input-compact add-money-input"
+                style="height:48px;padding:12px 14px;font-size:16px;line-height:1.25;border-radius:0;border:none;box-shadow:none;background:transparent;width:100%;font-family:inherit;color:var(--color-text);">
+              <span class="add-money-suffix" aria-hidden="true">đ</span>
+            </div>
+          </div>
+
+          <!-- Tủ lạnh nằm + Tủ mát đứng — stepper grid -->
+          <div class="add-device-grid">
+            <div class="add-device-cell">
+              <label for="addHorizontalFridge" class="add-field-label">Tủ nằm ❄️</label>
+              <div class="add-stepper-wrapper">
+                <button type="button" class="add-stepper-btn minus" data-action="decrement" data-target="addHorizontalFridge" aria-label="Giảm">−</button>
+                <input
+                  type="number"
+                  name="horizontal_fridge"
+                  id="addHorizontalFridge"
+                  value="0"
+                  min="0"
+                  data-field="horizontal_fridge"
+                  enterkeyhint="next"
+                  class="add-stepper-input"
+                  style="width:100%;height:48px;border:none;text-align:center;font-size:16px;font-weight:500;color:var(--color-text);background:transparent;padding:0 4px;-moz-appearance:textfield;appearance:textfield;">
+                <button type="button" class="add-stepper-btn plus" data-action="increment" data-target="addHorizontalFridge" aria-label="Tăng">+</button>
+              </div>
+            </div>
+            <div class="add-device-cell">
+              <label for="addVerticalFridge" class="add-field-label">Tủ đứng 🥶</label>
+              <div class="add-stepper-wrapper">
+                <button type="button" class="add-stepper-btn minus" data-action="decrement" data-target="addVerticalFridge" aria-label="Giảm">−</button>
+                <input
+                  type="number"
+                  name="vertical_fridge"
+                  id="addVerticalFridge"
+                  value="0"
+                  min="0"
+                  data-field="vertical_fridge"
+                  enterkeyhint="next"
+                  class="add-stepper-input"
+                  style="width:100%;height:48px;border:none;text-align:center;font-size:16px;font-weight:500;color:var(--color-text);background:transparent;padding:0 4px;-moz-appearance:textfield;appearance:textfield;">
+                <button type="button" class="add-stepper-btn plus" data-action="increment" data-target="addVerticalFridge" aria-label="Tăng">+</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== SECTION 3: Giá riêng (collapsible, default hidden) ===== -->
+        <div class="add-section">
+          <div class="add-price-toggle-row">
+            <div class="add-section-title" style="margin-bottom:0">💰 Bảng giá riêng</div>
+            <button type="button" onclick="toggleAddPrices()" id="togglePriceBtn" class="add-toggle-btn">
+              + Thêm giá
+            </button>
+          </div>
+          <div id="addPriceFields" class="add-price-body hidden">
             <div id="addPriceList" class="space-y-2 max-h-40 overflow-y-auto">
               <div class="text-muted text-sm text-center py-2">Đang tải sản phẩm...</div>
             </div>
           </div>
         </div>
+
       </form>
-      <div class="modal-footer flex gap-2 mt-4 pt-4 border-t card">
-        <button type="button" onclick="hideModal('addModal')" class="btn btn-ghost flex-1 h-14">Hủy</button>
-        <button type="submit" form="addForm" class="btn btn-primary flex-1 h-14">Thêm</button>
+
+      <!-- Action bar: sticky bottom -->
+      <div class="flex-shrink-0 border-t border-muted card px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] add-footer">
+        <button type="button" onclick="hideModal('addModal')" class="add-btn-cancel touch-manipulation">Hủy</button>
+        <button type="button" onclick="submitAddForm()" class="add-btn-save touch-manipulation">Lưu khách</button>
       </div>
     </div>
   </div>
@@ -330,11 +636,11 @@
           <div class="edit-fields-stack">
             <div class="min-w-0">
               <label for="editName" class="edit-field-label">Tên</label>
-              <input type="text" name="name" id="editName" required autocomplete="name" enterkeyhint="next" class="edit-input-compact w-full" style="height:44px;padding:10px 14px;font-size:16px;line-height:1.25;border-radius:12px;border:1px solid var(--color-border);background:var(--color-card);box-sizing:border-box;">
+              <input type="text" name="name" id="editName" required autocomplete="name" enterkeyhint="next" data-field="name" class="edit-input-compact w-full" style="height:44px;padding:10px 14px;font-size:16px;line-height:1.25;border-radius:12px;border:1px solid var(--color-border);background:var(--color-card);box-sizing:border-box;">
             </div>
             <div class="min-w-0">
               <label for="editPhone" class="edit-field-label">Điện thoại</label>
-              <input type="tel" name="phone" id="editPhone" inputmode="numeric" autocomplete="tel" enterkeyhint="next" placeholder="0xxx xxx xxx" class="edit-input-compact w-full" style="height:44px;padding:10px 14px;font-size:16px;line-height:1.25;border-radius:12px;border:1px solid var(--color-border);background:var(--color-card);box-sizing:border-box;">
+              <input type="tel" name="phone" id="editPhone" inputmode="numeric" autocomplete="tel" enterkeyhint="next" data-field="phone" placeholder="0xxx xxx xxx" class="edit-input-compact w-full" style="height:44px;padding:10px 14px;font-size:16px;line-height:1.25;border-radius:12px;border:1px solid var(--color-border);background:var(--color-card);box-sizing:border-box;">
             </div>
           </div>
         </div>
@@ -345,7 +651,7 @@
           <div class="min-w-0">
             <label for="editDeposit" class="edit-field-label">Đặt cọc</label>
             <div class="edit-money-wrap">
-              <input type="text" name="deposit" id="editDeposit" data-format-number inputmode="decimal" enterkeyhint="next" placeholder="0" class="edit-input-compact edit-money-input" style="height:44px;padding:10px 14px;font-size:16px;line-height:1.25;border-radius:0;border:none;box-shadow:none;background:transparent;">
+              <input type="text" name="deposit" id="editDeposit" data-format-number inputmode="decimal" enterkeyhint="next" data-field="deposit" placeholder="0" class="edit-input-compact edit-money-input" style="height:44px;padding:10px 14px;font-size:16px;line-height:1.25;border-radius:0;border:none;box-shadow:none;background:transparent;">
               <span class="edit-money-suffix" aria-hidden="true">đ</span>
             </div>
           </div>
@@ -359,7 +665,7 @@
               <label for="editHorizontalFridge" class="edit-field-label">Tủ nằm ❄️</label>
               <div class="qty-wrapper">
                 <button type="button" class="qty-btn minus" onclick="adjustQty('editHorizontalFridge', -1)" aria-label="Giảm">−</button>
-                <input type="number" name="horizontal_fridge" id="editHorizontalFridge" value="0" min="0" class="qty-input" onchange="clampQty(this, 0)">
+                <input type="number" name="horizontal_fridge" id="editHorizontalFridge" value="0" min="0" data-field="horizontal_fridge" class="qty-input" onchange="clampQty(this, 0)">
                 <button type="button" class="qty-btn plus" onclick="adjustQty('editHorizontalFridge', 1)" aria-label="Tăng">+</button>
               </div>
             </div>
@@ -367,7 +673,7 @@
               <label for="editVerticalFridge" class="edit-field-label">Tủ đứng 🥶</label>
               <div class="qty-wrapper">
                 <button type="button" class="qty-btn minus" onclick="adjustQty('editVerticalFridge', -1)" aria-label="Giảm">−</button>
-                <input type="number" name="vertical_fridge" id="editVerticalFridge" value="0" min="0" class="qty-input" onchange="clampQty(this, 0)">
+                <input type="number" name="vertical_fridge" id="editVerticalFridge" value="0" min="0" data-field="vertical_fridge" class="qty-input" onchange="clampQty(this, 0)">
                 <button type="button" class="qty-btn plus" onclick="adjustQty('editVerticalFridge', 1)" aria-label="Tăng">+</button>
               </div>
             </div>
@@ -520,7 +826,7 @@
 
   <!-- Load Customers JS -->
   <script src="/js/realtime.js"></script>
-  <script src="/js/customers.js?v=20260416-realtime"></script>
+  <script src="/js/customers.js?v=20260417-pos-ux"></script>
 
   <script>
     async function loadData() {

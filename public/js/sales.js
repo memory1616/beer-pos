@@ -845,6 +845,12 @@ async function openKegModal(saleId) {
 
   document.getElementById('kegModal').classList.remove('hidden');
   document.getElementById('kegModal').classList.add('flex');
+
+  // Auto-focus into "Giao vỏ" input
+  setTimeout(() => {
+    const el = document.getElementById('kegDeliver');
+    if (el) { el.focus(); el.select(); }
+  }, 100);
 }
 
 function closeKegModal() {
@@ -975,9 +981,33 @@ async function submitReplacement() {
   });
 }
 
+// ── Keyboard navigation for keg inputs ────────────────────────────────────
+function handleKegInputNav(event, nextId) {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    const nextEl = document.getElementById(nextId);
+    if (nextEl) {
+      if (nextId === 'kegSaveBtn') {
+        // Second Enter → save
+        saveKegUpdate();
+      } else {
+        nextEl.focus();
+        nextEl.select();
+      }
+    }
+  }
+}
+
+// ── Safe number parsing ────────────────────────────────────────────────────
+function safeNumber(val) {
+  const n = Number(val);
+  return isNaN(n) || n < 0 ? 0 : Math.floor(n);
+}
+
+// ── Preview update ─────────────────────────────────────────────────────────
 function updateKegModalPreview() {
-  const formGiao = parseInt(String(document.getElementById('kegDeliver').value).trim(), 10) || 0;
-  const formThu  = parseInt(String(document.getElementById('kegReturn').value).trim(), 10) || 0;
+  const formGiao = safeNumber(document.getElementById('kegDeliver').value);
+  const formThu  = safeNumber(document.getElementById('kegReturn').value);
 
   // Delta so với snapshot đã lưu (hoặc 0 nếu create mode)
   const old = _invoiceShell || { giao: 0, thu: 0 };
@@ -1018,34 +1048,11 @@ function updateKegModalPreview() {
   }
 }
 
-function addKegDeliver(amount) {
-  const current = parseInt(String(document.getElementById('kegDeliver').value).trim(), 10) || 0;
-  document.getElementById('kegDeliver').value = current + amount;
-  updateKegModalPreview();
-}
-
-function addKegReturn(amount) {
-  const current = parseInt(String(document.getElementById('kegReturn').value).trim(), 10) || 0;
-  document.getElementById('kegReturn').value = current + amount;
-  updateKegModalPreview();
-}
-
-function returnAllKegs() {
-  // Thu hết → newBalance = 0
-  // newBalance = _invoiceCustBalance + deltaGiao - formThu = 0
-  // → formThu = _invoiceCustBalance + deltaGiao
-  const formGiao = parseInt(String(document.getElementById('kegDeliver').value).trim(), 10) || 0;
-  const old = _invoiceShell || { giao: 0, thu: 0 };
-  const deltaGiao = formGiao - old.giao;
-  document.getElementById('kegReturn').value = _invoiceCustBalance + deltaGiao;
-  updateKegModalPreview();
-}
-
 async function saveKegUpdate() {
   if (!_invoiceSaleId || !_invoiceCustomerId) return;
 
-  const formGiao = parseInt(String(document.getElementById('kegDeliver').value).trim(), 10) || 0;
-  const formThu  = parseInt(String(document.getElementById('kegReturn').value).trim(), 10) || 0;
+  const formGiao = safeNumber(document.getElementById('kegDeliver').value);
+  const formThu  = safeNumber(document.getElementById('kegReturn').value);
 
   // Delta so với snapshot đã lưu (hoặc 0 nếu create mode)
   const old = _invoiceShell || { giao: 0, thu: 0 };
@@ -1281,8 +1288,8 @@ function closeCollectKegModal() {
 }
 
 function updateCollectKegPreview() {
-  const deliver = parseInt(document.getElementById('collectKegDeliver').value, 10) || 0;
-  const returned = parseInt(document.getElementById('collectKegReturn').value, 10) || 0;
+  const deliver = safeNumber(document.getElementById('collectKegDeliver').value);
+  const returned = safeNumber(document.getElementById('collectKegReturn').value);
 
   // Rule: _collectKegBalance đã bao gồm số đã giao trước.
   // voSau = voHienTai + (newDeliver - prevDeliver) - (newReturn - prevReturn)
@@ -1317,7 +1324,7 @@ function updateCollectKegPreview() {
 
 async function submitCollectKeg() {
   const saleId = _collectKegSaleId;
-  const returned = parseInt(document.getElementById('collectKegReturn').value, 10) || 0;
+  const returned = safeNumber(document.getElementById('collectKegReturn').value);
 
   if (returned < 0) {
     alert('Số vỏ không hợp lệ');

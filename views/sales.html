@@ -46,9 +46,9 @@
         <div class="w-10 flex-shrink-0"></div>
       </div>
 
-      <!-- Total Amount Card: light orange, centered, large bold -->
+      <!-- Total Amount Card -->
       <div class="invoice-total-card rounded-2xl px-4 py-5 text-center">
-        <div class="text-xs uppercase tracking-wider font-medium mb-1" style="color: rgba(120,53,15,0.7);">Tổng thanh toán</div>
+        <div class="text-xs uppercase tracking-widest font-medium mb-1 invoice-total-label">Tổng thanh toán</div>
         <div class="invoice-grand-total">
           <span class="invoice-total-value tabular-nums">0</span>
           <span class="invoice-total-unit text-xl font-bold">đ</span>
@@ -67,10 +67,11 @@
     </div>
   </div>
   <style>
-    /* Invoice Total Card — light orange, rounded, centered */
+    /* Invoice Total Card */
     #invoiceModal .invoice-total-card {
-      background: #fff7ed;
-      border: 1px solid #fed7aa;
+      background: linear-gradient(180deg, #1f2937, #111827);
+      border: 1px solid #374151;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
     }
     /* Invoice Grand Total */
     #invoiceModal .invoice-grand-total {
@@ -82,16 +83,19 @@
     #invoiceModal .invoice-total-value {
       font-size: 52px;
       font-weight: 800;
-      color: #15803d;
+      color: #22c55e;
       letter-spacing: -2px;
       line-height: 1;
       font-variant-numeric: tabular-nums;
     }
     #invoiceModal .invoice-total-unit {
-      color: #6b7280;
+      color: #9ca3af;
       font-weight: 700;
       font-size: 20px;
       line-height: 1;
+    }
+    #invoiceModal .invoice-total-label {
+      color: #9ca3af;
     }
 
     /* Invoice Content — white card with shadow */
@@ -108,21 +112,6 @@
       box-shadow: 0 1px 6px rgba(0,0,0,0.06);
     }
 
-    /* Dark mode adjustments */
-    [data-theme="dark"] #invoiceModal .invoice-total-card {
-      background: #431407;
-      border-color: #7c2d12;
-    }
-    [data-theme="dark"] #invoiceModal .invoice-total-value { color: #4ade80; }
-    [data-theme="dark"] #invoiceModal .invoice-total-unit  { color: #94a3b8; }
-    [data-theme="dark"] #invoiceModal .invoice-pos-content {
-      background: #1e293b;
-      border-color: #334155;
-    }
-    [data-theme="dark"] #invoiceModal .invoice-qr-card {
-      background: #1e293b;
-      border-color: #334155;
-    }
 
     .invoice-pos-content .invoice-item { padding: 10px 0; border-bottom: 1px solid var(--color-border); }
     .invoice-pos-content .invoice-item:last-child { border-bottom: none; }
@@ -154,24 +143,19 @@
 
       <div class="space-y-4">
         <div>
-          <label class="block text-sm font-medium text-main mb-2">📦 Giao vỏ</label>
-          <div class="flex gap-2 items-center">
-            <button onclick="addKegDeliver(10)" class="btn btn-sm btn-secondary">+10</button>
-            <button onclick="addKegDeliver(20)" class="btn btn-sm btn-secondary">+20</button>
-            <input type="number" id="kegDeliver" value="0" class="flex-1 min-w-0 border-2 border-primary rounded-xl px-3 py-3 text-center text-lg font-bold focus:border-primary focus:outline-none" inputmode="numeric"
-              oninput="updateKegModalPreview()" onchange="updateKegModalPreview()">
-          </div>
+          <label class="block text-sm font-semibold text-success mb-2">📦 Giao vỏ</label>
+          <input type="number" id="kegDeliver" value="0"
+            inputMode="numeric" pattern="[0-9]*" min="0"
+            class="w-full h-12 px-4 rounded-xl bg-card border-2 border-success/50 text-white text-xl font-bold text-center focus:outline-none focus:ring-2 focus:ring-success focus:border-success"
+            oninput="updateKegModalPreview()" onchange="updateKegModalPreview()" onkeydown="handleKegInputNav(event, 'kegReturn')">
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-main mb-2">🔄 Thu vỏ</label>
-          <div class="flex gap-2 items-center">
-            <button onclick="addKegReturn(10)" class="btn btn-sm btn-warning">+10</button>
-            <button onclick="addKegReturn(20)" class="btn btn-sm btn-warning">+20</button>
-            <button onclick="returnAllKegs()" class="btn btn-sm btn-danger">Hết</button>
-            <input type="number" id="kegReturn" value="0" class="flex-1 min-w-0 border-2 border-primary rounded-xl px-3 py-3 text-center text-lg font-bold focus:border-primary focus:outline-none" inputmode="numeric"
-              oninput="updateKegModalPreview()" onchange="updateKegModalPreview()">
-          </div>
+          <label class="block text-sm font-semibold text-danger mb-2">🔄 Thu vỏ</label>
+          <input type="number" id="kegReturn" value="0"
+            inputMode="numeric" pattern="[0-9]*" min="0"
+            class="w-full h-12 px-4 rounded-xl bg-card border-2 border-danger/50 text-white text-xl font-bold text-center focus:outline-none focus:ring-2 focus:ring-danger focus:border-danger"
+            oninput="updateKegModalPreview()" onchange="updateKegModalPreview()" onkeydown="handleKegInputNav(event, 'kegSaveBtn')">
         </div>
 
         <div class="card p-4">
@@ -219,16 +203,16 @@
 
       <div class="grid grid-cols-2 gap-4 mb-4">
         <div>
-          <label class="block text-xs font-medium text-main mb-2 text-center">Số vỏ giao</label>
+          <label class="block text-xs font-semibold text-success mb-2 text-center">📦 Giao vỏ</label>
           <input type="number" id="collectKegDeliver"
-            class="w-full border-2 border-primary rounded-xl px-4 py-3 text-center text-lg font-bold focus:border-primary focus:outline-none"
+            class="w-full h-12 px-4 rounded-xl bg-card border-2 border-success/50 text-white text-xl font-bold text-center focus:outline-none focus:ring-2 focus:ring-success focus:border-success"
             min="0" inputmode="numeric"
             oninput="updateCollectKegPreview()" onchange="updateCollectKegPreview()">
         </div>
         <div>
-          <label class="block text-xs font-medium text-main mb-2 text-center">Thu về</label>
+          <label class="block text-xs font-semibold text-danger mb-2 text-center">🔄 Thu vỏ</label>
           <input type="number" id="collectKegReturn"
-            class="w-full border-2 border-primary rounded-xl px-4 py-3 text-center text-lg font-bold focus:border-primary focus:outline-none"
+            class="w-full h-12 px-4 rounded-xl bg-card border-2 border-danger/50 text-white text-xl font-bold text-center focus:outline-none focus:ring-2 focus:ring-danger focus:border-danger"
             min="0" inputmode="numeric"
             oninput="updateCollectKegPreview()" onchange="updateCollectKegPreview()">
         </div>
