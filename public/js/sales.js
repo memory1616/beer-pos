@@ -865,42 +865,22 @@ async function submitReplacement() {
 function updateKegModalPreview() {
   const deliver = parseInt(String(document.getElementById('kegDeliver').value).trim(), 10) || 0;
   const returned = parseInt(String(document.getElementById('kegReturn').value).trim(), 10) || 0;
-  const deltaDeliver = deliver - _kegModalPrevDeliver;
-  const deltaReturn = returned - _kegModalPrevReturn;
-  const newBalance = currentKegBalance + deltaDeliver - deltaReturn;
+  // Formula: final = current_balance + deliver - returned
+  const newBalance = currentKegBalance + deliver - returned;
 
-  // Show old values
-  const oldDeliverEl = document.getElementById('kegDeliverOldLine');
-  const oldReturnEl = document.getElementById('kegReturnOldLine');
-  if (oldDeliverEl) {
-    oldDeliverEl.textContent = 'Giá trị cũ: ' + _kegModalPrevDeliver + (deltaDeliver !== 0 ? ' → ' + (deltaDeliver > 0 ? '+' + deltaDeliver : deltaDeliver) : ' (không đổi)');
-  }
-  if (oldReturnEl) {
-    const arrow = deltaReturn > 0 ? '+' + deltaReturn : (deltaReturn < 0 ? deltaReturn : '');
-    oldReturnEl.textContent = 'Giá trị cũ: ' + _kegModalPrevReturn + (deltaReturn !== 0 ? ' → ' + arrow : ' (không đổi)');
-  }
-
-  // Show balance preview
+  // Show current inputs
+  document.getElementById('kegDeliverPreview').textContent = '+' + deliver;
+  document.getElementById('kegReturnPreview').textContent = '-' + returned;
   document.getElementById('kegCurrentBalance').textContent = currentKegBalance;
   document.getElementById('kegNewBalance').textContent = newBalance;
 
-  const deltaRow = document.getElementById('kegBalanceDelta');
-  const deltaVal = document.getElementById('kegBalanceDeltaValue');
-  const delta = deltaDeliver - deltaReturn;
-  if (delta !== 0) {
-    deltaRow.style.display = 'flex';
-    deltaVal.textContent = (delta > 0 ? '+' + delta : delta) + ' vỏ';
-    deltaVal.className = 'font-semibold ' + (delta > 0 ? 'text-success' : 'text-danger');
-  } else {
-    deltaRow.style.display = 'none';
-  }
-
-  // Validation: new_return <= currentBalance + prevReturn
-  const maxAllowed = currentKegBalance + _kegModalPrevReturn;
+  // Validation: cannot return more than customer holds
+  // Customer holds = current_balance + new_deliver
+  const maxAllowedReturn = currentKegBalance + deliver;
   const warningEl = document.getElementById('kegModalWarning');
-  if (returned > maxAllowed) {
+  if (returned > maxAllowedReturn) {
     warningEl.classList.remove('hidden');
-    warningEl.textContent = '⚠️ Không thể thu ' + returned + ' vỏ. Tối đa: ' + maxAllowed + ' (vỏ hiện tại ' + currentKegBalance + ' + đã thu ' + _kegModalPrevReturn + ')';
+    warningEl.textContent = '⚠️ Không thể thu ' + returned + ' vỏ. Khách chỉ giữ tối đa ' + maxAllowedReturn + ' vỏ';
   } else {
     warningEl.classList.add('hidden');
   }
@@ -930,11 +910,12 @@ async function saveKegUpdate() {
   const deliverKegs = parseInt(String(document.getElementById('kegDeliver').value).trim(), 10) || 0;
   const returnKegs = parseInt(String(document.getElementById('kegReturn').value).trim(), 10) || 0;
 
-  // Client-side validation: new_return <= currentBalance + prevReturn
-  const maxAllowedReturn = currentKegBalance + _kegModalPrevReturn;
+  // Client-side validation: cannot return more than customer holds
+  // Customer holds = current_balance + new_deliver
+  const maxAllowedReturn = currentKegBalance + deliverKegs;
   const errorEl = document.getElementById('kegModalError');
   if (returnKegs > maxAllowedReturn) {
-    errorEl.textContent = '⚠️ Không thể thu ' + returnKegs + ' vỏ. Tối đa: ' + maxAllowedReturn;
+    errorEl.textContent = '⚠️ Không thể thu ' + returnKegs + ' vỏ. Khách chỉ giữ tối đa ' + maxAllowedReturn + ' vỏ';
     errorEl.classList.remove('hidden');
     return;
   }
@@ -1118,21 +1099,20 @@ function closeCollectKegModal() {
 function updateCollectKegPreview() {
   const deliver = parseInt(document.getElementById('collectKegDeliver').value, 10) || 0;
   const returned = parseInt(document.getElementById('collectKegReturn').value, 10) || 0;
-  const deltaDeliver = deliver - _collectKegPrevDeliver;
-  const deltaReturn = returned - _collectKegPrevReturn;
-  const newBalance = _collectKegBalance + deltaDeliver - deltaReturn;
+  // Formula: final = current_balance + deliver - returned
+  const newBalance = _collectKegBalance + deliver - returned;
 
-  document.getElementById('collectKegRemaining').textContent = newBalance + ' vỏ';
-  const dD = deltaDeliver === 0 ? '0' : (deltaDeliver > 0 ? '+' + deltaDeliver : String(deltaDeliver));
-  const dR = deltaReturn === 0 ? '0' : (deltaReturn > 0 ? '+' + deltaReturn : String(deltaReturn));
-  document.getElementById('collectKegInfo').textContent =
-    `Hiện tại: ${_collectKegBalance} vỏ · Chênh: giao ${dD}, thu ${dR}`;
+  document.getElementById('collectKegDeliverPreview').textContent = '+' + deliver;
+  document.getElementById('collectKegReturnPreview').textContent = '-' + returned;
+  document.getElementById('collectKegCurrentBalance').textContent = _collectKegBalance + ' vỏ';
+  document.getElementById('collectKegRemaining').textContent = newBalance;
 
-  // Validation: new_return <= currentBalance + prevReturn
-  const maxAllowed = _collectKegBalance + _collectKegPrevReturn;
+  // Validation: cannot return more than customer holds
+  // Customer holds = current_balance + deliver
+  const maxAllowed = _collectKegBalance + deliver;
   const warningEl = document.getElementById('collectKegWarning');
   if (returned > maxAllowed) {
-    warningEl.textContent = '⚠️ Không thể thu ' + returned + ' vỏ. Tối đa: ' + maxAllowed;
+    warningEl.textContent = '⚠️ Không thể thu ' + returned + ' vỏ. Khách chỉ giữ tối đa ' + maxAllowed + ' vỏ';
     warningEl.classList.remove('hidden');
   } else {
     warningEl.classList.add('hidden');
@@ -1150,11 +1130,12 @@ async function submitCollectKeg() {
     return;
   }
 
-  // Client-side validation
-  const maxAllowed = _collectKegBalance + _collectKegPrevReturn;
+  // Client-side validation: cannot return more than customer holds
+  // Customer holds = current_balance + deliver
+  const maxAllowed = _collectKegBalance + deliver;
   if (returned > maxAllowed) {
     const warningEl = document.getElementById('collectKegWarning');
-    warningEl.textContent = '⚠️ Không thể thu ' + returned + ' vỏ. Tối đa: ' + maxAllowed;
+    warningEl.textContent = '⚠️ Không thể thu ' + returned + ' vỏ. Khách chỉ giữ tối đa ' + maxAllowed + ' vỏ';
     warningEl.classList.remove('hidden');
     return;
   }

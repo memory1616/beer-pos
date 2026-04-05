@@ -186,17 +186,16 @@ router.post('/update-kegs', (req, res) => {
     const deltaDeliver = deliver - prevDeliver;
     const deltaReturn  = returned - prevReturned;
 
-    // Validation: không thể thu nhiều hơn khách đang giữ
-    // Mỗi đơn chỉ giữ tối đa (prevDeliver - prevReturned), nên:
-    // new_return <= (currentBalance + prevReturn)
+    // Validation: cannot return more than customer holds
+    // Customer holds = current_balance + new_deliver
     const customer = db.prepare('SELECT keg_balance FROM customers WHERE id = ?').get(customerId);
     if (!customer) return res.status(404).json({ error: 'Không tìm thấy khách hàng' });
 
     const currentKegBalance = customer.keg_balance || 0;
-    const maxAllowedReturn = currentKegBalance + prevReturned;
+    const maxAllowedReturn = currentKegBalance + deliver;
     if (returned > maxAllowedReturn) {
       return res.status(400).json({
-        error: `Không thể thu ${returned} vỏ. Khách chỉ giữ tối đa ${maxAllowedReturn} vỏ (${currentKegBalance} + ${prevReturned} đã thu trước).`
+        error: `Không thể thu ${returned} vỏ. Khách chỉ giữ tối đa ${maxAllowedReturn} vỏ (${currentKegBalance} hiện tại + ${deliver} đã giao).`
       });
     }
 

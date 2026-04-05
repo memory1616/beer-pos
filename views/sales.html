@@ -82,7 +82,6 @@
             <input type="number" id="kegDeliver" value="0" class="flex-1 min-w-0 border-2 border-primary rounded-xl px-3 py-3 text-center text-lg font-bold focus:border-primary focus:outline-none" inputmode="numeric"
               oninput="updateKegModalPreview()" onchange="updateKegModalPreview()">
           </div>
-          <div class="text-xs text-muted mt-1" id="kegDeliverOldLine"></div>
         </div>
 
         <div>
@@ -94,7 +93,6 @@
             <input type="number" id="kegReturn" value="0" class="flex-1 min-w-0 border-2 border-primary rounded-xl px-3 py-3 text-center text-lg font-bold focus:border-primary focus:outline-none" inputmode="numeric"
               oninput="updateKegModalPreview()" onchange="updateKegModalPreview()">
           </div>
-          <div class="text-xs text-muted mt-1" id="kegReturnOldLine"></div>
         </div>
 
         <div class="card p-4">
@@ -102,13 +100,17 @@
             <span class="text-muted">Vỏ hiện tại:</span>
             <span class="font-bold text-main" id="kegCurrentBalance">0</span>
           </div>
-          <div class="flex justify-between">
-            <span class="text-muted">Sau khi giao/thu:</span>
-            <span class="font-bold text-success" id="kegNewBalance">0</span>
+          <div class="flex justify-between mb-2">
+            <span class="text-muted">Sẽ giao thêm:</span>
+            <span class="font-bold text-success" id="kegDeliverPreview">0</span>
           </div>
-          <div class="flex justify-between mt-1 text-xs" id="kegBalanceDelta" style="display:none">
-            <span class="text-muted">Chênh:</span>
-            <span class="font-semibold" id="kegBalanceDeltaValue"></span>
+          <div class="flex justify-between mb-2">
+            <span class="text-muted">Sẽ thu về:</span>
+            <span class="font-bold text-warning" id="kegReturnPreview">0</span>
+          </div>
+          <div class="flex justify-between border-t border-muted pt-2 mt-2">
+            <span class="text-muted font-semibold">Số vỏ tại khách sau cùng:</span>
+            <span class="font-bold text-success" id="kegNewBalance">0</span>
           </div>
         </div>
 
@@ -153,10 +155,23 @@
         </div>
       </div>
 
-      <div class="card p-3 mb-4 text-center border-warning bg-warning/10">
-        <div class="text-xs text-muted mb-1">Vỏ tại khách sau hóa đơn</div>
-        <div id="collectKegRemaining" class="text-2xl font-bold text-warning">0</div>
-        <div id="collectKegCurrentBalance" class="text-xs text-muted mt-1"></div>
+      <div class="card p-4 mb-4">
+        <div class="flex justify-between mb-2">
+          <span class="text-muted text-sm">Vỏ hiện tại:</span>
+          <span class="font-bold text-main" id="collectKegCurrentBalance">0</span>
+        </div>
+        <div class="flex justify-between mb-2">
+          <span class="text-muted text-sm">Đã giao (theo đơn):</span>
+          <span class="font-bold text-success" id="collectKegDeliverPreview">0</span>
+        </div>
+        <div class="flex justify-between mb-2">
+          <span class="text-muted text-sm">Sẽ thu về:</span>
+          <span class="font-bold text-warning" id="collectKegReturnPreview">0</span>
+        </div>
+        <div class="flex justify-between border-t border-muted pt-2 mt-2">
+          <span class="text-muted text-sm font-semibold">Vỏ tại khách sau cùng:</span>
+          <span class="font-bold text-success" id="collectKegRemaining">0</span>
+        </div>
       </div>
       <div id="collectKegWarning" class="hidden card p-2 border-danger text-center text-sm text-danger mb-3"></div>
 
