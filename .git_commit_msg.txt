@@ -1,8 +1,7 @@
-feat: add custom expense categories & improve money formatting
+fix: invoice modal refreshes after keg updates
 
-- Add "+ Thêm loại" button with modal to create custom expense types
-- Load custom categories from /api/expenses/categories/all and render as filter tabs
-- Filter expenses by custom category name (exact match with DB category field)
-- Fix updateTotal() to use correct #headerTotal element ID
-- Apply money formatting (Intl.NumberFormat vi-VN, class="money text-money")
-- Fix expense item and summary card styling for consistent money display
+- Add _openInvoiceSaleId tracking variable to know which invoice is open
+- showInvoiceModal() saves the saleId when opened, reset when closed
+- Add refreshInvoiceIfOpen(saleId) helper to re-fetch and re-render invoice
+- saveKegUpdate() calls refreshInvoiceIfOpen after successful update
+- submitCollectKeg() calls refreshInvoiceIfOpen after successful update

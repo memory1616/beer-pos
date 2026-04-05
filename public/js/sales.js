@@ -669,6 +669,14 @@ async function submitSale() {
 function closeInvoice() {
   document.getElementById('invoiceModal').classList.add('hidden');
   document.getElementById('invoiceModal').classList.remove('flex');
+  _openInvoiceSaleId = null;
+}
+
+// Refresh invoice modal if open (used after keg updates)
+async function refreshInvoiceIfOpen(saleId) {
+  if (_openInvoiceSaleId === saleId) {
+    await showInvoiceModal(saleId);
+  }
 }
 
 // Keg Modal Functions
@@ -676,6 +684,9 @@ let currentKegSaleId = null;
 let currentKegCustomerId = null;
 let currentKegBalance = 0;
 let saleTotalQuantity = 0;
+
+// Track the invoice modal open sale ID so we can refresh it after keg updates
+let _openInvoiceSaleId = null;
 
 // Hàm kiểm tra sản phẩm có phải là bia pet (chai nhựa) không
 function isPetBia(productName, productType) {
@@ -904,6 +915,7 @@ async function saveKegUpdate() {
     alert(`Cập nhật vỏ thành công!\n\nGiao: ${deliverKegs} | Thu: ${returnKegs}\nVỏ tại khách: ${result.newBalance}`);
     closeKegModal();
     loadSalesHistory();
+    await refreshInvoiceIfOpen(currentKegSaleId);
     if (window.location.pathname === '/' || window.location.pathname === '/dashboard') {
       loadData();
     }
@@ -994,6 +1006,7 @@ async function showInvoiceModal(saleId) {
   
   modal.classList.remove('hidden');
   modal.classList.add('flex');
+  _openInvoiceSaleId = saleId;
 }
 
 // Global state for pagination (API /api/sales?page=&limit=)
@@ -1099,6 +1112,7 @@ async function submitCollectKeg() {
     alert(`Cập nhật vỏ thành công!\n\nGiao: ${deliver} | Thu: ${returned}\nVỏ tại khách: ${result.newBalance}`);
     closeCollectKegModal();
     loadSalesHistory();
+    await refreshInvoiceIfOpen(saleId);
     if (window.location.pathname === '/' || window.location.pathname === '/dashboard') {
       loadData();
     }
