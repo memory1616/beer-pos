@@ -18,7 +18,14 @@ function formatVNDNumber(amount) {
   return new Intl.NumberFormat('vi-VN').format(num);
 }
 
-// Helper: get Vietnam date string (YYYY-MM-DD) - fix timezone issue
+// Helper: convert stored UTC date to Vietnam date string (YYYY-MM-DD) in SQLite
+// Dùng datetime(date, '+7 hours') vì dates được lưu bằng new Date().toISOString() (UTC)
+// VN = UTC+7 → cộng 7 tiếng để so sánh đúng với ngày VN
+function toVietnamDate(dateCol) {
+  return `datetime(${dateCol}, '+7 hours')`;
+}
+
+// Helper: get Vietnam date string (YYYY-MM-DD) - same logic as dashboard.js
 function getVietnamDateStr() {
   const now = new Date();
   const vn = new Date(now.getTime() + 7 * 60 * 60 * 1000);
@@ -70,7 +77,6 @@ function getDateRange(period) {
     startDate = `${year}-${month}-01 00:00:00`;
   }
   
-  // YYYY-MM-DD (VN) — dùng cho WHERE date(s.date) = ? tránh lệch với server TZ
   return { startDate, endDate, todayKey: today };
 }
 
@@ -82,10 +88,11 @@ router.get('/', (req, res) => {
   
   // PERFORMANCE: Single pass over period_sales for revenue/profit/order_count,
   // plus one JOIN to sale_items for total_quantity (was: 5 full scans of sales table)
+  // Note: dates stored as UTC ISO strings; use datetime(date, '+7 hours') for Vietnam timezone
   const periodStats = db.prepare(`
     WITH period_sales AS (
       SELECT id, total, profit FROM sales
-      WHERE date(date) >= date(?) AND date(date) <= date(?)
+      WHERE date(datetime(date, '+7 hours')) >= date(?) AND date(datetime(date, '+7 hours')) <= date(?)
         AND (status IS NULL OR status != 'returned')
     )
     SELECT
@@ -102,16 +109,18 @@ router.get('/', (req, res) => {
   
   // Get expenses for the period (date có thể là YYYY-MM-DD)
   const periodExpenses = db.prepare(`
-    SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE date(date) >= date(?) AND date(date) <= date(?)
+    SELECT COALESCE(SUM(amount), 0) as total FROM expenses
+    WHERE date(datetime(date, '+7 hours')) >= date(?) AND date(datetime(date, '+7 hours')) <= date(?)
   `).get(startDate.split(' ')[0], endDate.split(' ')[0]);
   
   // Calculate net profit (profit - expenses)
   const netProfit = periodStats.profit - periodExpenses.total;
   
   // PERFORMANCE: GROUP BY date with proper LEFT JOIN to sale_items (was: triple-nested correlated subquery per row)
+  // +7 hours applied to stored UTC dates to match Vietnam timezone for grouping
   const dailyStats = db.prepare(`
     SELECT
-      date(s.date) as date,
+      date(datetime(s.date, '+7 hours')) as date,
       COALESCE(SUM(s.total), 0) as revenue,
       COALESCE(SUM(s.profit), 0) as profit,
       COALESCE(SUM(si.total_qty), 0) as quantity
@@ -120,21 +129,22 @@ router.get('/', (req, res) => {
       SELECT sale_id, COALESCE(SUM(quantity), 0) as total_qty
       FROM sale_items GROUP BY sale_id
     ) si ON si.sale_id = s.id
-    WHERE date(s.date) >= date(?) AND date(s.date) <= date(?)
+    WHERE date(datetime(s.date, '+7 hours')) >= date(?) AND date(datetime(s.date, '+7 hours')) <= date(?)
       AND (s.status IS NULL OR s.status != 'returned')
-    GROUP BY date(s.date)
-    ORDER BY date(s.date) DESC
+    GROUP BY date(datetime(s.date, '+7 hours'))
+    ORDER BY date(datetime(s.date, '+7 hours')) DESC
     LIMIT 30
   `).all(startDate.split(' ')[0], endDate.split(' ')[0]);
   
   // PERFORMANCE: Single query replaces 5 correlated subqueries per customer row (was: triple-nested)
+  // +7 hours applied to stored UTC dates to match Vietnam timezone
   const topCustomers = db.prepare(`
     WITH customer_period AS (
       SELECT customer_id,
         COALESCE(SUM(total), 0) as revenue,
         COUNT(*) as order_count
       FROM sales
-      WHERE date(date) >= date(?) AND date(date) <= date(?)
+      WHERE date(datetime(date, '+7 hours')) >= date(?) AND date(datetime(date, '+7 hours')) <= date(?)
         AND (status IS NULL OR status != 'returned')
         AND customer_id IS NOT NULL
       GROUP BY customer_id
@@ -143,7 +153,7 @@ router.get('/', (req, res) => {
       SELECT s.customer_id, COALESCE(SUM(si.quantity), 0) as qty
       FROM sale_items si
       JOIN sales s ON s.id = si.sale_id
-      WHERE date(s.date) >= date(?) AND date(s.date) <= date(?)
+      WHERE date(datetime(s.date, '+7 hours')) >= date(?) AND date(datetime(s.date, '+7 hours')) <= date(?)
         AND (s.status IS NULL OR s.status != 'returned')
         AND s.customer_id IS NOT NULL
       GROUP BY s.customer_id
@@ -161,6 +171,7 @@ router.get('/', (req, res) => {
   `).all(startDate.split(' ')[0], endDate.split(' ')[0], startDate.split(' ')[0], endDate.split(' ')[0]);
   
   // Top products by quantity sold
+  // +7 hours applied to stored UTC dates to match Vietnam timezone
   const topProducts = db.prepare(`
     SELECT 
       p.id,
@@ -170,11 +181,12 @@ router.get('/', (req, res) => {
     FROM products p
     JOIN sale_items si ON si.product_id = p.id
     JOIN sales s ON s.id = si.sale_id
-    WHERE date(s.date) >= date(?) AND date(s.date) <= date(?) AND (s.status IS NULL OR s.status != 'returned')
+    WHERE date(datetime(s.date, '+7 hours')) >= date(?) AND date(datetime(s.date, '+7 hours')) <= date(?)
+      AND (s.status IS NULL OR s.status != 'returned')
     GROUP BY p.id
     ORDER BY quantity_sold DESC
     LIMIT 10
-  `).all(startDate, endDate);
+  `).all(startDate.split(' ')[0], endDate.split(' ')[0]);
   
   // All time stats — single CTE pass replaces 4 scalar subqueries
   const allTimeStats = db.prepare(`
@@ -200,12 +212,13 @@ router.get('/', (req, res) => {
   // Calculate all time net profit
   const allTimeNetProfit = allTimeStats.profit - allTimeExpenses.total;
   
-  // Recent sales with pagination — cùng ngày VN với getDateRange (todayKey), không dùng new Date() server
+  // Recent sales with pagination — +7 hours applied for Vietnam timezone grouping
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 5;
   const offset = (page - 1) * limit;
 
   // PERFORMANCE: LEFT JOIN to sale_items replaces correlated subquery (was: 1 subquery per row)
+  // +7 hours applied to stored UTC dates to match Vietnam timezone
   let salesQuery = `
     SELECT s.id, s.customer_id, s.date, s.total, s.profit, s.type, s.deliver_kegs, s.return_kegs,
       c.name as customer_name,
@@ -223,20 +236,20 @@ router.get('/', (req, res) => {
 
   if (period === 'thisMonth') {
     const ym = todayKey.slice(0, 7);
-    whereClause = ` WHERE strftime('%Y-%m', s.date) = ?`;
+    whereClause = ` WHERE strftime('%Y-%m', datetime(s.date, '+7 hours')) = ?`;
     queryParams.push(ym);
   } else if (period === 'lastMonth') {
     const ym = startDate.split(' ')[0].slice(0, 7);
-    whereClause = ` WHERE strftime('%Y-%m', s.date) = ?`;
+    whereClause = ` WHERE strftime('%Y-%m', datetime(s.date, '+7 hours')) = ?`;
     queryParams.push(ym);
   } else if (period === 'today') {
-    whereClause = ` WHERE date(s.date) = ?`;
+    whereClause = ` WHERE date(datetime(s.date, '+7 hours')) = ?`;
     queryParams.push(todayKey);
   } else if (period === 'yesterday') {
-    whereClause = ` WHERE date(s.date) = ?`;
+    whereClause = ` WHERE date(datetime(s.date, '+7 hours')) = ?`;
     queryParams.push(startDate.split(' ')[0]);
   } else if (period === 'week') {
-    whereClause = ` WHERE date(s.date) >= ? AND date(s.date) <= ?`;
+    whereClause = ` WHERE date(datetime(s.date, '+7 hours')) >= ? AND date(datetime(s.date, '+7 hours')) <= ?`;
     queryParams.push(startDate.split(' ')[0], endDate.split(' ')[0]);
   }
 
@@ -543,7 +556,9 @@ router.get('/', (req, res) => {
       <div class="section-title">📋 Đơn hàng gần đây <span class="text-xs font-normal text-muted">(${total} đơn)</span></div>
       <div class="card overflow-hidden" id="recentSalesList">
         ${recentSales.length === 0 ? '<div class="text-muted text-center py-4">Chưa có đơn hàng</div>' : recentSales.map(s => {
-          const date = new Date(s.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+          // Convert stored UTC date to Vietnam date for display
+          const vnDate = new Date(new Date(s.date).getTime() + 7 * 60 * 60 * 1000);
+          const date = vnDate.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
           const hasKegUpdate = (s.deliver_kegs || 0) > 0 || (s.return_kegs || 0) > 0;
           
           let typeBadge = '';
@@ -598,7 +613,9 @@ router.get('/', (req, res) => {
         const rows = Array.isArray(dailyStats) ? dailyStats.slice().reverse() : [];
         const labels = rows.map(r => {
           try {
-            return new Date(r.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+            // Parse YYYY-MM-DD Vietnam date — append T12:00:00 to ensure correct day
+            // regardless of browser timezone (avoids midnight UTC rollover)
+            return new Date(r.date + 'T12:00:00').toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
           } catch (e) {
             return String(r.date || '');
           }
@@ -664,7 +681,9 @@ router.get('/', (req, res) => {
         }
         
         let html = data.sales.map(s => {
-          const date = new Date(s.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+          // Convert stored UTC date to Vietnam date for display
+          const vnDate = new Date(new Date(s.date).getTime() + 7 * 60 * 60 * 1000);
+          const date = vnDate.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
           const hasKegUpdate = (s.deliver_kegs || 0) > 0 || (s.return_kegs || 0) > 0;
           
           let typeBadge = '';
@@ -734,6 +753,7 @@ router.get('/sales', (req, res) => {
   const { startDate, endDate, todayKey } = getDateRange(period);
 
   // PERFORMANCE: LEFT JOIN to sale_items replaces correlated subquery + parameterized WHERE
+  // +7 hours applied to stored UTC dates to match Vietnam timezone
   let salesQuery = `
     SELECT s.id, s.customer_id, s.date, s.total, s.profit, s.type, s.deliver_kegs, s.return_kegs,
       c.name as customer_name,
@@ -751,25 +771,25 @@ router.get('/sales', (req, res) => {
 
   if (period === 'thisMonth') {
     const ym = todayKey.slice(0, 7);
-    salesQuery += ` WHERE strftime('%Y-%m', s.date) = ?`;
-    countQuery += ` WHERE strftime('%Y-%m', s.date) = ?`;
+    salesQuery += ` WHERE strftime('%Y-%m', datetime(s.date, '+7 hours')) = ?`;
+    countQuery += ` WHERE strftime('%Y-%m', datetime(s.date, '+7 hours')) = ?`;
     queryParams.push(ym);
   } else if (period === 'lastMonth') {
     const ym = startDate.split(' ')[0].slice(0, 7);
-    salesQuery += ` WHERE strftime('%Y-%m', s.date) = ?`;
-    countQuery += ` WHERE strftime('%Y-%m', s.date) = ?`;
+    salesQuery += ` WHERE strftime('%Y-%m', datetime(s.date, '+7 hours')) = ?`;
+    countQuery += ` WHERE strftime('%Y-%m', datetime(s.date, '+7 hours')) = ?`;
     queryParams.push(ym);
   } else if (period === 'today') {
-    salesQuery += ` WHERE date(s.date) = ?`;
-    countQuery += ` WHERE date(s.date) = ?`;
+    salesQuery += ` WHERE date(datetime(s.date, '+7 hours')) = ?`;
+    countQuery += ` WHERE date(datetime(s.date, '+7 hours')) = ?`;
     queryParams.push(todayKey);
   } else if (period === 'yesterday') {
-    salesQuery += ` WHERE date(s.date) = ?`;
-    countQuery += ` WHERE date(s.date) = ?`;
+    salesQuery += ` WHERE date(datetime(s.date, '+7 hours')) = ?`;
+    countQuery += ` WHERE date(datetime(s.date, '+7 hours')) = ?`;
     queryParams.push(startDate.split(' ')[0]);
   } else if (period === 'week') {
-    salesQuery += ` WHERE date(s.date) >= ? AND date(s.date) <= ?`;
-    countQuery += ` WHERE date(s.date) >= ? AND date(s.date) <= ?`;
+    salesQuery += ` WHERE date(datetime(s.date, '+7 hours')) >= ? AND date(datetime(s.date, '+7 hours')) <= ?`;
+    countQuery += ` WHERE date(datetime(s.date, '+7 hours')) >= ? AND date(datetime(s.date, '+7 hours')) <= ?`;
     queryParams.push(startDate.split(' ')[0], endDate.split(' ')[0]);
   }
 
@@ -829,7 +849,8 @@ router.get('/profit-product', (req, res) => {
   
   const params = [];
   if (startStr && endStr) {
-    query += ` AND date(s.date) >= date(?) AND date(s.date) <= date(?)`;
+    // +7 hours applied to stored UTC dates to match Vietnam timezone
+    query += ` AND date(datetime(s.date, '+7 hours')) >= date(?) AND date(datetime(s.date, '+7 hours')) <= date(?)`;
     params.push(startStr, endStr);
   }
   
@@ -996,11 +1017,11 @@ router.get('/profit-customer', (req, res) => {
        WHERE s2.customer_id = c.id
          AND (s2.status IS NULL OR s2.status != 'returned')
          AND s2.type = 'sale'
-         AND date(s2.date) >= date(?) AND date(s2.date) <= date(?)) as total_bins
+         AND date(datetime(s2.date, '+7 hours')) >= date(?) AND date(datetime(s2.date, '+7 hours')) <= date(?)) as total_bins
     FROM sales s
     JOIN customers c ON c.id = s.customer_id
     WHERE (s.status IS NULL OR s.status != 'returned') AND s.type = 'sale' AND c.archived = 0
-      AND date(s.date) >= date(?) AND date(s.date) <= date(?)
+      AND date(datetime(s.date, '+7 hours')) >= date(?) AND date(datetime(s.date, '+7 hours')) <= date(?)
     GROUP BY c.id ORDER BY profit DESC
   `).all(startDay, endDay, startDay, endDay);
 
@@ -1154,14 +1175,14 @@ router.get('/import-purchases', (req, res) => {
   const totals = db.prepare(`
     SELECT COUNT(*) as slip_count, COALESCE(SUM(total_amount), 0) as total_amount
     FROM purchases p
-    WHERE date(p.date) >= date(?) AND date(p.date) <= date(?)
+    WHERE date(datetime(p.date, '+7 hours')) >= date(?) AND date(datetime(p.date, '+7 hours')) <= date(?)
   `).get(startDay, endDay);
 
   const qtyRow = db.prepare(`
     SELECT COALESCE(SUM(pi.quantity), 0) as total_qty
     FROM purchase_items pi
     JOIN purchases p ON p.id = pi.purchase_id
-    WHERE date(p.date) >= date(?) AND date(p.date) <= date(?)
+    WHERE date(datetime(p.date, '+7 hours')) >= date(?) AND date(datetime(p.date, '+7 hours')) <= date(?)
   `).get(startDay, endDay);
 
   const purchasesList = db.prepare(`
@@ -1170,7 +1191,7 @@ router.get('/import-purchases', (req, res) => {
        FROM purchase_items pi JOIN products pr ON pi.product_id = pr.id WHERE pi.purchase_id = p.id) as items_summary,
       (SELECT COUNT(*) FROM purchase_items WHERE purchase_id = p.id) as line_count
     FROM purchases p
-    WHERE date(p.date) >= date(?) AND date(p.date) <= date(?)
+    WHERE date(datetime(p.date, '+7 hours')) >= date(?) AND date(datetime(p.date, '+7 hours')) <= date(?)
     ORDER BY datetime(p.date) DESC, p.id DESC
   `).all(startDay, endDay);
 
@@ -1181,7 +1202,7 @@ router.get('/import-purchases', (req, res) => {
     FROM purchase_items pi
     JOIN purchases p ON p.id = pi.purchase_id
     JOIN products pr ON pr.id = pi.product_id
-    WHERE date(p.date) >= date(?) AND date(p.date) <= date(?)
+    WHERE date(datetime(p.date, '+7 hours')) >= date(?) AND date(datetime(p.date, '+7 hours')) <= date(?)
     GROUP BY pr.id
     ORDER BY amount DESC, qty DESC
   `).all(startDay, endDay);
