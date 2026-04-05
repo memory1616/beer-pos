@@ -1,6 +1,6 @@
 {
   "name": "beer-distributor-pro",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Beer distributor management system PRO+",
   "main": "server.js",
   "scripts": {
