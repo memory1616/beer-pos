@@ -124,13 +124,13 @@ router.get('/', (req, res, next) => {
   // Load custom categories from DB
   let customCategories = [];
   try {
-    const rows = db.prepare('SELECT name FROM expense_categories ORDER BY name ASC').all();
-    customCategories = rows.map(r => r.name);
+    const rows = db.prepare('SELECT name, icon FROM expense_categories ORDER BY name ASC').all();
+    customCategories = rows.map(r => ({ name: r.name, icon: r.icon || '📋' }));
   } catch (e) {
     logger.error('Error loading custom expense categories', { error: e.message });
   }
 
-  const allCategories = [...defaultCategories, ...customCategories];
+  const allCategories = [...defaultCategories, ...customCategories.map(c => c.name)];
 
   const categoryIcons = {
     'Xăng dầu': '⛽',
@@ -143,9 +143,13 @@ router.get('/', (req, res, next) => {
     'Marketing': '📢',
     'Khác': '📋'
   };
+  // Add custom category icons
+  for (var ci = 0; ci < customCategories.length; ci++) {
+    categoryIcons[customCategories[ci].name] = customCategories[ci].icon;
+  }
 
   const categories = allCategories;
-  const customCategoriesJson = JSON.stringify(customCategories);
+  const customCategoriesJson = JSON.stringify(customCategories.map(function(c) { return c.name; }));
   let categoryHtml;
   if (categorySummary.length > 0) {
     categoryHtml = categorySummary.map(c => {

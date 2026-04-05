@@ -132,7 +132,10 @@
 
         const data = await res.json();
 
-        if (data.success) {
+        if (res.status === 429) {
+          errorDiv.textContent = 'Quá nhiều yêu cầu, vui lòng đợi khoảng 15 phút rồi thử lại';
+          errorDiv.classList.remove('hidden');
+        } else if (data.success) {
           if (data.token) {
             localStorage.setItem('beer_session_token', data.token);
           }

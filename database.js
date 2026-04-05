@@ -636,12 +636,24 @@ try {
     CREATE TABLE IF NOT EXISTS expense_categories (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL UNIQUE,
+      icon TEXT DEFAULT '📋',
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
   console.log('Created expense_categories table');
 } catch (e) {
   console.log('expense_categories table may already exist:', e.message);
+}
+
+// Migrate expense_categories — add icon column if missing
+try {
+  const cols = db.prepare("PRAGMA table_info(expense_categories)").all();
+  if (!cols.find(c => c.name === 'icon')) {
+    db.exec('ALTER TABLE expense_categories ADD COLUMN icon TEXT DEFAULT \'📋\'');
+    console.log('Migrated expense_categories: added icon column');
+  }
+} catch (e) {
+  console.log('expense_categories icon migration error:', e.message);
 }
 
 // Expenses table for tracking operational costs

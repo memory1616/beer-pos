@@ -100,10 +100,7 @@
           <div>
             <label class="block text-sm font-medium text-main mb-1">Danh mục</label>
             <select id="expenseCategory" class="w-full border border-muted rounded-lg px-3 py-2">
-              <option value="fuel">⛽ Xăng</option>
-              <option value="food">🍜 Ăn uống</option>
-              <option value="repair">🔧 Sửa chữa</option>
-              <option value="other">📦 Khác</option>
+              <!-- options rendered dynamically by rebuildExpenseCategorySelect() -->
             </select>
           </div>
           <div>
@@ -125,6 +122,11 @@
       <h2 class="text-xl font-bold mb-4">Thêm loại chi phí</h2>
       <form id="categoryForm" onsubmit="saveCategory(event)">
         <div class="mb-4">
+          <label class="block text-sm font-medium text-main mb-1">Biểu tượng</label>
+          <div id="emojiPicker" class="flex flex-wrap gap-1 p-2 border border-muted rounded-lg bg-card max-h-32 overflow-y-auto"></div>
+          <input type="hidden" id="categoryIcon" value="📋">
+        </div>
+        <div class="mb-4">
           <label class="block text-sm font-medium text-main mb-1">Tên loại chi phí</label>
           <input type="text" id="categoryName" required class="w-full border border-muted rounded-lg px-3 py-2" placeholder="VD: Xăng xe máy, Điện thoại..." minlength="2">
         </div>
@@ -137,7 +139,7 @@
   </div>
 
   <!-- Load expenses JS -->
-  <script src="/js/expenses.js?v=20260415a"></script>
+  <script src="/js/expenses.js?v=20260415b"></script>
 
   <script>
     // Set initial month BEFORE rendering layout (so we can use the value)
@@ -164,12 +166,12 @@
 
         <!-- Category tabs -->
         <div class="flex items-center gap-2 mb-4 overflow-x-auto pb-1">
-          <div class="flex gap-2 shrink-0">
+          <div class="flex gap-2 shrink-0" id="categoryTabs">
             <button onclick="filterCategory('all')" class="cat-tab active px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-cat="all">Tất cả</button>
-            <button onclick="filterCategory('fuel')" class="cat-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-cat="fuel">⛽ Xăng</button>
-            <button onclick="filterCategory('food')" class="cat-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-cat="food">🍜 Ăn uống</button>
-            <button onclick="filterCategory('repair')" class="cat-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-cat="repair">🔧 Sửa chữa</button>
-            <button onclick="filterCategory('other')" class="cat-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-cat="other">📦 Khác</button>
+            <button onclick="filterCategory('fuel')" class="cat-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-cat="fuel" data-icon="⛽">⛽ Xăng</button>
+            <button onclick="filterCategory('food')" class="cat-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-cat="food" data-icon="🍜">🍜 Ăn uống</button>
+            <button onclick="filterCategory('repair')" class="cat-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-cat="repair" data-icon="🔧">🔧 Sửa chữa</button>
+            <button onclick="filterCategory('other')" class="cat-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-cat="other" data-icon="📦">📦 Khác</button>
           </div>
           <button onclick="showAddCategoryModal()" class="btn btn-ghost btn-sm shrink-0 text-primary" title="Thêm loại chi phí">+ Thêm loại</button>
         </div>

@@ -52,17 +52,28 @@ function getAppMode(req) {
   return 'public';
 }
 
-// Rate limiting — skip /api/discover (LAN scan pings)
+// Rate limiting — skip /api/discover (LAN scan pings) and /api/auth/me (login check)
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
   message: { error: 'Quá nhiều yêu cầu, vui lòng thử lại sau' },
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => req.path === '/api/discover',
+  skip: (req) => req.path === '/api/discover' || req.path === '/api/auth/me',
   validate: { xForwardedForHeader: false },
 });
 app.use('/api', limiter);
+
+// Lenient rate limit for auth/login endpoints — separate from general /api limit
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 300,
+  message: { error: 'Quá nhiều yêu cầu, vui lòng thử lại sau' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
+});
+app.use('/auth', authLimiter);
 
 // CORS — allow admin subdomain to call API from public domain (for sync)
 app.use('/api', (req, res, next) => {

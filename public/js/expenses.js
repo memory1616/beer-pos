@@ -3,9 +3,33 @@
 var _expensesData = [];
 var _currentCategory = 'all';
 var _currentMonth = '';
+var _newCatAfterAdd = null; // name of category to auto-select after creation
 
-var _categoryIcons = { fuel: '⛽', food: '🍜', repair: '🔧', other: '📦' };
-var _categoryLabels = { fuel: 'Xăng', food: 'Ăn uống', repair: 'Sửa chữa', other: 'Khác' };
+var _defaultCategories = [
+  { name: 'fuel',    label: 'Xăng',     icon: '⛽' },
+  { name: 'food',    label: 'Ăn uống',  icon: '🍜' },
+  { name: 'repair',  label: 'Sửa chữa', icon: '🔧' },
+  { name: 'other',   label: 'Khác',     icon: '📦' }
+];
+
+var _customCategories = []; // { id, name, icon }
+
+function _getIconByName(name) {
+  for (var i = 0; i < _defaultCategories.length; i++) {
+    if (_defaultCategories[i].name === name) return _defaultCategories[i].icon;
+  }
+  for (var j = 0; j < _customCategories.length; j++) {
+    if (_customCategories[j].name === name) return _customCategories[j].icon || '📋';
+  }
+  return '📋';
+}
+
+function _getLabelByName(name) {
+  for (var i = 0; i < _defaultCategories.length; i++) {
+    if (_defaultCategories[i].name === name) return _defaultCategories[i].label;
+  }
+  return name || 'Khác'; // custom categories use name as label
+}
 
 function formatVND(amount) {
   if (amount == null || amount === '') return '0 đ';
@@ -43,7 +67,7 @@ function getParsedExpenseAmount() {
 function loadExpenses(monthStr) {
   _currentMonth = monthStr;
   var list = document.getElementById('expensesList');
-  list.innerHTML = '<div class="text-center text-muted py-8">Đang tải...</div>';
+  if (list) list.innerHTML = '<div class="text-center text-muted py-8">Đang tải...</div>';
 
   var parts = monthStr.split('-');
   var year = parts[0];
@@ -53,7 +77,6 @@ function loadExpenses(monthStr) {
   var startDate = year + '-' + month + '-01';
   var endDate = year + '-' + month + '-' + String(lastDay).padStart(2, '0');
 
-  // Fetch both expenses and custom categories in parallel
   Promise.all([
     fetch('/api/expenses?startDate=' + startDate + '&endDate=' + endDate).then(function(r) { return r.json(); }),
     fetch('/api/expenses/categories/all').then(function(r) { return r.json(); })
@@ -61,13 +84,17 @@ function loadExpenses(monthStr) {
     .then(function(results) {
       _expensesData = Array.isArray(results[0]) ? results[0] : (results[0].expenses || []);
       _customCategories = Array.isArray(results[1]) ? results[1] : [];
+
+      rebuildExpenseCategorySelect();
       rebuildCategoryTabs();
       updateTotal();
       renderExpenses();
     })
     .catch(function(e) {
-      document.getElementById('expensesList').innerHTML =
-        '<div class="text-center text-danger py-8">Lỗi: ' + e.message + '</div>';
+      if (document.getElementById('expensesList')) {
+        document.getElementById('expensesList').innerHTML =
+          '<div class="text-center text-danger py-8">Lỗi: ' + e.message + '</div>';
+      }
     });
 }
 
@@ -84,21 +111,16 @@ function renderExpenses() {
 
   var filtered = _currentCategory === 'all'
     ? _expensesData
-    : _currentCategory === 'other'
-      ? _expensesData.filter(function(e) {
-          var cat = e.category || 'other';
-          return cat === 'other' && !_customCategories.some(function(c) { return c.name === cat; });
-        })
-      : _expensesData.filter(function(e) { return e.category === _currentCategory; });
+    : _expensesData.filter(function(e) { return e.category === _currentCategory; });
 
   if (filtered.length === 0) {
     container.innerHTML = '';
     if (empty) empty.classList.remove('hidden');
+    renderSummaryCards({});
     return;
   }
   if (empty) empty.classList.add('hidden');
 
-  // Render summary by category
   var summary = {};
   for (var i = 0; i < _expensesData.length; i++) {
     var cat = _expensesData[i].category || 'other';
@@ -106,12 +128,11 @@ function renderExpenses() {
   }
   renderSummaryCards(summary);
 
-  // Render list
   var html = [];
   for (var j = 0; j < filtered.length; j++) {
     var e = filtered[j];
-    var icon = _categoryIcons[e.category] || '📦';
-    var catLabel = _categoryLabels[e.category] || e.category || 'Khác';
+    var icon = _getIconByName(e.category);
+    var catLabel = _getLabelByName(e.category);
     var dateStr = e.date ? e.date.split('T')[0].split('-').reverse().join('/') : '';
     html.push(
       '<div class="card p-3 flex items-center justify-between" data-expense-id="' + e.id + '">' +
@@ -137,17 +158,16 @@ function renderExpenses() {
 function renderSummaryCards(summary) {
   var el = document.getElementById('summaryCards');
   if (!el) return;
-  var cats = ['fuel', 'food', 'repair', 'other'];
+
+  var allCats = _defaultCategories.concat(_customCategories);
   var html = [];
-  for (var i = 0; i < cats.length; i++) {
-    var cat = cats[i];
-    var icon = _categoryIcons[cat];
-    var label = _categoryLabels[cat];
-    var amt = summary[cat] || 0;
+  for (var i = 0; i < allCats.length; i++) {
+    var cat = allCats[i];
+    var amt = summary[cat.name] || 0;
     html.push(
-      '<div class="card p-3 text-center" onclick="filterCategory(\'' + cat + '\')" style="cursor:pointer">' +
-        '<div class="text-xl mb-1">' + icon + '</div>' +
-        '<div class="text-sm text-muted">' + label + '</div>' +
+      '<div class="card p-3 text-center" onclick="filterCategory(\'' + cat.name.replace(/'/g, "\\'") + '\')" style="cursor:pointer">' +
+        '<div class="text-xl mb-1">' + cat.icon + '</div>' +
+        '<div class="text-sm text-muted">' + (cat.label || cat.name) + '</div>' +
         '<div class="font-bold tabular-nums money">' + formatVND(amt) + '</div>' +
       '</div>'
     );
@@ -168,16 +188,19 @@ function switchMonth(dir) {
 }
 
 function showAddExpense() {
+  _newCatAfterAdd = null;
   document.getElementById('modalTitle').textContent = 'Thêm chi phí';
   document.getElementById('expenseId').value = '';
   document.getElementById('expenseForm').reset();
   document.getElementById('expenseAmount').value = '';
+  rebuildExpenseCategorySelect();
   var m = document.getElementById('expenseModal');
   m.classList.remove('hidden');
   m.classList.add('flex');
 }
 
 function editExpense(id) {
+  _newCatAfterAdd = null;
   var exp = _expensesData.find(function(e) { return String(e.id) === String(id); });
   if (!exp) return;
   document.getElementById('modalTitle').textContent = 'Sửa chi phí';
@@ -185,6 +208,7 @@ function editExpense(id) {
   document.getElementById('expenseAmount').value = formatExpenseAmountField(
     String(Math.round(Number(exp.amount) || 0))
   );
+  rebuildExpenseCategorySelect();
   document.getElementById('expenseCategory').value = exp.category || 'other';
   document.getElementById('expenseNote').value = exp.note || '';
   var m = document.getElementById('expenseModal');
@@ -235,12 +259,74 @@ function deleteExpense(id) {
     .catch(function(err) { alert('Lỗi: ' + err.message); });
 }
 
-// ── Custom expense categories ──────────────────────────────────────────────
+// ── Dynamic expense category select ─────────────────────────────────────────
 
-var _customCategories = [];
+var _emojiList = [
+  '⛽','🍜','🔧','📦','📋','💡','🛠️','📉','👷','🏪',
+  '📢','🚗','🛵','🏠','💊','🎓','📱','💰','🎁','🍕',
+  '☕','🚌','✈️','🎬','📚','🎮','🏋️','🛒','💄','🔌',
+  '🔋','🛢️','🏗️','🌿','📦','🎯','📊','🧾'
+];
 
-function showAddCategoryModal() {
+function rebuildExpenseCategorySelect() {
+  var sel = document.getElementById('expenseCategory');
+  if (!sel) return;
+
+  var html = '';
+
+  for (var i = 0; i < _defaultCategories.length; i++) {
+    var cat = _defaultCategories[i];
+    html += '<option value="' + cat.name + '">' + cat.icon + ' ' + cat.label + '</option>';
+  }
+
+  for (var j = 0; j < _customCategories.length; j++) {
+    var cat = _customCategories[j];
+    html += '<option value="' + cat.name + '">' + (cat.icon || '📋') + ' ' + cat.name + '</option>';
+  }
+
+  html += '<option value="__add_new__">➕ Thêm loại mới...</option>';
+
+  sel.innerHTML = html;
+
+  if (_newCatAfterAdd) {
+    sel.value = _newCatAfterAdd;
+    _newCatAfterAdd = null;
+  }
+}
+
+// ── Emoji picker ─────────────────────────────────────────────────────────────
+
+function renderEmojiPicker() {
+  var picker = document.getElementById('emojiPicker');
+  if (!picker) return;
+  var html = '';
+  for (var i = 0; i < _emojiList.length; i++) {
+    html += '<button type="button" class="emoji-btn text-xl px-1 py-0.5 rounded hover:bg-muted transition" ' +
+            'onclick="selectEmoji(\'' + _emojiList[i].replace(/'/g, "\\'") + '\')" ' +
+            'data-emoji="' + _emojiList[i] + '">' + _emojiList[i] + '</button>';
+  }
+  picker.innerHTML = html;
+}
+
+function selectEmoji(emoji) {
+  document.getElementById('categoryIcon').value = emoji;
+  var btns = document.querySelectorAll('.emoji-btn');
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].classList.toggle('ring-2', btns[i].getAttribute('data-emoji') === emoji);
+    btns[i].classList.toggle('ring-primary', btns[i].getAttribute('data-emoji') === emoji);
+  }
+}
+
+// ── Category modal ───────────────────────────────────────────────────────────
+
+function showAddCategoryModal(fromSelect) {
+  if (fromSelect) {
+    _newCatAfterAdd = null; // will be set after creation
+  }
   document.getElementById('categoryName').value = '';
+  document.getElementById('categoryIcon').value = '📋';
+  selectEmoji('📋');
+  renderEmojiPicker();
   var m = document.getElementById('categoryModal');
   m.classList.remove('hidden');
   m.classList.add('flex');
@@ -255,77 +341,100 @@ function hideCategoryModal() {
 function saveCategory(e) {
   e.preventDefault();
   var name = document.getElementById('categoryName').value.trim();
+  var icon = document.getElementById('categoryIcon').value || '📋';
+
   if (!name || name.length < 2) {
     alert('Tên loại chi phí phải có ít nhất 2 ký tự.');
     return;
   }
+  if (name.length > 30) {
+    alert('Tên loại chi phí tối đa 30 ký tự.');
+    return;
+  }
+
+  hideCategoryModal();
+
   fetch('/api/expenses/categories', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: name })
+    body: JSON.stringify({ name: name, icon: icon })
   })
     .then(function(r) { return r.json(); })
     .then(function(result) {
-      hideCategoryModal();
-      loadCustomCategories();
-      alert('Đã thêm loại chi phí: ' + result.name);
+      // Reload categories then refresh select and auto-select
+      return fetch('/api/expenses/categories/all')
+        .then(function(r2) { return r2.json(); })
+        .then(function(data) {
+          _customCategories = Array.isArray(data) ? data : [];
+          rebuildExpenseCategorySelect();
+          rebuildCategoryTabs();
+          renderSummaryCards(_getSummaryByCategory());
+
+          // Auto-select newly created category in the dropdown
+          var sel = document.getElementById('expenseCategory');
+          if (sel && result.name) {
+            sel.value = result.name;
+            _newCatAfterAdd = result.name;
+          }
+        });
     })
     .catch(function(err) { alert('Lỗi: ' + err.message); });
 }
 
-function loadCustomCategories() {
-  fetch('/api/expenses/categories/all')
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      _customCategories = Array.isArray(data) ? data : [];
-      rebuildCategoryTabs();
-    })
-    .catch(function() {});
-}
+// ── Category tabs ────────────────────────────────────────────────────────────
 
 function rebuildCategoryTabs() {
-  // Build list of custom category names
-  var customNames = _customCategories.map(function(c) { return c.name; });
+  var container = document.getElementById('categoryTabs');
+  if (!container) return;
 
-  // Build HTML for each custom category as a new tab
-  var customHtml = customNames.map(function(name) {
-    return '<button data-custom-cat="' + name + '" class="cat-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap">' + name + '</button>';
-  }).join('');
+  var html = '<button onclick="filterCategory(\'all\')" class="cat-tab ' + (_currentCategory === 'all' ? 'active' : '') + ' px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-cat="all">Tất cả</button>';
 
-  // Insert after the "Khác" button, before "+ Thêm loại"
-  var addBtn = document.querySelector('[onclick="showAddCategoryModal()"]');
-  if (addBtn && addBtn.parentNode) {
-    var container = addBtn.parentNode;
-    // Remove old custom tabs
-    var oldCustoms = container.querySelectorAll('[data-custom-cat]');
-    for (var i = 0; i < oldCustoms.length; i++) {
-      oldCustoms[i].remove();
-    }
-    // Insert new ones before the add button
-    var placeholder = document.createElement('span');
-    placeholder.innerHTML = customHtml;
-    while (placeholder.firstChild) {
-      container.insertBefore(placeholder.firstChild, addBtn);
-    }
+  for (var i = 0; i < _defaultCategories.length; i++) {
+    var cat = _defaultCategories[i];
+    html += '<button onclick="filterCategory(\'' + cat.name + '\')" class="cat-tab ' + (_currentCategory === cat.name ? 'active' : '') + ' px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-cat="' + cat.name + '" data-icon="' + cat.icon + '">' + cat.icon + ' ' + cat.label + '</button>';
   }
 
-  // Wire up new custom filter clicks
-  var allCustomBtns = document.querySelectorAll('[data-custom-cat]');
-  for (var j = 0; j < allCustomBtns.length; j++) {
-    allCustomBtns[j].setAttribute('onclick', 'filterCategory(\'' + allCustomBtns[j].getAttribute('data-custom-cat').replace(/'/g, "\\'") + '\')');
+  for (var j = 0; j < _customCategories.length; j++) {
+    var cat = _customCategories[j];
+    html += '<button onclick="filterCategory(\'' + cat.name.replace(/'/g, "\\'") + '\')" class="cat-tab ' + (_currentCategory === cat.name ? 'active' : '') + ' px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-cat="' + cat.name + '" data-icon="' + (cat.icon || '📋') + '">' + (cat.icon || '📋') + ' ' + cat.name + '</button>';
   }
+
+  container.innerHTML = html;
 }
 
-// Override filterCategory to handle custom categories
 function filterCategory(cat) {
   _currentCategory = cat;
   var tabs = document.querySelectorAll('.cat-tab');
   for (var i = 0; i < tabs.length; i++) {
-    var customCat = tabs[i].getAttribute('data-custom-cat');
-    var isActive = customCat ? customCat === cat : tabs[i].dataset.cat === cat;
-    tabs[i].classList.toggle('active', isActive);
+    tabs[i].classList.toggle('active', tabs[i].dataset.cat === cat || tabs[i].getAttribute('data-custom-cat') === cat);
   }
   renderExpenses();
 }
 
-// custom categories are loaded in loadExpenses() together with expense data
+function _getSummaryByCategory() {
+  var summary = {};
+  for (var i = 0; i < _expensesData.length; i++) {
+    var cat = _expensesData[i].category || 'other';
+    summary[cat] = (summary[cat] || 0) + (Number(_expensesData[i].amount) || 0);
+  }
+  return summary;
+}
+
+// ── Handle "Add new category" option in select ───────────────────────────────
+
+document.addEventListener('DOMContentLoaded', function() {
+  var sel = document.getElementById('expenseCategory');
+  if (sel) {
+    sel.addEventListener('change', function() {
+      if (this.value === '__add_new__') {
+        showAddCategoryModal(true);
+        // Reset select to first option so user sees the dropdown in normal state
+        if (_newCatAfterAdd) {
+          this.value = _newCatAfterAdd;
+        } else {
+          this.value = 'other';
+        }
+      }
+    });
+  }
+});

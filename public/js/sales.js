@@ -1314,20 +1314,24 @@ function renderPagination() {
 
   const prevD = page === 1;
   const nextD = page === totalPages;
-  const btnOn  = 'h-11 w-full min-h-[44px] rounded-xl text-sm font-semibold btn btn-ghost border border-muted shadow-sm active:scale-[0.98] transition-colors';
-  const btnOff = 'h-11 w-full min-h-[44px] rounded-xl text-sm font-semibold border border-muted/30 bg-bg text-muted cursor-not-allowed opacity-60 pointer-events-none';
 
   container.insertAdjacentHTML('beforeend',
-    `<nav class="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] gap-2 mt-4 pt-3 border-t border-muted items-stretch" role="navigation" aria-label="Phân trang">
-      <button onclick="changeSalesPage(${page - 1})" ${prevD ? 'disabled' : ''} class="${prevD ? btnOff : btnOn}" aria-label="Trang trước">
-        <span class="text-lg leading-none" aria-hidden="true">‹</span><span>Trước</span>
+    `<nav class="flex items-center justify-center gap-3 mt-4 pt-3 border-t border-muted" role="navigation" aria-label="Phân trang">
+      <button onclick="changeSalesPage(${page - 1})" ${prevD ? 'disabled' : ''}
+        class="min-w-[44px] min-h-[44px] w-11 h-11 rounded-full flex items-center justify-center text-base font-semibold transition-all
+          ${prevD ? 'border border-muted/30 bg-bg text-muted cursor-not-allowed opacity-50 pointer-events-none' : 'border border-muted shadow-sm text-main hover:bg-bg-hover active:scale-90'}"
+        aria-label="Trang trước" aria-disabled="${prevD}">
+        ‹
       </button>
-      <div class="flex flex-col justify-center items-center px-2 min-w-[4.5rem] shrink-0 py-0.5">
-        <span class="text-sm font-bold text-main tabular-nums leading-tight">${page}/${totalPages}</span>
+      <div class="flex flex-col justify-center items-center min-w-[4.5rem]">
+        <span class="text-sm font-bold text-main tabular-nums leading-tight">${page} / ${totalPages}</span>
         <span class="text-[11px] text-muted leading-tight mt-0.5">${total} đơn</span>
       </div>
-      <button onclick="changeSalesPage(${page + 1})" ${nextD ? 'disabled' : ''} class="${nextD ? btnOff : btnOn}" aria-label="Trang sau">
-        <span>Sau</span><span class="text-lg leading-none" aria-hidden="true">›</span>
+      <button onclick="changeSalesPage(${page + 1})" ${nextD ? 'disabled' : ''}
+        class="min-w-[44px] min-h-[44px] w-11 h-11 rounded-full flex items-center justify-center text-base font-semibold transition-all
+          ${nextD ? 'border border-muted/30 bg-bg text-muted cursor-not-allowed opacity-50 pointer-events-none' : 'border border-muted shadow-sm text-main hover:bg-bg-hover active:scale-90'}"
+        aria-label="Trang sau" aria-disabled="${nextD}">
+        ›
       </button>
     </nav>`
   );

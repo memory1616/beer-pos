@@ -350,11 +350,12 @@ router.get('/categories/all', (req, res) => {
 // Add a new expense category
 router.post('/categories', (req, res) => {
   try {
-    const { name } = req.body;
+    const { name, icon } = req.body;
     if (!name || typeof name !== 'string' || name.trim().length < 2) {
       return res.status(400).json({ error: 'Tên loại chi phí phải có ít nhất 2 ký tự.' });
     }
     const trimmed = name.trim();
+    const emoji = (icon && typeof icon === 'string') ? icon.trim().slice(0, 8) : '📋';
 
     // Check duplicate
     const existing = db.prepare('SELECT id FROM expense_categories WHERE name = ?').get(trimmed);
@@ -362,12 +363,43 @@ router.post('/categories', (req, res) => {
       return res.status(409).json({ error: 'Loại chi phí này đã tồn tại.' });
     }
 
-    const result = db.prepare('INSERT INTO expense_categories (name) VALUES (?)').run(trimmed);
+    const result = db.prepare('INSERT INTO expense_categories (name, icon) VALUES (?, ?)').run(trimmed, emoji);
     const category = db.prepare('SELECT * FROM expense_categories WHERE id = ?').get(result.lastInsertRowid);
     res.status(201).json(category);
   } catch (err) {
     logger.error('Error creating expense category', { error: err.message });
     res.status(500).json({ error: 'Failed to create expense category' });
+  }
+});
+
+// Update expense category (icon or name)
+router.patch('/categories/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, icon } = req.body;
+
+    const existing = db.prepare('SELECT * FROM expense_categories WHERE id = ?').get(id);
+    if (!existing) {
+      return res.status(404).json({ error: 'Loại chi phí không tồn tại.' });
+    }
+
+    const newName = (name && typeof name === 'string' && name.trim().length >= 2) ? name.trim() : existing.name;
+    const newIcon = (icon && typeof icon === 'string') ? icon.trim().slice(0, 8) : existing.icon;
+
+    // Check duplicate name
+    if (newName !== existing.name) {
+      const dup = db.prepare('SELECT id FROM expense_categories WHERE name = ? AND id != ?').get(newName, id);
+      if (dup) {
+        return res.status(409).json({ error: 'Loại chi phí này đã tồn tại.' });
+      }
+    }
+
+    db.prepare('UPDATE expense_categories SET name = ?, icon = ? WHERE id = ?').run(newName, newIcon, id);
+    const updated = db.prepare('SELECT * FROM expense_categories WHERE id = ?').get(id);
+    res.json(updated);
+  } catch (err) {
+    logger.error('Error updating expense category', { error: err.message });
+    res.status(500).json({ error: 'Failed to update expense category' });
   }
 });
 

@@ -92,9 +92,23 @@
 
       if (pagination) {
         pagination.classList.remove('hidden');
-        pageInfo.textContent = 'Trang ' + historyCurrentPage + ' / ' + totalPages;
-        prevBtn.disabled = historyCurrentPage <= 1;
-        nextBtn.disabled = historyCurrentPage >= totalPages;
+        pageInfo.textContent = historyCurrentPage + ' / ' + totalPages;
+        var itemCountEl = document.getElementById('historyItemCount');
+        if (itemCountEl) itemCountEl.textContent = total + ' phiếu';
+        var prevD = historyCurrentPage <= 1;
+        var nextD = historyCurrentPage >= totalPages;
+        prevBtn.disabled = prevD;
+        nextBtn.disabled = nextD;
+        if (prevD) {
+          prevBtn.className = 'min-w-[44px] min-h-[44px] w-11 h-11 rounded-full flex items-center justify-center text-base font-semibold border border-muted/30 bg-bg text-muted cursor-not-allowed opacity-50 pointer-events-none';
+        } else {
+          prevBtn.className = 'min-w-[44px] min-h-[44px] w-11 h-11 rounded-full flex items-center justify-center text-base font-semibold border border-muted shadow-sm text-main hover:bg-bg-hover active:scale-90 transition-all';
+        }
+        if (nextD) {
+          nextBtn.className = 'min-w-[44px] min-h-[44px] w-11 h-11 rounded-full flex items-center justify-center text-base font-semibold border border-muted/30 bg-bg text-muted cursor-not-allowed opacity-50 pointer-events-none';
+        } else {
+          nextBtn.className = 'min-w-[44px] min-h-[44px] w-11 h-11 rounded-full flex items-center justify-center text-base font-semibold border border-muted shadow-sm text-main hover:bg-bg-hover active:scale-90 transition-all';
+        }
       }
     }
 
@@ -208,11 +222,18 @@
         <!-- Purchase History -->
         <div id="historySection" class="hidden">
           <div class="space-y-3" id="historyList"></div>
-          <div id="historyPagination" class="hidden mt-4 flex items-center justify-between">
-            <button type="button" id="historyPrev" class="btn btn-secondary px-4 h-10" disabled>← Trước</button>
-            <span id="historyPageInfo" class="text-sm text-muted">Trang 1 / 1</span>
-            <button type="button" id="historyNext" class="btn btn-secondary px-4 h-10" disabled>Sau →</button>
-          </div>
+          <nav id="historyPagination" class="hidden flex items-center justify-center gap-3 mt-4 pt-3 border-t border-muted" role="navigation" aria-label="Phân trang">
+            <button type="button" id="historyPrev" onclick="goToHistoryPage(historyCurrentPage - 1)"
+              class="min-w-[44px] min-h-[44px] w-11 h-11 rounded-full flex items-center justify-center text-base font-semibold border border-muted/30 bg-bg text-muted cursor-not-allowed opacity-50 pointer-events-none"
+              disabled aria-label="Trang trước">‹</button>
+            <div class="flex flex-col justify-center items-center min-w-[4.5rem]">
+              <span id="historyPageInfo" class="text-sm font-bold text-main tabular-nums leading-tight">1 / 1</span>
+              <span id="historyItemCount" class="text-[11px] text-muted leading-tight mt-0.5">0 phiếu</span>
+            </div>
+            <button type="button" id="historyNext" onclick="goToHistoryPage(historyCurrentPage + 1)"
+              class="min-w-[44px] min-h-[44px] w-11 h-11 rounded-full flex items-center justify-center text-base font-semibold border border-muted/30 bg-bg text-muted cursor-not-allowed opacity-50 pointer-events-none"
+              disabled aria-label="Trang sau">›</button>
+          </nav>
         </div>
       `) +
       getBottomNav('/purchases');
