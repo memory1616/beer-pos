@@ -1071,7 +1071,8 @@ async function saveKegUpdate() {
     onSuccess: async function(result) {
       if (btn) { btn.disabled = false; btn.textContent = 'Lưu'; }
       const custListRes = await fetch('/api/customers');
-      customers = await custListRes.json();
+      const custData = await custListRes.json();
+      customers = custData.customers || custData;
       window.store.customers = customers;
       _rebuildMaps();
 
@@ -1339,7 +1340,8 @@ async function submitCollectKeg() {
       if (btn) { btn.disabled = false; btn.textContent = 'Cập nhật vỏ'; }
 
       const custListRes = await fetch('/api/customers');
-      customers = await custListRes.json();
+      const custData = await custListRes.json();
+      customers = custData.customers || custData;
       window.store.customers = customers;
       _rebuildMaps();
 
