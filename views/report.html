@@ -9,11 +9,11 @@
   <meta name="mobile-web-app-capable" content="yes">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
-  
+
   <!-- PERFORMANCE: Preload layout.js for first paint -->
   <link rel="preload" href="/js/layout.js?v=20260414a" as="script">
   <link rel="preload" href="/css/unified.css?v=20260414a" as="style">
-  
+
   <link rel="stylesheet" href="/css/tailwind.css">
   <link rel="stylesheet" href="/css/unified.css?v=20260414a">
   <script src="/js/dark-mode.js"></script>
@@ -84,17 +84,24 @@
   <script src="/js/report.js"></script>
 
   <script>
-    var headerActions = '<div style="text-align:right;"><div id="periodLabel" class="text-xs text-muted" style="font-size:11px;">...</div><div id="headerProfit" class="money text-money font-bold tabular-nums" style="font-size:14px;">0đ</div></div>';
+    var headerActions = '<div style="text-align:right;"><div id="dateRangeLabel" class="text-xs text-muted" style="font-size:11px;">...</div><div id="headerProfit" class="money text-money font-bold tabular-nums" style="font-size:14px;">0đ</div></div>';
 
     document.getElementById('app').innerHTML =
       getHeaderWithActions('Báo cáo', '📊', headerActions) +
       getContent(`
-        <!-- Period filter tabs -->
-        <div class="flex gap-1 mb-4 overflow-x-auto">
-          <button onclick="switchPeriod('today')" class="period-tab active px-3 py-1.5 rounded-lg text-sm whitespace-nowrap flex-1" data-period="today">Hôm nay</button>
-          <button onclick="switchPeriod('yesterday')" class="period-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap flex-1" data-period="yesterday">Hôm qua</button>
-          <button onclick="switchPeriod('week')" class="period-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap flex-1" data-period="week">Tuần</button>
-          <button onclick="switchPeriod('thisMonth')" class="period-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap flex-1" data-period="thisMonth">Tháng</button>
+        <!-- Quick filter buttons -->
+        <div class="flex gap-1 mb-3 overflow-x-auto">
+          <button onclick="switchQuickFilter('today')" class="period-tab active px-3 py-1.5 rounded-lg text-sm whitespace-nowrap flex-1 text-center" data-period="today">Hôm nay</button>
+          <button onclick="switchQuickFilter('week')" class="period-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap flex-1 text-center" data-period="week">7 ngày</button>
+          <button onclick="switchQuickFilter('month')" class="period-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap flex-1 text-center" data-period="month">Tháng</button>
+        </div>
+
+        <!-- Date range picker -->
+        <div class="flex gap-2 mb-4 items-center">
+          <input type="date" id="filterFrom" class="flex-1 border border-muted rounded-lg px-3 py-2 text-sm bg-card text-main focus:outline-none focus:border-primary" />
+          <span class="text-muted text-sm shrink-0">→</span>
+          <input type="date" id="filterTo" class="flex-1 border border-muted rounded-lg px-3 py-2 text-sm bg-card text-main focus:outline-none focus:border-primary" />
+          <button onclick="applyDateRange()" class="bg-primary text-white px-3 py-2 rounded-lg text-sm font-semibold shrink-0 hover:opacity-90">Lọc</button>
         </div>
 
         <div class="grid grid-cols-2 gap-3 mb-4">
@@ -139,8 +146,9 @@
       `) +
       getBottomNav('/report');
 
-    // Initialize after layout is rendered so DOM elements exist
-    switchPeriod('thisMonth');
+    // Initialize date inputs to today, then load report
+    initDateInputs();
+    switchQuickFilter('today');
   </script>
 </body>
 </html>

@@ -1,16 +1,37 @@
 // BeerPOS Report Page
 // PERFORMANCE: Separated from HTML, lazy loaded on /report route
-var _currentPeriod = 'thisMonth';
 var _currentReportTab = 'sales';
 var _reportData = {};
 var _chart = null;
 
-var _periodLabels = {
+// Filter state: 'quick' | 'custom'
+// Quick filters use _quickPeriod ('today'|'week'|'month')
+// Custom uses from/to date inputs
+var _filterMode = 'quick';
+var _quickPeriod = 'today';
+var _quickLabels = {
   today: 'Hôm nay',
-  yesterday: 'Hôm qua',
   week: '7 ngày qua',
-  thisMonth: 'Tháng này'
+  month: 'Tháng này'
 };
+
+// Compute today's local date string (YYYY-MM-DD) in Vietnam timezone
+function getLocalToday() {
+  var now = new Date();
+  var vn = new Date(now.getTime() + 7 * 3600000);
+  var y = vn.getUTCFullYear();
+  var m = String(vn.getUTCMonth() + 1).padStart(2, '0');
+  var d = String(vn.getUTCDate()).padStart(2, '0');
+  return y + '-' + m + '-' + d;
+}
+
+function initDateInputs() {
+  var today = getLocalToday();
+  var fromEl = document.getElementById('filterFrom');
+  var toEl = document.getElementById('filterTo');
+  if (fromEl) fromEl.value = today;
+  if (toEl) toEl.value = today;
+}
 
 function formatVND(amount) {
   if (amount == null || amount === '') return '0 đ';
@@ -19,15 +40,68 @@ function formatVND(amount) {
   return new Intl.NumberFormat('vi-VN').format(num) + ' đ';
 }
 
-function switchPeriod(period) {
-  _currentPeriod = period;
-  var el = document.getElementById('periodLabel');
-  if (el) el.textContent = _periodLabels[period] || period;
+function switchQuickFilter(period) {
+  _filterMode = 'quick';
+  _quickPeriod = period;
+
+  // Highlight active quick filter tab
   var tabs = document.querySelectorAll('.period-tab');
   for (var i = 0; i < tabs.length; i++) {
     tabs[i].classList.toggle('active', tabs[i].dataset.period === period);
   }
+
+  // Clear date inputs and remove custom active
+  var fromEl = document.getElementById('filterFrom');
+  var toEl = document.getElementById('filterTo');
+  if (fromEl) fromEl.value = '';
+  if (toEl) toEl.value = '';
+
+  updateDateRangeLabel();
   loadReport();
+}
+
+function applyDateRange() {
+  var fromEl = document.getElementById('filterFrom');
+  var toEl = document.getElementById('filterTo');
+  if (!fromEl || !toEl || !fromEl.value || !toEl.value) {
+    return;
+  }
+  if (fromEl.value > toEl.value) {
+    return;
+  }
+  _filterMode = 'custom';
+
+  // Deselect quick filter tabs
+  var tabs = document.querySelectorAll('.period-tab');
+  for (var i = 0; i < tabs.length; i++) {
+    tabs[i].classList.remove('active');
+  }
+
+  updateDateRangeLabel();
+  loadReport();
+}
+
+function formatDisplayDate(dateStr) {
+  if (!dateStr) return '...';
+  var parts = dateStr.split('-');
+  if (parts.length !== 3) return dateStr;
+  return parts[2] + '/' + parts[1] + '/' + parts[0];
+}
+
+function updateDateRangeLabel() {
+  var labelEl = document.getElementById('dateRangeLabel');
+  if (!labelEl) return;
+
+  var fromEl = document.getElementById('filterFrom');
+  var toEl = document.getElementById('filterTo');
+
+  if (_filterMode === 'quick') {
+    labelEl.textContent = _quickLabels[_quickPeriod] || _quickLabels.today;
+  } else {
+    var f = fromEl && fromEl.value ? formatDisplayDate(fromEl.value) : '';
+    var t = toEl && toEl.value ? formatDisplayDate(toEl.value) : '';
+    labelEl.textContent = (f && t) ? (f + ' → ' + t) : '...';
+  }
 }
 
 function switchReportTab(tab) {
@@ -44,7 +118,18 @@ function switchReportTab(tab) {
 }
 
 function loadReport() {
-  fetch('/report/data?period=' + _currentPeriod)
+  var url = '/report/data?mode=' + _filterMode;
+
+  if (_filterMode === 'quick') {
+    url += '&period=' + _quickPeriod;
+  } else {
+    var fromEl = document.getElementById('filterFrom');
+    var toEl = document.getElementById('filterTo');
+    if (fromEl && fromEl.value) url += '&from=' + fromEl.value;
+    if (toEl && toEl.value) url += '&to=' + toEl.value;
+  }
+
+  fetch(url)
     .then(function(r) { return r.json(); })
     .then(function(data) {
       _reportData = data;
@@ -160,11 +245,13 @@ function renderProducts(products) {
   var html = [];
   for (var i = 0; i < products.length; i++) {
     var p = products[i];
+    var qty = p.quantity_sold || 0;
+    var orderCount = p.order_count || 0;
     html.push(
       '<div class="card p-3 flex items-center justify-between">' +
         '<div class="flex-1 min-w-0">' +
           '<div class="font-medium truncate">' + (p.name || '') + '</div>' +
-          '<div class="text-xs text-muted">' + (p.quantity_sold || 0) + ' bình</div>' +
+          '<div class="text-xs text-muted">🍺 ' + qty + ' bình' + (orderCount > 0 ? ' · ' + orderCount + ' đơn' : '') + '</div>' +
         '</div>' +
         '<div class="text-right ml-3">' +
           '<div class="font-bold tabular-nums">' + formatVND(p.revenue || 0) + '</div>' +
@@ -186,11 +273,13 @@ function renderCustomers(customers) {
   var html = [];
   for (var i = 0; i < customers.length; i++) {
     var c = customers[i];
+    var qty = c.quantity || 0;
+    var orderCount = c.order_count || 0;
     html.push(
       '<div class="card p-3 flex items-center justify-between">' +
         '<div class="flex-1 min-w-0">' +
           '<div class="font-medium truncate">' + (c.name || '') + '</div>' +
-          '<div class="text-xs text-muted">' + (c.order_count || 0) + ' đơn</div>' +
+          '<div class="text-xs text-muted">🍺 ' + qty + ' bình' + (orderCount > 0 ? ' · ' + orderCount + ' đơn' : '') + '</div>' +
         '</div>' +
         '<div class="text-right ml-3">' +
           '<div class="font-bold tabular-nums">' + formatVND(c.revenue || 0) + '</div>' +
