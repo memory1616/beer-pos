@@ -177,37 +177,59 @@ router.post('/update-kegs', (req, res) => {
   }
 
   try {
-    // Lấy số vỏ ĐÃ LƯU trước đó trong sale này
     const sale = db.prepare('SELECT deliver_kegs, return_kegs FROM sales WHERE id = ?').get(saleId);
-    const prevDeliver = sale?.deliver_kegs || 0;
-    const prevReturned = sale?.return_kegs || 0;
+    if (!sale) return res.status(404).json({ error: 'Không tìm thấy hóa đơn' });
 
-    // Tính DELTA để tránh cộng chồng khi mở modal lần 2
+    const prevDeliver = sale.deliver_kegs || 0;
+    const prevReturned = sale.return_kegs || 0;
+
     const deltaDeliver = deliver - prevDeliver;
     const deltaReturn  = returned - prevReturned;
-    const newlyCollected = Math.max(0, deltaReturn);
 
+    // Validation: không thể thu nhiều hơn khách đang giữ
+    // Mỗi đơn chỉ giữ tối đa (prevDeliver - prevReturned), nên:
+    // new_return <= (currentBalance + prevReturn)
     const customer = db.prepare('SELECT keg_balance FROM customers WHERE id = ?').get(customerId);
-    const currentKegBalance = customer ? customer.keg_balance : 0;
+    if (!customer) return res.status(404).json({ error: 'Không tìm thấy khách hàng' });
+
+    const currentKegBalance = customer.keg_balance || 0;
+    const maxAllowedReturn = currentKegBalance + prevReturned;
+    if (returned > maxAllowedReturn) {
+      return res.status(400).json({
+        error: `Không thể thu ${returned} vỏ. Khách chỉ giữ tối đa ${maxAllowedReturn} vỏ (${currentKegBalance} + ${prevReturned} đã thu trước).`
+      });
+    }
+
     const newKegBalance = currentKegBalance + deltaDeliver - deltaReturn;
 
-    // Use transaction for atomic operations
+    // Thunk: deltaReturn > 0 → thu thêm → cộng vào empty_collected
+    //       deltaReturn < 0 → giảm thu → trừ khỏi empty_collected
+    const newlyCollected = Math.max(0, deltaReturn);
+    const newlyReturnedToCustomer = Math.max(0, -deltaReturn); // giảm thu → trả vỏ lại cho khách
+
     const updateKegs = db.transaction(() => {
+      // 1. Update hóa đơn
       db.prepare('UPDATE sales SET deliver_kegs = ?, return_kegs = ?, keg_balance_after = ? WHERE id = ?')
         .run(deliver, returned, newKegBalance, saleId);
 
+      // 2. Update balance khách
       updateCustomerKegBalance(customerId, deltaDeliver, deltaReturn);
 
-      // Cộng vỏ mới thu được vào kho vỏ rỗng
-      if (newlyCollected > 0) {
-        const stats = db.prepare('SELECT inventory, empty_collected, customer_holding FROM keg_stats WHERE id = 1').get();
+      // 3. Update keg_stats.empty_collected
+      //    newlyCollected > 0   → thu thêm → empty_collected += newlyCollected
+      //    newlyReturnedToCustomer > 0 → giảm thu → empty_collected -= newlyReturnedToCustomer
+      if (newlyCollected > 0 || newlyReturnedToCustomer > 0) {
+        const stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
         const currentEmpty = stats?.empty_collected || 0;
-        const newEmpty = currentEmpty + newlyCollected;
+        const newEmpty = Math.max(0, currentEmpty + newlyCollected - newlyReturnedToCustomer);
         db.prepare('UPDATE keg_stats SET empty_collected = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1')
           .run(newEmpty);
+      }
 
-        const customer2 = db.prepare('SELECT name FROM customers WHERE id = ?').get(customerId);
+      // 4. Ghi log thu vỏ (chỉ khi thu thêm, không ghi khi giảm thu)
+      if (newlyCollected > 0) {
         const updatedStats = db.prepare('SELECT inventory, empty_collected, customer_holding FROM keg_stats WHERE id = 1').get();
+        const customer2 = db.prepare('SELECT name FROM customers WHERE id = ?').get(customerId);
         db.prepare(`
           INSERT INTO keg_transactions_log
             (type, quantity, customer_id, customer_name, inventory_after, empty_after, holding_after, note)
@@ -217,7 +239,7 @@ router.post('/update-kegs', (req, res) => {
           customerId,
           customer2?.name || '',
           updatedStats?.inventory || 0,
-          newEmpty,
+          updatedStats?.empty_collected || 0,
           updatedStats?.customer_holding || 0,
           `Thu vỏ qua đơn hàng #${saleId}`
         );

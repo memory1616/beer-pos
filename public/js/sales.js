@@ -744,6 +744,10 @@ async function openKegModal(saleId) {
   }
   document.getElementById('kegReturn').value = sale.return_kegs || 0;
 
+  // Clear old errors/warnings
+  document.getElementById('kegModalError').classList.add('hidden');
+  document.getElementById('kegModalWarning').classList.add('hidden');
+
   updateKegModalPreview();
 
   document.getElementById('kegModal').classList.remove('hidden');
@@ -865,13 +869,38 @@ function updateKegModalPreview() {
   const deltaReturn = returned - _kegModalPrevReturn;
   const newBalance = currentKegBalance + deltaDeliver - deltaReturn;
 
+  // Show old values
+  const oldDeliverEl = document.getElementById('kegDeliverOldLine');
+  const oldReturnEl = document.getElementById('kegReturnOldLine');
+  if (oldDeliverEl) {
+    oldDeliverEl.textContent = 'Giá trị cũ: ' + _kegModalPrevDeliver + (deltaDeliver !== 0 ? ' → ' + (deltaDeliver > 0 ? '+' + deltaDeliver : deltaDeliver) : ' (không đổi)');
+  }
+  if (oldReturnEl) {
+    const arrow = deltaReturn > 0 ? '+' + deltaReturn : (deltaReturn < 0 ? deltaReturn : '');
+    oldReturnEl.textContent = 'Giá trị cũ: ' + _kegModalPrevReturn + (deltaReturn !== 0 ? ' → ' + arrow : ' (không đổi)');
+  }
+
+  // Show balance preview
   document.getElementById('kegCurrentBalance').textContent = currentKegBalance;
   document.getElementById('kegNewBalance').textContent = newBalance;
 
+  const deltaRow = document.getElementById('kegBalanceDelta');
+  const deltaVal = document.getElementById('kegBalanceDeltaValue');
+  const delta = deltaDeliver - deltaReturn;
+  if (delta !== 0) {
+    deltaRow.style.display = 'flex';
+    deltaVal.textContent = (delta > 0 ? '+' + delta : delta) + ' vỏ';
+    deltaVal.className = 'font-semibold ' + (delta > 0 ? 'text-success' : 'text-danger');
+  } else {
+    deltaRow.style.display = 'none';
+  }
+
+  // Validation: new_return <= currentBalance + prevReturn
+  const maxAllowed = currentKegBalance + _kegModalPrevReturn;
   const warningEl = document.getElementById('kegModalWarning');
-  const heldFromThisSale = _kegModalPrevDeliver - _kegModalPrevReturn;
-  if (returned > heldFromThisSale) {
+  if (returned > maxAllowed) {
     warningEl.classList.remove('hidden');
+    warningEl.textContent = '⚠️ Không thể thu ' + returned + ' vỏ. Tối đa: ' + maxAllowed + ' (vỏ hiện tại ' + currentKegBalance + ' + đã thu ' + _kegModalPrevReturn + ')';
   } else {
     warningEl.classList.add('hidden');
   }
@@ -897,16 +926,26 @@ function returnAllKegs() {
 
 async function saveKegUpdate() {
   if (!currentKegSaleId || !currentKegCustomerId) return;
-  
+
   const deliverKegs = parseInt(String(document.getElementById('kegDeliver').value).trim(), 10) || 0;
   const returnKegs = parseInt(String(document.getElementById('kegReturn').value).trim(), 10) || 0;
-  
+
+  // Client-side validation: new_return <= currentBalance + prevReturn
+  const maxAllowedReturn = currentKegBalance + _kegModalPrevReturn;
+  const errorEl = document.getElementById('kegModalError');
+  if (returnKegs > maxAllowedReturn) {
+    errorEl.textContent = '⚠️ Không thể thu ' + returnKegs + ' vỏ. Tối đa: ' + maxAllowedReturn;
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  errorEl.classList.add('hidden');
+
   const res = await fetch('/api/sales/update-kegs', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ saleId: currentKegSaleId, customerId: currentKegCustomerId, deliver: deliverKegs, returned: returnKegs })
   });
-  
+
   const result = await res.json();
   if (res.ok) {
     const custListRes = await fetch('/api/customers');
@@ -920,7 +959,8 @@ async function saveKegUpdate() {
       loadData();
     }
   } else {
-    alert(result.error || 'Cập nhật vỏ thất bại');
+    errorEl.textContent = result.error || 'Cập nhật thất bại';
+    errorEl.classList.remove('hidden');
   }
 }
 
@@ -1057,6 +1097,9 @@ async function openCollectKegModal(saleId) {
   document.getElementById('collectKegCurrentBalance').textContent =
     `Hiện tại: ${_collectKegBalance} vỏ`;
 
+  // Clear old warning
+  document.getElementById('collectKegWarning').classList.add('hidden');
+
   document.getElementById('collectKegModal').classList.remove('hidden');
   document.getElementById('collectKegModal').classList.add('flex');
   updateCollectKegPreview();
@@ -1075,7 +1118,6 @@ function closeCollectKegModal() {
 function updateCollectKegPreview() {
   const deliver = parseInt(document.getElementById('collectKegDeliver').value, 10) || 0;
   const returned = parseInt(document.getElementById('collectKegReturn').value, 10) || 0;
-  // Giống server update-kegs: chỉ cộng phần CHÊNH so với đơn (balance DB đã phản ánh deliver/return cũ)
   const deltaDeliver = deliver - _collectKegPrevDeliver;
   const deltaReturn = returned - _collectKegPrevReturn;
   const newBalance = _collectKegBalance + deltaDeliver - deltaReturn;
@@ -1084,7 +1126,17 @@ function updateCollectKegPreview() {
   const dD = deltaDeliver === 0 ? '0' : (deltaDeliver > 0 ? '+' + deltaDeliver : String(deltaDeliver));
   const dR = deltaReturn === 0 ? '0' : (deltaReturn > 0 ? '+' + deltaReturn : String(deltaReturn));
   document.getElementById('collectKegInfo').textContent =
-    `Hiện tại: ${_collectKegBalance} vỏ · Chênh so với đơn: giao ${dD}, thu ${dR}`;
+    `Hiện tại: ${_collectKegBalance} vỏ · Chênh: giao ${dD}, thu ${dR}`;
+
+  // Validation: new_return <= currentBalance + prevReturn
+  const maxAllowed = _collectKegBalance + _collectKegPrevReturn;
+  const warningEl = document.getElementById('collectKegWarning');
+  if (returned > maxAllowed) {
+    warningEl.textContent = '⚠️ Không thể thu ' + returned + ' vỏ. Tối đa: ' + maxAllowed;
+    warningEl.classList.remove('hidden');
+  } else {
+    warningEl.classList.add('hidden');
+  }
 }
 
 async function submitCollectKeg() {
@@ -1095,6 +1147,15 @@ async function submitCollectKeg() {
 
   if (deliver < 0 || returned < 0) {
     alert('Số vỏ không hợp lệ');
+    return;
+  }
+
+  // Client-side validation
+  const maxAllowed = _collectKegBalance + _collectKegPrevReturn;
+  if (returned > maxAllowed) {
+    const warningEl = document.getElementById('collectKegWarning');
+    warningEl.textContent = '⚠️ Không thể thu ' + returned + ' vỏ. Tối đa: ' + maxAllowed;
+    warningEl.classList.remove('hidden');
     return;
   }
 

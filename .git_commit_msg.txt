@@ -1,7 +1,23 @@
-fix: invoice modal refreshes after keg updates
+fix: correct keg return delta update — no double subtraction, proper validation
 
-- Add _openInvoiceSaleId tracking variable to know which invoice is open
-- showInvoiceModal() saves the saleId when opened, reset when closed
-- Add refreshInvoiceIfOpen(saleId) helper to re-fetch and re-render invoice
-- saveKegUpdate() calls refreshInvoiceIfOpen after successful update
-- submitCollectKeg() calls refreshInvoiceIfOpen after successful update
+Backend (routes/api/sales.js):
+- POST /api/sales/update-kegs now handles deltaReturn < 0 (reduce return):
+  empty_collected -= |deltaReturn| when reducing collected kegs
+  prevReturn + currentBalance is returned to customer
+- Add validation: new_return <= prevReturn + currentBalance (server-side)
+  Returns 400 with specific error message if exceeded
+- Cleaned up redundant stats query inside transaction
+
+Client (public/js/sales.js):
+- saveKegUpdate(): add client-side validation before sending request
+  Show error in #kegModalError element, prevent save if invalid
+  Display server error on failure
+- submitCollectKeg(): same client-side validation with #collectKegWarning
+- updateKegModalPreview(): show old value, delta, and validate max return
+- updateCollectKegPreview(): same validation pattern
+- Clear error/warning on modal open
+
+UI (views/sales.html):
+- kegModal: add #kegDeliverOldLine, #kegReturnOldLine, #kegBalanceDelta
+- kegModal: add #kegModalError for validation errors
+- collectKegModal: add #collectKegWarning for validation errors
