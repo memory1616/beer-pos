@@ -459,7 +459,8 @@ app.get('/report/data', (req, res) => {
     var month = String(vn.getUTCMonth() + 1).padStart(2, '0');
     var day = String(vn.getUTCDate()).padStart(2, '0');
     var today = year + '-' + month + '-' + day;
-    var startDate, endDate = today + ' 23:59:59';
+    var startDate = today + ' 00:00:00';
+    var endDate = today + ' 23:59:59';
 
     // Always use date range comparison for consistency and correctness
     if (mode === 'custom' && fromParam && toParam) {
@@ -471,20 +472,28 @@ app.get('/report/data', (req, res) => {
     } else if (period === 'week') {
       var wa = new Date(vn); wa.setUTCDate(wa.getUTCDate() - 7);
       startDate = wa.getUTCFullYear() + '-' + String(wa.getUTCMonth()+1).padStart(2,'0') + '-' + String(wa.getUTCDate()).padStart(2,'0') + ' 00:00:00';
+      endDate = today + ' 23:59:59';
     } else {
       // month (default)
       startDate = year + '-' + month + '-01 00:00:00';
+      endDate = today + ' 23:59:59';
     }
 
     var db2 = require('./database');
 
-    // Detect if sales.date column exists, fallback to created_at for legacy DBs
+    // Detect which date column exists in sales table for backward compatibility
+    // Production DB has `date`, legacy DBs may have `created_at` instead
     var dateCol = 's.date';
     try {
-      db2.prepare('SELECT s.date FROM sales s LIMIT 1').get();
-    } catch(_) {
-      dateCol = 'COALESCE(s.date, s.created_at)';
-    }
+      var cols = db2.prepare("PRAGMA table_info(sales)").all().map(r => r.name);
+      if (!cols.includes('date')) {
+        if (cols.includes('created_at')) {
+          dateCol = 's.created_at';
+        } else {
+          dateCol = 's.date'; // will throw at query level, but at least we tried
+        }
+      }
+    } catch(_) {}
 
     // Use date >= ? AND date <= ? for all cases — consistent and correct
     var dateCond = dateCol + ' >= ? AND ' + dateCol + ' <= ?';
@@ -497,9 +506,9 @@ app.get('/report/data', (req, res) => {
       " ORDER BY datetime(" + dateCol + ") DESC LIMIT 50"
     ).all(...dateParams);
 
-    var revR = db2.prepare("SELECT COALESCE(SUM(total), 0) as t FROM sales WHERE (status IS NULL OR status != 'returned') AND type = 'sale' AND " + dateCond).get(...dateParams);
-    var profR = db2.prepare("SELECT COALESCE(SUM(profit), 0) as t FROM sales WHERE (status IS NULL OR status != 'returned') AND type = 'sale' AND " + dateCond).get(...dateParams);
-    var ordR = db2.prepare("SELECT COUNT(*) as t FROM sales WHERE (status IS NULL OR status != 'returned') AND type = 'sale' AND " + dateCond).get(...dateParams);
+    var revR = db2.prepare("SELECT COALESCE(SUM(total), 0) as t FROM sales WHERE (status IS NULL OR status != 'returned') AND type = 'sale' AND date >= ? AND date <= ?").get(...dateParams);
+    var profR = db2.prepare("SELECT COALESCE(SUM(profit), 0) as t FROM sales WHERE (status IS NULL OR status != 'returned') AND type = 'sale' AND date >= ? AND date <= ?").get(...dateParams);
+    var ordR = db2.prepare("SELECT COUNT(*) as t FROM sales WHERE (status IS NULL OR status != 'returned') AND type = 'sale' AND date >= ? AND date <= ?").get(...dateParams);
     var totalRevenue = revR ? revR.t : 0;
     var totalProfit = profR ? profR.t : 0;
     var totalOrders = ordR ? ordR.t : 0;
@@ -513,17 +522,19 @@ app.get('/report/data', (req, res) => {
 
     var profitByProduct = db2.prepare(
       'SELECT p.id, p.name, p.type, SUM(si.quantity) as quantity_sold, COUNT(DISTINCT si.sale_id) as order_count, SUM(si.quantity * si.price) as revenue, SUM(si.quantity * si.cost_price) as cost, SUM(si.profit) as profit FROM sale_items si JOIN products p ON p.id = si.product_id JOIN sales s ON s.id = si.sale_id WHERE (s.status IS NULL OR s.status != \'returned\') AND ' + dateCond +
-      ' GROUP BY p.id ORDER BY profit DESC LIMIT 20'
+      ' GROUP BY p.id ORDER BY SUM(si.profit) DESC LIMIT 20'
     ).all(...dateParams);
 
     // profitByCustomer: date range applied via subquery for quantity
+    // Use dateCondSub (no 's.' prefix) for the subquery which uses bare 'date' column
+    var dateCondSub = 'date >= ? AND date <= ?';
     var profitByCustomer = db2.prepare(
       "SELECT c.id, c.name, COUNT(s.id) as order_count, SUM(s.total) as revenue, SUM(s.profit) as profit, " +
       "(SELECT COALESCE(SUM(si.quantity), 0) FROM sale_items si WHERE si.sale_id IN " +
-      "  (SELECT id FROM sales WHERE customer_id = c.id AND type = 'sale' AND (status IS NULL OR status != 'returned') AND " + dateCond.replace('s.', '') + ")) as quantity " +
+      "  (SELECT id FROM sales WHERE customer_id = c.id AND type = 'sale' AND (status IS NULL OR status != 'returned') AND " + dateCondSub + ")) as quantity " +
       "FROM sales s JOIN customers c ON c.id = s.customer_id WHERE s.type = 'sale' AND " + dateCond +
       " GROUP BY c.id ORDER BY profit DESC LIMIT 20"
-    ).all(...dateParams);
+    ).all(...dateParams, ...dateParams);
 
     res.json({ sales, totalRevenue, totalProfit, totalOrders, totalExpense, daily, profitByProduct, profitByCustomer });
   } catch(e) {
