@@ -476,17 +476,25 @@ app.get('/report/data', (req, res) => {
       startDate = year + '-' + month + '-01 00:00:00';
     }
 
-    var startDay = startDate.split(' ')[0];
-    var endDay = endDate.split(' ')[0];
     var db2 = require('./database');
 
+    // Detect if sales.date column exists, fallback to created_at for legacy DBs
+    var dateCol = 's.date';
+    try {
+      db2.prepare('SELECT s.date FROM sales s LIMIT 1').get();
+    } catch(_) {
+      dateCol = 'COALESCE(s.date, s.created_at)';
+    }
+
     // Use date >= ? AND date <= ? for all cases — consistent and correct
-    var dateCond = 's.date >= ? AND s.date <= ?';
+    var dateCond = dateCol + ' >= ? AND ' + dateCol + ' <= ?';
     var dateParams = [startDate, endDate];
+    var startDay = startDate.split(' ')[0];
+    var endDay = endDate.split(' ')[0];
 
     var sales = db2.prepare(
       "SELECT s.id, s.customer_id, s.date, s.total, s.profit, s.type, s.deliver_kegs, s.return_kegs, COALESCE(c.name, 'Khách lẻ') as customer_name, (SELECT COALESCE(SUM(si.quantity), 0) FROM sale_items si WHERE si.sale_id = s.id) as quantity FROM sales s LEFT JOIN customers c ON c.id = s.customer_id WHERE (s.status IS NULL OR s.status != 'returned') AND " + dateCond +
-      " ORDER BY datetime(s.date) DESC LIMIT 50"
+      " ORDER BY datetime(" + dateCol + ") DESC LIMIT 50"
     ).all(...dateParams);
 
     var revR = db2.prepare("SELECT COALESCE(SUM(total), 0) as t FROM sales WHERE (status IS NULL OR status != 'returned') AND type = 'sale' AND " + dateCond).get(...dateParams);
@@ -499,8 +507,8 @@ app.get('/report/data', (req, res) => {
     try { var expR = db2.prepare('SELECT COALESCE(SUM(amount), 0) as t FROM expenses WHERE date >= ? AND date <= ?').get(startDay, endDay); totalExpense = expR ? expR.t : 0; } catch(_){}
 
     var daily = db2.prepare(
-      "SELECT date(s.date) as date, COALESCE(SUM(s.total), 0) as revenue, COALESCE(SUM(s.profit), 0) as profit, COALESCE((SELECT SUM(e.amount) FROM expenses e WHERE date(e.date) = date(s.date)), 0) as expense FROM sales s WHERE (s.status IS NULL OR s.status != 'returned') AND " + dateCond +
-      " GROUP BY date(s.date) ORDER BY date DESC LIMIT 30"
+      "SELECT date(" + dateCol + ") as date, COALESCE(SUM(s.total), 0) as revenue, COALESCE(SUM(s.profit), 0) as profit, COALESCE((SELECT SUM(e.amount) FROM expenses e WHERE date(e.date) = date(" + dateCol + ")), 0) as expense FROM sales s WHERE (s.status IS NULL OR s.status != 'returned') AND " + dateCond +
+      " GROUP BY date(" + dateCol + ") ORDER BY date DESC LIMIT 30"
     ).all(...dateParams);
 
     var profitByProduct = db2.prepare(
@@ -512,10 +520,10 @@ app.get('/report/data', (req, res) => {
     var profitByCustomer = db2.prepare(
       "SELECT c.id, c.name, COUNT(s.id) as order_count, SUM(s.total) as revenue, SUM(s.profit) as profit, " +
       "(SELECT COALESCE(SUM(si.quantity), 0) FROM sale_items si WHERE si.sale_id IN " +
-      "  (SELECT id FROM sales WHERE customer_id = c.id AND type = 'sale' AND (status IS NULL OR status != 'returned') AND date >= ? AND date <= ?)) as quantity " +
+      "  (SELECT id FROM sales WHERE customer_id = c.id AND type = 'sale' AND (status IS NULL OR status != 'returned') AND " + dateCond.replace('s.', '') + ")) as quantity " +
       "FROM sales s JOIN customers c ON c.id = s.customer_id WHERE s.type = 'sale' AND " + dateCond +
       " GROUP BY c.id ORDER BY profit DESC LIMIT 20"
-    ).all(startDate, endDate, ...dateParams);
+    ).all(...dateParams);
 
     res.json({ sales, totalRevenue, totalProfit, totalOrders, totalExpense, daily, profitByProduct, profitByCustomer });
   } catch(e) {

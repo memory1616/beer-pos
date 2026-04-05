@@ -248,6 +248,18 @@ try {
   // Column already exists, ignore
 }
 
+// Backwards-compat view: if legacy DB has no date column, populate it from created_at
+// This ensures all s.date references in queries work on both old and new DBs
+try {
+  // Only populate if date column exists but most rows are NULL/empty
+  const nullCount = db.prepare("SELECT COUNT(*) as c FROM sales WHERE date IS NULL OR date = ''").get();
+  if (nullCount && nullCount.c > 0) {
+    db.prepare("UPDATE sales SET date = COALESCE(created_at, date, CURRENT_TIMESTAMP) WHERE date IS NULL OR date = ''").run();
+  }
+} catch (e) {
+  // Ignore — column may not exist yet or other DB errors
+}
+
 try {
   db.exec(`ALTER TABLE sale_items ADD COLUMN cost_price REAL DEFAULT 0`);
 } catch (e) {
