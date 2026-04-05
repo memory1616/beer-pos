@@ -1349,4 +1349,182 @@ router.get('/import-purchases', (req, res) => {
   `);
 });
 
+// GET /report/data — JSON API for the mobile report SPA page (views/report.html)
+// Supports filter types: today | yesterday | month | year
+router.get('/data', (req, res) => {
+  const type = req.query.type || 'today';
+  const month = req.query.month ? parseInt(req.query.month, 10) : null;
+  const year  = req.query.year  ? parseInt(req.query.year, 10)  : null;
+  let startDate, endDate, todayKey;
+
+  const now = new Date();
+  const vn  = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+  const vnYear  = vn.getUTCFullYear();
+  const vnMonth = vn.getUTCMonth() + 1;
+  const vnDay   = vn.getUTCDate();
+  todayKey = vnYear + '-' + String(vnMonth).padStart(2, '0') + '-' + String(vnDay).padStart(2, '0');
+
+  if (type === 'today') {
+    startDate = todayKey + ' 00:00:00';
+    endDate   = todayKey + ' 23:59:59';
+  } else if (type === 'yesterday') {
+    const yesterday = new Date(vn);
+    yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+    const y = yesterday.getUTCFullYear();
+    const m = String(yesterday.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(yesterday.getUTCDate()).padStart(2, '0');
+    startDate = `${y}-${m}-${d} 00:00:00`;
+    endDate   = `${y}-${m}-${d} 23:59:59`;
+  } else if (type === 'month') {
+    const y = year  || vnYear;
+    const m = month || vnMonth;
+    const lastDay = new Date(y, m, 0).getUTCDate();
+    startDate = `${y}-${String(m).padStart(2, '0')}-01 00:00:00`;
+    endDate   = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')} 23:59:59`;
+  } else if (type === 'year') {
+    const y = year || vnYear;
+    startDate = `${y}-01-01 00:00:00`;
+    endDate   = `${y}-12-31 23:59:59`;
+  } else {
+    // Default: today
+    startDate = todayKey + ' 00:00:00';
+    endDate   = todayKey + ' 23:59:59';
+  }
+
+  const sd = startDate.split(' ')[0];
+  const ed = endDate.split(' ')[0];
+
+  // ── Sales ──────────────────────────────────────────────────────────────────
+  const periodSales = db.prepare(`
+    SELECT id, date, total, profit, customer_id
+    FROM sales
+    WHERE date(datetime(date, '+7 hours')) >= date(?) AND date(datetime(date, '+7 hours')) <= date(?)
+      AND (status IS NULL OR status != 'returned')
+  `).all(sd, ed);
+
+  const customerIds = [...new Set(periodSales.map(s => s.customer_id).filter(Boolean))];
+  const customerMap = {};
+  if (customerIds.length > 0) {
+    const customers = db.prepare(
+      'SELECT id, name FROM customers WHERE id IN (' + customerIds.map(() => '?').join(',') + ')'
+    ).all(...customerIds);
+    customers.forEach(c => { customerMap[c.id] = c.name; });
+  }
+
+  const salesWithNames = periodSales.map(s => ({
+    ...s,
+    customer_name: customerMap[s.customer_id] || 'Khách lẻ'
+  }));
+
+  const totalRevenue = periodSales.reduce((sum, s) => sum + (s.total || 0), 0);
+  const totalProfit  = periodSales.reduce((sum, s) => sum + (s.profit || 0), 0);
+  const totalOrders  = periodSales.length;
+
+  const dailySales = db.prepare(`
+    SELECT date(datetime(date, '+7 hours')) as date,
+           COALESCE(SUM(total), 0) as revenue,
+           COALESCE(SUM(profit), 0) as profit
+    FROM sales
+    WHERE date(datetime(date, '+7 hours')) >= date(?) AND date(datetime(date, '+7 hours')) <= date(?)
+      AND (status IS NULL OR status != 'returned')
+    GROUP BY date(datetime(date, '+7 hours'))
+    ORDER BY date(datetime(date, '+7 hours')) DESC
+    LIMIT 30
+  `).all(sd, ed);
+
+  const profitByProduct = db.prepare(`
+    SELECT p.id, p.name,
+           COALESCE(SUM(si.quantity), 0) as quantity_sold,
+           COALESCE(SUM(si.quantity * si.price), 0) as revenue,
+           COALESCE(SUM(si.profit), 0) as profit,
+           COUNT(DISTINCT si.sale_id) as order_count
+    FROM sale_items si
+    JOIN products p ON p.id = si.product_id
+    JOIN sales s ON s.id = si.sale_id
+    WHERE date(datetime(s.date, '+7 hours')) >= date(?) AND date(datetime(s.date, '+7 hours')) <= date(?)
+      AND (s.status IS NULL OR s.status != 'returned')
+    GROUP BY p.id
+    ORDER BY quantity_sold DESC
+    LIMIT 20
+  `).all(sd, ed);
+
+  const profitByCustomer = db.prepare(`
+    SELECT c.id, c.name,
+           COALESCE(SUM(s.total), 0) as revenue,
+           COALESCE(SUM(s.profit), 0) as profit,
+           COUNT(DISTINCT s.id) as order_count,
+           COALESCE(SUM(si.quantity), 0) as quantity
+    FROM sales s
+    LEFT JOIN customers c ON c.id = s.customer_id
+    LEFT JOIN sale_items si ON si.sale_id = s.id
+    WHERE date(datetime(s.date, '+7 hours')) >= date(?) AND date(datetime(s.date, '+7 hours')) <= date(?)
+      AND (s.status IS NULL OR s.status != 'returned')
+      AND c.id IS NOT NULL
+    GROUP BY c.id
+    ORDER BY revenue DESC
+    LIMIT 20
+  `).all(sd, ed, sd, ed);
+
+  const totalExpense = db.prepare(`
+    SELECT COALESCE(SUM(amount), 0) as total
+    FROM expenses
+    WHERE date(datetime(date, '+7 hours')) >= date(?) AND date(datetime(date, '+7 hours')) <= date(?)
+  `).get(sd, ed).total;
+
+  // ── Purchases ───────────────────────────────────────────────────────────────
+  const purchases = db.prepare(`
+    SELECT p.id, p.date, p.total_amount, p.note
+    FROM purchases p
+    WHERE date(datetime(p.date, '+7 hours')) >= date(?) AND date(datetime(p.date, '+7 hours')) <= date(?)
+    ORDER BY datetime(p.date) DESC, p.id DESC
+    LIMIT 100
+  `).all(sd, ed);
+
+  const purchaseStats = db.prepare(`
+    SELECT COUNT(*) as slip_count,
+           COALESCE(SUM(total_amount), 0) as total_amount
+    FROM purchases
+    WHERE date(datetime(date, '+7 hours')) >= date(?) AND date(datetime(date, '+7 hours')) <= date(?)
+  `).get(sd, ed);
+
+  const dailyPurchases = db.prepare(`
+    SELECT date(datetime(date, '+7 hours')) as date,
+           COALESCE(SUM(total_amount), 0) as amount
+    FROM purchases
+    WHERE date(datetime(date, '+7 hours')) >= date(?) AND date(datetime(date, '+7 hours')) <= date(?)
+    GROUP BY date(datetime(date, '+7 hours'))
+    ORDER BY date(datetime(date, '+7 hours')) DESC
+    LIMIT 30
+  `).all(sd, ed);
+
+  const purchaseByProduct = db.prepare(`
+    SELECT pr.id, pr.name,
+           COALESCE(SUM(pi.quantity), 0) as qty,
+           COALESCE(SUM(pi.total_price), 0) as amount
+    FROM purchase_items pi
+    JOIN purchases pu ON pu.id = pi.purchase_id
+    JOIN products pr ON pr.id = pi.product_id
+    WHERE date(datetime(pu.date, '+7 hours')) >= date(?) AND date(datetime(pu.date, '+7 hours')) <= date(?)
+    GROUP BY pr.id
+    ORDER BY amount DESC
+    LIMIT 20
+  `).all(sd, ed);
+
+  res.json({
+    sales:              salesWithNames,
+    totalRevenue,
+    totalProfit,
+    totalOrders,
+    totalExpense,
+    daily:              dailySales,
+    profitByProduct,
+    profitByCustomer,
+    purchases,
+    purchaseTotalAmount: purchaseStats.total_amount || 0,
+    purchaseSlipCount:   purchaseStats.slip_count   || 0,
+    purchaseDaily:       dailyPurchases,
+    purchaseByProduct
+  });
+});
+
 module.exports = router;

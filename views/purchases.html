@@ -263,15 +263,15 @@
     var _ric = window.requestIdleCallback || function(cb) { return setTimeout(cb, 200); };
     _ric(function() {
       var s1 = document.createElement('script');
-      s1.src = '/js/vendor/dexie.min.js?v=20260404b';
+      s1.src = '/js/vendor/dexie.min.js?v=20260405';
       document.head.appendChild(s1);
       s1.onload = function() {
         var s2 = document.createElement('script');
-        s2.src = '/db.js?v=20260404b';
+        s2.src = '/db.js?v=20260405';
         document.head.appendChild(s2);
         s2.onload = function() {
           var s3 = document.createElement('script');
-          s3.src = '/sync.js?v=20260404b';
+          s3.src = '/sync.js?v=20260405';
           document.head.appendChild(s3);
         };
       };
@@ -280,7 +280,7 @@
 
     if ('serviceWorker' in navigator) {
       if (!navigator.serviceWorker.controller) {
-        navigator.serviceWorker.register('/sw.js?v=20260404b').catch(function() {});
+        navigator.serviceWorker.register('/sw.js?v=20260405b').catch(function() {});
       }
     }
   </script>

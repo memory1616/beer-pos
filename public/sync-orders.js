@@ -38,7 +38,10 @@ function openSWDB() {
   const RETRY_DELAY = 100;
 
   function attemptOpen(resolve, reject, attempt) {
-    const request = indexedDB.open('BeerPOS', 31);
+    // Open WITHOUT version — db.js is the single source of truth for schema.
+    // This context only reads/writes existing stores (orders_queue).
+    const request = indexedDB.open('BeerPOS');
+
     request.onerror = () => {
       if (attempt < MAX_RETRIES) {
         setTimeout(() => attemptOpen(resolve, reject, attempt + 1), RETRY_DELAY);

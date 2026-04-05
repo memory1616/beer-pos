@@ -375,17 +375,17 @@
       }
 
       var s1 = document.createElement('script');
-      s1.src = '/db.js?v=20260404b';
+      s1.src = '/db.js?v=20260405';
       document.head.appendChild(s1);
 
       var s2 = document.createElement('script');
-      s2.src = '/sync.js?v=20260404b';
+      s2.src = '/sync.js?v=20260405';
       document.head.appendChild(s2);
     }, { timeout: 5000 });
 
     if ('serviceWorker' in navigator) {
       if (!navigator.serviceWorker.controller) {
-        navigator.serviceWorker.register('/sw.js?v=20260404b').catch(function() {});
+        navigator.serviceWorker.register('/sw.js?v=20260405b').catch(function() {});
       }
     }
   </script>
@@ -548,7 +548,7 @@
           // Load sync.js dynamically if not yet loaded
           await new Promise((resolve, reject) => {
             const s = document.createElement('script');
-            s.src = '/sync.js?v=20260404b';
+            s.src = '/sync.js?v=20260405';
             s.onload = resolve;
             s.onerror = reject;
             document.head.appendChild(s);
@@ -565,7 +565,7 @@
         } else {
           await new Promise((resolve, reject) => {
             const s = document.createElement('script');
-            s.src = '/sync.js?v=20260404b';
+            s.src = '/sync.js?v=20260405';
             s.onload = resolve;
             s.onerror = reject;
             document.head.appendChild(s);
@@ -582,7 +582,7 @@
         } else {
           await new Promise((resolve, reject) => {
             const s = document.createElement('script');
-            s.src = '/sync.js?v=20260404b';
+            s.src = '/sync.js?v=20260405';
             s.onload = resolve;
             s.onerror = reject;
             document.head.appendChild(s);
@@ -679,7 +679,7 @@
 
   // Register service worker
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js?v=20260404b').then(reg => {
+    navigator.serviceWorker.register('/sw.js?v=20260405b').then(reg => {
       console.log('[App] Service Worker registered');
       reg.addEventListener('updatefound', () => {
         if (typeof showToast === 'function') {

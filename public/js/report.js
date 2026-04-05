@@ -1,107 +1,139 @@
-// BeerPOS Report Page
-// PERFORMANCE: Separated from HTML, lazy loaded on /report route
+// BeerPOS Report Page - Filter: preset tabs + month/year dropdowns
 var _currentReportTab = 'sales';
 var _reportData = {};
 var _chart = null;
 
-// Filter state: 'quick' | 'custom'
-// Quick filters use _quickPeriod ('today'|'week'|'month')
-// Custom uses from/to date inputs
-var _filterMode = 'quick';
-var _quickPeriod = 'today';
-var _quickLabels = {
-  today: 'Hôm nay',
-  week: '7 ngày qua',
-  month: 'Tháng này'
-};
+// Filter state: 'today' | 'yesterday' | 'month' | 'year'
+var _filterType = 'today';
+var _selectedMonth = new Date().getMonth() + 1;
+var _selectedYear  = new Date().getFullYear();
 
-// Compute today's local date string (YYYY-MM-DD) in Vietnam timezone
 function getLocalToday() {
   var now = new Date();
-  var vn = new Date(now.getTime() + 7 * 3600000);
-  var y = vn.getUTCFullYear();
-  var m = String(vn.getUTCMonth() + 1).padStart(2, '0');
-  var d = String(vn.getUTCDate()).padStart(2, '0');
+  var vn  = new Date(now.getTime() + 7 * 3600000);
+  var y   = vn.getUTCFullYear();
+  var m   = String(vn.getUTCMonth() + 1).padStart(2, '0');
+  var d   = String(vn.getUTCDate()).padStart(2, '0');
   return y + '-' + m + '-' + d;
 }
 
-function initDateInputs() {
-  var today = getLocalToday();
-  var fromEl = document.getElementById('filterFrom');
-  var toEl = document.getElementById('filterTo');
-  if (fromEl) fromEl.value = today;
-  if (toEl) toEl.value = today;
+function getMonthName(m) {
+  return ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6',
+          'Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'][m - 1] || ('Tháng ' + m);
 }
+
+function getYearOptions(current) {
+  var currentYear = new Date().getFullYear();
+  var opts = [];
+  for (var i = currentYear; i >= currentYear - 4; i--) {
+    opts.push('<option value="' + i + '"' + (i === current ? ' selected' : '') + '>' + i + '</option>');
+  }
+  return opts.join('');
+}
+
+function getPeriodLabel() {
+  if (_filterType === 'today')    return 'Hôm nay, ' + getLocalToday().split('-').reverse().join('/');
+  if (_filterType === 'yesterday') return 'Hôm qua';
+  if (_filterType === 'month')    return getMonthName(_selectedMonth) + ' ' + _selectedYear;
+  if (_filterType === 'year')     return 'Năm ' + _selectedYear;
+  return '';
+}
+
+function updatePeriodLabel() {
+  var el = document.getElementById('periodLabel');
+  if (el) el.textContent = getPeriodLabel();
+}
+
+function initFilter() {
+  var yearEl = document.getElementById('selYear');
+  if (yearEl) yearEl.innerHTML = getYearOptions(_selectedYear);
+
+  var monthEl = document.getElementById('selMonth');
+  if (monthEl) monthEl.value = _selectedMonth;
+
+  // Set active tab — default "Hôm nay"
+  activateTab('today');
+  updatePeriodLabel();
+  loadReport();
+}
+
+function activateTab(type) {
+  _filterType = type;
+  var tabs = document.querySelectorAll('.period-tab[data-type]');
+  for (var i = 0; i < tabs.length; i++) {
+    tabs[i].classList.toggle('active', tabs[i].dataset.type === type);
+  }
+}
+
+function switchFilterType(type) {
+  activateTab(type);
+  updatePeriodLabel();
+  loadReport();
+}
+
+function toggleMonthDropdown() {
+  closeAllDropdowns();
+  var el = document.getElementById('monthDropdown');
+  if (el) el.classList.toggle('hidden');
+  // Highlight month tab as active while dropdown is open
+  var btn = document.getElementById('btnMonth');
+  if (btn) btn.classList.toggle('active', !document.getElementById('monthDropdown').classList.contains('hidden'));
+}
+
+function toggleYearDropdown() {
+  closeAllDropdowns();
+  var el = document.getElementById('yearDropdown');
+  if (el) el.classList.toggle('hidden');
+  var btn = document.getElementById('btnYear');
+  if (btn) btn.classList.toggle('active', !document.getElementById('yearDropdown').classList.contains('hidden'));
+}
+
+function closeAllDropdowns() {
+  var dropdowns = document.querySelectorAll('#monthDropdown, #yearDropdown');
+  for (var i = 0; i < dropdowns.length; i++) {
+    dropdowns[i].classList.add('hidden');
+  }
+  // Reset dropdown tabs to reflect actual _filterType
+  var btnMonth = document.getElementById('btnMonth');
+  var btnYear  = document.getElementById('btnYear');
+  if (btnMonth) btnMonth.classList.toggle('active', _filterType === 'month');
+  if (btnYear)  btnYear.classList.toggle('active',  _filterType === 'year');
+}
+
+function applyMonthYear() {
+  var monthEl = document.getElementById('selMonth');
+  var yearEl  = document.getElementById('selYear');
+  if (monthEl) _selectedMonth = parseInt(monthEl.value, 10);
+  if (yearEl)  _selectedYear  = parseInt(yearEl.value, 10);
+
+  closeAllDropdowns();
+  activateTab('month');
+  updatePeriodLabel();
+  loadReport();
+}
+
+function applyYear() {
+  var yearEl = document.getElementById('selYear');
+  if (yearEl) _selectedYear = parseInt(yearEl.value, 10);
+
+  closeAllDropdowns();
+  activateTab('year');
+  updatePeriodLabel();
+  loadReport();
+}
+
+// Close dropdowns on outside click
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.filter-tab-wrap')) {
+    closeAllDropdowns();
+  }
+});
 
 function formatVND(amount) {
   if (amount == null || amount === '') return '0 đ';
   var num = Number(amount);
   if (isNaN(num)) return '0 đ';
   return new Intl.NumberFormat('vi-VN').format(num) + ' đ';
-}
-
-function switchQuickFilter(period) {
-  _filterMode = 'quick';
-  _quickPeriod = period;
-
-  // Highlight active quick filter tab
-  var tabs = document.querySelectorAll('.period-tab');
-  for (var i = 0; i < tabs.length; i++) {
-    tabs[i].classList.toggle('active', tabs[i].dataset.period === period);
-  }
-
-  // Clear date inputs and remove custom active
-  var fromEl = document.getElementById('filterFrom');
-  var toEl = document.getElementById('filterTo');
-  if (fromEl) fromEl.value = '';
-  if (toEl) toEl.value = '';
-
-  updateDateRangeLabel();
-  loadReport();
-}
-
-function applyDateRange() {
-  var fromEl = document.getElementById('filterFrom');
-  var toEl = document.getElementById('filterTo');
-  if (!fromEl || !toEl || !fromEl.value || !toEl.value) {
-    return;
-  }
-  if (fromEl.value > toEl.value) {
-    return;
-  }
-  _filterMode = 'custom';
-
-  // Deselect quick filter tabs
-  var tabs = document.querySelectorAll('.period-tab');
-  for (var i = 0; i < tabs.length; i++) {
-    tabs[i].classList.remove('active');
-  }
-
-  updateDateRangeLabel();
-  loadReport();
-}
-
-function formatDisplayDate(dateStr) {
-  if (!dateStr) return '...';
-  var parts = dateStr.split('-');
-  if (parts.length !== 3) return dateStr;
-  return parts[2] + '/' + parts[1] + '/' + parts[0];
-}
-
-function updateDateRangeLabel() {
-  var labelEl = document.getElementById('dateRangeLabel');
-  if (!labelEl) return;
-
-  var fromEl = document.getElementById('filterFrom');
-  var toEl = document.getElementById('filterTo');
-
-  if (_filterMode === 'quick') {
-    labelEl.textContent = _quickLabels[_quickPeriod] || _quickLabels.today;
-  } else {
-    var f = fromEl && fromEl.value ? formatDisplayDate(fromEl.value) : '';
-    var t = toEl && toEl.value ? formatDisplayDate(toEl.value) : '';
-    labelEl.textContent = (f && t) ? (f + ' → ' + t) : '...';
-  }
 }
 
 function switchReportTab(tab) {
@@ -118,15 +150,11 @@ function switchReportTab(tab) {
 }
 
 function loadReport() {
-  var url = '/report/data?mode=' + _filterMode;
-
-  if (_filterMode === 'quick') {
-    url += '&period=' + _quickPeriod;
-  } else {
-    var fromEl = document.getElementById('filterFrom');
-    var toEl = document.getElementById('filterTo');
-    if (fromEl && fromEl.value) url += '&from=' + fromEl.value;
-    if (toEl && toEl.value) url += '&to=' + toEl.value;
+  var url = '/report/data?type=' + _filterType;
+  if (_filterType === 'month') {
+    url += '&month=' + _selectedMonth + '&year=' + _selectedYear;
+  } else if (_filterType === 'year') {
+    url += '&year=' + _selectedYear;
   }
 
   fetch(url)
@@ -138,21 +166,22 @@ function loadReport() {
       renderSales(data.sales || []);
       renderProducts(data.profitByProduct || []);
       renderCustomers(data.profitByCustomer || []);
+      renderPurchases(data.purchases || [], data.purchaseTotalAmount || 0, data.purchaseSlipCount || 0);
     })
     .catch(function(e) { console.error('Load report error:', e); });
 }
 
 function updateSummary(data) {
-  var revenue = data.totalRevenue || 0;
-  var grossProfit = data.totalProfit || 0;
-  var orders = data.totalOrders || 0;
-  var expense = data.totalExpense || 0;
-  var netProfit = grossProfit - expense;
+  var revenue    = data.totalRevenue  || 0;
+  var grossProfit = data.totalProfit   || 0;
+  var orders     = data.totalOrders     || 0;
+  var expense    = data.totalExpense    || 0;
+  var netProfit  = grossProfit - expense;
 
   var el;
   el = document.getElementById('statRevenue'); if (el) el.textContent = formatVND(revenue);
-  el = document.getElementById('statProfit'); if (el) el.textContent = formatVND(netProfit);
-  el = document.getElementById('statOrders'); if (el) el.textContent = orders;
+  el = document.getElementById('statProfit');  if (el) el.textContent = formatVND(netProfit);
+  el = document.getElementById('statOrders');  if (el) el.textContent = orders;
   el = document.getElementById('statExpense'); if (el) el.textContent = formatVND(expense);
   el = document.getElementById('headerProfit'); if (el) el.textContent = formatVND(netProfit);
 }
@@ -175,8 +204,8 @@ function buildChart(data) {
   var canvas = document.getElementById('chartCanvas');
   if (!canvas || !window.Chart) return;
 
-  var labels = [];
-  var revenues = [];
+  var labels     = [];
+  var revenues   = [];
   var netProfits = [];
 
   var daily = data.daily || [];
@@ -196,7 +225,7 @@ function buildChart(data) {
     data: {
       labels: labels,
       datasets: [
-        { label: 'Doanh thu', data: revenues, backgroundColor: 'rgba(59,130,246,0.5)' },
+        { label: 'Doanh thu',      data: revenues,   backgroundColor: 'rgba(59,130,246,0.5)' },
         { label: 'Lợi nhuận ròng', data: netProfits, backgroundColor: 'rgba(34,197,94,0.5)' }
       ]
     },
@@ -289,4 +318,42 @@ function renderCustomers(customers) {
     );
   }
   el.innerHTML = html.join('');
+}
+
+function renderPurchases(purchases, totalAmount, slipCount) {
+  var el = document.getElementById('purchasesList');
+  if (!el) return;
+
+  var summaryHtml =
+    '<div class="grid grid-cols-2 gap-2 mb-3">' +
+      '<div class="card p-3 text-center">' +
+        '<div class="text-xs text-muted">Tổng tiền nhập</div>' +
+        '<div class="font-bold text-danger tabular-nums" style="font-size:14px;">' + formatVND(totalAmount) + '</div>' +
+      '</div>' +
+      '<div class="card p-3 text-center">' +
+        '<div class="text-xs text-muted">Số phiếu</div>' +
+        '<div class="font-bold tabular-nums" style="font-size:14px;">' + slipCount + '</div>' +
+      '</div>' +
+    '</div>';
+
+  if (!purchases || purchases.length === 0) {
+    el.innerHTML = summaryHtml + '<div class="text-center text-muted py-4">Không có phiếu nhập</div>';
+    return;
+  }
+  var html = [];
+  for (var i = 0; i < purchases.length; i++) {
+    var p = purchases[i];
+    var dateStr = p.date ? p.date.split('T')[0].split('-').reverse().join('/') : '';
+    html.push(
+      '<div class="card p-3">' +
+        '<div class="flex justify-between items-start mb-1">' +
+          '<div class="font-bold text-primary">#' + p.id + '</div>' +
+          '<div class="text-xs text-muted">' + dateStr + '</div>' +
+        '</div>' +
+        '<div class="font-bold text-danger tabular-nums mb-1">' + formatVND(p.total_amount || 0) + '</div>' +
+        (p.note ? '<div class="text-xs text-muted italic">' + p.note + '</div>' : '') +
+      '</div>'
+    );
+  }
+  el.innerHTML = summaryHtml + html.join('');
 }

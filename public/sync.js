@@ -390,53 +390,60 @@ function getCloudUrl() {
 }
 window.getCloudUrl = getCloudUrl;
 
-// ── PERFORMANCE: Singleton DB — open once, reuse across all functions ─────────────
-// Previously, every function called openSWDB() again, causing:
-//   1. Opening IndexedDB is async with ~10ms overhead each time
-//   2. Each openSWDB() inside the same transaction scope gets blocked
-//   3. countPendingQueue + syncQueueToCloud race on DB version mismatches
-// Now: one open, resolved promise cached in _dbPromise, all callers await it.
-
-let _dbPromise = null;
-
-async function getDB() {
-  if (!_dbPromise) {
-    _dbPromise = openSWDB();
-    // Re-open on next load if page reloads (promise is page-scoped)
-  }
-  return _dbPromise;
-}
-
-// ── PERFORMANCE: Cache pending count — avoid repeated IndexedDB queries ────────────
+// ─── Pending count cache — avoid repeated IndexedDB queries ───────────────────
 // updateSmartStatus() and updateCloudModalStatus() both call countPendingQueue()
 // within the same event-loop tick when triggered together.
-// Cache for 5s so rapid callers (online event + auto-sync + UI update) share one query.
-
+// Cache for 5s so rapid callers share one DB query.
 let _pendingCache = { count: -1, ts: 0 };
-const _PENDING_CACHE_TTL = 5000; // 5 seconds
+const _PENDING_CACHE_TTL = 5000;
 
 function _getCachedPending() {
   if (Date.now() - _pendingCache.ts < _PENDING_CACHE_TTL) return _pendingCache.count;
-  return -1; // cache miss
+  return -1;
 }
 
 function _setCachedPending(count) {
   _pendingCache = { count, ts: Date.now() };
 }
 
-function _invalidatePending() { _pendingCache.ts = 0; } // call after mutations
+function _invalidatePending() { _pendingCache.ts = 0; }
 
-// Open IndexedDB (same DB name as sw.js)
+// ─── DB Opening — no version specified ──────────────────────────────────────
+// We do NOT hardcode a version here because:
+//   • db.js is the single source of truth for DB schema and version
+//   • Dexie automatically escalates to max(existing, code) version
+//   • This file only uses existing stores (sync_queue), never creates/alters schema
+//   • Hardcoding a version causes "VersionError: requested version (31) less than
+//     existing (N)" when db.js bumps the schema to a higher version.
+//
+// How it works:
+//   • First open (no version) → gets existing version from disk
+//   • onupgradeneeded fires ONLY if this context knows about a higher version
+//     (which this context doesn't — it just uses existing stores)
+//   • sync_queue store is created here as a safety net for pure SW standalone usage
+// ─────────────────────────────────────────────────────────────────────────────
+
 const SW_DB_NAME = 'BeerPOS';
-const SW_STORE = 'sync_queue';
+const SW_STORE   = 'sync_queue';
 
-// Retry wrapper to handle race conditions with other DB openers (db.js, sw.js)
+let _dbPromise = null;
+
+async function getDB() {
+  if (!_dbPromise) {
+    _dbPromise = openSWDB();
+  }
+  return _dbPromise;
+}
+
 function openSWDB() {
   const MAX_RETRIES = 3;
   const RETRY_DELAY = 100;
 
   function attemptOpen(resolve, reject, attempt) {
-    const req = indexedDB.open(SW_DB_NAME, 31);
+    // Open WITHOUT version — let the browser use whatever version is on disk.
+    // db.js owns schema changes. This file only reads/writes existing stores.
+    const req = indexedDB.open(SW_DB_NAME);
+
     req.onerror = () => {
       if (attempt < MAX_RETRIES) {
         setTimeout(() => attemptOpen(resolve, reject, attempt + 1), RETRY_DELAY);
@@ -447,6 +454,8 @@ function openSWDB() {
     req.onsuccess = () => resolve(req.result);
     req.onupgradeneeded = (event) => {
       const db = event.target.result;
+      // Safety net: create sync_queue if it doesn't exist.
+      // This handles the case where this JS runs before db.js initializes.
       if (!db.objectStoreNames.contains(SW_STORE)) {
         const store = db.createObjectStore(SW_STORE, {
           keyPath: 'id',
@@ -454,6 +463,7 @@ function openSWDB() {
         });
         store.createIndex('synced', 'synced', { unique: false });
         store.createIndex('created_at', 'created_at', { unique: false });
+        store.createIndex('dedup', 'dedup_key', { unique: false });
       }
     };
   }
