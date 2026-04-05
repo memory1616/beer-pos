@@ -475,13 +475,57 @@ app.get('/report/data', (req, res) => {
     var endDay = endDate.split(' ')[0];
     var db2 = require('./database');
 
+    // dates stored as YYYY-MM-DD HH:MM:SS — use LIKE for day matching, strftime for month
     var sales = db2.prepare(
-      "SELECT s.id, s.customer_id, s.date, s.total, s.profit, s.type, s.deliver_kegs, s.return_kegs, COALESCE(c.name, 'Khách lẻ') as customer_name, (SELECT COALESCE(SUM(si.quantity), 0) FROM sale_items si WHERE si.sale_id = s.id) as quantity FROM sales s LEFT JOIN customers c ON c.id = s.customer_id WHERE s.date >= ? AND s.date <= ? AND (s.status IS NULL OR s.status != 'returned') ORDER BY datetime(s.date) DESC LIMIT 50"
-    ).all(startDate, endDate);
+      "SELECT s.id, s.customer_id, s.date, s.total, s.profit, s.type, s.deliver_kegs, s.return_kegs, COALESCE(c.name, 'Khách lẻ') as customer_name, (SELECT COALESCE(SUM(si.quantity), 0) FROM sale_items si WHERE si.sale_id = s.id) as quantity FROM sales s LEFT JOIN customers c ON c.id = s.customer_id WHERE (s.status IS NULL OR s.status != 'returned') AND " +
+      (period === 'thisMonth' || period === 'lastMonth'
+        ? "strftime('%Y-%m', s.date) = ?"
+        : period === 'today'
+        ? "s.date LIKE ?"
+        : period === 'yesterday'
+        ? "s.date LIKE ?"
+        : "s.date >= ? AND s.date <= ?") +
+      " ORDER BY datetime(s.date) DESC LIMIT 50"
+    ).all(...(period === 'thisMonth' || period === 'lastMonth'
+      ? [startDay.slice(0, 7)]
+      : period === 'today' || period === 'yesterday'
+      ? [startDay + '%']
+      : [startDate, endDate]));
 
-    var revR = db2.prepare("SELECT COALESCE(SUM(total), 0) as t FROM sales WHERE date >= ? AND date <= ? AND type = 'sale' AND (status IS NULL OR status != 'returned')").get(startDate, endDate);
-    var profR = db2.prepare("SELECT COALESCE(SUM(profit), 0) as t FROM sales WHERE date >= ? AND date <= ? AND type = 'sale' AND (status IS NULL OR status != 'returned')").get(startDate, endDate);
-    var ordR = db2.prepare("SELECT COUNT(*) as t FROM sales WHERE date >= ? AND date <= ? AND type = 'sale' AND (status IS NULL OR status != 'returned')").get(startDate, endDate);
+    // Build same query pattern for revenue/profit/order
+    var revR = db2.prepare("SELECT COALESCE(SUM(total), 0) as t FROM sales WHERE (status IS NULL OR status != 'returned') AND type = 'sale' AND " +
+      (period === 'thisMonth' || period === 'lastMonth'
+        ? "strftime('%Y-%m', date) = ?"
+        : period === 'today' || period === 'yesterday'
+        ? "date LIKE ?"
+        : "date >= ? AND date <= ?")
+    ).get(...(period === 'thisMonth' || period === 'lastMonth'
+      ? [startDay.slice(0, 7)]
+      : period === 'today' || period === 'yesterday'
+      ? [startDay + '%']
+      : [startDate, endDate]));
+    var profR = db2.prepare("SELECT COALESCE(SUM(profit), 0) as t FROM sales WHERE (status IS NULL OR status != 'returned') AND type = 'sale' AND " +
+      (period === 'thisMonth' || period === 'lastMonth'
+        ? "strftime('%Y-%m', date) = ?"
+        : period === 'today' || period === 'yesterday'
+        ? "date LIKE ?"
+        : "date >= ? AND date <= ?")
+    ).get(...(period === 'thisMonth' || period === 'lastMonth'
+      ? [startDay.slice(0, 7)]
+      : period === 'today' || period === 'yesterday'
+      ? [startDay + '%']
+      : [startDate, endDate]));
+    var ordR = db2.prepare("SELECT COUNT(*) as t FROM sales WHERE (status IS NULL OR status != 'returned') AND type = 'sale' AND " +
+      (period === 'thisMonth' || period === 'lastMonth'
+        ? "strftime('%Y-%m', date) = ?"
+        : period === 'today' || period === 'yesterday'
+        ? "date LIKE ?"
+        : "date >= ? AND date <= ?")
+    ).get(...(period === 'thisMonth' || period === 'lastMonth'
+      ? [startDay.slice(0, 7)]
+      : period === 'today' || period === 'yesterday'
+      ? [startDay + '%']
+      : [startDate, endDate]));
     var totalRevenue = revR ? revR.t : 0;
     var totalProfit = profR ? profR.t : 0;
     var totalOrders = ordR ? ordR.t : 0;
@@ -489,16 +533,46 @@ app.get('/report/data', (req, res) => {
     try { var expR = db2.prepare('SELECT COALESCE(SUM(amount), 0) as t FROM expenses WHERE date >= ? AND date <= ?').get(startDay, endDay); totalExpense = expR ? expR.t : 0; } catch(_){}
 
     var daily = db2.prepare(
-      "SELECT date(s.date) as date, COALESCE(SUM(s.total), 0) as revenue, COALESCE(SUM(s.profit), 0) as profit FROM sales s WHERE s.date >= ? AND s.date <= ? AND (s.status IS NULL OR s.status != 'returned') GROUP BY date(s.date) ORDER BY date DESC LIMIT 30"
-    ).all(startDate, endDate);
+      "SELECT date(s.date) as date, COALESCE(SUM(s.total), 0) as revenue, COALESCE(SUM(s.profit), 0) as profit, COALESCE((SELECT SUM(e.amount) FROM expenses e WHERE date(e.date) = date(s.date)), 0) as expense FROM sales s WHERE (s.status IS NULL OR s.status != 'returned') AND " +
+      (period === 'thisMonth' || period === 'lastMonth'
+        ? "strftime('%Y-%m', s.date) = ?"
+        : period === 'today' || period === 'yesterday'
+        ? "s.date LIKE ?"
+        : "s.date >= ? AND s.date <= ?") +
+      " GROUP BY date(s.date) ORDER BY date DESC LIMIT 30"
+    ).all(...(period === 'thisMonth' || period === 'lastMonth'
+      ? [startDay.slice(0, 7)]
+      : period === 'today' || period === 'yesterday'
+      ? [startDay + '%']
+      : [startDate, endDate]));
 
     var profitByProduct = db2.prepare(
-      'SELECT p.id, p.name, p.type, SUM(si.quantity) as total_qty, SUM(si.quantity * si.price) as revenue, SUM(si.quantity * si.cost_price) as cost, SUM(si.profit) as profit FROM sale_items si JOIN products p ON p.id = si.product_id JOIN sales s ON s.id = si.sale_id WHERE s.date >= ? AND s.date <= ? GROUP BY p.id ORDER BY profit DESC LIMIT 20'
-    ).all(startDate, endDate);
+      'SELECT p.id, p.name, p.type, SUM(si.quantity) as total_qty, SUM(si.quantity * si.price) as revenue, SUM(si.quantity * si.cost_price) as cost, SUM(si.profit) as profit FROM sale_items si JOIN products p ON p.id = si.product_id JOIN sales s ON s.id = si.sale_id WHERE ' +
+      (period === 'thisMonth' || period === 'lastMonth'
+        ? "strftime('%Y-%m', s.date) = ?"
+        : period === 'today' || period === 'yesterday'
+        ? "s.date LIKE ?"
+        : "s.date >= ? AND s.date <= ?") +
+      ' GROUP BY p.id ORDER BY profit DESC LIMIT 20'
+    ).all(...(period === 'thisMonth' || period === 'lastMonth'
+      ? [startDay.slice(0, 7)]
+      : period === 'today' || period === 'yesterday'
+      ? [startDay + '%']
+      : [startDate, endDate]));
 
     var profitByCustomer = db2.prepare(
-      "SELECT c.id, c.name, COUNT(s.id) as total_orders, SUM(s.total) as revenue, SUM(s.profit) as profit FROM sales s JOIN customers c ON c.id = s.customer_id WHERE s.date >= ? AND s.date <= ? AND s.type = 'sale' GROUP BY c.id ORDER BY profit DESC LIMIT 20"
-    ).all(startDate, endDate);
+      "SELECT c.id, c.name, COUNT(s.id) as total_orders, SUM(s.total) as revenue, SUM(s.profit) as profit FROM sales s JOIN customers c ON c.id = s.customer_id WHERE s.type = 'sale' AND " +
+      (period === 'thisMonth' || period === 'lastMonth'
+        ? "strftime('%Y-%m', s.date) = ?"
+        : period === 'today' || period === 'yesterday'
+        ? "s.date LIKE ?"
+        : "s.date >= ? AND s.date <= ?") +
+      " GROUP BY c.id ORDER BY profit DESC LIMIT 20"
+    ).all(...(period === 'thisMonth' || period === 'lastMonth'
+      ? [startDay.slice(0, 7)]
+      : period === 'today' || period === 'yesterday'
+      ? [startDay + '%']
+      : [startDate, endDate]));
 
     res.json({ sales, totalRevenue, totalProfit, totalOrders, totalExpense, daily, profitByProduct, profitByCustomer });
   } catch(e) {

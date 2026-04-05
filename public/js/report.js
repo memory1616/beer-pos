@@ -59,16 +59,17 @@ function loadReport() {
 
 function updateSummary(data) {
   var revenue = data.totalRevenue || 0;
-  var profit = data.totalProfit || 0;
+  var grossProfit = data.totalProfit || 0;
   var orders = data.totalOrders || 0;
   var expense = data.totalExpense || 0;
+  var netProfit = grossProfit - expense;
 
   var el;
   el = document.getElementById('statRevenue'); if (el) el.textContent = formatVND(revenue);
-  el = document.getElementById('statProfit'); if (el) el.textContent = formatVND(profit);
+  el = document.getElementById('statProfit'); if (el) el.textContent = formatVND(netProfit);
   el = document.getElementById('statOrders'); if (el) el.textContent = orders;
   el = document.getElementById('statExpense'); if (el) el.textContent = formatVND(expense);
-  el = document.getElementById('headerProfit'); if (el) el.textContent = formatVND(profit);
+  el = document.getElementById('headerProfit'); if (el) el.textContent = formatVND(netProfit);
 }
 
 function renderChart(data) {
@@ -91,18 +92,18 @@ function buildChart(data) {
 
   var labels = [];
   var revenues = [];
-  var profits = [];
+  var netProfits = [];
 
   var daily = data.daily || [];
   for (var i = 0; i < daily.length; i++) {
     var d = daily[i];
     labels.push(d.date ? d.date.split('-').reverse().slice(0, 2).join('/') : '');
     revenues.push(d.revenue || 0);
-    profits.push(d.profit || 0);
+    netProfits.push((d.profit || 0) - (d.expense || 0));
   }
   labels.reverse();
   revenues.reverse();
-  profits.reverse();
+  netProfits.reverse();
 
   if (_chart) _chart.destroy();
   _chart = new window.Chart(canvas, {
@@ -111,7 +112,7 @@ function buildChart(data) {
       labels: labels,
       datasets: [
         { label: 'Doanh thu', data: revenues, backgroundColor: 'rgba(59,130,246,0.5)' },
-        { label: 'Lợi nhuận', data: profits, backgroundColor: 'rgba(34,197,94,0.5)' }
+        { label: 'Lợi nhuận ròng', data: netProfits, backgroundColor: 'rgba(34,197,94,0.5)' }
       ]
     },
     options: {
