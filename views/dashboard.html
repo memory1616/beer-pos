@@ -14,7 +14,8 @@
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
 
-  <!-- PERFORMANCE: Preload critical path — Chart.js renders canvas on first paint -->
+  <!-- PERFORMANCE: Preload critical path — layout.js needed for first paint -->
+  <link rel="preload" href="/js/layout.js?v=20260414a" as="script">
   <link rel="preload" href="/js/vendor/chart.umd.min.js?v=09c3fcd" as="script">
   <link rel="preload" href="/css/tailwind.css" as="style">
   <link rel="preload" href="/css/unified.css?v=20260414" as="style">
@@ -30,16 +31,145 @@
   <!-- Critical-first: auth, dark-mode (sync, blocks page render) -->
   <script src="/js/auth.js"></script>
   <script src="/js/dark-mode.js"></script>
+  <script src="/js/layout.js?v=20260414a"></script>
   <!-- Heavy/deferred scripts (don't block first paint) -->
   <script src="/js/vendor/dexie.min.js" defer></script>
-  <script src="/js/layout.js?v=20260414a"></script>
   <script src="/js/format.js" defer></script>
   <script src="/js/utils.js" defer></script>
   <!-- Chart.js (70KB minified) — needed for initial canvas render, load after auth -->
   <script src="/js/vendor/chart.umd.min.js"></script>
   <script src="/js/dashboard.js?v=20260404-perf"></script>
+
+  <!-- CLS Prevention: Inline skeleton for header (matches layout.js getHeader dimensions) -->
+  <style>
+    .skeleton-header {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 56px;
+      background: var(--color-card, #fff);
+      border-bottom: 1px solid var(--color-border, #e2e8f0);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      padding-top: env(safe-area-inset-top, 0px);
+      z-index: 50;
+      box-sizing: border-box;
+    }
+    .skeleton-logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      opacity: 0.6;
+    }
+    .skeleton-icon {
+      width: 20px;
+      height: 20px;
+      background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: 4px;
+    }
+    .skeleton-text {
+      height: 16px;
+      width: 80px;
+      background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: 4px;
+    }
+    .skeleton-actions {
+      display: flex;
+      gap: 8px;
+    }
+    .skeleton-btn {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: 6px;
+    }
+    @keyframes shimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+    .skeleton-nav {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: 64px;
+      background: var(--color-card, #fff);
+      border-top: 3px solid var(--color-primary, #f59e0b);
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      z-index: 50;
+      max-width: 500px;
+      margin: 0 auto;
+      box-sizing: border-box;
+    }
+    .skeleton-nav-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      opacity: 0.5;
+    }
+    .skeleton-nav-icon {
+      width: 20px;
+      height: 20px;
+      background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: 4px;
+    }
+    .skeleton-nav-text {
+      width: 24px;
+      height: 11px;
+      background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: 2px;
+    }
+    [data-theme="dark"] .skeleton-icon,
+    [data-theme="dark"] .skeleton-text,
+    [data-theme="dark"] .skeleton-btn,
+    [data-theme="dark"] .skeleton-nav-icon,
+    [data-theme="dark"] .skeleton-nav-text {
+      background: linear-gradient(90deg, #334155 25%, #475569 50%, #334155 75%);
+      background-size: 200% 100%;
+    }
+    [data-theme="dark"] .skeleton-header {
+      background: rgba(30, 41, 59, 0.95);
+      border-bottom-color: #334155;
+    }
+    [data-theme="dark"] .skeleton-nav {
+      background: rgba(30, 41, 59, 0.95);
+    }
+  </style>
 </head>
 <body class="bg-main text-primary min-h-screen">
+  <!-- CLS Prevention: Skeleton rendered immediately on HTML parse -->
+  <div id="skeleton" style="display:block;">
+    <header class="skeleton-header">
+      <div class="skeleton-logo">
+        <div class="skeleton-icon"></div>
+        <div class="skeleton-text"></div>
+      </div>
+      <div class="skeleton-actions">
+        <div class="skeleton-btn"></div>
+        <div class="skeleton-btn"></div>
+      </div>
+    </header>
+    <nav class="skeleton-nav" style="padding-bottom: env(safe-area-inset-bottom, 0px);">
+      <div class="skeleton-nav-item"><div class="skeleton-nav-icon"></div><div class="skeleton-nav-text"></div></div>
+      <div class="skeleton-nav-item"><div class="skeleton-nav-icon"></div><div class="skeleton-nav-text"></div></div>
+      <div class="skeleton-nav-item"><div class="skeleton-nav-icon"></div><div class="skeleton-nav-text"></div></div>
+      <div class="skeleton-nav-item"><div class="skeleton-nav-icon"></div><div class="skeleton-nav-text"></div></div>
+      <div class="skeleton-nav-item"><div class="skeleton-nav-icon"></div><div class="skeleton-nav-text"></div></div>
+    </nav>
+  </div>
+
   <div id="app"></div>
 
   <script src="/js/debug.js" defer></script>
@@ -55,6 +185,9 @@
     (async () => {
       try {
         if (typeof loadVersion === 'function') await loadVersion();
+        // Remove skeleton placeholder — prevents CLS and shows real header immediately
+        const skeleton = document.getElementById('skeleton');
+        if (skeleton) skeleton.remove();
         document.getElementById('app').innerHTML =
           getHeaderWithActions('Gia Huy', '🍺', headerActions) +
           getContent(`

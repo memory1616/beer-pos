@@ -9,60 +9,82 @@
   <meta name="mobile-web-app-capable" content="yes">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
+  
+  <!-- PERFORMANCE: Preload layout.js for first paint -->
+  <link rel="preload" href="/js/layout.js?v=20260414a" as="script">
+  <link rel="preload" href="/css/unified.css?v=20260414a" as="style">
+  
   <link rel="stylesheet" href="/css/tailwind.css">
   <link rel="stylesheet" href="/css/unified.css?v=20260414a">
   <script src="/js/dark-mode.js"></script>
   <script src="/js/layout.js?v=20260414a"></script>
+
+  <!-- CLS Prevention: Skeleton styles (matches layout.js header dimensions) -->
+  <style>
+    .skeleton-header {
+      position: fixed; top: 0; left: 0; right: 0;
+      height: calc(56px + env(safe-area-inset-top, 0px));
+      background: rgba(255,255,255,0.92);
+      backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--color-border, #e2e8f0);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 16px; padding-top: env(safe-area-inset-top, 0px);
+      z-index: 50; box-sizing: border-box;
+    }
+    .skeleton-nav {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      height: calc(64px + env(safe-area-inset-bottom, 0px));
+      background: var(--color-card, #fff);
+      border-top: 3px solid var(--color-primary, #f59e0b);
+      display: grid; grid-template-columns: repeat(5, 1fr);
+      z-index: 50; max-width: 500px; margin: 0 auto;
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      box-sizing: border-box;
+    }
+    @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+    .skeleton-bar {
+      height: 16px; width: 80px;
+      background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+      background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px;
+    }
+    .skeleton-btn {
+      width: 32px; height: 32px;
+      background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+      background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 6px;
+    }
+    [data-theme="dark"] .skeleton-header { background: rgba(30, 41, 59, 0.92); border-bottom-color: #334155; }
+    [data-theme="dark"] .skeleton-nav { background: rgba(30, 41, 59, 0.92); }
+    [data-theme="dark"] .skeleton-bar, [data-theme="dark"] .skeleton-btn {
+      background: linear-gradient(90deg, #334155 25%, #475569 50%, #334155 75%);
+      background-size: 200% 100%;
+    }
+  </style>
+
   <!-- Load data via /expenses/data API instead of inline script -->
+  <style>
+    .cat-tab { background: var(--bg-secondary, #1f2937); color: var(--text-muted, #9ca3af); }
+    .cat-tab.active { background: var(--accent, #10b981); color: white; }
+  </style>
 </head>
 <body class="bg-bg text-main body--app">
 
-  <header class="app-header">
-    <div class="flex items-center justify-between px-4 py-3">
-      <div class="flex items-center gap-2">
-        <a href="/" class="text-muted">←</a>
-        <span class="font-bold text-main">Chi phí</span>
-      </div>
-      <div>
-        <span id="totalAmount" class="money text-money font-bold tabular-nums">0đ</span>
-      </div>
-    </div>
-    <!-- Month/Year filter -->
-    <div class="flex items-center gap-2 px-4 pb-3">
-      <button onclick="switchMonth(-1)" class="btn btn-ghost btn-sm">←</button>
-      <input type="month" id="filterMonth" class="flex-1 border border-muted rounded-lg px-3 py-2 text-sm" onchange="loadExpenses(this.value)">
-      <button onclick="switchMonth(1)" class="btn btn-ghost btn-sm">→</button>
-      <button onclick="showAddExpense()" class="btn btn-primary btn-sm">+ Thêm</button>
-    </div>
-  </header>
+  <!-- CLS Prevention: Skeleton rendered immediately -->
+  <div id="skeleton">
+    <header class="skeleton-header">
+      <div style="display:flex;align-items:center;gap:8px;"><div class="skeleton-bar"></div></div>
+      <div style="display:flex;gap:8px;"><div class="skeleton-btn"></div></div>
+    </header>
+    <nav class="skeleton-nav">
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;opacity:0.5;"><div style="width:20px;height:20px;background:#e2e8f0;border-radius:4px;animation:shimmer 1.5s infinite;"></div><div style="width:24px;height:11px;background:#e2e8f0;border-radius:2px;animation:shimmer 1.5s infinite;"></div></div>
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;opacity:0.5;"><div style="width:20px;height:20px;background:#e2e8f0;border-radius:4px;animation:shimmer 1.5s infinite;"></div><div style="width:24px;height:11px;background:#e2e8f0;border-radius:2px;animation:shimmer 1.5s infinite;"></div></div>
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;opacity:0.5;"><div style="width:20px;height:20px;background:#e2e8f0;border-radius:4px;animation:shimmer 1.5s infinite;"></div><div style="width:24px;height:11px;background:#e2e8f0;border-radius:2px;animation:shimmer 1.5s infinite;"></div></div>
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;opacity:0.5;"><div style="width:20px;height:20px;background:#e2e8f0;border-radius:4px;animation:shimmer 1.5s infinite;"></div><div style="width:24px;height:11px;background:#e2e8f0;border-radius:2px;animation:shimmer 1.5s infinite;"></div></div>
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;opacity:0.5;"><div style="width:20px;height:20px;background:#e2e8f0;border-radius:4px;animation:shimmer 1.5s infinite;"></div><div style="width:24px;height:11px;background:#e2e8f0;border-radius:2px;animation:shimmer 1.5s infinite;"></div></div>
+    </nav>
+  </div>
 
-  <main class="main-content">
-    <div class="flex gap-2 mb-4 overflow-x-auto pb-1">
-      <button onclick="filterCategory('all')" class="cat-tab active px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-cat="all">Tất cả</button>
-      <button onclick="filterCategory('fuel')" class="cat-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-cat="fuel">⛽ Xăng</button>
-      <button onclick="filterCategory('food')" class="cat-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-cat="food">🍜 Ăn uống</button>
-      <button onclick="filterCategory('repair')" class="cat-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-cat="repair">🔧 Sửa chữa</button>
-      <button onclick="filterCategory('other')" class="cat-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-cat="other">📦 Khác</button>
-    </div>
-
-    <!-- Summary cards -->
-    <div id="summaryCards" class="grid grid-cols-2 gap-2 mb-4">
-      <!-- Filled by JS -->
-    </div>
-
-    <!-- Expenses list -->
-    <div id="expensesList" class="space-y-2">
-      <div class="text-center text-muted py-8">Đang tải...</div>
-    </div>
-
-    <!-- Empty state -->
-    <div id="emptyState" class="hidden text-center py-12">
-      <div class="text-4xl mb-3">📋</div>
-      <div class="text-muted">Chưa có chi phí nào</div>
-    </div>
-  </main>
-
-  <div id="bottomNavContainer"></div>
+  <!-- Header rendered via JS from layout.js -->
+  <div id="app"></div>
 
   <!-- Add/Edit Expense Modal -->
   <div id="expenseModal" class="fixed inset-0 bg-overlay hidden items-center justify-center p-4" style="z-index:10000">
@@ -97,26 +119,58 @@
     </div>
   </div>
 
-  <style>
-    .cat-tab { background: var(--bg-secondary, #1f2937); color: var(--text-muted, #9ca3af); }
-    .cat-tab.active { background: var(--accent, #10b981); color: white; }
-    .pb-safe { padding-bottom: env(safe-area-inset-bottom, 20px); }
-    .bottomnav { max-width: 500px; margin: auto; }
-  </style>
-
   <!-- Load expenses JS -->
   <script src="/js/expenses.js"></script>
 
-  <!-- Initialize on load: fetch data from API -->
   <script>
-    (function() {
-      var monthInput = document.getElementById('filterMonth');
-      var now = new Date();
-      var y = now.getFullYear();
-      var m = String(now.getMonth() + 1).padStart(2, '0');
-      monthInput.value = y + '-' + m;
-      loadExpenses(monthInput.value);
-    })();
+    // Set initial month BEFORE rendering layout (so we can use the value)
+    var now = new Date();
+    var initialMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+
+    // Remove skeleton placeholder first
+    var skeleton = document.getElementById('skeleton');
+    if (skeleton) skeleton.remove();
+
+    // Header actions: total amount display
+    var headerActions = '<span id="headerTotal" class="money text-money font-bold tabular-nums" style="font-size:14px;color:var(--color-money);">0đ</span>';
+
+    document.getElementById('app').innerHTML =
+      getHeaderWithActions('Chi phí', '💸', headerActions) +
+      getContent(`
+        <!-- Month/Year filter -->
+        <div class="flex items-center gap-2 mb-4">
+          <button onclick="switchMonth(-1)" class="btn btn-ghost btn-sm">←</button>
+          <input type="month" id="filterMonth" value="${initialMonth}" class="flex-1 border border-muted rounded-lg px-3 py-2 text-sm" onchange="loadExpenses(this.value)">
+          <button onclick="switchMonth(1)" class="btn btn-ghost btn-sm">→</button>
+          <button onclick="showAddExpense()" class="btn btn-primary btn-sm">+ Thêm</button>
+        </div>
+
+        <div class="flex gap-2 mb-4 overflow-x-auto pb-1">
+          <button onclick="filterCategory('all')" class="cat-tab active px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-cat="all">Tất cả</button>
+          <button onclick="filterCategory('fuel')" class="cat-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-cat="fuel">⛽ Xăng</button>
+          <button onclick="filterCategory('food')" class="cat-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-cat="food">🍜 Ăn uống</button>
+          <button onclick="filterCategory('repair')" class="cat-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-cat="repair">🔧 Sửa chữa</button>
+          <button onclick="filterCategory('other')" class="cat-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-cat="other">📦 Khác</button>
+        </div>
+
+        <!-- Summary cards -->
+        <div id="summaryCards" class="grid grid-cols-2 gap-2 mb-4"></div>
+
+        <!-- Expenses list -->
+        <div id="expensesList" class="space-y-2">
+          <div class="text-center text-muted py-8">Đang tải...</div>
+        </div>
+
+        <!-- Empty state -->
+        <div id="emptyState" class="hidden text-center py-12">
+          <div class="text-4xl mb-3">📋</div>
+          <div class="text-muted">Chưa có chi phí nào</div>
+        </div>
+      `) +
+      getBottomNav('/expenses');
+
+    // Initialize after layout is rendered
+    loadExpenses(initialMonth);
   </script>
 </body>
 </html>

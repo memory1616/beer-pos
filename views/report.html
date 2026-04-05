@@ -9,10 +9,49 @@
   <meta name="mobile-web-app-capable" content="yes">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
+  
+  <!-- PERFORMANCE: Preload layout.js for first paint -->
+  <link rel="preload" href="/js/layout.js?v=20260414a" as="script">
+  <link rel="preload" href="/css/unified.css?v=20260414a" as="style">
+  
   <link rel="stylesheet" href="/css/tailwind.css">
   <link rel="stylesheet" href="/css/unified.css?v=20260414a">
   <script src="/js/dark-mode.js"></script>
   <script src="/js/layout.js?v=20260414a"></script>
+
+  <!-- CLS Prevention: Skeleton styles -->
+  <style>
+    .skeleton-header {
+      position: fixed; top: 0; left: 0; right: 0;
+      height: calc(56px + env(safe-area-inset-top, 0px));
+      background: rgba(255,255,255,0.92);
+      backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--color-border, #e2e8f0);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 16px; padding-top: env(safe-area-inset-top, 0px);
+      z-index: 50; box-sizing: border-box;
+    }
+    .skeleton-nav {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      height: calc(64px + env(safe-area-inset-bottom, 0px));
+      background: var(--color-card, #fff);
+      border-top: 3px solid var(--color-primary, #f59e0b);
+      display: grid; grid-template-columns: repeat(5, 1fr);
+      z-index: 50; max-width: 500px; margin: 0 auto;
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      box-sizing: border-box;
+    }
+    @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+    .skeleton-bar {
+      height: 16px; width: 80px;
+      background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+      background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px;
+    }
+    [data-theme="dark"] .skeleton-header { background: rgba(30, 41, 59, 0.92); border-bottom-color: #334155; }
+    [data-theme="dark"] .skeleton-nav { background: rgba(30, 41, 59, 0.92); }
+    [data-theme="dark"] .skeleton-bar { background: linear-gradient(90deg, #334155 25%, #475569 50%, #334155 75%); background-size: 200% 100%; }
+  </style>
+
   <style>
     .period-tab { background: var(--bg-secondary, #1f2937); color: var(--text-muted, #9ca3af); }
     .period-tab.active { background: var(--accent, #6366f1); color: white; }
@@ -24,70 +63,84 @@
 </head>
 <body class="bg-bg text-main body--app">
 
-  <header class="app-header">
-    <div class="flex items-center justify-between px-4 py-3">
-      <div class="flex items-center gap-2">
-        <a href="/" class="text-muted">←</a>
-        <span class="font-bold text-main">Báo cáo</span>
-      </div>
-      <div class="text-right">
-        <div id="periodLabel" class="text-xs text-muted">...</div>
-        <div id="headerProfit" class="money text-money font-bold tabular-nums">0đ</div>
-      </div>
-    </div>
-    <div class="flex gap-1 px-4 pb-3 overflow-x-auto">
-      <button onclick="switchPeriod('today')" class="period-tab active px-3 py-1.5 rounded-lg text-sm whitespace-nowrap flex-1" data-period="today">Hôm nay</button>
-      <button onclick="switchPeriod('yesterday')" class="period-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap flex-1" data-period="yesterday">Hôm qua</button>
-      <button onclick="switchPeriod('week')" class="period-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap flex-1" data-period="week">Tuần</button>
-      <button onclick="switchPeriod('thisMonth')" class="period-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap flex-1" data-period="thisMonth">Tháng</button>
-    </div>
-  </header>
+  <!-- CLS Prevention: Skeleton rendered immediately -->
+  <div id="skeleton">
+    <header class="skeleton-header">
+      <div style="display:flex;align-items:center;gap:8px;"><div style="font-size:20px;">📊</div><div class="skeleton-bar"></div></div>
+      <div style="display:flex;gap:8px;"><div style="width:32px;height:32px;background:#e2e8f0;border-radius:6px;animation:shimmer 1.5s infinite;"></div></div>
+    </header>
+    <nav class="skeleton-nav">
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;opacity:0.5;"><div style="width:20px;height:20px;background:#e2e8f0;border-radius:4px;animation:shimmer 1.5s infinite;"></div><div style="width:24px;height:11px;background:#e2e8f0;border-radius:2px;animation:shimmer 1.5s infinite;"></div></div>
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;opacity:0.5;"><div style="width:20px;height:20px;background:#e2e8f0;border-radius:4px;animation:shimmer 1.5s infinite;"></div><div style="width:24px;height:11px;background:#e2e8f0;border-radius:2px;animation:shimmer 1.5s infinite;"></div></div>
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;opacity:0.5;"><div style="width:20px;height:20px;background:#e2e8f0;border-radius:4px;animation:shimmer 1.5s infinite;"></div><div style="width:24px;height:11px;background:#e2e8f0;border-radius:2px;animation:shimmer 1.5s infinite;"></div></div>
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;opacity:0.5;"><div style="width:20px;height:20px;background:#e2e8f0;border-radius:4px;animation:shimmer 1.5s infinite;"></div><div style="width:24px;height:11px;background:#e2e8f0;border-radius:2px;animation:shimmer 1.5s infinite;"></div></div>
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;opacity:0.5;"><div style="width:20px;height:20px;background:#e2e8f0;border-radius:4px;animation:shimmer 1.5s infinite;"></div><div style="width:24px;height:11px;background:#e2e8f0;border-radius:2px;animation:shimmer 1.5s infinite;"></div></div>
+    </nav>
+  </div>
 
-  <main class="main-content">
-    <div class="grid grid-cols-2 gap-3 mb-4">
-      <div class="card p-4 text-center">
-        <div class="text-sm text-muted mb-1">Doanh thu</div>
-        <div id="statRevenue" class="text-lg font-bold text-info tabular-nums">0đ</div>
-      </div>
-      <div class="card p-4 text-center">
-        <div class="text-sm text-muted mb-1">Lợi nhuận</div>
-        <div id="statProfit" class="text-lg font-bold text-success tabular-nums">0đ</div>
-      </div>
-      <div class="card p-4 text-center">
-        <div class="text-sm text-muted mb-1">Đơn hàng</div>
-        <div id="statOrders" class="text-lg font-bold tabular-nums">0</div>
-      </div>
-      <div class="card p-4 text-center">
-        <div class="text-sm text-muted mb-1">Chi phí</div>
-        <div id="statExpense" class="text-lg font-bold text-danger tabular-nums">0đ</div>
-      </div>
-    </div>
-
-    <div class="card p-4 mb-4">
-      <h3 class="font-bold mb-3">📈 Biểu đồ</h3>
-      <canvas id="chartCanvas" style="max-height:200px"></canvas>
-    </div>
-
-    <div class="flex gap-1 mb-4 overflow-x-auto">
-      <button onclick="switchReportTab('sales')" class="report-tab active px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-tab="sales">🍺 Bán hàng</button>
-      <button onclick="switchReportTab('products')" class="report-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-tab="products">📦 Theo SP</button>
-      <button onclick="switchReportTab('customers')" class="report-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-tab="customers">👤 Theo KH</button>
-    </div>
-
-    <div id="reportSales" class="report-section active space-y-2">
-      <div id="salesList" class="space-y-2"><div class="text-center text-muted py-4">Đang tải...</div></div>
-    </div>
-    <div id="reportProducts" class="report-section space-y-2">
-      <div id="productsList" class="space-y-2"><div class="text-center text-muted py-4">Đang tải...</div></div>
-    </div>
-    <div id="reportCustomers" class="report-section space-y-2">
-      <div id="customersList" class="space-y-2"><div class="text-center text-muted py-4">Đang tải...</div></div>
-    </div>
-  </main>
-
-  <div id="bottomNavContainer"></div>
+  <!-- Header rendered via JS from layout.js -->
+  <div id="app"></div>
 
   <script src="/js/report.js"></script>
-  <script>(function(){ switchPeriod('thisMonth'); })();</script>
+
+  <script>
+    var headerActions = '<div style="text-align:right;"><div id="periodLabel" class="text-xs text-muted" style="font-size:11px;">...</div><div id="headerProfit" class="money text-money font-bold tabular-nums" style="font-size:14px;">0đ</div></div>';
+
+    document.getElementById('app').innerHTML =
+      getHeaderWithActions('Báo cáo', '📊', headerActions) +
+      getContent(`
+        <!-- Period filter tabs -->
+        <div class="flex gap-1 mb-4 overflow-x-auto">
+          <button onclick="switchPeriod('today')" class="period-tab active px-3 py-1.5 rounded-lg text-sm whitespace-nowrap flex-1" data-period="today">Hôm nay</button>
+          <button onclick="switchPeriod('yesterday')" class="period-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap flex-1" data-period="yesterday">Hôm qua</button>
+          <button onclick="switchPeriod('week')" class="period-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap flex-1" data-period="week">Tuần</button>
+          <button onclick="switchPeriod('thisMonth')" class="period-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap flex-1" data-period="thisMonth">Tháng</button>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 mb-4">
+          <div class="card p-4 text-center">
+            <div class="text-sm text-muted mb-1">Doanh thu</div>
+            <div id="statRevenue" class="text-lg font-bold text-info tabular-nums">0đ</div>
+          </div>
+          <div class="card p-4 text-center">
+            <div class="text-sm text-muted mb-1">Lợi nhuận</div>
+            <div id="statProfit" class="text-lg font-bold text-success tabular-nums">0đ</div>
+          </div>
+          <div class="card p-4 text-center">
+            <div class="text-sm text-muted mb-1">Đơn hàng</div>
+            <div id="statOrders" class="text-lg font-bold tabular-nums">0</div>
+          </div>
+          <div class="card p-4 text-center">
+            <div class="text-sm text-muted mb-1">Chi phí</div>
+            <div id="statExpense" class="text-lg font-bold text-danger tabular-nums">0đ</div>
+          </div>
+        </div>
+
+        <div class="card p-4 mb-4">
+          <h3 class="font-bold mb-3">📈 Biểu đồ</h3>
+          <canvas id="chartCanvas" style="max-height:200px"></canvas>
+        </div>
+
+        <div class="flex gap-1 mb-4 overflow-x-auto">
+          <button onclick="switchReportTab('sales')" class="report-tab active px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-tab="sales">🍺 Bán hàng</button>
+          <button onclick="switchReportTab('products')" class="report-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-tab="products">📦 Theo SP</button>
+          <button onclick="switchReportTab('customers')" class="report-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-tab="customers">👤 Theo KH</button>
+        </div>
+
+        <div id="reportSales" class="report-section active space-y-2">
+          <div id="salesList" class="space-y-2"><div class="text-center text-muted py-4">Đang tải...</div></div>
+        </div>
+        <div id="reportProducts" class="report-section space-y-2">
+          <div id="productsList" class="space-y-2"><div class="text-center text-muted py-4">Đang tải...</div></div>
+        </div>
+        <div id="reportCustomers" class="report-section space-y-2">
+          <div id="customersList" class="space-y-2"><div class="text-center text-muted py-4">Đang tải...</div></div>
+        </div>
+      `) +
+      getBottomNav('/report');
+
+    // Initialize after layout is rendered so DOM elements exist
+    switchPeriod('thisMonth');
+  </script>
 </body>
 </html>

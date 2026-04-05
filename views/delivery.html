@@ -19,6 +19,8 @@
     .delivery-map-wrap { position: relative; z-index: 0; isolation: isolate; overflow: hidden; border-radius: 12px; margin-bottom: 1rem; }
     .delivery-map-wrap #map { height: 50vh; margin-bottom: 0; }
     .delivery-map-wrap .leaflet-container { z-index: 0 !important; }
+    .delivery-map-wrap .leaflet-pane { z-index: 0 !important; }
+    .delivery-map-wrap .leaflet-control { z-index: 1 !important; }
     .delivery-card { transition: all 0.2s; cursor: pointer; }
     .delivery-card:active { transform: scale(0.98); }
     .settings-modal-inner { max-height: 85vh; overflow-y: auto; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); }
@@ -30,43 +32,8 @@
     window.__DELIVERY_DATA__ = {{DELIVERY_DATA}};
   </script>
 
-  <header class="app-header">
-    <div class="flex items-center justify-between px-4 py-3">
-      <div class="flex items-center gap-2">
-        <a href="/" class="text-muted">←</a>
-        <span class="font-bold text-main" id="distributorName">Bia Tuoi</span>
-      </div>
-      <div class="flex items-center gap-2">
-        <button onclick="showSettings()" class="text-muted p-2">⚙️</button>
-        <span class="text-sm text-muted">Giao hàng</span>
-      </div>
-    </div>
-    <div class="px-4 pb-2">
-      <div class="flex items-center justify-between text-sm">
-        <span class="text-muted">Khoảng cách: <span id="totalDistance" class="font-bold text-info">0</span> km</span>
-        <span class="text-muted">Phí vận chuyển: <span id="totalDeliveryFee" class="money text-money"><span class="value font-bold tabular-nums">0</span><span class="unit">đ</span></span></span>
-      </div>
-      <p class="text-xs text-muted mt-1">📦 Xuất phát từ <strong>kho</strong> (bấm ⚙️ để cài). Bấm <strong>📍 Vị trí hiện tại</strong> nếu muốn tính từ xe/điện thoại.</p>
-    </div>
-  </header>
-
-  <main class="main-content relative">
-    <div class="delivery-map-wrap">
-      <div id="map"></div>
-    </div>
-
-    <div class="section-title">🚚 Khách hàng</div>
-    <div class="flex gap-2 mb-4">
-      <button onclick="getCurrentLocation()" class="flex-1 btn btn-primary flex items-center justify-center gap-2">📍 Vị trí hiện tại</button>
-      <button onclick="optimizeRoute()" class="flex-1 btn btn-secondary">⚡ Tối ưu lộ trình</button>
-    </div>
-
-    <div id="customersList" class="space-y-2">
-      <!-- Rendered by delivery.js -->
-    </div>
-  </main>
-
-  <div id="bottomNavContainer"></div>
+  <!-- Header + content + bottom nav all rendered via layout.js -->
+  <div id="app"></div>
 
   <!-- Settings Modal -->
   <div id="settingsModal" class="fixed inset-0 bg-overlay hidden items-center justify-center p-4" style="z-index:10000">
@@ -98,5 +65,30 @@
   </div>
 
   <script src="/js/delivery.js"></script>
+  <script>
+    // Render header + bottom nav using layout.js functions
+    const headerActions = `
+      <button onclick="showSettings()" style="background:none;border:none;cursor:pointer;font-size:18px;padding:4px 8px;border-radius:6px;color:var(--color-text-muted);">⚙️</button>
+    `;
+    
+    document.getElementById('app').innerHTML =
+      getHeaderWithActions('Giao hàng', '🚚', headerActions) +
+      getContent(`
+        <div class="delivery-map-wrap">
+          <div id="map"></div>
+        </div>
+
+        <div class="section-title">🚚 Khách hàng</div>
+        <div class="flex gap-2 mb-4">
+          <button onclick="getCurrentLocation()" class="flex-1 btn btn-primary flex items-center justify-center gap-2">📍 Vị trí hiện tại</button>
+          <button onclick="optimizeRoute()" class="flex-1 btn btn-secondary">⚡ Tối ưu lộ trình</button>
+        </div>
+
+        <div id="customersList" class="space-y-2">
+          <!-- Rendered by delivery.js -->
+        </div>
+      `) +
+      getBottomNav('/delivery');
+  </script>
 </body>
 </html>

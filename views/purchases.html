@@ -19,102 +19,31 @@
   <style>
     .animate-fade { animation: fade 0.3s ease-in; }
     @keyframes fade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-    .bottomnav { max-width: 500px; margin: auto; left: 0; right: 0; }
     button, a { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
     button:active { transform: scale(0.96); }
   </style>
 </head>
 <body class="bg-main text-primary body--app">
-  <header class="app-header">
-    <div class="flex items-center justify-between px-4 h-12 max-w-md mx-auto">
-      <div class="flex items-center gap-2">
-        <span class="text-xl">📥</span>
-        <span class="font-semibold text-sm text-main">Nhập hàng</span>
-      </div>
-      <div class="flex gap-3 text-xl">
-        <a href="/" class="text-muted hover:bg-bg-hover px-2 rounded">🏠</a>
-      </div>
-    </div>
-  </header>
+  <div id="app"></div>
 
-  <main class="main-content animate-fade">
-    <!-- Tab Navigation -->
-    <div class="flex gap-2 mb-4">
-      <button onclick="switchTab('new')" id="tabNew" class="tab-btn active flex-1">📝 Nhập mới</button>
-      <button onclick="switchTab('history')" id="tabHistory" class="tab-btn flex-1">📋 Lịch sử</button>
-    </div>
-
-    <!-- Loading -->
-    <div id="loading" class="text-center py-8">
-      <div class="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full mx-auto"></div>
-      <div class="text-muted mt-2">Đang tải...</div>
-    </div>
-
-    <!-- New Purchase Form -->
-    <div id="newPurchaseSection" class="hidden">
-      <!-- Keg Inventory Status -->
-      <div id="kegInventorySection" class="card stat-card--green mb-4">
-        <div class="sc-label"><span class="sc-icon">📦</span> Kho vỏ</div>
-        <div class="sc-value" id="kegInventoryDisplay">-</div>
-        <div class="sc-sub"><a href="/kegs" class="text-xs text-blue-600 hover:underline">📋 Quản lý</a></div>
-      </div>
-
-      <div class="card stat-card--success mb-4">
-        <h3 class="font-bold text-lg mb-3">📦 Nhập hàng</h3>
-        <div class="space-y-4 max-h-96 overflow-y-auto" id="productList">
-          <!-- Products loaded via JS -->
-        </div>
-      </div>
-
-      <!-- Cart Summary -->
-      <div class="card stat-card--profit mb-4 sticky top-24">
-        <h3 class="font-bold text-lg mb-2">🛒 Giỏ nhập hàng</h3>
-        <div id="cartItems" class="space-y-2 mb-3 max-h-40 overflow-y-auto">
-          <div class="text-muted text-sm text-center py-2">Chưa chọn sản phẩm nào</div>
-        </div>
-        <div class="border-t border-muted pt-2 flex justify-between items-center">
-          <div class="font-bold text-lg text-main">Tổng tiền:</div>
-          <div id="cartTotal"><div class="money text-money"><span class="value text-xl font-bold tabular-nums">0</span><span class="unit">đ</span></div></div>
-        </div>
-        <input type="text" id="purchaseNote" placeholder="Ghi chú (tùy chọn)" class="w-full border border-muted rounded-lg px-3 py-2 mt-3 focus:ring-2 focus:ring-amber-500">
-        <button onclick="submitPurchase()" id="submitBtn" class="btn btn-primary w-full h-12 mt-3" disabled>
-          ✅ Xác nhận nhập hàng
-        </button>
-      </div>
-    </div>
-
-    <!-- Purchase History -->
-    <div id="historySection" class="hidden">
-      <div class="space-y-3" id="historyList">
-        <!-- History loaded via JS -->
-      </div>
-      <div id="historyPagination" class="hidden mt-4 flex items-center justify-between">
-        <button type="button" id="historyPrev" class="btn btn-secondary px-4 h-10" disabled>← Trước</button>
-        <span id="historyPageInfo" class="text-sm text-muted">Trang 1 / 1</span>
-        <button type="button" id="historyNext" class="btn btn-secondary px-4 h-10" disabled>Sau →</button>
-      </div>
-    </div>
-  </main>
-
-  <div id="bottomNavContainer"></div>
-
-  <!-- Load Utils (formatVND, showToast) then Purchases JS -->
   <script src="/js/utils.js"></script>
   <script src="/js/purchases.js"></script>
-  
+
   <script>
+    // --- State & configuration ---
+    var HISTORY_PAGE_SIZE = 5;
+    var allPurchases = [];
+    var historyCurrentPage = 1;
+
     // Check URL for tab parameter
-    const urlParams = new URLSearchParams(window.location.search);
-    const initialTab = urlParams.get('tab') || 'history';
-    
-    const HISTORY_PAGE_SIZE = 5;
-    let allPurchases = [];
-    let historyCurrentPage = 1;
-    
+    var urlParams = new URLSearchParams(window.location.search);
+    var initialTab = urlParams.get('tab') || 'history';
+
+    // --- Data functions (defined first so they are available globally) ---
     function purchaseHistoryTotalHtml(amount) {
-      const n = Number(amount);
-      const num = Number.isFinite(n) ? n : 0;
-      const formatted = new Intl.NumberFormat('vi-VN').format(num);
+      var n = Number(amount);
+      var num = Number.isFinite(n) ? n : 0;
+      var formatted = new Intl.NumberFormat('vi-VN').format(num);
       return (
         '<div class="card-stat-amount text-success justify-end text-sm sm:text-base font-bold">' +
         '<span class="tabular-nums tracking-tight">' + formatted + '</span>' +
@@ -124,48 +53,43 @@
     }
 
     function renderHistoryPage() {
-      const historyList = document.getElementById('historyList');
-      const pagination = document.getElementById('historyPagination');
-      const prevBtn = document.getElementById('historyPrev');
-      const nextBtn = document.getElementById('historyNext');
-      const pageInfo = document.getElementById('historyPageInfo');
-      
+      var historyList = document.getElementById('historyList');
+      var pagination = document.getElementById('historyPagination');
+      var prevBtn = document.getElementById('historyPrev');
+      var nextBtn = document.getElementById('historyNext');
+      var pageInfo = document.getElementById('historyPageInfo');
       if (!historyList) return;
-      
-      const total = allPurchases.length;
-      const totalPages = Math.max(1, Math.ceil(total / HISTORY_PAGE_SIZE));
+
+      var total = allPurchases.length;
+      var totalPages = Math.max(1, Math.ceil(total / HISTORY_PAGE_SIZE));
       historyCurrentPage = Math.min(historyCurrentPage, totalPages);
-      const start = (historyCurrentPage - 1) * HISTORY_PAGE_SIZE;
-      const pagePurchases = allPurchases.slice(start, start + HISTORY_PAGE_SIZE);
-      
+      var start = (historyCurrentPage - 1) * HISTORY_PAGE_SIZE;
+      var pagePurchases = allPurchases.slice(start, start + HISTORY_PAGE_SIZE);
+
       if (total === 0) {
         historyList.innerHTML = '<div class="text-center text-muted py-8">Chưa có phiếu nhập nào</div>';
         if (pagination) pagination.classList.add('hidden');
         return;
       }
-      
-      historyList.innerHTML = pagePurchases.map(p => {
-        const dateStr = new Date(p.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
-        const count = p.item_count != null ? p.item_count : (p.items_summary ? p.items_summary.split(',').length : 0);
-        return `
-        <div class="purchase-history-item card p-3 mb-3 last:mb-0">
-          <div class="flex items-start justify-between gap-2 min-w-0">
-            <div class="min-w-0 flex-1">
-              <div class="font-semibold text-primary">Đơn #${p.id}</div>
-              <div class="text-xs text-muted mt-0.5">${dateStr} · ${count} sản phẩm</div>
-            </div>
-            <div class="flex items-center gap-0.5 shrink-0">
-              <button type="button" onclick="editPurchase(${p.id})" class="btn btn-ghost btn-sm min-w-[2.25rem] h-9 px-0" title="Sửa">✏️</button>
-              <button type="button" onclick="deletePurchase(${p.id})" class="btn btn-ghost btn-sm min-w-[2.25rem] h-9 px-0 text-danger" title="Xóa">🗑️</button>
-            </div>
-          </div>
-          <div class="mt-2.5 pt-2.5 border-t border-muted/70 flex items-center justify-between gap-3 min-w-0">
-            <span class="text-xs text-muted shrink-0">Tổng tiền</span>
-            ${purchaseHistoryTotalHtml(p.total_amount)}
-          </div>
-        </div>`;
+
+      historyList.innerHTML = pagePurchases.map(function(p) {
+        var dateStr = new Date(p.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        var count = p.item_count != null ? p.item_count : (p.items_summary ? p.items_summary.split(',').length : 0);
+        return '<div class="purchase-history-item card p-3 mb-3 last:mb-0">' +
+          '<div class="flex items-start justify-between gap-2 min-w-0">' +
+          '<div class="min-w-0 flex-1">' +
+          '<div class="font-semibold text-primary">Đơn #' + p.id + '</div>' +
+          '<div class="text-xs text-muted mt-0.5">' + dateStr + ' · ' + count + ' sản phẩm</div></div>' +
+          '<div class="flex items-center gap-0.5 shrink-0">' +
+          '<button type="button" onclick="editPurchase(' + p.id + ')" class="btn btn-ghost btn-sm min-w-[2.25rem] h-9 px-0" title="Sửa">✏️</button>' +
+          '<button type="button" onclick="deletePurchase(' + p.id + ')" class="btn btn-ghost btn-sm min-w-[2.25rem] h-9 px-0 text-danger" title="Xóa">🗑️</button>' +
+          '</div></div>' +
+          '<div class="mt-2.5 pt-2.5 border-t border-muted/70 flex items-center justify-between gap-3 min-w-0">' +
+          '<span class="text-xs text-muted shrink-0">Tổng tiền</span>' +
+          purchaseHistoryTotalHtml(p.total_amount) +
+          '</div></div>';
       }).join('');
-      
+
       if (pagination) {
         pagination.classList.remove('hidden');
         pageInfo.textContent = 'Trang ' + historyCurrentPage + ' / ' + totalPages;
@@ -173,79 +97,130 @@
         nextBtn.disabled = historyCurrentPage >= totalPages;
       }
     }
-    
+
     function goToHistoryPage(page) {
       historyCurrentPage = page;
       renderHistoryPage();
     }
-    
-    // Load data on page load
+
     async function loadData() {
       try {
-        const res = await fetch('/purchases/data?t=' + Date.now(), { cache: 'no-store' });
-        const data = await res.json();
-        
+        var res = await fetch('/purchases/data?t=' + Date.now(), { cache: 'no-store' });
+        var data = await res.json();
+
         // Load keg inventory balance
         try {
-          const kegRes = await fetch('/api/kegs/inventory');
-          const kegData = await kegRes.json();
-          document.getElementById('kegInventoryDisplay').textContent = kegData.balance + ' vỏ';
+          var kegRes = await fetch('/api/kegs/inventory');
+          var kegData = await kegRes.json();
+          var kegEl = document.getElementById('kegInventoryDisplay');
+          if (kegEl) kegEl.textContent = kegData.balance + ' vỏ';
         } catch (e) {
-          console.log('Failed to load keg inventory:', e);
-          document.getElementById('kegInventoryDisplay').textContent = '0 vỏ';
+          var kegEl = document.getElementById('kegInventoryDisplay');
+          if (kegEl) kegEl.textContent = '0 vỏ';
         }
-        
-        // Render products - layout rõ ràng: tên SP, giá vốn 1 dòng, ô SL
-        const productList = document.getElementById('productList');
-        productList.innerHTML = data.products.map(p => `
-          <div class="p-3 border border-muted rounded-xl ${p.cost_price > 0 ? 'bg-primary/5' : 'bg-bg'}">
-            <div class="text-sm font-semibold text-main">${p.name}</div>
-            <div class="text-xs text-muted mt-0.5">Giá vốn: ${formatVND(p.cost_price || 0)} · Tồn: ${p.stock}</div>
-            <input type="number"
-              id="qty-${p.id}"
-              data-product-id="${p.id}"
-              data-cost="${p.cost_price || 0}"
-              data-name="${p.name}"
-              min="0"
-              placeholder="Nhập SL"
-              class="mt-2 w-full border-2 border-muted rounded-lg p-2.5 text-center font-medium focus:ring-2 focus:ring-primary"
-              onchange="updateCart()"
-              oninput="updateCart()">
-          </div>
-        `).join('');
-        
-        // Lưu toàn bộ đơn nhập, hiển thị 5 đơn/trang
+
+        // Render products
+        var productList = document.getElementById('productList');
+        if (productList) {
+          productList.innerHTML = data.products.map(function(p) {
+            return '<div class="p-3 border border-muted rounded-xl ' + (p.cost_price > 0 ? 'bg-primary/5' : 'bg-bg') + '">' +
+              '<div class="text-sm font-semibold text-main">' + p.name + '</div>' +
+              '<div class="text-xs text-muted mt-0.5">Giá vốn: ' + formatVND(p.cost_price || 0) + ' · Tồn: ' + p.stock + '</div>' +
+              '<input type="number"' +
+              ' id="qty-' + p.id + '"' +
+              ' data-product-id="' + p.id + '"' +
+              ' data-cost="' + (p.cost_price || 0) + '"' +
+              ' data-name="' + p.name + '"' +
+              ' min="0" placeholder="Nhập SL"' +
+              ' class="mt-2 w-full border-2 border-muted rounded-lg p-2.5 text-center font-medium focus:ring-2 focus:ring-primary"' +
+              ' onchange="updateCart()" oninput="updateCart()">' +
+              '</div>';
+          }).join('');
+        }
+
         allPurchases = data.purchases || [];
         historyCurrentPage = 1;
         renderHistoryPage();
-        
-        // Gắn sự kiện phân trang
-        const prevBtn = document.getElementById('historyPrev');
-        const nextBtn = document.getElementById('historyNext');
-        if (prevBtn) prevBtn.onclick = () => goToHistoryPage(historyCurrentPage - 1);
-        if (nextBtn) nextBtn.onclick = () => goToHistoryPage(historyCurrentPage + 1);
-        
-        // Switch to the appropriate tab
-        try {
-          switchTab(initialTab);
-        } catch (e) {
-          console.error('Switch tab error:', e);
-        }
-        
-        // Hide loading
-        const loading = document.getElementById('loading');
+
+        var prevBtn = document.getElementById('historyPrev');
+        var nextBtn = document.getElementById('historyNext');
+        if (prevBtn) prevBtn.onclick = function() { goToHistoryPage(historyCurrentPage - 1); };
+        if (nextBtn) nextBtn.onclick = function() { goToHistoryPage(historyCurrentPage + 1); };
+
+        try { switchTab(initialTab); } catch (e) {}
+
+        var loading = document.getElementById('loading');
         if (loading) loading.classList.add('hidden');
-        
+
       } catch (err) {
-        console.error('Failed to load data:', err);
-        const loading = document.getElementById('loading');
+        var loading = document.getElementById('loading');
         if (loading) loading.innerHTML = '<div class="text-danger text-center py-8">Lỗi tải dữ liệu</div>';
       }
     }
-    
+
+    // --- Render layout: header + content + bottom nav ---
+    var headerActions = '<a href="/" class="text-muted hover:bg-bg-hover px-2 rounded" style="font-size:18px;">🏠</a>';
+
+    document.getElementById('app').innerHTML =
+      getHeaderWithActions('Nhập hàng', '📥', headerActions) +
+      getContent(`
+        <!-- Tab Navigation -->
+        <div class="flex gap-2 mb-4">
+          <button onclick="switchTab('new')" id="tabNew" class="tab-btn active flex-1">📝 Nhập mới</button>
+          <button onclick="switchTab('history')" id="tabHistory" class="tab-btn flex-1">📋 Lịch sử</button>
+        </div>
+
+        <!-- Loading -->
+        <div id="loading" class="text-center py-8">
+          <div class="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full mx-auto"></div>
+          <div class="text-muted mt-2">Đang tải...</div>
+        </div>
+
+        <!-- New Purchase Form -->
+        <div id="newPurchaseSection" class="hidden">
+          <!-- Keg Inventory Status -->
+          <div id="kegInventorySection" class="card stat-card--green mb-4">
+            <div class="sc-label"><span class="sc-icon">📦</span> Kho vỏ</div>
+            <div class="sc-value" id="kegInventoryDisplay">-</div>
+            <div class="sc-sub"><a href="/kegs" class="text-xs text-blue-600 hover:underline">📋 Quản lý</a></div>
+          </div>
+
+          <div class="card stat-card--success mb-4">
+            <h3 class="font-bold text-lg mb-3">📦 Nhập hàng</h3>
+            <div class="space-y-4 max-h-96 overflow-y-auto" id="productList"></div>
+          </div>
+
+          <!-- Cart Summary -->
+          <div class="card stat-card--profit mb-4 sticky top-24">
+            <h3 class="font-bold text-lg mb-2">🛒 Giỏ nhập hàng</h3>
+            <div id="cartItems" class="space-y-2 mb-3 max-h-40 overflow-y-auto">
+              <div class="text-muted text-sm text-center py-2">Chưa chọn sản phẩm nào</div>
+            </div>
+            <div class="border-t border-muted pt-2 flex justify-between items-center">
+              <div class="font-bold text-lg text-main">Tổng tiền:</div>
+              <div id="cartTotal"><div class="money text-money"><span class="value text-xl font-bold tabular-nums">0</span><span class="unit">đ</span></div></div>
+            </div>
+            <input type="text" id="purchaseNote" placeholder="Ghi chú (tùy chọn)" class="w-full border border-muted rounded-lg px-3 py-2 mt-3 focus:ring-2 focus:ring-amber-500">
+            <button onclick="submitPurchase()" id="submitBtn" class="btn btn-primary w-full h-12 mt-3" disabled>✅ Xác nhận nhập hàng</button>
+          </div>
+        </div>
+
+        <!-- Purchase History -->
+        <div id="historySection" class="hidden">
+          <div class="space-y-3" id="historyList"></div>
+          <div id="historyPagination" class="hidden mt-4 flex items-center justify-between">
+            <button type="button" id="historyPrev" class="btn btn-secondary px-4 h-10" disabled>← Trước</button>
+            <span id="historyPageInfo" class="text-sm text-muted">Trang 1 / 1</span>
+            <button type="button" id="historyNext" class="btn btn-secondary px-4 h-10" disabled>Sau →</button>
+          </div>
+        </div>
+      `) +
+      getBottomNav('/purchases');
+
+    // --- Load data after layout is rendered ---
     loadData();
   </script>
-  
+
   <!-- PERFORMANCE: db.js + sync.js non-blocking via requestIdleCallback -->
   <script>
     var _ric = window.requestIdleCallback || function(cb) { return setTimeout(cb, 200); };

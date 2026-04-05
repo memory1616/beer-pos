@@ -1,4 +1,4 @@
-// BeerPOS Service Worker v31 — Production Optimized
+// BeerPOS Service Worker v32 — Production Optimized
 // ─────────────────────────────────────────────────────
 // Caching strategies:
 //   • App Shell + JS/CSS        → Cache-First  (instant repeat load)
@@ -8,7 +8,7 @@
 //   • Navigation                 → Network-First (always fresh page)
 //   • Auth requests              → No-cache (always live)
 //
-// Performance optimizations (v31):
+// Performance optimizations (v32):
 //   • Singleton DB — one IndexedDB connection, reused across all operations
 //   • Batch sync — all queued items sent in ONE POST request
 //   • Precompiled entity regex — O(1) lookup instead of O(n) loop
@@ -17,21 +17,23 @@
 //   • SW message batching — one postMessage per sync cycle
 //   • Exponential backoff with jitter on retry
 //   • CORS opaque response guard
-//   • Version 31 forces all stale connections to close (fixes "blocked" errors)
+//   • Version 32 forces all stale connections to close (fixes "blocked" errors)
+//   • CLS Prevention: App Shell includes layout.js (critical for first paint)
 // ─────────────────────────────────────────────────────
 
-const CACHE_NAME  = 'beer-pos-v31';
+const CACHE_NAME  = 'beer-pos-v32';
 const DB_NAME     = 'BeerPOS';
 const STORE_SYNC  = 'sync_queue';
 const MAX_RETRIES = 6;
 const MAX_CACHE   = 100; // entries — prevent unbounded growth
 
 // ─── App Shell — must cache for instant PWA load ────────────────────────────
-
+// v32: Added layout.js to app shell for CLS prevention (header renders on first paint)
 const APP_SHELL = [
   '/', '/index.html', '/manifest.json',
   '/icon-192.png', '/icon-512.png',
   '/css/tailwind.css', '/css/unified.css',
+  '/js/layout.js', '/js/auth.js', '/js/dark-mode.js',
 ];
 
 // ─── Cloud URL (set by main thread) ──────────────────────────────────────────

@@ -24,17 +24,34 @@ function getHeader(title, icons = '') {
 // Generate header with custom actions
 function getHeaderWithActions(title, icons = '', actions = '') {
   return `
-    <header class="topbar">
-      <div class="logo">
-        <span class="logo-icon">${icons}</span>
-        <div class="flex flex-col leading-tight">
-          <span class="logo-text">${title}</span>
-          <span class="text-[10px] text-muted -mt-0.5">v${appVersion}</span>
+    <header class="topbar" style="
+      height: calc(var(--topbar-height) + env(safe-area-inset-top, 0px));
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      background: var(--color-card);
+      border-bottom: 1px solid var(--color-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0;
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-left: calc(16px + env(safe-area-inset-left, 0px));
+      padding-right: calc(16px + env(safe-area-inset-right, 0px));
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+      z-index: 50;
+      max-width: 100%;
+      box-sizing: border-box;
+    ">
+      <div class="logo" style="display:flex;align-items:center;gap:8px;min-width:0;flex:1 1 auto;">
+        <span class="logo-icon" style="font-size:20px;flex-shrink:0;">${icons}</span>
+        <div style="display:flex;flex-direction:column;line-height:1.2;">
+          <span class="logo-text" style="font-weight:600;font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${title}</span>
+          <span style="font-size:10px;color:var(--color-text-muted);margin-top:-2px;">v${appVersion}</span>
         </div>
       </div>
-      <div class="actions">
-        <span id="onlineStatus" class="text-xs px-2 py-0.5 rounded-full bg-bg text-muted mr-1">⏳</span>
-        <span id="syncStatus" class="text-xs text-muted mr-1"></span>
+      <div class="actions" style="display:flex;gap:8px;font-size:18px;flex-shrink:0;align-items:center;flex-wrap:nowrap;">
+        <span id="onlineStatus" class="text-xs px-2 py-0.5 rounded-full" style="background:var(--color-bg);color:var(--color-text-muted);font-size:12px;padding:2px 8px;border-radius:9999px;margin-right:4px;">⏳</span>
+        <span id="syncStatus" class="text-xs" style="font-size:12px;color:var(--color-text-muted);margin-right:4px;"></span>
         <button id="themeToggle" onclick="window.__darkMode && window.__darkMode.cycle()" title="Chế độ sáng" style="background:none;border:none;cursor:pointer;font-size:18px;padding:4px 6px;border-radius:6px;">☀️</button>
         ${actions}
       </div>
@@ -45,7 +62,16 @@ function getHeaderWithActions(title, icons = '', actions = '') {
 // Generate main content wrapper
 function getContent(content) {
   return `
-    <main class="page-enter">
+    <main class="page-enter" style="
+      padding-top: calc(var(--topbar-height) + env(safe-area-inset-top, 0px));
+      padding-bottom: calc(var(--bottomnav-height) + env(safe-area-inset-bottom, 0px));
+      padding-left: max(16px, env(safe-area-inset-left, 0px));
+      padding-right: max(16px, env(safe-area-inset-right, 0px));
+      max-width: min(500px, 100%);
+      width: 100%;
+      margin: 0 auto;
+      box-sizing: border-box;
+    ">
       ${content}
     </main>
   `;
@@ -73,14 +99,44 @@ function getBottomNav(currentPage) {
     const isActive = p.home ? isHomeActive(currentPage) : currentPage === p.href;
     const homeAttr = p.home ? ' data-nav-home="1"' : '';
     return `
-        <a href="${p.href}" class="${isActive ? 'active' : ''}"${homeAttr}>
-          <span class="icon">${p.icon}</span>
-          <span>${p.label}</span>
+        <a href="${p.href}" class="${isActive ? 'active' : ''}"${homeAttr} style="
+          display:flex;
+          flex-direction:column;
+          align-items:center;
+          justify-content:center;
+          gap:2px;
+          color:${isActive ? 'var(--color-primary)' : 'var(--color-text-muted)'};
+          text-decoration:none;
+          transition:.2s;
+          ${isActive ? 'font-weight:600;transform:translateY(-2px);' : ''}
+        ">
+          <span style="font-size:20px;">${p.icon}</span>
+          <span style="font-size:11px;">${p.label}</span>
         </a>`;
   };
 
   return `
-    <nav class="bottomnav">
+    <nav class="bottomnav" style="
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: calc(var(--bottomnav-height) + env(safe-area-inset-bottom, 0px));
+      background: var(--color-card);
+      border-top: 3px solid var(--color-primary);
+      box-shadow: 0 -4px 20px rgba(245,158,11,0.15);
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      text-align: center;
+      max-width: 500px;
+      margin: 0 auto;
+      z-index: 50;
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      padding-left: env(safe-area-inset-left, 0px);
+      padding-right: env(safe-area-inset-right, 0px);
+      will-change: transform;
+      transform: translateZ(0);
+    ">
       ${pages.map(p => navItem(p)).join('')}
     </nav>
   `;

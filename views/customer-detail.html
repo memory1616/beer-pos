@@ -20,7 +20,6 @@
   <style>
     .animate-fade { animation: fade 0.3s ease-in; }
     @keyframes fade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-    .bottomnav { max-width: 500px; margin: auto; left: 0; right: 0; }
     canvas { width: 100% !important; height: auto !important; }
     .skeleton { background: linear-gradient(90deg, #e0e0e0 25%, #f0f0f0 50%, #e0e0e0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
     @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
@@ -28,7 +27,7 @@
     button:active { transform: scale(0.96); }
   </style>
 </head>
-<body class="bg-main text-primary min-h-screen pb-20">
+<body class="bg-main text-primary body--app">
   <div id="app"></div>
 
   <!-- Invoice Modal -->
@@ -193,65 +192,58 @@
 
     // Load customer data
     async function loadCustomerDetail() {
-      const app = document.getElementById('app');
-      app.innerHTML = `
-        <div class="max-w-md mx-auto bg-main min-h-screen">
-          <!-- Header -->
-          <div class="bg-primary text-white p-4 flex items-center gap-3 sticky top-0 z-10">
-            <a href="/customers" class="text-2xl">←</a>
-            <div class="flex-1">
-              <h1 class="text-xl font-bold" id="customerName">Đang tải...</h1>
-              <p class="text-sm text-white/70" id="customerPhone"></p>
+      // Render using layout.js functions
+      const headerActions = `
+        <button onclick="editCustomerInfo()" class="text-muted hover:bg-bg-hover px-2 rounded" style="font-size:14px;background:none;border:none;cursor:pointer;padding:4px 8px;" title="Sửa">✏️</button>
+      `;
+      
+      document.getElementById('app').innerHTML = 
+        getHeaderWithActions('Chi tiết khách', '👤', headerActions) +
+        getContent(`
+          <!-- Stats Cards -->
+          <div class="grid grid-cols-2 gap-3 mb-3">
+            <div class="card stat-card--blue">
+              <div class="sc-label"><span class="sc-icon">📦</span> Vỏ đang giữ</div>
+              <div class="sc-value" id="kegBalance">0</div>
             </div>
-            <button onclick="editCustomerInfo()" class="btn btn-ghost text-sm py-1">✏️ Sửa</button>
+            <div class="card stat-card--green">
+              <div class="sc-label"><span class="sc-icon">💰</span> Tổng doanh thu</div>
+              <div class="sc-value text-xl" id="totalRevenue">0</div>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3 mb-3">
+            <div class="card stat-card--amber">
+              <div class="sc-label"><span class="sc-icon">🍺</span> Tháng này</div>
+              <div class="sc-value text-base" id="monthlyKegs">0</div>
+              <div class="sc-sub">bình</div>
+            </div>
+            <div class="card stat-card--info">
+              <div class="sc-label"><span class="sc-icon">🚚</span> Gần nhất</div>
+              <div class="sc-value text-sm" id="lastSale">--</div>
+            </div>
           </div>
 
-          <!-- Stats Cards -->
-          <div class="p-4 space-y-3">
-            <div class="grid grid-cols-2 gap-3">
-              <div class="card stat-card--blue">
-                <div class="sc-label"><span class="sc-icon">📦</span> Vỏ đang giữ</div>
-                <div class="sc-value" id="kegBalance">0</div>
-              </div>
-              <div class="card stat-card--green">
-                <div class="sc-label"><span class="sc-icon">💰</span> Tổng doanh thu</div>
-                <div class="sc-value text-xl" id="totalRevenue">0</div>
-              </div>
-            </div>
-            <div class="grid grid-cols-2 gap-3">
-              <div class="card stat-card--amber">
-                <div class="sc-label"><span class="sc-icon">🍺</span> Tháng này</div>
-                <div class="sc-value text-base" id="monthlyKegs">0</div>
-                <div class="sc-sub">bình</div>
-              </div>
-              <div class="card stat-card--info">
-                <div class="sc-label"><span class="sc-icon">🚚</span> Gần nhất</div>
-                <div class="sc-value text-sm" id="lastSale">--</div>
-              </div>
-            </div>
+          <!-- Month Filter -->
+          <div class="card p-4 mb-3">
+            <label class="block text-sm font-medium text-main mb-2">📅 Lọc theo tháng</label>
+            <select id="monthFilter" onchange="onMonthChange()" class="w-full border-2 border-muted rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-primary">
+              ${getMonthOptions()}
+            </select>
+          </div>
 
-            <!-- Month Filter -->
-            <div class="card p-4">
-              <label class="block text-sm font-medium text-main mb-2">📅 Lọc theo tháng</label>
-              <select id="monthFilter" onchange="onMonthChange()" class="w-full border-2 border-muted rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-primary">
-                ${getMonthOptions()}
-              </select>
+          <!-- Fridge Info -->
+          <div class="card p-4 mb-3 border-secondary">
+            <div class="flex items-center justify-between mb-2">
+              <div class="font-semibold text-secondary">❄️ Tủ lạnh</div>
             </div>
-
-            <!-- Fridge Info -->
-            <div class="card p-4 border-secondary">
-              <div class="flex items-center justify-between mb-2">
-                <div class="font-semibold text-secondary">❄️ Tủ lạnh</div>
+            <div class="grid grid-cols-2 gap-3">
+              <div class="bg-bg rounded-lg p-3 text-center">
+                <div class="text-2xl font-bold text-secondary" id="horizontalFridgeCount">0</div>
+                <div class="text-xs text-muted">Tủ nằm</div>
               </div>
-              <div class="grid grid-cols-2 gap-3">
-                <div class="bg-bg rounded-lg p-3 text-center">
-                  <div class="text-2xl font-bold text-secondary" id="horizontalFridgeCount">0</div>
-                  <div class="text-xs text-muted">Tủ nằm</div>
-                </div>
-                <div class="bg-bg rounded-lg p-3 text-center">
-                  <div class="text-2xl font-bold text-secondary" id="verticalFridgeCount">0</div>
-                  <div class="text-xs text-muted">Tủ đứng</div>
-                </div>
+              <div class="bg-bg rounded-lg p-3 text-center">
+                <div class="text-2xl font-bold text-secondary" id="verticalFridgeCount">0</div>
+                <div class="text-xs text-muted">Tủ đứng</div>
               </div>
             </div>
           </div>
@@ -289,15 +281,8 @@
               <div class="text-center py-8 text-muted">Đang tải...</div>
             </div>
           </div>
-        </div>
-
-        <div id="bottomNavContainer"></div>
-        <script>
-          if (typeof getBottomNav === 'function') {
-            document.getElementById('bottomNavContainer').innerHTML = getBottomNav('/customers');
-          }
-        </script>
-      `;
+        `) +
+        getBottomNav('/customers');
 
       // Load customer info
       await loadCustomerInfo();
@@ -331,9 +316,12 @@
         
         if (data) {
           customerData = data;
-          document.getElementById('customerName').textContent = data.name;
-          document.getElementById('customerPhone').textContent = data.phone || 'Chưa có SĐT';
-          
+          // Update page title and header via document title
+          document.title = data.name + ' - Beer POS';
+          // Store customer name for display
+          window.__customerName = data.name;
+          window.__customerPhone = data.phone || 'Chưa có SĐT';
+
           // Display fridge info
           document.getElementById('horizontalFridgeCount').textContent = data.horizontal_fridge || 0;
           document.getElementById('verticalFridgeCount').textContent = data.vertical_fridge || 0;

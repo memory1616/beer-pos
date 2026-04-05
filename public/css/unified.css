@@ -27,11 +27,16 @@
   --color-text-muted: #9ca3af;
   --color-bg-hover: #e2e8f0;
   --color-card-hover: #f8fafc;
-  /* Layout */
+  /* Layout - Global CSS Variables */
   --topbar-height: 56px;
   --bottomnav-height: 64px;
   --header-height: 56px; /* alias for convenience */
   --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  /* Z-index layers — authoritative values */
+  --z-header: 50;
+  --z-bottomnav: 50;
+  --z-modal: 10000;
+  --z-toast: 9999;
   /* Radius */
   --radius-sm: 8px;
   --radius-md: 12px;
@@ -110,12 +115,13 @@ body.min-h-screen.pb-24 {
 }
 
 /* Static HTML pages with custom sticky headers — header renders inline,
-   main starts below header via CSS var instead of pt-14 hardcode. */
+   main starts below header via CSS var instead of pt-14 hardcode.
+   STANDARDIZED: padding-top for header, padding-bottom for bottomnav */
 .main-content {
   padding-top: calc(var(--header-height) + env(safe-area-inset-top, 0px));
+  padding-bottom: calc(var(--bottomnav-height) + env(safe-area-inset-bottom, 0px));
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px));
   max-width: min(500px, 100%);
   width: 100%;
   margin: 0 auto;
@@ -145,7 +151,7 @@ body .pt-14,
   padding-left: calc(16px + env(safe-area-inset-left, 0px));
   padding-right: calc(16px + env(safe-area-inset-right, 0px));
   box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-  z-index: 50;
+  z-index: var(--z-header, 50);
 }
 
 .topbar .logo {
@@ -225,7 +231,7 @@ body .pt-14,
   font-size: 11px;
   max-width: 500px;
   margin: 0 auto;
-  z-index: 60;
+  z-index: var(--z-bottomnav, 50);
   padding-bottom: env(safe-area-inset-bottom, 0px);
   padding-left: env(safe-area-inset-left, 0px);
   padding-right: env(safe-area-inset-right, 0px);

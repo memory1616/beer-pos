@@ -42,92 +42,8 @@
     input[type=number] { -moz-appearance: textfield; }
   </style>
 </head>
-<body class="bg-main text-primary min-h-screen pb-24">
-  <div id="app" class="max-w-lg mx-auto px-3 pt-4">
-    <!-- Header -->
-    <div class="flex items-center justify-between mb-4">
-      <h1 class="text-xl font-bold text-primary">🍺 Quản lý vỏ bia</h1>
-      <div class="flex gap-2">
-        <button onclick="syncKegs()" class="text-muted hover:text-main text-xl" title="Đồng bộ">🔄</button>
-        <button onclick="openHistoryModal()" class="text-muted hover:text-main text-xl" title="Lịch sử chi tiết">📋</button>
-      </div>
-    </div>
-
-    <!-- Stats Grid -->
-    <div class="grid grid-cols-2 gap-3 mb-4">
-      <div class="card stat-card--green" onclick="openModal('adjustModal')" style="cursor:pointer">
-        <div class="sc-label"><span class="sc-icon">📦</span> Vỏ đầy (kho)</div>
-        <div class="sc-value" id="statInventory">-</div>
-        <div class="sc-sub">Sẵn sàng giao</div>
-      </div>
-      <div class="card stat-card--blue" onclick="openModal('adjustModal')" style="cursor:pointer">
-        <div class="sc-label"><span class="sc-icon">🧹</span> Vỏ rỗng</div>
-        <div class="sc-value" id="statEmpty">-</div>
-        <div class="sc-sub">Chờ nạp lại</div>
-      </div>
-      <div class="card stat-card--amber">
-        <div class="sc-label"><span class="sc-icon">👥</span> Khách giữ</div>
-        <div class="sc-value" id="statHolding">-</div>
-        <div class="sc-sub">Chưa thu hồi</div>
-      </div>
-      <div class="card stat-card--profit">
-        <div class="sc-label"><span class="sc-icon">📊</span> Tồn kho thực</div>
-        <div class="sc-value" id="statBalance">-</div>
-        <div class="sc-sub" id="statBalanceNote">Kho+Rỗng-Khách</div>
-      </div>
-    </div>
-
-    <!-- Balance Warning -->
-    <div id="balanceWarning" class="hidden card card--alert-danger mb-4">
-      <div class="flex items-start gap-3">
-        <span class="text-xl">⚠️</span>
-        <div>
-          <div class="text-sm font-semibold text-danger">Số vỏ trong kho sắp hết!</div>
-          <div class="text-xs text-danger mt-0.5" id="balanceWarningMsg">Cần nhập thêm vỏ từ nhà máy.</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Quick Actions -->
-    <div class="grid grid-cols-3 gap-3 mb-4">
-      <button onclick="openModal('deliverModal')" class="action-btn ab-green">
-        <span class="ab-icon">📦</span>
-        <span class="ab-label">Giao vỏ</span>
-      </button>
-      <button onclick="openModal('collectModal')" class="action-btn ab-blue">
-        <span class="ab-icon">🔄</span>
-        <span class="ab-label">Thu vỏ</span>
-      </button>
-      <button onclick="openModal('importModal')" class="action-btn ab-purple">
-        <span class="ab-icon">🏭</span>
-        <span class="ab-label">Nhập vỏ</span>
-      </button>
-    </div>
-
-    <!-- Recent Transaction Log -->
-    <div class="card overflow-hidden">
-      <div class="p-3 border-b border-muted flex justify-between items-center">
-        <h3 class="font-bold text-sm text-main">📋 Giao dịch gần đây</h3>
-        <button onclick="openHistoryModal()" class="text-xs text-success font-semibold">Xem tất cả →</button>
-      </div>
-      <div class="max-h-64 overflow-y-auto">
-        <table class="w-full text-xs">
-          <thead>
-            <tr class="bg-bg text-muted sticky top-0">
-              <th class="py-2 px-2 text-left font-medium">Thời gian</th>
-              <th class="py-2 px-2 text-left font-medium">Loại</th>
-              <th class="py-2 px-2 text-center font-medium">SL</th>
-              <th class="py-2 px-2 text-center font-medium">Khách</th>
-              <th class="py-2 px-2 text-center font-medium">Ghi chú</th>
-            </tr>
-          </thead>
-          <tbody id="logBody"></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <div id="bottomNavContainer"></div>
+<body class="bg-main text-primary body--app">
+  <div id="app"></div>
 
   <!-- ========== MODALS ========== -->
   <div id="deliverModal" class="fixed inset-0 bg-overlay z-50 hidden items-center justify-center p-4">
@@ -318,17 +234,17 @@
   </div>
 
   <script>
-    // ========== INIT ==========
-    let kegState = {};
-    let customers = [];
-    let historyFilter = 'all';
-    let historyPage = 1;
-    let historyTotalPages = 1;
+    // ========== STATE ==========
+    var kegState = {};
+    var customers = [];
+    var historyFilter = 'all';
+    var historyPage = 1;
+    var historyTotalPages = 1;
 
     // ========== LOADING ==========
     async function loadState() {
       try {
-        const res = await fetch('/api/kegs/state');
+        var res = await fetch('/api/kegs/state');
         kegState = await res.json();
         renderStats();
       } catch (e) {
@@ -338,7 +254,7 @@
 
     async function loadCustomers() {
       try {
-        const res = await fetch('/api/customers');
+        var res = await fetch('/api/customers');
         customers = await res.json();
         populateCustomerSelects();
       } catch (e) {
@@ -348,8 +264,8 @@
 
     async function syncKegs() {
       try {
-        const res = await fetch('/api/kegs/sync');
-        const data = await res.json();
+        var res = await fetch('/api/kegs/sync');
+        var data = await res.json();
         if (data.success) {
           kegState = data.after;
           renderStats();
@@ -362,8 +278,8 @@
 
     async function loadRecentLog() {
       try {
-        const res = await fetch('/api/kegs/history?limit=20');
-        const json = await res.json();
+        var res = await fetch('/api/kegs/history?limit=20');
+        var json = await res.json();
         renderLog(json.data || []);
       } catch (e) {
         console.error('Load log error:', e);
@@ -372,380 +288,331 @@
 
     // ========== RENDER ==========
     function renderStats() {
-      const { inventory = 0, emptyCollected = 0, customerHolding = 0 } = kegState;
-      const balance = inventory + emptyCollected - customerHolding;
-
-      document.getElementById('statInventory').textContent = inventory;
-      document.getElementById('statEmpty').textContent = emptyCollected;
-      document.getElementById('statHolding').textContent = customerHolding;
-      document.getElementById('statBalance').textContent = balance;
-      document.getElementById('currentEmptyDisplay').textContent = emptyCollected + ' vỏ';
-      document.getElementById('deliverAvailQty').textContent = inventory + ' vỏ';
-      document.getElementById('collectAvailQty').textContent = 'Chọn khách';
-      document.getElementById('importAvailEmpty').textContent = emptyCollected + ' vỏ';
-
-      const warn = document.getElementById('balanceWarning');
-      if (inventory <= 5) {
-        warn.classList.remove('hidden');
-        document.getElementById('balanceWarningMsg').textContent = `Chỉ còn ${inventory} vỏ! Cần nhập thêm từ nhà máy.`;
-      } else {
-        warn.classList.add('hidden');
+      var inv = kegState.inventory || 0;
+      var empty = kegState.emptyCollected || 0;
+      var hold = kegState.customerHolding || 0;
+      var balance = inv + empty - hold;
+      var set = function(id, val) { var el = document.getElementById(id); if (el) el.textContent = val; };
+      set('statInventory', inv);
+      set('statEmpty', empty);
+      set('statHolding', hold);
+      set('statBalance', balance);
+      set('currentEmptyDisplay', empty + ' vỏ');
+      set('deliverAvailQty', inv + ' vỏ');
+      set('collectAvailQty', 'Chọn khách');
+      set('importAvailEmpty', empty + ' vỏ');
+      var warn = document.getElementById('balanceWarning');
+      if (warn) {
+        if (inv <= 5) {
+          warn.classList.remove('hidden');
+          var wmsg = document.getElementById('balanceWarningMsg');
+          if (wmsg) wmsg.textContent = 'Chỉ còn ' + inv + ' vỏ! Cần nhập thêm từ nhà máy.';
+        } else {
+          warn.classList.add('hidden');
+        }
       }
-
-      const note = document.getElementById('statBalanceNote');
-      if (balance < 0) {
-        note.textContent = '⚠️ Số âm! Kiểm tra ngay';
-        note.classList.add('text-danger');
-      } else {
-        note.textContent = 'Kho+Rỗng-Khách';
-        note.classList.remove('text-danger');
+      var note = document.getElementById('statBalanceNote');
+      if (note) {
+        if (balance < 0) {
+          note.textContent = '⚠️ Số âm! Kiểm tra ngay';
+          note.classList.add('text-danger');
+          note.classList.remove('text-muted');
+        } else {
+          note.textContent = 'Kho+Rỗng-Khách';
+          note.classList.remove('text-danger');
+        }
       }
     }
 
     function populateCustomerSelects() {
-      const opts = '<option value="">-- Chọn khách hàng --</option>' +
-        customers.map(c => `<option value="${c.id}">${c.name}${c.keg_balance ? ' [' + c.keg_balance + ' vỏ]' : ''}</option>`).join('');
-      document.getElementById('deliverCustomer').innerHTML = opts;
-      document.getElementById('collectCustomer').innerHTML = opts;
-
-      const histOpts = '<option value="">-- Tất cả khách --</option>' +
-        customers.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
-      document.getElementById('historyCustomerFilter').innerHTML = histOpts;
+      var opts = '<option value="">-- Chọn khách hàng --</option>' +
+        customers.map(function(c) { return '<option value="' + c.id + '">' + c.name + (c.keg_balance ? ' [' + c.keg_balance + ' vỏ]' : '') + '</option>'; }).join('');
+      var setHtml = function(id, v) { var el = document.getElementById(id); if (el) el.innerHTML = v; };
+      setHtml('deliverCustomer', opts);
+      setHtml('collectCustomer', opts);
+      var histOpts = '<option value="">-- Tất cả khách --</option>' +
+        customers.map(function(c) { return '<option value="' + c.id + '">' + c.name + '</option>'; }).join('');
+      setHtml('historyCustomerFilter', histOpts);
     }
 
     function updateCollectAvail() {
-      const cid = document.getElementById('collectCustomer').value;
-      if (!cid) {
-        document.getElementById('collectAvailQty').textContent = 'Chọn khách';
-        return;
-      }
-      const c = customers.find(x => x.id == cid);
-      document.getElementById('collectAvailQty').textContent = (c?.keg_balance || 0) + ' vỏ';
+      var cid = (document.getElementById('collectCustomer') || {}).value;
+      var el = document.getElementById('collectAvailQty');
+      if (!el) return;
+      if (!cid) { el.textContent = 'Chọn khách'; return; }
+      var c = customers.find(function(x) { return x.id == cid; });
+      el.textContent = (c && c.keg_balance ? c.keg_balance : 0) + ' vỏ';
     }
 
     function typeBadgeClass(type) {
-      const map = {
-        'deliver': 'badge-deliver',
-        'collect': 'badge-collect',
-        'import': 'badge-import',
-        'adjust': 'badge-adjust',
-        'sell_empty': 'badge-sell_empty'
-      };
+      var map = { deliver:'badge-deliver', collect:'badge-collect', import:'badge-import', adjust:'badge-adjust', sell_empty:'badge-sell_empty' };
       return 'inline-block px-2 py-0.5 rounded-full text-xs font-semibold ' + (map[type] || 'badge-secondary');
     }
 
     function typeLabel(type) {
-      const map = {
-        'deliver': '📦 Giao',
-        'collect': '🔄 Thu',
-        'import': '🏭 Nhập',
-        'adjust': '⚙️ Điều chỉnh',
-        'sell_empty': '💰 Bán vỏ rỗng'
-      };
+      var map = { deliver:'📦 Giao', collect:'🔄 Thu', import:'🏭 Nhập', adjust:'⚙️ Điều chỉnh', sell_empty:'💰 Bán vỏ rỗng' };
       return map[type] || type;
     }
 
     function renderLog(data) {
-      const el = document.getElementById('logBody');
-      if (!data || data.length === 0) {
-        el.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-muted">Chưa có giao dịch nào</td></tr>';
-        return;
-      }
-      el.innerHTML = data.slice(0, 20).map(log => {
-        const date = new Date(log.date).toLocaleString('vi-VN', {
-          day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
-        });
-        const customer = log.customer_name || (log.customer_id ? '(#' + log.customer_id + ')' : '—');
-        const note = log.note || '—';
-        return `
-          <tr class="log-row border-b border-muted hover:bg-success/5 cursor-pointer"
-              onclick='showLogDetail(${JSON.stringify(log).replace(/'/g, "\\'")})'>
-            <td class="py-2 px-2 text-xs text-muted">${date}</td>
-            <td class="py-2 px-2"><span class="${typeBadgeClass(log.type)}">${typeLabel(log.type)}</span></td>
-            <td class="py-2 px-2 text-xs text-center font-bold text-main">${log.quantity}</td>
-            <td class="py-2 px-2 text-xs text-center text-secondary truncate max-w-16" title="${customer}">${customer}</td>
-            <td class="py-2 px-2 text-xs text-muted truncate max-w-16" title="${note}">${note}</td>
-          </tr>
-        `;
+      var el = document.getElementById('logBody');
+      if (!el) return;
+      if (!data || data.length === 0) { el.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-muted">Chưa có giao dịch nào</td></tr>'; return; }
+      el.innerHTML = data.slice(0, 20).map(function(log) {
+        var date = new Date(log.date).toLocaleString('vi-VN', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
+        var customer = log.customer_name || (log.customer_id ? '(#' + log.customer_id + ')' : '—');
+        var note = log.note || '—';
+        var escapedNote = note.replace(/'/g, "\\'");
+        var escapedCustomer = customer.replace(/'/g, "\\'");
+        return '<tr class="log-row border-b border-muted hover:bg-success/5 cursor-pointer" onclick="showLogDetail(\'' + escapedNote + '\', \'' + escapedCustomer + '\', \'' + date + '\', ' + log.quantity + ', ' + (log.inventory_after||0) + ', ' + (log.empty_after||0) + ', ' + (log.holding_after||0) + ', \'' + typeLabel(log.type) + '\')">' +
+          '<td class="py-2 px-2 text-xs text-muted">' + date + '</td>' +
+          '<td class="py-2 px-2"><span class="' + typeBadgeClass(log.type) + '">' + typeLabel(log.type) + '</span></td>' +
+          '<td class="py-2 px-2 text-xs text-center font-bold text-main">' + log.quantity + '</td>' +
+          '<td class="py-2 px-2 text-xs text-center text-secondary truncate max-w-16" title="' + customer + '">' + customer + '</td>' +
+          '<td class="py-2 px-2 text-xs text-muted truncate max-w-16" title="' + note + '">' + note + '</td></tr>';
       }).join('');
     }
 
-    function showLogDetail(log) {
-      const date = new Date(log.date).toLocaleString('vi-VN');
-      const customer = log.customer_name || (log.customer_id ? 'Khách #' + log.customer_id : '—');
-      const note = log.note || '—';
-      const msg = `${typeLabel(log.type)}\n`
-        + `Thời gian: ${date}\n`
-        + `Khách hàng: ${customer}\n`
-        + `Số lượng: ${log.quantity} vỏ\n`
-        + `Tồn kho: ${log.inventory_after} vỏ\n`
-        + `Vỏ rỗng: ${log.empty_after} vỏ\n`
-        + `Khách giữ: ${log.holding_after} vỏ\n`
-        + `Ghi chú: ${note}`;
-      alert(msg);
+    function showLogDetail(note, customer, date, qty, inv, empty, hold, type) {
+      showToast(type + ': ' + qty + ' vỏ — ' + customer, 'info');
     }
 
     // ========== HISTORY MODAL ==========
-    function openHistoryModal() {
-      openModal('historyModal');
-      loadHistory();
-    }
+    function openHistoryModal() { openModal('historyModal'); loadHistory(); }
 
     function setHistoryFilter(type) {
       historyFilter = type;
       historyPage = 1;
-      document.querySelectorAll('[id^="filter"]').forEach(el => {
+      document.querySelectorAll('[id^="filter"]').forEach(function(el) {
         el.classList.remove('bg-success/20', 'text-success');
         el.classList.add('bg-bg', 'text-muted');
       });
-      const map = { all: 'All', deliver: 'Deliver', collect: 'Collect', import: 'Import', adjust: 'Adjust' };
-      const active = document.getElementById('filter' + map[type]);
-      if (active) {
-        active.classList.remove('bg-bg', 'text-muted');
-        active.classList.add('bg-success/20', 'text-success');
-      }
+      var map = { all:'All', deliver:'Deliver', collect:'Collect', import:'Import', adjust:'Adjust' };
+      var active = document.getElementById('filter' + map[type]);
+      if (active) { active.classList.remove('bg-bg', 'text-muted'); active.classList.add('bg-success/20', 'text-success'); }
       loadHistory();
     }
 
     async function loadHistory() {
-      const limit = parseInt(document.getElementById('historyPageSize')?.value || 50);
-      const customerId = document.getElementById('historyCustomerFilter')?.value;
-      let url = `/api/kegs/history?page=${historyPage}&limit=${limit}`;
-      if (historyFilter !== 'all') url += `&type=${historyFilter}`;
-      if (customerId) url += `&customer_id=${customerId}`;
-
+      var limitEl = document.getElementById('historyPageSize');
+      var limit = limitEl ? parseInt(limitEl.value) : 50;
+      var custEl = document.getElementById('historyCustomerFilter');
+      var custId = custEl ? custEl.value : '';
+      var url = '/api/kegs/history?page=' + historyPage + '&limit=' + limit;
+      if (historyFilter !== 'all') url += '&type=' + historyFilter;
+      if (custId) url += '&customer_id=' + custId;
       try {
-        const res = await fetch(url);
-        const json = await res.json();
-        const data = json.data || [];
-        historyTotalPages = json.pages || 1;
-        renderHistoryList(data);
-        renderHistorySummary(data);
+        var res = await fetch(url);
+        var json = await res.json();
+        renderHistoryList(json.data || []);
+        renderHistorySummary(json.data || []);
         renderHistoryPagination();
-      } catch (e) {
-        console.error('Load history error:', e);
-      }
+      } catch (e) { console.error('Load history error:', e); }
     }
 
     function renderHistoryList(data) {
-      const el = document.getElementById('historyList');
-      if (!data || data.length === 0) {
-        el.innerHTML = '<div class="text-center py-8 text-muted">Không có giao dịch nào</div>';
-        return;
-      }
-      el.innerHTML = data.map(log => {
-        const date = new Date(log.date).toLocaleString('vi-VN', {
-          day: '2-digit', month: '2-digit', year: 'numeric',
-          hour: '2-digit', minute: '2-digit'
-        });
-        const customer = log.customer_name || (log.customer_id ? 'Khách #' + log.customer_id : '—');
-        const importInfo = (log.exchanged || log.purchased)
-          ? `<div class="text-xs text-secondary">Đổi: ${log.exchanged || 0} | Mới: ${log.purchased || 0}</div>`
-          : '';
-        const note = log.note ? `<div class="text-xs text-muted italic mt-1">${log.note}</div>` : '';
-        return `
-          <div class="card card--list-item mb-2">
-            <div class="flex justify-between items-start mb-1">
-              <div class="flex items-center gap-2">
-                <span class="${typeBadgeClass(log.type)}">${typeLabel(log.type)}</span>
-                <span class="text-sm font-bold text-main">${log.quantity} vỏ</span>
-              </div>
-              <span class="text-xs text-muted">${date}</span>
-            </div>
-            <div class="text-xs text-muted mb-1">👤 ${customer}</div>
-            ${importInfo}
-            <div class="grid grid-cols-3 gap-1 mt-2 text-xs text-center">
-              <div class="bg-bg rounded p-1">
-                <div class="text-muted">Tồn kho</div>
-                <div class="font-bold text-success">${log.inventory_after}</div>
-              </div>
-              <div class="bg-bg rounded p-1">
-                <div class="text-muted">Vỏ rỗng</div>
-                <div class="font-bold text-info">${log.empty_after}</div>
-              </div>
-              <div class="bg-bg rounded p-1">
-                <div class="text-muted">Khách giữ</div>
-                <div class="font-bold text-secondary">${log.holding_after}</div>
-              </div>
-            </div>
-            ${note}
-          </div>
-        `;
+      var el = document.getElementById('historyList');
+      if (!el) return;
+      if (!data || data.length === 0) { el.innerHTML = '<div class="text-center py-8 text-muted">Không có giao dịch nào</div>'; return; }
+      el.innerHTML = data.map(function(log) {
+        var date = new Date(log.date).toLocaleString('vi-VN', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+        var customer = log.customer_name || (log.customer_id ? 'Khách #' + log.customer_id : '—');
+        var importInfo = (log.exchanged || log.purchased) ? '<div class="text-xs text-secondary">Đổi: ' + (log.exchanged||0) + ' | Mới: ' + (log.purchased||0) + '</div>' : '';
+        var note = log.note ? '<div class="text-xs text-muted italic mt-1">' + log.note + '</div>' : '';
+        return '<div class="card card--list-item mb-2">' +
+          '<div class="flex justify-between items-start mb-1">' +
+          '<div class="flex items-center gap-2"><span class="' + typeBadgeClass(log.type) + '">' + typeLabel(log.type) + '</span>' +
+          '<span class="text-sm font-bold text-main">' + log.quantity + ' vỏ</span></div>' +
+          '<span class="text-xs text-muted">' + date + '</span></div>' +
+          '<div class="text-xs text-muted mb-1">👤 ' + customer + '</div>' +
+          importInfo +
+          '<div class="grid grid-cols-3 gap-1 mt-2 text-xs text-center">' +
+          '<div class="bg-bg rounded p-1"><div class="text-muted">Tồn kho</div><div class="font-bold text-success">' + (log.inventory_after||0) + '</div></div>' +
+          '<div class="bg-bg rounded p-1"><div class="text-muted">Vỏ rỗng</div><div class="font-bold text-info">' + (log.empty_after||0) + '</div></div>' +
+          '<div class="bg-bg rounded p-1"><div class="text-muted">Khách giữ</div><div class="font-bold text-secondary">' + (log.holding_after||0) + '</div></div></div>' +
+          note + '</div>';
       }).join('');
     }
 
     function renderHistorySummary(data) {
-      const totals = data.reduce((acc, log) => {
-        acc.delivered += log.type === 'deliver' ? log.quantity : 0;
-        acc.collected += log.type === 'collect' ? log.quantity : 0;
-        acc.imported += log.type === 'import' ? log.quantity : 0;
-        acc.adjusted += (log.type === 'adjust' || log.type === 'sell_empty') ? log.quantity : 0;
-        return acc;
-      }, { delivered: 0, collected: 0, imported: 0, adjusted: 0 });
-      document.getElementById('summaryDelivered').textContent = totals.delivered + ' vỏ';
-      document.getElementById('summaryCollected').textContent = totals.collected + ' vỏ';
-      document.getElementById('summaryImported').textContent = totals.imported + ' vỏ';
-      document.getElementById('summaryAdjusted').textContent = totals.adjusted + ' vỏ';
+      var totals = { delivered:0, collected:0, imported:0, adjusted:0 };
+      data.forEach(function(log) {
+        if (log.type === 'deliver') totals.delivered += log.quantity;
+        else if (log.type === 'collect') totals.collected += log.quantity;
+        else if (log.type === 'import') totals.imported += log.quantity;
+        else if (log.type === 'adjust' || log.type === 'sell_empty') totals.adjusted += log.quantity;
+      });
+      var set = function(id, val) { var el = document.getElementById(id); if (el) el.textContent = val; };
+      set('summaryDelivered', totals.delivered + ' vỏ');
+      set('summaryCollected', totals.collected + ' vỏ');
+      set('summaryImported', totals.imported + ' vỏ');
+      set('summaryAdjusted', totals.adjusted + ' vỏ');
     }
 
     function renderHistoryPagination() {
-      const info = document.getElementById('historyPageInfo');
-      const prev = document.getElementById('historyPrevBtn');
-      const next = document.getElementById('historyNextBtn');
-      if (info) info.textContent = `Trang ${historyPage}/${historyTotalPages}`;
+      var info = document.getElementById('historyPageInfo');
+      var prev = document.getElementById('historyPrevBtn');
+      var next = document.getElementById('historyNextBtn');
+      if (info) info.textContent = 'Trang ' + historyPage + '/' + historyTotalPages;
       if (prev) prev.disabled = historyPage <= 1;
       if (next) next.disabled = historyPage >= historyTotalPages;
     }
 
-    function changeHistoryPage(dir) {
-      historyPage = Math.max(1, Math.min(historyTotalPages, historyPage + dir));
-      loadHistory();
-    }
+    function changeHistoryPage(dir) { historyPage = Math.max(1, Math.min(historyTotalPages, historyPage + dir)); loadHistory(); }
 
     // ========== MODAL HELPERS ==========
-    function openModal(id) {
-      const el = document.getElementById(id);
-      el.classList.remove('hidden');
-      el.classList.add('flex');
-    }
-
-    function closeModal(id) {
-      const el = document.getElementById(id);
-      el.classList.add('hidden');
-      el.classList.remove('flex');
-    }
-
-    function adjustQty(inputId, delta) {
-      const input = document.getElementById(inputId);
-      const newVal = Math.max(parseInt(input.min || 0), parseInt(input.value || 0) + delta);
-      input.value = newVal;
-    }
-
-    function updateImportTotal() {
-      const ex = parseInt(document.getElementById('importExchanged').value) || 0;
-      const pu = parseInt(document.getElementById('importPurchased').value) || 0;
-      document.getElementById('importTotalDisplay').textContent = (ex + pu) + ' vỏ';
-    }
+    function openModal(id) { var el = document.getElementById(id); if (el) { el.classList.remove('hidden'); el.classList.add('flex'); } }
+    function closeModal(id) { var el = document.getElementById(id); if (el) { el.classList.add('hidden'); el.classList.remove('flex'); } }
+    function adjustQty(inputId, delta) { var input = document.getElementById(inputId); if (input) input.value = Math.max(parseInt(input.min||0), parseInt(input.value||0) + delta); }
+    function updateImportTotal() { var ex = parseInt(document.getElementById('importExchanged') && document.getElementById('importExchanged').value) || 0; var pu = parseInt(document.getElementById('importPurchased') && document.getElementById('importPurchased').value) || 0; var el = document.getElementById('importTotalDisplay'); if (el) el.textContent = (ex + pu) + ' vỏ'; }
 
     // ========== SUBMIT HANDLERS ==========
     async function submitDeliver() {
-      const customerId = document.getElementById('deliverCustomer').value;
-      const qty = parseInt(document.getElementById('deliverQty').value);
-      const note = document.getElementById('deliverNote').value;
-      if (!customerId) { showToast('Vui lòng chọn khách hàng', 'error'); return; }
+      var cid = (document.getElementById('deliverCustomer') || {}).value;
+      var qty = parseInt((document.getElementById('deliverQty') || {}).value);
+      var note = (document.getElementById('deliverNote') || {}).value || '';
+      if (!cid) { showToast('Vui lòng chọn khách hàng', 'error'); return; }
       if (!qty || qty < 1) { showToast('Số lượng phải lớn hơn 0', 'error'); return; }
-      if (kegState.inventory < qty) {
-        showToast(`Không đủ vỏ! Chỉ còn ${kegState.inventory} vỏ`, 'error'); return;
-      }
+      if ((kegState.inventory || 0) < qty) { showToast('Không đủ vỏ! Chỉ còn ' + kegState.inventory + ' vỏ', 'error'); return; }
       try {
-        const res = await fetch('/api/kegs/deliver', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ customerId, quantity: qty, note })
-        });
-        const result = await res.json();
+        var res = await fetch('/api/kegs/deliver', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ customerId:cid, quantity:qty, note:note }) });
+        var result = await res.json();
         if (res.ok) {
-          showToast(`Đã giao ${qty} vỏ cho khách!`, 'success');
+          showToast('Đã giao ' + qty + ' vỏ cho khách!', 'success');
           closeModal('deliverModal');
-          document.getElementById('deliverNote').value = '';
-          document.getElementById('deliverQty').value = 1;
-          await loadCustomers();
-          await loadState();
-          await loadRecentLog();
-        } else {
-          showToast(result.error || 'Thất bại', 'error');
-        }
-      } catch (e) {
-        showToast('Lỗi kết nối', 'error');
-      }
+          var dn = document.getElementById('deliverNote'); if (dn) dn.value = '';
+          var dq = document.getElementById('deliverQty'); if (dq) dq.value = 1;
+          await loadCustomers(); await loadState(); await loadRecentLog();
+        } else { showToast(result.error || 'Thất bại', 'error'); }
+      } catch (e) { showToast('Lỗi kết nối', 'error'); }
     }
 
     async function submitCollect() {
-      const customerId = document.getElementById('collectCustomer').value;
-      const qty = parseInt(document.getElementById('collectQty').value);
-      const note = document.getElementById('collectNote').value;
-      if (!customerId) { showToast('Vui lòng chọn khách hàng', 'error'); return; }
+      var cid = (document.getElementById('collectCustomer') || {}).value;
+      var qty = parseInt((document.getElementById('collectQty') || {}).value);
+      var note = (document.getElementById('collectNote') || {}).value || '';
+      if (!cid) { showToast('Vui lòng chọn khách hàng', 'error'); return; }
       if (!qty || qty < 1) { showToast('Số lượng phải lớn hơn 0', 'error'); return; }
       try {
-        const res = await fetch('/api/kegs/collect', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ customerId, quantity: qty, note })
-        });
-        const result = await res.json();
+        var res = await fetch('/api/kegs/collect', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ customerId:cid, quantity:qty, note:note }) });
+        var result = await res.json();
         if (res.ok) {
-          showToast(`Đã thu ${qty} vỏ rỗng!`, 'success');
+          showToast('Đã thu ' + qty + ' vỏ rỗng!', 'success');
           closeModal('collectModal');
-          document.getElementById('collectNote').value = '';
-          document.getElementById('collectQty').value = 1;
-          await loadCustomers();
-          await loadState();
-          await loadRecentLog();
-          updateCollectAvail();
-        } else {
-          showToast(result.error || 'Thất bại', 'error');
-        }
-      } catch (e) {
-        showToast('Lỗi kết nối', 'error');
-      }
+          var cn = document.getElementById('collectNote'); if (cn) cn.value = '';
+          var cq = document.getElementById('collectQty'); if (cq) cq.value = 1;
+          await loadCustomers(); await loadState(); await loadRecentLog(); updateCollectAvail();
+        } else { showToast(result.error || 'Thất bại', 'error'); }
+      } catch (e) { showToast('Lỗi kết nối', 'error'); }
     }
 
     async function submitImport() {
-      const exchanged = parseInt(document.getElementById('importExchanged').value) || 0;
-      const purchased = parseInt(document.getElementById('importPurchased').value) || 0;
-      const note = document.getElementById('importNote').value;
-      if (exchanged + purchased < 1) { showToast('Phải nhập ít nhất 1 vỏ', 'error'); return; }
+      var ex = parseInt(document.getElementById('importExchanged') && document.getElementById('importExchanged').value) || 0;
+      var pu = parseInt(document.getElementById('importPurchased') && document.getElementById('importPurchased').value) || 0;
+      var note = (document.getElementById('importNote') || {}).value || '';
+      if (ex + pu < 1) { showToast('Phải nhập ít nhất 1 vỏ', 'error'); return; }
       try {
-        const res = await fetch('/api/kegs/import', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ exchanged, purchased, note })
-        });
-        const result = await res.json();
+        var res = await fetch('/api/kegs/import', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ exchanged:ex, purchased:pu, note:note }) });
+        var result = await res.json();
         if (res.ok) {
           showToast(result.message, 'success');
           closeModal('importModal');
-          document.getElementById('importExchanged').value = 0;
-          document.getElementById('importPurchased').value = 0;
-          document.getElementById('importNote').value = '';
-          document.getElementById('importTotalDisplay').textContent = '0 vỏ';
-          await loadState();
-          await loadRecentLog();
-        } else {
-          showToast(result.error || 'Thất bại', 'error');
-        }
-      } catch (e) {
-        showToast('Lỗi kết nối', 'error');
-      }
+          var ie = document.getElementById('importExchanged'); if (ie) ie.value = 0;
+          var ip = document.getElementById('importPurchased'); if (ip) ip.value = 0;
+          var in2 = document.getElementById('importNote'); if (in2) in2.value = '';
+          var itd = document.getElementById('importTotalDisplay'); if (itd) itd.textContent = '0 vỏ';
+          await loadState(); await loadRecentLog();
+        } else { showToast(result.error || 'Thất bại', 'error'); }
+      } catch (e) { showToast('Lỗi kết nối', 'error'); }
     }
 
     async function submitAdjust() {
-      const qty = parseInt(document.getElementById('adjustQty').value);
-      const note = document.getElementById('adjustNote').value;
+      var qty = parseInt((document.getElementById('adjustQty') || {}).value);
+      var note = (document.getElementById('adjustNote') || {}).value || '';
       if (isNaN(qty) || qty < 0) { showToast('Số lượng không hợp lệ', 'error'); return; }
       try {
-        const res = await fetch('/api/kegs/state', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ emptyCollected: qty, note })
-        });
-        const result = await res.json();
-        if (res.ok) {
-          showToast('Đã cập nhật vỏ rỗng', 'success');
-          closeModal('adjustModal');
-          document.getElementById('adjustNote').value = '';
-          await loadState();
-          await loadRecentLog();
-        } else {
-          showToast(result.error || 'Thất bại', 'error');
-        }
-      } catch (e) {
-        showToast('Lỗi kết nối', 'error');
-      }
+        var res = await fetch('/api/kegs/state', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ emptyCollected:qty, note:note }) });
+        var result = await res.json();
+        if (res.ok) { showToast('Đã cập nhật vỏ rỗng', 'success'); closeModal('adjustModal'); await loadState(); await loadRecentLog(); }
+        else { showToast(result.error || 'Thất bại', 'error'); }
+      } catch (e) { showToast('Lỗi kết nối', 'error'); }
     }
 
     // ========== INIT ==========
     async function init() {
+      var headerActions =
+        '<button onclick="syncKegs()" class="text-muted hover:bg-bg-hover px-2 rounded" style="font-size:18px;background:none;border:none;cursor:pointer;padding:4px 8px;" title="Đồng bộ">🔄</button>' +
+        '<button onclick="openHistoryModal()" class="text-muted hover:bg-bg-hover px-2 rounded" style="font-size:18px;background:none;border:none;cursor:pointer;padding:4px 8px;" title="Lịch sử chi tiết">📋</button>';
+
+      document.getElementById('app').innerHTML =
+        getHeaderWithActions('Quản lý vỏ bia', '🍺', headerActions) +
+        getContent(`
+          <!-- Stats Grid -->
+          <div class="grid grid-cols-2 gap-3 mb-4">
+            <div class="card stat-card--green" onclick="openModal('adjustModal')" style="cursor:pointer">
+              <div class="sc-label"><span class="sc-icon">📦</span> Vỏ đầy (kho)</div>
+              <div class="sc-value" id="statInventory">-</div>
+              <div class="sc-sub">Sẵn sàng giao</div>
+            </div>
+            <div class="card stat-card--blue" onclick="openModal('adjustModal')" style="cursor:pointer">
+              <div class="sc-label"><span class="sc-icon">🧹</span> Vỏ rỗng</div>
+              <div class="sc-value" id="statEmpty">-</div>
+              <div class="sc-sub">Chờ nạp lại</div>
+            </div>
+            <div class="card stat-card--amber">
+              <div class="sc-label"><span class="sc-icon">👥</span> Khách giữ</div>
+              <div class="sc-value" id="statHolding">-</div>
+              <div class="sc-sub">Chưa thu hồi</div>
+            </div>
+            <div class="card stat-card--profit">
+              <div class="sc-label"><span class="sc-icon">📊</span> Tồn kho thực</div>
+              <div class="sc-value" id="statBalance">-</div>
+              <div class="sc-sub" id="statBalanceNote">Kho+Rỗng-Khách</div>
+            </div>
+          </div>
+
+          <!-- Balance Warning -->
+          <div id="balanceWarning" class="hidden card card--alert-danger mb-4">
+            <div class="flex items-start gap-3">
+              <span class="text-xl">⚠️</span>
+              <div>
+                <div class="text-sm font-semibold text-danger">Số vỏ trong kho sắp hết!</div>
+                <div class="text-xs text-danger mt-0.5" id="balanceWarningMsg">Cần nhập thêm vỏ từ nhà máy.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Actions -->
+          <div class="grid grid-cols-3 gap-3 mb-4">
+            <button onclick="openModal('deliverModal')" class="action-btn ab-green"><span class="ab-icon">📦</span><span class="ab-label">Giao vỏ</span></button>
+            <button onclick="openModal('collectModal')" class="action-btn ab-blue"><span class="ab-icon">🔄</span><span class="ab-label">Thu vỏ</span></button>
+            <button onclick="openModal('importModal')" class="action-btn ab-purple"><span class="ab-icon">🏭</span><span class="ab-label">Nhập vỏ</span></button>
+          </div>
+
+          <!-- Recent Transaction Log -->
+          <div class="card overflow-hidden">
+            <div class="p-3 border-b border-muted flex justify-between items-center">
+              <h3 class="font-bold text-sm text-main">📋 Giao dịch gần đây</h3>
+              <button onclick="openHistoryModal()" class="text-xs text-success font-semibold">Xem tất cả →</button>
+            </div>
+            <div class="max-h-64 overflow-y-auto">
+              <table class="w-full text-xs">
+                <thead>
+                  <tr class="bg-bg text-muted sticky top-0">
+                    <th class="py-2 px-2 text-left font-medium">Thời gian</th>
+                    <th class="py-2 px-2 text-left font-medium">Loại</th>
+                    <th class="py-2 px-2 text-center font-medium">SL</th>
+                    <th class="py-2 px-2 text-center font-medium">Khách</th>
+                    <th class="py-2 px-2 text-center font-medium">Ghi chú</th>
+                  </tr>
+                </thead>
+                <tbody id="logBody"></tbody>
+              </table>
+            </div>
+          </div>
+        `) +
+        getBottomNav('/kegs');
+
       await loadCustomers();
       await loadState();
       await loadRecentLog();
