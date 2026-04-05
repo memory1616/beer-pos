@@ -105,25 +105,35 @@ function getCardSkeleton() {
 // Auto-load version on script load
 loadVersion();
 
-// Một số Chrome/PWA (standalone) chặn điều hướng thường → about:blank#blocked; ép tải lại cùng tab.
-function installBottomNavHomeNavigationFix() {
-  document.addEventListener(
-    'click',
-    function (e) {
-      const a = e.target.closest && e.target.closest('.bottomnav a[data-nav-home]');
-      if (!a) return;
-      if (e.defaultPrevented || e.button !== 0) return;
-      if (e.ctrlKey || e.metaKey || e.shiftKey) return;
-      e.preventDefault();
-      window.location.assign(a.href || '/');
-    },
-    true
-  );
+// Auto-populate bottom nav on static HTML pages (report, expenses, delivery, etc.)
+// These pages have <div id="bottomNavContainer"></div> and inject nav via JS after layout.js loads.
+function autoInjectBottomNav() {
+  if (typeof getBottomNav !== 'function') return;
+  const container = document.getElementById('bottomNavContainer');
+  if (!container || container.innerHTML.trim()) return;
+
+  // Detect page from URL or body class for correct active state
+  const path = window.location.pathname.replace(/\/$/, '') || '/';
+  const pageMap = {
+    '/expenses': '/expenses',
+    '/delivery': '/delivery',
+    '/report':   '/report',
+    '/backup':   '/backup',
+    '/purchases': '/purchases',
+    '/kegs':     '/kegs',
+  };
+  const activePage = pageMap[path] || '/';
+  container.innerHTML = getBottomNav(activePage);
 }
+
 if (typeof document !== 'undefined') {
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', installBottomNavHomeNavigationFix);
+    document.addEventListener('DOMContentLoaded', () => {
+      installBottomNavHomeNavigationFix();
+      autoInjectBottomNav();
+    });
   } else {
     installBottomNavHomeNavigationFix();
+    autoInjectBottomNav();
   }
 }

@@ -30,7 +30,8 @@ function loadExpenses(monthStr) {
   fetch('/api/expenses?startDate=' + startDate + '&endDate=' + endDate)
     .then(function(r) { return r.json(); })
     .then(function(data) {
-      _expensesData = data.expenses || [];
+      // API returns array directly (not { expenses: [...] })
+      _expensesData = Array.isArray(data) ? data : (data.expenses || []);
       updateTotal();
       renderExpenses();
     })

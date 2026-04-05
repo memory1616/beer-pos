@@ -198,7 +198,19 @@
   updateDistances();
 
   window.getCurrentLocation = function() {
-    if (!navigator.geolocation) { alert('Trình duyệt không hỗ trợ GPS'); return; }
+    if (!navigator.geolocation) { alert('Trình duyệt không hỗ trợ GPS. Vui lòng dùng Chrome hoặc Safari.'); return; }
+
+    var isSecure = window.isSecureContext || (window.location.protocol === 'https:') || (window.location.hostname === 'localhost') || (window.location.hostname === '127.0.0.1');
+    if (!isSecure) {
+      alert('⚠️ Lấy GPS cần HTTPS.\n\nVui lòng truy cập qua https:// để sử dụng GPS.');
+      return;
+    }
+
+    var statusEl = document.createElement('div');
+    statusEl.textContent = '⏳ Đang lấy vị trí...';
+    statusEl.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#10b981;color:white;padding:8px 16px;border-radius:8px;z-index:9999;font-size:13px;';
+    document.body.appendChild(statusEl);
+
     navigator.geolocation.getCurrentPosition(
       function(position) {
         currentLat = position.coords.latitude;
@@ -208,9 +220,24 @@
         userMarker = L.marker([currentLat, currentLng], { icon: L.divIcon({ className: 'bg-primary rounded-full w-4 h-4 border-2 border-muted', iconSize: [16,16] }) }).addTo(map).bindPopup('📍 Vị trí của bạn').openPopup();
         map.setView([currentLat, currentLng], 14);
         updateDistances();
+        statusEl.remove();
+        var alertMsg = '📍 Đã lấy vị trí!\nVĩ độ: ' + currentLat.toFixed(6) + '\nKinh độ: ' + currentLng.toFixed(6);
+        if (currentLat === defaultSettings.distributorLat && currentLng === defaultSettings.distributorLng) {
+          alertMsg += '\n⚠️ Vị trí trùng kho — có thể GPS chưa chính xác.';
+        }
       },
-      function(error) { alert('Không lấy được vị trí: ' + error.message); },
-      { enableHighAccuracy: true }
+      function(error) {
+        statusEl.remove();
+        var msg;
+        switch (error.code) {
+          case 1: msg = '⚠️ Không có quyền truy cập GPS.\n\nVui lòng bật quyền truy cập vị trí cho trình duyệt.'; break;
+          case 2: msg = '⚠️ Không tìm được GPS.\n\nThử di chuyển ra ngoài hoặc bật GPS trên điện thoại.'; break;
+          case 3: msg = '⚠️ Hết thời gian lấy GPS.\n\nThử lại hoặc chọn vị trí kho mặc định.'; break;
+          default: msg = 'Lỗi GPS: ' + error.message;
+        }
+        alert(msg);
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 }
     );
   };
 
@@ -252,6 +279,8 @@
 
   window.getDistributorLocation = function() {
     if (!navigator.geolocation) { alert('Trình duyệt không hỗ trợ GPS'); return; }
+    var isSecure = window.isSecureContext || (window.location.protocol === 'https:') || (window.location.hostname === 'localhost') || (window.location.hostname === '127.0.0.1');
+    if (!isSecure) { alert('⚠️ Lấy GPS cần HTTPS. Vui lòng truy cập qua https:// để sử dụng.'); return; }
     navigator.geolocation.getCurrentPosition(
       function(position) {
         var latEl = document.getElementById('distributorLat');
@@ -259,7 +288,14 @@
         if (latEl) latEl.value = position.coords.latitude.toFixed(6);
         if (lngEl) lngEl.value = position.coords.longitude.toFixed(6);
       },
-      function(error) { alert('Không lấy được vị trí: ' + error.message); }
+      function(error) {
+        var msg = 'Không lấy được vị trí kho';
+        if (error.code === 1) msg = 'Không có quyền truy cập GPS cho kho';
+        else if (error.code === 2) msg = 'Không tìm được GPS kho';
+        else if (error.code === 3) msg = 'Hết thời gian lấy GPS kho';
+        alert(msg);
+      },
+      { enableHighAccuracy: true, timeout: 15000 }
     );
   };
 
