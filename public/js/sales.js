@@ -1161,15 +1161,15 @@ async function showInvoiceModal(saleId) {
     kegHtml += '<div class="flex justify-between text-sm font-semibold pt-1"><span class="text-main">Vỏ đang giữ:</span><span>' + newBalance + '</span></div></div>';
   }
 
-  const giftBadge = isGift ? '<div class="text-center mb-2"><span class="badge badge-warning">🎁 Tặng uống thử</span></div>' : '';
+  const giftBadge = isGift ? '<div class="text-center mb-3"><span class="badge badge-warning">🎁 Tặng uống thử</span></div>' : '';
 
   const invoiceContent = document.getElementById('invoiceContent');
   if (invoiceContent) {
     invoiceContent.innerHTML =
       giftBadge +
-      '<div class="text-sm text-muted mb-1">' + dateStr + '</div>' +
-      '<div class="text-sm font-medium text-main mb-3">Khách: ' + customerName + '</div>' +
-      '<div class="border-t border-muted pt-2">' + itemsHtml + '</div>' +
+      '<div class="text-xs text-muted mb-1">' + dateStr + '</div>' +
+      '<div class="text-sm font-semibold text-main mb-3">Khách: ' + customerName + '</div>' +
+      '<div class="border-t border-muted/50 pt-3">' + itemsHtml + '</div>' +
       kegHtml;
   }
   
@@ -1178,7 +1178,7 @@ async function showInvoiceModal(saleId) {
     invoiceTotalEl.textContent = Format.number(sale.total || 0);
   }
   
-  const qrSection = document.querySelector('#invoiceModal .mt-4.pt-4.border-t.border-muted');
+  const qrSection = document.querySelector('#invoiceModal .invoice-qr-card');
   if (qrSection) {
     if (isGift) {
       qrSection.classList.add('hidden');
