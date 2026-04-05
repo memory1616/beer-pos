@@ -44,6 +44,10 @@ function updatePeriodLabel() {
   if (el) el.textContent = getPeriodLabel();
 }
 
+// Alias for backward compatibility with cached HTML
+function initDateInputs() { initFilter(); }
+function switchQuickFilter(type) { switchFilterType(type); }
+
 function initFilter() {
   var yearEl = document.getElementById('selYear');
   if (yearEl) yearEl.innerHTML = getYearOptions(_selectedYear);
