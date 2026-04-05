@@ -495,20 +495,23 @@ app.get('/report/data', (req, res) => {
       }
     } catch(_) {}
 
-    // Use date >= ? AND date <= ? for all cases — consistent and correct
-    var dateCond = dateCol + ' >= ? AND ' + dateCol + ' <= ?';
-    var dateParams = [startDate, endDate];
+    // Sales.date is stored as YYYY-MM-DD (getVietnamDateStr). String compare against
+    // 'YYYY-MM-DD 00:00:00' fails in SQLite ('2026-04-05' < '2026-04-05 00:00:00').
+    // Use date() so plain dates and ISO timestamps both match the range.
     var startDay = startDate.split(' ')[0];
     var endDay = endDate.split(' ')[0];
+    var dateCond = 'date(' + dateCol + ') >= date(?) AND date(' + dateCol + ') <= date(?)';
+    var dateParams = [startDay, endDay];
+    var salesDateBare = dateCol.indexOf('created_at') !== -1 ? 'created_at' : 'date';
 
     var sales = db2.prepare(
       "SELECT s.id, s.customer_id, s.date, s.total, s.profit, s.type, s.deliver_kegs, s.return_kegs, COALESCE(c.name, 'Khách lẻ') as customer_name, (SELECT COALESCE(SUM(si.quantity), 0) FROM sale_items si WHERE si.sale_id = s.id) as quantity FROM sales s LEFT JOIN customers c ON c.id = s.customer_id WHERE (s.status IS NULL OR s.status != 'returned') AND " + dateCond +
       " ORDER BY datetime(" + dateCol + ") DESC LIMIT 50"
     ).all(...dateParams);
 
-    var revR = db2.prepare("SELECT COALESCE(SUM(total), 0) as t FROM sales WHERE (status IS NULL OR status != 'returned') AND type = 'sale' AND date >= ? AND date <= ?").get(...dateParams);
-    var profR = db2.prepare("SELECT COALESCE(SUM(profit), 0) as t FROM sales WHERE (status IS NULL OR status != 'returned') AND type = 'sale' AND date >= ? AND date <= ?").get(...dateParams);
-    var ordR = db2.prepare("SELECT COUNT(*) as t FROM sales WHERE (status IS NULL OR status != 'returned') AND type = 'sale' AND date >= ? AND date <= ?").get(...dateParams);
+    var revR = db2.prepare('SELECT COALESCE(SUM(total), 0) as t FROM sales WHERE (status IS NULL OR status != \'returned\') AND type = \'sale\' AND date(' + salesDateBare + ') >= date(?) AND date(' + salesDateBare + ') <= date(?)').get(...dateParams);
+    var profR = db2.prepare('SELECT COALESCE(SUM(profit), 0) as t FROM sales WHERE (status IS NULL OR status != \'returned\') AND type = \'sale\' AND date(' + salesDateBare + ') >= date(?) AND date(' + salesDateBare + ') <= date(?)').get(...dateParams);
+    var ordR = db2.prepare('SELECT COUNT(*) as t FROM sales WHERE (status IS NULL OR status != \'returned\') AND type = \'sale\' AND date(' + salesDateBare + ') >= date(?) AND date(' + salesDateBare + ') <= date(?)').get(...dateParams);
     var totalRevenue = revR ? revR.t : 0;
     var totalProfit = profR ? profR.t : 0;
     var totalOrders = ordR ? ordR.t : 0;
@@ -526,8 +529,7 @@ app.get('/report/data', (req, res) => {
     ).all(...dateParams);
 
     // profitByCustomer: date range applied via subquery for quantity
-    // Use dateCondSub (no 's.' prefix) for the subquery which uses bare 'date' column
-    var dateCondSub = 'date >= ? AND date <= ?';
+    var dateCondSub = 'date(' + salesDateBare + ') >= date(?) AND date(' + salesDateBare + ') <= date(?)';
     var profitByCustomer = db2.prepare(
       "SELECT c.id, c.name, COUNT(s.id) as order_count, SUM(s.total) as revenue, SUM(s.profit) as profit, " +
       "(SELECT COALESCE(SUM(si.quantity), 0) FROM sale_items si WHERE si.sale_id IN " +
