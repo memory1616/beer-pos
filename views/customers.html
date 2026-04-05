@@ -519,33 +519,34 @@
   </script>
 
   <!-- Load Customers JS -->
-  <script src="/js/customers.js?v=20260404-perf"></script>
-  
+  <script src="/js/realtime.js"></script>
+  <script src="/js/customers.js?v=20260416-realtime"></script>
+
   <script>
     async function loadData() {
       try {
-        const res = await fetch('/customers/data');
+        const res = await fetch('/customers/data?page=1&limit=5&tab=active');
         const data = await res.json();
-        
+
         // Initialize customers page
         try {
           initCustomersPage(data);
         } catch (e) {
           console.error('Init error:', e);
         }
-        
+
         // Hide loading, show content
         const loading = document.getElementById('loading');
         const contentSection = document.getElementById('contentSection');
         if (loading) loading.classList.add('hidden');
         if (contentSection) contentSection.classList.remove('hidden');
-        
+
       } catch (err) {
         console.error('Failed to load data:', err);
         document.getElementById('loading').innerHTML = '<div class="text-danger">Lỗi tải dữ liệu</div>';
       }
     }
-    
+
     loadData();
   </script>
   

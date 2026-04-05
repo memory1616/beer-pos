@@ -78,12 +78,15 @@ function loadExpenses(monthStr) {
   var endDate = year + '-' + month + '-' + String(lastDay).padStart(2, '0');
 
   Promise.all([
-    fetch('/api/expenses?startDate=' + startDate + '&endDate=' + endDate).then(function(r) { return r.json(); }),
+    fetch('/api/expenses?startDate=' + startDate + '&endDate=' + endDate, { cache: 'no-store' }).then(function(r) { return r.json(); }),
     fetch('/api/expenses/categories/all').then(function(r) { return r.json(); })
   ])
     .then(function(results) {
       _expensesData = Array.isArray(results[0]) ? results[0] : (results[0].expenses || []);
       _customCategories = Array.isArray(results[1]) ? results[1] : [];
+
+      // Populate global store
+      window.store.expenses = _expensesData;
 
       rebuildExpenseCategorySelect();
       rebuildCategoryTabs();
@@ -238,25 +241,63 @@ function saveExpense(e) {
   };
   var method = id ? 'PUT' : 'POST';
   var url = id ? '/api/expenses/' + id : '/api/expenses';
-  fetch(url, {
-    method: method,
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data)
-  })
-    .then(function(r) { return r.json(); })
-    .then(function(result) {
-      hideExpenseModal();
+
+  hideExpenseModal();
+
+  mutate(
+    function() {
+      return fetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+        cache: 'no-store'
+      });
+    },
+    function(result) {
+      var item = result.expense || result;
+      var isNew = !id;
+
+      if (isNew) {
+        _expensesData.unshift(item);
+        window.store.expenses.unshift(item);
+        renderExpenseItem(item, { prepend: true });
+      } else {
+        var idx = _expensesData.findIndex(function(e) { return String(e.id) === String(item.id); });
+        if (idx !== -1) _expensesData[idx] = item;
+        window.store.expenses = _expensesData;
+        updateExpenseItem(item);
+      }
+
+      updateExpensesSummary();
+      checkExpensesEmpty();
+      rebuildCategoryTabs();
+    },
+    function(err) {
+      // Fallback: reload
       loadExpenses(_currentMonth);
-    })
-    .catch(function(err) { alert('Lỗi: ' + err.message); });
+    }
+  );
 }
 
 function deleteExpense(id) {
   if (!confirm('Xóa chi phí này?')) return;
-  fetch('/api/expenses/' + id, { method: 'DELETE' })
-    .then(function(r) { return r.json(); })
-    .then(function() { loadExpenses(_currentMonth); })
-    .catch(function(err) { alert('Lỗi: ' + err.message); });
+
+  mutate(
+    function() {
+      return fetch('/api/expenses/' + id, { method: 'DELETE', cache: 'no-store' });
+    },
+    function() {
+      _expensesData = _expensesData.filter(function(e) { return String(e.id) !== String(id); });
+      window.store.expenses = _expensesData;
+      removeExpenseItem(id);
+      updateExpensesSummary();
+      checkExpensesEmpty();
+      rebuildCategoryTabs();
+    },
+    function() {
+      loadExpenses(_currentMonth);
+    }
+  );
 }
 
 // ── Dynamic expense category select ─────────────────────────────────────────

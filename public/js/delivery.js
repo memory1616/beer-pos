@@ -3,6 +3,7 @@
 (function() {
   var data = window.__DELIVERY_DATA__ || {};
   var customers = data.customers || [];
+  window.store.customers = customers;
   var defaultSettings = {
     deliveryCostPerKm: data.settings && data.settings.delivery_cost_per_km || 3000,
     deliveryBaseCost: data.settings && data.settings.delivery_base_cost || 0,
@@ -306,9 +307,17 @@
       distributor_lat: (document.getElementById('distributorLat') || {value:''}).value,
       distributor_lng: (document.getElementById('distributorLng') || {value:''}).value
     };
-    try {
-      var res = await fetch('/api/settings/batch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(settings) });
-      if (res.ok) {
+
+    mutate(
+      function() {
+        return fetch('/api/settings/batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(settings),
+          cache: 'no-store'
+        });
+      },
+      function() {
         defaultSettings.deliveryCostPerKm = parseFloat(settings.delivery_cost_per_km) || 3000;
         defaultSettings.deliveryBaseCost = parseFloat(settings.delivery_base_cost) || 0;
         defaultSettings.distributorLat = parseFloat(settings.distributor_lat) || 10.8231;
@@ -316,7 +325,10 @@
         hideSettings();
         updateDistances();
         alert('Đã lưu cấu hình!');
-      } else { alert('Lỗi lưu cấu hình'); }
-    } catch(err) { alert('Lỗi: ' + err.message); }
+      },
+      function() {
+        alert('Lỗi lưu cấu hình');
+      }
+    );
   };
 })();

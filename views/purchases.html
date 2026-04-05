@@ -27,7 +27,8 @@
   <div id="app"></div>
 
   <script src="/js/utils.js"></script>
-  <script src="/js/purchases.js"></script>
+  <script src="/js/realtime.js"></script>
+  <script src="/js/purchases.js?v=20260416-realtime"></script>
 
   <script>
     // --- State & configuration ---
@@ -75,7 +76,7 @@
       historyList.innerHTML = pagePurchases.map(function(p) {
         var dateStr = new Date(p.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
         var count = p.item_count != null ? p.item_count : (p.items_summary ? p.items_summary.split(',').length : 0);
-        return '<div class="purchase-history-item card p-3 mb-3 last:mb-0">' +
+        return '<div class="purchase-history-item rounded-xl border border-muted bg-bg/40 p-3 mb-2 last:mb-0" data-purchase-id="' + p.id + '">' +
           '<div class="flex items-start justify-between gap-2 min-w-0">' +
           '<div class="min-w-0 flex-1">' +
           '<div class="font-semibold text-primary">Đơn #' + p.id + '</div>' +
@@ -117,6 +118,20 @@
       renderHistoryPage();
     }
 
+    function checkPurchasesEmpty() {
+      var container = document.getElementById('historyList');
+      if (!container) return;
+      if (allPurchases.length === 0) {
+        container.innerHTML = '<div class="text-center text-muted py-8">Chưa có phiếu nhập nào</div>';
+      }
+    }
+
+    function updatePurchasesSummary() {
+      var total = allPurchases.length;
+      var itemCountEl = document.getElementById('historyItemCount');
+      if (itemCountEl) itemCountEl.textContent = total + ' phiếu';
+    }
+
     async function loadData() {
       try {
         var res = await fetch('/purchases/data?t=' + Date.now(), { cache: 'no-store' });
@@ -153,6 +168,7 @@
         }
 
         allPurchases = data.purchases || [];
+        window.store.purchases = allPurchases;
         historyCurrentPage = 1;
         renderHistoryPage();
 

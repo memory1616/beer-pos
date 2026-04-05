@@ -26,11 +26,13 @@ function initStockPage(data) {
   // Render products
   currentProducts = data.products;
   _filteredProducts = data.products;
+  window.store.products = data.products;
+
   _renderProductsPage(_filteredProducts.slice(0, PAGE_SIZE), data.totalStockPositive, _filteredProducts.length > PAGE_SIZE);
-  
+
   // Render import form
   renderImportForm(data.products);
-  
+
   // Render purchase history
   if (data.purchases && data.purchases.length > 0) {
     renderPurchaseHistory(data.purchases);
@@ -58,12 +60,12 @@ function renderPurchaseHistory(purchases) {
     return;
   }
   
-  container.innerHTML = purchases.map(p => {
+    container.innerHTML = purchases.map(p => {
     const date = new Date(p.date);
     const formattedDate = date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
     const count = p.item_count != null ? p.item_count : 0;
     return `
-      <div class="purchase-history-item rounded-xl border border-muted bg-bg/40 p-3 mb-2 last:mb-0">
+      <div class="purchase-history-item rounded-xl border border-muted bg-bg/40 p-3 mb-2 last:mb-0" data-purchase-id="${p.id}">
         <div class="flex items-start justify-between gap-2 min-w-0">
           <div class="min-w-0 flex-1">
             <div class="font-semibold text-primary">Đơn #${p.id}</div>
@@ -131,58 +133,73 @@ function closePurchaseModal() {
 
 async function deletePurchase(purchaseId) {
   if (!confirm('Bạn có chắc muốn xoá đơn nhập hàng này?')) return;
-  
-  try {
-    const res = await fetch('/api/purchases/' + purchaseId, { method: 'DELETE' });
-    if (res.ok) {
+
+  mutate(
+    function() {
+      return fetch('/api/purchases/' + purchaseId, { method: 'DELETE', cache: 'no-store' });
+    },
+    function() {
       alert('Đã xoá đơn nhập hàng!');
+      // Remove from local purchase list and DOM
+      if (typeof allPurchases !== 'undefined') {
+        allPurchases = allPurchases.filter(function(p) { return String(p.id) !== String(purchaseId); });
+        window.store.purchases = allPurchases;
+      }
+      removePurchaseItem(purchaseId);
+      updatePurchasesSummary();
+      checkPurchasesEmpty();
+    },
+    function() {
       location.reload();
-    } else {
-      const err = await res.json();
-      alert(err.error || 'Lỗi xoá đơn');
     }
-  } catch (err) {
-    alert('Lỗi xoá đơn');
-  }
+  );
 }
 
 document.getElementById('editPurchaseForm').addEventListener('submit', async (e) => {
   e.preventDefault();
-  
+
   const purchaseId = document.getElementById('editPurchaseId').value;
   const note = document.getElementById('editPurchaseNote').value;
-  
+
   // Get updated items
   const items = [];
   document.querySelectorAll('#editPurchaseItems .edit-qty').forEach(qtyInput => {
     const itemId = qtyInput.dataset.itemId;
     const productId = qtyInput.dataset.productId;
     const quantity = parseInt(qtyInput.value) || 0;
-    const costInput = document.querySelector(`.edit-cost[data-item-id="${itemId}"]`);
+    const costInput = document.querySelector('.edit-cost[data-item-id="' + itemId + '"]');
     const unitPrice = parseFloat(costInput.value) || 0;
-    
+
     if (quantity > 0) {
       items.push({ item_id: itemId, product_id: productId, quantity, unit_price: unitPrice });
     }
   });
-  
-  try {
-    const res = await fetch('/api/purchases/' + purchaseId, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items, note })
-    });
-    
-    if (res.ok) {
+
+  mutate(
+    function() {
+      return fetch('/api/purchases/' + purchaseId, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items, note }),
+        cache: 'no-store'
+      });
+    },
+    function(result) {
       closePurchaseModal();
+      // Update purchase in store and patch DOM
+      var purchase = result.purchase || result;
+      if (typeof allPurchases !== 'undefined') {
+        var idx = allPurchases.findIndex(function(p) { return String(p.id) === String(purchase.id); });
+        if (idx !== -1) allPurchases[idx] = Object.assign({}, allPurchases[idx], purchase);
+        window.store.purchases = allPurchases;
+      }
+      updatePurchaseItem(purchase);
+      updatePurchasesSummary();
+    },
+    function() {
       location.reload();
-    } else {
-      const err = await res.json();
-      alert(err.error || 'Lỗi cập nhật');
     }
-  } catch (err) {
-    alert('Lỗi cập nhật đơn nhập');
-  }
+  );
 });
 
 function renderImportForm(products) {
@@ -232,40 +249,64 @@ async function submitImport() {
     if (item.quantity > 0) {
       const product = currentProducts.find(p => p.id == productId);
       const costPrice = product ? (product.cost_price || 0) : 0;
-      if (costPrice > 0) {
-        items.push({
-          productId: parseInt(productId),
-          quantity: item.quantity,
-          costPrice: costPrice
-        });
-      } else {
-        items.push({
-          productId: parseInt(productId),
-          quantity: item.quantity,
-          costPrice: 0
-        });
-      }
+      items.push({
+        productId: parseInt(productId),
+        quantity: item.quantity,
+        costPrice: costPrice
+      });
     }
   });
-  
+
   if (items.length === 0) {
     alert('Vui lòng nhập số lượng');
     return;
   }
-  
-  const res = await fetch('/api/stock/multiple', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ items, note: 'Nhập kho' })
-  });
-  
-  if (res.ok) {
-    alert('Nhập hàng thành công!');
-    location.reload();
-  } else {
-    const err = await res.json();
-    alert(err.error || 'Lỗi nhập hàng');
-  }
+
+  mutate(
+    function() {
+      return fetch('/api/stock/multiple', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items, note: 'Nhập kho' }),
+        cache: 'no-store'
+      });
+    },
+    function(result) {
+      alert('Nhập hàng thành công!');
+
+      // Update local product stock in-place
+      items.forEach(function(importedItem) {
+        var product = currentProducts.find(function(p) { return p.id === importedItem.productId; });
+        if (product) {
+          product.stock = (product.stock || 0) + importedItem.quantity;
+          updateProductItem(product);
+        }
+      });
+
+      // Update purchase history
+      if (result.purchase) {
+        if (typeof allPurchases === 'undefined') {
+          window.allPurchases = [];
+        }
+        allPurchases.unshift(result.purchase);
+        window.store.purchases = allPurchases;
+        renderPurchaseItem(result.purchase, { prepend: true });
+      }
+
+      // Update summaries
+      updateProductsSummary();
+
+      // Reset import form
+      importData = {};
+      document.querySelectorAll('#importProducts input[type="number"]').forEach(function(input) {
+        input.value = '';
+      });
+      calculateImportTotal();
+    },
+    function() {
+      location.reload();
+    }
+  );
 }
 
 // PERFORMANCE: Extract product card HTML for reuse in virtual scrolling
@@ -506,57 +547,91 @@ function closeProductModal() {
 function deleteProduct() {
   const productId = document.getElementById('productId').value;
   const productName = document.getElementById('productName').value;
-  
-  if (!confirm(`Bạn có chắc muốn xoá sản phẩm "${productName}"?`)) {
+
+  if (!confirm('Bạn có chắc muốn xoá sản phẩm "' + productName + '"?')) {
     return;
   }
-  
-  fetch('/api/products/' + productId, {
-    method: 'DELETE'
-  }).then(res => {
-    if (res.ok) {
+
+  mutate(
+    function() {
+      return fetch('/api/products/' + productId, {
+        method: 'DELETE',
+        cache: 'no-store'
+      });
+    },
+    function() {
       alert('Đã xoá sản phẩm!');
+      closeProductModal();
+      // Remove from local data and DOM
+      currentProducts = currentProducts.filter(function(p) { return String(p.id) !== String(productId); });
+      _filteredProducts = _filteredProducts.filter(function(p) { return String(p.id) !== String(productId); });
+      window.store.products = currentProducts;
+      removeProductItem(productId);
+      // Update import form
+      renderImportForm(currentProducts);
+      updateProductsSummary();
+    },
+    function() {
       location.reload();
-    } else {
-      alert('Lỗi xoá sản phẩm');
     }
-  });
+  );
 }
 
 // Product Form Submit
 document.getElementById('productForm').addEventListener('submit', async (e) => {
   e.preventDefault();
-  
+
   const productId = document.getElementById('productId').value;
   const name = document.getElementById('productName').value.trim();
   const type = document.getElementById('productType').value;
   const cost_price = parseFloat(document.getElementById('productCostPrice').value) || 0;
   const stock = productId ? (parseInt(document.getElementById('productStock').value) || 0) : 0;
-  
+
   if (!name) {
     alert('Vui lòng nhập tên sản phẩm');
     return;
   }
-  
+
   const data = { name, type, cost_price };
   if (productId) {
     data.stock = stock;
   }
-  
+
   const method = productId ? 'PUT' : 'POST';
   const url = productId ? '/api/products/' + productId : '/api/products';
-  
-  const res = await fetch(url, {
-    method: method,
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data)
-  });
-  
-  if (res.ok) {
-    closeProductModal();
-    location.reload();
-  } else {
-    const err = await res.json();
-    alert(err.error || 'Lỗi lưu sản phẩm');
-  }
+
+  mutate(
+    function() {
+      return fetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+        cache: 'no-store'
+      });
+    },
+    function(result) {
+      closeProductModal();
+      var product = result.product || result;
+
+      if (productId) {
+        // Update: patch existing product in list and store
+        var idx = currentProducts.findIndex(function(p) { return String(p.id) === String(product.id); });
+        if (idx !== -1) currentProducts[idx] = Object.assign({}, currentProducts[idx], product);
+        window.store.products = currentProducts;
+        updateProductItem(product);
+        updateProductsSummary();
+      } else {
+        // Create: add new product to list and store
+        currentProducts.unshift(product);
+        window.store.products.unshift(product);
+        renderProductItem(product, { prepend: true });
+        // Update import form with new product
+        renderImportForm(currentProducts);
+        updateProductsSummary();
+      }
+    },
+    function() {
+      location.reload();
+    }
+  );
 });

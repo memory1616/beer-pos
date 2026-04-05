@@ -121,41 +121,54 @@ function showToast(message, type = 'success') {
   }, 3000);
 }
 
+// ========== PAGINATION STATE ==========
 let customers = [];
 let archivedCustomers = [];
 let currentTab = 'active';
 let products = [];
 
-// PERFORMANCE: Virtual scroll pagination
-const PAGE_SIZE = 50;
-let _renderedCount = PAGE_SIZE;
-let _totalFiltered = 0;
-let _hasMore = true;
-let _loadMorePending = false;
-let _loadMoreEl = null; // sentinel element at list bottom
-let _observer = null;
+// For server-side pagination
+let custPagination = {
+  page: 1,
+  limit: 5,
+  total: 0,
+  totalPages: 0
+};
+
+// Search debounce
+let searchTimeout = null;
 
 function initCustomersPage(data) {
-  customers = data.customers;
-  archivedCustomers = data.archived || [];
-  products = data.products;
-  
+  if (data.customers) {
+    customers = data.customers;
+    window.store.customers = customers;
+  }
+  if (data.archived) archivedCustomers = data.archived;
+  if (products.length === 0 && data.products) products = data.products;
+
+  // Update pagination state from API response
+  if (data.page !== undefined) {
+    custPagination.page = data.page;
+    custPagination.limit = data.limit;
+    custPagination.total = data.total;
+    custPagination.totalPages = data.totalPages;
+  }
+
   updateCount();
   renderCustomers();
+  renderPagination();
 }
 
 function updateCount() {
   const countEl = document.getElementById('customerCount');
   if (!countEl) return;
-  if (currentTab === 'active') {
-    countEl.textContent = customers.length;
-  } else {
-    countEl.textContent = archivedCustomers.length;
-  }
+  countEl.textContent = custPagination.total;
 }
 
 function switchCustomerTab(tab) {
   currentTab = tab;
+  custPagination.page = 1; // Reset to first page on tab switch
+
   const tabActive = document.getElementById('tabActive');
   const tabArchived = document.getElementById('tabArchived');
   const archivedSection = document.getElementById('archivedSection');
@@ -167,12 +180,34 @@ function switchCustomerTab(tab) {
   } else {
     tabActive.className = 'btn btn-ghost flex-1 h-11 text-sm rounded-xl shadow';
     tabArchived.className = 'btn btn-secondary flex-1 h-11 text-sm rounded-xl shadow';
-    if (archivedSection) archivedSection.classList.remove('hidden');
+    if (archivedSection) archivedSection.remove('hidden');
   }
 
-  updateCount();
-  if (_observer) { _observer.disconnect(); _observer = null; }
-  renderCustomers();
+  loadPageData(tab);
+}
+
+async function loadPageData(tab) {
+  try {
+    const params = new URLSearchParams({ page: custPagination.page, limit: custPagination.limit, tab: tab });
+    const res = await fetch('/customers/data?' + params.toString());
+    const data = await res.json();
+
+    if (tab === 'active') {
+      customers = data.customers || [];
+    } else {
+      archivedCustomers = data.archived || [];
+    }
+
+    // Update pagination state
+    custPagination.total = data.total || 0;
+    custPagination.totalPages = data.totalPages || 0;
+
+    updateCount();
+    renderCustomers();
+    renderPagination();
+  } catch (err) {
+    console.error('Failed to load page data:', err);
+  }
 }
 
 function renderCustomers() {
@@ -185,93 +220,73 @@ function renderCustomers() {
   const source = currentTab === 'active' ? customers : archivedCustomers;
   const filtered = source.filter(c => c.name.toLowerCase().includes(search));
 
-  _renderedCount = PAGE_SIZE;
-  _totalFiltered = filtered.length;
-  _hasMore = _renderedCount < _totalFiltered;
-
   if (filtered.length === 0) {
     container.innerHTML = '<div class="text-center text-muted py-8 card">Không có khách hàng nào</div>';
-    if (_observer) { _observer.disconnect(); _observer = null; }
     return;
   }
 
-  // Render only first PAGE_SIZE items
-  const page = filtered.slice(0, PAGE_SIZE);
-  container.innerHTML = page.map(renderCustomerCard).join('');
+  container.innerHTML = filtered.map(renderCustomerCard).join('');
 
   // Cache DOM refs for patchCustomerRow
   _custCardMap.clear();
-  for (const c of page) {
+  for (const c of filtered) {
     const el = document.querySelector(`[data-customer-id="${c.id}"]`);
     if (el) _custCardMap.set(c.id, el);
   }
-
-  // Remove old sentinel/observer
-  if (_observer) { _observer.disconnect(); _observer = null; }
-  const oldSentinel = document.getElementById('_loadMoreSentinel');
-  if (oldSentinel) oldSentinel.remove();
-
-  if (_hasMore) {
-    // Add sentinel element
-    const sentinel = document.createElement('div');
-    sentinel.id = '_loadMoreSentinel';
-    sentinel.style.height = '1px';
-    container.appendChild(sentinel);
-
-    _loadMoreEl = sentinel;
-    _observer = new IntersectionObserver((entries) => {
-      const entry = entries[0];
-      if (entry.isIntersecting && _hasMore && !_loadMorePending) {
-        _loadMorePending = true;
-        _loadMore();
-      }
-    }, { rootMargin: '300px' });
-    _observer.observe(sentinel);
-  }
 }
 
-// PERFORMANCE: Load next page of customers
-async function _loadMore() {
-  const searchInput = document.getElementById('searchInput');
-  const search = searchInput ? searchInput.value.toLowerCase() : '';
-  const source = currentTab === 'active' ? customers : archivedCustomers;
-  const filtered = source.filter(c => c.name.toLowerCase().includes(search));
-
-  const start = _renderedCount;
-  const end = start + PAGE_SIZE;
-  const page = filtered.slice(start, end);
-
+// ========== PAGINATION CONTROLS ==========
+function renderPagination() {
   const container = document.getElementById('customersList');
+  if (!container) return;
+  const { page, totalPages, total } = custPagination;
 
-  for (const c of page) {
-    const html = renderCustomerCard(c);
-    const div = document.createElement('div');
-    div.innerHTML = html;
-    const el = div.firstElementChild;
-    container.appendChild(el);
-    _custCardMap.set(c.id, el);
+  // Remove old pagination nav if exists
+  var oldNav = container.querySelector('nav[role="navigation"]');
+  var oldTotal = container.querySelector('.history-total-row');
+  if (oldNav) oldNav.remove();
+  if (oldTotal) oldTotal.remove();
+
+  if (totalPages <= 1) {
+    if (total > 0) {
+      container.insertAdjacentHTML('beforeend',
+        '<div class="history-total-row text-center text-xs text-muted mt-3 pt-2 border-t border-muted/70">Tổng ' + total + ' khách</div>'
+      );
+    }
+    return;
   }
 
-  _renderedCount += page.length;
-  _hasMore = _renderedCount < filtered.length;
+  const prevD = page === 1;
+  const nextD = page === totalPages;
 
-  // Move sentinel to bottom
-  const sentinel = document.getElementById('_loadMoreSentinel');
-  if (sentinel) sentinel.remove();
-  if (_hasMore) {
-    const newSentinel = document.createElement('div');
-    newSentinel.id = '_loadMoreSentinel';
-    newSentinel.style.height = '1px';
-    container.appendChild(newSentinel);
-    _loadMoreEl = newSentinel;
-    _observer.observe(newSentinel);
-  } else {
-    _loadMoreEl = null;
-    _observer.disconnect();
-    _observer = null;
-  }
+  container.insertAdjacentHTML('beforeend',
+    `<nav class="flex items-center justify-center gap-3 mt-4 pt-3 border-t border-muted" role="navigation" aria-label="Phân trang">
+      <button onclick="changeCustPage(${page - 1})" ${prevD ? 'disabled' : ''}
+        class="min-w-[44px] min-h-[44px] w-11 h-11 rounded-full flex items-center justify-center text-base font-semibold transition-all
+          ${prevD ? 'border border-muted/30 bg-bg text-muted cursor-not-allowed opacity-50 pointer-events-none' : 'border border-muted shadow-sm text-main hover:bg-bg-hover active:scale-90'}"
+        aria-label="Trang trước" aria-disabled="${prevD}">
+        ‹
+      </button>
+      <div class="flex flex-col justify-center items-center min-w-[4.5rem]">
+        <span class="text-sm font-bold text-main tabular-nums leading-tight">${page} / ${totalPages}</span>
+        <span class="text-[11px] text-muted leading-tight mt-0.5">${total} khách</span>
+      </div>
+      <button onclick="changeCustPage(${page + 1})" ${nextD ? 'disabled' : ''}
+        class="min-w-[44px] min-h-[44px] w-11 h-11 rounded-full flex items-center justify-center text-base font-semibold transition-all
+          ${nextD ? 'border border-muted/30 bg-bg text-muted cursor-not-allowed opacity-50 pointer-events-none' : 'border border-muted shadow-sm text-main hover:bg-bg-hover active:scale-90'}"
+        aria-label="Trang sau" aria-disabled="${nextD}">
+        ›
+      </button>
+    </nav>`
+  );
+}
 
-  _loadMorePending = false;
+function changeCustPage(newPage) {
+  if (newPage < 1 || newPage > custPagination.totalPages) return;
+  custPagination.page = newPage;
+  loadPageData(currentTab);
+  var anchor = document.getElementById('customersList');
+  if (anchor) anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function showModal(id) {
@@ -294,42 +309,37 @@ async function saveKegBalance() {
     return;
   }
 
-  try {
-    const res = await fetch('/api/payments/keg/update-balance', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ customerId: parseInt(customerId), balance: newBalance, note: note })
-    });
-
-    if (res.ok) {
-      alert(`✅ Cập nhật vỏ thành công!\n\nSố vỏ còn tại quán: ${newBalance}`);
+  mutate(
+    function() {
+      return fetch('/api/payments/keg/update-balance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerId: parseInt(customerId), balance: newBalance, note: note }),
+        cache: 'no-store'
+      });
+    },
+    function() {
+      alert('Cập nhật vỏ thành công!\n\nSố vỏ còn tại quán: ' + newBalance);
       hideModal('kegModal');
+      // Patch in-place
+      var idx = customers.findIndex(function(c) { return String(c.id) === String(customerId); });
+      if (idx !== -1) {
+        customers[idx].keg_balance = newBalance;
+        window.store.customers = customers;
+        patchCustomerRow(customers[idx]);
+      }
+    },
+    function() {
       location.reload();
-    } else {
-      const data = await res.json();
-      alert(data.error || 'Lỗi khi lưu');
     }
-  } catch (e) {
-    alert('Lỗi kết nối: ' + e.message);
-  }
+  );
 }
 
 function filterCustomers() {
   clearTimeout(searchTimeout);
   searchTimeout = setTimeout(() => {
-    const searchInput = document.getElementById('searchInput');
-    const search = searchInput ? searchInput.value.toLowerCase() : '';
-    const source = currentTab === 'active' ? customers : archivedCustomers;
-    const filtered = source.filter(c => c.name.toLowerCase().includes(search));
-    const container = document.getElementById('customersList');
-    if (!container) return;
-    if (filtered.length === 0) {
-      container.innerHTML = '<div class="text-center text-muted py-8">Không có khách hàng nào</div>';
-      return;
-    }
-    // Use existing render logic
-    window._filtered = filtered;
-    renderCustomers();
+    custPagination.page = 1; // Reset to page 1 on search
+    loadPageData(currentTab);
   }, 200);
 }
 
@@ -397,23 +407,29 @@ async function saveCustomerEdit() {
     return;
   }
 
-  try {
-    const res = await fetch('/api/customers/' + id, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, phone, deposit, horizontal_fridge, vertical_fridge, exclude_expected })
-    });
-
-    if (res.ok) {
+  mutate(
+    function() {
+      return fetch('/api/customers/' + id, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, phone, deposit, horizontal_fridge, vertical_fridge, exclude_expected }),
+        cache: 'no-store'
+      });
+    },
+    function(result) {
       hideModal('editModal');
+      var updated = result.customer || result;
+      var idx = customers.findIndex(function(c) { return String(c.id) === String(updated.id); });
+      if (idx !== -1) {
+        Object.assign(customers[idx], updated);
+        window.store.customers = customers;
+        patchCustomerRow(updated);
+      }
+    },
+    function() {
       location.reload();
-    } else {
-      const data = await res.json();
-      alert(data.error || 'Cập nhật thất bại');
     }
-  } catch (e) {
-    alert('Lỗi kết nối: ' + e.message);
-  }
+  );
 }
 
 function showPriceModal(id, name) {
@@ -467,10 +483,10 @@ function showPriceModal(id, name) {
 async function savePrices() {
   const customerId = window.currentPriceCustomerId;
   if (!customerId) return;
-  
+
   const inputs = document.querySelectorAll('#priceList input');
   const prices = [];
-  
+
   inputs.forEach(i => {
     const rawValue = i.value.replace(/,/g, '');
     const price = parseFloat(rawValue);
@@ -481,20 +497,24 @@ async function savePrices() {
       });
     }
   });
-  
-  const res = await fetch('/api/products/prices/bulk', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ customer_id: customerId, prices: prices })
-  });
-  
-  if (res.ok) {
-    alert('Đã lưu bảng giá!');
-    hideModal('priceModal');
-    location.reload();
-  } else {
-    alert('Lưu thất bại');
-  }
+
+  mutate(
+    function() {
+      return fetch('/api/products/prices/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customer_id: customerId, prices: prices }),
+        cache: 'no-store'
+      });
+    },
+    function() {
+      alert('Đã lưu bảng giá!');
+      hideModal('priceModal');
+    },
+    function() {
+      location.reload();
+    }
+  );
 }
 
 let addProductsLoaded = false;
@@ -546,7 +566,7 @@ document.getElementById('addForm').addEventListener('submit', async (e) => {
   data.deposit = parseFormattedNumber(data.deposit);
   data.horizontal_fridge = parseInt(String(data.horizontal_fridge).replace(/,/g, '')) || 0;
   data.vertical_fridge = parseInt(String(data.vertical_fridge).replace(/,/g, '')) || 0;
-  
+
   const prices = {};
   for (const [key, value] of Object.entries(data)) {
     if (key.startsWith('price_') && value) {
@@ -555,14 +575,26 @@ document.getElementById('addForm').addEventListener('submit', async (e) => {
     }
   }
   data.prices = prices;
-  
-  const res = await fetch('/api/customers', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data)
-  });
-  if (res.ok) location.reload();
-  else alert('Thêm thất bại');
+
+  mutate(
+    function() {
+      return fetch('/api/customers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+        cache: 'no-store'
+      });
+    },
+    function(result) {
+      alert('Thêm khách hàng thành công!');
+      // Reload to show new customer
+      if (currentTab === 'active') loadPageData('active');
+      else loadPageData('archived');
+    },
+    function() {
+      location.reload();
+    }
+  );
 });
 
 document.getElementById('editForm').addEventListener('submit', (e) => {
@@ -572,33 +604,53 @@ document.getElementById('editForm').addEventListener('submit', (e) => {
 
 async function archiveCustomer(id) {
   if (!confirm('Lưu trữ khách hàng này?\n\n- Khách sẽ không hiển thị khi bán hàng\n- Doanh thu vẫn giữ nguyên')) return;
-  const res = await fetch('/api/customers/' + id + '/archive', { method: 'PUT' });
-  if (res.ok) {
-    showToast('Đã lưu trữ khách hàng!', 'success');
-    location.reload();
-  } else {
-    const data = await res.json();
-    alert(data.error || 'Lỗi');
-  }
+
+  mutate(
+    function() {
+      return fetch('/api/customers/' + id + '/archive', { method: 'PUT', cache: 'no-store' });
+    },
+    function() {
+      showToast('Đã lưu trữ khách hàng!', 'success');
+      loadPageData(currentTab);
+    },
+    function() {
+      location.reload();
+    }
+  );
 }
 
 async function unarchiveCustomer(id) {
   if (!confirm('Khôi phục khách hàng này?')) return;
-  const res = await fetch('/api/customers/' + id + '/archive', { method: 'PUT' });
-  if (res.ok) {
-    showToast('Đã khôi phục khách hàng!', 'success');
-    location.reload();
-  } else {
-    const data = await res.json();
-    alert(data.error || 'Lỗi');
-  }
+
+  mutate(
+    function() {
+      return fetch('/api/customers/' + id + '/archive', { method: 'PUT', cache: 'no-store' });
+    },
+    function() {
+      showToast('Đã khôi phục khách hàng!', 'success');
+      loadPageData(currentTab);
+    },
+    function() {
+      location.reload();
+    }
+  );
 }
 
 async function deleteCustomer(id) {
-  if (!confirm('⚠️ XÓA VĨNH VIỄN khách hàng này?\n\nTất cả dữ liệu (đơn hàng, công nợ...) sẽ bị mất!\n\nKhuyến nghị: Nên dùng "Lưu trữ" thay vì xóa.')) return;
-  const res = await fetch('/api/customers/' + id, { method: 'DELETE' });
-  if (res.ok) location.reload();
-  else alert('Xóa thất bại');
+  if (!confirm('XÓA VĨNH VIỄN khách hàng này?\n\nTất cả dữ liệu (đơn hàng, công nợ...) sẽ bị mất!\n\nKhuyến nghị: Nên dùng "Lưu trữ" thay vì xóa.')) return;
+
+  mutate(
+    function() {
+      return fetch('/api/customers/' + id, { method: 'DELETE', cache: 'no-store' });
+    },
+    function() {
+      alert('Đã xóa khách hàng!');
+      loadPageData(currentTab);
+    },
+    function() {
+      location.reload();
+    }
+  );
 }
 
 function getLocation(customerId) {

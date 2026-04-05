@@ -2,6 +2,11 @@
 // Tách riêng để dễ bảo trì và cache
 // formatVND, showToast được định nghĩa trong utils.js (global)
 
+// Global state for purchase history (used by realtime.js helpers)
+var allPurchases = [];
+var historyCurrentPage = 1;
+var HISTORY_PAGE_SIZE = 5;
+
 let cart = [];
 
 function switchTab(tab) {
@@ -73,40 +78,56 @@ function renderCart() {
 
 async function submitPurchase() {
   if (cart.length === 0) return alert('Chưa chọn sản phẩm nào');
-  
+
   const note = document.getElementById('purchaseNote').value;
   const submitBtn = document.getElementById('submitBtn');
   submitBtn.disabled = true;
   submitBtn.textContent = '⏳ Đang xử lý...';
-  
-  try {
-    const res = await fetch('/api/purchases', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items: cart, note })
-    });
-    
-    const data = await res.json();
-    
-    if (res.ok) {
-      let message = '✅ Nhập hàng thành công!\nTổng tiền: ' + formatVND(data.total_amount);
-      if (data.kegsImported > 0) {
-        message += '\n\n📦 Nhập ' + data.kegsImported + ' vỏ từ nhà máy';
-        message += '\n🔻 Kho vỏ rỗng: ' + data.emptyAfter + ' vỏ';
+
+  mutate(
+    function() {
+      return fetch('/api/purchases', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: cart, note }),
+        cache: 'no-store'
+      });
+    },
+    function(result) {
+      let message = 'Nhập hàng thành công!\nTổng tiền: ' + formatVND(result.total_amount);
+      if (result.kegsImported > 0) {
+        message += '\n\nNhập ' + result.kegsImported + ' vỏ từ nhà máy';
+        message += '\nKho vỏ rỗng: ' + result.emptyAfter + ' vỏ';
       }
       alert(message);
-      // Reload and switch to history tab
-      window.location.href = '/purchases?tab=history';
-    } else {
-      alert('❌ Lỗi: ' + (data.error || 'Không rõ lỗi'));
+
+      // Add to store and render instantly
+      if (result.purchase) {
+        allPurchases.unshift(result.purchase);
+        window.store.purchases = allPurchases;
+        renderPurchaseItem(result.purchase, { prepend: true });
+        historyCurrentPage = 1;
+        // Update pagination
+        updatePurchasesSummary();
+        renderHistoryPage();
+        checkPurchasesEmpty();
+      }
+
+      // Reset form
+      cart = [];
+      document.querySelectorAll('#productList input[type="number"]').forEach(function(input) {
+        input.value = '';
+      });
+      renderCart();
+
+      // Switch to history tab
+      switchTab('history');
+    },
+    function() {
       submitBtn.disabled = false;
-      submitBtn.textContent = '✅ Xác nhận nhập hàng';
+      submitBtn.textContent = 'Xác nhận nhập hàng';
     }
-  } catch (err) {
-    alert('❌ Lỗi kết nối');
-    submitBtn.disabled = false;
-    submitBtn.textContent = '✅ Xác nhận nhập hàng';
-  }
+  );
 }
 
 function editPurchase(id) {
@@ -115,15 +136,22 @@ function editPurchase(id) {
 
 async function deletePurchase(id) {
   if (!confirm('Bạn có chắc muốn xóa phiếu nhập này?')) return;
-  
-  try {
-    const res = await fetch('/api/purchases/' + id, { method: 'DELETE' });
-    if (res.ok) {
+
+  mutate(
+    function() {
+      return fetch('/api/purchases/' + id, { method: 'DELETE', cache: 'no-store' });
+    },
+    function() {
+      alert('Đã xóa phiếu nhập!');
+      allPurchases = allPurchases.filter(function(p) { return String(p.id) !== String(id); });
+      window.store.purchases = allPurchases;
+      removePurchaseItem(id);
+      updatePurchasesSummary();
+      renderHistoryPage();
+      checkPurchasesEmpty();
+    },
+    function() {
       location.reload();
-    } else {
-      alert('Lỗi xóa phiếu nhập');
     }
-  } catch (err) {
-    alert('Lỗi kết nối');
-  }
+  );
 }
