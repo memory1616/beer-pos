@@ -36,9 +36,7 @@
     </div>
   </header>
 
-  <main class="p-4 max-w-md mx-auto pt-14">
-    <div id="bottomNavContainer"></div>
-
+  <main class="p-4 max-w-md mx-auto pt-14 pb-24">
     <!-- Category tabs -->
     <div class="flex gap-2 mb-4 overflow-x-auto pb-1">
       <button onclick="filterCategory('all')" class="cat-tab active px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-cat="all">Tất cả</button>
@@ -64,6 +62,8 @@
       <div class="text-muted">Chưa có chi phí nào</div>
     </div>
   </main>
+
+  <div id="bottomNavContainer"></div>
 
   <!-- Add/Edit Expense Modal -->
   <div id="expenseModal" class="fixed inset-0 bg-overlay hidden items-center justify-center p-4" style="z-index:10000">
