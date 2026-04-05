@@ -638,10 +638,6 @@ async function submitSale() {
       window.store.sales.unshift(tempSale);
       if (salesPagination.page === 1) {
         renderSaleItem(tempSale, { prepend: true });
-        salesPagination.total = (salesPagination.total || 0) + 1;
-        salesPagination.totalPages = Math.ceil(salesPagination.total / salesPagination.limit);
-        renderPagination();
-        checkSalesEmpty();
       }
 
       // Clear cart UI immediately
@@ -666,10 +662,6 @@ async function submitSale() {
       // Remove temp sale from store and DOM
       window.store.sales = window.store.sales.filter(function(s) { return s.id !== tempId; });
       removeSaleItem(tempId);
-      salesPagination.total = Math.max(0, (salesPagination.total || 1) - 1);
-      salesPagination.totalPages = Math.ceil(salesPagination.total / salesPagination.limit);
-      renderPagination();
-      checkSalesEmpty();
 
       // Restore cart
       saleData = snapshotCart;
@@ -689,20 +681,41 @@ async function submitSale() {
 
       if (btn) { btn.disabled = false; btn.textContent = '✔ Bán hàng'; }
 
-      // Remove temp card, replace with real
+      // Remove temp card from store and DOM
       window.store.sales = window.store.sales.filter(function(s) { return s.id !== tempId; });
       removeSaleItem(tempId);
 
-      const newSale = result.sale || result;
-      if (newSale && newSale.id) {
+      // Build a complete sale object for immediate display.
+      // The API returns { success, id, total, profit }; use optimistic data
+      // for fields not returned by the API (customer_name, date, items_qty, type, status).
+      var newSale = Object.assign({}, result);
+      if (!newSale.customer_name) newSale.customer_name = customerId ? (getCustomer(customerId)?.name || 'Khách') : 'Khách lẻ';
+      if (!newSale.date)         newSale.date         = new Date().toISOString();
+      if (!newSale.items_qty)    newSale.items_qty    = items.reduce(function(s, it) { return s + it.quantity; }, 0);
+      if (!newSale.status)       newSale.status       = null;
+      if (!newSale.type)         newSale.type         = 'sale';
+
+      if (salesPagination.page === 1) {
+        // Page 1: insert now using optimistic data for immediate UI feedback
         window.store.sales.unshift(newSale);
-        if (salesPagination.page === 1) {
+        try {
           renderSaleItem(newSale, { prepend: true });
+          salesPagination.total = Math.max(0, (salesPagination.total || 1) - 1); // undo optimistic +1, then +1 = correct
+          salesPagination.total++;
+          renderPagination();
+          checkSalesEmpty();
+        } catch (renderErr) {
+          // Fallback: reload full history
+          console.warn('[submitSale] renderSaleItem failed, calling loadSalesHistory:', renderErr);
+          loadSalesHistory();
         }
-        salesPagination.total = (salesPagination.total || 0) + 1;
-        salesPagination.totalPages = Math.ceil(salesPagination.total / salesPagination.limit);
-        renderPagination();
-        checkSalesEmpty();
+      } else {
+        // Not on page 1: show toast and reload so the full dataset is refreshed
+        salesPagination.total = Math.max(0, (salesPagination.total || 1) - 1); // undo optimistic +1
+        showToast('Đơn mới đã được tạo (trang 1)', 'success');
+        // Force page 1 and reload so the new sale appears
+        salesPagination.page = 1;
+        loadSalesHistory();
       }
 
       showToast('Bán hàng thành công!', 'success');
@@ -929,14 +942,11 @@ async function submitReplacement() {
       alert('✅ ' + data.message);
       closeReplacementModal();
       if (btn) { btn.disabled = false; btn.textContent = 'Xác nhận đổi lỗi'; }
-      if (data.sale && salesPagination.page === 1) {
-        window.store.sales.unshift(data.sale);
-        renderSaleItem(data.sale, { prepend: true });
-        salesPagination.total = (salesPagination.total || 0) + 1;
-        salesPagination.totalPages = Math.ceil(salesPagination.total / salesPagination.limit);
-        renderPagination();
-        checkSalesEmpty();
+      if (salesPagination.page === 1) {
+        loadSalesHistory();
       } else {
+        showToast('Đơn đổi bia đã được tạo', 'success');
+        salesPagination.page = 1;
         loadSalesHistory();
       }
     },

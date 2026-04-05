@@ -1,6 +1,8 @@
-fix: sales history stays stale after delete (race + SW cache)
+fix: sales history not showing new sale after creation
 
-- deleteSale: await loadData() only; remove parallel loadSalesHistory to avoid last-writer overwrite
-- submitSale: await loadData() after success; remove duplicate loadSalesHistory
-- loadSalesHistory: fetch with { cache: 'no-store' }
-- sw.js: CRITICAL_PATHS must use /api/... — /api/sales was wrongly using stale-while-revalidate
+- Build complete sale object in submitSale onSuccess using API response + optimistic data
+  (API only returns { success, id, total, profit }; missing customer_name, date, items_qty, type, status)
+- Fix double-increment of pagination total by moving increment entirely to onSuccess
+- Show toast and force page 1 when not on page 1 to ensure new sale is visible
+- Add try/catch fallback to loadSalesHistory() if renderSaleItem fails
+- Fix submitReplacement to reload history instead of referencing non-existent data.sale
