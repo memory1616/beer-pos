@@ -14,6 +14,32 @@ function formatVND(amount) {
   return new Intl.NumberFormat('vi-VN').format(num) + ' đ';
 }
 
+/** Chỉ giữ chữ số (dùng cho ô tiền có dấu phân cách) */
+function expenseAmountDigitsOnly(s) {
+  return String(s || '').replace(/\D/g, '');
+}
+
+/** Hiển thị số tiền trong ô input: 10000 → "10.000" */
+function formatExpenseAmountField(digits) {
+  if (!digits) return '';
+  var n = parseInt(digits, 10);
+  if (!isFinite(n) || n < 0) return '';
+  return new Intl.NumberFormat('vi-VN').format(n);
+}
+
+function onExpenseAmountInput(el) {
+  if (!el) return;
+  var digits = expenseAmountDigitsOnly(el.value);
+  el.value = formatExpenseAmountField(digits);
+}
+
+function getParsedExpenseAmount() {
+  var el = document.getElementById('expenseAmount');
+  if (!el) return 0;
+  var d = expenseAmountDigitsOnly(el.value);
+  return d ? parseInt(d, 10) : 0;
+}
+
 function loadExpenses(monthStr) {
   _currentMonth = monthStr;
   var list = document.getElementById('expensesList');
@@ -27,11 +53,15 @@ function loadExpenses(monthStr) {
   var startDate = year + '-' + month + '-01';
   var endDate = year + '-' + month + '-' + String(lastDay).padStart(2, '0');
 
-  fetch('/api/expenses?startDate=' + startDate + '&endDate=' + endDate)
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      // API returns array directly (not { expenses: [...] })
-      _expensesData = Array.isArray(data) ? data : (data.expenses || []);
+  // Fetch both expenses and custom categories in parallel
+  Promise.all([
+    fetch('/api/expenses?startDate=' + startDate + '&endDate=' + endDate).then(function(r) { return r.json(); }),
+    fetch('/api/expenses/categories/all').then(function(r) { return r.json(); })
+  ])
+    .then(function(results) {
+      _expensesData = Array.isArray(results[0]) ? results[0] : (results[0].expenses || []);
+      _customCategories = Array.isArray(results[1]) ? results[1] : [];
+      rebuildCategoryTabs();
       updateTotal();
       renderExpenses();
     })
@@ -141,6 +171,7 @@ function showAddExpense() {
   document.getElementById('modalTitle').textContent = 'Thêm chi phí';
   document.getElementById('expenseId').value = '';
   document.getElementById('expenseForm').reset();
+  document.getElementById('expenseAmount').value = '';
   var m = document.getElementById('expenseModal');
   m.classList.remove('hidden');
   m.classList.add('flex');
@@ -151,7 +182,9 @@ function editExpense(id) {
   if (!exp) return;
   document.getElementById('modalTitle').textContent = 'Sửa chi phí';
   document.getElementById('expenseId').value = id;
-  document.getElementById('expenseAmount').value = exp.amount;
+  document.getElementById('expenseAmount').value = formatExpenseAmountField(
+    String(Math.round(Number(exp.amount) || 0))
+  );
   document.getElementById('expenseCategory').value = exp.category || 'other';
   document.getElementById('expenseNote').value = exp.note || '';
   var m = document.getElementById('expenseModal');
@@ -167,8 +200,13 @@ function hideExpenseModal() {
 function saveExpense(e) {
   e.preventDefault();
   var id = document.getElementById('expenseId').value;
+  var amt = getParsedExpenseAmount();
+  if (!amt || amt <= 0) {
+    alert('Vui lòng nhập số tiền lớn hơn 0.');
+    return;
+  }
   var data = {
-    amount: parseFloat(document.getElementById('expenseAmount').value) || 0,
+    amount: amt,
     category: document.getElementById('expenseCategory').value,
     note: document.getElementById('expenseNote').value,
     year: _currentMonth.split('-')[0],
@@ -290,5 +328,4 @@ function filterCategory(cat) {
   renderExpenses();
 }
 
-// Load custom categories on init
-document.addEventListener('DOMContentLoaded', loadCustomCategories);
+// custom categories are loaded in loadExpenses() together with expense data
