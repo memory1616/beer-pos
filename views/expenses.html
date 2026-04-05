@@ -119,6 +119,23 @@
     </div>
   </div>
 
+  <!-- Add Category Modal -->
+  <div id="categoryModal" class="fixed inset-0 bg-overlay hidden items-center justify-center p-4" style="z-index:10002">
+    <div class="card p-6 max-w-sm w-full" style="z-index:10003">
+      <h2 class="text-xl font-bold mb-4">Thêm loại chi phí</h2>
+      <form id="categoryForm" onsubmit="saveCategory(event)">
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-main mb-1">Tên loại chi phí</label>
+          <input type="text" id="categoryName" required class="w-full border border-muted rounded-lg px-3 py-2" placeholder="VD: Xăng xe máy, Điện thoại..." minlength="2">
+        </div>
+        <div class="flex gap-2">
+          <button type="button" onclick="hideCategoryModal()" class="flex-1 btn btn-ghost">Hủy</button>
+          <button type="submit" class="flex-1 btn btn-primary">Lưu</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Load expenses JS -->
   <script src="/js/expenses.js"></script>
 
@@ -145,12 +162,16 @@
           <button onclick="showAddExpense()" class="btn btn-primary btn-sm">+ Thêm</button>
         </div>
 
-        <div class="flex gap-2 mb-4 overflow-x-auto pb-1">
-          <button onclick="filterCategory('all')" class="cat-tab active px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-cat="all">Tất cả</button>
-          <button onclick="filterCategory('fuel')" class="cat-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-cat="fuel">⛽ Xăng</button>
-          <button onclick="filterCategory('food')" class="cat-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-cat="food">🍜 Ăn uống</button>
-          <button onclick="filterCategory('repair')" class="cat-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-cat="repair">🔧 Sửa chữa</button>
-          <button onclick="filterCategory('other')" class="cat-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-cat="other">📦 Khác</button>
+        <!-- Category tabs -->
+        <div class="flex items-center gap-2 mb-4 overflow-x-auto pb-1">
+          <div class="flex gap-2 shrink-0">
+            <button onclick="filterCategory('all')" class="cat-tab active px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-cat="all">Tất cả</button>
+            <button onclick="filterCategory('fuel')" class="cat-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-cat="fuel">⛽ Xăng</button>
+            <button onclick="filterCategory('food')" class="cat-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-cat="food">🍜 Ăn uống</button>
+            <button onclick="filterCategory('repair')" class="cat-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-cat="repair">🔧 Sửa chữa</button>
+            <button onclick="filterCategory('other')" class="cat-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-cat="other">📦 Khác</button>
+          </div>
+          <button onclick="showAddCategoryModal()" class="btn btn-ghost btn-sm shrink-0 text-primary" title="Thêm loại chi phí">+ Thêm loại</button>
         </div>
 
         <!-- Summary cards -->
