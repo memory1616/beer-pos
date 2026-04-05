@@ -613,7 +613,7 @@ async function submitSale() {
         customerId: customerId ? parseInt(customerId) : null,
         items: items,
         deliverKegs: deliverKegs,
-        returnKegs: parseInt(document.getElementById('saleReturnKegs').value) || 0
+        returnKegs: parseInt(document.getElementById('saleReturnKegs')?.value) || 0
       })
     });
 
@@ -623,8 +623,10 @@ async function submitSale() {
       // Reset form
       saleData = {};
       document.getElementById('customerSelect').value = '';
-      document.getElementById('saleDeliverKegs').value = 0;
-      document.getElementById('saleReturnKegs').value = 0;
+      const _dK = document.getElementById('saleDeliverKegs');
+      const _rK = document.getElementById('saleReturnKegs');
+      if (_dK) _dK.value = 0;
+      if (_rK) _rK.value = 0;
       _kegDeliverManual = false;
       _kegReturnManual = false;
       applyResolvedPrices('', null);
@@ -1562,9 +1564,11 @@ async function editSale(id) {
     }
   });
 
-  // Pre-fill keg inputs from sale (treat as manual edit so auto-fill won't override)
-  document.getElementById('saleDeliverKegs').value = sale.deliver_kegs || 0;
-  document.getElementById('saleReturnKegs').value = sale.return_kegs || 0;
+  // Pre-fill keg inputs from sale (nếu trang có block vỏ bình)
+  const _edD = document.getElementById('saleDeliverKegs');
+  const _edR = document.getElementById('saleReturnKegs');
+  if (_edD) _edD.value = sale.deliver_kegs || 0;
+  if (_edR) _edR.value = sale.return_kegs || 0;
   _kegDeliverManual = true;
   _kegReturnManual = true;
 
@@ -1595,8 +1599,10 @@ function cancelEdit() {
   syncSaleEditAuxSheet();
 
   document.getElementById('customerSelect').value = '';
-  document.getElementById('saleDeliverKegs').value = 0;
-  document.getElementById('saleReturnKegs').value = 0;
+  const _cxD = document.getElementById('saleDeliverKegs');
+  const _cxR = document.getElementById('saleReturnKegs');
+  if (_cxD) _cxD.value = 0;
+  if (_cxR) _cxR.value = 0;
 
   applyResolvedPrices('', null);
   renderSaleProducts();

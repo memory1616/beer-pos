@@ -199,6 +199,17 @@ function formatVND(amount) {
   return new Intl.NumberFormat('vi-VN').format(num) + ' đ';
 }
 
+/** Global aliases — sales.js, sync.js, v.v. gọi showToast() trực tiếp (không qua Utils.) */
+function showLoading(message) {
+  return Utils.showLoading(message);
+}
+function hideLoading() {
+  return Utils.hideLoading();
+}
+function showToast(message, type) {
+  return Utils.showToast(message, type);
+}
+
 // Export for module usage
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { Utils, formatVND, showLoading, hideLoading, showToast };
