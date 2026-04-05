@@ -8,6 +8,11 @@ let customers = [];
 let editingSaleId = null;
 let saleData = {};
 
+// Sales history state (mirrors purchases.js pattern — primary data source)
+var allSales    = [];       // local array for optimistic insert
+var historyCurrentPage = 1; // page 1 default
+var HISTORY_PAGE_SIZE  = 5;
+
 /** PERFORMANCE: O(1) Maps — rebuilt once when data loads, reused for all lookups */
 let _productById  = new Map();
 let _customerById = new Map();
@@ -636,8 +641,9 @@ async function submitSale() {
         _optimistic: true
       };
       window.store.sales.unshift(tempSale);
-      if (salesPagination.page === 1) {
-        renderSaleItem(tempSale, { prepend: true });
+      allSales.unshift(tempSale);
+      if (historyCurrentPage === 1) {
+        renderHistoryPage();
       }
 
       // Clear cart UI immediately
@@ -661,6 +667,7 @@ async function submitSale() {
 
       // Remove temp sale from store and DOM
       window.store.sales = window.store.sales.filter(function(s) { return s.id !== tempId; });
+      allSales = allSales.filter(function(s) { return s.id !== tempId; });
       removeSaleItem(tempId);
 
       // Restore cart
@@ -681,13 +688,14 @@ async function submitSale() {
 
       if (btn) { btn.disabled = false; btn.textContent = '✔ Bán hàng'; }
 
-      // Remove temp card from store and DOM
+      // Remove temp card from both stores and DOM
       window.store.sales = window.store.sales.filter(function(s) { return s.id !== tempId; });
+      allSales = allSales.filter(function(s) { return s.id !== tempId; });
       removeSaleItem(tempId);
 
       // Build a complete sale object for immediate display.
       // The API returns { success, id, total, profit }; use optimistic data
-      // for fields not returned by the API (customer_name, date, items_qty, type, status).
+      // for fields not returned by the API.
       var newSale = Object.assign({}, result);
       if (!newSale.customer_name) newSale.customer_name = customerId ? (getCustomer(customerId)?.name || 'Khách') : 'Khách lẻ';
       if (!newSale.date)         newSale.date         = new Date().toISOString();
@@ -695,30 +703,27 @@ async function submitSale() {
       if (!newSale.status)       newSale.status       = null;
       if (!newSale.type)         newSale.type         = 'sale';
 
-      if (salesPagination.page === 1) {
-        // Page 1: insert now using optimistic data for immediate UI feedback
+      if (historyCurrentPage === 1) {
+        // Page 1: insert immediately — no API call needed
         window.store.sales.unshift(newSale);
+        allSales.unshift(newSale);
+        salesPagination.total = (salesPagination.total || 0) + 1;
+        salesPagination.totalPages = Math.ceil(salesPagination.total / HISTORY_PAGE_SIZE);
         try {
-          renderSaleItem(newSale, { prepend: true });
-          salesPagination.total = Math.max(0, (salesPagination.total || 1) - 1); // undo optimistic +1, then +1 = correct
-          salesPagination.total++;
-          renderPagination();
-          checkSalesEmpty();
+          renderHistoryPage();
         } catch (renderErr) {
-          // Fallback: reload full history
-          console.warn('[submitSale] renderSaleItem failed, calling loadSalesHistory:', renderErr);
+          console.warn('[submitSale] renderHistoryPage failed:', renderErr);
           loadSalesHistory();
         }
+        showToast('Bán hàng thành công!', 'success');
       } else {
-        // Not on page 1: show toast and reload so the full dataset is refreshed
-        salesPagination.total = Math.max(0, (salesPagination.total || 1) - 1); // undo optimistic +1
-        showToast('Đơn mới đã được tạo (trang 1)', 'success');
-        // Force page 1 and reload so the new sale appears
-        salesPagination.page = 1;
+        // Not on page 1: force page 1 and reload so the new sale appears
+        salesPagination.total = (salesPagination.total || 0) + 1;
+        salesPagination.totalPages = Math.ceil(salesPagination.total / HISTORY_PAGE_SIZE);
+        historyCurrentPage = 1;
+        showToast('Bán hàng thành công! Đơn mới ở trang 1.', 'success');
         loadSalesHistory();
       }
-
-      showToast('Bán hàng thành công!', 'success');
 
       try {
         showInvoiceModal(result.id);
@@ -1418,81 +1423,116 @@ async function loadSalesHistory() {
     return;
   }
 
-  const salesHistory = data.sales;
+  const apiSales = data.sales;
   salesPagination.total = data.total;
   salesPagination.totalPages = data.totalPages;
 
-  // Populate global store
-  window.store.sales = salesHistory;
+  // Merge API data into allSales: deduplicate by id, append page data at the end
+  if (page === 1) {
+    // Page 1: rebuild from scratch — keep optimistic items already in allSales
+    const optimisticIds = new Set(
+      allSales.filter(function(s) { return s._optimistic; }).map(function(s) { return s.id; })
+    );
+    const apiIds = new Set(apiSales.map(function(s) { return s.id; }));
+    // Keep optimistic items, discard their server-backed duplicates
+    allSales = apiSales.concat(allSales.filter(function(s) {
+      return s._optimistic && !apiIds.has(s.id);
+    }));
+  } else {
+    // Other pages: merge without duplicates
+    const existingIds = new Set(allSales.map(function(s) { return s.id; }));
+    for (var i = 0; i < apiSales.length; i++) {
+      if (!existingIds.has(apiSales[i].id)) {
+        allSales.push(apiSales[i]);
+      }
+    }
+  }
 
-  const container = document.getElementById('salesHistoryList');
-  if (salesHistory.length === 0) {
+  // Sync window.store.sales with allSales so other pages (e.g. dashboard) get fresh data
+  window.store.sales = allSales;
+
+  // Delegate rendering to renderHistoryPage (uses allSales as source)
+  renderHistoryPage();
+}
+
+/**
+ * Render the current page of allSales into #salesHistoryList.
+ * Used for both initial load and after optimistic inserts — does NOT fetch from API.
+ */
+function renderHistoryPage() {
+  var container = document.getElementById('salesHistoryList');
+  if (!container) return;
+
+  var page = historyCurrentPage;
+  var limit = HISTORY_PAGE_SIZE;
+  var start = (page - 1) * limit;
+  var pageItems = allSales.slice(start, start + limit);
+
+  _saleCardMap.clear();
+
+  if (pageItems.length === 0) {
     container.innerHTML = '<p class="text-muted text-center py-4">Chưa có hóa đơn nào</p>';
-    _saleCardMap.clear();
     renderPagination();
     return;
   }
 
-  _saleCardMap.clear();
-
-  // PERFORMANCE: build HTML parts array + single join() = single reflow (vs map+join per render)
-  const parts = ['<div class="flex flex-col gap-3">'];
-  for (const sale of salesHistory) {
-    const date = formatSaleListDate(sale.date);
-    const customerName = sale.customer_name || 'Khách lẻ';
-    const isReturned   = sale.status === 'returned';
-    const itemsQty     = parseInt(sale.items_qty, 10) || 0;
-    const isReplacement = sale.type === 'replacement';
-    const isGift        = sale.type === 'gift';
-    const badgeHtml    = isReplacement ? '<span class="badge badge-warning">🔁 Đổi lỗi</span>'
-                       : isGift        ? '<span class="badge badge-primary">🎁 Tặng thử</span>'
-                       : '';
-    const badgeLeft     = isReplacement ? 'border-l-4 border-warning'
-                        : isGift        ? 'border-l-4 border-primary'
-                        : 'border-l-4 border-success';
-    const qtyLabel     = itemsQty > 0 ? '📦 ' + itemsQty + 'L' : '';
-    const saleMoney     = typeof Format !== 'undefined' ? Format.number(sale.total) : formatVND(sale.total).replace(' đ', '');
+  var parts = ['<div class="flex flex-col gap-3">'];
+  for (var i = 0; i < pageItems.length; i++) {
+    var sale = pageItems[i];
+    var date = formatSaleListDate(sale.date);
+    var customerName = sale.customer_name || 'Khách lẻ';
+    var isReturned = sale.status === 'returned';
+    var itemsQty = parseInt(sale.items_qty, 10) || 0;
+    var isReplacement = sale.type === 'replacement';
+    var isGift = sale.type === 'gift';
+    var badgeHtml = isReplacement ? '<span class="badge badge-warning">🔁 Đổi lỗi</span>'
+                  : isGift ? '<span class="badge badge-primary">🎁 Tặng thử</span>'
+                  : '';
+    var badgeLeft = isReplacement ? 'border-l-4 border-warning'
+                  : isGift ? 'border-l-4 border-primary'
+                  : 'border-l-4 border-success';
+    var qtyLabel = itemsQty > 0 ? '📦 ' + itemsQty + 'L' : '';
+    var saleMoney = typeof Format !== 'undefined' ? Format.number(sale.total) : formatVND(sale.total).replace(' đ', '');
 
     parts.push(
-`<div class="order-item ${badgeLeft}" data-sale-id="${sale.id}">
-  <div class="order-header">
-    <div class="flex items-center gap-2 min-w-0 flex-1">
-      <span class="text-xs font-semibold text-muted shrink-0">#${sale.id}</span>
-      <span class="order-title">${customerName}</span>
-      ${badgeHtml ? '<span class="shrink-0">' + badgeHtml + '</span>' : ''}
-    </div>
-    <span class="order-meta">📅 ${date}</span>
-  </div>
-  <div class="order-footer">
-    <div class="flex items-baseline gap-1">
-      <div class="money text-money"><span class="value text-xl font-bold tabular-nums">${saleMoney}</span><span class="unit">đ</span></div>
-    </div>
-    ${qtyLabel ? '<span class="order-meta">' + qtyLabel + '</span>' : ''}
-  </div>
-  <div class="order-actions">` +
-  (isReturned
-    ? '<button class="btn btn-secondary btn-sm">Đã trả</button>'
-    : '<button onclick="viewSale(' + sale.id + ')" class="btn btn-secondary btn-sm">Hóa đơn</button>' +
-      '<button onclick="openCollectKegModal(' + sale.id + ')" class="btn btn-warning btn-sm">Thu vỏ</button>' +
-      '<button onclick="editSale(' + sale.id + ')" class="btn btn-ghost btn-sm">Sửa</button>' +
-      '<button onclick="deleteSale(' + sale.id + ')" class="btn btn-danger btn-sm">Xóa</button>'
-  ) +
-`  </div>
-</div>`
+'<div class="order-item ' + badgeLeft + '" data-sale-id="' + sale.id + '">' +
+  '<div class="order-header">' +
+    '<div class="flex items-center gap-2 min-w-0 flex-1">' +
+      '<span class="text-xs font-semibold text-muted shrink-0">#' + sale.id + '</span>' +
+      '<span class="order-title">' + customerName + '</span>' +
+      (badgeHtml ? '<span class="shrink-0">' + badgeHtml + '</span>' : '') +
+    '</div>' +
+    '<span class="order-meta">📅 ' + date + '</span>' +
+  '</div>' +
+  '<div class="order-footer">' +
+    '<div class="flex items-baseline gap-1">' +
+      '<div class="money text-money"><span class="value text-xl font-bold tabular-nums">' + saleMoney + '</span><span class="unit">đ</span></div>' +
+    '</div>' +
+    (qtyLabel ? '<span class="order-meta">' + qtyLabel + '</span>' : '') +
+  '</div>' +
+  '<div class="order-actions">' +
+    (isReturned
+      ? '<button class="btn btn-secondary btn-sm">Đã trả</button>'
+      : '<button onclick="viewSale(' + sale.id + ')" class="btn btn-secondary btn-sm">Hóa đơn</button>' +
+        '<button onclick="openCollectKegModal(' + sale.id + ')" class="btn btn-warning btn-sm">Thu vỏ</button>' +
+        '<button onclick="editSale(' + sale.id + ')" class="btn btn-ghost btn-sm">Sửa</button>' +
+        '<button onclick="deleteSale(' + sale.id + ')" class="btn btn-danger btn-sm">Xóa</button>'
+    ) +
+  '</div>' +
+'</div>'
     );
   }
   parts.push('</div>');
   container.innerHTML = parts.join('');
 
   // Cache card DOM refs for patchSaleRow()
-  for (const sale of salesHistory) {
-    _saleCardMap.set(sale.id, document.querySelector(`[data-sale-id="${sale.id}"]`));
+  for (var j = 0; j < pageItems.length; j++) {
+    _saleCardMap.set(pageItems[j].id, document.querySelector('[data-sale-id="' + pageItems[j].id + '"]'));
   }
 
   renderPagination();
+  checkSalesEmpty();
 }
-
-// PERFORMANCE: renderPagination clears old nav before appending (avoid duplicate nav on re-render)
 function renderPagination() {
   const container = document.getElementById('salesHistoryList');
   if (!container) return;
@@ -1540,6 +1580,7 @@ function renderPagination() {
 
 function changeSalesPage(newPage) {
   if (newPage < 1 || newPage > salesPagination.totalPages) return;
+  historyCurrentPage = newPage;
   salesPagination.page = newPage;
   loadSalesHistory();
   var anchor = document.getElementById('salesHistoryList');
@@ -1553,8 +1594,8 @@ async function viewSale(id) {
 async function deleteSale(id) {
   if (!confirm('Bạn có chắc muốn xóa hóa đơn #' + id + '?')) return;
 
-  // Snapshot for rollback
-  var deletedSale = Object.assign({}, window.store.sales.find(function(s) { return String(s.id) === String(id); }));
+  // Snapshot for rollback from allSales (not window.store.sales)
+  var deletedSale = Object.assign({}, allSales.find(function(s) { return String(s.id) === String(id); }));
 
   // Disable action buttons on the card
   var card = document.querySelector('[data-sale-id="' + id + '"]');
@@ -1569,30 +1610,30 @@ async function deleteSale(id) {
 
     applyOptimistic: function() {
       window.store.sales = window.store.sales.filter(function(s) { return s.id !== id; });
+      allSales = allSales.filter(function(s) { return s.id !== id; });
       removeSaleItem(id);
       salesPagination.total = Math.max(0, (salesPagination.total || 1) - 1);
-      salesPagination.totalPages = Math.ceil(salesPagination.total / salesPagination.limit);
-      renderPagination();
-      checkSalesEmpty();
+      salesPagination.totalPages = Math.ceil(salesPagination.total / HISTORY_PAGE_SIZE);
+      renderHistoryPage();
     },
 
     rollback: function() {
       if (deletedSale) {
         window.store.sales.unshift(deletedSale);
-        loadSalesHistory();
+        allSales.unshift(deletedSale);
+        renderHistoryPage();
       }
     },
 
     onSuccess: function(result) {
       showToast(result.message || 'Đã xóa hóa đơn', 'success');
       btnStates.forEach(function(s) { restoreButtonLoading(s); });
-      if (typeof loadData === 'function') loadData();
+      renderHistoryPage();
     },
 
     onError: function() {
       btnStates.forEach(function(s) { restoreButtonLoading(s); });
-      if (typeof loadData === 'function') loadData();
-      else loadSalesHistory();
+      loadSalesHistory();
     }
   });
 }
