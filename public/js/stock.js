@@ -300,6 +300,20 @@ function _renderProductsPage(pageProducts, totalPositive, hasMore) {
 
   // If first page, clear container and add low stock alert
   if (_renderedCount <= PAGE_SIZE) {
+    // Tổng tồn kho: luôn đồng bộ với tất cả sản phẩm (không chỉ trang/filter)
+    const totalStockEl = document.getElementById('totalStock');
+    if (totalStockEl) {
+      const fromServer =
+        typeof totalPositive === 'number' && !Number.isNaN(totalPositive);
+      const total = fromServer
+        ? totalPositive
+        : currentProducts.reduce(
+            (sum, p) => sum + Math.max(0, Number(p.stock) || 0),
+            0
+          );
+      totalStockEl.textContent = String(total);
+    }
+
     // Calculate low stock products from filtered products
     const lowStockProducts = _filteredProducts.filter(p => p.stock < 5);
     
