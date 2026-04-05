@@ -243,6 +243,12 @@ try {
 }
 
 try {
+  db.exec(`ALTER TABLE sales ADD COLUMN date TEXT DEFAULT CURRENT_TIMESTAMP`);
+} catch (e) {
+  // Column already exists, ignore
+}
+
+try {
   db.exec(`ALTER TABLE sale_items ADD COLUMN cost_price REAL DEFAULT 0`);
 } catch (e) {
   // Column already exists, ignore
