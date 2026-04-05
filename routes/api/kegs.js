@@ -323,6 +323,105 @@ router.post('/import', (req, res) => {
   }
 });
 
+// 3.5. KEG RETURN - Thu vỏ từ khách (CHỈ cập nhật keg, KHÔNG đụng đến sale)
+// Đảm bảo: customer, total, items của sale luôn được bảo toàn
+router.post('/return', (req, res) => {
+  const { sale_id, returned_kegs } = req.body;
+
+  if (!sale_id || returned_kegs === undefined) {
+    return res.status(400).json({ error: 'Thiếu thông tin cần thiết' });
+  }
+
+  const returnedQty = parseInt(returned_kegs);
+  if (isNaN(returnedQty) || returnedQty < 0) {
+    return res.status(400).json({ error: 'Số vỏ trả không hợp lệ' });
+  }
+
+  try {
+    // Lấy thông tin sale (chỉ đọc, KHÔNG cập nhật)
+    const sale = db.prepare('SELECT customer_id, deliver_kegs, return_kegs FROM sales WHERE id = ?').get(sale_id);
+    if (!sale) return res.status(404).json({ error: 'Không tìm thấy hóa đơn' });
+
+    const customerId = sale.customer_id;
+    if (!customerId) {
+      return res.status(400).json({ error: 'Đơn này không có khách hàng' });
+    }
+
+    const prevReturnKegs = sale.return_kegs || 0;
+    const deltaReturn = returnedQty - prevReturnKegs;
+
+    // Validation: cannot return more than customer holds
+    const customer = db.prepare('SELECT keg_balance FROM customers WHERE id = ?').get(customerId);
+    if (!customer) return res.status(404).json({ error: 'Không tìm thấy khách hàng' });
+
+    const currentKegBalance = customer.keg_balance || 0;
+    // maxAllowed = what customer currently holds + any new deliver delta
+    // Since this endpoint only handles returns, deltaDeliver = 0
+    const maxAllowedReturn = currentKegBalance;
+    if (returnedQty > maxAllowedReturn) {
+      return res.status(400).json({
+        error: `Không thể thu ${returnedQty} vỏ. Khách chỉ giữ tối đa ${maxAllowedReturn} vỏ.`
+      });
+    }
+
+    const newKegBalance = currentKegBalance - deltaReturn;
+    const newlyCollected = Math.max(0, deltaReturn);
+    const newlyReturnedToCustomer = Math.max(0, -deltaReturn);
+
+    const processReturn = db.transaction(() => {
+      // 1. Cập nhật số vỏ đã thu trong sale (chỉ cập nhật return_kegs, KHÔNG đụng đến total/customer/items)
+      db.prepare('UPDATE sales SET return_kegs = ?, keg_balance_after = ? WHERE id = ?')
+        .run(returnedQty, newKegBalance, sale_id);
+
+      // 2. Cập nhật balance khách (deltaReturn > 0 → thu thêm; deltaReturn < 0 → trả lại)
+      if (deltaReturn !== 0) {
+        const { updateCustomerKegBalance } = require('./payments');
+        updateCustomerKegBalance(customerId, 0, deltaReturn);
+      }
+
+      // 3. Cập nhật empty_collected (thu thêm → +; trả lại → -)
+      if (newlyCollected > 0 || newlyReturnedToCustomer > 0) {
+        const stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
+        const currentEmpty = stats?.empty_collected || 0;
+        const newEmpty = Math.max(0, currentEmpty + newlyCollected - newlyReturnedToCustomer);
+        db.prepare('UPDATE keg_stats SET empty_collected = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1')
+          .run(newEmpty);
+      }
+
+      // 4. Ghi log thu vỏ (chỉ khi thu thêm)
+      if (newlyCollected > 0) {
+        const updatedStats = db.prepare('SELECT inventory, empty_collected, customer_holding FROM keg_stats WHERE id = 1').get();
+        const customer2 = db.prepare('SELECT name FROM customers WHERE id = ?').get(customerId);
+        db.prepare(`
+          INSERT INTO keg_transactions_log
+            (type, quantity, customer_id, customer_name, inventory_after, empty_after, holding_after, note)
+          VALUES ('collect', ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          newlyCollected,
+          customerId,
+          customer2?.name || '',
+          updatedStats?.inventory || 0,
+          updatedStats?.empty_collected || 0,
+          updatedStats?.customer_holding || 0,
+          `Thu vỏ qua đơn #${sale_id}`
+        );
+      }
+    });
+
+    processReturn();
+
+    res.json({
+      success: true,
+      message: 'Đã cập nhật vỏ trả',
+      returned_kegs: returnedQty,
+      new_balance: newKegBalance
+    });
+  } catch (err) {
+    logger.error('Keg return error', { error: err.message });
+    res.status(500).json({ error: 'Cập nhật thất bại: ' + err.message });
+  }
+});
+
 // 4. SELL EMPTY KEGS - Bán vỏ rỗng (bán đi, ra khỏi hệ thống)
 router.post('/sell-empty', (req, res) => {
   const { quantity, note } = req.body;

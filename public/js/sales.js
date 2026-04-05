@@ -1041,7 +1041,6 @@ async function saveKegUpdate() {
   const returnKegs = parseInt(String(document.getElementById('kegReturn').value).trim(), 10) || 0;
 
   // Validation: cannot return more than customer holds.
-  // customer holds = currentKegBalance + deltaDeliver
   const deltaDeliver = deliverKegs - _kegModalPrevDeliver;
   const errorEl = document.getElementById('kegModalError');
   const maxAllowedReturn = currentKegBalance + deltaDeliver;
@@ -1055,14 +1054,29 @@ async function saveKegUpdate() {
   const saleId = currentKegSaleId;
   const btn = document.getElementById('kegSaveBtn');
 
+  // Nếu chỉ thay đổi return (không đổi deliver), dùng /api/kegs/return (không đụng đến sale fields)
+  // Nếu có thay đổi deliver, vẫn dùng /api/sales/update-kegs
+  const hasDeliverChange = deltaDeliver !== 0;
+
   optimisticMutate({
     request: function() {
-      return fetch('/api/sales/update-kegs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ saleId: saleId, customerId: currentKegCustomerId, deliver: deliverKegs, returned: returnKegs }),
-        cache: 'no-store'
-      });
+      if (hasDeliverChange) {
+        // deliver thay đổi → dùng endpoint cũ (cập nhật cả deliver + return)
+        return fetch('/api/sales/update-kegs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ saleId: saleId, customerId: currentKegCustomerId, deliver: deliverKegs, returned: returnKegs }),
+          cache: 'no-store'
+        });
+      } else {
+        // Chỉ return thay đổi → dùng endpoint mới (KHÔNG ghi đè sale fields)
+        return fetch('/api/kegs/return', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sale_id: saleId, returned_kegs: returnKegs }),
+          cache: 'no-store'
+        });
+      }
     },
 
     applyOptimistic: function() {
@@ -1081,10 +1095,10 @@ async function saveKegUpdate() {
       window.store.customers = customers;
       _rebuildMaps();
 
-      alert('Cập nhật vỏ thành công!\n\nGiao: ' + deliverKegs + ' | Thu: ' + returnKegs + '\nVỏ tại khách: ' + result.newBalance);
+      alert('Cập nhật vỏ thành công!\n\nGiao: ' + deliverKegs + ' | Thu: ' + returnKegs + '\nVỏ tại khách: ' + (result.new_balance || result.newBalance));
 
       closeKegModal();
-      patchSaleRow({ id: saleId, deliver_kegs: deliverKegs, return_kegs: returnKegs, keg_balance_after: result.newBalance });
+      patchSaleRow({ id: saleId, deliver_kegs: deliverKegs, return_kegs: returnKegs, keg_balance_after: (result.new_balance || result.newBalance) });
       await refreshInvoiceIfOpen(saleId);
     },
 
@@ -1301,19 +1315,16 @@ function updateCollectKegPreview() {
 
 async function submitCollectKeg() {
   const saleId = _collectKegSaleId;
-  const customerId = _collectKegCustomerId;
-  const deliver = parseInt(document.getElementById('collectKegDeliver').value, 10) || 0;
   const returned = parseInt(document.getElementById('collectKegReturn').value, 10) || 0;
 
-  if (deliver < 0 || returned < 0) {
+  if (returned < 0) {
     alert('Số vỏ không hợp lệ');
     return;
   }
 
-  // Validation: cannot return more than customer holds.
-  // customer holds = _collectKegBalance + deltaDeliver
-  const deltaDeliver = deliver - _collectKegPrevDeliver;
-  const maxAllowed = _collectKegBalance + deltaDeliver;
+  // Validation: cannot return more than customer holds
+  const deltaReturn = returned - _collectKegPrevReturn;
+  const maxAllowed = _collectKegBalance;
   if (returned > maxAllowed) {
     const warningEl = document.getElementById('collectKegWarning');
     warningEl.textContent = '⚠️ Không thể thu ' + returned + ' vỏ. Khách chỉ giữ tối đa ' + maxAllowed + ' vỏ';
@@ -1325,10 +1336,10 @@ async function submitCollectKeg() {
 
   optimisticMutate({
     request: function() {
-      return fetch('/api/sales/update-kegs', {
+      return fetch('/api/kegs/return', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ saleId, customerId, deliver, returned }),
+        body: JSON.stringify({ sale_id: saleId, returned_kegs: returned }),
         cache: 'no-store'
       });
     },
@@ -1350,10 +1361,10 @@ async function submitCollectKeg() {
       window.store.customers = customers;
       _rebuildMaps();
 
-      alert('Cập nhật vỏ thành công!\n\nGiao: ' + deliver + ' | Thu: ' + returned + '\nVỏ tại khách: ' + result.newBalance);
+      alert('Cập nhật vỏ thành công!\n\nThu: ' + returned + ' vỏ\nVỏ tại khách: ' + result.new_balance);
 
       closeCollectKegModal();
-      patchSaleRow({ id: saleId, deliver_kegs: deliver, return_kegs: returned, keg_balance_after: result.newBalance });
+      patchSaleRow({ id: saleId, return_kegs: returned, keg_balance_after: result.new_balance });
       await refreshInvoiceIfOpen(saleId);
     },
 
