@@ -136,7 +136,13 @@
     <div class="card w-full max-w-md p-6 relative shadow-xl">
       <button onclick="closeKegModal()" class="absolute top-4 right-4 text-muted hover:text-main text-2xl font-bold w-8 h-8 flex items-center justify-center rounded-full hover:bg-bg-hover">&times;</button>
       <div class="text-center mb-4">
-        <div class="text-xl font-bold text-main">📦 Cập nhật vỏ bình</div>
+        <div class="text-xl font-bold text-main" id="kegModalTitle">📦 Cập nhật vỏ bình</div>
+        <!-- Badge: hiển thị khi đã có dữ liệu gốc -->
+        <div id="kegModalBadge" class="hidden mt-2">
+          <span class="text-sm text-muted">Đã giao: <span class="font-bold text-success" id="kegBadgeGiao">0</span></span>
+          <span class="mx-2 text-muted">|</span>
+          <span class="text-sm text-muted">Đã thu: <span class="font-bold text-danger" id="kegBadgeThu">0</span></span>
+        </div>
       </div>
 
       <div class="card p-4 mb-4 border-warning">
@@ -193,8 +199,8 @@
         <div id="kegModalError" class="hidden card p-3 border-danger text-center text-sm text-danger"></div>
       </div>
 
-      <button onclick="saveKegUpdate()" id="kegSaveBtn" class="btn btn-primary w-full h-14 mt-4">
-        💾 Lưu
+      <button onclick="saveKegUpdate()" id="kegSaveBtn" class="btn btn-primary w-full h-14">
+        💾 <span id="kegSaveBtnText">Lưu</span>
       </button>
     </div>
   </div>

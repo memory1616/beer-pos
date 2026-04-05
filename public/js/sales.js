@@ -760,12 +760,6 @@ async function refreshInvoiceIfOpen(saleId) {
   }
 }
 
-// Keg Modal Functions
-let currentKegSaleId = null;
-let currentKegCustomerId = null;
-let currentKegBalance = 0;
-let saleTotalQuantity = 0;
-
 // Track the invoice modal open sale ID so we can refresh it after keg updates
 let _openInvoiceSaleId = null;
 
@@ -793,37 +787,55 @@ function sumShellUnitsFromSaleItems(items) {
 }
 
 async function openKegModal(saleId) {
-  currentKegSaleId = saleId;
+  _invoiceSaleId = saleId;
 
   const res = await fetch('/api/sales/' + saleId);
   const sale = await res.json();
 
-  currentKegCustomerId = sale.customer_id;
+  _invoiceCustomerId = sale.customer_id;
 
   // Lấy balance THỰC TẾ từ DB (không dùng customers array — có thể cũ)
   const custRes = await fetch('/api/customers/' + sale.customer_id);
   const custData = await custRes.json();
-  currentKegBalance = custData.keg_balance || 0;
+  _invoiceCustBalance = custData.keg_balance || 0;
 
-  // Chỉ tính bia bom (lon/chai thủy tinh), không tính bia pet (chai nhựa)
-  saleTotalQuantity = sale.items.reduce((sum, item) => {
-    if (isPetBia(item.name, item.type)) return sum;
-    return sum + item.quantity;
-  }, 0);
+  // Tổng bia bom (không pet) — gợi ý giao vỏ
+  _invoiceLineQty = sumShellUnitsFromSaleItems(sale.items || []);
 
-  document.getElementById('kegBeerQuantity').textContent = saleTotalQuantity;
+  // ─── Mode detection ───────────────────────────────────────────
+  // invoiceShell = snapshot đã lưu trên đơn (hoặc null nếu chưa từng ghi)
+  const savedGiao = sale.deliver_kegs || 0;
+  const savedThu  = sale.return_kegs  || 0;
+  const isEditMode = savedGiao > 0 || savedThu > 0;
+  _invoiceShell = isEditMode
+    ? { giao: savedGiao, thu: savedThu }
+    : null;
 
-  // Lưu giá trị TRƯỚC đó để tính delta khi preview
-  _kegModalPrevDeliver = sale.deliver_kegs || 0;
-  _kegModalPrevReturn = sale.return_kegs || 0;
+  // ─── Fill form ─────────────────────────────────────────────────
+  // Create mode → 0; Edit mode → pre-fill với giá trị đã lưu
+  const formGiao = isEditMode ? savedGiao : _invoiceLineQty;
+  const formThu  = isEditMode ? savedThu  : 0;
 
-  // Auto-fill: nếu chưa có deliver_kegs thì điền = số bia (chỉ bom, không pet)
-  if (!sale.deliver_kegs || sale.deliver_kegs === 0) {
-    document.getElementById('kegDeliver').value = saleTotalQuantity;
+  document.getElementById('kegBeerQuantity').textContent = _invoiceLineQty;
+  document.getElementById('kegDeliver').value = formGiao;
+  document.getElementById('kegReturn').value  = formThu;
+
+  // ─── UI: badge, title, button ─────────────────────────────────
+  const badgeEl = document.getElementById('kegModalBadge');
+  const titleEl = document.getElementById('kegModalTitle');
+  const saveBtnText = document.getElementById('kegSaveBtnText');
+
+  if (isEditMode) {
+    badgeEl.classList.remove('hidden');
+    document.getElementById('kegBadgeGiao').textContent = savedGiao;
+    document.getElementById('kegBadgeThu').textContent  = savedThu;
+    titleEl.textContent = '✏️ Chỉnh sửa vỏ bình';
+    saveBtnText.textContent = 'Cập nhật';
   } else {
-    document.getElementById('kegDeliver').value = sale.deliver_kegs;
+    badgeEl.classList.add('hidden');
+    titleEl.textContent = '📦 Cập nhật vỏ bình';
+    saveBtnText.textContent = 'Lưu';
   }
-  document.getElementById('kegReturn').value = sale.return_kegs || 0;
 
   // Clear old errors/warnings
   document.getElementById('kegModalError').classList.add('hidden');
@@ -838,8 +850,9 @@ async function openKegModal(saleId) {
 function closeKegModal() {
   document.getElementById('kegModal').classList.add('hidden');
   document.getElementById('kegModal').classList.remove('flex');
-  currentKegSaleId = null;
-  currentKegCustomerId = null;
+  _invoiceSaleId = null;
+  _invoiceCustomerId = null;
+  _invoiceShell = null;
 }
 
 // Replacement Modal Functions
@@ -963,26 +976,20 @@ async function submitReplacement() {
 }
 
 function updateKegModalPreview() {
-  const deliver = parseInt(String(document.getElementById('kegDeliver').value).trim(), 10) || 0;
-  const returned = parseInt(String(document.getElementById('kegReturn').value).trim(), 10) || 0;
+  const formGiao = parseInt(String(document.getElementById('kegDeliver').value).trim(), 10) || 0;
+  const formThu  = parseInt(String(document.getElementById('kegReturn').value).trim(), 10) || 0;
 
-  // Rule: voHienTai đã bao gồm số đã giao trước.
-  // voSau = voHienTai + (newDeliver - prevDeliver) - (newReturn - prevReturn)
-  // Khi chưa thay đổi: newDeliver = prevDeliver, newReturn = prevReturn
-  // → voSau = voHienTai + 0 - (returned - prevReturn) = voHienTai - returned + prevReturn
-  // Test cases:
-  //   TC1: 216 + (100-100) - (100-0) = 116 ✓
-  //   TC2: 216 + (100-100) - (0-0)   = 216 ✓
-  //   TC3: 50  + (20-0)   - (10-0)   = 60  ✓  (prevDeliver=0)
-  const deltaDeliver = deliver - _kegModalPrevDeliver;
-  const deltaReturn  = returned - _kegModalPrevReturn;
-  const newBalance = currentKegBalance + deltaDeliver - deltaReturn;
+  // Delta so với snapshot đã lưu (hoặc 0 nếu create mode)
+  const old = _invoiceShell || { giao: 0, thu: 0 };
+  const deltaGiao = formGiao - old.giao;
+  const deltaThu  = formThu  - old.thu;
+  const newBalance = _invoiceCustBalance + deltaGiao - deltaThu;
 
   // Show current inputs — +xanh, -đỏ
-  document.getElementById('kegDeliverPreview').textContent = '+' + deliver;
-  document.getElementById('kegReturnPreview').textContent = '-' + returned;
-  document.getElementById('kegCurrentBalance').textContent = currentKegBalance;
-  document.getElementById('kegNewBalance').textContent = newBalance;
+  document.getElementById('kegDeliverPreview').textContent = '+' + formGiao;
+  document.getElementById('kegReturnPreview').textContent  = '-' + formThu;
+  document.getElementById('kegCurrentBalance').textContent = _invoiceCustBalance;
+  document.getElementById('kegNewBalance').textContent     = newBalance;
 
   // Color: voSau >= 0 → xanh, < 0 → đỏ
   const newBalanceEl = document.getElementById('kegNewBalance');
@@ -992,21 +999,20 @@ function updateKegModalPreview() {
   // Color: deliver preview — xanh nếu > 0
   const deliverPreviewEl = document.getElementById('kegDeliverPreview');
   if (deliverPreviewEl) {
-    deliverPreviewEl.className = 'font-bold ' + (deliver > 0 ? 'text-success' : 'text-muted');
+    deliverPreviewEl.className = 'font-bold ' + (formGiao > 0 ? 'text-success' : 'text-muted');
   }
   // Color: return preview — đỏ nếu > 0
   const returnPreviewEl = document.getElementById('kegReturnPreview');
   if (returnPreviewEl) {
-    returnPreviewEl.className = 'font-bold ' + (returned > 0 ? 'text-danger' : 'text-muted');
+    returnPreviewEl.className = 'font-bold ' + (formThu > 0 ? 'text-danger' : 'text-muted');
   }
 
-  // Validation: cannot return more than customer holds.
-  // customer holds = currentKegBalance + deltaDeliver (đã tính đúng prevDeliver)
-  const maxAllowedReturn = currentKegBalance + deltaDeliver;
+  // Validation: cannot return more than customer holds after this edit
+  const maxAllowedReturn = _invoiceCustBalance + deltaGiao;
   const warningEl = document.getElementById('kegModalWarning');
-  if (returned > maxAllowedReturn) {
+  if (formThu > maxAllowedReturn) {
     warningEl.classList.remove('hidden');
-    warningEl.textContent = '⚠️ Không thể thu ' + returned + ' vỏ. Khách chỉ giữ tối đa ' + maxAllowedReturn + ' vỏ';
+    warningEl.textContent = '⚠️ Không thể thu ' + formThu + ' vỏ. Khách chỉ giữ tối đa ' + maxAllowedReturn + ' vỏ';
   } else {
     warningEl.classList.add('hidden');
   }
@@ -1025,58 +1031,48 @@ function addKegReturn(amount) {
 }
 
 function returnAllKegs() {
-  // Thu hết để newBalance = 0
-  // newBalance = currentKegBalance + deltaDeliver - returned = 0
-  // → returned = currentKegBalance + deltaDeliver
-  const deliver = parseInt(String(document.getElementById('kegDeliver').value).trim(), 10) || 0;
-  const deltaDeliver = deliver - _kegModalPrevDeliver;
-  document.getElementById('kegReturn').value = currentKegBalance + deltaDeliver;
+  // Thu hết → newBalance = 0
+  // newBalance = _invoiceCustBalance + deltaGiao - formThu = 0
+  // → formThu = _invoiceCustBalance + deltaGiao
+  const formGiao = parseInt(String(document.getElementById('kegDeliver').value).trim(), 10) || 0;
+  const old = _invoiceShell || { giao: 0, thu: 0 };
+  const deltaGiao = formGiao - old.giao;
+  document.getElementById('kegReturn').value = _invoiceCustBalance + deltaGiao;
   updateKegModalPreview();
 }
 
 async function saveKegUpdate() {
-  if (!currentKegSaleId || !currentKegCustomerId) return;
+  if (!_invoiceSaleId || !_invoiceCustomerId) return;
 
-  const deliverKegs = parseInt(String(document.getElementById('kegDeliver').value).trim(), 10) || 0;
-  const returnKegs = parseInt(String(document.getElementById('kegReturn').value).trim(), 10) || 0;
+  const formGiao = parseInt(String(document.getElementById('kegDeliver').value).trim(), 10) || 0;
+  const formThu  = parseInt(String(document.getElementById('kegReturn').value).trim(), 10) || 0;
 
-  // Validation: cannot return more than customer holds.
-  const deltaDeliver = deliverKegs - _kegModalPrevDeliver;
+  // Delta so với snapshot đã lưu (hoặc 0 nếu create mode)
+  const old = _invoiceShell || { giao: 0, thu: 0 };
+  const deltaGiao = formGiao - old.giao;
+  const deltaThu  = formThu  - old.thu;
+
+  // Validation: cannot return more than customer holds after this edit
+  const maxAllowedReturn = _invoiceCustBalance + deltaGiao;
   const errorEl = document.getElementById('kegModalError');
-  const maxAllowedReturn = currentKegBalance + deltaDeliver;
-  if (returnKegs > maxAllowedReturn) {
-    errorEl.textContent = '⚠️ Không thể thu ' + returnKegs + ' vỏ. Khách chỉ giữ tối đa ' + maxAllowedReturn + ' vỏ';
+  if (formThu > maxAllowedReturn) {
+    errorEl.textContent = '⚠️ Không thể thu ' + formThu + ' vỏ. Khách chỉ giữ tối đa ' + maxAllowedReturn + ' vỏ';
     errorEl.classList.remove('hidden');
     return;
   }
   errorEl.classList.add('hidden');
 
-  const saleId = currentKegSaleId;
+  const saleId = _invoiceSaleId;
   const btn = document.getElementById('kegSaveBtn');
-
-  // Nếu chỉ thay đổi return (không đổi deliver), dùng /api/kegs/return (không đụng đến sale fields)
-  // Nếu có thay đổi deliver, vẫn dùng /api/sales/update-kegs
-  const hasDeliverChange = deltaDeliver !== 0;
 
   optimisticMutate({
     request: function() {
-      if (hasDeliverChange) {
-        // deliver thay đổi → dùng endpoint cũ (cập nhật cả deliver + return)
-        return fetch('/api/sales/update-kegs', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ saleId: saleId, customerId: currentKegCustomerId, deliver: deliverKegs, returned: returnKegs }),
-          cache: 'no-store'
-        });
-      } else {
-        // Chỉ return thay đổi → dùng endpoint mới (KHÔNG ghi đè sale fields)
-        return fetch('/api/kegs/return', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sale_id: saleId, returned_kegs: returnKegs }),
-          cache: 'no-store'
-        });
-      }
+      return fetch('/api/sales/update-kegs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ saleId: saleId, customerId: _invoiceCustomerId, deliver: formGiao, returned: formThu }),
+        cache: 'no-store'
+      });
     },
 
     applyOptimistic: function() {
@@ -1084,26 +1080,26 @@ async function saveKegUpdate() {
     },
 
     rollback: function() {
-      if (btn) { btn.disabled = false; btn.textContent = 'Lưu'; }
+      if (btn) { btn.disabled = false; btn.textContent = 'Cập nhật'; }
     },
 
     onSuccess: async function(result) {
-      if (btn) { btn.disabled = false; btn.textContent = 'Lưu'; }
+      if (btn) { btn.disabled = false; btn.textContent = 'Cập nhật'; }
       const custListRes = await fetch('/api/customers');
       const custData = await custListRes.json();
       customers = custData.customers || custData;
       window.store.customers = customers;
       _rebuildMaps();
 
-      alert('Cập nhật vỏ thành công!\n\nGiao: ' + deliverKegs + ' | Thu: ' + returnKegs + '\nVỏ tại khách: ' + (result.new_balance || result.newBalance));
+      alert('Cập nhật vỏ thành công!\n\nGiao: ' + formGiao + ' | Thu: ' + formThu + '\nVỏ tại khách: ' + (result.new_balance || result.newBalance));
 
       closeKegModal();
-      patchSaleRow({ id: saleId, deliver_kegs: deliverKegs, return_kegs: returnKegs, keg_balance_after: (result.new_balance || result.newBalance) });
+      patchSaleRow({ id: saleId, deliver_kegs: formGiao, return_kegs: formThu, keg_balance_after: (result.new_balance || result.newBalance) });
       await refreshInvoiceIfOpen(saleId);
     },
 
     onError: async function() {
-      if (btn) { btn.disabled = false; btn.textContent = 'Lưu'; }
+      if (btn) { btn.disabled = false; btn.textContent = 'Cập nhật'; }
       await loadSalesHistory();
       if (window.location.pathname === '/' || window.location.pathname === '/dashboard') {
         if (typeof loadData === 'function') await loadData();
@@ -1220,9 +1216,16 @@ function calcFinalKegBalance(currentBalance, newDeliver, newReturn) {
   return currentBalance + (newDeliver || 0) - (newReturn || 0);
 }
 
-// ========== KEG MODAL STATE ==========
-let _kegModalPrevDeliver = 0;
-let _kegModalPrevReturn = 0;
+// ========== KEG MODAL STATE — single source of truth per invoice ==========
+// invoiceShell = { giao: number, thu: number }
+// - null → chưa từng lưu vỏ → create mode (form = 0)
+// - { giao, thu } → đã lưu → edit mode (form pre-filled)
+// Submit dùng delta: deltaGiao = formGiao - invoiceShell.giao
+let _invoiceShell = null;   // null = create mode; { giao, thu } = edit mode
+let _invoiceSaleId   = null;
+let _invoiceCustomerId = null;
+let _invoiceCustBalance = 0;  // tồn vỏ KHÁCH hiện tại (từ DB, không tính deliver/return đơn này)
+let _invoiceLineQty = 0;      // tổng số bia bom (không pet)
 
 // ========== COLLECT KEG MODAL (Thu vỏ - giao/thu tự tính còn lại) ==========
 let _collectKegSaleId = null;
@@ -1407,13 +1410,27 @@ function patchSaleRow(sale) {
   const isReturned   = sale.status === 'returned';
   const isReplacement = sale.type === 'replacement';
   const isGift        = sale.type === 'gift';
+  const kegDeliver = sale.deliver_kegs || 0;
+  const kegReturn  = sale.return_kegs  || 0;
+  const kegBadgeHtml = (kegDeliver || kegReturn)
+    ? '<span class="text-xs text-muted ml-1 shrink-0">[G:' + kegDeliver + ' T:' + kegReturn + ']</span>'
+    : '';
   const actionsEl = card.querySelector('.order-actions');
   if (actionsEl) actionsEl.innerHTML = isReturned
     ? '<button class="btn btn-secondary btn-sm">Đã trả</button>'
     : '<button onclick="viewSale(' + sale.id + ')" class="btn btn-secondary btn-sm">Hóa đơn</button>' +
-      '<button onclick="openCollectKegModal(' + sale.id + ')" class="btn btn-warning btn-sm">Thu vỏ</button>' +
+      '<button onclick="openKegModal(' + sale.id + ')" class="btn btn-warning btn-sm">Sửa vỏ</button>' +
       '<button onclick="editSale(' + sale.id + ')" class="btn btn-ghost btn-sm">Sửa</button>' +
       '<button onclick="deleteSale(' + sale.id + ')" class="btn btn-danger btn-sm">Xóa</button>';
+  const footerEl = card.querySelector('.order-footer');
+  if (footerEl) {
+    const qtyEl = footerEl.querySelector('.order-meta');
+    if (kegBadgeHtml) {
+      const existingBadge = footerEl.querySelector('.keg-badge');
+      if (existingBadge) existingBadge.remove();
+      if (qtyEl) qtyEl.insertAdjacentHTML('afterend', kegBadgeHtml);
+    }
+  }
   card.className = 'order-item ' + (isReplacement ? 'border-l-4 border-warning' : isGift ? 'border-l-4 border-primary' : 'border-l-4 border-success');
 }
 
@@ -1502,6 +1519,11 @@ function renderHistoryPage() {
                   : isGift ? 'border-l-4 border-primary'
                   : 'border-l-4 border-success';
     var qtyLabel = itemsQty > 0 ? '📦 ' + itemsQty + 'L' : '';
+    var kegDeliver = sale.deliver_kegs || 0;
+    var kegReturn  = sale.return_kegs  || 0;
+    var kegBadgeHtml = (kegDeliver || kegReturn)
+      ? '<span class="text-xs text-muted ml-1 shrink-0">[G:' + kegDeliver + ' T:' + kegReturn + ']</span>'
+      : '';
     var saleMoney = typeof Format !== 'undefined' ? Format.number(sale.total) : formatVND(sale.total).replace(' đ', '');
 
     parts.push(
@@ -1519,12 +1541,13 @@ function renderHistoryPage() {
       '<div class="money text-money"><span class="value text-xl font-bold tabular-nums">' + saleMoney + '</span><span class="unit">đ</span></div>' +
     '</div>' +
     (qtyLabel ? '<span class="order-meta">' + qtyLabel + '</span>' : '') +
+    (kegBadgeHtml ? '<span class="order-meta">' + kegBadgeHtml + '</span>' : '') +
   '</div>' +
   '<div class="order-actions">' +
     (isReturned
       ? '<button class="btn btn-secondary btn-sm">Đã trả</button>'
       : '<button onclick="viewSale(' + sale.id + ')" class="btn btn-secondary btn-sm">Hóa đơn</button>' +
-        '<button onclick="openCollectKegModal(' + sale.id + ')" class="btn btn-warning btn-sm">Thu vỏ</button>' +
+        '<button onclick="openKegModal(' + sale.id + ')" class="btn btn-warning btn-sm">Sửa vỏ</button>' +
         '<button onclick="editSale(' + sale.id + ')" class="btn btn-ghost btn-sm">Sửa</button>' +
         '<button onclick="deleteSale(' + sale.id + ')" class="btn btn-danger btn-sm">Xóa</button>'
     ) +
