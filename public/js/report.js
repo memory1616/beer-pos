@@ -75,21 +75,28 @@ function switchFilterType(type) {
   loadReport();
 }
 
-function toggleMonthDropdown() {
+function toggleMonthDropdown(e) {
+  if (e) e.stopPropagation();
+  var isOpen = !document.getElementById('monthDropdown').classList.contains('hidden');
   closeAllDropdowns();
-  var el = document.getElementById('monthDropdown');
-  if (el) el.classList.toggle('hidden');
-  // Highlight month tab as active while dropdown is open
-  var btn = document.getElementById('btnMonth');
-  if (btn) btn.classList.toggle('active', !document.getElementById('monthDropdown').classList.contains('hidden'));
+  if (!isOpen) {
+    var el = document.getElementById('monthDropdown');
+    if (el) el.classList.remove('hidden');
+    var btn = document.getElementById('btnMonth');
+    if (btn) btn.classList.add('active');
+  }
 }
 
-function toggleYearDropdown() {
+function toggleYearDropdown(e) {
+  if (e) e.stopPropagation();
+  var isOpen = !document.getElementById('yearDropdown').classList.contains('hidden');
   closeAllDropdowns();
-  var el = document.getElementById('yearDropdown');
-  if (el) el.classList.toggle('hidden');
-  var btn = document.getElementById('btnYear');
-  if (btn) btn.classList.toggle('active', !document.getElementById('yearDropdown').classList.contains('hidden'));
+  if (!isOpen) {
+    var el = document.getElementById('yearDropdown');
+    if (el) el.classList.remove('hidden');
+    var btn = document.getElementById('btnYear');
+    if (btn) btn.classList.add('active');
+  }
 }
 
 function closeAllDropdowns() {
