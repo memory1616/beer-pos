@@ -633,10 +633,13 @@ async function submitSale() {
       renderSaleProducts();
       updateSaleTotal();
       updateKegSaleSection('');
-      loadSalesHistory();
       showToast('Bán hàng thành công!', 'success');
-      // Reload ALL data fresh: customers, kegs, stats
-      loadData();
+      // Một luồng duy nhất: tránh race loadSalesHistory vs loadData ghi đè UI / cache cũ
+      if (typeof loadData === 'function') {
+        await loadData();
+      } else {
+        await loadSalesHistory();
+      }
       try {
         await showInvoiceModal(result.id);
       } catch(err) {
@@ -1206,7 +1209,7 @@ async function loadSalesHistory() {
   const monthParam = month !== 'all' ? `&month=${month}` : '';
   let data;
   try {
-    const res = await fetch(`/api/sales?page=${page}&limit=${limit}${monthParam}`);
+    const res = await fetch(`/api/sales?page=${page}&limit=${limit}${monthParam}`, { cache: 'no-store' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     data = await res.json();
   } catch (err) {
@@ -1350,9 +1353,12 @@ async function deleteSale(id) {
 
   if (res.ok) {
     showToast(result.message || 'Đã xóa hóa đơn', 'success');
-    loadSalesHistory();
-    // Reload all data fresh
-    loadData();
+    // Chỉ await loadData() — initSalesPage() đã gọi loadSalesHistory(); tránh 2 fetch song song ghi đè + cache cũ
+    if (typeof loadData === 'function') {
+      await loadData();
+    } else {
+      await loadSalesHistory();
+    }
   } else {
     showToast(result.error || 'Xóa thất bại', 'error');
   }

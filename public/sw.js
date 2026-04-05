@@ -381,9 +381,16 @@ self.addEventListener('fetch', event => {
   // API GET → Stale-While-Revalidate
   // EXCEPT: critical real-time data uses Network-First to prevent stale UI
   if (parsed.pathname.startsWith('/api/')) {
-    // Critical data: dashboard, sales, stock, customers — always fresh
-    const CRITICAL_PATHS = ['/dashboard', '/sales', '/stock', '/customers', '/products', '/kegs'];
-    const isCritical = CRITICAL_PATHS.some(p => parsed.pathname.startsWith(p));
+    // Critical data — luôn network-first (pathname thực tế là /api/...)
+    const CRITICAL_PATHS = [
+      '/api/dashboard',
+      '/api/sales',
+      '/api/stock',
+      '/api/customers',
+      '/api/products',
+      '/api/kegs'
+    ];
+    const isCritical = CRITICAL_PATHS.some(p => parsed.pathname === p || parsed.pathname.startsWith(p + '/'));
 
     if (isCritical) {
       event.respondWith(networkFirst(event.request));

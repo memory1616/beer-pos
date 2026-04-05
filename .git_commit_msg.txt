@@ -1,8 +1,6 @@
-fix: ensure UI updates after sale create/delete
+fix: sales history stays stale after delete (race + SW cache)
 
-- submitSale(): after success, call loadData() to reload all data fresh
-  (customers, products, kegs, stats, sales history) instead of individual fetches
-- deleteSale(): after success, call loadData() and use showToast() instead of alert()
-- loadData() in sales.html: add { cache: 'no-store' } to always fetch fresh data
-- dashboard.html: add { cache: 'no-store' } to /dashboard/data fetch
-- remove redundant individual fetch calls from submitSale() since loadData() covers everything
+- deleteSale: await loadData() only; remove parallel loadSalesHistory to avoid last-writer overwrite
+- submitSale: await loadData() after success; remove duplicate loadSalesHistory
+- loadSalesHistory: fetch with { cache: 'no-store' }
+- sw.js: CRITICAL_PATHS must use /api/... — /api/sales was wrongly using stale-while-revalidate
