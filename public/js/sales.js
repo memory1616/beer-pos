@@ -731,7 +731,7 @@ async function submitSale() {
         console.error('Lỗi hiển thị hóa đơn:', err);
         const modal = document.getElementById('invoiceModal');
         if (modal) {
-          document.getElementById('invoiceTotal').innerHTML = '<span class="value">' + Format.number(result.total || 0) + '</span><span class="unit"> đ</span>';
+          document.querySelector('#invoiceModal .invoice-total-value').textContent = Format.number(result.total || 0);
           document.getElementById('invoiceContent').innerHTML =
             '<div class="text-center text-muted py-8">Đơn hàng #'+ result.id +'</div>';
           document.getElementById('qrCode').src = '';
@@ -1173,10 +1173,9 @@ async function showInvoiceModal(saleId) {
       kegHtml;
   }
   
-  const invoiceTotal = document.getElementById('invoiceTotal');
-  if (invoiceTotal) {
-    const formatted = Format.number(sale.total || 0);
-    invoiceTotal.innerHTML = '<span class="value">' + formatted + '</span><span class="unit"> đ</span>';
+  const invoiceTotalEl = document.querySelector('#invoiceModal .invoice-total-value');
+  if (invoiceTotalEl) {
+    invoiceTotalEl.textContent = Format.number(sale.total || 0);
   }
   
   const qrSection = document.querySelector('#invoiceModal .mt-4.pt-4.border-t.border-muted');
@@ -1402,9 +1401,9 @@ function patchSaleRow(sale) {
   const nameEl  = card.querySelector('.order-title');
   const dateEl  = card.querySelector('.order-meta');
   const moneyEl = card.querySelector('.money .value');
-  if (nameEl)  nameEl.textContent  = sale.customer_name || 'Khách lẻ';
-  if (dateEl)  dateEl.textContent = '📅 ' + date;
-  if (moneyEl) moneyEl.textContent = typeof Format !== 'undefined' ? Format.number(sale.total) : formatVND(sale.total).replace(' đ', '');
+  if (nameEl && sale.customer_name !== undefined) nameEl.textContent = sale.customer_name || 'Khách lẻ';
+  if (dateEl && sale.date !== undefined) dateEl.textContent = '📅 ' + date;
+  if (moneyEl && sale.total !== undefined) moneyEl.textContent = typeof Format !== 'undefined' ? Format.number(sale.total) : formatVND(sale.total).replace(' đ', '');
   const isReturned   = sale.status === 'returned';
   const isReplacement = sale.type === 'replacement';
   const isGift        = sale.type === 'gift';
