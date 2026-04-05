@@ -11,10 +11,10 @@
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
   <link rel="stylesheet" href="/css/tailwind.css">
-  <link rel="stylesheet" href="/css/unified.css?v=20260413b">
+  <link rel="stylesheet" href="/css/unified.css?v=20260414a">
   <script src="/js/auth.js"></script>
   <script src="/js/dark-mode.js"></script>
-  <script src="/js/layout.js"></script>
+  <script src="/js/layout.js?v=20260414a"></script>
   <script>requireAuth();</script>
   <style>
     button, a { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
@@ -22,9 +22,8 @@
     .card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
   </style>
 </head>
-<body class="bg-main text-primary min-h-screen pb-20">
-  <!-- TOP BAR -->
-  <header class="sticky top-0 bg-card border-b border-muted z-50">
+<body class="bg-main text-primary body--app">
+  <header class="app-header">
     <div class="flex items-center justify-between px-4 h-12 max-w-md mx-auto">
       <div class="flex items-center gap-2">
         <span class="text-xl">💾</span>
@@ -36,9 +35,7 @@
     </div>
   </header>
 
-  <main class="p-4 pt-14 pb-24 max-w-md mx-auto">
-    <div id="bottomNavContainer"></div>
-
+  <main class="main-content">
     <!-- Status -->
     <div id="statusSection" class="card p-4 mb-4">
       <div class="flex items-center gap-2">
@@ -220,5 +217,7 @@
       }
     }
   </script>
+
+  <div id="bottomNavContainer"></div>
 </body>
 </html>

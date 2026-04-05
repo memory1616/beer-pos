@@ -10,12 +10,10 @@
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
   <link rel="stylesheet" href="/css/tailwind.css">
-  <link rel="stylesheet" href="/css/unified.css">
+  <link rel="stylesheet" href="/css/unified.css?v=20260414a">
   <script src="/js/dark-mode.js"></script>
-  <script src="/js/layout.js"></script>
+  <script src="/js/layout.js?v=20260414a"></script>
   <style>
-    .pb-safe { padding-bottom: env(safe-area-inset-bottom, 20px); }
-    .bottomnav { max-width: 500px; margin: auto; position: fixed !important; bottom: 0 !important; }
     .period-tab { background: var(--bg-secondary, #1f2937); color: var(--text-muted, #9ca3af); }
     .period-tab.active { background: var(--accent, #6366f1); color: white; }
     .report-tab { background: var(--bg-secondary, #1f2937); color: var(--text-muted, #9ca3af); }
@@ -24,9 +22,9 @@
     .report-section.active { display: block; }
   </style>
 </head>
-<body class="bg-bg text-main min-h-screen pb-24">
+<body class="bg-bg text-main body--app">
 
-  <header class="sticky top-0 bg-card/90 backdrop-blur border-b border-muted shadow-sm z-50 pb-safe">
+  <header class="app-header">
     <div class="flex items-center justify-between px-4 py-3">
       <div class="flex items-center gap-2">
         <a href="/" class="text-muted">←</a>
@@ -45,9 +43,7 @@
     </div>
   </header>
 
-  <main class="p-4 max-w-md mx-auto pt-14">
-    <div id="bottomNavContainer"></div>
-
+  <main class="main-content">
     <div class="grid grid-cols-2 gap-3 mb-4">
       <div class="card p-4 text-center">
         <div class="text-sm text-muted mb-1">Doanh thu</div>
@@ -88,6 +84,8 @@
       <div id="customersList" class="space-y-2"><div class="text-center text-muted py-4">Đang tải...</div></div>
     </div>
   </main>
+
+  <div id="bottomNavContainer"></div>
 
   <script src="/js/report.js"></script>
   <script>(function(){ switchPeriod('thisMonth'); })();</script>

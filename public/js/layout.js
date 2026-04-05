@@ -45,7 +45,7 @@ function getHeaderWithActions(title, icons = '', actions = '') {
 // Generate main content wrapper
 function getContent(content) {
   return `
-    <main class="page-enter p-4 pb-24 max-w-md mx-auto">
+    <main class="page-enter">
       ${content}
     </main>
   `;
@@ -125,6 +125,7 @@ function autoInjectBottomNav() {
     '/backup':   '/backup',
     '/purchases': '/purchases',
     '/kegs':     '/kegs',
+    '/customers': '/customers',
   };
   const activePage = pageMap[path] || '/';
   container.innerHTML = getBottomNav(activePage);

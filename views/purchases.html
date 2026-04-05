@@ -11,10 +11,10 @@
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
   <link rel="stylesheet" href="/css/tailwind.css">
-  <link rel="stylesheet" href="/css/unified.css?v=20260413b">
+  <link rel="stylesheet" href="/css/unified.css?v=20260414a">
   <script src="/js/auth.js"></script>
   <script src="/js/dark-mode.js"></script>
-  <script src="/js/layout.js"></script>
+  <script src="/js/layout.js?v=20260414a"></script>
   <script>requireAuth();</script>
   <style>
     .animate-fade { animation: fade 0.3s ease-in; }
@@ -24,8 +24,8 @@
     button:active { transform: scale(0.96); }
   </style>
 </head>
-<body class="bg-main text-primary min-h-screen pb-20">
-  <header class="sticky top-0 bg-card border-b border-muted z-50">
+<body class="bg-main text-primary body--app">
+  <header class="app-header">
     <div class="flex items-center justify-between px-4 h-12 max-w-md mx-auto">
       <div class="flex items-center gap-2">
         <span class="text-xl">📥</span>
@@ -37,9 +37,7 @@
     </div>
   </header>
 
-  <main class="p-4 pt-14 pb-24 max-w-md mx-auto animate-fade">
-    <div id="bottomNavContainer"></div>
-
+  <main class="main-content animate-fade">
     <!-- Tab Navigation -->
     <div class="flex gap-2 mb-4">
       <button onclick="switchTab('new')" id="tabNew" class="tab-btn active flex-1">📝 Nhập mới</button>
@@ -97,6 +95,8 @@
       </div>
     </div>
   </main>
+
+  <div id="bottomNavContainer"></div>
 
   <!-- Load Utils (formatVND, showToast) then Purchases JS -->
   <script src="/js/utils.js"></script>

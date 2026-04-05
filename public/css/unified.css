@@ -30,6 +30,8 @@
   /* Layout */
   --topbar-height: 56px;
   --bottomnav-height: 64px;
+  --header-height: 56px; /* alias for convenience */
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
   /* Radius */
   --radius-sm: 8px;
   --radius-md: 12px;
@@ -93,8 +95,40 @@ body.min-h-screen {
 
 body.min-h-screen.pb-24 {
   min-height: 100dvh;
-  padding-bottom: calc(var(--bottomnav-height) + 2.5rem + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(var(--bottomnav-height) + env(safe-area-inset-bottom, 0px));
 }
+
+/* ============================================================
+   APP PAGES — standard layout shell (used by all POS pages)
+   Body gets this class on every page that has a fixed header
+   AND a bottom nav. This replaces the old pb-24 hardcode.
+   ============================================================ */
+.body--app {
+  min-height: 100dvh;
+  padding-top: calc(var(--header-height) + env(safe-area-inset-top, 0px));
+  padding-bottom: calc(var(--bottomnav-height) + env(safe-area-inset-bottom, 0px));
+}
+
+/* Static HTML pages with custom sticky headers — header renders inline,
+   main starts below header via CSS var instead of pt-14 hardcode. */
+.main-content {
+  padding-top: calc(var(--header-height) + env(safe-area-inset-top, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px));
+  max-width: min(500px, 100%);
+  width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+/* Remove old pt-14 hardcode — CSS var is authoritative now */
+body .pt-14,
+.pt-14 {
+  padding-top: calc(var(--header-height) + env(safe-area-inset-top, 0px)) !important;
+}
+
+/* ============================================================ */
 
 /* =========================   TOPBAR   ========================= */
 .topbar {
@@ -150,6 +184,28 @@ body.min-h-screen.pb-24 {
   background: var(--color-bg);
 }
 
+/* ============================================================
+   STATIC HTML PAGE HEADER (expenses, delivery, report, backup, etc.)
+   Same fixed positioning as .topbar but can be any height.
+   Uses --header-height CSS var for top offset.
+   ============================================================ */
+.app-header {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: calc(var(--header-height) + env(safe-area-inset-top, 0px));
+  background: rgba(255,255,255, 0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--color-border);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+  z-index: 50;
+  overflow: hidden;
+}
+
+[data-theme="dark"] .app-header {
+  background: rgba(30, 41, 59, 0.92);
+}
+
 /* =========================   BOTTOM NAVIGATION   ========================= */
 .bottomnav {
   height: calc(var(--bottomnav-height) + env(safe-area-inset-bottom, 0px));
@@ -169,7 +225,7 @@ body.min-h-screen.pb-24 {
   font-size: 11px;
   max-width: 500px;
   margin: 0 auto;
-  z-index: 50;
+  z-index: 60;
   padding-bottom: env(safe-area-inset-bottom, 0px);
   padding-left: env(safe-area-inset-left, 0px);
   padding-right: env(safe-area-inset-right, 0px);
@@ -685,7 +741,7 @@ button:active, a:active { transform: scale(0.96); }
   padding: 12px 16px;
   border-top: 1px solid var(--color-border);
   box-shadow: 0 -4px 20px rgba(0,0,0,0.08);
-  z-index: 40;
+  z-index: 59;
   display: flex;
   gap: 10px;
   align-items: center;
@@ -1105,7 +1161,7 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: 10000;
   background: rgba(0,0,0,0.5);
   display: flex;
   align-items: center;
@@ -1247,7 +1303,7 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
   justify-content: space-between;
   position: sticky;
   top: 0;
-  z-index: 40;
+  z-index: 58;
 }
 
 /* =========================   RADIO / CHECKBOX CARD   ========================= */
@@ -1286,7 +1342,8 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 
 main {
   padding: 16px;
-  padding-bottom: 96px;
+  padding-top: calc(var(--header-height) + env(safe-area-inset-top, 0px));
+  padding-bottom: calc(var(--bottomnav-height) + env(safe-area-inset-bottom, 0px));
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
   max-width: min(500px, 100%);
@@ -1463,7 +1520,7 @@ main {
   inset: 0;
   background: rgba(0,0,0,0.5);
   backdrop-filter: blur(4px);
-  z-index: 100;
+  z-index: 10000;
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -2069,7 +2126,7 @@ input:invalid:not(:placeholder-shown) { border-color: var(--color-danger) !impor
   border-radius: var(--radius-full);
   font-size: 12px;
   font-weight: 600;
-  z-index: 100;
+  z-index: 61;
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.3s ease;
@@ -2474,7 +2531,7 @@ input:invalid:not(:placeholder-shown) { border-color: var(--color-danger) !impor
   bottom: calc(var(--bottomnav-height) + env(safe-area-inset-bottom, 0px));
   left: 0;
   right: 0;
-  z-index: 40;
+  z-index: 58;
   padding: 0 12px;
 }
 
