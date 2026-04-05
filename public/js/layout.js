@@ -1,7 +1,9 @@
-// Layout System - Tách layout để dùng chung cho tất cả pages
+// ============================================================
+// Utility & layout functions — all declared before any calls
+// ============================================================
+
 let appVersion = '1.0.0';
 
-// Load version from version.json
 async function loadVersion() {
   try {
     const res = await fetch('/version.json');
@@ -12,7 +14,9 @@ async function loadVersion() {
   }
 }
 
-// Generate standard header
+// ============================================================
+// Page structure builders
+// ============================================================
 function getHeader(title, icons = '') {
   return getHeaderWithActions(title, icons, '<a href="/" class="text-primary hover:bg-primary/10 px-2 rounded" title="Dashboard">🏠</a>');
 }
@@ -124,6 +128,18 @@ function autoInjectBottomNav() {
   };
   const activePage = pageMap[path] || '/';
   container.innerHTML = getBottomNav(activePage);
+}
+
+// Fix PWA/Chrome standalone nav: intercept home link click and use assign()
+function installBottomNavHomeNavigationFix() {
+  document.addEventListener('click', function (e) {
+    const a = e.target.closest && e.target.closest('.bottomnav a[data-nav-home]');
+    if (!a) return;
+    if (e.defaultPrevented || e.button !== 0) return;
+    if (e.ctrlKey || e.metaKey || e.shiftKey) return;
+    e.preventDefault();
+    window.location.assign(a.href || '/');
+  }, true);
 }
 
 if (typeof document !== 'undefined') {
