@@ -504,7 +504,7 @@ app.get('/report/data', (req, res) => {
     ).all(...dateParams);
 
     var profitByProduct = db2.prepare(
-      'SELECT p.id, p.name, p.type, SUM(si.quantity) as quantity_sold, COUNT(DISTINCT si.sale_id) as order_count, SUM(si.quantity * si.price) as revenue, SUM(si.quantity * si.cost_price) as cost, SUM(si.profit) as profit FROM sale_items si JOIN products p ON p.id = si.product_id JOIN sales s ON s.id = si.sale_id WHERE ' + dateCond +
+      'SELECT p.id, p.name, p.type, SUM(si.quantity) as quantity_sold, COUNT(DISTINCT si.sale_id) as order_count, SUM(si.quantity * si.price) as revenue, SUM(si.quantity * si.cost_price) as cost, SUM(si.profit) as profit FROM sale_items si JOIN products p ON p.id = si.product_id JOIN sales s ON s.id = si.sale_id WHERE (s.status IS NULL OR s.status != \'returned\') AND ' + dateCond +
       ' GROUP BY p.id ORDER BY profit DESC LIMIT 20'
     ).all(...dateParams);
 
