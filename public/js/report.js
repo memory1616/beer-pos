@@ -1,4 +1,5 @@
 // BeerPOS Report Page - Filter: preset tabs + month/year dropdowns
+console.log('[DEBUG] report.js loading...');
 var _currentReportTab = 'sales';
 var _reportData = {};
 var _chart = null;
@@ -76,42 +77,50 @@ function switchFilterType(type) {
 }
 
 function toggleMonthDropdown(e) {
-  if (e) e.stopPropagation();
-  var isOpen = !document.getElementById('monthDropdown').classList.contains('hidden');
-  closeAllDropdowns();
-  if (!isOpen) {
-    var el = document.getElementById('monthDropdown');
-    if (el) el.classList.remove('hidden');
-    var btn = document.getElementById('btnMonth');
-    if (btn) btn.classList.add('active');
+  if (e) { e.preventDefault(); e.stopPropagation(); }
+  var monthEl = document.getElementById('monthDropdown');
+  var yearEl  = document.getElementById('yearDropdown');
+  if (!monthEl || !yearEl) { console.error('[REPORT] dropdown elements missing'); return; }
+  var isHidden = monthEl.hidden;
+  // Close both first
+  monthEl.hidden = true;
+  yearEl.hidden  = true;
+  // Then open month if it was closed
+  if (isHidden) {
+    monthEl.hidden = false;
+    console.log('[REPORT] month dropdown opened');
+  } else {
+    console.log('[REPORT] month dropdown closed');
   }
 }
 
 function toggleYearDropdown(e) {
-  if (e) e.stopPropagation();
-  var isOpen = !document.getElementById('yearDropdown').classList.contains('hidden');
-  closeAllDropdowns();
-  if (!isOpen) {
-    var el = document.getElementById('yearDropdown');
-    if (el) el.classList.remove('hidden');
-    var btn = document.getElementById('btnYear');
-    if (btn) btn.classList.add('active');
+  if (e) { e.preventDefault(); e.stopPropagation(); }
+  var monthEl = document.getElementById('monthDropdown');
+  var yearEl  = document.getElementById('yearDropdown');
+  if (!monthEl || !yearEl) { console.error('[REPORT] dropdown elements missing'); return; }
+  var isHidden = yearEl.hidden;
+  // Close both first
+  monthEl.hidden = true;
+  yearEl.hidden  = true;
+  // Then open year if it was closed
+  if (isHidden) {
+    yearEl.hidden = false;
+    console.log('[REPORT] year dropdown opened');
+  } else {
+    console.log('[REPORT] year dropdown closed');
   }
 }
 
 function closeAllDropdowns() {
-  var dropdowns = document.querySelectorAll('#monthDropdown, #yearDropdown');
-  for (var i = 0; i < dropdowns.length; i++) {
-    dropdowns[i].classList.add('hidden');
-  }
-  // Reset dropdown tabs to reflect actual _filterType
-  var btnMonth = document.getElementById('btnMonth');
-  var btnYear  = document.getElementById('btnYear');
-  if (btnMonth) btnMonth.classList.toggle('active', _filterType === 'month');
-  if (btnYear)  btnYear.classList.toggle('active',  _filterType === 'year');
+  var monthEl = document.getElementById('monthDropdown');
+  var yearEl  = document.getElementById('yearDropdown');
+  if (monthEl) monthEl.hidden = true;
+  if (yearEl)  yearEl.hidden  = true;
 }
 
 function applyMonthYear() {
+  console.log('[DEBUG] applyMonthYear called');
   var monthEl = document.getElementById('selMonth');
   var yearEl  = document.getElementById('selYear');
   if (monthEl) _selectedMonth = parseInt(monthEl.value, 10);
@@ -124,6 +133,7 @@ function applyMonthYear() {
 }
 
 function applyYear() {
+  console.log('[DEBUG] applyYear called');
   var yearEl = document.getElementById('selYear');
   if (yearEl) _selectedYear = parseInt(yearEl.value, 10);
 
