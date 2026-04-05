@@ -81,13 +81,16 @@ function toggleMonthDropdown(e) {
   var monthEl = document.getElementById('monthDropdown');
   var yearEl  = document.getElementById('yearDropdown');
   if (!monthEl || !yearEl) { console.error('[REPORT] dropdown elements missing'); return; }
-  var isHidden = monthEl.hidden;
+  var isHidden = monthEl.hidden || monthEl.classList.contains('hidden');
   // Close both first
   monthEl.hidden = true;
   yearEl.hidden  = true;
+  monthEl.classList.add('hidden');
+  yearEl.classList.add('hidden');
   // Then open month if it was closed
   if (isHidden) {
     monthEl.hidden = false;
+    monthEl.classList.remove('hidden');
     console.log('[REPORT] month dropdown opened');
   } else {
     console.log('[REPORT] month dropdown closed');
@@ -99,13 +102,16 @@ function toggleYearDropdown(e) {
   var monthEl = document.getElementById('monthDropdown');
   var yearEl  = document.getElementById('yearDropdown');
   if (!monthEl || !yearEl) { console.error('[REPORT] dropdown elements missing'); return; }
-  var isHidden = yearEl.hidden;
+  var isHidden = yearEl.hidden || yearEl.classList.contains('hidden');
   // Close both first
   monthEl.hidden = true;
   yearEl.hidden  = true;
+  monthEl.classList.add('hidden');
+  yearEl.classList.add('hidden');
   // Then open year if it was closed
   if (isHidden) {
     yearEl.hidden = false;
+    yearEl.classList.remove('hidden');
     console.log('[REPORT] year dropdown opened');
   } else {
     console.log('[REPORT] year dropdown closed');
@@ -115,8 +121,8 @@ function toggleYearDropdown(e) {
 function closeAllDropdowns() {
   var monthEl = document.getElementById('monthDropdown');
   var yearEl  = document.getElementById('yearDropdown');
-  if (monthEl) monthEl.hidden = true;
-  if (yearEl)  yearEl.hidden  = true;
+  if (monthEl) { monthEl.hidden = true; monthEl.classList.add('hidden'); }
+  if (yearEl)  { yearEl.hidden  = true; yearEl.classList.add('hidden'); }
 }
 
 function applyMonthYear() {
