@@ -81,11 +81,12 @@ async function submitPurchase() {
 
   const note = document.getElementById('purchaseNote').value;
   const submitBtn = document.getElementById('submitBtn');
-  submitBtn.disabled = true;
-  submitBtn.textContent = '⏳ Đang xử lý...';
+  const tempId = 'tmp_pur_' + Date.now();
 
-  mutate(
-    function() {
+  var btnState = setButtonLoading(submitBtn, 'Xác nhận nhập hàng');
+
+  optimisticMutate({
+    request: function() {
       return fetch('/api/purchases', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -93,7 +94,41 @@ async function submitPurchase() {
         cache: 'no-store'
       });
     },
-    function(result) {
+
+    applyOptimistic: function() {
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Đang xử lý...'; }
+
+      // Optimistically add temp purchase card
+      if (typeof allPurchases !== 'undefined') {
+        var tempPurchase = {
+          id: tempId,
+          date: new Date().toISOString(),
+          item_count: cart.length,
+          total_amount: cart.reduce(function(s, it) { return s + it.quantity * it.unit_price; }, 0),
+          _optimistic: true
+        };
+        allPurchases.unshift(tempPurchase);
+        window.store.purchases.unshift(tempPurchase);
+        renderPurchaseItem(tempPurchase, { prepend: true });
+        updatePurchasesSummary();
+        checkPurchasesEmpty();
+      }
+    },
+
+    rollback: function() {
+      if (btnState) restoreButtonLoading(btnState);
+      if (typeof allPurchases !== 'undefined') {
+        allPurchases = allPurchases.filter(function(p) { return p.id !== tempId; });
+        window.store.purchases = allPurchases;
+        removePurchaseItem(tempId);
+        updatePurchasesSummary();
+        checkPurchasesEmpty();
+      }
+    },
+
+    onSuccess: function(result) {
+      if (btnState) restoreButtonLoading(btnState);
+
       let message = 'Nhập hàng thành công!\nTổng tiền: ' + formatVND(result.total_amount);
       if (result.kegsImported > 0) {
         message += '\n\nNhập ' + result.kegsImported + ' vỏ từ nhà máy';
@@ -101,33 +136,37 @@ async function submitPurchase() {
       }
       alert(message);
 
-      // Add to store and render instantly
       if (result.purchase) {
-        allPurchases.unshift(result.purchase);
-        window.store.purchases = allPurchases;
-        renderPurchaseItem(result.purchase, { prepend: true });
+        // Remove temp and add real
+        if (typeof allPurchases !== 'undefined') {
+          var tIdx = allPurchases.findIndex(function(p) { return p.id === tempId; });
+          if (tIdx !== -1) {
+            allPurchases[tIdx] = result.purchase;
+            window.store.purchases[tIdx] = result.purchase;
+          }
+          removePurchaseItem(tempId);
+          renderPurchaseItem(result.purchase, { prepend: true });
+          // Also update the temp card's data-expense-id to the real one
+          var tempCard = document.querySelector('[data-purchase-id="' + tempId + '"]');
+          if (tempCard) tempCard.setAttribute('data-purchase-id', result.purchase.id);
+        }
         historyCurrentPage = 1;
-        // Update pagination
         updatePurchasesSummary();
-        renderHistoryPage();
         checkPurchasesEmpty();
       }
 
-      // Reset form
       cart = [];
       document.querySelectorAll('#productList input[type="number"]').forEach(function(input) {
         input.value = '';
       });
       renderCart();
-
-      // Switch to history tab
       switchTab('history');
     },
-    function() {
-      submitBtn.disabled = false;
-      submitBtn.textContent = 'Xác nhận nhập hàng';
+
+    onError: function() {
+      if (btnState) restoreButtonLoading(btnState);
     }
-  );
+  });
 }
 
 function editPurchase(id) {
@@ -137,21 +176,44 @@ function editPurchase(id) {
 async function deletePurchase(id) {
   if (!confirm('Bạn có chắc muốn xóa phiếu nhập này?')) return;
 
-  mutate(
-    function() {
+  // Snapshot for rollback
+  var deletedPurchase = Object.assign({}, allPurchases.find(function(p) { return String(p.id) === String(id); }));
+
+  // Disable delete button on the card
+  var card = document.querySelector('[data-purchase-id="' + id + '"]');
+  var deleteBtn = card ? card.querySelector('[onclick^="deletePurchase"]') : null;
+  var btnState = deleteBtn ? setButtonLoading(deleteBtn) : null;
+
+  optimisticMutate({
+    request: function() {
       return fetch('/api/purchases/' + id, { method: 'DELETE', cache: 'no-store' });
     },
-    function() {
-      alert('Đã xóa phiếu nhập!');
+
+    applyOptimistic: function() {
       allPurchases = allPurchases.filter(function(p) { return String(p.id) !== String(id); });
       window.store.purchases = allPurchases;
       removePurchaseItem(id);
       updatePurchasesSummary();
-      renderHistoryPage();
       checkPurchasesEmpty();
     },
-    function() {
-      location.reload();
+
+    rollback: function() {
+      if (deletedPurchase) {
+        allPurchases.unshift(deletedPurchase);
+        window.store.purchases.unshift(deletedPurchase);
+        renderPurchaseItem(deletedPurchase, { prepend: true });
+        updatePurchasesSummary();
+        checkPurchasesEmpty();
+      }
+    },
+
+    onSuccess: function() {
+      if (btnState) restoreButtonLoading(btnState);
+      alert('Đã xóa phiếu nhập!');
+    },
+
+    onError: function() {
+      if (btnState) restoreButtonLoading(btnState);
     }
-  );
+  });
 }

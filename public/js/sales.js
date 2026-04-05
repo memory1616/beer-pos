@@ -599,9 +599,7 @@ async function submitSale() {
   }
 
   const btn = document.getElementById('sellBtn');
-  btn.disabled = true;
-  btn.textContent = 'Đang xử lý...';
-
+  const tempId = 'tmp_sale_' + Date.now();
   const payload = {
     customerId: customerId ? parseInt(customerId) : null,
     items: items,
@@ -609,78 +607,126 @@ async function submitSale() {
     returnKegs: parseInt(document.getElementById('saleReturnKegs')?.value) || 0
   };
 
-  try {
-    mutate(
-      function() {
-        return fetch('/api/sales', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-          cache: 'no-store'
-        });
-      },
-      async function(result) {
-        haptic && haptic('success');
+  // Snapshot current form state for rollback
+  const snapshotCart = Object.assign({}, saleData);
+  const snapshotCustomer = customerId;
 
-        // Reset form
-        saleData = {};
-        document.getElementById('customerSelect').value = '';
-        const _dK = document.getElementById('saleDeliverKegs');
-        const _rK = document.getElementById('saleReturnKegs');
-        if (_dK) _dK.value = 0;
-        if (_rK) _rK.value = 0;
-        _kegDeliverManual = false;
-        _kegReturnManual = false;
-        applyResolvedPrices('', null);
-        renderSaleProducts();
-        updateSaleTotal();
-        updateKegSaleSection('');
+  optimisticMutate({
+    request: function() {
+      return fetch('/api/sales', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        cache: 'no-store'
+      });
+    },
 
-        showToast('Bán hàng thành công!', 'success');
+    applyOptimistic: function() {
+      // Disable button immediately
+      if (btn) { btn.disabled = true; btn.textContent = 'Đang xử lý...'; }
 
-        // Add to store and render instantly
-        const newSale = result.sale || result;
-        if (newSale && newSale.id) {
-          window.store.sales.unshift(newSale);
-          // Only prepend to visible list if on first page
-          if (salesPagination.page === 1) {
-            renderSaleItem(newSale, { prepend: true });
-          }
-          // Update pagination total
-          salesPagination.total = (salesPagination.total || 0) + 1;
-          salesPagination.totalPages = Math.ceil(salesPagination.total / salesPagination.limit);
-          renderPagination();
-          checkSalesEmpty();
+      // Optimistically add temp sale card
+      const tempSale = {
+        id: tempId,
+        customer_name: customerId ? (getCustomer(customerId)?.name || 'Khách') : 'Khách lẻ',
+        date: new Date().toISOString(),
+        total: total,
+        items_qty: items.reduce(function(s, it) { return s + it.quantity; }, 0),
+        status: 'pending',
+        _optimistic: true
+      };
+      window.store.sales.unshift(tempSale);
+      if (salesPagination.page === 1) {
+        renderSaleItem(tempSale, { prepend: true });
+        salesPagination.total = (salesPagination.total || 0) + 1;
+        salesPagination.totalPages = Math.ceil(salesPagination.total / salesPagination.limit);
+        renderPagination();
+        checkSalesEmpty();
+      }
+
+      // Clear cart UI immediately
+      saleData = {};
+      if (document.getElementById('customerSelect')) document.getElementById('customerSelect').value = '';
+      const _dK = document.getElementById('saleDeliverKegs');
+      const _rK = document.getElementById('saleReturnKegs');
+      if (_dK) _dK.value = 0;
+      if (_rK) _rK.value = 0;
+      _kegDeliverManual = false;
+      _kegReturnManual = false;
+      applyResolvedPrices('', null);
+      renderSaleProducts();
+      updateSaleTotal();
+      updateKegSaleSection('');
+    },
+
+    rollback: function() {
+      // Restore button
+      if (btn) { btn.disabled = false; btn.textContent = '✔ Bán hàng'; }
+
+      // Remove temp sale from store and DOM
+      window.store.sales = window.store.sales.filter(function(s) { return s.id !== tempId; });
+      removeSaleItem(tempId);
+      salesPagination.total = Math.max(0, (salesPagination.total || 1) - 1);
+      salesPagination.totalPages = Math.ceil(salesPagination.total / salesPagination.limit);
+      renderPagination();
+      checkSalesEmpty();
+
+      // Restore cart
+      saleData = snapshotCart;
+      if (document.getElementById('customerSelect')) document.getElementById('customerSelect').value = snapshotCustomer;
+      const _dK2 = document.getElementById('saleDeliverKegs');
+      const _rK2 = document.getElementById('saleReturnKegs');
+      if (_dK2) _dK2.value = payload.deliverKegs;
+      if (_rK2) _rK2.value = payload.returnKegs;
+      applyResolvedPrices(snapshotCustomer, null);
+      renderSaleProducts();
+      updateSaleTotal();
+      if (snapshotCustomer) updateKegSaleSection(snapshotCustomer);
+    },
+
+    onSuccess: function(result) {
+      haptic && haptic('success');
+
+      if (btn) { btn.disabled = false; btn.textContent = '✔ Bán hàng'; }
+
+      // Remove temp card, replace with real
+      window.store.sales = window.store.sales.filter(function(s) { return s.id !== tempId; });
+      removeSaleItem(tempId);
+
+      const newSale = result.sale || result;
+      if (newSale && newSale.id) {
+        window.store.sales.unshift(newSale);
+        if (salesPagination.page === 1) {
+          renderSaleItem(newSale, { prepend: true });
         }
+        salesPagination.total = (salesPagination.total || 0) + 1;
+        salesPagination.totalPages = Math.ceil(salesPagination.total / salesPagination.limit);
+        renderPagination();
+        checkSalesEmpty();
+      }
 
-        try {
-          await showInvoiceModal(result.id);
-        } catch(err) {
-          console.error('Lỗi hiển thị hóa đơn:', err);
-          const modal = document.getElementById('invoiceModal');
-          if (modal) {
-            document.getElementById('invoiceTotal').innerHTML = '<span class="value">' + Format.number(result.total || 0) + '</span><span class="unit"> đ</span>';
-            document.getElementById('invoiceContent').innerHTML =
-              '<div class="text-center text-muted py-8">Đơn hàng #'+ result.id +'</div>';
-            document.getElementById('qrCode').src = '';
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
-          }
-        }
-      },
-      async function(err) {
-        // Fallback to full reload
-        if (typeof loadData === 'function') {
-          await loadData();
-        } else {
-          await loadSalesHistory();
+      showToast('Bán hàng thành công!', 'success');
+
+      try {
+        showInvoiceModal(result.id);
+      } catch(err) {
+        console.error('Lỗi hiển thị hóa đơn:', err);
+        const modal = document.getElementById('invoiceModal');
+        if (modal) {
+          document.getElementById('invoiceTotal').innerHTML = '<span class="value">' + Format.number(result.total || 0) + '</span><span class="unit"> đ</span>';
+          document.getElementById('invoiceContent').innerHTML =
+            '<div class="text-center text-muted py-8">Đơn hàng #'+ result.id +'</div>';
+          document.getElementById('qrCode').src = '';
+          modal.classList.remove('hidden');
+          modal.classList.add('flex');
         }
       }
-    );
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '✔ Bán hàng';
-  }
+    },
+
+    onError: function() {
+      if (btn) { btn.disabled = false; btn.textContent = '✔ Bán hàng'; }
+    }
+  });
 }
 
 function closeInvoice() {
@@ -851,8 +897,11 @@ async function submitReplacement() {
     return;
   }
 
-  mutate(
-    function() {
+  const tempId = 'tmp_rep_' + Date.now();
+  const btn = document.getElementById('submitReplacementBtn');
+
+  optimisticMutate({
+    request: function() {
       return fetch('/api/sales/replacement', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -867,10 +916,19 @@ async function submitReplacement() {
         cache: 'no-store'
       });
     },
-    function(data) {
+
+    applyOptimistic: function() {
+      if (btn) { btn.disabled = true; btn.textContent = 'Đang xử lý...'; }
+    },
+
+    rollback: function() {
+      if (btn) { btn.disabled = false; btn.textContent = 'Xác nhận đổi lỗi'; }
+    },
+
+    onSuccess: function(data) {
       alert('✅ ' + data.message);
       closeReplacementModal();
-      // Instantly add the replacement sale to the list
+      if (btn) { btn.disabled = false; btn.textContent = 'Xác nhận đổi lỗi'; }
       if (data.sale && salesPagination.page === 1) {
         window.store.sales.unshift(data.sale);
         renderSaleItem(data.sale, { prepend: true });
@@ -882,27 +940,54 @@ async function submitReplacement() {
         loadSalesHistory();
       }
     },
-    function() {
-      loadSalesHistory();
+
+    onError: function() {
+      if (btn) { btn.disabled = false; btn.textContent = 'Xác nhận đổi lỗi'; }
     }
-  );
+  });
 }
 
 function updateKegModalPreview() {
   const deliver = parseInt(String(document.getElementById('kegDeliver').value).trim(), 10) || 0;
   const returned = parseInt(String(document.getElementById('kegReturn').value).trim(), 10) || 0;
-  // Formula: final = current_balance + deliver - returned
-  const newBalance = currentKegBalance + deliver - returned;
 
-  // Show current inputs
+  // Rule: voHienTai đã bao gồm số đã giao trước.
+  // voSau = voHienTai + (newDeliver - prevDeliver) - (newReturn - prevReturn)
+  // Khi chưa thay đổi: newDeliver = prevDeliver, newReturn = prevReturn
+  // → voSau = voHienTai + 0 - (returned - prevReturn) = voHienTai - returned + prevReturn
+  // Test cases:
+  //   TC1: 216 + (100-100) - (100-0) = 116 ✓
+  //   TC2: 216 + (100-100) - (0-0)   = 216 ✓
+  //   TC3: 50  + (20-0)   - (10-0)   = 60  ✓  (prevDeliver=0)
+  const deltaDeliver = deliver - _kegModalPrevDeliver;
+  const deltaReturn  = returned - _kegModalPrevReturn;
+  const newBalance = currentKegBalance + deltaDeliver - deltaReturn;
+
+  // Show current inputs — +xanh, -đỏ
   document.getElementById('kegDeliverPreview').textContent = '+' + deliver;
   document.getElementById('kegReturnPreview').textContent = '-' + returned;
   document.getElementById('kegCurrentBalance').textContent = currentKegBalance;
   document.getElementById('kegNewBalance').textContent = newBalance;
 
-  // Validation: cannot return more than customer holds
-  // Customer holds = current_balance + new_deliver
-  const maxAllowedReturn = currentKegBalance + deliver;
+  // Color: voSau >= 0 → xanh, < 0 → đỏ
+  const newBalanceEl = document.getElementById('kegNewBalance');
+  if (newBalanceEl) {
+    newBalanceEl.className = 'font-bold ' + (newBalance >= 0 ? 'text-success' : 'text-danger');
+  }
+  // Color: deliver preview — xanh nếu > 0
+  const deliverPreviewEl = document.getElementById('kegDeliverPreview');
+  if (deliverPreviewEl) {
+    deliverPreviewEl.className = 'font-bold ' + (deliver > 0 ? 'text-success' : 'text-muted');
+  }
+  // Color: return preview — đỏ nếu > 0
+  const returnPreviewEl = document.getElementById('kegReturnPreview');
+  if (returnPreviewEl) {
+    returnPreviewEl.className = 'font-bold ' + (returned > 0 ? 'text-danger' : 'text-muted');
+  }
+
+  // Validation: cannot return more than customer holds.
+  // customer holds = currentKegBalance + deltaDeliver (đã tính đúng prevDeliver)
+  const maxAllowedReturn = currentKegBalance + deltaDeliver;
   const warningEl = document.getElementById('kegModalWarning');
   if (returned > maxAllowedReturn) {
     warningEl.classList.remove('hidden');
@@ -925,8 +1010,12 @@ function addKegReturn(amount) {
 }
 
 function returnAllKegs() {
-  const totalHeldFromThisSale = _kegModalPrevDeliver - _kegModalPrevReturn;
-  document.getElementById('kegReturn').value = Math.max(0, totalHeldFromThisSale);
+  // Thu hết để newBalance = 0
+  // newBalance = currentKegBalance + deltaDeliver - returned = 0
+  // → returned = currentKegBalance + deltaDeliver
+  const deliver = parseInt(String(document.getElementById('kegDeliver').value).trim(), 10) || 0;
+  const deltaDeliver = deliver - _kegModalPrevDeliver;
+  document.getElementById('kegReturn').value = currentKegBalance + deltaDeliver;
   updateKegModalPreview();
 }
 
@@ -936,8 +1025,11 @@ async function saveKegUpdate() {
   const deliverKegs = parseInt(String(document.getElementById('kegDeliver').value).trim(), 10) || 0;
   const returnKegs = parseInt(String(document.getElementById('kegReturn').value).trim(), 10) || 0;
 
-  const maxAllowedReturn = currentKegBalance + deliverKegs;
+  // Validation: cannot return more than customer holds.
+  // customer holds = currentKegBalance + deltaDeliver
+  const deltaDeliver = deliverKegs - _kegModalPrevDeliver;
   const errorEl = document.getElementById('kegModalError');
+  const maxAllowedReturn = currentKegBalance + deltaDeliver;
   if (returnKegs > maxAllowedReturn) {
     errorEl.textContent = '⚠️ Không thể thu ' + returnKegs + ' vỏ. Khách chỉ giữ tối đa ' + maxAllowedReturn + ' vỏ';
     errorEl.classList.remove('hidden');
@@ -946,9 +1038,10 @@ async function saveKegUpdate() {
   errorEl.classList.add('hidden');
 
   const saleId = currentKegSaleId;
+  const btn = document.getElementById('kegSaveBtn');
 
-  mutate(
-    function() {
+  optimisticMutate({
+    request: function() {
       return fetch('/api/sales/update-kegs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -956,8 +1049,17 @@ async function saveKegUpdate() {
         cache: 'no-store'
       });
     },
-    async function(result) {
-      // Update customers local cache
+
+    applyOptimistic: function() {
+      if (btn) { btn.disabled = true; btn.textContent = 'Đang cập nhật...'; }
+    },
+
+    rollback: function() {
+      if (btn) { btn.disabled = false; btn.textContent = 'Lưu'; }
+    },
+
+    onSuccess: async function(result) {
+      if (btn) { btn.disabled = false; btn.textContent = 'Lưu'; }
       const custListRes = await fetch('/api/customers');
       customers = await custListRes.json();
       window.store.customers = customers;
@@ -969,13 +1071,15 @@ async function saveKegUpdate() {
       patchSaleRow({ id: saleId, deliver_kegs: deliverKegs, return_kegs: returnKegs, keg_balance_after: result.newBalance });
       await refreshInvoiceIfOpen(saleId);
     },
-    async function() {
+
+    onError: async function() {
+      if (btn) { btn.disabled = false; btn.textContent = 'Lưu'; }
       await loadSalesHistory();
       if (window.location.pathname === '/' || window.location.pathname === '/dashboard') {
         if (typeof loadData === 'function') await loadData();
       }
     }
-  );
+  });
 }
 
 async function showInvoiceModal(saleId) {
@@ -1072,6 +1176,21 @@ let salesPagination = {
   month: 'all'
 };
 
+/**
+ * Tính số vỏ cuối cùng sau giao/thu — dùng cho TẠO ĐƠN MỚI.
+ *
+ * ⚠️  KHÔNG dùng cho modal SỬA đơn cũ (sẽ bị double-count).
+ *    Với modal sửa, dùng delta-based trong updateKegModalPreview().
+ *
+ * @param {number} currentBalance - Số vỏ KHÁCH ĐANG GIỮ (chưa bao gồm đơn mới)
+ * @param {number} [newDeliver=0] - Số vỏ giao trong đơn mới
+ * @param {number} [newReturn=0] - Số vỏ thu trong đơn mới
+ * @returns {number} Số vỏ sau cùng
+ */
+function calcFinalKegBalance(currentBalance, newDeliver, newReturn) {
+  return currentBalance + (newDeliver || 0) - (newReturn || 0);
+}
+
 // ========== KEG MODAL STATE ==========
 let _kegModalPrevDeliver = 0;
 let _kegModalPrevReturn = 0;
@@ -1132,17 +1251,29 @@ function closeCollectKegModal() {
 function updateCollectKegPreview() {
   const deliver = parseInt(document.getElementById('collectKegDeliver').value, 10) || 0;
   const returned = parseInt(document.getElementById('collectKegReturn').value, 10) || 0;
-  // Formula: final = current_balance + deliver - returned
-  const newBalance = _collectKegBalance + deliver - returned;
+
+  // Rule: _collectKegBalance đã bao gồm số đã giao trước.
+  // voSau = voHienTai + (newDeliver - prevDeliver) - (newReturn - prevReturn)
+  const deltaDeliver = deliver - _collectKegPrevDeliver;
+  const deltaReturn  = returned - _collectKegPrevReturn;
+  const newBalance = _collectKegBalance + deltaDeliver - deltaReturn;
 
   document.getElementById('collectKegDeliverPreview').textContent = '+' + deliver;
   document.getElementById('collectKegReturnPreview').textContent = '-' + returned;
   document.getElementById('collectKegCurrentBalance').textContent = _collectKegBalance + ' vỏ';
   document.getElementById('collectKegRemaining').textContent = newBalance;
 
-  // Validation: cannot return more than customer holds
-  // Customer holds = current_balance + deliver
-  const maxAllowed = _collectKegBalance + deliver;
+  // Color: voSau xanh nếu >=0, đỏ nếu <0; +xanh, -đỏ
+  const remainEl = document.getElementById('collectKegRemaining');
+  if (remainEl) remainEl.className = 'font-bold ' + (newBalance >= 0 ? 'text-success' : 'text-danger');
+  const delEl = document.getElementById('collectKegDeliverPreview');
+  if (delEl) delEl.className = 'font-bold ' + (deliver > 0 ? 'text-success' : 'text-muted');
+  const retEl = document.getElementById('collectKegReturnPreview');
+  if (retEl) retEl.className = 'font-bold ' + (returned > 0 ? 'text-danger' : 'text-muted');
+
+  // Validation: cannot return more than customer holds.
+  // customer holds = _collectKegBalance + deltaDeliver
+  const maxAllowed = _collectKegBalance + deltaDeliver;
   const warningEl = document.getElementById('collectKegWarning');
   if (returned > maxAllowed) {
     warningEl.textContent = '⚠️ Không thể thu ' + returned + ' vỏ. Khách chỉ giữ tối đa ' + maxAllowed + ' vỏ';
@@ -1163,7 +1294,10 @@ async function submitCollectKeg() {
     return;
   }
 
-  const maxAllowed = _collectKegBalance + deliver;
+  // Validation: cannot return more than customer holds.
+  // customer holds = _collectKegBalance + deltaDeliver
+  const deltaDeliver = deliver - _collectKegPrevDeliver;
+  const maxAllowed = _collectKegBalance + deltaDeliver;
   if (returned > maxAllowed) {
     const warningEl = document.getElementById('collectKegWarning');
     warningEl.textContent = '⚠️ Không thể thu ' + returned + ' vỏ. Khách chỉ giữ tối đa ' + maxAllowed + ' vỏ';
@@ -1171,8 +1305,10 @@ async function submitCollectKeg() {
     return;
   }
 
-  mutate(
-    function() {
+  const btn = document.getElementById('submitCollectKegBtn');
+
+  optimisticMutate({
+    request: function() {
       return fetch('/api/sales/update-kegs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1180,7 +1316,18 @@ async function submitCollectKeg() {
         cache: 'no-store'
       });
     },
-    async function(result) {
+
+    applyOptimistic: function() {
+      if (btn) { btn.disabled = true; btn.textContent = 'Đang cập nhật...'; }
+    },
+
+    rollback: function() {
+      if (btn) { btn.disabled = false; btn.textContent = 'Cập nhật vỏ'; }
+    },
+
+    onSuccess: async function(result) {
+      if (btn) { btn.disabled = false; btn.textContent = 'Cập nhật vỏ'; }
+
       const custListRes = await fetch('/api/customers');
       customers = await custListRes.json();
       window.store.customers = customers;
@@ -1192,13 +1339,15 @@ async function submitCollectKeg() {
       patchSaleRow({ id: saleId, deliver_kegs: deliver, return_kegs: returned, keg_balance_after: result.newBalance });
       await refreshInvoiceIfOpen(saleId);
     },
-    async function() {
+
+    onError: async function() {
+      if (btn) { btn.disabled = false; btn.textContent = 'Cập nhật vỏ'; }
       await loadSalesHistory();
       if (window.location.pathname === '/' || window.location.pathname === '/dashboard') {
         if (typeof loadData === 'function') await loadData();
       }
     }
-  );
+  });
 }
 
 function formatSaleListDate(raw) {
@@ -1392,26 +1541,48 @@ async function viewSale(id) {
 async function deleteSale(id) {
   if (!confirm('Bạn có chắc muốn xóa hóa đơn #' + id + '?')) return;
 
-  mutate(
-    function() {
+  // Snapshot for rollback
+  var deletedSale = Object.assign({}, window.store.sales.find(function(s) { return String(s.id) === String(id); }));
+
+  // Disable action buttons on the card
+  var card = document.querySelector('[data-sale-id="' + id + '"]');
+  var actionBtns = card ? card.querySelectorAll('.order-actions button') : [];
+  var btnStates = [];
+  actionBtns.forEach(function(b) { btnStates.push(setButtonLoading(b)); });
+
+  optimisticMutate({
+    request: function() {
       return fetch('/api/sales/' + id, { method: 'DELETE', cache: 'no-store' });
     },
-    function(result) {
-      showToast(result.message || 'Đã xóa hóa đơn', 'success');
+
+    applyOptimistic: function() {
       window.store.sales = window.store.sales.filter(function(s) { return s.id !== id; });
       removeSaleItem(id);
       salesPagination.total = Math.max(0, (salesPagination.total || 1) - 1);
       salesPagination.totalPages = Math.ceil(salesPagination.total / salesPagination.limit);
       renderPagination();
       checkSalesEmpty();
-      // Reload products stock (sale deletion affects inventory)
+    },
+
+    rollback: function() {
+      if (deletedSale) {
+        window.store.sales.unshift(deletedSale);
+        loadSalesHistory();
+      }
+    },
+
+    onSuccess: function(result) {
+      showToast(result.message || 'Đã xóa hóa đơn', 'success');
+      btnStates.forEach(function(s) { restoreButtonLoading(s); });
       if (typeof loadData === 'function') loadData();
     },
-    function() {
+
+    onError: function() {
+      btnStates.forEach(function(s) { restoreButtonLoading(s); });
       if (typeof loadData === 'function') loadData();
       else loadSalesHistory();
     }
-  );
+  });
 }
 
 // Trả hàng - xác nhận và thực hiện (hỗ trợ trả một phần)
@@ -1597,8 +1768,11 @@ async function submitPartialReturn(saleId) {
   const returnType = document.querySelector('input[name="returnType"]:checked').value;
   const reason = document.getElementById('returnReason')?.value || '';
 
-  mutate(
-    function() {
+  const btn = modal.querySelector('[onclick^="submitPartialReturn"]');
+  var btnState = btn ? setButtonLoading(btn) : null;
+
+  optimisticMutate({
+    request: function() {
       return fetch('/api/sales/' + saleId + '/return-items', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1610,8 +1784,17 @@ async function submitPartialReturn(saleId) {
         cache: 'no-store'
       });
     },
-    function(result) {
+
+    applyOptimistic: function() {
       closeReturnModal();
+    },
+
+    rollback: function() {
+      if (btnState) restoreButtonLoading(btnState);
+    },
+
+    onSuccess: function(result) {
+      if (btnState) restoreButtonLoading(btnState);
       const msg = returnType === 'stock_return'
         ? 'Đã trả hàng (trả lại kho)!\n\n'
         : 'Đã ghi nhận bia lỗi!\n\n';
@@ -1620,13 +1803,13 @@ async function submitPartialReturn(saleId) {
         'Sản phẩm: ' + result.returnedQuantity + '\n' +
         'Vỏ trả: ' + result.returnedKegs);
 
-      // Patch the sale row status
       patchSaleRow({ id: saleId, status: 'returned' });
     },
-    function() {
-      loadSalesHistory();
+
+    onError: function() {
+      if (btnState) restoreButtonLoading(btnState);
     }
-  );
+  });
 }
 
 async function editSale(id) {
@@ -1743,8 +1926,15 @@ async function updateSale() {
 
   if (items.length === 0) return alert('Chưa chọn sản phẩm nào');
 
-  mutate(
-    function() {
+  const btn = document.getElementById('updateSaleBtn');
+
+  // Snapshot current sale data for rollback
+  const oldSale = Object.assign({}, window.store.sales.find(function(s) { return s.id === editingSaleId; }));
+  const snapshotCart = Object.assign({}, saleData);
+  const snapshotCustomer = document.getElementById('customerSelect') ? document.getElementById('customerSelect').value : '';
+
+  optimisticMutate({
+    request: function() {
       return fetch('/api/sales/' + editingSaleId, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -1755,19 +1945,39 @@ async function updateSale() {
         cache: 'no-store'
       });
     },
-    function(result) {
+
+    applyOptimistic: function() {
+      if (btn) { btn.disabled = true; btn.textContent = 'Đang cập nhật...'; }
+      // Optimistically patch the row
+      patchSaleRow({
+        id: editingSaleId,
+        customer_name: customerId ? (getCustomer(customerId)?.name || 'Khách') : 'Khách lẻ',
+        total: items.reduce(function(s, it) { return s + it.quantity * it.price; }, 0)
+      });
+    },
+
+    rollback: function() {
+      if (btn) { btn.disabled = false; btn.textContent = 'Cập nhật'; }
+      if (oldSale) patchSaleRow(oldSale);
+      saleData = snapshotCart;
+      document.getElementById('customerSelect').value = snapshotCustomer;
+    },
+
+    onSuccess: function(result) {
+      if (btn) { btn.disabled = false; btn.textContent = 'Cập nhật'; }
       alert('Cập nhật thành công!');
-      // Update store and patch the row
-      const updated = result.sale || result;
+      var updated = result.sale || result;
       var idx = window.store.sales.findIndex(function(s) { return s.id === updated.id; });
       if (idx !== -1) window.store.sales[idx] = updated;
       patchSaleRow(updated);
       cancelEdit();
     },
-    function() {
+
+    onError: function() {
+      if (btn) { btn.disabled = false; btn.textContent = 'Cập nhật'; }
       loadSalesHistory();
     }
-  );
+  });
 }
 
 /** PERFORMANCE: Debounced updateSaleTotal — coalesces rapid keystrokes, max 1 call per 100ms.

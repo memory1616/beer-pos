@@ -148,6 +148,13 @@ async function queueForSync(method, url, body, headers) {
     let parsedBody = {};
     try { parsedBody = JSON.parse(body); } catch {}
 
+    // DELETE /api/sales/:id — body thường rỗng; cần id để /api/sync/push hoàn kho đúng
+    const saleDel = apiPath.match(/^\/api\/sales\/(\d+)$/);
+    if (method === 'DELETE' && saleDel) {
+      const sid = parseInt(saleDel[1], 10);
+      if (Number.isFinite(sid)) parsedBody = { ...parsedBody, id: sid };
+    }
+
     // Dedup: check if identical mutation already queued
     const existing = await new Promise(res => {
       const idx  = store.index('dedup');

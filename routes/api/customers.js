@@ -32,7 +32,12 @@ router.get('/', (req, res) => {
     const currentYear = new Date().getFullYear();
     const currentMonth = new Date().getMonth() + 1;
     const currentMonthStr = currentMonth.toString().padStart(2, '0');
-    
+
+    // Pagination: ?page=1&limit=5 (default 5 per page)
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 5));
+    const offset = (page - 1) * limit;
+
     // PERFORMANCE: ?fields=id,name,phone reduces payload ~75% for list views
     const { fields } = req.query;
     let customerFields = 'c.*';
@@ -42,6 +47,15 @@ router.get('/', (req, res) => {
       const valid = requestedFields.filter(f => allowed.includes(f));
       if (valid.length > 0) customerFields = 'c.' + valid.join(', c.');
     }
+
+    // Count total (for pagination)
+    const totalResult = db.prepare(`
+      SELECT COUNT(*) as total
+      FROM customers c
+      WHERE c.archived = 0
+    `).get();
+    const total = totalResult.total;
+    const totalPages = Math.ceil(total / limit);
 
     const customers = db.prepare(`
       SELECT ${customerFields}, COALESCE(cm.monthly_kegs, 0) as monthly_liters
@@ -55,9 +69,11 @@ router.get('/', (req, res) => {
       ) cm ON cm.customer_id = c.id
       WHERE c.archived = 0
       ORDER BY c.name
-    `).all(currentYear.toString(), currentMonthStr);
-    
-    res.json(customers);
+      LIMIT ? OFFSET ?
+    `).all(currentYear.toString(), currentMonthStr, limit, offset);
+
+    // If page > 1 and no results, return empty array (not an error)
+    res.json({ customers, total, page, totalPages, limit });
   } catch (err) {
     logger.error('Error fetching customers', { error: err.message });
     res.status(500).json({ error: 'Lỗi khi lấy danh sách khách hàng' });

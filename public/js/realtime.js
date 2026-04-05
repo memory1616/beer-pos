@@ -17,7 +17,121 @@ window.store = {
 };
 
 /** ============================================================
- * 2. MUTATE HELPER
+ * 2. OPTIMISTIC MUTATE HELPER
+ * Pattern: apply optimistic UI immediately → send request → confirm or rollback
+ *
+ * Usage:
+ *   await optimisticMutate({
+ *     request:      () => fetch('/api/expenses', { method: 'POST', ... }),
+ *     applyOptimistic: () => { _expensesData.unshift(tempItem); renderItem(tempItem); },
+ *     rollback:     () => { _expensesData = _expensesData.filter(...); removeItem(id); },
+ *     onSuccess:     (data) => { replace temp with real item; }
+ *   });
+ * ============================================================ */
+
+/**
+ * Disable a button during a pending operation and restore it after.
+ * @param {string|HTMLElement} selectorOrEl - CSS selector or element reference
+ * @param {string} [originalText] - Optional text to restore
+ */
+function setButtonLoading(selectorOrEl, originalText) {
+  var el = typeof selectorOrEl === 'string' ? document.querySelector(selectorOrEl) : selectorOrEl;
+  if (!el) return { el: el, originalDisabled: false };
+  var original = {
+    el: el,
+    text: el.textContent,
+    disabled: el.disabled,
+    originalText: originalText || el.textContent
+  };
+  el.disabled = true;
+  return original;
+}
+
+function restoreButtonLoading(state) {
+  if (!state || !state.el) return;
+  state.el.disabled = state.disabled;
+  if (state.originalText) {
+    state.el.textContent = state.originalText;
+  }
+}
+
+async function optimisticMutate(opts) {
+  var request       = opts.request;
+  var applyOptimistic = opts.applyOptimistic;
+  var rollback      = opts.rollback;
+  var onSuccess     = opts.onSuccess;
+  var onError       = opts.onError;
+
+  // 1. Apply optimistic UI change immediately
+  if (typeof applyOptimistic === 'function') {
+    applyOptimistic();
+  }
+
+  try {
+    var res = await request();
+    var data = await res.json();
+
+    // Treat { success: false } as an error (non-2xx or explicit failure)
+    if (!res.ok || data.success === false) {
+      throw new Error(data.error || data.message || 'Thao tác thất bại');
+    }
+
+    // 2. Success — confirm with optional callback
+    if (typeof onSuccess === 'function') {
+      onSuccess(data);
+    }
+
+    return { ok: true, data: data };
+
+  } catch (err) {
+    // 3. Error — rollback UI immediately
+    console.error('[optimisticMutate] Rollback:', err);
+    if (typeof rollback === 'function') {
+      rollback();
+    }
+
+    var msg = err.message || 'Có lỗi xảy ra';
+    alert(msg);
+
+    if (typeof onError === 'function') {
+      onError(err);
+    }
+
+    return { ok: false, error: err };
+  }
+}
+
+/**
+ * Add visual indicator to a DOM element for "optimistic / pending" state.
+ * @param {string|HTMLElement} selectorOrEl
+ * @param {boolean} pending
+ */
+function setOptimisticPending(selectorOrEl, pending) {
+  var el = typeof selectorOrEl === 'string' ? document.querySelector(selectorOrEl) : selectorOrEl;
+  if (!el) return;
+  if (pending) {
+    el.classList.add('optimistic-pending');
+    el.setAttribute('aria-busy', 'true');
+  } else {
+    el.classList.remove('optimistic-pending');
+    el.removeAttribute('aria-busy');
+  }
+}
+
+function setCardPending(cardEl, pending) {
+  if (!cardEl) return;
+  if (pending) {
+    cardEl.style.opacity = '0.55';
+    cardEl.style.pointerEvents = 'none';
+    cardEl.style.transition = 'opacity 0.15s';
+  } else {
+    cardEl.style.opacity = '';
+    cardEl.style.pointerEvents = '';
+  }
+}
+
+/** ============================================================
+ * 3. LEGACY MUTATE HELPER (kept for backward compatibility)
  * Wraps fetch calls with optimistic UI update
  * - Always hits network (cache: 'no-store')
  * - Falls back to loadData() on failure

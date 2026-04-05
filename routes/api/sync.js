@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../../database');
 const logger = require('../../src/utils/logger');
+const { deleteSaleRestoringInventory } = require('../../src/services/saleDelete');
 
 // ============ OFFLINE-FIRST SYNC ============
 // Hệ thống đồng bộ đa thiết bị:
@@ -238,7 +239,7 @@ function applySaleChange(action, entity_id, data) {
       `).run(customer_id, date, total, profit, deliver_kegs, return_kegs, keg_balance_after, type, note, status, entity_id);
     } else {
       // Insert
-      const { customer_id, date, total, profit, deliver_kegs = 0, return_kegs = 0, keg_balance_after, type = 'normal', note = '', status = 'completed' } = data;
+      const { customer_id, date, total, profit, deliver_kegs = 0, return_kegs = 0, keg_balance_after, type = 'sale', note = '', status = 'completed' } = data;
       db.prepare(`
         INSERT INTO sales (id, customer_id, date, total, profit, deliver_kegs, return_kegs, keg_balance_after, type, note, status)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -264,8 +265,15 @@ function applySaleChange(action, entity_id, data) {
       db.prepare('UPDATE customers SET keg_balance = ? WHERE id = ?').run(data.keg_balance_after, data.customer_id);
     }
   } else if (action === 'delete') {
-    db.prepare('DELETE FROM sales WHERE id = ?').run(entity_id);
-    db.prepare('DELETE FROM sale_items WHERE sale_id = ?').run(entity_id);
+    const saleId = entity_id != null && entity_id !== '' ? entity_id : data?.id;
+    if (saleId == null || saleId === '') {
+      logger.warn('Sync delete sale: missing sale id (entity_id / data.id)');
+      return;
+    }
+    const del = deleteSaleRestoringInventory(saleId);
+    if (!del.ok && del.code === 'returned') {
+      logger.warn('Sync delete sale: skipped (đơn đã trả hàng)', { saleId });
+    }
   }
 }
 

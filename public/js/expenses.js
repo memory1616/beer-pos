@@ -241,11 +241,26 @@ function saveExpense(e) {
   };
   var method = id ? 'PUT' : 'POST';
   var url = id ? '/api/expenses/' + id : '/api/expenses';
+  var isNew = !id;
 
   hideExpenseModal();
 
-  mutate(
-    function() {
+  // Disable form buttons to prevent double-submit
+  var form = document.getElementById('expenseForm');
+  var saveBtn = form ? form.querySelector('[type="submit"]') : null;
+  var btnState = saveBtn ? setButtonLoading(saveBtn) : null;
+
+  // For update: snapshot current state for rollback
+  var oldItem = null;
+  if (!isNew) {
+    oldItem = Object.assign({}, _expensesData.find(function(e) { return String(e.id) === String(id); }));
+  }
+
+  // Temporary ID for new items
+  var tempId = 'tmp_' + Date.now();
+
+  optimisticMutate({
+    request: function() {
       return fetch(url, {
         method: method,
         headers: { 'Content-Type': 'application/json' },
@@ -253,40 +268,96 @@ function saveExpense(e) {
         cache: 'no-store'
       });
     },
-    function(result) {
-      var item = result.expense || result;
-      var isNew = !id;
 
+    applyOptimistic: function() {
       if (isNew) {
-        _expensesData.unshift(item);
-        window.store.expenses.unshift(item);
-        renderExpenseItem(item, { prepend: true });
+        // Create temporary item and prepend to list
+        var tempItem = Object.assign({ id: tempId }, data, { _optimistic: true });
+        _expensesData.unshift(tempItem);
+        window.store.expenses.unshift(tempItem);
+        renderExpenseItem(tempItem, { prepend: true });
       } else {
-        var idx = _expensesData.findIndex(function(e) { return String(e.id) === String(item.id); });
-        if (idx !== -1) _expensesData[idx] = item;
-        window.store.expenses = _expensesData;
-        updateExpenseItem(item);
+        // Update existing item in-place
+        var idx = _expensesData.findIndex(function(e) { return String(e.id) === String(id); });
+        if (idx !== -1) {
+          Object.assign(_expensesData[idx], data);
+          window.store.expenses = _expensesData;
+          updateExpenseItem(_expensesData[idx]);
+        }
       }
-
       updateExpensesSummary();
       checkExpensesEmpty();
       rebuildCategoryTabs();
     },
-    function(err) {
-      // Fallback: reload
-      loadExpenses(_currentMonth);
+
+    rollback: function() {
+      if (isNew) {
+        // Remove temporary item
+        _expensesData = _expensesData.filter(function(ex) { return ex.id !== tempId; });
+        window.store.expenses = _expensesData;
+        removeExpenseItem(tempId);
+      } else if (oldItem) {
+        // Restore old state
+        var idx = _expensesData.findIndex(function(ex) { return String(ex.id) === String(oldItem.id); });
+        if (idx !== -1) _expensesData[idx] = oldItem;
+        window.store.expenses = _expensesData;
+        updateExpenseItem(oldItem);
+      }
+      updateExpensesSummary();
+      checkExpensesEmpty();
+      rebuildCategoryTabs();
+    },
+
+    onSuccess: function(result) {
+      if (btnState) restoreButtonLoading(btnState);
+      var realItem = result.expense || result;
+
+      if (isNew) {
+        // Replace temp item with real server-assigned item
+        var tIdx = _expensesData.findIndex(function(ex) { return ex.id === tempId; });
+        if (tIdx !== -1) {
+          _expensesData[tIdx] = realItem;
+          window.store.expenses[tIdx] = realItem;
+          // Replace temp card with real one (update attributes)
+          var tempCard = document.querySelector('[data-expense-id="' + tempId + '"]');
+          if (tempCard) {
+            tempCard.setAttribute('data-expense-id', realItem.id);
+            // Update onclick handlers
+            var btns = tempCard.querySelectorAll('button');
+            if (btns[0]) btns[0].setAttribute('onclick', 'editExpense(' + realItem.id + ')');
+            if (btns[1]) btns[1].setAttribute('onclick', 'deleteExpense(' + realItem.id + ')');
+            tempCard.classList.remove('optimistic-pending');
+            tempCard.style.opacity = '';
+            tempCard.style.pointerEvents = '';
+          }
+        }
+      }
+    },
+
+    onError: function() {
+      if (btnState) restoreButtonLoading(btnState);
     }
-  );
+  });
 }
 
 function deleteExpense(id) {
   if (!confirm('Xóa chi phí này?')) return;
 
-  mutate(
-    function() {
+  // Snapshot deleted item for rollback
+  var deletedItem = Object.assign({}, _expensesData.find(function(e) { return String(e.id) === String(id); }));
+  if (!deletedItem) return;
+
+  // Disable the delete button on the card
+  var card = document.querySelector('[data-expense-id="' + id + '"]');
+  var deleteBtn = card ? card.querySelector('.text-danger') : null;
+  var btnState = deleteBtn ? setButtonLoading(deleteBtn) : null;
+
+  optimisticMutate({
+    request: function() {
       return fetch('/api/expenses/' + id, { method: 'DELETE', cache: 'no-store' });
     },
-    function() {
+
+    applyOptimistic: function() {
       _expensesData = _expensesData.filter(function(e) { return String(e.id) !== String(id); });
       window.store.expenses = _expensesData;
       removeExpenseItem(id);
@@ -294,10 +365,25 @@ function deleteExpense(id) {
       checkExpensesEmpty();
       rebuildCategoryTabs();
     },
-    function() {
-      loadExpenses(_currentMonth);
+
+    rollback: function() {
+      // Restore deleted item
+      _expensesData.unshift(deletedItem);
+      window.store.expenses.unshift(deletedItem);
+      renderExpenseItem(deletedItem, { prepend: true });
+      updateExpensesSummary();
+      checkExpensesEmpty();
+      rebuildCategoryTabs();
+    },
+
+    onSuccess: function() {
+      if (btnState) restoreButtonLoading(btnState);
+    },
+
+    onError: function() {
+      if (btnState) restoreButtonLoading(btnState);
     }
-  );
+  });
 }
 
 // ── Dynamic expense category select ─────────────────────────────────────────
