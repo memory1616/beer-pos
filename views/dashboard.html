@@ -351,7 +351,7 @@
       // PERFORMANCE: fetch dashboard data after layout is rendered.
       // initDashboard is defined in dashboard.js (loaded synchronously above).
       // SW stale-while-revalidate caches this response → repeat visits are instant.
-      fetch('/dashboard/data')
+      fetch('/dashboard/data', { cache: 'no-store' })
         .then(r => r.json())
         .then(data => { if (typeof initDashboard === 'function') initDashboard(data); })
         .catch(() => {})

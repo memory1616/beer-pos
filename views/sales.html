@@ -246,7 +246,7 @@
   <script>
     async function loadData() {
       try {
-        const res = await fetch('/sale/data');
+        const res = await fetch('/sale/data', { cache: 'no-store' });
         const data = await res.json();
 
         try {

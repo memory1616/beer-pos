@@ -1,20 +1,8 @@
-fix: correct keg modal balance formula — final = current + deliver - return
+fix: ensure UI updates after sale create/delete
 
-Formula: final_balance = current_balance + delivered_kegs - returned_kegs
-
-UI (views/sales.html):
-- kegModal: replace delta/old-value preview with 4-row absolute display:
-  Vỏ hiện tại → Sẽ giao thêm → Sẽ thu về → Số vỏ tại khách sau cùng
-- collectKegModal: same 4-row layout with consistent labels
-- Remove obsolete kegDeliverOldLine, kegReturnOldLine elements
-
-Client (public/js/sales.js):
-- updateKegModalPreview(): use absolute formula current + deliver - return
-  Show absolute values in UI (not delta)
-  Validation: max_return = current_balance + new_deliver (not prevReturn)
-- updateCollectKegPreview(): same absolute formula + validation fix
-- saveKegUpdate(): fix client validation to use current_balance + new_deliver
-- submitCollectKeg(): same validation fix
-
-Server (routes/api/sales.js):
-- POST /api/sales/update-kegs: fix server validation to use current_balance + new_deliver
+- submitSale(): after success, call loadData() to reload all data fresh
+  (customers, products, kegs, stats, sales history) instead of individual fetches
+- deleteSale(): after success, call loadData() and use showToast() instead of alert()
+- loadData() in sales.html: add { cache: 'no-store' } to always fetch fresh data
+- dashboard.html: add { cache: 'no-store' } to /dashboard/data fetch
+- remove redundant individual fetch calls from submitSale() since loadData() covers everything

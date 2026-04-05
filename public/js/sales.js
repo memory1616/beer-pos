@@ -634,11 +634,9 @@ async function submitSale() {
       updateSaleTotal();
       updateKegSaleSection('');
       loadSalesHistory();
-      // Reload customers to get updated keg_balance
-      fetch('/api/customers').then(r => r.json()).then(c => { customers = c; _rebuildMaps(); });
-      // Reload keg state
-      fetch('/api/kegs/state').then(r => r.json()).then(s => { kegState = s; });
       showToast('Bán hàng thành công!', 'success');
+      // Reload ALL data fresh: customers, kegs, stats
+      loadData();
       try {
         await showInvoiceModal(result.id);
       } catch(err) {
@@ -1346,15 +1344,17 @@ async function viewSale(id) {
 
 async function deleteSale(id) {
   if (!confirm('Bạn có chắc muốn xóa hóa đơn #' + id + '?')) return;
-  
+
   const res = await fetch('/api/sales/' + id, { method: 'DELETE' });
   const result = await res.json();
-  
+
   if (res.ok) {
-    alert(result.message);
+    showToast(result.message || 'Đã xóa hóa đơn', 'success');
     loadSalesHistory();
+    // Reload all data fresh
+    loadData();
   } else {
-    alert(result.error);
+    showToast(result.error || 'Xóa thất bại', 'error');
   }
 }
 
