@@ -268,6 +268,42 @@ const BeerStore = {
     this._notify();
     this._saveToStorage('current_session', this._state.session);
   },
+
+  setSlice(key, value) {
+    this._state[key] = Array.isArray(value) ? value.slice() : value;
+    this._notify();
+  },
+
+  getSlice(key) {
+    const value = this._state[key];
+    return Array.isArray(value) ? value.slice() : value;
+  },
+
+  async invalidateAndRefresh(label) {
+    try {
+      if (typeof caches !== 'undefined') {
+        const cacheNames = await caches.keys();
+        for (const cacheName of cacheNames) {
+          const cache = await caches.open(cacheName);
+          const keys = await cache.keys();
+          await Promise.all(keys.map(async req => {
+            const path = new URL(req.url).pathname;
+            if (
+              path.startsWith('/api/') ||
+              path.startsWith('/dashboard/') ||
+              path.startsWith('/report/')
+            ) {
+              await cache.delete(req);
+            }
+          }));
+        }
+      }
+    } catch (e) {
+      console.warn('[CONSISTENCY][Store] cache invalidate failed', label || '', e);
+    }
+
+    await this.refresh();
+  },
   
   /**
    * Get stats (computed)

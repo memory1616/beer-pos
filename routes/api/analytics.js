@@ -10,13 +10,17 @@ function formatVND(amount) {
   return new Intl.NumberFormat('vi-VN').format(num) + ' đ';
 }
 
+function vnDateExpr(column) {
+  return `date(datetime(${column}, '+7 hours'))`;
+}
+
 // GET /api/analytics/profit-by-product - Lợi nhuận theo sản phẩm
 router.get('/profit-by-product', (req, res) => {
   try {
     const { startDate, endDate } = req.query;
     
     let query = `
-      SELECT 
+      SELECT
         p.id,
         p.name,
         p.type,
@@ -27,14 +31,15 @@ router.get('/profit-by-product', (req, res) => {
       FROM sale_items si
       JOIN products p ON p.id = si.product_id
       JOIN sales s ON s.id = si.sale_id
+      WHERE (s.status IS NULL OR s.status != 'returned')
     `;
-    
+
     const params = [];
     if (startDate && endDate) {
-      query += ` WHERE s.date >= ? AND s.date <= ?`;
-      params.push(startDate + ' 00:00:00', endDate + ' 23:59:59');
+      query += ` AND ${vnDateExpr('s.date')} >= date(?) AND ${vnDateExpr('s.date')} <= date(?)`;
+      params.push(startDate, endDate);
     }
-    
+
     query += ` GROUP BY p.id ORDER BY profit DESC`;
     
     const results = db.prepare(query).all(...params);
@@ -59,7 +64,7 @@ router.get('/profit-by-customer', (req, res) => {
     const { startDate, endDate } = req.query;
     
     let query = `
-      SELECT 
+      SELECT
         c.id,
         c.name,
         COUNT(s.id) as total_orders,
@@ -67,14 +72,15 @@ router.get('/profit-by-customer', (req, res) => {
         SUM(s.profit) as profit
       FROM sales s
       JOIN customers c ON c.id = s.customer_id
+      WHERE (s.status IS NULL OR s.status != 'returned')
     `;
-    
+
     const params = [];
     if (startDate && endDate) {
-      query += ` WHERE s.date >= ? AND s.date <= ?`;
-      params.push(startDate + ' 00:00:00', endDate + ' 23:59:59');
+      query += ` AND ${vnDateExpr('s.date')} >= date(?) AND ${vnDateExpr('s.date')} <= date(?)`;
+      params.push(startDate, endDate);
     }
-    
+
     query += ` GROUP BY c.id ORDER BY profit DESC`;
     
     const results = db.prepare(query).all(...params);
@@ -100,31 +106,34 @@ router.get('/daily-cashflow', (req, res) => {
     const today = new Date().toISOString().split('T')[0];
     const start = startDate || today;
     const end = endDate || today;
-    
+
     // Doanh thu bán hàng theo ngày
     const salesByDay = db.prepare(`
-      SELECT 
-        date(date) as day,
+      SELECT
+        ${vnDateExpr('date')} as day,
         SUM(total) as revenue,
         SUM(profit) as profit,
         COUNT(*) as orders
       FROM sales
-      WHERE date >= ? AND date <= ?
-      GROUP BY date(date)
+      WHERE (status IS NULL OR status != 'returned')
+        AND ${vnDateExpr('date')} >= date(?)
+        AND ${vnDateExpr('date')} <= date(?)
+      GROUP BY ${vnDateExpr('date')}
       ORDER BY day DESC
-    `).all(start + ' 00:00:00', end + ' 23:59:59');
+    `).all(start, end);
     
     // Chi phí mua hàng theo ngày (nếu có bảng purchases)
     let purchasesByDay = [];
     try {
       purchasesByDay = db.prepare(`
-        SELECT 
-          date(date) as day,
+        SELECT
+          ${vnDateExpr('date')} as day,
           SUM(total) as expense
         FROM purchases
-        WHERE date >= ? AND date <= ?
-        GROUP BY date(date)
-      `).all(start + ' 00:00:00', end + ' 23:59:59') || [];
+        WHERE ${vnDateExpr('date')} >= date(?)
+          AND ${vnDateExpr('date')} <= date(?)
+        GROUP BY ${vnDateExpr('date')}
+      `).all(start, end) || [];
     } catch (e) {
       purchasesByDay = [];
     }

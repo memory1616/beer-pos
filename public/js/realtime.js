@@ -9,11 +9,16 @@
  * Single source of truth - prevents duplicate data across app
  * ============================================================ */
 window.store = {
-  sales: [],
-  expenses: [],
-  purchases: [],
-  products: [],
-  customers: [],
+  get sales() { return window.BeerStore ? window.BeerStore.getSlice('orders') : []; },
+  set sales(value) { if (window.BeerStore) window.BeerStore.setSlice('orders', value); },
+  get expenses() { return window.BeerStore ? window.BeerStore.getSlice('expenses') : []; },
+  set expenses(value) { if (window.BeerStore) window.BeerStore.setSlice('expenses', value); },
+  get purchases() { return window.BeerStore ? window.BeerStore.getSlice('purchases') : []; },
+  set purchases(value) { if (window.BeerStore) window.BeerStore.setSlice('purchases', value); },
+  get products() { return window.BeerStore ? window.BeerStore.getSlice('products') : []; },
+  set products(value) { if (window.BeerStore) window.BeerStore.setSlice('products', value); },
+  get customers() { return window.BeerStore ? window.BeerStore.getSlice('customers') : []; },
+  set customers(value) { if (window.BeerStore) window.BeerStore.setSlice('customers', value); },
 };
 
 /** ============================================================
@@ -56,11 +61,13 @@ function restoreButtonLoading(state) {
 }
 
 async function optimisticMutate(opts) {
-  var request       = opts.request;
+  var request         = opts.request;
   var applyOptimistic = opts.applyOptimistic;
-  var rollback      = opts.rollback;
-  var onSuccess     = opts.onSuccess;
-  var onError       = opts.onError;
+  var rollback        = opts.rollback;
+  var onSuccess       = opts.onSuccess;
+  var onError         = opts.onError;
+  var refetch         = opts.refetch;
+  var entity          = opts.entity || '';
 
   // 1. Apply optimistic UI change immediately
   if (typeof applyOptimistic === 'function') {
@@ -76,9 +83,24 @@ async function optimisticMutate(opts) {
       throw new Error(data.error || data.message || 'Thao tác thất bại');
     }
 
-    // 2. Success — confirm with optional callback
     if (typeof onSuccess === 'function') {
-      onSuccess(data);
+      await onSuccess(data);
+    }
+
+    if (typeof refetch === 'function') {
+      await refetch(data);
+    }
+
+    if (window.BeerStore && typeof window.BeerStore.invalidateAndRefresh === 'function') {
+      window.BeerStore.invalidateAndRefresh(entity || 'mutation').catch(function(e) {
+        console.warn('[CONSISTENCY][Mutate] invalidateAndRefresh failed', entity, e);
+      });
+    }
+
+    if (window.dispatchEvent) {
+      window.dispatchEvent(new CustomEvent('data:mutated', {
+        detail: { entity: entity || 'unknown', at: Date.now(), source: 'optimisticMutate' }
+      }));
     }
 
     return { ok: true, data: data };

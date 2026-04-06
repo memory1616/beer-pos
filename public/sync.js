@@ -642,7 +642,7 @@ async function syncQueueToCloud() {
   } catch {}
 }
 
-// Pull data from cloud and reload
+// Pull data from cloud and soft-refresh data views
 async function pullFromCloud() {
   const cloudUrl = getCloudUrl();
   if (!cloudUrl || !navigator.onLine) return;
@@ -652,13 +652,19 @@ async function pullFromCloud() {
     const res = await fetch('/api/sync/pull', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cloudUrl, lastSync, deviceId: getOrCreateDeviceId() })
+      body: JSON.stringify({ cloudUrl, lastSync, deviceId: getOrCreateDeviceId() }),
+      cache: 'no-store'
     });
     if (res.ok) {
       const data = await res.json();
       if (data.changes && Object.keys(data.changes).length > 0) {
         setLastSyncForCloud(cloudUrl, data.serverTime);
-        location.reload();
+        if (window.BeerStore && typeof window.BeerStore.invalidateAndRefresh === 'function') {
+          await window.BeerStore.invalidateAndRefresh('sync:pull');
+        }
+        window.dispatchEvent(new CustomEvent('data:mutated', {
+          detail: { entity: 'sync', source: 'pullFromCloud', at: Date.now() }
+        }));
       } else {
         setLastSyncForCloud(cloudUrl, data.serverTime || new Date().toISOString());
       }

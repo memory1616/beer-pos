@@ -411,6 +411,8 @@ router.delete('/categories/:id', (req, res) => {
     if (!existing) {
       return res.status(404).json({ error: 'Loại chi phí không tồn tại.' });
     }
+    const catName = existing.name;
+    db.prepare('UPDATE expenses SET category = ? WHERE category = ?').run('other', catName);
     db.prepare('DELETE FROM expense_categories WHERE id = ?').run(id);
     res.json({ success: true, message: 'Đã xóa loại chi phí.' });
   } catch (err) {

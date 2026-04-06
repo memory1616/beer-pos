@@ -302,13 +302,12 @@ self.addEventListener('install', event => {
       .then(async cache => {
         await Promise.allSettled(
           APP_SHELL.map(url =>
-            fetch(url, { cache: 'no-cache' })
+            fetch(url, { cache: 'reload' })
               .then(r => { if (r.ok) return cache.put(url, r); })
               .catch(() => {})
           )
         );
       })
-      .then(() => self.skipWaiting())
   );
 });
 
@@ -421,9 +420,6 @@ function getDeviceIdFromScope(scope) {
 self.addEventListener('fetch', event => {
   const url = event.request.url;
 
-  // Skip non-GET for CORS opaque responses
-  if (event.request.method !== 'GET' && event.request.method !== 'HEAD') return;
-
   const parsed = new URL(url);
 
   // Auth — always live, never cache
@@ -490,11 +486,20 @@ async function cacheFirst(request) {
 /** Network-First — best for navigation */
 async function networkFirst(request) {
   try {
-    const resp = await fetch(request);
+    const req = request.mode === 'navigate'
+      ? request
+      : new Request(request, { cache: 'no-store' });
+    const resp = await fetch(req);
     if (resp.ok) await cachePut(request, resp);
+    if (self.__CONSISTENCY_DEBUG__) {
+      console.log('[CONSISTENCY][SW] networkFirst network', request.url);
+    }
     return resp;
   } catch {
     const cached = await caches.match(request);
+    if (self.__CONSISTENCY_DEBUG__) {
+      console.log('[CONSISTENCY][SW] networkFirst fallback-cache', request.url, !!cached);
+    }
     return cached || new Response('Offline', { status: 503 });
   }
 }
@@ -506,8 +511,10 @@ async function staleWhileRevalidate(request, opts = {}) {
   const cache    = await caches.open(cname);
   const cached   = await cache.match(request);
 
+  const networkRequest = new Request(request, { cache: 'no-store' });
+
   // Fire background refresh immediately
-  const bgFetch = fetch(request).then(async resp => {
+  const bgFetch = fetch(networkRequest).then(async resp => {
     if (!resp || resp.status !== 200) return null;
     const headers = new Headers(resp.headers);
     headers.set('sw-time', String(Date.now()));
@@ -515,14 +522,29 @@ async function staleWhileRevalidate(request, opts = {}) {
       status: resp.status, statusText: resp.statusText, headers
     });
     await cache.put(request, clone);
+    if (self.__CONSISTENCY_DEBUG__) {
+      console.log('[CONSISTENCY][SW] staleWhileRevalidate refreshed', request.url);
+    }
     return resp;
   }).catch(() => null);
 
   if (cached) {
     const swTime = parseInt(cached.headers.get('sw-time') || '0', 10);
     const age    = (Date.now() - swTime) / 1000;
+    if (self.__CONSISTENCY_DEBUG__) {
+      console.log('[CONSISTENCY][SW] staleWhileRevalidate cache-hit', request.url, { age: age, maxAge: maxAge });
+    }
     if (age < maxAge) return cached;
-    return cached;
+
+    const fresh = await Promise.race([
+      bgFetch,
+      new Promise(resolve => setTimeout(() => resolve(null), 3000))
+    ]);
+    return fresh || cached;
+  }
+
+  if (self.__CONSISTENCY_DEBUG__) {
+    console.log('[CONSISTENCY][SW] staleWhileRevalidate cache-miss', request.url);
   }
 
   // No cache hit — block on network
@@ -535,9 +557,43 @@ async function staleWhileRevalidate(request, opts = {}) {
 
 // ─── Mutation Handler ────────────────────────────────────────────────────────
 
+async function invalidateRelatedCaches(url) {
+  const pathname = new URL(url).pathname;
+  const entity = getEntityFromPath(pathname);
+  const cname = await getCacheName();
+  const cache = await caches.open(cname);
+  const keys = await cache.keys();
+  const patterns = [
+    pathname,
+    '/dashboard/data',
+    '/report/data'
+  ];
+
+  if (entity === 'sale') patterns.push('/api/sales', '/api/customers', '/api/products', '/api/kegs');
+  if (entity === 'expense') patterns.push('/api/expenses');
+  if (entity === 'product') patterns.push('/api/products', '/api/stock', '/api/sales');
+  if (entity === 'customer') patterns.push('/api/customers', '/api/sales');
+  if (entity === 'purchase') patterns.push('/api/purchases', '/api/products', '/api/stock');
+
+  await Promise.all(keys.map(async key => {
+    const keyPath = new URL(key.url).pathname;
+    if (patterns.some(pattern => keyPath === pattern || keyPath.startsWith(pattern + '?') || keyPath.startsWith(pattern + '/'))) {
+      await cache.delete(key);
+      if (self.__CONSISTENCY_DEBUG__) {
+        console.log('[CONSISTENCY][SW] invalidated', key.url, 'after', pathname);
+      }
+    }
+  }));
+}
+
 async function handleMutation(request) {
   try {
-    return await fetch(request);
+    const response = await fetch(new Request(request, { cache: 'no-store' }));
+    if (response && response.ok) {
+      await invalidateRelatedCaches(request.url);
+      notifyClients({ type: 'DATA_INVALIDATED', path: new URL(request.url).pathname, at: Date.now() });
+    }
+    return response;
   } catch {
     const method  = request.method;
     const url     = request.url;

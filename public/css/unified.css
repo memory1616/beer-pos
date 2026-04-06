@@ -1174,6 +1174,23 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 .modal-backdrop.flex-col { flex-direction: column; justify-content: flex-end; }
 .modal-backdrop.hidden   { display: none; }
 
+/* Dropdown panel — positioned below its trigger button */
+.dropdown-panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 200;
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  padding: 6px;
+  min-width: 100%;
+  margin-top: 4px;
+}
+.dropdown-panel.hidden { display: none; }
+[data-theme="dark"] .dropdown-panel { box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
+
 .bg-overlay      { background: rgba(0,0,0,0.5) !important; }
 .bg-overlay-70  { background: rgba(0,0,0,0.7) !important; }
 .bg-overlay-80  { background: rgba(0,0,0,0.8) !important; }

@@ -425,3 +425,63 @@ function renderRevenueChart(dailyData) {
     }
   });
 }
+
+let _dashboardRefreshTimer = null;
+let _dashboardRefreshInFlight = false;
+
+function shouldRefreshDashboardEntity(entity) {
+  if (!entity) return true;
+  return entity === 'sale' || entity === 'expense' || entity === 'customer' || entity === 'product' || entity === 'purchase' || entity === 'sync';
+}
+
+function refreshDashboardFromMutation(reason) {
+  if (_dashboardRefreshInFlight) return;
+  _dashboardRefreshInFlight = true;
+  console.log('[CONSISTENCY][Dashboard] refresh', reason || 'mutation');
+
+  fetch('/dashboard/data', { cache: 'no-store' })
+    .then(r => r.json())
+    .then(data => {
+      initDashboard(data);
+    })
+    .catch(e => {
+      console.error('[CONSISTENCY][Dashboard] refresh error', e);
+    })
+    .finally(() => {
+      _dashboardRefreshInFlight = false;
+    });
+}
+
+function queueDashboardRefresh(reason) {
+  clearTimeout(_dashboardRefreshTimer);
+  _dashboardRefreshTimer = setTimeout(function() {
+    refreshDashboardFromMutation(reason || 'mutation');
+  }, 180);
+}
+
+window.addEventListener('data:mutated', function(evt) {
+  const detail = evt && evt.detail ? evt.detail : {};
+  if (!shouldRefreshDashboardEntity(detail.entity)) return;
+  queueDashboardRefresh(detail.entity || 'mutation');
+});
+
+function shouldRefreshDashboardPath(pathname) {
+  if (!pathname) return false;
+  return pathname.indexOf('/api/sales') === 0 ||
+    pathname.indexOf('/api/expenses') === 0 ||
+    pathname.indexOf('/api/purchases') === 0 ||
+    pathname.indexOf('/api/customers') === 0 ||
+    pathname.indexOf('/api/products') === 0 ||
+    pathname.indexOf('/api/kegs') === 0 ||
+    pathname.indexOf('/dashboard/data') === 0 ||
+    pathname.indexOf('/report/data') === 0;
+}
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', function(event) {
+    const data = event && event.data ? event.data : {};
+    if (data.type !== 'DATA_INVALIDATED') return;
+    if (!shouldRefreshDashboardPath(data.path || '')) return;
+    queueDashboardRefresh('sw:' + (data.path || 'unknown'));
+  });
+}

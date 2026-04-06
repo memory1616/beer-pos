@@ -2,6 +2,30 @@
 // PERFORMANCE: Separated from HTML, lazy loaded on /expenses route
 var _expensesData = [];
 var _currentCategory = 'all';
+
+function getExpensesState() {
+  if (window.BeerStore && typeof window.BeerStore.getSlice === 'function') {
+    var storeExpenses = window.BeerStore.getSlice('expenses');
+    if (Array.isArray(storeExpenses)) {
+      _expensesData = storeExpenses.slice();
+    }
+  }
+  return _expensesData;
+}
+
+function setExpensesState(nextExpenses) {
+  _expensesData = Array.isArray(nextExpenses) ? nextExpenses.slice() : [];
+  if (window.BeerStore && typeof window.BeerStore.setSlice === 'function') {
+    window.BeerStore.setSlice('expenses', _expensesData);
+  }
+  return _expensesData;
+}
+
+async function refetchExpensesCurrentMonth() {
+  if (!_currentMonth) return;
+  await loadExpenses(_currentMonth, { silent: true });
+}
+
 var _currentMonth = '';
 var _newCatAfterAdd = null; // name of category to auto-select after creation
 
@@ -64,10 +88,11 @@ function getParsedExpenseAmount() {
   return d ? parseInt(d, 10) : 0;
 }
 
-function loadExpenses(monthStr) {
+function loadExpenses(monthStr, opts) {
+  opts = opts || {};
   _currentMonth = monthStr;
   var list = document.getElementById('expensesList');
-  if (list) list.innerHTML = '<div class="text-center text-muted py-8">Đang tải...</div>';
+  if (!opts.silent && list) list.innerHTML = '<div class="text-center text-muted py-8">Đang tải...</div>';
 
   var parts = monthStr.split('-');
   var year = parts[0];
@@ -82,11 +107,8 @@ function loadExpenses(monthStr) {
     fetch('/api/expenses/categories/all').then(function(r) { return r.json(); })
   ])
     .then(function(results) {
-      _expensesData = Array.isArray(results[0]) ? results[0] : (results[0].expenses || []);
+      setExpensesState(Array.isArray(results[0]) ? results[0] : (results[0].expenses || []));
       _customCategories = Array.isArray(results[1]) ? results[1] : [];
-
-      // Populate global store
-      window.store.expenses = _expensesData;
 
       rebuildExpenseCategorySelect();
       rebuildCategoryTabs();
@@ -102,7 +124,7 @@ function loadExpenses(monthStr) {
 }
 
 function updateTotal() {
-  var total = _expensesData.reduce(function(s, e) { return s + (Number(e.amount) || 0); }, 0);
+  var total = getExpensesState().reduce(function(s, e) { return s + (Number(e.amount) || 0); }, 0);
   var el = document.getElementById('headerTotal');
   if (el) el.textContent = formatVND(total);
 }
@@ -113,8 +135,8 @@ function renderExpenses() {
   if (!container) return;
 
   var filtered = _currentCategory === 'all'
-    ? _expensesData
-    : _expensesData.filter(function(e) { return e.category === _currentCategory; });
+    ? getExpensesState()
+    : getExpensesState().filter(function(e) { return e.category === _currentCategory; });
 
   if (filtered.length === 0) {
     container.innerHTML = '';
@@ -125,9 +147,9 @@ function renderExpenses() {
   if (empty) empty.classList.add('hidden');
 
   var summary = {};
-  for (var i = 0; i < _expensesData.length; i++) {
-    var cat = _expensesData[i].category || 'other';
-    summary[cat] = (summary[cat] || 0) + (Number(_expensesData[i].amount) || 0);
+  for (var i = 0; i < getExpensesState().length; i++) {
+    var cat = getExpensesState()[i].category || 'other';
+    summary[cat] = (summary[cat] || 0) + (Number(getExpensesState()[i].amount) || 0);
   }
   renderSummaryCards(summary);
 
@@ -167,8 +189,12 @@ function renderSummaryCards(summary) {
   for (var i = 0; i < allCats.length; i++) {
     var cat = allCats[i];
     var amt = summary[cat.name] || 0;
+    var customDel = cat.id != null
+      ? '<button type="button" class="summary-cat-del absolute top-1 right-1 p-1 rounded text-muted hover:text-danger hover:bg-muted/80 text-xs leading-none" title="Xóa loại chi phí" onclick="event.stopPropagation(); deleteCustomCategory(' + cat.id + ', ' + JSON.stringify(cat.name) + ')">🗑️</button>'
+      : '';
     html.push(
-      '<div class="card p-3 text-center" onclick="filterCategory(\'' + cat.name.replace(/'/g, "\\'") + '\')" style="cursor:pointer">' +
+      '<div class="card p-3 text-center relative" onclick="filterCategory(\'' + cat.name.replace(/'/g, "\\'") + '\')" style="cursor:pointer">' +
+        customDel +
         '<div class="text-xl mb-1">' + cat.icon + '</div>' +
         '<div class="text-sm text-muted">' + (cat.label || cat.name) + '</div>' +
         '<div class="font-bold tabular-nums money">' + formatVND(amt) + '</div>' +
@@ -204,7 +230,7 @@ function showAddExpense() {
 
 function editExpense(id) {
   _newCatAfterAdd = null;
-  var exp = _expensesData.find(function(e) { return String(e.id) === String(id); });
+  var exp = getExpensesState().find(function(e) { return String(e.id) === String(id); });
   if (!exp) return;
   document.getElementById('modalTitle').textContent = 'Sửa chi phí';
   document.getElementById('expenseId').value = id;
@@ -253,7 +279,7 @@ function saveExpense(e) {
   // For update: snapshot current state for rollback
   var oldItem = null;
   if (!isNew) {
-    oldItem = Object.assign({}, _expensesData.find(function(e) { return String(e.id) === String(id); }));
+    oldItem = Object.assign({}, getExpensesState().find(function(e) { return String(e.id) === String(id); }));
   }
 
   // Temporary ID for new items
@@ -269,20 +295,20 @@ function saveExpense(e) {
       });
     },
 
+    entity: 'expense',
+
     applyOptimistic: function() {
       if (isNew) {
-        // Create temporary item and prepend to list
         var tempItem = Object.assign({ id: tempId }, data, { _optimistic: true });
-        _expensesData.unshift(tempItem);
-        window.store.expenses.unshift(tempItem);
+        setExpensesState([tempItem].concat(getExpensesState()));
         renderExpenseItem(tempItem, { prepend: true });
       } else {
-        // Update existing item in-place
-        var idx = _expensesData.findIndex(function(e) { return String(e.id) === String(id); });
+        var current = getExpensesState();
+        var idx = current.findIndex(function(e) { return String(e.id) === String(id); });
         if (idx !== -1) {
-          Object.assign(_expensesData[idx], data);
-          window.store.expenses = _expensesData;
-          updateExpenseItem(_expensesData[idx]);
+          current[idx] = Object.assign({}, current[idx], data);
+          setExpensesState(current);
+          updateExpenseItem(current[idx]);
         }
       }
       updateExpensesSummary();
@@ -292,15 +318,13 @@ function saveExpense(e) {
 
     rollback: function() {
       if (isNew) {
-        // Remove temporary item
-        _expensesData = _expensesData.filter(function(ex) { return ex.id !== tempId; });
-        window.store.expenses = _expensesData;
+        setExpensesState(getExpensesState().filter(function(ex) { return ex.id !== tempId; }));
         removeExpenseItem(tempId);
       } else if (oldItem) {
-        // Restore old state
-        var idx = _expensesData.findIndex(function(ex) { return String(ex.id) === String(oldItem.id); });
-        if (idx !== -1) _expensesData[idx] = oldItem;
-        window.store.expenses = _expensesData;
+        var current = getExpensesState();
+        var idx = current.findIndex(function(ex) { return String(ex.id) === String(oldItem.id); });
+        if (idx !== -1) current[idx] = oldItem;
+        setExpensesState(current);
         updateExpenseItem(oldItem);
       }
       updateExpensesSummary();
@@ -308,31 +332,25 @@ function saveExpense(e) {
       rebuildCategoryTabs();
     },
 
-    onSuccess: function(result) {
+    onSuccess: async function(result) {
       if (btnState) restoreButtonLoading(btnState);
       var realItem = result.expense || result;
 
       if (isNew) {
-        // Replace temp item with real server-assigned item
-        var tIdx = _expensesData.findIndex(function(ex) { return ex.id === tempId; });
-        if (tIdx !== -1) {
-          _expensesData[tIdx] = realItem;
-          window.store.expenses[tIdx] = realItem;
-          // Replace temp card with real one (update attributes)
-          var tempCard = document.querySelector('[data-expense-id="' + tempId + '"]');
-          if (tempCard) {
-            tempCard.setAttribute('data-expense-id', realItem.id);
-            // Update onclick handlers
-            var btns = tempCard.querySelectorAll('button');
-            if (btns[0]) btns[0].setAttribute('onclick', 'editExpense(' + realItem.id + ')');
-            if (btns[1]) btns[1].setAttribute('onclick', 'deleteExpense(' + realItem.id + ')');
-            tempCard.classList.remove('optimistic-pending');
-            tempCard.style.opacity = '';
-            tempCard.style.pointerEvents = '';
-          }
+        var tempCard = document.querySelector('[data-expense-id="' + tempId + '"]');
+        if (tempCard) {
+          tempCard.setAttribute('data-expense-id', realItem.id);
+          var btns = tempCard.querySelectorAll('button');
+          if (btns[0]) btns[0].setAttribute('onclick', 'editExpense(' + realItem.id + ')');
+          if (btns[1]) btns[1].setAttribute('onclick', 'deleteExpense(' + realItem.id + ')');
+          tempCard.classList.remove('optimistic-pending');
+          tempCard.style.opacity = '';
+          tempCard.style.pointerEvents = '';
         }
       }
     },
+
+    refetch: refetchExpensesCurrentMonth,
 
     onError: function() {
       if (btnState) restoreButtonLoading(btnState);
@@ -344,7 +362,7 @@ function deleteExpense(id) {
   if (!confirm('Xóa chi phí này?')) return;
 
   // Snapshot deleted item for rollback
-  var deletedItem = Object.assign({}, _expensesData.find(function(e) { return String(e.id) === String(id); }));
+  var deletedItem = Object.assign({}, getExpensesState().find(function(e) { return String(e.id) === String(id); }));
   if (!deletedItem) return;
 
   // Disable the delete button on the card
@@ -353,13 +371,13 @@ function deleteExpense(id) {
   var btnState = deleteBtn ? setButtonLoading(deleteBtn) : null;
 
   optimisticMutate({
+    entity: 'expense',
     request: function() {
       return fetch('/api/expenses/' + id, { method: 'DELETE', cache: 'no-store' });
     },
 
     applyOptimistic: function() {
-      _expensesData = _expensesData.filter(function(e) { return String(e.id) !== String(id); });
-      window.store.expenses = _expensesData;
+      setExpensesState(getExpensesState().filter(function(e) { return String(e.id) !== String(id); }));
       removeExpenseItem(id);
       updateExpensesSummary();
       checkExpensesEmpty();
@@ -367,9 +385,7 @@ function deleteExpense(id) {
     },
 
     rollback: function() {
-      // Restore deleted item
-      _expensesData.unshift(deletedItem);
-      window.store.expenses.unshift(deletedItem);
+      setExpensesState([deletedItem].concat(getExpensesState()));
       renderExpenseItem(deletedItem, { prepend: true });
       updateExpensesSummary();
       checkExpensesEmpty();
@@ -379,6 +395,8 @@ function deleteExpense(id) {
     onSuccess: function() {
       if (btnState) restoreButtonLoading(btnState);
     },
+
+    refetch: refetchExpensesCurrentMonth,
 
     onError: function() {
       if (btnState) restoreButtonLoading(btnState);
@@ -508,6 +526,22 @@ function saveCategory(e) {
     .catch(function(err) { alert('Lỗi: ' + err.message); });
 }
 
+function deleteCustomCategory(id, name) {
+  if (!id || !confirm('Xóa loại chi phí "' + name + '"? Các khoản chi đang gắn loại này sẽ chuyển sang Khác.')) return;
+  fetch('/api/expenses/categories/' + id, { method: 'DELETE' })
+    .then(function(r) {
+      if (!r.ok) {
+        return r.json().then(function(j) { throw new Error(j.error || ('HTTP ' + r.status)); });
+      }
+      return r.json();
+    })
+    .then(function() {
+      if (_currentCategory === name) _currentCategory = 'all';
+      loadExpenses(_currentMonth);
+    })
+    .catch(function(err) { alert('Không xóa được: ' + (err.message || err)); });
+}
+
 // ── Category tabs ────────────────────────────────────────────────────────────
 
 function rebuildCategoryTabs() {
@@ -523,7 +557,12 @@ function rebuildCategoryTabs() {
 
   for (var j = 0; j < _customCategories.length; j++) {
     var cat = _customCategories[j];
-    html += '<button onclick="filterCategory(\'' + cat.name.replace(/'/g, "\\'") + '\')" class="cat-tab ' + (_currentCategory === cat.name ? 'active' : '') + ' px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-cat="' + cat.name + '" data-icon="' + (cat.icon || '📋') + '">' + (cat.icon || '📋') + ' ' + cat.name + '</button>';
+    var esc = cat.name.replace(/'/g, "\\'");
+    var safeDataCat = String(cat.name).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    html += '<span class="inline-flex items-stretch shrink-0 rounded-lg overflow-hidden border border-muted">' +
+      '<button type="button" onclick="filterCategory(\'' + esc + '\')" class="cat-tab ' + (_currentCategory === cat.name ? 'active' : '') + ' px-3 py-1.5 text-sm whitespace-nowrap rounded-none border-0" data-cat="' + safeDataCat + '" data-icon="' + (cat.icon || '📋').replace(/"/g, '&quot;') + '">' + (cat.icon || '📋') + ' ' + cat.name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</button>' +
+      '<button type="button" class="px-1.5 text-xs bg-muted/50 text-muted hover:text-danger hover:bg-muted border-0 border-l border-muted" title="Xóa loại" onclick="event.stopPropagation(); deleteCustomCategory(' + cat.id + ', ' + JSON.stringify(cat.name) + ')">🗑️</button>' +
+      '</span>';
   }
 
   container.innerHTML = html;
@@ -540,9 +579,9 @@ function filterCategory(cat) {
 
 function _getSummaryByCategory() {
   var summary = {};
-  for (var i = 0; i < _expensesData.length; i++) {
-    var cat = _expensesData[i].category || 'other';
-    summary[cat] = (summary[cat] || 0) + (Number(_expensesData[i].amount) || 0);
+  for (var i = 0; i < getExpensesState().length; i++) {
+    var cat = getExpensesState()[i].category || 'other';
+    summary[cat] = (summary[cat] || 0) + (Number(getExpensesState()[i].amount) || 0);
   }
   return summary;
 }

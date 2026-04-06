@@ -415,7 +415,7 @@ function switchCustomerTab(tab) {
 async function loadPageData(tab) {
   try {
     const params = new URLSearchParams({ page: custPagination.page, limit: custPagination.limit, tab: tab });
-    const res = await fetch('/customers/data?' + params.toString());
+    const res = await fetch('/customers/data?' + params.toString(), { cache: 'no-store' });
     const data = await res.json();
 
     if (tab === 'active') {
@@ -577,6 +577,10 @@ function hideModal(id) {
   document.getElementById(id).classList.remove('flex');
 }
 
+async function softRefreshCustomers() {
+  await loadPageData(currentTab);
+}
+
 async function saveKegBalance() {
   const customerId = document.getElementById('kegCustomerId').value;
   const newBalance = parseInt(document.getElementById('kegBalanceInput').value);
@@ -608,7 +612,7 @@ async function saveKegBalance() {
       }
     },
     function() {
-      location.reload();
+      softRefreshCustomers();
     }
   );
 }
@@ -705,7 +709,7 @@ async function saveCustomerEdit() {
       }
     },
     function() {
-      location.reload();
+      softRefreshCustomers();
     }
   );
 }
@@ -790,7 +794,7 @@ async function savePrices() {
       hideModal('priceModal');
     },
     function() {
-      location.reload();
+      softRefreshCustomers();
     }
   );
 }
@@ -858,7 +862,7 @@ async function archiveCustomer(id) {
       loadPageData(currentTab);
     },
     function() {
-      location.reload();
+      softRefreshCustomers();
     }
   );
 }
@@ -875,7 +879,7 @@ async function unarchiveCustomer(id) {
       loadPageData(currentTab);
     },
     function() {
-      location.reload();
+      softRefreshCustomers();
     }
   );
 }
@@ -892,7 +896,7 @@ async function deleteCustomer(id) {
       loadPageData(currentTab);
     },
     function() {
-      location.reload();
+      softRefreshCustomers();
     }
   );
 }
@@ -1074,7 +1078,13 @@ async function saveManualLocation() {
       hideModal('locationModal');
       window.detectedAddress = null;
       showToast('Đã cập nhật vị trí!', 'success');
-      location.reload();
+      await softRefreshCustomers();
+      if (window.BeerStore && typeof window.BeerStore.invalidateAndRefresh === 'function') {
+        window.BeerStore.invalidateAndRefresh('customers:location').catch(() => {});
+      }
+      window.dispatchEvent(new CustomEvent('data:mutated', {
+        detail: { entity: 'customer', source: 'customers:location', at: Date.now() }
+      }));
     } else {
       alert('Cập nhật thất bại: ' + (data.error || 'Lỗi không xác định'));
     }
@@ -1099,5 +1109,12 @@ document.querySelectorAll('.bottomnav a').forEach(a => {
   const homeHref = href === '/' || href === '/dashboard';
   if (href === path || (homePath && homeHref)) {
     a.classList.add('active');
+  }
+});
+
+window.addEventListener('data:mutated', function(evt) {
+  var detail = evt && evt.detail ? evt.detail : {};
+  if (!detail.entity || detail.entity === 'customer' || detail.entity === 'sale' || detail.entity === 'expense' || detail.entity === 'sync') {
+    softRefreshCustomers();
   }
 });

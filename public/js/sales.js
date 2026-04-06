@@ -11,6 +11,17 @@ let saleData = {};
 // Sales history state (mirrors purchases.js pattern — primary data source)
 var allSales    = [];       // local array for optimistic insert
 var historyCurrentPage = 1; // page 1 default
+
+function syncSalesState(nextSales) {
+  allSales = Array.isArray(nextSales) ? nextSales.slice() : [];
+  window.store.sales = allSales;
+  return allSales;
+}
+
+async function refetchSalesHistory() {
+  await loadSalesHistory();
+}
+
 var HISTORY_PAGE_SIZE  = 5;
 
 /** PERFORMANCE: O(1) Maps — rebuilt once when data loads, reused for all lookups */
@@ -617,6 +628,7 @@ async function submitSale() {
   const snapshotCustomer = customerId;
 
   optimisticMutate({
+    entity: 'sale',
     request: function() {
       return fetch('/api/sales', {
         method: 'POST',
@@ -640,8 +652,7 @@ async function submitSale() {
         status: 'pending',
         _optimistic: true
       };
-      window.store.sales.unshift(tempSale);
-      allSales.unshift(tempSale);
+      syncSalesState([tempSale].concat(allSales));
       if (historyCurrentPage === 1) {
         renderHistoryPage();
       }
@@ -666,8 +677,7 @@ async function submitSale() {
       if (btn) { btn.disabled = false; btn.textContent = '✔ Bán hàng'; }
 
       // Remove temp sale from store and DOM
-      window.store.sales = window.store.sales.filter(function(s) { return s.id !== tempId; });
-      allSales = allSales.filter(function(s) { return s.id !== tempId; });
+      syncSalesState(allSales.filter(function(s) { return s.id !== tempId; }));
       removeSaleItem(tempId);
 
       // Restore cart
@@ -689,8 +699,7 @@ async function submitSale() {
       if (btn) { btn.disabled = false; btn.textContent = '✔ Bán hàng'; }
 
       // Remove temp card from both stores and DOM
-      window.store.sales = window.store.sales.filter(function(s) { return s.id !== tempId; });
-      allSales = allSales.filter(function(s) { return s.id !== tempId; });
+      syncSalesState(allSales.filter(function(s) { return s.id !== tempId; }));
       removeSaleItem(tempId);
 
       // Build a complete sale object for immediate display.
@@ -704,9 +713,7 @@ async function submitSale() {
       if (!newSale.type)         newSale.type         = 'sale';
 
       if (historyCurrentPage === 1) {
-        // Page 1: insert immediately — no API call needed
-        window.store.sales.unshift(newSale);
-        allSales.unshift(newSale);
+        syncSalesState([newSale].concat(allSales));
         salesPagination.total = (salesPagination.total || 0) + 1;
         salesPagination.totalPages = Math.ceil(salesPagination.total / HISTORY_PAGE_SIZE);
         try {
@@ -717,7 +724,6 @@ async function submitSale() {
         }
         showToast('Bán hàng thành công!', 'success');
       } else {
-        // Not on page 1: force page 1 and reload so the new sale appears
         salesPagination.total = (salesPagination.total || 0) + 1;
         salesPagination.totalPages = Math.ceil(salesPagination.total / HISTORY_PAGE_SIZE);
         historyCurrentPage = 1;
@@ -740,6 +746,8 @@ async function submitSale() {
         }
       }
     },
+
+    refetch: refetchSalesHistory,
 
     onError: function() {
       if (btn) { btn.disabled = false; btn.textContent = '✔ Bán hàng'; }
@@ -1644,13 +1652,13 @@ async function deleteSale(id) {
   actionBtns.forEach(function(b) { btnStates.push(setButtonLoading(b)); });
 
   optimisticMutate({
+    entity: 'sale',
     request: function() {
       return fetch('/api/sales/' + id, { method: 'DELETE', cache: 'no-store' });
     },
 
     applyOptimistic: function() {
-      window.store.sales = window.store.sales.filter(function(s) { return s.id !== id; });
-      allSales = allSales.filter(function(s) { return s.id !== id; });
+      syncSalesState(allSales.filter(function(s) { return s.id !== id; }));
       removeSaleItem(id);
       salesPagination.total = Math.max(0, (salesPagination.total || 1) - 1);
       salesPagination.totalPages = Math.ceil(salesPagination.total / HISTORY_PAGE_SIZE);
@@ -1659,8 +1667,7 @@ async function deleteSale(id) {
 
     rollback: function() {
       if (deletedSale) {
-        window.store.sales.unshift(deletedSale);
-        allSales.unshift(deletedSale);
+        syncSalesState([deletedSale].concat(allSales));
         renderHistoryPage();
       }
     },
@@ -1670,6 +1677,8 @@ async function deleteSale(id) {
       btnStates.forEach(function(s) { restoreButtonLoading(s); });
       renderHistoryPage();
     },
+
+    refetch: refetchSalesHistory,
 
     onError: function() {
       btnStates.forEach(function(s) { restoreButtonLoading(s); });

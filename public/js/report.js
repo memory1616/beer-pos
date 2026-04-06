@@ -76,21 +76,31 @@ function switchFilterType(type) {
   loadReport();
 }
 
-function toggleMonthDropdown(e) {
-  if (e) { e.preventDefault(); e.stopPropagation(); }
+function _getDropdowns() {
   var monthEl = document.getElementById('monthDropdown');
   var yearEl  = document.getElementById('yearDropdown');
-  if (!monthEl || !yearEl) { console.error('[REPORT] dropdown elements missing'); return; }
-  var isHidden = monthEl.hidden || monthEl.classList.contains('hidden');
-  // Close both first
-  monthEl.hidden = true;
-  yearEl.hidden  = true;
-  monthEl.classList.add('hidden');
-  yearEl.classList.add('hidden');
-  // Then open month if it was closed
-  if (isHidden) {
-    monthEl.hidden = false;
-    monthEl.classList.remove('hidden');
+  if (!monthEl || !yearEl) { console.error('[REPORT] dropdown elements missing'); return null; }
+  return { monthEl: monthEl, yearEl: yearEl };
+}
+
+function _showDropdown(el) {
+  el.style.display = '';
+  el.removeAttribute('hidden');
+  el.classList.remove('hidden');
+}
+
+function _hideDropdown(el) {
+  el.style.display = 'none';
+}
+
+function toggleMonthDropdown(e) {
+  if (e) { e.stopPropagation(); }
+  var dds = _getDropdowns(); if (!dds) return;
+  var monthOpen = dds.monthEl.style.display !== 'none';
+  _hideDropdown(dds.monthEl);
+  _hideDropdown(dds.yearEl);
+  if (!monthOpen) {
+    _showDropdown(dds.monthEl);
     console.log('[REPORT] month dropdown opened');
   } else {
     console.log('[REPORT] month dropdown closed');
@@ -98,20 +108,13 @@ function toggleMonthDropdown(e) {
 }
 
 function toggleYearDropdown(e) {
-  if (e) { e.preventDefault(); e.stopPropagation(); }
-  var monthEl = document.getElementById('monthDropdown');
-  var yearEl  = document.getElementById('yearDropdown');
-  if (!monthEl || !yearEl) { console.error('[REPORT] dropdown elements missing'); return; }
-  var isHidden = yearEl.hidden || yearEl.classList.contains('hidden');
-  // Close both first
-  monthEl.hidden = true;
-  yearEl.hidden  = true;
-  monthEl.classList.add('hidden');
-  yearEl.classList.add('hidden');
-  // Then open year if it was closed
-  if (isHidden) {
-    yearEl.hidden = false;
-    yearEl.classList.remove('hidden');
+  if (e) { e.stopPropagation(); }
+  var dds = _getDropdowns(); if (!dds) return;
+  var yearOpen = dds.yearEl.style.display !== 'none';
+  _hideDropdown(dds.monthEl);
+  _hideDropdown(dds.yearEl);
+  if (!yearOpen) {
+    _showDropdown(dds.yearEl);
     console.log('[REPORT] year dropdown opened');
   } else {
     console.log('[REPORT] year dropdown closed');
@@ -119,10 +122,9 @@ function toggleYearDropdown(e) {
 }
 
 function closeAllDropdowns() {
-  var monthEl = document.getElementById('monthDropdown');
-  var yearEl  = document.getElementById('yearDropdown');
-  if (monthEl) { monthEl.hidden = true; monthEl.classList.add('hidden'); }
-  if (yearEl)  { yearEl.hidden  = true; yearEl.classList.add('hidden'); }
+  var dds = _getDropdowns(); if (!dds) return;
+  _hideDropdown(dds.monthEl);
+  _hideDropdown(dds.yearEl);
 }
 
 function applyMonthYear() {
@@ -184,7 +186,7 @@ function loadReport() {
     url += '&year=' + _selectedYear;
   }
 
-  fetch(url)
+  fetch(url, { cache: 'no-store' })
     .then(function(r) { return r.json(); })
     .then(function(data) {
       _reportData = data;
@@ -196,6 +198,69 @@ function loadReport() {
       renderPurchases(data.purchases || [], data.purchaseTotalAmount || 0, data.purchaseSlipCount || 0);
     })
     .catch(function(e) { console.error('Load report error:', e); });
+}
+
+var _reportRefreshTimer = null;
+var _reportRefreshInFlight = false;
+
+function shouldRefreshReportEntity(entity) {
+  if (!entity) return true;
+  return entity === 'sale' || entity === 'expense' || entity === 'purchase' || entity === 'customer' || entity === 'product' || entity === 'sync';
+}
+
+function refreshReportFromMutation(reason) {
+  if (_reportRefreshInFlight) return;
+  _reportRefreshInFlight = true;
+  console.log('[CONSISTENCY][Report] refresh', reason || 'mutation');
+  fetch('/report/data?type=' + _filterType + (_filterType === 'month' ? '&month=' + _selectedMonth + '&year=' + _selectedYear : _filterType === 'year' ? '&year=' + _selectedYear : ''), { cache: 'no-store' })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      _reportData = data;
+      updateSummary(data);
+      renderChart(data);
+      renderSales(data.sales || []);
+      renderProducts(data.profitByProduct || []);
+      renderCustomers(data.profitByCustomer || []);
+      renderPurchases(data.purchases || [], data.purchaseTotalAmount || 0, data.purchaseSlipCount || 0);
+    })
+    .catch(function(e) { console.error('Refresh report error:', e); })
+    .finally(function() {
+      _reportRefreshInFlight = false;
+    });
+}
+
+function queueReportRefresh(reason) {
+  clearTimeout(_reportRefreshTimer);
+  _reportRefreshTimer = setTimeout(function() {
+    refreshReportFromMutation(reason || 'mutation');
+  }, 180);
+}
+
+window.addEventListener('data:mutated', function(evt) {
+  var detail = evt && evt.detail ? evt.detail : {};
+  if (!shouldRefreshReportEntity(detail.entity)) return;
+  queueReportRefresh(detail.entity || 'mutation');
+});
+
+function shouldRefreshReportPath(pathname) {
+  if (!pathname) return false;
+  return pathname.indexOf('/api/sales') === 0 ||
+    pathname.indexOf('/api/expenses') === 0 ||
+    pathname.indexOf('/api/purchases') === 0 ||
+    pathname.indexOf('/api/customers') === 0 ||
+    pathname.indexOf('/api/products') === 0 ||
+    pathname.indexOf('/api/kegs') === 0 ||
+    pathname.indexOf('/report/data') === 0 ||
+    pathname.indexOf('/dashboard/data') === 0;
+}
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', function(event) {
+    var data = event && event.data ? event.data : {};
+    if (data.type !== 'DATA_INVALIDATED') return;
+    if (!shouldRefreshReportPath(data.path || '')) return;
+    queueReportRefresh('sw:' + (data.path || 'unknown'));
+  });
 }
 
 function updateSummary(data) {

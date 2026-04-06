@@ -334,37 +334,8 @@ if (typeof window._dbInit !== 'undefined') {
 
   // ==================== INITIALIZATION ====================
 
-  window.addEventListener('online', () => {
-    console.log('Online! Starting sync...');
-    syncAllData().then(result => {
-      if (result.success && result.synced > 0) {
-        console.log(`Synced ${result.synced} items`);
-        const event = new CustomEvent('syncComplete', { detail: result });
-        window.dispatchEvent(event);
-      }
-    });
-    pullFromCloud().then(result => {
-      if (result.success && result.imported > 0) {
-        console.log(`Imported ${result.imported} items`);
-      }
-    });
-  });
-
-  if (navigator.onLine) {
-    setTimeout(() => {
-      syncAllData();
-      pullFromCloud();
-    }, 3000);
-  }
-
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.addEventListener('message', event => {
-      if (event.data && event.data.type === 'SYNC_COMPLETE') {
-        console.log('Background sync complete:', event.data.synced);
-        location.reload();
-      }
-    });
-  }
+  // sync.js is the primary online sync orchestrator.
+  // Keep db.js passive to avoid duplicate sync/reload races.
 
   console.log(`[DB] BeerPOS initialized (version ${DB_VERSION})`);
 } // end guard
