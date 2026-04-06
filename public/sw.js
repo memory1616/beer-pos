@@ -70,6 +70,8 @@ async function writeVersionToMeta(version) {
 let _dbPromise = null;
 let _DB_VERSION = null;
 let _CACHE_NAME = null;
+const DEFAULT_DB_VERSION = 33;
+const DEFAULT_CACHE_NAME = `beer-pos-v${DEFAULT_DB_VERSION}`;
 
 // Resolve version from _meta store, then open at that exact version.
 // This ensures we NEVER open at a version lower than what's on disk.
@@ -102,12 +104,15 @@ async function resolveVersion() {
     });
 
     _DB_VERSION = parseInt(stored, 10) || db2.version;
+    if (!Number.isFinite(_DB_VERSION) || _DB_VERSION < DEFAULT_DB_VERSION) {
+      _DB_VERSION = DEFAULT_DB_VERSION;
+    }
     _CACHE_NAME = `beer-pos-v${_DB_VERSION}`;
     db2.close();
   } catch {
-    // Fallback: open at version 1
-    _DB_VERSION = 1;
-    _CACHE_NAME = 'beer-pos-v1';
+    // Keep cache namespace stable if version resolution fails
+    _DB_VERSION = DEFAULT_DB_VERSION;
+    _CACHE_NAME = DEFAULT_CACHE_NAME;
   }
 
   console.log(`[SW] DB version: ${_DB_VERSION}, cache: ${_CACHE_NAME}`);
@@ -298,7 +303,7 @@ function notifyClients(msg) {
 
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open('beer-pos-v33') // placeholder — will update on first resolveVersion()
+    caches.open(DEFAULT_CACHE_NAME)
       .then(async cache => {
         await Promise.allSettled(
           APP_SHELL.map(url =>
@@ -422,9 +427,9 @@ self.addEventListener('fetch', event => {
 
   const parsed = new URL(url);
 
-  // Auth — always live, never cache
-  if (parsed.pathname.startsWith('/api/auth')) {
-    event.respondWith(fetch(event.request));
+  // Auth/login — always live, never cache
+  if (parsed.pathname.startsWith('/api/auth') || parsed.pathname.startsWith('/auth')) {
+    event.respondWith(fetch(new Request(event.request, { cache: 'no-store' })));
     return;
   }
 
@@ -471,7 +476,6 @@ self.addEventListener('fetch', event => {
 
 /** Cache-First — best for static assets */
 async function cacheFirst(request) {
-  const cname = await getCacheName();
   const cached = await caches.match(request);
   if (cached) return cached;
   try {
