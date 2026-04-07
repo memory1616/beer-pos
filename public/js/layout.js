@@ -220,8 +220,9 @@ if (typeof document !== 'undefined') {
 // Load realtime.js after layout.js initializes.
 // Uses MULTIPLE guards to prevent double-loading:
 //   1. window.__BEERPOS_REALTIME__ — set by realtime.js itself (guard inside IIFE)
-//   2. document.querySelector check — skip if already in DOM
-//   3. window.__BEERPOS_REALTIME_LOADING__ — skip if currently loading
+//   2. window.__beerRealtimeRunning — unified running flag
+//   3. document.querySelector check — skip if already in DOM
+//   4. window.__BEERPOS_REALTIME_LOADING__ — skip if currently loading
 (function () {
   function loadRealtime() {
     // Skip login page — no data to sync
@@ -245,14 +246,14 @@ if (typeof document !== 'undefined') {
       return;
     }
 
-    // GUARD 4: New unified flag (belt-and-suspenders)
-    if (window.__beerPOSRealtimeInitialized) {
-      console.log('[Layout] realtime.js already initialized (__beerPOSRealtimeInitialized), skipping');
+    // GUARD 4: Unified running flag
+    if (window.__beerRealtimeRunning) {
+      console.log('[Layout] realtime.js already running (__beerRealtimeRunning), skipping');
       return;
     }
 
     window.__BEERPOS_REALTIME_LOADING__ = true;
-    window.__beerPOSRealtimeInitialized = true;
+    window.__beerRealtimeRunning = true;
 
     var script = document.createElement('script');
     script.src = '/js/realtime.js';

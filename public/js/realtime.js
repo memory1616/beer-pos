@@ -25,13 +25,14 @@
   // CRITICAL: This is the FIRST line of code executed.
   // Prevents realtime.js from loading or initializing more than once.
 
-  if (typeof window !== 'undefined' && window.__BEERPOS_REALTIME__) {
+  if (typeof window !== 'undefined' && (window.__BEERPOS_REALTIME__ || window.__beerRealtimeRunning)) {
     console.warn('[WS][Client] realtime.js already loaded — skipping duplicate init');
     return;
   }
 
   if (typeof window !== 'undefined') {
     window.__BEERPOS_REALTIME__ = true;
+    window.__beerRealtimeRunning = true;
   }
 
   // ── Constants ────────────────────────────────────────────────────────────────
@@ -57,7 +58,8 @@
   let _initCalled      = false; // connect() chỉ chạy 1 lần
   let _connectStarted  = false; // ngăn race condition trong connect()
   let _pendingEvents   = []; // queued while disconnected
-  let _online          = navigator.onLine;
+  let _online             = navigator.onLine;
+  let _transportMode      = null; // 'websocket' | 'polling' | null
 
   // Anti-duplicate emit map: key → timestamp of last emit
   let _lastEmit = {};
@@ -190,8 +192,8 @@
     // and the server can upgrade to websocket via the same connection (CORS workaround).
 
     _socket = io(WS_URL, {
-      // Transport order: polling first (more reliable behind proxy), then upgrade
-      transports: ['polling', 'websocket'],
+      // Transport order: websocket first, polling fallback if WS upgrade fails
+      transports: ['websocket', 'polling'],
       // Auth token — try cookie first (server sets session_token cookie),
       // then localStorage fallback
       auth: { token: getAuthToken() },
@@ -239,6 +241,21 @@
     _socket.on('connect_error', function (err) {
       console.error('[WS] Connect error:', err ? err.message : 'unknown');
       log('ERROR', 'Connection error: ' + (err ? err.message : err));
+    });
+
+    _socket.on('upgrade', function (nextTransport) {
+      _transportMode = nextTransport;
+      log('UPGRADE', 'Transport upgraded to: ' + nextTransport);
+    });
+
+    _socket.on('upgradeError', function (err) {
+      log('UPGRADE', 'Transport upgrade failed, falling back to polling. Error: ' + (err ? err.message : err));
+      // Switch to polling-only if WebSocket upgrade fails
+      if (_socket && !_transportMode) {
+        log('INFO', 'Switching to polling transport...');
+        _socket.io.opts.transports = ['polling'];
+        _transportMode = 'polling-fallback';
+      }
     });
 
     _socket.on('reconnect_attempt', function (attempt) {
