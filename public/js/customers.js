@@ -195,10 +195,13 @@ function submitAddForm() {
     }
   }
 
-  const data = { name, phone };
-  data.deposit = parseFormattedNumber(document.getElementById('addDeposit').value);
-  data.horizontal_fridge = parseInt(document.getElementById('addHorizontalFridge').value) || 0;
-  data.vertical_fridge = parseInt(document.getElementById('addVerticalFridge').value) || 0;
+  var data = { name: name, phone: phone };
+  var addDepositEl = document.getElementById('addDeposit');
+  var addHorizontalFridgeEl = document.getElementById('addHorizontalFridge');
+  var addVerticalFridgeEl = document.getElementById('addVerticalFridge');
+  data.deposit = parseFormattedNumber(addDepositEl ? addDepositEl.value : '0');
+  data.horizontal_fridge = parseInt(addHorizontalFridgeEl ? addHorizontalFridgeEl.value : '0') || 0;
+  data.vertical_fridge = parseInt(addVerticalFridgeEl ? addVerticalFridgeEl.value : '0') || 0;
 
   const prices = {};
   document.querySelectorAll('#addPriceList input[data-product]').forEach(input => {

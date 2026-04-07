@@ -288,8 +288,9 @@ function toggleQtyControl(productId) {
 }
 
 function adjustQtyModal(productId, amount) {
-  const input = document.getElementById('qty-' + productId);
-  const current = parseInt(input.value) || 0;
+  var input = document.getElementById('qty-' + productId);
+  if (!input) return;
+  var current = parseInt(input.value) || 0;
   const product = getProduct(productId);
   const maxStock = product ? product.stock : 999;
   
@@ -444,24 +445,24 @@ function updateKegSaleSection(customerId) {
 }
 
 function updateSaleKegPreview() {
-  const customerId = document.getElementById('customerSelect').value;
-  const deliverInput = document.getElementById('saleDeliverKegs');
-  const returnInput = document.getElementById('saleReturnKegs');
-  const balanceEl = document.getElementById('saleKegBalance');
-  const afterEl = document.getElementById('saleKegAfter');
-  const warningEl = document.getElementById('saleKegWarning');
+  var customerIdEl = document.getElementById('customerSelect');
+  var deliverInput = document.getElementById('saleDeliverKegs');
+  var returnInput = document.getElementById('saleReturnKegs');
+  var balanceEl = document.getElementById('saleKegBalance');
+  var afterEl = document.getElementById('saleKegAfter');
+  var warningEl = document.getElementById('saleKegWarning');
 
-  const deliver = parseInt(deliverInput?.value) || 0;
-  const returned = parseInt(returnInput?.value) || 0;
+  var customerId = customerIdEl ? customerIdEl.value : '';
+  var deliver = parseInt(deliverInput ? deliverInput.value : '0') || 0;
+  var returned = parseInt(returnInput ? returnInput.value : '0') || 0;
 
-  const customer = getCustomer(customerId);
-  const currentBalance = customer ? (customer.keg_balance || 0) : 0;
-  const afterBalance = currentBalance + deliver - returned;
+  var customer = getCustomer(customerId);
+  var currentBalance = customer ? (customer.keg_balance || 0) : 0;
+  var afterBalance = currentBalance + deliver - returned;
 
   if (afterEl) afterEl.textContent = afterBalance + ' vỏ';
   if (balanceEl) balanceEl.textContent = currentBalance + ' vỏ';
 
-  // Check inventory
   if (kegState && deliver > kegState.inventory) {
     if (warningEl) {
       warningEl.classList.remove('hidden');
@@ -474,25 +475,25 @@ function updateSaleKegPreview() {
 
 // Quick add product for fast sales
 function quickAddProduct(amount) {
-  const customerId = document.getElementById('customerSelect').value;
+  var customerIdEl = document.getElementById('customerSelect');
+  var customerId = customerIdEl ? customerIdEl.value : '';
   if (!customerId) {
     alert('Vui lòng chọn khách hàng trước');
     return;
   }
 
-  // Find product with highest stock or first available
-  const availableProducts = products.filter(p => p.stock > 0);
+  var availableProducts = products.filter(function(p) { return p.stock > 0; });
   if (availableProducts.length === 0) {
     alert('Không có sản phẩm trong kho');
     return;
   }
 
-  // Add to first product (or you can customize this logic)
-  const product = availableProducts[0];
-  const input = document.getElementById('qty-' + product.id);
-  const currentQty = parseInt(input.value) || 0;
-  const maxAdd = product.stock - currentQty;
-  const toAdd = Math.min(amount, maxAdd);
+  var product = availableProducts[0];
+  var input = document.getElementById('qty-' + product.id);
+  if (!input) return;
+  var currentQty = parseInt(input.value) || 0;
+  var maxAdd = product.stock - currentQty;
+  var toAdd = Math.min(amount, maxAdd);
 
   if (toAdd <= 0) {
     alert('Sản phẩm ' + product.name + ' đã hết hàng');
@@ -518,7 +519,8 @@ function changeQty(productId, delta) {
 }
 
 function updatePrices() {
-  const customerId = document.getElementById('customerSelect').value;
+  var customerIdEl = document.getElementById('customerSelect');
+  var customerId = customerIdEl ? customerIdEl.value : '';
 
   applyResolvedPrices(customerId, null);
   renderSaleProducts();
@@ -592,12 +594,13 @@ function updateCartFromInputs() {
 }
 
 async function submitSale() {
-  const customerId = document.getElementById('customerSelect').value;
+  var customerIdEl = document.getElementById('customerSelect');
+  var customerId = customerIdEl ? customerIdEl.value : '';
 
   // Build items from saleData - STEP 5: Use priceAtTime for price snapshot
-  const items = [];
-  Object.keys(saleData).forEach(productId => {
-    const item = saleData[productId];
+  var items = [];
+  Object.keys(saleData).forEach(function(productId) {
+    var item = saleData[productId];
     if (item.quantity > 0 && item.price > 0) {
       items.push({
         productId: parseInt(productId),
@@ -610,7 +613,8 @@ async function submitSale() {
 
   if (items.length === 0) return showToast('Chưa chọn sản phẩm nào', 'error');
 
-  const deliverKegs = parseInt(document.getElementById('saleDeliverKegs')?.value) || 0;
+  var sellDeliverEl = document.getElementById('saleDeliverKegs');
+  var deliverKegs = parseInt(sellDeliverEl ? sellDeliverEl.value : '0') || 0;
   if (deliverKegs > 0 && kegState.inventory < deliverKegs) {
     return showToast('Không đủ vỏ! Kho chỉ còn ' + kegState.inventory + ' vỏ', 'error');
   }
@@ -750,12 +754,15 @@ async function submitSale() {
         showInvoiceModal(result.id);
       } catch(err) {
         console.error('Lỗi hiển thị hóa đơn:', err);
-        const modal = document.getElementById('invoiceModal');
+        var modal = document.getElementById('invoiceModal');
+        var invoiceContent = document.getElementById('invoiceContent');
+        var qrCodeEl = document.getElementById('qrCode');
         if (modal) {
-          document.querySelector('#invoiceModal .invoice-total-value').textContent = Format.number(result.total || 0);
-          document.getElementById('invoiceContent').innerHTML =
+          var invTotalEl = modal.querySelector('.invoice-total-value');
+          if (invTotalEl) invTotalEl.textContent = Format.number(result.total || 0);
+          if (invoiceContent) invoiceContent.innerHTML =
             '<div class="text-center text-muted py-8">Đơn hàng #'+ result.id +'</div>';
-          document.getElementById('qrCode').src = '';
+          if (qrCodeEl) qrCodeEl.src = '';
           modal.classList.remove('hidden');
           modal.classList.add('flex');
         }
@@ -1106,43 +1113,47 @@ function updateKegModalPreview() {
   if (kegReturnPreviewEl) {
     kegReturnPreviewEl.className = 'font-bold ' + (formThu > 0 ? 'text-danger' : 'text-muted');
   }
-    returnPreviewEl.className = 'font-bold ' + (formThu > 0 ? 'text-danger' : 'text-muted');
-  }
 
   // Validation: cannot return more than customer holds after this edit
-  const maxAllowedReturn = _invoiceCustBalance + deltaGiao;
-  const warningEl = document.getElementById('kegModalWarning');
+  var maxAllowedReturn = _invoiceCustBalance + deltaGiao;
+  var warningEl = document.getElementById('kegModalWarning');
   if (formThu > maxAllowedReturn) {
-    warningEl.classList.remove('hidden');
-    warningEl.textContent = '⚠️ Không thể thu ' + formThu + ' vỏ. Khách chỉ giữ tối đa ' + maxAllowedReturn + ' vỏ';
+    if (warningEl) {
+      warningEl.classList.remove('hidden');
+      warningEl.textContent = '⚠️ Không thể thu ' + formThu + ' vỏ. Khách chỉ giữ tối đa ' + maxAllowedReturn + ' vỏ';
+    }
   } else {
-    warningEl.classList.add('hidden');
+    if (warningEl) warningEl.classList.add('hidden');
   }
 }
 
 async function saveKegUpdate() {
   if (!_invoiceSaleId || !_invoiceCustomerId) return;
 
-  const formGiao = safeNumber(document.getElementById('kegDeliver').value);
-  const formThu  = safeNumber(document.getElementById('kegReturn').value);
+  var kegDeliverEl = document.getElementById('kegDeliver');
+  var kegReturnEl = document.getElementById('kegReturn');
+  var formGiao = safeNumber(kegDeliverEl ? kegDeliverEl.value : '0');
+  var formThu  = safeNumber(kegReturnEl ? kegReturnEl.value : '0');
 
   // Delta so với snapshot đã lưu (hoặc 0 nếu create mode)
-  const old = _invoiceShell || { giao: 0, thu: 0 };
-  const deltaGiao = formGiao - old.giao;
-  const deltaThu  = formThu  - old.thu;
+  var old = _invoiceShell || { giao: 0, thu: 0 };
+  var deltaGiao = formGiao - old.giao;
+  var deltaThu  = formThu  - old.thu;
 
   // Validation: cannot return more than customer holds after this edit
-  const maxAllowedReturn = _invoiceCustBalance + deltaGiao;
-  const errorEl = document.getElementById('kegModalError');
+  var maxAllowedReturn = _invoiceCustBalance + deltaGiao;
+  var errorEl = document.getElementById('kegModalError');
   if (formThu > maxAllowedReturn) {
-    errorEl.textContent = '⚠️ Không thể thu ' + formThu + ' vỏ. Khách chỉ giữ tối đa ' + maxAllowedReturn + ' vỏ';
-    errorEl.classList.remove('hidden');
+    if (errorEl) {
+      errorEl.textContent = '⚠️ Không thể thu ' + formThu + ' vỏ. Khách chỉ giữ tối đa ' + maxAllowedReturn + ' vỏ';
+      errorEl.classList.remove('hidden');
+    }
     return;
   }
-  errorEl.classList.add('hidden');
+  if (errorEl) errorEl.classList.add('hidden');
 
-  const saleId = _invoiceSaleId;
-  const btn = document.getElementById('kegSaveBtn');
+  var saleId = _invoiceSaleId;
+  var btn = document.getElementById('kegSaveBtn');
 
   optimisticMutate({
     request: function() {
@@ -1354,8 +1365,11 @@ async function openCollectKegModal(saleId) {
 }
 
 function closeCollectKegModal() {
-  document.getElementById('collectKegModal').classList.add('hidden');
-  document.getElementById('collectKegModal').classList.remove('flex');
+  var modal = document.getElementById('collectKegModal');
+  if (modal) {
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }
   _collectKegSaleId = null;
   _collectKegCustomerId = null;
   _collectKegBalance = 0;
@@ -1403,8 +1417,9 @@ function updateCollectKegPreview() {
 }
 
 async function submitCollectKeg() {
-  const saleId = _collectKegSaleId;
-  const returned = safeNumber(document.getElementById('collectKegReturn').value);
+  var saleId = _collectKegSaleId;
+  var collectKegReturnEl = document.getElementById('collectKegReturn');
+  var returned = safeNumber(collectKegReturnEl ? collectKegReturnEl.value : '0');
 
   if (returned < 0) {
     alert('Số vỏ không hợp lệ');
@@ -2080,11 +2095,12 @@ function cancelEdit() {
 async function updateSale() {
   if (!editingSaleId) return;
 
-  const customerId = document.getElementById('customerSelect').value;
+  var customerIdEl = document.getElementById('customerSelect');
+  var customerId = customerIdEl ? customerIdEl.value : '';
 
-  const items = [];
-  Object.keys(saleData).forEach(productId => {
-    const item = saleData[productId];
+  var items = [];
+  Object.keys(saleData).forEach(function(productId) {
+    var item = saleData[productId];
     if (item.quantity > 0 && item.price > 0) {
       items.push({
         productId: parseInt(productId),
@@ -2096,12 +2112,11 @@ async function updateSale() {
 
   if (items.length === 0) return alert('Chưa chọn sản phẩm nào');
 
-  const btn = document.getElementById('updateSaleBtn');
+  var btn = document.getElementById('updateSaleBtn');
 
-  // Snapshot current sale data for rollback
-  const oldSale = Object.assign({}, window.store.sales.find(function(s) { return s.id === editingSaleId; }));
-  const snapshotCart = Object.assign({}, saleData);
-  const snapshotCustomer = document.getElementById('customerSelect') ? document.getElementById('customerSelect').value : '';
+  var oldSale = Object.assign({}, window.store.sales.find(function(s) { return s.id === editingSaleId; }));
+  var snapshotCart = Object.assign({}, saleData);
+  var snapshotCustomer = customerId;
 
   optimisticMutate({
     request: function() {
@@ -2118,7 +2133,6 @@ async function updateSale() {
 
     applyOptimistic: function() {
       if (btn) { btn.disabled = true; btn.textContent = 'Đang cập nhật...'; }
-      // Optimistically patch the row
       patchSaleRow({
         id: editingSaleId,
         customer_name: customerId ? (getCustomer(customerId)?.name || 'Khách') : 'Khách lẻ',
@@ -2130,7 +2144,7 @@ async function updateSale() {
       if (btn) { btn.disabled = false; btn.textContent = 'Cập nhật'; }
       if (oldSale) patchSaleRow(oldSale);
       saleData = snapshotCart;
-      document.getElementById('customerSelect').value = snapshotCustomer;
+      if (customerIdEl) customerIdEl.value = snapshotCustomer;
     },
 
     onSuccess: function(result) {

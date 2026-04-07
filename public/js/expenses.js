@@ -498,8 +498,10 @@ function hideCategoryModal() {
 
 function saveCategory(e) {
   e.preventDefault();
-  var name = document.getElementById('categoryName').value.trim();
-  var icon = document.getElementById('categoryIcon').value || '📋';
+  var nameEl = document.getElementById('categoryName');
+  var iconEl = document.getElementById('categoryIcon');
+  var name = nameEl ? nameEl.value.trim() : '';
+  var icon = iconEl ? iconEl.value : '📋';
 
   if (!name || name.length < 2) {
     alert('Tên loại chi phí phải có ít nhất 2 ký tự.');

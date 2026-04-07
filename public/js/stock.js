@@ -487,9 +487,9 @@ async function submitImport() {
     return;
   }
 
-  const btn = document.getElementById('submitImportBtn');
-  const tempId = 'tmp_imp_' + Date.now();
-  var btnState = setButtonLoading(btn, 'Nhập kho');
+  var btn = document.getElementById('submitImportBtn');
+  var tempId = 'tmp_imp_' + Date.now();
+  var btnState = btn ? setButtonLoading(btn, 'Nhập kho') : null;
 
   // Snapshot current stock for rollback
   var stockSnapshot = {};
@@ -867,33 +867,45 @@ function deleteProduct() {
   });
 }
 
-// Product Form Submit
-document.getElementById('productForm').addEventListener('submit', async (e) => {
+// Product Form Submit — wrapped in DOMContentLoaded (IIFE at line 203 already handles productForm;
+// this outer handler is a duplicate used by some page templates; guard prevents crash when DOM not ready)
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', function() {
+    var pf = document.getElementById('productForm');
+    if (pf) pf.addEventListener('submit', async function(e) {
   e.preventDefault();
 
-  const productId = document.getElementById('productId').value;
-  const name = document.getElementById('productName').value.trim();
-  const type = document.getElementById('productType').value;
-  const cost_price = parseFloat(document.getElementById('productCostPrice').value) || 0;
-  const stock = productId ? (parseInt(document.getElementById('productStock').value) || 0) : 0;
+  var productIdEl = document.getElementById('productId');
+  var productNameEl = document.getElementById('productName');
+  var productTypeEl = document.getElementById('productType');
+  var productCostPriceEl = document.getElementById('productCostPrice');
+  var productStockEl = document.getElementById('productStock');
+  if (!productIdEl || !productNameEl) return;
+
+  var productId = productIdEl.value;
+  var name = productNameEl.value.trim();
+  var type = productTypeEl ? productTypeEl.value : 'keg';
+  var cost_price = parseFloat(productCostPriceEl ? productCostPriceEl.value : '0') || 0;
+  var stock = productId ? (parseInt(productStockEl ? productStockEl.value : '0') || 0) : 0;
 
   if (!name) {
     alert('Vui lòng nhập tên sản phẩm');
     return;
   }
 
-  const data = { name, type, cost_price };
+  var data = { name: name, type: type, cost_price: cost_price };
   if (productId) {
     data.stock = stock;
   }
 
-  const method = productId ? 'PUT' : 'POST';
-  const url = productId ? '/api/products/' + productId : '/api/products';
-  const isNew = !productId;
-  const tempId = 'tmp_prod_' + Date.now();
+  var method = productId ? 'PUT' : 'POST';
+  var url = productId ? '/api/products/' + productId : '/api/products';
+  var isNew = !productId;
+  var tempId = 'tmp_prod_' + Date.now();
 
-  const submitBtn = document.getElementById('productForm').querySelector('[type="submit"]');
-  var btnState = setButtonLoading(submitBtn, isNew ? 'Thêm sản phẩm' : 'Cập nhật');
+  var submitBtn = (document.getElementById('productForm') || {}).querySelector ?
+    (document.getElementById('productForm').querySelector('[type="submit"]') || null) : null;
+  var btnState = submitBtn ? setButtonLoading(submitBtn, isNew ? 'Thêm sản phẩm' : 'Cập nhật') : null;
 
   // Snapshot old state for update rollback
   var oldProduct = null;
@@ -980,6 +992,7 @@ document.getElementById('productForm').addEventListener('submit', async (e) => {
       if (btnState) restoreButtonLoading(btnState);
     }
   });
+  }});
 });
 
 let _stockRefreshTimer = null;
