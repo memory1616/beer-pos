@@ -2082,6 +2082,63 @@ async function updateSale() {
   });
 }
 
+var _salesRefreshTimer = null;
+var _salesRefreshInFlight = false;
+
+function shouldRefreshSalesEntity(entity) {
+  if (!entity) return true;
+  return entity === 'sale' || entity === 'customer' || entity === 'product' || entity === 'keg' || entity === 'sync';
+}
+
+function shouldRefreshSalesPath(pathname) {
+  if (!pathname) return false;
+  return pathname.indexOf('/api/sales') === 0 ||
+    pathname.indexOf('/api/customers') === 0 ||
+    pathname.indexOf('/api/products') === 0 ||
+    pathname.indexOf('/api/kegs') === 0 ||
+    pathname.indexOf('/sale/data') === 0;
+}
+
+async function refreshSalesPage(reason) {
+  if (_salesRefreshInFlight) return;
+  _salesRefreshInFlight = true;
+  console.log('[CONSISTENCY][Sales] refresh', reason || 'mutation');
+  try {
+    if (typeof loadData === 'function') {
+      await loadData();
+    } else {
+      await Promise.all([
+        typeof loadSalesHistory === 'function' ? loadSalesHistory() : Promise.resolve(),
+        typeof updatePrices === 'function' ? Promise.resolve(updatePrices()) : Promise.resolve()
+      ]);
+    }
+  } finally {
+    _salesRefreshInFlight = false;
+  }
+}
+
+function queueSalesRefresh(reason) {
+  clearTimeout(_salesRefreshTimer);
+  _salesRefreshTimer = setTimeout(function() {
+    refreshSalesPage(reason || 'mutation');
+  }, 180);
+}
+
+window.addEventListener('data:mutated', function(evt) {
+  var detail = evt && evt.detail ? evt.detail : {};
+  if (!shouldRefreshSalesEntity(detail.entity)) return;
+  queueSalesRefresh(detail.entity || 'mutation');
+});
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', function(event) {
+    var data = event && event.data ? event.data : {};
+    if (data.type !== 'DATA_INVALIDATED') return;
+    if (!shouldRefreshSalesPath(data.path || '')) return;
+    queueSalesRefresh('sw:' + (data.path || 'unknown'));
+  });
+}
+
 /** PERFORMANCE: Debounced updateSaleTotal — coalesces rapid keystrokes, max 1 call per 100ms.
  *  Call this from updateSaleData() instead of updateSaleTotal() directly. */
 const _debouncedUpdateTotal = _debounce(updateSaleTotal, 100);

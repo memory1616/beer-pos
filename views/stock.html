@@ -165,7 +165,7 @@
   <script>
     async function loadData() {
       try {
-        const res = await fetch('/stock/data');
+        const res = await fetch('/stock/data', { cache: 'no-store' });
         const data = await res.json();
         
         // Initialize stock page

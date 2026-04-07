@@ -604,3 +604,52 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 });
+
+var _expensesRefreshTimer = null;
+var _expensesRefreshInFlight = false;
+
+function shouldRefreshExpensesEntity(entity) {
+  if (!entity) return true;
+  return entity === 'expense' || entity === 'sync';
+}
+
+function shouldRefreshExpensesPath(pathname) {
+  if (!pathname) return false;
+  return pathname.indexOf('/api/expenses') === 0 ||
+    pathname.indexOf('/expenses/data') === 0;
+}
+
+async function refreshExpensesPage(reason) {
+  if (_expensesRefreshInFlight) return;
+  _expensesRefreshInFlight = true;
+  console.log('[CONSISTENCY][Expenses] refresh', reason || 'mutation');
+  try {
+    if (_currentMonth) {
+      await loadExpenses(_currentMonth, { silent: true });
+    }
+  } finally {
+    _expensesRefreshInFlight = false;
+  }
+}
+
+function queueExpensesRefresh(reason) {
+  clearTimeout(_expensesRefreshTimer);
+  _expensesRefreshTimer = setTimeout(function() {
+    refreshExpensesPage(reason || 'mutation');
+  }, 180);
+}
+
+window.addEventListener('data:mutated', function(evt) {
+  var detail = evt && evt.detail ? evt.detail : {};
+  if (!shouldRefreshExpensesEntity(detail.entity)) return;
+  queueExpensesRefresh(detail.entity || 'mutation');
+});
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', function(event) {
+    var data = event && event.data ? event.data : {};
+    if (data.type !== 'DATA_INVALIDATED') return;
+    if (!shouldRefreshExpensesPath(data.path || '')) return;
+    queueExpensesRefresh('sw:' + (data.path || 'unknown'));
+  });
+}

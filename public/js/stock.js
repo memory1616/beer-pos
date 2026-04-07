@@ -27,6 +27,10 @@ function initStockPage(data) {
   currentProducts = data.products;
   _filteredProducts = data.products;
   window.store.products = data.products;
+  if (Array.isArray(data.purchases)) {
+    window.store.purchases = data.purchases;
+    if (typeof allPurchases !== 'undefined') allPurchases = data.purchases.slice();
+  }
 
   _renderProductsPage(_filteredProducts.slice(0, PAGE_SIZE), data.totalStockPositive, _filteredProducts.length > PAGE_SIZE);
 
@@ -797,3 +801,53 @@ document.getElementById('productForm').addEventListener('submit', async (e) => {
     }
   });
 });
+
+let _stockRefreshTimer = null;
+let _stockRefreshInFlight = false;
+
+function shouldRefreshStockEntity(entity) {
+  if (!entity) return true;
+  return entity === 'product' || entity === 'purchase' || entity === 'stock' || entity === 'sale' || entity === 'sync';
+}
+
+function shouldRefreshStockPath(pathname) {
+  if (!pathname) return false;
+  return pathname.indexOf('/api/products') === 0 ||
+    pathname.indexOf('/api/purchases') === 0 ||
+    pathname.indexOf('/api/stock') === 0 ||
+    pathname.indexOf('/api/sales') === 0 ||
+    pathname.indexOf('/stock/data') === 0;
+}
+
+async function refreshStockPage(reason) {
+  if (_stockRefreshInFlight || typeof loadData !== 'function') return;
+  _stockRefreshInFlight = true;
+  console.log('[CONSISTENCY][Stock] refresh', reason || 'mutation');
+  try {
+    await loadData();
+  } finally {
+    _stockRefreshInFlight = false;
+  }
+}
+
+function queueStockRefresh(reason) {
+  clearTimeout(_stockRefreshTimer);
+  _stockRefreshTimer = setTimeout(function() {
+    refreshStockPage(reason || 'mutation');
+  }, 180);
+}
+
+window.addEventListener('data:mutated', function(evt) {
+  const detail = evt && evt.detail ? evt.detail : {};
+  if (!shouldRefreshStockEntity(detail.entity)) return;
+  queueStockRefresh(detail.entity || 'mutation');
+});
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', function(event) {
+    const data = event && event.data ? event.data : {};
+    if (data.type !== 'DATA_INVALIDATED') return;
+    if (!shouldRefreshStockPath(data.path || '')) return;
+    queueStockRefresh('sw:' + (data.path || 'unknown'));
+  });
+}

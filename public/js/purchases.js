@@ -217,3 +217,52 @@ async function deletePurchase(id) {
     }
   });
 }
+
+var _purchasesRefreshTimer = null;
+var _purchasesRefreshInFlight = false;
+
+function shouldRefreshPurchasesEntity(entity) {
+  if (!entity) return true;
+  return entity === 'purchase' || entity === 'product' || entity === 'stock' || entity === 'sync';
+}
+
+function shouldRefreshPurchasesPath(pathname) {
+  if (!pathname) return false;
+  return pathname.indexOf('/api/purchases') === 0 ||
+    pathname.indexOf('/api/products') === 0 ||
+    pathname.indexOf('/api/stock') === 0 ||
+    pathname.indexOf('/purchases/data') === 0;
+}
+
+async function refreshPurchasesPage(reason) {
+  if (_purchasesRefreshInFlight || typeof loadData !== 'function') return;
+  _purchasesRefreshInFlight = true;
+  console.log('[CONSISTENCY][Purchases] refresh', reason || 'mutation');
+  try {
+    await loadData();
+  } finally {
+    _purchasesRefreshInFlight = false;
+  }
+}
+
+function queuePurchasesRefresh(reason) {
+  clearTimeout(_purchasesRefreshTimer);
+  _purchasesRefreshTimer = setTimeout(function() {
+    refreshPurchasesPage(reason || 'mutation');
+  }, 180);
+}
+
+window.addEventListener('data:mutated', function(evt) {
+  var detail = evt && evt.detail ? evt.detail : {};
+  if (!shouldRefreshPurchasesEntity(detail.entity)) return;
+  queuePurchasesRefresh(detail.entity || 'mutation');
+});
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', function(event) {
+    var data = event && event.data ? event.data : {};
+    if (data.type !== 'DATA_INVALIDATED') return;
+    if (!shouldRefreshPurchasesPath(data.path || '')) return;
+    queuePurchasesRefresh('sw:' + (data.path || 'unknown'));
+  });
+}

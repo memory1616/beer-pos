@@ -831,7 +831,7 @@
   <script>
     async function loadData() {
       try {
-        const res = await fetch('/customers/data?page=1&limit=5&tab=active');
+        const res = await fetch('/customers/data?page=1&limit=5&tab=active', { cache: 'no-store' });
         const data = await res.json();
 
         // Initialize customers page

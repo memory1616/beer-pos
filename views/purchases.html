@@ -254,6 +254,50 @@
       `) +
       getBottomNav('/purchases');
 
+    function shouldRefreshPurchasesShellEntity(entity) {
+      if (!entity) return true;
+      return entity === 'purchase' || entity === 'product' || entity === 'stock' || entity === 'sync';
+    }
+
+    function shouldRefreshPurchasesShellPath(pathname) {
+      if (!pathname) return false;
+      return pathname.indexOf('/api/purchases') === 0 ||
+        pathname.indexOf('/api/products') === 0 ||
+        pathname.indexOf('/api/stock') === 0 ||
+        pathname.indexOf('/purchases/data') === 0;
+    }
+
+    var _purchasesShellRefreshTimer = null;
+    var _purchasesShellRefreshInFlight = false;
+
+    function queuePurchasesShellRefresh(reason) {
+      clearTimeout(_purchasesShellRefreshTimer);
+      _purchasesShellRefreshTimer = setTimeout(async function() {
+        if (_purchasesShellRefreshInFlight) return;
+        _purchasesShellRefreshInFlight = true;
+        try {
+          await loadData();
+        } finally {
+          _purchasesShellRefreshInFlight = false;
+        }
+      }, 180);
+    }
+
+    window.addEventListener('data:mutated', function(evt) {
+      var detail = evt && evt.detail ? evt.detail : {};
+      if (!shouldRefreshPurchasesShellEntity(detail.entity)) return;
+      queuePurchasesShellRefresh(detail.entity || 'mutation');
+    });
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', function(event) {
+        var data = event && event.data ? event.data : {};
+        if (data.type !== 'DATA_INVALIDATED') return;
+        if (!shouldRefreshPurchasesShellPath(data.path || '')) return;
+        queuePurchasesShellRefresh('sw:' + (data.path || 'unknown'));
+      });
+    }
+
     // --- Load data after layout is rendered ---
     loadData();
   </script>
