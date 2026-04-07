@@ -142,7 +142,6 @@
    */
   function connect() {
     if (_initCalled) return;
-    _initCalled = true;
 
     // Detect mode
     var mode = (window.APP_MODE === 'public') ? 'public' : 'admin';
@@ -151,10 +150,13 @@
     var io = window.io;
 
     if (typeof io !== 'function') {
-      log('WARN', 'socket.io-client not loaded yet, retrying...');
+      log('WARN', 'socket.io-client not loaded yet, retrying in 500ms...');
       setTimeout(connect, 500);
       return;
     }
+
+    // Mark as initialized ONLY after io is confirmed available
+    _initCalled = true;
 
     log('INFO', 'Connecting to Socket.IO at ' + WS_URL + ', mode=' + mode);
 

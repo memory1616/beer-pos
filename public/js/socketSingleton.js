@@ -89,11 +89,17 @@
   function getSocket(opts) {
     if (_socket) return _socket;
 
-    if (_connecting) return null;
+    var io = window.io;
+    if (typeof io !== 'function') {
+      log('WARN', 'socket.io-client not available — will retry when loaded');
+      // Retry once socket.io is ready
+      setTimeout(function() { getSocket(opts); }, 500);
+      return null;
+    }
 
     // Global guard — prevent double initialization
     if (typeof window !== 'undefined' && window.__BEERPOS_SOCKET__) {
-      log('WARN', 'getSocket() called but __BEERPOS_SOCKET__ guard already set');
+      log('WARN', '__BEERPOS_SOCKET__ guard already set — skipping');
       return null;
     }
     if (typeof window !== 'undefined') {
@@ -101,14 +107,6 @@
     }
 
     _connecting = true;
-
-    var io = window.io;
-    if (typeof io !== 'function') {
-      log('ERROR', 'socket.io-client (window.io) not available yet');
-      _connecting = false;
-      if (typeof window !== 'undefined') window.__BEERPOS_SOCKET__ = false;
-      return null;
-    }
 
     var mode = (window.APP_MODE === 'public') ? 'public' : 'admin';
 

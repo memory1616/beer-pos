@@ -2,18 +2,40 @@
 // auth_sessions table — survives PM2 restarts unlike in-memory store
 const db = require('../database.js');
 
+// Migrate auth_sessions table schema if needed
 try {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS auth_sessions (
-      token TEXT PRIMARY KEY,
-      username TEXT NOT NULL,
-      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-      expires_at INTEGER NOT NULL,
-      last_active INTEGER NOT NULL
-    )
-  `);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_auth_sessions_expires ON auth_sessions(expires_at)`);
-  console.log('Created auth_sessions table (SQLite-backed)');
+  const cols = db.prepare("PRAGMA table_info(auth_sessions)").all().map(r => r.name);
+
+  if (cols.length === 0) {
+    // Table doesn't exist — create it
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS auth_sessions (
+        token TEXT PRIMARY KEY,
+        username TEXT NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        expires_at INTEGER NOT NULL,
+        last_active INTEGER NOT NULL
+      )
+    `);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_auth_sessions_expires ON auth_sessions(expires_at)`);
+    console.log('Created auth_sessions table (SQLite-backed)');
+  } else {
+    // Table exists — migrate schema if needed
+    if (!cols.includes('username')) {
+      db.exec(`ALTER TABLE auth_sessions ADD COLUMN username TEXT NOT NULL DEFAULT 'admin'`);
+      console.log('Migrated auth_sessions: added username column');
+    }
+    if (!cols.includes('created_at')) {
+      db.exec(`ALTER TABLE auth_sessions ADD COLUMN created_at TEXT DEFAULT CURRENT_TIMESTAMP`);
+      console.log('Migrated auth_sessions: added created_at column');
+    }
+    if (!cols.includes('last_active')) {
+      db.exec(`ALTER TABLE auth_sessions ADD COLUMN last_active INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)`);
+      console.log('Migrated auth_sessions: added last_active column');
+    }
+    // Recreate index if missing
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_auth_sessions_expires ON auth_sessions(expires_at)`);
+  }
 } catch (e) {
   console.log('auth_sessions table note:', e.message);
 }
