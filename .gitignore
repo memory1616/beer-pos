@@ -4,14 +4,12 @@
 .env.production
 .env.*.local
 
-# Deploy scripts
-deploy/
-!deploy/deploy.sh
-!deploy/deploy.bat
-!deploy/post-receive
-!deploy/DEPLOY.md
-!deploy/nginx.conf
-!deploy/.env.production
+# Deploy scripts — list files explicitly to allow negations to work
+deploy/deploy.sh
+deploy/deploy.bat
+deploy/post-receive
+deploy/DEPLOY.md
+deploy/.env.production
 
 # Logs
 logs/
