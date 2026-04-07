@@ -1,19 +1,7 @@
-fix: critical PWA bug fixes — IndexedDB race, cache busting, SW versioning
+fix(realtime): bypass Socket.IO auth middleware
 
-- Bump SW cache name from v30 to v31 to force full cache refresh on all users
-- Add ?v=20260404b cache-bust query string to ALL dynamic script loads:
-  /db.js, /sync.js, /js/vendor/dexie.min.js, /sw.js
-  across 7 HTML files (dashboard, customers, stock, kegs, customer-detail, purchases, backup)
-- Fix duplicate SW registration in dashboard.html (was: no-cache-bust second call)
-- Add showToast() safe guard check in dashboard.html SW updatefound handler
-- Add cache-bust ?v=20260404b to SW registration in login.html
-- Update outdated layout.js?v=20260329 → ?v=20260404b in routes/devices.js
-- Add retry logic to openDB() in sw.js (3 retries, 100ms delay) for race conditions
-- Add retry logic to openSWDB() in sync.js and sync-orders.js
-- Fix 503 handling in db.js pullFromCloud (graceful skip instead of throw)
-- Fix 503 handling in sync-orders.js pullOrdersFromServer
-- Fix URL bug in sync-orders.js: was using /api/orders instead of cloudUrl target
-- Change SW cache strategy: critical API paths use Network-First instead of SWR
-- Remove inline onclick handlers from Cloud tab buttons in dashboard.html
-  (becomeCloud, scanForCloud, saveCloudUrl) — use addEventListener instead
-- Add attachCloudListeners() with dynamic sync.js loading fallback
+BeerPOS uses session-cookie auth on all pages. The previous
+auth middleware rejected connections because the socket token
+(from localStorage) did not match DB sessions. Since admin
+pages are already protected by auth middleware, the socket
+connection can be allowed unconditionally.

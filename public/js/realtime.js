@@ -643,4 +643,14 @@
 
   autoInit();
 
+  window.setButtonLoading   = setButtonLoading;
+  window.restoreButtonLoading = restoreButtonLoading;
+  window.optimisticMutate    = optimisticMutate;
 })();
+
+// ── Global helpers (outside IIFE so they're accessible to other scripts) ──────
+//
+// NOTE: The three helpers above are defined INSIDE the IIFE above (not here)
+// and are explicitly exported to window for cross-script access.
+// Keeping this comment block here explains the structure and prevents
+// accidental removal of the window assignments above.
