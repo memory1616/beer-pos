@@ -994,8 +994,9 @@ if (document.readyState === 'loading') {
       if (btnState) restoreButtonLoading(btnState);
     }
   });
-  }});
-});
+    });
+  });
+}
 
 let _stockRefreshTimer = null;
 let _stockRefreshInFlight = false;
