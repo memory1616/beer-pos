@@ -318,16 +318,20 @@ function notifyClients(msg) {
 // ─── Install ─────────────────────────────────────────────────────────────────
 
 self.addEventListener('install', event => {
+  console.log('[SW] Installing, version=' + DEFAULT_CACHE_NAME);
   event.waitUntil(
     caches.open(DEFAULT_CACHE_NAME)
       .then(async cache => {
-        await Promise.allSettled(
+        const results = await Promise.allSettled(
           APP_SHELL.map(url =>
             fetch(url, { cache: 'reload' })
               .then(r => { if (r.ok) return cache.put(url, r); })
               .catch(() => {})
           )
         );
+        const ok = results.filter(r => r.status === 'fulfilled').length;
+        console.log('[SW] Install complete — cached ' + ok + '/' + APP_SHELL.length + ' app shell assets');
+        self.skipWaiting(); // take control immediately
       })
   );
 });
@@ -335,14 +339,19 @@ self.addEventListener('install', event => {
 // ─── Activate ─────────────────────────────────────────────────────────────────
 
 self.addEventListener('activate', event => {
+  console.log('[SW] Activating — cleaning old caches');
   event.waitUntil(
     resolveVersion().then(async () => {
       const cname = await getCacheName();
       const all   = await caches.keys();
-      return Promise.all(
-        all.filter(k => k !== cname).map(k => caches.delete(k))
-      );
-    }).then(() => self.clients.claim())
+      const stale = all.filter(k => k !== cname);
+      if (stale.length > 0) {
+        console.log('[SW] Deleting ' + stale.length + ' stale cache(s): ' + stale.join(', '));
+      }
+      await Promise.all(stale.map(k => caches.delete(k)));
+      console.log('[SW] Activated — now controlling: ' + cname);
+      self.clients.claim(); // take control of all clients immediately
+    })
   );
 });
 

@@ -122,18 +122,17 @@
     log('INFO', `Connecting to Socket.IO, mode=${mode}`);
 
     _socket = io('/', {
-      // Polling first — works without nginx WebSocket proxy.
-      // WebSocket attempted second as upgrade when available.
-      transports: ['polling', 'websocket'],
-      // Auth token for server-side validation
+      // WebSocket first (nginx now proxies /socket.io/ with upgrade support)
+      transports: ['websocket', 'polling'],
+      // Auth token — try cookie first (server sets session_token cookie),
+      // then localStorage fallback
       auth: { token: getAuthToken() },
       query: { mode: mode },
-      // Cap reconnection so we don't spam forever on misconfigured proxy
       reconnection: true,
-      reconnectionDelay: 2000,
-      reconnectionDelayMax: 15000,
-      reconnectionAttempts: 5,
-      timeout: 10000,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 30000,
+      reconnectionAttempts: 10,
+      timeout: 15000,
     });
 
     // ── Connection lifecycle ────────────────────────────────────────────────

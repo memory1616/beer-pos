@@ -384,8 +384,10 @@
     }, { timeout: 5000 });
 
     if ('serviceWorker' in navigator) {
+      // Guard: only register if no SW is already active (avoids duplicate registration)
       if (!navigator.serviceWorker.controller) {
-        navigator.serviceWorker.register('/sw.js?v=20260405b').catch(function() {});
+        const swVersion = (typeof window !== 'undefined' && window.APP_VERSION) ? window.APP_VERSION : '1';
+        navigator.serviceWorker.register('/sw.js?v=' + swVersion).catch(function() {});
       }
     }
   </script>
@@ -677,16 +679,17 @@
     }, 3000);
   }
 
-  // Register service worker
+  // Register service worker — uses window.APP_VERSION for cache busting (set by server)
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js?v=20260405b').then(reg => {
-      console.log('[App] Service Worker registered');
+    const swVersion = (typeof window !== 'undefined' && window.APP_VERSION) ? window.APP_VERSION : '1';
+    navigator.serviceWorker.register('/sw.js?v=' + swVersion).then(reg => {
+      console.log('[SW] Service Worker registered, version=' + swVersion);
       reg.addEventListener('updatefound', () => {
         if (typeof showToast === 'function') {
           showToast('App đã được cập nhật — tải lại trang để dùng phiên bản mới', 'info');
         }
       });
-    }).catch(err => console.warn('[App] SW registration failed:', err));
+    }).catch(err => console.warn('[SW] Registration failed:', err));
   }
 
   </script>

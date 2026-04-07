@@ -641,7 +641,8 @@
 
     if ('serviceWorker' in navigator) {
       if (!navigator.serviceWorker.controller) {
-        navigator.serviceWorker.register('/sw.js?v=20260405b').catch(function() {});
+        var swVer = (typeof window !== 'undefined' && window.APP_VERSION) ? window.APP_VERSION : Date.now();
+        navigator.serviceWorker.register('/sw.js?v=' + swVer).catch(function() {});
       }
     }
   </script>
