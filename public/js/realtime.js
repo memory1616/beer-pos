@@ -108,7 +108,6 @@
 
     // Detect mode
     const mode = (window.APP_MODE === 'public') ? 'public' : 'admin';
-    const base = window.BASE_PATH || '/';
 
     // Socket.IO client from the socket.io-client package
     const io = window.io;
@@ -123,14 +122,17 @@
     log('INFO', `Connecting to Socket.IO, mode=${mode}`);
 
     _socket = io('/', {
-      path: base + 'socket.io',
+      // Polling first — works without nginx WebSocket proxy.
+      // WebSocket attempted second as upgrade when available.
+      transports: ['polling', 'websocket'],
+      // Auth token for server-side validation
       auth: { token: getAuthToken() },
       query: { mode: mode },
-      transports: ['websocket', 'polling'],
+      // Cap reconnection so we don't spam forever on misconfigured proxy
       reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 10000,
-      reconnectionAttempts: Infinity,
+      reconnectionDelay: 2000,
+      reconnectionDelayMax: 15000,
+      reconnectionAttempts: 5,
       timeout: 10000,
     });
 
