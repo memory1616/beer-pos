@@ -5,6 +5,27 @@
 let currentProducts = [];
 let importData = {}; // Store import data by productId
 let allPurchases = []; // Purchase history for this page
+let _stockPage = 'stock'; // 'stock' or 'purchase' — used to determine which container to update
+
+// ── Purchase history helpers (used by deletePurchase / editPurchase on stock page) ──
+
+function removePurchaseItem(purchaseId) {
+  var card = document.querySelector('[data-purchase-id="' + purchaseId + '"]');
+  if (card) card.remove();
+  var remaining = document.querySelectorAll('[data-purchase-id]');
+  if (remaining.length === 0) {
+    var emptyEl = document.getElementById('purchaseHistoryList');
+    if (emptyEl) emptyEl.innerHTML = '<div class="text-muted text-center py-2">Chưa có lịch sử nhập hàng</div>';
+  }
+}
+
+function updatePurchasesSummary() {
+  // Summary is updated via the products total — no-op for stock page
+}
+
+function checkPurchasesEmpty() {
+  // Handled by removePurchaseItem above — no-op
+}
 
 // PERFORMANCE: Virtual scroll pagination for product list
 const PAGE_SIZE = 30;
@@ -163,7 +184,12 @@ async function deletePurchase(purchaseId) {
 
   try {
     var res = await fetch('/api/purchases/' + purchaseId, { method: 'DELETE', cache: 'no-store' });
-    if (!res.ok) throw new Error('Delete failed');
+    var data;
+    try { data = await res.json(); } catch (_) { data = {}; }
+
+    if (!res.ok) {
+      throw new Error(data.error || 'Xoá thất bại (HTTP ' + res.status + ')');
+    }
 
     allPurchases = allPurchases.filter(function(p) { return String(p.id) !== String(purchaseId); });
     window.store.purchases = allPurchases;
@@ -174,7 +200,7 @@ async function deletePurchase(purchaseId) {
     alert('Đã xoá đơn nhập hàng!');
     window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'purchase' } }));
   } catch (err) {
-    console.error(err);
+    console.error('[deletePurchase]', err);
     alert('Xoá thất bại: ' + (err.message || 'Lỗi không xác định'));
   } finally {
     if (btnState) restoreButtonLoading(btnState);

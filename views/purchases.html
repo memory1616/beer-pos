@@ -126,6 +126,16 @@
       }
     }
 
+    function removePurchaseItem(id) {
+      var card = document.querySelector('[data-purchase-id="' + id + '"]');
+      if (card) card.remove();
+      var remaining = document.querySelectorAll('[data-purchase-id]');
+      if (remaining.length === 0) {
+        var container = document.getElementById('historyList');
+        if (container) container.innerHTML = '<div class="text-center text-muted py-8">Chưa có phiếu nhập nào</div>';
+      }
+    }
+
     function updatePurchasesSummary() {
       var total = allPurchases.length;
       var itemCountEl = document.getElementById('historyItemCount');

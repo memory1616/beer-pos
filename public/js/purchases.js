@@ -188,7 +188,12 @@ async function deletePurchase(id) {
 
   try {
     var res = await fetch('/api/purchases/' + id, { method: 'DELETE', cache: 'no-store' });
-    if (!res.ok) throw new Error('Delete failed');
+    var data;
+    try { data = await res.json(); } catch (_) { data = {}; }
+
+    if (!res.ok) {
+      throw new Error(data.error || 'Xóa thất bại (HTTP ' + res.status + ')');
+    }
 
     allPurchases = allPurchases.filter(function(p) { return String(p.id) !== String(id); });
     window.store.purchases = allPurchases;
@@ -199,7 +204,7 @@ async function deletePurchase(id) {
     alert('Đã xóa phiếu nhập!');
     window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'purchase' } }));
   } catch (err) {
-    console.error(err);
+    console.error('[deletePurchase]', err);
     alert('Xóa thất bại: ' + (err.message || 'Lỗi không xác định'));
   } finally {
     if (btnState) restoreButtonLoading(btnState);
