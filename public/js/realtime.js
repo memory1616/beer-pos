@@ -583,12 +583,58 @@
   // NOTE: `optimisticMutate` is the only function that lives inside the IIFE.
 
   /**
-   * Optimistic mutate helper — emits event and triggers refetch.
-   * @param {string} event - event name
-   * @param {object} data - event data
+   * Optimistic mutate helper — executes request with optimistic UI,
+   * emits realtime event on success, triggers refetch, handles rollback on error.
+   * @param {object} opts
+   * @param {function} opts.request - returns a Promise (the API call)
+   * @param {function} [opts.applyOptimistic] - runs BEFORE server response
+   * @param {function} [opts.rollback] - runs on error to undo optimistic change
+   * @param {function} [opts.onSuccess] - runs after server responds successfully
+   * @param {function} [opts.onError] - runs on error (after rollback)
+   * @param {string} [opts.entity] - entity name for refetch routing (e.g. 'purchase', 'sale')
+   * @param {*} [opts.data] - data to pass along with the emit event
    */
-  function optimisticMutate(event, data) {
-    emit(event, data);
+  function optimisticMutate(opts) {
+    var entity = opts.entity || null;
+    var data   = opts.data   || null;
+
+    // Always run optimistic UI immediately
+    if (typeof opts.applyOptimistic === 'function') {
+      try { opts.applyOptimistic(); } catch (e) { console.error('[optimisticMutate] applyOptimistic error:', e); }
+    }
+
+    // Emit realtime event (only if entity is set)
+    if (entity) {
+      emit(entity, data);
+    }
+
+    // Fire the actual request
+    opts.request()
+      .then(function (result) {
+        var parsed = result;
+        if (result && typeof result.json === 'function') {
+          parsed = result.clone ? result.clone() : result;
+          return result.json().then(function (j) { return j; }).catch(function () { return parsed; });
+        }
+        return parsed;
+      })
+      .then(function (result) {
+        if (typeof opts.onSuccess === 'function') {
+          try { opts.onSuccess(result); } catch (e) { console.error('[optimisticMutate] onSuccess error:', e); }
+        }
+        // Trigger page-level refetch
+        triggerRefetch(entity ? [entity] : ['all']);
+        window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: entity, source: 'optimisticMutate' } }));
+      })
+      .catch(function (err) {
+        console.error('[optimisticMutate] request failed:', err);
+        if (typeof opts.rollback === 'function') {
+          try { opts.rollback(); } catch (e) { console.error('[optimisticMutate] rollback error:', e); }
+        }
+        if (typeof opts.onError === 'function') {
+          try { opts.onError(err); } catch (e) { console.error('[optimisticMutate] onError error:', e); }
+        }
+      });
   }
 
   // ── Expose global API ───────────────────────────────────────────────────────

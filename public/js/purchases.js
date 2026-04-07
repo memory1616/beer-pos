@@ -182,46 +182,28 @@ function editPurchase(id) {
 async function deletePurchase(id) {
   if (!confirm('Bạn có chắc muốn xóa phiếu nhập này?')) return;
 
-  // Snapshot for rollback
-  var deletedPurchase = Object.assign({}, allPurchases.find(function(p) { return String(p.id) === String(id); }));
-
-  // Disable delete button on the card
   var card = document.querySelector('[data-purchase-id="' + id + '"]');
   var deleteBtn = card ? card.querySelector('[onclick^="deletePurchase"]') : null;
   var btnState = deleteBtn ? setButtonLoading(deleteBtn) : null;
 
-  optimisticMutate({
-    request: function() {
-      return fetch('/api/purchases/' + id, { method: 'DELETE', cache: 'no-store' });
-    },
+  try {
+    var res = await fetch('/api/purchases/' + id, { method: 'DELETE', cache: 'no-store' });
+    if (!res.ok) throw new Error('Delete failed');
 
-    applyOptimistic: function() {
-      allPurchases = allPurchases.filter(function(p) { return String(p.id) !== String(id); });
-      window.store.purchases = allPurchases;
-      removePurchaseItem(id);
-      updatePurchasesSummary();
-      checkPurchasesEmpty();
-    },
+    allPurchases = allPurchases.filter(function(p) { return String(p.id) !== String(id); });
+    window.store.purchases = allPurchases;
+    removePurchaseItem(id);
+    updatePurchasesSummary();
+    checkPurchasesEmpty();
 
-    rollback: function() {
-      if (deletedPurchase) {
-        allPurchases.unshift(deletedPurchase);
-        window.store.purchases.unshift(deletedPurchase);
-        renderPurchaseItem(deletedPurchase, { prepend: true });
-        updatePurchasesSummary();
-        checkPurchasesEmpty();
-      }
-    },
-
-    onSuccess: function() {
-      if (btnState) restoreButtonLoading(btnState);
-      alert('Đã xóa phiếu nhập!');
-    },
-
-    onError: function() {
-      if (btnState) restoreButtonLoading(btnState);
-    }
-  });
+    alert('Đã xóa phiếu nhập!');
+    window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'purchase' } }));
+  } catch (err) {
+    console.error(err);
+    alert('Xóa thất bại: ' + (err.message || 'Lỗi không xác định'));
+  } finally {
+    if (btnState) restoreButtonLoading(btnState);
+  }
 }
 
 var _purchasesRefreshTimer = null;

@@ -157,46 +157,28 @@ function closePurchaseModal() {
 async function deletePurchase(purchaseId) {
   if (!confirm('Bạn có chắc muốn xoá đơn nhập hàng này?')) return;
 
-  // Snapshot for rollback — guard against uninitialized state
-  var deletedPurchase = Object.assign({}, (allPurchases || []).find(function(p) { return String(p.id) === String(purchaseId); }));
-
-  // Disable delete button on the card
   var card = document.querySelector('[data-purchase-id="' + purchaseId + '"]');
   var deleteBtn = card ? card.querySelector('[onclick^="deletePurchase"]') : null;
   var btnState = deleteBtn ? setButtonLoading(deleteBtn) : null;
 
-  optimisticMutate({
-    request: function() {
-      return fetch('/api/purchases/' + purchaseId, { method: 'DELETE', cache: 'no-store' });
-    },
+  try {
+    var res = await fetch('/api/purchases/' + purchaseId, { method: 'DELETE', cache: 'no-store' });
+    if (!res.ok) throw new Error('Delete failed');
 
-    applyOptimistic: function() {
-      allPurchases = allPurchases.filter(function(p) { return String(p.id) !== String(purchaseId); });
-      window.store.purchases = allPurchases;
-      removePurchaseItem(purchaseId);
-      updatePurchasesSummary();
-      checkPurchasesEmpty();
-    },
+    allPurchases = allPurchases.filter(function(p) { return String(p.id) !== String(purchaseId); });
+    window.store.purchases = allPurchases;
+    removePurchaseItem(purchaseId);
+    updatePurchasesSummary();
+    checkPurchasesEmpty();
 
-    rollback: function() {
-      if (deletedPurchase) {
-        allPurchases.unshift(deletedPurchase);
-        window.store.purchases.unshift(deletedPurchase);
-        renderPurchaseItem(deletedPurchase, { prepend: true });
-        updatePurchasesSummary();
-        checkPurchasesEmpty();
-      }
-    },
-
-    onSuccess: function() {
-      if (btnState) restoreButtonLoading(btnState);
-      alert('Đã xoá đơn nhập hàng!');
-    },
-
-    onError: function() {
-      if (btnState) restoreButtonLoading(btnState);
-    }
-  });
+    alert('Đã xoá đơn nhập hàng!');
+    window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'purchase' } }));
+  } catch (err) {
+    console.error(err);
+    alert('Xoá thất bại: ' + (err.message || 'Lỗi không xác định'));
+  } finally {
+    if (btnState) restoreButtonLoading(btnState);
+  }
 }
 
 // ── Page init: all DOM access guarded by DOMContentLoaded ─────────────────────
