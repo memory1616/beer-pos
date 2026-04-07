@@ -45,23 +45,19 @@ self.addEventListener('message', event => {
   }
   // ── Real-time WebSocket invalidation ────────────────────────────────────
   if (event.data?.type === 'REALTIME_INVALIDATE') {
-    // Socket.IO emitted an event — clear related caches immediately
-    const { paths = [], ts } = event.data;
-    const cname = await getCacheName();
-    const cache = await caches.open(cname);
-    const keys = await cache.keys();
-    await Promise.all(keys.map(async key => {
-      const keyPath = new URL(key.url).pathname;
-      if (paths.some(p => keyPath === p || keyPath.startsWith(p + '/') || keyPath.startsWith(p + '?'))) {
-        await cache.delete(key);
-        if (self.__CONSISTENCY_DEBUG__) {
-          console.log('[SW][REALTIME] invalidated', key.url);
+    // Wrapped in async IIFE because addEventListener handler is not async
+    (async () => {
+      const { paths = [], ts } = event.data;
+      const cname = await getCacheName();
+      const cache = await caches.open(cname);
+      const keys = await cache.keys();
+      await Promise.all(keys.map(async key => {
+        const keyPath = new URL(key.url).pathname;
+        if (paths.some(p => keyPath === p || keyPath.startsWith(p + '/') || keyPath.startsWith(p + '?'))) {
+          await cache.delete(key);
         }
-      }
-    }));
-    if (self.__CONSISTENCY_DEBUG__) {
-      console.log('[SW][REALTIME] REALTIME_INVALIDATE processed', { paths, ts });
-    }
+      }));
+    })().catch(() => {});
   }
 });
 

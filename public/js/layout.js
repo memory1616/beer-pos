@@ -4,6 +4,11 @@
 
 let appVersion = '1.0.0';
 
+// ── Global shared state (used by stock.js, sales.js, customers.js, etc.) ──────
+// Must be declared before any page-specific scripts that reference window.store
+window.store = {};
+
+// Load version from server for cache-busting and display
 async function loadVersion() {
   try {
     const res = await fetch('/version.json');
