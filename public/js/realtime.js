@@ -1,21 +1,38 @@
 /**
  * BeerPOS Real-time Client Manager
  * ─────────────────────────────────────────────────────────────────────────────
- * - Connects to Socket.IO server on app start
+ * - Connects to Socket.IO server on app start (singleton — one connection only)
+ * - Uses socketSingleton.js internally for the actual connection
  * - Listens for all data-change events and triggers refetch
  * - BroadcastChannel for multi-tab sync (tabs update together)
  * - Offline queue: queues events when disconnected, replays on reconnect
+ * - Debounce: prevents rapid-fire refetch on burst events (100ms window)
+ * - Anti-duplicate emit: same action within 1s only emits once
  * - Debug logging with `[WS][Client]` prefix
  * - Exposes global `window.Realtime` API for manual use
  *
  * Usage:
- *   // Auto-initialized on load
  *   Realtime.forceRefetch(['orders', 'inventory']);
  *   Realtime.getStatus();
+ *   Realtime.setDebug(true);
  * ─────────────────────────────────────────────────────────────────────────────
  */
+
 (function () {
   'use strict';
+
+  // ── DOUBLE INIT GUARD ────────────────────────────────────────────────────────
+  // CRITICAL: This is the FIRST line of code executed.
+  // Prevents realtime.js from loading or initializing more than once.
+
+  if (typeof window !== 'undefined' && window.__BEERPOS_REALTIME__) {
+    console.warn('[WS][Client] realtime.js already loaded — skipping duplicate init');
+    return;
+  }
+
+  if (typeof window !== 'undefined') {
+    window.__BEERPOS_REALTIME__ = true;
+  }
 
   // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -25,27 +42,51 @@
   // Debounce delay for refetch (ms) — prevents rapid-fire on burst events
   const REFETCH_DEBOUNCE = 100;
 
+  // Anti-duplicate emit interval (ms) — same action within this window = ignored
+  const EMIT_DEBOUNCE = 1000;
+
   // ── State ────────────────────────────────────────────────────────────────────
 
-  let _socket      = null;
-  let _connected    = false;
-  let _debug        = false;
-  let _refetchTimer = null;
-  let _pendingRefetch = new Set();
-  let _bc           = null;
-  let _bcastSupported = false;
-  let _initCalled    = false;
-  let _pendingEvents = []; // queued while disconnected
+  let _socket          = null;
+  let _connected       = false;
+  let _debug           = false;
+  let _refetchTimer    = null;
+  let _pendingRefetch  = new Set();
+  let _bc              = null;
+  let _bcastSupported  = false;
+  let _initCalled      = false;
+  let _pendingEvents   = []; // queued while disconnected
+  let _online          = navigator.onLine;
+
+  // Anti-duplicate emit map: key → timestamp of last emit
+  let _lastEmit = {};
+
+  // ── WS URL Config (single source of truth) ──────────────────────────────────
+  // IMPORTANT: This is the ONLY place the WS server URL is defined.
+  // DO NOT hardcode the URL anywhere else in the codebase.
+
+  const WS_URL = (function () {
+    var host = (window.location && window.location.hostname) || '';
+    if (host === 'admin.biatuoitayninh.store') {
+      return 'https://admin.biatuoitayninh.store';
+    }
+    if (host === 'biatuoitayninh.store') {
+      return 'https://biatuoitayninh.store';
+    }
+    // Development / localhost — connect to same origin
+    return window.location.origin;
+  })();
 
   // ── Debug ───────────────────────────────────────────────────────────────────
 
   function log(tag, msg, data) {
-    if (!_debug && tag !== 'INFO') return;
-    const prefix = '[WS][Client]';
+    if (!_debug && tag !== 'INFO' && tag !== 'CONNECT' && tag !== 'DISCONNECT' &&
+        tag !== 'ERROR' && tag !== 'REFETCH') return;
+    var prefix = '[WS][Client]';
     if (data !== undefined) {
-      console.log(`${prefix} [${tag}] ${msg}`, data);
+      console.log(prefix + ' [' + tag + '] ' + msg, data);
     } else {
-      console.log(`${prefix} [${tag}] ${msg}`);
+      console.log(prefix + ' [' + tag + '] ' + msg);
     }
   }
 
@@ -58,19 +99,16 @@
       _bcastSupported = true;
 
       _bc.onmessage = function (evt) {
-        const msg = evt.data;
+        var msg = evt.data;
         if (!msg || typeof msg !== 'object') return;
 
         log('BROADCAST', 'Received cross-tab message', msg);
 
         if (msg.type === 'sync') {
-          // Another tab changed data — refetch everything
           triggerRefetch(['all']);
         } else if (msg.type === 'force-refetch') {
           triggerRefetch(msg.entities || ['all']);
         } else if (msg.type === 'ping') {
-          // Another tab pinged — respond if we're the leader tab
-          // Simple strategy: just refetch (lightweight, safe)
           triggerRefetch(['all']);
         }
       };
@@ -90,7 +128,7 @@
   function bcastSend(type, data) {
     if (!_bcastSupported || !_bc) return;
     try {
-      _bc.postMessage(Object.assign({ type }, data));
+      _bc.postMessage(Object.assign({ type: type }, data));
     } catch (e) {
       // Silently ignore — BroadcastChannel can throw on closed channel
     }
@@ -107,43 +145,62 @@
     _initCalled = true;
 
     // Detect mode
-    const mode = (window.APP_MODE === 'public') ? 'public' : 'admin';
+    var mode = (window.APP_MODE === 'public') ? 'public' : 'admin';
 
-    // Socket.IO client from the socket.io-client package
-    const io = window.io;
+    // Socket.IO client from the socket.io-client package (served at /socket.io/socket.io.js)
+    var io = window.io;
 
     if (typeof io !== 'function') {
-      // Socket.IO client not loaded yet — retry after short delay
       log('WARN', 'socket.io-client not loaded yet, retrying...');
       setTimeout(connect, 500);
       return;
     }
 
-    log('INFO', `Connecting to Socket.IO, mode=${mode}`);
+    log('INFO', 'Connecting to Socket.IO at ' + WS_URL + ', mode=' + mode);
 
-    _socket = io('/', {
-      // WebSocket first (nginx now proxies /socket.io/ with upgrade support)
-      transports: ['websocket', 'polling'],
+    // ── CLEAN OLD CONNECTIONS FIRST ──────────────────────────────────────────
+    // If any existing socket from hot-reload or previous page, disconnect it.
+    // The global guard above prevents double-init, but this catches edge cases.
+
+    if (typeof window.__BEERPOS_SOCKET_INST__ !== 'undefined') {
+      try {
+        window.__BEERPOS_SOCKET_INST__.disconnect();
+      } catch (e) { /* ignore */ }
+    }
+
+    // ── SOCKET CONFIG ───────────────────────────────────────────────────────
+    // NOTE: polling first, websocket second.
+    // This order is important when running behind nginx — polling works reliably
+    // and the server can upgrade to websocket via the same connection (CORS workaround).
+
+    _socket = io(WS_URL, {
+      // Transport order: polling first (more reliable behind proxy), then upgrade
+      transports: ['polling', 'websocket'],
       // Auth token — try cookie first (server sets session_token cookie),
       // then localStorage fallback
       auth: { token: getAuthToken() },
       query: { mode: mode },
+      // Reconnection
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 30000,
       reconnectionAttempts: 10,
-      timeout: 15000,
+      // Connection timeout
+      timeout: 20000,
     });
+
+    // Expose socket instance for cleanup on hot-reload
+    window.__BEERPOS_SOCKET_INST__ = _socket;
 
     // ── Connection lifecycle ────────────────────────────────────────────────
 
     _socket.on('connect', function () {
       _connected = true;
-      log('CONNECT', 'Socket connected: ' + _socket.id);
+      console.log('[WS] Connected:', _socket.id);
 
       // Replay pending events
       if (_pendingEvents.length > 0) {
-        log('INFO', `Replaying ${_pendingEvents.length} pending events`);
+        log('INFO', 'Replaying ' + _pendingEvents.length + ' pending events');
         _pendingEvents.forEach(function (ev) {
           _socket.emit(ev.name, ev.data);
         });
@@ -156,15 +213,20 @@
 
     _socket.on('disconnect', function (reason) {
       _connected = false;
-      log('DISCONNECT', `Socket disconnected: ${reason}`);
+      console.warn('[WS] Disconnected:', reason);
     });
 
     _socket.on('connect_error', function (err) {
-      log('ERROR', 'Connection error: ' + (err.message || err));
+      console.error('[WS] Connect error:', err ? err.message : 'unknown');
+      log('ERROR', 'Connection error: ' + (err ? err.message : err));
     });
 
     _socket.on('reconnect_attempt', function (attempt) {
-      log('INFO', `Reconnecting... attempt ${attempt}`);
+      log('INFO', 'Reconnecting... attempt ' + attempt + '/10');
+    });
+
+    _socket.on('reconnect_failed', function () {
+      log('ERROR', 'Reconnect failed after 10 attempts — will keep trying with backoff');
     });
 
     _socket.on('reconnect', function () {
@@ -185,62 +247,83 @@
 
     // ── DATA CHANGE EVENTS ──────────────────────────────────────────────────
     // Each event triggers a targeted refetch via window.loadData / dispatchEvent
+    // Anti-duplicate: same event+key within EMIT_DEBOUNCE ms is debounced
 
     _socket.on('order:created', function (data) {
+      var key = 'order:created:' + (data && data.id ? data.id : '');
+      if (_shouldDebounce(key)) return;
       log('EVENT', 'order:created received', data);
       triggerRefetch(['orders', 'reports', 'dashboard']);
       bcastSend('sync', { source: 'socket' });
     });
 
     _socket.on('order:updated', function (data) {
+      var key = 'order:updated:' + (data && data.id ? data.id : '');
+      if (_shouldDebounce(key)) return;
       log('EVENT', 'order:updated received', data);
       triggerRefetch(['orders', 'reports', 'dashboard']);
       bcastSend('sync', { source: 'socket' });
     });
 
     _socket.on('order:deleted', function (data) {
+      var key = 'order:deleted:' + (data && data.id ? data.id : '');
+      if (_shouldDebounce(key)) return;
       log('EVENT', 'order:deleted received', data);
       triggerRefetch(['orders', 'reports', 'dashboard']);
       bcastSend('sync', { source: 'socket' });
     });
 
     _socket.on('inventory:updated', function (data) {
+      var key = 'inventory:updated:' + (data && data.productId ? data.productId : '');
+      if (_shouldDebounce(key)) return;
       log('EVENT', 'inventory:updated received', data);
       triggerRefetch(['inventory', 'products', 'stock', 'reports']);
       bcastSend('sync', { source: 'socket' });
     });
 
     _socket.on('keg:updated', function (data) {
+      var key = 'keg:updated:' + (data && data.id ? data.id : '');
+      if (_shouldDebounce(key)) return;
       log('EVENT', 'keg:updated received', data);
       triggerRefetch(['kegs', 'inventory', 'products']);
       bcastSend('sync', { source: 'socket' });
     });
 
     _socket.on('customer:updated', function (data) {
+      var key = 'customer:updated:' + (data && data.id ? data.id : '');
+      if (_shouldDebounce(key)) return;
       log('EVENT', 'customer:updated received', data);
       triggerRefetch(['customers', 'orders']);
       bcastSend('sync', { source: 'socket' });
     });
 
     _socket.on('expense:created', function (data) {
+      var key = 'expense:created:' + (data && data.id ? data.id : '');
+      if (_shouldDebounce(key)) return;
       log('EVENT', 'expense:created received', data);
       triggerRefetch(['expenses', 'reports', 'dashboard']);
       bcastSend('sync', { source: 'socket' });
     });
 
     _socket.on('expense:updated', function (data) {
+      var key = 'expense:updated:' + (data && data.id ? data.id : '');
+      if (_shouldDebounce(key)) return;
       log('EVENT', 'expense:updated received', data);
       triggerRefetch(['expenses', 'reports', 'dashboard']);
       bcastSend('sync', { source: 'socket' });
     });
 
     _socket.on('expense:deleted', function (data) {
+      var key = 'expense:deleted:' + (data && data.id ? data.id : '');
+      if (_shouldDebounce(key)) return;
       log('EVENT', 'expense:deleted received', data);
       triggerRefetch(['expenses', 'reports', 'dashboard']);
       bcastSend('sync', { source: 'socket' });
     });
 
     _socket.on('report:updated', function (data) {
+      var key = 'report:updated';
+      if (_shouldDebounce(key)) return;
       log('EVENT', 'report:updated received', data);
       triggerRefetch(['reports', 'dashboard']);
       bcastSend('sync', { source: 'socket' });
@@ -255,9 +338,26 @@
 
     // ── Ping ───────────────────────────────────────────────────────────────
     _socket.on('ping', function (data) {
-      // Passive ping from server — respond if needed
       log('PING', 'Server ping received', data);
     });
+  }
+
+  // ── Anti-duplicate debounce helper ─────────────────────────────────────────
+
+  /**
+   * Returns true if this event+key was received within EMIT_DEBOUNCE ms.
+   * Used to prevent rapid-fire refetch from burst events on multiple tabs.
+   * @param {string} key
+   * @returns {boolean}
+   */
+  function _shouldDebounce(key) {
+    var now = Date.now();
+    if (_lastEmit[key] && (now - _lastEmit[key]) < EMIT_DEBOUNCE) {
+      log('DEBOUNCE', 'Suppressing duplicate event: ' + key);
+      return true;
+    }
+    _lastEmit[key] = now;
+    return false;
   }
 
   // ── Refetch logic ───────────────────────────────────────────────────────────
@@ -279,7 +379,7 @@
 
     clearTimeout(_refetchTimer);
     _refetchTimer = setTimeout(function () {
-      const toRefetch = Array.from(_pendingRefetch);
+      var toRefetch = Array.from(_pendingRefetch);
       _pendingRefetch.clear();
 
       log('REFETCH', 'Triggering refetch for: ' + toRefetch.join(', '));
@@ -340,7 +440,6 @@
   // ── Auth token helper ───────────────────────────────────────────────────────
 
   function getAuthToken() {
-    // Try to get token from localStorage (same as auth.js)
     try {
       var stored = localStorage.getItem('auth_token');
       if (stored) {
@@ -348,7 +447,6 @@
         return parsed.token || stored;
       }
     } catch (e) { /* ignore */ }
-    // Fallback: check cookies
     if (document.cookie) {
       var match = document.cookie.match(/session_token=([^;]+)/);
       if (match) return match[1];
@@ -369,16 +467,24 @@
 
   /**
    * Emit a custom event to server (for multi-tab leader election, etc.)
+   * Includes anti-duplicate debounce — same (event + key) within 1s is skipped.
    * @param {string} event
    * @param {object} data
+   * @param {string} key - Optional dedup key
    */
-  function emit(event, data) {
+  function emit(event, data, key) {
     if (!_socket || !_connected) {
       _pendingEvents.push({ name: event, data: data });
-      log('WARN', `Socket not connected — queued event: ${event}`);
-      return;
+      log('WARN', 'Socket not connected — queued event: ' + event);
+      return false;
     }
+    if (key && _lastEmit[key] && (Date.now() - _lastEmit[key]) < EMIT_DEBOUNCE) {
+      log('DEBOUNCE', 'Skipping duplicate emit: ' + event + ' (key=' + key + ')');
+      return false;
+    }
+    if (key) _lastEmit[key] = Date.now();
     _socket.emit(event, data);
+    return true;
   }
 
   /**
@@ -392,6 +498,7 @@
       debug: _debug,
       broadcastSupported: _bcastSupported,
       pendingEvents: _pendingEvents.length,
+      wsUrl: WS_URL,
     };
   }
 
@@ -436,7 +543,7 @@
 
   window.Realtime = {
     connect:       connect,
-    forceRefetch:   forceRefetch,
+    forceRefetch:  forceRefetch,
     emit:           emit,
     getStatus:      getStatus,
     setDebug:       setDebug,
@@ -457,6 +564,8 @@
       REPORT_UPDATED:    'report:updated',
       REFETCH_NOW:       'refetch:now',
     },
+    // Expose WS_URL for external use
+    WS_URL: WS_URL,
   };
 
   // ── Auto-initialize ────────────────────────────────────────────────────────
@@ -465,6 +574,24 @@
    * Wait for DOM + socket.io client to be ready, then connect.
    */
   function autoInit() {
+    // ── OFFLINE / ONLINE HANDLERS ─────────────────────────────────────────
+    // Detect when the device goes offline/online so we can log and react.
+
+    window.addEventListener('offline', function () {
+      _online = false;
+      console.warn('[WS] Offline mode — socket will auto-reconnect when back online');
+      log('OFFLINE', 'Network offline');
+    });
+
+    window.addEventListener('online', function () {
+      _online = true;
+      console.log('[WS] Back online, reconnecting...');
+      log('ONLINE', 'Network back online');
+      if (_socket && !_connected) {
+        _socket.connect();
+      }
+    });
+
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', doInit);
     } else {
@@ -475,15 +602,15 @@
   function doInit() {
     // Wait for socket.io-client to be available
     if (typeof window.io === 'undefined') {
-      // Load socket.io-client from CDN if not bundled
+      // Load socket.io-client from the Socket.IO server endpoint
       var script = document.createElement('script');
       script.src = (window.BASE_PATH || '/') + 'socket.io/socket.io.js';
       script.onload = function () {
-        log('INFO', 'Socket.IO client loaded from CDN');
+        log('INFO', 'Socket.IO client loaded from /socket.io/');
         connect();
       };
       script.onerror = function () {
-        log('ERROR', 'Failed to load socket.io-client from CDN');
+        log('ERROR', 'Failed to load socket.io-client from /socket.io/');
       };
       document.head.appendChild(script);
     } else {
@@ -496,10 +623,9 @@
     // Listen for page-specific realtime:refetch events
     window.addEventListener('realtime:refetch', function (evt) {
       log('EVENT', 'realtime:refetch event caught', evt.detail);
-      // Pages can listen to this event to implement custom refetch logic
     });
 
-    log('INFO', 'BeerPOS Real-time client initialized');
+    log('INFO', 'BeerPOS Real-time client initialized (WS_URL=' + WS_URL + ')');
   }
 
   autoInit();

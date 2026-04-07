@@ -452,6 +452,16 @@ self.addEventListener('fetch', event => {
 
   const parsed = new URL(url);
 
+  // ── CRITICAL: Never cache realtime-related files ────────────────────────────
+  // Socket.IO protocol files and realtime client MUST always be fresh.
+  // Caching stale versions causes connection failures and duplicate events.
+  if (parsed.pathname.startsWith('/socket.io/') ||
+      parsed.pathname === '/js/realtime.js' ||
+      parsed.pathname === '/js/socketSingleton.js') {
+    event.respondWith(fetch(new Request(event.request, { cache: 'no-store' })));
+    return;
+  }
+
   // Auth/login — always live, never cache
   if (parsed.pathname.startsWith('/api/auth') || parsed.pathname.startsWith('/auth')) {
     event.respondWith(fetch(new Request(event.request, { cache: 'no-store' })));

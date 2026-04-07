@@ -217,19 +217,51 @@ if (typeof document !== 'undefined') {
 }
 
 // ── Real-time WebSocket (Socket.IO) ────────────────────────────────────────────
-// Load realtime.js after layout.js initializes
+// Load realtime.js after layout.js initializes.
+// Uses MULTIPLE guards to prevent double-loading:
+//   1. window.__BEERPOS_REALTIME__ — set by realtime.js itself (guard inside IIFE)
+//   2. document.querySelector check — skip if already in DOM
+//   3. window.__BEERPOS_REALTIME_LOADING__ — skip if currently loading
 (function () {
   function loadRealtime() {
     // Skip login page — no data to sync
     if (window.location.pathname === '/login') return;
+
+    // GUARD 1: realtime.js already loaded (its own __BEERPOS_REALTIME__ flag)
+    if (window.__BEERPOS_REALTIME__) {
+      console.log('[Layout] realtime.js already loaded, skipping');
+      return;
+    }
+
+    // GUARD 2: Script tag already in DOM (handles static HTML pages)
+    if (document.querySelector('script[src="/js/realtime.js"]')) {
+      console.log('[Layout] realtime.js script tag already present, skipping');
+      return;
+    }
+
+    // GUARD 3: Currently being loaded (prevents race condition)
+    if (window.__BEERPOS_REALTIME_LOADING__) {
+      console.log('[Layout] realtime.js currently loading, skipping duplicate');
+      return;
+    }
+
+    window.__BEERPOS_REALTIME_LOADING__ = true;
+
     var script = document.createElement('script');
     script.src = '/js/realtime.js';
     script.defer = true;
-    // Only load once
-    if (!document.querySelector('script[src="/js/realtime.js"]')) {
-      document.head.appendChild(script);
-    }
+    script.onload = function () {
+      window.__BEERPOS_REALTIME_LOADING__ = false;
+      console.log('[Layout] realtime.js loaded successfully');
+    };
+    script.onerror = function () {
+      window.__BEERPOS_REALTIME_LOADING__ = false;
+      console.error('[Layout] Failed to load realtime.js');
+    };
+
+    document.head.appendChild(script);
   }
+
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', loadRealtime);
   } else {

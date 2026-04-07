@@ -27,7 +27,7 @@
   <div id="app"></div>
 
   <script src="/js/utils.js"></script>
-  <script src="/js/realtime.js"></script>
+  <!-- realtime.js auto-loaded by layout.js -->
   <script src="/js/purchases.js?v=20260416-realtime"></script>
 
   <script>
@@ -319,7 +319,6 @@
           document.head.appendChild(s3);
         };
       };
-    }, { timeout: 8000 });
     }, { timeout: 8000 });
 
     if ('serviceWorker' in navigator) {
