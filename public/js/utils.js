@@ -109,18 +109,14 @@ const Utils = {
    * Show loading overlay
    */
   showLoading: function(message) {
-    message = message || 'Đang xử lý...';
+    message = message || 'Dang xu ly...';
     let overlay = document.getElementById('loadingOverlay');
     if (!overlay) {
+      if (!document.body) return;
       overlay = document.createElement('div');
       overlay.id = 'loadingOverlay';
       overlay.className = 'fixed inset-0 bg-overlay flex items-center justify-center z-50';
-      overlay.innerHTML = `
-        <div class="card p-6 flex flex-col items-center shadow-xl">
-          <div class="spinner mb-4"></div>
-          <p class="text-main font-medium" id="loadingMessage">${message}</p>
-        </div>
-      `;
+      overlay.innerHTML = '<div class="card p-6 flex flex-col items-center shadow-xl"><div class="spinner mb-4"></div><p class="text-main font-medium" id="loadingMessage">' + message + '</p></div>';
       document.body.appendChild(overlay);
     }
     const msgEl = document.getElementById('loadingMessage');
@@ -144,15 +140,16 @@ const Utils = {
   showToast: function(message, type) {
     type = type || 'success';
     const bgColor = type === 'success' ? 'bg-success' : (type === 'error' ? 'bg-danger' : 'bg-info');
+    if (!document.body) return;
     const toast = document.createElement('div');
-    toast.className = `fixed top-4 right-4 ${bgColor} text-main px-6 py-3 rounded-lg shadow-lg z-50 transform transition-all duration-300 translate-x-full`;
+    toast.className = 'fixed top-4 right-4 ' + bgColor + ' text-main px-6 py-3 rounded-lg shadow-lg z-50 transform transition-all duration-300 translate-x-full';
     toast.textContent = message;
     document.body.appendChild(toast);
 
-    setTimeout(() => toast.classList.remove('translate-x-full'), 100);
-    setTimeout(() => {
+    setTimeout(function() { toast.classList.remove('translate-x-full'); }, 100);
+    setTimeout(function() {
       toast.classList.add('translate-x-full');
-      setTimeout(() => toast.remove(), 300);
+      setTimeout(function() { toast.remove(); }, 300);
     }, 3000);
   },
 

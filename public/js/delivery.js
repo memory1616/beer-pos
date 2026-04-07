@@ -176,7 +176,9 @@
       }
       withDistances.sort(function(a, b) { return a.distance - b.distance; });
       var container = document.getElementById('customersList');
-      for (var j = 0; j < withDistances.length; j++) { container.appendChild(withDistances[j].card); }
+      if (container) {
+        for (var j = 0; j < withDistances.length; j++) { container.appendChild(withDistances[j].card); }
+      }
       clearRouteLines();
       var totalDist = withDistances.reduce(function(s, d) { return s + d.distance; }, 0);
       alert('Đã tối ưu lộ trình! Tổng khoảng cách: ' + totalDist.toFixed(1) + ' km');

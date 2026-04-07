@@ -131,18 +131,20 @@ function initSalesPage(data) {
   _rebuildMaps();
 
   // Render customer select - include "Khach le" option
-  const customerSelect = document.getElementById('customerSelect');
-  customerSelect.innerHTML = '<option value="">📋 Khách lẻ (giá thường)</option>' +
-    customers.map(c => '<option value="' + c.id + '">' + c.name + ' (' + c.keg_balance + ' bình)</option>').join('');
+  var customerSelect = document.getElementById('customerSelect');
+  if (customerSelect) {
+    customerSelect.innerHTML = '<option value="">📋 Khách lẻ (giá thường)</option>' +
+      customers.map(function(c) { return '<option value="' + c.id + '">' + c.name + ' (' + c.keg_balance + ' bình)</option>'; }).join('');
+  }
 
   // Giá: ưu tiên priceMap cùng /sale/data, sau đó (nếu online) làm mới từ API
   updatePrices();
 
   // Load keg state for inventory validation
   fetch('/api/kegs/state')
-    .then(res => res.json())
-    .then(state => { kegState = state; })
-    .catch(() => {});
+    .then(function(res) { return res.json(); })
+    .then(function(state) { kegState = state || {}; })
+    .catch(function() { kegState = {}; });
 
   // Load history
   loadSalesHistory();
@@ -154,9 +156,14 @@ function initSalesPage(data) {
 let kegState = {};
 
 function renderSaleProducts() {
-  const container = document.getElementById('saleProducts');
-  const customerId = document.getElementById('customerSelect') ? document.getElementById('customerSelect').value : '';
-  const isKhachLe = !customerId;
+  var container = document.getElementById('saleProducts');
+  if (!container) {
+    console.warn('[UI] Element not found: #saleProducts — renderSaleProducts skipped');
+    return;
+  }
+  var customerIdEl = document.getElementById('customerSelect');
+  var customerId = customerIdEl ? customerIdEl.value : '';
+  var isKhachLe = !customerId;
 
   // Layout giống Nhập hàng: thẻ từng SP, tên + 1 dòng giá/tồn + ô Nhập SL
   container.innerHTML = products.map(p => {
@@ -544,38 +551,44 @@ function updatePrices() {
 }
 
 function updateCartFromInputs() {
-  const customerId = document.getElementById('customerSelect').value;
+  var customerIdEl = document.getElementById('customerSelect');
+  var customerId = customerIdEl ? customerIdEl.value : '';
   if (!customerId) {
     alert('Vui lòng chọn khách hàng trước');
-    document.getElementById('customerSelect').focus();
+    var selectEl = document.getElementById('customerSelect');
+    if (selectEl) selectEl.focus();
     return;
   }
 
   cart = [];
-  let total = 0;
+  var total = 0;
 
-  products.forEach(p => {
-    const input = document.getElementById('qty-' + p.id);
-    const qty = parseInt(input.value) || 0;
+  products.forEach(function(p) {
+    var input = document.getElementById('qty-' + p.id);
+    var qty = parseInt(input ? input.value : '0') || 0;
     if (qty > 0) {
-      const productId = p.id;
-      const stock = parseInt(input.max) || 0;
-      const costPrice = p.cost_price || 0;
-      const price = p._displayPrice != null ? Number(p._displayPrice) : effectiveSellPrice(p);
+      var productId = p.id;
+      var stock = input ? (parseInt(input.max) || 0) : 0;
+      var costPrice = p.cost_price || 0;
+      var price = p._displayPrice != null ? Number(p._displayPrice) : effectiveSellPrice(p);
 
-      if (qty > stock) {
+      if (qty > stock && stock > 0) {
         alert('Sản phẩm ' + p.name + ' không đủ tồn kho');
-        input.value = stock;
+        if (input) input.value = stock;
+        qty = stock;
       }
 
-      cart.push({ productId, quantity: qty, price, costPrice });
+      cart.push({ productId: productId, quantity: qty, price: price, costPrice: costPrice });
       total += price * qty;
     }
   });
 
-  const formatted = Format.number(total);
-  document.getElementById('totalAmount').innerHTML = '<span class="value">' + formatted + '</span><span class="unit"> đ</span>';
-  document.getElementById('sellBtn').disabled = cart.length === 0;
+  var totalEl = document.getElementById('totalAmount');
+  if (totalEl) {
+    totalEl.innerHTML = '<span class="value">' + Format.number(total) + '</span><span class="unit"> đ</span>';
+  }
+  var sellBtnEl = document.getElementById('sellBtn');
+  if (sellBtnEl) sellBtnEl.disabled = cart.length === 0;
 }
 
 async function submitSale() {
@@ -659,9 +672,10 @@ async function submitSale() {
 
       // Clear cart UI immediately
       saleData = {};
-      if (document.getElementById('customerSelect')) document.getElementById('customerSelect').value = '';
-      const _dK = document.getElementById('saleDeliverKegs');
-      const _rK = document.getElementById('saleReturnKegs');
+      var _cs1 = document.getElementById('customerSelect');
+      if (_cs1) _cs1.value = '';
+      var _dK = document.getElementById('saleDeliverKegs');
+      var _rK = document.getElementById('saleReturnKegs');
       if (_dK) _dK.value = 0;
       if (_rK) _rK.value = 0;
       _kegDeliverManual = false;
@@ -682,7 +696,8 @@ async function submitSale() {
 
       // Restore cart
       saleData = snapshotCart;
-      if (document.getElementById('customerSelect')) document.getElementById('customerSelect').value = snapshotCustomer;
+      var _cs2 = document.getElementById('customerSelect');
+      if (_cs2) _cs2.value = snapshotCustomer || '';
       const _dK2 = document.getElementById('saleDeliverKegs');
       const _rK2 = document.getElementById('saleReturnKegs');
       if (_dK2) _dK2.value = payload.deliverKegs;
@@ -756,8 +771,11 @@ async function submitSale() {
 }
 
 function closeInvoice() {
-  document.getElementById('invoiceModal').classList.add('hidden');
-  document.getElementById('invoiceModal').classList.remove('flex');
+  var modal = document.getElementById('invoiceModal');
+  if (modal) {
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }
   _openInvoiceSaleId = null;
 }
 
@@ -797,14 +815,14 @@ function sumShellUnitsFromSaleItems(items) {
 async function openKegModal(saleId) {
   _invoiceSaleId = saleId;
 
-  const res = await fetch('/api/sales/' + saleId);
-  const sale = await res.json();
+  var res = await fetch('/api/sales/' + saleId);
+  var sale = await res.json();
 
   _invoiceCustomerId = sale.customer_id;
 
   // Lấy balance THỰC TẾ từ DB (không dùng customers array — có thể cũ)
-  const custRes = await fetch('/api/customers/' + sale.customer_id);
-  const custData = await custRes.json();
+  var custRes = await fetch('/api/customers/' + sale.customer_id);
+  var custData = await custRes.json();
   _invoiceCustBalance = custData.keg_balance || 0;
 
   // Tổng bia bom (không pet) — gợi ý giao vỏ
@@ -812,58 +830,71 @@ async function openKegModal(saleId) {
 
   // ─── Mode detection ───────────────────────────────────────────
   // invoiceShell = snapshot đã lưu trên đơn (hoặc null nếu chưa từng ghi)
-  const savedGiao = sale.deliver_kegs || 0;
-  const savedThu  = sale.return_kegs  || 0;
-  const isEditMode = savedGiao > 0 || savedThu > 0;
+  var savedGiao = sale.deliver_kegs || 0;
+  var savedThu  = sale.return_kegs  || 0;
+  var isEditMode = savedGiao > 0 || savedThu > 0;
   _invoiceShell = isEditMode
     ? { giao: savedGiao, thu: savedThu }
     : null;
 
   // ─── Fill form ─────────────────────────────────────────────────
   // Create mode → 0; Edit mode → pre-fill với giá trị đã lưu
-  const formGiao = isEditMode ? savedGiao : _invoiceLineQty;
-  const formThu  = isEditMode ? savedThu  : 0;
+  var formGiao = isEditMode ? savedGiao : _invoiceLineQty;
+  var formThu  = isEditMode ? savedThu  : 0;
 
-  document.getElementById('kegBeerQuantity').textContent = _invoiceLineQty;
-  document.getElementById('kegDeliver').value = formGiao;
-  document.getElementById('kegReturn').value  = formThu;
+  var kegBeerQuantityEl = document.getElementById('kegBeerQuantity');
+  var kegDeliverEl = document.getElementById('kegDeliver');
+  var kegReturnEl = document.getElementById('kegReturn');
+  if (kegBeerQuantityEl) kegBeerQuantityEl.textContent = _invoiceLineQty;
+  if (kegDeliverEl) kegDeliverEl.value = formGiao;
+  if (kegReturnEl) kegReturnEl.value = formThu;
 
   // ─── UI: badge, title, button ─────────────────────────────────
-  const badgeEl = document.getElementById('kegModalBadge');
-  const titleEl = document.getElementById('kegModalTitle');
-  const saveBtnText = document.getElementById('kegSaveBtnText');
+  var badgeEl = document.getElementById('kegModalBadge');
+  var titleEl = document.getElementById('kegModalTitle');
+  var saveBtnText = document.getElementById('kegSaveBtnText');
+  var kegBadgeGiaoEl = document.getElementById('kegBadgeGiao');
+  var kegBadgeThuEl = document.getElementById('kegBadgeThu');
 
   if (isEditMode) {
-    badgeEl.classList.remove('hidden');
-    document.getElementById('kegBadgeGiao').textContent = savedGiao;
-    document.getElementById('kegBadgeThu').textContent  = savedThu;
-    titleEl.textContent = '✏️ Chỉnh sửa vỏ bình';
-    saveBtnText.textContent = 'Cập nhật';
+    if (badgeEl) badgeEl.classList.remove('hidden');
+    if (kegBadgeGiaoEl) kegBadgeGiaoEl.textContent = savedGiao;
+    if (kegBadgeThuEl) kegBadgeThuEl.textContent = savedThu;
+    if (titleEl) titleEl.textContent = '✏️ Chỉnh sửa vỏ bình';
+    if (saveBtnText) saveBtnText.textContent = 'Cập nhật';
   } else {
-    badgeEl.classList.add('hidden');
-    titleEl.textContent = '📦 Cập nhật vỏ bình';
-    saveBtnText.textContent = 'Lưu';
+    if (badgeEl) badgeEl.classList.add('hidden');
+    if (titleEl) titleEl.textContent = '📦 Cập nhật vỏ bình';
+    if (saveBtnText) saveBtnText.textContent = 'Lưu';
   }
 
   // Clear old errors/warnings
-  document.getElementById('kegModalError').classList.add('hidden');
-  document.getElementById('kegModalWarning').classList.add('hidden');
+  var kegModalErrorEl = document.getElementById('kegModalError');
+  var kegModalWarningEl = document.getElementById('kegModalWarning');
+  if (kegModalErrorEl) kegModalErrorEl.classList.add('hidden');
+  if (kegModalWarningEl) kegModalWarningEl.classList.add('hidden');
 
   updateKegModalPreview();
 
-  document.getElementById('kegModal').classList.remove('hidden');
-  document.getElementById('kegModal').classList.add('flex');
+  var modal = document.getElementById('kegModal');
+  if (modal) {
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+  }
 
   // Auto-focus into "Giao vỏ" input
-  setTimeout(() => {
-    const el = document.getElementById('kegDeliver');
+  setTimeout(function() {
+    var el = document.getElementById('kegDeliver');
     if (el) { el.focus(); el.select(); }
   }, 100);
 }
 
 function closeKegModal() {
-  document.getElementById('kegModal').classList.add('hidden');
-  document.getElementById('kegModal').classList.remove('flex');
+  var modal = document.getElementById('kegModal');
+  if (modal) {
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }
   _invoiceSaleId = null;
   _invoiceCustomerId = null;
   _invoiceShell = null;
@@ -876,62 +907,90 @@ function openReplacementModal() {
     return;
   }
 
-  const customerSelect = document.getElementById('replacementCustomer');
-  customerSelect.innerHTML = '<option value="">-- Chọn khách hàng --</option>' +
-    customers.map(c => '<option value="' + c.id + '">' + c.name + '</option>').join('');
+  var customerSelect = document.getElementById('replacementCustomer');
+  if (customerSelect) {
+    customerSelect.innerHTML = '<option value="">-- Chọn khách hàng --</option>' +
+      customers.map(function(c) { return '<option value="' + c.id + '">' + c.name + '</option>'; }).join('');
+  }
 
-  document.getElementById('replacementProduct').innerHTML = '<option value="">-- Chọn sản phẩm --</option>';
-  document.getElementById('replacementQty').value = 1;
-  document.getElementById('giftKegs').checked = false;
-  document.getElementById('giftGuestName').value = '';
+  var replacementProduct = document.getElementById('replacementProduct');
+  var replacementQty = document.getElementById('replacementQty');
+  var giftKegs = document.getElementById('giftKegs');
+  var giftGuestName = document.getElementById('giftGuestName');
+  if (replacementProduct) replacementProduct.innerHTML = '<option value="">-- Chọn sản phẩm --</option>';
+  if (replacementQty) replacementQty.value = 1;
+  if (giftKegs) giftKegs.checked = false;
+  if (giftGuestName) giftGuestName.value = '';
   toggleGiftMode();
 
-  document.getElementById('replacementModal').classList.remove('hidden');
-  document.getElementById('replacementModal').classList.add('flex');
+  var modal = document.getElementById('replacementModal');
+  if (modal) {
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+  }
 }
 
 function toggleGiftMode() {
-  const isGift = document.getElementById('giftKegs').checked;
-  document.getElementById('giftGuestRow').classList.toggle('hidden', !isGift);
-  document.getElementById('replacementCustomerRow').classList.toggle('hidden', isGift);
+  var isGiftEl = document.getElementById('giftKegs');
+  var isGift = isGiftEl ? isGiftEl.checked : false;
+  var giftGuestRow = document.getElementById('giftGuestRow');
+  var replacementCustomerRow = document.getElementById('replacementCustomerRow');
+  if (giftGuestRow) giftGuestRow.classList.toggle('hidden', !isGift);
+  if (replacementCustomerRow) replacementCustomerRow.classList.toggle('hidden', isGift);
   // Clear customer selection when switching modes
   if (isGift) {
-    document.getElementById('replacementCustomer').value = '';
+    var replacementCustomerEl = document.getElementById('replacementCustomer');
+    if (replacementCustomerEl) replacementCustomerEl.value = '';
     // Load products for guest (no customer-specific pricing)
     loadReplacementProductsForGuest();
   }
 }
 
 function closeReplacementModal() {
-  document.getElementById('replacementModal').classList.add('hidden');
-  document.getElementById('replacementModal').classList.remove('flex');
+  var modal = document.getElementById('replacementModal');
+  if (modal) {
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }
 }
 
 function loadReplacementProducts() {
-  const customerId = document.getElementById('replacementCustomer').value;
-  const productSelect = document.getElementById('replacementProduct');
+  var customerIdEl = document.getElementById('replacementCustomer');
+  var customerId = customerIdEl ? customerIdEl.value : '';
+  var productSelect = document.getElementById('replacementProduct');
 
   if (!customerId) {
-    productSelect.innerHTML = '<option value="">-- Chọn sản phẩm --</option>';
+    if (productSelect) productSelect.innerHTML = '<option value="">-- Chọn sản phẩm --</option>';
     return;
   }
-  productSelect.innerHTML = '<option value="">-- Chọn sản phẩm --</option>' +
-    products.map(p => '<option value="' + p.id + '">' + p.name + ' (Tồn: ' + p.stock + ')</option>').join('');
+  if (productSelect) {
+    productSelect.innerHTML = '<option value="">-- Chọn sản phẩm --</option>' +
+      products.map(function(p) { return '<option value="' + p.id + '">' + p.name + ' (Tồn: ' + p.stock + ')</option>'; }).join('');
+  }
 }
 
 function loadReplacementProductsForGuest() {
-  const productSelect = document.getElementById('replacementProduct');
-  productSelect.innerHTML = '<option value="">-- Chọn sản phẩm --</option>' +
-    products.map(p => '<option value="' + p.id + '">' + p.name + ' (Tồn: ' + p.stock + ')</option>').join('');
+  var productSelect = document.getElementById('replacementProduct');
+  if (productSelect) {
+    productSelect.innerHTML = '<option value="">-- Chọn sản phẩm --</option>' +
+      products.map(function(p) { return '<option value="' + p.id + '">' + p.name + ' (Tồn: ' + p.stock + ')</option>'; }).join('');
+  }
 }
 
 async function submitReplacement() {
-  const customerId = document.getElementById('replacementCustomer').value;
-  const productId = document.getElementById('replacementProduct').value;
-  const quantity = parseInt(document.getElementById('replacementQty').value) || 0;
-  const reason = document.getElementById('replacementReason').value;
-  const isGift = document.getElementById('giftKegs').checked;
-  const customerName = isGift ? (document.getElementById('giftGuestName').value.trim() || 'Khách tặng') : null;
+  var customerIdEl = document.getElementById('replacementCustomer');
+  var productIdEl = document.getElementById('replacementProduct');
+  var quantityEl = document.getElementById('replacementQty');
+  var reasonEl = document.getElementById('replacementReason');
+  var giftKegsEl = document.getElementById('giftKegs');
+  var giftGuestNameEl = document.getElementById('giftGuestName');
+
+  var customerId = customerIdEl ? customerIdEl.value : '';
+  var productId = productIdEl ? productIdEl.value : '';
+  var quantity = parseInt(quantityEl ? quantityEl.value : '0') || 0;
+  var reason = reasonEl ? reasonEl.value : '';
+  var isGift = giftKegsEl ? giftKegsEl.checked : false;
+  var customerName = isGift ? (giftGuestNameEl ? giftGuestNameEl.value.trim() : '') || 'Khách tặng' : null;
 
   if (!productId || quantity <= 0) {
     alert('Vui lòng chọn sản phẩm và số lượng');
@@ -942,8 +1001,8 @@ async function submitReplacement() {
     return;
   }
 
-  const tempId = 'tmp_rep_' + Date.now();
-  const btn = document.getElementById('submitReplacementBtn');
+  var tempId = 'tmp_rep_' + Date.now();
+  var btn = document.getElementById('submitReplacementBtn');
 
   optimisticMutate({
     request: function() {
@@ -1014,34 +1073,39 @@ function safeNumber(val) {
 
 // ── Preview update ─────────────────────────────────────────────────────────
 function updateKegModalPreview() {
-  const formGiao = safeNumber(document.getElementById('kegDeliver').value);
-  const formThu  = safeNumber(document.getElementById('kegReturn').value);
+  var kegDeliverEl = document.getElementById('kegDeliver');
+  var kegReturnEl = document.getElementById('kegReturn');
+  var formGiao = safeNumber(kegDeliverEl ? kegDeliverEl.value : '');
+  var formThu  = safeNumber(kegReturnEl ? kegReturnEl.value : '');
 
   // Delta so với snapshot đã lưu (hoặc 0 nếu create mode)
-  const old = _invoiceShell || { giao: 0, thu: 0 };
-  const deltaGiao = formGiao - old.giao;
-  const deltaThu  = formThu  - old.thu;
-  const newBalance = _invoiceCustBalance + deltaGiao - deltaThu;
+  var old = _invoiceShell || { giao: 0, thu: 0 };
+  var deltaGiao = formGiao - old.giao;
+  var deltaThu  = formThu  - old.thu;
+  var newBalance = _invoiceCustBalance + deltaGiao - deltaThu;
 
   // Show current inputs — +xanh, -đỏ
-  document.getElementById('kegDeliverPreview').textContent = '+' + formGiao;
-  document.getElementById('kegReturnPreview').textContent  = '-' + formThu;
-  document.getElementById('kegCurrentBalance').textContent = _invoiceCustBalance;
-  document.getElementById('kegNewBalance').textContent     = newBalance;
+  var kegDeliverPreviewEl = document.getElementById('kegDeliverPreview');
+  var kegReturnPreviewEl = document.getElementById('kegReturnPreview');
+  var kegCurrentBalanceEl = document.getElementById('kegCurrentBalance');
+  var kegNewBalanceEl = document.getElementById('kegNewBalance');
+  if (kegDeliverPreviewEl) kegDeliverPreviewEl.textContent = '+' + formGiao;
+  if (kegReturnPreviewEl) kegReturnPreviewEl.textContent = '-' + formThu;
+  if (kegCurrentBalanceEl) kegCurrentBalanceEl.textContent = _invoiceCustBalance;
+  if (kegNewBalanceEl) kegNewBalanceEl.textContent = newBalance;
 
   // Color: voSau >= 0 → xanh, < 0 → đỏ
-  const newBalanceEl = document.getElementById('kegNewBalance');
-  if (newBalanceEl) {
-    newBalanceEl.className = 'font-bold ' + (newBalance >= 0 ? 'text-success' : 'text-danger');
+  if (kegNewBalanceEl) {
+    kegNewBalanceEl.className = 'font-bold ' + (newBalance >= 0 ? 'text-success' : 'text-danger');
   }
   // Color: deliver preview — xanh nếu > 0
-  const deliverPreviewEl = document.getElementById('kegDeliverPreview');
-  if (deliverPreviewEl) {
-    deliverPreviewEl.className = 'font-bold ' + (formGiao > 0 ? 'text-success' : 'text-muted');
+  if (kegDeliverPreviewEl) {
+    kegDeliverPreviewEl.className = 'font-bold ' + (formGiao > 0 ? 'text-success' : 'text-muted');
   }
   // Color: return preview — đỏ nếu > 0
-  const returnPreviewEl = document.getElementById('kegReturnPreview');
-  if (returnPreviewEl) {
+  if (kegReturnPreviewEl) {
+    kegReturnPreviewEl.className = 'font-bold ' + (formThu > 0 ? 'text-danger' : 'text-muted');
+  }
     returnPreviewEl.className = 'font-bold ' + (formThu > 0 ? 'text-danger' : 'text-muted');
   }
 
@@ -1271,17 +1335,21 @@ async function openCollectKegModal(saleId) {
   var effectiveDeliver = Math.max(recordedDeliver, lineShellTotal);
   var defaultReturn = Math.max(0, effectiveDeliver - recordedReturn);
 
-  document.getElementById('collectKegDeliver').value = effectiveDeliver;
-  document.getElementById('collectKegReturn').value = defaultReturn;
+  var collectKegDeliverEl = document.getElementById('collectKegDeliver');
+  var collectKegReturnEl = document.getElementById('collectKegReturn');
+  var collectKegCurrentBalanceEl = document.getElementById('collectKegCurrentBalance');
+  var collectKegWarningEl = document.getElementById('collectKegWarning');
+  var collectKegModalEl = document.getElementById('collectKegModal');
+  if (collectKegDeliverEl) collectKegDeliverEl.value = effectiveDeliver;
+  if (collectKegReturnEl) collectKegReturnEl.value = defaultReturn;
 
-  document.getElementById('collectKegCurrentBalance').textContent =
-    `Hiện tại: ${_collectKegBalance} vỏ`;
+  if (collectKegCurrentBalanceEl) collectKegCurrentBalanceEl.textContent =
+    'Hien tai: ' + _collectKegBalance + ' vo';
 
   // Clear old warning
-  document.getElementById('collectKegWarning').classList.add('hidden');
+  if (collectKegWarningEl) collectKegWarningEl.classList.add('hidden');
 
-  document.getElementById('collectKegModal').classList.remove('hidden');
-  document.getElementById('collectKegModal').classList.add('flex');
+  if (collectKegModalEl) { collectKegModalEl.classList.remove('hidden'); collectKegModalEl.classList.add('flex'); }
   updateCollectKegPreview();
 }
 
@@ -1296,27 +1364,31 @@ function closeCollectKegModal() {
 }
 
 function updateCollectKegPreview() {
-  const deliver = safeNumber(document.getElementById('collectKegDeliver').value);
-  const returned = safeNumber(document.getElementById('collectKegReturn').value);
+  var collectKegDeliverEl = document.getElementById('collectKegDeliver');
+  var collectKegReturnEl = document.getElementById('collectKegReturn');
+  var collectKegDeliverPreviewEl = document.getElementById('collectKegDeliverPreview');
+  var collectKegReturnPreviewEl = document.getElementById('collectKegReturnPreview');
+  var collectKegCurrentBalanceEl = document.getElementById('collectKegCurrentBalance');
+  var collectKegRemainingEl = document.getElementById('collectKegRemaining');
+
+  var deliver = safeNumber(collectKegDeliverEl ? collectKegDeliverEl.value : '');
+  var returned = safeNumber(collectKegReturnEl ? collectKegReturnEl.value : '');
 
   // Rule: _collectKegBalance đã bao gồm số đã giao trước.
   // voSau = voHienTai + (newDeliver - prevDeliver) - (newReturn - prevReturn)
-  const deltaDeliver = deliver - _collectKegPrevDeliver;
-  const deltaReturn  = returned - _collectKegPrevReturn;
-  const newBalance = _collectKegBalance + deltaDeliver - deltaReturn;
+  var deltaDeliver = deliver - _collectKegPrevDeliver;
+  var deltaReturn  = returned - _collectKegPrevReturn;
+  var newBalance = _collectKegBalance + deltaDeliver - deltaReturn;
 
-  document.getElementById('collectKegDeliverPreview').textContent = '+' + deliver;
-  document.getElementById('collectKegReturnPreview').textContent = '-' + returned;
-  document.getElementById('collectKegCurrentBalance').textContent = _collectKegBalance + ' vỏ';
-  document.getElementById('collectKegRemaining').textContent = newBalance;
+  if (collectKegDeliverPreviewEl) collectKegDeliverPreviewEl.textContent = '+' + deliver;
+  if (collectKegReturnPreviewEl) collectKegReturnPreviewEl.textContent = '-' + returned;
+  if (collectKegCurrentBalanceEl) collectKegCurrentBalanceEl.textContent = _collectKegBalance + ' vo';
+  if (collectKegRemainingEl) collectKegRemainingEl.textContent = newBalance;
 
   // Color: voSau xanh nếu >=0, đỏ nếu <0; +xanh, -đỏ
-  const remainEl = document.getElementById('collectKegRemaining');
-  if (remainEl) remainEl.className = 'font-bold ' + (newBalance >= 0 ? 'text-success' : 'text-danger');
-  const delEl = document.getElementById('collectKegDeliverPreview');
-  if (delEl) delEl.className = 'font-bold ' + (deliver > 0 ? 'text-success' : 'text-muted');
-  const retEl = document.getElementById('collectKegReturnPreview');
-  if (retEl) retEl.className = 'font-bold ' + (returned > 0 ? 'text-danger' : 'text-muted');
+  if (collectKegRemainingEl) collectKegRemainingEl.className = 'font-bold ' + (newBalance >= 0 ? 'text-success' : 'text-danger');
+  if (collectKegDeliverPreviewEl) collectKegDeliverPreviewEl.className = 'font-bold ' + (deliver > 0 ? 'text-success' : 'text-muted');
+  if (collectKegReturnPreviewEl) collectKegReturnPreviewEl.className = 'font-bold ' + (returned > 0 ? 'text-danger' : 'text-muted');
 
   // Validation: cannot return more than customer holds.
   // customer holds = _collectKegBalance + deltaDeliver
@@ -1915,10 +1987,10 @@ async function submitPartialReturn(saleId) {
 }
 
 async function editSale(id) {
-  const res = await fetch('/api/sales/' + id);
-  const sale = await res.json();
+  var res = await fetch('/api/sales/' + id);
+  var sale = await res.json();
 
-  const repModal = document.getElementById('replacementModal');
+  var repModal = document.getElementById('replacementModal');
   if (repModal && repModal.classList.contains('flex')) {
     repModal.classList.add('hidden');
     repModal.classList.remove('flex');
@@ -1927,20 +1999,21 @@ async function editSale(id) {
   editingSaleId = id;
   syncSaleEditAuxSheet();
 
-  document.getElementById('customerSelect').value = sale.customer_id || '';
+  var customerSelectEl = document.getElementById('customerSelect');
+  if (customerSelectEl) customerSelectEl.value = sale.customer_id || '';
 
   if (sale.customer_id) {
     applyResolvedPrices(sale.customer_id, null);
     try {
-      const pres = await fetch('/api/products/prices?customerId=' + encodeURIComponent(sale.customer_id));
+      var pres = await fetch('/api/products/prices?customerId=' + encodeURIComponent(sale.customer_id));
       if (pres.ok) {
-        const prices = await pres.json();
+        var prices = await pres.json();
         if (Array.isArray(prices)) {
           applyResolvedPrices(sale.customer_id, prices);
         }
       }
     } catch (e) {
-      console.error('editSale prices:', e);
+      console.error('[Sales] editSale prices:', e);
     }
   } else {
     applyResolvedPrices('', null);
@@ -1950,35 +2023,29 @@ async function editSale(id) {
   updateKegSaleSection(sale.customer_id || '');
   updateSaleKegPreview();
   saleData = {};
-  products.forEach(p => {
-    const qtyInput = document.getElementById('qty-' + p.id);
-    const priceInput = document.getElementById('price-' + p.id);
-    if (qtyInput) {
-      qtyInput.value = '';
-    }
+  products.forEach(function(p) {
+    var qtyInput = document.getElementById('qty-' + p.id);
+    var priceInput = document.getElementById('price-' + p.id);
+    if (qtyInput) qtyInput.value = '';
     if (priceInput) {
       priceInput.value = p._displayPrice != null ? Number(p._displayPrice) : effectiveSellPrice(p);
     }
   });
 
   // Pre-fill keg inputs from sale (nếu trang có block vỏ bình)
-  const _edD = document.getElementById('saleDeliverKegs');
-  const _edR = document.getElementById('saleReturnKegs');
+  var _edD = document.getElementById('saleDeliverKegs');
+  var _edR = document.getElementById('saleReturnKegs');
   if (_edD) _edD.value = sale.deliver_kegs || 0;
   if (_edR) _edR.value = sale.return_kegs || 0;
   _kegDeliverManual = true;
   _kegReturnManual = true;
 
   // Set quantities from sale
-  sale.items.forEach(item => {
-    const qtyInput = document.getElementById('qty-' + item.product_id);
-    const priceInput = document.getElementById('price-' + item.product_id);
-    if (qtyInput) {
-      qtyInput.value = item.quantity;
-    }
-    if (priceInput) {
-      priceInput.value = item.price;
-    }
+  (sale.items || []).forEach(function(item) {
+    var qtyInput = document.getElementById('qty-' + item.product_id);
+    var priceInput = document.getElementById('price-' + item.product_id);
+    if (qtyInput) qtyInput.value = item.quantity;
+    if (priceInput) priceInput.value = item.price;
     saleData[item.product_id] = {
       quantity: item.quantity,
       price: item.price
@@ -1995,9 +2062,10 @@ function cancelEdit() {
 
   syncSaleEditAuxSheet();
 
-  document.getElementById('customerSelect').value = '';
-  const _cxD = document.getElementById('saleDeliverKegs');
-  const _cxR = document.getElementById('saleReturnKegs');
+  var customerSelectEl = document.getElementById('customerSelect');
+  if (customerSelectEl) customerSelectEl.value = '';
+  var _cxD = document.getElementById('saleDeliverKegs');
+  var _cxR = document.getElementById('saleReturnKegs');
   if (_cxD) _cxD.value = 0;
   if (_cxR) _cxR.value = 0;
 

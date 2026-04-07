@@ -218,31 +218,38 @@ function switchMonth(dir) {
 
 function showAddExpense() {
   _newCatAfterAdd = null;
-  document.getElementById('modalTitle').textContent = 'Thêm chi phí';
-  document.getElementById('expenseId').value = '';
-  document.getElementById('expenseForm').reset();
-  document.getElementById('expenseAmount').value = '';
-  rebuildExpenseCategorySelect();
+  var modalTitleEl = document.getElementById('modalTitle');
+  var expenseIdEl = document.getElementById('expenseId');
+  var expenseFormEl = document.getElementById('expenseForm');
+  var expenseAmountEl = document.getElementById('expenseAmount');
   var m = document.getElementById('expenseModal');
-  m.classList.remove('hidden');
-  m.classList.add('flex');
+
+  if (modalTitleEl) modalTitleEl.textContent = 'Thêm chi phí';
+  if (expenseIdEl) expenseIdEl.value = '';
+  if (expenseFormEl) expenseFormEl.reset();
+  if (expenseAmountEl) expenseAmountEl.value = '';
+  rebuildExpenseCategorySelect();
+  if (m) { m.classList.remove('hidden'); m.classList.add('flex'); }
 }
 
 function editExpense(id) {
   _newCatAfterAdd = null;
   var exp = getExpensesState().find(function(e) { return String(e.id) === String(id); });
   if (!exp) return;
-  document.getElementById('modalTitle').textContent = 'Sửa chi phí';
-  document.getElementById('expenseId').value = id;
-  document.getElementById('expenseAmount').value = formatExpenseAmountField(
-    String(Math.round(Number(exp.amount) || 0))
-  );
-  rebuildExpenseCategorySelect();
-  document.getElementById('expenseCategory').value = exp.category || 'other';
-  document.getElementById('expenseNote').value = exp.note || '';
+  var modalTitleEl = document.getElementById('modalTitle');
+  var expenseIdEl = document.getElementById('expenseId');
+  var expenseAmountEl = document.getElementById('expenseAmount');
+  var expenseCategoryEl = document.getElementById('expenseCategory');
+  var expenseNoteEl = document.getElementById('expenseNote');
   var m = document.getElementById('expenseModal');
-  m.classList.remove('hidden');
-  m.classList.add('flex');
+
+  if (modalTitleEl) modalTitleEl.textContent = 'Sửa chi phí';
+  if (expenseIdEl) expenseIdEl.value = id;
+  if (expenseAmountEl) expenseAmountEl.value = formatExpenseAmountField(String(Math.round(Number(exp.amount) || 0)));
+  rebuildExpenseCategorySelect();
+  if (expenseCategoryEl) expenseCategoryEl.value = exp.category || 'other';
+  if (expenseNoteEl) expenseNoteEl.value = exp.note || '';
+  if (m) { m.classList.remove('hidden'); m.classList.add('flex'); }
 }
 
 function hideExpenseModal() {
@@ -252,7 +259,10 @@ function hideExpenseModal() {
 
 function saveExpense(e) {
   e.preventDefault();
-  var id = document.getElementById('expenseId').value;
+  var expenseIdEl = document.getElementById('expenseId');
+  var expenseCategoryEl = document.getElementById('expenseCategory');
+  var expenseNoteEl = document.getElementById('expenseNote');
+  var id = expenseIdEl ? expenseIdEl.value : '';
   var amt = getParsedExpenseAmount();
   if (!amt || amt <= 0) {
     alert('Vui lòng nhập số tiền lớn hơn 0.');
@@ -260,10 +270,10 @@ function saveExpense(e) {
   }
   var data = {
     amount: amt,
-    category: document.getElementById('expenseCategory').value,
-    note: document.getElementById('expenseNote').value,
-    year: _currentMonth.split('-')[0],
-    month: _currentMonth.split('-')[1]
+    category: expenseCategoryEl ? expenseCategoryEl.value : 'other',
+    note: expenseNoteEl ? expenseNoteEl.value : '',
+    year: (_currentMonth.split('-')[0] || ''),
+    month: (_currentMonth.split('-')[1] || '')
   };
   var method = id ? 'PUT' : 'POST';
   var url = id ? '/api/expenses/' + id : '/api/expenses';
@@ -454,7 +464,8 @@ function renderEmojiPicker() {
 }
 
 function selectEmoji(emoji) {
-  document.getElementById('categoryIcon').value = emoji;
+  var iconEl = document.getElementById('categoryIcon');
+  if (iconEl) iconEl.value = emoji;
   var btns = document.querySelectorAll('.emoji-btn');
   for (var i = 0; i < btns.length; i++) {
     btns[i].classList.toggle('ring-2', btns[i].getAttribute('data-emoji') === emoji);
@@ -468,14 +479,16 @@ function showAddCategoryModal(fromSelect) {
   if (fromSelect) {
     _newCatAfterAdd = null; // will be set after creation
   }
-  document.getElementById('categoryName').value = '';
-  document.getElementById('categoryIcon').value = '📋';
+  var categoryNameEl = document.getElementById('categoryName');
+  var categoryIconEl = document.getElementById('categoryIcon');
+  var m = document.getElementById('categoryModal');
+  if (categoryNameEl) categoryNameEl.value = '';
+  if (categoryIconEl) categoryIconEl.value = '📋';
   selectEmoji('📋');
   renderEmojiPicker();
-  var m = document.getElementById('categoryModal');
-  m.classList.remove('hidden');
-  m.classList.add('flex');
-  document.getElementById('categoryName').focus();
+  if (m) { m.classList.remove('hidden'); m.classList.add('flex'); }
+  var nameFocusEl = document.getElementById('categoryName');
+  if (nameFocusEl) nameFocusEl.focus();
 }
 
 function hideCategoryModal() {

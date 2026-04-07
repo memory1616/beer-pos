@@ -46,7 +46,13 @@ function updatePeriodLabel() {
 }
 
 // Alias for backward compatibility with cached HTML
-function initDateInputs() { initFilter(); }
+function initDateInputs() {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initFilter);
+  } else {
+    initFilter();
+  }
+}
 function switchQuickFilter(type) { switchFilterType(type); }
 
 function initFilter() {
@@ -152,11 +158,21 @@ function applyYear() {
 }
 
 // Close dropdowns on outside click
-document.addEventListener('click', function(e) {
-  if (!e.target.closest('.filter-tab-wrap')) {
-    closeAllDropdowns();
-  }
-});
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('.filter-tab-wrap')) {
+        closeAllDropdowns();
+      }
+    });
+  });
+} else {
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.filter-tab-wrap')) {
+      closeAllDropdowns();
+    }
+  });
+}
 
 function formatVND(amount) {
   if (amount == null || amount === '') return '0 đ';

@@ -54,36 +54,42 @@ function updateCart() {
 }
 
 function renderCart() {
-  const cartEl = document.getElementById('cartItems');
-  const totalEl = document.getElementById('cartTotal');
-  const submitBtn = document.getElementById('submitBtn');
-  
-  if (cart.length === 0) {
-    cartEl.innerHTML = '<div class="text-muted text-sm">Chưa chọn sản phẩm nào</div>';
-    totalEl.textContent = '0 đ';
-    submitBtn.disabled = true;
+  var cartEl = document.getElementById('cartItems');
+  var totalEl = document.getElementById('cartTotal');
+  var submitBtn = document.getElementById('submitBtn');
+
+  if (!cartEl || !totalEl) {
+    console.warn('[UI] Element not found: #cartItems or #cartTotal');
     return;
   }
-  
-  let total = 0;
-  cartEl.innerHTML = cart.map(item => {
-    const itemTotal = item.quantity * item.unit_price;
+
+  if (cart.length === 0) {
+    cartEl.innerHTML = '<div class="text-muted text-sm">Chưa chọn sản phẩm nào</div>';
+    totalEl.innerHTML = '<span class="value">0</span><span class="unit"> đ</span>';
+    if (submitBtn) submitBtn.disabled = true;
+    return;
+  }
+
+  var total = 0;
+  cartEl.innerHTML = cart.map(function(item) {
+    var itemTotal = item.quantity * item.unit_price;
     total += itemTotal;
     return '<div class="flex justify-between text-sm"><span>' + item.quantity + 'x ' + item.name + '</span><span class="font-medium">' + formatVND(itemTotal) + '</span></div>';
   }).join('');
-  
+
   totalEl.innerHTML = '<span class="value">' + formatVND(total).replace(' đ', '') + '</span><span class="unit"> đ</span>';
-  submitBtn.disabled = false;
+  if (submitBtn) submitBtn.disabled = false;
 }
 
 async function submitPurchase() {
   if (cart.length === 0) return alert('Chưa chọn sản phẩm nào');
 
-  const note = document.getElementById('purchaseNote').value;
-  const submitBtn = document.getElementById('submitBtn');
-  const tempId = 'tmp_pur_' + Date.now();
+  var noteEl = document.getElementById('purchaseNote');
+  var submitBtn = document.getElementById('submitBtn');
+  var note = noteEl ? noteEl.value : '';
+  var tempId = 'tmp_pur_' + Date.now();
 
-  var btnState = setButtonLoading(submitBtn, 'Xác nhận nhập hàng');
+  var btnState = submitBtn ? setButtonLoading(submitBtn, 'Xác nhận nhập hàng') : null;
 
   optimisticMutate({
     request: function() {

@@ -4,6 +4,7 @@
 
 let currentProducts = [];
 let importData = {}; // Store import data by productId
+let allPurchases = []; // Purchase history for this page
 
 // PERFORMANCE: Virtual scroll pagination for product list
 const PAGE_SIZE = 30;
@@ -29,7 +30,7 @@ function initStockPage(data) {
   window.store.products = data.products;
   if (Array.isArray(data.purchases)) {
     window.store.purchases = data.purchases;
-    if (typeof allPurchases !== 'undefined') allPurchases = data.purchases.slice();
+    allPurchases = data.purchases.slice();
   }
 
   _renderProductsPage(_filteredProducts.slice(0, PAGE_SIZE), data.totalStockPositive, _filteredProducts.length > PAGE_SIZE);
@@ -58,13 +59,16 @@ function purchaseTotalHtml(amount) {
 
 function renderPurchaseHistory(purchases) {
   const container = document.getElementById('purchaseHistoryList');
-  
+
+  if (!container) {
+    console.warn('[UI] Element not found: #purchaseHistoryList');
+    return;
+  }
+
   if (purchases.length === 0) {
     container.innerHTML = '<div class="text-muted text-center py-2">Chưa có lịch sử nhập hàng</div>';
     return;
   }
-  
-    container.innerHTML = purchases.map(p => {
     const date = new Date(p.date);
     const formattedDate = date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
     const count = p.item_count != null ? p.item_count : 0;
@@ -91,18 +95,25 @@ function renderPurchaseHistory(purchases) {
 
 async function editPurchase(purchaseId) {
   try {
-    const res = await fetch('/api/purchases/' + purchaseId);
-    const purchase = await res.json();
-    
-    document.getElementById('editPurchaseId').value = purchase.id;
-    document.getElementById('editPurchaseNote').value = purchase.note || '';
-    
+    var res = await fetch('/api/purchases/' + purchaseId);
+    var purchase = await res.json();
+
+    var editPurchaseIdEl = document.getElementById('editPurchaseId');
+    var editPurchaseNoteEl = document.getElementById('editPurchaseNote');
+    if (editPurchaseIdEl) editPurchaseIdEl.value = purchase.id;
+    if (editPurchaseNoteEl) editPurchaseNoteEl.value = purchase.note || '';
+
     // Load purchase items
-    const itemsRes = await fetch('/api/purchases/' + purchaseId);
-    const itemsData = await itemsRes.json();
-    
-    const itemsContainer = document.getElementById('editPurchaseItems');
-    itemsContainer.innerHTML = itemsData.items.map(item => `
+    var itemsRes = await fetch('/api/purchases/' + purchaseId);
+    var itemsData = await itemsRes.json();
+
+    var itemsContainer = document.getElementById('editPurchaseItems');
+    if (!itemsContainer) {
+      console.warn('[UI] Element not found: #editPurchaseItems');
+      return;
+    }
+    itemsContainer.innerHTML = itemsData.items.map(function(item) {
+      return `
       <div class="card p-3 space-y-2">
         <div class="font-medium text-sm text-main truncate">${item.product_name}</div>
         <div class="grid grid-cols-2 gap-3">
@@ -120,26 +131,32 @@ async function editPurchase(purchaseId) {
           </div>
         </div>
       </div>
-    `).join('');
-    
-    document.getElementById('purchaseModal').classList.remove('hidden');
-    document.getElementById('purchaseModal').classList.add('flex');
+    `;}).join('');
+
+    var purchaseModal = document.getElementById('purchaseModal');
+    if (purchaseModal) {
+      purchaseModal.classList.remove('hidden');
+      purchaseModal.classList.add('flex');
+    }
   } catch (err) {
-    console.error(err);
+    console.error('[Stock] editPurchase error:', err);
     alert('Lỗi tải thông tin đơn nhập');
   }
 }
 
 function closePurchaseModal() {
-  document.getElementById('purchaseModal').classList.add('hidden');
-  document.getElementById('purchaseModal').classList.remove('flex');
+  var modal = document.getElementById('purchaseModal');
+  if (modal) {
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }
 }
 
 async function deletePurchase(purchaseId) {
   if (!confirm('Bạn có chắc muốn xoá đơn nhập hàng này?')) return;
 
-  // Snapshot for rollback
-  var deletedPurchase = Object.assign({}, allPurchases.find(function(p) { return String(p.id) === String(purchaseId); }));
+  // Snapshot for rollback — guard against uninitialized state
+  var deletedPurchase = Object.assign({}, (allPurchases || []).find(function(p) { return String(p.id) === String(purchaseId); }));
 
   // Disable delete button on the card
   var card = document.querySelector('[data-purchase-id="' + purchaseId + '"]');
@@ -152,17 +169,15 @@ async function deletePurchase(purchaseId) {
     },
 
     applyOptimistic: function() {
-      if (typeof allPurchases !== 'undefined') {
-        allPurchases = allPurchases.filter(function(p) { return String(p.id) !== String(purchaseId); });
-        window.store.purchases = allPurchases;
-      }
+      allPurchases = allPurchases.filter(function(p) { return String(p.id) !== String(purchaseId); });
+      window.store.purchases = allPurchases;
       removePurchaseItem(purchaseId);
       updatePurchasesSummary();
       checkPurchasesEmpty();
     },
 
     rollback: function() {
-      if (deletedPurchase && typeof allPurchases !== 'undefined') {
+      if (deletedPurchase) {
         allPurchases.unshift(deletedPurchase);
         window.store.purchases.unshift(deletedPurchase);
         renderPurchaseItem(deletedPurchase, { prepend: true });
@@ -182,90 +197,241 @@ async function deletePurchase(purchaseId) {
   });
 }
 
-document.getElementById('editPurchaseForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
+// ── Page init: all DOM access guarded by DOMContentLoaded ─────────────────────
+// Wrap ALL top-level document.getElementById / querySelector / addEventListener
+// so they never run before the page DOM is fully rendered.
+(function () {
+  function initBindings() {
+    // ── editPurchaseForm submit ──────────────────────────────────────────────
+    var editPurchaseFormEl = document.getElementById('editPurchaseForm');
+    if (editPurchaseFormEl) {
+      editPurchaseFormEl.addEventListener('submit', async function (e) {
+        e.preventDefault();
 
-  const purchaseId = document.getElementById('editPurchaseId').value;
-  const note = document.getElementById('editPurchaseNote').value;
+        var purchaseId = document.getElementById('editPurchaseId');
+        var purchaseNote = document.getElementById('editPurchaseNote');
+        if (!purchaseId || !purchaseNote) return;
+        purchaseId = purchaseId.value;
+        purchaseNote = purchaseNote.value;
 
-  // Get updated items
-  const items = [];
-  document.querySelectorAll('#editPurchaseItems .edit-qty').forEach(qtyInput => {
-    const itemId = qtyInput.dataset.itemId;
-    const productId = qtyInput.dataset.productId;
-    const quantity = parseInt(qtyInput.value) || 0;
-    const costInput = document.querySelector('.edit-cost[data-item-id="' + itemId + '"]');
-    const unitPrice = parseFloat(costInput.value) || 0;
+        // Get updated items
+        var items = [];
+        var qtyInputs = document.querySelectorAll('#editPurchaseItems .edit-qty');
+        for (var qi = 0; qi < qtyInputs.length; qi++) {
+          var qtyInput = qtyInputs[qi];
+          var itemId = qtyInput.dataset.itemId;
+          var productId = qtyInput.dataset.productId;
+          var quantity = parseInt(qtyInput.value) || 0;
+          var costInput = document.querySelector('.edit-cost[data-item-id="' + itemId + '"]');
+          var unitPrice = costInput ? (parseFloat(costInput.value) || 0) : 0;
 
-    if (quantity > 0) {
-      items.push({ item_id: itemId, product_id: productId, quantity, unit_price: unitPrice });
-    }
-  });
+          if (quantity > 0) {
+            items.push({ item_id: itemId, product_id: productId, quantity: quantity, unit_price: unitPrice });
+          }
+        }
 
-  const submitBtn = document.getElementById('editPurchaseForm').querySelector('[type="submit"]');
-  var btnState = setButtonLoading(submitBtn, 'Cập nhật');
+        var submitBtn = (document.getElementById('editPurchaseForm') || {}).querySelector ?
+          document.getElementById('editPurchaseForm').querySelector('[type="submit"]') : null;
+        var btnState = submitBtn ? setButtonLoading(submitBtn, 'Cập nhật') : null;
 
-  // Snapshot old purchase for rollback
-  var oldPurchase = Object.assign({}, allPurchases.find(function(p) { return String(p.id) === String(purchaseId); }));
+        // Snapshot old purchase for rollback
+        var oldPurchase = Object.assign({}, (allPurchases || []).find(function (p) { return String(p.id) === String(purchaseId); }));
 
-  optimisticMutate({
-    request: function() {
-      return fetch('/api/purchases/' + purchaseId, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items, note }),
-        cache: 'no-store'
+        optimisticMutate({
+          request: function () {
+            return fetch('/api/purchases/' + purchaseId, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ items: items, note: purchaseNote }),
+              cache: 'no-store'
+            });
+          },
+
+          applyOptimistic: function () {
+            if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Đang cập nhật...'; }
+
+            closePurchaseModal();
+            var purchase = Object.assign({}, oldPurchase || {}, { note: purchaseNote });
+            var idx = allPurchases.findIndex(function (p) { return String(p.id) === String(purchaseId); });
+            if (idx !== -1) Object.assign(allPurchases[idx], purchase);
+            window.store.purchases = allPurchases;
+            updatePurchaseItem(purchase);
+            updatePurchasesSummary();
+          },
+
+          rollback: function () {
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Cập nhật'; }
+            if (oldPurchase) {
+              var idx = allPurchases.findIndex(function (p) { return String(p.id) === String(purchaseId); });
+              if (idx !== -1) allPurchases[idx] = oldPurchase;
+              window.store.purchases = allPurchases;
+              updatePurchaseItem(oldPurchase);
+              updatePurchasesSummary();
+            }
+          },
+
+          onSuccess: function (result) {
+            if (btnState) restoreButtonLoading(btnState);
+            var purchase = result.purchase || result;
+            var idx = allPurchases.findIndex(function (p) { return String(p.id) === String(purchase.id); });
+            if (idx !== -1) allPurchases[idx] = Object.assign({}, allPurchases[idx], purchase);
+            window.store.purchases = allPurchases;
+            updatePurchaseItem(purchase);
+            updatePurchasesSummary();
+          },
+
+          onError: function () {
+            if (btnState) restoreButtonLoading(btnState);
+          }
+        });
       });
-    },
-
-    applyOptimistic: function() {
-      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Đang cập nhật...'; }
-
-      closePurchaseModal();
-      var purchase = Object.assign({}, oldPurchase || {}, { note: note });
-      if (typeof allPurchases !== 'undefined') {
-        var idx = allPurchases.findIndex(function(p) { return String(p.id) === String(purchaseId); });
-        if (idx !== -1) Object.assign(allPurchases[idx], purchase);
-        window.store.purchases = allPurchases;
-      }
-      updatePurchaseItem(purchase);
-      updatePurchasesSummary();
-    },
-
-    rollback: function() {
-      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Cập nhật'; }
-      if (oldPurchase && typeof allPurchases !== 'undefined') {
-        var idx = allPurchases.findIndex(function(p) { return String(p.id) === String(purchaseId); });
-        if (idx !== -1) allPurchases[idx] = oldPurchase;
-        window.store.purchases = allPurchases;
-        updatePurchaseItem(oldPurchase);
-        updatePurchasesSummary();
-      }
-    },
-
-    onSuccess: function(result) {
-      if (btnState) restoreButtonLoading(btnState);
-      var purchase = result.purchase || result;
-      if (typeof allPurchases !== 'undefined') {
-        var idx = allPurchases.findIndex(function(p) { return String(p.id) === String(purchase.id); });
-        if (idx !== -1) allPurchases[idx] = Object.assign({}, allPurchases[idx], purchase);
-        window.store.purchases = allPurchases;
-      }
-      updatePurchaseItem(purchase);
-      updatePurchasesSummary();
-    },
-
-    onError: function() {
-      if (btnState) restoreButtonLoading(btnState);
     }
-  });
-});
+
+    // ── productForm submit ───────────────────────────────────────────────────
+    var productFormEl = document.getElementById('productForm');
+    if (productFormEl) {
+      productFormEl.addEventListener('submit', async function (e) {
+        e.preventDefault();
+
+        var productIdEl = document.getElementById('productId');
+        var productNameEl = document.getElementById('productName');
+        var productTypeEl = document.getElementById('productType');
+        var productCostPriceEl = document.getElementById('productCostPrice');
+        var productStockEl = document.getElementById('productStock');
+        if (!productIdEl || !productNameEl) return;
+
+        var productId = productIdEl.value;
+        var name = productNameEl.value.trim();
+        var type = productTypeEl ? productTypeEl.value : 'keg';
+        var cost_price = parseFloat(productCostPriceEl ? productCostPriceEl.value : '0') || 0;
+        var stock = productId ? (parseInt(productStockEl ? productStockEl.value : '0') || 0) : 0;
+
+        if (!name) {
+          alert('Vui lòng nhập tên sản phẩm');
+          return;
+        }
+
+        var data = { name: name, type: type, cost_price: cost_price };
+        if (productId) {
+          data.stock = stock;
+        }
+
+        var method = productId ? 'PUT' : 'POST';
+        var url = productId ? '/api/products/' + productId : '/api/products';
+        var isNew = !productId;
+        var tempId = 'tmp_prod_' + Date.now();
+
+        var submitBtn = (document.getElementById('productForm') || {}).querySelector ?
+          document.getElementById('productForm').querySelector('[type="submit"]') : null;
+        var btnState = submitBtn ? setButtonLoading(submitBtn, isNew ? 'Thêm sản phẩm' : 'Cập nhật') : null;
+
+        var oldProduct = null;
+        if (!isNew) {
+          oldProduct = Object.assign({}, currentProducts.find(function (p) { return String(p.id) === String(productId); }));
+        }
+
+        optimisticMutate({
+          request: function () {
+            return fetch(url, {
+              method: method,
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(data),
+              cache: 'no-store'
+            });
+          },
+
+          applyOptimistic: function () {
+            if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Đang xử lý...'; }
+
+            if (isNew) {
+              var tempProduct = Object.assign({ id: tempId }, data, { stock: 0, _optimistic: true });
+              currentProducts.unshift(tempProduct);
+              window.store.products.unshift(tempProduct);
+              renderProductItem(tempProduct, { prepend: true });
+              renderImportForm(currentProducts);
+              updateProductsSummary();
+            } else {
+              var idx = currentProducts.findIndex(function (p) { return String(p.id) === String(productId); });
+              if (idx !== -1) {
+                Object.assign(currentProducts[idx], data);
+                window.store.products = currentProducts;
+                updateProductItem(currentProducts[idx]);
+                updateProductsSummary();
+              }
+            }
+          },
+
+          rollback: function () {
+            if (isNew) {
+              currentProducts = currentProducts.filter(function (p) { return p.id !== tempId; });
+              window.store.products = currentProducts;
+              removeProductItem(tempId);
+              renderImportForm(currentProducts);
+              updateProductsSummary();
+            } else if (oldProduct) {
+              var idx = currentProducts.findIndex(function (p) { return String(p.id) === String(oldProduct.id); });
+              if (idx !== -1) currentProducts[idx] = oldProduct;
+              window.store.products = currentProducts;
+              updateProductItem(oldProduct);
+              updateProductsSummary();
+            }
+            if (btnState) restoreButtonLoading(btnState);
+          },
+
+          onSuccess: function (result) {
+            if (btnState) restoreButtonLoading(btnState);
+            closeProductModal();
+            var product = result.product || result;
+
+            if (isNew) {
+              var tIdx = currentProducts.findIndex(function (p) { return p.id === tempId; });
+              if (tIdx !== -1) {
+                currentProducts[tIdx] = product;
+                window.store.products[tIdx] = product;
+              }
+              removeProductItem(tempId);
+              renderProductItem(product, { prepend: true });
+              renderImportForm(currentProducts);
+              updateProductsSummary();
+            } else {
+              var idx = currentProducts.findIndex(function (p) { return String(p.id) === String(product.id); });
+              if (idx !== -1) currentProducts[idx] = Object.assign({}, currentProducts[idx], product);
+              window.store.products = currentProducts;
+              updateProductItem(product);
+              updateProductsSummary();
+            }
+          },
+
+          onError: function () {
+            if (btnState) restoreButtonLoading(btnState);
+          }
+        });
+      });
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initBindings);
+  } else {
+    initBindings();
+  }
+})();
 
 function renderImportForm(products) {
   const container = document.getElementById('importProducts');
-  
+
+  if (!container) {
+    console.warn('[UI] Element not found: #importProducts — renderImportForm skipped');
+    return;
+  }
+  if (!Array.isArray(products)) {
+    console.warn('[UI] renderImportForm called without valid products array');
+    return;
+  }
+
   // Layout rõ ràng: tên SP, giá vốn 1 dòng, chỉ ô SL (không lặp giá)
-  container.innerHTML = products.map(p => `
+  container.innerHTML = products.map(function(p) {
+    return `
     <div class="card p-3">
       <div class="text-sm font-semibold text-main">${p.name}</div>
       <div class="text-xs text-muted mt-0.5">Giá vốn: ${formatVND(p.cost_price || 0)} · Tồn: ${p.stock}</div>
@@ -274,8 +440,8 @@ function renderImportForm(products) {
         onchange="updateImportData(${p.id}, this.value)"
         oninput="updateImportData(${p.id}, this.value)">
     </div>
-  `).join('');
-  
+  `;}).join('');
+
   importData = {};
 }
 
@@ -377,9 +543,6 @@ async function submitImport() {
 
       // Update purchase history
       if (result.purchase) {
-        if (typeof allPurchases === 'undefined') {
-          window.allPurchases = [];
-        }
         allPurchases.unshift(result.purchase);
         window.store.purchases = allPurchases;
         renderPurchaseItem(result.purchase, { prepend: true });
@@ -593,50 +756,67 @@ function renderProducts(products, serverTotalStockPositive) {
 }
 
 // Product Modal Functions
-function openProductModal(productId = null) {
-  const modal = document.getElementById('productModal');
-  const form = document.getElementById('productForm');
-  const title = document.getElementById('modalTitle');
-  const deleteBtn = document.getElementById('deleteProductBtn');
-  const stockField = document.getElementById('stockField');
-  
+function openProductModal(productId) {
+  var modal = document.getElementById('productModal');
+  var form = document.getElementById('productForm');
+  var title = document.getElementById('modalTitle');
+  var deleteBtn = document.getElementById('deleteProductBtn');
+  var stockField = document.getElementById('stockField');
+
+  if (!modal || !form) {
+    console.warn('[UI] openProductModal: #productModal or #productForm not found');
+    return;
+  }
+
   form.reset();
-  
+
   if (productId) {
     // Edit mode
-    const product = currentProducts.find(p => p.id === productId);
+    var product = currentProducts.find(function(p) { return p.id === productId; });
     if (!product) return;
-    
-    title.textContent = 'Sửa sản phẩm';
-    document.getElementById('productId').value = product.id;
-    document.getElementById('productName').value = product.name;
-    document.getElementById('productType').value = product.type || 'keg';
-    document.getElementById('productCostPrice').value = product.cost_price || 0;
-    document.getElementById('productStock').value = product.stock;
-    deleteBtn.classList.remove('hidden');
-    stockField.classList.remove('hidden');
+
+    if (title) title.textContent = 'Sửa sản phẩm';
+    var productIdEl = document.getElementById('productId');
+    var productNameEl = document.getElementById('productName');
+    var productTypeEl = document.getElementById('productType');
+    var productCostPriceEl = document.getElementById('productCostPrice');
+    var productStockEl = document.getElementById('productStock');
+    if (productIdEl) productIdEl.value = product.id;
+    if (productNameEl) productNameEl.value = product.name;
+    if (productTypeEl) productTypeEl.value = product.type || 'keg';
+    if (productCostPriceEl) productCostPriceEl.value = product.cost_price || 0;
+    if (productStockEl) productStockEl.value = product.stock;
+    if (deleteBtn) deleteBtn.classList.remove('hidden');
+    if (stockField) stockField.classList.remove('hidden');
   } else {
     // Add mode
-    title.textContent = 'Thêm sản phẩm';
-    document.getElementById('productId').value = '';
-    document.getElementById('productType').value = 'keg';
-    deleteBtn.classList.add('hidden');
-    stockField.classList.add('hidden');
+    if (title) title.textContent = 'Thêm sản phẩm';
+    var productIdEl = document.getElementById('productId');
+    var productTypeEl = document.getElementById('productType');
+    if (productIdEl) productIdEl.value = '';
+    if (productTypeEl) productTypeEl.value = 'keg';
+    if (deleteBtn) deleteBtn.classList.add('hidden');
+    if (stockField) stockField.classList.add('hidden');
   }
-  
+
   modal.classList.remove('hidden');
   modal.classList.add('flex');
 }
 
 function closeProductModal() {
-  const modal = document.getElementById('productModal');
-  modal.classList.add('hidden');
-  modal.classList.remove('flex');
+  var modal = document.getElementById('productModal');
+  if (modal) {
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }
 }
 
 function deleteProduct() {
-  const productId = document.getElementById('productId').value;
-  const productName = document.getElementById('productName').value;
+  var productIdEl = document.getElementById('productId');
+  var productNameEl = document.getElementById('productName');
+  if (!productIdEl || !productNameEl) return;
+  var productId = productIdEl.value;
+  var productName = productNameEl.value;
 
   if (!confirm('Bạn có chắc muốn xoá sản phẩm "' + productName + '"?')) {
     return;

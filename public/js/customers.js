@@ -158,18 +158,20 @@ function clearPhoneWarning() {
 
 // ========== FORM VALIDATION ==========
 function validateAddForm() {
-  const name = document.getElementById('addName').value.trim();
-  const phone = document.getElementById('addPhone').value.trim();
+  var nameEl = document.getElementById('addName');
+  var phoneEl = document.getElementById('addPhone');
+  var name = nameEl ? nameEl.value.trim() : '';
+  var phone = phoneEl ? phoneEl.value.trim() : '';
   if (!name) {
     showToast('Vui lòng nhập tên khách hàng', 'error');
-    document.getElementById('addName').focus();
+    if (nameEl) nameEl.focus();
     return null;
   }
   if (phone) {
-    const normalized = Phone.normalize(phone);
+    var normalized = Phone.normalize(phone);
     if (!Phone.isValid(normalized)) {
       showToast('Số điện thoại không hợp lệ (cần 10 số, bắt đầu 0)', 'error');
-      document.getElementById('addPhone').focus();
+      if (phoneEl) phoneEl.focus();
       return null;
     }
   }
@@ -229,16 +231,23 @@ function submitAddForm() {
 }
 
 function resetAddForm() {
-  document.getElementById('addName').value = '';
-  document.getElementById('addPhone').value = '';
-  document.getElementById('addDeposit').value = '0';
-  formatNumberInput(document.getElementById('addDeposit'), true);
-  document.getElementById('addHorizontalFridge').value = 0;
-  document.getElementById('addVerticalFridge').value = 0;
+  var nameEl = document.getElementById('addName');
+  var phoneEl = document.getElementById('addPhone');
+  var depositEl = document.getElementById('addDeposit');
+  var hfEl = document.getElementById('addHorizontalFridge');
+  var vfEl = document.getElementById('addVerticalFridge');
+  if (nameEl) nameEl.value = '';
+  if (phoneEl) phoneEl.value = '';
+  if (depositEl) {
+    depositEl.value = '0';
+    formatNumberInput(depositEl, true);
+  }
+  if (hfEl) hfEl.value = 0;
+  if (vfEl) vfEl.value = 0;
   clearPhoneWarning();
-  const pf = document.getElementById('addPriceFields');
+  var pf = document.getElementById('addPriceFields');
   if (pf && !pf.classList.contains('hidden')) pf.classList.add('hidden');
-  const tb = document.getElementById('togglePriceBtn');
+  var tb = document.getElementById('togglePriceBtn');
   if (tb) tb.textContent = '+ Thêm giá';
   addProductsLoaded = false;
 }
@@ -395,18 +404,18 @@ function switchCustomerTab(tab) {
   currentTab = tab;
   custPagination.page = 1; // Reset to first page on tab switch
 
-  const tabActive = document.getElementById('tabActive');
-  const tabArchived = document.getElementById('tabArchived');
-  const archivedSection = document.getElementById('archivedSection');
+  var tabActive = document.getElementById('tabActive');
+  var tabArchived = document.getElementById('tabArchived');
+  var archivedSection = document.getElementById('archivedSection');
 
   if (tab === 'active') {
-    tabActive.className = 'btn btn-primary flex-1 h-11 text-sm rounded-xl shadow';
-    tabArchived.className = 'btn btn-ghost flex-1 h-11 text-sm rounded-xl shadow';
+    if (tabActive) tabActive.className = 'btn btn-primary flex-1 h-11 text-sm rounded-xl shadow';
+    if (tabArchived) tabArchived.className = 'btn btn-ghost flex-1 h-11 text-sm rounded-xl shadow';
     if (archivedSection) archivedSection.classList.add('hidden');
   } else {
-    tabActive.className = 'btn btn-ghost flex-1 h-11 text-sm rounded-xl shadow';
-    tabArchived.className = 'btn btn-secondary flex-1 h-11 text-sm rounded-xl shadow';
-    if (archivedSection) archivedSection.remove('hidden');
+    if (tabActive) tabActive.className = 'btn btn-ghost flex-1 h-11 text-sm rounded-xl shadow';
+    if (tabArchived) tabArchived.className = 'btn btn-secondary flex-1 h-11 text-sm rounded-xl shadow';
+    if (archivedSection) archivedSection.classList.remove('hidden');
   }
 
   loadPageData(tab);
@@ -517,8 +526,10 @@ function changeCustPage(newPage) {
 
 // ========== SHOW/HIDE MODALS ==========
 function showModal(id) {
-  document.getElementById(id).classList.remove('hidden');
-  document.getElementById(id).classList.add('flex');
+  var m = document.getElementById(id);
+  if (!m) { console.warn("[UI] Modal not found:", id); return; }
+  m.classList.remove('hidden');
+  m.classList.add('flex');
 
   // Initialize add form when opened
   if (id === 'addModal') {
@@ -573,8 +584,10 @@ function initAddForm() {
 }
 
 function hideModal(id) {
-  document.getElementById(id).classList.add('hidden');
-  document.getElementById(id).classList.remove('flex');
+  var m = document.getElementById(id);
+  if (!m) { console.warn("[UI] Modal not found:", id); return; }
+  m.classList.add('hidden');
+  m.classList.remove('flex');
 }
 
 async function softRefreshCustomers() {
@@ -582,9 +595,14 @@ async function softRefreshCustomers() {
 }
 
 async function saveKegBalance() {
-  const customerId = document.getElementById('kegCustomerId').value;
-  const newBalance = parseInt(document.getElementById('kegBalanceInput').value);
-  const note = document.getElementById('kegNote').value;
+  var kegCustomerIdEl = document.getElementById('kegCustomerId');
+  var kegBalanceInputEl = document.getElementById('kegBalanceInput');
+  var kegNoteEl = document.getElementById('kegNote');
+  if (!kegCustomerIdEl || !kegBalanceInputEl) return;
+
+  var customerId = kegCustomerIdEl.value;
+  var newBalance = parseInt(kegBalanceInputEl.value);
+  var note = kegNoteEl ? kegNoteEl.value : '';
 
   if (isNaN(newBalance) || newBalance < 0) {
     alert('Số bình không hợp lệ!');
@@ -626,11 +644,18 @@ function filterCustomers() {
 }
 
 function editCustomer(id, name, phone, deposit) {
-  document.getElementById('editId').value = id;
-  document.getElementById('editName').value = name;
-  document.getElementById('editPhone').value = phone;
+  var editIdEl = document.getElementById('editId');
+  var editNameEl = document.getElementById('editName');
+  var editPhoneEl = document.getElementById('editPhone');
+  var depEl = document.getElementById('editDeposit');
+  var hfEl = document.getElementById('editHorizontalFridge');
+  var vfEl = document.getElementById('editVerticalFridge');
+  var exEl = document.getElementById('editExcludeExpected');
+  if (!editIdEl || !editNameEl || !editPhoneEl || !depEl) return;
 
-  const depEl = document.getElementById('editDeposit');
+  editIdEl.value = id;
+  editNameEl.value = name;
+  editPhoneEl.value = phone || '';
   depEl.value = deposit != null ? String(deposit) : '0';
   if (typeof formatNumberInput === 'function') {
     formatNumberInput(depEl, true);
@@ -640,17 +665,16 @@ function editCustomer(id, name, phone, deposit) {
   fetch('/api/customers/' + id)
     .then(res => res.json())
     .then(data => {
-      document.getElementById('editHorizontalFridge').value = data.horizontal_fridge || 0;
-      document.getElementById('editVerticalFridge').value = data.vertical_fridge || 0;
-      document.getElementById('editExcludeExpected').checked = data.exclude_expected === 1;
+      if (hfEl) hfEl.value = data.horizontal_fridge || 0;
+      if (vfEl) vfEl.value = data.vertical_fridge || 0;
+      if (exEl) exEl.checked = data.exclude_expected === 1;
     });
 
   showModal('editModal');
 
   // Auto focus vào Tên sau khi modal mở
   setTimeout(() => {
-    const el = document.getElementById('editName');
-    if (el) { el.focus(); el.select(); }
+    if (editNameEl) { editNameEl.focus(); editNameEl.select(); }
   }, 150);
 }
 
@@ -671,13 +695,22 @@ function clampQty(input, _min) {
 }
 
 async function saveCustomerEdit() {
-  const id = document.getElementById('editId').value;
-  const name = document.getElementById('editName').value;
-  const phone = document.getElementById('editPhone').value || null;
-  const deposit = parseFormattedNumber(document.getElementById('editDeposit').value);
-  const horizontal_fridge = parseInt(document.getElementById('editHorizontalFridge').value) || 0;
-  const vertical_fridge = parseInt(document.getElementById('editVerticalFridge').value) || 0;
-  const exclude_expected = document.getElementById('editExcludeExpected').checked ? 1 : 0;
+  var editIdEl = document.getElementById('editId');
+  var editNameEl = document.getElementById('editName');
+  var editPhoneEl = document.getElementById('editPhone');
+  var editDepositEl = document.getElementById('editDeposit');
+  var editHfEl = document.getElementById('editHorizontalFridge');
+  var editVfEl = document.getElementById('editVerticalFridge');
+  var editExEl = document.getElementById('editExcludeExpected');
+
+  if (!editIdEl) { alert('Lỗi: Không tìm thấy ID khách hàng'); return; }
+  var id = editIdEl.value;
+  var name = editNameEl ? editNameEl.value : '';
+  var phone = editPhoneEl ? editPhoneEl.value : '' || null;
+  var deposit = editDepositEl ? parseFormattedNumber(editDepositEl.value) : 0;
+  var horizontal_fridge = editHfEl ? (parseInt(editHfEl.value) || 0) : 0;
+  var vertical_fridge = editVfEl ? (parseInt(editVfEl.value) || 0) : 0;
+  var exclude_expected = editExEl && editExEl.checked ? 1 : 0;
 
   if (!id) {
     alert('Lỗi: Không tìm thấy ID khách hàng');
@@ -715,9 +748,12 @@ async function saveCustomerEdit() {
 }
 
 function showPriceModal(id, name) {
-  document.getElementById('priceCustomerName').textContent = name;
-  document.getElementById('priceList').innerHTML = '<div class="text-muted text-center py-4">Đang tải sản phẩm...</div>';
-  
+  var priceCustomerNameEl = document.getElementById('priceCustomerName');
+  var priceListEl = document.getElementById('priceList');
+  if (!priceCustomerNameEl || !priceListEl) return;
+  priceCustomerNameEl.textContent = name;
+  priceListEl.innerHTML = '<div class="text-muted text-center py-4">Đang tải sản phẩm...</div>';
+
   // Load products and existing prices in parallel
   Promise.all([
     fetch('/api/products').then(res => {
@@ -729,20 +765,21 @@ function showPriceModal(id, name) {
       return res.json();
     })
   ]).then(([products, existingPrices]) => {
-    const productPrices = {};
+    var productPrices = {};
     existingPrices.forEach(p => {
       productPrices[p.product_id] = p.price;
     });
-    
-    const container = document.getElementById('priceList');
+
+    var container = document.getElementById('priceList');
+    if (!container) return;
     if (products.length === 0) {
       container.innerHTML = '<div class="text-muted text-center py-4">Chưa có sản phẩm nào</div>';
       return;
     }
-    
-    let html = '';
+
+    var html = '';
     products.forEach(p => {
-      const price = productPrices[p.id] || '';
+      var price = productPrices[p.id] || '';
       html += '<div class="flex justify-between items-center py-2 border-b">' +
         '<div class="font-medium">' + p.name + '</div>' +
         '<input type="text" data-product="' + p.id + '" value="' + price + '" data-format-number inputmode="decimal" ' +
@@ -751,27 +788,28 @@ function showPriceModal(id, name) {
     });
     container.innerHTML = html;
     window.currentPriceCustomerId = id;
-    
+
     // Initialize number format for new inputs
-    initAllNumberFormats();
+    if (typeof initAllNumberFormats === 'function') initAllNumberFormats();
   }).catch(err => {
     console.error('Error loading data:', err);
-    document.getElementById('priceList').innerHTML = '<div class="text-danger text-center py-4">❌ Lỗi tải dữ liệu: ' + err.message + '</div>';
+    var plEl = document.getElementById('priceList');
+    if (plEl) plEl.innerHTML = '<div class="text-danger text-center py-4">Lỗi tải dữ liệu: ' + err.message + '</div>';
   });
-  
+
   showModal('priceModal');
 }
 
 async function savePrices() {
-  const customerId = window.currentPriceCustomerId;
+  var customerId = window.currentPriceCustomerId;
   if (!customerId) return;
 
-  const inputs = document.querySelectorAll('#priceList input');
-  const prices = [];
+  var inputs = document.querySelectorAll('#priceList input');
+  var prices = [];
 
-  inputs.forEach(i => {
-    const rawValue = i.value.replace(/,/g, '');
-    const price = parseFloat(rawValue);
+  inputs.forEach(function(i) {
+    var rawValue = i.value.replace(/,/g, '');
+    var price = parseFloat(rawValue);
     if (!isNaN(price)) {
       prices.push({
         product_id: parseInt(i.dataset.product),
@@ -801,8 +839,9 @@ async function savePrices() {
 
 let addProductsLoaded = false;
 function toggleAddPrices() {
-  const priceFields = document.getElementById('addPriceFields');
-  const toggleBtn = document.getElementById('togglePriceBtn');
+  var priceFields = document.getElementById('addPriceFields');
+  var toggleBtn = document.getElementById('togglePriceBtn');
+  if (!priceFields) return;
 
   if (priceFields.classList.contains('hidden')) {
     priceFields.classList.remove('hidden');
@@ -820,7 +859,8 @@ async function loadAddProducts() {
     if (!res.ok) throw new Error('Failed to load products');
     const products = await res.json();
     
-    const container = document.getElementById('addPriceList');
+    var container = document.getElementById('addPriceList');
+    if (!container) return;
     if (products.length === 0) {
       container.innerHTML = '<div class="text-muted text-sm text-center py-2">Chưa có sản phẩm nào</div>';
     } else {
@@ -845,10 +885,13 @@ async function loadAddProducts() {
 // addForm submit is now handled by submitAddForm() via button onclick
 // Keep Enter key handling via keyboard flow setup in initAddForm
 
-document.getElementById('editForm').addEventListener('submit', (e) => {
-  e.preventDefault();
-  saveCustomerEdit();
-});
+(function() {
+  var form = document.getElementById('editForm');
+  if (form) form.addEventListener('submit', function(e) {
+    e.preventDefault();
+    saveCustomerEdit();
+  });
+})();
 
 async function archiveCustomer(id) {
   if (!confirm('Lưu trữ khách hàng này?\n\n- Khách sẽ không hiển thị khi bán hàng\n- Doanh thu vẫn giữ nguyên')) return;
@@ -903,22 +946,31 @@ async function deleteCustomer(id) {
 
 function getLocation(customerId) {
   // Find the customer data to check if GPS already exists
-  const customer = customers.find(c => c.id === customerId) || archivedCustomers.find(c => c.id === customerId);
-  const hasExistingGPS = customer && customer.lat && customer.lng;
+  var customer = customers.find(c => c.id === customerId) || archivedCustomers.find(c => c.id === customerId);
+  var hasExistingGPS = customer && customer.lat && customer.lng;
 
-  document.getElementById('locationCustomerId').value = customerId;
-  document.getElementById('manualLat').value = '';
-  document.getElementById('manualLng').value = '';
-  document.getElementById('gpsStatus').innerHTML = '';
-  document.getElementById('detectedAddress').innerHTML = '';
-  document.getElementById('existingGPSInfo').innerHTML = '';
-  document.getElementById('updateGPSSection').classList.add('hidden');
+  var locationCustomerIdEl = document.getElementById('locationCustomerId');
+  var manualLatEl = document.getElementById('manualLat');
+  var manualLngEl = document.getElementById('manualLng');
+  var gpsStatusEl = document.getElementById('gpsStatus');
+  var detectedAddressEl = document.getElementById('detectedAddress');
+  var existingGPSInfoEl = document.getElementById('existingGPSInfo');
+  var updateGPSSectionEl = document.getElementById('updateGPSSection');
+  if (!locationCustomerIdEl || !manualLatEl || !manualLngEl) return;
+
+  locationCustomerIdEl.value = customerId;
+  manualLatEl.value = '';
+  manualLngEl.value = '';
+  if (gpsStatusEl) gpsStatusEl.innerHTML = '';
+  if (detectedAddressEl) detectedAddressEl.innerHTML = '';
+  if (existingGPSInfoEl) existingGPSInfoEl.innerHTML = '';
+  if (updateGPSSectionEl) updateGPSSectionEl.classList.add('hidden');
   window.detectedAddress = null;
   showModal('locationModal');
 
   if (hasExistingGPS) {
     // Customer already has GPS — show existing info, don't auto-update
-    document.getElementById('existingGPSInfo').innerHTML = `
+    if (existingGPSInfoEl) existingGPSInfoEl.innerHTML = `
       <div class="card p-3 mb-3">
         <div class="flex items-center gap-2 mb-2">
           <span class="badge badge-success">✅ Đã có vị trí</span>
@@ -927,9 +979,9 @@ function getLocation(customerId) {
         ${customer.address ? '<div class="text-xs text-muted">' + customer.address + '</div>' : ''}
       </div>
     `;
-    document.getElementById('manualLat').value = customer.lat.toFixed(6);
-    document.getElementById('manualLng').value = customer.lng.toFixed(6);
-    document.getElementById('updateGPSSection').classList.remove('hidden');
+    if (manualLatEl) manualLatEl.value = customer.lat.toFixed(6);
+    if (manualLngEl) manualLngEl.value = customer.lng.toFixed(6);
+    if (updateGPSSectionEl) updateGPSSectionEl.classList.remove('hidden');
   } else {
     // No GPS yet — auto-trigger GPS acquisition
     setTimeout(() => {
@@ -941,10 +993,13 @@ function getLocation(customerId) {
 }
 
 function getGPSLocation() {
-  const customerId = document.getElementById('locationCustomerId').value;
-  const statusEl = document.getElementById('gpsStatus');
-  const addressEl = document.getElementById('detectedAddress');
+  var customerIdEl = document.getElementById('locationCustomerId');
+  var statusEl = document.getElementById('gpsStatus');
+  var addressEl = document.getElementById('detectedAddress');
+  var manualLatEl = document.getElementById('manualLat');
+  var manualLngEl = document.getElementById('manualLng');
 
+  if (!statusEl) return;
   if (!navigator.geolocation) {
     statusEl.innerHTML = '<p class="text-danger">❌ Trình duyệt không hỗ trợ lấy vị trí</p><p class="text-sm text-muted">Vui lòng nhập thủ công</p>';
     return;
@@ -961,7 +1016,7 @@ function getGPSLocation() {
     </button>
   `;
 
-  const options = {
+  var options = {
     enableHighAccuracy: true,
     timeout: 20000,
     maximumAge: 0
@@ -969,12 +1024,12 @@ function getGPSLocation() {
 
   navigator.geolocation.getCurrentPosition(
     async (position) => {
-      const lat = position.coords.latitude;
-      const lng = position.coords.longitude;
-      const accuracy = Math.round(position.coords.accuracy);
+      var lat = position.coords.latitude;
+      var lng = position.coords.longitude;
+      var accuracy = Math.round(position.coords.accuracy);
 
       // Display accuracy
-      let accuracyText = '';
+      var accuracyText = '';
       if (accuracy <= 10) {
         accuracyText = '<span class="text-success">Rất tốt (≤10m)</span>';
       } else if (accuracy <= 50) {
@@ -985,35 +1040,36 @@ function getGPSLocation() {
         accuracyText = '<span class="text-danger">Kém (>100m)</span>';
       }
 
-      statusEl.innerHTML = `<p class="text-success">✅ Đã lấy được vị trí!</p>
-        <p class="text-sm text-muted">Độ chính xác: ${accuracyText}</p>
-        <p class="text-xs text-muted">Tọa độ: ${lat.toFixed(6)}, ${lng.toFixed(6)}</p>`;
+      statusEl.innerHTML = '<p class="text-success">✅ Đã lấy được vị trí!</p>' +
+        '<p class="text-sm text-muted">Độ chính xác: ' + accuracyText + '</p>' +
+        '<p class="text-xs text-muted">Tọa độ: ' + lat.toFixed(6) + ', ' + lng.toFixed(6) + '</p>';
 
       // Fill in the coordinates
-      document.getElementById('manualLat').value = lat.toFixed(6);
-      document.getElementById('manualLng').value = lng.toFixed(6);
+      if (manualLatEl) manualLatEl.value = lat.toFixed(6);
+      if (manualLngEl) manualLngEl.value = lng.toFixed(6);
 
       // Try reverse geocoding to get address
-      try {
+      if (addressEl) {
         addressEl.innerHTML = '<p class="text-info">⏳ Đang lấy địa chỉ...</p>';
-        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`);
-        const data = await res.json();
+        try {
+          var res = await fetch('https://nominatim.openstreetmap.org/reverse?lat=' + lat + '&lon=' + lng + '&format=json');
+          var data = await res.json();
 
-        if (data.display_name) {
-          addressEl.innerHTML = `<p class="text-sm text-main">📍 ${data.display_name}</p>
-            <button onclick="useDetectedAddress('${data.display_name.replace(/'/g, "\\'")}')" class="mt-2 text-xs btn btn-secondary btn-sm">
-              Sử dụng địa chỉ này
-            </button>`;
-          // Store the address for later use
-          window.detectedAddress = data.display_name;
+          if (data.display_name) {
+            addressEl.innerHTML = '<p class="text-sm text-main">📍 ' + data.display_name + '</p>' +
+              '<button onclick="useDetectedAddress(\'' + data.display_name.replace(/'/g, "\\'") + '\')" class="mt-2 text-xs btn btn-secondary btn-sm">' +
+              'Sử dụng địa chỉ này' +
+              '</button>';
+            window.detectedAddress = data.display_name;
+          }
+        } catch (err) {
+          console.log('Reverse geocoding failed:', err);
+          addressEl.innerHTML = '<p class="text-muted">Không thể lấy địa chỉ</p>';
         }
-      } catch (err) {
-        console.log('Reverse geocoding failed:', err);
-        addressEl.innerHTML = '<p class="text-muted">Không thể lấy địa chỉ</p>';
       }
     },
     (error) => {
-      let errorMsg = 'Lỗi không xác định';
+      var errorMsg = 'Lỗi không xác định';
       switch (error.code) {
         case error.PERMISSION_DENIED:
           errorMsg = '❌ Bạn đã từ chối cho phép truy cập vị trí';
@@ -1025,13 +1081,9 @@ function getGPSLocation() {
           errorMsg = '❌ Hết thời gian chờ';
           break;
       }
-      statusEl.innerHTML = `
-        <p class="text-danger font-medium">${errorMsg}</p>
-        <p class="text-sm text-muted mt-1">Vui lòng nhập thủ công hoặc thử lại</p>
-        <button onclick="getGPSLocation()" class="mt-3 px-4 py-2 btn btn-warning text-sm">
-          📍 Thử lại
-        </button>
-      `;
+      statusEl.innerHTML = '<p class="text-danger font-medium">' + errorMsg + '</p>' +
+        '<p class="text-sm text-muted mt-1">Vui lòng nhập thủ công hoặc thử lại</p>' +
+        '<button onclick="getGPSLocation()" class="mt-3 px-4 py-2 btn btn-warning text-sm">📍 Thử lại</button>';
     },
     options
   );
@@ -1044,10 +1096,15 @@ function useDetectedAddress(address) {
 }
 
 async function saveManualLocation() {
-  const customerId = document.getElementById('locationCustomerId').value;
-  const lat = parseFloat(document.getElementById('manualLat').value);
-  const lng = parseFloat(document.getElementById('manualLng').value);
-  const address = window.detectedAddress || null;
+  var customerIdEl = document.getElementById('locationCustomerId');
+  var manualLatEl = document.getElementById('manualLat');
+  var manualLngEl = document.getElementById('manualLng');
+  if (!customerIdEl || !manualLatEl || !manualLngEl) return;
+
+  var customerId = customerIdEl.value;
+  var lat = parseFloat(manualLatEl.value);
+  var lng = parseFloat(manualLngEl.value);
+  var address = window.detectedAddress || null;
 
   if (isNaN(lat) || isNaN(lng)) {
     alert('Vui lòng nhập đầy đủ vĩ độ và kinh độ!');
@@ -1062,25 +1119,25 @@ async function saveManualLocation() {
   }
 
   try {
-    const res = await fetch('/api/customers/location', {
+    var res = await fetch('/api/customers/location', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         customerId: parseInt(customerId),
-        lat,
-        lng,
-        address
+        lat: lat,
+        lng: lng,
+        address: address
       })
     });
 
-    const data = await res.json();
+    var data = await res.json();
     if (res.ok) {
       hideModal('locationModal');
       window.detectedAddress = null;
       showToast('Đã cập nhật vị trí!', 'success');
       await softRefreshCustomers();
       if (window.BeerStore && typeof window.BeerStore.invalidateAndRefresh === 'function') {
-        window.BeerStore.invalidateAndRefresh('customers:location').catch(() => {});
+        window.BeerStore.invalidateAndRefresh('customers:location').catch(function() {});
       }
       window.dispatchEvent(new CustomEvent('data:mutated', {
         detail: { entity: 'customer', source: 'customers:location', at: Date.now() }
@@ -1094,22 +1151,29 @@ async function saveManualLocation() {
 }
 
 function editKegBalance(id, balance, name) {
-  document.getElementById('kegCustomerId').value = id;
-  document.getElementById('kegCustomerName').textContent = name;
-  document.getElementById('kegBalanceInput').value = balance;
-  document.getElementById('kegNote').value = '';
+  var kegCustomerIdEl = document.getElementById('kegCustomerId');
+  var kegCustomerNameEl = document.getElementById('kegCustomerName');
+  var kegBalanceInputEl = document.getElementById('kegBalanceInput');
+  var kegNoteEl = document.getElementById('kegNote');
+  if (!kegCustomerIdEl || !kegCustomerNameEl || !kegBalanceInputEl) return;
+  kegCustomerIdEl.value = id;
+  kegCustomerNameEl.textContent = name;
+  kegBalanceInputEl.value = balance;
+  if (kegNoteEl) kegNoteEl.value = '';
   showModal('kegModal');
 }
 
-// Initialize bottom nav active state
-const path = window.location.pathname;
-const homePath = path === '/' || path === '/dashboard';
-document.querySelectorAll('.bottomnav a').forEach(a => {
-  const href = a.getAttribute('href');
-  const homeHref = href === '/' || href === '/dashboard';
-  if (href === path || (homePath && homeHref)) {
-    a.classList.add('active');
-  }
+// Initialize bottom nav active state (wrapped in DOMContentLoaded to ensure DOM is ready)
+document.addEventListener('DOMContentLoaded', function() {
+  var path = window.location.pathname;
+  var homePath = path === '/' || path === '/dashboard';
+  document.querySelectorAll('.bottomnav a').forEach(function(a) {
+    var href = a.getAttribute('href');
+    var homeHref = href === '/' || href === '/dashboard';
+    if (href === path || (homePath && homeHref)) {
+      a.classList.add('active');
+    }
+  });
 });
 
 window.addEventListener('data:mutated', function(evt) {
