@@ -69,6 +69,8 @@ function renderPurchaseHistory(purchases) {
     container.innerHTML = '<div class="text-muted text-center py-2">Chưa có lịch sử nhập hàng</div>';
     return;
   }
+
+  container.innerHTML = purchases.map(function(p) {
     const date = new Date(p.date);
     const formattedDate = date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
     const count = p.item_count != null ? p.item_count : 0;
