@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require('../../database');
 const logger = require('../../src/utils/logger');
 const { syncKegInventory } = require('./products');
+const socketServer = require('../../src/socket/socketServer');
 
 // ========== KEG STATE: SINGLE SOURCE OF TRUTH ==========
 // inventory  -> SUM(stock>0) keg (hiển thị ô Kho)
@@ -101,6 +102,8 @@ router.post('/state', (req, res) => {
     if (didAdjust) {
       logKegTransaction('adjust', newState.emptyCollected, newState, { note });
     }
+
+    socketServer.emitKegUpdated(newState);
 
     res.json({
       success: true,
@@ -208,6 +211,8 @@ router.post('/deliver', (req, res) => {
       customerId, customerName: customer?.name, note
     });
 
+    socketServer.emitKegUpdated(newState);
+
     res.json({
       success: true,
       message: `Đã giao ${quantity} vỏ cho khách`,
@@ -261,6 +266,8 @@ router.post('/collect', (req, res) => {
       customerId, customerName: customer?.name, note
     });
 
+    socketServer.emitKegUpdated(newState);
+
     res.json({
       success: true,
       message: `Đã thu ${quantity} vỏ rỗng`,
@@ -311,6 +318,9 @@ router.post('/import', (req, res) => {
     logKegTransaction('import', totalImported, newState, {
       exchanged: usedFromEmpty, purchased, note
     });
+
+    socketServer.emitKegUpdated(newState);
+    socketServer.emitInventoryUpdated();
 
     res.json({
       success: true,
@@ -410,6 +420,9 @@ router.post('/return', (req, res) => {
 
     processReturn();
 
+    socketServer.emitKegUpdated(newState);
+    socketServer.emitCustomerUpdated({ id: customerId });
+
     res.json({
       success: true,
       message: 'Đã cập nhật vỏ trả',
@@ -449,6 +462,8 @@ router.post('/sell-empty', (req, res) => {
 
     const newState = getKegState();
     logKegTransaction('sell_empty', quantity, newState, { note });
+
+    socketServer.emitKegUpdated(newState);
 
     res.json({
       success: true,

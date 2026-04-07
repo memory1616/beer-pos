@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require('../../database');
 const logger = require('../../src/utils/logger');
 const { syncKegInventory } = require('./products');
+const socketServer = require('../../src/socket/socketServer');
 
 // Validate ID parameter
 function validateId(id) {
@@ -138,7 +139,9 @@ router.post('/', (req, res) => {
     }
 
     db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(qty, prodId);
-    res.json(db.prepare('SELECT * FROM products WHERE id = ?').get(prodId));
+    const updated = db.prepare('SELECT * FROM products WHERE id = ?').get(prodId);
+    socketServer.emitInventoryUpdated({ product: updated });
+    res.json(updated);
   } catch (err) {
     logger.error('Error importing stock', { error: err.message });
     res.status(500).json({ error: 'Lỗi khi nhập kho' });
@@ -166,7 +169,9 @@ router.post('/set', (req, res) => {
     }
 
     db.prepare('UPDATE products SET stock = ? WHERE id = ?').run(parseInt(stock), prodId);
-    res.json(db.prepare('SELECT * FROM products WHERE id = ?').get(prodId));
+    const updated = db.prepare('SELECT * FROM products WHERE id = ?').get(prodId);
+    socketServer.emitInventoryUpdated({ product: updated });
+    res.json(updated);
   } catch (err) {
     logger.error('Error setting stock', { error: err.message });
     res.status(500).json({ error: 'Lỗi khi cập nhật tồn kho' });
@@ -254,6 +259,9 @@ router.post('/multiple', (req, res) => {
 
     // Sync keg inventory
     syncKegInventory();
+
+    socketServer.emitInventoryUpdated({ purchaseId });
+    socketServer.emitReportUpdated({ reason: 'purchase', purchaseId });
 
     res.json({ purchase_id: purchaseId, total_amount: totalAmount, items: results });
   } catch (err) {

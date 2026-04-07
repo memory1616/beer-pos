@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require('../../database');
 const logger = require('../../src/utils/logger');
 const { syncKegInventory } = require('./products');
+const socketServer = require('../../src/socket/socketServer');
 
 // POST /api/purchases - Tạo phiếu nhập hàng mới
 router.post('/', (req, res) => {
@@ -81,11 +82,14 @@ router.post('/', (req, res) => {
     
     // ========== BƯỚC 5: Sync keg inventory ==========
     syncKegInventory();
-    
+
+    socketServer.emitInventoryUpdated({ purchaseId });
+    socketServer.emitReportUpdated({ reason: 'purchase', purchaseId });
+
     logger.info('Purchase created successfully', { purchaseId, totalKegs, totalAmount });
-    res.json({ 
-      id: purchaseId, 
-      total_amount: totalAmount, 
+    res.json({
+      id: purchaseId,
+      total_amount: totalAmount,
       success: true,
       kegsImported: totalKegs,
       emptyBefore: currentEmpty,
@@ -168,7 +172,9 @@ router.put('/:id', (req, res) => {
     
     // Update purchase record
     db.prepare('UPDATE purchases SET total_amount = ?, note = ? WHERE id = ?').run(totalAmount, note || null, req.params.id);
-    
+
+    socketServer.emitInventoryUpdated({ purchaseId: req.params.id });
+
     res.json({ success: true });
   } catch (err) {
     logger.error('Purchase update error', { error: err.message });
@@ -220,6 +226,8 @@ router.delete('/:id', (req, res) => {
     } catch (syncErr) {
       logger.error('Purchase delete: syncKegInventory error', { error: syncErr.message });
     }
+
+    socketServer.emitInventoryUpdated({ purchaseId });
 
     logger.info('Purchase deleted', { purchaseId, totalKegs });
     res.json({ success: true });

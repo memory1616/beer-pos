@@ -1,657 +1,506 @@
 /**
- * Beer POS - Realtime UI State & Mutation System
- * Global state store + mutate helper for instant UI updates without full reload
- * @module public/js/realtime
- */
-
-/** ============================================================
- * 1. GLOBAL STATE STORE (window.store)
- * Single source of truth - prevents duplicate data across app
- * ============================================================ */
-window.store = {
-  get sales() { return window.BeerStore ? window.BeerStore.getSlice('orders') : []; },
-  set sales(value) { if (window.BeerStore) window.BeerStore.setSlice('orders', value); },
-  get expenses() { return window.BeerStore ? window.BeerStore.getSlice('expenses') : []; },
-  set expenses(value) { if (window.BeerStore) window.BeerStore.setSlice('expenses', value); },
-  get purchases() { return window.BeerStore ? window.BeerStore.getSlice('purchases') : []; },
-  set purchases(value) { if (window.BeerStore) window.BeerStore.setSlice('purchases', value); },
-  get products() { return window.BeerStore ? window.BeerStore.getSlice('products') : []; },
-  set products(value) { if (window.BeerStore) window.BeerStore.setSlice('products', value); },
-  get customers() { return window.BeerStore ? window.BeerStore.getSlice('customers') : []; },
-  set customers(value) { if (window.BeerStore) window.BeerStore.setSlice('customers', value); },
-};
-
-/** ============================================================
- * 2. OPTIMISTIC MUTATE HELPER
- * Pattern: apply optimistic UI immediately → send request → confirm or rollback
+ * BeerPOS Real-time Client Manager
+ * ─────────────────────────────────────────────────────────────────────────────
+ * - Connects to Socket.IO server on app start
+ * - Listens for all data-change events and triggers refetch
+ * - BroadcastChannel for multi-tab sync (tabs update together)
+ * - Offline queue: queues events when disconnected, replays on reconnect
+ * - Debug logging with `[WS][Client]` prefix
+ * - Exposes global `window.Realtime` API for manual use
  *
  * Usage:
- *   await optimisticMutate({
- *     request:      () => fetch('/api/expenses', { method: 'POST', ... }),
- *     applyOptimistic: () => { _expensesData.unshift(tempItem); renderItem(tempItem); },
- *     rollback:     () => { _expensesData = _expensesData.filter(...); removeItem(id); },
- *     onSuccess:     (data) => { replace temp with real item; }
- *   });
- * ============================================================ */
-
-/**
- * Disable a button during a pending operation and restore it after.
- * @param {string|HTMLElement} selectorOrEl - CSS selector or element reference
- * @param {string} [originalText] - Optional text to restore
+ *   // Auto-initialized on load
+ *   Realtime.forceRefetch(['orders', 'inventory']);
+ *   Realtime.getStatus();
+ * ─────────────────────────────────────────────────────────────────────────────
  */
-function setButtonLoading(selectorOrEl, originalText) {
-  var el = typeof selectorOrEl === 'string' ? document.querySelector(selectorOrEl) : selectorOrEl;
-  if (!el) return { el: el, originalDisabled: false };
-  var original = {
-    el: el,
-    text: el.textContent,
-    disabled: el.disabled,
-    originalText: originalText || el.textContent
+(function () {
+  'use strict';
+
+  // ── Constants ────────────────────────────────────────────────────────────────
+
+  const BCAST_CHANNEL = 'beerpos-realtime';
+  const BCAST_EVENT   = 'beerpos-sync';
+
+  // Debounce delay for refetch (ms) — prevents rapid-fire on burst events
+  const REFETCH_DEBOUNCE = 100;
+
+  // ── State ────────────────────────────────────────────────────────────────────
+
+  let _socket      = null;
+  let _connected    = false;
+  let _debug        = false;
+  let _refetchTimer = null;
+  let _pendingRefetch = new Set();
+  let _bc           = null;
+  let _bcastSupported = false;
+  let _initCalled    = false;
+  let _pendingEvents = []; // queued while disconnected
+
+  // ── Debug ───────────────────────────────────────────────────────────────────
+
+  function log(tag, msg, data) {
+    if (!_debug && tag !== 'INFO') return;
+    const prefix = '[WS][Client]';
+    if (data !== undefined) {
+      console.log(`${prefix} [${tag}] ${msg}`, data);
+    } else {
+      console.log(`${prefix} [${tag}] ${msg}`);
+    }
+  }
+
+  // ── BroadcastChannel (multi-tab) ────────────────────────────────────────────
+
+  function initBroadcast() {
+    try {
+      if (!('BroadcastChannel' in window)) return;
+      _bc = new BroadcastChannel(BCAST_CHANNEL);
+      _bcastSupported = true;
+
+      _bc.onmessage = function (evt) {
+        const msg = evt.data;
+        if (!msg || typeof msg !== 'object') return;
+
+        log('BROADCAST', 'Received cross-tab message', msg);
+
+        if (msg.type === 'sync') {
+          // Another tab changed data — refetch everything
+          triggerRefetch(['all']);
+        } else if (msg.type === 'force-refetch') {
+          triggerRefetch(msg.entities || ['all']);
+        } else if (msg.type === 'ping') {
+          // Another tab pinged — respond if we're the leader tab
+          // Simple strategy: just refetch (lightweight, safe)
+          triggerRefetch(['all']);
+        }
+      };
+
+      log('INFO', 'BroadcastChannel initialized');
+    } catch (e) {
+      log('WARN', 'BroadcastChannel not available', e.message);
+      _bcastSupported = false;
+    }
+  }
+
+  /**
+   * Broadcast a sync message to other tabs
+   * @param {string} type - 'sync' | 'force-refetch'
+   * @param {object} data
+   */
+  function bcastSend(type, data) {
+    if (!_bcastSupported || !_bc) return;
+    try {
+      _bc.postMessage(Object.assign({ type }, data));
+    } catch (e) {
+      // Silently ignore — BroadcastChannel can throw on closed channel
+    }
+  }
+
+  // ── Socket.IO Connection ─────────────────────────────────────────────────────
+
+  /**
+   * Connect to Socket.IO server.
+   * Safe to call multiple times — only connects once.
+   */
+  function connect() {
+    if (_initCalled) return;
+    _initCalled = true;
+
+    // Detect mode
+    const mode = (window.APP_MODE === 'public') ? 'public' : 'admin';
+    const base = window.BASE_PATH || '/';
+
+    // Socket.IO client from the socket.io-client package
+    const io = window.io;
+
+    if (typeof io !== 'function') {
+      // Socket.IO client not loaded yet — retry after short delay
+      log('WARN', 'socket.io-client not loaded yet, retrying...');
+      setTimeout(connect, 500);
+      return;
+    }
+
+    log('INFO', `Connecting to Socket.IO, mode=${mode}`);
+
+    _socket = io('/', {
+      path: base + 'socket.io',
+      auth: { token: getAuthToken() },
+      query: { mode: mode },
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 10000,
+      reconnectionAttempts: Infinity,
+      timeout: 10000,
+    });
+
+    // ── Connection lifecycle ────────────────────────────────────────────────
+
+    _socket.on('connect', function () {
+      _connected = true;
+      log('CONNECT', 'Socket connected: ' + _socket.id);
+
+      // Replay pending events
+      if (_pendingEvents.length > 0) {
+        log('INFO', `Replaying ${_pendingEvents.length} pending events`);
+        _pendingEvents.forEach(function (ev) {
+          _socket.emit(ev.name, ev.data);
+        });
+        _pendingEvents = [];
+      }
+
+      // Broadcast to other tabs
+      bcastSend('force-refetch', { entities: ['all'] });
+    });
+
+    _socket.on('disconnect', function (reason) {
+      _connected = false;
+      log('DISCONNECT', `Socket disconnected: ${reason}`);
+    });
+
+    _socket.on('connect_error', function (err) {
+      log('ERROR', 'Connection error: ' + (err.message || err));
+    });
+
+    _socket.on('reconnect_attempt', function (attempt) {
+      log('INFO', `Reconnecting... attempt ${attempt}`);
+    });
+
+    _socket.on('reconnect', function () {
+      log('INFO', 'Reconnected!');
+      bcastSend('force-refetch', { entities: ['all'] });
+    });
+
+    _socket.on('error', function (err) {
+      log('ERROR', 'Socket error', err);
+    });
+
+    // ── Server → Client events ───────────────────────────────────────────────
+
+    // Connected confirmation
+    _socket.on('connected', function (data) {
+      log('CONNECT', 'Server confirmed connection', data);
+    });
+
+    // ── DATA CHANGE EVENTS ──────────────────────────────────────────────────
+    // Each event triggers a targeted refetch via window.loadData / dispatchEvent
+
+    _socket.on('order:created', function (data) {
+      log('EVENT', 'order:created received', data);
+      triggerRefetch(['orders', 'reports', 'dashboard']);
+      bcastSend('sync', { source: 'socket' });
+    });
+
+    _socket.on('order:updated', function (data) {
+      log('EVENT', 'order:updated received', data);
+      triggerRefetch(['orders', 'reports', 'dashboard']);
+      bcastSend('sync', { source: 'socket' });
+    });
+
+    _socket.on('order:deleted', function (data) {
+      log('EVENT', 'order:deleted received', data);
+      triggerRefetch(['orders', 'reports', 'dashboard']);
+      bcastSend('sync', { source: 'socket' });
+    });
+
+    _socket.on('inventory:updated', function (data) {
+      log('EVENT', 'inventory:updated received', data);
+      triggerRefetch(['inventory', 'products', 'stock', 'reports']);
+      bcastSend('sync', { source: 'socket' });
+    });
+
+    _socket.on('keg:updated', function (data) {
+      log('EVENT', 'keg:updated received', data);
+      triggerRefetch(['kegs', 'inventory', 'products']);
+      bcastSend('sync', { source: 'socket' });
+    });
+
+    _socket.on('customer:updated', function (data) {
+      log('EVENT', 'customer:updated received', data);
+      triggerRefetch(['customers', 'orders']);
+      bcastSend('sync', { source: 'socket' });
+    });
+
+    _socket.on('expense:created', function (data) {
+      log('EVENT', 'expense:created received', data);
+      triggerRefetch(['expenses', 'reports', 'dashboard']);
+      bcastSend('sync', { source: 'socket' });
+    });
+
+    _socket.on('expense:updated', function (data) {
+      log('EVENT', 'expense:updated received', data);
+      triggerRefetch(['expenses', 'reports', 'dashboard']);
+      bcastSend('sync', { source: 'socket' });
+    });
+
+    _socket.on('expense:deleted', function (data) {
+      log('EVENT', 'expense:deleted received', data);
+      triggerRefetch(['expenses', 'reports', 'dashboard']);
+      bcastSend('sync', { source: 'socket' });
+    });
+
+    _socket.on('report:updated', function (data) {
+      log('EVENT', 'report:updated received', data);
+      triggerRefetch(['reports', 'dashboard']);
+      bcastSend('sync', { source: 'socket' });
+    });
+
+    // Force immediate refetch (from another client requesting it)
+    _socket.on('refetch:now', function (data) {
+      log('EVENT', 'refetch:now received', data);
+      triggerRefetch(data.entities || ['all']);
+      bcastSend('sync', { source: 'socket' });
+    });
+
+    // ── Ping ───────────────────────────────────────────────────────────────
+    _socket.on('ping', function (data) {
+      // Passive ping from server — respond if needed
+      log('PING', 'Server ping received', data);
+    });
+  }
+
+  // ── Refetch logic ───────────────────────────────────────────────────────────
+
+  /**
+   * Trigger refetch for specified entities.
+   * Uses debounce to batch multiple rapid-fire events.
+   * Always refetches from API (never trusts event payload).
+   *
+   * @param {string[]} entities - e.g. ['orders', 'inventory', 'reports']
+   */
+  function triggerRefetch(entities) {
+    // Always include 'all' if present
+    if (entities.includes('all')) {
+      entities = ['orders', 'inventory', 'reports', 'dashboard', 'products', 'customers', 'expenses', 'kegs'];
+    }
+
+    entities.forEach(function (e) { _pendingRefetch.add(e); });
+
+    clearTimeout(_refetchTimer);
+    _refetchTimer = setTimeout(function () {
+      const toRefetch = Array.from(_pendingRefetch);
+      _pendingRefetch.clear();
+
+      log('REFETCH', 'Triggering refetch for: ' + toRefetch.join(', '));
+
+      // Strategy 1: Use page's window.loadData if available
+      if (typeof window.loadData === 'function') {
+        log('REFETCH', 'Calling window.loadData()');
+        window.loadData().catch(function (err) {
+          log('ERROR', 'loadData() failed', err);
+        });
+      }
+
+      // Strategy 2: Dispatch custom event for page-specific handlers
+      var detail = { entities: toRefetch, ts: Date.now() };
+      var evt = new CustomEvent('realtime:refetch', { detail: detail });
+      window.dispatchEvent(evt);
+      log('REFETCH', 'Dispatched realtime:refetch event');
+
+      // Strategy 3: BroadcastChannel — notifies other tabs to also refetch
+      bcastSend('force-refetch', { entities: toRefetch });
+
+      // Strategy 4: Notify Service Worker to clear relevant caches
+      notifyServiceWorker(toRefetch);
+
+    }, REFETCH_DEBOUNCE);
+  }
+
+  // ── Service Worker notification ───────────────────────────────────────────
+
+  function notifyServiceWorker(entities) {
+    if (!('serviceWorker' in navigator) || !navigator.serviceWorker.controller) return;
+
+    var paths = [];
+    entities.forEach(function (entity) {
+      var map = {
+        orders:     ['/api/sales', '/dashboard/data'],
+        inventory:  ['/api/stock', '/api/products'],
+        products:   ['/api/products', '/api/stock'],
+        customers:  ['/api/customers'],
+        expenses:   ['/api/expenses'],
+        reports:    ['/report/data'],
+        dashboard:  ['/dashboard/data'],
+        kegs:       ['/api/kegs', '/api/stock'],
+      };
+      var p = map[entity];
+      if (p) paths.push.apply(paths, p);
+    });
+
+    if (paths.length === 0) return;
+
+    navigator.serviceWorker.controller.postMessage({
+      type: 'REALTIME_INVALIDATE',
+      paths: paths,
+      ts: Date.now(),
+    });
+  }
+
+  // ── Auth token helper ───────────────────────────────────────────────────────
+
+  function getAuthToken() {
+    // Try to get token from localStorage (same as auth.js)
+    try {
+      var stored = localStorage.getItem('auth_token');
+      if (stored) {
+        var parsed = JSON.parse(stored);
+        return parsed.token || stored;
+      }
+    } catch (e) { /* ignore */ }
+    // Fallback: check cookies
+    if (document.cookie) {
+      var match = document.cookie.match(/session_token=([^;]+)/);
+      if (match) return match[1];
+    }
+    return null;
+  }
+
+  // ── Public API ───────────────────────────────────────────────────────────────
+
+  /**
+   * Force immediate refetch for specific entities.
+   * Call this after local mutations to sync all clients.
+   * @param {string[]} entities
+   */
+  function forceRefetch(entities) {
+    triggerRefetch(entities);
+  }
+
+  /**
+   * Emit a custom event to server (for multi-tab leader election, etc.)
+   * @param {string} event
+   * @param {object} data
+   */
+  function emit(event, data) {
+    if (!_socket || !_connected) {
+      _pendingEvents.push({ name: event, data: data });
+      log('WARN', `Socket not connected — queued event: ${event}`);
+      return;
+    }
+    _socket.emit(event, data);
+  }
+
+  /**
+   * Get current connection status.
+   * @returns {{ connected: boolean, id: string|null, debug: boolean }}
+   */
+  function getStatus() {
+    return {
+      connected: _connected,
+      id: _socket ? _socket.id : null,
+      debug: _debug,
+      broadcastSupported: _bcastSupported,
+      pendingEvents: _pendingEvents.length,
+    };
+  }
+
+  /**
+   * Enable/disable debug logging.
+   * @param {boolean} enabled
+   */
+  function setDebug(enabled) {
+    _debug = !!enabled;
+    log('INFO', 'Debug ' + (_debug ? 'enabled' : 'disabled'));
+  }
+
+  /**
+   * Manually disconnect socket (rarely needed).
+   */
+  function disconnect() {
+    if (_socket) {
+      _socket.disconnect();
+      _connected = false;
+    }
+  }
+
+  /**
+   * Reconnect socket after manual disconnect.
+   */
+  function reconnect() {
+    if (_socket) {
+      _socket.connect();
+    }
+  }
+
+  /**
+   * Broadcast to other tabs directly (bypass socket).
+   * @param {string} type
+   * @param {object} data
+   */
+  function broadcast(type, data) {
+    bcastSend(type, data);
+  }
+
+  // ── Expose global API ───────────────────────────────────────────────────────
+
+  window.Realtime = {
+    connect:       connect,
+    forceRefetch:   forceRefetch,
+    emit:           emit,
+    getStatus:      getStatus,
+    setDebug:       setDebug,
+    disconnect:     disconnect,
+    reconnect:      reconnect,
+    broadcast:      broadcast,
+    // Expose constants for advanced usage
+    EVENTS: {
+      ORDER_CREATED:     'order:created',
+      ORDER_UPDATED:     'order:updated',
+      ORDER_DELETED:     'order:deleted',
+      INVENTORY_UPDATED: 'inventory:updated',
+      KEG_UPDATED:       'keg:updated',
+      CUSTOMER_UPDATED:  'customer:updated',
+      EXPENSE_CREATED:   'expense:created',
+      EXPENSE_UPDATED:   'expense:updated',
+      EXPENSE_DELETED:   'expense:deleted',
+      REPORT_UPDATED:    'report:updated',
+      REFETCH_NOW:       'refetch:now',
+    },
   };
-  el.disabled = true;
-  return original;
-}
 
-function restoreButtonLoading(state) {
-  if (!state || !state.el) return;
-  state.el.disabled = state.disabled;
-  if (state.originalText) {
-    state.el.textContent = state.originalText;
-  }
-}
+  // ── Auto-initialize ────────────────────────────────────────────────────────
 
-async function optimisticMutate(opts) {
-  var request         = opts.request;
-  var applyOptimistic = opts.applyOptimistic;
-  var rollback        = opts.rollback;
-  var onSuccess       = opts.onSuccess;
-  var onError         = opts.onError;
-  var refetch         = opts.refetch;
-  var entity          = opts.entity || '';
-
-  // 1. Apply optimistic UI change immediately
-  if (typeof applyOptimistic === 'function') {
-    applyOptimistic();
-  }
-
-  try {
-    var res = await request();
-    var data = await res.json();
-
-    // Treat { success: false } as an error (non-2xx or explicit failure)
-    if (!res.ok || data.success === false) {
-      throw new Error(data.error || data.message || 'Thao tác thất bại');
-    }
-
-    if (typeof onSuccess === 'function') {
-      await onSuccess(data);
-    }
-
-    if (typeof refetch === 'function') {
-      await refetch(data);
-    }
-
-    if (window.BeerStore && typeof window.BeerStore.invalidateAndRefresh === 'function') {
-      window.BeerStore.invalidateAndRefresh(entity || 'mutation').catch(function(e) {
-        console.warn('[CONSISTENCY][Mutate] invalidateAndRefresh failed', entity, e);
-      });
-    }
-
-    if (window.dispatchEvent) {
-      window.dispatchEvent(new CustomEvent('data:mutated', {
-        detail: { entity: entity || 'unknown', at: Date.now(), source: 'optimisticMutate' }
-      }));
-    }
-
-    return { ok: true, data: data };
-
-  } catch (err) {
-    // 3. Error — rollback UI immediately
-    console.error('[optimisticMutate] Rollback:', err);
-    if (typeof rollback === 'function') {
-      rollback();
-    }
-
-    var msg = err.message || 'Có lỗi xảy ra';
-    alert(msg);
-
-    if (typeof onError === 'function') {
-      onError(err);
-    }
-
-    return { ok: false, error: err };
-  }
-}
-
-/**
- * Add visual indicator to a DOM element for "optimistic / pending" state.
- * @param {string|HTMLElement} selectorOrEl
- * @param {boolean} pending
- */
-function setOptimisticPending(selectorOrEl, pending) {
-  var el = typeof selectorOrEl === 'string' ? document.querySelector(selectorOrEl) : selectorOrEl;
-  if (!el) return;
-  if (pending) {
-    el.classList.add('optimistic-pending');
-    el.setAttribute('aria-busy', 'true');
-  } else {
-    el.classList.remove('optimistic-pending');
-    el.removeAttribute('aria-busy');
-  }
-}
-
-function setCardPending(cardEl, pending) {
-  if (!cardEl) return;
-  if (pending) {
-    cardEl.style.opacity = '0.55';
-    cardEl.style.pointerEvents = 'none';
-    cardEl.style.transition = 'opacity 0.15s';
-  } else {
-    cardEl.style.opacity = '';
-    cardEl.style.pointerEvents = '';
-  }
-}
-
-/** ============================================================
- * 3. LEGACY MUTATE HELPER (kept for backward compatibility)
- * Wraps fetch calls with optimistic UI update
- * - Always hits network (cache: 'no-store')
- * - Falls back to loadData() on failure
- * ============================================================ */
-async function mutate(requestFn, onSuccess, onError) {
-  try {
-    const res = await requestFn();
-    const data = await res.json();
-
-    if (res.ok && data.success !== false) {
-      if (typeof onSuccess === 'function') {
-        onSuccess(data);
-      }
+  /**
+   * Wait for DOM + socket.io client to be ready, then connect.
+   */
+  function autoInit() {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', doInit);
     } else {
-      if (typeof onError === 'function') {
-        onError(data);
-      } else {
-        alert(data.error || 'Đã xảy ra lỗi');
-      }
+      doInit();
     }
-  } catch (err) {
-    console.error('Mutate error:', err);
-    if (typeof onError === 'function') {
-      onError({ error: err.message });
+  }
+
+  function doInit() {
+    // Wait for socket.io-client to be available
+    if (typeof window.io === 'undefined') {
+      // Load socket.io-client from CDN if not bundled
+      var script = document.createElement('script');
+      script.src = (window.BASE_PATH || '/') + 'socket.io/socket.io.js';
+      script.onload = function () {
+        log('INFO', 'Socket.IO client loaded from CDN');
+        connect();
+      };
+      script.onerror = function () {
+        log('ERROR', 'Failed to load socket.io-client from CDN');
+      };
+      document.head.appendChild(script);
     } else {
-      alert('Lỗi kết nối: ' + err.message);
+      connect();
     }
-  }
-}
 
-/** ============================================================
- * 3. RENDERING HELPERS
- * Granular DOM update functions (no full re-render)
- * ============================================================ */
+    // Also initialize BroadcastChannel immediately (no async needed)
+    initBroadcast();
 
-/**
- * Render a single expense item to the list
- * @param {Object} expense - expense data
- * @param {Object} opts - { prepend: true } to add at top
- */
-function renderExpenseItem(expense, opts) {
-  opts = opts || {};
-  var container = document.getElementById('expensesList');
-  if (!container) return;
+    // Listen for page-specific realtime:refetch events
+    window.addEventListener('realtime:refetch', function (evt) {
+      log('EVENT', 'realtime:refetch event caught', evt.detail);
+      // Pages can listen to this event to implement custom refetch logic
+    });
 
-  var icon = _getIconByName(expense.category);
-  var catLabel = _getLabelByName(expense.category);
-  var dateStr = expense.date ? expense.date.split('T')[0].split('-').reverse().join('/') : '';
-  var html = [
-    '<div class="card p-3 flex items-center justify-between" data-expense-id="' + expense.id + '">',
-      '<div class="flex items-center gap-3">',
-        '<div class="text-2xl">' + icon + '</div>',
-        '<div>',
-          '<div class="font-medium">' + catLabel + '</div>',
-          '<div class="text-sm text-muted">' + (expense.note || '—') + '</div>',
-          '<div class="text-xs text-muted">' + dateStr + '</div>',
-        '</div>',
-      '</div>',
-      '<div class="flex items-center gap-2">',
-        '<div class="font-bold text-money money">' + formatVND(expense.amount) + '</div>',
-        '<button onclick="editExpense(' + expense.id + ')" class="btn btn-ghost btn-sm">✏️</button>',
-        '<button onclick="deleteExpense(' + expense.id + ')" class="btn btn-ghost btn-sm text-danger">🗑️</button>',
-      '</div>',
-    '</div>'
-  ].join('');
-
-  if (opts.prepend) {
-    container.insertAdjacentHTML('afterbegin', html);
-  } else {
-    container.insertAdjacentHTML('beforeend', html);
-  }
-}
-
-/**
- * Update an existing expense item in-place
- */
-function updateExpenseItem(expense) {
-  var card = document.querySelector('[data-expense-id="' + expense.id + '"]');
-  if (!card) return;
-
-  var icon = _getIconByName(expense.category);
-  var catLabel = _getLabelByName(expense.category);
-  var dateStr = expense.date ? expense.date.split('T')[0].split('-').reverse().join('/') : '';
-
-  card.querySelector('.text-2xl').textContent = icon;
-  var textEls = card.querySelectorAll('.font-medium, .text-muted');
-  if (textEls[0]) textEls[0].textContent = catLabel;
-  if (textEls[1]) textEls[1].textContent = expense.note || '—';
-  if (textEls[2]) textEls[2].textContent = dateStr;
-  var moneyEl = card.querySelector('.money');
-  if (moneyEl) moneyEl.textContent = formatVND(expense.amount);
-
-  // Update onclick handlers for edit/delete
-  var btns = card.querySelectorAll('button');
-  if (btns[0]) btns[0].setAttribute('onclick', 'editExpense(' + expense.id + ')');
-  if (btns[1]) btns[1].setAttribute('onclick', 'deleteExpense(' + expense.id + ')');
-}
-
-/**
- * Remove an expense item from DOM
- */
-function removeExpenseItem(id) {
-  var card = document.querySelector('[data-expense-id="' + id + '"]');
-  if (card) card.remove();
-}
-
-/**
- * Render a single sale item to the list
- */
-function renderSaleItem(sale, opts) {
-  opts = opts || {};
-  var container = document.getElementById('salesHistoryList');
-  if (!container) return;
-
-  var date = formatSaleListDate(sale.date);
-  var customerName = sale.customer_name || 'Khách lẻ';
-  var isReturned = sale.status === 'returned';
-  var itemsQty = parseInt(sale.items_qty, 10) || 0;
-  var isReplacement = sale.type === 'replacement';
-  var isGift = sale.type === 'gift';
-  var badgeHtml = isReplacement ? '<span class="badge badge-warning">🔁 Đổi lỗi</span>'
-                       : isGift ? '<span class="badge badge-primary">🎁 Tặng thử</span>'
-                       : '';
-  var badgeLeft = isReplacement ? 'border-l-4 border-warning'
-                   : isGift ? 'border-l-4 border-primary'
-                   : 'border-l-4 border-success';
-  var qtyLabel = itemsQty > 0 ? '📦 ' + itemsQty + 'L' : '';
-  var saleMoney = typeof Format !== 'undefined' ? Format.number(sale.total) : formatVND(sale.total).replace(' đ', '');
-
-  var html = [
-    '<div class="order-item ' + badgeLeft + '" data-sale-id="' + sale.id + '">',
-      '<div class="order-header">',
-        '<div class="flex items-center gap-2 min-w-0 flex-1">',
-          '<span class="text-xs font-semibold text-muted shrink-0">#' + sale.id + '</span>',
-          '<span class="order-title">' + customerName + '</span>',
-          (badgeHtml ? '<span class="shrink-0">' + badgeHtml + '</span>' : ''),
-        '</div>',
-        '<span class="order-meta">📅 ' + date + '</span>',
-      '</div>',
-      '<div class="order-footer">',
-        '<div class="flex items-baseline gap-1">',
-          '<div class="money text-money"><span class="value text-xl font-bold tabular-nums">' + saleMoney + '</span><span class="unit">đ</span></div>',
-        '</div>',
-        (qtyLabel ? '<span class="order-meta">' + qtyLabel + '</span>' : ''),
-      '</div>',
-      '<div class="order-actions">',
-        (isReturned
-          ? '<button class="btn btn-secondary btn-sm">Đã trả</button>'
-          : '<button onclick="viewSale(' + sale.id + ')" class="btn btn-secondary btn-sm">Hóa đơn</button>' +
-            '<button onclick="openCollectKegModal(' + sale.id + ')" class="btn btn-warning btn-sm">Thu vỏ</button>' +
-            '<button onclick="editSale(' + sale.id + ')" class="btn btn-ghost btn-sm">Sửa</button>' +
-            '<button onclick="deleteSale(' + sale.id + ')" class="btn btn-danger btn-sm">Xóa</button>'
-        ),
-      '</div>',
-    '</div>'
-  ].join('');
-
-  // Insert before pagination nav if exists
-  var nav = container.querySelector('nav[role="navigation"]');
-  if (nav) {
-    nav.insertAdjacentHTML('beforebegin', html);
-  } else if (opts.prepend) {
-    container.insertAdjacentHTML('afterbegin', html);
-  } else {
-    container.insertAdjacentHTML('beforeend', html);
-  }
-}
-
-/**
- * Patch a sale row in-place (no full re-render)
- */
-function patchSaleRow(sale) {
-  var card = document.querySelector('[data-sale-id="' + sale.id + '"]');
-  if (!card) return;
-
-  var date = formatSaleListDate(sale.date);
-  var nameEl = card.querySelector('.order-title');
-  var dateEl = card.querySelector('.order-meta');
-  var moneyEl = card.querySelector('.money .value');
-  if (nameEl) nameEl.textContent = sale.customer_name || 'Khách lẻ';
-  if (dateEl) dateEl.textContent = '📅 ' + date;
-  if (moneyEl) moneyEl.textContent = typeof Format !== 'undefined' ? Format.number(sale.total) : formatVND(sale.total).replace(' đ', '');
-
-  var isReturned = sale.status === 'returned';
-  var isReplacement = sale.type === 'replacement';
-  var isGift = sale.type === 'gift';
-  var actionsEl = card.querySelector('.order-actions');
-  if (actionsEl) {
-    actionsEl.innerHTML = isReturned
-      ? '<button class="btn btn-secondary btn-sm">Đã trả</button>'
-      : '<button onclick="viewSale(' + sale.id + ')" class="btn btn-secondary btn-sm">Hóa đơn</button>' +
-        '<button onclick="openCollectKegModal(' + sale.id + ')" class="btn btn-warning btn-sm">Thu vỏ</button>' +
-        '<button onclick="editSale(' + sale.id + ')" class="btn btn-ghost btn-sm">Sửa</button>' +
-        '<button onclick="deleteSale(' + sale.id + ')" class="btn btn-danger btn-sm">Xóa</button>';
-  }
-  card.className = 'order-item ' + (isReplacement ? 'border-l-4 border-warning' : isGift ? 'border-l-4 border-primary' : 'border-l-4 border-success');
-}
-
-/**
- * Remove a sale item from DOM
- */
-function removeSaleItem(id) {
-  var card = document.querySelector('[data-sale-id="' + id + '"]');
-  if (card) card.remove();
-}
-
-/**
- * Render a single product card to the list
- */
-function renderProductItem(product, opts) {
-  opts = opts || {};
-  var container = document.getElementById('productList');
-  if (!container) return;
-
-  var low = product.stock < 5;
-  var html = [
-    '<article class="card product-card product-card--interactive ' + (low ? 'border-danger' : 'border-muted') + '"',
-      ' role="button" tabindex="0" data-product-id="' + product.id + '"',
-      ' aria-label="' + escapeHtmlAttr(product.name) + ' — Tồn ' + product.stock + '. Nhấn để sửa"',
-      ' onclick="openProductModal(' + product.id + ')"',
-      ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();openProductModal(' + product.id + ');}">',
-      '<div class="flex justify-between items-start gap-2">',
-        '<h3 class="product-card__name min-w-0 flex-1">' + product.name + '</h3>',
-        (low ? '<span class="badge badge-danger shrink-0 text-[10px]">Sắp hết</span>' : ''),
-      '</div>',
-      '<div class="product-card__meta">Giá vốn · ' + formatVND(product.cost_price || 0) + '</div>',
-      '<div class="product-card__footer">',
-        '<div class="min-w-0">',
-          '<div class="product-card__qty-label">Tồn kho</div>',
-          '<div class="product-card__qty tabular-nums ' + (low ? 'text-danger' : 'text-success') + '">' + product.stock + '</div>',
-        '</div>',
-        '<div class="product-card__edit-pill" aria-hidden="true"><span class="product-card__edit-icon">✏️</span><span>Sửa</span></div>',
-      '</div>',
-    '</article>'
-  ].join('');
-
-  // Insert after low stock alert (first card) or at end
-  var firstCard = container.querySelector('[data-product-id]');
-  if (opts.prepend && firstCard) {
-    firstCard.insertAdjacentHTML('beforebegin', html);
-  } else {
-    container.insertAdjacentHTML('beforeend', html);
-  }
-}
-
-/**
- * Update a product card in-place
- */
-function updateProductItem(product) {
-  var card = document.querySelector('[data-product-id="' + product.id + '"]');
-  if (!card) return;
-
-  var low = product.stock < 5;
-  var nameEl = card.querySelector('.product-card__name');
-  var metaEl = card.querySelector('.product-card__meta');
-  var qtyEl = card.querySelector('.product-card__qty');
-  var qtyLabelEl = card.querySelector('.product-card__qty-label');
-  var badgeEl = card.querySelector('.badge-danger');
-
-  if (nameEl) nameEl.textContent = product.name;
-  if (metaEl) metaEl.textContent = 'Giá vốn · ' + formatVND(product.cost_price || 0);
-  if (qtyEl) {
-    qtyEl.textContent = product.stock;
-    qtyEl.className = 'product-card__qty tabular-nums ' + (low ? 'text-danger' : 'text-success');
-  }
-  if (qtyLabelEl && qtyLabelEl.textContent === 'Tồn kho') {
-    // already correct
+    log('INFO', 'BeerPOS Real-time client initialized');
   }
 
-  // Update badge
-  var headerEl = card.querySelector('.flex');
-  if (headerEl) {
-    var existingBadge = headerEl.querySelector('.badge-danger');
-    if (low && !existingBadge) {
-      var nameWrapper = headerEl.querySelector('.product-card__name');
-      if (nameWrapper) {
-        nameWrapper.insertAdjacentHTML('afterend', '<span class="badge badge-danger shrink-0 text-[10px]">Sắp hết</span>');
-      }
-    } else if (!low && existingBadge) {
-      existingBadge.remove();
-    }
-  }
-}
+  autoInit();
 
-/**
- * Remove a product card from DOM
- */
-function removeProductItem(id) {
-  var card = document.querySelector('[data-product-id="' + id + '"]');
-  if (card) card.remove();
-}
-
-/**
- * Render a single purchase history item
- */
-function renderPurchaseItem(purchase, opts) {
-  opts = opts || {};
-  var container = document.getElementById('purchaseHistoryList');
-  if (!container) return;
-
-  var date = new Date(purchase.date);
-  var formattedDate = date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  var count = purchase.item_count != null ? purchase.item_count : 0;
-  var html = [
-    '<div class="purchase-history-item rounded-xl border border-muted bg-bg/40 p-3 mb-2 last:mb-0" data-purchase-id="' + purchase.id + '">',
-      '<div class="flex items-start justify-between gap-2 min-w-0">',
-        '<div class="min-w-0 flex-1">',
-          '<div class="font-semibold text-primary">Đơn #' + purchase.id + '</div>',
-          '<div class="text-xs text-muted mt-0.5">' + formattedDate + ' · ' + count + ' sản phẩm</div>',
-        '</div>',
-        '<div class="flex items-center gap-0.5 shrink-0">',
-          '<button type="button" onclick="editPurchase(' + purchase.id + ')" class="btn btn-ghost btn-sm min-w-[2.25rem] h-9 px-0" title="Sửa">✏️</button>',
-          '<button type="button" onclick="deletePurchase(' + purchase.id + ')" class="btn btn-ghost btn-sm min-w-[2.25rem] h-9 px-0 text-danger" title="Xóa">🗑️</button>',
-        '</div>',
-      '</div>',
-      '<div class="mt-2.5 pt-2.5 border-t border-muted/70 flex items-center justify-between gap-3 min-w-0">',
-        '<span class="text-xs text-muted shrink-0">Tổng tiền</span>',
-        '<div class="card-stat-amount text-success justify-end text-sm sm:text-base font-bold">',
-          '<span class="tabular-nums tracking-tight">' + new Intl.NumberFormat('vi-VN').format(Number(purchase.total_amount) || 0) + '</span>',
-          '<span class="text-[10px] sm:text-xs opacity-75 shrink-0">đ</span>',
-        '</div>',
-      '</div>',
-    '</div>'
-  ].join('');
-
-  if (opts.prepend) {
-    container.insertAdjacentHTML('afterbegin', html);
-  } else {
-    container.insertAdjacentHTML('beforeend', html);
-  }
-}
-
-/**
- * Update a purchase item in-place
- */
-function updatePurchaseItem(purchase) {
-  var card = document.querySelector('[data-purchase-id="' + purchase.id + '"]');
-  if (!card) return;
-
-  var formattedDate = new Date(purchase.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  var count = purchase.item_count != null ? purchase.item_count : 0;
-  var amountEl = card.querySelector('.tabular-nums');
-  var metaEl = card.querySelector('.text-xs.text-muted');
-
-  if (metaEl) metaEl.textContent = formattedDate + ' · ' + count + ' sản phẩm';
-  if (amountEl) amountEl.textContent = new Intl.NumberFormat('vi-VN').format(Number(purchase.total_amount) || 0);
-
-  // Update buttons
-  var btns = card.querySelectorAll('button');
-  if (btns[0]) btns[0].setAttribute('onclick', 'editPurchase(' + purchase.id + ')');
-  if (btns[1]) btns[1].setAttribute('onclick', 'deletePurchase(' + purchase.id + ')');
-}
-
-/**
- * Remove a purchase item from DOM
- */
-function removePurchaseItem(id) {
-  var card = document.querySelector('[data-purchase-id="' + id + '"]');
-  if (card) card.remove();
-}
-
-/** ============================================================
- * 4. SUMMARY UPDATE HELPERS
- * Recalculate and update summary elements without full reload
- * ============================================================ */
-function updateExpensesSummary() {
-  if (typeof _expensesData === 'undefined') return;
-  var total = _expensesData.reduce(function(s, e) { return s + (Number(e.amount) || 0); }, 0);
-  var el = document.getElementById('headerTotal');
-  if (el) el.textContent = formatVND(total);
-
-  // Update category summary cards
-  var summary = {};
-  for (var i = 0; i < _expensesData.length; i++) {
-    var cat = _expensesData[i].category || 'other';
-    summary[cat] = (summary[cat] || 0) + (Number(_expensesData[i].amount) || 0);
-  }
-  renderSummaryCards(summary);
-}
-
-function updatePurchasesSummary() {
-  // Update total count in pagination area
-  var total = typeof allPurchases !== 'undefined' ? allPurchases.length : 0;
-  var itemCountEl = document.getElementById('historyItemCount');
-  if (itemCountEl) itemCountEl.textContent = total + ' phiếu';
-}
-
-function updateProductsSummary() {
-  // Update total stock display
-  if (typeof currentProducts === 'undefined') return;
-  var totalStockEl = document.getElementById('totalStock');
-  if (totalStockEl) {
-    var total = currentProducts.reduce(function(sum, p) { return sum + Math.max(0, Number(p.stock) || 0); }, 0);
-    totalStockEl.textContent = String(total);
-  }
-
-  // Update low stock alert
-  var lowStockProducts = currentProducts.filter(function(p) { return p.stock < 5; });
-  var container = document.getElementById('productList');
-  if (!container) return;
-
-  var existingAlert = container.querySelector('.border-danger');
-  var newAlertHtml = '';
-  if (lowStockProducts.length > 0) {
-    newAlertHtml = [
-      '<div class="card mb-4 border-danger product-grid__full">',
-        '<div class="text-sm font-bold text-danger mb-2">⚠️ Tồn kho thấp (' + lowStockProducts.length + ')</div>',
-        '<div class="flex flex-wrap gap-1">',
-          lowStockProducts.map(function(p) {
-            return '<span class="badge badge-danger">' + p.name + ': <b>' + p.stock + '</b></span>';
-          }).join(''),
-        '</div>',
-      '</div>'
-    ].join('');
-  }
-
-  var firstCard = container.querySelector('[data-product-id]');
-  if (firstCard) {
-    var oldAlert = container.querySelector('.border-danger');
-    if (oldAlert) oldAlert.remove();
-    firstCard.insertAdjacentHTML('beforebegin', newAlertHtml);
-  } else if (newAlertHtml) {
-    container.insertAdjacentHTML('afterbegin', newAlertHtml);
-  }
-}
-
-/** ============================================================
- * 5. EMPTY STATE HELPERS
- * ============================================================ */
-
-/**
- * Remove a customer card from DOM
- */
-function removeCustomerItem(id) {
-  var card = document.querySelector('[data-customer-id="' + id + '"]');
-  if (card) card.remove();
-}
-
-function checkExpensesEmpty() {
-  var container = document.getElementById('expensesList');
-  var empty = document.getElementById('emptyState');
-  if (!container || !empty) return;
-  var filtered = _currentCategory === 'all'
-    ? _expensesData
-    : _expensesData.filter(function(e) { return e.category === _currentCategory; });
-  if (filtered.length === 0) {
-    empty.classList.remove('hidden');
-  } else {
-    empty.classList.add('hidden');
-  }
-}
-
-function checkPurchasesEmpty() {
-  var container = document.getElementById('historyList');
-  if (!container) return;
-  var total = typeof allPurchases !== 'undefined' ? allPurchases.length : 0;
-  if (total === 0) {
-    container.innerHTML = '<div class="text-center text-muted py-8">Chưa có phiếu nhập nào</div>';
-  }
-}
-
-function checkSalesEmpty() {
-  var container = document.getElementById('salesHistoryList');
-  if (!container) return;
-  var nav = container.querySelector('nav[role="navigation"]');
-  var totalRow = container.querySelector('.history-total-row');
-  var hasCards = container.querySelector('[data-sale-id]');
-  if (!hasCards && !nav && !totalRow) {
-    container.innerHTML = '<p class="text-muted text-center py-4">Chưa có hóa đơn nào</p>';
-  }
-}
-
-/** ============================================================
- * 6. DOM UTILITIES
- * ============================================================ */
-function escapeHtmlAttr(s) {
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-}
-
-function formatSaleListDate(raw) {
-  if (!raw) return '—';
-  var s = String(raw).trim().split(/[\sT]/)[0];
-  var p = s.split('-');
-  if (p.length === 3) return p[2] + '/' + p[1] + '/' + p[0];
-  try {
-    return new Date(raw).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  } catch (e) {
-    return s;
-  }
-}
-
-function formatVND(amount) {
-  if (amount == null || amount === '') return '0 đ';
-  var num = Number(amount);
-  if (isNaN(num)) return '0 đ';
-  return new Intl.NumberFormat('vi-VN').format(num) + ' đ';
-}
+})();

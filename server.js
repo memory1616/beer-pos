@@ -12,6 +12,7 @@ const os = require('os');
 const crypto = require('crypto');
 const logger = require('./src/utils/logger');
 const db = require('./database');
+const socketServer = require('./src/socket/socketServer');
 const { getSession, AUTH_CONFIG } = require('./middleware/auth');
 const compression = require('compression');
 
@@ -753,6 +754,8 @@ function getNetworkIPs() {
 }
 
 const server = app.listen(PORT, HOST, () => {
+  // Initialize real-time WebSocket server
+  socketServer.init(server);
   const networkIPs = getNetworkIPs();
   logger.info('Beer POS Pro v2 started');
   logger.info(`Mode: ${isCloudServer ? 'Cloud Server' : 'Standard'}`);

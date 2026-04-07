@@ -5,6 +5,7 @@ const logger = require('../../src/utils/logger');
 const { syncKegInventory } = require('./products');
 const { updateCustomerKegBalance } = require('./payments');
 const { deleteSaleRestoringInventory } = require('../../src/services/saleDelete');
+const socketServer = require('../../src/socket/socketServer');
 
 // Helper function to validate sale input
 function validateSaleInput(body) {
@@ -162,6 +163,8 @@ router.post('/', (req, res) => {
 
     const saleId = createSale();
 
+    const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId);
+    socketServer.emitOrderCreated(sale);
     res.json({ success: true, id: saleId, total, profit });
   } catch (err) {
     logger.error('Sale error', { error: err.message });
@@ -250,6 +253,8 @@ router.post('/update-kegs', (req, res) => {
 
     updateKegs();
 
+    socketServer.emitKegUpdated();
+    socketServer.emitOrderUpdated({ id: saleId, returned: true });
     res.json({ success: true, message: 'Đã cập nhật vỏ', newBalance: newKegBalance });
   } catch (err) {
     logger.error('Update kegs error', { error: err.message });
@@ -381,6 +386,9 @@ router.post('/replacement', (req, res) => {
 
     doReplacement();
 
+    socketServer.emitInventoryUpdated();
+    socketServer.emitReportUpdated({ reason: 'replacement', saleId });
+
     const message = isGift
       ? `Đã đổi ${quantity} bia + tặng uống thử — vỏ keg đã vào kho vỏ rỗng`
       : `Đã đổi ${quantity} bia lỗi cho khách — vỏ đổi đã vào kho vỏ rỗng`;
@@ -470,9 +478,11 @@ router.post('/:id/return', (req, res) => {
     
     // Cập nhật trạng thái hóa đơn với loại return (bao gồm cập nhật lợi nhuận)
     db.prepare("UPDATE sales SET status = 'returned', type = ?, total = 0, profit = 0 WHERE id = ?").run(returnType, saleId);
-    
-    res.json({ 
-      success: true, 
+
+    socketServer.emitInventoryUpdated();
+    socketServer.emitReportUpdated({ reason: 'sale_return', saleId });
+    res.json({
+      success: true,
       message: returnType === 'stock_return' ? 'Đã trả hàng (trả lại kho)' : 'Đã ghi nhận bia lỗi',
       returnedAmount: sale.total,
       returnedItems: items.length,
@@ -611,9 +621,11 @@ router.post('/:id/return-items', (req, res) => {
       totalReturnAmount, 
       saleId
     );
-    
-    res.json({ 
-      success: true, 
+
+    socketServer.emitInventoryUpdated();
+    socketServer.emitReportUpdated({ reason: 'partial_return', saleId });
+    res.json({
+      success: true,
       message: returnType === 'stock_return' ? 'Đã trả hàng (trả lại kho)' : 'Đã ghi nhận bia lỗi',
       returnedAmount: totalReturnAmount,
       returnedQuantity: totalReturnQty,
@@ -642,6 +654,7 @@ router.delete('/:id', (req, res) => {
       return res.status(500).json({ error: 'Xóa hóa đơn thất bại' });
     }
 
+    socketServer.emitOrderDeleted(parseInt(saleId, 10));
     res.json({ success: true, message: 'Đã xóa hóa đơn' });
   } catch (err) {
     logger.error('Delete sale error', { error: err.message });
@@ -706,7 +719,9 @@ router.put('/:id', (req, res) => {
     
     // Cập nhật hóa đơn
     db.prepare('UPDATE sales SET customer_id = ?, total = ?, profit = ? WHERE id = ?').run(customerId, newTotal, newProfit, saleId);
-    
+
+    const updatedSale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId);
+    socketServer.emitOrderUpdated(updatedSale);
     res.json({ success: true, total: newTotal, profit: newProfit });
   } catch (err) {
     logger.error('Create replacement error', { error: err.message });

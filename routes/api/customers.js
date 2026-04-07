@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../../database');
 const logger = require('../../src/utils/logger');
+const socketServer = require('../../src/socket/socketServer');
 
 // Sanitize input to prevent XSS — encode HTML entities
 function sanitizeInput(input) {
@@ -160,6 +161,9 @@ router.post('/', (req, res) => {
       }
     }
 
+    const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(customerId);
+    socketServer.emitCustomerUpdated(customer);
+
     res.json({ id: customerId, name: sanitizedName, phone: sanitizedPhone, deposit: parseFloat(deposit) || 0, keg_balance: 0 });
   } catch (err) {
     logger.error('Error creating customer', { error: err.message });
@@ -284,6 +288,9 @@ router.put('/:id', (req, res) => {
       }
     }
 
+    const updatedCustomer = db.prepare('SELECT * FROM customers WHERE id = ?').get(id);
+    socketServer.emitCustomerUpdated(updatedCustomer);
+
     res.json({ success: true });
   } catch (err) {
     logger.error('Error updating customer', { error: err.message });
@@ -306,6 +313,8 @@ router.put('/:id/archive', (req, res) => {
   const archived = existing.archived ? 0 : 1;
   try {
     db.prepare('UPDATE customers SET archived = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(archived, id);
+    const updated = db.prepare('SELECT * FROM customers WHERE id = ?').get(id);
+    socketServer.emitCustomerUpdated(updated);
     res.json({ success: true, archived });
   } catch (err) {
     logger.error('Error archiving customer', { error: err.message });
@@ -315,7 +324,9 @@ router.put('/:id/archive', (req, res) => {
 
 // DELETE /api/customers/:id
 router.delete('/:id', (req, res) => {
-  db.prepare('DELETE FROM customers WHERE id = ?').run(req.params.id);
+  const id = req.params.id;
+  db.prepare('DELETE FROM customers WHERE id = ?').run(id);
+  socketServer.emitCustomerUpdated({ id, deleted: true });
   res.json({ success: true });
 });
 
@@ -346,6 +357,9 @@ router.post('/location', (req, res) => {
       return res.status(404).json({ error: 'Không tìm thấy khách hàng' });
     }
 
+    const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(customerId);
+    socketServer.emitCustomerUpdated(customer);
+
     res.json({ success: true });
   } catch (err) {
     logger.error('Location update error', { error: err.message });
@@ -359,7 +373,9 @@ router.post('/customer/location', (req, res) => {
   if (!customerId || lat === undefined || lng === undefined) {
     return res.status(400).json({ error: 'Thiếu thông tin' });
   }
-    db.prepare('UPDATE customers SET lat = ?, lng = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(lat, lng, customerId);
+  db.prepare('UPDATE customers SET lat = ?, lng = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(lat, lng, customerId);
+  const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(customerId);
+  socketServer.emitCustomerUpdated(customer);
   res.json({ success: true });
 });
 

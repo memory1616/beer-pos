@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../../database');
 const logger = require('../../src/utils/logger');
+const socketServer = require('../../src/socket/socketServer');
 
 // Expense type mapping
 const EXPENSE_TYPES = {
@@ -214,6 +215,7 @@ router.post('/', (req, res) => {
     );
     
     const expense = db.prepare('SELECT * FROM expenses WHERE id = ?').get(result.lastInsertRowid);
+    socketServer.emitExpense('created', expense);
     res.status(201).json(expense);
   } catch (err) {
     logger.error('Error creating expense', { error: err.message });
@@ -276,6 +278,7 @@ router.post('/quick', (req, res) => {
     );
     
     const expense = db.prepare('SELECT * FROM expenses WHERE id = ?').get(result.lastInsertRowid);
+    socketServer.emitExpense('created', expense);
     res.status(201).json(expense);
   } catch (err) {
     logger.error('Error quick adding expense', { error: err.message });
@@ -311,6 +314,7 @@ router.put('/:id', (req, res) => {
     );
     
     const expense = db.prepare('SELECT * FROM expenses WHERE id = ?').get(id);
+    socketServer.emitExpense('updated', expense);
     res.json(expense);
   } catch (err) {
     logger.error('Error updating expense', { error: err.message });
@@ -327,8 +331,9 @@ router.delete('/:id', (req, res) => {
     if (!existing) {
       return res.status(404).json({ error: 'Expense not found' });
     }
-    
+
     db.prepare('DELETE FROM expenses WHERE id = ?').run(id);
+    socketServer.emitExpense('deleted', existing);
     res.json({ success: true, message: 'Expense deleted' });
   } catch (err) {
     logger.error('Error deleting expense', { error: err.message });

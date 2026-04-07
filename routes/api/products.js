@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../../database');
 const logger = require('../../src/utils/logger');
+const socketServer = require('../../src/socket/socketServer');
 
 // ========== HELPER: Sync keg_stats.inventory with products stock ==========
 // Call this whenever product stock (type='keg') changes
@@ -179,7 +180,9 @@ router.post('/', (req, res) => {
   if (productType === 'keg') {
     syncKegInventory();
   }
-  
+
+  const product = db.prepare('SELECT * FROM products WHERE id = ?').get(result.lastInsertRowid);
+  socketServer.emitInventoryUpdated({ product });
   res.json({ id: result.lastInsertRowid, name, stock: parseInt(stock) || 0, cost_price: parseFloat(cost_price) || 0, type: productType });
 });
 
@@ -194,12 +197,15 @@ router.put('/:id', (req, res) => {
     syncKegInventory();
   }
   
+  const product = db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
+  socketServer.emitInventoryUpdated({ product });
   res.json({ success: true });
 });
 
 // DELETE /api/products/:id
 router.delete('/:id', (req, res) => {
   db.prepare('DELETE FROM products WHERE id = ?').run(req.params.id);
+  socketServer.emitInventoryUpdated({ productId: req.params.id });
   res.json({ success: true });
 });
 

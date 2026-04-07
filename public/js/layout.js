@@ -210,3 +210,24 @@ if (typeof document !== 'undefined') {
     autoInjectBottomNav();
   }
 }
+
+// ── Real-time WebSocket (Socket.IO) ────────────────────────────────────────────
+// Load realtime.js after layout.js initializes
+(function () {
+  function loadRealtime() {
+    // Skip login page — no data to sync
+    if (window.location.pathname === '/login') return;
+    var script = document.createElement('script');
+    script.src = '/js/realtime.js';
+    script.defer = true;
+    // Only load once
+    if (!document.querySelector('script[src="/js/realtime.js"]')) {
+      document.head.appendChild(script);
+    }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', loadRealtime);
+  } else {
+    loadRealtime();
+  }
+})();
