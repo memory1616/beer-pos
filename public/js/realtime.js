@@ -576,37 +576,11 @@
     bcastSend(type, data);
   }
 
-  // ── Button Loading State Helpers ───────────────────────────────────────────
-
-  /**
-   * Set button to loading state.
-   * @param {HTMLButtonElement} button
-   * @param {string} [loadingText] - optional text to show while loading
-   * @returns {object|null} state object for restoreButtonLoading(), or null if no button
-   */
-  function setButtonLoading(button, loadingText) {
-    if (!button) return null;
-    var originalText = button.innerHTML;
-    button.disabled = true;
-    button.dataset.originalText = originalText;
-    if (loadingText) {
-      button.innerHTML = loadingText + '…';
-    } else {
-      button.innerHTML = '⏳…';
-    }
-    return { button: button };
-  }
-
-  /**
-   * Restore button from loading state.
-   * @param {object|null} btnState - state object returned by setButtonLoading()
-   */
-  function restoreButtonLoading(btnState) {
-    if (!btnState || !btnState.button) return;
-    var button = btnState.button;
-    button.disabled = false;
-    button.innerHTML = button.dataset.originalText || button.innerHTML;
-  }
+  // ── Button Loading State Helpers (defined in layout.js, overridden here) ────────
+  // `setButtonLoading` and `restoreButtonLoading` are defined EARLY in layout.js
+  // and assigned to window before this script runs (realtime.js is deferred).
+  // We re-assign them here so the IIFE-local references are consistent.
+  // NOTE: `optimisticMutate` is the only function that lives inside the IIFE.
 
   /**
    * Optimistic mutate helper — emits event and triggers refetch.
@@ -719,8 +693,31 @@
 
   autoInit();
 
-  window.setButtonLoading   = setButtonLoading;
-  window.restoreButtonLoading = restoreButtonLoading;
+// These functions are defined EARLY in layout.js as direct `function` declarations
+// (no IIFE wrapper) so they are available to all page scripts immediately after
+// layout.js loads — before realtime.js even executes (realtime.js is deferred).
+// Here in realtime.js we simply override them so they live in the same module scope.
+// ──────────────────────────────────────────────────────────────────────────────
+
+window.setButtonLoading = function setButtonLoading(button, loadingText) {
+  if (!button) return null;
+  var originalText = button.innerHTML;
+  button.disabled = true;
+  button.dataset.originalText = originalText;
+  if (loadingText) {
+    button.innerHTML = loadingText + '…';
+  } else {
+    button.innerHTML = '⏳…';
+  }
+  return { button: button };
+};
+
+window.restoreButtonLoading = function restoreButtonLoading(btnState) {
+  if (!btnState || !btnState.button) return;
+  var button = btnState.button;
+  button.disabled = false;
+  button.innerHTML = button.dataset.originalText || button.innerHTML;
+};
   window.optimisticMutate    = optimisticMutate;
 })();
 

@@ -216,6 +216,40 @@ if (typeof document !== 'undefined') {
   }
 }
 
+// ── Button loading state helpers ─────────────────────────────────────────────
+// Used by stock.js, sales.js, purchases.js, expenses.js, and others.
+// Defined early so they're available before realtime.js loads (which is deferred).
+
+/**
+ * Set button to loading state.
+ * @param {HTMLButtonElement} button
+ * @param {string} [loadingText] - optional text to show while loading
+ * @returns {object|null} state object for restoreButtonLoading(), or null if no button
+ */
+function setButtonLoading(button, loadingText) {
+  if (!button) return null;
+  var originalText = button.innerHTML;
+  button.disabled = true;
+  button.dataset.originalText = originalText;
+  if (loadingText) {
+    button.innerHTML = loadingText + '…';
+  } else {
+    button.innerHTML = '⏳…';
+  }
+  return { button: button };
+}
+
+/**
+ * Restore button from loading state.
+ * @param {object|null} btnState - state object returned by setButtonLoading()
+ */
+function restoreButtonLoading(btnState) {
+  if (!btnState || !btnState.button) return;
+  var button = btnState.button;
+  button.disabled = false;
+  button.innerHTML = button.dataset.originalText || button.innerHTML;
+}
+
 // ── Real-time WebSocket (Socket.IO) ────────────────────────────────────────────
 // Load realtime.js after layout.js initializes.
 // Uses MULTIPLE guards to prevent double-loading:
