@@ -601,6 +601,17 @@
     }
   }
 
+  function checkSalesEmpty() {
+    var container = document.getElementById('salesHistoryList');
+    if (!container) return;
+    var nav = container.querySelector('nav[role="navigation"]');
+    var totalRow = container.querySelector('.history-total-row');
+    var hasCards = container.querySelector('[data-sale-id]');
+    if (!hasCards && !nav && !totalRow) {
+      container.innerHTML = '<p class="text-muted text-center py-4">Chưa có hóa đơn nào</p>';
+    }
+  }
+
   function doInit() {
     // Wait for socket.io-client to be available
     if (typeof window.io === 'undefined') {
