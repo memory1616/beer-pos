@@ -541,6 +541,47 @@
     bcastSend(type, data);
   }
 
+  // ── Button Loading State Helpers ───────────────────────────────────────────
+
+  /**
+   * Set button to loading state.
+   * @param {HTMLButtonElement} button
+   * @param {string} [loadingText] - optional text to show while loading
+   * @returns {object|null} state object for restoreButtonLoading(), or null if no button
+   */
+  function setButtonLoading(button, loadingText) {
+    if (!button) return null;
+    var originalText = button.innerHTML;
+    button.disabled = true;
+    button.dataset.originalText = originalText;
+    if (loadingText) {
+      button.innerHTML = loadingText + '…';
+    } else {
+      button.innerHTML = '⏳…';
+    }
+    return { button: button };
+  }
+
+  /**
+   * Restore button from loading state.
+   * @param {object|null} btnState - state object returned by setButtonLoading()
+   */
+  function restoreButtonLoading(btnState) {
+    if (!btnState || !btnState.button) return;
+    var button = btnState.button;
+    button.disabled = false;
+    button.innerHTML = button.dataset.originalText || button.innerHTML;
+  }
+
+  /**
+   * Optimistic mutate helper — emits event and triggers refetch.
+   * @param {string} event - event name
+   * @param {object} data - event data
+   */
+  function optimisticMutate(event, data) {
+    emit(event, data);
+  }
+
   // ── Expose global API ───────────────────────────────────────────────────────
 
   window.Realtime = {
