@@ -54,7 +54,8 @@
   let _pendingRefetch  = new Set();
   let _bc              = null;
   let _bcastSupported  = false;
-  let _initCalled      = false;
+  let _initCalled      = false; // connect() chỉ chạy 1 lần
+  let _connectStarted  = false; // ngăn race condition trong connect()
   let _pendingEvents   = []; // queued while disconnected
   let _online          = navigator.onLine;
 
@@ -141,7 +142,18 @@
    * Safe to call multiple times — only connects once.
    */
   function connect() {
-    if (_initCalled) return;
+    // NGĂN DOUBLE CALL — nếu connect() được gọi lần 2 (do script load 2 lần
+    // hoặc autoInit chạy 2 lần), bỏ qua ngay.
+    if (_initCalled) {
+      log('INFO', 'connect() already called, skipping');
+      return;
+    }
+    // NGĂN RACE CONDITION — nếu connect() đang chạy (chờ io load), bỏ qua
+    if (_connectStarted) {
+      log('INFO', 'connect() already in progress, skipping');
+      return;
+    }
+    _connectStarted = true;
 
     // Detect mode
     var mode = (window.APP_MODE === 'public') ? 'public' : 'admin';
@@ -151,6 +163,7 @@
 
     if (typeof io !== 'function') {
       log('WARN', 'socket.io-client not loaded yet, retrying in 500ms...');
+      _connectStarted = false; // cho phép thử lại
       setTimeout(connect, 500);
       return;
     }
@@ -158,7 +171,7 @@
     // Mark as initialized ONLY after io is confirmed available
     _initCalled = true;
 
-    log('INFO', 'Connecting to Socket.IO at ' + WS_URL + ', mode=' + mode);
+    log('INFO', '=== connect() STARTING === mode=' + mode + ', url=' + WS_URL);
 
     // ── CLEAN OLD CONNECTIONS FIRST ──────────────────────────────────────────
     // If any existing socket from hot-reload or previous page, disconnect it.
@@ -166,6 +179,7 @@
 
     if (typeof window.__BEERPOS_SOCKET_INST__ !== 'undefined') {
       try {
+        log('INFO', 'Disconnecting existing socket instance');
         window.__BEERPOS_SOCKET_INST__.disconnect();
       } catch (e) { /* ignore */ }
     }
@@ -182,14 +196,18 @@
       // then localStorage fallback
       auth: { token: getAuthToken() },
       query: { mode: mode },
-      // Reconnection
+      // Reconnection — unlimited attempts
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 30000,
-      reconnectionAttempts: 10,
+      reconnectionAttempts: Infinity,
       // Connection timeout
       timeout: 20000,
+      // Allow upgrades
+      upgrade: true,
     });
+
+    log('INFO', 'Socket instance created, id=' + _socket.id);
 
     // Expose socket instance for cleanup on hot-reload
     window.__BEERPOS_SOCKET_INST__ = _socket;
@@ -224,11 +242,11 @@
     });
 
     _socket.on('reconnect_attempt', function (attempt) {
-      log('INFO', 'Reconnecting... attempt ' + attempt + '/10');
+      log('RECONNECT', 'Reconnecting... attempt #' + attempt);
     });
 
     _socket.on('reconnect_failed', function () {
-      log('ERROR', 'Reconnect failed after 10 attempts — will keep trying with backoff');
+      log('ERROR', 'Reconnect failed after unlimited attempts — socket will keep retrying with backoff');
     });
 
     _socket.on('reconnect', function () {

@@ -229,7 +229,7 @@ if (typeof document !== 'undefined') {
 
     // GUARD 1: realtime.js already loaded (its own __BEERPOS_REALTIME__ flag)
     if (window.__BEERPOS_REALTIME__) {
-      console.log('[Layout] realtime.js already loaded, skipping');
+      console.log('[Layout] realtime.js already loaded (__BEERPOS_REALTIME__ set), skipping');
       return;
     }
 
@@ -245,7 +245,14 @@ if (typeof document !== 'undefined') {
       return;
     }
 
+    // GUARD 4: New unified flag (belt-and-suspenders)
+    if (window.__beerPOSRealtimeInitialized) {
+      console.log('[Layout] realtime.js already initialized (__beerPOSRealtimeInitialized), skipping');
+      return;
+    }
+
     window.__BEERPOS_REALTIME_LOADING__ = true;
+    window.__beerPOSRealtimeInitialized = true;
 
     var script = document.createElement('script');
     script.src = '/js/realtime.js';
