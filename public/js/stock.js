@@ -93,26 +93,27 @@ function escapeHtmlAttr(s) {
 }
 
 /**
- * Load stock page data from server — called by stock.html init script.
- * Uses cache: 'no-store' to always get fresh data.
+ * Load stock page data from IndexedDB — single source of truth.
+ * Called by stock.html init script after db.js is loaded.
  */
 async function loadData() {
   try {
-    console.log('[Stock] loadData: fetching /stock/data...');
+    console.log('[Stock] loadData: fetching from IndexedDB...');
     if (window.dbReady) await window.dbReady;
 
-    var res = await fetch('/stock/data', { cache: 'no-store' });
-    console.log('[Stock] loadData: got response, status=' + res.status);
-    var data = await res.json();
-    console.log('[Stock] loadData: products=' + (data.products ? data.products.length : 0));
-    initStockPage(data);
+    var products = [];
+    if (typeof window.getProducts === 'function') {
+      products = await window.getProducts();
+    }
+    console.log('[Stock] loadData: products=' + (products ? products.length : 0));
+
+    initStockPage({ products: products || [], totalStockPositive: 0 });
     hideLoading();
-    return data;
+    return products;
   } catch (err) {
     console.error('[Stock] loadData ERROR:', err);
     hideLoading();
-    var el = document.getElementById('productList');
-    if (el) el.innerHTML = '<div class="text-danger text-center py-8">Lỗi tải dữ liệu: ' + (err.message || 'Không rõ lỗi') + '</div>';
+    initStockPage({ products: [], totalStockPositive: 0 });
   }
 
   // Safety fallback — prevent infinite loading
@@ -121,7 +122,7 @@ async function loadData() {
     if (loadingEl && !loadingEl.classList.contains('hidden')) {
       console.warn('[Stock] ⚠️ load timeout fallback — forcing render');
       hideLoading();
-      initStockPage({ products: [], purchases: [], totalStockPositive: 0 });
+      initStockPage({ products: [], totalStockPositive: 0 });
     }
   }, 3000);
 }
@@ -133,9 +134,14 @@ function hideLoading() {
 
 function initStockPage(data) {
   try {
-    // Render products
+    // Render products — data.products comes from IndexedDB (single source of truth)
     currentProducts = data.products || [];
     _filteredProducts = currentProducts;
+
+    // Calculate total positive stock from local data
+    var totalStockPositive = currentProducts.reduce(function(sum, p) {
+      return sum + Math.max(0, Number(p.stock) || 0);
+    }, 0);
 
     // window.store may not exist on all pages — guard safely
     if (typeof window !== 'undefined' && !window.store) {
@@ -144,12 +150,12 @@ function initStockPage(data) {
     if (window.store) {
       window.store.products = currentProducts;
     }
-    if (Array.isArray(data.purchases)) {
+    if (data.purchases && Array.isArray(data.purchases)) {
       if (window.store) window.store.purchases = data.purchases;
       allPurchases = data.purchases.slice();
     }
 
-    _renderProductsPage(_filteredProducts.slice(0, PAGE_SIZE), data.totalStockPositive || 0, _filteredProducts.length > PAGE_SIZE);
+    _renderProductsPage(_filteredProducts.slice(0, PAGE_SIZE), totalStockPositive, _filteredProducts.length > PAGE_SIZE);
 
     // Render import form
     renderImportForm(currentProducts);
@@ -379,13 +385,9 @@ async function deletePurchase(purchaseId) {
           closePurchaseModal();
           alert('Cập nhật thành công!');
 
-          // REFETCH from server to sync stock
+          // Reload from IndexedDB
           if (typeof loadData === 'function') {
             await loadData();
-          } else {
-            var stockRes = await fetch('/stock/data', { cache: 'no-store' });
-            var stockData = await stockRes.json();
-            initStockPage(stockData);
           }
 
           window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'purchase' } }));

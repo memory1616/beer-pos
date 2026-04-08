@@ -20,11 +20,11 @@ const DB_NAME    = 'BeerPOS';
 const STORE_META = '_meta';
 const CACHE_NAME = `beer-pos-v${DB_VERSION}`;
 
-// Guard: prevent re-declaration
-if (typeof window._dbInit !== 'undefined') {
-  console.log('[DB] Already initialized, skipping');
+// Guard: prevent re-declaration — robust check
+if (window._dbInitialized) {
+  console.warn('[DB] ⚠️ Already initialized — skipping duplicate load');
 } else {
-  window._dbInit = true;
+  window._dbInitialized = true;
 
   // ─── Open Dexie with safe version escalation ────────────────────────────────
   // NEVER open at a version lower than what's already on disk.
