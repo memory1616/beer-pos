@@ -474,6 +474,9 @@ app.get('/report/data', (req, res) => {
       } else if (type === 'year') {
         startDate = rYear + '-01-01';
         endDate = rYear + '-12-31';
+      } else if (type === 'custom' && req.query.startDate && req.query.endDate) {
+        startDate = req.query.startDate;
+        endDate = req.query.endDate;
       } else {
         // all
         startDate = '1970-01-01';

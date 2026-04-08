@@ -18,6 +18,32 @@
       margin-bottom: 16px;
       box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     }
+    .summary-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .summary-card {
+      background: var(--color-bg, #f9fafb);
+      border-radius: 10px;
+      padding: 14px;
+      text-align: center;
+    }
+    .summary-card .label {
+      font-size: 11px;
+      color: var(--text-muted, #6b7280);
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+    .summary-card .value {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-main, #1f2937);
+    }
+    .summary-card .value.positive { color: #10b981; }
+    .summary-card .value.negative { color: #ef4444; }
     .summary-row {
       display: flex;
       justify-content: space-between;
@@ -40,6 +66,20 @@
       margin-top: 20px;
       text-transform: uppercase;
       letter-spacing: 0.5px;
+    }
+    .section-title.collapsible {
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .section-title.collapsible::after {
+      content: '▼';
+      font-size: 10px;
+      transition: transform 0.2s;
+    }
+    .section-title.collapsed::after {
+      transform: rotate(-90deg);
     }
     .report-table {
       width: 100%;
@@ -68,6 +108,51 @@
       padding: 32px;
       font-size: 14px;
     }
+    .filter-bar {
+      background: var(--color-card, #fff);
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    .filter-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .filter-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted, #6b7280);
+      margin-bottom: 6px;
+    }
+    .quick-filters {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .quick-btn {
+      padding: 6px 12px;
+      border-radius: 16px;
+      border: 1px solid var(--color-border, #e5e7eb);
+      background: var(--color-bg, #f9fafb);
+      color: var(--text-main, #1f2937);
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .quick-btn:hover {
+      background: var(--color-primary, #3b82f6);
+      color: white;
+      border-color: var(--color-primary, #3b82f6);
+    }
+    .quick-btn.active {
+      background: var(--color-primary, #3b82f6);
+      color: white;
+      border-color: var(--color-primary, #3b82f6);
+    }
     .filter-select {
       padding: 8px 12px;
       border-radius: 8px;
@@ -77,6 +162,39 @@
       font-size: 13px;
       cursor: pointer;
       min-width: 100px;
+    }
+    .date-input {
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--color-border, #e5e7eb);
+      background: var(--color-card, #fff);
+      color: var(--text-main, #1f2937);
+      font-size: 13px;
+    }
+    .filter-divider {
+      color: var(--text-muted, #9ca3af);
+      font-size: 12px;
+      padding: 0 4px;
+    }
+    .active-filter {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      background: var(--color-primary, #3b82f6);
+      color: white;
+      border-radius: 16px;
+      font-size: 12px;
+      margin-left: 8px;
+    }
+    .active-filter button {
+      background: none;
+      border: none;
+      color: white;
+      cursor: pointer;
+      padding: 0;
+      font-size: 14px;
+      line-height: 1;
     }
     [data-theme="dark"] .summary-section { background: var(--color-card, #1f2937); }
     [data-theme="dark"] .report-table th { background: var(--color-card, #1f2937); border-color: #374151; }
@@ -125,37 +243,66 @@
     document.getElementById('app').innerHTML =
       getHeaderWithActions('Báo cáo', '📊', '<div id="headerProfit" class="money text-money font-bold tabular-nums">0đ</div>') +
       getContent(`
-        <!-- FILTER -->
-        <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center;">
-          <select id="selMonth" onchange="changeMonth(this.value)" class="filter-select">
-            <option value="">-- Tháng --</option>
-          </select>
-          <select id="selYear" onchange="changeYear(this.value)" class="filter-select">
-            <option value="">-- Năm --</option>
-          </select>
-          <button onclick="loadAllTime()" style="padding:8px 14px;border-radius:8px;background:#e5e7eb;color:#374151;font-size:13px;border:none;cursor:pointer;">Tất cả</button>
+        <!-- FILTER BAR -->
+        <div class="filter-bar">
+          <div class="quick-filters" id="quickFilters">
+            <button class="quick-btn active" onclick="setQuickFilter('today')">Hôm nay</button>
+            <button class="quick-btn" onclick="setQuickFilter('yesterday')">Hôm qua</button>
+            <button class="quick-btn" onclick="setQuickFilter('thisWeek')">Tuần này</button>
+            <button class="quick-btn" onclick="setQuickFilter('thisMonth')">Tháng này</button>
+            <button class="quick-btn" onclick="setQuickFilter('lastMonth')">Tháng trước</button>
+            <button class="quick-btn" onclick="setCustomRange()">Tùy chỉnh</button>
+          </div>
+          <div class="filter-row" id="filterRow" style="display:none;">
+            <input type="date" id="filterFrom" class="date-input" onchange="applyDateRange()">
+            <span class="filter-divider">→</span>
+            <input type="date" id="filterTo" class="date-input" onchange="applyDateRange()">
+            <span id="activeFilterLabel"></span>
+          </div>
+          <div class="filter-row" id="monthYearFilter">
+            <select id="selMonth" onchange="changeMonth(this.value)" class="filter-select">
+              <option value="">-- Tháng --</option>
+            </select>
+            <select id="selYear" onchange="changeYear(this.value)" class="filter-select">
+              <option value="">-- Năm --</option>
+            </select>
+          </div>
         </div>
 
-        <!-- SUMMARY -->
-        <div class="section-title" style="margin-top:0;">📊 Tổng quan tài chính</div>
-        <div class="summary-section" id="summarySection">
-          <div class="loading">⏳ Đang tải...</div>
+        <!-- SUMMARY CARDS -->
+        <div class="summary-cards" id="summaryCards">
+          <div class="summary-card">
+            <div class="label">Doanh thu</div>
+            <div class="value" id="cardRevenue">0đ</div>
+          </div>
+          <div class="summary-card">
+            <div class="label">Lợi nhuận</div>
+            <div class="value positive" id="cardProfit">0đ</div>
+          </div>
+          <div class="summary-card">
+            <div class="label">Chi phí</div>
+            <div class="value negative" id="cardExpense">0đ</div>
+          </div>
+          <div class="summary-card">
+            <div class="label">Lãi ròng</div>
+            <div class="value" id="cardNet">0đ</div>
+          </div>
         </div>
 
         <!-- PRODUCTS -->
-        <div class="section-title">🍺 Lợi nhuận theo sản phẩm</div>
+        <div class="section-title collapsible" onclick="toggleSection('productSection')">🍺 Lợi nhuận theo sản phẩm</div>
         <div id="productSection" style="margin-bottom:24px;">
           <div class="loading">⏳ Đang tải...</div>
         </div>
 
         <!-- PURCHASES -->
-        <div class="section-title">📦 Báo cáo nhập hàng</div>
+        <div class="section-title collapsible" onclick="toggleSection('purchaseSection')">📦 Báo cáo nhập hàng</div>
         <div id="purchaseSection" style="margin-bottom:24px;">
           <div class="loading">⏳ Đang tải...</div>
         </div>
 
         <!-- CUSTOMERS -->
-        <div class="section-title">👤 Lợi nhuận theo khách hàng</div>
+        <div class="section-title collapsible" onclick="toggleSection('customerSection')">👤 Lợi nhuận theo khách hàng</div>
         <div id="customerSection">
           <div class="loading">⏳ Đang tải...</div>
         </div>
@@ -187,7 +334,94 @@
       }
     })();
 
-    // Filter functions
+    // Quick filter functions
+    function getDateRange(type) {
+      var now = new Date();
+      var y = now.getFullYear();
+      var m = now.getMonth();
+      var d = now.getDate();
+      var day = now.getDay();
+      var startOfWeek = new Date(now);
+      startOfWeek.setDate(d - day + (day === 0 ? -6 : 1));
+
+      switch(type) {
+        case 'today':
+          return { start: formatDate(now), end: formatDate(now) };
+        case 'yesterday':
+          var yd = new Date(now);
+          yd.setDate(d - 1);
+          return { start: formatDate(yd), end: formatDate(yd) };
+        case 'thisWeek':
+          return { start: formatDate(startOfWeek), end: formatDate(now) };
+        case 'thisMonth':
+          return { start: formatDate(new Date(y, m, 1)), end: formatDate(now) };
+        case 'lastMonth':
+          return { start: formatDate(new Date(y, m - 1, 1)), end: formatDate(new Date(y, m, 0)) };
+        default:
+          return null;
+      }
+    }
+
+    function formatDate(d) {
+      var y = d.getFullYear();
+      var mo = String(d.getMonth() + 1).padStart(2, '0');
+      var da = String(d.getDate()).padStart(2, '0');
+      return y + '-' + mo + '-' + da;
+    }
+
+    function setQuickFilter(type) {
+      document.querySelectorAll('.quick-btn').forEach(function(b) { b.classList.remove('active'); });
+      event && event.target && event.target.classList && event.target.classList.add('active');
+      document.getElementById('filterRow').style.display = 'none';
+      document.getElementById('monthYearFilter').style.display = 'none';
+
+      var range = getDateRange(type);
+      if (range) {
+        reportFilter.type = 'custom';
+        reportFilter.startDate = range.start;
+        reportFilter.endDate = range.end;
+        loadReport();
+      }
+    }
+
+    function setCustomRange() {
+      document.querySelectorAll('.quick-btn').forEach(function(b) { b.classList.remove('active'); });
+      event && event.target && event.target.classList && event.target.classList.add('active');
+      document.getElementById('filterRow').style.display = 'flex';
+      document.getElementById('monthYearFilter').style.display = 'none';
+
+      var now = new Date();
+      document.getElementById('filterFrom').value = formatDate(new Date(now.getFullYear(), now.getMonth(), 1));
+      document.getElementById('filterTo').value = formatDate(now);
+      reportFilter.type = 'custom';
+      reportFilter.startDate = document.getElementById('filterFrom').value;
+      reportFilter.endDate = document.getElementById('filterTo').value;
+    }
+
+    function applyDateRange() {
+      var from = document.getElementById('filterFrom').value;
+      var to = document.getElementById('filterTo').value;
+      if (from && to) {
+        reportFilter.type = 'custom';
+        reportFilter.startDate = from;
+        reportFilter.endDate = to;
+        loadReport();
+      }
+    }
+
+    function toggleSection(id) {
+      var el = document.getElementById(id);
+      var title = el.previousElementSibling;
+      if (el.style.display === 'none') {
+        el.style.display = '';
+        title && title.classList.remove('collapsed');
+      } else {
+        el.style.display = 'none';
+        title && title.classList.add('collapsed');
+      }
+    }
+
+    // Filter functions (backward compatible)
     function changeMonth(m) {
       reportFilter.type = 'month';
       reportFilter.month = parseInt(m, 10);
@@ -197,13 +431,6 @@
     function changeYear(y) {
       reportFilter.type = 'year';
       reportFilter.year = parseInt(y, 10);
-      loadReport();
-    }
-
-    function loadAllTime() {
-      reportFilter.type = 'all';
-      document.getElementById('selMonth').value = '';
-      document.getElementById('selYear').value = '';
       loadReport();
     }
 
@@ -255,18 +482,29 @@
     }
 
     // Render functions
-    function renderSummary(s) {
-      var el = document.getElementById('summarySection');
-      if (!el) return;
-      el.innerHTML = 
-        '<div class="summary-row"><span>Doanh thu</span><span class="text-info font-medium">' + fmtVND(s.revenue) + '</span></div>' +
-        '<div class="summary-row"><span>Lợi nhuận</span><span class="text-success font-medium">' + fmtVND(s.profit) + '</span></div>' +
-        '<div class="summary-row"><span>Chi phí</span><span class="text-danger font-medium">' + fmtVND(s.expense) + '</span></div>' +
-        '<div class="summary-row border-top"><span>Lợi nhuận ròng</span><span class="font-bold ' + (s.net_profit >= 0 ? 'text-success' : 'text-danger') + '">' + fmtVND(s.net_profit) + '</span></div>';
-      
+    function renderSummaryCards(s) {
+      var revEl = document.getElementById('cardRevenue');
+      var profEl = document.getElementById('cardProfit');
+      var expEl = document.getElementById('cardExpense');
+      var netEl = document.getElementById('cardNet');
+      if (revEl) revEl.textContent = fmtVND(s.revenue);
+      if (profEl) {
+        profEl.textContent = fmtVND(s.profit);
+        profEl.className = 'value ' + (s.profit >= 0 ? 'positive' : 'negative');
+      }
+      if (expEl) expEl.textContent = fmtVND(s.expense);
+      if (netEl) {
+        netEl.textContent = fmtVND(s.net_profit);
+        netEl.className = 'value ' + (s.net_profit >= 0 ? 'positive' : 'negative');
+      }
       // Update header
       var headerEl = document.getElementById('headerProfit');
       if (headerEl) headerEl.textContent = fmtVND(s.net_profit);
+    }
+
+    function renderSummary(s) {
+      // Legacy compatibility
+      renderSummaryCards(s);
     }
 
     function renderProducts(data) {
@@ -325,6 +563,8 @@
         url += '&month=' + reportFilter.month + '&year=' + reportFilter.year;
       } else if (reportFilter.type === 'year') {
         url += '&year=' + reportFilter.year;
+      } else if (reportFilter.type === 'custom' && reportFilter.startDate && reportFilter.endDate) {
+        url += '&startDate=' + reportFilter.startDate + '&endDate=' + reportFilter.endDate;
       }
 
       fetch(url)
