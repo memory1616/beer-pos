@@ -103,7 +103,7 @@
   <!-- Header rendered via JS from layout.js -->
   <div id="app"></div>
 
-  <script src="/js/report.js?v=202604082b"></script>
+  <script src="/js/report.js?v=202604083a"></script>
 
   <script>
     var headerActions = '<div id="headerProfit" class="money text-money font-bold tabular-nums" style="font-size:14px;">0đ</div>';
@@ -118,7 +118,7 @@
 
           <!-- Tháng: tab + inline dropdown -->
           <div class="filter-tab-wrap flex flex-col flex-1 min-w-[96px] relative">
-            <button onclick="switchFilterType('month')" id="btnMonth" class="period-tab px-2 py-2 rounded-xl text-sm font-medium whitespace-nowrap w-full flex items-center justify-center gap-1" data-type="month">
+            <button onclick="toggleMonthDropdown(event)" id="btnMonth" class="period-tab px-2 py-2 rounded-xl text-sm font-medium whitespace-nowrap w-full flex items-center justify-center gap-1" data-type="month">
               <span id="monthLabel">Tháng</span>
               <svg class="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
             </button>
@@ -129,7 +129,7 @@
 
           <!-- Năm: tab + inline dropdown -->
           <div class="filter-tab-wrap flex flex-col flex-1 min-w-[90px] relative">
-            <button onclick="switchFilterType('year')" id="btnYear" class="period-tab px-2 py-2 rounded-xl text-sm font-medium whitespace-nowrap w-full flex items-center justify-center gap-1" data-type="year">
+            <button onclick="toggleYearDropdown(event)" id="btnYear" class="period-tab px-2 py-2 rounded-xl text-sm font-medium whitespace-nowrap w-full flex items-center justify-center gap-1" data-type="year">
               <span id="yearLabel">Năm</span>
               <svg class="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
             </button>

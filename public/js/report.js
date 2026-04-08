@@ -62,6 +62,9 @@ function initFilter() {
   var monthEl = document.getElementById('selMonth');
   if (monthEl) monthEl.value = _selectedMonth;
 
+  // selYear from initFilter ensures year dropdown is populated
+  console.log('[REPORT] initFilter done, selYear options:', yearEl ? yearEl.options.length : 0);
+
   // Set active tab — default "Hôm nay"
   activateTab('today');
   updatePeriodLabel();
