@@ -308,11 +308,14 @@
       fetch(url)
         .then(function(res) { return res.json(); })
         .then(function(data) {
-          console.log('[REPORT] Got sales:', data.sales.length, '| expenses:', data.expenses.length);
+          console.log('[REPORT] Got:', data);
 
-          var byProduct = getProfitByProduct(data.sales);
-          var byCustomer = getCustomerReport(data.sales);
-          var summary = getSummary(data.sales, data.expenses);
+          var sales = data.sales || [];
+          var expenses = data.expenses || [];
+
+          var byProduct = getProfitByProduct(sales);
+          var byCustomer = getCustomerReport(sales);
+          var summary = getSummary(sales, expenses);
 
           console.log('[REPORT] Summary:', summary);
           console.log('[REPORT] Products:', byProduct.length);
