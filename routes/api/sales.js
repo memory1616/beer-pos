@@ -55,11 +55,20 @@ function validateSaleInput(body) {
 router.post('/', (req, res) => {
   const { customerId, items, deliverKegs = 0, returnKegs = 0 } = req.body;
 
-  // Validate input
-  const validation = validateSaleInput(req.body);
-  if (!validation.valid) {
-    return res.status(400).json({ error: validation.errors.join(', ') });
+  // ========== PRE-VALIDATION ==========
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'Danh sách sản phẩm trống' });
   }
+  for (let i = 0; i < items.length; i++) {
+    if (!items[i].productId) {
+      return res.status(400).json({ error: `Sản phẩm thứ ${i + 1}: Thiếu mã sản phẩm` });
+    }
+    if (!items[i].quantity || items[i].quantity <= 0) {
+      return res.status(400).json({ error: `Sản phẩm thứ ${i + 1}: Số lượng phải lớn hơn 0` });
+    }
+  }
+
+  console.log('[SALE CREATE]', { customerId, itemsCount: items.length, items: items });
 
   try {
     let total = 0;
@@ -125,12 +134,14 @@ router.post('/', (req, res) => {
       newKegBalance = currentKegBalance + finalDeliverKegs - returnKegs;
     }
 
-    // Use transaction for atomic operations
+    // ========== STRICT TRANSACTION ==========
     const createSale = db.transaction(() => {
       // Insert sale with Vietnam-local date
       const saleDate = db.getVietnamDateStr();
       const saleResult = db.prepare('INSERT INTO sales (customer_id, date, total, profit, deliver_kegs, return_kegs, keg_balance_after, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(customerId, saleDate, total, profit, finalDeliverKegs, returnKegs, newKegBalance, 'sale');
       const saleId = saleResult.lastInsertRowid;
+
+      if (!saleId) throw new Error('Sale creation failed — no lastInsertRowid');
 
       // Update customer last_order_date (if customerId)
       if (customerId) {
@@ -141,6 +152,12 @@ router.post('/', (req, res) => {
       for (const item of saleItems) {
         db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(item.quantity, item.productId);
         db.prepare('INSERT INTO sale_items (sale_id, product_id, quantity, price, cost_price, profit, price_at_time) VALUES (?, ?, ?, ?, ?, ?, ?)').run(saleId, item.productId, item.quantity, item.price, item.cost_price, item.profit, item.price);
+      }
+
+      // ========== HARD VALIDATION: verify ALL sale_items were inserted ==========
+      const insertedCount = db.prepare('SELECT COUNT(*) as count FROM sale_items WHERE sale_id = ?').get(saleId);
+      if (insertedCount.count !== saleItems.length) {
+        throw new Error(`CRITICAL: sale_items insert mismatch — expected ${saleItems.length}, got ${insertedCount.count}`);
       }
 
       // Update customer keg balance (only for registered customers)
@@ -163,11 +180,16 @@ router.post('/', (req, res) => {
 
     const saleId = createSale();
 
+    if (!saleId) throw new Error('Sale creation returned null');
+
+    console.log('[SALE CREATED]', { saleId, itemsInserted: saleItems.length, total, profit });
+
     const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId);
     socketServer.emitOrderCreated(sale);
     res.json({ success: true, id: saleId, total, profit });
   } catch (err) {
-    logger.error('Sale error', { error: err.message });
+    console.error('[SALE ERROR]', err);
+    logger.error('Sale error', { error: err.message, stack: err.stack });
     res.status(500).json({ error: 'Sale failed: ' + err.message });
   }
 });
@@ -646,6 +668,18 @@ router.post('/:id/return-items', (req, res) => {
   } catch (err) {
     logger.error('Create replacement error', { error: err.message });
     res.status(500).json({ error: 'Trả hàng thất bại: ' + err.message });
+  }
+});
+
+// GET /api/export - Backup: full export of all sales and sale_items
+router.get('/export', (req, res) => {
+  try {
+    const sales = db.prepare('SELECT * FROM sales ORDER BY datetime(date) DESC').all();
+    const saleItems = db.prepare('SELECT * FROM sale_items').all();
+    res.json({ sales, sale_items: saleItems });
+  } catch (err) {
+    console.error('[EXPORT ERROR]', err);
+    res.status(500).json({ error: 'Export failed: ' + err.message });
   }
 });
 

@@ -1183,9 +1183,10 @@ async function showInvoiceModal(saleId) {
   console.log('[Invoice Detail]', sale);
 
   if (!sale.items || sale.items.length === 0) {
-    console.warn('[Invoice Detail] sale.items empty — this should not happen from /api/sales/:id:', sale);
+    console.error('CRITICAL: Missing sale_items for sale', sale.id);
+    showToast('Hóa đơn thiếu dữ liệu chi tiết!', 'error');
   }
-  
+
   const dateStr = new Date(sale.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const customerName = sale.customer_name || 'Khách lẻ';
   const isGift = sale.type === 'gift';
