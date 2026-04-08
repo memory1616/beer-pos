@@ -72,18 +72,31 @@ function effectiveSellPrice(p) {
   if (!p) return 0;
   const v = p.sell_price != null ? p.sell_price : p.price;
   const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
+  const result = Number.isFinite(n) ? n : 0;
+  if (result === 0) {
+    console.warn('[PRICE][effectiveSellPrice] WARN: product "' + (p.name || p.id) + '" has sell_price=' + v + ' (raw=' + JSON.stringify(v) + ') → returning 0. DB may be missing price data!');
+  }
+  return result;
 }
 
 /** Giá theo khách từ payload /sale/data (không cần fetch thêm — tránh mobile lỗi 0 đ) */
 function lookupPriceMap(customerId, productId) {
-  if (customerId == null || customerId === '' || !priceMap) return undefined;
-  const row = priceMap[customerId] || priceMap[String(customerId)];
-  if (!row) return undefined;
-  const v = row[productId] ?? row[String(productId)];
-  if (v == null || v === '') return undefined;
+  if (!customerId || customerId === '' || !priceMap) return undefined;
+  // customerId từ DOM là string, nhưng priceMap keys từ SQLite là integer
+  const row = priceMap[customerId] || priceMap[Number(customerId)] || priceMap[String(customerId)];
+  if (!row) {
+    console.log('[PRICE][lookupPriceMap] MISS: no priceMap entry for customerId=' + customerId);
+    return undefined;
+  }
+  const v = row[productId] ?? row[Number(productId)] ?? row[String(productId)];
+  if (v == null || v === '') {
+    console.log('[PRICE][lookupPriceMap] MISS: no product price for productId=' + productId + ' in customer=' + customerId);
+    return undefined;
+  }
   const n = Number(v);
-  return Number.isFinite(n) ? n : undefined;
+  if (!Number.isFinite(n)) return undefined;
+  console.log('[PRICE][lookupPriceMap] HIT: customerId=' + customerId + ', productId=' + productId + ' → ' + n);
+  return n;
 }
 
 /**
@@ -93,32 +106,43 @@ function lookupPriceMap(customerId, productId) {
 function applyResolvedPrices(customerId, apiPrices) {
   if (!customerId) {
     products.forEach(p => {
-      p._displayPrice = effectiveSellPrice(p);
+      const defPrice = effectiveSellPrice(p);
+      p._displayPrice = defPrice;
       if (saleData[p.id]) {
-        saleData[p.id].price = effectiveSellPrice(p);
+        saleData[p.id].price = defPrice;
       }
     });
     return;
   }
+  const cidNum = Number(customerId);
+  const cidStr = String(customerId);
+  console.log('[PRICE][applyResolvedPrices] customerId:', customerId, '→ num:', cidNum, 'str:', cidStr);
+  console.log('[PRICE][applyResolvedPrices] priceMap keys:', Object.keys(priceMap || {}).slice(0, 10));
+
   products.forEach(p => {
     let row = null;
     if (Array.isArray(apiPrices)) {
-      row = apiPrices.find(x => x.product_id === p.id) || null;
+      row = apiPrices.find(x => x.product_id === p.id || x.product_id === String(p.id)) || null;
     }
     if (row && row.price != null && row.price !== '') {
       const unit = Number(row.price) || 0;
       p._displayPrice = unit;
       saleData[p.id] = saleData[p.id] || { quantity: 0, price: unit };
       saleData[p.id].price = unit;
+      console.log('[PRICE][applyResolvedPrices] [' + p.name + '] ← API price:', unit);
       return;
     }
-    const mapped = lookupPriceMap(customerId, p.id);
+    // Thử cả string và number key vì SQLite id là integer nhưng DOM value là string
+    const mapped = lookupPriceMap(cidNum, p.id) ?? lookupPriceMap(cidStr, p.id) ?? lookupPriceMap(cidNum, String(p.id));
     if (mapped != null) {
       p._displayPrice = mapped;
       saleData[p.id] = saleData[p.id] || { quantity: 0, price: mapped };
       saleData[p.id].price = mapped;
+      console.log('[PRICE][applyResolvedPrices] [' + p.name + '] ← priceMap:', mapped);
     } else {
-      p._displayPrice = effectiveSellPrice(p);
+      const defPrice = effectiveSellPrice(p);
+      p._displayPrice = defPrice;
+      console.log('[PRICE][applyResolvedPrices] [' + p.name + '] ← sell_price fallback:', defPrice);
     }
   });
 }
@@ -128,6 +152,10 @@ function initSalesPage(data) {
   products = data.products;
   customers = data.customers;
   priceMap = data.priceMap || {};
+  console.log('[Sales] priceMap from server:', Object.keys(priceMap).length, 'customers with prices');
+  console.log('[Sales] priceMap sample keys:', Object.keys(priceMap).slice(0, 5));
+  console.log('[Sales] priceMap sample entry:', JSON.stringify(Object.entries(priceMap || {}).slice(0, 1)));
+  console.log('[Sales] products sample:', (data.products || []).slice(0, 2).map(p => ({ id: p.id, name: p.name, sell_price: p.sell_price })));
   console.log('[Sales] products:', products.length, 'customers:', customers.length);
 
   // PERFORMANCE: rebuild O(1) Maps once after data loads
@@ -180,6 +208,9 @@ function renderSaleProducts() {
   container.innerHTML = products.map(p => {
     const defUnit = p._displayPrice != null ? Number(p._displayPrice) : effectiveSellPrice(p);
     const price = Number.isFinite(defUnit) ? defUnit : effectiveSellPrice(p);
+    if (price === 0) {
+      console.log('[RENDER][WARN] product "' + p.name + '" has price=0! _displayPrice=' + p._displayPrice + ', sell_price=' + p.sell_price);
+    }
     const currentPrice = (saleData[p.id] && saleData[p.id].price !== undefined) ? saleData[p.id].price : effectiveSellPrice(p);
     const priceInputVal = (saleData[p.id] && saleData[p.id].price !== undefined)
       ? saleData[p.id].price
@@ -533,6 +564,9 @@ function updatePrices() {
   var customerIdEl = document.getElementById('customerSelect');
   var customerId = customerIdEl ? customerIdEl.value : '';
 
+  console.log('[PRICE][updatePrices] called, customerId="' + customerId + '", priceMap keys:', Object.keys(priceMap || {}).slice(0, 10));
+  console.log('[PRICE][updatePrices] priceMap sample:', JSON.stringify(Object.entries(priceMap || {}).slice(0, 2)));
+
   applyResolvedPrices(customerId, null);
   renderSaleProducts();
   updateSaleTotal();
@@ -553,6 +587,7 @@ function updatePrices() {
       if (!Array.isArray(prices)) {
         return;
       }
+      console.log('[PRICE][updatePrices] API prices response:', prices.length, 'items');
       applyResolvedPrices(customerId, prices);
       renderSaleProducts();
       updateSaleTotal();

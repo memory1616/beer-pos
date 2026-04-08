@@ -8,8 +8,19 @@
   var _chart         = null;
 
   // ── Date helpers (Vietnam UTC+7) ─────────────────────────────────────────────
+  // Vietnam is UTC+7
   function getVietnamNow() {
     return new Date(new Date().getTime() + 7 * 3600000);
+  }
+
+  // Get Vietnam date components from current time
+  function getVietnamDate() {
+    var vn = getVietnamNow();
+    return {
+      y: vn.getUTCFullYear(),
+      m: vn.getUTCMonth(),
+      d: vn.getUTCDate()
+    };
   }
 
   function toLocalDateStr(d) {
@@ -44,15 +55,23 @@
 
   // ── Filter range (UTC+7 Date objects for IndexedDB .between()) ─────────────
   function getFilterRange() {
-    var vn = getVietnamNow();
-    var y  = vn.getUTCFullYear();
-    var m  = vn.getUTCMonth();
-    var d  = vn.getUTCDate();
+    var vdate = getVietnamDate();
+    var y = vdate.y;
+    var m = vdate.m;
+    var d = vdate.d;
+
+    // Helper: create date at Vietnam midnight (00:00 UTC+7 = 17:00 UTC previous day)
+    function vnStartDate(year, month, day) {
+      return new Date(Date.UTC(year, month, day) - 7 * 3600000);
+    }
+    function vnEndDate(year, month, day) {
+      return new Date(Date.UTC(year, month, day, 23, 59, 59, 999) - 7 * 3600000);
+    }
 
     if (_filterType === 'today') {
       return {
-        start: new Date(Date.UTC(y, m, d, 0, 0, 0, 0) - 7 * 3600000),
-        end:   new Date(Date.UTC(y, m, d, 23, 59, 59, 999) - 7 * 3600000)
+        start: vnStartDate(y, m, d),
+        end:   vnEndDate(y, m, d)
       };
     }
     if (_filterType === 'yesterday') {
@@ -60,8 +79,8 @@
       yesterday.setDate(yesterday.getDate() - 1);
       var yY = yesterday.getUTCFullYear(), yM = yesterday.getUTCMonth(), yD = yesterday.getUTCDate();
       return {
-        start: new Date(Date.UTC(yY, yM, yD, 0, 0, 0, 0) - 7 * 3600000),
-        end:   new Date(Date.UTC(yY, yM, yD, 23, 59, 59, 999) - 7 * 3600000)
+        start: vnStartDate(yY, yM, yD),
+        end:   vnEndDate(yY, yM, yD)
       };
     }
     if (_filterType === 'month') {
@@ -69,34 +88,66 @@
       var mm = _selectedMonth || (m + 1);
       var lastD = new Date(Date.UTC(ym, mm, 0)).getUTCDate();
       return {
-        start: new Date(Date.UTC(ym, mm - 1, 1, 0, 0, 0, 0) - 7 * 3600000),
-        end:   new Date(Date.UTC(ym, mm - 1, lastD, 23, 59, 59, 999) - 7 * 3600000)
+        start: vnStartDate(ym, mm - 1, 1),
+        end:   vnEndDate(ym, mm - 1, lastD)
       };
     }
     if (_filterType === 'year') {
       var yy = _selectedYear || y;
       return {
-        start: new Date(Date.UTC(yy, 0, 1, 0, 0, 0, 0) - 7 * 3600000),
-        end:   new Date(Date.UTC(yy, 11, 31, 23, 59, 59, 999) - 7 * 3600000)
+        start: vnStartDate(yy, 0, 1),
+        end:   vnEndDate(yy, 11, 31)
       };
     }
     return {
-      start: new Date(Date.UTC(y, m, d, 0, 0, 0, 0) - 7 * 3600000),
-      end:   new Date(Date.UTC(y, m, d, 23, 59, 59, 999) - 7 * 3600000)
+      start: vnStartDate(y, m, d),
+      end:   vnEndDate(y, m, d)
     };
   }
 
   // ── IndexedDB loader ─────────────────────────────────────────────────────────
+  // Get date range as Vietnam-local date strings (YYYY-MM-DD)
+  function getDateRangeStr() {
+    var vdate = getVietnamDate();
+    var y = vdate.y, m = vdate.m, d = vdate.d;
+
+    function vnDateStr(year, month, day) {
+      return year + '-' + String(month + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+    }
+
+    if (_filterType === 'today') {
+      return { start: vnDateStr(y, m, d), end: vnDateStr(y, m, d) };
+    }
+    if (_filterType === 'yesterday') {
+      var yesterday = new Date(Date.UTC(y, m, d) - 8 * 3600000);
+      yesterday.setDate(yesterday.getDate() - 1);
+      return { start: vnDateStr(yesterday.getUTCFullYear(), yesterday.getUTCMonth(), yesterday.getUTCDate()),
+               end:   vnDateStr(yesterday.getUTCFullYear(), yesterday.getUTCMonth(), yesterday.getUTCDate()) };
+    }
+    if (_filterType === 'month') {
+      var ym = _selectedYear  || y;
+      var mm = (_selectedMonth || (m + 1));
+      var lastD = new Date(Date.UTC(ym, mm, 0)).getUTCDate();
+      return { start: vnDateStr(ym, mm - 1, 1), end: vnDateStr(ym, mm - 1, lastD) };
+    }
+    if (_filterType === 'year') {
+      var yy = _selectedYear || y;
+      return { start: yy + '-01-01', end: yy + '-12-31' };
+    }
+    return { start: vnDateStr(y, m, d), end: vnDateStr(y, m, d) };
+  }
+
   async function loadReportFromIndexedDB() {
     if (window.dbReady) await window.dbReady.catch(function() {});
     if (!window.db) return null;
 
-    var range = getFilterRange();
-    console.log('[REPORT V2] RANGE:', range.start.toISOString(), '→', range.end.toISOString());
+    var dateRange = getDateRangeStr();
+    console.log('[REPORT V2] DATE RANGE:', dateRange.start, '→', dateRange.end);
 
+    // Query by date string field (stored as "YYYY-MM-DDTHH:mm:ss" in local time)
     var rows = await window.db.sales
-      .where('createdAt')
-      .between(range.start, range.end, true, true)
+      .where('date')
+      .between(dateRange.start, dateRange.end + '\xff', true, true)
       .toArray();
 
     console.log('[REPORT V2] FILTERED:', rows.length, 'rows');
@@ -141,14 +192,15 @@
       byProduct[key].profit   += ((it.price || 0) - (it.cost_price || 0)) * (it.quantity || 0);
     });
 
-    // Load expenses for this period
+    // Load expenses for this period (use date string range)
     var totalExpense = 0;
     try {
-      var expStart = range.start.toISOString().slice(0, 10);
-      var expEnd   = range.end.toISOString().slice(0, 10);
-      var expenses = await window.db.expenses.where('date').between(expStart, expEnd, true, true).toArray();
+      var expenses = await window.db.expenses.where('date').between(dateRange.start, dateRange.end, true, true).toArray();
       totalExpense = expenses.reduce(function(s, e) { return s + (e.amount || 0); }, 0);
     } catch (_) {}
+
+    // Build daily aggregation for chart
+    var daily = buildDailyData(rows);
 
     return {
       sales: sales,
@@ -160,7 +212,8 @@
       profitByCustomer: [],
       purchases: [],
       purchaseTotalAmount: 0,
-      purchaseSlipCount: 0
+      purchaseSlipCount: 0,
+      daily: daily
     };
   }
 
@@ -183,6 +236,22 @@
       .catch(function(e) {
         console.error('[REPORT V2] IndexedDB error:', e);
       });
+  }
+
+  // ── Build daily aggregation from sales rows ─────────────────────────────────
+  function buildDailyData(rows) {
+    var byDate = {};
+    rows.forEach(function(s) {
+      // Use date string directly to avoid timezone issues
+      var dateKey = s.date ? s.date.split('T')[0] : '';
+      if (!dateKey) return;
+      if (!byDate[dateKey]) {
+        byDate[dateKey] = { date: dateKey, revenue: 0, profit: 0, expense: 0 };
+      }
+      byDate[dateKey].revenue += s.total || 0;
+      byDate[dateKey].profit  += s.profit  || 0;
+    });
+    return Object.values(byDate).sort(function(a, b) { return a.date.localeCompare(b.date); });
   }
 
   // ── Filter actions ───────────────────────────────────────────────────────────
