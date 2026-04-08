@@ -308,10 +308,16 @@
       fetch(url)
         .then(function(res) { return res.json(); })
         .then(function(data) {
-          console.log('[REPORT] Got:', data);
+          console.log('[REPORT] Got:', JSON.stringify(data));
 
-          var sales = data.sales || [];
-          var expenses = data.expenses || [];
+          // Defensive: validate response structure
+          if (!data || typeof data !== 'object') {
+            console.error('[REPORT] Invalid response:', data);
+            return;
+          }
+
+          var sales = data.sales;
+          var expenses = data.expenses;
 
           var byProduct = getProfitByProduct(sales);
           var byCustomer = getCustomerReport(sales);
