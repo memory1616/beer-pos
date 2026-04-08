@@ -555,7 +555,7 @@ async function submitImport() {
 
 // PERFORMANCE: Extract product card HTML for reuse in virtual scrolling
 function _productCardHtml(p, totalPositive) {
-  const low = p._LOW_STOCK_THRESHOLD;
+  const low = p.stock < _LOW_STOCK_THRESHOLD;
   return `
     <article class="card product-card product-card--interactive ${low ? 'border-danger' : 'border-muted'}"
       role="button" tabindex="0" data-product-id="${p.id}"
@@ -600,7 +600,7 @@ function _renderProductsPage(pageProducts, totalPositive, hasMore) {
     }
 
     // Calculate low stock products from filtered products
-    const lowStockProducts = _filteredProducts.filter(p => p._LOW_STOCK_THRESHOLD);
+    const lowStockProducts = _filteredProducts.filter(p => p.stock < _LOW_STOCK_THRESHOLD);
     
     // Build low stock alert HTML
     let lowStockAlert = '';
@@ -700,7 +700,7 @@ function renderProducts(products, serverTotalStockPositive) {
     typeof serverTotalStockPositive === 'number' && !Number.isNaN(serverTotalStockPositive)
       ? serverTotalStockPositive
       : products.reduce((sum, p) => sum + Math.max(0, Number(p.stock) || 0), 0);
-  const lowStockProducts = products.filter(p => p._LOW_STOCK_THRESHOLD);
+  const lowStockProducts = products.filter(p => p.stock < _LOW_STOCK_THRESHOLD);
 
   totalStockEl.textContent = totalStock;
 
@@ -722,7 +722,7 @@ function renderProducts(products, serverTotalStockPositive) {
   }
 
   productList.innerHTML = lowStockAlert + products.map(p => {
-    const low = p._LOW_STOCK_THRESHOLD;
+    const low = p.stock < _LOW_STOCK_THRESHOLD;
     return `
     <article class="card product-card product-card--interactive ${low ? 'border-danger' : 'border-muted'}"
       role="button" tabindex="0" data-product-id="${p.id}"
