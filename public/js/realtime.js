@@ -678,4 +678,6 @@ window.Realtime = {
 
   autoInit();
 
+})();
+
 // ── Global helpers (outside IIFE so they're accessible to other scripts) ──────
