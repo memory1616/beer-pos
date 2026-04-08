@@ -254,28 +254,15 @@ async function loadReportFromIndexedDB() {
   if (!window.db) return null;
 
   var range = getFilterRange();
-  console.log('[IDB-Report] range:', range.start.toISOString(), '→', range.end.toISOString());
+  console.log('[REPORT] RANGE:', range.start.toISOString(), '→', range.end.toISOString());
 
-  var rows;
-  try {
-    // Try indexed query first
-    rows = await window.db.sales
-      .where('createdAt')
-      .between(range.start, range.end, true, true)
-      .and(function(s) { return !s.status || s.status !== 'returned'; })
-      .toArray();
-    console.log('[IDB-Report] indexed query returned', rows.length, 'rows');
-  } catch (e) {
-    // Index may not exist — fall back to full scan
-    console.warn('[IDB-Report] .where(createdAt) failed, falling back to full scan:', e.message || e);
-    var all = await window.db.sales.toArray();
-    rows = all.filter(function(s) {
-      if (s.status === 'returned') return false;
-      var ct = s.createdAt instanceof Date ? s.createdAt : new Date(s.createdAt);
-      return ct >= range.start && ct <= range.end;
-    });
-    console.log('[IDB-Report] full scan returned', rows.length, 'rows');
-  }
+  // Indexed query — requires createdAt in v31 schema + createdAt: new Date() on each sale
+  var rows = await window.db.sales
+    .where('createdAt')
+    .between(range.start, range.end, true, true)
+    .toArray();
+
+  console.log('[REPORT] FILTERED:', rows.length);
 
   var totalRevenue = 0, totalProfit = 0;
   rows.forEach(function(s) {
@@ -283,7 +270,6 @@ async function loadReportFromIndexedDB() {
     totalProfit  += s.profit  || 0;
   });
 
-  // Build customer map
   var custIds = [...new Set(rows.map(function(s) { return s.customer_id; }).filter(Boolean))];
   var custMap = {};
   if (custIds.length > 0) {
@@ -291,62 +277,36 @@ async function loadReportFromIndexedDB() {
     custs.forEach(function(c) { custMap[c.id] = c.name; });
   }
   var sales = rows.map(function(s) {
-    return {
-      id:            s.id,
-      date:          s.date,
-      total:         s.total,
-      profit:        s.profit,
-      customer_id:   s.customer_id,
-      customer_name: custMap[s.customer_id] || 'Khách lẻ'
-    };
+    return { id: s.id, date: s.date, total: s.total, profit: s.profit, customer_id: s.customer_id, customer_name: custMap[s.customer_id] || 'Khách lẻ' };
   });
 
-  // Profit by product (from sale_items)
   var saleIds = rows.map(function(s) { return s.id; });
-  var items = [];
-  if (saleIds.length > 0) {
-    items = await window.db.sale_items.where('sale_id').anyOf(saleIds).toArray();
-  }
+  var items = saleIds.length > 0
+    ? await window.db.sale_items.where('sale_id').anyOf(saleIds).toArray()
+    : [];
   var prodMap = {};
-  var prods = await window.db.products.toArray();
-  prods.forEach(function(p) { prodMap[p.id] = p; });
-    var byProduct = {};
+  (await window.db.products.toArray()).forEach(function(p) { prodMap[p.id] = p; });
+
+  var byProduct = {};
   items.forEach(function(it) {
-    var p = prodMap[it.product_id];
     var key = it.product_id;
-    if (!byProduct[key]) {
-      byProduct[key] = { product_id: key, name: p ? p.name : '#' + key, quantity: 0, revenue: 0, profit: 0 };
-    }
+    if (!byProduct[key]) byProduct[key] = { product_id: key, name: (prodMap[key] || {}).name || '#' + key, quantity: 0, revenue: 0, profit: 0 };
     byProduct[key].quantity += it.quantity || 0;
     byProduct[key].revenue  += (it.price || 0) * (it.quantity || 0);
-    var cp = it.cost_price || 0;
-    byProduct[key].profit   += ((it.price || 0) - cp) * (it.quantity || 0);
+    byProduct[key].profit  += ((it.price || 0) - (it.cost_price || 0)) * (it.quantity || 0);
   });
 
-  // Expenses (skip if table not present)
   var totalExpense = 0;
   try {
-    var expenses = await window.db.expenses
-      .where('date')
-      .between(range.start.toISOString().slice(0, 10), range.end.toISOString().slice(0, 10), true, true)
-      .toArray();
+    var expDateStart = range.start.toISOString().slice(0, 10);
+    var expDateEnd   = range.end.toISOString().slice(0, 10);
+    var expenses = await window.db.expenses.where('date').between(expDateStart, expDateEnd, true, true).toArray();
     totalExpense = expenses.reduce(function(s, e) { return s + (e.amount || 0); }, 0);
-  } catch (e) {
-    // expenses table may not exist
-  }
+  } catch (_) {}
 
-  return {
-    sales: sales,
-    totalRevenue:  totalRevenue,
-    totalProfit:   totalProfit,
-    totalExpense:  totalExpense,
-    totalOrders:   rows.length,
-    profitByProduct: Object.values(byProduct),
-    profitByCustomer: [],
-    purchases: [],
-    purchaseTotalAmount: 0,
-    purchaseSlipCount: 0
-  };
+  return { sales: sales, totalRevenue: totalRevenue, totalProfit: totalProfit, totalExpense: totalExpense,
+           totalOrders: rows.length, profitByProduct: Object.values(byProduct), profitByCustomer: [],
+           purchases: [], purchaseTotalAmount: 0, purchaseSlipCount: 0 };
 }
 
 function loadReport() {

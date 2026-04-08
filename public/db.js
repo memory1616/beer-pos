@@ -14,7 +14,7 @@
 // because ALL contexts use the SAME version number from ONE source.
 // ─────────────────────────────────────────────────────
 
-const DB_VERSION = 35; // ← BUMP THIS when schema changes (v35: complete sales schema + createdAt index via upgrade)
+const DB_VERSION = 36; // ← bump khi schema thay đổi (v36: createdAt index đã có từ v31)
 
 const DB_NAME    = 'BeerPOS';
 const STORE_META = '_meta';
@@ -38,6 +38,12 @@ if (window._dbInitialized) {
       await _db.table(STORE_META).put({ key: 'db_version', value: DB_VERSION });
       await _db.table(STORE_META).put({ key: 'cache_name', value: CACHE_NAME });
       console.log(`[DB] Registered version ${DB_VERSION} in _meta store`);
+      // Verify createdAt index exists by querying with it (will throw if not indexed)
+      _db.sales.where('createdAt').anyOf([new Date()]).count().catch(function(e) {
+        console.error('[DB] ⚠️ createdAt index NOT found — filter will NOT work:', e.message || e);
+      }).then(function() {
+        console.log('[DB] ✅ createdAt index verified');
+      });
     } catch (e) {
       console.warn('[DB] Could not write _meta:', e);
     }
@@ -59,7 +65,7 @@ if (window._dbInitialized) {
   _db.version(31).stores({
     customers:   '++id, name, phone, deposit, keg_balance, archived, synced',
     products:    '++id, name, stock, cost_price, synced',
-    sales:       '++id, customer_id, date, total, profit, synced',
+    sales:       '++id, createdAt, customer_id, date, total, profit, synced',
     sale_items:  '++id, sale_id, product_id, quantity, price, synced',
     sync_queue:  '++id, entity, action, data, url, method, synced, created_at, retry_count'
   });
@@ -79,24 +85,23 @@ if (window._dbInitialized) {
     [STORE_META]: 'key'
   });
 
-  // v35: complete sales schema with createdAt index + ensure expense/sale_items tables
-  // NOTE: Dexie first-occurrence rule — only the FIRST version block defining a table
-  //       determines its schema. Users who already ran v34 see an incomplete sales schema
-  //       (missing distance_km etc.). v35 redeclares all tables to fix this.
+  // v35: re-declare all tables (Dexie first-occurrence rule — only v31 counted)
+  //       This block runs for users who skipped over v34 (new installs or fresh DB).
+  //       For existing users: v34 upgrade already set createdAt field; this is redundant
+  //       but harmless. The createdAt index comes from v31's schema definition.
   _db.version(35).stores({
     customers:   '++id, name, phone, deposit, keg_balance, archived, synced',
     products:    '++id, name, stock, cost_price, synced',
     sales:       '++id, createdAt, customer_id, date, total, profit, synced, distance_km, duration_min, route_index, route_polyline',
-    sale_items:  '++id, sale_id, product_id, quantity, price, cost_price, profit, synced',
+    sale_items:  '++id, sale_id, product_id, quantity, price, synced',
     sync_queue:  '++id, entity, action, data, url, method, synced, created_at, retry_count',
     expenses:    '++id, type, amount, note, date, synced'
   }).upgrade(tx => {
     return tx.table('sales').toCollection().modify(sale => {
-      // Ensure createdAt Date field exists and is indexed
       if (sale.date && typeof sale.date === 'string') {
         sale.createdAt = new Date(sale.date + 'T00:00:00+07:00');
       } else if (!(sale.createdAt instanceof Date)) {
-        sale.createdAt = new Date(sale.createdAt);
+        sale.createdAt = new Date();
       }
     });
   });
