@@ -79,48 +79,59 @@ if (window._dbInitialized) {
     [STORE_META]: 'key'
   });
 
-  // Open the database — Dexie automatically uses max(existing, code) version
-  let _dbOpenResolve, _dbOpenReject;
-  let dbOpenPromise;
-  try {
-    dbOpenPromise = _db.open();
-  } catch (e) {
-    console.error('[DB] Failed to open:', e);
+  // ─── Safe DB open with retries ─────────────────────────────────────────────
+  async function openDBSafe() {
+    const MAX_RETRIES = 3;
+    const RETRY_DELAY = 1000;
+
+    for (let i = 0; i < MAX_RETRIES; i++) {
+      try {
+        _db.close();
+        await _db.open();
+        console.log(`[DB] ✅ Open success on attempt ${i + 1}`);
+        return;
+      } catch (e) {
+        console.warn(`[DB] ⚠️ Open failed (attempt ${i + 1}/${MAX_RETRIES}):`, e.message || e);
+        if (i < MAX_RETRIES - 1) {
+          await new Promise(r => setTimeout(r, RETRY_DELAY));
+        }
+      }
+    }
+    throw new Error('[DB] ❌ DB open failed after ' + MAX_RETRIES + ' attempts');
   }
 
-  // Safety: window.dbReady = dbOpenPromise WITH 5s timeout
-  // If another tab holds an exclusive lock, db.open() hangs — this prevents it
-  window.dbReady = Promise.race([
-    dbOpenPromise,
-    new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('[DB] ⏳ db.open() timeout (5s) — DB locked by another tab?')), 5000)
-    )
-  ]);
+  window.dbReady = openDBSafe();
 
-  // Log when DB is fully ready (original promise, not the race)
-  if (dbOpenPromise) {
-    dbOpenPromise.then(() => {
-      console.log('[DB] 🔥 DB READY');
-    }).catch(e => {
-      console.error('[DB] db.open() rejected:', e.message || e);
-    });
-  }
+  // Log when DB is fully ready
+  window.dbReady.then(() => {
+    console.log('[DB] 🔥 DB READY');
+  }).catch(e => {
+    console.error('[DB] dbReady rejected:', e.message || e);
+  });
 
   // Expose getter so callers can re-open if locked
   window._reopenDb = async function() {
     try {
       _db.close();
-      const p = _db.open();
-      window.dbReady = Promise.race([
-        p,
-        new Promise((_, reject) => setTimeout(() => reject(new Error('[DB] ⏳ db.reopen timeout')), 5000))
-      ]);
-      await window.dbReady;
+      await _db.open();
       console.log('[DB] 🔄 DB reopened successfully');
     } catch (e) {
       console.error('[DB] 🔄 DB reopen FAILED:', e.message || e);
     }
   };
+
+  // ─── Multi-tab detection ───────────────────────────────────────────────────
+  window.addEventListener('storage', (e) => {
+    if (e.key === '_dbVersion') {
+      console.warn('[DB] ⚠️ Another tab changed DB version — consider reloading');
+    }
+  });
+
+  // Broadcast DB version for other tabs
+  try {
+    localStorage.setItem('_dbVersion', DB_VERSION);
+    localStorage.setItem('_dbTs', Date.now());
+  } catch {}
 
   // ─── Expose globals ────────────────────────────────────────────────────────
   window.db          = _db;
@@ -183,39 +194,23 @@ if (window._dbInitialized) {
 
   // ==================== STOCK FUNCTIONS ====================
 
-  // ─── Safe db-ready wrapper with timeout ──────────────────────────────────────
-  function withDbTimeout(promise, ms) {
-    return Promise.race([
-      promise,
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('[DB] ⏳ db timeout after ' + ms + 'ms')), ms)
-      )
-    ]);
-  }
-
   async function getProducts() {
     try {
       if (window.dbReady) {
         console.log('[DB] ⏳ waiting dbReady...');
-        await withDbTimeout(window.dbReady, 5000);
+        await window.dbReady.catch(e => console.warn('[DB] dbReady error:', e.message));
         console.log('[DB] ✅ dbReady resolved');
       }
-      const result = await withDbTimeout(_db.products.toArray(), 5000);
+      const result = await _db.products.toArray();
       console.log('[DB] getProducts: ' + result.length + ' products');
       return result;
     } catch (e) {
       console.error('[DB] getProducts ERROR:', e.message || e);
-      // DB might be locked — try closing and reopening
       try {
         _db.close();
-        const reopenedPromise = _db.open();
-        window.dbReady = Promise.race([
-          reopenedPromise,
-          new Promise((_, reject) => setTimeout(() => reject(new Error('[DB] ⏳ db.reopen timeout')), 5000))
-        ]);
-        await window.dbReady;
+        await _db.open();
         console.log('[DB] 🔄 DB reopened');
-        const result = await withDbTimeout(_db.products.toArray(), 5000);
+        const result = await _db.products.toArray();
         console.log('[DB] getProducts (retry): ' + result.length + ' products');
         return result;
       } catch (e2) {
@@ -227,14 +222,14 @@ if (window._dbInitialized) {
 
   async function seedProductsIfEmpty() {
     try {
-      if (window.dbReady) await withDbTimeout(window.dbReady, 5000);
-      const count = await withDbTimeout(_db.products.count(), 5000);
-      if (count > 0) return; // DB has data, skip seeding
+      if (window.dbReady) await window.dbReady.catch(e => console.warn('[DB] seed dbReady error:', e.message));
+      const count = await _db.products.count();
+      if (count > 0) return;
       console.warn('[DB] ⚠️ No products in IndexedDB — seeding demo data');
       const demoProducts = [
-        { id: 1, name: 'Bia tươi 50L', stock: 50, cost_price: 10000, synced: 1, archived: 0 },
-        { id: 2, name: 'Bia bom 20L', stock: 30, cost_price: 12000, synced: 1, archived: 0 },
-        { id: 3, name: 'Bia chai',    stock: 100, cost_price: 8000, synced: 1, archived: 0 }
+        { name: 'Bia tươi 50L', stock: 50, cost_price: 10000, synced: 1, archived: 0 },
+        { name: 'Bia bom 20L', stock: 30, cost_price: 12000, synced: 1, archived: 0 },
+        { name: 'Bia chai',    stock: 100, cost_price: 8000, synced: 1, archived: 0 }
       ];
       await _db.products.bulkAdd(demoProducts);
       console.log('[DB] ✅ Seeded ' + demoProducts.length + ' demo products');
