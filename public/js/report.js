@@ -1,21 +1,41 @@
-// BeerPOS Report Page - Refactored v3
+// BeerPOS Report Page - Refactored v4
 // Global state: window.reportState
 // Architecture: type(report) + time(filter) hoàn toàn tách biệt
+// DB: safe loader với try/catch, không crash khi thiếu table
 (function () {
   // ── Global state (exposed on window) ─────────────────────────────────────
   var now = new Date();
   window.reportState = {
-    type: 'sales',          // sales | product | customer | import
-    time: 'today',          // today | yesterday | month | year
+    type: 'sales',      // sales | product | customer | import
+    time: 'today',      // today | yesterday | month | year
     month: now.getMonth() + 1,
     year: now.getFullYear()
   };
 
   // ── Local state ────────────────────────────────────────────────────────────
-  var _reportData = {};
-  var _chart = null;
+  var _reportData  = {};
+  var _chart       = null;
   var _loadDebounce = null;
-  var _isLoading = false;
+  var _isLoading   = false;
+
+  // ── DB health check (run once) ─────────────────────────────────────────────
+  function checkDBHealth() {
+    var db = window.db;
+    if (!db) { console.warn('[REPORT V4][DB] window.db not ready'); return; }
+
+    var tables = ['sales', 'sale_items', 'expenses', 'customers', 'products', 'purchases'];
+    tables.forEach(function(t) {
+      if (!db[t]) {
+        console.warn('[REPORT V4][DB] Table "' + t + '" not found in schema — queries will be skipped');
+      }
+    });
+
+    // Count rows for debug
+    db.sales.count().then(function(n) { console.log('[REPORT V4][DB] sales rows:', n); });
+    db.expenses.count().then(function(n) { console.log('[REPORT V4][DB] expenses rows:', n); });
+    db.products.count().then(function(n) { console.log('[REPORT V4][DB] products rows:', n); });
+    db.customers.count().then(function(n) { console.log('[REPORT V4][DB] customers rows:', n); });
+  }
 
   // ── Date helpers (Vietnam UTC+7) ──────────────────────────────────────────
   function getVietnamNow() {
@@ -24,11 +44,7 @@
 
   function getVietnamDate() {
     var vn = getVietnamNow();
-    return {
-      y: vn.getUTCFullYear(),
-      m: vn.getUTCMonth(),
-      d: vn.getUTCDate()
-    };
+    return { y: vn.getUTCFullYear(), m: vn.getUTCMonth(), d: vn.getUTCDate() };
   }
 
   function toLocalDateStr(d) {
@@ -65,7 +81,7 @@
     if (el) el.textContent = getPeriodLabel();
   }
 
-  // ── Date range calculation (reads from window.reportState.time/month/year) ─
+  // ── Date range (reads from window.reportState.time/month/year) ────────────
   function getFilterRange() {
     var state = window.reportState;
     var vdate = getVietnamDate();
@@ -90,25 +106,22 @@
       };
     }
     if (state.time === 'month') {
-      var ym = state.year;
-      var mm = state.month;
-      var lastD = new Date(Date.UTC(ym, mm, 0)).getUTCDate();
+      var lastD = new Date(Date.UTC(state.year, state.month, 0)).getUTCDate();
       return {
-        start: vnStartDate(ym, mm - 1, 1),
-        end:   vnEndDate(ym, mm - 1, lastD)
+        start: vnStartDate(state.year, state.month - 1, 1),
+        end:   vnEndDate(state.year, state.month - 1, lastD)
       };
     }
     if (state.time === 'year') {
-      var yy = state.year;
       return {
-        start: vnStartDate(yy, 0, 1),
-        end:   vnEndDate(yy, 11, 31)
+        start: vnStartDate(state.year, 0, 1),
+        end:   vnEndDate(state.year, 11, 31)
       };
     }
     return { start: vnStartDate(y, m, d), end: vnEndDate(y, m, d) };
   }
 
-  // Date string range (for IndexedDB string field queries)
+  // String range for IndexedDB .where('date') queries
   function getDateRangeStr() {
     var state = window.reportState;
     var vdate = getVietnamDate();
@@ -130,14 +143,14 @@
       };
     }
     if (state.time === 'month') {
-      var ym = state.year;
-      var mm = state.month;
-      var lastD = new Date(Date.UTC(ym, mm, 0)).getUTCDate();
-      return { start: vnDateStr(ym, mm - 1, 1), end: vnDateStr(ym, mm - 1, lastD) };
+      var lastD = new Date(Date.UTC(state.year, state.month, 0)).getUTCDate();
+      return {
+        start: vnDateStr(state.year, state.month - 1, 1),
+        end:   vnDateStr(state.year, state.month - 1, lastD)
+      };
     }
     if (state.time === 'year') {
-      var yy = state.year;
-      return { start: yy + '-01-01', end: yy + '-12-31' };
+      return { start: state.year + '-01-01', end: state.year + '-12-31' };
     }
     return { start: vnDateStr(y, m, d), end: vnDateStr(y, m, d) };
   }
@@ -145,14 +158,14 @@
   // ── Loading UI ────────────────────────────────────────────────────────────
   function showLoading() {
     _isLoading = true;
-    var state = window.reportState;
     var lists = {
       sales:      document.getElementById('salesList'),
       product:    document.getElementById('productsList'),
       customer:   document.getElementById('customersList'),
       import:     document.getElementById('purchasesList')
     };
-    Object.values(lists).forEach(function(el) {
+    Object.keys(lists).forEach(function(k) {
+      var el = lists[k];
       if (el) el.innerHTML = '<div class="text-center text-muted py-4">Đang tải...</div>';
     });
   }
@@ -161,17 +174,38 @@
     _isLoading = false;
   }
 
-  // ── IndexedDB loaders (each report type has its own query) ─────────────────
+  // ── Safe DB access helper ──────────────────────────────────────────────────
+  function safeTable(name) {
+    var db = window.db;
+    if (!db) {
+      console.warn('[REPORT V4][DB] window.db not ready');
+      return null;
+    }
+    if (!db[name]) {
+      console.warn('[REPORT V4][DB] Table "' + name + '" does not exist in schema');
+      return null;
+    }
+    return db[name];
+  }
 
-  // Load sales report
+  // ── Loader: SALES (đơn hàng + chi phí + sản phẩm + khách hàng) ─────────────
   async function loadSalesReport(dateRange) {
-    if (!window.db) return null;
-    console.log('[REPORT V3] SALES query:', dateRange.start, '->', dateRange.end);
-    var rows = await window.db.sales
-      .where('date')
-      .between(dateRange.start, dateRange.end + '\xff', true, true)
-      .toArray();
-    console.log('[REPORT V3] SALES rows:', rows.length);
+    var db = window.db;
+    if (!db) { console.warn('[REPORT V4] DB not ready'); return _emptyResult(); }
+
+    var rows = [];
+    try {
+      var salesTbl = safeTable('sales');
+      if (salesTbl) {
+        rows = await salesTbl
+          .where('date')
+          .between(dateRange.start, dateRange.end + '\xff', true, true)
+          .toArray();
+      }
+    } catch (err) {
+      console.error('[REPORT V4][SALES] Query failed:', err);
+    }
+    console.log('[REPORT V4][SALES] rows:', rows.length);
 
     var totalRevenue = 0, totalProfit = 0;
     rows.forEach(function(s) {
@@ -179,13 +213,21 @@
       totalProfit  += s.profit  || 0;
     });
 
-    // Customer name map
+    // Customer names
     var custIds = [...new Set(rows.map(function(s) { return s.customer_id; }).filter(Boolean))];
     var custMap = {};
     if (custIds.length > 0) {
-      var custs = await window.db.customers.where('id').anyOf(custIds).toArray();
-      custs.forEach(function(c) { custMap[c.id] = c.name; });
+      var custTbl = safeTable('customers');
+      if (custTbl) {
+        try {
+          var custs = await custTbl.where('id').anyOf(custIds).toArray();
+          custs.forEach(function(c) { custMap[c.id] = c.name; });
+        } catch (err) {
+          console.warn('[REPORT V4][SALES] customers query failed:', err);
+        }
+      }
     }
+
     var sales = rows.map(function(s) {
       return {
         id: s.id, date: s.date, total: s.total, profit: s.profit,
@@ -194,13 +236,30 @@
       };
     });
 
-    // Sale items for product breakdown
+    // Sale items + product breakdown
     var saleIds = rows.map(function(s) { return s.id; });
-    var items = saleIds.length > 0
-      ? await window.db.sale_items.where('sale_id').anyOf(saleIds).toArray()
-      : [];
+    var items = [];
+    if (saleIds.length > 0) {
+      var siTbl = safeTable('sale_items');
+      if (siTbl) {
+        try {
+          items = await siTbl.where('sale_id').anyOf(saleIds).toArray();
+        } catch (err) {
+          console.warn('[REPORT V4][SALES] sale_items query failed:', err);
+        }
+      }
+    }
+
     var prodMap = {};
-    (await window.db.products.toArray()).forEach(function(p) { prodMap[p.id] = p; });
+    var prodTbl = safeTable('products');
+    if (prodTbl) {
+      try {
+        var prods = await prodTbl.toArray();
+        prods.forEach(function(p) { prodMap[p.id] = p; });
+      } catch (err) {
+        console.warn('[REPORT V4][SALES] products load failed:', err);
+      }
+    }
 
     var byProduct = {};
     items.forEach(function(it) {
@@ -215,10 +274,15 @@
 
     // Expenses
     var totalExpense = 0;
-    try {
-      var expenses = await window.db.expenses.where('date').between(dateRange.start, dateRange.end, true, true).toArray();
-      totalExpense = expenses.reduce(function(s, e) { return s + (e.amount || 0); }, 0);
-    } catch (_) {}
+    var expTbl = safeTable('expenses');
+    if (expTbl) {
+      try {
+        var expenses = await expTbl.where('date').between(dateRange.start, dateRange.end, true, true).toArray();
+        totalExpense = expenses.reduce(function(s, e) { return s + (e.amount || 0); }, 0);
+      } catch (err) {
+        console.warn('[REPORT V4][SALES] expenses query failed:', err);
+      }
+    }
 
     var daily = buildDailyData(rows);
 
@@ -237,32 +301,53 @@
     };
   }
 
-  // Load product report (grouped by product)
+  // ── Loader: PRODUCT (grouped by sản phẩm) ─────────────────────────────────
   async function loadProductReport(dateRange) {
-    if (!window.db) return null;
-    console.log('[REPORT V3] PRODUCT query:', dateRange.start, '->', dateRange.end);
+    var db = window.db;
+    if (!db) { console.warn('[REPORT V4] DB not ready'); return _emptyResult(); }
 
-    var rows = await window.db.sales
-      .where('date')
-      .between(dateRange.start, dateRange.end + '\xff', true, true)
-      .toArray();
+    var rows = [];
+    try {
+      var salesTbl = safeTable('sales');
+      if (salesTbl) {
+        rows = await salesTbl
+          .where('date')
+          .between(dateRange.start, dateRange.end + '\xff', true, true)
+          .toArray();
+      }
+    } catch (err) {
+      console.error('[REPORT V4][PRODUCT] sales query failed:', err);
+    }
 
     var saleIds = rows.map(function(s) { return s.id; });
-    var items = saleIds.length > 0
-      ? await window.db.sale_items.where('sale_id').anyOf(saleIds).toArray()
-      : [];
+    var items = [];
+    if (saleIds.length > 0) {
+      var siTbl = safeTable('sale_items');
+      if (siTbl) {
+        try {
+          items = await siTbl.where('sale_id').anyOf(saleIds).toArray();
+        } catch (err) {
+          console.warn('[REPORT V4][PRODUCT] sale_items query failed:', err);
+        }
+      }
+    }
+
     var prodMap = {};
-    (await window.db.products.toArray()).forEach(function(p) { prodMap[p.id] = p; });
+    var prodTbl = safeTable('products');
+    if (prodTbl) {
+      try {
+        var prods = await prodTbl.toArray();
+        prods.forEach(function(p) { prodMap[p.id] = p; });
+      } catch (err) {
+        console.warn('[REPORT V4][PRODUCT] products load failed:', err);
+      }
+    }
 
     var byProduct = {};
     items.forEach(function(it) {
       var key = it.product_id;
       if (!byProduct[key]) {
-        byProduct[key] = {
-          product_id: key,
-          name: (prodMap[key] || {}).name || '#' + key,
-          quantity: 0, revenue: 0, profit: 0
-        };
+        byProduct[key] = { product_id: key, name: (prodMap[key] || {}).name || '#' + key, quantity: 0, revenue: 0, profit: 0 };
       }
       byProduct[key].quantity += it.quantity || 0;
       byProduct[key].revenue  += (it.price || 0) * (it.quantity || 0);
@@ -272,6 +357,8 @@
     var productList = Object.values(byProduct).sort(function(a, b) { return b.revenue - a.revenue; });
     var totalRevenue = productList.reduce(function(s, p) { return s + (p.revenue || 0); }, 0);
     var totalProfit  = productList.reduce(function(s, p) { return s + (p.profit || 0); }, 0);
+
+    console.log('[REPORT V4][PRODUCT] rows:', rows.length, '| products:', productList.length);
 
     return {
       sales: [],
@@ -288,34 +375,45 @@
     };
   }
 
-  // Load customer report (grouped by customer)
+  // ── Loader: CUSTOMER (grouped by khách hàng) ─────────────────────────────
   async function loadCustomerReport(dateRange) {
-    if (!window.db) return null;
-    console.log('[REPORT V3] CUSTOMER query:', dateRange.start, '->', dateRange.end);
+    var db = window.db;
+    if (!db) { console.warn('[REPORT V4] DB not ready'); return _emptyResult(); }
 
-    var rows = await window.db.sales
-      .where('date')
-      .between(dateRange.start, dateRange.end + '\xff', true, true)
-      .toArray();
+    var rows = [];
+    try {
+      var salesTbl = safeTable('sales');
+      if (salesTbl) {
+        rows = await salesTbl
+          .where('date')
+          .between(dateRange.start, dateRange.end + '\xff', true, true)
+          .toArray();
+      }
+    } catch (err) {
+      console.error('[REPORT V4][CUSTOMER] sales query failed:', err);
+    }
 
     var custIds = [...new Set(rows.map(function(s) { return s.customer_id; }).filter(Boolean))];
     var custMap = {};
     if (custIds.length > 0) {
-      var custs = await window.db.customers.where('id').anyOf(custIds).toArray();
-      custs.forEach(function(c) { custMap[c.id] = c; });
+      var custTbl = safeTable('customers');
+      if (custTbl) {
+        try {
+          var custs = await custTbl.where('id').anyOf(custIds).toArray();
+          custs.forEach(function(c) { custMap[c.id] = c; });
+        } catch (err) {
+          console.warn('[REPORT V4][CUSTOMER] customers query failed:', err);
+        }
+      }
     }
 
     var byCustomer = {};
     rows.forEach(function(s) {
       var key = s.customer_id || '__walkin__';
       if (!byCustomer[key]) {
-        byCustomer[key] = {
-          customer_id: key,
-          name: custMap[key] ? custMap[key].name : 'Khách lẻ',
-          quantity: 0, revenue: 0, profit: 0
-        };
+        byCustomer[key] = { customer_id: key, name: custMap[key] ? custMap[key].name : 'Khách lẻ', quantity: 0, revenue: 0, profit: 0 };
       }
-      byCustomer[key].quantity += 1; // 1 order per row
+      byCustomer[key].quantity += 1;
       byCustomer[key].revenue  += s.total || 0;
       byCustomer[key].profit   += s.profit || 0;
     });
@@ -323,6 +421,8 @@
     var customerList = Object.values(byCustomer).sort(function(a, b) { return b.revenue - a.revenue; });
     var totalRevenue = customerList.reduce(function(s, c) { return s + (c.revenue || 0); }, 0);
     var totalProfit  = customerList.reduce(function(s, c) { return s + (c.profit || 0); }, 0);
+
+    console.log('[REPORT V4][CUSTOMER] rows:', rows.length, '| customers:', customerList.length);
 
     return {
       sales: [],
@@ -339,18 +439,69 @@
     };
   }
 
-  // Load import/purchase report
+  // ── Loader: IMPORT (chi phí nhập hàng từ expenses table) ─────────────────
   async function loadImportReport(dateRange) {
-    if (!window.db) return null;
-    console.log('[REPORT V3] IMPORT query:', dateRange.start, '->', dateRange.end);
+    var db = window.db;
+    if (!db) { console.warn('[REPORT V4] DB not ready'); return _emptyResult(); }
 
-    var purchases = await window.db.purchases
-      .where('date')
-      .between(dateRange.start, dateRange.end + '\xff', true, true)
-      .toArray();
+    // db.js schema: expenses có table expenses với fields: id, type, amount, note, date, synced
+    // Table purchases không tồn tại trong schema hiện tại (v37)
+    var purchases = [];
 
-    var totalAmount = purchases.reduce(function(s, p) { return s + (p.total_amount || 0); }, 0);
+    // Thử table purchases trước (nếu có trong future schema)
+    var purchasesTbl = safeTable('purchases');
+    if (purchasesTbl) {
+      try {
+        purchases = await purchasesTbl
+          .where('date')
+          .between(dateRange.start, dateRange.end + '\xff', true, true)
+          .toArray();
+      } catch (err) {
+        console.warn('[REPORT V4][IMPORT] purchases table query failed (fallback to expenses):', err);
+        purchases = [];
+      }
+    } else {
+      console.log('[REPORT V4][IMPORT] purchases table not found — using expenses as import data');
+    }
 
+    // Nếu không có purchases, dùng expenses có type chứa 'nhap' hoặc 'import'
+    if (purchases.length === 0) {
+      var expTbl = safeTable('expenses');
+      if (expTbl) {
+        try {
+          var allExpenses = await expTbl.where('date').between(dateRange.start, dateRange.end, true, true).toArray();
+          purchases = allExpenses.filter(function(e) {
+            var t = (e.type || '').toLowerCase();
+            return t.indexOf('nhap') !== -1 || t.indexOf('import') !== -1 || t.indexOf('nhập') !== -1;
+          });
+          console.log('[REPORT V4][IMPORT] filtered expenses (import type):', purchases.length);
+        } catch (err) {
+          console.warn('[REPORT V4][IMPORT] expenses query failed:', err);
+        }
+      }
+    }
+
+    var totalAmount = purchases.reduce(function(s, p) { return s + (p.total_amount || p.amount || 0); }, 0);
+
+    console.log('[REPORT V4][IMPORT] rows:', purchases.length, '| total:', totalAmount);
+
+    return {
+      sales: [],
+      totalRevenue: 0,
+      totalProfit:  0,
+      totalExpense: totalAmount,
+      totalOrders:  0,
+      profitByProduct: [],
+      profitByCustomer: [],
+      purchases: purchases,
+      purchaseTotalAmount: totalAmount,
+      purchaseSlipCount: purchases.length,
+      daily: []
+    };
+  }
+
+  // ── Empty result helper ────────────────────────────────────────────────────
+  function _emptyResult() {
     return {
       sales: [],
       totalRevenue: 0,
@@ -359,9 +510,9 @@
       totalOrders:  0,
       profitByProduct: [],
       profitByCustomer: [],
-      purchases: purchases,
-      purchaseTotalAmount: totalAmount,
-      purchaseSlipCount: purchases.length,
+      purchases: [],
+      purchaseTotalAmount: 0,
+      purchaseSlipCount: 0,
       daily: []
     };
   }
@@ -379,20 +530,18 @@
     return Object.values(byDate).sort(function(a, b) { return a.date.localeCompare(b.date); });
   }
 
-  // ── Main load function (reads from window.reportState) ───────────────────
+  // ── Main load (debounced) ─────────────────────────────────────────────────
   function loadReport() {
     clearTimeout(_loadDebounce);
-    _loadDebounce = setTimeout(function() {
-      _doLoadReport();
-    }, 50);
+    _loadDebounce = setTimeout(function() { _doLoadReport(); }, 50);
   }
 
   function _doLoadReport() {
-    var state = window.reportState;
+    var state    = window.reportState;
     var dateRange = getDateRangeStr();
 
-    console.log('[REPORT V3] STATE:', JSON.stringify(state));
-    console.log('[REPORT V3] DATE RANGE:', dateRange.start, '->', dateRange.end);
+    console.log('[REPORT V4] STATE:', JSON.stringify(state));
+    console.log('[REPORT V4] DATE RANGE:', dateRange.start, '->', dateRange.end);
 
     showLoading();
 
@@ -407,8 +556,8 @@
 
     loader
       .then(function(data) {
-        if (!data) return;
-        console.log('[REPORT V3] RESULT:', state.type, '-', data.totalOrders, 'orders');
+        if (!data) data = _emptyResult();
+        console.log('[REPORT V4] RESULT:', state.type, '-', data.totalOrders || 0, 'orders');
         hideLoading();
         _reportData = data;
         updateSummary(data);
@@ -417,32 +566,34 @@
         renderProducts(data.profitByProduct || []);
         renderCustomers(data.profitByCustomer || []);
         renderPurchases(data.purchases || [], data.purchaseTotalAmount || 0, data.purchaseSlipCount || 0);
-
-        // Activate the correct report section
         activateReportSection(state.type);
       })
       .catch(function(e) {
-        console.error('[REPORT V3] Error:', e);
+        console.error('[REPORT V4] Loader error:', e);
         hideLoading();
+        var empty = _emptyResult();
+        _reportData = empty;
+        updateSummary(empty);
+        renderSales([]);
+        renderProducts([]);
+        renderCustomers([]);
+        renderPurchases([], 0, 0);
       });
   }
 
   // ── State update helpers ──────────────────────────────────────────────────
-
-  // Update time filter (today / yesterday / month / year)
   function setTimeFilter(time) {
     window.reportState.time = time;
     updateTimeButtons(time);
     updatePeriodLabel();
-    console.log('[REPORT V3] Time changed to:', time);
+    console.log('[REPORT V4] Time ->:', time);
     loadReport();
   }
 
-  // Update report type (sales / product / customer / import)
   function setReportType(type) {
     window.reportState.type = type;
     updateReportTypeButtons(type);
-    console.log('[REPORT V3] Type changed to:', type);
+    console.log('[REPORT V4] Type ->:', type);
     loadReport();
   }
 
@@ -453,7 +604,7 @@
     window.reportState.time = 'month';
     updateTimeButtons('month');
     updatePeriodLabel();
-    console.log('[REPORT V3] Month selected:', window.reportState.month);
+    console.log('[REPORT V4] Month ->:', window.reportState.month);
     loadReport();
   }
 
@@ -463,58 +614,50 @@
     window.reportState.time = 'year';
     updateTimeButtons('year');
     updatePeriodLabel();
-    console.log('[REPORT V3] Year selected:', window.reportState.year);
+    console.log('[REPORT V4] Year ->:', window.reportState.year);
     loadReport();
   }
 
-  // ── UI: button active states ──────────────────────────────────────────────
-
+  // ── UI button states ─────────────────────────────────────────────────────
   function updateTimeButtons(time) {
-    document.querySelectorAll('.filter-time-btn').forEach(function(btn) {
-      btn.classList.toggle('active', btn.dataset.time === time);
-    });
+    var btns = document.querySelectorAll('.filter-time-btn');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].classList.toggle('active', btns[i].dataset.time === time);
+    }
   }
 
   function updateReportTypeButtons(type) {
-    document.querySelectorAll('.report-type-btn').forEach(function(btn) {
-      btn.classList.toggle('active', btn.dataset.type === type);
-    });
+    var btns = document.querySelectorAll('.report-type-btn');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].classList.toggle('active', btns[i].dataset.type === type);
+    }
   }
 
   function activateReportSection(type) {
-    // Map report type to section id
-    var sectionMap = {
-      sales:    'reportSales',
-      product:  'reportProducts',
-      customer: 'reportCustomers',
-      import:   'reportPurchases'
-    };
+    var sectionMap = { sales: 'reportSales', product: 'reportProducts', customer: 'reportCustomers', import: 'reportPurchases' };
     var sectionId = sectionMap[type] || 'reportSales';
 
-    // Show/hide sections
     document.querySelectorAll('.report-section').forEach(function(el) {
       el.classList.toggle('active', el.id === sectionId);
     });
 
-    // Highlight tab button
     document.querySelectorAll('.report-tab').forEach(function(btn) {
-      var btnType = btn.dataset.tab; // tab values: sales/products/customers/purchases
-      var typeMap = { sales: 'sales', products: 'product', customers: 'customer', purchases: 'import' };
-      btn.classList.toggle('active', typeMap[btnType] === type);
+      var map = { sales: 'sales', products: 'product', customers: 'customer', purchases: 'import' };
+      btn.classList.toggle('active', map[btn.dataset.tab] === type);
     });
   }
 
-  // ── Tab switching (used by report type tab bar) ──────────────────────────
   function switchReportTab(tab) {
     var typeMap = { sales: 'sales', products: 'product', customers: 'customer', purchases: 'import' };
     var type = typeMap[tab];
-    if (type) {
-      setReportType(type);
-    }
+    if (type) setReportType(type);
   }
 
-  // ── Filter initialization ─────────────────────────────────────────────────
+  // ── Filter init ───────────────────────────────────────────────────────────
   function initFilter() {
+    // DB health check
+    checkDBHealth();
+
     // Populate month select
     var selMonth = document.getElementById('selMonth');
     if (selMonth) {
@@ -538,16 +681,14 @@
       }
     }
 
-    // Set initial active state
     updateTimeButtons(window.reportState.time);
     updateReportTypeButtons(window.reportState.type);
     updatePeriodLabel();
 
-    // Attach delegated event listeners
+    // Delegated event listener
     document.addEventListener('click', function(e) {
       var target = e.target;
 
-      // Time filter buttons
       var timeBtn = target.closest('.filter-time-btn');
       if (timeBtn && timeBtn.dataset.time) {
         e.preventDefault();
@@ -555,7 +696,6 @@
         return;
       }
 
-      // Report type buttons (the tab bar)
       var typeBtn = target.closest('.report-type-btn');
       if (typeBtn && typeBtn.dataset.type) {
         e.preventDefault();
@@ -564,26 +704,36 @@
       }
     });
 
-    // Initial load
-    loadReport();
+    // Wait for db ready, then load
+    if (window.dbReady) {
+      window.dbReady.then(function() {
+        console.log('[REPORT V4] DB ready — loading report');
+        loadReport();
+      }).catch(function(e) {
+        console.error('[REPORT V4] DB ready failed:', e);
+        loadReport(); // still try
+      });
+    } else {
+      loadReport();
+    }
   }
 
-  // ── Expose public API on window ────────────────────────────────────────────
-  window.reportState  = window.reportState;
+  // ── Expose public API ──────────────────────────────────────────────────────
+  window.reportState     = window.reportState;
   window.setReportType   = setReportType;
-  window.setTimeFilter    = setTimeFilter;
-  window.selectMonth      = selectMonth;
-  window.selectYear       = selectYear;
-  window.switchReportTab  = switchReportTab;
-  window.initFilter       = initFilter;
-  window.loadReport       = loadReport;
+  window.setTimeFilter   = setTimeFilter;
+  window.selectMonth     = selectMonth;
+  window.selectYear      = selectYear;
+  window.switchReportTab = switchReportTab;
+  window.initFilter      = initFilter;
+  window.loadReport      = loadReport;
 
-  // ── Auto-refresh on data mutations ─────────────────────────────────────────
+  // ── Auto-refresh on data mutations ───────────────────────────────────────
   var _reportRefreshTimer;
   function queueReportRefresh(reason) {
     clearTimeout(_reportRefreshTimer);
     _reportRefreshTimer = setTimeout(function() {
-      console.log('[REPORT V3][Consistency] refresh triggered by:', reason);
+      console.log('[REPORT V4][Consistency] refresh:', reason);
       _doLoadReport();
     }, 300);
   }
@@ -597,20 +747,20 @@
     }
   });
 
-  // ── Render: summary stats ──────────────────────────────────────────────────
+  // ── Render: summary ───────────────────────────────────────────────────────
   function updateSummary(data) {
-    var revenue     = data.totalRevenue  || 0;
-    var grossProfit  = data.totalProfit   || 0;
-    var orders       = data.totalOrders   || 0;
-    var expense      = data.totalExpense  || 0;
-    var netProfit    = grossProfit - expense;
+    var revenue    = data.totalRevenue  || 0;
+    var grossProfit = data.totalProfit  || 0;
+    var orders     = data.totalOrders   || 0;
+    var expense    = data.totalExpense  || 0;
+    var netProfit  = grossProfit - expense;
 
     var el;
     el = document.getElementById('statRevenue'); if (el) el.textContent = formatVND(revenue);
-    el = document.getElementById('statProfit');  if (el) el.textContent = formatVND(netProfit);
-    el = document.getElementById('statOrders');  if (el) el.textContent = orders;
-    el = document.getElementById('statExpense');if (el) el.textContent = formatVND(expense);
-    el = document.getElementById('headerProfit');if (el) el.textContent = formatVND(netProfit);
+    el = document.getElementById('statProfit'); if (el) el.textContent = formatVND(netProfit);
+    el = document.getElementById('statOrders'); if (el) el.textContent = orders;
+    el = document.getElementById('statExpense'); if (el) el.textContent = formatVND(expense);
+    el = document.getElementById('headerProfit'); if (el) el.textContent = formatVND(netProfit);
   }
 
   // ── Render: chart ─────────────────────────────────────────────────────────
@@ -632,9 +782,7 @@
     var canvas = document.getElementById('chartCanvas');
     if (!canvas || !window.Chart) return;
 
-    var labels     = [];
-    var revenues   = [];
-    var netProfits = [];
+    var labels = [], revenues = [], netProfits = [];
 
     var daily = data.daily || [];
     for (var i = 0; i < daily.length; i++) {
@@ -673,7 +821,7 @@
     });
   }
 
-  // ── Render: sales list ────────────────────────────────────────────────────
+  // ── Render: sales ─────────────────────────────────────────────────────────
   function renderSales(sales) {
     var el = document.getElementById('salesList');
     if (!el) return;
@@ -698,7 +846,7 @@
     el.innerHTML = html.join('');
   }
 
-  // ── Render: products ───────────────────────────────────────────────────────
+  // ── Render: products ─────────────────────────────────────────────────────
   function renderProducts(products) {
     var el = document.getElementById('productsList');
     if (!el) return;
@@ -752,14 +900,14 @@
     el.innerHTML = html.join('');
   }
 
-  // ── Render: purchases ─────────────────────────────────────────────────────
+  // ── Render: purchases / import ────────────────────────────────────────────
   function renderPurchases(purchases, totalAmount, slipCount) {
     var el = document.getElementById('purchasesList');
     if (!el) return;
     var summaryHtml =
       '<div class="grid grid-cols-2 gap-2 mb-3">' +
         '<div class="card p-3 text-center">' +
-          '<div class="text-xs text-muted">Tổng tiền nhập</div>' +
+          '<div class="text-xs text-muted">Tổng chi phí</div>' +
           '<div class="font-bold text-danger tabular-nums" style="font-size:14px;">' + formatVND(totalAmount) + '</div>' +
         '</div>' +
         '<div class="card p-3 text-center">' +
@@ -768,20 +916,23 @@
         '</div>' +
       '</div>';
     if (!purchases || purchases.length === 0) {
-      el.innerHTML = summaryHtml + '<div class="text-center text-muted py-4">Không có phiếu nhập</div>';
+      el.innerHTML = summaryHtml + '<div class="text-center text-muted py-4">Không có dữ liệu nhập hàng</div>';
       return;
     }
     var html = [];
     for (var i = 0; i < purchases.length; i++) {
       var p = purchases[i];
       var dateStr = p.date ? p.date.split('T')[0].split('-').reverse().join('/') : '';
+      var amount = p.total_amount || p.amount || 0;
+      var typeLabel = p.type ? '<div class="text-xs text-muted">' + p.type + '</div>' : '';
       html.push(
         '<div class="card p-3">' +
           '<div class="flex justify-between items-start mb-1">' +
-            '<div class="font-bold text-primary">#' + p.id + '</div>' +
+            '<div class="font-bold text-primary">#' + (p.id || '?') + '</div>' +
             '<div class="text-xs text-muted">' + dateStr + '</div>' +
           '</div>' +
-          '<div class="font-bold text-danger tabular-nums mb-1">' + formatVND(p.total_amount || 0) + '</div>' +
+          '<div class="font-bold text-danger tabular-nums mb-1">' + formatVND(amount) + '</div>' +
+          typeLabel +
           (p.note ? '<div class="text-xs text-muted italic">' + p.note + '</div>' : '') +
         '</div>'
       );
