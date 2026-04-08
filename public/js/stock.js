@@ -119,11 +119,15 @@ async function loadData() {
     }
 
     // Step 2: Update IndexedDB with server data (keep local cache in sync)
+    console.log('[Stock] Step2: serverProducts.length=' + serverProducts.length + ', window.db=' + typeof window.db + ', window.dbReady=' + typeof window.dbReady);
     if (serverProducts.length > 0) {
       try {
         if (window.db && window.dbReady) {
+          console.log('[Stock] Step2: waiting for dbReady...');
           await window.dbReady.catch(() => {});
+          console.log('[Stock] Step2: dbReady resolved, clearing products...');
           await window.db.products.clear();
+          console.log('[Stock] Step2: bulkAdd starting...');
           await window.db.products.bulkAdd(serverProducts.map(p => ({
             id: p.id,
             name: p.name,
@@ -160,11 +164,14 @@ async function loadData() {
     }
 
     // Always show content section and render
+    console.log('[Stock] loadData: showing content section, products=' + (products ? products.length : 0));
     var loadingEl = document.getElementById('loading');
     var contentEl = document.getElementById('contentSection');
-    if (loadingEl) loadingEl.classList.add('hidden');
-    if (contentEl) contentEl.classList.remove('hidden');
+    console.log('[Stock] loadingEl=' + !!loadingEl + ', contentEl=' + !!contentEl);
+    if (loadingEl) { loadingEl.classList.add('hidden'); console.log('[Stock] loading hidden'); }
+    if (contentEl) { contentEl.classList.remove('hidden'); console.log('[Stock] content shown'); }
 
+    console.log('[Stock] loadData: calling initStockPage...');
     initStockPage({
       products: products || [],
       purchases: purchases || [],
@@ -172,6 +179,7 @@ async function loadData() {
         return s + Math.max(0, Number(p.stock) || 0);
       }, 0)
     });
+    console.log('[Stock] loadData: initStockPage DONE');
     hideLoading();
     return products || [];
   } catch (err) {
@@ -190,6 +198,7 @@ function hideLoading() {
 }
 
 function initStockPage(data) {
+  console.log('[Stock] initStockPage: START, products=' + ((data && data.products) ? data.products.length : 0));
   try {
     // Render products — data.products comes from IndexedDB (single source of truth)
     currentProducts = data.products || [];

@@ -97,8 +97,10 @@
 
   <script>
     (async () => {
+      console.log('[Stock] IIFE START — window.loadScript=' + typeof window.loadScript);
       await loadVersion();
-      document.getElementById('app').innerHTML = 
+      console.log('[Stock] loadVersion done, setting innerHTML...');
+      document.getElementById('app').innerHTML =
         getHeader('Kho hàng', '📦') +
       getContent(`
         <!-- Loading -->

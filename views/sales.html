@@ -300,12 +300,18 @@
   <script src="/js/utils.js?v=20260211-toast"></script>
   <script src="/js/format.js"></script>
   <!-- realtime.js auto-loaded by layout.js -->
-  <script src="/js/sales.js?v=20260417a"></script>
+  <script src="/js/sales.js?v=20260418a"></script>
 
   <!-- PERFORMANCE: sync-orders needs window.db (from db.js) → load in sequence before sales.js -->
   <script src="/js/vendor/dexie.min.js"></script>
-  await loadScript('/db.js?v=20260411a');
-  <script src="/sync-orders.js"></script>
+  <script>
+    (async function() {
+      if (window._dbScriptLoaded) { await loadScript('/sync-orders.js'); return; }
+      window._dbScriptLoaded = true;
+      await loadScript('/db.js?v=20260418a');
+      await loadScript('/sync-orders.js');
+    })();
+  </script>
 
   <script>
     async function loadData() {
