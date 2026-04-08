@@ -101,6 +101,11 @@ async function loadData() {
     console.log('[Stock] loadData: fetching from IndexedDB...');
     if (window.dbReady) await window.dbReady;
 
+    // Auto-seed demo products if DB is empty (e.g. after indexedDB.deleteDatabase)
+    if (typeof window.seedProductsIfEmpty === 'function') {
+      await window.seedProductsIfEmpty();
+    }
+
     var products = [];
     if (typeof window.getProducts === 'function') {
       products = await window.getProducts();

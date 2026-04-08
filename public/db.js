@@ -102,6 +102,7 @@ if (window._dbInitialized) {
   window.CACHE_NAME   = CACHE_NAME;
   window.STORE_META   = STORE_META;
   window.getProducts          = getProducts;
+  window.seedProductsIfEmpty  = seedProductsIfEmpty;
   window.updateStockAfterSale = updateStockAfterSale;
   window.createSaleOffline    = createSaleOffline;
 
@@ -163,6 +164,24 @@ if (window._dbInitialized) {
     } catch (e) {
       console.error('[DB] getProducts error:', e);
       return [];
+    }
+  }
+
+  async function seedProductsIfEmpty() {
+    try {
+      if (window.dbReady) await window.dbReady;
+      const count = await _db.products.count();
+      if (count > 0) return; // DB has data, skip seeding
+      console.warn('[DB] ⚠️ No products in IndexedDB — seeding demo data');
+      const demoProducts = [
+        { id: 1, name: 'Bia tươi 50L', stock: 50, cost_price: 10000, synced: 1, archived: 0 },
+        { id: 2, name: 'Bia bom 20L', stock: 30, cost_price: 12000, synced: 1, archived: 0 },
+        { id: 3, name: 'Bia chai',    stock: 100, cost_price: 8000, synced: 1, archived: 0 }
+      ];
+      await _db.products.bulkAdd(demoProducts);
+      console.log('[DB] ✅ Seeded ' + demoProducts.length + ' demo products');
+    } catch (e) {
+      console.error('[DB] seedProductsIfEmpty ERROR:', e);
     }
   }
 
