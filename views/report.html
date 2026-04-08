@@ -129,7 +129,7 @@
   <!-- Header rendered via JS from layout.js -->
   <div id="app"></div>
 
-  <script src="/js/report.js?v=20260419b"></script>
+  <script src="/js/report.js?v=20260420a"></script>
 
   <script>
     var headerActions = '<div id="headerProfit" class="money text-money font-bold tabular-nums" style="font-size:14px;">0đ</div>';
@@ -140,14 +140,12 @@
         <div class="report-filter">
           <button class="filter-btn active" data-type="today" onclick="switchFilterType('today')">Hôm nay</button>
           <button class="filter-btn" data-type="yesterday" onclick="switchFilterType('yesterday')">Hôm qua</button>
-          <div class="filter-group">
-            <button id="btnMonth" class="filter-btn" data-type="month" onclick="toggleMonthDropdown(event)">Tháng</button>
-            <div id="monthDropdown" class="dropdown hidden"></div>
-          </div>
-          <div class="filter-group">
-            <button id="btnYear" class="filter-btn" data-type="year" onclick="toggleYearDropdown(event)">Năm</button>
-            <div id="yearDropdown" class="dropdown hidden"></div>
-          </div>
+          <select id="selMonth" onchange="selectMonth(this.value)" class="filter-select">
+            <option value="" disabled selected>Tháng</option>
+          </select>
+          <select id="selYear" onchange="selectYear(this.value)" class="filter-select">
+            <option value="" disabled selected>Năm</option>
+          </select>
         </div>
 
         <div class="grid grid-cols-2 gap-3 mb-4">
