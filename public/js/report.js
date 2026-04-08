@@ -23,15 +23,6 @@ function getMonthName(m) {
           'Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'][m - 1] || ('Tháng ' + m);
 }
 
-function getMonthOptions() {
-  var names = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6','Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
-  var opts = [];
-  for (var i = 1; i <= 12; i++) {
-    opts.push('<option value="' + i + '">' + names[i - 1] + '</option>');
-  }
-  return opts.join('');
-}
-
 function getYearOptions(current) {
   var currentYear = new Date().getFullYear();
   var opts = [];
@@ -65,22 +56,8 @@ function initDateInputs() {
 function switchQuickFilter(type) { switchFilterType(type); }
 
 function initFilter() {
-  // Populate selMonth options (not in static HTML — avoid ${...} static-template issue)
-  var monthEl = document.getElementById('selMonth');
-  if (monthEl) monthEl.innerHTML = getMonthOptions();
-
-  // Populate selYear options
-  var yearEl = document.getElementById('selYear');
-  if (yearEl) yearEl.innerHTML = getYearOptions(_selectedYear);
-
-  // Set current values
-  if (monthEl) monthEl.value = _selectedMonth;
-  if (yearEl)  yearEl.value  = _selectedYear;
-
-  console.log('[REPORT] initFilter done — selMonth options:', monthEl ? monthEl.options.length : 0,
-              '| selYear options:', yearEl ? yearEl.options.length : 0);
-
-  // Set active tab — default "Hôm nay"
+  // Dropdown items are built on first open — no need to pre-build here.
+  console.log('[REPORT] initFilter done');
   activateTab('today');
   updatePeriodLabel();
   loadReport();
@@ -88,9 +65,9 @@ function initFilter() {
 
 function activateTab(type) {
   _filterType = type;
-  var tabs = document.querySelectorAll('.period-tab[data-type]');
-  for (var i = 0; i < tabs.length; i++) {
-    tabs[i].classList.toggle('active', tabs[i].dataset.type === type);
+  var btns = document.querySelectorAll('.filter-btn[data-type]');
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].classList.toggle('active', btns[i].dataset.type === type);
   }
 }
 
@@ -100,99 +77,103 @@ function switchFilterType(type) {
   loadReport();
 }
 
-function _getDropdowns() {
-  var monthEl = document.getElementById('monthDropdown');
-  var yearEl  = document.getElementById('yearDropdown');
-  if (!monthEl || !yearEl) { console.error('[REPORT] dropdown elements missing'); return null; }
-  return { monthEl: monthEl, yearEl: yearEl };
+// ── Month / Year dropdowns (div-based) ──────────────────────────────────────────
+
+function _buildMonthDropdown() {
+  var dd = document.getElementById('monthDropdown');
+  if (!dd) return;
+  dd.innerHTML = '';
+  for (var i = 1; i <= 12; i++) {
+    var item = document.createElement('div');
+    item.className = 'dropdown-item';
+    item.innerText = 'Tháng ' + i;
+    item.dataset.month = i;
+    item.onclick = (function(m) {
+      return function() {
+        _selectedMonth = m;
+        _selectedYear  = _selectedYear || new Date().getFullYear();
+        var btnMonth = document.getElementById('btnMonth');
+        var btnYear  = document.getElementById('btnYear');
+        if (btnMonth) btnMonth.innerText = 'Tháng ' + m;
+        if (btnYear)  btnYear.innerText  = _selectedYear;
+        closeAllDropdowns();
+        activateTab('month');
+        updatePeriodLabel();
+        loadReport();
+      };
+    })(i);
+    dd.appendChild(item);
+  }
 }
 
-function _showDropdown(el) {
-  el.classList.remove('hidden');
-  el.style.display = ''; // remove any inline display:none
-}
-
-function _hideDropdown(el) {
-  el.classList.add('hidden');
-  el.style.display = 'none';
+function _buildYearDropdown() {
+  var dd = document.getElementById('yearDropdown');
+  if (!dd) return;
+  dd.innerHTML = '';
+  var currentYear = new Date().getFullYear();
+  for (var y = currentYear; y >= currentYear - 4; y--) {
+    var item = document.createElement('div');
+    item.className = 'dropdown-item';
+    item.innerText = y;
+    item.dataset.year = y;
+    item.onclick = (function(yr) {
+      return function() {
+        _selectedYear = yr;
+        var btnYear = document.getElementById('btnYear');
+        if (btnYear) btnYear.innerText = yr;
+        closeAllDropdowns();
+        activateTab('year');
+        updatePeriodLabel();
+        loadReport();
+      };
+    })(y);
+    dd.appendChild(item);
+  }
 }
 
 function toggleMonthDropdown(e) {
-  if (e) { e.stopPropagation(); }
-  var dds = _getDropdowns(); if (!dds) return;
-  var isHidden = dds.monthEl.classList.contains('hidden');
-  _hideDropdown(dds.monthEl);
-  _hideDropdown(dds.yearEl);
-  if (isHidden) {
-    _showDropdown(dds.monthEl);
-    // populate month options just in case
-    var sel = document.getElementById('selMonth');
-    if (sel) sel.innerHTML = getMonthOptions();
-    console.log('[REPORT] month dropdown opened, computed display:', window.getComputedStyle(dds.monthEl).display);
-  } else {
-    console.log('[REPORT] month dropdown closed');
-  }
+  if (e) e.stopPropagation();
+  var dd = document.getElementById('monthDropdown');
+  var yd = document.getElementById('yearDropdown');
+  if (!dd || !yd) return;
+  _buildMonthDropdown();
+  var wasHidden = dd.classList.contains('hidden');
+  dd.classList.add('hidden');
+  yd.classList.add('hidden');
+  if (wasHidden) dd.classList.remove('hidden');
+  console.log('[REPORT] month dropdown ' + (wasHidden ? 'opened' : 'closed'));
 }
 
 function toggleYearDropdown(e) {
-  if (e) { e.stopPropagation(); }
-  var dds = _getDropdowns(); if (!dds) return;
-  var isHidden = dds.yearEl.classList.contains('hidden');
-  _hideDropdown(dds.monthEl);
-  _hideDropdown(dds.yearEl);
-  if (isHidden) {
-    _showDropdown(dds.yearEl);
-    console.log('[REPORT] year dropdown opened, computed display:', window.getComputedStyle(dds.yearEl).display);
-  } else {
-    console.log('[REPORT] year dropdown closed');
-  }
+  if (e) e.stopPropagation();
+  var dd = document.getElementById('yearDropdown');
+  var md = document.getElementById('monthDropdown');
+  if (!dd || !md) return;
+  _buildYearDropdown();
+  var wasHidden = dd.classList.contains('hidden');
+  dd.classList.add('hidden');
+  md.classList.add('hidden');
+  if (wasHidden) dd.classList.remove('hidden');
+  console.log('[REPORT] year dropdown ' + (wasHidden ? 'opened' : 'closed'));
 }
 
 function closeAllDropdowns() {
-  var dds = _getDropdowns(); if (!dds) return;
-  _hideDropdown(dds.monthEl);
-  _hideDropdown(dds.yearEl);
+  var dd = document.getElementById('monthDropdown');
+  var yd = document.getElementById('yearDropdown');
+  if (dd) dd.classList.add('hidden');
+  if (yd) yd.classList.add('hidden');
 }
 
-function applyMonthYear() {
-  var monthEl = document.getElementById('selMonth');
-  var yearEl  = document.getElementById('selYear');
-  if (monthEl) _selectedMonth = parseInt(monthEl.value, 10);
-  if (yearEl)  _selectedYear  = parseInt(yearEl.value, 10);
-
-  console.log('[REPORT] applyMonthYear:', { month: _selectedMonth, year: _selectedYear });
-  closeAllDropdowns();
-  activateTab('month');
-  updatePeriodLabel();
-  loadReport();
-}
-
-function applyYear() {
-  var yearEl = document.getElementById('selYear');
-  if (yearEl) _selectedYear = parseInt(yearEl.value, 10);
-
-  console.log('[REPORT] applyYear:', { year: _selectedYear });
-  closeAllDropdowns();
-  activateTab('year');
-  updatePeriodLabel();
-  loadReport();
-}
-
-// Close dropdowns on outside click
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', function() {
-    document.addEventListener('click', function(e) {
-      if (!e.target.closest('.filter-tab-wrap')) {
-        closeAllDropdowns();
-      }
-    });
-  });
-} else {
+// Attach click-outside close after DOM ready
+function _initDropdownClose() {
   document.addEventListener('click', function(e) {
-    if (!e.target.closest('.filter-tab-wrap')) {
-      closeAllDropdowns();
-    }
+    if (!e.target.closest('.filter-group')) closeAllDropdowns();
   });
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', _initDropdownClose);
+} else {
+  _initDropdownClose();
 }
 
 function formatVND(amount) {
