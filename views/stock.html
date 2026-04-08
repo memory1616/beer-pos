@@ -154,40 +154,12 @@
         </div>
       `) +
       getBottomNav('/stock');
-    })();
-  </script>
 
-  <!-- Load Utils (formatVND, showToast) then Stock JS -->
-  <script src="/js/utils.js"></script>
-  <!-- realtime.js auto-loaded by layout.js -->
-  <script src="/js/stock.js?v=20260408a"></script>
-  
-  <script>
-    async function loadData() {
-      try {
-        const res = await fetch('/stock/data', { cache: 'no-store' });
-        const data = await res.json();
-        
-        // Initialize stock page
-        try {
-          initStockPage(data);
-        } catch (e) {
-          console.error('Init error:', e);
-        }
-        
-        // Hide loading, show content
-        const loading = document.getElementById('loading');
-        const contentSection = document.getElementById('contentSection');
-        if (loading) loading.classList.add('hidden');
-        if (contentSection) contentSection.classList.remove('hidden');
-        
-      } catch (err) {
-        console.error('Failed to load data:', err);
-        document.getElementById('loading').innerHTML = '<div class="text-danger text-center py-8">Lỗi tải dữ liệu</div>';
-      }
-    }
-    
-    loadData();
+      // Wait for browser to paint the #app.innerHTML before calling loadData
+      // This ensures #importProducts and #purchaseHistoryList exist in the DOM
+      await new Promise(resolve => requestAnimationFrame(resolve));
+      await loadData();
+    })();
   </script>
   
   <!-- PERFORMANCE: db.js + sync.js non-blocking via requestIdleCallback -->
