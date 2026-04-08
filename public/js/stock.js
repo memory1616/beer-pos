@@ -99,17 +99,36 @@ function escapeHtmlAttr(s) {
 async function loadData() {
   try {
     console.log('[Stock] loadData: fetching /stock/data...');
+    if (window.dbReady) await window.dbReady;
+
     var res = await fetch('/stock/data', { cache: 'no-store' });
     console.log('[Stock] loadData: got response, status=' + res.status);
     var data = await res.json();
     console.log('[Stock] loadData: products=' + (data.products ? data.products.length : 0));
     initStockPage(data);
+    hideLoading();
     return data;
   } catch (err) {
     console.error('[Stock] loadData ERROR:', err);
+    hideLoading();
     var el = document.getElementById('productList');
     if (el) el.innerHTML = '<div class="text-danger text-center py-8">Lỗi tải dữ liệu: ' + (err.message || 'Không rõ lỗi') + '</div>';
   }
+
+  // Safety fallback — prevent infinite loading
+  setTimeout(function() {
+    var loadingEl = document.getElementById('loading');
+    if (loadingEl && !loadingEl.classList.contains('hidden')) {
+      console.warn('[Stock] ⚠️ load timeout fallback — forcing render');
+      hideLoading();
+      initStockPage({ products: [], purchases: [], totalStockPositive: 0 });
+    }
+  }, 3000);
+}
+
+function hideLoading() {
+  var el = document.getElementById('loading');
+  if (el) el.classList.add('hidden');
 }
 
 function initStockPage(data) {
@@ -141,8 +160,10 @@ function initStockPage(data) {
     }
 
     console.log('[Stock] initStockPage: OK, products=' + currentProducts.length);
+    hideLoading();
   } catch (err) {
     console.error('[Stock] initStockPage ERROR:', err);
+    hideLoading();
   }
 }
 

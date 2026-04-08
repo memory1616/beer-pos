@@ -87,6 +87,13 @@ if (typeof window._dbInit !== 'undefined') {
     console.error('[DB] Failed to open:', e);
   }
 
+  // Log when DB is fully ready
+  if (dbOpenPromise) {
+    dbOpenPromise.then(() => {
+      console.log('[DB] 🔥 DB READY');
+    });
+  }
+
   // ─── Expose globals ────────────────────────────────────────────────────────
   window.db          = _db;
   window.dbReady      = dbOpenPromise;
@@ -101,6 +108,7 @@ if (typeof window._dbInit !== 'undefined') {
   // ==================== SALE FUNCTIONS ====================
 
   async function createSaleOffline(customerId, items, total, profit) {
+    if (window.dbReady) await window.dbReady;
     const saleData = {
       customer_id: customerId,
       date: new Date().toISOString(),
@@ -148,6 +156,9 @@ if (typeof window._dbInit !== 'undefined') {
 
   async function getProducts() {
     try {
+      if (window.dbReady) {
+        await window.dbReady;
+      }
       return await _db.products.toArray();
     } catch (e) {
       console.error('[DB] getProducts error:', e);
@@ -156,6 +167,7 @@ if (typeof window._dbInit !== 'undefined') {
   }
 
   async function updateStockAfterSale(items) {
+    if (window.dbReady) await window.dbReady;
     for (const item of items) {
       try {
         const product = await _db.products.get(item.productId);
@@ -172,6 +184,7 @@ if (typeof window._dbInit !== 'undefined') {
   }
 
   async function updateStockLocal(productId, quantityChange) {
+    if (window.dbReady) await window.dbReady;
     const product = await _db.products.get(productId);
     if (product) {
       await _db.products.update(productId, {
@@ -181,6 +194,7 @@ if (typeof window._dbInit !== 'undefined') {
   }
 
   async function getProductStock(productId) {
+    if (window.dbReady) await window.dbReady;
     const product = await _db.products.get(productId);
     return product ? product.stock : 0;
   }
@@ -188,6 +202,7 @@ if (typeof window._dbInit !== 'undefined') {
   // ==================== SYNC QUEUE ====================
 
   async function addToSyncQueue(type, action, data) {
+    if (window.dbReady) await window.dbReady;
     await _db.sync_queue.add({
       type,
       action,
@@ -198,15 +213,18 @@ if (typeof window._dbInit !== 'undefined') {
   }
 
   async function getPendingSyncItems() {
+    if (window.dbReady) await window.dbReady;
     return await _db.sync_queue.where('synced').equals(0).toArray();
   }
 
   async function markAsSynced(ids) {
     if (!ids || ids.length === 0) return;
+    if (window.dbReady) await window.dbReady;
     await _db.sync_queue.where('id').anyOf(ids).modify({ synced: 1 });
   }
 
   async function clearSyncedItems() {
+    if (window.dbReady) await window.dbReady;
     await _db.sync_queue.where('synced').equals(1).delete();
   }
 
@@ -288,6 +306,7 @@ if (typeof window._dbInit !== 'undefined') {
   }
 
   async function pullFromCloud() {
+    if (window.dbReady) await window.dbReady;
     const cloudUrl = localStorage.getItem('cloudUrl');
     if (!cloudUrl || !navigator.onLine) {
       return { success: false, message: 'Offline or no cloud URL' };
