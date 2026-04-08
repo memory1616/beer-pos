@@ -80,6 +80,7 @@ if (window._dbInitialized) {
   });
 
   // Open the database — Dexie automatically uses max(existing, code) version
+  let _dbOpenResolve, _dbOpenReject;
   let dbOpenPromise;
   try {
     dbOpenPromise = _db.open();
@@ -87,16 +88,43 @@ if (window._dbInitialized) {
     console.error('[DB] Failed to open:', e);
   }
 
-  // Log when DB is fully ready
+  // Safety: window.dbReady = dbOpenPromise WITH 5s timeout
+  // If another tab holds an exclusive lock, db.open() hangs — this prevents it
+  window.dbReady = Promise.race([
+    dbOpenPromise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('[DB] ⏳ db.open() timeout (5s) — DB locked by another tab?')), 5000)
+    )
+  ]);
+
+  // Log when DB is fully ready (original promise, not the race)
   if (dbOpenPromise) {
     dbOpenPromise.then(() => {
       console.log('[DB] 🔥 DB READY');
+    }).catch(e => {
+      console.error('[DB] db.open() rejected:', e.message || e);
     });
   }
 
+  // Expose getter so callers can re-open if locked
+  window._reopenDb = async function() {
+    try {
+      _db.close();
+      const p = _db.open();
+      window.dbReady = Promise.race([
+        p,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('[DB] ⏳ db.reopen timeout')), 5000))
+      ]);
+      await window.dbReady;
+      console.log('[DB] 🔄 DB reopened successfully');
+    } catch (e) {
+      console.error('[DB] 🔄 DB reopen FAILED:', e.message || e);
+    }
+  };
+
   // ─── Expose globals ────────────────────────────────────────────────────────
   window.db          = _db;
-  window.dbReady      = dbOpenPromise;
+  // NOTE: window.dbReady already set above with 5s timeout — do NOT override
   window.DB_VERSION   = DB_VERSION;
   window.DB_NAME      = DB_NAME;
   window.CACHE_NAME   = CACHE_NAME;
@@ -155,22 +183,55 @@ if (window._dbInitialized) {
 
   // ==================== STOCK FUNCTIONS ====================
 
+  // ─── Safe db-ready wrapper with timeout ──────────────────────────────────────
+  function withDbTimeout(promise, ms) {
+    return Promise.race([
+      promise,
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('[DB] ⏳ db timeout after ' + ms + 'ms')), ms)
+      )
+    ]);
+  }
+
   async function getProducts() {
     try {
       if (window.dbReady) {
-        await window.dbReady;
+        console.log('[DB] ⏳ waiting dbReady...');
+        await withDbTimeout(window.dbReady, 5000);
+        console.log('[DB] ✅ dbReady resolved');
       }
-      return await _db.products.toArray();
+      const result = await withDbTimeout(_db.products.toArray(), 5000);
+      console.log('[DB] getProducts: ' + result.length + ' products');
+      return result;
     } catch (e) {
-      console.error('[DB] getProducts error:', e);
-      return [];
+      console.error('[DB] getProducts ERROR:', e.message || e);
+      // DB might be locked — try closing and reopening
+      try {
+        _db.close();
+        const reopenedPromise = _db.open();
+        window.dbReady = Promise.race([
+          reopenedPromise,
+          new Promise((_, reject) => setTimeout(() => reject(new Error('[DB] ⏳ db.reopen timeout')), 5000))
+        ]);
+        await window.dbReady;
+        console.log('[DB] 🔄 DB reopened');
+        const result = await withDbTimeout(_db.products.toArray(), 5000);
+        console.log('[DB] getProducts (retry): ' + result.length + ' products');
+        return result;
+      } catch (e2) {
+        console.error('[DB] getProducts retry FAILED:', e2.message || e2);
+        return [];
+      }
     }
   }
 
   async function seedProductsIfEmpty() {
     try {
-      if (window.dbReady) await window.dbReady;
-      const count = await _db.products.count();
+      if (window.dbReady) await withDbTimeout(window.dbReady, 5000);
+      const count = await withDbTimeout(_db.products.count(), 5000);
+      if (count > 0) return; // DB has data, skip seeding
+      console.warn('[DB] ⚠️ No products in IndexedDB — seeding demo data');
+      const demoProducts = [
       if (count > 0) return; // DB has data, skip seeding
       console.warn('[DB] ⚠️ No products in IndexedDB — seeding demo data');
       const demoProducts = [
