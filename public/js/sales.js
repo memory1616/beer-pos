@@ -146,10 +146,10 @@ function applyResolvedPrices(customerId, apiPrices) {
         (p.slug && (x.product_slug === p.slug || x.productSlug === p.slug))
       );
       if (apiRow && apiRow.price != null && apiRow.price !== '') {
-        const p = Number(apiRow.price);
-        if (Number.isFinite(p) && p > 0) {
-          resolvedPrice = p;
-          console.log('[PRICE][applyResolvedPrices] [' + p.name + '] ← API:', p);
+        const priceVal = Number(apiRow.price);
+        if (Number.isFinite(priceVal) && priceVal > 0) {
+          resolvedPrice = priceVal;
+          console.log('[PRICE][applyResolvedPrices] [' + p.name + '] ← API:', priceVal);
         }
       }
     }
