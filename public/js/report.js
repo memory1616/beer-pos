@@ -23,6 +23,15 @@ function getMonthName(m) {
           'Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'][m - 1] || ('Tháng ' + m);
 }
 
+function getMonthOptions() {
+  var names = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6','Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
+  var opts = [];
+  for (var i = 1; i <= 12; i++) {
+    opts.push('<option value="' + i + '">' + names[i - 1] + '</option>');
+  }
+  return opts.join('');
+}
+
 function getYearOptions(current) {
   var currentYear = new Date().getFullYear();
   var opts = [];
@@ -56,14 +65,20 @@ function initDateInputs() {
 function switchQuickFilter(type) { switchFilterType(type); }
 
 function initFilter() {
+  // Populate selMonth options (not in static HTML — avoid ${...} static-template issue)
+  var monthEl = document.getElementById('selMonth');
+  if (monthEl) monthEl.innerHTML = getMonthOptions();
+
+  // Populate selYear options
   var yearEl = document.getElementById('selYear');
   if (yearEl) yearEl.innerHTML = getYearOptions(_selectedYear);
 
-  var monthEl = document.getElementById('selMonth');
+  // Set current values
   if (monthEl) monthEl.value = _selectedMonth;
+  if (yearEl)  yearEl.value  = _selectedYear;
 
-  // selYear from initFilter ensures year dropdown is populated
-  console.log('[REPORT] initFilter done, selYear options:', yearEl ? yearEl.options.length : 0);
+  console.log('[REPORT] initFilter done — selMonth options:', monthEl ? monthEl.options.length : 0,
+              '| selYear options:', yearEl ? yearEl.options.length : 0);
 
   // Set active tab — default "Hôm nay"
   activateTab('today');
@@ -93,24 +108,27 @@ function _getDropdowns() {
 }
 
 function _showDropdown(el) {
-  el.style.display = '';
-  el.removeAttribute('hidden');
   el.classList.remove('hidden');
+  el.style.display = ''; // remove any inline display:none
 }
 
 function _hideDropdown(el) {
+  el.classList.add('hidden');
   el.style.display = 'none';
 }
 
 function toggleMonthDropdown(e) {
   if (e) { e.stopPropagation(); }
   var dds = _getDropdowns(); if (!dds) return;
-  var monthOpen = dds.monthEl.style.display !== 'none';
+  var isHidden = dds.monthEl.classList.contains('hidden');
   _hideDropdown(dds.monthEl);
   _hideDropdown(dds.yearEl);
-  if (!monthOpen) {
+  if (isHidden) {
     _showDropdown(dds.monthEl);
-    console.log('[REPORT] month dropdown opened');
+    // populate month options just in case
+    var sel = document.getElementById('selMonth');
+    if (sel) sel.innerHTML = getMonthOptions();
+    console.log('[REPORT] month dropdown opened, computed display:', window.getComputedStyle(dds.monthEl).display);
   } else {
     console.log('[REPORT] month dropdown closed');
   }
@@ -119,12 +137,12 @@ function toggleMonthDropdown(e) {
 function toggleYearDropdown(e) {
   if (e) { e.stopPropagation(); }
   var dds = _getDropdowns(); if (!dds) return;
-  var yearOpen = dds.yearEl.style.display !== 'none';
+  var isHidden = dds.yearEl.classList.contains('hidden');
   _hideDropdown(dds.monthEl);
   _hideDropdown(dds.yearEl);
-  if (!yearOpen) {
+  if (isHidden) {
     _showDropdown(dds.yearEl);
-    console.log('[REPORT] year dropdown opened');
+    console.log('[REPORT] year dropdown opened, computed display:', window.getComputedStyle(dds.yearEl).display);
   } else {
     console.log('[REPORT] year dropdown closed');
   }
