@@ -14,7 +14,7 @@
 // because ALL contexts use the SAME version number from ONE source.
 // ─────────────────────────────────────────────────────
 
-const DB_VERSION = 33; // ← BUMP THIS when schema changes (v33 adds _meta store)
+const DB_VERSION = 34; // ← BUMP THIS when schema changes (v34: add createdAt Date index + migrate)
 
 const DB_NAME    = 'BeerPOS';
 const STORE_META = '_meta';
@@ -77,6 +77,21 @@ if (window._dbInitialized) {
 
   _db.version(33).stores({
     [STORE_META]: 'key'
+  });
+
+  // v34: add createdAt (Date) index to sales for reliable client-side date filtering
+  _db.version(34).stores({
+    sales: '++id, createdAt, customer_id, date, total, profit, synced'
+  }).upgrade(tx => {
+    return tx.table('sales').toCollection().modify(sale => {
+      // Migrate existing sales: parse date string → Date object
+      if (sale.date && typeof sale.date === 'string') {
+        // date is "YYYY-MM-DD" → treat as Vietnam local midnight → Date
+        sale.createdAt = new Date(sale.date + 'T00:00:00+07:00');
+      } else if (!sale.createdAt) {
+        sale.createdAt = new Date();
+      }
+    });
   });
 
   // ─── Safe DB open with retries ─────────────────────────────────────────────
@@ -159,10 +174,11 @@ if (window._dbInitialized) {
 
   async function createSaleOffline(customerId, items, total, profit) {
     if (window.dbReady) await window.dbReady;
-    // Use Vietnam-local date string so it matches server-created records exactly
+    // Use Vietnam-local date string for server compatibility AND Date for client filtering
     const saleData = {
       customer_id: customerId,
       date: getVietnamDateStr(),
+      createdAt: new Date(),
       total: total,
       profit: profit,
       synced: 0

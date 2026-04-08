@@ -216,8 +216,141 @@ function switchReportTab(tab) {
   }
 }
 
+// ── Date range helpers (Vietnam UTC+7) ──────────────────────────────────────────
+function getVietnamNow() {
+  return new Date(new Date().getTime() + 7 * 3600000);
+}
+
+function toDateStr(d) {
+  return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0');
+}
+
+function getFilterRange() {
+  var vn = getVietnamNow();
+  var start, end;
+  if (_filterType === 'today') {
+    start = end = toDateStr(vn);
+  } else if (_filterType === 'yesterday') {
+    var y = new Date(vn.getTime());
+    y.setUTCDate(y.getUTCDate() - 1);
+    start = end = toDateStr(y);
+  } else if (_filterType === 'month') {
+    var ym = _selectedYear || vn.getUTCFullYear();
+    var mm = _selectedMonth || (vn.getUTCMonth() + 1);
+    start = ym + '-' + String(mm).padStart(2, '0') + '-01';
+    var lastDay = new Date(ym, mm, 0).getUTCDate();
+    end = ym + '-' + String(mm).padStart(2, '0') + '-' + String(lastDay).padStart(2, '0');
+  } else if (_filterType === 'year') {
+    var yy = _selectedYear || vn.getUTCFullYear();
+    start = yy + '-01-01';
+    end   = yy + '-12-31';
+  }
+  return { start: new Date(start + 'T00:00:00+07:00'), end: new Date(end + 'T23:59:59+07:00') };
+}
+
+// ── IndexedDB client-side report loader ────────────────────────────────────────
+async function loadReportFromIndexedDB() {
+  if (window.dbReady) await window.dbReady.catch(function() {});
+  if (!window.db) return null;
+
+  var range = getFilterRange();
+  var rows = await window.db.sales
+    .where('createdAt')
+    .between(range.start, range.end, true, true)
+    .and(function(s) { return !s.status || s.status !== 'returned'; })
+    .toArray();
+
+  var totalRevenue = 0, totalProfit = 0;
+  rows.forEach(function(s) {
+    totalRevenue += s.total || 0;
+    totalProfit  += s.profit  || 0;
+  });
+
+  // Build customer map
+  var custIds = [...new Set(rows.map(function(s) { return s.customer_id; }).filter(Boolean))];
+  var custMap = {};
+  if (custIds.length > 0) {
+    var custs = await window.db.customers.where('id').anyOf(custIds).toArray();
+    custs.forEach(function(c) { custMap[c.id] = c.name; });
+  }
+  var sales = rows.map(function(s) {
+    return {
+      id:            s.id,
+      date:          s.date,
+      total:         s.total,
+      profit:        s.profit,
+      customer_id:   s.customer_id,
+      customer_name: custMap[s.customer_id] || 'Khách lẻ'
+    };
+  });
+
+  // Profit by product (from sale_items)
+  var saleIds = rows.map(function(s) { return s.id; });
+  var items = [];
+  if (saleIds.length > 0) {
+    items = await window.db.sale_items.where('sale_id').anyOf(saleIds).toArray();
+  }
+  var prodMap = {};
+  var prods = await window.db.products.toArray();
+  prods.forEach(function(p) { prodMap[p.id] = p; });
+    var byProduct = {};
+  items.forEach(function(it) {
+    var p = prodMap[it.product_id];
+    var key = it.product_id;
+    if (!byProduct[key]) {
+      byProduct[key] = { product_id: key, name: p ? p.name : '#' + key, quantity: 0, revenue: 0, profit: 0 };
+    }
+    byProduct[key].quantity += it.quantity || 0;
+    byProduct[key].revenue  += (it.price || 0) * (it.quantity || 0);
+    var cp = it.cost_price || 0;
+    byProduct[key].profit   += ((it.price || 0) - cp) * (it.quantity || 0);
+  });
+
+  // Expenses (skip if table not present)
+  var totalExpense = 0;
+  try {
+    var expenses = await window.db.expenses
+      .where('date')
+      .between(range.start.toISOString().slice(0, 10), range.end.toISOString().slice(0, 10), true, true)
+      .toArray();
+    totalExpense = expenses.reduce(function(s, e) { return s + (e.amount || 0); }, 0);
+  } catch (e) {
+    // expenses table may not exist
+  }
+
+  return {
+    sales: sales,
+    totalRevenue:  totalRevenue,
+    totalProfit:   totalProfit,
+    totalExpense:  totalExpense,
+    totalOrders:   rows.length,
+    profitByProduct: Object.values(byProduct),
+    profitByCustomer: [],
+    purchases: [],
+    purchaseTotalAmount: 0,
+    purchaseSlipCount: 0
+  };
+}
+
 function loadReport() {
   console.log('[REPORT] filter:', { type: _filterType, month: _selectedMonth, year: _selectedYear });
+
+  // Offline: use IndexedDB
+  if (!navigator.onLine) {
+    loadReportFromIndexedDB().then(function(data) {
+      if (data) {
+        console.log('[REPORT] loaded from IndexedDB:', data.totalOrders, 'orders');
+        _reportData = data;
+        updateSummary(data);
+        renderChart(data);
+        renderSales(data.sales || []);
+        renderProducts(data.profitByProduct || []);
+        renderCustomers(data.profitByCustomer || []);
+        renderPurchases(data.purchases || [], data.purchaseTotalAmount || 0, data.purchaseSlipCount || 0);
+      }
+    }).catch(function(e) { console.error('[REPORT] IndexedDB error:', e); });
+    return;
+  }
 
   var url = '/report/data?type=' + _filterType;
   if (_filterType === 'month') {
