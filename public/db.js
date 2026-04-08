@@ -80,13 +80,20 @@ if (window._dbInitialized) {
   });
 
   // v34: add createdAt (Date) index to sales for reliable client-side date filtering
+  // NOTE: Dexie uses first-occurrence — only the FIRST version block defining a table
+  //       determines its schema. Subsequent blocks are ignored unless they define NEW
+  //       tables. So v34 must redeclare ALL tables with COMPLETE schemas.
   _db.version(34).stores({
-    sales: '++id, createdAt, customer_id, date, total, profit, synced'
+    customers:   '++id, name, phone, deposit, keg_balance, archived, synced',
+    products:    '++id, name, stock, cost_price, synced',
+    sales:       '++id, createdAt, customer_id, date, total, profit, synced, distance_km, duration_min, route_index, route_polyline',
+    sale_items:  '++id, sale_id, product_id, quantity, price, cost_price, profit, synced',
+    sync_queue:  '++id, entity, action, data, url, method, synced, created_at, retry_count',
+    expenses:    '++id, type, amount, note, date, synced'
   }).upgrade(tx => {
     return tx.table('sales').toCollection().modify(sale => {
       // Migrate existing sales: parse date string → Date object
       if (sale.date && typeof sale.date === 'string') {
-        // date is "YYYY-MM-DD" → treat as Vietnam local midnight → Date
         sale.createdAt = new Date(sale.date + 'T00:00:00+07:00');
       } else if (!sale.createdAt) {
         sale.createdAt = new Date();
@@ -195,6 +202,7 @@ if (window._dbInitialized) {
           quantity:   item.quantity,
           price:      item.price || 0,
           cost_price: item.costPrice || 0,
+          profit:     ((item.price || 0) - (item.costPrice || 0)) * item.quantity,
           synced: 0
         });
 
