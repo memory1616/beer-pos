@@ -1232,12 +1232,10 @@ async function showInvoiceModal(saleId) {
       kegHtml;
   }
   
-  const invoiceTotalEl = document.querySelector('#invoiceModal .invoice-total-value');
   if (invoiceTotalEl) {
     invoiceTotalEl.textContent = Format.number(sale.total || 0);
   }
   
-  const qrSection = document.querySelector('#invoiceModal .invoice-qr-card');
   if (qrSection) {
     if (isGift) {
       qrSection.classList.add('hidden');
