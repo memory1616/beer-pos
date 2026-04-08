@@ -331,36 +331,14 @@ async function loadReportFromIndexedDB() {
 function loadReport() {
   console.log('[REPORT] filter:', { type: _filterType, month: _selectedMonth, year: _selectedYear });
 
-  // Always use IndexedDB (client-side filtering with createdAt index)
-  if (window.db && window.dbReady) {
-    loadReportFromIndexedDB().then(function(data) {
-      if (data) {
-        console.log('[REPORT] FILTERED LENGTH:', data.totalOrders);
-        _reportData = data;
-        updateSummary(data);
-        renderChart(data);
-        renderSales(data.sales || []);
-        renderProducts(data.profitByProduct || []);
-        renderCustomers(data.profitByCustomer || []);
-        renderPurchases(data.purchases || [], data.purchaseTotalAmount || 0, data.purchaseSlipCount || 0);
-      }
-    }).catch(function(e) { console.error('[REPORT] IndexedDB error:', e); });
-    return;
-  }
-
-  // Fallback: server-side (only if IndexedDB not available)
-  var url = '/report/data?type=' + _filterType;
-  if (_filterType === 'month') {
-    url += '&month=' + _selectedMonth + '&year=' + _selectedYear;
-  } else if (_filterType === 'year') {
-    url += '&year=' + _selectedYear;
-  }
-
-  fetch(url, { cache: 'no-store' })
-    .then(function(r) { return r.json(); })
+  loadReportFromIndexedDB()
     .then(function(data) {
-      console.log('[REPORT] data length:', (data.sales || []).length, '| totalRevenue:', data.totalRevenue);
+      if (!data) return;
+
+      console.log('[REPORT] INDEXEDDB:', data.totalOrders);
+
       _reportData = data;
+
       updateSummary(data);
       renderChart(data);
       renderSales(data.sales || []);
@@ -368,7 +346,9 @@ function loadReport() {
       renderCustomers(data.profitByCustomer || []);
       renderPurchases(data.purchases || [], data.purchaseTotalAmount || 0, data.purchaseSlipCount || 0);
     })
-    .catch(function(e) { console.error('Load report error:', e); });
+    .catch(function(e) {
+      console.error('[REPORT] IndexedDB error:', e);
+    });
 }
 
 var _reportRefreshTimer = null;
