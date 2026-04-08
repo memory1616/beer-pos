@@ -28,7 +28,7 @@
       position: fixed; top: 0; left: 0; right: 0;
       height: calc(56px + env(safe-area-inset-top, 0px));
       background: var(--color-card, #fff);
-      border-bottom: 1px solid var(--color-border, #e2e8f0);
+      border-bottom: 1px solid var(--color-border);
       display: flex; align-items: center; justify-content: space-between;
       padding: 0 16px; padding-top: env(safe-area-inset-top, 0px);
       z-index: 50; box-sizing: border-box;
@@ -37,7 +37,7 @@
       position: fixed; bottom: 0; left: 0; right: 0;
       height: calc(64px + env(safe-area-inset-bottom, 0px));
       background: var(--color-card, #fff);
-      border-top: 3px solid var(--color-primary, #f59e0b);
+      border-top: 3px solid var(--color-primary);
       display: grid; grid-template-columns: repeat(5, 1fr);
       z-index: 50; max-width: 500px; margin: 0 auto;
       padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -46,18 +46,18 @@
     @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
     .skeleton-bar {
       height: 16px; width: 80px;
-      background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+      background: linear-gradient(90deg, var(--card-soft) 25%, var(--bg-hover) 50%, var(--card-soft) 75%);
       background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px;
     }
     .skeleton-btn {
       width: 32px; height: 32px;
-      background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+      background: linear-gradient(90deg, var(--card-soft) 25%, var(--bg-hover) 50%, var(--card-soft) 75%);
       background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 6px;
     }
-    [data-theme="dark"] .skeleton-header { background: rgba(30, 41, 59, 0.92); border-bottom-color: #334155; }
+    [data-theme="dark"] .skeleton-header { background: rgba(30, 41, 59, 0.92); border-bottom-color: var(--border); }
     [data-theme="dark"] .skeleton-nav { background: rgba(30, 41, 59, 0.92); }
     [data-theme="dark"] .skeleton-bar, [data-theme="dark"] .skeleton-btn {
-      background: linear-gradient(90deg, #334155 25%, #475569 50%, #334155 75%);
+      background: linear-gradient(90deg, var(--card) 25%, var(--card-soft) 50%, var(--card) 75%);
       background-size: 200% 100%;
     }
   </style>
@@ -77,11 +77,11 @@
       <div style="display:flex;gap:8px;"><div class="skeleton-btn"></div></div>
     </header>
     <nav class="skeleton-nav">
-      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;opacity:0.5;"><div style="width:20px;height:20px;background:#e2e8f0;border-radius:4px;animation:shimmer 1.5s infinite;"></div><div style="width:24px;height:11px;background:#e2e8f0;border-radius:2px;animation:shimmer 1.5s infinite;"></div></div>
-      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;opacity:0.5;"><div style="width:20px;height:20px;background:#e2e8f0;border-radius:4px;animation:shimmer 1.5s infinite;"></div><div style="width:24px;height:11px;background:#e2e8f0;border-radius:2px;animation:shimmer 1.5s infinite;"></div></div>
-      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;opacity:0.5;"><div style="width:20px;height:20px;background:#e2e8f0;border-radius:4px;animation:shimmer 1.5s infinite;"></div><div style="width:24px;height:11px;background:#e2e8f0;border-radius:2px;animation:shimmer 1.5s infinite;"></div></div>
-      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;opacity:0.5;"><div style="width:20px;height:20px;background:#e2e8f0;border-radius:4px;animation:shimmer 1.5s infinite;"></div><div style="width:24px;height:11px;background:#e2e8f0;border-radius:2px;animation:shimmer 1.5s infinite;"></div></div>
-      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;opacity:0.5;"><div style="width:20px;height:20px;background:#e2e8f0;border-radius:4px;animation:shimmer 1.5s infinite;"></div><div style="width:24px;height:11px;background:#e2e8f0;border-radius:2px;animation:shimmer 1.5s infinite;"></div></div>
+      <div class="skeleton-shimmer"><div class="skeleton-shimmer-bar tall"></div><div class="skeleton-shimmer-bar wide"></div></div>
+      <div class="skeleton-shimmer"><div class="skeleton-shimmer-bar tall"></div><div class="skeleton-shimmer-bar wide"></div></div>
+      <div class="skeleton-shimmer"><div class="skeleton-shimmer-bar tall"></div><div class="skeleton-shimmer-bar wide"></div></div>
+      <div class="skeleton-shimmer"><div class="skeleton-shimmer-bar tall"></div><div class="skeleton-shimmer-bar wide"></div></div>
+      <div class="skeleton-shimmer"><div class="skeleton-shimmer-bar tall"></div><div class="skeleton-shimmer-bar wide"></div></div>
     </nav>
   </div>
 

@@ -69,8 +69,8 @@
   <style>
     /* Invoice Total Card */
     #invoiceModal .invoice-total-card {
-      background: linear-gradient(180deg, #1f2937, #111827);
-      border: 1px solid #374151;
+      background: var(--card);
+      border: 1px solid var(--border);
       box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
     }
     /* Invoice Grand Total */
@@ -83,32 +83,32 @@
     #invoiceModal .invoice-total-value {
       font-size: 52px;
       font-weight: 800;
-      color: #22c55e;
+      color: var(--green);
       letter-spacing: -2px;
       line-height: 1;
       font-variant-numeric: tabular-nums;
     }
     #invoiceModal .invoice-total-unit {
-      color: #9ca3af;
+      color: var(--text-muted);
       font-weight: 700;
       font-size: 20px;
       line-height: 1;
     }
     #invoiceModal .invoice-total-label {
-      color: #9ca3af;
+      color: var(--text-muted);
     }
 
     /* Invoice Content — white card with shadow */
     #invoiceModal .invoice-pos-content {
-      background: #ffffff;
-      border: 1px solid var(--color-border, #e2e8f0);
+      background: #fff;
+      border: 1px solid var(--border);
       box-shadow: 0 1px 6px rgba(0,0,0,0.06);
     }
 
     /* Invoice QR Card */
     #invoiceModal .invoice-qr-card {
-      background: #ffffff;
-      border: 1px solid var(--color-border, #e2e8f0);
+      background: #fff;
+      border: 1px solid var(--border);
       box-shadow: 0 1px 6px rgba(0,0,0,0.06);
     }
 

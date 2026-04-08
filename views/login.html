@@ -15,24 +15,24 @@
   <script src="/js/dark-mode.js"></script>
   <style>
     body {
-      background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+      background: linear-gradient(135deg, #0B0E11 0%, #1E2329 100%);
       min-height: 100vh;
     }
     .glass {
-      background: rgba(255, 255, 255, 0.95);
+      background: rgba(255, 255, 255, 0.98);
       backdrop-filter: blur(10px);
     }
     /* Dark mode for login page */
-    [data-theme="dark"] body { background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%); }
-    [data-theme="dark"] .glass { background: rgba(30, 41, 59, 0.95); }
+    [data-theme="dark"] body { background: linear-gradient(135deg, #0B0E11 0%, #1E2329 100%); }
+    [data-theme="dark"] .glass { background: rgba(30, 41, 59, 0.98); }
     [data-theme="dark"] .glass h1,
-    [data-theme="dark"] .glass label { color: #f1f5f9; }
+    [data-theme="dark"] .glass label { color: var(--text-main); }
     [data-theme="dark"] input {
       background: rgba(15, 23, 42, 0.8);
       border-color: var(--color-border);
-      color: #f1f5f9;
+      color: var(--text-main);
     }
-    [data-theme="dark"] input::placeholder { color: #94a3b8; }
+    [data-theme="dark"] input::placeholder { color: var(--text-muted); }
     [data-theme="dark"] input:focus {
       border-color: var(--color-primary);
       box-shadow: 0 0 0 3px rgba(245,158,11,0.2);

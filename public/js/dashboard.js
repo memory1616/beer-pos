@@ -203,7 +203,7 @@ function initDashboard(data) {
       } else {
         list.innerHTML = data.kpiAlerts.map(c => {
           const shortfall = Math.round(Number(c.shortfall) || 0);
-          const cls = shortfall > 50 ? 'text-danger font-bold' : shortfall > 20 ? 'text-orange-500 font-semibold' : 'text-warning font-semibold';
+          const cls = shortfall > 50 ? 'text-danger font-bold' : shortfall > 20 ? 'text-warning font-semibold' : 'text-warning font-semibold';
           const phoneBtn = c.phone ? '<a href="tel:' + c.phone + '" class="text-success shrink-0">📞</a>' : '';
           return '<div class="dsh-sale-row">' +
             '<div class="dsh-sale-row-left">' +

@@ -29,13 +29,13 @@
     .action-btn:hover { transform: translateY(-2px); }
     .action-btn:active { transform: scale(0.95); }
     .log-row:nth-child(even) { background: var(--color-bg); }
-    .badge-deliver { background: rgba(34,197,94,0.15); color: var(--color-success); }
+    .badge-deliver { background: var(--green-dim); color: var(--green); }
     .badge-collect { background: rgba(37,99,235,0.15); color: var(--color-info); }
     .badge-import { background: rgba(139,92,246,0.15); color: #7c3aed; }
-    .badge-adjust { background: rgba(245,158,11,0.15); color: var(--color-warning); }
+    .badge-adjust { background: var(--primary-dim); color: var(--primary-hover); }
     .badge-sell_empty { background: rgba(236,72,153,0.15); color: #db2777; }
-    .delta-up { color: var(--color-success); }
-    .delta-down { color: var(--color-danger); }
+    .delta-up { color: var(--green); }
+    .delta-down { color: var(--red); }
     .delta-neutral { color: var(--color-text-secondary); }
     input[type=number]::-webkit-inner-spin-button,
     input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
@@ -214,7 +214,7 @@
           </div>
           <div class="card stat-card--emerald p-2">
             <div class="text-xs text-muted mb-0.5">Đã nhập</div>
-            <div class="text-sm font-bold" style="color:#059669" id="summaryImported">-</div>
+            <div class="text-sm font-bold text-success" id="summaryImported">-</div>
           </div>
           <div class="card stat-card--warning p-2">
             <div class="text-xs text-muted mb-0.5">Điều chỉnh</div>
