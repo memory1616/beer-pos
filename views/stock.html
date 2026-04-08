@@ -164,7 +164,7 @@
       // Wait for DOM paint, then load stock.js, then call loadData()
       await new Promise(resolve => requestAnimationFrame(resolve));
       await new Promise(resolve => setTimeout(resolve, 0));
-      await loadScript('/js/stock.js?v=20260412a');
+      await loadScript('/js/stock.js?v=20260413a');
 
       // Ensure DOM is ready before rendering
       if (document.readyState === 'loading') {

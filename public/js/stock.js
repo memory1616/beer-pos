@@ -338,6 +338,19 @@ async function deletePurchase(purchaseId) {
     updatePurchasesSummary();
     checkPurchasesEmpty();
 
+    // Also delete from IndexedDB to keep local cache in sync
+    try {
+      if (window.db && purchaseId) {
+        var pid = parseInt(purchaseId);
+        if (!isNaN(pid) && window.db.purchases) {
+          await window.db.purchases.delete(pid);
+          console.log('[Stock] Deleted purchase', pid, 'from IndexedDB');
+        }
+      }
+    } catch (e) {
+      console.warn('[Stock] Could not delete purchase from IndexedDB:', e);
+    }
+
     alert('Đã xoá đơn nhập hàng!');
 
     // REFETCH products from server to sync stock (stock restored on delete)
@@ -917,6 +930,19 @@ function deleteProduct() {
 
       closeProductModal();
       alert('Đã xoá sản phẩm!');
+
+      // Also delete from IndexedDB to keep local cache in sync
+      try {
+        if (window.db && productId) {
+          var pid = parseInt(productId);
+          if (!isNaN(pid)) {
+            await window.db.products.delete(pid);
+            console.log('[Stock] Deleted product', pid, 'from IndexedDB');
+          }
+        }
+      } catch (e) {
+        console.warn('[Stock] Could not delete from IndexedDB:', e);
+      }
 
       // REFETCH from server to sync all data
       if (typeof loadData === 'function') {
