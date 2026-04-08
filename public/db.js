@@ -14,7 +14,7 @@
 // because ALL contexts use the SAME version number from ONE source.
 // ─────────────────────────────────────────────────────
 
-const DB_VERSION = 37; // ← bump khi schema thay đổi (v37: thêm slug và sell_price vào products)
+const DB_VERSION = 38; // ← bump khi schema thay đổi (v38: 新增 profit_estimated + 快照字段)
 
 const DB_NAME    = 'BeerPOS';
 const STORE_META = '_meta';
@@ -123,6 +123,26 @@ if (window._dbInitialized) {
     // Add product_slug field to existing sale_items
     return tx.table('sale_items').toCollection().modify(si => {
       if (si.product_slug === undefined) si.product_slug = null;
+    });
+  });
+
+  // v38: 新增快照字段（报表恢复核心）
+  //   sale_items: profit_estimated, product_name, cost_price
+  //   sales: customer_name
+  // 确保即使 products/customers 表为空，报表依然能显示数据
+  _db.version(38).stores({
+    customers:   '++id, name, phone, deposit, keg_balance, archived, synced',
+    products:    '++id, name, slug, stock, cost_price, sell_price, synced',
+    sales:       '++id, createdAt, customer_id, customer_name, date, total, profit, synced, distance_km, duration_min, route_index, route_polyline',
+    sale_items:  '++id, sale_id, product_id, product_slug, product_name, quantity, price, cost_price, profit, profit_estimated, synced',
+    sync_queue:  '++id, entity, action, data, url, method, synced, created_at, retry_count',
+    expenses:    '++id, type, amount, note, date, synced'
+  }).upgrade(tx => {
+    // 给 sale_items 补充缺失字段
+    return tx.table('sale_items').toCollection().modify(si => {
+      if (si.profit_estimated === undefined) si.profit_estimated = false;
+      if (si.product_name === undefined)      si.product_name      = null;
+      if (si.cost_price === undefined)        si.cost_price        = null;
     });
   });
 
