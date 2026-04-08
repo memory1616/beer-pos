@@ -101,16 +101,22 @@ async function loadData() {
     console.log('[Stock] loadData: fetching from IndexedDB...');
     if (window.dbReady) await window.dbReady;
 
-    // Auto-seed demo products if DB is empty (e.g. after indexedDB.deleteDatabase)
-    if (typeof window.seedProductsIfEmpty === 'function') {
-      await window.seedProductsIfEmpty();
-    }
-
     var products = [];
     if (typeof window.getProducts === 'function') {
       products = await window.getProducts();
     }
     console.log('[Stock] loadData: products=' + (products ? products.length : 0));
+
+    // Safety: if DB is empty (e.g. cached db.js without seed fn, or freshly cleared),
+    // force seed then retry
+    if (!products || products.length === 0) {
+      console.warn('[Stock] ⚠️ products=0 — forcing seed');
+      if (typeof window.seedProductsIfEmpty === 'function') {
+        await window.seedProductsIfEmpty();
+        products = await window.getProducts();
+        console.log('[Stock] loadData: products after seed=' + (products ? products.length : 0));
+      }
+    }
 
     initStockPage({ products: products || [], totalStockPositive: 0 });
     hideLoading();

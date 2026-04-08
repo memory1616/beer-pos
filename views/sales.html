@@ -304,7 +304,7 @@
 
   <!-- PERFORMANCE: sync-orders needs window.db (from db.js) → load in sequence before sales.js -->
   <script src="/js/vendor/dexie.min.js"></script>
-  <script src="/db.js?v=20260405"></script>
+  await loadScript('/db.js?v=20260411a');
   <script src="/sync-orders.js"></script>
 
   <script>
