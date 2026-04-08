@@ -14,7 +14,7 @@
 // because ALL contexts use the SAME version number from ONE source.
 // ─────────────────────────────────────────────────────
 
-const DB_VERSION = 38; // ← bump khi schema thay đổi (v38: 新增 profit_estimated + 快照字段)
+const DB_VERSION = 39; // ← bump khi schema thay đổi (v39: is_deleted cho soft-delete, đảm bảo total_amount/ total_profit)
 
 const DB_NAME    = 'BeerPOS';
 const STORE_META = '_meta';
@@ -143,6 +143,32 @@ if (window._dbInitialized) {
       if (si.profit_estimated === undefined) si.profit_estimated = false;
       if (si.product_name === undefined)      si.product_name      = null;
       if (si.cost_price === undefined)        si.cost_price        = null;
+    });
+  });
+
+  // v39: PART 5 — Soft delete cho sản phẩm & khách hàng
+  //   + Thêm trường is_deleted (không bao giờ hard delete)
+  //   + Thêm total_amount / total_profit vào sales (đảm bảo luôn tồn tại)
+  //   + Đảm bảo sale_items có profit_estimated
+  _db.version(39).stores({
+    customers:   '++id, name, phone, deposit, keg_balance, archived, is_deleted, synced',
+    products:    '++id, name, slug, stock, cost_price, sell_price, is_deleted, synced',
+    sales:       '++id, createdAt, customer_id, customer_name, date, total, total_amount, profit, total_profit, synced, distance_km, duration_min, route_index, route_polyline',
+    sale_items:  '++id, sale_id, product_id, product_slug, product_name, quantity, price, cost_price, profit, profit_estimated, synced',
+    sync_queue:  '++id, entity, action, data, url, method, synced, created_at, retry_count',
+    expenses:    '++id, type, amount, note, date, synced'
+  }).upgrade(tx => {
+    // Products: thêm is_deleted
+    tx.table('products').toCollection().modify(p => {
+      if (p.is_deleted === undefined) p.is_deleted = false;
+    });
+    // Customers: thêm is_deleted
+    tx.table('customers').toCollection().modify(c => {
+      if (c.is_deleted === undefined) c.is_deleted = false;
+    });
+    // Sale_items: đảm bảo profit_estimated
+    tx.table('sale_items').toCollection().modify(si => {
+      if (si.profit_estimated === undefined) si.profit_estimated = false;
     });
   });
 
