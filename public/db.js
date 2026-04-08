@@ -120,6 +120,16 @@ if (window._dbInitialized) {
     }
   };
 
+  // ─── Vietnam date helper (same logic as server — UTC+7) ──────────────────
+  function getVietnamDateStr() {
+    const now = new Date();
+    const vn  = new Date(now.getTime() + 7 * 3600000);
+    return vn.getUTCFullYear() + '-' +
+      String(vn.getUTCMonth() + 1).padStart(2, '0') + '-' +
+      String(vn.getUTCDate()).padStart(2, '0');
+  }
+  window.getVietnamDateStr = getVietnamDateStr;
+
   // ─── Multi-tab detection ───────────────────────────────────────────────────
   window.addEventListener('storage', (e) => {
     if (e.key === '_dbVersion') {
@@ -149,9 +159,10 @@ if (window._dbInitialized) {
 
   async function createSaleOffline(customerId, items, total, profit) {
     if (window.dbReady) await window.dbReady;
+    // Use Vietnam-local date string so it matches server-created records exactly
     const saleData = {
       customer_id: customerId,
-      date: new Date().toISOString(),
+      date: getVietnamDateStr(),
       total: total,
       profit: profit,
       synced: 0
@@ -182,7 +193,7 @@ if (window._dbInitialized) {
       await _db.sync_queue.add({
         type:       'sale',
         action:     'create',
-        data:       JSON.stringify({ id: saleId, customerId, items, total, profit, date: saleData.date }),
+        data:       JSON.stringify({ id: saleId, customerId, items, total, profit, date: getVietnamDateStr() }),
         synced:     0,
         created_at: new Date().toISOString()
       });

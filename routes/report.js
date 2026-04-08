@@ -1352,74 +1352,64 @@ router.get('/import-purchases', (req, res) => {
 // GET /report/data — JSON API for the mobile report SPA page (views/report.html)
 // Supports filter types: today | yesterday | month | year
 router.get('/data', (req, res) => {
-  const type = req.query.type || 'today';
+  const type = req.query.type || req.query.period || 'today';
   const month = req.query.month ? parseInt(req.query.month, 10) : null;
   const year  = req.query.year  ? parseInt(req.query.year,  10) : null;
 
-  console.log('[REPORT DATA] INCOMING:', { type, month, year });
-
-  let startDate, endDate, todayKey;
+  let startDate, endDate;
 
   const now = new Date();
   const vn  = new Date(now.getTime() + 7 * 60 * 60 * 1000);
   const vnYear  = vn.getUTCFullYear();
   const vnMonth = vn.getUTCMonth() + 1;
   const vnDay   = vn.getUTCDate();
-  todayKey = vnYear + '-' + String(vnMonth).padStart(2, '0') + '-' + String(vnDay).padStart(2, '0');
+  const todayKey = vnYear + '-' + String(vnMonth).padStart(2, '0') + '-' + String(vnDay).padStart(2, '0');
 
   if (type === 'today') {
-    startDate = todayKey + ' 00:00:00';
-    endDate   = todayKey + ' 23:59:59';
+    startDate = todayKey;
+    endDate   = todayKey;
   } else if (type === 'yesterday') {
     const yesterday = new Date(vn.getTime()); // ← clone, do NOT mutate vn
     yesterday.setUTCDate(yesterday.getUTCDate() - 1);
     const y = yesterday.getUTCFullYear();
     const m = String(yesterday.getUTCMonth() + 1).padStart(2, '0');
     const d = String(yesterday.getUTCDate()).padStart(2, '0');
-    startDate = `${y}-${m}-${d} 00:00:00`;
-    endDate   = `${y}-${m}-${d} 23:59:59`;
+    startDate = `${y}-${m}-${d}`;
+    endDate   = `${y}-${m}-${d}`;
   } else if (type === 'month') {
     // Use filter.year and filter.month — NOT current date
-    const y = year;
-    const m = month;
-    if (!y || !m) {
-      console.warn('[REPORT DATA] month filter missing, fallback to current month');
-    }
-    const yn = y  || vnYear;
-    const mn = m  || vnMonth;
+    const yn = year  || vnYear;
+    const mn = month || vnMonth;
     const sD = new Date(yn, mn - 1, 1);
-    const eD = new Date(yn, mn, 0, 23, 59, 59, 999);
-    startDate = `${sD.getFullYear()}-${String(sD.getMonth()+1).padStart(2,'0')}-${String(sD.getDate()).padStart(2,'0')} 00:00:00`;
-    endDate   = `${eD.getFullYear()}-${String(eD.getMonth()+1).padStart(2,'0')}-${String(eD.getDate()).padStart(2,'0')} 23:59:59`;
+    const eD = new Date(yn, mn, 0);
+    startDate = `${sD.getFullYear()}-${String(sD.getMonth()+1).padStart(2,'0')}-${String(sD.getDate()).padStart(2,'0')}`;
+    endDate   = `${eD.getFullYear()}-${String(eD.getMonth()+1).padStart(2,'0')}-${String(eD.getDate()).padStart(2,'0')}`;
   } else if (type === 'year') {
     // Use filter.year — NOT current date
-    const y = year;
-    if (!y) {
-      console.warn('[REPORT DATA] year filter missing, fallback to current year');
-    }
-    const yn = y || vnYear;
-    const sD = new Date(yn, 0, 1);
-    const eD = new Date(yn, 11, 31, 23, 59, 59, 999);
-    startDate = `${sD.getFullYear()}-${String(sD.getMonth()+1).padStart(2,'0')}-${String(sD.getDate()).padStart(2,'0')} 00:00:00`;
-    endDate   = `${eD.getFullYear()}-${String(eD.getMonth()+1).padStart(2,'0')}-${String(eD.getDate()).padStart(2,'0')} 23:59:59`;
+    const yn = year || vnYear;
+    startDate = `${yn}-01-01`;
+    endDate   = `${yn}-12-31`;
   } else {
     // Default: today
-    startDate = todayKey + ' 00:00:00';
-    endDate   = todayKey + ' 23:59:59';
+    startDate = todayKey;
+    endDate   = todayKey;
   }
 
-  const sd = startDate.split(' ')[0];
-  const ed = endDate.split(' ')[0];
+  console.log('[REPORT] RANGE:', startDate, '→', endDate, '| type:', type);
 
-  console.log('[REPORT DATA] RANGE:', { sd, ed, rawStart: startDate, rawEnd: endDate });
+  // ── Helper: extract YYYY-MM-DD from a date value (handles both "YYYY-MM-DD" and ISO strings) ──
+  // Uses date(datetime(...)) — SQLite interprets ISO strings (with T and Z) as UTC times,
+  // and plain date strings as local times. +7 hours shifts UTC→Vietnam for correct day.
+  const dateCol = (col) =>
+    `date(datetime(${col}, '+7 hours'))`;
 
   // ── Sales ──────────────────────────────────────────────────────────────────
   const periodSales = db.prepare(`
     SELECT id, date, total, profit, customer_id
     FROM sales
-    WHERE date(datetime(date, '+7 hours')) >= date(?) AND date(datetime(date, '+7 hours')) <= date(?)
+    WHERE ${dateCol('date')} >= ? AND ${dateCol('date')} <= ?
       AND (status IS NULL OR status != 'returned')
-  `).all(sd, ed);
+  `).all(startDate, endDate);
 
   const customerIds = [...new Set(periodSales.map(s => s.customer_id).filter(Boolean))];
   const customerMap = {};
@@ -1440,16 +1430,16 @@ router.get('/data', (req, res) => {
   const totalOrders  = periodSales.length;
 
   const dailySales = db.prepare(`
-    SELECT date(datetime(date, '+7 hours')) as date,
+    SELECT ${dateCol('date')} as date,
            COALESCE(SUM(total), 0) as revenue,
            COALESCE(SUM(profit), 0) as profit
     FROM sales
-    WHERE date(datetime(date, '+7 hours')) >= date(?) AND date(datetime(date, '+7 hours')) <= date(?)
+    WHERE ${dateCol('date')} >= ? AND ${dateCol('date')} <= ?
       AND (status IS NULL OR status != 'returned')
-    GROUP BY date(datetime(date, '+7 hours'))
-    ORDER BY date(datetime(date, '+7 hours')) DESC
+    GROUP BY ${dateCol('date')}
+    ORDER BY ${dateCol('date')} DESC
     LIMIT 30
-  `).all(sd, ed);
+  `).all(startDate, endDate);
 
   const profitByProduct = db.prepare(`
     SELECT p.id, p.name,
@@ -1460,12 +1450,12 @@ router.get('/data', (req, res) => {
     FROM sale_items si
     JOIN products p ON p.id = si.product_id
     JOIN sales s ON s.id = si.sale_id
-    WHERE date(datetime(s.date, '+7 hours')) >= date(?) AND date(datetime(s.date, '+7 hours')) <= date(?)
+    WHERE ${dateCol('s.date')} >= ? AND ${dateCol('s.date')} <= ?
       AND (s.status IS NULL OR s.status != 'returned')
     GROUP BY p.id
     ORDER BY quantity_sold DESC
     LIMIT 20
-  `).all(sd, ed);
+  `).all(startDate, endDate);
 
   const profitByCustomer = db.prepare(`
     SELECT c.id, c.name,
@@ -1476,45 +1466,45 @@ router.get('/data', (req, res) => {
     FROM sales s
     LEFT JOIN customers c ON c.id = s.customer_id
     LEFT JOIN sale_items si ON si.sale_id = s.id
-    WHERE date(datetime(s.date, '+7 hours')) >= date(?) AND date(datetime(s.date, '+7 hours')) <= date(?)
+    WHERE ${dateCol('s.date')} >= ? AND ${dateCol('s.date')} <= ?
       AND (s.status IS NULL OR s.status != 'returned')
       AND c.id IS NOT NULL
     GROUP BY c.id
     ORDER BY revenue DESC
     LIMIT 20
-  `).all(sd, ed, sd, ed);
+  `).all(startDate, endDate);
 
   const totalExpense = db.prepare(`
     SELECT COALESCE(SUM(amount), 0) as total
     FROM expenses
-    WHERE date(datetime(date, '+7 hours')) >= date(?) AND date(datetime(date, '+7 hours')) <= date(?)
-  `).get(sd, ed).total;
+    WHERE ${dateCol('date')} >= ? AND ${dateCol('date')} <= ?
+  `).get(startDate, endDate).total;
 
   // ── Purchases ───────────────────────────────────────────────────────────────
   const purchases = db.prepare(`
     SELECT p.id, p.date, p.total_amount, p.note
     FROM purchases p
-    WHERE date(datetime(p.date, '+7 hours')) >= date(?) AND date(datetime(p.date, '+7 hours')) <= date(?)
-    ORDER BY datetime(p.date) DESC, p.id DESC
+    WHERE ${dateCol('p.date')} >= ? AND ${dateCol('p.date')} <= ?
+    ORDER BY ${dateCol('p.date')} DESC, p.id DESC
     LIMIT 100
-  `).all(sd, ed);
+  `).all(startDate, endDate);
 
   const purchaseStats = db.prepare(`
     SELECT COUNT(*) as slip_count,
            COALESCE(SUM(total_amount), 0) as total_amount
     FROM purchases
-    WHERE date(datetime(date, '+7 hours')) >= date(?) AND date(datetime(date, '+7 hours')) <= date(?)
-  `).get(sd, ed);
+    WHERE ${dateCol('date')} >= ? AND ${dateCol('date')} <= ?
+  `).get(startDate, endDate);
 
   const dailyPurchases = db.prepare(`
-    SELECT date(datetime(date, '+7 hours')) as date,
+    SELECT ${dateCol('date')} as date,
            COALESCE(SUM(total_amount), 0) as amount
     FROM purchases
-    WHERE date(datetime(date, '+7 hours')) >= date(?) AND date(datetime(date, '+7 hours')) <= date(?)
-    GROUP BY date(datetime(date, '+7 hours'))
-    ORDER BY date(datetime(date, '+7 hours')) DESC
+    WHERE ${dateCol('date')} >= ? AND ${dateCol('date')} <= ?
+    GROUP BY ${dateCol('date')}
+    ORDER BY ${dateCol('date')} DESC
     LIMIT 30
-  `).all(sd, ed);
+  `).all(startDate, endDate);
 
   const purchaseByProduct = db.prepare(`
     SELECT pr.id, pr.name,
@@ -1523,11 +1513,11 @@ router.get('/data', (req, res) => {
     FROM purchase_items pi
     JOIN purchases pu ON pu.id = pi.purchase_id
     JOIN products pr ON pr.id = pi.product_id
-    WHERE date(datetime(pu.date, '+7 hours')) >= date(?) AND date(datetime(pu.date, '+7 hours')) <= date(?)
+    WHERE ${dateCol('pu.date')} >= ? AND ${dateCol('pu.date')} <= ?
     GROUP BY pr.id
     ORDER BY amount DESC
     LIMIT 20
-  `).all(sd, ed);
+  `).all(startDate, endDate);
 
   res.json({
     sales:              salesWithNames,
