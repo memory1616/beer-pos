@@ -480,26 +480,11 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // API GET → Stale-While-Revalidate
-  if (parsed.pathname.startsWith('/api/') || parsed.pathname.startsWith('/dashboard/')) {
-    const CRITICAL_PATHS = [
-      '/api/dashboard',
-      '/api/sales',
-      '/api/stock',
-      '/api/customers',
-      '/api/products',
-      '/api/kegs',
-      '/dashboard/data'
-    ];
-    const isCritical = CRITICAL_PATHS.some(p => parsed.pathname === p || parsed.pathname.startsWith(p + '/'));
-
-    if (isCritical) {
-      event.respondWith(networkFirst(event.request));
-      return;
-    }
-
-    const maxAge = parsed.pathname.endsWith('/data') ? 3600 : 300;
-    event.respondWith(staleWhileRevalidate(event.request, { maxAge }));
+  // ── CRITICAL: Disable API caching — always fresh data from server ─────────────────
+  // API GET requests must always come from network to ensure data consistency.
+  // Stale data causes stock mismatch, price errors, and data race conditions.
+  if (parsed.pathname.startsWith('/api/') && event.request.method === 'GET') {
+    event.respondWith(fetch(new Request(event.request, { cache: 'no-store' })));
     return;
   }
 

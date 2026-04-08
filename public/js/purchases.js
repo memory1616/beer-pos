@@ -87,92 +87,54 @@ async function submitPurchase() {
   var noteEl = document.getElementById('purchaseNote');
   var submitBtn = document.getElementById('submitBtn');
   var note = noteEl ? noteEl.value : '';
-  var tempId = 'tmp_pur_' + Date.now();
-
   var btnState = submitBtn ? setButtonLoading(submitBtn, 'Xác nhận nhập hàng') : null;
 
-  optimisticMutate({
-    request: function() {
-      return fetch('/api/purchases', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: cart, note }),
-        cache: 'no-store'
-      });
-    },
+  try {
+    var res = await fetch('/api/purchases', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: cart, note }),
+      cache: 'no-store'
+    });
 
-    applyOptimistic: function() {
-      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Đang xử lý...'; }
+    var result;
+    try { result = await res.json(); } catch (_) { result = {}; }
 
-      // Optimistically add temp purchase card
-      if (typeof allPurchases !== 'undefined') {
-        var tempPurchase = {
-          id: tempId,
-          date: new Date().toISOString(),
-          item_count: cart.length,
-          total_amount: cart.reduce(function(s, it) { return s + it.quantity * it.unit_price; }, 0),
-          _optimistic: true
-        };
-        allPurchases.unshift(tempPurchase);
-        window.store.purchases.unshift(tempPurchase);
-        renderPurchaseItem(tempPurchase, { prepend: true });
-        updatePurchasesSummary();
-        checkPurchasesEmpty();
-      }
-    },
-
-    rollback: function() {
-      if (btnState) restoreButtonLoading(btnState);
-      if (typeof allPurchases !== 'undefined') {
-        allPurchases = allPurchases.filter(function(p) { return p.id !== tempId; });
-        window.store.purchases = allPurchases;
-        removePurchaseItem(tempId);
-        updatePurchasesSummary();
-        checkPurchasesEmpty();
-      }
-    },
-
-    onSuccess: function(result) {
-      if (btnState) restoreButtonLoading(btnState);
-
-      let message = 'Nhập hàng thành công!\nTổng tiền: ' + formatVND(result.total_amount);
-      if (result.kegsImported > 0) {
-        message += '\n\nNhập ' + result.kegsImported + ' vỏ từ nhà máy';
-        message += '\nKho vỏ rỗng: ' + result.emptyAfter + ' vỏ';
-      }
-      alert(message);
-
-      if (result.purchase) {
-        // Remove temp and add real
-        if (typeof allPurchases !== 'undefined') {
-          var tIdx = allPurchases.findIndex(function(p) { return p.id === tempId; });
-          if (tIdx !== -1) {
-            allPurchases[tIdx] = result.purchase;
-            window.store.purchases[tIdx] = result.purchase;
-          }
-          removePurchaseItem(tempId);
-          renderPurchaseItem(result.purchase, { prepend: true });
-          // Also update the temp card's data-expense-id to the real one
-          var tempCard = document.querySelector('[data-purchase-id="' + tempId + '"]');
-          if (tempCard) tempCard.setAttribute('data-purchase-id', result.purchase.id);
-        }
-        historyCurrentPage = 1;
-        updatePurchasesSummary();
-        checkPurchasesEmpty();
-      }
-
-      cart = [];
-      document.querySelectorAll('#productList input[type="number"]').forEach(function(input) {
-        input.value = '';
-      });
-      renderCart();
-      switchTab('history');
-    },
-
-    onError: function() {
-      if (btnState) restoreButtonLoading(btnState);
+    if (!res.ok) {
+      throw new Error(result.error || 'Nhập hàng thất bại (HTTP ' + res.status + ')');
     }
-  });
+
+    let message = 'Nhập hàng thành công!\nTổng tiền: ' + formatVND(result.total_amount);
+    if (result.kegsImported > 0) {
+      message += '\n\nNhập ' + result.kegsImported + ' vỏ từ nhà máy';
+      message += '\nKho vỏ rỗng: ' + result.emptyAfter + ' vỏ';
+    }
+    alert(message);
+
+    // Reset cart and form
+    cart = [];
+    var cartInputs = document.querySelectorAll('#productList input[type="number"]');
+    for (var ci = 0; ci < cartInputs.length; ci++) { cartInputs[ci].value = ''; }
+    renderCart();
+    switchTab('history');
+
+    // REFETCH from server to sync all data
+    if (typeof loadData === 'function') {
+      await loadData();
+    } else {
+      var purRes = await fetch('/purchases/data?t=' + Date.now(), { cache: 'no-store' });
+      var purData = await purRes.json();
+      // Re-init purchases page
+      initPurchasesPage && initPurchasesPage(purData);
+    }
+
+    window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'purchase' } }));
+  } catch (err) {
+    console.error('[submitPurchase]', err);
+    alert('Nhập hàng thất bại: ' + (err.message || 'Lỗi không xác định'));
+  } finally {
+    if (btnState) restoreButtonLoading(btnState);
+  }
 }
 
 function editPurchase(id) {

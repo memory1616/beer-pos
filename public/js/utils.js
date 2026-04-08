@@ -180,6 +180,19 @@ const Utils = {
       clearTimeout(timeout);
       timeout = setTimeout(later, wait);
     };
+  },
+
+  /**
+   * Check if value is empty (null, undefined, empty string, empty array, empty object)
+   * @param {*} val
+   * @returns {boolean}
+   */
+  isEmpty: function(val) {
+    if (val === null || val === undefined) return true;
+    if (typeof val === 'string') return val.trim() === '';
+    if (Array.isArray(val)) return val.length === 0;
+    if (typeof val === 'object') return Object.keys(val).length === 0;
+    return false;
   }
 };
 
@@ -204,7 +217,12 @@ function hideLoading() {
   return Utils.hideLoading();
 }
 function showToast(message, type) {
-  return Utils.showToast(message, type);
+  return Utils.isEmpty(message) ? null : Utils.showToast(message, type);
+}
+
+/** Global isEmpty helper */
+function isEmpty(val) {
+  return Utils.isEmpty(val);
 }
 
 // Export for module usage

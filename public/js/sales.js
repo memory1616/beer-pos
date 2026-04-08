@@ -633,7 +633,8 @@ async function submitSale() {
   }
 
   const btn = document.getElementById('sellBtn');
-  const tempId = 'tmp_sale_' + Date.now();
+  var btnState = btn ? setButtonLoading(btn, 'Đang xử lý') : null;
+
   const payload = {
     customerId: customerId ? parseInt(customerId) : null,
     items: items,
@@ -641,154 +642,81 @@ async function submitSale() {
     returnKegs: parseInt(document.getElementById('saleReturnKegs')?.value) || 0
   };
 
-  // Snapshot current form state for rollback
-  const snapshotCart = Object.assign({}, saleData);
-  const snapshotCustomer = customerId;
+  try {
+    var res = await fetch('/api/sales', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      cache: 'no-store'
+    });
+    var result;
+    try { result = await res.json(); } catch (_) { result = {}; }
+    if (!res.ok) throw new Error(result.error || 'Bán hàng thất bại');
 
-  optimisticMutate({
-    entity: 'sale',
-    request: function() {
-      return fetch('/api/sales', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        cache: 'no-store'
-      });
-    },
+    haptic && haptic('success');
 
-    applyOptimistic: function() {
-      // Disable button immediately
-      if (btn) { btn.disabled = true; btn.textContent = 'Đang xử lý...'; }
+    // Clear cart UI immediately
+    saleData = {};
+    var _cs1 = document.getElementById('customerSelect');
+    if (_cs1) _cs1.value = '';
+    var _dK = document.getElementById('saleDeliverKegs');
+    var _rK = document.getElementById('saleReturnKegs');
+    if (_dK) _dK.value = 0;
+    if (_rK) _rK.value = 0;
+    _kegDeliverManual = false;
+    _kegReturnManual = false;
+    applyResolvedPrices('', null);
+    renderSaleProducts();
+    updateSaleTotal();
+    updateKegSaleSection('');
 
-      // Optimistically add temp sale card
-      const tempSale = {
-        id: tempId,
-        customer_name: customerId ? (getCustomer(customerId)?.name || 'Khách') : 'Khách lẻ',
-        date: new Date().toISOString(),
-        total: total,
-        items_qty: items.reduce(function(s, it) { return s + it.quantity; }, 0),
-        status: 'pending',
-        _optimistic: true
-      };
-      syncSalesState([tempSale].concat(allSales));
-      if (historyCurrentPage === 1) {
-        renderHistoryPage();
-      }
+    showToast('Bán hàng thành công!', 'success');
 
-      // Clear cart UI immediately
-      saleData = {};
-      var _cs1 = document.getElementById('customerSelect');
-      if (_cs1) _cs1.value = '';
-      var _dK = document.getElementById('saleDeliverKegs');
-      var _rK = document.getElementById('saleReturnKegs');
-      if (_dK) _dK.value = 0;
-      if (_rK) _rK.value = 0;
-      _kegDeliverManual = false;
-      _kegReturnManual = false;
-      applyResolvedPrices('', null);
-      renderSaleProducts();
-      updateSaleTotal();
-      updateKegSaleSection('');
-    },
-
-    rollback: function() {
-      // Restore button
-      if (btn) { btn.disabled = false; btn.textContent = '✔ Bán hàng'; }
-
-      // Remove temp sale from store and DOM
-      syncSalesState(allSales.filter(function(s) { return s.id !== tempId; }));
-      removeSaleItem(tempId);
-
-      // Restore cart
-      saleData = snapshotCart;
-      var _cs2 = document.getElementById('customerSelect');
-      if (_cs2) _cs2.value = snapshotCustomer || '';
-      const _dK2 = document.getElementById('saleDeliverKegs');
-      const _rK2 = document.getElementById('saleReturnKegs');
-      if (_dK2) _dK2.value = payload.deliverKegs;
-      if (_rK2) _rK2.value = payload.returnKegs;
-      applyResolvedPrices(snapshotCustomer, null);
-      renderSaleProducts();
-      updateSaleTotal();
-      if (snapshotCustomer) updateKegSaleSection(snapshotCustomer);
-    },
-
-    onSuccess: function(result) {
-      haptic && haptic('success');
-
-      if (btn) { btn.disabled = false; btn.textContent = '✔ Bán hàng'; }
-
-      // Remove temp card from both stores and DOM
-      syncSalesState(allSales.filter(function(s) { return s.id !== tempId; }));
-      removeSaleItem(tempId);
-
-      // Build a complete sale object for immediate display.
-      // The API returns { success, id, total, profit }; use optimistic data
-      // for fields not returned by the API.
-      var newSale = Object.assign({}, result);
-      if (!newSale.customer_name) newSale.customer_name = customerId ? (getCustomer(customerId)?.name || 'Khách') : 'Khách lẻ';
-      if (!newSale.date)         newSale.date         = new Date().toISOString();
-      if (!newSale.items_qty)    newSale.items_qty    = items.reduce(function(s, it) { return s + it.quantity; }, 0);
-      if (!newSale.status)       newSale.status       = null;
-      if (!newSale.type)         newSale.type         = 'sale';
-
-      if (historyCurrentPage === 1) {
-        syncSalesState([newSale].concat(allSales));
-        salesPagination.total = (salesPagination.total || 0) + 1;
-        salesPagination.totalPages = Math.ceil(salesPagination.total / HISTORY_PAGE_SIZE);
-        try {
-          renderHistoryPage();
-        } catch (renderErr) {
-          console.warn('[submitSale] renderHistoryPage failed:', renderErr);
-          loadSalesHistory();
-        }
-        showToast('Bán hàng thành công!', 'success');
-      } else {
-        salesPagination.total = (salesPagination.total || 0) + 1;
-        salesPagination.totalPages = Math.ceil(salesPagination.total / HISTORY_PAGE_SIZE);
-        historyCurrentPage = 1;
-        showToast('Bán hàng thành công! Đơn mới ở trang 1.', 'success');
-        loadSalesHistory();
-      }
-
-      try {
-        showInvoiceModal(result.id);
-      } catch(err) {
-        console.error('Lỗi hiển thị hóa đơn:', err);
-        var modal = document.getElementById('invoiceModal');
-        var invoiceContent = document.getElementById('invoiceContent');
-        var qrCodeEl = document.getElementById('qrCode');
-        if (modal) {
-          var invTotalEl = modal.querySelector('.invoice-total-value');
-          if (invTotalEl) invTotalEl.textContent = Format.number(result.total || 0);
-          if (invoiceContent) invoiceContent.innerHTML =
-            '<div class="text-center text-muted py-8">Đơn hàng #'+ result.id +'</div>';
-          if (qrCodeEl) qrCodeEl.src = '';
-          modal.classList.remove('hidden');
-          modal.classList.add('flex');
-        }
-      }
-
-      // REFETCH products from server to sync stock after sale (stock decreased)
-      fetch('/api/products', { cache: 'no-store' })
-        .then(function(res) { return res.json(); })
-        .then(function(serverProducts) {
-          products = serverProducts;
-          window.store.products = serverProducts;
-          _rebuildMaps();
-          renderSaleProducts();
-        })
-        .catch(function(err) {
-          console.error('[Sales] submitSale refetch error:', err);
-        });
-    },
-
-    refetch: refetchSalesHistory,
-
-    onError: function() {
-      if (btn) { btn.disabled = false; btn.textContent = '✔ Bán hàng'; }
+    if (salesPagination.page === 1) {
+      loadSalesHistory();
+    } else {
+      salesPagination.page = 1;
+      loadSalesHistory();
     }
-  });
+
+    try {
+      showInvoiceModal(result.id);
+    } catch(err) {
+      console.error('Lỗi hiển thị hóa đơn:', err);
+      var modal = document.getElementById('invoiceModal');
+      var invoiceContent = document.getElementById('invoiceContent');
+      var qrCodeEl = document.getElementById('qrCode');
+      if (modal) {
+        var invTotalEl = modal.querySelector('.invoice-total-value');
+        if (invTotalEl) invTotalEl.textContent = Format.number(result.total || 0);
+        if (invoiceContent) invoiceContent.innerHTML =
+          '<div class="text-center text-muted py-8">Đơn hàng #' + result.id + '</div>';
+        if (qrCodeEl) qrCodeEl.src = '';
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+      }
+    }
+
+    // REFETCH products from server to sync stock after sale
+    fetch('/api/products', { cache: 'no-store' })
+      .then(function(res) { return res.json(); })
+      .then(function(serverProducts) {
+        products = serverProducts;
+        window.store.products = serverProducts;
+        _rebuildMaps();
+        renderSaleProducts();
+      })
+      .catch(function(err) {
+        console.error('[Sales] submitSale refetch error:', err);
+      });
+
+    window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'sale' } }));
+  } catch (err) {
+    console.error('[submitSale]', err);
+    showToast('Bán hàng thất bại: ' + (err.message || 'Lỗi không xác định'), 'error');
+  } finally {
+    if (btnState) restoreButtonLoading(btnState);
+  }
 }
 
 function closeInvoice() {
@@ -1022,51 +950,44 @@ async function submitReplacement() {
     return;
   }
 
-  var tempId = 'tmp_rep_' + Date.now();
   var btn = document.getElementById('submitReplacementBtn');
+  var btnState = btn ? setButtonLoading(btn, 'Đang xử lý') : null;
 
-  optimisticMutate({
-    request: function() {
-      return fetch('/api/sales/replacement', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          customer_id: customerId ? parseInt(customerId) : null,
-          customer_name: customerName,
-          product_id: parseInt(productId),
-          quantity,
-          reason,
-          gift: isGift
-        }),
-        cache: 'no-store'
-      });
-    },
+  try {
+    var res = await fetch('/api/sales/replacement', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customer_id: customerId ? parseInt(customerId) : null,
+        customer_name: customerName,
+        product_id: parseInt(productId),
+        quantity,
+        reason,
+        gift: isGift
+      }),
+      cache: 'no-store'
+    });
+    var data;
+    try { data = await res.json(); } catch (_) { data = {}; }
+    if (!res.ok) throw new Error(data.error || 'Đổi bia thất bại');
 
-    applyOptimistic: function() {
-      if (btn) { btn.disabled = true; btn.textContent = 'Đang xử lý...'; }
-    },
+    alert('Đã đổi bia thành công!');
+    closeReplacementModal();
 
-    rollback: function() {
-      if (btn) { btn.disabled = false; btn.textContent = 'Xác nhận đổi lỗi'; }
-    },
-
-    onSuccess: function(data) {
-      alert('✅ ' + data.message);
-      closeReplacementModal();
-      if (btn) { btn.disabled = false; btn.textContent = 'Xác nhận đổi lỗi'; }
-      if (salesPagination.page === 1) {
-        loadSalesHistory();
-      } else {
-        showToast('Đơn đổi bia đã được tạo', 'success');
-        salesPagination.page = 1;
-        loadSalesHistory();
-      }
-    },
-
-    onError: function() {
-      if (btn) { btn.disabled = false; btn.textContent = 'Xác nhận đổi lỗi'; }
+    if (salesPagination.page === 1) {
+      loadSalesHistory();
+    } else {
+      salesPagination.page = 1;
+      loadSalesHistory();
     }
-  });
+    showToast('Đơn đổi bia đã được tạo', 'success');
+    window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'sale' } }));
+  } catch (err) {
+    console.error('[submitReplacement]', err);
+    showToast('Đổi bia thất bại: ' + (err.message || 'Lỗi không xác định'), 'error');
+  } finally {
+    if (btnState) restoreButtonLoading(btnState);
+  }
 }
 
 // ── Keyboard navigation for keg inputs ────────────────────────────────────
@@ -1168,48 +1089,43 @@ async function saveKegUpdate() {
 
   var saleId = _invoiceSaleId;
   var btn = document.getElementById('kegSaveBtn');
+  var btnState = btn ? setButtonLoading(btn, 'Đang cập nhật...') : null;
 
-  optimisticMutate({
-    request: function() {
-      return fetch('/api/sales/update-kegs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ saleId: saleId, customerId: _invoiceCustomerId, deliver: formGiao, returned: formThu }),
-        cache: 'no-store'
-      });
-    },
+  try {
+    var res = await fetch('/api/sales/update-kegs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ saleId: saleId, customerId: _invoiceCustomerId, deliver: formGiao, returned: formThu }),
+      cache: 'no-store'
+    });
+    var result;
+    try { result = await res.json(); } catch (_) { result = {}; }
+    if (!res.ok) throw new Error(result.error || 'Cập nhật vỏ thất bại');
 
-    applyOptimistic: function() {
-      if (btn) { btn.disabled = true; btn.textContent = 'Đang cập nhật...'; }
-    },
+    alert('Cập nhật vỏ thành công!\n\nGiao: ' + formGiao + ' | Thu: ' + formThu + '\nVỏ tại khách: ' + (result.new_balance || result.newBalance));
 
-    rollback: function() {
-      if (btn) { btn.disabled = false; btn.textContent = 'Cập nhật'; }
-    },
+    closeKegModal();
 
-    onSuccess: async function(result) {
-      if (btn) { btn.disabled = false; btn.textContent = 'Cập nhật'; }
-      const custListRes = await fetch('/api/customers');
-      const custData = await custListRes.json();
-      customers = custData.customers || custData;
-      window.store.customers = customers;
-      _rebuildMaps();
+    // REFETCH customers to sync
+    const custListRes = await fetch('/api/customers');
+    const custData = await custListRes.json();
+    customers = custData.customers || custData;
+    window.store.customers = customers;
+    _rebuildMaps();
 
-      alert('Cập nhật vỏ thành công!\n\nGiao: ' + formGiao + ' | Thu: ' + formThu + '\nVỏ tại khách: ' + (result.new_balance || result.newBalance));
-
-      closeKegModal();
-      patchSaleRow({ id: saleId, deliver_kegs: formGiao, return_kegs: formThu, keg_balance_after: (result.new_balance || result.newBalance) });
-      await refreshInvoiceIfOpen(saleId);
-    },
-
-    onError: async function() {
-      if (btn) { btn.disabled = false; btn.textContent = 'Cập nhật'; }
-      await loadSalesHistory();
-      if (window.location.pathname === '/' || window.location.pathname === '/dashboard') {
-        if (typeof loadData === 'function') await loadData();
-      }
+    patchSaleRow({ id: saleId, deliver_kegs: formGiao, return_kegs: formThu, keg_balance_after: (result.new_balance || result.newBalance) });
+    await refreshInvoiceIfOpen(saleId);
+    window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'sale', source: 'keg-update' } }));
+  } catch (err) {
+    console.error('[saveKegUpdate]', err);
+    showToast('Cập nhật vỏ thất bại: ' + (err.message || 'Lỗi không xác định'), 'error');
+    await loadSalesHistory();
+    if (window.location.pathname === '/' || window.location.pathname === '/dashboard') {
+      if (typeof loadData === 'function') await loadData();
     }
-  });
+  } finally {
+    if (btnState) restoreButtonLoading(btnState);
+  }
 }
 
 async function showInvoiceModal(saleId) {
@@ -1450,50 +1366,44 @@ async function submitCollectKeg() {
     return;
   }
 
-  const btn = document.getElementById('submitCollectKegBtn');
+  var btn = document.getElementById('submitCollectKegBtn');
+  var btnState = btn ? setButtonLoading(btn, 'Đang cập nhật...') : null;
 
-  optimisticMutate({
-    request: function() {
-      return fetch('/api/kegs/return', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sale_id: saleId, returned_kegs: returned }),
-        cache: 'no-store'
-      });
-    },
+  try {
+    var res = await fetch('/api/kegs/return', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sale_id: saleId, returned_kegs: returned }),
+      cache: 'no-store'
+    });
+    var result;
+    try { result = await res.json(); } catch (_) { result = {}; }
+    if (!res.ok) throw new Error(result.error || 'Cập nhật vỏ thất bại');
 
-    applyOptimistic: function() {
-      if (btn) { btn.disabled = true; btn.textContent = 'Đang cập nhật...'; }
-    },
+    alert('Cập nhật vỏ thành công!\n\nThu: ' + returned + ' vỏ\nVỏ tại khách: ' + result.new_balance);
 
-    rollback: function() {
-      if (btn) { btn.disabled = false; btn.textContent = 'Cập nhật vỏ'; }
-    },
+    closeCollectKegModal();
 
-    onSuccess: async function(result) {
-      if (btn) { btn.disabled = false; btn.textContent = 'Cập nhật vỏ'; }
+    // REFETCH customers to sync
+    const custListRes = await fetch('/api/customers');
+    const custData = await custListRes.json();
+    customers = custData.customers || custData;
+    window.store.customers = customers;
+    _rebuildMaps();
 
-      const custListRes = await fetch('/api/customers');
-      const custData = await custListRes.json();
-      customers = custData.customers || custData;
-      window.store.customers = customers;
-      _rebuildMaps();
-
-      alert('Cập nhật vỏ thành công!\n\nThu: ' + returned + ' vỏ\nVỏ tại khách: ' + result.new_balance);
-
-      closeCollectKegModal();
-      patchSaleRow({ id: saleId, return_kegs: returned, keg_balance_after: result.new_balance });
-      await refreshInvoiceIfOpen(saleId);
-    },
-
-    onError: async function() {
-      if (btn) { btn.disabled = false; btn.textContent = 'Cập nhật vỏ'; }
-      await loadSalesHistory();
-      if (window.location.pathname === '/' || window.location.pathname === '/dashboard') {
-        if (typeof loadData === 'function') await loadData();
-      }
+    patchSaleRow({ id: saleId, return_kegs: returned, keg_balance_after: result.new_balance });
+    await refreshInvoiceIfOpen(saleId);
+    window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'sale', source: 'keg-return' } }));
+  } catch (err) {
+    console.error('[submitCollectKeg]', err);
+    showToast('Cập nhật vỏ thất bại: ' + (err.message || 'Lỗi không xác định'), 'error');
+    await loadSalesHistory();
+    if (window.location.pathname === '/' || window.location.pathname === '/dashboard') {
+      if (typeof loadData === 'function') await loadData();
     }
-  });
+  } finally {
+    if (btnState) restoreButtonLoading(btnState);
+  }
 }
 
 function formatSaleListDate(raw) {
@@ -1752,53 +1662,42 @@ async function deleteSale(id) {
   var btnStates = [];
   actionBtns.forEach(function(b) { btnStates.push(setButtonLoading(b)); });
 
-  optimisticMutate({
-    entity: 'sale',
-    request: function() {
-      return fetch('/api/sales/' + id, { method: 'DELETE', cache: 'no-store' });
-    },
+  try {
+    var res = await fetch('/api/sales/' + id, { method: 'DELETE', cache: 'no-store' });
+    var result;
+    try { result = await res.json(); } catch (_) { result = {}; }
+    if (!res.ok) throw new Error(result.error || 'Xóa hóa đơn thất bại');
 
-    applyOptimistic: function() {
-      syncSalesState(allSales.filter(function(s) { return s.id !== id; }));
-      removeSaleItem(id);
-      salesPagination.total = Math.max(0, (salesPagination.total || 1) - 1);
-      salesPagination.totalPages = Math.ceil(salesPagination.total / HISTORY_PAGE_SIZE);
-      renderHistoryPage();
-    },
+    showToast(result.message || 'Đã xóa hóa đơn', 'success');
+    btnStates.forEach(function(s) { restoreButtonLoading(s); });
 
-    rollback: function() {
-      if (deletedSale) {
-        syncSalesState([deletedSale].concat(allSales));
-        renderHistoryPage();
-      }
-    },
+    // Remove from local state
+    syncSalesState(allSales.filter(function(s) { return s.id !== id; }));
+    removeSaleItem(id);
+    salesPagination.total = Math.max(0, (salesPagination.total || 1) - 1);
+    salesPagination.totalPages = Math.ceil(salesPagination.total / HISTORY_PAGE_SIZE);
+    renderHistoryPage();
 
-    onSuccess: function(result) {
-      showToast(result.message || 'Đã xóa hóa đơn', 'success');
-      btnStates.forEach(function(s) { restoreButtonLoading(s); });
-      renderHistoryPage();
+    // REFETCH products from server to sync stock
+    fetch('/api/products', { cache: 'no-store' })
+      .then(function(res) { return res.json(); })
+      .then(function(serverProducts) {
+        products = serverProducts;
+        window.store.products = serverProducts;
+        _rebuildMaps();
+        renderSaleProducts();
+      })
+      .catch(function(err) {
+        console.error('[Sales] deleteSale refetch error:', err);
+      });
 
-      // REFETCH products from server to sync stock (stock restored on sale delete)
-      fetch('/api/products', { cache: 'no-store' })
-        .then(function(res) { return res.json(); })
-        .then(function(serverProducts) {
-          products = serverProducts;
-          window.store.products = serverProducts;
-          _rebuildMaps();
-          renderSaleProducts();
-        })
-        .catch(function(err) {
-          console.error('[Sales] deleteSale refetch error:', err);
-        });
-    },
-
-    refetch: refetchSalesHistory,
-
-    onError: function() {
-      btnStates.forEach(function(s) { restoreButtonLoading(s); });
-      loadSalesHistory();
-    }
-  });
+    window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'sale' } }));
+  } catch (err) {
+    console.error('[deleteSale]', err);
+    btnStates.forEach(function(s) { restoreButtonLoading(s); });
+    showToast('Xóa hóa đơn thất bại: ' + (err.message || 'Lỗi không xác định'), 'error');
+    await loadSalesHistory();
+  }
 }
 
 // Trả hàng - xác nhận và thực hiện (hỗ trợ trả một phần)
@@ -1961,18 +1860,18 @@ function closeReturnModal() {
 
 // Gửi yêu cầu trả hàng
 async function submitPartialReturn(saleId) {
-  const modal = document.getElementById('returnModal');
+  var modal = document.getElementById('returnModal');
   if (!modal) return;
 
-  const returnItems = [];
-  const inputs = modal.querySelectorAll('[id^="return_qty_"]');
+  var returnItems = [];
+  var inputs = modal.querySelectorAll('[id^="return_qty_"]');
 
-  inputs.forEach(input => {
-    const productId = parseInt(input.id.replace('return_qty_', ''));
-    const qty = parseInt(input.value) || 0;
+  inputs.forEach(function(input) {
+    var productId = parseInt(input.id.replace('return_qty_', ''));
+    var qty = parseInt(input.value) || 0;
 
     if (qty > 0) {
-      returnItems.push({ productId, quantity: qty });
+      returnItems.push({ productId: productId, quantity: qty });
     }
   });
 
@@ -1981,51 +1880,45 @@ async function submitPartialReturn(saleId) {
     return;
   }
 
-  const returnType = document.querySelector('input[name="returnType"]:checked').value;
-  const reason = document.getElementById('returnReason')?.value || '';
+  var returnType = document.querySelector('input[name="returnType"]:checked').value;
+  var reason = document.getElementById('returnReason')?.value || '';
 
-  const btn = modal.querySelector('[onclick^="submitPartialReturn"]');
+  var btn = modal.querySelector('[onclick^="submitPartialReturn"]');
   var btnState = btn ? setButtonLoading(btn) : null;
 
-  optimisticMutate({
-    request: function() {
-      return fetch('/api/sales/' + saleId + '/return-items', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          items: returnItems,
-          returnType: returnType,
-          reason: reason
-        }),
-        cache: 'no-store'
-      });
-    },
+  try {
+    var res = await fetch('/api/sales/' + saleId + '/return-items', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        items: returnItems,
+        returnType: returnType,
+        reason: reason
+      }),
+      cache: 'no-store'
+    });
+    var result;
+    try { result = await res.json(); } catch (_) { result = {}; }
+    if (!res.ok) throw new Error(result.error || 'Trả hàng thất bại');
 
-    applyOptimistic: function() {
-      closeReturnModal();
-    },
+    closeReturnModal();
 
-    rollback: function() {
-      if (btnState) restoreButtonLoading(btnState);
-    },
+    var msg = returnType === 'stock_return'
+      ? 'Đã trả hàng (trả lại kho)!\n\n'
+      : 'Đã ghi nhận bia lỗi!\n\n';
+    alert(msg +
+      'Hoàn tiền: ' + formatVND(result.returnedAmount) + '\n' +
+      'Sản phẩm: ' + result.returnedQuantity + '\n' +
+      'Vỏ trả: ' + result.returnedKegs);
 
-    onSuccess: function(result) {
-      if (btnState) restoreButtonLoading(btnState);
-      const msg = returnType === 'stock_return'
-        ? 'Đã trả hàng (trả lại kho)!\n\n'
-        : 'Đã ghi nhận bia lỗi!\n\n';
-      alert(msg +
-        'Hoàn tiền: ' + formatVND(result.returnedAmount) + '\n' +
-        'Sản phẩm: ' + result.returnedQuantity + '\n' +
-        'Vỏ trả: ' + result.returnedKegs);
-
-      patchSaleRow({ id: saleId, status: 'returned' });
-    },
-
-    onError: function() {
-      if (btnState) restoreButtonLoading(btnState);
-    }
-  });
+    patchSaleRow({ id: saleId, status: 'returned' });
+    window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'sale' } }));
+  } catch (err) {
+    console.error('[submitPartialReturn]', err);
+    showToast('Trả hàng thất bại: ' + (err.message || 'Lỗi không xác định'), 'error');
+  } finally {
+    if (btnState) restoreButtonLoading(btnState);
+  }
 }
 
 async function editSale(id) {
@@ -2140,55 +2033,36 @@ async function updateSale() {
   if (items.length === 0) return alert('Chưa chọn sản phẩm nào');
 
   var btn = document.getElementById('updateSaleBtn');
+  var btnState = btn ? setButtonLoading(btn, 'Đang cập nhật...') : null;
 
-  var oldSale = Object.assign({}, window.store.sales.find(function(s) { return s.id === editingSaleId; }));
-  var snapshotCart = Object.assign({}, saleData);
-  var snapshotCustomer = customerId;
+  try {
+    var res = await fetch('/api/sales/' + editingSaleId, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customerId: customerId ? parseInt(customerId) : null,
+        items: items
+      }),
+      cache: 'no-store'
+    });
+    var result;
+    try { result = await res.json(); } catch (_) { result = {}; }
+    if (!res.ok) throw new Error(result.error || 'Cập nhật thất bại');
 
-  optimisticMutate({
-    request: function() {
-      return fetch('/api/sales/' + editingSaleId, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          customerId: customerId ? parseInt(customerId) : null,
-          items: items
-        }),
-        cache: 'no-store'
-      });
-    },
-
-    applyOptimistic: function() {
-      if (btn) { btn.disabled = true; btn.textContent = 'Đang cập nhật...'; }
-      patchSaleRow({
-        id: editingSaleId,
-        customer_name: customerId ? (getCustomer(customerId)?.name || 'Khách') : 'Khách lẻ',
-        total: items.reduce(function(s, it) { return s + it.quantity * it.price; }, 0)
-      });
-    },
-
-    rollback: function() {
-      if (btn) { btn.disabled = false; btn.textContent = 'Cập nhật'; }
-      if (oldSale) patchSaleRow(oldSale);
-      saleData = snapshotCart;
-      if (customerIdEl) customerIdEl.value = snapshotCustomer;
-    },
-
-    onSuccess: function(result) {
-      if (btn) { btn.disabled = false; btn.textContent = 'Cập nhật'; }
-      alert('Cập nhật thành công!');
-      var updated = result.sale || result;
-      var idx = window.store.sales.findIndex(function(s) { return s.id === updated.id; });
-      if (idx !== -1) window.store.sales[idx] = updated;
-      patchSaleRow(updated);
-      cancelEdit();
-    },
-
-    onError: function() {
-      if (btn) { btn.disabled = false; btn.textContent = 'Cập nhật'; }
-      loadSalesHistory();
-    }
-  });
+    alert('Cập nhật thành công!');
+    var updated = result.sale || result;
+    var idx = window.store.sales.findIndex(function(s) { return s.id === updated.id; });
+    if (idx !== -1) window.store.sales[idx] = updated;
+    patchSaleRow(updated);
+    cancelEdit();
+    window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'sale' } }));
+  } catch (err) {
+    console.error('[updateSale]', err);
+    showToast('Cập nhật thất bại: ' + (err.message || 'Lỗi không xác định'), 'error');
+    await loadSalesHistory();
+  } finally {
+    if (btnState) restoreButtonLoading(btnState);
+  }
 }
 
 var _salesRefreshTimer = null;

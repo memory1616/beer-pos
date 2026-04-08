@@ -576,70 +576,9 @@
     bcastSend(type, data);
   }
 
-  // ── Button Loading State Helpers (defined in layout.js, overridden here) ────────
-  // `setButtonLoading` and `restoreButtonLoading` are defined EARLY in layout.js
-  // and assigned to window before this script runs (realtime.js is deferred).
-  // We re-assign them here so the IIFE-local references are consistent.
-  // NOTE: `optimisticMutate` is the only function that lives inside the IIFE.
+// ── Expose global API ───────────────────────────────────────────────────────
 
-  /**
-   * Optimistic mutate helper — executes request with optimistic UI,
-   * emits realtime event on success, triggers refetch, handles rollback on error.
-   * @param {object} opts
-   * @param {function} opts.request - returns a Promise (the API call)
-   * @param {function} [opts.applyOptimistic] - runs BEFORE server response
-   * @param {function} [opts.rollback] - runs on error to undo optimistic change
-   * @param {function} [opts.onSuccess] - runs after server responds successfully
-   * @param {function} [opts.onError] - runs on error (after rollback)
-   * @param {string} [opts.entity] - entity name for refetch routing (e.g. 'purchase', 'sale')
-   * @param {*} [opts.data] - data to pass along with the emit event
-   */
-  function optimisticMutate(opts) {
-    var entity = opts.entity || null;
-    var data   = opts.data   || null;
-
-    // Always run optimistic UI immediately
-    if (typeof opts.applyOptimistic === 'function') {
-      try { opts.applyOptimistic(); } catch (e) { console.error('[optimisticMutate] applyOptimistic error:', e); }
-    }
-
-    // Emit realtime event (only if entity is set)
-    if (entity) {
-      emit(entity, data);
-    }
-
-    // Fire the actual request
-    opts.request()
-      .then(function (result) {
-        var parsed = result;
-        if (result && typeof result.json === 'function') {
-          parsed = result.clone ? result.clone() : result;
-          return result.json().then(function (j) { return j; }).catch(function () { return parsed; });
-        }
-        return parsed;
-      })
-      .then(function (result) {
-        if (typeof opts.onSuccess === 'function') {
-          try { opts.onSuccess(result); } catch (e) { console.error('[optimisticMutate] onSuccess error:', e); }
-        }
-        // Trigger page-level refetch
-        triggerRefetch(entity ? [entity] : ['all']);
-        window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: entity, source: 'optimisticMutate' } }));
-      })
-      .catch(function (err) {
-        console.error('[optimisticMutate] request failed:', err);
-        if (typeof opts.rollback === 'function') {
-          try { opts.rollback(); } catch (e) { console.error('[optimisticMutate] rollback error:', e); }
-        }
-        if (typeof opts.onError === 'function') {
-          try { opts.onError(err); } catch (e) { console.error('[optimisticMutate] onError error:', e); }
-        }
-      });
-  }
-
-  // ── Expose global API ───────────────────────────────────────────────────────
-
-  window.Realtime = {
+window.Realtime = {
     connect:       connect,
     forceRefetch:  forceRefetch,
     emit:           emit,
@@ -739,44 +678,4 @@
 
   autoInit();
 
-// These functions are defined EARLY in layout.js as direct `function` declarations
-// (no IIFE wrapper) so they are available to all page scripts immediately after
-// layout.js loads — before realtime.js even executes (realtime.js is deferred).
-// Here in realtime.js we simply override them so they live in the same module scope.
-// ──────────────────────────────────────────────────────────────────────────────
-
-window.setButtonLoading = function setButtonLoading(button, loadingText) {
-  if (!button) return null;
-  var originalText = button.innerHTML;
-  button.disabled = true;
-  button.dataset.originalText = originalText;
-  if (loadingText) {
-    button.innerHTML = loadingText + '…';
-  } else {
-    button.innerHTML = '⏳…';
-  }
-  return { button: button };
-};
-
-window.restoreButtonLoading = function restoreButtonLoading(btnState) {
-  if (!btnState || !btnState.button) return;
-  var button = btnState.button;
-  button.disabled = false;
-  button.innerHTML = button.dataset.originalText || button.innerHTML;
-};
-  window.mutate = function mutate(requestFn, onSuccess, onError) {
-    return optimisticMutate({
-      request: requestFn,
-      onSuccess: onSuccess,
-      onError: onError
-    });
-  };
-  window.optimisticMutate = optimisticMutate;
-})();
-
 // ── Global helpers (outside IIFE so they're accessible to other scripts) ──────
-//
-// NOTE: The three helpers above are defined INSIDE the IIFE above (not here)
-// and are explicitly exported to window for cross-script access.
-// Keeping this comment block here explains the structure and prevents
-// accidental removal of the window assignments above.

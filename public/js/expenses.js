@@ -281,137 +281,68 @@ function saveExpense(e) {
 
   hideExpenseModal();
 
-  // Disable form buttons to prevent double-submit
   var form = document.getElementById('expenseForm');
   var saveBtn = form ? form.querySelector('[type="submit"]') : null;
   var btnState = saveBtn ? setButtonLoading(saveBtn) : null;
 
-  // For update: snapshot current state for rollback
-  var oldItem = null;
-  if (!isNew) {
-    oldItem = Object.assign({}, getExpensesState().find(function(e) { return String(e.id) === String(id); }));
-  }
-
-  // Temporary ID for new items
-  var tempId = 'tmp_' + Date.now();
-
-  optimisticMutate({
-    request: function() {
-      return fetch(url, {
+  (async function() {
+    try {
+      var res = await fetch(url, {
         method: method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
         cache: 'no-store'
       });
-    },
+      var result;
+      try { result = await res.json(); } catch (_) { result = {}; }
+      if (!res.ok) throw new Error(result.error || 'Lưu chi phí thất bại');
 
-    entity: 'expense',
-
-    applyOptimistic: function() {
-      if (isNew) {
-        var tempItem = Object.assign({ id: tempId }, data, { _optimistic: true });
-        setExpensesState([tempItem].concat(getExpensesState()));
-        renderExpenseItem(tempItem, { prepend: true });
-      } else {
-        var current = getExpensesState();
-        var idx = current.findIndex(function(e) { return String(e.id) === String(id); });
-        if (idx !== -1) {
-          current[idx] = Object.assign({}, current[idx], data);
-          setExpensesState(current);
-          updateExpenseItem(current[idx]);
-        }
+      // REFETCH to sync all data
+      if (_currentMonth) {
+        await loadExpenses(_currentMonth, { silent: true });
       }
-      updateExpensesSummary();
-      checkExpensesEmpty();
-      rebuildCategoryTabs();
-    },
-
-    rollback: function() {
-      if (isNew) {
-        setExpensesState(getExpensesState().filter(function(ex) { return ex.id !== tempId; }));
-        removeExpenseItem(tempId);
-      } else if (oldItem) {
-        var current = getExpensesState();
-        var idx = current.findIndex(function(ex) { return String(ex.id) === String(oldItem.id); });
-        if (idx !== -1) current[idx] = oldItem;
-        setExpensesState(current);
-        updateExpenseItem(oldItem);
+      window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'expense' } }));
+    } catch (err) {
+      console.error('[saveExpense]', err);
+      showToast('Lưu chi phí thất bại: ' + (err.message || 'Lỗi không xác định'), 'error');
+      if (_currentMonth) {
+        await loadExpenses(_currentMonth, { silent: true });
       }
-      updateExpensesSummary();
-      checkExpensesEmpty();
-      rebuildCategoryTabs();
-    },
-
-    onSuccess: async function(result) {
-      if (btnState) restoreButtonLoading(btnState);
-      var realItem = result.expense || result;
-
-      if (isNew) {
-        var tempCard = document.querySelector('[data-expense-id="' + tempId + '"]');
-        if (tempCard) {
-          tempCard.setAttribute('data-expense-id', realItem.id);
-          var btns = tempCard.querySelectorAll('button');
-          if (btns[0]) btns[0].setAttribute('onclick', 'editExpense(' + realItem.id + ')');
-          if (btns[1]) btns[1].setAttribute('onclick', 'deleteExpense(' + realItem.id + ')');
-          tempCard.classList.remove('optimistic-pending');
-          tempCard.style.opacity = '';
-          tempCard.style.pointerEvents = '';
-        }
-      }
-    },
-
-    refetch: refetchExpensesCurrentMonth,
-
-    onError: function() {
+    } finally {
       if (btnState) restoreButtonLoading(btnState);
     }
-  });
+  })();
 }
 
 function deleteExpense(id) {
   if (!confirm('Xóa chi phí này?')) return;
 
-  // Snapshot deleted item for rollback
-  var deletedItem = Object.assign({}, getExpensesState().find(function(e) { return String(e.id) === String(id); }));
-  if (!deletedItem) return;
-
-  // Disable the delete button on the card
   var card = document.querySelector('[data-expense-id="' + id + '"]');
   var deleteBtn = card ? card.querySelector('.text-danger') : null;
   var btnState = deleteBtn ? setButtonLoading(deleteBtn) : null;
 
-  optimisticMutate({
-    entity: 'expense',
-    request: function() {
-      return fetch('/api/expenses/' + id, { method: 'DELETE', cache: 'no-store' });
-    },
+  (async function() {
+    try {
+      var res = await fetch('/api/expenses/' + id, { method: 'DELETE', cache: 'no-store' });
+      var data;
+      try { data = await res.json(); } catch (_) { data = {}; }
+      if (!res.ok) throw new Error(data.error || 'Xóa chi phí thất bại');
 
-    applyOptimistic: function() {
-      setExpensesState(getExpensesState().filter(function(e) { return String(e.id) !== String(id); }));
-      removeExpenseItem(id);
-      updateExpensesSummary();
-      checkExpensesEmpty();
-      rebuildCategoryTabs();
-    },
-
-    rollback: function() {
-      setExpensesState([deletedItem].concat(getExpensesState()));
-      renderExpenseItem(deletedItem, { prepend: true });
-      updateExpensesSummary();
-      checkExpensesEmpty();
-      rebuildCategoryTabs();
-    },
-
-    onSuccess: function() {
-      if (btnState) restoreButtonLoading(btnState);
-    },
-
-    refetch: refetchExpensesCurrentMonth,
-
-    onError: function() {
+      // REFETCH to sync all data
+      if (_currentMonth) {
+        await loadExpenses(_currentMonth, { silent: true });
+      }
+      window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'expense' } }));
+    } catch (err) {
+      console.error('[deleteExpense]', err);
+      showToast('Xóa chi phí thất bại: ' + (err.message || 'Lỗi không xác định'), 'error');
+      if (_currentMonth) {
+        await loadExpenses(_currentMonth, { silent: true });
+      }
+    } finally {
       if (btnState) restoreButtonLoading(btnState);
     }
-  });
+  })();
 }
 
 // ── Dynamic expense category select ─────────────────────────────────────────
