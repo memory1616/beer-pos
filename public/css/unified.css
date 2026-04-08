@@ -545,14 +545,13 @@ body .pt-14,
   touch-action: manipulation;
   text-decoration: none;
   font-family: inherit;
-  background: linear-gradient(135deg, var(--color-success), var(--color-success-dark));
-  color: white;
-  box-shadow: var(--shadow-success);
+  background: var(--primary);
+  color: #1E2329;
+  box-shadow: var(--shadow-primary);
   transition: filter 0.15s ease, box-shadow 0.15s ease;
 }
 
-.btn-primary:active { filter: brightness(0.95); transform: scale(0.97); }
-.btn-primary:disabled { opacity: 0.5; filter: none; box-shadow: none; cursor: not-allowed; }
+.btn-primary:active { filter: brightness(0.92); transform: scale(0.97); }
 
 /* Secondary — Hóa đơn, Xem chi tiết: vừa */
 .btn-secondary {
@@ -602,8 +601,8 @@ body .pt-14,
   touch-action: manipulation;
   text-decoration: none;
   font-family: inherit;
-  background: linear-gradient(135deg, var(--color-danger), var(--color-danger-dark));
-  color: white;
+  background: var(--red);
+  color: #fff;
   box-shadow: var(--shadow-danger);
   transition: filter 0.15s ease, box-shadow 0.15s ease;
 }
@@ -630,8 +629,8 @@ body .pt-14,
   touch-action: manipulation;
   text-decoration: none;
   font-family: inherit;
-  background: linear-gradient(135deg, var(--color-warning), var(--color-warning-dark));
-  color: white;
+  background: #f97316;
+  color: #fff;
   box-shadow: 0 4px 12px rgba(249,115,22,0.3);
   transition: filter 0.15s ease;
 }
@@ -669,6 +668,31 @@ body .pt-14,
 /* Aliases */
 .btn-success { background: linear-gradient(135deg, var(--color-success), var(--color-success-dark)); color: white; box-shadow: var(--shadow-success); }
 .btn-info    { background: var(--color-info); color: white; box-shadow: 0 4px 12px rgba(59,130,246,0.3); }
+
+/* =========================   BUTTON DISABLED STATE (DISABLED ≠ INVISIBLE)   ========================= */
+/* Global disabled — 使用 card-soft 背景 + text-secondary，确保浅色/暗色模式都清晰可读 */
+.btn:disabled {
+  background: var(--card-soft) !important;
+  color: var(--text-secondary) !important;
+  border: 1px dashed var(--border) !important;
+  opacity: 1 !important;
+  box-shadow: none !important;
+  cursor: not-allowed !important;
+}
+
+/* 浅色模式下 card 内禁用按钮 — 固定 #F5F5F5 背景确保对比度 */
+.card .btn:disabled {
+  background: #F5F5F5 !important;
+  color: #707A8A !important;
+  border: 1px dashed var(--border) !important;
+}
+
+/* 禁用按钮添加提示文字 */
+.btn:disabled::after {
+  content: " (không khả dụng)";
+  font-size: 10px;
+  margin-left: 4px;
+}
 
 /* Size variants */
 button, .btn { transition: transform 0.1s ease; }
@@ -2005,10 +2029,10 @@ main {
 }
 
 /* Dark: buttons */
-[data-theme="dark"] .btn-primary   { background: var(--primary); }
-[data-theme="dark"] .btn-secondary { background: #3b82f6; }
-[data-theme="dark"] .btn-warning   { background: linear-gradient(135deg, #f97316, #ea580c); }
-[data-theme="dark"] .btn-danger    { background: linear-gradient(135deg, var(--red), var(--red)); }
+[data-theme="dark"] .btn-primary   { background: var(--primary); color: #1E2329; }
+[data-theme="dark"] .btn-secondary { background: #3b82f6; color: #fff; }
+[data-theme="dark"] .btn-warning   { background: #f97316; color: #fff; }
+[data-theme="dark"] .btn-danger    { background: var(--red); color: #fff; }
 [data-theme="dark"] .btn-ghost {
   background: transparent;
   border-color: var(--color-border);
