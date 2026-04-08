@@ -11,61 +11,109 @@
   <script src="/js/layout.js"></script>
 
   <style>
-    .summary-section {
+    /* FILTER BAR */
+    .filter-bar {
+      margin-bottom: 16px;
+    }
+    .quick-filters {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+    .quick-btn {
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--color-border, #e5e7eb);
       background: var(--color-card, #fff);
-      border-radius: 12px;
-      padding: 16px;
-      margin-bottom: 16px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      color: var(--text-main, #1f2937);
+      font-size: 12px;
+      cursor: pointer;
+      min-height: 40px;
     }
-    .summary-cards {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-      gap: 12px;
-      margin-bottom: 16px;
+    .quick-btn.active {
+      background: #1f2937;
+      color: #fff;
+      border-color: #1f2937;
     }
-    .summary-card {
-      background: var(--color-bg, #f9fafb);
-      border-radius: 10px;
-      padding: 14px;
-      text-align: center;
+    .filter-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
     }
-    .summary-card .label {
-      font-size: 11px;
+    .filter-select {
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--color-border, #e5e7eb);
+      background: var(--color-card, #fff);
+      color: var(--text-main, #1f2937);
+      font-size: 13px;
+      cursor: pointer;
+      min-width: 100px;
+      min-height: 40px;
+    }
+    .date-input {
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--color-border, #e5e7eb);
+      background: var(--color-card, #fff);
+      color: var(--text-main, #1f2937);
+      font-size: 13px;
+      min-height: 40px;
+    }
+    .filter-divider {
+      color: var(--text-muted, #9ca3af);
+      font-size: 12px;
+    }
+
+    /* SUMMARY BLOCK */
+    .summary-clean {
+      margin-bottom: 20px;
+      border-top: 1px solid var(--color-border, #e5e7eb);
+      border-bottom: 1px solid var(--color-border, #e5e7eb);
+      padding: 12px 0;
+    }
+    .summary-line {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      font-size: 14px;
+    }
+    .summary-line .label {
       color: var(--text-muted, #6b7280);
-      text-transform: uppercase;
-      margin-bottom: 6px;
+    }
+    .summary-line .value {
       font-weight: 600;
     }
-    .summary-card .value {
-      font-size: 16px;
+    .summary-line .value.bold {
+      font-weight: 700;
+    }
+    .summary-line.highlight {
+      border-top: 1px solid var(--color-border, #e5e7eb);
+      margin-top: 6px;
+      padding-top: 10px;
+    }
+    .summary-line.highlight .label {
       font-weight: 700;
       color: var(--text-main, #1f2937);
     }
-    .summary-card .value.positive { color: #10b981; }
-    .summary-card .value.negative { color: #ef4444; }
-    .summary-row {
-      display: flex;
-      justify-content: space-between;
-      padding: 10px 0;
-      border-bottom: 1px solid var(--color-border, #e5e7eb);
-      font-size: 14px;
+    .summary-line.highlight .value {
+      font-weight: 700;
+      font-size: 16px;
     }
-    .summary-row:last-child { border-bottom: none; }
-    .summary-row.border-top { 
-      border-top: 2px solid var(--color-border, #e5e7eb); 
-      margin-top: 4px; 
-      padding-top: 14px; 
-      font-weight: 600;
+
+    /* SECTIONS */
+    .report-section {
+      margin-bottom: 24px;
     }
     .section-title {
-      font-size: 13px;
+      font-size: 16px;
       font-weight: 600;
-      color: var(--text-muted, #6b7280);
-      margin-bottom: 12px;
-      margin-top: 20px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
+      color: var(--text-main, #1f2937);
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--color-border, #e5e7eb);
     }
     .section-title.collapsible {
       cursor: pointer;
@@ -76,132 +124,80 @@
     .section-title.collapsible::after {
       content: '▼';
       font-size: 10px;
+      color: var(--text-muted, #9ca3af);
       transition: transform 0.2s;
     }
     .section-title.collapsed::after {
       transform: rotate(-90deg);
     }
+
+    /* TABLES */
     .report-table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 14px;
+      font-size: 13px;
+      overflow-x: auto;
+      display: block;
     }
     .report-table th {
       text-align: left;
-      padding: 10px 8px;
-      border-bottom: 2px solid var(--color-border, #e5e7eb);
+      padding: 8px 6px;
+      border-bottom: 1px solid var(--color-border, #e5e7eb);
       color: var(--text-muted, #6b7280);
       font-weight: 600;
-      font-size: 12px;
+      font-size: 11px;
       text-transform: uppercase;
-      background: var(--color-card, #fff);
+      white-space: nowrap;
+    }
+    .report-table th.text-right,
+    .report-table td.text-right {
+      text-align: right;
     }
     .report-table td {
-      padding: 12px 8px;
+      padding: 8px 6px;
       border-bottom: 1px solid var(--color-border, #f3f4f6);
+      white-space: nowrap;
     }
     .report-table tr:last-child td { border-bottom: none; }
-    .report-table tr:hover { background: var(--bg-hover, #f9fafb); }
+    .report-table tr:hover td { background: var(--bg-hover, #f9fafb); }
+    .report-table tr.row-top td { background: #f0f9ff; }
+    .report-table tr.row-top:hover td { background: #e0f2fe; }
+    .report-table td .profit {
+      font-weight: 600;
+    }
+
+    /* PURCHASE SUMMARY */
+    .purchase-summary {
+      font-size: 13px;
+      padding: 8px 0;
+      margin-bottom: 10px;
+    }
+    .purchase-summary .total {
+      font-weight: 600;
+      color: #dc2626;
+    }
+
     .empty-msg {
       text-align: center;
       color: var(--text-muted, #9ca3af);
-      padding: 32px;
-      font-size: 14px;
-    }
-    .filter-bar {
-      background: var(--color-card, #fff);
-      border-radius: 12px;
-      padding: 14px;
-      margin-bottom: 16px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-    }
-    .filter-row {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      align-items: center;
-    }
-    .filter-label {
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--text-muted, #6b7280);
-      margin-bottom: 6px;
-    }
-    .quick-filters {
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
-      margin-bottom: 12px;
-    }
-    .quick-btn {
-      padding: 6px 12px;
-      border-radius: 16px;
-      border: 1px solid var(--color-border, #e5e7eb);
-      background: var(--color-bg, #f9fafb);
-      color: var(--text-main, #1f2937);
-      font-size: 12px;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    .quick-btn:hover {
-      background: var(--color-primary, #3b82f6);
-      color: white;
-      border-color: var(--color-primary, #3b82f6);
-    }
-    .quick-btn.active {
-      background: var(--color-primary, #3b82f6);
-      color: white;
-      border-color: var(--color-primary, #3b82f6);
-    }
-    .filter-select {
-      padding: 8px 12px;
-      border-radius: 8px;
-      border: 1px solid var(--color-border, #e5e7eb);
-      background: var(--color-card, #fff);
-      color: var(--text-main, #1f2937);
-      font-size: 13px;
-      cursor: pointer;
-      min-width: 100px;
-    }
-    .date-input {
-      padding: 8px 12px;
-      border-radius: 8px;
-      border: 1px solid var(--color-border, #e5e7eb);
-      background: var(--color-card, #fff);
-      color: var(--text-main, #1f2937);
+      padding: 24px;
       font-size: 13px;
     }
-    .filter-divider {
+    .loading {
+      text-align: center;
+      padding: 24px;
       color: var(--text-muted, #9ca3af);
-      font-size: 12px;
-      padding: 0 4px;
+      font-size: 13px;
     }
-    .active-filter {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 10px;
-      background: var(--color-primary, #3b82f6);
-      color: white;
-      border-radius: 16px;
-      font-size: 12px;
-      margin-left: 8px;
-    }
-    .active-filter button {
-      background: none;
-      border: none;
-      color: white;
-      cursor: pointer;
-      padding: 0;
-      font-size: 14px;
-      line-height: 1;
-    }
-    [data-theme="dark"] .summary-section { background: var(--color-card, #1f2937); }
-    [data-theme="dark"] .report-table th { background: var(--color-card, #1f2937); border-color: #374151; }
+
+    /* DARK MODE */
+    [data-theme="dark"] .report-table th { border-color: #374151; }
     [data-theme="dark"] .report-table td { border-color: #374151; }
-    [data-theme="dark"] .report-table th { color: #9ca3af; }
-    [data-theme="dark"] .report-table tr:hover { background: #374151; }
-    .loading { text-align: center; padding: 40px; color: var(--text-muted); }
+    [data-theme="dark"] .section-title { border-color: #374151; }
+    [data-theme="dark"] .summary-clean { border-color: #374151; }
+    [data-theme="dark"] .summary-line.highlight { border-color: #374151; }
+    [data-theme="dark"] .report-table tr.row-top td { background: #1e3a5f; }
+    [data-theme="dark"] .report-table tr.row-top:hover td { background: #1e3a5f; }
   </style>
 </head>
 <body class="bg-bg text-main body--app">
@@ -241,7 +237,7 @@
 
     // Build HTML
     document.getElementById('app').innerHTML =
-      getHeaderWithActions('Báo cáo', '📊', '<div id="headerProfit" class="money text-money font-bold tabular-nums">0đ</div>') +
+      getHeaderWithActions('Báo cáo', '📊', '<span id="headerProfit" style="font-weight:700;font-size:15px;">0đ</span>') +
       getContent(`
         <!-- FILTER BAR -->
         <div class="filter-bar">
@@ -257,7 +253,6 @@
             <input type="date" id="filterFrom" class="date-input" onchange="applyDateRange()">
             <span class="filter-divider">→</span>
             <input type="date" id="filterTo" class="date-input" onchange="applyDateRange()">
-            <span id="activeFilterLabel"></span>
           </div>
           <div class="filter-row" id="monthYearFilter">
             <select id="selMonth" onchange="changeMonth(this.value)" class="filter-select">
@@ -269,42 +264,48 @@
           </div>
         </div>
 
-        <!-- SUMMARY CARDS -->
-        <div class="summary-cards" id="summaryCards">
-          <div class="summary-card">
-            <div class="label">Doanh thu</div>
-            <div class="value" id="cardRevenue">0đ</div>
+        <!-- SUMMARY -->
+        <div class="summary-clean">
+          <div class="summary-line">
+            <span class="label">Doanh thu</span>
+            <span class="value" id="sRevenue">0 đ</span>
           </div>
-          <div class="summary-card">
-            <div class="label">Lợi nhuận</div>
-            <div class="value positive" id="cardProfit">0đ</div>
+          <div class="summary-line">
+            <span class="label">Chi phí</span>
+            <span class="value text-danger">0 đ</span>
           </div>
-          <div class="summary-card">
-            <div class="label">Chi phí</div>
-            <div class="value negative" id="cardExpense">0đ</div>
+          <div class="summary-line">
+            <span class="label">Lợi nhuận</span>
+            <span class="value text-success" id="sProfit">0 đ</span>
           </div>
-          <div class="summary-card">
-            <div class="label">Lãi ròng</div>
-            <div class="value" id="cardNet">0đ</div>
+          <div class="summary-line highlight">
+            <span class="label">Lãi ròng</span>
+            <span class="value" id="sNetProfit">0 đ</span>
           </div>
         </div>
 
-        <!-- PRODUCTS -->
-        <div class="section-title collapsible" onclick="toggleSection('productSection')">🍺 Lợi nhuận theo sản phẩm</div>
-        <div id="productSection" style="margin-bottom:24px;">
-          <div class="loading">⏳ Đang tải...</div>
+        <!-- PRODUCT REPORT -->
+        <div class="report-section">
+          <div class="section-title collapsible" onclick="toggleSection('productSection')">🍺 Lợi nhuận theo sản phẩm</div>
+          <div id="productSection">
+            <div class="loading">⏳ Đang tải...</div>
+          </div>
         </div>
 
-        <!-- PURCHASES -->
-        <div class="section-title collapsible" onclick="toggleSection('purchaseSection')">📦 Báo cáo nhập hàng</div>
-        <div id="purchaseSection" style="margin-bottom:24px;">
-          <div class="loading">⏳ Đang tải...</div>
+        <!-- CUSTOMER REPORT -->
+        <div class="report-section">
+          <div class="section-title collapsible" onclick="toggleSection('customerSection')">👤 Lợi nhuận theo khách hàng</div>
+          <div id="customerSection">
+            <div class="loading">⏳ Đang tải...</div>
+          </div>
         </div>
 
-        <!-- CUSTOMERS -->
-        <div class="section-title collapsible" onclick="toggleSection('customerSection')">👤 Lợi nhuận theo khách hàng</div>
-        <div id="customerSection">
-          <div class="loading">⏳ Đang tải...</div>
+        <!-- PURCHASE REPORT -->
+        <div class="report-section">
+          <div class="section-title collapsible" onclick="toggleSection('purchaseSection')">📦 Nhập hàng</div>
+          <div id="purchaseSection">
+            <div class="loading">⏳ Đang tải...</div>
+          </div>
         </div>
       `) +
       getBottomNav('/report');
@@ -482,29 +483,36 @@
     }
 
     // Render functions
-    function renderSummaryCards(s) {
-      var revEl = document.getElementById('cardRevenue');
-      var profEl = document.getElementById('cardProfit');
-      var expEl = document.getElementById('cardExpense');
-      var netEl = document.getElementById('cardNet');
-      if (revEl) revEl.textContent = fmtVND(s.revenue);
-      if (profEl) {
-        profEl.textContent = fmtVND(s.profit);
-        profEl.className = 'value ' + (s.profit >= 0 ? 'positive' : 'negative');
+    function updateSummaryBlock(s) {
+      var sRev = document.getElementById('sRevenue');
+      var sProfit = document.getElementById('sProfit');
+      var sNet = document.getElementById('sNetProfit');
+      var sExpenses = document.querySelectorAll('.summary-line .text-danger');
+      if (sRev) sRev.textContent = fmtVND(s.revenue);
+      if (sExpenses[0]) sExpenses[0].textContent = fmtVND(s.expense);
+      if (sProfit) {
+        sProfit.textContent = fmtVND(s.profit);
+        sProfit.className = 'value ' + (s.profit >= 0 ? 'text-success' : 'text-danger');
       }
-      if (expEl) expEl.textContent = fmtVND(s.expense);
-      if (netEl) {
-        netEl.textContent = fmtVND(s.net_profit);
-        netEl.className = 'value ' + (s.net_profit >= 0 ? 'positive' : 'negative');
+      if (sNet) {
+        sNet.textContent = fmtVND(s.net_profit);
+        sNet.className = 'value ' + (s.net_profit >= 0 ? 'text-success' : 'text-danger');
       }
       // Update header
       var headerEl = document.getElementById('headerProfit');
-      if (headerEl) headerEl.textContent = fmtVND(s.net_profit);
+      if (headerEl) {
+        headerEl.textContent = fmtVND(s.net_profit);
+        headerEl.style.color = s.net_profit >= 0 ? '#10b981' : '#ef4444';
+      }
     }
 
     function renderSummary(s) {
+      updateSummaryBlock(s);
+    }
+
+    function renderSummaryCards(s) {
       // Legacy compatibility
-      renderSummaryCards(s);
+      updateSummaryBlock(s);
     }
 
     function renderProducts(data) {
@@ -514,9 +522,10 @@
         el.innerHTML = '<div class="empty-msg">Không có dữ liệu sản phẩm</div>';
         return;
       }
-      var html = '<table class="report-table"><thead><tr><th>Tên sản phẩm</th><th class="text-right">Sản lượng</th><th class="text-right">Lợi nhuận</th></tr></thead><tbody>';
-      data.forEach(function(p) {
-        html += '<tr><td>' + escHtml(p.name) + '</td><td class="text-right">' + (p.quantity_sold || p.quantity || 0) + '</td><td class="text-right text-success">' + fmtVND(p.profit) + '</td></tr>';
+      var html = '<table class="report-table"><thead><tr><th>Tên sản phẩm</th><th class="text-right">SL</th><th class="text-right">Lợi nhuận</th></tr></thead><tbody>';
+      data.forEach(function(p, i) {
+        var rowClass = i < 3 ? 'row-top' : '';
+        html += '<tr class="' + rowClass + '"><td>' + escHtml(p.name) + '</td><td class="text-right">' + (p.quantity_sold || p.quantity || 0) + '</td><td class="text-right profit ' + (p.profit >= 0 ? 'text-success' : 'text-danger') + '">' + fmtVND(p.profit) + '</td></tr>';
       });
       html += '</tbody></table>';
       el.innerHTML = html;
@@ -529,11 +538,11 @@
         el.innerHTML = '<div class="empty-msg">Không có phiếu nhập hàng</div>';
         return;
       }
-      var html = '<div style="margin-bottom:12px;padding:10px;background:#f3f4f6;border-radius:8px;font-weight:600;">Tổng nhập hàng: <span class="text-danger">' + fmtVND(totalAmount || 0) + '</span> (' + data.length + ' phiếu)</div>';
-      html += '<table class="report-table"><thead><tr><th>Ngày</th><th>SL</th><th class="text-right">Tổng tiền</th><th>Ghi chú</th></tr></thead><tbody>';
+      var html = '<div class="purchase-summary">Tổng nhập: <span class="total">' + fmtVND(totalAmount || 0) + '</span> (' + data.length + ' phiếu)</div>';
+      html += '<table class="report-table"><thead><tr><th>Ngày</th><th class="text-right">Tổng tiền</th><th>Ghi chú</th></tr></thead><tbody>';
       data.forEach(function(p) {
         var dateStr = p.date ? p.date.substring(0, 10) : '';
-        html += '<tr><td>' + escHtml(dateStr) + '</td><td>' + (p.item_count || 0) + '</td><td class="text-right">' + fmtVND(p.total) + '</td><td style="color:#6b7280;font-size:12px;">' + escHtml(p.note || '') + '</td></tr>';
+        html += '<tr><td>' + escHtml(dateStr) + '</td><td class="text-right profit">' + fmtVND(p.total) + '</td><td style="color:var(--text-muted,#6b7280);">' + escHtml(p.note || '') + '</td></tr>';
       });
       html += '</tbody></table>';
       el.innerHTML = html;
@@ -546,9 +555,10 @@
         el.innerHTML = '<div class="empty-msg">Không có dữ liệu khách hàng</div>';
         return;
       }
-      var html = '<table class="report-table"><thead><tr><th>Tên khách hàng</th><th class="text-right">Sản lượng</th><th class="text-right">Lợi nhuận</th></tr></thead><tbody>';
-      data.forEach(function(c) {
-        html += '<tr><td>' + escHtml(c.name) + '</td><td class="text-right">' + c.quantity + '</td><td class="text-right text-success">' + fmtVND(c.profit) + '</td></tr>';
+      var html = '<table class="report-table"><thead><tr><th>Khách hàng</th><th class="text-right">SL</th><th class="text-right">Lợi nhuận</th></tr></thead><tbody>';
+      data.forEach(function(c, i) {
+        var rowClass = i < 3 ? 'row-top' : '';
+        html += '<tr class="' + rowClass + '"><td>' + escHtml(c.name) + '</td><td class="text-right">' + (c.quantity || 0) + '</td><td class="text-right profit ' + (c.profit >= 0 ? 'text-success' : 'text-danger') + '">' + fmtVND(c.profit) + '</td></tr>';
       });
       html += '</tbody></table>';
       el.innerHTML = html;
