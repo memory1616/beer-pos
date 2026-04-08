@@ -22,19 +22,18 @@
       margin-bottom: 8px;
     }
     .quick-btn {
-      padding: 8px 12px;
-      border-radius: 6px;
-      border: 1px solid var(--border);
-      background: var(--card);
-      color: var(--text-main);
-      font-size: 12px;
+      padding: 6px 10px;
+      border: none;
+      border-radius: 4px;
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: 11px;
       cursor: pointer;
-      min-height: 40px;
+      min-height: 32px;
     }
     .quick-btn.active {
-      background: var(--text-main);
-      color: var(--bg);
-      border-color: var(--text-main);
+      background: var(--primary);
+      color: #000;
     }
     .filter-row {
       display: flex;
@@ -43,41 +42,39 @@
       align-items: center;
     }
     .filter-select {
-      padding: 8px 10px;
+      padding: 6px 10px;
       border-radius: 6px;
       border: 1px solid var(--border);
       background: var(--card);
       color: var(--text-main);
-      font-size: 13px;
+      font-size: 12px;
       cursor: pointer;
-      min-width: 100px;
-      min-height: 40px;
+      min-width: 90px;
+      min-height: 36px;
     }
     .date-input {
-      padding: 8px 10px;
+      padding: 6px 10px;
       border-radius: 6px;
       border: 1px solid var(--border);
       background: var(--card);
       color: var(--text-main);
-      font-size: 13px;
-      min-height: 40px;
+      font-size: 12px;
+      min-height: 36px;
     }
     .filter-divider {
-      color: var(--text-muted, #9ca3af);
+      color: var(--text-muted);
       font-size: 12px;
     }
 
     /* SUMMARY BLOCK */
     .summary-clean {
       margin-bottom: 20px;
-      border-top: 1px solid var(--color-border, #e5e7eb);
-      border-bottom: 1px solid var(--color-border, #e5e7eb);
-      padding: 12px 0;
+      padding: 16px 0;
     }
     .summary-line {
       display: flex;
       justify-content: space-between;
-      padding: 6px 0;
+      padding: 10px 0;
       font-size: 14px;
     }
     .summary-line .label {
@@ -85,14 +82,15 @@
     }
     .summary-line .value {
       font-weight: 600;
+      color: var(--text-main);
     }
     .summary-line .value.bold {
       font-weight: 700;
     }
     .summary-line.highlight {
       border-top: 1px solid var(--border);
-      margin-top: 6px;
-      padding-top: 10px;
+      margin-top: 8px;
+      padding-top: 12px;
     }
     .summary-line.highlight .label {
       font-weight: 700;
@@ -100,20 +98,22 @@
     }
     .summary-line.highlight .value {
       font-weight: 700;
-      font-size: 16px;
+      font-size: 18px;
     }
 
     /* SECTIONS */
     .report-section {
+      border-top: 1px solid var(--border);
+      padding-top: 16px;
       margin-bottom: 24px;
     }
     .section-title {
-      font-size: 16px;
+      font-size: 15px;
       font-weight: 600;
       color: var(--text-main);
       margin-bottom: 10px;
       padding-bottom: 8px;
-      border-bottom: 1px solid var(--border);
+      border-bottom: none;
     }
     .section-title.collapsible {
       cursor: pointer;
@@ -154,16 +154,19 @@
       text-align: right;
     }
     .report-table td {
-      padding: 8px 6px;
+      padding: 10px 6px;
       border-bottom: 1px solid var(--border);
       color: var(--text-main);
       white-space: nowrap;
     }
     .report-table tr:last-child td { border-bottom: none; }
-    .report-table tr:hover td { background: var(--bg-hover); }
-    .report-table tr.row-top td { background: rgba(14,203,129,0.08); }
-    .report-table tr.row-top:hover td { background: rgba(14,203,129,0.14); }
+    .report-table tr:hover td { background: transparent; }
+    .report-table tr.row-top td { background: rgba(252, 213, 53, 0.08); }
+    .report-table tr.row-top:hover td { background: rgba(252, 213, 53, 0.14); }
     .report-table td .profit {
+      font-weight: 600;
+    }
+    .report-table td.profit {
       font-weight: 600;
     }
 
@@ -195,10 +198,9 @@
     [data-theme="dark"] .report-table th { border-color: var(--border); }
     [data-theme="dark"] .report-table td { border-color: var(--border); }
     [data-theme="dark"] .section-title { border-color: var(--border); }
-    [data-theme="dark"] .summary-clean { border-color: var(--border); }
     [data-theme="dark"] .summary-line.highlight { border-color: var(--border); }
-    [data-theme="dark"] .report-table tr.row-top td { background: rgba(14,203,129,0.15); }
-    [data-theme="dark"] .report-table tr.row-top:hover td { background: rgba(14,203,129,0.22); }
+    [data-theme="dark"] .report-table tr.row-top td { background: rgba(252, 213, 53, 0.10); }
+    [data-theme="dark"] .report-table tr.row-top:hover td { background: rgba(252, 213, 53, 0.16); }
   </style>
 </head>
 <body class="body--app">
@@ -207,7 +209,7 @@
   <div id="skeleton">
     <header style="position:fixed;top:0;left:0;right:0;height:56px;background:var(--card);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 16px;z-index:50;">
       <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:20px;">📊</span></div>
-      <div id="headerProfit" style="font-weight:bold;">0 đ</div>
+      <div id="headerProfit" style="font-weight:700;font-size:16px;">0 đ</div>
     </header>
   </div>
 
@@ -503,7 +505,7 @@
       var headerEl = document.getElementById('headerProfit');
       if (headerEl) {
         headerEl.textContent = fmtVND(s.net_profit);
-        headerEl.style.color = s.net_profit >= 0 ? '#10b981' : '#ef4444';
+        headerEl.style.color = s.net_profit >= 0 ? 'var(--green)' : 'var(--red)';
       }
     }
 
