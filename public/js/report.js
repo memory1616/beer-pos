@@ -140,7 +140,17 @@ function toggleMonthDropdown(e) {
   var wasHidden = dd.classList.contains('hidden');
   dd.classList.add('hidden');
   yd.classList.add('hidden');
-  if (wasHidden) dd.classList.remove('hidden');
+  if (wasHidden) {
+    var btn = document.getElementById('btnMonth');
+    var rect = btn.getBoundingClientRect();
+    dd.style.top  = rect.bottom + 'px';
+    dd.style.left = rect.left + 'px';
+    dd.style.borderRadius = '12px';
+    dd.style.background = getComputedStyle(document.documentElement).getPropertyValue('--color-card').trim() || '#fff';
+    dd.style.boxShadow = '0 8px 24px rgba(0,0,0,0.15)';
+    dd.style.padding = '6px';
+    dd.classList.remove('hidden');
+  }
   console.log('[REPORT] month dropdown ' + (wasHidden ? 'opened' : 'closed'));
 }
 
@@ -153,7 +163,17 @@ function toggleYearDropdown(e) {
   var wasHidden = dd.classList.contains('hidden');
   dd.classList.add('hidden');
   md.classList.add('hidden');
-  if (wasHidden) dd.classList.remove('hidden');
+  if (wasHidden) {
+    var btn = document.getElementById('btnYear');
+    var rect = btn.getBoundingClientRect();
+    dd.style.top  = rect.bottom + 'px';
+    dd.style.left = rect.left + 'px';
+    dd.style.borderRadius = '12px';
+    dd.style.background = getComputedStyle(document.documentElement).getPropertyValue('--color-card').trim() || '#fff';
+    dd.style.boxShadow = '0 8px 24px rgba(0,0,0,0.15)';
+    dd.style.padding = '6px';
+    dd.classList.remove('hidden');
+  }
   console.log('[REPORT] year dropdown ' + (wasHidden ? 'opened' : 'closed'));
 }
 
