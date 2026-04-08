@@ -129,7 +129,7 @@
   <!-- Header rendered via JS from layout.js -->
   <div id="app"></div>
 
-  <script src="/js/report.js?v=20260421a"></script>
+  <script src="/js/report.js?v=20260422a"></script>
 
   <script>
     var headerActions = '<div id="headerProfit" class="money text-money font-bold tabular-nums" style="font-size:14px;">0đ</div>';
@@ -138,8 +138,8 @@
       getHeaderWithActions('Báo cáo', '📊', headerActions) +
       getContent(`
         <div class="report-filter">
-          <button class="filter-btn active" data-type="today" onclick="switchFilterType('today')">Hôm nay</button>
-          <button class="filter-btn" data-type="yesterday" onclick="switchFilterType('yesterday')">Hôm qua</button>
+          <button class="filter-time-btn active" data-time="today">Hôm nay</button>
+          <button class="filter-time-btn" data-time="yesterday">Hôm qua</button>
           <select id="selMonth" onchange="selectMonth(this.value)" class="filter-select">
             <option value="" disabled selected>Tháng</option>
           </select>
@@ -173,10 +173,10 @@
         </div>
 
         <div class="flex gap-1 mb-4 overflow-x-auto">
-          <button onclick="switchReportTab('sales')" class="report-tab active px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-tab="sales">🍺 Bán hàng</button>
-          <button onclick="switchReportTab('products')" class="report-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-tab="products">📦 Theo SP</button>
-          <button onclick="switchReportTab('customers')" class="report-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-tab="customers">👤 Theo KH</button>
-          <button onclick="switchReportTab('purchases')" class="report-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-tab="purchases">📥 Nhập hàng</button>
+          <button class="report-type-btn report-tab active px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-type="sales" data-tab="sales">🍺 Bán hàng</button>
+          <button class="report-type-btn report-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-type="product" data-tab="products">📦 Theo SP</button>
+          <button class="report-type-btn report-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-type="customer" data-tab="customers">👤 Theo KH</button>
+          <button class="report-type-btn report-tab px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-type="import" data-tab="purchases">📥 Nhập hàng</button>
         </div>
 
         <div id="reportSales" class="report-section active space-y-2">

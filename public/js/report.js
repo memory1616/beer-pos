@@ -1,19 +1,27 @@
-// BeerPOS Report Page - IndexedDB-only, no API fallback
-// All filtering happens client-side via .where('createdAt').between()
-(function() {
-  var _filterType    = 'today';
-  var _selectedMonth = new Date().getMonth() + 1;
-  var _selectedYear  = new Date().getFullYear();
-  var _reportData    = {};
-  var _chart         = null;
+// BeerPOS Report Page - Refactored v3
+// Global state: window.reportState
+// Architecture: type(report) + time(filter) hoàn toàn tách biệt
+(function () {
+  // ── Global state (exposed on window) ─────────────────────────────────────
+  var now = new Date();
+  window.reportState = {
+    type: 'sales',          // sales | product | customer | import
+    time: 'today',          // today | yesterday | month | year
+    month: now.getMonth() + 1,
+    year: now.getFullYear()
+  };
 
-  // ── Date helpers (Vietnam UTC+7) ─────────────────────────────────────────────
-  // Vietnam is UTC+7
+  // ── Local state ────────────────────────────────────────────────────────────
+  var _reportData = {};
+  var _chart = null;
+  var _loadDebounce = null;
+  var _isLoading = false;
+
+  // ── Date helpers (Vietnam UTC+7) ──────────────────────────────────────────
   function getVietnamNow() {
     return new Date(new Date().getTime() + 7 * 3600000);
   }
 
-  // Get Vietnam date components from current time
   function getVietnamDate() {
     var vn = getVietnamNow();
     return {
@@ -24,7 +32,9 @@
   }
 
   function toLocalDateStr(d) {
-    return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0');
+    return d.getUTCFullYear() + '-' +
+      String(d.getUTCMonth() + 1).padStart(2, '0') + '-' +
+      String(d.getUTCDate()).padStart(2, '0');
   }
 
   function formatVND(amount) {
@@ -39,12 +49,14 @@
             'Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'][m - 1] || ('Tháng ' + m);
   }
 
+  // ── Period label (reads from window.reportState) ─────────────────────────
   function getPeriodLabel() {
+    var state = window.reportState;
     var vn = getVietnamNow();
-    if (_filterType === 'today')     return 'Hôm nay, ' + toLocalDateStr(vn).split('-').reverse().join('/');
-    if (_filterType === 'yesterday') return 'Hôm qua';
-    if (_filterType === 'month')    return getMonthName(_selectedMonth) + ' ' + _selectedYear;
-    if (_filterType === 'year')     return 'Năm ' + _selectedYear;
+    if (state.time === 'today')     return 'Hôm nay, ' + toLocalDateStr(vn).split('-').reverse().join('/');
+    if (state.time === 'yesterday') return 'Hôm qua';
+    if (state.time === 'month')     return getMonthName(state.month) + ' ' + state.year;
+    if (state.time === 'year')      return 'Năm ' + state.year;
     return '';
   }
 
@@ -53,14 +65,12 @@
     if (el) el.textContent = getPeriodLabel();
   }
 
-  // ── Filter range (UTC+7 Date objects for IndexedDB .between()) ─────────────
+  // ── Date range calculation (reads from window.reportState.time/month/year) ─
   function getFilterRange() {
+    var state = window.reportState;
     var vdate = getVietnamDate();
-    var y = vdate.y;
-    var m = vdate.m;
-    var d = vdate.d;
+    var y = vdate.y, m = vdate.m, d = vdate.d;
 
-    // Helper: create date at Vietnam midnight (00:00 UTC+7 = 17:00 UTC previous day)
     function vnStartDate(year, month, day) {
       return new Date(Date.UTC(year, month, day) - 7 * 3600000);
     }
@@ -68,46 +78,39 @@
       return new Date(Date.UTC(year, month, day, 23, 59, 59, 999) - 7 * 3600000);
     }
 
-    if (_filterType === 'today') {
-      return {
-        start: vnStartDate(y, m, d),
-        end:   vnEndDate(y, m, d)
-      };
+    if (state.time === 'today') {
+      return { start: vnStartDate(y, m, d), end: vnEndDate(y, m, d) };
     }
-    if (_filterType === 'yesterday') {
+    if (state.time === 'yesterday') {
       var yesterday = new Date(Date.UTC(y, m, d) - 8 * 3600000);
       yesterday.setDate(yesterday.getDate() - 1);
-      var yY = yesterday.getUTCFullYear(), yM = yesterday.getUTCMonth(), yD = yesterday.getUTCDate();
       return {
-        start: vnStartDate(yY, yM, yD),
-        end:   vnEndDate(yY, yM, yD)
+        start: vnStartDate(yesterday.getUTCFullYear(), yesterday.getUTCMonth(), yesterday.getUTCDate()),
+        end:   vnEndDate(yesterday.getUTCFullYear(), yesterday.getUTCMonth(), yesterday.getUTCDate())
       };
     }
-    if (_filterType === 'month') {
-      var ym = _selectedYear  || y;
-      var mm = _selectedMonth || (m + 1);
+    if (state.time === 'month') {
+      var ym = state.year;
+      var mm = state.month;
       var lastD = new Date(Date.UTC(ym, mm, 0)).getUTCDate();
       return {
         start: vnStartDate(ym, mm - 1, 1),
         end:   vnEndDate(ym, mm - 1, lastD)
       };
     }
-    if (_filterType === 'year') {
-      var yy = _selectedYear || y;
+    if (state.time === 'year') {
+      var yy = state.year;
       return {
         start: vnStartDate(yy, 0, 1),
         end:   vnEndDate(yy, 11, 31)
       };
     }
-    return {
-      start: vnStartDate(y, m, d),
-      end:   vnEndDate(y, m, d)
-    };
+    return { start: vnStartDate(y, m, d), end: vnEndDate(y, m, d) };
   }
 
-  // ── IndexedDB loader ─────────────────────────────────────────────────────────
-  // Get date range as Vietnam-local date strings (YYYY-MM-DD)
+  // Date string range (for IndexedDB string field queries)
   function getDateRangeStr() {
+    var state = window.reportState;
     var vdate = getVietnamDate();
     var y = vdate.y, m = vdate.m, d = vdate.d;
 
@@ -115,42 +118,60 @@
       return year + '-' + String(month + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
     }
 
-    if (_filterType === 'today') {
+    if (state.time === 'today') {
       return { start: vnDateStr(y, m, d), end: vnDateStr(y, m, d) };
     }
-    if (_filterType === 'yesterday') {
+    if (state.time === 'yesterday') {
       var yesterday = new Date(Date.UTC(y, m, d) - 8 * 3600000);
       yesterday.setDate(yesterday.getDate() - 1);
-      return { start: vnDateStr(yesterday.getUTCFullYear(), yesterday.getUTCMonth(), yesterday.getUTCDate()),
-               end:   vnDateStr(yesterday.getUTCFullYear(), yesterday.getUTCMonth(), yesterday.getUTCDate()) };
+      return {
+        start: vnDateStr(yesterday.getUTCFullYear(), yesterday.getUTCMonth(), yesterday.getUTCDate()),
+        end:   vnDateStr(yesterday.getUTCFullYear(), yesterday.getUTCMonth(), yesterday.getUTCDate())
+      };
     }
-    if (_filterType === 'month') {
-      var ym = _selectedYear  || y;
-      var mm = (_selectedMonth || (m + 1));
+    if (state.time === 'month') {
+      var ym = state.year;
+      var mm = state.month;
       var lastD = new Date(Date.UTC(ym, mm, 0)).getUTCDate();
       return { start: vnDateStr(ym, mm - 1, 1), end: vnDateStr(ym, mm - 1, lastD) };
     }
-    if (_filterType === 'year') {
-      var yy = _selectedYear || y;
+    if (state.time === 'year') {
+      var yy = state.year;
       return { start: yy + '-01-01', end: yy + '-12-31' };
     }
     return { start: vnDateStr(y, m, d), end: vnDateStr(y, m, d) };
   }
 
-  async function loadReportFromIndexedDB() {
-    if (window.dbReady) await window.dbReady.catch(function() {});
+  // ── Loading UI ────────────────────────────────────────────────────────────
+  function showLoading() {
+    _isLoading = true;
+    var state = window.reportState;
+    var lists = {
+      sales:      document.getElementById('salesList'),
+      product:    document.getElementById('productsList'),
+      customer:   document.getElementById('customersList'),
+      import:     document.getElementById('purchasesList')
+    };
+    Object.values(lists).forEach(function(el) {
+      if (el) el.innerHTML = '<div class="text-center text-muted py-4">Đang tải...</div>';
+    });
+  }
+
+  function hideLoading() {
+    _isLoading = false;
+  }
+
+  // ── IndexedDB loaders (each report type has its own query) ─────────────────
+
+  // Load sales report
+  async function loadSalesReport(dateRange) {
     if (!window.db) return null;
-
-    var dateRange = getDateRangeStr();
-    console.log('[REPORT V2] DATE RANGE:', dateRange.start, '→', dateRange.end);
-
-    // Query by date string field (stored as "YYYY-MM-DDTHH:mm:ss" in local time)
+    console.log('[REPORT V3] SALES query:', dateRange.start, '->', dateRange.end);
     var rows = await window.db.sales
       .where('date')
       .between(dateRange.start, dateRange.end + '\xff', true, true)
       .toArray();
-
-    console.log('[REPORT V2] FILTERED:', rows.length, 'rows');
+    console.log('[REPORT V3] SALES rows:', rows.length);
 
     var totalRevenue = 0, totalProfit = 0;
     rows.forEach(function(s) {
@@ -158,7 +179,7 @@
       totalProfit  += s.profit  || 0;
     });
 
-    // Load customer names
+    // Customer name map
     var custIds = [...new Set(rows.map(function(s) { return s.customer_id; }).filter(Boolean))];
     var custMap = {};
     if (custIds.length > 0) {
@@ -173,7 +194,7 @@
       };
     });
 
-    // Load sale items for product breakdown
+    // Sale items for product breakdown
     var saleIds = rows.map(function(s) { return s.id; });
     var items = saleIds.length > 0
       ? await window.db.sale_items.where('sale_id').anyOf(saleIds).toArray()
@@ -192,14 +213,13 @@
       byProduct[key].profit   += ((it.price || 0) - (it.cost_price || 0)) * (it.quantity || 0);
     });
 
-    // Load expenses for this period (use date string range)
+    // Expenses
     var totalExpense = 0;
     try {
       var expenses = await window.db.expenses.where('date').between(dateRange.start, dateRange.end, true, true).toArray();
       totalExpense = expenses.reduce(function(s, e) { return s + (e.amount || 0); }, 0);
     } catch (_) {}
 
-    // Build daily aggregation for chart
     var daily = buildDailyData(rows);
 
     return {
@@ -217,14 +237,179 @@
     };
   }
 
-  // ── Main load function ───────────────────────────────────────────────────────
-  function loadReport() {
-    console.log('[REPORT V2] filter:', { type: _filterType, month: _selectedMonth, year: _selectedYear });
+  // Load product report (grouped by product)
+  async function loadProductReport(dateRange) {
+    if (!window.db) return null;
+    console.log('[REPORT V3] PRODUCT query:', dateRange.start, '->', dateRange.end);
 
-    loadReportFromIndexedDB()
+    var rows = await window.db.sales
+      .where('date')
+      .between(dateRange.start, dateRange.end + '\xff', true, true)
+      .toArray();
+
+    var saleIds = rows.map(function(s) { return s.id; });
+    var items = saleIds.length > 0
+      ? await window.db.sale_items.where('sale_id').anyOf(saleIds).toArray()
+      : [];
+    var prodMap = {};
+    (await window.db.products.toArray()).forEach(function(p) { prodMap[p.id] = p; });
+
+    var byProduct = {};
+    items.forEach(function(it) {
+      var key = it.product_id;
+      if (!byProduct[key]) {
+        byProduct[key] = {
+          product_id: key,
+          name: (prodMap[key] || {}).name || '#' + key,
+          quantity: 0, revenue: 0, profit: 0
+        };
+      }
+      byProduct[key].quantity += it.quantity || 0;
+      byProduct[key].revenue  += (it.price || 0) * (it.quantity || 0);
+      byProduct[key].profit   += ((it.price || 0) - (it.cost_price || 0)) * (it.quantity || 0);
+    });
+
+    var productList = Object.values(byProduct).sort(function(a, b) { return b.revenue - a.revenue; });
+    var totalRevenue = productList.reduce(function(s, p) { return s + (p.revenue || 0); }, 0);
+    var totalProfit  = productList.reduce(function(s, p) { return s + (p.profit || 0); }, 0);
+
+    return {
+      sales: [],
+      totalRevenue: totalRevenue,
+      totalProfit:  totalProfit,
+      totalExpense: 0,
+      totalOrders:  rows.length,
+      profitByProduct: productList,
+      profitByCustomer: [],
+      purchases: [],
+      purchaseTotalAmount: 0,
+      purchaseSlipCount: 0,
+      daily: []
+    };
+  }
+
+  // Load customer report (grouped by customer)
+  async function loadCustomerReport(dateRange) {
+    if (!window.db) return null;
+    console.log('[REPORT V3] CUSTOMER query:', dateRange.start, '->', dateRange.end);
+
+    var rows = await window.db.sales
+      .where('date')
+      .between(dateRange.start, dateRange.end + '\xff', true, true)
+      .toArray();
+
+    var custIds = [...new Set(rows.map(function(s) { return s.customer_id; }).filter(Boolean))];
+    var custMap = {};
+    if (custIds.length > 0) {
+      var custs = await window.db.customers.where('id').anyOf(custIds).toArray();
+      custs.forEach(function(c) { custMap[c.id] = c; });
+    }
+
+    var byCustomer = {};
+    rows.forEach(function(s) {
+      var key = s.customer_id || '__walkin__';
+      if (!byCustomer[key]) {
+        byCustomer[key] = {
+          customer_id: key,
+          name: custMap[key] ? custMap[key].name : 'Khách lẻ',
+          quantity: 0, revenue: 0, profit: 0
+        };
+      }
+      byCustomer[key].quantity += 1; // 1 order per row
+      byCustomer[key].revenue  += s.total || 0;
+      byCustomer[key].profit   += s.profit || 0;
+    });
+
+    var customerList = Object.values(byCustomer).sort(function(a, b) { return b.revenue - a.revenue; });
+    var totalRevenue = customerList.reduce(function(s, c) { return s + (c.revenue || 0); }, 0);
+    var totalProfit  = customerList.reduce(function(s, c) { return s + (c.profit || 0); }, 0);
+
+    return {
+      sales: [],
+      totalRevenue: totalRevenue,
+      totalProfit:  totalProfit,
+      totalExpense: 0,
+      totalOrders:  rows.length,
+      profitByProduct: [],
+      profitByCustomer: customerList,
+      purchases: [],
+      purchaseTotalAmount: 0,
+      purchaseSlipCount: 0,
+      daily: []
+    };
+  }
+
+  // Load import/purchase report
+  async function loadImportReport(dateRange) {
+    if (!window.db) return null;
+    console.log('[REPORT V3] IMPORT query:', dateRange.start, '->', dateRange.end);
+
+    var purchases = await window.db.purchases
+      .where('date')
+      .between(dateRange.start, dateRange.end + '\xff', true, true)
+      .toArray();
+
+    var totalAmount = purchases.reduce(function(s, p) { return s + (p.total_amount || 0); }, 0);
+
+    return {
+      sales: [],
+      totalRevenue: 0,
+      totalProfit:  0,
+      totalExpense: 0,
+      totalOrders:  0,
+      profitByProduct: [],
+      profitByCustomer: [],
+      purchases: purchases,
+      purchaseTotalAmount: totalAmount,
+      purchaseSlipCount: purchases.length,
+      daily: []
+    };
+  }
+
+  // ── Build daily aggregation ────────────────────────────────────────────────
+  function buildDailyData(rows) {
+    var byDate = {};
+    rows.forEach(function(s) {
+      var dateKey = s.date ? s.date.split('T')[0] : '';
+      if (!dateKey) return;
+      if (!byDate[dateKey]) byDate[dateKey] = { date: dateKey, revenue: 0, profit: 0, expense: 0 };
+      byDate[dateKey].revenue += s.total || 0;
+      byDate[dateKey].profit  += s.profit || 0;
+    });
+    return Object.values(byDate).sort(function(a, b) { return a.date.localeCompare(b.date); });
+  }
+
+  // ── Main load function (reads from window.reportState) ───────────────────
+  function loadReport() {
+    clearTimeout(_loadDebounce);
+    _loadDebounce = setTimeout(function() {
+      _doLoadReport();
+    }, 50);
+  }
+
+  function _doLoadReport() {
+    var state = window.reportState;
+    var dateRange = getDateRangeStr();
+
+    console.log('[REPORT V3] STATE:', JSON.stringify(state));
+    console.log('[REPORT V3] DATE RANGE:', dateRange.start, '->', dateRange.end);
+
+    showLoading();
+
+    var loader;
+    switch (state.type) {
+      case 'sales':    loader = loadSalesReport(dateRange);    break;
+      case 'product':  loader = loadProductReport(dateRange);  break;
+      case 'customer': loader = loadCustomerReport(dateRange); break;
+      case 'import':   loader = loadImportReport(dateRange);   break;
+      default:         loader = loadSalesReport(dateRange);
+    }
+
+    loader
       .then(function(data) {
         if (!data) return;
-        console.log('[REPORT V2] INDEXEDDB:', data.totalOrders, 'orders');
+        console.log('[REPORT V3] RESULT:', state.type, '-', data.totalOrders, 'orders');
+        hideLoading();
         _reportData = data;
         updateSummary(data);
         renderChart(data);
@@ -232,63 +417,106 @@
         renderProducts(data.profitByProduct || []);
         renderCustomers(data.profitByCustomer || []);
         renderPurchases(data.purchases || [], data.purchaseTotalAmount || 0, data.purchaseSlipCount || 0);
+
+        // Activate the correct report section
+        activateReportSection(state.type);
       })
       .catch(function(e) {
-        console.error('[REPORT V2] IndexedDB error:', e);
+        console.error('[REPORT V3] Error:', e);
+        hideLoading();
       });
   }
 
-  // ── Build daily aggregation from sales rows ─────────────────────────────────
-  function buildDailyData(rows) {
-    var byDate = {};
-    rows.forEach(function(s) {
-      // Use date string directly to avoid timezone issues
-      var dateKey = s.date ? s.date.split('T')[0] : '';
-      if (!dateKey) return;
-      if (!byDate[dateKey]) {
-        byDate[dateKey] = { date: dateKey, revenue: 0, profit: 0, expense: 0 };
-      }
-      byDate[dateKey].revenue += s.total || 0;
-      byDate[dateKey].profit  += s.profit  || 0;
-    });
-    return Object.values(byDate).sort(function(a, b) { return a.date.localeCompare(b.date); });
-  }
+  // ── State update helpers ──────────────────────────────────────────────────
 
-  // ── Filter actions ───────────────────────────────────────────────────────────
-  function activateTab(type) {
-    _filterType = type;
-    var btns = document.querySelectorAll('.filter-btn[data-type]');
-    for (var i = 0; i < btns.length; i++) {
-      btns[i].classList.toggle('active', btns[i].dataset.type === type);
-    }
-  }
-
-  function switchFilterType(type) {
-    activateTab(type);
+  // Update time filter (today / yesterday / month / year)
+  function setTimeFilter(time) {
+    window.reportState.time = time;
+    updateTimeButtons(time);
     updatePeriodLabel();
+    console.log('[REPORT V3] Time changed to:', time);
+    loadReport();
+  }
+
+  // Update report type (sales / product / customer / import)
+  function setReportType(type) {
+    window.reportState.type = type;
+    updateReportTypeButtons(type);
+    console.log('[REPORT V3] Type changed to:', type);
     loadReport();
   }
 
   function selectMonth(m) {
     if (!m) return;
-    _selectedMonth = parseInt(m, 10);
-    _selectedYear  = _selectedYear || new Date().getFullYear();
-    activateTab('month');
+    window.reportState.month = parseInt(m, 10);
+    window.reportState.year  = window.reportState.year || new Date().getFullYear();
+    window.reportState.time = 'month';
+    updateTimeButtons('month');
     updatePeriodLabel();
+    console.log('[REPORT V3] Month selected:', window.reportState.month);
     loadReport();
   }
 
   function selectYear(y) {
     if (!y) return;
-    _selectedYear = parseInt(y, 10);
-    activateTab('year');
+    window.reportState.year = parseInt(y, 10);
+    window.reportState.time = 'year';
+    updateTimeButtons('year');
     updatePeriodLabel();
+    console.log('[REPORT V3] Year selected:', window.reportState.year);
     loadReport();
   }
 
+  // ── UI: button active states ──────────────────────────────────────────────
+
+  function updateTimeButtons(time) {
+    document.querySelectorAll('.filter-time-btn').forEach(function(btn) {
+      btn.classList.toggle('active', btn.dataset.time === time);
+    });
+  }
+
+  function updateReportTypeButtons(type) {
+    document.querySelectorAll('.report-type-btn').forEach(function(btn) {
+      btn.classList.toggle('active', btn.dataset.type === type);
+    });
+  }
+
+  function activateReportSection(type) {
+    // Map report type to section id
+    var sectionMap = {
+      sales:    'reportSales',
+      product:  'reportProducts',
+      customer: 'reportCustomers',
+      import:   'reportPurchases'
+    };
+    var sectionId = sectionMap[type] || 'reportSales';
+
+    // Show/hide sections
+    document.querySelectorAll('.report-section').forEach(function(el) {
+      el.classList.toggle('active', el.id === sectionId);
+    });
+
+    // Highlight tab button
+    document.querySelectorAll('.report-tab').forEach(function(btn) {
+      var btnType = btn.dataset.tab; // tab values: sales/products/customers/purchases
+      var typeMap = { sales: 'sales', products: 'product', customers: 'customer', purchases: 'import' };
+      btn.classList.toggle('active', typeMap[btnType] === type);
+    });
+  }
+
+  // ── Tab switching (used by report type tab bar) ──────────────────────────
+  function switchReportTab(tab) {
+    var typeMap = { sales: 'sales', products: 'product', customers: 'customer', purchases: 'import' };
+    var type = typeMap[tab];
+    if (type) {
+      setReportType(type);
+    }
+  }
+
+  // ── Filter initialization ─────────────────────────────────────────────────
   function initFilter() {
+    // Populate month select
     var selMonth = document.getElementById('selMonth');
-    var selYear  = document.getElementById('selYear');
     if (selMonth) {
       for (var mi = 1; mi <= 12; mi++) {
         var optM = document.createElement('option');
@@ -297,6 +525,9 @@
         selMonth.appendChild(optM);
       }
     }
+
+    // Populate year select
+    var selYear = document.getElementById('selYear');
     if (selYear) {
       var currentYear = new Date().getFullYear();
       for (var yi = currentYear; yi >= currentYear - 4; yi--) {
@@ -306,35 +537,55 @@
         selYear.appendChild(optY);
       }
     }
-    activateTab('today');
+
+    // Set initial active state
+    updateTimeButtons(window.reportState.time);
+    updateReportTypeButtons(window.reportState.type);
     updatePeriodLabel();
+
+    // Attach delegated event listeners
+    document.addEventListener('click', function(e) {
+      var target = e.target;
+
+      // Time filter buttons
+      var timeBtn = target.closest('.filter-time-btn');
+      if (timeBtn && timeBtn.dataset.time) {
+        e.preventDefault();
+        setTimeFilter(timeBtn.dataset.time);
+        return;
+      }
+
+      // Report type buttons (the tab bar)
+      var typeBtn = target.closest('.report-type-btn');
+      if (typeBtn && typeBtn.dataset.type) {
+        e.preventDefault();
+        setReportType(typeBtn.dataset.type);
+        return;
+      }
+    });
+
+    // Initial load
     loadReport();
   }
 
-  // Expose for inline onclick handlers
-  window.switchFilterType = switchFilterType;
-  window.selectMonth     = selectMonth;
-  window.selectYear      = selectYear;
-  window.initFilter      = initFilter;
-  window.loadReport      = loadReport;
+  // ── Expose public API on window ────────────────────────────────────────────
+  window.reportState  = window.reportState;
+  window.setReportType   = setReportType;
+  window.setTimeFilter    = setTimeFilter;
+  window.selectMonth      = selectMonth;
+  window.selectYear       = selectYear;
+  window.switchReportTab  = switchReportTab;
+  window.initFilter       = initFilter;
+  window.loadReport       = loadReport;
 
-  // ── Consistency: refresh from IndexedDB when data changes ─────────────────────
+  // ── Auto-refresh on data mutations ─────────────────────────────────────────
   var _reportRefreshTimer;
   function queueReportRefresh(reason) {
     clearTimeout(_reportRefreshTimer);
     _reportRefreshTimer = setTimeout(function() {
-      console.log('[CONSISTENCY][Report V2] refresh:', reason);
-      loadReportFromIndexedDB().then(function(data) {
-        if (!data) return;
-        _reportData = data;
-        updateSummary(data);
-        renderChart(data);
-        renderSales(data.sales || []);
-        renderProducts(data.profitByProduct || []);
-        renderCustomers(data.profitByCustomer || []);
-        renderPurchases(data.purchases || [], data.purchaseTotalAmount || 0, data.purchaseSlipCount || 0);
-      }).catch(function(e) { console.error('[CONSISTENCY] IDB refresh error:', e); });
-    }, 200);
+      console.log('[REPORT V3][Consistency] refresh triggered by:', reason);
+      _doLoadReport();
+    }, 300);
   }
 
   window.addEventListener('data:mutated', function(evt) {
@@ -346,23 +597,23 @@
     }
   });
 
-  // ── Render: summary stats ───────────────────────────────────────────────────
+  // ── Render: summary stats ──────────────────────────────────────────────────
   function updateSummary(data) {
-    var revenue    = data.totalRevenue  || 0;
-    var grossProfit = data.totalProfit || 0;
-    var orders     = data.totalOrders  || 0;
-    var expense    = data.totalExpense || 0;
-    var netProfit  = grossProfit - expense;
+    var revenue     = data.totalRevenue  || 0;
+    var grossProfit  = data.totalProfit   || 0;
+    var orders       = data.totalOrders   || 0;
+    var expense      = data.totalExpense  || 0;
+    var netProfit    = grossProfit - expense;
 
     var el;
     el = document.getElementById('statRevenue'); if (el) el.textContent = formatVND(revenue);
     el = document.getElementById('statProfit');  if (el) el.textContent = formatVND(netProfit);
     el = document.getElementById('statOrders');  if (el) el.textContent = orders;
-    el = document.getElementById('statExpense'); if (el) el.textContent = formatVND(expense);
-    el = document.getElementById('headerProfit'); if (el) el.textContent = formatVND(netProfit);
+    el = document.getElementById('statExpense');if (el) el.textContent = formatVND(expense);
+    el = document.getElementById('headerProfit');if (el) el.textContent = formatVND(netProfit);
   }
 
-  // ── Render: chart ────────────────────────────────────────────────────────────
+  // ── Render: chart ─────────────────────────────────────────────────────────
   function renderChart(data) {
     var canvas = document.getElementById('chartCanvas');
     if (!canvas) return;
@@ -408,16 +659,21 @@
       },
       options: {
         responsive: true,
-        plugins: { legend: { labels: { color: '#9ca3af', font: { size: 10 } } } },
+        plugins: {
+          legend: { labels: { color: '#9ca3af', font: { size: 10 } } }
+        },
         scales: {
           x: { ticks: { color: '#9ca3af', font: { size: 9 } }, grid: { color: '#374151' } },
-          y: { ticks: { color: '#9ca3af', callback: function(v) { return (v/1000000).toFixed(1) + 'M'; } }, grid: { color: '#374151' } }
+          y: {
+            ticks: { color: '#9ca3af', callback: function(v) { return (v/1000000).toFixed(1) + 'M'; } },
+            grid: { color: '#374151' }
+          }
         }
       }
     });
   }
 
-  // ── Render: sales list ──────────────────────────────────────────────────────
+  // ── Render: sales list ────────────────────────────────────────────────────
   function renderSales(sales) {
     var el = document.getElementById('salesList');
     if (!el) return;
@@ -442,7 +698,7 @@
     el.innerHTML = html.join('');
   }
 
-  // ── Render: products ────────────────────────────────────────────────────────
+  // ── Render: products ───────────────────────────────────────────────────────
   function renderProducts(products) {
     var el = document.getElementById('productsList');
     if (!el) return;
@@ -469,7 +725,7 @@
     el.innerHTML = html.join('');
   }
 
-  // ── Render: customers ────────────────────────────────────────────────────────
+  // ── Render: customers ─────────────────────────────────────────────────────
   function renderCustomers(customers) {
     var el = document.getElementById('customersList');
     if (!el) return;
@@ -484,7 +740,7 @@
         '<div class="card p-3 flex items-center justify-between">' +
           '<div class="flex-1 min-w-0">' +
             '<div class="font-medium truncate">' + (c.name || '') + '</div>' +
-            '<div class="text-xs text-muted">&#127856; ' + (c.quantity || 0) + ' bình</div>' +
+            '<div class="text-xs text-muted">&#127856; ' + (c.quantity || 0) + ' đơn</div>' +
           '</div>' +
           '<div class="text-right ml-3">' +
             '<div class="font-bold tabular-nums">' + formatVND(c.revenue || 0) + '</div>' +
@@ -496,7 +752,7 @@
     el.innerHTML = html.join('');
   }
 
-  // ── Render: purchases ────────────────────────────────────────────────────────
+  // ── Render: purchases ─────────────────────────────────────────────────────
   function renderPurchases(purchases, totalAmount, slipCount) {
     var el = document.getElementById('purchasesList');
     if (!el) return;
@@ -532,17 +788,4 @@
     }
     el.innerHTML = summaryHtml + html.join('');
   }
-
-  function switchReportTab(tab) {
-    var sections = document.querySelectorAll('.report-section');
-    for (var i = 0; i < sections.length; i++) {
-      var sid = sections[i].id;
-      sections[i].classList.toggle('active', sid === 'report' + tab.charAt(0).toUpperCase() + tab.slice(1));
-    }
-    var tabs = document.querySelectorAll('.report-tab');
-    for (var j = 0; j < tabs.length; j++) {
-      tabs[j].classList.toggle('active', tabs[j].dataset.tab === tab);
-    }
-  }
-  window.switchReportTab = switchReportTab;
 })();
