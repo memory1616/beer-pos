@@ -290,7 +290,7 @@ function restoreButtonLoading(btnState) {
     window.__beerRealtimeRunning = true;
 
     var script = document.createElement('script');
-    script.src = '/js/realtime.js';
+    script.src = '/js/realtime.js?v=20260408a';
     script.defer = true;
     script.onload = function () {
       window.__BEERPOS_REALTIME_LOADING__ = false;
