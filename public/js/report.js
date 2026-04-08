@@ -134,12 +134,12 @@ function closeAllDropdowns() {
 }
 
 function applyMonthYear() {
-  console.log('[DEBUG] applyMonthYear called');
   var monthEl = document.getElementById('selMonth');
   var yearEl  = document.getElementById('selYear');
   if (monthEl) _selectedMonth = parseInt(monthEl.value, 10);
   if (yearEl)  _selectedYear  = parseInt(yearEl.value, 10);
 
+  console.log('[REPORT] applyMonthYear:', { month: _selectedMonth, year: _selectedYear });
   closeAllDropdowns();
   activateTab('month');
   updatePeriodLabel();
@@ -147,10 +147,10 @@ function applyMonthYear() {
 }
 
 function applyYear() {
-  console.log('[DEBUG] applyYear called');
   var yearEl = document.getElementById('selYear');
   if (yearEl) _selectedYear = parseInt(yearEl.value, 10);
 
+  console.log('[REPORT] applyYear:', { year: _selectedYear });
   closeAllDropdowns();
   activateTab('year');
   updatePeriodLabel();
@@ -195,6 +195,8 @@ function switchReportTab(tab) {
 }
 
 function loadReport() {
+  console.log('[REPORT] filter:', { type: _filterType, month: _selectedMonth, year: _selectedYear });
+
   var url = '/report/data?type=' + _filterType;
   if (_filterType === 'month') {
     url += '&month=' + _selectedMonth + '&year=' + _selectedYear;
@@ -205,6 +207,7 @@ function loadReport() {
   fetch(url, { cache: 'no-store' })
     .then(function(r) { return r.json(); })
     .then(function(data) {
+      console.log('[REPORT] data length:', (data.sales || []).length, '| totalRevenue:', data.totalRevenue);
       _reportData = data;
       updateSummary(data);
       renderChart(data);

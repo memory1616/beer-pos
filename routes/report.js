@@ -1378,11 +1378,14 @@ router.get('/data', (req, res) => {
   } else if (type === 'month') {
     const y = year  || vnYear;
     const m = month || vnMonth;
-    const lastDay = new Date(y, m, 0).getUTCDate();
+    const lastDay = (m === 12) ? 31 : new Date(y, m, 0).getUTCDate();
+    console.log('[REPORT DATA] month range:', { y, m, lastDay });
+    console.log('[REPORT DATA] month range:', { y, m, lastDay });
     startDate = `${y}-${String(m).padStart(2, '0')}-01 00:00:00`;
     endDate   = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')} 23:59:59`;
   } else if (type === 'year') {
     const y = year || vnYear;
+    console.log('[REPORT DATA] year range:', { y });
     startDate = `${y}-01-01 00:00:00`;
     endDate   = `${y}-12-31 23:59:59`;
   } else {
