@@ -162,6 +162,21 @@ body.min-h-screen.pb-24 {
   padding-bottom: calc(var(--bottomnav-height) + env(safe-area-inset-bottom, 0px));
 }
 
+/* Background + text pairing utilities */
+.bg-light {
+  background: #fff;
+  color: var(--text-main);
+}
+.bg-dark {
+  background: var(--card);
+  color: var(--text-main);
+}
+.white-card {
+  background: #fff;
+  color: var(--text-main);
+  border-radius: var(--radius-md);
+}
+
 /* Static HTML pages with custom sticky headers — header renders inline,
    main starts below header via CSS var instead of pt-14 hardcode.
    STANDARDIZED: padding-top for header, padding-bottom for bottomnav */

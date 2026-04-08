@@ -99,7 +99,14 @@
     .summary-line.highlight .value {
       font-weight: 700;
       font-size: 18px;
+      color: var(--text-main);
     }
+    .summary-line .value.text-success { color: var(--green); }
+    .summary-line .value.text-danger  { color: var(--red); }
+
+    /* Header profit */
+    #headerProfit.positive { color: var(--green); }
+    #headerProfit.negative { color: var(--red); }
 
     /* SECTIONS */
     .report-section {
@@ -143,7 +150,7 @@
       text-align: left;
       padding: 8px 6px;
       border-bottom: 1px solid var(--border);
-      color: var(--text-secondary);
+      color: var(--text-muted);
       font-weight: 600;
       font-size: 11px;
       text-transform: uppercase;
@@ -161,13 +168,11 @@
     }
     .report-table tr:last-child td { border-bottom: none; }
     .report-table tr:hover td { background: transparent; }
-    .report-table tr.row-top td { background: rgba(252, 213, 53, 0.08); }
-    .report-table tr.row-top:hover td { background: rgba(252, 213, 53, 0.14); }
-    .report-table td .profit {
-      font-weight: 600;
-    }
     .report-table td.profit {
-      font-weight: 600;
+      font-weight: 700;
+    }
+    .report-table td.text-note {
+      color: var(--text-muted);
     }
 
     /* PURCHASE SUMMARY */
@@ -199,8 +204,6 @@
     [data-theme="dark"] .report-table td { border-color: var(--border); }
     [data-theme="dark"] .section-title { border-color: var(--border); }
     [data-theme="dark"] .summary-line.highlight { border-color: var(--border); }
-    [data-theme="dark"] .report-table tr.row-top td { background: rgba(252, 213, 53, 0.10); }
-    [data-theme="dark"] .report-table tr.row-top:hover td { background: rgba(252, 213, 53, 0.16); }
   </style>
 </head>
 <body class="body--app">
@@ -230,7 +233,8 @@
     };
 
     function fmtVND(n) {
-      return new Intl.NumberFormat('vi-VN').format(n || 0) + ' đ';
+      if (n === 0 || n == null) return '—';
+      return new Intl.NumberFormat('vi-VN').format(n) + ' đ';
     }
 
     function escHtml(str) {
@@ -505,7 +509,7 @@
       var headerEl = document.getElementById('headerProfit');
       if (headerEl) {
         headerEl.textContent = fmtVND(s.net_profit);
-        headerEl.style.color = s.net_profit >= 0 ? 'var(--green)' : 'var(--red)';
+        headerEl.className = s.net_profit >= 0 ? 'positive' : 'negative';
       }
     }
 
@@ -545,7 +549,7 @@
       html += '<table class="report-table"><thead><tr><th>Ngày</th><th class="text-right">Tổng tiền</th><th>Ghi chú</th></tr></thead><tbody>';
       data.forEach(function(p) {
         var dateStr = p.date ? p.date.substring(0, 10) : '';
-        html += '<tr><td>' + escHtml(dateStr) + '</td><td class="text-right profit">' + fmtVND(p.total) + '</td><td style="color:var(--text-muted,#6b7280);">' + escHtml(p.note || '') + '</td></tr>';
+        html += '<tr><td>' + escHtml(dateStr) + '</td><td class="text-right profit">' + fmtVND(p.total) + '</td><td class="text-note">' + escHtml(p.note || '') + '</td></tr>';
       });
       html += '</tbody></table>';
       el.innerHTML = html;
