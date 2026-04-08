@@ -232,9 +232,6 @@ if (window._dbInitialized) {
       if (count > 0) return; // DB has data, skip seeding
       console.warn('[DB] ⚠️ No products in IndexedDB — seeding demo data');
       const demoProducts = [
-      if (count > 0) return; // DB has data, skip seeding
-      console.warn('[DB] ⚠️ No products in IndexedDB — seeding demo data');
-      const demoProducts = [
         { id: 1, name: 'Bia tươi 50L', stock: 50, cost_price: 10000, synced: 1, archived: 0 },
         { id: 2, name: 'Bia bom 20L', stock: 30, cost_price: 12000, synced: 1, archived: 0 },
         { id: 3, name: 'Bia chai',    stock: 100, cost_price: 8000, synced: 1, archived: 0 }
