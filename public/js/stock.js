@@ -1036,49 +1036,48 @@ if ('serviceWorker' in navigator) {
 // Override this to make renderProducts always work from console or code
 window.renderProducts = function(products) {
   console.log('[Stock] 🔥 window.renderProducts RUNNING', products);
-
-  const container = document.getElementById('productList');
-
-  if (!container) {
-    console.error('[Stock] ❌ #productList NOT FOUND in DOM');
-    return;
+  try {
+    var container = document.getElementById('productList');
+    if (!container) {
+      console.error('[Stock] ❌ #productList NOT FOUND in DOM');
+      return;
+    }
+    container.innerHTML = '';
+    if (!products || products.length === 0) {
+      container.innerHTML = '<div class="text-muted text-center py-8">Không có sản phẩm nào</div>';
+      return;
+    }
+    products.forEach(function(p) {
+      var low = p.stock < _LOW_STOCK_THRESHOLD;
+      var name = String(p.name || 'No name').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      var cost = typeof formatVND === 'function' ? formatVND(p.cost_price || 0) : (p.cost_price || 0);
+      var stock = p.stock ?? 0;
+      var html = '<article class="card product-card product-card--interactive ' +
+        (low ? 'border-danger' : 'border-muted') + '" ' +
+        'role="button" tabindex="0" data-product-id="' + p.id + '" ' +
+        'onclick="openProductModal(' + p.id + ')" ' +
+        'onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();openProductModal(' + p.id + ');}">' +
+        '<div class="flex justify-between items-start gap-2">' +
+        '<h3 class="product-card__name min-w-0 flex-1">' + name + '</h3>' +
+        (low ? '<span class="badge badge-danger shrink-0 text-[10px]">Sắp hết</span>' : '') +
+        '</div>' +
+        '<div class="product-card__meta">Giá vốn · ' + cost + '</div>' +
+        '<div class="product-card__footer">' +
+        '<div class="min-w-0">' +
+        '<div class="product-card__qty-label">Tồn kho</div>' +
+        '<div class="product-card__qty tabular-nums ' + (low ? 'text-danger' : 'text-success') + '">' + stock + '</div>' +
+        '</div>' +
+        '<div class="product-card__edit-pill" aria-hidden="true"><span class="product-card__edit-icon">✏️</span><span>Sửa</span></div>' +
+        '</div></article>';
+      var div = document.createElement('div');
+      div.innerHTML = html;
+      container.appendChild(div.firstElementChild);
+    });
+    var total = (products || []).reduce(function(s, p) { return s + Math.max(0, Number(p.stock) || 0); }, 0);
+    var totalEl = document.getElementById('totalStock');
+    if (totalEl) totalEl.textContent = String(total);
+    console.log('[Stock] ✅ window.renderProducts done, rendered ' + products.length + ' products');
+  } catch (err) {
+    console.error('[Stock] ❌ window.renderProducts ERROR:', err);
   }
-
-  container.innerHTML = '';
-
-  if (!products || products.length === 0) {
-    container.innerHTML = '<div class="text-muted text-center py-8">Không có sản phẩm nào</div>';
-    return;
-  }
-
-  products.forEach(function(p) {
-    var low = p.stock < _LOW_STOCK_THRESHOLD;
-    var html = '<article class="card product-card product-card--interactive ' +
-      (low ? 'border-danger' : 'border-muted') + '" ' +
-      'role="button" tabindex="0" data-product-id="' + p.id + '" ' +
-      'onclick="openProductModal(' + p.id + ')" ' +
-      'onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();openProductModal(' + p.id + ');}">' +
-      '<div class="flex justify-between items-start gap-2">' +
-      '<h3 class="product-card__name min-w-0 flex-1">' + escapeHtml(p.name || 'No name') + '</h3>' +
-      (low ? '<span class="badge badge-danger shrink-0 text-[10px]">Sắp hết</span>' : '') +
-      '</div>' +
-      '<div class="product-card__meta">Giá vốn · ' + formatVND(p.cost_price || 0) + '</div>' +
-      '<div class="product-card__footer">' +
-      '<div class="min-w-0">' +
-      '<div class="product-card__qty-label">Tồn kho</div>' +
-      '<div class="product-card__qty tabular-nums ' + (low ? 'text-danger' : 'text-success') + '">' + p.stock + '</div>' +
-      '</div>' +
-      '<div class="product-card__edit-pill" aria-hidden="true"><span class="product-card__edit-icon">✏️</span><span>Sửa</span></div>' +
-      '</div></article>';
-    var div = document.createElement('div');
-    div.innerHTML = html;
-    container.appendChild(div.firstElementChild);
-  });
-
-  // Update total stock
-  var total = (products || []).reduce(function(s, p) { return s + Math.max(0, Number(p.stock) || 0); }, 0);
-  var totalEl = document.getElementById('totalStock');
-  if (totalEl) totalEl.textContent = String(total);
-
-  console.log('[Stock] ✅ window.renderProducts done, rendered ' + products.length + ' products');
 };
