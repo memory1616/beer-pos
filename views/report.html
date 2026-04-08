@@ -24,17 +24,17 @@
     .quick-btn {
       padding: 8px 12px;
       border-radius: 6px;
-      border: 1px solid var(--color-border, #e5e7eb);
-      background: var(--color-card, #fff);
-      color: var(--text-main, #1f2937);
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--text-main);
       font-size: 12px;
       cursor: pointer;
       min-height: 40px;
     }
     .quick-btn.active {
-      background: #1f2937;
-      color: #fff;
-      border-color: #1f2937;
+      background: var(--text-main);
+      color: var(--bg);
+      border-color: var(--text-main);
     }
     .filter-row {
       display: flex;
@@ -45,9 +45,9 @@
     .filter-select {
       padding: 8px 10px;
       border-radius: 6px;
-      border: 1px solid var(--color-border, #e5e7eb);
-      background: var(--color-card, #fff);
-      color: var(--text-main, #1f2937);
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--text-main);
       font-size: 13px;
       cursor: pointer;
       min-width: 100px;
@@ -56,9 +56,9 @@
     .date-input {
       padding: 8px 10px;
       border-radius: 6px;
-      border: 1px solid var(--color-border, #e5e7eb);
-      background: var(--color-card, #fff);
-      color: var(--text-main, #1f2937);
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--text-main);
       font-size: 13px;
       min-height: 40px;
     }
@@ -81,7 +81,7 @@
       font-size: 14px;
     }
     .summary-line .label {
-      color: var(--text-muted, #6b7280);
+      color: var(--text-secondary);
     }
     .summary-line .value {
       font-weight: 600;
@@ -90,13 +90,13 @@
       font-weight: 700;
     }
     .summary-line.highlight {
-      border-top: 1px solid var(--color-border, #e5e7eb);
+      border-top: 1px solid var(--border);
       margin-top: 6px;
       padding-top: 10px;
     }
     .summary-line.highlight .label {
       font-weight: 700;
-      color: var(--text-main, #1f2937);
+      color: var(--text-main);
     }
     .summary-line.highlight .value {
       font-weight: 700;
@@ -110,10 +110,10 @@
     .section-title {
       font-size: 16px;
       font-weight: 600;
-      color: var(--text-main, #1f2937);
+      color: var(--text-main);
       margin-bottom: 10px;
       padding-bottom: 8px;
-      border-bottom: 1px solid var(--color-border, #e5e7eb);
+      border-bottom: 1px solid var(--border);
     }
     .section-title.collapsible {
       cursor: pointer;
@@ -124,7 +124,7 @@
     .section-title.collapsible::after {
       content: '▼';
       font-size: 10px;
-      color: var(--text-muted, #9ca3af);
+      color: var(--text-muted);
       transition: transform 0.2s;
     }
     .section-title.collapsed::after {
@@ -142,8 +142,8 @@
     .report-table th {
       text-align: left;
       padding: 8px 6px;
-      border-bottom: 1px solid var(--color-border, #e5e7eb);
-      color: var(--text-muted, #6b7280);
+      border-bottom: 1px solid var(--border);
+      color: var(--text-secondary);
       font-weight: 600;
       font-size: 11px;
       text-transform: uppercase;
@@ -155,13 +155,14 @@
     }
     .report-table td {
       padding: 8px 6px;
-      border-bottom: 1px solid var(--color-border, #f3f4f6);
+      border-bottom: 1px solid var(--border);
+      color: var(--text-main);
       white-space: nowrap;
     }
     .report-table tr:last-child td { border-bottom: none; }
-    .report-table tr:hover td { background: var(--bg-hover, #f9fafb); }
-    .report-table tr.row-top td { background: #f0f9ff; }
-    .report-table tr.row-top:hover td { background: #e0f2fe; }
+    .report-table tr:hover td { background: var(--bg-hover); }
+    .report-table tr.row-top td { background: rgba(14,203,129,0.08); }
+    .report-table tr.row-top:hover td { background: rgba(14,203,129,0.14); }
     .report-table td .profit {
       font-weight: 600;
     }
@@ -174,37 +175,37 @@
     }
     .purchase-summary .total {
       font-weight: 600;
-      color: #dc2626;
+      color: var(--red);
     }
 
     .empty-msg {
       text-align: center;
-      color: var(--text-muted, #9ca3af);
+      color: var(--text-muted);
       padding: 24px;
       font-size: 13px;
     }
     .loading {
       text-align: center;
       padding: 24px;
-      color: var(--text-muted, #9ca3af);
+      color: var(--text-muted);
       font-size: 13px;
     }
 
     /* DARK MODE */
-    [data-theme="dark"] .report-table th { border-color: #374151; }
-    [data-theme="dark"] .report-table td { border-color: #374151; }
-    [data-theme="dark"] .section-title { border-color: #374151; }
-    [data-theme="dark"] .summary-clean { border-color: #374151; }
-    [data-theme="dark"] .summary-line.highlight { border-color: #374151; }
-    [data-theme="dark"] .report-table tr.row-top td { background: #1e3a5f; }
-    [data-theme="dark"] .report-table tr.row-top:hover td { background: #1e3a5f; }
+    [data-theme="dark"] .report-table th { border-color: var(--border); }
+    [data-theme="dark"] .report-table td { border-color: var(--border); }
+    [data-theme="dark"] .section-title { border-color: var(--border); }
+    [data-theme="dark"] .summary-clean { border-color: var(--border); }
+    [data-theme="dark"] .summary-line.highlight { border-color: var(--border); }
+    [data-theme="dark"] .report-table tr.row-top td { background: rgba(14,203,129,0.15); }
+    [data-theme="dark"] .report-table tr.row-top:hover td { background: rgba(14,203,129,0.22); }
   </style>
 </head>
-<body class="bg-bg text-main body--app">
+<body class="body--app">
 
   <!-- Skeleton placeholder -->
   <div id="skeleton">
-    <header style="position:fixed;top:0;left:0;right:0;height:56px;background:var(--color-card,#fff);border-bottom:1px solid var(--color-border,#e5e7eb);display:flex;align-items:center;justify-content:space-between;padding:0 16px;z-index:50;">
+    <header style="position:fixed;top:0;left:0;right:0;height:56px;background:var(--card);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 16px;z-index:50;">
       <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:20px;">📊</span></div>
       <div id="headerProfit" style="font-weight:bold;">0 đ</div>
     </header>
