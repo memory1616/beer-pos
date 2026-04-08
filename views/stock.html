@@ -156,10 +156,15 @@
       `) +
       getBottomNav('/stock');
 
+      // CRITICAL: load Dexie + db.js BEFORE stock.js / loadData
+      // requestIdleCallback is too slow — load synchronously here
+      await loadScript('/js/vendor/dexie.min.js?v=20260408');
+      await loadScript('/db.js?v=20260408');
+
       // Wait for DOM paint, then load stock.js, then call loadData()
       await new Promise(resolve => requestAnimationFrame(resolve));
       await new Promise(resolve => setTimeout(resolve, 0));
-      await loadScript('/js/stock.js?v=8c4ae11');
+      await loadScript('/js/stock.js?v=20260408');
       await loadData();
     })();
 
@@ -179,11 +184,11 @@
     var _ric = window.requestIdleCallback || function(cb) { return setTimeout(cb, 200); };
     _ric(function() {
       var s1 = document.createElement('script');
-      s1.src = '/js/vendor/dexie.min.js?v=20260405';
+      s1.src = '/js/vendor/dexie.min.js?v=20260408';
       document.head.appendChild(s1);
       s1.onload = function() {
         var s2 = document.createElement('script');
-        s2.src = '/db.js?v=20260405';
+        s2.src = '/db.js?v=20260408';
         document.head.appendChild(s2);
         s2.onload = function() {
           var s3 = document.createElement('script');
