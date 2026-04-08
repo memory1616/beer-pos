@@ -1167,12 +1167,24 @@ async function showInvoiceModal(saleId) {
     return;
   }
 
+  const invoiceContent = document.getElementById('invoiceContent');
+  const invoiceTotalEl = document.querySelector('#invoiceModal .invoice-total-value');
+  const qrSection = document.querySelector('#invoiceModal .invoice-qr-card');
+  if (invoiceContent) invoiceContent.innerHTML = '<div class="text-center py-8 text-muted">Đang tải chi tiết...</div>';
+
   const res = await fetch('/api/sales/' + saleId);
   if (!res.ok) {
     console.error('Không lấy được dữ liệu hóa đơn:', res.status);
+    if (invoiceContent) invoiceContent.innerHTML = '<div class="text-center py-8 text-danger">Lỗi tải hóa đơn</div>';
     return;
   }
   const sale = await res.json();
+
+  console.log('[Invoice Detail]', sale);
+
+  if (!sale.items || sale.items.length === 0) {
+    console.warn('[Invoice Detail] sale.items empty — this should not happen from /api/sales/:id:', sale);
+  }
   
   const dateStr = new Date(sale.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const customerName = sale.customer_name || 'Khách lẻ';
