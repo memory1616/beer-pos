@@ -1379,15 +1379,29 @@ router.get('/data', (req, res) => {
     startDate = `${y}-${m}-${d} 00:00:00`;
     endDate   = `${y}-${m}-${d} 23:59:59`;
   } else if (type === 'month') {
-    const y = year  || vnYear;
-    const m = month || vnMonth;
-    const lastDay = (m === 12) ? 31 : new Date(y, m, 0).getUTCDate();
-    startDate = `${y}-${String(m).padStart(2, '0')}-01 00:00:00`;
-    endDate   = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')} 23:59:59`;
+    // Use filter.year and filter.month — NOT current date
+    const y = year;
+    const m = month;
+    if (!y || !m) {
+      console.warn('[REPORT DATA] month filter missing, fallback to current month');
+    }
+    const yn = y  || vnYear;
+    const mn = m  || vnMonth;
+    const sD = new Date(yn, mn - 1, 1);
+    const eD = new Date(yn, mn, 0, 23, 59, 59, 999);
+    startDate = `${sD.getFullYear()}-${String(sD.getMonth()+1).padStart(2,'0')}-${String(sD.getDate()).padStart(2,'0')} 00:00:00`;
+    endDate   = `${eD.getFullYear()}-${String(eD.getMonth()+1).padStart(2,'0')}-${String(eD.getDate()).padStart(2,'0')} 23:59:59`;
   } else if (type === 'year') {
-    const y = year || vnYear;
-    startDate = `${y}-01-01 00:00:00`;
-    endDate   = `${y}-12-31 23:59:59`;
+    // Use filter.year — NOT current date
+    const y = year;
+    if (!y) {
+      console.warn('[REPORT DATA] year filter missing, fallback to current year');
+    }
+    const yn = y || vnYear;
+    const sD = new Date(yn, 0, 1);
+    const eD = new Date(yn, 11, 31, 23, 59, 59, 999);
+    startDate = `${sD.getFullYear()}-${String(sD.getMonth()+1).padStart(2,'0')}-${String(sD.getDate()).padStart(2,'0')} 00:00:00`;
+    endDate   = `${eD.getFullYear()}-${String(eD.getMonth()+1).padStart(2,'0')}-${String(eD.getDate()).padStart(2,'0')} 23:59:59`;
   } else {
     // Default: today
     startDate = todayKey + ' 00:00:00';
