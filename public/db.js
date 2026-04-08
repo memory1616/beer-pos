@@ -94,6 +94,9 @@ if (typeof window._dbInit !== 'undefined') {
   window.DB_NAME      = DB_NAME;
   window.CACHE_NAME   = CACHE_NAME;
   window.STORE_META   = STORE_META;
+  window.getProducts          = getProducts;
+  window.updateStockAfterSale = updateStockAfterSale;
+  window.createSaleOffline    = createSaleOffline;
 
   // ==================== SALE FUNCTIONS ====================
 
@@ -123,7 +126,7 @@ if (typeof window._dbInit !== 'undefined') {
         const product = await _db.products.get(item.productId);
         if (product) {
           await _db.products.update(item.productId, {
-            stock: product.stock - item.quantity
+            stock: (product.stock || 0) - item.quantity
           });
         }
       }
@@ -142,6 +145,31 @@ if (typeof window._dbInit !== 'undefined') {
   }
 
   // ==================== STOCK FUNCTIONS ====================
+
+  async function getProducts() {
+    try {
+      return await _db.products.toArray();
+    } catch (e) {
+      console.error('[DB] getProducts error:', e);
+      return [];
+    }
+  }
+
+  async function updateStockAfterSale(items) {
+    for (const item of items) {
+      try {
+        const product = await _db.products.get(item.productId);
+        if (product) {
+          await _db.products.update(item.productId, {
+            stock: (product.stock || 0) - item.quantity
+          });
+          console.log('[DB] Stock updated for product ' + item.productId + ': ' + product.stock + ' → ' + ((product.stock || 0) - item.quantity));
+        }
+      } catch (e) {
+        console.error('[DB] updateStockAfterSale error for product ' + item.productId + ':', e);
+      }
+    }
+  }
 
   async function updateStockLocal(productId, quantityChange) {
     const product = await _db.products.get(productId);

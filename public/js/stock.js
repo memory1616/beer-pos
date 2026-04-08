@@ -97,30 +97,52 @@ function escapeHtmlAttr(s) {
  * Uses cache: 'no-store' to always get fresh data.
  */
 async function loadData() {
-  var res = await fetch('/stock/data', { cache: 'no-store' });
-  var data = await res.json();
-  initStockPage(data);
-  return data;
+  try {
+    console.log('[Stock] loadData: fetching /stock/data...');
+    var res = await fetch('/stock/data', { cache: 'no-store' });
+    console.log('[Stock] loadData: got response, status=' + res.status);
+    var data = await res.json();
+    console.log('[Stock] loadData: products=' + (data.products ? data.products.length : 0));
+    initStockPage(data);
+    return data;
+  } catch (err) {
+    console.error('[Stock] loadData ERROR:', err);
+    var el = document.getElementById('productList');
+    if (el) el.innerHTML = '<div class="text-danger text-center py-8">Lỗi tải dữ liệu: ' + (err.message || 'Không rõ lỗi') + '</div>';
+  }
 }
 
 function initStockPage(data) {
-  // Render products
-  currentProducts = data.products;
-  _filteredProducts = data.products;
-  window.store.products = data.products;
-  if (Array.isArray(data.purchases)) {
-    window.store.purchases = data.purchases;
-    allPurchases = data.purchases.slice();
-  }
+  try {
+    // Render products
+    currentProducts = data.products || [];
+    _filteredProducts = currentProducts;
 
-  _renderProductsPage(_filteredProducts.slice(0, PAGE_SIZE), data.totalStockPositive, _filteredProducts.length > PAGE_SIZE);
+    // window.store may not exist on all pages — guard safely
+    if (typeof window !== 'undefined' && !window.store) {
+      window.store = {};
+    }
+    if (window.store) {
+      window.store.products = currentProducts;
+    }
+    if (Array.isArray(data.purchases)) {
+      if (window.store) window.store.purchases = data.purchases;
+      allPurchases = data.purchases.slice();
+    }
 
-  // Render import form
-  renderImportForm(data.products);
+    _renderProductsPage(_filteredProducts.slice(0, PAGE_SIZE), data.totalStockPositive || 0, _filteredProducts.length > PAGE_SIZE);
 
-  // Render purchase history
-  if (data.purchases && data.purchases.length > 0) {
-    renderPurchaseHistory(data.purchases);
+    // Render import form
+    renderImportForm(currentProducts);
+
+    // Render purchase history
+    if (data.purchases && data.purchases.length > 0) {
+      renderPurchaseHistory(data.purchases);
+    }
+
+    console.log('[Stock] initStockPage: OK, products=' + currentProducts.length);
+  } catch (err) {
+    console.error('[Stock] initStockPage ERROR:', err);
   }
 }
 
