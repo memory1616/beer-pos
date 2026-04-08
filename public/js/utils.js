@@ -225,6 +225,23 @@ function isEmpty(val) {
   return Utils.isEmpty(val);
 }
 
+/** Global sales history empty-state helper */
+function checkSalesEmpty() {
+  var container = document.getElementById('salesHistoryList');
+  if (!container) return;
+  var nav = container.querySelector('nav[role="navigation"]');
+  var totalRow = container.querySelector('.history-total-row');
+  var hasCards = container.querySelector('[data-sale-id]');
+  if (!hasCards && !nav && !totalRow) {
+    container.innerHTML = '<p class="text-muted text-center py-4">Chưa có hóa đơn nào</p>';
+  }
+}
+
+/** Global purchase history empty-state helper */
+function checkPurchasesEmpty() {
+  // Handled by removePurchaseItem — no-op for stock page
+}
+
 // Export for module usage
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { Utils, formatVND, showLoading, hideLoading, showToast };
