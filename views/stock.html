@@ -165,6 +165,12 @@
       await new Promise(resolve => requestAnimationFrame(resolve));
       await new Promise(resolve => setTimeout(resolve, 0));
       await loadScript('/js/stock.js?v=20260408');
+
+      // Ensure DOM is ready before rendering
+      if (document.readyState === 'loading') {
+        await new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve, { once: true }));
+      }
+      console.log('[Stock] DOM ready, calling loadData...');
       await loadData();
     })();
 

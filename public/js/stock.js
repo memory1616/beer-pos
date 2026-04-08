@@ -143,6 +143,9 @@ function initStockPage(data) {
       return sum + Math.max(0, Number(p.stock) || 0);
     }, 0);
 
+    // Reset pagination counter so low-stock alert renders on first page
+    _renderedCount = 0;
+
     // window.store may not exist on all pages — guard safely
     if (typeof window !== 'undefined' && !window.store) {
       window.store = {};
@@ -155,6 +158,7 @@ function initStockPage(data) {
       allPurchases = data.purchases.slice();
     }
 
+    console.log('[Stock] initStockPage: rendering ' + currentProducts.length + ' products, total=' + totalStockPositive);
     _renderProductsPage(_filteredProducts.slice(0, PAGE_SIZE), totalStockPositive, _filteredProducts.length > PAGE_SIZE);
 
     // Render import form
@@ -626,7 +630,11 @@ function _productCardHtml(p, totalPositive) {
 // PERFORMANCE: Render a page of products
 function _renderProductsPage(pageProducts, totalPositive, hasMore) {
   const container = document.getElementById('productList');
-  if (!container) return;
+  console.log('[Stock] _renderProductsPage: container=' + !!container + ', products=' + (pageProducts ? pageProducts.length : 0));
+  if (!container) {
+    console.error('[Stock] _renderProductsPage: #productList NOT FOUND in DOM');
+    return;
+  }
 
   // If first page, clear container and add low stock alert
   if (_renderedCount <= PAGE_SIZE) {
