@@ -488,6 +488,13 @@ self.addEventListener('fetch', event => {
     return;
   }
 
+  // Page data endpoints (/sale/data, /purchases/data, etc.) — never cache
+  if ((parsed.pathname.endsWith('/data') || parsed.pathname.startsWith('/sale')) &&
+      event.request.method === 'GET') {
+    event.respondWith(fetch(new Request(event.request, { cache: 'no-store' })));
+    return;
+  }
+
   // App Shell & static assets → Cache-First
   event.respondWith(cacheFirst(event.request));
 });
