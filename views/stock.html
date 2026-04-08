@@ -155,11 +155,21 @@
       `) +
       getBottomNav('/stock');
 
-      // Wait for browser to paint the #app.innerHTML before calling loadData
-      // This ensures #importProducts and #purchaseHistoryList exist in the DOM
+      // Wait for DOM paint, then load stock.js, then call loadData()
       await new Promise(resolve => requestAnimationFrame(resolve));
+      await loadScript('/js/stock.js?v=42e4bba');
       await loadData();
     })();
+
+    async function loadScript(src) {
+      return new Promise(function(resolve, reject) {
+        var s = document.createElement('script');
+        s.src = src;
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
   </script>
   
   <!-- PERFORMANCE: db.js + sync.js non-blocking via requestIdleCallback -->

@@ -92,6 +92,17 @@ function escapeHtmlAttr(s) {
     .replace(/>/g, '&gt;');
 }
 
+/**
+ * Load stock page data from server — called by stock.html init script.
+ * Uses cache: 'no-store' to always get fresh data.
+ */
+async function loadData() {
+  var res = await fetch('/stock/data', { cache: 'no-store' });
+  var data = await res.json();
+  initStockPage(data);
+  return data;
+}
+
 function initStockPage(data) {
   // Render products
   currentProducts = data.products;
