@@ -148,6 +148,12 @@
           <div class="loading">⏳ Đang tải...</div>
         </div>
 
+        <!-- PURCHASES -->
+        <div class="section-title">📦 Báo cáo nhập hàng</div>
+        <div id="purchaseSection" style="margin-bottom:24px;">
+          <div class="loading">⏳ Đang tải...</div>
+        </div>
+
         <!-- CUSTOMERS -->
         <div class="section-title">👤 Lợi nhuận theo khách hàng</div>
         <div id="customerSection">
@@ -278,6 +284,23 @@
       el.innerHTML = html;
     }
 
+    function renderPurchases(data, totalAmount) {
+      var el = document.getElementById('purchaseSection');
+      if (!el) return;
+      if (!data || data.length === 0) {
+        el.innerHTML = '<div class="empty-msg">Không có phiếu nhập hàng</div>';
+        return;
+      }
+      var html = '<div style="margin-bottom:12px;padding:10px;background:#f3f4f6;border-radius:8px;font-weight:600;">Tổng nhập hàng: <span class="text-danger">' + fmtVND(totalAmount || 0) + '</span> (' + data.length + ' phiếu)</div>';
+      html += '<table class="report-table"><thead><tr><th>Ngày</th><th>SL</th><th class="text-right">Tổng tiền</th><th>Ghi chú</th></tr></thead><tbody>';
+      data.forEach(function(p) {
+        var dateStr = p.date ? p.date.substring(0, 10) : '';
+        html += '<tr><td>' + escHtml(dateStr) + '</td><td>' + (p.item_count || 0) + '</td><td class="text-right">' + fmtVND(p.total) + '</td><td style="color:#6b7280;font-size:12px;">' + escHtml(p.note || '') + '</td></tr>';
+      });
+      html += '</tbody></table>';
+      el.innerHTML = html;
+    }
+
     function renderCustomers(data) {
       var el = document.getElementById('customerSection');
       if (!el) return;
@@ -338,6 +361,7 @@
 
           renderSummary(summary);
           renderProducts(byProduct);
+          renderPurchases(data.purchases || [], data.totalPurchaseAmount);
           renderCustomers(byCustomer);
         })
         .catch(function(err) {

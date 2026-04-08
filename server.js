@@ -562,7 +562,32 @@ app.get('/report/data', (req, res) => {
       " GROUP BY c.id ORDER BY profit DESC LIMIT 20"
     ).all(...dateParams, ...dateParams);
 
-    res.json({ sales, totalRevenue, totalProfit, totalOrders, totalExpense, daily, profitByProduct, profitByCustomer });
+    // Purchases report: get all purchase records in date range
+    var purchases = [];
+    try {
+      var purchaseCols = db2.prepare("PRAGMA table_info(purchases)").all().map(r => r.name);
+      var purchaseDateCol = purchaseCols.includes('date') ? 'date' : (purchaseCols.includes('created_at') ? 'created_at' : 'date');
+      var purchaseDateCond = 'date(' + purchaseDateCol + ') >= date(?) AND date(' + purchaseDateCol + ') <= date(?)';
+      purchases = db2.prepare(
+        "SELECT p.id, p.date, p.total_amount as total, COALESCE(p.note, '') as note, " +
+        "(SELECT COUNT(*) FROM purchase_items WHERE purchase_id = p.id) as item_count " +
+        "FROM purchases p WHERE " + purchaseDateCond + " ORDER BY datetime(" + purchaseDateCol + ") DESC"
+      ).all(...dateParams);
+
+      // Add purchase items detail
+      for (var pi = 0; pi < purchases.length; pi++) {
+        purchases[pi].items = db2.prepare(
+          "SELECT pi.product_id, pr.name as product_name, pi.quantity, pi.unit_price, pi.total_price " +
+          "FROM purchase_items pi JOIN products pr ON pr.id = pi.product_id WHERE pi.purchase_id = ?"
+        ).all(purchases[pi].id);
+      }
+    } catch(e) {
+      console.error('[REPORT] Purchases query error:', e.message);
+    }
+
+    var totalPurchaseAmount = purchases.reduce(function(s, p) { return s + (p.total || 0); }, 0);
+
+    res.json({ sales, totalRevenue, totalProfit, totalOrders, totalExpense, daily, profitByProduct, profitByCustomer, purchases, totalPurchaseAmount });
   } catch(e) {
     res.status(500).json({ error: e.message });
   }
