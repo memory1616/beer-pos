@@ -710,11 +710,33 @@ async function submitSale() {
     // REFETCH products from server to sync stock after sale
     fetch('/api/products', { cache: 'no-store' })
       .then(function(res) { return res.json(); })
-      .then(function(serverProducts) {
+      .then(async function(serverProducts) {
         products = serverProducts;
         window.store.products = serverProducts;
         _rebuildMaps();
         renderSaleProducts();
+
+        // Also sync IndexedDB to keep stock page in sync
+        try {
+          if (window.db && window.dbReady) {
+            await window.dbReady.catch(() => {});
+            await window.db.products.clear();
+            await window.db.products.bulkAdd(serverProducts.map(function(p) {
+              return {
+                id: p.id,
+                name: p.name,
+                stock: p.stock,
+                cost_price: p.cost_price,
+                type: p.type,
+                synced: 1,
+                archived: p.archived || 0
+              };
+            }));
+            console.log('[Sales] IndexedDB synced after sale');
+          }
+        } catch (e) {
+          console.warn('[Sales] Could not sync IndexedDB:', e.message || e);
+        }
       })
       .catch(function(err) {
         console.error('[Sales] submitSale refetch error:', err);

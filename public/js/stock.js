@@ -93,66 +93,99 @@ function escapeHtmlAttr(s) {
 }
 
 /**
- * Load stock page data from IndexedDB — single source of truth.
- * Called by stock.html init script after db.js is loaded.
+ * Load stock page data — fetch from server FIRST (source of truth),
+ * then update IndexedDB, then render.
+ * This ensures stock page is always in sync with server.
  */
 async function loadData() {
   try {
-    console.log('[Stock] loadData: fetching from IndexedDB...');
+    console.log('[Stock] loadData: fetching from server...');
 
-    // Debug: verify db.js is loaded
-    console.log('[Stock] dbReady exists:', typeof window.dbReady);
-    console.log('[Stock] getProducts exists:', typeof window.getProducts);
-    console.log('[Stock] seedProductsIfEmpty exists:', typeof window.seedProductsIfEmpty);
+    // Step 1: Fetch from server (fresh data — always authoritative)
+    var serverProducts = [];
+    var serverPurchases = [];
+    try {
+      const res = await fetch('/stock/data', { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        serverProducts = data.products || [];
+        serverPurchases = data.purchases || [];
+        console.log('[Stock] Server returned:', serverProducts.length, 'products,', serverPurchases.length, 'purchases');
+      } else {
+        console.warn('[Stock] Server returned status:', res.status, '— falling back to IndexedDB');
+      }
+    } catch (e) {
+      console.warn('[Stock] Server fetch failed, using IndexedDB:', e.message || e);
+    }
 
-    if (window.dbReady) {
+    // Step 2: Update IndexedDB with server data (keep local cache in sync)
+    if (serverProducts.length > 0) {
       try {
-        await window.dbReady;
-        console.log('[Stock] dbReady resolved OK');
+        if (window.db && window.dbReady) {
+          await window.dbReady.catch(() => {});
+          await window.db.products.clear();
+          await window.db.products.bulkAdd(serverProducts.map(p => ({
+            id: p.id,
+            name: p.name,
+            stock: p.stock,
+            cost_price: p.cost_price,
+            type: p.type,
+            synced: 1,
+            archived: p.archived || 0
+          })));
+          console.log('[Stock] IndexedDB synced with', serverProducts.length, 'products from server');
+        }
       } catch (e) {
-        console.error('[Stock] dbReady REJECTED:', e.message || e);
+        console.warn('[Stock] Could not sync IndexedDB:', e.message || e);
       }
     }
 
-    var products = [];
-    if (typeof window.getProducts === 'function') {
-      try {
-        products = await window.getProducts();
-        console.log('[Stock] getProducts returned:', products ? products.length : 0, 'products');
-      } catch (e) {
-        console.error('[Stock] getProducts FAILED:', e.message || e);
-      }
-    }
+    // Step 3: Use server data for rendering
+    var products = serverProducts;
+    var purchases = serverPurchases;
 
-    // Safety: if DB is empty, force seed then retry
-    if (!products || products.length === 0) {
-      console.warn('[Stock] ⚠️ products=0 — forcing seed');
-      if (typeof window.seedProductsIfEmpty === 'function') {
+    // Step 4: If server returned nothing (offline or error), fallback to IndexedDB
+    if (products.length === 0) {
+      console.warn('[Stock] No server data — falling back to IndexedDB...');
+      if (typeof window.getProducts === 'function') {
         try {
+          if (window.dbReady) await window.dbReady.catch(() => {});
+          products = await window.getProducts();
+          console.log('[Stock] IndexedDB returned:', products.length, 'products');
+        } catch (e) {
+          console.error('[Stock] IndexedDB fallback FAILED:', e.message || e);
+        }
+      }
+      if (!products || products.length === 0) {
+        if (typeof window.seedProductsIfEmpty === 'function') {
           await window.seedProductsIfEmpty();
           products = await window.getProducts();
-          console.log('[Stock] loadData: products after seed=' + (products ? products.length : 0));
-        } catch (e) {
-          console.error('[Stock] seedProductsIfEmpty FAILED:', e.message || e);
         }
       }
     }
 
-    // ALWAYS show content section and render products
+    // Always show content section and render
     var loadingEl = document.getElementById('loading');
     var contentEl = document.getElementById('contentSection');
     if (loadingEl) loadingEl.classList.add('hidden');
     if (contentEl) contentEl.classList.remove('hidden');
 
-    initStockPage({ products: products || [], totalStockPositive: 0 });
+    initStockPage({
+      products: products || [],
+      purchases: purchases || [],
+      totalStockPositive: (products || []).reduce(function(s, p) {
+        return s + Math.max(0, Number(p.stock) || 0);
+      }, 0)
+    });
     hideLoading();
-    return products;
+    return products || [];
   } catch (err) {
     console.error('[Stock] loadData ERROR:', err);
     hideLoading();
     var contentEl = document.getElementById('contentSection');
     if (contentEl) contentEl.classList.remove('hidden');
     initStockPage({ products: [], totalStockPositive: 0 });
+    return [];
   }
 }
 
@@ -1089,6 +1122,9 @@ if ('serviceWorker' in navigator) {
     queueStockRefresh('sw:' + (data.path || 'unknown'));
   });
 }
+
+// ── Global loadData: expose to window so other pages / console can call it ─────
+window.loadData = loadData;
 
 // ── Global renderProducts: safe debug version ──────────────────────────────────
 // Works even if #totalStockEl is missing (unlike the main renderProducts)

@@ -159,12 +159,12 @@
       // CRITICAL: load Dexie + db.js BEFORE stock.js / loadData
       // requestIdleCallback is too slow — load synchronously here
       await loadScript('/js/vendor/dexie.min.js?v=20260408');
-      await loadScript('/db.js?v=20260412a');
+      await loadScript('/db.js?v=20260417a');
 
       // Wait for DOM paint, then load stock.js, then call loadData()
       await new Promise(resolve => requestAnimationFrame(resolve));
       await new Promise(resolve => setTimeout(resolve, 0));
-      await loadScript('/js/stock.js?v=20260413a');
+      await loadScript('/js/stock.js?v=20260417a');
 
       // Ensure DOM is ready before rendering
       if (document.readyState === 'loading') {
