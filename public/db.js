@@ -223,16 +223,25 @@ if (window._dbInitialized) {
   async function seedProductsIfEmpty() {
     try {
       if (window.dbReady) await window.dbReady.catch(e => console.warn('[DB] seed dbReady error:', e.message));
+
+      // Only seed on FIRST INSTALL — never re-seed after user deletes products
+      const alreadySeeded = localStorage.getItem('products_seeded');
+      if (alreadySeeded) {
+        console.log('[DB] products_seeded flag found — skipping seed');
+        return;
+      }
+
       const count = await _db.products.count();
       if (count > 0) return;
-      console.warn('[DB] ⚠️ No products in IndexedDB — seeding demo data');
+      console.warn('[DB] First run → seeding demo products');
       const demoProducts = [
         { name: 'Bia tươi 50L', stock: 50, cost_price: 10000, synced: 1, archived: 0 },
         { name: 'Bia bom 20L', stock: 30, cost_price: 12000, synced: 1, archived: 0 },
         { name: 'Bia chai',    stock: 100, cost_price: 8000, synced: 1, archived: 0 }
       ];
       await _db.products.bulkAdd(demoProducts);
-      console.log('[DB] ✅ Seeded ' + demoProducts.length + ' demo products');
+      localStorage.setItem('products_seeded', 'true');
+      console.log('[DB] ✅ Seeded once');
     } catch (e) {
       console.error('[DB] seedProductsIfEmpty ERROR:', e);
     }

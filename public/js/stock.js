@@ -145,6 +145,7 @@ async function loadData() {
     var purchases = serverPurchases;
 
     // Step 4: If server returned nothing (offline or error), fallback to IndexedDB
+    // NOTE: do NOT force seed after user deletes products — seed only runs on first install
     if (products.length === 0) {
       console.warn('[Stock] No server data — falling back to IndexedDB...');
       if (typeof window.getProducts === 'function') {
@@ -154,12 +155,6 @@ async function loadData() {
           console.log('[Stock] IndexedDB returned:', products.length, 'products');
         } catch (e) {
           console.error('[Stock] IndexedDB fallback FAILED:', e.message || e);
-        }
-      }
-      if (!products || products.length === 0) {
-        if (typeof window.seedProductsIfEmpty === 'function') {
-          await window.seedProductsIfEmpty();
-          products = await window.getProducts();
         }
       }
     }
