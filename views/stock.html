@@ -200,9 +200,11 @@
     }, { timeout: 8000 });
 
     if ('serviceWorker' in navigator) {
-      if (!navigator.serviceWorker.controller) {
-        navigator.serviceWorker.register('/sw.js?v=20260412a').catch(function() {});
-      }
+      navigator.serviceWorker.getRegistration().then(function (reg) {
+        if (!reg) {
+          navigator.serviceWorker.register('/sw.js?v=20260422a').catch(function () {});
+        }
+      });
     }
   </script>
 </body>

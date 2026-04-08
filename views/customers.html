@@ -876,10 +876,12 @@
     }, { timeout: 8000 });
 
     if ('serviceWorker' in navigator) {
-      if (!navigator.serviceWorker.controller) {
-        var swVer = (typeof window !== 'undefined' && window.APP_VERSION) ? window.APP_VERSION : Date.now();
-        navigator.serviceWorker.register('/sw.js?v=' + swVer).catch(function() {});
-      }
+      navigator.serviceWorker.getRegistration().then(function (reg) {
+        if (!reg) {
+          var swVer = (typeof window !== 'undefined' && window.APP_VERSION) ? window.APP_VERSION : Date.now();
+          navigator.serviceWorker.register('/sw.js?v=' + swVer).catch(function () {});
+        }
+      });
     }
   </script>
 </body>

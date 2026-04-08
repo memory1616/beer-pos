@@ -10,10 +10,6 @@
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
 
-  <!-- PERFORMANCE: Preload layout.js for first paint -->
-  <link rel="preload" href="/js/layout.js?v=20260414a" as="script">
-  <link rel="preload" href="/css/unified.css?v=20260414a" as="style">
-
   <link rel="stylesheet" href="/css/tailwind.css">
   <link rel="stylesheet" href="/css/unified.css?v=202604055a">
   <script src="/js/dark-mode.js"></script>
@@ -21,7 +17,7 @@
   <script src="/js/layout.js?v=20260414a"></script>
   <script src="/db.js?v=20260419a"></script>
 
-  <!-- CLS Prevention: Skeleton styles -->
+  <!-- CLS Prevention: Skeleton rendered immediately -->
   <style>
     .skeleton-header {
       position: fixed; top: 0; left: 0; right: 0;
@@ -52,56 +48,13 @@
     [data-theme="dark"] .skeleton-header { background: rgba(30, 41, 59, 0.92); border-bottom-color: #334155; }
     [data-theme="dark"] .skeleton-nav { background: rgba(30, 41, 59, 0.92); }
     [data-theme="dark"] .skeleton-bar { background: linear-gradient(90deg, #334155 25%, #475569 50%, #334155 75%); background-size: 200% 100%; }
-  </style>
-
-  <!-- Modern filter bar -->
-  <style>
-    .report-filter {
-      display: flex;
-      gap: 8px;
-      overflow-x: auto;
-      padding: 4px 0 8px;
-      -webkit-overflow-scrolling: touch;
-      scrollbar-width: none;
-    }
+    .report-filter { display: flex; gap: 8px; overflow-x: auto; padding: 4px 0 8px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
     .report-filter::-webkit-scrollbar { display: none; }
-    .filter-btn {
-      padding: 8px 14px;
-      border-radius: 20px;
-      border: none;
-      background: var(--bg-secondary, #f2f2f2);
-      color: var(--text-muted, #666);
-      font-size: 14px;
-      font-weight: 500;
-      white-space: nowrap;
-      cursor: pointer;
-      transition: all 0.18s;
-      flex-shrink: 0;
-    }
-    .filter-btn.active {
-      background: #ff9800;
-      color: white;
-      font-weight: 600;
-      box-shadow: 0 2px 8px rgba(255,152,0,0.35);
-    }
-    .filter-group { position: relative; flex-shrink: 0; }
-    .dropdown {
-      position: fixed;
-      z-index: 999999 !important;
-      min-width: 130px;
-      animation: fadeIn 0.2s ease;
-    }
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(-6px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-    .dropdown-item {
-      padding: 10px 14px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 14px;
-      color: var(--text-main, #333);
-    }
+    .filter-btn { padding: 8px 14px; border-radius: 20px; border: none; background: var(--bg-secondary, #f2f2f2); color: var(--text-muted, #666); font-size: 14px; font-weight: 500; white-space: nowrap; cursor: pointer; transition: all 0.18s; flex-shrink: 0; }
+    .filter-btn.active { background: #ff9800; color: white; font-weight: 600; box-shadow: 0 2px 8px rgba(255,152,0,0.35); }
+    .dropdown { position: fixed; z-index: 999999 !important; min-width: 130px; animation: fadeIn 0.2s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+    .dropdown-item { padding: 10px 14px; border-radius: 8px; cursor: pointer; font-size: 14px; color: var(--text-main, #333); }
     .dropdown-item:hover { background: var(--bg-secondary, #f5f5f5); }
     .dropdown.hidden { display: none !important; }
     [data-theme="dark"] .dropdown { background: #1f2937; border: 1px solid #374151; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
@@ -111,7 +64,6 @@
 </head>
 <body class="bg-bg text-main body--app">
 
-  <!-- CLS Prevention: Skeleton rendered immediately -->
   <div id="skeleton">
     <header class="skeleton-header">
       <div style="display:flex;align-items:center;gap:8px;"><div style="font-size:20px;">📊</div><div class="skeleton-bar"></div></div>
@@ -126,11 +78,50 @@
     </nav>
   </div>
 
-  <!-- Header rendered via JS from layout.js -->
   <div id="app"></div>
 
-    <script src="/js/report_v2.js?v=20260422b"></script>
-  <script src="/js/report_engine_v3.js?v=20260422b"></script>
+  <!-- Engine: report_engine_v3 (TUYỆT ĐỐI không JOIN products/customers) -->
+  <script src="/js/report_engine_v3.js?v=20260422c"></script>
+
+  <!-- Debug fallback (đảm bảo __debug luôn tồn tại) -->
+  <script src="/js/debug_tools.js?v=20260422a"></script>
+  <script>
+    // PART 4: Debug fallback — chạy TRƯỚC khi page init
+    window.__debug = window.__debug || {
+      quickSummary: async function () {
+        try {
+          await window.dbReady;
+          var sales = await window.db.sales.toArray();
+          console.log('[DEBUG FALLBACK] Đơn hàng:', sales.length);
+          console.log('[DEBUG FALLBACK] Mẫu:', sales[0] || 'trống');
+          return { sales: sales.length };
+        } catch (e) {
+          console.error('[DEBUG FALLBACK] Lỗi:', e.message);
+          return { error: e.message };
+        }
+      }
+    };
+  </script>
+
+  <!-- App debug utility (PART 7) -->
+  <script>
+    window.__app = {
+      async check() {
+        try {
+          await window.dbReady;
+          var sales = await window.db.sales.toArray();
+          console.log('[APP] sales:', sales.length, 'đơn');
+          console.log('[APP] sample:', JSON.stringify(sales[0] || 'trống', null, 2));
+          console.log('[APP] db version:', window.DB_VERSION);
+          console.log('[APP] report_v3 ready:', !!window.__reportV3);
+          console.log('[APP] debug ready:', !!window.__debug);
+        } catch (e) {
+          console.error('[APP] Lỗi check:', e.message);
+        }
+      }
+    };
+    console.log('[APP] window.__app.check() — kiểm tra nhanh dữ liệu');
+  </script>
 
   <script>
     var headerActions = '<div id="headerProfit" class="money text-money font-bold tabular-nums" style="font-size:14px;">0đ</div>';
@@ -141,10 +132,10 @@
         <div class="report-filter">
           <button class="filter-time-btn active" data-time="today">Hôm nay</button>
           <button class="filter-time-btn" data-time="yesterday">Hôm qua</button>
-          <select id="selMonth" onchange="selectMonth(this.value)" class="filter-select">
+          <select id="selMonth" onchange="__reportApp.selectMonth(this.value)" class="filter-select">
             <option value="" disabled selected>Tháng</option>
           </select>
-          <select id="selYear" onchange="selectYear(this.value)" class="filter-select">
+          <select id="selYear" onchange="__reportApp.selectYear(this.value)" class="filter-select">
             <option value="" disabled selected>Năm</option>
           </select>
         </div>
@@ -195,7 +186,449 @@
       `) +
       getBottomNav('/report');
 
-    setTimeout(initFilter, 0);
+    // ══════════════════════════════════════════════════════════
+    // PART 1–2: Khởi tạo báo cáo — dùng report_engine_v3
+    // Không gọi initFilter() nữa (đã xoá)
+    // ══════════════════════════════════════════════════════════
+    (function () {
+      'use strict';
+
+      // ── Tiện ích ─────────────────────────────────────────
+      function fmtVND(n) {
+        return new Intl.NumberFormat('vi-VN').format(n || 0) + ' đ';
+      }
+
+      function escHtml(str) {
+        if (str == null) return '';
+        return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      }
+
+      // ── Trạng thái bộ lọc ────────────────────────────────
+      var _state = {
+        type: 'sales',
+        time: 'today',
+        month: new Date().getMonth() + 1,
+        year: new Date().getFullYear()
+      };
+      var _chart = null;
+      var _currentReport = null;
+
+      // ── PART 2: Điểm vào — đợi DB rồi gọi report_v3 ─────
+      function initReport() {
+        if (window.dbReady) {
+          window.dbReady.then(function () {
+            console.log('[REPORT_APP] DB sẵn sàng — khởi tạo...');
+            populateSelects();
+            bindEvents();
+            loadReport();
+          }).catch(function (e) {
+            console.error('[REPORT_APP] DB lỗi:', e.message);
+            loadReport(); // vẫn thử
+          });
+        } else {
+          loadReport();
+        }
+      }
+
+      // ── Điền tháng / năm vào select ────────────────────
+      function populateSelects() {
+        var selMonth = document.getElementById('selMonth');
+        if (selMonth && selMonth.children.length <= 1) {
+          for (var mi = 1; mi <= 12; mi++) {
+            var optM = document.createElement('option');
+            optM.value = mi;
+            optM.textContent = 'Tháng ' + mi;
+            selMonth.appendChild(optM);
+          }
+        }
+        var selYear = document.getElementById('selYear');
+        if (selYear && selYear.children.length <= 1) {
+          var cy = new Date().getFullYear();
+          for (var yi = cy; yi >= cy - 4; yi--) {
+            var optY = document.createElement('option');
+            optY.value = yi;
+            optY.textContent = yi;
+            selYear.appendChild(optY);
+          }
+        }
+      }
+
+      // ── Ràng buộc sự kiện bộ lọc ────────────────────────
+      function bindEvents() {
+        document.addEventListener('click', function (e) {
+          var target = e.target;
+
+          // Nút thời gian
+          var timeBtn = target.closest('.filter-time-btn');
+          if (timeBtn && timeBtn.dataset.time) {
+            e.preventDefault();
+            setTimeFilter(timeBtn.dataset.time);
+            return;
+          }
+
+          // Nút loại báo cáo
+          var typeBtn = target.closest('.report-type-btn');
+          if (typeBtn && typeBtn.dataset.type) {
+            e.preventDefault();
+            setReportType(typeBtn.dataset.type);
+            return;
+          }
+        });
+      }
+
+      // ── Chuyển bộ lọc thời gian ─────────────────────────
+      function setTimeFilter(time) {
+        _state.time = time;
+        updateTimeButtons();
+        updatePeriodLabel();
+        loadReport();
+      }
+
+      // ── Chuyển loại báo cáo ─────────────────────────────
+      function setReportType(type) {
+        _state.type = type;
+        updateTypeButtons();
+        loadReport();
+      }
+
+      // ── Chọn tháng ──────────────────────────────────────
+      function selectMonth(m) {
+        if (!m) return;
+        _state.month = parseInt(m, 10);
+        _state.year = _state.year || new Date().getFullYear();
+        _state.time = 'month';
+        updateTimeButtons();
+        updatePeriodLabel();
+        loadReport();
+      }
+
+      // ── Chọn năm ────────────────────────────────────────
+      function selectYear(y) {
+        if (!y) return;
+        _state.year = parseInt(y, 10);
+        _state.time = _state.time === 'year' ? 'year' : 'month';
+        updateTimeButtons();
+        updatePeriodLabel();
+        loadReport();
+      }
+
+      // ── Cập nhật trạng thái nút ────────────────────────
+      function updateTimeButtons() {
+        document.querySelectorAll('.filter-time-btn').forEach(function (btn) {
+          btn.classList.toggle('active', btn.dataset.time === _state.time);
+        });
+      }
+
+      function updateTypeButtons() {
+        document.querySelectorAll('.report-type-btn').forEach(function (btn) {
+          btn.classList.toggle('active', btn.dataset.type === _state.type);
+        });
+      }
+
+      function updatePeriodLabel() {
+        var vn = new Date(new Date().getTime() + 7 * 3600000);
+        var months = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6',
+                      'Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
+        var label = '';
+        if (_state.time === 'today')     label = 'Hôm nay, ' + fmtDate(vn);
+        else if (_state.time === 'yesterday') label = 'Hôm qua';
+        else if (_state.time === 'month')    label = months[_state.month - 1] + ' ' + _state.year;
+        else if (_state.time === 'year')        label = 'Năm ' + _state.year;
+        var el = document.getElementById('periodLabel');
+        if (el) el.textContent = label;
+      }
+
+      function fmtDate(d) {
+        return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2,'0') + '-' + String(d.getUTCDate()).padStart(2,'0');
+      }
+
+      // ── Tính khoảng ngày ───────────────────────────────
+      function getDateRange() {
+        var vn = new Date(new Date().getTime() + 7 * 3600000);
+        var y = vn.getUTCFullYear(), m = vn.getUTCMonth(), day = vn.getUTCDate();
+
+        function str(yr, mo, d) {
+          return yr + '-' + String(mo + 1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+        }
+
+        if (_state.time === 'today') {
+          return { start: str(y, m, day), end: str(y, m, day) };
+        }
+        if (_state.time === 'yesterday') {
+          var yd = new Date(Date.UTC(y, m, day) - 8 * 3600000);
+          yd.setDate(yd.getDate() - 1);
+          return { start: str(yd.getUTCFullYear(), yd.getUTCMonth(), yd.getUTCDate()),
+                   end:   str(yd.getUTCFullYear(), yd.getUTCMonth(), yd.getUTCDate()) };
+        }
+        if (_state.time === 'month') {
+          var lastD = new Date(Date.UTC(_state.year, _state.month, 0)).getUTCDate();
+          return { start: str(_state.year, _state.month - 1, 1),
+                   end:   str(_state.year, _state.month - 1, lastD) };
+        }
+        if (_state.time === 'year') {
+          return { start: _state.year + '-01-01', end: _state.year + '-12-31' };
+        }
+        return { start: str(y, m, day), end: str(y, m, day) };
+      }
+
+      // ── Nạp dữ liệu ────────────────────────────────────
+      function loadReport() {
+        showLoading();
+        var dateRange = getDateRange();
+        console.log('[REPORT_APP] Đang tải:', _state.type, _state.time, dateRange.start, '→', dateRange.end);
+
+        if (!window.__reportV3) {
+          console.error('[REPORT_APP] window.__reportV3 chưa tải!');
+          hideLoading();
+          renderEmpty();
+          return;
+        }
+
+        window.__reportV3.generateReport(dateRange, true)
+          .then(function (report) {
+            _currentReport = report;
+            console.log('[REPORT_APP] Đã tải:', report.sales.length, 'đơn | items:', report.items_count);
+            hideLoading();
+            updateSummary(report.stats);
+            renderChart(report);
+            switch (_state.type) {
+              case 'sales':
+                renderSales(report.sales);
+                break;
+              case 'product':
+                renderProducts(report.profitByProduct || []);
+                break;
+              case 'customer':
+                renderCustomers(report.profitByCustomer || []);
+                break;
+              case 'import':
+                renderPurchases(report.expenses || []);
+                break;
+            }
+            activateSection(_state.type);
+          })
+          .catch(function (e) {
+            console.error('[REPORT_APP] Lỗi tải:', e);
+            hideLoading();
+            renderEmpty();
+          });
+      }
+
+      function showLoading() {
+        ['salesList','productsList','customersList','purchasesList'].forEach(function (id) {
+          var el = document.getElementById(id);
+          if (el) el.innerHTML = '<div class="text-center text-muted py-4">Đang tải...</div>';
+        });
+      }
+
+      function hideLoading() {}
+
+      function renderEmpty() {
+        ['salesList','productsList','customersList','purchasesList'].forEach(function (id) {
+          var el = document.getElementById(id);
+          if (el) el.innerHTML = '<div class="text-center text-muted py-4">Không có dữ liệu</div>';
+        });
+      }
+
+      // ── Vẽ biểu đồ ────────────────────────────────────
+      function renderChart(report) {
+        var canvas = document.getElementById('chartCanvas');
+        if (!canvas) return;
+        if (!window.Chart) {
+          var s = document.createElement('script');
+          s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';
+          s.onload = function () { buildChart(report.profitByTime || []); };
+          document.head.appendChild(s);
+        } else {
+          buildChart(report.profitByTime || []);
+        }
+      }
+
+      function buildChart(daily) {
+        var canvas = document.getElementById('chartCanvas');
+        if (!canvas || !window.Chart) return;
+        var labels = [], revenues = [], netProfits = [];
+        daily.forEach(function (d) {
+          labels.push(d.date ? d.date.split('-').reverse().slice(0,2).join('/') : '');
+          revenues.push(d.revenue || 0);
+          netProfits.push((d.profit || 0) - (d.expense || 0));
+        });
+        labels.reverse(); revenues.reverse(); netProfits.reverse();
+        if (_chart) _chart.destroy();
+        _chart = new window.Chart(canvas, {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [
+              { label: 'Doanh thu',      data: revenues,   backgroundColor: 'rgba(59,130,246,0.5)' },
+              { label: 'Lợi nhuận ròng', data: netProfits, backgroundColor: 'rgba(34,197,94,0.5)' }
+            ]
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { labels: { color: '#9ca3af', font: { size: 10 } } } },
+            scales: {
+              x: { ticks: { color: '#9ca3af', font: { size: 9 } }, grid: { color: '#374151' } },
+              y: { ticks: { color: '#9ca3af', callback: function(v) { return (v/1000000).toFixed(1)+'M'; } }, grid: { color: '#374151' } }
+            }
+          }
+        });
+      }
+
+      // ── Cập nhật tóm tắt ──────────────────────────────
+      function updateSummary(stats) {
+        stats = stats || {};
+        var rev = stats.total_revenue || 0;
+        var profit = stats.net_profit || (stats.gross_profit || 0);
+        var orders = stats.total_orders || 0;
+        var expense = stats.expenses || 0;
+        var el;
+        el = document.getElementById('statRevenue'); if (el) el.textContent = fmtVND(rev);
+        el = document.getElementById('statProfit');  if (el) el.textContent = fmtVND(profit);
+        el = document.getElementById('statOrders');  if (el) el.textContent = orders;
+        el = document.getElementById('statExpense'); if (el) el.textContent = fmtVND(expense);
+        el = document.getElementById('headerProfit'); if (el) el.textContent = fmtVND(profit);
+      }
+
+      // ── Vẽ danh sách đơn ───────────────────────────────
+      function renderSales(sales) {
+        var el = document.getElementById('salesList');
+        if (!el) return;
+        if (!sales || sales.length === 0) { el.innerHTML = '<div class="text-center text-muted py-4">Không có đơn hàng</div>'; return; }
+        var html = [];
+        sales.forEach(function (s) {
+          var d = s.date ? s.date.split('T')[0].split('-').reverse().join('/') : '';
+          html.push(
+            '<div class="card p-3 flex items-center justify-between">' +
+              '<div><div class="font-medium">' + escHtml(s.customer_name || 'Khách lẻ') + '</div><div class="text-xs text-muted">' + d + '</div></div>' +
+              '<div class="text-right">' +
+                '<div class="font-bold tabular-nums">' + fmtVND(s.total || 0) + '</div>' +
+                '<div class="text-xs text-success">+' + fmtVND(s.profit || s.total_profit || 0) + '</div>' +
+              '</div>' +
+            '</div>'
+          );
+        });
+        el.innerHTML = html.join('');
+      }
+
+      // ── Vẽ theo sản phẩm ──────────────────────────────
+      function renderProducts(products) {
+        var el = document.getElementById('productsList');
+        if (!el) return;
+        if (!products || products.length === 0) { el.innerHTML = '<div class="text-center text-muted py-4">Không có dữ liệu</div>'; return; }
+        var html = [];
+        products.forEach(function (p) {
+          var est = p.estimated_ratio > 0 ? ' <span class="text-xs text-warning">⚠️ ước tính</span>' : '';
+          html.push(
+            '<div class="card p-3 flex items-center justify-between">' +
+              '<div class="flex-1 min-w-0">' +
+                '<div class="font-medium truncate">' + escHtml(p.name || '') + est + '</div>' +
+                '<div class="text-xs text-muted">🍺 ' + (p.quantity || 0) + ' bình</div>' +
+              '</div>' +
+              '<div class="text-right ml-3">' +
+                '<div class="font-bold tabular-nums">' + fmtVND(p.revenue || 0) + '</div>' +
+                '<div class="text-xs text-success">+' + fmtVND(p.profit || 0) + '</div>' +
+              '</div>' +
+            '</div>'
+          );
+        });
+        el.innerHTML = html.join('');
+      }
+
+      // ── Vẽ theo khách hàng ─────────────────────────────
+      function renderCustomers(customers) {
+        var el = document.getElementById('customersList');
+        if (!el) return;
+        if (!customers || customers.length === 0) { el.innerHTML = '<div class="text-center text-muted py-4">Không có dữ liệu</div>'; return; }
+        var html = [];
+        customers.forEach(function (c) {
+          html.push(
+            '<div class="card p-3 flex items-center justify-between">' +
+              '<div class="flex-1 min-w-0">' +
+                '<div class="font-medium truncate">' + escHtml(c.name || '') + '</div>' +
+                '<div class="text-xs text-muted">🍺 ' + (c.order_count || 0) + ' đơn</div>' +
+              '</div>' +
+              '<div class="text-right ml-3">' +
+                '<div class="font-bold tabular-nums">' + fmtVND(c.revenue || 0) + '</div>' +
+                '<div class="text-xs text-success">+' + fmtVND(c.profit || 0) + '</div>' +
+              '</div>' +
+            '</div>'
+          );
+        });
+        el.innerHTML = html.join('');
+      }
+
+      // ── Vẽ nhập hàng ──────────────────────────────────
+      function renderPurchases(expenses) {
+        var el = document.getElementById('purchasesList');
+        if (!el) return;
+        var total = expenses.reduce(function (s, e) { return s + (e.amount || 0); }, 0);
+        var sum = '<div class="grid grid-cols-2 gap-2 mb-3">' +
+          '<div class="card p-3 text-center"><div class="text-xs text-muted">Tổng chi phí</div><div class="font-bold text-danger tabular-nums" style="font-size:14px;">' + fmtVND(total) + '</div></div>' +
+          '<div class="card p-3 text-center"><div class="text-xs text-muted">Số phiếu</div><div class="font-bold tabular-nums" style="font-size:14px;">' + expenses.length + '</div></div>' +
+        '</div>';
+        if (!expenses.length) { el.innerHTML = sum + '<div class="text-center text-muted py-4">Không có dữ liệu nhập hàng</div>'; return; }
+        var html = [];
+        expenses.forEach(function (p) {
+          var d = p.date ? p.date.split('T')[0].split('-').reverse().join('/') : '';
+          html.push(
+            '<div class="card p-3">' +
+              '<div class="flex justify-between items-start mb-1">' +
+                '<div class="font-bold text-primary">#' + (p.id || '?') + '</div>' +
+                '<div class="text-xs text-muted">' + d + '</div>' +
+              '</div>' +
+              '<div class="font-bold text-danger tabular-nums mb-1">' + fmtVND(p.amount || 0) + '</div>' +
+              (p.type ? '<div class="text-xs text-muted">' + escHtml(p.type) + '</div>' : '') +
+              (p.note ? '<div class="text-xs text-muted italic">' + escHtml(p.note) + '</div>' : '') +
+            '</div>'
+          );
+        });
+        el.innerHTML = sum + html.join('');
+      }
+
+      // ── Kích hoạt section ──────────────────────────────
+      function activateSection(type) {
+        var map = { sales: 'reportSales', product: 'reportProducts', customer: 'reportCustomers', import: 'reportPurchases' };
+        var id = map[type] || 'reportSales';
+        document.querySelectorAll('.report-section').forEach(function (el) {
+          el.classList.toggle('active', el.id === id);
+        });
+        document.querySelectorAll('.report-tab').forEach(function (btn) {
+          var m = { sales: 'sales', products: 'product', customers: 'customer', purchases: 'import' };
+          btn.classList.toggle('active', m[btn.dataset.tab] === type);
+        });
+      }
+
+      // ── PART 5: Lắng nghe data:mutated để tự động reload ──
+      window.addEventListener('data:mutated', function (e) {
+        var detail = e && e.detail ? e.detail : {};
+        var entity = detail.entity;
+        if (entity === 'sale' || entity === 'expense' || entity === 'product' || entity === 'customer') {
+          console.log('[REPORT_APP] Phát hiện thay đổi [' + entity + '] — reload...');
+          loadReport();
+        }
+      });
+
+      // ── PART 3: Kiểm tra report_v3 đã nạp chưa ─────────
+      if (!window.__reportV3) {
+        console.error('[REPORT_APP] ❌ report_engine_v3.js chưa tải — báo cáo sẽ không hoạt động!');
+      }
+
+      // ── Gán API toàn cục ────────────────────────────────
+      window.__reportApp = {
+        loadReport: loadReport,
+        setTimeFilter: setTimeFilter,
+        setReportType: setReportType,
+        selectMonth: selectMonth,
+        selectYear: selectYear,
+        getState: function () { return _state; },
+        getReport: function () { return _currentReport; }
+      };
+
+      // ── Khởi tạo ────────────────────────────────────────
+      initReport();
+
+    })();
   </script>
 </body>
 </html>
