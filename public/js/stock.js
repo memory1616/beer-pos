@@ -99,24 +99,50 @@ function escapeHtmlAttr(s) {
 async function loadData() {
   try {
     console.log('[Stock] loadData: fetching from IndexedDB...');
-    if (window.dbReady) await window.dbReady;
+
+    // Debug: verify db.js is loaded
+    console.log('[Stock] dbReady exists:', typeof window.dbReady);
+    console.log('[Stock] getProducts exists:', typeof window.getProducts);
+    console.log('[Stock] seedProductsIfEmpty exists:', typeof window.seedProductsIfEmpty);
+
+    if (window.dbReady) {
+      try {
+        await window.dbReady;
+        console.log('[Stock] dbReady resolved OK');
+      } catch (e) {
+        console.error('[Stock] dbReady REJECTED:', e.message || e);
+      }
+    }
 
     var products = [];
     if (typeof window.getProducts === 'function') {
-      products = await window.getProducts();
+      try {
+        products = await window.getProducts();
+        console.log('[Stock] getProducts returned:', products ? products.length : 0, 'products');
+      } catch (e) {
+        console.error('[Stock] getProducts FAILED:', e.message || e);
+      }
     }
-    console.log('[Stock] loadData: products=' + (products ? products.length : 0));
 
-    // Safety: if DB is empty (e.g. cached db.js without seed fn, or freshly cleared),
-    // force seed then retry
+    // Safety: if DB is empty, force seed then retry
     if (!products || products.length === 0) {
       console.warn('[Stock] ⚠️ products=0 — forcing seed');
       if (typeof window.seedProductsIfEmpty === 'function') {
-        await window.seedProductsIfEmpty();
-        products = await window.getProducts();
-        console.log('[Stock] loadData: products after seed=' + (products ? products.length : 0));
+        try {
+          await window.seedProductsIfEmpty();
+          products = await window.getProducts();
+          console.log('[Stock] loadData: products after seed=' + (products ? products.length : 0));
+        } catch (e) {
+          console.error('[Stock] seedProductsIfEmpty FAILED:', e.message || e);
+        }
       }
     }
+
+    // ALWAYS show content section and render products
+    var loadingEl = document.getElementById('loading');
+    var contentEl = document.getElementById('contentSection');
+    if (loadingEl) loadingEl.classList.add('hidden');
+    if (contentEl) contentEl.classList.remove('hidden');
 
     initStockPage({ products: products || [], totalStockPositive: 0 });
     hideLoading();
@@ -124,18 +150,10 @@ async function loadData() {
   } catch (err) {
     console.error('[Stock] loadData ERROR:', err);
     hideLoading();
+    var contentEl = document.getElementById('contentSection');
+    if (contentEl) contentEl.classList.remove('hidden');
     initStockPage({ products: [], totalStockPositive: 0 });
   }
-
-  // Safety fallback — prevent infinite loading
-  setTimeout(function() {
-    var loadingEl = document.getElementById('loading');
-    if (loadingEl && !loadingEl.classList.contains('hidden')) {
-      console.warn('[Stock] ⚠️ load timeout fallback — forcing render');
-      hideLoading();
-      initStockPage({ products: [], totalStockPositive: 0 });
-    }
-  }, 3000);
 }
 
 function hideLoading() {
