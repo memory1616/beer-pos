@@ -311,7 +311,10 @@
     });
 
     _socket.on('inventory:updated', function (data) {
-      var key = 'inventory:updated:' + (data && data.productId ? data.productId : '');
+      var prodId = (data && data.productId) ? data.productId
+        : (data && data.product && data.product.id) ? data.product.id
+        : '';
+      var key = 'inventory:updated:' + prodId;
       if (_shouldDebounce(key)) return;
       log('EVENT', 'inventory:updated received', data);
       triggerRefetch(['inventory', 'products', 'stock', 'reports']);
