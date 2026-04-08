@@ -92,7 +92,7 @@ router.get('/data', (req, res) => {
   
   // Get low stock threshold from settings (default: 10)
   const stockThresholdSetting = db.prepare("SELECT value FROM settings WHERE key = 'stock_low_threshold'").get();
-  const stockLowThreshold = stockThresholdSetting ? parseInt(stockThresholdSetting.value) : 10;
+  const stockLowThreshold = stockThresholdSetting ? parseInt(stockThresholdSetting.value) : 30;
 
   // Get low stock products - using configurable threshold
   const lowStockProducts = db.prepare(`

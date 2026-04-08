@@ -27,7 +27,55 @@ function checkPurchasesEmpty() {
   // Handled by removePurchaseItem above — no-op
 }
 
-// PERFORMANCE: Virtual scroll pagination for product list
+// ── Product list helpers ──────────────────────────────────────────────────
+
+function removeProductItem(productId) {
+  var card = document.querySelector('[data-product-id="' + productId + '"]');
+  if (card) card.remove();
+}
+
+function updateProductsSummary() {
+  // Update the total stock display from server data
+  var totalStockEl = document.getElementById('totalStock');
+  if (totalStockEl) {
+    var total = currentProducts.reduce(function(sum, p) {
+      return sum + Math.max(0, Number(p.stock) || 0);
+    }, 0);
+    totalStockEl.textContent = String(total);
+  }
+}
+
+function updateProductItem(product) {
+  // Update a single product card in-place using server data
+  var card = document.querySelector('[data-product-id="' + product.id + '"]');
+  if (!card) return;
+
+  var stockEl = card.querySelector('.product-card__qty');
+  if (stockEl) {
+    stockEl.textContent = product.stock;
+    stockEl.className = 'product-card__qty tabular-nums ' + (product.stock < _LOW_STOCK_THRESHOLD ? 'text-danger' : 'text-success');
+  }
+
+  // Update "Sắp hết" badge
+  var badgeEl = card.querySelector('.badge-danger');
+  var headerEl = card.querySelector('.product-card__name');
+  if (product.stock < _LOW_STOCK_THRESHOLD && !badgeEl && headerEl) {
+    headerEl.insertAdjacentHTML('afterend', '<span class="badge badge-danger shrink-0 text-[10px]">Sắp hết</span>');
+  } else if (product.stock >= _LOW_STOCK_THRESHOLD && badgeEl) {
+    badgeEl.remove();
+  }
+}
+
+function renderProductItem(product, opts) {
+  opts = opts || {};
+  var html = _productCardHtml(product, null);
+  if (opts.prepend) {
+    var container = document.getElementById('productList');
+    if (container) container.insertAdjacentHTML('afterbegin', html);
+  }
+}
+
+const _LOW_STOCK_THRESHOLD = 30;
 const PAGE_SIZE = 30;
 let _renderedCount = PAGE_SIZE;
 let _totalFiltered = 0;
@@ -198,6 +246,21 @@ async function deletePurchase(purchaseId) {
     checkPurchasesEmpty();
 
     alert('Đã xoá đơn nhập hàng!');
+
+    // REFETCH products from server to sync stock (stock restored on delete)
+    fetch('/api/products', { cache: 'no-store' })
+      .then(function(res) { return res.json(); })
+      .then(function(serverProducts) {
+        currentProducts = serverProducts;
+        _filteredProducts = serverProducts;
+        window.store.products = serverProducts;
+        renderImportForm(serverProducts);
+        updateProductsSummary();
+      })
+      .catch(function(err) {
+        console.error('[Stock] deletePurchase refetch error:', err);
+      });
+
     window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'purchase' } }));
   } catch (err) {
     console.error('[deletePurchase]', err);
@@ -558,6 +621,26 @@ async function submitImport() {
         renderPurchaseItem(result.purchase, { prepend: true });
       }
 
+      // REFETCH products from server to sync stock across all components
+      fetch('/api/products', { cache: 'no-store' })
+        .then(function(res) { return res.json(); })
+        .then(function(serverProducts) {
+          // Update all product data sources with server data
+          currentProducts = serverProducts;
+          _filteredProducts = serverProducts;
+          window.store.products = serverProducts;
+
+          // Re-render all UI components with server data
+          renderImportForm(serverProducts);
+          updateProductsSummary();
+
+          // Trigger refetch for sales page too
+          window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'purchase' } }));
+        })
+        .catch(function(err) {
+          console.error('[Stock] submitImport refetch error:', err);
+        });
+
       // Reset import form
       importData = {};
       document.querySelectorAll('#importProducts input[type="number"]').forEach(function(input) {
@@ -574,7 +657,7 @@ async function submitImport() {
 
 // PERFORMANCE: Extract product card HTML for reuse in virtual scrolling
 function _productCardHtml(p, totalPositive) {
-  const low = p.stock < 5;
+  const low = p._LOW_STOCK_THRESHOLD;
   return `
     <article class="card product-card product-card--interactive ${low ? 'border-danger' : 'border-muted'}"
       role="button" tabindex="0" data-product-id="${p.id}"
@@ -619,7 +702,7 @@ function _renderProductsPage(pageProducts, totalPositive, hasMore) {
     }
 
     // Calculate low stock products from filtered products
-    const lowStockProducts = _filteredProducts.filter(p => p.stock < 5);
+    const lowStockProducts = _filteredProducts.filter(p => p._LOW_STOCK_THRESHOLD);
     
     // Build low stock alert HTML
     let lowStockAlert = '';
@@ -719,7 +802,7 @@ function renderProducts(products, serverTotalStockPositive) {
     typeof serverTotalStockPositive === 'number' && !Number.isNaN(serverTotalStockPositive)
       ? serverTotalStockPositive
       : products.reduce((sum, p) => sum + Math.max(0, Number(p.stock) || 0), 0);
-  const lowStockProducts = products.filter(p => p.stock < 5);
+  const lowStockProducts = products.filter(p => p._LOW_STOCK_THRESHOLD);
 
   totalStockEl.textContent = totalStock;
 
@@ -741,7 +824,7 @@ function renderProducts(products, serverTotalStockPositive) {
   }
 
   productList.innerHTML = lowStockAlert + products.map(p => {
-    const low = p.stock < 5;
+    const low = p._LOW_STOCK_THRESHOLD;
     return `
     <article class="card product-card product-card--interactive ${low ? 'border-danger' : 'border-muted'}"
       role="button" tabindex="0" data-product-id="${p.id}"

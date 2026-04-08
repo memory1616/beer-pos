@@ -7,6 +7,7 @@ let priceMap = {};
 let customers = [];
 let editingSaleId = null;
 let saleData = {};
+const _LOW_STOCK_THRESHOLD = 30;
 
 // Sales history state (mirrors purchases.js pattern — primary data source)
 var allSales    = [];       // local array for optimistic insert
@@ -173,11 +174,11 @@ function renderSaleProducts() {
     const priceInputVal = (saleData[p.id] && saleData[p.id].price !== undefined)
       ? saleData[p.id].price
       : (effectiveSellPrice(p) || '');
-    const isLowStock = p.stock < 5;
+    const isLowStock = p.stock < _LOW_STOCK_THRESHOLD;
     const currentQty = saleData[p.id] ? saleData[p.id].quantity : '';
     const priceLine = isKhachLe
-      ? `· Tồn: <span class="${p.stock < 5 ? 'text-danger font-semibold' : 'text-muted'}">${p.stock}</span>`
-      : `Giá: <span class="text-primary font-bold">${formatVND(price)}</span> · Tồn: <span class="${p.stock < 5 ? 'text-danger' : 'text-muted'}">${p.stock}</span>`;
+      ? `· Tồn: <span class="${p.stock < _LOW_STOCK_THRESHOLD ? 'text-danger font-semibold' : 'text-muted'}">${p.stock}</span>`
+      : `Giá: <span class="text-primary font-bold">${formatVND(price)}</span> · Tồn: <span class="${p.stock < _LOW_STOCK_THRESHOLD ? 'text-danger' : 'text-muted'}">${p.stock}</span>`;
     const priceField = isKhachLe
       ? `<label class="block text-xs font-semibold text-primary mt-2 mb-1">Giá bán (đ)</label>
         <input type="number" id="price-${p.id}" min="0" step="1000" value="${priceInputVal}" placeholder="Nhập giá"
@@ -767,6 +768,19 @@ async function submitSale() {
           modal.classList.add('flex');
         }
       }
+
+      // REFETCH products from server to sync stock after sale (stock decreased)
+      fetch('/api/products', { cache: 'no-store' })
+        .then(function(res) { return res.json(); })
+        .then(function(serverProducts) {
+          products = serverProducts;
+          window.store.products = serverProducts;
+          _rebuildMaps();
+          renderSaleProducts();
+        })
+        .catch(function(err) {
+          console.error('[Sales] submitSale refetch error:', err);
+        });
     },
 
     refetch: refetchSalesHistory,
@@ -1763,6 +1777,19 @@ async function deleteSale(id) {
       showToast(result.message || 'Đã xóa hóa đơn', 'success');
       btnStates.forEach(function(s) { restoreButtonLoading(s); });
       renderHistoryPage();
+
+      // REFETCH products from server to sync stock (stock restored on sale delete)
+      fetch('/api/products', { cache: 'no-store' })
+        .then(function(res) { return res.json(); })
+        .then(function(serverProducts) {
+          products = serverProducts;
+          window.store.products = serverProducts;
+          _rebuildMaps();
+          renderSaleProducts();
+        })
+        .catch(function(err) {
+          console.error('[Sales] deleteSale refetch error:', err);
+        });
     },
 
     refetch: refetchSalesHistory,
