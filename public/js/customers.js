@@ -179,7 +179,7 @@ function validateAddForm() {
 }
 
 // ========== SUBMIT ADD FORM ==========
-function submitAddForm() {
+async function submitAddForm() {
   clearTimeout(phoneCheckTimer);
   const validation = validateAddForm();
   if (!validation) return;
@@ -211,26 +211,29 @@ function submitAddForm() {
   });
   if (Object.keys(prices).length > 0) data.prices = prices;
 
-  mutate(
-    function() {
-      return fetch('/api/customers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-        cache: 'no-store'
-      });
-    },
-    function(result) {
-      showToast('Đã thêm khách hàng thành công!', 'success');
-      hideModal('addModal');
-      resetAddForm();
-      if (currentTab === 'active') loadPageData('active');
-      else loadPageData('archived');
-    },
-    function() {
-      showToast('Lỗi khi thêm khách hàng', 'error');
-    }
-  );
+  const btn = document.querySelector('[onclick="submitAddForm()"]');
+  var btnState = btn ? setButtonLoading(btn) : null;
+
+  try {
+    var res = await fetch('/api/customers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+      cache: 'no-store'
+    });
+    var result;
+    try { result = await res.json(); } catch (_) { result = {}; }
+    if (!res.ok) throw new Error(result.error || 'Thêm khách hàng thất bại');
+    showToast('Đã thêm khách hàng thành công!', 'success');
+    hideModal('addModal');
+    resetAddForm();
+    await loadPageData(currentTab);
+  } catch (err) {
+    console.error('[submitAddForm]', err);
+    showToast('Lỗi khi thêm khách hàng', 'error');
+  } finally {
+    if (btnState) restoreButtonLoading(btnState);
+  }
 }
 
 function resetAddForm() {
@@ -612,30 +615,33 @@ async function saveKegBalance() {
     return;
   }
 
-  mutate(
-    function() {
-      return fetch('/api/payments/keg/update-balance', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customerId: parseInt(customerId), balance: newBalance, note: note }),
-        cache: 'no-store'
-      });
-    },
-    function() {
-      alert('Cập nhật vỏ thành công!\n\nSố vỏ còn tại quán: ' + newBalance);
-      hideModal('kegModal');
-      // Patch in-place
-      var idx = customers.findIndex(function(c) { return String(c.id) === String(customerId); });
-      if (idx !== -1) {
-        customers[idx].keg_balance = newBalance;
-        window.store.customers = customers;
-        patchCustomerRow(customers[idx]);
-      }
-    },
-    function() {
-      softRefreshCustomers();
+  var btn = document.querySelector('[onclick="saveKegBalance()"]');
+  var btnState = btn ? setButtonLoading(btn) : null;
+
+  try {
+    var res = await fetch('/api/payments/keg/update-balance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ customerId: parseInt(customerId), balance: newBalance, note: note }),
+      cache: 'no-store'
+    });
+    var data;
+    try { data = await res.json(); } catch (_) { data = {}; }
+    if (!res.ok) throw new Error(data.error || 'Cập nhật thất bại');
+    alert('Cập nhật vỏ thành công!\n\nSố vỏ còn tại quán: ' + newBalance);
+    hideModal('kegModal');
+    var idx = customers.findIndex(function(c) { return String(c.id) === String(customerId); });
+    if (idx !== -1) {
+      customers[idx].keg_balance = newBalance;
+      window.store.customers = customers;
+      patchCustomerRow(customers[idx]);
     }
-  );
+  } catch (err) {
+    console.error('[saveKegBalance]', err);
+    await softRefreshCustomers();
+  } finally {
+    if (btnState) restoreButtonLoading(btnState);
+  }
 }
 
 function filterCustomers() {
@@ -725,29 +731,33 @@ async function saveCustomerEdit() {
     return;
   }
 
-  mutate(
-    function() {
-      return fetch('/api/customers/' + id, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, phone, deposit, horizontal_fridge, vertical_fridge, exclude_expected }),
-        cache: 'no-store'
-      });
-    },
-    function(result) {
-      hideModal('editModal');
-      var updated = result.customer || result;
-      var idx = customers.findIndex(function(c) { return String(c.id) === String(updated.id); });
-      if (idx !== -1) {
-        Object.assign(customers[idx], updated);
-        window.store.customers = customers;
-        patchCustomerRow(updated);
-      }
-    },
-    function() {
-      softRefreshCustomers();
+  var submitBtn = document.getElementById('editForm')?.querySelector('[type="submit"]');
+  var btnState = submitBtn ? setButtonLoading(submitBtn) : null;
+
+  try {
+    var res = await fetch('/api/customers/' + id, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, phone, deposit, horizontal_fridge, vertical_fridge, exclude_expected }),
+      cache: 'no-store'
+    });
+    var result;
+    try { result = await res.json(); } catch (_) { result = {}; }
+    if (!res.ok) throw new Error(result.error || 'Cập nhật thất bại');
+    hideModal('editModal');
+    var updated = result.customer || result;
+    var idx = customers.findIndex(function(c) { return String(c.id) === String(updated.id); });
+    if (idx !== -1) {
+      Object.assign(customers[idx], updated);
+      window.store.customers = customers;
+      patchCustomerRow(updated);
     }
-  );
+  } catch (err) {
+    console.error('[saveCustomerEdit]', err);
+    await softRefreshCustomers();
+  } finally {
+    if (btnState) restoreButtonLoading(btnState);
+  }
 }
 
 function showPriceModal(id, name) {
@@ -821,23 +831,27 @@ async function savePrices() {
     }
   });
 
-  mutate(
-    function() {
-      return fetch('/api/products/prices/bulk', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customer_id: customerId, prices: prices }),
-        cache: 'no-store'
-      });
-    },
-    function() {
-      alert('Đã lưu bảng giá!');
-      hideModal('priceModal');
-    },
-    function() {
-      softRefreshCustomers();
-    }
-  );
+  var btn = document.querySelector('[onclick="savePrices()"]');
+  var btnState = btn ? setButtonLoading(btn) : null;
+
+  try {
+    var res = await fetch('/api/products/prices/bulk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ customer_id: customerId, prices: prices }),
+      cache: 'no-store'
+    });
+    var data;
+    try { data = await res.json(); } catch (_) { data = {}; }
+    if (!res.ok) throw new Error(data.error || 'Lưu bảng giá thất bại');
+    alert('Đã lưu bảng giá!');
+    hideModal('priceModal');
+  } catch (err) {
+    console.error('[savePrices]', err);
+    await softRefreshCustomers();
+  } finally {
+    if (btnState) restoreButtonLoading(btnState);
+  }
 }
 
 let addProductsLoaded = false;
@@ -899,52 +913,64 @@ async function loadAddProducts() {
 async function archiveCustomer(id) {
   if (!confirm('Lưu trữ khách hàng này?\n\n- Khách sẽ không hiển thị khi bán hàng\n- Doanh thu vẫn giữ nguyên')) return;
 
-  mutate(
-    function() {
-      return fetch('/api/customers/' + id + '/archive', { method: 'PUT', cache: 'no-store' });
-    },
-    function() {
-      showToast('Đã lưu trữ khách hàng!', 'success');
-      loadPageData(currentTab);
-    },
-    function() {
-      softRefreshCustomers();
-    }
-  );
+  var btn = document.querySelector('[onclick="archiveCustomer(' + id + ')"]');
+  var btnState = btn ? setButtonLoading(btn) : null;
+
+  try {
+    var res = await fetch('/api/customers/' + id + '/archive', { method: 'PUT', cache: 'no-store' });
+    var data;
+    try { data = await res.json(); } catch (_) { data = {}; }
+    if (!res.ok) throw new Error(data.error || 'Lưu trữ thất bại');
+    showToast('Đã lưu trữ khách hàng!', 'success');
+    await loadPageData(currentTab);
+  } catch (err) {
+    console.error('[archiveCustomer]', err);
+    await softRefreshCustomers();
+  } finally {
+    if (btnState) restoreButtonLoading(btnState);
+  }
 }
 
 async function unarchiveCustomer(id) {
   if (!confirm('Khôi phục khách hàng này?')) return;
 
-  mutate(
-    function() {
-      return fetch('/api/customers/' + id + '/archive', { method: 'PUT', cache: 'no-store' });
-    },
-    function() {
-      showToast('Đã khôi phục khách hàng!', 'success');
-      loadPageData(currentTab);
-    },
-    function() {
-      softRefreshCustomers();
-    }
-  );
+  var btn = document.querySelector('[onclick="unarchiveCustomer(' + id + ')"]');
+  var btnState = btn ? setButtonLoading(btn) : null;
+
+  try {
+    var res = await fetch('/api/customers/' + id + '/archive', { method: 'PUT', cache: 'no-store' });
+    var data;
+    try { data = await res.json(); } catch (_) { data = {}; }
+    if (!res.ok) throw new Error(data.error || 'Khôi phục thất bại');
+    showToast('Đã khôi phục khách hàng!', 'success');
+    await loadPageData(currentTab);
+  } catch (err) {
+    console.error('[unarchiveCustomer]', err);
+    await softRefreshCustomers();
+  } finally {
+    if (btnState) restoreButtonLoading(btnState);
+  }
 }
 
 async function deleteCustomer(id) {
   if (!confirm('XÓA VĨNH VIỄN khách hàng này?\n\nTất cả dữ liệu (đơn hàng, công nợ...) sẽ bị mất!\n\nKhuyến nghị: Nên dùng "Lưu trữ" thay vì xóa.')) return;
 
-  mutate(
-    function() {
-      return fetch('/api/customers/' + id, { method: 'DELETE', cache: 'no-store' });
-    },
-    function() {
-      alert('Đã xóa khách hàng!');
-      loadPageData(currentTab);
-    },
-    function() {
-      softRefreshCustomers();
-    }
-  );
+  var btn = document.querySelector('[onclick="deleteCustomer(' + id + ')"]');
+  var btnState = btn ? setButtonLoading(btn) : null;
+
+  try {
+    var res = await fetch('/api/customers/' + id, { method: 'DELETE', cache: 'no-store' });
+    var data;
+    try { data = await res.json(); } catch (_) { data = {}; }
+    if (!res.ok) throw new Error(data.error || 'Xóa thất bại');
+    alert('Đã xóa khách hàng!');
+    await loadPageData(currentTab);
+  } catch (err) {
+    console.error('[deleteCustomer]', err);
+    await softRefreshCustomers();
+  } finally {
+    if (btnState) restoreButtonLoading(btnState);
+  }
 }
 
 function getLocation(customerId) {

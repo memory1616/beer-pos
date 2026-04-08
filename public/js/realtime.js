@@ -764,7 +764,14 @@ window.restoreButtonLoading = function restoreButtonLoading(btnState) {
   button.disabled = false;
   button.innerHTML = button.dataset.originalText || button.innerHTML;
 };
-  window.optimisticMutate    = optimisticMutate;
+  window.mutate = function mutate(requestFn, onSuccess, onError) {
+    return optimisticMutate({
+      request: requestFn,
+      onSuccess: onSuccess,
+      onError: onError
+    });
+  };
+  window.optimisticMutate = optimisticMutate;
 })();
 
 // ── Global helpers (outside IIFE so they're accessible to other scripts) ──────

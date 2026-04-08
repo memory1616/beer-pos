@@ -310,27 +310,31 @@
       distributor_lng: (document.getElementById('distributorLng') || {value:''}).value
     };
 
-    mutate(
-      function() {
-        return fetch('/api/settings/batch', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(settings),
-          cache: 'no-store'
-        });
-      },
-      function() {
-        defaultSettings.deliveryCostPerKm = parseFloat(settings.delivery_cost_per_km) || 3000;
-        defaultSettings.deliveryBaseCost = parseFloat(settings.delivery_base_cost) || 0;
-        defaultSettings.distributorLat = parseFloat(settings.distributor_lat) || 10.8231;
-        defaultSettings.distributorLng = parseFloat(settings.distributor_lng) || 106.6297;
-        hideSettings();
-        updateDistances();
-        alert('Đã lưu cấu hình!');
-      },
-      function() {
-        alert('Lỗi lưu cấu hình');
-      }
-    );
+    var btn = document.querySelector('[onclick="saveSettings()"]');
+    var btnState = btn ? setButtonLoading(btn) : null;
+
+    try {
+      var res = await fetch('/api/settings/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings),
+        cache: 'no-store'
+      });
+      var data;
+      try { data = await res.json(); } catch (_) { data = {}; }
+      if (!res.ok) throw new Error(data.error || 'Lỗi lưu cấu hình');
+      defaultSettings.deliveryCostPerKm = parseFloat(settings.delivery_cost_per_km) || 3000;
+      defaultSettings.deliveryBaseCost = parseFloat(settings.delivery_base_cost) || 0;
+      defaultSettings.distributorLat = parseFloat(settings.distributor_lat) || 10.8231;
+      defaultSettings.distributorLng = parseFloat(settings.distributor_lng) || 106.6297;
+      hideSettings();
+      updateDistances();
+      alert('Đã lưu cấu hình!');
+    } catch (err) {
+      console.error('[saveSettings]', err);
+      alert('Lỗi lưu cấu hình');
+    } finally {
+      if (btnState) restoreButtonLoading(btnState);
+    }
   };
 })();
