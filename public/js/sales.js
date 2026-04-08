@@ -1223,7 +1223,6 @@ async function showInvoiceModal(saleId) {
 
   const giftBadge = isGift ? '<div class="text-center mb-3"><span class="badge badge-warning">🎁 Tặng uống thử</span></div>' : '';
 
-  const invoiceContent = document.getElementById('invoiceContent');
   if (invoiceContent) {
     invoiceContent.innerHTML =
       giftBadge +
