@@ -332,6 +332,7 @@ router.get('/:id', (req, res) => {
 // gift=true: toàn bộ số lượng là tặng uống thử → trừ stock + cộng vỏ keg vào kho vỏ rỗng ngay
 router.post('/replacement', (req, res) => {
   const { customer_id, customer_name, product_id, quantity, reason, gift } = req.body;
+  logger.info('[replacement] request', { customer_id, product_id, quantity, isGift: !!gift });
 
   if (!product_id || !quantity || quantity <= 0) {
     return res.status(400).json({ error: 'Thiếu thông tin cần thiết' });
@@ -346,10 +347,10 @@ router.post('/replacement', (req, res) => {
 
   try {
     const product = db.prepare('SELECT * FROM products WHERE id = ?').get(product_id);
+    logger.info('[replacement] product found', { productId: product?.id, name: product?.name });
     if (!product) {
       return res.status(400).json({ error: 'Không tìm thấy sản phẩm' });
     }
-    // Allow negative stock
 
     const note = isGift
       ? `${reason || 'Bia hư'} — 🎁 Tặng uống thử`
@@ -362,6 +363,7 @@ router.post('/replacement', (req, res) => {
         VALUES (?, 0, 'replacement', ?, ?)
       `).run(customer_id || null, note, saleDate);
       const saleId = result.lastInsertRowid;
+      logger.info('[replacement] sale inserted', { saleId });
 
       db.prepare(`
         INSERT INTO sale_items (sale_id, product_id, quantity, price, cost_price, profit)
@@ -381,10 +383,18 @@ router.post('/replacement', (req, res) => {
         `).run(quantity, customer_id || null, customer_name || 'Khách tặng', product.stock - quantity, newEmpty, note);
       }
 
-      syncKegInventory();
+      return saleId;
     });
 
-    doReplacement();
+    const saleId = doReplacement();
+    logger.info('[replacement] transaction done', { saleId });
+
+    // syncKegInventory MUST be outside transaction to avoid rollback on failure
+    try {
+      syncKegInventory();
+    } catch (syncErr) {
+      logger.error('syncKegInventory failed after replacement', { error: syncErr.message, saleId });
+    }
 
     socketServer.emitInventoryUpdated();
     socketServer.emitReportUpdated({ reason: 'replacement', saleId });
@@ -393,10 +403,11 @@ router.post('/replacement', (req, res) => {
       ? `Đã đổi ${quantity} bia + tặng uống thử — vỏ keg đã vào kho vỏ rỗng`
       : `Đã đổi ${quantity} bia lỗi cho khách — vỏ đổi đã vào kho vỏ rỗng`;
 
+    logger.info('[replacement] success', { saleId, message });
     res.json({ success: true, message });
   } catch (err) {
-    logger.error('Create replacement error', { error: err.message });
-    res.status(500).json({ error: 'Tạo đơn đổi bia thất bại' });
+    logger.error('Create replacement error', { error: err.message, stack: err.stack });
+    res.status(500).json({ error: 'Tạo đơn đổi bia thất bại: ' + err.message });
   }
 });
 

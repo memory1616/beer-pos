@@ -8,16 +8,10 @@ const socketServer = require('../../src/socket/socketServer');
 // Call this whenever product stock (type='keg') changes
 function syncKegInventory() {
   try {
-    // Ensure keg_stats row exists
-    const exists = db.prepare('SELECT COUNT(*) as count FROM keg_stats WHERE id = 1').get();
-    if (!exists || exists.count === 0) {
-      db.prepare('INSERT INTO keg_stats (id, inventory, empty_collected, customer_holding) VALUES (1, 0, 0, 0)').run();
-    }
-    
     const result = db.prepare(db.SQL_KEG_WAREHOUSE_RAW_STOCK).get();
-    db.prepare('UPDATE keg_stats SET inventory = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run(result.total);
-    logger.info('Keg inventory synced', { total: result.total });
-    return result.total;
+    db.prepare('UPDATE keg_stats SET inventory = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run(result ? result.total : 0);
+    logger.info('Keg inventory synced', { total: result ? result.total : 0 });
+    return result ? result.total : 0;
   } catch (err) {
     logger.error('Sync keg inventory error', { error: err.message });
     return null;

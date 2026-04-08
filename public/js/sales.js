@@ -1688,7 +1688,6 @@ async function deleteSale(id) {
 
     // Remove from local state
     syncSalesState(allSales.filter(function(s) { return s.id !== id; }));
-    removeSaleItem(id);
     salesPagination.total = Math.max(0, (salesPagination.total || 1) - 1);
     salesPagination.totalPages = Math.ceil(salesPagination.total / HISTORY_PAGE_SIZE);
     renderHistoryPage();
