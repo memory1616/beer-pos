@@ -189,8 +189,8 @@ function renderSummaryCards(summary) {
   for (var i = 0; i < allCats.length; i++) {
     var cat = allCats[i];
     var amt = summary[cat.name] || 0;
-    var customDel = cat.id != null
-      ? '<button type="button" class="summary-cat-del absolute top-1 right-1 p-1 rounded text-muted hover:text-danger hover:bg-muted/80 text-xs leading-none" title="Xóa loại chi phí" onclick="event.stopPropagation(); deleteCustomCategory(' + cat.id + ', ' + JSON.stringify(cat.name) + ')">🗑️</button>'
+      var customDel = cat.id != null
+      ? '<button type="button" class="summary-cat-del absolute top-1 right-1 p-1 rounded text-muted hover:text-danger hover:bg-muted/80 text-xs leading-none" title="Xóa loại chi phí" data-delete-cat-id="' + cat.id + '" onclick="event.stopPropagation(); deleteCustomCategory(' + cat.id + ', ' + JSON.stringify(cat.name) + ')">🗑️</button>'
       : '';
     html.push(
       '<div class="card p-3 text-center relative" onclick="filterCategory(\'' + cat.name.replace(/'/g, "\\'") + '\')" style="cursor:pointer">' +
@@ -474,18 +474,39 @@ function saveCategory(e) {
 
 function deleteCustomCategory(id, name) {
   if (!id || !confirm('Xóa loại chi phí "' + name + '"? Các khoản chi đang gắn loại này sẽ chuyển sang Khác.')) return;
-  fetch('/api/expenses/categories/' + id, { method: 'DELETE' })
+
+  // Guard: prevent double-delete
+  var btn = document.querySelector('[data-delete-cat-id="' + id + '"]');
+  if (btn && btn.disabled) return;
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '...';
+  }
+
+  fetch('/api/expenses/categories/' + id, { method: 'DELETE', cache: 'no-store' })
     .then(function(r) {
       if (!r.ok) {
         return r.json().then(function(j) { throw new Error(j.error || ('HTTP ' + r.status)); });
       }
       return r.json();
     })
-    .then(function() {
+    .then(function(result) {
+      console.log('[Expenses] Category deleted:', result);
+      // Reset filter if deleted category was active
       if (_currentCategory === name) _currentCategory = 'all';
+      // Always refetch from server — clear stale _customCategories
+      _customCategories = [];
       loadExpenses(_currentMonth);
     })
-    .catch(function(err) { alert('Không xóa được: ' + (err.message || err)); });
+    .catch(function(err) {
+      console.error('[Expenses] deleteCustomCategory failed:', err);
+      alert('Không xóa được: ' + (err.message || 'Lỗi không xác định'));
+      // Restore button
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '🗑️';
+      }
+    });
 }
 
 // ── Category tabs ────────────────────────────────────────────────────────────
@@ -507,7 +528,7 @@ function rebuildCategoryTabs() {
     var safeDataCat = String(cat.name).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
     html += '<span class="inline-flex items-stretch shrink-0 rounded-lg overflow-hidden border border-muted">' +
       '<button type="button" onclick="filterCategory(\'' + esc + '\')" class="cat-tab ' + (_currentCategory === cat.name ? 'active' : '') + ' px-3 py-1.5 text-sm whitespace-nowrap rounded-none border-0" data-cat="' + safeDataCat + '" data-icon="' + (cat.icon || '📋').replace(/"/g, '&quot;') + '">' + (cat.icon || '📋') + ' ' + cat.name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</button>' +
-      '<button type="button" class="px-1.5 text-xs bg-muted/50 text-muted hover:text-danger hover:bg-muted border-0 border-l border-muted" title="Xóa loại" onclick="event.stopPropagation(); deleteCustomCategory(' + cat.id + ', ' + JSON.stringify(cat.name) + ')">🗑️</button>' +
+      '<button type="button" class="px-1.5 text-xs bg-muted/50 text-muted hover:text-danger hover:bg-muted border-0 border-l border-muted" title="Xóa loại" data-delete-cat-id="' + cat.id + '" onclick="event.stopPropagation(); deleteCustomCategory(' + cat.id + ', ' + JSON.stringify(cat.name) + ')">🗑️</button>' +
       '</span>';
   }
 

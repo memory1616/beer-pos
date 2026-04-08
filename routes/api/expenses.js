@@ -417,9 +417,14 @@ router.delete('/categories/:id', (req, res) => {
       return res.status(404).json({ error: 'Loại chi phí không tồn tại.' });
     }
     const catName = existing.name;
-    db.prepare('UPDATE expenses SET category = ? WHERE category = ?').run('other', catName);
+
+    // Update all expenses using this category → move to "Khác" + type "other"
+    db.prepare('UPDATE expenses SET category = ?, type = ? WHERE category = ?').run('Khác', 'other', catName);
     db.prepare('DELETE FROM expense_categories WHERE id = ?').run(id);
-    res.json({ success: true, message: 'Đã xóa loại chi phí.' });
+
+    // Notify all connected clients to refetch expenses (expenses changed)
+    socketServer.emitExpense('updated', { id: null, _categoryDeleted: catName });
+    res.json({ success: true, message: 'Đã xóa loại chi phí.', reassigned: catName });
   } catch (err) {
     logger.error('Error deleting expense category', { error: err.message });
     res.status(500).json({ error: 'Failed to delete expense category' });
