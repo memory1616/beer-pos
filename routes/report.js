@@ -1354,7 +1354,10 @@ router.get('/import-purchases', (req, res) => {
 router.get('/data', (req, res) => {
   const type = req.query.type || 'today';
   const month = req.query.month ? parseInt(req.query.month, 10) : null;
-  const year  = req.query.year  ? parseInt(req.query.year, 10)  : null;
+  const year  = req.query.year  ? parseInt(req.query.year,  10) : null;
+
+  console.log('[REPORT DATA] INCOMING:', { type, month, year });
+
   let startDate, endDate, todayKey;
 
   const now = new Date();
@@ -1368,7 +1371,7 @@ router.get('/data', (req, res) => {
     startDate = todayKey + ' 00:00:00';
     endDate   = todayKey + ' 23:59:59';
   } else if (type === 'yesterday') {
-    const yesterday = new Date(vn);
+    const yesterday = new Date(vn.getTime()); // ← clone, do NOT mutate vn
     yesterday.setUTCDate(yesterday.getUTCDate() - 1);
     const y = yesterday.getUTCFullYear();
     const m = String(yesterday.getUTCMonth() + 1).padStart(2, '0');
@@ -1379,13 +1382,10 @@ router.get('/data', (req, res) => {
     const y = year  || vnYear;
     const m = month || vnMonth;
     const lastDay = (m === 12) ? 31 : new Date(y, m, 0).getUTCDate();
-    console.log('[REPORT DATA] month range:', { y, m, lastDay });
-    console.log('[REPORT DATA] month range:', { y, m, lastDay });
     startDate = `${y}-${String(m).padStart(2, '0')}-01 00:00:00`;
     endDate   = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')} 23:59:59`;
   } else if (type === 'year') {
     const y = year || vnYear;
-    console.log('[REPORT DATA] year range:', { y });
     startDate = `${y}-01-01 00:00:00`;
     endDate   = `${y}-12-31 23:59:59`;
   } else {
@@ -1396,6 +1396,8 @@ router.get('/data', (req, res) => {
 
   const sd = startDate.split(' ')[0];
   const ed = endDate.split(' ')[0];
+
+  console.log('[REPORT DATA] RANGE:', { sd, ed, rawStart: startDate, rawEnd: endDate });
 
   // ── Sales ──────────────────────────────────────────────────────────────────
   const periodSales = db.prepare(`
