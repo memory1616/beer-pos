@@ -4,6 +4,15 @@ const db = require('../../database');
 const logger = require('../../src/utils/logger');
 const { deleteSaleRestoringInventory } = require('../../src/services/saleDelete');
 
+// ========== HELPER: Slug utilities ==========
+function toSlug(name) {
+  if (!name) return '';
+  return name.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s]/g, '')
+    .trim().replace(/\s+/g, '_');
+}
+
 // ============ OFFLINE-FIRST SYNC ============
 // Hệ thống đồng bộ đa thiết bị:
 // - Khi offline: ghi vào sync_queue local
@@ -250,13 +259,19 @@ function applySaleChange(action, entity_id, data) {
     if (data.items && Array.isArray(data.items)) {
       // Remove old items
       db.prepare('DELETE FROM sale_items WHERE sale_id = ?').run(entity_id);
-      // Insert new items
+      // Insert new items (include product_slug for readability)
       const insertItem = db.prepare(`
-        INSERT INTO sale_items (sale_id, product_id, quantity, price, cost_price, profit)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO sale_items (sale_id, product_id, product_slug, quantity, price, cost_price, profit, price_at_time)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `);
       data.items.forEach(item => {
-        insertItem.run(entity_id, item.product_id, item.quantity, item.price, item.cost_price, item.profit);
+        // Resolve product_slug if not provided
+        let pSlug = item.product_slug || null;
+        if (!pSlug && item.product_id) {
+          const prod = db.prepare('SELECT slug FROM products WHERE id = ?').get(item.product_id);
+          if (prod) pSlug = prod.slug;
+        }
+        insertItem.run(entity_id, item.product_id, pSlug, item.quantity, item.price, item.cost_price, item.profit, item.price || item.price_at_time);
       });
     }
 
@@ -315,9 +330,12 @@ function applyProductChange(action, entity_id, data) {
   if (action === 'create' || action === 'update') {
     const exists = db.prepare('SELECT id FROM products WHERE id = ?').get(entity_id);
     if (exists) {
-      const { name, stock, damaged_stock, cost_price, sell_price, type } = data;
+      const { name, slug, stock, damaged_stock, cost_price, sell_price, type } = data;
+      // Resolve slug: use provided slug, or generate from name
+      const finalSlug = slug || (name ? toSlug(name) : null);
       db.prepare(`
         UPDATE products SET
+          slug = COALESCE(?, slug),
           name = COALESCE(?, name),
           stock = COALESCE(?, stock),
           damaged_stock = COALESCE(?, damaged_stock),
@@ -326,13 +344,18 @@ function applyProductChange(action, entity_id, data) {
           type = COALESCE(?, type),
           updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-      `).run(name, stock, damaged_stock, cost_price, sell_price, type, entity_id);
+      `).run(finalSlug, name, stock, damaged_stock, cost_price, sell_price, type, entity_id);
+      // Update product_slug in prices table
+      if (finalSlug) {
+        db.prepare('UPDATE prices SET product_slug = ? WHERE product_id = ?').run(finalSlug, entity_id);
+      }
     } else {
-      const { name, stock = 0, damaged_stock = 0, cost_price, sell_price, type = 'keg' } = data;
+      const { name, slug, stock = 0, damaged_stock = 0, cost_price, sell_price, type = 'keg' } = data;
+      const finalSlug = slug || (name ? toSlug(name) : null);
       db.prepare(`
-        INSERT INTO products (id, name, stock, damaged_stock, cost_price, sell_price, type)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).run(entity_id, name, stock, damaged_stock, cost_price, sell_price, type);
+        INSERT INTO products (id, slug, name, stock, damaged_stock, cost_price, sell_price, type)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(entity_id, finalSlug, name, stock, damaged_stock, cost_price, sell_price, type);
     }
   } else if (action === 'delete') {
     db.prepare('DELETE FROM products WHERE id = ?').run(entity_id);

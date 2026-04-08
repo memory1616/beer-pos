@@ -3,47 +3,193 @@
 // formatVND, showToast đã được định nghĩa trong utils.js
 
 let products = [];
-let priceMap = {};
+let priceMap = {};       // { [customerId]: { [productId]: price, [productSlug]: price } }
 let customers = [];
 let editingSaleId = null;
 let saleData = {};
 const _LOW_STOCK_THRESHOLD = 30;
 
-// Sales history state (mirrors purchases.js pattern — primary data source)
-var allSales    = [];       // local array for optimistic insert
-var historyCurrentPage = 1; // page 1 default
+// ========== PRICE SYSTEM: Stable slug-based pricing ==========
 
-function syncSalesState(nextSales) {
-  allSales = Array.isArray(nextSales) ? nextSales.slice() : [];
-  window.store.sales = allSales;
-  return allSales;
-}
-
-async function refetchSalesHistory() {
-  await loadSalesHistory();
-}
-
-var HISTORY_PAGE_SIZE  = 5;
-
-/** PERFORMANCE: O(1) Maps — rebuilt once when data loads, reused for all lookups */
-let _productById  = new Map();
-let _customerById = new Map();
+// PERFORMANCE: O(1) Maps — rebuilt once when data loads, reused for all lookups
+let _productById   = new Map();  // id (number) → product object
+let _productBySlug = new Map();  // slug (string) → product object
+let _customerById  = new Map();
 
 function _rebuildMaps() {
   _productById.clear();
-  products.forEach(p => _productById.set(p.id, p));
+  _productBySlug.clear();
+  products.forEach(p => {
+    _productById.set(p.id, p);
+    if (p.slug) _productBySlug.set(p.slug, p);
+  });
   _customerById.clear();
   customers.forEach(c => _customerById.set(c.id, c));
+  console.log('[PRICE][_rebuildMaps] products:', _productById.size, 'slugs:', _productBySlug.size);
 }
 
 function getProduct(productId) {
+  if (!productId && productId !== 0) return null;
   return _productById.get(Number(productId)) || null;
+}
+
+function getProductBySlug(slug) {
+  if (!slug) return null;
+  return _productBySlug.get(String(slug)) || null;
 }
 
 function getCustomer(customerId) {
   if (!customerId) return null;
   return _customerById.get(Number(customerId)) || null;
 }
+
+// ========== CORE PRICING FUNCTION ==========
+// Priority: customer.priceMap by id → customer.priceMap by slug → product.sell_price (basePrice)
+// Never returns 0 unless all sources are missing/undefined.
+
+function getEffectivePrice(product, customerId) {
+  if (!product) {
+    console.warn('[PRICE][getEffectivePrice] WARN: null product');
+    return 0;
+  }
+
+  const pid = product.id;
+  const pslug = product.slug || '';
+  const cid = customerId ? String(customerId) : null;
+
+  // 1. Try customer priceMap (by numeric id)
+  if (cid && priceMap[cid]) {
+    const cmap = priceMap[cid];
+    if (cmap[pid] !== undefined && cmap[pid] !== null && cmap[pid] !== '') {
+      const p = Number(cmap[pid]);
+      if (Number.isFinite(p) && p > 0) {
+        console.log('[PRICE][getEffectivePrice] HIT by id:', product.name, 'pid=' + pid, 'cid=' + cid, '→', p);
+        return p;
+      }
+    }
+    // 2. Try customer priceMap by slug
+    if (cmap._bySlug && cmap._bySlug[pslug] !== undefined && cmap._bySlug[pslug] !== null && cmap._bySlug[pslug] !== '') {
+      const p = Number(cmap._bySlug[pslug]);
+      if (Number.isFinite(p) && p > 0) {
+        console.log('[PRICE][getEffectivePrice] HIT by slug:', product.name, 'slug=' + pslug, 'cid=' + cid, '→', p);
+        return p;
+      }
+    }
+  }
+
+  // 3. Fallback to product's base sell_price (retail price)
+  const base = product.sell_price != null ? Number(product.sell_price) : 0;
+  if (!Number.isFinite(base) || base <= 0) {
+    console.warn('[PRICE][getEffectivePrice] WARN: no price for "' + product.name + '" (id=' + pid + ', slug=' + pslug + '), falling back to 0. Set sell_price in DB!');
+    return 0;
+  }
+  console.log('[PRICE][getEffectivePrice] BASE price:', product.name, '→', base);
+  return base;
+}
+
+// ========== LEGACY COMPATIBILITY (kept for reference — do not use directly) ==========
+
+/** Giá bán mặc định từ sản phẩm */
+function effectiveSellPrice(p) {
+  if (!p) return 0;
+  const v = p.sell_price != null ? p.sell_price : p.price;
+  const n = Number(v);
+  const result = Number.isFinite(n) ? n : 0;
+  if (result === 0) {
+    console.warn('[PRICE][effectiveSellPrice] WARN: product "' + (p.name || p.id) + '" has sell_price=' + v + ' → returning 0');
+  }
+  return result;
+}
+
+/** Giá theo khách từ priceMap */
+function lookupPriceMap(customerId, productId) {
+  if (!customerId || customerId === '' || !priceMap) return undefined;
+  const row = priceMap[customerId] || priceMap[Number(customerId)];
+  if (!row) return undefined;
+  const v = row[productId] ?? row[Number(productId)];
+  if (v == null || v === '') return undefined;
+  const n = Number(v);
+  if (!Number.isFinite(n)) return undefined;
+  return n;
+}
+
+// ========== PRICE APPLICATION (called on customer change) ==========
+
+/**
+ * Áp giá hiển thị khi có khách.
+ * apiPrices: array of { product_id, price } from API (highest priority)
+ * Falls back to priceMap, then product.sell_price
+ */
+function applyResolvedPrices(customerId, apiPrices) {
+  if (!customerId) {
+    products.forEach(p => {
+      const defPrice = getEffectivePrice(p, null); // null = no customer = base price
+      p._displayPrice = defPrice;
+      if (saleData[p.id]) {
+        saleData[p.id].price = defPrice;
+      }
+    });
+    return;
+  }
+
+  const cid = String(customerId);
+  console.log('[PRICE][applyResolvedPrices] customerId:', customerId, '→', cid);
+
+  products.forEach(p => {
+    let resolvedPrice = null;
+
+    // Priority 1: API price (freshest from server)
+    if (Array.isArray(apiPrices)) {
+      const apiRow = apiPrices.find(x =>
+        x.product_id === p.id ||
+        x.product_id === String(p.id) ||
+        (p.slug && (x.product_slug === p.slug || x.productSlug === p.slug))
+      );
+      if (apiRow && apiRow.price != null && apiRow.price !== '') {
+        const p = Number(apiRow.price);
+        if (Number.isFinite(p) && p > 0) {
+          resolvedPrice = p;
+          console.log('[PRICE][applyResolvedPrices] [' + p.name + '] ← API:', p);
+        }
+      }
+    }
+
+    // Priority 2: priceMap from /sale/data
+    if (resolvedPrice === null && priceMap[cid]) {
+      const cmap = priceMap[cid];
+      // Try by numeric id
+      if (cmap[p.id] !== undefined && cmap[p.id] !== null && cmap[p.id] !== '') {
+        const pr = Number(cmap[p.id]);
+        if (Number.isFinite(pr) && pr > 0) resolvedPrice = pr;
+      }
+      // Try by slug
+      if (resolvedPrice === null && cmap._bySlug && p.slug) {
+        const pr = Number(cmap._bySlug[p.slug]);
+        if (Number.isFinite(pr) && pr > 0) resolvedPrice = pr;
+      }
+      if (resolvedPrice !== null) {
+        console.log('[PRICE][applyResolvedPrices] [' + p.name + '] ← priceMap:', resolvedPrice);
+      }
+    }
+
+    // Priority 3: product base sell_price (LAST RESORT — must be > 0)
+    if (resolvedPrice === null) {
+      resolvedPrice = getEffectivePrice(p, null); // null customer = base price
+      if (resolvedPrice > 0) {
+        console.log('[PRICE][applyResolvedPrices] [' + p.name + '] ← base:', resolvedPrice);
+      } else {
+        console.warn('[PRICE][applyResolvedPrices] [' + p.name + '] ← NO PRICE (will show 0!)');
+      }
+    }
+
+    p._displayPrice = resolvedPrice;
+    if (saleData[p.id] && saleData[p.id].price === 0) {
+      saleData[p.id].price = resolvedPrice;
+    }
+  });
+}
+
+// ========== DEBOUNCE & SYNC HELPERS ==========
 
 /** PERFORMANCE: Debounce — coalesces rapid keystrokes so updateSaleTotal runs once */
 function _debounce(fn, delay) {
@@ -67,102 +213,49 @@ function syncSaleEditAuxSheet() {
   }
 }
 
-/** Giá bán mặc định từ sản phẩm (SQLite / Dexie có thể dùng sell_price hoặc price) */
-function effectiveSellPrice(p) {
-  if (!p) return 0;
-  const v = p.sell_price != null ? p.sell_price : p.price;
-  const n = Number(v);
-  const result = Number.isFinite(n) ? n : 0;
-  if (result === 0) {
-    console.warn('[PRICE][effectiveSellPrice] WARN: product "' + (p.name || p.id) + '" has sell_price=' + v + ' (raw=' + JSON.stringify(v) + ') → returning 0. DB may be missing price data!');
-  }
-  return result;
+// Sales history state (mirrors purchases.js pattern — primary data source)
+var allSales    = [];       // local array for optimistic insert
+var historyCurrentPage = 1; // page 1 default
+
+function syncSalesState(nextSales) {
+  allSales = Array.isArray(nextSales) ? nextSales.slice() : [];
+  window.store.sales = allSales;
+  return allSales;
 }
 
-/** Giá theo khách từ payload /sale/data (không cần fetch thêm — tránh mobile lỗi 0 đ) */
-function lookupPriceMap(customerId, productId) {
-  if (!customerId || customerId === '' || !priceMap) return undefined;
-  // customerId từ DOM là string, nhưng priceMap keys từ SQLite là integer
-  const row = priceMap[customerId] || priceMap[Number(customerId)] || priceMap[String(customerId)];
-  if (!row) {
-    console.log('[PRICE][lookupPriceMap] MISS: no priceMap entry for customerId=' + customerId);
-    return undefined;
-  }
-  const v = row[productId] ?? row[Number(productId)] ?? row[String(productId)];
-  if (v == null || v === '') {
-    console.log('[PRICE][lookupPriceMap] MISS: no product price for productId=' + productId + ' in customer=' + customerId);
-    return undefined;
-  }
-  const n = Number(v);
-  if (!Number.isFinite(n)) return undefined;
-  console.log('[PRICE][lookupPriceMap] HIT: customerId=' + customerId + ', productId=' + productId + ' → ' + n);
-  return n;
+async function refetchSalesHistory() {
+  await loadSalesHistory();
 }
 
-/**
- * Áp giá hiển thị + saleData.price khi có khách.
- * apiPrices: null → chỉ dùng priceMap + sell_price; array → ưu tiên hàng từ API (mới nhất).
- */
-function applyResolvedPrices(customerId, apiPrices) {
-  if (!customerId) {
-    products.forEach(p => {
-      const defPrice = effectiveSellPrice(p);
-      p._displayPrice = defPrice;
-      if (saleData[p.id]) {
-        saleData[p.id].price = defPrice;
-      }
-    });
-    return;
-  }
-  const cidNum = Number(customerId);
-  const cidStr = String(customerId);
-  console.log('[PRICE][applyResolvedPrices] customerId:', customerId, '→ num:', cidNum, 'str:', cidStr);
-  console.log('[PRICE][applyResolvedPrices] priceMap keys:', Object.keys(priceMap || {}).slice(0, 10));
+var HISTORY_PAGE_SIZE  = 5;
 
-  products.forEach(p => {
-    let row = null;
-    if (Array.isArray(apiPrices)) {
-      row = apiPrices.find(x => x.product_id === p.id || x.product_id === String(p.id)) || null;
-    }
-    if (row && row.price != null && row.price !== '') {
-      const unit = Number(row.price) || 0;
-      p._displayPrice = unit;
-      saleData[p.id] = saleData[p.id] || { quantity: 0, price: unit };
-      saleData[p.id].price = unit;
-      console.log('[PRICE][applyResolvedPrices] [' + p.name + '] ← API price:', unit);
-      return;
-    }
-    // Thử cả string và number key vì SQLite id là integer nhưng DOM value là string
-    const mapped = lookupPriceMap(cidNum, p.id) ?? lookupPriceMap(cidStr, p.id) ?? lookupPriceMap(cidNum, String(p.id));
-    if (mapped != null) {
-      p._displayPrice = mapped;
-      saleData[p.id] = saleData[p.id] || { quantity: 0, price: mapped };
-      saleData[p.id].price = mapped;
-      console.log('[PRICE][applyResolvedPrices] [' + p.name + '] ← priceMap:', mapped);
-    } else {
-      const defPrice = effectiveSellPrice(p);
-      p._displayPrice = defPrice;
-      console.log('[PRICE][applyResolvedPrices] [' + p.name + '] ← sell_price fallback:', defPrice);
-    }
-  });
-}
+// ========== PAGE INITIALIZATION ==========
 
 function initSalesPage(data) {
   console.log('[Sales] initSalesPage START');
-  products = data.products;
-  customers = data.customers;
-  priceMap = data.priceMap || {};
-  console.log('[Sales] priceMap from server:', Object.keys(priceMap).length, 'customers with prices');
-  console.log('[Sales] priceMap sample keys:', Object.keys(priceMap).slice(0, 5));
-  console.log('[Sales] priceMap sample entry:', JSON.stringify(Object.entries(priceMap || {}).slice(0, 1)));
-  console.log('[Sales] products sample:', (data.products || []).slice(0, 2).map(p => ({ id: p.id, name: p.name, sell_price: p.sell_price })));
-  console.log('[Sales] products:', products.length, 'customers:', customers.length);
+  products = data.products || [];
+  customers = data.customers || [];
 
-  // PERFORMANCE: rebuild O(1) Maps once after data loads
+  // Rebuild priceMap with slug index
+  priceMap = {};
+  if (data.priceMap) {
+    Object.entries(data.priceMap).forEach(([cid, cmap]) => {
+      priceMap[String(cid)] = { ...cmap };
+      // If cmap has _bySlug already (from server), keep it
+      if (cmap._bySlug) priceMap[String(cid)]._bySlug = cmap._bySlug;
+    });
+  }
+
+  console.log('[Sales] priceMap from server:', Object.keys(priceMap).length, 'customers');
+  console.log('[Sales] products:', products.length, 'items');
+  if (products.length > 0) {
+    console.log('[Sales] products[0]:', JSON.stringify({ id: products[0].id, slug: products[0].slug, name: products[0].name, sell_price: products[0].sell_price }));
+  }
+
   _rebuildMaps();
   console.log('[Sales] _rebuildMaps DONE');
 
-  // Render customer select - include "Khach le" option
+  // Render customer select
   var customerSelect = document.getElementById('customerSelect');
   if (customerSelect) {
     customerSelect.innerHTML = '<option value="">📋 Khách lẻ (giá thường)</option>' +
@@ -170,8 +263,7 @@ function initSalesPage(data) {
   }
   console.log('[Sales] customerSelect rendered');
 
-  // Giá: ưu tiên priceMap cùng /sale/data, sau đó (nếu online) làm mới từ API
-  console.log('[Sales] calling updatePrices...');
+  // Apply prices — starts with no customer (base prices)
   updatePrices();
   console.log('[Sales] updatePrices DONE');
 
@@ -188,7 +280,7 @@ function initSalesPage(data) {
   console.log('[Sales] loadSalesHistory returned (async, will log when done)');
 
   syncSaleEditAuxSheet();
-  console.log('[Sales] initSalesPage DONE — syncSaleEditAuxSheet done');
+  console.log('[Sales] initSalesPage DONE');
 }
 
 // Global keg state for validation
@@ -352,12 +444,15 @@ function closeQtyModal() {
 function updateSaleData(productId, field, value) {
   if (!saleData[productId]) {
     const product = getProduct(productId);
+    const customerIdEl = document.getElementById('customerSelect');
+    const customerId = customerIdEl ? customerIdEl.value : '';
+    // Use getEffectivePrice which checks: customer price > base price
+    const initPrice = product ? getEffectivePrice(product, customerId) : 0;
     saleData[productId] = {
       quantity: 0,
-      price: (product && product._displayPrice != null && product._displayPrice !== '')
-        ? Number(product._displayPrice)
-        : effectiveSellPrice(product)
+      price: initPrice
     };
+    console.log('[Sales][updateSaleData] new item, product=' + (product ? product.name : 'unknown') + ', price=' + initPrice);
   }
   
   // STEP 6: Input validation - prevent NaN and invalid values
@@ -643,13 +738,15 @@ async function submitSale() {
   var customerIdEl = document.getElementById('customerSelect');
   var customerId = customerIdEl ? customerIdEl.value : '';
 
-  // Build items from saleData - STEP 5: Use priceAtTime for price snapshot
+  // Build items from saleData - include productSlug for stable reference
   var items = [];
   Object.keys(saleData).forEach(function(productId) {
     var item = saleData[productId];
     if (item.quantity > 0 && item.price > 0) {
+      var product = getProduct(productId);
       items.push({
         productId: parseInt(productId),
+        productSlug: product ? product.slug : null,
         quantity: item.quantity,
         price: item.price,
         priceAtTime: item.price
@@ -2103,8 +2200,10 @@ async function updateSale() {
   Object.keys(saleData).forEach(function(productId) {
     var item = saleData[productId];
     if (item.quantity > 0 && item.price > 0) {
+      var product = getProduct(productId);
       items.push({
         productId: parseInt(productId),
+        productSlug: product ? product.slug : null,
         quantity: item.quantity,
         price: item.price
       });

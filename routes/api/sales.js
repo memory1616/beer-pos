@@ -7,6 +7,51 @@ const { updateCustomerKegBalance } = require('./payments');
 const { deleteSaleRestoringInventory } = require('../../src/services/saleDelete');
 const socketServer = require('../../src/socket/socketServer');
 
+// ========== HELPER: Resolve product by id (numeric) or slug ==========
+function resolveProduct(query) {
+  if (!query) return null;
+  const numId = parseInt(query);
+  if (!isNaN(numId) && numId > 0) {
+    return db.prepare('SELECT * FROM products WHERE id = ?').get(numId);
+  }
+  return db.prepare('SELECT * FROM products WHERE slug = ?').get(String(query));
+}
+
+// ========== HELPER: Build priceMap for a customer (productId → price) ==========
+// Returns { [productId]: price, [productSlug]: price }
+function buildPriceMapForCustomer(customerId, productIds) {
+  if (!customerId || !productIds || productIds.length === 0) return { byId: {}, bySlug: {} };
+  const placeholders = productIds.map(() => '?').join(',');
+  const rows = db.prepare(`
+    SELECT pr.product_id, pr.product_slug, pr.price
+    FROM prices pr
+    WHERE pr.customer_id = ? AND pr.product_id IN (${placeholders})
+  `).all(customerId, ...productIds);
+  const byId = {};
+  const bySlug = {};
+  rows.forEach(r => {
+    if (r.product_id) byId[r.product_id] = r.price;
+    if (r.product_slug) bySlug[r.product_slug] = r.price;
+  });
+  return { byId, bySlug };
+}
+
+// ========== HELPER: Get effective price ==========
+// Priority: 1. customer priceMap by id → 2. customer priceMap by slug → 3. product.sell_price
+function getEffectivePrice(product, priceMap) {
+  // 1. Customer price by numeric product ID
+  if (priceMap.byId[product.id] !== undefined) {
+    return priceMap.byId[product.id];
+  }
+  // 2. Customer price by product slug
+  if (product.slug && priceMap.bySlug[product.slug] !== undefined) {
+    return priceMap.bySlug[product.slug];
+  }
+  // 3. Fallback to product's base retail price
+  const basePrice = product.sell_price || product.price || 0;
+  return basePrice;
+}
+
 // Helper function to validate sale input
 function validateSaleInput(body) {
   const errors = [];
@@ -60,8 +105,8 @@ router.post('/', (req, res) => {
     return res.status(400).json({ error: 'Danh sách sản phẩm trống' });
   }
   for (let i = 0; i < items.length; i++) {
-    if (!items[i].productId) {
-      return res.status(400).json({ error: `Sản phẩm thứ ${i + 1}: Thiếu mã sản phẩm` });
+    if (!items[i].productId && !items[i].productSlug) {
+      return res.status(400).json({ error: `Sản phẩm thứ ${i + 1}: Thiếu mã sản phẩm (productId hoặc productSlug)` });
     }
     if (!items[i].quantity || items[i].quantity <= 0) {
       return res.status(400).json({ error: `Sản phẩm thứ ${i + 1}: Số lượng phải lớn hơn 0` });
@@ -75,34 +120,41 @@ router.post('/', (req, res) => {
     let profit = 0;
     const saleItems = [];
 
-    // Pre-load all products in ONE query instead of N queries inside loop
-    const productIds = items.map(i => i.productId);
+    // Pre-load all products in ONE query (resolve by id or slug)
+    const productQueries = items.map(i => i.productId || i.productSlug).filter(Boolean);
     const productMap = {};
-    if (productIds.length > 0) {
-      const placeholders = productIds.map(() => '?').join(',');
-      const products = db.prepare(`SELECT * FROM products WHERE id IN (${placeholders})`).all(...productIds);
-      products.forEach(p => { productMap[p.id] = p; });
+    if (productQueries.length > 0) {
+      // Build OR condition: id IN (...) OR slug IN (...)
+      const uniqueQueries = [...new Set(productQueries)];
+      const conditions = uniqueQueries.map(() => {
+        const num = parseInt(q => q);
+        return !isNaN(num) && num > 0 ? 'id = ?' : 'slug = ?';
+      });
+      // Actually let's do a simple approach: get all products, filter in memory
+      const allProducts = db.prepare('SELECT * FROM products').all();
+      allProducts.forEach(p => { productMap[p.id] = p; productMap[p.slug] = p; });
     }
 
-    // Pre-load all customer prices in ONE query instead of N queries inside loop
-    let priceMap = {};
-    if (customerId && productIds.length > 0) {
-      const placeholders = productIds.map(() => '?').join(',');
-      const priceRows = db.prepare(`SELECT product_id, price FROM prices WHERE customer_id = ? AND product_id IN (${placeholders})`).all(customerId, ...productIds);
-      priceRows.forEach(r => { priceMap[r.product_id] = r.price; });
-    }
+    // Pre-load customer prices in ONE query
+    const productIds = items.map(i => {
+      const prod = productMap[i.productId || i.productSlug];
+      return prod ? prod.id : null;
+    }).filter(Boolean);
+    const priceMap = customerId ? buildPriceMapForCustomer(customerId, productIds) : { byId: {}, bySlug: {} };
 
     // Get customer's current keg balance (if customerId is provided)
     let currentKegBalance = 0;
     let newKegBalance = 0;
 
     for (const item of items) {
-      const product = productMap[item.productId];
-      if (!product) return res.status(400).json({ error: 'Product not found: ' + item.productId });
-      // Allow negative stock
+      const queryKey = item.productId || item.productSlug;
+      const product = productMap[queryKey];
+      if (!product) return res.status(400).json({ error: 'Không tìm thấy sản phẩm: ' + queryKey });
 
-      // Use customer price if available, otherwise use provided or default price
-      let price = priceMap[item.productId] || item.price || product.sell_price || 0;
+      // Determine effective price: customer price > product sell_price > 0
+      const price = item.price !== undefined && item.price !== null && item.price > 0
+        ? item.price
+        : getEffectivePrice(product, priceMap);
 
       const costPrice = product.cost_price || 0;
       const itemProfit = (price - costPrice) * item.quantity;
@@ -111,7 +163,8 @@ router.post('/', (req, res) => {
       profit += itemProfit;
 
       saleItems.push({
-        productId: item.productId,
+        productId: product.id,
+        productSlug: product.slug,
         productName: product.name,
         quantity: item.quantity,
         price: price,
@@ -151,7 +204,8 @@ router.post('/', (req, res) => {
       // Update products and insert sale_items (reuse pre-loaded data — no extra queries)
       for (const item of saleItems) {
         db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(item.quantity, item.productId);
-        db.prepare('INSERT INTO sale_items (sale_id, product_id, quantity, price, cost_price, profit, price_at_time) VALUES (?, ?, ?, ?, ?, ?, ?)').run(saleId, item.productId, item.quantity, item.price, item.cost_price, item.profit, item.price);
+        db.prepare('INSERT INTO sale_items (sale_id, product_id, product_slug, quantity, price, cost_price, profit, price_at_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+          .run(saleId, item.productId, item.productSlug, item.quantity, item.price, item.cost_price, item.profit, item.price);
       }
 
       // ========== HARD VALIDATION: verify ALL sale_items were inserted ==========
@@ -342,7 +396,7 @@ router.get('/:id', (req, res) => {
   const sale = db.prepare(`SELECT s.*, COALESCE(c.name, 'Khách lẻ') as customer_name FROM sales s LEFT JOIN customers c ON s.customer_id = c.id WHERE s.id = ?`).get(req.params.id);
   if (!sale) return res.status(404).json({ error: 'Not found' });
   const items = db.prepare(`
-    SELECT si.*, p.name, p.type
+    SELECT si.*, p.name, p.slug as product_slug, p.type
     FROM sale_items si
     JOIN products p ON p.id = si.product_id
     WHERE si.sale_id = ?
@@ -711,57 +765,54 @@ router.delete('/:id', (req, res) => {
 router.put('/:id', (req, res) => {
   const saleId = req.params.id;
   const { items, customerId } = req.body;
-  
+
   try {
     const currentSale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId);
     if (!currentSale) return res.status(404).json({ error: 'Không tìm thấy hóa đơn' });
-    
+
     const oldItems = db.prepare('SELECT * FROM sale_items WHERE sale_id = ?').all(saleId);
-    
+
     // Hoàn kho cũ (chỉ với hóa đơn bán, không với đổi bia lỗi)
     if (currentSale.type === 'sale') {
       for (const item of oldItems) {
         db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(item.quantity, item.product_id);
       }
     }
-    
+
     // Xóa các sale_items cũ
     db.prepare('DELETE FROM sale_items WHERE sale_id = ?').run(saleId);
-    
+
     // Thêm các sản phẩm mới
     let newTotal = 0;
     let newProfit = 0;
-    
+
     for (const item of items) {
-      const product = db.prepare('SELECT * FROM products WHERE id = ?').get(item.productId);
-      // Allow negative stock
-      
+      const queryKey = item.productId || item.productSlug;
+      const product = resolveProduct(queryKey);
+      if (!product) return res.status(400).json({ error: 'Không tìm thấy sản phẩm: ' + queryKey });
+
       // Trừ kho (chỉ với hóa đơn bán)
       if (currentSale.type === 'sale') {
-        db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(item.quantity, item.productId);
+        db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(item.quantity, product.id);
       }
-      
-      // Use provided price or fallback to sell_price
+
+      // Determine effective price: customer price > item.price > sell_price
       let price = item.price || product.sell_price || 0;
-      
-      // If customer has custom price, use that instead
       if (customerId) {
-        const priceRecord = db.prepare('SELECT * FROM prices WHERE customer_id = ? AND product_id = ?').get(customerId, item.productId);
-        if (priceRecord) {
-          price = priceRecord.price;
-        }
+        const priceRecord = db.prepare('SELECT price FROM prices WHERE customer_id = ? AND product_id = ?').get(customerId, product.id);
+        if (priceRecord && priceRecord.price > 0) price = priceRecord.price;
       }
-      
+
       const costPrice = product.cost_price || 0;
       const itemProfit = (price - costPrice) * item.quantity;
 
       newTotal += price * item.quantity;
       newProfit += itemProfit;
 
-      // STEP 5: Store price_at_time for price snapshot
-      db.prepare('INSERT INTO sale_items (sale_id, product_id, quantity, price, cost_price, profit, price_at_time) VALUES (?, ?, ?, ?, ?, ?, ?)').run(saleId, item.productId, item.quantity, price, costPrice, itemProfit, price);
+      db.prepare('INSERT INTO sale_items (sale_id, product_id, product_slug, quantity, price, cost_price, profit, price_at_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(saleId, product.id, product.slug, item.quantity, price, costPrice, itemProfit, price);
     }
-    
+
     // Cập nhật hóa đơn
     db.prepare('UPDATE sales SET customer_id = ?, total = ?, profit = ? WHERE id = ?').run(customerId, newTotal, newProfit, saleId);
 
@@ -769,8 +820,8 @@ router.put('/:id', (req, res) => {
     socketServer.emitOrderUpdated(updatedSale);
     res.json({ success: true, total: newTotal, profit: newProfit });
   } catch (err) {
-    logger.error('Create replacement error', { error: err.message });
-    res.status(500).json({ error: 'Cập nhật thất bại' });
+    logger.error('Update sale error', { error: err.message });
+    res.status(500).json({ error: 'Cập nhật thất bại: ' + err.message });
   }
 });
 

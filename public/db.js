@@ -14,7 +14,7 @@
 // because ALL contexts use the SAME version number from ONE source.
 // ─────────────────────────────────────────────────────
 
-const DB_VERSION = 36; // ← bump khi schema thay đổi (v36: createdAt index đã có từ v31)
+const DB_VERSION = 37; // ← bump khi schema thay đổi (v37: thêm slug và sell_price vào products)
 
 const DB_NAME    = 'BeerPOS';
 const STORE_META = '_meta';
@@ -103,6 +103,26 @@ if (window._dbInitialized) {
       } else if (!(sale.createdAt instanceof Date)) {
         sale.createdAt = new Date();
       }
+    });
+  });
+
+  // v37: thêm slug và sell_price vào products (stable product ID + retail price)
+  _db.version(37).stores({
+    customers:   '++id, name, phone, deposit, keg_balance, archived, synced',
+    products:    '++id, name, slug, stock, cost_price, sell_price, synced',
+    sales:       '++id, createdAt, customer_id, date, total, profit, synced, distance_km, duration_min, route_index, route_polyline',
+    sale_items:  '++id, sale_id, product_id, product_slug, quantity, price, synced',
+    sync_queue:  '++id, entity, action, data, url, method, synced, created_at, retry_count',
+    expenses:    '++id, type, amount, note, date, synced'
+  }).upgrade(tx => {
+    // Add slug field to existing products
+    return tx.table('products').toCollection().modify(p => {
+      if (p.slug === undefined) p.slug = null;
+      if (p.sell_price === undefined) p.sell_price = null;
+    });
+    // Add product_slug field to existing sale_items
+    return tx.table('sale_items').toCollection().modify(si => {
+      if (si.product_slug === undefined) si.product_slug = null;
     });
   });
 
@@ -204,6 +224,7 @@ if (window._dbInitialized) {
         await _db.sale_items.add({
           sale_id:    saleId,
           product_id: item.productId,
+          product_slug: item.productSlug || null,
           quantity:   item.quantity,
           price:      item.price || 0,
           cost_price: item.costPrice || 0,
@@ -457,12 +478,18 @@ if (window._dbInitialized) {
         for (const p of data.products) {
           const ex = await _db.products.get(p.id);
           if (ex) {
-            if (p.stock > ex.stock) {
-              await _db.products.update(p.id, { stock: p.stock, synced: 1 });
+            // Sync: stock, slug, sell_price
+            const updates = {};
+            if (p.stock > ex.stock) updates.stock = p.stock;
+            if (p.slug !== undefined && p.slug !== ex.slug) updates.slug = p.slug;
+            if (p.sell_price !== undefined && p.sell_price !== ex.sell_price) updates.sell_price = p.sell_price;
+            updates.synced = 1;
+            if (Object.keys(updates).length > 1) { // more than just synced:1
+              await _db.products.update(p.id, updates);
               imported++;
             }
           } else {
-            toAdd.push({ ...p, synced: 1 });
+            toAdd.push({ id: p.id, name: p.name, slug: p.slug || null, stock: p.stock || 0, cost_price: p.cost_price || 0, sell_price: p.sell_price || null, synced: 1 });
             imported++;
           }
         }

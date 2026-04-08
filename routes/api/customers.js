@@ -152,11 +152,35 @@ router.post('/', (req, res) => {
     }
 
     // Save prices if provided
+    // prices: { productId: price } or { productSlug: price } or both
     if (prices && typeof prices === 'object') {
-      const insertPrice = db.prepare('INSERT OR REPLACE INTO prices (customer_id, product_id, price) VALUES (?, ?, ?)');
-      for (const [productId, price] of Object.entries(prices)) {
-        if (price && !isNaN(parseFloat(price))) {
-          insertPrice.run(customerId, parseInt(productId), parseFloat(price));
+      const insertPrice = db.prepare('INSERT OR REPLACE INTO prices (customer_id, product_id, product_slug, price) VALUES (?, ?, ?, ?)');
+      for (const [key, price] of Object.entries(prices)) {
+        if (!price || isNaN(parseFloat(price))) continue;
+
+        // Check if key is numeric (product ID) or string (slug)
+        const numKey = parseInt(key);
+        let prodId = null;
+        let prodSlug = null;
+
+        if (!isNaN(numKey) && numKey > 0) {
+          // Numeric key = product ID
+          const product = db.prepare('SELECT slug FROM products WHERE id = ?').get(numKey);
+          if (product) {
+            prodId = numKey;
+            prodSlug = product.slug;
+          }
+        } else {
+          // String key = product slug
+          const product = db.prepare('SELECT id, slug FROM products WHERE slug = ?').get(key);
+          if (product) {
+            prodId = product.id;
+            prodSlug = product.slug;
+          }
+        }
+
+        if (prodId) {
+          insertPrice.run(customerId, prodId, prodSlug, parseFloat(price));
         }
       }
     }

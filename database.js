@@ -128,6 +128,7 @@ db.exec(`
   -- Products table
   CREATE TABLE IF NOT EXISTS products (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    slug TEXT UNIQUE,
     name TEXT NOT NULL,
     stock INTEGER DEFAULT 0,
     damaged_stock INTEGER DEFAULT 0,
@@ -373,6 +374,105 @@ try {
   db.exec(`ALTER TABLE products ADD COLUMN type TEXT DEFAULT 'keg'`);
 } catch (e) {
   // Column already exists, ignore
+}
+
+// Migration: Add sell_price column to products (retail price fallback when prices table has no entry)
+try {
+  db.exec(`ALTER TABLE products ADD COLUMN sell_price REAL DEFAULT 0`);
+} catch (e) {
+  // Column already exists, ignore
+}
+
+// Migration: Add slug column to products (stable string ID replacing auto-increment)
+// Also add slug to prices and sale_items so the chain stays consistent
+try {
+  db.exec(`ALTER TABLE products ADD COLUMN slug TEXT`);
+} catch (e) {
+  // Column already exists, ignore
+}
+
+// Migration: Add product_slug to prices (string-based product reference)
+try {
+  db.exec(`ALTER TABLE prices ADD COLUMN product_slug TEXT`);
+} catch (e) {
+  // Column already exists, ignore
+}
+
+// Migration: Add product_slug to sale_items (for historical records to stay readable)
+try {
+  db.exec(`ALTER TABLE sale_items ADD COLUMN product_slug TEXT`);
+} catch (e) {
+  // Column already exists, ignore
+}
+
+// Populate slug from product name for existing products (slug = lowercase, spaces→underscores, strip diacritics)
+function toSlug(name) {
+  if (!name) return '';
+  return name.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s]/g, '')
+    .trim().replace(/\s+/g, '_');
+}
+
+// Seed slug for existing products without slug
+try {
+  const productsNeedingSlug = db.prepare("SELECT id, name FROM products WHERE slug IS NULL OR slug = ''").all();
+  const updateSlug = db.prepare('UPDATE products SET slug = ? WHERE id = ?');
+  productsNeedingSlug.forEach(function(p) {
+    var slug = toSlug(p.name);
+    if (slug) {
+      updateSlug.run(slug, p.id);
+      console.log('[DB][MIGRATION] Assigned slug "' + slug + '" to product id=' + p.id + ' ("' + p.name + '")');
+    }
+  });
+  if (productsNeedingSlug.length > 0) {
+    console.log('[DB][MIGRATION] Seeded ' + productsNeedingSlug.length + ' product slugs');
+  }
+} catch (e) {
+  console.log('[DB][MIGRATION] slug seed error:', e.message);
+}
+
+// Seed product_slug in prices table (backfill from product slug)
+try {
+  var updatedPrices = 0;
+  var priceRows = db.prepare("SELECT pr.id, p.slug FROM prices pr JOIN products p ON pr.product_id = p.id WHERE pr.product_slug IS NULL OR pr.product_slug = ''").all();
+  var updatePriceSlug = db.prepare('UPDATE prices SET product_slug = ? WHERE id = ?');
+  priceRows.forEach(function(r) {
+    if (r.slug) {
+      updatePriceSlug.run(r.slug, r.id);
+      updatedPrices++;
+    }
+  });
+  if (updatedPrices > 0) {
+    console.log('[DB][MIGRATION] Seeded product_slug in ' + updatedPrices + ' price rows');
+  }
+} catch (e) {
+  console.log('[DB][MIGRATION] prices.product_slug seed error:', e.message);
+}
+
+// Seed product_slug in sale_items table (backfill from product slug)
+try {
+  var updatedItems = 0;
+  var itemRows = db.prepare("SELECT si.id, p.slug FROM sale_items si JOIN products p ON si.product_id = p.id WHERE si.product_slug IS NULL OR si.product_slug = ''").all();
+  var updateItemSlug = db.prepare('UPDATE sale_items SET product_slug = ? WHERE id = ?');
+  itemRows.forEach(function(r) {
+    if (r.slug) {
+      updateItemSlug.run(r.slug, r.id);
+      updatedItems++;
+    }
+  });
+  if (updatedItems > 0) {
+    console.log('[DB][MIGRATION] Seeded product_slug in ' + updatedItems + ' sale_item rows');
+  }
+} catch (e) {
+  console.log('[DB][MIGRATION] sale_items.product_slug seed error:', e.message);
+}
+
+// Ensure unique slug constraint on products
+try {
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_products_slug ON products(slug)');
+} catch (e) {
+  // Index may already exist
 }
 
 // Customer monthly summary — DENORMALIZED, removed (replaced by real-time query on sales)
@@ -931,3 +1031,4 @@ function logKegTransaction(type, quantity, state, opts = {}) {
 module.exports = db;
 module.exports.getVietnamDateStr = getVietnamDateStr;
 module.exports.logKegTransaction = logKegTransaction;
+module.exports.toSlug = toSlug;
