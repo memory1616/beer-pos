@@ -350,6 +350,39 @@
 
     // Auto load on page ready
     loadReport();
+
+    // Realtime sync: refresh when data changes
+    var _reportDebounceTimer = null;
+    function queueReportRefresh(reason) {
+      if (_reportDebounceTimer) clearTimeout(_reportDebounceTimer);
+      _reportDebounceTimer = setTimeout(function() {
+        console.log('[REPORT] Realtime refresh triggered:', reason);
+        loadReport();
+      }, 500);
+    }
+
+    // Listen for data mutation events from realtime.js
+    window.addEventListener('data:mutated', function(evt) {
+      var detail = evt && evt.detail ? evt.detail : {};
+      var entity = detail.entity || '';
+      // Refresh on sales, purchases, or any data change
+      if (['sales', 'purchases', 'expenses', 'products', 'customers', 'mutation'].indexOf(entity) !== -1 || !entity) {
+        queueReportRefresh(entity || 'data change');
+      }
+    });
+
+    // Listen for SW messages (offline sync)
+    if (navigator.serviceWorker) {
+      navigator.serviceWorker.addEventListener('message', function(event) {
+        var data = event && event.data ? event.data : {};
+        if (data.type === 'DATA_INVALIDATED') {
+          var path = data.path || '';
+          if (path.indexOf('/report') === 0 || path.indexOf('/sale') === 0 || !path) {
+            queueReportRefresh('SW invalidation: ' + path);
+          }
+        }
+      });
+    }
   </script>
 </body>
 </html>
