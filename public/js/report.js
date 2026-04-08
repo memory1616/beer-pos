@@ -217,35 +217,54 @@ function switchReportTab(tab) {
 }
 
 // ── Date range helpers (Vietnam UTC+7) ──────────────────────────────────────────
+// ── Vietnam date helpers (UTC+7) ────────────────────────────────────────────────
 function getVietnamNow() {
   return new Date(new Date().getTime() + 7 * 3600000);
 }
 
-function toDateStr(d) {
-  return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0');
-}
-
+// Return {start, end} as UTC+7 Date objects for IndexedDB .between()
 function getFilterRange() {
   var vn = getVietnamNow();
-  var start, end;
+  var y = vn.getUTCFullYear();
+  var m = vn.getUTCMonth();
+  var d = vn.getUTCDate();
+
   if (_filterType === 'today') {
-    start = end = toDateStr(vn);
-  } else if (_filterType === 'yesterday') {
-    var y = new Date(vn.getTime());
-    y.setUTCDate(y.getUTCDate() - 1);
-    start = end = toDateStr(y);
-  } else if (_filterType === 'month') {
-    var ym = _selectedYear || vn.getUTCFullYear();
-    var mm = _selectedMonth || (vn.getUTCMonth() + 1);
-    start = ym + '-' + String(mm).padStart(2, '0') + '-01';
-    var lastDay = new Date(ym, mm, 0).getUTCDate();
-    end = ym + '-' + String(mm).padStart(2, '0') + '-' + String(lastDay).padStart(2, '0');
-  } else if (_filterType === 'year') {
-    var yy = _selectedYear || vn.getUTCFullYear();
-    start = yy + '-01-01';
-    end   = yy + '-12-31';
+    return {
+      start: new Date(Date.UTC(y, m, d, 0, 0, 0, 0) - 7 * 3600000),
+      end:   new Date(Date.UTC(y, m, d, 23, 59, 59, 999) - 7 * 3600000)
+    };
   }
-  return { start: new Date(start + 'T00:00:00+07:00'), end: new Date(end + 'T23:59:59+07:00') };
+  if (_filterType === 'yesterday') {
+    var yesterday = new Date(Date.UTC(y, m, d) - 8 * 3600000);
+    yesterday.setDate(yesterday.getDate() - 1);
+    var yY = yesterday.getUTCFullYear(), yM = yesterday.getUTCMonth(), yD = yesterday.getUTCDate();
+    return {
+      start: new Date(Date.UTC(yY, yM, yD, 0, 0, 0, 0) - 7 * 3600000),
+      end:   new Date(Date.UTC(yY, yM, yD, 23, 59, 59, 999) - 7 * 3600000)
+    };
+  }
+  if (_filterType === 'month') {
+    var ym = _selectedYear  || y;
+    var mm = _selectedMonth || (m + 1);
+    var lastD = new Date(Date.UTC(ym, mm, 0)).getUTCDate();
+    return {
+      start: new Date(Date.UTC(ym, mm - 1, 1, 0, 0, 0, 0) - 7 * 3600000),
+      end:   new Date(Date.UTC(ym, mm - 1, lastD, 23, 59, 59, 999) - 7 * 3600000)
+    };
+  }
+  if (_filterType === 'year') {
+    var yy = _selectedYear || y;
+    return {
+      start: new Date(Date.UTC(yy, 0, 1, 0, 0, 0, 0) - 7 * 3600000),
+      end:   new Date(Date.UTC(yy, 11, 31, 23, 59, 59, 999) - 7 * 3600000)
+    };
+  }
+  // Default: today
+  return {
+    start: new Date(Date.UTC(y, m, d, 0, 0, 0, 0) - 7 * 3600000),
+    end:   new Date(Date.UTC(y, m, d, 23, 59, 59, 999) - 7 * 3600000)
+  };
 }
 
 // ── IndexedDB client-side report loader ────────────────────────────────────────
@@ -312,11 +331,11 @@ async function loadReportFromIndexedDB() {
 function loadReport() {
   console.log('[REPORT] filter:', { type: _filterType, month: _selectedMonth, year: _selectedYear });
 
-  // Offline: use IndexedDB
-  if (!navigator.onLine) {
+  // Always use IndexedDB (client-side filtering with createdAt index)
+  if (window.db && window.dbReady) {
     loadReportFromIndexedDB().then(function(data) {
       if (data) {
-        console.log('[REPORT] loaded from IndexedDB:', data.totalOrders, 'orders');
+        console.log('[REPORT] FILTERED LENGTH:', data.totalOrders);
         _reportData = data;
         updateSummary(data);
         renderChart(data);
@@ -329,6 +348,7 @@ function loadReport() {
     return;
   }
 
+  // Fallback: server-side (only if IndexedDB not available)
   var url = '/report/data?type=' + _filterType;
   if (_filterType === 'month') {
     url += '&month=' + _selectedMonth + '&year=' + _selectedYear;
