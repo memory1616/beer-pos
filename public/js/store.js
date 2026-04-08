@@ -57,13 +57,13 @@ const BeerStore = {
    */
   async _fetchTodayData() {
     try {
-      // Fetch today's expenses
-      const expenseRes = await fetch('/api/expenses/today');
+      // Fetch today's expenses — use cache: 'no-store' to always get fresh data
+      const expenseRes = await fetch('/api/expenses/today', { cache: 'no-store' });
       const expenseData = await expenseRes.json();
       this._state.expenses = expenseData.expenses || [];
-      
-      // Fetch today's sales
-      const salesRes = await fetch('/api/sales?page=1&limit=100&month=' + new Date().toISOString().slice(0, 7));
+
+      // Fetch today's sales — use cache: 'no-store' to always get fresh data
+      const salesRes = await fetch('/api/sales?page=1&limit=100&month=' + new Date().toISOString().slice(0, 7), { cache: 'no-store' });
       const salesData = await salesRes.json();
       this._state.orders = salesData.sales || [];
       
@@ -138,11 +138,12 @@ const BeerStore = {
    */
   async addOrder(orderData) {
     try {
-      // Save to server
+      // Save to server — use cache: 'no-store' to ensure fresh data
       const res = await fetch('/api/sales', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(orderData)
+        body: JSON.stringify(orderData),
+        cache: 'no-store'
       });
       
       if (!res.ok) {
@@ -180,11 +181,12 @@ const BeerStore = {
    */
   async addExpense(expenseData) {
     try {
-      // Save to server
+      // Save to server — use cache: 'no-store' to ensure fresh data
       const res = await fetch('/api/expenses', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(expenseData)
+        body: JSON.stringify(expenseData),
+        cache: 'no-store'
       });
       
       if (!res.ok) {
@@ -281,6 +283,7 @@ const BeerStore = {
 
   async invalidateAndRefresh(label) {
     try {
+      // Step 1: Clear ALL browser caches that might contain stale API data
       if (typeof caches !== 'undefined') {
         const cacheNames = await caches.keys();
         for (const cacheName of cacheNames) {
@@ -298,11 +301,31 @@ const BeerStore = {
           }));
         }
       }
+
+      // Step 2: Clear Service Worker IndexedDB cache entries
+      try {
+        const swDb = indexedDB.open('BeerPOS', 1);
+        swDb.onsuccess = () => {
+          const db = swDb.result;
+          // Delete cached data in sync_queue store if exists
+          if (db.objectStoreNames.contains('sync_queue')) {
+            const tx = db.transaction('sync_queue', 'readwrite');
+            tx.objectStore('sync_queue').clear();
+          }
+          db.close();
+        };
+      } catch (e) { /* silent */ }
+
+      // Step 3: Clear localStorage caches
+      this._state.orders = [];
+      this._state.expenses = [];
+      this._state.session = null;
+
+      // Step 4: Reload page to ensure fresh state
+      window.location.reload();
     } catch (e) {
       console.warn('[CONSISTENCY][Store] cache invalidate failed', label || '', e);
     }
-
-    await this.refresh();
   },
   
   /**

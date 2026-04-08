@@ -188,11 +188,12 @@ app.use(cookieParser());
 app.use(compression());
 // Dynamic JSON "page data" — must not be cached by browsers/CDN (PWA SW used to cache these)
 app.use((req, res, next) => {
-  // req.path is relative to this middleware's mount point; for top-level app.use it equals the full path
   const fullPath = req.baseUrl ? req.baseUrl + req.path : req.path;
-  if (req.method === 'GET' && fullPath.endsWith('/data')) {
+  // /data endpoints + all /api/* routes must never be cached
+  if (req.method === 'GET' && (fullPath.endsWith('/data') || fullPath.startsWith('/api/'))) {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
   }
   next();
 });
