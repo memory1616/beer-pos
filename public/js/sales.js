@@ -124,12 +124,15 @@ function applyResolvedPrices(customerId, apiPrices) {
 }
 
 function initSalesPage(data) {
+  console.log('[Sales] initSalesPage START');
   products = data.products;
   customers = data.customers;
   priceMap = data.priceMap || {};
+  console.log('[Sales] products:', products.length, 'customers:', customers.length);
 
   // PERFORMANCE: rebuild O(1) Maps once after data loads
   _rebuildMaps();
+  console.log('[Sales] _rebuildMaps DONE');
 
   // Render customer select - include "Khach le" option
   var customerSelect = document.getElementById('customerSelect');
@@ -137,20 +140,27 @@ function initSalesPage(data) {
     customerSelect.innerHTML = '<option value="">📋 Khách lẻ (giá thường)</option>' +
       customers.map(function(c) { return '<option value="' + c.id + '">' + c.name + ' (' + c.keg_balance + ' bình)</option>'; }).join('');
   }
+  console.log('[Sales] customerSelect rendered');
 
   // Giá: ưu tiên priceMap cùng /sale/data, sau đó (nếu online) làm mới từ API
+  console.log('[Sales] calling updatePrices...');
   updatePrices();
+  console.log('[Sales] updatePrices DONE');
 
   // Load keg state for inventory validation
+  console.log('[Sales] fetching /api/kegs/state...');
   fetch('/api/kegs/state')
-    .then(function(res) { return res.json(); })
-    .then(function(state) { kegState = state || {}; })
+    .then(function(res) { console.log('[Sales] /api/kegs/state response:', res.status); return res.json(); })
+    .then(function(state) { kegState = state || {}; console.log('[Sales] kegState loaded:', Object.keys(kegState).length, 'entries'); })
     .catch(function() { kegState = {}; });
 
   // Load history
+  console.log('[Sales] calling loadSalesHistory...');
   loadSalesHistory();
+  console.log('[Sales] loadSalesHistory returned (async, will log when done)');
 
   syncSaleEditAuxSheet();
+  console.log('[Sales] initSalesPage DONE — syncSaleEditAuxSheet done');
 }
 
 // Global keg state for validation
@@ -1461,11 +1471,14 @@ function patchSaleRow(sale) {
 }
 
 async function loadSalesHistory() {
+  console.log('[Sales] loadSalesHistory START');
   const { page, limit, month } = salesPagination;
   const monthParam = month !== 'all' ? `&month=${month}` : '';
   let data;
   try {
+    console.log('[Sales] fetching /api/sales?page=' + page + '&limit=' + limit + monthParam);
     const res = await fetch(`/api/sales?page=${page}&limit=${limit}${monthParam}`, { cache: 'no-store' });
+    console.log('[Sales] /api/sales response:', res.status);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     data = await res.json();
   } catch (err) {
@@ -1590,7 +1603,9 @@ function renderHistoryPage() {
   }
 
   renderPagination();
+  console.log('[Sales] renderPagination DONE');
   checkSalesEmpty();
+  console.log('[Sales] checkSalesEmpty DONE');
 }
 function renderPagination() {
   const container = document.getElementById('salesHistoryList');

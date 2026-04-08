@@ -309,30 +309,38 @@
 
   <script>
     async function loadData() {
+      console.log('[Sales] loadData START');
       try {
         const res = await fetch('/sale/data', { cache: 'no-store' });
+        console.log('[Sales] /sale/data response:', res.status);
         const data = await res.json();
+        console.log('[Sales] /sale/data parsed, products:', (data.products || []).length, 'customers:', (data.customers || []).length);
 
         try {
+          console.log('[Sales] calling initSalesPage...');
           initSalesPage(data);
+          console.log('[Sales] initSalesPage DONE');
         } catch (e) {
-          console.error('Init error:', e);
+          console.error('[Sales] Init error:', e);
         }
 
         const loading = document.getElementById('loading');
         const contentSection = document.getElementById('contentSection');
         if (loading) loading.classList.add('hidden');
         if (contentSection) contentSection.classList.remove('hidden');
+        console.log('[Sales] loadData DONE — loading hidden');
 
       } catch (err) {
-        console.error('Failed to load data:', err);
+        console.error('[Sales] Failed to load data:', err);
         const loading = document.getElementById('loading');
         if (loading) loading.innerHTML = '<div class="text-danger">Lỗi tải dữ liệu</div>';
       }
     }
 
     async function bootSalePage() {
+      console.log('[Sales] bootSalePage START');
       await loadVersion();
+      console.log('[Sales] loadVersion DONE');
       document.getElementById('app').innerHTML =
         getHeader('Bán hàng', '🍺') +
         getContent(`
