@@ -234,18 +234,17 @@
       return Object.values(map).sort(function(a, b) { return b.profit - a.profit; });
     }
 
-    function getSummary(sales, expenses) {
+    function getSummary(sales, totalExpense) {
       var revenue = 0, profit = 0;
       sales.forEach(function(s) {
         revenue += s.total || 0;
         profit += s.profit || 0;
       });
-      var expense = (expenses || []).reduce(function(sum, e) { return sum + (e.amount || 0); }, 0);
       return {
         revenue: revenue,
         profit: profit,
-        expense: expense,
-        net_profit: profit - expense
+        expense: totalExpense || 0,
+        net_profit: profit - (totalExpense || 0)
       };
     }
 
@@ -316,12 +315,22 @@
             return;
           }
 
+          // Support both API formats:
+          // - /report/data (server.js) returns totalExpense as number
+          // - /report/data (routes/report.js) returns expenses as array
           var sales = data.sales;
-          var expenses = data.expenses;
+          var totalExpense = 0;
+          if (data.totalExpense !== undefined) {
+            // server.js API format: totalExpense already summed
+            totalExpense = data.totalExpense || 0;
+          } else if (data.expenses) {
+            // routes/report.js API format: expenses array, need to sum
+            totalExpense = (data.expenses || []).reduce(function(sum, e) { return sum + (e.amount || 0); }, 0);
+          }
 
           var byProduct = getProfitByProduct(sales);
           var byCustomer = getCustomerReport(sales);
-          var summary = getSummary(sales, expenses);
+          var summary = getSummary(sales, totalExpense);
 
           console.log('[REPORT] Summary:', summary);
           console.log('[REPORT] Products:', byProduct.length);

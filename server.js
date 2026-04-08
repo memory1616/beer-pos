@@ -449,36 +449,58 @@ app.get('/report', (req, res) => {
 });
 
 // Report data API — must be BEFORE app.use('/report') to take priority
+// Supports both formats:
+//   - Dashboard format: ?mode=quick&period=today|week|month
+//   - Report page format: ?type=month&month=4&year=2026
 app.get('/report/data', (req, res) => {
   try {
-    var mode = req.query.mode || 'quick';
-    var period = req.query.period || 'today'; // for quick mode: 'today'|'week'|'month'
-    var fromParam = req.query.from;
-    var toParam = req.query.to;
     var now = new Date();
     var vn = new Date(now.getTime() + 7 * 3600000);
-    var year = vn.getUTCFullYear();
+    var year = String(vn.getUTCFullYear());
     var month = String(vn.getUTCMonth() + 1).padStart(2, '0');
     var day = String(vn.getUTCDate()).padStart(2, '0');
     var today = year + '-' + month + '-' + day;
-    var startDate = today + ' 00:00:00';
-    var endDate = today + ' 23:59:59';
+    var startDate, endDate;
 
-    // Always use date range comparison for consistency and correctness
-    if (mode === 'custom' && fromParam && toParam) {
-      startDate = fromParam + ' 00:00:00';
-      endDate = toParam + ' 23:59:59';
-    } else if (period === 'today') {
-      startDate = today + ' 00:00:00';
-      endDate = today + ' 23:59:59';
-    } else if (period === 'week') {
-      var wa = new Date(vn); wa.setUTCDate(wa.getUTCDate() - 7);
-      startDate = wa.getUTCFullYear() + '-' + String(wa.getUTCMonth()+1).padStart(2,'0') + '-' + String(wa.getUTCDate()).padStart(2,'0') + ' 00:00:00';
-      endDate = today + ' 23:59:59';
+    // Report page format: ?type=month&month=4&year=2026
+    var type = req.query.type;
+    if (type) {
+      var rYear = parseInt(req.query.year) || vn.getUTCFullYear();
+      var rMonth = parseInt(req.query.month);
+      if (type === 'month' && rMonth) {
+        var lastDay = new Date(rYear, rMonth, 0).getDate();
+        startDate = rYear + '-' + String(rMonth).padStart(2, '0') + '-01';
+        endDate = rYear + '-' + String(rMonth).padStart(2, '0') + '-' + String(lastDay).padStart(2, '0');
+      } else if (type === 'year') {
+        startDate = rYear + '-01-01';
+        endDate = rYear + '-12-31';
+      } else {
+        // all
+        startDate = '1970-01-01';
+        endDate = '2100-12-31';
+      }
     } else {
-      // month (default)
-      startDate = year + '-' + month + '-01 00:00:00';
-      endDate = today + ' 23:59:59';
+      // Dashboard format: ?mode=quick&period=today|week|month
+      var mode = req.query.mode || 'quick';
+      var period = req.query.period || 'today';
+      var fromParam = req.query.from;
+      var toParam = req.query.to;
+
+      if (mode === 'custom' && fromParam && toParam) {
+        startDate = fromParam;
+        endDate = toParam;
+      } else if (period === 'today') {
+        startDate = today;
+        endDate = today;
+      } else if (period === 'week') {
+        var wa = new Date(vn); wa.setUTCDate(wa.getUTCDate() - 7);
+        startDate = wa.getUTCFullYear() + '-' + String(wa.getUTCMonth()+1).padStart(2,'0') + '-' + String(wa.getUTCDate()).padStart(2,'0');
+        endDate = today;
+      } else {
+        // month (default)
+        startDate = year + '-' + month + '-01';
+        endDate = today;
+      }
     }
 
     var db2 = require('./database');
