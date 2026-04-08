@@ -272,7 +272,7 @@
       }
       var html = '<table class="report-table"><thead><tr><th>Tên sản phẩm</th><th class="text-right">Sản lượng</th><th class="text-right">Lợi nhuận</th></tr></thead><tbody>';
       data.forEach(function(p) {
-        html += '<tr><td>' + escHtml(p.name) + '</td><td class="text-right">' + p.quantity + '</td><td class="text-right text-success">' + fmtVND(p.profit) + '</td></tr>';
+        html += '<tr><td>' + escHtml(p.name) + '</td><td class="text-right">' + (p.quantity_sold || p.quantity || 0) + '</td><td class="text-right text-success">' + fmtVND(p.profit) + '</td></tr>';
       });
       html += '</tbody></table>';
       el.innerHTML = html;
