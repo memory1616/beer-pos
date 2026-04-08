@@ -609,22 +609,25 @@ async function submitImport() {
 
 // PERFORMANCE: Extract product card HTML for reuse in virtual scrolling
 function _productCardHtml(p, totalPositive) {
-  const low = p.stock < _LOW_STOCK_THRESHOLD;
+  const stock = p.stock ?? 0;
+  const low = stock < _LOW_STOCK_THRESHOLD;
+  const name = p.name || 'No name';
+  const cost = p.cost_price ?? 0;
   return `
     <article class="card product-card product-card--interactive ${low ? 'border-danger' : 'border-muted'}"
       role="button" tabindex="0" data-product-id="${p.id}"
-      aria-label="${escapeHtmlAttr(p.name)} — Tồn ${p.stock}. Nhấn để sửa"
+      aria-label="${escapeHtmlAttr(name)} — Tồn ${stock}. Nhấn để sửa"
       onclick="openProductModal(${p.id})"
       onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openProductModal(${p.id});}">
       <div class="flex justify-between items-start gap-2">
-        <h3 class="product-card__name min-w-0 flex-1">${p.name}</h3>
+        <h3 class="product-card__name min-w-0 flex-1">${escapeHtmlAttr(name)}</h3>
         ${low ? '<span class="badge badge-danger shrink-0 text-[10px]">Sắp hết</span>' : ''}
       </div>
-      <div class="product-card__meta">Giá vốn · ${formatVND(p.cost_price || 0)}</div>
+      <div class="product-card__meta">Giá vốn · ${formatVND(cost)}</div>
       <div class="product-card__footer">
         <div class="min-w-0">
           <div class="product-card__qty-label">Tồn kho</div>
-          <div class="product-card__qty tabular-nums ${low ? 'text-danger' : 'text-success'}">${p.stock}</div>
+          <div class="product-card__qty tabular-nums ${low ? 'text-danger' : 'text-success'}">${stock}</div>
         </div>
         <div class="product-card__edit-pill" aria-hidden="true"><span class="product-card__edit-icon">✏️</span><span>Sửa</span></div>
       </div>
@@ -687,6 +690,7 @@ function _renderProductsPage(pageProducts, totalPositive, hasMore) {
     container.appendChild(div.firstElementChild);
   }
 
+  console.log('[Stock] _renderProductsPage: done. container.children=' + container.children.length + ', innerHTML len=' + container.innerHTML.length);
   _hasMore = hasMore;
 
   // Remove old sentinel/observer
@@ -1078,6 +1082,7 @@ window.renderProducts = function(products) {
       div.innerHTML = html;
       container.appendChild(div.firstElementChild);
     });
+    console.log('[Stock] window.renderProducts: done. children=' + container.children.length + ', html len=' + container.innerHTML.length);
     var total = (products || []).reduce(function(s, p) { return s + Math.max(0, Number(p.stock) || 0); }, 0);
     var totalEl = document.getElementById('totalStock');
     if (totalEl) totalEl.textContent = String(total);
