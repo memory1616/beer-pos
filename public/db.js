@@ -14,7 +14,7 @@
 // because ALL contexts use the SAME version number from ONE source.
 // ─────────────────────────────────────────────────────
 
-const DB_VERSION = 34; // ← BUMP THIS when schema changes (v34: add createdAt Date index + migrate)
+const DB_VERSION = 35; // ← BUMP THIS when schema changes (v35: complete sales schema + createdAt index via upgrade)
 
 const DB_NAME    = 'BeerPOS';
 const STORE_META = '_meta';
@@ -79,11 +79,11 @@ if (window._dbInitialized) {
     [STORE_META]: 'key'
   });
 
-  // v34: add createdAt (Date) index to sales for reliable client-side date filtering
-  // NOTE: Dexie uses first-occurrence — only the FIRST version block defining a table
-  //       determines its schema. Subsequent blocks are ignored unless they define NEW
-  //       tables. So v34 must redeclare ALL tables with COMPLETE schemas.
-  _db.version(34).stores({
+  // v35: complete sales schema with createdAt index + ensure expense/sale_items tables
+  // NOTE: Dexie first-occurrence rule — only the FIRST version block defining a table
+  //       determines its schema. Users who already ran v34 see an incomplete sales schema
+  //       (missing distance_km etc.). v35 redeclares all tables to fix this.
+  _db.version(35).stores({
     customers:   '++id, name, phone, deposit, keg_balance, archived, synced',
     products:    '++id, name, stock, cost_price, synced',
     sales:       '++id, createdAt, customer_id, date, total, profit, synced, distance_km, duration_min, route_index, route_polyline',
@@ -92,11 +92,11 @@ if (window._dbInitialized) {
     expenses:    '++id, type, amount, note, date, synced'
   }).upgrade(tx => {
     return tx.table('sales').toCollection().modify(sale => {
-      // Migrate existing sales: parse date string → Date object
+      // Ensure createdAt Date field exists and is indexed
       if (sale.date && typeof sale.date === 'string') {
         sale.createdAt = new Date(sale.date + 'T00:00:00+07:00');
-      } else if (!sale.createdAt) {
-        sale.createdAt = new Date();
+      } else if (!(sale.createdAt instanceof Date)) {
+        sale.createdAt = new Date(sale.createdAt);
       }
     });
   });

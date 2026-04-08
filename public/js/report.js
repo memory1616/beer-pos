@@ -254,11 +254,28 @@ async function loadReportFromIndexedDB() {
   if (!window.db) return null;
 
   var range = getFilterRange();
-  var rows = await window.db.sales
-    .where('createdAt')
-    .between(range.start, range.end, true, true)
-    .and(function(s) { return !s.status || s.status !== 'returned'; })
-    .toArray();
+  console.log('[IDB-Report] range:', range.start.toISOString(), '→', range.end.toISOString());
+
+  var rows;
+  try {
+    // Try indexed query first
+    rows = await window.db.sales
+      .where('createdAt')
+      .between(range.start, range.end, true, true)
+      .and(function(s) { return !s.status || s.status !== 'returned'; })
+      .toArray();
+    console.log('[IDB-Report] indexed query returned', rows.length, 'rows');
+  } catch (e) {
+    // Index may not exist — fall back to full scan
+    console.warn('[IDB-Report] .where(createdAt) failed, falling back to full scan:', e.message || e);
+    var all = await window.db.sales.toArray();
+    rows = all.filter(function(s) {
+      if (s.status === 'returned') return false;
+      var ct = s.createdAt instanceof Date ? s.createdAt : new Date(s.createdAt);
+      return ct >= range.start && ct <= range.end;
+    });
+    console.log('[IDB-Report] full scan returned', rows.length, 'rows');
+  }
 
   var totalRevenue = 0, totalProfit = 0;
   rows.forEach(function(s) {
