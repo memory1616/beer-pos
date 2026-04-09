@@ -310,8 +310,8 @@ function renderSaleProducts() {
     const isLowStock = p.stock < _LOW_STOCK_THRESHOLD;
     const currentQty = saleData[p.id] ? saleData[p.id].quantity : '';
     const priceLine = isKhachLe
-      ? `· Tồn: <span class="${p.stock < _LOW_STOCK_THRESHOLD ? 'text-danger font-semibold' : 'text-muted'}">${p.stock}</span>`
-      : `Giá: <span class="text-primary font-bold">${formatVND(price)}</span> · Tồn: <span class="${p.stock < _LOW_STOCK_THRESHOLD ? 'text-danger' : 'text-muted'}">${p.stock}</span>`;
+      ? `· Tồn: <span class="${p.stock < _LOW_STOCK_THRESHOLD ? 'text-danger font-semibold' : 'text-secondary'}">${p.stock}</span>`
+      : `Giá: <span class="text-primary font-bold">${formatVND(price)}</span> · Tồn: <span class="${p.stock < _LOW_STOCK_THRESHOLD ? 'text-danger' : 'text-secondary'}">${p.stock}</span>`;
     const priceField = isKhachLe
       ? `<label class="block text-xs font-semibold text-primary mt-2 mb-1">Giá bán (đ)</label>
         <input type="number" id="price-${p.id}" min="0" step="1000" value="${priceInputVal}" placeholder="Nhập giá"
@@ -323,7 +323,7 @@ function renderSaleProducts() {
     return `
       <div class="p-3 border-2 ${isLowStock ? 'border-warning bg-warning/5' : 'border-primary bg-primary/5'} rounded-xl transition-all">
         <div class="text-sm font-bold text-main">${p.name}</div>
-        <div class="text-xs text-muted mt-0.5">${priceLine}</div>
+        <div class="text-xs text-secondary mt-0.5">${priceLine}</div>
         ${priceField}
         <input type="number" id="qty-${p.id}" min="0" max="${p.stock}" value="${currentQty > 0 ? currentQty : ''}" data-stock="${p.stock}"
           placeholder="Nhập SL"
@@ -380,7 +380,7 @@ function toggleQtyControl(productId) {
         <div class="flex justify-between items-start">
           <div class="flex-1">
             <div class="font-semibold text-main break-words whitespace-normal text-lg">${product.name}</div>
-            <div class="text-sm text-muted mt-1">Tồn kho: ${product.stock}</div>
+            <div class="text-sm text-secondary mt-1">Tồn kho: ${product.stock}</div>
           </div>
           <button onclick="closeQtyModal()" class="text-muted text-2xl ml-2">&times;</button>
         </div>
@@ -511,7 +511,7 @@ function updateSaleTotal() {
       const name = product ? product.name : 'SP';
       cartHtml += '<div class="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 text-sm py-1.5 border-b border-primary/20 last:border-0">' +
         '<span class="font-semibold text-main min-w-0 flex-1 truncate">' + name + '</span>' +
-        '<span class="text-muted shrink-0 tabular-nums">' + Format.number(item.price) + ' đ × ' + item.quantity + '</span>' +
+        '<span class="text-secondary shrink-0 tabular-nums">' + Format.number(item.price) + ' đ × ' + item.quantity + '</span>' +
         '<div class="money text-money shrink-0 w-full text-right sm:w-auto sm:text-left"><span class="value text-sm font-bold tabular-nums">' + Format.number(lineTotal) + '</span><span class="unit">đ</span></div></div>';
     }
   });
@@ -832,7 +832,7 @@ async function submitSale() {
         var invTotalEl = modal.querySelector('.invoice-total-value');
         if (invTotalEl) invTotalEl.textContent = Format.number(result.total || 0);
         if (invoiceContent) invoiceContent.innerHTML =
-          '<div class="text-center text-muted py-8">Đơn hàng #' + result.id + '</div>';
+          '<div class="text-center text-secondary py-8">Đơn hàng #' + result.id + '</div>';
         if (qrCodeEl) qrCodeEl.src = '';
         modal.classList.remove('hidden');
         modal.classList.add('flex');
@@ -1346,10 +1346,10 @@ async function showInvoiceModal(saleId) {
   if (deliverKegs > 0 || returnKegs > 0) {
     kegHtml = '<div class="border-t border-muted pt-3 mt-3 space-y-1">';
     if (deliverKegs > 0) {
-      kegHtml += '<div class="flex justify-between text-sm"><span class="text-muted">📦 Giao vỏ</span><span class="font-semibold text-success">+' + deliverKegs + '</span></div>';
+      kegHtml += '<div class="flex justify-between text-sm"><span class="text-secondary">📦 Giao vỏ</span><span class="font-semibold text-success">+' + deliverKegs + '</span></div>';
     }
     if (returnKegs > 0) {
-      kegHtml += '<div class="flex justify-between text-sm"><span class="text-muted">🔁 Thu vỏ</span><span class="font-semibold text-warning">-' + returnKegs + '</span></div>';
+      kegHtml += '<div class="flex justify-between text-sm"><span class="text-secondary">🔁 Thu vỏ</span><span class="font-semibold text-warning">-' + returnKegs + '</span></div>';
     }
     kegHtml += '<div class="flex justify-between text-sm font-semibold pt-1"><span class="text-main">Vỏ đang giữ:</span><span>' + newBalance + '</span></div></div>';
   }
@@ -1359,7 +1359,7 @@ async function showInvoiceModal(saleId) {
   if (invoiceContent) {
     invoiceContent.innerHTML =
       giftBadge +
-      '<div class="text-xs text-muted mb-1">' + dateStr + '</div>' +
+      '<div class="text-xs text-secondary mb-1">' + dateStr + '</div>' +
       '<div class="text-sm font-semibold text-main mb-3">Khách: ' + customerName + '</div>' +
       '<div class="border-t border-muted/50 pt-3">' + itemsHtml + '</div>' +
       kegHtml;
@@ -1613,7 +1613,7 @@ function patchSaleRow(sale) {
   const kegDeliver = sale.deliver_kegs || 0;
   const kegReturn  = sale.return_kegs  || 0;
   const kegBadgeHtml = (kegDeliver || kegReturn)
-    ? '<span class="text-xs text-muted ml-1 shrink-0">[G:' + kegDeliver + ' T:' + kegReturn + ']</span>'
+    ? '<span class="text-xs text-secondary ml-1 shrink-0">[G:' + kegDeliver + ' T:' + kegReturn + ']</span>'
     : '';
   const actionsEl = card.querySelector('.order-actions');
   if (actionsEl) actionsEl.innerHTML = isReturned
@@ -1725,7 +1725,7 @@ function renderHistoryPage() {
     var kegDeliver = sale.deliver_kegs || 0;
     var kegReturn  = sale.return_kegs  || 0;
     var kegBadgeHtml = (kegDeliver || kegReturn)
-      ? '<span class="text-xs text-muted ml-1 shrink-0">[G:' + kegDeliver + ' T:' + kegReturn + ']</span>'
+      ? '<span class="text-xs text-secondary ml-1 shrink-0">[G:' + kegDeliver + ' T:' + kegReturn + ']</span>'
       : '';
     var saleMoney = typeof Format !== 'undefined' ? Format.number(sale.total) : formatVND(sale.total).replace(' đ', '');
 
@@ -1733,7 +1733,7 @@ function renderHistoryPage() {
 '<div class="order-item ' + badgeLeft + '" data-sale-id="' + sale.id + '">' +
   '<div class="order-header">' +
     '<div class="flex items-center gap-2 min-w-0 flex-1">' +
-      '<span class="text-xs font-semibold text-muted shrink-0">#' + sale.id + '</span>' +
+      '<span class="text-xs font-semibold text-secondary shrink-0">#' + sale.id + '</span>' +
       '<span class="order-title">' + customerName + '</span>' +
       (badgeHtml ? '<span class="shrink-0">' + badgeHtml + '</span>' : '') +
     '</div>' +
@@ -1785,7 +1785,7 @@ function renderPagination() {
   if (totalPages <= 1) {
     if (total > 0) {
       container.insertAdjacentHTML('beforeend',
-        '<div class="history-total-row text-center text-xs text-muted mt-3 pt-2 border-t border-muted/70">Tổng ' + total + ' đơn</div>'
+        '<div class="history-total-row text-center text-xs text-secondary mt-3 pt-2 border-t border-muted/70">Tổng ' + total + ' đơn</div>'
       );
     }
     return;
@@ -1804,7 +1804,7 @@ function renderPagination() {
       </button>
       <div class="flex flex-col justify-center items-center min-w-[4.5rem]">
         <span class="text-sm font-bold text-main tabular-nums leading-tight">${page} / ${totalPages}</span>
-        <span class="text-[11px] text-muted leading-tight mt-0.5">${total} đơn</span>
+        <span class="text-[11px] text-secondary leading-tight mt-0.5">${total} đơn</span>
       </div>
       <button onclick="changeSalesPage(${page + 1})" ${nextD ? 'disabled' : ''}
         class="min-w-[44px] min-h-[44px] w-11 h-11 rounded-full flex items-center justify-center text-base font-semibold transition-all
@@ -1900,7 +1900,7 @@ async function confirmReturnSale(id) {
     <div class="flex items-center justify-between py-2 border-b border-muted">
       <div>
         <div class="font-medium text-main">${item.name}</div>
-        <div class="text-xs text-muted">Giá: ${formatVND(item.price)} | Đã mua: ${item.quantity}</div>
+        <div class="text-xs text-secondary">Giá: ${formatVND(item.price)} | Đã mua: ${item.quantity}</div>
       </div>
       <div class="flex items-center gap-2">
         <input type="number" id="return_qty_${item.product_id}"
@@ -1908,7 +1908,7 @@ async function confirmReturnSale(id) {
           min="0" max="${item.quantity}" value="0"
           class="w-16 border-2 border-primary rounded px-2 py-1 text-center focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
           placeholder="0" onchange="updateReturnPreview(this, ${item.quantity})" oninput="updateReturnPreview(this, ${item.quantity})">
-        <span class="text-xs text-muted">/${item.quantity}</span>
+        <span class="text-xs text-secondary">/${item.quantity}</span>
       </div>
     </div>
   `).join('');

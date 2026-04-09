@@ -835,7 +835,7 @@
       var dateStr = s.date ? s.date.split('T')[0].split('-').reverse().join('/') : '';
       html.push(
         '<div class="card p-3 flex items-center justify-between">' +
-          '<div><div class="font-medium">' + (s.customer_name || 'Khách lẻ') + '</div><div class="text-xs text-muted">' + dateStr + '</div></div>' +
+          '<div><div class="font-medium">' + (s.customer_name || 'Khách lẻ') + '</div><div class="text-xs text-secondary">' + dateStr + '</div></div>' +
           '<div class="text-right">' +
             '<div class="font-bold tabular-nums">' + formatVND(s.total) + '</div>' +
             '<div class="text-xs text-success">+' + formatVND(s.profit) + '</div>' +
@@ -861,7 +861,7 @@
         '<div class="card p-3 flex items-center justify-between">' +
           '<div class="flex-1 min-w-0">' +
             '<div class="font-medium truncate">' + (p.name || '') + '</div>' +
-            '<div class="text-xs text-muted">&#127858; ' + (p.quantity || 0) + ' bình</div>' +
+            '<div class="text-xs text-secondary">&#127858; ' + (p.quantity || 0) + ' bình</div>' +
           '</div>' +
           '<div class="text-right ml-3">' +
             '<div class="font-bold tabular-nums">' + formatVND(p.revenue || 0) + '</div>' +
@@ -888,7 +888,7 @@
         '<div class="card p-3 flex items-center justify-between">' +
           '<div class="flex-1 min-w-0">' +
             '<div class="font-medium truncate">' + (c.name || '') + '</div>' +
-            '<div class="text-xs text-muted">&#127856; ' + (c.quantity || 0) + ' đơn</div>' +
+            '<div class="text-xs text-secondary">&#127856; ' + (c.quantity || 0) + ' đơn</div>' +
           '</div>' +
           '<div class="text-right ml-3">' +
             '<div class="font-bold tabular-nums">' + formatVND(c.revenue || 0) + '</div>' +
@@ -907,11 +907,11 @@
     var summaryHtml =
       '<div class="grid grid-cols-2 gap-2 mb-3">' +
         '<div class="card p-3 text-center">' +
-          '<div class="text-xs text-muted">Tổng chi phí</div>' +
+          '<div class="text-xs text-secondary">Tổng chi phí</div>' +
           '<div class="font-bold text-danger tabular-nums" style="font-size:14px;">' + formatVND(totalAmount) + '</div>' +
         '</div>' +
         '<div class="card p-3 text-center">' +
-          '<div class="text-xs text-muted">Số phiếu</div>' +
+          '<div class="text-xs text-secondary">Số phiếu</div>' +
           '<div class="font-bold tabular-nums" style="font-size:14px;">' + slipCount + '</div>' +
         '</div>' +
       '</div>';
@@ -924,16 +924,16 @@
       var p = purchases[i];
       var dateStr = p.date ? p.date.split('T')[0].split('-').reverse().join('/') : '';
       var amount = p.total_amount || p.amount || 0;
-      var typeLabel = p.type ? '<div class="text-xs text-muted">' + p.type + '</div>' : '';
+      var typeLabel = p.type ? '<div class="text-xs text-secondary">' + p.type + '</div>' : '';
       html.push(
         '<div class="card p-3">' +
           '<div class="flex justify-between items-start mb-1">' +
             '<div class="font-bold text-primary">#' + (p.id || '?') + '</div>' +
-            '<div class="text-xs text-muted">' + dateStr + '</div>' +
+            '<div class="text-xs text-secondary">' + dateStr + '</div>' +
           '</div>' +
           '<div class="font-bold text-danger tabular-nums mb-1">' + formatVND(amount) + '</div>' +
           typeLabel +
-          (p.note ? '<div class="text-xs text-muted italic">' + p.note + '</div>' : '') +
+          (p.note ? '<div class="text-xs text-secondary italic">' + p.note + '</div>' : '') +
         '</div>'
       );
     }

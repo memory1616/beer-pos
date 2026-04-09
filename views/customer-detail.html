@@ -120,7 +120,7 @@
                 <span class="text-warning">+${item.deliver_kegs || 0} giao</span>
                 <span class="text-danger">-${item.return_kegs || 0} thu</span>
               </div>
-              <div class="text-sm text-muted mt-1">
+              <div class="text-sm text-secondary mt-1">
                 Còn lại: ${item.keg_balance_after || 0}
               </div>
             </div>
@@ -177,7 +177,7 @@
                 <div class="text-sm font-medium text-main">📅 ${formatDate(item.date)}</div>
                 <div class="font-bold ${amountClass}">${amountText}</div>
               </div>
-              <div class="text-xs text-muted mt-1">
+              <div class="text-xs text-secondary mt-1">
                 ${item.note || (isPayment ? 'Thanh toán' : 'Ghi nợ')} · Còn lại: ${formatVND(item.balance_after || 0)}
               </div>
             </div>
@@ -239,11 +239,11 @@
             <div class="grid grid-cols-2 gap-3">
               <div class="bg-bg rounded-lg p-3 text-center">
                 <div class="text-2xl font-bold text-secondary" id="horizontalFridgeCount">0</div>
-                <div class="text-xs text-muted">Tủ nằm</div>
+                <div class="text-xs text-secondary">Tủ nằm</div>
               </div>
               <div class="bg-bg rounded-lg p-3 text-center">
                 <div class="text-2xl font-bold text-secondary" id="verticalFridgeCount">0</div>
-                <div class="text-xs text-muted">Tủ đứng</div>
+                <div class="text-xs text-secondary">Tủ đứng</div>
               </div>
             </div>
           </div>
@@ -489,7 +489,7 @@
         <div class="flex justify-between py-2 border-b">
           <div>
             <div class="font-medium">${item.name}</div>
-            <div class="text-sm text-muted">${item.quantity} x ${formatVND(item.price)}</div>
+            <div class="text-sm text-secondary">${item.quantity} x ${formatVND(item.price)}</div>
           </div>
           <div class="font-bold">${formatVND(item.quantity * item.price)}</div>
         </div>
@@ -498,7 +498,7 @@
       document.getElementById('invoiceContent').innerHTML = `
         <div class="text-center mb-4">
           <div class="text-lg font-bold text-main">HÓA ĐƠN #${sale.id}</div>
-          <div class="text-sm text-muted">${formatDate(sale.date)}</div>
+          <div class="text-sm text-secondary">${formatDate(sale.date)}</div>
         </div>
         <div class="card p-3 mb-4">
           <div class="font-medium text-main">${sale.customer_name}</div>
