@@ -10,660 +10,1477 @@
   <script src="/js/auth.js"></script>
   <script src="/js/layout.js"></script>
 
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
   <style>
-    /* FILTER BAR */
-    .filter-bar {
-      margin-bottom: 16px;
+    /* ── REPORT PAGE OVERRIDES ── */
+    /* Reset page padding cho report — header sticky chiếm không gian */
+    .body--app {
+      min-height: 100dvh;
+      padding-top: 0; /* Header là fixed, không cần padding-top body */
+      padding-bottom: calc(var(--bottomnav-height) + env(safe-area-inset-bottom, 0px));
     }
-    .quick-filters {
+
+    /* ── REPORT STICKY HEADER ── */
+    /* Binance-style: compact, high-density, maximum readability in 1 line */
+    .report-header {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 200;
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+      padding: 0 16px;
+      padding-top: calc(8px + env(safe-area-inset-top, 0px));
       display: flex;
-      gap: 4px;
-      flex-wrap: wrap;
-      margin-bottom: 8px;
+      align-items: center;
+      justify-content: space-between;
+      height: 52px;
+      min-height: 0;
     }
-    .quick-btn {
-      padding: 6px 10px;
-      border: none;
-      border-radius: 4px;
+
+    .report-header-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .report-header-icon {
+      width: 34px; height: 34px;
+      border-radius: 9px;
+      background: var(--primary-dim);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 17px;
+      flex-shrink: 0;
+    }
+
+    .report-header-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-main);
+      letter-spacing: -0.2px;
+    }
+
+    .report-header-right {
+      text-align: right;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 1px;
+    }
+
+    .report-header-profit {
+      font-size: 17px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      color: var(--text-main);
+      line-height: 1;
+      letter-spacing: -0.4px;
+    }
+
+    .report-header-growth {
+      font-size: 11px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 2px;
+      line-height: 1;
+    }
+
+    .growth-up { color: var(--green); }
+    .growth-down { color: var(--red); }
+    .growth-neutral { color: var(--text-muted); }
+
+    /* ── REPORT BODY (behind sticky header, max-width 500px like Binance) ── */
+    .report-body {
+      padding-top: calc(52px + env(safe-area-inset-top, 0px));
+      padding-bottom: 0;
+      max-width: 500px;
+      margin: 0 auto;
+    }
+
+    /* ── FILTER BAR STICKY ── */
+    /* Compact pill-style: Binance density, touch-optimized */
+    .report-filter-bar {
+      position: sticky;
+      top: calc(52px + env(safe-area-inset-top, 0px));
+      z-index: 100;
+      background: var(--card);
+      padding: 8px 16px;
+      display: flex;
+      gap: 6px;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      /* Hide scrollbar but keep functionality */
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+
+    .report-filter-bar::-webkit-scrollbar { display: none; }
+
+    .report-filter-btn {
+      /* Compact pill: tight padding, high density */
+      padding: 5px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
       background: transparent;
       color: var(--text-secondary);
-      font-size: 11px;
+      font-size: 12px;
+      font-weight: 600;
       cursor: pointer;
+      transition: all 0.12s ease;
       min-height: 32px;
+      white-space: nowrap;
+      flex-shrink: 0;
+      letter-spacing: 0.01em;
     }
-    .quick-btn.active {
+
+    .report-filter-btn:active {
+      transform: scale(0.96);
+    }
+
+    .report-filter-btn.active {
       background: var(--primary);
-      color: #000;
+      color: #1E2329;
+      border-color: var(--primary);
     }
-    .filter-row {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
+
+    [data-theme="dark"] .report-filter-btn {
+      background: transparent;
+      border-color: var(--border);
+    }
+
+    [data-theme="dark"] .report-filter-btn.active {
+      background: var(--primary);
+      color: #1E2329;
+      border-color: var(--primary);
+    }
+
+    /* Date range inputs for custom filter */
+    .report-date-range {
+      display: none;
+      gap: 6px;
       align-items: center;
+      width: 100%;
+      flex-shrink: 0;
     }
-    .filter-select {
-      padding: 6px 10px;
+
+    .report-date-range.visible {
+      display: flex;
+    }
+
+    .report-date-range input[type="date"] {
+      flex: 1;
+      padding: 5px 10px;
       border-radius: 6px;
       border: 1px solid var(--border);
       background: var(--card);
       color: var(--text-main);
       font-size: 12px;
-      cursor: pointer;
-      min-width: 90px;
-      min-height: 36px;
+      font-family: inherit;
+      min-height: 34px;
+      color-scheme: light dark;
     }
-    .date-input {
-      padding: 6px 10px;
-      border-radius: 6px;
-      border: 1px solid var(--border);
-      background: var(--card);
-      color: var(--text-main);
-      font-size: 12px;
-      min-height: 36px;
-    }
-    .filter-divider {
+
+    .report-date-range span {
       color: var(--text-muted);
       font-size: 12px;
+      flex-shrink: 0;
     }
 
-    /* SUMMARY BLOCK */
-    .summary-clean {
-      margin-bottom: 20px;
-      padding: 16px 0;
+    /* ── KPI GRID (2x2) — Binance production density ── */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      padding: 10px 16px 12px;
     }
-    .summary-line {
+
+    .kpi-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 12px 11px;
+      box-shadow: none;
+      transition: box-shadow 0.12s ease, transform 0.12s ease;
+    }
+
+    .kpi-card:active {
+      transform: scale(0.985);
+    }
+
+    [data-theme="dark"] .kpi-card {
+      box-shadow: none;
+    }
+
+    .kpi-card-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      margin-bottom: 5px;
       display: flex;
-      justify-content: space-between;
-      padding: 10px 0;
-      font-size: 14px;
+      align-items: center;
+      gap: 3px;
+      line-height: 1.2;
     }
-    .summary-line .label {
-      color: var(--text-secondary);
-    }
-    .summary-line .value {
-      font-weight: 600;
-      color: var(--text-main);
-    }
-    .summary-line .value.bold {
-      font-weight: 700;
-    }
-    .summary-line.highlight {
-      border-top: 1px solid var(--border);
-      margin-top: 8px;
-      padding-top: 12px;
-    }
-    .summary-line.highlight .label {
-      font-weight: 700;
-      color: var(--text-main);
-    }
-    .summary-line.highlight .value {
-      font-weight: 700;
+
+    .kpi-card-value {
       font-size: 18px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
       color: var(--text-main);
+      line-height: 1.05;
+      letter-spacing: -0.6px;
     }
-    .summary-line .value.text-success { color: var(--green); }
-    .summary-line .value.text-danger  { color: var(--red); }
 
-    /* Header profit */
-    #headerProfit.positive { color: var(--green); }
-    #headerProfit.negative { color: var(--red); }
+    .kpi-card-value.text-green  { color: var(--green); }
+    .kpi-card-value.text-red    { color: var(--red); }
+    .kpi-card-value.text-gold   { color: var(--primary); }
 
-    /* SECTIONS */
-    .report-section {
-      border-top: 1px solid var(--border);
-      padding-top: 16px;
-      margin-bottom: 24px;
+    /* ── CHART SECTION ── */
+    .chart-section {
+      padding: 0 16px 10px;
     }
-    .section-title {
-      font-size: 15px;
-      font-weight: 600;
-      color: var(--text-main);
-      margin-bottom: 10px;
-      padding-bottom: 8px;
-      border-bottom: none;
+
+    .chart-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 12px 10px;
+      box-shadow: none;
     }
-    .section-title.collapsible {
-      cursor: pointer;
+
+    .chart-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
+      margin-bottom: 8px;
     }
-    .section-title.collapsible::after {
-      content: '▼';
+
+    .chart-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-main);
+      letter-spacing: -0.1px;
+    }
+
+    .chart-legend {
+      display: flex;
+      gap: 10px;
+    }
+
+    .chart-legend-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    .chart-legend-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .chart-legend-dot.revenue { background: var(--primary); }
+    .chart-legend-dot.profit  { background: var(--green); }
+
+    .chart-container {
+      position: relative;
+      height: 140px;
+    }
+
+    /* ── SECTION WRAPPER ── */
+    .report-section-wrap {
+      margin-bottom: 4px;
+    }
+
+    /* ── SECTION HEADER (collapsible, high-density) ── */
+    .report-section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 11px 16px;
+      cursor: pointer;
+      background: var(--card);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      transition: background 0.12s ease;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .report-section-header:active {
+      background: var(--bg-hover);
+    }
+
+    .report-section-header-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .report-section-header-icon {
+      width: 30px; height: 30px;
+      border-radius: 7px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      flex-shrink: 0;
+    }
+
+    .report-section-header-icon.icon-green  { background: var(--green-dim); }
+    .report-section-header-icon.icon-red    { background: var(--red-dim); }
+    .report-section-header-icon.icon-blue   { background: rgba(59,130,246,0.12); }
+    .report-section-header-icon.icon-gold   { background: var(--primary-dim); }
+
+    .report-section-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-main);
+      letter-spacing: -0.1px;
+    }
+
+    .report-section-badge {
+      font-size: 10px;
+      padding: 1px 7px;
+      border-radius: 999px;
+      font-weight: 700;
+      background: var(--green-dim);
+      color: var(--green);
+      margin-left: 6px;
+      letter-spacing: 0.02em;
+    }
+
+    .report-section-arrow {
       font-size: 10px;
       color: var(--text-muted);
-      transition: transform 0.2s;
+      transition: transform 0.2s ease;
+      flex-shrink: 0;
     }
-    .section-title.collapsed::after {
+
+    .report-section-header.collapsed .report-section-arrow {
       transform: rotate(-90deg);
     }
 
-    /* TABLES */
-    .report-table {
+    /* ── SECTION CONTENT ── */
+    .report-section-content {
+      overflow: hidden;
+      max-height: 2000px;
+      transition: max-height 0.25s ease;
+    }
+
+    .report-section-content.collapsed {
+      max-height: 0;
+    }
+
+    /* ── TOP LIST (Products / Customers) ── */
+    .top-list {
+      padding: 6px 16px 8px;
+    }
+
+    .top-item {
+      display: flex;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+      gap: 10px;
+    }
+
+    .top-item:last-child {
+      border-bottom: none;
+    }
+
+    .top-item-rank {
+      width: 26px; height: 26px;
+      border-radius: 7px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 800;
+      flex-shrink: 0;
+      background: var(--card-soft);
+      color: var(--text-secondary);
+    }
+
+    .top-item-rank.rank-gold   { background: rgba(252,213,53,0.2); color: var(--primary-hover); }
+    .top-item-rank.rank-silver { background: rgba(180,180,180,0.2); color: #9ca3af; }
+    .top-item-rank.rank-bronze { background: rgba(205,127,50,0.2); color: #cd7f32; }
+
+    .top-item-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .top-item-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-main);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      letter-spacing: -0.1px;
+    }
+
+    .top-item-meta {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+
+    .top-item-value {
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    .top-item-profit {
+      font-size: 13px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .top-item-profit.text-green { color: var(--green); }
+    .top-item-profit.text-red   { color: var(--red); }
+
+    /* "Xem thêm" toggle */
+    .see-more-toggle {
+      padding: 8px 16px;
+      text-align: center;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--primary);
+      background: transparent;
+      border: none;
+      width: 100%;
+      letter-spacing: 0.01em;
+    }
+
+    /* ── PURCHASE SECTION ── */
+    .purchase-summary-row {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      padding: 8px 16px;
+      background: var(--bg);
+    }
+
+    .purchase-stat-box {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 10px;
+      text-align: center;
+    }
+
+    .purchase-stat-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 3px;
+    }
+
+    .purchase-stat-value {
+      font-size: 16px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      color: var(--red);
+      line-height: 1;
+      letter-spacing: -0.4px;
+    }
+
+    .purchase-table-wrap {
+      overflow-x: auto;
+      padding: 0 16px 8px;
+    }
+
+    .purchase-mini-table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 13px;
-      overflow-x: auto;
-      display: block;
+      font-size: 12px;
     }
-    .report-table th {
+
+    .purchase-mini-table th {
       text-align: left;
-      padding: 8px 6px;
+      padding: 7px 5px;
       border-bottom: 1px solid var(--border);
       color: var(--text-muted);
-      font-weight: 600;
-      font-size: 11px;
+      font-size: 10px;
+      font-weight: 700;
       text-transform: uppercase;
+      letter-spacing: 0.06em;
       white-space: nowrap;
     }
-    .report-table th.text-right,
-    .report-table td.text-right {
-      text-align: right;
-    }
-    .report-table td {
-      padding: 10px 6px;
+
+    .purchase-mini-table td {
+      padding: 8px 5px;
       border-bottom: 1px solid var(--border);
       color: var(--text-main);
       white-space: nowrap;
+      font-size: 12px;
     }
-    .report-table tr:last-child td { border-bottom: none; }
-    .report-table tr:hover td { background: transparent; }
-    .report-table td.profit {
-      font-weight: 700;
+
+    .purchase-mini-table tr:last-child td {
+      border-bottom: none;
     }
-    .report-table td.text-note {
+
+    .purchase-mini-table .text-note {
       color: var(--text-muted);
+      font-size: 11px;
     }
 
-    /* PURCHASE SUMMARY */
-    .purchase-summary {
-      font-size: 13px;
-      padding: 8px 0;
-      margin-bottom: 10px;
-    }
-    .purchase-summary .total {
-      font-weight: 600;
-      color: var(--red);
+    /* ── SKELETON LOADING ── */
+    .skeleton-block {
+      background: linear-gradient(90deg, var(--card-soft) 25%, var(--border) 50%, var(--card-soft) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: 6px;
     }
 
-    .empty-msg {
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    /* ── EMPTY STATE ── */
+    .report-empty {
       text-align: center;
+      padding: 20px 16px;
       color: var(--text-muted);
-      padding: 24px;
-      font-size: 13px;
-    }
-    .loading {
-      text-align: center;
-      padding: 24px;
-      color: var(--text-muted);
-      font-size: 13px;
+      font-size: 12px;
     }
 
-    /* DARK MODE */
-    [data-theme="dark"] .report-table th { border-color: var(--border); }
-    [data-theme="dark"] .report-table td { border-color: var(--border); }
-    [data-theme="dark"] .section-title { border-color: var(--border); }
-    [data-theme="dark"] .summary-line.highlight { border-color: var(--border); }
+    /* ── COUNT UP ANIMATION ── */
+    .count-up {
+      display: inline-block;
+    }
+
+    /* ── DARK MODE OVERRIDES FOR REPORT ── */
+    [data-theme="dark"] .report-header {
+      background: var(--card);
+      border-bottom-color: var(--border);
+    }
+
+    [data-theme="dark"] .report-filter-bar {
+      background: var(--card);
+      border-bottom-color: var(--border);
+    }
+
+    [data-theme="dark"] .report-section-header {
+      background: var(--card);
+      border-top-color: var(--border);
+      border-bottom-color: var(--border);
+    }
+
+    [data-theme="dark"] .kpi-card {
+      background: var(--card);
+      border-color: var(--border);
+    }
+
+    [data-theme="dark"] .chart-card {
+      background: var(--card);
+      border-color: var(--border);
+    }
+
+    [data-theme="dark"] .purchase-stat-box {
+      background: var(--card);
+      border-color: var(--border);
+    }
+
+    [data-theme="dark"] .top-item-rank {
+      background: var(--card-soft);
+    }
+
+    [data-theme="dark"] .top-item-rank.rank-gold {
+      background: rgba(252,213,53,0.15);
+    }
+
+    [data-theme="dark"] .purchase-summary-row {
+      background: var(--bg);
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 360px) {
+      .kpi-grid { gap: 6px; padding: 8px 12px 10px; }
+      .kpi-card { padding: 10px 10px 9px; }
+      .kpi-card-value { font-size: 16px; }
+      .report-filter-bar { padding: 7px 12px; }
+      .report-section-header { padding: 10px 12px; }
+      .top-list { padding: 6px 12px 8px; }
+    }
+
+    /* ── DARK MODE OVERRIDES FOR REPORT ── */
+    [data-theme="dark"] .report-header {
+      background: rgba(30,35,41,0.96);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom-color: var(--border);
+    }
+
+    [data-theme="dark"] .report-filter-bar {
+      background: rgba(30,35,41,0.95);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom-color: var(--border);
+    }
+
+    [data-theme="dark"] .report-section-header {
+      background: var(--card);
+      border-top-color: var(--border);
+      border-bottom-color: var(--border);
+    }
+
+    [data-theme="dark"] .kpi-card {
+      background: var(--card);
+      border-color: var(--border);
+    }
+
+    [data-theme="dark"] .chart-card {
+      background: var(--card);
+      border-color: var(--border);
+    }
+
+    [data-theme="dark"] .purchase-stat-box {
+      background: var(--card);
+      border-color: var(--border);
+    }
+
+    [data-theme="dark"] .top-item-rank {
+      background: var(--card-soft);
+    }
+
+    [data-theme="dark"] .top-item-rank.rank-gold {
+      background: rgba(252,213,53,0.15);
+    }
+
+    [data-theme="dark"] .purchase-summary-row {
+      background: var(--bg);
+    }
   </style>
 </head>
 <body class="body--app">
 
-  <!-- Skeleton placeholder -->
-  <div id="skeleton">
-    <header style="position:fixed;top:0;left:0;right:0;height:56px;background:var(--card);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 16px;z-index:50;">
-      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:20px;">📊</span></div>
-      <div id="headerProfit" style="font-weight:700;font-size:16px;">0 đ</div>
-    </header>
-  </div>
+  <!-- ══ STICKY HEADER ══ -->
+  <header class="report-header" id="reportHeader">
+    <div class="report-header-left">
+      <div class="report-header-icon">📊</div>
+      <span class="report-header-title">Báo cáo</span>
+    </div>
+    <div class="report-header-right">
+      <div class="report-header-profit" id="headerProfit">— đ</div>
+      <div class="report-header-growth" id="headerGrowth">
+        <span class="growth-neutral">—</span>
+      </div>
+    </div>
+  </header>
 
-  <!-- Main Content -->
-  <div id="app"></div>
+  <!-- ══ REPORT BODY ══ -->
+  <div class="report-body">
+
+    <!-- FILTER BAR (sticky) -->
+    <div class="report-filter-bar" id="reportFilterBar">
+      <button class="report-filter-btn active" data-filter="today" onclick="RPT.setFilter('today')">Hôm nay</button>
+      <button class="report-filter-btn" data-filter="7d" onclick="RPT.setFilter('7d')">7 ngày</button>
+      <button class="report-filter-btn" data-filter="30d" onclick="RPT.setFilter('30d')">30 ngày</button>
+      <button class="report-filter-btn" data-filter="custom" onclick="RPT.setFilter('custom')">Tùy chọn</button>
+
+      <!-- Date range picker (hidden until "Tùy chọn") -->
+      <div class="report-date-range" id="dateRangePicker">
+        <input type="date" id="rptDateFrom" onchange="RPT.applyCustomRange()">
+        <span>→</span>
+        <input type="date" id="rptDateTo" onchange="RPT.applyCustomRange()">
+      </div>
+    </div>
+
+    <!-- KPI GRID -->
+    <div class="kpi-grid" id="kpiGrid">
+      <!-- Revenue -->
+      <div class="kpi-card">
+        <div class="kpi-card-label">💰 Doanh thu</div>
+        <div class="kpi-card-value text-gold" id="kpiRevenue">—</div>
+      </div>
+      <!-- Expense -->
+      <div class="kpi-card">
+        <div class="kpi-card-label">📤 Chi phí</div>
+        <div class="kpi-card-value text-red" id="kpiExpense">—</div>
+      </div>
+      <!-- Profit -->
+      <div class="kpi-card">
+        <div class="kpi-card-label">📈 Lợi nhuận</div>
+        <div class="kpi-card-value text-green" id="kpiProfit">—</div>
+      </div>
+      <!-- Net Profit (highlighted) -->
+      <div class="kpi-card" style="border-color: var(--primary); background: var(--primary-dim);">
+        <div class="kpi-card-label">🔥 Lãi ròng</div>
+        <div class="kpi-card-value text-gold" id="kpiNetProfit">—</div>
+      </div>
+    </div>
+
+    <!-- CHART -->
+    <div class="chart-section">
+      <div class="chart-card">
+        <div class="chart-header">
+          <div class="chart-title">📊 Doanh thu &amp; Lợi nhuận</div>
+          <div class="chart-legend">
+            <div class="chart-legend-item">
+              <div class="chart-legend-dot revenue"></div>
+              <span>Doanh thu</span>
+            </div>
+            <div class="chart-legend-item">
+              <div class="chart-legend-dot profit"></div>
+              <span>Lợi nhuận</span>
+            </div>
+          </div>
+        </div>
+        <div class="chart-container">
+          <canvas id="reportChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECTION: TOP PRODUCTS -->
+    <div class="report-section-wrap">
+      <div class="report-section-header" onclick="RPT.toggleSection('products')" id="secProducts">
+        <div class="report-section-header-left">
+          <div class="report-section-header-icon icon-green">🍺</div>
+          <div class="report-section-title">Top sản phẩm<span class="report-section-badge" id="badgeProducts">0</span></div>
+        </div>
+        <div class="report-section-arrow">▼</div>
+      </div>
+      <div class="report-section-content" id="contentProducts">
+        <div class="top-list" id="topProductsList"></div>
+      </div>
+    </div>
+
+    <!-- SECTION: TOP CUSTOMERS -->
+    <div class="report-section-wrap">
+      <div class="report-section-header" onclick="RPT.toggleSection('customers')" id="secCustomers">
+        <div class="report-section-header-left">
+          <div class="report-section-header-icon icon-blue">👤</div>
+          <div class="report-section-title">Top khách hàng<span class="report-section-badge" id="badgeCustomers">0</span></div>
+        </div>
+        <div class="report-section-arrow">▼</div>
+      </div>
+      <div class="report-section-content" id="contentCustomers">
+        <div class="top-list" id="topCustomersList"></div>
+      </div>
+    </div>
+
+    <!-- SECTION: PURCHASE / IMPORT -->
+    <div class="report-section-wrap">
+      <div class="report-section-header" onclick="RPT.toggleSection('purchases')" id="secPurchases">
+        <div class="report-section-header-left">
+          <div class="report-section-header-icon icon-red">📦</div>
+          <div class="report-section-title">Chi phí nhập hàng</div>
+        </div>
+        <div class="report-section-arrow">▼</div>
+      </div>
+      <div class="report-section-content" id="contentPurchases">
+        <div class="purchase-summary-row" id="purchaseSummaryRow"></div>
+        <div class="purchase-table-wrap" id="purchaseTableWrap"></div>
+      </div>
+    </div>
+
+  </div><!-- /report-body -->
+
+  <!-- Bottom nav (from layout.js) -->
+  <script>
+    if (typeof getBottomNav === 'function') {
+      document.body.insertAdjacentHTML('beforeend', getBottomNav('/report'));
+    }
+  </script>
 
   <script>
-    // Check auth first
-    if (!isLoggedIn()) { 
-      window.location.href = '/login'; 
+    /* ═══════════════════════════════════════════════════════
+       REPORT PAGE - Modern Binance-Style UI
+       ═══════════════════════════════════════════════════════ */
+
+    // ── Auth check ──
+    if (typeof isLoggedIn === 'function' && !isLoggedIn()) {
+      window.location.href = '/login';
     }
 
-    // Global filter state
-    var reportFilter = {
-      type: 'month',
-      month: new Date().getMonth() + 1,
-      year: new Date().getFullYear()
-    };
+    /* ── REPORT MODULE (RPT) ── */
+    (function () {
+      'use strict';
 
-    function fmtVND(n) {
-      if (n === 0 || n == null) return '—';
-      return new Intl.NumberFormat('vi-VN').format(n) + ' đ';
-    }
-
-    function escHtml(str) {
-      if (str == null) return '';
-      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    }
-
-    // Build HTML
-    document.getElementById('app').innerHTML =
-      getHeaderWithActions('Báo cáo', '📊', '<span id="headerProfit" style="font-weight:700;font-size:15px;">0đ</span>') +
-      getContent(`
-        <!-- FILTER BAR -->
-        <div class="filter-bar">
-          <div class="quick-filters" id="quickFilters">
-            <button class="quick-btn active" onclick="setQuickFilter('today')">Hôm nay</button>
-            <button class="quick-btn" onclick="setQuickFilter('yesterday')">Hôm qua</button>
-            <button class="quick-btn" onclick="setQuickFilter('thisWeek')">Tuần này</button>
-            <button class="quick-btn" onclick="setQuickFilter('thisMonth')">Tháng này</button>
-            <button class="quick-btn" onclick="setQuickFilter('lastMonth')">Tháng trước</button>
-            <button class="quick-btn" onclick="setCustomRange()">Tùy chỉnh</button>
-          </div>
-          <div class="filter-row" id="filterRow" style="display:none;">
-            <input type="date" id="filterFrom" class="date-input" onchange="applyDateRange()">
-            <span class="filter-divider">→</span>
-            <input type="date" id="filterTo" class="date-input" onchange="applyDateRange()">
-          </div>
-          <div class="filter-row" id="monthYearFilter">
-            <select id="selMonth" onchange="changeMonth(this.value)" class="filter-select">
-              <option value="">-- Tháng --</option>
-            </select>
-            <select id="selYear" onchange="changeYear(this.value)" class="filter-select">
-              <option value="">-- Năm --</option>
-            </select>
-          </div>
-        </div>
-
-        <!-- SUMMARY -->
-        <div class="summary-clean">
-          <div class="summary-line">
-            <span class="label">Doanh thu</span>
-            <span class="value" id="sRevenue">0 đ</span>
-          </div>
-          <div class="summary-line">
-            <span class="label">Chi phí</span>
-            <span class="value text-danger">0 đ</span>
-          </div>
-          <div class="summary-line">
-            <span class="label">Lợi nhuận</span>
-            <span class="value text-success" id="sProfit">0 đ</span>
-          </div>
-          <div class="summary-line highlight">
-            <span class="label">Lãi ròng</span>
-            <span class="value" id="sNetProfit">0 đ</span>
-          </div>
-        </div>
-
-        <!-- PRODUCT REPORT -->
-        <div class="report-section">
-          <div class="section-title collapsible" onclick="toggleSection('productSection')">🍺 Lợi nhuận theo sản phẩm</div>
-          <div id="productSection">
-            <div class="loading">⏳ Đang tải...</div>
-          </div>
-        </div>
-
-        <!-- CUSTOMER REPORT -->
-        <div class="report-section">
-          <div class="section-title collapsible" onclick="toggleSection('customerSection')">👤 Lợi nhuận theo khách hàng</div>
-          <div id="customerSection">
-            <div class="loading">⏳ Đang tải...</div>
-          </div>
-        </div>
-
-        <!-- PURCHASE REPORT -->
-        <div class="report-section">
-          <div class="section-title collapsible" onclick="toggleSection('purchaseSection')">📦 Nhập hàng</div>
-          <div id="purchaseSection">
-            <div class="loading">⏳ Đang tải...</div>
-          </div>
-        </div>
-      `) +
-      getBottomNav('/report');
-
-    // Populate selects
-    (function initSelects() {
-      var months = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6','Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
-      var selMonth = document.getElementById('selMonth');
-      var now = new Date();
-      
-      for (var i = 1; i <= 12; i++) {
-        var opt = document.createElement('option');
-        opt.value = i;
-        opt.textContent = months[i - 1];
-        if (i === now.getMonth() + 1) opt.selected = true;
-        selMonth.appendChild(opt);
-      }
-
-      var selYear = document.getElementById('selYear');
-      var cy = now.getFullYear();
-      for (var j = cy; j >= cy - 4; j--) {
-        var opt = document.createElement('option');
-        opt.value = j;
-        opt.textContent = j;
-        if (j === cy) opt.selected = true;
-        selYear.appendChild(opt);
-      }
-    })();
-
-    // Quick filter functions
-    function getDateRange(type) {
-      var now = new Date();
-      var y = now.getFullYear();
-      var m = now.getMonth();
-      var d = now.getDate();
-      var day = now.getDay();
-      var startOfWeek = new Date(now);
-      startOfWeek.setDate(d - day + (day === 0 ? -6 : 1));
-
-      switch(type) {
-        case 'today':
-          return { start: formatDate(now), end: formatDate(now) };
-        case 'yesterday':
-          var yd = new Date(now);
-          yd.setDate(d - 1);
-          return { start: formatDate(yd), end: formatDate(yd) };
-        case 'thisWeek':
-          return { start: formatDate(startOfWeek), end: formatDate(now) };
-        case 'thisMonth':
-          return { start: formatDate(new Date(y, m, 1)), end: formatDate(now) };
-        case 'lastMonth':
-          return { start: formatDate(new Date(y, m - 1, 1)), end: formatDate(new Date(y, m, 0)) };
-        default:
-          return null;
-      }
-    }
-
-    function formatDate(d) {
-      var y = d.getFullYear();
-      var mo = String(d.getMonth() + 1).padStart(2, '0');
-      var da = String(d.getDate()).padStart(2, '0');
-      return y + '-' + mo + '-' + da;
-    }
-
-    function setQuickFilter(type) {
-      document.querySelectorAll('.quick-btn').forEach(function(b) { b.classList.remove('active'); });
-      event && event.target && event.target.classList && event.target.classList.add('active');
-      document.getElementById('filterRow').style.display = 'none';
-      document.getElementById('monthYearFilter').style.display = 'none';
-
-      var range = getDateRange(type);
-      if (range) {
-        reportFilter.type = 'custom';
-        reportFilter.startDate = range.start;
-        reportFilter.endDate = range.end;
-        loadReport();
-      }
-    }
-
-    function setCustomRange() {
-      document.querySelectorAll('.quick-btn').forEach(function(b) { b.classList.remove('active'); });
-      event && event.target && event.target.classList && event.target.classList.add('active');
-      document.getElementById('filterRow').style.display = 'flex';
-      document.getElementById('monthYearFilter').style.display = 'none';
-
-      var now = new Date();
-      document.getElementById('filterFrom').value = formatDate(new Date(now.getFullYear(), now.getMonth(), 1));
-      document.getElementById('filterTo').value = formatDate(now);
-      reportFilter.type = 'custom';
-      reportFilter.startDate = document.getElementById('filterFrom').value;
-      reportFilter.endDate = document.getElementById('filterTo').value;
-    }
-
-    function applyDateRange() {
-      var from = document.getElementById('filterFrom').value;
-      var to = document.getElementById('filterTo').value;
-      if (from && to) {
-        reportFilter.type = 'custom';
-        reportFilter.startDate = from;
-        reportFilter.endDate = to;
-        loadReport();
-      }
-    }
-
-    function toggleSection(id) {
-      var el = document.getElementById(id);
-      var title = el.previousElementSibling;
-      if (el.style.display === 'none') {
-        el.style.display = '';
-        title && title.classList.remove('collapsed');
-      } else {
-        el.style.display = 'none';
-        title && title.classList.add('collapsed');
-      }
-    }
-
-    // Filter functions (backward compatible)
-    function changeMonth(m) {
-      reportFilter.type = 'month';
-      reportFilter.month = parseInt(m, 10);
-      loadReport();
-    }
-
-    function changeYear(y) {
-      reportFilter.type = 'year';
-      reportFilter.year = parseInt(y, 10);
-      loadReport();
-    }
-
-    // Report processing functions
-    function getProfitByProduct(sales) {
-      var map = {};
-      sales.forEach(function(sale) {
-        var items = sale.items || [];
-        items.forEach(function(item) {
-          var key = item.product_name || 'Không tên';
-          if (!map[key]) {
-            map[key] = { name: key, quantity: 0, profit: 0 };
-          }
-          map[key].quantity += item.quantity || 0;
-          map[key].profit += item.profit || 0;
-        });
-      });
-      return Object.values(map).sort(function(a, b) { return b.profit - a.profit; });
-    }
-
-    function getCustomerReport(sales) {
-      var map = {};
-      sales.forEach(function(sale) {
-        var key = sale.customer_name || 'Khách lẻ';
-        if (!map[key]) {
-          map[key] = { name: key, quantity: 0, profit: 0 };
-        }
-        var items = sale.items || [];
-        items.forEach(function(item) {
-          map[key].quantity += item.quantity || 0;
-          map[key].profit += item.profit || 0;
-        });
-      });
-      return Object.values(map).sort(function(a, b) { return b.profit - a.profit; });
-    }
-
-    function getSummary(sales, totalExpense) {
-      var revenue = 0, profit = 0;
-      sales.forEach(function(s) {
-        revenue += s.total || 0;
-        profit += s.profit || 0;
-      });
-      return {
-        revenue: revenue,
-        profit: profit,
-        expense: totalExpense || 0,
-        net_profit: profit - (totalExpense || 0)
+      // ── State ──
+      var _state = {
+        filter: 'today',      // today | 7d | 30d | custom
+        startDate: null,
+        endDate: null
       };
-    }
 
-    // Render functions
-    function updateSummaryBlock(s) {
-      var sRev = document.getElementById('sRevenue');
-      var sProfit = document.getElementById('sProfit');
-      var sNet = document.getElementById('sNetProfit');
-      var sExpenses = document.querySelectorAll('.summary-line .text-danger');
-      if (sRev) sRev.textContent = fmtVND(s.revenue);
-      if (sExpenses[0]) sExpenses[0].textContent = fmtVND(s.expense);
-      if (sProfit) {
-        sProfit.textContent = fmtVND(s.profit);
-        sProfit.className = 'value ' + (s.profit >= 0 ? 'text-success' : 'text-danger');
-      }
-      if (sNet) {
-        sNet.textContent = fmtVND(s.net_profit);
-        sNet.className = 'value ' + (s.net_profit >= 0 ? 'text-success' : 'text-danger');
-      }
-      // Update header
-      var headerEl = document.getElementById('headerProfit');
-      if (headerEl) {
-        headerEl.textContent = fmtVND(s.net_profit);
-        headerEl.className = s.net_profit >= 0 ? 'positive' : 'negative';
-      }
-    }
+      var _data = null;
+      var _chart = null;
+      var _debounceTimer = null;
+      var _previousNetProfit = null;
+      var _prevData = null; // data from previous period for growth calc
 
-    function renderSummary(s) {
-      updateSummaryBlock(s);
-    }
-
-    function renderSummaryCards(s) {
-      // Legacy compatibility
-      updateSummaryBlock(s);
-    }
-
-    function renderProducts(data) {
-      var el = document.getElementById('productSection');
-      if (!el) return;
-      if (!data || data.length === 0) {
-        el.innerHTML = '<div class="empty-msg">Không có dữ liệu sản phẩm</div>';
-        return;
-      }
-      var html = '<table class="report-table"><thead><tr><th>Tên sản phẩm</th><th class="text-right">SL</th><th class="text-right">Lợi nhuận</th></tr></thead><tbody>';
-      data.forEach(function(p, i) {
-        var rowClass = i < 3 ? 'row-top' : '';
-        html += '<tr class="' + rowClass + '"><td>' + escHtml(p.name) + '</td><td class="text-right">' + (p.quantity_sold || p.quantity || 0) + '</td><td class="text-right profit ' + (p.profit >= 0 ? 'text-success' : 'text-danger') + '">' + fmtVND(p.profit) + '</td></tr>';
-      });
-      html += '</tbody></table>';
-      el.innerHTML = html;
-    }
-
-    function renderPurchases(data, totalAmount) {
-      var el = document.getElementById('purchaseSection');
-      if (!el) return;
-      if (!data || data.length === 0) {
-        el.innerHTML = '<div class="empty-msg">Không có phiếu nhập hàng</div>';
-        return;
-      }
-      var html = '<div class="purchase-summary">Tổng nhập: <span class="total">' + fmtVND(totalAmount || 0) + '</span> (' + data.length + ' phiếu)</div>';
-      html += '<table class="report-table"><thead><tr><th>Ngày</th><th class="text-right">Tổng tiền</th><th>Ghi chú</th></tr></thead><tbody>';
-      data.forEach(function(p) {
-        var dateStr = p.date ? p.date.substring(0, 10) : '';
-        html += '<tr><td>' + escHtml(dateStr) + '</td><td class="text-right profit">' + fmtVND(p.total) + '</td><td class="text-note">' + escHtml(p.note || '') + '</td></tr>';
-      });
-      html += '</tbody></table>';
-      el.innerHTML = html;
-    }
-
-    function renderCustomers(data) {
-      var el = document.getElementById('customerSection');
-      if (!el) return;
-      if (!data || data.length === 0) {
-        el.innerHTML = '<div class="empty-msg">Không có dữ liệu khách hàng</div>';
-        return;
-      }
-      var html = '<table class="report-table"><thead><tr><th>Khách hàng</th><th class="text-right">SL</th><th class="text-right">Lợi nhuận</th></tr></thead><tbody>';
-      data.forEach(function(c, i) {
-        var rowClass = i < 3 ? 'row-top' : '';
-        html += '<tr class="' + rowClass + '"><td>' + escHtml(c.name) + '</td><td class="text-right">' + (c.quantity || 0) + '</td><td class="text-right profit ' + (c.profit >= 0 ? 'text-success' : 'text-danger') + '">' + fmtVND(c.profit) + '</td></tr>';
-      });
-      html += '</tbody></table>';
-      el.innerHTML = html;
-    }
-
-    // Main load function
-    function loadReport() {
-      console.log('[REPORT] Loading with filter:', reportFilter);
-
-      var url = '/report/data?type=' + reportFilter.type;
-      if (reportFilter.type === 'month') {
-        url += '&month=' + reportFilter.month + '&year=' + reportFilter.year;
-      } else if (reportFilter.type === 'year') {
-        url += '&year=' + reportFilter.year;
-      } else if (reportFilter.type === 'custom' && reportFilter.startDate && reportFilter.endDate) {
-        url += '&startDate=' + reportFilter.startDate + '&endDate=' + reportFilter.endDate;
+      // ── Date helpers ──
+      function toLocalDateStr(d) {
+        return d.getFullYear() + '-' +
+          String(d.getMonth() + 1).padStart(2, '0') + '-' +
+          String(d.getDate()).padStart(2, '0');
       }
 
-      fetch(url)
-        .then(function(res) { return res.json(); })
-        .then(function(data) {
-          console.log('[REPORT] Got:', JSON.stringify(data));
+      function toDateObj(str) {
+        return str ? new Date(str + 'T00:00:00') : null;
+      }
 
-          // Defensive: validate response structure
-          if (!data || typeof data !== 'object') {
-            console.error('[REPORT] Invalid response:', data);
-            return;
-          }
+      function getDateRange(filter) {
+        var now = new Date();
+        var y = now.getFullYear(), m = now.getMonth(), d = now.getDate();
 
-          // Support both API formats:
-          // - /report/data (server.js) returns totalExpense as number
-          // - /report/data (routes/report.js) returns expenses as array
-          var sales = data.sales;
-          var totalExpense = 0;
-          if (data.totalExpense !== undefined) {
-            // server.js API format: totalExpense already summed
-            totalExpense = data.totalExpense || 0;
-          } else if (data.expenses) {
-            // routes/report.js API format: expenses array, need to sum
-            totalExpense = (data.expenses || []).reduce(function(sum, e) { return sum + (e.amount || 0); }, 0);
-          }
+        if (filter === 'today') {
+          return { start: toLocalDateStr(now), end: toLocalDateStr(now) };
+        }
+        if (filter === '7d') {
+          var start = new Date(now);
+          start.setDate(d - 6);
+          return { start: toLocalDateStr(start), end: toLocalDateStr(now) };
+        }
+        if (filter === '30d') {
+          var s = new Date(now);
+          s.setDate(d - 29);
+          return { start: toLocalDateStr(s), end: toLocalDateStr(now) };
+        }
+        if (filter === 'custom') {
+          return { start: _state.startDate, end: _state.endDate };
+        }
+        return { start: toLocalDateStr(now), end: toLocalDateStr(now) };
+      }
 
-          var byProduct = data.profitByProduct || [];
-          var byCustomer = data.profitByCustomer || getCustomerReport(sales);
-          var summary = getSummary(sales, totalExpense);
+      // Get previous period for growth comparison
+      function getPreviousDateRange(filter) {
+        var range = getDateRange(filter);
+        if (filter === 'custom') return null;
 
-          console.log('[REPORT] Summary:', summary);
-          console.log('[REPORT] Products:', byProduct.length);
-          console.log('[REPORT] Customers:', byCustomer.length);
+        var start = toDateObj(range.start);
+        var end = toDateObj(range.end);
+        if (!start || !end) return null;
 
-          renderSummary(summary);
-          renderProducts(byProduct);
-          renderPurchases(data.purchases || [], data.totalPurchaseAmount);
-          renderCustomers(byCustomer);
-        })
-        .catch(function(err) {
-          console.error('[REPORT] Error:', err);
-          document.getElementById('summarySection').innerHTML = '<div class="empty-msg">Lỗi tải dữ liệu</div>';
-          document.getElementById('productSection').innerHTML = '<div class="empty-msg">Lỗi tải dữ liệu</div>';
-          document.getElementById('customerSection').innerHTML = '<div class="empty-msg">Lỗi tải dữ liệu</div>';
+        var diffMs = end - start;
+        var prevEnd = new Date(start - 1);
+        var prevStart = new Date(prevEnd - diffMs);
+
+        return {
+          start: toLocalDateStr(prevStart),
+          end: toLocalDateStr(prevEnd)
+        };
+      }
+
+      // ── Format helpers ──
+      function fmtVND(n) {
+        if (n == null || isNaN(n)) return '—';
+        return new Intl.NumberFormat('vi-VN').format(Math.round(n)) + ' đ';
+      }
+
+      function fmtVNDShort(n) {
+        if (n == null || isNaN(n)) return '—';
+        n = Math.abs(n);
+        if (n >= 1000000000) return (n / 1000000000).toFixed(1) + 'B';
+        if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+        if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+        return new Intl.NumberFormat('vi-VN').format(Math.round(n));
+      }
+
+      function escHtml(str) {
+        if (str == null) return '';
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+      }
+
+      function calcGrowth(current, previous) {
+        if (!previous || previous === 0) return null;
+        return ((current - previous) / Math.abs(previous)) * 100;
+      }
+
+      // ── Load data from /report/data API ──
+      function loadData() {
+        var range = getDateRange(_state.filter);
+        var start = range.start;
+        var end = range.end;
+
+        if (!start || !end) {
+          showEmptySkeleton();
+          return;
+        }
+
+        var url = '/report/data?type=custom&startDate=' + start + '&endDate=' + end;
+        console.log('[RPT] Loading:', url);
+
+        fetch(url)
+          .then(function (res) { return res.json(); })
+          .then(function (data) {
+            console.log('[RPT] Got:', JSON.stringify(data).substring(0, 200));
+            _data = data;
+            processAndRender(data);
+          })
+          .catch(function (err) {
+            console.error('[RPT] Error:', err);
+            showEmptySkeleton();
+          });
+      }
+
+      // ── Process API response ──
+      function processAndRender(data) {
+        var sales = data.sales || [];
+
+        // Calculate totalExpense
+        var totalExpense = 0;
+        if (data.totalExpense !== undefined) {
+          totalExpense = data.totalExpense || 0;
+        } else if (data.expenses) {
+          totalExpense = (data.expenses || []).reduce(function (s, e) { return s + (e.amount || 0); }, 0);
+        }
+
+        // Profit by product
+        var byProduct = data.profitByProduct || computeProfitByProduct(sales);
+
+        // Profit by customer
+        var byCustomer = data.profitByCustomer || computeProfitByCustomer(sales);
+
+        // Summary
+        var revenue = 0, profit = 0;
+        sales.forEach(function (s) {
+          revenue += s.total || 0;
+          profit += s.profit || 0;
         });
-    }
 
-    // Auto load on page ready
-    loadReport();
+        var netProfit = profit - totalExpense;
 
-    // Realtime sync: refresh when data changes
-    var _reportDebounceTimer = null;
-    function queueReportRefresh(reason) {
-      if (_reportDebounceTimer) clearTimeout(_reportDebounceTimer);
-      _reportDebounceTimer = setTimeout(function() {
-        console.log('[REPORT] Realtime refresh triggered:', reason);
-        loadReport();
-      }, 500);
-    }
+        // Build daily data for chart
+        var daily = buildDailyData(sales);
 
-    // Listen for data mutation events from realtime.js
-    window.addEventListener('data:mutated', function(evt) {
-      var detail = evt && evt.detail ? evt.detail : {};
-      var entity = detail.entity || '';
-      // Refresh on sales, purchases, or any data change
-      if (['sales', 'purchases', 'expenses', 'products', 'customers', 'mutation'].indexOf(entity) !== -1 || !entity) {
-        queueReportRefresh(entity || 'data change');
+        // Render everything
+        renderKPI(revenue, totalExpense, profit, netProfit);
+        renderChart(daily, totalExpense);
+        renderTopProducts(byProduct);
+        renderTopCustomers(byCustomer);
+        renderPurchases(data.purchases || [], data.totalPurchaseAmount);
+        updateHeader(netProfit);
       }
-    });
 
-    // Listen for SW messages (offline sync)
-    if (navigator.serviceWorker) {
-      navigator.serviceWorker.addEventListener('message', function(event) {
-        var data = event && event.data ? event.data : {};
-        if (data.type === 'DATA_INVALIDATED') {
-          var path = data.path || '';
-          if (path.indexOf('/report') === 0 || path.indexOf('/sale') === 0 || !path) {
-            queueReportRefresh('SW invalidation: ' + path);
+      // ── Compute profit by product (client-side fallback) ──
+      function computeProfitByProduct(sales) {
+        var map = {};
+        (sales || []).forEach(function (s) {
+          (s.items || []).forEach(function (item) {
+            var key = item.product_name || 'Không tên';
+            if (!map[key]) map[key] = { name: key, quantity: 0, profit: 0 };
+            map[key].quantity += item.quantity || 0;
+            map[key].profit += item.profit || 0;
+          });
+        });
+        return Object.values(map).sort(function (a, b) { return b.profit - a.profit; });
+      }
+
+      function computeProfitByCustomer(sales) {
+        var map = {};
+        (sales || []).forEach(function (s) {
+          var key = s.customer_name || 'Khách lẻ';
+          if (!map[key]) map[key] = { name: key, quantity: 0, profit: 0 };
+          map[key].quantity += 1;
+          map[key].profit += s.profit || 0;
+        });
+        return Object.values(map).sort(function (a, b) { return b.profit - a.profit; });
+      }
+
+      function buildDailyData(sales) {
+        var byDate = {};
+        (sales || []).forEach(function (s) {
+          var dateKey = s.date ? s.date.split('T')[0] : '';
+          if (!dateKey) return;
+          if (!byDate[dateKey]) byDate[dateKey] = { date: dateKey, revenue: 0, profit: 0 };
+          byDate[dateKey].revenue += s.total || 0;
+          byDate[dateKey].profit += s.profit || 0;
+        });
+        var result = Object.values(byDate).sort(function (a, b) { return a.date.localeCompare(b.date); });
+        return result;
+      }
+
+      // ── Render: KPI Grid ──
+      function renderKPI(revenue, expense, profit, netProfit) {
+        animateNumber('kpiRevenue', revenue, fmtVNDShort);
+        animateNumber('kpiExpense', expense, fmtVNDShort);
+        animateNumber('kpiProfit', profit, fmtVNDShort);
+        animateNumber('kpiNetProfit', netProfit, fmtVNDShort);
+
+        // Color coding
+        var profitEl = document.getElementById('kpiProfit');
+        var netEl = document.getElementById('kpiNetProfit');
+        var expEl = document.getElementById('kpiExpense');
+
+        if (profitEl) {
+          profitEl.className = 'kpi-card-value ' + (profit >= 0 ? 'text-green' : 'text-red');
+        }
+        if (netEl) {
+          netEl.className = 'kpi-card-value ' + (netProfit >= 0 ? 'text-gold' : 'text-red');
+        }
+        if (expEl) {
+          expEl.className = 'kpi-card-value text-red';
+        }
+      }
+
+      // ── Render: Sticky Header ──
+      function updateHeader(netProfit) {
+        var profitEl = document.getElementById('headerProfit');
+        if (profitEl) profitEl.textContent = fmtVND(netProfit);
+
+        // Growth vs previous period
+        var growthEl = document.getElementById('headerGrowth');
+        if (growthEl && _prevData !== null) {
+          var prevNet = _prevData;
+          var growth = calcGrowth(netProfit, prevNet);
+          if (growth !== null) {
+            var isUp = growth >= 0;
+            var arrow = isUp ? '↑' : '↓';
+            var cls = isUp ? 'growth-up' : 'growth-down';
+            growthEl.innerHTML = '<span class="' + cls + '">' + arrow + ' ' + Math.abs(growth).toFixed(1) + '%</span>';
+          } else {
+            growthEl.innerHTML = '<span class="growth-neutral">—</span>';
           }
         }
-      });
-    }
+        _prevData = netProfit;
+      }
+
+      // ── Render: Chart ──
+      function renderChart(daily, totalExpense) {
+        var canvas = document.getElementById('reportChart');
+        if (!canvas) return;
+
+        var labels = [];
+        var revenues = [];
+        var netProfits = [];
+
+        (daily || []).forEach(function (d) {
+          labels.push(d.date ? d.date.split('-').reverse().slice(0, 2).join('/') : '');
+          revenues.push(d.revenue || 0);
+          netProfits.push((d.profit || 0));
+        });
+
+        // Use theme-aware colors
+        var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        var textColor = isDark ? '#848E9C' : '#707A8A';
+        var gridColor = isDark ? '#2B3139' : '#EAECEF';
+
+        if (_chart) _chart.destroy();
+
+        _chart = new Chart(canvas, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                label: 'Doanh thu',
+                data: revenues,
+                borderColor: '#FCD535',
+                backgroundColor: 'rgba(252,213,53,0.08)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.4,
+                pointRadius: 3,
+                pointHoverRadius: 5,
+                pointBackgroundColor: '#FCD535'
+              },
+              {
+                label: 'Lợi nhuận',
+                data: netProfits,
+                borderColor: '#0ECB81',
+                backgroundColor: 'rgba(14,203,129,0.06)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.4,
+                pointRadius: 3,
+                pointHoverRadius: 5,
+                pointBackgroundColor: '#0ECB81'
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                backgroundColor: isDark ? '#1E2329' : '#fff',
+                titleColor: isDark ? '#EAECEF' : '#1E2329',
+                bodyColor: textColor,
+                borderColor: gridColor,
+                borderWidth: 1,
+                padding: 10,
+                callbacks: {
+                  label: function (ctx) {
+                    return ' ' + ctx.dataset.label + ': ' + fmtVND(ctx.raw);
+                  }
+                }
+              }
+            },
+            scales: {
+              x: {
+                ticks: {
+                  color: textColor,
+                  font: { size: 10 },
+                  maxTicksLimit: 7
+                },
+                grid: { color: gridColor, lineWidth: 0.5 }
+              },
+              y: {
+                ticks: {
+                  color: textColor,
+                  font: { size: 10 },
+                  callback: function (v) { return fmtVNDShort(v); }
+                },
+                grid: { color: gridColor, lineWidth: 0.5 }
+              }
+            }
+          }
+        });
+      }
+
+      // ── Render: Top Products ──
+      function renderTopProducts(products) {
+        var el = document.getElementById('topProductsList');
+        var badge = document.getElementById('badgeProducts');
+        if (!el) return;
+
+        if (!products || products.length === 0) {
+          el.innerHTML = '<div class="report-empty">Không có dữ liệu sản phẩm</div>';
+          if (badge) badge.textContent = '0';
+          return;
+        }
+
+        if (badge) badge.textContent = products.length;
+
+        var medals = ['🥇', '🥈', '🥉'];
+        var rankClasses = ['rank-gold', 'rank-silver', 'rank-bronze'];
+
+        var top = products.slice(0, 5);
+        var rest = products.slice(5);
+
+        var html = '';
+
+        top.forEach(function (p, i) {
+          var rank = i < 3 ? medals[i] : '#' + (i + 1);
+          var rankClass = i < 3 ? rankClasses[i] : '';
+          var profitColor = p.profit >= 0 ? 'text-green' : 'text-red';
+          html +=
+            '<div class="top-item">' +
+              '<div class="top-item-rank ' + rankClass + '">' + rank + '</div>' +
+              '<div class="top-item-info">' +
+                '<div class="top-item-name">' + escHtml(p.name) + '</div>' +
+                '<div class="top-item-meta">SL: ' + (p.quantity_sold || p.quantity || 0) + '</div>' +
+              '</div>' +
+              '<div class="top-item-value">' +
+                '<div class="top-item-profit ' + profitColor + '">' + fmtVND(p.profit) + '</div>' +
+              '</div>' +
+            '</div>';
+        });
+
+        // "Xem thêm" for rest
+        if (rest.length > 0) {
+          html += '<button class="see-more-toggle" onclick="RPT.toggleMore(this, \'products\')">Xem thêm ' + rest.length + ' sản phẩm ▼</button>';
+          html += '<div class="more-items" style="display:none;">';
+          rest.forEach(function (p, i) {
+            var profitColor = p.profit >= 0 ? 'text-green' : 'text-red';
+            html +=
+              '<div class="top-item">' +
+                '<div class="top-item-rank">#' + (i + 6) + '</div>' +
+                '<div class="top-item-info">' +
+                  '<div class="top-item-name">' + escHtml(p.name) + '</div>' +
+                  '<div class="top-item-meta">SL: ' + (p.quantity_sold || p.quantity || 0) + '</div>' +
+                '</div>' +
+                '<div class="top-item-value">' +
+                  '<div class="top-item-profit ' + profitColor + '">' + fmtVND(p.profit) + '</div>' +
+                '</div>' +
+              '</div>';
+          });
+          html += '</div>';
+        }
+
+        el.innerHTML = html;
+      }
+
+      // ── Render: Top Customers ──
+      function renderTopCustomers(customers) {
+        var el = document.getElementById('topCustomersList');
+        var badge = document.getElementById('badgeCustomers');
+        if (!el) return;
+
+        if (!customers || customers.length === 0) {
+          el.innerHTML = '<div class="report-empty">Không có dữ liệu khách hàng</div>';
+          if (badge) badge.textContent = '0';
+          return;
+        }
+
+        if (badge) badge.textContent = customers.length;
+
+        var medals = ['🥇', '🥈', '🥉'];
+        var rankClasses = ['rank-gold', 'rank-silver', 'rank-bronze'];
+
+        var top = customers.slice(0, 5);
+        var rest = customers.slice(5);
+
+        var html = '';
+
+        top.forEach(function (c, i) {
+          var rank = i < 3 ? medals[i] : '#' + (i + 1);
+          var rankClass = i < 3 ? rankClasses[i] : '';
+          var profitColor = c.profit >= 0 ? 'text-green' : 'text-red';
+          html +=
+            '<div class="top-item">' +
+              '<div class="top-item-rank ' + rankClass + '">' + rank + '</div>' +
+              '<div class="top-item-info">' +
+                '<div class="top-item-name">' + escHtml(c.name) + '</div>' +
+                '<div class="top-item-meta">' + (c.quantity || 0) + ' đơn</div>' +
+              '</div>' +
+              '<div class="top-item-value">' +
+                '<div class="top-item-profit ' + profitColor + '">' + fmtVND(c.profit) + '</div>' +
+              '</div>' +
+            '</div>';
+        });
+
+        if (rest.length > 0) {
+          html += '<button class="see-more-toggle" onclick="RPT.toggleMore(this, \'customers\')">Xem thêm ' + rest.length + ' khách ▼</button>';
+          html += '<div class="more-items" style="display:none;">';
+          rest.forEach(function (c, i) {
+            var profitColor = c.profit >= 0 ? 'text-green' : 'text-red';
+            html +=
+              '<div class="top-item">' +
+                '<div class="top-item-rank">#' + (i + 6) + '</div>' +
+                '<div class="top-item-info">' +
+                  '<div class="top-item-name">' + escHtml(c.name) + '</div>' +
+                  '<div class="top-item-meta">' + (c.quantity || 0) + ' đơn</div>' +
+                '</div>' +
+                '<div class="top-item-value">' +
+                  '<div class="top-item-profit ' + profitColor + '">' + fmtVND(c.profit) + '</div>' +
+                '</div>' +
+              '</div>';
+          });
+          html += '</div>';
+        }
+
+        el.innerHTML = html;
+      }
+
+      // ── Render: Purchases ──
+      function renderPurchases(purchases, totalAmount) {
+        var summaryEl = document.getElementById('purchaseSummaryRow');
+        var tableEl = document.getElementById('purchaseTableWrap');
+
+        var amt = totalAmount || 0;
+        var count = purchases ? purchases.length : 0;
+
+        if (summaryEl) {
+          summaryEl.innerHTML =
+            '<div class="purchase-stat-box">' +
+              '<div class="purchase-stat-label">Tổng nhập</div>' +
+              '<div class="purchase-stat-value">' + fmtVND(amt) + '</div>' +
+            '</div>' +
+            '<div class="purchase-stat-box">' +
+              '<div class="purchase-stat-label">Số phiếu</div>' +
+              '<div class="purchase-stat-value" style="color: var(--text-secondary);">' + count + '</div>' +
+            '</div>';
+        }
+
+        if (!purchases || purchases.length === 0) {
+          if (tableEl) tableEl.innerHTML = '<div class="report-empty">Không có phiếu nhập hàng</div>';
+          return;
+        }
+
+        var html = '<table class="purchase-mini-table"><thead><tr>';
+        html += '<th>Ngày</th>';
+        html += '<th class="text-right">Tổng tiền</th>';
+        html += '<th>Ghi chú</th>';
+        html += '</tr></thead><tbody>';
+
+        (purchases || []).forEach(function (p) {
+          var dateStr = p.date ? p.date.substring(0, 10).split('-').reverse().join('/') : '';
+          html += '<tr>';
+          html += '<td>' + escHtml(dateStr) + '</td>';
+          html += '<td class="text-right" style="color: var(--red); font-weight:600;">' + fmtVND(p.total || p.total_amount || p.amount || 0) + '</td>';
+          html += '<td class="text-note">' + escHtml(p.note || '') + '</td>';
+          html += '</tr>';
+        });
+
+        html += '</tbody></table>';
+
+        if (tableEl) tableEl.innerHTML = html;
+      }
+
+      // ── Toggle "Xem thêm" ──
+      function toggleMore(btn, type) {
+        var container = btn.parentNode;
+        var moreDiv = container.querySelector('.more-items');
+        if (!moreDiv) return;
+
+        var isHidden = moreDiv.style.display === 'none';
+        moreDiv.style.display = isHidden ? '' : 'none';
+        btn.textContent = isHidden ? 'Thu gọn ▲' : 'Xem thêm ' + (type === 'products' ? _data.profitByProduct.length - 5 : _data.profitByCustomer.length - 5) + ' ' + (type === 'products' ? 'sản phẩm' : 'khách') + ' ▼';
+      }
+
+      // ── Toggle section collapse ──
+      function toggleSection(name) {
+        var header = document.getElementById('sec' + capitalize(name));
+        var content = document.getElementById('content' + capitalize(name));
+        if (!header || !content) return;
+
+        var isCollapsed = header.classList.contains('collapsed');
+        header.classList.toggle('collapsed', !isCollapsed);
+        content.classList.toggle('collapsed', !isCollapsed);
+      }
+
+      function capitalize(s) {
+        return s.charAt(0).toUpperCase() + s.slice(1);
+      }
+
+      // ── Animate number count-up ──
+      function animateNumber(elId, targetValue, formatter) {
+        var el = document.getElementById(elId);
+        if (!el) return;
+
+        var start = 0;
+        var end = targetValue || 0;
+        var duration = 600;
+        var startTime = null;
+
+        function step(timestamp) {
+          if (!startTime) startTime = timestamp;
+          var progress = Math.min((timestamp - startTime) / duration, 1);
+          var eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
+          var current = Math.round(start + (end - start) * eased);
+          el.textContent = formatter(current);
+          if (progress < 1) requestAnimationFrame(step);
+        }
+
+        requestAnimationFrame(step);
+      }
+
+      // ── Show skeleton on empty / error ──
+      function showEmptySkeleton() {
+        ['kpiRevenue', 'kpiExpense', 'kpiProfit', 'kpiNetProfit'].forEach(function (id) {
+          var el = document.getElementById(id);
+          if (el) el.textContent = '—';
+        });
+        document.getElementById('topProductsList').innerHTML =
+          '<div class="report-empty">Không có dữ liệu</div>';
+        document.getElementById('topCustomersList').innerHTML =
+          '<div class="report-empty">Không có dữ liệu</div>';
+        document.getElementById('purchaseSummaryRow').innerHTML = '';
+        document.getElementById('purchaseTableWrap').innerHTML =
+          '<div class="report-empty">Không có dữ liệu</div>';
+      }
+
+      // ── Filter state management ──
+      function setFilter(filter) {
+        // Update button states
+        document.querySelectorAll('.report-filter-btn').forEach(function (btn) {
+          btn.classList.toggle('active', btn.dataset.filter === filter);
+        });
+
+        _state.filter = filter;
+
+        var dateRangePicker = document.getElementById('dateRangePicker');
+        if (filter === 'custom') {
+          if (dateRangePicker) dateRangePicker.classList.add('visible');
+          // Default: this month
+          var now = new Date();
+          var first = new Date(now.getFullYear(), now.getMonth(), 1);
+          var last = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+          var fromEl = document.getElementById('rptDateFrom');
+          var toEl = document.getElementById('rptDateTo');
+          if (fromEl) fromEl.value = toLocalDateStr(first);
+          if (toEl) toEl.value = toLocalDateStr(last);
+          _state.startDate = toLocalDateStr(first);
+          _state.endDate = toLocalDateStr(last);
+        } else {
+          if (dateRangePicker) dateRangePicker.classList.remove('visible');
+          _state.startDate = null;
+          _state.endDate = null;
+        }
+
+        debounceLoad();
+      }
+
+      function applyCustomRange() {
+        var from = document.getElementById('rptDateFrom').value;
+        var to = document.getElementById('rptDateTo').value;
+        if (from && to) {
+          _state.startDate = from;
+          _state.endDate = to;
+          debounceLoad();
+        }
+      }
+
+      // ── Debounced load ──
+      function debounceLoad() {
+        clearTimeout(_debounceTimer);
+        _debounceTimer = setTimeout(loadData, 200);
+      }
+
+      // ── Public API ──
+      window.RPT = {
+        setFilter: setFilter,
+        applyCustomRange: applyCustomRange,
+        toggleSection: toggleSection,
+        toggleMore: toggleMore,
+        reload: debounceLoad
+      };
+
+      // ── Auto-init on DOM ready ──
+      function init() {
+        console.log('[RPT] Init — Binance-style report page');
+        loadData();
+
+        // Listen for data mutations
+        window.addEventListener('data:mutated', function (evt) {
+          var entity = (evt && evt.detail && evt.detail.entity) || '';
+          if (['sale', 'expense', 'purchase', 'customer', 'product', 'sync', ''].indexOf(entity) !== -1) {
+            console.log('[RPT] Data mutated:', entity, '— reloading');
+            debounceLoad();
+          }
+        });
+
+        // Listen for SW invalidation
+        if (navigator.serviceWorker) {
+          navigator.serviceWorker.addEventListener('message', function (event) {
+            var data = event && event.data ? event.data : {};
+            if (data.type === 'DATA_INVALIDATED') {
+              var path = data.path || '';
+              if (path.indexOf('/report') === 0 || path.indexOf('/sale') === 0 || !path) {
+                debounceLoad();
+              }
+            }
+          });
+        }
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+      } else {
+        init();
+      }
+
+    })();
   </script>
 </body>
 </html>

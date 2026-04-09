@@ -98,26 +98,42 @@
       color: var(--text-muted);
     }
 
-    /* Invoice Content — white card with shadow */
+    /* Invoice Content — always white surface: use fixed ink colors (dark theme tokens are light-on-dark and are unreadable on #fff) */
     #invoiceModal .invoice-pos-content {
       background: #fff;
-      border: 1px solid var(--border);
+      border: 1px solid #EAECEF;
       box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+      color: #1E2329;
+    }
+    #invoiceModal .invoice-pos-content .text-main {
+      color: #1E2329 !important;
+    }
+    #invoiceModal .invoice-pos-content .text-secondary {
+      color: #707A8A !important;
+    }
+    #invoiceModal .invoice-pos-content .text-muted {
+      color: #707A8A !important;
     }
 
-    /* Invoice QR Card */
+    /* Invoice QR Card — same white surface */
     #invoiceModal .invoice-qr-card {
       background: #fff;
-      border: 1px solid var(--border);
+      border: 1px solid #EAECEF;
       box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+      color: #1E2329;
+    }
+    #invoiceModal .invoice-qr-card .text-main {
+      color: #1E2329 !important;
+    }
+    #invoiceModal .invoice-qr-card .text-muted {
+      color: #707A8A !important;
     }
 
-
-    .invoice-pos-content .invoice-item { padding: 10px 0; border-bottom: 1px solid var(--color-border); }
+    .invoice-pos-content .invoice-item { padding: 10px 0; border-bottom: 1px solid #EAECEF; }
     .invoice-pos-content .invoice-item:last-child { border-bottom: none; }
-    .invoice-pos-content .invoice-item .invoice-name { font-weight: 600; color: var(--color-text); }
-    .invoice-pos-content .invoice-item .invoice-row { display: flex; justify-content: space-between; align-items: baseline; color: var(--color-text-secondary); font-size: 0.875rem; margin-top: 2px; }
-    .invoice-pos-content .invoice-item .invoice-total { font-weight: 600; color: var(--color-text); }
+    .invoice-pos-content .invoice-item .invoice-name { font-weight: 600; color: #1E2329; }
+    .invoice-pos-content .invoice-item .invoice-row { display: flex; justify-content: space-between; align-items: baseline; color: #707A8A; font-size: 0.875rem; margin-top: 2px; }
+    .invoice-pos-content .invoice-item .invoice-total { font-weight: 600; color: #1E2329; }
   </style>
 
   <!-- Keg Modal -->
