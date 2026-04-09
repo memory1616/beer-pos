@@ -255,13 +255,9 @@ function initSalesPage(data) {
   _rebuildMaps();
   console.log('[Sales] _rebuildMaps DONE');
 
-  // Render customer select
-  var customerSelect = document.getElementById('customerSelect');
-  if (customerSelect) {
-    customerSelect.innerHTML = '<option value="">📋 Khách lẻ (giá thường)</option>' +
-      customers.map(function(c) { return '<option value="' + c.id + '">' + c.name + ' (' + c.keg_balance + ' bình)</option>'; }).join('');
-  }
-  console.log('[Sales] customerSelect rendered');
+  // Render customer dropdown (searchable)
+  renderCustomerDropdown();
+  console.log('[Sales] customerDropdown rendered');
 
   // Apply prices — starts with no customer (base prices)
   updatePrices();
@@ -286,6 +282,74 @@ function initSalesPage(data) {
 // Global keg state for validation
 let kegState = {};
 
+// ── Searchable Customer Dropdown ────────────────────────────────────────────
+function renderCustomerDropdown(filter) {
+  filter = (filter || '').toLowerCase().trim();
+  var dd = document.getElementById('customerDropdown');
+  if (!dd) return;
+  var selectedId = document.getElementById('customerSelect')?.value || '';
+
+  if (filter === '') {
+    dd.innerHTML = '<div style="padding:10px 14px;color:var(--text-muted);font-size:12px;">📋 Khách lẻ (giá thường)</div>' +
+      '<div class="customer-dd-item' + (!selectedId ? ' active' : '') + '" onclick="selectCustomer(\'\', \'Khách lẻ\')">📋 Khách lẻ (giá thường)</div>' +
+      customers.map(function(c) {
+        return '<div class="customer-dd-item' + (String(c.id) === String(selectedId) ? ' active' : '') + '" onclick="selectCustomer(\'' + c.id + '\', \'' + c.name.replace(/'/g, '\\\'') + '\')">' +
+          '<span>' + c.name + '</span><span style="font-size:11px;color:var(--text-muted);margin-left:8px;">' + (c.keg_balance || 0) + ' vỏ</span></div>';
+      }).join('');
+  } else {
+    var filtered = customers.filter(function(c) { return c.name.toLowerCase().includes(filter); });
+    if (filtered.length === 0) {
+      dd.innerHTML = '<div style="padding:12px 14px;color:var(--text-muted);font-size:13px;text-align:center;">Không tìm thấy khách hàng</div>';
+    } else {
+      dd.innerHTML = '<div style="padding:10px 14px;color:var(--text-muted);font-size:12px;">📋 Khách lẻ (giá thường)</div>' +
+        '<div class="customer-dd-item' + (!selectedId ? ' active' : '') + '" onclick="selectCustomer(\'\', \'Khách lẻ\')">📋 Khách lẻ (giá thường)</div>' +
+        filtered.map(function(c) {
+          return '<div class="customer-dd-item' + (String(c.id) === String(selectedId) ? ' active' : '') + '" onclick="selectCustomer(\'' + c.id + '\', \'' + c.name.replace(/'/g, '\\\'') + '\')">' +
+            '<span>' + c.name + '</span><span style="font-size:11px;color:var(--text-muted);margin-left:8px;">' + (c.keg_balance || 0) + ' vỏ</span></div>';
+        }).join('');
+    }
+  }
+}
+
+function filterCustomerOptions(value) {
+  renderCustomerDropdown(value);
+  showCustomerDropdown(true);
+}
+
+function showCustomerDropdown(show) {
+  var dd = document.getElementById('customerDropdown');
+  if (!dd) return;
+  if (show) {
+    dd.classList.remove('hidden');
+    renderCustomerDropdown(document.getElementById('customerSearch')?.value || '');
+  } else {
+    dd.classList.add('hidden');
+  }
+}
+
+function selectCustomer(id, name) {
+  var hiddenInput = document.getElementById('customerSelect');
+  var searchInput = document.getElementById('customerSearch');
+  if (hiddenInput) hiddenInput.value = id;
+  if (searchInput) searchInput.value = name || '';
+  showCustomerDropdown(false);
+  updatePrices();
+}
+
+function onCustomerSelected() {
+  updatePrices();
+}
+
+document.addEventListener('click', function(e) {
+  var searchInput = document.getElementById('customerSearch');
+  var dd = document.getElementById('customerDropdown');
+  if (!searchInput || !dd) return;
+  if (!searchInput.contains(e.target) && !dd.contains(e.target)) {
+    showCustomerDropdown(false);
+  }
+});
+
+// ── Render Sale Products ────────────────────────────────────────────────────
 function renderSaleProducts() {
   var container = document.getElementById('saleProducts');
   if (!container) {
@@ -325,15 +389,39 @@ function renderSaleProducts() {
         <div class="text-sm font-bold text-main">${p.name}</div>
         <div class="text-xs text-secondary mt-0.5">${priceLine}</div>
         ${priceField}
-        <input type="number" id="qty-${p.id}" min="0" max="${p.stock}" value="${currentQty > 0 ? currentQty : ''}" data-stock="${p.stock}"
-          placeholder="Nhập SL"
-          inputmode="numeric" enterkeyhint="done"
-          class="mt-2 w-full border-2 border-primary rounded-xl p-3 text-center text-lg font-bold focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none ${currentQty > 0 ? 'bg-primary/10' : ''}"
-          onchange="updateSaleData(${p.id}, 'quantity', this.value);"
-          oninput="updateSaleData(${p.id}, 'quantity', this.value);">
+        <div class="flex items-center gap-2 mt-2">
+          <button type="button" onclick="quickAddProduct(${p.id}, -1)" class="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-lg border-2 ${currentQty > 0 ? 'border-primary text-primary' : 'border-primary/40 text-primary/50'} font-bold text-lg select-none transition-all active:scale-95">−</button>
+          <input type="number" id="qty-${p.id}" min="0" max="${p.stock}" value="${currentQty > 0 ? currentQty : ''}" data-stock="${p.stock}"
+            placeholder="SL"
+            inputmode="numeric" enterkeyhint="done"
+            class="flex-1 h-10 border-2 border-primary rounded-xl text-center text-lg font-bold focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none ${currentQty > 0 ? 'bg-primary/10' : 'bg-white'} text-main min-w-0"
+            onchange="updateSaleData(${p.id}, 'quantity', this.value);"
+            oninput="updateSaleData(${p.id}, 'quantity', this.value);">
+          <button type="button" onclick="quickAddProduct(${p.id}, 1)" class="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-lg border-2 border-primary bg-primary text-1E2329 font-bold text-lg select-none transition-all active:scale-95">+</button>
+          ${!isKhachLe ? `<button type="button" onclick="quickAddProduct(${p.id}, 5)" class="flex-shrink-0 px-2 h-10 rounded-lg border-2 border-primary/40 text-primary font-semibold text-xs select-none transition-all active:scale-95">+5</button>` : ''}
+        </div>
       </div>
     `;
   }).join('');
+}
+
+// Quick-add: tap + hoặc − trên thẻ sản phẩm — tăng UX bán hàng nhanh
+function quickAddProduct(productId, delta) {
+  var input = document.getElementById('qty-' + productId);
+  if (!input) return;
+  var current = parseInt(input.value) || 0;
+  var stock = parseInt(input.dataset.stock) || 999;
+  var newVal = Math.max(0, Math.min(current + delta, stock));
+  var wasEmpty = current === 0 && newVal > 0;
+  input.value = newVal;
+  updateSaleData(productId, 'quantity', newVal);
+  if (wasEmpty) {
+    // Toast feedback: đã thêm sản phẩm đầu tiên
+    var product = getProduct(productId);
+    if (product && typeof showToast === 'function') {
+      showToast('Đã thêm ' + product.name + ' x' + newVal, 'success');
+    }
+  }
 }
 
 // Quick adjust quantity (inline -10, -, +, +10)

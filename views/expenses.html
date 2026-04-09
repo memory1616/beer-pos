@@ -11,50 +11,57 @@
   <link rel="icon" type="image/png" href="/icon-192.png">
   
   <!-- PERFORMANCE: Preload layout.js for first paint -->
-  <link rel="preload" href="/js/layout.js?v=20260414a" as="script">
-  <link rel="preload" href="/css/unified.css?v=20260414a" as="style">
-  
-  <link rel="stylesheet" href="/css/tailwind.css">
-  <link rel="stylesheet" href="/css/unified.css?v=20260414a">
+  <link rel="preload" href="/js/layout.js?v=20260424-clean" as="script">
+  <link rel="preload" href="/css/unified.css?v=20260424-clean" as="style">
+
+  <link rel="stylesheet" href="/css/unified.css?v=20260424-clean">
   <script src="/js/dark-mode.js"></script>
-  <script src="/js/layout.js?v=20260414a"></script>
+  <script src="/js/layout.js?v=20260424-clean"></script>
 
   <!-- CLS Prevention: Skeleton styles (matches layout.js header dimensions) -->
   <style>
-    .skeleton-header {
+    .skeleton-header-fixed {
       position: fixed; top: 0; left: 0; right: 0;
       height: calc(56px + env(safe-area-inset-top, 0px));
       background: rgba(255,255,255,0.92);
       backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-      border-bottom: 1px solid var(--color-border);
+      border-bottom: 1px solid var(--border);
       display: flex; align-items: center; justify-content: space-between;
       padding: 0 16px; padding-top: env(safe-area-inset-top, 0px);
       z-index: 50; box-sizing: border-box;
     }
-    .skeleton-nav {
+    .skeleton-nav-fixed {
       position: fixed; bottom: 0; left: 0; right: 0;
       height: calc(64px + env(safe-area-inset-bottom, 0px));
-      background: var(--color-card, #fff);
-      border-top: 3px solid var(--color-primary);
+      background: rgba(255,255,255,0.95);
+      backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+      border-top: 1px solid var(--border);
+      border-top-width: 3px;
+      border-top-color: var(--primary);
       display: grid; grid-template-columns: repeat(5, 1fr);
-      z-index: 50; max-width: 500px; margin: 0 auto;
-      padding-bottom: env(safe-area-inset-bottom, 0px);
+      z-index: 50; padding-bottom: env(safe-area-inset-bottom, 0px);
       box-sizing: border-box;
     }
     @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
     .skeleton-bar {
       height: 16px; width: 80px;
-      background: linear-gradient(90deg, var(--card-soft) 25%, var(--bg-hover) 50%, var(--card-soft) 75%);
+      background: linear-gradient(90deg, var(--card-soft, #f3f4f6) 25%, var(--bg-hover, #e5e7eb) 50%, var(--card-soft, #f3f4f6) 75%);
       background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px;
     }
     .skeleton-btn {
       width: 32px; height: 32px;
-      background: linear-gradient(90deg, var(--card-soft) 25%, var(--bg-hover) 50%, var(--card-soft) 75%);
+      background: linear-gradient(90deg, var(--card-soft, #f3f4f6) 25%, var(--bg-hover, #e5e7eb) 50%, var(--card-soft, #f3f4f6) 75%);
       background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 6px;
     }
-    [data-theme="dark"] .skeleton-header { background: rgba(30, 41, 59, 0.92); border-bottom-color: var(--border); }
-    [data-theme="dark"] .skeleton-nav { background: rgba(30, 41, 59, 0.92); }
-    [data-theme="dark"] .skeleton-bar, [data-theme="dark"] .skeleton-btn {
+    .skeleton-shimmer {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 4px; padding: 8px;
+    }
+    .skeleton-shimmer-bar.tall { height: 14px; width: 20px; background: linear-gradient(90deg, var(--card-soft, #f3f4f6) 25%, var(--bg-hover, #e5e7eb) 50%, var(--card-soft, #f3f4f6) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px; }
+    .skeleton-shimmer-bar.wide { height: 10px; width: 40px; background: linear-gradient(90deg, var(--card-soft, #f3f4f6) 25%, var(--bg-hover, #e5e7eb) 50%, var(--card-soft, #f3f4f6) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px; }
+    [data-theme="dark"] .skeleton-header-fixed { background: rgba(30, 41, 59, 0.92); }
+    [data-theme="dark"] .skeleton-nav-fixed { background: rgba(30, 41, 59, 0.92); }
+    [data-theme="dark"] .skeleton-bar, [data-theme="dark"] .skeleton-btn, [data-theme="dark"] .skeleton-shimmer-bar {
       background: linear-gradient(90deg, var(--card) 25%, var(--card-soft) 50%, var(--card) 75%);
       background-size: 200% 100%;
     }
@@ -87,60 +94,70 @@
   <div id="app"></div>
 
   <!-- Add/Edit Expense Modal -->
-  <div id="expenseModal" class="fixed inset-0 bg-overlay hidden items-center justify-center p-4" style="z-index:10000">
-    <div class="card p-6 max-w-sm w-full" style="z-index:10001">
-      <h2 id="modalTitle" class="text-xl font-bold mb-4">Thêm chi phí</h2>
-      <form id="expenseForm" onsubmit="saveExpense(event)">
-        <input type="hidden" id="expenseId">
-        <div class="space-y-3">
-          <div>
-            <label class="block text-sm font-medium text-main mb-1">Số tiền (đ)</label>
-            <input type="text" inputmode="numeric" id="expenseAmount" required autocomplete="off" class="w-full border border-muted rounded-lg px-3 py-2 tabular-nums" placeholder="VD: 10.000" oninput="onExpenseAmountInput(this)">
+  <div id="expenseModal" class="modal-overlay-v2 hidden center" style="z-index:10000">
+    <div class="modal-sheet-v2" style="max-width:400px;margin:auto;">
+      <div class="modal-sheet-v2-header">
+        <div class="modal-sheet-v2-title" id="modalTitle">Thêm chi phí</div>
+        <button type="button" onclick="hideExpenseModal()" class="modal-sheet-v2-close">×</button>
+      </div>
+      <div class="modal-sheet-v2-body">
+        <form id="expenseForm" onsubmit="saveExpense(event)">
+          <input type="hidden" id="expenseId">
+          <div class="space-y-3">
+            <div>
+              <label class="field-label">Số tiền (đ)</label>
+              <input type="text" inputmode="numeric" id="expenseAmount" required autocomplete="off" class="field-input" style="height:48px;font-size:16px;" placeholder="VD: 10.000" oninput="onExpenseAmountInput(this)">
+            </div>
+            <div>
+              <label class="field-label">Danh mục</label>
+              <select id="expenseCategory" class="field-input" style="height:48px;font-size:16px;">
+                <!-- options rendered dynamically by rebuildExpenseCategorySelect() -->
+              </select>
+            </div>
+            <div>
+              <label class="field-label">Ghi chú</label>
+              <input type="text" id="expenseNote" class="field-input" style="height:48px;font-size:16px;" placeholder="Mô tả chi phí...">
+            </div>
           </div>
-          <div>
-            <label class="block text-sm font-medium text-main mb-1">Danh mục</label>
-            <select id="expenseCategory" class="w-full border border-muted rounded-lg px-3 py-2">
-              <!-- options rendered dynamically by rebuildExpenseCategorySelect() -->
-            </select>
+          <div class="flex gap-2 mt-4">
+            <button type="button" onclick="hideExpenseModal()" class="flex-1 btn btn-ghost" style="height:44px;">Hủy</button>
+            <button type="submit" class="flex-1 btn btn-primary" style="height:44px;">Lưu</button>
           </div>
-          <div>
-            <label class="block text-sm font-medium text-main mb-1">Ghi chú</label>
-            <input type="text" id="expenseNote" class="w-full border border-muted rounded-lg px-3 py-2" placeholder="Mô tả chi phí...">
-          </div>
-        </div>
-        <div class="flex gap-2 mt-6">
-          <button type="button" onclick="hideExpenseModal()" class="flex-1 btn btn-ghost">Hủy</button>
-          <button type="submit" class="flex-1 btn btn-primary">Lưu</button>
-        </div>
-      </form>
+        </form>
+      </div>
     </div>
   </div>
 
   <!-- Add Category Modal -->
-  <div id="categoryModal" class="fixed inset-0 bg-overlay hidden items-center justify-center p-4" style="z-index:10002">
-    <div class="card p-6 max-w-sm w-full" style="z-index:10003">
-      <h2 class="text-xl font-bold mb-4">Thêm loại chi phí</h2>
-      <form id="categoryForm" onsubmit="saveCategory(event)">
-        <div class="mb-4">
-          <label class="block text-sm font-medium text-main mb-1">Biểu tượng</label>
-          <div id="emojiPicker" class="flex flex-wrap gap-1 p-2 border border-muted rounded-lg bg-card max-h-32 overflow-y-auto"></div>
-          <input type="hidden" id="categoryIcon" value="📋">
-        </div>
-        <div class="mb-4">
-          <label class="block text-sm font-medium text-main mb-1">Tên loại chi phí</label>
-          <input type="text" id="categoryName" required class="w-full border border-muted rounded-lg px-3 py-2" placeholder="VD: Xăng xe máy, Điện thoại..." minlength="2">
-        </div>
-        <div class="flex gap-2">
-          <button type="button" onclick="hideCategoryModal()" class="flex-1 btn btn-ghost">Hủy</button>
-          <button type="submit" class="flex-1 btn btn-primary">Lưu</button>
-        </div>
-      </form>
+  <div id="categoryModal" class="modal-overlay-v2 hidden center" style="z-index:10002">
+    <div class="modal-sheet-v2" style="max-width:400px;margin:auto;">
+      <div class="modal-sheet-v2-header">
+        <div class="modal-sheet-v2-title">Thêm loại chi phí</div>
+        <button type="button" onclick="hideCategoryModal()" class="modal-sheet-v2-close">×</button>
+      </div>
+      <div class="modal-sheet-v2-body">
+        <form id="categoryForm" onsubmit="saveCategory(event)">
+          <div class="mb-4">
+            <label class="field-label">Biểu tượng</label>
+            <div id="emojiPicker" class="flex flex-wrap gap-1 p-2 rounded-lg max-h-32 overflow-y-auto" style="background:var(--card);border:1px solid var(--border);"></div>
+            <input type="hidden" id="categoryIcon" value="📋">
+          </div>
+          <div class="mb-4">
+            <label class="field-label">Tên loại chi phí</label>
+            <input type="text" id="categoryName" required class="field-input" style="height:48px;font-size:16px;" placeholder="VD: Xăng xe máy, Điện thoại..." minlength="2">
+          </div>
+          <div class="flex gap-2 mt-4">
+            <button type="button" onclick="hideExpenseModal()" class="flex-1 btn btn-ghost" style="height:44px;">Hủy</button>
+            <button type="submit" class="flex-1 btn btn-primary" style="height:44px;">Lưu</button>
+          </div>
+        </form>
+      </div>
     </div>
   </div>
 
   <!-- Load realtime state + expenses JS -->
   <!-- realtime.js auto-loaded by layout.js -->
-  <script src="/js/expenses.js?v=20260418a"></script>
+  <script src="/js/expenses.js?v=20260425-ux"></script>
 
   <script>
     // Set initial month BEFORE rendering layout (so we can use the value)

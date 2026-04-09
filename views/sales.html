@@ -11,303 +11,203 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
-  <link rel="stylesheet" href="/css/tailwind.css">
-  <link rel="stylesheet" href="/css/unified.css?v=20260404d">
+  <link rel="stylesheet" href="/css/unified.css?v=20260424-clean">
   <script src="/js/auth.js"></script>
   <script src="/js/dark-mode.js"></script>
-  <script src="/js/layout.js?v=20260414a"></script>
+  <script src="/js/layout.js?v=20260424-clean"></script>
   <script>requireAuth();</script>
-  <style>
-    .animate-fade { animation: fade 0.3s ease-in; }
-    @keyframes fade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-    canvas { width: 100% !important; height: auto !important; }
-    .skeleton { background: linear-gradient(90deg, var(--color-bg-hover) 25%, var(--color-card-hover) 50%, var(--color-bg-hover) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
-    @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
-    button, a { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-    .card { transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s, background 0.2s; }
-    .card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
-    .card.active { border: 2px solid var(--color-primary) !important; background: rgba(245,158,11,0.05) !important; }
-    #sellBtn.active { animation: pulse 0.4s ease; }
-    @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.02); } 100% { transform: scale(1); } }
-    button:active { transform: scale(0.96); }
-  </style>
 </head>
 <body class="bg-main text-primary body--app">
   <div id="app"></div>
 
-  <!-- Invoice Modal - Full screen -->
-  <div id="invoiceModal" class="fixed inset-0 bg-overlay hidden items-center justify-center z-50 p-4">
-    <div class="card w-full relative overflow-y-auto flex flex-col gap-4" style="max-width: 420px !important; margin: auto;">
-
-      <!-- Header: close button left, title centered -->
-      <div class="flex items-center justify-between mb-1">
-        <button onclick="closeInvoice()" class="text-muted hover:text-main text-2xl font-bold w-10 h-10 flex items-center justify-center rounded-full hover:bg-bg-hover z-10 flex-shrink-0">&times;</button>
-        <div class="text-xs uppercase tracking-widest text-muted font-medium">Hóa đơn</div>
-        <div class="w-10 flex-shrink-0"></div>
+  <!-- Invoice Modal -->
+  <div id="invoiceModal" class="modal-overlay-v2 hidden center">
+    <div class="modal-sheet-v2" style="max-width:420px;margin:auto;">
+      <div class="modal-sheet-v2-header">
+        <div></div>
+        <div class="modal-sheet-v2-title">Hóa đơn</div>
+        <button onclick="closeInvoice()" class="modal-sheet-v2-close">×</button>
       </div>
-
-      <!-- Total Amount Card -->
-      <div class="invoice-total-card rounded-2xl px-4 py-5 text-center">
-        <div class="text-xs uppercase tracking-widest font-medium mb-1 invoice-total-label">Tổng thanh toán</div>
-        <div class="invoice-grand-total">
-          <span class="invoice-total-value tabular-nums">0</span>
-          <span class="invoice-total-unit text-xl font-bold">đ</span>
+      <div class="modal-sheet-v2-body">
+        <div class="invoice-total-card mb-4">
+          <div class="invoice-total-label">Tổng thanh toán</div>
+          <div class="flex items-baseline justify-center gap-2">
+            <span class="invoice-total-value tabular-nums" id="invoiceTotalValue">0</span>
+            <span class="invoice-total-unit">đ</span>
+          </div>
         </div>
-      </div>
-
-      <!-- Products + Keg Info Card -->
-      <div id="invoiceContent" class="invoice-pos-content rounded-xl px-4 py-4 space-y-0"></div>
-
-      <!-- QR Section Card -->
-      <div class="invoice-qr-card rounded-2xl px-4 py-5 text-center">
-        <p class="text-sm font-medium text-main mb-3">Phương thức thanh toán</p>
-        <img id="qrCode" src="" class="w-48 mx-auto rounded-lg" alt="QR Code">
-        <p class="text-xs text-muted mt-3">Quét QR để thanh toán</p>
+        <div id="invoiceContent" class="invoice-pos-content mb-4"></div>
+        <div class="invoice-qr-card">
+          <p class="text-sm font-medium text-main mb-3">Phương thức thanh toán</p>
+          <img id="qrCode" src="" class="w-48 mx-auto rounded-lg" alt="QR Code">
+          <p class="text-xs text-muted mt-3">Quét QR để thanh toán</p>
+        </div>
       </div>
     </div>
   </div>
-  <style>
-    /* Invoice Total Card */
-    #invoiceModal .invoice-total-card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
-    }
-    /* Invoice Grand Total */
-    #invoiceModal .invoice-grand-total {
-      display: flex;
-      align-items: baseline;
-      justify-content: center;
-      gap: 6px;
-    }
-    #invoiceModal .invoice-total-value {
-      font-size: 52px;
-      font-weight: 800;
-      color: var(--green);
-      letter-spacing: -2px;
-      line-height: 1;
-      font-variant-numeric: tabular-nums;
-    }
-    #invoiceModal .invoice-total-unit {
-      color: var(--text-muted);
-      font-weight: 700;
-      font-size: 20px;
-      line-height: 1;
-    }
-    #invoiceModal .invoice-total-label {
-      color: var(--text-muted);
-    }
-
-    /* Invoice Content — always white surface: use fixed ink colors (dark theme tokens are light-on-dark and are unreadable on #fff) */
-    #invoiceModal .invoice-pos-content {
-      background: #fff;
-      border: 1px solid #EAECEF;
-      box-shadow: 0 1px 6px rgba(0,0,0,0.06);
-      color: #1E2329;
-    }
-    #invoiceModal .invoice-pos-content .text-main {
-      color: #1E2329 !important;
-    }
-    #invoiceModal .invoice-pos-content .text-secondary {
-      color: #707A8A !important;
-    }
-    #invoiceModal .invoice-pos-content .text-muted {
-      color: #707A8A !important;
-    }
-
-    /* Invoice QR Card — same white surface */
-    #invoiceModal .invoice-qr-card {
-      background: #fff;
-      border: 1px solid #EAECEF;
-      box-shadow: 0 1px 6px rgba(0,0,0,0.06);
-      color: #1E2329;
-    }
-    #invoiceModal .invoice-qr-card .text-main {
-      color: #1E2329 !important;
-    }
-    #invoiceModal .invoice-qr-card .text-muted {
-      color: #707A8A !important;
-    }
-
-    .invoice-pos-content .invoice-item { padding: 10px 0; border-bottom: 1px solid #EAECEF; }
-    .invoice-pos-content .invoice-item:last-child { border-bottom: none; }
-    .invoice-pos-content .invoice-item .invoice-name { font-weight: 600; color: #1E2329; }
-    .invoice-pos-content .invoice-item .invoice-row { display: flex; justify-content: space-between; align-items: baseline; color: #707A8A; font-size: 0.875rem; margin-top: 2px; }
-    .invoice-pos-content .invoice-item .invoice-total { font-weight: 600; color: #1E2329; }
-  </style>
 
   <!-- Keg Modal -->
-  <div id="kegModal" class="fixed inset-0 bg-overlay hidden items-center justify-center z-50 p-4">
-    <div class="card w-full max-w-md p-6 relative shadow-xl">
-      <button onclick="closeKegModal()" class="absolute top-4 right-4 text-muted hover:text-main text-2xl font-bold w-8 h-8 flex items-center justify-center rounded-full hover:bg-bg-hover">&times;</button>
-      <div class="text-center mb-4">
-        <div class="text-xl font-bold text-main" id="kegModalTitle">📦 Cập nhật vỏ bình</div>
-        <!-- Badge: hiển thị khi đã có dữ liệu gốc -->
-        <div id="kegModalBadge" class="hidden mt-2">
-          <span class="text-sm text-muted">Đã giao: <span class="font-bold text-success" id="kegBadgeGiao">0</span></span>
-          <span class="mx-2 text-muted">|</span>
-          <span class="text-sm text-muted">Đã thu: <span class="font-bold text-danger" id="kegBadgeThu">0</span></span>
-        </div>
+  <div id="kegModal" class="modal-overlay-v2 hidden center">
+    <div class="modal-sheet-v2">
+      <div class="modal-sheet-v2-header">
+        <div class="text-warning" style="font-size:16px;font-weight:700;">📦 Cập nhật vỏ bình</div>
+        <button onclick="closeKegModal()" class="modal-sheet-v2-close">×</button>
       </div>
+      <div class="modal-sheet-v2-body">
+        <div id="kegModalBadge" class="hidden mb-3 p-2 rounded-lg text-center text-sm" style="background:var(--bg);border:1px solid var(--border);">
+          <span class="text-muted">Đã giao: <span class="font-bold text-green" id="kegBadgeGiao">0</span>
+          <span class="mx-2 text-muted">|</span>
+          Đã thu: <span class="font-bold text-red" id="kegBadgeThu">0</span>
+        </div>
 
-      <div class="card p-4 mb-4 border-warning">
-        <div class="text-center">
+        <div class="card mb-4 text-center" style="background:var(--primary-dim);border-color:var(--primary);">
           <div class="text-xs font-semibold text-warning mb-1">Bia đã bán</div>
           <div class="text-3xl font-bold text-primary" id="kegBeerQuantity">0</div>
         </div>
+
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-semibold text-green mb-2">📦 Giao vỏ</label>
+            <input type="number" id="kegDeliver" value="0" inputmode="numeric" pattern="[0-9]*" min="0"
+              class="w-full h-12 px-4 rounded-xl border-2 text-center font-bold text-xl focus:outline-none"
+              style="background:var(--card);border-color:var(--green);color:var(--text-main);"
+              oninput="updateKegModalPreview()" onchange="updateKegModalPreview()" onkeydown="handleKegInputNav(event, 'kegReturn')">
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-red mb-2">🔄 Thu vỏ</label>
+            <input type="number" id="kegReturn" value="0" inputmode="numeric" pattern="[0-9]*" min="0"
+              class="w-full h-12 px-4 rounded-xl border-2 text-center font-bold text-xl focus:outline-none"
+              style="background:var(--card);border-color:var(--red);color:var(--text-main);"
+              oninput="updateKegModalPreview()" onchange="updateKegModalPreview()" onkeydown="handleKegInputNav(event, 'kegSaveBtn')">
+          </div>
+
+          <div class="card p-4">
+            <div class="flex justify-between mb-2"><span class="text-muted text-sm">Vỏ hiện tại:</span><span class="font-bold text-main" id="kegCurrentBalance">0</span></div>
+            <div class="flex justify-between mb-2"><span class="text-muted text-sm">Sẽ giao thêm:</span><span class="font-bold text-green" id="kegDeliverPreview">0</span></div>
+            <div class="flex justify-between mb-2"><span class="text-muted text-sm">Sẽ thu về:</span><span class="font-bold text-warning" id="kegReturnPreview">0</span></div>
+            <div class="flex justify-between border-t border-muted pt-2 mt-2"><span class="text-muted text-sm font-semibold">Số vỏ tại khách sau cùng:</span><span class="font-bold text-green" id="kegNewBalance">0</span></div>
+          </div>
+
+          <div id="kegModalWarning" class="hidden card p-3 text-center text-sm" style="border-color:var(--red);">
+            ⚠️ Số vỏ thu vượt quá khách đang giữ
+          </div>
+          <div id="kegModalError" class="hidden card p-3 text-center text-sm text-red" style="border-color:var(--red);"></div>
+        </div>
+
+        <div class="modal-sheet-v2-footer" style="border:none;padding:0;margin-top:12px;">
+          <button onclick="saveKegUpdate()" id="kegSaveBtn" class="btn btn-primary w-full h-14">💾 <span id="kegSaveBtnText">Lưu</span></button>
+        </div>
       </div>
-
-      <div class="space-y-4">
-        <div>
-          <label class="block text-sm font-semibold text-success mb-2">📦 Giao vỏ</label>
-          <input type="number" id="kegDeliver" value="0"
-            inputMode="numeric" pattern="[0-9]*" min="0"
-            class="w-full h-12 px-4 rounded-xl bg-card border-2 border-success/50 text-white text-xl font-bold text-center focus:outline-none focus:ring-2 focus:ring-success focus:border-success"
-            oninput="updateKegModalPreview()" onchange="updateKegModalPreview()" onkeydown="handleKegInputNav(event, 'kegReturn')">
-        </div>
-
-        <div>
-          <label class="block text-sm font-semibold text-danger mb-2">🔄 Thu vỏ</label>
-          <input type="number" id="kegReturn" value="0"
-            inputMode="numeric" pattern="[0-9]*" min="0"
-            class="w-full h-12 px-4 rounded-xl bg-card border-2 border-danger/50 text-white text-xl font-bold text-center focus:outline-none focus:ring-2 focus:ring-danger focus:border-danger"
-            oninput="updateKegModalPreview()" onchange="updateKegModalPreview()" onkeydown="handleKegInputNav(event, 'kegSaveBtn')">
-        </div>
-
-        <div class="card p-4">
-          <div class="flex justify-between mb-2">
-            <span class="text-muted">Vỏ hiện tại:</span>
-            <span class="font-bold text-main" id="kegCurrentBalance">0</span>
-          </div>
-          <div class="flex justify-between mb-2">
-            <span class="text-muted">Sẽ giao thêm:</span>
-            <span class="font-bold text-success" id="kegDeliverPreview">0</span>
-          </div>
-          <div class="flex justify-between mb-2">
-            <span class="text-muted">Sẽ thu về:</span>
-            <span class="font-bold text-warning" id="kegReturnPreview">0</span>
-          </div>
-          <div class="flex justify-between border-t border-muted pt-2 mt-2">
-            <span class="text-muted font-semibold">Số vỏ tại khách sau cùng:</span>
-            <span class="font-bold text-success" id="kegNewBalance">0</span>
-          </div>
-        </div>
-
-        <div id="kegModalWarning" class="hidden card p-3 border-danger text-center text-sm">
-          ⚠️ Số vỏ thu vượt quá khách đang giữ
-        </div>
-        <div id="kegModalError" class="hidden card p-3 border-danger text-center text-sm text-danger"></div>
-      </div>
-
-      <button onclick="saveKegUpdate()" id="kegSaveBtn" class="btn btn-primary w-full h-14">
-        💾 <span id="kegSaveBtnText">Lưu</span>
-      </button>
     </div>
   </div>
 
   <!-- Collect Keg Modal -->
-  <div id="collectKegModal" class="fixed inset-0 bg-overlay hidden items-center justify-center z-50 p-4">
-    <div class="card w-full max-w-sm p-6 shadow-xl">
-      <div class="flex justify-between items-center mb-4">
-        <h3 class="font-bold text-lg text-warning">Thu vỏ</h3>
-        <button onclick="closeCollectKegModal()" class="text-2xl text-muted hover:text-main w-8 h-8 flex items-center justify-center rounded-full hover:bg-bg-hover">&times;</button>
+  <div id="collectKegModal" class="modal-overlay-v2 hidden center">
+    <div class="modal-sheet-v2" style="max-width:400px;margin:auto;">
+      <div class="modal-sheet-v2-header">
+        <div class="text-warning" style="font-size:16px;font-weight:700;">🔄 Thu vỏ</div>
+        <button onclick="closeCollectKegModal()" class="modal-sheet-v2-close">×</button>
       </div>
+      <div class="modal-sheet-v2-body">
+        <div id="collectKegInfo" class="card p-3 mb-4 text-center text-sm text-warning" style="border-color:var(--primary);"></div>
 
-      <div class="card p-3 mb-4 text-center text-sm text-warning border-warning">
-        <div id="collectKegInfo" class="font-semibold"></div>
-      </div>
+        <div class="grid grid-cols-2 gap-4 mb-4">
+          <div>
+            <label class="block text-xs font-semibold text-green mb-2 text-center">📦 Giao vỏ</label>
+            <input type="number" id="collectKegDeliver"
+              class="w-full h-12 px-4 rounded-xl border-2 text-center font-bold text-xl focus:outline-none"
+              style="background:var(--card);border-color:var(--green);color:var(--text-main);"
+              min="0" inputmode="numeric"
+              oninput="updateCollectKegPreview()" onchange="updateCollectKegPreview()">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-red mb-2 text-center">🔄 Thu vỏ</label>
+            <input type="number" id="collectKegReturn"
+              class="w-full h-12 px-4 rounded-xl border-2 text-center font-bold text-xl focus:outline-none"
+              style="background:var(--card);border-color:var(--red);color:var(--text-main);"
+              min="0" inputmode="numeric"
+              oninput="updateCollectKegPreview()" onchange="updateCollectKegPreview()">
+          </div>
+        </div>
 
-      <div class="grid grid-cols-2 gap-4 mb-4">
-        <div>
-          <label class="block text-xs font-semibold text-success mb-2 text-center">📦 Giao vỏ</label>
-          <input type="number" id="collectKegDeliver"
-            class="w-full h-12 px-4 rounded-xl bg-card border-2 border-success/50 text-white text-xl font-bold text-center focus:outline-none focus:ring-2 focus:ring-success focus:border-success"
-            min="0" inputmode="numeric"
-            oninput="updateCollectKegPreview()" onchange="updateCollectKegPreview()">
+        <div class="card p-4 mb-4">
+          <div class="flex justify-between mb-2"><span class="text-muted text-sm">Vỏ hiện tại:</span><span class="font-bold text-main" id="collectKegCurrentBalance">0</span></div>
+          <div class="flex justify-between mb-2"><span class="text-muted text-sm">Đã giao (theo đơn):</span><span class="font-bold text-green" id="collectKegDeliverPreview">0</span></div>
+          <div class="flex justify-between mb-2"><span class="text-muted text-sm">Sẽ thu về:</span><span class="font-bold text-warning" id="collectKegReturnPreview">0</span></div>
+          <div class="flex justify-between border-t border-muted pt-2 mt-2"><span class="text-muted text-sm font-semibold">Vỏ tại khách sau cùng:</span><span class="font-bold text-green" id="collectKegRemaining">0</span></div>
         </div>
-        <div>
-          <label class="block text-xs font-semibold text-danger mb-2 text-center">🔄 Thu vỏ</label>
-          <input type="number" id="collectKegReturn"
-            class="w-full h-12 px-4 rounded-xl bg-card border-2 border-danger/50 text-white text-xl font-bold text-center focus:outline-none focus:ring-2 focus:ring-danger focus:border-danger"
-            min="0" inputmode="numeric"
-            oninput="updateCollectKegPreview()" onchange="updateCollectKegPreview()">
-        </div>
-      </div>
+        <div id="collectKegWarning" class="hidden mb-3 p-2 text-center text-sm text-red" style="border:1px solid var(--red);border-radius:var(--radius-md);"></div>
 
-      <div class="card p-4 mb-4">
-        <div class="flex justify-between mb-2">
-          <span class="text-muted text-sm">Vỏ hiện tại:</span>
-          <span class="font-bold text-main" id="collectKegCurrentBalance">0</span>
+        <div class="modal-sheet-v2-footer" style="border:none;padding:0;">
+          <button onclick="closeCollectKegModal()" class="btn btn-ghost flex-1 h-14">Huỷ</button>
+          <button onclick="submitCollectKeg()" class="btn btn-warning flex-1 h-14">Xác nhận</button>
         </div>
-        <div class="flex justify-between mb-2">
-          <span class="text-muted text-sm">Đã giao (theo đơn):</span>
-          <span class="font-bold text-success" id="collectKegDeliverPreview">0</span>
-        </div>
-        <div class="flex justify-between mb-2">
-          <span class="text-muted text-sm">Sẽ thu về:</span>
-          <span class="font-bold text-warning" id="collectKegReturnPreview">0</span>
-        </div>
-        <div class="flex justify-between border-t border-muted pt-2 mt-2">
-          <span class="text-muted text-sm font-semibold">Vỏ tại khách sau cùng:</span>
-          <span class="font-bold text-success" id="collectKegRemaining">0</span>
-        </div>
-      </div>
-      <div id="collectKegWarning" class="hidden card p-2 border-danger text-center text-sm text-danger mb-3"></div>
-
-      <div class="flex gap-3">
-        <button onclick="closeCollectKegModal()" class="btn btn-ghost flex-1 h-14">Huỷ</button>
-        <button onclick="submitCollectKeg()" class="btn btn-warning flex-1 h-14">Xác nhận</button>
       </div>
     </div>
   </div>
 
   <!-- Đổi bia lỗi Modal -->
-  <div id="replacementModal" class="fixed inset-0 bg-overlay hidden items-center justify-center z-50 p-4">
-    <div class="card w-full max-w-md min-w-0 p-6 relative shadow-xl">
-      <button onclick="closeReplacementModal()" class="absolute top-4 right-4 text-muted hover:text-main text-2xl font-bold w-8 h-8 flex items-center justify-center rounded-full hover:bg-bg-hover">&times;</button>
-      <div class="text-xl font-bold text-main mb-4">🔄 Đổi bia lỗi</div>
-      <div class="space-y-4">
-        <div id="giftGuestRow" class="hidden">
-          <label class="block text-xs font-semibold text-warning mb-2">👤 Tên khách tặng</label>
-          <input type="text" id="giftGuestName" placeholder="Nhập tên khách (không bắt buộc)" class="w-full border-2 border-primary rounded-xl px-4 py-3 focus:border-primary focus:outline-none">
-        </div>
-        <div id="replacementCustomerRow">
-          <label class="block text-xs font-semibold text-warning mb-2">👤 Khách hàng</label>
-          <select id="replacementCustomer" onchange="loadReplacementProducts()" class="w-full border-2 border-primary rounded-xl px-4 py-3 focus:border-primary focus:outline-none">
-            <option value="">-- Chọn khách hàng --</option>
-          </select>
-        </div>
-        <div>
-          <label class="block text-xs font-semibold text-warning mb-2">📦 Sản phẩm</label>
-          <select id="replacementProduct" class="w-full border-2 border-primary rounded-xl px-4 py-3 focus:border-primary focus:outline-none">
-            <option value="">-- Chọn sản phẩm --</option>
-          </select>
-        </div>
-        <div>
-          <label class="block text-xs font-semibold text-warning mb-2">Số lượng</label>
-          <input type="number" id="replacementQty" value="1" min="1" class="w-full border-2 border-primary rounded-xl px-4 py-3 text-center text-xl font-bold focus:border-primary focus:outline-none">
-        </div>
-        <div>
-          <label class="block text-xs font-semibold text-warning mb-2">Lý do</label>
-          <select id="replacementReason" class="w-full border-2 border-primary rounded-xl px-4 py-3 focus:border-primary focus:outline-none">
-            <option value="Bia hư">Bia hư</option>
-            <option value="Bia chua">Bia chua</option>
-            <option value="Bia hết hạn">Bia hết hạn</option>
-            <option value="Khác">Khác</option>
-          </select>
-        </div>
-        <div class="card p-3 border-warning">
-          <label class="flex items-start gap-3 cursor-pointer">
-            <input type="checkbox" id="giftKegs" onchange="toggleGiftMode()" class="w-5 h-5 mt-0.5 accent-warning self-start">
-            <span class="text-sm font-semibold text-main leading-snug break-words">
-              🎁 Tặng uống thử (khách mới — vỏ keg vào kho vỏ rỗng ngay)
-            </span>
-          </label>
-        </div>
+  <div id="replacementModal" class="modal-overlay-v2 hidden center">
+    <div class="modal-sheet-v2">
+      <div class="modal-sheet-v2-header">
+        <div class="text-warning" style="font-size:16px;font-weight:700;">🔄 Đổi bia lỗi</div>
+        <button onclick="closeReplacementModal()" class="modal-sheet-v2-close">×</button>
       </div>
-      <div class="flex gap-2 mt-4">
-        <button type="button" onclick="closeReplacementModal()" class="btn btn-ghost flex-1 h-14">Huỷ</button>
-        <button type="button" onclick="submitReplacement()" class="btn btn-warning flex-1 h-14"><span class="mr-1">💾</span> Cập nhật</button>
+      <div class="modal-sheet-v2-body">
+        <div class="space-y-4">
+          <div id="giftGuestRow" class="hidden">
+            <label class="block text-xs font-semibold text-warning mb-2">👤 Tên khách tặng</label>
+            <input type="text" id="giftGuestName" placeholder="Nhập tên khách (không bắt buộc)"
+              class="w-full border-2 rounded-xl px-4 py-3 focus:outline-none"
+              style="background:var(--card);border-color:var(--primary);color:var(--text-main);">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-warning mb-2">👤 Khách hàng</label>
+            <select id="replacementCustomer" onchange="loadReplacementProducts()"
+              class="w-full border-2 rounded-xl px-4 py-3 focus:outline-none"
+              style="background:var(--card);border-color:var(--primary);color:var(--text-main);">
+              <option value="">-- Chọn khách hàng --</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-warning mb-2">📦 Sản phẩm</label>
+            <select id="replacementProduct"
+              class="w-full border-2 rounded-xl px-4 py-3 focus:outline-none"
+              style="background:var(--card);border-color:var(--primary);color:var(--text-main);">
+              <option value="">-- Chọn sản phẩm --</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-warning mb-2">Số lượng</label>
+            <input type="number" id="replacementQty" value="1" min="1"
+              class="w-full border-2 rounded-xl px-4 py-3 text-center font-bold text-xl focus:outline-none"
+              style="background:var(--card);border-color:var(--primary);color:var(--text-main);">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-warning mb-2">Lý do</label>
+            <select id="replacementReason"
+              class="w-full border-2 rounded-xl px-4 py-3 focus:outline-none"
+              style="background:var(--card);border-color:var(--primary);color:var(--text-main);">
+              <option value="Bia hư">Bia hư</option>
+              <option value="Bia chua">Bia chua</option>
+              <option value="Bia hết hạn">Bia hết hạn</option>
+              <option value="Khác">Khác</option>
+            </select>
+          </div>
+          <div class="card p-3" style="border-color:var(--primary);border-width:2px;">
+            <label class="flex items-start gap-3 cursor-pointer">
+              <input type="checkbox" id="giftKegs" onchange="toggleGiftMode()" class="w-5 h-5 mt-0.5" style="accent-color:var(--primary);">
+              <span class="text-sm font-semibold text-main leading-snug break-words">
+                🎁 Tặng uống thử (khách mới — vỏ keg vào kho vỏ rỗng ngay)
+              </span>
+            </label>
+          </div>
+        </div>
+
+        <div class="modal-sheet-v2-footer" style="border:none;padding:0;margin-top:16px;">
+          <button type="button" onclick="closeReplacementModal()" class="btn btn-ghost flex-1 h-14">Huỷ</button>
+          <button type="button" onclick="submitReplacement()" class="btn btn-warning flex-1 h-14">💾 Cập nhật</button>
+        </div>
       </div>
     </div>
   </div>
@@ -316,7 +216,7 @@
   <script src="/js/utils.js?v=20260211-toast"></script>
   <script src="/js/format.js"></script>
   <!-- realtime.js auto-loaded by layout.js -->
-  <script src="/js/sales.js?v=20260418e"></script>
+  <script src="/js/sales.js?v=20260425-ux"></script>
 
   <!-- PERFORMANCE: sync-orders needs window.db (from db.js) → load in sequence before sales.js -->
   <script src="/js/vendor/dexie.min.js"></script>
@@ -383,9 +283,17 @@
         <div id="contentSection" class="hidden">
           <div class="card mb-4">
             <label class="block text-xs font-semibold text-warning mb-2">👤 Chọn khách hàng (không bắt buộc)</label>
-            <select id="customerSelect" onchange="updatePrices()" class="w-full border-2 border-primary rounded-xl px-4 py-3 text-lg focus:border-primary focus:ring-2 focus:ring-primary text-main">
-              <option value="">📋 Khách lẻ (giá thường)</option>
-            </select>
+            <div style="position:relative;">
+              <input type="text" id="customerSearch" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                placeholder="Tìm khách hàng..."
+                oninput="filterCustomerOptions(this.value)"
+                onfocus="showCustomerDropdown(true)"
+                class="w-full border-2 border-primary rounded-xl px-4 py-3 text-base focus:border-primary focus:ring-2 focus:ring-primary focus:outline-none text-main bg-card"
+                style="height:48px;">
+              <input type="hidden" id="customerSelect" onchange="onCustomerSelected()">
+              <div id="customerDropdown" class="hidden" style="position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md);max-height:220px;overflow-y:auto;z-index:500;box-shadow:var(--shadow-md);">
+              </div>
+            </div>
           </div>
 
           <!-- Vỏ bình: không hiển thị ở đây — dùng modal Thu vỏ trong lịch sử hóa đơn -->
@@ -409,6 +317,11 @@
               </button>
             </div>
           </div>
+
+          <!-- FAB: Thu vỏ — thay vì phải scroll xuống lịch sử -->
+          <button onclick="openCollectKegModal()" class="fab" style="bottom: calc(var(--bottomnav-height, 64px) + env(safe-area-inset-bottom, 0px) + 16px); right: 16px;" title="Thu vỏ">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+          </button>
 
           <div class="card mb-4">
             <h3 class="font-bold text-base text-main mb-3">📋 Lịch sử bán hàng</h3>

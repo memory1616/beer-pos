@@ -10,11 +10,10 @@
   <meta name="mobile-web-app-capable" content="yes">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
-  <link rel="stylesheet" href="/css/tailwind.css">
-  <link rel="stylesheet" href="/css/unified.css?v=20260414a">
+  <link rel="stylesheet" href="/css/unified.css?v=20260424-clean">
   <script src="/js/auth.js"></script>
   <script src="/js/dark-mode.js"></script>
-  <script src="/js/layout.js?v=20260414a"></script>
+  <script src="/js/layout.js?v=20260424-clean"></script>
   <script>requireAuth();</script>
   <style>
     .animate-fade { animation: fade 0.3s ease-in; }
@@ -28,7 +27,7 @@
 
   <script src="/js/utils.js"></script>
   <!-- realtime.js auto-loaded by layout.js -->
-  <script src="/js/purchases.js?v=20260416-realtime"></script>
+  <script src="/js/purchases.js?v=20260425-ux"></script>
 
   <script>
     // --- State & configuration ---
@@ -68,7 +67,7 @@
       var pagePurchases = allPurchases.slice(start, start + HISTORY_PAGE_SIZE);
 
       if (total === 0) {
-        historyList.innerHTML = '<div class="text-center text-muted py-8">Chưa có phiếu nhập nào</div>';
+        historyList.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📋</div><div class="empty-state-title">Chưa có phiếu nhập nào</div><div class="empty-state-desc">Nhấn <strong>+ Nhập mới</strong> để tạo đơn nhập hàng đầu tiên</div></div>';
         if (pagination) pagination.classList.add('hidden');
         return;
       }

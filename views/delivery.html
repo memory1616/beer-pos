@@ -9,11 +9,10 @@
   <meta name="mobile-web-app-capable" content="yes">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
-  <link rel="stylesheet" href="/css/tailwind.css">
-  <link rel="stylesheet" href="/css/unified.css?v=20260414a">
+  <link rel="stylesheet" href="/css/unified.css?v=20260424-clean">
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <script src="/js/dark-mode.js"></script>
-  <script src="/js/layout.js?v=20260414a"></script>
+  <script src="/js/layout.js?v=20260424-clean"></script>
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <style>
     .delivery-map-wrap { position: relative; z-index: 0; isolation: isolate; overflow: hidden; border-radius: 12px; margin-bottom: 1rem; }
@@ -36,30 +35,41 @@
   <div id="app"></div>
 
   <!-- Settings Modal -->
-  <div id="settingsModal" class="fixed inset-0 bg-overlay hidden items-center justify-center p-4" style="z-index:10000">
-    <div class="card p-6 max-w-sm w-full settings-modal-inner relative" style="z-index:10001">
-      <h2 class="text-xl font-bold mb-4">⚙️ Cấu hình vận chuyển</h2>
-      <div class="space-y-4">
-        <div>
-          <label class="block text-sm font-medium text-main mb-1">Phí/km (đ)</label>
-          <input type="number" id="deliveryCostPerKm" class="w-full border border-muted rounded-lg px-3 py-2" min="0" step="100">
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-main mb-1">Phí cơ bản (đ)</label>
-          <input type="number" id="deliveryBaseCost" class="w-full border border-muted rounded-lg px-3 py-2" min="0">
-        </div>
-        <div class="border-t border-muted pt-4">
-          <label class="block text-sm font-medium text-main mb-1">📍 Vị trí kho/xưởng</label>
-          <div class="grid grid-cols-2 gap-2">
-            <div><label class="text-xs text-muted">Vĩ độ</label><input type="number" id="distributorLat" class="w-full border border-muted rounded-lg px-3 py-2" step="0.0001"></div>
-            <div><label class="text-xs text-muted">Kinh độ</label><input type="number" id="distributorLng" class="w-full border border-muted rounded-lg px-3 py-2" step="0.0001"></div>
-          </div>
-          <button onclick="getDistributorLocation()" class="mt-2 text-sm text-info">📍 Lấy vị trí hiện tại</button>
-        </div>
+  <div id="settingsModal" class="modal-overlay-v2 hidden center" style="z-index:10000">
+    <div class="modal-sheet-v2" style="max-width:400px;margin:auto;">
+      <div class="modal-sheet-v2-header">
+        <div class="modal-sheet-v2-title">⚙️ Cấu hình vận chuyển</div>
+        <button type="button" onclick="hideSettingsModal()" class="modal-sheet-v2-close">×</button>
       </div>
-      <div class="flex gap-2 mt-6">
-        <button onclick="hideSettings()" class="flex-1 btn btn-ghost">Hủy</button>
-        <button onclick="saveSettings()" class="flex-1 btn btn-primary">Lưu</button>
+      <div class="modal-sheet-v2-body">
+        <div class="space-y-4">
+          <div>
+            <label class="field-label">Phí/km (đ)</label>
+            <input type="number" id="deliveryCostPerKm" class="field-input" style="height:48px;font-size:16px;" min="0" step="100">
+          </div>
+          <div>
+            <label class="field-label">Phí cơ bản (đ)</label>
+            <input type="number" id="deliveryBaseCost" class="field-input" style="height:48px;font-size:16px;" min="0">
+          </div>
+        </div>
+        <div class="border-t border-muted pt-4 mt-4">
+          <label class="field-label">📍 Vị trí kho/xưởng</label>
+          <div class="grid grid-cols-2 gap-2 mb-2">
+            <div>
+              <label class="text-xs text-muted">Vĩ độ</label>
+              <input type="number" id="distributorLat" class="field-input" style="height:40px;font-size:15px;" step="0.0001">
+            </div>
+            <div>
+              <label class="text-xs text-muted">Kinh độ</label>
+              <input type="number" id="distributorLng" class="field-input" style="height:40px;font-size:15px;" step="0.0001">
+            </div>
+          </div>
+          <button onclick="getDistributorLocation()" class="text-sm" style="color:var(--info);">📍 Lấy vị trí hiện tại</button>
+        </div>
+        <div class="flex gap-2 mt-4">
+          <button onclick="hideSettings()" class="flex-1 btn btn-ghost" style="height:44px;">Hủy</button>
+          <button onclick="saveSettings()" class="flex-1 btn btn-primary" style="height:44px;">Lưu</button>
+        </div>
       </div>
     </div>
   </div>

@@ -4,8 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Báo cáo</title>
-  <link rel="stylesheet" href="/css/tailwind.css">
-  <link rel="stylesheet" href="/css/unified.css">
+  <link rel="stylesheet" href="/css/unified.css?v=20260424-clean">
   <script src="/js/dark-mode.js"></script>
   <script src="/js/auth.js"></script>
   <script src="/js/layout.js"></script>
@@ -14,693 +13,37 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
   <style>
-    /* ── REPORT PAGE OVERRIDES ── */
-    /* Reset page padding cho report — header sticky chiếm không gian */
-    .body--app {
-      min-height: 100dvh;
-      padding-top: 0; /* Header là fixed, không cần padding-top body */
-      padding-bottom: calc(var(--bottomnav-height) + env(safe-area-inset-bottom, 0px));
-    }
-
-    /* ── REPORT STICKY HEADER ── */
-    /* Binance-style: compact, high-density, maximum readability in 1 line */
-    .report-header {
-      position: fixed;
-      top: 0; left: 0; right: 0;
-      z-index: 200;
-      background: var(--card);
-      border-bottom: 1px solid var(--border);
-      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
-      padding: 0 16px;
-      padding-top: calc(8px + env(safe-area-inset-top, 0px));
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      height: 52px;
-      min-height: 0;
-    }
-
-    .report-header-left {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .report-header-icon {
-      width: 34px; height: 34px;
-      border-radius: 9px;
-      background: var(--primary-dim);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 17px;
-      flex-shrink: 0;
-    }
-
-    .report-header-title {
-      font-size: 16px;
-      font-weight: 700;
-      color: var(--text-main);
-      letter-spacing: -0.2px;
-    }
-
-    .report-header-right {
-      text-align: right;
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-      gap: 1px;
-    }
-
-    .report-header-profit {
-      font-size: 17px;
-      font-weight: 800;
-      font-variant-numeric: tabular-nums;
-      color: var(--text-main);
-      line-height: 1;
-      letter-spacing: -0.4px;
-    }
-
-    .report-header-growth {
-      font-size: 11px;
-      font-weight: 600;
-      font-variant-numeric: tabular-nums;
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-      gap: 2px;
-      line-height: 1;
-    }
-
-    .growth-up { color: var(--green); }
-    .growth-down { color: var(--red); }
-    .growth-neutral { color: var(--text-muted); }
-
-    /* ── REPORT BODY (behind sticky header, max-width 500px like Binance) ── */
-    .report-body {
-      padding-top: calc(52px + env(safe-area-inset-top, 0px));
-      padding-bottom: 0;
-      max-width: 500px;
-      margin: 0 auto;
-    }
-
-    /* ── FILTER BAR STICKY ── */
-    /* Compact pill-style: Binance density, touch-optimized */
-    .report-filter-bar {
-      position: sticky;
-      top: calc(52px + env(safe-area-inset-top, 0px));
-      z-index: 100;
-      background: var(--card);
-      padding: 8px 16px;
-      display: flex;
-      gap: 6px;
-      flex-wrap: nowrap;
-      overflow-x: auto;
-      align-items: center;
-      border-bottom: 1px solid var(--border);
-      /* Hide scrollbar but keep functionality */
-      scrollbar-width: none;
-      -ms-overflow-style: none;
-    }
-
-    .report-filter-bar::-webkit-scrollbar { display: none; }
-
-    .report-filter-btn {
-      /* Compact pill: tight padding, high density */
-      padding: 5px 12px;
-      border-radius: 6px;
-      border: 1px solid var(--border);
-      background: transparent;
-      color: var(--text-secondary);
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.12s ease;
-      min-height: 32px;
-      white-space: nowrap;
-      flex-shrink: 0;
-      letter-spacing: 0.01em;
-    }
-
-    .report-filter-btn:active {
-      transform: scale(0.96);
-    }
-
-    .report-filter-btn.active {
-      background: var(--primary);
-      color: #1E2329;
-      border-color: var(--primary);
-    }
-
-    [data-theme="dark"] .report-filter-btn {
-      background: transparent;
-      border-color: var(--border);
-    }
-
-    [data-theme="dark"] .report-filter-btn.active {
-      background: var(--primary);
-      color: #1E2329;
-      border-color: var(--primary);
-    }
-
-    /* Date range inputs for custom filter */
-    .report-date-range {
-      display: none;
-      gap: 6px;
-      align-items: center;
-      width: 100%;
-      flex-shrink: 0;
-    }
-
-    .report-date-range.visible {
-      display: flex;
-    }
-
-    .report-date-range input[type="date"] {
-      flex: 1;
-      padding: 5px 10px;
-      border-radius: 6px;
-      border: 1px solid var(--border);
-      background: var(--card);
-      color: var(--text-main);
-      font-size: 12px;
-      font-family: inherit;
-      min-height: 34px;
-      color-scheme: light dark;
-    }
-
-    .report-date-range span {
-      color: var(--text-muted);
-      font-size: 12px;
-      flex-shrink: 0;
-    }
-
-    /* ── KPI GRID (2x2) — Binance production density ── */
-    .kpi-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 8px;
-      padding: 10px 16px 12px;
-    }
-
-    .kpi-card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 12px 12px 11px;
-      box-shadow: none;
-      transition: box-shadow 0.12s ease, transform 0.12s ease;
-    }
-
-    .kpi-card:active {
-      transform: scale(0.985);
-    }
-
-    [data-theme="dark"] .kpi-card {
-      box-shadow: none;
-    }
-
-    .kpi-card-label {
-      font-size: 10px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: var(--text-muted);
-      margin-bottom: 5px;
-      display: flex;
-      align-items: center;
-      gap: 3px;
-      line-height: 1.2;
-    }
-
-    .kpi-card-value {
-      font-size: 18px;
-      font-weight: 800;
-      font-variant-numeric: tabular-nums;
-      color: var(--text-main);
-      line-height: 1.05;
-      letter-spacing: -0.6px;
-    }
-
-    .kpi-card-value.text-green  { color: var(--green); }
-    .kpi-card-value.text-red    { color: var(--red); }
-    .kpi-card-value.text-gold   { color: var(--primary); }
-
-    /* ── CHART SECTION ── */
-    .chart-section {
-      padding: 0 16px 10px;
-    }
-
-    .chart-card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 12px 12px 10px;
-      box-shadow: none;
-    }
-
-    .chart-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 8px;
-    }
-
-    .chart-title {
-      font-size: 12px;
-      font-weight: 700;
-      color: var(--text-main);
-      letter-spacing: -0.1px;
-    }
-
-    .chart-legend {
-      display: flex;
-      gap: 10px;
-    }
-
-    .chart-legend-item {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      font-size: 10px;
-      color: var(--text-secondary);
-      font-weight: 500;
-    }
-
-    .chart-legend-dot {
-      width: 7px; height: 7px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
-
-    .chart-legend-dot.revenue { background: var(--primary); }
-    .chart-legend-dot.profit  { background: var(--green); }
-
-    .chart-container {
-      position: relative;
-      height: 140px;
-    }
-
-    /* ── SECTION WRAPPER ── */
-    .report-section-wrap {
-      margin-bottom: 4px;
-    }
-
-    /* ── SECTION HEADER (collapsible, high-density) ── */
-    .report-section-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 11px 16px;
-      cursor: pointer;
-      background: var(--card);
-      border-top: 1px solid var(--border);
-      border-bottom: 1px solid var(--border);
-      transition: background 0.12s ease;
-      user-select: none;
-      -webkit-tap-highlight-color: transparent;
-    }
-
-    .report-section-header:active {
-      background: var(--bg-hover);
-    }
-
-    .report-section-header-left {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .report-section-header-icon {
-      width: 30px; height: 30px;
-      border-radius: 7px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 15px;
-      flex-shrink: 0;
-    }
-
-    .report-section-header-icon.icon-green  { background: var(--green-dim); }
-    .report-section-header-icon.icon-red    { background: var(--red-dim); }
-    .report-section-header-icon.icon-blue   { background: rgba(59,130,246,0.12); }
-    .report-section-header-icon.icon-gold   { background: var(--primary-dim); }
-
-    .report-section-title {
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--text-main);
-      letter-spacing: -0.1px;
-    }
-
-    .report-section-badge {
-      font-size: 10px;
-      padding: 1px 7px;
-      border-radius: 999px;
-      font-weight: 700;
-      background: var(--green-dim);
-      color: var(--green);
-      margin-left: 6px;
-      letter-spacing: 0.02em;
-    }
-
-    .report-section-arrow {
-      font-size: 10px;
-      color: var(--text-muted);
-      transition: transform 0.2s ease;
-      flex-shrink: 0;
-    }
-
-    .report-section-header.collapsed .report-section-arrow {
-      transform: rotate(-90deg);
-    }
-
-    /* ── SECTION CONTENT ── */
-    .report-section-content {
-      overflow: hidden;
-      max-height: 2000px;
-      transition: max-height 0.25s ease;
-    }
-
-    .report-section-content.collapsed {
-      max-height: 0;
-    }
-
-    /* ── TOP LIST (Products / Customers) ── */
-    .top-list {
-      padding: 6px 16px 8px;
-    }
-
-    .top-item {
-      display: flex;
-      align-items: center;
-      padding: 8px 0;
-      border-bottom: 1px solid var(--border);
-      gap: 10px;
-    }
-
-    .top-item:last-child {
-      border-bottom: none;
-    }
-
-    .top-item-rank {
-      width: 26px; height: 26px;
-      border-radius: 7px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 12px;
-      font-weight: 800;
-      flex-shrink: 0;
-      background: var(--card-soft);
-      color: var(--text-secondary);
-    }
-
-    .top-item-rank.rank-gold   { background: rgba(252,213,53,0.2); color: var(--primary-hover); }
-    .top-item-rank.rank-silver { background: rgba(180,180,180,0.2); color: #9ca3af; }
-    .top-item-rank.rank-bronze { background: rgba(205,127,50,0.2); color: #cd7f32; }
-
-    .top-item-info {
-      flex: 1;
-      min-width: 0;
-    }
-
-    .top-item-name {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text-main);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      letter-spacing: -0.1px;
-    }
-
-    .top-item-meta {
-      font-size: 11px;
-      color: var(--text-secondary);
-      margin-top: 2px;
-    }
-
-    .top-item-value {
-      text-align: right;
-      flex-shrink: 0;
-    }
-
-    .top-item-profit {
-      font-size: 13px;
-      font-weight: 700;
-      font-variant-numeric: tabular-nums;
-    }
-
-    .top-item-profit.text-green { color: var(--green); }
-    .top-item-profit.text-red   { color: var(--red); }
-
-    /* "Xem thêm" toggle */
-    .see-more-toggle {
-      padding: 8px 16px;
-      text-align: center;
-      cursor: pointer;
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--primary);
-      background: transparent;
-      border: none;
-      width: 100%;
-      letter-spacing: 0.01em;
-    }
-
-    /* ── PURCHASE SECTION ── */
-    .purchase-summary-row {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 8px;
-      padding: 8px 16px;
-      background: var(--bg);
-    }
-
-    .purchase-stat-box {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 9px;
-      padding: 10px;
-      text-align: center;
-    }
-
-    .purchase-stat-label {
-      font-size: 10px;
-      font-weight: 700;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      margin-bottom: 3px;
-    }
-
-    .purchase-stat-value {
-      font-size: 16px;
-      font-weight: 800;
-      font-variant-numeric: tabular-nums;
-      color: var(--red);
-      line-height: 1;
-      letter-spacing: -0.4px;
-    }
-
-    .purchase-table-wrap {
-      overflow-x: auto;
-      padding: 0 16px 8px;
-    }
-
-    .purchase-mini-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 12px;
-    }
-
-    .purchase-mini-table th {
-      text-align: left;
-      padding: 7px 5px;
-      border-bottom: 1px solid var(--border);
-      color: var(--text-muted);
-      font-size: 10px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      white-space: nowrap;
-    }
-
-    .purchase-mini-table td {
-      padding: 8px 5px;
-      border-bottom: 1px solid var(--border);
-      color: var(--text-main);
-      white-space: nowrap;
-      font-size: 12px;
-    }
-
-    .purchase-mini-table tr:last-child td {
-      border-bottom: none;
-    }
-
-    .purchase-mini-table .text-note {
-      color: var(--text-muted);
-      font-size: 11px;
-    }
-
-    /* ── SKELETON LOADING ── */
-    .skeleton-block {
-      background: linear-gradient(90deg, var(--card-soft) 25%, var(--border) 50%, var(--card-soft) 75%);
-      background-size: 200% 100%;
-      animation: shimmer 1.5s infinite;
-      border-radius: 6px;
-    }
-
-    @keyframes shimmer {
-      0% { background-position: 200% 0; }
-      100% { background-position: -200% 0; }
-    }
-
-    /* ── EMPTY STATE ── */
-    .report-empty {
-      text-align: center;
-      padding: 20px 16px;
-      color: var(--text-muted);
-      font-size: 12px;
-    }
-
-    /* ── COUNT UP ANIMATION ── */
-    .count-up {
-      display: inline-block;
-    }
-
-    /* ── DARK MODE OVERRIDES FOR REPORT ── */
-    [data-theme="dark"] .report-header {
-      background: var(--card);
-      border-bottom-color: var(--border);
-    }
-
-    [data-theme="dark"] .report-filter-bar {
-      background: var(--card);
-      border-bottom-color: var(--border);
-    }
-
-    [data-theme="dark"] .report-section-header {
-      background: var(--card);
-      border-top-color: var(--border);
-      border-bottom-color: var(--border);
-    }
-
-    [data-theme="dark"] .kpi-card {
-      background: var(--card);
-      border-color: var(--border);
-    }
-
-    [data-theme="dark"] .chart-card {
-      background: var(--card);
-      border-color: var(--border);
-    }
-
-    [data-theme="dark"] .purchase-stat-box {
-      background: var(--card);
-      border-color: var(--border);
-    }
-
-    [data-theme="dark"] .top-item-rank {
-      background: var(--card-soft);
-    }
-
-    [data-theme="dark"] .top-item-rank.rank-gold {
-      background: rgba(252,213,53,0.15);
-    }
-
-    [data-theme="dark"] .purchase-summary-row {
-      background: var(--bg);
-    }
-
-    /* Responsive adjustments */
-    @media (max-width: 360px) {
-      .kpi-grid { gap: 6px; padding: 8px 12px 10px; }
-      .kpi-card { padding: 10px 10px 9px; }
-      .kpi-card-value { font-size: 16px; }
-      .report-filter-bar { padding: 7px 12px; }
-      .report-section-header { padding: 10px 12px; }
-      .top-list { padding: 6px 12px 8px; }
-    }
-
-    /* ── DARK MODE OVERRIDES FOR REPORT ── */
-    [data-theme="dark"] .report-header {
-      background: rgba(30,35,41,0.96);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border-bottom-color: var(--border);
-    }
-
-    [data-theme="dark"] .report-filter-bar {
-      background: rgba(30,35,41,0.95);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border-bottom-color: var(--border);
-    }
-
-    [data-theme="dark"] .report-section-header {
-      background: var(--card);
-      border-top-color: var(--border);
-      border-bottom-color: var(--border);
-    }
-
-    [data-theme="dark"] .kpi-card {
-      background: var(--card);
-      border-color: var(--border);
-    }
-
-    [data-theme="dark"] .chart-card {
-      background: var(--card);
-      border-color: var(--border);
-    }
-
-    [data-theme="dark"] .purchase-stat-box {
-      background: var(--card);
-      border-color: var(--border);
-    }
-
-    [data-theme="dark"] .top-item-rank {
-      background: var(--card-soft);
-    }
-
-    [data-theme="dark"] .top-item-rank.rank-gold {
-      background: rgba(252,213,53,0.15);
-    }
-
-    [data-theme="dark"] .purchase-summary-row {
-      background: var(--bg);
-    }
+    /* Report page uses .app-header + .app-filter-bar + .kpi-grid system from unified.css */
   </style>
 </head>
 <body class="body--app">
 
   <!-- ══ STICKY HEADER ══ -->
-  <header class="report-header" id="reportHeader">
-    <div class="report-header-left">
-      <div class="report-header-icon">📊</div>
-      <span class="report-header-title">Báo cáo</span>
+  <header class="app-header" id="reportHeader">
+    <div class="app-header-left">
+      <div class="app-header-icon">📊</div>
+      <span class="app-header-title">Báo cáo</span>
     </div>
-    <div class="report-header-right">
-      <div class="report-header-profit" id="headerProfit">— đ</div>
-      <div class="report-header-growth" id="headerGrowth">
-        <span class="growth-neutral">—</span>
+    <div class="app-header-right">
+      <div class="app-header-kpi" id="headerProfit">— đ</div>
+      <div class="app-header-growth neutral" id="headerGrowth">
+        <span>—</span>
       </div>
     </div>
   </header>
 
   <!-- ══ REPORT BODY ══ -->
-  <div class="report-body">
+  <div class="app-body">
 
     <!-- FILTER BAR (sticky) -->
-    <div class="report-filter-bar" id="reportFilterBar">
-      <button class="report-filter-btn active" data-filter="today" onclick="RPT.setFilter('today')">Hôm nay</button>
-      <button class="report-filter-btn" data-filter="7d" onclick="RPT.setFilter('7d')">7 ngày</button>
-      <button class="report-filter-btn" data-filter="30d" onclick="RPT.setFilter('30d')">30 ngày</button>
-      <button class="report-filter-btn" data-filter="custom" onclick="RPT.setFilter('custom')">Tùy chọn</button>
+    <div class="app-filter-bar" id="reportFilterBar">
+      <button class="app-filter-btn active" data-filter="today" onclick="RPT.setFilter('today')">Hôm nay</button>
+      <button class="app-filter-btn" data-filter="7d" onclick="RPT.setFilter('7d')">7 ngày</button>
+      <button class="app-filter-btn" data-filter="30d" onclick="RPT.setFilter('30d')">30 ngày</button>
+      <button class="app-filter-btn" data-filter="custom" onclick="RPT.setFilter('custom')">Tùy chọn</button>
 
       <!-- Date range picker (hidden until "Tùy chọn") -->
-      <div class="report-date-range" id="dateRangePicker">
+      <div class="app-filter-date-range" id="dateRangePicker">
         <input type="date" id="rptDateFrom" onchange="RPT.applyCustomRange()">
         <span>→</span>
         <input type="date" id="rptDateTo" onchange="RPT.applyCustomRange()">
@@ -712,22 +55,22 @@
       <!-- Revenue -->
       <div class="kpi-card">
         <div class="kpi-card-label">💰 Doanh thu</div>
-        <div class="kpi-card-value text-gold" id="kpiRevenue">—</div>
+        <div class="kpi-card-value gold" id="kpiRevenue">—</div>
       </div>
       <!-- Expense -->
       <div class="kpi-card">
         <div class="kpi-card-label">📤 Chi phí</div>
-        <div class="kpi-card-value text-red" id="kpiExpense">—</div>
+        <div class="kpi-card-value red" id="kpiExpense">—</div>
       </div>
       <!-- Profit -->
       <div class="kpi-card">
         <div class="kpi-card-label">📈 Lợi nhuận</div>
-        <div class="kpi-card-value text-green" id="kpiProfit">—</div>
+        <div class="kpi-card-value green" id="kpiProfit">—</div>
       </div>
       <!-- Net Profit (highlighted) -->
-      <div class="kpi-card" style="border-color: var(--primary); background: var(--primary-dim);">
+      <div class="kpi-card highlight">
         <div class="kpi-card-label">🔥 Lãi ròng</div>
-        <div class="kpi-card-value text-gold" id="kpiNetProfit">—</div>
+        <div class="kpi-card-value gold" id="kpiNetProfit">—</div>
       </div>
     </div>
 
@@ -755,48 +98,48 @@
 
     <!-- SECTION: TOP PRODUCTS -->
     <div class="report-section-wrap">
-      <div class="report-section-header" onclick="RPT.toggleSection('products')" id="secProducts">
-        <div class="report-section-header-left">
-          <div class="report-section-header-icon icon-green">🍺</div>
-          <div class="report-section-title">Top sản phẩm<span class="report-section-badge" id="badgeProducts">0</span></div>
+      <div class="section-card-header" onclick="RPT.toggleSection('products')" id="secProducts">
+        <div class="section-card-header-left">
+          <div class="section-card-icon icon-green">🍺</div>
+          <div class="section-card-title">Top sản phẩm<span class="section-card-badge" id="badgeProducts">0</span></div>
         </div>
-        <div class="report-section-arrow">▼</div>
+        <div class="section-card-arrow">▼</div>
       </div>
-      <div class="report-section-content" id="contentProducts">
+      <div class="section-card-body" id="contentProducts">
         <div class="top-list" id="topProductsList"></div>
       </div>
     </div>
 
     <!-- SECTION: TOP CUSTOMERS -->
     <div class="report-section-wrap">
-      <div class="report-section-header" onclick="RPT.toggleSection('customers')" id="secCustomers">
-        <div class="report-section-header-left">
-          <div class="report-section-header-icon icon-blue">👤</div>
-          <div class="report-section-title">Top khách hàng<span class="report-section-badge" id="badgeCustomers">0</span></div>
+      <div class="section-card-header" onclick="RPT.toggleSection('customers')" id="secCustomers">
+        <div class="section-card-header-left">
+          <div class="section-card-icon icon-blue">👤</div>
+          <div class="section-card-title">Top khách hàng<span class="section-card-badge" id="badgeCustomers">0</span></div>
         </div>
-        <div class="report-section-arrow">▼</div>
+        <div class="section-card-arrow">▼</div>
       </div>
-      <div class="report-section-content" id="contentCustomers">
+      <div class="section-card-body" id="contentCustomers">
         <div class="top-list" id="topCustomersList"></div>
       </div>
     </div>
 
     <!-- SECTION: PURCHASE / IMPORT -->
     <div class="report-section-wrap">
-      <div class="report-section-header" onclick="RPT.toggleSection('purchases')" id="secPurchases">
-        <div class="report-section-header-left">
-          <div class="report-section-header-icon icon-red">📦</div>
-          <div class="report-section-title">Chi phí nhập hàng</div>
+      <div class="section-card-header" onclick="RPT.toggleSection('purchases')" id="secPurchases">
+        <div class="section-card-header-left">
+          <div class="section-card-icon icon-red">📦</div>
+          <div class="section-card-title">Chi phí nhập hàng</div>
         </div>
-        <div class="report-section-arrow">▼</div>
+        <div class="section-card-arrow">▼</div>
       </div>
-      <div class="report-section-content" id="contentPurchases">
+      <div class="section-card-body" id="contentPurchases">
         <div class="purchase-summary-row" id="purchaseSummaryRow"></div>
         <div class="purchase-table-wrap" id="purchaseTableWrap"></div>
       </div>
     </div>
 
-  </div><!-- /report-body -->
+  </div><!-- /app-body -->
 
   <!-- Bottom nav (from layout.js) -->
   <script>
@@ -1030,13 +373,13 @@
         var expEl = document.getElementById('kpiExpense');
 
         if (profitEl) {
-          profitEl.className = 'kpi-card-value ' + (profit >= 0 ? 'text-green' : 'text-red');
+          profitEl.className = 'kpi-card-value ' + (profit >= 0 ? 'green' : 'red');
         }
         if (netEl) {
-          netEl.className = 'kpi-card-value ' + (netProfit >= 0 ? 'text-gold' : 'text-red');
+          netEl.className = 'kpi-card-value ' + (netProfit >= 0 ? 'gold' : 'red');
         }
         if (expEl) {
-          expEl.className = 'kpi-card-value text-red';
+          expEl.className = 'kpi-card-value red';
         }
       }
 
@@ -1053,10 +396,12 @@
           if (growth !== null) {
             var isUp = growth >= 0;
             var arrow = isUp ? '↑' : '↓';
-            var cls = isUp ? 'growth-up' : 'growth-down';
-            growthEl.innerHTML = '<span class="' + cls + '">' + arrow + ' ' + Math.abs(growth).toFixed(1) + '%</span>';
+            var cls = isUp ? 'up' : 'down';
+            growthEl.className = 'app-header-growth ' + cls;
+            growthEl.innerHTML = '<span>' + arrow + ' ' + Math.abs(growth).toFixed(1) + '%</span>';
           } else {
-            growthEl.innerHTML = '<span class="growth-neutral">—</span>';
+            growthEl.className = 'app-header-growth neutral';
+            growthEl.innerHTML = '<span>—</span>';
           }
         }
         _prevData = netProfit;
@@ -1164,7 +509,7 @@
         if (!el) return;
 
         if (!products || products.length === 0) {
-          el.innerHTML = '<div class="report-empty">Không có dữ liệu sản phẩm</div>';
+          el.innerHTML = '<div class="report-empty"><div style="font-size:32px;margin-bottom:8px;opacity:0.5">📦</div>Không có dữ liệu sản phẩm<br><span style="font-size:12px;color:var(--text-muted)">Hãy tạo đơn bán hàng trước</span></div>';
           if (badge) badge.textContent = '0';
           return;
         }
@@ -1182,7 +527,7 @@
         top.forEach(function (p, i) {
           var rank = i < 3 ? medals[i] : '#' + (i + 1);
           var rankClass = i < 3 ? rankClasses[i] : '';
-          var profitColor = p.profit >= 0 ? 'text-green' : 'text-red';
+          var profitColor = p.profit >= 0 ? 'green' : 'red';
           html +=
             '<div class="top-item">' +
               '<div class="top-item-rank ' + rankClass + '">' + rank + '</div>' +
@@ -1201,7 +546,7 @@
           html += '<button class="see-more-toggle" onclick="RPT.toggleMore(this, \'products\')">Xem thêm ' + rest.length + ' sản phẩm ▼</button>';
           html += '<div class="more-items" style="display:none;">';
           rest.forEach(function (p, i) {
-            var profitColor = p.profit >= 0 ? 'text-green' : 'text-red';
+            var profitColor = p.profit >= 0 ? 'green' : 'red';
             html +=
               '<div class="top-item">' +
                 '<div class="top-item-rank">#' + (i + 6) + '</div>' +
@@ -1227,7 +572,7 @@
         if (!el) return;
 
         if (!customers || customers.length === 0) {
-          el.innerHTML = '<div class="report-empty">Không có dữ liệu khách hàng</div>';
+          el.innerHTML = '<div class="report-empty"><div style="font-size:32px;margin-bottom:8px;opacity:0.5">👤</div>Không có dữ liệu khách hàng<br><span style="font-size:12px;color:var(--text-muted)">Hãy thêm khách hàng và tạo đơn</span></div>';
           if (badge) badge.textContent = '0';
           return;
         }
@@ -1245,7 +590,7 @@
         top.forEach(function (c, i) {
           var rank = i < 3 ? medals[i] : '#' + (i + 1);
           var rankClass = i < 3 ? rankClasses[i] : '';
-          var profitColor = c.profit >= 0 ? 'text-green' : 'text-red';
+          var profitColor = c.profit >= 0 ? 'green' : 'red';
           html +=
             '<div class="top-item">' +
               '<div class="top-item-rank ' + rankClass + '">' + rank + '</div>' +
@@ -1263,7 +608,7 @@
           html += '<button class="see-more-toggle" onclick="RPT.toggleMore(this, \'customers\')">Xem thêm ' + rest.length + ' khách ▼</button>';
           html += '<div class="more-items" style="display:none;">';
           rest.forEach(function (c, i) {
-            var profitColor = c.profit >= 0 ? 'text-green' : 'text-red';
+            var profitColor = c.profit >= 0 ? 'green' : 'red';
             html +=
               '<div class="top-item">' +
                 '<div class="top-item-rank">#' + (i + 6) + '</div>' +
@@ -1303,7 +648,7 @@
         }
 
         if (!purchases || purchases.length === 0) {
-          if (tableEl) tableEl.innerHTML = '<div class="report-empty">Không có phiếu nhập hàng</div>';
+          if (tableEl) tableEl.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📋</div><div class="empty-state-title">Chưa có phiếu nhập hàng</div><div class="empty-state-desc">Nhập hàng để xem chi phí ở đây</div></div>';
           return;
         }
 
@@ -1382,18 +727,18 @@
           if (el) el.textContent = '—';
         });
         document.getElementById('topProductsList').innerHTML =
-          '<div class="report-empty">Không có dữ liệu</div>';
+          '<div class="empty-state"><div class="empty-state-icon">📦</div><div class="empty-state-title">Chưa có sản phẩm nào</div><div class="empty-state-desc">Bán hàng để xem thống kê sản phẩm</div></div>';
         document.getElementById('topCustomersList').innerHTML =
-          '<div class="report-empty">Không có dữ liệu</div>';
+          '<div class="empty-state"><div class="empty-state-icon">👤</div><div class="empty-state-title">Chưa có khách hàng nào</div><div class="empty-state-desc">Thêm khách hàng và tạo đơn để xem</div></div>';
         document.getElementById('purchaseSummaryRow').innerHTML = '';
         document.getElementById('purchaseTableWrap').innerHTML =
-          '<div class="report-empty">Không có dữ liệu</div>';
+          '<div class="empty-state"><div class="empty-state-icon">📋</div><div class="empty-state-title">Chưa có phiếu nhập hàng</div><div class="empty-state-desc">Nhập hàng để xem chi phí ở đây</div></div>';
       }
 
       // ── Filter state management ──
       function setFilter(filter) {
         // Update button states
-        document.querySelectorAll('.report-filter-btn').forEach(function (btn) {
+        document.querySelectorAll('.app-filter-btn').forEach(function (btn) {
           btn.classList.toggle('active', btn.dataset.filter === filter);
         });
 

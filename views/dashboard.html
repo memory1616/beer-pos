@@ -15,39 +15,39 @@
   <link rel="icon" type="image/png" href="/icon-192.png">
 
   <!-- PERFORMANCE: Preload critical path — layout.js needed for first paint -->
-  <link rel="preload" href="/js/layout.js?v=20260414a" as="script">
+  <link rel="preload" href="/js/layout.js?v=20260424-clean" as="script">
   <link rel="preload" href="/js/vendor/chart.umd.min.js?v=09c3fcd" as="script">
-  <link rel="preload" href="/css/tailwind.css" as="style">
-  <link rel="preload" href="/css/unified.css?v=20260414" as="style">
+  <link rel="preload" href="/css/unified.css?v=20260424-clean" as="style">
 
   <!-- PERFORMANCE: Prefetch next-page modules (download in background) -->
   <link rel="prefetch" href="/js/sales.js">
   <link rel="prefetch" href="/js/customers.js">
   <link rel="prefetch" href="/js/stock.js">
 
-  <link rel="stylesheet" href="/css/tailwind.css">
-  <link rel="stylesheet" href="/css/unified.css?v=20260405-clean">
+  <link rel="stylesheet" href="/css/unified.css?v=20260424-clean">
 
   <!-- Critical-first: auth, dark-mode (sync, blocks page render) -->
   <script src="/js/auth.js"></script>
   <script src="/js/dark-mode.js"></script>
-  <script src="/js/layout.js?v=20260414a"></script>
+  <script src="/js/layout.js?v=20260424-clean"></script>
   <!-- Heavy/deferred scripts (don't block first paint) -->
   <script src="/js/vendor/dexie.min.js" defer></script>
   <script src="/js/format.js" defer></script>
   <script src="/js/utils.js" defer></script>
   <!-- Chart.js (70KB minified) — needed for initial canvas render, load after auth -->
   <script src="/js/vendor/chart.umd.min.js"></script>
-  <script src="/js/dashboard.js?v=20260404-perf"></script>
+  <script src="/js/dashboard.js?v=20260422-design"></script>
 
   <!-- CLS Prevention: Inline skeleton for header (matches layout.js getHeader dimensions) -->
   <style>
-    .skeleton-header {
+    .skeleton-header-fixed {
       position: fixed;
       top: 0; left: 0; right: 0;
-      height: 56px;
-      background: var(--color-card, #fff);
-      border-bottom: 1px solid var(--color-border);
+      height: calc(56px + env(safe-area-inset-top, 0px));
+      background: rgba(255,255,255,0.92);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -65,7 +65,7 @@
     .skeleton-icon {
       width: 20px;
       height: 20px;
-      background: linear-gradient(90deg, var(--card-soft) 25%, var(--bg-hover) 50%, var(--card-soft) 75%);
+      background: linear-gradient(90deg, var(--card-soft, #f3f4f6) 25%, var(--bg-hover, #e5e7eb) 50%, var(--card-soft, #f3f4f6) 75%);
       background-size: 200% 100%;
       animation: shimmer 1.5s infinite;
       border-radius: 4px;
@@ -73,7 +73,7 @@
     .skeleton-text {
       height: 16px;
       width: 80px;
-      background: linear-gradient(90deg, var(--card-soft) 25%, var(--bg-hover) 50%, var(--card-soft) 75%);
+      background: linear-gradient(90deg, var(--card-soft, #f3f4f6) 25%, var(--bg-hover, #e5e7eb) 50%, var(--card-soft, #f3f4f6) 75%);
       background-size: 200% 100%;
       animation: shimmer 1.5s infinite;
       border-radius: 4px;
@@ -85,7 +85,7 @@
     .skeleton-btn {
       width: 32px;
       height: 32px;
-      background: linear-gradient(90deg, var(--card-soft) 25%, var(--bg-hover) 50%, var(--card-soft) 75%);
+      background: linear-gradient(90deg, var(--card-soft, #f3f4f6) 25%, var(--bg-hover, #e5e7eb) 50%, var(--card-soft, #f3f4f6) 75%);
       background-size: 200% 100%;
       animation: shimmer 1.5s infinite;
       border-radius: 6px;
@@ -94,64 +94,33 @@
       0% { background-position: -200% 0; }
       100% { background-position: 200% 0; }
     }
-    .skeleton-nav {
+    .skeleton-nav-fixed {
       position: fixed;
       bottom: 0; left: 0; right: 0;
-      height: 64px;
-      background: var(--color-card, #fff);
-      border-top: 3px solid var(--color-primary);
+      height: calc(64px + env(safe-area-inset-bottom, 0px));
+      background: rgba(255,255,255,0.95);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border-top: 1px solid var(--border);
+      border-top-width: 3px;
+      border-top-color: var(--primary);
       display: grid;
       grid-template-columns: repeat(5, 1fr);
       z-index: 50;
-      max-width: 500px;
-      margin: 0 auto;
       box-sizing: border-box;
     }
-    .skeleton-nav-item {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 2px;
-      opacity: 0.5;
+    [data-theme="dark"] .skeleton-header-fixed {
+      background: rgba(30,41,59,0.95);
     }
-    .skeleton-nav-icon {
-      width: 20px;
-      height: 20px;
-      background: linear-gradient(90deg, var(--card-soft) 25%, var(--bg-hover) 50%, var(--card-soft) 75%);
-      background-size: 200% 100%;
-      animation: shimmer 1.5s infinite;
-      border-radius: 4px;
-    }
-    .skeleton-nav-text {
-      width: 24px;
-      height: 11px;
-      background: linear-gradient(90deg, var(--card-soft) 25%, var(--bg-hover) 50%, var(--card-soft) 75%);
-      background-size: 200% 100%;
-      animation: shimmer 1.5s infinite;
-      border-radius: 2px;
-    }
-    [data-theme="dark"] .skeleton-icon,
-    [data-theme="dark"] .skeleton-text,
-    [data-theme="dark"] .skeleton-btn,
-    [data-theme="dark"] .skeleton-nav-icon,
-    [data-theme="dark"] .skeleton-nav-text {
-      background: linear-gradient(90deg, var(--card) 25%, var(--card-soft) 50%, var(--card) 75%);
-      background-size: 200% 100%;
-    }
-    [data-theme="dark"] .skeleton-header {
-      background: rgba(30, 41, 59, 0.95);
-      border-bottom-color: var(--border);
-    }
-    [data-theme="dark"] .skeleton-nav {
-      background: rgba(30, 41, 59, 0.95);
+    [data-theme="dark"] .skeleton-nav-fixed {
+      background: rgba(30,41,59,0.95);
     }
   </style>
 </head>
 <body class="bg-main text-primary min-h-screen">
   <!-- CLS Prevention: Skeleton rendered immediately on HTML parse -->
   <div id="skeleton" style="display:block;">
-    <header class="skeleton-header">
+    <header class="skeleton-header-fixed">
       <div class="skeleton-logo">
         <div class="skeleton-icon"></div>
         <div class="skeleton-text"></div>
@@ -161,12 +130,12 @@
         <div class="skeleton-btn"></div>
       </div>
     </header>
-    <nav class="skeleton-nav" style="padding-bottom: env(safe-area-inset-bottom, 0px);">
-      <div class="skeleton-nav-item"><div class="skeleton-nav-icon"></div><div class="skeleton-nav-text"></div></div>
-      <div class="skeleton-nav-item"><div class="skeleton-nav-icon"></div><div class="skeleton-nav-text"></div></div>
-      <div class="skeleton-nav-item"><div class="skeleton-nav-icon"></div><div class="skeleton-nav-text"></div></div>
-      <div class="skeleton-nav-item"><div class="skeleton-nav-icon"></div><div class="skeleton-nav-text"></div></div>
-      <div class="skeleton-nav-item"><div class="skeleton-nav-icon"></div><div class="skeleton-nav-text"></div></div>
+    <nav class="skeleton-nav-fixed" style="padding-bottom: env(safe-area-inset-bottom, 0px);">
+      <div class="flex items-center justify-center p-3"><div class="skeleton-icon" style="width:18px;height:18px;"></div></div>
+      <div class="flex items-center justify-center p-3"><div class="skeleton-icon" style="width:18px;height:18px;"></div></div>
+      <div class="flex items-center justify-center p-3"><div class="skeleton-icon" style="width:18px;height:18px;"></div></div>
+      <div class="flex items-center justify-center p-3"><div class="skeleton-icon" style="width:18px;height:18px;"></div></div>
+      <div class="flex items-center justify-center p-3"><div class="skeleton-icon" style="width:18px;height:18px;"></div></div>
     </nav>
   </div>
 
@@ -196,7 +165,7 @@
             <div class="text-muted mt-2">Đang tải...</div>
           </div>
 
-          <div id="contentSection" class="hidden dashboard-page" style="padding-bottom:100px">
+          <div id="contentSection" class="hidden" style="padding-bottom:100px">
 
             <!-- Header: date -->
             <div class="flex items-center justify-between mb-4 px-1">
@@ -204,111 +173,98 @@
             </div>
 
             <!-- Hôm nay -->
-            <div class="section-title">Hôm nay</div>
-            <div class="grid grid-cols-2 gap-3 mb-3">
-              <div class="card card--kpi-green">
-                <div class="kpi-label"><span class="kpi-label-icon" aria-hidden="true">💰</span> Doanh thu</div>
-                <div class="dashboard-kpi-value-row">
-                  <div id="todayRevenue" class="min-w-0 w-full">Chưa có dữ liệu hôm nay</div>
-                </div>
+            <div class="kpi-grid mb-3">
+              <div class="kpi-card">
+                <div class="kpi-card-label">💰 Doanh thu</div>
+                <div class="kpi-card-value green" id="todayRevenue">—</div>
               </div>
-              <div class="card card--kpi-green">
-                <div class="kpi-label"><span class="kpi-label-icon" aria-hidden="true">📦</span> Bán ra</div>
-                <div class="dashboard-kpi-value-row">
-                  <div id="todayUnits" class="min-w-0 w-full">0</div>
-                </div>
+              <div class="kpi-card">
+                <div class="kpi-card-label">📦 Bán ra</div>
+                <div class="kpi-card-value" id="todayUnits">0</div>
               </div>
             </div>
-            <div class="grid grid-cols-2 gap-3 mb-6">
-              <div class="card card--kpi-green">
-                <div class="kpi-label"><span class="kpi-label-icon" aria-hidden="true">📈</span> Lợi nhuận</div>
-                <div id="todayProfit" class="w-full min-w-0">Chưa có dữ liệu</div>
+            <div class="kpi-grid mb-4">
+              <div class="kpi-card">
+                <div class="kpi-card-label">📈 Lợi nhuận</div>
+                <div class="kpi-card-value green" id="todayProfit">—</div>
               </div>
-              <div class="card card--kpi-red">
-                <div class="kpi-label"><span class="kpi-label-icon" aria-hidden="true">💸</span> Chi phí</div>
-                <div id="todayExpense" class="w-full min-w-0">Chưa có dữ liệu</div>
+              <div class="kpi-card">
+                <div class="kpi-card-label">💸 Chi phí</div>
+                <div class="kpi-card-value red" id="todayExpense">—</div>
               </div>
             </div>
 
             <!-- Tháng này -->
-            <div class="section-title">Tháng này</div>
-            <div class="grid grid-cols-2 gap-3 mb-6">
-              <div class="card card--kpi-green" onclick="location.href='/report'" style="cursor:pointer" title="Xem chi tiết lợi nhuận tháng">
-                <div class="kpi-label"><span class="kpi-label-icon" aria-hidden="true">📈</span> Lợi nhuận</div>
-                <div id="monthProfit" class="w-full min-w-0"></div>
+            <div class="kpi-grid mb-4">
+              <div class="kpi-card" style="cursor:pointer" onclick="location.href='/report'" title="Xem chi tiết lợi nhuận tháng">
+                <div class="kpi-card-label">📈 Lợi nhuận tháng</div>
+                <div class="kpi-card-value green" id="monthProfit">—</div>
               </div>
-              <div class="card card--kpi-red" onclick="location.href='/expenses'" style="cursor:pointer" title="Xem chi phí tháng">
-                <div class="kpi-label"><span class="kpi-label-icon" aria-hidden="true">💸</span> Chi phí</div>
-                <div id="monthExpense" class="w-full min-w-0"></div>
+              <div class="kpi-card" style="cursor:pointer" onclick="location.href='/expenses'" title="Xem chi phí tháng">
+                <div class="kpi-card-label">💸 Chi phí tháng</div>
+                <div class="kpi-card-value red" id="monthExpense">—</div>
               </div>
             </div>
 
             <!-- Vỏ bình -->
-            <div class="section-title">📦 Vỏ bình</div>
-            <div class="card mb-3 text-center card--kpi-emerald">
-              <div class="text-xs font-semibold uppercase tracking-wider mb-1 text-muted">Tổng vỏ bình</div>
-              <div class="text-4xl font-extrabold mt-1 text-main" style="letter-spacing:-0.02em;" id="kegTotal">0</div>
+            <div class="card text-center mb-3" style="background:var(--green-dim);border-color:var(--green);">
+              <div class="text-xs font-semibold uppercase tracking-wider mb-1" style="color:var(--text-muted);">Tổng vỏ bình</div>
+              <div class="text-4xl font-extrabold" style="letter-spacing:-0.02em;color:var(--text-main);" id="kegTotal">0</div>
             </div>
-            <div class="grid grid-cols-3 gap-3 mb-6">
-              <div class="card cursor-pointer card--kpi-green" onclick="location.href='/kegs'" title="Xem kho vỏ">
-                <div class="text-2xl font-extrabold tabular-nums leading-tight text-success" style="letter-spacing:-0.02em;" id="kegInventory">0</div>
-                <div class="text-sm font-semibold mt-1 text-secondary">Kho</div>
-                <div class="text-xs tabular-nums mt-0.5 text-muted" id="kegInventoryPct">0%</div>
+            <div class="grid grid-cols-3 gap-3 mb-4">
+              <div class="kpi-card" style="cursor:pointer;--card-accent:var(--green);--card-accent-dim:var(--green-dim);" onclick="location.href='/kegs'" title="Xem kho vỏ">
+                <div class="kpi-card-value green" id="kegInventory" style="font-size:22px;">0</div>
+                <div class="text-sm font-semibold mt-1" style="color:var(--text-secondary);">Kho</div>
               </div>
-              <div class="card cursor-pointer card--kpi-amber" onclick="location.href='/customers'" title="Xem khách giữ vỏ">
-                <div class="text-2xl font-extrabold tabular-nums leading-tight text-warning" style="letter-spacing:-0.02em;" id="kegCustomerHolding">0</div>
-                <div class="text-sm font-semibold mt-1 text-secondary">Khách</div>
-                <div class="text-xs tabular-nums mt-0.5 text-muted" id="kegCustomerHoldingPct">0%</div>
+              <div class="kpi-card" style="cursor:pointer;--card-accent:var(--warning);--card-accent-dim:var(--warning-dim);" onclick="location.href='/customers'" title="Xem khách giữ vỏ">
+                <div class="kpi-card-value" style="font-size:22px;color:var(--warning);" id="kegCustomerHolding">0</div>
+                <div class="text-sm font-semibold mt-1" style="color:var(--text-secondary);">Khách</div>
               </div>
-              <div class="card cursor-pointer" onclick="location.href='/purchases'" title="Xem lịch sử nhập vỏ">
-                <div class="text-2xl font-extrabold tabular-nums leading-tight text-muted" style="letter-spacing:-0.02em;" id="kegEmptyCollected">0</div>
-                <div class="text-sm font-semibold mt-1 text-secondary">Rỗng</div>
-                <div class="text-xs tabular-nums mt-0.5 text-muted" id="kegEmptyCollectedPct">0%</div>
+              <div class="kpi-card" style="cursor:pointer;" onclick="location.href='/purchases'" title="Xem lịch sử nhập vỏ">
+                <div class="kpi-card-value" style="font-size:22px;" id="kegEmptyCollected">0</div>
+                <div class="text-sm font-semibold mt-1" style="color:var(--text-secondary);">Rỗng</div>
               </div>
             </div>
 
             <!-- Hàng sắp hết -->
-            <div id="lowStockSection" class="hidden mb-6">
-              <div class="section-title">⚠️ Hàng sắp hết</div>
-              <div class="card card--alert-danger">
-                <div id="lowStockHeader" class="text-sm font-bold mb-3 text-danger">Hàng sắp hết</div>
-                <div id="lowStockList" class="space-y-0"></div>
+            <div id="lowStockSection" class="hidden mb-4">
+              <div class="kpi-card" style="border-color:var(--red);background:var(--red-dim);">
+                <div class="kpi-card-label text-danger">⚠️ Hàng sắp hết</div>
+                <div id="lowStockList" class="space-y-0 mt-2"></div>
               </div>
             </div>
 
             <!-- Dưới mức kỳ vọng -->
-            <div id="customerAlertsSection" class="hidden mb-6">
-              <div class="section-title">⚠️ Dưới mức kỳ vọng</div>
-              <div class="card card--alert-warning">
-                <div id="customerAlertsHeader" class="text-xs mb-3 text-muted"></div>
-                <div id="customerAlertsList"></div>
+            <div id="customerAlertsSection" class="hidden mb-4">
+              <div class="kpi-card" style="border-color:var(--warning);background:var(--warning-dim);">
+                <div class="kpi-card-label" style="color:var(--warning);">⚠️ Dưới mức kỳ vọng</div>
+                <div id="customerAlertsList" class="mt-2"></div>
               </div>
             </div>
 
             <!-- Doanh thu 14 ngày -->
-            <div class="mb-6">
-              <div class="section-title">Doanh thu 14 ngày</div>
-              <div id="revenueStats" class="grid grid-cols-3 gap-2 mb-3">
-                <div class="card text-center min-w-0 card--revenue-mini">
-                  <div class="text-xs mb-1 text-muted">Tổng</div>
-                  <div class="font-bold text-sm min-w-0 text-main" id="totalRevenue6M">-</div>
+            <div class="mb-4">
+              <div class="kpi-grid mb-3" style="grid-template-columns:repeat(3,1fr);">
+                <div class="card text-center">
+                  <div class="text-xs mb-1" style="color:var(--text-muted);">Tổng</div>
+                  <div class="font-bold text-sm" style="color:var(--text-main);" id="totalRevenue6M">-</div>
                 </div>
-                <div class="card text-center min-w-0 card--revenue-mini">
-                  <div class="text-xs mb-1 text-muted">LN/ngày</div>
-                  <div class="font-bold text-sm min-w-0 text-success" id="avgRevenue6M">-</div>
+                <div class="card text-center">
+                  <div class="text-xs mb-1" style="color:var(--text-muted);">LN/ngày</div>
+                  <div class="font-bold text-sm green" id="avgRevenue6M">-</div>
                 </div>
-                <div class="card text-center card--revenue-mini">
-                  <div class="text-xs mb-1 text-muted">Tăng trưởng</div>
+                <div class="card text-center">
+                  <div class="text-xs mb-1" style="color:var(--text-muted);">Tăng trưởng</div>
                   <div class="font-bold text-sm" id="growthRevenue6M">-</div>
                 </div>
               </div>
-              <div class="card card--revenue-mini">
-                <canvas id="revenueChart" style="height: 220px;"></canvas>
+              <div class="card">
+                <canvas id="revenueChart" style="height:220px;"></canvas>
               </div>
             </div>
 
             <!-- Bán gần đây -->
-            <div class="mb-6">
+            <div class="mb-4">
               <div class="section-title">Bán gần đây</div>
               <div class="card">
                 <div id="recentSales"></div>
@@ -316,18 +272,18 @@
             </div>
 
             <!-- Quick action bar cố định đáy -->
-            <div class="dashboard-quick-bar">
-              <div class="dashboard-quick-bar-inner">
-                <a href="/delivery" class="qb-primary">
-                  <span class="qb-icon">🚚</span>
+            <div class="quick-bar">
+              <div class="quick-bar-inner">
+                <a href="/delivery" class="quick-bar-item" style="background:var(--primary);color:var(--bg);">
+                  <span class="quick-bar-icon">🚚</span>
                   <span>Giao</span>
                 </a>
-                <a href="/devices">
-                  <span class="qb-icon">🧊</span>
+                <a href="/devices" class="quick-bar-item">
+                  <span class="quick-bar-icon">🧊</span>
                   <span>Tủ</span>
                 </a>
-                <a href="/expenses">
-                  <span class="qb-icon">💸</span>
+                <a href="/expenses" class="quick-bar-item">
+                  <span class="quick-bar-icon">💸</span>
                   <span>Chi phí</span>
                 </a>
               </div>

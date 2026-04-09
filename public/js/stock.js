@@ -15,7 +15,7 @@ function removePurchaseItem(purchaseId) {
   var remaining = document.querySelectorAll('[data-purchase-id]');
   if (remaining.length === 0) {
     var emptyEl = document.getElementById('purchaseHistoryList');
-    if (emptyEl) emptyEl.innerHTML = '<div class="text-muted text-center py-2">Chưa có lịch sử nhập hàng</div>';
+    if (emptyEl) emptyEl.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📋</div><div class="empty-state-title">Chưa có phiếu nhập nào</div><div class="empty-state-desc">Nhấn <strong>+ Nhập kho</strong> để tạo đơn đầu tiên</div></div>';
   }
 }
 
@@ -837,6 +837,18 @@ function renderProducts(products, serverTotalStockPositive) {
       ? serverTotalStockPositive
       : products.reduce((sum, p) => sum + Math.max(0, Number(p.stock) || 0), 0);
   const lowStockProducts = products.filter(p => p.stock < _LOW_STOCK_THRESHOLD);
+
+  // Show empty state when no products
+  if (!products || products.length === 0) {
+    productList.innerHTML = `
+      <div class="empty-state" style="grid-column:1/-1;margin:8px;">
+        <div class="empty-state-icon">📦</div>
+        <div class="empty-state-title">Chưa có sản phẩm nào</div>
+        <div class="empty-state-desc">Nhấn <strong>+</strong> để thêm sản phẩm đầu tiên</div>
+      </div>`;
+    if (totalStockEl) totalStockEl.textContent = '0';
+    return;
+  }
 
   totalStockEl.textContent = totalStock;
 

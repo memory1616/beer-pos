@@ -11,17 +11,15 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
-  <link rel="stylesheet" href="/css/tailwind.css">
-  <link rel="stylesheet" href="/css/unified.css?v=20260404c">
+  <link rel="stylesheet" href="/css/unified.css?v=20260424-clean">
   <script src="/js/auth.js"></script>
   <script src="/js/dark-mode.js"></script>
-  <script src="/js/layout.js?v=e6cce08a"></script>
+  <script src="/js/layout.js?v=20260424-clean"></script>
   <script>requireAuth();</script>
   <style>
-    .animate-fade { animation: fade 0.3s ease-in; }
-    @keyframes fade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-    button, a { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-    button:active { transform: scale(0.96); }
+    /* Stock page animations (needed for modal transitions) */
+    .animate-fade { animation: fade-in 0.3s ease-in; }
+    @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
   </style>
   <script src="/js/utils.js"></script>
 </head>
@@ -34,64 +32,79 @@
   </button>
 
   <!-- Product Modal -->
-  <div id="productModal" class="fixed inset-0 bg-overlay z-50 hidden items-center justify-center p-4">
-    <div class="bg-card rounded-xl w-full max-w-sm">
-      <div class="p-4 border-b border-muted flex justify-between items-center">
-        <h3 id="modalTitle" class="font-bold text-lg text-main">Thêm sản phẩm</h3>
-        <button onclick="closeProductModal()" class="text-2xl text-muted hover:text-main">&times;</button>
+  <div id="productModal" class="modal-overlay-v2 hidden center">
+    <div class="modal-sheet-v2" style="max-width:400px;margin:auto;">
+      <div class="modal-sheet-v2-header">
+        <div class="modal-sheet-v2-title" id="modalTitle">Thêm sản phẩm</div>
+        <button onclick="closeProductModal()" class="modal-sheet-v2-close">×</button>
       </div>
-      <form id="productForm" class="p-4 space-y-3">
-        <input type="hidden" id="productId">
-        <div>
-          <label class="block text-sm font-medium text-main mb-1">Tên sản phẩm</label>
-          <input type="text" id="productName" required class="w-full border border-muted rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary" placeholder="Nhập tên sản phẩm">
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-main mb-1">Loại bao bì</label>
-          <select id="productType" class="w-full border border-muted rounded-lg px-3 py-2">
-            <option value="keg">📦 Bình (Keg)</option>
-            <option value="pet">🧴 Chai Nhựa (Pet)</option>
-            <option value="box">📦 Hộp (Box) 23L</option>
-          </select>
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-main mb-1">Giá vốn (đ)</label>
-          <input type="number" id="productCostPrice" step="1000" class="w-full border border-muted rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary" placeholder="0">
-        </div>
-        <div id="stockField">
-          <label class="block text-sm font-medium text-main mb-1">Số lượng tồn</label>
-          <input type="number" id="productStock" class="w-full border border-muted rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary" placeholder="0">
-        </div>
-        <div class="flex gap-2 pt-2">
-          <button type="button" onclick="closeProductModal()" class="btn btn-ghost flex-1 h-11">Huỷ</button>
-          <button type="submit" class="btn btn-primary flex-1 h-11">Lưu</button>
-        </div>
-        <button type="button" id="deleteProductBtn" onclick="deleteProduct()" class="btn btn-danger w-full h-11 mt-2 hidden">🗑️ Xoá sản phẩm</button>
-      </form>
+      <div class="modal-sheet-v2-body">
+        <form id="productForm" class="space-y-3">
+          <input type="hidden" id="productId">
+          <div>
+            <label class="field-label">Tên sản phẩm</label>
+            <input type="text" id="productName" required
+              class="w-full"
+              style="height:48px;padding:12px 14px;border-radius:var(--radius-lg);border:1px solid var(--border);background:var(--card);box-sizing:border-box;font-size:16px;color:var(--text-main);"
+              placeholder="Nhập tên sản phẩm">
+          </div>
+          <div>
+            <label class="field-label">Loại bao bì</label>
+            <select id="productType" class="w-full"
+              style="height:48px;padding:12px 14px;border-radius:var(--radius-lg);border:1px solid var(--border);background:var(--card);box-sizing:border-box;font-size:16px;color:var(--text-main);">
+              <option value="keg">📦 Bình (Keg)</option>
+              <option value="pet">🧴 Chai Nhựa (Pet)</option>
+              <option value="box">📦 Hộp (Box) 23L</option>
+            </select>
+          </div>
+          <div>
+            <label class="field-label">Giá vốn (đ)</label>
+            <input type="number" id="productCostPrice" step="1000"
+              class="w-full"
+              style="height:48px;padding:12px 14px;border-radius:var(--radius-lg);border:1px solid var(--border);background:var(--card);box-sizing:border-box;font-size:16px;color:var(--text-main);"
+              placeholder="0">
+          </div>
+          <div id="stockField">
+            <label class="field-label">Số lượng tồn</label>
+            <input type="number" id="productStock"
+              class="w-full"
+              style="height:48px;padding:12px 14px;border-radius:var(--radius-lg);border:1px solid var(--border);background:var(--card);box-sizing:border-box;font-size:16px;color:var(--text-main);"
+              placeholder="0">
+          </div>
+          <div class="flex gap-2 pt-2">
+            <button type="button" onclick="closeProductModal()" class="btn btn-ghost flex-1 h-11">Huỷ</button>
+            <button type="submit" class="btn btn-primary flex-1 h-11">Lưu</button>
+          </div>
+          <button type="button" id="deleteProductBtn" onclick="deleteProduct()" class="btn btn-danger w-full h-11 hidden">🗑️ Xoá sản phẩm</button>
+        </form>
+      </div>
     </div>
   </div>
 
   <!-- Purchase Edit Modal -->
-  <div id="purchaseModal" class="fixed inset-0 bg-overlay z-50 hidden items-center justify-center p-4">
-    <div class="bg-card rounded-xl w-full max-w-sm max-h-[80vh] flex flex-col">
-      <div class="p-4 border-b border-muted flex justify-between items-center">
-        <h3 class="font-bold text-lg text-main">Sửa đơn nhập</h3>
-        <button onclick="closePurchaseModal()" class="text-2xl text-muted hover:text-main">&times;</button>
+  <div id="purchaseModal" class="modal-overlay-v2 hidden center">
+    <div class="modal-sheet-v2" style="max-width:400px;max-height:80vh;margin:auto;">
+      <div class="modal-sheet-v2-header">
+        <div class="modal-sheet-v2-title">Sửa đơn nhập</div>
+        <button onclick="closePurchaseModal()" class="modal-sheet-v2-close">×</button>
       </div>
-      <form id="editPurchaseForm" class="p-4 space-y-3 overflow-y-auto flex-1">
-        <input type="hidden" id="editPurchaseId">
-        <div>
-          <label class="block text-sm font-medium text-main mb-1">Ghi chú</label>
-          <input type="text" id="editPurchaseNote" class="w-full border border-muted rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary" placeholder="Ghi chú...">
-        </div>
-        <div id="editPurchaseItems" class="space-y-3 max-h-64 overflow-y-auto pr-1">
-          <!-- Items loaded via JS -->
-        </div>
-        <div class="flex gap-2 pt-2">
-          <button type="button" onclick="closePurchaseModal()" class="btn btn-ghost flex-1 h-11">Huỷ</button>
-          <button type="submit" class="btn btn-primary flex-1 h-11">Lưu</button>
-        </div>
-      </form>
+      <div class="modal-sheet-v2-body">
+        <form id="editPurchaseForm" class="space-y-3 overflow-y-auto" style="max-height:60vh;">
+          <input type="hidden" id="editPurchaseId">
+          <div>
+            <label class="field-label">Ghi chú</label>
+            <input type="text" id="editPurchaseNote"
+              class="w-full"
+              style="height:48px;padding:12px 14px;border-radius:var(--radius-lg);border:1px solid var(--border);background:var(--card);box-sizing:border-box;font-size:16px;color:var(--text-main);"
+              placeholder="Ghi chú...">
+          </div>
+          <div id="editPurchaseItems" class="space-y-3"></div>
+          <div class="flex gap-2 pt-2">
+            <button type="button" onclick="closePurchaseModal()" class="btn btn-ghost flex-1 h-11">Huỷ</button>
+            <button type="submit" class="btn btn-primary flex-1 h-11">Lưu</button>
+          </div>
+        </form>
+      </div>
     </div>
   </div>
 
@@ -166,7 +179,7 @@
       // Wait for DOM paint, then load stock.js, then call loadData()
       await new Promise(resolve => requestAnimationFrame(resolve));
       await new Promise(resolve => setTimeout(resolve, 0));
-      await loadScript('/js/stock.js?v=20260418a');
+      await loadScript('/js/stock.js?v=20260425-ux');
 
       // Ensure DOM is ready before rendering
       if (document.readyState === 'loading') {

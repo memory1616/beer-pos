@@ -462,7 +462,10 @@ function renderCustomers() {
   const filtered = source.filter(c => c.name.toLowerCase().includes(search));
 
   if (filtered.length === 0) {
-    container.innerHTML = '<div class="text-center text-muted py-8 card">Không có khách hàng nào</div>';
+    var noCustomerMsg = search
+      ? '<div class="empty-state"><div class="empty-state-icon">🔍</div><div class="empty-state-title">Không tìm thấy khách hàng</div><div class="empty-state-desc">Thử từ khóa khác hoặc xóa bộ lọc</div></div>'
+      : '<div class="empty-state"><div class="empty-state-icon">👤</div><div class="empty-state-title">Chưa có khách hàng nào</div><div class="empty-state-desc">Nhấn <strong>+</strong> để thêm khách hàng đầu tiên</div></div>';
+    container.innerHTML = noCustomerMsg;
     return;
   }
 

@@ -11,11 +11,10 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
-  <link rel="stylesheet" href="/css/tailwind.css">
-  <link rel="stylesheet" href="/css/unified.css?v=20260414">
+  <link rel="stylesheet" href="/css/unified.css?v=20260424-clean">
   <script src="/js/auth.js"></script>
   <script src="/js/dark-mode.js"></script>
-  <script src="/js/layout.js?v=20260414a"></script>
+  <script src="/js/layout.js?v=20260424-clean"></script>
   <script src="/js/utils.js"></script>
   <script>requireAuth();</script>
   <style>
@@ -23,22 +22,17 @@
     @keyframes fade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     button, a { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
     button:active { transform: scale(0.96); }
-    .stat-card { transition: transform 0.2s, box-shadow 0.2s; }
-    .stat-card:hover { transform: translateY(-2px); }
     .action-btn { transition: all 0.2s; }
-    .action-btn:hover { transform: translateY(-2px); }
     .action-btn:active { transform: scale(0.95); }
-    .log-row:nth-child(even) { background: var(--color-bg); }
     .badge-deliver { background: var(--green-dim); color: var(--green); }
-    .badge-collect { background: rgba(37,99,235,0.15); color: var(--color-info); }
+    .badge-collect { background: rgba(37,99,235,0.15); color: var(--info); }
     .badge-import { background: rgba(139,92,246,0.15); color: #7c3aed; }
     .badge-adjust { background: var(--primary-dim); color: var(--primary-hover); }
     .badge-sell_empty { background: rgba(236,72,153,0.15); color: #db2777; }
     .delta-up { color: var(--green); }
     .delta-down { color: var(--red); }
-    .delta-neutral { color: var(--color-text-secondary); }
-    input[type=number]::-webkit-inner-spin-button,
-    input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    .delta-neutral { color: var(--text-secondary); }
+    input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
     input[type=number] { -moz-appearance: textfield; }
   </style>
 </head>
@@ -48,140 +42,140 @@
   <!-- ========== MODALS ========== -->
   <div id="deliverModal" class="fixed inset-0 bg-overlay z-50 hidden items-center justify-center p-4">
     <div class="bg-card rounded-xl w-full max-w-sm">
-      <div class="p-4 border-b border-muted flex justify-between items-center">
-        <h3 class="font-bold text-lg text-success">📦 Giao vỏ cho khách</h3>
-        <button onclick="closeModal('deliverModal')" class="text-2xl text-muted hover:text-main">&times;</button>
+      <div class="modal-sheet-v2-header">
+        <div class="modal-sheet-v2-title">📦 Giao vỏ cho khách</div>
+        <button onclick="closeModal('deliverModal')" class="modal-sheet-v2-close">×</button>
       </div>
-      <div class="p-4 space-y-3">
-        <div class="card p-2 text-xs">
-          <div class="flex justify-between text-muted">Vỏ sẵn có:</div>
-          <div class="font-bold text-success" id="deliverAvailQty">-</div>
+      <div class="modal-sheet-v2-body">
+        <div class="card mb-3" style="background:var(--green-dim);border-color:var(--green);">
+          <div class="text-xs mb-1" style="color:var(--text-muted);">Vỏ sẵn có:</div>
+          <div class="font-bold green" id="deliverAvailQty">-</div>
         </div>
         <div>
-          <label class="block text-sm font-medium text-main mb-1">Khách hàng</label>
-          <select id="deliverCustomer" class="w-full border border-muted rounded-lg px-3 py-2">
+          <label class="field-label">Khách hàng</label>
+          <select id="deliverCustomer" class="field-input" style="height:48px;font-size:16px;">
             <option value="">-- Chọn khách hàng --</option>
           </select>
         </div>
-        <div class="flex gap-2">
-          <div class="flex-1">
-            <label class="block text-sm font-medium text-main mb-1">Số lượng vỏ</label>
-            <input type="number" id="deliverQty" min="1" value="1" class="w-full border border-muted rounded-lg px-3 py-2 text-center text-xl font-bold">
-          </div>
-          <div class="flex gap-1 mt-7">
-            <button onclick="adjustQty('deliverQty', -1)" class="btn btn-ghost w-8 h-10 text-lg p-0">−</button>
-            <button onclick="adjustQty('deliverQty', 1)" class="btn btn-ghost w-8 h-10 text-lg p-0">+</button>
+        <div>
+          <label class="field-label">Số lượng vỏ</label>
+          <div class="flex items-center gap-2">
+            <input type="number" id="deliverQty" min="1" value="1" class="field-input" style="height:48px;font-size:20px;font-weight:600;text-align:center;border-color:var(--green);">
+            <div class="flex gap-1">
+              <button onclick="adjustQty('deliverQty', -1)" class="btn btn-ghost" style="width:40px;height:48px;font-size:18px;padding:0;">−</button>
+              <button onclick="adjustQty('deliverQty', 1)" class="btn btn-ghost" style="width:40px;height:48px;font-size:18px;padding:0;">+</button>
+            </div>
           </div>
         </div>
         <div>
-          <label class="block text-sm font-medium text-main mb-1">Ghi chú</label>
-          <input type="text" id="deliverNote" class="w-full border border-muted rounded-lg px-3 py-2" placeholder="VD: Theo đơn hàng">
+          <label class="field-label">Ghi chú</label>
+          <input type="text" id="deliverNote" class="field-input" style="height:44px;font-size:15px;" placeholder="VD: Theo đơn hàng">
         </div>
-        <button onclick="submitDeliver()" class="btn btn-success w-full h-12 mt-2">Xác nhận giao</button>
+        <button onclick="submitDeliver()" class="btn" style="width:100%;height:48px;background:var(--green);color:#fff;font-weight:600;border-radius:var(--radius-md);">Xác nhận giao</button>
       </div>
     </div>
   </div>
 
-  <div id="collectModal" class="fixed inset-0 bg-overlay z-50 hidden items-center justify-center p-4">
+  <div id="collectModal" class="modal-overlay-v2 hidden center">
     <div class="bg-card rounded-xl w-full max-w-sm animate-fade">
-      <div class="p-4 border-b border-muted flex justify-between items-center">
-        <h3 class="font-bold text-lg text-info">🔄 Thu vỏ rỗng</h3>
-        <button onclick="closeModal('collectModal')" class="text-2xl text-muted hover:text-main">&times;</button>
+      <div class="modal-sheet-v2-header">
+        <div class="modal-sheet-v2-title" style="color:var(--info);">🔄 Thu vỏ rỗng</div>
+        <button onclick="closeModal('collectModal')" class="modal-sheet-v2-close">×</button>
       </div>
-      <div class="p-4 space-y-3">
-        <div class="card p-2 text-xs">
-          <div class="flex justify-between text-muted">Vỏ khách đang giữ:</div>
-          <div class="font-bold text-info" id="collectAvailQty">-</div>
+      <div class="modal-sheet-v2-body">
+        <div class="card mb-3" style="background:rgba(59,130,246,0.12);border-color:var(--info);">
+          <div class="text-xs mb-1" style="color:var(--text-muted);">Vỏ khách đang giữ:</div>
+          <div class="font-bold" style="color:var(--info);" id="collectAvailQty">-</div>
         </div>
         <div>
-          <label class="block text-sm font-medium text-main mb-1">Khách hàng</label>
-          <select id="collectCustomer" class="w-full border border-muted rounded-lg px-3 py-2" onchange="updateCollectAvail()">
+          <label class="field-label">Khách hàng</label>
+          <select id="collectCustomer" class="field-input" style="height:48px;font-size:16px;" onchange="updateCollectAvail()">
             <option value="">-- Chọn khách hàng --</option>
           </select>
         </div>
-        <div class="flex gap-2">
-          <div class="flex-1">
-            <label class="block text-sm font-medium text-main mb-1">Số lượng vỏ</label>
-            <input type="number" id="collectQty" min="1" value="1" class="w-full border border-muted rounded-lg px-3 py-2 text-center text-xl font-bold">
-          </div>
-          <div class="flex gap-1 mt-7">
-            <button onclick="adjustQty('collectQty', -1)" class="btn btn-ghost w-8 h-10 text-lg p-0">−</button>
-            <button onclick="adjustQty('collectQty', 1)" class="btn btn-ghost w-8 h-10 text-lg p-0">+</button>
+        <div>
+          <label class="field-label">Số lượng vỏ</label>
+          <div class="flex items-center gap-2">
+            <input type="number" id="collectQty" min="1" value="1" class="field-input" style="height:48px;font-size:20px;font-weight:600;text-align:center;border-color:var(--info);">
+            <div class="flex gap-1">
+              <button onclick="adjustQty('collectQty', -1)" class="btn btn-ghost" style="width:40px;height:48px;font-size:18px;padding:0;">−</button>
+              <button onclick="adjustQty('collectQty', 1)" class="btn btn-ghost" style="width:40px;height:48px;font-size:18px;padding:0;">+</button>
+            </div>
           </div>
         </div>
         <div>
-          <label class="block text-sm font-medium text-main mb-1">Ghi chú</label>
-          <input type="text" id="collectNote" class="w-full border border-muted rounded-lg px-3 py-2" placeholder="VD: Thu vỏ từ khách">
+          <label class="field-label">Ghi chú</label>
+          <input type="text" id="collectNote" class="field-input" style="height:44px;font-size:15px;" placeholder="VD: Thu vỏ từ khách">
         </div>
-        <button onclick="submitCollect()" class="btn btn-info w-full h-12 mt-2">Xác nhận thu</button>
+        <button onclick="submitCollect()" class="btn" style="width:100%;height:48px;background:var(--info);color:#fff;font-weight:600;border-radius:var(--radius-md);">Xác nhận thu</button>
       </div>
     </div>
   </div>
 
-  <div id="importModal" class="fixed inset-0 bg-overlay z-50 hidden items-center justify-center p-4">
+  <div id="importModal" class="modal-overlay-v2 hidden center">
     <div class="bg-card rounded-xl w-full max-w-sm animate-fade">
-      <div class="p-4 border-b border-muted flex justify-between items-center">
-        <h3 class="font-bold text-lg text-secondary">🏭 Nhập vỏ từ nhà máy</h3>
-        <button onclick="closeModal('importModal')" class="text-2xl text-muted hover:text-main">&times;</button>
+      <div class="modal-sheet-v2-header">
+        <div class="modal-sheet-v2-title">🏭 Nhập vỏ từ nhà máy</div>
+        <button onclick="closeModal('importModal')" class="modal-sheet-v2-close">×</button>
       </div>
-      <div class="p-4 space-y-3">
-        <div class="card p-2 text-xs text-center">
-          <span class="text-muted">Vỏ rỗng hiện có: </span>
-          <span class="font-bold text-secondary" id="importAvailEmpty">-</span>
+      <div class="modal-sheet-v2-body">
+        <div class="card mb-3 text-center" style="background:var(--primary-dim);border-color:var(--primary);">
+          <span class="text-muted text-xs">Vỏ rỗng hiện có: </span>
+          <span class="font-bold" style="color:var(--primary-hover);" id="importAvailEmpty">-</span>
         </div>
         <div>
-          <label class="block text-sm font-medium text-main mb-1">Đổi vỏ (trả rỗng → lấy đầy)</label>
-          <input type="number" id="importExchanged" min="0" value="0" class="w-full border border-muted rounded-lg px-3 py-2 text-center text-lg font-bold focus:ring-2 focus:ring-primary" oninput="updateImportTotal()">
+          <label class="field-label">Đổi vỏ (trả rỗng → lấy đầy)</label>
+          <input type="number" id="importExchanged" min="0" value="0" class="field-input" style="height:48px;font-size:18px;font-weight:600;text-align:center;" oninput="updateImportTotal()">
         </div>
         <div>
-          <label class="block text-sm font-medium text-main mb-1">Mua vỏ mới</label>
-          <input type="number" id="importPurchased" min="0" value="0" class="w-full border border-muted rounded-lg px-3 py-2 text-center text-lg font-bold focus:ring-2 focus:ring-primary" oninput="updateImportTotal()">
+          <label class="field-label">Mua vỏ mới</label>
+          <input type="number" id="importPurchased" min="0" value="0" class="field-input" style="height:48px;font-size:18px;font-weight:600;text-align:center;" oninput="updateImportTotal()">
         </div>
-        <div class="card p-2 text-center text-xs">
-          <span class="text-muted">Tổng nhập: </span>
-          <span class="font-bold text-secondary" id="importTotalDisplay">0 vỏ</span>
+        <div class="card text-center" style="background:var(--primary-dim);border-color:var(--primary);">
+          <span class="text-muted text-xs">Tổng nhập: </span>
+          <span class="font-bold" style="color:var(--primary-hover);" id="importTotalDisplay">0 vỏ</span>
         </div>
         <div>
-          <label class="block text-sm font-medium text-main mb-1">Ghi chú</label>
-          <input type="text" id="importNote" class="w-full border border-muted rounded-lg px-3 py-2" placeholder="VD: Nhập từ Bia Sài Gòn">
+          <label class="field-label">Ghi chú</label>
+          <input type="text" id="importNote" class="field-input" style="height:44px;font-size:15px;" placeholder="VD: Nhập từ Bia Sài Gòn">
         </div>
-        <button onclick="submitImport()" class="btn btn-secondary w-full h-12 mt-2">Xác nhận nhập</button>
+        <button onclick="submitImport()" class="btn btn-secondary" style="width:100%;height:48px;font-weight:600;border-radius:var(--radius-md);">Xác nhận nhập</button>
       </div>
     </div>
   </div>
 
-  <div id="adjustModal" class="fixed inset-0 bg-overlay z-50 hidden items-center justify-center p-4">
+  <div id="adjustModal" class="modal-overlay-v2 hidden center">
     <div class="bg-card rounded-xl w-full max-w-sm animate-fade">
-      <div class="p-4 border-b border-muted flex justify-between items-center">
-        <h3 class="font-bold text-lg text-warning">⚙️ Điều chỉnh vỏ rỗng</h3>
-        <button onclick="closeModal('adjustModal')" class="text-2xl text-muted hover:text-main">&times;</button>
+      <div class="modal-sheet-v2-header">
+        <div class="modal-sheet-v2-title" style="color:var(--primary-hover);">⚙️ Điều chỉnh vỏ rỗng</div>
+        <button onclick="closeModal('adjustModal')" class="modal-sheet-v2-close">×</button>
       </div>
-      <div class="p-4 space-y-3">
-        <div class="card p-3 text-sm">
+      <div class="modal-sheet-v2-body">
+        <div class="card mb-3" style="background:var(--primary-dim);border-color:var(--primary);">
           <div class="flex justify-between mb-1">
-            <span class="text-muted">Vỏ rỗng hiện tại:</span>
-            <span class="font-bold text-warning" id="currentEmptyDisplay">-</span>
+            <span class="text-muted text-sm">Vỏ rỗng hiện tại:</span>
+            <span class="font-bold" style="color:var(--primary-hover);" id="currentEmptyDisplay">-</span>
           </div>
-          <div class="text-xs text-muted">Dùng khi thực tế khác sổ sách</div>
+          <div class="text-xs" style="color:var(--text-muted);">Dùng khi thực tế khác sổ sách</div>
         </div>
         <div>
-          <label class="block text-sm font-medium text-main mb-1">Số lượng vỏ rỗng mới</label>
-          <input type="number" id="adjustQty" min="0" value="0" class="w-full border border-muted rounded-lg px-3 py-2 text-center text-xl font-bold focus:ring-2 focus:ring-primary">
+          <label class="field-label">Số lượng vỏ rỗng mới</label>
+          <input type="number" id="adjustQty" min="0" value="0" class="field-input" style="height:48px;font-size:20px;font-weight:600;text-align:center;">
         </div>
         <div>
-          <label class="block text-sm font-medium text-main mb-1">Ghi chú</label>
-          <input type="text" id="adjustNote" class="w-full border border-muted rounded-lg px-3 py-2" placeholder="VD: Kiểm kê kho vỏ">
+          <label class="field-label">Ghi chú</label>
+          <input type="text" id="adjustNote" class="field-input" style="height:44px;font-size:15px;" placeholder="VD: Kiểm kê kho vỏ">
         </div>
-        <button onclick="submitAdjust()" class="btn btn-warning w-full h-12 mt-2">Cập nhật</button>
+        <button onclick="submitAdjust()" class="btn" style="width:100%;height:48px;background:var(--primary);color:var(--bg);font-weight:600;border-radius:var(--radius-md);">Cập nhật</button>
       </div>
     </div>
   </div>
 
-  <div id="historyModal" class="fixed inset-0 bg-overlay z-50 hidden items-center justify-center p-2">
-    <div class="bg-card rounded-xl w-full max-w-lg max-h-[90vh] flex flex-col animate-fade">
-      <div class="p-4 border-b border-muted flex justify-between items-center flex-shrink-0">
-        <h3 class="font-bold text-lg text-main">📋 Lịch sử giao dịch vỏ</h3>
-        <button onclick="closeModal('historyModal')" class="text-2xl text-muted hover:text-main">&times;</button>
+  <div id="historyModal" class="modal-overlay-v2 hidden center" style="padding:8px;">
+    <div class="modal-sheet-v2" style="max-width:480px;margin:auto;max-height:92vh;">
+      <div class="modal-sheet-v2-header">
+        <div class="modal-sheet-v2-title">📋 Lịch sử giao dịch vỏ</div>
+        <button onclick="closeModal('historyModal')" class="modal-sheet-v2-close">×</button>
       </div>
       <div class="px-3 pt-2 flex-shrink-0">
         <div class="flex gap-2 overflow-x-auto pb-2">
@@ -369,7 +363,7 @@
           '<td class="py-2 px-2"><span class="' + typeBadgeClass(log.type) + '">' + typeLabel(log.type) + '</span></td>' +
           '<td class="py-2 px-2 text-xs text-center font-bold text-main">' + log.quantity + '</td>' +
           '<td class="py-2 px-2 text-xs text-center text-secondary truncate max-w-16" title="' + customer + '">' + customer + '</td>' +
-          '<td class="py-2 px-2 text-xs text-muted truncate max-w-16" title="' + note + '">' + note + '</td></tr>';
+          '<td class="py-2 px-2 text-xs text-muted truncate max-w-16" title="' + note + '"><span class="keg-col-note">' + note + '</span></td></tr>';
       }).join('');
     }
 
@@ -603,7 +597,7 @@
                     <th class="py-2 px-2 text-left font-medium">Loại</th>
                     <th class="py-2 px-2 text-center font-medium">SL</th>
                     <th class="py-2 px-2 text-center font-medium">Khách</th>
-                    <th class="py-2 px-2 text-center font-medium">Ghi chú</th>
+                    <th class="py-2 px-2 text-center font-medium keg-col-note">Ghi chú</th>
                   </tr>
                 </thead>
                 <tbody id="logBody"></tbody>

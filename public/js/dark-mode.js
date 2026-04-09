@@ -31,20 +31,23 @@
     updateIcon();
   }
 
-  // Set icon/text on the toggle button
+  // Set icon on the toggle button — uses SVG icons
   function updateIcon() {
-    const saved = localStorage.getItem(KEY) || 'auto';
     const h = document.documentElement;
     const current = h.getAttribute('data-theme') || 'light';
     const btn = document.getElementById('themeToggle');
-    if (btn) {
-      if (current === 'dark') {
-        btn.textContent = '🌙';
-        btn.title = 'Chế độ tối (auto lúc 6AM)';
-      } else {
-        btn.textContent = '☀️';
-        btn.title = 'Chế độ sáng';
-      }
+    if (!btn) return;
+    const sun = document.getElementById('themeToggleSun');
+    const moon = document.getElementById('themeToggleMoon');
+    const saved = localStorage.getItem(KEY) || 'auto';
+    if (current === 'dark') {
+      if (sun) sun.style.display = 'none';
+      if (moon) moon.style.display = '';
+      btn.title = 'Chế độ tối (auto lúc 6AM)';
+    } else {
+      if (sun) sun.style.display = '';
+      if (moon) moon.style.display = 'none';
+      btn.title = 'Chế độ sáng';
     }
   }
 
