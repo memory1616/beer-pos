@@ -101,6 +101,22 @@ function effectiveSellPrice(p) {
   return result;
 }
 
+/**
+ * Lấy giá hiển thị cho product trong UI.
+ * Priority: cart price > customer price > base price
+ */
+function getDisplayPrice(product, customerId) {
+  // Priority 1: Nếu đã có trong cart → dùng giá trong cart
+  if (saleData[product.id] && saleData[product.id].price !== undefined && saleData[product.id].price > 0) {
+    return saleData[product.id].price;
+  }
+  // Priority 2: Giá theo khách hàng
+  const customerPrice = getEffectivePrice(product, customerId);
+  if (customerPrice > 0) return customerPrice;
+  // Priority 3: Giá mặc định của sản phẩm
+  return effectiveSellPrice(product);
+}
+
 /** Giá theo khách từ priceMap */
 function lookupPriceMap(customerId, productId) {
   if (!customerId || customerId === '' || !priceMap) return undefined;
@@ -114,6 +130,31 @@ function lookupPriceMap(customerId, productId) {
 }
 
 // ========== PRICE APPLICATION (called on customer change) ==========
+
+/**
+ * Áp giá theo khách hàng cho toàn bộ cart (saleData).
+ * Đây là hàm chính để đồng bộ giá khi chọn / đổi khách hàng.
+ */
+function applyCustomerPricing(customerId) {
+  if (!customerId) return;
+
+  const cid = String(customerId);
+  console.log('[PRICE][applyCustomerPricing] customerId:', cid);
+
+  products.forEach(p => {
+    const resolvedPrice = getEffectivePrice(p, cid);
+    p._displayPrice = resolvedPrice;
+
+    // Luôn cập nhật giá trên cart — không chỉ khi price === 0
+    if (saleData[p.id]) {
+      saleData[p.id].price = resolvedPrice;
+    }
+  });
+
+  // Recalc + render sau khi cập nhật giá
+  updateSaleTotal();
+  renderSaleProducts(); // Re-render để hiển thị giá mới trong UI
+}
 
 /**
  * Áp giá hiển thị khi có khách.
@@ -183,7 +224,7 @@ function applyResolvedPrices(customerId, apiPrices) {
     }
 
     p._displayPrice = resolvedPrice;
-    if (saleData[p.id] && saleData[p.id].price === 0) {
+    if (saleData[p.id]) {
       saleData[p.id].price = resolvedPrice;
     }
   });
@@ -362,20 +403,20 @@ function renderSaleProducts() {
 
   // Layout giống Nhập hàng: thẻ từng SP, tên + 1 dòng giá/tồn + ô Nhập SL
   container.innerHTML = products.map(p => {
-    const defUnit = p._displayPrice != null ? Number(p._displayPrice) : effectiveSellPrice(p);
-    const price = Number.isFinite(defUnit) ? defUnit : effectiveSellPrice(p);
-    if (price === 0) {
+    // Sử dụng getDisplayPrice: cart > customer > base
+    const displayPrice = getDisplayPrice(p, customerId);
+    if (displayPrice === 0) {
       console.log('[RENDER][WARN] product "' + p.name + '" has price=0! _displayPrice=' + p._displayPrice + ', sell_price=' + p.sell_price);
     }
-    const currentPrice = (saleData[p.id] && saleData[p.id].price !== undefined) ? saleData[p.id].price : effectiveSellPrice(p);
+    // Giá cho input field: ưu tiên cart > displayPrice
     const priceInputVal = (saleData[p.id] && saleData[p.id].price !== undefined)
       ? saleData[p.id].price
-      : (effectiveSellPrice(p) || '');
+      : (displayPrice || '');
     const isLowStock = p.stock < _LOW_STOCK_THRESHOLD;
     const currentQty = saleData[p.id] ? saleData[p.id].quantity : '';
     const priceLine = isKhachLe
       ? `· Tồn: <span class="${p.stock < _LOW_STOCK_THRESHOLD ? 'text-danger font-semibold' : 'text-secondary'}">${p.stock}</span>`
-      : `Giá: <span class="text-primary font-bold">${formatVND(price)}</span> · Tồn: <span class="${p.stock < _LOW_STOCK_THRESHOLD ? 'text-danger' : 'text-secondary'}">${p.stock}</span>`;
+      : `Giá: <span class="text-primary font-bold">${formatVND(displayPrice)}</span> · Tồn: <span class="${p.stock < _LOW_STOCK_THRESHOLD ? 'text-danger' : 'text-secondary'}">${p.stock}</span>`;
     const priceField = isKhachLe
       ? `<label class="block text-xs font-semibold text-primary mt-2 mb-1">Giá bán (đ)</label>
         <input type="number" id="price-${p.id}" min="0" step="1000" value="${priceInputVal}" placeholder="Nhập giá"
@@ -450,10 +491,10 @@ function toggleQtyControl(productId) {
   if (!product) return;
   
   currentEditingProduct = productId;
+  const customerIdEl = document.getElementById('customerSelect');
+  const customerId = customerIdEl ? customerIdEl.value : '';
   const currentQty = saleData[productId] ? saleData[productId].quantity : '';
-  const currentPrice = saleData[productId]
-    ? saleData[productId].price
-    : (product._displayPrice != null ? Number(product._displayPrice) : effectiveSellPrice(product));
+  const currentPrice = getDisplayPrice(product, customerId);
   
   const modal = document.createElement('div');
   modal.id = 'qtyModal';
@@ -2224,12 +2265,14 @@ async function editSale(id) {
   updateKegSaleSection(sale.customer_id || '');
   updateSaleKegPreview();
   saleData = {};
+  // Reset price inputs — use getDisplayPrice which respects cart > customer > base
+  var resetCustomerId = sale.customer_id ? String(sale.customer_id) : '';
   products.forEach(function(p) {
     var qtyInput = document.getElementById('qty-' + p.id);
     var priceInput = document.getElementById('price-' + p.id);
     if (qtyInput) qtyInput.value = '';
     if (priceInput) {
-      priceInput.value = p._displayPrice != null ? Number(p._displayPrice) : effectiveSellPrice(p);
+      priceInput.value = getDisplayPrice(p, resetCustomerId) || '';
     }
   });
 
