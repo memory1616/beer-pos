@@ -61,20 +61,19 @@
 
     try {
       const result = await checkConsistency();
-      
+
       if (result.mismatch) {
         console.warn('[CONSISTENCY] Mismatch detected:', result);
         _emit('mismatch', result);
-        
-        // Trigger full resync if significant mismatch
-      // ⚠️ 已禁用: severity === 'high' 时的 auto fullResync 会导致无限清库循环
-      // (upsertEntity 缺失 → resync fail → mismatch → 再次清库)
-      // 改为只记录警告，由人工干预或 WebSocket reconnect 后再 resync
-      if (result.severity === 'high') {
-        console.warn('[CONSISTENCY] ⚠️ HIGH mismatch detected — auto resync DISABLED to prevent data wipe loop. Please reconnect WS / reload app manually.');
-        _emit('mismatch:high', result);
-        // await fullResync(); // ← 已禁用，之前的 bug 造成无限清库循环
-      }
+
+        // ⚠️ CRITICAL: Auto fullResync ĐÃ BỊ VÔ HIỆU HÓA HOÀN TOÀN
+        // Lý do: upsertEntity missing → resync fail → mismatch → infinite loop
+        // Giải pháp: Chỉ cảnh báo, không tự động xóa data
+        if (result.severity === 'high') {
+          console.warn('[CONSISTENCY] ⚠️ HIGH mismatch detected — fullResync DISABLED to prevent data wipe loop. Reload app manually if needed.');
+          _emit('mismatch:high', result);
+          // KHÔNG GỌI fullResync() - đây là lỗi nghiêm trọng
+        }
       } else {
         _emit('ok', result);
       }
@@ -328,12 +327,11 @@
     _emit('resync:start', {});
 
     try {
-      // 1. Clear local data
-      if (_db) {
-        await _db.clearAll();
-      }
+      // ⚠️ CRITICAL: KHÔNG xóa data local nữa!
+      // Lý do: Xóa data → replay event → crash → mismatch → xóa lại → infinite loop
+      // Giải pháp: Chỉ merge data từ server mà không xóa gì cả
 
-      // 2. Fetch full state from server
+      // 1. Fetch full state from server
       const response = await fetch('/api/state/full', {
         headers: { 'Cache-Control': 'no-cache' },
       });

@@ -38,18 +38,22 @@
   // ── Hard Guard: Safe upsert wrapper ──────────────────────────────────
   // ⭐ CRITICAL: Ngăn crash khi _db.upsertEntity không tồn tại
   async function _safeUpsert(entity, item) {
+    // Layer 1: Kiểm tra _db tồn tại
     if (!_db) {
       console.warn('[APPLY] _db null, skipping upsert:', entity, item?.id);
       return;
     }
+    // Layer 2: Kiểm tra upsertEntity là function
     if (typeof _db.upsertEntity !== 'function') {
-      console.error('[FATAL] upsertEntity missing from _db — cannot apply event!');
+      console.error('[FATAL] upsertEntity missing from _db — cannot apply event!', entity, item?.id);
+      console.error('[FATAL] _db type:', typeof _db, '_db keys:', Object.keys(_db || {}));
       return;
     }
+    // Layer 3: Try-catch để ngăn crash
     try {
       await _db.upsertEntity(entity, item);
     } catch (err) {
-      console.error('[APPLY] _safeUpsert error:', err);
+      console.error('[APPLY] _safeUpsert error:', err, { entity, itemId: item?.id });
     }
   }
 
