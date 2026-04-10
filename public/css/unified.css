@@ -1,9 +1,10 @@
-/* Beer POS — Unified Design System v9 | Layout Fix | 20260410
+/* Beer POS — Unified Design System v9 | Layout Fix | 20260410c
    Changelog v9 (Layout Fix):
    - Fix duplicate top spacing on report page (removed padding-top from .app-body)
    - Single source of truth: header is 56px fixed, body starts at 0
    - .app-filter-bar stays sticky at header height
    - .page-content: remove redundant padding-top (body--app already handles it)
+   - .body--app: remove padding-left/right (page-content handles them)
 */
 
 /* DESIGN TOKENS — canonical source of truth */
@@ -37,13 +38,12 @@ body {
   line-height: 1.5;
 }
 
-/* Standard app body — header + bottom nav */
+/* Standard app body — header + bottom nav, no horizontal padding
+   (page-content handles left/right padding for consistent spacing) */
 .body--app {
   min-height: 100dvh;
   padding-top: calc(var(--header-height) + var(--safe-area-top));
   padding-bottom: calc(var(--bottomnav-height) + var(--safe-area-bottom));
-  padding-left: 16px;
-  padding-right: 16px;
 }
 
 /* Main content area */
