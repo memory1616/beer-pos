@@ -957,14 +957,17 @@ async function submitSale() {
       var modal = document.getElementById('invoiceModal');
       var invoiceContent = document.getElementById('invoiceContent');
       var qrCodeEl = document.getElementById('qrCode');
-      if (modal) {
+      if (modal && invoiceContent) {
         var invTotalEl = modal.querySelector('.invoice-total-value');
         if (invTotalEl) invTotalEl.textContent = Format.number(result.total || 0);
-        if (invoiceContent) invoiceContent.innerHTML =
-          '<div class="text-center text-secondary py-8">Đơn hàng #' + result.id + '</div>';
+        invoiceContent.innerHTML =
+          '<div class="text-center py-8 text-muted">Đơn hàng #' + result.id + '</div>';
         if (qrCodeEl) qrCodeEl.src = '';
         modal.classList.remove('hidden');
-        modal.classList.add('flex');
+        setTimeout(function() {
+          autoScaleInvoice();
+          applyInvoiceDensity();
+        }, 0);
       }
     }
 
@@ -1014,10 +1017,19 @@ async function submitSale() {
 
 function closeInvoice() {
   var modal = document.getElementById('invoiceModal');
-  if (modal) {
-    modal.classList.add('hidden');
-    modal.classList.remove('flex');
+  var content = document.getElementById('invoiceContent');
+  if (modal) modal.classList.add('hidden');
+  if (content) {
+    content.style.transform = '';
+    content.classList.remove('compact');
   }
+  var listEl = document.getElementById('invoiceItemsList');
+  if (listEl) {
+    listEl.style.display = '';
+    listEl.style.gridTemplateColumns = '';
+    listEl.style.gap = '';
+  }
+  document.body.removeAttribute('data-density');
   _openInvoiceSaleId = null;
 }
 
@@ -1421,16 +1433,69 @@ async function saveKegUpdate() {
   }
 }
 
+// ─── AUTO SCALE ENGINE + DENSITY MODE ─────────────────────────────
+function applyInvoiceDensity() {
+  var vh = window.innerHeight;
+  var density = 'comfortable';
+  if (vh < 700) density = 'compact';
+  else if (vh < 900) density = 'normal';
+  document.body.setAttribute('data-density', density);
+}
+
+function autoScaleInvoice() {
+  var container = document.querySelector('.invoice-container');
+  var content = document.getElementById('invoiceContent');
+  if (!container || !content) return;
+
+  var containerH = container.clientHeight;
+  var containerW = container.clientWidth;
+  var contentH = content.scrollHeight;
+  var contentW = content.scrollWidth;
+
+  var scaleY = containerH / contentH;
+  var scaleX = containerW / contentW;
+  var scale = Math.min(scaleX, scaleY, 1);
+
+  content.style.transform = 'scale(' + scale + ')';
+
+  if (scale < 0.85) {
+    content.classList.add('compact');
+  } else {
+    content.classList.remove('compact');
+  }
+
+  // Grid mode when many items
+  var listEl = document.getElementById('invoiceItemsList');
+  if (listEl) {
+    var itemCount = listEl.querySelectorAll('.invoice-item').length;
+    if (itemCount > 6) {
+      listEl.style.display = 'grid';
+      listEl.style.gridTemplateColumns = '1fr 1fr';
+      listEl.style.gap = '3px';
+    } else {
+      listEl.style.display = '';
+      listEl.style.gridTemplateColumns = '';
+      listEl.style.gap = '';
+    }
+  }
+}
+
+window.addEventListener('resize', function() {
+  autoScaleInvoice();
+  applyInvoiceDensity();
+});
+// ────────────────────────────────────────────────────────────────
+
 async function showInvoiceModal(saleId) {
-  const modal = document.getElementById('invoiceModal');
+  var modal = document.getElementById('invoiceModal');
   if (!modal) {
     console.error('Không tìm thấy phần tử #invoiceModal');
     return;
   }
 
-  const invoiceContent = document.getElementById('invoiceContent');
-  const invoiceTotalEl = document.querySelector('#invoiceModal .invoice-total-value');
-  const qrSection = document.querySelector('#invoiceModal .invoice-qr-card');
+  var invoiceContent = document.getElementById('invoiceContent');
+  var invoiceTotalEl = document.querySelector('#invoiceModal .invoice-total-value');
+  var qrSection = document.querySelector('#invoiceModal .invoice-qr-card');
   if (invoiceContent) invoiceContent.innerHTML = '<div class="text-center py-8 text-muted">Đang tải chi tiết...</div>';
 
   const res = await fetch('/api/sales/' + saleId);
@@ -1453,18 +1518,18 @@ async function showInvoiceModal(saleId) {
   const isGift = sale.type === 'gift';
   
   let itemsHtml = '';
-  (sale.items || []).forEach(item => {
-    const unitPrice = item.price || 0;
-    const totalPrice = unitPrice * (item.quantity || 0);
-    itemsHtml += `
-      <div class="invoice-item">
-        <div class="invoice-name">🍺 ${item.name || 'Sản phẩm'}</div>
-        <div class="invoice-row">
-          <span>${item.quantity || 0} × ${formatVND(unitPrice)}</span>
-          <span class="invoice-total">${formatVND(totalPrice)}</span>
-        </div>
-      </div>
-    `;
+  (sale.items || []).forEach(function(item) {
+    var unitPrice = item.price || 0;
+    var totalPrice = unitPrice * (item.quantity || 0);
+    itemsHtml += '<div class="invoice-item">' +
+      '<div class="invoice-item-left">' +
+        '<span class="invoice-name">🍺 ' + (item.name || 'Sản phẩm') + '</span>' +
+        '<span class="invoice-row">' + (item.quantity || 0) + ' × ' + formatVND(unitPrice) + '</span>' +
+      '</div>' +
+      '<div class="invoice-item-right">' +
+        '<span class="invoice-subtotal">' + formatVND(totalPrice) + '</span>' +
+      '</div>' +
+    '</div>';
   });
 
   const deliverKegs = sale.deliver_kegs || 0;
@@ -1487,10 +1552,10 @@ async function showInvoiceModal(saleId) {
 
   if (invoiceContent) {
     invoiceContent.innerHTML =
-      giftBadge +
-      '<div class="text-xs text-secondary mb-1">' + dateStr + '</div>' +
-      '<div class="text-sm font-semibold text-main mb-3">Khách: ' + customerName + '</div>' +
-      '<div class="border-t border-muted/50 pt-3">' + itemsHtml + '</div>' +
+      (isGift ? '<div class="text-center mb-1"><span style="display:inline-block;padding:2px 10px;background:rgba(245,158,11,0.15);color:#f59e0b;border-radius:999px;font-size:11px;font-weight:600;">🎁 Tặng uống thử</span></div>' : '') +
+      '<div class="text-center mb-1" style="font-size:11px;color:var(--text-muted);">' + dateStr + '</div>' +
+      '<div style="font-size:12px;font-weight:600;color:var(--text-main);text-align:center;margin-bottom:4px;">👤 ' + customerName + '</div>' +
+      '<div class="invoice-list" id="invoiceItemsList">' + itemsHtml + '</div>' +
       kegHtml;
   }
   
@@ -1503,16 +1568,21 @@ async function showInvoiceModal(saleId) {
       qrSection.classList.add('hidden');
     } else {
       qrSection.classList.remove('hidden');
-      const qrCode = document.getElementById('qrCode');
+      var qrCode = document.getElementById('qrCode');
       if (qrCode) {
         qrCode.src = 'https://img.vietqr.io/image/970415-107875230331-compact2.png?amount=' + (sale.total || 0) + '&addInfo=Chuyen%20Khoan%20' + sale.id;
       }
     }
   }
-  
+
   modal.classList.remove('hidden');
-  modal.classList.add('flex');
   _openInvoiceSaleId = saleId;
+
+  // Trigger auto-scale + density after content renders
+  setTimeout(function() {
+    autoScaleInvoice();
+    applyInvoiceDensity();
+  }, 0);
 }
 
 // Global state for pagination (API /api/sales?page=&limit=)

@@ -21,29 +21,30 @@
 <body class="bg-main text-primary body--app">
   <div id="app"></div>
 
-  <!-- Invoice Modal -->
-  <div id="invoiceModal" class="modal-overlay-v2 hidden center">
-    <div class="modal-sheet-v2 invoice-modal" style="max-width:420px;margin:auto;">
-      <div class="invoice-modal-header">
-        <div></div>
-        <div class="invoice-modal-title">Hóa đơn</div>
-        <button onclick="closeInvoice()" class="invoice-modal-close">×</button>
-      </div>
-      <div class="invoice-modal-body">
-        <div class="invoice-total-card">
-          <div class="invoice-total-label">Tổng thanh toán</div>
-          <div class="flex items-baseline justify-center gap-2">
-            <span class="invoice-total-value tabular-nums" id="invoiceTotalValue">0</span>
-            <span class="invoice-total-unit">đ</span>
+  <!-- Invoice Modal — auto-scaled, no scroll -->
+  <div id="invoiceModal" class="invoice-overlay hidden">
+    <div class="invoice-container">
+      <div class="invoice-content" id="invoiceContent">
+        <div class="invoice-modal-header">
+          <div></div>
+          <div class="invoice-modal-title">Hóa đơn</div>
+          <button onclick="closeInvoice()" class="invoice-modal-close">×</button>
+        </div>
+        <div class="invoice-modal-body">
+          <div class="invoice-total-card">
+            <div class="invoice-total-label">Tổng thanh toán</div>
+            <div class="flex items-baseline justify-center gap-2">
+              <span class="invoice-total-value tabular-nums" id="invoiceTotalValue">0</span>
+              <span class="invoice-total-unit">đ</span>
+            </div>
           </div>
         </div>
-        <div id="invoiceContent" class="invoice-list"></div>
-      </div>
-      <div class="invoice-modal-footer">
-        <div class="invoice-qr-card">
-          <p class="invoice-qr-title">Phương thức thanh toán</p>
-          <img id="qrCode" src="" class="invoice-qr-img" alt="QR Code">
-          <p class="invoice-qr-hint">Quét QR để thanh toán</p>
+        <div class="invoice-modal-footer">
+          <div class="invoice-qr-card">
+            <p class="invoice-qr-title">Phương thức thanh toán</p>
+            <img id="qrCode" src="" class="invoice-qr-img" alt="QR Code">
+            <p class="invoice-qr-hint">Quét QR để thanh toán</p>
+          </div>
         </div>
       </div>
     </div>
