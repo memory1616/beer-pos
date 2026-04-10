@@ -4718,25 +4718,25 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
    ═══════════════════════════════════════════════════════ */
 
 /* ══════════════════════════════════════════════════════
-   INVOICE MODAL — POS / BINANCE STYLE
-   Full-height flex, no scroll, Binance item highlight
+   INVOICE MODAL — POS PROFESSIONAL UI
+   Grid 3-block layout, NO scale, NO distortion
    ══════════════════════════════════════════════════════ */
 
-/* 1. OVERLAY — full screen, NO overflow */
+/* 1. OVERLAY */
 .invoice-overlay {
   position: fixed;
   inset: 0;
   z-index: 9999;
   display: flex;
-  align-items: stretch;
+  align-items: center;
   justify-content: center;
   overflow: hidden !important;
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 
-/* 2. CONTAINER — full height, centering */
+/* 2. CONTAINER */
 .invoice-container {
   width: 100%;
   height: 100%;
@@ -4746,32 +4746,31 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   overflow: hidden !important;
 }
 
-/* 3. CONTENT — POS receipt card, flex column */
+/* 3. CONTENT — Grid 3 blocks: header / items / footer */
 .invoice-content {
-  width: min(420px, 100vw);
-  height: 100vh;
-  max-height: 100vh;
-  display: flex;
-  flex-direction: column;
+  width: min(400px, 100vw);
+  height: 100dvh;
+  max-height: 100dvh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
   background: var(--card);
-  box-shadow: 0 0 40px rgba(0, 0, 0, 0.3);
-  transform-origin: top center;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
   overflow: hidden !important;
 }
 
-/* 4. HEADER — compact, no scroll */
+/* 4. HEADER */
 .invoice-modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 14px 8px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color);
   background: var(--card);
+  flex-shrink: 0;
 }
 
 .invoice-modal-title {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
   color: var(--text-main);
   text-align: center;
@@ -4781,7 +4780,6 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
 .invoice-modal-close {
   width: 32px;
   height: 32px;
-  border-radius: var(--radius-sm);
   border: none;
   background: transparent;
   color: var(--text-muted);
@@ -4791,44 +4789,31 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: background var(--transition-fast), color var(--transition-fast);
-  -webkit-tap-highlight-color: transparent;
-  line-height: 1;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
 }
 .invoice-modal-close:hover { background: var(--card-active); color: var(--text-main); }
-.invoice-modal-close:active { transform: scale(0.9); }
 
-/* 5. BODY — flex column, fills remaining space */
-.invoice-modal-body {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden !important;
-  padding: 8px 10px;
-  gap: 6px;
-}
-
-/* 6. TOTAL CARD — compact, prominent */
+/* 5. TOTAL — inline in header area */
 .invoice-total-card {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
-  background: var(--card);
-  border: 1.5px solid var(--border);
-  border-radius: var(--radius-xl);
-  padding: 8px 12px;
-  text-align: center;
 }
 
 .invoice-total-label {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-muted);
-  margin-bottom: 2px;
+  margin-right: 4px;
 }
 
 .invoice-total-value {
-  font-size: clamp(24px, 5vw, 34px);
+  font-size: clamp(22px, 5vw, 30px);
   font-weight: 800;
   color: var(--green, #02c076);
   letter-spacing: -1px;
@@ -4837,55 +4822,47 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
 }
 
 .invoice-total-unit {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--text-muted);
 }
 
-/* 7. ITEMS LIST — Binance-style, NO scroll */
+/* 6. ITEMS LIST — auto-fit rows, NO scroll */
 .invoice-list {
-  flex: 1;
+  overflow: hidden !important;
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  overflow: hidden !important;
-  border-radius: var(--radius-xl);
-  background: rgba(0, 0, 0, 0.02);
-  padding: 3px;
+  gap: 5px;
+  padding: 8px 12px;
 }
 
-/* Binance-style item rows */
+/* 7. ITEM ROW — Binance light */
 .invoice-list .invoice-item {
-  padding: 6px 10px;
-  border-radius: 8px;
-  font-size: 13px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  transition: all 0.2s ease;
-  will-change: transform, background;
-  border-left: 3px solid transparent;
+  padding: 0 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  background: rgba(255, 255, 255, 0.03);
+  transition: background 0.15s ease;
+  flex-shrink: 0;
+  min-height: 36px;
 }
 
 .invoice-list .invoice-item:nth-child(odd) {
-  background: rgba(255, 255, 255, 0.02);
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .invoice-list .invoice-item:nth-child(even) {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .invoice-list .invoice-item:hover {
-  background: rgba(240, 185, 11, 0.08);
-  transform: translateX(2px);
+  background: rgba(240, 185, 11, 0.1);
 }
 
-.invoice-list .invoice-item.active {
-  background: rgba(240, 185, 11, 0.12);
-  border-left-color: #f0b90b;
-}
-
-/* Item content */
+/* Item sides */
 .invoice-item-left {
   display: flex;
   flex-direction: column;
@@ -4924,23 +4901,18 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   color: var(--text-main);
 }
 
-.invoice-list .invoice-qty {
-  font-size: 11px;
-  color: var(--text-secondary);
-}
-
-/* 8. FOOTER — QR, compact */
+/* 8. FOOTER — QR */
 .invoice-modal-footer {
-  flex-shrink: 0;
-  padding: 8px 12px;
-  padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
-  border-top: 1px solid var(--border);
+  padding: 10px;
+  padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--border-color);
   background: var(--card);
+  flex-shrink: 0;
 }
 
 .invoice-qr-card {
-  background: rgba(0, 0, 0, 0.03);
-  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-xl);
   padding: 10px;
   text-align: center;
@@ -4954,8 +4926,8 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
 }
 
 .invoice-qr-img {
-  width: clamp(120px, 20vw, 160px);
-  height: clamp(120px, 20vw, 160px);
+  width: 140px;
+  height: 140px;
   display: block;
   margin: 0 auto;
   border-radius: var(--radius-lg);
@@ -4968,69 +4940,52 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   margin-top: 4px;
 }
 
-/* ── DENSITY MODES ── */
-[data-density="compact"] .invoice-list .invoice-item {
-  padding: 4px 8px;
+/* ── GRID MODE: > 8 items ── */
+.invoice-list.grid-mode {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+}
+
+/* ── COMPACT: many items (auto applied via JS) ── */
+.invoice-list.compact .invoice-item {
+  min-height: 28px;
   font-size: 12px;
 }
-
-[data-density="compact"] .invoice-total-value {
-  font-size: 22px;
-}
-
-[data-density="compact"] .invoice-qr-img {
-  width: 110px;
-  height: 110px;
-}
-
-[data-density="normal"] .invoice-list .invoice-item {
-  padding: 5px 9px;
-  font-size: 12px;
-}
-
-[data-density="normal"] .invoice-total-value {
-  font-size: 28px;
-}
-
-/* ── COMPACT MODE (scale < 0.85) ── */
-.invoice-content.compact .invoice-total-card { padding: 6px 10px; }
-.invoice-content.compact .invoice-total-value { font-size: 22px; }
-.invoice-content.compact .invoice-list .invoice-item { padding: 4px 8px; font-size: 12px; }
-.invoice-content.compact .invoice-qr-img { width: 110px; height: 110px; }
 
 /* ── DEVICE OPTIMIZATION ── */
 @media (max-height: 700px) {
-  .invoice-content { width: min(380px, 100vw); }
+  .invoice-content { width: min(360px, 100vw); }
 }
 @media (max-height: 580px) {
-  .invoice-content { width: min(340px, 100vw); border-radius: var(--radius-lg); }
+  .invoice-content { width: min(320px, 100vw); }
   .invoice-total-value { font-size: 22px; }
-  .invoice-qr-img { width: 100px; height: 100px; }
+  .invoice-qr-img { width: 110px; height: 110px; }
 }
 
-/* ── LIGHT MODE SUPPORT ── */
+/* ── LIGHT MODE ── */
 [data-theme="light"] .invoice-list .invoice-item:nth-child(odd) {
-  background: rgba(0, 0, 0, 0.02);
+  background: rgba(0, 0, 0, 0.03);
 }
 [data-theme="light"] .invoice-list .invoice-item:nth-child(even) {
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(0, 0, 0, 0.06);
 }
 [data-theme="light"] .invoice-list .invoice-item:hover {
   background: rgba(240, 185, 11, 0.1);
 }
-[data-theme="light"] .invoice-list .invoice-item.active {
-  background: rgba(240, 185, 11, 0.14);
-  border-left-color: #f0b90b;
-}
 
-/* Dark mode uses --card variable — no override needed */
+/* Dark mode */
 :root.dark .invoice-list .invoice-item:nth-child(odd),
 :root[data-theme="dark"] .invoice-list .invoice-item:nth-child(odd) {
   background: rgba(255, 255, 255, 0.03);
 }
 :root.dark .invoice-list .invoice-item:nth-child(even),
 :root[data-theme="dark"] .invoice-list .invoice-item:nth-child(even) {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.06);
+}
+:root.dark .invoice-list .invoice-item:hover,
+:root[data-theme="dark"] .invoice-list .invoice-item:hover {
+  background: rgba(240, 185, 11, 0.1);
 }
 
 /* ── LOGIN PAGE ── */

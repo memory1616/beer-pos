@@ -964,10 +964,7 @@ async function submitSale() {
           '<div class="text-center py-8 text-muted">Đơn hàng #' + result.id + '</div>';
         if (qrCodeEl) qrCodeEl.src = '';
         modal.classList.remove('hidden');
-        setTimeout(function() {
-          autoScaleInvoice();
-          applyInvoiceDensity();
-        }, 0);
+        setTimeout(autoFitItems, 0);
       }
     }
 
@@ -1019,17 +1016,7 @@ function closeInvoice() {
   var modal = document.getElementById('invoiceModal');
   var content = document.getElementById('invoiceContent');
   if (modal) modal.classList.add('hidden');
-  if (content) {
-    content.style.transform = '';
-    content.classList.remove('compact');
-  }
-  var listEl = document.getElementById('invoiceItemsList');
-  if (listEl) {
-    listEl.style.display = '';
-    listEl.style.gridTemplateColumns = '';
-    listEl.style.gap = '';
-  }
-  document.body.removeAttribute('data-density');
+  if (content) content.style.transform = '';
   _openInvoiceSaleId = null;
 }
 
@@ -1433,56 +1420,44 @@ async function saveKegUpdate() {
   }
 }
 
-// ─── AUTO SCALE ENGINE + DENSITY MODE ─────────────────────────────
-function applyInvoiceDensity() {
-  var vh = window.innerHeight;
-  var density = 'comfortable';
-  if (vh < 700) density = 'compact';
-  else if (vh < 900) density = 'normal';
-  document.body.setAttribute('data-density', density);
-}
-
-function autoScaleInvoice() {
-  var container = document.querySelector('.invoice-container');
+// ─── AUTO FIT ENGINE — no scale, no distortion ───────────────────
+function autoFitItems() {
+  var list = document.getElementById('invoiceItemsList');
   var content = document.getElementById('invoiceContent');
-  if (!container || !content) return;
+  if (!list || !content) return;
 
-  var containerH = container.clientHeight;
-  var containerW = container.clientWidth;
-  var contentH = content.scrollHeight;
-  var contentW = content.scrollWidth;
+  var items = list.querySelectorAll('.invoice-item');
+  var count = items.length;
+  if (count === 0) return;
 
-  var scaleY = containerH / contentH;
-  var scaleX = containerW / contentW;
-  var scale = Math.min(scaleX, scaleY, 1);
-
-  content.style.transform = 'scale(' + scale + ')';
-
-  if (scale < 0.85) {
-    content.classList.add('compact');
+  // Grid mode when > 8 items
+  if (count > 8) {
+    list.classList.add('grid-mode');
+    list.classList.add('compact');
+    // Reset inline heights in grid mode
+    items.forEach(function(el) { el.style.height = ''; });
   } else {
-    content.classList.remove('compact');
-  }
+    list.classList.remove('grid-mode');
+    list.classList.remove('compact');
 
-  // Grid mode when many items
-  var listEl = document.getElementById('invoiceItemsList');
-  if (listEl) {
-    var itemCount = listEl.querySelectorAll('.invoice-item').length;
-    if (itemCount > 6) {
-      listEl.style.display = 'grid';
-      listEl.style.gridTemplateColumns = '1fr 1fr';
-      listEl.style.gap = '3px';
-    } else {
-      listEl.style.display = '';
-      listEl.style.gridTemplateColumns = '';
-      listEl.style.gap = '';
+    // Auto-fit: divide available height evenly
+    var listTop = list.getBoundingClientRect().top;
+    var footer = document.querySelector('.invoice-modal-footer');
+    var footerH = footer ? footer.offsetHeight : 80;
+    var availH = window.innerHeight - listTop - footerH - 16;
+
+    if (availH > 0 && count > 0) {
+      var itemH = Math.floor(availH / count);
+      itemH = Math.max(30, Math.min(itemH, 44)); // clamp 30–44px
+      items.forEach(function(el) {
+        el.style.height = itemH + 'px';
+      });
     }
   }
 }
 
 window.addEventListener('resize', function() {
-  autoScaleInvoice();
-  applyInvoiceDensity();
+  autoFitItems();
 });
 // ────────────────────────────────────────────────────────────────
 
@@ -1551,12 +1526,14 @@ async function showInvoiceModal(saleId) {
   const giftBadge = isGift ? '<div class="text-center mb-3"><span class="badge badge-warning">🎁 Tặng uống thử</span></div>' : '';
 
   if (invoiceContent) {
-    invoiceContent.innerHTML =
-      (isGift ? '<div class="text-center mb-1"><span style="display:inline-block;padding:2px 10px;background:rgba(245,158,11,0.15);color:#f59e0b;border-radius:999px;font-size:11px;font-weight:600;">🎁 Tặng uống thử</span></div>' : '') +
-      '<div class="text-center mb-1" style="font-size:11px;color:var(--text-muted);">' + dateStr + '</div>' +
-      '<div style="font-size:12px;font-weight:600;color:var(--text-main);text-align:center;margin-bottom:4px;">👤 ' + customerName + '</div>' +
-      '<div class="invoice-list" id="invoiceItemsList">' + itemsHtml + '</div>' +
-      kegHtml;
+    var bodyEl = invoiceContent.querySelector('.invoice-modal-body');
+    if (bodyEl) {
+      bodyEl.innerHTML =
+        (isGift ? '<div style="text-align:center;margin-bottom:4px;"><span style="display:inline-block;padding:2px 10px;background:rgba(245,158,11,0.15);color:#f59e0b;border-radius:999px;font-size:11px;font-weight:600;">🎁 Tặng uống thử</span></div>' : '') +
+        '<div style="font-size:11px;color:var(--text-muted);text-align:center;margin-bottom:4px;">' + dateStr + ' · 👤 ' + customerName + '</div>' +
+        '<div class="invoice-list" id="invoiceItemsList">' + itemsHtml + '</div>' +
+        kegHtml;
+    }
   }
   
   if (invoiceTotalEl) {
@@ -1578,11 +1555,8 @@ async function showInvoiceModal(saleId) {
   modal.classList.remove('hidden');
   _openInvoiceSaleId = saleId;
 
-  // Trigger auto-scale + density after content renders
-  setTimeout(function() {
-    autoScaleInvoice();
-    applyInvoiceDensity();
-  }, 0);
+  // Trigger auto-fit after content renders
+  setTimeout(autoFitItems, 0);
 }
 
 // Global state for pagination (API /api/sales?page=&limit=)

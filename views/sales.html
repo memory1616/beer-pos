@@ -21,7 +21,7 @@
 <body class="bg-main text-primary body--app">
   <div id="app"></div>
 
-  <!-- Invoice Modal — auto-scaled, no scroll -->
+  <!-- Invoice Modal — POS grid layout, no scroll, no scale -->
   <div id="invoiceModal" class="invoice-overlay hidden">
     <div class="invoice-container">
       <div class="invoice-content" id="invoiceContent">
@@ -30,14 +30,13 @@
           <div class="invoice-modal-title">Hóa đơn</div>
           <button onclick="closeInvoice()" class="invoice-modal-close">×</button>
         </div>
+        <div class="invoice-total-card">
+          <span class="invoice-total-label">Tổng thanh toán</span>
+          <span class="invoice-total-value tabular-nums" id="invoiceTotalValue">0</span>
+          <span class="invoice-total-unit">đ</span>
+        </div>
         <div class="invoice-modal-body">
-          <div class="invoice-total-card">
-            <div class="invoice-total-label">Tổng thanh toán</div>
-            <div class="flex items-baseline justify-center gap-2">
-              <span class="invoice-total-value tabular-nums" id="invoiceTotalValue">0</span>
-              <span class="invoice-total-unit">đ</span>
-            </div>
-          </div>
+          <!-- items render here -->
         </div>
         <div class="invoice-modal-footer">
           <div class="invoice-qr-card">
