@@ -602,9 +602,9 @@ function submitSale() {
   if (btn) { btn.disabled = true; btn.innerHTML = btnText; }
 
   var payload = {
-    customer_id: saleState.customerId || null,
+    customerId: saleState.customerId || null,
     items: validItems.map(function(item) {
-      return { product_id: item.productId, quantity: item.qty, price: item.price };
+      return { productId: item.productId, quantity: item.qty, price: item.price };
     })
   };
 
