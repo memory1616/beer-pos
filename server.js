@@ -14,6 +14,7 @@ const logger = require('./src/utils/logger');
 const db = require('./database');
 const socketServer = require('./src/socket/socketServer');
 const { getSession, AUTH_CONFIG } = require('./middleware/auth');
+const WebSocket = require('ws');
 const compression = require('compression');
 
 // APP_VERSION: git hash or fallback to build timestamp (computed once at startup)
@@ -808,8 +809,22 @@ function getNetworkIPs() {
 }
 
 const server = app.listen(PORT, HOST, () => {
-  // Initialize real-time WebSocket server
+  // Initialize real-time WebSocket server (Socket.IO)
   socketServer.init(server);
+
+  // Initialize native WebSocket server (ws library)
+  const wss = new WebSocket.Server({ server });
+
+  wss.on('connection', (ws) => {
+    console.log('WS connected');
+
+    ws.on('message', (msg) => {
+      console.log('Received:', msg);
+    });
+
+    ws.send(JSON.stringify({ type: 'WELCOME' }));
+  });
+
   const networkIPs = getNetworkIPs();
   logger.info('Beer POS Pro v2 started');
   logger.info(`Mode: ${isCloudServer ? 'Cloud Server' : 'Standard'}`);
