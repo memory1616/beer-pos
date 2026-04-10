@@ -366,6 +366,67 @@ class BeerPOSDB {
     }
   }
 
+  // ── Missing Event Store Methods (critical) ───────────────────────────
+
+  async addEvent(event) {
+    if (!this._db) return;
+    if (!event?.id) {
+      console.warn('[DBv5] addEvent: event.id is missing, skipping');
+      return;
+    }
+    const safeEvent = {
+      ...event,
+      id: String(event.id),
+      entity: this._safeIndex(event.entity),
+      syncStatus: this._safeString(event.syncStatus),
+      status: this._safeString(event.status),
+      createdAt: typeof event.createdAt === 'number' ? event.createdAt : Date.now(),
+      updatedAt: typeof event.updatedAt === 'number' ? event.updatedAt : Date.now(),
+    };
+    try {
+      await this._db.events.put(safeEvent);
+    } catch (error) {
+      console.error('[DBv5] addEvent error:', error);
+    }
+  }
+
+  async addToSyncQueue(eventId) {
+    if (!this._db || !eventId) return;
+    try {
+      const now = Date.now();
+      await this._db.syncQueue.put({
+        eventId: String(eventId),
+        status: 'pending',
+        createdAt: now,
+      });
+    } catch (error) {
+      console.error('[DBv5] addToSyncQueue error:', error);
+    }
+  }
+
+  async isEventSeen(eventId) {
+    if (!this._db || !eventId) return false;
+    try {
+      const seen = await this._db.seenEvents.get(String(eventId));
+      return !!seen;
+    } catch (error) {
+      console.warn('[DBv5] isEventSeen error:', error);
+      return false;
+    }
+  }
+
+  async markEventSeen(eventId) {
+    if (!this._db || !eventId) return;
+    try {
+      await this._db.seenEvents.put({
+        eventId: String(eventId),
+        createdAt: Date.now(),
+      });
+    } catch (error) {
+      console.warn('[DBv5] markEventSeen error:', error);
+    }
+  }
+
   // ── Meta Operations ────────────────────────────────────────
 
   async getMeta(key, defaultValue = null) {
@@ -422,16 +483,28 @@ class BeerPOSDB {
   async getStats() {
     if (!this._db) return { pendingEvents: 0, syncedEvents: 0, failedEvents: 0, queueItems: 0, totalEvents: 0 };
 
+    // normalizeKey: ensure any value passed to Dexie is always a string
+    function normalizeKey(val) {
+      if (val == null) return '';
+      return typeof val === 'string' ? val : String(val);
+    }
+
+    const safeStatus = normalizeKey('pending');
+    const safeSynced = normalizeKey('synced');
+    const safeFailed = normalizeKey('failed');
+
+    console.log('[DB][getStats] querying with safe keys:', { safeStatus, safeSynced, safeFailed });
+
     let pendingEvents = 0, syncedEvents = 0, failedEvents = 0, queueItems = 0;
     try {
       [pendingEvents, syncedEvents, failedEvents, queueItems] = await Promise.all([
-        this._db.events.where('status').equals('pending').count(),
-        this._db.events.where('status').equals('synced').count(),
-        this._db.events.where('status').equals('failed').count(),
-        this._db.syncQueue.where('status').equals('pending').count(),
+        this._db.events.where('status').equals(safeStatus).count(),
+        this._db.events.where('status').equals(safeSynced).count(),
+        this._db.events.where('status').equals(safeFailed).count(),
+        this._db.syncQueue.where('status').equals(safeStatus).count(),
       ]);
     } catch (err) {
-      console.warn('[DB] getStats error:', err);
+      console.warn('[DB][getStats] error:', err);
     }
 
     return {
