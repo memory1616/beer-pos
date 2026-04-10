@@ -651,7 +651,8 @@ function filterCustomers() {
   clearTimeout(searchTimeout);
   searchTimeout = setTimeout(() => {
     custPagination.page = 1; // Reset to page 1 on search
-    loadPageData(currentTab);
+    renderCustomers(); // Client-side filter on already-loaded data
+    renderPagination();
   }, 200);
 }
 
