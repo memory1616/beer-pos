@@ -76,13 +76,20 @@ function getEffectivePrice(product) {
 // INIT
 // ============================================================
 window.addEventListener('data:mutated', function(e) {
-  if (e.detail?.entity === 'sale') loadSaleHistory();
+  var ent = e.detail && e.detail.entity;
+  if (ent === 'sale' || ent === 'product') {
+    loadSaleHistory();
+    refreshProductsFromServer();
+  }
 });
 
 window.addEventListener('realtime:refetch', function(e) {
-  var entities = e.detail?.entities || [];
-  if (entities.includes('all') || entities.includes('orders') || entities.includes('sales')) {
+  var entities = e.detail && e.detail.entities ? e.detail.entities : [];
+  if (entities.indexOf('all') !== -1 || entities.indexOf('orders') !== -1 ||
+      entities.indexOf('sales') !== -1 || entities.indexOf('inventory') !== -1 ||
+      entities.indexOf('products') !== -1) {
     loadSaleHistory();
+    refreshProductsFromServer();
   }
 });
 
@@ -120,6 +127,22 @@ function loadSaleHistory() {
     .catch(function() {
       var el = document.getElementById('saleHistoryList');
       if (el) el.innerHTML = '<div class="sale-history-empty">Không tải được lịch sử</div>';
+    });
+}
+
+/** Cập nhật tồn kho trên thẻ sản phẩm sau bán / xóa đơn / đồng bộ */
+function refreshProductsFromServer() {
+  fetch('/sale/data', { cache: 'no-store' })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (!data || !data.products) return;
+      products = data.products;
+      _rebuildMaps();
+      renderProducts();
+      updateTotal();
+    })
+    .catch(function(err) {
+      console.error('[POS] refreshProductsFromServer', err);
     });
 }
 
@@ -286,7 +309,6 @@ function deleteSale(saleId) {
     .then(function(data) {
       if (data.success) {
         showToast('Đã xóa đơn', 'success');
-        loadSaleHistory();
         window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'sale' } }));
       } else {
         showToast(data.error || 'Lỗi xóa đơn', 'error');
@@ -540,7 +562,7 @@ function updateTotal() {
   var sellBtn = document.getElementById('sellBtn');
   if (sellBtn) {
     var hasItems = saleState.items.some(function(i) { return i.qty > 0; });
-    sellBtn.disabled = !(hasItems && editingSaleId == null);
+    sellBtn.disabled = !hasItems;
   }
 }
 
@@ -633,7 +655,6 @@ function submitSale() {
       showToast(isEditing ? 'Cập nhật thành công!' : 'Bán hàng thành công!', 'success');
       editingSaleId = null;
       resetSaleState();
-      loadSaleHistory();
       window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'sale' } }));
     } else {
       showToast(data.error || 'Lỗi khi bán hàng', 'error');

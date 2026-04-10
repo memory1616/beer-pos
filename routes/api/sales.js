@@ -407,7 +407,7 @@ router.get('/:id', (req, res) => {
 // POST /api/sales/replacement - Đổi bia lỗi (xuất bù, không tính tiền)
 // gift=true: toàn bộ số lượng là tặng uống thử → trừ stock + cộng vỏ keg vào kho vỏ rỗng ngay
 router.post('/replacement', (req, res) => {
-  const { customer_id, customer_name, product_id, quantity, reason, gift } = req.body;
+  const { customer_id, product_id, quantity, reason, gift, giftGuestName } = req.body;
   logger.info('[replacement] request', { customer_id, product_id, quantity, isGift: !!gift });
 
   if (!product_id || !quantity || quantity <= 0) {
@@ -426,6 +426,15 @@ router.post('/replacement', (req, res) => {
     logger.info('[replacement] product found', { productId: product?.id, name: product?.name });
     if (!product) {
       return res.status(400).json({ error: 'Không tìm thấy sản phẩm' });
+    }
+
+    // Lấy tên khách hàng từ database
+    let customerName = null;
+    if (customer_id) {
+      const customer = db.prepare('SELECT name FROM customers WHERE id = ?').get(customer_id);
+      customerName = customer?.name || null;
+    } else if (isGift && giftGuestName) {
+      customerName = giftGuestName;
     }
 
     const note = isGift
@@ -448,16 +457,15 @@ router.post('/replacement', (req, res) => {
 
       db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(quantity, product_id);
 
-      if (isGift) {
-        const stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
-        const newEmpty = (stats?.empty_collected || 0) + quantity;
-        db.prepare('UPDATE keg_stats SET empty_collected = ? WHERE id = 1').run(newEmpty);
-        db.prepare(`
-          INSERT INTO keg_transactions_log
-            (type, quantity, exchanged, purchased, customer_id, customer_name, inventory_after, empty_after, holding_after, note)
-          VALUES ('gift', ?, 0, 0, ?, ?, ?, ?, 0, ?)
-        `).run(quantity, customer_id || null, customer_name || 'Khách tặng', product.stock - quantity, newEmpty, note);
-      }
+      // Cộng vỏ bình vào kho vỏ rỗng (khách mang vỏ lại)
+      const stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
+      const newEmpty = (stats?.empty_collected || 0) + quantity;
+      db.prepare('UPDATE keg_stats SET empty_collected = ? WHERE id = 1').run(newEmpty);
+      db.prepare(`
+        INSERT INTO keg_transactions_log
+          (type, quantity, exchanged, purchased, customer_id, customer_name, inventory_after, empty_after, holding_after, note)
+        VALUES (?, ?, ?, 0, ?, ?, ?, ?, 0, ?)
+      `).run(isGift ? 'gift' : 'replacement', quantity, quantity, 0, customer_id || null, customerName, product.stock - quantity, newEmpty, note);
 
       return saleId;
     });
