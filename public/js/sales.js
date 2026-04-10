@@ -1,13 +1,77 @@
 // Sales Page JavaScript
-// Tách riêng để dễ bảo trì và cache
+// POS Production: Binance Trading Style Layout
 // formatVND, showToast đã được định nghĩa trong utils.js
 
 let products = [];
-let priceMap = {};       // { [customerId]: { [productId]: price, [productSlug]: price } }
+let priceMap = {};
 let customers = [];
 let editingSaleId = null;
 let saleData = {};
 const _LOW_STOCK_THRESHOLD = 30;
+
+// ────────────────────────────────────────────────────────────────
+// POS Namespace — unified POS cart operations
+// ────────────────────────────────────────────────────────────────
+window.POS = {
+  // Click-to-add: add 1 unit to cart
+  addToCart: function(productId) {
+    var product = getProduct(productId);
+    if (!product) return;
+
+    var customerIdEl = document.getElementById('customerSelect');
+    var customerId = customerIdEl ? customerIdEl.value : '';
+    var isKhachLe = !customerId;
+
+    if (!saleData[productId]) {
+      saleData[productId] = { quantity: 0, price: 0 };
+    }
+
+    if (isKhachLe) {
+      // For khach le: price must be set in input
+      if (!saleData[productId].price) {
+        var priceInput = document.getElementById('price-' + productId);
+        var pval = priceInput ? (parseInt(priceInput.value) || 0) : 0;
+        if (!pval) {
+          // Prompt user to enter price
+          if (priceInput) { priceInput.focus(); priceInput.select(); }
+          return;
+        }
+        saleData[productId].price = pval;
+      }
+    } else {
+      saleData[productId].price = getDisplayPrice(product, customerId);
+    }
+
+    saleData[productId].quantity = (saleData[productId].quantity || 0) + 1;
+    // Trigger update via existing debouncedUpdateTotal → updateSaleTotal → renderSaleProducts
+    updateSaleData(productId, 'quantity', saleData[productId].quantity);
+  },
+
+  // Decrement quantity
+  decrement: function(productId) {
+    if (!saleData[productId]) return;
+    saleData[productId].quantity = Math.max(0, saleData[productId].quantity - 1);
+    if (saleData[productId].quantity === 0) {
+      delete saleData[productId];
+    }
+    updateSaleData(productId, 'quantity', saleData[productId].quantity || 0);
+  },
+
+  // Remove item completely
+  remove: function(productId) {
+    delete saleData[productId];
+    updateSaleData(productId, 'quantity', 0);
+  },
+
+  // Update price (for khach le)
+  updatePrice: function(productId, value) {
+    if (!saleData[productId]) {
+      saleData[productId] = { quantity: 0, price: 0 };
+    }
+    saleData[productId].price = parseInt(value) || 0;
+    updateSaleData(productId, 'price', saleData[productId].price);
+  }
+};
 
 // ========== PRICE SYSTEM: Stable slug-based pricing ==========
 
@@ -387,7 +451,7 @@ function selectCustomer(id, name) {
   if (hiddenInput) hiddenInput.value = id;
   if (searchInput) searchInput.value = name || '';
   showCustomerDropdown(false);
-  updatePrices();
+  onCustomerSelected();
 }
 
 function onCustomerSelected() {
@@ -404,68 +468,67 @@ document.addEventListener('click', function(e) {
 });
 
 // ── Render Sale Products ────────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────────
+// POS PRODUCTION: Click-to-add product rows (Binance style)
+// ────────────────────────────────────────────────────────────────
+
+// Mobile detection (for rendering logic)
+const _isMobilePOS = () => window.innerWidth < 768;
+
 function renderSaleProducts() {
   var container = document.getElementById('saleProducts');
   if (!container) {
-    console.warn('[UI] Element not found: #saleProducts — renderSaleProducts skipped');
+    console.warn('[POS] #saleProducts not found');
     return;
   }
   var customerIdEl = document.getElementById('customerSelect');
   var customerId = customerIdEl ? customerIdEl.value : '';
   var isKhachLe = !customerId;
+  var isMobile = _isMobilePOS();
 
-  // Order book rows — dense horizontal layout
-  container.innerHTML = products.map(p => {
+  if (products.length === 0) {
+    container.innerHTML = '<div style="padding:32px 16px;text-align:center;color:#848e9c;font-size:14px;">Chưa có sản phẩm nào</div>';
+    return;
+  }
+
+  container.innerHTML = products.map(function(p) {
     var displayPrice = getDisplayPrice(p, customerId);
-    if (displayPrice === 0) {
-      console.log('[RENDER][WARN] product "' + p.name + '" has price=0! _displayPrice=' + p._displayPrice + ', sell_price=' + p.sell_price);
-    }
-    var priceInputVal = (saleData[p.id] && saleData[p.id].price !== undefined)
-      ? saleData[p.id].price
-      : (displayPrice || '');
     var isLowStock = p.stock < _LOW_STOCK_THRESHOLD;
-    var currentQty = saleData[p.id] ? saleData[p.id].quantity : '';
-    var stockColor = p.stock < _LOW_STOCK_THRESHOLD ? 'text-red' : 'text-muted';
-    var priceDisplay = isKhachLe
-      ? '<span class="ob-money ob-col-price" style="font-size:12px;">' + (priceInputVal ? Format.number(priceInputVal) : '<span class="text-muted">--</span>') + '</span>'
-      : '<span class="ob-money ob-col-price text-primary" style="font-size:12px;">' + Format.number(displayPrice) + '</span>';
-    var priceField = isKhachLe
-      ? '<input type="number" id="price-' + p.id + '" min="0" step="1000" value="' + priceInputVal + '" placeholder="Gia"'
-        + ' inputmode="decimal" enterkeyhint="done"'
-        + ' class="w-full bg-transparent border-b border-primary outline-none text-center text-sm font-bold text-primary focus:border-primary py-0.5"'
-        + ' onchange="updateSaleData(' + p.id + ', \'price\', this.value);"'
-        + ' oninput="updateSaleData(' + p.id + ', \'price\', this.value);">'
-      : '';
-    var qtyInputId = 'qty-' + p.id;
-    var qtyActiveClass = currentQty > 0 ? 'ob-active-buy' : '';
-    var qtyBtnClass = currentQty > 0 ? 'ob-qty-btn' : 'ob-qty-btn text-muted';
-    return [
-      '<div class="ob-row ' + qtyActiveClass + '" style="padding: 6px ' + (isKhachLe ? '8px' : '8px') + ';">',
-        // Col 1: name + stock
-        '<div class="ob-col" style="flex:2;min-width:0;">',
-          '<div class="font-semibold text-sm text-main" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + p.name + '</div>',
-          '<div class="text-xs ' + stockColor + '">Ton: ' + p.stock + (isKhachLe ? '' : ' · Gia KC') + '</div>',
-          priceField,
-        '</div>',
-        // Col 2: price (non-khach-le) or empty (khach-le uses priceField above)
-        !isKhachLe ? priceDisplay : '',
-        // Col 3: quantity controls
-        '<div class="ob-col ob-col-qty" style="flex:0 0 72px;text-align:center;">',
-          '<button type="button" onclick="quickAddProduct(' + p.id + ', -1)" class="' + qtyBtnClass + '">-</button>',
-          '<input type="number" id="' + qtyInputId + '" min="0" max="' + p.stock + '" value="' + (currentQty > 0 ? currentQty : '') + '" data-stock="' + p.stock + '"',
-            ' placeholder="SL" inputmode="numeric" enterkeyhint="done"',
-            ' class="ob-qty-val"',
-            ' style="width:28px;text-align:center;border:none;border-bottom:1px solid var(--border);background:transparent;outline:none;font-weight:700;font-size:13px;color:var(--text-main);"',
-            ' onchange="updateSaleData(' + p.id + ', \'quantity\', this.value);"',
-            ' oninput="updateSaleData(' + p.id + ', \'quantity\', this.value);">',
-          '<button type="button" onclick="quickAddProduct(' + p.id + ', 1)" class="' + qtyBtnClass + '">+</button>',
-        '</div>',
-        // Col 4: +5 button (only for registered customers)
-        !isKhachLe
-          ? '<button type="button" onclick="quickAddProduct(' + p.id + ', 5)" style="background:var(--primary-dim);border:1px solid var(--primary);border-radius:4px;padding:2px 5px;font-size:11px;font-weight:700;color:var(--primary);cursor:pointer;flex-shrink:0;">+5</button>'
-          : '',
-      '</div>'
-    ].join('');
+    var currentQty = saleData[p.id] ? saleData[p.id].quantity : 0;
+    var stockClass = isLowStock ? 'pos-prod-name-sub low-stock' : 'pos-prod-name-sub';
+    var priceHtml;
+
+    if (isKhachLe) {
+      var savedPrice = (saleData[p.id] && saleData[p.id].price !== undefined) ? saleData[p.id].price : '';
+      priceHtml = '<input type="number" id="price-' + p.id + '" value="' + savedPrice + '" placeholder="Gia"'
+        + ' inputmode="decimal" enterkeyhint="done" min="0"'
+        + ' style="width:80px;height:28px;background:#1e2329;border:1px solid #2a2e39;border-radius:6px;'
+        + 'text-align:center;font-size:13px;font-weight:700;color:#fcd535;outline:none;padding:0 6px;box-sizing:border-box;flex-shrink:0;"'
+        + ' onchange="POS.updatePrice(' + p.id + ', this.value)"'
+        + ' oninput="POS.updatePrice(' + p.id + ', this.value)"'
+        + ' onclick="event.stopPropagation()">';
+    } else {
+      priceHtml = '<div style="min-width:80px;text-align:right;font-size:14px;font-weight:700;color:#fcd535;font-variant-numeric:tabular-nums;flex-shrink:0;padding:0 8px;">' + Format.number(displayPrice) + '</div>';
+    }
+
+    // Mobile: chỉ nút +, desktop: cả + và -
+    var qtyControls;
+    if (isMobile) {
+      qtyControls = '<button type="button" class="pos-qty-btn" onclick="event.stopPropagation();POS.addToCart(' + p.id + ')">+</button>';
+    } else {
+      qtyControls = '<button type="button" class="pos-qty-btn" onclick="event.stopPropagation();POS.decrement(' + p.id + ')">−</button>' +
+        '<span class="pos-qty-val">' + (currentQty > 0 ? currentQty : '') + '</span>' +
+        '<button type="button" class="pos-qty-btn" onclick="event.stopPropagation();POS.addToCart(' + p.id + ')">+</button>';
+    }
+
+    return '<div class="pos-prod-row" id="prodRow_' + p.id + '" onclick="POS.addToCart(' + p.id + ')">' +
+      '<div class="pos-prod-name">' +
+        '<div class="pos-prod-name-main">' + p.name + '</div>' +
+        '<div class="' + stockClass + '">Ton: ' + p.stock + '</div>' +
+      '</div>' +
+      priceHtml +
+      '<div class="pos-prod-qty" onclick="event.stopPropagation()">' + qtyControls + '</div>' +
+    '</div>';
   }).join('');
 }
 
@@ -480,7 +543,6 @@ function quickAddProduct(productId, delta) {
   input.value = newVal;
   updateSaleData(productId, 'quantity', newVal);
   if (wasEmpty) {
-    // Toast feedback: đã thêm sản phẩm đầu tiên
     var product = getProduct(productId);
     if (product && typeof showToast === 'function') {
       showToast('Đã thêm ' + product.name + ' x' + newVal, 'success');
@@ -491,19 +553,18 @@ function quickAddProduct(productId, delta) {
 // Quick adjust quantity (inline -10, -, +, +10)
 function adjustQty(productId, amount) {
   haptic && haptic('light');
-  const input = document.getElementById('qty-' + productId);
+  var input = document.getElementById('qty-' + productId);
   if (!input) return;
-  const current = parseInt(input.value) || 0;
-  const product = getProduct(productId);
-  const maxStock = product ? product.stock : 999;
-  
-  let newValue = current + amount;
+  var current = parseInt(input.value) || 0;
+  var product = getProduct(productId);
+  var maxStock = product ? product.stock : 999;
+
+  var newValue = current + amount;
   if (newValue < 0) newValue = 0;
   if (newValue > maxStock) newValue = maxStock;
-  
+
   input.value = newValue;
   updateSaleData(productId, 'quantity', newValue);
-  updateSaleTotal();
 }
 
 // Toggle quantity control modal
@@ -646,61 +707,73 @@ function autoFillKegFromCart() {
   }
 }
 
+// ────────────────────────────────────────────────────────────────
+// POS PRODUCTION: Update cart total + render cart items
+// ────────────────────────────────────────────────────────────────
 function updateSaleTotal() {
-  let total = 0;
-  let hasItems = false;
-  let itemCount = 0;
-  let cartRows = '';
+  var total = 0;
+  var hasItems = false;
+  var itemCount = 0;
+  var cartItems = [];
 
-  Object.keys(saleData).forEach(productId => {
-    const item = saleData[productId];
+  Object.keys(saleData).forEach(function(productId) {
+    var item = saleData[productId];
     if (item.quantity > 0 && item.price > 0) {
-      const product = getProduct(productId);
-      const lineTotal = item.quantity * item.price;
+      var product = getProduct(productId);
+      var lineTotal = item.quantity * item.price;
       total += lineTotal;
-      hasItems = true;
       itemCount += item.quantity;
-      const name = product ? product.name : 'SP';
-      cartRows += [
-        '<div class="ob-row ob-active-buy" style="padding:4px 6px;">',
-          '<div class="ob-col" style="flex:2;min-width:0;">',
-            '<span class="font-semibold text-xs text-main" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + name + '</span>',
-          '</div>',
-          '<div class="ob-col ob-col-qty" style="flex:0 0 52px;text-align:center;font-size:11px;color:var(--text-muted);">' + item.quantity + '</div>',
-          '<div class="ob-col ob-col-total ob-money" style="flex:0 0 80px;font-size:12px;">' + Format.number(lineTotal) + '</div>',
-        '</div>'
-      ].join('');
+      hasItems = true;
+      var name = product ? product.name : 'SP';
+      cartItems.push({
+        id: productId,
+        name: name,
+        quantity: item.quantity,
+        price: item.price,
+        lineTotal: lineTotal
+      });
     }
   });
 
-  // Total amount row
-  const totalEl = document.getElementById('totalAmount');
-  if (totalEl) {
-    totalEl.innerHTML = '<span class="text-muted text-xs font-bold">TONG</span><span class="ob-money text-green" style="font-size:16px;">' + Format.number(total) + 'đ</span>';
-  }
+  // ── Bottom bar (mobile) ──
+  var countEl = document.getElementById('bottomItemCount');
+  if (countEl) countEl.textContent = itemCount;
+  var totalEl = document.getElementById('totalAmount');
+  if (totalEl) totalEl.textContent = Format.number(total) + 'đ';
 
-  // Cart preview
-  const previewEl = document.getElementById('saleCartPreview');
+  // ── Cart preview (desktop) ──
+  var previewEl = document.getElementById('saleCartPreview');
   if (previewEl) {
-    if (cartRows) {
-      previewEl.innerHTML = '<div class="text-xs font-bold text-muted mb-1" style="letter-spacing:0.05em;">GIO HANG</div>' + cartRows;
+    if (cartItems.length === 0) {
+      previewEl.innerHTML = '<div class="pos-cart-empty">' +
+        '<div class="pos-cart-empty-icon">🛒</div>' +
+        '<div class="pos-cart-empty-text">Nhấn vào sản phẩm<br>để thêm vào giỏ</div>' +
+      '</div>';
     } else {
-      previewEl.innerHTML = '<div class="text-xs text-muted text-center py-2">Chua co san pham</div>';
+      previewEl.innerHTML = cartItems.map(function(item) {
+        return '<div class="pos-cart-item" id="cartItem_' + item.id + '">' +
+          '<div class="pos-cart-item-name">' + item.name + '</div>' +
+          '<div class="pos-cart-item-qty">' +
+            '<button class="pos-qty-btn" onclick="POS.decrement(' + item.id + ')" style="width:24px;height:24px;font-size:14px;">−</button>' +
+            '<span class="pos-qty-val" style="font-size:13px;">' + item.quantity + '</span>' +
+            '<button class="pos-qty-btn" onclick="POS.addToCart(' + item.id + ')" style="width:24px;height:24px;font-size:14px;">+</button>' +
+          '</div>' +
+          '<div class="pos-cart-item-sub">' + Format.number(item.lineTotal) + '</div>' +
+          '<button class="pos-cart-item-del" onclick="POS.remove(' + item.id + ')">×</button>' +
+        '</div>';
+      }).join('');
     }
   }
 
   // Sell button state
-  const sellBtn = document.getElementById('sellBtn');
+  var sellBtn = document.getElementById('sellBtn');
   if (sellBtn) {
-    const editing = editingSaleId != null;
-    const canSell = !editing && hasItems;
-    sellBtn.disabled = !canSell;
-    if (canSell) {
-      sellBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-    } else {
-      sellBtn.classList.add('opacity-50', 'cursor-not-allowed');
-    }
+    var editing = editingSaleId != null;
+    sellBtn.disabled = !(!editing && hasItems);
   }
+
+  // Re-render products to sync qty display
+  renderSaleProducts();
 }
 
 function updateKegSaleSection(customerId) {
@@ -2585,5 +2658,14 @@ async function updateSyncStatusIndicator() {
     console.warn('[Sales] updateSyncStatusIndicator error:', error?.message);
   }
 }
+
+// Resize handler: re-render products when switching between mobile/desktop
+let _posResizeTimer = null;
+window.addEventListener('resize', function() {
+  clearTimeout(_posResizeTimer);
+  _posResizeTimer = setTimeout(function() {
+    renderSaleProducts();
+  }, 150);
+});
 
 console.log('[Sales] Offline integration loaded');

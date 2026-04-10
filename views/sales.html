@@ -6,42 +6,106 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Bán hàng</title>
   <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#f59e0b">
+  <meta name="theme-color" content="#0b0e11">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
-  <link rel="stylesheet" href="/css/unified.css?v=20260410-binance">
+  <!-- POS Production: no tailwind, only unified.css -->
+  <link rel="stylesheet" href="/css/unified.css?v=20260410-pos">
   <script src="/js/auth.js"></script>
   <script src="/js/dark-mode.js"></script>
-  <script src="/js/layout.js?v=20260410-binance"></script>
   <script src="https://unpkg.com/dexie@3/dist/dexie.min.js"></script>
   <script>requireAuth();</script>
 </head>
-<body class="bg-main text-primary body--app">
-  <div id="app"></div>
+<body style="margin:0;padding:0;overflow:hidden;background:#0b0e11;">
 
-  <!-- Invoice Modal — Card Style POS UI -->
+  <!-- ═══ POS PAGE SHELL ═══ -->
+  <div id="posPage" class="pos-page">
+
+    <!-- ── Header ── -->
+    <div class="pos-header">
+      <div class="pos-header-title"><span>🍺</span> Bán hàng</div>
+      <div class="pos-header-actions">
+        <!-- Keg shortcuts -->
+        <button class="pos-header-btn" onclick="openKegModal()" title="Thu vỏ">📦</button>
+        <button class="pos-header-btn" onclick="openCollectKegModal()" title="Giao/Thu vỏ">🔄</button>
+        <!-- Settings / exit -->
+        <button class="pos-header-btn" onclick="location.href='/'" title="Dashboard">🏠</button>
+      </div>
+    </div>
+
+    <!-- ── LEFT: Product List ── -->
+    <div class="pos-products" id="saleProducts"></div>
+
+    <!-- ── RIGHT: Cart ── -->
+    <div class="pos-cart">
+
+      <!-- TOP: Customer Search -->
+      <div class="pos-cart-top">
+        <div style="margin-bottom:8px;">
+          <div class="pos-section-label" style="padding:0 0 4px;">KHÁCH HÀNG</div>
+        </div>
+        <div class="pos-customer-search">
+          <span class="pos-customer-search-icon">🔍</span>
+          <input type="text" id="customerSearch"
+            autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+            placeholder="Tìm khách hàng..."
+            oninput="filterCustomerOptions(this.value)"
+            onfocus="showCustomerDropdown(true)">
+          <input type="hidden" id="customerSelect" onchange="onCustomerSelected()">
+        </div>
+        <!-- Customer dropdown -->
+        <div id="customerDropdown" class="hidden" style="position:absolute;left:16px;right:16px;background:#1e2329;border:1px solid #2a2e39;border-radius:8px;max-height:200px;overflow-y:auto;z-index:100;margin-top:4px;"></div>
+        <!-- Selected customer badge -->
+        <div id="selectedCustomerBadge" class="hidden" style="margin-top:6px;display:flex;align-items:center;gap:6px;padding:6px 10px;background:#1e2329;border:1px solid #2a2e39;border-radius:6px;font-size:13px;font-weight:600;color:#fcd535;"></div>
+      </div>
+
+      <!-- MIDDLE: Cart Items (scrollable) -->
+      <div class="pos-section-label" style="padding-top:8px;">GIỎ HÀNG</div>
+      <div class="pos-cart-items" id="saleCartPreview">
+        <div class="pos-cart-empty">
+          <div class="pos-cart-empty-icon">🛒</div>
+          <div class="pos-cart-empty-text">Nhấn vào sản phẩm<br>để thêm vào giỏ</div>
+        </div>
+      </div>
+
+      <!-- BOTTOM: Total + Actions (fixed) -->
+      <div class="pos-cart-bottom">
+        <div class="pos-total-row">
+          <span class="pos-total-label">Tổng cộng</span>
+          <span class="pos-total-value" id="totalAmount">0đ</span>
+        </div>
+        <div class="pos-actions">
+          <button type="button" onclick="submitSale()" id="sellBtn" class="pos-btn-primary" disabled>
+            <span>✔</span> BÁN HÀNG
+          </button>
+          <button type="button" id="replacementOpenBtn" onclick="openReplacementModal()" class="pos-btn-danger">
+            🔄 Đổi bia lỗi
+          </button>
+        </div>
+      </div>
+    </div><!-- /pos-cart -->
+
+  </div><!-- /pos-page -->
+
+  <!-- ═══ INVOICE MODAL ═══ -->
   <div id="invoiceModal" class="invoice-overlay hidden">
     <div class="invoice-modal fit-screen">
       <div class="invoice-header">
         <span class="invoice-title">HÓA ĐƠN</span>
         <button onclick="closeInvoice()" class="close-btn">&times;</button>
       </div>
-
       <div class="invoice-total-card">
         <div class="invoice-total-label">TỔNG THANH TOÁN</div>
         <div class="invoice-total-value tabular-nums" id="invoiceTotalValue">0</div>
       </div>
-
       <div class="invoice-main-card">
         <div class="invoice-meta" id="invoiceMeta"></div>
         <div class="invoice-customer" id="invoiceCustomer"></div>
         <div class="divider"></div>
       </div>
-
       <div id="invoiceItemsList"></div>
-
       <div class="invoice-qr-card">
         <div class="qr-label">Phương thức thanh toán</div>
         <img id="qrCode" src="" alt="QR Code">
@@ -50,181 +114,157 @@
     </div>
   </div>
 
-  <!-- Keg Modal -->
+  <!-- ═══ KEG MODAL ═══ -->
   <div id="kegModal" class="modal-overlay-v2 hidden center">
     <div class="modal-sheet-v2">
       <div class="modal-sheet-v2-header">
-        <div class="text-warning" style="font-size:16px;font-weight:700;">📦 Cập nhật vỏ bình</div>
+        <div style="font-size:15px;font-weight:700;color:#fcd535;">📦 Cập nhật vỏ bình</div>
         <button onclick="closeKegModal()" class="modal-sheet-v2-close">×</button>
       </div>
       <div class="modal-sheet-v2-body">
-        <div id="kegModalBadge" class="hidden mb-3 p-2 rounded-lg text-center text-sm" style="background:var(--bg);border:1px solid var(--border);">
-          <span class="text-muted">Đã giao: <span class="font-bold text-green" id="kegBadgeGiao">0</span>
-          <span class="mx-2 text-muted">|</span>
-          Đã thu: <span class="font-bold text-red" id="kegBadgeThu">0</span>
+        <div id="kegModalBadge" class="hidden mb-3 p-2 rounded-lg text-center text-sm" style="background:#1e2329;border:1px solid #2a2e39;">
+          <span style="color:#848e9c;">Đã giao: <span id="kegBadgeGiao" style="font-weight:700;color:#0d9f6e;">0</span>
+          <span style="color:#848e9c;margin:0 8px;">|</span>
+          Đã thu: <span id="kegBadgeThu" style="font-weight:700;color:#f6465d;">0</span></span>
         </div>
-
-        <div class="card mb-4 text-center" style="background:var(--primary-dim);border-color:var(--primary);">
-          <div class="text-xs font-semibold text-warning mb-1">Bia đã bán</div>
-          <div class="text-3xl font-bold text-primary" id="kegBeerQuantity">0</div>
+        <div class="card mb-4 text-center" style="background:rgba(252,213,53,0.08);border:1px solid rgba(252,213,53,0.2);border-radius:8px;padding:12px;">
+          <div style="font-size:11px;font-weight:600;color:#848e9c;margin-bottom:4px;">Bia đã bán</div>
+          <div style="font-size:32px;font-weight:800;color:#fcd535;" id="kegBeerQuantity">0</div>
         </div>
-
-        <div class="space-y-4">
+        <div style="display:flex;flex-direction:column;gap:12px;">
           <div>
-            <label class="block text-sm font-semibold text-green mb-2">📦 Giao vỏ</label>
+            <label style="display:block;font-size:12px;font-weight:600;color:#0d9f6e;margin-bottom:6px;">📦 Giao vỏ</label>
             <input type="number" id="kegDeliver" value="0" inputmode="numeric" pattern="[0-9]*" min="0"
-              class="w-full h-12 px-4 rounded-xl border-2 text-center font-bold text-xl focus:outline-none"
-              style="background:var(--card);border-color:var(--green);color:var(--text-main);"
-              oninput="updateKegModalPreview()" onchange="updateKegModalPreview()" onkeydown="handleKegInputNav(event, 'kegReturn')">
+              style="width:100%;height:48px;padding:0 12px;border-radius:8px;border:2px solid #0d9f6e;background:#1e2329;color:#eaecef;font-size:18px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;"
+              oninput="updateKegModalPreview()" onchange="updateKegModalPreview()">
           </div>
           <div>
-            <label class="block text-sm font-semibold text-red mb-2">🔄 Thu vỏ</label>
+            <label style="display:block;font-size:12px;font-weight:600;color:#f6465d;margin-bottom:6px;">🔄 Thu vỏ</label>
             <input type="number" id="kegReturn" value="0" inputmode="numeric" pattern="[0-9]*" min="0"
-              class="w-full h-12 px-4 rounded-xl border-2 text-center font-bold text-xl focus:outline-none"
-              style="background:var(--card);border-color:var(--red);color:var(--text-main);"
-              oninput="updateKegModalPreview()" onchange="updateKegModalPreview()" onkeydown="handleKegInputNav(event, 'kegSaveBtn')">
+              style="width:100%;height:48px;padding:0 12px;border-radius:8px;border:2px solid #f6465d;background:#1e2329;color:#eaecef;font-size:18px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;"
+              oninput="updateKegModalPreview()" onchange="updateKegModalPreview()">
           </div>
-
-          <div class="card p-4">
-            <div class="flex justify-between mb-2"><span class="text-muted text-sm">Vỏ hiện tại:</span><span class="font-bold text-main" id="kegCurrentBalance">0</span></div>
-            <div class="flex justify-between mb-2"><span class="text-muted text-sm">Sẽ giao thêm:</span><span class="font-bold text-green" id="kegDeliverPreview">0</span></div>
-            <div class="flex justify-between mb-2"><span class="text-muted text-sm">Sẽ thu về:</span><span class="font-bold text-warning" id="kegReturnPreview">0</span></div>
-            <div class="flex justify-between border-t border-muted pt-2 mt-2"><span class="text-muted text-sm font-semibold">Số vỏ tại khách sau cùng:</span><span class="font-bold text-green" id="kegNewBalance">0</span></div>
+          <div class="card p-3" style="background:#1e2329;border:1px solid #2a2e39;border-radius:8px;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="color:#848e9c;font-size:13px;">Vỏ hiện tại:</span><span id="kegCurrentBalance" style="font-weight:700;color:#eaecef;">0</span></div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="color:#848e9c;font-size:13px;">Sẽ giao thêm:</span><span id="kegDeliverPreview" style="font-weight:700;color:#0d9f6e;">0</span></div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="color:#848e9c;font-size:13px;">Sẽ thu về:</span><span id="kegReturnPreview" style="font-weight:700;color:#fcd535;">0</span></div>
+            <div style="display:flex;justify-content:space-between;padding-top:6px;border-top:1px solid #2a2e39;margin-top:6px;"><span style="color:#848e9c;font-size:13px;font-weight:600;">Số vỏ tại khách:</span><span id="kegNewBalance" style="font-weight:700;color:#0d9f6e;">0</span></div>
           </div>
-
-          <div id="kegModalWarning" class="hidden card p-3 text-center text-sm" style="border-color:var(--red);">
-            ⚠️ Số vỏ thu vượt quá khách đang giữ
-          </div>
-          <div id="kegModalError" class="hidden card p-3 text-center text-sm text-red" style="border-color:var(--red);"></div>
+          <div id="kegModalWarning" class="hidden" style="padding:10px;border:1px solid #f6465d;border-radius:8px;text-align:center;font-size:13px;color:#f6465d;background:rgba(246,70,93,0.08);">⚠️ Số vỏ thu vượt quá khách đang giữ</div>
+          <div id="kegModalError" class="hidden" style="padding:10px;border:1px solid #f6465d;border-radius:8px;text-align:center;font-size:13px;color:#f6465d;"></div>
         </div>
-
-        <div class="modal-sheet-v2-footer" style="border:none;padding:0;margin-top:12px;">
-          <button onclick="saveKegUpdate()" id="kegSaveBtn" class="btn btn-primary w-full" style="height:44px;min-height:44px;">💾 <span id="kegSaveBtnText">Lưu</span></button>
+        <div style="margin-top:12px;">
+          <button onclick="saveKegUpdate()" id="kegSaveBtn" class="pos-btn-primary" style="font-size:14px;height:44px;">
+            💾 <span id="kegSaveBtnText">Lưu</span>
+          </button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Collect Keg Modal -->
+  <!-- ═══ COLLECT KEG MODAL ═══ -->
   <div id="collectKegModal" class="modal-overlay-v2 hidden center">
     <div class="modal-sheet-v2" style="max-width:400px;margin:auto;">
       <div class="modal-sheet-v2-header">
-        <div class="text-warning" style="font-size:16px;font-weight:700;">🔄 Thu vỏ</div>
+        <div style="font-size:15px;font-weight:700;color:#fcd535;">🔄 Thu vỏ</div>
         <button onclick="closeCollectKegModal()" class="modal-sheet-v2-close">×</button>
       </div>
       <div class="modal-sheet-v2-body">
-        <div id="collectKegInfo" class="card p-3 mb-4 text-center text-sm text-warning" style="border-color:var(--primary);"></div>
-
-        <div class="grid grid-cols-2 gap-4 mb-4">
+        <div id="collectKegInfo" class="card p-3 mb-4 text-center text-sm" style="background:rgba(252,213,53,0.08);border:1px solid rgba(252,213,53,0.2);border-radius:8px;color:#fcd535;"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
           <div>
-            <label class="block text-xs font-semibold text-green mb-2 text-center">📦 Giao vỏ</label>
-            <input type="number" id="collectKegDeliver"
-              class="w-full h-12 px-4 rounded-xl border-2 text-center font-bold text-xl focus:outline-none"
-              style="background:var(--card);border-color:var(--green);color:var(--text-main);"
-              min="0" inputmode="numeric"
+            <label style="display:block;font-size:11px;font-weight:600;color:#0d9f6e;margin-bottom:6px;text-align:center;">📦 Giao vỏ</label>
+            <input type="number" id="collectKegDeliver" value="0" min="0" inputmode="numeric"
+              style="width:100%;height:48px;padding:0 12px;border-radius:8px;border:2px solid #0d9f6e;background:#1e2329;color:#eaecef;font-size:18px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;"
               oninput="updateCollectKegPreview()" onchange="updateCollectKegPreview()">
           </div>
           <div>
-            <label class="block text-xs font-semibold text-red mb-2 text-center">🔄 Thu vỏ</label>
-            <input type="number" id="collectKegReturn"
-              class="w-full h-12 px-4 rounded-xl border-2 text-center font-bold text-xl focus:outline-none"
-              style="background:var(--card);border-color:var(--red);color:var(--text-main);"
-              min="0" inputmode="numeric"
+            <label style="display:block;font-size:11px;font-weight:600;color:#f6465d;margin-bottom:6px;text-align:center;">🔄 Thu vỏ</label>
+            <input type="number" id="collectKegReturn" value="0" min="0" inputmode="numeric"
+              style="width:100%;height:48px;padding:0 12px;border-radius:8px;border:2px solid #f6465d;background:#1e2329;color:#eaecef;font-size:18px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;"
               oninput="updateCollectKegPreview()" onchange="updateCollectKegPreview()">
           </div>
         </div>
-
-        <div class="card p-4 mb-4">
-          <div class="flex justify-between mb-2"><span class="text-muted text-sm">Vỏ hiện tại:</span><span class="font-bold text-main" id="collectKegCurrentBalance">0</span></div>
-          <div class="flex justify-between mb-2"><span class="text-muted text-sm">Đã giao (theo đơn):</span><span class="font-bold text-green" id="collectKegDeliverPreview">0</span></div>
-          <div class="flex justify-between mb-2"><span class="text-muted text-sm">Sẽ thu về:</span><span class="font-bold text-warning" id="collectKegReturnPreview">0</span></div>
-          <div class="flex justify-between border-t border-muted pt-2 mt-2"><span class="text-muted text-sm font-semibold">Vỏ tại khách sau cùng:</span><span class="font-bold text-green" id="collectKegRemaining">0</span></div>
+        <div class="card p-3 mb-4" style="background:#1e2329;border:1px solid #2a2e39;border-radius:8px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="color:#848e9c;font-size:13px;">Vỏ hiện tại:</span><span id="collectKegCurrentBalance" style="font-weight:700;color:#eaecef;">0</span></div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="color:#848e9c;font-size:13px;">Đã giao (theo đơn):</span><span id="collectKegDeliverPreview" style="font-weight:700;color:#0d9f6e;">0</span></div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="color:#848e9c;font-size:13px;">Sẽ thu về:</span><span id="collectKegReturnPreview" style="font-weight:700;color:#fcd535;">0</span></div>
+          <div style="display:flex;justify-content:space-between;padding-top:6px;border-top:1px solid #2a2e39;margin-top:6px;"><span style="color:#848e9c;font-size:13px;font-weight:600;">Vỏ tại khách:</span><span id="collectKegRemaining" style="font-weight:700;color:#0d9f6e;">0</span></div>
         </div>
-        <div id="collectKegWarning" class="hidden mb-3 p-2 text-center text-sm text-red" style="border:1px solid var(--red);border-radius:var(--radius-md);"></div>
-
-        <div class="modal-sheet-v2-footer" style="border:none;padding:0;">
-          <button onclick="closeCollectKegModal()" class="btn btn-ghost flex-1" style="height:44px;min-height:44px;">Huỷ</button>
-          <button onclick="submitCollectKeg()" class="btn btn-warning flex-1" style="height:44px;min-height:44px;">Xác nhận</button>
+        <div id="collectKegWarning" class="hidden mb-3 p-2 text-center text-sm" style="border:1px solid #f6465d;border-radius:8px;color:#f6465d;background:rgba(246,70,93,0.08);"></div>
+        <div style="display:flex;gap:8px;">
+          <button onclick="closeCollectKegModal()" class="btn btn-ghost flex-1" style="height:44px;flex:1;border:1px solid #2a2e39;background:transparent;color:#848e9c;border-radius:8px;font-weight:600;cursor:pointer;">Huỷ</button>
+          <button onclick="submitCollectKeg()" class="pos-btn-primary" style="flex:1;height:44px;font-size:14px;background:#fcd535;color:#0b0e11;">Xác nhận</button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Đổi bia lỗi Modal -->
+  <!-- ═══ REPLACEMENT MODAL ═══ -->
   <div id="replacementModal" class="modal-overlay-v2 hidden center">
     <div class="modal-sheet-v2">
       <div class="modal-sheet-v2-header">
-        <div class="text-warning" style="font-size:16px;font-weight:700;">🔄 Đổi bia lỗi</div>
+        <div style="font-size:15px;font-weight:700;color:#fcd535;">🔄 Đổi bia lỗi</div>
         <button onclick="closeReplacementModal()" class="modal-sheet-v2-close">×</button>
       </div>
       <div class="modal-sheet-v2-body">
-        <div class="space-y-4">
+        <div style="display:flex;flex-direction:column;gap:12px;">
           <div id="giftGuestRow" class="hidden">
-            <label class="block text-xs font-semibold text-warning mb-2">👤 Tên khách tặng</label>
+            <label style="display:block;font-size:12px;font-weight:600;color:#848e9c;margin-bottom:6px;">👤 Tên khách tặng</label>
             <input type="text" id="giftGuestName" placeholder="Nhập tên khách (không bắt buộc)"
-              class="w-full border-2 rounded-xl px-4 py-3 focus:outline-none"
-              style="background:var(--card);border-color:var(--primary);color:var(--text-main);">
+              style="width:100%;height:44px;padding:0 12px;border-radius:8px;border:1px solid #2a2e39;background:#1e2329;color:#eaecef;font-size:14px;outline:none;box-sizing:border-box;">
           </div>
           <div>
-            <label class="block text-xs font-semibold text-warning mb-2">👤 Khách hàng</label>
+            <label style="display:block;font-size:12px;font-weight:600;color:#848e9c;margin-bottom:6px;">👤 Khách hàng</label>
             <select id="replacementCustomer" onchange="loadReplacementProducts()"
-              class="w-full border-2 rounded-xl px-4 py-3 focus:outline-none"
-              style="background:var(--card);border-color:var(--primary);color:var(--text-main);">
+              style="width:100%;height:44px;padding:0 12px;border-radius:8px;border:1px solid #2a2e39;background:#1e2329;color:#eaecef;font-size:14px;outline:none;box-sizing:border-box;">
               <option value="">-- Chọn khách hàng --</option>
             </select>
           </div>
           <div>
-            <label class="block text-xs font-semibold text-warning mb-2">📦 Sản phẩm</label>
+            <label style="display:block;font-size:12px;font-weight:600;color:#848e9c;margin-bottom:6px;">📦 Sản phẩm</label>
             <select id="replacementProduct"
-              class="w-full border-2 rounded-xl px-4 py-3 focus:outline-none"
-              style="background:var(--card);border-color:var(--primary);color:var(--text-main);">
+              style="width:100%;height:44px;padding:0 12px;border-radius:8px;border:1px solid #2a2e39;background:#1e2329;color:#eaecef;font-size:14px;outline:none;box-sizing:border-box;">
               <option value="">-- Chọn sản phẩm --</option>
             </select>
           </div>
           <div>
-            <label class="block text-xs font-semibold text-warning mb-2">Số lượng</label>
+            <label style="display:block;font-size:12px;font-weight:600;color:#848e9c;margin-bottom:6px;">Số lượng</label>
             <input type="number" id="replacementQty" value="1" min="1"
-              class="w-full border-2 rounded-xl px-4 py-3 text-center font-bold text-xl focus:outline-none"
-              style="background:var(--card);border-color:var(--primary);color:var(--text-main);">
+              style="width:100%;height:44px;padding:0 12px;border-radius:8px;border:1px solid #2a2e39;background:#1e2329;color:#eaecef;font-size:16px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;">
           </div>
           <div>
-            <label class="block text-xs font-semibold text-warning mb-2">Lý do</label>
+            <label style="display:block;font-size:12px;font-weight:600;color:#848e9c;margin-bottom:6px;">Lý do</label>
             <select id="replacementReason"
-              class="w-full border-2 rounded-xl px-4 py-3 focus:outline-none"
-              style="background:var(--card);border-color:var(--primary);color:var(--text-main);">
+              style="width:100%;height:44px;padding:0 12px;border-radius:8px;border:1px solid #2a2e39;background:#1e2329;color:#eaecef;font-size:14px;outline:none;box-sizing:border-box;">
               <option value="Bia hư">Bia hư</option>
               <option value="Bia chua">Bia chua</option>
               <option value="Bia hết hạn">Bia hết hạn</option>
               <option value="Khác">Khác</option>
             </select>
           </div>
-          <div class="card p-3" style="border-color:var(--primary);border-width:2px;">
-            <label class="flex items-start gap-3 cursor-pointer">
-              <input type="checkbox" id="giftKegs" onchange="toggleGiftMode()" class="w-5 h-5 mt-0.5" style="accent-color:var(--primary);">
-              <span class="text-sm font-semibold text-main leading-snug break-words">
-                🎁 Tặng uống thử (khách mới — vỏ keg vào kho vỏ rỗng ngay)
-              </span>
+          <div style="padding:12px;border:1px solid rgba(252,213,53,0.3);border-radius:8px;background:rgba(252,213,53,0.05);">
+            <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;">
+              <input type="checkbox" id="giftKegs" onchange="toggleGiftMode()" style="width:18px;height:18px;margin-top:2px;accent-color:#fcd535;">
+              <span style="font-size:13px;font-weight:600;color:#eaecef;line-height:1.4;">🎁 Tặng uống thử (khách mới — vỏ keg vào kho vỏ rỗng ngay)</span>
             </label>
           </div>
         </div>
-
-        <div class="modal-sheet-v2-footer" style="border:none;padding:0;margin-top:16px;">
-          <button type="button" onclick="closeReplacementModal()" class="btn btn-ghost flex-1" style="height:44px;min-height:44px;">Huỷ</button>
-          <button type="button" onclick="submitReplacement()" class="btn btn-warning flex-1" style="height:44px;min-height:44px;">💾 Cập nhật</button>
+        <div style="display:flex;gap:8px;margin-top:16px;">
+          <button type="button" onclick="closeReplacementModal()" style="flex:1;height:44px;border:1px solid #2a2e39;background:transparent;color:#848e9c;border-radius:8px;font-weight:600;cursor:pointer;font-size:14px;">Huỷ</button>
+          <button type="button" onclick="submitReplacement()" style="flex:1;height:44px;border:none;background:#fcd535;color:#0b0e11;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">💾 Cập nhật</button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Load Sales JS -->
+  <!-- ═══ LOAD SCRIPTS IN SEQUENCE ═══ -->
   <script src="/js/utils.js?v=20260211-toast"></script>
   <script src="/js/format.js"></script>
-  <!-- realtime.js auto-loaded by layout.js -->
-  <script src="/js/sales.js?v=20260425-ux"></script>
+  <script src="/js/sales.js?v=20260410-pos"></script>
 
-  <!-- PERFORMANCE: sync-orders needs window.db (from db.js) → load in sequence before sales.js -->
-  <script src="/js/vendor/dexie.min.js"></script>
   <script>
+    /* Load db.js then sync-orders.js before calling initSalesPage */
     async function loadScript(src) {
       return new Promise(function(resolve, reject) {
         var s = document.createElement('script');
@@ -235,122 +275,49 @@
       });
     }
     (async function() {
-      if (window._dbScriptLoaded) { await loadScript('/sync-orders.js'); return; }
+      if (window._dbScriptLoaded) {
+        await loadScript('/sync-orders.js');
+        await loadSalesData();
+        return;
+      }
       window._dbScriptLoaded = true;
       await loadScript('/db.js?v=20260410b');
       await loadScript('/sync-orders.js');
+      await loadSalesData();
     })();
-  </script>
 
-  <script>
-    async function loadData() {
-      console.log('[Sales] loadData START');
+    async function loadSalesData() {
+      console.log('[POS] loadSalesData START');
       try {
-        const res = await fetch('/sale/data', { cache: 'no-store' });
-        console.log('[Sales] /sale/data response:', res.status);
-        const data = await res.json();
-        console.log('[Sales] /sale/data parsed, products:', (data.products || []).length, 'customers:', (data.customers || []).length);
-
+        var res = await fetch('/sale/data', { cache: 'no-store' });
+        console.log('[POS] /sale/data response:', res.status);
+        var data = await res.json();
+        console.log('[POS] products:', (data.products||[]).length, 'customers:', (data.customers||[]).length);
         try {
-          console.log('[Sales] calling initSalesPage...');
           initSalesPage(data);
-          console.log('[Sales] initSalesPage DONE');
-        } catch (e) {
-          console.error('[Sales] Init error:', e);
+          console.log('[POS] initSalesPage DONE');
+        } catch(e) {
+          console.error('[POS] initSalesPage error:', e);
         }
-
-        const loading = document.getElementById('loading');
-        const contentSection = document.getElementById('contentSection');
-        if (loading) loading.classList.add('hidden');
-        if (contentSection) contentSection.classList.remove('hidden');
-        console.log('[Sales] loadData DONE — loading hidden');
-
-      } catch (err) {
-        console.error('[Sales] Failed to load data:', err);
-        const loading = document.getElementById('loading');
-        if (loading) loading.innerHTML = '<div class="text-danger">Lỗi tải dữ liệu</div>';
+      } catch(err) {
+        console.error('[POS] loadSalesData error:', err);
+        var loading = document.getElementById('saleProducts');
+        if (loading) loading.innerHTML = '<div style="padding:24px;text-align:center;color:#f6465d;font-size:14px;">Lỗi tải dữ liệu</div>';
       }
     }
-
-    async function bootSalePage() {
-      console.log('[Sales] bootSalePage START');
-      await loadVersion();
-      console.log('[Sales] loadVersion DONE');
-      document.getElementById('app').innerHTML =
-        getHeader('Bán hàng', '🍺') +
-        getContent(`
-        <div id="loading" class="text-center py-4">
-          <div class="spinner mx-auto"></div>
-          <div class="text-muted mt-2 text-sm">Đang tải...</div>
-        </div>
-
-        <div id="contentSection" class="hidden">
-          <!-- Split layout: products | cart -->
-          <div id="salesLayout" class="sales-layout">
-            <!-- LEFT: Product list -->
-            <div id="saleProducts" class="sales-products"></div>
-
-            <!-- RIGHT: Cart + Total + Actions -->
-            <div class="sales-cart">
-              <!-- Customer search -->
-              <div class="card p-2">
-                <input type="text" id="customerSearch" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-                  placeholder="Tìm khách..."
-                  oninput="filterCustomerOptions(this.value)"
-                  onfocus="showCustomerDropdown(true)"
-                  class="w-full bg-transparent border-none outline-none text-sm text-main"
-                  style="height:36px;padding:0 6px;">
-                <input type="hidden" id="customerSelect" onchange="onCustomerSelected()">
-                <div id="customerDropdown" class="hidden" style="position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md);max-height:180px;overflow-y:auto;z-index:500;">
-                </div>
-              </div>
-
-              <!-- Cart items preview -->
-              <div id="saleCartPreview" class="ob-list" style="min-height:40px;"></div>
-
-              <!-- Total row -->
-              <div id="totalAmount" class="ob-total-row">
-                <span class="text-muted text-xs font-bold">TỔNG</span>
-                <span class="ob-money text-green" style="font-size:16px;">0đ</span>
-              </div>
-
-              <!-- Action buttons -->
-              <div class="ob-actions">
-                <button type="button" onclick="submitSale()" id="sellBtn" class="btn btn-primary" disabled>✔ BÁN HÀNG</button>
-                <button type="button" id="replacementOpenBtn" onclick="openReplacementModal()" class="btn btn-ghost text-danger" style="border-color:var(--red);">🔄 ĐỔI BIA LỖI</button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Vỏ bình shortcut — compact bar below split -->
-          <div class="flex gap-2 mt-3 mb-3">
-            <button onclick="openKegModal()" class="btn btn-ghost flex-1 text-xs" style="height:36px;min-height:36px;padding:0 8px;font-size:12px;">📦 Thu vỏ</button>
-            <button onclick="openCollectKegModal()" class="btn btn-ghost flex-1 text-xs" style="height:36px;min-height:36px;padding:0 8px;font-size:12px;">🔄 Giao/Thu vỏ</button>
-          </div>
-
-          <!-- Sales history — order book rows -->
-          <div class="card p-2">
-            <div class="text-xs font-bold text-muted uppercase mb-2" style="letter-spacing:0.06em;">📋 Lịch sử</div>
-            <div id="salesHistoryList"></div>
-          </div>
-
-          <!-- Sale edit auxiliary sheet -->
-          <div id="saleEditAuxSheet" class="hidden fixed left-0 right-0 z-[60] px-3 pt-3 pb-2 border-t-2 border-warning bg-card" style="bottom: calc(var(--bottomnav-height, 64px) + env(safe-area-inset-bottom, 0px));">
-            <div class="text-xs font-semibold text-warning text-center mb-2">Đang sửa hóa đơn</div>
-            <div class="flex gap-2">
-              <button type="button" onclick="cancelEdit()" class="btn btn-ghost flex-1" style="height:44px;min-height:44px;">Huỷ</button>
-              <button type="button" onclick="updateSale()" class="btn btn-warning flex-1" style="height:44px;min-height:44px;">💾 Cập nhật</button>
-            </div>
-          </div>
-
-          <!-- Sync Status Indicator -->
-          <div id="syncStatusIndicator" class="fixed top-2 right-2 z-[100] text-xs px-2 py-1 rounded-full bg-card border border-border opacity-80" style="display:none;"></div>
-        </div>
-        `) +
-        getBottomNav('/sale');
-      await loadData();
-    }
-    bootSalePage();
   </script>
+
+  <!-- Sale edit auxiliary sheet (fixed bottom) -->
+  <div id="saleEditAuxSheet" class="hidden" style="position:fixed;left:0;right:0;z-index:60;padding:12px 16px;background:#161a1e;border-top:2px solid #fcd535;display:flex;gap:8px;align-items:center;justify-content:center;flex-direction:column;">
+    <div style="font-size:11px;font-weight:700;color:#fcd535;letter-spacing:0.06em;text-transform:uppercase;">Đang sửa hóa đơn</div>
+    <div style="display:flex;gap:8px;width:100%;max-width:420px;">
+      <button onclick="cancelEdit()" style="flex:1;height:44px;border:1px solid #2a2e39;background:transparent;color:#848e9c;border-radius:8px;font-weight:600;cursor:pointer;font-size:14px;">Huỷ</button>
+      <button onclick="updateSale()" style="flex:1;height:44px;border:none;background:#fcd535;color:#0b0e11;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">💾 Cập nhật</button>
+    </div>
+  </div>
+
+  <!-- Sync status indicator -->
+  <div id="syncStatusIndicator" style="position:fixed;top:8px;right:8px;z-index:200;font-size:11px;padding:4px 8px;border-radius:20px;background:#161a1e;border:1px solid #2a2e39;opacity:0.8;display:none;"></div>
+
 </body>
 </html>
