@@ -5776,6 +5776,65 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   font-size: 14px;
 }
 
+/* ── Sale History ── */
+#saleHistoryList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sale-history-item {
+  background: #1e2329;
+  border: 1px solid #2a2e39;
+  border-radius: 10px;
+  padding: 12px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.sale-history-item:hover { background: #252a33; border-color: #3a4250; }
+.sale-history-item:active { transform: scale(0.98); }
+
+.sale-history-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.sale-history-customer {
+  font-size: 14px;
+  font-weight: 600;
+  color: #eaecef;
+}
+
+.sale-history-total {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fcd535;
+  font-variant-numeric: tabular-nums;
+}
+
+.sale-history-meta {
+  font-size: 12px;
+  color: #848e9c;
+}
+
+.sale-history-items {
+  font-size: 12px;
+  color: #848e9c;
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sale-history-empty {
+  text-align: center;
+  padding: 16px;
+  color: #848e9c;
+  font-size: 13px;
+}
+
 /* Sale app: flex column */
 #saleAppContent {
   flex: 1;

@@ -11,10 +11,10 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
-  <link rel="stylesheet" href="/css/unified.css?v=20260410-newpos">
+  <link rel="stylesheet" href="/css/unified.css?v=20260410-card2">
   <script src="/js/auth.js"></script>
   <script src="/js/dark-mode.js"></script>
-  <script src="/js/layout.js?v=20260410-newpos"></script>
+  <script src="/js/layout.js?v=20260410-card2"></script>
   <script src="https://unpkg.com/dexie@3/dist/dexie.min.js"></script>
   <script>requireAuth();</script>
 </head>
@@ -260,6 +260,12 @@
             '<div id="productList"></div>' +
           '</div>' +
 
+          /* Recent sales history (max 5 orders) */
+          '<div class="sale-section" id="saleHistorySection">' +
+            '<div class="sale-section-label">ĐƠN GẦN ĐÂY</div>' +
+            '<div id="saleHistoryList"></div>' +
+          '</div>' +
+
           /* Total + Action */
           '<div class="sale-footer" id="saleFooter">' +
             '<div class="sale-total-row">' +
@@ -282,7 +288,7 @@
       await loadScript('/js/format.js');
       await loadScript('/db.js?v=20260410d');
       await loadScript('/sync-orders.js');
-      await loadScript('/js/sales.js?v=20260410-newpos');
+      await loadScript('/js/sales.js?v=20260410-card2');
       await loadSalesData();
     })();
 
