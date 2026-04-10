@@ -75,6 +75,10 @@ function getEffectivePrice(product) {
 // ============================================================
 // INIT
 // ============================================================
+window.addEventListener('data:mutated', function(e) {
+  if (e.detail?.entity === 'sale') loadSaleHistory();
+});
+
 function initSalesPage(data) {
   products = data.products || [];
   customers = data.customers || [];
