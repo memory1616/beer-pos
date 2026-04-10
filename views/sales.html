@@ -11,120 +11,29 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
-  <link rel="stylesheet" href="/css/unified.css?v=20260410-desktop">
+  <link rel="stylesheet" href="/css/unified.css?v=20260410-newpos">
   <script src="/js/auth.js"></script>
   <script src="/js/dark-mode.js"></script>
-  <script src="/js/layout.js?v=20260410-desktop"></script>
+  <script src="/js/layout.js?v=20260410-newpos"></script>
   <script src="https://unpkg.com/dexie@3/dist/dexie.min.js"></script>
   <script>requireAuth();</script>
 </head>
-<!-- Desktop layout: grid 2-panel giống inventory page -->
 <body class="body--app" style="background:#0b0e11;margin:0;padding:0;">
 
-  <!-- App content — được inject bởi layout.js -->
   <div id="app"></div>
 
-  <script>
-    /* Load db.js + sync-orders.js trước khi gọi initSalesPage */
-    async function loadScript(src) {
-      return new Promise(function(resolve, reject) {
-        var s = document.createElement('script');
-        s.src = src;
-        s.onload = resolve;
-        s.onerror = reject;
-        document.head.appendChild(s);
-      });
-    }
-    (async function() {
-      /* Render layout giống inventory (stock) page — full-width grid */
-      document.getElementById('app').innerHTML =
-        '<header class="topbar">' +
-          '<div class="logo">' +
-            '<span class="logo-icon">🍺</span>' +
-            '<span class="logo-text">Bán hàng</span>' +
-          '</div>' +
-          '<div class="actions">' +
-            '<button onclick="openKegModal()" title="Cập nhật vỏ">📦</button>' +
-            '<button onclick="openCollectKegModal()" title="Thu vỏ">🔄</button>' +
-            '<button onclick="location.href=\'/\'" title="Dashboard">🏠</button>' +
-          '</div>' +
-        '</header>' +
-        '<div id="saleAppContent">' +
-          '<div class="pos-grid">' +
-            /* LEFT: Product List */
-            '<div class="pos-product-panel" id="posProductPanel">' +
-              '<div class="pos-panel-header">SẢN PHẨM</div>' +
-              '<div id="saleProducts"></div>' +
-            '</div>' +
-            /* RIGHT: Cart Panel */
-            '<div class="pos-cart-panel" id="posCartPanel">' +
-              '<div class="pos-panel-header">GIỎ HÀNG</div>' +
-              '<div class="pos-cart-customer">' +
-                '<div class="pos-panel-label">KHÁCH HÀNG</div>' +
-                '<div class="pos-customer-search">' +
-                  '<span class="pos-customer-search-icon">🔍</span>' +
-                  '<input type="text" id="customerSearch" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Tìm khách hàng..." oninput="filterCustomerOptions(this.value)" onfocus="showCustomerDropdown(true)">' +
-                  '<input type="hidden" id="customerSelect" onchange="onCustomerSelected()">' +
-                '</div>' +
-                '<div id="customerDropdown" class="hidden" style="position:absolute;left:16px;right:16px;background:#1e2329;border:1px solid #2a2e39;border-radius:8px;max-height:200px;overflow-y:auto;z-index:100;margin-top:4px;"></div>' +
-                '<div id="selectedCustomerBadge" class="hidden" style="margin-top:6px;display:flex;align-items:center;gap:6px;padding:6px 10px;background:#1e2329;border:1px solid #2a2e39;border-radius:6px;font-size:13px;font-weight:600;color:#fcd535;"></div>' +
-              '</div>' +
-              '<div class="pos-cart-items" id="saleCartPreview">' +
-                '<div class="pos-cart-empty">' +
-                  '<div class="pos-cart-empty-icon">🛒</div>' +
-                  '<div class="pos-cart-empty-text">Nhấn vào sản phẩm<br>để thêm vào giỏ</div>' +
-                '</div>' +
-              '</div>' +
-              '<div class="pos-cart-summary">' +
-                '<div class="pos-total-row">' +
-                  '<span class="pos-total-label">Tổng cộng</span>' +
-                  '<span class="pos-total-value" id="totalAmount">0đ</span>' +
-                '</div>' +
-                '<div class="pos-actions">' +
-                  '<button type="button" onclick="submitSale()" id="sellBtn" class="pos-btn-primary" disabled><span>✔</span> BÁN HÀNG</button>' +
-                  '<button type="button" id="replacementOpenBtn" onclick="openReplacementModal()" class="pos-btn-danger">🔄 Đổi bia lỗi</button>' +
-                '</div>' +
-              '</div>' +
-            '</div>' +
-          '</div>' +
-        '</div>' +
-        getBottomNav('/sale');
-
-      /* Load scripts */
-      if (window._dbScriptLoaded) {
-        await loadScript('/sync-orders.js');
-        await loadSalesData();
-        return;
-      }
-      window._dbScriptLoaded = true;
-      await loadScript('/js/utils.js?v=20260211-toast');
-      await loadScript('/js/format.js');
-      await loadScript('/db.js?v=20260410c');
-      await loadScript('/sync-orders.js');
-      await loadScript('/js/sales.js?v=20260410c');
-      await loadSalesData();
-    })();
-
-    async function loadSalesData() {
-      console.log('[POS] loadSalesData START');
-      try {
-        var res = await fetch('/sale/data', { cache: 'no-store' });
-        console.log('[POS] /sale/data response:', res.status);
-        var data = await res.json();
-        console.log('[POS] products:', (data.products||[]).length, 'customers:', (data.customers||[]).length);
-        try {
-          initSalesPage(data);
-          console.log('[POS] initSalesPage DONE');
-        } catch(e) {
-          console.error('[POS] initSalesPage error:', e);
-        }
-      } catch(err) {
-        console.error('[POS] loadSalesData error:', err);
-        var loading = document.getElementById('saleProducts');
-        if (loading) loading.innerHTML = '<div style="padding:24px;text-align:center;color:#f6465d;font-size:14px;">Lỗi tải dữ liệu</div>';
-      }
-    }
-  </script>
+  <!-- ═══ CHECKOUT MODAL ═══ -->
+  <div id="checkoutModal" class="pos-modal-overlay hidden">
+    <div class="pos-modal-sheet">
+      <div class="pos-modal-header">
+        <div class="pos-modal-title">XÁC NHẬN BÁN HÀNG</div>
+        <button onclick="closeCheckoutModal()" class="pos-modal-close">×</button>
+      </div>
+      <div class="pos-modal-body" id="checkoutModalBody">
+        <!-- Rendered by JS -->
+      </div>
+    </div>
+  </div>
 
   <!-- ═══ KEG MODAL ═══ -->
   <div id="kegModal" class="modal-overlay-v2 hidden center">
@@ -146,13 +55,13 @@
         <div style="display:flex;flex-direction:column;gap:12px;">
           <div>
             <label style="display:block;font-size:12px;font-weight:600;color:#0d9f6e;margin-bottom:6px;">📦 Giao vỏ</label>
-            <input type="number" id="kegDeliver" value="0" inputmode="numeric" pattern="[0-9]*" min="0"
+            <input type="number" id="kegDeliver" value="0" inputmode="numeric" min="0"
               style="width:100%;height:44px;padding:0 12px;border-radius:8px;border:2px solid #0d9f6e;background:#1e2329;color:#eaecef;font-size:16px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;"
               oninput="updateKegModalPreview()" onchange="updateKegModalPreview()">
           </div>
           <div>
             <label style="display:block;font-size:12px;font-weight:600;color:#f6465d;margin-bottom:6px;">🔄 Thu vỏ</label>
-            <input type="number" id="kegReturn" value="0" inputmode="numeric" pattern="[0-9]*" min="0"
+            <input type="number" id="kegReturn" value="0" inputmode="numeric" min="0"
               style="width:100%;height:44px;padding:0 12px;border-radius:8px;border:2px solid #f6465d;background:#1e2329;color:#eaecef;font-size:16px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;"
               oninput="updateKegModalPreview()" onchange="updateKegModalPreview()">
           </div>
@@ -163,12 +72,9 @@
             <div style="display:flex;justify-content:space-between;padding-top:6px;border-top:1px solid #2a2e39;margin-top:6px;"><span style="color:#848e9c;font-size:13px;font-weight:600;">Số vỏ tại khách:</span><span id="kegNewBalance" style="font-weight:700;color:#0d9f6e;">0</span></div>
           </div>
           <div id="kegModalWarning" class="hidden" style="padding:10px;border:1px solid #f6465d;border-radius:8px;text-align:center;font-size:13px;color:#f6465d;background:rgba(246,70,93,0.08);">⚠️ Số vỏ thu vượt quá khách đang giữ</div>
-          <div id="kegModalError" class="hidden" style="padding:10px;border:1px solid #f6465d;border-radius:8px;text-align:center;font-size:13px;color:#f6465d;"></div>
         </div>
         <div style="margin-top:12px;">
-          <button onclick="saveKegUpdate()" id="kegSaveBtn" class="btn btn-primary w-full" style="height:44px;">
-            💾 <span id="kegSaveBtnText">Lưu</span>
-          </button>
+          <button onclick="saveKegUpdate()" id="kegSaveBtn" class="btn btn-primary w-full" style="height:44px;">💾 <span id="kegSaveBtnText">Lưu</span></button>
         </div>
       </div>
     </div>
@@ -188,25 +94,25 @@
             <label style="display:block;font-size:11px;font-weight:600;color:#0d9f6e;margin-bottom:6px;text-align:center;">📦 Giao vỏ</label>
             <input type="number" id="collectKegDeliver" value="0" min="0" inputmode="numeric"
               style="width:100%;height:44px;padding:0 12px;border-radius:8px;border:2px solid #0d9f6e;background:#1e2329;color:#eaecef;font-size:16px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;"
-              oninput="updateCollectKegPreview()" onchange="updateCollectKegPreview()">
+              oninput="updateCollectKegPreview()">
           </div>
           <div>
             <label style="display:block;font-size:11px;font-weight:600;color:#f6465d;margin-bottom:6px;text-align:center;">🔄 Thu vỏ</label>
             <input type="number" id="collectKegReturn" value="0" min="0" inputmode="numeric"
               style="width:100%;height:44px;padding:0 12px;border-radius:8px;border:2px solid #f6465d;background:#1e2329;color:#eaecef;font-size:16px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;"
-              oninput="updateCollectKegPreview()" onchange="updateCollectKegPreview()">
+              oninput="updateCollectKegPreview()">
           </div>
         </div>
         <div class="card p-3 mb-4" style="background:#1e2329;border:1px solid #2a2e39;border-radius:8px;">
           <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="color:#848e9c;font-size:13px;">Vỏ hiện tại:</span><span id="collectKegCurrentBalance" style="font-weight:700;color:#eaecef;">0</span></div>
-          <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="color:#848e9c;font-size:13px;">Đã giao (theo đơn):</span><span id="collectKegDeliverPreview" style="font-weight:700;color:#0d9f6e;">0</span></div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="color:#848e9c;font-size:13px;">Đã giao:</span><span id="collectKegDeliverPreview" style="font-weight:700;color:#0d9f6e;">0</span></div>
           <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="color:#848e9c;font-size:13px;">Sẽ thu về:</span><span id="collectKegReturnPreview" style="font-weight:700;color:#fcd535;">0</span></div>
           <div style="display:flex;justify-content:space-between;padding-top:6px;border-top:1px solid #2a2e39;margin-top:6px;"><span style="color:#848e9c;font-size:13px;font-weight:600;">Vỏ tại khách:</span><span id="collectKegRemaining" style="font-weight:700;color:#0d9f6e;">0</span></div>
         </div>
         <div id="collectKegWarning" class="hidden mb-3 p-2 text-center text-sm" style="border:1px solid #f6465d;border-radius:8px;color:#f6465d;background:rgba(246,70,93,0.08);"></div>
         <div style="display:flex;gap:8px;">
-          <button onclick="closeCollectKegModal()" class="btn btn-ghost flex-1" style="height:44px;flex:1;border:1px solid #2a2e39;background:transparent;color:#848e9c;border-radius:8px;font-weight:600;cursor:pointer;">Huỷ</button>
-          <button onclick="submitCollectKeg()" class="btn btn-primary" style="flex:1;height:44px;font-size:14px;background:#fcd535;color:#0b0e11;">Xác nhận</button>
+          <button onclick="closeCollectKegModal()" class="btn btn-ghost" style="flex:1;height:44px;border:1px solid #2a2e39;">Huỷ</button>
+          <button onclick="submitCollectKeg()" class="btn btn-primary" style="flex:1;height:44px;background:#fcd535;color:#0b0e11;">Xác nhận</button>
         </div>
       </div>
     </div>
@@ -223,7 +129,7 @@
         <div style="display:flex;flex-direction:column;gap:12px;">
           <div id="giftGuestRow" class="hidden">
             <label style="display:block;font-size:12px;font-weight:600;color:#848e9c;margin-bottom:6px;">👤 Tên khách tặng</label>
-            <input type="text" id="giftGuestName" placeholder="Nhập tên khách (không bắt buộc)"
+            <input type="text" id="giftGuestName" placeholder="Nhập tên khách"
               style="width:100%;height:44px;padding:0 12px;border-radius:8px;border:1px solid #2a2e39;background:#1e2329;color:#eaecef;font-size:14px;outline:none;box-sizing:border-box;">
           </div>
           <div>
@@ -258,7 +164,7 @@
           <div style="padding:12px;border:1px solid rgba(252,213,53,0.3);border-radius:8px;background:rgba(252,213,53,0.05);">
             <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;">
               <input type="checkbox" id="giftKegs" onchange="toggleGiftMode()" style="width:18px;height:18px;margin-top:2px;accent-color:#fcd535;">
-              <span style="font-size:13px;font-weight:600;color:#eaecef;line-height:1.4;">🎁 Tặng uống thử (khách mới — vỏ keg vào kho vỏ rỗng ngay)</span>
+              <span style="font-size:13px;font-weight:600;color:#eaecef;line-height:1.4;">🎁 Tặng uống thử (khách mới)</span>
             </label>
           </div>
         </div>
@@ -306,6 +212,92 @@
       </div>
     </div>
   </div>
+
+  <!-- Load scripts in sequence -->
+  <script>
+    async function loadScript(src) {
+      return new Promise(function(resolve, reject) {
+        var s = document.createElement('script');
+        s.src = src;
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+    (async function() {
+      /* Render layout: header + single-column content + bottom nav */
+      document.getElementById('app').innerHTML =
+        '<header class="topbar">' +
+          '<div class="logo">' +
+            '<span class="logo-icon">🍺</span>' +
+            '<span class="logo-text">Bán hàng</span>' +
+          '</div>' +
+          '<div class="actions">' +
+            '<button onclick="openKegModal()" title="Cập nhật vỏ">📦</button>' +
+            '<button onclick="openCollectKegModal()" title="Thu vỏ">🔄</button>' +
+            '<button onclick="location.href=\'/\'" title="Dashboard">🏠</button>' +
+          '</div>' +
+        '</header>' +
+        '<main class="page-content" id="saleMainContent">' +
+          /* Customer search */
+          '<div class="sale-section">' +
+            '<div class="sale-section-label">KHÁCH HÀNG</div>' +
+            '<div style="position:relative;">' +
+              '<input type="text" id="customerSearch" placeholder="🔍 Tìm khách hàng..."' +
+                ' autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"' +
+                ' style="width:100%;height:44px;background:#1e2329;border:1px solid #2a2e39;border-radius:10px;' +
+                'padding:0 12px;font-size:14px;color:#eaecef;outline:none;box-sizing:border-box;"' +
+                ' oninput="filterCustomerOptions(this.value)" onfocus="showCustomerDropdown(true)">' +
+              '<input type="hidden" id="customerSelect" onchange="onCustomerSelected()">' +
+              '<div id="customerDropdown" class="hidden sale-customer-dropdown"></div>' +
+            '</div>' +
+            '<div id="selectedCustomerBadge" class="hidden sale-customer-badge"></div>' +
+          '</div>' +
+
+          /* Product list */
+          '<div class="sale-section">' +
+            '<div class="sale-section-label">SẢN PHẨM</div>' +
+            '<div id="productList"></div>' +
+          '</div>' +
+
+          /* Total + Action */
+          '<div class="sale-footer" id="saleFooter">' +
+            '<div class="sale-total-row">' +
+              '<span class="sale-total-label">Tổng tiền</span>' +
+              '<span class="sale-total-value" id="totalAmount">0đ</span>' +
+            '</div>' +
+            '<button type="button" onclick="openCheckoutModal()" id="sellBtn" class="sale-btn-checkout" disabled>✅ BÁN HÀNG</button>' +
+          '</div>' +
+        '</main>' +
+        getBottomNav('/sale');
+
+      /* Load scripts */
+      if (window._dbScriptLoaded) {
+        await loadScript('/sync-orders.js');
+        await loadSalesData();
+        return;
+      }
+      window._dbScriptLoaded = true;
+      await loadScript('/js/utils.js?v=20260211-toast');
+      await loadScript('/js/format.js');
+      await loadScript('/db.js?v=20260410d');
+      await loadScript('/sync-orders.js');
+      await loadScript('/js/sales.js?v=20260410-newpos');
+      await loadSalesData();
+    })();
+
+    async function loadSalesData() {
+      console.log('[POS] loadSalesData START');
+      try {
+        var res = await fetch('/sale/data', { cache: 'no-store' });
+        var data = await res.json();
+        console.log('[POS] products:', (data.products||[]).length, 'customers:', (data.customers||[]).length);
+        initSalesPage(data);
+      } catch(err) {
+        console.error('[POS] loadSalesData error:', err);
+      }
+    }
+  </script>
 
 </body>
 </html>
