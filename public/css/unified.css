@@ -4733,6 +4733,7 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   display: flex;
   align-items: center;
   justify-content: center;
+  pointer-events: none;
 }
 
 .invoice-overlay {
@@ -4742,9 +4743,13 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
+  pointer-events: none;
 }
 
+/* Card is always on top of overlay */
 .invoice-modal {
+  position: relative;
+  z-index: 100;
   width: 100%;
   max-width: 420px;
   background: #ffffff;
@@ -4752,6 +4757,7 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   padding: 16px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
   margin: 16px;
+  pointer-events: auto;
 }
 
 /* 2. HEADER */
@@ -4770,6 +4776,8 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
 }
 
 .close-btn {
+  position: relative;
+  z-index: 9999;
   font-size: 22px;
   color: #9ca3af;
   background: none;
@@ -4779,6 +4787,7 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   padding: 4px 8px;
   border-radius: 8px;
   transition: color 0.15s ease, background 0.15s ease;
+  pointer-events: auto;
 }
 .close-btn:hover {
   color: #ef4444;

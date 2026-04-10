@@ -996,11 +996,11 @@ async function submitSale() {
   }
 }
 
-function closeInvoice() {
+window.closeInvoice = function() {
   var modal = document.getElementById('invoiceModal');
   if (modal) modal.classList.add('hidden');
   _openInvoiceSaleId = null;
-}
+};
 
 // Refresh invoice modal if open (used after keg updates)
 async function refreshInvoiceIfOpen(saleId) {
