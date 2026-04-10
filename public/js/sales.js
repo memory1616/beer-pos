@@ -8,6 +8,7 @@ let products = [];
 let customers = [];
 let priceMap = {};
 let editingSaleId = null;
+let kegEditSaleId = null;  // Sale ID đang thao tác vỏ
 
 let saleState = {
   customerId: null,
@@ -187,25 +188,83 @@ function viewSale(saleId) {
     .catch(function() { showToast('Lỗi tải đơn', 'error'); });
 }
 
-// Return sale
+// Open keg modal for a specific sale — load sale data first
 function returnSale(saleId) {
-  if (!confirm('Trả hàng cho đơn #' + saleId + '?')) return;
-  fetch('/api/sales/' + saleId + '/return', {
+  fetch('/sale/' + saleId, { cache: 'no-store' })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      var sale = data.sale || data;
+      if (!sale) { showToast('Không tìm thấy đơn', 'error'); return; }
+      kegEditSaleId = saleId;
+      openKegModalForSale(saleId, sale.customer_id, sale.deliver_kegs, sale.return_kegs);
+    })
+    .catch(function() { showToast('Lỗi tải đơn', 'error'); });
+}
+
+// Open keg modal pre-filled with sale info
+function openKegModalForSale(saleId, customerId, deliverKegs, returnKegs) {
+  var modal = document.getElementById('collectKegModal');
+  if (!modal) return;
+
+  saleState.customerId = customerId ? Number(customerId) : null;
+
+  var customer = customerId ? getCustomer(customerId) : null;
+  var customerName = customer ? customer.name : 'Chưa chọn';
+  var balance = customer ? (customer.keg_balance || 0) : 0;
+
+  var info = document.getElementById('collectKegInfo');
+  if (info) {
+    info.innerHTML = '<div style="font-size:13px;">👤 ' + escHtml(customerName) + ' | Vỏ hiện tại: <b>' + balance + '</b></div>';
+    info.dataset.balance = balance;
+  }
+
+  // Reset inputs
+  var deliverEl = document.getElementById('collectKegDeliver');
+  var returnEl = document.getElementById('collectKegReturn');
+  if (deliverEl) deliverEl.value = String(deliverKegs || 0);
+  if (returnEl) returnEl.value = String(returnKegs || 0);
+
+  updateCollectKegPreview();
+  modal.classList.remove('hidden');
+}
+
+// Submit keg update for a sale
+function submitCollectKegForSale(saleId) {
+  var customerId = saleState.customerId;
+  var deliver = parseInt(document.getElementById('collectKegDeliver')?.value) || 0;
+  var returned = parseInt(document.getElementById('collectKegReturn')?.value) || 0;
+
+  if (!customerId) {
+    showToast('Vui lòng chọn khách hàng trước', 'error');
+    return;
+  }
+  if (deliver === 0 && returned === 0) {
+    showToast('Vui lòng nhập số vỏ', 'error');
+    return;
+  }
+
+  // Call update-kegs API with saleId
+  var body = { customer_id: customerId, sale_id: saleId, deliver_kegs: deliver, return_kegs: returned };
+  fetch('/api/sales/update-kegs', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ returnType: 'stock_return' })
+    body: JSON.stringify(body)
   })
   .then(function(res) { return res.json(); })
   .then(function(data) {
     if (data.success) {
-      showToast('Đã trả hàng thành công', 'success');
+      showToast('Đã cập nhật vỏ', 'success');
+      closeCollectKegModal();
       loadSaleHistory();
-      window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'sale' } }));
+      window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'kegs' } }));
     } else {
-      showToast(data.error || 'Lỗi trả hàng', 'error');
+      showToast(data.error || 'Lỗi cập nhật vỏ', 'error');
     }
   })
-  .catch(function() { showToast('Lỗi kết nối', 'error'); });
+  .catch(function(err) {
+    console.error('submitCollectKegForSale error:', err);
+    showToast('Lỗi kết nối', 'error');
+  });
 }
 
 // Delete sale
@@ -820,6 +879,7 @@ function closeKegModal() {
 function openCollectKegModal() {
   var modal = document.getElementById('collectKegModal');
   if (!modal) return;
+  kegEditSaleId = null;
 
   var info = document.getElementById('collectKegInfo');
   var deliverEl = document.getElementById('collectKegDeliver');
@@ -873,10 +933,52 @@ function submitCollectKeg() {
     showToast('Vui lòng chọn khách hàng trước', 'error');
     return;
   }
-
   if (deliver === 0 && returned === 0) {
     showToast('Vui lòng nhập số vỏ', 'error');
     return;
+  }
+
+  // If editing a sale (from history), use /api/sales/update-kegs
+  if (kegEditSaleId != null) {
+    fetch('/api/sales/update-kegs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        saleId: kegEditSaleId,
+        customer_id: customerId,
+        deliver_kegs: deliver,
+        return_kegs: returned
+      })
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (data.success) {
+        showToast('Đã cập nhật vỏ', 'success');
+        closeCollectKegModal();
+        loadSaleHistory();
+        window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'kegs' } }));
+      } else {
+        showToast(data.error || 'Lỗi cập nhật vỏ', 'error');
+      }
+    })
+    .catch(function(err) {
+      console.error('submitCollectKeg error:', err);
+      showToast('Lỗi kết nối', 'error');
+    });
+    return;
+  }
+
+  // Standalone mode — use /api/kegs/collect and /api/kegs/deliver
+  if (deliver > 0) {
+    fetch('/api/kegs/deliver', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ customerId: customerId, quantity: deliver })
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (!data.success) showToast(data.error || 'Lỗi giao vỏ', 'error');
+    });
   }
 
   if (returned > 0) {
@@ -899,32 +1001,13 @@ function submitCollectKeg() {
       console.error('submitCollectKeg error:', err);
       showToast('Lỗi kết nối', 'error');
     });
-  } else if (deliver > 0) {
-    fetch('/api/kegs/deliver', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ customerId: customerId, quantity: deliver })
-    })
-    .then(function(res) { return res.json(); })
-    .then(function(data) {
-      if (data.success) {
-        showToast('Đã giao vỏ', 'success');
-        closeCollectKegModal();
-        window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'kegs' } }));
-      } else {
-        showToast(data.error || 'Lỗi giao vỏ', 'error');
-      }
-    })
-    .catch(function(err) {
-      console.error('submitCollectKeg error:', err);
-      showToast('Lỗi kết nối', 'error');
-    });
   }
 }
 
 function closeCollectKegModal() {
   var modal = document.getElementById('collectKegModal');
   if (modal) modal.classList.add('hidden');
+  kegEditSaleId = null;
 }
 
 // ============================================================
