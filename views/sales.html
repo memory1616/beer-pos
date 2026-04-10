@@ -36,58 +36,58 @@
       });
     }
     (async function() {
-      /* Render layout giống inventory (stock) page */
+      /* Render layout giống inventory (stock) page — full-width grid */
       document.getElementById('app').innerHTML =
-        getHeader('Bán hàng', '🍺') +
-        getContent(
-          '<div id="saleAppContent">' +
+        '<header class="topbar">' +
+          '<div class="logo">' +
+            '<span class="logo-icon">🍺</span>' +
+            '<span class="logo-text">Bán hàng</span>' +
+          '</div>' +
+          '<div class="actions">' +
+            '<button onclick="openKegModal()" title="Cập nhật vỏ">📦</button>' +
+            '<button onclick="openCollectKegModal()" title="Thu vỏ">🔄</button>' +
+            '<button onclick="location.href=\'/\'" title="Dashboard">🏠</button>' +
+          '</div>' +
+        '</header>' +
+        '<div id="saleAppContent">' +
+          '<div class="pos-grid">' +
             /* LEFT: Product List */
-            '<div class="pos-grid">' +
-              '<div class="pos-product-panel" id="posProductPanel">' +
-                '<div class="pos-panel-header">SẢN PHẨM</div>' +
-                '<div id="saleProducts"></div>' +
+            '<div class="pos-product-panel" id="posProductPanel">' +
+              '<div class="pos-panel-header">SẢN PHẨM</div>' +
+              '<div id="saleProducts"></div>' +
+            '</div>' +
+            /* RIGHT: Cart Panel */
+            '<div class="pos-cart-panel" id="posCartPanel">' +
+              '<div class="pos-panel-header">GIỎ HÀNG</div>' +
+              '<div class="pos-cart-customer">' +
+                '<div class="pos-panel-label">KHÁCH HÀNG</div>' +
+                '<div class="pos-customer-search">' +
+                  '<span class="pos-customer-search-icon">🔍</span>' +
+                  '<input type="text" id="customerSearch" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Tìm khách hàng..." oninput="filterCustomerOptions(this.value)" onfocus="showCustomerDropdown(true)">' +
+                  '<input type="hidden" id="customerSelect" onchange="onCustomerSelected()">' +
+                '</div>' +
+                '<div id="customerDropdown" class="hidden" style="position:absolute;left:16px;right:16px;background:#1e2329;border:1px solid #2a2e39;border-radius:8px;max-height:200px;overflow-y:auto;z-index:100;margin-top:4px;"></div>' +
+                '<div id="selectedCustomerBadge" class="hidden" style="margin-top:6px;display:flex;align-items:center;gap:6px;padding:6px 10px;background:#1e2329;border:1px solid #2a2e39;border-radius:6px;font-size:13px;font-weight:600;color:#fcd535;"></div>' +
               '</div>' +
-              /* RIGHT: Cart Panel */
-              '<div class="pos-cart-panel" id="posCartPanel">' +
-                '<div class="pos-panel-header">GIỎ HÀNG</div>' +
-                '<div class="pos-cart-customer">' +
-                  '<div class="pos-panel-label">KHÁCH HÀNG</div>' +
-                  '<div class="pos-customer-search">' +
-                    '<span class="pos-customer-search-icon">🔍</span>' +
-                    '<input type="text" id="customerSearch"' +
-                      ' autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"' +
-                      ' placeholder="Tìm khách hàng..."' +
-                      ' oninput="filterCustomerOptions(this.value)"' +
-                      ' onfocus="showCustomerDropdown(true)">' +
-                    '<input type="hidden" id="customerSelect" onchange="onCustomerSelected()">' +
-                  '</div>' +
-                  '<div id="customerDropdown" class="hidden" style="position:absolute;left:16px;right:16px;background:#1e2329;border:1px solid #2a2e39;border-radius:8px;max-height:200px;overflow-y:auto;z-index:100;margin-top:4px;"></div>' +
-                  '<div id="selectedCustomerBadge" class="hidden" style="margin-top:6px;display:flex;align-items:center;gap:6px;padding:6px 10px;background:#1e2329;border:1px solid #2a2e39;border-radius:6px;font-size:13px;font-weight:600;color:#fcd535;"></div>' +
+              '<div class="pos-cart-items" id="saleCartPreview">' +
+                '<div class="pos-cart-empty">' +
+                  '<div class="pos-cart-empty-icon">🛒</div>' +
+                  '<div class="pos-cart-empty-text">Nhấn vào sản phẩm<br>để thêm vào giỏ</div>' +
                 '</div>' +
-                '<div class="pos-cart-items" id="saleCartPreview">' +
-                  '<div class="pos-cart-empty">' +
-                    '<div class="pos-cart-empty-icon">🛒</div>' +
-                    '<div class="pos-cart-empty-text">Nhấn vào sản phẩm<br>để thêm vào giỏ</div>' +
-                  '</div>' +
+              '</div>' +
+              '<div class="pos-cart-summary">' +
+                '<div class="pos-total-row">' +
+                  '<span class="pos-total-label">Tổng cộng</span>' +
+                  '<span class="pos-total-value" id="totalAmount">0đ</span>' +
                 '</div>' +
-                '<div class="pos-cart-summary">' +
-                  '<div class="pos-total-row">' +
-                    '<span class="pos-total-label">Tổng cộng</span>' +
-                    '<span class="pos-total-value" id="totalAmount">0đ</span>' +
-                  '</div>' +
-                  '<div class="pos-actions">' +
-                    '<button type="button" onclick="submitSale()" id="sellBtn" class="btn btn-primary w-full" style="height:44px;" disabled>' +
-                      '<span>✔</span> BÁN HÀNG' +
-                    '</button>' +
-                    '<button type="button" id="replacementOpenBtn" onclick="openReplacementModal()" class="btn btn-outline w-full" style="height:36px;">' +
-                      '🔄 Đổi bia lỗi' +
-                    '</button>' +
-                  '</div>' +
+                '<div class="pos-actions">' +
+                  '<button type="button" onclick="submitSale()" id="sellBtn" class="pos-btn-primary" disabled><span>✔</span> BÁN HÀNG</button>' +
+                  '<button type="button" id="replacementOpenBtn" onclick="openReplacementModal()" class="pos-btn-danger">🔄 Đổi bia lỗi</button>' +
                 '</div>' +
               '</div>' +
             '</div>' +
-          '</div>'
-        ) +
+          '</div>' +
+        '</div>' +
         getBottomNav('/sale');
 
       /* Load scripts */

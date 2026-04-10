@@ -597,6 +597,32 @@ body .pt-14, .pt-14 {
   transform: scale(0.96);
 }
 
+/* Outline button — ghost with border */
+.btn-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  font-size: 14px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  width: 100%;
+  min-height: 44px;
+  white-space: nowrap;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  text-decoration: none;
+  font-family: inherit;
+  background: transparent;
+  color: var(--text-secondary);
+  transition: background var(--transition-normal), border-color var(--transition-normal), color var(--transition-normal), transform var(--transition-fast);
+}
+.btn-outline:hover { background: var(--bg-hover); border-color: var(--border-strong); color: var(--text-primary); }
+.btn-outline:active { background: var(--bg-active); transform: scale(0.96); }
+
 /* Success */
 .btn-success { background: var(--green); color: var(--fallback-text-on-dark); box-shadow: var(--shadow-success); }
 .btn-success:hover { filter: brightness(1.1); box-shadow: 0 6px 20px rgba(14,203,129,0.4); }
@@ -5714,23 +5740,30 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
 .pos-page .customer-dd-item.active { background: rgba(252, 213, 53, 0.15); color: #fcd535; font-weight: 600; }
 .pos-page .customer-dd-item span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* ── Body override for POS: no mobile-first, standard app layout ── */
-.pos-grid body,
-body.pos-grid-body {
-  font-family: system-ui, sans-serif;
-  background: #0b0e11 !important;
-}
-
-/* ── Sale app content wrapper — full width, no max-width constraint ── */
+/* POS grid: full width */
 #saleAppContent {
-  height: 100%;
+  flex: 1;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
-/* POS page: override .page-content max-width */
-#saleAppContent ~ * {}
+/* Override body--app padding cho trang sale vì dùng grid layout */
+body.body--app #app {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  display: flex;
+  flex-direction: column;
+}
+
+/* POS grid: full width, no max-width constraint */
 .pos-grid {
   max-width: 100% !important;
   margin: 0 !important;
   padding: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  flex: 1;
+  overflow: hidden;
 }
