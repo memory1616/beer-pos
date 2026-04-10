@@ -176,9 +176,9 @@ function initDashboard(data) {
       list.innerHTML = data.lowStockProducts.map(p =>
         '<div class="dsh-sale-row" style="padding:10px 0;">' +
           '<div class="dsh-sale-row-left">' +
-            '<div class="text-sm font-semibold" style="color:#e2e8f0;">' + p.name + '</div>' +
+            '<div class="text-sm font-semibold" style="color:var(--text-primary);">' + p.name + '</div>' +
           '</div>' +
-          '<div class="font-bold tabular-nums" style="color:#ef4444;font-size:14px;flex-shrink:0;">' + p.stock + ' bình</div>' +
+          '<div class="font-bold tabular-nums" style="color:var(--red);font-size:14px;flex-shrink:0;">' + p.stock + ' bình</div>' +
         '</div>'
       ).join('');
     }
@@ -270,7 +270,7 @@ function renderRevenueChart(dailyData) {
   if (!dailyData || dailyData.length === 0) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.font = '14px Inter';
-    ctx.fillStyle = '#9ca3af';
+    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#848E9C';
     ctx.textAlign = 'center';
     ctx.fillText('Chưa có dữ liệu', canvas.width / 2, canvas.height / 2);
     
@@ -333,15 +333,15 @@ function renderRevenueChart(dailyData) {
     revenueChart.destroy();
   }
   
-  // Create gradient for revenue bars — clean green
+  // Create gradient for revenue bars — green
   const gradient = ctx.createLinearGradient(0, 0, 0, 250);
-  gradient.addColorStop(0, '#22c55e');
-  gradient.addColorStop(1, '#16a34a');
+  gradient.addColorStop(0, getComputedStyle(document.documentElement).getPropertyValue('--green').trim() || '#0ECB81');
+  gradient.addColorStop(1, getComputedStyle(document.documentElement).getPropertyValue('--green-hover').trim() || '#00B370');
 
-  // Create gradient for net profit line — blue for contrast
+  // Create gradient for net profit line — info blue for contrast
   const profitGradient = ctx.createLinearGradient(0, 0, 0, 250);
-  profitGradient.addColorStop(0, '#3b82f6');
-  profitGradient.addColorStop(1, '#2563eb');
+  profitGradient.addColorStop(0, getComputedStyle(document.documentElement).getPropertyValue('--info').trim() || '#3B82F6');
+  profitGradient.addColorStop(1, getComputedStyle(document.documentElement).getPropertyValue('--info').trim() || '#2563eb');
 
   revenueChart = new Chart(ctx, {
     type: 'bar',
@@ -360,13 +360,13 @@ function renderRevenueChart(dailyData) {
           label: 'Lợi nhuận ròng',
           data: netProfits,
           type: 'line',
-          borderColor: '#3b82f6',
+          borderColor: getComputedStyle(document.documentElement).getPropertyValue('--info').trim() || '#3B82F6',
           backgroundColor: 'rgba(59, 130, 246, 0.1)',
           borderWidth: 2,
           fill: true,
           tension: 0.3,
           pointRadius: 3,
-          pointBackgroundColor: '#3b82f6',
+          pointBackgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--info').trim() || '#3B82F6',
           yAxisID: 'y'
         }
       ]
@@ -405,20 +405,20 @@ function renderRevenueChart(dailyData) {
           },
           ticks: {
             font: { size: 10 },
-            color: '#9ca3af'
+            color: getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#848E9C'
           }
         },
         y: {
           position: 'left',
           grid: {
-            color: '#374151'
+            color: getComputedStyle(document.documentElement).getPropertyValue('--border').trim() || '#2B3139'
           },
           ticks: {
             callback: function(value) {
               return formatVND(value);
             },
             font: { size: 10 },
-            color: '#9ca3af'
+            color: getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#848E9C'
           }
         }
       }

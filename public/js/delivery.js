@@ -211,7 +211,7 @@
 
     var statusEl = document.createElement('div');
     statusEl.textContent = '⏳ Đang lấy vị trí...';
-    statusEl.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#10b981;color:white;padding:8px 16px;border-radius:8px;z-index:9999;font-size:13px;';
+    statusEl.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:8px 16px;border-radius:8px;z-index:9999;font-size:13px;';
     document.body.appendChild(statusEl);
 
     navigator.geolocation.getCurrentPosition(

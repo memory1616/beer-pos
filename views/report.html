@@ -34,15 +34,45 @@
     <!-- FILTER BAR (sticky) -->
     <div class="app-filter-bar" id="reportFilterBar">
       <button class="app-filter-btn active" data-filter="today" onclick="RPT.setFilter('today')">Hôm nay</button>
-      <button class="app-filter-btn" data-filter="7d" onclick="RPT.setFilter('7d')">7 ngày</button>
-      <button class="app-filter-btn" data-filter="30d" onclick="RPT.setFilter('30d')">30 ngày</button>
-      <button class="app-filter-btn" data-filter="custom" onclick="RPT.setFilter('custom')">Tùy chọn</button>
+      <button class="app-filter-btn" data-filter="7days" onclick="RPT.setFilter('7days')">7 ngày</button>
+      <button class="app-filter-btn" data-filter="month" onclick="RPT.setFilter('month')">Tháng này</button>
+      <button class="app-filter-btn" data-filter="custom" onclick="RPT.setFilter('custom')">Tùy chọn <span class="filter-custom-arrow">▼</span></button>
+    </div>
 
-      <!-- Date range picker (hidden until "Tùy chọn") -->
-      <div class="app-filter-date-range" id="dateRangePicker">
-        <input type="date" id="rptDateFrom" onchange="RPT.applyCustomRange()">
-        <span>→</span>
-        <input type="date" id="rptDateTo" onchange="RPT.applyCustomRange()">
+    <!-- Custom range label (shown when 'Tùy chọn' is active) -->
+    <div class="app-filter-range-label" id="filterRangeLabel"></div>
+
+    <!-- Date Range Picker Modal -->
+    <div class="modal-overlay-v2 hidden" id="dateRangeModal">
+      <div class="modal-sheet-v2 date-range-modal-sheet">
+        <div class="modal-sheet-v2-header">
+          <div class="modal-sheet-v2-title">📅 Chọn khoảng ngày</div>
+          <button class="modal-sheet-v2-close" onclick="RPT.closeDatePicker()">✕</button>
+        </div>
+        <div class="modal-sheet-v2-body">
+          <!-- Quick presets -->
+          <div class="drp-presets">
+            <button class="drp-preset-btn" onclick="RPT.applyPreset('yesterday')">Hôm qua</button>
+            <button class="drp-preset-btn" onclick="RPT.applyPreset('thisWeek')">Tuần này</button>
+            <button class="drp-preset-btn" onclick="RPT.applyPreset('lastMonth')">Tháng trước</button>
+          </div>
+          <!-- Custom date inputs -->
+          <div class="drp-inputs">
+            <div class="drp-input-group">
+              <label class="drp-label">Từ ngày</label>
+              <input type="date" class="drp-date-input" id="drpDateFrom">
+            </div>
+            <div class="drp-separator">→</div>
+            <div class="drp-input-group">
+              <label class="drp-label">Đến ngày</label>
+              <input type="date" class="drp-date-input" id="drpDateTo">
+            </div>
+          </div>
+        </div>
+        <div class="modal-sheet-v2-footer">
+          <button class="btn btn-ghost" onclick="RPT.closeDatePicker()">Hủy</button>
+          <button class="btn btn-primary" onclick="RPT.confirmDatePicker()">Áp dụng</button>
+        </div>
       </div>
     </div>
 
@@ -160,7 +190,7 @@
 
       // ── State ──
       var _state = {
-        filter: 'today',      // today | 7d | 30d | custom
+        filter: 'today',      // today | 7days | month | custom
         startDate: null,
         endDate: null
       };
@@ -189,15 +219,15 @@
         if (filter === 'today') {
           return { start: toLocalDateStr(now), end: toLocalDateStr(now) };
         }
-        if (filter === '7d') {
+        if (filter === '7days') {
           var start = new Date(now);
           start.setDate(d - 6);
           return { start: toLocalDateStr(start), end: toLocalDateStr(now) };
         }
-        if (filter === '30d') {
-          var s = new Date(now);
-          s.setDate(d - 29);
-          return { start: toLocalDateStr(s), end: toLocalDateStr(now) };
+        if (filter === 'month') {
+          var first = new Date(y, m, 1);
+          var last = new Date(y, m + 1, 0);
+          return { start: toLocalDateStr(first), end: toLocalDateStr(last) };
         }
         if (filter === 'custom') {
           return { start: _state.startDate, end: _state.endDate };
@@ -205,7 +235,6 @@
         return { start: toLocalDateStr(now), end: toLocalDateStr(now) };
       }
 
-      // Get previous period for growth comparison
       function getPreviousDateRange(filter) {
         var range = getDateRange(filter);
         if (filter === 'custom') return null;
@@ -418,10 +447,14 @@
           netProfits.push((d.profit || 0));
         });
 
-        // Use theme-aware colors
-        var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-        var textColor = isDark ? '#848E9C' : '#707A8A';
-        var gridColor = isDark ? '#2B3139' : '#EAECEF';
+        // Use theme-aware colors via CSS variables
+        var root = document.documentElement;
+        var textColor = getComputedStyle(root).getPropertyValue('--text-muted').trim() || '#848E9C';
+        var gridColor = getComputedStyle(root).getPropertyValue('--border').trim() || '#2B3139';
+        var primaryColor = getComputedStyle(root).getPropertyValue('--primary').trim() || '#FCD535';
+        var greenColor = getComputedStyle(root).getPropertyValue('--green').trim() || '#0ECB81';
+        var tooltipBg = getComputedStyle(root).getPropertyValue('--card').trim() || '#1E2329';
+        var tooltipText = getComputedStyle(root).getPropertyValue('--text-primary').trim() || '#EAECEF';
 
         if (_chart) _chart.destroy();
 
@@ -433,26 +466,26 @@
               {
                 label: 'Doanh thu',
                 data: revenues,
-                borderColor: '#FCD535',
+                borderColor: primaryColor,
                 backgroundColor: 'rgba(252,213,53,0.08)',
                 borderWidth: 2,
                 fill: true,
                 tension: 0.4,
                 pointRadius: 3,
                 pointHoverRadius: 5,
-                pointBackgroundColor: '#FCD535'
+                pointBackgroundColor: primaryColor
               },
               {
                 label: 'Lợi nhuận',
                 data: netProfits,
-                borderColor: '#0ECB81',
+                borderColor: greenColor,
                 backgroundColor: 'rgba(14,203,129,0.06)',
                 borderWidth: 2,
                 fill: true,
                 tension: 0.4,
                 pointRadius: 3,
                 pointHoverRadius: 5,
-                pointBackgroundColor: '#0ECB81'
+                pointBackgroundColor: greenColor
               }
             ]
           },
@@ -463,8 +496,8 @@
             plugins: {
               legend: { display: false },
               tooltip: {
-                backgroundColor: isDark ? '#1E2329' : '#fff',
-                titleColor: isDark ? '#EAECEF' : '#1E2329',
+                backgroundColor: tooltipBg,
+                titleColor: tooltipText,
                 bodyColor: textColor,
                 borderColor: gridColor,
                 borderWidth: 1,
@@ -731,45 +764,102 @@
           '<div class="empty-state"><div class="empty-state-icon">📋</div><div class="empty-state-title">Chưa có phiếu nhập hàng</div><div class="empty-state-desc">Nhập hàng để xem chi phí ở đây</div></div>';
       }
 
-      // ── Filter state management ──
+      // Format date range for display label
+      function formatRangeLabel(start, end) {
+        if (!start || !end) return '';
+        var s = start.split('-').reverse().slice(0, 2).join('/');
+        var e = end.split('-').reverse().slice(0, 2).join('/');
+        return '📅 ' + s + ' — ' + e;
+      }
+
+      // Update the range label UI below filter bar
+      function updateRangeLabel() {
+        var el = document.getElementById('filterRangeLabel');
+        if (!el) return;
+        if (_state.filter === 'custom' && _state.startDate && _state.endDate) {
+          el.textContent = formatRangeLabel(_state.startDate, _state.endDate);
+          el.classList.add('visible');
+        } else {
+          el.textContent = '';
+          el.classList.remove('visible');
+        }
+      }
+
+      // Open date picker modal
+      function openDatePicker() {
+        var modal = document.getElementById('dateRangeModal');
+        var fromEl = document.getElementById('drpDateFrom');
+        var toEl = document.getElementById('drpDateTo');
+        if (!modal) return;
+
+        // Pre-fill with current custom range or default to this month
+        if (_state.startDate) fromEl.value = _state.startDate;
+        if (_state.endDate) toEl.value = _state.endDate;
+
+        modal.classList.remove('hidden');
+      }
+
+      // Close date picker modal
+      function closeDatePicker() {
+        var modal = document.getElementById('dateRangeModal');
+        if (modal) modal.classList.add('hidden');
+      }
+
+      // Apply preset ranges inside modal
+      function applyPreset(preset) {
+        var now = new Date();
+        var y = now.getFullYear(), m = now.getMonth(), d = now.getDate();
+        var fromEl = document.getElementById('drpDateFrom');
+        var toEl = document.getElementById('drpDateTo');
+
+        if (preset === 'yesterday') {
+          var yd = new Date(now);
+          yd.setDate(d - 1);
+          fromEl.value = toLocalDateStr(yd);
+          toEl.value = toLocalDateStr(yd);
+        } else if (preset === 'thisWeek') {
+          var dayOfWeek = now.getDay(); // 0=CN
+          var monday = new Date(now);
+          monday.setDate(d - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+          fromEl.value = toLocalDateStr(monday);
+          toEl.value = toLocalDateStr(now);
+        } else if (preset === 'lastMonth') {
+          var first = new Date(y, m - 1, 1);
+          var last = new Date(y, m, 0);
+          fromEl.value = toLocalDateStr(first);
+          toEl.value = toLocalDateStr(last);
+        }
+      }
+
+      // Confirm date picker → apply range
+      function confirmDatePicker() {
+        var from = document.getElementById('drpDateFrom').value;
+        var to = document.getElementById('drpDateTo').value;
+        if (from && to && from <= to) {
+          _state.startDate = from;
+          _state.endDate = to;
+          closeDatePicker();
+          updateRangeLabel();
+          debounceLoad();
+        } else {
+          alert('Vui lòng chọn ngày hợp lệ (từ ≤ đến)');
+        }
+      }
+
+      // Filter state management
       function setFilter(filter) {
-        // Update button states
         document.querySelectorAll('.app-filter-btn').forEach(function (btn) {
           btn.classList.toggle('active', btn.dataset.filter === filter);
         });
 
         _state.filter = filter;
 
-        var dateRangePicker = document.getElementById('dateRangePicker');
         if (filter === 'custom') {
-          if (dateRangePicker) dateRangePicker.classList.add('visible');
-          // Default: this month
-          var now = new Date();
-          var first = new Date(now.getFullYear(), now.getMonth(), 1);
-          var last = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-          var fromEl = document.getElementById('rptDateFrom');
-          var toEl = document.getElementById('rptDateTo');
-          if (fromEl) fromEl.value = toLocalDateStr(first);
-          if (toEl) toEl.value = toLocalDateStr(last);
-          _state.startDate = toLocalDateStr(first);
-          _state.endDate = toLocalDateStr(last);
-        } else {
-          if (dateRangePicker) dateRangePicker.classList.remove('visible');
-          _state.startDate = null;
-          _state.endDate = null;
+          openDatePicker();
         }
 
+        updateRangeLabel();
         debounceLoad();
-      }
-
-      function applyCustomRange() {
-        var from = document.getElementById('rptDateFrom').value;
-        var to = document.getElementById('rptDateTo').value;
-        if (from && to) {
-          _state.startDate = from;
-          _state.endDate = to;
-          debounceLoad();
-        }
       }
 
       // ── Debounced load ──
@@ -781,7 +871,9 @@
       // ── Public API ──
       window.RPT = {
         setFilter: setFilter,
-        applyCustomRange: applyCustomRange,
+        closeDatePicker: closeDatePicker,
+        applyPreset: applyPreset,
+        confirmDatePicker: confirmDatePicker,
         toggleSection: toggleSection,
         toggleMore: toggleMore,
         reload: debounceLoad

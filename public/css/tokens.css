@@ -1,0 +1,363 @@
+/**
+ * ============================================================
+ * Beer POS — Design Tokens  v5 (Binance Finance System)
+ * ============================================================
+ * This file defines ALL design tokens for the Beer POS system.
+ * All colors MUST be referenced via CSS variables, never hard-coded.
+ * Light mode uses .light class on <html>, dark mode uses .dark.
+ *
+ * Usage:
+ *   :root { --token: value; }          ← default (dark)
+ *   :root.light { --token: value; }    ← light override
+ * ============================================================
+ */
+
+/* =====================   TOKEN VERSION   ===================== */
+:root {
+  --dt-version: "5.0.0-binance";
+}
+
+/* =====================   CORE PALETTE   ===================== */
+/* Dark (default) */
+:root {
+  /* Primary — Binance Gold */
+  --primary:          #FCD535;
+  --primary-hover:    #F0B90B;
+  --primary-dim:     rgba(252, 213, 53, 0.12);
+  --primary-active:   rgba(240, 185, 11, 0.18);
+  --primary-shadow:   rgba(252, 213, 53, 0.28);
+
+  /* Success / Green */
+  --green:            #0ECB81;
+  --green-dim:        rgba(14, 203, 129, 0.12);
+  --green-hover:      #00B370;
+  --green-shadow:     rgba(14, 203, 129, 0.25);
+
+  /* Danger / Red */
+  --red:              #F6465D;
+  --red-dim:          rgba(246, 70, 93, 0.12);
+  --red-hover:        #E53E52;
+  --red-shadow:       rgba(246, 70, 93, 0.25);
+
+  /* Warning / Amber */
+  --warning:          #F0B90B;
+  --warning-dim:      rgba(240, 185, 11, 0.12);
+
+  /* Info / Blue */
+  --info:             #3B82F6;
+  --info-dim:         rgba(59, 130, 246, 0.12);
+  --info-shadow:      rgba(59, 130, 246, 0.25);
+
+  /* Purple / Violet */
+  --purple:           #7C3AED;
+  --purple-dim:       rgba(124, 58, 237, 0.12);
+  --purple-light:     #A78BFA;  /* lighter variant for dark bg readability */
+
+  /* Teal / Cyan */
+  --teal:             #14B8A6;
+  --teal-dim:         rgba(20, 184, 166, 0.12);
+  --teal-light:       #2DD4BF;  /* lighter variant for dark bg readability */
+
+  /* Semantic aliases */
+  --color-primary:   var(--primary);
+  --color-success:  var(--green);
+  --color-danger:   var(--red);
+  --color-info:     var(--info);
+  --color-warning:  var(--warning);
+  --color-purple:   var(--purple);
+  --color-teal:    var(--teal);
+
+  /* Backgrounds */
+  --bg:              #0B0E11;
+  --bg-secondary:    #181A20;
+  --card:            #1E2329;
+  --card-soft:       #2B3139;
+  --card-hover:      #2B3139;
+  --card-active:     #3A4250;
+
+  /* Borders */
+  --border:           #2B3139;
+  --border-strong:    #3A4250;
+  --border-focus:      var(--primary);
+
+  /* Interactive */
+  --bg-hover:         rgba(255, 255, 255, 0.06);
+  --bg-active:        rgba(255, 255, 255, 0.10);
+
+  /* Text Hierarchy — High Contrast (WCAG AA+) */
+  --text-primary:     #EAECEF;
+  --text-secondary:    #B7BDC6;
+  --text-muted:        #848E9C;
+  /* Fallbacks: if CSS variable is missing, fall back to these */
+  --text-on-dark:      #EAECEF;
+  --text-on-light:     #1E2329;
+
+  /* Aliases */
+  --color-bg:          var(--bg);
+  --color-card:        var(--card);
+  --color-border:      var(--border);
+  --color-text:        var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted:  var(--text-muted);
+  --color-bg-hover:    var(--bg-hover);
+  /* Canonical alias used by unified.css */
+  --text-main:         var(--text-primary);
+
+  /* Typography */
+  --font-family:        'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono:          'JetBrains Mono', 'Fira Code', monospace;
+
+  /* Font Sizes — Standard Scale */
+  --text-xs:   12px;
+  --text-sm:   13px;
+  --text-base: 14px;
+  --text-md:   14px;
+  --text-lg:   16px;
+  --text-xl:   18px;
+  --text-2xl:  20px;
+  --text-3xl:  24px;
+  --text-4xl:  28px;
+
+  /* Font Weights */
+  --font-normal:    400;
+  --font-medium:    500;
+  --font-semibold:  600;
+  --font-bold:      700;
+  --font-extrabold: 800;
+
+  /* Line Heights */
+  --lh-tight:   1.2;
+  --lh-normal:  1.5;
+  --lh-relaxed: 1.6;
+
+  /* Spacing Scale (4px base) */
+  --space-0:  0px;
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* Border Radius Scale */
+  --radius-xs:   4px;
+  --radius-sm:   6px;
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-xl:   16px;
+  --radius-2xl:  20px;
+  --radius-full: 9999px;
+
+  /* Shadows — Dark Theme */
+  --shadow-xs:     0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-sm:     0 2px 8px rgba(0, 0, 0, 0.35);
+  --shadow-md:     0 4px 16px rgba(0, 0, 0, 0.4);
+  --shadow-lg:     0 8px 32px rgba(0, 0, 0, 0.5);
+  --shadow-xl:     0 16px 48px rgba(0, 0, 0, 0.6);
+  --shadow-primary: 0 4px 14px var(--primary-shadow);
+  --shadow-success: 0 4px 14px var(--green-shadow);
+  --shadow-danger:  0 4px 14px var(--red-shadow);
+  --shadow-info:    0 4px 14px var(--info-shadow);
+
+  /* Layout */
+  --header-height:      56px;
+  --bottomnav-height:  64px;
+  --safe-area-top:     env(safe-area-inset-top, 0px);
+  --safe-area-bottom:  env(safe-area-inset-bottom, 0px);
+
+  /* Z-Index */
+  --z-base:       0;
+  --z-dropdown:   200;
+  --z-sticky:     500;
+  --z-header:     1000;
+  --z-overlay:    5000;
+  --z-modal:      10000;
+  --z-toast:      9999;
+  --z-tooltip:    11000;
+
+  /* Transitions */
+  --transition-fast:   0.15s ease;
+  --transition-normal: 0.2s ease;
+  --transition-slow:   0.3s ease;
+
+  /* Touch targets */
+  --touch-min: 44px;
+
+  /* Opacity */
+  --opacity-disabled: 0.4;
+  --opacity-muted:     0.6;
+}
+
+/* =====================   LIGHT MODE TOKENS   ===================== */
+:root.light,
+:root[data-theme="light"] {
+  --bg:              #FFFFFF;
+  --bg-secondary:    #F5F5F5;
+  --card:            #FFFFFF;
+  --card-soft:       #F0F1F3;
+  --card-hover:      #ECEEF1;
+  --card-active:     #E4E7EC;
+  --border:           rgba(0, 0, 0, 0.08);
+  --border-strong:    rgba(0, 0, 0, 0.12);
+  --bg-hover:         rgba(0, 0, 0, 0.04);
+  --bg-active:        rgba(0, 0, 0, 0.08);
+
+  --text-primary:     #1E2329;
+  --text-secondary:    #707A8A;
+  --text-muted:        #AEB4BE;
+  --text-on-dark:      #EAECEF;
+  --text-on-light:     #1E2329;
+
+  /* Shadows — Light Theme */
+  --shadow-xs:     0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-sm:     0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-md:     0 4px 16px rgba(0, 0, 0, 0.10);
+  --shadow-lg:     0 8px 32px rgba(0, 0, 0, 0.12);
+  --shadow-xl:     0 16px 48px rgba(0, 0, 0, 0.16);
+  --shadow-primary: 0 4px 14px rgba(252, 213, 53, 0.22);
+  --shadow-success: 0 4px 14px rgba(14, 203, 129, 0.2);
+  --shadow-danger:  0 4px 14px rgba(246, 70, 93, 0.2);
+  --shadow-info:    0 4px 14px rgba(59, 130, 246, 0.2);
+}
+
+/* =====================   DARK MODE TOKENS (EXPLICIT)   ===================== */
+:root.dark,
+:root[data-theme="dark"] {
+  --bg:              #0B0E11;
+  --bg-secondary:    #181A20;
+  --card:            #1E2329;
+  --card-soft:       #2B3139;
+  --card-hover:      #2B3139;
+  --card-active:     #3A4250;
+  --border:           #2B3139;
+  --border-strong:    #3A4250;
+  --bg-hover:         rgba(255, 255, 255, 0.06);
+  --bg-active:        rgba(255, 255, 255, 0.10);
+
+  --text-primary:     #EAECEF;
+  --text-secondary:    #B7BDC6;
+  --text-muted:        #848E9C;
+  --text-on-dark:      #EAECEF;
+  --text-on-light:     #1E2329;
+
+  --shadow-xs:     0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-sm:     0 2px 8px rgba(0, 0, 0, 0.35);
+  --shadow-md:     0 4px 16px rgba(0, 0, 0, 0.4);
+  --shadow-lg:     0 8px 32px rgba(0, 0, 0, 0.5);
+  --shadow-xl:     0 16px 48px rgba(0, 0, 0, 0.6);
+}
+
+/* =====================   STATUS / CONTEXT TOKENS   ===================== */
+/* Status badge colors */
+:root {
+  --status-online:  var(--green);
+  --status-offline: var(--red);
+  --status-pending: var(--warning);
+  --status-info:    var(--info);
+}
+
+/* Alert / Danger tokens */
+:root {
+  --alert-danger-bg:   rgba(246, 70, 93, 0.12);
+  --alert-danger-border: rgba(246, 70, 93, 0.3);
+  --alert-success-bg:  rgba(14, 203, 129, 0.12);
+  --alert-warning-bg:  rgba(240, 185, 11, 0.12);
+  --alert-info-bg:    rgba(59, 130, 246, 0.12);
+}
+
+/* =====================   COMPONENT TOKENS   ===================== */
+/* Button tokens */
+:root {
+  --btn-primary-bg:     var(--primary);
+  --btn-primary-color:   var(--text-on-dark);
+  --btn-primary-shadow:   var(--shadow-primary);
+  --btn-primary-hover:    var(--primary-hover);
+
+  --btn-secondary-bg:     var(--card-soft);
+  --btn-secondary-color:  var(--text-primary);
+  --btn-secondary-hover:  var(--card-hover);
+
+  --btn-danger-bg:       var(--red);
+  --btn-danger-color:    white;
+  --btn-danger-shadow:    var(--shadow-danger);
+
+  --btn-ghost-bg:         transparent;
+  --btn-ghost-color:      var(--text-secondary);
+  --btn-ghost-border:     var(--border);
+
+  --btn-disabled-bg:     var(--card-soft);
+  --btn-disabled-color:  var(--text-muted);
+}
+
+/* Input tokens */
+:root {
+  --input-bg:           var(--card);
+  --input-border:        var(--border);
+  --input-color:         var(--text-primary);
+  --input-placeholder:   var(--text-muted);
+  --input-focus-border:  var(--primary);
+  --input-focus-shadow: 0 0 0 3px var(--primary-dim);
+  --input-height:        44px;
+  --input-height-lg:     48px;
+}
+
+/* Modal tokens */
+:root {
+  --modal-overlay-bg:     rgba(0, 0, 0, 0.65);
+  --modal-backdrop-bg:   rgba(0, 0, 0, 0.7);
+  --modal-card-bg:       var(--card);
+  --modal-radius:        var(--radius-xl);
+}
+
+/* Card tokens */
+:root {
+  --card-bg:     var(--card);
+  --card-border: var(--border);
+  --card-radius: var(--radius-lg);
+  --card-padding: 14px;
+  --card-shadow: var(--shadow-sm);
+  --card-hover-shadow: var(--shadow-md);
+  --card-shadow-sm: var(--shadow-xs);
+}
+
+/* QR Code tokens */
+:root {
+  --qr-bg:     #FFFFFF;
+  --qr-radius: var(--radius-lg);
+  --qr-padding: 12px;
+  --qr-shadow: var(--shadow-sm);
+}
+
+/* =====================   SCROLLBAR TOKENS   ===================== */
+:root {
+  --scrollbar-width:  4px;
+  --scrollbar-track:  transparent;
+  --scrollbar-thumb:  var(--border-strong);
+  --scrollbar-thumb-hover: var(--text-muted);
+}
+
+/* =====================   FOCUS TOKENS (Accessibility)   ===================== */
+:root {
+  --focus-ring-color:   var(--primary);
+  --focus-ring-width:    2px;
+  --focus-ring-offset:   2px;
+  --focus-ring:          var(--focus-ring-width) solid var(--focus-ring-color);
+}
+
+/* =====================   INLINE STYLE FALLBACKS ===================== */
+/* Safe fallbacks for text that must ALWAYS be readable */
+:root {
+  /* If a variable is undefined, these ensure visibility */
+  --fallback-text-on-dark: #EAECEF;
+  --fallback-text-on-light: #1E2329;
+  --fallback-text-muted: #707A8A;
+  --fallback-bg-dark: #0B0E11;
+  --fallback-bg-light: #FFFFFF;
+  --fallback-card-dark: #1E2329;
+  --fallback-card-light: #FFFFFF;
+  --fallback-border-dark: #2B3139;
+  --fallback-border-light: rgba(0,0,0,0.1);
+}

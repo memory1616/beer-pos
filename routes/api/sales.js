@@ -796,12 +796,8 @@ router.put('/:id', (req, res) => {
         db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(item.quantity, product.id);
       }
 
-      // Determine effective price: customer price > item.price > sell_price
+      // Luôn dùng item.price từ frontend — đây là giá đã được UI tính theo khách hàng
       let price = item.price || product.sell_price || 0;
-      if (customerId) {
-        const priceRecord = db.prepare('SELECT price FROM prices WHERE customer_id = ? AND product_id = ?').get(customerId, product.id);
-        if (priceRecord && priceRecord.price > 0) price = priceRecord.price;
-      }
 
       const costPrice = product.cost_price || 0;
       const itemProfit = (price - costPrice) * item.quantity;

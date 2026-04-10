@@ -338,7 +338,7 @@
     var s = report.stats;
     var rows = report.profitByProduct.map(function (p) {
       var estNote = p.estimated_ratio > 0
-        ? ' <span style="color:#f59e0b">⚠️</span>' : '';
+        ? ' <span style="color:#D97706">⚠️</span>' : '';
       return '<tr><td>' + escHtml(p.name) + estNote + '</td>' +
              '<td>' + p.quantity + '</td>' +
              '<td>' + fmtVND(p.revenue) + '</td>' +
@@ -349,11 +349,11 @@
     var html = '<!DOCTYPE html>\n<html lang="vi">\n<head>' +
       '<meta charset="UTF-8"><title>Báo cáo BeerPOS</title>' +
       '<style>body{font-family:sans-serif;padding:20px}' +
-      '.card{padding:12px;border:1px solid #ddd;margin-bottom:12px}' +
+      '.card{padding:12px;border:1px solid #EAECEF;margin-bottom:12px}' +
       'table{width:100%;border-collapse:collapse}' +
-      'th,td{padding:8px;border:1px solid #ddd;text-align:right}' +
-      'th{background:#f5f5f5;text-align:left}' +
-      '.warning{background:#fff3cd;padding:8px;border-radius:4px}</style>' +
+      'th,td{padding:8px;border:1px solid #EAECEF;text-align:right}' +
+      'th{background:#F5F5F5;text-align:left}' +
+      '.warning{background:#FEF9C3;padding:8px;border-radius:4px}</style>' +
       '</head>\n<body>\n<h1>📊 Báo cáo BeerPOS</h1>' +
       '<div class="card"><strong>Từ ngày:</strong> ' + escHtml(report.date_range.start) +
       ' — <strong>đến ngày:</strong> ' + escHtml(report.date_range.end) + '</div>' +
