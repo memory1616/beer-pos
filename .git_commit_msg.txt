@@ -1,0 +1,13 @@
+fix(sale+report): unify invoice modal data pipeline and fix liter calculations
+
+- invoice: replace fragmented viewSale/openInvoiceInternal with single
+  openInvoiceModal(source) — null/id/object safe, normalizeInvoice()
+  handles items/products, totalAmount, bottleGiven/bottleReceived aliases
+- invoice: add res.ok check on fetch, defensive empty-state render
+- invoice: openInvoiceModal only GETs (never POST), submitSale success
+  triggers openInvoiceModal(id) to re-fetch and display
+- invoice: single window._invoiceContext store, closeInvoice clears it
+- customer-detail: fix viewInvoice error handling and items aliasing
+- report+server: profitByCustomer quantity = total liters (regex parse,
+  default 1L when no number in product name — covers bia bom/pet)
+- sales.js: same liter fallback (1L) for renderSaleHistory

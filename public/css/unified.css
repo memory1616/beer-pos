@@ -3,7 +3,7 @@
    - Fix duplicate top spacing on report page (removed padding-top from .app-body)
    - Single source of truth: header is 56px fixed, body starts at 0
    - .app-filter-bar stays sticky at header height
-   - Consistent layout across all pages
+   - .page-content: remove redundant padding-top (body--app already handles it)
 */
 
 /* DESIGN TOKENS — canonical source of truth */
@@ -57,10 +57,9 @@ body {
   margin: 0 auto;
 }
 
-/* Content wrapper */
+/* Content wrapper — NO extra padding-top; body--app already handles fixed header offset */
 .page-content {
   padding: 16px;
-  padding-top: calc(var(--header-height) + var(--safe-area-top) + 16px);
   padding-bottom: calc(var(--bottomnav-height) + env(safe-area-inset-bottom, 0px) + 16px);
 }
 
