@@ -23,7 +23,7 @@
 
   <!-- Invoice Modal — Card Style POS UI -->
   <div id="invoiceModal" class="invoice-overlay hidden">
-    <div class="invoice-modal">
+    <div class="invoice-modal fit-screen">
       <div class="invoice-header">
         <span class="invoice-title">HÓA ĐƠN</span>
         <button onclick="closeInvoice()" class="close-btn">&times;</button>
@@ -38,8 +38,9 @@
         <div class="invoice-meta" id="invoiceMeta"></div>
         <div class="invoice-customer" id="invoiceCustomer"></div>
         <div class="divider"></div>
-        <div id="invoiceItemsList"></div>
       </div>
+
+      <div id="invoiceItemsList"></div>
 
       <div class="invoice-qr-card">
         <div class="qr-label">Phương thức thanh toán</div>

@@ -4741,6 +4741,14 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   display: none !important;
 }
 
+/* ── INVOICE MODAL (merged below) ── */
+
+/* Card is always on top of overlay */
+/* ================================================================
+   INVOICE MODAL — FULL SCREEN FIT (NO SCROLL)
+   ================================================================ */
+
+/* Overlay — no scroll */
 .invoice-overlay {
   position: fixed;
   inset: 0;
@@ -4749,33 +4757,41 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
   pointer-events: none;
+  overflow: hidden;
 }
 
-/* Card is always on top of overlay */
-.invoice-modal {
+/* ROOT — grid fixed height, fills 100vh, no scroll */
+.invoice-modal.fit-screen {
   position: relative;
   z-index: 100;
   width: 100%;
   max-width: 420px;
   background: #ffffff;
   border-radius: 20px;
-  padding: 16px;
+  padding: 14px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
-  margin: 16px;
+  margin: 8px;
   pointer-events: auto;
+  height: 100vh;
+  max-height: 100vh;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
-/* 2. HEADER */
+/* HEADER */
 .invoice-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
+  flex-shrink: 0;
 }
 
 .invoice-title {
   font-weight: 600;
-  font-size: 16px;
+  font-size: 15px;
   color: #6b7280;
   letter-spacing: 1px;
 }
@@ -4799,65 +4815,79 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   background: #fef2f2;
 }
 
-/* 3. TOTAL — HERO BLOCK */
+/* TOTAL */
 .invoice-total-card {
   background: linear-gradient(135deg, #0f172a, #1e293b);
-  border-radius: 18px;
-  padding: 16px;
+  border-radius: 16px;
+  padding: 12px;
   text-align: center;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
+  flex-shrink: 0;
 }
 
 .invoice-total-label {
   color: #9ca3af;
-  font-size: 12px;
+  font-size: 11px;
   letter-spacing: 1px;
   font-weight: 600;
 }
 
 .invoice-total-value {
-  font-size: 44px;
+  font-size: 36px;
   font-weight: 800;
   color: #22c55e;
-  margin-top: 6px;
+  margin-top: 4px;
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
 
-/* 4. MAIN CARD — PRODUCTS + CUSTOMER */
+/* MAIN CARD */
 .invoice-main-card {
-  background: #f9fafb;
-  border-radius: 16px;
-  padding: 14px;
-  border: 1px solid #e5e7eb;
-  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .invoice-meta {
-  font-size: 13px;
+  font-size: 12px;
   color: #6b7280;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
+  flex-shrink: 0;
 }
 
 .invoice-customer {
   font-weight: 600;
-  font-size: 15px;
+  font-size: 14px;
   color: #1e293b;
-  margin-bottom: 10px;
+  margin-bottom: 6px;
+  flex-shrink: 0;
 }
 
 .divider {
   height: 1px;
   background: #e5e7eb;
-  margin: 8px 0;
+  margin: 6px 0;
+  flex-shrink: 0;
 }
 
-/* 5. ITEM ROW — CLEAN POS STYLE */
+/* ITEM LIST */
+#invoiceItemsList {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow: hidden;
+}
+
+/* ITEM */
 .invoice-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 0;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: #f9fafb;
+  font-size: 13px;
 }
 
 .item-left {
@@ -4869,7 +4899,7 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
 
 .item-name {
   font-weight: 600;
-  font-size: 15px;
+  font-size: 14px;
   color: #1e293b;
   white-space: nowrap;
   overflow: hidden;
@@ -4877,80 +4907,92 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
 }
 
 .item-sub {
-  font-size: 13px;
+  font-size: 12px;
   color: #6b7280;
-  margin-top: 2px;
+  margin-top: 1px;
 }
 
 .item-price {
   font-weight: 700;
-  font-size: 15px;
+  font-size: 14px;
   color: #1e293b;
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
-  margin-left: 12px;
+  margin-left: 8px;
 }
 
-/* 6. KEG SECTION */
+/* KEG SECTION */
 .keg-row {
   display: flex;
   justify-content: space-between;
-  margin-top: 8px;
-  font-size: 13px;
+  margin-top: 6px;
+  font-size: 12px;
   color: #6b7280;
 }
 
-.keg-green {
-  color: #22c55e;
-  font-weight: 600;
-}
-
-.keg-orange {
-  color: #f59e0b;
-  font-weight: 600;
-}
+.keg-green { color: #22c55e; font-weight: 600; }
+.keg-orange { color: #f59e0b; font-weight: 600; }
 
 .keg-section {
-  margin-top: 8px;
-  padding: 6px 0;
+  margin-top: 6px;
+  padding: 5px 0;
   border-top: 1px solid #e5e7eb;
   display: flex;
   justify-content: space-between;
-  font-size: 13px;
+  font-size: 12px;
   color: #6b7280;
+  flex-shrink: 0;
 }
 .keg-section span:last-child {
   font-weight: 700;
   color: #1e293b;
 }
 
-/* 7. QR CARD */
+/* QR */
 .invoice-qr-card {
   background: #f9fafb;
-  border-radius: 16px;
-  padding: 16px;
+  border-radius: 14px;
+  padding: 10px;
   text-align: center;
   border: 1px solid #e5e7eb;
+  flex-shrink: 0;
 }
 
 .invoice-qr-card img {
-  width: 180px;
-  margin: 10px auto;
+  width: clamp(120px, 18vh, 160px);
+  margin: 8px auto;
   display: block;
   border-radius: 8px;
   background: #fff;
 }
 
 .qr-label {
-  font-size: 14px;
+  font-size: 13px;
   color: #374151;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   font-weight: 600;
 }
 
 .qr-note {
-  font-size: 12px;
+  font-size: 11px;
   color: #9ca3af;
+}
+
+/* ================================================================
+   DENSITY — set on BODY
+   ================================================================ */
+
+[data-density="compact"] .invoice-item {
+  padding: 4px 6px;
+  font-size: 12px;
+}
+
+[data-density="normal"] .invoice-item {
+  padding: 6px 8px;
+}
+
+[data-density="comfortable"] .invoice-item {
+  padding: 10px;
 }
 
 /* REMOVED OLD STYLES:
@@ -4961,8 +5003,6 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
    .invoice-item-left, .invoice-item-right,
    .invoice-name, .invoice-row, .invoice-subtotal,
    .invoice-qr-title, .invoice-qr-img, .invoice-qr-hint,
-   .grid-mode, .compact,
-   .invoice-list .invoice-item, .invoice-list .invoice-item:nth-child(even),
    dark/light overrides for old classes */
 
 

@@ -320,8 +320,21 @@ function initSalesPage(data) {
   console.log('[Sales] initSalesPage DONE');
 }
 
+// ========== INVOICE MODAL GUARD — prevent auto-open on page load ==========
+// _pageReady: set to true only after DOMContentLoaded fires.
+// Any call to showInvoiceModal before this is blocked (auto-call prevention).
+let _pageReady = false;
+
 // Global keg state for validation
 let kegState = {};
+
+// Hide invoice modal on DOM ready — ensures it's never visible on initial page load
+document.addEventListener('DOMContentLoaded', function() {
+  var _invModal = document.getElementById('invoiceModal');
+  if (_invModal) _invModal.classList.add('hidden');
+  _pageReady = true;
+  console.log('[InvoiceGuard] page ready, modal hidden');
+});
 
 // ── Searchable Customer Dropdown ────────────────────────────────────────────
 function renderCustomerDropdown(filter) {
@@ -1403,8 +1416,62 @@ async function saveKegUpdate() {
 }
 
 // ═══════════════════════════════════════════
+// INVOICE FULL SCREEN FIT
+// ═══════════════════════════════════════════
+
+/**
+ * Auto density mode — set on <body> based on viewport height.
+ */
+function setInvoiceDensity() {
+  var vh = window.innerHeight;
+  var density = vh < 700 ? 'compact' : (vh < 900 ? 'normal' : 'comfortable');
+  document.body.setAttribute('data-density', density);
+}
+
+/**
+ * Auto-fit item height: distribute items evenly inside #invoiceItemsList.
+ * Activates GRID mode when item count > 6.
+ */
+function fitInvoiceLayout() {
+  var container = document.getElementById('invoiceItemsList');
+  if (!container) return;
+
+  var items = container.querySelectorAll('.invoice-item');
+  if (!items.length) return;
+
+  var height = container.clientHeight;
+  var itemHeight = Math.floor(height / items.length);
+
+  if (items.length > 6) {
+    container.style.display = 'grid';
+    container.style.gridTemplateColumns = '1fr 1fr';
+    container.style.gap = '4px';
+    // Remove inline height when in grid mode
+    items.forEach(function(el) { el.style.height = ''; });
+  } else {
+    container.style.display = '';
+    container.style.gridTemplateColumns = '';
+    items.forEach(function(el) { el.style.height = itemHeight + 'px'; });
+  }
+}
+
+// Realtime resize — keep items fitted when window resizes
+window.addEventListener('resize', function() {
+  var modal = document.getElementById('invoiceModal');
+  if (modal && !modal.classList.contains('hidden')) {
+    fitInvoiceLayout();
+  }
+});
+
+// ═══════════════════════════════════════════
 
 async function showInvoiceModal(saleId) {
+  // GUARD: Prevent any auto-call before page is fully loaded
+  if (!_pageReady) {
+    console.warn('[InvoiceGuard] showInvoiceModal blocked — page not ready, saleId=' + saleId);
+    return;
+  }
+  console.log('[Invoice] showInvoiceModal called for saleId=' + saleId);
   var modal = document.getElementById('invoiceModal');
   if (!modal) {
     console.error('Không tìm thấy phần tử #invoiceModal');
@@ -1497,6 +1564,11 @@ async function showInvoiceModal(saleId) {
   }
 
   modal.classList.remove('hidden');
+
+  // FULL SCREEN FIT
+  setInvoiceDensity();
+  setTimeout(fitInvoiceLayout, 50);
+
   _openInvoiceSaleId = saleId;
 }
 
