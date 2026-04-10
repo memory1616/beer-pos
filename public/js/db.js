@@ -365,6 +365,60 @@ class BeerPOSDB {
     }
   }
 
+  // ── Single Entity Operations ──────────────────────────────────
+
+  /**
+   * 获取单个实体（通过 id 字段查询）
+   * @param {string} entity - 实体类型名（如 'customers', 'products'）
+   * @param {number|string} id - 实体 id
+   * @returns {Promise<Object|null>}
+   */
+  async getEntity(entity, id) {
+    if (!this._db) return null;
+    try {
+      const safeEntity = this._safeIndex(entity);
+      if (!safeEntity) return null;
+      return await this._db.entities
+        .where('id')
+        .equals(id)
+        .and(item => item.entity === safeEntity)
+        .first();
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * 插入或更新单个实体（upsert = update or insert）
+   * @param {string} entity - 实体类型名
+   * @param {Object} item - 实体数据（必须包含 id 字段）
+   * @returns {Promise<Object>}
+   */
+  async upsertEntity(entity, item) {
+    if (!this._db || !item?.id) {
+      console.warn('[DBv5] upsertEntity: invalid db or missing id');
+      return item;
+    }
+    const safeEntity = this._safeIndex(entity);
+    if (!safeEntity) {
+      console.warn('[DBv5] upsertEntity: invalid entity', entity);
+      return item;
+    }
+    try {
+      const now = Date.now();
+      const data = {
+        ...item,
+        entity: safeEntity,
+        updatedAt: item.updatedAt || now,
+      };
+      await this._db.entities.put(data);
+      return data;
+    } catch (error) {
+      console.error('[DBv5] upsertEntity error:', error);
+      return item;
+    }
+  }
+
   // ── Bulk Sync Queue Operations ─────────────────────────────────
 
   /**

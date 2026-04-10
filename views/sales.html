@@ -236,7 +236,7 @@
     (async function() {
       if (window._dbScriptLoaded) { await loadScript('/sync-orders.js'); return; }
       window._dbScriptLoaded = true;
-      await loadScript('/db.js?v=20260418a');
+      await loadScript('/db.js?v=20260410b');
       await loadScript('/sync-orders.js');
     })();
   </script>
@@ -320,11 +320,6 @@
               </button>
             </div>
           </div>
-
-          <!-- FAB: Thu vỏ — thay vì phải scroll xuống lịch sử -->
-          <button onclick="openCollectKegModal()" class="fab" style="bottom: calc(var(--bottomnav-height, 64px) + env(safe-area-inset-bottom, 0px) + 16px); right: 16px;" title="Thu vỏ">
-            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
-          </button>
 
           <div class="card mb-4">
             <h3 class="font-bold text-base text-main mb-3">📋 Lịch sử bán hàng</h3>
