@@ -414,48 +414,58 @@ function renderSaleProducts() {
   var customerId = customerIdEl ? customerIdEl.value : '';
   var isKhachLe = !customerId;
 
-  // Layout giống Nhập hàng: thẻ từng SP, tên + 1 dòng giá/tồn + ô Nhập SL
+  // Order book rows — dense horizontal layout
   container.innerHTML = products.map(p => {
-    // Sử dụng getDisplayPrice: cart > customer > base
-    const displayPrice = getDisplayPrice(p, customerId);
+    var displayPrice = getDisplayPrice(p, customerId);
     if (displayPrice === 0) {
       console.log('[RENDER][WARN] product "' + p.name + '" has price=0! _displayPrice=' + p._displayPrice + ', sell_price=' + p.sell_price);
     }
-    // Giá cho input field: ưu tiên cart > displayPrice
-    const priceInputVal = (saleData[p.id] && saleData[p.id].price !== undefined)
+    var priceInputVal = (saleData[p.id] && saleData[p.id].price !== undefined)
       ? saleData[p.id].price
       : (displayPrice || '');
-    const isLowStock = p.stock < _LOW_STOCK_THRESHOLD;
-    const currentQty = saleData[p.id] ? saleData[p.id].quantity : '';
-    const priceLine = isKhachLe
-      ? `· Tồn: <span class="${p.stock < _LOW_STOCK_THRESHOLD ? 'text-danger font-semibold' : 'text-secondary'}">${p.stock}</span>`
-      : `Giá: <span class="text-primary font-bold">${formatVND(displayPrice)}</span> · Tồn: <span class="${p.stock < _LOW_STOCK_THRESHOLD ? 'text-danger' : 'text-secondary'}">${p.stock}</span>`;
-    const priceField = isKhachLe
-      ? `<label class="block text-xs font-semibold text-primary mt-2 mb-1">Giá bán (đ)</label>
-        <input type="number" id="price-${p.id}" min="0" step="1000" value="${priceInputVal}" placeholder="Nhập giá"
-          inputmode="decimal" enterkeyhint="done"
-          class="w-full border-2 border-primary rounded-xl p-3 text-center text-lg font-bold text-main focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
-          onchange="updateSaleData(${p.id}, 'price', this.value);"
-          oninput="updateSaleData(${p.id}, 'price', this.value);">`
+    var isLowStock = p.stock < _LOW_STOCK_THRESHOLD;
+    var currentQty = saleData[p.id] ? saleData[p.id].quantity : '';
+    var stockColor = p.stock < _LOW_STOCK_THRESHOLD ? 'text-red' : 'text-muted';
+    var priceDisplay = isKhachLe
+      ? '<span class="ob-money ob-col-price" style="font-size:12px;">' + (priceInputVal ? Format.number(priceInputVal) : '<span class="text-muted">--</span>') + '</span>'
+      : '<span class="ob-money ob-col-price text-primary" style="font-size:12px;">' + Format.number(displayPrice) + '</span>';
+    var priceField = isKhachLe
+      ? '<input type="number" id="price-' + p.id + '" min="0" step="1000" value="' + priceInputVal + '" placeholder="Gia"'
+        + ' inputmode="decimal" enterkeyhint="done"'
+        + ' class="w-full bg-transparent border-b border-primary outline-none text-center text-sm font-bold text-primary focus:border-primary py-0.5"'
+        + ' onchange="updateSaleData(' + p.id + ', \'price\', this.value);"'
+        + ' oninput="updateSaleData(' + p.id + ', \'price\', this.value);">'
       : '';
-    return `
-      <div class="p-3 border-2 ${isLowStock ? 'border-warning bg-warning/5' : 'border-primary bg-primary/5'} rounded-xl transition-all">
-        <div class="text-sm font-bold text-main">${p.name}</div>
-        <div class="text-xs text-secondary mt-0.5">${priceLine}</div>
-        ${priceField}
-        <div class="flex items-center gap-2 mt-2">
-          <button type="button" onclick="quickAddProduct(${p.id}, -1)" class="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-lg border-2 ${currentQty > 0 ? 'border-primary text-primary' : 'border-primary/40 text-primary/50'} font-bold text-lg select-none transition-all active:scale-95">−</button>
-          <input type="number" id="qty-${p.id}" min="0" max="${p.stock}" value="${currentQty > 0 ? currentQty : ''}" data-stock="${p.stock}"
-            placeholder="SL"
-            inputmode="numeric" enterkeyhint="done"
-            class="flex-1 h-10 border-2 border-primary rounded-xl text-center text-lg font-bold focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none ${currentQty > 0 ? 'bg-primary/10' : 'bg-white'} text-main min-w-0"
-            onchange="updateSaleData(${p.id}, 'quantity', this.value);"
-            oninput="updateSaleData(${p.id}, 'quantity', this.value);">
-          <button type="button" onclick="quickAddProduct(${p.id}, 1)" class="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-lg border-2 border-primary bg-primary text-1E2329 font-bold text-lg select-none transition-all active:scale-95">+</button>
-          ${!isKhachLe ? `<button type="button" onclick="quickAddProduct(${p.id}, 5)" class="flex-shrink-0 px-2 h-10 rounded-lg border-2 border-primary/40 text-primary font-semibold text-xs select-none transition-all active:scale-95">+5</button>` : ''}
-        </div>
-      </div>
-    `;
+    var qtyInputId = 'qty-' + p.id;
+    var qtyActiveClass = currentQty > 0 ? 'ob-active-buy' : '';
+    var qtyBtnClass = currentQty > 0 ? 'ob-qty-btn' : 'ob-qty-btn text-muted';
+    return [
+      '<div class="ob-row ' + qtyActiveClass + '" style="padding: 6px ' + (isKhachLe ? '8px' : '8px') + ';">',
+        // Col 1: name + stock
+        '<div class="ob-col" style="flex:2;min-width:0;">',
+          '<div class="font-semibold text-sm text-main" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + p.name + '</div>',
+          '<div class="text-xs ' + stockColor + '">Ton: ' + p.stock + (isKhachLe ? '' : ' · Gia KC') + '</div>',
+          priceField,
+        '</div>',
+        // Col 2: price (non-khach-le) or empty (khach-le uses priceField above)
+        !isKhachLe ? priceDisplay : '',
+        // Col 3: quantity controls
+        '<div class="ob-col ob-col-qty" style="flex:0 0 72px;text-align:center;">',
+          '<button type="button" onclick="quickAddProduct(' + p.id + ', -1)" class="' + qtyBtnClass + '">-</button>',
+          '<input type="number" id="' + qtyInputId + '" min="0" max="' + p.stock + '" value="' + (currentQty > 0 ? currentQty : '') + '" data-stock="' + p.stock + '"',
+            ' placeholder="SL" inputmode="numeric" enterkeyhint="done"',
+            ' class="ob-qty-val"',
+            ' style="width:28px;text-align:center;border:none;border-bottom:1px solid var(--border);background:transparent;outline:none;font-weight:700;font-size:13px;color:var(--text-main);"',
+            ' onchange="updateSaleData(' + p.id + ', \'quantity\', this.value);"',
+            ' oninput="updateSaleData(' + p.id + ', \'quantity\', this.value);">',
+          '<button type="button" onclick="quickAddProduct(' + p.id + ', 1)" class="' + qtyBtnClass + '">+</button>',
+        '</div>',
+        // Col 4: +5 button (only for registered customers)
+        !isKhachLe
+          ? '<button type="button" onclick="quickAddProduct(' + p.id + ', 5)" style="background:var(--primary-dim);border:1px solid var(--primary);border-radius:4px;padding:2px 5px;font-size:11px;font-weight:700;color:var(--primary);cursor:pointer;flex-shrink:0;">+5</button>'
+          : '',
+      '</div>'
+    ].join('');
   }).join('');
 }
 
@@ -640,8 +650,8 @@ function updateSaleTotal() {
   let total = 0;
   let hasItems = false;
   let itemCount = 0;
-  let cartHtml = '';
-  
+  let cartRows = '';
+
   Object.keys(saleData).forEach(productId => {
     const item = saleData[productId];
     if (item.quantity > 0 && item.price > 0) {
@@ -651,34 +661,35 @@ function updateSaleTotal() {
       hasItems = true;
       itemCount += item.quantity;
       const name = product ? product.name : 'SP';
-      cartHtml += '<div class="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 text-sm py-1.5 border-b border-primary/20 last:border-0">' +
-        '<span class="font-semibold text-main min-w-0 flex-1 truncate">' + name + '</span>' +
-        '<span class="text-secondary shrink-0 tabular-nums">' + Format.number(item.price) + ' đ × ' + item.quantity + '</span>' +
-        '<div class="money text-money shrink-0 w-full text-right sm:w-auto sm:text-left"><span class="value text-sm font-bold tabular-nums">' + Format.number(lineTotal) + '</span><span class="unit">đ</span></div></div>';
+      cartRows += [
+        '<div class="ob-row ob-active-buy" style="padding:4px 6px;">',
+          '<div class="ob-col" style="flex:2;min-width:0;">',
+            '<span class="font-semibold text-xs text-main" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + name + '</span>',
+          '</div>',
+          '<div class="ob-col ob-col-qty" style="flex:0 0 52px;text-align:center;font-size:11px;color:var(--text-muted);">' + item.quantity + '</div>',
+          '<div class="ob-col ob-col-total ob-money" style="flex:0 0 80px;font-size:12px;">' + Format.number(lineTotal) + '</div>',
+        '</div>'
+      ].join('');
     }
   });
-  
+
+  // Total amount row
   const totalEl = document.getElementById('totalAmount');
   if (totalEl) {
-    const formatted = Format.number(total);
-    totalEl.innerHTML = '<span class="value">' + formatted + '</span><span class="unit"> đ</span>';
+    totalEl.innerHTML = '<span class="text-muted text-xs font-bold">TONG</span><span class="ob-money text-green" style="font-size:16px;">' + Format.number(total) + 'đ</span>';
   }
-  
-  const itemCountEl = document.getElementById('itemCount');
-  if (itemCountEl) itemCountEl.textContent = itemCount + ' items';
-  
-  const cartEl = document.getElementById('cartItems');
-  if (cartEl) cartEl.innerHTML = cartHtml || '<div class="text-muted text-center">Chưa có sản phẩm</div>';
 
+  // Cart preview
   const previewEl = document.getElementById('saleCartPreview');
   if (previewEl) {
-    if (!cartHtml) {
-      previewEl.innerHTML = '<div class="max-h-40 overflow-y-auto">' + cartHtml + '</div>';
+    if (cartRows) {
+      previewEl.innerHTML = '<div class="text-xs font-bold text-muted mb-1" style="letter-spacing:0.05em;">GIO HANG</div>' + cartRows;
     } else {
-      previewEl.innerHTML = '<div class="text-xs font-bold text-primary mb-1">Đơn đang bán</div><div class="max-h-40 overflow-y-auto">' + cartHtml + '</div>';
+      previewEl.innerHTML = '<div class="text-xs text-muted text-center py-2">Chua co san pham</div>';
     }
   }
 
+  // Sell button state
   const sellBtn = document.getElementById('sellBtn');
   if (sellBtn) {
     const editing = editingSaleId != null;
@@ -686,10 +697,8 @@ function updateSaleTotal() {
     sellBtn.disabled = !canSell;
     if (canSell) {
       sellBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-      sellBtn.classList.add('shadow-md', 'hover:from-green-600', 'hover:to-green-700');
     } else {
       sellBtn.classList.add('opacity-50', 'cursor-not-allowed');
-      sellBtn.classList.remove('shadow-md', 'hover:from-green-600', 'hover:to-green-700');
     }
   }
 }
@@ -1786,38 +1795,15 @@ const _saleCardMap = new Map();
 function patchSaleRow(sale) {
   const card = document.querySelector(`[data-sale-id="${sale.id}"]`);
   if (!card) return;
-  const date = formatSaleListDate(sale.date);
-  const nameEl  = card.querySelector('.order-title');
-  const dateEl  = card.querySelector('.order-meta');
-  const moneyEl = card.querySelector('.money .value');
-  if (nameEl && sale.customer_name !== undefined) nameEl.textContent = sale.customer_name || 'Khách lẻ';
-  if (dateEl && sale.date !== undefined) dateEl.textContent = '📅 ' + date;
-  if (moneyEl && sale.total !== undefined) moneyEl.textContent = typeof Format !== 'undefined' ? Format.number(sale.total) : formatVND(sale.total).replace(' đ', '');
-  const isReturned   = sale.status === 'returned';
-  const isReplacement = sale.type === 'replacement';
-  const isGift        = sale.type === 'gift';
-  const kegDeliver = sale.deliver_kegs || 0;
-  const kegReturn  = sale.return_kegs  || 0;
-  const kegBadgeHtml = (kegDeliver || kegReturn)
-    ? '<span class="text-xs text-secondary ml-1 shrink-0">[G:' + kegDeliver + ' T:' + kegReturn + ']</span>'
-    : '';
-  const actionsEl = card.querySelector('.order-actions');
-  if (actionsEl) actionsEl.innerHTML = isReturned
-    ? '<button class="btn btn-secondary btn-sm">Đã trả</button>'
-    : '<button onclick="viewSale(' + sale.id + ')" class="btn btn-secondary btn-sm">Hóa đơn</button>' +
-      '<button onclick="openKegModal(' + sale.id + ')" class="btn btn-warning btn-sm">Sửa vỏ</button>' +
-      '<button onclick="editSale(' + sale.id + ')" class="btn btn-ghost btn-sm">Sửa</button>' +
-      '<button onclick="deleteSale(' + sale.id + ')" class="btn btn-danger btn-sm">Xóa</button>';
-  const footerEl = card.querySelector('.order-footer');
-  if (footerEl) {
-    const qtyEl = footerEl.querySelector('.order-meta');
-    if (kegBadgeHtml) {
-      const existingBadge = footerEl.querySelector('.keg-badge');
-      if (existingBadge) existingBadge.remove();
-      if (qtyEl) qtyEl.insertAdjacentHTML('afterend', kegBadgeHtml);
-    }
-  }
-  card.className = 'order-item ' + (isReplacement ? 'border-l-4 border-warning' : isGift ? 'border-l-4 border-primary' : 'border-l-4 border-success');
+  const saleMoney = typeof Format !== 'undefined' ? Format.number(sale.total) : formatVND(sale.total).replace(' đ', '');
+  // Update money cell
+  var moneyEl = card.querySelector('.ob-col-total');
+  if (moneyEl) moneyEl.textContent = saleMoney;
+  // Update status class
+  var isReturned   = sale.status === 'returned';
+  var isReplacement = sale.type === 'replacement';
+  var isGift        = sale.type === 'gift';
+  card.className = 'ob-row ' + (isReturned ? 'ob-active-sell' : isReplacement ? 'ob-active' : 'ob-active-buy');
 }
 
 async function loadSalesHistory() {
@@ -1887,64 +1873,36 @@ function renderHistoryPage() {
   _saleCardMap.clear();
 
   if (pageItems.length === 0) {
-    container.innerHTML = '<p class="text-muted text-center py-4">Chưa có hóa đơn nào</p>';
+    container.innerHTML = '<p class="text-muted text-center py-3 text-sm">Chua co hoa don</p>';
     renderPagination();
     return;
   }
 
-  var parts = ['<div class="flex flex-col gap-3">'];
+  var parts = [];
   for (var i = 0; i < pageItems.length; i++) {
     var sale = pageItems[i];
     var date = formatSaleListDate(sale.date);
-    var customerName = sale.customer_name || 'Khách lẻ';
+    var customerName = sale.customer_name || 'Khach le';
     var isReturned = sale.status === 'returned';
     var itemsQty = parseInt(sale.items_qty, 10) || 0;
     var isReplacement = sale.type === 'replacement';
     var isGift = sale.type === 'gift';
-    var badgeHtml = isReplacement ? '<span class="badge badge-warning">🔁 Đổi lỗi</span>'
-                  : isGift ? '<span class="badge badge-primary">🎁 Tặng thử</span>'
-                  : '';
-    var badgeLeft = isReplacement ? 'border-l-4 border-warning'
-                  : isGift ? 'border-l-4 border-primary'
-                  : 'border-l-4 border-success';
-    var qtyLabel = itemsQty > 0 ? '📦 ' + itemsQty + 'L' : '';
-    var kegDeliver = sale.deliver_kegs || 0;
-    var kegReturn  = sale.return_kegs  || 0;
-    var kegBadgeHtml = (kegDeliver || kegReturn)
-      ? '<span class="text-xs text-secondary ml-1 shrink-0">[G:' + kegDeliver + ' T:' + kegReturn + ']</span>'
-      : '';
     var saleMoney = typeof Format !== 'undefined' ? Format.number(sale.total) : formatVND(sale.total).replace(' đ', '');
-
+    var statusClass = isReturned ? 'ob-active-sell' : (isReplacement ? 'ob-active' : 'ob-active-buy');
+    var badgeHtml = isReplacement ? '<span class="badge-pill bp-warning" style="font-size:10px;padding:1px 5px;">DOI LOI</span>'
+                      : isGift ? '<span class="badge-pill bp-muted" style="font-size:10px;padding:1px 5px;">TANG THU</span>'
+                      : '';
     parts.push(
-'<div class="order-item ' + badgeLeft + '" data-sale-id="' + sale.id + '">' +
-  '<div class="order-header">' +
-    '<div class="flex items-center gap-2 min-w-0 flex-1">' +
-      '<span class="text-xs font-semibold text-secondary shrink-0">#' + sale.id + '</span>' +
-      '<span class="order-title">' + customerName + '</span>' +
-      (badgeHtml ? '<span class="shrink-0">' + badgeHtml + '</span>' : '') +
-    '</div>' +
-    '<span class="order-meta">📅 ' + date + '</span>' +
+'<div class="ob-row ' + statusClass + ' data-sale-id="' + sale.id + '" onclick="viewSale(' + sale.id + ')">' +
+  '<div class="ob-col" style="flex:0 0 52px;font-size:11px;color:var(--text-muted);">' + date + '</div>' +
+  '<div class="ob-col" style="flex:2;min-width:0;">' +
+    '<div class="font-semibold text-sm text-main" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + customerName + '</div>' +
   '</div>' +
-  '<div class="order-footer">' +
-    '<div class="flex items-baseline gap-1">' +
-      '<div class="money text-money"><span class="value text-xl font-bold tabular-nums">' + saleMoney + '</span><span class="unit">đ</span></div>' +
-    '</div>' +
-    (qtyLabel ? '<span class="order-meta">' + qtyLabel + '</span>' : '') +
-    (kegBadgeHtml ? '<span class="order-meta">' + kegBadgeHtml + '</span>' : '') +
-  '</div>' +
-  '<div class="order-actions">' +
-    (isReturned
-      ? '<button class="btn btn-secondary btn-sm">Đã trả</button>'
-      : '<button onclick="viewSale(' + sale.id + ')" class="btn btn-secondary btn-sm">Hóa đơn</button>' +
-        '<button onclick="openKegModal(' + sale.id + ')" class="btn btn-warning btn-sm">Sửa vỏ</button>' +
-        '<button onclick="editSale(' + sale.id + ')" class="btn btn-ghost btn-sm">Sửa</button>' +
-        '<button onclick="deleteSale(' + sale.id + ')" class="btn btn-danger btn-sm">Xóa</button>'
-    ) +
-  '</div>' +
+  '<div class="ob-col ob-col-total ob-money" style="flex:0 0 80px;font-size:13px;">' + saleMoney + '</div>' +
+  badgeHtml +
 '</div>'
     );
   }
-  parts.push('</div>');
   container.innerHTML = parts.join('');
 
   // Cache card DOM refs for patchSaleRow()
@@ -1971,7 +1929,7 @@ function renderPagination() {
   if (totalPages <= 1) {
     if (total > 0) {
       container.insertAdjacentHTML('beforeend',
-        '<div class="history-total-row text-center text-xs text-secondary mt-3 pt-2 border-t border-muted/70">Tổng ' + total + ' đơn</div>'
+        '<div class="text-center text-xs text-secondary mt-3 pt-2 border-t border-muted/70" style="letter-spacing:0.03em;">Tong ' + total + ' don</div>'
       );
     }
     return;
@@ -1981,20 +1939,20 @@ function renderPagination() {
   const nextD = page === totalPages;
 
   container.insertAdjacentHTML('beforeend',
-    `<nav class="flex items-center justify-center gap-3 mt-4 pt-3 border-t border-muted" role="navigation" aria-label="Phân trang">
+    `<nav class="flex items-center justify-center gap-3 mt-3 pt-3 border-t border-muted" role="navigation" aria-label="Phan trang">
       <button onclick="changeSalesPage(${page - 1})" ${prevD ? 'disabled' : ''}
-        class="min-w-[44px] min-h-[44px] w-11 h-11 rounded-full flex items-center justify-center text-base font-semibold transition-all
-          ${prevD ? 'border border-muted/30 bg-bg text-muted cursor-not-allowed opacity-50 pointer-events-none' : 'border border-muted shadow-sm text-main hover:bg-bg-hover active:scale-90'}"
-        aria-label="Trang trước" aria-disabled="${prevD}">
+        class="min-w-[36px] min-h-[36px] w-9 h-9 rounded-full flex items-center justify-center text-base font-semibold transition-all"
+        style="${prevD ? 'border:1px solid var(--border);color:var(--text-muted);cursor:not-allowed;opacity:0.5;' : 'border:1px solid var(--border);color:var(--text-primary);cursor:pointer;'}"
+        aria-label="Trang truoc" aria-disabled="${prevD}">
         ‹
       </button>
-      <div class="flex flex-col justify-center items-center min-w-[4.5rem]">
+      <div class="flex flex-col justify-center items-center min-w-[4rem]">
         <span class="text-sm font-bold text-main tabular-nums leading-tight">${page} / ${totalPages}</span>
-        <span class="text-[11px] text-secondary leading-tight mt-0.5">${total} đơn</span>
+        <span class="text-[11px] text-secondary leading-tight mt-0.5">${total} don</span>
       </div>
       <button onclick="changeSalesPage(${page + 1})" ${nextD ? 'disabled' : ''}
-        class="min-w-[44px] min-h-[44px] w-11 h-11 rounded-full flex items-center justify-center text-base font-semibold transition-all
-          ${nextD ? 'border border-muted/30 bg-bg text-muted cursor-not-allowed opacity-50 pointer-events-none' : 'border border-muted shadow-sm text-main hover:bg-bg-hover active:scale-90'}"
+        class="min-w-[36px] min-h-[36px] w-9 h-9 rounded-full flex items-center justify-center text-base font-semibold transition-all"
+        style="${nextD ? 'border:1px solid var(--border);color:var(--text-muted);cursor:not-allowed;opacity:0.5;' : 'border:1px solid var(--border);color:var(--text-primary);cursor:pointer;'}"
         aria-label="Trang sau" aria-disabled="${nextD}">
         ›
       </button>

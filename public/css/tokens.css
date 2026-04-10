@@ -130,25 +130,25 @@
   --lh-normal:  1.5;
   --lh-relaxed: 1.6;
 
-  /* Spacing Scale (4px base) */
+  /* Spacing Scale (4px base) — reduced 30% from v5 */
   --space-0:  0px;
-  --space-1:  4px;
-  --space-2:  8px;
-  --space-3:  12px;
-  --space-4:  16px;
-  --space-5:  20px;
-  --space-6:  24px;
-  --space-8:  32px;
-  --space-10: 40px;
-  --space-12: 48px;
+  --space-1:  3px;
+  --space-2:  6px;
+  --space-3:  8px;
+  --space-4:  12px;
+  --space-5:  14px;
+  --space-6:  16px;
+  --space-8:  22px;
+  --space-10: 28px;
+  --space-12: 34px;
 
-  /* Border Radius Scale */
-  --radius-xs:   4px;
-  --radius-sm:   6px;
-  --radius-md:   8px;
-  --radius-lg:   12px;
-  --radius-xl:   16px;
-  --radius-2xl:  20px;
+  /* Border Radius Scale — reduced */
+  --radius-xs:   3px;
+  --radius-sm:   4px;
+  --radius-md:   6px;
+  --radius-lg:   8px;
+  --radius-xl:   10px;
+  --radius-2xl:  12px;
   --radius-full: 9999px;
 
   /* Shadows — Dark Theme */
@@ -317,7 +317,7 @@
   --card-bg:     var(--card);
   --card-border: var(--border);
   --card-radius: var(--radius-lg);
-  --card-padding: 14px;
+  --card-padding: 10px;
   --card-shadow: var(--shadow-sm);
   --card-hover-shadow: var(--shadow-md);
   --card-shadow-sm: var(--shadow-xs);
