@@ -180,27 +180,56 @@
   <!-- Sync status indicator -->
   <div id="syncStatusIndicator" style="position:fixed;top:8px;right:8px;z-index:200;font-size:11px;padding:4px 8px;border-radius:20px;background:#161a1e;border:1px solid #2a2e39;opacity:0.8;display:none;"></div>
 
-  <!-- Invoice Modal -->
-  <div id="invoiceModal" class="invoice-overlay hidden">
-    <div class="invoice-modal fit-screen">
-      <div class="invoice-header">
-        <span class="invoice-title">HÓA ĐƠN</span>
-        <button onclick="closeInvoice()" class="close-btn">&times;</button>
+  <!-- Invoice Modal — Binance Style, Full POS -->
+  <div id="invoiceModal" class="inv-overlay hidden">
+    <div class="invoice-modal">
+      <!-- Header -->
+      <div class="inv-header">
+        <div class="inv-header-left">
+          <div class="inv-title">HÓA ĐƠN</div>
+          <div class="inv-order-id" id="invOrderId">#—</div>
+        </div>
+        <button onclick="closeInvoice()" class="inv-close">&times;</button>
       </div>
-      <div class="invoice-total-card">
-        <div class="invoice-total-label">TỔNG THANH TOÁN</div>
-        <div class="invoice-total-value tabular-nums" id="invoiceTotalValue">0</div>
+
+      <!-- Customer info -->
+      <div class="inv-customer-card">
+        <div class="inv-customer-name" id="invCustomerName">—</div>
+        <div class="inv-customer-meta" id="invCustomerMeta"></div>
       </div>
-      <div class="invoice-main-card">
-        <div class="invoice-meta" id="invoiceMeta"></div>
-        <div class="invoice-customer" id="invoiceCustomer"></div>
-        <div class="divider"></div>
+
+      <!-- Product list (flex grow, scrollable) -->
+      <div class="inv-items-list" id="invItemsList"></div>
+
+      <!-- Bottle flow -->
+      <div class="inv-kegs-card" id="invKegsCard">
+        <div class="inv-kegs-row">
+          <div class="inv-kegs-cell">
+            <div class="inv-kegs-label inv-kegs-giao">📦 Giao vỏ</div>
+            <div class="inv-kegs-value" id="invKegDeliver">0</div>
+          </div>
+          <div class="inv-kegs-divider"></div>
+          <div class="inv-kegs-cell">
+            <div class="inv-kegs-label inv-kegs-thu">🔄 Thu vỏ</div>
+            <div class="inv-kegs-value" id="invKegReturn">0</div>
+          </div>
+          <div class="inv-kegs-divider"></div>
+          <div class="inv-kegs-cell">
+            <div class="inv-kegs-label">Vỏ đang giữ</div>
+            <div class="inv-kegs-value inv-kegs-balance" id="invKegBalance">0</div>
+          </div>
+        </div>
       </div>
-      <div id="invoiceItemsList"></div>
-      <div class="invoice-qr-card">
-        <div class="qr-label">Phương thức thanh toán</div>
-        <img id="qrCode" src="" alt="QR Code">
-        <div class="qr-note">Quét QR để thanh toán</div>
+
+      <!-- Total -->
+      <div class="inv-total-row">
+        <span class="inv-total-label">Tổng cộng</span>
+        <span class="inv-total-value" id="invTotalValue">0đ</span>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="inv-actions" id="invActions">
+        <!-- Rendered by JS based on mode -->
       </div>
     </div>
   </div>

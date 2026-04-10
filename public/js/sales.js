@@ -208,72 +208,97 @@ function renderSaleHistory(sales) {
   }).join('');
 }
 
-// View sale — open checkout modal in read-only mode
+// View sale — open invoice modal (read-only) with Binance layout
 function viewSale(saleId) {
   fetch('/sale/' + saleId, { cache: 'no-store' })
     .then(function(res) { return res.json(); })
     .then(function(data) {
       if (!data.sale) { showToast('Không tìm thấy đơn', 'error'); return; }
       var sale = data.sale;
+
+      // Lưu lại để các action (edit/delete/keg) dùng lại
+      window._invSaleData = sale;
+      window._invSaleId = saleId;
+
       var customerName = sale.customer_name || 'Khách lẻ';
       var total = sale.total || 0;
       var dateStr = sale.date ? new Date(sale.date).toLocaleString('vi-VN', {
         day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
       }) : '';
+      var isReturned = sale.status === 'returned';
 
-      // Tính tổng số lít
-      var totalLiters = 0;
-      (sale.items || []).forEach(function(item) {
-        var name = item.name || '';
-        var match = name.match(/(\d+)\s*[Ll]/);
-        if (match) {
-          totalLiters += (parseInt(match[1]) || 0) * (parseInt(item.quantity) || 0);
-        }
-      });
+      // Header
+      document.getElementById('invOrderId').textContent = '#' + saleId;
 
-      // Render items
-      var itemsHtml = (sale.items || []).map(function(item) {
-        return '<div class="pos-modal-item">' +
-          '<div class="pos-modal-item-name">' + escHtml(item.name || 'SP') + '</div>' +
-          '<div class="pos-modal-item-qty">x' + item.quantity + '</div>' +
-          '<div class="pos-modal-item-total">' + formatVND(item.quantity * item.price) + '</div>' +
+      // Customer
+      document.getElementById('invCustomerName').textContent = customerName;
+      document.getElementById('invCustomerMeta').textContent = dateStr;
+
+      // Items
+      var itemsList = document.getElementById('invItemsList');
+      itemsList.innerHTML = (sale.items || []).map(function(item) {
+        var lineTotal = (item.quantity || 0) * (item.price || 0);
+        return '<div class="inv-item">' +
+          '<div class="inv-item-left">' +
+            '<div class="inv-item-name">' + escHtml(item.name || 'SP') + '</div>' +
+            '<div class="inv-item-qty">x' + item.quantity + ' · ' + formatVND(item.price) + '/sp</div>' +
+          '</div>' +
+          '<div class="inv-item-right">' +
+            '<div class="inv-item-total">' + formatVND(lineTotal) + '</div>' +
+          '</div>' +
         '</div>';
       }).join('');
 
-      // Kegs info
-      var kegsHtml = '';
-      if (totalLiters > 0 || sale.deliver_kegs > 0 || sale.return_kegs > 0) {
-        var kegsParts = [];
-        if (totalLiters > 0) kegsParts.push('SL: ' + totalLiters + 'L');
-        if (sale.deliver_kegs > 0) kegsParts.push('Giao: ' + sale.deliver_kegs);
-        if (sale.return_kegs > 0) kegsParts.push('Thu: ' + sale.return_kegs);
-        kegsHtml = '<div class="pos-modal-kegs">' + kegsParts.join('  |  ') + '</div>';
-      }
+      // Kegs card
+      var deliverKegs = sale.deliver_kegs || 0;
+      var returnKegs  = sale.return_kegs  || 0;
+      var customer    = getCustomer(sale.customer_id);
+      var balance     = customer ? (customer.keg_balance || 0) : 0;
 
-      var body = document.getElementById('checkoutModalBody');
-      if (!body) return;
-      body.innerHTML =
-        '<div class="pos-modal-header-info">' +
-          '<div class="pos-modal-customer">👤 ' + escHtml(customerName) + '</div>' +
-          '<div class="pos-modal-date">#' + sale.id + ' · ' + dateStr + '</div>' +
-        '</div>' +
-        kegsHtml +
-        itemsHtml +
-        '<div class="pos-modal-summary">' +
-          '<div class="pos-modal-summary-label">Tổng cộng</div>' +
-          '<div class="pos-modal-summary-value">' + formatVND(total) + '</div>' +
-        '</div>' +
-        '<div class="pos-modal-actions">' +
-          '<button type="button" onclick="closeCheckoutModal()" class="pos-modal-btn-cancel">Đóng</button>' +
-        '</div>';
+      document.getElementById('invKegDeliver').textContent = deliverKegs;
+      document.getElementById('invKegReturn').textContent  = returnKegs;
+      document.getElementById('invKegBalance').textContent  = balance;
 
-      var modal = document.getElementById('checkoutModal');
+      // Total
+      document.getElementById('invTotalValue').textContent = formatVND(total);
+
+      // Actions
+      document.getElementById('invActions').innerHTML =
+        '<button class="inv-btn inv-btn-ghost" onclick="closeInvoice()">Đóng</button>' +
+        '<button class="inv-btn inv-btn-kegs" onclick="openKegFromInvoice(' + saleId + ')">📦 Vỏ</button>' +
+        (isReturned ? '' :
+          '<button class="inv-btn inv-btn-primary" onclick="openEditSale(' + saleId + '); closeInvoice();">✏️ Sửa</button>' +
+          '<button class="inv-btn inv-btn-danger" onclick="deleteSale(' + saleId + '); closeInvoice();">🗑 Xóa</button>'
+        );
+
+      var modal = document.getElementById('invoiceModal');
       if (modal) modal.classList.remove('hidden');
     })
     .catch(function(err) {
       console.error('viewSale error:', err);
       showToast('Lỗi tải đơn', 'error');
     });
+}
+
+// Mở modal vỏ từ trong invoice modal
+function openKegFromInvoice(saleId) {
+  var sale = window._invSaleData;
+  if (!sale) {
+    // Fallback: load lại
+    fetch('/sale/' + saleId, { cache: 'no-store' })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        if (data.sale) openKegFromSaleData(data.sale, saleId);
+      });
+    return;
+  }
+  openKegFromSaleData(sale, saleId);
+}
+
+function openKegFromSaleData(sale, saleId) {
+  window._invSaleData = sale;
+  closeInvoice();
+  openKegModalForSale(saleId, sale.customer_id, sale.deliver_kegs, sale.return_kegs);
 }
 
 // Open keg modal for a specific sale — load sale data first
@@ -1175,10 +1200,33 @@ function updateSale() {
 // ============================================================
 // INVOICE
 // ============================================================
+// Invoice Modal — open / close / click-outside
 function closeInvoice() {
-  var modal = document.getElementById('invoiceModal');
-  if (modal) modal.classList.add('hidden');
+  var overlay = document.getElementById('invoiceModal');
+  if (!overlay) return;
+  overlay.classList.add('hidden');
+  overlay.style.pointerEvents = 'none';
+  // Clean up cached sale data
+  window._invSaleData = null;
+  window._invSaleId = null;
 }
+
+function openInvoiceInternal() {
+  var overlay = document.getElementById('invoiceModal');
+  if (!overlay) return;
+  overlay.classList.remove('hidden');
+  overlay.style.pointerEvents = 'auto';
+  // Click outside to close
+  overlay.addEventListener('click', function onOverlayClick(e) {
+    if (e.target === overlay) {
+      closeInvoice();
+      overlay.removeEventListener('click', onOverlayClick);
+    }
+  });
+}
+
+// Keep closeInvoice exported for onclick handlers
+window.closeInvoice = closeInvoice;
 
 // ============================================================
 // UTILITIES
