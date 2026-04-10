@@ -129,68 +129,157 @@ function renderSaleHistory(sales) {
       return (i.product_name || 'SP') + ' x' + i.quantity;
     }).join(', ');
     var totalStr = formatVND(s.total || 0);
-    var isEditable = !s.edited;
+    var isReturned = s.status === 'returned';
+    var typeLabel = '';
+    if (s.type === 'replacement') typeLabel = '<span style="color:#f59e0b;font-size:11px;margin-left:6px;">Đổi lỗi</span>';
+    else if (s.type === 'damage_return') typeLabel = '<span style="color:#f6465d;font-size:11px;margin-left:6px;">Trả hàng</span>';
 
-    return '<div class="sale-history-item"' +
-      ' onclick="openEditSale(' + s.id + ')"' +
-      ' title="Click để sửa">' +
+    return '<div class="sale-history-item">' +
       '<div class="sale-history-top">' +
-        '<div class="sale-history-customer">' + escHtml(customerName) + '</div>' +
+        '<div class="sale-history-customer">' + escHtml(customerName) + typeLabel + '</div>' +
         '<div class="sale-history-total">' + totalStr + '</div>' +
       '</div>' +
-      '<div class="sale-history-meta">' + dateStr + '</div>' +
+      '<div class="sale-history-meta">#' + s.id + ' · ' + dateStr + '</div>' +
       '<div class="sale-history-items">' + escHtml(itemNames) + '</div>' +
+      '<div class="sale-history-actions">' +
+        '<button class="action-view" onclick="viewSale(' + s.id + ')">👁 Xem</button>' +
+        '<button class="action-return" onclick="returnSale(' + s.id + ')"' + (isReturned ? ' disabled' : '') + '>🔄 Trả</button>' +
+        '<button class="action-edit" onclick="openEditSale(' + s.id + ')"' + (isReturned ? ' disabled' : '') + '>✏️ Sửa</button>' +
+        '<button class="action-delete" onclick="deleteSale(' + s.id + ')">🗑 Xóa</button>' +
+      '</div>' +
     '</div>';
   }).join('');
+}
+
+// View sale — open checkout modal in read-only mode
+function viewSale(saleId) {
+  fetch('/sale/' + saleId, { cache: 'no-store' })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (!data.sale) { showToast('Không tìm thấy đơn', 'error'); return; }
+      var sale = data.sale;
+      var customerName = sale.customer_name || 'Khách lẻ';
+      var total = sale.total || 0;
+      var itemsHtml = (sale.items || []).map(function(item) {
+        return '<div class="pos-modal-item">' +
+          '<div class="pos-modal-item-name">' + escHtml(item.name || 'SP') + '</div>' +
+          '<div class="pos-modal-item-qty">x' + item.quantity + '</div>' +
+          '<div class="pos-modal-item-total">' + formatVND(item.quantity * item.price) + '</div>' +
+        '</div>';
+      }).join('');
+
+      var body = document.getElementById('checkoutModalBody');
+      if (!body) return;
+      body.innerHTML =
+        '<div class="pos-modal-customer">👤 ' + escHtml(customerName) + ' <span style="color:#848e9c;font-size:12px;">#' + sale.id + '</span></div>' +
+        itemsHtml +
+        '<div class="pos-modal-summary">' +
+          '<div class="pos-modal-summary-label">Tổng cộng</div>' +
+          '<div class="pos-modal-summary-value">' + formatVND(total) + '</div>' +
+        '</div>' +
+        '<div class="pos-modal-actions">' +
+          '<button type="button" onclick="closeCheckoutModal()" class="pos-modal-btn-cancel">Đóng</button>' +
+        '</div>';
+
+      var modal = document.getElementById('checkoutModal');
+      if (modal) modal.classList.remove('hidden');
+    })
+    .catch(function() { showToast('Lỗi tải đơn', 'error'); });
+}
+
+// Return sale
+function returnSale(saleId) {
+  if (!confirm('Trả hàng cho đơn #' + saleId + '?')) return;
+  fetch('/api/sales/' + saleId + '/return', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ returnType: 'stock_return' })
+  })
+  .then(function(res) { return res.json(); })
+  .then(function(data) {
+    if (data.success) {
+      showToast('Đã trả hàng thành công', 'success');
+      loadSaleHistory();
+      window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'sale' } }));
+    } else {
+      showToast(data.error || 'Lỗi trả hàng', 'error');
+    }
+  })
+  .catch(function() { showToast('Lỗi kết nối', 'error'); });
+}
+
+// Delete sale
+function deleteSale(saleId) {
+  if (!confirm('Xóa đơn #' + saleId + '? Hành động này không thể hoàn tác.')) return;
+  fetch('/api/sales/' + saleId, { method: 'DELETE' })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (data.success) {
+        showToast('Đã xóa đơn', 'success');
+        loadSaleHistory();
+        window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'sale' } }));
+      } else {
+        showToast(data.error || 'Lỗi xóa đơn', 'error');
+      }
+    })
+    .catch(function() { showToast('Lỗi kết nối', 'error'); });
 }
 
 function openEditSale(saleId) {
   editingSaleId = saleId;
 
-  // Load sale data
   fetch('/sale/' + saleId, { cache: 'no-store' })
     .then(function(res) { return res.json(); })
     .then(function(data) {
-      if (data.sale) {
-        var sale = data.sale;
-        saleState.customerId = sale.customer_id ? Number(sale.customer_id) : null;
-
-        // Load items
-        saleState.items = (sale.items || []).map(function(item) {
-          return {
-            productId: Number(item.product_id),
-            qty: item.quantity || 0,
-            price: item.price || 0
-          };
-        });
-
-        // Update customer UI
-        var customerSelect = document.getElementById('customerSelect');
-        var customerSearch = document.getElementById('customerSearch');
-        var badge = document.getElementById('selectedCustomerBadge');
-        if (customerSelect) customerSelect.value = saleState.customerId || '';
-        if (saleState.customerId) {
-          var customer = getCustomer(saleState.customerId);
-          if (customerSearch) customerSearch.value = customer?.name || '';
-          if (badge) {
-            badge.classList.remove('hidden');
-            badge.innerHTML = '<span>👤</span> ' + escHtml(customer?.name || '');
-          }
-        }
-
-        renderProducts();
-        updateTotal();
-
-        var sellBtn = document.getElementById('sellBtn');
-        if (sellBtn) {
-          sellBtn.disabled = false;
-          sellBtn.innerHTML = '💾 Cập nhật đơn';
-        }
-
-        // Show edit bar
-        var sheet = document.getElementById('saleEditAuxSheet');
-        if (sheet) sheet.classList.remove('hidden');
+      // data.sale or data itself (from proxy)
+      var sale = data.sale || data;
+      if (!sale) { showToast('Không tìm thấy đơn', 'error'); return; }
+      if (sale.status === 'returned') {
+        showToast('Đơn đã trả hàng, không thể sửa', 'error');
+        return;
       }
+
+      saleState.customerId = sale.customer_id ? Number(sale.customer_id) : null;
+
+      // Load items
+      var saleItems = sale.items || [];
+      saleState.items = saleItems.map(function(item) {
+        return {
+          productId: Number(item.product_id),
+          qty: item.quantity || 0,
+          price: item.price || 0
+        };
+      });
+
+      // Update customer UI
+      var customerSelect = document.getElementById('customerSelect');
+      var customerSearch = document.getElementById('customerSearch');
+      var badge = document.getElementById('selectedCustomerBadge');
+      if (customerSelect) customerSelect.value = saleState.customerId || '';
+      if (saleState.customerId) {
+        var customer = getCustomer(saleState.customerId);
+        if (customerSearch) customerSearch.value = customer?.name || '';
+        if (badge) {
+          badge.classList.remove('hidden');
+          badge.innerHTML = '<span>👤</span> ' + escHtml(customer?.name || '');
+        }
+      }
+
+      renderProducts();
+      updateTotal();
+
+      var sellBtn = document.getElementById('sellBtn');
+      if (sellBtn) {
+        sellBtn.disabled = false;
+        sellBtn.innerHTML = '💾 Cập nhật đơn';
+      }
+
+      // Show edit bar
+      var sheet = document.getElementById('saleEditAuxSheet');
+      if (sheet) sheet.classList.remove('hidden');
+
+      // Scroll to top
+      document.getElementById('saleMainContent')?.scrollTo(0, 0);
     })
     .catch(function(err) {
       console.error('openEditSale error:', err);

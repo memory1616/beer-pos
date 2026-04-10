@@ -258,19 +258,19 @@
             '<div id="productList"></div>' +
           '</div>' +
 
-          /* Recent sales history (max 5 orders) */
+          /* Checkout box — between products and history */
+          '<div class="sale-checkout-box" id="saleFooter">' +
+            '<div class="sale-checkout-row">' +
+              '<span class="sale-checkout-label">Tổng tiền</span>' +
+              '<span class="sale-checkout-value" id="totalAmount">0đ</span>' +
+            '</div>' +
+            '<button type="button" onclick="openCheckoutModal()" id="sellBtn" class="sale-btn-checkout" disabled>✅ BÁN HÀNG</button>' +
+          '</div>' +
+
+          /* Recent sales history (max 5 orders) — bottom of page */
           '<div class="sale-section" id="saleHistorySection">' +
             '<div class="sale-section-label">ĐƠN GẦN ĐÂY</div>' +
             '<div id="saleHistoryList"></div>' +
-          '</div>' +
-
-          /* Total + Action */
-          '<div class="sale-footer" id="saleFooter">' +
-            '<div class="sale-total-row">' +
-              '<span class="sale-total-label">Tổng tiền</span>' +
-              '<span class="sale-total-value" id="totalAmount">0đ</span>' +
-            '</div>' +
-            '<button type="button" onclick="openCheckoutModal()" id="sellBtn" class="sale-btn-checkout" disabled>✅ BÁN HÀNG</button>' +
           '</div>' +
         '</main>' +
         getBottomNav('/sale');

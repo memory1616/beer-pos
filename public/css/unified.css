@@ -5787,12 +5787,10 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   background: #1e2329;
   border: 1px solid #2a2e39;
   border-radius: 10px;
-  padding: 12px;
-  cursor: pointer;
-  transition: background 0.12s;
+  padding: 10px;
+  transition: border-color 0.12s;
 }
-.sale-history-item:hover { background: #252a33; border-color: #3a4250; }
-.sale-history-item:active { transform: scale(0.98); }
+.sale-history-item:hover { border-color: #3a4250; }
 
 .sale-history-top {
   display: flex;
@@ -5822,17 +5820,80 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
 .sale-history-items {
   font-size: 12px;
   color: #848e9c;
-  margin-top: 4px;
+  margin-top: 2px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.sale-history-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #2a2e39;
+}
+
+.sale-history-actions button {
+  flex: 1;
+  height: 30px;
+  border-radius: 6px;
+  border: 1px solid #2a2e39;
+  background: transparent;
+  color: #848e9c;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.12s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.sale-history-actions button:hover { background: #252a33; color: #eaecef; border-color: #3a4250; }
+.sale-history-actions button:active { transform: scale(0.97); }
+.sale-history-actions button.action-view:hover { border-color: #3b82f6; color: #3b82f6; }
+.sale-history-actions button.action-return:hover { border-color: #f59e0b; color: #f59e0b; }
+.sale-history-actions button.action-edit:hover { border-color: #10b981; color: #10b981; }
+.sale-history-actions button.action-delete:hover { border-color: #f6465d; color: #f6465d; }
 
 .sale-history-empty {
   text-align: center;
   padding: 16px;
   color: #848e9c;
   font-size: 13px;
+}
+
+/* ── Checkout Box ── */
+.sale-checkout-box {
+  background: #1e2329;
+  border: 1px solid #2a2e39;
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 16px;
+  position: sticky;
+  bottom: calc(var(--bottomnav-height) + 8px);
+  z-index: 10;
+}
+
+.sale-checkout-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.sale-checkout-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #848e9c;
+}
+
+.sale-checkout-value {
+  font-size: 18px;
+  font-weight: 800;
+  color: #fcd535;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Sale app: flex column */
