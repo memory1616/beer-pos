@@ -338,7 +338,7 @@ function renderInvoiceModalContent(invoice, saleIdForActions) {
   if (!rows) {
     itemsList.innerHTML =
       '<div class="inv-empty-state" style="text-align:center;padding:20px 16px;color:#848e9c;font-size:13px;">Đơn không có dòng sản phẩm.</div>';
-  } else {
+    } else {
     itemsList.innerHTML = rows;
   }
 
@@ -528,8 +528,8 @@ function submitCollectKegForSale(saleId) {
   // Call update-kegs API with saleId
   var body = { saleId: saleId, customerId: customerId, deliver: deliver, returned: returned };
   fetch('/api/sales/update-kegs', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   })
   .then(function(res) { return res.json(); })
@@ -541,9 +541,9 @@ function submitCollectKegForSale(saleId) {
       window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'kegs' } }));
     } else {
       showToast(data.error || 'Lỗi cập nhật vỏ', 'error');
-    }
-  })
-  .catch(function(err) {
+        }
+      })
+      .catch(function(err) {
     console.error('submitCollectKegForSale error:', err);
     showToast('Lỗi kết nối', 'error');
   });
@@ -557,7 +557,7 @@ function deleteSale(saleId) {
     .then(function(data) {
       if (data.success) {
         showToast('Đã xóa đơn', 'success');
-        window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'sale' } }));
+    window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'sale' } }));
       } else {
         showToast(data.error || 'Lỗi xóa đơn', 'error');
       }
@@ -738,7 +738,7 @@ function onQtyChange(productId, value) {
 
   if (qty <= 0) {
     saleState.items = saleState.items.filter(function(i) { return i.productId !== productId; });
-  } else {
+      } else {
     var existing = saleState.items.find(function(i) { return i.productId === productId; });
     if (existing) {
       existing.qty = qty;
@@ -1097,7 +1097,7 @@ function submitReplacement() {
       giftGuestName: giftGuestName
     })
   })
-  .then(function(res) { return res.json(); })
+      .then(function(res) { return res.json(); })
   .then(function(data) {
     if (data.success) {
       showToast(data.message || 'Đã đổi bia lỗi', 'success');
@@ -1106,8 +1106,8 @@ function submitReplacement() {
     } else {
       showToast(data.error || 'Lỗi khi đổi bia', 'error');
     }
-  })
-  .catch(function(err) {
+      })
+      .catch(function(err) {
     console.error('submitReplacement error:', err);
     showToast('Lỗi kết nối', 'error');
   })
@@ -1166,7 +1166,7 @@ function updateKegModalPreview() {
     if (newBalance < 0) {
       warningEl.classList.remove('hidden');
       warningEl.textContent = '⚠️ Số vỏ thu vượt quá khách đang giữ';
-    } else {
+  } else {
       warningEl.classList.add('hidden');
     }
   }
@@ -1187,9 +1187,9 @@ function saveKegUpdate() {
   if (btn) { btn.disabled = true; btn.innerHTML = 'Đang lưu...'; }
 
   fetch('/api/sales/update-kegs', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
       customer_id: customerId,
       deliver_kegs: deliver,
       return_kegs: returned
@@ -1339,7 +1339,7 @@ function submitCollectKeg() {
         showToast('Đã thu vỏ', 'success');
         closeCollectKegModal();
         window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'kegs' } }));
-      } else {
+    } else {
         showToast(data.error || 'Lỗi thu vỏ', 'error');
       }
     })

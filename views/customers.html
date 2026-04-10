@@ -463,10 +463,8 @@
 <body class="bg-main text-primary body--app">
   <div id="app"></div>
 
-  <!-- Floating Add Button -->
-  <button onclick="showModal('addModal')" class="fixed bottom-24 right-4 w-14 h-14 bg-primary text-[#1E2329] rounded-full shadow-xl flex items-center justify-center text-2xl font-bold transition-all duration-200 hover:scale-105 z-40">
-    +
-  </button>
+  <!-- Floating Add Button — .fab class from unified.css, consistent with stock page -->
+  <button onclick="showModal('addModal')" class="fab">+</button>
 
   <!-- Add Modal: POS-optimized UX — keyboard-first, 3-section layout, stepper inputs -->
   <div id="addModal" class="modal-overlay-v2 hidden" role="dialog" aria-modal="true" aria-labelledby="addModalTitle">
