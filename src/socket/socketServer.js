@@ -54,13 +54,15 @@ function init(httpServer) {
       methods: ['GET', 'POST'],
       credentials: true,
     },
-    // Serve static socket.io client from /socket.io/
     serveClient: true,
     // Ping timeout: 20s, interval: 25s
     pingTimeout: 20000,
     pingInterval: 25000,
-    // Transports: prefer websocket, fall back to polling
+    // Transports: prefer WebSocket first, fall back to HTTP polling if proxy blocks upgrade.
+    // This works correctly because Nginx now has Upgrade headers on /socket.io/ location.
     transports: ['websocket', 'polling'],
+    // Allow Socket.IO to upgrade the connection when the client requests it
+    allowUpgrades: true,
   });
 
   // ── Middleware: authenticate on connection ──────────────────────────────────

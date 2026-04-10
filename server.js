@@ -14,7 +14,6 @@ const logger = require('./src/utils/logger');
 const db = require('./database');
 const socketServer = require('./src/socket/socketServer');
 const { getSession, AUTH_CONFIG } = require('./middleware/auth');
-const ws = require('ws');
 const compression = require('compression');
 
 // APP_VERSION: git hash or fallback to build timestamp (computed once at startup)
@@ -83,6 +82,7 @@ app.use('/api', (req, res, next) => {
   // Allow admin subdomain and localhost for dev
   const allowedOrigins = [
     `https://${ADMIN_DOMAIN}`,
+    `https://${PUBLIC_DOMAIN}`,
     'http://localhost:3000',
     'http://127.0.0.1:3000',
   ];
@@ -810,24 +810,9 @@ function getNetworkIPs() {
 
 const server = app.listen(PORT, HOST, () => {
   // Initialize real-time WebSocket server (Socket.IO)
+  // Socket.IO is integrated with the Express HTTP server and works through Nginx
+  // with the proper Upgrade headers on the /socket.io/ location.
   socketServer.init(server);
-
-  // Initialize native WebSocket server (ws library) on separate port 3001
-  // Note: Port 3000 is used by Express + Socket.IO, so ws uses 3001
-  const ws = require('ws');
-  const wss = new ws.Server({ port: 3001 });
-
-  wss.on('connection', (ws) => {
-    console.log('[WS] Native WS connected');
-
-    ws.on('message', (msg) => {
-      console.log('[WS] Received:', msg.toString());
-    });
-
-    ws.send(JSON.stringify({ type: 'WELCOME' }));
-  });
-
-  logger.info('[WS] Native WebSocket server listening on port 3001');
 
   const networkIPs = getNetworkIPs();
   logger.info('Beer POS Pro v2 started');

@@ -38,7 +38,8 @@
   })();
 
   const RECONNECT_OPTS = {
-    transports: ['polling', 'websocket'],
+    // Prefer WebSocket first, fall back to HTTP polling if proxy blocks upgrade.
+    transports: ['websocket', 'polling'],
     reconnection: true,
     reconnectionAttempts: 10,
     reconnectionDelay: 1000,
@@ -113,7 +114,7 @@
     log('INFO', 'Creating singleton socket to: ' + WS_URL + ' (mode=' + mode + ')');
 
     _socket = io(WS_URL, Object.assign({}, RECONNECT_OPTS, {
-      transports: ['polling', 'websocket'],
+      transports: ['websocket', 'polling'],
       auth: { token: getAuthToken() },
       query: { mode: mode },
     }));

@@ -192,10 +192,9 @@
     // and the server can upgrade to websocket via the same connection (CORS workaround).
 
     _socket = io(WS_URL, {
-      // Transport order: websocket first, polling fallback if WS upgrade fails
+      // Prefer WebSocket first, fall back to HTTP polling if proxy blocks upgrade.
+      // Nginx now has Upgrade headers on /socket.io/ so WebSocket should work.
       transports: ['websocket', 'polling'],
-      // Auth token — try cookie first (server sets session_token cookie),
-      // then localStorage fallback
       auth: { token: getAuthToken() },
       query: { mode: mode },
       // Reconnection — unlimited attempts

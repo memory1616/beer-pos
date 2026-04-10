@@ -79,7 +79,14 @@ fi
 
 pm2 save 2>&1 || true
 
-# ── 3b. Đồng bộ landing + static cho nginx (root /var/www/beer-pos)
+# ── 3b. Reload Nginx config (mandatory after code deploy) ────────────────────
+log_step "Reloading Nginx config..."
+if nginx -t 2>&1; then
+    nginx -s reload 2>&1 || log_warn "Nginx reload failed — may need manual restart"
+    log "${GREEN}✓${NC} Nginx reloaded"
+else
+    log_error "Nginx config test failed — not reloading"
+fi
 # Nếu không bước này: trang chủ vẫn là landing.html CŨ, thiếu FAB/chatbot dù git đã pull
 WEB_ROOT="/var/www/beer-pos"
 log_step "Syncing public → nginx web root ($WEB_ROOT)..."

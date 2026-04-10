@@ -186,6 +186,8 @@
     var mode = (window.APP_MODE === 'public') ? 'public' : 'admin';
 
     _socket = _io(_wsUrl, {
+      // Prefer WebSocket first, fall back to HTTP polling if proxy blocks upgrade.
+      // Nginx now has Upgrade headers on /socket.io/ so WebSocket should work.
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionAttempts: SOCKET_IO_RECONNECT_MAX,
