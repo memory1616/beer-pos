@@ -165,13 +165,13 @@ function renderSaleHistory(sales) {
     }).join(', ');
 
     // Tính tổng số lít từ items (tìm số trong tên sản phẩm VD: "Bia 30L" x 5 = 150L)
+    // Nếu tên không chứa số L (VD: bia bom vàng, bia pet) → mặc định 1 lít / dòng
     var totalLiters = 0;
     (s.items || []).forEach(function(item) {
       var name = item.product_name || '';
       var match = name.match(/(\d+)\s*[Ll]/);
-      if (match) {
-        totalLiters += (parseInt(match[1]) || 0) * (parseInt(item.quantity) || 0);
-      }
+      var per = match ? (parseInt(match[1], 10) || 1) : 1;
+      totalLiters += per * (parseInt(item.quantity, 10) || 0);
     });
 
     var totalStr = formatVND(s.total || 0);
@@ -208,95 +208,237 @@ function renderSaleHistory(sales) {
   }).join('');
 }
 
-// View sale — open invoice modal (read-only) with Binance layout
-function viewSale(saleId) {
+// ============================================================
+// INVOICE — single source of truth: window._invoiceContext (set on open, cleared on close)
+// ============================================================
+window._invoiceContext = null;
+
+/** API có thể trả { sale: {...} } (route /sale/:id) hoặc object phẳng (một số proxy). */
+function extractSaleFromResponse(data) {
+  if (!data || typeof data !== 'object') return null;
+  if (data.error && !data.id) return null;
+  if (data.sale && typeof data.sale === 'object') return data.sale;
+  if (data.id != null && (data.items !== undefined || data.total !== undefined)) return data;
+  return null;
+}
+
+/**
+ * Chuẩn hóa hóa đơn — luôn dùng items[], totalAmount, bottleGiven / bottleReceived.
+ * Hỗ trợ alias: products → items; deliver_kegs / return_kegs.
+ */
+function normalizeInvoice(sale) {
+  if (!sale || typeof sale !== 'object') return null;
+  var rawItems = sale.items || sale.products || [];
+  if (!Array.isArray(rawItems)) rawItems = [];
+
+  var items = rawItems.map(function(it) {
+    var qty = Number(it.quantity != null ? it.quantity : it.qty) || 0;
+    var price = Number(it.price != null ? it.price : it.unitPrice) || 0;
+    return {
+      name: it.name || it.product_name || it.productName || 'SP',
+      quantity: qty,
+      price: price,
+      product_id: it.product_id != null ? it.product_id : it.productId
+    };
+  });
+
+  var totalAmount = sale.totalAmount != null ? Number(sale.totalAmount) : (sale.total != null ? Number(sale.total) : NaN);
+  if (!Number.isFinite(totalAmount)) {
+    totalAmount = items.reduce(function(sum, it) { return sum + it.quantity * it.price; }, 0);
+  }
+
+  var bottleGiven = sale.bottleGiven != null ? Number(sale.bottleGiven) : (sale.deliver_kegs != null ? Number(sale.deliver_kegs) : 0);
+  var bottleReceived = sale.bottleReceived != null ? Number(sale.bottleReceived) : (sale.return_kegs != null ? Number(sale.return_kegs) : 0);
+  if (!Number.isFinite(bottleGiven)) bottleGiven = 0;
+  if (!Number.isFinite(bottleReceived)) bottleReceived = 0;
+
+  var cid = sale.customer_id != null ? sale.customer_id : sale.customerId;
+  return {
+    id: sale.id,
+    customer: {
+      id: cid != null ? Number(cid) : null,
+      name: sale.customer_name || sale.customerName || 'Khách lẻ'
+    },
+    items: items,
+    totalAmount: totalAmount,
+    bottleGiven: bottleGiven,
+    bottleReceived: bottleReceived,
+    date: sale.date,
+    status: sale.status,
+    type: sale.type,
+    raw: sale
+  };
+}
+
+function renderInvoiceModalContent(invoice, saleIdForActions) {
+  var orderEl = document.getElementById('invOrderId');
+  var nameEl = document.getElementById('invCustomerName');
+  var metaEl = document.getElementById('invCustomerMeta');
+  var itemsList = document.getElementById('invItemsList');
+  var invActions = document.getElementById('invActions');
+  if (!orderEl || !itemsList || !invActions) return;
+
+  if (!invoice) {
+    orderEl.textContent = '#—';
+    if (nameEl) nameEl.textContent = '—';
+    if (metaEl) metaEl.textContent = '';
+    itemsList.innerHTML =
+      '<div class="inv-empty-state" style="text-align:center;padding:28px 16px;color:#848e9c;font-size:13px;line-height:1.5;">' +
+      'Không có dữ liệu hóa đơn.<br><span style="font-size:12px;opacity:0.85;">Thử tải lại hoặc chọn đơn khác.</span></div>';
+    document.getElementById('invKegDeliver').textContent = '0';
+    document.getElementById('invKegReturn').textContent = '0';
+    document.getElementById('invKegBalance').textContent = '0';
+    document.getElementById('invTotalValue').textContent = '—';
+    invActions.innerHTML = '<button class="inv-btn inv-btn-ghost" type="button" onclick="closeInvoice()">Đóng</button>';
+    return;
+  }
+
+  var sid = saleIdForActions != null ? saleIdForActions : invoice.id;
+  var dateStr = invoice.date ? new Date(invoice.date).toLocaleString('vi-VN', {
+    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+  }) : '';
+  var isReturned = invoice.status === 'returned';
+
+  orderEl.textContent = '#' + sid;
+  if (nameEl) nameEl.textContent = invoice.customer.name || 'Khách lẻ';
+  if (metaEl) metaEl.textContent = dateStr;
+
+  var rows = (invoice.items || []).map(function(item) {
+    var lineTotal = (item.quantity || 0) * (item.price || 0);
+    return '<div class="inv-item">' +
+      '<div class="inv-item-left">' +
+        '<div class="inv-item-name">' + escHtml(item.name || 'SP') + '</div>' +
+        '<div class="inv-item-qty">x' + item.quantity + ' · ' + formatVND(item.price) + '/sp</div>' +
+      '</div>' +
+      '<div class="inv-item-right">' +
+        '<div class="inv-item-total">' + formatVND(lineTotal) + '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  if (!rows) {
+    itemsList.innerHTML =
+      '<div class="inv-empty-state" style="text-align:center;padding:20px 16px;color:#848e9c;font-size:13px;">Đơn không có dòng sản phẩm.</div>';
+  } else {
+    itemsList.innerHTML = rows;
+  }
+
+  var customer = invoice.customer && invoice.customer.id != null ? getCustomer(invoice.customer.id) : null;
+  var balance = customer ? (customer.keg_balance || 0) : 0;
+
+  document.getElementById('invKegDeliver').textContent = String(invoice.bottleGiven);
+  document.getElementById('invKegReturn').textContent = String(invoice.bottleReceived);
+  document.getElementById('invKegBalance').textContent = String(balance);
+
+  document.getElementById('invTotalValue').textContent = formatVND(invoice.totalAmount);
+
+  invActions.innerHTML =
+    '<button class="inv-btn inv-btn-ghost" type="button" onclick="closeInvoice()">Đóng</button>' +
+    '<button class="inv-btn inv-btn-kegs" type="button" onclick="openKegFromInvoice(' + sid + ')">📦 Vỏ</button>' +
+    (isReturned ? '' :
+      '<button class="inv-btn inv-btn-primary" type="button" onclick="openEditSale(' + sid + '); closeInvoice();">✏️ Sửa</button>' +
+      '<button class="inv-btn inv-btn-danger" type="button" onclick="deleteSale(' + sid + '); closeInvoice();">🗑 Xóa</button>'
+    );
+}
+
+function showInvoiceModalElement() {
+  var overlay = document.getElementById('invoiceModal');
+  if (!overlay) return;
+  overlay.classList.remove('hidden');
+  overlay.style.pointerEvents = 'auto';
+  if (!overlay._invOverlayBound) {
+    overlay._invOverlayBound = true;
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay) closeInvoice();
+    });
+  }
+}
+
+/**
+ * Mở modal hóa đơn — chỉ đọc dữ liệu (GET), không tạo / không cập nhật giao dịch.
+ * @param {number|string|object|null} source — saleId, object sale đã có, hoặc null (empty state)
+ */
+function openInvoiceModal(source) {
+  if (source == null || source === '') {
+    console.log('Invoice:', null);
+    window._invoiceContext = null;
+    renderInvoiceModalContent(null, null);
+    showInvoiceModalElement();
+    return;
+  }
+
+  if (typeof source === 'object') {
+    var invObj = normalizeInvoice(source);
+    console.log('Invoice:', invObj);
+    window._invoiceContext = invObj ? { saleId: invObj.id, rawSale: invObj.raw || source } : null;
+    renderInvoiceModalContent(invObj, invObj && invObj.id);
+    showInvoiceModalElement();
+    return;
+  }
+
+  var saleId = parseInt(source, 10);
+  if (!Number.isFinite(saleId) || saleId <= 0) {
+    console.log('Invoice:', null);
+    window._invoiceContext = null;
+    renderInvoiceModalContent(null, null);
+    showInvoiceModalElement();
+    return;
+  }
+
   fetch('/sale/' + saleId, { cache: 'no-store' })
-    .then(function(res) { return res.json(); })
+    .then(function(res) {
+      if (!res.ok) return Promise.reject(new Error('HTTP ' + res.status));
+      return res.json();
+    })
     .then(function(data) {
-      if (!data.sale) { showToast('Không tìm thấy đơn', 'error'); return; }
-      var sale = data.sale;
-
-      // Lưu lại để các action (edit/delete/keg) dùng lại
-      window._invSaleData = sale;
-      window._invSaleId = saleId;
-
-      var customerName = sale.customer_name || 'Khách lẻ';
-      var total = sale.total || 0;
-      var dateStr = sale.date ? new Date(sale.date).toLocaleString('vi-VN', {
-        day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
-      }) : '';
-      var isReturned = sale.status === 'returned';
-
-      // Header
-      document.getElementById('invOrderId').textContent = '#' + saleId;
-
-      // Customer
-      document.getElementById('invCustomerName').textContent = customerName;
-      document.getElementById('invCustomerMeta').textContent = dateStr;
-
-      // Items
-      var itemsList = document.getElementById('invItemsList');
-      itemsList.innerHTML = (sale.items || []).map(function(item) {
-        var lineTotal = (item.quantity || 0) * (item.price || 0);
-        return '<div class="inv-item">' +
-          '<div class="inv-item-left">' +
-            '<div class="inv-item-name">' + escHtml(item.name || 'SP') + '</div>' +
-            '<div class="inv-item-qty">x' + item.quantity + ' · ' + formatVND(item.price) + '/sp</div>' +
-          '</div>' +
-          '<div class="inv-item-right">' +
-            '<div class="inv-item-total">' + formatVND(lineTotal) + '</div>' +
-          '</div>' +
-        '</div>';
-      }).join('');
-
-      // Kegs card
-      var deliverKegs = sale.deliver_kegs || 0;
-      var returnKegs  = sale.return_kegs  || 0;
-      var customer    = getCustomer(sale.customer_id);
-      var balance     = customer ? (customer.keg_balance || 0) : 0;
-
-      document.getElementById('invKegDeliver').textContent = deliverKegs;
-      document.getElementById('invKegReturn').textContent  = returnKegs;
-      document.getElementById('invKegBalance').textContent  = balance;
-
-      // Total
-      document.getElementById('invTotalValue').textContent = formatVND(total);
-
-      // Actions
-      document.getElementById('invActions').innerHTML =
-        '<button class="inv-btn inv-btn-ghost" onclick="closeInvoice()">Đóng</button>' +
-        '<button class="inv-btn inv-btn-kegs" onclick="openKegFromInvoice(' + saleId + ')">📦 Vỏ</button>' +
-        (isReturned ? '' :
-          '<button class="inv-btn inv-btn-primary" onclick="openEditSale(' + saleId + '); closeInvoice();">✏️ Sửa</button>' +
-          '<button class="inv-btn inv-btn-danger" onclick="deleteSale(' + saleId + '); closeInvoice();">🗑 Xóa</button>'
-        );
-
-      var modal = document.getElementById('invoiceModal');
-      if (modal) modal.classList.remove('hidden');
+      var sale = extractSaleFromResponse(data);
+      if (!sale) {
+        showToast('Không tìm thấy đơn', 'error');
+        var inv = null;
+        console.log('Invoice:', inv);
+        window._invoiceContext = null;
+        renderInvoiceModalContent(null, null);
+        showInvoiceModalElement();
+        return;
+      }
+      var invoice = normalizeInvoice(sale);
+      console.log('Invoice:', invoice);
+      window._invoiceContext = invoice ? { saleId: saleId, rawSale: sale } : null;
+      renderInvoiceModalContent(invoice, saleId);
+      showInvoiceModalElement();
     })
     .catch(function(err) {
-      console.error('viewSale error:', err);
+      console.error('openInvoiceModal error:', err);
+      console.log('Invoice:', null);
+      window._invoiceContext = null;
+      renderInvoiceModalContent(null, null);
+      showInvoiceModalElement();
       showToast('Lỗi tải đơn', 'error');
     });
 }
 
-// Mở modal vỏ từ trong invoice modal
+function viewSale(saleId) {
+  openInvoiceModal(saleId);
+}
+
+// Mở modal vỏ từ trong invoice modal (chỉ đọc context / GET — không tạo giao dịch)
 function openKegFromInvoice(saleId) {
-  var sale = window._invSaleData;
-  if (!sale) {
-    // Fallback: load lại
-    fetch('/sale/' + saleId, { cache: 'no-store' })
-      .then(function(res) { return res.json(); })
-      .then(function(data) {
-        if (data.sale) openKegFromSaleData(data.sale, saleId);
-      });
+  var ctx = window._invoiceContext;
+  var sale = ctx && ctx.rawSale;
+  if (sale && Number(ctx.saleId) === Number(saleId)) {
+    openKegFromSaleData(sale, saleId);
     return;
   }
-  openKegFromSaleData(sale, saleId);
+  fetch('/sale/' + saleId, { cache: 'no-store' })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      var s = extractSaleFromResponse(data);
+      if (s) openKegFromSaleData(s, saleId);
+    })
+    .catch(function() { showToast('Lỗi tải đơn', 'error'); });
 }
 
 function openKegFromSaleData(sale, saleId) {
-  window._invSaleData = sale;
   closeInvoice();
   openKegModalForSale(saleId, sale.customer_id, sale.deliver_kegs, sale.return_kegs);
 }
@@ -794,9 +936,13 @@ function submitSale() {
   .then(function(data) {
     if (data.success) {
       showToast(isEditing ? 'Cập nhật thành công!' : 'Bán hàng thành công!', 'success');
+      var invoiceSaleId = isEditing ? editingSaleId : (data.id != null ? Number(data.id) : null);
       editingSaleId = null;
       resetSaleState();
       window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'sale' } }));
+      if (invoiceSaleId && typeof openInvoiceModal === 'function') {
+        openInvoiceModal(invoiceSaleId);
+      }
     } else {
       showToast(data.error || 'Lỗi khi bán hàng', 'error');
       if (btn) { btn.disabled = false; btn.innerHTML = isEditing ? '💾 Cập nhật đơn' : '✅ BÁN HÀNG'; }
@@ -1198,35 +1344,19 @@ function updateSale() {
 }
 
 // ============================================================
-// INVOICE
+// INVOICE — close (open/render live above with openInvoiceModal)
 // ============================================================
-// Invoice Modal — open / close / click-outside
 function closeInvoice() {
   var overlay = document.getElementById('invoiceModal');
   if (!overlay) return;
   overlay.classList.add('hidden');
   overlay.style.pointerEvents = 'none';
-  // Clean up cached sale data
-  window._invSaleData = null;
-  window._invSaleId = null;
+  window._invoiceContext = null;
 }
 
-function openInvoiceInternal() {
-  var overlay = document.getElementById('invoiceModal');
-  if (!overlay) return;
-  overlay.classList.remove('hidden');
-  overlay.style.pointerEvents = 'auto';
-  // Click outside to close
-  overlay.addEventListener('click', function onOverlayClick(e) {
-    if (e.target === overlay) {
-      closeInvoice();
-      overlay.removeEventListener('click', onOverlayClick);
-    }
-  });
-}
-
-// Keep closeInvoice exported for onclick handlers
 window.closeInvoice = closeInvoice;
+window.openInvoiceModal = openInvoiceModal;
+window.viewSale = viewSale;
 
 // ============================================================
 // UTILITIES

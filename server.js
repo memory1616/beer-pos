@@ -559,15 +559,35 @@ app.get('/report/data', (req, res) => {
       ' GROUP BY p.id ORDER BY SUM(si.profit) DESC LIMIT 20'
     ).all(...dateParams);
 
-    // profitByCustomer: date range applied via subquery for quantity
-    var dateCondSub = 'date(' + salesDateBare + ') >= date(?) AND date(' + salesDateBare + ') <= date(?)';
+    // profitByCustomer — quantity = tổng lít (số trong tên SP VD "Bia 30L" × số lượng dòng)
+    function litersFromProductName(name) {
+      if (!name) return 1;
+      var m = String(name).match(/(\d+)\s*[Ll]/);
+      return m ? parseInt(m[1], 10) : 1;
+    }
     var profitByCustomer = db2.prepare(
-      "SELECT c.id, c.name, COUNT(s.id) as order_count, SUM(s.total) as revenue, SUM(s.profit) as profit, " +
-      "(SELECT COALESCE(SUM(si.quantity), 0) FROM sale_items si WHERE si.sale_id IN " +
-      "  (SELECT id FROM sales WHERE customer_id = c.id AND type = 'sale' AND (status IS NULL OR status != 'returned') AND " + dateCondSub + ")) as quantity " +
-      "FROM sales s JOIN customers c ON c.id = s.customer_id WHERE s.type = 'sale' AND " + dateCond +
-      " GROUP BY c.id ORDER BY profit DESC LIMIT 20"
-    ).all(...dateParams, ...dateParams);
+      'SELECT c.id, c.name, COUNT(s.id) as order_count, SUM(s.total) as revenue, SUM(s.profit) as profit ' +
+      'FROM sales s JOIN customers c ON c.id = s.customer_id WHERE s.type = \'sale\' AND ' + dateCond +
+      ' GROUP BY c.id ORDER BY profit DESC LIMIT 20'
+    ).all(...dateParams);
+
+    var literRows = db2.prepare(
+      'SELECT s.customer_id, p.name as product_name, si.quantity ' +
+      'FROM sale_items si ' +
+      'JOIN sales s ON s.id = si.sale_id ' +
+      'JOIN products p ON p.id = si.product_id ' +
+      "WHERE s.type = 'sale' AND (s.status IS NULL OR s.status != 'returned') AND " + dateCond
+    ).all(...dateParams);
+    var literByCustomerId = {};
+    for (var lr = 0; lr < literRows.length; lr++) {
+      var cid = literRows[lr].customer_id;
+      if (cid == null) continue;
+      var L = litersFromProductName(literRows[lr].product_name) * (Number(literRows[lr].quantity) || 0);
+      literByCustomerId[cid] = (literByCustomerId[cid] || 0) + L;
+    }
+    profitByCustomer = profitByCustomer.map(function (row) {
+      return Object.assign({}, row, { quantity: literByCustomerId[row.id] || 0 });
+    });
 
     // Purchases report: get all purchase records in date range
     var purchases = [];

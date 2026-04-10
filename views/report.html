@@ -362,13 +362,22 @@
         return Object.values(map).sort(function (a, b) { return b.profit - a.profit; });
       }
 
+      function lineItemLiters(item) {
+        var name = item.product_name || item.name || '';
+        var m = String(name).match(/(\d+)\s*[Ll]/);
+        var per = m ? parseInt(m[1], 10) : 1;
+        return per * (Number(item.quantity) || 0);
+      }
+
       function computeProfitByCustomer(sales) {
         var map = {};
         (sales || []).forEach(function (s) {
           var key = s.customer_name || 'Khách lẻ';
           if (!map[key]) map[key] = { name: key, quantity: 0, profit: 0 };
-          map[key].quantity += 1;
           map[key].profit += s.profit || 0;
+          (s.items || []).forEach(function (item) {
+            map[key].quantity += lineItemLiters(item);
+          });
         });
         return Object.values(map).sort(function (a, b) { return b.profit - a.profit; });
       }
@@ -626,7 +635,7 @@
               '<div class="top-item-rank ' + rankClass + '">' + rank + '</div>' +
               '<div class="top-item-info">' +
                 '<div class="top-item-name">' + escHtml(c.name) + '</div>' +
-                '<div class="top-item-meta">' + (c.quantity || 0) + ' đơn</div>' +
+                '<div class="top-item-meta">' + (c.quantity || 0) + ' Lít</div>' +
               '</div>' +
               '<div class="top-item-value">' +
                 '<div class="top-item-profit ' + profitColor + '">' + fmtVND(c.profit) + '</div>' +
@@ -644,7 +653,7 @@
                 '<div class="top-item-rank">#' + (i + 6) + '</div>' +
                 '<div class="top-item-info">' +
                   '<div class="top-item-name">' + escHtml(c.name) + '</div>' +
-                  '<div class="top-item-meta">' + (c.quantity || 0) + ' đơn</div>' +
+                  '<div class="top-item-meta">' + (c.quantity || 0) + ' Lít</div>' +
                 '</div>' +
                 '<div class="top-item-value">' +
                   '<div class="top-item-profit ' + profitColor + '">' + fmtVND(c.profit) + '</div>' +
