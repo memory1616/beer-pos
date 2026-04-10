@@ -13,9 +13,8 @@ const _LOW_STOCK_THRESHOLD = 30;
 // POS Namespace — unified POS cart operations
 // ────────────────────────────────────────────────────────────────
 window.POS = {
-  // Click-to-add: add 1 unit to cart + haptic
+  // Click-to-add: add 1 unit to cart
   addToCart: function(productId) {
-    if (navigator.vibrate) navigator.vibrate(10);
     var product = getProduct(productId);
     if (!product) return;
 
@@ -50,7 +49,6 @@ window.POS = {
 
   // Decrement quantity
   decrement: function(productId) {
-    if (navigator.vibrate) navigator.vibrate(6);
     if (!saleData[productId]) return;
     saleData[productId].quantity = Math.max(0, saleData[productId].quantity - 1);
     if (saleData[productId].quantity === 0) {
@@ -477,9 +475,6 @@ document.addEventListener('click', function(e) {
 // POS PRODUCTION: Click-to-add product rows (Binance style)
 // ────────────────────────────────────────────────────────────────
 
-// Mobile detection (for rendering logic)
-const _isMobilePOS = () => window.innerWidth < 768;
-
 function renderSaleProducts() {
   var container = document.getElementById('saleProducts');
   if (!container) {
@@ -489,10 +484,9 @@ function renderSaleProducts() {
   var customerIdEl = document.getElementById('customerSelect');
   var customerId = customerIdEl ? customerIdEl.value : '';
   var isKhachLe = !customerId;
-  var isMobile = _isMobilePOS();
 
   if (products.length === 0) {
-    container.innerHTML = '<div class="pos-products-empty"><div style="font-size:40px;margin-bottom:12px;opacity:0.4">📦</div><div style="font-size:14px;color:#848e9c;text-align:center">Chưa có sản phẩm nào</div></div>';
+    container.innerHTML = '<div style="padding:32px 16px;text-align:center;color:#848e9c;font-size:14px;">Chưa có sản phẩm nào</div>';
     return;
   }
 
@@ -516,17 +510,12 @@ function renderSaleProducts() {
       priceHtml = '<div style="min-width:80px;text-align:right;font-size:14px;font-weight:700;color:#fcd535;font-variant-numeric:tabular-nums;flex-shrink:0;padding:0 8px;">' + Format.number(displayPrice) + '</div>';
     }
 
-    // Mobile: chỉ nút + (iPhone HIG — no minus on mobile)
-    var qtyControls;
-    if (isMobile) {
-      qtyControls = '<button type="button" class="pos-qty-btn" onclick="event.stopPropagation();POS.addToCart(' + p.id + ')">+</button>';
-    } else {
-      qtyControls = '<button type="button" class="pos-qty-btn" onclick="event.stopPropagation();POS.decrement(' + p.id + ')">−</button>' +
-        '<span class="pos-qty-val">' + (currentQty > 0 ? currentQty : '') + '</span>' +
-        '<button type="button" class="pos-qty-btn" onclick="event.stopPropagation();POS.addToCart(' + p.id + ')">+</button>';
-    }
+    // Desktop: + và - buttons
+    var qtyControls =
+      '<button type="button" class="pos-qty-btn" onclick="event.stopPropagation();POS.decrement(' + p.id + ')">−</button>' +
+      '<span class="pos-qty-val">' + (currentQty > 0 ? currentQty : '') + '</span>' +
+      '<button type="button" class="pos-qty-btn" onclick="event.stopPropagation();POS.addToCart(' + p.id + ')">+</button>';
 
-    // iPhone HIG: hàng 80px, border-radius 12px, active scale 0.97
     return '<div class="pos-prod-row" id="prodRow_' + p.id + '" onclick="POS.addToCart(' + p.id + ')">' +
       '<div class="pos-prod-name">' +
         '<div class="pos-prod-name-main">' + p.name + '</div>' +
@@ -740,16 +729,6 @@ function updateSaleTotal() {
       });
     }
   });
-
-  // ── Mobile bottom bar update ──
-  var countEl = document.getElementById('posBottomCount');
-  if (countEl) countEl.textContent = itemCount;
-  var totalEl = document.getElementById('posBottomTotal');
-  if (totalEl) totalEl.textContent = Format.number(total);
-  var bottomSellBtn = document.getElementById('posBottomSellBtn');
-  if (bottomSellBtn) {
-    bottomSellBtn.disabled = !(editingSaleId == null && hasItems);
-  }
 
   // ── Desktop totalAmount (legacy ID) ──
   var totalAmountEl = document.getElementById('totalAmount');
@@ -2568,13 +2547,13 @@ async function loadModules() {
   console.log('[EVENT] Loading modules...');
 
   // Core modules
-  await loadScript('/js/db.js');
-  await loadScript('/js/event-store.js');
-  await loadScript('/js/apply-event.js');
-  await loadScript('/js/event-sync.js');
-  await loadScript('/js/websocket.js');
-  await loadScript('/js/consistency-check.js');
-  await loadScript('/js/offline-store.js');
+  await loadScript('/js/db.js?v=20260410c');
+  await loadScript('/js/event-store.js?v=20260410c');
+  await loadScript('/js/apply-event.js?v=20260410c');
+  await loadScript('/js/event-sync.js?v=20260410c');
+  await loadScript('/js/websocket.js?v=20260410c');
+  await loadScript('/js/consistency-check.js?v=20260410c');
+  await loadScript('/js/offline-store.js?v=20260410c');
 
   console.log('[EVENT] All modules loaded');
 }

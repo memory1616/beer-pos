@@ -3,132 +3,128 @@
 <head>
   <script>window.BASE_PATH = '/';</script>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bán hàng</title>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#0b0e11">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
-  <!-- POS Production: no tailwind, only unified.css -->
-  <link rel="stylesheet" href="/css/unified.css?v=20260410-iphone">
+  <link rel="stylesheet" href="/css/unified.css?v=20260410-desktop">
   <script src="/js/auth.js"></script>
   <script src="/js/dark-mode.js"></script>
+  <script src="/js/layout.js?v=20260410-desktop"></script>
   <script src="https://unpkg.com/dexie@3/dist/dexie.min.js"></script>
   <script>requireAuth();</script>
 </head>
-<!-- iPhone HIG: body không scroll, overflow hidden -->
-<body style="margin:0;padding:0;overflow:hidden;background:#0b0e11;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;">
+<!-- Desktop layout: grid 2-panel giống inventory page -->
+<body class="body--app" style="background:#0b0e11;margin:0;padding:0;">
 
-  <!-- ═══ POS PAGE SHELL — iPhone Mobile-First Layout ═══ -->
-  <div id="posPage" class="pos-page">
+  <!-- App content — được inject bởi layout.js -->
+  <div id="app"></div>
 
-    <!-- ── Header (sticky top, 56px, safe-area-aware) ── -->
-    <div class="pos-header">
-      <div class="pos-header-left">
-        <div class="pos-header-title"><span>🍺</span> Bán hàng</div>
-      </div>
-      <div class="pos-header-right">
-        <button class="pos-header-btn" onclick="openKegModal()" title="Thu vỏ">📦</button>
-        <button class="pos-header-btn" onclick="openCollectKegModal()" title="Giao/Thu vỏ">🔄</button>
-        <button class="pos-header-btn" onclick="location.href='/'" title="Dashboard">🏠</button>
-      </div>
-    </div>
+  <script>
+    /* Load db.js + sync-orders.js trước khi gọi initSalesPage */
+    async function loadScript(src) {
+      return new Promise(function(resolve, reject) {
+        var s = document.createElement('script');
+        s.src = src;
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+    (async function() {
+      /* Render layout giống inventory (stock) page */
+      document.getElementById('app').innerHTML =
+        getHeader('Bán hàng', '🍺') +
+        getContent(
+          '<div id="saleAppContent">' +
+            /* LEFT: Product List */
+            '<div class="pos-grid">' +
+              '<div class="pos-product-panel" id="posProductPanel">' +
+                '<div class="pos-panel-header">SẢN PHẨM</div>' +
+                '<div id="saleProducts"></div>' +
+              '</div>' +
+              /* RIGHT: Cart Panel */
+              '<div class="pos-cart-panel" id="posCartPanel">' +
+                '<div class="pos-panel-header">GIỎ HÀNG</div>' +
+                '<div class="pos-cart-customer">' +
+                  '<div class="pos-panel-label">KHÁCH HÀNG</div>' +
+                  '<div class="pos-customer-search">' +
+                    '<span class="pos-customer-search-icon">🔍</span>' +
+                    '<input type="text" id="customerSearch"' +
+                      ' autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"' +
+                      ' placeholder="Tìm khách hàng..."' +
+                      ' oninput="filterCustomerOptions(this.value)"' +
+                      ' onfocus="showCustomerDropdown(true)">' +
+                    '<input type="hidden" id="customerSelect" onchange="onCustomerSelected()">' +
+                  '</div>' +
+                  '<div id="customerDropdown" class="hidden" style="position:absolute;left:16px;right:16px;background:#1e2329;border:1px solid #2a2e39;border-radius:8px;max-height:200px;overflow-y:auto;z-index:100;margin-top:4px;"></div>' +
+                  '<div id="selectedCustomerBadge" class="hidden" style="margin-top:6px;display:flex;align-items:center;gap:6px;padding:6px 10px;background:#1e2329;border:1px solid #2a2e39;border-radius:6px;font-size:13px;font-weight:600;color:#fcd535;"></div>' +
+                '</div>' +
+                '<div class="pos-cart-items" id="saleCartPreview">' +
+                  '<div class="pos-cart-empty">' +
+                    '<div class="pos-cart-empty-icon">🛒</div>' +
+                    '<div class="pos-cart-empty-text">Nhấn vào sản phẩm<br>để thêm vào giỏ</div>' +
+                  '</div>' +
+                '</div>' +
+                '<div class="pos-cart-summary">' +
+                  '<div class="pos-total-row">' +
+                    '<span class="pos-total-label">Tổng cộng</span>' +
+                    '<span class="pos-total-value" id="totalAmount">0đ</span>' +
+                  '</div>' +
+                  '<div class="pos-actions">' +
+                    '<button type="button" onclick="submitSale()" id="sellBtn" class="btn btn-primary w-full" style="height:44px;" disabled>' +
+                      '<span>✔</span> BÁN HÀNG' +
+                    '</button>' +
+                    '<button type="button" id="replacementOpenBtn" onclick="openReplacementModal()" class="btn btn-outline w-full" style="height:36px;">' +
+                      '🔄 Đổi bia lỗi' +
+                    '</button>' +
+                  '</div>' +
+                '</div>' +
+              '</div>' +
+            '</div>' +
+          '</div>'
+        ) +
+        getBottomNav('/sale');
 
-    <!-- ── Mobile: Product List (scrollable) ── -->
-    <div class="pos-products" id="saleProducts"></div>
+      /* Load scripts */
+      if (window._dbScriptLoaded) {
+        await loadScript('/sync-orders.js');
+        await loadSalesData();
+        return;
+      }
+      window._dbScriptLoaded = true;
+      await loadScript('/js/utils.js?v=20260211-toast');
+      await loadScript('/js/format.js');
+      await loadScript('/db.js?v=20260410c');
+      await loadScript('/sync-orders.js');
+      await loadScript('/js/sales.js?v=20260410c');
+      await loadSalesData();
+    })();
 
-    <!-- ── Desktop Cart Panel (hidden on mobile) ── -->
-    <div class="pos-cart-desktop" id="posCartDesktop">
-      <!-- TOP: Customer Search -->
-      <div class="pos-cart-top">
-        <div class="pos-section-label">KHÁCH HÀNG</div>
-        <div class="pos-customer-search">
-          <span class="pos-customer-search-icon">🔍</span>
-          <input type="text" id="customerSearch"
-            autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-            placeholder="Tìm khách hàng..."
-            oninput="filterCustomerOptions(this.value)"
-            onfocus="showCustomerDropdown(true)">
-          <input type="hidden" id="customerSelect" onchange="onCustomerSelected()">
-        </div>
-        <!-- Customer dropdown -->
-        <div id="customerDropdown" class="hidden pos-customer-dropdown-mobile"></div>
-        <!-- Selected customer badge -->
-        <div id="selectedCustomerBadge" class="hidden pos-customer-badge-mobile"></div>
-      </div>
-
-      <!-- MIDDLE: Cart Items (scrollable) -->
-      <div class="pos-section-label" style="padding-top:8px;">GIỎ HÀNG</div>
-      <div class="pos-cart-items" id="saleCartPreview">
-        <div class="pos-cart-empty">
-          <div class="pos-cart-empty-icon">🛒</div>
-          <div class="pos-cart-empty-text">Nhấn vào sản phẩm<br>để thêm vào giỏ</div>
-        </div>
-      </div>
-
-      <!-- BOTTOM: Total + Actions (fixed on desktop) -->
-      <div class="pos-cart-bottom">
-        <div class="pos-total-row">
-          <span class="pos-total-label">Tổng cộng</span>
-          <span class="pos-total-value" id="totalAmount">0đ</span>
-        </div>
-        <div class="pos-actions">
-          <button type="button" onclick="submitSale()" id="sellBtn" class="pos-btn-primary" disabled>
-            <span>✔</span> BÁN HÀNG
-          </button>
-          <button type="button" id="replacementOpenBtn" onclick="openReplacementModal()" class="pos-btn-danger">
-            🔄 Đổi bia lỗi
-          </button>
-        </div>
-      </div>
-    </div><!-- /pos-cart-desktop -->
-
-    <!-- ── Mobile: Bottom Bar (fixed, sticky in thumb zone) ── -->
-    <div class="pos-bottom-bar" id="posBottomBar">
-      <div class="pos-bottom-summary">
-        <div class="pos-bottom-count">
-          <span class="pos-bottom-count-num" id="posBottomCount">0</span>
-          <span class="pos-bottom-count-label">sản phẩm</span>
-        </div>
-        <div class="pos-bottom-total">
-          <span class="pos-bottom-total-label">Tổng</span>
-          <span class="pos-bottom-total-value" id="posBottomTotal">0đ</span>
-        </div>
-      </div>
-      <button type="button" onclick="submitSale()" id="posBottomSellBtn" class="pos-btn-primary" disabled>
-        <span>✔</span> BÁN HÀNG
-      </button>
-    </div>
-
-  </div><!-- /pos-page -->
-
-  <!-- ═══ INVOICE MODAL ═══ -->
-  <div id="invoiceModal" class="invoice-overlay hidden">
-    <div class="invoice-modal fit-screen">
-      <div class="invoice-header">
-        <span class="invoice-title">HÓA ĐƠN</span>
-        <button onclick="closeInvoice()" class="close-btn">&times;</button>
-      </div>
-      <div class="invoice-total-card">
-        <div class="invoice-total-label">TỔNG THANH TOÁN</div>
-        <div class="invoice-total-value tabular-nums" id="invoiceTotalValue">0</div>
-      </div>
-      <div class="invoice-main-card">
-        <div class="invoice-meta" id="invoiceMeta"></div>
-        <div class="invoice-customer" id="invoiceCustomer"></div>
-        <div class="divider"></div>
-      </div>
-      <div id="invoiceItemsList"></div>
-      <div class="invoice-qr-card">
-        <div class="qr-label">Phương thức thanh toán</div>
-        <img id="qrCode" src="" alt="QR Code">
-        <div class="qr-note">Quét QR để thanh toán</div>
-      </div>
-    </div>
-  </div>
+    async function loadSalesData() {
+      console.log('[POS] loadSalesData START');
+      try {
+        var res = await fetch('/sale/data', { cache: 'no-store' });
+        console.log('[POS] /sale/data response:', res.status);
+        var data = await res.json();
+        console.log('[POS] products:', (data.products||[]).length, 'customers:', (data.customers||[]).length);
+        try {
+          initSalesPage(data);
+          console.log('[POS] initSalesPage DONE');
+        } catch(e) {
+          console.error('[POS] initSalesPage error:', e);
+        }
+      } catch(err) {
+        console.error('[POS] loadSalesData error:', err);
+        var loading = document.getElementById('saleProducts');
+        if (loading) loading.innerHTML = '<div style="padding:24px;text-align:center;color:#f6465d;font-size:14px;">Lỗi tải dữ liệu</div>';
+      }
+    }
+  </script>
 
   <!-- ═══ KEG MODAL ═══ -->
   <div id="kegModal" class="modal-overlay-v2 hidden center">
@@ -151,13 +147,13 @@
           <div>
             <label style="display:block;font-size:12px;font-weight:600;color:#0d9f6e;margin-bottom:6px;">📦 Giao vỏ</label>
             <input type="number" id="kegDeliver" value="0" inputmode="numeric" pattern="[0-9]*" min="0"
-              style="width:100%;height:48px;padding:0 12px;border-radius:8px;border:2px solid #0d9f6e;background:#1e2329;color:#eaecef;font-size:18px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;"
+              style="width:100%;height:44px;padding:0 12px;border-radius:8px;border:2px solid #0d9f6e;background:#1e2329;color:#eaecef;font-size:16px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;"
               oninput="updateKegModalPreview()" onchange="updateKegModalPreview()">
           </div>
           <div>
             <label style="display:block;font-size:12px;font-weight:600;color:#f6465d;margin-bottom:6px;">🔄 Thu vỏ</label>
             <input type="number" id="kegReturn" value="0" inputmode="numeric" pattern="[0-9]*" min="0"
-              style="width:100%;height:48px;padding:0 12px;border-radius:8px;border:2px solid #f6465d;background:#1e2329;color:#eaecef;font-size:18px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;"
+              style="width:100%;height:44px;padding:0 12px;border-radius:8px;border:2px solid #f6465d;background:#1e2329;color:#eaecef;font-size:16px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;"
               oninput="updateKegModalPreview()" onchange="updateKegModalPreview()">
           </div>
           <div class="card p-3" style="background:#1e2329;border:1px solid #2a2e39;border-radius:8px;">
@@ -170,7 +166,7 @@
           <div id="kegModalError" class="hidden" style="padding:10px;border:1px solid #f6465d;border-radius:8px;text-align:center;font-size:13px;color:#f6465d;"></div>
         </div>
         <div style="margin-top:12px;">
-          <button onclick="saveKegUpdate()" id="kegSaveBtn" class="pos-btn-primary" style="font-size:14px;height:44px;">
+          <button onclick="saveKegUpdate()" id="kegSaveBtn" class="btn btn-primary w-full" style="height:44px;">
             💾 <span id="kegSaveBtnText">Lưu</span>
           </button>
         </div>
@@ -191,13 +187,13 @@
           <div>
             <label style="display:block;font-size:11px;font-weight:600;color:#0d9f6e;margin-bottom:6px;text-align:center;">📦 Giao vỏ</label>
             <input type="number" id="collectKegDeliver" value="0" min="0" inputmode="numeric"
-              style="width:100%;height:48px;padding:0 12px;border-radius:8px;border:2px solid #0d9f6e;background:#1e2329;color:#eaecef;font-size:18px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;"
+              style="width:100%;height:44px;padding:0 12px;border-radius:8px;border:2px solid #0d9f6e;background:#1e2329;color:#eaecef;font-size:16px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;"
               oninput="updateCollectKegPreview()" onchange="updateCollectKegPreview()">
           </div>
           <div>
             <label style="display:block;font-size:11px;font-weight:600;color:#f6465d;margin-bottom:6px;text-align:center;">🔄 Thu vỏ</label>
             <input type="number" id="collectKegReturn" value="0" min="0" inputmode="numeric"
-              style="width:100%;height:48px;padding:0 12px;border-radius:8px;border:2px solid #f6465d;background:#1e2329;color:#eaecef;font-size:18px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;"
+              style="width:100%;height:44px;padding:0 12px;border-radius:8px;border:2px solid #f6465d;background:#1e2329;color:#eaecef;font-size:16px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;"
               oninput="updateCollectKegPreview()" onchange="updateCollectKegPreview()">
           </div>
         </div>
@@ -210,7 +206,7 @@
         <div id="collectKegWarning" class="hidden mb-3 p-2 text-center text-sm" style="border:1px solid #f6465d;border-radius:8px;color:#f6465d;background:rgba(246,70,93,0.08);"></div>
         <div style="display:flex;gap:8px;">
           <button onclick="closeCollectKegModal()" class="btn btn-ghost flex-1" style="height:44px;flex:1;border:1px solid #2a2e39;background:transparent;color:#848e9c;border-radius:8px;font-weight:600;cursor:pointer;">Huỷ</button>
-          <button onclick="submitCollectKeg()" class="pos-btn-primary" style="flex:1;height:44px;font-size:14px;background:#fcd535;color:#0b0e11;">Xác nhận</button>
+          <button onclick="submitCollectKeg()" class="btn btn-primary" style="flex:1;height:44px;font-size:14px;background:#fcd535;color:#0b0e11;">Xác nhận</button>
         </div>
       </div>
     </div>
@@ -274,56 +270,7 @@
     </div>
   </div>
 
-  <!-- ═══ LOAD SCRIPTS IN SEQUENCE ═══ -->
-  <script src="/js/utils.js?v=20260211-toast"></script>
-  <script src="/js/format.js"></script>
-  <script src="/js/sales.js?v=20260410-iphone"></script>
-
-  <script>
-    /* Load db.js then sync-orders.js before calling initSalesPage */
-    async function loadScript(src) {
-      return new Promise(function(resolve, reject) {
-        var s = document.createElement('script');
-        s.src = src;
-        s.onload = resolve;
-        s.onerror = reject;
-        document.head.appendChild(s);
-      });
-    }
-    (async function() {
-      if (window._dbScriptLoaded) {
-        await loadScript('/sync-orders.js');
-        await loadSalesData();
-        return;
-      }
-      window._dbScriptLoaded = true;
-      await loadScript('/db.js?v=20260410b');
-      await loadScript('/sync-orders.js');
-      await loadSalesData();
-    })();
-
-    async function loadSalesData() {
-      console.log('[POS] loadSalesData START');
-      try {
-        var res = await fetch('/sale/data', { cache: 'no-store' });
-        console.log('[POS] /sale/data response:', res.status);
-        var data = await res.json();
-        console.log('[POS] products:', (data.products||[]).length, 'customers:', (data.customers||[]).length);
-        try {
-          initSalesPage(data);
-          console.log('[POS] initSalesPage DONE');
-        } catch(e) {
-          console.error('[POS] initSalesPage error:', e);
-        }
-      } catch(err) {
-        console.error('[POS] loadSalesData error:', err);
-        var loading = document.getElementById('saleProducts');
-        if (loading) loading.innerHTML = '<div style="padding:24px;text-align:center;color:#f6465d;font-size:14px;">Lỗi tải dữ liệu</div>';
-      }
-    }
-  </script>
-
-  <!-- Sale edit auxiliary sheet (fixed bottom) -->
+  <!-- Sale edit auxiliary sheet -->
   <div id="saleEditAuxSheet" class="hidden" style="position:fixed;left:0;right:0;z-index:60;padding:12px 16px;background:#161a1e;border-top:2px solid #fcd535;display:flex;gap:8px;align-items:center;justify-content:center;flex-direction:column;">
     <div style="font-size:11px;font-weight:700;color:#fcd535;letter-spacing:0.06em;text-transform:uppercase;">Đang sửa hóa đơn</div>
     <div style="display:flex;gap:8px;width:100%;max-width:420px;">
@@ -334,6 +281,31 @@
 
   <!-- Sync status indicator -->
   <div id="syncStatusIndicator" style="position:fixed;top:8px;right:8px;z-index:200;font-size:11px;padding:4px 8px;border-radius:20px;background:#161a1e;border:1px solid #2a2e39;opacity:0.8;display:none;"></div>
+
+  <!-- Invoice Modal -->
+  <div id="invoiceModal" class="invoice-overlay hidden">
+    <div class="invoice-modal fit-screen">
+      <div class="invoice-header">
+        <span class="invoice-title">HÓA ĐƠN</span>
+        <button onclick="closeInvoice()" class="close-btn">&times;</button>
+      </div>
+      <div class="invoice-total-card">
+        <div class="invoice-total-label">TỔNG THANH TOÁN</div>
+        <div class="invoice-total-value tabular-nums" id="invoiceTotalValue">0</div>
+      </div>
+      <div class="invoice-main-card">
+        <div class="invoice-meta" id="invoiceMeta"></div>
+        <div class="invoice-customer" id="invoiceCustomer"></div>
+        <div class="divider"></div>
+      </div>
+      <div id="invoiceItemsList"></div>
+      <div class="invoice-qr-card">
+        <div class="qr-label">Phương thức thanh toán</div>
+        <img id="qrCode" src="" alt="QR Code">
+        <div class="qr-note">Quét QR để thanh toán</div>
+      </div>
+    </div>
+  </div>
 
 </body>
 </html>
