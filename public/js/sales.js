@@ -79,6 +79,13 @@ window.addEventListener('data:mutated', function(e) {
   if (e.detail?.entity === 'sale') loadSaleHistory();
 });
 
+window.addEventListener('realtime:refetch', function(e) {
+  var entities = e.detail?.entities || [];
+  if (entities.includes('all') || entities.includes('orders') || entities.includes('sales')) {
+    loadSaleHistory();
+  }
+});
+
 function initSalesPage(data) {
   products = data.products || [];
   customers = data.customers || [];
