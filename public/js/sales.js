@@ -960,8 +960,10 @@ async function submitSale() {
       if (modal && invoiceContent) {
         var invTotalEl = modal.querySelector('.invoice-total-value');
         if (invTotalEl) invTotalEl.textContent = Format.number(result.total || 0);
-        invoiceContent.innerHTML =
-          '<div class="text-center py-8 text-muted">Đơn hàng #' + result.id + '</div>';
+        var itemsList = document.getElementById('invoiceItemsList');
+        if (itemsList) {
+          itemsList.innerHTML = '<div class="text-center py-4 text-muted">Đơn hàng #' + result.id + '</div>';
+        }
         if (qrCodeEl) qrCodeEl.src = '';
         modal.classList.remove('hidden');
         setTimeout(autoFitItems, 0);
@@ -1423,8 +1425,7 @@ async function saveKegUpdate() {
 // ─── AUTO FIT ENGINE — no scale, no distortion ───────────────────
 function autoFitItems() {
   var list = document.getElementById('invoiceItemsList');
-  var content = document.getElementById('invoiceContent');
-  if (!list || !content) return;
+  if (!list) return;
 
   var items = list.querySelectorAll('.invoice-item');
   var count = items.length;
@@ -1434,18 +1435,13 @@ function autoFitItems() {
   if (count > 8) {
     list.classList.add('grid-mode');
     list.classList.add('compact');
-    // Reset inline heights in grid mode
     items.forEach(function(el) { el.style.height = ''; });
   } else {
     list.classList.remove('grid-mode');
     list.classList.remove('compact');
 
-    // Auto-fit: divide available height evenly
-    var listTop = list.getBoundingClientRect().top;
-    var footer = document.querySelector('.invoice-modal-footer');
-    var footerH = footer ? footer.offsetHeight : 80;
-    var availH = window.innerHeight - listTop - footerH - 16;
-
+    // Available height = height of this grid row minus its padding
+    var availH = list.getBoundingClientRect().height - 16;
     if (availH > 0 && count > 0) {
       var itemH = Math.floor(availH / count);
       itemH = Math.max(30, Math.min(itemH, 44)); // clamp 30–44px
@@ -1471,12 +1467,13 @@ async function showInvoiceModal(saleId) {
   var invoiceContent = document.getElementById('invoiceContent');
   var invoiceTotalEl = document.querySelector('#invoiceModal .invoice-total-value');
   var qrSection = document.querySelector('#invoiceModal .invoice-qr-card');
-  if (invoiceContent) invoiceContent.innerHTML = '<div class="text-center py-8 text-muted">Đang tải chi tiết...</div>';
+  var itemsList = document.getElementById('invoiceItemsList');
+  if (itemsList) itemsList.innerHTML = '<div class="text-center py-4 text-muted">Đang tải chi tiết...</div>';
 
   const res = await fetch('/api/sales/' + saleId);
   if (!res.ok) {
     console.error('Không lấy được dữ liệu hóa đơn:', res.status);
-    if (invoiceContent) invoiceContent.innerHTML = '<div class="text-center py-8 text-danger">Lỗi tải hóa đơn</div>';
+    if (itemsList) itemsList.innerHTML = '<div class="text-center py-4 text-danger">Lỗi tải hóa đơn</div>';
     return;
   }
   const sale = await res.json();
@@ -1526,12 +1523,12 @@ async function showInvoiceModal(saleId) {
   const giftBadge = isGift ? '<div class="text-center mb-3"><span class="badge badge-warning">🎁 Tặng uống thử</span></div>' : '';
 
   if (invoiceContent) {
-    var bodyEl = invoiceContent.querySelector('.invoice-modal-body');
-    if (bodyEl) {
-      bodyEl.innerHTML =
+    var itemsList = document.getElementById('invoiceItemsList');
+    if (itemsList) {
+      itemsList.innerHTML =
         (isGift ? '<div style="text-align:center;margin-bottom:4px;"><span style="display:inline-block;padding:2px 10px;background:rgba(245,158,11,0.15);color:#f59e0b;border-radius:999px;font-size:11px;font-weight:600;">🎁 Tặng uống thử</span></div>' : '') +
         '<div style="font-size:11px;color:var(--text-muted);text-align:center;margin-bottom:4px;">' + dateStr + ' · 👤 ' + customerName + '</div>' +
-        '<div class="invoice-list" id="invoiceItemsList">' + itemsHtml + '</div>' +
+        itemsHtml +
         kegHtml;
     }
   }
