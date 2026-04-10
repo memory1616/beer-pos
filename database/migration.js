@@ -77,6 +77,7 @@ function migrateAddMetadata(db) {
     { table: 'customers',      col: 'updated_at',    type: 'TEXT',     default: "CURRENT_TIMESTAMP" },
     { table: 'customers',      col: 'version',       type: 'INTEGER',  default: '1' },
     { table: 'customers',      col: 'deleted',       type: 'INTEGER',  default: '0' },
+    { table: 'customers',      col: 'monthly_expected', type: 'INTEGER', default: null },
 
     { table: 'products',       col: 'created_at',    type: 'TEXT',     default: "CURRENT_TIMESTAMP" },
     { table: 'products',       col: 'updated_at',    type: 'TEXT',     default: "CURRENT_TIMESTAMP" },

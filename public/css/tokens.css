@@ -14,7 +14,30 @@
 
 /* =====================   TOKEN VERSION   ===================== */
 :root {
-  --dt-version: "5.0.0-binance";
+  --dt-version: "5.1.0-iphone";
+}
+
+/* =====================   iPHONE HIG TOKENS   ===================== */
+/* Apple SF Pro / System font stack */
+:root {
+  --font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', sans-serif;
+  --font-family-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+}
+
+/* iPhone Typography Scale */
+:root {
+  /* Title: 17px semibold */
+  --text-title: 17px;
+  --text-title-weight: 600;
+  /* Body: 15px regular */
+  --text-body: 15px;
+  --text-body-weight: 400;
+  /* Caption: 13px regular */
+  --text-caption: 13px;
+  --text-caption-weight: 400;
+  /* Subhead: 14px medium */
+  --text-subhead: 14px;
+  --text-subhead-weight: 500;
 }
 
 /* =====================   CORE PALETTE   ===================== */

@@ -3,49 +3,48 @@
 <head>
   <script>window.BASE_PATH = '/';</script>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
   <title>Bán hàng</title>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#0b0e11">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
   <!-- POS Production: no tailwind, only unified.css -->
-  <link rel="stylesheet" href="/css/unified.css?v=20260410-pos">
+  <link rel="stylesheet" href="/css/unified.css?v=20260410-iphone">
   <script src="/js/auth.js"></script>
   <script src="/js/dark-mode.js"></script>
   <script src="https://unpkg.com/dexie@3/dist/dexie.min.js"></script>
   <script>requireAuth();</script>
 </head>
-<body style="margin:0;padding:0;overflow:hidden;background:#0b0e11;">
+<!-- iPhone HIG: body không scroll, overflow hidden -->
+<body style="margin:0;padding:0;overflow:hidden;background:#0b0e11;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;">
 
-  <!-- ═══ POS PAGE SHELL ═══ -->
+  <!-- ═══ POS PAGE SHELL — iPhone Mobile-First Layout ═══ -->
   <div id="posPage" class="pos-page">
 
-    <!-- ── Header ── -->
+    <!-- ── Header (sticky top, 56px, safe-area-aware) ── -->
     <div class="pos-header">
-      <div class="pos-header-title"><span>🍺</span> Bán hàng</div>
-      <div class="pos-header-actions">
-        <!-- Keg shortcuts -->
+      <div class="pos-header-left">
+        <div class="pos-header-title"><span>🍺</span> Bán hàng</div>
+      </div>
+      <div class="pos-header-right">
         <button class="pos-header-btn" onclick="openKegModal()" title="Thu vỏ">📦</button>
         <button class="pos-header-btn" onclick="openCollectKegModal()" title="Giao/Thu vỏ">🔄</button>
-        <!-- Settings / exit -->
         <button class="pos-header-btn" onclick="location.href='/'" title="Dashboard">🏠</button>
       </div>
     </div>
 
-    <!-- ── LEFT: Product List ── -->
+    <!-- ── Mobile: Product List (scrollable) ── -->
     <div class="pos-products" id="saleProducts"></div>
 
-    <!-- ── RIGHT: Cart ── -->
-    <div class="pos-cart">
-
+    <!-- ── Desktop Cart Panel (hidden on mobile) ── -->
+    <div class="pos-cart-desktop" id="posCartDesktop">
       <!-- TOP: Customer Search -->
       <div class="pos-cart-top">
-        <div style="margin-bottom:8px;">
-          <div class="pos-section-label" style="padding:0 0 4px;">KHÁCH HÀNG</div>
-        </div>
+        <div class="pos-section-label">KHÁCH HÀNG</div>
         <div class="pos-customer-search">
           <span class="pos-customer-search-icon">🔍</span>
           <input type="text" id="customerSearch"
@@ -56,9 +55,9 @@
           <input type="hidden" id="customerSelect" onchange="onCustomerSelected()">
         </div>
         <!-- Customer dropdown -->
-        <div id="customerDropdown" class="hidden" style="position:absolute;left:16px;right:16px;background:#1e2329;border:1px solid #2a2e39;border-radius:8px;max-height:200px;overflow-y:auto;z-index:100;margin-top:4px;"></div>
+        <div id="customerDropdown" class="hidden pos-customer-dropdown-mobile"></div>
         <!-- Selected customer badge -->
-        <div id="selectedCustomerBadge" class="hidden" style="margin-top:6px;display:flex;align-items:center;gap:6px;padding:6px 10px;background:#1e2329;border:1px solid #2a2e39;border-radius:6px;font-size:13px;font-weight:600;color:#fcd535;"></div>
+        <div id="selectedCustomerBadge" class="hidden pos-customer-badge-mobile"></div>
       </div>
 
       <!-- MIDDLE: Cart Items (scrollable) -->
@@ -70,7 +69,7 @@
         </div>
       </div>
 
-      <!-- BOTTOM: Total + Actions (fixed) -->
+      <!-- BOTTOM: Total + Actions (fixed on desktop) -->
       <div class="pos-cart-bottom">
         <div class="pos-total-row">
           <span class="pos-total-label">Tổng cộng</span>
@@ -85,7 +84,24 @@
           </button>
         </div>
       </div>
-    </div><!-- /pos-cart -->
+    </div><!-- /pos-cart-desktop -->
+
+    <!-- ── Mobile: Bottom Bar (fixed, sticky in thumb zone) ── -->
+    <div class="pos-bottom-bar" id="posBottomBar">
+      <div class="pos-bottom-summary">
+        <div class="pos-bottom-count">
+          <span class="pos-bottom-count-num" id="posBottomCount">0</span>
+          <span class="pos-bottom-count-label">sản phẩm</span>
+        </div>
+        <div class="pos-bottom-total">
+          <span class="pos-bottom-total-label">Tổng</span>
+          <span class="pos-bottom-total-value" id="posBottomTotal">0đ</span>
+        </div>
+      </div>
+      <button type="button" onclick="submitSale()" id="posBottomSellBtn" class="pos-btn-primary" disabled>
+        <span>✔</span> BÁN HÀNG
+      </button>
+    </div>
 
   </div><!-- /pos-page -->
 
@@ -261,7 +277,7 @@
   <!-- ═══ LOAD SCRIPTS IN SEQUENCE ═══ -->
   <script src="/js/utils.js?v=20260211-toast"></script>
   <script src="/js/format.js"></script>
-  <script src="/js/sales.js?v=20260410-pos"></script>
+  <script src="/js/sales.js?v=20260410-iphone"></script>
 
   <script>
     /* Load db.js then sync-orders.js before calling initSalesPage */
