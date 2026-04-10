@@ -28,14 +28,11 @@ router.get('/data', (req, res) => {
   const products = db.prepare('SELECT id, slug, name, stock, cost_price, sell_price, type, damaged_stock FROM products ORDER BY name').all();
 
   // Get prices for each customer-product combination
-  // Returns both product_id (numeric) and product_slug (string) for reliable lookup
   const prices = db.prepare('SELECT customer_id, product_id, product_slug, price FROM prices').all();
   const priceMap = {};
   prices.forEach(p => {
     if (!priceMap[p.customer_id]) priceMap[p.customer_id] = {};
-    // Store by numeric id for fast lookup
     priceMap[p.customer_id][p.product_id] = p.price;
-    // Also store by slug for slug-based lookup
     if (p.product_slug) {
       if (!priceMap[p.customer_id]._bySlug) priceMap[p.customer_id]._bySlug = {};
       priceMap[p.customer_id]._bySlug[p.product_slug] = p.price;
@@ -43,6 +40,68 @@ router.get('/data', (req, res) => {
   });
 
   res.json({ customers, products, priceMap });
+});
+
+// API: Get recent sales history (for POS page)
+router.get('/history', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  const limit = parseInt(req.query.limit) || 5;
+
+  const sales = db.prepare(`
+    SELECT s.id, s.date, s.total, s.type, s.status,
+      COALESCE(c.name, 'Khách lẻ') as customer_name
+    FROM sales s
+    LEFT JOIN customers c ON s.customer_id = c.id
+    WHERE s.type IN ('sale', 'replacement', 'damage_return')
+    ORDER BY datetime(s.date) DESC, s.id DESC
+    LIMIT ?
+  `).all(limit);
+
+  const salesWithItems = sales.map(s => {
+    const items = db.prepare(`
+      SELECT si.quantity, si.price, p.name as product_name
+      FROM sale_items si
+      JOIN products p ON p.id = si.product_id
+      WHERE si.sale_id = ?
+    `).all(s.id);
+    return { ...s, items };
+  });
+
+  res.json({ sales: salesWithItems });
+});
+
+// API: Get single sale detail
+router.get('/:id', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  const sale = db.prepare(`
+    SELECT s.*, COALESCE(c.name, 'Khách lẻ') as customer_name
+    FROM sales s
+    LEFT JOIN customers c ON s.customer_id = c.id
+    WHERE s.id = ?
+  `).get(req.params.id);
+  if (!sale) return res.status(404).json({ error: 'Not found' });
+
+  const items = db.prepare(`
+    SELECT si.*, p.name, p.slug as product_slug, p.type
+    FROM sale_items si
+    JOIN products p ON p.id = si.product_id
+    WHERE si.sale_id = ?
+  `).all(req.params.id);
+
+  res.json({ sale: { ...sale, items } });
+});
+
+// POST /sale/create → forward to /api/sales
+router.post('/create', (req, res) => {
+  req.url = '/';
+  require('./api/sales')(req, res, () => res.status(404).end());
+});
+
+// PUT /sale/update/:id → forward to /api/sales/:id
+router.put('/update/:id', (req, res) => {
+  req.url = '/' + req.params.id;
+  require('./api/sales')(req, res, () => res.status(404).end());
 });
 
 module.exports = router;
