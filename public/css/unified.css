@@ -5022,6 +5022,47 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   font-size: 13px;
 }
 
+.invoice-item-name {
+  flex: 1;
+  font-weight: 600;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.invoice-item-qty {
+  color: #6b7280;
+  margin: 0 12px;
+  flex-shrink: 0;
+}
+
+.invoice-item-price {
+  font-weight: 700;
+  color: #1e293b;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+/* KEGS INFO in invoice */
+.invoice-kegs-info {
+  font-size: 12px;
+  color: #f59e0b;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+.invoice-meta-row {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.invoice-customer-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: #1e293b;
+}
+
 .item-left {
   display: flex;
   flex-direction: column;
@@ -5487,6 +5528,47 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   color: #fcd535;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 4px 8px;
+  text-align: right;
+  min-width: 80px;
+  max-width: 130px;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+/* 价格输入框聚焦状态 - 默认价格 */
+.sale-product-price:focus {
+  border-color: rgba(252, 213, 53, 0.5);
+  background: rgba(252, 213, 53, 0.05);
+}
+
+/* 价格已修改状态 */
+.sale-product-price.sale-price-edited {
+  color: #0d9f6e;
+  border-color: rgba(13, 159, 110, 0.5);
+  background: rgba(13, 159, 110, 0.08);
+}
+
+/* 价格输入框聚焦状态 - 已修改价格 */
+.sale-product-price.sale-price-edited:focus {
+  border-color: #0d9f6e;
+  background: rgba(13, 159, 110, 0.12);
+  box-shadow: 0 0 0 2px rgba(13, 159, 110, 0.15);
+}
+
+/* 隐藏number input的spinner箭头 */
+.sale-product-price::-webkit-outer-spin-button,
+.sale-product-price::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.sale-product-price[type=number] {
+  -moz-appearance: textfield;
 }
 
 .sale-product-meta {
@@ -5824,6 +5906,13 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.sale-history-kegs {
+  font-size: 12px;
+  color: #fcd535;
+  margin-top: 4px;
+  font-weight: 600;
 }
 
 .sale-history-actions {

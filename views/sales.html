@@ -250,6 +250,14 @@
             '<div id="productList"></div>' +
           '</div>' +
 
+          /* Edit auxiliary sheet — shown when editing a sale */
+          '<div id="saleEditAuxSheet" class="hidden" style="background:#2a2e39;border-radius:10px;padding:12px;margin:0 4px;border:1px solid rgba(252,213,53,0.3);">' +
+            '<div style="display:flex;align-items:center;justify-content:space-between;">' +
+              '<div id="saleEditAuxText" style="font-size:13px;font-weight:600;color:#fcd535;">✏️ Đang chỉnh sửa đơn</div>' +
+              '<button onclick="cancelEdit()" style="height:36px;padding:0 16px;border:1px solid #2a2e39;background:#1e2329;color:#848e9c;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">Huỷ</button>' +
+            '</div>' +
+          '</div>' +
+
           /* Checkout box — between products and history */
           '<div class="sale-checkout-box" id="saleFooter">' +
             '<div class="sale-checkout-row">' +
@@ -281,7 +289,7 @@
       await loadScript('/js/format.js');
       await loadScript('/db.js?v=20260410d');
       await loadScript('/sync-orders.js');
-      await loadScript('/js/sales.js?v=20260410-card3');
+      await loadScript('/js/sales.js?v=20260410-kegs-info');
       await loadSalesData();
     })();
 

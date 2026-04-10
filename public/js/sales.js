@@ -163,11 +163,32 @@ function renderSaleHistory(sales) {
     var itemNames = (s.items || []).map(function(i) {
       return (i.product_name || 'SP') + ' x' + i.quantity;
     }).join(', ');
+
+    // Tính tổng số lít từ items (tìm số trong tên sản phẩm VD: "Bia 30L" x 5 = 150L)
+    var totalLiters = 0;
+    (s.items || []).forEach(function(item) {
+      var name = item.product_name || '';
+      var match = name.match(/(\d+)\s*[Ll]/);
+      if (match) {
+        totalLiters += (parseInt(match[1]) || 0) * (parseInt(item.quantity) || 0);
+      }
+    });
+
     var totalStr = formatVND(s.total || 0);
     var isReturned = s.status === 'returned';
     var typeLabel = '';
     if (s.type === 'replacement') typeLabel = '<span style="color:#f59e0b;font-size:11px;margin-left:6px;">Đổi lỗi</span>';
     else if (s.type === 'damage_return') typeLabel = '<span style="color:#f6465d;font-size:11px;margin-left:6px;">Trả hàng</span>';
+
+    // Hiển thị kegs info
+    var kegsInfo = '';
+    if (totalLiters > 0 || s.deliver_kegs > 0 || s.return_kegs > 0) {
+      var parts = [];
+      if (totalLiters > 0) parts.push('Số lượng: ' + totalLiters + 'L');
+      if (s.deliver_kegs > 0) parts.push('Giao: ' + s.deliver_kegs);
+      if (s.return_kegs > 0) parts.push('Thu: ' + s.return_kegs);
+      kegsInfo = '<div class="sale-history-kegs">' + parts.join('   |   ') + '</div>';
+    }
 
     return '<div class="sale-history-item">' +
       '<div class="sale-history-top">' +
@@ -176,6 +197,7 @@ function renderSaleHistory(sales) {
       '</div>' +
       '<div class="sale-history-meta">#' + s.id + ' · ' + dateStr + '</div>' +
       '<div class="sale-history-items">' + escHtml(itemNames) + '</div>' +
+      kegsInfo +
       '<div class="sale-history-actions">' +
         '<button class="action-view" onclick="viewSale(' + s.id + ')">👁 Xem</button>' +
         '<button class="action-return" onclick="returnSale(' + s.id + ')"' + (isReturned ? ' disabled' : '') + '>🔄 Trả</button>' +
@@ -195,31 +217,75 @@ function viewSale(saleId) {
       var sale = data.sale;
       var customerName = sale.customer_name || 'Khách lẻ';
       var total = sale.total || 0;
+      var dateStr = sale.date ? new Date(sale.date).toLocaleString('vi-VN', {
+        day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+      }) : '';
+
+      // Tính tổng số lít
+      var totalLiters = 0;
+      (sale.items || []).forEach(function(item) {
+        var name = item.name || '';
+        var match = name.match(/(\d+)\s*[Ll]/);
+        if (match) {
+          totalLiters += (parseInt(match[1]) || 0) * (parseInt(item.quantity) || 0);
+        }
+      });
+
+      // Render items
       var itemsHtml = (sale.items || []).map(function(item) {
-        return '<div class="pos-modal-item">' +
-          '<div class="pos-modal-item-name">' + escHtml(item.name || 'SP') + '</div>' +
-          '<div class="pos-modal-item-qty">x' + item.quantity + '</div>' +
-          '<div class="pos-modal-item-total">' + formatVND(item.quantity * item.price) + '</div>' +
+        var lineTotal = (item.quantity || 0) * (item.price || 0);
+        return '<div class="invoice-item">' +
+          '<span class="invoice-item-name">' + escHtml(item.name || 'SP') + '</span>' +
+          '<span class="invoice-item-qty">x' + item.quantity + '</span>' +
+          '<span class="invoice-item-price">' + formatVND(lineTotal) + '</span>' +
         '</div>';
       }).join('');
 
-      var body = document.getElementById('checkoutModalBody');
-      if (!body) return;
-      body.innerHTML =
-        '<div class="pos-modal-customer">👤 ' + escHtml(customerName) + ' <span style="color:#848e9c;font-size:12px;">#' + sale.id + '</span></div>' +
-        itemsHtml +
-        '<div class="pos-modal-summary">' +
-          '<div class="pos-modal-summary-label">Tổng cộng</div>' +
-          '<div class="pos-modal-summary-value">' + formatVND(total) + '</div>' +
-        '</div>' +
-        '<div class="pos-modal-actions">' +
-          '<button type="button" onclick="closeCheckoutModal()" class="pos-modal-btn-cancel">Đóng</button>' +
-        '</div>';
+      // Render kegs info nếu có
+      var kegsHtml = '';
+      if (totalLiters > 0 || sale.deliver_kegs > 0 || sale.return_kegs > 0) {
+        var kegsParts = [];
+        if (totalLiters > 0) kegsParts.push('SL: ' + totalLiters + 'L');
+        if (sale.deliver_kegs > 0) kegsParts.push('Giao: ' + sale.deliver_kegs);
+        if (sale.return_kegs > 0) kegsParts.push('Thu: ' + sale.return_kegs);
+        kegsHtml = '<div class="invoice-kegs-info">' + kegsParts.join('  |  ') + '</div>';
+      }
 
-      var modal = document.getElementById('checkoutModal');
+      // Meta info (ngày, mã đơn)
+      var metaHtml = '<div class="invoice-meta-row">#' + sale.id + ' · ' + dateStr + '</div>';
+
+      // Customer info
+      var customerHtml = '<div class="invoice-customer-name">' + escHtml(customerName) + '</div>';
+
+      // Điền dữ liệu vào invoice modal
+      var totalValueEl = document.getElementById('invoiceTotalValue');
+      if (totalValueEl) totalValueEl.textContent = formatVND(total);
+
+      var metaEl = document.getElementById('invoiceMeta');
+      if (metaEl) metaEl.innerHTML = metaHtml;
+
+      var customerEl = document.getElementById('invoiceCustomer');
+      if (customerEl) customerEl.innerHTML = customerHtml + kegsHtml;
+
+      var itemsListEl = document.getElementById('invoiceItemsList');
+      if (itemsListEl) itemsListEl.innerHTML = itemsHtml;
+
+      // QR code - sử dụng mã thanh toán mặc định hoặc tạo từ total
+      var qrEl = document.getElementById('qrCode');
+      if (qrEl) {
+        // QR chứa thông tin thanh toán
+        var qrData = 'BID:VIMO.' + Math.round(total);
+        qrEl.src = 'https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=' + encodeURIComponent(qrData);
+      }
+
+      // Hiển thị invoice modal
+      var modal = document.getElementById('invoiceModal');
       if (modal) modal.classList.remove('hidden');
     })
-    .catch(function() { showToast('Lỗi tải đơn', 'error'); });
+    .catch(function(err) {
+      console.error('viewSale error:', err);
+      showToast('Lỗi tải đơn', 'error');
+    });
 }
 
 // Open keg modal for a specific sale — load sale data first
@@ -370,6 +436,10 @@ function openEditSale(saleId) {
       var sheet = document.getElementById('saleEditAuxSheet');
       if (sheet) sheet.classList.remove('hidden');
 
+      // Update edit bar text with sale ID
+      var editText = document.getElementById('saleEditAuxText');
+      if (editText) editText.textContent = '✏️ Đang chỉnh sửa đơn #' + editingSaleId;
+
       // Scroll to top
       document.getElementById('saleMainContent')?.scrollTo(0, 0);
     })
@@ -392,16 +462,30 @@ function renderProducts() {
   }
 
   container.innerHTML = products.map(function(p) {
-    var price = getEffectivePrice(p);
+    // Check if this product has a saved price in saleState (e.g. from editing a sale)
+    var savedItem = saleState.items.find(function(i) { return i.productId === p.id; });
+    var defaultPrice = p.sell_price || 0;
+    var effectivePrice = getEffectivePrice(p);
+
+    // Priority: saved price from saleState > customer-specific price > default sell_price
+    var price = savedItem ? savedItem.price : effectivePrice;
+    var isCustomPrice = price !== defaultPrice;
+    var priceClass = isCustomPrice ? 'sale-product-price sale-price-edited' : 'sale-product-price';
     var isLowStock = p.stock < _LOW_STOCK_THRESHOLD;
     var stockClass = isLowStock ? 'sale-product-meta low-stock' : 'sale-product-meta';
-    var item = saleState.items.find(function(i) { return i.productId === p.id; });
-    var qty = item ? item.qty : '';
+    var qty = savedItem ? savedItem.qty : '';
 
     return '<div class="sale-product-card">' +
       '<div class="sale-product-top">' +
         '<div class="sale-product-name">' + escHtml(p.name) + '</div>' +
-        '<div class="sale-product-price">' + formatVND(price) + '</div>' +
+        '<input type="number" min="0" value="' + price + '"' +
+          ' id="price-' + p.id + '"' +
+          ' class="' + priceClass + '"' +
+          ' data-default="' + defaultPrice + '"' +
+          ' placeholder="' + formatVND(defaultPrice) + '"' +
+          ' oninput="onPriceChange(' + p.id + ', this.value)"' +
+          ' onfocus="onPriceFocus(' + p.id + ')"' +
+        '>' +
       '</div>' +
       '<div class="' + stockClass + '">Ton: ' + p.stock + '</div>' +
       '<input type="number" min="0" value="' + qty + '"' +
@@ -418,6 +502,40 @@ function renderProducts() {
 }
 
 // ============================================================
+// PRICE CHANGE
+// ============================================================
+function onPriceChange(productId, value) {
+  var price = parseInt(value) || 0;
+  var product = getProduct(productId);
+  if (!product) return;
+
+  var priceInput = document.getElementById('price-' + productId);
+  var defaultPrice = product.sell_price || 0;
+
+  // Update visual feedback
+  if (priceInput) {
+    if (price !== defaultPrice) {
+      priceInput.classList.add('sale-price-edited');
+    } else {
+      priceInput.classList.remove('sale-price-edited');
+    }
+  }
+
+  // Update saleState
+  var existing = saleState.items.find(function(i) { return i.productId === productId; });
+  if (existing) {
+    existing.price = price;
+  }
+
+  updateTotal();
+}
+
+function onPriceFocus(productId) {
+  var input = document.getElementById('price-' + productId);
+  if (input) setTimeout(function() { input.select(); }, 0);
+}
+
+// ============================================================
 // QTY CHANGE
 // ============================================================
 function onQtyChange(productId, value) {
@@ -425,10 +543,20 @@ function onQtyChange(productId, value) {
   var product = getProduct(productId);
   if (!product) return;
 
+  // Get current price from input (may have been edited)
+  var priceInput = document.getElementById('price-' + productId);
+  var price = 0;
+  if (priceInput) {
+    price = parseInt(priceInput.value) || 0;
+  }
+  // Fallback to effective price if no custom price set
+  if (price === 0) {
+    price = getEffectivePrice(product);
+  }
+
   if (qty <= 0) {
     saleState.items = saleState.items.filter(function(i) { return i.productId !== productId; });
   } else {
-    var price = getEffectivePrice(product);
     var existing = saleState.items.find(function(i) { return i.productId === productId; });
     if (existing) {
       existing.qty = qty;

@@ -50,7 +50,8 @@ router.get('/history', (req, res) => {
 
   const sales = db.prepare(`
     SELECT s.id, s.date, s.total, s.type, s.status,
-      COALESCE(c.name, 'Khách lẻ') as customer_name
+      COALESCE(c.name, 'Khách lẻ') as customer_name,
+      s.deliver_kegs, s.return_kegs
     FROM sales s
     LEFT JOIN customers c ON s.customer_id = c.id
     WHERE s.type IN ('sale', 'replacement', 'damage_return')
@@ -60,7 +61,7 @@ router.get('/history', (req, res) => {
 
   const salesWithItems = sales.map(s => {
     const items = db.prepare(`
-      SELECT si.quantity, si.price, p.name as product_name
+      SELECT si.quantity, si.price, p.name as product_name, p.type
       FROM sale_items si
       JOIN products p ON p.id = si.product_id
       WHERE si.sale_id = ?
