@@ -398,7 +398,7 @@ class BeerPOSDB {
     if (!this._db) return {};
 
     const [pendingEvents, syncedEvents, failedEvents, queueItems] = await Promise.all([
-      this._db.events.where('[status+createdAt]').startsWith(['pending']).count(),
+      this._db.events.where('status').equals('pending').count(),
       this._db.events.where('status').equals('synced').count(),
       this._db.events.where('status').equals('failed').count(),
       this._db.syncQueue.where('status').equals('pending').count(),
