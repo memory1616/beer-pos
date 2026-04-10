@@ -184,7 +184,7 @@
 
   async function _getServerCounts() {
     try {
-      const response = await fetch('/api/sync/counts', {
+      const response = await fetch('/api/sync-events/counts', {
         headers: { 'Cache-Control': 'no-cache' },
       });
 
