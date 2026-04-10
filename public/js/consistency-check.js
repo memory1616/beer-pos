@@ -66,13 +66,15 @@
         console.warn('[CONSISTENCY] Mismatch detected:', result);
         _emit('mismatch', result);
 
-        // ⚠️ CRITICAL: Auto fullResync ĐÃ BỊ VÔ HIỆU HÓA HOÀN TOÀN
-        // Lý do: upsertEntity missing → resync fail → mismatch → infinite loop
-        // Giải pháp: Chỉ cảnh báo, không tự động xóa data
+        // ⚠️ CRITICAL: TẮT HOÀN TOÀN AUTO RESYNC
+        // Lý do: upsertEntity missing → resync fail → mismatch → infinite loop → DATA WIPE
+        // Giải pháp: Chỉ cảnh báo, KHÔNG làm gì khác
         if (result.severity === 'high') {
-          console.warn('[CONSISTENCY] ⚠️ HIGH mismatch detected — fullResync DISABLED to prevent data wipe loop. Reload app manually if needed.');
+          console.error('[CONSISTENCY] ❌ HIGH mismatch — AUTO RESYNC DISABLED to prevent data wipe!');
+          console.error('[CONSISTENCY] Nguyên nhân: upsertEntity not a function');
           _emit('mismatch:high', result);
-          // KHÔNG GỌI fullResync() - đây là lỗi nghiêm trọng
+          // return early để prevent any resync
+          return;
         }
       } else {
         _emit('ok', result);
