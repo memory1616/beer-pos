@@ -9,13 +9,15 @@
     const now = new Date();
     const isNight = now.getHours() >= 18 || now.getHours() < 6;
 
-    if (theme === 'dark' || (theme === 'auto' && isNight)) {
-      h.setAttribute('data-theme', 'dark');
-    } else {
+    // Binance mode: default = dark. light mode only if explicitly set
+    if (theme === 'light') {
       h.setAttribute('data-theme', 'light');
+    } else {
+      // dark or auto → use dark (auto: night = dark, day = dark for Binance)
+      h.setAttribute('data-theme', 'dark');
     }
 
-    // Persist user choice (don't override if they manually picked)
+    // Persist user choice
     if (theme !== 'auto') {
       localStorage.setItem(KEY, theme);
     } else {
@@ -23,40 +25,39 @@
     }
   }
 
-  // Toggle: light → dark → auto → light
+  // Toggle: dark → light → dark → auto → dark
   function cycle() {
-    const saved = localStorage.getItem(KEY) || 'auto';
-    const map = { light: 'dark', dark: 'auto', auto: 'light' };
+    const saved = localStorage.getItem(KEY) || 'dark';
+    const map = { dark: 'light', light: 'dark', auto: 'dark' };
     apply(map[saved]);
     updateIcon();
   }
 
-  // Set icon on the toggle button — uses SVG icons
+  // Set icon on the toggle button
   function updateIcon() {
     const h = document.documentElement;
-    const current = h.getAttribute('data-theme') || 'light';
+    const current = h.getAttribute('data-theme') || 'dark';
     const btn = document.getElementById('themeToggle');
     if (!btn) return;
     const sun = document.getElementById('themeToggleSun');
     const moon = document.getElementById('themeToggleMoon');
-    const saved = localStorage.getItem(KEY) || 'auto';
     if (current === 'dark') {
       if (sun) sun.style.display = 'none';
       if (moon) moon.style.display = '';
-      btn.title = 'Chế độ tối (auto lúc 6AM)';
+      btn.title = 'Chế độ sáng';
     } else {
       if (sun) sun.style.display = '';
       if (moon) moon.style.display = 'none';
-      btn.title = 'Chế độ sáng';
+      btn.title = 'Chế độ tối';
     }
   }
 
-  // Run immediately (before first paint)
-  apply(localStorage.getItem(KEY) || 'auto');
+  // Run immediately (before first paint) — default to dark (Binance mode)
+  apply(localStorage.getItem(KEY) || 'dark');
 
-  // Update every minute (for auto 6AM/6PM switch)
+  // Update every minute (for auto switch)
   setInterval(() => {
-    const saved = localStorage.getItem(KEY) || 'auto';
+    const saved = localStorage.getItem(KEY) || 'dark';
     apply(saved);
     updateIcon();
   }, 60 * 1000);

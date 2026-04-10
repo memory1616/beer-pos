@@ -267,7 +267,7 @@ router.get('/', (req, res, next) => {
               optionsHtml +
 '              <option value="__custom__">+ Thêm loại mới...</option>' +
 '            </select>' +
-'            <button type="button" onclick="showAddCategoryModal()" title="Thêm loại chi phí" class="flex-shrink-0 w-10 h-10 bg-info/20 text-info rounded-lg flex items-center justify-center text-lg font-bold mt-0.5 transition-colors">+</button>' +
+'            <button type="button" onclick="showAddCategoryModal()" title="Thêm loại chi phí" class="flex-shrink-0 w-10 h-10 bg-info-20 text-info rounded-lg flex items-center justify-center text-lg font-bold mt-0.5 transition-colors">+</button>' +
 '          </div>' +
 '          <input type="text" id="customCatInput" placeholder="Nhập tên loại chi phí mới..." class="hidden mt-2 w-full border border-muted rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-primary">' +
 '        </div>' +

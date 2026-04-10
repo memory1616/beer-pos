@@ -11,10 +11,11 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
-  <link rel="stylesheet" href="/css/unified.css?v=20260424-clean">
+  <link rel="stylesheet" href="/css/unified.css?v=20260410-binance">
   <script src="/js/auth.js"></script>
   <script src="/js/dark-mode.js"></script>
-  <script src="/js/layout.js?v=20260424-clean"></script>
+  <script src="/js/layout.js?v=20260410-binance"></script>
+  <script src="https://unpkg.com/dexie@3/dist/dexie.min.js"></script>
   <script>requireAuth();</script>
 </head>
 <body class="bg-main text-primary body--app">
@@ -338,6 +339,9 @@
               <button type="button" onclick="updateSale()" class="btn btn-warning flex-1 h-12"><span class="mr-1">💾</span> Cập nhật</button>
             </div>
           </div>
+
+          <!-- Sync Status Indicator -->
+          <div id="syncStatusIndicator" class="fixed top-2 right-2 z-[100] text-xs px-2 py-1 rounded-full bg-card border border-border opacity-80" style="display:none;"></div>
         </div>
         `) +
         getBottomNav('/sale');

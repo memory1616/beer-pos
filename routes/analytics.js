@@ -147,7 +147,7 @@ router.get('/', (req, res) => {
         <div class="card card--list-item mb-2 last:mb-0">
           <div class="flex justify-between items-center">
             <div class="flex items-center gap-2">
-              <div class="w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs bg-success/20 text-success">${i+1}</div>
+              <div class="w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs bg-success-20 text-success">${i+1}</div>
               <span class="font-medium">${p.name}</span>
             </div>
             <div class="font-bold text-success">${p.qty} bình</div>

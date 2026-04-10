@@ -11,16 +11,11 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
-  <link rel="stylesheet" href="/css/unified.css?v=20260424-clean">
+  <link rel="stylesheet" href="/css/unified.css?v=20260410-binance">
   <script src="/js/auth.js"></script>
   <script src="/js/dark-mode.js"></script>
-  <script src="/js/layout.js?v=20260424-clean"></script>
+  <script src="/js/layout.js?v=20260410-binance"></script>
   <script>requireAuth();</script>
-  <style>
-    /* Stock page animations (needed for modal transitions) */
-    .animate-fade { animation: fade-in 0.3s ease-in; }
-    @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-  </style>
   <script src="/js/utils.js"></script>
 </head>
 <body class="bg-main text-primary body--app">
@@ -33,7 +28,7 @@
 
   <!-- Product Modal -->
   <div id="productModal" class="modal-overlay-v2 hidden center">
-    <div class="modal-sheet-v2" style="max-width:400px;margin:auto;">
+    <div class="modal-sheet-v2">
       <div class="modal-sheet-v2-header">
         <div class="modal-sheet-v2-title" id="modalTitle">Thêm sản phẩm</div>
         <button onclick="closeProductModal()" class="modal-sheet-v2-close">×</button>
@@ -44,14 +39,12 @@
           <div>
             <label class="field-label">Tên sản phẩm</label>
             <input type="text" id="productName" required
-              class="w-full"
-              style="height:48px;padding:12px 14px;border-radius:var(--radius-lg);border:1px solid var(--border);background:var(--card);box-sizing:border-box;font-size:16px;color:var(--text-main);"
+              class="bn-input"
               placeholder="Nhập tên sản phẩm">
           </div>
           <div>
             <label class="field-label">Loại bao bì</label>
-            <select id="productType" class="w-full"
-              style="height:48px;padding:12px 14px;border-radius:var(--radius-lg);border:1px solid var(--border);background:var(--card);box-sizing:border-box;font-size:16px;color:var(--text-main);">
+            <select id="productType" class="bn-select">
               <option value="keg">📦 Bình (Keg)</option>
               <option value="pet">🧴 Chai Nhựa (Pet)</option>
               <option value="box">📦 Hộp (Box) 23L</option>
@@ -60,15 +53,13 @@
           <div>
             <label class="field-label">Giá vốn (đ)</label>
             <input type="number" id="productCostPrice" step="1000"
-              class="w-full"
-              style="height:48px;padding:12px 14px;border-radius:var(--radius-lg);border:1px solid var(--border);background:var(--card);box-sizing:border-box;font-size:16px;color:var(--text-main);"
+              class="bn-input"
               placeholder="0">
           </div>
           <div id="stockField">
             <label class="field-label">Số lượng tồn</label>
             <input type="number" id="productStock"
-              class="w-full"
-              style="height:48px;padding:12px 14px;border-radius:var(--radius-lg);border:1px solid var(--border);background:var(--card);box-sizing:border-box;font-size:16px;color:var(--text-main);"
+              class="bn-input"
               placeholder="0">
           </div>
           <div class="flex gap-2 pt-2">
@@ -83,19 +74,18 @@
 
   <!-- Purchase Edit Modal -->
   <div id="purchaseModal" class="modal-overlay-v2 hidden center">
-    <div class="modal-sheet-v2" style="max-width:400px;max-height:80vh;margin:auto;">
+    <div class="modal-sheet-v2 bn-modal--tall">
       <div class="modal-sheet-v2-header">
         <div class="modal-sheet-v2-title">Sửa đơn nhập</div>
         <button onclick="closePurchaseModal()" class="modal-sheet-v2-close">×</button>
       </div>
-      <div class="modal-sheet-v2-body">
-        <form id="editPurchaseForm" class="space-y-3 overflow-y-auto" style="max-height:60vh;">
+      <div class="modal-sheet-v2-body overflow-y-auto" style="max-height:60vh;">
+        <form id="editPurchaseForm" class="space-y-3">
           <input type="hidden" id="editPurchaseId">
           <div>
             <label class="field-label">Ghi chú</label>
             <input type="text" id="editPurchaseNote"
-              class="w-full"
-              style="height:48px;padding:12px 14px;border-radius:var(--radius-lg);border:1px solid var(--border);background:var(--card);box-sizing:border-box;font-size:16px;color:var(--text-main);"
+              class="bn-input"
               placeholder="Ghi chú...">
           </div>
           <div id="editPurchaseItems" class="space-y-3"></div>
@@ -179,7 +169,7 @@
       // Wait for DOM paint, then load stock.js, then call loadData()
       await new Promise(resolve => requestAnimationFrame(resolve));
       await new Promise(resolve => setTimeout(resolve, 0));
-      await loadScript('/js/stock.js?v=20260425-ux');
+      await loadScript('/js/stock.js?v=20260410-binance');
 
       // Ensure DOM is ready before rendering
       if (document.readyState === 'loading') {

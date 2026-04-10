@@ -8,23 +8,23 @@
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#f59e0b">
   <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
   
   <!-- PERFORMANCE: Preload layout.js for first paint -->
-  <link rel="preload" href="/js/layout.js?v=20260414a" as="script">
-  <link rel="preload" href="/css/unified.css?v=20260414a" as="style">
+  <link rel="preload" href="/js/layout.js?v=20260410-binance" as="script">
+  <link rel="preload" href="/css/unified.css?v=20260410-binance" as="style">
   
-  <link rel="stylesheet" href="/css/tailwind.css">
-  <link rel="stylesheet" href="/css/unified.css?v=20260414a">
+  <link rel="stylesheet" href="/css/unified.css?v=20260410-binance">
   <script src="/js/auth.js"></script>
   <script src="/js/dark-mode.js"></script>
-  <script src="/js/layout.js?v=20260414a"></script>
+  <script src="/js/layout.js?v=20260410-binance"></script>
   <script>requireAuth();</script>
 
   <!-- CLS Prevention: Skeleton styles (matches layout.js header dimensions) -->
   <style>
-    .skeleton-header {
+    .skeleton-header-fixed {
       position: fixed; top: 0; left: 0; right: 0;
       height: calc(56px + env(safe-area-inset-top, 0px));
       background: var(--color-card, #fff);
@@ -33,7 +33,7 @@
       padding: 0 16px; padding-top: env(safe-area-inset-top, 0px);
       z-index: 50; box-sizing: border-box;
     }
-    .skeleton-nav {
+    .skeleton-nav-fixed {
       position: fixed; bottom: 0; left: 0; right: 0;
       height: calc(64px + env(safe-area-inset-bottom, 0px));
       background: var(--color-card, #fff);
@@ -54,29 +54,29 @@
       background: linear-gradient(90deg, var(--card-soft) 25%, var(--bg-hover) 50%, var(--card-soft) 75%);
       background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 6px;
     }
-    [data-theme="dark"] .skeleton-header { background: rgba(30, 41, 59, 0.92); border-bottom-color: var(--border); }
-    [data-theme="dark"] .skeleton-nav { background: rgba(30, 41, 59, 0.92); }
-    [data-theme="dark"] .skeleton-bar, [data-theme="dark"] .skeleton-btn {
+    .skeleton-shimmer {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 4px; padding: 8px;
+    }
+    .skeleton-shimmer-bar.tall { height: 14px; width: 20px; background: linear-gradient(90deg, var(--card-soft, #f3f4f6) 25%, var(--bg-hover, #e5e7eb) 50%, var(--card-soft, #f3f4f6) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px; }
+    .skeleton-shimmer-bar.wide { height: 10px; width: 40px; background: linear-gradient(90deg, var(--card-soft, #f3f4f6) 25%, var(--bg-hover, #e5e7eb) 50%, var(--card-soft, #f3f4f6) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px; }
+    [data-theme="dark"] .skeleton-header-fixed { background: rgba(30, 41, 59, 0.92); border-bottom-color: var(--border); }
+    [data-theme="dark"] .skeleton-nav-fixed { background: rgba(30, 41, 59, 0.92); }
+    [data-theme="dark"] .skeleton-bar, [data-theme="dark"] .skeleton-btn, [data-theme="dark"] .skeleton-shimmer-bar {
       background: linear-gradient(90deg, var(--card) 25%, var(--card-soft) 50%, var(--card) 75%);
       background-size: 200% 100%;
     }
-  </style>
-
-  <style>
-    button, a { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-    .card { transition: transform 0.2s, box-shadow 0.2s; }
-    .card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
   </style>
 </head>
 <body class="bg-main text-primary body--app">
 
   <!-- CLS Prevention: Skeleton rendered immediately -->
   <div id="skeleton">
-    <header class="skeleton-header">
+    <header class="skeleton-header-fixed">
       <div style="display:flex;align-items:center;gap:8px;"><div style="font-size:20px;">💾</div><div class="skeleton-bar"></div></div>
       <div style="display:flex;gap:8px;"><div class="skeleton-btn"></div></div>
     </header>
-    <nav class="skeleton-nav">
+    <nav class="skeleton-nav-fixed">
       <div class="skeleton-shimmer"><div class="skeleton-shimmer-bar tall"></div><div class="skeleton-shimmer-bar wide"></div></div>
       <div class="skeleton-shimmer"><div class="skeleton-shimmer-bar tall"></div><div class="skeleton-shimmer-bar wide"></div></div>
       <div class="skeleton-shimmer"><div class="skeleton-shimmer-bar tall"></div><div class="skeleton-shimmer-bar wide"></div></div>
@@ -205,7 +205,7 @@
     var skeleton = document.getElementById('skeleton');
     if (skeleton) skeleton.remove();
 
-    var headerActions = '<a href="/" class="text-muted hover:bg-bg-hover px-2 rounded" style="font-size:18px;">🏠</a>';
+    var headerActions = '<a href="/" class="btn btn-ghost">🏠</a>';
 
     document.getElementById('app').innerHTML =
       getHeaderWithActions('Sao lưu', '💾', headerActions) +

@@ -8,26 +8,21 @@
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#f59e0b">
   <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
-  <link rel="stylesheet" href="/css/unified.css?v=20260424-clean">
+  <link rel="stylesheet" href="/css/unified.css?v=20260410-binance">
   <script src="/js/auth.js"></script>
   <script src="/js/dark-mode.js"></script>
-  <script src="/js/layout.js?v=20260424-clean"></script>
+  <script src="/js/layout.js?v=20260410-binance"></script>
   <script>requireAuth();</script>
-  <style>
-    .animate-fade { animation: fade 0.3s ease-in; }
-    @keyframes fade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-    button, a { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-    button:active { transform: scale(0.96); }
-  </style>
 </head>
 <body class="bg-main text-primary body--app">
   <div id="app"></div>
 
   <script src="/js/utils.js"></script>
   <!-- realtime.js auto-loaded by layout.js -->
-  <script src="/js/purchases.js?v=20260425-ux"></script>
+  <script src="/js/purchases.js?v=20260410-binance"></script>
 
   <script>
     // --- State & configuration ---
@@ -198,7 +193,7 @@
     }
 
     // --- Render layout: header + content + bottom nav ---
-    var headerActions = '<a href="/" class="text-muted hover:bg-bg-hover px-2 rounded" style="font-size:18px;">🏠</a>';
+    var headerActions = '<a href="/" class="btn btn-ghost">🏠</a>';
 
     document.getElementById('app').innerHTML =
       getHeaderWithActions('Nhập hàng', '📥', headerActions) +

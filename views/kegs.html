@@ -6,190 +6,178 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Quản lý vỏ - Bia Tươi Gia Huy</title>
   <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#059669">
+  <meta name="theme-color" content="#0B0E11">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
-  <link rel="stylesheet" href="/css/unified.css?v=20260424-clean">
+  <link rel="stylesheet" href="/css/unified.css?v=20260410-binance">
   <script src="/js/auth.js"></script>
   <script src="/js/dark-mode.js"></script>
-  <script src="/js/layout.js?v=20260424-clean"></script>
+  <script src="/js/layout.js?v=20260410-binance"></script>
   <script src="/js/utils.js"></script>
   <script>requireAuth();</script>
-  <style>
-    .animate-fade { animation: fade 0.3s ease-in; }
-    @keyframes fade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-    button, a { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-    button:active { transform: scale(0.96); }
-    .action-btn { transition: all 0.2s; }
-    .action-btn:active { transform: scale(0.95); }
-    .badge-deliver { background: var(--green-dim); color: var(--green); }
-    .badge-collect { background: rgba(37,99,235,0.15); color: var(--info); }
-    .badge-import { background: rgba(139,92,246,0.15); color: #7c3aed; }
-    .badge-adjust { background: var(--primary-dim); color: var(--primary-hover); }
-    .badge-sell_empty { background: rgba(236,72,153,0.15); color: #db2777; }
-    .delta-up { color: var(--green); }
-    .delta-down { color: var(--red); }
-    .delta-neutral { color: var(--text-secondary); }
-    input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-    input[type=number] { -moz-appearance: textfield; }
-  </style>
 </head>
-<body class="bg-main text-primary body--app">
+<body class="body--app">
   <div id="app"></div>
 
-  <!-- ========== MODALS ========== -->
-  <div id="deliverModal" class="fixed inset-0 bg-overlay z-50 hidden items-center justify-center p-4">
-    <div class="bg-card rounded-xl w-full max-w-sm">
+  <!-- ========== MODALS (Binance Bottom-Sheet) ========== -->
+
+  <!-- Deliver Modal -->
+  <div id="deliverModal" class="modal-overlay-v2 hidden center">
+    <div class="modal-sheet-v2">
       <div class="modal-sheet-v2-header">
         <div class="modal-sheet-v2-title">📦 Giao vỏ cho khách</div>
         <button onclick="closeModal('deliverModal')" class="modal-sheet-v2-close">×</button>
       </div>
       <div class="modal-sheet-v2-body">
-        <div class="card mb-3" style="background:var(--green-dim);border-color:var(--green);">
-          <div class="text-xs mb-1" style="color:var(--text-muted);">Vỏ sẵn có:</div>
-          <div class="font-bold green" id="deliverAvailQty">-</div>
+        <div class="card card--accent-green">
+          <div class="text-xs text-muted mb-1">Vỏ sẵn có:</div>
+          <div class="font-bold text-success" id="deliverAvailQty">-</div>
         </div>
         <div>
           <label class="field-label">Khách hàng</label>
-          <select id="deliverCustomer" class="field-input" style="height:48px;font-size:16px;">
+          <select id="deliverCustomer" class="bn-input bn-input--lg">
             <option value="">-- Chọn khách hàng --</option>
           </select>
         </div>
         <div>
           <label class="field-label">Số lượng vỏ</label>
           <div class="flex items-center gap-2">
-            <input type="number" id="deliverQty" min="1" value="1" class="field-input" style="height:48px;font-size:20px;font-weight:600;text-align:center;border-color:var(--green);">
+            <input type="number" id="deliverQty" min="1" value="1" class="bn-input bn-input--lg bn-input--center bn-input--green">
             <div class="flex gap-1">
-              <button onclick="adjustQty('deliverQty', -1)" class="btn btn-ghost" style="width:40px;height:48px;font-size:18px;padding:0;">−</button>
-              <button onclick="adjustQty('deliverQty', 1)" class="btn btn-ghost" style="width:40px;height:48px;font-size:18px;padding:0;">+</button>
+              <button onclick="adjustQty('deliverQty', -1)" class="btn btn-ghost bn-btn-icon">−</button>
+              <button onclick="adjustQty('deliverQty', 1)" class="btn btn-ghost bn-btn-icon">+</button>
             </div>
           </div>
         </div>
         <div>
           <label class="field-label">Ghi chú</label>
-          <input type="text" id="deliverNote" class="field-input" style="height:44px;font-size:15px;" placeholder="VD: Theo đơn hàng">
+          <input type="text" id="deliverNote" class="bn-input" placeholder="VD: Theo đơn hàng">
         </div>
-        <button onclick="submitDeliver()" class="btn" style="width:100%;height:48px;background:var(--green);color:#fff;font-weight:600;border-radius:var(--radius-md);">Xác nhận giao</button>
+        <button onclick="submitDeliver()" class="btn btn-success bn-btn-lg">Xác nhận giao</button>
       </div>
     </div>
   </div>
 
+  <!-- Collect Modal -->
   <div id="collectModal" class="modal-overlay-v2 hidden center">
-    <div class="bg-card rounded-xl w-full max-w-sm animate-fade">
+    <div class="modal-sheet-v2">
       <div class="modal-sheet-v2-header">
-        <div class="modal-sheet-v2-title" style="color:var(--info);">🔄 Thu vỏ rỗng</div>
+        <div class="modal-sheet-v2-title text-info">🔄 Thu vỏ rỗng</div>
         <button onclick="closeModal('collectModal')" class="modal-sheet-v2-close">×</button>
       </div>
       <div class="modal-sheet-v2-body">
-        <div class="card mb-3" style="background:rgba(59,130,246,0.12);border-color:var(--info);">
-          <div class="text-xs mb-1" style="color:var(--text-muted);">Vỏ khách đang giữ:</div>
-          <div class="font-bold" style="color:var(--info);" id="collectAvailQty">-</div>
+        <div class="card card--accent-blue">
+          <div class="text-xs text-muted mb-1">Vỏ khách đang giữ:</div>
+          <div class="font-bold text-info" id="collectAvailQty">-</div>
         </div>
         <div>
           <label class="field-label">Khách hàng</label>
-          <select id="collectCustomer" class="field-input" style="height:48px;font-size:16px;" onchange="updateCollectAvail()">
+          <select id="collectCustomer" class="bn-input bn-input--lg" onchange="updateCollectAvail()">
             <option value="">-- Chọn khách hàng --</option>
           </select>
         </div>
         <div>
           <label class="field-label">Số lượng vỏ</label>
           <div class="flex items-center gap-2">
-            <input type="number" id="collectQty" min="1" value="1" class="field-input" style="height:48px;font-size:20px;font-weight:600;text-align:center;border-color:var(--info);">
+            <input type="number" id="collectQty" min="1" value="1" class="bn-input bn-input--lg bn-input--center bn-input--blue">
             <div class="flex gap-1">
-              <button onclick="adjustQty('collectQty', -1)" class="btn btn-ghost" style="width:40px;height:48px;font-size:18px;padding:0;">−</button>
-              <button onclick="adjustQty('collectQty', 1)" class="btn btn-ghost" style="width:40px;height:48px;font-size:18px;padding:0;">+</button>
+              <button onclick="adjustQty('collectQty', -1)" class="btn btn-ghost bn-btn-icon">−</button>
+              <button onclick="adjustQty('collectQty', 1)" class="btn btn-ghost bn-btn-icon">+</button>
             </div>
           </div>
         </div>
         <div>
           <label class="field-label">Ghi chú</label>
-          <input type="text" id="collectNote" class="field-input" style="height:44px;font-size:15px;" placeholder="VD: Thu vỏ từ khách">
+          <input type="text" id="collectNote" class="bn-input" placeholder="VD: Thu vỏ từ khách">
         </div>
-        <button onclick="submitCollect()" class="btn" style="width:100%;height:48px;background:var(--info);color:#fff;font-weight:600;border-radius:var(--radius-md);">Xác nhận thu</button>
+        <button onclick="submitCollect()" class="btn btn-secondary bn-btn-lg">Xác nhận thu</button>
       </div>
     </div>
   </div>
 
+  <!-- Import Modal -->
   <div id="importModal" class="modal-overlay-v2 hidden center">
-    <div class="bg-card rounded-xl w-full max-w-sm animate-fade">
+    <div class="modal-sheet-v2">
       <div class="modal-sheet-v2-header">
         <div class="modal-sheet-v2-title">🏭 Nhập vỏ từ nhà máy</div>
         <button onclick="closeModal('importModal')" class="modal-sheet-v2-close">×</button>
       </div>
       <div class="modal-sheet-v2-body">
-        <div class="card mb-3 text-center" style="background:var(--primary-dim);border-color:var(--primary);">
-          <span class="text-muted text-xs">Vỏ rỗng hiện có: </span>
-          <span class="font-bold" style="color:var(--primary-hover);" id="importAvailEmpty">-</span>
+        <div class="card card--accent-primary text-center">
+          <span class="text-xs text-muted">Vỏ rỗng hiện có: </span>
+          <span class="font-bold text-primary" id="importAvailEmpty">-</span>
         </div>
         <div>
           <label class="field-label">Đổi vỏ (trả rỗng → lấy đầy)</label>
-          <input type="number" id="importExchanged" min="0" value="0" class="field-input" style="height:48px;font-size:18px;font-weight:600;text-align:center;" oninput="updateImportTotal()">
+          <input type="number" id="importExchanged" min="0" value="0" class="bn-input bn-input--lg bn-input--center" oninput="updateImportTotal()">
         </div>
         <div>
           <label class="field-label">Mua vỏ mới</label>
-          <input type="number" id="importPurchased" min="0" value="0" class="field-input" style="height:48px;font-size:18px;font-weight:600;text-align:center;" oninput="updateImportTotal()">
+          <input type="number" id="importPurchased" min="0" value="0" class="bn-input bn-input--lg bn-input--center" oninput="updateImportTotal()">
         </div>
-        <div class="card text-center" style="background:var(--primary-dim);border-color:var(--primary);">
-          <span class="text-muted text-xs">Tổng nhập: </span>
-          <span class="font-bold" style="color:var(--primary-hover);" id="importTotalDisplay">0 vỏ</span>
+        <div class="card card--accent-primary text-center">
+          <span class="text-xs text-muted">Tổng nhập: </span>
+          <span class="font-bold text-primary" id="importTotalDisplay">0 vỏ</span>
         </div>
         <div>
           <label class="field-label">Ghi chú</label>
-          <input type="text" id="importNote" class="field-input" style="height:44px;font-size:15px;" placeholder="VD: Nhập từ Bia Sài Gòn">
+          <input type="text" id="importNote" class="bn-input" placeholder="VD: Nhập từ Bia Sài Gòn">
         </div>
-        <button onclick="submitImport()" class="btn btn-secondary" style="width:100%;height:48px;font-weight:600;border-radius:var(--radius-md);">Xác nhận nhập</button>
+        <button onclick="submitImport()" class="btn btn-primary bn-btn-lg">Xác nhận nhập</button>
       </div>
     </div>
   </div>
 
+  <!-- Adjust Modal -->
   <div id="adjustModal" class="modal-overlay-v2 hidden center">
-    <div class="bg-card rounded-xl w-full max-w-sm animate-fade">
+    <div class="modal-sheet-v2">
       <div class="modal-sheet-v2-header">
-        <div class="modal-sheet-v2-title" style="color:var(--primary-hover);">⚙️ Điều chỉnh vỏ rỗng</div>
+        <div class="modal-sheet-v2-title text-primary">⚙️ Điều chỉnh vỏ rỗng</div>
         <button onclick="closeModal('adjustModal')" class="modal-sheet-v2-close">×</button>
       </div>
       <div class="modal-sheet-v2-body">
-        <div class="card mb-3" style="background:var(--primary-dim);border-color:var(--primary);">
+        <div class="card card--accent-primary">
           <div class="flex justify-between mb-1">
-            <span class="text-muted text-sm">Vỏ rỗng hiện tại:</span>
-            <span class="font-bold" style="color:var(--primary-hover);" id="currentEmptyDisplay">-</span>
+            <span class="text-sm text-muted">Vỏ rỗng hiện tại:</span>
+            <span class="font-bold text-primary" id="currentEmptyDisplay">-</span>
           </div>
-          <div class="text-xs" style="color:var(--text-muted);">Dùng khi thực tế khác sổ sách</div>
+          <div class="text-xs text-muted">Dùng khi thực tế khác sổ sách</div>
         </div>
         <div>
           <label class="field-label">Số lượng vỏ rỗng mới</label>
-          <input type="number" id="adjustQty" min="0" value="0" class="field-input" style="height:48px;font-size:20px;font-weight:600;text-align:center;">
+          <input type="number" id="adjustQty" min="0" value="0" class="bn-input bn-input--lg bn-input--center">
         </div>
         <div>
           <label class="field-label">Ghi chú</label>
-          <input type="text" id="adjustNote" class="field-input" style="height:44px;font-size:15px;" placeholder="VD: Kiểm kê kho vỏ">
+          <input type="text" id="adjustNote" class="bn-input" placeholder="VD: Kiểm kê kho vỏ">
         </div>
-        <button onclick="submitAdjust()" class="btn" style="width:100%;height:48px;background:var(--primary);color:var(--bg);font-weight:600;border-radius:var(--radius-md);">Cập nhật</button>
+        <button onclick="submitAdjust()" class="btn btn-primary bn-btn-lg">Cập nhật</button>
       </div>
     </div>
   </div>
 
-  <div id="historyModal" class="modal-overlay-v2 hidden center" style="padding:8px;">
-    <div class="modal-sheet-v2" style="max-width:480px;margin:auto;max-height:92vh;">
+  <!-- History Modal -->
+  <div id="historyModal" class="modal-overlay-v2 hidden center">
+    <div class="modal-sheet-v2 bn-modal--tall">
       <div class="modal-sheet-v2-header">
         <div class="modal-sheet-v2-title">📋 Lịch sử giao dịch vỏ</div>
         <button onclick="closeModal('historyModal')" class="modal-sheet-v2-close">×</button>
       </div>
       <div class="px-3 pt-2 flex-shrink-0">
         <div class="flex gap-2 overflow-x-auto pb-2">
-          <button onclick="setHistoryFilter('all')" id="filterAll" class="px-3 py-1 rounded-full text-xs font-semibold bg-success/20 text-success whitespace-nowrap">Tất cả</button>
-          <button onclick="setHistoryFilter('deliver')" id="filterDeliver" class="px-3 py-1 rounded-full text-xs font-semibold bg-bg text-muted whitespace-nowrap">📦 Giao</button>
-          <button onclick="setHistoryFilter('collect')" id="filterCollect" class="px-3 py-1 rounded-full text-xs font-semibold bg-bg text-muted whitespace-nowrap">🔄 Thu</button>
-          <button onclick="setHistoryFilter('import')" id="filterImport" class="px-3 py-1 rounded-full text-xs font-semibold bg-bg text-muted whitespace-nowrap">🏭 Nhập</button>
-          <button onclick="setHistoryFilter('adjust')" id="filterAdjust" class="px-3 py-1 rounded-full text-xs font-semibold bg-bg text-muted whitespace-nowrap">⚙️ Điều chỉnh</button>
+          <button onclick="setHistoryFilter('all')" id="filterAll" class="bn-chip bn-chip--active">Tất cả</button>
+          <button onclick="setHistoryFilter('deliver')" id="filterDeliver" class="bn-chip">📦 Giao</button>
+          <button onclick="setHistoryFilter('collect')" id="filterCollect" class="bn-chip">🔄 Thu</button>
+          <button onclick="setHistoryFilter('import')" id="filterImport" class="bn-chip">🏭 Nhập</button>
+          <button onclick="setHistoryFilter('adjust')" id="filterAdjust" class="bn-chip">⚙️ Điều chỉnh</button>
         </div>
         <div class="flex gap-2 mb-2">
-          <select id="historyCustomerFilter" class="flex-1 border border-muted rounded-lg px-2 py-1 text-xs" onchange="loadHistory()">
+          <select id="historyCustomerFilter" class="bn-select bn-select--sm flex-1" onchange="loadHistory()">
             <option value="">-- Tất cả khách --</option>
           </select>
-          <select id="historyPageSize" class="border border-muted rounded-lg px-2 py-1 text-xs" onchange="loadHistory()">
+          <select id="historyPageSize" class="bn-select bn-select--sm" onchange="loadHistory()">
             <option value="20">20 dòng</option>
             <option value="50" selected>50 dòng</option>
             <option value="100">100 dòng</option>
@@ -198,7 +186,7 @@
       </div>
       <div class="px-3 pb-2 flex-shrink-0">
         <div class="grid grid-cols-4 gap-2 text-center">
-          <div class="card stat-card--success p-2">
+          <div class="card stat-card--green p-2">
             <div class="text-xs text-muted mb-0.5">Đã giao</div>
             <div class="text-sm font-bold text-success" id="summaryDelivered">-</div>
           </div>
@@ -218,7 +206,7 @@
       </div>
       <div class="flex-1 overflow-y-auto px-3 pb-3" id="historyListContainer">
         <div id="historyList"></div>
-        <div class="flex justify-between items-center mt-3 pt-2 border-t border-muted" id="historyPagination">
+        <div class="flex justify-between items-center mt-3 pt-2 border-t" id="historyPagination">
           <button onclick="changeHistoryPage(-1)" id="historyPrevBtn" class="btn btn-secondary px-3 h-9 text-xs" disabled>← Trước</button>
           <span class="text-xs text-muted" id="historyPageInfo">Trang 1/1</span>
           <button onclick="changeHistoryPage(1)" id="historyNextBtn" class="btn btn-secondary px-3 h-9 text-xs" disabled>Sau →</button>
@@ -339,8 +327,8 @@
     }
 
     function typeBadgeClass(type) {
-      var map = { deliver:'badge-deliver', collect:'badge-collect', import:'badge-import', adjust:'badge-adjust', sell_empty:'badge-sell_empty' };
-      return 'inline-block px-2 py-0.5 rounded-full text-xs font-semibold ' + (map[type] || 'badge-secondary');
+      var map = { deliver:'badge badge-success', collect:'badge badge-info', import:'badge badge-primary', adjust:'badge badge-warning', sell_empty:'badge badge-danger' };
+      return map[type] || 'badge badge-secondary';
     }
 
     function typeLabel(type) {
@@ -378,12 +366,11 @@
       historyFilter = type;
       historyPage = 1;
       document.querySelectorAll('[id^="filter"]').forEach(function(el) {
-        el.classList.remove('bg-success/20', 'text-success');
-        el.classList.add('bg-bg', 'text-muted');
+        el.classList.remove('bn-chip--active');
       });
       var map = { all:'All', deliver:'Deliver', collect:'Collect', import:'Import', adjust:'Adjust' };
       var active = document.getElementById('filter' + map[type]);
-      if (active) { active.classList.remove('bg-bg', 'text-muted'); active.classList.add('bg-success/20', 'text-success'); }
+      if (active) { active.classList.add('bn-chip--active'); }
       loadHistory();
     }
 
@@ -535,20 +522,20 @@
     // ========== INIT ==========
     async function init() {
       var headerActions =
-        '<button onclick="syncKegs()" class="text-muted hover:bg-bg-hover px-2 rounded" style="font-size:18px;background:none;border:none;cursor:pointer;padding:4px 8px;" title="Đồng bộ">🔄</button>' +
-        '<button onclick="openHistoryModal()" class="text-muted hover:bg-bg-hover px-2 rounded" style="font-size:18px;background:none;border:none;cursor:pointer;padding:4px 8px;" title="Lịch sử chi tiết">📋</button>';
+        '<button onclick="syncKegs()" class="bn-icon-btn" title="Đồng bộ">🔄</button>' +
+        '<button onclick="openHistoryModal()" class="bn-icon-btn" title="Lịch sử chi tiết">📋</button>';
 
       document.getElementById('app').innerHTML =
         getHeaderWithActions('Quản lý vỏ bia', '🍺', headerActions) +
         getContent(`
           <!-- Stats Grid -->
           <div class="grid grid-cols-2 gap-3 mb-4">
-            <div class="card stat-card--green" onclick="openModal('adjustModal')" style="cursor:pointer">
+            <div class="card stat-card--green cursor-pointer" onclick="openModal('adjustModal')">
               <div class="sc-label"><span class="sc-icon">📦</span> Vỏ đầy (kho)</div>
               <div class="sc-value" id="statInventory">-</div>
               <div class="sc-sub">Sẵn sàng giao</div>
             </div>
-            <div class="card stat-card--blue" onclick="openModal('adjustModal')" style="cursor:pointer">
+            <div class="card stat-card--info cursor-pointer" onclick="openModal('adjustModal')">
               <div class="sc-label"><span class="sc-icon">🧹</span> Vỏ rỗng</div>
               <div class="sc-value" id="statEmpty">-</div>
               <div class="sc-sub">Chờ nạp lại</div>
@@ -585,7 +572,7 @@
 
           <!-- Recent Transaction Log -->
           <div class="card overflow-hidden">
-            <div class="p-3 border-b border-muted flex justify-between items-center">
+            <div class="p-3 border-b flex justify-between items-center">
               <h3 class="font-bold text-sm text-main">📋 Giao dịch gần đây</h3>
               <button onclick="openHistoryModal()" class="text-xs text-success font-semibold">Xem tất cả →</button>
             </div>
@@ -613,6 +600,7 @@
     }
     init();
   </script>
+
   <!-- PERFORMANCE: db.js + sync.js non-blocking via requestIdleCallback -->
   <script>
     var _ric = window.requestIdleCallback || function(cb) { return setTimeout(cb, 200); };

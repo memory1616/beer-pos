@@ -2393,3 +2393,164 @@ if ('serviceWorker' in navigator) {
 /** PERFORMANCE: Debounced updateSaleTotal — coalesces rapid keystrokes, max 1 call per 100ms.
  *  Call this from updateSaleData() instead of updateSaleTotal() directly. */
 const _debouncedUpdateTotal = _debounce(updateSaleTotal, 100);
+
+// ========== EVENT-DRIVEN SYNC INTEGRATION ==========
+
+// Load scripts in order
+async function loadModules() {
+  console.log('[EVENT] Loading modules...');
+
+  // Core modules
+  await loadScript('/js/db.js');
+  await loadScript('/js/event-store.js');
+  await loadScript('/js/apply-event.js');
+  await loadScript('/js/event-sync.js');
+  await loadScript('/js/websocket.js');
+  await loadScript('/js/consistency-check.js');
+  await loadScript('/js/offline-store.js');
+
+  console.log('[EVENT] All modules loaded');
+}
+
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${src}"]`)) {
+      resolve();
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = src;
+    script.onload = resolve;
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+}
+
+// Initialize event-driven sync when page loads
+document.addEventListener('DOMContentLoaded', async () => {
+  console.log('[EVENT] Initializing event-driven sync...');
+
+  await loadModules();
+
+  // Wait for OfflineStore
+  let retries = 0;
+  while (!window.OfflineStore && retries < 20) {
+    await new Promise(r => setTimeout(r, 100));
+    retries++;
+  }
+
+  if (window.OfflineStore) {
+    await window.OfflineStore.init();
+    console.log('[EVENT] Event-driven sync ready');
+
+    // Listen for entity updates → refresh UI
+    window.addEventListener('entity:updated', (e) => {
+      const { type, data } = e.detail || {};
+      
+      // Refresh relevant data
+      if (type?.startsWith('order:')) {
+        if (typeof loadSalesHistory === 'function') {
+          loadSalesHistory();
+        }
+      }
+      if (type?.startsWith('product:')) {
+        if (typeof loadData === 'function') {
+          loadData();
+        }
+      }
+    });
+
+    // Listen for sync status
+    window.addEventListener('eventsync:sync:complete', (e) => {
+      console.log('[EVENT] Sync complete:', e.detail);
+      updateSyncStatusIndicator();
+    });
+
+    window.addEventListener('eventsync:conflict', (e) => {
+      console.warn('[EVENT] Conflict:', e.detail);
+      showToast('Phát hiện xung đột. Đang xử lý...', 'warning');
+    });
+
+    // Consistency check listener
+    window.addEventListener('consistency:mismatch', (e) => {
+      console.warn('[EVENT] Consistency mismatch:', e.detail);
+      showToast('Phát hiện lệch dữ liệu. Đang đồng bộ...', 'warning');
+    });
+
+    // Update sync status periodically
+    updateSyncStatusIndicator();
+    setInterval(updateSyncStatusIndicator, 5000);
+  }
+});
+
+async function updateSyncStatusIndicator() {
+  if (!window.OfflineStore) return;
+
+  try {
+    const status = await window.OfflineStore.getSyncStatus();
+    const indicator = document.getElementById('syncStatusIndicator');
+
+    if (indicator) {
+      indicator.style.display = 'block';
+
+      if (!status.isOnline) {
+        indicator.innerHTML = '📴 Offline';
+        indicator.className = 'text-xs text-warning';
+      } else if (status.pendingEvents > 0) {
+        indicator.innerHTML = `🔄 Sync (${status.pendingEvents})`;
+        indicator.className = 'text-xs text-info';
+      } else {
+        indicator.innerHTML = '✅ Sync OK';
+        indicator.className = 'text-xs text-success';
+      }
+    }
+  } catch (error) {
+    console.error('[EVENT] Status update error:', error);
+  }
+}
+
+// ========== ORIGINAL OFFLINE OVERLAY (keep for reference) ==========
+// submitSale is now handled by event-driven system via OfflineStore.createOrder()
+
+
+      // Show success immediately (optimistic UI)
+      haptic && haptic('success');
+      showToast('Đơn hàng đã được lưu!', 'success');
+
+      // Clear UI
+      saleData = {};
+      const cs1 = document.getElementById('customerSelect');
+      if (cs1) cs1.value = '';
+      const dK = document.getElementById('saleDeliverKegs');
+      const rK = document.getElementById('saleReturnKegs');
+      if (dK) dK.value = 0;
+      if (rK) rK.value = 0;
+      _kegDeliverManual = false;
+      _kegReturnManual = false;
+      applyResolvedPrices('', null);
+      renderSaleProducts();
+      updateSaleTotal();
+      updateKegSaleSection('');
+
+      // Refresh sales history
+      if (typeof loadSalesHistory === 'function') loadSalesHistory();
+
+      // Show invoice
+      try {
+        showInvoiceModal(order.id);
+      } catch(e) {
+        console.log('[OFFLINE] Could not show invoice:', e);
+      }
+
+      return;
+    } catch (error) {
+      console.warn('[OFFLINE] Offline create failed, falling back to server:', error);
+      // Fall through to original implementation
+    }
+  }
+
+  // Fallback to server API
+  return originalSubmitSale();
+};
+
+console.log('[Sales] Offline integration loaded');

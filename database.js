@@ -7,6 +7,17 @@ const logger = console;
 const dbPath = path.join(__dirname, 'database.sqlite');
 const db = new Database(dbPath);
 
+// Run database migrations
+try {
+  const { runMigrations } = require('./database/migration');
+  const migrationResult = runMigrations(db);
+  if (migrationResult.success && !migrationResult.skipped) {
+    logger.log('[MIGRATION] Database migrations completed successfully');
+  }
+} catch (error) {
+  logger.error('[MIGRATION] Migration error:', error.message);
+}
+
 // Helper: get current Vietnam date string (YYYY-MM-DD) in Asia/Ho_Chi_Minh timezone
 function getVietnamDateStr() {
   const now = new Date();

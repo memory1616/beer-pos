@@ -9,10 +9,10 @@
   <meta name="mobile-web-app-capable" content="yes">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
-  <link rel="stylesheet" href="/css/unified.css?v=20260424-clean">
+  <link rel="stylesheet" href="/css/unified.css?v=20260410-binance">
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <script src="/js/dark-mode.js"></script>
-  <script src="/js/layout.js?v=20260424-clean"></script>
+  <script src="/js/layout.js?v=20260410-binance"></script>
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <style>
     .delivery-map-wrap { position: relative; z-index: 0; isolation: isolate; overflow: hidden; border-radius: 12px; margin-bottom: 1rem; }
@@ -36,7 +36,7 @@
 
   <!-- Settings Modal -->
   <div id="settingsModal" class="modal-overlay-v2 hidden center" style="z-index:10000">
-    <div class="modal-sheet-v2" style="max-width:400px;margin:auto;">
+    <div class="modal-sheet-v2">
       <div class="modal-sheet-v2-header">
         <div class="modal-sheet-v2-title">⚙️ Cấu hình vận chuyển</div>
         <button type="button" onclick="hideSettingsModal()" class="modal-sheet-v2-close">×</button>
@@ -45,11 +45,11 @@
         <div class="space-y-4">
           <div>
             <label class="field-label">Phí/km (đ)</label>
-            <input type="number" id="deliveryCostPerKm" class="field-input" style="height:48px;font-size:16px;" min="0" step="100">
+            <input type="number" id="deliveryCostPerKm" class="bn-input bn-input--lg" min="0" step="100">
           </div>
           <div>
             <label class="field-label">Phí cơ bản (đ)</label>
-            <input type="number" id="deliveryBaseCost" class="field-input" style="height:48px;font-size:16px;" min="0">
+            <input type="number" id="deliveryBaseCost" class="bn-input bn-input--lg" min="0">
           </div>
         </div>
         <div class="border-t border-muted pt-4 mt-4">
@@ -57,18 +57,18 @@
           <div class="grid grid-cols-2 gap-2 mb-2">
             <div>
               <label class="text-xs text-muted">Vĩ độ</label>
-              <input type="number" id="distributorLat" class="field-input" style="height:40px;font-size:15px;" step="0.0001">
+              <input type="number" id="distributorLat" class="bn-input" step="0.0001">
             </div>
             <div>
               <label class="text-xs text-muted">Kinh độ</label>
-              <input type="number" id="distributorLng" class="field-input" style="height:40px;font-size:15px;" step="0.0001">
+              <input type="number" id="distributorLng" class="bn-input" step="0.0001">
             </div>
           </div>
           <button onclick="getDistributorLocation()" class="text-sm" style="color:var(--info);">📍 Lấy vị trí hiện tại</button>
         </div>
         <div class="flex gap-2 mt-4">
-          <button onclick="hideSettings()" class="flex-1 btn btn-ghost" style="height:44px;">Hủy</button>
-          <button onclick="saveSettings()" class="flex-1 btn btn-primary" style="height:44px;">Lưu</button>
+          <button onclick="hideSettings()" class="btn btn-ghost flex-1">Hủy</button>
+          <button onclick="saveSettings()" class="btn btn-primary flex-1">Lưu</button>
         </div>
       </div>
     </div>
@@ -80,7 +80,7 @@
   <script>
     // Render header + bottom nav using layout.js functions
     const headerActions = `
-      <button onclick="showSettings()" style="background:none;border:none;cursor:pointer;font-size:18px;padding:4px 8px;border-radius:6px;color:var(--color-text-muted);">⚙️</button>
+      <button onclick="showSettings()" class="btn btn-ghost">⚙️</button>
     `;
     
     document.getElementById('app').innerHTML =

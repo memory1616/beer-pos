@@ -16,28 +16,227 @@
   <link rel="prefetch" href="/js/sales.js">
   <link rel="prefetch" href="/js/stock.js">
 
-  <link rel="stylesheet" href="/css/unified.css?v=20260424-clean">
+  <link rel="stylesheet" href="/css/unified.css?v=20260410-binance">
   <script src="/js/auth.js"></script>
   <script src="/js/dark-mode.js"></script>
-  <script src="/js/layout.js?v=20260424-clean"></script>
+  <script src="/js/layout.js?v=20260410-binance"></script>
   <script src="/js/numfmt.js"></script>
   <script>requireAuth();</script>
   <style>
-    .animate-fade { animation: fade 0.3s ease-in; }
-    @keyframes fade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     canvas { width: 100% !important; height: auto !important; }
-    .skeleton { background: linear-gradient(90deg, var(--color-bg-hover) 25%, var(--color-card-hover) 50%, var(--color-bg-hover) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
-    @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
-    button, a { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-    button:active { transform: scale(0.96); }
-    .card { transition: transform 0.2s, box-shadow 0.2s; }
-    .card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
-    /* iOS keyboard fix */
-    .modal-body { flex: 1; overflow-y: auto; }
-    .modal-footer { flex-shrink: 0; }
-    @media (max-height: 500px) {
-      .modal-content { max-height: 95vh; }
+
+    /* ===== ADD MODAL — POS UX STYLES ===== */
+    #addModal .add-section {
+      padding: 16px;
+      border-bottom: 1px solid var(--color-border);
     }
+    #addModal .add-section:last-of-type {
+      border-bottom: none;
+      padding-bottom: 8px;
+    }
+
+    /* Section title */
+    #addModal .add-section-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--color-text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 10px;
+    }
+
+    /* Fields stack */
+    #addModal .add-fields-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Field label */
+    #addModal .add-field-label {
+      display: block;
+      font-size: 13px;
+      color: var(--color-text-secondary);
+      margin-bottom: 5px;
+      font-weight: 500;
+    }
+
+    /* Warning row (phone duplicate) */
+    #addModal .add-field-warning {
+      margin-top: 5px;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 2px;
+    }
+    #addModal .add-field-warning.hidden { display: none; }
+
+    /* Focus transition inputs */
+    #addModal .add-input-compact {
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    #addModal .add-input-compact:focus {
+      outline: none;
+      border-color: var(--color-info);
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.15);
+    }
+
+    /* Currency input wrapper */
+    #addModal .add-money-wrap {
+      display: flex;
+      align-items: stretch;
+      max-width: 100%;
+      border: 1px solid var(--color-border);
+      border-radius: 12px;
+      overflow: hidden;
+      background: var(--color-card);
+      transition: box-shadow 0.15s ease, border-color 0.15s ease;
+    }
+    #addModal .add-money-wrap:focus-within {
+      border-color: var(--color-info);
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
+    }
+    #addModal .add-money-suffix {
+      display: flex;
+      align-items: center;
+      padding: 0 14px;
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--color-text);
+      background: var(--color-bg);
+      border-left: 1px solid var(--color-border);
+      flex-shrink: 0;
+    }
+
+    /* Stepper grid */
+    #addModal .add-device-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 10px;
+      width: 100%;
+    }
+    #addModal .add-device-cell { min-width: 0; max-width: 100%; }
+
+    /* Stepper component */
+    #addModal .add-stepper-wrapper {
+      display: flex;
+      align-items: stretch;
+      border: 1px solid var(--color-border);
+      border-radius: 12px;
+      overflow: hidden;
+      background: var(--color-card);
+      transition: box-shadow 0.15s ease, border-color 0.15s ease;
+    }
+    #addModal .add-stepper-wrapper:focus-within {
+      border-color: var(--color-info);
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
+    }
+    #addModal .add-stepper-btn {
+      width: 48px;
+      height: 48px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 600;
+      background: var(--color-bg);
+      border: none;
+      cursor: pointer;
+      transition: background 0.15s ease, transform 0.1s ease;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      color: var(--color-text);
+    }
+    #addModal .add-stepper-btn.minus {
+      border-right: 1px solid var(--color-border);
+      border-radius: 12px 0 0 12px;
+    }
+    #addModal .add-stepper-btn.plus {
+      border-left: 1px solid var(--color-border);
+      border-radius: 0 12px 12px 0;
+    }
+    #addModal .add-stepper-btn:active {
+      transform: scale(0.92);
+      background: var(--color-bg-hover);
+    }
+    #addModal .add-stepper-input::-webkit-outer-spin-button,
+    #addModal .add-stepper-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    #addModal .add-stepper-input:focus { outline: none; }
+
+    /* Price toggle row */
+    #addModal .add-price-toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    #addModal .add-toggle-btn {
+      background: none;
+      border: none;
+      color: var(--color-info);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 6px;
+      transition: background 0.15s;
+      -webkit-tap-highlight-color: transparent;
+      min-height: 32px;
+      min-width: 32px;
+    }
+    #addModal .add-toggle-btn:active { background: rgba(37,99,235,0.1); }
+
+    /* Price body */
+    #addModal .add-price-body { padding-top: 4px; }
+    #addModal .add-price-body.hidden { display: none; }
+
+    /* Footer buttons */
+    #addModal .add-footer {
+      display: flex;
+      gap: 10px;
+      align-items: stretch;
+    }
+    #addModal .add-btn-cancel {
+      flex: 1;
+      min-width: 0;
+      height: 48px;
+      border-radius: 12px;
+      border: 1px solid var(--color-border);
+      background: transparent;
+      color: var(--color-text-secondary);
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #addModal .add-btn-save {
+      flex: 1;
+      min-width: 0;
+      height: 48px;
+      border-radius: 12px;
+      border: none;
+      background: linear-gradient(135deg, var(--color-success), var(--color-success-dark));
+      color: #fff;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: var(--shadow-success);
+      transition: filter 0.15s ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #addModal .add-btn-save:active { filter: brightness(0.95); }
+    #addModal .add-btn-cancel:active { background: var(--color-bg-hover); }
+    #addModal .add-footer button:active { transform: scale(0.99); }
+
+    /* Phone display format helper */
+    #addModal .phone-display-hint {
+      font-size: 12px;
+      color: var(--color-text-muted);
+      margin-top: 4px;
+    }
+
     /* Modal sửa khách — mobile-first, không tràn ngang */
     #editModal .edit-modal-sheet {
       overflow-x: hidden;
@@ -259,218 +458,6 @@
     }
     /* Disable overscroll bounce */
     #editModal form { overscroll-behavior: contain; }
-
-    /* ===== ADD MODAL — POS UX STYLES ===== */
-    #addModal .add-section {
-      padding: 16px;
-      border-bottom: 1px solid var(--color-border);
-    }
-    #addModal .add-section:last-of-type {
-      border-bottom: none;
-      padding-bottom: 8px;
-    }
-
-    /* Section title */
-    #addModal .add-section-title {
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--color-text-secondary);
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      margin-bottom: 10px;
-    }
-
-    /* Fields stack */
-    #addModal .add-fields-stack {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    /* Field label */
-    #addModal .add-field-label {
-      display: block;
-      font-size: 13px;
-      color: var(--color-text-secondary);
-      margin-bottom: 5px;
-      font-weight: 500;
-    }
-
-    /* Warning row (phone duplicate) */
-    #addModal .add-field-warning {
-      margin-top: 5px;
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 2px;
-    }
-    #addModal .add-field-warning.hidden { display: none; }
-
-    /* Focus transition inputs */
-    #addModal .add-input-compact {
-      transition: border-color 0.15s ease, box-shadow 0.15s ease;
-    }
-    #addModal .add-input-compact:focus {
-      outline: none;
-      border-color: var(--color-info);
-      box-shadow: 0 0 0 3px rgba(37,99,235,0.15);
-    }
-
-    /* Currency input wrapper */
-    #addModal .add-money-wrap {
-      display: flex;
-      align-items: stretch;
-      max-width: 100%;
-      border: 1px solid var(--color-border);
-      border-radius: 12px;
-      overflow: hidden;
-      background: var(--color-card);
-      transition: box-shadow 0.15s ease, border-color 0.15s ease;
-    }
-    #addModal .add-money-wrap:focus-within {
-      border-color: var(--color-info);
-      box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
-    }
-    #addModal .add-money-suffix {
-      display: flex;
-      align-items: center;
-      padding: 0 14px;
-      font-size: 16px;
-      font-weight: 700;
-      color: var(--color-text);
-      background: var(--color-bg);
-      border-left: 1px solid var(--color-border);
-      flex-shrink: 0;
-    }
-
-    /* Stepper grid */
-    #addModal .add-device-grid {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      gap: 10px;
-      width: 100%;
-    }
-    #addModal .add-device-cell { min-width: 0; max-width: 100%; }
-
-    /* Stepper component */
-    #addModal .add-stepper-wrapper {
-      display: flex;
-      align-items: stretch;
-      border: 1px solid var(--color-border);
-      border-radius: 12px;
-      overflow: hidden;
-      background: var(--color-card);
-      transition: box-shadow 0.15s ease, border-color 0.15s ease;
-    }
-    #addModal .add-stepper-wrapper:focus-within {
-      border-color: var(--color-info);
-      box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
-    }
-    #addModal .add-stepper-btn {
-      width: 48px;
-      height: 48px;
-      flex-shrink: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 18px;
-      font-weight: 600;
-      background: var(--color-bg);
-      border: none;
-      cursor: pointer;
-      transition: background 0.15s ease, transform 0.1s ease;
-      -webkit-tap-highlight-color: transparent;
-      touch-action: manipulation;
-      color: var(--color-text);
-    }
-    #addModal .add-stepper-btn.minus {
-      border-right: 1px solid var(--color-border);
-      border-radius: 12px 0 0 12px;
-    }
-    #addModal .add-stepper-btn.plus {
-      border-left: 1px solid var(--color-border);
-      border-radius: 0 12px 12px 0;
-    }
-    #addModal .add-stepper-btn:active {
-      transform: scale(0.92);
-      background: var(--color-bg-hover);
-    }
-    #addModal .add-stepper-input::-webkit-outer-spin-button,
-    #addModal .add-stepper-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-    #addModal .add-stepper-input:focus { outline: none; }
-
-    /* Price toggle row */
-    #addModal .add-price-toggle-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 10px;
-    }
-    #addModal .add-toggle-btn {
-      background: none;
-      border: none;
-      color: var(--color-info);
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-      padding: 4px 8px;
-      border-radius: 6px;
-      transition: background 0.15s;
-      -webkit-tap-highlight-color: transparent;
-      min-height: 32px;
-      min-width: 32px;
-    }
-    #addModal .add-toggle-btn:active { background: rgba(37,99,235,0.1); }
-
-    /* Price body */
-    #addModal .add-price-body { padding-top: 4px; }
-    #addModal .add-price-body.hidden { display: none; }
-
-    /* Footer buttons */
-    #addModal .add-footer {
-      display: flex;
-      gap: 10px;
-      align-items: stretch;
-    }
-    #addModal .add-btn-cancel {
-      flex: 1;
-      min-width: 0;
-      height: 48px;
-      border-radius: 12px;
-      border: 1px solid var(--color-border);
-      background: transparent;
-      color: var(--color-text-secondary);
-      font-size: 16px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background 0.15s;
-      -webkit-tap-highlight-color: transparent;
-    }
-    #addModal .add-btn-save {
-      flex: 1;
-      min-width: 0;
-      height: 48px;
-      border-radius: 12px;
-      border: none;
-      background: linear-gradient(135deg, var(--color-success), var(--color-success-dark));
-      color: #fff;
-      font-size: 16px;
-      font-weight: 700;
-      cursor: pointer;
-      box-shadow: var(--shadow-success);
-      transition: filter 0.15s ease;
-      -webkit-tap-highlight-color: transparent;
-    }
-    #addModal .add-btn-save:active { filter: brightness(0.95); }
-    #addModal .add-btn-cancel:active { background: var(--color-bg-hover); }
-    #addModal .add-footer button:active { transform: scale(0.99); }
-
-    /* Phone display format helper */
-    #addModal .phone-display-hint {
-      font-size: 12px;
-      color: var(--color-text-muted);
-      margin-top: 4px;
-    }
   </style>
 </head>
 <body class="bg-main text-primary body--app">
@@ -496,11 +483,11 @@
           <div class="flex flex-col gap-3">
             <div>
               <label for="addName" class="field-label">Tên khách hàng</label>
-              <input type="text" name="name" id="addName" required autocomplete="name" enterkeyhint="next" data-field="name" placeholder="Nhập tên khách" class="field-input" style="height:48px;font-size:16px;">
+              <input type="text" name="name" id="addName" required autocomplete="name" enterkeyhint="next" data-field="name" placeholder="Nhập tên khách" class="bn-input bn-input--lg">
             </div>
             <div>
               <label for="addPhone" class="field-label">Số điện thoại</label>
-              <input type="tel" name="phone" id="addPhone" inputmode="numeric" autocomplete="tel" enterkeyhint="next" data-field="phone" placeholder="0xxx xxx xxx" class="field-input" style="height:48px;font-size:16px;">
+              <input type="tel" name="phone" id="addPhone" inputmode="numeric" autocomplete="tel" enterkeyhint="next" data-field="phone" placeholder="0xxx xxx xxx" class="bn-input bn-input--lg">
               <div id="addPhoneWarning" class="add-field-warning hidden">
                 <span class="text-warning text-xs">⚠️ SĐT đã tồn tại</span>
                 <span id="addPhoneDupName" class="text-muted text-xs ml-1"></span>
@@ -517,7 +504,7 @@
           <div class="mb-3">
             <label for="addDeposit" class="field-label">Đặt cọc</label>
             <div class="field-wrap">
-              <input type="text" name="deposit" id="addDeposit" value="0" data-format-number inputmode="decimal" enterkeyhint="next" data-field="deposit" placeholder="0" class="field-input" style="height:48px;font-size:16px;">
+              <input type="text" name="deposit" id="addDeposit" value="0" data-format-number inputmode="decimal" enterkeyhint="next" data-field="deposit" placeholder="0" class="bn-input bn-input--lg">
               <span class="field-suffix">đ</span>
             </div>
           </div>
@@ -528,7 +515,7 @@
               <label for="addHorizontalFridge" class="field-label">Tủ nằm ❄️</label>
               <div class="stepper">
                 <button type="button" class="stepper-btn minus" data-action="decrement" data-target="addHorizontalFridge" aria-label="Giảm">−</button>
-                <input type="number" name="horizontal_fridge" id="addHorizontalFridge" value="0" min="0" data-field="horizontal_fridge" enterkeyhint="next" class="stepper-input" style="height:48px;">
+                <input type="number" name="horizontal_fridge" id="addHorizontalFridge" value="0" min="0" data-field="horizontal_fridge" enterkeyhint="next" class="stepper-input">
                 <button type="button" class="stepper-btn plus" data-action="increment" data-target="addHorizontalFridge" aria-label="Tăng">+</button>
               </div>
             </div>
@@ -536,7 +523,7 @@
               <label for="addVerticalFridge" class="field-label">Tủ đứng 🥶</label>
               <div class="stepper">
                 <button type="button" class="stepper-btn minus" data-action="decrement" data-target="addVerticalFridge" aria-label="Giảm">−</button>
-                <input type="number" name="vertical_fridge" id="addVerticalFridge" value="0" min="0" data-field="vertical_fridge" enterkeyhint="next" class="stepper-input" style="height:48px;">
+                <input type="number" name="vertical_fridge" id="addVerticalFridge" value="0" min="0" data-field="vertical_fridge" enterkeyhint="next" class="stepper-input">
                 <button type="button" class="stepper-btn plus" data-action="increment" data-target="addVerticalFridge" aria-label="Tăng">+</button>
               </div>
             </div>
@@ -563,9 +550,10 @@
       <!-- Action bar: sticky bottom -->
       <div class="flex-shrink-0 border-t border-muted card px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] add-footer">
         <button type="button" onclick="hideModal('addModal')" class="add-btn-cancel touch-manipulation">Hủy</button>
-      <button type="button" onclick="submitAddForm()" class="btn btn-primary" style="width:100%;font-size:15px;font-weight:600;padding:14px;border-radius:var(--radius-md);">
-        Lưu khách
-      </button>
+        <button type="button" onclick="submitAddForm()" class="btn btn-primary bn-btn-lg">
+          Lưu khách
+        </button>
+      </div>
     </div>
   </div>
 
@@ -585,11 +573,11 @@
           <div class="flex flex-col gap-3">
             <div>
               <label for="editName" class="field-label">Tên</label>
-              <input type="text" name="name" id="editName" required autocomplete="name" enterkeyhint="next" data-field="name" class="field-input" style="height:48px;font-size:16px;">
+              <input type="text" name="name" id="editName" required autocomplete="name" enterkeyhint="next" data-field="name" class="bn-input bn-input--lg">
             </div>
             <div>
               <label for="editPhone" class="field-label">Điện thoại</label>
-              <input type="tel" name="phone" id="editPhone" inputmode="numeric" autocomplete="tel" enterkeyhint="next" data-field="phone" placeholder="0xxx xxx xxx" class="field-input" style="height:48px;font-size:16px;">
+              <input type="tel" name="phone" id="editPhone" inputmode="numeric" autocomplete="tel" enterkeyhint="next" data-field="phone" placeholder="0xxx xxx xxx" class="bn-input bn-input--lg">
             </div>
           </div>
         </div>
@@ -600,7 +588,7 @@
           <div>
             <label for="editDeposit" class="field-label">Đặt cọc</label>
             <div class="field-wrap">
-              <input type="text" name="deposit" id="editDeposit" data-format-number inputmode="decimal" enterkeyhint="next" data-field="deposit" placeholder="0" class="field-input" style="height:48px;font-size:16px;">
+              <input type="text" name="deposit" id="editDeposit" data-format-number inputmode="decimal" enterkeyhint="next" data-field="deposit" placeholder="0" class="bn-input bn-input--lg">
               <span class="field-suffix">đ</span>
             </div>
           </div>
@@ -614,7 +602,7 @@
               <label for="editHorizontalFridge" class="field-label">Tủ nằm ❄️</label>
               <div class="stepper">
                 <button type="button" class="stepper-btn minus" onclick="adjustQty('editHorizontalFridge', -1)" aria-label="Giảm">−</button>
-                <input type="number" name="horizontal_fridge" id="editHorizontalFridge" value="0" min="0" data-field="horizontal_fridge" class="stepper-input" onchange="clampQty(this, 0)" style="height:48px;">
+                <input type="number" name="horizontal_fridge" id="editHorizontalFridge" value="0" min="0" data-field="horizontal_fridge" class="stepper-input" onchange="clampQty(this, 0)">
                 <button type="button" class="stepper-btn plus" onclick="adjustQty('editHorizontalFridge', 1)" aria-label="Tăng">+</button>
               </div>
             </div>
@@ -622,7 +610,7 @@
               <label for="editVerticalFridge" class="field-label">Tủ đứng 🥶</label>
               <div class="stepper">
                 <button type="button" class="stepper-btn minus" onclick="adjustQty('editVerticalFridge', -1)" aria-label="Giảm">−</button>
-                <input type="number" name="vertical_fridge" id="editVerticalFridge" value="0" min="0" data-field="vertical_fridge" class="stepper-input" onchange="clampQty(this, 0)" style="height:48px;">
+                <input type="number" name="vertical_fridge" id="editVerticalFridge" value="0" min="0" data-field="vertical_fridge" class="stepper-input" onchange="clampQty(this, 0)">
                 <button type="button" class="stepper-btn plus" onclick="adjustQty('editVerticalFridge', 1)" aria-label="Tăng">+</button>
               </div>
             </div>
@@ -653,7 +641,7 @@
 
   <!-- Price Modal -->
   <div id="priceModal" class="modal-overlay-v2 hidden center">
-    <div class="modal-sheet-v2" style="max-width:440px;margin:auto;">
+    <div class="modal-sheet-v2">
       <div class="modal-sheet-v2-header">
         <div class="modal-sheet-v2-title">Đặt giá cho <span id="priceCustomerName"></span></div>
         <button type="button" onclick="hideModal('priceModal')" class="modal-sheet-v2-close">×</button>
@@ -663,8 +651,8 @@
           <div class="text-muted text-center py-4">Đang tải sản phẩm...</div>
         </div>
         <div class="flex gap-2">
-          <button type="button" onclick="hideModal('priceModal')" class="btn btn-ghost flex-1" style="height:44px;">Hủy</button>
-          <button type="button" onclick="savePrices()" class="btn btn-primary flex-1" style="height:44px;">Lưu bảng giá</button>
+          <button type="button" onclick="hideModal('priceModal')" class="btn btn-ghost flex-1">Hủy</button>
+          <button type="button" onclick="savePrices()" class="btn btn-primary flex-1">Lưu bảng giá</button>
         </div>
       </div>
     </div>
@@ -672,7 +660,7 @@
 
   <!-- Keg Balance Edit Modal -->
   <div id="kegModal" class="modal-overlay-v2 hidden center">
-    <div class="modal-sheet-v2" style="max-width:400px;margin:auto;">
+    <div class="modal-sheet-v2">
       <div class="modal-sheet-v2-header">
         <div class="modal-sheet-v2-title">✏️ Sửa số bình</div>
         <button type="button" onclick="hideModal('kegModal')" class="modal-sheet-v2-close">×</button>
@@ -682,15 +670,15 @@
         <input type="hidden" id="kegCustomerId">
         <div class="mb-3">
           <label class="field-label">Số bình đang giữ</label>
-          <input type="number" id="kegBalanceInput" min="0" class="field-input" style="height:48px;font-size:16px;border-color:var(--primary);">
+          <input type="number" id="kegBalanceInput" min="0" class="bn-input bn-input--lg bn-input--blue">
         </div>
         <div class="mb-4">
           <label class="field-label">Ghi chú (tùy chọn)</label>
-          <input type="text" id="kegNote" placeholder="Lý do thay đổi..." class="field-input" style="height:48px;font-size:16px;border-color:var(--primary);">
+          <input type="text" id="kegNote" placeholder="Lý do thay đổi..." class="bn-input bn-input--lg bn-input--blue">
         </div>
         <div class="flex gap-2">
-          <button type="button" onclick="hideModal('kegModal')" class="btn btn-ghost flex-1" style="height:44px;">Hủy</button>
-          <button type="button" onclick="saveKegBalance()" class="btn btn-primary flex-1" style="height:44px;">Lưu</button>
+          <button type="button" onclick="hideModal('kegModal')" class="btn btn-ghost flex-1">Hủy</button>
+          <button type="button" onclick="saveKegBalance()" class="btn btn-primary flex-1">Lưu</button>
         </div>
       </div>
     </div>
@@ -698,7 +686,7 @@
 
   <!-- Location Modal -->
   <div id="locationModal" class="modal-overlay-v2 hidden center">
-    <div class="modal-sheet-v2" style="max-width:400px;margin:auto;">
+    <div class="modal-sheet-v2">
       <div class="modal-sheet-v2-header">
         <div class="modal-sheet-v2-title">📍 Cập nhật vị trí</div>
         <button type="button" onclick="hideModal('locationModal')" class="modal-sheet-v2-close">×</button>
@@ -710,7 +698,7 @@
         <div id="existingGPSInfo" class="hidden mb-3"></div>
 
         <!-- GPS button (always shown) -->
-        <button id="gpsBtn" onclick="getGPSLocation()" class="btn btn-warning" style="width:100%;height:48px;font-size:15px;">
+        <button id="gpsBtn" onclick="getGPSLocation()" class="btn btn-warning bn-btn-lg">
           📍 Lấy vị trí GPS
         </button>
 
@@ -721,7 +709,7 @@
         <div id="updateGPSSection" class="hidden mt-3">
           <div class="border-t pt-3 mt-3">
             <p class="text-xs text-muted text-center mb-2">Bạn có muốn cập nhật lại vị trí GPS không?</p>
-            <button onclick="getGPSLocation()" class="btn btn-secondary" style="width:100%;height:44px;">
+            <button onclick="getGPSLocation()" class="btn btn-secondary bn-btn-lg">
               🔄 Cập nhật GPS mới
             </button>
           </div>
@@ -731,17 +719,17 @@
         <div class="space-y-3">
           <div>
             <label class="field-label">Vĩ độ (lat)</label>
-            <input type="text" id="manualLat" placeholder="VD: 10.8231" class="field-input" style="height:44px;font-size:15px;">
+            <input type="text" id="manualLat" placeholder="VD: 10.8231" class="bn-input">
           </div>
           <div>
             <label class="field-label">Kinh độ (lng)</label>
-            <input type="text" id="manualLng" placeholder="VD: 106.6297" class="field-input" style="height:44px;font-size:15px;">
+            <input type="text" id="manualLng" placeholder="VD: 106.6297" class="bn-input">
           </div>
-          <button onclick="saveManualLocation()" class="btn btn-primary" style="width:100%;height:44px;">
+          <button onclick="saveManualLocation()" class="btn btn-primary bn-btn-lg">
             Lưu tọa độ
           </button>
         </div>
-        <button type="button" onclick="hideModal('locationModal')" class="btn btn-ghost" style="width:100%;height:44px;margin-top:12px;">Hủy</button>
+        <button type="button" onclick="hideModal('locationModal')" class="btn btn-ghost w-full mt-3">Hủy</button>
       </div>
     </div>
   </div>
@@ -781,7 +769,7 @@
           </div>
 
           <div class="mb-4">
-            <input type="text" id="searchInput" placeholder="🔍 Tìm khách hàng..." class="field-input" style="height:48px;font-size:16px;">
+            <input type="text" id="searchInput" placeholder="🔍 Tìm khách hàng..." class="bn-input bn-input--lg">
           </div>
 
           <!-- Customers List - CRM Cards -->
@@ -796,7 +784,7 @@
 
   <!-- Load Customers JS -->
   <!-- realtime.js auto-loaded by layout.js -->
-  <script src="/js/customers.js?v=20260425-ux"></script>
+  <script src="/js/customers.js?v=20260410-binance"></script>
 
   <script>
     async function loadData() {

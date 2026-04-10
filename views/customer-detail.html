@@ -11,30 +11,29 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
-  <link rel="stylesheet" href="/css/unified.css?v=20260424-clean">
+  <link rel="stylesheet" href="/css/unified.css?v=20260410-binance">
   <script src="/js/auth.js"></script>
   <script src="/js/dark-mode.js"></script>
-  <script src="/js/layout.js?v=20260424-clean"></script>
+  <script src="/js/layout.js?v=20260410-binance"></script>
   <script>requireAuth();</script>
   <style>
-    .animate-fade { animation: fade 0.3s ease-in; }
-    @keyframes fade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     canvas { width: 100% !important; height: auto !important; }
-    .skeleton { background: linear-gradient(90deg, var(--card-soft) 25%, var(--bg-hover) 50%, var(--card-soft) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
-    @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
-    button, a { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-    button:active { transform: scale(0.96); }
   </style>
 </head>
 <body class="bg-main text-primary body--app">
   <div id="app"></div>
 
   <!-- Invoice Modal -->
-  <div id="invoiceModal" class="fixed inset-0 bg-overlay hidden items-center justify-center z-50 p-4">
-    <div class="bg-card rounded-xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6">
-      <button onclick="closeInvoiceModal()" class="absolute top-4 right-4 text-muted hover:text-main text-2xl font-bold">&times;</button>
-      <div id="invoiceContent"></div>
-      <button onclick="closeInvoiceModal()" class="btn btn-primary w-full h-12 mt-4">Đóng</button>
+  <div id="invoiceModal" class="modal-overlay-v2 hidden center">
+    <div class="modal-sheet-v2">
+      <div class="modal-sheet-v2-header">
+        <div class="modal-sheet-v2-title">Hóa đơn</div>
+        <button onclick="closeInvoiceModal()" class="modal-sheet-v2-close">×</button>
+      </div>
+      <div class="modal-sheet-v2-body">
+        <div id="invoiceContent"></div>
+        <button onclick="closeInvoiceModal()" class="btn btn-primary w-full mt-4">Đóng</button>
+      </div>
     </div>
   </div>
 
@@ -110,7 +109,7 @@
           const changeText = change >= 0 ? `+${change}` : change;
 
           html += `
-            <div class="card p-4 mb-2">
+            <div class="card card--list-item mb-2">
               <div class="flex justify-between items-center">
                 <div class="font-bold text-main">📅 ${formatDate(item.date)}</div>
                 <div class="font-bold ${changeClass}">${changeText}</div>
@@ -193,7 +192,7 @@
     async function loadCustomerDetail() {
       // Render using layout.js functions
       const headerActions = `
-        <button onclick="editCustomerInfo()" class="text-muted hover:bg-bg-hover px-2 rounded" style="font-size:14px;background:none;border:none;cursor:pointer;padding:4px 8px;" title="Sửa">✏️</button>
+        <button onclick="editCustomerInfo()" class="btn btn-ghost text-sm" title="Sửa">✏️</button>
       `;
       
       document.getElementById('app').innerHTML = 
@@ -225,7 +224,7 @@
           <!-- Month Filter -->
           <div class="card p-4 mb-3">
             <label class="block text-sm font-medium text-main mb-2">📅 Lọc theo tháng</label>
-            <select id="monthFilter" onchange="onMonthChange()" class="w-full border-2 border-muted rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-primary">
+            <select id="monthFilter" onchange="onMonthChange()" class="bn-select w-full">
               ${getMonthOptions()}
             </select>
           </div>

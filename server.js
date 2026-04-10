@@ -423,6 +423,9 @@ app.use('/api/devices', require('./routes/api/devices'));
 app.use('/api/expenses', require('./routes/api/expenses'));
 app.use('/api/session', require('./routes/api/session'));
 app.use('/api/sync', require('./routes/api/sync'));
+app.use('/api/sync-v2', require('./routes/api/sync-v2'));
+app.use('/api/sync-events', require('./routes/api/sync-events'));
+app.use('/api/state', require('./routes/api/state'));
 app.use('/api/routing', require('./routes/api/routing'));
 
 // ==================== AUTH ====================
