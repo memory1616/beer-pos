@@ -1,10 +1,10 @@
-/* Beer POS — Unified Design System v9 | Layout Fix | 20260410c
-   Changelog v9 (Layout Fix):
-   - Fix duplicate top spacing on report page (removed padding-top from .app-body)
-   - Single source of truth: header is 56px fixed, body starts at 0
-   - .app-filter-bar stays sticky at header height
-   - .page-content: remove redundant padding-top (body--app already handles it)
-   - .body--app: remove padding-left/right (page-content handles them)
+/* Beer POS — Unified Design System v10 | Layout Fix | 20260410d
+   Changelog v10 (Layout Fix):
+   - Remove duplicate .page-content rule (was line ~3647)
+   - .body--app: REMOVE top/bottom padding (page-content handles them)
+   - .page-content: ADD padding-top for fixed header, single source of truth
+   - All pages now use page-content padding-top = header height
+   - Sale page body inline style becomes compatible with unified approach
 */
 
 /* DESIGN TOKENS — canonical source of truth */
@@ -38,11 +38,11 @@ body {
   line-height: 1.5;
 }
 
-/* Standard app body — header + bottom nav, no horizontal padding
-   (page-content handles left/right padding for consistent spacing) */
+/* Standard app body — header + bottom nav
+   Padding is handled by page-level wrappers (page-content / app-body).
+   body--app itself has NO top padding — avoids double-spacing. */
 .body--app {
   min-height: 100dvh;
-  padding-top: calc(var(--header-height) + var(--safe-area-top));
   padding-bottom: calc(var(--bottomnav-height) + var(--safe-area-bottom));
 }
 
@@ -57,10 +57,13 @@ body {
   margin: 0 auto;
 }
 
-/* Content wrapper — NO extra padding-top; body--app already handles fixed header offset */
+/* Content wrapper — padding-top accounts for fixed header height.
+   Single source of truth for all page content positioning. */
 .page-content {
-  padding: 16px;
-  padding-bottom: calc(var(--bottomnav-height) + env(safe-area-inset-bottom, 0px) + 16px);
+  padding-top: calc(var(--header-height) + var(--safe-area-top));
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-bottom: calc(var(--bottomnav-height) + env(safe-area-inset-bottom, 0px));
 }
 
 /* Page enter animation */
@@ -3642,18 +3645,6 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
 }
 
 .header-home-btn:hover { background: var(--primary-dim); }
-
-/* ── PAGE CONTENT ── */
-.page-content {
-  padding-top: calc(var(--header-height) + env(safe-area-inset-top, 0px));
-  padding-bottom: calc(var(--bottomnav-height) + env(safe-area-inset-bottom, 0px));
-  padding-left: max(16px, env(safe-area-inset-left, 0px));
-  padding-right: max(16px, env(safe-area-inset-right, 0px));
-  max-width: min(500px, 100%);
-  width: 100%;
-  margin: 0 auto;
-  box-sizing: border-box;
-}
 
 /* ── BOTTOM NAVIGATION ── */
 /* nav-item extras (base .bottomnav and .nav-item rules are in base section) */
