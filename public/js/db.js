@@ -48,9 +48,51 @@ class BeerPOSDB {
 
     await this._db.open();
     this._initialized = true;
-    
+
+    // Auto-fix corrupted data on startup (production safety net)
+    this.fixCorruptedData();
+
     console.log('[DBv5] IndexedDB initialized (Optimized)');
     return this._db;
+  }
+
+  // ── Auto-fix corrupted data (production safety net) ─────────────────────
+  async fixCorruptedData() {
+    if (!this._db) return;
+
+    try {
+      const allEvents = await this._db.events.toArray();
+      const updates = [];
+
+      for (const e of allEvents) {
+        let needsFix = false;
+        const changes = {};
+
+        if (typeof e.status !== 'string') {
+          changes.status = 'pending';
+          needsFix = true;
+        }
+        if (typeof e.syncStatus !== 'string') {
+          changes.syncStatus = 'pending';
+          needsFix = true;
+        }
+        if (!e.entity || typeof e.entity !== 'string') {
+          changes.entity = 'unknown';
+          needsFix = true;
+        }
+
+        if (needsFix) {
+          updates.push({ key: e.id, changes });
+        }
+      }
+
+      if (updates.length > 0) {
+        console.warn(`[DBv5] Auto-fixing ${updates.length} corrupted events`);
+        await this._db.events.bulkUpdate(updates);
+      }
+    } catch (err) {
+      console.warn('[DBv5] fixCorruptedData error:', err);
+    }
   }
 
   // ── Getters ────────────────────────────────────────────────────────
@@ -374,10 +416,16 @@ class BeerPOSDB {
       console.warn('[DBv5] addEvent: event.id is missing, skipping');
       return;
     }
+    // Validate entity — null in compound index causes Dexie DataError
+    const safeEntity = this._safeIndex(event.entity);
+    if (!safeEntity) {
+      console.warn('[DBv5] addEvent: invalid entity, cannot store event:', event.entity);
+      return;
+    }
     const safeEvent = {
       ...event,
       id: String(event.id),
-      entity: this._safeIndex(event.entity),
+      entity: safeEntity,
       syncStatus: this._safeString(event.syncStatus),
       status: this._safeString(event.status),
       createdAt: typeof event.createdAt === 'number' ? event.createdAt : Date.now(),
@@ -444,15 +492,24 @@ class BeerPOSDB {
 
   _safeString(val) {
     if (val == null) return '';
-    return String(val);
+    return typeof val === 'string' ? val : String(val);
   }
 
   _safeIndex(entity) {
     if (!entity || typeof entity !== 'string') {
       console.warn('[DB] Invalid entity in compound index query:', entity);
-      return 'unknown';
+      return null;
     }
     return entity;
+  }
+
+  // ── Debug helper ──────────────────────────────────────────────
+  _debugLog(label, data) {
+    if (typeof data === 'string') {
+      console.log(`[DB][${label}]`, data);
+    } else {
+      console.log(`[DB][${label}]`, JSON.stringify(data));
+    }
   }
 
   generateId() {
