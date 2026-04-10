@@ -14,6 +14,34 @@
   let _db = null;
   let _listeners = new Set();
 
+  // ── Local upsertEntity implementation ────────────────────────────────
+  // ⭐ CRITICAL: Implement local để đảm bảo luôn có upsertEntity
+  async function localUpsertEntity(entity, item) {
+    if (!_db) {
+      console.warn('[APPLY] localUpsertEntity: _db null');
+      return;
+    }
+    if (!item?.id) {
+      console.warn('[APPLY] localUpsertEntity: missing id', { entity });
+      return;
+    }
+    
+    const safeEntity = typeof entity === 'string' ? entity : String(entity);
+    
+    try {
+      const now = Date.now();
+      const data = {
+        ...item,
+        entity: safeEntity,
+        updatedAt: item.updatedAt || now,
+      };
+      await _db.entities.put(data);
+      console.log('[APPLY] localUpsertEntity: success', entity, item.id);
+    } catch (err) {
+      console.error('[APPLY] localUpsertEntity error:', err, { entity, itemId: item?.id });
+    }
+  }
+
   // ── Init ─────────────────────────────────────────────────────────────
 
   async function init() {
@@ -22,20 +50,15 @@
       await window.BeerPOSDB.ready;
       _db = window.BeerPOSDB;
       
-      // Debug: Log chi tiết về _db
+      // ⭐ ATTACH local upsertEntity to _db to ensure it's always available
+      _db.upsertEntity = localUpsertEntity;
+      
       console.log('[APPLY] _db initialized:', {
         hasDb: !!_db,
         dbType: typeof _db,
-        hasUpsert: typeof _db?.upsertEntity,
-        dbKeys: _db ? Object.keys(_db).slice(0, 20) : [],
-        hasInternalDb: !!_db?._db,
+        hasUpsert: typeof _db.upsertEntity,
+        isLocal: _db.upsertEntity === localUpsertEntity,
       });
-    }
-
-    // ⭐ HARD GUARD: Kiểm tra upsertEntity có tồn tại không
-    if (_db && typeof _db.upsertEntity !== 'function') {
-      console.error('[FATAL] upsertEntity missing from _db!');
-      console.error('[FATAL] _db contents:', Object.keys(_db || {}));
     }
 
     // Register apply function with EventStore

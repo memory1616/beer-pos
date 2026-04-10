@@ -13,8 +13,9 @@ const _LOW_STOCK_THRESHOLD = 30;
 // POS Namespace — unified POS cart operations
 // ────────────────────────────────────────────────────────────────
 window.POS = {
-  // Click-to-add: add 1 unit to cart
+  // Click-to-add: add 1 unit to cart + haptic
   addToCart: function(productId) {
+    if (navigator.vibrate) navigator.vibrate(10);
     var product = getProduct(productId);
     if (!product) return;
 
@@ -49,6 +50,7 @@ window.POS = {
 
   // Decrement quantity
   decrement: function(productId) {
+    if (navigator.vibrate) navigator.vibrate(6);
     if (!saleData[productId]) return;
     saleData[productId].quantity = Math.max(0, saleData[productId].quantity - 1);
     if (saleData[productId].quantity === 0) {
@@ -324,7 +326,10 @@ var historyCurrentPage = 1; // page 1 default
 
 function syncSalesState(nextSales) {
   allSales = Array.isArray(nextSales) ? nextSales.slice() : [];
-  window.store.sales = allSales;
+  // ⭐ CRITICAL: Guard against undefined window.store
+  if (typeof window !== 'undefined' && window.store) {
+    window.store.sales = allSales;
+  }
   return allSales;
 }
 
@@ -487,7 +492,7 @@ function renderSaleProducts() {
   var isMobile = _isMobilePOS();
 
   if (products.length === 0) {
-    container.innerHTML = '<div style="padding:32px 16px;text-align:center;color:#848e9c;font-size:14px;">Chưa có sản phẩm nào</div>';
+    container.innerHTML = '<div class="pos-products-empty"><div style="font-size:40px;margin-bottom:12px;opacity:0.4">📦</div><div style="font-size:14px;color:#848e9c;text-align:center">Chưa có sản phẩm nào</div></div>';
     return;
   }
 
@@ -511,7 +516,7 @@ function renderSaleProducts() {
       priceHtml = '<div style="min-width:80px;text-align:right;font-size:14px;font-weight:700;color:#fcd535;font-variant-numeric:tabular-nums;flex-shrink:0;padding:0 8px;">' + Format.number(displayPrice) + '</div>';
     }
 
-    // Mobile: chỉ nút +, desktop: cả + và -
+    // Mobile: chỉ nút + (iPhone HIG — no minus on mobile)
     var qtyControls;
     if (isMobile) {
       qtyControls = '<button type="button" class="pos-qty-btn" onclick="event.stopPropagation();POS.addToCart(' + p.id + ')">+</button>';
@@ -521,6 +526,7 @@ function renderSaleProducts() {
         '<button type="button" class="pos-qty-btn" onclick="event.stopPropagation();POS.addToCart(' + p.id + ')">+</button>';
     }
 
+    // iPhone HIG: hàng 80px, border-radius 12px, active scale 0.97
     return '<div class="pos-prod-row" id="prodRow_' + p.id + '" onclick="POS.addToCart(' + p.id + ')">' +
       '<div class="pos-prod-name">' +
         '<div class="pos-prod-name-main">' + p.name + '</div>' +
@@ -735,11 +741,19 @@ function updateSaleTotal() {
     }
   });
 
-  // ── Bottom bar (mobile) ──
-  var countEl = document.getElementById('bottomItemCount');
+  // ── Mobile bottom bar update ──
+  var countEl = document.getElementById('posBottomCount');
   if (countEl) countEl.textContent = itemCount;
-  var totalEl = document.getElementById('totalAmount');
-  if (totalEl) totalEl.textContent = Format.number(total) + 'đ';
+  var totalEl = document.getElementById('posBottomTotal');
+  if (totalEl) totalEl.textContent = Format.number(total);
+  var bottomSellBtn = document.getElementById('posBottomSellBtn');
+  if (bottomSellBtn) {
+    bottomSellBtn.disabled = !(editingSaleId == null && hasItems);
+  }
+
+  // ── Desktop totalAmount (legacy ID) ──
+  var totalAmountEl = document.getElementById('totalAmount');
+  if (totalAmountEl) totalAmountEl.textContent = Format.number(total) + 'đ';
 
   // ── Cart preview (desktop) ──
   var previewEl = document.getElementById('saleCartPreview');
@@ -1052,7 +1066,12 @@ async function submitSale() {
       .then(function(res) { return res.json(); })
       .then(async function(serverProducts) {
         products = serverProducts;
-        window.store.products = serverProducts;
+        // ⭐ CRITICAL: Guard against undefined window.store
+        if (typeof window !== 'undefined' && window.store) {
+          if (typeof window !== 'undefined' && window.store) {
+          window.store.products = serverProducts;
+        }
+        }
         _rebuildMaps();
         renderSaleProducts();
 
@@ -1479,7 +1498,10 @@ async function saveKegUpdate() {
     const custListRes = await fetch('/api/customers');
     const custData = await custListRes.json();
     customers = custData.customers || custData;
-    window.store.customers = customers;
+    // ⭐ CRITICAL: Guard against undefined window.store
+    if (typeof window !== 'undefined' && window.store) {
+      window.store.customers = customers;
+    }
     _rebuildMaps();
 
     patchSaleRow({ id: saleId, deliver_kegs: formGiao, return_kegs: formThu, keg_balance_after: (result.new_balance || result.newBalance) });
@@ -1830,7 +1852,10 @@ async function submitCollectKeg() {
     const custListRes = await fetch('/api/customers');
     const custData = await custListRes.json();
     customers = custData.customers || custData;
-    window.store.customers = customers;
+    // ⭐ CRITICAL: Guard against undefined window.store
+    if (typeof window !== 'undefined' && window.store) {
+      window.store.customers = customers;
+    }
     _rebuildMaps();
 
     patchSaleRow({ id: saleId, return_kegs: returned, keg_balance_after: result.new_balance });
@@ -1924,7 +1949,10 @@ async function loadSalesHistory() {
   }
 
   // Sync window.store.sales with allSales so other pages (e.g. dashboard) get fresh data
-  window.store.sales = allSales;
+  // ⭐ CRITICAL: Guard against undefined window.store
+  if (typeof window !== 'undefined' && window.store) {
+    window.store.sales = allSales;
+  }
 
   // Delegate rendering to renderHistoryPage (uses allSales as source)
   renderHistoryPage();
@@ -2078,7 +2106,12 @@ async function deleteSale(id) {
       .then(function(res) { return res.json(); })
       .then(function(serverProducts) {
         products = serverProducts;
-        window.store.products = serverProducts;
+        // ⭐ CRITICAL: Guard against undefined window.store
+        if (typeof window !== 'undefined' && window.store) {
+          if (typeof window !== 'undefined' && window.store) {
+          window.store.products = serverProducts;
+        }
+        }
         _rebuildMaps();
         renderSaleProducts();
       })
@@ -2450,8 +2483,11 @@ async function updateSale() {
 
     alert('Cập nhật thành công!');
     var updated = result.sale || result;
-    var idx = window.store.sales.findIndex(function(s) { return s.id === updated.id; });
-    if (idx !== -1) window.store.sales[idx] = updated;
+    // ⭐ CRITICAL: Guard against undefined window.store
+    if (typeof window !== 'undefined' && window.store && window.store.sales) {
+      var idx = window.store.sales.findIndex(function(s) { return s.id === updated.id; });
+      if (idx !== -1) window.store.sales[idx] = updated;
+    }
     patchSaleRow(updated);
     cancelEdit();
     window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'sale' } }));
