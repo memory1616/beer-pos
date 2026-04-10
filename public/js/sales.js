@@ -956,9 +956,9 @@ function submitCollectKeg() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         saleId: kegEditSaleId,
-        customer_id: customerId,
-        deliver_kegs: deliver,
-        return_kegs: returned
+        customerId: customerId,
+        deliver: deliver,
+        returned: returned
       })
     })
     .then(function(res) { return res.json(); })
