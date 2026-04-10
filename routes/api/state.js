@@ -54,7 +54,7 @@ router.get('/full', (req, res) => {
                s.type, s.status, s.note, s.distance_km, s.duration_min,
                s.returned_amount, s.returned_quantity,
                c.name as customer_name,
-               created_at, updated_at, version
+               s.created_at, s.updated_at, s.version
         FROM sales s
         LEFT JOIN customers c ON s.customer_id = c.id
         WHERE s.date = ? AND (s.deleted = 0 OR s.deleted IS NULL)
@@ -83,7 +83,7 @@ router.get('/full', (req, res) => {
     // Products for prices
     if (entities === 'all' || entities.includes('prices')) {
       state.prices = db.prepare(`
-        SELECT id, customer_id, product_id, product_slug, price,
+        SELECT id, customer_id, product_id, price,
                created_at, updated_at
         FROM prices
       `).all();
