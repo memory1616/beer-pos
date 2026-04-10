@@ -2506,14 +2506,17 @@ async function updateSyncStatusIndicator() {
     if (indicator) {
       indicator.style.display = 'block';
 
+      const pendingEvents = status.pendingEvents || 0;
+      const statusStr = String(status.status || '');
+
       if (!status.isOnline) {
         indicator.innerHTML = '📴 Offline';
         indicator.className = 'text-xs text-warning';
-      } else if (status.status === 'error') {
+      } else if (statusStr === 'error') {
         indicator.innerHTML = '⚠️ Sync lỗi';
         indicator.className = 'text-xs text-error';
-      } else if ((status.pendingEvents || 0) > 0) {
-        indicator.innerHTML = `🔄 Sync (${status.pendingEvents})`;
+      } else if (pendingEvents > 0) {
+        indicator.innerHTML = `🔄 Sync (${pendingEvents})`;
         indicator.className = 'text-xs text-info';
       } else {
         indicator.innerHTML = '✅ Sync OK';
