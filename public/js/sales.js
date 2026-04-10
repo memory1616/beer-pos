@@ -255,7 +255,7 @@ function submitCollectKegForSale(saleId) {
   }
 
   // Call update-kegs API with saleId
-  var body = { customer_id: customerId, sale_id: saleId, deliver_kegs: deliver, return_kegs: returned };
+  var body = { saleId: saleId, customerId: customerId, deliver: deliver, returned: returned };
   fetch('/api/sales/update-kegs', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
