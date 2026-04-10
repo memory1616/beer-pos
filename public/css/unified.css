@@ -397,9 +397,9 @@ body .pt-14, .pt-14 {
 }
 
 /* =========================   DENSITY TOKENS === */
-[data-density="compact"] .invoice-item { padding: 3px 5px; font-size: 12px; }
-[data-density="normal"]   .invoice-item { padding: 5px 7px; }
-[data-density="comfortable"] .invoice-item { padding: 7px 10px; }
+/* Density overrides for .inv-item — used on body via data-density */
+[data-density="compact"] .inv-item { padding: 6px 8px; }
+[data-density="comfortable"] .inv-item { padding: 14px 16px; }
 
 /* =========================   LIST-STYLE TABLES === */
 .tbl { width: 100%; border-collapse: collapse; }
