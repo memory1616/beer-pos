@@ -950,23 +950,7 @@ async function submitSale() {
       loadSalesHistory();
     }
 
-    try {
-      showInvoiceModal(result.id);
-    } catch(err) {
-      console.error('Lỗi hiển thị hóa đơn:', err);
-      var modal = document.getElementById('invoiceModal');
-      var qrCodeEl = document.getElementById('qrCode');
-      if (modal) {
-        var invTotalEl = modal.querySelector('.invoice-total-value');
-        if (invTotalEl) invTotalEl.textContent = Format.number(result.total || 0);
-        var itemsList = document.getElementById('invoiceItemsList');
-        if (itemsList) {
-          itemsList.innerHTML = '<div style="text-align:center;padding:16px 0;color:#64748b;font-size:13px;">Đơn hàng #' + result.id + '</div>';
-        }
-        if (qrCodeEl) qrCodeEl.src = '';
-        modal.classList.remove('hidden');
-      }
-    }
+    // Hóa đơn chỉ mở khi bấm nút «Hóa đơn» trong lịch sử (viewSale), không tự mở sau khi bán
 
     // REFETCH products from server to sync stock after sale
     fetch('/api/products', { cache: 'no-store' })
