@@ -67,9 +67,14 @@
         _emit('mismatch', result);
         
         // Trigger full resync if significant mismatch
-        if (result.severity === 'high') {
-          await fullResync();
-        }
+      // ⚠️ 已禁用: severity === 'high' 时的 auto fullResync 会导致无限清库循环
+      // (upsertEntity 缺失 → resync fail → mismatch → 再次清库)
+      // 改为只记录警告，由人工干预或 WebSocket reconnect 后再 resync
+      if (result.severity === 'high') {
+        console.warn('[CONSISTENCY] ⚠️ HIGH mismatch detected — auto resync DISABLED to prevent data wipe loop. Please reconnect WS / reload app manually.');
+        _emit('mismatch:high', result);
+        // await fullResync(); // ← 已禁用，之前的 bug 造成无限清库循环
+      }
       } else {
         _emit('ok', result);
       }

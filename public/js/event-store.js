@@ -14,9 +14,12 @@
   let _db = null;
   let _applyEvent = null;
 
-  function init() {
+  async function init() {
+    // ⭐ CRITICAL: Phải đợi BeerPOSDB ready trước khi truy cập _db
     if (window.BeerPOSDB) {
+      await window.BeerPOSDB.ready;
       _db = window.BeerPOSDB;
+      console.log('[EVENT] _db ready, upsertEntity:', typeof _db.upsertEntity);
     }
   }
 

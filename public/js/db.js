@@ -13,14 +13,36 @@ class BeerPOSDB {
   constructor() {
     this._db = null;
     this._initialized = false;
+    // ⭐ Promise 暴露给外部，其他模块可以 await this.ready
+    this._readyPromise = null;
+    this._readyResolve = null;
+    this._readyReject = null;
+  }
+
+  /**
+   * ⭐ 暴露初始化 Promise，其他模块 (apply-event, consistency-check)
+   * 必须 await this.ready 再访问 _db
+   */
+  get ready() {
+    return this._readyPromise;
   }
 
   async init() {
     if (this._initialized) return this._db;
 
+    // ⭐ 初始化 Promise，确保只 resolve 一次
+    if (!this._readyPromise) {
+      this._readyPromise = new Promise((resolve, reject) => {
+        this._readyResolve = resolve;
+        this._readyReject = reject;
+      });
+    }
+
     if (typeof Dexie === 'undefined') {
       console.warn('[DBv5] Dexie not loaded, using localStorage fallback');
-      return this._initFallback();
+      this._initFallback();
+      this._readyResolve?.();
+      return this._db;
     }
 
     this._db = new Dexie('BeerPOS_v5');
@@ -29,19 +51,19 @@ class BeerPOSDB {
     this._db.version(1).stores({
       // EVENT STORE - Optimized compound indexes
       events: 'id, [status+createdAt], [entity+syncStatus+createdAt], [entity+entityId+createdAt]',
-      
+
       // ENTITY CACHE
       entities: 'id, entity, [entity+updatedAt], version',
-      
+
       // SYNC QUEUE - Simple index for fast FIFO
       syncQueue: '++id, eventId, [status+createdAt]',
-      
+
       // CONFLICTS
       conflicts: '++id, entity, [resolvedAt]',
-      
+
       // META
       meta: 'key',
-      
+
       // SEEN EVENTS
       seenEvents: 'eventId, [eventId+createdAt]',
     });
@@ -55,6 +77,7 @@ class BeerPOSDB {
     this._initialized = true;
 
     console.log('[DBv5] IndexedDB initialized (Optimized)');
+    this._readyResolve?.();
     return this._db;
   }
 
@@ -696,5 +719,33 @@ const beerPOSDB = new BeerPOSDB();
 
 window.BeerPOSDB = beerPOSDB;
 window.BeerDB = beerPOSDB;
+
+// ⭐ BACKWARD COMPATIBILITY: Expose upsertEntity directly on BeerPOSDB instance
+// Đảm bảo _db.upsertEntity luôn available cho tất cả các module cũ
+// (áp dụng cả cho Dexie và localStorage fallback)
+BeerPOSDB.upsertEntity = async function(entity, item) {
+  if (!this._db || !item?.id) {
+    console.warn('[DBv5] upsertEntity: invalid db or missing id');
+    return item;
+  }
+  const safeEntity = this._safeIndex(entity);
+  if (!safeEntity) {
+    console.warn('[DBv5] upsertEntity: invalid entity', entity);
+    return item;
+  }
+  try {
+    const now = Date.now();
+    const data = {
+      ...item,
+      entity: safeEntity,
+      updatedAt: item.updatedAt || now,
+    };
+    await this._db.entities.put(data);
+    return data;
+  } catch (error) {
+    console.error('[DBv5] upsertEntity error:', error);
+    return item;
+  }
+};
 
 console.log('[DBv5] BeerPOSDB v5 loaded (Optimized)');

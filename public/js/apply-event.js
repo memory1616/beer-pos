@@ -16,14 +16,40 @@
 
   // ── Init ─────────────────────────────────────────────────────────────
 
-  function init() {
+  async function init() {
+    // ⭐ 关键修复：必须等待 BeerPOSDB 完全初始化，否则 _db 为 null
     if (window.BeerPOSDB) {
+      await window.BeerPOSDB.ready;
       _db = window.BeerPOSDB;
+      console.log('[APPLY] _db initialized, upsertEntity:', typeof _db.upsertEntity);
+    }
+
+    // ⭐ HARD GUARD：检查 upsertEntity 是否存在，不存在则报错并阻止 event replay
+    if (_db && typeof _db.upsertEntity !== 'function') {
+      console.error('[FATAL] upsertEntity missing from _db — event replay blocked!');
     }
 
     // Register apply function with EventStore
     if (window.EventStore) {
       window.EventStore.setApplyFunction(applyEvent);
+    }
+  }
+
+  // ── Hard Guard: Safe upsert wrapper ──────────────────────────────────
+  // ⭐ CRITICAL: Ngăn crash khi _db.upsertEntity không tồn tại
+  async function _safeUpsert(entity, item) {
+    if (!_db) {
+      console.warn('[APPLY] _db null, skipping upsert:', entity, item?.id);
+      return;
+    }
+    if (typeof _db.upsertEntity !== 'function') {
+      console.error('[FATAL] upsertEntity missing from _db — cannot apply event!');
+      return;
+    }
+    try {
+      await _db.upsertEntity(entity, item);
+    } catch (err) {
+      console.error('[APPLY] _safeUpsert error:', err);
     }
   }
 
@@ -36,6 +62,12 @@
    * @returns {object} Applied entity
    */
   async function applyEvent(event) {
+    // ⭐ HARD GUARD: Kiểm tra trước khi xử lý bất kỳ event nào
+    if (_db && typeof _db.upsertEntity !== 'function') {
+      console.error('[FATAL] upsertEntity missing from _db — event replay blocked for:', event?.type);
+      return null;
+    }
+
     const { type, payload, entity, entityId } = event;
 
     try {
@@ -126,9 +158,7 @@
       syncStatus: event.status || 'pending',
     };
 
-    if (_db) {
-      await _db.upsertEntity('orders', order);
-    }
+    await _safeUpsert('orders', order);
 
     // Dispatch UI update
     _dispatchUpdate('order:created', order);
@@ -150,9 +180,7 @@
       syncStatus: event.status || 'pending',
     };
 
-    if (_db) {
-      await _db.upsertEntity('orders', order);
-    }
+    await _safeUpsert('orders', order);
 
     _dispatchUpdate('order:updated', order);
     return order;
@@ -173,11 +201,10 @@
         syncStatus: event.status || 'pending',
       };
       
-      if (_db) {
-        await _db.upsertEntity('orders', order);
-      }
+      await _safeUpsert('orders', order);
+    }
 
-      _dispatchUpdate('order:deleted', { id: payload.id });
+    _dispatchUpdate('order:deleted', { id: payload.id });
     }
 
     return { id: payload.id, deleted: true };
@@ -199,9 +226,7 @@
       syncStatus: event.status || 'pending',
     };
 
-    if (_db) {
-      await _db.upsertEntity('orders', order);
-    }
+    await _safeUpsert('orders', order);
 
     _dispatchUpdate('order:returned', order);
     return order;
@@ -222,9 +247,7 @@
       updatedAt: Date.now(),
     };
 
-    if (_db) {
-      await _db.upsertEntity('products', product);
-    }
+    await _safeUpsert('products', product);
 
     _dispatchUpdate('product:updated', product);
     return product;
@@ -248,9 +271,7 @@
       updatedAt: Date.now(),
     };
 
-    if (_db) {
-      await _db.upsertEntity('products', product);
-    }
+    await _safeUpsert('products', product);
 
     _dispatchUpdate('product:stock-changed', product);
     return product;
@@ -277,9 +298,7 @@
       updatedAt: payload.updatedAt || Date.now(),
     };
 
-    if (_db) {
-      await _db.upsertEntity('customers', customer);
-    }
+    await _safeUpsert('customers', customer);
 
     _dispatchUpdate('customer:created', customer);
     return customer;
@@ -298,9 +317,7 @@
       updatedAt: Date.now(),
     };
 
-    if (_db) {
-      await _db.upsertEntity('customers', customer);
-    }
+    await _safeUpsert('customers', customer);
 
     _dispatchUpdate('customer:updated', customer);
     return customer;
@@ -327,9 +344,7 @@
       syncStatus: event.status || 'pending',
     };
 
-    if (_db) {
-      await _db.upsertEntity('expenses', expense);
-    }
+    await _safeUpsert('expenses', expense);
 
     _dispatchUpdate('expense:created', expense);
     return expense;
@@ -348,9 +363,7 @@
       updatedAt: Date.now(),
     };
 
-    if (_db) {
-      await _db.upsertEntity('expenses', expense);
-    }
+    await _safeUpsert('expenses', expense);
 
     _dispatchUpdate('expense:updated', expense);
     return expense;
@@ -369,8 +382,7 @@
         updatedAt: Date.now(),
       };
       
-      if (_db) {
-        await _db.upsertEntity('expenses', expense);
+      await _safeUpsert('expenses', expense);
       }
 
       _dispatchUpdate('expense:deleted', { id: payload.id });
@@ -396,9 +408,7 @@
       updatedAt: Date.now(),
     };
 
-    if (_db) {
-      await _db.upsertEntity('customers', updatedCustomer);
-    }
+    await _safeUpsert('customers', updatedCustomer);
 
     _dispatchUpdate('keg:delivered', updatedCustomer);
     return updatedCustomer;
@@ -419,9 +429,7 @@
       updatedAt: Date.now(),
     };
 
-    if (_db) {
-      await _db.upsertEntity('customers', updatedCustomer);
-    }
+    await _safeUpsert('customers', updatedCustomer);
 
     _dispatchUpdate('keg:collected', updatedCustomer);
     return updatedCustomer;
@@ -440,9 +448,7 @@
       updatedAt: Date.now(),
     };
 
-    if (_db) {
-      await _db.upsertEntity('customers', updatedCustomer);
-    }
+    await _safeUpsert('customers', updatedCustomer);
 
     _dispatchUpdate('keg:balance-updated', updatedCustomer);
     return updatedCustomer;
@@ -463,9 +469,7 @@
       updatedAt: payload.updatedAt || Date.now(),
     };
 
-    if (_db) {
-      await _db.upsertEntity('payments', payment);
-    }
+    await _safeUpsert('payments', payment);
 
     _dispatchUpdate('payment:created', payment);
     return payment;

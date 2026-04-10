@@ -28,13 +28,13 @@
       await window.BeerPOSDB.init();
     }
 
-    // Init modules
+    // Init modules (ApplyEvent.init 现在是 async，必须 await)
     if (window.EventStore) {
-      window.EventStore.init();
+      await window.EventStore.init();  // ⭐ CRITICAL: Phải await để tránh race condition
     }
 
     if (window.ApplyEvent) {
-      window.ApplyEvent.init();
+      await window.ApplyEvent.init();
     }
 
     if (window.EventSyncEngine) {
