@@ -354,10 +354,24 @@
   // ── Sync Functions ──────────────────────────────────────────────────
 
   async function getSyncStatus() {
-    return window.EventSyncEngine?.getStatus() || {
-      isOnline: navigator.onLine,
-      pendingEvents: 0,
-    };
+    try {
+      const status = window.EventSyncEngine?.getStatus();
+      if (status && typeof status.then === 'function') {
+        return await status;
+      }
+      return status || { isOnline: navigator.onLine, pendingEvents: 0 };
+    } catch (err) {
+      console.error('[OFFLINEv3] getSyncStatus error:', err);
+      return {
+        isOnline: navigator.onLine,
+        pendingEvents: 0,
+        syncedEvents: 0,
+        failedEvents: 0,
+        totalEvents: 0,
+        queueItems: 0,
+        status: 'error',
+      };
+    }
   }
 
   async function syncNow() {

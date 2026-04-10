@@ -2,7 +2,7 @@
  * BeerPOS - WebSocket Event Handler
  * ─────────────────────────────────────────────────────────────────────────────
  * ⭐ REALTIME EVENTS - Nhận và xử lý events từ server
- * 
+ *
  * Flow:
  * 1. Connect to WebSocket
  * 2. Receive EVENT_BROADCAST
@@ -10,6 +10,12 @@
  * 4. Save to event store
  * 5. Apply event locally
  * 6. Dispatch UI update
+ *
+ * ⭐ HARDENED:
+ * - Exponential backoff (max 30s)
+ * - Connection state guard (prevent duplicate connects)
+ * - Fallback HTTP polling after WS failure
+ * - Global error boundary
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -19,25 +25,44 @@
   let _socket = null;
   let _reconnectTimer = null;
   let _isConnected = false;
+  let _isConnecting = false;
   let _listeners = new Set();
   let _eventHistory = new Map(); // eventId → timestamp
   const EVENT_HISTORY_TTL = 60000; // 1 minute
 
   // Config
-  const RECONNECT_DELAY = 3000;
   const MAX_RECONNECT_ATTEMPTS = 10;
+  const BASE_RECONNECT_DELAY = 3000;
+  const MAX_RECONNECT_DELAY = 30000;
+  const HTTP_POLL_INTERVAL = 15000;  // Fallback HTTP poll when WS fails
 
   let _reconnectAttempts = 0;
+  let _httpPollTimer = null;
+  let _fallbackMode = false;
 
-  // ── Connect ─────────────────────────────────────────────────────────
+  // ── Connect ────────────────────────────────────────────────────────────────
 
   function connect() {
-    if (_socket) {
-      _socket.close();
+    // Guard: prevent duplicate connections
+    if (_socket && (_socket.readyState === WebSocket.OPEN || _socket.readyState === WebSocket.CONNECTING)) {
+      return;
+    }
+    if (_isConnecting) {
+      console.log('[WS] Already connecting, skipping duplicate connect');
+      return;
+    }
+
+    // Exit fallback mode if attempting reconnect
+    _stopFallbackPoll();
+
+    if (_reconnectTimer) {
+      clearTimeout(_reconnectTimer);
+      _reconnectTimer = null;
     }
 
     const wsUrl = _getWebSocketUrl();
     console.log('[WS] Connecting to:', wsUrl);
+    _isConnecting = true;
 
     try {
       _socket = new WebSocket(wsUrl);
@@ -49,6 +74,7 @@
 
     } catch (error) {
       console.error('[WS] Connection error:', error);
+      _isConnecting = false;
       _scheduleReconnect();
     }
   }
@@ -62,10 +88,11 @@
   function _onOpen() {
     console.log('[WS] Connected');
     _isConnected = true;
+    _isConnecting = false;
     _reconnectAttempts = 0;
 
     // Send join message
-    send({
+    _send({
       type: 'JOIN',
       deviceId: _getDeviceId(),
     });
@@ -85,30 +112,38 @@
   function _onClose(event) {
     console.log('[WS] Disconnected:', event.code, event.reason);
     _isConnected = false;
+    _isConnecting = false;
     _emit('disconnected', { code: event.code, reason: event.reason });
     _scheduleReconnect();
   }
 
   function _onError(error) {
     console.error('[WS] Error:', error);
+    _isConnecting = false;
     _emit('error', { error });
   }
 
-  // ── Reconnect ───────────────────────────────────────────────────────
+  // ── Reconnect ─────────────────────────────────────────────────────────────
 
   function _scheduleReconnect() {
     if (_reconnectTimer) {
       clearTimeout(_reconnectTimer);
+      _reconnectTimer = null;
     }
 
     if (_reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-      console.warn('[WS] Max reconnect attempts reached');
+      console.warn('[WS] Max reconnect attempts reached — switching to HTTP fallback');
       _emit('max_attempts', {});
+      _startFallbackPoll();
       return;
     }
 
-    const delay = RECONNECT_DELAY * Math.pow(1.5, _reconnectAttempts);
-    console.log(`[WS] Reconnecting in ${delay}ms (attempt ${_reconnectAttempts + 1})`);
+    // Exponential backoff: 3s, 4.5s, 6.75s, ... capped at 30s
+    const delay = Math.min(
+      BASE_RECONNECT_DELAY * Math.pow(1.5, _reconnectAttempts),
+      MAX_RECONNECT_DELAY
+    );
+    console.log(`[WS] Reconnecting in ${Math.round(delay)}ms (attempt ${_reconnectAttempts + 1}/${MAX_RECONNECT_ATTEMPTS})`);
 
     _reconnectTimer = setTimeout(() => {
       _reconnectAttempts++;
@@ -116,7 +151,57 @@
     }, delay);
   }
 
-  // ── Handle Messages ─────────────────────────────────────────────────
+  // ── Fallback HTTP Polling ─────────────────────────────────────────────────
+
+  function _startFallbackPoll() {
+    if (_httpPollTimer || _fallbackMode) return;
+    _fallbackMode = true;
+    console.log('[WS] Starting HTTP fallback polling');
+
+    _doFallbackPoll();
+    _httpPollTimer = setInterval(_doFallbackPoll, HTTP_POLL_INTERVAL);
+  }
+
+  function _stopFallbackPoll() {
+    if (_httpPollTimer) {
+      clearInterval(_httpPollTimer);
+      _httpPollTimer = null;
+    }
+    if (_fallbackMode) {
+      _fallbackMode = false;
+      console.log('[WS] HTTP fallback polling stopped');
+    }
+  }
+
+  async function _doFallbackPoll() {
+    if (!navigator.onLine) return;
+
+    try {
+      const response = await fetch('/api/sync-events/delta', {
+        headers: { 'Cache-Control': 'no-cache' },
+      });
+      if (!response.ok) return;
+
+      const data = await response.json();
+      if (data.success && data.events && data.events.length > 0) {
+        console.log(`[WS] Fallback poll received ${data.events.length} events`);
+        for (const event of data.events) {
+          if (window.EventStore) {
+            try {
+              await window.EventStore.receiveEvent(event);
+            } catch (e) {
+              console.error('[WS] Fallback apply event error:', e);
+            }
+          }
+        }
+        _emit('events_received', { count: data.events.length });
+      }
+    } catch (err) {
+      // Silent — fallback poll should not spam console
+    }
+  }
+
+  // ── Handle Messages ───────────────────────────────────────────────────────
 
   function _handleMessage(data) {
     const { type, payload } = data;
@@ -168,16 +253,20 @@
 
     // Receive event
     if (window.EventStore) {
-      const result = await window.EventStore.receiveEvent({
-        id: eventId,
-        type,
-        payload: eventPayload,
-        deviceId,
-        timestamp,
-      });
+      try {
+        const result = await window.EventStore.receiveEvent({
+          id: eventId,
+          type,
+          payload: eventPayload,
+          deviceId,
+          timestamp,
+        });
 
-      if (result.success) {
-        _emit('event_received', { type, entityId });
+        if (result.success) {
+          _emit('event_received', { type, entityId });
+        }
+      } catch (err) {
+        console.error('[WS] handleEventBroadcast error:', err);
       }
     }
   }
@@ -190,34 +279,31 @@
 
   async function _handleFullState(payload) {
     console.log('[WS] Received full state');
-    
-    // Apply full state to local DB
+
     if (window.ApplyEvent) {
-      // Full state handling
       const { orders, customers, products, expenses } = payload;
 
-      // Apply entities
       if (orders?.length) {
         for (const order of orders) {
-          await window.EventStore?.receiveEvent({
-            id: order.id,
-            type: 'ORDER_CREATED',
-            payload: order,
-            deviceId: 'server',
-            timestamp: order.createdAt,
-          });
+          try {
+            await window.EventStore?.receiveEvent({
+              id: order.id,
+              type: 'ORDER_CREATED',
+              payload: order,
+              deviceId: 'server',
+              timestamp: order.createdAt,
+            });
+          } catch (e) { /* skip */ }
         }
       }
-
-      // ... similar for other entities
     }
 
     _emit('full_state_received', payload);
   }
 
-  // ── Send Messages ───────────────────────────────────────────────────
+  // ── Send Messages ─────────────────────────────────────────────────────────
 
-  function send(data) {
+  function _send(data) {
     if (!_socket || _socket.readyState !== WebSocket.OPEN) {
       console.warn('[WS] Not connected, cannot send:', data.type);
       return false;
@@ -232,7 +318,7 @@
     }
   }
 
-  // ── Emit Events ────────────────────────────────────────────────────
+  // ── Emit Events ───────────────────────────────────────────────────────────
 
   function _emit(event, data) {
     for (const listener of _listeners) {
@@ -251,7 +337,7 @@
     return () => _listeners.delete(callback);
   }
 
-  // ── Deduplication ──────────────────────────────────────────────────
+  // ── Deduplication ─────────────────────────────────────────────────────────
 
   function _isDuplicate(eventId) {
     const seen = _eventHistory.get(eventId);
@@ -275,7 +361,7 @@
     }
   }
 
-  // ── Device ID ──────────────────────────────────────────────────────
+  // ── Device ID ─────────────────────────────────────────────────────────────
 
   function _getDeviceId() {
     let id = localStorage.getItem('beerpos_device_id_v3');
@@ -293,32 +379,38 @@
     });
   }
 
-  // ── Status ───────────────────────────────────────────────────────
+  // ── Status ───────────────────────────────────────────────────────────────
 
   function getStatus() {
     return {
       isConnected: _isConnected,
+      isConnecting: _isConnecting,
       readyState: _socket?.readyState,
       reconnectAttempts: _reconnectAttempts,
+      fallbackMode: _fallbackMode,
     };
   }
 
   function disconnect() {
+    _stopFallbackPoll();
     if (_reconnectTimer) {
       clearTimeout(_reconnectTimer);
+      _reconnectTimer = null;
     }
     if (_socket) {
       _socket.close();
       _socket = null;
     }
+    _isConnected = false;
+    _isConnecting = false;
   }
 
-  // ── Export ───────────────────────────────────────────────────────
+  // ── Export ───────────────────────────────────────────────────────────────
 
   const WebSocketClient = {
     connect,
     disconnect,
-    send,
+    send: _send,
     addListener,
     getStatus,
   };

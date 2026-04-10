@@ -727,8 +727,8 @@ class BeerSyncEngineV2 {
     if (this._db?.syncQueue) {
       try {
         return await this._db.syncQueue
-          .where('[status+createdAt]')
-          .startsWith(['pending'])
+          .where('status')
+          .equals('pending')
           .count();
       } catch {
         return this._pendingSyncIds.size;

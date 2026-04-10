@@ -134,7 +134,7 @@
   async function _getPendingCount() {
     if (!_db) return 0;
     try {
-      return await _db.events.where('[status+createdAt]').startsWith(['pending']).count();
+      return await _db.events.where('status').equals('pending').count();
     } catch {
       return 0;
     }
@@ -452,15 +452,31 @@
   // ── Status ─────────────────────────────────────────────────────
 
   async function getStatus() {
-    const stats = _db ? await _db.getStats() : {};
-    return {
-      isOnline: _isOnline,
-      activeRequests: _activeRequests,
-      queueLength: _requestQueue.length,
-      inFlightCount: _inFlightEvents.size,
-      deviceId: _getDeviceId(),
-      ...stats,
-    };
+    try {
+      const stats = _db ? await _db.getStats() : {};
+      return {
+        isOnline: _isOnline,
+        activeRequests: _activeRequests,
+        queueLength: _requestQueue.length,
+        inFlightCount: _inFlightEvents.size,
+        deviceId: _getDeviceId(),
+        ...stats,
+      };
+    } catch (err) {
+      console.error('[SYNCv5] getStatus error:', err);
+      return {
+        isOnline: _isOnline,
+        activeRequests: 0,
+        queueLength: 0,
+        inFlightCount: 0,
+        pendingEvents: 0,
+        syncedEvents: 0,
+        failedEvents: 0,
+        totalEvents: 0,
+        queueItems: 0,
+        status: 'error',
+      };
+    }
   }
 
   async function retryFailed() {

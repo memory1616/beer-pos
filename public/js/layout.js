@@ -115,6 +115,20 @@ function getCardSkeleton() {
 // Auto-load version on script load
 loadVersion();
 
+// ── Global Error Boundary ─────────────────────────────────────────────────────
+window.addEventListener('error', function(e) {
+  // Ignore resource loading errors (favicon, etc.)
+  if (e.target && (e.target.tagName === 'LINK' || e.target.tagName === 'SCRIPT' || e.target.tagName === 'IMG')) return;
+  console.error('[GLOBAL ERROR]', e.error || e.message, { filename: e.filename, lineno: e.lineno });
+});
+
+window.addEventListener('unhandledrejection', function(e) {
+  const reason = e.reason;
+  // IgnoreAbortError are common and harmless
+  if (reason && reason.name === 'AbortError') return;
+  console.error('[PROMISE ERROR]', reason);
+});
+
 // Auto-populate bottom nav on static HTML pages (report, expenses, delivery, etc.)
 // These pages have <div id="bottomNavContainer"></div> and inject nav via JS after layout.js loads.
 function autoInjectBottomNav() {

@@ -129,21 +129,26 @@ class BeerPOSDB {
    */
   async getEventsByEntity(entity, options = {}) {
     const { syncStatus, limit = 100 } = options;
-    
+
     if (!this._db) return [];
+
+    // Validate entity to prevent Dexie errors
+    const safeEntity = this._safeIndex(entity);
+    if (!safeEntity) return [];
 
     try {
       if (syncStatus) {
+        const safeStatus = this._safeString(syncStatus);
         return await this._db.events
           .where('[entity+syncStatus+createdAt]')
-          .between([entity, syncStatus, Dexie.minKey], [entity, syncStatus, Dexie.maxKey])
+          .between([safeEntity, safeStatus, Dexie.minKey], [safeEntity, safeStatus, Dexie.maxKey])
           .limit(limit)
           .toArray();
       }
-      
+
       return await this._db.events
         .where('entity')
-        .equals(entity)
+        .equals(safeEntity)
         .limit(limit)
         .reverse()
         .toArray();
@@ -255,16 +260,22 @@ class BeerPOSDB {
   async bulkUpsertEntities(entity, items) {
     if (!this._db || !items.length) return 0;
 
+    const safeEntity = this._safeIndex(entity);
+    if (!safeEntity) {
+      console.warn('[DBv5] bulkUpsertEntities: invalid entity', entity);
+      return 0;
+    }
+
     try {
       const now = Date.now();
       const entities = items.map(item => ({
         ...item,
-        entity,
+        entity: safeEntity,
         updatedAt: now,
       }));
-      
+
       await this._db.entities.bulkPut(entities);
-      console.log(`[DBv5] Bulk upserted ${items.length} ${entity}`);
+      console.log(`[DBv5] Bulk upserted ${items.length} ${safeEntity}`);
       return items.length;
     } catch (error) {
       console.error('[DBv5] bulkUpsertEntities error:', error);
@@ -331,6 +342,7 @@ class BeerPOSDB {
         .limit(limit)
         .toArray();
     } catch (error) {
+      console.warn('[DBv5] getSyncQueueItems error:', error);
       return [];
     }
   }
@@ -369,6 +381,19 @@ class BeerPOSDB {
 
   // ── Helpers ────────────────────────────────────────────────
 
+  _safeString(val) {
+    if (val == null) return '';
+    return String(val);
+  }
+
+  _safeIndex(entity) {
+    if (!entity || typeof entity !== 'string') {
+      console.warn('[DB] Invalid entity in compound index query:', entity);
+      return 'unknown';
+    }
+    return entity;
+  }
+
   generateId() {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
       const r = Math.random() * 16 | 0;
@@ -395,14 +420,19 @@ class BeerPOSDB {
   }
 
   async getStats() {
-    if (!this._db) return {};
+    if (!this._db) return { pendingEvents: 0, syncedEvents: 0, failedEvents: 0, queueItems: 0, totalEvents: 0 };
 
-    const [pendingEvents, syncedEvents, failedEvents, queueItems] = await Promise.all([
-      this._db.events.where('status').equals('pending').count(),
-      this._db.events.where('status').equals('synced').count(),
-      this._db.events.where('status').equals('failed').count(),
-      this._db.syncQueue.where('status').equals('pending').count(),
-    ]);
+    let pendingEvents = 0, syncedEvents = 0, failedEvents = 0, queueItems = 0;
+    try {
+      [pendingEvents, syncedEvents, failedEvents, queueItems] = await Promise.all([
+        this._db.events.where('status').equals('pending').count(),
+        this._db.events.where('status').equals('synced').count(),
+        this._db.events.where('status').equals('failed').count(),
+        this._db.syncQueue.where('status').equals('pending').count(),
+      ]);
+    } catch (err) {
+      console.warn('[DB] getStats error:', err);
+    }
 
     return {
       pendingEvents,

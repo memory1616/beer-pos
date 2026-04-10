@@ -2477,9 +2477,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       showToast('Phát hiện lệch dữ liệu. Đang đồng bộ...', 'warning');
     });
 
-    // Update sync status periodically
+    // Update sync status periodically — wrapped in setInterval to prevent unhandled errors
     updateSyncStatusIndicator();
-    setInterval(updateSyncStatusIndicator, 5000);
+    let _syncStatusInterval = null;
+    function _safeUpdateSyncStatus() {
+      if (_syncStatusInterval) clearInterval(_syncStatusInterval);
+      _syncStatusInterval = setInterval(async () => {
+        try {
+          await updateSyncStatusIndicator();
+        } catch (err) {
+          console.warn('[Sales] updateSyncStatusIndicator skipped:', err?.message);
+        }
+      }, 5000);
+    }
+    _safeUpdateSyncStatus();
   }
 });
 
@@ -2488,6 +2499,8 @@ async function updateSyncStatusIndicator() {
 
   try {
     const status = await window.OfflineStore.getSyncStatus();
+    if (!status) return;
+
     const indicator = document.getElementById('syncStatusIndicator');
 
     if (indicator) {
@@ -2496,7 +2509,10 @@ async function updateSyncStatusIndicator() {
       if (!status.isOnline) {
         indicator.innerHTML = '📴 Offline';
         indicator.className = 'text-xs text-warning';
-      } else if (status.pendingEvents > 0) {
+      } else if (status.status === 'error') {
+        indicator.innerHTML = '⚠️ Sync lỗi';
+        indicator.className = 'text-xs text-error';
+      } else if ((status.pendingEvents || 0) > 0) {
         indicator.innerHTML = `🔄 Sync (${status.pendingEvents})`;
         indicator.className = 'text-xs text-info';
       } else {
@@ -2505,7 +2521,7 @@ async function updateSyncStatusIndicator() {
       }
     }
   } catch (error) {
-    console.error('[EVENT] Status update error:', error);
+    console.warn('[Sales] updateSyncStatusIndicator error:', error?.message);
   }
 }
 
