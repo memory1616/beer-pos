@@ -469,6 +469,12 @@ self.addEventListener('fetch', event => {
     return;
   }
 
+  // Sale history — always fresh from server
+  if (parsed.pathname === '/sale/history') {
+    event.respondWith(fetch(new Request(event.request, { cache: 'no-store' })));
+    return;
+  }
+
   // Navigation — Network-First (always fresh page)
   if (event.request.mode === 'navigate') {
     event.respondWith(networkFirst(event.request));
