@@ -270,12 +270,29 @@ function normalizeInvoice(sale) {
   };
 }
 
+/**
+ * 生成 VietQR 支付二维码 URL
+ * @param {object} invoice - 发票对象，需包含 id 和 totalAmount
+ * @returns {string} VietQR 图片 URL
+ */
+function generateVietQR(invoice) {
+  var amount = invoice && invoice.totalAmount ? Math.round(invoice.totalAmount) : 0;
+  var invoiceId = invoice && invoice.id ? invoice.id : '';
+  var content = 'Thanh toan HD ' + invoiceId;
+  var name = 'NGUYEN MINH QUAN';
+  var encodedContent = encodeURIComponent(content);
+  var encodedName = encodeURIComponent(name);
+  return 'https://img.vietqr.io/image/ICB-107875230331-compact2.png?amount=' +
+    amount + '&addInfo=' + encodedContent + '&accountName=' + encodedName;
+}
+
 function renderInvoiceModalContent(invoice, saleIdForActions) {
   var orderEl = document.getElementById('invOrderId');
   var nameEl = document.getElementById('invCustomerName');
   var metaEl = document.getElementById('invCustomerMeta');
   var itemsList = document.getElementById('invItemsList');
   var invActions = document.getElementById('invActions');
+  var vietqrBlock = document.getElementById('vietqrBlock');
   if (!orderEl || !itemsList || !invActions) return;
 
   if (!invoice) {
@@ -289,7 +306,9 @@ function renderInvoiceModalContent(invoice, saleIdForActions) {
     document.getElementById('invKegReturn').textContent = '0';
     document.getElementById('invKegBalance').textContent = '0';
     document.getElementById('invTotalValue').textContent = '—';
+    // 隐藏操作按钮和 VietQR
     invActions.innerHTML = '<button class="inv-btn inv-btn-ghost" type="button" onclick="closeInvoice()">Đóng</button>';
+    if (vietqrBlock) vietqrBlock.classList.remove('visible');
     return;
   }
 
@@ -332,13 +351,21 @@ function renderInvoiceModalContent(invoice, saleIdForActions) {
 
   document.getElementById('invTotalValue').textContent = formatVND(invoice.totalAmount);
 
-  invActions.innerHTML =
-    '<button class="inv-btn inv-btn-ghost" type="button" onclick="closeInvoice()">Đóng</button>' +
-    '<button class="inv-btn inv-btn-kegs" type="button" onclick="openKegFromInvoice(' + sid + ')">📦 Vỏ</button>' +
-    (isReturned ? '' :
-      '<button class="inv-btn inv-btn-primary" type="button" onclick="openEditSale(' + sid + '); closeInvoice();">✏️ Sửa</button>' +
-      '<button class="inv-btn inv-btn-danger" type="button" onclick="deleteSale(' + sid + '); closeInvoice();">🗑 Xóa</button>'
-    );
+  // 渲染 VietQR 支付区块
+  var contentText = 'Noi dung: Thanh toan HD ' + sid;
+  var vietqrUrl = generateVietQR(invoice);
+  if (vietqrBlock) {
+    vietqrBlock.classList.add('visible');
+    var vietqrImage = document.getElementById('vietqrImage');
+    var vietqrContent = document.getElementById('vietqrContent');
+    if (vietqrImage) {
+      vietqrImage.src = vietqrUrl;
+      vietqrImage.style.display = '';
+    }
+    if (vietqrContent) vietqrContent.textContent = contentText;
+  }
+  // 隐藏操作按钮
+  invActions.innerHTML = '';
 }
 
 function showInvoiceModalElement() {

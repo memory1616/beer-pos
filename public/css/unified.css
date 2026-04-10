@@ -5172,6 +5172,62 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
 .inv-btn-kegs:hover {
   background: rgba(252, 213, 53, 0.2);
 }
+
+/* VietQR 支付区块样式 — Binance 深色风格 */
+.vietqr-block {
+  background: #1E2329;
+  border-radius: 16px;
+  padding: 16px;
+  margin: 0 16px 8px;
+  text-align: center;
+  display: none;
+}
+
+.vietqr-block.visible {
+  display: block;
+}
+
+.vietqr-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: #848E9C;
+  margin-bottom: 12px;
+}
+
+.vietqr-qr-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+.vietqr-qr-img {
+  width: 220px;
+  height: 220px;
+  border-radius: 12px;
+  background: #ffffff;
+  object-fit: contain;
+}
+
+.vietqr-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #EAECEF;
+  margin-bottom: 4px;
+}
+
+.vietqr-account {
+  font-size: 12px;
+  color: #848E9C;
+  margin-bottom: 8px;
+}
+
+.vietqr-content {
+  font-size: 12px;
+  color: #FCD535;
+  font-weight: 600;
+}
+
    dark/light overrides for old classes */
 
 

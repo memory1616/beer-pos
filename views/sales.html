@@ -227,10 +227,19 @@
         <span class="inv-total-value" id="invTotalValue">0đ</span>
       </div>
 
-      <!-- Action buttons -->
-      <div class="inv-actions" id="invActions">
-        <!-- Rendered by JS based on mode -->
+      <!-- VietQR Payment Block -->
+      <div class="vietqr-block" id="vietqrBlock">
+        <div class="vietqr-title">VIETQR</div>
+        <div class="vietqr-qr-wrap">
+          <img id="vietqrImage" class="vietqr-qr-img" src="" alt="VietQR" onerror="this.style.display='none'">
+        </div>
+        <div class="vietqr-name" id="vietqrName">NGUYEN MINH QUAN</div>
+        <div class="vietqr-account">107875230331 — VietinBank</div>
+        <div class="vietqr-content" id="vietqrContent">Noi dung: —</div>
       </div>
+
+      <!-- Action buttons (hidden when VietQR mode active) -->
+      <div class="inv-actions" id="invActions"></div>
     </div>
   </div>
 
@@ -318,7 +327,7 @@
       await loadScript('/js/format.js');
       await loadScript('/db.js?v=20260410d');
       await loadScript('/sync-orders.js');
-      await loadScript('/js/sales.js?v=20260410-kegs-info');
+      await loadScript('/js/sales.js?v=20260410-vietqr');
       await loadSalesData();
     })();
 
