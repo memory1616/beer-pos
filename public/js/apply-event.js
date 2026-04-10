@@ -17,16 +17,25 @@
   // ── Init ─────────────────────────────────────────────────────────────
 
   async function init() {
-    // ⭐ 关键修复：必须等待 BeerPOSDB 完全初始化，否则 _db 为 null
+    // ⭐ CRITICAL: Phải đợi BeerPOSDB hoàn toàn ready
     if (window.BeerPOSDB) {
       await window.BeerPOSDB.ready;
       _db = window.BeerPOSDB;
-      console.log('[APPLY] _db initialized, upsertEntity:', typeof _db.upsertEntity);
+      
+      // Debug: Log chi tiết về _db
+      console.log('[APPLY] _db initialized:', {
+        hasDb: !!_db,
+        dbType: typeof _db,
+        hasUpsert: typeof _db?.upsertEntity,
+        dbKeys: _db ? Object.keys(_db).slice(0, 20) : [],
+        hasInternalDb: !!_db?._db,
+      });
     }
 
-    // ⭐ HARD GUARD：检查 upsertEntity 是否存在，不存在则报错并阻止 event replay
+    // ⭐ HARD GUARD: Kiểm tra upsertEntity có tồn tại không
     if (_db && typeof _db.upsertEntity !== 'function') {
-      console.error('[FATAL] upsertEntity missing from _db — event replay blocked!');
+      console.error('[FATAL] upsertEntity missing from _db!');
+      console.error('[FATAL] _db contents:', Object.keys(_db || {}));
     }
 
     // Register apply function with EventStore

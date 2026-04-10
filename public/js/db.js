@@ -720,19 +720,30 @@ const beerPOSDB = new BeerPOSDB();
 window.BeerPOSDB = beerPOSDB;
 window.BeerDB = beerPOSDB;
 
-// ⭐ BACKWARD COMPATIBILITY: Expose upsertEntity directly on BeerPOSDB instance
-// Đảm bảo _db.upsertEntity luôn available cho tất cả các module cũ
-// (áp dụng cả cho Dexie và localStorage fallback)
-BeerPOSDB.upsertEntity = async function(entity, item) {
-  if (!this._db || !item?.id) {
-    console.warn('[DBv5] upsertEntity: invalid db or missing id');
+// ⭐ CRITICAL FIX: Thêm upsertEntity trực tiếp vào instance
+// Đảm bảo _db.upsertEntity luôn available cho tất cả các module
+// Sử dụng arrow function để bind đúng context
+beerPOSDB.upsertEntity = async function(entity, item) {
+  // Layer 1: Validate inputs
+  if (!item?.id) {
+    console.warn('[DBv5] upsertEntity: missing id', { entity, item });
     return item;
   }
-  const safeEntity = this._safeIndex(entity);
+  
+  // Layer 2: Check if internal db (_db) is ready
+  if (!this._db) {
+    console.warn('[DBv5] upsertEntity: internal _db not initialized yet');
+    return item;
+  }
+  
+  // Layer 3: Safe entity validation
+  const safeEntity = typeof entity === 'string' ? entity : String(entity);
   if (!safeEntity) {
     console.warn('[DBv5] upsertEntity: invalid entity', entity);
     return item;
   }
+  
+  // Layer 4: Try-catch for safety
   try {
     const now = Date.now();
     const data = {
@@ -743,7 +754,7 @@ BeerPOSDB.upsertEntity = async function(entity, item) {
     await this._db.entities.put(data);
     return data;
   } catch (error) {
-    console.error('[DBv5] upsertEntity error:', error);
+    console.error('[DBv5] upsertEntity error:', error, { entity, itemId: item?.id });
     return item;
   }
 };
