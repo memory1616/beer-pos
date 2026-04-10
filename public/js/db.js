@@ -47,10 +47,12 @@ class BeerPOSDB {
     });
 
     await this._db.open();
-    this._initialized = true;
 
     // Auto-fix corrupted data on startup (production safety net)
-    this.fixCorruptedData();
+    // Must await — we cannot serve requests until data is fixed
+    await this.fixCorruptedData();
+
+    this._initialized = true;
 
     console.log('[DBv5] IndexedDB initialized (Optimized)');
     return this._db;
@@ -112,15 +114,26 @@ class BeerPOSDB {
   async bulkAddEvents(events) {
     if (!this._db || !events.length) return 0;
 
+    // Normalize all events before any DB write
+    const safeEvents = [];
+    for (const e of events) {
+      const valid = this._assertValidEvent(e);
+      if (valid) safeEvents.push(valid);
+    }
+    if (safeEvents.length === 0) {
+      console.warn('[DBv5] bulkAddEvents: all events invalid, skipping');
+      return 0;
+    }
+
     try {
-      await this._db.events.bulkAdd(events);
-      console.log(`[DBv5] Bulk added ${events.length} events`);
-      return events.length;
+      await this._db.events.bulkAdd(safeEvents);
+      console.log(`[DBv5] Bulk added ${safeEvents.length} events`);
+      return safeEvents.length;
     } catch (error) {
       console.error('[DBv5] bulkAddEvents error:', error);
       // Fallback: add one by one
       let added = 0;
-      for (const event of events) {
+      for (const event of safeEvents) {
         try {
           await this._db.events.add(event);
           added++;
@@ -138,10 +151,21 @@ class BeerPOSDB {
   async bulkUpdateEvents(updates) {
     if (!this._db || !updates.length) return 0;
 
+    // Validate and normalize all update payloads
+    const safeUpdates = [];
+    for (const u of updates) {
+      if (!u?.key) continue;
+      const changes = { ...u.changes };
+      changes.status = this._normalizeStatus(changes.status);
+      changes.syncStatus = this._normalizeStatus(changes.syncStatus);
+      safeUpdates.push({ key: u.key, changes });
+    }
+    if (safeUpdates.length === 0) return 0;
+
     try {
-      await this._db.events.bulkUpdate(updates);
-      console.log(`[DBv5] Bulk updated ${updates.length} events`);
-      return updates.length;
+      await this._db.events.bulkUpdate(safeUpdates);
+      console.log(`[DBv5] Bulk updated ${safeUpdates.length} events`);
+      return safeUpdates.length;
     } catch (error) {
       console.error('[DBv5] bulkUpdateEvents error:', error);
       return 0;
@@ -154,10 +178,11 @@ class BeerPOSDB {
   async getPendingEvents(limit = 50) {
     if (!this._db) return [];
 
+    const safeStatus = 'pending';
     try {
       return await this._db.events
         .where('[status+createdAt]')
-        .between(['pending', Dexie.minKey], ['pending', Dexie.maxKey])
+        .between([safeStatus, Dexie.minKey], [safeStatus, Dexie.maxKey])
         .limit(limit)
         .toArray();
     } catch (error) {
@@ -204,10 +229,14 @@ class BeerPOSDB {
 
   async updateEventStatus(eventId, updates) {
     if (!this._db) return;
-    
+
+    const safeUpdates = { ...updates };
+    safeUpdates.status = this._normalizeStatus(safeUpdates.status);
+    safeUpdates.syncStatus = this._normalizeStatus(safeUpdates.syncStatus);
+
     try {
       await this._db.events.update(eventId, {
-        ...updates,
+        ...safeUpdates,
         updatedAt: Date.now(),
       });
     } catch (error) {
@@ -277,13 +306,15 @@ class BeerPOSDB {
 
       const retryCount = (event.retryCount || 0) + 1;
       const MAX_RETRIES = 3;
-      
+
+      const newStatus = retryCount >= MAX_RETRIES ? 'failed' : 'pending';
+
       await this._db.events.update(eventId, {
         retryCount,
         lastError: error,
         lastRetryAt: Date.now(),
-        status: retryCount >= MAX_RETRIES ? 'failed' : 'pending',
-        syncStatus: retryCount >= MAX_RETRIES ? 'failed' : 'pending',
+        status: newStatus,
+        syncStatus: newStatus,
         nextRetryAt: retryCount < MAX_RETRIES ? Date.now() + getRetryDelay(retryCount) : null,
       });
 
@@ -412,27 +443,12 @@ class BeerPOSDB {
 
   async addEvent(event) {
     if (!this._db) return;
-    if (!event?.id) {
-      console.warn('[DBv5] addEvent: event.id is missing, skipping');
-      return;
-    }
-    // Validate entity — null in compound index causes Dexie DataError
-    const safeEntity = this._safeIndex(event.entity);
-    if (!safeEntity) {
-      console.warn('[DBv5] addEvent: invalid entity, cannot store event:', event.entity);
-      return;
-    }
-    const safeEvent = {
-      ...event,
-      id: String(event.id),
-      entity: safeEntity,
-      syncStatus: this._safeString(event.syncStatus),
-      status: this._safeString(event.status),
-      createdAt: typeof event.createdAt === 'number' ? event.createdAt : Date.now(),
-      updatedAt: typeof event.updatedAt === 'number' ? event.updatedAt : Date.now(),
-    };
+
+    const valid = this._assertValidEvent(event);
+    if (!valid) return;
+
     try {
-      await this._db.events.put(safeEvent);
+      await this._db.events.put(valid);
     } catch (error) {
       console.error('[DBv5] addEvent error:', error);
     }
@@ -488,7 +504,7 @@ class BeerPOSDB {
     await this._db.meta.put({ key, value, updatedAt: Date.now() });
   }
 
-  // ── Helpers ────────────────────────────────────────────────
+  // ── Validation helpers ──────────────────────────────────────────
 
   _safeString(val) {
     if (val == null) return '';
@@ -501,6 +517,57 @@ class BeerPOSDB {
       return null;
     }
     return entity;
+  }
+
+  /**
+   * Normalize a status value to a valid string
+   */
+  _normalizeStatus(val) {
+    if (typeof val !== 'string') return 'pending';
+    if (val !== 'pending' && val !== 'synced' && val !== 'failed') return 'pending';
+    return val;
+  }
+
+  /**
+   * Assert and normalize an event before DB write — production safety
+   */
+  _assertValidEvent(e) {
+    if (!e || typeof e !== 'object') {
+      console.warn('[DB] _assertValidEvent: invalid event object:', e);
+      return null;
+    }
+    const valid = {
+      id: e.id,
+      type: e.type,
+      entity: this._safeIndex(e.entity),
+      entityId: e.entityId,
+      payload: e.payload,
+      status: this._normalizeStatus(e.status),
+      syncStatus: this._normalizeStatus(e.syncStatus),
+      createdAt: typeof e.createdAt === 'number' ? e.createdAt : Date.now(),
+      updatedAt: typeof e.updatedAt === 'number' ? e.updatedAt : Date.now(),
+      deviceId: e.deviceId,
+      version: typeof e.version === 'number' ? e.version : 1,
+      retryCount: typeof e.retryCount === 'number' ? e.retryCount : 0,
+      lastError: e.lastError || null,
+    };
+    if (!valid.entity) {
+      console.warn('[DB] _assertValidEvent: invalid entity, skipping event');
+      return null;
+    }
+    return valid;
+  }
+
+  /**
+   * Safe count — never throws, always returns 0 on error
+   */
+  async _safeCount(query) {
+    try {
+      return await query.count();
+    } catch (err) {
+      console.warn('[DB][safeCount] error:', err);
+      return 0;
+    }
   }
 
   // ── Debug helper ──────────────────────────────────────────────
@@ -540,29 +607,18 @@ class BeerPOSDB {
   async getStats() {
     if (!this._db) return { pendingEvents: 0, syncedEvents: 0, failedEvents: 0, queueItems: 0, totalEvents: 0 };
 
-    // normalizeKey: ensure any value passed to Dexie is always a string
-    function normalizeKey(val) {
-      if (val == null) return '';
-      return typeof val === 'string' ? val : String(val);
-    }
+    const safeStatus = 'pending';
+    const safeSynced = 'synced';
+    const safeFailed = 'failed';
 
-    const safeStatus = normalizeKey('pending');
-    const safeSynced = normalizeKey('synced');
-    const safeFailed = normalizeKey('failed');
+    console.log('[DB][getStats] querying:', { safeStatus, safeSynced, safeFailed });
 
-    console.log('[DB][getStats] querying with safe keys:', { safeStatus, safeSynced, safeFailed });
-
-    let pendingEvents = 0, syncedEvents = 0, failedEvents = 0, queueItems = 0;
-    try {
-      [pendingEvents, syncedEvents, failedEvents, queueItems] = await Promise.all([
-        this._db.events.where('status').equals(safeStatus).count(),
-        this._db.events.where('status').equals(safeSynced).count(),
-        this._db.events.where('status').equals(safeFailed).count(),
-        this._db.syncQueue.where('status').equals(safeStatus).count(),
-      ]);
-    } catch (err) {
-      console.warn('[DB][getStats] error:', err);
-    }
+    const [pendingEvents, syncedEvents, failedEvents, queueItems] = await Promise.all([
+      this._safeCount(this._db.events.where('status').equals(safeStatus)),
+      this._safeCount(this._db.events.where('status').equals(safeSynced)),
+      this._safeCount(this._db.events.where('status').equals(safeFailed)),
+      this._safeCount(this._db.syncQueue.where('status').equals(safeStatus)),
+    ]);
 
     return {
       pendingEvents,
