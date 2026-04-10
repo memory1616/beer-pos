@@ -14,7 +14,7 @@
 
 /* =====================   TOKEN VERSION   ===================== */
 :root {
-  --dt-version: "5.0.0-binance";
+  --dt-version: "6.0.0-spacing";
 }
 
 /* =====================   CORE PALETTE   ===================== */
@@ -130,25 +130,25 @@
   --lh-normal:  1.5;
   --lh-relaxed: 1.6;
 
-  /* Spacing Scale (4px base) — reduced 30% from v5 */
+  /* Spacing Scale — 4px base, production standard */
   --space-0:  0px;
-  --space-1:  3px;
-  --space-2:  6px;
-  --space-3:  8px;
-  --space-4:  12px;
-  --space-5:  14px;
-  --space-6:  16px;
-  --space-8:  22px;
-  --space-10: 28px;
-  --space-12: 34px;
+  --space-1:  4px;   /* Tight spacing */
+  --space-2:  8px;   /* Compact spacing */
+  --space-3:  12px;  /* Default small */
+  --space-4:  16px;  /* Default medium */
+  --space-5:  24px;  /* Default large */
+  --space-6:  32px;  /* Section spacing */
+  --space-7:  48px;  /* Extra large */
+  --space-8:  64px;  /* Section gap */
 
-  /* Border Radius Scale — reduced */
-  --radius-xs:   3px;
-  --radius-sm:   4px;
-  --radius-md:   6px;
-  --radius-lg:   8px;
-  --radius-xl:   10px;
-  --radius-2xl:  12px;
+  /* Border Radius Scale — consistent with 4px base */
+  --radius-none: 0px;
+  --radius-xs:   4px;
+  --radius-sm:   6px;
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-xl:   16px;
+  --radius-2xl:  20px;
   --radius-full: 9999px;
 
   /* Shadows — Dark Theme */
