@@ -21,30 +21,30 @@
 <body class="bg-main text-primary body--app">
   <div id="app"></div>
 
-  <!-- Invoice Modal — POS grid layout, no scroll, no scale -->
+  <!-- Invoice Modal — Card Style POS UI -->
   <div id="invoiceModal" class="invoice-overlay hidden">
-    <div class="invoice-container">
-      <div class="invoice-content" id="invoiceContent">
-        <div class="invoice-modal-header">
-          <div></div>
-          <div class="invoice-modal-title">Hóa đơn</div>
-          <button onclick="closeInvoice()" class="invoice-modal-close">×</button>
-        </div>
-        <div class="invoice-total-card">
-          <span class="invoice-total-label">Tổng thanh toán</span>
-          <span class="invoice-total-value tabular-nums" id="invoiceTotalValue">0</span>
-          <span class="invoice-total-unit">đ</span>
-        </div>
-        <div class="invoice-list" id="invoiceItemsList">
-          <!-- items render here -->
-        </div>
-        <div class="invoice-modal-footer">
-          <div class="invoice-qr-card">
-            <p class="invoice-qr-title">Phương thức thanh toán</p>
-            <img id="qrCode" src="" class="invoice-qr-img" alt="QR Code">
-            <p class="invoice-qr-hint">Quét QR để thanh toán</p>
-          </div>
-        </div>
+    <div class="invoice-modal">
+      <div class="invoice-header">
+        <span class="invoice-title">HÓA ĐƠN</span>
+        <button onclick="closeInvoice()" class="close-btn">&times;</button>
+      </div>
+
+      <div class="invoice-total-card">
+        <div class="invoice-total-label">TỔNG THANH TOÁN</div>
+        <div class="invoice-total-value tabular-nums" id="invoiceTotalValue">0</div>
+      </div>
+
+      <div class="invoice-main-card">
+        <div class="invoice-meta" id="invoiceMeta"></div>
+        <div class="invoice-customer" id="invoiceCustomer"></div>
+        <div class="divider"></div>
+        <div id="invoiceItemsList"></div>
+      </div>
+
+      <div class="invoice-qr-card">
+        <div class="qr-label">Phương thức thanh toán</div>
+        <img id="qrCode" src="" alt="QR Code">
+        <div class="qr-note">Quét QR để thanh toán</div>
       </div>
     </div>
   </div>

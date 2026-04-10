@@ -955,9 +955,8 @@ async function submitSale() {
     } catch(err) {
       console.error('Lỗi hiển thị hóa đơn:', err);
       var modal = document.getElementById('invoiceModal');
-      var invoiceContent = document.getElementById('invoiceContent');
       var qrCodeEl = document.getElementById('qrCode');
-      if (modal && invoiceContent) {
+      if (modal) {
         var invTotalEl = modal.querySelector('.invoice-total-value');
         if (invTotalEl) invTotalEl.textContent = Format.number(result.total || 0);
         var itemsList = document.getElementById('invoiceItemsList');
@@ -966,7 +965,6 @@ async function submitSale() {
         }
         if (qrCodeEl) qrCodeEl.src = '';
         modal.classList.remove('hidden');
-        setTimeout(autoFitItems, 0);
       }
     }
 
@@ -1420,40 +1418,7 @@ async function saveKegUpdate() {
   }
 }
 
-// ─── AUTO FIT ENGINE — no scale, no distortion ───────────────────
-function autoFitItems() {
-  var list = document.getElementById('invoiceItemsList');
-  if (!list) return;
-
-  var items = list.querySelectorAll('.invoice-item');
-  var count = items.length;
-  if (count === 0) return;
-
-  // Grid mode when > 8 items
-  if (count > 8) {
-    list.classList.add('grid-mode');
-    list.classList.add('compact');
-    items.forEach(function(el) { el.style.height = ''; });
-  } else {
-    list.classList.remove('grid-mode');
-    list.classList.remove('compact');
-
-    // Available height = height of this grid row minus its padding
-    var availH = list.getBoundingClientRect().height - 16;
-    if (availH > 0 && count > 0) {
-      var itemH = Math.floor(availH / count);
-      itemH = Math.max(30, Math.min(itemH, 44)); // clamp 30–44px
-      items.forEach(function(el) {
-        el.style.height = itemH + 'px';
-      });
-    }
-  }
-}
-
-window.addEventListener('resize', function() {
-  autoFitItems();
-});
-// ────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════
 
 async function showInvoiceModal(saleId) {
   var modal = document.getElementById('invoiceModal');
@@ -1462,7 +1427,8 @@ async function showInvoiceModal(saleId) {
     return;
   }
 
-  var invoiceContent = document.getElementById('invoiceContent');
+  var invoiceMeta = document.getElementById('invoiceMeta');
+  var invoiceCustomer = document.getElementById('invoiceCustomer');
   var invoiceTotalEl = document.querySelector('#invoiceModal .invoice-total-value');
   var qrSection = document.querySelector('#invoiceModal .invoice-qr-card');
   var itemsList = document.getElementById('invoiceItemsList');
@@ -1486,19 +1452,17 @@ async function showInvoiceModal(saleId) {
   const dateStr = new Date(sale.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const customerName = sale.customer_name || 'Khách lẻ';
   const isGift = sale.type === 'gift';
-  
+
   let itemsHtml = '';
   (sale.items || []).forEach(function(item) {
     var unitPrice = item.price || 0;
     var totalPrice = unitPrice * (item.quantity || 0);
     itemsHtml += '<div class="invoice-item">' +
-      '<div class="invoice-item-left">' +
-        '<span class="invoice-name">🍺 ' + (item.name || 'Sản phẩm') + '</span>' +
-        '<span class="invoice-row">' + (item.quantity || 0) + ' × ' + formatVND(unitPrice) + '</span>' +
+      '<div class="item-left">' +
+        '<span class="item-name">🍺 ' + (item.name || 'Sản phẩm') + '</span>' +
+        '<span class="item-sub">' + (item.quantity || 0) + ' × ' + formatVND(unitPrice) + '</span>' +
       '</div>' +
-      '<div class="invoice-item-right">' +
-        '<span class="invoice-subtotal">' + formatVND(totalPrice) + '</span>' +
-      '</div>' +
+      '<span class="item-price">' + formatVND(totalPrice) + '</span>' +
     '</div>';
   });
 
@@ -1510,33 +1474,32 @@ async function showInvoiceModal(saleId) {
   if (deliverKegs > 0 || returnKegs > 0) {
     kegHtml = '<div class="keg-section">';
     if (deliverKegs > 0) {
-      kegHtml += '<span>📦 Giao vỏ</span><span style="color:#22c55e;font-weight:700;">+' + deliverKegs + '</span>';
+      kegHtml += '<span>📦 Giao vỏ</span><span class="keg-green">+' + deliverKegs + '</span>';
     }
     if (returnKegs > 0) {
-      if (deliverKegs > 0) kegHtml += '<span style="border-left:1px solid rgba(255,255,255,0.08);padding-left:8px;margin-left:8px;">🔁 Thu vỏ</span><span style="color:#f59e0b;font-weight:700;">-' + returnKegs + '</span>';
-      else kegHtml += '<span>🔁 Thu vỏ</span><span style="color:#f59e0b;font-weight:700;">-' + returnKegs + '</span>';
+      if (deliverKegs > 0) kegHtml += '<span style="border-left:1px solid #e5e7eb;padding-left:8px;margin-left:8px;">🔁 Thu vỏ</span><span class="keg-orange">-' + returnKegs + '</span>';
+      else kegHtml += '<span>🔁 Thu vỏ</span><span class="keg-orange">-' + returnKegs + '</span>';
     }
     kegHtml += '</div>';
-    kegHtml += '<div class="keg-section"><span>Vỏ đang giữ</span><span style="font-weight:700;color:#e5e7eb;">' + newBalance + '</span></div>';
+    kegHtml += '<div class="keg-section"><span>Vỏ đang giữ</span><span>' + newBalance + '</span></div>';
   }
 
   const giftBadge = isGift ? '<div style="text-align:center;margin-bottom:4px;"><span style="display:inline-block;padding:2px 10px;background:rgba(245,158,11,0.15);color:#f59e0b;border-radius:999px;font-size:11px;font-weight:600;">🎁 Tặng uống thử</span></div>' : '';
 
-  if (invoiceContent) {
-    var itemsList = document.getElementById('invoiceItemsList');
-    if (itemsList) {
-      itemsList.innerHTML =
-        giftBadge +
-        '<div style="font-size:11px;color:#475569;text-align:center;margin-bottom:4px;letter-spacing:0.2px;">' + dateStr + ' · 👤 ' + customerName + '</div>' +
-        itemsHtml +
-        kegHtml;
-    }
+  if (itemsList) {
+    itemsList.innerHTML =
+      giftBadge +
+      itemsHtml +
+      kegHtml;
   }
-  
+
+  if (invoiceMeta) invoiceMeta.textContent = dateStr;
+  if (invoiceCustomer) invoiceCustomer.textContent = customerName;
+
   if (invoiceTotalEl) {
     invoiceTotalEl.textContent = Format.number(sale.total || 0);
   }
-  
+
   if (qrSection) {
     if (isGift) {
       qrSection.classList.add('hidden');
@@ -1551,9 +1514,6 @@ async function showInvoiceModal(saleId) {
 
   modal.classList.remove('hidden');
   _openInvoiceSaleId = saleId;
-
-  // Trigger auto-fit after content renders
-  setTimeout(autoFitItems, 0);
 }
 
 // Global state for pagination (API /api/sales?page=&limit=)
