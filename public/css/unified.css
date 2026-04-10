@@ -5750,6 +5750,27 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   border-bottom: 1px solid #2a2e39;
 }
 
+.pos-modal-header-info {
+  margin-bottom: 12px;
+}
+
+.pos-modal-date {
+  font-size: 12px;
+  color: #848e9c;
+  margin-top: 4px;
+}
+
+.pos-modal-kegs {
+  font-size: 12px;
+  color: #fcd535;
+  font-weight: 600;
+  margin-bottom: 12px;
+  padding: 8px;
+  background: rgba(252, 213, 53, 0.1);
+  border-radius: 8px;
+  border: 1px solid rgba(252, 213, 53, 0.2);
+}
+
 .pos-modal-item {
   display: flex;
   justify-content: space-between;

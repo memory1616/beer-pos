@@ -233,53 +233,41 @@ function viewSale(saleId) {
 
       // Render items
       var itemsHtml = (sale.items || []).map(function(item) {
-        var lineTotal = (item.quantity || 0) * (item.price || 0);
-        return '<div class="invoice-item">' +
-          '<span class="invoice-item-name">' + escHtml(item.name || 'SP') + '</span>' +
-          '<span class="invoice-item-qty">x' + item.quantity + '</span>' +
-          '<span class="invoice-item-price">' + formatVND(lineTotal) + '</span>' +
+        return '<div class="pos-modal-item">' +
+          '<div class="pos-modal-item-name">' + escHtml(item.name || 'SP') + '</div>' +
+          '<div class="pos-modal-item-qty">x' + item.quantity + '</div>' +
+          '<div class="pos-modal-item-total">' + formatVND(item.quantity * item.price) + '</div>' +
         '</div>';
       }).join('');
 
-      // Render kegs info nếu có
+      // Kegs info
       var kegsHtml = '';
       if (totalLiters > 0 || sale.deliver_kegs > 0 || sale.return_kegs > 0) {
         var kegsParts = [];
         if (totalLiters > 0) kegsParts.push('SL: ' + totalLiters + 'L');
         if (sale.deliver_kegs > 0) kegsParts.push('Giao: ' + sale.deliver_kegs);
         if (sale.return_kegs > 0) kegsParts.push('Thu: ' + sale.return_kegs);
-        kegsHtml = '<div class="invoice-kegs-info">' + kegsParts.join('  |  ') + '</div>';
+        kegsHtml = '<div class="pos-modal-kegs">' + kegsParts.join('  |  ') + '</div>';
       }
 
-      // Meta info (ngày, mã đơn)
-      var metaHtml = '<div class="invoice-meta-row">#' + sale.id + ' · ' + dateStr + '</div>';
+      var body = document.getElementById('checkoutModalBody');
+      if (!body) return;
+      body.innerHTML =
+        '<div class="pos-modal-header-info">' +
+          '<div class="pos-modal-customer">👤 ' + escHtml(customerName) + '</div>' +
+          '<div class="pos-modal-date">#' + sale.id + ' · ' + dateStr + '</div>' +
+        '</div>' +
+        kegsHtml +
+        itemsHtml +
+        '<div class="pos-modal-summary">' +
+          '<div class="pos-modal-summary-label">Tổng cộng</div>' +
+          '<div class="pos-modal-summary-value">' + formatVND(total) + '</div>' +
+        '</div>' +
+        '<div class="pos-modal-actions">' +
+          '<button type="button" onclick="closeCheckoutModal()" class="pos-modal-btn-cancel">Đóng</button>' +
+        '</div>';
 
-      // Customer info
-      var customerHtml = '<div class="invoice-customer-name">' + escHtml(customerName) + '</div>';
-
-      // Điền dữ liệu vào invoice modal
-      var totalValueEl = document.getElementById('invoiceTotalValue');
-      if (totalValueEl) totalValueEl.textContent = formatVND(total);
-
-      var metaEl = document.getElementById('invoiceMeta');
-      if (metaEl) metaEl.innerHTML = metaHtml;
-
-      var customerEl = document.getElementById('invoiceCustomer');
-      if (customerEl) customerEl.innerHTML = customerHtml + kegsHtml;
-
-      var itemsListEl = document.getElementById('invoiceItemsList');
-      if (itemsListEl) itemsListEl.innerHTML = itemsHtml;
-
-      // QR code - sử dụng mã thanh toán mặc định hoặc tạo từ total
-      var qrEl = document.getElementById('qrCode');
-      if (qrEl) {
-        // QR chứa thông tin thanh toán
-        var qrData = 'BID:VIMO.' + Math.round(total);
-        qrEl.src = 'https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=' + encodeURIComponent(qrData);
-      }
-
-      // Hiển thị invoice modal
-      var modal = document.getElementById('invoiceModal');
+      var modal = document.getElementById('checkoutModal');
       if (modal) modal.classList.remove('hidden');
     })
     .catch(function(err) {
