@@ -4723,6 +4723,7 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
    ══════════════════════════════════════════════════════ */
 
 /* 1. OVERLAY */
+/* ── INVOICE MODAL — Binance Dark Pro ─────────────────────────────── */
 .invoice-overlay {
   position: fixed;
   inset: 0;
@@ -4731,12 +4732,11 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   align-items: center;
   justify-content: center;
   overflow: hidden !important;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
-/* 2. CONTAINER */
 .invoice-container {
   width: 100%;
   height: 100%;
@@ -4746,120 +4746,133 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   overflow: hidden !important;
 }
 
-/* 3. CONTENT — Grid 3 blocks: header / items / footer */
+/* Grid: header / total / items(1fr) / footer */
 .invoice-content {
   width: min(400px, 100vw);
   height: 100dvh;
   max-height: 100dvh;
   display: grid;
-  grid-template-rows: auto 1fr auto;
-  background: var(--card);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+  grid-template-rows: auto auto 1fr auto;
+  background: linear-gradient(180deg, #020617 0%, #020617 100%);
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.7);
   overflow: hidden !important;
 }
 
-/* 4. HEADER */
+/* ── HEADER ── */
 .invoice-modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border-color);
-  background: var(--card);
+  padding: 10px 14px;
   flex-shrink: 0;
 }
 
 .invoice-modal-title {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
-  color: var(--text-main);
+  color: #f1f5f9;
   text-align: center;
   flex: 1;
+  letter-spacing: 0.3px;
 }
 
 .invoice-modal-close {
   width: 32px;
   height: 32px;
   border: none;
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 22px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #94a3b8;
+  font-size: 20px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  border-radius: var(--radius-sm);
-  transition: background var(--transition-fast);
+  border-radius: 8px;
+  transition: background 0.15s ease, color 0.15s ease;
 }
-.invoice-modal-close:hover { background: var(--card-active); color: var(--text-main); }
+.invoice-modal-close:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
+}
 
-/* 5. TOTAL — inline in header area */
+/* ── TOTAL — Money Block ── */
 .invoice-total-card {
   display: flex;
   align-items: baseline;
   justify-content: center;
-  gap: 4px;
-  padding: 6px 16px;
-  border-bottom: 1px solid var(--border-color);
+  gap: 5px;
+  padding: 10px 14px;
+  margin: 0 12px 6px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #0f172a, #1e293b);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255,255,255,0.04);
   flex-shrink: 0;
 }
 
 .invoice-total-label {
   font-size: 11px;
   font-weight: 600;
-  color: var(--text-muted);
-  margin-right: 4px;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-right: 2px;
 }
 
 .invoice-total-value {
-  font-size: clamp(22px, 5vw, 30px);
+  font-size: 34px;
   font-weight: 800;
-  color: var(--green, #02c076);
-  letter-spacing: -1px;
+  color: #22c55e;
+  letter-spacing: -1.5px;
   line-height: 1;
   font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 20px rgba(34, 197, 94, 0.4);
 }
 
 .invoice-total-unit {
   font-size: 14px;
   font-weight: 700;
-  color: var(--text-muted);
+  color: #475569;
+  margin-left: 1px;
 }
 
-/* 6. ITEMS LIST — auto-fit rows, NO scroll */
+/* ── ITEMS LIST — auto-fit rows ── */
 .invoice-list {
   overflow: hidden !important;
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  padding: 8px 12px;
+  gap: 4px;
+  padding: 0 10px;
+  margin-bottom: 6px;
 }
 
-/* 7. ITEM ROW — Binance light */
+/* ── ITEM — Binance Card ── */
 .invoice-list .invoice-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0 10px;
-  border-radius: 6px;
-  font-size: 13px;
-  background: rgba(255, 255, 255, 0.03);
-  transition: background 0.15s ease;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #1f2937, #111827);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  transition: all 0.2s ease;
   flex-shrink: 0;
   min-height: 36px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
 }
 
 .invoice-list .invoice-item:nth-child(odd) {
-  background: rgba(255, 255, 255, 0.03);
+  background: linear-gradient(180deg, #1f2937, #111827);
 }
 
 .invoice-list .invoice-item:nth-child(even) {
-  background: rgba(255, 255, 255, 0.06);
+  background: linear-gradient(180deg, #1a2332, #0d1117);
 }
 
 .invoice-list .invoice-item:hover {
-  background: rgba(240, 185, 11, 0.1);
+  background: linear-gradient(180deg, rgba(240,185,11,0.12), rgba(240,185,11,0.06));
+  border-color: rgba(240, 185, 11, 0.15);
 }
 
 /* Item sides */
@@ -4872,18 +4885,20 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
 }
 
 .invoice-list .invoice-name {
-  font-weight: 500;
-  font-size: 13px;
-  color: var(--text-main);
+  font-weight: 600;
+  font-size: 14px;
+  color: #e5e7eb;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  letter-spacing: 0.1px;
 }
 
 .invoice-list .invoice-row {
   font-size: 11px;
-  color: var(--text-secondary);
+  color: #6b7280;
   white-space: nowrap;
+  font-weight: 400;
 }
 
 .invoice-item-right {
@@ -4896,47 +4911,64 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
 }
 
 .invoice-list .invoice-subtotal {
-  font-weight: 600;
-  font-size: 13px;
-  color: var(--text-main);
+  font-weight: 700;
+  font-size: 14px;
+  color: #f9fafb;
+  font-variant-numeric: tabular-nums;
 }
 
-/* 8. FOOTER — QR */
+/* ── KEG INFO ── */
+.keg-section {
+  margin-top: 4px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: #6b7280;
+  flex-shrink: 0;
+}
+
+/* ── FOOTER — QR ── */
 .invoice-modal-footer {
-  padding: 10px;
-  padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
-  border-top: 1px solid var(--border-color);
-  background: var(--card);
+  padding: 0 12px;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
   flex-shrink: 0;
 }
 
 .invoice-qr-card {
-  background: rgba(0, 0, 0, 0.04);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-xl);
-  padding: 10px;
+  background: #0a0f1e;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 12px;
   text-align: center;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
 }
 
 .invoice-qr-title {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
-  color: var(--text-secondary);
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 1px;
   margin-bottom: 6px;
 }
 
 .invoice-qr-img {
-  width: 140px;
-  height: 140px;
+  width: 110px;
+  height: 110px;
   display: block;
   margin: 0 auto;
-  border-radius: var(--radius-lg);
+  border-radius: 10px;
   background: #fff;
 }
 
 .invoice-qr-hint {
   font-size: 10px;
-  color: var(--text-muted);
+  color: #334155;
   margin-top: 4px;
 }
 
@@ -4944,10 +4976,10 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
 .invoice-list.grid-mode {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 5px;
+  gap: 4px;
 }
 
-/* ── COMPACT: many items (auto applied via JS) ── */
+/* ── COMPACT: many items ── */
 .invoice-list.compact .invoice-item {
   min-height: 28px;
   font-size: 12px;
@@ -4959,34 +4991,47 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
 }
 @media (max-height: 580px) {
   .invoice-content { width: min(320px, 100vw); }
-  .invoice-total-value { font-size: 22px; }
-  .invoice-qr-img { width: 110px; height: 110px; }
+  .invoice-total-value { font-size: 26px; }
+  .invoice-qr-img { width: 90px; height: 90px; }
 }
 
-/* ── LIGHT MODE ── */
-[data-theme="light"] .invoice-list .invoice-item:nth-child(odd) {
-  background: rgba(0, 0, 0, 0.03);
+/* ── LIGHT MODE (keep minimal) ── */
+[data-theme="light"] .invoice-content {
+  background: linear-gradient(180deg, #f8fafc, #f8fafc);
+}
+[data-theme="light"] .invoice-modal-title { color: #1e293b; }
+[data-theme="light"] .invoice-total-value { color: #16a34a; text-shadow: none; }
+[data-theme="light"] .invoice-total-card {
+  background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+  border-color: rgba(0,0,0,0.08);
+}
+[data-theme="light"] .invoice-list .invoice-item {
+  background: linear-gradient(180deg, #fff, #f8fafc);
+  border-color: rgba(0,0,0,0.06);
 }
 [data-theme="light"] .invoice-list .invoice-item:nth-child(even) {
-  background: rgba(0, 0, 0, 0.06);
+  background: linear-gradient(180deg, #f1f5f9, #e2e8f0);
 }
 [data-theme="light"] .invoice-list .invoice-item:hover {
-  background: rgba(240, 185, 11, 0.1);
+  background: rgba(240,185,11,0.1);
+}
+[data-theme="light"] .invoice-list .invoice-name { color: #1e293b; }
+[data-theme="light"] .invoice-list .invoice-row { color: #64748b; }
+[data-theme="light"] .invoice-list .invoice-subtotal { color: #1e293b; }
+[data-theme="light"] .invoice-qr-card {
+  background: #f8fafc;
+  border-color: rgba(0,0,0,0.06);
+}
+[data-theme="light"] .invoice-modal-close {
+  background: rgba(0,0,0,0.04);
+  color: #64748b;
+}
+[data-theme="light"] .keg-section {
+  background: rgba(0,0,0,0.02);
+  border-color: rgba(0,0,0,0.05);
+  color: #64748b;
 }
 
-/* Dark mode */
-:root.dark .invoice-list .invoice-item:nth-child(odd),
-:root[data-theme="dark"] .invoice-list .invoice-item:nth-child(odd) {
-  background: rgba(255, 255, 255, 0.03);
-}
-:root.dark .invoice-list .invoice-item:nth-child(even),
-:root[data-theme="dark"] .invoice-list .invoice-item:nth-child(even) {
-  background: rgba(255, 255, 255, 0.06);
-}
-:root.dark .invoice-list .invoice-item:hover,
-:root[data-theme="dark"] .invoice-list .invoice-item:hover {
-  background: rgba(240, 185, 11, 0.1);
-}
 
 /* ── LOGIN PAGE ── */
 .login-container {

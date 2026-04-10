@@ -962,7 +962,7 @@ async function submitSale() {
         if (invTotalEl) invTotalEl.textContent = Format.number(result.total || 0);
         var itemsList = document.getElementById('invoiceItemsList');
         if (itemsList) {
-          itemsList.innerHTML = '<div class="text-center py-4 text-muted">Đơn hàng #' + result.id + '</div>';
+          itemsList.innerHTML = '<div style="text-align:center;padding:16px 0;color:#64748b;font-size:13px;">Đơn hàng #' + result.id + '</div>';
         }
         if (qrCodeEl) qrCodeEl.src = '';
         modal.classList.remove('hidden');
@@ -1016,9 +1016,7 @@ async function submitSale() {
 
 function closeInvoice() {
   var modal = document.getElementById('invoiceModal');
-  var content = document.getElementById('invoiceContent');
   if (modal) modal.classList.add('hidden');
-  if (content) content.style.transform = '';
   _openInvoiceSaleId = null;
 }
 
@@ -1468,12 +1466,12 @@ async function showInvoiceModal(saleId) {
   var invoiceTotalEl = document.querySelector('#invoiceModal .invoice-total-value');
   var qrSection = document.querySelector('#invoiceModal .invoice-qr-card');
   var itemsList = document.getElementById('invoiceItemsList');
-  if (itemsList) itemsList.innerHTML = '<div class="text-center py-4 text-muted">Đang tải chi tiết...</div>';
+  if (itemsList) itemsList.innerHTML = '<div style="text-align:center;padding:16px 0;color:#64748b;font-size:13px;">Đang tải chi tiết...</div>';
 
   const res = await fetch('/api/sales/' + saleId);
   if (!res.ok) {
     console.error('Không lấy được dữ liệu hóa đơn:', res.status);
-    if (itemsList) itemsList.innerHTML = '<div class="text-center py-4 text-danger">Lỗi tải hóa đơn</div>';
+    if (itemsList) itemsList.innerHTML = '<div style="text-align:center;padding:16px 0;color:#ef4444;font-size:13px;">Lỗi tải hóa đơn</div>';
     return;
   }
   const sale = await res.json();
@@ -1507,27 +1505,29 @@ async function showInvoiceModal(saleId) {
   const deliverKegs = sale.deliver_kegs || 0;
   const returnKegs = sale.return_kegs || 0;
   const newBalance = sale.keg_balance_after || 0;
-  
+
   let kegHtml = '';
   if (deliverKegs > 0 || returnKegs > 0) {
-    kegHtml = '<div class="border-t border-muted pt-3 mt-3 space-y-1">';
+    kegHtml = '<div class="keg-section">';
     if (deliverKegs > 0) {
-      kegHtml += '<div class="flex justify-between text-sm"><span class="text-secondary">📦 Giao vỏ</span><span class="font-semibold text-success">+' + deliverKegs + '</span></div>';
+      kegHtml += '<span>📦 Giao vỏ</span><span style="color:#22c55e;font-weight:700;">+' + deliverKegs + '</span>';
     }
     if (returnKegs > 0) {
-      kegHtml += '<div class="flex justify-between text-sm"><span class="text-secondary">🔁 Thu vỏ</span><span class="font-semibold text-warning">-' + returnKegs + '</span></div>';
+      if (deliverKegs > 0) kegHtml += '<span style="border-left:1px solid rgba(255,255,255,0.08);padding-left:8px;margin-left:8px;">🔁 Thu vỏ</span><span style="color:#f59e0b;font-weight:700;">-' + returnKegs + '</span>';
+      else kegHtml += '<span>🔁 Thu vỏ</span><span style="color:#f59e0b;font-weight:700;">-' + returnKegs + '</span>';
     }
-    kegHtml += '<div class="flex justify-between text-sm font-semibold pt-1"><span class="text-main">Vỏ đang giữ:</span><span>' + newBalance + '</span></div></div>';
+    kegHtml += '</div>';
+    kegHtml += '<div class="keg-section"><span>Vỏ đang giữ</span><span style="font-weight:700;color:#e5e7eb;">' + newBalance + '</span></div>';
   }
 
-  const giftBadge = isGift ? '<div class="text-center mb-3"><span class="badge badge-warning">🎁 Tặng uống thử</span></div>' : '';
+  const giftBadge = isGift ? '<div style="text-align:center;margin-bottom:4px;"><span style="display:inline-block;padding:2px 10px;background:rgba(245,158,11,0.15);color:#f59e0b;border-radius:999px;font-size:11px;font-weight:600;">🎁 Tặng uống thử</span></div>' : '';
 
   if (invoiceContent) {
     var itemsList = document.getElementById('invoiceItemsList');
     if (itemsList) {
       itemsList.innerHTML =
-        (isGift ? '<div style="text-align:center;margin-bottom:4px;"><span style="display:inline-block;padding:2px 10px;background:rgba(245,158,11,0.15);color:#f59e0b;border-radius:999px;font-size:11px;font-weight:600;">🎁 Tặng uống thử</span></div>' : '') +
-        '<div style="font-size:11px;color:var(--text-muted);text-align:center;margin-bottom:4px;">' + dateStr + ' · 👤 ' + customerName + '</div>' +
+        giftBadge +
+        '<div style="font-size:11px;color:#475569;text-align:center;margin-bottom:4px;letter-spacing:0.2px;">' + dateStr + ' · 👤 ' + customerName + '</div>' +
         itemsHtml +
         kegHtml;
     }
