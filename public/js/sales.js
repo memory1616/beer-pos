@@ -2509,48 +2509,4 @@ async function updateSyncStatusIndicator() {
   }
 }
 
-// ========== ORIGINAL OFFLINE OVERLAY (keep for reference) ==========
-// submitSale is now handled by event-driven system via OfflineStore.createOrder()
-
-
-      // Show success immediately (optimistic UI)
-      haptic && haptic('success');
-      showToast('Đơn hàng đã được lưu!', 'success');
-
-      // Clear UI
-      saleData = {};
-      const cs1 = document.getElementById('customerSelect');
-      if (cs1) cs1.value = '';
-      const dK = document.getElementById('saleDeliverKegs');
-      const rK = document.getElementById('saleReturnKegs');
-      if (dK) dK.value = 0;
-      if (rK) rK.value = 0;
-      _kegDeliverManual = false;
-      _kegReturnManual = false;
-      applyResolvedPrices('', null);
-      renderSaleProducts();
-      updateSaleTotal();
-      updateKegSaleSection('');
-
-      // Refresh sales history
-      if (typeof loadSalesHistory === 'function') loadSalesHistory();
-
-      // Show invoice
-      try {
-        showInvoiceModal(order.id);
-      } catch(e) {
-        console.log('[OFFLINE] Could not show invoice:', e);
-      }
-
-      return;
-    } catch (error) {
-      console.warn('[OFFLINE] Offline create failed, falling back to server:', error);
-      // Fall through to original implementation
-    }
-  }
-
-  // Fallback to server API
-  return originalSubmitSale();
-};
-
 console.log('[Sales] Offline integration loaded');
