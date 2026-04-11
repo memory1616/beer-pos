@@ -201,7 +201,7 @@
 
   <!-- Invoice Modal — Flat POS Style -->
   <div id="invoiceModal" class="inv-overlay hidden">
-    <div class="inv-pos">
+    <div class="inv-pos" id="invPosModal">
 
       <!-- Header -->
       <div class="inv-pos-header">
@@ -210,50 +210,53 @@
         <div class="inv-pos-order" id="invOrderId">#—</div>
       </div>
 
-      <!-- Total (top priority) -->
-      <div class="invoice-total">
-        <div class="invoice-total-label">TỔNG THANH TOÁN</div>
-        <div class="invoice-total-value" id="invTotalValue">0đ</div>
-      </div>
+      <!-- Body: flex column, space-between, no scroll -->
+      <div class="inv-pos-body">
+        <div class="inv-pos-inner">
 
-      <!-- Info -->
-      <div class="invoice-info">
-        <div class="invoice-info-date" id="invDate">—</div>
-        <div class="invoice-info-customer" id="invCustomerMeta">—</div>
-      </div>
+          <!-- Total -->
+          <div class="invoice-total">
+            <div class="invoice-total-label">TỔNG THANH TOÁN</div>
+            <div class="invoice-total-value" id="invTotalValue">0đ</div>
+          </div>
 
-      <hr class="divider">
+          <!-- Info -->
+          <div class="invoice-info">
+            <div class="invoice-info-date" id="invDate">—</div>
+            <div class="invoice-info-customer" id="invCustomerMeta">—</div>
+          </div>
 
-      <!-- Product list -->
-      <div class="invoice-items" id="invItemsList"></div>
+          <hr class="divider">
 
-      <hr class="divider">
+          <!-- Product list -->
+          <div class="invoice-list" id="invItemsList"></div>
 
-      <!-- Bottle inline -->
-      <div class="bottle">
-        <div class="bottle-row">
-          <span>📦 Giao vỏ</span>
-          <span class="green" id="invKegDeliver">0</span>
+          <hr class="divider">
+
+          <!-- Bottle inline -->
+          <div class="bottle">
+            <div class="bottle-row">
+              <span>📦 Giao vỏ</span>
+              <span class="green" id="invKegDeliver">0</span>
+            </div>
+            <div class="bottle-row">
+              <span>🔄 Thu vỏ</span>
+              <span class="red" id="invKegReturn">0</span>
+            </div>
+            <div class="bottle-row">
+              <span>Đang giữ</span>
+              <span class="yellow" id="invKegBalance">0</span>
+            </div>
+          </div>
+
+          <hr class="divider">
+
+          <!-- QR Section -->
+          <div class="qr-section" id="vietqrBlock">
+            <img id="vietqrImage" class="qr" src="" alt="QR" onerror="this.style.display='none'">
+            <div class="qr-note">Quét QR thanh toán</div>
+          </div>
         </div>
-        <div class="bottle-row">
-          <span>🔄 Thu vỏ</span>
-          <span class="red" id="invKegReturn">0</span>
-        </div>
-        <div class="bottle-row">
-          <span>Đang giữ</span>
-          <span class="yellow" id="invKegBalance">0</span>
-        </div>
-      </div>
-
-      <hr class="divider">
-
-      <!-- Payment title -->
-      <div class="payment-title">Phương thức thanh toán</div>
-
-      <!-- QR Section -->
-      <div class="qr-section" id="vietqrBlock">
-        <img id="vietqrImage" class="qr" src="" alt="QR" onerror="this.style.display='none'">
-        <div class="qr-note">Quét QR thanh toán</div>
       </div>
 
       <!-- Actions -->

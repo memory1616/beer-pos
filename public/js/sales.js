@@ -344,6 +344,8 @@ function renderInvoiceModalContent(invoice, saleIdForActions) {
     document.getElementById('invKegReturn').textContent = '0';
     document.getElementById('invKegBalance').textContent = '0';
     document.getElementById('invTotalValue').textContent = '—';
+    var modal = document.getElementById('invPosModal');
+    if (modal) modal.classList.remove('compact', 'ultra-compact');
     invActions.innerHTML = '<button class="inv-btn inv-btn-ghost" type="button" onclick="closeInvoice()">Đóng</button>';
     if (vietqrBlock) vietqrBlock.style.display = 'none';
     return;
@@ -360,15 +362,25 @@ function renderInvoiceModalContent(invoice, saleIdForActions) {
   var invDateEl = document.getElementById('invDate');
   if (invDateEl) invDateEl.textContent = dateStr;
 
+  // Compact mode — no scroll, auto-fit
+  var itemCount = (invoice.items || []).length;
+  var modal = document.getElementById('invPosModal');
+  if (modal) {
+    modal.classList.remove('compact', 'ultra-compact');
+    if (itemCount > 6) modal.classList.add('ultra-compact');
+    else if (itemCount > 3) modal.classList.add('compact');
+  }
+
   var rows = (invoice.items || []).map(function(item) {
     var lineTotal = (item.quantity || 0) * (item.price || 0);
     var shortName = (item.name || 'SP').slice(0, 20);
+    var isUltra = modal && modal.classList.contains('ultra-compact');
     return '<div class="invoice-item">' +
       '<div class="invoice-item-left">' +
         '<div class="invoice-item-name">' + escHtml(shortName) + '</div>' +
-        '<small>x' + item.quantity + ' · ' + formatVND(item.price) + '</small>' +
+        (isUltra ? '' : '<small>x' + item.quantity + ' · ' + formatVND(item.price) + '</small>') +
       '</div>' +
-      '<div class="invoice-item-total">' + formatVND(lineTotal) + '</div>' +
+      '<div class="invoice-item-total">' + (isUltra ? item.quantity + ' × ' : '') + formatVND(lineTotal) + '</div>' +
     '</div>';
   }).join('');
 
