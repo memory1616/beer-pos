@@ -23,7 +23,12 @@
     color var(--transition-normal);
 }
 
-html { overflow-x: clip; height: 100%; }
+html {
+  overflow-x: clip;
+  overflow-y: auto;
+  height: 100%;
+  scroll-behavior: smooth;
+}
 
 body {
   background: var(--bg);
@@ -5679,6 +5684,7 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   margin: 0;
 }
 .sale-product-price[type=number] {
+  appearance: textfield;
   -moz-appearance: textfield;
 }
 
@@ -6128,6 +6134,8 @@ body.modal-open {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Override body--app padding for sale page */
@@ -6163,6 +6171,8 @@ body.body--app #app {
   padding-bottom: var(--bottomnav-height, 64px);
   overflow-y: auto;
   overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .app-bottom-nav {
@@ -6199,10 +6209,6 @@ body.body--app #app {
   margin: 0;
 }
 
-.page__content {
-  /* Main content area */
-}
-
 /* ================================================================
    SECTION — Standard content section
    ================================================================ */
@@ -6231,10 +6237,6 @@ body.body--app #app {
   display: flex;
   align-items: center;
   gap: var(--space-2, 8px);
-}
-
-.section__body {
-  /* Body content */
 }
 
 /* Section variants */
@@ -6279,10 +6281,6 @@ body.body--app #app {
   font-size: var(--text-sm, 13px);
   color: var(--text-muted);
   margin-bottom: var(--space-4, 16px);
-}
-
-.empty-state__action {
-  /* Action button if needed */
 }
 
 /* ================================================================
@@ -6531,10 +6529,6 @@ body.body--app #app {
   font-weight: 800;
   color: var(--accent-yellow);
   font-variant-numeric: tabular-nums;
-}
-
-.total-bar__action {
-  /* Button inherits from .btn */
 }
 
 /* Mini total bar */
