@@ -131,8 +131,11 @@ function loadExpenses(monthStr, opts) {
 
 function updateTotal() {
   var total = getExpensesState().reduce(function(s, e) { return s + (Number(e.amount) || 0); }, 0);
-  var el = document.getElementById('headerTotal');
-  if (el) el.textContent = formatVND(total);
+  var headerEl = document.getElementById('headerTotal');
+  var monthEl = document.getElementById('monthTotal');
+  var fmt = formatVND(total);
+  if (headerEl) headerEl.textContent = fmt;
+  if (monthEl) monthEl.textContent = fmt;
 }
 
 function renderExpenses() {
@@ -147,7 +150,7 @@ function renderExpenses() {
   if (filtered.length === 0) {
     container.innerHTML = '';
     if (empty) empty.classList.remove('hidden');
-    renderSummaryCards({});
+    renderCategoryChips({});
     return;
   }
   if (empty) empty.classList.add('hidden');
@@ -157,7 +160,7 @@ function renderExpenses() {
     var cat = getExpensesState()[i].category || 'other';
     summary[cat] = (summary[cat] || 0) + (Number(getExpensesState()[i].amount) || 0);
   }
-  renderSummaryCards(summary);
+  renderCategoryChips(summary);
 
   var html = [];
   for (var j = 0; j < filtered.length; j++) {
@@ -166,19 +169,17 @@ function renderExpenses() {
     var catLabel = _getLabelByName(e.category);
     var dateStr = e.date ? e.date.split('T')[0].split('-').reverse().join('/') : '';
     html.push(
-      '<div class="card p-3 flex items-center justify-between" data-expense-id="' + e.id + '">' +
-        '<div class="flex items-center gap-3">' +
-          '<div class="text-2xl">' + icon + '</div>' +
-          '<div>' +
-            '<div class="font-medium">' + catLabel + '</div>' +
-            '<div class="text-sm text-muted">' + (e.note || '—') + '</div>' +
-            '<div class="text-xs text-muted">' + dateStr + '</div>' +
-          '</div>' +
+      '<div class="expense-item" data-expense-id="' + e.id + '">' +
+        '<div class="expense-icon">' + icon + '</div>' +
+        '<div class="expense-info">' +
+          '<div class="expense-cat">' + catLabel + '</div>' +
+          '<div class="expense-note">' + (e.note || '—') + '</div>' +
+          '<div class="expense-date">' + dateStr + '</div>' +
         '</div>' +
-        '<div class="flex items-center gap-2">' +
-          '<div class="font-bold text-money money">' + formatVND(e.amount) + '</div>' +
-          '<button onclick="editExpense(' + e.id + ')" class="btn btn-ghost btn-sm">✏️</button>' +
-          '<button onclick="deleteExpense(' + e.id + ')" class="btn btn-ghost btn-sm text-danger">🗑️</button>' +
+        '<div class="expense-amount">' + formatVND(e.amount) + '</div>' +
+        '<div class="expense-actions">' +
+          '<button onclick="editExpense(' + e.id + ')" class="expense-action-btn">✏️</button>' +
+          '<button onclick="deleteExpense(' + e.id + ')" class="expense-action-btn delete">🗑️</button>' +
         '</div>' +
       '</div>'
     );
@@ -186,28 +187,38 @@ function renderExpenses() {
   container.innerHTML = html.join('');
 }
 
-function renderSummaryCards(summary) {
-  var el = document.getElementById('summaryCards');
+function renderCategoryChips(summary) {
+  var el = document.getElementById('categoryChips');
   if (!el) return;
 
   var allCats = _defaultCategories.concat(_customCategories);
-  var html = [];
+
+  // All chip
+  var allTotal = Object.values(summary).reduce(function(s, v) { return s + v; }, 0);
+  var html = '<div class="cat-chip ' + (_currentCategory === 'all' ? 'active' : '') + '" onclick="filterCategory(\'all\')">' +
+    '<span class="cat-chip-icon">📋</span>' +
+    '<span class="cat-chip-label">Tất cả</span>' +
+    '<span class="cat-chip-amount">' + formatVND(allTotal) + '</span>' +
+    '</div>';
+
   for (var i = 0; i < allCats.length; i++) {
     var cat = allCats[i];
     var amt = summary[cat.name] || 0;
-      var customDel = cat.id != null
-      ? '<button type="button" class="summary-cat-del absolute top-1 right-1 p-1 rounded text-muted hover:text-danger hover:bg-muted/80 text-xs leading-none" title="Xóa loại chi phí" data-delete-cat-id="' + cat.id + '" onclick="event.stopPropagation(); deleteCustomCategory(' + cat.id + ', ' + JSON.stringify(cat.name) + ')">🗑️</button>'
-      : '';
-    html.push(
-      '<div class="card p-3 text-center relative" onclick="filterCategory(\'' + cat.name.replace(/'/g, "\\'") + '\')" style="cursor:pointer">' +
-        customDel +
-        '<div class="text-xl mb-1">' + cat.icon + '</div>' +
-        '<div class="text-sm text-muted">' + (cat.label || cat.name) + '</div>' +
-        '<div class="font-bold tabular-nums money">' + formatVND(amt) + '</div>' +
-      '</div>'
-    );
+    html += '<div class="cat-chip ' + (_currentCategory === cat.name ? 'active' : '') + '" onclick="filterCategory(\'' + cat.name.replace(/'/g, "\\'") + '\')">' +
+      '<span class="cat-chip-icon">' + cat.icon + '</span>' +
+      '<span class="cat-chip-label">' + (cat.label || cat.name) + '</span>' +
+      '<span class="cat-chip-amount">' + formatVND(amt) + '</span>' +
+      '</div>';
   }
-  el.innerHTML = html.join('');
+
+  // Add category button
+  html += '<div class="cat-chip" onclick="showAddCategoryModal()" style="border-style:dashed;">' +
+    '<span class="cat-chip-icon">➕</span>' +
+    '<span class="cat-chip-label">Thêm</span>' +
+    '<span class="cat-chip-amount"></span>' +
+    '</div>';
+
+  el.innerHTML = html;
 }
 
 function switchMonth(dir) {
@@ -393,7 +404,7 @@ function renderEmojiPicker() {
   if (!picker) return;
   var html = '';
   for (var i = 0; i < _emojiList.length; i++) {
-    html += '<button type="button" class="emoji-btn text-xl px-1 py-0.5 rounded hover:bg-muted transition" ' +
+    html += '<button type="button" class="emoji-btn" ' +
             'onclick="selectEmoji(\'' + _emojiList[i].replace(/'/g, "\\'") + '\')" ' +
             'data-emoji="' + _emojiList[i] + '">' + _emojiList[i] + '</button>';
   }
@@ -470,7 +481,7 @@ function saveCategory(e) {
           _customCategories = Array.isArray(data) ? data : [];
           rebuildExpenseCategorySelect();
           rebuildCategoryTabs();
-          renderSummaryCards(_getSummaryByCategory());
+          renderCategoryChips(_getSummaryByCategory());
 
           // Auto-select newly created category in the dropdown
           var sel = document.getElementById('expenseCategory');
@@ -523,27 +534,13 @@ function deleteCustomCategory(id, name) {
 // ── Category tabs ────────────────────────────────────────────────────────────
 
 function rebuildCategoryTabs() {
-  var container = document.getElementById('categoryTabs');
-  if (!container) return;
-
-  var html = '<button onclick="filterCategory(\'all\')" class="cat-tab ' + (_currentCategory === 'all' ? 'active' : '') + ' px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-cat="all">Tất cả</button>';
-
-  for (var i = 0; i < _defaultCategories.length; i++) {
-    var cat = _defaultCategories[i];
-    html += '<button onclick="filterCategory(\'' + cat.name + '\')" class="cat-tab ' + (_currentCategory === cat.name ? 'active' : '') + ' px-3 py-1.5 rounded-lg text-sm whitespace-nowrap" data-cat="' + cat.name + '" data-icon="' + cat.icon + '">' + cat.icon + ' ' + cat.label + '</button>';
+  // New design uses chips, render chips with current summary
+  var summary = {};
+  for (var i = 0; i < getExpensesState().length; i++) {
+    var cat = getExpensesState()[i].category || 'other';
+    summary[cat] = (summary[cat] || 0) + (Number(getExpensesState()[i].amount) || 0);
   }
-
-  for (var j = 0; j < _customCategories.length; j++) {
-    var cat = _customCategories[j];
-    var esc = cat.name.replace(/'/g, "\\'");
-    var safeDataCat = String(cat.name).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-    html += '<span class="inline-flex items-stretch shrink-0 rounded-lg overflow-hidden border border-muted">' +
-      '<button type="button" onclick="filterCategory(\'' + esc + '\')" class="cat-tab ' + (_currentCategory === cat.name ? 'active' : '') + ' px-3 py-1.5 text-sm whitespace-nowrap rounded-none border-0" data-cat="' + safeDataCat + '" data-icon="' + (cat.icon || '📋').replace(/"/g, '&quot;') + '">' + (cat.icon || '📋') + ' ' + cat.name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</button>' +
-      '<button type="button" class="px-1.5 text-xs bg-muted/50 text-muted hover:text-danger hover:bg-muted border-0 border-l border-muted" title="Xóa loại" data-delete-cat-id="' + cat.id + '" onclick="event.stopPropagation(); deleteCustomCategory(' + cat.id + ', ' + JSON.stringify(cat.name) + ')">🗑️</button>' +
-      '</span>';
-  }
-
-  container.innerHTML = html;
+  renderCategoryChips(summary);
 }
 
 function filterCategory(cat) {
