@@ -205,7 +205,6 @@ body .pt-14, .pt-14 {
 .bottomnav .nav-item.active {
   color: var(--primary);
   font-weight: 600;
-  transform: translateY(-2px);
 }
 
 /* =========================   TEXT UTILITIES   ========================= */
@@ -2190,6 +2189,14 @@ button:active, .btn:active { transition: transform 0.1s ease; }
   -webkit-backdrop-filter: blur(16px);
   border-top: none;
   box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.1);
+}
+[data-theme="light"] .bottomnav a,
+[data-theme="light"] .bottomnav .nav-item {
+  color: var(--text-secondary);
+}
+[data-theme="light"] .bottomnav a.active,
+[data-theme="light"] .bottomnav .nav-item.active {
+  color: var(--primary);
 }
 [data-theme="light"] .card {
   background: var(--card);
