@@ -513,7 +513,7 @@ function openKegFromInvoice(saleId) {
 
 function openKegFromSaleData(sale, saleId) {
   closeInvoice();
-  openKegModalForSale(saleId, sale.customer_id, sale.deliver_kegs, sale.return_kegs);
+  openKegModalForSale(saleId, sale.customer_id, 0, sale.return_kegs || 0);
 }
 
 // Open keg modal for a specific sale — load sale data first
@@ -525,7 +525,7 @@ function returnSale(saleId) {
       var sale = data.sale || data;
       if (!sale) { showToast('Không tìm thấy đơn', 'error'); return; }
       kegEditSaleId = saleId;
-      openKegModalForSale(saleId, sale.customer_id, sale.deliver_kegs, sale.return_kegs);
+      openKegModalForSale(saleId, sale.customer_id, 0, sale.return_kegs || 0);
     })
     .catch(function() { showToast('Lỗi tải đơn', 'error'); });
 }
