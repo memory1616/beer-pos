@@ -296,19 +296,49 @@
 .login-remember {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   cursor: pointer;
   font-size: 13px;
   color: var(--login-text-muted);
   user-select: none;
 }
 
+/* Hide default checkbox */
 .login-remember input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--login-accent);
-  cursor: pointer;
-  border-radius: 4px;
+  display: none;
+}
+
+/* Custom checkbox box */
+.login-remember .checkbox-box {
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.login-remember .checkbox-box:hover {
+  border-color: var(--accent);
+}
+
+/* Checked state */
+.login-remember input:checked + .checkbox-box {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Check icon */
+.login-remember input:checked + .checkbox-box::after {
+  content: "\2714";
+  color: #0B0E11;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 /* ── Footer ─────────────────────────────────────────────── */
