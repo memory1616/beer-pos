@@ -516,7 +516,9 @@ async function cacheFirst(request) {
     if (resp.ok) await cachePut(request, resp);
     return resp;
   } catch {
-    return new Response('Offline', { status: 503, headers: { 'Content-Type': 'text/plain' } });
+    return new Response(JSON.stringify({ error: 'Offline', offline: true }), {
+      status: 503, headers: { 'Content-Type': 'application/json' }
+    });
   }
 }
 
@@ -537,7 +539,9 @@ async function networkFirst(request) {
     if (self.__CONSISTENCY_DEBUG__) {
       console.log('[CONSISTENCY][SW] networkFirst fallback-cache', request.url, !!cached);
     }
-    return cached || new Response('Offline', { status: 503 });
+    return cached || new Response(JSON.stringify({ error: 'Offline', offline: true }), {
+      status: 503, headers: { 'Content-Type': 'application/json' }
+    });
   }
 }
 
@@ -587,7 +591,7 @@ async function staleWhileRevalidate(request, opts = {}) {
   // No cache hit — block on network
   const resp = await bgFetch;
   if (resp) return resp;
-  return new Response(JSON.stringify({ error: 'Offline' }), {
+  return new Response(JSON.stringify({ error: 'Offline', offline: true }), {
     status: 503, headers: { 'Content-Type': 'application/json' }
   });
 }

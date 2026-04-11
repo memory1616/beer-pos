@@ -103,8 +103,14 @@ function loadExpenses(monthStr, opts) {
   var endDate = year + '-' + month + '-' + String(lastDay).padStart(2, '0');
 
   Promise.all([
-    fetch('/api/expenses?startDate=' + startDate + '&endDate=' + endDate, { cache: 'no-store' }).then(function(r) { return r.json(); }),
-    fetch('/api/expenses/categories/all').then(function(r) { return r.json(); })
+    fetch('/api/expenses?startDate=' + startDate + '&endDate=' + endDate, { cache: 'no-store' }).then(function(r) {
+      if (!r.ok) return Promise.reject(new Error('HTTP ' + r.status));
+      return r.json();
+    }),
+    fetch('/api/expenses/categories/all').then(function(r) {
+      if (!r.ok) return Promise.reject(new Error('HTTP ' + r.status));
+      return r.json();
+    })
   ])
     .then(function(results) {
       setExpensesState(Array.isArray(results[0]) ? results[0] : (results[0].expenses || []));
@@ -450,11 +456,16 @@ function saveCategory(e) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name: name, icon: icon })
   })
-    .then(function(r) { return r.json(); })
+    .then(function(r) {
+      if (!r.ok) return Promise.reject(new Error('HTTP ' + r.status));
+      return r.json();
+    })
     .then(function(result) {
-      // Reload categories then refresh select and auto-select
       return fetch('/api/expenses/categories/all')
-        .then(function(r2) { return r2.json(); })
+        .then(function(r2) {
+          if (!r2.ok) return Promise.reject(new Error('HTTP ' + r2.status));
+          return r2.json();
+        })
         .then(function(data) {
           _customCategories = Array.isArray(data) ? data : [];
           rebuildExpenseCategorySelect();

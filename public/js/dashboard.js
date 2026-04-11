@@ -440,11 +440,14 @@ function refreshDashboardFromMutation(reason) {
   console.log('[CONSISTENCY][Dashboard] refresh', reason || 'mutation');
 
   fetch('/dashboard/data', { cache: 'no-store' })
-    .then(r => r.json())
-    .then(data => {
+    .then(function(r) {
+      if (!r.ok) return Promise.reject(new Error('HTTP ' + r.status));
+      return r.json();
+    })
+    .then(function(data) {
       initDashboard(data);
     })
-    .catch(e => {
+    .catch(function(e) {
       console.error('[CONSISTENCY][Dashboard] refresh error', e);
     })
     .finally(() => {
