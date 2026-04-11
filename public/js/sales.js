@@ -345,8 +345,7 @@ function renderInvoiceModalContent(invoice, saleIdForActions) {
     document.getElementById('invKegBalance').textContent = '0';
     document.getElementById('invTotalValue').textContent = '—';
     invActions.innerHTML = '<button class="inv-btn inv-btn-ghost" type="button" onclick="closeInvoice()">Đóng</button>';
-    if (vietqrBlock) vietqrBlock.classList.remove('visible');
-    applyInvoiceCompactMode(0);
+    if (vietqrBlock) vietqrBlock.style.display = 'none';
     return;
   }
 
@@ -381,8 +380,6 @@ function renderInvoiceModalContent(invoice, saleIdForActions) {
     itemsList.innerHTML = rows;
   }
 
-  applyInvoiceCompactMode(invoice.items ? invoice.items.length : 0);
-
   var customer = invoice.customer && invoice.customer.id != null ? getCustomer(invoice.customer.id) : null;
   var balance = customer ? (customer.keg_balance || 0) : 0;
 
@@ -392,15 +389,16 @@ function renderInvoiceModalContent(invoice, saleIdForActions) {
 
   document.getElementById('invTotalValue').textContent = formatVND(invoice.totalAmount);
 
-  // Render QR — minimal fintech, always visible when data exists
+  // Render QR — inline flex row, show if invoice exists
   var vietqrUrl = generateVietQR(invoice);
+  var vietqrBlock = document.getElementById('vietqrBlock');
+  var vietqrImage = document.getElementById('vietqrImage');
   if (vietqrBlock) {
     vietqrBlock.style.display = invoice ? '' : 'none';
-    var vietqrImage = document.getElementById('vietqrImage');
-    if (vietqrImage) {
-      vietqrImage.src = vietqrUrl;
-      vietqrImage.style.display = invoice ? '' : 'none';
-    }
+  }
+  if (vietqrImage) {
+    vietqrImage.src = vietqrUrl;
+    vietqrImage.style.display = invoice ? '' : 'none';
   }
   invActions.innerHTML = '';
 }
@@ -415,17 +413,6 @@ function showInvoiceModalElement() {
     overlay.addEventListener('click', function(e) {
       if (e.target === overlay) closeInvoice();
     });
-  }
-}
-
-function applyInvoiceCompactMode(itemCount) {
-  var modal = document.querySelector('.invoice-modal');
-  if (!modal) return;
-  modal.classList.remove('compact', 'ultra-compact');
-  if (itemCount > 8) {
-    modal.classList.add('ultra-compact');
-  } else if (itemCount > 5) {
-    modal.classList.add('compact');
   }
 }
 

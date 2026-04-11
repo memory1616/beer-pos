@@ -199,7 +199,7 @@
   <!-- Sync status indicator -->
   <div id="syncStatusIndicator" style="position:fixed;top:8px;right:8px;z-index:200;font-size:11px;padding:4px 8px;border-radius:20px;background:var(--card-soft);border:1px solid var(--border);opacity:0.8;display:none;"></div>
 
-  <!-- Invoice Modal — Binance Style, Full POS -->
+  <!-- Invoice Modal — Fintech Style -->
   <div id="invoiceModal" class="inv-overlay hidden">
     <div class="invoice-modal">
       <!-- Header -->
@@ -211,48 +211,53 @@
         <button onclick="closeInvoice()" class="inv-close">&times;</button>
       </div>
 
-      <!-- Customer info -->
-      <div class="inv-customer-card">
-        <div class="inv-customer-name" id="invCustomerName">—</div>
-        <div class="inv-customer-meta" id="invCustomerMeta"></div>
-      </div>
+      <!-- Scrollable content -->
+      <div class="inv-body">
+        <!-- Customer info -->
+        <div class="inv-customer-card">
+          <div class="inv-customer-name" id="invCustomerName">—</div>
+          <div class="inv-customer-meta" id="invCustomerMeta"></div>
+        </div>
 
-      <!-- Product list (flex grow, scrollable) -->
-      <div class="inv-items-list" id="invItemsList"></div>
+        <!-- Product list -->
+        <div class="inv-section items">
+          <div class="inv-items-list" id="invItemsList"></div>
+        </div>
 
-      <!-- Bottle flow -->
-      <div class="inv-kegs-card" id="invKegsCard">
-        <div class="inv-kegs-row">
-          <div class="inv-kegs-cell">
-            <div class="inv-kegs-label inv-kegs-giao">📦 Giao vỏ</div>
-            <div class="inv-kegs-value" id="invKegDeliver">0</div>
+        <!-- Bottle flow -->
+        <div class="inv-section">
+          <div class="bottle-grid" id="invKegsCard">
+            <div class="bottle-cell">
+              <div class="bottle-label">📦 Giao vỏ</div>
+              <div class="bottle-value" id="invKegDeliver">0</div>
+            </div>
+            <div class="bottle-cell">
+              <div class="bottle-label">🔄 Thu vỏ</div>
+              <div class="bottle-value bottle-thu" id="invKegReturn">0</div>
+            </div>
+            <div class="bottle-cell">
+              <div class="bottle-label">Đang giữ</div>
+              <div class="bottle-value bottle-keep" id="invKegBalance">0</div>
+            </div>
           </div>
-          <div class="inv-kegs-divider"></div>
-          <div class="inv-kegs-cell">
-            <div class="inv-kegs-label inv-kegs-thu">🔄 Thu vỏ</div>
-            <div class="inv-kegs-value" id="invKegReturn">0</div>
+        </div>
+
+        <!-- Total -->
+        <div class="inv-section total">
+          <div class="total-section">
+            <span class="total-label">Tổng cộng</span>
+            <span class="total-value" id="invTotalValue">0đ</span>
           </div>
-          <div class="inv-kegs-divider"></div>
-          <div class="inv-kegs-cell">
-            <div class="inv-kegs-label">Vỏ đang giữ</div>
-            <div class="inv-kegs-value inv-kegs-balance" id="invKegBalance">0</div>
-          </div>
+        </div>
+
+        <!-- QR Payment -->
+        <div class="inv-section qr">
+          <img id="vietqrImage" class="qr" src="" alt="QR" onerror="this.style.display='none'">
+          <div class="qr-name">NGUYEN MINH QUAN</div>
         </div>
       </div>
 
-      <!-- Total -->
-      <div class="inv-total-row">
-        <span class="inv-total-label">Tổng cộng</span>
-        <span class="inv-total-value" id="invTotalValue">0đ</span>
-      </div>
-
-      <!-- VietQR Payment Block — Minimal fintech style -->
-      <div class="qr-section" id="vietqrBlock">
-        <img id="vietqrImage" class="qr" src="" alt="QR" onerror="this.style.display='none'">
-        <div class="qr-name">NGUYEN MINH QUAN</div>
-      </div>
-
-      <!-- Action buttons (hidden when VietQR mode active) -->
+      <!-- Action buttons -->
       <div class="inv-actions" id="invActions"></div>
     </div>
   </div>
