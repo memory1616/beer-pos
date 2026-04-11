@@ -18,7 +18,7 @@
 }
 
 /* =====================   CORE PALETTE   ===================== */
-/* Dark (default) */
+/* Dark (default) — Neutral Gray Palette */
 :root {
   /* Primary — Binance Gold */
   --primary:          #FCD535;
@@ -51,12 +51,12 @@
   /* Purple / Violet */
   --purple:           #7C3AED;
   --purple-dim:       rgba(124, 58, 237, 0.12);
-  --purple-light:     #A78BFA;  /* lighter variant for dark bg readability */
+  --purple-light:     #A78BFA;
 
   /* Teal / Cyan */
   --teal:             #14B8A6;
   --teal-dim:         rgba(20, 184, 166, 0.12);
-  --teal-light:       #2DD4BF;  /* lighter variant for dark bg readability */
+  --teal-light:       #2DD4BF;
 
   /* Semantic aliases */
   --color-primary:   var(--primary);
@@ -67,30 +67,30 @@
   --color-purple:   var(--purple);
   --color-teal:    var(--teal);
 
-  /* Backgrounds */
-  --bg:              #0B0E11;
-  --bg-secondary:    #181A20;
-  --card:            #1E2329;
-  --card-soft:       #2B3139;
-  --card-hover:      #2B3139;
-  --card-active:     #3A4250;
+  /* Backgrounds — Neutral Gray (no blue tint) */
+  --bg:              #1A1A1A;
+  --bg-secondary:    #242424;
+  --card:            #2A2A2A;
+  --card-soft:       #323232;
+  --card-hover:      #383838;
+  --card-active:     #404040;
 
   /* Borders */
-  --border:           #2B3139;
-  --border-strong:    #3A4250;
+  --border:           #383838;
+  --border-strong:    #484848;
   --border-focus:      var(--primary);
 
   /* Interactive */
   --bg-hover:         rgba(255, 255, 255, 0.06);
   --bg-active:        rgba(255, 255, 255, 0.10);
 
-  /* Text Hierarchy — High Contrast (WCAG AA+) */
-  --text-primary:     #EAECEF;
-  --text-secondary:    #B7BDC6;
-  --text-muted:        #848E9C;
-  /* Fallbacks: if CSS variable is missing, fall back to these */
-  --text-on-dark:      #EAECEF;
-  --text-on-light:     #1E2329;
+  /* Text Hierarchy — High Contrast */
+  --text-primary:     #F0F0F0;
+  --text-secondary:    #A0A0A0;
+  --text-muted:        #686868;
+  /* Fallbacks */
+  --text-on-dark:      #1A1A1A;
+  --text-on-light:     #F0F0F0;
 
   /* Aliases */
   --color-bg:          var(--bg);
@@ -100,7 +100,7 @@
   --color-text-secondary: var(--text-secondary);
   --color-text-muted:  var(--text-muted);
   --color-bg-hover:    var(--bg-hover);
-  /* Canonical alias used by unified.css */
+  /* Canonical alias */
   --text-main:         var(--text-primary);
 
   /* Typography */
@@ -226,27 +226,27 @@
 /* =====================   DARK MODE TOKENS (EXPLICIT)   ===================== */
 :root.dark,
 :root[data-theme="dark"] {
-  --bg:              #0B0E11;
-  --bg-secondary:    #181A20;
-  --card:            #1E2329;
-  --card-soft:       #2B3139;
-  --card-hover:      #2B3139;
-  --card-active:     #3A4250;
-  --border:           #2B3139;
-  --border-strong:    #3A4250;
+  --bg:              #1A1A1A;
+  --bg-secondary:    #242424;
+  --card:            #2A2A2A;
+  --card-soft:       #323232;
+  --card-hover:      #383838;
+  --card-active:     #404040;
+  --border:           #383838;
+  --border-strong:    #484848;
   --bg-hover:         rgba(255, 255, 255, 0.06);
   --bg-active:        rgba(255, 255, 255, 0.10);
 
-  --text-primary:     #EAECEF;
-  --text-secondary:    #B7BDC6;
-  --text-muted:        #848E9C;
-  --text-on-dark:      #EAECEF;
-  --text-on-light:     #1E2329;
+  --text-primary:     #F0F0F0;
+  --text-secondary:    #A0A0A0;
+  --text-muted:        #686868;
+  --text-on-dark:      #1A1A1A;
+  --text-on-light:     #F0F0F0;
 
-  --shadow-xs:     0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-sm:     0 2px 8px rgba(0, 0, 0, 0.35);
-  --shadow-md:     0 4px 16px rgba(0, 0, 0, 0.4);
-  --shadow-lg:     0 8px 32px rgba(0, 0, 0, 0.5);
+  --shadow-xs:     0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-sm:     0 2px 8px rgba(0, 0, 0, 0.45);
+  --shadow-md:     0 4px 16px rgba(0, 0, 0, 0.5);
+  --shadow-lg:     0 8px 32px rgba(0, 0, 0, 0.55);
   --shadow-xl:     0 16px 48px rgba(0, 0, 0, 0.6);
 }
 
@@ -350,14 +350,13 @@
 /* =====================   INLINE STYLE FALLBACKS ===================== */
 /* Safe fallbacks for text that must ALWAYS be readable */
 :root {
-  /* If a variable is undefined, these ensure visibility */
-  --fallback-text-on-dark: #EAECEF;
-  --fallback-text-on-light: #1E2329;
-  --fallback-text-muted: #707A8A;
-  --fallback-bg-dark: #0B0E11;
+  --fallback-text-on-dark: #F0F0F0;
+  --fallback-text-on-light: #1A1A1A;
+  --fallback-text-muted: #686868;
+  --fallback-bg-dark: #1A1A1A;
   --fallback-bg-light: #FFFFFF;
-  --fallback-card-dark: #1E2329;
+  --fallback-card-dark: #2A2A2A;
   --fallback-card-light: #FFFFFF;
-  --fallback-border-dark: #2B3139;
+  --fallback-border-dark: #383838;
   --fallback-border-light: rgba(0,0,0,0.1);
 }

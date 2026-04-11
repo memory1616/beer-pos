@@ -165,11 +165,11 @@ body .pt-14, .pt-14 {
   height: calc(var(--bottomnav-height) + var(--safe-area-bottom));
   position: fixed;
   bottom: 0; left: 0; right: 0;
-  background: rgba(11, 14, 17, 0.9);
+  background: var(--bg-secondary);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border-top: none;
-  box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.6);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   text-align: center;
@@ -218,7 +218,7 @@ body .pt-14, .pt-14 {
 .text-danger   { color: var(--red); }
 .text-warning  { color: var(--warning); }
 .text-info     { color: var(--info); }
-.text-money    { color: var(--green) !important; font-weight: 800; letter-spacing: -0.5px; }
+.text-money    { color: var(--primary) !important; font-weight: 800; letter-spacing: -0.5px; }
 .text-profit   { color: var(--green) !important; font-weight: 800; letter-spacing: -0.5px; }
 .text-loss     { color: var(--red) !important; font-weight: 800; letter-spacing: -0.5px; }
 .text-center   { text-align: center; }
@@ -1961,8 +1961,8 @@ main {
 }
 
 .bn-card--blue-gradient {
-  background: rgba(59, 130, 246, 0.08);
-  border: 1px solid rgba(59, 130, 246, 0.15);
+  background: var(--card-soft);
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 12px;
 }
