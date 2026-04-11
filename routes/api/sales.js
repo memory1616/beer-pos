@@ -772,11 +772,16 @@ router.delete('/:id', (req, res) => {
 // PUT /api/sales/:id - Cập nhật hóa đơn
 router.put('/:id', (req, res) => {
   const saleId = req.params.id;
+  logger.info(`[api/sales] PUT /${saleId} called, body has items=${Array.isArray(req.body?.items) ? req.body.items.length : 'N/A'}`);
   const { items, customerId } = req.body;
 
   try {
     const currentSale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId);
-    if (!currentSale) return res.status(404).json({ error: 'Không tìm thấy hóa đơn' });
+    if (!currentSale) {
+      logger.warn(`[api/sales] Sale not found: ${saleId}`);
+      return res.status(404).json({ error: 'Không tìm thấy hóa đơn' });
+    }
+    logger.info(`[api/sales] Sale found: type=${currentSale.type}, current total=${currentSale.total}`);
 
     const oldItems = db.prepare('SELECT * FROM sale_items WHERE sale_id = ?').all(saleId);
 
@@ -797,7 +802,10 @@ router.put('/:id', (req, res) => {
     for (const item of items) {
       const queryKey = item.productId || item.productSlug;
       const product = resolveProduct(queryKey);
-      if (!product) return res.status(400).json({ error: 'Không tìm thấy sản phẩm: ' + queryKey });
+      if (!product) {
+        logger.warn(`[api/sales] Product not found: ${queryKey}`);
+        return res.status(400).json({ error: 'Không tìm thấy sản phẩm: ' + queryKey });
+      }
 
       // Trừ kho (chỉ với hóa đơn bán)
       if (currentSale.type === 'sale') {
@@ -821,10 +829,11 @@ router.put('/:id', (req, res) => {
     db.prepare('UPDATE sales SET customer_id = ?, total = ?, profit = ? WHERE id = ?').run(customerId, newTotal, newProfit, saleId);
 
     const updatedSale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId);
+    logger.info(`[api/sales] Sale updated successfully: id=${saleId}, newTotal=${newTotal}`);
     socketServer.emitOrderUpdated(updatedSale);
     res.json({ success: true, total: newTotal, profit: newProfit });
   } catch (err) {
-    logger.error('Update sale error', { error: err.message });
+    logger.error('Update sale error', { error: err.message, stack: err.stack });
     res.status(500).json({ error: 'Cập nhật thất bại: ' + err.message });
   }
 });

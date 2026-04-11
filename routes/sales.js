@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../database');
 const path = require('path');
+const logger = require('../src/utils/logger');
 
 const DISTRIBUTOR_NAME = 'Bia Tươi Gia Huy';
 

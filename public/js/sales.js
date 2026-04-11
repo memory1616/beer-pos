@@ -345,14 +345,16 @@ function generateVietQR(invoice) {
 }
 
 function renderInvoiceModalContent(invoice, saleIdForActions) {
+  console.log('invoice:', invoice);
+  var invTotalValueEl = document.getElementById('invTotalValue');
   var metaEl = document.getElementById('invCustomerMeta');
   var itemsList = document.getElementById('invItemsList');
   var invActions = document.getElementById('invActions');
   var vietqrBlock = document.getElementById('vietqrBlock');
-  if (!orderEl || !itemsList || !invActions) return;
+  if (!invTotalValueEl || !itemsList || !invActions) return;
 
   if (!invoice) {
-    orderEl.textContent = '#—';
+    invTotalValueEl.textContent = '—';
     if (metaEl) metaEl.textContent = '—';
     var invDateEl = document.getElementById('invDate');
     if (invDateEl) invDateEl.textContent = '';
@@ -376,8 +378,7 @@ function renderInvoiceModalContent(invoice, saleIdForActions) {
   }) : '';
   var isReturned = invoice.status === 'returned';
 
-  orderEl.textContent = '#' + sid;
-  if (metaEl) metaEl.textContent = (invoice.customer.name || 'Khách lẻ');
+  if (metaEl) metaEl.textContent = (invoice.customer && invoice.customer.name) ? invoice.customer.name : 'Khách lẻ';
   var invDateEl = document.getElementById('invDate');
   if (invDateEl) invDateEl.textContent = dateStr;
 
@@ -423,7 +424,6 @@ function renderInvoiceModalContent(invoice, saleIdForActions) {
 
   // Render QR — inline flex row, show if invoice exists
   var vietqrUrl = generateVietQR(invoice);
-  var vietqrBlock = document.getElementById('vietqrBlock');
   var vietqrImage = document.getElementById('vietqrImage');
   if (vietqrBlock) {
     vietqrBlock.style.display = invoice ? '' : 'none';
