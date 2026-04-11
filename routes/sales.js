@@ -76,7 +76,8 @@ router.get('/history', (req, res) => {
 router.get('/:id', (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
   const sale = db.prepare(`
-    SELECT s.*, COALESCE(c.name, 'Khách lẻ') as customer_name
+    SELECT s.*, COALESCE(c.name, 'Khách lẻ') as customer_name,
+      c.keg_balance as customer_keg_balance
     FROM sales s
     LEFT JOIN customers c ON s.customer_id = c.id
     WHERE s.id = ?
@@ -95,14 +96,22 @@ router.get('/:id', (req, res) => {
 
 // POST /sale/create → forward to /api/sales
 router.post('/create', (req, res) => {
-  req.url = '/';
-  require('./api/sales')(req, res, () => res.status(404).end());
+  logger.info(`[sales-route] POST /create → forwarding to /api/sales`);
+  req.url = '/';  // root of api/sales router
+  require('./api/sales')(req, res, () => {
+    logger.warn(`[sales-route] api/sales POST / returned 404`);
+    res.status(404).json({ error: 'Not found in api/sales' });
+  });
 });
 
 // PUT /sale/update/:id → forward to /api/sales/:id
 router.put('/update/:id', (req, res) => {
-  req.url = '/' + req.params.id;
-  require('./api/sales')(req, res, () => res.status(404).end());
+  logger.info(`[sales-route] PUT /update/${req.params.id} → forwarding to /api/sales`);
+  req.url = req.params.id;   // strip leading slash: Express strips mount prefix anyway
+  require('./api/sales')(req, res, () => {
+    logger.warn(`[sales-route] api/sales returned 404 for id=${req.params.id}`);
+    res.status(404).json({ error: 'Not found in api/sales' });
+  });
 });
 
 module.exports = router;

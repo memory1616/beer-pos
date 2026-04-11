@@ -296,7 +296,8 @@ function normalizeInvoice(sale) {
     id: sale.id,
     customer: {
       id: cid != null ? Number(cid) : null,
-      name: sale.customer_name || sale.customerName || 'Khách lẻ'
+      name: sale.customer_name || sale.customerName || 'Khách lẻ',
+      keg_balance: sale.customer_keg_balance != null ? Number(sale.customer_keg_balance) : null
     },
     items: items,
     totalAmount: totalAmount,
@@ -393,7 +394,9 @@ function renderInvoiceModalContent(invoice, saleIdForActions) {
   }
 
   var customer = invoice.customer && invoice.customer.id != null ? getCustomer(invoice.customer.id) : null;
-  var balance = customer ? (customer.keg_balance || 0) : 0;
+  var balance = (invoice.customer && invoice.customer.keg_balance != null)
+    ? invoice.customer.keg_balance
+    : (customer ? (customer.keg_balance || 0) : 0);
 
   document.getElementById('invKegDeliver').textContent = String(invoice.bottleGiven);
   document.getElementById('invKegReturn').textContent = String(invoice.bottleReceived);
