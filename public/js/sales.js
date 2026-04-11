@@ -362,10 +362,11 @@ function renderInvoiceModalContent(invoice, saleIdForActions) {
 
   var rows = (invoice.items || []).map(function(item) {
     var lineTotal = (item.quantity || 0) * (item.price || 0);
+    var shortName = (item.name || 'SP').slice(0, 20);
     return '<div class="inv-item">' +
       '<div class="inv-item-left">' +
-        '<div class="inv-item-name">' + escHtml(item.name || 'SP') + '</div>' +
-        '<div class="inv-item-qty">x' + item.quantity + ' · ' + formatVND(item.price) + '/sp</div>' +
+        '<div class="inv-item-name">' + escHtml(shortName) + '</div>' +
+        '<div class="inv-item-qty">x' + item.quantity + ' · ' + formatVND(item.price) + '</div>' +
       '</div>' +
       '<div class="inv-item-right">' +
         '<div class="inv-item-total">' + formatVND(lineTotal) + '</div>' +
@@ -391,18 +392,15 @@ function renderInvoiceModalContent(invoice, saleIdForActions) {
 
   document.getElementById('invTotalValue').textContent = formatVND(invoice.totalAmount);
 
-  // Render VietQR payment block
-  var contentText = 'Noi dung: Thanh toan HD ' + sid;
+  // Render QR — minimal fintech, always visible when data exists
   var vietqrUrl = generateVietQR(invoice);
   if (vietqrBlock) {
-    vietqrBlock.classList.add('visible');
+    vietqrBlock.style.display = invoice ? '' : 'none';
     var vietqrImage = document.getElementById('vietqrImage');
-    var vietqrContent = document.getElementById('vietqrContent');
     if (vietqrImage) {
       vietqrImage.src = vietqrUrl;
-      vietqrImage.style.display = '';
+      vietqrImage.style.display = invoice ? '' : 'none';
     }
-    if (vietqrContent) vietqrContent.textContent = contentText;
   }
   invActions.innerHTML = '';
 }

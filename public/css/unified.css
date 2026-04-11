@@ -4994,30 +4994,46 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
 
 /* Customer card */
 .inv-customer-card {
-  padding: 12px 16px;
+  padding: 10px 16px;
   flex-shrink: 0;
 }
 
 .inv-customer-name {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   color: var(--primary);
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .inv-customer-meta {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-muted);
 }
 
-/* Items list — flex grow, auto scale between header and footer */
+.invoice-modal.compact .inv-customer-card {
+  padding: 8px 12px;
+}
+
+.invoice-modal.compact .inv-customer-name {
+  font-size: 14px;
+}
+
+.invoice-modal.ultra-compact .inv-customer-card {
+  padding: 6px 10px;
+}
+
+.invoice-modal.ultra-compact .inv-customer-name {
+  font-size: 13px;
+}
+
+/* Items list — flex grow, auto scale */
 .inv-items-list {
   flex: 1;
   overflow: hidden;
   padding: 0 16px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   min-height: 0;
 }
 
@@ -5026,10 +5042,74 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   flex-shrink: 1;
 }
 
-/* Compact mode (items > 5) */
-.invoice-modal.compact .inv-item {
+/* Invoice item — grid layout */
+.inv-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 8px;
+  background: var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.inv-item-left {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.inv-item-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.inv-item-qty {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.inv-item-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
+
+.inv-item-total {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Default mode */
+.invoice-modal .inv-item {
   padding: 6px 8px;
   font-size: 13px;
+}
+
+.invoice-modal .inv-item-name {
+  font-size: 13px;
+}
+
+.invoice-modal .inv-item-qty {
+  font-size: 11px;
+}
+
+.invoice-modal .inv-item-total {
+  font-size: 13px;
+}
+
+/* Compact mode (items > 5) */
+.invoice-modal.compact .inv-item {
+  padding: 5px 7px;
 }
 
 .invoice-modal.compact .inv-item-name {
@@ -5062,72 +5142,39 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   font-size: 11px;
 }
 
-.inv-item-left {
-  flex: 1;
-  min-width: 0;
-}
-
-.inv-item-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.inv-item-qty {
-  font-size: 11px;
-  color: var(--text-muted);
-  margin-top: 2px;
-}
-
-.inv-item-right {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  margin-left: 12px;
-  flex-shrink: 0;
-}
-
-.inv-item-total {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text-primary);
-  font-variant-numeric: tabular-nums;
-}
-
-.inv-item-unit {
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
 /* Kegs card */
 .inv-kegs-card {
-  padding: var(--space-3) var(--space-4);
-  margin: 8px 16px;
+  padding: 8px 16px;
+  margin: 6px 16px;
   background: var(--border);
-  border-radius: 12px;
+  border-radius: 10px;
   flex-shrink: 0;
 }
 
-/* Compact kegs */
 .invoice-modal.compact .inv-kegs-card {
-  padding: 6px 10px;
-  margin: 6px 12px;
+  padding: 6px 12px;
+  margin: 4px 12px;
 }
 
 .invoice-modal.ultra-compact .inv-kegs-card {
-  padding: 4px 8px;
-  margin: 4px 10px;
+  padding: 4px 10px;
+  margin: 3px 10px;
 }
 
 .invoice-modal.compact .inv-kegs-value {
   font-size: 14px;
 }
 
+.invoice-modal.compact .inv-kegs-label {
+  font-size: 9px;
+}
+
 .invoice-modal.ultra-compact .inv-kegs-value {
   font-size: 12px;
+}
+
+.invoice-modal.ultra-compact .inv-kegs-label {
+  font-size: 8px;
 }
 
 .inv-kegs-row {
@@ -5173,9 +5220,22 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
+  padding: 10px 16px;
   border-top: 1px solid var(--border);
   flex-shrink: 0;
+}
+
+.inv-total-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.inv-total-value {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--green);
+  font-variant-numeric: tabular-nums;
 }
 
 /* Compact total */
@@ -5195,33 +5255,20 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   font-size: 16px;
 }
 
-.inv-total-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-muted);
-}
-
-.inv-total-value {
-  font-size: 22px;
-  font-weight: 800;
-  color: var(--green);
-  font-variant-numeric: tabular-nums;
-}
-
 /* Action buttons */
 .inv-actions {
   display: flex;
   gap: 8px;
-  padding: 10px 16px 14px;
+  padding: 8px 16px 12px;
   flex-shrink: 0;
 }
 
 .invoice-modal.compact .inv-actions {
-  padding: 8px 12px 10px;
+  padding: 6px 12px 8px;
 }
 
 .invoice-modal.ultra-compact .inv-actions {
-  padding: 6px 10px 8px;
+  padding: 4px 10px 6px;
 }
 
 .invoice-modal.compact .inv-btn {
@@ -5236,7 +5283,7 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
 
 .inv-btn {
   flex: 1;
-  height: 44px;
+  height: 40px;
   border-radius: 10px;
   border: none;
   font-size: 13px;
@@ -5288,81 +5335,48 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   background: rgba(252, 213, 53, 0.2);
 }
 
-/* VietQR 支付区块样式 — Binance 深色风格 */
-.vietqr-block {
-  background: var(--card);
-  border-radius: 16px;
-  padding: 12px 16px;
-  margin: 0 16px 8px;
-  text-align: center;
-  display: none;
+/* QR Payment Block — Minimal fintech style */
+.qr-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px 12px;
   flex-shrink: 0;
 }
 
-.invoice-modal.compact .vietqr-block {
-  padding: 8px 12px;
-  margin: 0 12px 6px;
-}
-
-.invoice-modal.ultra-compact .vietqr-block {
-  padding: 6px 10px;
-  margin: 0 10px 4px;
-}
-
-.vietqr-block.visible {
-  display: block;
-}
-
-.vietqr-title {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 1.5px;
-  color: var(--text-muted);
-  margin-bottom: 12px;
-}
-
-.vietqr-qr-wrap {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 12px;
-}
-
-.vietqr-qr-img {
+.qr {
   width: 120px;
   height: 120px;
-  border-radius: 12px;
-  background: #ffffff; /* QR code always white */
+  border-radius: 10px;
+  background: #fff;
   object-fit: contain;
   flex-shrink: 0;
 }
 
-.invoice-modal.compact .vietqr-qr-img {
+.qr-name {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* Compact QR */
+.invoice-modal.compact .qr {
   width: 100px;
   height: 100px;
 }
 
-.invoice-modal.ultra-compact .vietqr-qr-img {
+.invoice-modal.compact .qr-name {
+  font-size: 11px;
+}
+
+.invoice-modal.ultra-compact .qr {
   width: 80px;
   height: 80px;
 }
 
-.vietqr-name {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin-bottom: 4px;
-}
-
-.vietqr-account {
-  font-size: 12px;
-  color: var(--text-muted);
-  margin-bottom: 8px;
-}
-
-.vietqr-content {
-  font-size: 12px;
-  color: var(--primary);
-  font-weight: 600;
+.invoice-modal.ultra-compact .qr-name {
+  font-size: 10px;
 }
 
    dark/light overrides for old classes */
