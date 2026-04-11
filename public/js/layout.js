@@ -71,25 +71,50 @@ function isHomeActive(currentPage) {
 // Supports: /dashboard, /, /customers, /sale, /stock, /report,
 //           /kegs, /delivery, /purchases, /backup, /customer-detail, /expenses
 function getBottomNav(currentPage) {
-  const BASE = '/';
-  const pages = [
-    { href: '/', icon: '🏠', label: 'Home', home: true },
-    { href: BASE + 'customers', icon: '👤', label: 'KH' },
-    { href: BASE + 'sale', icon: '🍺', label: 'Bán' },
-    { href: BASE + 'stock', icon: '📦', label: 'Kho' },
-    { href: BASE + 'report', icon: '📊', label: 'Báo Cáo' }
+  const nav = [
+    { path: '/', name: 'home', icon: '🏠', label: 'Home', home: true },
+    { path: '/customers', name: 'kh', icon: '👤', label: 'KH' },
+    { path: '/sale', name: 'ban', icon: '🍺', label: 'Bán' },
+    { path: '/stock', name: 'kho', icon: '📦', label: 'Kho' },
+    { path: '/report', name: 'baocao', icon: '📊', label: 'Báo Cáo' }
   ];
 
-  const navItem = (p) => {
-    const isActive = p.home ? isHomeActive(currentPage) : currentPage === p.href;
-    const homeAttr = p.home ? ' data-nav-home="1"' : '';
-    return `<a href="${p.href}" class="nav-item${isActive ? ' active' : ''}"${homeAttr}>
-      <span class="nav-item-icon">${p.icon}</span>
-      <span class="nav-item-label">${p.label}</span>
+  const isActive = (item) => {
+    if (item.home) {
+      return currentPage === '/dashboard' || currentPage === '/';
+    }
+    return currentPage === item.path;
+  };
+
+  const navItem = (item) => {
+    const active = isActive(item);
+    const homeAttr = item.home ? ' data-nav-home="1"' : '';
+    return `<a href="${item.path}" class="nav-item${active ? ' active' : ''}" data-path="${item.path}" data-name="${item.name}"${homeAttr}>
+      <span class="nav-item-icon">${item.icon}</span>
+      <span class="nav-item-label">${item.label}</span>
     </a>`;
   };
 
-  return `<nav class="bottomnav app-bottom-nav">${pages.map(navItem).join('')}</nav>`;
+  return `<nav class="bottomnav app-bottom-nav">${nav.map(navItem).join('')}</nav>`;
+}
+
+// Update active nav item - call this on page load/navigation
+function updateActiveNav(currentPath) {
+  const normalizedPath = currentPath.replace(/\/$/, '') || '/';
+  const navItems = document.querySelectorAll('.bottomnav .nav-item');
+  
+  navItems.forEach(item => {
+    const itemPath = item.dataset.path;
+    let isActive = false;
+    
+    if (itemPath === '/') {
+      isActive = normalizedPath === '/dashboard' || normalizedPath === '/' || normalizedPath === '/index.html';
+    } else {
+      isActive = normalizedPath === itemPath;
+    }
+    
+    item.classList.toggle('active', isActive);
+  });
 }
 
 // Generate skeleton loading
@@ -149,6 +174,7 @@ function autoInjectBottomNav() {
   };
   const activePage = pageMap[path] || '/';
   container.innerHTML = getBottomNav(activePage);
+  updateActiveNav(path);
 }
 
 // Fix PWA/Chrome standalone nav: intercept home link click and use assign()
