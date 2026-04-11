@@ -508,6 +508,12 @@ self.addEventListener('fetch', event => {
     return;
   }
 
+  // Sale individual record — always fresh from server (used by invoice modal)
+  if (parsed.pathname.match(/^\/sale\/\d+$/) && event.request.method === 'GET') {
+    event.respondWith(fetch(new Request(event.request, { cache: 'no-store' })));
+    return;
+  }
+
   // App Shell & static assets → Cache-First
   event.respondWith(cacheFirst(event.request));
 });
