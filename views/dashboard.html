@@ -127,6 +127,54 @@
     [data-theme="dark"] .skeleton-nav-fixed {
       background: rgba(30,41,59,0.95);
     }
+
+    /* Warning section collapsible */
+    .warning-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      background: var(--warning-dim);
+      border: 1px solid var(--warning);
+      border-radius: 12px;
+      padding: 12px 14px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--warning);
+      text-align: left;
+    }
+    .warning-header:active {
+      opacity: 0.85;
+    }
+    .warning-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--warning);
+      color: var(--text-on-dark);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 1px 6px;
+      border-radius: 10px;
+      min-width: 20px;
+      margin-left: 4px;
+    }
+    #warningIcon {
+      font-size: 12px;
+      transition: transform 0.2s ease;
+    }
+    #warningIcon.up {
+      transform: rotate(180deg);
+    }
+    .warning-content {
+      overflow: hidden;
+      max-height: 0;
+      transition: max-height 0.25s ease;
+    }
+    .warning-content.open {
+      max-height: 500px;
+    }
   </style>
 </head>
 <body class="bg-main text-primary min-h-screen">
@@ -246,11 +294,14 @@
               </div>
             </div>
 
-            <!-- Dưới mức kỳ vọng -->
+            <!-- Dưới mức kỳ vọng (collapsible) -->
             <div id="customerAlertsSection" class="hidden mb-4">
-              <div class="kpi-card" style="border-color:var(--warning);background:var(--warning-dim);">
-                <div class="kpi-card-label" style="color:var(--warning);">⚠️ Dưới mức kỳ vọng</div>
-                <div id="customerAlertsList" class="mt-2"></div>
+              <button id="warningHeader" class="warning-header" onclick="toggleWarning()">
+                <span>⚠️ <span id="warningTitle">Dưới mức kỳ vọng</span> <span id="warningBadge" class="warning-badge"></span></span>
+                <span id="warningIcon">▼</span>
+              </button>
+              <div id="warningContent" class="warning-content">
+                <div id="customerAlertsList" class="mt-3"></div>
               </div>
             </div>
 

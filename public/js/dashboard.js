@@ -3,6 +3,16 @@
 // formatVND đã được định nghĩa trong format.js
 
 let revenueChart = null;
+let _warningOpen = false;
+
+function toggleWarning() {
+  const content = document.getElementById('warningContent');
+  const icon = document.getElementById('warningIcon');
+  if (!content || !icon) return;
+  _warningOpen = !_warningOpen;
+  content.classList.toggle('open', _warningOpen);
+  icon.classList.toggle('up', _warningOpen);
+}
 
 /**
  * Hiển thị số tiền: .money > .value + .unit + phân cấp màu (unified.css).
@@ -189,7 +199,9 @@ function initDashboard(data) {
     const section = document.getElementById('customerAlertsSection');
     const list = document.getElementById('customerAlertsList');
     const header = document.getElementById('customerAlertsHeader');
+    const badge = document.getElementById('warningBadge');
     if (section) section.classList.remove('hidden');
+    if (badge) badge.textContent = data.kpiAlerts.length;
     if (header) {
       const monthly = data.monthlyExpected || 300;
       const expected = Math.round(data.expectedUnits || 0);
