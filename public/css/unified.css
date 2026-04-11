@@ -4905,7 +4905,268 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
 
 /* ── INVOICE MODAL — FLAT POS, NO SCROLL ── */
 
+/* ======================== INVOICE MODAL — FLAT POS STYLE ======================== */
+
 /* Overlay */
+.inv-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: var(--bg-primary);
+  pointer-events: none;
+  overflow: hidden;
+  display: flex;
+  align-items: stretch;
+}
+
+#invoiceModal.hidden { display: none !important; }
+
+/* Modal root — full height, flex column */
+.inv-pos {
+  position: relative;
+  z-index: 100;
+  width: 100%;
+  max-width: 420px;
+  background: var(--bg-primary);
+  margin: auto;
+  pointer-events: auto;
+  height: 100vh;
+  max-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* Header */
+.inv-pos-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.inv-pos-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.inv-pos-order {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.inv-close {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.inv-close:hover { background: var(--red); color: #fff; border-color: var(--red); }
+
+/* Body */
+.inv-pos-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  box-sizing: border-box;
+}
+
+/* Total */
+.invoice-total {
+  text-align: center;
+  padding: 8px 0;
+  flex-shrink: 0;
+}
+
+.invoice-total-value {
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--success);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Info */
+.invoice-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.invoice-info-date {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.invoice-info-customer {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+/* Divider */
+.divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+/* Product list */
+.invoice-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-height: 0;
+}
+
+.invoice-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 0;
+  font-size: 14px;
+  color: var(--text-primary);
+  flex-shrink: 0;
+}
+
+.invoice-item-left { flex: 1; min-width: 0; }
+
+.invoice-item-name {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 14px;
+}
+
+.invoice-item small {
+  display: block;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.invoice-item-total {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+  margin-left: 10px;
+  font-size: 14px;
+}
+
+/* ── COMPACT MODE (>3 items) ── */
+.inv-pos.compact .invoice-item { padding: 0; font-size: 13px; }
+.inv-pos.compact .invoice-item-name { font-size: 13px; }
+.inv-pos.compact .invoice-item-total { font-size: 13px; }
+.inv-pos.compact .invoice-item small { font-size: 12px; }
+.inv-pos.compact .invoice-total-value { font-size: 28px; }
+.inv-pos.compact .invoice-list { gap: 6px; }
+
+/* ── ULTRA-COMPACT MODE (>6 items) ── */
+.inv-pos.ultra-compact .invoice-item { padding: 0; font-size: 12px; }
+.inv-pos.ultra-compact .invoice-item-name { font-size: 12px; }
+.inv-pos.ultra-compact .invoice-item-total { font-size: 12px; }
+.inv-pos.ultra-compact .invoice-item small { display: none; }
+.inv-pos.ultra-compact .invoice-total-value { font-size: 24px; }
+.inv-pos.ultra-compact .invoice-list { gap: 4px; }
+
+/* Bottle section */
+.bottle {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.bottle-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.green  { color: var(--success); font-weight: 700; }
+.red    { color: var(--danger);  font-weight: 700; }
+.yellow { color: var(--accent);  font-weight: 700; }
+
+/* QR section */
+.qr-section {
+  text-align: center;
+  padding: 8px 0;
+  flex-shrink: 0;
+}
+
+.qr {
+  width: 160px;
+  margin: 8px auto;
+  display: block;
+}
+
+.qr-note {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+/* Actions — fixed bottom */
+.inv-pos-actions {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  background: var(--bg-primary);
+}
+
+.inv-btn {
+  flex: 1;
+  height: 40px;
+  border-radius: 8px;
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.inv-btn-ghost    { background: var(--border); color: var(--text-muted); }
+.inv-btn-ghost:hover { background: var(--border-strong); color: var(--text-primary); }
+.inv-btn-primary  { background: var(--primary); color: var(--btn-primary-color); }
+.inv-btn-primary:hover { background: var(--primary-hover); }
+.inv-btn-danger   { background: var(--red); color: #fff; }
+.inv-btn-danger:hover { background: var(--red-hover); }
+.inv-btn-kegs     { background: var(--primary-dim); color: var(--primary); border: 1px solid rgba(252,213,53,0.3); }
+
+/* Dark mode overrides for invoice */
+@media (prefers-color-scheme: dark) {
+  .inv-pos { background: var(--bg-primary); }
+  .inv-pos-header { border-color: var(--border); }
+  .inv-pos-actions { border-color: var(--border); background: var(--bg-primary); }
+}
+
+/* Dark/light overrides for old classes */
 .inv-overlay {
   position: fixed;
   inset: 0;

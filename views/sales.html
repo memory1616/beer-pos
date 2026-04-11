@@ -210,52 +210,48 @@
         <div class="inv-pos-order" id="invOrderId">#—</div>
       </div>
 
-      <!-- Body: flex column, space-between, no scroll -->
+      <!-- Body -->
       <div class="inv-pos-body">
-        <div class="inv-pos-inner">
+        <!-- Total -->
+        <div class="invoice-total">
+          <div class="invoice-total-value" id="invTotalValue">0đ</div>
+        </div>
 
-          <!-- Total -->
-          <div class="invoice-total">
-            <div class="invoice-total-label">TỔNG THANH TOÁN</div>
-            <div class="invoice-total-value" id="invTotalValue">0đ</div>
+        <!-- Info -->
+        <div class="invoice-info">
+          <div class="invoice-info-date" id="invDate">—</div>
+          <div class="invoice-info-customer" id="invCustomerMeta">—</div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Product list -->
+        <div class="invoice-list" id="invItemsList"></div>
+
+        <div class="divider"></div>
+
+        <!-- Bottle inline -->
+        <div class="bottle">
+          <div class="bottle-row">
+            <span>🍺 Giao vỏ</span>
+            <span class="green" id="invKegDeliver">0</span>
           </div>
-
-          <!-- Info -->
-          <div class="invoice-info">
-            <div class="invoice-info-date" id="invDate">—</div>
-            <div class="invoice-info-customer" id="invCustomerMeta">—</div>
+          <div class="bottle-row">
+            <span>🍺 Thu vỏ</span>
+            <span class="red" id="invKegReturn">0</span>
           </div>
-
-          <hr class="divider">
-
-          <!-- Product list -->
-          <div class="invoice-list" id="invItemsList"></div>
-
-          <hr class="divider">
-
-          <!-- Bottle inline -->
-          <div class="bottle">
-            <div class="bottle-row">
-              <span>📦 Giao vỏ</span>
-              <span class="green" id="invKegDeliver">0</span>
-            </div>
-            <div class="bottle-row">
-              <span>🔄 Thu vỏ</span>
-              <span class="red" id="invKegReturn">0</span>
-            </div>
-            <div class="bottle-row">
-              <span>Đang giữ</span>
-              <span class="yellow" id="invKegBalance">0</span>
-            </div>
+          <div class="bottle-row">
+            <span>🍺 Đang giữ</span>
+            <span class="yellow" id="invKegBalance">0</span>
           </div>
+        </div>
 
-          <hr class="divider">
+        <div class="divider"></div>
 
-          <!-- QR Section -->
-          <div class="qr-section" id="vietqrBlock">
-            <img id="vietqrImage" class="qr" src="" alt="QR" onerror="this.style.display='none'">
-            <div class="qr-note">Quét QR thanh toán</div>
-          </div>
+        <!-- QR Section -->
+        <div class="qr-section" id="vietqrBlock">
+          <img id="vietqrImage" class="qr" src="" alt="QR" onerror="this.style.display='none'">
+          <div class="qr-note">Quét QR thanh toán</div>
         </div>
       </div>
 
