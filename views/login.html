@@ -22,164 +22,75 @@
   <meta name="mobile-web-app-capable" content="yes">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
-  <link rel="stylesheet" href="/css/unified.css?v=20260410d-spacing">
-  <script src="/js/dark-mode.js"></script>
-  <style>
-    body {
-      background: var(--bg);
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 16px;
-    }
-    /* Binance Login Card */
-    .login-card {
-      background: var(--card);
-      border-radius: var(--radius-xl);
-      padding: 32px 24px;
-      width: 100%;
-      max-width: 380px;
-      box-shadow: var(--shadow-xl);
-      border: 1px solid var(--border);
-    }
-    /* Light mode login card */
-    [data-theme="light"] .login-card {
-      background: rgba(255,255,255,0.95);
-      border: 1px solid rgba(0,0,0,0.08);
-    }
-  </style>
+  <!-- Login page design system -->
+  <link rel="stylesheet" href="/css/login.css">
 </head>
 <body>
-  <div class="login-card">
-    <!-- Logo -->
-    <div class="text-center mb-6">
-      <div class="w-16 h-16 rounded-xl flex items-center justify-center text-4xl mx-auto mb-4" style="background:var(--primary);">🍺</div>
-      <h1 class="text-2xl font-bold text-main">Beer POS Pro</h1>
-      <p class="text-sm text-muted mt-1">Vui lòng đăng nhập để tiếp tục</p>
+  <div class="login-page">
+    <div class="login-card">
+      <!-- Logo -->
+      <div class="login-logo-wrap">
+        <div class="login-logo">🍺</div>
+        <h1 class="login-title">Beer POS Pro</h1>
+        <p class="login-subtitle">Vui lòng đăng nhập để tiếp tục</p>
+      </div>
+
+      <!-- Error Message (hidden by default) -->
+      <div id="errorMsg" class="login-error" role="alert" aria-live="polite"></div>
+
+      <!-- Login Form -->
+      <form id="loginForm" class="login-form" autocomplete="on" novalidate>
+        <div class="login-field">
+          <label class="login-label" for="username">Tên đăng nhập</label>
+          <input
+            type="text"
+            id="username"
+            name="username"
+            class="login-input"
+            placeholder="Nhập tên đăng nhập"
+            autocomplete="username"
+            autocorrect="off"
+            autocapitalize="off"
+            spellcheck="false"
+            inputmode="text"
+          >
+        </div>
+
+        <div class="login-field">
+          <label class="login-label" for="password">Mật khẩu</label>
+          <input
+            type="password"
+            id="password"
+            name="password"
+            class="login-input"
+            placeholder="Nhập mật khẩu"
+            autocomplete="current-password"
+            inputmode="text"
+          >
+        </div>
+
+        <!-- Options row -->
+        <div class="login-options">
+          <label class="login-remember">
+            <input type="checkbox" id="rememberMe">
+            <span>Ghi nhớ đăng nhập</span>
+          </label>
+        </div>
+
+        <!-- Submit Button -->
+        <button type="submit" id="submitBtn" class="login-btn">
+          <span>Đăng nhập</span>
+        </button>
+      </form>
+
+      <!-- Footer -->
+      <div class="login-footer">
+        Beer POS Pro &copy; 2026
+      </div>
     </div>
-
-    <!-- Error Message -->
-    <div id="error" class="hidden bn-alert bn-alert--danger mb-4"></div>
-
-    <!-- Login Form -->
-    <form id="loginForm" onsubmit="handleLogin(event)">
-      <div class="mb-4">
-        <label class="field-label">Tên đăng nhập</label>
-        <input
-          type="text"
-          id="username"
-          name="username"
-          class="bn-input"
-          placeholder="admin"
-          required
-          autocomplete="username"
-        >
-      </div>
-
-      <div class="mb-6">
-        <label class="field-label">Mật khẩu</label>
-        <input
-          type="password"
-          id="password"
-          name="password"
-          class="bn-input"
-          placeholder="••••••••"
-          required
-          autocomplete="current-password"
-        >
-      </div>
-
-      <button
-        type="submit"
-        id="submitBtn"
-        class="btn btn-primary bn-btn-lg"
-      >
-        <span>Đăng nhập</span>
-      </button>
-    </form>
   </div>
 
-  <script>
-    // Check if already logged in
-    (async () => {
-      if (localStorage.getItem('auth_uid') === '1') {
-        const token = localStorage.getItem('beer_session_token');
-        if (token) {
-          try {
-            const res = await fetch('/api/auth/me', {
-              headers: { 'Authorization': 'Bearer ' + token }
-            });
-            if (res.ok) {
-              window.location.href = '/';
-              return;
-            }
-          } catch (_) {}
-        }
-        localStorage.removeItem('auth_uid');
-        localStorage.removeItem('beer_session_token');
-      }
-    })();
-
-    async function handleLogin(e) {
-      e.preventDefault();
-
-      const btn = document.getElementById('submitBtn');
-      const errorDiv = document.getElementById('error');
-      const username = document.getElementById('username').value;
-      const password = document.getElementById('password').value;
-
-      btn.disabled = true;
-      btn.innerHTML = '<div class="spinner mx-auto" style="width:20px;height:20px;border-width:2px;"></div> Đang đăng nhập...';
-      errorDiv.classList.add('hidden');
-
-      try {
-        const res = await fetch('/auth/', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password })
-        });
-
-        const data = await res.json();
-
-        if (res.status === 429) {
-          errorDiv.textContent = 'Quá nhiều yêu cầu, vui lòng đợi khoảng 15 phút rồi thử lại';
-          errorDiv.classList.remove('hidden');
-        } else if (data.success) {
-          if (data.token) {
-            localStorage.setItem('beer_session_token', data.token);
-          }
-          localStorage.setItem('auth_uid', '1');
-          window.location.href = data.redirect || '/';
-        } else {
-          errorDiv.textContent = data.error || 'Đăng nhập thất bại';
-          errorDiv.classList.remove('hidden');
-        }
-      } catch (err) {
-        errorDiv.textContent = 'Lỗi kết nối: ' + err.message;
-        errorDiv.classList.remove('hidden');
-      }
-
-      btn.disabled = false;
-      btn.innerHTML = '<span>Đăng nhập</span>';
-    }
-
-    document.getElementById('password').addEventListener('keypress', function(e) {
-      if (e.key === 'Enter') {
-        handleLogin(e);
-      }
-    });
-  </script>
-
-  <script>
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.getRegistration().then(function (reg) {
-      if (!reg) {
-        var swVer = (typeof window !== 'undefined' && window.APP_VERSION) ? window.APP_VERSION : Date.now();
-        navigator.serviceWorker.register('/sw.js?v=' + swVer).catch(function (e) { console.log('[SW] Đăng ký thất bại:', e.message); });
-      }
-    });
-  }
-  </script>
+  <!-- Login logic -->
+  <script src="/js/login.js"></script>
 </body>
 </html>
