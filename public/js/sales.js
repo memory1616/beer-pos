@@ -586,6 +586,22 @@ function submitCollectKegForSale(saleId) {
       showToast('Đã cập nhật vỏ', 'success');
       closeCollectKegModal();
       loadSaleHistory();
+      // Reload invoice to show updated keg values
+      var ctx = window._invoiceContext;
+      if (ctx) {
+        fetch('/sale/' + ctx.saleId, { cache: 'no-store' })
+          .then(function(res) { return safeJson(res); })
+          .then(function(respData) {
+            var sale = respData ? extractSaleFromResponse(respData) : null;
+            if (sale) {
+              var inv = normalizeInvoice(sale);
+              if (inv) {
+                window._invoiceContext = { saleId: ctx.saleId, rawSale: sale };
+                renderInvoiceModalContent(inv, ctx.saleId);
+              }
+            }
+          });
+      }
       window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'kegs' } }));
     } else {
       showToast(data.error || 'Lỗi cập nhật vỏ', 'error');
@@ -1351,6 +1367,21 @@ function submitCollectKeg() {
         showToast('Đã cập nhật vỏ', 'success');
         closeCollectKegModal();
         loadSaleHistory();
+        var ctx = window._invoiceContext;
+        if (ctx) {
+          fetch('/sale/' + ctx.saleId, { cache: 'no-store' })
+            .then(function(res) { return safeJson(res); })
+            .then(function(respData) {
+              var sale = respData ? extractSaleFromResponse(respData) : null;
+              if (sale) {
+                var inv = normalizeInvoice(sale);
+                if (inv) {
+                  window._invoiceContext = { saleId: ctx.saleId, rawSale: sale };
+                  renderInvoiceModalContent(inv, ctx.saleId);
+                }
+              }
+            });
+        }
         window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'kegs' } }));
       } else {
         showToast(data.error || 'Lỗi cập nhật vỏ', 'error');
