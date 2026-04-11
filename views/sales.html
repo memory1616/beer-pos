@@ -11,6 +11,13 @@
     document.documentElement.setAttribute('data-theme', theme);
     document.documentElement.classList.remove('light', 'dark');
     document.documentElement.classList.add(theme);
+    // Update theme-color meta tag dynamically
+    var metaTheme = document.querySelector('meta[name="theme-color"]');
+    if (metaTheme) {
+      var lightColor = '#FFFFFF';
+      var darkColor = '#0B0E11';
+      metaTheme.setAttribute('content', theme === 'light' ? lightColor : darkColor);
+    }
   })();
   </script>
   <script>window.BASE_PATH = '/';</script>
@@ -18,21 +25,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bán hàng</title>
   <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#0b0e11">
+  <meta name="theme-color" content="#0B0E11">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
-  <link rel="stylesheet" href="/css/unified.css?v=20260410d-spacing">
+  <link rel="stylesheet" href="/css/unified.css?v=20260412-app-shell">
   <script src="/js/auth.js"></script>
   <script src="/js/dark-mode.js"></script>
-  <script src="/js/layout.js?v=20260410-card2"></script>
+  <script src="/js/layout.js?v=20260412-app-shell"></script>
   <script src="https://unpkg.com/dexie@3/dist/dexie.min.js"></script>
   <script>requireAuth();</script>
 </head>
 <body class="body--app">
 
-  <div id="app"></div>
+  <div id="app" class="app"></div>
 
   <!-- ═══ CHECKOUT MODAL ═══ -->
   <div id="checkoutModal" class="pos-modal-overlay hidden">
@@ -269,24 +276,15 @@
     (async function() {
       /* Render layout: header + single-column content + bottom nav */
       document.getElementById('app').innerHTML =
-        '<header class="topbar">' +
-          '<div class="logo">' +
-            '<span class="logo-icon">🍺</span>' +
-            '<span class="logo-text">Bán hàng</span>' +
-          '</div>' +
-          '<div class="actions">' +
-            '<button onclick="location.href=\'/\'" title="Dashboard">🏠</button>' +
-          '</div>' +
-        '</header>' +
-        '<main class="page-content" id="saleMainContent">' +
+        getHeaderWithActions('Bán hàng', '🍺', '<button onclick="location.href=\'/\'" title="Dashboard">🏠</button>') +
+        getContent(
           /* Customer search */
           '<div class="sale-section">' +
             '<div class="sale-section-label">KHÁCH HÀNG</div>' +
             '<div style="position:relative;">' +
               '<input type="text" id="customerSearch" placeholder="🔍 Tìm khách hàng..."' +
                 ' autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"' +
-                ' style="width:100%;height:44px;background:var(--card);border:1px solid var(--border);border-radius:10px;' +
-                'padding:0 12px;font-size:14px;color:var(--text-primary);outline:none;box-sizing:border-box;"' +
+                ' class="sale-search-input"' +
                 ' oninput="filterCustomerOptions(this.value)" onfocus="showCustomerDropdown(true)">' +
               '<input type="hidden" id="customerSelect" onchange="onCustomerSelected()">' +
               '<div id="customerDropdown" class="hidden sale-customer-dropdown"></div>' +
@@ -301,10 +299,10 @@
           '</div>' +
 
           /* Edit auxiliary sheet — shown when editing a sale */
-          '<div id="saleEditAuxSheet" class="hidden" style="background:var(--card-soft);border-radius:10px;padding:12px;margin:0 4px;border:1px solid rgba(252,213,53,0.3);">' +
-            '<div style="display:flex;align-items:center;justify-content:space-between;">' +
-              '<div id="saleEditAuxText" style="font-size:13px;font-weight:600;color:var(--primary);">✏️ Đang chỉnh sửa đơn</div>' +
-              '<button onclick="cancelEdit()" style="height:36px;padding:0 16px;border:1px solid var(--border);background:var(--card);color:var(--text-muted);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">Huỷ</button>' +
+          '<div id="saleEditAuxSheet" class="hidden sale-edit-aux">' +
+            '<div class="sale-edit-aux__inner">' +
+              '<div id="saleEditAuxText" class="sale-edit-aux__text">✏️ Đang chỉnh sửa đơn</div>' +
+              '<button onclick="cancelEdit()" class="btn btn--secondary btn--sm">Huỷ</button>' +
             '</div>' +
           '</div>' +
 
@@ -314,8 +312,8 @@
               '<span class="sale-checkout-label">Tổng tiền</span>' +
               '<span class="sale-checkout-value" id="totalAmount">0đ</span>' +
             '</div>' +
-            '<div style="display:flex;gap:8px;">' +
-              '<button type="button" onclick="openReplacementModal()" style="flex:0 0 auto;height:44px;padding:0 14px;border:1px solid rgba(252,213,53,0.4);background:var(--primary-dim);color:var(--primary);border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;">🔄 Đổi lỗi</button>' +
+            '<div class="sale-checkout-actions">' +
+              '<button type="button" onclick="openReplacementModal()" class="btn btn--accent-outline btn--sm">🔄 Đổi lỗi</button>' +
               '<button type="button" onclick="openCheckoutModal()" id="sellBtn" class="sale-btn-checkout" disabled>✅ BÁN HÀNG</button>' +
             '</div>' +
           '</div>' +
@@ -324,8 +322,8 @@
           '<div class="sale-section" id="saleHistorySection">' +
             '<div class="sale-section-label">ĐƠN GẦN ĐÂY</div>' +
             '<div id="saleHistoryList"></div>' +
-          '</div>' +
-        '</main>' +
+          '</div>'
+        ) +
         getBottomNav('/sale');
 
       /* Load scripts */
@@ -339,7 +337,7 @@
       await loadScript('/js/format.js');
       await loadScript('/db.js?v=20260410d');
       await loadScript('/sync-orders.js');
-      await loadScript('/js/sales.js?v=20260410-vietqr');
+      await loadScript('/js/sales.js?v=20260411-theme');
       await loadSalesData();
     })();
 

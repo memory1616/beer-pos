@@ -1,0 +1,137 @@
+/**
+ * ============================================================
+ * Beer POS — Design Token System  v7.0
+ * ============================================================
+ * Central theme configuration for the Beer POS system.
+ * Supports Light/Dark mode with Binance-style design tokens.
+ *
+ * Architecture:
+ *   tokens.css — CSS variable definitions (SOURCE OF TRUTH)
+ *   theme.css  — Semantic aliases + convenience classes
+ *
+ * Usage:
+ *   var(--bg-primary)    — Main background
+ *   var(--text-primary)  — Primary text
+ *   var(--accent-yellow) — Binance Gold accent
+ * ============================================================
+ */
+
+/* =====================   SEMANTIC TOKENS (Aliases)   ===================== */
+
+/* Background tokens — alias tokens to unified names */
+:root {
+  /* Background */
+  --bg-primary:      var(--bg, #0B0E11);
+  --bg-secondary:    var(--bg-secondary, #181A20);
+  --bg-card:        var(--card, #1E2329);
+  --bg-card-soft:   var(--card-soft, #2B3139);
+  --bg-input:       var(--input-bg, var(--card, #1E2329));
+  --bg-hover:       var(--bg-hover, rgba(255, 255, 255, 0.06));
+
+  /* Text */
+  --text-primary:    var(--text-primary, #EAECEF);
+  --text-secondary:  var(--text-secondary, #B7BDC6);
+  --text-muted:      var(--text-muted, #848E9C);
+
+  /* Accent colors */
+  --accent-yellow:   var(--primary, #FCD535);
+  --accent-green:    var(--green, #0ECB81);
+  --accent-red:      var(--red, #F6465D);
+  --accent-warning:  var(--warning, #F0B90B);
+  --accent-info:     var(--info, #3B82F6);
+
+  /* Border */
+  --border-default:  var(--border, #2B3139);
+  --border-strong:  var(--border-strong, #3A4250);
+
+  /* Semantic aliases */
+  --success-color:  var(--green, #0ECB81);
+  --danger-color:   var(--red, #F6465D);
+  --warning-color:  var(--warning, #F0B90B);
+  --info-color:     var(--info, #3B82F6);
+}
+
+/* =====================   DESIGN TOKENS (Light Mode)   ===================== */
+
+/* Light mode overrides — CSS variable definitions are in tokens.css
+   These are convenience aliases for cleaner class names */
+
+:root,
+:root.light,
+:root[data-theme="light"] {
+  /* Background */
+  --bg-primary:      var(--bg, #FFFFFF);
+  --bg-secondary:    var(--bg-secondary, #F5F5F5);
+  --bg-card:        var(--card, #FFFFFF);
+  --bg-card-soft:   var(--card-soft, #F0F1F3);
+  --bg-input:       var(--input-bg, #FFFFFF);
+  --bg-hover:       var(--bg-hover, rgba(0, 0, 0, 0.04));
+
+  /* Text */
+  --text-primary:    var(--text-primary, #1E2329);
+  --text-secondary:  var(--text-secondary, #707A8A);
+  --text-muted:      var(--text-muted, #AEB4BE);
+
+  /* Border */
+  --border-default:  var(--border, rgba(0, 0, 0, 0.08));
+  --border-strong:  var(--border-strong, rgba(0, 0, 0, 0.12));
+}
+
+/* =====================   DESIGN TOKENS (Dark Mode)   ===================== */
+
+:root.dark,
+:root[data-theme="dark"] {
+  /* Background */
+  --bg-primary:      var(--bg, #0B0E11);
+  --bg-secondary:    var(--bg-secondary, #181A20);
+  --bg-card:        var(--card, #1E2329);
+  --bg-card-soft:   var(--card-soft, #2B3139);
+  --bg-input:       var(--input-bg, #1E2329);
+  --bg-hover:       var(--bg-hover, rgba(255, 255, 255, 0.06));
+
+  /* Text */
+  --text-primary:    var(--text-primary, #EAECEF);
+  --text-secondary:  var(--text-secondary, #B7BDC6);
+  --text-muted:      var(--text-muted, #848E9C);
+
+  /* Border */
+  --border-default:  var(--border, #2B3139);
+  --border-strong:  var(--border-strong, #3A4250);
+}
+
+/* =====================   CONVENIENCE CLASSES   ===================== */
+
+/* Background utility classes */
+.bg-primary   { background: var(--bg-primary); }
+.bg-secondary { background: var(--bg-secondary); }
+.bg-card      { background: var(--bg-card); }
+.bg-card-soft { background: var(--bg-card-soft); }
+.bg-input     { background: var(--bg-input); }
+
+/* Text utility classes */
+.text-primary   { color: var(--text-primary); }
+.text-secondary { color: var(--text-secondary); }
+.text-muted     { color: var(--text-muted); }
+
+/* Border utility classes */
+.border-default { border-color: var(--border-default); }
+.border-strong  { border-color: var(--border-strong); }
+
+/* Accent color classes */
+.text-accent    { color: var(--accent-yellow); }
+.text-success   { color: var(--success-color); }
+.text-danger    { color: var(--danger-color); }
+.text-warning   { color: var(--warning-color); }
+.text-info      { color: var(--info-color); }
+
+.bg-accent    { background: var(--accent-yellow); }
+.bg-success   { background: var(--success-color); }
+.bg-danger    { background: var(--danger-color); }
+.bg-warning   { background: var(--warning-color); }
+.bg-info      { background: var(--info-color); }
+
+/* Hover utilities */
+.hover-bg-primary:hover  { background: var(--bg-primary); }
+.hover-bg-secondary:hover { background: var(--bg-secondary); }
+.hover-bg-card:hover    { background: var(--bg-card); }
+.hover-text-primary:hover { color: var(--text-primary); }

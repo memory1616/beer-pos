@@ -1,0 +1,38 @@
+<!--
+  Product Card Component
+  ============================================================
+  Reusable product card for sale and stock pages.
+  
+  Usage:
+  <div class="product-card" data-product-id="1">
+    <div class="product-card__info">
+      <h3 class="product-card__name">Tiger 30L</h3>
+      <div class="product-card__meta">
+        <span class="product-card__stock">Tồn: 50</span>
+        <span class="product-card__price">120,000đ</span>
+      </div>
+    </div>
+    <input type="number" class="product-card__qty" placeholder="SL">
+  </div>
+  
+  Attributes:
+  - data-product-id: Product ID for JS hooks
+  - data-price: Current price
+  - data-stock: Current stock
+-->
+<div class="product-card" data-product-id="{{id}}">
+  <div class="product-card__info">
+    <h3 class="product-card__name">{{name}}</h3>
+    <div class="product-card__meta">
+      <span class="product-card__stock">Tồn: {{stock}}</span>
+      <span class="product-card__price">{{price}}</span>
+    </div>
+  </div>
+  <input 
+    type="number" 
+    class="product-card__qty" 
+    placeholder="SL"
+    data-id="{{id}}"
+    min="0"
+  >
+</div>

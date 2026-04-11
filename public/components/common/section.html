@@ -1,0 +1,62 @@
+<!--
+  Section Component
+  ============================================================
+  Standard section wrapper for page content.
+  
+  Usage:
+  <section class="section">
+    <header class="section__header">
+      <h2 class="section__title">Section Title</h2>
+      <button class="section__action">Add</button>
+    </header>
+    <div class="section__body">
+      Content goes here
+    </div>
+  </section>
+  
+  Variants:
+  - .section--compact (reduced padding)
+  - .section--bordered (with border)
+-->
+<section class="section">
+  <header class="section__header">
+    <h2 class="section__title"></h2>
+    <div class="section__actions"></div>
+  </header>
+  <div class="section__body"></div>
+</section>
+
+<!-- Page wrapper -->
+<div class="page">
+  <div class="page__content"></div>
+</div>
+
+<!-- Empty state -->
+<div class="empty-state">
+  <div class="empty-state__icon"></div>
+  <div class="empty-state__title"></div>
+  <div class="empty-state__description"></div>
+  <div class="empty-state__action"></div>
+</div>
+
+<!-- List container -->
+<div class="list">
+  <!-- Empty state for list -->
+  <div class="list__empty">
+    <div class="list__empty-icon">📋</div>
+    <div class="list__empty-text">No items found</div>
+  </div>
+</div>
+
+<!-- Card list -->
+<div class="card-list">
+  <!-- Each card should use .card class -->
+</div>
+
+<!-- Stats row -->
+<div class="stats-row">
+  <div class="stat-item">
+    <div class="stat-item__value">0</div>
+    <div class="stat-item__label">Label</div>
+  </div>
+</div>

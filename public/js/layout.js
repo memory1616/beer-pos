@@ -32,7 +32,7 @@ function getHeaderWithActions(title, icons, actions) {
   if (icons === undefined) icons = '';
   if (actions === undefined) actions = '';
   return `
-    <header class="topbar">
+    <header class="topbar app-header">
       <div class="header-logo">
         <span class="header-logo-icon">${icons}</span>
         <div class="header-logo-text">
@@ -56,7 +56,7 @@ function getHeaderWithActions(title, icons, actions) {
 // Generate main content wrapper
 function getContent(content) {
   return `
-    <main class="page-content page-enter">
+    <main class="page-content page-enter app-main">
       ${content}
     </main>
   `;
@@ -89,7 +89,7 @@ function getBottomNav(currentPage) {
     </a>`;
   };
 
-  return `<nav class="bottomnav">${pages.map(navItem).join('')}</nav>`;
+  return `<nav class="bottomnav app-bottom-nav">${pages.map(navItem).join('')}</nav>`;
 }
 
 // Generate skeleton loading

@@ -1,0 +1,184 @@
+/**
+ * ============================================================
+ * Button Component — Beer POS Design System
+ * ============================================================
+ * Reusable button styles with theme-aware variants.
+ *
+ * Usage:
+ *   <button class="btn btn--primary">Primary</button>
+ *   <button class="btn btn--secondary">Secondary</button>
+ *   <button class="btn btn--danger">Danger</button>
+ *
+ * Sizes:
+ *   <button class="btn btn--sm">Small</button>
+ *   <button class="btn btn--lg">Large</button>
+ * ============================================================
+ */
+
+/* =====================   BASE BUTTON   ===================== */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2, 8px);
+  padding: var(--space-3, 12px) var(--space-4, 16px);
+  border-radius: var(--radius-md, 8px);
+  font-size: var(--text-sm, 13px);
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn:disabled {
+  opacity: var(--opacity-disabled, 0.4);
+  cursor: not-allowed;
+}
+
+/* =====================   BUTTON VARIANTS   ===================== */
+
+/* Primary — Binance Gold */
+.btn--primary {
+  background: var(--accent-yellow);
+  color: #0B0E11;
+  border-color: var(--accent-yellow);
+}
+
+.btn--primary:hover:not(:disabled) {
+  background: #F0B90B;
+  border-color: #F0B90B;
+}
+
+.btn--primary:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+/* Secondary — Gray */
+.btn--secondary {
+  background: var(--bg-card-soft);
+  color: var(--text-primary);
+  border-color: var(--border-default);
+}
+
+.btn--secondary:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--border-strong);
+}
+
+.btn--secondary:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+/* Danger — Red */
+.btn--danger {
+  background: var(--accent-red);
+  color: #fff;
+  border-color: var(--accent-red);
+}
+
+.btn--danger:hover:not(:disabled) {
+  background: #E53E52;
+  border-color: #E53E52;
+}
+
+.btn--danger:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+/* Success — Green */
+.btn--success {
+  background: var(--accent-green);
+  color: #fff;
+  border-color: var(--accent-green);
+}
+
+.btn--success:hover:not(:disabled) {
+  background: #00B370;
+  border-color: #00B370;
+}
+
+/* Ghost — Transparent */
+.btn--ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border-color: var(--border-default);
+}
+
+.btn--ghost:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+/* Accent outline — Yellow outline */
+.btn--accent-outline {
+  background: transparent;
+  color: var(--accent-yellow);
+  border-color: rgba(252, 213, 53, 0.4);
+}
+
+.btn--accent-outline:hover:not(:disabled) {
+  background: rgba(252, 213, 53, 0.12);
+}
+
+/* =====================   BUTTON SIZES   ===================== */
+
+.btn--sm {
+  padding: var(--space-2, 8px) var(--space-3, 12px);
+  font-size: var(--text-xs, 12px);
+  border-radius: var(--radius-sm, 6px);
+}
+
+.btn--lg {
+  padding: var(--space-4, 16px) var(--space-5, 24px);
+  font-size: var(--text-lg, 16px);
+  border-radius: var(--radius-lg, 12px);
+}
+
+/* Full width */
+.btn--full {
+  width: 100%;
+}
+
+/* Icon button */
+.btn--icon {
+  padding: var(--space-2, 8px);
+  min-width: 36px;
+  min-height: 36px;
+}
+
+/* =====================   BUTTON GROUP   ===================== */
+
+.btn-group {
+  display: flex;
+  gap: var(--space-2, 8px);
+}
+
+.btn-group .btn {
+  flex: 1;
+}
+
+/* =====================   LOADING STATE   ===================== */
+
+.btn--loading {
+  position: relative;
+  color: transparent !important;
+}
+
+.btn--loading::after {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: btn-spin 0.6s linear infinite;
+}
+
+@keyframes btn-spin {
+  to { transform: rotate(360deg); }
+}

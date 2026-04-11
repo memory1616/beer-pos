@@ -1,0 +1,154 @@
+/**
+ * ============================================================
+ * Card Component — Beer POS Design System
+ * ============================================================
+ * Reusable card component with theme-aware styles.
+ *
+ * Usage:
+ *   <div class="card">Content</div>
+ *   <div class="card card--elevated">Elevated card</div>
+ *   <div class="card card--soft">Soft background card</div>
+ * ============================================================
+ */
+
+/* =====================   BASE CARD   ===================== */
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius, 12px);
+  padding: var(--space-4, 16px);
+  transition: all 0.2s ease;
+}
+
+/* =====================   CARD VARIANTS   ===================== */
+
+/* Elevated card — subtle shadow */
+.card--elevated {
+  box-shadow: var(--shadow-sm, 0 2px 8px rgba(0, 0, 0, 0.35));
+}
+
+/* Soft background card — lighter background */
+.card--soft {
+  background: var(--bg-card-soft);
+}
+
+/* Hoverable card — interactive */
+.card--hoverable {
+  cursor: pointer;
+}
+
+.card--hoverable:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-md, 0 4px 16px rgba(0, 0, 0, 0.4));
+}
+
+/* Card with accent border */
+.card--accent {
+  border-color: var(--accent-yellow);
+}
+
+/* Compact card — reduced padding */
+.card--compact {
+  padding: var(--space-3, 12px);
+}
+
+/* Card header */
+.card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: var(--space-3, 12px);
+  border-bottom: 1px solid var(--border-default);
+  margin-bottom: var(--space-3, 12px);
+}
+
+/* Card title */
+.card__title {
+  font-size: var(--text-md, 14px);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Card body */
+.card__body {
+  flex: 1;
+}
+
+/* Card footer */
+.card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2, 8px);
+  padding-top: var(--space-3, 12px);
+  border-top: 1px solid var(--border-default);
+  margin-top: var(--space-3, 12px);
+}
+
+/* =====================   CARD SIZES   ===================== */
+
+.card--sm {
+  padding: var(--space-2, 8px);
+  border-radius: var(--radius-md, 8px);
+}
+
+.card--lg {
+  padding: var(--space-5, 24px);
+  border-radius: var(--radius-xl, 16px);
+}
+
+/* =====================   CARD STATUS   ===================== */
+
+/* Success state */
+.card--success {
+  border-color: var(--accent-green);
+  background: rgba(14, 203, 129, 0.08);
+}
+
+/* Danger state */
+.card--danger {
+  border-color: var(--accent-red);
+  background: rgba(246, 70, 93, 0.08);
+}
+
+/* Warning state */
+.card--warning {
+  border-color: var(--accent-warning);
+  background: rgba(240, 185, 11, 0.08);
+}
+
+/* =====================   CARD LAYOUT   ===================== */
+
+/* Card grid */
+.card-grid {
+  display: grid;
+  gap: var(--space-4, 16px);
+}
+
+.card-grid--cols-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.card-grid--cols-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.card-grid--cols-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+@media (max-width: 768px) {
+  .card-grid--cols-2,
+  .card-grid--cols-3,
+  .card-grid--cols-4 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Card list */
+.card-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3, 12px);
+}

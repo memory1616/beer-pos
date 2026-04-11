@@ -1,0 +1,30 @@
+<!--
+  Total Bar Component
+  ============================================================
+  Reusable total display bar for checkout and sale pages.
+  
+  Usage:
+  <div class="total-bar">
+    <div class="total-bar__label">Tổng cộng</div>
+    <div class="total-bar__value">1,500,000đ</div>
+    <button class="btn btn--primary total-bar__action">Thanh toán</button>
+  </div>
+  
+  Variants:
+  - .total-bar--sticky (sticks to bottom)
+-->
+<div class="total-bar total-bar--sticky">
+  <div class="total-bar__info">
+    <span class="total-bar__label">Tổng cộng</span>
+    <span class="total-bar__value" id="totalAmount">0đ</span>
+  </div>
+  <button class="btn btn--primary total-bar__action" id="checkoutBtn">
+    Thanh toán
+  </button>
+</div>
+
+<!-- Mini total bar for inline display -->
+<div class="total-mini">
+  <span class="total-mini__label">Tổng:</span>
+  <span class="total-mini__value">0đ</span>
+</div>

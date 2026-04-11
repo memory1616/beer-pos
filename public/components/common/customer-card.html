@@ -1,0 +1,60 @@
+<!--
+  Customer Card Component
+  ============================================================
+  Reusable customer card for customer list and detail pages.
+  
+  Usage:
+  <div class="customer-card" data-customer-id="1">
+    <div class="customer-card__avatar">
+      <span>👤</span>
+    </div>
+    <div class="customer-card__info">
+      <h3 class="customer-card__name">Nguyễn Văn A</h3>
+      <div class="customer-card__meta">
+        <span class="customer-card__phone">0123456789</span>
+        <span class="customer-card__badge">VIP</span>
+      </div>
+    </div>
+    <div class="customer-card__stats">
+      <div class="customer-card__stat">
+        <span class="customer-card__stat-value">5</span>
+        <span class="customer-card__stat-label">Đơn</span>
+      </div>
+      <div class="customer-card__stat">
+        <span class="customer-card__stat-value">1.5M</span>
+        <span class="customer-card__stat-label">Nợ</span>
+      </div>
+    </div>
+  </div>
+  
+  Attributes:
+  - data-customer-id: Customer ID for JS hooks
+  - data-keg-balance: Current keg balance
+-->
+<div class="customer-card" data-customer-id="{{id}}">
+  <div class="customer-card__avatar">
+    <span>👤</span>
+  </div>
+  <div class="customer-card__info">
+    <h3 class="customer-card__name">{{name}}</h3>
+    <div class="customer-card__meta">
+      <span class="customer-card__phone">{{phone}}</span>
+      {{#if vip}}
+      <span class="customer-card__badge customer-card__badge--vip">VIP</span>
+      {{/if}}
+      {{#if debt}}
+      <span class="customer-card__badge customer-card__badge--debt">Nợ</span>
+      {{/if}}
+    </div>
+  </div>
+  <div class="customer-card__stats">
+    <div class="customer-card__stat">
+      <span class="customer-card__stat-value">{{orderCount}}</span>
+      <span class="customer-card__stat-label">Đơn</span>
+    </div>
+    <div class="customer-card__stat">
+      <span class="customer-card__stat-value">{{kegBalance}}</span>
+      <span class="customer-card__stat-label">Vỏ</span>
+    </div>
+  </div>
+</div>

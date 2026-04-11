@@ -1,0 +1,107 @@
+<!--
+  App Shell Component
+  ============================================================
+  Standard layout wrapper for all Beer POS pages.
+  
+  Usage:
+  <div class="app">
+    <header class="app-header" id="appHeader"></header>
+    <main class="app-main" id="appMain"></main>
+    <nav class="app-bottom-nav" id="appBottomNav"></nav>
+  </div>
+
+  Then call:
+  AppShell.init('Dashboard', '/');
+-->
+<div class="app" id="app">
+  <header class="app-header" id="appHeader"></header>
+  <main class="app-main" id="appMain"></main>
+  <nav class="app-bottom-nav" id="appBottomNav"></nav>
+</div>
+
+<script>
+// ============================================================
+// App Shell - Standard page layout for Beer POS
+// ============================================================
+window.AppShell = (function() {
+  'use strict';
+  
+  var headerEl, mainEl, navEl;
+  
+  // ── Get current page from URL ───────────────────────────────
+  function getCurrentPage() {
+    var path = window.location.pathname.replace(/\/$/, '') || '/';
+    return path;
+  }
+  
+  // ── Initialize app shell ──────────────────────────────────
+  function init(title, icons, customActions) {
+    headerEl = document.getElementById('appHeader');
+    mainEl = document.getElementById('appMain');
+    navEl = document.getElementById('appBottomNav');
+    
+    if (!headerEl || !mainEl || !navEl) {
+      console.warn('[AppShell] Required elements not found');
+      return;
+    }
+    
+    // Render header
+    if (typeof window.getHeader === 'function') {
+      headerEl.innerHTML = window.getHeader(title, icons, customActions);
+    } else if (typeof window.getHeaderWithActions === 'function') {
+      headerEl.innerHTML = window.getHeaderWithActions(title, icons || '', customActions || '');
+    }
+    
+    // Render bottom nav
+    if (typeof window.getBottomNav === 'function') {
+      navEl.innerHTML = window.getBottomNav(getCurrentPage());
+    }
+    
+    // Install navigation fix
+    if (typeof window.installBottomNavHomeNavigationFix === 'function') {
+      window.installBottomNavHomeNavigationFix();
+    }
+  }
+  
+  // ── Set main content ──────────────────────────────────────
+  function setContent(html) {
+    if (mainEl) {
+      mainEl.innerHTML = html;
+    }
+  }
+  
+  // ── Append to main content ────────────────────────────────
+  function appendContent(html) {
+    if (mainEl) {
+      mainEl.insertAdjacentHTML('beforeend', html);
+    }
+  }
+  
+  // ── Prepend to main content ──────────────────────────────
+  function prependContent(html) {
+    if (mainEl) {
+      mainEl.insertAdjacentHTML('afterbegin', html);
+    }
+  }
+  
+  // ── Get main element ───────────────────────────────────
+  function getMain() {
+    return mainEl;
+  }
+  
+  // ── Get header element ──────────────────────────────────
+  function getHeader() {
+    return headerEl;
+  }
+  
+  return {
+    init: init,
+    setContent: setContent,
+    appendContent: appendContent,
+    prependContent: prependContent,
+    getMain: getMain,
+    getHeader: getHeader,
+    getCurrentPage: getCurrentPage
+  };
+})();
+</script>
