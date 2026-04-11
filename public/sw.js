@@ -487,6 +487,13 @@ self.addEventListener('fetch', event => {
     return;
   }
 
+  // Sale create/update — same offline queue logic as API mutations
+  if ((parsed.pathname === '/sale/create' || parsed.pathname.startsWith('/sale/update/'))
+      && event.request.method !== 'GET') {
+    event.respondWith(handleMutation(event.request));
+    return;
+  }
+
   // ── CRITICAL: Disable API caching — always fresh data from server ─────────────────
   // API GET requests must always come from network to ensure data consistency.
   // Stale data causes stock mismatch, price errors, and data race conditions.
