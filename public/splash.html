@@ -6,101 +6,96 @@
   <title>Beer POS Pro</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0B0E11; }
 
-    @keyframes splash-fade-in {
-      from { opacity: 0; transform: scale(0.96); }
-      to   { opacity: 1; transform: scale(1); }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.95) translateY(4px); }
+      to   { opacity: 1; transform: scale(1)    translateY(0);    }
     }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50%       { opacity: 0.55; }
+    @keyframes dotBounce {
+      0%, 80%, 100% { transform: scale(1);    opacity: 1; }
+      40%             { transform: scale(0.6);   opacity: 0.4; }
     }
-    @keyframes splash-exit {
+    @keyframes exitFade {
       from { opacity: 1; }
-      to   { opacity: 0; pointer-events: none; }
+      to   { opacity: 0; }
     }
 
-    body {
+    #splash {
+      position: fixed;
+      inset: 0;
       background: #0B0E11;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      min-height: 100dvh;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      -webkit-user-select: none;
-      user-select: none;
-    }
-
-    #splash {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      animation: splash-fade-in 0.5s ease both;
+      gap: 0;
+      animation: fadeIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
     }
 
     #splash-logo {
-      width: 96px;
-      height: 96px;
+      width: 88px;
+      height: 88px;
       border-radius: 20px;
       object-fit: contain;
       display: block;
     }
 
     #splash-name {
-      margin-top: 20px;
-      font-size: 22px;
-      font-weight: 700;
+      margin-top: 18px;
+      font-size: 21px;
+      font-weight: 800;
       color: #ffffff;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.8px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     }
 
-    #splash-tagline {
-      margin-top: 6px;
-      font-size: 13px;
-      color: rgba(255,255,255,0.45);
-      letter-spacing: 0.3px;
+    #splash-dots {
+      display: flex;
+      gap: 6px;
+      margin-top: 28px;
+      align-items: center;
     }
-
-    #splash-dot {
-      margin-top: 32px;
-      width: 6px;
-      height: 6px;
+    .dot {
+      width: 7px;
+      height: 7px;
       border-radius: 50%;
       background: #FCD535;
-      animation: pulse 1.2s ease-in-out infinite;
+      animation: dotBounce 1.4s ease-in-out infinite;
     }
+    .dot:nth-child(2) { animation-delay: 0.2s; }
+    .dot:nth-child(3) { animation-delay: 0.4s; }
 
-    /* Exit state — JS adds .gone class */
-    #splash.gone {
-      animation: splash-exit 0.35s ease forwards;
+    #splash.exiting {
+      animation: exitFade 0.35s ease forwards;
+      pointer-events: none;
     }
   </style>
 </head>
 <body>
   <div id="splash">
-    <img id="splash-logo" src="/icons/icon-192.png" alt="BeerPOS" width="96" height="96" decoding="async">
-    <div id="splash-name">Beer POS Pro</div>
-    <div id="splash-tagline">Quản lý bán hàng thông minh</div>
-    <div id="splash-dot"></div>
+    <img id="splash-logo" src="/icons/icon-192.png" alt="BeerPOS" width="88" height="88" decoding="async">
+    <div id="splash-name">BEER POS</div>
+    <div id="splash-dots">
+      <div class="dot"></div>
+      <div class="dot"></div>
+      <div class="dot"></div>
+    </div>
   </div>
+
   <script>
-    // Auto-hide when app signals readiness (max 4s)
-    window.addEventListener('app:ready', function () {
+    (function () {
       var el = document.getElementById('splash');
-      if (el) el.classList.add('gone');
-      setTimeout(removeSplash, 400);
-    });
-    // Fallback: remove after 4s regardless
-    setTimeout(function () {
-      var el = document.getElementById('splash');
-      if (el) { el.classList.add('gone'); setTimeout(removeSplash, 400); }
-    }, 4000);
-    function removeSplash() {
-      var el = document.getElementById('splash');
-      if (el) el.remove();
-    }
+
+      function hide() {
+        if (!el || el.classList.contains('exiting')) return;
+        el.classList.add('exiting');
+        setTimeout(function () { if (el) el.remove(); }, 400);
+      }
+
+      window.addEventListener('app:ready', hide);
+      setTimeout(hide, 4000);
+    })();
   </script>
 </body>
 </html>
