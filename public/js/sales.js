@@ -604,17 +604,25 @@ function submitCollectKegForSale(saleId) {
       // Reload invoice to show updated keg values
       var ctx = window._invoiceContext;
       if (ctx) {
+        console.log('[submitCollectKegForSale] Reloading invoice for saleId:', ctx.saleId);
         fetch('/sale/' + ctx.saleId, { cache: 'no-store' })
           .then(function(res) { return safeJson(res); })
           .then(function(respData) {
+            console.log('[submitCollectKegForSale] /sale response:', respData);
             var sale = respData ? extractSaleFromResponse(respData) : null;
+            console.log('[submitCollectKegForSale] extracted sale:', sale);
             if (sale) {
               var inv = normalizeInvoice(sale);
+              console.log('[submitCollectKegForSale] normalized invoice:', inv);
               if (inv) {
                 window._invoiceContext = { saleId: ctx.saleId, rawSale: sale };
                 renderInvoiceModalContent(inv, ctx.saleId);
+                console.log('[submitCollectKegForSale] invoice re-rendered');
               }
             }
+          })
+          .catch(function(err) {
+            console.error('[submitCollectKegForSale] reload error:', err);
           });
       }
       window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'kegs' } }));
