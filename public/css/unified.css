@@ -4953,12 +4953,7 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   font-weight: 700;
   color: var(--text-primary);
   flex: 1;
-}
-
-.inv-pos-order {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text-primary);
+  text-align: center;
 }
 
 .inv-close {
