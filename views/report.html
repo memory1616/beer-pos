@@ -43,7 +43,31 @@
   <!-- ══ REPORT BODY ══ -->
   <div class="app-body" id="reportBodyDebug">
 
-    <!-- FILTER BAR (sticky) -->
+    <!-- KPI GRID -->
+    <div class="kpi-grid" id="kpiGrid">
+      <!-- Revenue -->
+      <div class="kpi-card">
+        <div class="kpi-card-label">💰 Doanh thu</div>
+        <div class="kpi-card-value gold" id="kpiRevenue">—</div>
+      </div>
+      <!-- Expense -->
+      <div class="kpi-card">
+        <div class="kpi-card-label">📤 Chi phí</div>
+        <div class="kpi-card-value red" id="kpiExpense">—</div>
+      </div>
+      <!-- Profit -->
+      <div class="kpi-card">
+        <div class="kpi-card-label">📈 Lợi nhuận</div>
+        <div class="kpi-card-value green" id="kpiProfit">—</div>
+      </div>
+      <!-- Net Profit (highlighted) -->
+      <div class="kpi-card highlight">
+        <div class="kpi-card-label">🔥 Lãi ròng</div>
+        <div class="kpi-card-value gold" id="kpiNetProfit">—</div>
+      </div>
+    </div>
+
+    <!-- FILTER BAR (sticky at top of scroll) -->
     <div class="app-filter-bar" id="reportFilterBar">
       <button class="app-filter-btn active" data-filter="today" onclick="RPT.setFilter('today')">Hôm nay</button>
       <button class="app-filter-btn" data-filter="7days" onclick="RPT.setFilter('7days')">7 ngày</button>
@@ -85,30 +109,6 @@
           <button class="btn btn-ghost" onclick="RPT.closeDatePicker()">Hủy</button>
           <button class="btn btn-primary" onclick="RPT.confirmDatePicker()">Áp dụng</button>
         </div>
-      </div>
-    </div>
-
-    <!-- KPI GRID -->
-    <div class="kpi-grid" id="kpiGrid">
-      <!-- Revenue -->
-      <div class="kpi-card">
-        <div class="kpi-card-label">💰 Doanh thu</div>
-        <div class="kpi-card-value gold" id="kpiRevenue">—</div>
-      </div>
-      <!-- Expense -->
-      <div class="kpi-card">
-        <div class="kpi-card-label">📤 Chi phí</div>
-        <div class="kpi-card-value red" id="kpiExpense">—</div>
-      </div>
-      <!-- Profit -->
-      <div class="kpi-card">
-        <div class="kpi-card-label">📈 Lợi nhuận</div>
-        <div class="kpi-card-value green" id="kpiProfit">—</div>
-      </div>
-      <!-- Net Profit (highlighted) -->
-      <div class="kpi-card highlight">
-        <div class="kpi-card-label">🔥 Lãi ròng</div>
-        <div class="kpi-card-value gold" id="kpiNetProfit">—</div>
       </div>
     </div>
 

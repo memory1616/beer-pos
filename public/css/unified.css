@@ -4039,33 +4039,6 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
 .app-header-growth.down { color: var(--red); }
 .app-header-growth.neutral { color: var(--text-muted); }
 
-/* App header — filter bar */
-.app-filter-bar {
-  position: sticky;
-  top: calc(var(--header-height) + env(safe-area-inset-top, 0px));
-  z-index: 100;
-  background: rgba(255,255,255,0.92);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  padding: var(--space-2) var(--space-3);
-  display: flex;
-  gap: 4px;
-  align-items: center;
-  border-bottom: 1px solid var(--border);
-  overflow-x: auto;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.app-filter-bar::-webkit-scrollbar { display: none; }
-
-[data-theme="dark"] .app-filter-bar {
-  background: rgba(30,35,41,0.95);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border-bottom-color: var(--border);
-}
-
 .app-filter-btn {
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
@@ -4455,33 +4428,9 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   100% { background-position: -200% 0; }
 }
 
-/* ── PAGE BODY (for pages with custom app-header) ── */
-/* NOTE: header is position:fixed, body starts below it.
-   If page has .app-filter-bar (sticky), it stays within body flow.
-   DO NOT add top padding here — header is the spacing source. */
-.app-body {
-  /* No top padding — header (56px) handles spacing */
-  padding-bottom: calc(var(--bottomnav-height) + env(safe-area-inset-bottom, 0px));
-  padding-left: max(var(--space-3), env(safe-area-inset-left, 0px));
-  padding-right: max(var(--space-3), env(safe-area-inset-right, 0px));
-  padding-top: 0; /* Reset any inherited top spacing */
-  max-width: min(500px, 100%);
-  width: 100%;
-  margin: 0 auto;
-  box-sizing: border-box;
-  overflow-y: auto;
-  flex: 1;
-  min-height: 0;
-}
-
-/* Filter bar sits inside app-body, sticky from header height */
+/* Filter bar — normal flow inside app-body, no overlapping */
 .app-filter-bar {
-  position: sticky;
-  top: calc(var(--header-height) + env(safe-area-inset-top, 0px));
-  z-index: 100;
-  background: rgba(255,255,255,0.92);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: var(--card);
   padding: var(--space-2) var(--space-3);
   display: flex;
   gap: 4px;
@@ -4490,8 +4439,9 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   overflow-x: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
-  margin: 0 calc(-1 * var(--space-3));
-  width: calc(100% + var(--space-3) * 2);
+  margin: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 .text-10 { font-size: 10px !important; }
 .text-11 { font-size: 11px !important; }
