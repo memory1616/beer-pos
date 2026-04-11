@@ -152,16 +152,32 @@ function initSalesPage(data) {
 
   _rebuildMaps();
   renderProducts();
+  populateSaleHistoryMonthFilter();
   loadSaleHistory();
 }
 
+let saleHistoryPage = 1;
+let saleHistoryYear = null;
+let saleHistoryMonth = null;
+let saleHistoryTotalPages = 1;
+
 function loadSaleHistory() {
-  fetch('/sale/history?limit=5', { cache: 'no-store' })
+  var page = saleHistoryPage || 1;
+  var year = saleHistoryYear;
+  var month = saleHistoryMonth;
+
+  var url = '/sale/history?page=' + page;
+  if (year && month) {
+    url += '&year=' + year + '&month=' + month;
+  }
+
+  fetch(url, { cache: 'no-store' })
     .then(function(res) { return safeJson(res); })
     .then(function(data) {
       if (!data) return;
       var sales = data.sales || [];
-      renderSaleHistory(sales);
+      saleHistoryTotalPages = data.totalPages || 1;
+      renderSaleHistory(sales, data.page || 1, saleHistoryTotalPages);
     })
     .catch(function() {
       var el = document.getElementById('saleHistoryList');
@@ -169,28 +185,53 @@ function loadSaleHistory() {
     });
 }
 
-/** Cập nhật tồn kho trên thẻ sản phẩm sau bán / xóa đơn / đồng bộ */
-function refreshProductsFromServer() {
-  fetch('/sale/data', { cache: 'no-store' })
-    .then(function(res) { return safeJson(res); })
-    .then(function(data) {
-      if (!data || !data.products) return;
-      products = data.products;
-      _rebuildMaps();
-      renderProducts();
-      updateTotal();
-    })
-    .catch(function(err) {
-      console.error('[POS] refreshProductsFromServer', err);
-    });
+function goSaleHistoryPage(page) {
+  if (page < 1 || page > saleHistoryTotalPages) return;
+  saleHistoryPage = page;
+  loadSaleHistory();
 }
 
-function renderSaleHistory(sales) {
+function filterSaleHistoryByMonth(year, month) {
+  saleHistoryYear = year;
+  saleHistoryMonth = month;
+  saleHistoryPage = 1;
+  loadSaleHistory();
+}
+
+function onSaleHistoryMonthChange(value) {
+  if (!value) {
+    filterSaleHistoryByMonth(null, null);
+    return;
+  }
+  var parts = value.split('-');
+  filterSaleHistoryByMonth(parseInt(parts[0]), parseInt(parts[1]));
+}
+
+function populateSaleHistoryMonthFilter() {
+  var sel = document.getElementById('saleHistoryMonth');
+  if (!sel) return;
+  var now = new Date();
+  var options = [{ label: 'Tất cả', value: '' }];
+  for (var i = 0; i < 12; i++) {
+    var d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    var y = d.getFullYear();
+    var m = d.getMonth() + 1;
+    var label = 'Tháng ' + m + ' / ' + y;
+    var val = y + '-' + String(m).padStart(2, '0');
+    options.push({ label: label, value: val });
+  }
+  sel.innerHTML = options.map(function(o) {
+    return '<option value="' + o.value + '">' + o.label + '</option>';
+  }).join('');
+}
+
+function renderSaleHistory(sales, page, totalPages) {
   var container = document.getElementById('saleHistoryList');
   if (!container) return;
 
   if (sales.length === 0) {
     container.innerHTML = '<div class="sale-history-empty">Chưa có đơn nào gần đây</div>';
+    renderSaleHistoryPagination(page, totalPages);
     return;
   }
 
@@ -245,6 +286,25 @@ function renderSaleHistory(sales) {
       '</div>' +
     '</div>';
   }).join('');
+  renderSaleHistoryPagination(page, totalPages);
+}
+
+// Phân trang cho sale history
+function renderSaleHistoryPagination(page, totalPages) {
+  var container = document.getElementById('saleHistoryPagination');
+  if (!container) return;
+  if (totalPages <= 1) {
+    container.innerHTML = '';
+    return;
+  }
+  var prevDisabled = page <= 1 ? 'disabled' : '';
+  var nextDisabled = page >= totalPages ? 'disabled' : '';
+  container.innerHTML =
+    '<div class="sale-history-pagination">' +
+      '<button class="pag-btn" onclick="goSaleHistoryPage(' + (page - 1) + ')" ' + prevDisabled + '>‹</button>' +
+      '<span class="pag-info">' + page + ' / ' + totalPages + '</span>' +
+      '<button class="pag-btn" onclick="goSaleHistoryPage(' + (page + 1) + ')" ' + nextDisabled + '>›</button>' +
+    '</div>';
 }
 
 // ============================================================
@@ -437,6 +497,7 @@ function showInvoiceModalElement() {
   if (!overlay) return;
   overlay.classList.remove('hidden');
   overlay.style.pointerEvents = 'auto';
+  document.body.classList.add('modal-open');
   if (!overlay._invOverlayBound) {
     overlay._invOverlayBound = true;
     overlay.addEventListener('click', function(e) {
@@ -610,6 +671,7 @@ function openKegModalForSale(saleId, customerId, invoiceData) {
 
   updateCollectKegPreview();
   modal.classList.remove('hidden');
+  document.body.classList.add('modal-open');
 }
 
 // Submit keg update for a sale
@@ -1047,11 +1109,13 @@ function openCheckoutModal() {
     '</div>';
 
   modal.classList.remove('hidden');
+  document.body.classList.add('modal-open');
 }
 
 function closeCheckoutModal() {
   var modal = document.getElementById('checkoutModal');
   if (modal) modal.classList.add('hidden');
+  document.body.classList.remove('modal-open');
 }
 
 function confirmSale() {
@@ -1165,6 +1229,7 @@ function openReplacementModal() {
   if (giftRow) giftRow.classList.add('hidden');
 
   modal.classList.remove('hidden');
+  document.body.classList.add('modal-open');
 }
 
 function loadReplacementProducts() {
@@ -1252,6 +1317,7 @@ function submitReplacement() {
 function closeReplacementModal() {
   var modal = document.getElementById('replacementModal');
   if (modal) modal.classList.add('hidden');
+  document.body.classList.remove('modal-open');
 }
 
 // ============================================================
@@ -1275,6 +1341,7 @@ function openKegModal() {
 
   updateKegModalPreview();
   modal.classList.remove('hidden');
+  document.body.classList.add('modal-open');
 }
 
 function updateKegModalPreview() {
@@ -1351,6 +1418,7 @@ function saveKegUpdate() {
 function closeKegModal() {
   var modal = document.getElementById('kegModal');
   if (modal) modal.classList.add('hidden');
+  document.body.classList.remove('modal-open');
 }
 
 // ============================================================
@@ -1383,6 +1451,7 @@ function openCollectKegModal() {
 
   updateCollectKegPreview();
   modal.classList.remove('hidden');
+  document.body.classList.add('modal-open');
 }
 
 function updateCollectKegPreview() {
@@ -1565,6 +1634,7 @@ function closeInvoice() {
   if (!overlay) return;
   overlay.classList.add('hidden');
   overlay.style.pointerEvents = 'none';
+  document.body.classList.remove('modal-open');
   window._invoiceContext = null;
 }
 

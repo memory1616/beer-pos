@@ -29,6 +29,7 @@ body {
   background: var(--bg);
   color: var(--text-primary);
   margin: 0;
+  overflow-y: auto;
   overflow-x: clip;
   max-width: 100vw;
   min-height: 100dvh;
@@ -5469,6 +5470,69 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   padding: 0 4px;
 }
 
+.sale-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  padding: 0 4px;
+}
+
+.sale-section-header .sale-section-label {
+  margin-bottom: 0;
+  padding: 0;
+}
+
+.sale-history-filter select {
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+  cursor: pointer;
+}
+
+.sale-history-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px 0 4px;
+}
+
+.sale-history-pagination .pag-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text-primary);
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+
+.sale-history-pagination .pag-btn:hover:not([disabled]) {
+  background: var(--bg-hover);
+}
+
+.sale-history-pagination .pag-btn[disabled] {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.sale-history-pagination .pag-info {
+  font-size: 13px;
+  color: var(--text-muted);
+  min-width: 50px;
+  text-align: center;
+}
+
 /* Sale search input */
 .sale-search-input {
   width: 100%;
@@ -6053,10 +6117,14 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   font-variant-numeric: tabular-nums;
 }
 
+body.modal-open {
+  overflow: hidden;
+}
+
 /* Sale app: flex column */
 #saleAppContent {
   flex: 1;
-  overflow: hidden;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -6093,6 +6161,7 @@ body.body--app #app {
   flex: 1;
   padding-top: var(--header-height, 56px);
   padding-bottom: var(--bottomnav-height, 64px);
+  overflow-y: auto;
   overflow-x: hidden;
 }
 
@@ -6110,6 +6179,7 @@ body.body--app #app {
 
 .page {
   padding: var(--space-4, 16px);
+  min-height: 100%;
 }
 
 .page__header {

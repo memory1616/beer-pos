@@ -207,7 +207,6 @@
       <div class="inv-pos-header">
         <button onclick="closeInvoice()" class="inv-close">&times;</button>
         <div class="inv-pos-title">HÓA ĐƠN</div>
-        <div class="inv-pos-order" id="invOrderId">#—</div>
       </div>
 
       <!-- Body: flex column, space-between, no scroll -->
@@ -322,8 +321,18 @@
 
           /* Recent sales history (max 5 orders) — bottom of page */
           '<div class="sale-section" id="saleHistorySection">' +
-            '<div class="sale-section-label">ĐƠN GẦN ĐÂY</div>' +
+            '<div class="sale-section-header">' +
+              '<div class="sale-section-label">ĐƠN GẦN ĐÂY</div>' +
+              '<div class="sale-history-filter">' +
+                '<select id="saleHistoryMonth" onchange="onSaleHistoryMonthChange(this.value)" style="' +
+                  'padding:4px 8px;border-radius:6px;border:1px solid var(--border);' +
+                  'background:var(--card);color:var(--text-primary);font-size:13px;outline:none;cursor:pointer;">' +
+                  '<option value="">Tất cả</option>' +
+                '</select>' +
+              '</div>' +
+            '</div>' +
             '<div id="saleHistoryList"></div>' +
+            '<div id="saleHistoryPagination"></div>' +
           '</div>'
         ) +
         getBottomNav('/sale');

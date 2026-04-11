@@ -47,7 +47,27 @@ router.get('/data', (req, res) => {
 router.get('/history', (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
-  const limit = parseInt(req.query.limit) || 5;
+
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const limit = 5;
+  const offset = (page - 1) * limit;
+
+  const year = req.query.year ? parseInt(req.query.year) : null;
+  const month = req.query.month ? parseInt(req.query.month) : null;
+
+  let whereClause = "WHERE s.type IN ('sale', 'replacement', 'damage_return')";
+  let params = [];
+
+  if (year && month) {
+    const yStr = String(year);
+    const mStr = String(month).padStart(2, '0');
+    whereClause += " AND strftime('%Y-%m', s.date) = ?";
+    params.push(yStr + '-' + mStr);
+  }
+
+  const countRow = db.prepare(`SELECT COUNT(*) as count FROM sales s ${whereClause}`).get(...params);
+  const total = countRow.count;
+  const totalPages = Math.ceil(total / limit);
 
   const sales = db.prepare(`
     SELECT s.id, s.date, s.total, s.type, s.status,
@@ -55,10 +75,10 @@ router.get('/history', (req, res) => {
       s.deliver_kegs, s.return_kegs
     FROM sales s
     LEFT JOIN customers c ON s.customer_id = c.id
-    WHERE s.type IN ('sale', 'replacement', 'damage_return')
+    ${whereClause}
     ORDER BY datetime(s.date) DESC, s.id DESC
-    LIMIT ?
-  `).all(limit);
+    LIMIT ? OFFSET ?
+  `).all(...params, limit, offset);
 
   const salesWithItems = sales.map(s => {
     const items = db.prepare(`
@@ -70,7 +90,7 @@ router.get('/history', (req, res) => {
     return { ...s, items };
   });
 
-  res.json({ sales: salesWithItems });
+  res.json({ sales: salesWithItems, total, page, totalPages });
 });
 
 // API: Get single sale detail
