@@ -199,66 +199,65 @@
   <!-- Sync status indicator -->
   <div id="syncStatusIndicator" style="position:fixed;top:8px;right:8px;z-index:200;font-size:11px;padding:4px 8px;border-radius:20px;background:var(--card-soft);border:1px solid var(--border);opacity:0.8;display:none;"></div>
 
-  <!-- Invoice Modal — Fintech Style -->
+  <!-- Invoice Modal — Flat POS Style -->
   <div id="invoiceModal" class="inv-overlay hidden">
-    <div class="invoice-modal">
+    <div class="inv-pos">
+
       <!-- Header -->
-      <div class="inv-header">
-        <div class="inv-header-left">
-          <div class="inv-title">HÓA ĐƠN</div>
-          <div class="inv-order-id" id="invOrderId">#—</div>
-        </div>
+      <div class="inv-pos-header">
         <button onclick="closeInvoice()" class="inv-close">&times;</button>
+        <div class="inv-pos-title">HÓA ĐƠN</div>
+        <div class="inv-pos-order" id="invOrderId">#—</div>
       </div>
 
-      <!-- Scrollable content -->
-      <div class="inv-body">
-        <!-- Customer info -->
-        <div class="inv-customer-card">
-          <div class="inv-customer-name" id="invCustomerName">—</div>
-          <div class="inv-customer-meta" id="invCustomerMeta"></div>
-        </div>
+      <!-- Total (top priority) -->
+      <div class="invoice-total">
+        <div class="invoice-total-label">TỔNG THANH TOÁN</div>
+        <div class="invoice-total-value" id="invTotalValue">0đ</div>
+      </div>
 
-        <!-- Product list -->
-        <div class="inv-section items">
-          <div class="inv-items-list" id="invItemsList"></div>
-        </div>
+      <!-- Info -->
+      <div class="invoice-info">
+        <div class="invoice-info-date" id="invDate">—</div>
+        <div class="invoice-info-customer" id="invCustomerMeta">—</div>
+      </div>
 
-        <!-- Bottle flow -->
-        <div class="inv-section">
-          <div class="bottle-grid" id="invKegsCard">
-            <div class="bottle-cell">
-              <div class="bottle-label">📦 Giao vỏ</div>
-              <div class="bottle-value" id="invKegDeliver">0</div>
-            </div>
-            <div class="bottle-cell">
-              <div class="bottle-label">🔄 Thu vỏ</div>
-              <div class="bottle-value bottle-thu" id="invKegReturn">0</div>
-            </div>
-            <div class="bottle-cell">
-              <div class="bottle-label">Đang giữ</div>
-              <div class="bottle-value bottle-keep" id="invKegBalance">0</div>
-            </div>
-          </div>
-        </div>
+      <hr class="divider">
 
-        <!-- Total -->
-        <div class="inv-section total">
-          <div class="total-section">
-            <span class="total-label">Tổng cộng</span>
-            <span class="total-value" id="invTotalValue">0đ</span>
-          </div>
-        </div>
+      <!-- Product list -->
+      <div class="invoice-items" id="invItemsList"></div>
 
-        <!-- QR Payment -->
-        <div class="inv-section qr">
-          <img id="vietqrImage" class="qr" src="" alt="QR" onerror="this.style.display='none'">
-          <div class="qr-name">NGUYEN MINH QUAN</div>
+      <hr class="divider">
+
+      <!-- Bottle inline -->
+      <div class="bottle">
+        <div class="bottle-row">
+          <span>📦 Giao vỏ</span>
+          <span class="green" id="invKegDeliver">0</span>
+        </div>
+        <div class="bottle-row">
+          <span>🔄 Thu vỏ</span>
+          <span class="red" id="invKegReturn">0</span>
+        </div>
+        <div class="bottle-row">
+          <span>Đang giữ</span>
+          <span class="yellow" id="invKegBalance">0</span>
         </div>
       </div>
 
-      <!-- Action buttons -->
-      <div class="inv-actions" id="invActions"></div>
+      <hr class="divider">
+
+      <!-- Payment title -->
+      <div class="payment-title">Phương thức thanh toán</div>
+
+      <!-- QR Section -->
+      <div class="qr-section" id="vietqrBlock">
+        <img id="vietqrImage" class="qr" src="" alt="QR" onerror="this.style.display='none'">
+        <div class="qr-note">Quét QR thanh toán</div>
+      </div>
+
+      <!-- Actions -->
+      <div class="inv-pos-actions" id="invActions"></div>
     </div>
   </div>
 

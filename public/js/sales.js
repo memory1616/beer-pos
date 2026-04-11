@@ -326,7 +326,6 @@ function generateVietQR(invoice) {
 
 function renderInvoiceModalContent(invoice, saleIdForActions) {
   var orderEl = document.getElementById('invOrderId');
-  var nameEl = document.getElementById('invCustomerName');
   var metaEl = document.getElementById('invCustomerMeta');
   var itemsList = document.getElementById('invItemsList');
   var invActions = document.getElementById('invActions');
@@ -335,8 +334,9 @@ function renderInvoiceModalContent(invoice, saleIdForActions) {
 
   if (!invoice) {
     orderEl.textContent = '#—';
-    if (nameEl) nameEl.textContent = '—';
-    if (metaEl) metaEl.textContent = '';
+    if (metaEl) metaEl.textContent = '—';
+    var invDateEl = document.getElementById('invDate');
+    if (invDateEl) invDateEl.textContent = '';
     itemsList.innerHTML =
       '<div class="inv-empty-state" style="text-align:center;padding:28px 16px;color:var(--text-muted);font-size:13px;line-height:1.5;">' +
       'Không có dữ liệu hóa đơn.<br><span style="font-size:12px;opacity:0.85;">Thử tải lại hoặc chọn đơn khác.</span></div>';
@@ -356,20 +356,19 @@ function renderInvoiceModalContent(invoice, saleIdForActions) {
   var isReturned = invoice.status === 'returned';
 
   orderEl.textContent = '#' + sid;
-  if (nameEl) nameEl.textContent = invoice.customer.name || 'Khách lẻ';
-  if (metaEl) metaEl.textContent = dateStr;
+  if (metaEl) metaEl.textContent = (invoice.customer.name || 'Khách lẻ');
+  var invDateEl = document.getElementById('invDate');
+  if (invDateEl) invDateEl.textContent = dateStr;
 
   var rows = (invoice.items || []).map(function(item) {
     var lineTotal = (item.quantity || 0) * (item.price || 0);
     var shortName = (item.name || 'SP').slice(0, 20);
-    return '<div class="inv-item">' +
-      '<div class="inv-item-left">' +
-        '<div class="inv-item-name">' + escHtml(shortName) + '</div>' +
-        '<div class="inv-item-qty">x' + item.quantity + ' · ' + formatVND(item.price) + '</div>' +
+    return '<div class="invoice-item">' +
+      '<div class="invoice-item-left">' +
+        '<div class="invoice-item-name">' + escHtml(shortName) + '</div>' +
+        '<small>x' + item.quantity + ' · ' + formatVND(item.price) + '</small>' +
       '</div>' +
-      '<div class="inv-item-right">' +
-        '<div class="inv-item-total">' + formatVND(lineTotal) + '</div>' +
-      '</div>' +
+      '<div class="invoice-item-total">' + formatVND(lineTotal) + '</div>' +
     '</div>';
   }).join('');
 
