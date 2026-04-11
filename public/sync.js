@@ -505,74 +505,56 @@ function getLastSyncText() {
   return date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
 }
 
-// Update smart online/offline indicator in header — cached DOM refs + cached pending count
+// Update sync status indicator in header
 async function updateSmartStatus() {
-  const el = document.getElementById('onlineStatus');
   const syncEl = document.getElementById('syncStatus');
-  if (!el) return;
+  if (!syncEl) return;
 
   const cloudUrl = getCloudUrl();
-  // PERFORMANCE: reuse cached pending count instead of opening DB each time
   const pending = await countPendingQueue();
 
   // Offline
   if (!navigator.onLine) {
-    el.textContent = '🔴 Offline';
-    el.className = 'badge badge-danger';
-    if (syncEl) {
-      if (pending > 0) {
-        syncEl.textContent = `⏳ ${pending} chờ đẩy`;
-        syncEl.className = 'text-xs text-warning font-medium';
-      } else {
-        syncEl.textContent = '⚠️ Không kết nối';
-        syncEl.className = 'text-xs text-muted';
-      }
+    if (pending > 0) {
+      syncEl.textContent = `⏳ ${pending} chờ đẩy`;
+      syncEl.className = 'text-xs text-warning font-medium';
+    } else {
+      syncEl.textContent = '⚠️ Không kết nối';
+      syncEl.className = 'text-xs text-muted';
     }
     return;
   }
 
-  // No cloud URL configured — still show pending queue status
+  // No cloud URL configured
   if (!cloudUrl) {
-    el.textContent = '🟡 Cục bộ';
-    el.className = 'badge badge-warning';
-    if (syncEl) {
-      if (pending > 0) {
-        syncEl.textContent = `📴 ${pending} chờ đẩy lên server`;
-        syncEl.className = 'text-xs text-warning font-medium';
-      } else {
-        syncEl.textContent = '📴 Không có cloud';
-        syncEl.className = 'text-xs text-muted';
-      }
+    if (pending > 0) {
+      syncEl.textContent = `📴 ${pending} chờ đẩy lên server`;
+      syncEl.className = 'text-xs text-warning font-medium';
+    } else {
+      syncEl.textContent = '📴 Không có cloud';
+      syncEl.className = 'text-xs text-muted';
     }
     return;
   }
 
-  // Online + cloud configured — check reachability
+  // Online + cloud configured
   try {
     const res = await fetch('/api/ping', { cache: 'no-store' });
     if (res.ok) {
-      el.textContent = '🟢 Online';
-      el.className = 'badge badge-success';
-      if (syncEl) {
-        if (pending > 0) {
-          syncEl.textContent = `📤 ${pending} chờ đẩy`;
-          syncEl.className = 'text-xs text-info font-medium';
-        } else {
-          const syncText = getLastSyncText();
-          syncEl.textContent = syncText ? `✓ ${syncText}` : '✓ Đã đồng bộ';
-          syncEl.className = 'text-xs text-success';
-        }
+      if (pending > 0) {
+        syncEl.textContent = `📤 ${pending} chờ đẩy`;
+        syncEl.className = 'text-xs text-info font-medium';
+      } else {
+        const syncText = getLastSyncText();
+        syncEl.textContent = syncText ? `✓ ${syncText}` : '✓ Đã đồng bộ';
+        syncEl.className = 'text-xs text-success';
       }
     } else {
       throw 'non-ok';
     }
   } catch {
-    el.textContent = '🟡 Lỗi mạng';
-    el.className = 'badge badge-warning';
-    if (syncEl) {
-      syncEl.textContent = pending > 0 ? `⏳ ${pending} chờ` : '⚠️ Không kết nối server';
-      syncEl.className = 'text-xs text-warning';
-    }
+    syncEl.textContent = pending > 0 ? `⏳ ${pending} chờ` : '⚠️ Không kết nối server';
+    syncEl.className = 'text-xs text-warning';
   }
 }
 
