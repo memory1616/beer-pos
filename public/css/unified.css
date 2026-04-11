@@ -23,12 +23,7 @@
     color var(--transition-normal);
 }
 
-html {
-  overflow-x: clip;
-  overflow-y: auto;
-  height: 100%;
-  scroll-behavior: smooth;
-}
+html { overflow-x: clip; height: 100%; }
 
 body {
   background: var(--bg);
@@ -52,6 +47,8 @@ body {
 .body--app {
   min-height: 100dvh;
   padding-bottom: calc(var(--bottomnav-height) + var(--safe-area-bottom));
+  display: flex;
+  flex-direction: column;
 }
 
 /* Main content area */
@@ -4472,7 +4469,9 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   width: 100%;
   margin: 0 auto;
   box-sizing: border-box;
-  min-height: 100vh;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
 }
 
 /* Filter bar sits inside app-body, sticky from header height */
@@ -5684,8 +5683,8 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   margin: 0;
 }
 .sale-product-price[type=number] {
-  appearance: textfield;
   -moz-appearance: textfield;
+  appearance: textfield;
 }
 
 .sale-product-meta {
@@ -6134,8 +6133,6 @@ body.modal-open {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
 }
 
 /* Override body--app padding for sale page */
@@ -6171,8 +6168,6 @@ body.body--app #app {
   padding-bottom: var(--bottomnav-height, 64px);
   overflow-y: auto;
   overflow-x: hidden;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
 }
 
 .app-bottom-nav {
@@ -6209,6 +6204,7 @@ body.body--app #app {
   margin: 0;
 }
 
+
 /* ================================================================
    SECTION — Standard content section
    ================================================================ */
@@ -6238,6 +6234,7 @@ body.body--app #app {
   align-items: center;
   gap: var(--space-2, 8px);
 }
+
 
 /* Section variants */
 .section--compact {
@@ -6282,6 +6279,7 @@ body.body--app #app {
   color: var(--text-muted);
   margin-bottom: var(--space-4, 16px);
 }
+
 
 /* ================================================================
    LIST — Standard list container
@@ -6530,6 +6528,7 @@ body.body--app #app {
   color: var(--accent-yellow);
   font-variant-numeric: tabular-nums;
 }
+
 
 /* Mini total bar */
 .total-mini {
