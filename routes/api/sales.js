@@ -100,15 +100,20 @@ function validateSaleInput(body) {
 router.post('/', (req, res) => {
   const { customerId, items, deliverKegs = 0, returnKegs = 0 } = req.body;
 
+  logger.info('[SALE API] POST / called', { customerId, itemsCount: items?.length, deliverKegs, returnKegs });
+
   // ========== PRE-VALIDATION ==========
   if (!items || !Array.isArray(items) || items.length === 0) {
+    logger.warn('[SALE API] Validation failed: empty items');
     return res.status(400).json({ error: 'Danh sách sản phẩm trống' });
   }
   for (let i = 0; i < items.length; i++) {
     if (!items[i].productId && !items[i].productSlug) {
+      logger.warn('[SALE API] Validation failed: missing productId at index', i);
       return res.status(400).json({ error: `Sản phẩm thứ ${i + 1}: Thiếu mã sản phẩm (productId hoặc productSlug)` });
     }
     if (!items[i].quantity || items[i].quantity <= 0) {
+      logger.warn('[SALE API] Validation failed: invalid quantity at index', i, items[i]);
       return res.status(400).json({ error: `Sản phẩm thứ ${i + 1}: Số lượng phải lớn hơn 0` });
     }
   }
@@ -124,15 +129,9 @@ router.post('/', (req, res) => {
     const productQueries = items.map(i => i.productId || i.productSlug).filter(Boolean);
     const productMap = {};
     if (productQueries.length > 0) {
-      // Build OR condition: id IN (...) OR slug IN (...)
-      const uniqueQueries = [...new Set(productQueries)];
-      const conditions = uniqueQueries.map(() => {
-        const num = parseInt(q => q);
-        return !isNaN(num) && num > 0 ? 'id = ?' : 'slug = ?';
-      });
-      // Actually let's do a simple approach: get all products, filter in memory
       const allProducts = db.prepare('SELECT * FROM products').all();
       allProducts.forEach(p => { productMap[p.id] = p; productMap[p.slug] = p; });
+      logger.info('[SALE API] Products loaded', { count: allProducts.length });
     }
 
     // Pre-load customer prices in ONE query
@@ -189,12 +188,15 @@ router.post('/', (req, res) => {
 
     // ========== STRICT TRANSACTION ==========
     const createSale = db.transaction(() => {
+      logger.info('[SALE API] Starting transaction');
       // Insert sale with Vietnam-local date
       const saleDate = db.getVietnamDateStr();
+      logger.info('[SALE API] saleDate:', saleDate);
       const saleResult = db.prepare('INSERT INTO sales (customer_id, date, total, profit, deliver_kegs, return_kegs, keg_balance_after, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(customerId, saleDate, total, profit, finalDeliverKegs, returnKegs, newKegBalance, 'sale');
       const saleId = saleResult.lastInsertRowid;
 
       if (!saleId) throw new Error('Sale creation failed — no lastInsertRowid');
+      logger.info('[SALE API] Sale inserted:', saleId);
 
       // Update customer last_order_date (if customerId)
       if (customerId) {
