@@ -750,9 +750,14 @@ function submitCollectKegForSale(saleId) {
 // Delete sale
 function deleteSale(saleId) {
   if (!confirm('Xóa đơn #' + saleId + '? Hành động này không thể hoàn tác.')) return;
+  console.log('[deleteSale] sending DELETE /api/sales/' + saleId);
   fetch('/api/sales/' + saleId, { method: 'DELETE' })
-    .then(function(res) { return safeJson(res); })
+    .then(function(res) {
+      console.log('[deleteSale] status:', res.status);
+      return safeJson(res);
+    })
     .then(function(data) {
+      console.log('[deleteSale] response:', JSON.stringify(data));
       if (!data) { showToast('Lỗi kết nối', 'error'); return; }
       if (data.success) {
         showToast('Đã xóa đơn', 'success');
@@ -761,7 +766,7 @@ function deleteSale(saleId) {
         showToast(data.error || 'Lỗi xóa đơn', 'error');
       }
     })
-    .catch(function() { showToast('Lỗi kết nối', 'error'); });
+    .catch(function(err) { console.error('[deleteSale] fetch error:', err); showToast('Lỗi kết nối', 'error'); });
 }
 
 function openEditSale(saleId) {

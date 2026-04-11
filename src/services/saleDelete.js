@@ -25,22 +25,31 @@ function deleteSaleRestoringInventory(saleId) {
   if (!Number.isFinite(id)) return { ok: false, code: 'not_found' };
 
   const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(id);
+  console.log('[saleDelete] sale:', JSON.stringify(sale));
   if (!sale) return { ok: false, code: 'not_found' };
+  console.log('[saleDelete] shouldReverse:', shouldReverseProductStock(sale), '| type:', sale.type, '| status:', sale.status);
   if (sale.status === 'returned') return { ok: false, code: 'returned' };
 
   const items = db.prepare('SELECT * FROM sale_items WHERE sale_id = ?').all(id);
+  console.log('[saleDelete] items:', JSON.stringify(items));
 
   const deleteSaleTx = db.transaction(() => {
     if (shouldReverseProductStock(sale)) {
+      console.log('[saleDelete tx] reversing product stock for', items.length, 'items');
       for (const item of items) {
-        db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(item.quantity, item.product_id);
+        const r = db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(item.quantity, item.product_id);
+        console.log('[saleDelete tx] updated product', item.product_id, '+' + item.quantity, 'changes:', r.changes);
       }
+    } else {
+      console.log('[saleDelete tx] NOT reversing product stock — shouldReverse:', shouldReverseProductStock(sale), 'type:', sale.type);
     }
 
     if (sale.customer_id && (sale.deliver_kegs !== 0 || sale.return_kegs !== 0)) {
+      console.log('[saleDelete tx] restoring keg balance:', sale.deliver_kegs, sale.return_kegs);
       const customer = db.prepare('SELECT keg_balance FROM customers WHERE id = ?').get(sale.customer_id);
       const currentBalance = customer ? customer.keg_balance : 0;
       const restoredBalance = currentBalance - sale.deliver_kegs + sale.return_kegs;
+      console.log('[saleDelete tx] keg_balance', currentBalance, '→', restoredBalance);
       db.prepare('UPDATE customers SET keg_balance = ? WHERE id = ?').run(restoredBalance, sale.customer_id);
     }
 

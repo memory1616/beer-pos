@@ -743,7 +743,9 @@ router.delete('/:id', (req, res) => {
   const saleId = req.params.id;
 
   try {
+    console.log('[DELETE /api/sales/' + saleId + '] calling deleteSaleRestoringInventory');
     const result = deleteSaleRestoringInventory(saleId);
+    console.log('[DELETE /api/sales/' + saleId + '] result:', JSON.stringify(result));
     if (!result.ok) {
       if (result.code === 'not_found') {
         return res.status(404).json({ error: 'Không tìm thấy hóa đơn' });
