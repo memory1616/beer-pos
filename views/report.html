@@ -22,10 +22,17 @@
   <script src="/js/auth.js"></script>
   <script src="/js/layout.js"></script>
   <style>
-    /* DEBUG: scroll container outline */
-    #reportBodyDebug { outline: 2px solid red !important; }
-    .app-body.debug-scroll { outline: 3px dashed orange !important; background: rgba(255,165,0,0.05) !important; }
-    body.body--app .app-body { outline: 2px solid transparent; }
+    /* .app-body fills space between fixed header (56px) and fixed bottom nav (64px) */
+    body.body--app .app-body {
+      position: absolute;
+      top: calc(var(--header-height) + env(safe-area-inset-top, 0px));
+      left: 0;
+      right: 0;
+      bottom: calc(var(--bottomnav-height) + env(safe-area-inset-bottom, 0px));
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+    }
   </style>
   <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -47,7 +54,7 @@
   </header>
 
   <!-- ══ REPORT BODY ══ -->
-  <div class="app-body debug-scroll" id="reportBodyDebug">
+  <div class="app-body" id="reportBodyDebug">
 
     <!-- FILTER BAR (sticky) -->
     <div class="app-filter-bar" id="reportFilterBar">
@@ -939,26 +946,6 @@
       } else {
         init();
       }
-
-      // DEBUG: Log scroll container info after init
-      window.addEventListener('load', function () {
-        setTimeout(function () {
-          var body = document.querySelector('.app-body');
-          if (body) {
-            console.log('[DEBUG SCROLL] body.offsetHeight:', body.offsetHeight);
-            console.log('[DEBUG SCROLL] body.scrollHeight:', body.scrollHeight);
-            console.log('[DEBUG SCROLL] body.offsetTop:', body.offsetTop);
-            console.log('[DEBUG SCROLL] window.innerHeight:', window.innerHeight);
-            console.log('[DEBUG SCROLL] body.clientHeight:', body.clientHeight);
-            console.log('[DEBUG SCROLL] body.scrollTop:', body.scrollTop);
-            console.log('[DEBUG SCROLL] body canScroll:', body.scrollHeight > body.clientHeight);
-          } else {
-            console.warn('[DEBUG SCROLL] .app-body not found');
-          }
-          console.log('[DEBUG SCROLL] document.body.scrollHeight:', document.body.scrollHeight);
-          console.log('[DEBUG SCROLL] document.body.clientHeight:', document.body.clientHeight);
-        }, 500);
-      });
 
     })();
   </script>
