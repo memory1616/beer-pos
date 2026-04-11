@@ -118,6 +118,9 @@ window.addEventListener('data:mutated', function(e) {
   if (ent === 'sale' || ent === 'product') {
     loadSaleHistory();
   }
+  if (ent === 'product' && typeof window.loadSalesData === 'function') {
+    window.loadSalesData();
+  }
 });
 
 window.addEventListener('realtime:refetch', function(e) {
@@ -761,7 +764,8 @@ function deleteSale(saleId) {
       if (!data) { showToast('Lỗi kết nối', 'error'); return; }
       if (data.success) {
         showToast('Đã xóa đơn', 'success');
-    window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'sale' } }));
+        window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'sale' } }));
+        window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'product' } }));
       } else {
         showToast(data.error || 'Lỗi xóa đơn', 'error');
       }
