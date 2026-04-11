@@ -117,7 +117,6 @@ window.addEventListener('data:mutated', function(e) {
   var ent = e.detail && e.detail.entity;
   if (ent === 'sale' || ent === 'product') {
     loadSaleHistory();
-    refreshProductsFromServer();
   }
 });
 
@@ -127,7 +126,6 @@ window.addEventListener('realtime:refetch', function(e) {
       entities.indexOf('sales') !== -1 || entities.indexOf('inventory') !== -1 ||
       entities.indexOf('products') !== -1) {
     loadSaleHistory();
-    refreshProductsFromServer();
   }
 });
 
@@ -535,8 +533,12 @@ function openInvoiceModal(source) {
   }
 
   fetch('/sale/' + saleId, { cache: 'no-store' })
-    .then(function(res) { return safeJson(res); })
+    .then(function(res) {
+      console.log('[openInvoiceModal] status:', res.status, 'url:', res.url);
+      return safeJson(res);
+    })
     .then(function(data) {
+      console.log('[openInvoiceModal] raw data:', JSON.stringify(data));
       if (!data) {
         showToast('Không tìm thấy đơn', 'error');
         var inv = null;
@@ -546,6 +548,7 @@ function openInvoiceModal(source) {
         return;
       }
       var sale = extractSaleFromResponse(data);
+      console.log('[openInvoiceModal] extracted sale:', JSON.stringify(sale));
       if (!sale) {
         showToast('Không tìm thấy đơn', 'error');
         var inv = null;
@@ -1160,13 +1163,18 @@ function submitSale() {
       return;
     }
     if (data.success) {
+      console.log('[submitSale] success, data:', JSON.stringify(data));
       showToast(isEditing ? 'Cập nhật thành công!' : 'Bán hàng thành công!', 'success');
       var invoiceSaleId = isEditing ? editingSaleId : (data.id != null ? Number(data.id) : null);
+      console.log('[submitSale] invoiceSaleId:', invoiceSaleId);
       editingSaleId = null;
       resetSaleState();
       window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'sale' } }));
+      console.log('[submitSale] calling openInvoiceModal with', invoiceSaleId);
       if (invoiceSaleId && typeof openInvoiceModal === 'function') {
         openInvoiceModal(invoiceSaleId);
+      } else {
+        console.warn('[submitSale] skip openInvoiceModal — saleId:', invoiceSaleId, 'fn:', typeof openInvoiceModal);
       }
     } else {
       showToast(data.error || 'Lỗi khi bán hàng', 'error');
