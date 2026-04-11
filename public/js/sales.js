@@ -291,6 +291,7 @@ function normalizeInvoice(sale) {
   if (!Number.isFinite(bottleReceived)) bottleReceived = 0;
 
   var cid = sale.customer_id != null ? sale.customer_id : sale.customerId;
+  var createdAt = sale.created_at || sale.date;
   return {
     id: sale.id,
     customer: {
@@ -301,7 +302,7 @@ function normalizeInvoice(sale) {
     totalAmount: totalAmount,
     bottleGiven: bottleGiven,
     bottleReceived: bottleReceived,
-    date: sale.date,
+    date: createdAt,
     status: sale.status,
     type: sale.type,
     raw: sale
