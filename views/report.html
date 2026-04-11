@@ -21,7 +21,12 @@
   <script src="/js/dark-mode.js"></script>
   <script src="/js/auth.js"></script>
   <script src="/js/layout.js"></script>
-
+  <style>
+    /* DEBUG: scroll container outline */
+    #reportBodyDebug { outline: 2px solid red !important; }
+    .app-body.debug-scroll { outline: 3px dashed orange !important; background: rgba(255,165,0,0.05) !important; }
+    body.body--app .app-body { outline: 2px solid transparent; }
+  </style>
   <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
@@ -42,7 +47,7 @@
   </header>
 
   <!-- ══ REPORT BODY ══ -->
-  <div class="app-body">
+  <div class="app-body debug-scroll" id="reportBodyDebug">
 
     <!-- FILTER BAR (sticky) -->
     <div class="app-filter-bar" id="reportFilterBar">
@@ -934,6 +939,26 @@
       } else {
         init();
       }
+
+      // DEBUG: Log scroll container info after init
+      window.addEventListener('load', function () {
+        setTimeout(function () {
+          var body = document.querySelector('.app-body');
+          if (body) {
+            console.log('[DEBUG SCROLL] body.offsetHeight:', body.offsetHeight);
+            console.log('[DEBUG SCROLL] body.scrollHeight:', body.scrollHeight);
+            console.log('[DEBUG SCROLL] body.offsetTop:', body.offsetTop);
+            console.log('[DEBUG SCROLL] window.innerHeight:', window.innerHeight);
+            console.log('[DEBUG SCROLL] body.clientHeight:', body.clientHeight);
+            console.log('[DEBUG SCROLL] body.scrollTop:', body.scrollTop);
+            console.log('[DEBUG SCROLL] body canScroll:', body.scrollHeight > body.clientHeight);
+          } else {
+            console.warn('[DEBUG SCROLL] .app-body not found');
+          }
+          console.log('[DEBUG SCROLL] document.body.scrollHeight:', document.body.scrollHeight);
+          console.log('[DEBUG SCROLL] document.body.clientHeight:', document.body.clientHeight);
+        }, 500);
+      });
 
     })();
   </script>
