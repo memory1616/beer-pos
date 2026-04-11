@@ -46,6 +46,7 @@ let customers = [];
 let priceMap = {};
 let editingSaleId = null;
 let kegEditSaleId = null;  // Sale ID đang thao tác vỏ
+let kegSubmitting = false; // Guard: prevent double click submit
 
 let saleState = {
   customerId: null,
@@ -539,6 +540,7 @@ function openKegModalForSale(saleId, customerId, deliverKegs, returnKegs) {
   if (!modal) return;
 
   saleState.customerId = customerId ? Number(customerId) : null;
+  kegSubmitting = false; // Reset guard when opening modal
 
   var customer = customerId ? getCustomer(customerId) : null;
   var customerName = customer ? customer.name : 'Chưa chọn';
@@ -565,6 +567,9 @@ function openKegModalForSale(saleId, customerId, deliverKegs, returnKegs) {
 
 // Submit keg update for a sale
 function submitCollectKegForSale(saleId) {
+  if (kegSubmitting) return;
+  kegSubmitting = true;
+
   var customerId = saleState.customerId;
   var deliver = parseInt(document.getElementById('collectKegDeliver')?.value) || 0;
   var returned = parseInt(document.getElementById('collectKegReturn')?.value) || 0;
@@ -616,6 +621,9 @@ function submitCollectKegForSale(saleId) {
   .catch(function(err) {
     console.error('submitCollectKegForSale error:', err);
     showToast('Lỗi kết nối', 'error');
+  })
+  .finally(function() {
+    kegSubmitting = false;
   });
 }
 
@@ -1297,6 +1305,7 @@ function openCollectKegModal() {
   var modal = document.getElementById('collectKegModal');
   if (!modal) return;
   kegEditSaleId = null;
+  kegSubmitting = false; // Reset guard when opening modal
 
   var info = document.getElementById('collectKegInfo');
   var deliverEl = document.getElementById('collectKegDeliver');
@@ -1345,6 +1354,9 @@ function updateCollectKegPreview() {
 }
 
 function submitCollectKeg() {
+  if (kegSubmitting) return;
+  kegSubmitting = true;
+
   var customerId = saleState.customerId;
   var deliver = parseInt(document.getElementById('collectKegDeliver')?.value) || 0;
   var returned = parseInt(document.getElementById('collectKegReturn')?.value) || 0;
@@ -1399,11 +1411,21 @@ function submitCollectKeg() {
     .catch(function(err) {
       console.error('submitCollectKeg error:', err);
       showToast('Lỗi kết nối', 'error');
-    });
+    })
+    .finally(function() { kegSubmitting = false; });
     return;
   }
 
   // Standalone mode — use /api/kegs/collect and /api/kegs/deliver
+  var standaloneDone = false;
+  function finishStandalone() {
+    if (standaloneDone) return;
+    standaloneDone = true;
+    closeCollectKegModal();
+    loadSaleHistory();
+    window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'kegs' } }));
+  }
+
   if (deliver > 0) {
     fetch('/api/kegs/deliver', {
       method: 'POST',
@@ -1428,8 +1450,7 @@ function submitCollectKeg() {
       if (!data) { showToast('Lỗi kết nối', 'error'); return; }
       if (data.success) {
         showToast('Đã thu vỏ', 'success');
-        closeCollectKegModal();
-        window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'kegs' } }));
+        finishStandalone();
       } else {
         showToast(data.error || 'Lỗi thu vỏ', 'error');
       }
@@ -1438,7 +1459,12 @@ function submitCollectKeg() {
       console.error('submitCollectKeg error:', err);
       showToast('Lỗi kết nối', 'error');
     });
+  } else if (deliver > 0) {
+    // If only deliver (no return), close after short delay
+    setTimeout(function() { finishStandalone(); }, 500);
   }
+
+  kegSubmitting = false;
 }
 
 function closeCollectKegModal() {
