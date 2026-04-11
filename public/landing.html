@@ -2,6 +2,18 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
+  <!-- NO-FLICKER: Apply theme BEFORE first paint to prevent flash -->
+  <script>
+  (function () {
+    var k = 'theme';
+    var sys = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    var saved = localStorage.getItem(k);
+    var theme = (saved === 'light' || saved === 'dark') ? saved : sys;
+    document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.classList.remove('light', 'dark');
+    document.documentElement.classList.add(theme);
+  })();
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bia Tươi Tây Ninh — Bia tươi & bia đen công nghệ Đức | Giá sỉ quán</title>
   <meta name="description" content="Bia tươi nguyên chất, bia đen & bia vàng NEWDOBEER — công nghệ Đức. Giá sỉ tốt, hỗ trợ setup tủ mát, banner, giao hàng Tây Ninh và khu vực. Hotline 0974 012 652.">

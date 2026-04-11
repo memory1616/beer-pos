@@ -1,84 +1,151 @@
-// Dark Mode — Auto-switch at 6PM + manual toggle
-// MUST be placed in <head> before body renders to avoid flash of wrong theme
+// ============================================================
+// Beer POS Pro — Theme Manager v2.0
+// ============================================================
+// Priority:
+//   1. User override (localStorage: 'light' | 'dark') — LUON UU TIEN CAO NHAT
+//   2. System auto   (matchMedia prefers-color-scheme)
+//   3. Time auto     (06:00–18:00 → light, else → dark)
+//   4. Default       (dark)
+// ============================================================
 (function () {
-  const KEY = 'theme'; // 'light' | 'dark' | 'auto'
+  'use strict';
 
-  // Apply theme: 'light', 'dark', or auto-detect from time
+  var STORAGE_KEY = 'theme';
+  var DEFAULTS = { light: 'light', dark: 'dark' };
+
+  // ── Core: lay system theme ─────────────────────────────────────
+  function getSystemTheme() {
+    if (typeof window === 'undefined' || !window.matchMedia) return DEFAULTS.dark;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches
+      ? DEFAULTS.dark
+      : DEFAULTS.light;
+  }
+
+  // ── Core: lay theme theo gio ──────────────────────────────────
+  function getTimeTheme() {
+    var hour = new Date().getHours();
+    return (hour >= 6 && hour < 18) ? DEFAULTS.light : DEFAULTS.dark;
+  }
+
+  // ── Core: phan giai theme cuoi cung ────────────────────────────
+  function resolveTheme(userOverride) {
+    if (userOverride === DEFAULTS.light || userOverride === DEFAULTS.dark) {
+      return userOverride; // User da set → dung y het
+    }
+    // Auto mode: thu system truoc
+    var systemTheme = getSystemTheme();
+    if (systemTheme) return systemTheme;
+    // Fallback: theo gio
+    return getTimeTheme();
+  }
+
+  // ── Core: apply theme len DOM ─────────────────────────────────
   function apply(theme) {
-    const h = document.documentElement;
-    const now = new Date();
-    const isNight = now.getHours() >= 18 || now.getHours() < 6;
-
-    // Binance mode: default = dark. light mode only if explicitly set
-    if (theme === 'light') {
-      h.setAttribute('data-theme', 'light');
-    } else {
-      // dark or auto → use dark (auto: night = dark, day = dark for Binance)
-      h.setAttribute('data-theme', 'dark');
-    }
-
-    // Persist user choice
-    if (theme !== 'auto') {
-      localStorage.setItem(KEY, theme);
-    } else {
-      localStorage.removeItem(KEY);
-    }
+    var html = document.documentElement;
+    html.setAttribute('data-theme', theme);
+    html.classList.remove('light', 'dark');
+    html.classList.add(theme);
   }
 
-  // Toggle: dark → light → dark → auto → dark
-  function cycle() {
-    const saved = localStorage.getItem(KEY) || 'dark';
-    const map = { dark: 'light', light: 'dark', auto: 'dark' };
-    apply(map[saved]);
-    updateIcon();
-  }
-
-  // Set icon on the toggle button
-  function updateIcon() {
-    const h = document.documentElement;
-    const current = h.getAttribute('data-theme') || 'dark';
-    const btn = document.getElementById('themeToggle');
+  // ── Core: update icon tren toggle button ──────────────────────
+  function updateIcon(theme) {
+    var btn = document.getElementById('themeToggle');
     if (!btn) return;
-    const sun = document.getElementById('themeToggleSun');
-    const moon = document.getElementById('themeToggleMoon');
-    if (current === 'dark') {
+    var sun = document.getElementById('themeToggleSun');
+    var moon = document.getElementById('themeToggleMoon');
+    if (theme === DEFAULTS.dark) {
+      btn.title = 'Che do sang';
       if (sun) sun.style.display = 'none';
       if (moon) moon.style.display = '';
-      btn.title = 'Chế độ sáng';
     } else {
+      btn.title = 'Che do toi';
       if (sun) sun.style.display = '';
       if (moon) moon.style.display = 'none';
-      btn.title = 'Chế độ tối';
     }
   }
 
-  // Run immediately (before first paint) — default to dark (Binance mode)
-  apply(localStorage.getItem(KEY) || 'dark');
+  // ── Sync icon khi DOM ready ────────────────────────────────────
+  document.addEventListener('DOMContentLoaded', function () {
+    var current = document.documentElement.getAttribute('data-theme') || DEFAULTS.dark;
+    updateIcon(current);
+  });
 
-  // Update every minute (for auto switch)
-  setInterval(() => {
-    const saved = localStorage.getItem(KEY) || 'dark';
-    apply(saved);
-    updateIcon();
-  }, 60 * 1000);
+  // ── Listen system change (matchMedia) ─────────────────────────
+  (function watchSystemChange() {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    var saved = localStorage.getItem(STORAGE_KEY);
+    if (saved && saved !== 'auto') return; // User da set → khong auto switch
 
-  // Expose globally so header can wire up the button
-  window.__darkMode = { cycle, updateIcon };
+    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+    mq.addEventListener('change', function (e) {
+      var s = localStorage.getItem(STORAGE_KEY);
+      if (s && s !== 'auto') return;
+      var t = e.matches ? DEFAULTS.dark : DEFAULTS.light;
+      apply(t);
+      updateIcon(t);
+    });
+  })();
 
-  // Wire up toggle button once DOM is ready
-  document.addEventListener('DOMContentLoaded', updateIcon);
-})();
+  // ── Timer: kiem tra doi gio moi phut ───────────────────────────
+  (function startTimeWatcher() {
+    setInterval(function () {
+      var saved = localStorage.getItem(STORAGE_KEY);
+      if (saved && saved !== 'auto') return; // Co user override → bo qua
+      var theme = resolveTheme(saved);
+      var current = document.documentElement.getAttribute('data-theme');
+      if (current !== theme) {
+        apply(theme);
+        updateIcon(theme);
+      }
+    }, 60 * 1000);
+  })();
 
-// ===== Haptic Feedback — call on button tap =====
-window.haptic = function(type = 'light') {
-  if (!navigator.vibrate) return;
-  const patterns = {
-    light: 10,
-    medium: 25,
-    heavy: 50,
-    success: [10, 50, 10],
-    error: [50, 30, 50],
+  // ── PUBLIC: khoi tao — goi TRUOC body render (trong <head>) ────
+  function init() {
+    var saved = localStorage.getItem(STORAGE_KEY);
+    var theme = resolveTheme(saved);
+    apply(theme);
+    updateIcon(theme);
+  }
+
+  // ── PUBLIC: toggle ─────────────────────────────────────────────
+  function toggle() {
+    var current = document.documentElement.getAttribute('data-theme') || DEFAULTS.dark;
+    var next = current === DEFAULTS.dark ? DEFAULTS.light : DEFAULTS.dark;
+    setTheme(next);
+  }
+
+  // ── PUBLIC: set theme thu cong ────────────────────────────────
+  function setTheme(theme) {
+    if (theme !== DEFAULTS.light && theme !== DEFAULTS.dark) theme = DEFAULTS.dark;
+    localStorage.setItem(STORAGE_KEY, theme);
+    apply(theme);
+    updateIcon(theme);
+  }
+
+  // ── PUBLIC: lay theme hien tai ─────────────────────────────────
+  function getTheme() {
+    return document.documentElement.getAttribute('data-theme') || DEFAULTS.dark;
+  }
+
+  // ── PUBLIC: xoa override, ve auto ─────────────────────────────
+  function resetToAuto() {
+    localStorage.removeItem(STORAGE_KEY);
+    var theme = resolveTheme(null);
+    apply(theme);
+    updateIcon(theme);
+  }
+
+  // ── Expose globally ─────────────────────────────────────────────
+  window.__darkMode = {
+    init: init,
+    cycle: toggle,
+    set: setTheme,
+    get: getTheme,
+    reset: resetToAuto,
+    updateIcon: updateIcon,
   };
-  const p = patterns[type] || 10;
-  navigator.vibrate(p);
-};
+
+  // Auto-init ngay (ho tro inline script goi truoc <body>)
+  init();
+})();

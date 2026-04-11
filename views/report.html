@@ -1,6 +1,18 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
+  <!-- NO-FLICKER: Apply theme BEFORE first paint to prevent flash -->
+  <script>
+  (function () {
+    var k = 'theme';
+    var sys = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    var saved = localStorage.getItem(k);
+    var theme = (saved === 'light' || saved === 'dark') ? saved : sys;
+    document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.classList.remove('light', 'dark');
+    document.documentElement.classList.add(theme);
+  })();
+  </script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">

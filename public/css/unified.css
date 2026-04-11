@@ -36,6 +36,8 @@ body {
   flex-direction: column;
   font-size: 14px;
   line-height: 1.5;
+  /* Smooth theme transition — triggered by dark-mode.js apply() */
+  transition: background 0.2s ease, color 0.2s ease;
 }
 
 /* Standard app body — header + bottom nav
