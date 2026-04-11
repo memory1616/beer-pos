@@ -530,7 +530,7 @@ function openKegFromInvoice(saleId) {
 
 function openKegFromSaleData(sale, saleId) {
   closeInvoice();
-  openKegModalForSale(saleId, sale.customer_id, sale.deliver_kegs || 0, sale.return_kegs || 0);
+  openKegModalForSale(saleId, sale.customer_id, sale);
 }
 
 // Open keg modal for a specific sale — load sale data first
@@ -541,13 +541,14 @@ function returnSale(saleId) {
       if (!data) { showToast('Không tìm thấy đơn', 'error'); return; }
       var sale = data.sale || data;
       if (!sale) { showToast('Không tìm thấy đơn', 'error'); return; }
-      openKegModalForSale(saleId, sale.customer_id, sale.deliver_kegs || 0, sale.return_kegs || 0);
+      openKegModalForSale(saleId, sale.customer_id, sale);
     })
     .catch(function() { showToast('Lỗi tải đơn', 'error'); });
 }
 
 // Open keg modal pre-filled with sale info — uses INVOICE data, not current customer state
-function openKegModalForSale(saleId, customerId, deliverKegs, returnKegs) {
+// invoiceData should contain: deliver_kegs, return_kegs, keg_balance_after, customer_keg_balance
+function openKegModalForSale(saleId, customerId, invoiceData) {
   var modal = document.getElementById('collectKegModal');
   if (!modal) return;
 
@@ -555,45 +556,50 @@ function openKegModalForSale(saleId, customerId, deliverKegs, returnKegs) {
   saleState.customerId = customerId ? Number(customerId) : null;
   kegSubmitting = false;
 
-  // Lưu invoice data để tính toán chính xác
-  var invoiceData = normalizeInvoice(window._invoiceContext?.rawSale || { id: saleId, customer_id: customerId, deliver_kegs: deliverKegs, return_kegs: returnKegs });
+  // Extract values from invoice data
+  var deliverKegs = invoiceData?.deliver_kegs || 0;
+  var returnKegs = invoiceData?.return_kegs || 0;
+  var kegBalanceAfter = invoiceData?.keg_balance_after;
+  var customerKegBalance = invoiceData?.customer_keg_balance;
 
-  // Store original invoice values for rollback
-  var oldDelivered = invoiceData.bottleGiven || 0;
-  var oldReturned = invoiceData.bottleReceived || 0;
-  var invoiceBefore = invoiceData.bottleBefore;
-  var invoiceAfter = invoiceData.bottleAfter;
+  // Calculate bottleBefore: tồn kho của khách trước khi đơn này tạo
+  // bottleBefore = keg_balance_after - deliver + return
+  var bottleBefore = null;
+  if (kegBalanceAfter !== undefined && kegBalanceAfter !== null) {
+    bottleBefore = kegBalanceAfter - deliverKegs + returnKegs;
+  }
 
+  // Store original invoice values for reference
   window._kegEditSale = {
     saleId: saleId,
     customerId: customerId,
-    oldDelivered: oldDelivered,
-    oldReturned: oldReturned,
-    invoiceBefore: invoiceBefore,
-    invoiceAfter: invoiceAfter
+    oldDelivered: deliverKegs,
+    oldReturned: returnKegs,
+    invoiceBefore: bottleBefore,
+    invoiceAfter: kegBalanceAfter
   };
 
   var customer = customerId ? getCustomer(customerId) : null;
   var customerName = customer ? customer.name : 'Chưa chọn';
 
-  // Hiển thị thông tin theo yêu cầu: Tồn trước, Giao, Thu, Tồn sau
+  // Hiển thị thông tin: Tồn trước, Giao, Thu, Tồn sau
   var info = document.getElementById('collectKegInfo');
   if (info) {
-    var beforeText = invoiceBefore !== null ? invoiceBefore : (invoiceData.customer?.keg_balance ?? '?');
+    var beforeText = bottleBefore !== null ? bottleBefore : (customerKegBalance ?? '?');
     info.innerHTML = '<div style="font-size:13px;">👤 ' + escHtml(customerName) + ' | Tồn trước: <b>' + beforeText + '</b></div>';
   }
 
-  // Current balance = invoice's "before" value (tồn kho của khách trước khi đơn này tạo)
-  var currentBalance = invoiceBefore !== null ? invoiceBefore : (customer ? (customer.keg_balance || 0) : 0);
+  // Current balance = bottleBefore (tồn trước của đơn)
+  var currentBalance = bottleBefore !== null ? bottleBefore : (customer ? (customer.keg_balance || 0) : 0);
 
   var currentBalanceEl = document.getElementById('collectKegCurrentBalance');
   if (currentBalanceEl) currentBalanceEl.textContent = currentBalance;
 
-  // Reset inputs với giá trị HIỆN TẠI của invoice (không phải 0)
+  // Reset inputs với giá trị HIỆN TẠI của invoice
   var deliverEl = document.getElementById('collectKegDeliver');
   var returnEl = document.getElementById('collectKegReturn');
-  if (deliverEl) deliverEl.value = String(deliverKegs || 0);
-  if (returnEl) returnEl.value = String(returnKegs || 0);
+  if (deliverEl) deliverEl.value = String(deliverKegs);
+  if (returnEl) returnEl.value = String(returnKegs);
 
   updateCollectKegPreview();
   modal.classList.remove('hidden');
