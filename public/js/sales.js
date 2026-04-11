@@ -564,9 +564,16 @@ function openKegModalForSale(saleId, customerId, invoiceData) {
 
   // Calculate bottleBefore: tồn kho của khách trước khi đơn này tạo
   // Formula: bottleBefore = keg_balance_after - deliver + return
+  // If keg_balance_after exists, use it; otherwise calculate from customer balance
   var bottleBefore = null;
-  if (kegBalanceAfter != null && kegBalanceAfter !== undefined) {
+  if (kegBalanceAfter != null && kegBalanceAfter !== undefined && !isNaN(kegBalanceAfter)) {
     bottleBefore = kegBalanceAfter - deliverKegs + returnKegs;
+  } else if (customerKegBalance != null && customerKegBalance !== undefined && !isNaN(customerKegBalance)) {
+    // Fallback: customer_keg_balance is current balance, subtract the invoice's effect
+    // customerBalanceAfterInvoice = customerKegBalance
+    // invoiceEffect = +deliver - return
+    // So: customerBalanceBeforeInvoice = customerKegBalance - deliver + return
+    bottleBefore = customerKegBalance - deliverKegs + returnKegs;
   }
 
   // Store original invoice values for reference
