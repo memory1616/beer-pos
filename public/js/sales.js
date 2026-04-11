@@ -403,45 +403,56 @@ function renderInvoiceModalContent(invoice, saleIdForActions) {
   var itemsList = document.getElementById('invItemsList');
   var invActions = document.getElementById('invActions');
   var vietqrBlock = document.getElementById('vietqrBlock');
-  if (!orderEl || !itemsList || !invActions) return;
+  if (!itemsList) { console.warn('[renderInvoiceModalContent] invItemsList not found'); return; }
+  if (!orderEl) orderEl = document.getElementById('invOrderId');
+  if (!invActions) invActions = document.getElementById('invActions');
 
-  console.log('[renderInvoiceModalContent] invoice:', invoice);
-  console.log('[renderInvoiceModalContent] items:', invoice?.items);
-  console.log('[renderInvoiceModalContent] customer:', invoice?.customer);
+  console.log('[renderInvoiceModalContent] invoice:', JSON.stringify(invoice));
+  console.log('[renderInvoiceModalContent] items:', invoice && invoice.items);
+  console.log('[renderInvoiceModalContent] customer:', invoice && invoice.customer);
+  console.log('[renderInvoiceModalContent] saleIdForActions:', saleIdForActions);
+
+  var invDateEl = document.getElementById('invDate');
+  var invKegDeliver = document.getElementById('invKegDeliver');
+  var invKegReturn = document.getElementById('invKegReturn');
+  var invKegBalance = document.getElementById('invKegBalance');
+  var invTotalValue = document.getElementById('invTotalValue');
+  var vietqrImage = document.getElementById('vietqrImage');
+
+  // Reset all fields to safe defaults
+  if (orderEl) orderEl.textContent = '#—';
+  if (metaEl) metaEl.textContent = '—';
+  if (invDateEl) invDateEl.textContent = '';
+  if (invKegDeliver) invKegDeliver.textContent = '0';
+  if (invKegReturn) invKegReturn.textContent = '0';
+  if (invKegBalance) invKegBalance.textContent = '0';
+  if (invTotalValue) invTotalValue.textContent = '0đ';
+  if (vietqrBlock) vietqrBlock.style.display = 'none';
+  if (vietqrImage) vietqrImage.src = '';
+
+  var modal = document.getElementById('invPosModal');
+  if (modal) modal.classList.remove('compact', 'ultra-compact');
 
   if (!invoice) {
-    orderEl.textContent = '#—';
-    if (metaEl) metaEl.textContent = '—';
-    var invDateEl = document.getElementById('invDate');
-    if (invDateEl) invDateEl.textContent = '';
     itemsList.innerHTML =
       '<div class="inv-empty-state" style="text-align:center;padding:28px 16px;color:var(--text-muted);font-size:13px;line-height:1.5;">' +
       'Không có dữ liệu hóa đơn.<br><span style="font-size:12px;opacity:0.85;">Thử tải lại hoặc chọn đơn khác.</span></div>';
-    document.getElementById('invKegDeliver').textContent = '0';
-    document.getElementById('invKegReturn').textContent = '0';
-    document.getElementById('invKegBalance').textContent = '0';
-    document.getElementById('invTotalValue').textContent = '—';
-    var modal = document.getElementById('invPosModal');
-    if (modal) modal.classList.remove('compact', 'ultra-compact');
-    invActions.innerHTML = '<button class="inv-btn inv-btn-ghost" type="button" onclick="closeInvoice()">Đóng</button>';
-    if (vietqrBlock) vietqrBlock.style.display = 'none';
+    if (invActions) invActions.innerHTML = '<button class="inv-btn inv-btn-ghost" type="button" onclick="closeInvoice()">Đóng</button>';
     return;
   }
 
   var sid = saleIdForActions != null ? saleIdForActions : invoice.id;
+  if (!Number.isFinite(sid) || sid == null) sid = invoice.id;
   var dateStr = invoice.date ? new Date(invoice.date).toLocaleString('vi-VN', {
     day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
   }) : '';
-  var isReturned = invoice.status === 'returned';
 
-  orderEl.textContent = '#' + sid;
-  if (metaEl) metaEl.textContent = (invoice.customer.name || 'Khách lẻ');
-  var invDateEl = document.getElementById('invDate');
+  if (orderEl) orderEl.textContent = '#' + sid;
+  if (metaEl) metaEl.textContent = (invoice.customer && invoice.customer.name) || 'Khách lẻ';
   if (invDateEl) invDateEl.textContent = dateStr;
 
-  // Compact mode — no scroll, auto-fit
+  // Compact mode
   var itemCount = (invoice.items || []).length;
-  var modal = document.getElementById('invPosModal');
   if (modal) {
     modal.classList.remove('compact', 'ultra-compact');
     if (itemCount > 6) modal.classList.add('ultra-compact');
@@ -473,24 +484,33 @@ function renderInvoiceModalContent(invoice, saleIdForActions) {
     ? invoice.customer.keg_balance
     : (customer ? (customer.keg_balance || 0) : 0);
 
-  document.getElementById('invKegDeliver').textContent = String(invoice.bottleGiven);
-  document.getElementById('invKegReturn').textContent = String(invoice.bottleReceived);
-  document.getElementById('invKegBalance').textContent = String(balance);
+  if (invKegDeliver) invKegDeliver.textContent = String(invoice.bottleGiven || 0);
+  if (invKegReturn) invKegReturn.textContent = String(invoice.bottleReceived || 0);
+  if (invKegBalance) invKegBalance.textContent = String(balance);
 
-  document.getElementById('invTotalValue').textContent = formatVND(invoice.totalAmount);
+  var totalDisplay = invoice.totalAmount;
+  if (!Number.isFinite(totalDisplay) || totalDisplay == null) {
+    totalDisplay = (invoice.items || []).reduce(function(sum, it) { return sum + (it.quantity || 0) * (it.price || 0); }, 0);
+  }
+  if (invTotalValue) invTotalValue.textContent = formatVND(totalDisplay);
 
-  // Render QR — inline flex row, show if invoice exists
+  // QR
   var vietqrUrl = generateVietQR(invoice);
-  var vietqrBlock = document.getElementById('vietqrBlock');
-  var vietqrImage = document.getElementById('vietqrImage');
-  if (vietqrBlock) {
-    vietqrBlock.style.display = invoice ? '' : 'none';
+  if (vietqrBlock) vietqrBlock.style.display = '';
+  if (vietqrImage) { vietqrImage.src = vietqrUrl; vietqrImage.style.display = ''; }
+
+  // Actions
+  if (invActions) {
+    var isReturned = invoice.status === 'returned';
+    invActions.innerHTML =
+      '<button class="inv-btn inv-btn-ghost" type="button" onclick="closeInvoice()">Đóng</button>' +
+      '<button class="inv-btn" type="button" onclick="viewSale(' + sid + ')">🔄 Tải lại</button>' +
+      (!isReturned
+        ? '<button class="inv-btn" type="button" onclick="if(window._invoiceContext&&window._invoiceContext.saleId){openKegFromInvoice(window._invoiceContext.saleId)}">📦 Vỏ</button>' +
+          '<button class="inv-btn inv-btn-edit" type="button" onclick="openEditSale(' + sid + ')">✏️ Sửa</button>' +
+          '<button class="inv-btn inv-btn-delete" type="button" onclick="deleteSale(' + sid + ')">🗑 Xóa</button>'
+        : '');
   }
-  if (vietqrImage) {
-    vietqrImage.src = vietqrUrl;
-    vietqrImage.style.display = invoice ? '' : 'none';
-  }
-  invActions.innerHTML = '';
 }
 
 function showInvoiceModalElement() {
