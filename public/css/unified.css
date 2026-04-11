@@ -68,7 +68,7 @@ body {
   padding-top: calc(var(--header-height) + var(--safe-area-top));
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
-  padding-bottom: calc(var(--bottomnav-height) + env(safe-area-inset-bottom, 0px));
+  /* bottom padding handled by .app-main (ONE source of truth) */
 }
 
 /* Page enter animation */
@@ -5402,20 +5402,7 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   POS NEW LAYOUT — Single column card-based
-   - No sidebar, no grid 2 cột
-   - Product cards với qty input
-   - Customer search top, checkout modal bottom
-   - Giống page nhập hàng
-   ═══════════════════════════════════════════════════════════════════ */
-
-/* ── Sale page main content ── */
-#saleMainContent {
-  padding-bottom: calc(var(--bottomnav-height) + 16px) !important;
-}
-
-/* ── Section wrapper ── */
+/* ── Sale page section wrapper ── */
 .sale-section {
   margin-bottom: 16px;
 }
@@ -6114,6 +6101,8 @@ body.body--app #app {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
+  /* ONE source of truth: bottom padding = bottomnav height + safe-area */
+  padding-bottom: calc(var(--bottomnav-height) + var(--safe-area-bottom));
 }
 
 /* .app-body: fills space between fixed header and fixed bottom nav */
@@ -6126,14 +6115,6 @@ body.body--app .app-body {
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
-}
-
-.app-bottom-nav {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: var(--z-sticky, 500);
 }
 
 /* ================================================================
