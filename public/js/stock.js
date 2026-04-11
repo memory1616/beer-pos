@@ -110,24 +110,19 @@ async function loadData() {
         const data = await res.json();
         serverProducts = data.products || [];
         serverPurchases = data.purchases || [];
-        console.log('[Stock] Server returned:', serverProducts.length, 'products,', serverPurchases.length, 'purchases');
       } else {
-        console.warn('[Stock] Server returned status:', res.status, '— falling back to IndexedDB');
+        console.warn('[Stock] Server returned status:', res.status);
       }
     } catch (e) {
-      console.warn('[Stock] Server fetch failed, using IndexedDB:', e.message || e);
+      console.warn('[Stock] Server fetch failed:', e.message || e);
     }
 
     // Step 2: Update IndexedDB with server data (keep local cache in sync)
-    console.log('[Stock] Step2: serverProducts.length=' + serverProducts.length + ', window.db=' + typeof window.db + ', window.dbReady=' + typeof window.dbReady);
     if (serverProducts.length > 0) {
       try {
         if (window.db && window.dbReady) {
-          console.log('[Stock] Step2: waiting for dbReady...');
           await window.dbReady.catch(() => {});
-          console.log('[Stock] Step2: dbReady resolved, clearing products...');
           await window.db.products.clear();
-          console.log('[Stock] Step2: bulkAdd starting...');
           await window.db.products.bulkAdd(serverProducts.map(p => ({
             id: p.id,
             name: p.name,
@@ -137,7 +132,6 @@ async function loadData() {
             synced: 1,
             archived: p.archived || 0
           })));
-          console.log('[Stock] IndexedDB synced with', serverProducts.length, 'products from server');
         }
       } catch (e) {
         console.warn('[Stock] Could not sync IndexedDB:', e.message || e);
@@ -156,7 +150,6 @@ async function loadData() {
         try {
           if (window.dbReady) await window.dbReady.catch(() => {});
           products = await window.getProducts();
-          console.log('[Stock] IndexedDB returned:', products.length, 'products');
         } catch (e) {
           console.error('[Stock] IndexedDB fallback FAILED:', e.message || e);
         }
@@ -164,14 +157,11 @@ async function loadData() {
     }
 
     // Always show content section and render
-    console.log('[Stock] loadData: showing content section, products=' + (products ? products.length : 0));
     var loadingEl = document.getElementById('loading');
     var contentEl = document.getElementById('contentSection');
-    console.log('[Stock] loadingEl=' + !!loadingEl + ', contentEl=' + !!contentEl);
-    if (loadingEl) { loadingEl.classList.add('hidden'); console.log('[Stock] loading hidden'); }
-    if (contentEl) { contentEl.classList.remove('hidden'); console.log('[Stock] content shown'); }
+    if (loadingEl) loadingEl.classList.add('hidden');
+    if (contentEl) contentEl.classList.remove('hidden');
 
-    console.log('[Stock] loadData: calling initStockPage...');
     initStockPage({
       products: products || [],
       purchases: purchases || [],
@@ -179,7 +169,6 @@ async function loadData() {
         return s + Math.max(0, Number(p.stock) || 0);
       }, 0)
     });
-    console.log('[Stock] loadData: initStockPage DONE');
     hideLoading();
     return products || [];
   } catch (err) {
@@ -198,7 +187,6 @@ function hideLoading() {
 }
 
 function initStockPage(data) {
-  console.log('[Stock] initStockPage: START, products=' + ((data && data.products) ? data.products.length : 0));
   try {
     // Render products — data.products comes from IndexedDB (single source of truth)
     currentProducts = data.products || [];
@@ -224,7 +212,6 @@ function initStockPage(data) {
       allPurchases = data.purchases.slice();
     }
 
-    console.log('[Stock] initStockPage: rendering ' + currentProducts.length + ' products, total=' + totalStockPositive);
     _renderProductsPage(_filteredProducts.slice(0, PAGE_SIZE), totalStockPositive, _filteredProducts.length > PAGE_SIZE);
 
     // Render import form
@@ -235,7 +222,6 @@ function initStockPage(data) {
       renderPurchaseHistory(data.purchases);
     }
 
-    console.log('[Stock] initStockPage: OK, products=' + currentProducts.length);
     hideLoading();
   } catch (err) {
     console.error('[Stock] initStockPage ERROR:', err);
@@ -376,17 +362,16 @@ async function deletePurchase(purchaseId) {
     checkPurchasesEmpty();
 
     // Also delete from IndexedDB to keep local cache in sync
-    try {
-      if (window.db && purchaseId) {
-        var pid = parseInt(purchaseId);
-        if (!isNaN(pid) && window.db.purchases) {
-          await window.db.purchases.delete(pid);
-          console.log('[Stock] Deleted purchase', pid, 'from IndexedDB');
+      try {
+        if (window.db && purchaseId) {
+          var pid = parseInt(purchaseId);
+          if (!isNaN(pid) && window.db.purchases) {
+            await window.db.purchases.delete(pid);
+          }
         }
+      } catch (e) {
+        console.warn('[Stock] Could not delete purchase from IndexedDB:', e);
       }
-    } catch (e) {
-      console.warn('[Stock] Could not delete purchase from IndexedDB:', e);
-    }
 
     alert('Đã xoá đơn nhập hàng!');
 
@@ -712,11 +697,7 @@ function _productCardHtml(p, totalPositive) {
 // PERFORMANCE: Render a page of products
 function _renderProductsPage(pageProducts, totalPositive, hasMore) {
   const container = document.getElementById('productList');
-  console.log('[Stock] _renderProductsPage: container=' + !!container + ', products=' + (pageProducts ? pageProducts.length : 0));
-  if (!container) {
-    console.error('[Stock] _renderProductsPage: #productList NOT FOUND in DOM');
-    return;
-  }
+  if (!container) return;
 
   // If first page, clear container and add low stock alert
   if (_renderedCount <= PAGE_SIZE) {
@@ -764,7 +745,6 @@ function _renderProductsPage(pageProducts, totalPositive, hasMore) {
     container.appendChild(div.firstElementChild);
   }
 
-  console.log('[Stock] _renderProductsPage: done. container.children=' + container.children.length + ', innerHTML len=' + container.innerHTML.length);
   _hasMore = hasMore;
 
   // Remove old sentinel/observer
@@ -986,7 +966,6 @@ function deleteProduct() {
           var pid = parseInt(productId);
           if (!isNaN(pid)) {
             await window.db.products.delete(pid);
-            console.log('[Stock] Deleted product', pid, 'from IndexedDB');
           }
         }
       } catch (e) {
@@ -1109,7 +1088,6 @@ function shouldRefreshStockPath(pathname) {
 async function refreshStockPage(reason) {
   if (_stockRefreshInFlight || typeof loadData !== 'function') return;
   _stockRefreshInFlight = true;
-  console.log('[CONSISTENCY][Stock] refresh', reason || 'mutation');
   try {
     await loadData();
   } finally {
@@ -1142,17 +1120,11 @@ if ('serviceWorker' in navigator) {
 // ── Global loadData: expose to window so other pages / console can call it ─────
 window.loadData = loadData;
 
-// ── Global renderProducts: safe debug version ──────────────────────────────────
-// Works even if #totalStockEl is missing (unlike the main renderProducts)
-// Override this to make renderProducts always work from console or code
+// Expose renderProducts globally for console debugging
 window.renderProducts = function(products) {
-  console.log('[Stock] 🔥 window.renderProducts RUNNING', products);
   try {
     var container = document.getElementById('productList');
-    if (!container) {
-      console.error('[Stock] ❌ #productList NOT FOUND in DOM');
-      return;
-    }
+    if (!container) return;
     container.innerHTML = '';
     if (!products || products.length === 0) {
       container.innerHTML = '<div class="text-muted text-center py-8">Không có sản phẩm nào</div>';
@@ -1184,12 +1156,10 @@ window.renderProducts = function(products) {
       div.innerHTML = html;
       container.appendChild(div.firstElementChild);
     });
-    console.log('[Stock] window.renderProducts: done. children=' + container.children.length + ', html len=' + container.innerHTML.length);
     var total = (products || []).reduce(function(s, p) { return s + Math.max(0, Number(p.stock) || 0); }, 0);
     var totalEl = document.getElementById('totalStock');
     if (totalEl) totalEl.textContent = String(total);
-    console.log('[Stock] ✅ window.renderProducts done, rendered ' + products.length + ' products');
   } catch (err) {
-    console.error('[Stock] ❌ window.renderProducts ERROR:', err);
+    console.error('[Stock] window.renderProducts error:', err);
   }
 };

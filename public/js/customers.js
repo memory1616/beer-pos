@@ -229,7 +229,7 @@ async function submitAddForm() {
     resetAddForm();
     await loadPageData(currentTab);
   } catch (err) {
-    console.error('[submitAddForm]', err);
+    // silenced
     showToast('Lỗi khi thêm khách hàng', 'error');
   } finally {
     if (btnState) restoreButtonLoading(btnState);
@@ -447,7 +447,7 @@ async function loadPageData(tab) {
     renderCustomers();
     renderPagination();
   } catch (err) {
-    console.error('Failed to load page data:', err);
+    // silenced
   }
 }
 
@@ -640,7 +640,7 @@ async function saveKegBalance() {
       patchCustomerRow(customers[idx]);
     }
   } catch (err) {
-    console.error('[saveKegBalance]', err);
+    // silenced
     await softRefreshCustomers();
   } finally {
     if (btnState) restoreButtonLoading(btnState);
@@ -757,7 +757,7 @@ async function saveCustomerEdit() {
       patchCustomerRow(updated);
     }
   } catch (err) {
-    console.error('[saveCustomerEdit]', err);
+    // silenced
     await softRefreshCustomers();
   } finally {
     if (btnState) restoreButtonLoading(btnState);
@@ -809,7 +809,7 @@ function showPriceModal(id, name) {
     // Initialize number format for new inputs
     if (typeof initAllNumberFormats === 'function') initAllNumberFormats();
   }).catch(err => {
-    console.error('Error loading data:', err);
+    // silenced
     var plEl = document.getElementById('priceList');
     if (plEl) plEl.innerHTML = '<div class="text-danger text-center py-4">Lỗi tải dữ liệu: ' + err.message + '</div>';
   });
@@ -851,7 +851,7 @@ async function savePrices() {
     alert('Đã lưu bảng giá!');
     hideModal('priceModal');
   } catch (err) {
-    console.error('[savePrices]', err);
+    // silenced
     await softRefreshCustomers();
   } finally {
     if (btnState) restoreButtonLoading(btnState);
@@ -899,7 +899,7 @@ async function loadAddProducts() {
       initAllNumberFormats();
     }
   } catch (e) {
-    console.error('Failed to load products:', e);
+    // silenced
   }
 }
 
@@ -928,7 +928,7 @@ async function archiveCustomer(id) {
     showToast('Đã lưu trữ khách hàng!', 'success');
     await loadPageData(currentTab);
   } catch (err) {
-    console.error('[archiveCustomer]', err);
+    // silenced
     await softRefreshCustomers();
   } finally {
     if (btnState) restoreButtonLoading(btnState);
@@ -949,7 +949,7 @@ async function unarchiveCustomer(id) {
     showToast('Đã khôi phục khách hàng!', 'success');
     await loadPageData(currentTab);
   } catch (err) {
-    console.error('[unarchiveCustomer]', err);
+    // silenced
     await softRefreshCustomers();
   } finally {
     if (btnState) restoreButtonLoading(btnState);
@@ -970,7 +970,7 @@ async function deleteCustomer(id) {
     alert('Đã xóa khách hàng!');
     await loadPageData(currentTab);
   } catch (err) {
-    console.error('[deleteCustomer]', err);
+    // silenced
     await softRefreshCustomers();
   } finally {
     if (btnState) restoreButtonLoading(btnState);
@@ -1096,7 +1096,7 @@ function getGPSLocation() {
             window.detectedAddress = data.display_name;
           }
         } catch (err) {
-          console.log('Reverse geocoding failed:', err);
+          // silenced
           addressEl.innerHTML = '<p class="text-muted">Không thể lấy địa chỉ</p>';
         }
       }

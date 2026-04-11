@@ -39,7 +39,7 @@ class BeerPOSDB {
     }
 
     if (typeof Dexie === 'undefined') {
-      console.warn('[DBv5] Dexie not loaded, using localStorage fallback');
+      // silenced
       this._initFallback();
       this._readyResolve?.();
       return this._db;
@@ -76,7 +76,7 @@ class BeerPOSDB {
 
     this._initialized = true;
 
-    console.log('[DBv5] IndexedDB initialized (Optimized)');
+    // silenced
     this._readyResolve?.();
     return this._db;
   }
@@ -112,11 +112,11 @@ class BeerPOSDB {
       }
 
       if (updates.length > 0) {
-        console.warn(`[DBv5] Auto-fixing ${updates.length} corrupted events`);
+        // silenced
         await this._db.events.bulkUpdate(updates);
       }
     } catch (err) {
-      console.warn('[DBv5] fixCorruptedData error:', err);
+      // silenced
     }
   }
 
@@ -144,16 +144,16 @@ class BeerPOSDB {
       if (valid) safeEvents.push(valid);
     }
     if (safeEvents.length === 0) {
-      console.warn('[DBv5] bulkAddEvents: all events invalid, skipping');
+      // silenced
       return 0;
     }
 
     try {
       await this._db.events.bulkAdd(safeEvents);
-      console.log(`[DBv5] Bulk added ${safeEvents.length} events`);
+      // silenced
       return safeEvents.length;
     } catch (error) {
-      console.error('[DBv5] bulkAddEvents error:', error);
+      // silenced
       // Fallback: add one by one
       let added = 0;
       for (const event of safeEvents) {
@@ -187,10 +187,10 @@ class BeerPOSDB {
 
     try {
       await this._db.events.bulkUpdate(safeUpdates);
-      console.log(`[DBv5] Bulk updated ${safeUpdates.length} events`);
+      // silenced
       return safeUpdates.length;
     } catch (error) {
-      console.error('[DBv5] bulkUpdateEvents error:', error);
+      // silenced
       return 0;
     }
   }
@@ -209,7 +209,7 @@ class BeerPOSDB {
         .limit(limit)
         .toArray();
     } catch (error) {
-      console.error('[DBv5] getPendingEvents error:', error);
+      // silenced
       return [];
     }
   }
@@ -243,7 +243,7 @@ class BeerPOSDB {
         .reverse()
         .toArray();
     } catch (error) {
-      console.error('[DBv5] getEventsByEntity error:', error);
+      // silenced
       return [];
     }
   }
@@ -263,7 +263,7 @@ class BeerPOSDB {
         updatedAt: Date.now(),
       });
     } catch (error) {
-      console.error('[DBv5] updateEventStatus error:', error);
+      // silenced
     }
   }
 
@@ -288,7 +288,7 @@ class BeerPOSDB {
       
       await this._db.events.bulkUpdate(updates);
     } catch (error) {
-      console.error('[DBv5] batchMarkEventsSynced error:', error);
+      // silenced
     }
   }
 
@@ -313,7 +313,7 @@ class BeerPOSDB {
       
       await this._db.events.bulkUpdate(updates);
     } catch (error) {
-      console.error('[DBv5] batchMarkEventsFailed error:', error);
+      // silenced
     }
   }
 
@@ -343,7 +343,7 @@ class BeerPOSDB {
 
       return retryCount;
     } catch (error) {
-      console.error('[DBv5] incrementRetryCount error:', error);
+      // silenced
       return 0;
     }
   }
@@ -358,7 +358,7 @@ class BeerPOSDB {
 
     const safeEntity = this._safeIndex(entity);
     if (!safeEntity) {
-      console.warn('[DBv5] bulkUpsertEntities: invalid entity', entity);
+      // silenced
       return 0;
     }
 
@@ -371,10 +371,10 @@ class BeerPOSDB {
       }));
 
       await this._db.entities.bulkPut(entities);
-      console.log(`[DBv5] Bulk upserted ${items.length} ${safeEntity}`);
+      // silenced
       return items.length;
     } catch (error) {
-      console.error('[DBv5] bulkUpsertEntities error:', error);
+      // silenced
       return 0;
     }
   }
@@ -419,12 +419,12 @@ class BeerPOSDB {
    */
   async upsertEntity(entity, item) {
     if (!this._db || !item?.id) {
-      console.warn('[DBv5] upsertEntity: invalid db or missing id');
+      // silenced
       return item;
     }
     const safeEntity = this._safeIndex(entity);
     if (!safeEntity) {
-      console.warn('[DBv5] upsertEntity: invalid entity', entity);
+      // silenced
       return item;
     }
     try {
@@ -437,7 +437,7 @@ class BeerPOSDB {
       await this._db.entities.put(data);
       return data;
     } catch (error) {
-      console.error('[DBv5] upsertEntity error:', error);
+      // silenced
       return item;
     }
   }
@@ -462,7 +462,7 @@ class BeerPOSDB {
       await this._db.syncQueue.bulkAdd(items);
       return eventIds.length;
     } catch (error) {
-      console.error('[DBv5] bulkAddToSyncQueue error:', error);
+      // silenced
       return 0;
     }
   }
@@ -477,7 +477,7 @@ class BeerPOSDB {
       await this._db.syncQueue.where('eventId').anyOf(eventIds).delete();
       return eventIds.length;
     } catch (error) {
-      console.error('[DBv5] bulkRemoveFromSyncQueue error:', error);
+      // silenced
       return 0;
     }
   }
@@ -492,7 +492,7 @@ class BeerPOSDB {
         .limit(limit)
         .toArray();
     } catch (error) {
-      console.warn('[DBv5] getSyncQueueItems error:', error);
+      // silenced
       return [];
     }
   }
@@ -512,7 +512,7 @@ class BeerPOSDB {
       
       await this._db.seenEvents.bulkPut(items);
     } catch (error) {
-      console.error('[DBv5] bulkMarkEventsSeen error:', error);
+      // silenced
     }
   }
 
@@ -527,7 +527,7 @@ class BeerPOSDB {
     try {
       await this._db.events.put(valid);
     } catch (error) {
-      console.error('[DBv5] addEvent error:', error);
+      // silenced
     }
   }
 
@@ -541,7 +541,7 @@ class BeerPOSDB {
         createdAt: now,
       });
     } catch (error) {
-      console.error('[DBv5] addToSyncQueue error:', error);
+      // silenced
     }
   }
 
@@ -551,7 +551,7 @@ class BeerPOSDB {
       const seen = await this._db.seenEvents.get(String(eventId));
       return !!seen;
     } catch (error) {
-      console.warn('[DBv5] isEventSeen error:', error);
+      // silenced
       return false;
     }
   }
@@ -564,7 +564,7 @@ class BeerPOSDB {
         createdAt: Date.now(),
       });
     } catch (error) {
-      console.warn('[DBv5] markEventSeen error:', error);
+      // silenced
     }
   }
 
@@ -590,7 +590,7 @@ class BeerPOSDB {
 
   _safeIndex(entity) {
     if (!entity || typeof entity !== 'string') {
-      console.warn('[DB] Invalid entity in compound index query:', entity);
+      // silenced
       return null;
     }
     return entity;
@@ -610,7 +610,7 @@ class BeerPOSDB {
    */
   _assertValidEvent(e) {
     if (!e || typeof e !== 'object') {
-      console.warn('[DB] _assertValidEvent: invalid event object:', e);
+      // silenced
       return null;
     }
     const valid = {
@@ -629,7 +629,7 @@ class BeerPOSDB {
       lastError: e.lastError || null,
     };
     if (!valid.entity) {
-      console.warn('[DB] _assertValidEvent: invalid entity, skipping event');
+      // silenced
       return null;
     }
     return valid;
@@ -642,7 +642,7 @@ class BeerPOSDB {
     try {
       return await query.count();
     } catch (err) {
-      console.warn('[DB][safeCount] error:', err);
+      // silenced
       return 0;
     }
   }
@@ -650,9 +650,9 @@ class BeerPOSDB {
   // ── Debug helper ──────────────────────────────────────────────
   _debugLog(label, data) {
     if (typeof data === 'string') {
-      console.log(`[DB][${label}]`, data);
+      // silenced
     } else {
-      console.log(`[DB][${label}]`, JSON.stringify(data));
+      // silenced
     }
   }
 
@@ -678,7 +678,7 @@ class BeerPOSDB {
       this._db.seenEvents.clear(),
     ]);
     
-    console.log('[DBv5] All data cleared');
+    // silenced
   }
 
   async getStats() {
@@ -688,7 +688,7 @@ class BeerPOSDB {
     const safeSynced = 'synced';
     const safeFailed = 'failed';
 
-    console.log('[DB][getStats] querying:', { safeStatus, safeSynced, safeFailed });
+    // silenced
 
     const [pendingEvents, syncedEvents, failedEvents, queueItems] = await Promise.all([
       this._safeCount(this._db.events.where('status').equals(safeStatus)),
@@ -726,20 +726,20 @@ window.BeerDB = beerPOSDB;
 beerPOSDB.upsertEntity = async function(entity, item) {
   // Layer 1: Validate inputs
   if (!item?.id) {
-    console.warn('[DBv5] upsertEntity: missing id', { entity, item });
+    // silenced
     return item;
   }
   
   // Layer 2: Check if internal db (_db) is ready
   if (!this._db) {
-    console.warn('[DBv5] upsertEntity: internal _db not initialized yet');
+    // silenced
     return item;
   }
   
   // Layer 3: Safe entity validation
   const safeEntity = typeof entity === 'string' ? entity : String(entity);
   if (!safeEntity) {
-    console.warn('[DBv5] upsertEntity: invalid entity', entity);
+    // silenced
     return item;
   }
   
@@ -754,9 +754,9 @@ beerPOSDB.upsertEntity = async function(entity, item) {
     await this._db.entities.put(data);
     return data;
   } catch (error) {
-    console.error('[DBv5] upsertEntity error:', error, { entity, itemId: item?.id });
+    // silenced
     return item;
   }
 };
 
-console.log('[DBv5] BeerPOSDB v5 loaded (Optimized)');
+// silenced

@@ -449,7 +449,7 @@ function shouldRefreshDashboardEntity(entity) {
 function refreshDashboardFromMutation(reason) {
   if (_dashboardRefreshInFlight) return;
   _dashboardRefreshInFlight = true;
-  console.log('[CONSISTENCY][Dashboard] refresh', reason || 'mutation');
+  // silenced
 
   fetch('/dashboard/data', { cache: 'no-store' })
     .then(function(r) {
@@ -460,7 +460,7 @@ function refreshDashboardFromMutation(reason) {
       initDashboard(data);
     })
     .catch(function(e) {
-      console.error('[CONSISTENCY][Dashboard] refresh error', e);
+      // silenced
     })
     .finally(() => {
       _dashboardRefreshInFlight = false;

@@ -31,7 +31,6 @@ async function safeJson(res) {
   } catch (e) {
     try {
       const text = await res.clone().text();
-      console.warn('[API] Non-JSON response:', text.substring(0, 200));
       return null;
     } catch (_) {
       return null;
@@ -310,9 +309,9 @@ function normalizeInvoice(sale) {
 }
 
 /**
- * 生成 VietQR 支付二维码 URL
- * @param {object} invoice - 发票对象，需包含 id 和 totalAmount
- * @returns {string} VietQR 图片 URL
+ * Generate VietQR payment URL
+ * @param {object} invoice - invoice object with id and totalAmount
+ * @returns {string} VietQR image URL
  */
 function generateVietQR(invoice) {
   var amount = invoice && invoice.totalAmount ? Math.round(invoice.totalAmount) : 0;
@@ -345,7 +344,6 @@ function renderInvoiceModalContent(invoice, saleIdForActions) {
     document.getElementById('invKegReturn').textContent = '0';
     document.getElementById('invKegBalance').textContent = '0';
     document.getElementById('invTotalValue').textContent = '—';
-    // 隐藏操作按钮和 VietQR
     invActions.innerHTML = '<button class="inv-btn inv-btn-ghost" type="button" onclick="closeInvoice()">Đóng</button>';
     if (vietqrBlock) vietqrBlock.classList.remove('visible');
     return;
@@ -390,7 +388,7 @@ function renderInvoiceModalContent(invoice, saleIdForActions) {
 
   document.getElementById('invTotalValue').textContent = formatVND(invoice.totalAmount);
 
-  // 渲染 VietQR 支付区块
+  // Render VietQR payment block
   var contentText = 'Noi dung: Thanh toan HD ' + sid;
   var vietqrUrl = generateVietQR(invoice);
   if (vietqrBlock) {
@@ -403,7 +401,6 @@ function renderInvoiceModalContent(invoice, saleIdForActions) {
     }
     if (vietqrContent) vietqrContent.textContent = contentText;
   }
-  // 隐藏操作按钮
   invActions.innerHTML = '';
 }
 
@@ -426,7 +423,6 @@ function showInvoiceModalElement() {
  */
 function openInvoiceModal(source) {
   if (source == null || source === '') {
-    console.log('Invoice:', null);
     window._invoiceContext = null;
     renderInvoiceModalContent(null, null);
     showInvoiceModalElement();
@@ -435,7 +431,6 @@ function openInvoiceModal(source) {
 
   if (typeof source === 'object') {
     var invObj = normalizeInvoice(source);
-    console.log('Invoice:', invObj);
     window._invoiceContext = invObj ? { saleId: invObj.id, rawSale: invObj.raw || source } : null;
     renderInvoiceModalContent(invObj, invObj && invObj.id);
     showInvoiceModalElement();
@@ -444,7 +439,6 @@ function openInvoiceModal(source) {
 
   var saleId = parseInt(source, 10);
   if (!Number.isFinite(saleId) || saleId <= 0) {
-    console.log('Invoice:', null);
     window._invoiceContext = null;
     renderInvoiceModalContent(null, null);
     showInvoiceModalElement();
@@ -457,7 +451,6 @@ function openInvoiceModal(source) {
       if (!data) {
         showToast('Không tìm thấy đơn', 'error');
         var inv = null;
-        console.log('Invoice:', inv);
         window._invoiceContext = null;
         renderInvoiceModalContent(null, null);
         showInvoiceModalElement();
@@ -467,21 +460,18 @@ function openInvoiceModal(source) {
       if (!sale) {
         showToast('Không tìm thấy đơn', 'error');
         var inv = null;
-        console.log('Invoice:', inv);
         window._invoiceContext = null;
         renderInvoiceModalContent(null, null);
         showInvoiceModalElement();
         return;
       }
       var invoice = normalizeInvoice(sale);
-      console.log('Invoice:', invoice);
       window._invoiceContext = invoice ? { saleId: saleId, rawSale: sale } : null;
       renderInvoiceModalContent(invoice, saleId);
       showInvoiceModalElement();
     })
     .catch(function(err) {
       console.error('openInvoiceModal error:', err);
-      console.log('Invoice:', null);
       window._invoiceContext = null;
       renderInvoiceModalContent(null, null);
       showInvoiceModalElement();

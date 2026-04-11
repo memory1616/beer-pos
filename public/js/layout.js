@@ -61,12 +61,7 @@ function getContent(content) {
   `;
 }
 
-// Home = dashboard (explicit URL; / also serves dashboard on admin)
-function isHomeActive(currentPage) {
-  return currentPage === '/dashboard' || currentPage === '/';
-}
-
-// Generate bottom navigation - Mobile optimized (Grab-style)
+// Generate bottom navigation
 // Supports: /dashboard, /, /customers, /sale, /stock, /report,
 //           /kegs, /delivery, /purchases, /backup, /customer-detail, /expenses
 function getBottomNav(currentPage) {
@@ -166,7 +161,6 @@ function autoInjectBottomNav() {
     '/expenses': '/expenses',
     '/delivery': '/delivery',
     '/report':   '/report',
-    '/backup':   '/backup',
     '/purchases': '/purchases',
     '/kegs':     '/kegs',
     '/customers': '/customers',
@@ -248,25 +242,21 @@ function restoreButtonLoading(btnState) {
 
     // GUARD 1: realtime.js already loaded (its own __BEERPOS_REALTIME__ flag)
     if (window.__BEERPOS_REALTIME__) {
-      console.log('[Layout] realtime.js already loaded (__BEERPOS_REALTIME__ set), skipping');
       return;
     }
 
     // GUARD 2: Script tag already in DOM (handles static HTML pages)
     if (document.querySelector('script[src="/js/realtime.js"]')) {
-      console.log('[Layout] realtime.js script tag already present, skipping');
       return;
     }
 
     // GUARD 3: Currently being loaded (prevents race condition)
     if (window.__BEERPOS_REALTIME_LOADING__) {
-      console.log('[Layout] realtime.js currently loading, skipping duplicate');
       return;
     }
 
     // GUARD 4: Unified running flag
     if (window.__beerRealtimeRunning) {
-      console.log('[Layout] realtime.js already running (__beerRealtimeRunning), skipping');
       return;
     }
 
@@ -278,11 +268,9 @@ function restoreButtonLoading(btnState) {
     script.defer = true;
     script.onload = function () {
       window.__BEERPOS_REALTIME_LOADING__ = false;
-      console.log('[Layout] realtime.js loaded successfully');
     };
     script.onerror = function () {
       window.__BEERPOS_REALTIME_LOADING__ = false;
-      console.error('[Layout] Failed to load realtime.js');
     };
 
     document.head.appendChild(script);

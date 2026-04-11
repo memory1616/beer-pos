@@ -26,7 +26,7 @@
   // Prevents realtime.js from loading or initializing more than once.
 
   if (typeof window !== 'undefined' && (window.__BEERPOS_REALTIME__ || window.__beerRealtimeRunning)) {
-    console.warn('[WS][Client] realtime.js already loaded — skipping duplicate init');
+    // silenced
     return;
   }
 
@@ -87,9 +87,9 @@
         tag !== 'ERROR' && tag !== 'REFETCH') return;
     var prefix = '[WS][Client]';
     if (data !== undefined) {
-      console.log(prefix + ' [' + tag + '] ' + msg, data);
+      // silenced
     } else {
-      console.log(prefix + ' [' + tag + '] ' + msg);
+      // silenced
     }
   }
 
@@ -217,11 +217,9 @@
 
     _socket.on('connect', function () {
       _connected = true;
-      console.log('[WS] Connected:', _socket.id);
 
       // Replay pending events
       if (_pendingEvents.length > 0) {
-        log('INFO', 'Replaying ' + _pendingEvents.length + ' pending events');
         _pendingEvents.forEach(function (ev) {
           _socket.emit(ev.name, ev.data);
         });
@@ -234,12 +232,10 @@
 
     _socket.on('disconnect', function (reason) {
       _connected = false;
-      console.warn('[WS] Disconnected:', reason);
     });
 
     _socket.on('connect_error', function (err) {
-      console.error('[WS] Connect error:', err ? err.message : 'unknown');
-      log('ERROR', 'Connection error: ' + (err ? err.message : err));
+      // silently ignore connection errors
     });
 
     _socket.on('upgrade', function (nextTransport) {
@@ -618,13 +614,13 @@ window.Realtime = {
 
     window.addEventListener('offline', function () {
       _online = false;
-      console.warn('[WS] Offline mode — socket will auto-reconnect when back online');
+      // silenced
       log('OFFLINE', 'Network offline');
     });
 
     window.addEventListener('online', function () {
       _online = true;
-      console.log('[WS] Back online, reconnecting...');
+      // silenced
       log('ONLINE', 'Network back online');
       if (_socket && !_connected) {
         _socket.connect();

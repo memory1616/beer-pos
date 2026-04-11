@@ -1,0 +1,10 @@
+---
+description: Mặc định ngôn ngữ tiếng Việt
+alwaysApply: true
+---
+
+# Ngôn Ngữ Giao Tiếp
+
+- Luôn trả lời bằng **tiếng Việt**
+- Không sử dụng tiếng Trung (中文) hoặc các ngôn ngữ khác trong giao tiếp
+- Giao diện UI và code comments có thể giữ nguyên theo ngữ cảnh dự án
