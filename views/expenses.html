@@ -443,8 +443,8 @@
     var skeleton = document.getElementById('skeleton');
     if (skeleton) skeleton.remove();
 
-    // Header actions: total amount
-    var headerActions = '<span id="headerTotal" class="money text-money font-bold tabular-nums" style="font-size:14px;color:var(--red);">0đ</span>';
+    // Header actions: empty
+    var headerActions = '';
 
     document.getElementById('app').innerHTML =
       getHeaderWithActions('Chi phí', '💸', headerActions) +
