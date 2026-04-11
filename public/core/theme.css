@@ -21,17 +21,17 @@
 /* Background tokens — alias tokens to unified names */
 :root {
   /* Background */
-  --bg-primary:      var(--bg, #1A1A1A);
-  --bg-secondary:    var(--bg-secondary, #242424);
-  --bg-card:        var(--card, #2A2A2A);
-  --bg-card-soft:   var(--card-soft, #323232);
-  --bg-input:       var(--input-bg, var(--card, #2A2A2A));
-  --bg-hover:       var(--bg-hover, rgba(255, 255, 255, 0.06));
+  --bg-primary:      var(--bg, #0B0E11);
+  --bg-secondary:    var(--bg-secondary, #161A1E);
+  --bg-card:        var(--card, #1E2329);
+  --bg-card-soft:   var(--card-soft, #2B3139);
+  --bg-input:       var(--input-bg, #161A1E);
+  --bg-hover:       var(--bg-hover, #2B3139);
 
   /* Text */
-  --text-primary:    var(--text-primary, #F0F0F0);
-  --text-secondary:  var(--text-secondary, #A0A0A0);
-  --text-muted:      var(--text-muted, #686868);
+  --text-primary:    var(--text-primary, #EAECEF);
+  --text-secondary:  var(--text-secondary, #848E9C);
+  --text-muted:      var(--text-muted, #848E9C);
 
   /* Accent colors */
   --accent-yellow:   var(--primary, #FCD535);
@@ -82,17 +82,17 @@
 :root.dark,
 :root[data-theme="dark"] {
   /* Background */
-  --bg-primary:      var(--bg, #1A1A1A);
-  --bg-secondary:    var(--bg-secondary, #242424);
-  --bg-card:        var(--card, #2A2A2A);
-  --bg-card-soft:   var(--card-soft, #323232);
-  --bg-input:       var(--input-bg, #2A2A2A);
-  --bg-hover:       var(--bg-hover, rgba(255, 255, 255, 0.06));
+  --bg-primary:      var(--bg, #0B0E11);
+  --bg-secondary:    var(--bg-secondary, #161A1E);
+  --bg-card:        var(--card, #1E2329);
+  --bg-card-soft:   var(--card-soft, #2B3139);
+  --bg-input:       var(--input-bg, #161A1E);
+  --bg-hover:       var(--bg-hover, #2B3139);
 
   /* Text */
-  --text-primary:    var(--text-primary, #F0F0F0);
-  --text-secondary:  var(--text-secondary, #A0A0A0);
-  --text-muted:      var(--text-muted, #686868);
+  --text-primary:    var(--text-primary, #EAECEF);
+  --text-secondary:  var(--text-secondary, #848E9C);
+  --text-muted:      var(--text-muted, #848E9C);
 
   /* Border */
   --border-default:  var(--border, #2B3139);

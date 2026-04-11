@@ -373,7 +373,7 @@ function renderRevenueChart(dailyData) {
           data: netProfits,
           type: 'line',
           borderColor: getComputedStyle(document.documentElement).getPropertyValue('--info').trim() || '#3B82F6',
-          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+          backgroundColor: 'rgba(59, 122, 254, 0.1)',
           borderWidth: 2,
           fill: true,
           tension: 0.3,

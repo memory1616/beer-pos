@@ -38,10 +38,10 @@
 
     /* Total card */
     .total-card {
-      background: linear-gradient(135deg, var(--red) 0%, var(--red-dark, #dc2626) 100%);
+      background: linear-gradient(135deg, var(--danger) 0%, var(--danger-hover, #E53E52) 100%);
       border-radius: 16px;
       padding: 20px;
-      color: white;
+      color: var(--text-on-dark);
       margin-bottom: 16px;
     }
     .total-card-label {
@@ -96,7 +96,7 @@
     }
     .month-input:focus {
       outline: none;
-      border-color: var(--primary);
+      border-color: var(--accent);
     }
 
     /* Category chips scroll */
@@ -126,14 +126,14 @@
     }
     .cat-chip:active { transform: scale(0.96); }
     .cat-chip.active {
-      border-color: var(--red);
+      border-color: var(--danger);
       background: var(--red-dim, rgba(239,68,68,0.1));
     }
     .cat-chip-icon { font-size: 20px; }
     .cat-chip-label { font-size: 11px; color: var(--text-muted); font-weight: 500; }
-    .cat-chip.active .cat-chip-label { color: var(--red); }
+    .cat-chip.active .cat-chip-label { color: var(--danger); }
     .cat-chip-amount { font-size: 13px; font-weight: 600; color: var(--text-main); margin-top: 2px; }
-    .cat-chip.active .cat-chip-amount { color: var(--red); }
+    .cat-chip.active .cat-chip-amount { color: var(--danger); }
 
     /* Expense list */
     .expense-item {
@@ -166,7 +166,7 @@
     .expense-amount {
       font-size: 15px;
       font-weight: 700;
-      color: var(--red);
+      color: var(--danger);
       flex-shrink: 0;
     }
     .expense-actions {
@@ -201,7 +201,7 @@
       width: 56px;
       height: 56px;
       border-radius: 16px;
-      background: linear-gradient(135deg, var(--red) 0%, var(--red-dark, #dc2626) 100%);
+      background: linear-gradient(135deg, var(--danger) 0%, var(--danger-hover, #E53E52) 100%);
       color: white;
       border: none;
       font-size: 28px;
@@ -252,7 +252,7 @@
     }
     .modal-input:focus {
       outline: none;
-      border-color: var(--red);
+      border-color: var(--danger);
       box-shadow: 0 0 0 3px rgba(239,68,68,0.12);
     }
     .modal-select {
@@ -268,7 +268,7 @@
     }
     .modal-select:focus {
       outline: none;
-      border-color: var(--red);
+      border-color: var(--danger);
     }
     .modal-btn-cancel {
       flex: 1;
@@ -286,7 +286,7 @@
       height: 48px;
       border-radius: 12px;
       border: none;
-      background: linear-gradient(135deg, var(--red) 0%, var(--red-dark, #dc2626) 100%);
+      background: linear-gradient(135deg, var(--danger) 0%, var(--danger-hover, #E53E52) 100%);
       color: white;
       font-size: 15px;
       font-weight: 700;

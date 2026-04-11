@@ -18,90 +18,70 @@
 }
 
 /* =====================   CORE PALETTE   ===================== */
-/* Dark (default) — Neutral Gray Palette */
+/* Dark (default) — Binance Palette */
 :root {
-  /* Primary — Binance Gold */
-  --primary:          #FCD535;
-  --primary-hover:    #F0B90B;
-  --primary-dim:     rgba(252, 213, 53, 0.12);
-  --primary-active:   rgba(240, 185, 11, 0.18);
-  --primary-shadow:   rgba(252, 213, 53, 0.28);
+  /* Brand */
+  --accent:           #FCD535;
+  --accent-hover:     #F0B90B;
+  --accent-dim:      rgba(252, 213, 53, 0.12);
+  --accent-shadow:   rgba(252, 213, 53, 0.28);
 
-  /* Success / Green */
-  --green:            #0ECB81;
-  --green-dim:        rgba(14, 203, 129, 0.12);
-  --green-hover:      #00B370;
-  --green-shadow:     rgba(14, 203, 129, 0.25);
+  /* Financial */
+  --success:         #0ECB81;
+  --success-dim:     rgba(14, 203, 129, 0.12);
+  --success-hover:   #00B370;
+  --success-shadow:  rgba(14, 203, 129, 0.25);
 
-  /* Danger / Red */
-  --red:              #F6465D;
-  --red-dim:          rgba(246, 70, 93, 0.12);
-  --red-hover:        #E53E52;
-  --red-shadow:       rgba(246, 70, 93, 0.25);
+  --danger:          #F6465D;
+  --danger-dim:      rgba(246, 70, 93, 0.12);
+  --danger-hover:    #E53E52;
+  --danger-shadow:   rgba(246, 70, 93, 0.25);
 
-  /* Warning / Amber */
-  --warning:          #F0B90B;
-  --warning-dim:      rgba(240, 185, 11, 0.12);
-
-  /* Info / Blue */
-  --info:             #3B82F6;
-  --info-dim:         rgba(59, 130, 246, 0.12);
-  --info-shadow:      rgba(59, 130, 246, 0.25);
-
-  /* Purple / Violet */
-  --purple:           #7C3AED;
-  --purple-dim:       rgba(124, 58, 237, 0.12);
-  --purple-light:     #A78BFA;
-
-  /* Teal / Cyan */
-  --teal:             #14B8A6;
-  --teal-dim:         rgba(20, 184, 166, 0.12);
-  --teal-light:       #2DD4BF;
-
-  /* Semantic aliases */
-  --color-primary:   var(--primary);
-  --color-success:  var(--green);
-  --color-danger:   var(--red);
-  --color-info:     var(--info);
-  --color-warning:  var(--warning);
-  --color-purple:   var(--purple);
-  --color-teal:    var(--teal);
-
-  /* Backgrounds — Neutral Gray (no blue tint) */
-  --bg:              #1A1A1A;
-  --bg-secondary:    #242424;
-  --card:            #2A2A2A;
-  --card-soft:       #323232;
-  --card-hover:      #383838;
-  --card-active:     #404040;
-
-  /* Borders */
-  --border:           #383838;
-  --border-strong:    #484848;
-  --border-focus:      var(--primary);
-
-  /* Interactive */
-  --bg-hover:         rgba(255, 255, 255, 0.06);
-  --bg-active:        rgba(255, 255, 255, 0.10);
-
-  /* Text Hierarchy — High Contrast */
-  --text-primary:     #F0F0F0;
-  --text-secondary:    #A0A0A0;
-  --text-muted:        #686868;
-  /* Fallbacks */
-  --text-on-dark:      #1A1A1A;
-  --text-on-light:     #F0F0F0;
+  /* Status */
+  --warning:         #F0B90B;
+  --warning-dim:     rgba(240, 185, 11, 0.12);
+  --info:            #3B7AFE;
+  --info-dim:        rgba(59, 122, 254, 0.12);
+  --info-shadow:     rgba(59, 122, 254, 0.25);
 
   /* Aliases */
-  --color-bg:          var(--bg);
-  --color-card:        var(--card);
-  --color-border:      var(--border);
-  --color-text:        var(--text-primary);
-  --color-text-secondary: var(--text-secondary);
-  --color-text-muted:  var(--text-muted);
-  --color-bg-hover:    var(--bg-hover);
-  /* Canonical alias */
-  --text-main:         var(--text-primary);
+  --primary:         var(--accent);
+  --green:           var(--success);
+  --red:             var(--danger);
+  --color-primary:   var(--accent);
+  --color-success:   var(--success);
+  --color-danger:    var(--danger);
+  --color-info:      var(--info);
+  --color-warning:   var(--warning);
+
+  /* Background */
+  --bg-primary:      #0B0E11;
+  --bg-secondary:    #161A1E;
+  --bg-card:         #1E2329;
+  --bg-hover:        #2B3139;
+
+  /* Text */
+  --text-primary:    #EAECEF;
+  --text-secondary:  #848E9C;
+  --text-disabled:   #5E6673;
+  --text-on-dark:    #0B0E11;
+  --text-on-light:   #EAECEF;
+
+  /* Border */
+  --border:          #2B3139;
+  --border-strong:   #3A4250;
+
+  /* Interactive */
+  --bg-active:       rgba(255, 255, 255, 0.10);
+
+  /* Aliases */
+  --bg:              var(--bg-primary);
+  --card:            var(--bg-card);
+  --text-main:       var(--text-primary);
+  --text-muted:      var(--text-secondary);
+  --color-bg:        var(--bg-primary);
+  --color-card:      var(--bg-card);
+  --color-text:      var(--text-primary);
 
   /* Typography */
   --font-family:        'Inter', system-ui, -apple-system, sans-serif;
@@ -194,24 +174,24 @@
 /* =====================   LIGHT MODE TOKENS   ===================== */
 :root.light,
 :root[data-theme="light"] {
-  --bg:              #FFFFFF;
+  /* Background */
+  --bg-primary:      #FFFFFF;
   --bg-secondary:    #F5F5F5;
-  --card:            #FFFFFF;
-  --card-soft:       #F0F1F3;
-  --card-hover:      #ECEEF1;
-  --card-active:     #E4E7EC;
-  --border:           rgba(0, 0, 0, 0.08);
-  --border-strong:    rgba(0, 0, 0, 0.12);
-  --bg-hover:         rgba(0, 0, 0, 0.04);
-  --bg-active:        rgba(0, 0, 0, 0.08);
+  --bg-card:        #FFFFFF;
+  --bg-hover:       #F0F0F0;
 
-  --text-primary:     #1E2329;
-  --text-secondary:    #707A8A;
-  --text-muted:        #AEB4BE;
-  --text-on-dark:      #EAECEF;
-  --text-on-light:     #1E2329;
+  /* Text */
+  --text-primary:    #1E2329;
+  --text-secondary:  #707A8A;
+  --text-disabled:   #B7BDC6;
+  --text-on-dark:    #EAECEF;
+  --text-on-light:   #1E2329;
 
-  /* Shadows — Light Theme */
+  /* Border */
+  --border:          #EAECEF;
+  --border-strong:    #D0D5DD;
+
+  /* Shadows */
   --shadow-xs:     0 1px 2px rgba(0, 0, 0, 0.06);
   --shadow-sm:     0 2px 8px rgba(0, 0, 0, 0.08);
   --shadow-md:     0 4px 16px rgba(0, 0, 0, 0.10);
@@ -220,34 +200,39 @@
   --shadow-primary: 0 4px 14px rgba(252, 213, 53, 0.22);
   --shadow-success: 0 4px 14px rgba(14, 203, 129, 0.2);
   --shadow-danger:  0 4px 14px rgba(246, 70, 93, 0.2);
-  --shadow-info:    0 4px 14px rgba(59, 130, 246, 0.2);
+  --shadow-info:    0 4px 14px rgba(59, 122, 254, 0.2);
 }
 
-/* =====================   DARK MODE TOKENS (EXPLICIT)   ===================== */
+/* =====================   DARK MODE (EXPLICIT)   ===================== */
 :root.dark,
 :root[data-theme="dark"] {
-  --bg:              #1A1A1A;
-  --bg-secondary:    #242424;
-  --card:            #2A2A2A;
-  --card-soft:       #323232;
-  --card-hover:      #383838;
-  --card-active:     #404040;
-  --border:           #383838;
-  --border-strong:    #484848;
-  --bg-hover:         rgba(255, 255, 255, 0.06);
-  --bg-active:        rgba(255, 255, 255, 0.10);
+  /* Background */
+  --bg-primary:      #0B0E11;
+  --bg-secondary:    #161A1E;
+  --bg-card:        #1E2329;
+  --bg-hover:        #2B3139;
 
-  --text-primary:     #F0F0F0;
-  --text-secondary:    #A0A0A0;
-  --text-muted:        #686868;
-  --text-on-dark:      #1A1A1A;
-  --text-on-light:     #F0F0F0;
+  /* Text */
+  --text-primary:    #EAECEF;
+  --text-secondary:  #848E9C;
+  --text-disabled:   #5E6673;
+  --text-on-dark:    #0B0E11;
+  --text-on-light:   #EAECEF;
 
-  --shadow-xs:     0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-sm:     0 2px 8px rgba(0, 0, 0, 0.45);
-  --shadow-md:     0 4px 16px rgba(0, 0, 0, 0.5);
-  --shadow-lg:     0 8px 32px rgba(0, 0, 0, 0.55);
+  /* Border */
+  --border:          #2B3139;
+  --border-strong:   #3A4250;
+
+  /* Shadows */
+  --shadow-xs:     0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-sm:     0 2px 8px rgba(0, 0, 0, 0.35);
+  --shadow-md:     0 4px 16px rgba(0, 0, 0, 0.4);
+  --shadow-lg:     0 8px 32px rgba(0, 0, 0, 0.5);
   --shadow-xl:     0 16px 48px rgba(0, 0, 0, 0.6);
+  --shadow-primary: 0 4px 14px rgba(252, 213, 53, 0.28);
+  --shadow-success: 0 4px 14px rgba(14, 203, 129, 0.25);
+  --shadow-danger:  0 4px 14px rgba(246, 70, 93, 0.25);
+  --shadow-info:    0 4px 14px rgba(59, 122, 254, 0.25);
 }
 
 /* =====================   STATUS / CONTEXT TOKENS   ===================== */
@@ -265,41 +250,41 @@
   --alert-danger-border: rgba(246, 70, 93, 0.3);
   --alert-success-bg:  rgba(14, 203, 129, 0.12);
   --alert-warning-bg:  rgba(240, 185, 11, 0.12);
-  --alert-info-bg:    rgba(59, 130, 246, 0.12);
+  --alert-info-bg:    rgba(59, 122, 254, 0.12);
 }
 
 /* =====================   COMPONENT TOKENS   ===================== */
 /* Button tokens */
 :root {
-  --btn-primary-bg:     var(--primary);
+  --btn-primary-bg:     var(--accent);
   --btn-primary-color:   var(--text-on-dark);
   --btn-primary-shadow:   var(--shadow-primary);
-  --btn-primary-hover:    var(--primary-hover);
+  --btn-primary-hover:    var(--accent-hover);
 
-  --btn-secondary-bg:     var(--card-soft);
+  --btn-secondary-bg:     var(--bg-hover);
   --btn-secondary-color:  var(--text-primary);
-  --btn-secondary-hover:  var(--card-hover);
+  --btn-secondary-hover:  var(--border);
 
-  --btn-danger-bg:       var(--red);
-  --btn-danger-color:    white;
+  --btn-danger-bg:       var(--danger);
+  --btn-danger-color:    var(--text-on-dark);
   --btn-danger-shadow:    var(--shadow-danger);
 
   --btn-ghost-bg:         transparent;
   --btn-ghost-color:      var(--text-secondary);
   --btn-ghost-border:     var(--border);
 
-  --btn-disabled-bg:     var(--card-soft);
-  --btn-disabled-color:  var(--text-muted);
+  --btn-disabled-bg:     var(--bg-hover);
+  --btn-disabled-color:  var(--text-disabled);
 }
 
 /* Input tokens */
 :root {
-  --input-bg:           var(--card);
+  --input-bg:           var(--bg-secondary);
   --input-border:        var(--border);
   --input-color:         var(--text-primary);
-  --input-placeholder:   var(--text-muted);
-  --input-focus-border:  var(--primary);
-  --input-focus-shadow: 0 0 0 3px var(--primary-dim);
+  --input-placeholder:   var(--text-secondary);
+  --input-focus-border:  var(--accent);
+  --input-focus-shadow: 0 0 0 3px var(--accent-dim);
   --input-height:        44px;
   --input-height-lg:     48px;
 }
@@ -308,13 +293,13 @@
 :root {
   --modal-overlay-bg:     rgba(0, 0, 0, 0.65);
   --modal-backdrop-bg:   rgba(0, 0, 0, 0.7);
-  --modal-card-bg:       var(--card);
+  --modal-card-bg:       var(--bg-card);
   --modal-radius:        var(--radius-xl);
 }
 
 /* Card tokens */
 :root {
-  --card-bg:     var(--card);
+  --card-bg:     var(--bg-card);
   --card-border: var(--border);
   --card-radius: var(--radius-lg);
   --card-padding: 10px;
@@ -348,15 +333,15 @@
 }
 
 /* =====================   INLINE STYLE FALLBACKS ===================== */
-/* Safe fallbacks for text that must ALWAYS be readable */
+/* Safe fallbacks if CSS variables are undefined */
 :root {
-  --fallback-text-on-dark: #F0F0F0;
-  --fallback-text-on-light: #1A1A1A;
-  --fallback-text-muted: #686868;
-  --fallback-bg-dark: #1A1A1A;
+  --fallback-text-on-dark: #EAECEF;
+  --fallback-text-on-light: #1E2329;
+  --fallback-text-muted: #848E9C;
+  --fallback-bg-dark: #0B0E11;
   --fallback-bg-light: #FFFFFF;
-  --fallback-card-dark: #2A2A2A;
+  --fallback-card-dark: #1E2329;
   --fallback-card-light: #FFFFFF;
-  --fallback-border-dark: #383838;
-  --fallback-border-light: rgba(0,0,0,0.1);
+  --fallback-border-dark: #2B3139;
+  --fallback-border-light: #EAECEF;
 }

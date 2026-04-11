@@ -58,39 +58,39 @@
   <div id="kegModal" class="modal-overlay-v2 hidden center">
     <div class="modal-sheet-v2">
       <div class="modal-sheet-v2-header">
-        <div style="font-size:15px;font-weight:700;color:var(--primary);">📦 Cập nhật vỏ bình</div>
+        <div style="font-size:15px;font-weight:700;color:var(--accent);">📦 Cập nhật vỏ bình</div>
         <button onclick="closeKegModal()" class="modal-sheet-v2-close">×</button>
       </div>
       <div class="modal-sheet-v2-body">
         <div id="kegModalBadge" class="hidden mb-3 p-2 rounded-lg text-center text-sm" style="background:var(--card-soft);border:1px solid var(--border);">
-          <span style="color:var(--text-muted);">Đã giao: <span id="kegBadgeGiao" style="font-weight:700;color:var(--green);">0</span>
-          <span style="color:var(--text-muted);margin:0 8px;">|</span>
-          Đã thu: <span id="kegBadgeThu" style="font-weight:700;color:var(--red);">0</span></span>
+          <span style="color:var(--text-secondary);">Đã giao: <span id="kegBadgeGiao" style="font-weight:700;color:var(--success);">0</span>
+          <span style="color:var(--text-secondary);margin:0 8px;">|</span>
+          Đã thu: <span id="kegBadgeThu" style="font-weight:700;color:var(--danger);">0</span></span>
         </div>
         <div class="card mb-4 text-center" style="background:var(--primary-dim);border:1px solid rgba(252,213,53,0.2);border-radius:8px;padding:12px;">
           <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Bia đã bán</div>
-          <div style="font-size:32px;font-weight:800;color:var(--primary);" id="kegBeerQuantity">0</div>
+          <div style="font-size:32px;font-weight:800;color:var(--accent);" id="kegBeerQuantity">0</div>
         </div>
         <div style="display:flex;flex-direction:column;gap:12px;">
           <div>
-            <label style="display:block;font-size:12px;font-weight:600;color:var(--green);margin-bottom:6px;">📦 Giao vỏ</label>
+            <label style="display:block;font-size:12px;font-weight:600;color:var(--success);margin-bottom:6px;">📦 Giao vỏ</label>
             <input type="number" id="kegDeliver" value="0" inputmode="numeric" min="0"
-              style="width:100%;height:44px;padding:0 12px;border-radius:8px;border:2px solid var(--green);background:var(--card);color:var(--text-primary);font-size:16px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;"
+              style="width:100%;height:44px;padding:0 12px;border-radius:8px;border:2px solid var(--success);background:var(--card);color:var(--text-primary);font-size:16px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;"
               oninput="updateKegModalPreview()" onchange="updateKegModalPreview()">
           </div>
           <div>
-            <label style="display:block;font-size:12px;font-weight:600;color:var(--red);margin-bottom:6px;">🔄 Thu vỏ</label>
+            <label style="display:block;font-size:12px;font-weight:600;color:var(--danger);margin-bottom:6px;">🔄 Thu vỏ</label>
             <input type="number" id="kegReturn" value="0" inputmode="numeric" min="0"
-              style="width:100%;height:44px;padding:0 12px;border-radius:8px;border:2px solid var(--red);background:var(--card);color:var(--text-primary);font-size:16px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;"
+              style="width:100%;height:44px;padding:0 12px;border-radius:8px;border:2px solid var(--danger);background:var(--card);color:var(--text-primary);font-size:16px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;"
               oninput="updateKegModalPreview()" onchange="updateKegModalPreview()">
           </div>
           <div class="card p-3" style="background:var(--card-soft);border:1px solid var(--border);border-radius:8px;">
             <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="color:var(--text-muted);font-size:13px;">Vỏ hiện tại:</span><span id="kegCurrentBalance" style="font-weight:700;color:var(--text-primary);">0</span></div>
-            <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="color:var(--text-muted);font-size:13px;">Sẽ giao thêm:</span><span id="kegDeliverPreview" style="font-weight:700;color:var(--green);">0</span></div>
-            <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="color:var(--text-muted);font-size:13px;">Sẽ thu về:</span><span id="kegReturnPreview" style="font-weight:700;color:var(--primary);">0</span></div>
-            <div style="display:flex;justify-content:space-between;padding-top:6px;border-top:1px solid var(--border);margin-top:6px;"><span style="color:var(--text-muted);font-size:13px;font-weight:600;">Số vỏ tại khách:</span><span id="kegNewBalance" style="font-weight:700;color:var(--green);">0</span></div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="color:var(--text-muted);font-size:13px;">Sẽ giao thêm:</span><span id="kegDeliverPreview" style="font-weight:700;color:var(--success);">0</span></div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="color:var(--text-muted);font-size:13px;">Sẽ thu về:</span><span id="kegReturnPreview" style="font-weight:700;color:var(--accent);">0</span></div>
+            <div style="display:flex;justify-content:space-between;padding-top:6px;border-top:1px solid var(--border);margin-top:6px;"><span style="color:var(--text-muted);font-size:13px;font-weight:600;">Số vỏ tại khách:</span><span id="kegNewBalance" style="font-weight:700;color:var(--success);">0</span></div>
           </div>
-          <div id="kegModalWarning" class="hidden" style="padding:10px;border:1px solid var(--red);border-radius:8px;text-align:center;font-size:13px;color:var(--red);background:var(--red-dim);">⚠️ Số vỏ thu vượt quá khách đang giữ</div>
+          <div id="kegModalWarning" class="hidden" style="padding:10px;border:1px solid var(--danger);border-radius:8px;text-align:center;font-size:13px;color:var(--danger);background:var(--red-dim);">⚠️ Số vỏ thu vượt quá khách đang giữ</div>
         </div>
         <div style="margin-top:12px;">
           <button onclick="saveKegUpdate()" id="kegSaveBtn" class="btn btn-primary w-full" style="height:44px;">💾 <span id="kegSaveBtnText">Lưu</span></button>
@@ -103,35 +103,35 @@
   <div id="collectKegModal" class="modal-overlay-v2 hidden center">
     <div class="modal-sheet-v2" style="max-width:400px;margin:auto;">
       <div class="modal-sheet-v2-header">
-        <div style="font-size:15px;font-weight:700;color:var(--primary);">📦 Giao / Thu vỏ</div>
+        <div style="font-size:15px;font-weight:700;color:var(--accent);">📦 Giao / Thu vỏ</div>
         <button onclick="closeCollectKegModal()" class="modal-sheet-v2-close">×</button>
       </div>
       <div class="modal-sheet-v2-body">
-        <div id="collectKegInfo" class="card p-3 mb-4 text-center text-sm" style="background:var(--primary-dim);border:1px solid rgba(252,213,53,0.2);border-radius:8px;color:var(--primary);"></div>
+        <div id="collectKegInfo" class="card p-3 mb-4 text-center text-sm" style="background:var(--primary-dim);border:1px solid rgba(252,213,53,0.2);border-radius:8px;color:var(--accent);"></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
           <div>
-            <label style="display:block;font-size:11px;font-weight:600;color:var(--green);margin-bottom:6px;text-align:center;">📦 Giao vỏ</label>
+            <label style="display:block;font-size:11px;font-weight:600;color:var(--success);margin-bottom:6px;text-align:center;">📦 Giao vỏ</label>
             <input type="number" id="collectKegDeliver" value="0" min="0" inputmode="numeric"
-              style="width:100%;height:44px;padding:0 12px;border-radius:8px;border:2px solid var(--green);background:var(--card);color:var(--text-primary);font-size:16px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;"
+              style="width:100%;height:44px;padding:0 12px;border-radius:8px;border:2px solid var(--success);background:var(--card);color:var(--text-primary);font-size:16px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;"
               oninput="updateCollectKegPreview()">
           </div>
           <div>
-            <label style="display:block;font-size:11px;font-weight:600;color:var(--red);margin-bottom:6px;text-align:center;">🔄 Thu vỏ</label>
+            <label style="display:block;font-size:11px;font-weight:600;color:var(--danger);margin-bottom:6px;text-align:center;">🔄 Thu vỏ</label>
             <input type="number" id="collectKegReturn" value="0" min="0" inputmode="numeric"
-              style="width:100%;height:44px;padding:0 12px;border-radius:8px;border:2px solid var(--red);background:var(--card);color:var(--text-primary);font-size:16px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;"
+              style="width:100%;height:44px;padding:0 12px;border-radius:8px;border:2px solid var(--danger);background:var(--card);color:var(--text-primary);font-size:16px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;"
               oninput="updateCollectKegPreview()">
           </div>
         </div>
         <div class="card p-3 mb-4" style="background:var(--card-soft);border:1px solid var(--border);border-radius:8px;">
           <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="color:var(--text-muted);font-size:13px;">Vỏ hiện tại:</span><span id="collectKegCurrentBalance" style="font-weight:700;color:var(--text-primary);">0</span></div>
-          <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="color:var(--text-muted);font-size:13px;">Đã giao:</span><span id="collectKegDeliverPreview" style="font-weight:700;color:var(--green);">0</span></div>
-          <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="color:var(--text-muted);font-size:13px;">Sẽ thu về:</span><span id="collectKegReturnPreview" style="font-weight:700;color:var(--primary);">0</span></div>
-          <div style="display:flex;justify-content:space-between;padding-top:6px;border-top:1px solid var(--border);margin-top:6px;"><span style="color:var(--text-muted);font-size:13px;font-weight:600;">Vỏ tại khách:</span><span id="collectKegRemaining" style="font-weight:700;color:var(--green);">0</span></div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="color:var(--text-muted);font-size:13px;">Đã giao:</span><span id="collectKegDeliverPreview" style="font-weight:700;color:var(--success);">0</span></div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="color:var(--text-muted);font-size:13px;">Sẽ thu về:</span><span id="collectKegReturnPreview" style="font-weight:700;color:var(--accent);">0</span></div>
+          <div style="display:flex;justify-content:space-between;padding-top:6px;border-top:1px solid var(--border);margin-top:6px;"><span style="color:var(--text-muted);font-size:13px;font-weight:600;">Vỏ tại khách:</span><span id="collectKegRemaining" style="font-weight:700;color:var(--success);">0</span></div>
         </div>
-        <div id="collectKegWarning" class="hidden mb-3 p-2 text-center text-sm" style="border:1px solid var(--red);border-radius:8px;color:var(--red);background:var(--red-dim);"></div>
+        <div id="collectKegWarning" class="hidden mb-3 p-2 text-center text-sm" style="border:1px solid var(--danger);border-radius:8px;color:var(--danger);background:var(--red-dim);"></div>
         <div style="display:flex;gap:8px;">
           <button onclick="closeCollectKegModal()" class="btn btn-ghost" style="flex:1;height:44px;border:1px solid var(--border);">Huỷ</button>
-          <button onclick="submitCollectKeg()" class="btn btn-primary" style="flex:1;height:44px;background:var(--primary);color:var(--btn-primary-color);">Xác nhận</button>
+          <button onclick="submitCollectKeg()" class="btn btn-primary" style="flex:1;height:44px;background:var(--accent);color:var(--btn-primary-color);">Xác nhận</button>
         </div>
       </div>
     </div>
@@ -141,7 +141,7 @@
   <div id="replacementModal" class="modal-overlay-v2 hidden center">
     <div class="modal-sheet-v2">
       <div class="modal-sheet-v2-header">
-        <div style="font-size:15px;font-weight:700;color:var(--primary);">🔄 Đổi bia lỗi</div>
+        <div style="font-size:15px;font-weight:700;color:var(--accent);">🔄 Đổi bia lỗi</div>
         <button onclick="closeReplacementModal()" class="modal-sheet-v2-close">×</button>
       </div>
       <div class="modal-sheet-v2-body">
@@ -182,14 +182,14 @@
           </div>
           <div style="padding:12px;border:1px solid rgba(252,213,53,0.3);border-radius:8px;background:var(--primary-dim);">
             <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;">
-              <input type="checkbox" id="giftKegs" onchange="toggleGiftMode()" style="width:18px;height:18px;margin-top:2px;accent-color:var(--primary);">
+              <input type="checkbox" id="giftKegs" onchange="toggleGiftMode()" style="width:18px;height:18px;margin-top:2px;accent-color:var(--accent);">
               <span style="font-size:13px;font-weight:600;color:var(--text-primary);line-height:1.4;">🎁 Tặng uống thử (khách mới)</span>
             </label>
           </div>
         </div>
         <div style="display:flex;gap:8px;margin-top:16px;">
           <button type="button" onclick="closeReplacementModal()" style="flex:1;height:44px;border:1px solid var(--border);background:transparent;color:var(--text-muted);border-radius:8px;font-weight:600;cursor:pointer;font-size:14px;">Huỷ</button>
-          <button type="button" onclick="submitReplacement()" style="flex:1;height:44px;border:none;background:var(--primary);color:var(--btn-primary-color);border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">💾 Cập nhật</button>
+          <button type="button" onclick="submitReplacement()" style="flex:1;height:44px;border:none;background:var(--accent);color:var(--btn-primary-color);border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">💾 Cập nhật</button>
         </div>
       </div>
     </div>
