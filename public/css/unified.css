@@ -98,7 +98,7 @@ body .pt-14, .pt-14 {
   align-items: center;
   justify-content: space-between;
   padding: 0 16px;
-  padding-top: var(--safe-area-top);
+  /* safe-area handled via height — no padding-top to avoid double-offset */
   z-index: var(--z-header);
   border-bottom: 1px solid var(--border);
 }
@@ -159,7 +159,7 @@ body .pt-14, .pt-14 {
   align-items: center;
   justify-content: space-between;
   padding: 0 16px;
-  padding-top: var(--safe-area-top);
+  /* safe-area handled via height — no padding-top to avoid double-offset */
   border-bottom: 1px solid var(--border);
 }
 
@@ -3949,7 +3949,8 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   top: 0;
   left: 0;
   right: 0;
-  height: calc(var(--header-height) + env(safe-area-inset-top, 0px));
+  /* safe-area handled via height only — NO padding-top to avoid double-offset */
+  height: calc(var(--header-height) + var(--safe-area-top));
   background: rgba(255,255,255,0.92);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
@@ -3957,7 +3958,6 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   box-shadow: 0 1px 4px rgba(0,0,0,0.06);
   z-index: 200;
   padding: 0 16px;
-  padding-top: env(safe-area-inset-top, 0px);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -6154,20 +6154,22 @@ body.body--app #app {
   min-height: 100dvh;
 }
 
-.app-header {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: var(--z-header, 1000);
-}
-
 .app-main {
   flex: 1;
-  padding-top: var(--header-height, 56px);
-  padding-bottom: var(--bottomnav-height, 64px);
   overflow-y: auto;
   overflow-x: hidden;
+}
+
+/* .app-body: fills space between fixed header and fixed bottom nav */
+body.body--app .app-body {
+  position: absolute;
+  top: calc(var(--header-height) + var(--safe-area-top));
+  left: 0;
+  right: 0;
+  bottom: calc(var(--bottomnav-height) + var(--safe-area-bottom));
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
 }
 
 .app-bottom-nav {
