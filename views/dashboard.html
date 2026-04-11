@@ -16,15 +16,15 @@
   <script>window.BASE_PATH = '/';</script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Dashboard - Beer POS</title>
+  <title>Beer POS Pro</title>
   <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#f59e0b">
+  <meta name="theme-color" content="#0B0E11">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="BeerPOS">
-  <link rel="apple-touch-icon" href="/icon-192.png">
-  <link rel="icon" type="image/png" href="/icon-192.png">
+  <link rel="apple-touch-icon" href="/icons/icon-180.png">
+  <link rel="icon" type="image/png" href="/icons/icon-192.png">
 
   <!-- PERFORMANCE: Preload critical path — layout.js needed for first paint -->
   <link rel="preload" href="/js/layout.js?v=20260411-design-system" as="script">
@@ -51,7 +51,14 @@
   <script src="/js/dashboard.js?v=20260422-design"></script>
 
   <!-- CLS Prevention: Inline skeleton for header (matches layout.js getHeader dimensions) -->
+  <!-- Splash overlay — auto-hidden when app is ready -->
+  <div id="app-splash" style="position:fixed;inset:0;z-index:9999;background:#0B0E11;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity 0.4s ease">
+    <img src="/icons/icon-192.png" style="width:80px;height:80px;border-radius:18px;object-fit:contain" alt="">
+    <div style="margin-top:16px;font-size:18px;font-weight:700;color:#fff;letter-spacing:0.5px">Beer POS Pro</div>
+    <div style="margin-top:6px;width:6px;height:6px;border-radius:50%;background:#FCD535;animation:pulse 1.2s ease-in-out infinite"></div>
+  </div>
   <style>
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
     .skeleton-header-fixed {
       position: fixed;
       top: 0; left: 0; right: 0;
@@ -378,6 +385,13 @@
           var contentSection = document.getElementById('contentSection');
           if (loading) loading.classList.add('hidden');
           if (contentSection) contentSection.classList.remove('hidden');
+          // Hide splash overlay
+          var splash = document.getElementById('app-splash');
+          if (splash) {
+            splash.style.opacity = '0';
+            setTimeout(function() { splash.remove(); }, 400);
+          }
+          window.dispatchEvent(new CustomEvent('app:ready'));
         });
     })();
   </script>

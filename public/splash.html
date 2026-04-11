@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Beer POS Pro</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    @keyframes splash-fade-in {
+      from { opacity: 0; transform: scale(0.96); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.55; }
+    }
+    @keyframes splash-exit {
+      from { opacity: 1; }
+      to   { opacity: 0; pointer-events: none; }
+    }
+
+    body {
+      background: #0B0E11;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100dvh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    #splash {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      animation: splash-fade-in 0.5s ease both;
+    }
+
+    #splash-logo {
+      width: 96px;
+      height: 96px;
+      border-radius: 20px;
+      object-fit: contain;
+      display: block;
+    }
+
+    #splash-name {
+      margin-top: 20px;
+      font-size: 22px;
+      font-weight: 700;
+      color: #ffffff;
+      letter-spacing: 0.5px;
+    }
+
+    #splash-tagline {
+      margin-top: 6px;
+      font-size: 13px;
+      color: rgba(255,255,255,0.45);
+      letter-spacing: 0.3px;
+    }
+
+    #splash-dot {
+      margin-top: 32px;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #FCD535;
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+
+    /* Exit state — JS adds .gone class */
+    #splash.gone {
+      animation: splash-exit 0.35s ease forwards;
+    }
+  </style>
+</head>
+<body>
+  <div id="splash">
+    <img id="splash-logo" src="/icons/icon-192.png" alt="BeerPOS" width="96" height="96" decoding="async">
+    <div id="splash-name">Beer POS Pro</div>
+    <div id="splash-tagline">Quản lý bán hàng thông minh</div>
+    <div id="splash-dot"></div>
+  </div>
+  <script>
+    // Auto-hide when app signals readiness (max 4s)
+    window.addEventListener('app:ready', function () {
+      var el = document.getElementById('splash');
+      if (el) el.classList.add('gone');
+      setTimeout(removeSplash, 400);
+    });
+    // Fallback: remove after 4s regardless
+    setTimeout(function () {
+      var el = document.getElementById('splash');
+      if (el) { el.classList.add('gone'); setTimeout(removeSplash, 400); }
+    }, 4000);
+    function removeSplash() {
+      var el = document.getElementById('splash');
+      if (el) el.remove();
+    }
+  </script>
+</body>
+</html>
