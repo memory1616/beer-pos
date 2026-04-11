@@ -155,23 +155,6 @@ function initSalesPage(data) {
   loadSaleHistory();
 }
 
-// Reload a single customer's balance from API after keg update
-function reloadCustomerBalance(customerId, newBalance) {
-  if (!customerId) return;
-  fetch('/api/customers/' + customerId, { cache: 'no-store' })
-    .then(function(res) { return safeJson(res); })
-    .then(function(data) {
-      if (!data || data.error) return;
-      // Update cache
-      _customerById.set(Number(customerId), data);
-      // Update customers array
-      var idx = customers.findIndex(function(c) { return Number(c.id) === Number(customerId); });
-      if (idx >= 0) customers[idx] = data;
-      _rebuildMaps();
-    })
-    .catch(function() {});
-}
-
 function loadSaleHistory() {
   fetch('/sale/history?limit=5', { cache: 'no-store' })
     .then(function(res) { return safeJson(res); })
@@ -345,16 +328,19 @@ function generateVietQR(invoice) {
 }
 
 function renderInvoiceModalContent(invoice, saleIdForActions) {
-  console.log('invoice:', invoice);
-  var invTotalValueEl = document.getElementById('invTotalValue');
+  var orderEl = document.getElementById('invOrderId');
   var metaEl = document.getElementById('invCustomerMeta');
   var itemsList = document.getElementById('invItemsList');
   var invActions = document.getElementById('invActions');
   var vietqrBlock = document.getElementById('vietqrBlock');
-  if (!invTotalValueEl || !itemsList || !invActions) return;
+  if (!orderEl || !itemsList || !invActions) return;
+
+  console.log('[renderInvoiceModalContent] invoice:', invoice);
+  console.log('[renderInvoiceModalContent] items:', invoice?.items);
+  console.log('[renderInvoiceModalContent] customer:', invoice?.customer);
 
   if (!invoice) {
-    invTotalValueEl.textContent = '—';
+    orderEl.textContent = '#—';
     if (metaEl) metaEl.textContent = '—';
     var invDateEl = document.getElementById('invDate');
     if (invDateEl) invDateEl.textContent = '';
@@ -378,7 +364,8 @@ function renderInvoiceModalContent(invoice, saleIdForActions) {
   }) : '';
   var isReturned = invoice.status === 'returned';
 
-  if (metaEl) metaEl.textContent = (invoice.customer && invoice.customer.name) ? invoice.customer.name : 'Khách lẻ';
+  orderEl.textContent = '#' + sid;
+  if (metaEl) metaEl.textContent = (invoice.customer.name || 'Khách lẻ');
   var invDateEl = document.getElementById('invDate');
   if (invDateEl) invDateEl.textContent = dateStr;
 
@@ -424,6 +411,7 @@ function renderInvoiceModalContent(invoice, saleIdForActions) {
 
   // Render QR — inline flex row, show if invoice exists
   var vietqrUrl = generateVietQR(invoice);
+  var vietqrBlock = document.getElementById('vietqrBlock');
   var vietqrImage = document.getElementById('vietqrImage');
   if (vietqrBlock) {
     vietqrBlock.style.display = invoice ? '' : 'none';
@@ -533,7 +521,7 @@ function openKegFromInvoice(saleId) {
 
 function openKegFromSaleData(sale, saleId) {
   closeInvoice();
-  openKegModalForSale(saleId, sale.customer_id, sale.deliver_kegs || 0, sale.return_kegs || 0);
+  openKegModalForSale(saleId, sale.customer_id, 0, sale.return_kegs || 0);
 }
 
 // Open keg modal for a specific sale — load sale data first
@@ -611,10 +599,6 @@ function submitCollectKegForSale(saleId) {
     if (!data) { showToast('Lỗi kết nối', 'error'); return; }
     if (data.success) {
       showToast('Đã cập nhật vỏ', 'success');
-
-      // Reload customer balance from API so modal shows correct value next time
-      reloadCustomerBalance(customerId, data.newBalance);
-
       closeCollectKegModal();
       loadSaleHistory();
       // Reload invoice to show updated keg values
@@ -1455,7 +1439,6 @@ function submitCollectKeg() {
     .then(function(res) { return safeJson(res); })
     .then(function(data) {
       if (!data || !data.success) showToast((data && data.error) || 'Lỗi giao vỏ', 'error');
-      else reloadCustomerBalance(customerId);
     })
     .catch(function() { showToast('Lỗi kết nối', 'error'); });
   }
@@ -1471,7 +1454,6 @@ function submitCollectKeg() {
       if (!data) { showToast('Lỗi kết nối', 'error'); return; }
       if (data.success) {
         showToast('Đã thu vỏ', 'success');
-        reloadCustomerBalance(customerId);
         finishStandalone();
       } else {
         showToast(data.error || 'Lỗi thu vỏ', 'error');

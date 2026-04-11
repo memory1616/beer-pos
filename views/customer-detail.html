@@ -486,6 +486,9 @@
         if (!res.ok || (data && data.error && data.id == null)) {
           throw new Error(data.error || 'Not found');
         }
+        console.log('[viewInvoice] sale data:', data);
+        console.log('[viewInvoice] items:', data.items || data.products);
+        console.log('[viewInvoice] customer_name:', data.customer_name);
         showInvoiceModal(data);
       } catch (err) {
         console.error(err);
@@ -496,11 +499,22 @@
     function showInvoiceModal(sale) {
       const modal = document.getElementById('invoiceModal');
       if (!modal) return;
+      if (!sale || !sale.id) {
+        console.error('[showInvoiceModal] Invalid sale data:', sale);
+        return;
+      }
 
-      const items = (sale && (sale.items || sale.products)) ? (sale.items || sale.products) : [];
-      console.log('Invoice:', sale);
+      const items = (sale.items || sale.products) || [];
+      console.log('[showInvoiceModal] sale:', sale);
+      console.log('[showInvoiceModal] items count:', items.length, items);
+      console.log('[showInvoiceModal] customer_name:', sale.customer_name);
 
-      const itemsHtml = (items.length ? items : []).map(item => {
+      const customerName = sale.customer_name || sale.customerName || sale.customer?.name || 'Khách lẻ';
+      const saleDate = sale.date || sale.created_at || '';
+      const totalAmount = sale.totalAmount != null ? sale.totalAmount : (sale.total || 0);
+      const formattedDate = saleDate ? formatDate(saleDate) : '—';
+
+      const itemsHtml = items.length > 0 ? items.map(item => {
         const name = item.name || item.product_name || item.productName || 'SP';
         const qty = Number(item.quantity != null ? item.quantity : item.qty) || 0;
         const price = Number(item.price) || 0;
@@ -513,22 +527,22 @@
           <div class="font-bold">${formatVND(qty * price)}</div>
         </div>
       `;
-      }).join('') || '<div class="text-center py-6 text-secondary text-sm">Không có dòng sản phẩm trên hóa đơn.</div>';
+      }).join('') : '<div class="text-center py-6 text-secondary text-sm">Không có dòng sản phẩm trên hóa đơn.</div>';
 
       document.getElementById('invoiceContent').innerHTML = `
         <div class="text-center mb-4">
           <div class="text-lg font-bold text-main">HÓA ĐƠN #${sale.id}</div>
-          <div class="text-sm text-secondary">${formatDate(sale.date)}</div>
+          <div class="text-sm text-secondary">${formattedDate}</div>
         </div>
         <div class="card p-3 mb-4">
-          <div class="font-medium text-main">${sale.customer_name}</div>
+          <div class="font-medium text-main">${customerName}</div>
         </div>
         <div class="mb-4">
           ${itemsHtml}
         </div>
         <div class="flex justify-between py-2 border-b border-muted">
           <span class="text-main">Tổng cộng:</span>
-          <div class="money text-money"><span class="value text-2xl font-bold tabular-nums">${formatVND(sale.totalAmount != null ? sale.totalAmount : sale.total)}</span><span class="unit">đ</span></div>
+          <div class="money text-money"><span class="value text-2xl font-bold tabular-nums">${formatVND(totalAmount)}</span><span class="unit">đ</span></div>
         </div>
         ${sale.type === 'replacement' ? '<div class="text-center py-2 text-warning font-bold">🔁 Đổi bia lỗi</div>' : ''}
         ${((sale.bottleGiven != null ? sale.bottleGiven : sale.deliver_kegs) || (sale.bottleReceived != null ? sale.bottleReceived : sale.return_kegs)) ? `
