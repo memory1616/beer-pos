@@ -547,6 +547,9 @@ function openKegModalForSale(saleId, customerId, deliverKegs, returnKegs) {
     info.dataset.balance = balance;
   }
 
+  var currentBalanceEl = document.getElementById('collectKegCurrentBalance');
+  if (currentBalanceEl) currentBalanceEl.textContent = balance;
+
   // Reset inputs
   var deliverEl = document.getElementById('collectKegDeliver');
   var returnEl = document.getElementById('collectKegReturn');
@@ -1306,6 +1309,9 @@ function openCollectKegModal() {
     info.innerHTML = '<div style="font-size:13px;">👤 ' + escHtml(customerName) + ' | Vỏ hiện tại: <b>' + balance + '</b></div>';
     info.dataset.balance = balance;
   }
+
+  var currentBalanceEl = document.getElementById('collectKegCurrentBalance');
+  if (currentBalanceEl) currentBalanceEl.textContent = balance;
 
   updateCollectKegPreview();
   modal.classList.remove('hidden');
