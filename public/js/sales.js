@@ -557,15 +557,15 @@ function openKegModalForSale(saleId, customerId, invoiceData) {
   kegSubmitting = false;
 
   // Extract values from invoice data
-  var deliverKegs = invoiceData?.deliver_kegs || 0;
-  var returnKegs = invoiceData?.return_kegs || 0;
+  var deliverKegs = invoiceData?.deliver_kegs ?? 0;
+  var returnKegs = invoiceData?.return_kegs ?? 0;
   var kegBalanceAfter = invoiceData?.keg_balance_after;
   var customerKegBalance = invoiceData?.customer_keg_balance;
 
   // Calculate bottleBefore: tồn kho của khách trước khi đơn này tạo
-  // bottleBefore = keg_balance_after - deliver + return
+  // Formula: bottleBefore = keg_balance_after - deliver + return
   var bottleBefore = null;
-  if (kegBalanceAfter !== undefined && kegBalanceAfter !== null) {
+  if (kegBalanceAfter != null && kegBalanceAfter !== undefined) {
     bottleBefore = kegBalanceAfter - deliverKegs + returnKegs;
   }
 
