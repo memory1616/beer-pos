@@ -50,7 +50,7 @@ function updateProductItem(product) {
   var card = document.querySelector('[data-product-id="' + product.id + '"]');
   if (!card) return;
 
-  var stockEl = card.querySelector('.product-card__qty');
+  var stockEl = card.querySelector('.stock-badge');
   if (stockEl) {
     stockEl.textContent = product.stock;
     stockEl.className = 'product-card__qty tabular-nums ' + (product.stock < _LOW_STOCK_THRESHOLD ? 'text-danger' : 'text-success');
@@ -701,7 +701,7 @@ function _productCardHtml(p, totalPositive) {
       <div class="product-card__footer">
         <div class="min-w-0">
           <div class="product-card__qty-label">Tồn kho</div>
-          <div class="product-card__qty tabular-nums ${low ? 'text-danger' : 'text-success'}">${stock}</div>
+          <div class="stock-badge tabular-nums ${low ? 'text-danger' : 'text-success'}">${stock}</div>
         </div>
         <div class="product-card__edit-pill" aria-hidden="true"><span class="product-card__edit-icon">✏️</span><span>Sửa</span></div>
       </div>
@@ -885,7 +885,7 @@ function renderProducts(products, serverTotalStockPositive) {
       <div class="product-card__footer">
         <div class="min-w-0">
           <div class="product-card__qty-label">Tồn kho</div>
-          <div class="product-card__qty tabular-nums ${low ? 'text-danger' : 'text-success'}">${p.stock}</div>
+          <div class="stock-badge tabular-nums ${low ? 'text-danger' : 'text-success'}">${p.stock}</div>
         </div>
         <div class="product-card__edit-pill" aria-hidden="true"><span class="product-card__edit-icon">✏️</span><span>Sửa</span></div>
       </div>
@@ -1176,7 +1176,7 @@ window.renderProducts = function(products) {
         '<div class="product-card__footer">' +
         '<div class="min-w-0">' +
         '<div class="product-card__qty-label">Tồn kho</div>' +
-        '<div class="product-card__qty tabular-nums ' + (low ? 'text-danger' : 'text-success') + '">' + stock + '</div>' +
+        '<div class="stock-badge tabular-nums ' + (low ? 'text-danger' : 'text-success') + '">' + stock + '</div>' +
         '</div>' +
         '<div class="product-card__edit-pill" aria-hidden="true"><span class="product-card__edit-icon">✏️</span><span>Sửa</span></div>' +
         '</div></article>';
