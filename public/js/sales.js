@@ -177,8 +177,8 @@ function renderSaleHistory(sales) {
     var totalStr = formatVND(s.total || 0);
     var isReturned = s.status === 'returned';
     var typeLabel = '';
-    if (s.type === 'replacement') typeLabel = '<span style="color:#f59e0b;font-size:11px;margin-left:6px;">Đổi lỗi</span>';
-    else if (s.type === 'damage_return') typeLabel = '<span style="color:#f6465d;font-size:11px;margin-left:6px;">Trả hàng</span>';
+    if (s.type === 'replacement') typeLabel = '<span style="color:var(--warning);font-size:11px;margin-left:6px;">Đổi lỗi</span>';
+    else if (s.type === 'damage_return') typeLabel = '<span style="color:var(--red);font-size:11px;margin-left:6px;">Trả hàng</span>';
 
     // Hiển thị kegs info
     var kegsInfo = '';
@@ -300,7 +300,7 @@ function renderInvoiceModalContent(invoice, saleIdForActions) {
     if (nameEl) nameEl.textContent = '—';
     if (metaEl) metaEl.textContent = '';
     itemsList.innerHTML =
-      '<div class="inv-empty-state" style="text-align:center;padding:28px 16px;color:#848e9c;font-size:13px;line-height:1.5;">' +
+      '<div class="inv-empty-state" style="text-align:center;padding:28px 16px;color:var(--text-muted);font-size:13px;line-height:1.5;">' +
       'Không có dữ liệu hóa đơn.<br><span style="font-size:12px;opacity:0.85;">Thử tải lại hoặc chọn đơn khác.</span></div>';
     document.getElementById('invKegDeliver').textContent = '0';
     document.getElementById('invKegReturn').textContent = '0';
@@ -337,7 +337,7 @@ function renderInvoiceModalContent(invoice, saleIdForActions) {
 
   if (!rows) {
     itemsList.innerHTML =
-      '<div class="inv-empty-state" style="text-align:center;padding:20px 16px;color:#848e9c;font-size:13px;">Đơn không có dòng sản phẩm.</div>';
+      '<div class="inv-empty-state" style="text-align:center;padding:20px 16px;color:var(--text-muted);font-size:13px;">Đơn không có dòng sản phẩm.</div>';
     } else {
     itemsList.innerHTML = rows;
   }
@@ -639,7 +639,7 @@ function renderProducts() {
   if (!container) return;
 
   if (products.length === 0) {
-    container.innerHTML = '<div class="sale-product-card" style="text-align:center;color:#848e9c;padding:24px;">Chưa có sản phẩm nào</div>';
+    container.innerHTML = '<div class="sale-product-card" style="text-align:center;color:var(--text-muted);padding:24px;">Chưa có sản phẩm nào</div>';
     return;
   }
 
@@ -798,12 +798,12 @@ function renderCustomerDropdown(list) {
   if (!dropdown) return;
 
   if (list.length === 0) {
-    dropdown.innerHTML = '<div class="customer-dd-item" style="color:#848e9c;cursor:default;">Không tìm thấy</div>';
+    dropdown.innerHTML = '<div class="customer-dd-item" style="color:var(--text-muted);cursor:default;">Không tìm thấy</div>';
   } else {
     dropdown.innerHTML = list.map(function(c) {
       return '<div class="customer-dd-item" onclick="selectCustomer(\'' + c.id + '\', \'' + escAttr(c.name || '') + '\')">' +
         '<span style="font-weight:600;">' + escHtml(c.name || 'Khách') + '</span>' +
-        '<span style="font-size:12px;color:#848e9c;margin-left:8px;">' + escHtml(c.phone || '') + '</span>' +
+        '<span style="font-size:12px;color:var(--text-muted);margin-left:8px;">' + escHtml(c.phone || '') + '</span>' +
       '</div>';
     }).join('');
   }
@@ -1160,7 +1160,7 @@ function updateKegModalPreview() {
   if (returnPreview) returnPreview.textContent = '-' + returned;
   if (newBalanceEl) {
     newBalanceEl.textContent = newBalance;
-    newBalanceEl.style.color = newBalance < 0 ? '#f6465d' : '#0d9f6e';
+    newBalanceEl.style.color = newBalance < 0 ? 'var(--red)' : 'var(--green)';
   }
   if (warningEl) {
     if (newBalance < 0) {
@@ -1262,7 +1262,7 @@ function updateCollectKegPreview() {
   if (returnPreview) returnPreview.textContent = '-' + returned;
   if (remainingEl) {
     remainingEl.textContent = remaining;
-    remainingEl.style.color = remaining < 0 ? '#f6465d' : '#0d9f6e';
+    remainingEl.style.color = remaining < 0 ? 'var(--red)' : 'var(--green)';
   }
   if (warningEl) {
     warningEl.classList.toggle('hidden', remaining >= 0);
