@@ -346,6 +346,7 @@ function renderInvoiceModalContent(invoice, saleIdForActions) {
     document.getElementById('invTotalValue').textContent = '—';
     invActions.innerHTML = '<button class="inv-btn inv-btn-ghost" type="button" onclick="closeInvoice()">Đóng</button>';
     if (vietqrBlock) vietqrBlock.classList.remove('visible');
+    applyInvoiceCompactMode(0);
     return;
   }
 
@@ -375,9 +376,11 @@ function renderInvoiceModalContent(invoice, saleIdForActions) {
   if (!rows) {
     itemsList.innerHTML =
       '<div class="inv-empty-state" style="text-align:center;padding:20px 16px;color:var(--text-muted);font-size:13px;">Đơn không có dòng sản phẩm.</div>';
-    } else {
+  } else {
     itemsList.innerHTML = rows;
   }
+
+  applyInvoiceCompactMode(invoice.items ? invoice.items.length : 0);
 
   var customer = invoice.customer && invoice.customer.id != null ? getCustomer(invoice.customer.id) : null;
   var balance = customer ? (customer.keg_balance || 0) : 0;
@@ -414,6 +417,17 @@ function showInvoiceModalElement() {
     overlay.addEventListener('click', function(e) {
       if (e.target === overlay) closeInvoice();
     });
+  }
+}
+
+function applyInvoiceCompactMode(itemCount) {
+  var modal = document.querySelector('.invoice-modal');
+  if (!modal) return;
+  modal.classList.remove('compact', 'ultra-compact');
+  if (itemCount > 8) {
+    modal.classList.add('ultra-compact');
+  } else if (itemCount > 5) {
+    modal.classList.add('compact');
   }
 }
 
