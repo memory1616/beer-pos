@@ -4428,9 +4428,14 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   100% { background-position: -200% 0; }
 }
 
-/* Filter bar — normal flow inside app-body, no overlapping */
+/* Filter bar — sticky under header, glass blur background */
 .app-filter-bar {
-  background: var(--card);
+  position: sticky;
+  top: 0;
+  z-index: 90;
+  background: var(--bg-secondary);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   padding: var(--space-2) var(--space-3);
   display: flex;
   gap: 4px;
@@ -4442,6 +4447,7 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   margin: 0;
   width: 100%;
   box-sizing: border-box;
+  flex-shrink: 0;
 }
 .text-10 { font-size: 10px !important; }
 .text-11 { font-size: 11px !important; }
