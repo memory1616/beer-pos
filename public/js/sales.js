@@ -501,15 +501,8 @@ function renderInvoiceModalContent(invoice, saleIdForActions) {
 
   // Actions
   if (invActions) {
-    var isReturned = invoice.status === 'returned';
     invActions.innerHTML =
-      '<button class="inv-btn inv-btn-ghost" type="button" onclick="closeInvoice()">Đóng</button>' +
-      '<button class="inv-btn" type="button" onclick="viewSale(' + sid + ')">🔄 Tải lại</button>' +
-      (!isReturned
-        ? '<button class="inv-btn" type="button" onclick="if(window._invoiceContext&&window._invoiceContext.saleId){openKegFromInvoice(window._invoiceContext.saleId)}">📦 Vỏ</button>' +
-          '<button class="inv-btn inv-btn-edit" type="button" onclick="openEditSale(' + sid + ')">✏️ Sửa</button>' +
-          '<button class="inv-btn inv-btn-delete" type="button" onclick="deleteSale(' + sid + ')">🗑 Xóa</button>'
-        : '');
+      '<button class="inv-btn inv-btn-ghost" type="button" onclick="closeInvoice()">Đóng</button>';
   }
 }
 
