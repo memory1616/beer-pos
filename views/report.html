@@ -139,7 +139,10 @@
       <div class="section-card-header" onclick="RPT.toggleSection('products')" id="secProducts">
         <div class="section-card-header-left">
           <div class="section-card-icon icon-green">🍺</div>
-          <div class="section-card-title">Top sản phẩm<span class="section-card-badge" id="badgeProducts">0</span></div>
+          <div class="section-card-title-wrap">
+            <div class="section-card-title">Top sản phẩm<span class="section-card-badge" id="badgeProducts">0</span></div>
+            <div class="section-card-sub" id="totalProductQty">Tổng SL: 0</div>
+          </div>
         </div>
         <div class="section-card-arrow">▼</div>
       </div>
@@ -565,6 +568,13 @@
         }
 
         if (badge) badge.textContent = products.length;
+
+        var totalQty = 0;
+        (products || []).forEach(function(p) {
+          totalQty += (p.quantity_sold || p.quantity || 0);
+        });
+        var totalEl = document.getElementById('totalProductQty');
+        if (totalEl) totalEl.textContent = 'Tổng SL: ' + totalQty.toLocaleString('vi-VN');
 
         var medals = ['🥇', '🥈', '🥉'];
         var rankClasses = ['rank-gold', 'rank-silver', 'rank-bronze'];

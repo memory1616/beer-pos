@@ -3922,6 +3922,17 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   margin-left: 6px;
 }
 
+.section-card-title-wrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.section-card-sub {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
 .section-card-arrow {
   font-size: 10px;
   color: var(--text-muted);
