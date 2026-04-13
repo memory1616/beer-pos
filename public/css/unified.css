@@ -4134,14 +4134,22 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
 }
 
 /* Date Range Modal — inside sheet */
+/* Date Range Modal Sheet — Binance style (inset from bottom, no overlap with bottomnav) */
 .date-range-modal-sheet {
-  border-radius: 20px 20px 0 0;
-  width: 100%;
-  padding: 16px 16px calc(16px + var(--safe-area-bottom));
+  position: fixed;
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  left: 12px;
+  right: 12px;
+  border-radius: 16px;
+  width: auto;
+  max-width: 500px;
+  margin: 0 auto;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px));
   /* Ensure sheet never overflows on very small screens */
-  max-height: 92dvh;
+  max-height: 88dvh;
   overflow-y: auto;
   overscroll-behavior: contain;
+  box-shadow: var(--shadow-lg);
 }
 
 /* ── Preset Buttons ── */
@@ -4752,12 +4760,13 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
 .modal-overlay-v2 {
   position: fixed;
   inset: 0;
-  z-index: 10000;
+  z-index: var(--z-modal);
   background: rgba(0,0,0,0.5);
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
   align-items: center;
+  animation: modal-fade-in 0.2s ease;
 }
 
 .modal-overlay-v2.hidden { display: none; }
