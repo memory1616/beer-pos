@@ -4050,17 +4050,18 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
 .app-header-growth.down { color: var(--red); }
 .app-header-growth.neutral { color: var(--text-muted); }
 
+/* ── Filter Bar Buttons ── */
 .app-filter-btn {
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-md);
-  border: 1px solid transparent;
-  background: var(--bg-hover);
+  position: relative;
+  padding: 8px 14px;
+  border-radius: 20px;
+  border: 1.5px solid var(--border);
+  background: var(--bg-secondary);
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s ease;
-  min-height: 30px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   white-space: nowrap;
   flex-shrink: 0;
   letter-spacing: 0.01em;
@@ -4068,36 +4069,69 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   -webkit-tap-highlight-color: transparent;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
+  min-height: 36px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
 }
 
-.app-filter-btn:active { opacity: 0.8; }
+.app-filter-btn:active {
+  transform: scale(0.95);
+  opacity: 0.85;
+}
 
 .app-filter-btn.active {
   background: var(--primary);
-  color: var(--text-on-dark);
+  border-color: var(--primary);
+  color: #fff;
   font-weight: 700;
-  box-shadow: var(--shadow-primary);
+  box-shadow: 0 2px 8px rgba(239, 68, 34, 0.35);
 }
 
-.filter-custom-arrow {
-  font-size: 9px;
-  opacity: 0.7;
-  margin-left: 2px;
+.app-filter-btn.active .filter-dot {
+  background: rgba(255,255,255,0.9);
+  box-shadow: 0 0 4px rgba(255,255,255,0.6);
+}
+
+/* Dot indicator for quick filters */
+.filter-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-disabled);
+  flex-shrink: 0;
+  transition: background 0.2s ease;
+}
+
+.app-filter-btn.active .filter-dot {
+  background: rgba(255,255,255,0.9);
+}
+
+/* Custom button — distinct icon style */
+.app-filter-btn--custom {
+  background: var(--bg-tertiary);
+  border-style: dashed;
+  gap: 4px;
+}
+
+.app-filter-btn--custom.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  border-style: solid;
+}
+
+.filter-icon {
+  font-size: 11px;
+  line-height: 1;
 }
 
 /* Range label below filter bar */
-.app-filter-range-label {
-  display: none;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-muted);
-  padding: var(--space-1) var(--space-3) var(--space-2);
-  background: var(--bg-base);
-  letter-spacing: 0.01em;
-}
-
 .app-filter-range-label.visible { display: block; }
+
+.app-filter-range-label::before {
+  content: '📅';
+  margin-right: 5px;
+  font-size: 10px;
+}
 
 /* Date Range Modal — inside sheet */
 .date-range-modal-sheet {
@@ -4504,12 +4538,12 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   position: sticky;
   top: 0;
   z-index: 90;
-  background: var(--bg-secondary);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  padding: var(--space-2) var(--space-3);
+  background: var(--bg-base);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: var(--space-3) var(--space-3) calc(var(--space-3) + 4px);
   display: flex;
-  gap: 4px;
+  gap: 6px;
   align-items: center;
   border-bottom: 1px solid var(--border);
   overflow-x: auto;
@@ -4517,8 +4551,6 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   -ms-overflow-style: none;
   margin: 0;
   width: 100%;
-  box-sizing: border-box;
-  flex-shrink: 0;
 }
 .text-10 { font-size: 10px !important; }
 .text-11 { font-size: 11px !important; }
@@ -5333,7 +5365,8 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   .kpi-grid { gap: var(--space-2); padding: 8px 12px 10px; }
   .kpi-card { padding: 10px; }
   .kpi-card-value { font-size: 16px; }
-  .app-filter-bar { padding: 7px 12px; }
+  .app-filter-bar { padding: 10px 12px 12px; }
+  .app-filter-btn { padding: 6px 11px; font-size: 11px; min-height: 34px; }
   .top-list { padding: 6px 12px 8px; }
 }
 
