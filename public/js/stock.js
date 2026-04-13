@@ -7,6 +7,103 @@ let importData = {}; // Store import data by productId
 let allPurchases = []; // Purchase history for this page
 let _stockPage = 'stock'; // 'stock' or 'purchase' — used to determine which container to update
 
+// ── Audit History ────────────────────────────────────────────────────────
+let _auditFilter = 'all';
+
+function openProductAudit(productId) {
+  // Find product name
+  const product = currentProducts.find(p => p.id === productId);
+  if (!product) {
+    showToast('Không tìm thấy sản phẩm', 'error');
+    return;
+  }
+  document.getElementById('auditProductName').textContent = product.name;
+  document.getElementById('auditProductStock').textContent = 'Tồn kho: ' + (product.stock ?? 0);
+  _auditProductId = productId;
+  _auditFilter = 'all';
+  document.getElementById('afilterAll').classList.add('bn-chip--active');
+  document.getElementById('afilterImport').classList.remove('bn-chip--active');
+  document.getElementById('afilterExport').classList.remove('bn-chip--active');
+  document.getElementById('auditList').innerHTML = '<div class="text-center py-4 text-muted animate-pulse">Đang tải...</div>';
+  openModal('auditModal');
+  loadAuditHistory();
+}
+
+let _auditProductId = null;
+
+async function loadAuditHistory() {
+  if (!_auditProductId) return;
+  try {
+    const res = await fetch('/api/stock/history?productId=' + _auditProductId + '&limit=100');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    renderAuditList(data);
+  } catch (e) {
+    document.getElementById('auditList').innerHTML = '<div class="text-center py-4 text-danger">Lỗi tải lịch sử: ' + (e.message || '—') + '</div>';
+  }
+}
+
+function setAuditFilter(type) {
+  _auditFilter = type;
+  document.getElementById('afilterAll').classList.toggle('bn-chip--active', type === 'all');
+  document.getElementById('afilterImport').classList.toggle('bn-chip--active', type === 'import');
+  document.getElementById('afilterExport').classList.toggle('bn-chip--active', type === 'export');
+  // Re-render with current data
+  if (window._auditCache) renderAuditList(window._auditCache);
+}
+
+function renderAuditList(data) {
+  window._auditCache = data;
+  const el = document.getElementById('auditList');
+  if (!el) return;
+  if (!data || data.length === 0) {
+    el.innerHTML = '<div class="text-center py-8 text-muted">Chưa có lịch sử nhập/xuất</div>';
+    return;
+  }
+  const filtered = _auditFilter === 'all' ? data : data.filter(d => d.type === _auditFilter);
+  if (filtered.length === 0) {
+    el.innerHTML = '<div class="text-center py-8 text-muted">Không có bản ghi phù hợp</div>';
+    return;
+  }
+  el.innerHTML = filtered.map(item => {
+    const date = new Date(item.date);
+    const dateStr = date.toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+    const isImport = item.type === 'import';
+    const qtyColor = isImport ? 'text-success' : 'text-danger';
+    const qtyPrefix = isImport ? '+' : '−';
+    const qty = item.quantity;
+    const price = formatVND(item.unit_price || 0);
+    const total = formatVND(item.total_price || qty * (item.unit_price || 0));
+    const badgeColor = isImport ? 'badge-success' : 'badge-danger';
+    const badgeText = isImport ? '📥 Nhập' : '📤 Xuất';
+    const note = item.note || '';
+    return '<div class="audit-row flex items-start gap-3 px-2 py-3 border-b border-muted/40 hover:bg-bg transition-colors">' +
+      '<div class="flex-shrink-0 text-right" style="min-width:52px">' +
+        '<div class="' + qtyColor + ' font-bold text-base leading-none tabular-nums">' + qtyPrefix + qty + '</div>' +
+      '</div>' +
+      '<div class="flex-1 min-w-0">' +
+        '<div class="flex items-center gap-2 mb-1 flex-wrap">' +
+          '<span class="' + badgeColor + ' text-[10px] px-1.5 py-0.5 rounded">' + badgeText + '</span>' +
+          (note ? '<span class="text-[11px] text-muted truncate" title="' + note + '">' + note + '</span>' : '') +
+        '</div>' +
+        '<div class="text-[11px] text-muted">' + price + '/bình · Tổng ' + total + '</div>' +
+      '</div>' +
+      '<div class="flex-shrink-0 text-right">' +
+        '<div class="text-[11px] text-muted leading-none whitespace-nowrap">' + dateStr + '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+  // Mark last item border-b removal
+  const last = el.lastElementChild;
+  if (last) last.style.borderBottom = 'none';
+}
+
+function closeAuditModal() {
+  closeModal('auditModal');
+  _auditProductId = null;
+  window._auditCache = null;
+}
+
 // ── Purchase history helpers (used by deletePurchase / editPurchase on stock page) ──
 
 function removePurchaseItem(purchaseId) {
@@ -675,9 +772,9 @@ function _productCardHtml(p, totalPositive) {
   return `
     <article class="card product-card product-card--interactive ${low ? 'border-danger' : 'border-muted'}"
       role="button" tabindex="0" data-product-id="${p.id}"
-      aria-label="${escapeHtmlAttr(name)} — Tồn ${stock}. Nhấn để sửa"
-      onclick="openProductModal(${p.id})"
-      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openProductModal(${p.id});}">
+      aria-label="${escapeHtmlAttr(name)} — Tồn ${stock}. Nhấn để xem lịch sử"
+      onclick="openProductAudit(${p.id})"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openProductAudit(${p.id});}">
       <div class="flex justify-between items-start gap-2">
         <h3 class="product-card__name min-w-0 flex-1">${escapeHtmlAttr(name)}</h3>
         ${low ? '<span class="badge badge-danger shrink-0 text-[10px]">Sắp hết</span>' : ''}
@@ -688,7 +785,11 @@ function _productCardHtml(p, totalPositive) {
           <div class="product-card__qty-label">Tồn kho</div>
           <div class="stock-badge tabular-nums ${low ? 'text-danger' : 'text-success'}">${stock}</div>
         </div>
-        <div class="product-card__edit-pill" aria-hidden="true"><span class="product-card__edit-icon">✏️</span><span>Sửa</span></div>
+        <div class="product-card__edit-pill" aria-hidden="true"
+          onclick="event.stopPropagation();openProductModal(${p.id})"
+          title="Sửa sản phẩm">
+          <span class="product-card__edit-icon">✏️</span><span>Sửa</span>
+        </div>
       </div>
     </article>
   `;

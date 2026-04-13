@@ -109,6 +109,33 @@
     </div>
   </div>
 
+  <!-- Audit History Modal -->
+  <div id="auditModal" class="modal-overlay-v2 hidden center">
+    <div class="modal-sheet-v2 bn-modal--tall">
+      <div class="modal-sheet-v2-header">
+        <div class="modal-sheet-v2-title flex items-center gap-2">
+          <span>📋</span>
+          <div>
+            <div id="auditProductName">Lịch sử kho</div>
+            <div class="text-xs text-muted font-normal" id="auditProductStock">Tồn kho: —</div>
+          </div>
+        </div>
+        <button onclick="closeAuditModal()" class="modal-sheet-v2-close">×</button>
+      </div>
+      <div class="modal-sheet-v2-body overflow-y-auto" style="max-height:65vh;">
+        <!-- Filter chips -->
+        <div class="flex gap-2 mb-4">
+          <button onclick="setAuditFilter('all')" id="afilterAll" class="bn-chip bn-chip--active">Tất cả</button>
+          <button onclick="setAuditFilter('import')" id="afilterImport" class="bn-chip">📥 Nhập</button>
+          <button onclick="setAuditFilter('export')" id="afilterExport" class="bn-chip">📤 Xuất</button>
+        </div>
+        <div id="auditList">
+          <!-- Loaded via JS -->
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
     (async () => {
       console.log('[Stock] IIFE START — window.loadScript=' + typeof window.loadScript);
