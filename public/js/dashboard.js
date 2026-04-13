@@ -345,40 +345,44 @@ function renderRevenueChart(dailyData) {
     revenueChart.destroy();
   }
   
-  // Create gradient for revenue bars — green
-  const gradient = ctx.createLinearGradient(0, 0, 0, 250);
-  gradient.addColorStop(0, getComputedStyle(document.documentElement).getPropertyValue('--green').trim() || '#0ECB81');
-  gradient.addColorStop(1, getComputedStyle(document.documentElement).getPropertyValue('--green-hover').trim() || '#00B370');
-
-  // Create gradient for net profit line — info blue for contrast
-  const profitGradient = ctx.createLinearGradient(0, 0, 0, 250);
-  profitGradient.addColorStop(0, getComputedStyle(document.documentElement).getPropertyValue('--info').trim() || '#3B82F6');
-  profitGradient.addColorStop(1, getComputedStyle(document.documentElement).getPropertyValue('--info').trim() || '#2563eb');
+  // Get theme-aware colors once (stable references for Chart)
+  var root = document.documentElement;
+  var textColor = getComputedStyle(root).getPropertyValue('--text-muted').trim() || '#848E9C';
+  var gridColor = getComputedStyle(root).getPropertyValue('--border').trim() || '#2B3139';
+  var primaryColor = getComputedStyle(root).getPropertyValue('--primary').trim() || '#FCD535';
+  var greenColor = getComputedStyle(root).getPropertyValue('--green').trim() || '#0ECB81';
+  var tooltipBg = getComputedStyle(root).getPropertyValue('--card').trim() || '#1E2329';
+  var tooltipText = getComputedStyle(root).getPropertyValue('--text-primary').trim() || '#EAECEF';
 
   revenueChart = new Chart(ctx, {
-    type: 'bar',
+    type: 'line',
     data: {
       labels: labels,
       datasets: [
         {
           label: 'Doanh thu',
           data: revenues,
-          backgroundColor: gradient,
-          borderRadius: 4,
-          barThickness: 16,
+          borderColor: primaryColor,
+          backgroundColor: 'rgba(252,213,53,0.08)',
+          borderWidth: 2,
+          fill: true,
+          tension: 0.4,
+          pointRadius: 3,
+          pointHoverRadius: 5,
+          pointBackgroundColor: primaryColor,
           yAxisID: 'y'
         },
         {
-          label: 'Lợi nhuận ròng',
+          label: 'Lợi nhuận',
           data: netProfits,
-          type: 'line',
-          borderColor: getComputedStyle(document.documentElement).getPropertyValue('--info').trim() || '#3B82F6',
-          backgroundColor: 'rgba(59, 122, 254, 0.1)',
+          borderColor: greenColor,
+          backgroundColor: 'rgba(14,203,129,0.06)',
           borderWidth: 2,
           fill: true,
-          tension: 0.3,
+          tension: 0.4,
           pointRadius: 3,
-          pointBackgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--info').trim() || '#3B82F6',
+          pointHoverRadius: 5,
+          pointBackgroundColor: greenColor,
           yAxisID: 'y'
         }
       ]
@@ -386,51 +390,39 @@ function renderRevenueChart(dailyData) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      interaction: {
-        mode: 'index',
-        intersect: false,
-      },
+      interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: {
-          display: true,
-          position: 'top',
-          labels: {
-            usePointStyle: true,
-            padding: 15
-          }
-        },
+        legend: { display: false },
         tooltip: {
-          backgroundColor: 'rgba(0,0,0,0.8)',
-          padding: 12,
-          cornerRadius: 8,
+          backgroundColor: tooltipBg,
+          titleColor: tooltipText,
+          bodyColor: textColor,
+          borderColor: gridColor,
+          borderWidth: 1,
+          padding: 10,
           callbacks: {
             label: function(ctx) {
-              return ctx.dataset.label + ': ' + formatVND(ctx.raw);
+              return ' ' + ctx.dataset.label + ': ' + formatVND(ctx.raw);
             }
           }
         }
       },
       scales: {
         x: {
-          grid: {
-            display: false
-          },
           ticks: {
+            color: textColor,
             font: { size: 10 },
-            color: getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#848E9C'
-          }
+            maxTicksLimit: 7
+          },
+          grid: { display: false }
         },
         y: {
           position: 'left',
-          grid: {
-            color: getComputedStyle(document.documentElement).getPropertyValue('--border').trim() || '#2B3139'
-          },
+          grid: { color: gridColor },
           ticks: {
-            callback: function(value) {
-              return formatVND(value);
-            },
+            callback: function(value) { return formatVND(value); },
             font: { size: 10 },
-            color: getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#848E9C'
+            color: textColor
           }
         }
       }
