@@ -197,19 +197,41 @@
     function renderLog(data) {
       var el = document.getElementById('logBody');
       if (!el) return;
-      if (!data || data.length === 0) { el.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-muted">Chưa có giao dịch nào</td></tr>'; return; }
+      if (!data || data.length === 0) {
+        el.innerHTML = '<div class="text-center py-8 text-muted text-sm">Chưa có giao dịch nào</div>';
+        return;
+      }
       el.innerHTML = data.slice(0, 20).map(function(log) {
-        var date = new Date(log.date).toLocaleString('vi-VN', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
+        var date = new Date(log.date);
+        var timeStr = date.toLocaleString('vi-VN', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
         var customer = log.customer_name || (log.customer_id ? '(#' + log.customer_id + ')' : '—');
-        var note = log.note || '—';
+        var note = log.note || '';
+        var badge = typeBadgeClass(log.type);
+        var typeText = typeLabel(log.type);
+        var qty = log.quantity;
+        var isNeg = qty < 0;
+        var qtyColor = isNeg ? 'text-danger' : 'text-success';
         var escapedNote = note.replace(/'/g, "\\'");
         var escapedCustomer = customer.replace(/'/g, "\\'");
-        return '<tr class="log-row border-b border-muted hover:bg-success/5 cursor-pointer" onclick="showLogDetail(\'' + escapedNote + '\', \'' + escapedCustomer + '\', \'' + date + '\', ' + log.quantity + ', ' + (log.inventory_after||0) + ', ' + (log.empty_after||0) + ', ' + (log.holding_after||0) + ', \'' + typeLabel(log.type) + '\')">' +
-          '<td class="py-2 px-2 text-xs text-muted">' + date + '</td>' +
-          '<td class="py-2 px-2"><span class="' + typeBadgeClass(log.type) + '">' + typeLabel(log.type) + '</span></td>' +
-          '<td class="py-2 px-2 text-xs text-center font-bold text-main">' + log.quantity + '</td>' +
-          '<td class="py-2 px-2 text-xs text-center text-secondary truncate max-w-16" title="' + customer + '">' + customer + '</td>' +
-          '<td class="py-2 px-2 text-xs text-muted truncate max-w-16" title="' + note + '"><span class="keg-col-note">' + note + '</span></td></tr>';
+        var dateEsc = timeStr.replace(/'/g, "\\'");
+        var inv = log.inventory_after || 0;
+        var empty = log.empty_after || 0;
+        var hold = log.holding_after || 0;
+        return '<div class="log-row flex items-center gap-3 px-4 py-3 border-b border-muted/40 hover:bg-success/5 cursor-pointer transition-colors rounded-none" onclick="showLogDetail(\'' + escapedNote + '\', \'' + escapedCustomer + '\', \'' + dateEsc + '\', ' + qty + ', ' + inv + ', ' + empty + ', ' + hold + ', \'' + typeText + '\')">' +
+          '<div class="flex-shrink-0 text-center" style="width:44px;min-width:44px">' +
+            '<div class="' + qtyColor + ' font-bold text-base leading-none">' + qty + '</div>' +
+          '</div>' +
+          '<div class="flex-1 min-w-0">' +
+            '<div class="flex items-center gap-2 mb-1">' +
+              '<span class="' + badge + ' text-[10px] px-1.5 py-0.5 rounded">' + typeText + '</span>' +
+              '<span class="text-xs text-muted truncate" title="' + customer + '">' + customer + '</span>' +
+            '</div>' +
+            (note ? '<div class="text-[11px] text-muted truncate" title="' + note + '">' + note + '</div>' : '') +
+          '</div>' +
+          '<div class="flex-shrink-0 text-right">' +
+            '<div class="text-[11px] text-muted leading-none">' + timeStr + '</div>' +
+          '</div>' +
+        '</div>';
       }).join('');
     }
 
@@ -346,24 +368,15 @@
           </div>
 
           <!-- Recent Transaction Log -->
-          <div class="card overflow-hidden">
-            <div class="p-3 border-b flex justify-between items-center">
-              <h3 class="font-bold text-sm text-main">📋 Giao dịch gần đây</h3>
-              <button onclick="openHistoryModal()" class="text-xs text-success font-semibold">Xem tất cả →</button>
+          <div class="log-card card overflow-hidden">
+            <div class="px-4 pt-3 pb-2 border-b border-muted/40 flex justify-between items-center">
+              <h3 class="font-bold text-sm text-main flex items-center gap-1.5">
+                <span>📋</span> Giao dịch gần đây
+              </h3>
+              <button onclick="openHistoryModal()" class="text-xs text-success font-semibold hover:text-success/80 transition-colors">Xem tất cả →</button>
             </div>
-            <div class="max-h-64 overflow-y-auto">
-              <table class="w-full text-xs">
-                <thead>
-                  <tr class="bg-bg text-muted sticky top-0">
-                    <th class="py-2 px-2 text-left font-medium">Thời gian</th>
-                    <th class="py-2 px-2 text-left font-medium">Loại</th>
-                    <th class="py-2 px-2 text-center font-medium">SL</th>
-                    <th class="py-2 px-2 text-center font-medium">Khách</th>
-                    <th class="py-2 px-2 text-center font-medium keg-col-note">Ghi chú</th>
-                  </tr>
-                </thead>
-                <tbody id="logBody"></tbody>
-              </table>
+            <div class="max-h-72 overflow-y-auto" id="logContainer">
+              <div id="logBody"></div>
             </div>
           </div>
         `) +
