@@ -21,6 +21,15 @@ function hideModal(id) { closeModal(id); }
 // ── Audit History ────────────────────────────────────────────────────────
 let _auditFilter = 'all';
 
+function handleProductCardClick(event, productId) {
+  // Only open audit modal on direct click on the article (not child elements)
+  if (event.target && event.target.closest) {
+    var pill = event.target.closest('.product-card__edit-pill');
+    if (pill) return; // Let pill's own onclick handle it
+  }
+  openProductAudit(productId);
+}
+
 function openProductAudit(productId) {
   // Find product name
   const product = currentProducts.find(p => p.id === productId);
@@ -784,7 +793,7 @@ function _productCardHtml(p, totalPositive) {
     <article class="card product-card product-card--interactive ${low ? 'border-danger' : 'border-muted'}"
       role="button" tabindex="0" data-product-id="${p.id}"
       aria-label="${escapeHtmlAttr(name)} — Tồn ${stock}. Nhấn để xem lịch sử"
-      onclick="openProductAudit(${p.id})"
+      onclick="handleProductCardClick(event, ${p.id})"
       onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openProductAudit(${p.id});}">
       <div class="flex justify-between items-start gap-2">
         <h3 class="product-card__name min-w-0 flex-1">${escapeHtmlAttr(name)}</h3>
@@ -966,9 +975,9 @@ function renderProducts(products, serverTotalStockPositive) {
     return `
     <article class="card product-card product-card--interactive ${low ? 'border-danger' : 'border-muted'}"
       role="button" tabindex="0" data-product-id="${p.id}"
-      aria-label="${escapeHtmlAttr(p.name)} — Tồn ${p.stock}. Nhấn để sửa"
-      onclick="openProductModal(${p.id})"
-      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openProductModal(${p.id});}">
+      aria-label="${p.name} — Tồn ${p.stock}. Nhấn để xem lịch sử"
+      onclick="handleProductCardClick(event, ${p.id})"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openProductAudit(${p.id});}">
       <div class="flex justify-between items-start gap-2">
         <h3 class="product-card__name min-w-0 flex-1">${p.name}</h3>
         ${low ? '<span class="badge badge-danger shrink-0 text-[10px]">Sắp hết</span>' : ''}
@@ -979,7 +988,11 @@ function renderProducts(products, serverTotalStockPositive) {
           <div class="product-card__qty-label">Tồn kho</div>
           <div class="stock-badge tabular-nums ${low ? 'text-danger' : 'text-success'}">${p.stock}</div>
         </div>
-        <div class="product-card__edit-pill" aria-hidden="true"><span class="product-card__edit-icon">✏️</span><span>Sửa</span></div>
+        <div class="product-card__edit-pill" aria-hidden="true"
+          onclick="event.stopPropagation();openProductModal(${p.id})"
+          title="Sửa sản phẩm">
+          <span class="product-card__edit-icon">✏️</span><span>Sửa</span>
+        </div>
       </div>
     </article>
   `;
@@ -1250,8 +1263,8 @@ window.renderProducts = function(products) {
       var html = '<article class="card product-card product-card--interactive ' +
         (low ? 'border-danger' : 'border-muted') + '" ' +
         'role="button" tabindex="0" data-product-id="' + p.id + '" ' +
-        'onclick="openProductModal(' + p.id + ')" ' +
-        'onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();openProductModal(' + p.id + ');}">' +
+        'onclick="handleProductCardClick(event, ' + p.id + ')" ' +
+        'onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();openProductAudit(' + p.id + ');}">' +
         '<div class="flex justify-between items-start gap-2">' +
         '<h3 class="product-card__name min-w-0 flex-1">' + name + '</h3>' +
         (low ? '<span class="badge badge-danger shrink-0 text-[10px]">Sắp hết</span>' : '') +
@@ -1262,7 +1275,10 @@ window.renderProducts = function(products) {
         '<div class="product-card__qty-label">Tồn kho</div>' +
         '<div class="stock-badge tabular-nums ' + (low ? 'text-danger' : 'text-success') + '">' + stock + '</div>' +
         '</div>' +
-        '<div class="product-card__edit-pill" aria-hidden="true"><span class="product-card__edit-icon">✏️</span><span>Sửa</span></div>' +
+        '<div class="product-card__edit-pill" aria-hidden="true" ' +
+        'onclick="event.stopPropagation();openProductModal(' + p.id + ')" ' +
+        'title="Sửa sản phẩm">' +
+        '<span class="product-card__edit-icon">✏️</span><span>Sửa</span></div>' +
         '</div></article>';
       var div = document.createElement('div');
       div.innerHTML = html;
