@@ -1,9 +1,11 @@
 {
-  "version": "2.0.7",
-  "build": "20260402e",
-  "date": "2026-04-02",
+  "version": "2.0.8",
+  "build": "20260413a",
+  "date": "2026-04-13",
   "changelog": [
-    "fix: standardize all money formatting to 'X đ' with Intl.NumberFormat(vi-VN)",
-    "fix: prevent double đ by using innerHTML with .value/.unit spans instead of textContent on .money elements"
+    "feat: product audit history modal — click product card to view import/export log",
+    "feat: filter audit by type (all / import / export)",
+    "fix: kegs transaction log — card layout with qty color coding",
+    "fix: kegs log card — remove hover flash from .card:hover CSS"
   ]
 }
