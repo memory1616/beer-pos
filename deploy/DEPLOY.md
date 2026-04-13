@@ -86,12 +86,12 @@ sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
 
 ```bash
 # Tạo thư mục
-sudo mkdir -p /var/www/beerpos
-sudo chown $USER:$USER /var/www/beerpos
+sudo mkdir -p /var/www/beer-pos
+sudo chown $USER:$USER /var/www/beer-pos
 
 # Clone hoặc copy code (nếu dùng git)
-cd /var/www/beerpos
-git clone https://github.com/YOUR_USERNAME/beerpos.git .
+cd /var/www/beer-pos
+git clone https://github.com/YOUR_USERNAME/beer-pos.git .
 ```
 
 ### 5.2 Cài đặt dependencies
@@ -137,21 +137,21 @@ pm2 startup   # Chạy lệnh output để PM2 tự khởi động khi reboot
 Kiểm tra:
 ```bash
 pm2 status
-pm2 logs beerpos --lines 20
+pm2 logs beer-pos --lines 20
 ```
 
 ### 5.5 Cấu hình Nginx
 
 ```bash
 # Copy config và thay YOUR_DOMAIN.COM
-sudo cp /var/www/beerpos/deploy/nginx.conf /etc/nginx/sites-available/beerpos
+sudo cp /var/www/beer-pos/deploy/nginx.conf /etc/nginx/sites-available/beer-pos
 
 # Chỉnh sửa domain trong config
-sudo nano /etc/nginx/sites-available/beerpos
+sudo nano /etc/nginx/sites-available/beer-pos
 # Thay YOUR_DOMAIN.COM bằng domain thật của bạn
 
 # Enable site
-sudo ln -sf /etc/nginx/sites-available/beerpos /etc/nginx/sites-enabled/
+sudo ln -sf /etc/nginx/sites-available/beer-pos /etc/nginx/sites-enabled/
 
 # Test & reload
 sudo nginx -t
@@ -192,24 +192,24 @@ Trong panel DNS của nhà cung cấp domain:
 ### Cập nhật code
 ```bash
 # Trên VPS
-cd /var/www/beerpos
+cd /var/www/beer-pos
 git pull
-pm2 reload beerpos
+pm2 reload beer-pos
 ```
 
 ### Xem logs
 ```bash
-pm2 logs beerpos --lines 100 --nostream
+pm2 logs beer-pos --lines 100 --nostream
 tail -f logs/error.log
 ```
 
 ### Backup database
 ```bash
 # Tự động backup hàng ngày lúc 23:00 (đã cấu hình trong server.js)
-ls /var/www/beerpos/backup/
+ls /var/www/beer-pos/backup/
 
 # Backup thủ công
-cp /var/www/beerpos/database.sqlite /var/www/beerpos/backup/backup-$(date +%Y%m%d).db
+cp /var/www/beer-pos/database.sqlite /var/www/beer-pos/backup/backup-$(date +%Y%m%d).db
 ```
 
 ### Khởi động lại sau reboot
@@ -235,12 +235,12 @@ Có **2 cách** để auto-deploy khi bạn `git push`:
 **Trên Server:**
 ```bash
 # Copy hook file
-cp /var/www/beerpos/deploy/post-receive ~/.git/hooks/post-receive
+cp /var/www/beer-pos/deploy/post-receive ~/.git/hooks/post-receive
 chmod +x ~/.git/hooks/post-receive
 
 # Tạo log file
-sudo touch /var/log/beerpos-deploy.log
-sudo chmod 666 /var/log/beerpos-deploy.log
+sudo touch /var/log/beer-pos-deploy.log
+sudo chmod 666 /var/log/beer-pos-deploy.log
 ```
 
 **Trên Local (Windows/Mac):**
@@ -256,7 +256,7 @@ git push origin main
 ```bash
 # Đảm bảo đã có DEPLOY_WEBHOOK_SECRET trong .env
 # Restart app để áp dụng
-pm2 restart beerpos
+pm2 restart beer-pos
 ```
 
 **Trên Local:**
@@ -286,12 +286,12 @@ deploy\deploy.bat "Your commit message"
 
 ### Kiểm tra deploy log
 ```bash
-tail -f /var/log/beerpos-deploy.log
+tail -f /var/log/beer-pos-deploy.log
 ```
 
 ### Xem deploy history
 ```bash
-grep "SUCCESS" /var/log/beerpos-deploy.log
+grep "SUCCESS" /var/log/beer-pos-deploy.log
 ```
 
 ---
