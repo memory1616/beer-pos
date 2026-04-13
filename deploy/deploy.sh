@@ -104,8 +104,9 @@ fi
 # ── 6. Restart PM2 (zero-downtime) ──────────────────────────────────────
 log_step "Restarting BeerPOS via PM2 (zero-downtime)..."
 
-if pm2 describe "$SERVICE_NAME" > /dev/null 2>&1; then
-    log "PM2 service found — reloading..."
+# Use pm2 jlist + jq to check if service is truly running (pm2 describe can lie on corrupted state)
+if command -v jq >/dev/null 2>&1 && pm2 jlist 2>/dev/null | jq -e '.[] | select(.name == "'"$SERVICE_NAME"'" and .pm2_env?.status == "online")' >/dev/null 2>&1; then
+    log "PM2 service '$SERVICE_NAME' is online — reloading..."
     if pm2 reload "$SERVICE_NAME" --update-env 2>&1; then
         log_ok "PM2 reload successful"
     else
@@ -113,12 +114,14 @@ if pm2 describe "$SERVICE_NAME" > /dev/null 2>&1; then
         if pm2 restart "$SERVICE_NAME" --update-env 2>&1; then
             log_ok "PM2 restart successful"
         else
-            log_warn "PM2 restart failed — starting fresh..."
+            log_warn "PM2 restart failed — clearing stale state and starting fresh..."
+            pm2 delete "$SERVICE_NAME" 2>/dev/null || true
             pm2 start ecosystem.config.js 2>&1 || log_error "PM2 start failed"
         fi
     fi
 else
-    log_warn "PM2 service not registered — starting fresh..."
+    log_warn "PM2 service '$SERVICE_NAME' not online — clearing and starting fresh..."
+    pm2 delete "$SERVICE_NAME" 2>/dev/null || true
     pm2 start ecosystem.config.js 2>&1 || log_error "PM2 start failed"
 fi
 
