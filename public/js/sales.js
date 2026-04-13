@@ -443,9 +443,19 @@ function renderInvoiceModalContent(invoice, saleIdForActions) {
 
   var sid = saleIdForActions != null ? saleIdForActions : invoice.id;
   if (!Number.isFinite(sid) || sid == null) sid = invoice.id;
-  var dateStr = invoice.date ? new Date(invoice.date).toLocaleString('vi-VN', {
-    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
-  }) : '';
+  var dateStr = '';
+  if (invoice.date) {
+    var d = new Date(invoice.date);
+    // Fix: date-only strings (e.g. "2026-04-12") → new Date parses as UTC midnight → shows 07:00 in UTC+7.
+    // Detect: if invoice.date has no time part, assume local date.
+    if (/^\d{4}-\d{2}-\d{2}$/.test(invoice.date)) {
+      var parts = invoice.date.split('-');
+      d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 12, 0, 0);
+    }
+    dateStr = d.toLocaleString('vi-VN', {
+      day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+    });
+  }
 
   if (orderEl) orderEl.textContent = '#' + sid;
   if (metaEl) metaEl.textContent = (invoice.customer && invoice.customer.name) || 'Khách lẻ';
