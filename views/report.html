@@ -45,11 +45,21 @@
 
     <!-- FILTER BAR (sticky under header) -->
     <div class="app-filter-bar" id="reportFilterBar">
-      <button class="app-filter-btn" data-filter="yesterday" onclick="RPT.setFilter('yesterday')">Hôm qua</button>
-      <button class="app-filter-btn active" data-filter="today" onclick="RPT.setFilter('today')">Hôm nay</button>
-      <button class="app-filter-btn" data-filter="7days" onclick="RPT.setFilter('7days')">7 ngày</button>
-      <button class="app-filter-btn" data-filter="month" onclick="RPT.setFilter('month')">Tháng này</button>
-      <button class="app-filter-btn" data-filter="custom" onclick="RPT.setFilter('custom')">Tùy chọn <span class="filter-custom-arrow">▼</span></button>
+      <button class="app-filter-btn active" data-filter="today" onclick="RPT.setFilter('today')">
+        <span class="filter-dot"></span>Hôm Nay
+      </button>
+      <button class="app-filter-btn" data-filter="yesterday" onclick="RPT.setFilter('yesterday')">
+        <span class="filter-dot"></span>Hôm Qua
+      </button>
+      <button class="app-filter-btn" data-filter="7days" onclick="RPT.setFilter('7days')">
+        <span class="filter-dot"></span>7 Ngày
+      </button>
+      <button class="app-filter-btn" data-filter="month" onclick="RPT.setFilter('month')">
+        <span class="filter-dot"></span>Tháng Này
+      </button>
+      <button class="app-filter-btn app-filter-btn--custom" data-filter="custom" onclick="RPT.setFilter('custom')">
+        <span class="filter-icon">📅</span>Tùy Chỉnh
+      </button>
     </div>
 
     <!-- Custom range label (shown when 'Tùy chọn' is active) -->
