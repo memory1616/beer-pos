@@ -137,6 +137,17 @@ function initSalesPage(data) {
   customers = data.customers || [];
   priceMap = data.priceMap || {};
 
+  // Close dropdown when clicking outside the customer search area
+  document.addEventListener('click', function(e) {
+    var search = document.getElementById('customerSearch');
+    var dropdown = document.getElementById('customerDropdown');
+    if (!search || !dropdown) return;
+    var searchBox = search.closest('.sale-section-customer');
+    if (searchBox && searchBox.contains(e.target)) return;
+    if (e.target === search) return;
+    showCustomerDropdown(false);
+  });
+
   Object.keys(priceMap).forEach(function(cid) {
     var cmap = priceMap[cid];
     if (cmap._bySlug === undefined) {
