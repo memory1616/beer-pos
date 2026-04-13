@@ -7,6 +7,17 @@ let importData = {}; // Store import data by productId
 let allPurchases = []; // Purchase history for this page
 let _stockPage = 'stock'; // 'stock' or 'purchase' — used to determine which container to update
 
+// ── Minimal modal helpers (self-contained, no external dependency) ──────
+function openModal(id) {
+  var el = document.getElementById(id);
+  if (el) el.classList.remove('hidden');
+}
+function closeModal(id) {
+  var el = document.getElementById(id);
+  if (el) el.classList.add('hidden');
+}
+function hideModal(id) { closeModal(id); }
+
 // ── Audit History ────────────────────────────────────────────────────────
 let _auditFilter = 'all';
 
