@@ -91,7 +91,7 @@ function renderAuditList(data) {
     const dateStr = date.toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
     const isImport = item.type === 'import';
     const isRestore = item.type === 'restore';
-    // restore = hoàn kho (dương), show as import-green
+    const isExport = item.type === 'export';
     const qtyColor = (isImport || isRestore) ? 'text-success' : 'text-danger';
     const qtyPrefix = (isImport || isRestore) ? '+' : '−';
     const qty = item.quantity;
@@ -99,7 +99,19 @@ function renderAuditList(data) {
     const total = item.total_price ? formatVND(item.total_price) : '';
     const badgeColor = isRestore ? 'badge-warning' : (isImport ? 'badge-success' : 'badge-danger');
     const badgeText = isRestore ? '♻️ Hoàn' : (isImport ? '📥 Nhập' : '📤 Xuất');
-    const note = item.note || '';
+
+    // Build detail line
+    var detailParts = [];
+    if (item.customer_name) detailParts.push(escapeHtml(item.customer_name));
+    if (isRestore) {
+      var prefix = item.reason === 'sale_delete' ? 'đơn xoá' : 'đơn trả';
+      detailParts.push('(' + prefix + ')');
+    } else if (isExport) {
+      detailParts.push('(đơn xuất)');
+    }
+    var detail = detailParts.join(' ');
+    var note = item.note || '';
+
     return '<div class="audit-row flex items-start gap-3 px-2 py-3 border-b border-muted/40 hover:bg-bg transition-colors">' +
       '<div class="flex-shrink-0 text-right" style="min-width:52px">' +
         '<div class="' + qtyColor + ' font-bold text-base leading-none tabular-nums">' + qtyPrefix + qty + '</div>' +
@@ -107,9 +119,9 @@ function renderAuditList(data) {
       '<div class="flex-1 min-w-0">' +
         '<div class="flex items-center gap-2 mb-1 flex-wrap">' +
           '<span class="' + badgeColor + ' text-[10px] px-1.5 py-0.5 rounded">' + badgeText + '</span>' +
-          (item.customer_name ? '<span class="text-[11px] text-muted">' + item.customer_name + '</span>' : '') +
-          (note ? '<span class="text-[11px] text-muted truncate" title="' + note + '">' + note + '</span>' : '') +
+          (detail ? '<span class="text-[11px] text-muted">' + detail + '</span>' : '') +
         '</div>' +
+        (note ? '<div class="text-[11px] text-muted truncate" title="' + note + '">' + note + '</div>' : '') +
         '<div class="text-[11px] text-muted">' + (price ? price + '/bình · ' : '') + (total ? 'Tổng ' + total : '') + '</div>' +
       '</div>' +
       '<div class="flex-shrink-0 text-right">' +
