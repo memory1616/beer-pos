@@ -6685,3 +6685,24 @@ body.body--app .app-body {
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
 }
+
+/* Log card — reset card hover so inside rows don't trigger background flash */
+.log-card {
+  overflow: hidden;
+}
+.log-card:hover {
+  background: var(--card) !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+/* Log row items */
+.log-row {
+  border-bottom: 1px solid var(--border);
+}
+.log-row:last-child {
+  border-bottom: none;
+}
+.log-row:hover {
+  background: rgba(34, 197, 94, 0.05);
+}
