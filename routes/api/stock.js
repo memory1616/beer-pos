@@ -76,44 +76,44 @@ router.get('/alerts', (req, res) => {
 router.get('/history', (req, res) => {
   try {
     const productId = req.query.productId;
-    const limit = parseInt(req.query.limit) || 20;
+    const limit = parseInt(req.query.limit) || 100;
 
-    let query = '';
-    let params = [];
-
-    if (productId) {
-      const prodId = validateId(productId);
-      if (!prodId) {
-        return res.status(400).json({ error: 'ID sản phẩm không hợp lệ' });
-      }
-
-      // Get import history (from purchases)
-      const imports = db.prepare(`
-        SELECT pi.id, pi.quantity, pi.unit_price, pi.total_price, p.date, 'import' as type
-        FROM purchase_items pi
-        JOIN purchases p ON pi.purchase_id = p.id
-        WHERE pi.product_id = ?
-        ORDER BY p.date DESC
-        LIMIT ?
-      `).all(prodId, limit);
-
-      // Get export history (from sales)
-      const exports = db.prepare(`
-        SELECT si.id, si.quantity, si.price as unit_price, si.quantity * si.price as total_price, s.date, 'export' as type
-        FROM sale_items si
-        JOIN sales s ON si.sale_id = s.id
-        WHERE si.product_id = ?
-        ORDER BY s.date DESC
-        LIMIT ?
-      `).all(prodId, limit);
-
-      // Combine and sort
-      const history = [...imports, ...exports].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, limit);
-
-      res.json(history);
-    } else {
-      res.json([]);
+    if (!productId) {
+      return res.status(400).json({ error: 'Thiếu productId' });
     }
+
+    const prodId = validateId(productId);
+    if (!prodId) {
+      return res.status(400).json({ error: 'ID sản phẩm không hợp lệ' });
+    }
+
+    // Get import history (from purchases) — include purchase note
+    const imports = db.prepare(`
+      SELECT pi.id, pi.quantity, pi.unit_price, pi.total_price, p.date,
+             'import' as type, p.note, NULL as customer_name
+      FROM purchase_items pi
+      JOIN purchases p ON pi.purchase_id = p.id
+      WHERE pi.product_id = ?
+      ORDER BY p.date DESC
+      LIMIT ?
+    `).all(prodId, limit);
+
+    // Get export history (from sales) — include customer name
+    const exports = db.prepare(`
+      SELECT si.id, si.quantity, si.price as unit_price, si.quantity * si.price as total_price,
+             s.date, 'export' as type, s.note, c.name as customer_name
+      FROM sale_items si
+      JOIN sales s ON si.sale_id = s.id
+      LEFT JOIN customers c ON s.customer_id = c.id
+      WHERE si.product_id = ?
+      ORDER BY s.date DESC
+      LIMIT ?
+    `).all(prodId, limit);
+
+    // Combine and sort by date descending
+    const history = [...imports, ...exports].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, limit);
+
+    res.json(history);
   } catch (err) {
     logger.error('Error fetching stock history', { error: err.message });
     res.status(500).json({ error: 'Lỗi khi lấy lịch sử kho' });
