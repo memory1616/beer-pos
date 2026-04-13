@@ -5081,18 +5081,19 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
 }
 
 .inv-close {
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   border-radius: 8px;
   background: var(--border);
   border: none;
   color: var(--text-muted);
-  font-size: 16px;
+  font-size: 18px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  transition: background 0.15s;
 }
 
 .inv-close:hover { background: var(--red); color: #fff; }
@@ -5116,42 +5117,69 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   min-height: 0;
 }
 
-/* Total — top of modal */
+/* Actions — fixed bottom */
+.inv-pos-actions {
+  display: flex;
+  gap: clamp(6px, 2vw, 10px);
+  padding: clamp(6px, 2vw, 10px) clamp(12px, 4vw, 16px) clamp(6px, 2vw, 10px);
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+}
+
+.inv-btn {
+  flex: 1;
+  height: clamp(38px, 10vw, 44px);
+  border-radius: 10px;
+  border: none;
+  font-size: clamp(12px, 3.2vw, 14px);
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.inv-btn-ghost    { background: var(--border);      color: var(--text-muted); }
+
+/* Total — top of modal, BIG & PROMINENT */
 .invoice-total {
   text-align: center;
-  padding: 12px 14px 8px;
+  padding: clamp(8px, 2.5vw, 14px) clamp(12px, 4vw, 16px) clamp(4px, 1.5vw, 8px);
   flex-shrink: 0;
 }
 
 .invoice-total-label {
-  font-size: 10px;
+  font-size: clamp(9px, 2.5vw, 11px);
   font-weight: 700;
   color: var(--text-muted);
   letter-spacing: 1.5px;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .invoice-total-value {
-  font-size: 32px;
+  font-size: clamp(32px, 9vw, 52px);
   font-weight: 700;
   color: var(--success);
   font-variant-numeric: tabular-nums;
+  line-height: 1.1;
 }
 
 /* Info */
 .invoice-info {
-  padding: 0 14px 6px;
+  padding: 0 clamp(12px, 4vw, 16px) clamp(4px, 1.5vw, 8px);
   flex-shrink: 0;
   display: block !important;
 }
 
 .invoice-info-date {
-  font-size: 11px;
+  font-size: clamp(11px, 3vw, 13px);
   color: var(--text-muted);
 }
 
 .invoice-info-customer {
-  font-size: 12px;
+  font-size: clamp(12px, 3.2vw, 14px);
   font-weight: 600;
   color: var(--primary);
 }
@@ -5164,15 +5192,22 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   flex-shrink: 0;
 }
 
-/* Product list — AUTO FIT, no scroll */
+/* Spacer — fills dead space between product list and bottle/QR */
+.inv-spacer {
+  flex: 1;
+  min-height: clamp(4px, 2vw, 10px);
+}
+
+/* Product list — fills remaining space */
 .invoice-list {
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  gap: 2px;
+  gap: clamp(2px, 0.8vw, 5px);
   overflow: hidden;
   flex: 1;
   min-height: 0;
+  padding: 0 clamp(12px, 4vw, 16px);
 }
 
 /* Normal item */
@@ -5180,15 +5215,15 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 6px 14px;
-  font-size: 13px;
+  padding: clamp(4px, 1.5vw, 7px) 0;
+  font-size: clamp(13px, 3.5vw, 15px);
   color: var(--text-primary);
   flex-shrink: 0;
 }
 
 .invoice-item small {
   display: block;
-  font-size: 10px;
+  font-size: clamp(10px, 2.8vw, 12px);
   color: var(--text-secondary);
 }
 
@@ -5199,7 +5234,7 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 13px;
+  font-size: clamp(13px, 3.5vw, 15px);
 }
 
 .invoice-item-total {
@@ -5207,40 +5242,40 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
   margin-left: 10px;
-  font-size: 13px;
+  font-size: clamp(13px, 3.5vw, 15px);
 }
 
 /* ── COMPACT MODE (>3 items) ── */
-.inv-pos.compact .invoice-item { padding: 4px 14px; font-size: 12px; }
-.inv-pos.compact .invoice-item-name { font-size: 12px; }
-.inv-pos.compact .invoice-item-total { font-size: 12px; }
-.inv-pos.compact .invoice-item small { font-size: 9px; }
-.inv-pos.compact .invoice-total-value { font-size: 28px; }
-.inv-pos.compact .invoice-total { padding: 8px 14px 6px; }
-.inv-pos.compact .qr { width: 120px; }
+.inv-pos.compact .invoice-item { padding: clamp(3px, 1vw, 5px) 0; font-size: clamp(12px, 3.2vw, 14px); }
+.inv-pos.compact .invoice-item-name { font-size: clamp(12px, 3.2vw, 14px); }
+.inv-pos.compact .invoice-item-total { font-size: clamp(12px, 3.2vw, 14px); }
+.inv-pos.compact .invoice-item small { font-size: clamp(9px, 2.5vw, 10px); }
+.inv-pos.compact .invoice-total-value { font-size: clamp(28px, 7vw, 40px); }
+.inv-pos.compact .invoice-total { padding: clamp(6px, 2vw, 10px) clamp(12px, 4vw, 16px) clamp(4px, 1.2vw, 6px); }
+.inv-pos.compact .qr { width: clamp(140px, 38vw, 180px); }
 
 /* ── ULTRA-COMPACT MODE (>6 items) ── */
-.inv-pos.ultra-compact .invoice-item { padding: 2px 14px; font-size: 11px; }
-.inv-pos.ultra-compact .invoice-item-name { font-size: 11px; }
-.inv-pos.ultra-compact .invoice-item-total { font-size: 11px; }
+.inv-pos.ultra-compact .invoice-item { padding: clamp(2px, 0.8vw, 4px) 0; font-size: clamp(11px, 3vw, 13px); }
+.inv-pos.ultra-compact .invoice-item-name { font-size: clamp(11px, 3vw, 13px); }
+.inv-pos.ultra-compact .invoice-item-total { font-size: clamp(11px, 3vw, 13px); }
 .inv-pos.ultra-compact .invoice-item small { display: none; }
-.inv-pos.ultra-compact .invoice-total-value { font-size: 24px; }
-.inv-pos.ultra-compact .invoice-total { padding: 6px 14px 4px; }
-.inv-pos.ultra-compact .qr { width: 100px; }
-.inv-pos.ultra-compact .qr-note { font-size: 11px; }
-.inv-pos.ultra-compact .invoice-info { padding-bottom: 4px; }
+.inv-pos.ultra-compact .invoice-total-value { font-size: clamp(24px, 6vw, 32px); }
+.inv-pos.ultra-compact .invoice-total { padding: clamp(4px, 1.5vw, 7px) clamp(12px, 4vw, 16px) clamp(2px, 0.8vw, 4px); }
+.inv-pos.ultra-compact .qr { width: clamp(110px, 30vw, 140px); }
+.inv-pos.ultra-compact .qr-note { font-size: clamp(11px, 3vw, 12px); }
+.inv-pos.ultra-compact .invoice-info { padding-bottom: clamp(3px, 1vw, 5px); }
 
 /* Bottle section */
 .bottle {
-  padding: 4px 14px;
-  font-size: 12px;
+  padding: clamp(4px, 1.5vw, 8px) clamp(12px, 4vw, 16px);
   flex-shrink: 0;
 }
 
 .bottle-row {
   display: flex;
   justify-content: space-between;
-  padding: 2px 0;
+  padding: clamp(2px, 0.8vw, 4px) 0;
+  font-size: clamp(13px, 3.5vw, 15px);
 }
 
 .green  { color: var(--success); font-weight: 700; }
@@ -5250,21 +5285,22 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
 /* QR section */
 .qr-section {
   text-align: center;
-  padding: 4px 14px 6px;
+  padding: clamp(4px, 1.5vw, 8px) clamp(12px, 4vw, 16px) clamp(6px, 2vw, 10px);
   flex-shrink: 0;
 }
 
 .qr {
-  width: 140px;
-  margin: 4px auto;
-  border-radius: 10px;
+  width: min(200px, 52vw);
+  margin: clamp(4px, 1.5vw, 8px) auto;
+  border-radius: 12px;
   background: #fff;
   object-fit: contain;
+  display: block;
 }
 
 .qr-note {
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: clamp(12px, 3.2vw, 14px);
 }
 
 /* Actions — fixed bottom */
