@@ -67,21 +67,20 @@
 
     <!-- Date Range Picker Modal -->
     <div class="modal-overlay-v2 hidden" id="dateRangeModal" onclick="if(event.target===this)RPT.closeDatePicker()">
-      <div class="modal-sheet-v2 date-range-modal-sheet" onclick="event.stopPropagation()">
+      <div class="date-range-modal-sheet" onclick="event.stopPropagation()">
+        <!-- drag handle -->
+        <div class="drp-handle" aria-hidden="true"></div>
         <div class="modal-sheet-v2-header">
           <div class="modal-sheet-v2-title">📅 Chọn khoảng ngày</div>
           <button class="modal-sheet-v2-close" onclick="RPT.closeDatePicker()" aria-label="Đóng">✕</button>
         </div>
         <div class="modal-sheet-v2-body">
-          <!-- Quick presets -->
           <div class="drp-presets" id="drpPresets">
             <button class="drp-preset-btn" data-preset="yesterday" onclick="RPT.applyPreset('yesterday')">Hôm qua</button>
             <button class="drp-preset-btn" data-preset="thisWeek" onclick="RPT.applyPreset('thisWeek')">Tuần này</button>
             <button class="drp-preset-btn" data-preset="lastMonth" onclick="RPT.applyPreset('lastMonth')">Tháng trước</button>
           </div>
-          <!-- Divider with label -->
           <div class="drp-divider"><span>hoặc chọn thủ công</span></div>
-          <!-- Custom date inputs -->
           <div class="drp-inputs">
             <div class="drp-input-group">
               <label class="drp-label" for="drpDateFrom">Từ ngày</label>
@@ -94,11 +93,10 @@
             </div>
           </div>
         </div>
-      </div>
-      <!-- Footer: fixed below sheet, NOT inside scroll container -->
-      <div class="modal-sheet-v2-footer modal-sheet-v2-footer--fixed" onclick="event.stopPropagation()">
-        <button class="btn btn-ghost" onclick="RPT.closeDatePicker()">Hủy</button>
-        <button class="btn btn-primary" onclick="RPT.confirmDatePicker()">Áp dụng</button>
+        <div class="modal-sheet-v2-footer">
+          <button class="btn btn-ghost" onclick="RPT.closeDatePicker()">Hủy</button>
+          <button class="btn btn-primary" onclick="RPT.confirmDatePicker()">Áp dụng</button>
+        </div>
       </div>
     </div>
 
