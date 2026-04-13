@@ -1,7 +1,8 @@
 module.exports = {
   apps: [{
     name: 'beer-pos',
-    script: 'server.js',
+    script: '/root/beer-pos/server.js',
+    cwd: '/root/beer-pos',
     instances: 1,
     exec_mode: 'fork',
     env: {
