@@ -513,6 +513,14 @@ router.post('/:id/return', (req, res) => {
       for (const item of items) {
         db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(item.quantity, item.product_id);
         totalReturnProfit += item.profit || 0;
+        // Audit log — product stock returned
+        const customerName = sale.customer_id
+          ? (db.prepare('SELECT name FROM customers WHERE id = ?').get(sale.customer_id) || {}).name
+          : null;
+        db.prepare(`
+          INSERT INTO product_audit_log (product_id, type, quantity, reason, ref_id, ref_type, customer_name, note)
+          VALUES (?, 'restore', ?, 'return', ?, 'sale', ?, ?)
+        `).run(item.product_id, item.quantity, saleId, customerName, 'Trả hàng hoàn kho');
       }
     } else if (returnType === 'damage_return') {
       // Bia lỗi - ghi nhận vào bảng hàng lỗi, không cộng kho
@@ -629,6 +637,14 @@ router.post('/:id/return-items', (req, res) => {
       if (returnType === 'stock_return') {
         // Trả lại kho - cộng lại tồn kho
         db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(quantity, productId);
+        // Audit log — partial return
+        const customerName = sale.customer_id
+          ? (db.prepare('SELECT name FROM customers WHERE id = ?').get(sale.customer_id) || {}).name
+          : null;
+        db.prepare(`
+          INSERT INTO product_audit_log (product_id, type, quantity, reason, ref_id, ref_type, customer_name, note)
+          VALUES (?, 'restore', ?, 'return', ?, 'sale', ?, ?)
+        `).run(productId, quantity, saleId, customerName, 'Trả hàng một phần hoàn kho');
       } else if (returnType === 'damage_return') {
         // Bia lỗi - ghi nhận vào bảng hàng lỗi
         db.prepare('UPDATE products SET damaged_stock = damaged_stock + ? WHERE id = ?').run(quantity, productId);

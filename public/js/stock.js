@@ -44,6 +44,7 @@ function openProductAudit(productId) {
   document.getElementById('afilterAll').classList.add('bn-chip--active');
   document.getElementById('afilterImport').classList.remove('bn-chip--active');
   document.getElementById('afilterExport').classList.remove('bn-chip--active');
+  document.getElementById('afilterRestore') && document.getElementById('afilterRestore').classList.remove('bn-chip--active');
   document.getElementById('auditList').innerHTML = '<div class="text-center py-4 text-muted animate-pulse">Đang tải...</div>';
   openModal('auditModal');
   loadAuditHistory();
@@ -89,13 +90,15 @@ function renderAuditList(data) {
     const date = new Date(item.date);
     const dateStr = date.toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
     const isImport = item.type === 'import';
-    const qtyColor = isImport ? 'text-success' : 'text-danger';
-    const qtyPrefix = isImport ? '+' : '−';
+    const isRestore = item.type === 'restore';
+    // restore = hoàn kho (dương), show as import-green
+    const qtyColor = (isImport || isRestore) ? 'text-success' : 'text-danger';
+    const qtyPrefix = (isImport || isRestore) ? '+' : '−';
     const qty = item.quantity;
-    const price = formatVND(item.unit_price || 0);
-    const total = formatVND(item.total_price || qty * (item.unit_price || 0));
-    const badgeColor = isImport ? 'badge-success' : 'badge-danger';
-    const badgeText = isImport ? '📥 Nhập' : '📤 Xuất';
+    const price = item.unit_price ? formatVND(item.unit_price) : '';
+    const total = item.total_price ? formatVND(item.total_price) : '';
+    const badgeColor = isRestore ? 'badge-warning' : (isImport ? 'badge-success' : 'badge-danger');
+    const badgeText = isRestore ? '♻️ Hoàn' : (isImport ? '📥 Nhập' : '📤 Xuất');
     const note = item.note || '';
     return '<div class="audit-row flex items-start gap-3 px-2 py-3 border-b border-muted/40 hover:bg-bg transition-colors">' +
       '<div class="flex-shrink-0 text-right" style="min-width:52px">' +
@@ -104,9 +107,10 @@ function renderAuditList(data) {
       '<div class="flex-1 min-w-0">' +
         '<div class="flex items-center gap-2 mb-1 flex-wrap">' +
           '<span class="' + badgeColor + ' text-[10px] px-1.5 py-0.5 rounded">' + badgeText + '</span>' +
+          (item.customer_name ? '<span class="text-[11px] text-muted">' + item.customer_name + '</span>' : '') +
           (note ? '<span class="text-[11px] text-muted truncate" title="' + note + '">' + note + '</span>' : '') +
         '</div>' +
-        '<div class="text-[11px] text-muted">' + price + '/bình · Tổng ' + total + '</div>' +
+        '<div class="text-[11px] text-muted">' + (price ? price + '/bình · ' : '') + (total ? 'Tổng ' + total : '') + '</div>' +
       '</div>' +
       '<div class="flex-shrink-0 text-right">' +
         '<div class="text-[11px] text-muted leading-none whitespace-nowrap">' + dateStr + '</div>' +
