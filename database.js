@@ -802,6 +802,23 @@ try {
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  // Audit log for product stock changes (import/export/adjust/delete/return)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS product_audit_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      product_id INTEGER NOT NULL,
+      type TEXT NOT NULL,          -- 'import' | 'export' | 'restore' | 'adjust'
+      quantity INTEGER NOT NULL,   -- số lượng thay đổi (dương=cộng, âm=trừ)
+      reason TEXT,                 -- 'purchase' | 'sale' | 'sale_delete' | 'return' | 'adjust' | 'manual'
+      ref_id INTEGER,              -- purchase_id / sale_id / null
+      ref_type TEXT,               -- 'purchase' | 'sale' | null
+      customer_name TEXT,
+      note TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_product_audit_product ON product_audit_log(product_id, created_at DESC)`);
   console.log('Created expenses table');
 
   // Create index for faster date queries

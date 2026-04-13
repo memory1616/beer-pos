@@ -39,6 +39,15 @@ function deleteSaleRestoringInventory(saleId) {
       for (const item of items) {
         const r = db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(item.quantity, item.product_id);
         console.log('[saleDelete tx] updated product', item.product_id, '+' + item.quantity, 'changes:', r.changes);
+
+        // Audit log — stock restored when sale is deleted
+        const customer = sale.customer_id
+          ? db.prepare('SELECT name FROM customers WHERE id = ?').get(sale.customer_id)
+          : null;
+        db.prepare(`
+          INSERT INTO product_audit_log (product_id, type, quantity, reason, ref_id, ref_type, customer_name, note)
+          VALUES (?, 'restore', ?, 'sale_delete', ?, 'sale', ?, ?)
+        `).run(item.product_id, item.quantity, id, customer ? customer.name : null, 'Hoàn kho do xóa đơn');
       }
     } else {
       console.log('[saleDelete tx] NOT reversing product stock — shouldReverse:', shouldReverseProductStock(sale), 'type:', sale.type);

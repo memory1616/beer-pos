@@ -90,7 +90,7 @@ router.get('/history', (req, res) => {
     // Get import history (from purchases) — include purchase note
     const imports = db.prepare(`
       SELECT pi.id, pi.quantity, pi.unit_price, pi.total_price, p.date,
-             'import' as type, p.note, NULL as customer_name
+             'import' as type, p.note, NULL as customer_name, NULL as reason
       FROM purchase_items pi
       JOIN purchases p ON pi.purchase_id = p.id
       WHERE pi.product_id = ?
@@ -101,7 +101,7 @@ router.get('/history', (req, res) => {
     // Get export history (from sales) — include customer name
     const exports = db.prepare(`
       SELECT si.id, si.quantity, si.price as unit_price, si.quantity * si.price as total_price,
-             s.date, 'export' as type, s.note, c.name as customer_name
+             s.date, 'export' as type, s.note, c.name as customer_name, NULL as reason
       FROM sale_items si
       JOIN sales s ON si.sale_id = s.id
       LEFT JOIN customers c ON s.customer_id = c.id
@@ -110,8 +110,20 @@ router.get('/history', (req, res) => {
       LIMIT ?
     `).all(prodId, limit);
 
+    // Get stock changes from audit log (restore, adjust, manual etc.)
+    const auditLogs = db.prepare(`
+      SELECT id, quantity, 0 as unit_price, 0 as total_price,
+             created_at as date, type, note, customer_name, reason
+      FROM product_audit_log
+      WHERE product_id = ?
+      ORDER BY created_at DESC
+      LIMIT ?
+    `).all(prodId, limit);
+
     // Combine and sort by date descending
-    const history = [...imports, ...exports].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, limit);
+    const history = [...imports, ...exports, ...auditLogs]
+      .sort((a, b) => new Date(b.date) - new Date(a.date))
+      .slice(0, limit);
 
     res.json(history);
   } catch (err) {
