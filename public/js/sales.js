@@ -235,6 +235,12 @@ function populateSaleHistoryMonthFilter() {
   sel.innerHTML = options.map(function(o) {
     return '<option value="' + o.value + '">' + o.label + '</option>';
   }).join('');
+  // Default to current month (not "Tất cả")
+  var y = now.getFullYear();
+  var m = now.getMonth() + 1;
+  var defaultVal = y + '-' + String(m).padStart(2, '0');
+  sel.value = defaultVal;
+  onSaleHistoryMonthChange(defaultVal);
 }
 
 function renderSaleHistory(sales, page, totalPages) {
