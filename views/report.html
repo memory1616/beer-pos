@@ -45,6 +45,7 @@
 
     <!-- FILTER BAR (sticky under header) -->
     <div class="app-filter-bar" id="reportFilterBar">
+      <button class="app-filter-btn" data-filter="yesterday" onclick="RPT.setFilter('yesterday')">Hôm qua</button>
       <button class="app-filter-btn active" data-filter="today" onclick="RPT.setFilter('today')">Hôm nay</button>
       <button class="app-filter-btn" data-filter="7days" onclick="RPT.setFilter('7days')">7 ngày</button>
       <button class="app-filter-btn" data-filter="month" onclick="RPT.setFilter('month')">Tháng này</button>
@@ -55,28 +56,30 @@
     <div class="app-filter-range-label" id="filterRangeLabel"></div>
 
     <!-- Date Range Picker Modal -->
-    <div class="modal-overlay-v2 hidden" id="dateRangeModal">
-      <div class="modal-sheet-v2 date-range-modal-sheet">
+    <div class="modal-overlay-v2 hidden" id="dateRangeModal" onclick="if(event.target===this)RPT.closeDatePicker()">
+      <div class="modal-sheet-v2 date-range-modal-sheet" onclick="event.stopPropagation()">
         <div class="modal-sheet-v2-header">
           <div class="modal-sheet-v2-title">📅 Chọn khoảng ngày</div>
-          <button class="modal-sheet-v2-close" onclick="RPT.closeDatePicker()">✕</button>
+          <button class="modal-sheet-v2-close" onclick="RPT.closeDatePicker()" aria-label="Đóng">✕</button>
         </div>
         <div class="modal-sheet-v2-body">
           <!-- Quick presets -->
-          <div class="drp-presets">
-            <button class="drp-preset-btn" onclick="RPT.applyPreset('yesterday')">Hôm qua</button>
-            <button class="drp-preset-btn" onclick="RPT.applyPreset('thisWeek')">Tuần này</button>
-            <button class="drp-preset-btn" onclick="RPT.applyPreset('lastMonth')">Tháng trước</button>
+          <div class="drp-presets" id="drpPresets">
+            <button class="drp-preset-btn" data-preset="yesterday" onclick="RPT.applyPreset('yesterday')">Hôm qua</button>
+            <button class="drp-preset-btn" data-preset="thisWeek" onclick="RPT.applyPreset('thisWeek')">Tuần này</button>
+            <button class="drp-preset-btn" data-preset="lastMonth" onclick="RPT.applyPreset('lastMonth')">Tháng trước</button>
           </div>
+          <!-- Divider with label -->
+          <div class="drp-divider"><span>hoặc chọn thủ công</span></div>
           <!-- Custom date inputs -->
           <div class="drp-inputs">
             <div class="drp-input-group">
-              <label class="drp-label">Từ ngày</label>
+              <label class="drp-label" for="drpDateFrom">Từ ngày</label>
               <input type="date" class="drp-date-input" id="drpDateFrom">
             </div>
-            <div class="drp-separator">→</div>
+            <div class="drp-separator" aria-hidden="true">→</div>
             <div class="drp-input-group">
-              <label class="drp-label">Đến ngày</label>
+              <label class="drp-label" for="drpDateTo">Đến ngày</label>
               <input type="date" class="drp-date-input" id="drpDateTo">
             </div>
           </div>
@@ -231,6 +234,11 @@
         var now = new Date();
         var y = now.getFullYear(), m = now.getMonth(), d = now.getDate();
 
+        if (filter === 'yesterday') {
+          var yd = new Date();
+          yd.setDate(yd.getDate() - 1);
+          return { start: toLocalDateStr(yd), end: toLocalDateStr(yd) };
+        }
         if (filter === 'today') {
           return { start: toLocalDateStr(now), end: toLocalDateStr(now) };
         }
@@ -823,6 +831,11 @@
         var toEl = document.getElementById('drpDateTo');
         if (!modal) return;
 
+        // Clear preset active states when opening manually
+        document.querySelectorAll('.drp-preset-btn').forEach(function (btn) {
+          btn.classList.remove('active');
+        });
+
         // Pre-fill with current custom range or default to this month
         if (_state.startDate) fromEl.value = _state.startDate;
         if (_state.endDate) toEl.value = _state.endDate;
@@ -860,6 +873,11 @@
           fromEl.value = toLocalDateStr(first);
           toEl.value = toLocalDateStr(last);
         }
+
+        // Highlight selected preset
+        document.querySelectorAll('.drp-preset-btn').forEach(function (btn) {
+          btn.classList.toggle('active', btn.dataset.preset === preset);
+        });
       }
 
       // Confirm date picker → apply range
