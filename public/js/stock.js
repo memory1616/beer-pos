@@ -17,6 +17,9 @@ function closeModal(id) {
   if (el) el.classList.add('hidden');
 }
 function hideModal(id) { closeModal(id); }
+function escapeHtml(s) {
+  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
 
 // ── Audit History ────────────────────────────────────────────────────────
 let _auditFilter = 'all';
