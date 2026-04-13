@@ -35,113 +35,6 @@
 
   <!-- ========== MODALS (Binance Bottom-Sheet) ========== -->
 
-  <!-- Deliver Modal -->
-  <div id="deliverModal" class="modal-overlay-v2 hidden center">
-    <div class="modal-sheet-v2">
-      <div class="modal-sheet-v2-header">
-        <div class="modal-sheet-v2-title">📦 Giao vỏ cho khách</div>
-        <button onclick="closeModal('deliverModal')" class="modal-sheet-v2-close">×</button>
-      </div>
-      <div class="modal-sheet-v2-body">
-        <div class="card card--accent-green">
-          <div class="text-xs text-muted mb-1">Vỏ sẵn có:</div>
-          <div class="font-bold text-success" id="deliverAvailQty">-</div>
-        </div>
-        <div>
-          <label class="field-label">Khách hàng</label>
-          <select id="deliverCustomer" class="bn-input bn-input--lg">
-            <option value="">-- Chọn khách hàng --</option>
-          </select>
-        </div>
-        <div>
-          <label class="field-label">Số lượng vỏ</label>
-          <div class="flex items-center gap-2">
-            <input type="number" id="deliverQty" min="1" value="1" class="bn-input bn-input--lg bn-input--center bn-input--green">
-            <div class="flex gap-1">
-              <button onclick="adjustQty('deliverQty', -1)" class="btn btn-ghost bn-btn-icon">−</button>
-              <button onclick="adjustQty('deliverQty', 1)" class="btn btn-ghost bn-btn-icon">+</button>
-            </div>
-          </div>
-        </div>
-        <div>
-          <label class="field-label">Ghi chú</label>
-          <input type="text" id="deliverNote" class="bn-input" placeholder="VD: Theo đơn hàng">
-        </div>
-        <button onclick="submitDeliver()" class="btn btn-success bn-btn-lg">Xác nhận giao</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Collect Modal -->
-  <div id="collectModal" class="modal-overlay-v2 hidden center">
-    <div class="modal-sheet-v2">
-      <div class="modal-sheet-v2-header">
-        <div class="modal-sheet-v2-title text-info">🔄 Thu vỏ rỗng</div>
-        <button onclick="closeModal('collectModal')" class="modal-sheet-v2-close">×</button>
-      </div>
-      <div class="modal-sheet-v2-body">
-        <div class="card card--accent-blue">
-          <div class="text-xs text-muted mb-1">Vỏ khách đang giữ:</div>
-          <div class="font-bold text-info" id="collectAvailQty">-</div>
-        </div>
-        <div>
-          <label class="field-label">Khách hàng</label>
-          <select id="collectCustomer" class="bn-input bn-input--lg" onchange="updateCollectAvail()">
-            <option value="">-- Chọn khách hàng --</option>
-          </select>
-        </div>
-        <div>
-          <label class="field-label">Số lượng vỏ</label>
-          <div class="flex items-center gap-2">
-            <input type="number" id="collectQty" min="1" value="1" class="bn-input bn-input--lg bn-input--center bn-input--blue">
-            <div class="flex gap-1">
-              <button onclick="adjustQty('collectQty', -1)" class="btn btn-ghost bn-btn-icon">−</button>
-              <button onclick="adjustQty('collectQty', 1)" class="btn btn-ghost bn-btn-icon">+</button>
-            </div>
-          </div>
-        </div>
-        <div>
-          <label class="field-label">Ghi chú</label>
-          <input type="text" id="collectNote" class="bn-input" placeholder="VD: Thu vỏ từ khách">
-        </div>
-        <button onclick="submitCollect()" class="btn btn-secondary bn-btn-lg">Xác nhận thu</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Import Modal -->
-  <div id="importModal" class="modal-overlay-v2 hidden center">
-    <div class="modal-sheet-v2">
-      <div class="modal-sheet-v2-header">
-        <div class="modal-sheet-v2-title">🏭 Nhập vỏ từ nhà máy</div>
-        <button onclick="closeModal('importModal')" class="modal-sheet-v2-close">×</button>
-      </div>
-      <div class="modal-sheet-v2-body">
-        <div class="card card--accent-primary text-center">
-          <span class="text-xs text-muted">Vỏ rỗng hiện có: </span>
-          <span class="font-bold text-primary" id="importAvailEmpty">-</span>
-        </div>
-        <div>
-          <label class="field-label">Đổi vỏ (trả rỗng → lấy đầy)</label>
-          <input type="number" id="importExchanged" min="0" value="0" class="bn-input bn-input--lg bn-input--center" oninput="updateImportTotal()">
-        </div>
-        <div>
-          <label class="field-label">Mua vỏ mới</label>
-          <input type="number" id="importPurchased" min="0" value="0" class="bn-input bn-input--lg bn-input--center" oninput="updateImportTotal()">
-        </div>
-        <div class="card card--accent-primary text-center">
-          <span class="text-xs text-muted">Tổng nhập: </span>
-          <span class="font-bold text-primary" id="importTotalDisplay">0 vỏ</span>
-        </div>
-        <div>
-          <label class="field-label">Ghi chú</label>
-          <input type="text" id="importNote" class="bn-input" placeholder="VD: Nhập từ Bia Sài Gòn">
-        </div>
-        <button onclick="submitImport()" class="btn btn-primary bn-btn-lg">Xác nhận nhập</button>
-      </div>
-    </div>
-  </div>
-
   <!-- Adjust Modal -->
   <div id="adjustModal" class="modal-overlay-v2 hidden center">
     <div class="modal-sheet-v2">
@@ -250,7 +143,6 @@
       try {
         var res = await fetch('/api/customers');
         customers = await res.json();
-        populateCustomerSelects();
       } catch (e) {
         console.error('Load customers error:', e);
       }
@@ -285,57 +177,11 @@
       var inv = kegState.inventory || 0;
       var empty = kegState.emptyCollected || 0;
       var hold = kegState.customerHolding || 0;
-      var balance = inv + empty - hold;
       var set = function(id, val) { var el = document.getElementById(id); if (el) el.textContent = val; };
       set('statInventory', inv);
       set('statEmpty', empty);
       set('statHolding', hold);
-      set('statBalance', balance);
       set('currentEmptyDisplay', empty + ' vỏ');
-      set('deliverAvailQty', inv + ' vỏ');
-      set('collectAvailQty', 'Chọn khách');
-      set('importAvailEmpty', empty + ' vỏ');
-      var warn = document.getElementById('balanceWarning');
-      if (warn) {
-        if (inv <= 5) {
-          warn.classList.remove('hidden');
-          var wmsg = document.getElementById('balanceWarningMsg');
-          if (wmsg) wmsg.textContent = 'Chỉ còn ' + inv + ' vỏ! Cần nhập thêm từ nhà máy.';
-        } else {
-          warn.classList.add('hidden');
-        }
-      }
-      var note = document.getElementById('statBalanceNote');
-      if (note) {
-        if (balance < 0) {
-          note.textContent = '⚠️ Số âm! Kiểm tra ngay';
-          note.classList.add('text-danger');
-          note.classList.remove('text-muted');
-        } else {
-          note.textContent = 'Kho+Rỗng-Khách';
-          note.classList.remove('text-danger');
-        }
-      }
-    }
-
-    function populateCustomerSelects() {
-      var opts = '<option value="">-- Chọn khách hàng --</option>' +
-        customers.map(function(c) { return '<option value="' + c.id + '">' + c.name + (c.keg_balance ? ' [' + c.keg_balance + ' vỏ]' : '') + '</option>'; }).join('');
-      var setHtml = function(id, v) { var el = document.getElementById(id); if (el) el.innerHTML = v; };
-      setHtml('deliverCustomer', opts);
-      setHtml('collectCustomer', opts);
-      var histOpts = '<option value="">-- Tất cả khách --</option>' +
-        customers.map(function(c) { return '<option value="' + c.id + '">' + c.name + '</option>'; }).join('');
-      setHtml('historyCustomerFilter', histOpts);
-    }
-
-    function updateCollectAvail() {
-      var cid = (document.getElementById('collectCustomer') || {}).value;
-      var el = document.getElementById('collectAvailQty');
-      if (!el) return;
-      if (!cid) { el.textContent = 'Chọn khách'; return; }
-      var c = customers.find(function(x) { return x.id == cid; });
-      el.textContent = (c && c.keg_balance ? c.keg_balance : 0) + ' vỏ';
     }
 
     function typeBadgeClass(type) {
@@ -457,68 +303,8 @@
     function openModal(id) { var el = document.getElementById(id); if (el) { el.classList.remove('hidden'); el.classList.add('flex'); } }
     function closeModal(id) { var el = document.getElementById(id); if (el) { el.classList.add('hidden'); el.classList.remove('flex'); } }
     function adjustQty(inputId, delta) { var input = document.getElementById(inputId); if (input) input.value = Math.max(parseInt(input.min||0), parseInt(input.value||0) + delta); }
-    function updateImportTotal() { var ex = parseInt(document.getElementById('importExchanged') && document.getElementById('importExchanged').value) || 0; var pu = parseInt(document.getElementById('importPurchased') && document.getElementById('importPurchased').value) || 0; var el = document.getElementById('importTotalDisplay'); if (el) el.textContent = (ex + pu) + ' vỏ'; }
 
     // ========== SUBMIT HANDLERS ==========
-    async function submitDeliver() {
-      var cid = (document.getElementById('deliverCustomer') || {}).value;
-      var qty = parseInt((document.getElementById('deliverQty') || {}).value);
-      var note = (document.getElementById('deliverNote') || {}).value || '';
-      if (!cid) { showToast('Vui lòng chọn khách hàng', 'error'); return; }
-      if (!qty || qty < 1) { showToast('Số lượng phải lớn hơn 0', 'error'); return; }
-      if ((kegState.inventory || 0) < qty) { showToast('Không đủ vỏ! Chỉ còn ' + kegState.inventory + ' vỏ', 'error'); return; }
-      try {
-        var res = await fetch('/api/kegs/deliver', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ customerId:cid, quantity:qty, note:note }) });
-        var result = await res.json();
-        if (res.ok) {
-          showToast('Đã giao ' + qty + ' vỏ cho khách!', 'success');
-          closeModal('deliverModal');
-          var dn = document.getElementById('deliverNote'); if (dn) dn.value = '';
-          var dq = document.getElementById('deliverQty'); if (dq) dq.value = 1;
-          await loadCustomers(); await loadState(); await loadRecentLog();
-        } else { showToast(result.error || 'Thất bại', 'error'); }
-      } catch (e) { showToast('Lỗi kết nối', 'error'); }
-    }
-
-    async function submitCollect() {
-      var cid = (document.getElementById('collectCustomer') || {}).value;
-      var qty = parseInt((document.getElementById('collectQty') || {}).value);
-      var note = (document.getElementById('collectNote') || {}).value || '';
-      if (!cid) { showToast('Vui lòng chọn khách hàng', 'error'); return; }
-      if (!qty || qty < 1) { showToast('Số lượng phải lớn hơn 0', 'error'); return; }
-      try {
-        var res = await fetch('/api/kegs/collect', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ customerId:cid, quantity:qty, note:note }) });
-        var result = await res.json();
-        if (res.ok) {
-          showToast('Đã thu ' + qty + ' vỏ rỗng!', 'success');
-          closeModal('collectModal');
-          var cn = document.getElementById('collectNote'); if (cn) cn.value = '';
-          var cq = document.getElementById('collectQty'); if (cq) cq.value = 1;
-          await loadCustomers(); await loadState(); await loadRecentLog(); updateCollectAvail();
-        } else { showToast(result.error || 'Thất bại', 'error'); }
-      } catch (e) { showToast('Lỗi kết nối', 'error'); }
-    }
-
-    async function submitImport() {
-      var ex = parseInt(document.getElementById('importExchanged') && document.getElementById('importExchanged').value) || 0;
-      var pu = parseInt(document.getElementById('importPurchased') && document.getElementById('importPurchased').value) || 0;
-      var note = (document.getElementById('importNote') || {}).value || '';
-      if (ex + pu < 1) { showToast('Phải nhập ít nhất 1 vỏ', 'error'); return; }
-      try {
-        var res = await fetch('/api/kegs/import', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ exchanged:ex, purchased:pu, note:note }) });
-        var result = await res.json();
-        if (res.ok) {
-          showToast(result.message, 'success');
-          closeModal('importModal');
-          var ie = document.getElementById('importExchanged'); if (ie) ie.value = 0;
-          var ip = document.getElementById('importPurchased'); if (ip) ip.value = 0;
-          var in2 = document.getElementById('importNote'); if (in2) in2.value = '';
-          var itd = document.getElementById('importTotalDisplay'); if (itd) itd.textContent = '0 vỏ';
-          await loadState(); await loadRecentLog();
-        } else { showToast(result.error || 'Thất bại', 'error'); }
-      } catch (e) { showToast('Lỗi kết nối', 'error'); }
-    }
-
     async function submitAdjust() {
       var qty = parseInt((document.getElementById('adjustQty') || {}).value);
       var note = (document.getElementById('adjustNote') || {}).value || '';
@@ -557,29 +343,6 @@
               <div class="sc-value" id="statHolding">-</div>
               <div class="sc-sub">Chưa thu hồi</div>
             </div>
-            <div class="card stat-card--profit">
-              <div class="sc-label"><span class="sc-icon">📊</span> Tồn kho thực</div>
-              <div class="sc-value" id="statBalance">-</div>
-              <div class="sc-sub" id="statBalanceNote">Kho+Rỗng-Khách</div>
-            </div>
-          </div>
-
-          <!-- Balance Warning -->
-          <div id="balanceWarning" class="hidden card card--alert-danger mb-4">
-            <div class="flex items-start gap-3">
-              <span class="text-xl">⚠️</span>
-              <div>
-                <div class="text-sm font-semibold text-danger">Số vỏ trong kho sắp hết!</div>
-                <div class="text-xs text-danger mt-0.5" id="balanceWarningMsg">Cần nhập thêm vỏ từ nhà máy.</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Quick Actions -->
-          <div class="grid grid-cols-3 gap-3 mb-4">
-            <button onclick="openModal('deliverModal')" class="action-btn ab-green"><span class="ab-icon">📦</span><span class="ab-label">Giao vỏ</span></button>
-            <button onclick="openModal('collectModal')" class="action-btn ab-blue"><span class="ab-icon">🔄</span><span class="ab-label">Thu vỏ</span></button>
-            <button onclick="openModal('importModal')" class="action-btn ab-purple"><span class="ab-icon">🏭</span><span class="ab-label">Nhập vỏ</span></button>
           </div>
 
           <!-- Recent Transaction Log -->
