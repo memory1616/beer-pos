@@ -1236,6 +1236,11 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
   to   { opacity: 1; }
 }
 
+@keyframes slideUp {
+  from { transform: translateY(100%); opacity: 0.6; }
+  to   { transform: translateY(0);    opacity: 1;   }
+}
+
 /* Bottom sheet container */
 .modal-sheet-v2 {
   background: var(--card);
@@ -4145,11 +4150,54 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   max-width: 500px;
   margin: 0 auto;
   padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px));
-  /* Ensure sheet never overflows on very small screens */
-  max-height: 88dvh;
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  max-height: 85dvh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   box-shadow: var(--shadow-lg);
+  animation: slideUp 0.25s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+/* Modal body scrolls internally; header/footer stay sticky */
+.date-range-modal-sheet .modal-sheet-v2-body {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  padding: 16px;
+}
+
+.date-range-modal-sheet .modal-sheet-v2-footer {
+  flex-shrink: 0;
+  padding: 12px 0 0;
+  border-top: none;
+  background: transparent;
+}
+
+.date-range-modal-sheet .modal-sheet-v2-footer .btn {
+  flex: 1;
+}
+
+/* Footer button bar fixed below the sheet (inside overlay) */
+.modal-sheet-v2-footer--fixed {
+  position: fixed;
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  left: 12px;
+  right: 12px;
+  max-width: 500px;
+  margin: 0 auto;
+  padding: 12px 0 0;
+  display: flex;
+  gap: 12px;
+}
+
+/* Only date range modal: overlay bg has pointer-events so clicks outside close it,
+   but sheet and fixed footer are kept clickable */
+#dateRangeModal {
+  pointer-events: none;
+}
+#dateRangeModal .date-range-modal-sheet,
+#dateRangeModal .modal-sheet-v2-footer--fixed {
+  pointer-events: all;
 }
 
 /* ── Preset Buttons ── */

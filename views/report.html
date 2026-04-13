@@ -94,10 +94,11 @@
             </div>
           </div>
         </div>
-        <div class="modal-sheet-v2-footer">
-          <button class="btn btn-ghost" onclick="RPT.closeDatePicker()">Hủy</button>
-          <button class="btn btn-primary" onclick="RPT.confirmDatePicker()">Áp dụng</button>
-        </div>
+      </div>
+      <!-- Footer: fixed below sheet, NOT inside scroll container -->
+      <div class="modal-sheet-v2-footer modal-sheet-v2-footer--fixed" onclick="event.stopPropagation()">
+        <button class="btn btn-ghost" onclick="RPT.closeDatePicker()">Hủy</button>
+        <button class="btn btn-primary" onclick="RPT.confirmDatePicker()">Áp dụng</button>
       </div>
     </div>
 
