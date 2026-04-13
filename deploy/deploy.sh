@@ -73,9 +73,10 @@ find "$APP_DIR/public" -name "*.html" -type f | while read -r html_file; do
     log "  Patching: $html_file"
     # Use | as delimiter to avoid escaping / inside regex
     # Matches: src="/css/..." or href="/js/..." etc. — appends ?v=HASH
-    sed -i -E \
-        "s:(src|href)=\"/(css|js|icons|landing-assets|images)/[^\"]*\":\1=\"/\2?v=$VERSION_HASH\":g" \
-        "$html_file"
+    for prefix in css js icons landing-assets images; do
+        sed -i -E 's~(src|href)="/('$prefix'/[^?"]*)(\?[^"]*)?"~\1="/\2?v='"$VERSION_HASH"'"~g' \
+            "$html_file"
+    done
 done
 log_ok "Cache-bust applied to all HTML files"
 
