@@ -272,80 +272,38 @@ function renderRevenueChart(dailyData) {
 
   const ctx = canvas.getContext('2d');
 
-  // Helper function to safely set text content
-  const setText = (id, value) => {
-    const el = document.getElementById(id);
-    if (el) el.textContent = value;
-  };
-
-  // Check if there's data
-  if (!dailyData || dailyData.length === 0) {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.font = '14px Inter';
-    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#848E9C';
-    ctx.textAlign = 'center';
-    ctx.fillText('Chưa có dữ liệu', canvas.width / 2, canvas.height / 2);
-    
-    // Reset stats
-    setText('totalRevenue6M', '-');
-    setText('avgRevenue6M', '-');
-    setText('growthRevenue6M', '-');
-    return;
-  }
-
-  // Calculate stats
-  const revenues = dailyData.map(d => d.revenue || 0);
-  const profits = dailyData.map(d => d.profit || 0);
-  const netProfits = dailyData.map(d => {
-    const profit = d.profit || 0;
-    const expense = (d.expenses || 0);
-    return Math.max(0, profit - expense);
+  // Filter to current month only
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1; // 1-indexed
+  const monthData = (dailyData || []).filter(function(d) {
+    if (!d.day) return false;
+    var parts = d.day.split('-');
+    return parseInt(parts[0]) === currentYear && parseInt(parts[1]) === currentMonth;
   });
-  const totalRevenue = revenues.reduce((sum, r) => sum + r, 0);
-  const avgRevenue = revenues.length > 0 ? totalRevenue / revenues.length : 0;
-  const totalNetProfit = netProfits.reduce((sum, n) => sum + n, 0);
 
-  // Calculate growth (today vs yesterday) - based on net profit
-  let growth = 0;
-  if (netProfits.length >= 2) {
-    const today = netProfits[netProfits.length - 1];
-    const yesterday = netProfits[netProfits.length - 2];
-    growth = yesterday > 0 ? ((today - yesterday) / yesterday * 100) : 0;
-  }
-
-  // Update stats display (flex số + đ, không xuống dòng)
-  const totalRev6El = document.getElementById('totalRevenue6M');
-  const avgRev6El = document.getElementById('avgRevenue6M');
-  if (totalRev6El) {
-    setMoneyAmount(totalRev6El, totalRevenue, 'primary', { compact: true });
-  }
-  if (avgRev6El) {
-    setMoneyAmount(avgRev6El, totalNetProfit, 'profit', { compact: true });
-  }
-  const growthEl = document.getElementById('growthRevenue6M');
-  if (netProfits.length >= 2) {
-    if (growthEl) {
-      growthEl.textContent = (growth >= 0 ? '+' : '') + growth.toFixed(0) + '%';
-      growthEl.className = 'font-bold text-sm ' + (growth >= 0 ? 'text-success' : 'text-danger');
-    }
-  } else {
-    if (growthEl) {
-      growthEl.textContent = '-';
-      growthEl.className = 'font-bold text-sm text-muted';
-    }
-  }
-
-  // Prepare data - last 14 days
-  const labels = dailyData.map(d => {
-    const date = new Date(d.day);
-    return date.getDate() + '/' + (date.getMonth() + 1);
+  const revenues = monthData.map(function(d) { return d.revenue || 0; });
+  const netProfits = monthData.map(function(d) {
+    return Math.max(0, (d.profit || 0) - (d.expenses || 0));
   });
-  
+  const labels = monthData.map(function(d) {
+    var parts = d.day.split('-');
+    return parseInt(parts[2]) + '/' + parseInt(parts[1]);
+  });
+
   if (revenueChart) {
     revenueChart.destroy();
   }
-  
-  // Get theme-aware colors once (stable references for Chart)
+
+  if (!monthData || monthData.length === 0) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.font = '13px Inter';
+    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#848E9C';
+    ctx.textAlign = 'center';
+    ctx.fillText('Chưa có dữ liệu tháng ' + currentMonth + '/' + currentYear, canvas.width / 2, canvas.height / 2);
+    return;
+  }
+
   var root = document.documentElement;
   var textColor = getComputedStyle(root).getPropertyValue('--text-muted').trim() || '#848E9C';
   var gridColor = getComputedStyle(root).getPropertyValue('--border').trim() || '#2B3139';
@@ -412,7 +370,7 @@ function renderRevenueChart(dailyData) {
           ticks: {
             color: textColor,
             font: { size: 10 },
-            maxTicksLimit: 7
+            maxTicksLimit: 15
           },
           grid: { display: false }
         },
