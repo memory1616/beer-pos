@@ -545,6 +545,35 @@ function showInvoiceModalElement() {
       if (e.target === overlay) closeInvoice();
     });
   }
+  // Auto-scale modal to fit viewport without scroll
+  autoScaleInvoiceModal();
+}
+
+/* Auto-scale invoice modal to fit within 90vh without scroll */
+function autoScaleInvoiceModal() {
+  var modal = document.querySelector('.inv-pos');
+  if (!modal) return;
+  // Wait for render
+  requestAnimationFrame(function() {
+    var modalRect = modal.getBoundingClientRect();
+    var viewportHeight = window.innerHeight;
+    var maxHeight = viewportHeight * 0.9;
+    if (modalRect.height > maxHeight) {
+      var scale = maxHeight / modalRect.height;
+      // Limit minimum scale to keep text readable
+      scale = Math.max(scale, 0.7);
+      modal.style.transformOrigin = 'top center';
+      modal.style.transform = 'scale(' + scale + ')';
+      // Adjust width to maintain aspect ratio
+      modal.style.width = (420 * scale) + 'px';
+      modal.style.maxWidth = (420 * scale) + 'px';
+      modal.style.marginBottom = '0';
+    } else {
+      modal.style.transform = '';
+      modal.style.width = '';
+      modal.style.maxWidth = '';
+    }
+  });
 }
 
 /**
@@ -1698,6 +1727,14 @@ function closeInvoice() {
 window.closeInvoice = closeInvoice;
 window.openInvoiceModal = openInvoiceModal;
 window.viewSale = viewSale;
+
+// Auto-scale invoice modal on window resize
+window.addEventListener('resize', function() {
+  var overlay = document.getElementById('invoiceModal');
+  if (overlay && !overlay.classList.contains('hidden')) {
+    autoScaleInvoiceModal();
+  }
+});
 
 // ============================================================
 // UTILITIES
