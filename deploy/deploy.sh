@@ -106,18 +106,29 @@ else
     log_error "Nginx config test failed — not reloading"
 fi
 
+# ── 5. Pre-deploy health check ──────────────────────────────────────────
+log_step "Checking current server health..."
+if curl -sf --max-time 3 http://127.0.0.1:3000/api/ping > /dev/null 2>&1; then
+    log_ok "Server is healthy before deploy"
+    WAS_HEALTHY=true
+else
+    log_warn "Server health check failed — server may already be down"
+    WAS_HEALTHY=false
+fi
+
 # ── 6. Restart PM2 (zero-downtime) ──────────────────────────────────────
 log_step "Restarting BeerPOS via PM2 (zero-downtime)..."
 
-# 6a. Kill stale PM2 daemon to avoid corrupted state (Process 0 not found)
-log "Resetting PM2 daemon..."
-pm2 kill 2>/dev/null || true
-
-# 6b. Start fresh
-log "Starting BeerPOS service..."
-pm2 start ecosystem.config.js 2>&1 || log_error "PM2 start failed"
-
-pm2 save 2>&1 || true
+# Use graceful restart instead of kill+start to avoid downtime
+if pm2 describe beer-pos > /dev/null 2>&1; then
+    log "Reloading existing BeerPOS process..."
+    pm2 restart beer-pos --update-env 2>&1 || log_warn "PM2 restart failed — attempting start"
+    pm2 save 2>&1 || true
+else
+    log "BeerPOS not running — starting fresh..."
+    pm2 start ecosystem.config.js 2>&1 || log_error "PM2 start failed"
+    pm2 save 2>&1 || true
+fi
 
 # ── 7. Health check ──────────────────────────────────────────────────────
 log_step "Running health checks..."
