@@ -118,6 +118,10 @@ window.addEventListener('data:mutated', function(e) {
   if (ent === 'sale' || ent === 'product') {
     loadSaleHistory();
   }
+  // Reload products when inventory changes (after sale/delete/edit)
+  if (ent === 'inventory' || ent === 'sale') {
+    reloadSaleProducts();
+  }
   if (ent === 'product' && typeof window.loadSalesData === 'function') {
     window.loadSalesData();
   }
@@ -166,6 +170,23 @@ function initSalesPage(data) {
   renderProducts();
   populateSaleHistoryMonthFilter();
   loadSaleHistory();
+}
+
+// Reload products from server (for inventory/sale changes)
+async function reloadSaleProducts() {
+  try {
+    const res = await fetch('/api/products');
+    if (!res.ok) return;
+    const data = await res.json();
+    if (Array.isArray(data)) {
+      products = data;
+      _rebuildMaps();
+      renderProducts();
+      console.log('[reloadSaleProducts] Products refreshed, count:', products.length);
+    }
+  } catch (err) {
+    console.error('[reloadSaleProducts] Error:', err);
+  }
 }
 
 let saleHistoryPage = 1;
