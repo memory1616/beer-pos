@@ -16,6 +16,22 @@ const socketServer = require('./src/socket/socketServer');
 const { getSession, AUTH_CONFIG } = require('./middleware/auth');
 const compression = require('compression');
 
+// ── Global error handlers — prevent silent crash ───────────────────────────
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('Unhandled Rejection at:', { reason, promise });
+  // Don't exit — let PM2 restart if needed
+});
+
+process.on('uncaughtException', (err) => {
+  logger.error('Uncaught Exception:', { message: err.message, stack: err.stack });
+  // Give PM2 a moment to log, then exit for restart
+  setTimeout(() => process.exit(1), 100);
+});
+
+process.on('warning', (warning) => {
+  logger.warn('Process warning:', { message: warning.message, name: warning.name });
+});
+
 // APP_VERSION: git hash or fallback to build timestamp (computed once at startup)
 let APP_VERSION;
 try {
