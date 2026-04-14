@@ -119,10 +119,14 @@ fi
 # ── 6. Restart PM2 (zero-downtime) ──────────────────────────────────────
 log_step "Restarting BeerPOS via PM2 (zero-downtime)..."
 
-# Use graceful restart instead of kill+start to avoid downtime
+# Use pm2 reload for true zero-downtime (waits for new process before killing old)
 if pm2 describe beer-pos > /dev/null 2>&1; then
-    log "Reloading existing BeerPOS process..."
-    pm2 restart beer-pos --update-env 2>&1 || log_warn "PM2 restart failed — attempting start"
+    log "Reloading BeerPOS with zero-downtime..."
+    # Graceful reload - new process starts, then old one stops
+    pm2 reload beer-pos --update-env 2>&1 || {
+        log_warn "PM2 reload failed — falling back to restart"
+        pm2 restart beer-pos --update-env 2>&1
+    }
     pm2 save 2>&1 || true
 else
     log "BeerPOS not running — starting fresh..."
