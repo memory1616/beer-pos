@@ -1,5 +1,5 @@
 // Beer POS Pro v2 - Simple Server
-// Webhook auto-deploy test: 2026-04-14 v3 (zero-downtime deploy)
+// Webhook auto-deploy test: 2026-04-14 v4 (PM2 fix verification)
 process.env.TZ = 'Asia/Ho_Chi_Minh';
 require('dotenv').config({ path: __dirname + '/.env' });
 const express = require('express');
