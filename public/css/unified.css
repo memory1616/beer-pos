@@ -5059,6 +5059,36 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   /* If content exceeds, allow page scroll (no internal scroll) */
 }
 
+/* ── MOBILE: Full screen invoice ── */
+@media (max-width: 480px) {
+  .inv-pos {
+    max-height: 100dvh;
+    height: 100dvh;
+    border-radius: 0;
+    max-width: 100%;
+  }
+  
+  .inv-overlay {
+    align-items: flex-end;
+  }
+  
+  .inv-pos-body {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .inv-pos-inner {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .inv-pos.ultra-compact .invoice-total-value { font-size: 22px; }
+  .inv-pos.ultra-compact .qr { width: 100px; }
+}
+
 /* Header — fixed */
 .inv-pos-header {
   display: flex;
@@ -5103,17 +5133,22 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
 
 /* Body: allow content to grow naturally, push actions to bottom */
 .inv-pos-body {
-  overflow: visible;
+  overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   min-height: 0;
+  flex: 1;
+  min-height: 0; /* Critical for flex child scroll */
 }
 
 .inv-pos-inner {
-  overflow: visible;
+  overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   min-height: 0;
+  flex: 1;
 }
 
 /* Actions — fixed bottom */
