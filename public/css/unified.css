@@ -5038,7 +5038,7 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
 
 #invoiceModal.hidden { display: none !important; }
 
-/* Modal root — full height, flex column */
+/* Modal root — auto-size to fit content within viewport */
 .inv-pos {
   position: relative;
   z-index: 100;
@@ -5048,12 +5048,15 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   border-radius: 16px;
   margin: auto;
   pointer-events: auto;
-  height: 100vh;
-  max-height: 100vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   box-sizing: border-box;
+
+  /* Auto-fit height: use intrinsic height but cap at viewport */
+  height: auto;
+  max-height: 90vh;
+  /* If content exceeds, allow page scroll (no internal scroll) */
 }
 
 /* Header — fixed */
@@ -5098,22 +5101,18 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
 
 .inv-close:hover { background: var(--red); color: #fff; }
 
-/* Body: NO scroll, space-between */
+/* Body: allow content to grow naturally, push actions to bottom */
 .inv-pos-body {
-  flex: 1;
-  overflow: hidden;
+  overflow: visible;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
   min-height: 0;
 }
 
 .inv-pos-inner {
-  flex: 1;
-  overflow: hidden;
+  overflow: visible;
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
   min-height: 0;
 }
 
@@ -5192,20 +5191,20 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   flex-shrink: 0;
 }
 
-/* Spacer — fills dead space between product list and bottle/QR */
+/* Spacer — minimal gap between product list and bottle/QR */
 .inv-spacer {
-  flex: 1;
+  flex: 0 0 auto;
   min-height: clamp(4px, 2vw, 10px);
 }
 
-/* Product list — fills remaining space */
+/* Product list — auto-expand to show all items, no internal scroll */
 .invoice-list {
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
   gap: clamp(2px, 0.8vw, 5px);
-  overflow: hidden;
-  flex: 1;
+  overflow: visible;
+  flex: 0 0 auto;
   min-height: 0;
   padding: 0 clamp(12px, 4vw, 16px);
 }
@@ -5254,16 +5253,37 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
 .inv-pos.compact .invoice-total { padding: clamp(6px, 2vw, 10px) clamp(12px, 4vw, 16px) clamp(4px, 1.2vw, 6px); }
 .inv-pos.compact .qr { width: clamp(140px, 38vw, 180px); }
 
-/* ── ULTRA-COMPACT MODE (>6 items) ── */
-.inv-pos.ultra-compact .invoice-item { padding: clamp(2px, 0.8vw, 4px) 0; font-size: clamp(11px, 3vw, 13px); }
-.inv-pos.ultra-compact .invoice-item-name { font-size: clamp(11px, 3vw, 13px); }
-.inv-pos.ultra-compact .invoice-item-total { font-size: clamp(11px, 3vw, 13px); }
-.inv-pos.ultra-compact .invoice-item small { display: none; }
-.inv-pos.ultra-compact .invoice-total-value { font-size: clamp(24px, 6vw, 32px); }
-.inv-pos.ultra-compact .invoice-total { padding: clamp(4px, 1.5vw, 7px) clamp(12px, 4vw, 16px) clamp(2px, 0.8vw, 4px); }
-.inv-pos.ultra-compact .qr { width: clamp(110px, 30vw, 140px); }
-.inv-pos.ultra-compact .qr-note { font-size: clamp(11px, 3vw, 12px); }
-.inv-pos.ultra-compact .invoice-info { padding-bottom: clamp(3px, 1vw, 5px); }
+/* ── ULTRA-COMPACT MODE (>6 items) — shrink but keep ALL info visible */
+.inv-pos.ultra-compact .invoice-item {
+  padding: clamp(2px, 0.8vw, 4px) 0;
+  font-size: clamp(11px, 3vw, 13px);
+}
+.inv-pos.ultra-compact .invoice-item-name {
+  font-size: clamp(11px, 3vw, 13px);
+}
+.inv-pos.ultra-compact .invoice-item-total {
+  font-size: clamp(11px, 3vw, 13px);
+}
+/* Keep small visible — only shrink its size */
+.inv-pos.ultra-compact .invoice-item small {
+  font-size: clamp(9px, 2.5vw, 10px);
+  display: block;
+}
+.inv-pos.ultra-compact .invoice-total-value {
+  font-size: clamp(24px, 6vw, 32px);
+}
+.inv-pos.ultra-compact .invoice-total {
+  padding: clamp(4px, 1.5vw, 7px) clamp(12px, 4vw, 16px) clamp(2px, 0.8vw, 4px);
+}
+.inv-pos.ultra-compact .qr {
+  width: clamp(110px, 30vw, 140px);
+}
+.inv-pos.ultra-compact .qr-note {
+  font-size: clamp(11px, 3vw, 12px);
+}
+.inv-pos.ultra-compact .invoice-info {
+  padding-bottom: clamp(3px, 1vw, 5px);
+}
 
 /* Bottle section */
 .bottle {
