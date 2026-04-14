@@ -106,7 +106,8 @@ router.get('/:id', (req, res) => {
   if (!sale) return res.status(404).json({ error: 'Not found' });
 
   const items = db.prepare(`
-    SELECT si.*, p.name, p.slug as product_slug, p.type
+    SELECT si.id, si.product_id, si.quantity, si.price, si.cost_price, si.profit, si.product_slug,
+      p.name as product_name, p.slug, p.type
     FROM sale_items si
     JOIN products p ON p.id = si.product_id
     WHERE si.sale_id = ?
