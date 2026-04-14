@@ -58,6 +58,11 @@ if [ -f "package.json" ]; then
         log "Dependencies up-to-date, skipping install"
     fi
 
+    # Always rebuild native modules (better-sqlite3, etc.) to match current Node.js
+    log_step "Rebuilding native modules for current Node.js version..."
+    npm rebuild better-sqlite3 2>&1 | tail -5 || true
+    log_ok "Native modules rebuilt"
+
     # Run build step if defined
     if grep -q '"build"' package.json 2>/dev/null; then
         log_step "Running build step..."
