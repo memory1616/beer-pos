@@ -454,7 +454,7 @@ function renderInvoiceModalContent(invoice, saleIdForActions) {
     itemsList.innerHTML =
       '<div class="inv-empty-state" style="text-align:center;padding:28px 16px;color:var(--text-muted);font-size:13px;line-height:1.5;">' +
       'Không có dữ liệu hóa đơn.<br><span style="font-size:12px;opacity:0.85;">Thử tải lại hoặc chọn đơn khác.</span></div>';
-    if (invActions) invActions.innerHTML = '<button class="inv-btn inv-btn-ghost" type="button" onclick="closeInvoice()">Đóng</button>';
+    if (invActions) invActions.innerHTML = '';
     return;
   }
 
@@ -526,10 +526,9 @@ function renderInvoiceModalContent(invoice, saleIdForActions) {
   if (vietqrBlock) vietqrBlock.style.display = '';
   if (vietqrImage) { vietqrImage.src = vietqrUrl; vietqrImage.style.display = ''; }
 
-  // Actions
+  // Actions — removed close button (use overlay click to close)
   if (invActions) {
-    invActions.innerHTML =
-      '<button class="inv-btn inv-btn-ghost" type="button" onclick="closeInvoice()">Đóng</button>';
+    invActions.innerHTML = '';
   }
 }
 
@@ -1223,7 +1222,7 @@ function submitSale() {
     })
   };
 
-  var url = isEditing ? '/sale/update/' + editingSaleId : '/sale/create';
+  var url = isEditing ? '/api/sales/' + editingSaleId : '/api/sales';
   var method = isEditing ? 'PUT' : 'POST';
 
   fetch(url, {
@@ -1247,7 +1246,9 @@ function submitSale() {
       console.log('[submitSale] invoiceSaleId:', invoiceSaleId);
       editingSaleId = null;
       resetSaleState();
+      // Notify both sale and inventory listeners
       window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'sale' } }));
+      window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'inventory' } }));
       console.log('[submitSale] calling openInvoiceModal with', invoiceSaleId);
       if (invoiceSaleId && typeof openInvoiceModal === 'function') {
         openInvoiceModal(invoiceSaleId);
