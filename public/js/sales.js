@@ -569,10 +569,18 @@ function showInvoiceModalElement() {
   autoScaleInvoiceModal();
 }
 
-/* Auto-scale invoice modal to fit within 90vh without scroll */
+/* Auto-scale invoice modal to fit within 90vh without scroll — desktop only */
 function autoScaleInvoiceModal() {
   var modal = document.querySelector('.inv-pos');
   if (!modal) return;
+  // Skip scaling on mobile — let CSS handle 100dvh
+  if (window.innerWidth <= 480) {
+    modal.style.transform = '';
+    modal.style.width = '100%';
+    modal.style.maxWidth = '100%';
+    modal.style.marginBottom = '';
+    return;
+  }
   // Wait for render
   requestAnimationFrame(function() {
     var modalRect = modal.getBoundingClientRect();

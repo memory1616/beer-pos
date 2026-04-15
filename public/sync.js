@@ -539,7 +539,7 @@ async function updateSmartStatus() {
 
   // Online + cloud configured
   try {
-    const res = await fetch('/api/ping', { cache: 'no-store' });
+    const res = await fetch(`${cloudUrl}/api/ping`, { cache: 'no-store' });
     if (res.ok) {
       if (pending > 0) {
         syncEl.textContent = `📤 ${pending} chờ đẩy`;
@@ -600,7 +600,7 @@ async function syncQueueToCloud() {
       client_updated_at: item.created_at
     }));
 
-    const res = await fetch('/api/sync/push', {
+    const res = await fetch(`${cloudUrl}/api/sync/push`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ changes, deviceId: getOrCreateDeviceId() })
@@ -631,7 +631,7 @@ async function pullFromCloud() {
 
   const lastSync = getLastSyncForCloud(cloudUrl) || '1970-01-01T00:00:00.000Z';
   try {
-    const res = await fetch('/api/sync/pull', {
+    const res = await fetch(`${cloudUrl}/api/sync/pull`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ cloudUrl, lastSync, deviceId: getOrCreateDeviceId() }),
@@ -657,7 +657,7 @@ async function pullFromCloud() {
 // First sync: full pull from cloud (no push, no conflict risk)
 async function doFirstSync(cloudUrl) {
   try {
-    const res = await fetch('/api/sync/pull', {
+    const res = await fetch(`${cloudUrl}/api/sync/pull`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

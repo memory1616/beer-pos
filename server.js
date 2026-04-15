@@ -98,22 +98,14 @@ const authLimiter = rateLimit({
 });
 app.use('/auth', authLimiter);
 
-// CORS — allow admin subdomain to call API from public domain (for sync)
+// CORS — allow cross-origin requests for cloud sync
 app.use('/api', (req, res, next) => {
   const origin = req.headers.origin;
-  // Allow admin subdomain and localhost for dev
-  const allowedOrigins = [
-    `https://${ADMIN_DOMAIN}`,
-    `https://${PUBLIC_DOMAIN}`,
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
-  ];
-  if (allowedOrigins.includes(origin) || origin === '*') {
-    res.setHeader('Access-Control-Allow-Origin', origin === '*' ? '*' : origin);
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-  }
+  // Allow all origins for cloud sync (devices from different locations)
+  // In production, you can restrict to specific domains if needed
+  res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-API-Version');
   if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
 });
@@ -127,7 +119,7 @@ app.use(helmet({
       scriptSrcAttr: ["'unsafe-inline'"], // Allow inline event handlers
       styleSrc: ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net'],
       imgSrc: ["'self'", 'data:', 'https:', 'https://img.vietqr.io'],
-      connectSrc: ["'self'", 'https://admin.biatuoitayninh.store', 'https://biatuoitayninh.store', 'https://img.vietqr.io', 'https://unpkg.com', 'https://cdn.jsdelivr.net'],
+      connectSrc: ["'self'", 'http://103.75.183.57:3000', 'https://admin.biatuoitayninh.store', 'https://biatuoitayninh.store', 'https://img.vietqr.io', 'https://unpkg.com', 'https://cdn.jsdelivr.net'],
       fontSrc: ["'self'"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
