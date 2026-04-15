@@ -260,6 +260,13 @@ try {
   // Column already exists, ignore
 }
 
+// Migration: Add payment_status column to sales
+try {
+  db.exec(`ALTER TABLE sales ADD COLUMN payment_status TEXT DEFAULT 'unpaid'`);
+} catch (e) {
+  // Column already exists, ignore
+}
+
 // Backwards-compat view: if legacy DB has no date column, populate it from created_at
 // This ensures all s.date references in queries work on both old and new DBs
 try {
