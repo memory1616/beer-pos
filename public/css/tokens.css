@@ -167,6 +167,10 @@
   /* Touch targets */
   --touch-min: 44px;
 
+  /* Skeleton colors */
+  --skeleton-bg: rgba(148, 163, 184, 0.1);
+  --skeleton-highlight: rgba(148, 163, 184, 0.2);
+
   /* Opacity */
   --opacity-disabled: 0.4;
   --opacity-muted:     0.6;
