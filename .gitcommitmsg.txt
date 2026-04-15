@@ -1,7 +1,0 @@
-fix(realtime): bypass Socket.IO auth middleware
-
-BeerPOS uses session-cookie auth on all pages. The previous
-auth middleware rejected connections because the socket token
-(from localStorage) did not match DB sessions. Since admin
-pages are already protected by auth middleware, the socket
-connection can be allowed unconditionally.
