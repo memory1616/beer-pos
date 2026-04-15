@@ -123,11 +123,11 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net'],
+      scriptSrc: ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net', 'https://unpkg.com'],
       scriptSrcAttr: ["'unsafe-inline'"], // Allow inline event handlers
       styleSrc: ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net'],
-      imgSrc: ["'self'", 'data:', 'https:'],
-      connectSrc: ["'self'", 'https://admin.biatuoitayninh.store', 'https://biatuoitayninh.store'],
+      imgSrc: ["'self'", 'data:', 'https:', 'https://img.vietqr.io'],
+      connectSrc: ["'self'", 'https://admin.biatuoitayninh.store', 'https://biatuoitayninh.store', 'https://img.vietqr.io'],
       fontSrc: ["'self'"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
