@@ -4,15 +4,15 @@ const fs = require('fs');
 const path = require('path');
 const logger = require('../../src/utils/logger');
 
-const BACKUP_DIR = path.join(__dirname, '../backup');
-const DB_PATH = path.join(__dirname, '../database.sqlite');
+const BACKUP_DIR = path.join(__dirname, '../../backup');
+const DB_PATH = path.join(__dirname, '../../database.sqlite');
 
 // Ensure backup directory exists
 if (!fs.existsSync(BACKUP_DIR)) {
   fs.mkdirSync(BACKUP_DIR, { recursive: true });
 }
 
-// GET /api/backup - List all backups
+// GET /api/backup/list - List all backups
 router.get('/list', (req, res) => {
   try {
     const files = fs.readdirSync(BACKUP_DIR)
@@ -34,7 +34,7 @@ router.get('/list', (req, res) => {
   }
 });
 
-// GET /api/backup/create - Create manual backup
+// GET /api/backup/create - Create manual backup (note: GET used for simplicity)
 router.get('/create', (req, res) => {
   try {
     const today = new Date().toISOString().split('T')[0];
@@ -105,7 +105,7 @@ router.post('/auto', (req, res) => {
   const { enabled, intervalDays } = req.body;
   
   // Store settings (in production, use a config file)
-  const configPath = path.join(__dirname, '../backup-config.json');
+  const configPath = path.join(__dirname, '../../backup-config.json');
   const config = { 
     autoBackup: enabled !== false, 
     intervalDays: intervalDays || 1 
@@ -147,7 +147,7 @@ function formatBytes(bytes) {
 
 // Auto backup scheduler (runs on server start)
 function startAutoBackupScheduler() {
-  const configPath = path.join(__dirname, '../backup-config.json');
+  const configPath = path.join(__dirname, '../../backup-config.json');
   let config = { autoBackup: true, intervalDays: 1 };
   
   if (fs.existsSync(configPath)) {

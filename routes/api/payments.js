@@ -49,9 +49,6 @@ function updateCustomerKegBalance(customerId, deliverKegs = 0, returnKegs = 0) {
   return { oldBalance, newBalance, change: newBalance - oldBalance };
 }
 
-// Export for other routes
-module.exports.updateCustomerKegBalance = updateCustomerKegBalance;
-
 // Validate ID parameter
 function validateId(id) {
   const parsed = parseInt(id);

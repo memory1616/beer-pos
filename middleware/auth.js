@@ -44,7 +44,6 @@ try {
 let cleanupHandle = null;
 try {
   cleanupHandle = setInterval(() => {
-    if (typeof db === 'undefined') return;
     const now = Date.now();
     const cleaned = db.prepare(`DELETE FROM auth_sessions WHERE expires_at < ?`).run(now).changes;
     if (cleaned > 0) console.log(`[Auth] Cleaned up ${cleaned} expired session(s)`);
