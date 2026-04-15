@@ -40,7 +40,7 @@
     <div class="modal-sheet-v2">
       <div class="modal-sheet-v2-header">
         <div class="modal-sheet-v2-title">Hóa đơn</div>
-        <button onclick="closeInvoiceModal()" class="modal-sheet-v2-close">×</button>
+        <button id="btnCloseInvoice" class="modal-sheet-v2-close">×</button>
       </div>
       <div class="modal-sheet-v2-body">
         <div id="invoiceContent"></div>
@@ -567,6 +567,12 @@
         modal.classList.remove('flex');
       }
     }
+
+    // Bind close button
+    document.addEventListener('DOMContentLoaded', function() {
+      const closeBtn = document.getElementById('btnCloseInvoice');
+      if (closeBtn) closeBtn.addEventListener('click', closeInvoiceModal);
+    });
 
     // Initialize
     loadCustomerDetail();
