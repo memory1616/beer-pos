@@ -16,6 +16,11 @@ const db = require('./database');
 const socketServer = require('./src/socket/socketServer');
 const { getSession, AUTH_CONFIG } = require('./middleware/auth');
 const compression = require('compression');
+const helmet = require('helmet');
+
+// Error handling middleware
+const { errorHandler, notFoundHandler, requestLogger } = require('./middleware/errorHandler');
+const { cache } = require('./middleware/cache');
 
 // ── Global error handlers — prevent silent crash ───────────────────────────
 process.on('unhandledRejection', (reason, promise) => {
@@ -112,6 +117,27 @@ app.use('/api', (req, res, next) => {
   if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
 });
+
+// Security headers with Helmet
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net'],
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net'],
+      imgSrc: ["'self'", 'data:', 'https:'],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      frameSrc: ["'none'"],
+    },
+  },
+  crossOriginEmbedderPolicy: false,
+}));
+
+// Request logging
+app.use(requestLogger);
 
 // ── GitHub webhook: POST /deploy (khớp Payload URL trên GitHub)
 // Phải dùng raw body + đặt TRƯỚC bodyParser.json để verify HMAC đúng.
@@ -816,12 +842,14 @@ app.use((err, req, res, next) => {
         '</pre></body></html>'
     );
   }
-  res.status(500).json({ error: 'Server error' });
+  res.status(500).json({ success: false, error: 'Server error' });
 });
 
-app.use((req, res) => {
-  res.status(404).json({ error: 'Not found' });
-});
+// Global error handler - must be last middleware
+app.use(errorHandler);
+
+// 404 handler - must be before errorHandler
+app.use(notFoundHandler);
 
 // ==================== START ====================
 const isCloudServer = process.env.IS_CLOUD_SERVER === 'true' || process.env.CLOUD_MODE === 'true';
