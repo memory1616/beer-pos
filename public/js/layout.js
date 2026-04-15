@@ -32,19 +32,20 @@ function getHeaderWithActions(title, icons, actions) {
   if (icons === undefined) icons = '';
   if (actions === undefined) actions = '';
   return `
-    <header class="topbar app-header">
+    <header class="topbar app-header" role="banner">
       <div class="header-logo">
-        <span class="header-logo-icon">${icons}</span>
+        <span class="header-logo-icon" aria-hidden="true">${icons}</span>
         <div class="header-logo-text">
           <span class="header-title-text">${title}</span>
           <span class="header-version-text">v${appVersion}</span>
         </div>
       </div>
-      <div class="header-actions">
-        <span id="syncStatus" class="sync-status"></span>
-        <button id="themeToggle" onclick="window.__darkMode && window.__darkMode.cycle()" title="Đổi chế độ sáng/tối" class="theme-toggle-btn">
-          <svg id="themeToggleSun" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
-          <svg id="themeToggleMoon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      <div class="header-actions" role="navigation" aria-label="Header actions">
+        <span id="syncStatus" class="sync-status" role="status" aria-live="polite"></span>
+        <button id="themeToggle" onclick="window.__darkMode && window.__darkMode.cycle()" title="Đổi chế độ sáng/tối" class="theme-toggle-btn touch-target"
+          aria-label="Chuyển đổi chế độ sáng tối" aria-pressed="false">
+          <svg id="themeToggleSun" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+          <svg id="themeToggleMoon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
         </button>
         ${actions}
       </div>
@@ -83,13 +84,14 @@ function getBottomNav(currentPage) {
   const navItem = (item) => {
     const active = isActive(item);
     const homeAttr = item.home ? ' data-nav-home="1"' : '';
-    return `<a href="${item.path}" class="nav-item${active ? ' active' : ''}" data-path="${item.path}" data-name="${item.name}"${homeAttr}>
-      <span class="nav-item-icon">${item.icon}</span>
+    return `<a href="${item.path}" class="nav-item${active ? ' active' : ''}" data-path="${item.path}" data-name="${item.name}"${homeAttr}
+      aria-current="${active ? 'page' : 'false'}">
+      <span class="nav-item-icon" aria-hidden="true">${item.icon}</span>
       <span class="nav-item-label">${item.label}</span>
     </a>`;
   };
 
-  return `<nav class="bottomnav app-bottom-nav">${nav.map(navItem).join('')}</nav>`;
+  return `<nav class="bottomnav app-bottom-nav" role="navigation" aria-label="Main navigation">${nav.map(navItem).join('')}</nav>`;
 }
 
 // Update active nav item - call this on page load/navigation
