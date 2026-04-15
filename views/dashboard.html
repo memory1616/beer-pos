@@ -505,7 +505,16 @@
       alertBtn.className = 'flex-1 py-2 text-sm font-medium text-muted border-b-2 border-transparent';
       cloudBtn.className = 'flex-1 py-2 text-sm font-medium text-primary border-b-2 border-primary';
       saveSection.classList.add('hidden');
-      refreshCloudTab();
+      // refreshCloudTab defined in sync.js (loaded async via requestIdleCallback)
+      if (typeof refreshCloudTab === 'function') {
+        refreshCloudTab();
+      } else {
+        // Fallback: try loading sync.js on-demand
+        var s = document.createElement('script');
+        s.src = '/sync.js?v=20260405';
+        s.onload = function() { if (typeof refreshCloudTab === 'function') refreshCloudTab(); };
+        document.head.appendChild(s);
+      }
     }
   }
 
@@ -514,10 +523,13 @@
 
     try {
       const res = await fetch('/api/settings');
-      const settings = await res.json();
-      document.getElementById('stockLowThreshold').value = settings.stock_low_threshold || 10;
-      document.getElementById('monthlyExpected').value = settings.monthly_expected || 300;
+      if (res.ok) {
+        const settings = await res.json();
+        document.getElementById('stockLowThreshold').value = settings.stock_low_threshold || 10;
+        document.getElementById('monthlyExpected').value = settings.monthly_expected || 300;
+      }
     } catch (e) {
+      // Silently use defaults on error
       document.getElementById('stockLowThreshold').value = 10;
       document.getElementById('monthlyExpected').value = 300;
     }
@@ -538,7 +550,7 @@
     const monthly = document.getElementById('monthlyExpected').value;
 
     try {
-      await fetch('/api/settings/batch', {
+      const res = await fetch('/api/settings/batch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -546,11 +558,15 @@
           monthly_expected: monthly
         })
       });
-      closeAlertSettings();
-      alert('Đã lưu cài đặt!');
-      location.reload();
+      if (res.ok) {
+        closeAlertSettings();
+        showToast('Đã lưu cài đặt!', 'success');
+        location.reload();
+      } else {
+        throw new Error('Server error: ' + res.status);
+      }
     } catch (e) {
-      alert('Lỗi: ' + e.message);
+      showToast('Lỗi: ' + e.message, 'error');
     }
   }
 
