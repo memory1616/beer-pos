@@ -891,6 +891,9 @@
           </div>
         `) +
         getBottomNav('/devices');
+
+      // Load data after HTML is rendered
+      loadData();
     })();
 
     // State
@@ -1215,9 +1218,6 @@
         }
       });
     });
-
-    // Load data on page ready
-    loadData();
   </script>
 </body>
 </html>
