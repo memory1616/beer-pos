@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
+  <!-- NO-FLICKER: Apply theme BEFORE first paint to prevent flash -->
   <script>
   (function () {
     var k = 'theme';
@@ -12,250 +13,1137 @@
     document.documentElement.classList.add(theme);
   })();
   </script>
+  <script>window.BASE_PATH = '/';</script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Quản lý thiết bị - Beer POS</title>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#f59e0b">
   <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
-  <link rel="preload" href="/js/layout.js?v=20260410-binance" as="script">
-  <link rel="preload" href="/css/unified.css?v=20260414" as="style">
-  <link rel="stylesheet" href="/css/unified.css?v=20260414">
-  <script src="/js/dark-mode.js"></script>
+  <link rel="prefetch" href="/js/layout.js?v=20260410-binance">
+  <link rel="stylesheet" href="/css/unified.css?v=20260415-devices">
   <script src="/js/auth.js"></script>
-  <script src="/js/layout.js?v=20260404b"></script>
+  <script src="/js/dark-mode.js"></script>
+  <script src="/js/layout.js?v=20260410-binance"></script>
+  <script>requireAuth();</script>
   <style>
-    .bottom-nav { max-width: 500px; margin: auto; }
-    input, button, a { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-    .modal { display: none; }
-    .modal.active { display: flex; }
+    /* ===== DEVICES PAGE STYLES ===== */
+
+    /* KPI Cards Grid */
+    .device-kpi-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .device-kpi-card {
+      background: var(--color-card);
+      border-radius: 16px;
+      padding: 16px;
+      text-align: center;
+      border: 1px solid var(--color-border);
+      position: relative;
+      overflow: hidden;
+    }
+    .device-kpi-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+    }
+    .device-kpi-card.horizontal::before {
+      background: linear-gradient(90deg, #06b6d4, #0891b2);
+    }
+    .device-kpi-card.vertical::before {
+      background: linear-gradient(90deg, #8b5cf6, #7c3aed);
+    }
+    .device-kpi-icon {
+      font-size: 32px;
+      margin-bottom: 8px;
+    }
+    .device-kpi-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--color-text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 4px;
+    }
+    .device-kpi-value {
+      font-size: 36px;
+      font-weight: 700;
+      line-height: 1;
+    }
+    .device-kpi-card.horizontal .device-kpi-value {
+      color: #06b6d4;
+    }
+    .device-kpi-card.vertical .device-kpi-value {
+      color: #8b5cf6;
+    }
+    .device-kpi-sub {
+      font-size: 11px;
+      color: var(--color-text-muted);
+      margin-top: 4px;
+    }
+
+    /* Section Cards */
+    .device-section-card {
+      background: var(--color-card);
+      border-radius: 16px;
+      border: 1px solid var(--color-border);
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+    .device-section-header {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--color-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .device-section-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--color-text);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .device-section-badge {
+      background: var(--color-bg);
+      border-radius: 10px;
+      padding: 4px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--color-text-secondary);
+    }
+    .device-section-body {
+      padding: 8px;
+    }
+
+    /* Customer Device Item */
+    .customer-device-item {
+      display: flex;
+      align-items: center;
+      padding: 12px;
+      border-radius: 12px;
+      transition: background 0.15s ease;
+      cursor: pointer;
+    }
+    .customer-device-item:hover {
+      background: var(--color-bg-hover);
+    }
+    .customer-device-item:active {
+      transform: scale(0.99);
+    }
+    .customer-device-avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--color-info), var(--color-info-dark));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      margin-right: 12px;
+      flex-shrink: 0;
+    }
+    .customer-device-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .customer-device-name {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--color-text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .customer-device-phone {
+      font-size: 13px;
+      color: var(--color-text-secondary);
+      margin-top: 2px;
+    }
+    .customer-device-count {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: var(--color-bg);
+      border-radius: 10px;
+      padding: 6px 12px;
+      font-size: 14px;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    .customer-device-count.horizontal {
+      color: #06b6d4;
+    }
+    .customer-device-count.vertical {
+      color: #8b5cf6;
+    }
+
+    /* Empty State */
+    .device-empty {
+      padding: 24px 16px;
+      text-align: center;
+      color: var(--color-text-muted);
+    }
+    .device-empty-icon {
+      font-size: 40px;
+      margin-bottom: 8px;
+      opacity: 0.5;
+    }
+    .device-empty-text {
+      font-size: 14px;
+    }
+
+    /* Search Box */
+    .device-search-wrap {
+      position: relative;
+      margin-bottom: 16px;
+    }
+    .device-search-input {
+      width: 100%;
+      padding: 12px 16px 12px 44px;
+      border-radius: 12px;
+      border: 1px solid var(--color-border);
+      background: var(--color-card);
+      font-size: 15px;
+      color: var(--color-text);
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .device-search-input:focus {
+      outline: none;
+      border-color: var(--color-info);
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.15);
+    }
+    .device-search-input::placeholder {
+      color: var(--color-text-muted);
+    }
+    .device-search-icon {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 16px;
+      color: var(--color-text-muted);
+    }
+
+    /* FAB Button */
+    .device-fab {
+      position: fixed;
+      bottom: 80px;
+      right: 20px;
+      width: 56px;
+      height: 56px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      border: none;
+      color: #fff;
+      font-size: 28px;
+      font-weight: 400;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      z-index: 40;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    .device-fab:active {
+      transform: scale(0.95);
+      box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+    }
+
+    /* Edit FAB */
+    .device-edit-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: var(--color-bg);
+      border: 1px solid var(--color-border);
+      color: var(--color-text-secondary);
+      font-size: 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .device-edit-btn:active {
+      transform: scale(0.92);
+      background: var(--color-bg-hover);
+    }
+
+    /* ===== MODAL V2 STYLES ===== */
+    .modal-overlay-v2 {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+      z-index: 100;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.2s ease, visibility 0.2s ease;
+    }
+    .modal-overlay-v2.show {
+      opacity: 1;
+      visibility: visible;
+    }
+    .modal-sheet-v2 {
+      background: var(--color-card);
+      border-radius: 20px 20px 0 0;
+      width: 100%;
+      max-width: 500px;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      transform: translateY(100%);
+      transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+    }
+    .modal-overlay-v2.show .modal-sheet-v2 {
+      transform: translateY(0);
+    }
+    .modal-sheet-v2-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--color-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .modal-sheet-v2-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--color-text);
+    }
+    .modal-sheet-v2-close {
+      width: 32px;
+      height: 32px;
+      border-radius: 10px;
+      background: var(--color-bg);
+      border: none;
+      color: var(--color-text-secondary);
+      font-size: 20px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+    }
+    .modal-sheet-v2-close:active {
+      transform: scale(0.92);
+      background: var(--color-bg-hover);
+    }
+    .modal-sheet-v2-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      overscroll-behavior: contain;
+    }
+    .modal-sheet-v2-footer {
+      padding: 16px 20px;
+      padding-bottom: max(16px, env(safe-area-inset-bottom));
+      border-top: 1px solid var(--color-border);
+      display: flex;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    /* Form Styles */
+    .device-form-section {
+      margin-bottom: 20px;
+    }
+    .device-form-section:last-child {
+      margin-bottom: 0;
+    }
+    .device-form-section-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--color-text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 12px;
+    }
+    .device-field-label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--color-text-secondary);
+      margin-bottom: 6px;
+    }
+
+    /* Type Selector */
+    .device-type-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 10px;
+    }
+    .device-type-card {
+      border-radius: 14px;
+      border: 2px solid var(--color-border);
+      background: var(--color-bg);
+      padding: 16px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      position: relative;
+    }
+    .device-type-card.selected {
+      border-color: var(--color-info);
+      background: rgba(37, 99, 235, 0.08);
+    }
+    .device-type-card:active {
+      transform: scale(0.98);
+    }
+    .device-type-card input {
+      position: absolute;
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .device-type-icon {
+      font-size: 36px;
+      margin-bottom: 6px;
+    }
+    .device-type-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--color-text);
+    }
+
+    /* Stepper */
+    .device-stepper {
+      display: flex;
+      align-items: stretch;
+      border: 1px solid var(--color-border);
+      border-radius: 14px;
+      overflow: hidden;
+      background: var(--color-card);
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .device-stepper:focus-within {
+      border-color: var(--color-info);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    }
+    .device-stepper-btn {
+      width: 52px;
+      height: 52px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      font-weight: 500;
+      background: var(--color-bg);
+      border: none;
+      cursor: pointer;
+      transition: background 0.15s ease, transform 0.1s ease;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      color: var(--color-text);
+    }
+    .device-stepper-btn.minus {
+      border-right: 1px solid var(--color-border);
+      border-radius: 14px 0 0 14px;
+    }
+    .device-stepper-btn.plus {
+      border-left: 1px solid var(--color-border);
+      border-radius: 0 14px 14px 0;
+    }
+    .device-stepper-btn:active {
+      transform: scale(0.92);
+      background: var(--color-bg-hover);
+    }
+    .device-stepper-input {
+      flex: 1;
+      min-width: 0;
+      border: none;
+      text-align: center;
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--color-text);
+      background: transparent;
+      padding: 0 8px;
+      -moz-appearance: textfield;
+    }
+    .device-stepper-input::-webkit-outer-spin-button,
+    .device-stepper-input::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    .device-stepper-input:focus {
+      outline: none;
+    }
+
+    /* Input */
+    .device-input {
+      width: 100%;
+      padding: 12px 16px;
+      border-radius: 12px;
+      border: 1px solid var(--color-border);
+      background: var(--color-bg);
+      font-size: 15px;
+      color: var(--color-text);
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .device-input:focus {
+      outline: none;
+      border-color: var(--color-info);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    }
+    .device-input::placeholder {
+      color: var(--color-text-muted);
+    }
+
+    /* Footer Buttons */
+    .device-modal-btn {
+      flex: 1;
+      min-width: 0;
+      height: 50px;
+      border-radius: 14px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+      -webkit-tap-highlight-color: transparent;
+      border: none;
+    }
+    .device-modal-btn:active {
+      transform: scale(0.99);
+    }
+    .device-modal-btn.cancel {
+      background: transparent;
+      border: 1px solid var(--color-border);
+      color: var(--color-text-secondary);
+    }
+    .device-modal-btn.cancel:active {
+      background: var(--color-bg-hover);
+    }
+    .device-modal-btn.primary {
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(245, 158, 11, 0.35);
+    }
+    .device-modal-btn.primary:active {
+      filter: brightness(0.95);
+    }
+    .device-modal-btn.success {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
+    }
+
+    /* Edit Modal - Device Grid */
+    .device-edit-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 16px;
+    }
+    .device-edit-cell {
+      background: var(--color-bg);
+      border-radius: 14px;
+      padding: 14px;
+      border: 1px solid var(--color-border);
+    }
+    .device-edit-cell-icon {
+      font-size: 28px;
+      margin-bottom: 8px;
+    }
+    .device-edit-cell-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--color-text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 8px;
+    }
+
+    /* Detail Modal */
+    .detail-header {
+      text-align: center;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--color-border);
+      margin-bottom: 20px;
+    }
+    .detail-avatar {
+      width: 72px;
+      height: 72px;
+      border-radius: 20px;
+      background: linear-gradient(135deg, var(--color-info), var(--color-info-dark));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      margin: 0 auto 12px;
+    }
+    .detail-name {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--color-text);
+      margin-bottom: 4px;
+    }
+    .detail-phone {
+      font-size: 14px;
+      color: var(--color-text-secondary);
+    }
+    .detail-section {
+      background: var(--color-bg);
+      border-radius: 14px;
+      padding: 14px;
+      margin-bottom: 12px;
+      border: 1px solid var(--color-border);
+    }
+    .detail-section-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--color-text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 10px;
+    }
+    .detail-device-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 0;
+    }
+    .detail-device-row:not(:last-child) {
+      border-bottom: 1px solid var(--color-border);
+    }
+    .detail-device-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .detail-device-icon {
+      font-size: 24px;
+    }
+    .detail-device-name {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--color-text);
+    }
+    .detail-device-count {
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .detail-device-count.horizontal {
+      color: #06b6d4;
+    }
+    .detail-device-count.vertical {
+      color: #8b5cf6;
+    }
+
+    /* Loading Spinner */
+    .device-spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid var(--color-border);
+      border-top-color: var(--color-info);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Toast */
+    .device-toast {
+      position: fixed;
+      bottom: 100px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: var(--color-text);
+      color: var(--color-card);
+      padding: 12px 24px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 500;
+      z-index: 200;
+      opacity: 0;
+      transition: transform 0.3s ease, opacity 0.3s ease;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+    .device-toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+    .device-toast.error {
+      background: #ef4444;
+      color: #fff;
+    }
+    .device-toast.success {
+      background: #10b981;
+      color: #fff;
+    }
   </style>
 </head>
-<body class="bg-main text-primary min-h-screen pb-20">
-  <header class="sticky top-0 bg-card border-b z-50 shadow-sm">
-    <div class="flex items-center justify-between px-4 h-12 max-w-md mx-auto">
-      <div class="flex items-center gap-2">
-        <a href="/" class="text-muted hover:text-primary p-1">←</a>
-        <span class="font-semibold">Quản lý thiết bị</span>
-      </div>
-      <div class="flex items-center gap-2">
-        <button onclick="openEditModal()" class="text-info font-medium text-sm flex items-center gap-1">
-          ✏️ Sửa kho
-        </button>
-        <button onclick="openModal()" class="text-primary font-medium text-sm flex items-center gap-1">
-          <span class="text-lg">+</span> Nhập tủ
-        </button>
-      </div>
-    </div>
-  </header>
+<body class="bg-main text-primary body--app">
+  <div id="app"></div>
 
-  <main class="p-3 pb-24 max-w-md mx-auto">
-    <!-- Available devices -->
-    <div class="mb-4">
-      <div class="section-title">📦 Tủ chưa dùng (kho)</div>
-      <div class="grid grid-cols-2 gap-3">
-        <div class="card stat-card--success p-4 text-center">
-          <div class="sc-label"><span class="sc-icon">❄️</span> Tủ nằm</div>
-          <div class="sc-value" id="availableHorizontal">—</div>
-        </div>
-        <div class="card stat-card--info p-4 text-center">
-          <div class="sc-label"><span class="sc-icon">🥶</span> Tủ đứng</div>
-          <div class="sc-value" id="availableVertical">—</div>
-        </div>
-      </div>
-    </div>
+  <!-- FAB Buttons -->
+  <button onclick="openAddModal()" class="device-fab" title="Nhập tủ mới">+</button>
+  <button onclick="openEditModal()" class="device-fab-edit" title="Sửa kho" style="position:fixed;bottom:80px;right:86px;width:44px;height:44px;border-radius:12px;background:var(--color-card);border:1px solid var(--color-border);color:var(--color-text-secondary);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:40;transition:all 0.15s ease;-webkit-tap-highlight-color:transparent;">
+    ✏️
+  </button>
 
-    <!-- In use -->
-    <div class="space-y-4">
-      <section>
-        <div class="section-title">❄️ Tủ lạnh nằm đang được giữ</div>
-        <div id="horizontalList"><div class="empty-state text-xs text-muted px-3 py-4">Đang tải...</div></div>
-      </section>
-      <section>
-        <div class="section-title">🥶 Tủ mát đứng đang được giữ</div>
-        <div id="verticalList"><div class="empty-state text-xs text-muted px-3 py-4">Đang tải...</div></div>
-      </section>
-    </div>
-  </main>
-
-  <!-- Modal nhập tủ -->
-  <div id="addModal" class="modal fixed inset-0 bg-overlay z-50 items-center justify-center p-4">
-    <div class="bg-card rounded-xl w-full max-w-sm">
-      <div class="p-4 border-b flex items-center justify-between">
-        <h3 class="font-semibold">Nhập tủ mới</h3>
-        <button onclick="closeModal()" class="text-muted hover:text-primary">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-          </svg>
-        </button>
+  <!-- Add Modal -->
+  <div id="addModal" class="modal-overlay-v2" role="dialog" aria-modal="true" aria-labelledby="addModalTitle">
+    <div class="modal-sheet-v2">
+      <div class="modal-sheet-v2-header">
+        <div class="modal-sheet-v2-title" id="addModalTitle">📦 Nhập tủ mới</div>
+        <button type="button" onclick="closeAddModal()" class="modal-sheet-v2-close" aria-label="Đóng">×</button>
       </div>
-      <form id="addForm" onsubmit="submitForm(event)" class="p-4 space-y-4">
-        <div>
-          <label class="block text-sm font-medium text-primary mb-1">Loại tủ</label>
-          <div class="grid grid-cols-2 gap-2">
-            <label class="cursor-pointer">
-              <input type="radio" name="type" value="horizontal" class="peer sr-only" checked>
-              <div class="p-3 border-2 border-muted rounded-lg text-center peer-checked:border-info peer-checked:bg-info/10">
-                <div class="text-2xl mb-1">❄️</div>
-                <div class="text-sm font-medium">Tủ nằm</div>
-              </div>
+      <form id="addForm" class="modal-sheet-v2-body" onsubmit="submitAddForm(event)">
+        <div class="device-form-section">
+          <div class="device-form-section-title">Loại tủ</div>
+          <div class="device-type-grid">
+            <label class="device-type-card selected" id="typeHorizontalCard">
+              <input type="radio" name="type" value="horizontal" checked>
+              <div class="device-type-icon">❄️</div>
+              <div class="device-type-name">Tủ nằm</div>
             </label>
-            <label class="cursor-pointer">
-              <input type="radio" name="type" value="vertical" class="peer sr-only">
-              <div class="p-3 border-2 border-muted rounded-lg text-center peer-checked:border-secondary peer-checked:bg-secondary/10">
-                <div class="text-2xl mb-1">🥶</div>
-                <div class="text-sm font-medium">Tủ đứng</div>
-              </div>
+            <label class="device-type-card" id="typeVerticalCard">
+              <input type="radio" name="type" value="vertical">
+              <div class="device-type-icon">🥶</div>
+              <div class="device-type-name">Tủ đứng</div>
             </label>
           </div>
         </div>
-        <div>
-          <label class="block text-sm font-medium text-primary mb-1">Số lượng</label>
-          <input type="number" name="quantity" min="1" value="1" required
-            class="w-full border rounded-lg px-3 py-2 text-center text-lg">
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-primary mb-1">Mã serial (tùy chọn)</label>
-          <input type="text" name="serial" placeholder="Nhập mã serial"
-            class="w-full border rounded-lg px-3 py-2">
-        </div>
-        <button type="submit" class="w-full btn btn-primary py-3 rounded-lg font-medium">
-          Thêm vào kho
-        </button>
-      </form>
-    </div>
-  </div>
 
-  <!-- Modal sửa tồn kho -->
-  <div id="editModal" class="modal fixed inset-0 bg-overlay z-50 items-center justify-center p-4">
-    <div class="bg-card rounded-xl w-full max-w-sm">
-      <div class="p-4 border-b flex items-center justify-between">
-        <h3 class="font-semibold">Sửa tồn kho</h3>
-        <button onclick="closeEditModal()" class="text-muted hover:text-primary">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-          </svg>
-        </button>
+        <div class="device-form-section">
+          <label class="device-field-label">Số lượng</label>
+          <div class="device-stepper">
+            <button type="button" class="device-stepper-btn minus" onclick="adjustAddQty(-1)" aria-label="Giảm">−</button>
+            <input type="number" name="quantity" id="addQtyInput" value="1" min="1" class="device-stepper-input">
+            <button type="button" class="device-stepper-btn plus" onclick="adjustAddQty(1)" aria-label="Tăng">+</button>
+          </div>
+        </div>
+
+        <div class="device-form-section">
+          <label class="device-field-label" for="addSerial">Mã serial (tùy chọn)</label>
+          <input type="text" name="serial" id="addSerial" placeholder="VD: SN-2024-001" class="device-input">
+        </div>
+      </form>
+      <div class="modal-sheet-v2-footer">
+        <button type="button" onclick="closeAddModal()" class="device-modal-btn cancel">Hủy</button>
+        <button type="submit" form="addForm" class="device-modal-btn success">Thêm vào kho</button>
       </div>
-      <form id="editForm" onsubmit="submitEditForm(event)" class="p-4 space-y-4">
-        <div>
-          <label class="block text-sm font-medium text-primary mb-1">❄️ Tủ nằm tồn kho</label>
-          <input type="number" name="horizontal" min="0" value="0" required id="editHorizontalInput"
-            class="w-full border rounded-lg px-3 py-2 text-center text-lg">
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-primary mb-1">🥶 Tủ đứng tồn kho</label>
-          <input type="number" name="vertical" min="0" value="0" required id="editVerticalInput"
-            class="w-full border rounded-lg px-3 py-2 text-center text-lg">
-        </div>
-        <button type="submit" class="w-full btn btn-secondary py-3 rounded-lg font-medium">
-          Lưu thay đổi
-        </button>
-      </form>
     </div>
   </div>
 
-  <!-- Bottom Navigation -->
-  <nav class="fixed bottom-0 left-0 right-0 bg-card border-t bottom-nav">
-    <div class="grid grid-cols-5 text-center text-xs">
-      <a href="/" class="py-3 text-muted"><div class="text-xl">🏠</div><div>Home</div></a>
-      <a href="/delivery" class="py-3 text-muted"><div class="text-xl">🚚</div><div>Giao</div></a>
-      <a href="/sale" class="py-3 text-muted"><div class="text-xl">🍺</div><div>Bán</div></a>
-      <a href="/customers" class="py-3 text-muted"><div class="text-xl">👤</div><div>KH</div></a>
-      <a href="/devices" class="py-3 text-secondary"><div class="text-xl">📦</div><div>TB</div></a>
+  <!-- Edit Modal -->
+  <div id="editModal" class="modal-overlay-v2" role="dialog" aria-modal="true" aria-labelledby="editModalTitle">
+    <div class="modal-sheet-v2">
+      <div class="modal-sheet-v2-header">
+        <div class="modal-sheet-v2-title" id="editModalTitle">✏️ Sửa tồn kho</div>
+        <button type="button" onclick="closeEditModal()" class="modal-sheet-v2-close" aria-label="Đóng">×</button>
+      </div>
+      <form id="editForm" class="modal-sheet-v2-body" onsubmit="submitEditForm(event)">
+        <div class="device-edit-grid">
+          <div class="device-edit-cell">
+            <div class="device-edit-cell-icon">❄️</div>
+            <div class="device-edit-cell-label">Tủ nằm</div>
+            <div class="device-stepper">
+              <button type="button" class="device-stepper-btn minus" onclick="adjustEditQty('editHorizontal', -1)" aria-label="Giảm">−</button>
+              <input type="number" name="horizontal" id="editHorizontal" value="0" min="0" class="device-stepper-input">
+              <button type="button" class="device-stepper-btn plus" onclick="adjustEditQty('editHorizontal', 1)" aria-label="Tăng">+</button>
+            </div>
+          </div>
+          <div class="device-edit-cell">
+            <div class="device-edit-cell-icon">🥶</div>
+            <div class="device-edit-cell-label">Tủ đứng</div>
+            <div class="device-stepper">
+              <button type="button" class="device-stepper-btn minus" onclick="adjustEditQty('editVertical', -1)" aria-label="Giảm">−</button>
+              <input type="number" name="vertical" id="editVertical" value="0" min="0" class="device-stepper-input">
+              <button type="button" class="device-stepper-btn plus" onclick="adjustEditQty('editVertical', 1)" aria-label="Tăng">+</button>
+            </div>
+          </div>
+        </div>
+        <p style="font-size:13px;color:var(--color-text-muted);margin-top:16px;text-align:center;">
+          Điều chỉnh số tủ hiện có trong kho
+        </p>
+      </form>
+      <div class="modal-sheet-v2-footer">
+        <button type="button" onclick="closeEditModal()" class="device-modal-btn cancel">Hủy</button>
+        <button type="submit" form="editForm" class="device-modal-btn primary">Lưu thay đổi</button>
+      </div>
     </div>
-  </nav>
+  </div>
+
+  <!-- Detail Modal -->
+  <div id="detailModal" class="modal-overlay-v2" role="dialog" aria-modal="true" aria-labelledby="detailModalTitle">
+    <div class="modal-sheet-v2">
+      <div class="modal-sheet-v2-header">
+        <div class="modal-sheet-v2-title" id="detailModalTitle">📋 Chi tiết khách hàng</div>
+        <button type="button" onclick="closeDetailModal()" class="modal-sheet-v2-close" aria-label="Đóng">×</button>
+      </div>
+      <div class="modal-sheet-v2-body">
+        <div id="detailContent"></div>
+      </div>
+      <div class="modal-sheet-v2-footer">
+        <button type="button" onclick="closeDetailModal()" class="device-modal-btn cancel">Đóng</button>
+        <a id="detailCustomerLink" href="#" class="device-modal-btn primary" style="text-decoration:none;">Xem khách hàng</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="deviceToast" class="device-toast"></div>
 
   <script>
-    if (typeof isLoggedIn === 'function' && !isLoggedIn()) {
-      window.location.href = '/login';
-    }
+    (async () => {
+      await loadVersion();
+      document.getElementById('app').innerHTML = 
+        getHeader('Thiết bị', '📦') +
+        getContent(`
+          <div id="loadingState">
+            <div class="text-center py-12">
+              <div class="device-spinner"></div>
+              <div class="text-muted mt-3">Đang tải dữ liệu...</div>
+            </div>
+          </div>
 
-    let _availableH = 0;
-    let _availableV = 0;
+          <div id="contentState" class="hidden">
+            <!-- KPI Cards -->
+            <div class="device-kpi-grid">
+              <div class="device-kpi-card horizontal">
+                <div class="device-kpi-icon">❄️</div>
+                <div class="device-kpi-label">Tủ nằm</div>
+                <div class="device-kpi-value" id="kpiHorizontal">0</div>
+                <div class="device-kpi-sub">trong kho</div>
+              </div>
+              <div class="device-kpi-card vertical">
+                <div class="device-kpi-icon">🥶</div>
+                <div class="device-kpi-label">Tủ đứng</div>
+                <div class="device-kpi-value" id="kpiVertical">0</div>
+                <div class="device-kpi-sub">trong kho</div>
+              </div>
+            </div>
 
+            <!-- Search -->
+            <div class="device-search-wrap">
+              <span class="device-search-icon">🔍</span>
+              <input type="text" id="searchInput" class="device-search-input" placeholder="Tìm kiếm khách hàng..." oninput="filterDevices()">
+            </div>
+
+            <!-- Horizontal Section -->
+            <div class="device-section-card" id="horizontalSection">
+              <div class="device-section-header">
+                <div class="device-section-title">
+                  <span>❄️</span> Tủ nằm đang được giữ
+                </div>
+                <span class="device-section-badge" id="horizontalCount">0 khách</span>
+              </div>
+              <div class="device-section-body">
+                <div id="horizontalList"></div>
+              </div>
+            </div>
+
+            <!-- Vertical Section -->
+            <div class="device-section-card" id="verticalSection">
+              <div class="device-section-header">
+                <div class="device-section-title">
+                  <span>🥶</span> Tủ đứng đang được giữ
+                </div>
+                <span class="device-section-badge" id="verticalCount">0 khách</span>
+              </div>
+              <div class="device-section-body">
+                <div id="verticalList"></div>
+              </div>
+            </div>
+          </div>
+        `) +
+        getBottomNav('/devices');
+    })();
+
+    // State
+    let allHorizontalCustomers = [];
+    let allVerticalCustomers = [];
+    let currentAvailableH = 0;
+    let currentAvailableV = 0;
+
+    // Load data
     async function loadData() {
       try {
         const res = await fetch('/api/devices/summary', { headers: { 'Cache-Control': 'no-cache' } });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
 
-        _availableH = data.availableHorizontal || 0;
-        _availableV = data.availableVertical || 0;
+        currentAvailableH = data.availableHorizontal || 0;
+        currentAvailableV = data.availableVertical || 0;
 
-        document.getElementById('availableHorizontal').textContent = _availableH;
-        document.getElementById('availableVertical').textContent = _availableV;
-        document.getElementById('editHorizontalInput').value = _availableH;
-        document.getElementById('editVerticalInput').value = _availableV;
+        // Update KPI
+        document.getElementById('kpiHorizontal').textContent = currentAvailableH;
+        document.getElementById('kpiVertical').textContent = currentAvailableV;
 
-        const hList = document.getElementById('horizontalList');
-        const hCustomers = (data.customers || []).filter(c => c.horizontal_fridge > 0);
-        hList.innerHTML = hCustomers.length === 0
-          ? '<div class="empty-state text-xs text-muted px-3 py-4">Chưa có khách giữ tủ nằm</div>'
-          : '<div class="space-y-2">' + hCustomers.map(c => `
-              <div class="card card--list-item"><a href="/customers/${c.id}" class="flex justify-between items-center">
-                <div>
-                  <div class="font-medium">${c.name}</div>
-                  <div class="text-xs text-muted">${c.phone || ''}</div>
-                </div>
-                <span class="badge-pill bp-info">❄️ ${c.horizontal_fridge}</span>
-              </a></div>
-            `).join('') + '</div>';
+        // Store all customers
+        allHorizontalCustomers = (data.customers || []).filter(c => c.horizontal_fridge > 0);
+        allVerticalCustomers = (data.customers || []).filter(c => c.vertical_fridge > 0);
 
-        const vList = document.getElementById('verticalList');
-        const vCustomers = (data.customers || []).filter(c => c.vertical_fridge > 0);
-        vList.innerHTML = vCustomers.length === 0
-          ? '<div class="empty-state text-xs text-muted px-3 py-4">Chưa có khách giữ tủ đứng</div>'
-          : '<div class="space-y-2">' + vCustomers.map(c => `
-              <div class="card card--list-item"><a href="/customers/${c.id}" class="flex justify-between items-center">
-                <div>
-                  <div class="font-medium">${c.name}</div>
-                  <div class="text-xs text-muted">${c.phone || ''}</div>
-                </div>
-                <span class="badge-pill bp-info">🥶 ${c.vertical_fridge}</span>
-              </a></div>
-            `).join('') + '</div>';
+        // Render lists
+        renderHorizontalList(allHorizontalCustomers);
+        renderVerticalList(allVerticalCustomers);
+
+        // Show content
+        document.getElementById('loadingState').classList.add('hidden');
+        document.getElementById('contentState').classList.remove('hidden');
 
       } catch (err) {
         console.error('[Devices] loadData error:', err);
+        showToast('Lỗi tải dữ liệu', 'error');
       }
     }
 
-    function openModal() { document.getElementById('addModal').classList.add('active'); }
-    function closeModal() { document.getElementById('addModal').classList.remove('active'); }
+    // Render horizontal list
+    function renderHorizontalList(customers) {
+      const container = document.getElementById('horizontalList');
+      document.getElementById('horizontalCount').textContent = customers.length + ' khách';
+
+      if (customers.length === 0) {
+        container.innerHTML = `
+          <div class="device-empty">
+            <div class="device-empty-icon">📦</div>
+            <div class="device-empty-text">Chưa có khách giữ tủ nằm</div>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = customers.map(c => `
+        <div class="customer-device-item" onclick="showCustomerDetail(${c.id}, 'horizontal')">
+          <div class="customer-device-avatar">👤</div>
+          <div class="customer-device-info">
+            <div class="customer-device-name">${escapeHtml(c.name)}</div>
+            <div class="customer-device-phone">${c.phone || 'Không có SĐT'}</div>
+          </div>
+          <div class="customer-device-count horizontal">❄️ ${c.horizontal_fridge}</div>
+        </div>
+      `).join('');
+    }
+
+    // Render vertical list
+    function renderVerticalList(customers) {
+      const container = document.getElementById('verticalList');
+      document.getElementById('verticalCount').textContent = customers.length + ' khách';
+
+      if (customers.length === 0) {
+        container.innerHTML = `
+          <div class="device-empty">
+            <div class="device-empty-icon">📦</div>
+            <div class="device-empty-text">Chưa có khách giữ tủ đứng</div>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = customers.map(c => `
+        <div class="customer-device-item" onclick="showCustomerDetail(${c.id}, 'vertical')">
+          <div class="customer-device-avatar">👤</div>
+          <div class="customer-device-info">
+            <div class="customer-device-name">${escapeHtml(c.name)}</div>
+            <div class="customer-device-phone">${c.phone || 'Không có SĐT'}</div>
+          </div>
+          <div class="customer-device-count vertical">🥶 ${c.vertical_fridge}</div>
+        </div>
+      `).join('');
+    }
+
+    // Filter devices
+    function filterDevices() {
+      const query = document.getElementById('searchInput').value.toLowerCase().trim();
+
+      if (!query) {
+        renderHorizontalList(allHorizontalCustomers);
+        renderVerticalList(allVerticalCustomers);
+        return;
+      }
+
+      const filteredH = allHorizontalCustomers.filter(c => 
+        c.name.toLowerCase().includes(query) || 
+        (c.phone && c.phone.includes(query))
+      );
+      const filteredV = allVerticalCustomers.filter(c => 
+        c.name.toLowerCase().includes(query) || 
+        (c.phone && c.phone.includes(query))
+      );
+
+      renderHorizontalList(filteredH);
+      renderVerticalList(filteredV);
+    }
+
+    // Show customer detail
+    async function showCustomerDetail(customerId, deviceType) {
+      try {
+        const res = await fetch(`/api/customers/${customerId}`);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const customer = await res.json();
+
+        document.getElementById('detailContent').innerHTML = `
+          <div class="detail-header">
+            <div class="detail-avatar">👤</div>
+            <div class="detail-name">${escapeHtml(customer.name)}</div>
+            <div class="detail-phone">${customer.phone || 'Không có SĐT'}</div>
+          </div>
+
+          <div class="detail-section">
+            <div class="detail-section-title">📦 Thiết bị đang giữ</div>
+            <div class="detail-device-row">
+              <div class="detail-device-info">
+                <span class="detail-device-icon">❄️</span>
+                <span class="detail-device-name">Tủ nằm</span>
+              </div>
+              <span class="detail-device-count horizontal">${customer.horizontal_fridge || 0}</span>
+            </div>
+            <div class="detail-device-row">
+              <div class="detail-device-info">
+                <span class="detail-device-icon">🥶</span>
+                <span class="detail-device-name">Tủ đứng</span>
+              </div>
+              <span class="detail-device-count vertical">${customer.vertical_fridge || 0}</span>
+            </div>
+          </div>
+
+          ${customer.deposit ? `
+          <div class="detail-section">
+            <div class="detail-section-title">💰 Đặt cọc</div>
+            <div style="font-size:18px;font-weight:700;color:var(--color-success);">
+              ${formatNumber(customer.deposit)}đ
+            </div>
+          </div>
+          ` : ''}
+
+          ${customer.address ? `
+          <div class="detail-section">
+            <div class="detail-section-title">📍 Địa chỉ</div>
+            <div style="font-size:14px;color:var(--color-text);">${escapeHtml(customer.address)}</div>
+          </div>
+          ` : ''}
+
+          ${customer.note ? `
+          <div class="detail-section">
+            <div class="detail-section-title">📝 Ghi chú</div>
+            <div style="font-size:14px;color:var(--color-text-secondary);">${escapeHtml(customer.note)}</div>
+          </div>
+          ` : ''}
+        `;
+
+        document.getElementById('detailCustomerLink').href = `/customers/${customer.id}`;
+        openDetailModal();
+      } catch (err) {
+        console.error('[Devices] showCustomerDetail error:', err);
+        showToast('Không thể tải thông tin khách', 'error');
+      }
+    }
+
+    // Modal controls
+    function openAddModal() {
+      document.getElementById('addModal').classList.add('show');
+      document.getElementById('addQtyInput').value = 1;
+      document.getElementById('addSerial').value = '';
+      document.querySelector('#addForm input[name="type"][value="horizontal"]').checked = true;
+      updateTypeCards();
+    }
+
+    function closeAddModal() {
+      document.getElementById('addModal').classList.remove('show');
+    }
 
     function openEditModal() {
-      document.getElementById('editHorizontalInput').value = _availableH;
-      document.getElementById('editVerticalInput').value = _availableV;
-      document.getElementById('editModal').classList.add('active');
+      document.getElementById('editHorizontal').value = currentAvailableH;
+      document.getElementById('editVertical').value = currentAvailableV;
+      document.getElementById('editModal').classList.add('show');
     }
-    function closeEditModal() { document.getElementById('editModal').classList.remove('active'); }
 
-    function submitForm(e) {
+    function closeEditModal() {
+      document.getElementById('editModal').classList.remove('show');
+    }
+
+    function openDetailModal() {
+      document.getElementById('detailModal').classList.add('show');
+    }
+
+    function closeDetailModal() {
+      document.getElementById('detailModal').classList.remove('show');
+    }
+
+    // Type card selection
+    document.querySelectorAll('input[name="type"]').forEach(input => {
+      input.addEventListener('change', updateTypeCards);
+    });
+
+    function updateTypeCards() {
+      const selected = document.querySelector('input[name="type"]:checked').value;
+      document.getElementById('typeHorizontalCard').classList.toggle('selected', selected === 'horizontal');
+      document.getElementById('typeVerticalCard').classList.toggle('selected', selected === 'vertical');
+    }
+
+    // Stepper controls
+    function adjustAddQty(delta) {
+      const input = document.getElementById('addQtyInput');
+      let val = parseInt(input.value) || 1;
+      val = Math.max(1, val + delta);
+      input.value = val;
+    }
+
+    function adjustEditQty(inputId, delta) {
+      const input = document.getElementById(inputId);
+      let val = parseInt(input.value) || 0;
+      val = Math.max(0, val + delta);
+      input.value = val;
+    }
+
+    // Submit add form
+    function submitAddForm(e) {
       e.preventDefault();
       const form = e.target;
+      
       fetch('/devices', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: form.type.value,
-          quantity: parseInt(form.quantity.value),
+          quantity: parseInt(form.quantity.value) || 1,
           serial: form.serial.value
         })
       })
       .then(r => r.json())
       .then(data => {
-        if (data.success) { closeModal(); loadData(); }
-        else alert(data.message || 'Có lỗi xảy ra');
+        if (data.success) {
+          closeAddModal();
+          showToast('Đã thêm tủ vào kho!', 'success');
+          loadData();
+        } else {
+          showToast(data.message || 'Có lỗi xảy ra', 'error');
+        }
       })
-      .catch(() => alert('Có lỗi xảy ra'));
+      .catch(() => {
+        showToast('Có lỗi xảy ra', 'error');
+      });
     }
 
+    // Submit edit form
     function submitEditForm(e) {
       e.preventDefault();
       const form = e.target;
+      
       fetch('/devices/adjust', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -266,12 +1154,50 @@
       })
       .then(r => r.json())
       .then(data => {
-        if (data.success) { closeEditModal(); loadData(); }
-        else alert(data.message || 'Có lỗi xảy ra');
+        if (data.success) {
+          closeEditModal();
+          showToast('Đã cập nhật tồn kho!', 'success');
+          loadData();
+        } else {
+          showToast(data.message || 'Có lỗi xảy ra', 'error');
+        }
       })
-      .catch(() => alert('Có lỗi xảy ra'));
+      .catch(() => {
+        showToast('Có lỗi xảy ra', 'error');
+      });
     }
 
+    // Toast
+    function showToast(message, type = '') {
+      const toast = document.getElementById('deviceToast');
+      toast.textContent = message;
+      toast.className = 'device-toast' + (type ? ' ' + type : '');
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2500);
+    }
+
+    // Utilities
+    function escapeHtml(text) {
+      if (!text) return '';
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function formatNumber(num) {
+      return new Intl.NumberFormat('vi-VN').format(num || 0);
+    }
+
+    // Close modals on backdrop click
+    document.querySelectorAll('.modal-overlay-v2').forEach(modal => {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+          modal.classList.remove('show');
+        }
+      });
+    });
+
+    // Load data on page ready
     loadData();
   </script>
 </body>
