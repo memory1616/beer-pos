@@ -94,14 +94,14 @@ router.get('/:id', (req, res) => {
   try {
     const id = validateId(req.params.id);
     if (!id) return res.status(400).json({ error: 'ID không hợp lệ' });
-    
+
     const device = db.prepare(`
-      SELECT d.*, c.name as customer_name 
-      FROM devices d 
+      SELECT d.*, c.name as customer_name
+      FROM devices d
       LEFT JOIN customers c ON d.customer_id = c.id
       WHERE d.id = ?
     `).get(id);
-    
+
     if (!device) return res.status(404).json({ error: 'Không tìm thấy thiết bị' });
     res.json(device);
   } catch (err) {
