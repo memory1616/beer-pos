@@ -416,59 +416,59 @@
   </script>
 
   <!-- ========== ALERT + CLOUD SETTINGS MODAL ========== -->
-  <div id="alertSettingsModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-4 z-50">
-    <div class="card w-full max-w-sm p-6 max-h-[90vh] overflow-y-auto">
+  <div id="alertSettingsModal" class="fixed inset-0 hidden items-center justify-center p-4 z-50" style="background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);">
+    <div class="w-full max-w-sm max-h-[90vh] overflow-y-auto rounded-2xl" style="background:var(--card);border:1px solid var(--border);padding:24px;box-shadow:0 20px 60px rgba(0,0,0,0.4);">
       <div class="flex justify-between items-center mb-4">
-        <h3 class="font-bold text-lg text-main">⚙️ Cài đặt</h3>
-        <button onclick="closeAlertSettings()" class="text-muted hover:text-main text-xl">✕</button>
+        <h3 class="font-bold text-lg" style="color:var(--text-primary);">⚙️ Cài đặt</h3>
+        <button onclick="closeAlertSettings()" class="text-2xl leading-none hover:opacity-70" style="color:var(--text-secondary);">✕</button>
       </div>
 
       <!-- Tab Navigation -->
-      <div class="flex border-b border-muted mb-4">
+      <div class="flex mb-4" style="border-bottom:1px solid var(--border);">
         <button id="tabAlertBtn" onclick="switchSettingsTab('alert')"
-          class="flex-1 py-2 text-sm font-medium text-primary border-b-2 border-primary">⚠️ Cảnh báo</button>
+          class="flex-1 py-2 text-sm font-medium text-center" style="color:var(--primary);border-bottom:2px solid var(--primary);">⚠️ Cảnh báo</button>
         <button id="tabCloudBtn" onclick="switchSettingsTab('cloud')"
-          class="flex-1 py-2 text-sm font-medium text-muted border-b-2 border-transparent">☁️ Cloud</button>
+          class="flex-1 py-2 text-sm font-medium text-center" style="color:var(--text-secondary);border-bottom:2px solid transparent;">☁️ Cloud</button>
       </div>
 
       <!-- Tab: Cảnh báo -->
       <div id="tabAlert" class="space-y-4">
         <div>
-          <label class="block text-sm font-medium text-main mb-1">🔴 Ngưỡng tồn kho thấp</label>
+          <label class="block text-sm font-medium mb-1" style="color:var(--text-primary);">🔴 Ngưỡng tồn kho thấp</label>
           <input type="number" id="stockLowThreshold" min="1" max="100" value="10"
-                 class="w-full border border-muted rounded-lg px-3 py-2 focus:border-primary focus:ring-2 focus:ring-primary" placeholder="VD: 10">
-          <p class="text-xs text-muted mt-1">Báo khi tồn kho dưới giá trị này</p>
+                 class="w-full rounded-lg px-3 py-2" style="background:var(--bg-hover);border:1px solid var(--border);color:var(--text-primary);" placeholder="VD: 10">
+          <p class="text-xs mt-1" style="color:var(--text-secondary);">Báo khi tồn kho dưới giá trị này</p>
         </div>
         <div>
-          <label class="block text-sm font-medium text-main mb-1">🟡 Kỳ vọng bình/tháng (chung)</label>
+          <label class="block text-sm font-medium mb-1" style="color:var(--text-primary);">🟡 Kỳ vọng bình/tháng (chung)</label>
           <input type="number" id="monthlyExpected" min="1" max="10000" value="300"
-                 class="w-full border border-muted rounded-lg px-3 py-2 focus:border-primary focus:ring-2 focus:ring-primary" placeholder="VD: 300">
-          <p class="text-xs text-muted mt-1">Cảnh báo khách lấy ít hơn kỳ vọng</p>
+                 class="w-full rounded-lg px-3 py-2" style="background:var(--bg-hover);border:1px solid var(--border);color:var(--text-primary);" placeholder="VD: 300">
+          <p class="text-xs mt-1" style="color:var(--text-secondary);">Cảnh báo khách lấy ít hơn kỳ vọng</p>
         </div>
       </div>
 
       <!-- Tab: Cloud -->
       <div id="tabCloud" class="space-y-4 hidden">
-        <div id="cloudStatusBox" class="card p-3 text-sm">
-          <div class="font-semibold text-main mb-1">Trạng thái hiện tại:</div>
-          <div id="cloudStatusText" class="text-muted">Đang kiểm tra...</div>
+        <div id="cloudStatusBox" class="rounded-xl p-3 text-sm" style="background:var(--bg-hover);border:1px solid var(--border);">
+          <div class="font-semibold mb-1" style="color:var(--text-primary);">Trạng thái hiện tại:</div>
+          <div id="cloudStatusText" style="color:var(--text-secondary);">Đang kiểm tra...</div>
         </div>
 
-        <button id="becomeCloudBtn" data-action="becomeCloud" class="w-full text-left p-3 rounded-xl border-2 border-info hover:bg-info/10 card">
-          <div class="font-semibold text-info">🖥️ Dùng máy này làm Cloud</div>
-          <div class="text-xs text-muted mt-0.5">Các thiết bị khác tự động phát hiện máy này</div>
+        <button id="becomeCloudBtn" class="w-full text-left p-3 rounded-xl" style="background:var(--bg-hover);border:2px solid var(--info);">
+          <div class="font-semibold" style="color:var(--info);">🖥️ Dùng máy này làm Cloud</div>
+          <div class="text-xs mt-0.5" style="color:var(--text-secondary);">Các thiết bị khác tự động phát hiện máy này</div>
         </button>
 
-        <button id="scanCloudBtn" data-action="scanForCloud" class="w-full text-left p-3 rounded-xl border-2 border-muted hover:bg-bg-hover card">
-          <div class="font-semibold text-main">🔍 Tìm Cloud trong mạng LAN</div>
-          <div id="scanStatus" class="text-xs text-muted mt-0.5">Quét các máy trong mạng...</div>
+        <button id="scanCloudBtn" class="w-full text-left p-3 rounded-xl" style="background:var(--bg-hover);border:2px solid var(--border);">
+          <div class="font-semibold" style="color:var(--text-primary);">🔍 Tìm Cloud trong mạng LAN</div>
+          <div id="scanStatus" class="text-xs mt-0.5" style="color:var(--text-secondary);">Quét các máy trong mạng...</div>
         </button>
 
-        <div class="card p-3">
-          <div class="text-xs font-semibold text-main mb-2">Hoặc nhập thủ công:</div>
+        <div class="rounded-xl p-3" style="background:var(--bg-hover);border:1px solid var(--border);">
+          <div class="text-xs font-semibold mb-2" style="color:var(--text-primary);">Hoặc nhập thủ công:</div>
           <input id="cloudUrlInput" type="url" placeholder="http://192.168.1.x:3001"
-                 class="w-full border border-muted rounded-lg px-3 py-2 text-sm focus:border-primary focus:ring-2 focus:ring-primary mb-2">
-          <button id="saveCloudUrlBtn" class="btn btn-primary w-full h-10 text-sm">
+                 class="w-full rounded-lg px-3 py-2 text-sm mb-2" style="background:var(--card);border:1px solid var(--border);color:var(--text-primary);">
+          <button id="saveCloudUrlBtn" class="w-full h-10 text-sm font-medium rounded-lg" style="background:var(--primary);color:var(--text-on-dark);">
             💾 Lưu URL Cloud
           </button>
         </div>
@@ -476,8 +476,8 @@
 
       <!-- Chỉ nút Lưu cho tab Cảnh báo -->
       <div id="alertSaveSection" class="flex gap-2 mt-6">
-        <button onclick="closeAlertSettings()" class="btn btn-ghost flex-1 h-12">Hủy</button>
-        <button onclick="saveAlertSettings()" class="btn btn-primary flex-1 h-12">💾 Lưu</button>
+        <button onclick="closeAlertSettings()" class="flex-1 h-12 text-sm font-medium rounded-lg" style="background:var(--bg-hover);color:var(--text-secondary);">Hủy</button>
+        <button onclick="saveAlertSettings()" class="flex-1 h-12 text-sm font-medium rounded-lg" style="background:var(--primary);color:var(--text-on-dark);">💾 Lưu</button>
       </div>
     </div>
   </div>
@@ -496,14 +496,18 @@
     if (tab === 'alert') {
       alertTab.classList.remove('hidden');
       cloudTab.classList.add('hidden');
-      alertBtn.className = 'flex-1 py-2 text-sm font-medium text-primary border-b-2 border-primary';
-      cloudBtn.className = 'flex-1 py-2 text-sm font-medium text-muted border-b-2 border-transparent';
+      alertBtn.style.color = 'var(--primary)';
+      alertBtn.style.borderBottom = '2px solid var(--primary)';
+      cloudBtn.style.color = 'var(--text-secondary)';
+      cloudBtn.style.borderBottom = '2px solid transparent';
       saveSection.classList.remove('hidden');
     } else {
       alertTab.classList.add('hidden');
       cloudTab.classList.remove('hidden');
-      alertBtn.className = 'flex-1 py-2 text-sm font-medium text-muted border-b-2 border-transparent';
-      cloudBtn.className = 'flex-1 py-2 text-sm font-medium text-primary border-b-2 border-primary';
+      alertBtn.style.color = 'var(--text-secondary)';
+      alertBtn.style.borderBottom = '2px solid transparent';
+      cloudBtn.style.color = 'var(--primary)';
+      cloudBtn.style.borderBottom = '2px solid var(--primary)';
       saveSection.classList.add('hidden');
       // refreshCloudTab defined in sync.js (loaded async via requestIdleCallback)
       if (typeof refreshCloudTab === 'function') {
