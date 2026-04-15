@@ -1,7 +1,7 @@
 module.exports = {
   apps: [{
     name: 'beer-pos',
-    script: '/root/beer-pos/server.js',
+    script: './server.js',
     cwd: '/root/beer-pos',
     instances: 1,
     exec_mode: 'fork',
@@ -14,10 +14,11 @@ module.exports = {
       SESSION_SECRET: process.env.SESSION_SECRET || 'change-me-to-a-long-random-string-in-production',
       DISTRIBUTOR_NAME: 'BeerPOS Cloud',
       TRUST_PROXY: 'true',
-      ALLOWED_ORIGIN: 'https://admin.biatuoitayninh.store,https://biatuoitayninh.store',
-      CLOUD_DOMAIN: 'https://admin.biatuoitayninh.store',
-      ADMIN_DOMAIN: 'admin.biatuoitayninh.store',
-      PUBLIC_DOMAIN: 'biatuoitayninh.store',
+      // Allow connections from any origin for sync (or specify specific domains)
+      ALLOWED_ORIGIN: '*',
+      CLOUD_DOMAIN: 'http://103.75.183.57:3000',
+      ADMIN_DOMAIN: '103.75.183.57',
+      PUBLIC_DOMAIN: '103.75.183.57',
     },
     error_file: './logs/err.log',
     out_file: './logs/out.log',

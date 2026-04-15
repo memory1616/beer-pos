@@ -568,11 +568,14 @@
       }
     }
 
-    // Bind close button
-    document.addEventListener('DOMContentLoaded', function() {
+    // Bind close button immediately (script is at end of body, DOM is ready)
+    (function bindCloseBtn() {
       const closeBtn = document.getElementById('btnCloseInvoice');
-      if (closeBtn) closeBtn.addEventListener('click', closeInvoiceModal);
-    });
+      if (closeBtn) {
+        closeBtn.removeAttribute('onclick'); // remove inline onclick
+        closeBtn.addEventListener('click', closeInvoiceModal);
+      }
+    })();
 
     // Initialize
     loadCustomerDetail();
