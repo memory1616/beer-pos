@@ -268,9 +268,14 @@ router.post('/pull', (req, res) => {
       }
     });
 
-    const pendingQueue = db.prepare(`
-      SELECT * FROM sync_queue WHERE synced = 0 ORDER BY created_at ASC LIMIT 100
-    `).all();
+    let pendingQueue = [];
+    try {
+      pendingQueue = db.prepare(`
+        SELECT * FROM sync_queue WHERE synced = 0 ORDER BY created_at ASC LIMIT 100
+      `).all();
+    } catch (e) {
+      logger.warn('sync_queue table not found, skipping');
+    }
 
     res.json({ success: true, changes, pendingQueue, serverTime: new Date().toISOString(), lastSync });
   } catch (err) {
