@@ -31,22 +31,32 @@
   <script>requireAuth();</script>
   <style>
     /* ===== DEVICES PAGE STYLES ===== */
+    
+    /* Page wrapper - Fix header overlap */
+    .devices-page {
+      padding-top: 12px;
+      padding-bottom: 16px;
+    }
 
     /* KPI Cards Grid */
     .device-kpi-grid {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      grid-template-columns: 1fr 1fr;
       gap: 12px;
-      margin-bottom: 16px;
+      margin-bottom: 20px;
     }
     .device-kpi-card {
       background: var(--color-card);
       border-radius: 16px;
-      padding: 16px;
+      padding: 18px;
       text-align: center;
       border: 1px solid var(--color-border);
       position: relative;
       overflow: hidden;
+      transition: transform 0.2s ease;
+    }
+    .device-kpi-card:active {
+      transform: scale(0.98);
     }
     .device-kpi-card::before {
       content: '';
@@ -75,7 +85,7 @@
       margin-bottom: 4px;
     }
     .device-kpi-value {
-      font-size: 36px;
+      font-size: 32px;
       font-weight: 700;
       line-height: 1;
     }
@@ -96,11 +106,15 @@
       background: var(--color-card);
       border-radius: 16px;
       border: 1px solid var(--color-border);
-      margin-bottom: 16px;
+      margin-bottom: 20px;
       overflow: hidden;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .device-section-card:active {
+      transform: scale(0.99);
     }
     .device-section-header {
-      padding: 14px 16px;
+      padding: 12px 14px;
       border-bottom: 1px solid var(--color-border);
       display: flex;
       align-items: center;
@@ -123,16 +137,16 @@
       color: var(--color-text-secondary);
     }
     .device-section-body {
-      padding: 8px;
+      padding: 6px;
     }
 
     /* Customer Device Item */
     .customer-device-item {
       display: flex;
       align-items: center;
-      padding: 12px;
+      padding: 10px 12px;
       border-radius: 12px;
-      transition: background 0.15s ease;
+      transition: background 0.15s ease, transform 0.15s ease;
       cursor: pointer;
     }
     .customer-device-item:hover {
@@ -158,7 +172,7 @@
       min-width: 0;
     }
     .customer-device-name {
-      font-size: 15px;
+      font-size: 14px;
       font-weight: 600;
       color: var(--color-text);
       white-space: nowrap;
@@ -166,7 +180,7 @@
       text-overflow: ellipsis;
     }
     .customer-device-phone {
-      font-size: 13px;
+      font-size: 12px;
       color: var(--color-text-secondary);
       margin-top: 2px;
     }
@@ -190,7 +204,7 @@
 
     /* Empty State */
     .device-empty {
-      padding: 24px 16px;
+      padding: 32px 16px;
       text-align: center;
       color: var(--color-text-muted);
     }
@@ -206,15 +220,16 @@
     /* Search Box */
     .device-search-wrap {
       position: relative;
-      margin-bottom: 16px;
+      margin-bottom: 20px;
     }
     .device-search-input {
       width: 100%;
-      padding: 12px 16px 12px 44px;
+      height: 44px;
+      padding: 10px 16px 10px 44px;
       border-radius: 12px;
       border: 1px solid var(--color-border);
       background: var(--color-card);
-      font-size: 15px;
+      font-size: 14px;
       color: var(--color-text);
       transition: border-color 0.15s, box-shadow 0.15s;
     }
@@ -238,8 +253,8 @@
     /* FAB Button */
     .device-fab {
       position: fixed;
-      bottom: 80px;
-      right: 20px;
+      bottom: calc(var(--bottom-nav-height) + 16px);
+      right: 16px;
       width: 56px;
       height: 56px;
       border-radius: 16px;
@@ -264,22 +279,26 @@
     }
 
     /* Edit FAB */
-    .device-edit-btn {
-      width: 36px;
-      height: 36px;
-      border-radius: 10px;
-      background: var(--color-bg);
+    .device-fab-edit {
+      position: fixed;
+      bottom: calc(var(--bottom-nav-height) + 16px);
+      right: 86px;
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: var(--color-card);
       border: 1px solid var(--color-border);
       color: var(--color-text-secondary);
-      font-size: 14px;
+      font-size: 16px;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
+      z-index: 40;
       transition: all 0.15s ease;
       -webkit-tap-highlight-color: transparent;
     }
-    .device-edit-btn:active {
+    .device-fab-edit:active {
       transform: scale(0.92);
       background: var(--color-bg-hover);
     }
@@ -700,9 +719,7 @@
 
   <!-- FAB Buttons -->
   <button onclick="openAddModal()" class="device-fab" title="Nhập tủ mới">+</button>
-  <button onclick="openEditModal()" class="device-fab-edit" title="Sửa kho" style="position:fixed;bottom:80px;right:86px;width:44px;height:44px;border-radius:12px;background:var(--color-card);border:1px solid var(--color-border);color:var(--color-text-secondary);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:40;transition:all 0.15s ease;-webkit-tap-highlight-color:transparent;">
-    ✏️
-  </button>
+  <button onclick="openEditModal()" class="device-fab-edit" title="Sửa kho">✏️</button>
 
   <!-- Add Modal -->
   <div id="addModal" class="modal-overlay-v2" role="dialog" aria-modal="true" aria-labelledby="addModalTitle">
@@ -814,59 +831,61 @@
       document.getElementById('app').innerHTML = 
         getHeader('Thiết bị', '📦') +
         getContent(`
-          <div id="loadingState">
-            <div class="text-center py-12">
-              <div class="device-spinner"></div>
-              <div class="text-muted mt-3">Đang tải dữ liệu...</div>
-            </div>
-          </div>
-
-          <div id="contentState" class="hidden">
-            <!-- KPI Cards -->
-            <div class="device-kpi-grid">
-              <div class="device-kpi-card horizontal">
-                <div class="device-kpi-icon">❄️</div>
-                <div class="device-kpi-label">Tủ nằm</div>
-                <div class="device-kpi-value" id="kpiHorizontal">0</div>
-                <div class="device-kpi-sub">trong kho</div>
-              </div>
-              <div class="device-kpi-card vertical">
-                <div class="device-kpi-icon">🥶</div>
-                <div class="device-kpi-label">Tủ đứng</div>
-                <div class="device-kpi-value" id="kpiVertical">0</div>
-                <div class="device-kpi-sub">trong kho</div>
+          <div class="devices-page">
+            <div id="loadingState">
+              <div class="text-center py-12">
+                <div class="device-spinner"></div>
+                <div class="text-muted mt-3">Đang tải dữ liệu...</div>
               </div>
             </div>
 
-            <!-- Search -->
-            <div class="device-search-wrap">
-              <span class="device-search-icon">🔍</span>
-              <input type="text" id="searchInput" class="device-search-input" placeholder="Tìm kiếm khách hàng..." oninput="filterDevices()">
-            </div>
-
-            <!-- Horizontal Section -->
-            <div class="device-section-card" id="horizontalSection">
-              <div class="device-section-header">
-                <div class="device-section-title">
-                  <span>❄️</span> Tủ nằm đang được giữ
+            <div id="contentState" class="hidden">
+              <!-- KPI Cards -->
+              <div class="device-kpi-grid">
+                <div class="device-kpi-card horizontal">
+                  <div class="device-kpi-icon">❄️</div>
+                  <div class="device-kpi-label">Tủ nằm</div>
+                  <div class="device-kpi-value" id="kpiHorizontal">0</div>
+                  <div class="device-kpi-sub">trong kho</div>
                 </div>
-                <span class="device-section-badge" id="horizontalCount">0 khách</span>
-              </div>
-              <div class="device-section-body">
-                <div id="horizontalList"></div>
-              </div>
-            </div>
-
-            <!-- Vertical Section -->
-            <div class="device-section-card" id="verticalSection">
-              <div class="device-section-header">
-                <div class="device-section-title">
-                  <span>🥶</span> Tủ đứng đang được giữ
+                <div class="device-kpi-card vertical">
+                  <div class="device-kpi-icon">🥶</div>
+                  <div class="device-kpi-label">Tủ đứng</div>
+                  <div class="device-kpi-value" id="kpiVertical">0</div>
+                  <div class="device-kpi-sub">trong kho</div>
                 </div>
-                <span class="device-section-badge" id="verticalCount">0 khách</span>
               </div>
-              <div class="device-section-body">
-                <div id="verticalList"></div>
+
+              <!-- Search -->
+              <div class="device-search-wrap">
+                <span class="device-search-icon">🔍</span>
+                <input type="text" id="searchInput" class="device-search-input" placeholder="Tìm kiếm khách hàng..." oninput="filterDevices()">
+              </div>
+
+              <!-- Horizontal Section -->
+              <div class="device-section-card" id="horizontalSection">
+                <div class="device-section-header">
+                  <div class="device-section-title">
+                    <span>❄️</span> Tủ nằm đang được giữ
+                  </div>
+                  <span class="device-section-badge" id="horizontalCount">0 khách</span>
+                </div>
+                <div class="device-section-body">
+                  <div id="horizontalList"></div>
+                </div>
+              </div>
+
+              <!-- Vertical Section -->
+              <div class="device-section-card" id="verticalSection">
+                <div class="device-section-header">
+                  <div class="device-section-title">
+                    <span>🥶</span> Tủ đứng đang được giữ
+                  </div>
+                  <span class="device-section-badge" id="verticalCount">0 khách</span>
+                </div>
+                <div class="device-section-body">
+                  <div id="verticalList"></div>
+                </div>
               </div>
             </div>
           </div>
