@@ -243,6 +243,41 @@ router.post('/:id/assign', (req, res) => {
   }
 });
 
+// GET /api/devices/summary - Get devices summary for devices page
+router.get('/summary', (req, res) => {
+  try {
+    const customers = db.prepare(`
+      SELECT 
+        id, name, phone,
+        COALESCE(horizontal_fridge, 0) as horizontal_fridge,
+        COALESCE(vertical_fridge, 0) as vertical_fridge
+      FROM customers 
+      WHERE horizontal_fridge > 0 OR vertical_fridge > 0
+      ORDER BY name
+    `).all();
+
+    const availableDevices = db.prepare(`
+      SELECT type, COUNT(*) as count 
+      FROM devices 
+      WHERE status = 'available' 
+      GROUP BY type
+    `).all();
+
+    const availableHorizontal = availableDevices.find(d => d.type === 'horizontal')?.count || 0;
+    const availableVertical = availableDevices.find(d => d.type === 'vertical')?.count || 0;
+
+    res.json({
+      success: true,
+      customers,
+      availableHorizontal,
+      availableVertical
+    });
+  } catch (err) {
+    logger.error('GET /api/devices/summary error', { message: err.message, stack: err.stack });
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/devices/stats - Get device statistics
 router.get('/stats/summary', (req, res) => {
   try {
