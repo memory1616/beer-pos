@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <script>
+  (function () {
+    var k = 'theme';
+    var sys = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    var saved = localStorage.getItem(k);
+    var theme = (saved === 'light' || saved === 'dark') ? saved : sys;
+    document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.classList.remove('light', 'dark');
+    document.documentElement.classList.add(theme);
+  })();
+  </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Quản lý thiết bị - Beer POS</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#f59e0b">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="icon" type="image/png" href="/icon-192.png">
+  <link rel="preload" href="/js/layout.js?v=20260410-binance" as="script">
+  <link rel="preload" href="/css/unified.css?v=20260414" as="style">
+  <link rel="stylesheet" href="/css/unified.css?v=20260414">
+  <script src="/js/dark-mode.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/layout.js?v=20260404b"></script>
+  <style>
+    .bottom-nav { max-width: 500px; margin: auto; }
+    input, button, a { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+    .modal { display: none; }
+    .modal.active { display: flex; }
+  </style>
+</head>
+<body class="bg-main text-primary min-h-screen pb-20">
+  <header class="sticky top-0 bg-card border-b z-50 shadow-sm">
+    <div class="flex items-center justify-between px-4 h-12 max-w-md mx-auto">
+      <div class="flex items-center gap-2">
+        <a href="/" class="text-muted hover:text-primary p-1">←</a>
+        <span class="font-semibold">Quản lý thiết bị</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="openEditModal()" class="text-info font-medium text-sm flex items-center gap-1">
+          ✏️ Sửa kho
+        </button>
+        <button onclick="openModal()" class="text-primary font-medium text-sm flex items-center gap-1">
+          <span class="text-lg">+</span> Nhập tủ
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="p-3 pb-24 max-w-md mx-auto">
+    <!-- Available devices -->
+    <div class="mb-4">
+      <div class="section-title">📦 Tủ chưa dùng (kho)</div>
+      <div class="grid grid-cols-2 gap-3">
+        <div class="card stat-card--success p-4 text-center">
+          <div class="sc-label"><span class="sc-icon">❄️</span> Tủ nằm</div>
+          <div class="sc-value" id="availableHorizontal">—</div>
+        </div>
+        <div class="card stat-card--info p-4 text-center">
+          <div class="sc-label"><span class="sc-icon">🥶</span> Tủ đứng</div>
+          <div class="sc-value" id="availableVertical">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- In use -->
+    <div class="space-y-4">
+      <section>
+        <div class="section-title">❄️ Tủ lạnh nằm đang được giữ</div>
+        <div id="horizontalList"><div class="empty-state text-xs text-muted px-3 py-4">Đang tải...</div></div>
+      </section>
+      <section>
+        <div class="section-title">🥶 Tủ mát đứng đang được giữ</div>
+        <div id="verticalList"><div class="empty-state text-xs text-muted px-3 py-4">Đang tải...</div></div>
+      </section>
+    </div>
+  </main>
+
+  <!-- Modal nhập tủ -->
+  <div id="addModal" class="modal fixed inset-0 bg-overlay z-50 items-center justify-center p-4">
+    <div class="bg-card rounded-xl w-full max-w-sm">
+      <div class="p-4 border-b flex items-center justify-between">
+        <h3 class="font-semibold">Nhập tủ mới</h3>
+        <button onclick="closeModal()" class="text-muted hover:text-primary">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      <form id="addForm" onsubmit="submitForm(event)" class="p-4 space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-primary mb-1">Loại tủ</label>
+          <div class="grid grid-cols-2 gap-2">
+            <label class="cursor-pointer">
+              <input type="radio" name="type" value="horizontal" class="peer sr-only" checked>
+              <div class="p-3 border-2 border-muted rounded-lg text-center peer-checked:border-info peer-checked:bg-info/10">
+                <div class="text-2xl mb-1">❄️</div>
+                <div class="text-sm font-medium">Tủ nằm</div>
+              </div>
+            </label>
+            <label class="cursor-pointer">
+              <input type="radio" name="type" value="vertical" class="peer sr-only">
+              <div class="p-3 border-2 border-muted rounded-lg text-center peer-checked:border-secondary peer-checked:bg-secondary/10">
+                <div class="text-2xl mb-1">🥶</div>
+                <div class="text-sm font-medium">Tủ đứng</div>
+              </div>
+            </label>
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-primary mb-1">Số lượng</label>
+          <input type="number" name="quantity" min="1" value="1" required
+            class="w-full border rounded-lg px-3 py-2 text-center text-lg">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-primary mb-1">Mã serial (tùy chọn)</label>
+          <input type="text" name="serial" placeholder="Nhập mã serial"
+            class="w-full border rounded-lg px-3 py-2">
+        </div>
+        <button type="submit" class="w-full btn btn-primary py-3 rounded-lg font-medium">
+          Thêm vào kho
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal sửa tồn kho -->
+  <div id="editModal" class="modal fixed inset-0 bg-overlay z-50 items-center justify-center p-4">
+    <div class="bg-card rounded-xl w-full max-w-sm">
+      <div class="p-4 border-b flex items-center justify-between">
+        <h3 class="font-semibold">Sửa tồn kho</h3>
+        <button onclick="closeEditModal()" class="text-muted hover:text-primary">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      <form id="editForm" onsubmit="submitEditForm(event)" class="p-4 space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-primary mb-1">❄️ Tủ nằm tồn kho</label>
+          <input type="number" name="horizontal" min="0" value="0" required id="editHorizontalInput"
+            class="w-full border rounded-lg px-3 py-2 text-center text-lg">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-primary mb-1">🥶 Tủ đứng tồn kho</label>
+          <input type="number" name="vertical" min="0" value="0" required id="editVerticalInput"
+            class="w-full border rounded-lg px-3 py-2 text-center text-lg">
+        </div>
+        <button type="submit" class="w-full btn btn-secondary py-3 rounded-lg font-medium">
+          Lưu thay đổi
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Bottom Navigation -->
+  <nav class="fixed bottom-0 left-0 right-0 bg-card border-t bottom-nav">
+    <div class="grid grid-cols-5 text-center text-xs">
+      <a href="/" class="py-3 text-muted"><div class="text-xl">🏠</div><div>Home</div></a>
+      <a href="/delivery" class="py-3 text-muted"><div class="text-xl">🚚</div><div>Giao</div></a>
+      <a href="/sale" class="py-3 text-muted"><div class="text-xl">🍺</div><div>Bán</div></a>
+      <a href="/customers" class="py-3 text-muted"><div class="text-xl">👤</div><div>KH</div></a>
+      <a href="/devices" class="py-3 text-secondary"><div class="text-xl">📦</div><div>TB</div></a>
+    </div>
+  </nav>
+
+  <script>
+    if (typeof isLoggedIn === 'function' && !isLoggedIn()) {
+      window.location.href = '/login';
+    }
+
+    let _availableH = 0;
+    let _availableV = 0;
+
+    async function loadData() {
+      try {
+        const res = await fetch('/api/devices/summary', { headers: { 'Cache-Control': 'no-cache' } });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+
+        _availableH = data.availableHorizontal || 0;
+        _availableV = data.availableVertical || 0;
+
+        document.getElementById('availableHorizontal').textContent = _availableH;
+        document.getElementById('availableVertical').textContent = _availableV;
+        document.getElementById('editHorizontalInput').value = _availableH;
+        document.getElementById('editVerticalInput').value = _availableV;
+
+        const hList = document.getElementById('horizontalList');
+        const hCustomers = (data.customers || []).filter(c => c.horizontal_fridge > 0);
+        hList.innerHTML = hCustomers.length === 0
+          ? '<div class="empty-state text-xs text-muted px-3 py-4">Chưa có khách giữ tủ nằm</div>'
+          : '<div class="space-y-2">' + hCustomers.map(c => `
+              <div class="card card--list-item"><a href="/customers/${c.id}" class="flex justify-between items-center">
+                <div>
+                  <div class="font-medium">${c.name}</div>
+                  <div class="text-xs text-muted">${c.phone || ''}</div>
+                </div>
+                <span class="badge-pill bp-info">❄️ ${c.horizontal_fridge}</span>
+              </a></div>
+            `).join('') + '</div>';
+
+        const vList = document.getElementById('verticalList');
+        const vCustomers = (data.customers || []).filter(c => c.vertical_fridge > 0);
+        vList.innerHTML = vCustomers.length === 0
+          ? '<div class="empty-state text-xs text-muted px-3 py-4">Chưa có khách giữ tủ đứng</div>'
+          : '<div class="space-y-2">' + vCustomers.map(c => `
+              <div class="card card--list-item"><a href="/customers/${c.id}" class="flex justify-between items-center">
+                <div>
+                  <div class="font-medium">${c.name}</div>
+                  <div class="text-xs text-muted">${c.phone || ''}</div>
+                </div>
+                <span class="badge-pill bp-info">🥶 ${c.vertical_fridge}</span>
+              </a></div>
+            `).join('') + '</div>';
+
+      } catch (err) {
+        console.error('[Devices] loadData error:', err);
+      }
+    }
+
+    function openModal() { document.getElementById('addModal').classList.add('active'); }
+    function closeModal() { document.getElementById('addModal').classList.remove('active'); }
+
+    function openEditModal() {
+      document.getElementById('editHorizontalInput').value = _availableH;
+      document.getElementById('editVerticalInput').value = _availableV;
+      document.getElementById('editModal').classList.add('active');
+    }
+    function closeEditModal() { document.getElementById('editModal').classList.remove('active'); }
+
+    function submitForm(e) {
+      e.preventDefault();
+      const form = e.target;
+      fetch('/devices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: form.type.value,
+          quantity: parseInt(form.quantity.value),
+          serial: form.serial.value
+        })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) { closeModal(); loadData(); }
+        else alert(data.message || 'Có lỗi xảy ra');
+      })
+      .catch(() => alert('Có lỗi xảy ra'));
+    }
+
+    function submitEditForm(e) {
+      e.preventDefault();
+      const form = e.target;
+      fetch('/devices/adjust', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          horizontal: parseInt(form.horizontal.value) || 0,
+          vertical: parseInt(form.vertical.value) || 0
+        })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) { closeEditModal(); loadData(); }
+        else alert(data.message || 'Có lỗi xảy ra');
+      })
+      .catch(() => alert('Có lỗi xảy ra'));
+    }
+
+    loadData();
+  </script>
+</body>
+</html>

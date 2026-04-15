@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <script>
+  (function () {
+    var k = 'theme';
+    var sys = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    var saved = localStorage.getItem(k);
+    var theme = (saved === 'light' || saved === 'dark') ? saved : sys;
+    document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.classList.remove('light', 'dark');
+    document.documentElement.classList.add(theme);
+  })();
+  </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Phân tích</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#f59e0b">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="icon" type="image/png" href="/icon-192.png">
+  <link rel="preload" href="/js/layout.js?v=20260410-binance" as="script">
+  <link rel="preload" href="/css/unified.css?v=20260414" as="style">
+  <link rel="stylesheet" href="/css/unified.css?v=20260414">
+  <script src="/js/dark-mode.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/layout.js?v=20260404b"></script>
+  <style>
+    .animate-fade { animation: fade 0.3s ease-in; }
+    @keyframes fade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .pb-safe { padding-bottom: env(safe-area-inset-bottom, 20px); }
+    .pt-safe { padding-top: env(safe-area-inset-top, 20px); }
+    .bottomnav { max-width: 500px; margin: auto; left: 0; right: 0; }
+    .skeleton { background: linear-gradient(90deg, #e0e0e0 25%, #f0f0f0 50%, #e0e0e0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
+    @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+    button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+  </style>
+</head>
+<body class="bg-bg text-main min-h-screen pb-24">
+  <header class="sticky top-0 bg-card/90 backdrop-blur border-b border-muted shadow-sm z-50 pt-safe">
+    <div class="flex items-center justify-between px-4 py-3">
+      <div class="flex items-center gap-2">
+        <a href="/" class="text-muted">←</a>
+        <div class="w-8 h-8 btn btn-primary flex items-center justify-center font-bold">🍺</div>
+        <span class="font-bold text-main" id="distributorName">Bia Tươi Gia Huy</span>
+      </div>
+      <div class="text-sm text-muted">Phân tích</div>
+    </div>
+  </header>
+
+  <main class="p-4 pt-14 pb-24 max-w-md mx-auto animate-fade">
+    <!-- Stats -->
+    <div class="grid grid-cols-2 gap-3 mb-4">
+      <div class="card stat-card--green">
+        <div class="sc-label"><span class="sc-icon">💰</span> Hôm nay</div>
+        <div class="sc-value text-xl" id="todayRevenue">—</div>
+      </div>
+      <div class="card stat-card--emerald">
+        <div class="sc-label"><span class="sc-icon">📈</span> Lợi nhuận HT</div>
+        <div class="sc-value text-xl" id="todayProfit" style="color:#059669">—</div>
+      </div>
+      <div class="card stat-card--blue">
+        <div class="sc-label"><span class="sc-icon">🧾</span> Tháng này</div>
+        <div class="sc-value text-xl" id="monthRevenue" style="color:#2563eb">—</div>
+      </div>
+    </div>
+
+    <!-- Chart -->
+    <div class="card p-5 mb-4">
+      <h2 class="font-bold text-lg mb-3">📈 Doanh thu 6 tháng</h2>
+      <div class="h-52 w-full">
+        <canvas id="revenueChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Top Products -->
+    <div class="card p-5 mb-4">
+      <h2 class="font-bold text-lg mb-3">🏆 Top sản phẩm</h2>
+      <div id="topProductsList"><div class="text-muted">Đang tải...</div></div>
+    </div>
+
+    <!-- Top Customers -->
+    <div class="card p-5 mb-4">
+      <h2 class="font-bold text-lg mb-3">👑 Top khách hàng</h2>
+      <div id="topCustomersList"><div class="text-muted">Đang tải...</div></div>
+    </div>
+  </main>
+
+  <nav class="bottomnav pb-safe">
+    <a href="/"><span class="icon">🏠</span><span>Home</span></a>
+    <a href="/delivery"><span class="icon">🚚</span><span>Giao</span></a>
+    <a href="/sale"><span class="icon">🍺</span><span>Bán</span></a>
+    <a href="/customers"><span class="icon">👤</span><span>KH</span></a>
+    <a href="/devices"><span class="icon">📦</span><span>TB</span></a>
+  </nav>
+
+  <script src="/js/vendor/chart.umd.min.js"></script>
+  <script>
+    if (typeof isLoggedIn === 'function' && !isLoggedIn()) {
+      window.location.href = '/login';
+    }
+
+    function fmtVND(n) {
+      return new Intl.NumberFormat('vi-VN').format(n || 0) + ' đ';
+    }
+
+    let chartInstance = null;
+
+    async function loadData() {
+      try {
+        const res = await fetch('/analytics/summary', { headers: { 'Cache-Control': 'no-cache' } });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+
+        document.getElementById('todayRevenue').textContent = fmtVND(data.today?.revenue);
+        document.getElementById('todayProfit').textContent = fmtVND(data.today?.profit);
+        document.getElementById('monthRevenue').textContent = fmtVND(data.month?.revenue);
+
+        // Top products
+        const prodEl = document.getElementById('topProductsList');
+        if (data.topProducts && data.topProducts.length > 0) {
+          prodEl.innerHTML = data.topProducts.map((p, i) => `
+            <div class="card card--list-item mb-2 last:mb-0">
+              <div class="flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                  <div class="w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs bg-success-20 text-success">${i + 1}</div>
+                  <span class="font-medium">${p.name}</span>
+                </div>
+                <div class="font-bold text-success">${p.qty} bình</div>
+              </div>
+            </div>
+          `).join('');
+        } else {
+          prodEl.innerHTML = '<div class="text-muted">Chưa có dữ liệu</div>';
+        }
+
+        // Top customers
+        const custEl = document.getElementById('topCustomersList');
+        if (data.topCustomers && data.topCustomers.length > 0) {
+          custEl.innerHTML = data.topCustomers.map((c, i) => `
+            <div class="flex justify-between items-center p-2 border-b border-muted">
+              <div><span class="font-bold">${i + 1}.</span> ${c.name}</div>
+              <div class="font-bold">${fmtVND(c.revenue)}</div>
+            </div>
+          `).join('');
+        } else {
+          custEl.innerHTML = '<div class="text-muted">Chưa có dữ liệu</div>';
+        }
+
+        // Chart
+        const monthly = data.monthly || [];
+        const ctx = document.getElementById('revenueChart').getContext('2d');
+        if (chartInstance) chartInstance.destroy();
+        chartInstance = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: monthly.map(d => d.month),
+            datasets: [{
+              label: 'Doanh thu',
+              data: monthly.map(d => d.revenue),
+              backgroundColor: 'rgba(34, 197, 94, 0.8)',
+              borderRadius: 8
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true } }
+          }
+        });
+
+      } catch (err) {
+        console.error('[Analytics] loadData error:', err);
+      }
+    }
+
+    loadData();
+  </script>
+</body>
+</html>
