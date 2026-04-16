@@ -861,16 +861,20 @@ async function savePrices() {
 let addProductsLoaded = false;
 function toggleAddPrices() {
   var priceFields = document.getElementById('addPriceFields');
-  var toggleBtn = document.getElementById('togglePriceBtn');
+  var toggleBtn = document.getElementById('togglePriceBtnWrapper');
   if (!priceFields) return;
 
   if (priceFields.classList.contains('hidden')) {
     priceFields.classList.remove('hidden');
-    if (toggleBtn) toggleBtn.textContent = '− Ẩn giá';
+    if (toggleBtn) {
+      toggleBtn.classList.add('open');
+    }
     if (!addProductsLoaded) loadAddProducts();
   } else {
     priceFields.classList.add('hidden');
-    if (toggleBtn) toggleBtn.textContent = '+ Thêm giá';
+    if (toggleBtn) {
+      toggleBtn.classList.remove('open');
+    }
   }
 }
 
@@ -886,16 +890,14 @@ async function loadAddProducts() {
       container.innerHTML = '<div class="text-muted text-sm text-center py-2">Chưa có sản phẩm nào</div>';
     } else {
       container.innerHTML = products.map(p =>
-        '<div class="flex items-center justify-between py-2 border-b border-muted">' +
-          '<span class="text-sm font-medium text-main">' + p.name + '</span>' +
+        '<div class="add-price-item">' +
+          '<span class="add-price-name">' + p.name + '</span>' +
           '<input type="text" name="price_' + p.id + '" data-product="' + p.id + '" data-format-number inputmode="decimal" ' +
-            'class="border border-primary rounded px-2 py-1 w-24 text-right text-sm focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none" ' +
-            'placeholder="Giá">' +
+            'class="add-price-input" placeholder="Giá">' +
         '</div>'
       ).join('');
       addProductsLoaded = true;
       
-      // Initialize number format for new inputs
       initAllNumberFormats();
     }
   } catch (e) {
