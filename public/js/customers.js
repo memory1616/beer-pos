@@ -897,7 +897,6 @@ async function loadAddProducts() {
         '</div>'
       ).join('');
       addProductsLoaded = true;
-      
       initAllNumberFormats();
     }
   } catch (e) {
