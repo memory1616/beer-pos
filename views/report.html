@@ -23,201 +23,190 @@
   <script src="/js/layout.js"></script>
   <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    .page-report { padding-bottom: 100px; }
+  </style>
 </head>
 <body class="body--app">
 
-  <!-- ══ STICKY HEADER ══ -->
-  <header class="app-header" id="reportHeader">
-    <div class="app-header-left">
-      <div class="app-header-icon">📊</div>
-      <span class="app-header-title">Báo cáo</span>
-    </div>
-    <div class="app-header-right">
-      <div class="app-header-kpi" id="headerProfit">— đ</div>
-      <div class="app-header-growth neutral" id="headerGrowth">
-        <span>—</span>
+  <!-- App header from layout.js -->
+  <div id="app"></div>
+
+  <!-- Report content - injected by JS -->
+  <main class="page-content page-enter app-main" id="reportMain"></main>
+
+  <!-- Bottom nav - injected by JS -->
+
+  <!-- Date Range Picker Modal -->
+  <div class="modal-overlay-v2 hidden" id="dateRangeModal" onclick="if(event.target===this)RPT.closeDatePicker()">
+    <div class="date-range-modal-sheet" onclick="event.stopPropagation()">
+      <div class="drp-handle" aria-hidden="true"></div>
+      <div class="modal-sheet-v2-header">
+        <div class="modal-sheet-v2-title">📅 Chọn khoảng ngày</div>
+        <button class="modal-sheet-v2-close" onclick="RPT.closeDatePicker()" aria-label="Đóng">✕</button>
       </div>
-    </div>
-  </header>
-
-  <!-- ══ REPORT BODY ══ -->
-  <div class="app-body" id="reportBodyDebug">
-
-    <!-- FILTER BAR (sticky under header) -->
-    <div class="app-filter-bar" id="reportFilterBar">
-      <button class="app-filter-btn active" data-filter="today" onclick="RPT.setFilter('today')">
-        <span class="filter-dot"></span>Hôm Nay
-      </button>
-      <button class="app-filter-btn" data-filter="yesterday" onclick="RPT.setFilter('yesterday')">
-        <span class="filter-dot"></span>Hôm Qua
-      </button>
-      <button class="app-filter-btn" data-filter="7days" onclick="RPT.setFilter('7days')">
-        <span class="filter-dot"></span>7 Ngày
-      </button>
-      <button class="app-filter-btn" data-filter="month" onclick="RPT.setFilter('month')">
-        <span class="filter-dot"></span>Tháng Này
-      </button>
-      <button class="app-filter-btn app-filter-btn--custom" data-filter="custom" onclick="RPT.setFilter('custom')">
-        <span class="filter-icon">📅</span>Tùy Chỉnh
-      </button>
-    </div>
-
-    <!-- Custom range label (shown when 'Tùy chọn' is active) -->
-    <div class="app-filter-range-label" id="filterRangeLabel"></div>
-
-    <!-- Date Range Picker Modal -->
-    <div class="modal-overlay-v2 hidden" id="dateRangeModal" onclick="if(event.target===this)RPT.closeDatePicker()">
-      <div class="date-range-modal-sheet" onclick="event.stopPropagation()">
-        <!-- drag handle -->
-        <div class="drp-handle" aria-hidden="true"></div>
-        <div class="modal-sheet-v2-header">
-          <div class="modal-sheet-v2-title">📅 Chọn khoảng ngày</div>
-          <button class="modal-sheet-v2-close" onclick="RPT.closeDatePicker()" aria-label="Đóng">✕</button>
+      <div class="modal-sheet-v2-body">
+        <div class="drp-presets" id="drpPresets">
+          <button class="drp-preset-btn" data-preset="lastMonth" onclick="RPT.applyPreset('lastMonth')">Tháng Trước</button>
+          <button class="drp-preset-btn" data-preset="thisYear" onclick="RPT.applyPreset('thisYear')">Năm Nay</button>
+          <button class="drp-preset-btn" data-preset="lastYear" onclick="RPT.applyPreset('lastYear')">Năm Trước</button>
         </div>
-        <div class="modal-sheet-v2-body">
-          <div class="drp-presets" id="drpPresets">
-            <button class="drp-preset-btn" data-preset="lastMonth" onclick="RPT.applyPreset('lastMonth')">Tháng Trước</button>
-            <button class="drp-preset-btn" data-preset="thisYear" onclick="RPT.applyPreset('thisYear')">Năm Nay</button>
-            <button class="drp-preset-btn" data-preset="lastYear" onclick="RPT.applyPreset('lastYear')">Năm Trước</button>
+        <div class="drp-divider"><span>hoặc chọn thủ công</span></div>
+        <div class="drp-inputs">
+          <div class="drp-input-group">
+            <label class="drp-label" for="drpDateFrom">Từ ngày</label>
+            <input type="date" class="drp-date-input" id="drpDateFrom">
           </div>
-          <div class="drp-divider"><span>hoặc chọn thủ công</span></div>
-          <div class="drp-inputs">
-            <div class="drp-input-group">
-              <label class="drp-label" for="drpDateFrom">Từ ngày</label>
-              <input type="date" class="drp-date-input" id="drpDateFrom">
-            </div>
-            <div class="drp-separator" aria-hidden="true">→</div>
-            <div class="drp-input-group">
-              <label class="drp-label" for="drpDateTo">Đến ngày</label>
-              <input type="date" class="drp-date-input" id="drpDateTo">
-            </div>
+          <div class="drp-separator" aria-hidden="true">→</div>
+          <div class="drp-input-group">
+            <label class="drp-label" for="drpDateTo">Đến ngày</label>
+            <input type="date" class="drp-date-input" id="drpDateTo">
           </div>
         </div>
-        <div class="modal-sheet-v2-footer">
-          <button class="btn btn-ghost" onclick="RPT.closeDatePicker()">Hủy</button>
-          <button class="btn btn-primary" onclick="RPT.confirmDatePicker()">Áp dụng</button>
-        </div>
+      </div>
+      <div class="modal-sheet-v2-footer">
+        <button class="btn btn-ghost" onclick="RPT.closeDatePicker()">Hủy</button>
+        <button class="btn btn-primary" onclick="RPT.confirmDatePicker()">Áp dụng</button>
       </div>
     </div>
+  </div>
 
-    <!-- KPI GRID -->
-    <div class="kpi-grid" id="kpiGrid">
-      <!-- Revenue -->
-      <div class="kpi-card">
-        <div class="kpi-card-label">💰 Doanh thu</div>
-        <div class="kpi-card-value gold" id="kpiRevenue">—</div>
-      </div>
-      <!-- Expense -->
-      <div class="kpi-card">
-        <div class="kpi-card-label">📤 Chi phí</div>
-        <div class="kpi-card-value red" id="kpiExpense">—</div>
-      </div>
-      <!-- Profit -->
-      <div class="kpi-card">
-        <div class="kpi-card-label">📈 Lợi nhuận</div>
-        <div class="kpi-card-value green" id="kpiProfit">—</div>
-      </div>
-      <!-- Net Profit (highlighted) -->
-      <div class="kpi-card highlight">
-        <div class="kpi-card-label">🔥 Lãi ròng</div>
-        <div class="kpi-card-value gold" id="kpiNetProfit">—</div>
-      </div>
-    </div>
-
-    <!-- CHART -->
-    <div class="chart-section">
-      <div class="chart-card">
-        <div class="chart-header">
-          <div class="chart-title">📊 Doanh thu &amp; Lợi nhuận</div>
-          <div class="chart-legend">
-            <div class="chart-legend-item">
-              <div class="chart-legend-dot revenue"></div>
-              <span>Doanh thu</span>
-            </div>
-            <div class="chart-legend-item">
-              <div class="chart-legend-dot profit"></div>
-              <span>Lợi nhuận</span>
-            </div>
-          </div>
-        </div>
-        <div class="chart-container">
-          <canvas id="reportChart"></canvas>
-        </div>
-      </div>
-    </div>
-
-    <!-- SECTION: TOP PRODUCTS -->
-    <div class="report-section-wrap">
-      <div class="section-card-header" onclick="RPT.toggleSection('products')" id="secProducts">
-        <div class="section-card-header-left">
-          <div class="section-card-icon icon-green">🍺</div>
-          <div class="section-card-title-wrap">
-            <div class="section-card-title">Top sản phẩm<span class="section-card-badge" id="badgeProducts">0</span></div>
-            <div class="section-card-sub" id="totalProductQty">Tổng SL: 0</div>
-          </div>
-        </div>
-        <div class="section-card-arrow">▼</div>
-      </div>
-      <div class="section-card-body" id="contentProducts">
-        <div class="top-list" id="topProductsList"></div>
-      </div>
-    </div>
-
-    <!-- SECTION: TOP CUSTOMERS -->
-    <div class="report-section-wrap">
-      <div class="section-card-header" onclick="RPT.toggleSection('customers')" id="secCustomers">
-        <div class="section-card-header-left">
-          <div class="section-card-icon icon-blue">👤</div>
-          <div class="section-card-title">Top khách hàng<span class="section-card-badge" id="badgeCustomers">0</span></div>
-        </div>
-        <div class="section-card-arrow">▼</div>
-      </div>
-      <div class="section-card-body" id="contentCustomers">
-        <div class="top-list" id="topCustomersList"></div>
-      </div>
-    </div>
-
-    <!-- SECTION: PURCHASE / IMPORT -->
-    <div class="report-section-wrap">
-      <div class="section-card-header" onclick="RPT.toggleSection('purchases')" id="secPurchases">
-        <div class="section-card-header-left">
-          <div class="section-card-icon icon-red">📦</div>
-          <div class="section-card-title">Chi phí nhập hàng</div>
-        </div>
-        <div class="section-card-arrow">▼</div>
-      </div>
-      <div class="section-card-body" id="contentPurchases">
-        <div class="purchase-summary-row" id="purchaseSummaryRow"></div>
-        <div class="purchase-table-wrap" id="purchaseTableWrap"></div>
-      </div>
-    </div>
-
-  </div><!-- /app-body -->
-
-  <!-- Bottom nav (from layout.js) -->
   <script>
-    if (typeof getBottomNav === 'function') {
+    requireAuth();
+    (async () => {
+      await loadVersion();
+
+      // Render header
+      document.getElementById('app').innerHTML = getHeader('Báo cáo', '📊');
+
+      // Render report content
+      document.getElementById('reportMain').innerHTML = `
+        <div class="page-report">
+          <!-- FILTER BAR (sticky under header) -->
+          <div class="app-filter-bar" id="reportFilterBar">
+            <button class="app-filter-btn active" data-filter="today" onclick="RPT.setFilter('today')">
+              <span class="filter-dot"></span>Hôm Nay
+            </button>
+            <button class="app-filter-btn" data-filter="yesterday" onclick="RPT.setFilter('yesterday')">
+              <span class="filter-dot"></span>Hôm Qua
+            </button>
+            <button class="app-filter-btn" data-filter="7days" onclick="RPT.setFilter('7days')">
+              <span class="filter-dot"></span>7 Ngày
+            </button>
+            <button class="app-filter-btn" data-filter="month" onclick="RPT.setFilter('month')">
+              <span class="filter-dot"></span>Tháng Này
+            </button>
+            <button class="app-filter-btn app-filter-btn--custom" data-filter="custom" onclick="RPT.setFilter('custom')">
+              <span class="filter-icon">📅</span>Tùy Chỉnh
+            </button>
+          </div>
+
+          <!-- Custom range label (shown when 'Tùy chọn' is active) -->
+          <div class="app-filter-range-label" id="filterRangeLabel"></div>
+
+          <!-- KPI GRID -->
+          <div class="kpi-grid" id="kpiGrid">
+            <div class="kpi-card">
+              <div class="kpi-card-label">💰 Doanh thu</div>
+              <div class="kpi-card-value gold" id="kpiRevenue">—</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-card-label">📤 Chi phí</div>
+              <div class="kpi-card-value red" id="kpiExpense">—</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-card-label">📈 Lợi nhuận</div>
+              <div class="kpi-card-value green" id="kpiProfit">—</div>
+            </div>
+            <div class="kpi-card highlight">
+              <div class="kpi-card-label">🔥 Lãi ròng</div>
+              <div class="kpi-card-value gold" id="kpiNetProfit">—</div>
+            </div>
+          </div>
+
+          <!-- CHART -->
+          <div class="chart-section">
+            <div class="chart-card">
+              <div class="chart-header">
+                <div class="chart-title">📊 Doanh thu & Lợi nhuận</div>
+                <div class="chart-legend">
+                  <div class="chart-legend-item">
+                    <div class="chart-legend-dot revenue"></div>
+                    <span>Doanh thu</span>
+                  </div>
+                  <div class="chart-legend-item">
+                    <div class="chart-legend-dot profit"></div>
+                    <span>Lợi nhuận</span>
+                  </div>
+                </div>
+              </div>
+              <div class="chart-container">
+                <canvas id="reportChart"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- SECTION: TOP PRODUCTS -->
+          <div class="report-section-wrap">
+            <div class="section-card-header" onclick="RPT.toggleSection('products')" id="secProducts">
+              <div class="section-card-header-left">
+                <div class="section-card-icon icon-green">🍺</div>
+                <div class="section-card-title-wrap">
+                  <div class="section-card-title">Top sản phẩm<span class="section-card-badge" id="badgeProducts">0</span></div>
+                  <div class="section-card-sub" id="totalProductQty">Tổng SL: 0</div>
+                </div>
+              </div>
+              <div class="section-card-arrow">▼</div>
+            </div>
+            <div class="section-card-body" id="contentProducts">
+              <div class="top-list" id="topProductsList"></div>
+            </div>
+          </div>
+
+          <!-- SECTION: TOP CUSTOMERS -->
+          <div class="report-section-wrap">
+            <div class="section-card-header" onclick="RPT.toggleSection('customers')" id="secCustomers">
+              <div class="section-card-header-left">
+                <div class="section-card-icon icon-blue">👤</div>
+                <div class="section-card-title">Top khách hàng<span class="section-card-badge" id="badgeCustomers">0</span></div>
+              </div>
+              <div class="section-card-arrow">▼</div>
+            </div>
+            <div class="section-card-body" id="contentCustomers">
+              <div class="top-list" id="topCustomersList"></div>
+            </div>
+          </div>
+
+          <!-- SECTION: PURCHASE / IMPORT -->
+          <div class="report-section-wrap">
+            <div class="section-card-header" onclick="RPT.toggleSection('purchases')" id="secPurchases">
+              <div class="section-card-header-left">
+                <div class="section-card-icon icon-red">📦</div>
+                <div class="section-card-title">Chi phí nhập hàng</div>
+              </div>
+              <div class="section-card-arrow">▼</div>
+            </div>
+            <div class="section-card-body" id="contentPurchases">
+              <div class="purchase-summary-row" id="purchaseSummaryRow"></div>
+              <div class="purchase-table-wrap" id="purchaseTableWrap"></div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      // Render bottom nav
       document.body.insertAdjacentHTML('beforeend', getBottomNav('/report'));
-    }
+    })();
   </script>
 
+  <!-- Report script -->
   <script>
-    /* ═══════════════════════════════════════════════════════
-       REPORT PAGE - Modern Binance-Style UI
-       ═══════════════════════════════════════════════════════ */
-
-    // ── Auth check ──
-    if (typeof isLoggedIn === 'function' && !isLoggedIn()) {
-      window.location.href = '/login';
-    }
-
-    /* ── REPORT MODULE (RPT) ── */
     (function () {
       'use strict';
 
-      // ── State ──
+      // State
       var _state = {
-        filter: 'today',      // today | 7days | month | custom
+        filter: 'today',
         startDate: null,
         endDate: null
       };
@@ -225,10 +214,9 @@
       var _data = null;
       var _chart = null;
       var _debounceTimer = null;
-      var _previousNetProfit = null;
-      var _prevData = null; // data from previous period for growth calc
+      var _prevData = null;
 
-      // ── Date helpers ──
+      // Date helpers
       function toLocalDateStr(d) {
         return d.getFullYear() + '-' +
           String(d.getMonth() + 1).padStart(2, '0') + '-' +
@@ -267,25 +255,7 @@
         return { start: toLocalDateStr(now), end: toLocalDateStr(now) };
       }
 
-      function getPreviousDateRange(filter) {
-        var range = getDateRange(filter);
-        if (filter === 'custom') return null;
-
-        var start = toDateObj(range.start);
-        var end = toDateObj(range.end);
-        if (!start || !end) return null;
-
-        var diffMs = end - start;
-        var prevEnd = new Date(start - 1);
-        var prevStart = new Date(prevEnd - diffMs);
-
-        return {
-          start: toLocalDateStr(prevStart),
-          end: toLocalDateStr(prevEnd)
-        };
-      }
-
-      // ── Format helpers ──
+      // Format helpers
       function fmtVND(n) {
         if (n == null || isNaN(n)) return '—';
         return new Intl.NumberFormat('vi-VN').format(Math.round(n)) + ' đ';
@@ -313,7 +283,7 @@
         return ((current - previous) / Math.abs(previous)) * 100;
       }
 
-      // ── Load data from /report/data API ──
+      // Load data
       function loadData() {
         var range = getDateRange(_state.filter);
         var start = range.start;
@@ -330,7 +300,6 @@
         fetch(url)
           .then(function (res) { return res.json(); })
           .then(function (data) {
-            console.log('[RPT] Got:', JSON.stringify(data).substring(0, 200));
             _data = data;
             processAndRender(data);
           })
@@ -340,11 +309,10 @@
           });
       }
 
-      // ── Process API response ──
+      // Process API response
       function processAndRender(data) {
         var sales = data.sales || [];
 
-        // Calculate totalExpense
         var totalExpense = 0;
         if (data.totalExpense !== undefined) {
           totalExpense = data.totalExpense || 0;
@@ -352,13 +320,9 @@
           totalExpense = (data.expenses || []).reduce(function (s, e) { return s + (e.amount || 0); }, 0);
         }
 
-        // Profit by product
         var byProduct = data.profitByProduct || computeProfitByProduct(sales);
-
-        // Profit by customer
         var byCustomer = data.profitByCustomer || computeProfitByCustomer(sales);
 
-        // Summary
         var revenue = 0, profit = 0;
         sales.forEach(function (s) {
           revenue += s.total || 0;
@@ -366,20 +330,15 @@
         });
 
         var netProfit = profit - totalExpense;
-
-        // Build daily data for chart
         var daily = buildDailyData(sales);
 
-        // Render everything
         renderKPI(revenue, totalExpense, profit, netProfit);
         renderChart(daily, totalExpense);
         renderTopProducts(byProduct);
         renderTopCustomers(byCustomer);
         renderPurchases(data.purchases || [], data.totalPurchaseAmount);
-        updateHeader(netProfit);
       }
 
-      // ── Compute profit by product (client-side fallback) ──
       function computeProfitByProduct(sales) {
         var map = {};
         (sales || []).forEach(function (s) {
@@ -426,55 +385,22 @@
         return result;
       }
 
-      // ── Render: KPI Grid ──
       function renderKPI(revenue, expense, profit, netProfit) {
         animateNumber('kpiRevenue', revenue, fmtVNDShort);
         animateNumber('kpiExpense', expense, fmtVNDShort);
         animateNumber('kpiProfit', profit, fmtVNDShort);
         animateNumber('kpiNetProfit', netProfit, fmtVNDShort);
 
-        // Color coding
         var profitEl = document.getElementById('kpiProfit');
         var netEl = document.getElementById('kpiNetProfit');
         var expEl = document.getElementById('kpiExpense');
 
-        if (profitEl) {
-          profitEl.className = 'kpi-card-value ' + (profit >= 0 ? 'green' : 'red');
-        }
-        if (netEl) {
-          netEl.className = 'kpi-card-value ' + (netProfit >= 0 ? 'gold' : 'red');
-        }
-        if (expEl) {
-          expEl.className = 'kpi-card-value red';
-        }
+        if (profitEl) profitEl.className = 'kpi-card-value ' + (profit >= 0 ? 'green' : 'red');
+        if (netEl) netEl.className = 'kpi-card-value ' + (netProfit >= 0 ? 'gold' : 'red');
+        if (expEl) expEl.className = 'kpi-card-value red';
       }
 
-      // ── Render: Sticky Header ──
-      function updateHeader(netProfit) {
-        var profitEl = document.getElementById('headerProfit');
-        if (profitEl) profitEl.textContent = fmtVND(netProfit);
-
-        // Growth vs previous period
-        var growthEl = document.getElementById('headerGrowth');
-        if (growthEl && _prevData !== null) {
-          var prevNet = _prevData;
-          var growth = calcGrowth(netProfit, prevNet);
-          if (growth !== null) {
-            var isUp = growth >= 0;
-            var arrow = isUp ? '↑' : '↓';
-            var cls = isUp ? 'up' : 'down';
-            growthEl.className = 'app-header-growth ' + cls;
-            growthEl.innerHTML = '<span>' + arrow + ' ' + Math.abs(growth).toFixed(1) + '%</span>';
-          } else {
-            growthEl.className = 'app-header-growth neutral';
-            growthEl.innerHTML = '<span>—</span>';
-          }
-        }
-        _prevData = netProfit;
-      }
-
-      // ── Render: Chart ──
-      function renderChart(daily, totalExpense) {
+      function renderChart(daily) {
         var canvas = document.getElementById('reportChart');
         if (!canvas) return;
 
@@ -488,7 +414,6 @@
           netProfits.push((d.profit || 0));
         });
 
-        // Use theme-aware colors via CSS variables
         var root = document.documentElement;
         var textColor = getComputedStyle(root).getPropertyValue('--text-muted').trim() || '#848E9C';
         var gridColor = getComputedStyle(root).getPropertyValue('--border').trim() || '#2B3139';
@@ -552,19 +477,11 @@
             },
             scales: {
               x: {
-                ticks: {
-                  color: textColor,
-                  font: { size: 10 },
-                  maxTicksLimit: 7
-                },
+                ticks: { color: textColor, font: { size: 10 }, maxTicksLimit: 7 },
                 grid: { color: gridColor, lineWidth: 0.5 }
               },
               y: {
-                ticks: {
-                  color: textColor,
-                  font: { size: 10 },
-                  callback: function (v) { return fmtVNDShort(v); }
-                },
+                ticks: { color: textColor, font: { size: 10 }, callback: function (v) { return fmtVNDShort(v); } },
                 grid: { color: gridColor, lineWidth: 0.5 }
               }
             }
@@ -572,7 +489,6 @@
         });
       }
 
-      // ── Render: Top Products ──
       function renderTopProducts(products) {
         var el = document.getElementById('topProductsList');
         var badge = document.getElementById('badgeProducts');
@@ -618,7 +534,6 @@
             '</div>';
         });
 
-        // "Xem thêm" for rest
         if (rest.length > 0) {
           html += '<button class="see-more-toggle" onclick="RPT.toggleMore(this, \'products\')">Xem thêm ' + rest.length + ' sản phẩm ▼</button>';
           html += '<div class="more-items" style="display:none;">';
@@ -642,7 +557,6 @@
         el.innerHTML = html;
       }
 
-      // ── Render: Top Customers ──
       function renderTopCustomers(customers) {
         var el = document.getElementById('topCustomersList');
         var badge = document.getElementById('badgeCustomers');
@@ -704,7 +618,6 @@
         el.innerHTML = html;
       }
 
-      // ── Render: Purchases ──
       function renderPurchases(purchases, totalAmount) {
         var summaryEl = document.getElementById('purchaseSummaryRow');
         var tableEl = document.getElementById('purchaseTableWrap');
@@ -749,7 +662,6 @@
         if (tableEl) tableEl.innerHTML = html;
       }
 
-      // ── Toggle "Xem thêm" ──
       function toggleMore(btn, type) {
         var container = btn.parentNode;
         var moreDiv = container.querySelector('.more-items');
@@ -757,10 +669,9 @@
 
         var isHidden = moreDiv.style.display === 'none';
         moreDiv.style.display = isHidden ? '' : 'none';
-        btn.textContent = isHidden ? 'Thu gọn ▲' : 'Xem thêm ' + (type === 'products' ? _data.profitByProduct.length - 5 : _data.profitByCustomer.length - 5) + ' ' + (type === 'products' ? 'sản phẩm' : 'khách') + ' ▼';
+        btn.textContent = isHidden ? 'Thu gọn ▲' : 'Xem thêm ' + rest.length + ' ' + (type === 'products' ? 'sản phẩm' : 'khách') + ' ▼';
       }
 
-      // ── Toggle section collapse ──
       function toggleSection(name) {
         var header = document.getElementById('sec' + capitalize(name));
         var content = document.getElementById('content' + capitalize(name));
@@ -775,7 +686,6 @@
         return s.charAt(0).toUpperCase() + s.slice(1);
       }
 
-      // ── Animate number count-up ──
       function animateNumber(elId, targetValue, formatter) {
         var el = document.getElementById(elId);
         if (!el) return;
@@ -788,7 +698,7 @@
         function step(timestamp) {
           if (!startTime) startTime = timestamp;
           var progress = Math.min((timestamp - startTime) / duration, 1);
-          var eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
+          var eased = 1 - Math.pow(1 - progress, 3);
           var current = Math.round(start + (end - start) * eased);
           el.textContent = formatter(current);
           if (progress < 1) requestAnimationFrame(step);
@@ -797,7 +707,6 @@
         requestAnimationFrame(step);
       }
 
-      // ── Show skeleton on empty / error ──
       function showEmptySkeleton() {
         ['kpiRevenue', 'kpiExpense', 'kpiProfit', 'kpiNetProfit'].forEach(function (id) {
           var el = document.getElementById(id);
@@ -812,7 +721,6 @@
           '<div class="empty-state"><div class="empty-state-icon">📋</div><div class="empty-state-title">Chưa có phiếu nhập hàng</div><div class="empty-state-desc">Nhập hàng để xem chi phí ở đây</div></div>';
       }
 
-      // Format date range for display label
       function formatRangeLabel(start, end) {
         if (!start || !end) return '';
         var s = start.split('-').reverse().slice(0, 2).join('/');
@@ -820,7 +728,6 @@
         return '📅 ' + s + ' — ' + e;
       }
 
-      // Update the range label UI below filter bar
       function updateRangeLabel() {
         var el = document.getElementById('filterRangeLabel');
         if (!el) return;
@@ -833,35 +740,28 @@
         }
       }
 
-      // Open date picker modal
       function openDatePicker() {
         var modal = document.getElementById('dateRangeModal');
-        var fromEl = document.getElementById('drpDateFrom');
-        var toEl = document.getElementById('drpDateTo');
         if (!modal) return;
 
-        // Clear preset active states when opening manually
         document.querySelectorAll('.drp-preset-btn').forEach(function (btn) {
           btn.classList.remove('active');
         });
 
-        // Pre-fill with current custom range or default to this month
-        if (_state.startDate) fromEl.value = _state.startDate;
-        if (_state.endDate) toEl.value = _state.endDate;
+        if (_state.startDate) document.getElementById('drpDateFrom').value = _state.startDate;
+        if (_state.endDate) document.getElementById('drpDateTo').value = _state.endDate;
 
         modal.classList.remove('hidden');
       }
 
-      // Close date picker modal
       function closeDatePicker() {
         var modal = document.getElementById('dateRangeModal');
         if (modal) modal.classList.add('hidden');
       }
 
-      // Apply preset ranges inside modal
       function applyPreset(preset) {
         var now = new Date();
-        var y = now.getFullYear(), m = now.getMonth(), d = now.getDate();
+        var y = now.getFullYear(), m = now.getMonth();
         var fromEl = document.getElementById('drpDateFrom');
         var toEl = document.getElementById('drpDateTo');
 
@@ -881,13 +781,11 @@
           toEl.value = toLocalDateStr(lastDay);
         }
 
-        // Highlight selected preset
         document.querySelectorAll('.drp-preset-btn').forEach(function (btn) {
           btn.classList.toggle('active', btn.dataset.preset === preset);
         });
       }
 
-      // Confirm date picker → apply range
       function confirmDatePicker() {
         var from = document.getElementById('drpDateFrom').value;
         var to = document.getElementById('drpDateTo').value;
@@ -902,7 +800,6 @@
         }
       }
 
-      // Filter state management
       function setFilter(filter) {
         document.querySelectorAll('.app-filter-btn').forEach(function (btn) {
           btn.classList.toggle('active', btn.dataset.filter === filter);
@@ -918,13 +815,12 @@
         debounceLoad();
       }
 
-      // ── Debounced load ──
       function debounceLoad() {
         clearTimeout(_debounceTimer);
         _debounceTimer = setTimeout(loadData, 200);
       }
 
-      // ── Public API ──
+      // Public API
       window.RPT = {
         setFilter: setFilter,
         closeDatePicker: closeDatePicker,
@@ -935,21 +831,18 @@
         reload: debounceLoad
       };
 
-      // ── Auto-init on DOM ready ──
+      // Auto-init on DOM ready
       function init() {
-        console.log('[RPT] Init — Binance-style report page');
+        console.log('[RPT] Init — report page');
         loadData();
 
-        // Listen for data mutations
         window.addEventListener('data:mutated', function (evt) {
           var entity = (evt && evt.detail && evt.detail.entity) || '';
           if (['sale', 'expense', 'purchase', 'customer', 'product', 'sync', ''].indexOf(entity) !== -1) {
-            console.log('[RPT] Data mutated:', entity, '— reloading');
             debounceLoad();
           }
         });
 
-        // Listen for SW invalidation
         if (navigator.serviceWorker) {
           navigator.serviceWorker.addEventListener('message', function (event) {
             var data = event && event.data ? event.data : {};

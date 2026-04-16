@@ -64,7 +64,8 @@ function getContent(content) {
 
 // Generate bottom navigation
 // Supports: /dashboard, /, /customers, /sale, /stock, /report,
-//           /kegs, /delivery, /purchases, /backup, /customer-detail, /expenses
+//           /kegs, /delivery, /purchases, /backup, /customer-detail, /expenses,
+//           /devices, /analytics
 function getBottomNav(currentPage) {
   const nav = [
     { path: '/', name: 'home', icon: '🏠', label: 'Home', home: true },
