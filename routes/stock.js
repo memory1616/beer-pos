@@ -22,7 +22,7 @@ router.get('/', (req, res) => {
 
 // API: Get stock page data
 router.get('/data', (req, res) => {
-  const products = db.prepare('SELECT * FROM products ORDER BY name').all();
+  const products = db.prepare('SELECT * FROM products WHERE archived = 0 ORDER BY name').all();
   const totalStockPositive = products.reduce((sum, p) => sum + Math.max(0, Number(p.stock) || 0), 0);
 
   // Query purchase history - last 5 purchases, sorted by date descending

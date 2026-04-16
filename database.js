@@ -150,13 +150,14 @@ db.exec(`
   );
 
   -- Prices table (custom prices per customer-product)
+  -- Note: Changed to NO ACTION to preserve prices when products are soft-deleted
   CREATE TABLE IF NOT EXISTS prices (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     customer_id INTEGER NOT NULL,
     product_id INTEGER NOT NULL,
     price REAL NOT NULL,
     FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE,
-    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE NO ACTION,
     UNIQUE(customer_id, product_id)
   );
 
@@ -173,6 +174,7 @@ db.exec(`
     type TEXT DEFAULT 'sale',
     note TEXT,
     status TEXT DEFAULT 'completed',
+    archived INTEGER DEFAULT 0,
     FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL
   );
 
@@ -180,6 +182,7 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_sales_customer_date ON sales(customer_id, date);
 
   -- Sale items table
+  -- Note: Changed to NO ACTION to preserve sale_items when products are soft-deleted
   CREATE TABLE IF NOT EXISTS sale_items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     sale_id INTEGER NOT NULL,
@@ -188,18 +191,20 @@ db.exec(`
     price REAL NOT NULL,
     cost_price REAL DEFAULT 0,
     profit REAL DEFAULT 0,
+    product_slug TEXT,
     FOREIGN KEY (sale_id) REFERENCES sales(id) ON DELETE CASCADE,
-    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE NO ACTION
   );
 
   -- Damaged products table (theo dõi bia lỗi/hư)
+  -- Note: Changed to NO ACTION to preserve records when products are soft-deleted
   CREATE TABLE IF NOT EXISTS damaged_products (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     product_id INTEGER NOT NULL,
     quantity INTEGER NOT NULL,
     reason TEXT,
     date TEXT DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE NO ACTION
   );
 
   -- Purchases/Imports table (theo dõi nhập hàng)
@@ -207,10 +212,12 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     date TEXT DEFAULT CURRENT_TIMESTAMP,
     total_amount REAL NOT NULL,
-    note TEXT
+    note TEXT,
+    archived INTEGER DEFAULT 0
   );
 
   -- Purchase items table
+  -- Note: Changed to NO ACTION to preserve records when products are soft-deleted
   CREATE TABLE IF NOT EXISTS purchase_items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     purchase_id INTEGER NOT NULL,
@@ -219,7 +226,7 @@ db.exec(`
     unit_price REAL NOT NULL,
     total_price REAL NOT NULL,
     FOREIGN KEY (purchase_id) REFERENCES purchases(id) ON DELETE CASCADE,
-    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE NO ACTION
   );
 `);
 
@@ -405,6 +412,35 @@ try {
 // Also add slug to prices and sale_items so the chain stays consistent
 try {
   db.exec(`ALTER TABLE products ADD COLUMN slug TEXT`);
+} catch (e) {
+  // Column already exists, ignore
+}
+
+// ========== SOFT DELETE MIGRATIONS ==========
+// Migration: Add archived column to products (soft delete)
+try {
+  db.exec(`ALTER TABLE products ADD COLUMN archived INTEGER DEFAULT 0`);
+} catch (e) {
+  // Column already exists, ignore
+}
+
+// Migration: Add archived column to sales (soft delete)
+try {
+  db.exec(`ALTER TABLE sales ADD COLUMN archived INTEGER DEFAULT 0`);
+} catch (e) {
+  // Column already exists, ignore
+}
+
+// Migration: Add archived column to expenses (soft delete)
+try {
+  db.exec(`ALTER TABLE expenses ADD COLUMN archived INTEGER DEFAULT 0`);
+} catch (e) {
+  // Column already exists, ignore
+}
+
+// Migration: Add archived column to purchases (soft delete)
+try {
+  db.exec(`ALTER TABLE purchases ADD COLUMN archived INTEGER DEFAULT 0`);
 } catch (e) {
   // Column already exists, ignore
 }
@@ -1005,6 +1041,10 @@ const addIndex = (sql) => {
 addIndex(`CREATE INDEX IF NOT EXISTS idx_sales_date_type ON sales(date, type)`);
 addIndex(`CREATE INDEX IF NOT EXISTS idx_sale_items_product ON sale_items(product_id)`);
 addIndex(`CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date)`);
+addIndex(`CREATE INDEX IF NOT EXISTS idx_products_archived ON products(archived)`);
+addIndex(`CREATE INDEX IF NOT EXISTS idx_sales_archived ON sales(archived)`);
+addIndex(`CREATE INDEX IF NOT EXISTS idx_expenses_archived ON expenses(archived)`);
+addIndex(`CREATE INDEX IF NOT EXISTS idx_purchases_archived ON purchases(archived)`);
 // PERFORMANCE: Missing indexes identified during codebase scan
 // sync_queue: queries filter by synced=0, entity, or both
 addIndex(`CREATE INDEX IF NOT EXISTS idx_sync_queue_synced ON sync_queue(synced)`);

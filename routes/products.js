@@ -12,7 +12,7 @@ function formatVND(amount) {
 
 // GET /products
 router.get('/', (req, res) => {
-  const products = db.prepare('SELECT * FROM products ORDER BY name').all();
+  const products = db.prepare('SELECT * FROM products WHERE archived = 0 ORDER BY name').all();
   res.send(`
 <!DOCTYPE html>
 <html lang="vi">

@@ -185,10 +185,10 @@ router.put('/:id', (req, res) => {
   }
 });
 
-// DELETE purchase
+// DELETE purchase (soft delete)
 router.delete('/:id', (req, res) => {
   const purchaseId = req.params.id;
-  logger.debug('Purchase delete start', { purchaseId });
+  logger.debug('Purchase soft delete start', { purchaseId });
 
   const purchase = db.prepare('SELECT * FROM purchases WHERE id = ?').get(purchaseId);
   if (!purchase) {
@@ -196,47 +196,54 @@ router.delete('/:id', (req, res) => {
   }
 
   try {
-    const items = db.prepare('SELECT product_id, quantity FROM purchase_items WHERE purchase_id = ?').all(purchaseId);
-
-    let totalKegs = 0;
-    for (const item of items) {
-      const product = db.prepare('SELECT type FROM products WHERE id = ?').get(item.product_id);
-      const productType = (product?.type || 'keg').toLowerCase();
-      if (['keg', 'box'].includes(productType)) {
-        totalKegs += item.quantity;
-      }
-    }
-
-    for (const item of items) {
-      const currentStock = db.prepare('SELECT stock FROM products WHERE id = ?').get(item.product_id);
-      const newStock = Math.max(0, currentStock.stock - item.quantity);
-      db.prepare('UPDATE products SET stock = ? WHERE id = ?').run(newStock, item.product_id);
-    }
-
-    db.prepare('DELETE FROM purchase_items WHERE purchase_id = ?').run(purchaseId);
-    db.prepare('DELETE FROM purchases WHERE id = ?').run(purchaseId);
-
-    if (totalKegs > 0) {
-      const statsRow = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
-      if (statsRow) {
-        const newEmpty = statsRow.empty_collected + totalKegs;
-        db.prepare('UPDATE keg_stats SET empty_collected = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run(newEmpty);
-      }
-    }
-
-    try {
-      syncKegInventory();
-    } catch (syncErr) {
-      logger.error('Purchase delete: syncKegInventory error', { error: syncErr.message });
-    }
-
-    socketServer.emitInventoryUpdated({ purchaseId });
-
-    logger.info('Purchase deleted', { purchaseId, totalKegs });
-    res.json({ success: true });
+    // Soft delete: set archived = 1 instead of hard delete
+    db.prepare('UPDATE purchases SET archived = 1 WHERE id = ?').run(purchaseId);
+    socketServer.emitInventoryUpdated({ purchaseId, archived: true });
+    logger.info('Purchase soft deleted (archived)', { purchaseId });
+    res.json({ success: true, message: 'Đã xóa đơn nhập (có thể khôi phục)', archived: true });
   } catch (err) {
-    logger.error('Purchase delete error', { purchaseId, error: err.message });
+    logger.error('Purchase soft delete error', { purchaseId, error: err.message });
     res.status(500).json({ error: 'Lỗi xóa đơn nhập' });
+  }
+});
+
+// GET /api/purchases/archived - Get archived purchases
+router.get('/archived/list', (req, res) => {
+  try {
+    const purchases = db.prepare(`
+      SELECT p.*,
+        (SELECT GROUP_CONCAT(pi.quantity || 'x ' || pr.name) FROM purchase_items pi JOIN products pr ON pi.product_id = pr.id WHERE pi.purchase_id = p.id) as items_summary
+      FROM purchases p
+      WHERE p.archived = 1
+      ORDER BY p.date DESC
+      LIMIT 100
+    `).all();
+    res.json(purchases);
+  } catch (err) {
+    logger.error('Error fetching archived purchases', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi lấy danh sách đơn nhập đã xóa' });
+  }
+});
+
+// POST /api/purchases/:id/restore - Restore archived purchase
+router.post('/:id/restore', (req, res) => {
+  const purchaseId = req.params.id;
+  logger.debug('Purchase restore start', { purchaseId });
+
+  const purchase = db.prepare('SELECT * FROM purchases WHERE id = ? AND archived = 1').get(purchaseId);
+  if (!purchase) {
+    return res.status(404).json({ error: 'Không tìm thấy đơn nhập đã xóa' });
+  }
+
+  try {
+    // Restore archived purchase
+    db.prepare('UPDATE purchases SET archived = 0 WHERE id = ?').run(purchaseId);
+    socketServer.emitInventoryUpdated({ purchaseId, archived: false });
+    logger.info('Purchase restored from archive', { purchaseId });
+    res.json({ success: true, message: 'Đã khôi phục đơn nhập', archived: false });
+  } catch (err) {
+    logger.error('Purchase restore error', { purchaseId, error: err.message });
+    res.status(500).json({ error: 'Lỗi khôi phục đơn nhập' });
   }
 });
 
