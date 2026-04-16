@@ -558,6 +558,7 @@
 
       modal.classList.remove('hidden');
       modal.classList.add('flex');
+      modal.style.display = 'flex';
     }
 
     function closeInvoiceModal() {
@@ -565,17 +566,9 @@
       if (modal) {
         modal.classList.add('hidden');
         modal.classList.remove('flex');
+        modal.style.display = '';
       }
     }
-
-    // Bind close button immediately (script is at end of body, DOM is ready)
-    (function bindCloseBtn() {
-      const closeBtn = document.getElementById('btnCloseInvoice');
-      if (closeBtn) {
-        closeBtn.removeAttribute('onclick'); // remove inline onclick
-        closeBtn.addEventListener('click', closeInvoiceModal);
-      }
-    })();
 
     // Initialize
     loadCustomerDetail();
