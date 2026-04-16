@@ -26,14 +26,14 @@ function toSlug(name) {
     .trim().replace(/\s+/g, '_');
 }
 
-function findProduct(query) {
+function findProduct(query, includeArchived = false) {
   if (!query) return null;
   // Try slug first, then numeric id
-  const bySlug = db.prepare('SELECT * FROM products WHERE slug = ?').get(query);
+  const bySlug = db.prepare(`SELECT * FROM products WHERE slug = ?${includeArchived ? '' : ' AND archived = 0'}`).get(query);
   if (bySlug) return bySlug;
   const numId = parseInt(query);
   if (!isNaN(numId) && numId > 0) {
-    return db.prepare('SELECT * FROM products WHERE id = ?').get(numId);
+    return db.prepare(`SELECT * FROM products WHERE id = ?${includeArchived ? '' : ' AND archived = 0'}`).get(numId);
   }
   return null;
 }
@@ -77,19 +77,7 @@ function validateProductInput(body, isUpdate = false) {
   return { valid: errors.length === 0, errors };
 }
 
-// ========== GET /api/products ==========
-router.get('/', (req, res) => {
-  try {
-    // Always include slug in response
-    const products = db.prepare('SELECT id, slug, name, stock, damaged_stock, cost_price, sell_price, type, created_at, updated_at FROM products ORDER BY name').all();
-    res.json(products);
-  } catch (err) {
-    logger.error('Error fetching products', { error: err.message });
-    res.status(500).json({ error: 'Lỗi khi lấy danh sách sản phẩm' });
-  }
-});
-
-// ========== GET /api/products/prices ==========
+// ========== GET /api/products/:id ==========
 router.get('/prices', (req, res) => {
   try {
     const { customerId, slug } = req.query;
@@ -315,19 +303,59 @@ router.put('/:id', (req, res) => {
   }
 });
 
-// ========== DELETE /api/products/:id ==========
+// ========== DELETE /api/products/:id (Soft Delete) ==========
 router.delete('/:id', (req, res) => {
   const product = findProduct(req.params.id);
   if (!product) return res.status(404).json({ error: 'Không tìm thấy sản phẩm' });
 
   try {
-    db.prepare('DELETE FROM products WHERE id = ?').run(product.id);
-    socketServer.emitInventoryUpdated({ productId: product.id, slug: product.slug, deleted: true });
-    logger.info('[Products] Deleted', { id: product.id, slug: product.slug, name: product.name });
-    res.json({ success: true, id: product.id, slug: product.slug });
+    // Soft delete: set archived = 1 instead of hard delete
+    db.prepare('UPDATE products SET archived = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(product.id);
+    socketServer.emitInventoryUpdated({ productId: product.id, slug: product.slug, archived: true });
+    logger.info('[Products] Soft deleted (archived)', { id: product.id, slug: product.slug, name: product.name });
+    res.json({ success: true, id: product.id, slug: product.slug, archived: true });
   } catch (err) {
-    logger.error('Error deleting product', { error: err.message });
+    logger.error('Error soft deleting product', { error: err.message });
     res.status(500).json({ error: 'Lỗi khi xóa sản phẩm: ' + err.message });
+  }
+});
+
+// ========== GET /api/products/archived - Get archived products ==========
+router.get('/archived/list', (req, res) => {
+  try {
+    const products = db.prepare('SELECT * FROM products WHERE archived = 1 ORDER BY name').all();
+    res.json(products);
+  } catch (err) {
+    logger.error('Error fetching archived products', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi lấy danh sách sản phẩm đã xóa' });
+  }
+});
+
+// ========== POST /api/products/:id/restore - Restore archived product ==========
+router.post('/:id/restore', (req, res) => {
+  const product = findProduct(req.params.id);
+  if (!product) return res.status(404).json({ error: 'Không tìm thấy sản phẩm' });
+
+  try {
+    db.prepare('UPDATE products SET archived = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(product.id);
+    const restored = db.prepare('SELECT * FROM products WHERE id = ?').get(product.id);
+    socketServer.emitInventoryUpdated({ product: restored });
+    logger.info('[Products] Restored from archive', { id: product.id, slug: product.slug, name: product.name });
+    res.json({ success: true, id: product.id, slug: product.slug, archived: false });
+  } catch (err) {
+    logger.error('Error restoring product', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi khôi phục sản phẩm: ' + err.message });
+  }
+});
+
+// ========== GET /api/products - Only return non-archived products ==========
+router.get('/', (req, res) => {
+  try {
+    const products = db.prepare('SELECT id, slug, name, stock, damaged_stock, cost_price, sell_price, type, created_at, updated_at FROM products WHERE archived = 0 ORDER BY name').all();
+    res.json(products);
+  } catch (err) {
+    logger.error('Error fetching products', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi lấy danh sách sản phẩm' });
   }
 });
 

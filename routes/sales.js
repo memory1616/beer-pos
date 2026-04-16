@@ -26,7 +26,7 @@ router.get('/data', (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
   const customers = db.prepare('SELECT * FROM customers WHERE archived = 0 ORDER BY name').all();
-  const products = db.prepare('SELECT id, slug, name, stock, cost_price, sell_price, type, damaged_stock FROM products ORDER BY name').all();
+  const products = db.prepare('SELECT id, slug, name, stock, cost_price, sell_price, type, damaged_stock FROM products WHERE archived = 0 ORDER BY name').all();
 
   // Get prices for each customer-product combination
   const prices = db.prepare('SELECT customer_id, product_id, product_slug, price FROM prices').all();
@@ -55,7 +55,7 @@ router.get('/history', (req, res) => {
   const year = req.query.year ? parseInt(req.query.year) : null;
   const month = req.query.month ? parseInt(req.query.month) : null;
 
-  let whereClause = "WHERE s.type IN ('sale', 'replacement', 'damage_return')";
+  let whereClause = "WHERE s.type IN ('sale', 'replacement', 'damage_return') AND s.archived = 0";
   let params = [];
 
   if (year && month) {
@@ -65,7 +65,7 @@ router.get('/history', (req, res) => {
     params.push(yStr + '-' + mStr);
   }
 
-  const countRow = db.prepare(`SELECT COUNT(*) as count FROM sales s ${whereClause}`).get(...params);
+  const countRow = db.prepare(`SELECT COUNT(*) as count FROM sales s WHERE s.archived = 0 AND ${whereClause}`).get(...params);
   const total = countRow.count;
   const totalPages = Math.ceil(total / limit);
 
@@ -75,7 +75,7 @@ router.get('/history', (req, res) => {
       s.deliver_kegs, s.return_kegs
     FROM sales s
     LEFT JOIN customers c ON s.customer_id = c.id
-    ${whereClause}
+    WHERE s.archived = 0 AND ${whereClause}
     ORDER BY datetime(s.date) DESC, s.id DESC
     LIMIT ? OFFSET ?
   `).all(...params, limit, offset);
@@ -84,7 +84,7 @@ router.get('/history', (req, res) => {
     const items = db.prepare(`
       SELECT si.quantity, si.price, p.name as product_name, p.type
       FROM sale_items si
-      JOIN products p ON p.id = si.product_id
+      JOIN products p ON p.id = si.product_id AND p.archived = 0
       WHERE si.sale_id = ?
     `).all(s.id);
     return { ...s, items };

@@ -120,7 +120,7 @@ router.post('/', (req, res) => {
     let profit = 0;
     const saleItems = [];
 
-    // Pre-load all products in ONE query (resolve by id or slug)
+    // Pre-load all products in ONE query (resolve by id or slug) - include archived for historical sales
     const productQueries = items.map(i => i.productId || i.productSlug).filter(Boolean);
     const productMap = {};
     if (productQueries.length > 0) {
@@ -343,7 +343,7 @@ router.get('/', (req, res) => {
     if (valid.length > 0) saleFields = 's.' + valid.join(', s.');
   }
   
-  let whereClause = "WHERE s.type IN ('sale', 'replacement', 'damage_return')";
+  let whereClause = "WHERE s.type IN ('sale', 'replacement', 'damage_return') AND s.archived = 0";
   let params = [];
   
   if (month) {
@@ -391,7 +391,7 @@ router.get('/:id', (req, res) => {
   const items = db.prepare(`
     SELECT si.*, p.name, p.slug as product_slug, p.type
     FROM sale_items si
-    JOIN products p ON p.id = si.product_id
+    JOIN products p ON p.id = si.product_id AND p.archived = 0
     WHERE si.sale_id = ?
   `).all(req.params.id);
   res.json({ ...sale, items });
@@ -754,29 +754,63 @@ router.get('/export', (req, res) => {
   }
 });
 
-// DELETE /api/sales/:id - Xóa hóa đơn
+// DELETE /api/sales/:id - Soft delete hóa đơn (khôi phục được)
 router.delete('/:id', (req, res) => {
   const saleId = req.params.id;
 
   try {
-    console.log('[DELETE /api/sales/' + saleId + '] calling deleteSaleRestoringInventory');
-    const result = deleteSaleRestoringInventory(saleId);
-    console.log('[DELETE /api/sales/' + saleId + '] result:', JSON.stringify(result));
-    if (!result.ok) {
-      if (result.code === 'not_found') {
-        return res.status(404).json({ error: 'Không tìm thấy hóa đơn' });
-      }
-      if (result.code === 'returned') {
-        return res.status(400).json({ error: 'Không thể xóa đơn đã trả hàng' });
-      }
-      return res.status(500).json({ error: 'Xóa hóa đơn thất bại' });
+    // Check if sale exists
+    const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId);
+    if (!sale) {
+      return res.status(404).json({ error: 'Không tìm thấy hóa đơn' });
     }
 
+    // Soft delete: set archived = 1 instead of hard delete
+    db.prepare('UPDATE sales SET archived = 1 WHERE id = ?').run(saleId);
+    logger.info('[Sales] Soft deleted (archived)', { saleId });
     socketServer.emitOrderDeleted(parseInt(saleId, 10));
-    res.json({ success: true, message: 'Đã xóa hóa đơn' });
+    res.json({ success: true, message: 'Đã xóa hóa đơn (có thể khôi phục)', archived: true });
   } catch (err) {
-    logger.error('Delete sale error', { error: err.message });
+    logger.error('Soft delete sale error', { error: err.message });
     res.status(500).json({ error: 'Xóa hóa đơn thất bại' });
+  }
+});
+
+// GET /api/sales/archived - Get archived sales
+router.get('/archived/list', (req, res) => {
+  try {
+    const sales = db.prepare(`
+      SELECT s.*, COALESCE(c.name, 'Khách lẻ') as customer_name
+      FROM sales s
+      LEFT JOIN customers c ON s.customer_id = c.id
+      WHERE s.archived = 1
+      ORDER BY datetime(s.date) DESC
+    `).all();
+    res.json(sales);
+  } catch (err) {
+    logger.error('Error fetching archived sales', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi lấy danh sách hóa đơn đã xóa' });
+  }
+});
+
+// POST /api/sales/:id/restore - Restore archived sale
+router.post('/:id/restore', (req, res) => {
+  const saleId = req.params.id;
+
+  try {
+    const sale = db.prepare('SELECT * FROM sales WHERE id = ? AND archived = 1').get(saleId);
+    if (!sale) {
+      return res.status(404).json({ error: 'Không tìm thấy hóa đơn đã xóa' });
+    }
+
+    // Restore archived sale
+    db.prepare('UPDATE sales SET archived = 0 WHERE id = ?').run(saleId);
+    logger.info('[Sales] Restored from archive', { saleId });
+    socketServer.emitOrderCreated(sale);
+    res.json({ success: true, message: 'Đã khôi phục hóa đơn', archived: false });
+  } catch (err) {
+    logger.error('Restore sale error', { error: err.message });
+    res.status(500).json({ error: 'Khôi phục hóa đơn thất bại' });
   }
 });
 

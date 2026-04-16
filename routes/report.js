@@ -41,17 +41,18 @@ router.get('/data', (req, res) => {
 
   console.log('[REPORT] Loading:', type, startDate, '->', endDate);
 
-  // Get sales with items (join customers for name)
+  // Get sales with items (join customers for name) - exclude archived
   const sales = db.prepare(`
     SELECT s.id, s.date, s.total, s.profit, s.customer_id, c.name as customer_name
     FROM sales s
     LEFT JOIN customers c ON c.id = s.customer_id
-    WHERE date(datetime(s.date, '+7 hours')) >= date(?) AND date(datetime(s.date, '+7 hours')) <= date(?)
+    WHERE s.archived = 0
+      AND date(datetime(s.date, '+7 hours')) >= date(?) AND date(datetime(s.date, '+7 hours')) <= date(?)
       AND (s.status IS NULL OR s.status != 'returned')
     ORDER BY s.date DESC
   `).all(startDate, endDate);
 
-  // Get sale items with product names
+  // Get sale items with product names - exclude archived products
   const saleIds = sales.map(s => s.id);
   let saleItems = [];
 
@@ -61,7 +62,7 @@ router.get('/data', (req, res) => {
     saleItems = db.prepare(`
       SELECT si.sale_id, p.name as product_name, si.quantity, si.profit
       FROM sale_items si
-      JOIN products p ON p.id = si.product_id
+      JOIN products p ON p.id = si.product_id AND p.archived = 0
       WHERE si.sale_id IN (${placeholders})
     `).all(...saleIds);
   }
@@ -72,10 +73,10 @@ router.get('/data', (req, res) => {
     items: saleItems.filter(item => item.sale_id === sale.id)
   }));
 
-  // Get expenses
+  // Get expenses - exclude archived
   const expenses = db.prepare(`
     SELECT amount FROM expenses
-    WHERE date(date, '+7 hours') >= date(?) AND date(date, '+7 hours') <= date(?)
+    WHERE archived = 0 AND date(date, '+7 hours') >= date(?) AND date(date, '+7 hours') <= date(?)
   `).all(startDate, endDate);
 
   res.json({

@@ -44,26 +44,26 @@ router.get('/', (req, res, next) => {
 
   const monthExpenses = db.prepare(`
     SELECT COALESCE(SUM(amount), 0) as total FROM expenses
-    WHERE date(date) >= date(?) AND date(date) <= date(?)
+    WHERE archived = 0 AND date(date) >= date(?) AND date(date) <= date(?)
   `).get(startDay, endDay);
 
   const categorySummary = db.prepare(`
     SELECT category, SUM(amount) as total
     FROM expenses
-    WHERE date(date) >= date(?) AND date(date) <= date(?)
+    WHERE archived = 0 AND date(date) >= date(?) AND date(date) <= date(?)
     GROUP BY category
     ORDER BY total DESC
   `).all(startDay, endDay);
 
   const recentExpenses = db.prepare(`
     SELECT * FROM expenses
-    WHERE date(date) >= date(?) AND date(date) <= date(?)
+    WHERE archived = 0 AND date(date) >= date(?) AND date(date) <= date(?)
     ORDER BY date DESC, id DESC LIMIT 50
   `).all(startDay, endDay);
 
   const expenseCountRow = db.prepare(`
     SELECT COUNT(*) as n FROM expenses
-    WHERE date(date) >= date(?) AND date(date) <= date(?)
+    WHERE archived = 0 AND date(date) >= date(?) AND date(date) <= date(?)
   `).get(startDay, endDay);
   const expenseCount = expenseCountRow ? expenseCountRow.n : 0;
 

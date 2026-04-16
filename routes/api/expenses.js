@@ -24,12 +24,12 @@ const TYPE_ICONS = {
   'other': '📦'
 };
 
-// Get all expenses with optional date range
+// Get all expenses (exclude archived)
 router.get('/', (req, res) => {
   try {
     const { startDate, endDate, category } = req.query;
-    
-    let sql = 'SELECT * FROM expenses WHERE 1=1';
+
+    let sql = 'SELECT * FROM expenses WHERE archived = 0';
     const params = [];
     
     if (startDate) {
@@ -95,15 +95,15 @@ router.get('/today', (req, res) => {
   }
 });
 
-// Get expense summary by category
+// Get expense summary by category (exclude archived)
 router.get('/summary', (req, res) => {
   try {
     const { startDate, endDate } = req.query;
-    
+
     let sql = `
       SELECT category, type, SUM(amount) as total
       FROM expenses
-      WHERE 1=1
+      WHERE archived = 0
     `;
     const params = [];
     
@@ -126,12 +126,12 @@ router.get('/summary', (req, res) => {
   }
 });
 
-// Get total expenses in date range
+// Get total expenses in date range (exclude archived)
 router.get('/total', (req, res) => {
   try {
     const { startDate, endDate } = req.query;
-    
-    let sql = 'SELECT SUM(amount) as total FROM expenses WHERE 1=1';
+
+    let sql = 'SELECT SUM(amount) as total FROM expenses WHERE archived = 0';
     const params = [];
     
     if (startDate) {
@@ -322,22 +322,54 @@ router.put('/:id', (req, res) => {
   }
 });
 
-// Delete expense
+// Delete expense (soft delete)
 router.delete('/:id', (req, res) => {
   try {
     const { id } = req.params;
-    
+
     const existing = db.prepare('SELECT * FROM expenses WHERE id = ?').get(id);
     if (!existing) {
       return res.status(404).json({ error: 'Expense not found' });
     }
 
-    db.prepare('DELETE FROM expenses WHERE id = ?').run(id);
-    socketServer.emitExpense('deleted', existing);
-    res.json({ success: true, message: 'Expense deleted' });
+    // Soft delete: set archived = 1 instead of hard delete
+    db.prepare('UPDATE expenses SET archived = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(id);
+    socketServer.emitExpense('deleted', { ...existing, archived: 1 });
+    res.json({ success: true, message: 'Đã xóa chi phí (có thể khôi phục)', archived: true });
   } catch (err) {
-    logger.error('Error deleting expense', { error: err.message });
-    res.status(500).json({ error: 'Failed to delete expense' });
+    logger.error('Error soft deleting expense', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi xóa chi phí' });
+  }
+});
+
+// GET /api/expenses/archived - Get archived expenses
+router.get('/archived/list', (req, res) => {
+  try {
+    const expenses = db.prepare('SELECT * FROM expenses WHERE archived = 1 ORDER BY date DESC').all();
+    res.json(expenses);
+  } catch (err) {
+    logger.error('Error fetching archived expenses', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi lấy danh sách chi phí đã xóa' });
+  }
+});
+
+// POST /api/expenses/:id/restore - Restore archived expense
+router.post('/:id/restore', (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const existing = db.prepare('SELECT * FROM expenses WHERE id = ? AND archived = 1').get(id);
+    if (!existing) {
+      return res.status(404).json({ error: 'Không tìm thấy chi phí đã xóa' });
+    }
+
+    db.prepare('UPDATE expenses SET archived = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(id);
+    const restored = db.prepare('SELECT * FROM expenses WHERE id = ?').get(id);
+    socketServer.emitExpense('created', restored);
+    res.json({ success: true, message: 'Đã khôi phục chi phí', archived: false });
+  } catch (err) {
+    logger.error('Error restoring expense', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi khôi phục chi phí' });
   }
 });
 
@@ -408,7 +440,7 @@ router.patch('/categories/:id', (req, res) => {
   }
 });
 
-// Delete an expense category
+// Delete an expense category (soft: reassign expenses to "Khác" and archive category)
 router.delete('/categories/:id', (req, res) => {
   try {
     const { id } = req.params;
@@ -418,13 +450,15 @@ router.delete('/categories/:id', (req, res) => {
     }
     const catName = existing.name;
 
-    // Update all expenses using this category → move to "Khác" + type "other"
-    db.prepare('UPDATE expenses SET category = ?, type = ? WHERE category = ?').run('Khác', 'other', catName);
+    // Update all expenses using this category → move to "Khác" + type "other" (keep expenses, don't delete)
+    db.prepare('UPDATE expenses SET category = ?, type = ? WHERE category = ? AND archived = 0').run('Khác', 'other', catName);
+
+    // Soft delete the category (mark as archived)
     db.prepare('DELETE FROM expense_categories WHERE id = ?').run(id);
 
     // Notify all connected clients to refetch expenses (expenses changed)
     socketServer.emitExpense('updated', { id: null, _categoryDeleted: catName });
-    res.json({ success: true, message: 'Đã xóa loại chi phí.', reassigned: catName });
+    res.json({ success: true, message: 'Đã xóa loại chi phí và chuyển các chi phí sang "Khác".', reassigned: catName });
   } catch (err) {
     logger.error('Error deleting expense category', { error: err.message });
     res.status(500).json({ error: 'Failed to delete expense category' });
