@@ -76,9 +76,9 @@
         </div>
         <div class="modal-sheet-v2-body">
           <div class="drp-presets" id="drpPresets">
-            <button class="drp-preset-btn" data-preset="yesterday" onclick="RPT.applyPreset('yesterday')">Hôm qua</button>
-            <button class="drp-preset-btn" data-preset="thisWeek" onclick="RPT.applyPreset('thisWeek')">Tuần này</button>
-            <button class="drp-preset-btn" data-preset="lastMonth" onclick="RPT.applyPreset('lastMonth')">Tháng trước</button>
+            <button class="drp-preset-btn" data-preset="lastMonth" onclick="RPT.applyPreset('lastMonth')">Tháng Trước</button>
+            <button class="drp-preset-btn" data-preset="thisYear" onclick="RPT.applyPreset('thisYear')">Năm Nay</button>
+            <button class="drp-preset-btn" data-preset="lastYear" onclick="RPT.applyPreset('lastYear')">Năm Trước</button>
           </div>
           <div class="drp-divider"><span>hoặc chọn thủ công</span></div>
           <div class="drp-inputs">
@@ -865,22 +865,20 @@
         var fromEl = document.getElementById('drpDateFrom');
         var toEl = document.getElementById('drpDateTo');
 
-        if (preset === 'yesterday') {
-          var yd = new Date(now);
-          yd.setDate(d - 1);
-          fromEl.value = toLocalDateStr(yd);
-          toEl.value = toLocalDateStr(yd);
-        } else if (preset === 'thisWeek') {
-          var dayOfWeek = now.getDay(); // 0=CN
-          var monday = new Date(now);
-          monday.setDate(d - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
-          fromEl.value = toLocalDateStr(monday);
-          toEl.value = toLocalDateStr(now);
-        } else if (preset === 'lastMonth') {
+        if (preset === 'lastMonth') {
           var first = new Date(y, m - 1, 1);
           var last = new Date(y, m, 0);
           fromEl.value = toLocalDateStr(first);
           toEl.value = toLocalDateStr(last);
+        } else if (preset === 'thisYear') {
+          var firstDay = new Date(y, 0, 1);
+          fromEl.value = toLocalDateStr(firstDay);
+          toEl.value = toLocalDateStr(now);
+        } else if (preset === 'lastYear') {
+          var firstDay = new Date(y - 1, 0, 1);
+          var lastDay = new Date(y - 1, 11, 31);
+          fromEl.value = toLocalDateStr(firstDay);
+          toEl.value = toLocalDateStr(lastDay);
         }
 
         // Highlight selected preset
