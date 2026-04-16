@@ -65,7 +65,7 @@ router.get('/history', (req, res) => {
     params.push(yStr + '-' + mStr);
   }
 
-  const countRow = db.prepare(`SELECT COUNT(*) as count FROM sales s WHERE s.archived = 0 AND ${whereClause}`).get(...params);
+  const countRow = db.prepare(`SELECT COUNT(*) as count FROM sales s ${whereClause}`).get(...params);
   const total = countRow.count;
   const totalPages = Math.ceil(total / limit);
 
@@ -75,7 +75,7 @@ router.get('/history', (req, res) => {
       s.deliver_kegs, s.return_kegs
     FROM sales s
     LEFT JOIN customers c ON s.customer_id = c.id
-    WHERE s.archived = 0 AND ${whereClause}
+    ${whereClause}
     ORDER BY datetime(s.date) DESC, s.id DESC
     LIMIT ? OFFSET ?
   `).all(...params, limit, offset);
