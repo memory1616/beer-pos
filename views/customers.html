@@ -37,9 +37,9 @@
   <style>
     canvas { width: 100% !important; height: auto !important; }
 
-    /* ===== ADD MODAL V2 — Premium Design ===== */
+    /* ===== ADD MODAL — Binance Finance Style ===== */
     #addModal .modal-sheet-v2 {
-      border-radius: 24px 24px 20px 20px;
+      border-radius: 20px 20px 16px 16px;
       background: var(--card);
       max-height: 92vh;
       overflow: hidden;
@@ -47,22 +47,23 @@
       flex-direction: column;
     }
     #addModal .modal-sheet-v2-header {
-      padding: 20px 20px 16px;
-      background: linear-gradient(135deg, var(--green) 0%, var(--green-dark, #0ca678) 100%);
-      border-radius: 24px 24px 0 0;
+      padding: 18px 18px 14px;
+      background: linear-gradient(135deg, var(--primary) 0%, #d97706 100%);
+      border-radius: 20px 20px 0 0;
+      flex-shrink: 0;
     }
     #addModal .modal-sheet-v2-title {
-      font-size: 20px;
+      font-size: 18px;
       font-weight: 700;
-      color: #fff;
+      color: #000;
     }
     #addModal .modal-sheet-v2-close {
-      width: 36px;
-      height: 36px;
+      width: 32px;
+      height: 32px;
       border-radius: 50%;
-      background: rgba(255,255,255,0.2);
-      color: #fff;
-      font-size: 22px;
+      background: rgba(0,0,0,0.15);
+      color: #000;
+      font-size: 20px;
       border: none;
       cursor: pointer;
       display: flex;
@@ -71,19 +72,18 @@
       transition: all 0.2s;
     }
     #addModal .modal-sheet-v2-close:hover {
-      background: rgba(255,255,255,0.3);
-      transform: scale(1.05);
+      background: rgba(0,0,0,0.25);
     }
     #addModal .modal-sheet-v2-body {
       flex: 1;
       overflow-y: auto;
-      padding: 20px;
+      padding: 16px;
       overscroll-behavior: contain;
     }
 
     /* Section styles */
     #addModal .add-section {
-      margin-bottom: 24px;
+      margin-bottom: 20px;
     }
     #addModal .add-section:last-child {
       margin-bottom: 0;
@@ -92,79 +92,38 @@
       font-size: 11px;
       font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.08em;
+      letter-spacing: 0.06em;
       color: var(--text-muted);
-      margin-bottom: 14px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    #addModal .add-section-title::before {
-      content: '';
-      width: 3px;
-      height: 12px;
-      background: var(--green);
-      border-radius: 2px;
+      margin-bottom: 12px;
     }
 
-    /* Field styles */
+    /* Field group */
     #addModal .add-field-group {
-      margin-bottom: 16px;
+      margin-bottom: 14px;
     }
     #addModal .add-field-group:last-child {
       margin-bottom: 0;
     }
-    #addModal .add-field-label {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text-secondary);
-      margin-bottom: 8px;
-    }
-    #addModal .add-field-label .label-icon {
-      font-size: 14px;
-      opacity: 0.8;
-    }
 
-    /* Input styles */
-    #addModal .add-input {
+    /* Binance-style inputs */
+    #addModal .add-bn-input {
       width: 100%;
-      height: 52px;
-      padding: 0 16px;
-      border: 2px solid var(--border);
-      border-radius: 14px;
-      background: var(--bg);
-      font-size: 16px;
-      color: var(--text-main);
-      transition: all 0.2s ease;
-    }
-    #addModal .add-input::placeholder {
-      color: var(--text-muted);
-    }
-    #addModal .add-input:focus {
-      outline: none;
-      border-color: var(--green);
-      box-shadow: 0 0 0 4px rgba(14, 203, 129, 0.15);
+      height: 48px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 0 14px;
       background: var(--card);
+      font-size: 15px;
+      color: var(--text-main);
+      transition: border-color var(--transition-normal);
     }
-
-    /* Phone input with icon */
-    #addModal .add-input-phone {
-      position: relative;
-    }
-    #addModal .add-input-phone .phone-icon {
-      position: absolute;
-      left: 16px;
-      top: 50%;
-      transform: translateY(-50%);
-      font-size: 18px;
+    #addModal .add-bn-input::placeholder {
       color: var(--text-muted);
-      pointer-events: none;
     }
-    #addModal .add-input-phone input {
-      padding-left: 46px;
+    #addModal .add-bn-input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(252,213,53,0.15);
     }
 
     /* Warning row */
@@ -172,44 +131,44 @@
       display: flex;
       align-items: center;
       gap: 6px;
-      margin-top: 8px;
-      padding: 10px 14px;
-      border-radius: 10px;
+      margin-top: 6px;
+      padding: 8px 12px;
+      border-radius: var(--radius-md);
       background: rgba(245, 158, 11, 0.1);
       border: 1px solid rgba(245, 158, 11, 0.3);
     }
     #addModal .add-field-warning.hidden { display: none; }
     #addModal .add-field-warning .warning-icon {
-      font-size: 16px;
+      font-size: 14px;
     }
     #addModal .add-field-warning .warning-text {
-      font-size: 13px;
+      font-size: 12px;
       color: var(--warning);
       font-weight: 500;
     }
 
-    /* Money input with suffix */
+    /* Money input (field-wrap style) */
     #addModal .add-money-wrap {
       display: flex;
-      align-items: center;
-      border: 2px solid var(--border);
-      border-radius: 14px;
-      background: var(--bg);
+      align-items: stretch;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
       overflow: hidden;
-      transition: all 0.2s ease;
+      background: var(--card);
+      transition: box-shadow 0.15s ease, border-color 0.15s ease;
     }
     #addModal .add-money-wrap:focus-within {
-      border-color: var(--green);
-      box-shadow: 0 0 0 4px rgba(14, 203, 129, 0.15);
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(252,213,53,0.15);
     }
     #addModal .add-money-input {
       flex: 1;
-      height: 52px;
-      padding: 0 14px;
+      height: 48px;
       border: none !important;
       background: transparent;
+      padding: 0 12px;
       font-size: 18px;
-      font-weight: 600;
+      font-weight: 700;
       color: var(--text-main);
     }
     #addModal .add-money-input:focus {
@@ -217,118 +176,39 @@
       box-shadow: none !important;
     }
     #addModal .add-money-suffix {
-      padding: 0 18px;
-      height: 52px;
       display: flex;
       align-items: center;
-      background: var(--bg-hover);
+      padding: 0 14px;
+      background: var(--bg);
+      border-left: 1px solid var(--border);
       font-size: 16px;
       font-weight: 700;
       color: var(--text-secondary);
-      border-left: 2px solid var(--border);
     }
 
     /* Device grid (fridges) */
     #addModal .add-device-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 14px;
+      gap: 12px;
     }
-    #addModal .add-device-card {
-      background: var(--bg);
-      border: 2px solid var(--border);
-      border-radius: 16px;
-      padding: 14px;
-      transition: all 0.2s ease;
-    }
-    #addModal .add-device-card:focus-within {
-      border-color: var(--info);
-      box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12);
-    }
-    #addModal .add-device-header {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 12px;
-    }
-    #addModal .add-device-icon {
-      width: 36px;
-      height: 36px;
-      border-radius: 10px;
-      background: var(--info);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 18px;
-    }
-    #addModal .add-device-label {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text-main);
-    }
-
-    /* Stepper */
-    #addModal .add-stepper {
-      display: flex;
-      align-items: center;
-      gap: 0;
-    }
-    #addModal .add-stepper-btn {
-      width: 44px;
-      height: 44px;
-      border: none;
-      border-radius: 12px;
-      font-size: 22px;
-      font-weight: 500;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.15s ease;
-      -webkit-tap-highlight-color: transparent;
-    }
-    #addModal .add-stepper-btn.minus {
-      background: var(--red);
-      color: #fff;
-    }
-    #addModal .add-stepper-btn.plus {
-      background: var(--green);
-      color: #fff;
-    }
-    #addModal .add-stepper-btn:active {
-      transform: scale(0.92);
-      opacity: 0.9;
-    }
-    #addModal .add-stepper-value {
-      flex: 1;
-      text-align: center;
-      font-size: 24px;
-      font-weight: 700;
-      color: var(--text-main);
-      min-width: 50px;
-      -moz-appearance: textfield;
-    }
-    #addModal .add-stepper-value::-webkit-outer-spin-button,
-    #addModal .add-stepper-value::-webkit-inner-spin-button {
-      -webkit-appearance: none;
-      margin: 0;
-    }
+    #addModal .add-device-cell { min-width: 0; }
 
     /* Price section */
     #addModal .add-price-toggle {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 14px 16px;
-      border-radius: 14px;
-      background: var(--bg);
-      border: 2px dashed var(--border);
+      padding: 12px 14px;
+      border-radius: var(--radius-lg);
+      background: var(--card);
+      border: 1px dashed var(--border);
       cursor: pointer;
       transition: all 0.2s ease;
     }
     #addModal .add-price-toggle:hover {
-      border-color: var(--green);
-      background: rgba(14, 203, 129, 0.05);
+      border-color: var(--primary);
+      background: rgba(252,213,53,0.05);
     }
     #addModal .add-price-toggle-left {
       display: flex;
@@ -336,22 +216,22 @@
       gap: 10px;
     }
     #addModal .add-price-toggle-icon {
-      width: 40px;
-      height: 40px;
-      border-radius: 12px;
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius-md);
       background: linear-gradient(135deg, #f59e0b, #d97706);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 18px;
+      font-size: 16px;
     }
     #addModal .add-price-toggle-text {
-      font-size: 15px;
+      font-size: 14px;
       font-weight: 600;
       color: var(--text-main);
     }
     #addModal .add-price-toggle-arrow {
-      font-size: 20px;
+      font-size: 18px;
       color: var(--text-muted);
       transition: transform 0.2s ease;
     }
@@ -361,10 +241,10 @@
 
     /* Price body */
     #addModal .add-price-body {
-      margin-top: 12px;
-      padding: 14px;
-      border-radius: 14px;
-      background: var(--bg);
+      margin-top: 10px;
+      padding: 12px;
+      border-radius: var(--radius-lg);
+      background: var(--card);
       border: 1px solid var(--border);
     }
     #addModal .add-price-body.hidden { display: none; }
@@ -388,11 +268,11 @@
       color: var(--text-main);
     }
     #addModal .add-price-input {
-      width: 100px;
-      height: 40px;
-      padding: 0 12px;
+      width: 90px;
+      height: 36px;
+      padding: 0 10px;
       border: 1px solid var(--border);
-      border-radius: 10px;
+      border-radius: var(--radius-md);
       background: var(--card);
       font-size: 14px;
       font-weight: 600;
@@ -403,54 +283,54 @@
     #addModal .add-price-input:focus {
       outline: none;
       border-color: var(--info);
-      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
     }
 
     /* Footer */
     #addModal .modal-sheet-v2-footer {
-      padding: 16px 20px;
-      padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+      padding: 14px 16px;
+      padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
       background: var(--card);
       border-top: 1px solid var(--border);
       display: flex;
-      gap: 12px;
+      gap: 10px;
+      flex-shrink: 0;
     }
     #addModal .add-btn-cancel {
       flex: 1;
-      height: 52px;
-      border-radius: 14px;
-      border: 2px solid var(--border);
-      background: var(--bg);
+      height: 48px;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border);
+      background: transparent;
       color: var(--text-secondary);
-      font-size: 16px;
+      font-size: 15px;
       font-weight: 600;
       cursor: pointer;
-      transition: all 0.2s ease;
+      transition: all 0.15s;
     }
     #addModal .add-btn-cancel:hover {
       background: var(--bg-hover);
-      border-color: var(--text-muted);
     }
     #addModal .add-btn-save {
       flex: 1.5;
-      height: 52px;
-      border-radius: 14px;
+      height: 48px;
+      border-radius: var(--radius-lg);
       border: none;
-      background: linear-gradient(135deg, var(--green) 0%, var(--green-dark, #0ca678) 100%);
-      color: #fff;
-      font-size: 16px;
+      background: linear-gradient(135deg, var(--primary) 0%, #d97706 100%);
+      color: #000;
+      font-size: 15px;
       font-weight: 700;
       cursor: pointer;
-      box-shadow: 0 4px 14px rgba(14, 203, 129, 0.35);
-      transition: all 0.2s ease;
+      box-shadow: 0 2px 8px rgba(252,213,53,0.3);
+      transition: all 0.15s;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 8px;
+      gap: 6px;
     }
     #addModal .add-btn-save:hover {
       transform: translateY(-1px);
-      box-shadow: 0 6px 20px rgba(14, 203, 129, 0.4);
+      box-shadow: 0 4px 12px rgba(252,213,53,0.4);
     }
     #addModal .add-btn-save:active {
       transform: translateY(0);
@@ -463,7 +343,7 @@
   <!-- Floating Add Button — .fab class from unified.css, consistent with stock page -->
   <button onclick="showModal('addModal')" class="fab">+</button>
 
-  <!-- Add Modal: Premium Design v2 -->
+  <!-- Add Modal: Binance Finance Style -->
   <div id="addModal" class="modal-overlay-v2 hidden" role="dialog" aria-modal="true" aria-labelledby="addModalTitle">
     <div class="modal-sheet-v2">
       <!-- Header -->
@@ -480,23 +360,14 @@
           
           <!-- Tên khách hàng -->
           <div class="add-field-group">
-            <label for="addName" class="add-field-label">
-              <span class="label-icon">👤</span>
-              Tên khách hàng
-            </label>
-            <input type="text" name="name" id="addName" required autocomplete="name" enterkeyhint="next" data-field="name" placeholder="VD: Nguyễn Văn A" class="add-input">
+            <label for="addName" class="field-label">Tên khách hàng</label>
+            <input type="text" name="name" id="addName" required autocomplete="name" enterkeyhint="next" data-field="name" placeholder="VD: Nguyễn Văn A" class="add-bn-input">
           </div>
 
           <!-- Số điện thoại -->
           <div class="add-field-group">
-            <label for="addPhone" class="add-field-label">
-              <span class="label-icon">📱</span>
-              Số điện thoại
-            </label>
-            <div class="add-input-phone">
-              <span class="phone-icon">📱</span>
-              <input type="tel" name="phone" id="addPhone" inputmode="numeric" autocomplete="tel" enterkeyhint="next" data-field="phone" placeholder="0xxx xxx xxx" class="add-input">
-            </div>
+            <label for="addPhone" class="field-label">Số điện thoại</label>
+            <input type="tel" name="phone" id="addPhone" inputmode="numeric" autocomplete="tel" enterkeyhint="next" data-field="phone" placeholder="0xxx xxx xxx" class="add-bn-input">
             <div id="addPhoneWarning" class="add-field-warning hidden">
               <span class="warning-icon">⚠️</span>
               <span class="warning-text">SĐT đã tồn tại: <span id="addPhoneDupName"></span></span>
@@ -510,10 +381,7 @@
 
           <!-- Đặt cọc -->
           <div class="add-field-group">
-            <label for="addDeposit" class="add-field-label">
-              <span class="label-icon">💰</span>
-              Tiền đặt cọc
-            </label>
+            <label for="addDeposit" class="field-label">Tiền đặt cọc</label>
             <div class="add-money-wrap">
               <input type="text" name="deposit" id="addDeposit" value="0" data-format-number inputmode="decimal" enterkeyhint="next" data-field="deposit" placeholder="0" class="add-money-input">
               <span class="add-money-suffix">đ</span>
@@ -522,26 +390,20 @@
 
           <!-- Tủ lạnh nằm + Tủ mát đứng -->
           <div class="add-device-grid">
-            <div class="add-device-card">
-              <div class="add-device-header">
-                <div class="add-device-icon">❄️</div>
-                <div class="add-device-label">Tủ nằm</div>
-              </div>
-              <div class="add-stepper">
-                <button type="button" class="add-stepper-btn minus" data-action="decrement" data-target="addHorizontalFridge" aria-label="Giảm">−</button>
-                <input type="number" name="horizontal_fridge" id="addHorizontalFridge" value="0" min="0" data-field="horizontal_fridge" enterkeyhint="next" class="add-stepper-value">
-                <button type="button" class="add-stepper-btn plus" data-action="increment" data-target="addHorizontalFridge" aria-label="Tăng">+</button>
+            <div class="add-device-cell">
+              <label for="addHorizontalFridge" class="field-label">Tủ nằm ❄️</label>
+              <div class="stepper">
+                <button type="button" class="stepper-btn minus" data-action="decrement" data-target="addHorizontalFridge" aria-label="Giảm">−</button>
+                <input type="number" name="horizontal_fridge" id="addHorizontalFridge" value="0" min="0" data-field="horizontal_fridge" enterkeyhint="next" class="stepper-input">
+                <button type="button" class="stepper-btn plus" data-action="increment" data-target="addHorizontalFridge" aria-label="Tăng">+</button>
               </div>
             </div>
-            <div class="add-device-card">
-              <div class="add-device-header">
-                <div class="add-device-icon">🥶</div>
-                <div class="add-device-label">Tủ đứng</div>
-              </div>
-              <div class="add-stepper">
-                <button type="button" class="add-stepper-btn minus" data-action="decrement" data-target="addVerticalFridge" aria-label="Giảm">−</button>
-                <input type="number" name="vertical_fridge" id="addVerticalFridge" value="0" min="0" data-field="vertical_fridge" enterkeyhint="next" class="add-stepper-value">
-                <button type="button" class="add-stepper-btn plus" data-action="increment" data-target="addVerticalFridge" aria-label="Tăng">+</button>
+            <div class="add-device-cell">
+              <label for="addVerticalFridge" class="field-label">Tủ đứng 🥶</label>
+              <div class="stepper">
+                <button type="button" class="stepper-btn minus" data-action="decrement" data-target="addVerticalFridge" aria-label="Giảm">−</button>
+                <input type="number" name="vertical_fridge" id="addVerticalFridge" value="0" min="0" data-field="vertical_fridge" enterkeyhint="next" class="stepper-input">
+                <button type="button" class="stepper-btn plus" data-action="increment" data-target="addVerticalFridge" aria-label="Tăng">+</button>
               </div>
             </div>
           </div>
@@ -560,7 +422,7 @@
           </div>
 
           <div id="addPriceFields" class="add-price-body hidden">
-            <div id="addPriceList" class="space-y-2">
+            <div id="addPriceList">
               <div class="text-muted text-sm text-center py-2">Đang tải sản phẩm...</div>
             </div>
           </div>
