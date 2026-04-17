@@ -77,6 +77,7 @@
           <button onclick="setHistoryFilter('collect')" id="filterCollect" class="bn-chip">🔄 Thu</button>
           <button onclick="setHistoryFilter('import')" id="filterImport" class="bn-chip">🏭 Nhập</button>
           <button onclick="setHistoryFilter('adjust')" id="filterAdjust" class="bn-chip">⚙️ Điều chỉnh</button>
+          <button onclick="setHistoryFilter('lost')" id="filterLost" class="bn-chip">❌ Mất</button>
         </div>
         <div class="flex gap-2 mb-2">
           <select id="historyCustomerFilter" class="bn-select bn-select--sm flex-1" onchange="loadHistory()">
@@ -177,20 +178,22 @@
       var inv = kegState.inventory || 0;
       var empty = kegState.emptyCollected || 0;
       var hold = kegState.customerHolding || 0;
+      var lost = kegState.lost || 0;
       var set = function(id, val) { var el = document.getElementById(id); if (el) el.textContent = val; };
       set('statInventory', inv);
       set('statEmpty', empty);
       set('statHolding', hold);
+      set('statLost', lost);
       set('currentEmptyDisplay', empty + ' vỏ');
     }
 
     function typeBadgeClass(type) {
-      var map = { deliver:'badge badge-success', collect:'badge badge-info', import:'badge badge-primary', adjust:'badge badge-warning', sell_empty:'badge badge-danger' };
+      var map = { deliver:'badge badge-success', collect:'badge badge-info', import:'badge badge-primary', adjust:'badge badge-warning', sell_empty:'badge badge-danger', lost:'badge badge-danger' };
       return map[type] || 'badge badge-secondary';
     }
 
     function typeLabel(type) {
-      var map = { deliver:'📦 Giao', collect:'🔄 Thu', import:'🏭 Nhập', adjust:'⚙️ Điều chỉnh', sell_empty:'💰 Bán vỏ rỗng' };
+      var map = { deliver:'📦 Giao', collect:'🔄 Thu', import:'🏭 Nhập', adjust:'⚙️ Điều chỉnh', sell_empty:'💰 Bán vỏ rỗng', lost:'❌ Vỏ mất' };
       return map[type] || type;
     }
 
@@ -364,6 +367,11 @@
               <div class="sc-label"><span class="sc-icon">👥</span> Khách giữ</div>
               <div class="sc-value" id="statHolding">-</div>
               <div class="sc-sub">Chưa thu hồi</div>
+            </div>
+            <div class="card stat-card--danger">
+              <div class="sc-label"><span class="sc-icon">❌</span> Vỏ mất</div>
+              <div class="sc-value" id="statLost">-</div>
+              <div class="sc-sub">Không thu hồi được</div>
             </div>
           </div>
 

@@ -334,31 +334,75 @@ router.put('/:id/archive', (req, res) => {
     return res.status(404).json({ error: 'Không tìm thấy khách hàng' });
   }
 
-  const willArchive = !existing.archived; // Đang chuyển sang trạng thái nào
+  const willArchive = !existing.archived;
   const archived = willArchive ? 1 : 0;
+  const { collectKegs } = req.body;
 
   try {
-    // Nếu đang lưu trữ → thu vỏ và cộng vào keg_stats.empty_collected
     if (willArchive && existing.keg_balance > 0) {
-      const kegsToCollect = existing.keg_balance;
+      const totalKegs = existing.keg_balance;
+      const kegsToCollect = (collectKegs !== undefined && collectKegs !== null)
+        ? Math.min(Math.max(0, parseInt(collectKegs)), totalKegs)
+        : totalKegs;
+      const kegsLost = totalKegs - kegsToCollect;
 
-      // 1. Cộng vỏ vào empty_collected
-      const stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
-      const currentEmpty = stats?.empty_collected || 0;
-      db.prepare('UPDATE keg_stats SET empty_collected = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1')
-        .run(currentEmpty + kegsToCollect);
+      if (kegsToCollect > 0) {
+        const stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
+        const currentEmpty = stats?.empty_collected || 0;
+        db.prepare('UPDATE keg_stats SET empty_collected = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1')
+          .run(currentEmpty + kegsToCollect);
+      }
 
-      logger.info(`[Customer Archive] Collected ${kegsToCollect} kegs from ${existing.name}, now empty_collected=${currentEmpty + kegsToCollect}`);
+      if (kegsLost > 0) {
+        const stats = db.prepare('SELECT lost FROM keg_stats WHERE id = 1').get();
+        const currentLost = stats?.lost || 0;
+        db.prepare('UPDATE keg_stats SET lost = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1')
+          .run(currentLost + kegsLost);
+      }
+
+      // Log transaction
+      const stats = db.prepare('SELECT inventory, empty_collected, customer_holding, lost FROM keg_stats WHERE id = 1').get();
+      db.prepare(`
+        INSERT INTO keg_transactions_log
+          (type, quantity, customer_id, customer_name, inventory_after, empty_after, holding_after, lost_after, note)
+        VALUES ('collect', ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        kegsToCollect,
+        id,
+        existing.name,
+        stats?.inventory || 0,
+        stats?.empty_collected || 0,
+        0,
+        kegsLost > 0 ? (stats?.lost || 0) : 0,
+        `Thu vỏ khi lưu trữ khách (mất ${kegsLost})`
+      );
+
+      if (kegsLost > 0) {
+        db.prepare(`
+          INSERT INTO keg_transactions_log
+            (type, quantity, customer_id, customer_name, inventory_after, empty_after, holding_after, lost_after, note)
+          VALUES ('lost', ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          kegsLost,
+          id,
+          existing.name,
+          stats?.inventory || 0,
+          stats?.empty_collected || 0,
+          0,
+          stats?.lost || 0,
+          `Vỏ mất khi lưu trữ khách`
+        );
+      }
+
+      logger.info(`[Customer Archive] ${existing.name}: total=${totalKegs}, collected=${kegsToCollect}, lost=${kegsLost}`);
     }
 
-    // 2. Set customer's keg_balance = 0 when archiving
     if (willArchive) {
-      db.prepare('UPDATE customers SET keg_balance = 0, archived = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-        .run(archived, id);
+      db.prepare('UPDATE customers SET keg_balance = 0, archived = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+        .run(id);
     } else {
-      // Unarchive - không cần làm gì đặc biệt
-      db.prepare('UPDATE customers SET archived = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-        .run(archived, id);
+      db.prepare('UPDATE customers SET archived = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+        .run(id);
     }
 
     const updated = db.prepare('SELECT * FROM customers WHERE id = ?').get(id);
@@ -368,7 +412,8 @@ router.put('/:id/archive', (req, res) => {
     res.json({
       success: true,
       archived,
-      kegsCollected: willArchive ? existing.keg_balance : 0
+      kegsCollected: willArchive ? kegsToCollect : 0,
+      kegsLost: willArchive ? kegsLost : 0
     });
   } catch (err) {
     logger.error('Error archiving customer', { error: err.message });

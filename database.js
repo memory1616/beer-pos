@@ -112,7 +112,7 @@ db.pragma('legacy_file_format = OFF');
 db.exec(`
   CREATE TABLE IF NOT EXISTS keg_transactions_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    type TEXT NOT NULL CHECK(type IN ('deliver','collect','import','adjust','sell_empty','gift')),
+    type TEXT NOT NULL CHECK(type IN ('deliver','collect','import','adjust','sell_empty','gift','lost')),
     quantity INTEGER NOT NULL,
     exchanged INTEGER DEFAULT 0,
     purchased INTEGER DEFAULT 0,
@@ -121,6 +121,7 @@ db.exec(`
     inventory_after INTEGER NOT NULL,
     empty_after INTEGER NOT NULL,
     holding_after INTEGER NOT NULL,
+    lost_after INTEGER DEFAULT 0,
     note TEXT,
     date TEXT DEFAULT CURRENT_TIMESTAMP
   )
@@ -974,10 +975,18 @@ db.exec(`
     inventory INTEGER DEFAULT 0,
     empty_collected INTEGER DEFAULT 0,
     customer_holding INTEGER DEFAULT 0,
+    lost INTEGER DEFAULT 0,
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT single_row CHECK (id = 1)
   );
 `);
+
+// Add lost column if not exists (migration)
+try {
+  db.exec(`ALTER TABLE keg_stats ADD COLUMN lost INTEGER DEFAULT 0`);
+} catch (e) {
+  // Column may already exist
+}
 
 // Initialize keg_stats with single row if empty
 try {
