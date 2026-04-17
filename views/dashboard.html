@@ -48,6 +48,13 @@
   <script src="/js/utils.js" defer></script>
   <!-- Chart.js (70KB minified) — needed for initial canvas render, load after auth -->
   <script src="/js/vendor/chart.umd.min.js"></script>
+  <!-- Socket.IO for real-time updates -->
+  <script src="/socket.io/socket.io.js"></script>
+  <!-- Fuse.js for fuzzy search -->
+  <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0/dist/fuse.min.js"></script>
+  <!-- Real-time client + dashboard updates -->
+  <script src="/js/realtime-client.js" defer></script>
+  <script src="/js/dashboard-realtime.js" defer></script>
   <script src="/js/dashboard.js?v=20260422-design"></script>
 
   <!-- CLS Prevention: Inline skeleton for header (matches layout.js getHeader dimensions) -->
