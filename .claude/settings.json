@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(git -C \"d:/Beer\" diff -- \"public/sw.js\")",
-      "Bash(git -C \"d:/Beer\" add \"public/sw.js\")",
-      "Bash(git -C d:/Beer commit -m ':*)"
-    ]
-  }
-}
