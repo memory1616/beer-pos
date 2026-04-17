@@ -12,7 +12,7 @@
  * SaleService.create(req.body);
  */
 
-const db = require('../database');
+const db = require('../../database');
 const logger = require('../utils/logger');
 
 // ============================================================

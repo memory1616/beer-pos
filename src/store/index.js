@@ -188,6 +188,7 @@ class StateStore {
    * Persist to localStorage
    */
   _persist(key, value) {
+    if (typeof localStorage === 'undefined') return;
     try {
       const stored = JSON.parse(localStorage.getItem(this._persistenceKey) || '{}');
       stored[key] = value;
@@ -201,6 +202,7 @@ class StateStore {
    * Load from localStorage
    */
   _loadPersisted() {
+    if (typeof localStorage === 'undefined') return;
     try {
       const stored = JSON.parse(localStorage.getItem(this._persistenceKey) || '{}');
       for (const [key, value] of Object.entries(stored)) {
