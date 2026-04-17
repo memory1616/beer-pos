@@ -1010,7 +1010,7 @@ try {
 db.exec(`
   CREATE TABLE IF NOT EXISTS keg_transactions_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    type TEXT NOT NULL CHECK(type IN ('deliver', 'collect', 'import', 'adjust', 'sell_empty')),
+    type TEXT NOT NULL CHECK(type IN ('deliver', 'collect', 'import', 'adjust', 'sell_empty', 'gift', 'lost')),
     quantity INTEGER NOT NULL,
     exchanged INTEGER DEFAULT 0,
     purchased INTEGER DEFAULT 0,
@@ -1019,6 +1019,7 @@ db.exec(`
     inventory_after INTEGER NOT NULL,
     empty_after INTEGER NOT NULL,
     holding_after INTEGER NOT NULL,
+    lost_after INTEGER DEFAULT 0,
     note TEXT,
     date TEXT DEFAULT CURRENT_TIMESTAMP
   );
