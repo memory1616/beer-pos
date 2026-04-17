@@ -463,6 +463,12 @@ app.use('/api/sync', require('./routes/api/sync'));
 app.use('/api/state', require('./routes/api/state'));
 app.use('/api/routing', require('./routes/api/routing'));
 
+// Business Features APIs
+app.use('/api/batch', require('./routes/api/batch'));
+app.use('/api/debts', require('./routes/api/debts'));
+app.use('/api/promotions', require('./routes/api/promotions'));
+app.use('/api/segments', require('./routes/api/segments'));
+
 // ==================== AUTH ====================
 app.use('/auth', require('./routes/login'));
 

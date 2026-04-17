@@ -15,8 +15,9 @@ const fs = require('fs');
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-const MIGRATION_VERSION = 2026041001;
+const MIGRATION_VERSION = 2026041601;
 const SCHEMA_VERSION_KEY = 'schema_version';
+const BUSINESS_FEATURES_VERSION = 2026041602;
 
 // Các bảng cần thêm metadata
 const META_TABLES = [
@@ -485,6 +486,54 @@ function runMigrations(db) {
   };
 }
 
+// ── Business Features Migration ───────────────────────────────────────────────
+// Run separately after main migrations
+
+function runBusinessFeaturesMigration(db) {
+  const currentVersion = getCurrentVersion(db);
+
+  // Only run if main migrations completed
+  if (currentVersion < MIGRATION_VERSION) {
+    log('Skipping business features: main migrations not complete');
+    return { success: false, skipped: true };
+  }
+
+  // Check if already run
+  const bizVersion = getBusinessFeaturesVersion(db);
+  if (bizVersion >= BUSINESS_FEATURES_VERSION) {
+    log('Business features already migrated');
+    return { success: true, skipped: true };
+  }
+
+  log(`\n[BUSINESS_FEATURES] Running business features migration...`);
+  log(`  Current version: ${bizVersion}, Target: ${BUSINESS_FEATURES_VERSION}`);
+
+  try {
+    // Run business features migration
+    const businessMigration = require('./migrations/004_business_features');
+    businessMigration.runMigration(db);
+
+    // Update version
+    db.prepare("INSERT OR REPLACE INTO sync_meta (key, value) VALUES (?, ?)")
+      .run('business_features_version', BUSINESS_FEATURES_VERSION);
+
+    log('[BUSINESS_FEATURES] Migration completed!');
+    return { success: true, version: BUSINESS_FEATURES_VERSION };
+  } catch (e) {
+    log(`[BUSINESS_FEATURES] Migration error: ${e.message}`);
+    return { success: false, error: e.message };
+  }
+}
+
+function getBusinessFeaturesVersion(db) {
+  try {
+    const row = db.prepare("SELECT value FROM sync_meta WHERE key = 'business_features_version'").get();
+    return row ? parseInt(row.value) : 0;
+  } catch (e) {
+    return 0;
+  }
+}
+
 // ── Utility: Generate UUID ─────────────────────────────────────────────────────
 
 function generateUUID() {
@@ -499,7 +548,9 @@ function generateUUID() {
 
 module.exports = {
   MIGRATION_VERSION,
+  BUSINESS_FEATURES_VERSION,
   runMigrations,
+  runBusinessFeaturesMigration,
   generateUUID,
   getCurrentVersion,
   setVersion,
