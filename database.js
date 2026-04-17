@@ -9,10 +9,16 @@ const db = new Database(dbPath);
 
 // Run database migrations
 try {
-  const { runMigrations } = require('./database/migration');
+  const { runMigrations, runBusinessFeaturesMigration } = require('./database/migration');
   const migrationResult = runMigrations(db);
   if (migrationResult.success && !migrationResult.skipped) {
     logger.log('[MIGRATION] Database migrations completed successfully');
+  }
+
+  // Run business features migration
+  const bizResult = runBusinessFeaturesMigration(db);
+  if (bizResult.success && !bizResult.skipped) {
+    logger.log('[MIGRATION] Business features migration completed');
   }
 } catch (error) {
   logger.error('[MIGRATION] Migration error:', error.message);
