@@ -334,12 +334,42 @@ router.put('/:id/archive', (req, res) => {
     return res.status(404).json({ error: 'Không tìm thấy khách hàng' });
   }
 
-  const archived = existing.archived ? 0 : 1;
+  const willArchive = !existing.archived; // Đang chuyển sang trạng thái nào
+  const archived = willArchive ? 1 : 0;
+
   try {
-    db.prepare('UPDATE customers SET archived = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(archived, id);
+    // Nếu đang lưu trữ → thu vỏ và cộng vào keg_stats.empty_collected
+    if (willArchive && existing.keg_balance > 0) {
+      const kegsToCollect = existing.keg_balance;
+
+      // 1. Cộng vỏ vào empty_collected
+      const stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
+      const currentEmpty = stats?.empty_collected || 0;
+      db.prepare('UPDATE keg_stats SET empty_collected = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1')
+        .run(currentEmpty + kegsToCollect);
+
+      logger.info(`[Customer Archive] Collected ${kegsToCollect} kegs from ${existing.name}, now empty_collected=${currentEmpty + kegsToCollect}`);
+    }
+
+    // 2. Set customer's keg_balance = 0 when archiving
+    if (willArchive) {
+      db.prepare('UPDATE customers SET keg_balance = 0, archived = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+        .run(archived, id);
+    } else {
+      // Unarchive - không cần làm gì đặc biệt
+      db.prepare('UPDATE customers SET archived = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+        .run(archived, id);
+    }
+
     const updated = db.prepare('SELECT * FROM customers WHERE id = ?').get(id);
     socketServer.emitCustomerUpdated(updated);
-    res.json({ success: true, archived });
+    socketServer.emitKegUpdated();
+
+    res.json({
+      success: true,
+      archived,
+      kegsCollected: willArchive ? existing.keg_balance : 0
+    });
   } catch (err) {
     logger.error('Error archiving customer', { error: err.message });
     res.status(500).json({ error: 'Lỗi khi lưu trữ khách hàng' });
