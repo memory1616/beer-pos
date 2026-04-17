@@ -129,6 +129,8 @@ db.exec(`
 try { db.exec(`CREATE INDEX IF NOT EXISTS idx_keg_tx_log_date ON keg_transactions_log(date)`); } catch (_) {}
 try { db.exec(`CREATE INDEX IF NOT EXISTS idx_keg_tx_log_type ON keg_transactions_log(type)`); } catch (_) {}
 try { db.exec(`CREATE INDEX IF NOT EXISTS idx_keg_tx_log_customer ON keg_transactions_log(customer_id)`); } catch (_) {}
+// Migration: Add lost_after column if not exists
+try { db.exec(`ALTER TABLE keg_transactions_log ADD COLUMN lost_after INTEGER DEFAULT 0`); } catch (_) {}
 
 // Create tables
 db.exec(`
