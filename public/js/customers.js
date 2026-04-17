@@ -916,23 +916,71 @@ async function loadAddProducts() {
 })();
 
 async function archiveCustomer(id) {
+  var customer = customers.find(c => c.id === id);
+  if (!customer) customer = archivedCustomers.find(c => c.id === id);
+  if (!customer) return;
+
+  // Show archive modal with keg input
+  document.getElementById('archiveCustomerId').value = id;
+  document.getElementById('archiveCustomerName').textContent = customer.name;
+  document.getElementById('archiveKegCount').textContent = customer.keg_balance || 0;
+  document.getElementById('archiveKegsCollect').value = customer.keg_balance || 0;
+  document.getElementById('archiveKegsCollect').max = customer.keg_balance || 0;
+  updateArchiveKegNote();
+  openModal('archiveModal');
+}
+
+function updateArchiveKegNote() {
+  var total = parseInt(document.getElementById('archiveKegCount').textContent) || 0;
+  var collect = parseInt(document.getElementById('archiveKegsCollect').value) || 0;
+  var lost = Math.max(0, total - collect);
+  var noteEl = document.getElementById('archiveKegNote');
+  if (noteEl) {
+    if (lost > 0) {
+      noteEl.innerHTML = '<span class="text-danger">→ <span class="font-bold">' + lost + '</span> vỏ sẽ tính vào vỏ mất</span>';
+    } else {
+      noteEl.textContent = '';
+    }
+  }
+}
+
+// Listen for kegs input change
+document.addEventListener('DOMContentLoaded', function() {
+  var kegCollectInput = document.getElementById('archiveKegsCollect');
+  if (kegCollectInput) {
+    kegCollectInput.addEventListener('input', updateArchiveKegNote);
+  }
+});
+
+async function submitArchiveCustomer() {
+  var id = parseInt(document.getElementById('archiveCustomerId').value);
+  var kegsToCollect = parseInt(document.getElementById('archiveKegsCollect').value) || 0;
+
   if (!confirm('Lưu trữ khách hàng này?\n\n- Khách sẽ không hiển thị khi bán hàng\n- Doanh thu vẫn giữ nguyên')) return;
 
-  var btn = document.querySelector('[onclick="archiveCustomer(' + id + ')"]');
-  var btnState = btn ? setButtonLoading(btn) : null;
+  var btn = event.target;
+  var originalText = btn.textContent;
+  btn.textContent = 'Đang xử lý...';
+  btn.disabled = true;
 
   try {
-    var res = await fetch('/api/customers/' + id + '/archive', { method: 'PUT', cache: 'no-store' });
+    var res = await fetch('/api/customers/' + id + '/archive', {
+      method: 'PUT',
+      cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ collectKegs: kegsToCollect })
+    });
     var data;
     try { data = await res.json(); } catch (_) { data = {}; }
     if (!res.ok) throw new Error(data.error || 'Lưu trữ thất bại');
     showToast('Đã lưu trữ khách hàng!', 'success');
+    hideModal('archiveModal');
     await loadPageData(currentTab);
   } catch (err) {
-    // silenced
-    await softRefreshCustomers();
+    showToast(err.message || 'Lưu trữ thất bại', 'error');
   } finally {
-    if (btnState) restoreButtonLoading(btnState);
+    btn.textContent = originalText;
+    btn.disabled = false;
   }
 }
 
