@@ -21,13 +21,15 @@ function getKegState() {
   const customerResult = db.prepare(
     "SELECT COALESCE(SUM(keg_balance), 0) as total FROM customers"
   ).get();
-  const stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
+  const stats = db.prepare('SELECT empty_collected, lost FROM keg_stats WHERE id = 1').get();
   const emptyCollected = stats?.empty_collected || 0;
+  const lost = stats?.lost || 0;
   const customerHolding = customerResult.total;
   const inventory = inventoryPositive.total;
   return {
     inventory,
     emptyCollected,
+    lost,
     customerHolding,
     total: inventoryRaw.total + emptyCollected + customerHolding
   };
@@ -120,15 +122,15 @@ router.post('/state', (req, res) => {
 router.get('/sync', (req, res) => {
   try {
     const beforeState = getKegState();
-    
+
     // Verify and fix keg_stats.empty_collected
-    const stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
+    const stats = db.prepare('SELECT empty_collected, lost FROM keg_stats WHERE id = 1').get();
     if (!stats) {
-      db.prepare('INSERT INTO keg_stats (id, inventory, empty_collected, customer_holding) VALUES (1, 0, 0, 0)').run();
+      db.prepare('INSERT INTO keg_stats (id, inventory, empty_collected, customer_holding, lost) VALUES (1, 0, 0, 0, 0)').run();
     }
-    
+
     const afterState = getKegState();
-    
+
     res.json({
       success: true,
       message: 'Đã đồng bộ dữ liệu vỏ',
@@ -137,6 +139,7 @@ router.get('/sync', (req, res) => {
       sources: {
         inventoryFrom: 'products.stock WHERE type=keg',
         emptyFrom: 'keg_stats.empty_collected',
+        lostFrom: 'keg_stats.lost',
         customerFrom: 'SUM(customers.keg_balance)'
       }
     });
