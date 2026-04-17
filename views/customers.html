@@ -568,6 +568,39 @@
     </div>
   </div>
 
+  <!-- Archive Customer Modal -->
+  <div id="archiveModal" class="modal-overlay-v2 hidden center">
+    <div class="modal-sheet-v2">
+      <div class="modal-sheet-v2-header">
+        <div class="modal-sheet-v2-title">📦 Lưu trữ khách hàng</div>
+        <button type="button" onclick="hideModal('archiveModal')" class="modal-sheet-v2-close">×</button>
+      </div>
+      <div class="modal-sheet-v2-body">
+        <input type="hidden" id="archiveCustomerId">
+        <input type="hidden" id="archiveCustomerKegs">
+        <p class="text-muted mb-3">Khách: <span id="archiveCustomerName" class="font-bold" style="color:var(--text-main);"></span></p>
+        <div class="card card--warning mb-4">
+          <div class="text-sm">
+            <span class="font-bold">Số vỏ khách đang giữ:</span>
+            <span id="archiveKegCount" class="text-lg">0</span>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="field-label">Số vỏ thu về</label>
+          <input type="number" id="archiveKegsCollect" min="0" class="bn-input bn-input--lg bn-input--blue" placeholder="Nhập số vỏ thu về">
+          <div id="archiveKegNote" class="text-xs text-muted mt-1"></div>
+        </div>
+        <div class="text-xs text-muted mb-4">
+          Vỏ không thu về sẽ tính vào <span class="text-danger font-bold">vỏ mất</span>.
+        </div>
+        <div class="flex gap-2">
+          <button type="button" onclick="hideModal('archiveModal')" class="btn btn-ghost flex-1">Hủy</button>
+          <button type="button" onclick="submitArchiveCustomer()" class="btn btn-warning flex-1">📦 Lưu trữ</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Location Modal -->
   <div id="locationModal" class="modal-overlay-v2 hidden center">
     <div class="modal-sheet-v2">
@@ -668,7 +701,7 @@
 
   <!-- Load Customers JS -->
   <!-- realtime.js auto-loaded by layout.js -->
-  <script src="/js/customers.js?v=20260410-searchfix"></script>
+  <script src="/js/customers.js?v=20260417-archivekegs"></script>
 
   <script>
     async function loadData() {
