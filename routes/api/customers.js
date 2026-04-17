@@ -350,6 +350,7 @@ router.put('/:id/archive', (req, res) => {
       const statsBefore = db.prepare('SELECT inventory, empty_collected, customer_holding, lost FROM keg_stats WHERE id = 1').get();
       const currentEmpty = statsBefore?.empty_collected || 0;
       const currentLost = statsBefore?.lost || 0;
+      const currentHolding = statsBefore?.customer_holding || 0;
 
       if (kegsToCollect > 0) {
         db.prepare('UPDATE keg_stats SET empty_collected = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1')
@@ -361,8 +362,18 @@ router.put('/:id/archive', (req, res) => {
           .run(currentLost + kegsLost);
       }
 
-      // Get stats AFTER updates for correct inventory_after values
-      const statsAfter = db.prepare('SELECT inventory, empty_collected, customer_holding, lost FROM keg_stats WHERE id = 1').get();
+      // Update customer_holding (customer keg_balance becomes 0)
+      if (totalKegs > 0) {
+        db.prepare('UPDATE keg_stats SET customer_holding = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1')
+          .run(Math.max(0, currentHolding - totalKegs));
+      }
+
+      // Calculate AFTER values
+      // inventory: không đổi (kegs đã ra khỏi kho từ trước)
+      const inventoryAfter = statsBefore?.inventory || 0;
+      const emptyAfter = currentEmpty + kegsToCollect;
+      const holdingAfter = Math.max(0, currentHolding - totalKegs);
+      const lostAfter = currentLost + kegsLost;
 
       // Log collect transaction
       db.prepare(`
@@ -373,15 +384,15 @@ router.put('/:id/archive', (req, res) => {
         kegsToCollect,
         id,
         existing.name,
-        statsAfter?.inventory || 0,
-        statsAfter?.empty_collected || 0,
-        0,
-        statsAfter?.lost || 0,
+        inventoryAfter,
+        emptyAfter,
+        holdingAfter,
+        lostAfter,
         `Thu vỏ khi lưu trữ khách (mất ${kegsLost})`
       );
 
       if (kegsLost > 0) {
-        // Log lost transaction with AFTER values
+        // Log lost transaction with same AFTER values
         db.prepare(`
           INSERT INTO keg_transactions_log
             (type, quantity, customer_id, customer_name, inventory_after, empty_after, holding_after, lost_after, note)
@@ -390,15 +401,15 @@ router.put('/:id/archive', (req, res) => {
           kegsLost,
           id,
           existing.name,
-          statsAfter?.inventory || 0,
-          statsAfter?.empty_collected || 0,
-          0,
-          statsAfter?.lost || 0,
+          inventoryAfter,
+          emptyAfter,
+          holdingAfter,
+          lostAfter,
           `Vỏ mất khi lưu trữ khách (${kegsLost} vỏ)`
         );
       }
 
-      logger.info(`[Customer Archive] ${existing.name}: total=${totalKegs}, collected=${kegsToCollect}, lost=${kegsLost}`);
+      logger.info(`[Customer Archive] ${existing.name}: total=${totalKegs}, collected=${kegsToCollect}, lost=${kegsLost}, holdingAfter=${holdingAfter}`);
     }
 
     if (willArchive) {
