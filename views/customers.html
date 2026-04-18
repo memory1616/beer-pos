@@ -701,12 +701,12 @@
 
   <!-- Load Customers JS -->
   <!-- realtime.js auto-loaded by layout.js -->
-  <script src="/js/customers.js?v=20260417-archivekegs"></script>
+  <script src="/js/customers.js?v=20260418-searchfix"></script>
 
   <script>
     async function loadData() {
       try {
-        const res = await fetch('/customers/data?page=1&limit=5&tab=active', { cache: 'no-store' });
+        const res = await fetch('/customers/data?page=1&limit=100&tab=active', { cache: 'no-store' });
         const data = await res.json();
 
         // Initialize customers page
@@ -729,6 +729,19 @@
     }
 
     loadData();
+
+    // Attach search listener immediately
+    (function attachSearch() {
+      var inp = document.getElementById('searchInput');
+      if (!inp) {
+        setTimeout(attachSearch, 200);
+        return;
+      }
+      inp.addEventListener('input', function() {
+        if (typeof filterCustomers === 'function') filterCustomers();
+      });
+      console.log('Search listener ready');
+    })();
   </script>
   
   <!-- PERFORMANCE: db.js + sync.js non-blocking via requestIdleCallback -->

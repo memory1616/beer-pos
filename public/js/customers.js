@@ -368,16 +368,17 @@ let archivedCustomers = [];
 let currentTab = 'active';
 let products = [];
 
-// For server-side pagination
+// Pagination state
 let custPagination = {
   page: 1,
-  limit: 5,
+  limit: 100,  // Load more for client-side search
   total: 0,
   totalPages: 0
 };
 
 // Search debounce
 let searchTimeout = null;
+let isSearching = false; // Track if we're in search mode
 
 function initCustomersPage(data) {
   if (data.customers) {
@@ -427,14 +428,21 @@ function switchCustomerTab(tab) {
   loadPageData(tab);
 }
 
-async function loadPageData(tab) {
+async function loadPageData(tab, searchQuery = '') {
   try {
     const params = new URLSearchParams({ page: custPagination.page, limit: custPagination.limit, tab: tab });
-    const res = await fetch('/customers/data?' + params.toString(), { cache: 'no-store' });
+    if (searchQuery) {
+      params.set('search', searchQuery);
+    }
+    const url = '/customers/data?' + params.toString();
+    console.log('[DEBUG loadPageData] URL:', url);
+    const res = await fetch(url, { cache: 'no-store' });
     const data = await res.json();
+    console.log('[DEBUG loadPageData] Response:', JSON.stringify(data).substring(0, 500));
 
     if (tab === 'active') {
       customers = data.customers || [];
+      console.log('[DEBUG loadPageData] customers count:', customers.length);
     } else {
       archivedCustomers = data.archived || [];
     }
@@ -657,30 +665,35 @@ function filterCustomers() {
   searchTimeout = setTimeout(() => {
     const searchInput = document.getElementById('searchInput');
     const search = searchInput ? searchInput.value.toLowerCase().trim() : '';
-    const source = currentTab === 'active' ? customers : archivedCustomers;
-    const filtered = source.filter(c => {
-      if (!search) return true;
-      const nameMatch = c.name && c.name.toLowerCase().includes(search);
-      const phoneMatch = c.phone && (c.phone.includes(search) || Phone.normalize(c.phone).includes(search.replace(/\s/g, '')));
-      return nameMatch || phoneMatch;
-    });
 
-    // Update pagination for filtered results
+    console.log('[DEBUG filterCustomers] search:', search);
+
+    // Always start from page 1
     custPagination.page = 1;
-    custPagination.total = filtered.length;
-    custPagination.totalPages = 1;
+    isSearching = search.length > 0;
 
-    const container = document.getElementById('customersList');
-    if (!container) return;
-
-    if (filtered.length === 0) {
-      container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🔍</div><div class="empty-state-title">Không tìm thấy khách hàng</div><div class="empty-state-desc">Thử từ khóa khác hoặc xóa bộ lọc</div></div>';
-    } else {
-      container.innerHTML = filtered.map(renderCustomerCard).join('');
-    }
-
-    renderPagination();
+    // Reload data with search query
+    loadPageData(currentTab, search);
   }, 200);
+}
+
+// Setup search event listener
+function setupSearchListener() {
+  const searchInput = document.getElementById('searchInput');
+  if (searchInput) {
+    searchInput.addEventListener('input', function() {
+      console.log('[DEBUG] searchInput input event');
+      filterCustomers();
+    });
+    console.log('[DEBUG] Search listener setup OK');
+  }
+}
+
+// Run setup after DOM ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', setupSearchListener);
+} else {
+  setTimeout(setupSearchListener, 100);
 }
 
 function editCustomer(id, name, phone, deposit) {
