@@ -754,25 +754,40 @@ router.get('/export', (req, res) => {
   }
 });
 
-// DELETE /api/sales/:id - Xóa hóa đơn và hoàn kho
+// DELETE /api/sales/:id - Xóa hóa đơn và hoàn kho (SOFT-DELETE)
 router.delete('/:id', (req, res) => {
   const saleId = req.params.id;
+  console.log('[ORDER DELETE] 🚀 DELETE /api/sales/' + saleId + ' called');
 
   try {
     const result = deleteSaleRestoringInventory(saleId);
 
     if (!result.ok) {
       if (result.code === 'not_found') {
+        console.log('[ORDER DELETE] ❌ Sale not found:', saleId);
         return res.status(404).json({ error: 'Không tìm thấy hóa đơn' });
       }
+      if (result.code === 'already_deleted') {
+        console.log('[ORDER DELETE] ⚠️ Sale already deleted:', saleId);
+        return res.status(400).json({ error: 'Hóa đơn đã được xóa trước đó' });
+      }
       if (result.code === 'returned') {
+        console.log('[ORDER DELETE] ⚠️ Sale already returned:', saleId);
         return res.status(400).json({ error: 'Hóa đơn đã được trả hàng trước đó' });
+      }
+      if (result.code === 'transaction_failed') {
+        console.log('[ORDER DELETE] ❌ Transaction failed:', saleId);
+        return res.status(500).json({ error: 'Xóa hóa đơn thất bại - transaction error' });
       }
       return res.status(500).json({ error: 'Xóa hóa đơn thất bại' });
     }
 
+    // CRITICAL: Emit events để tất cả clients refresh
+    console.log('[ORDER DELETE] ✅ Emitting events after successful soft-delete');
     socketServer.emitOrderDeleted(parseInt(saleId, 10));
     socketServer.emitInventoryUpdated();
+    socketServer.emitReportUpdated({ reason: 'sale_deleted', saleId: parseInt(saleId, 10) });
+    
     res.json({ success: true, message: 'Đã xóa hóa đơn và hoàn kho', saleId: parseInt(saleId, 10) });
   } catch (err) {
     logger.error('Delete sale error', { error: err.message, stack: err.stack });

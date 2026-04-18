@@ -72,7 +72,7 @@ router.get('/profit-by-customer', (req, res) => {
         SUM(s.profit) as profit
       FROM sales s
       JOIN customers c ON c.id = s.customer_id
-      WHERE (s.status IS NULL OR s.status != 'returned')
+      WHERE s.archived = 0 AND (s.status IS NULL OR s.status != 'returned')
     `;
 
     const params = [];
@@ -115,7 +115,7 @@ router.get('/daily-cashflow', (req, res) => {
         SUM(profit) as profit,
         COUNT(*) as orders
       FROM sales
-      WHERE (status IS NULL OR status != 'returned')
+      WHERE archived = 0 AND (status IS NULL OR status != 'returned')
         AND ${vnDateExpr('date')} >= date(?)
         AND ${vnDateExpr('date')} <= date(?)
       GROUP BY ${vnDateExpr('date')}
@@ -188,7 +188,7 @@ router.get('/customer-history/:customerId', (req, res) => {
       return res.status(404).json({ error: 'Customer not found' });
     }
     
-    // Lịch sử đơn hàng
+    // Lịch sử đơn hàng (chỉ đơn chưa xóa)
     const orders = db.prepare(`
       SELECT 
         s.id,
@@ -200,7 +200,7 @@ router.get('/customer-history/:customerId', (req, res) => {
         COUNT(si.id) as items_count
       FROM sales s
       LEFT JOIN sale_items si ON si.sale_id = s.id
-      WHERE s.customer_id = ?
+      WHERE s.customer_id = ? AND s.archived = 0
       GROUP BY s.id
       ORDER BY s.date DESC
       LIMIT ?
@@ -226,13 +226,13 @@ router.get('/customer-history/:customerId', (req, res) => {
       orderDetails = orders.map(o => ({ ...o, items: itemsBySale[o.id] || [] }));
     }
     
-    // Tổng kết
+    // Tổng kết (chỉ tính đơn chưa xóa)
     const summary = db.prepare(`
       SELECT 
         COUNT(*) as total_orders,
         SUM(total) as total_revenue,
         SUM(profit) as total_profit
-      FROM sales WHERE customer_id = ?
+      FROM sales WHERE customer_id = ? AND archived = 0
     `).get(customerId);
     
     res.json({ customer, orders: orderDetails, summary });

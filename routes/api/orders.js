@@ -34,12 +34,12 @@ router.post('/', (req, res) => {
   }
 });
 
-// GET /api/orders — Get all orders (sales)
+// GET /api/orders — Get all orders (sales) - excludes archived
 router.get('/', (req, res) => {
   try {
     const since = req.query.since || null; // ISO timestamp for incremental sync
 
-    let whereClause = "WHERE s.type IN ('sale', 'replacement', 'damage_return')";
+    let whereClause = "WHERE s.type IN ('sale', 'replacement', 'damage_return') AND s.archived = 0";
     let params = [];
 
     if (since) {
@@ -60,8 +60,8 @@ router.get('/', (req, res) => {
       SELECT si.*, p.name as product_name
       FROM sale_items si
       JOIN products p ON p.id = si.product_id
-      WHERE si.sale_id IN (SELECT id FROM sales ${whereClause.replace('s.', '').replace(/s\./g, '')})
-    `).all(...params.map(p => p));
+      WHERE si.sale_id IN (SELECT id FROM sales s WHERE s.archived = 0)
+    `).all();
 
     const orders = sales.map(sale => ({
       ...sale,
