@@ -655,8 +655,30 @@ async function saveKegBalance() {
 function filterCustomers() {
   clearTimeout(searchTimeout);
   searchTimeout = setTimeout(() => {
-    custPagination.page = 1; // Reset to page 1 on search
-    renderCustomers(); // Client-side filter on already-loaded data
+    const searchInput = document.getElementById('searchInput');
+    const search = searchInput ? searchInput.value.toLowerCase().trim() : '';
+    const source = currentTab === 'active' ? customers : archivedCustomers;
+    const filtered = source.filter(c => {
+      if (!search) return true;
+      const nameMatch = c.name && c.name.toLowerCase().includes(search);
+      const phoneMatch = c.phone && (c.phone.includes(search) || Phone.normalize(c.phone).includes(search.replace(/\s/g, '')));
+      return nameMatch || phoneMatch;
+    });
+
+    // Update pagination for filtered results
+    custPagination.page = 1;
+    custPagination.total = filtered.length;
+    custPagination.totalPages = 1;
+
+    const container = document.getElementById('customersList');
+    if (!container) return;
+
+    if (filtered.length === 0) {
+      container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🔍</div><div class="empty-state-title">Không tìm thấy khách hàng</div><div class="empty-state-desc">Thử từ khóa khác hoặc xóa bộ lọc</div></div>';
+    } else {
+      container.innerHTML = filtered.map(renderCustomerCard).join('');
+    }
+
     renderPagination();
   }, 200);
 }
