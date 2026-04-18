@@ -887,4 +887,54 @@ router.put('/:id', (req, res) => {
   }
 });
 
+// POST /api/sales/:id/restore-inventory - Hoàn kho cho đơn hàng đã xóa (archived)
+router.post('/:id/restore-inventory', (req, res) => {
+  const saleId = req.params.id;
+
+  try {
+    const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId);
+    if (!sale) {
+      return res.status(404).json({ error: 'Không tìm thấy hóa đơn' });
+    }
+
+    // Kiểm tra xem đơn đã hoàn kho chưa (archived = 1)
+    if (sale.archived != 1) {
+      return res.status(400).json({ error: 'Chỉ áp dụng cho đơn hàng đã xóa (archived)' });
+    }
+
+    const items = db.prepare('SELECT * FROM sale_items WHERE sale_id = ?').all(saleId);
+    if (items.length === 0) {
+      return res.status(400).json({ error: 'Không có sản phẩm trong đơn hàng này' });
+    }
+
+    // Hoàn kho sản phẩm
+    const restoreTx = db.transaction(() => {
+      for (const item of items) {
+        db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(item.quantity, item.product_id);
+
+        // Ghi audit log
+        const customer = sale.customer_id
+          ? db.prepare('SELECT name FROM customers WHERE id = ?').get(sale.customer_id)
+          : null;
+        db.prepare(`
+          INSERT INTO product_audit_log (product_id, type, quantity, reason, ref_id, ref_type, customer_name, note)
+          VALUES (?, 'restore', ?, 'manual_restore', ?, 'sale', ?, ?)
+        `).run(item.product_id, item.quantity, saleId, customer ? customer.name : null, 'Hoàn kho thủ công cho đơn đã xóa');
+      }
+    });
+
+    restoreTx();
+
+    logger.info('[Sales] Restored inventory for archived sale', { saleId, itemsCount: items.length });
+    res.json({
+      success: true,
+      message: `Đã hoàn kho ${items.length} sản phẩm cho đơn hàng #${saleId}`,
+      restoredItems: items.length
+    });
+  } catch (err) {
+    logger.error('Restore inventory error', { error: err.message });
+    res.status(500).json({ error: 'Hoàn kho thất bại: ' + err.message });
+  }
+});
+
 module.exports = router;
