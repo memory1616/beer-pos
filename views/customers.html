@@ -686,7 +686,7 @@
           </div>
 
           <div class="mb-4">
-            <input type="text" id="searchInput" placeholder="🔍 Tìm khách hàng..." oninput="filterCustomers()" class="bn-input bn-input--lg">
+            <input type="text" id="searchInput" placeholder="🔍 Tìm khách hàng..." onkeyup="filterCustomers()" oninput="filterCustomers()" class="bn-input bn-input--lg">
           </div>
 
           <!-- Customers List - CRM Cards -->
@@ -729,19 +729,6 @@
     }
 
     loadData();
-
-    // Attach search listener immediately
-    (function attachSearch() {
-      var inp = document.getElementById('searchInput');
-      if (!inp) {
-        setTimeout(attachSearch, 200);
-        return;
-      }
-      inp.addEventListener('input', function() {
-        if (typeof filterCustomers === 'function') filterCustomers();
-      });
-      console.log('Search listener ready');
-    })();
   </script>
   
   <!-- PERFORMANCE: db.js + sync.js non-blocking via requestIdleCallback -->

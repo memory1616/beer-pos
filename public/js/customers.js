@@ -434,15 +434,11 @@ async function loadPageData(tab, searchQuery = '') {
     if (searchQuery) {
       params.set('search', searchQuery);
     }
-    const url = '/customers/data?' + params.toString();
-    console.log('[DEBUG loadPageData] URL:', url);
-    const res = await fetch(url, { cache: 'no-store' });
+    const res = await fetch('/customers/data?' + params.toString(), { cache: 'no-store' });
     const data = await res.json();
-    console.log('[DEBUG loadPageData] Response:', JSON.stringify(data).substring(0, 500));
 
     if (tab === 'active') {
       customers = data.customers || [];
-      console.log('[DEBUG loadPageData] customers count:', customers.length);
     } else {
       archivedCustomers = data.archived || [];
     }
@@ -666,8 +662,6 @@ function filterCustomers() {
     const searchInput = document.getElementById('searchInput');
     const search = searchInput ? searchInput.value.toLowerCase().trim() : '';
 
-    console.log('[DEBUG filterCustomers] search:', search);
-
     // Always start from page 1
     custPagination.page = 1;
     isSearching = search.length > 0;
@@ -675,25 +669,6 @@ function filterCustomers() {
     // Reload data with search query
     loadPageData(currentTab, search);
   }, 200);
-}
-
-// Setup search event listener
-function setupSearchListener() {
-  const searchInput = document.getElementById('searchInput');
-  if (searchInput) {
-    searchInput.addEventListener('input', function() {
-      console.log('[DEBUG] searchInput input event');
-      filterCustomers();
-    });
-    console.log('[DEBUG] Search listener setup OK');
-  }
-}
-
-// Run setup after DOM ready
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', setupSearchListener);
-} else {
-  setTimeout(setupSearchListener, 100);
 }
 
 function editCustomer(id, name, phone, deposit) {
