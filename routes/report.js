@@ -33,6 +33,16 @@ router.get('/data', (req, res) => {
   } else if (type === 'year') {
     startDate = `${year}-01-01`;
     endDate = `${year}-12-31`;
+  } else if (type === 'custom') {
+    // Frontend sends startDate and endDate as query params
+    startDate = req.query.startDate || req.query.start || null;
+    endDate = req.query.endDate || req.query.end || null;
+    if (!startDate || !endDate) {
+      // Fallback to today if missing
+      const today = new Date();
+      startDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      endDate = startDate;
+    }
   } else {
     // all — no filter
     startDate = '1970-01-01';
