@@ -754,25 +754,29 @@ router.get('/export', (req, res) => {
   }
 });
 
-// DELETE /api/sales/:id - Soft delete hóa đơn (khôi phục được)
+// DELETE /api/sales/:id - Xóa hóa đơn và hoàn kho
 router.delete('/:id', (req, res) => {
   const saleId = req.params.id;
 
   try {
-    // Check if sale exists
-    const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId);
-    if (!sale) {
-      return res.status(404).json({ error: 'Không tìm thấy hóa đơn' });
+    const result = deleteSaleRestoringInventory(saleId);
+
+    if (!result.ok) {
+      if (result.code === 'not_found') {
+        return res.status(404).json({ error: 'Không tìm thấy hóa đơn' });
+      }
+      if (result.code === 'returned') {
+        return res.status(400).json({ error: 'Hóa đơn đã được trả hàng trước đó' });
+      }
+      return res.status(500).json({ error: 'Xóa hóa đơn thất bại' });
     }
 
-    // Soft delete: set archived = 1 instead of hard delete
-    db.prepare('UPDATE sales SET archived = 1 WHERE id = ?').run(saleId);
-    logger.info('[Sales] Soft deleted (archived)', { saleId });
     socketServer.emitOrderDeleted(parseInt(saleId, 10));
-    res.json({ success: true, message: 'Đã xóa hóa đơn (có thể khôi phục)', archived: true });
+    socketServer.emitInventoryUpdated();
+    res.json({ success: true, message: 'Đã xóa hóa đơn và hoàn kho', saleId: parseInt(saleId, 10) });
   } catch (err) {
-    logger.error('Soft delete sale error', { error: err.message });
-    res.status(500).json({ error: 'Xóa hóa đơn thất bại' });
+    logger.error('Delete sale error', { error: err.message, stack: err.stack });
+    res.status(500).json({ error: 'Xóa hóa đơn thất bại: ' + err.message });
   }
 });
 
