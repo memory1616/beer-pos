@@ -503,26 +503,26 @@ router.get('/:id/stats', (req, res) => {
   
   // Tổng doanh thu (chỉ tính type='sale')
   const totalRevenue = db.prepare(`
-    SELECT COALESCE(SUM(total), 0) as revenue FROM sales WHERE customer_id = ? AND type = 'sale'
+    SELECT COALESCE(SUM(total), 0) as revenue FROM sales WHERE customer_id = ? AND type = 'sale' AND archived = 0
   `).get(customerId).revenue;
   
   // Doanh thu tháng này (chỉ tính type='sale')
   const monthlyRevenue = db.prepare(`
     SELECT COALESCE(SUM(total), 0) as revenue FROM sales 
-    WHERE customer_id = ? AND type = 'sale' AND strftime('%Y', date) = ? AND strftime('%m', date) = ?
+    WHERE customer_id = ? AND type = 'sale' AND archived = 0 AND strftime('%Y', date) = ? AND strftime('%m', date) = ?
   `).get(customerId, currentYear.toString(), currentMonth.toString().padStart(2, '0')).revenue;
   
   // Số bình tháng này (chỉ tính type='sale')
   const monthlyKegs = db.prepare(`
     SELECT COALESCE(SUM(si.quantity), 0) as kegs FROM sales s
     JOIN sale_items si ON si.sale_id = s.id
-    WHERE s.customer_id = ? AND s.type = 'sale' AND strftime('%Y', s.date) = ? AND strftime('%m', s.date) = ?
+    WHERE s.customer_id = ? AND s.type = 'sale' AND s.archived = 0 AND strftime('%Y', s.date) = ? AND strftime('%m', s.date) = ?
   `).get(customerId, currentYear.toString(), currentMonth.toString().padStart(2, '0')).kegs;
   
   // Lần giao gần nhất
   const lastSale = db.prepare(`
     SELECT date, julianday('now') - julianday(date) as days_ago FROM sales
-    WHERE customer_id = ? ORDER BY date DESC LIMIT 1
+    WHERE customer_id = ? AND archived = 0 ORDER BY date DESC LIMIT 1
   `).get(customerId);
 
   // Lấy keg_balance trong 1 query duy nhất (thay vì query riêng ở res.json)
@@ -548,7 +548,7 @@ router.get('/:id/sales', (req, res) => {
       COALESCE(SUM(si.quantity), 0) as item_count
     FROM sales s
     LEFT JOIN sale_items si ON si.sale_id = s.id
-    WHERE s.customer_id = ?
+    WHERE s.customer_id = ? AND s.archived = 0
   `;
   
   const params = [customerId];
@@ -568,8 +568,8 @@ router.get('/:id/sales', (req, res) => {
   if (year && month) {
     const monthData = db.prepare(`
       SELECT 
-        (SELECT COALESCE(SUM(total), 0) FROM sales WHERE customer_id = ? AND type = 'sale' AND strftime('%Y-%m', date) = ?) as total,
-        (SELECT COALESCE(SUM(quantity), 0) FROM sale_items WHERE sale_id IN (SELECT id FROM sales WHERE customer_id = ? AND type = 'sale' AND strftime('%Y-%m', date) = ?)) as qty
+        (SELECT COALESCE(SUM(total), 0) FROM sales WHERE customer_id = ? AND type = 'sale' AND archived = 0 AND strftime('%Y-%m', date) = ?) as total,
+        (SELECT COALESCE(SUM(quantity), 0) FROM sale_items WHERE sale_id IN (SELECT id FROM sales WHERE customer_id = ? AND type = 'sale' AND archived = 0 AND strftime('%Y-%m', date) = ?)) as qty
     `).get(customerId, `${year}-${month.padStart(2, '0')}`, customerId, `${year}-${month.padStart(2, '0')}`);
     monthlyTotal = monthData.total;
     monthlyQty = monthData.qty;
