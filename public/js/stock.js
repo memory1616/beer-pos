@@ -825,7 +825,7 @@ function _productCardHtml(p, totalPositive) {
           <div class="stock-badge tabular-nums ${low ? 'text-danger' : 'text-success'}">${stock}</div>
         </div>
         <div class="product-card__edit-pill" aria-hidden="true"
-          onclick="event.stopPropagation();openProductModal(${p.id})"
+          onclick="event.stopPropagation(); openProductModal(${p.id}); return false;"
           title="Sửa sản phẩm">
           <span class="product-card__edit-icon">✏️</span><span>Sửa</span>
         </div>
@@ -1008,7 +1008,7 @@ function renderProducts(products, serverTotalStockPositive) {
           <div class="stock-badge tabular-nums ${low ? 'text-danger' : 'text-success'}">${p.stock}</div>
         </div>
         <div class="product-card__edit-pill" aria-hidden="true"
-          onclick="event.stopPropagation();openProductModal(${p.id})"
+          onclick="event.stopPropagation(); openProductModal(${p.id}); return false;"
           title="Sửa sản phẩm">
           <span class="product-card__edit-icon">✏️</span><span>Sửa</span>
         </div>
