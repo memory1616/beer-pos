@@ -456,10 +456,15 @@ function renderCustomers() {
   if (!container) return;
 
   const searchInput = document.getElementById('searchInput');
-  const search = searchInput ? searchInput.value.toLowerCase() : '';
+  const search = searchInput ? searchInput.value.toLowerCase().trim() : '';
 
   const source = currentTab === 'active' ? customers : archivedCustomers;
-  const filtered = source.filter(c => c.name.toLowerCase().includes(search));
+  const filtered = source.filter(c => {
+    if (!search) return true;
+    const nameMatch = c.name && c.name.toLowerCase().includes(search);
+    const phoneMatch = c.phone && (c.phone.includes(search) || Phone.normalize(c.phone).includes(search.replace(/\s/g, '')));
+    return nameMatch || phoneMatch;
+  });
 
   if (filtered.length === 0) {
     var noCustomerMsg = search
