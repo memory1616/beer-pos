@@ -576,13 +576,13 @@ app.get('/report/data', (req, res) => {
     var salesDateBare = dateCol.indexOf('created_at') !== -1 ? 'created_at' : 'date';
 
     var sales = db2.prepare(
-      "SELECT s.id, s.customer_id, s.date, s.total, s.profit, s.type, s.deliver_kegs, s.return_kegs, COALESCE(c.name, 'Khách lẻ') as customer_name, (SELECT COALESCE(SUM(si.quantity), 0) FROM sale_items si WHERE si.sale_id = s.id) as quantity FROM sales s LEFT JOIN customers c ON c.id = s.customer_id WHERE (s.status IS NULL OR s.status != 'returned') AND " + dateCond +
+      "SELECT s.id, s.customer_id, s.date, s.total, s.profit, s.type, s.deliver_kegs, s.return_kegs, COALESCE(c.name, 'Khách lẻ') as customer_name, (SELECT COALESCE(SUM(si.quantity), 0) FROM sale_items si WHERE si.sale_id = s.id) as quantity FROM sales s LEFT JOIN customers c ON c.id = s.customer_id WHERE s.archived = 0 AND (s.status IS NULL OR s.status != 'returned') AND " + dateCond +
       " ORDER BY datetime(" + dateCol + ") DESC LIMIT 50"
     ).all(...dateParams);
 
-    var revR = db2.prepare('SELECT COALESCE(SUM(total), 0) as t FROM sales WHERE (status IS NULL OR status != \'returned\') AND type = \'sale\' AND date(' + salesDateBare + ') >= date(?) AND date(' + salesDateBare + ') <= date(?)').get(...dateParams);
-    var profR = db2.prepare('SELECT COALESCE(SUM(profit), 0) as t FROM sales WHERE (status IS NULL OR status != \'returned\') AND type = \'sale\' AND date(' + salesDateBare + ') >= date(?) AND date(' + salesDateBare + ') <= date(?)').get(...dateParams);
-    var ordR = db2.prepare('SELECT COUNT(*) as t FROM sales WHERE (status IS NULL OR status != \'returned\') AND type = \'sale\' AND date(' + salesDateBare + ') >= date(?) AND date(' + salesDateBare + ') <= date(?)').get(...dateParams);
+    var revR = db2.prepare('SELECT COALESCE(SUM(total), 0) as t FROM sales WHERE archived = 0 AND (status IS NULL OR status != \'returned\') AND type = \'sale\' AND date(' + salesDateBare + ') >= date(?) AND date(' + salesDateBare + ') <= date(?)').get(...dateParams);
+    var profR = db2.prepare('SELECT COALESCE(SUM(profit), 0) as t FROM sales WHERE archived = 0 AND (status IS NULL OR status != \'returned\') AND type = \'sale\' AND date(' + salesDateBare + ') >= date(?) AND date(' + salesDateBare + ') <= date(?)').get(...dateParams);
+    var ordR = db2.prepare('SELECT COUNT(*) as t FROM sales WHERE archived = 0 AND (status IS NULL OR status != \'returned\') AND type = \'sale\' AND date(' + salesDateBare + ') >= date(?) AND date(' + salesDateBare + ') <= date(?)').get(...dateParams);
     var totalRevenue = revR ? revR.t : 0;
     var totalProfit = profR ? profR.t : 0;
     var totalOrders = ordR ? ordR.t : 0;
@@ -590,12 +590,12 @@ app.get('/report/data', (req, res) => {
     try { var expR = db2.prepare('SELECT COALESCE(SUM(amount), 0) as t FROM expenses WHERE date >= ? AND date <= ?').get(startDay, endDay); totalExpense = expR ? expR.t : 0; } catch(_){}
 
     var daily = db2.prepare(
-      "SELECT date(" + dateCol + ") as date, COALESCE(SUM(s.total), 0) as revenue, COALESCE(SUM(s.profit), 0) as profit, COALESCE((SELECT SUM(e.amount) FROM expenses e WHERE date(e.date) = date(" + dateCol + ")), 0) as expense FROM sales s WHERE (s.status IS NULL OR s.status != 'returned') AND " + dateCond +
+      "SELECT date(" + dateCol + ") as date, COALESCE(SUM(s.total), 0) as revenue, COALESCE(SUM(s.profit), 0) as profit, COALESCE((SELECT SUM(e.amount) FROM expenses e WHERE date(e.date) = date(" + dateCol + ")), 0) as expense FROM sales s WHERE s.archived = 0 AND (s.status IS NULL OR s.status != 'returned') AND " + dateCond +
       " GROUP BY date(" + dateCol + ") ORDER BY date DESC LIMIT 30"
     ).all(...dateParams);
 
     var profitByProduct = db2.prepare(
-      'SELECT p.id, p.name, p.type, SUM(si.quantity) as quantity_sold, COUNT(DISTINCT si.sale_id) as order_count, SUM(si.quantity * si.price) as revenue, SUM(si.quantity * si.cost_price) as cost, SUM(si.profit) as profit FROM sale_items si JOIN products p ON p.id = si.product_id JOIN sales s ON s.id = si.sale_id WHERE (s.status IS NULL OR s.status != \'returned\') AND ' + dateCond +
+      'SELECT p.id, p.name, p.type, SUM(si.quantity) as quantity_sold, COUNT(DISTINCT si.sale_id) as order_count, SUM(si.quantity * si.price) as revenue, SUM(si.quantity * si.cost_price) as cost, SUM(si.profit) as profit FROM sale_items si JOIN products p ON p.id = si.product_id JOIN sales s ON s.id = si.sale_id WHERE s.archived = 0 AND (s.status IS NULL OR s.status != \'returned\') AND ' + dateCond +
       ' GROUP BY p.id ORDER BY SUM(si.profit) DESC LIMIT 20'
     ).all(...dateParams);
 
@@ -607,7 +607,7 @@ app.get('/report/data', (req, res) => {
     }
     var profitByCustomer = db2.prepare(
       'SELECT c.id, c.name, COUNT(s.id) as order_count, SUM(s.total) as revenue, SUM(s.profit) as profit ' +
-      'FROM sales s JOIN customers c ON c.id = s.customer_id WHERE s.type = \'sale\' AND ' + dateCond +
+      'FROM sales s JOIN customers c ON c.id = s.customer_id WHERE s.archived = 0 AND s.type = \'sale\' AND ' + dateCond +
       ' GROUP BY c.id ORDER BY profit DESC LIMIT 20'
     ).all(...dateParams);
 
@@ -616,7 +616,7 @@ app.get('/report/data', (req, res) => {
       'FROM sale_items si ' +
       'JOIN sales s ON s.id = si.sale_id ' +
       'JOIN products p ON p.id = si.product_id ' +
-      "WHERE s.type = 'sale' AND (s.status IS NULL OR s.status != 'returned') AND " + dateCond
+      "WHERE s.archived = 0 AND s.type = 'sale' AND (s.status IS NULL OR s.status != 'returned') AND " + dateCond
     ).all(...dateParams);
     var literByCustomerId = {};
     for (var lr = 0; lr < literRows.length; lr++) {
