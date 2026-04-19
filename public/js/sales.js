@@ -1353,7 +1353,10 @@ function loadReplacementProducts() {
   var productSelect = document.getElementById('replacementProduct');
   if (!productSelect) return;
 
-  if (!customerId) {
+  var isGift = document.getElementById('giftKegs')?.checked || false;
+
+  // Always load products when in gift mode, or when customer is selected
+  if (!customerId && !isGift) {
     productSelect.innerHTML = '<option value="">-- Chọn sản phẩm --</option>';
     return;
   }
@@ -1380,6 +1383,7 @@ function toggleGiftMode() {
   var giftRow = document.getElementById('giftGuestRow');
   if (!giftCheck || !giftRow) return;
   giftRow.classList.toggle('hidden', !giftCheck.checked);
+  loadReplacementProducts();
 }
 
 function submitReplacement() {
