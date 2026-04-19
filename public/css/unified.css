@@ -6198,9 +6198,10 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 10px;
-  transition: border-color 0.12s;
+  transition: border-color 0.12s, box-shadow 0.12s;
+  cursor: pointer;
 }
-.sale-history-item:hover { border-color: var(--border-strong); }
+.sale-history-item:hover { border-color: var(--border-strong); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
 
 .sale-history-top {
   display: flex;
