@@ -195,6 +195,40 @@
     </div>
   </div>
 
+  <!-- ═══ PAYMENT MODAL ═══ -->
+  <div id="paymentModal" class="modal-overlay-v2 hidden center">
+    <div class="modal-sheet-v2">
+      <div class="modal-sheet-v2-header">
+        <div style="font-size:15px;font-weight:700;color:var(--accent);">💰 Thu tiền</div>
+        <button onclick="closePaymentModal()" class="modal-sheet-v2-close">×</button>
+      </div>
+      <div class="modal-sheet-v2-body">
+        <div id="paymentModalInfo" class="mb-4 p-3 rounded-lg" style="background:var(--card-soft);border:1px solid var(--border);"></div>
+        <div class="mb-4">
+          <div class="flex gap-2 mb-3">
+            <button onclick="setPaymentFull()" id="btnPayFull" class="btn btn-primary" style="flex:1;height:44px;background:var(--success);">Thu đủ</button>
+            <button onclick="setPaymentPartial()" id="btnPayPartial" class="btn btn-ghost" style="flex:1;height:44px;border:1px solid var(--border);">Nhập số</button>
+          </div>
+          <div id="paymentAmountInput" class="hidden mb-3">
+            <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:6px;">💵 Số tiền khách trả</label>
+            <input type="number" id="paymentAmount" value="0" min="0"
+              style="width:100%;height:44px;padding:0 12px;border-radius:8px;border:2px solid var(--success);background:var(--card);color:var(--text-primary);font-size:16px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;">
+          </div>
+          <div class="mb-3">
+            <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:6px;">📝 Ghi chú (tùy chọn)</label>
+            <input type="text" id="paymentNote" placeholder="VD: Khách thanh toán chuyển khoản"
+              style="width:100%;height:44px;padding:0 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text-primary);font-size:16px;outline:none;box-sizing:border-box;">
+          </div>
+        </div>
+        <div id="paymentWarning" class="hidden mb-3 p-2 text-center rounded-lg" style="border:1px solid var(--danger);color:var(--danger);background:var(--red-dim);"></div>
+        <div style="display:flex;gap:8px;">
+          <button onclick="closePaymentModal()" class="btn btn-ghost" style="flex:1;height:44px;border:1px solid var(--border);">Huỷ</button>
+          <button onclick="submitPayment()" class="btn btn-primary" style="flex:1;height:44px;background:var(--success);color:#fff;">💰 Xác nhận thu</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
 
   <!-- Sync status indicator -->
   <div id="syncStatusIndicator" style="position:fixed;top:8px;right:8px;z-index:200;font-size:11px;padding:4px 8px;border-radius:20px;background:var(--card-soft);border:1px solid var(--border);opacity:0.8;display:none;"></div>
