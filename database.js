@@ -132,6 +132,31 @@ try { db.exec(`CREATE INDEX IF NOT EXISTS idx_keg_tx_log_customer ON keg_transac
 // Migration: Add lost_after column if not exists
 try { db.exec(`ALTER TABLE keg_transactions_log ADD COLUMN lost_after INTEGER DEFAULT 0`); } catch (_) {}
 
+// Migration: Update CHECK constraint for new transaction types
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS keg_transactions_log_new (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL CHECK(type IN ('deliver', 'collect', 'import', 'adjust', 'sell_empty', 'gift', 'lost', 'replacement', 'sale_delete')),
+      quantity INTEGER NOT NULL,
+      exchanged INTEGER DEFAULT 0,
+      purchased INTEGER DEFAULT 0,
+      customer_id INTEGER,
+      customer_name TEXT,
+      inventory_after INTEGER,
+      empty_after INTEGER,
+      holding_after INTEGER DEFAULT 0,
+      lost_after INTEGER DEFAULT 0,
+      note TEXT,
+      date TEXT
+    )
+  `);
+  db.exec(`INSERT INTO keg_transactions_log_new SELECT * FROM keg_transactions_log`);
+  db.exec(`DROP TABLE keg_transactions_log`);
+  db.exec(`ALTER TABLE keg_transactions_log_new RENAME TO keg_transactions_log`);
+  logger.log('Migrated keg_transactions_log CHECK constraint');
+} catch (_) {}
+
 // Create tables
 db.exec(`
   -- Customers table
