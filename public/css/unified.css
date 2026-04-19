@@ -975,7 +975,7 @@ input, select {
   box-sizing: border-box;
   transition: border-color var(--transition-normal), box-shadow var(--transition-normal), background var(--transition-normal);
   font-family: inherit;
-  font-size: 14px;
+  font-size: 16px;
   background: var(--card);
   color: var(--text-main);
   height: 44px;
@@ -1878,7 +1878,7 @@ main {
 }
 
 .bn-input::placeholder { color: var(--text-muted); }
-.bn-input--lg { height: 44px; font-size: 15px; padding: 8px 12px; border-radius: var(--radius-lg); }
+.bn-input--lg { height: 44px; font-size: 16px; padding: 8px 12px; border-radius: var(--radius-lg); }
 .bn-input--center { text-align: center; font-weight: 600; font-size: 18px; }
 .bn-input--green { border-color: var(--green); }
 .bn-input--green:focus { border-color: var(--green); }
@@ -5684,7 +5684,7 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   border: 1px solid var(--border);
   background: var(--card);
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: 16px;
   outline: none;
   cursor: pointer;
 }
@@ -5736,7 +5736,7 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   border: 1px solid var(--border-default);
   border-radius: 10px;
   padding: 0 12px;
-  font-size: 14px;
+  font-size: 16px;
   color: var(--text-primary);
   outline: none;
   box-sizing: border-box;
