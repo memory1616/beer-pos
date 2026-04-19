@@ -48,6 +48,13 @@ let editingSaleId = null;
 let kegEditSaleId = null;  // Sale ID đang thao tác vỏ
 let kegSubmitting = false; // Guard: prevent double click submit
 
+// Payment modal state
+let _paymentSaleId = null;
+let _paymentCustomerId = null;
+let _paymentTotal = 0;
+let _paymentPaid = 0;
+let _paymentCustomerDebt = 0;
+
 let saleState = {
   customerId: null,
   items: []  // [{productId, qty, price}]
@@ -318,8 +325,7 @@ function renderSaleHistory(sales, page, totalPages) {
       '<div class="sale-history-items">' + escHtml(itemNames) + '</div>' +
       kegsInfo +
       '<div class="sale-history-actions">' +
-        '<button class="action-view" onclick="viewSale(' + s.id + ')">👁 Xem</button>' +
-        '<button class="action-return" onclick="returnSale(' + s.id + ')"' + (isReturned ? ' disabled' : '') + '>🔄 Trả</button>' +
+        '<button class="action-view" onclick="viewSale(' + s.id + ')">💰 Thu tiền</button>' +
         '<button class="action-edit" onclick="openEditSale(' + s.id + ')"' + (isReturned ? ' disabled' : '') + '>✏️ Sửa</button>' +
         '<button class="action-delete" onclick="deleteSale(' + s.id + ')">🗑 Xóa</button>' +
       '</div>' +
@@ -672,7 +678,95 @@ function openInvoiceModal(source) {
 }
 
 function viewSale(saleId) {
-  openInvoiceModal(saleId);
+  // Mở modal thu tiền thay vì invoice
+  fetch('/sale/' + saleId, { cache: 'no-store' })
+    .then(function(res) { return safeJson(res); })
+    .then(function(data) {
+      var s = data ? extractSaleFromResponse(data) : null;
+      if (s) {
+        openPaymentModalForSale(s);
+      } else {
+        showToast('Không tìm thấy đơn hàng', 'error');
+      }
+    })
+    .catch(function() { showToast('Lỗi tải đơn', 'error'); });
+}
+
+function openPaymentModalForSale(sale) {
+  var saleId = sale.id;
+  var customerId = sale.customer_id;
+  var total = sale.total || sale.totalAmount || 0;
+
+  // Tính số tiền đã trả từ payments
+  // Nếu có payment_status thì dùng, không thì tính từ API
+  fetch('/api/debts/' + customerId, { cache: 'no-store' })
+    .then(function(res) { return safeJson(res); })
+    .then(function(data) {
+      var paid = 0;
+      var customerDebt = 0;
+      if (data && data.data) {
+        // Tính tổng đã trả từ payment history
+        var payments = data.data.payments || [];
+        paid = payments.reduce(function(sum, p) { return sum + (p.amount || 0); }, 0);
+        customerDebt = data.data.customer ? (data.data.customer.debt || 0) : 0;
+      }
+      openPaymentModal(saleId, customerId, total, paid, customerDebt);
+    })
+    .catch(function() {
+      openPaymentModal(saleId, customerId, total, 0, 0);
+    });
+}
+
+function openPaymentModal(saleId, customerId, total, paid, customerDebt) {
+  _paymentSaleId = saleId;
+  _paymentCustomerId = customerId;
+  _paymentTotal = total || 0;
+  _paymentPaid = paid || 0;
+  _paymentCustomerDebt = customerDebt || 0;
+
+  var debt = _paymentTotal - _paymentPaid;
+  if (debt < 0) debt = 0;
+
+  var infoEl = document.getElementById('paymentModalInfo');
+  if (infoEl) {
+    infoEl.innerHTML = `
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+        <span style="color:var(--text-muted);font-size:13px;">Đơn hàng:</span>
+        <span style="font-weight:700;color:var(--text-primary);">#${saleId}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+        <span style="color:var(--text-muted);font-size:13px;">Tổng tiền:</span>
+        <span style="font-weight:700;color:var(--text-primary);">${formatVND(_paymentTotal)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+        <span style="color:var(--text-muted);font-size:13px;">Đã thanh toán:</span>
+        <span style="font-weight:700;color:var(--success);">${formatVND(_paymentPaid)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding-top:8px;border-top:1px solid var(--border);margin-bottom:8px;">
+        <span style="color:var(--text-primary);font-size:13px;font-weight:600;">Còn nợ đơn này:</span>
+        <span style="font-weight:800;color:var(--danger);font-size:16px;">${formatVND(debt)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding-top:8px;border-top:1px dashed var(--border);">
+        <span style="color:var(--text-muted);font-size:12px;">Tổng công nợ khách:</span>
+        <span style="font-weight:700;color:var(--danger);font-size:14px;">${formatVND(_paymentCustomerDebt)}</span>
+      </div>
+    `;
+  }
+
+  document.getElementById('paymentAmountInput').classList.add('hidden');
+  document.getElementById('paymentWarning').classList.add('hidden');
+  document.getElementById('btnPayFull').style.background = 'var(--success)';
+  document.getElementById('btnPayPartial').style.background = 'transparent';
+  document.getElementById('btnPayPartial').style.border = '1px solid var(--border)';
+  document.getElementById('btnPayPartial').style.color = 'var(--text-muted)';
+  document.getElementById('paymentAmount').value = debt;
+  document.getElementById('paymentNote').value = '';
+
+  var modal = document.getElementById('paymentModal');
+  if (modal) {
+    modal.classList.remove('hidden');
+    modal.style.pointerEvents = 'auto';
+  }
 }
 
 // Mở modal vỏ từ trong invoice modal (chỉ đọc context / GET — không tạo giao dịch)
@@ -1761,6 +1855,107 @@ function closeInvoice() {
 window.closeInvoice = closeInvoice;
 window.openInvoiceModal = openInvoiceModal;
 window.viewSale = viewSale;
+
+function setPaymentFull() {
+  var debt = _paymentTotal - _paymentPaid;
+  if (debt < 0) debt = 0;
+  document.getElementById('paymentAmount').value = debt;
+  document.getElementById('paymentAmountInput').classList.add('hidden');
+  document.getElementById('btnPayFull').style.background = 'var(--success)';
+  document.getElementById('btnPayPartial').style.background = 'transparent';
+  document.getElementById('btnPayPartial').style.border = '1px solid var(--border)';
+  document.getElementById('btnPayPartial').style.color = 'var(--text-muted)';
+}
+
+function setPaymentPartial() {
+  document.getElementById('paymentAmountInput').classList.remove('hidden');
+  var amountInput = document.getElementById('paymentAmount');
+  if (amountInput) {
+    amountInput.focus();
+    amountInput.select();
+  }
+  document.getElementById('btnPayPartial').style.background = 'var(--success)';
+  document.getElementById('btnPayPartial').style.color = '#fff';
+  document.getElementById('btnPayFull').style.background = 'transparent';
+  document.getElementById('btnPayFull').style.border = '1px solid var(--border)';
+  document.getElementById('btnPayFull').style.color = 'var(--text-muted)';
+}
+
+function closePaymentModal() {
+  var modal = document.getElementById('paymentModal');
+  if (modal) {
+    modal.classList.add('hidden');
+    modal.style.pointerEvents = 'none';
+  }
+  _paymentSaleId = null;
+  _paymentCustomerId = null;
+  _paymentTotal = 0;
+  _paymentPaid = 0;
+  _paymentCustomerDebt = 0;
+}
+
+function submitPayment() {
+  var amount = parseFloat(document.getElementById('paymentAmount')?.value) || 0;
+  var note = document.getElementById('paymentNote')?.value || '';
+
+  if (amount <= 0) {
+    var warning = document.getElementById('paymentWarning');
+    if (warning) {
+      warning.textContent = 'Số tiền phải lớn hơn 0';
+      warning.classList.remove('hidden');
+    }
+    return;
+  }
+
+  var btn = document.querySelector('[onclick="submitPayment()"]');
+  if (btn) { btn.disabled = true; btn.innerText = 'Đang xử lý...'; }
+
+  var customerId = _paymentCustomerId;
+  if (!customerId) {
+    showToast('Không tìm thấy khách hàng', 'error');
+    if (btn) { btn.disabled = false; btn.innerText = '💰 Xác nhận thu'; }
+    return;
+  }
+
+  fetch('/api/debts/payment', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      customerId: customerId,
+      amount: amount,
+      note: note || ('Thu tiền đơn #' + _paymentSaleId)
+    })
+  })
+  .then(function(res) { return safeJson(res); })
+  .then(function(data) {
+    if (!data) { showToast('Lỗi kết nối', 'error'); return; }
+    if (data.success) {
+      showToast('Đã thu ' + formatVND(amount), 'success');
+      closePaymentModal();
+      loadSaleHistory();
+      // Reload customer data
+      if (typeof loadSalesData === 'function') {
+        loadSalesData();
+      }
+    } else {
+      showToast(data.error || 'Lỗi khi thu tiền', 'error');
+    }
+  })
+  .catch(function(err) {
+    console.error('Payment error:', err);
+    showToast('Lỗi khi thu tiền', 'error');
+  })
+  .finally(function() {
+    if (btn) { btn.disabled = false; btn.innerText = '💰 Xác nhận thu'; }
+  });
+}
+
+// Expose to window
+window.openPaymentModal = openPaymentModal;
+window.closePaymentModal = closePaymentModal;
+window.setPaymentFull = setPaymentFull;
+window.setPaymentPartial = setPaymentPartial;
+window.submitPayment = submitPayment;
 
 // Auto-scale invoice modal on window resize
 window.addEventListener('resize', function() {
