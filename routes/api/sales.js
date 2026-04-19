@@ -458,7 +458,7 @@ router.post('/replacement', (req, res) => {
         INSERT INTO keg_transactions_log
           (type, quantity, exchanged, purchased, customer_id, customer_name, inventory_after, empty_after, holding_after, note)
         VALUES (?, ?, ?, 0, ?, ?, ?, ?, 0, ?)
-      `).run(isGift ? 'gift' : 'replacement', quantity, quantity, 0, customer_id || null, customerName, product.stock - quantity, newEmpty, note);
+      `).run(isGift ? 'gift' : 'replacement', quantity, quantity, customer_id || null, customerName, product.stock - quantity, newEmpty, note);
 
       return saleId;
     });
