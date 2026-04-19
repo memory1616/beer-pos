@@ -15,7 +15,7 @@ const fs = require('fs');
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-const MIGRATION_VERSION = 2026041601;
+const MIGRATION_VERSION = 2026041602;
 const SCHEMA_VERSION_KEY = 'schema_version';
 const BUSINESS_FEATURES_VERSION = 2026041602;
 
@@ -421,6 +421,71 @@ function migrateAddForeignKeys(db) {
   return added;
 }
 
+// ── Migration: Fix keg_transactions_log CHECK constraint ──────────────────────
+
+function migrateFixKegTxLogConstraint(db) {
+  log('Bắt đầu migration: Fix keg_transactions_log CHECK constraint');
+
+  try {
+    // Check if table exists
+    const tableInfo = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='keg_transactions_log'").get();
+    if (!tableInfo) {
+      log('  Bảng keg_transactions_log không tồn tại, bỏ qua');
+      return 0;
+    }
+
+    // Get current schema
+    const currentSchema = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='keg_transactions_log'").get();
+    if (!currentSchema) return 0;
+
+    // Check if already fixed
+    if (currentSchema.sql.includes("'replacement'")) {
+      log('  CHECK constraint đã được fix, bỏ qua');
+      return 0;
+    }
+
+    // Recreate table with correct CHECK constraint
+    db.exec('DROP TABLE IF EXISTS keg_transactions_log_new');
+
+    db.exec(`
+      CREATE TABLE keg_transactions_log_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        type TEXT NOT NULL CHECK(type IN ('deliver', 'collect', 'import', 'adjust', 'sell_empty', 'gift', 'lost', 'replacement', 'sale_delete', 'return', 'collect_return')),
+        quantity INTEGER NOT NULL,
+        exchanged INTEGER DEFAULT 0,
+        purchased INTEGER DEFAULT 0,
+        customer_id INTEGER,
+        customer_name TEXT,
+        inventory_after INTEGER NOT NULL,
+        empty_after INTEGER NOT NULL,
+        holding_after INTEGER NOT NULL,
+        lost_after INTEGER DEFAULT 0,
+        note TEXT,
+        date TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT
+      )
+    `);
+
+    // Copy data
+    db.exec("INSERT INTO keg_transactions_log_new (id, type, quantity, exchanged, purchased, customer_id, customer_name, inventory_after, empty_after, holding_after, note, date, updated_at, lost_after) SELECT id, type, quantity, exchanged, purchased, customer_id, customer_name, COALESCE(inventory_after,0), COALESCE(empty_after,0), COALESCE(holding_after,0), note, date, updated_at, COALESCE(lost_after,0) FROM keg_transactions_log");
+
+    // Replace table
+    db.exec('DROP TABLE keg_transactions_log');
+    db.exec('ALTER TABLE keg_transactions_log_new RENAME TO keg_transactions_log');
+
+    // Recreate indexes
+    db.exec('CREATE INDEX IF NOT EXISTS idx_keg_tx_log_date ON keg_transactions_log(date)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_keg_tx_log_type ON keg_transactions_log(type)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_keg_tx_log_customer ON keg_transactions_log(customer_id)');
+
+    log('  ✅ CHECK constraint đã được fix');
+    return 1;
+  } catch (e) {
+    log(`  Lỗi: ${e.message}`);
+    throw e;
+  }
+}
+
 // ── Main Migration Runner ─────────────────────────────────────────────────────
 
 function runMigrations(db) {
@@ -452,6 +517,7 @@ function runMigrations(db) {
     { name: 'devices', fn: () => migrateCreateDevicesTable(db) },
     { name: 'indexes', fn: () => migrateCreateIndexes(db) },
     { name: 'foreignKeys', fn: () => migrateAddForeignKeys(db) },
+    { name: 'kegTxConstraint', fn: () => migrateFixKegTxLogConstraint(db) },
   ];
 
   for (const step of migrationSteps) {
