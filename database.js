@@ -112,7 +112,7 @@ db.pragma('legacy_file_format = OFF');
 db.exec(`
   CREATE TABLE IF NOT EXISTS keg_transactions_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    type TEXT NOT NULL CHECK(type IN ('deliver','collect','import','adjust','sell_empty','gift','lost')),
+    type TEXT NOT NULL CHECK(type IN ('deliver','collect','import','adjust','sell_empty','gift','lost','replacement','sale_delete')),
     quantity INTEGER NOT NULL,
     exchanged INTEGER DEFAULT 0,
     purchased INTEGER DEFAULT 0,
@@ -1012,7 +1012,7 @@ try {
 db.exec(`
   CREATE TABLE IF NOT EXISTS keg_transactions_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    type TEXT NOT NULL CHECK(type IN ('deliver', 'collect', 'import', 'adjust', 'sell_empty', 'gift', 'lost')),
+    type TEXT NOT NULL CHECK(type IN ('deliver', 'collect', 'import', 'adjust', 'sell_empty', 'gift', 'lost', 'replacement', 'sale_delete')),
     quantity INTEGER NOT NULL,
     exchanged INTEGER DEFAULT 0,
     purchased INTEGER DEFAULT 0,
