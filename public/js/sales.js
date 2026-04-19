@@ -316,7 +316,7 @@ function renderSaleHistory(sales, page, totalPages) {
       kegsInfo = '<div class="sale-history-kegs">' + parts.join('   |   ') + '</div>';
     }
 
-    return '<div class="sale-history-item">' +
+    return '<div class="sale-history-item" onclick="viewSale(' + s.id + ')">' +
       '<div class="sale-history-top">' +
         '<div class="sale-history-customer">' + escHtml(customerName) + typeLabel + '</div>' +
         '<div class="sale-history-total">' + totalStr + '</div>' +
@@ -325,9 +325,10 @@ function renderSaleHistory(sales, page, totalPages) {
       '<div class="sale-history-items">' + escHtml(itemNames) + '</div>' +
       kegsInfo +
       '<div class="sale-history-actions">' +
-        '<button class="action-view" onclick="viewSale(' + s.id + ')">💰 Thu tiền</button>' +
-        '<button class="action-edit" onclick="openEditSale(' + s.id + ')"' + (isReturned ? ' disabled' : '') + '>✏️ Sửa</button>' +
-        '<button class="action-delete" onclick="deleteSale(' + s.id + ')">🗑 Xóa</button>' +
+        '<button class="action-view" onclick="viewInvoice(' + s.id + '); event.stopPropagation();">👁 Xem</button>' +
+        '<button class="action-return" onclick="returnSale(' + s.id + '); event.stopPropagation();">📦 Trả</button>' +
+        '<button class="action-edit" onclick="openEditSale(' + s.id + '); event.stopPropagation();"' + (isReturned ? ' disabled' : '') + '>✏️ Sửa</button>' +
+        '<button class="action-delete" onclick="deleteSale(' + s.id + '); event.stopPropagation();">🗑 Xóa</button>' +
       '</div>' +
     '</div>';
   }).join('');
@@ -678,7 +679,6 @@ function openInvoiceModal(source) {
 }
 
 function viewSale(saleId) {
-  // Mở modal thu tiền thay vì invoice
   fetch('/sale/' + saleId, { cache: 'no-store' })
     .then(function(res) { return safeJson(res); })
     .then(function(data) {
@@ -692,13 +692,22 @@ function viewSale(saleId) {
     .catch(function() { showToast('Lỗi tải đơn', 'error'); });
 }
 
+function viewInvoice(saleId) {
+  openInvoiceModal(saleId);
+}
+
 function openPaymentModalForSale(sale) {
   var saleId = sale.id;
   var customerId = sale.customer_id;
   var total = sale.total || sale.totalAmount || 0;
 
+  // Khách lẻ không có công nợ — mở modal trực tiếp
+  if (!customerId) {
+    openPaymentModal(saleId, null, total, 0, 0);
+    return;
+  }
+
   // Tính số tiền đã trả từ payments
-  // Nếu có payment_status thì dùng, không thì tính từ API
   fetch('/api/debts/' + customerId, { cache: 'no-store' })
     .then(function(res) { return safeJson(res); })
     .then(function(data) {
@@ -1855,6 +1864,7 @@ function closeInvoice() {
 window.closeInvoice = closeInvoice;
 window.openInvoiceModal = openInvoiceModal;
 window.viewSale = viewSale;
+window.viewInvoice = viewInvoice;
 
 function setPaymentFull() {
   var debt = _paymentTotal - _paymentPaid;
