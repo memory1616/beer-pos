@@ -235,7 +235,9 @@ window.addEventListener('realtime:refetch', function(e) {
 
 function initSalesPage(data) {
   products = data.products || [];
-  customers = data.customers || [];
+  customers = (data.customers || []).sort(function(a, b) {
+    return (a.name || '').localeCompare(b.name || '', 'vi');
+  });
   priceMap = data.priceMap || {};
 
   // Close dropdown when clicking outside the customer search area
