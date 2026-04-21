@@ -211,7 +211,8 @@
           </div>
           <div id="paymentAmountInput" class="hidden mb-3">
             <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:6px;">💵 Số tiền khách trả</label>
-            <input type="number" id="paymentAmount" value="0" min="0"
+            <input type="text" id="paymentAmount" value="0" inputmode="numeric"
+              oninput="_onPaymentAmountInput(this)"
               style="width:100%;height:44px;padding:0 12px;border-radius:8px;border:2px solid var(--success);background:var(--card);color:var(--text-primary);font-size:16px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;">
           </div>
           <div class="mb-3">
@@ -392,7 +393,7 @@
       await loadScript('/js/product-grid.js');
       await loadScript('/socket.io/socket.io.js');
       await loadScript('/js/realtime-client.js');
-      await loadScript('/js/sales.js?v=20260419b-thutien');
+      await loadScript('/js/sales.js?v=20260419h-thutien');
       await loadSalesData();
     })();
 

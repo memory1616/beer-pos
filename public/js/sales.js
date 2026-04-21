@@ -4,14 +4,8 @@
 // ============================================================
 // SAFE JSON — never crash on non-JSON / offline responses
 // ============================================================
-/**
- * Wraps fetch response.json() with error handling.
- * Returns null on parse failure or offline response.
- * Also checks for offline: true flag in body.
- */
 async function safeJson(res) {
   if (!res || !res.ok) {
-    // Try to extract offline flag from error response body
     try {
       const clone = res.clone();
       const text = await clone.text();
@@ -48,12 +42,108 @@ let editingSaleId = null;
 let kegEditSaleId = null;  // Sale ID đang thao tác vỏ
 let kegSubmitting = false; // Guard: prevent double click submit
 
-// Payment modal state
+// ============================================================
+// PAYMENT MODAL STATE
+// ============================================================
 let _paymentSaleId = null;
 let _paymentCustomerId = null;
-let _paymentTotal = 0;
-let _paymentPaid = 0;
-let _paymentCustomerDebt = 0;
+let _paymentTotal = 0;          // Tổng đơn hàng
+let _paymentPaid = 0;          // Đã trả cho đơn này
+let _paymentCustomerDebt = 0;   // Tổng công nợ khách
+let _paymentRemaining = 0;     // Còn nợ đơn này = total - paid
+let _paymentSubmitting = false; // Guard: đang submit
+
+// ============================================================
+// CURRENCY HELPERS
+// ============================================================
+
+/**
+ * Format number → "1.000.000"
+ */
+function _fmt(n) {
+  if (n == null || isNaN(n)) return '0';
+  return new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 }).format(n);
+}
+
+/**
+ * Parse "1.000.000" → 1000000
+ */
+function _parse(s) {
+  if (!s) return 0;
+  return parseInt(String(s).replace(/\./g, ''), 10) || 0;
+}
+
+/**
+ * Format VND → "1.000.000đ"
+ */
+function formatVND(n) {
+  if (n == null || isNaN(n)) return '0đ';
+  return _fmt(n) + 'đ';
+}
+
+// ============================================================
+// INPUT HANDLERS (gắn vào paymentAmount input)
+// ============================================================
+
+let _paymentDebounceTimer = null;
+
+/**
+ * Gọi trong onChange của input.
+ * - Strip dots → parse number
+ * - Auto-format hiển thị
+ */
+function _onPaymentAmountInput(inputEl) {
+  var raw = inputEl.value;
+  var num = _parse(raw);
+  var formatted = _fmt(num);
+  if (formatted !== raw) {
+    var cursor = inputEl.selectionStart;
+    var diff = formatted.length - raw.length;
+    inputEl.value = formatted;
+    var newPos = Math.max(0, cursor + diff);
+    inputEl.setSelectionRange(newPos, newPos);
+  }
+  if (_paymentDebounceTimer) clearTimeout(_paymentDebounceTimer);
+  _paymentDebounceTimer = setTimeout(function() { _validatePaymentAmount(num); }, 300);
+}
+
+function _validatePaymentAmount(amount) {
+  var warning = document.getElementById('paymentWarning');
+  if (!warning) return;
+  if (amount <= 0) {
+    warning.textContent = 'Số tiền phải lớn hơn 0';
+    warning.style.color = 'var(--danger)';
+    warning.style.borderColor = 'var(--danger)';
+    warning.style.background = 'rgba(239,68,68,0.1)';
+    warning.classList.remove('hidden');
+    return;
+  }
+  if (_paymentCustomerId && amount > _paymentCustomerDebt) {
+    warning.textContent = '⚠️ Số tiền lớn hơn tổng công nợ. Phần dư sẽ được ghi nhận.';
+    warning.style.color = 'var(--warning)';
+    warning.style.borderColor = 'var(--warning)';
+    warning.style.background = 'rgba(245,158,11,0.1)';
+    warning.classList.remove('hidden');
+    return;
+  }
+  warning.classList.add('hidden');
+}
+
+function _setPaymentAmount(num) {
+  var inp = document.getElementById('paymentAmount');
+  if (inp) inp.value = _fmt(num);
+}
+
+function _getPaymentAmount() {
+  return _parse(document.getElementById('paymentAmount')?.value || '0');
+}
+
+// Expose helpers for HTML oninput
+window._onPaymentAmountInput = _onPaymentAmountInput;
+window._setPaymentAmount = _setPaymentAmount;
+window._getPaymentAmount = _getPaymentAmount;
+window._fmt = _fmt;
+window._parse = _parse;
 
 let saleState = {
   customerId: null,
@@ -316,7 +406,7 @@ function renderSaleHistory(sales, page, totalPages) {
       kegsInfo = '<div class="sale-history-kegs">' + parts.join('   |   ') + '</div>';
     }
 
-    return '<div class="sale-history-item" onclick="viewSale(' + s.id + ')">' +
+    return '<div class="sale-history-item" onclick="console.log(\'row click\', ' + s.id + '); viewSale(' + s.id + ')">' +
       '<div class="sale-history-top">' +
         '<div class="sale-history-customer">' + escHtml(customerName) + typeLabel + '</div>' +
         '<div class="sale-history-total">' + totalStr + '</div>' +
@@ -707,18 +797,13 @@ function openPaymentModalForSale(sale) {
     return;
   }
 
-  // Tính số tiền đã trả từ payments
-  fetch('/api/debts/' + customerId, { cache: 'no-store' })
+  // Lấy số đã trả cho đơn này
+  fetch('/api/debts/sale/' + saleId, { cache: 'no-store' })
     .then(function(res) { return safeJson(res); })
-    .then(function(data) {
-      var paid = 0;
-      var customerDebt = 0;
-      if (data && data.data) {
-        // Tính tổng đã trả từ payment history
-        var payments = data.data.payments || [];
-        paid = payments.reduce(function(sum, p) { return sum + (p.amount || 0); }, 0);
-        customerDebt = data.data.customer ? (data.data.customer.debt || 0) : 0;
-      }
+    .then(function(resp) {
+      var d = (resp && resp.data) ? resp.data : resp;
+      var paid = (d && d.totalPaid) || 0;
+      var customerDebt = (d && d.customerDebt) || 0;
       openPaymentModal(saleId, customerId, total, paid, customerDebt);
     })
     .catch(function() {
@@ -732,9 +817,8 @@ function openPaymentModal(saleId, customerId, total, paid, customerDebt) {
   _paymentTotal = total || 0;
   _paymentPaid = paid || 0;
   _paymentCustomerDebt = customerDebt || 0;
-
-  var debt = _paymentTotal - _paymentPaid;
-  if (debt < 0) debt = 0;
+  _paymentRemaining = Math.max(0, _paymentTotal - _paymentPaid);
+  _paymentSubmitting = false;
 
   var infoEl = document.getElementById('paymentModalInfo');
   if (infoEl) {
@@ -748,28 +832,37 @@ function openPaymentModal(saleId, customerId, total, paid, customerDebt) {
         <span style="font-weight:700;color:var(--text-primary);">${formatVND(_paymentTotal)}</span>
       </div>
       <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-        <span style="color:var(--text-muted);font-size:13px;">Đã thanh toán:</span>
+        <span style="color:var(--text-muted);font-size:13px;">Khách trả:</span>
         <span style="font-weight:700;color:var(--success);">${formatVND(_paymentPaid)}</span>
       </div>
       <div style="display:flex;justify-content:space-between;padding-top:8px;border-top:1px solid var(--border);margin-bottom:8px;">
         <span style="color:var(--text-primary);font-size:13px;font-weight:600;">Còn nợ đơn này:</span>
-        <span style="font-weight:800;color:var(--danger);font-size:16px;">${formatVND(debt)}</span>
+        <span style="font-weight:800;color:var(--danger);font-size:16px;">${formatVND(_paymentRemaining)}</span>
       </div>
-      <div style="display:flex;justify-content:space-between;padding-top:8px;border-top:1px dashed var(--border);">
+      <div style="display:flex;justify-content:space-between;padding-top:8px;border-top:1px dashed var(--border);${!customerId ? 'display:none' : ''}">
         <span style="color:var(--text-muted);font-size:12px;">Tổng công nợ khách:</span>
         <span style="font-weight:700;color:var(--danger);font-size:14px;">${formatVND(_paymentCustomerDebt)}</span>
       </div>
     `;
   }
 
+  // Reset UI state
   document.getElementById('paymentAmountInput').classList.add('hidden');
-  document.getElementById('paymentWarning').classList.add('hidden');
+  var warning = document.getElementById('paymentWarning');
+  if (warning) { warning.classList.add('hidden'); }
   document.getElementById('btnPayFull').style.background = 'var(--success)';
+  document.getElementById('btnPayFull').style.color = '#fff';
   document.getElementById('btnPayPartial').style.background = 'transparent';
   document.getElementById('btnPayPartial').style.border = '1px solid var(--border)';
   document.getElementById('btnPayPartial').style.color = 'var(--text-muted)';
-  document.getElementById('paymentAmount').value = debt;
+  if (!customerId) {
+    var partialBtn = document.getElementById('btnPayPartial');
+    if (partialBtn) partialBtn.style.display = 'none';
+  }
   document.getElementById('paymentNote').value = '';
+
+  // Set amount = remaining debt, formatted
+  _setPaymentAmount(_paymentRemaining);
 
   var modal = document.getElementById('paymentModal');
   if (modal) {
@@ -1867,14 +1960,15 @@ window.viewSale = viewSale;
 window.viewInvoice = viewInvoice;
 
 function setPaymentFull() {
-  var debt = _paymentTotal - _paymentPaid;
-  if (debt < 0) debt = 0;
-  document.getElementById('paymentAmount').value = debt;
+  _setPaymentAmount(_paymentRemaining);
   document.getElementById('paymentAmountInput').classList.add('hidden');
   document.getElementById('btnPayFull').style.background = 'var(--success)';
+  document.getElementById('btnPayFull').style.color = '#fff';
   document.getElementById('btnPayPartial').style.background = 'transparent';
   document.getElementById('btnPayPartial').style.border = '1px solid var(--border)';
   document.getElementById('btnPayPartial').style.color = 'var(--text-muted)';
+  var warning = document.getElementById('paymentWarning');
+  if (warning) warning.classList.add('hidden');
 }
 
 function setPaymentPartial() {
@@ -1897,6 +1991,8 @@ function closePaymentModal() {
     modal.classList.add('hidden');
     modal.style.pointerEvents = 'none';
   }
+  var partialBtn = document.getElementById('btnPayPartial');
+  if (partialBtn) partialBtn.style.display = '';
   _paymentSaleId = null;
   _paymentCustomerId = null;
   _paymentTotal = 0;
@@ -1905,34 +2001,71 @@ function closePaymentModal() {
 }
 
 function submitPayment() {
-  var amount = parseFloat(document.getElementById('paymentAmount')?.value) || 0;
+  if (_paymentSubmitting) return;
+  _paymentSubmitting = true;
+
+  var amount = _getPaymentAmount();
   var note = document.getElementById('paymentNote')?.value || '';
+  var btn = document.querySelector('[onclick="submitPayment()"]');
+  var warning = document.getElementById('paymentWarning');
 
   if (amount <= 0) {
-    var warning = document.getElementById('paymentWarning');
     if (warning) {
       warning.textContent = 'Số tiền phải lớn hơn 0';
+      warning.style.color = 'var(--danger)';
+      warning.style.borderColor = 'var(--danger)';
+      warning.style.background = 'rgba(239,68,68,0.1)';
       warning.classList.remove('hidden');
     }
+    _paymentSubmitting = false;
     return;
   }
 
-  var btn = document.querySelector('[onclick="submitPayment()"]');
   if (btn) { btn.disabled = true; btn.innerText = 'Đang xử lý...'; }
 
   var customerId = _paymentCustomerId;
   if (!customerId) {
-    showToast('Không tìm thấy khách hàng', 'error');
-    if (btn) { btn.disabled = false; btn.innerText = '💰 Xác nhận thu'; }
+    // Khách lẻ - cập nhật payment_status của đơn hàng
+    var saleId = _paymentSaleId;
+    fetch('/api/sales/' + saleId + '/payment-status', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ payment_status: 'paid' })
+    })
+    .then(function(res) { return safeJson(res); })
+    .then(function(data) {
+      if (data && data.success) {
+        showToast('Đã thu ' + formatVND(amount), 'success');
+        closePaymentModal();
+        loadSaleHistory();
+        if (typeof loadSalesData === 'function') loadSalesData();
+        if (typeof loadDebtHistory === 'function') loadDebtHistory();
+      } else {
+        if (warning) { warning.textContent = data.error || 'Lỗi'; warning.classList.remove('hidden'); }
+        showToast(data.error || 'Lỗi khi thu tiền', 'error');
+      }
+    })
+    .catch(function() {
+      if (warning) { warning.textContent = 'Lỗi kết nối'; warning.classList.remove('hidden'); }
+      showToast('Lỗi khi thu tiền', 'error');
+    })
+    .finally(function() {
+      _paymentSubmitting = false;
+      if (btn) { btn.disabled = false; btn.innerText = '💰 Xác nhận thu'; }
+    });
     return;
   }
 
   fetch('/api/debts/payment', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Request-Id': Date.now() + '-' + Math.random().toString(36).substr(2, 9)
+    },
     body: JSON.stringify({
       customerId: customerId,
       amount: amount,
+      saleId: _paymentSaleId,
       note: note || ('Thu tiền đơn #' + _paymentSaleId)
     })
   })
@@ -1943,10 +2076,7 @@ function submitPayment() {
       showToast('Đã thu ' + formatVND(amount), 'success');
       closePaymentModal();
       loadSaleHistory();
-      // Reload customer data
-      if (typeof loadSalesData === 'function') {
-        loadSalesData();
-      }
+      if (typeof loadSalesData === 'function') loadSalesData();
     } else {
       showToast(data.error || 'Lỗi khi thu tiền', 'error');
     }
@@ -1956,6 +2086,7 @@ function submitPayment() {
     showToast('Lỗi khi thu tiền', 'error');
   })
   .finally(function() {
+    _paymentSubmitting = false;
     if (btn) { btn.disabled = false; btn.innerText = '💰 Xác nhận thu'; }
   });
 }
@@ -1990,9 +2121,4 @@ function escHtml(str) {
 function escAttr(str) {
   if (str == null) return '';
   return String(str).replace(/'/g, "\\'").replace(/"/g, '&quot;');
-}
-
-function formatVND(n) {
-  if (n == null || isNaN(n)) return '0đ';
-  return new Intl.NumberFormat('vi-VN').format(Math.round(n)) + 'đ';
 }

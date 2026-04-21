@@ -107,6 +107,12 @@ class RealtimeClient {
       this._throttledEmit('customer:refresh', data);
     });
 
+    // ── Debt updates ──────────────────────────────────────────────
+    socket.on('debt:updated', (data) => {
+      console.log('[Realtime] Debt updated:', data);
+      this._emit('debt:refresh', data);
+    });
+
     // ── Refetch request ──────────────────────────────────────────────
     socket.on('refetch:now', (data) => {
       console.log('[Realtime] Refetch requested:', data.entities);
