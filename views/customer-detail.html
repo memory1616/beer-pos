@@ -158,7 +158,8 @@
           </div>
           <div id="paymentAmountInput" class="hidden mb-3">
             <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:6px;">💵 Số tiền khách trả</label>
-            <input type="number" id="paymentAmount" value="0" min="0"
+            <input type="text" id="paymentAmount" value="0" inputmode="numeric"
+              oninput="_onPaymentAmountInput(this)"
               style="width:100%;height:44px;padding:0 12px;border-radius:8px;border:2px solid var(--success);background:var(--card);color:var(--text-primary);font-size:16px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;">
           </div>
           <div class="mb-3">
@@ -275,6 +276,8 @@
 
     function openCustomerPaymentModal(debtAmount) {
       _customerPaymentDebt = debtAmount || 0;
+      _paymentCustomerId = customerId; // For _validatePaymentAmount
+      _paymentCustomerDebt = _customerPaymentDebt;
       var infoEl = document.getElementById('paymentModalInfo');
       if (infoEl) {
         infoEl.innerHTML = `
@@ -289,24 +292,25 @@
         `;
       }
       document.getElementById('paymentAmountInput').classList.add('hidden');
-      document.getElementById('paymentWarning').classList.add('hidden');
       document.getElementById('btnPayFull').style.background = 'var(--success)';
       document.getElementById('btnPayPartial').style.background = 'transparent';
       document.getElementById('btnPayPartial').style.border = '1px solid var(--border)';
       document.getElementById('btnPayPartial').style.color = 'var(--text-muted)';
-      document.getElementById('paymentAmount').value = _customerPaymentDebt;
+      _setPaymentAmount(_customerPaymentDebt);
       document.getElementById('paymentNote').value = '';
       var modal = document.getElementById('paymentModal');
       if (modal) modal.classList.remove('hidden');
     }
 
     function setPaymentFull() {
-      document.getElementById('paymentAmount').value = _customerPaymentDebt;
+      _setPaymentAmount(_customerPaymentDebt);
       document.getElementById('paymentAmountInput').classList.add('hidden');
       document.getElementById('btnPayFull').style.background = 'var(--success)';
       document.getElementById('btnPayPartial').style.background = 'transparent';
       document.getElementById('btnPayPartial').style.border = '1px solid var(--border)';
       document.getElementById('btnPayPartial').style.color = 'var(--text-muted)';
+      var w = document.getElementById('paymentWarning');
+      if (w) w.classList.add('hidden');
     }
 
     function setPaymentPartial() {
@@ -327,19 +331,22 @@
     }
 
     async function submitCustomerPayment() {
-      var amount = parseFloat(document.getElementById('paymentAmount')?.value) || 0;
+      var amount = _getPaymentAmount();
       var note = document.getElementById('paymentNote')?.value || '';
+      var btn = document.querySelector('[onclick="submitCustomerPayment()"]');
+      var w = document.getElementById('paymentWarning');
       if (amount <= 0) {
-        var w = document.getElementById('paymentWarning');
-        if (w) { w.textContent = 'Số tiền phải lớn hơn 0'; w.classList.remove('hidden'); }
+        if (w) { w.textContent = 'Số tiền phải lớn hơn 0'; w.style.color = 'var(--danger)'; w.classList.remove('hidden'); }
         return;
       }
-      var btn = document.querySelector('[onclick="submitCustomerPayment()"]');
       if (btn) { btn.disabled = true; btn.innerText = 'Đang xử lý...'; }
       try {
         var res = await fetch('/api/debts/payment', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Request-Id': Date.now() + '-' + Math.random().toString(36).substr(2, 9)
+          },
           body: JSON.stringify({ customerId: customerId, amount: amount, note: note || 'Thu tiền từ trang khách hàng' })
         });
         var data = await res.json();
@@ -349,9 +356,11 @@
           await loadCustomerStats();
           if (typeof showToast === 'function') showToast('Đã thu ' + formatVND(amount), 'success');
         } else {
+          if (w) { w.textContent = data.error || 'Lỗi'; w.classList.remove('hidden'); }
           if (typeof showToast === 'function') showToast(data.error || 'Lỗi', 'error');
         }
       } catch (err) {
+        if (w) { w.textContent = 'Lỗi kết nối'; w.classList.remove('hidden'); }
         if (typeof showToast === 'function') showToast('Lỗi kết nối', 'error');
       } finally {
         if (btn) { btn.disabled = false; btn.innerText = '💰 Xác nhận thu'; }
@@ -362,61 +371,190 @@
     async function loadDebtHistory() {
       const container = document.getElementById('debtContent');
       container.innerHTML = '<div class="text-center py-8 text-muted">Đang tải...</div>';
-      
-      try {
-        const res = await fetch(`/api/customers/${customerId}/debt`);
-        const data = await res.json();
-        
-        let html = '';
-        
-        // Current debt summary
-        if (data.currentDebt > 0) {
-          html += `
-            <div class="card stat-card--danger mb-4">
-              <div class="sc-label"><span class="sc-icon">💰</span> Công nợ hiện tại</div>
-              <div class="sc-value">${formatVND(data.currentDebt)}</div>
-              <div class="mt-3">
-                <button onclick="openCustomerPaymentModal(${data.currentDebt})" class="btn btn-primary w-full" style="background:var(--success);height:40px;font-size:14px;">💰 Thu tiền</button>
-              </div>
-            </div>
-          `;
-        } else {
-          html += `
-            <div class="card stat-card--success mb-4">
-              <div class="sc-label"><span class="sc-icon">💰</span> Tình trạng</div>
-              <div class="sc-value">Không có công nợ</div>
-            </div>
-          `;
-        }
 
-        if (!data.transactions || data.transactions.length === 0) {
-          container.innerHTML = html + '<div class="text-center py-4 text-muted">Chưa có giao dịch công nợ</div>';
+      try {
+        // Dùng API mới lấy đầy đủ thông tin
+        const res = await fetch(`/api/debts/${customerId}`);
+        const resp = await res.json();
+        const data = resp.data;
+
+        if (!data || !data.customer) {
+          container.innerHTML = '<div class="text-center py-8 text-muted">Không có dữ liệu</div>';
           return;
         }
 
-        data.transactions.forEach(item => {
-          const isPayment = item.type === 'payment';
-          const amountClass = isPayment ? 'text-success' : 'text-danger';
-          const amountText = isPayment ? `-${formatVND(item.amount)}` : `+${formatVND(item.amount)}`;
+        const customer = data.customer;
+        const orderDebts = data.orderDebts || [];
+        const history = data.history || [];
+        const currentDebt = customer.debt || 0;
 
+        // ── Màu sắc theo mức nợ ──────────────────────────
+        let debtColorClass = 'stat-card--success';
+        let debtLabel = 'Không có công nợ';
+        let debtIcon = '✅';
+
+        if (currentDebt > 0) {
+          const unpaidOrders = orderDebts.filter(od => od.status !== 'paid').length;
+          if (currentDebt >= 5000000) {
+            debtColorClass = 'stat-card--danger';
+            debtLabel = `Nợ cao - ${unpaidOrders} đơn chưa trả`;
+            debtIcon = '🔴';
+          } else if (currentDebt >= 1000000) {
+            debtColorClass = 'stat-card--amber';
+            debtLabel = `${unpaidOrders} đơn chưa trả`;
+            debtIcon = '🟡';
+          } else {
+            debtColorClass = 'stat-card--warning';
+            debtLabel = `${unpaidOrders} đơn chưa trả`;
+            debtIcon = '🟠';
+          }
+        }
+
+        // ── Header card ───────────────────────────────────
+        let html = `
+          <div class="card ${debtColorClass} mb-4">
+            <div class="sc-label"><span class="sc-icon">${debtIcon}</span> Công nợ hiện tại</div>
+            <div class="sc-value">${formatVND(currentDebt)}</div>
+            <div class="text-xs opacity-75 mt-1">${debtLabel}</div>
+        `;
+
+        if (currentDebt > 0) {
+          // Nút thu nhanh
+          const quickAmounts = [100000, 200000, 500000];
           html += `
-            <div class="card card--list-item mb-2">
-              <div class="flex justify-between items-center">
-                <div class="text-sm font-medium text-main">📅 ${formatDate(item.date)}</div>
-                <div class="font-bold ${amountClass}">${amountText}</div>
-              </div>
-              <div class="text-xs text-secondary mt-1">
-                ${item.note || (isPayment ? 'Thanh toán' : 'Ghi nợ')} · Còn lại: ${formatVND(item.balance_after || 0)}
-              </div>
+            <div class="flex gap-2 mt-3 flex-wrap">
+              ${quickAmounts.map(amt => `
+                <button onclick="quickPayCustomer(${amt})" class="btn btn-sm flex-1" style="min-width:60px;font-size:12px;padding:6px 4px;">
+                  +${formatVND(amt)}
+                </button>
+              `).join('')}
+              <button onclick="quickPayCustomer(${currentDebt})" class="btn btn-sm flex-1" style="min-width:60px;font-size:12px;padding:6px 4px;background:var(--success);">
+                Trả hết
+              </button>
+            </div>
+            <div class="mt-2">
+              <button onclick="openCustomerPaymentModal(${currentDebt})" class="btn btn-primary w-full" style="background:var(--success);height:40px;font-size:14px;">💰 Thu tiền tùy chọn</button>
             </div>
           `;
-        });
-        
+        }
+        html += '</div>';
+
+        // ── Danh sách đơn nợ ─────────────────────────────
+        const unpaidOrders = orderDebts.filter(od => od.status !== 'paid');
+        if (unpaidOrders.length > 0) {
+          html += `
+            <div class="text-sm font-semibold text-main mb-2 px-1">📋 Đơn hàng chưa thanh toán (${unpaidOrders.length})</div>
+            <div class="space-y-2 mb-4">
+          `;
+          for (const od of unpaidOrders) {
+            const pct = od.original_amount > 0 ? Math.round((od.paid_amount / od.original_amount) * 100) : 0;
+            const statusColor = od.status === 'partial' ? 'border-l-yellow-500' : 'border-l-red-500';
+            html += `
+              <div class="card card--list-item ${statusColor} border-l-4">
+                <div class="flex justify-between items-center mb-1">
+                  <span class="text-sm font-medium">#${od.sale_id}</span>
+                  <span class="text-xs text-muted">${formatDate(od.created_at)}</span>
+                </div>
+                <div class="flex justify-between items-center mb-1">
+                  <span class="text-sm">Còn nợ:</span>
+                  <span class="font-bold text-danger">${formatVND(od.remaining_amount)}</span>
+                </div>
+                <div class="w-full bg-bg rounded-full h-1.5">
+                  <div class="h-1.5 rounded-full ${od.status === 'partial' ? 'bg-yellow-500' : 'bg-red-500'}" style="width:${pct}%"></div>
+                </div>
+                <div class="text-xs text-muted mt-1">Đã trả ${formatVND(od.paid_amount)} / ${formatVND(od.original_amount)} (${pct}%)</div>
+              </div>
+            `;
+          }
+          html += '</div>';
+        }
+
+        // ── Timeline lịch sử giao dịch ───────────────────
+        if (history.length > 0) {
+          html += `
+            <div class="text-sm font-semibold text-main mb-2 px-1">📜 Lịch sử giao dịch</div>
+            <div class="relative pl-5">
+              <div class="absolute left-[7px] top-0 bottom-0 w-0.5 bg-border"></div>
+          `;
+          for (const tx of history.slice(0, 30)) {
+            const isIncrease = tx.type === 'increase';
+            const isCancel = tx.type === 'cancel';
+            const isAdjust = tx.type === 'adjust';
+
+            let dotColor = 'bg-yellow-500';
+            let label = '';
+            let amountText = '';
+            let amountClass = 'text-danger';
+            let dot = '●';
+
+            if (isIncrease) {
+              dotColor = 'bg-red-500';
+              amountClass = 'text-danger';
+              amountText = `+${formatVND(tx.amount)}`;
+              label = tx.note || 'Ghi nợ';
+            } else if (isCancel) {
+              dotColor = 'bg-blue-500';
+              amountClass = 'text-blue-500';
+              amountText = formatVND(tx.amount);
+              label = tx.note || 'Hoàn nợ';
+            } else if (isAdjust) {
+              dotColor = 'bg-purple-500';
+              amountClass = tx.amount < 0 ? 'text-danger' : 'text-success';
+              amountText = tx.amount > 0 ? `+${formatVND(tx.amount)}` : formatVND(tx.amount);
+              label = tx.note || 'Điều chỉnh';
+            } else {
+              dotColor = 'bg-green-500';
+              amountClass = 'text-success';
+              amountText = formatVND(tx.amount);
+              label = tx.note || 'Thanh toán';
+            }
+
+            html += `
+              <div class="relative mb-3">
+                <div class="absolute -left-[13px] top-1 w-3 h-3 rounded-full ${dotColor} border-2 border-card"></div>
+                <div class="card card--list-item">
+                  <div class="flex justify-between items-center">
+                    <span class="text-xs text-muted">${formatDate(tx.created_at)}</span>
+                    <span class="font-bold ${amountClass}">${amountText}</span>
+                  </div>
+                  <div class="text-xs text-secondary mt-0.5">${label}</div>
+                  <div class="text-xs text-muted mt-0.5">Số dư: ${formatVND(tx.balance_after)}</div>
+                </div>
+              </div>
+            `;
+          }
+          html += '</div>';
+        }
+
         container.innerHTML = html;
       } catch (err) {
+        console.error('loadDebtHistory error:', err);
         container.innerHTML = '<div class="text-center py-8 text-danger">Lỗi tải dữ liệu</div>';
       }
     }
+
+    // Thu nhanh
+    window.quickPayCustomer = async function(amount) {
+      if (amount <= 0) return;
+      const note = prompt('Ghi chú (tùy chọn):', '');
+      try {
+        const res = await fetch('/api/debts/payment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Request-Id': Date.now() + '-' + Math.random() },
+          body: JSON.stringify({ customerId, amount, note: note || `Thu nhanh ${formatVND(amount)}` })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast('Đã thu ' + formatVND(amount), 'success');
+          loadDebtHistory();
+          loadCustomerDetail();
+        } else {
+          showToast(data.error || 'Lỗi', 'error');
+        }
+      } catch (e) {
+        showToast('Lỗi kết nối', 'error');
+      }
+    };
 
     // Load customer data
     async function loadCustomerDetail() {

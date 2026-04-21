@@ -995,6 +995,14 @@ try {
   // Setting may already exist
 }
 
+// Migration: Add max_debt_per_customer setting (giới hạn công nợ mặc định)
+try {
+  db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('max_debt_per_customer', '5000000');
+  console.log('Added max_debt_per_customer setting');
+} catch (e) {
+  // Setting may already exist
+}
+
 // Keg Stats table - Centralized keg state management
 db.exec(`
   CREATE TABLE IF NOT EXISTS keg_stats (

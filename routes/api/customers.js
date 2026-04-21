@@ -646,14 +646,13 @@ router.get('/:id/keg-history', (req, res) => {
 // GET /api/customers/:id/debt - Get customer debt history
 router.get('/:id/debt', (req, res) => {
   const customerId = parseInt(req.params.id);
-  
-  // Get current debt (total unpaid)
-  const currentDebt = db.prepare(`
-    SELECT COALESCE(SUM(total), 0) as debt 
-    FROM sales 
-    WHERE customer_id = ? AND payment_status = 'unpaid'
-  `).get(customerId).debt;
-  
+
+  // Get current debt from customers table (source of truth)
+  const customer = db.prepare(`
+    SELECT debt FROM customers WHERE id = ? AND archived = 0
+  `).get(customerId);
+  const currentDebt = customer ? (customer.debt || 0) : 0;
+
   // Get debt transactions (sales and payments)
   const transactions = db.prepare(`
     SELECT s.id, s.date, s.total as amount, s.payment_status, s.keg_balance_after as balance_after,
@@ -664,7 +663,7 @@ router.get('/:id/debt', (req, res) => {
     ORDER BY s.date DESC
     LIMIT 30
   `).all(customerId);
-  
+
   res.json({ currentDebt, transactions });
 });
 

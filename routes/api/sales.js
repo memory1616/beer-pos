@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require('../../database');
 const logger = require('../../src/utils/logger');
 const { syncKegInventory } = require('./products');
+const { DebtService } = require('../../src/services');
 const { updateCustomerKegBalance } = require('./payments');
 const { deleteSaleRestoringInventory } = require('../../src/services/saleDelete');
 const socketServer = require('../../src/socket/socketServer');
@@ -98,7 +99,7 @@ function validateSaleInput(body) {
 
 // POST /api/sales - Tạo hóa đơn mới (với transaction)
 router.post('/', (req, res) => {
-  const { customerId, items, deliverKegs = 0, returnKegs = 0 } = req.body;
+  const { customerId, items, deliverKegs = 0, returnKegs = 0, debt = false } = req.body;
 
   // ========== PRE-VALIDATION ==========
   if (!items || !Array.isArray(items) || items.length === 0) {
@@ -167,6 +168,29 @@ router.post('/', (req, res) => {
       });
     }
 
+    // ========== MAX DEBT CHECK ==========
+    if (debt && customerId) {
+      const maxDebtSetting = db.prepare("SELECT value FROM settings WHERE key = 'max_debt_per_customer'").get();
+      const maxDebt = maxDebtSetting ? parseFloat(maxDebtSetting.value) : 5000000;
+
+      const customer = db.prepare('SELECT debt FROM customers WHERE id = ?').get(customerId);
+      const currentDebt = customer ? (customer.debt || 0) : 0;
+      const newTotalDebt = currentDebt + total;
+
+      if (newTotalDebt > maxDebt) {
+        return res.status(400).json({
+          error: `Vượt hạn mức công nợ!`,
+          details: {
+            currentDebt,
+            orderTotal: total,
+            newTotalDebt,
+            maxDebt,
+            limitExceeded: true
+          }
+        });
+      }
+    }
+
     // Calculate keg quantity (exclude PET products)
     const kegQuantity = saleItems
       .filter(item => item.type !== 'pet')
@@ -229,11 +253,22 @@ router.post('/', (req, res) => {
 
     if (!saleId) throw new Error('Sale creation returned null');
 
-    console.log('[SALE CREATED]', { saleId, itemsInserted: saleItems.length, total, profit });
+    // ── Tạo công nợ nếu bán chịu ───────────────────────────────
+    let debtResult = null;
+    if (debt && customerId && total > 0) {
+      debtResult = DebtService.createDebt(customerId, total, saleId, `Bán chịu đơn #${saleId}`);
+      if (debtResult.success) {
+        console.log('[SALE DEBT] Created debt for sale', saleId, ':', total);
+        const io = req.app.get('io');
+        if (io) io.to('admin').emit('debt:updated', { customerId, newDebt: debtResult.newDebt, action: 'increase', saleId });
+      }
+    }
+
+    console.log('[SALE CREATED]', { saleId, itemsInserted: saleItems.length, total, profit, debt: !!debtResult });
 
     const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId);
     socketServer.emitOrderCreated(sale);
-    res.json({ success: true, id: saleId, total, profit });
+    res.json({ success: true, id: saleId, total, profit, debtCreated: debtResult?.success, newDebt: debtResult?.newDebt });
   } catch (err) {
     console.error('[SALE ERROR]', err);
     logger.error('Sale error', { error: err.message, stack: err.stack });
@@ -782,12 +817,23 @@ router.delete('/:id', (req, res) => {
       return res.status(500).json({ error: 'Xóa hóa đơn thất bại' });
     }
 
+    // ── Hoàn công nợ nếu đơn có ghi nợ ──────────────────────
+    const saleBeforeDelete = db.prepare('SELECT customer_id FROM sales WHERE id = ?').get(saleId);
+    if (saleBeforeDelete && saleBeforeDelete.customer_id) {
+      const debtResult = DebtService.reverseDebtForSale(parseInt(saleId, 10));
+      if (debtResult.success && debtResult.refundedAmount > 0) {
+        console.log('[ORDER DELETE] Debt reversed for sale', saleId, ':', debtResult.refundedAmount);
+        const io = req.app.get('io');
+        if (io) io.to('admin').emit('debt:updated', { customerId: saleBeforeDelete.customer_id, action: 'reversed', saleId: parseInt(saleId, 10), refundedAmount: debtResult.refundedAmount });
+      }
+    }
+
     // CRITICAL: Emit events để tất cả clients refresh
     console.log('[ORDER DELETE] ✅ Emitting events after successful soft-delete');
     socketServer.emitOrderDeleted(parseInt(saleId, 10));
     socketServer.emitInventoryUpdated();
     socketServer.emitReportUpdated({ reason: 'sale_deleted', saleId: parseInt(saleId, 10) });
-    
+
     res.json({ success: true, message: 'Đã xóa hóa đơn và hoàn kho', saleId: parseInt(saleId, 10) });
   } catch (err) {
     logger.error('Delete sale error', { error: err.message, stack: err.stack });
@@ -892,6 +938,22 @@ router.put('/:id', (req, res) => {
     // Cập nhật hóa đơn
     db.prepare('UPDATE sales SET customer_id = ?, total = ?, profit = ? WHERE id = ?').run(customerId, newTotal, newProfit, saleId);
 
+    // ── Điều chỉnh công nợ nếu đơn có ghi nợ ─────────────────
+    if (customerId && newTotal !== currentSale.total) {
+      const orderDebt = db.prepare('SELECT * FROM order_debts WHERE sale_id = ?').get(saleId);
+      if (orderDebt) {
+        const diff = newTotal - currentSale.total; // tăng = thêm nợ, giảm = giảm nợ
+        if (diff !== 0) {
+          const adjResult = DebtService.adjustDebt(customerId, diff, `Sửa đơn #${saleId}: ${diff > 0 ? '+' : ''}${diff}`);
+          if (adjResult.success) {
+            console.log('[SALE UPDATE] Debt adjusted for sale', saleId, ': diff=', diff);
+            const io = req.app.get('io');
+            if (io) io.to('admin').emit('debt:updated', { customerId, newDebt: adjResult.newDebt, action: 'adjusted', saleId: parseInt(saleId) });
+          }
+        }
+      }
+    }
+
     const updatedSale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId);
     logger.info(`[api/sales] Sale updated successfully: id=${saleId}, newTotal=${newTotal}`);
     socketServer.emitOrderUpdated(updatedSale);
@@ -949,6 +1011,30 @@ router.post('/:id/restore-inventory', (req, res) => {
   } catch (err) {
     logger.error('Restore inventory error', { error: err.message });
     res.status(500).json({ error: 'Hoàn kho thất bại: ' + err.message });
+  }
+});
+
+// PATCH /api/sales/:id/payment-status - Update payment_status only
+router.patch('/:id/payment-status', (req, res) => {
+  const saleId = req.params.id;
+  const { payment_status } = req.body;
+
+  if (!['paid', 'partial', 'unpaid'].includes(payment_status)) {
+    return res.status(400).json({ error: 'payment_status phải là paid, partial hoặc unpaid' });
+  }
+
+  try {
+    const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId);
+    if (!sale) {
+      return res.status(404).json({ error: 'Không tìm thấy đơn hàng' });
+    }
+
+    db.prepare('UPDATE sales SET payment_status = ? WHERE id = ?').run(payment_status, saleId);
+
+    res.json({ success: true, message: 'Đã cập nhật trạng thái thanh toán' });
+  } catch (err) {
+    logger.error('Update payment-status error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi cập nhật: ' + err.message });
   }
 });
 

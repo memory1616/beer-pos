@@ -1,72 +1,66 @@
 /**
- * BeerPOS - Debt Tracking API
+ * BeerPOS - Debt Tracking API v2
  *
- * API endpoints cho hệ thống công nợ:
- * - GET /api/debts - Lấy danh sách công nợ
- * - GET /api/debts/:customerId - Lấy chi tiết công nợ 1 khách
- * - POST /api/debts/payment - Thêm thanh toán
- * - POST /api/debts/create - Tạo công nợ mới
- * - GET /api/debts/history/:customerId - Lịch sử công nợ
+ * Sử dụng DebtService làm Single Source of Truth.
+ * Tất cả thay đổi công nợ đều qua DebtService.
  */
 
 const express = require('express');
 const router = express.Router();
 
+const db = require('../../database');
 const { DebtService } = require('../../src/services');
 const { cache, cacheKeys } = require('../../src/cache');
 
-/**
- * GET /api/debts
- * Lấy danh sách công nợ tất cả khách hàng
- *
- * Query params:
- * - hasDebt: 1 - chỉ khách có nợ
- * - overdue: 1 - khách quá hạn (30 ngày không mua)
- * - limit: số lượng
- */
+// ── In-memory request deduplication (chống double-click) ──────
+// Key: requestId → { timer, resolve, reject }
+// Dùng: header 'X-Request-Id' từ client, hoặc tạo tự động
+const _pending = new Map();
+const PENDING_TTL = 10000; // 10s
+
+function _dedup(key, fn) {
+  if (_pending.has(key)) {
+    return _pending.get(key);
+  }
+  const p = fn();
+  _pending.set(key, p);
+  const timer = setTimeout(() => _pending.delete(key), PENDING_TTL);
+  p.then(() => clearTimeout(timer)).catch(() => _pending.delete(key));
+  return p;
+}
+
+// ── Helpers ────────────────────────────────────────────────────
+
+function clearDebtCache(customerId) {
+  cache.delete(cacheKeys.CUSTOMERS);
+  cache.delete(cacheKeys.CUSTOMER(customerId));
+  cache.delete('debts:summary');
+}
+
+// ── GET /api/debts ─────────────────────────────────────────────
 router.get('/', (req, res) => {
   try {
-    const { hasDebt, overdue, limit } = req.query;
+    const { hasDebt, overdue, limit, offset } = req.query;
 
     const filters = {};
     if (hasDebt === '1') filters.hasDebt = true;
     if (overdue === '1') filters.overdue = true;
     if (limit) filters.limit = parseInt(limit);
+    if (offset) filters.offset = parseInt(offset);
 
     const debts = DebtService.getAllDebts(filters);
-
-    // Summary stats
     const totalDebt = debts.reduce((sum, d) => sum + (d.debt || 0), 0);
-    const totalDeposit = debts.reduce((sum, d) => sum + (d.deposit || 0), 0);
 
-    res.json({
-      success: true,
-      data: debts,
-      summary: {
-        totalDebt,
-        totalDeposit,
-        customerCount: debts.length,
-        overdueCount: debts.filter(d => {
-          if (!d.last_order_date || d.debt <= 0) return false;
-          const lastOrder = new Date(d.last_order_date);
-          const daysSince = (Date.now() - lastOrder.getTime()) / (1000 * 60 * 60 * 24);
-          return daysSince > 30;
-        }).length
-      }
-    });
+    res.json({ success: true, data: debts, summary: { totalDebt, count: debts.length } });
   } catch (e) {
     console.error('Debts API error:', e);
     res.status(500).json({ success: false, error: e.message });
   }
 });
 
-/**
- * GET /api/debts/summary
- * Dashboard summary về công nợ
- */
+// ── GET /api/debts/summary ─────────────────────────────────────
 router.get('/summary', (req, res) => {
   try {
-    const today = db.getVietnamDateStr();
     const monthStart = new Date();
     monthStart.setDate(1);
     const monthStartStr = monthStart.toISOString().split('T')[0];
@@ -79,147 +73,146 @@ router.get('/summary', (req, res) => {
         (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE date >= ?) as payments_this_month
     `).get(monthStartStr);
 
-    // Top 5 khách nợ nhiều nhất
     const topDebts = db.prepare(`
       SELECT id, name, phone, debt, last_order_date
-      FROM customers
-      WHERE debt > 0 AND archived = 0
-      ORDER BY debt DESC
-      LIMIT 5
+      FROM customers WHERE debt > 0 AND archived = 0
+      ORDER BY debt DESC LIMIT 5
     `).all();
 
-    res.json({
-      success: true,
-      data: {
-        ...summary,
-        topDebts
-      }
-    });
+    res.json({ success: true, data: { ...summary, topDebts } });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
   }
 });
 
-/**
- * GET /api/debts/:customerId
- * Lấy chi tiết công nợ của 1 khách hàng
- */
+// ── GET /api/debts/sale/:saleId ────────────────────────────────
+// Route phải nằm TRƯỚC /:customerId để tránh conflict
+router.get('/sale/:saleId', (req, res) => {
+  try {
+    const saleId = parseInt(req.params.saleId);
+    const data = DebtService.getSalePayments(saleId);
+
+    if (!data) {
+      return res.status(404).json({ success: false, error: 'Không tìm thấy đơn hàng' });
+    }
+
+    res.json({ success: true, data });
+  } catch (e) {
+    console.error('Get sale payments error:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// ── GET /api/debts/:customerId ─────────────────────────────────
 router.get('/:customerId', (req, res) => {
   try {
-    const { customerId } = req.params;
-
-    const debtDetail = DebtService.getCustomerDebt(parseInt(customerId));
+    const customerId = parseInt(req.params.customerId);
+    const debtDetail = DebtService.getCustomerDebt(customerId);
 
     if (!debtDetail) {
       return res.status(404).json({ success: false, error: 'Không tìm thấy khách hàng' });
     }
 
-    // Invalidate cache
-    cache.delete(cacheKeys.CUSTOMER(customerId));
-
-    res.json({
-      success: true,
-      data: debtDetail
-    });
+    res.json({ success: true, data: debtDetail });
   } catch (e) {
     console.error('Debt detail error:', e);
     res.status(500).json({ success: false, error: e.message });
   }
 });
 
-/**
- * GET /api/debts/:customerId/history
- * Lấy lịch sử giao dịch công nợ
- */
+// ── GET /api/debts/:customerId/history ─────────────────────────
 router.get('/:customerId/history', (req, res) => {
   try {
-    const { customerId } = req.params;
-
-    const history = db.prepare(`
-      SELECT
-        'payment' as type,
-        p.id,
-        p.amount,
-        p.date,
-        p.note,
-        NULL as sale_id,
-        NULL as sale_total
-      FROM payments p
-      WHERE p.customer_id = ?
-
-      UNION ALL
-
-      SELECT
-        'sale' as type,
-        NULL as id,
-        0 as amount,
-        s.date,
-        s.note,
-        s.id as sale_id,
-        s.total as sale_total
-      FROM sales s
-      WHERE s.customer_id = ? AND s.type = 'sale'
-
-      ORDER BY date DESC
-      LIMIT 100
-    `).all(customerId, customerId);
-
-    res.json({
-      success: true,
-      data: history
-    });
+    const customerId = parseInt(req.params.customerId);
+    const detail = DebtService.getCustomerDebt(customerId);
+    if (!detail) {
+      return res.status(404).json({ success: false, error: 'Không tìm thấy khách hàng' });
+    }
+    res.json({ success: true, data: detail.history || [] });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
   }
 });
 
-/**
- * POST /api/debts/payment
- * Thêm thanh toán công nợ
- *
- * Body: { customerId, amount, note }
- */
-router.post('/payment', (req, res) => {
+// ── GET /api/debts/:customerId/orders ──────────────────────────
+// Lấy danh sách đơn nợ của khách
+router.get('/:customerId/orders', (req, res) => {
   try {
-    const { customerId, amount, note } = req.body;
-
-    if (!customerId || !amount) {
-      return res.status(400).json({ success: false, error: 'Thiếu thông tin bắt buộc' });
+    const customerId = parseInt(req.params.customerId);
+    const detail = DebtService.getCustomerDebt(customerId);
+    if (!detail) {
+      return res.status(404).json({ success: false, error: 'Không tìm thấy khách hàng' });
     }
-
-    const result = DebtService.addPayment({
-      customerId: parseInt(customerId),
-      amount: parseFloat(amount),
-      note
-    });
-
-    if (!result.success) {
-      return res.status(400).json(result);
-    }
-
-    // Invalidate caches
-    cache.delete(cacheKeys.CUSTOMERS);
-    cache.delete(cacheKeys.CUSTOMER(customerId));
-
-    res.json({
-      success: true,
-      data: {
-        paymentId: result.paymentId,
-        newDebt: result.newDebt
-      }
-    });
+    res.json({ success: true, data: detail.orderDebts || [] });
   } catch (e) {
-    console.error('Add payment error:', e);
     res.status(500).json({ success: false, error: e.message });
   }
 });
 
-/**
- * POST /api/debts/create
- * Tạo công nợ mới (khi bán chịu)
- *
- * Body: { customerId, amount, saleId, note }
- */
+// ── POST /api/debts/payment ────────────────────────────────────
+// Thanh toán công nợ (idempotent qua X-Request-Id)
+router.post('/payment', (req, res) => {
+  const requestId = req.headers['x-request-id'] || `${Date.now()}-${Math.random()}`;
+
+  const doPay = () => new Promise((resolve, reject) => {
+    try {
+      const { customerId, amount, note, saleId } = req.body;
+
+      if (!customerId || !amount) {
+        return resolve({ status: 400, body: { success: false, error: 'Thiếu thông tin bắt buộc' } });
+      }
+
+      const result = DebtService.payDebt(
+        parseInt(customerId),
+        parseFloat(amount),
+        note || '',
+        saleId ? parseInt(saleId) : null
+      );
+
+      if (!result.success) {
+        return resolve({ status: 400, body: { success: false, error: result.error } });
+      }
+
+      clearDebtCache(customerId);
+
+      // Broadcast realtime
+      const io = req.app.get('io');
+      if (io) {
+        io.to('admin').emit('debt:updated', {
+          customerId: parseInt(customerId),
+          newDebt: result.newDebt,
+          paymentId: result.paymentId,
+          appliedToSale: result.appliedToSale
+        });
+      }
+
+      resolve({
+        status: 200,
+        body: {
+          success: true,
+          data: {
+            paymentId: result.paymentId,
+            debtTransactionId: result.debtTransactionId,
+            newDebt: result.newDebt,
+            appliedAmount: result.appliedAmount,
+            appliedToSale: result.appliedToSale
+          }
+        }
+      });
+    } catch (e) {
+      reject(e);
+    }
+  });
+
+  _dedup(`pay:${requestId}`, doPay)
+    .then(result => res.status(result.status).json(result.body))
+    .catch(e => {
+      console.error('Add payment error:', e);
+      res.status(500).json({ success: false, error: e.message });
+    });
+});
+
+// ── POST /api/debts/create ─────────────────────────────────────
 router.post('/create', (req, res) => {
   try {
     const { customerId, amount, saleId, note } = req.body;
@@ -228,41 +221,122 @@ router.post('/create', (req, res) => {
       return res.status(400).json({ success: false, error: 'Thiếu thông tin bắt buộc' });
     }
 
-    const result = DebtService.createDebt({
-      customerId: parseInt(customerId),
-      amount: parseFloat(amount),
-      saleId: saleId ? parseInt(saleId) : null,
-      note
-    });
+    const result = DebtService.createDebt(
+      parseInt(customerId),
+      parseFloat(amount),
+      saleId ? parseInt(saleId) : null,
+      note || ''
+    );
 
     if (!result.success) {
-      return res.status(400).json(result);
+      return res.status(400).json({ success: false, error: result.error });
     }
 
-    // Log debt transaction
-    db.prepare(`
-      INSERT INTO debt_transactions (customer_id, type, amount, balance_before, balance_after, sale_id, note)
-      SELECT
-        c.id,
-        'increase',
-        ?,
-        COALESCE(c.debt, 0) - ?,
-        COALESCE(c.debt, 0),
-        ?,
-        ?
-      FROM customers c WHERE c.id = ?
-    `).run(amount, amount, saleId, note, customerId);
+    clearDebtCache(customerId);
 
-    // Invalidate caches
-    cache.delete(cacheKeys.CUSTOMERS);
-    cache.delete(cacheKeys.CUSTOMER(customerId));
+    const io = req.app.get('io');
+    if (io) {
+      io.to('admin').emit('debt:updated', {
+        customerId: parseInt(customerId),
+        newDebt: result.newDebt,
+        action: 'increase',
+        saleId
+      });
+    }
 
-    res.json({
-      success: true,
-      message: 'Đã tạo công nợ'
-    });
+    res.json({ success: true, data: result });
   } catch (e) {
     console.error('Create debt error:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// ── POST /api/debts/adjust ─────────────────────────────────────
+// Điều chỉnh công nợ thủ công (admin)
+router.post('/adjust', (req, res) => {
+  try {
+    const { customerId, amount, reason } = req.body;
+
+    if (!customerId) {
+      return res.status(400).json({ success: false, error: 'Thiếu customerId' });
+    }
+
+    const result = DebtService.adjustDebt(
+      parseInt(customerId),
+      parseFloat(amount) || 0,
+      reason || 'Điều chỉnh thủ công'
+    );
+
+    if (!result.success) {
+      return res.status(400).json({ success: false, error: result.error });
+    }
+
+    clearDebtCache(customerId);
+
+    res.json({ success: true, data: { newDebt: result.newDebt } });
+  } catch (e) {
+    console.error('Adjust debt error:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// ── POST /api/debts/recalc ─────────────────────────────────────
+// Tính lại công nợ từ đầu (verify)
+router.post('/recalc', (req, res) => {
+  try {
+    const { customerId } = req.body;
+
+    if (!customerId) {
+      return res.status(400).json({ success: false, error: 'Thiếu customerId' });
+    }
+
+    const result = DebtService.recalcDebt(parseInt(customerId));
+    res.json({ success: true, data: result });
+  } catch (e) {
+    console.error('Recalc debt error:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// ── POST /api/debts/reverse-sale ───────────────────────────────
+// Hoàn công nợ khi xoá đơn
+router.post('/reverse-sale', (req, res) => {
+  try {
+    const { saleId } = req.body;
+
+    if (!saleId) {
+      return res.status(400).json({ success: false, error: 'Thiếu saleId' });
+    }
+
+    // Lấy customerId trước
+    const sale = db.prepare('SELECT customer_id FROM sales WHERE id = ?').get(saleId);
+    if (!sale) {
+      return res.status(404).json({ success: false, error: 'Không tìm thấy đơn hàng' });
+    }
+
+    const result = DebtService.reverseDebtForSale(parseInt(saleId));
+
+    if (!result.success) {
+      return res.status(400).json({ success: false, error: result.error });
+    }
+
+    if (sale.customer_id) {
+      clearDebtCache(sale.customer_id);
+
+      const io = req.app.get('io');
+      if (io) {
+        io.to('admin').emit('debt:updated', {
+          customerId: sale.customer_id,
+          action: 'reversed',
+          saleId: parseInt(saleId),
+          refundedAmount: result.refundedAmount
+        });
+      }
+    }
+
+    res.json({ success: true, data: result });
+  } catch (e) {
+    console.error('Reverse sale debt error:', e);
     res.status(500).json({ success: false, error: e.message });
   }
 });
