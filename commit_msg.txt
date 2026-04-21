@@ -1,0 +1,22 @@
+feat(debt): audit + rebuild hoan chinh he thong cong no
+
+Backend:
+- DebtService core v2: transaction, debt_transactions log, balance_after
+- createDebt, payDebt, reverseDebtForSale, adjustDebt, recalcDebt
+- Order tao no -> increaseDebt()
+- Order xoa -> reverseDebtForSale()
+- Order sua -> adjustDebt(diff)
+- API debts v2: idempotent (X-Request-Id), realtime debt:updated
+- Max debt check khi ban chiu (cau hinh qua settings)
+- Script migrate_debt.js: rebuild tu data cu, verify integrity
+
+Frontend:
+- Payment modal: currency helpers (_fmt, _parse), auto-format tren input
+- Debounce validation 300ms
+- Warning: so tien > tong no
+- Double-click guard + X-Request-Id
+- Debt tab nang cap: mau sac theo muc no, timeline, nut thu nhanh
+
+Data:
+- Migration rebuild: 40 order_debts, 49 debt_transactions
+- 4/4 integrity checks: PASSED
