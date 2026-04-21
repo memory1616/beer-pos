@@ -59,9 +59,42 @@ if [ -f "package.json" ]; then
     fi
 
     # Always rebuild native modules (better-sqlite3, etc.) to match current Node.js
+    # CRITICAL: NEVER ignore rebuild failures — binary incompatibility crashes the server
     log_step "Rebuilding native modules for current Node.js version..."
-    npm rebuild better-sqlite3 2>&1 | tail -5 || true
-    log_ok "Native modules rebuilt"
+
+    NODE_VERSION=$(node --version 2>/dev/null || echo "unknown")
+    log "Detected Node.js version: $NODE_VERSION"
+
+    # Clean old native build artifacts to force fresh rebuild
+    log "Cleaning old native module build artifacts..."
+    find node_modules -name "*.node" -type f -delete 2>/dev/null || true
+    find node_modules/better-sqlite3 -name "build" -type d -exec rm -rf {} + 2>/dev/null || true
+
+    # Rebuild and capture full output for diagnostics
+    NPM_REBUILD_OUTPUT=$(npm rebuild better-sqlite3 2>&1) || {
+        log_error "Native module rebuild FAILED. Server will NOT start with incompatible binary."
+        log ""
+        log "=== Rebuild output ==="
+        log "$NPM_REBUILD_OUTPUT"
+        log "========================"
+        log ""
+        log "Troubleshooting steps:"
+        log "  1. Check Node.js version: node --version"
+        log "  2. If Node.js was upgraded, run: npm rebuild"
+        log "  3. If still failing, try: npm uninstall better-sqlite3 && npm install better-sqlite3"
+        log "  4. Check node-gyp: npm install -g node-gyp"
+        log ""
+        log_error "Deploy aborted — server would crash on startup"
+    }
+    log "Rebuild output: $(echo "$NPM_REBUILD_OUTPUT" | tail -3)"
+
+    # Verify the rebuilt binary is loadable
+    log_step "Verifying native module compatibility..."
+    if node -e "require('better-sqlite3')" 2>/dev/null; then
+        log_ok "better-sqlite3 binary verified and loadable"
+    else
+        log_error "better-sqlite3 binary verification FAILED — cannot load the module"
+    fi
 
     # Run build step if defined
     if grep -q '"build"' package.json 2>/dev/null; then
@@ -116,23 +149,39 @@ else
     WAS_HEALTHY=false
 fi
 
-# ── 6. Restart PM2 (zero-downtime) ──────────────────────────────────────
-log_step "Restarting BeerPOS via PM2 (zero-downtime)..."
+# ── 6. Restart PM2 (with rollback capability) ───────────────────────────
+log_step "Restarting BeerPOS via PM2..."
 
-# Use pm2 reload for true zero-downtime (waits for new process before killing old)
+# Save current commit hash before restart for rollback reference
+PREV_COMMIT=$(git rev-parse origin/main^1 2>/dev/null || echo "unknown")
+log "Previous deploy commit: $PREV_COMMIT"
+
+# Use restart instead of reload to avoid race condition where new process
+# crashes before old one is fully replaced (which leaves NO running process)
 if pm2 describe beer-pos > /dev/null 2>&1; then
-    log "Reloading BeerPOS with zero-downtime..."
-    # Graceful reload - new process starts, then old one stops
-    pm2 reload beer-pos --update-env 2>&1 || {
-        log_warn "PM2 reload failed — falling back to restart"
-        pm2 restart beer-pos --update-env 2>&1
-    }
-    pm2 save 2>&1 || true
+    log "Stopping old BeerPOS process..."
+    pm2 stop beer-pos 2>&1 || true
+    sleep 2  # Give old process time to close DB connections
+
+    log "Starting new BeerPOS process..."
+    pm2 start ecosystem.config.js 2>&1 || log_error "PM2 start failed"
+
+    # Wait for process to initialize
+    sleep 3
+
+    # Check if process is running and healthy
+    if pm2 describe beer-pos | grep -q "online"; then
+        log_ok "BeerPOS process started successfully"
+    else
+        log_warn "BeerPOS process may not have started properly"
+        pm2 logs beer-pos --lines 20 --nostream 2>&1 || true
+    fi
 else
     log "BeerPOS not running — starting fresh..."
     pm2 start ecosystem.config.js 2>&1 || log_error "PM2 start failed"
-    pm2 save 2>&1 || true
+    sleep 3
 fi
+pm2 save 2>&1 || true
 
 # ── 7. Health check ──────────────────────────────────────────────────────
 log_step "Running health checks..."
@@ -150,6 +199,42 @@ done
 
 if [ "$HEALTH_OK" = false ]; then
     log_warn "API health check failed after 5 attempts"
+    log_error "Deploy FAILED — attempting rollback to previous deploy..."
+
+    # Rollback: restore previous git state
+    log "Rolling back to commit: $PREV_COMMIT"
+    cd "$APP_DIR" || log_error "Cannot cd to $APP_DIR for rollback"
+
+    git reset --hard "$PREV_COMMIT" 2>&1 || log_error "Git rollback failed"
+
+    # Re-install and rebuild for previous version
+    log_step "Re-installing dependencies for rolled-back version..."
+    npm install --production 2>&1 | tail -3 || true
+    npm rebuild better-sqlite3 2>&1 | tail -3 || true
+
+    # Restart PM2 with rolled-back version
+    log "Restarting BeerPOS with rolled-back version..."
+    pm2 stop beer-pos 2>&1 || true
+    sleep 2
+    pm2 start ecosystem.config.js 2>&1 || log_error "PM2 start after rollback failed"
+    pm2 save 2>&1 || true
+
+    sleep 5
+
+    # Verify rollback worked
+    if curl -sf --max-time 5 http://127.0.0.1:3000/api/ping > /dev/null 2>&1; then
+        log ""
+        log "${RED}${BOLD}========================================${NC}"
+        log "${RED}${BOLD}  Deploy FAILED — ROLLED BACK${NC}"
+        log "${RED}${BOLD}  Previous commit: $PREV_COMMIT${NC}"
+        log "${RED}${BOLD}  Server is now running the old version${NC}"
+        log "${RED}${BOLD}========================================${NC}"
+        log ""
+        log "Investigate the failed commit before deploying again."
+        log_error "Deploy failed and was rolled back"
+    else
+        log_error "Rollback itself failed — SERVER IS DOWN — MANUAL INTERVENTION REQUIRED"
+    fi
 fi
 
 # 7b. Nginx root
