@@ -65,7 +65,7 @@ router.get('/', (req, res) => {
         SELECT customer_id, COALESCE(SUM(si.quantity), 0) as monthly_kegs
         FROM sales s
         JOIN sale_items si ON si.sale_id = s.id
-        WHERE s.type = 'sale' AND strftime('%Y', s.date) = ? AND strftime('%m', s.date) = ?
+        WHERE s.type = 'sale' AND s.archived = 0 AND strftime('%Y', s.date) = ? AND strftime('%m', s.date) = ?
         GROUP BY customer_id
       ) cm ON cm.customer_id = c.id
       WHERE c.archived = 0

@@ -19,6 +19,7 @@ module.exports = {
       CLOUD_DOMAIN: 'http://103.75.183.57:3000',
       ADMIN_DOMAIN: '103.75.183.57',
       PUBLIC_DOMAIN: '103.75.183.57',
+      GITHUB_WEBHOOK_SECRET: '8d5780a20a06427187c3e6cebf0b92078b929b4b0d97a2f9bdf83208a3151fd6',
     },
     error_file: './logs/err.log',
     out_file: './logs/out.log',

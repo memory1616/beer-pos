@@ -273,10 +273,35 @@
 
     // ─── Payment Modal ───
     let _customerPaymentDebt = 0;
+    let _paymentCustomerId = null;
+    let _paymentCustomerDebt = 0;
+
+    function _getPaymentAmount() {
+      var el = document.getElementById('paymentAmount');
+      return el ? parseInt(el.value.replace(/[^0-9]/g, '')) || 0 : 0;
+    }
+
+    function _setPaymentAmount(amount) {
+      var el = document.getElementById('paymentAmount');
+      if (el) el.value = amount || 0;
+    }
+
+    function _onPaymentAmountInput(el) {
+      // Strip non-numeric chars and parse
+      var raw = parseInt((el.value || '').replace(/[^0-9]/g, '')) || 0;
+      // Live validation
+      if (raw > _paymentCustomerDebt) {
+        var w = document.getElementById('paymentWarning');
+        if (w) { w.textContent = 'Số tiền vượt quá công nợ!'; w.classList.remove('hidden'); }
+      } else {
+        var w2 = document.getElementById('paymentWarning');
+        if (w2) w2.classList.add('hidden');
+      }
+    }
 
     function openCustomerPaymentModal(debtAmount) {
       _customerPaymentDebt = debtAmount || 0;
-      _paymentCustomerId = customerId; // For _validatePaymentAmount
+      _paymentCustomerId = customerId;
       _paymentCustomerDebt = _customerPaymentDebt;
       var infoEl = document.getElementById('paymentModalInfo');
       if (infoEl) {
@@ -298,6 +323,8 @@
       document.getElementById('btnPayPartial').style.color = 'var(--text-muted)';
       _setPaymentAmount(_customerPaymentDebt);
       document.getElementById('paymentNote').value = '';
+      var w = document.getElementById('paymentWarning');
+      if (w) w.classList.add('hidden');
       var modal = document.getElementById('paymentModal');
       if (modal) modal.classList.remove('hidden');
     }
@@ -536,23 +563,35 @@
     // Thu nhanh
     window.quickPayCustomer = async function(amount) {
       if (amount <= 0) return;
-      const note = prompt('Ghi chú (tùy chọn):', '');
+      var note = '';
+      try { note = prompt('Ghi chú (tùy chọn):', '') || ''; } catch(e) { note = ''; }
+      var btn = null;
+      try {
+        var btns = document.querySelectorAll('[onclick*="quickPayCustomer"]');
+        btn = Array.from(btns).find(function(b) { return b && b.onclick; });
+        if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
+      } catch(e) {}
       try {
         const res = await fetch('/api/debts/payment', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-Request-Id': Date.now() + '-' + Math.random() },
-          body: JSON.stringify({ customerId, amount, note: note || `Thu nhanh ${formatVND(amount)}` })
+          body: JSON.stringify({ customerId, amount, note: note || 'Thu nhanh ' + formatVND(amount) })
         });
         const data = await res.json();
         if (data.success) {
-          showToast('Đã thu ' + formatVND(amount), 'success');
+          if (typeof showToast === 'function') showToast('Đã thu ' + formatVND(amount), 'success');
+          else alert('Đã thu ' + formatVND(amount));
           loadDebtHistory();
-          loadCustomerDetail();
+          loadCustomerStats();
         } else {
-          showToast(data.error || 'Lỗi', 'error');
+          if (typeof showToast === 'function') showToast(data.error || 'Lỗi', 'error');
+          else alert(data.error || 'Lỗi');
         }
       } catch (e) {
-        showToast('Lỗi kết nối', 'error');
+        if (typeof showToast === 'function') showToast('Lỗi kết nối', 'error');
+        else alert('Lỗi kết nối');
+      } finally {
+        if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
       }
     };
 
@@ -938,7 +977,7 @@
       document.head.appendChild(s1);
       s1.onload = function() {
         var s2 = document.createElement('script');
-        s2.src = '/db.js?v=20260411a';
+        s2.src = '/db.js?v=20260430a';
         document.head.appendChild(s2);
         s2.onload = function() {
           var s3 = document.createElement('script');
