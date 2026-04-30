@@ -3,8 +3,10 @@
 // PERFORMANCE: add patchUpdateCustomer() for in-place DOM updates (no full re-render).
 // PERFORMANCE: use CSS contain + will-change on customer list container.
 
-// Patch a single customer card in-place when data changes
-const _custCardMap = new Map(); // id → DOM element
+function openModal(id) {
+  var m = document.getElementById(id);
+  if (m) { m.classList.remove('hidden'); }
+}
 
 function patchCustomerRow(customer) {
   const card = document.querySelector(`[data-customer-id="${customer.id}"]`);
