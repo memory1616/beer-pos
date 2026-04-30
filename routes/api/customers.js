@@ -3,6 +3,8 @@ const router = express.Router();
 const db = require('../../database');
 const logger = require('../../src/utils/logger');
 const socketServer = require('../../src/socket/socketServer');
+const emitCustomer = (customer) => { try { if (socketServer) socketServer.emitCustomerUpdated(customer); } catch (_) {} };
+const emitKeg = () => { try { if (socketServer) socketServer.emitKegUpdated(); } catch (_) {} };
 
 // Sanitize input to prevent XSS — encode HTML entities
 function sanitizeInput(input) {
@@ -186,7 +188,7 @@ router.post('/', (req, res) => {
     }
 
     const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(customerId);
-    socketServer.emitCustomerUpdated(customer);
+    emitCustomer(customer);
 
     res.json({ id: customerId, name: sanitizedName, phone: sanitizedPhone, deposit: parseFloat(deposit) || 0, keg_balance: 0 });
   } catch (err) {
@@ -313,7 +315,7 @@ router.put('/:id', (req, res) => {
     }
 
     const updatedCustomer = db.prepare('SELECT * FROM customers WHERE id = ?').get(id);
-    socketServer.emitCustomerUpdated(updatedCustomer);
+    emitCustomer(updatedCustomer);
 
     res.json({ success: true });
   } catch (err) {
@@ -424,8 +426,8 @@ router.put('/:id/archive', (req, res) => {
     }
 
     const updated = db.prepare('SELECT * FROM customers WHERE id = ?').get(id);
-    socketServer.emitCustomerUpdated(updated);
-    socketServer.emitKegUpdated();
+emitCustomer(updated);
+    emitKeg();
 
     res.json({
       success: true,
@@ -443,7 +445,7 @@ router.put('/:id/archive', (req, res) => {
 router.delete('/:id', (req, res) => {
   const id = req.params.id;
   db.prepare('DELETE FROM customers WHERE id = ?').run(id);
-  socketServer.emitCustomerUpdated({ id, deleted: true });
+  emitCustomer({ id, deleted: true });
   res.json({ success: true });
 });
 
@@ -475,7 +477,7 @@ router.post('/location', (req, res) => {
     }
 
     const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(customerId);
-    socketServer.emitCustomerUpdated(customer);
+    emitCustomer(customer);
 
     res.json({ success: true });
   } catch (err) {
@@ -492,7 +494,7 @@ router.post('/customer/location', (req, res) => {
   }
   db.prepare('UPDATE customers SET lat = ?, lng = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(lat, lng, customerId);
   const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(customerId);
-  socketServer.emitCustomerUpdated(customer);
+  emitCustomer(customer);
   res.json({ success: true });
 });
 
