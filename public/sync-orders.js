@@ -1,8 +1,8 @@
 // BeerPOS — Order Sync Layer
 // Push local unsynced orders to server, pull server orders to local Dexie.
-// Uses existing SW IndexedDB queue for offline resilience.
+// Uses Dexie (db.js) for all IndexedDB operations — no raw IndexedDB.
 
-const ORDERS_STORE = 'orders_queue'; // new object store in BeerPOS IndexedDB
+const ORDERS_STORE = 'orders_queue';
 
 // ============ HELPERS ============
 
@@ -14,51 +14,22 @@ function getCloudUrl() {
   return localStorage.getItem('cloudUrl') || '';
 }
 
-// ============ OPEN SW INDEXEDDB (same DB as sw.js) ============
-
-// PERFORMANCE: Singleton DB — open once, reuse across all functions.
-// Previously every function called openSWDB() again, causing:
-//   • ~10ms overhead per open (IndexedDB is async)
-//   • New connection per call → race conditions with other openers
-//   • "Upgrade blocked" errors when version changed
-// Now: one open, resolved promise cached in _dbPromise, all callers await it.
-
-let _dbPromise = null;
-
-// Retry wrapper to handle race conditions with other DB openers (db.js, sw.js)
-function getDB() {
-  if (!_dbPromise) {
-    _dbPromise = openSWDB();
+// Resolve the shared Dexie instance from db.js (may still be loading)
+async function getOrdersDB() {
+  // db.js sets window.db once Dexie is ready
+  if (window.db && window.db.tables) {
+    const hasTable = window.db.tables.some(t => t.name === ORDERS_STORE);
+    if (hasTable) return window.db;
   }
-  return _dbPromise;
-}
-
-function openSWDB() {
-  const MAX_RETRIES = 3;
-  const RETRY_DELAY = 100;
-
-  function attemptOpen(resolve, reject, attempt) {
-    // Open WITHOUT version — db.js is the single source of truth for schema.
-    // This context only reads/writes existing stores (orders_queue).
-    const request = indexedDB.open('BeerPOS');
-
-    request.onerror = () => {
-      if (attempt < MAX_RETRIES) {
-        setTimeout(() => attemptOpen(resolve, reject, attempt + 1), RETRY_DELAY);
-      } else {
-        reject(request.error);
-      }
-    };
-    request.onsuccess = () => resolve(request.result);
-    request.onupgradeneeded = (event) => {
-      const db = event.target.result;
-      if (!db.objectStoreNames.contains(ORDERS_STORE)) {
-        db.createObjectStore(ORDERS_STORE, { keyPath: 'id', autoIncrement: true });
-      }
-    };
+  // Wait a bit and retry (dexie.js loads asynchronously via requestIdleCallback)
+  for (let i = 0; i < 10; i++) {
+    await new Promise(r => setTimeout(r, 200));
+    if (window.db && window.db.tables) {
+      const hasTable = window.db.tables.some(t => t.name === ORDERS_STORE);
+      if (hasTable) return window.db;
+    }
   }
-
-  return new Promise((resolve, reject) => attemptOpen(resolve, reject, 0));
+  throw new Error('[OrderSync] Dexie orders_queue table not found — make sure db.js is loaded and migrated to v40+');
 }
 
 // ============ PUSH: Save order to server ============
@@ -94,37 +65,30 @@ async function syncPendingOrders() {
   const cloudUrl = getCloudUrl();
   if (!cloudUrl) return;
 
-  const db = await getDB();
-  const tx = db.transaction(ORDERS_STORE, 'readonly');
-  const store = tx.objectStore(ORDERS_STORE);
-  const index = store.index('synced');
+  try {
+    const db = await getOrdersDB();
+    const pending = await db.orders_queue.where('synced').equals(0).toArray();
 
-  const pending = await new Promise((resolve, reject) => {
-    const req = index.getAll(IDBKeyRange.only(0));
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
+    if (!pending || pending.length === 0) return;
 
-  if (!pending || pending.length === 0) return;
+    console.log(`[OrderSync] Pushing ${pending.length} pending orders`);
+    const syncedIds = pending.map(o => o.id);
 
-  console.log(`[OrderSync] Pushing ${pending.length} pending orders`);
-  const syncedIds = [];
-
-  for (const order of pending) {
-    const result = await pushOrderToServer(order.data);
-    if (result.success) {
-      syncedIds.push(order.id);
+    for (const order of pending) {
+      // order.items is an array of {productId, quantity, price, costPrice}
+      const result = await pushOrderToServer(order);
+      if (result.success) {
+        // Remove from local queue
+        await db.orders_queue.delete(order.id);
+        console.log(`[OrderSync] Synced order id ${order.id}`);
+      }
     }
-  }
-
-  // Mark synced
-  if (syncedIds.length > 0) {
-    const delTx = db.transaction(ORDERS_STORE, 'readwrite');
-    const delStore = delTx.objectStore(ORDERS_STORE);
-    syncedIds.forEach(id => {
-      const delReq = delStore.delete(id);
-      delReq.onsuccess = () => console.log(`[OrderSync] Synced order id ${id}`);
-    });
+  } catch (e) {
+    if (e.message && e.message.includes('orders_queue')) {
+      console.warn('[OrderSync] orders_queue not ready yet, skipping sync cycle:', e.message);
+    } else {
+      console.error('[OrderSync] syncPendingOrders failed:', e.message);
+    }
   }
 }
 
@@ -141,7 +105,6 @@ async function pullOrdersFromServer(since) {
   try {
     const res = await fetch(target);
     if (res.status === 503) {
-      // Cloud server temporarily unavailable — skip this sync cycle gracefully
       console.log('[OrderSync] Cloud server unavailable (503), skipping pull');
       return;
     }
@@ -156,8 +119,7 @@ async function pullOrdersFromServer(since) {
 
     if (orders.length === 0) return;
 
-    // Merge into Dexie (local)
-    const localDB = window.db; // db.js exports `db` as window.db
+    const localDB = window.db;
     if (!localDB) {
       console.warn('[OrderSync] local Dexie not found — make sure db.js is loaded');
       return;
@@ -167,7 +129,6 @@ async function pullOrdersFromServer(since) {
     for (const order of orders) {
       const existing = await localDB.sales.where('id').equals(order.id).first();
       if (!existing) {
-        // Insert into Dexie
         await localDB.sales.add({
           id: order.id,
           customer_id: order.customer_id,
@@ -182,7 +143,6 @@ async function pullOrdersFromServer(since) {
           synced: 1
         });
 
-        // Insert sale items
         if (order.items && order.items.length > 0) {
           for (const item of order.items) {
             await localDB.sale_items.add({
@@ -197,14 +157,13 @@ async function pullOrdersFromServer(since) {
         }
         imported++;
       } else if (existing.synced === 0) {
-        // Local unsynced version takes priority — skip
         console.log(`[OrderSync] Local unsynced order ${order.id} — skipping server version`);
       }
     }
 
     if (imported > 0) {
       console.log(`[OrderSync] Imported ${imported} orders from server`);
-      showToast(`☁️ Đã tải ${imported} đơn mới`, 'success');
+      if (typeof showToast === 'function') showToast(`☁️ Đã tải ${imported} đơn mới`, 'success');
     }
 
     return imported;
@@ -217,43 +176,42 @@ async function pullOrdersFromServer(since) {
 
 async function createOrder(orderData) {
   // orderData = { customerId, items, total, profit, deliverKegs, returnKegs, type, note }
-  const db = await getDB();
-  const tx = db.transaction(ORDERS_STORE, 'readwrite');
-  const store = tx.objectStore(ORDERS_STORE);
+  try {
+    const db = await getOrdersDB();
+    const orderRecord = {
+      customerId: orderData.customerId,
+      items: orderData.items,
+      total: orderData.total,
+      profit: orderData.profit,
+      deliverKegs: orderData.deliverKegs || 0,
+      returnKegs: orderData.returnKegs || 0,
+      type: orderData.type || 'sale',
+      note: orderData.note || '',
+      created_at: new Date().toISOString(),
+      synced: 0
+    };
 
-  const orderRecord = {
-    customerId: orderData.customerId,
-    items: orderData.items,
-    total: orderData.total,
-    profit: orderData.profit,
-    deliverKegs: orderData.deliverKegs || 0,
-    returnKegs: orderData.returnKegs || 0,
-    type: orderData.type || 'sale',
-    note: orderData.note || '',
-    created_at: new Date().toISOString(),
-    synced: 0
-  };
+    const id = await db.orders_queue.add(orderRecord);
 
-  const id = await new Promise((resolve, reject) => {
-    const req = store.add(orderRecord);
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-
-  // Try immediate sync if online
-  if (isOnline()) {
-    const result = await pushOrderToServer(orderRecord);
-    if (result.success) {
-      // Remove from pending queue
-      const delTx = db.transaction(ORDERS_STORE, 'readwrite');
-      delTx.objectStore(ORDERS_STORE).delete(id);
-      console.log(`[OrderSync] Order ${id} synced immediately`);
-      return { id, synced: true };
+    // Try immediate sync if online
+    if (isOnline()) {
+      const result = await pushOrderToServer(orderRecord);
+      if (result.success) {
+        await db.orders_queue.update(id, { synced: 1 });
+        console.log(`[OrderSync] Order ${id} synced immediately`);
+        return { id, synced: true };
+      }
     }
-  }
 
-  console.log(`[OrderSync] Order ${id} queued for later sync`);
-  return { id, synced: false };
+    console.log(`[OrderSync] Order ${id} queued for later sync`);
+    return { id, synced: false };
+  } catch (e) {
+    if (e.message && e.message.includes('orders_queue')) {
+      console.warn('[OrderSync] orders_queue not ready — order saved via server API only');
+      return await pushOrderToServer(orderData).then(r => ({ id: null, synced: r.success }));
+    }
+    throw e;
+  }
 }
 
 // ============ RETRY: Re-attempt pending sync on network recovery ============

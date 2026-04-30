@@ -119,7 +119,7 @@ app.use(helmet({
       scriptSrcAttr: ["'unsafe-inline'"], // Allow inline event handlers
       styleSrc: ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net'],
       imgSrc: ["'self'", 'data:', 'https:', 'https://img.vietqr.io'],
-      connectSrc: ["'self'", 'http://103.75.183.57:3000', 'https://admin.biatuoitayninh.store', 'https://biatuoitayninh.store', 'https://img.vietqr.io', 'https://unpkg.com', 'https://cdn.jsdelivr.net'],
+      connectSrc: ["'self'", 'http://103.75.183.57:3000', 'https://103.75.183.57:3000', 'https://admin.biatuoitayninh.store', 'https://biatuoitayninh.store', 'https://img.vietqr.io', 'https://unpkg.com', 'https://cdn.jsdelivr.net'],
       fontSrc: ["'self'"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],

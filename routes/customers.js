@@ -47,18 +47,18 @@ router.get('/data', (req, res) => {
         ELSE CAST(julianday(date('now','localtime')) - julianday(date(c.last_order_date)) AS INTEGER)
       END as days_since_last_order
     FROM customers c
-    LEFT JOIN (
+      LEFT JOIN (
       SELECT customer_id,
         COALESCE(SUM(si.quantity), 0) as monthly_kegs,
         SUM(s.total) as monthly_revenue
       FROM sales s
       JOIN sale_items si ON si.sale_id = s.id
-      WHERE s.type = 'sale' AND strftime('%Y', s.date) = ? AND strftime('%m', s.date) = ?
+      WHERE s.type = 'sale' AND s.archived = 0 AND strftime('%Y', s.date) = ? AND strftime('%m', s.date) = ?
       GROUP BY customer_id
     ) cm ON cm.customer_id = c.id
     LEFT JOIN (
       SELECT customer_id, COALESCE(SUM(total), 0) as total_revenue
-      FROM sales WHERE type = 'sale' GROUP BY customer_id
+      FROM sales WHERE type = 'sale' AND archived = 0 GROUP BY customer_id
     ) cs ON cs.customer_id = c.id
     WHERE ${whereClause}${searchClause}
     ORDER BY c.name
