@@ -19,6 +19,8 @@ function patchCustomerRow(customer) {
   if (phoneEl)  phoneEl.textContent = '📱 ' + (customer.phone || 'Chưa có SĐT');
 }
 
+const _custCardMap = new Map(); // id → DOM element
+
 // ========== PHONE UTILITY ==========
 // Normalize all phone formats to 0xxxxxxxxx
 const Phone = {
