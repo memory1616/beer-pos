@@ -434,7 +434,7 @@ router.put('/:id/archive', (req, res) => {
       kegsLost: willArchive ? kegsLost : 0
     });
   } catch (err) {
-    logger.error('Error archiving customer', { error: err.message });
+    logger.error('Error archiving customer', { error: err.message, stack: err.stack });
     res.status(500).json({ error: 'Lỗi khi lưu trữ khách hàng' });
   }
 });
