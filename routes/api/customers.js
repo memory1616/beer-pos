@@ -338,6 +338,9 @@ router.put('/:id/archive', (req, res) => {
   const archived = willArchive ? 1 : 0;
   const { collectKegs } = req.body;
 
+  let kegsToCollect = 0;
+  let kegsLost = 0;
+
   try {
     if (willArchive && existing.keg_balance > 0) {
       const totalKegs = existing.keg_balance;
