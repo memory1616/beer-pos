@@ -66,48 +66,32 @@ if [ -f "package.json" ]; then
         log "Dependencies up-to-date, skipping install"
     fi
 
-    # Always rebuild native modules to match current Node.js ABI
+    # Clean and reinstall better-sqlite3 to get the correct binary for current Node ABI
     log_step "Rebuilding native modules for current Node.js version..."
     log "Detected Node.js version: $NODE_VERSION"
 
-    # Clean old native binaries to force fresh rebuild
     log "Cleaning old native module binaries..."
     find node_modules -name "*.node" -type f -delete 2>/dev/null || true
     find node_modules/better-sqlite3 -name "build" -type d -exec rm -rf {} + 2>/dev/null || true
     rm -rf node_modules/better-sqlite3/prebuilds 2>/dev/null || true
 
-    # Rebuild with the correct Node (PATH is pinned to /usr/local/bin above)
-    NPM_RESULT=$(npm rebuild better-sqlite3 2>&1) || {
-        log_error "Native module rebuild FAILED."
-        log ""
-        log "=== Rebuild output ==="
-        log "$NPM_RESULT"
-        log "========================"
-        log ""
-        log_error "Deploy aborted — server would crash on startup"
+    # Uninstall and reinstall — forces npm to fetch correct prebuilt for current Node
+    NPM_RESULT=$(npm uninstall better-sqlite3 2>&1 && npm install better-sqlite3 --build-from-source 2>&1) || {
+        log_warn "npm install failed — trying without build-from-source..."
+        NPM_RESULT=$(npm install better-sqlite3 2>&1) || {
+            log_error "better-sqlite3 install FAILED."
+            log "Output: $(echo "$NPM_RESULT" | tail -5)"
+            log_error "Deploy aborted — server would crash on startup"
+        }
     }
-    log "Rebuild: $(echo "$NPM_RESULT" | tail -3)"
+    log "Install: $(echo "$NPM_RESULT" | tail -3)"
 
-    # Verify the binary ABI matches current Node
+    # Verify the binary works by actually loading it
     log_step "Verifying native module ABI compatibility..."
-    NODE_ABI=$(node -p "process.versions.modules")
-    # Find the .node binary directly — better-sqlite3 stores it at a known path
-    BSQ_NODE=$(find node_modules/better-sqlite3 -name "better_sqlite3.node" -type f 2>/dev/null | head -1)
-    if [ -n "$BSQ_NODE" ] && [ -f "$BSQ_NODE" ]; then
-        BINARY_ABI=$(node -e "console.log(require('fs').readFileSync('$BSQ_NODE').readUInt32LE(4))" 2>/dev/null || echo "unknown")
-        log "Node ABI: $NODE_ABI  |  Binary ABI: $BINARY_ABI"
-        if [ "$NODE_ABI" == "$BINARY_ABI" ]; then
-            log_ok "better-sqlite3 ABI verified (ABI=$NODE_ABI)"
-        else
-            log_error "ABI mismatch! Node=$NODE_ABI Binary=$BINARY_ABI — binary will crash on load"
-        fi
+    if node -e "require('better-sqlite3'); console.log('OK')" 2>/dev/null; then
+        log_ok "better-sqlite3 loaded successfully"
     else
-        # Fallback: try requiring it
-        if node -e "require('better-sqlite3')" 2>/dev/null; then
-            log_ok "better-sqlite3 loaded successfully"
-        else
-            log_error "better-sqlite3 verification FAILED — cannot load the module"
-        fi
+        log_error "better-sqlite3 FAILED to load — binary is incompatible"
     fi
 
     # Run build step if defined
