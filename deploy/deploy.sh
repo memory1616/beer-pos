@@ -63,52 +63,48 @@ if [ -f "package.json" ]; then
     log_step "Rebuilding native modules for current Node.js version..."
 
     NODE_VERSION=$(node --version 2>/dev/null || echo "unknown")
-    PM2_NODE_VERSION=$(pm2 describe beer-pos 2>/dev/null | grep 'node_version' | awk '{print $2}' || echo "$NODE_VERSION")
-    log "Shell Node.js version: $NODE_VERSION"
-    log "PM2 Node.js version:   $PM2_NODE_VERSION"
+    log "Detected Node.js version: $NODE_VERSION"
 
-    # Clean old native build artifacts to force fresh rebuild from source
-    log "Cleaning old native module build artifacts..."
+    # Force reinstall better-sqlite3 to get the correct prebuilt binary for the current Node version
+    # Delete all existing native binaries first to ensure clean state
+    log "Cleaning old native module binaries..."
     find node_modules -name "*.node" -type f -delete 2>/dev/null || true
     find node_modules/better-sqlite3 -name "build" -type d -exec rm -rf {} + 2>/dev/null || true
     rm -rf node_modules/better-sqlite3/prebuilds 2>/dev/null || true
 
-    # Use --build-from-source to ignore prebuilt binaries and always compile locally
-    # This guarantees the binary matches the current Node.js version (ABI 108=20, 115=22)
-    NPM_REBUILD_OUTPUT=$(npm rebuild better-sqlite3 --build-from-source 2>&1) || {
-        log_error "Native module rebuild FAILED. Server will NOT start with incompatible binary."
+    # Uninstall then reinstall — downloads the correct prebuilt binary for the current Node version
+    NPM_REBUILD_OUTPUT=$(npm uninstall better-sqlite3 2>&1 && npm install better-sqlite3 2>&1) || {
+        log_error "Native module install FAILED. Server will NOT start with incompatible binary."
         log ""
-        log "=== Rebuild output ==="
+        log "=== Install output ==="
         log "$NPM_REBUILD_OUTPUT"
         log "========================"
         log ""
         log "Troubleshooting steps:"
         log "  1. Check Node.js version: node --version"
-        log "  2. If Node.js was upgraded, run: npm rebuild --build-from-source"
-        log "  3. If still failing, try: npm uninstall better-sqlite3 && npm install better-sqlite3 --build-from-source"
-        log "  4. Check node-gyp: npm install -g node-gyp"
+        log "  2. Try manual: npm uninstall better-sqlite3 && npm install better-sqlite3"
+        log "  3. Check node-gyp: npm install -g node-gyp"
         log ""
         log_error "Deploy aborted — server would crash on startup"
     }
-    log "Rebuild output: $(echo "$NPM_REBUILD_OUTPUT" | tail -3)"
+    log "Install output: $(echo "$NPM_REBUILD_OUTPUT" | tail -3)"
 
-    # Verify the rebuilt binary matches the PM2 Node.js ABI version
-    # Use PM2's own node to test — PM2 bundles its own Node runtime on some systems
-    # Check that NODE_MODULE_VERSION of the binary matches the running Node
+    # Verify the binary ABI matches current Node
     log_step "Verifying native module ABI compatibility..."
     NODE_ABI=$(node -p "process.versions.modules" 2>/dev/null || echo "unknown")
-    BINARY_ABI=$(node -e "const m=require('node:module');const p=require.resolve('better-sqlite3');console.log(require('node:fs').readFileSync(p).slice(4,8).readUInt32LE())" 2>/dev/null || echo "unknown")
-    log "Node ABI: $NODE_ABI  |  Binary ABI: $BINARY_ABI"
-
-    if [ "$NODE_ABI" != "unknown" ] && [ "$BINARY_ABI" != "unknown" ] && [ "$NODE_ABI" == "$BINARY_ABI" ]; then
-        log_ok "better-sqlite3 ABI verified (ABI=$NODE_ABI)"
-    elif [ "$BINARY_ABI" != "unknown" ]; then
-        log_warn "ABI mismatch detected — binary may not work in all contexts"
-        log_warn "Binary ABI: $BINARY_ABI (Node ABI: $NODE_ABI)"
+    BINARY_PATH=$(node -e "try{console.log(require.resolve('better-sqlite3'))}catch(e){console.log('not-found')}" 2>/dev/null)
+    if [ "$BINARY_PATH" != "not-found" ] && [ "$BINARY_PATH" != "unknown" ]; then
+        BINARY_ABI=$(node -e "const fs=require('fs');const b=fs.readFileSync('$BINARY_PATH');console.log(b.readUInt32LE(4))" 2>/dev/null || echo "unknown")
+        log "Node ABI: $NODE_ABI  |  Binary ABI: $BINARY_ABI  |  Binary: $BINARY_PATH"
+        if [ "$NODE_ABI" == "$BINARY_ABI" ]; then
+            log_ok "better-sqlite3 ABI verified (ABI=$NODE_ABI)"
+        else
+            log_error "ABI mismatch! Node=$NODE_ABI Binary=$BINARY_ABI — binary will crash on load"
+        fi
     else
         # Fallback: try to require it
         if node -e "require('better-sqlite3')" 2>/dev/null; then
-            log_ok "better-sqlite3 loaded successfully (fallback check)"
+            log_ok "better-sqlite3 loaded successfully"
         else
             log_error "better-sqlite3 verification FAILED — cannot load the module"
         fi
@@ -225,13 +221,13 @@ if [ "$HEALTH_OK" = false ]; then
 
     git reset --hard "$PREV_COMMIT" 2>&1 || log_error "Git rollback failed"
 
-    # Re-install and rebuild for previous version (use --build-from-source to avoid cached prebuilt)
+    # Re-install for rolled-back version
     log_step "Re-installing dependencies for rolled-back version..."
     find node_modules -name "*.node" -type f -delete 2>/dev/null || true
     find node_modules/better-sqlite3 -name "build" -type d -exec rm -rf {} + 2>/dev/null || true
     rm -rf node_modules/better-sqlite3/prebuilds 2>/dev/null || true
+    npm uninstall better-sqlite3 2>&1 | tail -1 || true
     npm install --production 2>&1 | tail -3 || true
-    npm rebuild better-sqlite3 --build-from-source 2>&1 | tail -5 || true
 
     # Restart PM2 with rolled-back version
     log "Restarting BeerPOS with rolled-back version..."

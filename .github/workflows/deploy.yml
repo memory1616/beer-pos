@@ -15,8 +15,10 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT }}
+          timeout: 10m
+          command_timeout: 10m
           script: |
             cd ~/beer-pos
             git pull
-            npm install --production
+            npm uninstall better-sqlite3 && npm install better-sqlite3
             pm2 restart beer-pos
