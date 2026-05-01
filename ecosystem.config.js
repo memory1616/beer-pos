@@ -5,6 +5,7 @@ module.exports = {
     cwd: '/root/beer-pos',
     instances: 1,
     exec_mode: 'fork',
+    interpreter: '/usr/local/bin/node',
     env: {
       NODE_ENV: 'production',
       PORT: 3000,
@@ -14,7 +15,6 @@ module.exports = {
       SESSION_SECRET: process.env.SESSION_SECRET || 'change-me-to-a-long-random-string-in-production',
       DISTRIBUTOR_NAME: 'BeerPOS Cloud',
       TRUST_PROXY: 'true',
-      // Allow connections from any origin for sync (or specify specific domains)
       ALLOWED_ORIGIN: '*',
       CLOUD_DOMAIN: 'http://103.75.183.57:3000',
       ADMIN_DOMAIN: '103.75.183.57',
