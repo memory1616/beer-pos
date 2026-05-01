@@ -170,25 +170,25 @@ log_step "Restarting BeerPOS via PM2..."
 PREV_COMMIT=$(git rev-parse origin/main^1 2>/dev/null || echo "unknown")
 log "Previous deploy commit: $PREV_COMMIT"
 
-# Use restart instead of reload to avoid race condition where new process
-# crashes before old one is fully replaced (which leaves NO running process)
+# Use delete+start instead of stop+start to ensure new ecosystem.config.js
+# settings (e.g. interpreter path) take effect, not just process restart
 if pm2 describe beer-pos > /dev/null 2>&1; then
-    log "Stopping old BeerPOS process..."
-    pm2 stop beer-pos 2>&1 || true
-    sleep 2  # Give old process time to close DB connections
+    log "Deleting old BeerPOS PM2 process..."
+    pm2 delete beer-pos 2>&1 || true
+fi
 
-    log "Starting new BeerPOS process..."
-    pm2 start ecosystem.config.js 2>&1 || log_error "PM2 start failed"
+log "Starting BeerPOS via PM2..."
+pm2 start ecosystem.config.js 2>&1 || log_error "PM2 start failed"
 
-    # Wait for process to initialize
-    sleep 3
+# Wait for process to initialize
+sleep 3
 
-    # Check if process is running and healthy
-    if pm2 describe beer-pos | grep -q "online"; then
-        log_ok "BeerPOS process started successfully"
-    else
-        log_warn "BeerPOS process may not have started properly"
-        pm2 logs beer-pos --lines 20 --nostream 2>&1 || true
+# Check if process is running and healthy
+if pm2 describe beer-pos 2>/dev/null | grep -q "online"; then
+    log_ok "BeerPOS process started successfully"
+else
+    log_warn "BeerPOS process may not have started properly"
+    pm2 logs beer-pos --lines 20 --nostream 2>&1 || true
     fi
 else
     log "BeerPOS not running — starting fresh..."
@@ -229,10 +229,9 @@ if [ "$HEALTH_OK" = false ]; then
     npm uninstall better-sqlite3 2>&1 | tail -1 || true
     npm install --production 2>&1 | tail -3 || true
 
-    # Restart PM2 with rolled-back version
+    # Restart PM2 with rolled-back version (delete first to refresh interpreter)
     log "Restarting BeerPOS with rolled-back version..."
-    pm2 stop beer-pos 2>&1 || true
-    sleep 2
+    pm2 delete beer-pos 2>/dev/null || true
     pm2 start ecosystem.config.js 2>&1 || log_error "PM2 start after rollback failed"
     pm2 save 2>&1 || true
 
