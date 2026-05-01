@@ -4,11 +4,19 @@
 # Zero-downtime · Cache-busting · Safe sync
 # ============================================================
 
-set -euo pipefail
+set -uo pipefail  # NOTE: no -e so npm failures don't abort deploy (we handle them)
 
 APP_DIR="/root/beer-pos"
 SERVICE_NAME="beer-pos"
 DEPLOY_LOG="/var/log/beerpos-deploy.log"
+
+# ── Force correct Node.js version ──────────────────────────────────────────
+# CRITICAL: nvm may prepend its Node v18 to PATH, but PM2 daemon uses
+# /usr/local/bin/node (v20.18.0). Pin PATH so all npm operations use the same
+# Node as PM2, avoiding ABI mismatch (binary compiled for v18 won't load in v22).
+export PATH="/usr/local/bin:/usr/bin:/bin:$PATH"
+NODE_VERSION=$(node --version)
+log "Using Node: $NODE_VERSION"
 
 # ── Colors ──────────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
@@ -58,60 +66,41 @@ if [ -f "package.json" ]; then
         log "Dependencies up-to-date, skipping install"
     fi
 
-    # Always rebuild native modules (better-sqlite3, etc.) to match current Node.js
-    # CRITICAL: NEVER ignore rebuild failures — binary incompatibility crashes the server
+    # Always rebuild native modules to match current Node.js ABI
     log_step "Rebuilding native modules for current Node.js version..."
-
-    NODE_VERSION=$(node --version 2>/dev/null || echo "unknown")
     log "Detected Node.js version: $NODE_VERSION"
 
-    # Force reinstall better-sqlite3 to get the correct prebuilt binary for the current Node version
-    # Delete all existing native binaries first to ensure clean state
+    # Clean old native binaries to force fresh rebuild
     log "Cleaning old native module binaries..."
     find node_modules -name "*.node" -type f -delete 2>/dev/null || true
     find node_modules/better-sqlite3 -name "build" -type d -exec rm -rf {} + 2>/dev/null || true
     rm -rf node_modules/better-sqlite3/prebuilds 2>/dev/null || true
 
-    # Uninstall then reinstall — downloads the correct prebuilt binary for the current Node version
-    NPM_REBUILD_OUTPUT=$(npm uninstall better-sqlite3 2>&1 && npm install better-sqlite3 2>&1) || {
-        log_error "Native module install FAILED. Server will NOT start with incompatible binary."
+    # Rebuild with the correct Node (PATH is pinned to /usr/local/bin above)
+    NPM_RESULT=$(npm rebuild better-sqlite3 2>&1) || {
+        log_error "Native module rebuild FAILED."
         log ""
-        log "=== Install output ==="
-        log "$NPM_REBUILD_OUTPUT"
+        log "=== Rebuild output ==="
+        log "$NPM_RESULT"
         log "========================"
-        log ""
-        log "Troubleshooting steps:"
-        log "  1. Check Node.js version: node --version"
-        log "  2. Try manual: npm uninstall better-sqlite3 && npm install better-sqlite3"
-        log "  3. Check node-gyp: npm install -g node-gyp"
         log ""
         log_error "Deploy aborted — server would crash on startup"
     }
-    log "Install output: $(echo "$NPM_REBUILD_OUTPUT" | tail -3)"
+    log "Rebuild: $(echo "$NPM_RESULT" | tail -3)"
 
     # Verify the binary ABI matches current Node
     log_step "Verifying native module ABI compatibility..."
-    NODE_ABI=$(node -p "process.versions.modules" 2>/dev/null || echo "unknown")
-    # Use the bindings helper that better-sqlite3 already uses to find its .node binary
+    NODE_ABI=$(node -p "process.versions.modules")
     BINARY_ABI=$(node -e "
         const fs = require('fs');
         const b = require('bindings')('better_sqlite3');
         console.log(fs.readFileSync(b).readUInt32LE(4));
     " 2>/dev/null || echo "unknown")
     log "Node ABI: $NODE_ABI  |  Binary ABI: $BINARY_ABI"
-    if [ "$NODE_ABI" != "unknown" ] && [ "$BINARY_ABI" != "unknown" ]; then
-        if [ "$NODE_ABI" == "$BINARY_ABI" ]; then
-            log_ok "better-sqlite3 ABI verified (ABI=$NODE_ABI)"
-        else
-            log_error "ABI mismatch! Node=$NODE_ABI Binary=$BINARY_ABI — binary will crash on load"
-        fi
+    if [ "$NODE_ABI" == "$BINARY_ABI" ]; then
+        log_ok "better-sqlite3 ABI verified (ABI=$NODE_ABI)"
     else
-        # Fallback: try to require it
-        if node -e "require('better-sqlite3')" 2>/dev/null; then
-            log_ok "better-sqlite3 loaded successfully"
-        else
-            log_error "better-sqlite3 verification FAILED — cannot load the module"
-        fi
+        log_error "ABI mismatch! Node=$NODE_ABI Binary=$BINARY_ABI — binary will crash on load"
     fi
 
     # Run build step if defined
@@ -174,8 +163,7 @@ log_step "Restarting BeerPOS via PM2..."
 PREV_COMMIT=$(git rev-parse origin/main^1 2>/dev/null || echo "unknown")
 log "Previous deploy commit: $PREV_COMMIT"
 
-# Use delete+start instead of stop+start to ensure new ecosystem.config.js
-# settings (e.g. interpreter path) take effect, not just process restart
+# Use delete+start to ensure new ecosystem.config.js settings (e.g. interpreter path) take effect
 if pm2 describe beer-pos > /dev/null 2>&1; then
     log "Deleting old BeerPOS PM2 process..."
     pm2 delete beer-pos 2>&1 || true
@@ -193,11 +181,6 @@ if pm2 describe beer-pos 2>/dev/null | grep -q "online"; then
 else
     log_warn "BeerPOS process may not have started properly"
     pm2 logs beer-pos --lines 20 --nostream 2>&1 || true
-    fi
-else
-    log "BeerPOS not running — starting fresh..."
-    pm2 start ecosystem.config.js 2>&1 || log_error "PM2 start failed"
-    sleep 3
 fi
 pm2 save 2>&1 || true
 
