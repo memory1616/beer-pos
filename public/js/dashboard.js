@@ -194,38 +194,25 @@ function initDashboard(data) {
     }
   }
   
-  // Render KPI alerts (thiếu bình so với kỳ vọng tháng, có lọc exclude_expected)
+  // Render KPI alerts (khách tháng trước dưới mức Kỳ vọng bình/tháng chung)
   if (data.kpiAlerts && data.kpiAlerts.length > 0) {
     const section = document.getElementById('customerAlertsSection');
     const list = document.getElementById('customerAlertsList');
-    const header = document.getElementById('customerAlertsHeader');
     const badge = document.getElementById('warningBadge');
     if (section) section.classList.remove('hidden');
     if (badge) badge.textContent = data.kpiAlerts.length;
-    if (header) {
-      const monthly = data.monthlyExpected || 300;
-      const expected = Math.round(data.expectedUnits || 0);
-      const elapsed = data.daysElapsed || 0;
-      const total = data.daysInMonth || 0;
-      header.textContent = monthly + ' bình/tháng · kỳ vọng ' + expected + ' bình sau ' + elapsed + '/' + total + ' ngày';
-    }
     if (list) {
-      if (!data.kpiAlerts || data.kpiAlerts.length === 0) {
-        list.innerHTML = '<div class="text-sm text-muted text-center py-4 px-3">Không có khách nào dưới mức</div>';
-      } else {
-        list.innerHTML = data.kpiAlerts.map(c => {
-          const shortfall = Math.round(Number(c.shortfall) || 0);
-          const cls = shortfall > 50 ? 'text-danger font-bold' : shortfall > 20 ? 'text-warning font-semibold' : 'text-warning font-semibold';
-          const phoneBtn = c.phone ? '<a href="tel:' + c.phone + '" class="text-success shrink-0">📞</a>' : '';
-          return '<div class="dsh-sale-row">' +
-            '<div class="dsh-sale-row-left">' +
-              '<a href="/customers/' + c.id + '" class="dsh-customer-name">' + c.name + '</a>' +
-              phoneBtn +
-            '</div>' +
-            '<div class="' + cls + ' dsh-shortfall tabular-nums">Thiếu: ' + shortfall + ' bình</div>' +
-          '</div>';
-        }).join('');
-      }
+      list.innerHTML = data.kpiAlerts.map(c => {
+        const prevQty = Math.round(Number(c.prev_month_qty) || 0);
+        const phoneBtn = c.phone ? '<a href="tel:' + c.phone + '" class="text-success shrink-0">📞</a>' : '';
+        return '<div class="dsh-sale-row">' +
+          '<div class="dsh-sale-row-left">' +
+            '<a href="/customers/' + c.id + '" class="dsh-customer-name">' + c.name + '</a>' +
+            phoneBtn +
+          '</div>' +
+          '<div class="text-warning font-semibold tabular-nums">' + prevQty + ' bình</div>' +
+        '</div>';
+      }).join('');
     }
   }
   

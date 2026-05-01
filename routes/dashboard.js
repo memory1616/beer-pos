@@ -229,25 +229,33 @@ router.get('/data', (req, res) => {
     LIMIT 10
   `).all(customerAlertDays);
 
-  // KPI alerts: khách thấp hơn kỳ vọng bình/tháng (có filter exclude_expected)
+  // KPI alerts: khách tháng trước dưới mức Kỳ vọng bình/tháng (chung)
+  const prevMonthDate = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+  prevMonthDate.setMonth(prevMonthDate.getMonth() - 1);
+  const prevMonthStart = prevMonthDate.getUTCFullYear() + '-' +
+    String(prevMonthDate.getUTCMonth() + 1).padStart(2, '0') + '-01';
+  const prevMonthEnd = prevMonthDate.getUTCFullYear() + '-' +
+    String(prevMonthDate.getUTCMonth() + 1).padStart(2, '0') + '-' +
+    String(new Date(prevMonthDate.getUTCFullYear(), prevMonthDate.getUTCMonth() + 1, 0).getUTCDate()).padStart(2, '0');
+
   const kpiAlerts = db.prepare(`
     SELECT c.id, c.name, c.phone, c.last_order_date,
-      COALESCE(mc.monthly_qty, 0) as monthly_qty,
-      ROUND(?) - COALESCE(mc.monthly_qty, 0) as shortfall
+      COALESCE(mc.prev_month_qty, 0) as prev_month_qty,
+      ROUND(?) - COALESCE(mc.prev_month_qty, 0) as shortfall
     FROM customers c
     LEFT JOIN (
-      SELECT s.customer_id, SUM(si.quantity) as monthly_qty
+      SELECT s.customer_id, SUM(si.quantity) as prev_month_qty
       FROM sales s
       JOIN sale_items si ON si.sale_id = s.id
-      WHERE s.type = 'sale' AND s.archived = 0 AND date(s.date) >= ?
+      WHERE s.type = 'sale' AND s.archived = 0 AND date(s.date) >= ? AND date(s.date) <= ?
       GROUP BY s.customer_id
     ) mc ON mc.customer_id = c.id
     WHERE c.archived = 0
     AND (c.exclude_expected IS NULL OR c.exclude_expected = 0)
-    AND ROUND(?) - COALESCE(mc.monthly_qty, 0) > 0
+    AND ROUND(?) - COALESCE(mc.prev_month_qty, 0) > 0
     ORDER BY shortfall DESC
     LIMIT 10
-  `).all(expectedUnits, monthStartStr, expectedUnits);
+  `).all(monthlyExpected, prevMonthStart, prevMonthEnd, monthlyExpected);
   
   // Get monthly expenses
   const monthExpenses = db.prepare(`
@@ -287,11 +295,13 @@ router.get('/data', (req, res) => {
     lowStockProducts,
     stockLowThreshold, // Ngưỡng cảnh báo tồn kho (từ settings)
     customerAlertDays, // Ngưỡng ngày không đặt hàng (từ settings)
-    monthlyExpected,   // Kỳ vọng bình/tháng (từ settings)
-    expectedUnits,     // Kỳ vọng đến hôm nay
+    monthlyExpected,   // Kỳ vọng bình/tháng (chung, từ settings)
+    expectedUnits,     // Kỳ vọng đến hôm nay (theo tỷ lệ ngày)
     daysElapsed,       // Số ngày đã qua
     daysInMonth,       // Số ngày trong tháng
-    kpiAlerts,        // Cảnh báo KPI theo tháng (có lọc exclude_expected)
+    prevMonthStart,   // Tháng trước - ngày đầu
+    prevMonthEnd,     // Tháng trước - ngày cuối
+    kpiAlerts,        // Cảnh báo: khách tháng trước dưới mức kỳ vọng
     kegState,
     recentSales,
     monthlyRevenue,
