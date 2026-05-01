@@ -92,10 +92,14 @@ if [ -f "package.json" ]; then
     # Verify the binary ABI matches current Node
     log_step "Verifying native module ABI compatibility..."
     NODE_ABI=$(node -p "process.versions.modules" 2>/dev/null || echo "unknown")
-    BINARY_PATH=$(node -e "try{console.log(require.resolve('better-sqlite3'))}catch(e){console.log('not-found')}" 2>/dev/null)
-    if [ "$BINARY_PATH" != "not-found" ] && [ "$BINARY_PATH" != "unknown" ]; then
-        BINARY_ABI=$(node -e "const fs=require('fs');const b=fs.readFileSync('$BINARY_PATH');console.log(b.readUInt32LE(4))" 2>/dev/null || echo "unknown")
-        log "Node ABI: $NODE_ABI  |  Binary ABI: $BINARY_ABI  |  Binary: $BINARY_PATH"
+    # Use the bindings helper that better-sqlite3 already uses to find its .node binary
+    BINARY_ABI=$(node -e "
+        const fs = require('fs');
+        const b = require('bindings')('better_sqlite3');
+        console.log(fs.readFileSync(b).readUInt32LE(4));
+    " 2>/dev/null || echo "unknown")
+    log "Node ABI: $NODE_ABI  |  Binary ABI: $BINARY_ABI"
+    if [ "$NODE_ABI" != "unknown" ] && [ "$BINARY_ABI" != "unknown" ]; then
         if [ "$NODE_ABI" == "$BINARY_ABI" ]; then
             log_ok "better-sqlite3 ABI verified (ABI=$NODE_ABI)"
         else
