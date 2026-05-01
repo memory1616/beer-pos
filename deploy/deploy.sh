@@ -10,14 +10,6 @@ APP_DIR="/root/beer-pos"
 SERVICE_NAME="beer-pos"
 DEPLOY_LOG="/var/log/beerpos-deploy.log"
 
-# ── Force correct Node.js version ──────────────────────────────────────────
-# CRITICAL: nvm may prepend its Node v18 to PATH, but PM2 daemon uses
-# /usr/local/bin/node (v20.18.0). Pin PATH so all npm operations use the same
-# Node as PM2, avoiding ABI mismatch (binary compiled for v18 won't load in v22).
-export PATH="/usr/local/bin:/usr/bin:/bin:$PATH"
-NODE_VERSION=$(node --version)
-log "Using Node: $NODE_VERSION"
-
 # ── Colors ──────────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
 BLUE='\033[0;34m'; CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
@@ -34,6 +26,14 @@ log_step() { log "${GREEN}[STEP]${NC} $1"; }
 log_warn() { log "${YELLOW}[WARN]${NC} $1"; }
 log_error(){ log "${RED}[ERROR]${NC} $1" >&2; exit 1; }
 log_ok()   { log "${GREEN}✓${NC} $1"; }
+
+# ── Force correct Node.js version ──────────────────────────────────────────
+# CRITICAL: nvm may prepend its Node v18 to PATH, but PM2 daemon uses
+# /usr/local/bin/node (v20.18.0). Pin PATH so all npm operations use the same
+# Node as PM2, avoiding ABI mismatch.
+export PATH="/usr/local/bin:/usr/bin:/bin:$PATH"
+NODE_VERSION=$(node --version)
+log "Using Node: $NODE_VERSION"
 
 # ── 0. Init ──────────────────────────────────────────────────────────────
 ensure_log
@@ -91,16 +91,23 @@ if [ -f "package.json" ]; then
     # Verify the binary ABI matches current Node
     log_step "Verifying native module ABI compatibility..."
     NODE_ABI=$(node -p "process.versions.modules")
-    BINARY_ABI=$(node -e "
-        const fs = require('fs');
-        const b = require('bindings')('better_sqlite3');
-        console.log(fs.readFileSync(b).readUInt32LE(4));
-    " 2>/dev/null || echo "unknown")
-    log "Node ABI: $NODE_ABI  |  Binary ABI: $BINARY_ABI"
-    if [ "$NODE_ABI" == "$BINARY_ABI" ]; then
-        log_ok "better-sqlite3 ABI verified (ABI=$NODE_ABI)"
+    # Find the .node binary directly — better-sqlite3 stores it at a known path
+    BSQ_NODE=$(find node_modules/better-sqlite3 -name "better_sqlite3.node" -type f 2>/dev/null | head -1)
+    if [ -n "$BSQ_NODE" ] && [ -f "$BSQ_NODE" ]; then
+        BINARY_ABI=$(node -e "console.log(require('fs').readFileSync('$BSQ_NODE').readUInt32LE(4))" 2>/dev/null || echo "unknown")
+        log "Node ABI: $NODE_ABI  |  Binary ABI: $BINARY_ABI"
+        if [ "$NODE_ABI" == "$BINARY_ABI" ]; then
+            log_ok "better-sqlite3 ABI verified (ABI=$NODE_ABI)"
+        else
+            log_error "ABI mismatch! Node=$NODE_ABI Binary=$BINARY_ABI — binary will crash on load"
+        fi
     else
-        log_error "ABI mismatch! Node=$NODE_ABI Binary=$BINARY_ABI — binary will crash on load"
+        # Fallback: try requiring it
+        if node -e "require('better-sqlite3')" 2>/dev/null; then
+            log_ok "better-sqlite3 loaded successfully"
+        else
+            log_error "better-sqlite3 verification FAILED — cannot load the module"
+        fi
     fi
 
     # Run build step if defined
