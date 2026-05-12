@@ -102,28 +102,10 @@ function deleteSaleRestoringInventory(saleId) {
         db.prepare('UPDATE customers SET keg_balance = ? WHERE id = ?').run(restoredBalance, sale.customer_id);
       }
 
-      // ===== C. RESTORE EMPTY COLLECTED (keg_stats) =====
-      if (sale.return_kegs > 0 && sale.type !== 'gift') {
-        const stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
-        if (stats) {
-          const newEmpty = Math.max(0, stats.empty_collected - sale.return_kegs);
-          console.log('[ORDER DELETE tx] 🔄 Restoring empty_collected:', stats.empty_collected, '→', newEmpty);
-          db.prepare('UPDATE keg_stats SET empty_collected = ? WHERE id = 1').run(newEmpty);
-        }
-      }
-
-      // Gift: restore empty_collected for each item
-      if (sale.type === 'gift') {
-        const stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
-        if (stats) {
-          for (const item of items) {
-            const newEmpty = Math.max(0, stats.empty_collected - item.quantity);
-            console.log('[ORDER DELETE tx] 🔄 Gift item - restoring empty_collected:', stats.empty_collected, '→', newEmpty);
-            db.prepare('UPDATE keg_stats SET empty_collected = ? WHERE id = 1').run(newEmpty);
-            stats.empty_collected = newEmpty;
-          }
-        }
-      }
+      // ===== C. KEG BALANCE RESTORE (chỉ restore keg_balance, KHÔNG đụng empty_collected) =====
+      // NOTE: return_kegs (vỏ đã thu) KHÔNG ảnh hưởng empty_collected khi xóa đơn.
+      // Vỏ đã thu là đã thu, không hoàn. Chỉ deliver_kegs ảnh hưởng keg_balance.
+      // empty_collected là counter tích lũy — không được sửa khi xóa đơn.
 
       // ===== D. SYNC KEG STATS =====
       const inventoryResult = db.prepare(db.SQL_KEG_WAREHOUSE_RAW_STOCK).get();

@@ -492,6 +492,11 @@ app.get('/report', (req, res) => {
   res.sendFile(path.join(__dirname, 'views', 'report.html'));
 });
 
+// Serve walkin-kegs HTML
+app.get('/walkin-kegs', (req, res) => {
+  res.sendFile(path.join(__dirname, 'views', 'walkin-kegs.html'));
+});
+
 // Report data API — must be BEFORE app.use('/report') to take priority
 // Supports both formats:
 //   - Dashboard format: ?mode=quick&period=today|week|month
