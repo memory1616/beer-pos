@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <script>
+  (function () {
+    var k = 'theme';
+    var sys = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    var saved = localStorage.getItem(k);
+    var theme = (saved === 'light' || saved === 'dark') ? saved : sys;
+    document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.classList.remove('light', 'dark');
+    document.documentElement.classList.add(theme);
+  })();
+  </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  <title>Vỏ Khách Lẻ</title>
+  <link rel="stylesheet" href="/css/unified.css?v=20260412b-app-shell">
+  <script src="/js/dark-mode.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/layout.js"></script>
+  <script src="/js/format.js" defer></script>
+  <style>
+    .page-walkin { padding-bottom: 90px; }
+    .summary-cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .summary-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 8px;
+      text-align: center;
+    }
+    .summary-card-value {
+      font-size: 22px;
+      font-weight: 800;
+      line-height: 1.1;
+    }
+    .summary-card-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 4px;
+      font-weight: 500;
+    }
+    .val-green { color: var(--green); }
+    .val-red { color: var(--red); }
+    .val-yellow { color: var(--warning); }
+    .section-header {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin: 16px 0 8px;
+      padding: 0 4px;
+    }
+    .walkin-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      padding: 12px 4px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+    }
+    .walkin-row:hover { background: var(--bg-hover); }
+    .walkin-row:last-child { border-bottom: none; }
+    .walkin-row-left { flex: 1; min-width: 0; }
+    .walkin-customer {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 2px;
+    }
+    .walkin-products {
+      font-size: 11px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 220px;
+    }
+    .walkin-date {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 3px;
+    }
+    .walkin-right {
+      text-align: right;
+      flex-shrink: 0;
+      margin-left: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+    }
+    .walkin-kegs-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: var(--warning-dim);
+      color: var(--warning);
+      border: 1px solid var(--warning);
+      border-radius: 8px;
+      padding: 3px 9px;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .walkin-returned {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: var(--green-dim);
+      color: var(--green);
+      border: 1px solid var(--green);
+      border-radius: 8px;
+      padding: 3px 9px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .walkin-collected-all {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: var(--green-dim);
+      color: var(--green);
+      border: 1px solid var(--green);
+      border-radius: 8px;
+      padding: 3px 9px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .walkin-total {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .btn-collect-keg {
+      background: var(--primary);
+      color: #000;
+      border: none;
+      border-radius: 8px;
+      padding: 4px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: opacity 0.15s;
+    }
+    .btn-collect-keg:hover { opacity: 0.85; }
+    .btn-collect-keg:disabled { opacity: 0.4; cursor: not-allowed; }
+    .empty-state {
+      text-align: center;
+      padding: 48px 16px;
+      color: var(--text-muted);
+    }
+    .empty-state-icon { font-size: 48px; margin-bottom: 12px; }
+    .empty-state-title { font-size: 16px; font-weight: 600; margin-bottom: 6px; color: var(--text-secondary); }
+    .empty-state-desc { font-size: 13px; line-height: 1.5; }
+    .month-filter {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .month-chip {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 5px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .month-chip:hover { border-color: var(--primary); color: var(--primary); }
+    .month-chip.active {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #000;
+    }
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      margin-top: 16px;
+      padding: 12px 0;
+    }
+    .pagination button {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 14px;
+      font-size: 13px;
+      color: var(--text-primary);
+      cursor: pointer;
+    }
+    .pagination button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .pagination button:hover:not(:disabled) { border-color: var(--primary); }
+    .pagination span { font-size: 12px; color: var(--text-muted); }
+    /* Modal */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.6);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 9999;
+      padding: 16px;
+    }
+    .modal-overlay.hidden { display: none; }
+    .modal-box {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      width: 100%;
+      max-width: 360px;
+    }
+    .modal-title {
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+    .modal-sub {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+    .form-group { margin-bottom: 12px; }
+    .form-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+      display: block;
+    }
+    .form-input {
+      width: 100%;
+      background: var(--bg-hover);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 14px;
+      color: var(--text-primary);
+      box-sizing: border-box;
+      outline: none;
+    }
+    .form-input:focus { border-color: var(--primary); }
+    .form-input-kegs {
+      text-align: center;
+      font-size: 28px;
+      font-weight: 800;
+      color: var(--warning);
+      letter-spacing: 0.05em;
+    }
+    .keg-stepper {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      margin-bottom: 12px;
+    }
+    .keg-stepper button {
+      width: 44px; height: 44px;
+      border-radius: 50%;
+      border: 2px solid var(--primary);
+      background: var(--primary);
+      color: #000;
+      font-size: 20px;
+      font-weight: 800;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: opacity 0.15s;
+    }
+    .keg-stepper button:hover { opacity: 0.8; }
+    .keg-stepper button:disabled { opacity: 0.3; cursor: not-allowed; }
+    .keg-stepper .keg-count {
+      font-size: 36px;
+      font-weight: 900;
+      color: var(--warning);
+      min-width: 60px;
+      text-align: center;
+      line-height: 1;
+    }
+    .modal-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 16px;
+    }
+    .modal-actions button {
+      flex: 1;
+      padding: 11px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      border: none;
+    }
+    .btn-cancel {
+      background: var(--bg-hover);
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+    }
+    .btn-confirm {
+      background: var(--primary);
+      color: #000;
+    }
+    .btn-confirm:disabled { opacity: 0.5; cursor: not-allowed; }
+    .modal-amount-info {
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+    .modal-amount-info strong { color: var(--warning); }
+    .sale-id-badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      background: var(--bg-hover);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1px 6px;
+      margin-bottom: 2px;
+    }
+    .sale-total-badge {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--green);
+    }
+    .note-edit-input {
+      width: 100%;
+      background: var(--bg-hover);
+      border: 1px solid var(--primary);
+      border-radius: 6px;
+      padding: 3px 8px;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-primary);
+      outline: none;
+      box-sizing: border-box;
+      margin-bottom: 3px;
+    }
+  </style>
+</head>
+<body class="body--app">
+
+  <div id="app"></div>
+
+  <main class="page-content page-walkin app-main" id="mainContent">
+    <div class="text-center py-8">
+      <div class="spinner mx-auto"></div>
+      <div class="text-muted mt-2">Đang tải...</div>
+    </div>
+  </main>
+
+  <!-- Modal Thu vỏ -->
+  <div id="collectModal" class="modal-overlay hidden">
+    <div class="modal-box">
+      <div class="modal-title">Thu vỏ</div>
+      <div class="modal-sub" id="collectModalSub">Đơn #0 — thu 0/0 vỏ</div>
+
+      <div class="keg-stepper">
+        <button id="kegMinus" onclick="stepKeg(-1)">−</button>
+        <div class="keg-count" id="kegCount">1</div>
+        <button id="kegPlus" onclick="stepKeg(1)">+</button>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Ghi chú (tùy chọn)</label>
+        <input type="text" id="collectNote" class="form-input" placeholder="VD: Khách trả đúng hạn">
+      </div>
+
+      <div class="modal-amount-info" id="collectAmountInfo">
+        Số vỏ khả dụng: <strong id="collectAvailable">0</strong> vỏ
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="closeCollectModal()">Hủy</button>
+        <button class="btn-confirm" id="collectConfirmBtn" onclick="confirmCollect()">Xác nhận thu</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    requireAuth();
+    (async () => {
+      await loadVersion();
+
+      document.getElementById('app').innerHTML = getHeader('Vỏ Khách Lẻ', '🍺');
+      const main = document.getElementById('mainContent');
+
+      let currentMonth = '';
+      let currentPage = 1;
+
+      // Modal state
+      window._modalSaleId = null;
+      window._modalMaxKegs = 0;
+      window._modalKegs = 1;
+      window._collectSubmitting = false;
+
+      window.stepKeg = function(delta) {
+        window._modalKegs = Math.max(1, Math.min(window._modalMaxKegs, window._modalKegs + delta));
+        document.getElementById('kegCount').textContent = window._modalKegs;
+        document.getElementById('kegMinus').disabled = window._modalKegs <= 1;
+        document.getElementById('kegPlus').disabled = window._modalKegs >= window._modalMaxKegs;
+      };
+
+      window.openCollectModal = function(saleId, deliverKegs, returnKegs) {
+        window._modalSaleId = saleId;
+        window._modalMaxKegs = deliverKegs - returnKegs;
+        window._modalKegs = Math.min(1, window._modalMaxKegs);
+        document.getElementById('collectModalSub').textContent =
+          'Đơn #' + saleId + ' — thu ' + returnKegs + '/' + deliverKegs + ' vỏ';
+        document.getElementById('kegCount').textContent = window._modalKegs;
+        document.getElementById('collectAvailable').textContent = window._modalMaxKegs;
+        document.getElementById('kegMinus').disabled = window._modalKegs <= 1;
+        document.getElementById('kegPlus').disabled = window._modalKegs >= window._modalMaxKegs;
+        document.getElementById('collectNote').value = '';
+        document.getElementById('collectConfirmBtn').disabled = false;
+        document.getElementById('collectConfirmBtn').textContent = 'Xác nhận thu';
+        window._collectSubmitting = false;
+        document.getElementById('collectModal').classList.remove('hidden');
+      };
+
+      window.closeCollectModal = function() {
+        document.getElementById('collectModal').classList.add('hidden');
+        window._modalSaleId = null;
+      };
+
+      // Inline edit ghi chú (tên khách)
+      window.startEditNote = function(saleId, currentNote) {
+        var nameEl = document.getElementById('cname-' + saleId);
+        if (!nameEl) return;
+        nameEl.style.display = 'none';
+
+        var input = document.createElement('input');
+        input.type = 'text';
+        input.id = 'note-input-' + saleId;
+        input.className = 'note-edit-input';
+        input.value = currentNote || '';
+        input.placeholder = 'Nhập tên khách...';
+        input.maxLength = 200;
+
+        var row = document.getElementById('row-' + saleId);
+        var leftEl = row.querySelector('.walkin-row-left');
+
+        // Insert after sale-id-badge
+        var badge = leftEl.querySelector('.sale-id-badge');
+        if (badge && badge.nextSibling) {
+          leftEl.insertBefore(input, badge.nextSibling);
+        } else {
+          leftEl.insertBefore(input, leftEl.firstChild.nextSibling);
+        }
+
+        input.focus();
+        input.select();
+
+        var save = function() {
+          var newNote = input.value.trim();
+          input.remove();
+          nameEl.style.display = '';
+          if (newNote === (currentNote || '')) return;
+          saveNote(saleId, newNote);
+        };
+
+        input.addEventListener('blur', save);
+        input.addEventListener('keydown', function(e) {
+          if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+          if (e.key === 'Escape') { input.value = currentNote || ''; input.blur(); }
+        });
+      };
+
+      async function saveNote(saleId, note) {
+        try {
+          var res = await fetch('/api/sales/' + saleId, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ note: note })
+          });
+          var data = await res.json();
+          if (res.ok) {
+            showToast('Đã lưu ghi chú', 'success');
+            loadData(currentMonth, currentPage);
+          } else {
+            showToast(data.error || 'Lỗi khi lưu', 'error');
+          }
+        } catch (err) {
+          showToast('Lỗi kết nối', 'error');
+        }
+      }
+
+      window.confirmCollect = async function() {
+        if (window._collectSubmitting || !window._modalSaleId) return;
+        const kegs = window._modalKegs;
+        const note = document.getElementById('collectNote').value.trim();
+        window._collectSubmitting = true;
+        const btn = document.getElementById('collectConfirmBtn');
+        btn.disabled = true;
+        btn.textContent = 'Đang thu...';
+
+        try {
+          const res = await fetch('/api/sales/' + window._modalSaleId + '/collect-kegs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ returnedKegs: kegs, note: note })
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            alert(data.error || 'Lỗi khi thu vỏ');
+          } else {
+            closeCollectModal();
+            showToast('Đã thu ' + kegs + ' vỏ!', 'success');
+            loadData(currentMonth, currentPage);
+          }
+        } catch (err) {
+          alert('Lỗi kết nối: ' + err.message);
+        } finally {
+          window._collectSubmitting = false;
+          btn.disabled = false;
+          btn.textContent = 'Xác nhận thu';
+        }
+      };
+
+      async function loadData(month, page) {
+        main.innerHTML = '<div class="text-center py-8"><div class="spinner mx-auto"></div><div class="text-muted mt-2">Đang tải...</div></div>';
+
+        try {
+          const [summaryRes, salesRes] = await Promise.all([
+            fetch('/api/sales/walkin-kegs/summary'),
+            fetch('/api/sales/walkin-kegs?month=' + encodeURIComponent(month || '') + '&page=' + page)
+          ]);
+
+          const summary = await summaryRes.json();
+          const data = await salesRes.json();
+
+          if (!salesRes.ok) {
+            main.innerHTML = '<div class="p-4 text-center text-danger">Lỗi: ' + (data.error || 'Tải thất bại') + '</div>';
+            return;
+          }
+
+          renderPage(summary, data, month, page);
+        } catch (err) {
+          main.innerHTML = '<div class="p-4 text-center text-danger">Lỗi kết nối: ' + err.message + '</div>';
+        }
+      }
+
+      function renderPage(summary, data, month, page) {
+        currentMonth = month;
+        currentPage = page;
+
+        // Month chips
+        const months = (summary.monthly || []).map(m => m.month);
+        const currentYm = new Date().toISOString().slice(0, 7);
+        if (!months.includes(currentYm)) months.unshift(currentYm);
+        months.sort().reverse();
+
+        const monthChips = months.length > 0
+          ? '<div class="month-filter">' +
+              '<div class="month-chip' + (month === '' ? ' active' : '') + '" onclick="filterMonth(\'\')">Tất cả</div>' +
+              months.map(m => {
+                const [y, mo] = m.split('-');
+                return '<div class="month-chip' + (month === m ? ' active' : '') + '" onclick="filterMonth(\'' + m + '\')">Thg ' + parseInt(mo) + '/' + y + '</div>';
+              }).join('') +
+            '</div>'
+          : '';
+
+        // Summary
+        const summaryHtml = `
+          <div class="summary-cards">
+            <div class="summary-card">
+              <div class="summary-card-value val-yellow">${summary.notCollected}</div>
+              <div class="summary-card-label">Chưa thu</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-card-value val-green">${summary.totalReturned}</div>
+              <div class="summary-card-label">Đã thu</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-card-value">${summary.totalDelivered}</div>
+              <div class="summary-card-label">Tổng giao</div>
+            </div>
+          </div>
+        `;
+
+        // Sales list
+        let salesHtml = '';
+        if (data.sales && data.sales.length > 0) {
+          salesHtml = data.sales.map(s => {
+            const date = new Date(s.date).toLocaleDateString('vi-VN');
+            const notReturned = s.deliver_kegs - s.return_kegs;
+            const products = s.items_summary ? s.items_summary.replace(/\|$/, '').replace(/ \| /g, ', ') : '';
+
+            // Dòng đơn: tên khách (note) là ghi chú, click để sửa
+            const customerName = s.note ? escHtml(s.note) : escHtml(products || 'Khách lẻ');
+
+            let kegBadge = '';
+            if (notReturned > 0) {
+              kegBadge = '<div class="walkin-kegs-badge">🍺 ' + notReturned + ' vỏ</div>';
+            } else if (s.deliver_kegs > 0) {
+              kegBadge = '<div class="walkin-collected-all">✓ Đã thu đủ</div>';
+            }
+
+            let collectBtn = '';
+            if (s.deliver_kegs > 0 && notReturned > 0) {
+              collectBtn = '<button class="btn-collect-keg" onclick="event.stopPropagation(); openCollectModal(' + s.id + ',' + s.deliver_kegs + ',' + s.return_kegs + ')">Thu vỏ</button>';
+            } else if (s.deliver_kegs > 0) {
+              collectBtn = '<button class="btn-collect-keg" disabled style="opacity:0.4;">✓ Đã thu</button>';
+            }
+
+            return '<div class="walkin-row" id="row-' + s.id + '">' +
+              '<div class="walkin-row-left">' +
+                '<div class="sale-id-badge">#' + s.id + '</div>' +
+                '<div class="walkin-customer" id="cname-' + s.id + '" style="cursor:pointer;" onclick="event.stopPropagation(); startEditNote(' + s.id + ',\'' + escHtml(s.note || '').replace(/'/g, '&#39;') + '\')" title="Click để sửa tên">' +
+                  (s.note ? escHtml(s.note) : '<span style="opacity:0.4;font-style:italic;">' + escHtml(products || 'Khách lẻ') + '</span>') +
+                '</div>' +
+                '<div class="walkin-products">' + escHtml(products) + '</div>' +
+                '<div class="walkin-date">' + date + ' · <span class="sale-total-badge">' + formatMoney(s.total) + '</span></div>' +
+              '</div>' +
+              '<div class="walkin-right">' +
+                kegBadge +
+                (s.return_kegs > 0 ? '<div class="walkin-returned">✓ ' + s.return_kegs + ' đã thu</div>' : '') +
+                (s.deliver_kegs > 0 ? '<div class="walkin-total">Giao: ' + s.deliver_kegs + ' vỏ</div>' : '') +
+                collectBtn +
+              '</div>' +
+            '</div>';
+          }).join('');
+        } else {
+          salesHtml = '<div class="empty-state">' +
+            '<div class="empty-state-icon">🍺</div>' +
+            '<div class="empty-state-title">Không có đơn nào</div>' +
+            '<div class="empty-state-desc">Chưa có đơn bán cho khách lẻ nào.</div>' +
+          '</div>';
+        }
+
+        // Pagination
+        const totalPages = data.totalPages || 1;
+        const paginationHtml = totalPages > 1
+          ? '<div class="pagination">' +
+              '<button onclick="goPage(' + (page - 1) + ')" ' + (page <= 1 ? 'disabled' : '') + '>← Trước</button>' +
+              '<span>Trang ' + page + '/' + totalPages + '</span>' +
+              '<button onclick="goPage(' + (page + 1) + ')" ' + (page >= totalPages ? 'disabled' : '') + '>Sau →</button>' +
+            '</div>'
+          : '';
+
+        main.innerHTML = '<div style="padding:0 16px;">' +
+          monthChips +
+          summaryHtml +
+          '<div class="section-header">Danh sách đơn hàng</div>' +
+          '<div class="card" style="border-radius:12px;padding:0 4px;">' + salesHtml + '</div>' +
+          paginationHtml +
+          '<div style="height:16px;"></div>' +
+        '</div>';
+      }
+
+      function escHtml(str) {
+        if (!str) return '';
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      }
+
+      function formatMoney(n) {
+        if (n == null) return '0đ';
+        return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', minimumFractionDigits: 0 }).format(n);
+      }
+
+      function showToast(msg, type) {
+        var existing = document.getElementById('_toast');
+        if (existing) existing.remove();
+        var el = document.createElement('div');
+        el.id = '_toast';
+        el.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:' +
+          (type === 'success' ? '#22c55e' : type === 'error' ? '#ef4444' : '#f59e0b') +
+          ';color:#fff;padding:10px 20px;border-radius:10px;font-size:14px;font-weight:700;' +
+          'z-index:99999;box-shadow:0 4px 12px rgba(0,0,0,0.3);white-space:nowrap;';
+        el.textContent = msg;
+        document.body.appendChild(el);
+        setTimeout(function() { el.remove(); }, 2500);
+      }
+      window.showToast = showToast;
+
+      window.filterMonth = function(month) {
+        loadData(month, 1);
+      };
+
+      window.goPage = function(page) {
+        loadData(currentMonth, page);
+      };
+
+      loadData('', 1);
+    })();
+  </script>
+</body>
+</html>
