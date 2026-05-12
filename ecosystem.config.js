@@ -2,10 +2,9 @@ module.exports = {
   apps: [{
     name: 'beer-pos',
     script: './server.js',
-    cwd: '/root/beer-pos',
+    cwd: __dirname,
     instances: 1,
     exec_mode: 'fork',
-    interpreter: '/usr/local/bin/node',
     env: {
       NODE_ENV: 'production',
       PORT: 3000,
