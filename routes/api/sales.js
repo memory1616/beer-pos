@@ -419,6 +419,104 @@ router.get('/', (req, res) => {
   });
 });
 
+// GET /api/sales/walkin-kegs - Lấy đơn bán cho khách lẻ (không có customer_id)
+router.get('/walkin-kegs', (req, res) => {
+  try {
+    const { page = 1, limit = 50, month } = req.query;
+
+    let whereClause = `
+      WHERE s.type = 'sale'
+        AND s.archived = 0
+        AND (s.customer_id IS NULL OR s.customer_id = 0)
+    `;
+    const params = [];
+
+    if (month) {
+      whereClause += " AND strftime('%Y-%m', s.date) = ?";
+      params.push(month);
+    }
+
+    const totalCount = db.prepare(`
+      SELECT COUNT(*) as count FROM sales s ${whereClause}
+    `).get(...params);
+
+    const offset = (page - 1) * limit;
+    const sales = db.prepare(`
+      SELECT
+        s.id,
+        s.date,
+        s.total,
+        s.profit,
+        s.deliver_kegs,
+        s.return_kegs,
+        s.type,
+        s.note,
+        s.archived,
+        s.customer_id,
+        s.keg_balance_after,
+        (SELECT GROUP_CONCAT(si.quantity || 'x ' || COALESCE(p.name, si.product_slug, 'SP'), ' | ')
+         FROM sale_items si
+         LEFT JOIN products p ON si.product_id = p.id
+         WHERE si.sale_id = s.id) as items_summary,
+        (SELECT SUM(si.quantity) FROM sale_items si WHERE si.sale_id = s.id) as items_qty
+      FROM sales s
+      ${whereClause}
+      ORDER BY datetime(s.date) DESC
+      LIMIT ? OFFSET ?
+    `).all(...params, parseInt(limit), parseInt(offset));
+
+    res.json({
+      sales,
+      total: totalCount.count,
+      page: parseInt(page),
+      limit: parseInt(limit),
+      totalPages: Math.ceil(totalCount.count / limit)
+    });
+  } catch (err) {
+    logger.error('Walkin kegs error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi lấy danh sách: ' + err.message });
+  }
+});
+
+// GET /api/sales/walkin-kegs/summary - Tổng hợp số vỏ keg của khách lẻ
+router.get('/walkin-kegs/summary', (req, res) => {
+  try {
+    const totalDelivered = db.prepare(`
+      SELECT COALESCE(SUM(deliver_kegs), 0) as total FROM sales
+      WHERE type = 'sale' AND archived = 0 AND (customer_id IS NULL OR customer_id = 0)
+    `).get();
+
+    const totalReturned = db.prepare(`
+      SELECT COALESCE(SUM(return_kegs), 0) as total FROM sales
+      WHERE type = 'sale' AND archived = 0 AND (customer_id IS NULL OR customer_id = 0)
+    `).get();
+
+    const notCollected = totalDelivered.total - totalReturned.total;
+
+    const monthly = db.prepare(`
+      SELECT
+        strftime('%Y-%m', date) as month,
+        COALESCE(SUM(deliver_kegs), 0) as delivered,
+        COALESCE(SUM(return_kegs), 0) as returned
+      FROM sales
+      WHERE type = 'sale' AND archived = 0 AND (customer_id IS NULL OR customer_id = 0)
+      GROUP BY strftime('%Y-%m', date)
+      ORDER BY month DESC
+      LIMIT 12
+    `).all();
+
+    res.json({
+      totalDelivered: totalDelivered.total,
+      totalReturned: totalReturned.total,
+      notCollected,
+      monthly
+    });
+  } catch (err) {
+    logger.error('Walkin kegs summary error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi lấy tổng hợp: ' + err.message });
+  }
+});
+
 // GET /api/sales/:id - Lấy chi tiết hóa đơn
 router.get('/:id', (req, res) => {
   const sale = db.prepare(`SELECT s.*, COALESCE(c.name, 'Khách lẻ') as customer_name FROM sales s LEFT JOIN customers c ON s.customer_id = c.id WHERE s.id = ?`).get(req.params.id);
@@ -1035,6 +1133,56 @@ router.patch('/:id/payment-status', (req, res) => {
   } catch (err) {
     logger.error('Update payment-status error', { error: err.message });
     res.status(500).json({ error: 'Lỗi cập nhật: ' + err.message });
+  }
+});
+
+// POST /api/sales/:saleId/collect-kegs - Thu vỏ từ đơn khách lẻ walk-in
+// Cập nhật sale.return_kegs và cộng vào keg_stats.empty_collected
+router.post('/:saleId/collect-kegs', (req, res) => {
+  const { saleId } = req.params;
+  const { returnedKegs = 0, note } = req.body;
+
+  if (!returnedKegs || returnedKegs < 1) {
+    return res.status(400).json({ error: 'Số vỏ thu phải lớn hơn 0' });
+  }
+
+  try {
+    // Lấy đơn
+    const sale = db.prepare(`
+      SELECT id, customer_id, deliver_kegs, return_kegs, type, archived
+      FROM sales WHERE id = ? AND (customer_id IS NULL OR customer_id = 0)
+    `).get(saleId);
+
+    if (!sale) return res.status(404).json({ error: 'Không tìm thấy đơn' });
+    if (sale.archived) return res.status(400).json({ error: 'Đơn đã bị xóa' });
+
+    const newReturned = sale.return_kegs + returnedKegs;
+    if (newReturned > sale.deliver_kegs) {
+      return res.status(400).json({ error: 'Số vỏ thu vượt quá số vỏ đã giao (' + sale.deliver_kegs + ')' });
+    }
+
+    db.transaction(() => {
+      // 1. Cập nhật return_kegs của đơn
+      db.prepare('UPDATE sales SET return_kegs = ? WHERE id = ?').run(newReturned, saleId);
+
+      // 2. Cộng vào kho vỏ rỗng
+      const stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
+      const newEmpty = (stats?.empty_collected || 0) + returnedKegs;
+      db.prepare('UPDATE keg_stats SET empty_collected = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run(newEmpty);
+
+      // 3. Ghi log
+      db.prepare(`
+        INSERT INTO keg_transactions_log
+          (type, quantity, inventory_after, empty_after, holding_after, note)
+        VALUES ('collect_return', ?, 0, ?, 0, ?)
+      `).run(returnedKegs, newEmpty, note || 'Thu vỏ từ đơn #' + saleId);
+    })();
+
+    logger.info('[walkin-collect] Collected kegs', { saleId, returnedKegs, newReturned });
+    res.json({ success: true, saleId, returnedKegs, newReturned, newEmpty: (db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get()?.empty_collected || 0) });
+  } catch (err) {
+    logger.error('Walkin collect-kegs error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi: ' + err.message });
   }
 });
 
