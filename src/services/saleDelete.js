@@ -91,7 +91,30 @@ function deleteSaleRestoringInventory(saleId) {
         console.log('[ORDER DELETE tx] ⏭️ Skipping product stock restore — shouldReverse:', shouldReverseProductStock(sale), 'type:', sale.type);
       }
 
-      // ===== B. RESTORE KEG BALANCE (nếu có customer) =====
+      // ===== B. RESTORE monthly_purchased_liters (chỉ restore items keg có giá > 0, loại trừ pet/box và lít tặng) =====
+      if (sale.customer_id && sale.type === 'sale' && sale.promo_type !== 'MONTHLY_BONUS') {
+        const paidKegItems = db.prepare(`
+          SELECT COALESCE(SUM(si.quantity), 0) as total
+          FROM sale_items si
+          JOIN products p ON p.id = si.product_id
+          WHERE si.sale_id = ? AND si.price > 0 AND p.type = 'keg'
+        `).get(sale.id);
+        const paidLiters = paidKegItems ? paidKegItems.total : 0;
+        if (paidLiters > 0) {
+          db.prepare('UPDATE customers SET monthly_purchased_liters = MAX(0, monthly_purchased_liters - ?) WHERE id = ?').run(paidLiters, sale.customer_id);
+          console.log('[ORDER DELETE tx] ✅ Restored monthly_purchased_liters: -' + paidLiters + 'L for customer', sale.customer_id);
+        }
+      }
+
+      // ===== B2. REVERT reward_claimed nếu xóa MONTHLY_BONUS =====
+      if (sale.customer_id && sale.promo_type === 'MONTHLY_BONUS') {
+        db.prepare("UPDATE customers SET reward_claimed = 0, reward_claimed_at = NULL WHERE id = ?").run(sale.customer_id);
+        // Xóa reward_history liên quan
+        db.prepare('DELETE FROM reward_history WHERE customer_id = ? AND claimed_at >= date("now", "-1 day")').run(sale.customer_id);
+        console.log('[ORDER DELETE tx] ✅ Reverted reward_claimed for customer', sale.customer_id);
+      }
+
+      // ===== C. RESTORE KEG BALANCE (nếu có customer) =====
       if (sale.customer_id && (sale.deliver_kegs !== 0 || sale.return_kegs !== 0)) {
         console.log('[ORDER DELETE tx] 🔄 Restoring keg balance:', sale.deliver_kegs, sale.return_kegs);
         const customer = db.prepare('SELECT keg_balance FROM customers WHERE id = ?').get(sale.customer_id);

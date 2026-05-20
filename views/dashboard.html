@@ -283,6 +283,32 @@
               </div>
             </div>
 
+            <!-- PROMOTION WIDGETS -->
+            <div class="section-title mb-2 mt-2" id="promoSectionLabel" style="display:none;">🎁 Khuyến mãi</div>
+            <div id="promoWidgets" class="grid grid-cols-2 gap-3 mb-4" style="display:none;">
+              <div class="kpi-card" style="--card-accent:var(--warning);--card-accent-dim:var(--warning-dim);" title="Quán mới đang trong 30 ngày ưu đãi">
+                <div class="kpi-card-label">🔥 Quán mới</div>
+                <div class="kpi-card-value" id="promoNewShopCount" style="font-size:22px;color:var(--warning);">—</div>
+                <div class="text-xs mt-1" style="color:var(--text-muted);">đang ưu đãi</div>
+              </div>
+              <div class="kpi-card" style="--card-accent:var(--green);--card-accent-dim:var(--green-dim);" title="Tổng lít tặng trong tháng">
+                <div class="kpi-card-label">🎁 Lít tặng tháng</div>
+                <div class="kpi-card-value green" id="promoFreeLitersMonth" style="font-size:22px;">—</div>
+                <div class="text-xs mt-1" style="color:var(--text-muted);">lít</div>
+              </div>
+              <div class="kpi-card" style="--card-accent:var(--primary);--card-accent-dim:var(--primary-dim);" title="Khách gần đạt thưởng tháng">
+                <div class="kpi-card-label">🎯 Gần thưởng</div>
+                <div class="kpi-card-value" id="promoNearTierCount" style="font-size:22px;color:var(--primary);">—</div>
+                <div class="text-xs mt-1" style="color:var(--text-muted);">khách</div>
+              </div>
+              <div class="kpi-card" style="--card-accent:var(--red);--card-accent-dim:var(--red-dim);" title="Chi phí khuyến mãi tháng">
+                <div class="kpi-card-label">💸 Chi phí KM</div>
+                <div class="kpi-card-value red" id="promoCostMonth" style="font-size:22px;">—</div>
+                <div class="text-xs mt-1" style="color:var(--text-muted);">tháng này</div>
+              </div>
+            </div>
+            <div id="promoNearTierList" class="mb-4" style="display:none;"></div>
+
             <!-- Vỏ bình -->
             <div class="card text-center mb-3" style="background:var(--green-dim);border-color:var(--green);">
               <div class="text-xs font-semibold uppercase tracking-wider mb-1" style="color:var(--text-muted);">Tổng vỏ bình</div>

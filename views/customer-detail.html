@@ -202,7 +202,7 @@
     // Tab switching
     function switchTab(tabName) {
       // Update tab buttons
-      ['history', 'kegs', 'debt'].forEach(tab => {
+      ['history', 'kegs', 'debt', 'reward'].forEach(tab => {
         const btn = document.getElementById('tab-' + tab);
         const content = document.getElementById('tab-content-' + tab);
         if (tab === tabName) {
@@ -215,10 +215,11 @@
           content.classList.add('hidden');
         }
       });
-      
+
       // Load content if needed
       if (tabName === 'kegs') loadKegsHistory();
       if (tabName === 'debt') loadDebtHistory();
+      if (tabName === 'reward') loadRewardHistory();
     }
 
     // Load kegs history
@@ -595,6 +596,175 @@
       }
     };
 
+    // ─── REWARD SECTION ────────────────────────────────────
+    async function loadRewardStatus() {
+      const container = document.getElementById('rewardContent');
+      if (!container) return;
+      container.innerHTML = '<div class="text-center py-4 text-muted">Đang tải...</div>';
+      try {
+        const res = await fetch('/api/promotions/reward/status/' + customerId);
+        const resp = await res.json();
+        if (!resp.success) { container.innerHTML = '<div class="text-center py-4 text-muted">Không có dữ liệu</div>'; return; }
+        const s = resp.data;
+        renderRewardStatus(s);
+      } catch (e) {
+        container.innerHTML = '<div class="text-center py-4 text-danger">Lỗi tải dữ liệu</div>';
+      }
+    }
+
+    function renderRewardStatus(s) {
+      const container = document.getElementById('rewardContent');
+      if (!container) return;
+      var badgeClass = 'stat-card--success';
+      var badgeIcon = '✅';
+      var badgeLabel = 'Chưa đạt mốc';
+      var canClaim = false;
+      var claimBtn = '';
+      var progressBar = '';
+      var tierInfo = '';
+
+      if (s.tier === 'BONUS_20L') {
+        badgeClass = 'stat-card--amber';
+        badgeIcon = '🏆';
+        badgeLabel = 'Đã đạt mốc 500L';
+        tierInfo = '<div class="text-success font-bold text-lg mt-1">Thưởng 20L</div>';
+      } else if (s.tier === 'BONUS_10L') {
+        badgeClass = 'stat-card--amber';
+        badgeIcon = '🎯';
+        badgeLabel = 'Đạt mốc 300L';
+        tierInfo = '<div class="text-warning font-bold text-lg mt-1">Thưởng 10L</div>';
+      }
+
+      if (s.tier !== 'NONE' && !s.claimed) {
+        canClaim = true;
+        claimBtn = '<button onclick="openClaimRewardModal()" class="btn w-full mt-3" style="background:linear-gradient(135deg,#f59e0b,#eab308);color:#000;font-weight:700;height:44px;border:none;">🎁 Xuất thưởng ' + s.liters + 'L</button>';
+      } else if (s.tier !== 'NONE' && s.claimed) {
+        canClaim = false;
+        claimBtn = '<div class="text-center mt-3 p-2 rounded-lg" style="background:rgba(34,197,94,0.1);color:#22c55e;font-weight:600;">✅ Đã nhận thưởng ' + s.liters + 'L</div>';
+      }
+
+      if (s.nextTierLiters && s.litersToNext > 0 && s.tier !== 'NONE') {
+        var pct = s.progressToNext || 0;
+        progressBar = '<div class="mt-2"><div class="flex justify-between text-xs text-muted mb-1"><span>Sản lượng: <b>' + s.monthlyLiters + 'L</b></span><span>Cần ' + s.nextTierLiters + 'L</span></div><div class="w-full bg-bg rounded-full h-2"><div class="h-2 rounded-full" style="width:' + pct + '%;background:linear-gradient(90deg,#f59e0b,#eab308);"></div></div>';
+      } else if (s.tier === 'NONE') {
+        var toNext = s.litersToNext || 0;
+        var pct = s.progressToNext || 0;
+        progressBar = '<div class="mt-2"><div class="flex justify-between text-xs text-muted mb-1"><span>Đã mua: <b>' + s.monthlyLiters + 'L</b></span><span>Cần ' + toNext + 'L nữa</span></div><div class="w-full bg-bg rounded-full h-2"><div class="h-2 rounded-full" style="width:' + pct + '%;background:var(--primary);"></div></div>';
+      }
+
+      container.innerHTML = '<div class="card ' + badgeClass + ' mb-3"><div class="sc-label"><span class="sc-icon">' + badgeIcon + '</span> ' + badgeLabel + '</div>' + tierInfo + '<div class="text-sm mt-1 opacity-75">' + s.monthlyLiters + 'L tháng này</div></div>' + progressBar + claimBtn;
+    }
+
+    async function loadRewardHistory() {
+      const container = document.getElementById('rewardHistoryContent');
+      if (!container) return;
+      container.innerHTML = '<div class="text-center py-8 text-muted">Đang tải...</div>';
+      try {
+        const res = await fetch('/api/promotions/reward/history/' + customerId);
+        const resp = await res.json();
+        if (!resp.success || !resp.data || resp.data.length === 0) {
+          container.innerHTML = '<div class="text-center py-8 text-muted">Chưa có lịch sử nhận thưởng</div>';
+          return;
+        }
+        var html = '';
+        resp.data.forEach(function(r) {
+          var d = r.claimed_at ? new Date(r.claimed_at).toLocaleDateString('vi-VN') : 'N/A';
+          html += '<div class="card card--list-item mb-2"><div class="flex justify-between items-center"><span class="font-bold text-warning">' + r.reward_tier + '</span><span class="font-bold text-lg">' + r.reward_liters + 'L</span></div><div class="text-sm text-muted">Ngày nhận: ' + d + '</div></div>';
+        });
+        container.innerHTML = html;
+      } catch (e) {
+        container.innerHTML = '<div class="text-center py-8 text-danger">Lỗi tải dữ liệu</div>';
+      }
+    }
+
+    async function openClaimRewardModal() {
+      var html = '<div class="card p-4 mb-3" style="border:1px solid rgba(245,158,11,0.3);background:linear-gradient(135deg,rgba(245,158,11,0.05),rgba(234,179,8,0.05));">' +
+        '<div class="font-bold mb-2">🎁 Chọn sản phẩm xuất thưởng:</div>' +
+        '<div id="claimProductLoader" class="text-sm text-muted mb-2">Đang tải sản phẩm...</div>' +
+        '<select id="claimProductSelect" class="bn-select w-full mb-3"><option value="">-- Đang tải --</option></select>' +
+        '<div class="text-xs text-muted">Thưởng sẽ được xuất kho 0đ vào tồn kho khách</div></div>' +
+        '<div class="flex gap-2 mt-4">' +
+          '<button onclick="closeClaimModal()" class="btn btn-ghost flex-1" style="border:1px solid var(--border);height:44px;">Huỷ</button>' +
+          '<button id="claimRewardSubmitBtn" onclick="submitClaimReward()" class="btn flex-1" style="background:linear-gradient(135deg,#f59e0b,#eab308);color:#000;font-weight:700;height:44px;border:none;">✅ Xác nhận xuất thưởng</button>' +
+        '</div>';
+
+      document.getElementById('rewardContent').innerHTML = html;
+
+      // Load products
+      try {
+        var pres = await fetch('/api/promotions/products');
+        var presd = await pres.json();
+        var products = (presd.success && presd.data) ? presd.data : [];
+
+        var loader = document.getElementById('claimProductLoader');
+        var sel = document.getElementById('claimProductSelect');
+
+        if (products.length === 0) {
+          if (loader) loader.outerHTML = '<div class="text-sm text-danger mb-2">Không có sản phẩm nào trong kho</div>';
+          if (sel) sel.innerHTML = '<option value="">-- Không có sản phẩm --</option>';
+          return;
+        }
+
+        // Filter: only products with stock > 0
+        var available = products.filter(function(p) { return p.stock > 0; });
+        if (loader) loader.outerHTML = '<div class="text-xs text-muted mb-1">Chọn bia để xuất thưởng:</div>';
+
+        // Prefer Bia Bom Vàng (gold), fallback to first available
+        var defaultIdx = 0;
+        for (var i = 0; i < available.length; i++) {
+          var nm = available[i].name.toLowerCase();
+          if (nm.indexOf('vàng') !== -1 || nm.indexOf('gold') !== -1) {
+            defaultIdx = i;
+            break;
+          }
+        }
+
+        var opts = available.map(function(p, i) {
+          return '<option value="' + p.id + '"' + (i === defaultIdx ? ' selected' : '') + '>' + p.name + ' (còn ' + p.stock + 'L)</option>';
+        }).join('');
+        if (sel) {
+          sel.innerHTML = opts || '<option value="">-- Không có sản phẩm --</option>';
+        }
+      } catch(e) {
+        var sel2 = document.getElementById('claimProductSelect');
+        if (sel2) sel2.innerHTML = '<option value="">Lỗi tải dữ liệu</option>';
+      }
+    }
+
+    function closeClaimModal() {
+      loadRewardStatus();
+    }
+
+    async function submitClaimReward() {
+      var sel = document.getElementById('claimProductSelect');
+      if (!sel || !sel.value) { alert('Vui lòng chọn sản phẩm'); return; }
+      var productId = parseInt(sel.value);
+      var btn = document.getElementById('claimRewardSubmitBtn');
+      if (btn) { btn.disabled = true; btn.innerText = 'Đang xử lý...'; }
+      try {
+        var res = await fetch('/api/promotions/reward/claim', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ customerId: parseInt(customerId), productId: productId })
+        });
+        var data = await res.json();
+        if (data.success) {
+          if (typeof showToast === 'function') showToast('Đã xuất thưởng ' + data.data.rewardLiters + 'L!', 'success');
+          else alert('Đã xuất thưởng ' + data.data.rewardLiters + 'L!');
+          loadRewardStatus();
+          loadRewardHistory();
+        } else {
+          if (typeof showToast === 'function') showToast(data.error || 'Lỗi', 'error');
+          else alert(data.error || 'Lỗi');
+        }
+      } catch (e) {
+        if (typeof showToast === 'function') showToast('Lỗi kết nối', 'error');
+        else alert('Lỗi kết nối');
+      } finally {
+        if (btn) { btn.disabled = false; btn.innerText = '✅ Xác nhận xuất thưởng'; }
+      }
+    }
+
     // Load customer data
     async function loadCustomerDetail() {
       // Render using layout.js functions
@@ -625,6 +795,16 @@
             <div class="card stat-card--info">
               <div class="sc-label"><span class="sc-icon">🚚</span> Gần nhất</div>
               <div class="sc-value text-sm" id="lastSale">--</div>
+            </div>
+          </div>
+
+          <!-- THƯỞNG DOANH SỐ THÁNG -->
+          <div class="card p-4 mb-3" id="rewardSection">
+            <div class="flex items-center justify-between mb-2">
+              <div class="font-semibold" style="color:#f59e0b;">🏆 Thưởng doanh số</div>
+            </div>
+            <div id="rewardContent">
+              <div class="text-center py-4 text-muted">Đang tải...</div>
             </div>
           </div>
 
@@ -664,6 +844,9 @@
             <button onclick="switchTab('debt')" id="tab-debt" class="flex-1 py-2 px-4 text-center font-medium text-muted border-b-2 border-transparent">
               💰 Công nợ
             </button>
+            <button onclick="switchTab('reward')" id="tab-reward" class="flex-1 py-2 px-4 text-center font-medium text-muted border-b-2 border-transparent">
+              🎁 Thưởng
+            </button>
           </div>
 
           <!-- Sales History Tab -->
@@ -686,6 +869,13 @@
               <div class="text-center py-8 text-muted">Đang tải...</div>
             </div>
           </div>
+
+          <!-- Reward Tab -->
+          <div id="tab-content-reward" class="hidden">
+            <div id="rewardHistoryContent" class="space-y-3">
+              <div class="text-center py-8 text-muted">Đang tải...</div>
+            </div>
+          </div>
         `) +
         getBottomNav('/customers');
 
@@ -694,6 +884,9 @@
       
       // Load stats
       await loadCustomerStats();
+
+      // Load reward status
+      await loadRewardStatus();
       
       // Load sales history
       await loadSalesHistory();
@@ -863,6 +1056,7 @@
       }
       loadCustomerStats();
       loadSalesHistory();
+      loadRewardStatus();
     }
 
     // Edit customer info

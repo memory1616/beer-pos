@@ -3,7 +3,7 @@ const router = express.Router();
 const db = require('../../database');
 const logger = require('../../src/utils/logger');
 const { syncKegInventory } = require('./products');
-const { DebtService } = require('../../src/services');
+const { DebtService, PromotionService } = require('../../src/services');
 const { updateCustomerKegBalance } = require('./payments');
 const { deleteSaleRestoringInventory } = require('../../src/services/saleDelete');
 const socketServer = require('../../src/socket/socketServer');
@@ -191,12 +191,33 @@ router.post('/', (req, res) => {
       }
     }
 
-    // Calculate keg quantity (exclude PET products)
+    // ========== KHUYẾN MÃI QUÁN MỚI ==========
+    // Kiểm tra và tính lít tặng nếu là quán mới (CHỈ tính bia bình keg, KHÔNG tính pet)
+    let promoInfo = null;
+    if (customerId) {
+      const newShopCheck = PromotionService.isNewShopEligible(customerId);
+      if (newShopCheck.eligible) {
+        let quantityGold = 0;
+        let quantityBlack = 0;
+        for (const item of saleItems) {
+          if (item.type !== 'keg') continue; // bỏ qua pet/box
+          const beerType = PromotionService.classifyBeer(item.productName);
+          if (beerType === 'black') quantityBlack += item.quantity;
+          else quantityGold += item.quantity;
+        }
+        promoInfo = PromotionService.calculateNewShopPromotion(quantityGold, quantityBlack);
+        if (promoInfo.totalFree > 0) {
+          console.log('[NEW SHOP PROMO]', promoInfo);
+        }
+      }
+    }
+
+    // Calculate keg quantity (bao gồm cả lít tặng)
+    const promoFreeTotal = promoInfo ? promoInfo.totalFree : 0;
     const kegQuantity = saleItems
       .filter(item => item.type !== 'pet')
       .reduce((sum, item) => sum + item.quantity, 0);
-
-    const finalDeliverKegs = deliverKegs > 0 ? deliverKegs : kegQuantity;
+    const finalDeliverKegs = deliverKegs > 0 ? deliverKegs : (kegQuantity + promoFreeTotal);
 
     if (customerId) {
       const customer = db.prepare('SELECT keg_balance FROM customers WHERE id = ?').get(customerId);
@@ -208,7 +229,7 @@ router.post('/', (req, res) => {
     const createSale = db.transaction(() => {
       // Insert sale with Vietnam-local date
       const saleDate = db.getVietnamDateStr();
-      const saleResult = db.prepare('INSERT INTO sales (customer_id, date, total, profit, deliver_kegs, return_kegs, keg_balance_after, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(customerId, saleDate, total, profit, finalDeliverKegs, returnKegs, newKegBalance, 'sale');
+      const saleResult = db.prepare('INSERT INTO sales (customer_id, date, total, profit, deliver_kegs, return_kegs, keg_balance_after, type, promo_free_liters, promo_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(customerId, saleDate, total, profit, finalDeliverKegs, returnKegs, newKegBalance, 'sale', promoFreeTotal, promoInfo ? promoInfo.promoType : null);
       const saleId = saleResult.lastInsertRowid;
 
       if (!saleId) throw new Error('Sale creation failed — no lastInsertRowid');
@@ -216,19 +237,95 @@ router.post('/', (req, res) => {
       // Update customer last_order_date (if customerId)
       if (customerId) {
         db.prepare("UPDATE customers SET last_order_date = datetime('now', '+7 hours') WHERE id = ?").run(customerId);
+
+        // Ghi first_order_date nếu là đơn đầu tiên
+        PromotionService.setFirstOrderDate(customerId);
+
+        // Cập nhật sản lượng mua trong tháng (chỉ tính keg, không tính pet/box, không tính lít tặng)
+        const paidLiters = saleItems
+          .filter(item => item.type === 'keg')
+          .reduce((sum, item) => sum + item.quantity, 0);
+        db.prepare("UPDATE customers SET monthly_purchased_liters = monthly_purchased_liters + ? WHERE id = ?").run(paidLiters, customerId);
       }
 
       // Update products and insert sale_items (reuse pre-loaded data — no extra queries)
       for (const item of saleItems) {
+        // Trừ kho: chỉ trừ số lượng MUA (không trừ lít tặng ở đây)
         db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(item.quantity, item.productId);
         db.prepare('INSERT INTO sale_items (sale_id, product_id, product_slug, quantity, price, cost_price, profit, price_at_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
           .run(saleId, item.productId, item.productSlug, item.quantity, item.price, item.cost_price, item.profit, item.price);
       }
 
+      // ========== XỬ LÝ KHUYẾN MÃI QUÁN MỚI: Tặng bia cùng loại ==========
+      // Bia tặng không tính vào doanh thu nhưng vẫn trừ kho
+      if (promoInfo && customerId) {
+        const customerNameRec = db.prepare('SELECT name FROM customers WHERE id = ?').get(customerId);
+
+        // --- Bia vàng tặng: tìm sản phẩm bia vàng đầu tiên (không phải bia đen) ---
+        if (promoInfo.freeGold > 0) {
+          const goldProduct = db.prepare(`
+            SELECT id, name, slug, cost_price FROM products
+            WHERE archived = 0 AND type = 'keg'
+              AND name NOT LIKE '%Đen%'
+              AND name NOT LIKE '%ĐEN%'
+              AND name NOT LIKE '%den%'
+              AND name NOT LIKE '%Guinness%'
+              AND name NOT LIKE '%guinness%'
+              AND name NOT LIKE '%Kilkenny%'
+              AND name NOT LIKE '%kilkenny%'
+              AND name NOT LIKE '%Murphy%'
+              AND name NOT LIKE '%murphy%'
+              AND name NOT LIKE '%Smithwick%'
+              AND name NOT LIKE '%smithwick%'
+            ORDER BY id ASC LIMIT 1
+          `).get();
+          if (goldProduct) {
+            db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(promoInfo.freeGold, goldProduct.id);
+            db.prepare('INSERT INTO sale_items (sale_id, product_id, product_slug, quantity, price, cost_price, profit, price_at_time) VALUES (?, ?, ?, ?, 0, 0, 0, 0)')
+              .run(saleId, goldProduct.id, goldProduct.slug || '', promoInfo.freeGold);
+            db.prepare(`
+              INSERT INTO product_audit_log (product_id, type, quantity, reason, ref_id, ref_type, customer_name, note)
+              VALUES (?, 'export', ?, 'promo_new_shop', ?, 'sale', ?, ?)
+            `).run(goldProduct.id, promoInfo.freeGold, saleId, customerNameRec?.name || '', `Khuyến mãi quán mới: +${promoInfo.freeGold}L bia vàng`);
+          }
+        }
+
+        // --- Bia đen tặng: tìm sản phẩm bia đen đầu tiên ---
+        if (promoInfo.freeBlack > 0) {
+          const blackProduct = db.prepare(`
+            SELECT id, name, slug, cost_price FROM products
+            WHERE archived = 0 AND type = 'keg'
+              AND (name LIKE '%Đen%'
+               OR name LIKE '%ĐEN%'
+               OR name LIKE '%den%'
+               OR name LIKE '%Guinness%'
+               OR name LIKE '%guinness%'
+               OR name LIKE '%Kilkenny%'
+               OR name LIKE '%kilkenny%'
+               OR name LIKE '%Murphy%'
+               OR name LIKE '%murphy%'
+               OR name LIKE '%Smithwick%'
+               OR name LIKE '%smithwick%')
+            ORDER BY id ASC LIMIT 1
+          `).get();
+          if (blackProduct) {
+            db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(promoInfo.freeBlack, blackProduct.id);
+            db.prepare('INSERT INTO sale_items (sale_id, product_id, product_slug, quantity, price, cost_price, profit, price_at_time) VALUES (?, ?, ?, ?, 0, 0, 0, 0)')
+              .run(saleId, blackProduct.id, blackProduct.slug || '', promoInfo.freeBlack);
+            db.prepare(`
+              INSERT INTO product_audit_log (product_id, type, quantity, reason, ref_id, ref_type, customer_name, note)
+              VALUES (?, 'export', ?, 'promo_new_shop', ?, 'sale', ?, ?)
+            `).run(blackProduct.id, promoInfo.freeBlack, saleId, customerNameRec?.name || '', `Khuyến mãi quán mới: +${promoInfo.freeBlack}L bia đen`);
+          }
+        }
+      }
+
       // ========== HARD VALIDATION: verify ALL sale_items were inserted ==========
       const insertedCount = db.prepare('SELECT COUNT(*) as count FROM sale_items WHERE sale_id = ?').get(saleId);
-      if (insertedCount.count !== saleItems.length) {
-        throw new Error(`CRITICAL: sale_items insert mismatch — expected ${saleItems.length}, got ${insertedCount.count}`);
+      // saleItems + promo items
+      const expectedCount = saleItems.length + (promoInfo ? ((promoInfo.freeGold > 0 ? 1 : 0) + (promoInfo.freeBlack > 0 ? 1 : 0)) : 0);
+      if (insertedCount.count !== expectedCount) {
+        throw new Error(`CRITICAL: sale_items insert mismatch — expected ${expectedCount}, got ${insertedCount.count}`);
       }
 
       // Update customer keg balance (only for registered customers)
@@ -264,11 +361,19 @@ router.post('/', (req, res) => {
       }
     }
 
-    console.log('[SALE CREATED]', { saleId, itemsInserted: saleItems.length, total, profit, debt: !!debtResult });
+    console.log('[SALE CREATED]', { saleId, itemsInserted: saleItems.length, total, profit, debt: !!debtResult, promo: promoInfo });
 
     const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId);
     socketServer.emitOrderCreated(sale);
-    res.json({ success: true, id: saleId, total, profit, debtCreated: debtResult?.success, newDebt: debtResult?.newDebt });
+    res.json({
+      success: true,
+      id: saleId,
+      total,
+      profit,
+      debtCreated: debtResult?.success,
+      newDebt: debtResult?.newDebt,
+      promo: promoInfo
+    });
   } catch (err) {
     console.error('[SALE ERROR]', err);
     logger.error('Sale error', { error: err.message, stack: err.stack });

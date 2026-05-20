@@ -71,23 +71,23 @@ router.get('/data', (req, res) => {
   const monthStartStr = getVietnamMonthStart();
   const fourteenDaysAgoStr = getVietnamDaysAgo(13); // 13 days ago = last 14 days
 
-  // Get today's stats
+  // Get today's stats — loại trừ MONTHLY_BONUS (thưởng tháng không tính doanh thu)
   const todayStats = db.prepare(`
     SELECT
       COALESCE(SUM(total), 0) as revenue,
       COALESCE(SUM(profit), 0) as profit,
       COUNT(*) as orders,
-      COALESCE((SELECT SUM(si.quantity) FROM sale_items si JOIN sales ss ON si.sale_id = ss.id WHERE ss.type = 'sale' AND ss.archived = 0 AND date(ss.date) = ?), 0) as units
-    FROM sales WHERE type = 'sale' AND archived = 0 AND date(date) = ?
+      COALESCE((SELECT SUM(si.quantity) FROM sale_items si JOIN sales ss ON si.sale_id = ss.id WHERE ss.type = 'sale' AND ss.archived = 0 AND ss.promo_type != 'MONTHLY_BONUS' AND date(ss.date) = ?), 0) as units
+    FROM sales WHERE type = 'sale' AND archived = 0 AND promo_type != 'MONTHLY_BONUS' AND date(date) = ?
   `).get(today, today);
 
-  // Get monthly stats
+  // Get monthly stats — loại trừ MONTHLY_BONUS
   const monthStats = db.prepare(`
     SELECT
       COALESCE(SUM(total), 0) as revenue,
       COALESCE(SUM(profit), 0) as profit,
-      COALESCE((SELECT SUM(si.quantity) FROM sale_items si JOIN sales ss ON si.sale_id = ss.id WHERE ss.type = 'sale' AND ss.archived = 0 AND date(ss.date) >= ?), 0) as units
-    FROM sales WHERE type = 'sale' AND archived = 0 AND date(date) >= ?
+      COALESCE((SELECT SUM(si.quantity) FROM sale_items si JOIN sales ss ON si.sale_id = ss.id WHERE ss.type = 'sale' AND ss.archived = 0 AND ss.promo_type != 'MONTHLY_BONUS' AND date(ss.date) >= ?), 0) as units
+    FROM sales WHERE type = 'sale' AND archived = 0 AND promo_type != 'MONTHLY_BONUS' AND date(date) >= ?
   `).get(monthStartStr, monthStartStr);
   
   // Get low stock threshold from settings (default: 10)
@@ -114,12 +114,12 @@ router.get('/data', (req, res) => {
     total: inventoryRaw.total + emptyCollected + customerHolding
   };
   
-  // Get recent sales - add LIMIT 10
+  // Get recent sales (loại trừ MONTHLY_BONUS — thưởng tháng không hiện trong danh sách bán gần đây)
   const recentSales = db.prepare(`
     SELECT s.id, s.date, s.total, s.type, COALESCE(c.name, 'Khách lẻ') as customer_name
     FROM sales s
     LEFT JOIN customers c ON c.id = s.customer_id
-    WHERE s.archived = 0
+    WHERE s.archived = 0 AND s.promo_type != 'MONTHLY_BONUS'
     ORDER BY s.date DESC
     LIMIT 10
   `).all();
@@ -136,7 +136,7 @@ router.get('/data', (req, res) => {
       COALESCE(SUM(total), 0) as revenue,
       COALESCE(SUM(profit), 0) as profit
     FROM sales
-    WHERE type = 'sale' AND archived = 0 AND date(date) >= ?
+    WHERE type = 'sale' AND archived = 0 AND promo_type != 'MONTHLY_BONUS' AND date(date) >= ?
     GROUP BY strftime('%Y-%m', date(date))
     ORDER BY month
   `).all(sixMonthsAgoStr);
@@ -155,14 +155,14 @@ router.get('/data', (req, res) => {
   monthlyExpenses.forEach(e => { monthExpenseMap[e.month] = e.total; });
   monthlyRevenue.forEach(d => { d.expenses = monthExpenseMap[d.month] || 0; });
   
-  // Get daily revenue for chart (last 14 days)
+  // Get daily revenue for chart (last 14 days) — loại trừ MONTHLY_BONUS để revenue chính xác
   const dailyRevenue = db.prepare(`
     SELECT
       date(date) as day,
       COALESCE(SUM(total), 0) as revenue,
       COALESCE(SUM(profit), 0) as profit
     FROM sales
-    WHERE type = 'sale' AND archived = 0 AND date(date) >= ?
+    WHERE type = 'sale' AND archived = 0 AND promo_type != 'MONTHLY_BONUS' AND date(date) >= ?
     GROUP BY date(date)
     ORDER BY day
   `).all(fourteenDaysAgoStr);
@@ -187,7 +187,7 @@ router.get('/data', (req, res) => {
     FROM sale_items si
     JOIN products p ON si.product_id = p.id
     JOIN sales s ON si.sale_id = s.id
-    WHERE s.type = 'sale' AND s.archived = 0 AND date(s.date) >= ?
+    WHERE s.type = 'sale' AND s.archived = 0 AND s.promo_type != 'MONTHLY_BONUS' AND date(s.date) >= ?
     GROUP BY p.id
     ORDER BY total_qty DESC
     LIMIT 5
@@ -199,7 +199,7 @@ router.get('/data', (req, res) => {
     FROM sales s
     JOIN customers c ON s.customer_id = c.id
     JOIN sale_items si ON si.sale_id = s.id
-    WHERE s.type = 'sale' AND s.archived = 0 AND date(s.date) >= ?
+    WHERE s.type = 'sale' AND s.archived = 0 AND s.promo_type != 'MONTHLY_BONUS' AND date(s.date) >= ?
     GROUP BY c.id
     ORDER BY total DESC
     LIMIT 5
@@ -312,7 +312,71 @@ router.get('/data', (req, res) => {
       month: monthExpenses.total || 0,
       today: todayExpenses.total || 0,
       todayByType: expensesByType
-    }
+    },
+    promoStats: (function() {
+      try {
+        // Count active new shops (within 30 days of first order)
+        const activeNewShops = db.prepare(`
+          SELECT COUNT(*) as cnt FROM customers
+          WHERE first_order_date IS NOT NULL
+            AND date(first_order_date) >= date('now', '-30 days')
+        `).get();
+        const newShops = activeNewShops ? activeNewShops.cnt : 0;
+
+        // Total free liters this month
+        const freeLitersMonth = db.prepare(`
+          SELECT COALESCE(SUM(promo_free_liters), 0) as total FROM sales
+          WHERE date >= ? AND archived = 0
+        `).get(monthStartStr);
+        const freeLiters = freeLitersMonth ? freeLitersMonth.total : 0;
+
+        // Promo cost this month (estimated: free liters * avg price)
+        const avgPrice = db.prepare(`
+          SELECT COALESCE(AVG(total /
+            NULLIF((SELECT SUM(quantity) FROM sale_items WHERE sale_id = id), 0)
+          ), 0) as avg FROM sales WHERE type = 'sale' AND archived = 0 AND total > 0 AND date >= ? LIMIT 1
+        `).get(monthStartStr);
+        const promoCost = Math.round((freeLiters || 0) * (avgPrice && avgPrice.avg > 0 ? avgPrice.avg : 30000));
+
+        // Near reward tier customers (within 50L of 300L or 500L)
+        const nearTier = db.prepare(`
+          SELECT id, name, monthly_purchased_liters as monthlyLiters
+          FROM customers
+          WHERE monthly_purchased_liters >= 250
+            AND monthly_purchased_liters < 500
+            AND reward_claimed = 0
+          ORDER BY monthly_purchased_liters DESC
+          LIMIT 5
+        `).all();
+
+        const nearTierCustomers = nearTier.map(function(c) {
+          const ml = c.monthlyLiters || 0;
+          var nextTier = ml >= 500 ? 'Thưởng 20L' : 'Thưởng 10L';
+          var target = ml >= 500 ? 500 : 300;
+          var toNext = Math.max(0, target - ml);
+          var pct = Math.min(100, Math.round((ml / target) * 100));
+          return {
+            id: c.id,
+            name: c.name || 'N/A',
+            monthlyLiters: ml,
+            nextTier: nextTier,
+            litersToNext: toNext,
+            progressPct: pct
+          };
+        });
+
+        return {
+          activeNewShops: newShops,
+          freeLitersMonth: freeLiters,
+          promoCostMonth: promoCost,
+          nearTierCount: nearTier.length,
+          nearTierCustomers: nearTierCustomers
+        };
+      } catch(e) {
+        console.error('[promoStats]', e.message);
+        return null;
+      }
+    })()
   });
   } catch (err) {
     console.error('[/dashboard/data] Error:', err.message, err.stack);
