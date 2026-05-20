@@ -66,32 +66,47 @@ if [ -f "package.json" ]; then
         log "Dependencies up-to-date, skipping install"
     fi
 
-    # Clean and reinstall better-sqlite3 to get the correct binary for current Node ABI
+    # CRITICAL: better-sqlite3 must be compiled against the correct Node.js ABI.
+    # We MUST pin PATH so that node and npm use the same Node as PM2.
     log_step "Rebuilding native modules for current Node.js version..."
     log "Detected Node.js version: $NODE_VERSION"
 
-    log "Cleaning old native module binaries..."
-    find node_modules -name "*.node" -type f -delete 2>/dev/null || true
-    find node_modules/better-sqlite3 -name "build" -type d -exec rm -rf {} + 2>/dev/null || true
-    rm -rf node_modules/better-sqlite3/prebuilds 2>/dev/null || true
+    # The correct rebuild approach: cd into better-sqlite3 and run its build script.
+    # Do NOT use npm uninstall+install as that triggers prebuilt download instead of local build.
+    log "Rebuilding better-sqlite3 with node-gyp..."
+    if [ -d "node_modules/better-sqlite3" ]; then
+        cd node_modules/better-sqlite3 || { log_error "Cannot cd to better-sqlite3"; }
+        # Clean only the build output, keep source intact
+        rm -rf build/Release/better_sqlite3.node 2>/dev/null || true
+        rm -rf build/Release/obj.target 2>/dev/null || true
 
-    # Uninstall and reinstall — forces npm to fetch correct prebuilt for current Node
-    NPM_RESULT=$(npm uninstall better-sqlite3 2>&1 && npm install better-sqlite3 --build-from-source 2>&1) || {
-        log_warn "npm install failed — trying without build-from-source..."
-        NPM_RESULT=$(npm install better-sqlite3 2>&1) || {
-            log_error "better-sqlite3 install FAILED."
-            log "Output: $(echo "$NPM_RESULT" | tail -5)"
-            log_error "Deploy aborted — server would crash on startup"
+        # Build with node-gyp directly — this always compiles for the current Node ABI
+        BUILD_RESULT=$(npm run build-release 2>&1) || {
+            log_warn "node-gyp build-release failed: $(echo "$BUILD_RESULT" | tail -5)"
+            log_warn "Trying fallback: node-pre-gyp rebuild..."
+            node-pre-gyp --fallback-to-build from --library=static build 2>&1 | tail -5 || {
+                log_error "better-sqlite3 rebuild FAILED — server will crash on startup"
+            }
         }
-    }
-    log "Install: $(echo "$NPM_RESULT" | tail -3)"
+        cd "$APP_DIR" || true
 
-    # Verify the binary works by actually loading it
+        # Verify the binary was produced
+        if [ -f "node_modules/better-sqlite3/build/Release/better_sqlite3.node" ]; then
+            log_ok "better-sqlite3 binary built successfully"
+        else
+            log_error "better-sqlite3 binary NOT found after build"
+        fi
+    else
+        log_warn "better-sqlite3 not found in node_modules — installing..."
+        npm install better-sqlite3 --build-from-source 2>&1 | tail -5 || log_error "Install failed"
+    fi
+
+    # Verify the binary loads correctly before restarting PM2
     log_step "Verifying native module ABI compatibility..."
     if node -e "require('better-sqlite3'); console.log('OK')" 2>/dev/null; then
         log_ok "better-sqlite3 loaded successfully"
     else
-        log_error "better-sqlite3 FAILED to load — binary is incompatible"
+        log_error "better-sqlite3 FAILED to load — binary is incompatible with Node $NODE_VERSION"
     fi
 
     # Run build step if defined
