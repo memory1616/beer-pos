@@ -19,6 +19,4 @@ jobs:
           command_timeout: 10m
           script: |
             cd ~/beer-pos
-            git pull
-            npm uninstall better-sqlite3 && npm install better-sqlite3
-            pm2 restart beer-pos
+            bash deploy/deploy.sh
