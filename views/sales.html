@@ -76,13 +76,13 @@
             <label style="display:block;font-size:12px;font-weight:600;color:var(--success);margin-bottom:6px;">📦 Giao vỏ</label>
             <input type="number" id="kegDeliver" value="0" inputmode="numeric" min="0"
               style="width:100%;height:44px;padding:0 12px;border-radius:8px;border:2px solid var(--success);background:var(--card);color:var(--text-primary);font-size:16px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;"
-              oninput="updateKegModalPreview()" onchange="updateKegModalPreview()">
+              oninput="typeof updateKegModalPreview === 'function' && updateKegModalPreview()" onchange="typeof updateKegModalPreview === 'function' && updateKegModalPreview()">
           </div>
           <div>
             <label style="display:block;font-size:12px;font-weight:600;color:var(--danger);margin-bottom:6px;">🔄 Thu vỏ</label>
             <input type="number" id="kegReturn" value="0" inputmode="numeric" min="0"
               style="width:100%;height:44px;padding:0 12px;border-radius:8px;border:2px solid var(--danger);background:var(--card);color:var(--text-primary);font-size:16px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;"
-              oninput="updateKegModalPreview()" onchange="updateKegModalPreview()">
+              oninput="typeof updateKegModalPreview === 'function' && updateKegModalPreview()" onchange="typeof updateKegModalPreview === 'function' && updateKegModalPreview()">
           </div>
           <div class="card p-3" style="background:var(--card-soft);border:1px solid var(--border);border-radius:8px;">
             <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="color:var(--text-muted);font-size:13px;">Vỏ hiện tại:</span><span id="kegCurrentBalance" style="font-weight:700;color:var(--text-primary);">0</span></div>
@@ -93,7 +93,7 @@
           <div id="kegModalWarning" class="hidden" style="padding:10px;border:1px solid var(--danger);border-radius:8px;text-align:center;font-size:13px;color:var(--danger);background:var(--red-dim);">⚠️ Số vỏ thu vượt quá khách đang giữ</div>
         </div>
         <div style="margin-top:12px;">
-          <button onclick="saveKegUpdate()" id="kegSaveBtn" class="btn btn-primary w-full" style="height:44px;">💾 <span id="kegSaveBtnText">Lưu</span></button>
+          <button onclick="typeof saveKegUpdate === 'function' && saveKegUpdate()" id="kegSaveBtn" class="btn btn-primary w-full" style="height:44px;">💾 <span id="kegSaveBtnText">Lưu</span></button>
         </div>
       </div>
     </div>
@@ -113,13 +113,13 @@
             <label style="display:block;font-size:11px;font-weight:600;color:var(--success);margin-bottom:6px;text-align:center;">📦 Giao vỏ</label>
             <input type="number" id="collectKegDeliver" value="0" min="0" inputmode="numeric"
               style="width:100%;height:44px;padding:0 12px;border-radius:8px;border:2px solid var(--success);background:var(--card);color:var(--text-primary);font-size:16px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;"
-              oninput="updateCollectKegPreview()">
+              oninput="typeof updateCollectKegPreview === 'function' && updateCollectKegPreview()">
           </div>
           <div>
             <label style="display:block;font-size:11px;font-weight:600;color:var(--danger);margin-bottom:6px;text-align:center;">🔄 Thu vỏ</label>
             <input type="number" id="collectKegReturn" value="0" min="0" inputmode="numeric"
               style="width:100%;height:44px;padding:0 12px;border-radius:8px;border:2px solid var(--danger);background:var(--card);color:var(--text-primary);font-size:16px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;"
-              oninput="updateCollectKegPreview()">
+              oninput="typeof updateCollectKegPreview === 'function' && updateCollectKegPreview()">
           </div>
         </div>
         <div class="card p-3 mb-4" style="background:var(--card-soft);border:1px solid var(--border);border-radius:8px;">
@@ -130,8 +130,8 @@
         </div>
         <div id="collectKegWarning" class="hidden mb-3 p-2 text-center text-sm" style="border:1px solid var(--danger);border-radius:8px;color:var(--danger);background:var(--red-dim);"></div>
         <div style="display:flex;gap:8px;">
-          <button onclick="closeCollectKegModal()" class="btn btn-ghost" style="flex:1;height:44px;border:1px solid var(--border);">Huỷ</button>
-          <button onclick="submitCollectKeg()" class="btn btn-primary" style="flex:1;height:44px;background:var(--accent);color:var(--btn-primary-color);">Xác nhận</button>
+          <button onclick="typeof closeCollectKegModal === 'function' && closeCollectKegModal()" class="btn btn-ghost" style="flex:1;height:44px;border:1px solid var(--border);">Huỷ</button>
+          <button onclick="typeof submitCollectKeg === 'function' && submitCollectKeg()" class="btn btn-primary" style="flex:1;height:44px;background:var(--accent);color:var(--btn-primary-color);">Xác nhận</button>
         </div>
       </div>
     </div>
@@ -142,7 +142,7 @@
     <div class="modal-sheet-v2">
       <div class="modal-sheet-v2-header">
         <div style="font-size:15px;font-weight:700;color:var(--accent);">🔄 Đổi bia lỗi</div>
-        <button onclick="closeReplacementModal()" class="modal-sheet-v2-close">×</button>
+        <button onclick="typeof closeReplacementModal === 'function' && closeReplacementModal()" class="modal-sheet-v2-close">×</button>
       </div>
       <div class="modal-sheet-v2-body">
         <div style="display:flex;flex-direction:column;gap:12px;">
@@ -153,7 +153,7 @@
           </div>
           <div>
             <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:6px;">👤 Khách hàng</label>
-            <select id="replacementCustomer" onchange="loadReplacementProducts()"
+            <select id="replacementCustomer" onchange="typeof loadReplacementProducts === 'function' && loadReplacementProducts()"
               style="width:100%;height:44px;padding:0 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text-primary);font-size:16px;outline:none;box-sizing:border-box;">
               <option value="">-- Chọn khách hàng --</option>
             </select>
@@ -182,14 +182,14 @@
           </div>
           <div style="padding:12px;border:1px solid rgba(252,213,53,0.3);border-radius:8px;background:var(--primary-dim);">
             <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;">
-              <input type="checkbox" id="giftKegs" onchange="toggleGiftMode()" style="width:18px;height:18px;margin-top:2px;accent-color:var(--accent);">
+              <input type="checkbox" id="giftKegs" onchange="typeof toggleGiftMode === 'function' && toggleGiftMode()" style="width:18px;height:18px;margin-top:2px;accent-color:var(--accent);">
               <span style="font-size:13px;font-weight:600;color:var(--text-primary);line-height:1.4;">🎁 Tặng uống thử (khách mới)</span>
             </label>
           </div>
         </div>
         <div style="display:flex;gap:8px;margin-top:16px;">
-          <button type="button" onclick="closeReplacementModal()" style="flex:1;height:44px;border:1px solid var(--border);background:transparent;color:var(--text-muted);border-radius:8px;font-weight:600;cursor:pointer;font-size:14px;">Huỷ</button>
-          <button type="button" onclick="submitReplacement()" style="flex:1;height:44px;border:none;background:var(--accent);color:var(--btn-primary-color);border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">💾 Cập nhật</button>
+          <button type="button" onclick="typeof closeReplacementModal === 'function' && closeReplacementModal()" style="flex:1;height:44px;border:1px solid var(--border);background:transparent;color:var(--text-muted);border-radius:8px;font-weight:600;cursor:pointer;font-size:14px;">Huỷ</button>
+          <button type="button" onclick="typeof submitReplacement === 'function' && submitReplacement()" style="flex:1;height:44px;border:none;background:var(--accent);color:var(--btn-primary-color);border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">💾 Cập nhật</button>
         </div>
       </div>
     </div>
@@ -288,7 +288,7 @@
               '<input type="text" id="customerSearch" placeholder="🔍 Tìm khách hàng..."' +
                 ' autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"' +
                 ' class="sale-search-input"' +
-                ' oninput="filterCustomerOptions(this.value)" onfocus="showCustomerDropdown(true)">' +
+                ' oninput="typeof filterCustomerOptions === \'function\' && filterCustomerOptions(this.value)" onfocus="typeof showCustomerDropdown === \'function\' && showCustomerDropdown(true)">' +
               '<input type="hidden" id="customerSelect">' +
               '<div id="customerDropdown" class="hidden sale-customer-dropdown"></div>' +
             '</div>' +
@@ -328,7 +328,7 @@
             '<div class="sale-section-header">' +
               '<div class="sale-section-label">ĐƠN GẦN ĐÂY</div>' +
               '<div class="sale-history-filter">' +
-                '<select id="saleHistoryMonth" onchange="onSaleHistoryMonthChange(this.value)" style="' +
+                '<select id="saleHistoryMonth" onchange="typeof onSaleHistoryMonthChange === 'function' && onSaleHistoryMonthChange(this.value)" style="' +
                   'padding:4px 8px;border-radius:6px;border:1px solid var(--border);' +
                   'background:var(--card);color:var(--text-primary);font-size:13px;outline:none;cursor:pointer;">' +
                   '<option value="">Tất cả</option>' +
