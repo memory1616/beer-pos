@@ -1167,6 +1167,27 @@ try {
   db.exec(`ALTER TABLE customers ADD COLUMN first_order_date TEXT`);
 } catch (e) { /* already exists */ }
 
+// Backfill first_order_date cho khách cũ (khách đã có đơn hàng trước khi có migration)
+// Điều kiện: khách có sales và first_order_date = NULL → lấy ngày đơn đầu tiên
+try {
+  db.prepare(`
+    UPDATE customers
+    SET first_order_date = (
+      SELECT MIN(s.date) FROM sales s
+      WHERE s.customer_id = customers.id
+        AND s.type = 'sale'
+        AND s.archived = 0
+    )
+    WHERE first_order_date IS NULL
+      AND EXISTS (
+        SELECT 1 FROM sales s
+        WHERE s.customer_id = customers.id
+          AND s.type = 'sale'
+          AND s.archived = 0
+      )
+  `).run();
+} catch (e) { /* ignore errors */ }
+
 // Customers: monthly_purchased_liters (tổng lít mua trong tháng - denormalized cho performance)
 try {
   db.exec(`ALTER TABLE customers ADD COLUMN monthly_purchased_liters REAL DEFAULT 0`);
