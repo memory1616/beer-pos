@@ -1268,3 +1268,123 @@ try {
 } catch (e) { /* indexes may exist */ }
 
 console.log('[PROMOTION] Migration completed: customers + sales promotion fields + reward_history table');
+
+// ================================================================
+// PROMOTION SYSTEM v3 — ADMIN SETTINGS PAGE
+// ================================================================
+
+// Customers: promotionEnabled flag
+try {
+  db.exec(`ALTER TABLE customers ADD COLUMN promotion_enabled INTEGER DEFAULT 1`);
+} catch (e) { /* already exists */ }
+
+// Promotion Settings table — lưu config hệ thống khuyến mãi
+db.exec(`
+  CREATE TABLE IF NOT EXISTS promotion_settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    -- KHUYEN MÃI QUAN MOI
+    new_shop_enabled INTEGER DEFAULT 1,
+    new_shop_days INTEGER DEFAULT 30,
+    new_shop_gold_buy INTEGER DEFAULT 10,
+    new_shop_gold_free INTEGER DEFAULT 1,
+    new_shop_black_buy INTEGER DEFAULT 20,
+    new_shop_black_free INTEGER DEFAULT 1,
+    -- THUONG DOANH SO
+    reward_enabled INTEGER DEFAULT 1,
+    -- reward_tiers stored as JSON array: [{threshold: 300, reward: 10}, {threshold: 500, reward: 20}]
+    reward_tiers TEXT DEFAULT '[{"threshold":300,"reward":10},{"threshold":500,"reward":20}]',
+    -- updated_at for cache busting
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT single_row CHECK (id = 1)
+  )
+`);
+try {
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_promotion_settings ON promotion_settings(id)`);
+} catch (e) { /* index may exist */ }
+
+// Seed default settings if empty
+try {
+  const count = db.prepare('SELECT COUNT(*) as c FROM promotion_settings').get();
+  if (count.c === 0) {
+    db.prepare('INSERT INTO promotion_settings (id) VALUES (1)').run();
+    logger.log('[PROMOTION] Seeded default promotion_settings');
+  }
+} catch (e) { /* may already exist */ }
+
+// Customer Monthly Reward Tracking table — theo dõi sản lượng tháng theo từng khách
+db.exec(`
+  CREATE TABLE IF NOT EXISTS customer_monthly_stats (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER NOT NULL,
+    year INTEGER NOT NULL,
+    month INTEGER NOT NULL,
+    purchased_liters REAL DEFAULT 0,
+    reward_tier TEXT DEFAULT 'NONE',
+    reward_claimed INTEGER DEFAULT 0,
+    reward_claimed_at TEXT,
+    reward_claimed_liters REAL DEFAULT 0,
+    reward_claimed_sale_id INTEGER,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(customer_id, year, month)
+  )
+`);
+try {
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_customer_monthly_customer ON customer_monthly_stats(customer_id, year, month)`);
+} catch (e) { /* index may exist */ }
+
+// Seed customer_monthly_stats cho các tháng trước (backfill)
+try {
+  // Get all customers and their monthly purchased liters
+  const customers = db.prepare('SELECT id FROM customers WHERE archived = 0').all();
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1; // 1-based
+
+  for (const cust of customers) {
+    for (let m = 1; m <= currentMonth; m++) {
+      const liters = db.prepare(`
+        SELECT COALESCE(SUM(si.quantity), 0) as total
+        FROM sales s
+        JOIN sale_items si ON si.sale_id = s.id
+        JOIN products p ON p.id = si.product_id
+        WHERE s.customer_id = ?
+          AND s.type = 'sale'
+          AND s.archived = 0
+          AND s.promo_type IS DISTINCT FROM 'MONTHLY_BONUS'
+          AND si.price > 0
+          AND p.type = 'keg'
+          AND strftime('%Y', s.date) = ?
+          AND strftime('%m', s.date) = ?
+      `).get(String(cust.id), String(currentYear), String(m).padStart(2, '0'));
+
+      db.prepare(`
+        INSERT OR IGNORE INTO customer_monthly_stats
+          (customer_id, year, month, purchased_liters)
+        VALUES (?, ?, ?, ?)
+      `).run(cust.id, currentYear, m, liters ? liters.total : 0);
+    }
+  }
+  logger.log('[PROMOTION] Backfilled customer_monthly_stats for', customers.length, 'customers');
+} catch (e) {
+  logger.log('[PROMOTION] customer_monthly_stats backfill note:', e.message);
+}
+
+// Backfill promotionEnabled for existing customers (default to 1 = enabled)
+try {
+  db.exec(`UPDATE customers SET promotion_enabled = 1 WHERE promotion_enabled IS NULL`);
+} catch (e) { /* ignore */ }
+
+// Seed promotion_enabled = 0 for known inactive customers (those with old promotion data)
+try {
+  // Check if any customers were previously excluded from promotions
+  const excluded = db.prepare(`
+    SELECT COUNT(*) as c FROM customers
+    WHERE archived = 0
+      AND (SELECT COUNT(*) FROM sales WHERE customer_id = customers.id AND promo_type IS NOT NULL) = 0
+      AND (SELECT COUNT(*) FROM sales WHERE customer_id = customers.id AND type = 'sale') > 10
+  `).get();
+  // Only disable if there's a clear pattern — for now, keep all enabled
+  logger.log('[PROMOTION] Existing customers with promotions:', excluded ? excluded.c : 0);
+} catch (e) { /* ignore */ }
+
+console.log('[PROMOTION v3] Migration completed: promotion_settings + customer_monthly_stats + promotion_enabled');

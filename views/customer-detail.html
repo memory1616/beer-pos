@@ -183,6 +183,7 @@
     let customerData = null;
     let selectedYear = new Date().getFullYear();
     let selectedMonth = new Date().getMonth() + 1;
+    window.__customerPromoEnabled = true;
 
     // Format VND
     function formatVND(amount) {
@@ -808,6 +809,24 @@
             </div>
           </div>
 
+          <!-- PROMOTION TOGGLE -->
+          <div class="card p-3 mb-3" id="promoToggleCard" style="border:1px solid rgba(168,85,247,0.25);background:linear-gradient(135deg,rgba(168,85,247,0.03),rgba(168,85,247,0.06));">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span style="font-size:18px;">&#127873;</span>
+                <div>
+                  <div class="font-semibold text-sm" style="color:#a855f7;">Tham gia CTKM</div>
+                  <div class="text-xs text-muted" id="promoToggleStatus">Đang tải...</div>
+                </div>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="togglePromoEnabled" onchange="togglePromoEnabled()">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div id="promoToggleNote" class="text-xs text-muted mt-2 hidden"></div>
+          </div>
+
           <!-- Month Filter -->
           <div class="card p-4 mb-3">
             <label class="block text-sm font-medium text-main mb-2">📅 Lọc theo tháng</label>
@@ -881,7 +900,10 @@
 
       // Load customer info
       await loadCustomerInfo();
-      
+
+      // Load promotion toggle
+      await loadPromoToggleStatus();
+
       // Load stats
       await loadCustomerStats();
 
@@ -926,6 +948,77 @@
         }
       } catch (err) {
         console.error('Error loading customer:', err);
+      }
+    }
+
+    // Load promotion toggle status
+    async function loadPromoToggleStatus() {
+      try {
+        var res = await fetch('/api/promotions/customer/' + customerId + '/overview');
+        var data = await res.json();
+        var enabled = true;
+        if (data && data.data) {
+          enabled = data.data.promotionEnabled !== false;
+          window.__customerPromoEnabled = enabled;
+        }
+        var toggle = document.getElementById('togglePromoEnabled');
+        var status = document.getElementById('promoToggleStatus');
+        var note = document.getElementById('promoToggleNote');
+        if (toggle) toggle.checked = enabled;
+        if (status) {
+          status.textContent = enabled ? 'Đang bật' : 'Đang tắt';
+          status.style.color = enabled ? '#22c55e' : '#ef4444';
+        }
+        if (note) {
+          if (enabled) {
+            note.classList.add('hidden');
+          } else {
+            note.classList.remove('hidden');
+            note.innerHTML = 'Quán mới và thưởng doanh số sẽ không được áp dụng cho khách này.';
+          }
+        }
+      } catch (e) {
+        console.error('loadPromoToggleStatus error:', e);
+      }
+    }
+
+    // Toggle promotion enabled
+    async function togglePromoEnabled() {
+      var toggle = document.getElementById('togglePromoEnabled');
+      if (!toggle) return;
+      var enabled = toggle.checked;
+      try {
+        var res = await fetch('/api/promotions/customer/' + customerId + '/promotion', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled: enabled })
+        });
+        var data = await res.json();
+        if (data.success) {
+          window.__customerPromoEnabled = enabled;
+          var status = document.getElementById('promoToggleStatus');
+          var note = document.getElementById('promoToggleNote');
+          if (status) {
+            status.textContent = enabled ? 'Đang bật' : 'Đang tắt';
+            status.style.color = enabled ? '#22c55e' : '#ef4444';
+          }
+          if (note) {
+            if (enabled) {
+              note.classList.add('hidden');
+              if (typeof showToast === 'function') showToast('Đã bật CTKM', 'success');
+            } else {
+              note.classList.remove('hidden');
+              note.innerHTML = 'Quán mới và thưởng doanh số sẽ không được áp dụng cho khách này.';
+              if (typeof showToast === 'function') showToast('Đã tắt CTKM', 'info');
+            }
+          }
+        } else {
+          toggle.checked = !enabled;
+          if (typeof showToast === 'function') showToast(data.error || 'Lỗi', 'error');
+        }
+      } catch (e) {
+        toggle.checked = !enabled;
+        if (typeof showToast === 'function') showToast('Lỗi kết nối', 'error');
       }
     }
 
