@@ -9,14 +9,20 @@
  * - DELETE /api/promotions/:id - Xóa khuyến mãi
  * - POST /api/promotions/calculate - Tính giảm giá cho đơn hàng
  *
- * PROMOTION SYSTEM v2 (New Shop + Monthly Reward):
+ * PROMOTION SYSTEM v3 (New Shop + Monthly Reward + Admin Settings):
+ * - GET /api/promotions/settings - Lấy cấu hình hệ thống khuyến mãi
+ * - PUT /api/promotions/settings - Lưu cấu hình hệ thống khuyến mãi
  * - GET /api/promotions/new-shop/check/:customerId - Kiểm tra quán mới
  * - GET /api/promotions/new-shop/calculate - Tính lít tặng quán mới
  * - GET /api/promotions/reward/status/:customerId - Trạng thái thưởng tháng
+ * - GET /api/promotions/reward/highest/:customerId - Thưởng cao nhất khả dụng
+ * - GET /api/promotions/reward/remaining/:customerId - Thưởng còn lại
  * - POST /api/promotions/reward/claim - Nhận thưởng tháng
+ * - POST /api/promotions/reward/claim-highest - Nhận thưởng cao nhất
  * - GET /api/promotions/reward/history/:customerId - Lịch sử thưởng
  * - GET /api/promotions/dashboard/stats - Stats dashboard khuyến mãi
  * - GET /api/promotions/near-tier - Khách gần đạt mốc
+ * - GET /api/promotions/customer/:customerId/overview - Tổng quan khuyến mãi của 1 khách
  */
 
 const express = require('express');
@@ -472,6 +478,231 @@ router.get('/near-tier', (req, res) => {
     res.json({ success: true, data: customers });
   } catch (e) {
     logger.error('near-tier error:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// ================================================================
+// PROMOTION SYSTEM v3: ADMIN SETTINGS
+// ================================================================
+
+/**
+ * GET /api/promotions/settings
+ * Lấy cấu hình hệ thống khuyến mãi
+ */
+router.get('/settings', (req, res) => {
+  try {
+    const settings = PromotionService.getSystemPromotionSettings();
+    res.json({ success: true, data: settings });
+  } catch (e) {
+    logger.error('get settings error:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+/**
+ * PUT /api/promotions/settings
+ * Lưu cấu hình hệ thống khuyến mãi
+ * Body: { newShopEnabled, newShopDays, newShopGoldBuy, newShopGoldFree, newShopBlackBuy, newShopBlackFree, rewardEnabled, rewardTiers }
+ */
+router.put('/settings', (req, res) => {
+  try {
+    const {
+      newShopEnabled,
+      newShopDays,
+      newShopGoldBuy,
+      newShopGoldFree,
+      newShopBlackBuy,
+      newShopBlackFree,
+      rewardEnabled,
+      rewardTiers
+    } = req.body;
+
+    // Validate rewardTiers
+    let parsedTiers = null;
+    if (rewardTiers !== undefined) {
+      if (typeof rewardTiers === 'string') {
+        try { parsedTiers = JSON.parse(rewardTiers); } catch (_) { parsedTiers = null; }
+      } else {
+        parsedTiers = rewardTiers;
+      }
+    }
+
+    const settings = PromotionService.saveSystemPromotionSettings({
+      newShopEnabled: newShopEnabled !== undefined ? !!newShopEnabled : undefined,
+      newShopDays: newShopDays !== undefined ? parseInt(newShopDays) || 30 : undefined,
+      newShopGoldBuy: newShopGoldBuy !== undefined ? parseInt(newShopGoldBuy) || 10 : undefined,
+      newShopGoldFree: newShopGoldFree !== undefined ? parseInt(newShopGoldFree) || 1 : undefined,
+      newShopBlackBuy: newShopBlackBuy !== undefined ? parseInt(newShopBlackBuy) || 20 : undefined,
+      newShopBlackFree: newShopBlackFree !== undefined ? parseInt(newShopBlackFree) || 1 : undefined,
+      rewardEnabled: rewardEnabled !== undefined ? !!rewardEnabled : undefined,
+      rewardTiers: parsedTiers || undefined
+    });
+
+    // Emit realtime update to all clients
+    try {
+      socketServer.forceRefetch(['promotion_settings', 'promotion']);
+    } catch (_) {}
+
+    logger.log('[PROMOTION] Settings updated by admin:', {
+      newShopEnabled, newShopDays, newShopGoldBuy, newShopGoldFree,
+      newShopBlackBuy, newShopBlackFree, rewardEnabled, rewardTiers: parsedTiers
+    });
+
+    res.json({ success: true, data: settings, message: 'Đã lưu cài đặt khuyến mãi!' });
+  } catch (e) {
+    logger.error('save settings error:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+/**
+ * GET /api/promotions/reward/highest/:customerId
+ * Lấy thưởng cao nhất khách có thể nhận (tier hiện tại - đã nhận)
+ */
+router.get('/reward/highest/:customerId', (req, res) => {
+  try {
+    const customerId = parseInt(req.params.customerId);
+    if (!customerId) return res.status(400).json({ success: false, error: 'ID không hợp lệ' });
+
+    const result = PromotionService.getHighestEligibleReward(customerId);
+    res.json({ success: true, data: result });
+  } catch (e) {
+    logger.error('reward highest error:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+/**
+ * GET /api/promotions/reward/remaining/:customerId
+ * Lấy số lít thưởng còn lại khách có thể nhận
+ */
+router.get('/reward/remaining/:customerId', (req, res) => {
+  try {
+    const customerId = parseInt(req.params.customerId);
+    if (!customerId) return res.status(400).json({ success: false, error: 'ID không hợp lệ' });
+
+    const remaining = PromotionService.getRemainingReward(customerId);
+    res.json({ success: true, data: { remaining } });
+  } catch (e) {
+    logger.error('reward remaining error:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+/**
+ * POST /api/promotions/reward/claim-highest
+ * Nhận thưởng cao nhất (tự động tính remaining reward)
+ * Body: { customerId, productId }
+ */
+router.post('/reward/claim-highest', (req, res) => {
+  try {
+    const { customerId, productId } = req.body;
+    if (!customerId) return res.status(400).json({ success: false, error: 'Thiếu customerId' });
+    if (!productId) return res.status(400).json({ success: false, error: 'Thiếu productId' });
+
+    const result = PromotionService.claimHighestReward(parseInt(customerId), parseInt(productId));
+
+    if (!result.success) {
+      return res.status(400).json({ success: false, error: result.error });
+    }
+
+    // Emit events
+    try {
+      socketServer.emitInventoryUpdated();
+      socketServer.emitReportUpdated({ reason: 'reward_claimed', customerId: parseInt(customerId) });
+      socketServer.emitCustomerUpdated({ id: parseInt(customerId) });
+    } catch (_) {}
+
+    res.json({
+      success: true,
+      data: {
+        saleId: result.saleId,
+        rewardLiters: result.rewardLiters,
+        tier: result.tier,
+        message: `Đã xuất thưởng ${result.rewardLiters}L!`
+      }
+    });
+  } catch (e) {
+    logger.error('claim highest reward error:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+/**
+ * GET /api/promotions/customer/:customerId/overview
+ * Tổng quan khuyến mãi của 1 khách (quán mới + thưởng tháng)
+ * Dùng cho POS khi chọn khách
+ */
+router.get('/customer/:customerId/overview', (req, res) => {
+  try {
+    const customerId = parseInt(req.params.customerId);
+    if (!customerId) return res.status(400).json({ success: false, error: 'ID không hợp lệ' });
+
+    const customer = db.prepare('SELECT id, name, promotion_enabled, created_at FROM customers WHERE id = ?').get(customerId);
+    if (!customer) return res.status(404).json({ success: false, error: 'Không tìm thấy khách hàng' });
+
+    const settings = PromotionService.getSystemPromotionSettings();
+
+    let newShopInfo = null;
+    if (customer.promotion_enabled !== 0) {
+      newShopInfo = PromotionService.isNewShopEligible(customerId);
+    }
+
+    let rewardInfo = null;
+    if (customer.promotion_enabled !== 0) {
+      rewardInfo = PromotionService.calculateMonthlyReward(customerId);
+    }
+
+    res.json({
+      success: true,
+      data: {
+        customerId,
+        customerName: customer.name,
+        promotionEnabled: customer.promotion_enabled !== 0,
+        systemNewShopEnabled: settings.newShopEnabled,
+        systemRewardEnabled: settings.rewardEnabled,
+        newShop: newShopInfo,
+        monthlyReward: rewardInfo
+      }
+    });
+  } catch (e) {
+    logger.error('customer overview error:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+/**
+ * PUT /api/customers/:id/promotion
+ * Bật/tắt khuyến mãi cho khách
+ * Body: { enabled: boolean }
+ */
+router.put('/customer/:id/promotion', (req, res) => {
+  try {
+    const customerId = parseInt(req.params.id);
+    if (!customerId) return res.status(400).json({ success: false, error: 'ID không hợp lệ' });
+
+    const { enabled } = req.body;
+    const promotionEnabled = enabled ? 1 : 0;
+
+    const customer = db.prepare('SELECT id FROM customers WHERE id = ?').get(customerId);
+    if (!customer) return res.status(404).json({ success: false, error: 'Không tìm thấy khách hàng' });
+
+    db.prepare('UPDATE customers SET promotion_enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(promotionEnabled, customerId);
+
+    // Emit realtime update
+    try {
+      socketServer.emitCustomerUpdated({ id: customerId, promotion_enabled: promotionEnabled });
+    } catch (_) {}
+
+    logger.log(`[PROMOTION] Customer ${customerId} promotion_enabled set to ${promotionEnabled}`);
+
+    res.json({
+      success: true,
+      message: enabled ? 'Đã bật khuyến mãi cho khách' : 'Đã tắt khuyến mãi cho khách'
+    });
+  } catch (e) {
+    logger.error('update customer promotion error:', e);
     res.status(500).json({ success: false, error: e.message });
   }
 });

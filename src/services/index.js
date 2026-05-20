@@ -663,6 +663,12 @@ class DebtService {
 // ============================================================
 // PROMOTION SERVICE - Business logic cho khuyến mãi
 // Bao gồm: khuyến mãi quán mới (30 ngày) và thưởng doanh số theo tháng
+//
+// QUY TẮC QUAN TRỌNG:
+// - CHỈ NHẬN MỨC THƯỞNG CAO NHẤT: đã nhận 10L → đạt 500L → chỉ nhận thêm 10L
+// - Free liters: trừ kho thật, KHÔNG cộng doanh thu, KHÔNG cộng công nợ, KHÔNG cộng sản lượng xét thưởng
+// - Changing settings: KHÔNG làm sai dữ liệu cũ, KHÔNG reset history, KHÔNG recalculate order cũ
+//   Chỉ áp dụng cho order mới
 // ============================================================
 class PromotionService {
   constructor() {
@@ -676,26 +682,137 @@ class PromotionService {
     this.TIER_BONUS_20L = 'BONUS_20L';
   }
 
+  // ── 0. SYSTEM PROMOTION SETTINGS ─────────────────────────
+
+  /**
+   * Lấy toàn bộ cấu hình khuyến mãi hệ thống
+   * @returns {Object} promotion settings
+   */
+  getSystemPromotionSettings() {
+    try {
+      const settings = db.prepare('SELECT * FROM promotion_settings WHERE id = 1').get();
+      if (!settings) {
+        return this._getDefaultSettings();
+      }
+      return {
+        newShopEnabled: !!settings.new_shop_enabled,
+        newShopDays: settings.new_shop_days || 30,
+        newShopGoldBuy: settings.new_shop_gold_buy || 10,
+        newShopGoldFree: settings.new_shop_gold_free || 1,
+        newShopBlackBuy: settings.new_shop_black_buy || 20,
+        newShopBlackFree: settings.new_shop_black_free || 1,
+        rewardEnabled: !!settings.reward_enabled,
+        rewardTiers: this._parseRewardTiers(settings.reward_tiers),
+        updatedAt: settings.updated_at
+      };
+    } catch (e) {
+      logger.error('getSystemPromotionSettings error:', e);
+      return this._getDefaultSettings();
+    }
+  }
+
+  _getDefaultSettings() {
+    return {
+      newShopEnabled: true,
+      newShopDays: 30,
+      newShopGoldBuy: 10,
+      newShopGoldFree: 1,
+      newShopBlackBuy: 20,
+      newShopBlackFree: 1,
+      rewardEnabled: true,
+      rewardTiers: [
+        { threshold: 300, reward: 10 },
+        { threshold: 500, reward: 20 }
+      ],
+      updatedAt: null
+    };
+  }
+
+  _parseRewardTiers(tiersJson) {
+    try {
+      const tiers = JSON.parse(tiersJson || '[]');
+      return tiers.sort((a, b) => a.threshold - b.threshold);
+    } catch (e) {
+      return [
+        { threshold: 300, reward: 10 },
+        { threshold: 500, reward: 20 }
+      ];
+    }
+  }
+
+  /**
+   * Lưu cấu hình khuyến mãi hệ thống
+   */
+  saveSystemPromotionSettings(data) {
+    const settings = this.getSystemPromotionSettings();
+    const merged = { ...settings, ...data };
+
+    const newShopEnabled = merged.newShopEnabled ? 1 : 0;
+    const rewardEnabled = merged.rewardEnabled ? 1 : 0;
+    const rewardTiers = JSON.stringify(merged.rewardTiers || []);
+
+    db.prepare(`
+      UPDATE promotion_settings SET
+        new_shop_enabled = ?,
+        new_shop_days = ?,
+        new_shop_gold_buy = ?,
+        new_shop_gold_free = ?,
+        new_shop_black_buy = ?,
+        new_shop_black_free = ?,
+        reward_enabled = ?,
+        reward_tiers = ?,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = 1
+    `).run(
+      newShopEnabled,
+      merged.newShopDays || 30,
+      merged.newShopGoldBuy || 10,
+      merged.newShopGoldFree || 1,
+      merged.newShopBlackBuy || 20,
+      merged.newShopBlackFree || 1,
+      rewardEnabled,
+      rewardTiers
+    );
+
+    logger.log('[PromotionService] Saved system promotion settings');
+    return this.getSystemPromotionSettings();
+  }
+
   // ── 1. KHUYẾN MÃI QUÁN MỚI ──────────────────────────────
 
   /**
-   * Kiểm tra khách hàng có phải "quán mới" (tạo trong 30 ngày đầu)
+   * Kiểm tra khách hàng có phải "quán mới" (tạo trong N ngày đầu, config được)
+   * Dùng created_at thay vì first_order_date
    */
   isNewShopEligible(customerId) {
+    const settings = this.getSystemPromotionSettings();
+    if (!settings.newShopEnabled) {
+      return { eligible: false, reason: 'Khuyến mãi quán mới đã bị tắt' };
+    }
+
     const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(customerId);
     if (!customer) return { eligible: false, reason: 'Không tìm thấy khách hàng' };
 
-    // Kiểm tra created_at thay vì first_order_date
+    if (customer.promotion_enabled === 0) {
+      return { eligible: false, reason: 'Khách đã tắt tham gia CTKM', promotionEnabled: false };
+    }
+
     const createdDate = new Date(customer.created_at);
     const now = new Date();
     const diffTime = now.getTime() - createdDate.getTime();
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-    const daysRemaining = this.NEW_SHOP_DAYS - diffDays;
+    const daysRemaining = settings.newShopDays - diffDays;
 
     if (daysRemaining > 0) {
-      return { eligible: true, daysRemaining, firstOrderDate: customer.created_at };
+      return {
+        eligible: true,
+        daysRemaining,
+        firstOrderDate: customer.created_at,
+        newShopDays: settings.newShopDays,
+        promotionEnabled: true
+      };
     }
-    return { eligible: false, daysRemaining: 0, reason: 'Đã hết hạn ưu đãi quán mới' };
+    return { eligible: false, daysRemaining: 0, reason: 'Đã hết hạn ưu đãi quán mới', promotionEnabled: true };
   }
 
   /**
@@ -705,8 +822,13 @@ class PromotionService {
    * @returns {{ freeGold, freeBlack, totalFree, promoType }}
    */
   calculateNewShopPromotion(quantityGold = 0, quantityBlack = 0) {
-    const freeGold = Math.floor(quantityGold / this.GOLD_BUY);
-    const freeBlack = Math.floor(quantityBlack / this.BLACK_BUY);
+    const settings = this.getSystemPromotionSettings();
+    if (!settings.newShopEnabled) {
+      return { freeGold: 0, freeBlack: 0, totalFree: 0, promoType: null };
+    }
+
+    const freeGold = Math.floor(quantityGold / settings.newShopGoldBuy) * settings.newShopGoldFree;
+    const freeBlack = Math.floor(quantityBlack / settings.newShopBlackBuy) * settings.newShopBlackFree;
     return {
       freeGold,
       freeBlack,
@@ -715,39 +837,29 @@ class PromotionService {
     };
   }
 
-  /**
-   * Ghi nhận first_order_date khi khách đặt đơn đầu tiên
-   */
-  setFirstOrderDate(customerId) {
-    const customer = db.prepare('SELECT first_order_date FROM customers WHERE id = ?').get(customerId);
-    if (customer && !customer.first_order_date) {
-      db.prepare("UPDATE customers SET first_order_date = datetime('now', '+7 hours') WHERE id = ?").run(customerId);
-    }
-  }
-
-  /**
-   * Xác định loại bia (vàng/đen) dựa trên tên sản phẩm
-   * Bia vàng: Heineken, Carlsberg, Budweiser, Tiger, Larue...
-   * Bia đen: Guinness, Kilkenny, Murphy's...
-   */
-  classifyBeer(productName) {
-    if (!productName) return 'gold';
-    const name = productName.toLowerCase();
-    const blackKeywords = ['guinness', 'kilkenny', 'murphy', 'black', 'đen', 'smithwick'];
-    return blackKeywords.some(k => name.includes(k)) ? 'black' : 'gold';
-  }
-
   // ── 2. THƯỞNG DOANH SỐ THÁNG ────────────────────────────
 
   /**
    * Tính sản lượng tháng hiện tại (CHỈ tính lít MUA thực trả, KHÔNG tính lít tặng)
    * Bia tặng khuyến mãi có si.price = 0 nên được lọc ra
+   * Sử dụng customer_monthly_stats (denormalized) nếu có, fallback về query real-time
    */
   calculateMonthlyPurchasedLiters(customerId) {
     const now = new Date();
     const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const month = now.getMonth() + 1;
 
+    // Try denormalized stats first
+    const cachedStats = db.prepare(`
+      SELECT purchased_liters FROM customer_monthly_stats
+      WHERE customer_id = ? AND year = ? AND month = ?
+    `).get(customerId, year, month);
+
+    if (cachedStats && cachedStats.purchased_liters > 0) {
+      return cachedStats.purchased_liters;
+    }
+
+    // Fallback: query real-time
     const result = db.prepare(`
       SELECT COALESCE(SUM(si.quantity), 0) as total
       FROM sales s
@@ -761,36 +873,145 @@ class PromotionService {
         AND p.type = 'keg'
         AND strftime('%Y', s.date) = ?
         AND strftime('%m', s.date) = ?
-    `).get(customerId, String(year), month);
+    `).get(customerId, String(year), String(month).padStart(2, '0'));
 
     return result ? result.total : 0;
   }
 
   /**
+   * Lấy reward tier cao nhất mà khách đã nhận (từ lịch sử)
+   * @returns {number} Số lít reward cao nhất đã nhận
+   */
+  _getHighestRewardClaimed(customerId) {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth() + 1;
+
+    const history = db.prepare(`
+      SELECT reward_claimed_liters FROM customer_monthly_stats
+      WHERE customer_id = ? AND year = ? AND month = ? AND reward_claimed = 1
+    `).get(customerId, year, month);
+
+    return history ? (history.reward_claimed_liters || 0) : 0;
+  }
+
+  /**
    * Xác định reward tier dựa trên sản lượng tháng
-   * Đạt 500L → BONUS_20L (chỉ nhận 20L, KHÔNG cộng dồn)
-   * Đạt 300L → BONUS_10L (chỉ nhận 10L)
-   * Chưa đạt → NONE
+   * QUY TẮC: CHỈ NHẬN MỨC CAO NHẤT - đã nhận 10L → đạt 500L → chỉ nhận thêm 10L
+   * @returns {{ tier, liters, nextTier, nextTierLiters, progressToNext, litersToNext }}
    */
   calculateMonthlyReward(customerId) {
-    const liters = this.calculateMonthlyPurchasedLiters(customerId);
+    const settings = this.getSystemPromotionSettings();
+    if (!settings.rewardEnabled) {
+      return {
+        tier: this.TIER_NONE,
+        liters: 0,
+        nextTier: null,
+        nextTierLiters: 0,
+        progressToNext: 0,
+        litersToNext: 0,
+        totalRewardEarned: 0,
+        remainingReward: 0
+      };
+    }
 
-    if (liters >= 500) {
-      return { tier: this.TIER_BONUS_20L, liters: 20, nextTier: null, nextTierLiters: 0, progressToNext: 100 };
+    // Nếu khách tắt CTKM thì không có thưởng
+    const customer = db.prepare('SELECT promotion_enabled FROM customers WHERE id = ?').get(customerId);
+    if (customer && customer.promotion_enabled === 0) {
+      return {
+        tier: this.TIER_NONE,
+        liters: 0,
+        nextTier: null,
+        nextTierLiters: 0,
+        progressToNext: 0,
+        litersToNext: 0,
+        totalRewardEarned: 0,
+        remainingReward: 0
+      };
     }
-    if (liters >= 300) {
-      const progress = Math.round((liters / 500) * 100);
-      return { tier: this.TIER_BONUS_10L, liters: 10, nextTier: this.TIER_BONUS_20L, nextTierLiters: 500, progressToNext: progress, litersToNext: 500 - liters };
+
+    const liters = this.calculateMonthlyPurchasedLiters(customerId);
+    const tiers = settings.rewardTiers;
+
+    // Tìm tier cao nhất đạt được
+    let eligibleTier = null;
+    for (let i = tiers.length - 1; i >= 0; i--) {
+      if (liters >= tiers[i].threshold) {
+        eligibleTier = tiers[i];
+        break;
+      }
     }
+
+    // Lấy tier cao nhất đã nhận
+    const claimedLiters = this._getHighestRewardClaimed(customerId);
+    const nextTierInfo = this._getNextTier(tiers, liters);
+
+    if (eligibleTier) {
+      const remainingReward = Math.max(0, eligibleTier.reward - claimedLiters);
+      return {
+        tier: eligibleTier.tier || `BONUS_${eligibleTier.reward}L`,
+        liters: eligibleTier.reward,
+        nextTier: nextTierInfo ? (nextTierInfo.tier || `BONUS_${nextTierInfo.reward}L`) : null,
+        nextTierLiters: nextTierInfo ? nextTierInfo.threshold : 0,
+        progressToNext: nextTierInfo
+          ? Math.min(100, Math.round((liters / nextTierInfo.threshold) * 100))
+          : 100,
+        litersToNext: nextTierInfo ? Math.max(0, nextTierInfo.threshold - liters) : 0,
+        totalRewardEarned: claimedLiters,
+        remainingReward,
+        monthlyLiters: liters,
+        hasRemaining: remainingReward > 0
+      };
+    }
+
     return {
       tier: this.TIER_NONE,
       liters: 0,
-      nextTier: liters >= 300 ? this.TIER_BONUS_10L : null,
-      nextTierLiters: 300,
-      progressToNext: liters >= 300 ? 100 : Math.round((liters / 300) * 100),
-      litersToNext: Math.max(0, 300 - liters)
+      nextTier: tiers.length > 0 ? (tiers[0].tier || `BONUS_${tiers[0].reward}L`) : null,
+      nextTierLiters: tiers.length > 0 ? tiers[0].threshold : 0,
+      progressToNext: tiers.length > 0 ? Math.round((liters / tiers[0].threshold) * 100) : 0,
+      litersToNext: tiers.length > 0 ? Math.max(0, tiers[0].threshold - liters) : 0,
+      totalRewardEarned: claimedLiters,
+      remainingReward: 0,
+      monthlyLiters: liters,
+      hasRemaining: false
     };
   }
+
+  _getNextTier(tiers, currentLiters) {
+    for (const tier of tiers) {
+      if (tier.threshold > currentLiters) {
+        return tier;
+      }
+    }
+    return null; // Đã đạt tier cao nhất
+  }
+
+  /**
+   * Lấy thưởng cao nhất khách có thể nhận (tier hiện tại - đã nhận)
+   * @returns {number} Số lít còn lại có thể nhận
+   */
+  getHighestEligibleReward(customerId) {
+    const reward = this.calculateMonthlyReward(customerId);
+    return {
+      tier: reward.tier,
+      eligibleLiters: reward.liters,
+      alreadyClaimed: reward.totalRewardEarned,
+      remaining: reward.remainingReward,
+      hasRemaining: reward.hasRemaining
+    };
+  }
+
+  /**
+   * Lấy số lít thưởng còn lại khách có thể nhận
+   * @returns {number} Số lít còn lại
+   */
+  getRemainingReward(customerId) {
+    const reward = this.calculateMonthlyReward(customerId);
+    return reward.remainingReward;
+  }
+
+  // ── 3. NHẬN THƯỞNG ──────────────────────────────────────
 
   /**
    * Lấy thông tin reward hiện tại của khách (từ DB)
@@ -813,18 +1034,22 @@ class PromotionService {
 
   /**
    * Nhận thưởng: tạo phiếu xuất kho 0đ + trừ kho
+   * INVENTORY RULES: trừ kho thật, KHÔNG cộng doanh thu, KHÔNG cộng công nợ
    * @returns {{ success, saleId, rewardLiters, tier }}
    */
   claimMonthlyReward(customerId, productId) {
     const status = this.getRewardStatus(customerId);
     if (!status) return { success: false, error: 'Không tìm thấy khách hàng' };
-    if (status.claimed) return { success: false, error: 'Đã nhận thưởng tháng này' };
-    if (status.tier === this.TIER_NONE) return { success: false, error: 'Chưa đủ điều kiện nhận thưởng' };
+    if (!status.hasRemaining) return { success: false, error: 'Đã nhận đủ thưởng hoặc chưa đủ điều kiện' };
 
-    const rewardLiters = status.liters;
+    const rewardLiters = status.remainingReward;
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth() + 1;
 
     const tx = db.transaction(() => {
       // 1. Tạo phiếu xuất kho thưởng (sale type='sale', total=0)
+      // KHÔNG cộng doanh thu, KHÔNG cộng công nợ
       const saleDate = db.getVietnamDateStr();
       const result = db.prepare(`
         INSERT INTO sales (customer_id, date, total, profit, type, promo_type, reward_liters_used, note)
@@ -833,16 +1058,16 @@ class PromotionService {
 
       const saleId = result.lastInsertRowid;
 
-      // 2. Ghi nhận chi tiết sản phẩm thưởng
+      // 2. Ghi nhận chi tiết sản phẩm thưởng (price=0, profit=0)
       db.prepare(`
         INSERT INTO sale_items (sale_id, product_id, quantity, price, cost_price, profit)
         VALUES (?, ?, ?, 0, 0, 0)
       `).run(saleId, productId, rewardLiters);
 
-      // 3. Trừ kho sản phẩm
+      // 3. TRỪ KHO SẢN PHẨM (inventory rule: trừ kho thật)
       db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(rewardLiters, productId);
 
-      // 4. Audit log
+      // 4. Audit log (export, KHÔNG cộng doanh thu)
       const customer = db.prepare('SELECT name FROM customers WHERE id = ?').get(customerId);
       db.prepare(`
         INSERT INTO product_audit_log (product_id, type, quantity, reason, ref_id, ref_type, customer_name, note)
@@ -853,16 +1078,38 @@ class PromotionService {
       db.prepare(`
         INSERT INTO reward_history (customer_id, reward_tier, reward_liters, note)
         VALUES (?, ?, ?, ?)
-      `).run(customerId, status.tier, rewardLiters, `Nhận thưởng tháng ${new Date().getMonth() + 1}/${new Date().getFullYear()}`);
+      `).run(customerId, status.tier, rewardLiters, `Nhận thưởng tháng ${month}/${year} - lần tiếp theo`);
 
-      // 6. Đánh dấu đã nhận thưởng
-      db.prepare("UPDATE customers SET reward_claimed = 1, reward_claimed_at = datetime('now', '+7 hours') WHERE id = ?").run(customerId);
+      // 6. Cập nhật customer_monthly_stats
+      const existingStats = db.prepare(`
+        SELECT * FROM customer_monthly_stats WHERE customer_id = ? AND year = ? AND month = ?
+      `).get(customerId, year, month);
+
+      if (existingStats) {
+        const newClaimed = (existingStats.reward_claimed_liters || 0) + rewardLiters;
+        db.prepare(`
+          UPDATE customer_monthly_stats SET
+            reward_claimed = 1,
+            reward_claimed_at = CURRENT_TIMESTAMP,
+            reward_claimed_liters = ?,
+            reward_claimed_sale_id = ?,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `).run(newClaimed, saleId, existingStats.id);
+      } else {
+        db.prepare(`
+          INSERT INTO customer_monthly_stats
+            (customer_id, year, month, reward_claimed, reward_claimed_at, reward_claimed_liters, reward_claimed_sale_id)
+          VALUES (?, ?, ?, 1, CURRENT_TIMESTAMP, ?, ?)
+        `).run(customerId, year, month, rewardLiters, saleId);
+      }
 
       return { saleId, rewardLiters, tier: status.tier };
     });
 
     try {
       const result = tx();
+      logger.log(`[PromotionService] Reward claimed: customer=${customerId}, liters=${result.rewardLiters}, tier=${result.tier}`);
       return { success: true, ...result };
     } catch (e) {
       logger.error('claimMonthlyReward error:', e);
@@ -871,19 +1118,72 @@ class PromotionService {
   }
 
   /**
+   * Claim reward với logic "chỉ nhận mức cao nhất" - overload của claimMonthlyReward
+   * Sử dụng khi cần tính lại claim logic
+   */
+  claimHighestReward(customerId, productId) {
+    const remaining = this.getRemainingReward(customerId);
+    if (remaining <= 0) {
+      return { success: false, error: 'Không còn thưởng để nhận' };
+    }
+    return this.claimMonthlyReward(customerId, productId);
+  }
+
+  /**
    * Reset reward tháng mới (gọi khi sang tháng)
    * Tự động reset vào ngày 1 hàng tháng qua cron
    */
   resetMonthlyRewards() {
     const tx = db.transaction(() => {
-      // Reset reward_claimed về 0 cho tất cả khách
-      db.prepare("UPDATE customers SET reward_claimed = 0, reward_claimed_at = NULL, monthly_purchased_liters = 0 WHERE reward_claimed = 1").run();
+      // Reset customer_monthly_stats cho tháng mới
+      const now = new Date();
+      const newYear = now.getFullYear();
+      const newMonth = now.getMonth() + 1;
+
+      // Tạo monthly_stats cho tất cả khách active tháng mới
+      const customers = db.prepare('SELECT id FROM customers WHERE archived = 0').all();
+      for (const cust of customers) {
+        const existing = db.prepare(`
+          SELECT id FROM customer_monthly_stats WHERE customer_id = ? AND year = ? AND month = ?
+        `).get(cust.id, newYear, newMonth);
+
+        if (!existing) {
+          db.prepare(`
+            INSERT INTO customer_monthly_stats (customer_id, year, month, purchased_liters)
+            VALUES (?, ?, ?, 0)
+          `).run(cust.id, newYear, newMonth);
+        }
+      }
+
+      logger.log(`[PromotionService] Monthly rewards reset for ${customers.length} customers`);
     });
     tx();
-    logger.log('[PromotionService] Monthly rewards reset');
   }
 
-  // ── 3. LỊCH SỬ THƯỞNG ──────────────────────────────────
+  /**
+   * Cập nhật sản lượng tháng cho customer (gọi sau mỗi đơn hàng mới)
+   */
+  updateCustomerMonthlyStats(customerId, purchasedLiters, year, month) {
+    const existing = db.prepare(`
+      SELECT * FROM customer_monthly_stats WHERE customer_id = ? AND year = ? AND month = ?
+    `).get(customerId, year, month);
+
+    if (existing) {
+      db.prepare(`
+        UPDATE customer_monthly_stats SET
+          purchased_liters = purchased_liters + ?,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).run(purchasedLiters, existing.id);
+    } else {
+      db.prepare(`
+        INSERT INTO customer_monthly_stats (customer_id, year, month, purchased_liters)
+        VALUES (?, ?, ?, ?)
+      `).run(customerId, year, month, purchasedLiters);
+    }
+  }
+
+  // ── 4. LỊCH SỬ THƯỞNG ──────────────────────────────────
 
   /**
    * Lấy lịch sử nhận thưởng của 1 khách
@@ -913,19 +1213,23 @@ class PromotionService {
     return result || { total_liters: 0, total_claims: 0 };
   }
 
-  // ── 4. STATS PROMOTION ──────────────────────────────────
+  // ── 5. STATS PROMOTION ──────────────────────────────────
 
   /**
-   * Lấy số quán mới đang trong 30 ngày ưu đãi (dựa trên created_at)
+   * Lấy số quán mới đang trong N ngày ưu đãi (dựa trên created_at)
    */
   getActiveNewShopCount() {
-    const cutoffStr = new Date(Date.now() - this.NEW_SHOP_DAYS * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const settings = this.getSystemPromotionSettings();
+    if (!settings.newShopEnabled) return 0;
+
+    const cutoffStr = new Date(Date.now() - settings.newShopDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
     const result = db.prepare(`
       SELECT COUNT(*) as count
       FROM customers
       WHERE archived = 0
         AND created_at >= ?
+        AND promotion_enabled = 1
     `).get(cutoffStr);
     return result ? result.count : 0;
   }
@@ -937,37 +1241,25 @@ class PromotionService {
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
+    const settings = this.getSystemPromotionSettings();
+    const tiers = settings.rewardTiers;
+
+    if (!settings.rewardEnabled || tiers.length === 0) return [];
 
     return db.prepare(`
       SELECT
         c.id, c.name, c.phone,
-        COALESCE(SUM(si.quantity), 0) as monthly_liters,
-        CASE
-          WHEN COALESCE(SUM(si.quantity), 0) >= 500 THEN 500
-          WHEN COALESCE(SUM(si.quantity), 0) >= 300 THEN 300
-          ELSE 0
-        END as current_tier_liters,
-        CASE
-          WHEN COALESCE(SUM(si.quantity), 0) >= 500 THEN NULL
-          WHEN COALESCE(SUM(si.quantity), 0) >= 300 THEN 500
-          ELSE 300
-        END as next_tier_liters
+        COALESCE(cms.purchased_liters, 0) as monthly_liters,
+        COALESCE(cms.reward_claimed_liters, 0) as claimed_liters
       FROM customers c
-      LEFT JOIN sales s ON s.customer_id = c.id
-        AND s.type = 'sale' AND s.archived = 0
-        AND s.promo_type IS DISTINCT FROM 'MONTHLY_BONUS'
-        AND strftime('%Y', s.date) = ?
-        AND strftime('%m', s.date) = ?
-      LEFT JOIN sale_items si ON si.sale_id = s.id
-      WHERE c.archived = 0
-      GROUP BY c.id
-      HAVING COALESCE(SUM(si.quantity), 0) > 0
-      ORDER BY monthly_liters DESC
+      LEFT JOIN customer_monthly_stats cms ON cms.customer_id = c.id AND cms.year = ? AND cms.month = ?
+      WHERE c.archived = 0 AND c.promotion_enabled = 1
+      ORDER BY COALESCE(cms.purchased_liters, 0) DESC
       LIMIT ?
     `).all(String(year), month, limit);
   }
 
-  // ── 5. LEGACY PROMOTION METHODS ─────────────────────────
+  // ── 6. LEGACY PROMOTION METHODS ─────────────────────────
 
   /**
    * Lấy tất cả promotions đang active
@@ -985,8 +1277,6 @@ class PromotionService {
 
   /**
    * Tính giảm giá cho 1 đơn hàng
-   * @param {Object} cart - { customerId, items, subtotal }
-   * @returns {Object} { discount, promotionsApplied, finalTotal }
    */
   calculateDiscount(cart) {
     const { customerId, subtotal } = cart;
@@ -1058,13 +1348,33 @@ class PromotionService {
 
     let eligibleQty = 0;
     for (const item of cart.items || []) {
-      if (item.type && item.type !== 'keg') continue; // chỉ áp dụng cho bia bình keg
+      if (item.type && item.type !== 'keg') continue;
       if (promo.product_id && item.productId !== promo.product_id) continue;
       eligibleQty += item.quantity;
     }
 
     const times = Math.floor(eligibleQty / (buyQty + getQty));
     return times * getQty * discountPerUnit;
+  }
+
+  /**
+   * Ghi nhận first_order_date khi khách đặt đơn đầu tiên
+   */
+  setFirstOrderDate(customerId) {
+    const customer = db.prepare('SELECT first_order_date FROM customers WHERE id = ?').get(customerId);
+    if (customer && !customer.first_order_date) {
+      db.prepare("UPDATE customers SET first_order_date = datetime('now', '+7 hours') WHERE id = ?").run(customerId);
+    }
+  }
+
+  /**
+   * Xác định loại bia (vàng/đen) dựa trên tên sản phẩm
+   */
+  classifyBeer(productName) {
+    if (!productName) return 'gold';
+    const name = productName.toLowerCase();
+    const blackKeywords = ['guinness', 'kilkenny', 'murphy', 'black', 'đen', 'smithwick'];
+    return blackKeywords.some(k => name.includes(k)) ? 'black' : 'gold';
   }
 
   create(data) {

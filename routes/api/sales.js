@@ -193,22 +193,31 @@ router.post('/', (req, res) => {
 
     // ========== KHUYẾN MÃI QUÁN MỚI ==========
     // Kiểm tra và tính lít tặng nếu là quán mới (CHỈ tính bia bình keg, KHÔNG tính pet)
+    // Chỉ áp dụng nếu customer.promotion_enabled !== 0 và KHÔNG phải đơn MONTHLY_BONUS
     let promoInfo = null;
     if (customerId) {
-      const newShopCheck = PromotionService.isNewShopEligible(customerId);
-      if (newShopCheck.eligible) {
-        let quantityGold = 0;
-        let quantityBlack = 0;
-        for (const item of saleItems) {
-          if (item.type !== 'keg') continue; // bỏ qua pet/box
-          const beerType = PromotionService.classifyBeer(item.productName);
-          if (beerType === 'black') quantityBlack += item.quantity;
-          else quantityGold += item.quantity;
+      // Lấy customer.promotion_enabled
+      const custPromo = db.prepare('SELECT promotion_enabled FROM customers WHERE id = ?').get(customerId);
+      const promoEnabled = custPromo ? (custPromo.promotion_enabled !== 0) : true;
+
+      if (promoEnabled) {
+        const newShopCheck = PromotionService.isNewShopEligible(customerId);
+        if (newShopCheck.eligible) {
+          let quantityGold = 0;
+          let quantityBlack = 0;
+          for (const item of saleItems) {
+            if (item.type !== 'keg') continue; // bỏ qua pet/box
+            const beerType = PromotionService.classifyBeer(item.productName);
+            if (beerType === 'black') quantityBlack += item.quantity;
+            else quantityGold += item.quantity;
+          }
+          promoInfo = PromotionService.calculateNewShopPromotion(quantityGold, quantityBlack);
+          if (promoInfo.totalFree > 0) {
+            console.log('[NEW SHOP PROMO]', promoInfo);
+          }
         }
-        promoInfo = PromotionService.calculateNewShopPromotion(quantityGold, quantityBlack);
-        if (promoInfo.totalFree > 0) {
-          console.log('[NEW SHOP PROMO]', promoInfo);
-        }
+      } else {
+        console.log('[PROMO] Customer', customerId, 'has promotions disabled — skipping new shop promo');
       }
     }
 
@@ -242,10 +251,22 @@ router.post('/', (req, res) => {
         PromotionService.setFirstOrderDate(customerId);
 
         // Cập nhật sản lượng mua trong tháng (chỉ tính keg, không tính pet/box, không tính lít tặng)
+        // KHÔNG cộng sản lượng cho khách có promotion_enabled = 0
         const paidLiters = saleItems
           .filter(item => item.type === 'keg')
           .reduce((sum, item) => sum + item.quantity, 0);
-        db.prepare("UPDATE customers SET monthly_purchased_liters = monthly_purchased_liters + ? WHERE id = ?").run(paidLiters, customerId);
+        if (paidLiters > 0) {
+          // Check promotion_enabled
+          const custForStats = db.prepare('SELECT promotion_enabled FROM customers WHERE id = ?').get(customerId);
+          if (!custForStats || custForStats.promotion_enabled !== 0) {
+            db.prepare("UPDATE customers SET monthly_purchased_liters = monthly_purchased_liters + ? WHERE id = ?").run(paidLiters, customerId);
+            // Also update customer_monthly_stats
+            const now = new Date();
+            PromotionService.updateCustomerMonthlyStats(customerId, paidLiters, now.getFullYear(), now.getMonth() + 1);
+          } else {
+            console.log('[PROMO] Customer', customerId, 'has promotions disabled — skipping monthly stats update');
+          }
+        }
       }
 
       // Update products and insert sale_items (reuse pre-loaded data — no extra queries)

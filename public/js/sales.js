@@ -76,7 +76,8 @@ let saleState = {
   customerId: null,
   items: [],  // [{productId, qty, price}]
   newShopEligible: false,
-  newShopDaysRemaining: 0
+  newShopDaysRemaining: 0,
+  promotionEnabled: true
 };
 
 let _productById = new Map();
@@ -1203,8 +1204,10 @@ function selectCustomer(customerId, customerName) {
   // Reset promo state immediately (trước async API response)
   saleState.newShopEligible = false;
   saleState.newShopDaysRemaining = 0;
+  saleState.promotionEnabled = true;
   hideNewShopBadge();
   hidePromoPreview();
+  hidePromoDisabledBadge();
 
   if (badge) {
     badge.classList.remove('hidden');
@@ -1249,9 +1252,37 @@ function checkNewShopPromo(customerId) {
       } else {
         hideNewShopBadge();
         hidePromoPreview();
+
+        // Kiểm tra trạng thái CTKM của khách
+        var promoEnabled = info.promotionEnabled !== false;
+        saleState.promotionEnabled = promoEnabled;
+        if (promoEnabled) {
+          hidePromoDisabledBadge();
+        } else {
+          showPromoDisabledBadge();
+        }
       }
     })
     .catch(function() {});
+}
+
+function showPromoDisabledBadge() {
+  var el = document.getElementById('promoDisabledBadge');
+  if (el) {
+    el.classList.remove('hidden');
+  }
+  // Xóa toàn bộ promotion khỏi giao diện
+  hideNewShopBadge();
+  hidePromoPreview();
+  // Recalculate
+  updateTotal();
+}
+
+function hidePromoDisabledBadge() {
+  var el = document.getElementById('promoDisabledBadge');
+  if (el) {
+    el.classList.add('hidden');
+  }
 }
 
 function showNewShopBadge(daysRemaining) {
@@ -1513,9 +1544,11 @@ function resetSaleState() {
   saleState.customerId = null;
   saleState.newShopEligible = false;
   saleState.newShopDaysRemaining = 0;
+  saleState.promotionEnabled = true;
   editingSaleId = null;
   hideNewShopBadge();
   hidePromoPreview();
+  hidePromoDisabledBadge();
   renderProducts();
   updateTotal();
 
