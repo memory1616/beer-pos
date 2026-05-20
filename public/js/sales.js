@@ -74,7 +74,9 @@ window._fmt = _fmt;
 
 let saleState = {
   customerId: null,
-  items: []  // [{productId, qty, price}]
+  items: [],  // [{productId, qty, price}]
+  newShopEligible: false,
+  newShopDaysRemaining: 0
 };
 
 let _productById = new Map();
@@ -537,12 +539,16 @@ function renderInvoiceModalContent(invoice, saleIdForActions) {
     var lineTotal = (item.quantity || 0) * (item.price || 0);
     var shortName = (item.name || 'SP').slice(0, 20);
     var isUltra = modal && modal.classList.contains('ultra-compact');
+    var isFree = item.price === 0 || item.price === null || item.price === undefined;
+    var nameHtml = isFree
+      ? '<div class="invoice-item-name" style="color:#f97316;">🎁 ' + escHtml(shortName) + ' <small style="color:#f97316;font-size:10px;">TẶNG</small></div>'
+      : '<div class="invoice-item-name">' + escHtml(shortName) + '</div>';
     return '<div class="invoice-item">' +
       '<div class="invoice-item-left">' +
-        '<div class="invoice-item-name">' + escHtml(shortName) + '</div>' +
-        (isUltra ? '' : '<small>x' + item.quantity + ' · ' + formatVND(item.price) + '</small>') +
+        nameHtml +
+        (isUltra ? '' : '<small>x' + item.quantity + ' · ' + (isFree ? '<span style="color:#f97316;">Miễn phí</span>' : formatVND(item.price)) + '</small>') +
       '</div>' +
-      '<div class="invoice-item-total">' + (isUltra ? item.quantity + ' × ' : '') + formatVND(lineTotal) + '</div>' +
+      '<div class="invoice-item-total">' + (isUltra ? item.quantity + ' × ' : '') + (isFree ? '<span style="color:#f97316;">Miễn phí</span>' : formatVND(lineTotal)) + '</div>' +
     '</div>';
   }).join('');
 
@@ -748,6 +754,10 @@ function openKegModalForSale(saleId, customerId, invoiceData) {
 
   kegEditSaleId = saleId;
   saleState.customerId = customerId ? Number(customerId) : null;
+  saleState.newShopEligible = false;
+  saleState.newShopDaysRemaining = 0;
+  hideNewShopBadge();
+  hidePromoPreview();
   kegSubmitting = false;
 
   // Extract values from invoice data
@@ -915,6 +925,11 @@ function openEditSale(saleId) {
       }
 
       saleState.customerId = sale.customer_id ? Number(sale.customer_id) : null;
+      saleState.newShopEligible = false;
+      saleState.newShopDaysRemaining = 0;
+      hideNewShopBadge();
+      hidePromoPreview();
+
       var saleItems = sale.items || [];
       saleState.items = saleItems.map(function(item) {
         return {
@@ -935,6 +950,7 @@ function openEditSale(saleId) {
           badge.classList.remove('hidden');
           badge.innerHTML = '<span>👤</span> ' + escHtml(customer?.name || '');
         }
+        checkNewShopPromo(saleState.customerId);
       }
 
       renderProducts();
@@ -1077,6 +1093,9 @@ function onQtyChange(productId, value) {
   }
 
   updateTotal();
+
+  // Cập nhật preview khuyến mãi quán mới
+  if (typeof updatePromoPreview === 'function') updatePromoPreview();
 }
 
 function onQtyFocus(productId) {
@@ -1160,6 +1179,12 @@ function selectCustomer(customerId, customerName) {
 
   saleState.customerId = customerId ? Number(customerId) : null;
 
+  // Reset promo state immediately (trước async API response)
+  saleState.newShopEligible = false;
+  saleState.newShopDaysRemaining = 0;
+  hideNewShopBadge();
+  hidePromoPreview();
+
   if (badge) {
     badge.classList.remove('hidden');
     badge.className = 'sale-customer-badge';
@@ -1175,12 +1200,140 @@ function selectCustomer(customerId, customerName) {
   renderProducts();
   updateTotal();
 
+  // ── Check new shop eligibility ────────────────────────────
+  if (saleState.customerId) {
+    checkNewShopPromo(saleState.customerId);
+  }
+
   // Fire onCustomerSelected hook
   if (typeof onCustomerSelected === 'function') onCustomerSelected();
 }
 
+// ── NEW SHOP PROMOTION ──────────────────────────────────────
+function checkNewShopPromo(customerId) {
+  fetch('/api/promotions/new-shop/check/' + customerId, { cache: 'no-store' })
+    .then(function(res) { return safeJson(res); })
+    .then(function(data) {
+      if (!data || !data.success) return;
+      // Guard: bỏ qua nếu customer đã đổi sang quán khác
+      if (String(saleState.customerId) !== String(customerId)) return;
+
+      var info = data.data;
+      saleState.newShopEligible = info.eligible;
+      saleState.newShopDaysRemaining = info.daysRemaining || 0;
+
+      if (info.eligible) {
+        showNewShopBadge(info.daysRemaining);
+        updatePromoPreview();
+      } else {
+        hideNewShopBadge();
+        hidePromoPreview();
+      }
+    })
+    .catch(function() {});
+}
+
+function showNewShopBadge(daysRemaining) {
+  var badge = document.getElementById('newShopBadge');
+  if (badge) {
+    badge.classList.remove('hidden');
+    badge.innerHTML = '<span style="font-size:14px;">🔥</span> Quán mới — còn <b>' + daysRemaining + '</b> ngày ưu đãi<br><span style="font-size:11px;color:#92400e;">Mua 10L vàng tặng 1L | Mua 20L đen tặng 1L</span>';
+  }
+}
+
+function hideNewShopBadge() {
+  var badge = document.getElementById('newShopBadge');
+  if (badge) {
+    badge.classList.add('hidden');
+    badge.innerHTML = '';
+  }
+  hidePromoPreview();
+}
+
+function hidePromoPreview() {
+  var el = document.getElementById('promoPreview');
+  if (el) { el.classList.add('hidden'); el.innerHTML = ''; }
+}
+
+function updatePromoPreview() {
+  if (!saleState.newShopEligible) { hidePromoPreview(); return; }
+
+  // Calculate current quantities (CHỈ tính bia bình keg, KHÔNG tính pet/box)
+  var qtyGold = 0;
+  var qtyBlack = 0;
+  for (var i = 0; i < saleState.items.length; i++) {
+    var item = saleState.items[i];
+    if (!item.qty || item.qty <= 0) continue;
+    var product = getProduct(item.productId);
+    if (!product) continue;
+    if (product.type !== 'keg') continue; // bỏ qua pet/box
+    var beerType = classifyBeerType(product.name);
+    if (beerType === 'black') qtyBlack += item.qty;
+    else qtyGold += item.qty;
+  }
+
+  if (qtyGold <= 0 && qtyBlack <= 0) { hidePromoPreview(); return; }
+
+  // Calculate free liters
+  var freeGold = Math.floor(qtyGold / 10);
+  var freeBlack = Math.floor(qtyBlack / 20);
+  var totalFree = freeGold + freeBlack;
+  if (totalFree <= 0) { hidePromoPreview(); return; }
+
+  var lines = [];
+  if (freeGold > 0) lines.push('Tặng <b>' + freeGold + 'L</b> bia vàng');
+  if (freeBlack > 0) lines.push('Tặng <b>' + freeBlack + 'L</b> bia đen');
+
+  var el = document.getElementById('promoPreview');
+  if (el) {
+    el.classList.remove('hidden');
+    el.innerHTML = '🎁 Khuyến mãi quán mới: ' + lines.join(' | ');
+  }
+}
+
+function classifyBeerType(productName) {
+  if (!productName) return 'gold';
+  var name = productName.toLowerCase();
+  var blackKeywords = ['guinness', 'kilkenny', 'murphy', 'black', 'đen', 'smithwick'];
+  for (var i = 0; i < blackKeywords.length; i++) {
+    if (name.indexOf(blackKeywords[i]) !== -1) return 'black';
+  }
+  return 'gold';
+}
+
 function onCustomerSelected() {
-  // Hook for future use (e.g. load customer-specific data)
+  // Hook for future use
+}
+
+function buildPromoDetailHtml() {
+  if (!saleState.newShopEligible) return '';
+
+  var qtyGold = 0;
+  var qtyBlack = 0;
+  for (var i = 0; i < saleState.items.length; i++) {
+    var item = saleState.items[i];
+    if (!item.qty || item.qty <= 0) continue;
+    var product = getProduct(item.productId);
+    if (!product) continue;
+    if (product.type !== 'keg') continue; // bỏ qua pet/box
+    var beerType = classifyBeerType(product.name);
+    if (beerType === 'black') qtyBlack += item.qty;
+    else qtyGold += item.qty;
+  }
+
+  var freeGold = Math.floor(qtyGold / 10);
+  var freeBlack = Math.floor(qtyBlack / 20);
+  if (freeGold <= 0 && freeBlack <= 0) return '';
+
+  var lines = [];
+  if (freeGold > 0) lines.push('<div style="color:#f97316;font-size:13px;">🎁 Bia vàng — Tặng khuyến mãi: <b>+' + freeGold + 'L</b></div>');
+  if (freeBlack > 0) lines.push('<div style="color:#f97316;font-size:13px;">🎁 Bia đen — Tặng khuyến mãi: <b>+' + freeBlack + 'L</b></div>');
+
+  return '<div style="margin:8px 0;padding:8px;background:linear-gradient(135deg,rgba(249,115,22,0.1),rgba(234,179,8,0.1));border:1px solid rgba(249,115,22,0.3);border-radius:8px;">' +
+    '<div style="font-size:11px;color:#f97316;font-weight:700;margin-bottom:4px;">🎁 KHUYẾN MÃI QUÁN MỚI</div>' +
+    lines.join('') +
+    '<div style="font-size:11px;color:#92400e;margin-top:4px;">Lít tặng KHÔNG tính vào doanh thu</div>' +
+  '</div>';
 }
 
 // ============================================================
@@ -1238,6 +1391,7 @@ function openCheckoutModal() {
   body.innerHTML =
     '<div class="pos-modal-customer">👤 ' + escHtml(customerName) + '</div>' +
     itemsHtml +
+    buildPromoDetailHtml() +
     '<div class="pos-modal-summary">' +
       '<div class="pos-modal-summary-label">Tổng cộng</div>' +
       '<div class="pos-modal-summary-value">' + formatVND(total) + '</div>' +
@@ -1300,7 +1454,14 @@ function submitSale() {
     }
     if (data.success) {
       console.log('[submitSale] success, data:', JSON.stringify(data));
-      showToast(isEditing ? 'Cập nhật thành công!' : 'Bán hàng thành công!', 'success');
+      var promoMsg = '';
+      if (data.promo && data.promo.totalFree > 0) {
+        var parts = [];
+        if (data.promo.freeGold > 0) parts.push('+' + data.promo.freeGold + 'L vàng');
+        if (data.promo.freeBlack > 0) parts.push('+' + data.promo.freeBlack + 'L đen');
+        promoMsg = ' | 🎁 Tặng ' + parts.join(' ');
+      }
+      showToast((isEditing ? 'Cập nhật thành công!' : 'Bán hàng thành công!') + promoMsg, 'success');
       var invoiceSaleId = isEditing ? editingSaleId : (data.id != null ? Number(data.id) : null);
       console.log('[submitSale] invoiceSaleId:', invoiceSaleId);
       editingSaleId = null;
@@ -1329,7 +1490,11 @@ function submitSale() {
 function resetSaleState() {
   saleState.items = [];
   saleState.customerId = null;
+  saleState.newShopEligible = false;
+  saleState.newShopDaysRemaining = 0;
   editingSaleId = null;
+  hideNewShopBadge();
+  hidePromoPreview();
   renderProducts();
   updateTotal();
 

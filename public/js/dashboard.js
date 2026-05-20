@@ -251,6 +251,33 @@ function initDashboard(data) {
   
   // Render revenue chart - daily data for last 14 days
   renderRevenueChart(data.dailyRevenue);
+
+  // Render promotion widgets
+  if (data.promoStats) {
+    const ps = data.promoStats;
+    const widgets = document.getElementById('promoWidgets');
+    const label = document.getElementById('promoSectionLabel');
+    const nearList = document.getElementById('promoNearTierList');
+    if (widgets) widgets.classList.remove('hidden');
+    if (label) label.classList.remove('hidden');
+    setText('promoNewShopCount', ps.activeNewShops || 0);
+    setText('promoFreeLitersMonth', ps.freeLitersMonth || 0);
+    setText('promoNearTierCount', ps.nearTierCount || 0);
+    setText('promoCostMonth', ps.promoCostMonth || 0);
+    if (nearList && ps.nearTierCustomers && ps.nearTierCustomers.length > 0) {
+      nearList.classList.remove('hidden');
+      nearList.innerHTML = '<div class="section-title">Khách gần đạt thưởng</div><div class="card">' +
+        ps.nearTierCustomers.slice(0, 5).map(function(c) {
+          return '<div class="dsh-sale-row">' +
+            '<div class="dsh-sale-row-left">' +
+              '<div class="dsh-customer-name">' + c.name + '</div>' +
+              '<div class="dsh-sale-date">' + c.monthlyLiters + 'L tháng này — còn ' + c.litersToNext + 'L đến ' + c.nextTier + '</div>' +
+            '</div>' +
+            '<div class="dsh-sale-money"><span class="badge badge-warning">' + c.progressPct + '%</span></div>' +
+          '</div>';
+        }).join('') + '</div>';
+    }
+  }
 }
 
 function renderRevenueChart(dailyData) {

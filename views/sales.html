@@ -289,11 +289,12 @@
                 ' autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"' +
                 ' class="sale-search-input"' +
                 ' oninput="filterCustomerOptions(this.value)" onfocus="showCustomerDropdown(true)">' +
-              '<input type="hidden" id="customerSelect" onchange="onCustomerSelected()">' +
+              '<input type="hidden" id="customerSelect">' +
               '<div id="customerDropdown" class="hidden sale-customer-dropdown"></div>' +
             '</div>' +
             '<div id="selectedCustomerBadge" class="hidden sale-customer-badge"></div>' +
-          '</div>' +
+            '<div id="newShopBadge" class="hidden" style="margin-top:6px;padding:8px 12px;background:linear-gradient(135deg,rgba(249,115,22,0.15),rgba(234,179,8,0.15));border:1px solid rgba(249,115,22,0.4);border-radius:8px;font-size:13px;font-weight:600;color:#f97316;"></div>' +
+            '</div>' +
 
           /* Product list */
           '<div class="sale-section">' +
@@ -315,6 +316,7 @@
               '<span class="sale-checkout-label">Tổng tiền</span>' +
               '<span class="sale-checkout-value" id="totalAmount">0đ</span>' +
             '</div>' +
+            '<div id="promoPreview" class="hidden" style="margin:4px 0;font-size:13px;font-weight:600;color:#f97316;"></div>' +
             '<div class="sale-checkout-actions">' +
               '<button type="button" onclick="openReplacementModal()" class="btn btn--accent-outline btn--sm">🔄 Đổi lỗi</button>' +
               '<button type="button" onclick="openCheckoutModal()" id="sellBtn" class="sale-btn-checkout" disabled>✅ BÁN HÀNG</button>' +

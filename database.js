@@ -1158,3 +1158,92 @@ module.exports = db;
 module.exports.getVietnamDateStr = getVietnamDateStr;
 module.exports.logKegTransaction = logKegTransaction;
 module.exports.toSlug = toSlug;
+
+// ========== PROMOTION SYSTEM MIGRATIONS ==========
+// Thêm fields cho khuyến mãi quán mới và thưởng doanh số tháng
+
+// Customers: first_order_date (ngày đơn đầu tiên)
+try {
+  db.exec(`ALTER TABLE customers ADD COLUMN first_order_date TEXT`);
+} catch (e) { /* already exists */ }
+
+// Customers: monthly_purchased_liters (tổng lít mua trong tháng - denormalized cho performance)
+try {
+  db.exec(`ALTER TABLE customers ADD COLUMN monthly_purchased_liters REAL DEFAULT 0`);
+} catch (e) { /* already exists */ }
+
+// Customers: reward_tier (NONE | BONUS_10L | BONUS_20L)
+try {
+  db.exec(`ALTER TABLE customers ADD COLUMN reward_tier TEXT DEFAULT 'NONE'`);
+} catch (e) { /* already exists */ }
+
+// Customers: reward_claimed (đã nhận thưởng tháng chưa)
+try {
+  db.exec(`ALTER TABLE customers ADD COLUMN reward_claimed INTEGER DEFAULT 0`);
+} catch (e) { /* already exists */ }
+
+// Customers: reward_claimed_at
+try {
+  db.exec(`ALTER TABLE customers ADD COLUMN reward_claimed_at TEXT`);
+} catch (e) { /* already exists */ }
+
+// Sales: promo_free_liters (tổng lít được tặng trong đơn này)
+try {
+  db.exec(`ALTER TABLE sales ADD COLUMN promo_free_liters REAL DEFAULT 0`);
+} catch (e) { /* already exists */ }
+
+// Sales: promo_type (NEW_SHOP | MONTHLY_BONUS | null)
+try {
+  db.exec(`ALTER TABLE sales ADD COLUMN promo_type TEXT`);
+} catch (e) { /* already exists */ }
+
+// Sales: reward_liters_used (lít thưởng tháng đã dùng trong đơn)
+try {
+  db.exec(`ALTER TABLE sales ADD COLUMN reward_liters_used REAL DEFAULT 0`);
+} catch (e) { /* already exists */ }
+
+// Reward History table - lưu lịch sử nhận thưởng tháng
+db.exec(`
+  CREATE TABLE IF NOT EXISTS reward_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER NOT NULL,
+    reward_tier TEXT NOT NULL,
+    reward_liters INTEGER NOT NULL,
+    claimed_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    note TEXT,
+    FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
+  )
+`);
+try {
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_reward_history_customer ON reward_history(customer_id)`);
+} catch (e) { /* index may exist */ }
+
+// Promotions table - quản lý khuyến mãi
+db.exec(`
+  CREATE TABLE IF NOT EXISTS promotions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    description TEXT,
+    type TEXT DEFAULT 'percentage',
+    value REAL DEFAULT 0,
+    min_order_value REAL,
+    max_discount REAL,
+    customer_tier TEXT,
+    customer_segments TEXT,
+    product_id INTEGER,
+    buy_quantity INTEGER,
+    get_quantity INTEGER,
+    active INTEGER DEFAULT 1,
+    start_date TEXT,
+    end_date TEXT,
+    priority INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT
+  )
+`);
+try {
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_promotions_active ON promotions(active)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_promotions_dates ON promotions(start_date, end_date)`);
+} catch (e) { /* indexes may exist */ }
+
+console.log('[PROMOTION] Migration completed: customers + sales promotion fields + reward_history table');
