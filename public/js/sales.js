@@ -1140,6 +1140,22 @@ function filterCustomerOptions(query) {
   renderCustomerDropdown(filtered.slice(0, 20));
 }
 
+function isNewShopCustomer(customer) {
+  if (!customer.first_order_date) return true;
+  var firstDate = new Date(customer.first_order_date);
+  var now = new Date();
+  var diffDays = Math.floor((now.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24));
+  return diffDays < 30;
+}
+
+function getNewShopDaysRemaining(customer) {
+  if (!customer.first_order_date) return 30;
+  var firstDate = new Date(customer.first_order_date);
+  var now = new Date();
+  var diffDays = Math.floor((now.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24));
+  return Math.max(0, 30 - diffDays);
+}
+
 function renderCustomerDropdown(list) {
   var dropdown = document.getElementById('customerDropdown');
   if (!dropdown) return;
@@ -1148,8 +1164,13 @@ function renderCustomerDropdown(list) {
     dropdown.innerHTML = '<div class="customer-dd-item" style="color:var(--text-muted);cursor:default;">Không tìm thấy</div>';
   } else {
     dropdown.innerHTML = list.map(function(c) {
+      var isNew = isNewShopCustomer(c);
+      var badge = isNew
+        ? '<span style="background:#ffedd5;color:#c2410c;font-size:11px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:6px;white-space:nowrap;">🔥 Quán mới - còn ' + getNewShopDaysRemaining(c) + ' ngày</span>'
+        : '';
       return '<div class="customer-dd-item" onclick="selectCustomer(\'' + c.id + '\', \'' + escAttr(c.name || '') + '\')">' +
         '<span style="font-weight:600;">' + escHtml(c.name || 'Khách') + '</span>' +
+        badge +
         '<span style="font-size:12px;color:var(--text-muted);margin-left:8px;">' + escHtml(c.phone || '') + '</span>' +
       '</div>';
     }).join('');
