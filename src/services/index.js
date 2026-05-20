@@ -758,7 +758,7 @@ class PromotionService {
       WHERE s.customer_id = ?
         AND s.type = 'sale'
         AND s.archived = 0
-        AND s.promo_type != 'MONTHLY_BONUS'
+        AND s.promo_type IS DISTINCT FROM 'MONTHLY_BONUS'
         AND si.price > 0
         AND p.type = 'keg'
         AND strftime('%Y', s.date) = ?
@@ -960,7 +960,7 @@ class PromotionService {
       FROM customers c
       LEFT JOIN sales s ON s.customer_id = c.id
         AND s.type = 'sale' AND s.archived = 0
-        AND s.promo_type != 'MONTHLY_BONUS'
+        AND s.promo_type IS DISTINCT FROM 'MONTHLY_BONUS'
         AND strftime('%Y', s.date) = ?
         AND strftime('%m', s.date) = ?
       LEFT JOIN sale_items si ON si.sale_id = s.id

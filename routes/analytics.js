@@ -16,7 +16,7 @@ router.get('/summary', (req, res) => {
       SELECT 
         COALESCE(SUM(total), 0) as revenue,
         COALESCE(SUM(profit), 0) as profit
-      FROM sales WHERE archived = 0 AND promo_type != 'MONTHLY_BONUS' AND date LIKE ?
+      FROM sales WHERE archived = 0 AND promo_type IS DISTINCT FROM 'MONTHLY_BONUS' AND date LIKE ?
     `).get(today + '%');
 
     const startOfMonth = new Date();
@@ -27,7 +27,7 @@ router.get('/summary', (req, res) => {
       SELECT 
         COALESCE(SUM(total), 0) as revenue,
         COALESCE(SUM(profit), 0) as profit 
-      FROM sales WHERE archived = 0 AND promo_type != 'MONTHLY_BONUS' AND date >= ?
+      FROM sales WHERE archived = 0 AND promo_type IS DISTINCT FROM 'MONTHLY_BONUS' AND date >= ?
     `).get(startOfMonthStr);
 
     const topProducts = db.prepare(`
@@ -35,7 +35,7 @@ router.get('/summary', (req, res) => {
       FROM sale_items si
       JOIN products p ON p.id = si.product_id
       JOIN sales s ON s.id = si.sale_id
-      WHERE s.archived = 0 AND s.promo_type != 'MONTHLY_BONUS' AND s.date >= ?
+      WHERE s.archived = 0 AND s.promo_type IS DISTINCT FROM 'MONTHLY_BONUS' AND s.date >= ?
       GROUP BY p.id
       ORDER BY qty DESC
       LIMIT 5
@@ -45,7 +45,7 @@ router.get('/summary', (req, res) => {
       SELECT c.name, SUM(s.total) as revenue
       FROM sales s
       JOIN customers c ON c.id = s.customer_id
-      WHERE s.archived = 0 AND s.promo_type != 'MONTHLY_BONUS' AND c.archived = 0
+      WHERE s.archived = 0 AND s.promo_type IS DISTINCT FROM 'MONTHLY_BONUS' AND c.archived = 0
       GROUP BY c.id
       ORDER BY revenue DESC
       LIMIT 5
@@ -57,7 +57,7 @@ router.get('/summary', (req, res) => {
         SUM(total) as revenue,
         SUM(profit) as profit
       FROM sales
-      WHERE archived = 0 AND promo_type != 'MONTHLY_BONUS' AND date >= date('now', '-6 months', 'start of month')
+      WHERE archived = 0 AND promo_type IS DISTINCT FROM 'MONTHLY_BONUS' AND date >= date('now', '-6 months', 'start of month')
       GROUP BY month
       ORDER BY month ASC
     `).all();

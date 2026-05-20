@@ -77,8 +77,8 @@ router.get('/data', (req, res) => {
       COALESCE(SUM(total), 0) as revenue,
       COALESCE(SUM(profit), 0) as profit,
       COUNT(*) as orders,
-      COALESCE((SELECT SUM(si.quantity) FROM sale_items si JOIN sales ss ON si.sale_id = ss.id WHERE ss.type = 'sale' AND ss.archived = 0 AND ss.promo_type != 'MONTHLY_BONUS' AND date(ss.date) = ?), 0) as units
-    FROM sales WHERE type = 'sale' AND archived = 0 AND promo_type != 'MONTHLY_BONUS' AND date(date) = ?
+      COALESCE((SELECT SUM(si.quantity) FROM sale_items si JOIN sales ss ON si.sale_id = ss.id WHERE ss.type = 'sale' AND ss.archived = 0 AND ss.promo_type IS DISTINCT FROM 'MONTHLY_BONUS' AND date(ss.date) = ?), 0) as units
+    FROM sales WHERE type = 'sale' AND archived = 0 AND promo_type IS DISTINCT FROM 'MONTHLY_BONUS' AND date(date) = ?
   `).get(today, today);
 
   // Get monthly stats — loại trừ MONTHLY_BONUS
@@ -86,8 +86,8 @@ router.get('/data', (req, res) => {
     SELECT
       COALESCE(SUM(total), 0) as revenue,
       COALESCE(SUM(profit), 0) as profit,
-      COALESCE((SELECT SUM(si.quantity) FROM sale_items si JOIN sales ss ON si.sale_id = ss.id WHERE ss.type = 'sale' AND ss.archived = 0 AND ss.promo_type != 'MONTHLY_BONUS' AND date(ss.date) >= ?), 0) as units
-    FROM sales WHERE type = 'sale' AND archived = 0 AND promo_type != 'MONTHLY_BONUS' AND date(date) >= ?
+      COALESCE((SELECT SUM(si.quantity) FROM sale_items si JOIN sales ss ON si.sale_id = ss.id WHERE ss.type = 'sale' AND ss.archived = 0 AND ss.promo_type IS DISTINCT FROM 'MONTHLY_BONUS' AND date(ss.date) >= ?), 0) as units
+    FROM sales WHERE type = 'sale' AND archived = 0 AND promo_type IS DISTINCT FROM 'MONTHLY_BONUS' AND date(date) >= ?
   `).get(monthStartStr, monthStartStr);
   
   // Get low stock threshold from settings (default: 10)
@@ -119,7 +119,7 @@ router.get('/data', (req, res) => {
     SELECT s.id, s.date, s.total, s.type, COALESCE(c.name, 'Khách lẻ') as customer_name
     FROM sales s
     LEFT JOIN customers c ON c.id = s.customer_id
-    WHERE s.archived = 0 AND s.promo_type != 'MONTHLY_BONUS'
+    WHERE s.archived = 0 AND s.promo_type IS DISTINCT FROM 'MONTHLY_BONUS'
     ORDER BY s.date DESC
     LIMIT 10
   `).all();
@@ -136,7 +136,7 @@ router.get('/data', (req, res) => {
       COALESCE(SUM(total), 0) as revenue,
       COALESCE(SUM(profit), 0) as profit
     FROM sales
-    WHERE type = 'sale' AND archived = 0 AND promo_type != 'MONTHLY_BONUS' AND date(date) >= ?
+    WHERE type = 'sale' AND archived = 0 AND promo_type IS DISTINCT FROM 'MONTHLY_BONUS' AND date(date) >= ?
     GROUP BY strftime('%Y-%m', date(date))
     ORDER BY month
   `).all(sixMonthsAgoStr);
@@ -162,7 +162,7 @@ router.get('/data', (req, res) => {
       COALESCE(SUM(total), 0) as revenue,
       COALESCE(SUM(profit), 0) as profit
     FROM sales
-    WHERE type = 'sale' AND archived = 0 AND promo_type != 'MONTHLY_BONUS' AND date(date) >= ?
+    WHERE type = 'sale' AND archived = 0 AND promo_type IS DISTINCT FROM 'MONTHLY_BONUS' AND date(date) >= ?
     GROUP BY date(date)
     ORDER BY day
   `).all(fourteenDaysAgoStr);
@@ -187,7 +187,7 @@ router.get('/data', (req, res) => {
     FROM sale_items si
     JOIN products p ON si.product_id = p.id
     JOIN sales s ON si.sale_id = s.id
-    WHERE s.type = 'sale' AND s.archived = 0 AND s.promo_type != 'MONTHLY_BONUS' AND date(s.date) >= ?
+    WHERE s.type = 'sale' AND s.archived = 0 AND s.promo_type IS DISTINCT FROM 'MONTHLY_BONUS' AND date(s.date) >= ?
     GROUP BY p.id
     ORDER BY total_qty DESC
     LIMIT 5
@@ -199,7 +199,7 @@ router.get('/data', (req, res) => {
     FROM sales s
     JOIN customers c ON s.customer_id = c.id
     JOIN sale_items si ON si.sale_id = s.id
-    WHERE s.type = 'sale' AND s.archived = 0 AND s.promo_type != 'MONTHLY_BONUS' AND date(s.date) >= ?
+    WHERE s.type = 'sale' AND s.archived = 0 AND s.promo_type IS DISTINCT FROM 'MONTHLY_BONUS' AND date(s.date) >= ?
     GROUP BY c.id
     ORDER BY total DESC
     LIMIT 5
