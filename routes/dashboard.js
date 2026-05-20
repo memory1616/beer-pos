@@ -315,11 +315,11 @@ router.get('/data', (req, res) => {
     },
     promoStats: (function() {
       try {
-        // Count active new shops (within 30 days of first order)
+        // Count active new shops (created within 30 days)
         const activeNewShops = db.prepare(`
           SELECT COUNT(*) as cnt FROM customers
-          WHERE first_order_date IS NOT NULL
-            AND date(first_order_date) >= date('now', '-30 days')
+          WHERE archived = 0
+            AND created_at >= datetime('now', '-30 days')
         `).get();
         const newShops = activeNewShops ? activeNewShops.cnt : 0;
 

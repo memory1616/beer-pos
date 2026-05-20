@@ -679,23 +679,21 @@ class PromotionService {
   // ── 1. KHUYẾN MÃI QUÁN MỚI ──────────────────────────────
 
   /**
-   * Kiểm tra khách hàng có phải "quán mới" (trong 30 ngày đầu)
+   * Kiểm tra khách hàng có phải "quán mới" (tạo trong 30 ngày đầu)
    */
   isNewShopEligible(customerId) {
     const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(customerId);
     if (!customer) return { eligible: false, reason: 'Không tìm thấy khách hàng' };
 
-    // Nếu chưa có first_order_date → lần đầu mua → quán mới
-    if (!customer.first_order_date) return { eligible: true, daysRemaining: 30, reason: 'Đơn đầu tiên' };
-
-    const firstDate = new Date(customer.first_order_date);
+    // Kiểm tra created_at thay vì first_order_date
+    const createdDate = new Date(customer.created_at);
     const now = new Date();
-    const diffTime = now.getTime() - firstDate.getTime();
+    const diffTime = now.getTime() - createdDate.getTime();
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
     const daysRemaining = this.NEW_SHOP_DAYS - diffDays;
 
     if (daysRemaining > 0) {
-      return { eligible: true, daysRemaining, firstOrderDate: customer.first_order_date };
+      return { eligible: true, daysRemaining, firstOrderDate: customer.created_at };
     }
     return { eligible: false, daysRemaining: 0, reason: 'Đã hết hạn ưu đãi quán mới' };
   }
@@ -918,19 +916,16 @@ class PromotionService {
   // ── 4. STATS PROMOTION ──────────────────────────────────
 
   /**
-   * Lấy số quán mới đang trong 30 ngày ưu đãi
+   * Lấy số quán mới đang trong 30 ngày ưu đãi (dựa trên created_at)
    */
   getActiveNewShopCount() {
-    const now = new Date();
-    const cutoff = new Date(now.getTime() - this.NEW_SHOP_DAYS * 24 * 60 * 60 * 1000);
-    const cutoffStr = cutoff.toISOString().split('T')[0];
+    const cutoffStr = new Date(Date.now() - this.NEW_SHOP_DAYS * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
     const result = db.prepare(`
       SELECT COUNT(*) as count
       FROM customers
       WHERE archived = 0
-        AND first_order_date IS NOT NULL
-        AND first_order_date >= ?
+        AND created_at >= ?
     `).get(cutoffStr);
     return result ? result.count : 0;
   }
