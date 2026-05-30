@@ -341,7 +341,7 @@
   <div id="app"></div>
 
   <!-- Floating Add Button — .fab class from unified.css, consistent with stock page -->
-  <button onclick="showModal('addModal')" class="fab">+</button>
+  <button onclick="openAddCustomerModal()" class="fab">+</button>
 
   <!-- Add Modal: Binance Finance Style -->
   <div id="addModal" class="modal-overlay-v2 hidden" role="dialog" aria-modal="true" aria-labelledby="addModalTitle">
@@ -407,6 +407,14 @@
               </div>
             </div>
           </div>
+        </div>
+
+        <!-- ===== SECTION 2b: Sales ===== -->
+        <div class="add-section">
+          <div class="add-section-title">Người phụ trách (Sales)</div>
+          <select id="addSalesId" class="add-input" style="width:100%;">
+            <option value="">-- Không gán sales --</option>
+          </select>
         </div>
 
         <!-- ===== SECTION 3: Giá riêng (collapsible) ===== -->

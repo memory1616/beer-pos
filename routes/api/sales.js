@@ -384,6 +384,20 @@ router.post('/', (req, res) => {
 
     console.log('[SALE CREATED]', { saleId, itemsInserted: saleItems.length, total, profit, debt: !!debtResult, promo: promoInfo });
 
+    // ========== TỰ ĐỘNG GẮN THƯỞNG VÀO ĐƠN HÀNG ĐẦU TIÊN TRONG THÁNG ==========
+    // Nếu khách đủ điều kiện thưởng tháng trước, gắn thưởng vào đơn hàng này
+    let autoRewardResult = null;
+    if (customerId) {
+      const rewardInfo = PromotionService.getRewardForPrevMonth(customerId);
+      if (rewardInfo && rewardInfo.eligible && rewardInfo.rewardLiters > 0) {
+        // Gắn thưởng vào đơn hàng hiện tại
+        autoRewardResult = PromotionService.attachRewardToSale(customerId, saleId, rewardInfo.rewardLiters, rewardInfo.tier);
+        if (autoRewardResult && autoRewardResult.success) {
+          console.log('[AUTO REWARD] Đã gắn thưởng vào đơn', customerId, ':', autoRewardResult.rewardLiters, 'L');
+        }
+      }
+    }
+
     const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId);
     socketServer.emitOrderCreated(sale);
     res.json({
@@ -393,7 +407,8 @@ router.post('/', (req, res) => {
       profit,
       debtCreated: debtResult?.success,
       newDebt: debtResult?.newDebt,
-      promo: promoInfo
+      promo: promoInfo,
+      autoReward: autoRewardResult
     });
   } catch (err) {
     console.error('[SALE ERROR]', err);
@@ -1157,6 +1172,49 @@ router.put('/:id', (req, res) => {
 
       db.prepare('INSERT INTO sale_items (sale_id, product_id, product_slug, quantity, price, cost_price, profit, price_at_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
         .run(saleId, product.id, product.slug, item.quantity, price, costPrice, itemProfit, price);
+    }
+
+    // ── XỬ LÝ KHUYẾN MÃI QUÁN MỚI (nếu có) ─────────────────
+    // Khi sửa đơn có promo_type = 'NEW_SHOP', tính lại và thêm sản phẩm tặng
+    let promoInfo = null;
+    if (currentSale.promo_type === 'NEW_SHOP' && customerId) {
+      // Đếm số lít mua trong đơn mới (chỉ tính bia, không tính sản phẩm khác)
+      let qtyGold = 0;
+      let qtyBlack = 0;
+      for (const item of items) {
+        const product = resolveProduct(item.productId || item.productSlug);
+        if (!product || product.type !== 'keg') continue;
+        const beerType = PromotionService.classifyBeer(product.name);
+        if (beerType === 'black') qtyBlack += item.quantity;
+        else qtyGold += item.quantity;
+      }
+
+      // Tính số lít được tặng
+      const settings = PromotionService.getSystemPromotionSettings();
+      const freeGold = Math.floor(qtyGold / settings.newShopGoldBuy) * settings.newShopGoldFree;
+      const freeBlack = Math.floor(qtyBlack / settings.newShopBlackBuy) * settings.newShopBlackFree;
+
+      if (freeGold > 0) {
+        const goldProduct = db.prepare(`SELECT id, name, slug FROM products WHERE archived = 0 AND type = 'keg' AND name NOT LIKE '%Đen%' AND name NOT LIKE '%Den%' AND name NOT LIKE '%den%' ORDER BY id ASC LIMIT 1`).get();
+        if (goldProduct) {
+          db.prepare('INSERT INTO sale_items (sale_id, product_id, product_slug, quantity, price, cost_price, profit, price_at_time) VALUES (?, ?, ?, ?, 0, 0, 0, 0)')
+            .run(saleId, goldProduct.id, goldProduct.slug || '', freeGold);
+          db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(freeGold, goldProduct.id);
+          console.log('[SALE UPDATE] Added promo gold:', freeGold, 'L');
+        }
+      }
+
+      if (freeBlack > 0) {
+        const blackProduct = db.prepare(`SELECT id, name, slug FROM products WHERE archived = 0 AND type = 'keg' AND (name LIKE '%Đen%' OR name LIKE '%Den%' OR name LIKE '%den%') ORDER BY id ASC LIMIT 1`).get();
+        if (blackProduct) {
+          db.prepare('INSERT INTO sale_items (sale_id, product_id, product_slug, quantity, price, cost_price, profit, price_at_time) VALUES (?, ?, ?, ?, 0, 0, 0, 0)')
+            .run(saleId, blackProduct.id, blackProduct.slug || '', freeBlack);
+          db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(freeBlack, blackProduct.id);
+          console.log('[SALE UPDATE] Added promo black:', freeBlack, 'L');
+        }
+      }
+
+      promoInfo = { freeGold, freeBlack, totalFree: freeGold + freeBlack, promoType: 'NEW_SHOP' };
     }
 
     // Cập nhật hóa đơn

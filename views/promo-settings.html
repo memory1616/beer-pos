@@ -218,7 +218,7 @@
     (async () => {
       await loadVersion();
       document.getElementById('app').innerHTML =
-        getHeader('Cài đặt KM', '&#127873;') +
+        getHeader('Cài đặt khuyến mãi', '&#127873;') +
         getContent(PROMO_SETTINGS_HTML) +
         getBottomNav('/dashboard');
       await initPage();
@@ -232,19 +232,19 @@
 
       // Info Banner
       '<div class="info-banner">',
-        '<p><strong>Chi ap dung cho don hang moi.</strong> Thay doi cai dat KHONG lam sai du lieu cu, KHONG reset lich su, KHONG tinh lai don cu.</p>',
+        '<p><strong>Chỉ áp dụng cho đơn hàng mới.</strong> Thay đổi cài đặt KHÔNG làm sai dữ liệu cũ, KHÔNG reset lịch sử, KHÔNG tính lại đơn cũ.</p>',
       '</div>',
 
-      // SECTION 1: KHUYEN MAI QUAN MOI
+      // SECTION 1: KHUYẾN MÃI QUÁN MỚI
       '<div class="promo-section">',
-        '<div class="promo-section-title">&#128293; Khuyen mai quan moi</div>',
-        '<div class="promo-section-desc">Ap dung cho quan moi trong N ngay dau tien</div>',
+        '<div class="promo-section-title">&#128293; Khuyến mãi quán mới</div>',
+        '<div class="promo-section-desc">Áp dụng cho quán mới trong N ngày đầu tiên</div>',
 
         // Toggle
         '<div class="promo-toggle-row">',
           '<div>',
-            '<div class="promo-toggle-label">Bat khuyen mai quan moi</div>',
-            '<div class="promo-toggle-desc">Tang bia khi mua du so luong</div>',
+            '<div class="promo-toggle-label">Bật khuyến mãi quán mới</div>',
+            '<div class="promo-toggle-desc">Tặng bia khi mua đủ số lượng</div>',
           '</div>',
           '<label class="toggle-switch">',
             '<input type="checkbox" id="toggleNewShop" checked onchange="onSettingsChanged()">',
@@ -253,17 +253,17 @@
         '</div>',
 
         '<div id="newShopFields">',
-          // So ngay ap dung
+          // Số ngày áp dụng
           '<div class="promo-input-row">',
-            '<div class="promo-input-label">So ngay ap dung</div>',
+            '<div class="promo-input-label">Số ngày áp dụng</div>',
             '<div class="promo-input-wrap">',
               '<input type="number" id="newShopDays" class="promo-input" value="30" min="1" max="365" oninput="onSettingsChanged()">',
-              '<span class="promo-input-suffix">ngay</span>',
+              '<span class="promo-input-suffix">ngày</span>',
             '</div>',
           '</div>',
 
           '<div class="promo-divider"></div>',
-          '<div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:10px;">Bia vang</div>',
+          '<div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:10px;">Bia vàng</div>',
 
           // Bia vang: Mua
           '<div class="promo-input-row">',
@@ -275,7 +275,7 @@
           '</div>',
           // Bia vang: Tang
           '<div class="promo-input-row">',
-            '<div class="promo-input-label">Tang</div>',
+            '<div class="promo-input-label">Tặng</div>',
             '<div class="promo-input-wrap">',
               '<input type="number" id="goldFree" class="promo-input" value="1" min="1" max="50" oninput="onSettingsChanged()">',
               '<span class="promo-input-suffix">L</span>',
@@ -283,7 +283,7 @@
           '</div>',
 
           '<div class="promo-divider"></div>',
-          '<div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:10px;">Bia den</div>',
+          '<div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:10px;">Bia đen</div>',
 
           // Bia den: Mua
           '<div class="promo-input-row">',
@@ -295,7 +295,7 @@
           '</div>',
           // Bia den: Tang
           '<div class="promo-input-row">',
-            '<div class="promo-input-label">Tang</div>',
+            '<div class="promo-input-label">Tặng</div>',
             '<div class="promo-input-wrap">',
               '<input type="number" id="blackFree" class="promo-input" value="1" min="1" max="50" oninput="onSettingsChanged()">',
               '<span class="promo-input-suffix">L</span>',
@@ -304,20 +304,20 @@
         '</div>',
 
         '<div class="warning-note">',
-          'Bia tang: <strong>tru kho that</strong>, KHONG cong doanh thu, KHONG cong cong no, KHONG cong san luong xet thuong.',
+          'Bia tặng: <strong>trừ kho thật</strong>, KHÔNG cộng doanh thu, KHÔNG cộng công nợ, KHÔNG cộng sản lượng xét thưởng.',
         '</div>',
       '</div>',
 
-      // SECTION 2: THUONG DOANH SO THANG
+      // SECTION 2: THƯỞNG DOANH SỐ THÁNG
       '<div class="promo-section">',
-        '<div class="promo-section-title">&#127942; Thuong doanh so thang</div>',
-        '<div class="promo-section-desc">Khach dat san luong se duoc thuong bia. <strong style="color:var(--warning);">Chi nhan muc cao nhat.</strong></div>',
+        '<div class="promo-section-title">&#127942; Thưởng doanh số tháng</div>',
+        '<div class="promo-section-desc">Khách đạt sản lượng sẽ được thưởng bia. <strong style="color:var(--warning);">Chỉ nhận mức cao nhất.</strong></div>',
 
         // Toggle
         '<div class="promo-toggle-row">',
           '<div>',
-            '<div class="promo-toggle-label">Bat thuong doanh so thang</div>',
-            '<div class="promo-toggle-desc">Tang bia khi dat moc san luong</div>',
+            '<div class="promo-toggle-label">Bật thưởng doanh số tháng</div>',
+            '<div class="promo-toggle-desc">Tặng bia khi đạt mốc sản lượng</div>',
           '</div>',
           '<label class="toggle-switch">',
             '<input type="checkbox" id="toggleReward" checked onchange="onSettingsChanged()">',
@@ -327,25 +327,25 @@
 
         '<div id="rewardFields">',
           '<div class="info-banner purple">',
-            '<p><strong style="color:#a855f7;">Quy tac nhan thuong:</strong> Khach dat moc cao nhat, chi nhan muc cao nhat. Vi du: da nhan 10L, dat 500L, chi nhan them 10L (khong cong don).</p>',
+            '<p><strong style="color:#a855f7;">Quy tắc nhận thưởng:</strong> Khách đạt mốc nào nhận mốc đó. Đơn hàng đầu tiên trong tháng (tháng trả thưởng) sẽ tự động trả thưởng nếu đủ điều kiện.</p>',
           '</div>',
 
           '<div id="tierList"></div>',
 
           '<button onclick="addRewardTier()" class="btn btn-secondary w-full mt-3" style="height:40px;border:1px dashed var(--border);background:transparent;color:var(--text-secondary);">',
-            '+ Them moc thuong',
+            '+ Thêm mốc thưởng',
           '</button>',
         '</div>',
       '</div>',
 
       // Save Button
-      '<button id="saveBtn" onclick="saveSettings()" class="promo-save-btn" disabled>&#128104;&#8205;&#127858; Luu cai dat</button>',
+      '<button id="saveBtn" onclick="saveSettings()" class="promo-save-btn" disabled>&#128104;&#8205;&#127858; Lưu cài đặt</button>',
       '<div id="saveStatus" class="text-center text-sm mt-3 hidden"></div>',
 
       // Loading
       '<div id="promoLoading" class="text-center py-8">',
         '<div class="spinner mx-auto"></div>',
-        '<div class="text-muted mt-2">Dang tai...</div>',
+        '<div class="text-muted mt-2">Đang tải...</div>',
       '</div>',
 
       '</div>'
@@ -451,7 +451,7 @@
       if (!container) return;
 
       if (tierList.length === 0) {
-        container.innerHTML = '<div class="text-center text-sm text-muted py-4">Chua co moc thuong nao</div>';
+        container.innerHTML = '<div class="text-center text-sm text-muted py-4">Chưa có mốc thưởng nào</div>';
         return;
       }
 
@@ -463,22 +463,22 @@
           '<div class="tier-row" data-index="' + i + '">' +
             '<div>' +
               '<div class="tier-row-title">' +
-                'Moc ' + (i + 1) +
+                'Mốc ' + (i + 1) +
                 ' <span class="tier-badge ' + badgeClass + '">' + tier.reward + 'L</span>' +
               '</div>' +
-              '<div class="tier-row-desc">Dat ' + tier.threshold + 'L &#8594; Thuong ' + tier.reward + 'L</div>' +
+              '<div class="tier-row-desc">Đạt ' + tier.threshold + 'L → Thưởng ' + tier.reward + 'L</div>' +
             '</div>' +
             '<div class="tier-row-inputs">' +
               '<div class="promo-input-wrap" style="gap:4px;">' +
-                '<span style="font-size:11px;color:var(--text-muted);">&#8805;</span>' +
+                '<span style="font-size:11px;color:var(--text-muted);">≥</span>' +
                 '<input type="number" class="promo-input" value="' + tier.threshold + '" min="1" max="9999" ' +
                   'onchange="updateTier(' + i + ', \'threshold\', this.value)" style="width:60px;">' +
-                '<span style="font-size:11px;color:var(--text-muted);">L &#8594;</span>' +
+                '<span style="font-size:11px;color:var(--text-muted);">L →</span>' +
                 '<input type="number" class="promo-input" value="' + tier.reward + '" min="1" max="100" ' +
                   'onchange="updateTier(' + i + ', \'reward\', this.value)" style="width:50px;">' +
                 '<span style="font-size:11px;color:var(--text-muted);">L</span>' +
               '</div>' +
-              '<button onclick="removeTier(' + i + ')" style="width:32px;height:32px;padding:0;font-size:16px;color:var(--danger);border:none;background:rgba(239,68,68,0.1);border-radius:8px;cursor:pointer;">&#215;</button>' +
+              '<button onclick="removeTier(' + i + ')" style="width:32px;height:32px;padding:0;font-size:16px;color:var(--danger);border:none;background:rgba(239,68,68,0.1);border-radius:8px;cursor:pointer;">×</button>' +
             '</div>' +
           '</div>';
       }
@@ -508,7 +508,7 @@
 
     function removeTier(index) {
       if (tierList.length <= 1) {
-        if (typeof showToast === 'function') showToast('Phai co it nhat 1 moc thuong', 'error');
+        if (typeof showToast === 'function') showToast('Phải có ít nhất 1 mốc thưởng', 'error');
         return;
       }
       tierList.splice(index, 1);
@@ -531,7 +531,7 @@
       if (!btn || !statusEl) return;
 
       btn.disabled = true;
-      btn.innerHTML = '&#23F3; Dang luu...';
+      btn.innerHTML = '⏳ Đang lưu...';
       statusEl.classList.add('hidden');
 
       try {
@@ -556,14 +556,14 @@
         if (data.success) {
           currentSettings = data.data;
           hasChanges = false;
-          btn.innerHTML = '&#10004; Da luu!';
+          btn.innerHTML = '✓ Đã lưu!';
           btn.style.background = 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)';
           statusEl.classList.remove('hidden');
           statusEl.style.color = 'var(--success)';
-          statusEl.textContent = 'Cai dat da duoc luu thanh cong!';
+          statusEl.textContent = 'Cài đặt đã được lưu thành công!';
 
           setTimeout(function() {
-            btn.innerHTML = decodePromoHtml('&#128104;&#8205;&#127858; Luu cai dat');
+            btn.innerHTML = decodePromoHtml('&#128104;&#8205;&#127858; Lưu cài đặt');
             btn.style.background = '';
             btn.disabled = false;
             statusEl.classList.add('hidden');
@@ -573,16 +573,16 @@
             window.promoSocket.emit('request:refetch', { entities: ['promotion_settings', 'promotion'] });
           }
         } else {
-          throw new Error(data.error || 'Loi khong xac dinh');
+          throw new Error(data.error || 'Lỗi không xác định');
         }
       } catch (e) {
         console.error('saveSettings error:', e);
-        btn.innerHTML = decodePromoHtml('&#128104;&#8205;&#127858; Luu cai dat');
+        btn.innerHTML = decodePromoHtml('&#128104;&#8205;&#127858; Lưu cài đặt');
         btn.disabled = false;
         statusEl.classList.remove('hidden');
         statusEl.style.color = 'var(--danger)';
-        statusEl.textContent = 'Loi: ' + (e.message || 'Khong the luu');
-        if (typeof showToast === 'function') showToast('Loi: ' + (e.message || 'Khong the luu'), 'error');
+        statusEl.textContent = 'Lỗi: ' + (e.message || 'Không thể lưu');
+        if (typeof showToast === 'function') showToast('Lỗi: ' + (e.message || 'Không thể lưu'), 'error');
       }
     }
 

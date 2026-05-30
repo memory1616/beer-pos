@@ -53,7 +53,10 @@ router.get('/data', (req, res) => {
         SUM(s.total) as monthly_revenue
       FROM sales s
       JOIN sale_items si ON si.sale_id = s.id
-      WHERE s.type = 'sale' AND s.archived = 0 AND strftime('%Y', s.date) = ? AND strftime('%m', s.date) = ?
+      JOIN products p ON p.id = si.product_id
+      WHERE s.type = 'sale' AND s.archived = 0
+        AND strftime('%Y', s.date) = ? AND strftime('%m', s.date) = ?
+        AND si.price > 0 AND p.type = 'keg'
       GROUP BY customer_id
     ) cm ON cm.customer_id = c.id
     LEFT JOIN (

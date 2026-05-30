@@ -110,7 +110,7 @@ function deleteSaleRestoringInventory(saleId) {
       if (sale.customer_id && sale.promo_type === 'MONTHLY_BONUS') {
         db.prepare("UPDATE customers SET reward_claimed = 0, reward_claimed_at = NULL WHERE id = ?").run(sale.customer_id);
         // Xóa reward_history liên quan
-        db.prepare('DELETE FROM reward_history WHERE customer_id = ? AND claimed_at >= date("now", "-1 day")').run(sale.customer_id);
+        db.prepare('DELETE FROM reward_history WHERE customer_id = ? AND claimed_at >= date(\'now\', \'-1 day\')').run(sale.customer_id);
         console.log('[ORDER DELETE tx] ✅ Reverted reward_claimed for customer', sale.customer_id);
       }
 

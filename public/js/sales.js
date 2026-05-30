@@ -77,7 +77,8 @@ let saleState = {
   items: [],  // [{productId, qty, price}]
   newShopEligible: false,
   newShopDaysRemaining: 0,
-  promotionEnabled: true
+  promotionEnabled: true,
+  promoSettings: null  // Cài đặt khuyến mãi từ server
 };
 
 let _productById = new Map();
@@ -170,6 +171,9 @@ function initSalesPage(data) {
   });
   priceMap = data.priceMap || {};
 
+  // Load promotion settings từ server
+  loadPromoSettings();
+
   // Close dropdown when clicking outside the customer search area
   document.addEventListener('click', function(e) {
     var search = document.getElementById('customerSearch');
@@ -216,6 +220,23 @@ async function reloadSaleProducts() {
   } catch (err) {
     console.error('[reloadSaleProducts] Error:', err);
   }
+}
+
+// Load promotion settings từ server
+async function loadPromoSettings() {
+  try {
+    const res = await fetch('/api/promotions/settings');
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.success) {
+      saleState.promoSettings = data.data;
+      console.log('[loadPromoSettings] Loaded:', saleState.promoSettings);
+      return data.data;
+    }
+  } catch (err) {
+    console.error('[loadPromoSettings] Error:', err);
+  }
+  return null;
 }
 
 let saleHistoryPage = 1;
@@ -1326,9 +1347,15 @@ function updatePromoPreview() {
 
   if (qtyGold <= 0 && qtyBlack <= 0) { hidePromoPreview(); return; }
 
+  // Lấy settings từ server, fallback về mặc định 10/20
+  var goldBuy = saleState.promoSettings?.newShopGoldBuy || 10;
+  var goldFree = saleState.promoSettings?.newShopGoldFree || 1;
+  var blackBuy = saleState.promoSettings?.newShopBlackBuy || 20;
+  var blackFree = saleState.promoSettings?.newShopBlackFree || 1;
+
   // Calculate free liters
-  var freeGold = Math.floor(qtyGold / 10);
-  var freeBlack = Math.floor(qtyBlack / 20);
+  var freeGold = Math.floor(qtyGold / goldBuy) * goldFree;
+  var freeBlack = Math.floor(qtyBlack / blackBuy) * blackFree;
   var totalFree = freeGold + freeBlack;
   if (totalFree <= 0) { hidePromoPreview(); return; }
 
@@ -1373,8 +1400,17 @@ function buildPromoDetailHtml() {
     else qtyGold += item.qty;
   }
 
-  var freeGold = Math.floor(qtyGold / 10);
-  var freeBlack = Math.floor(qtyBlack / 20);
+  var freeGold = 0;
+  var freeBlack = 0;
+
+  // Lấy settings từ server, fallback về mặc định 10/20
+  var goldBuy = saleState.promoSettings?.newShopGoldBuy || 10;
+  var goldFree = saleState.promoSettings?.newShopGoldFree || 1;
+  var blackBuy = saleState.promoSettings?.newShopBlackBuy || 20;
+  var blackFree = saleState.promoSettings?.newShopBlackFree || 1;
+
+  freeGold = Math.floor(qtyGold / goldBuy) * goldFree;
+  freeBlack = Math.floor(qtyBlack / blackBuy) * blackFree;
   if (freeGold <= 0 && freeBlack <= 0) return '';
 
   var lines = [];

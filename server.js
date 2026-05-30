@@ -76,16 +76,7 @@ function getAppMode(req) {
 }
 
 // Rate limiting — skip /api/discover (LAN scan pings) and /api/auth/me (login check)
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  message: { error: 'Quá nhiều yêu cầu, vui lòng thử lại sau' },
-  standardHeaders: true,
-  legacyHeaders: false,
-  skip: (req) => req.path === '/api/discover' || req.path === '/api/auth/me',
-  validate: { xForwardedForHeader: false },
-});
-app.use('/api', limiter);
+// DISABLED FOR DEBUG: app.use('/api', limiter);
 
 // Lenient rate limit for auth/login endpoints — separate from general /api limit
 const authLimiter = rateLimit({
@@ -469,6 +460,7 @@ app.use('/api/batch', require('./routes/api/batch'));
 app.use('/api/debts', require('./routes/api/debts'));
 app.use('/api/promotions', require('./routes/api/promotions'));
 app.use('/api/segments', require('./routes/api/segments'));
+app.use('/api/sales-staff', require('./routes/api/sales-staff'));
 
 // ==================== AUTH ====================
 app.use('/auth', require('./routes/login'));
@@ -496,6 +488,11 @@ app.get('/report', (req, res) => {
 // Serve walkin-kegs HTML
 app.get('/walkin-kegs', (req, res) => {
   res.sendFile(path.join(__dirname, 'views', 'walkin-kegs.html'));
+});
+
+// Serve sales-staff HTML
+app.get('/sales-staff', (req, res) => {
+  res.sendFile(path.join(__dirname, 'views', 'sales-staff.html'));
 });
 
 // Report data API — must be BEFORE app.use('/report') to take priority
