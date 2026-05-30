@@ -561,11 +561,13 @@ router.get('/:id/stats', (req, res) => {
     WHERE customer_id = ? AND type = 'sale' AND archived = 0 AND strftime('%Y', date) = ? AND strftime('%m', date) = ?
   `).get(customerId, currentYear.toString(), currentMonth.toString().padStart(2, '0')).revenue;
   
-  // Số bình tháng này (chỉ tính type='sale')
+  // Số bình tháng này (chỉ tính type='sale' và price > 0 để loại sản phẩm thưởng)
   const monthlyKegs = db.prepare(`
     SELECT COALESCE(SUM(si.quantity), 0) as kegs FROM sales s
     JOIN sale_items si ON si.sale_id = s.id
-    WHERE s.customer_id = ? AND s.type = 'sale' AND s.archived = 0 AND strftime('%Y', s.date) = ? AND strftime('%m', s.date) = ?
+    WHERE s.customer_id = ? AND s.type = 'sale' AND s.archived = 0 
+      AND strftime('%Y', s.date) = ? AND strftime('%m', s.date) = ?
+      AND si.price > 0
   `).get(customerId, currentYear.toString(), currentMonth.toString().padStart(2, '0')).kegs;
   
   // Lần giao gần nhất
