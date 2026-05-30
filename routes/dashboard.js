@@ -71,23 +71,23 @@ router.get('/data', (req, res) => {
   const monthStartStr = getVietnamMonthStart();
   const fourteenDaysAgoStr = getVietnamDaysAgo(13); // 13 days ago = last 14 days
 
-  // Get today's stats — loại trừ MONTHLY_BONUS (thưởng tháng không tính doanh thu)
+  // Get today's stats — loại trừ MONTHLY_BONUS + returned + timezone +7h
   const todayStats = db.prepare(`
     SELECT
       COALESCE(SUM(total), 0) as revenue,
       COALESCE(SUM(profit), 0) as profit,
       COUNT(*) as orders,
-      COALESCE((SELECT SUM(si.quantity) FROM sale_items si JOIN sales ss ON si.sale_id = ss.id WHERE ss.type = 'sale' AND ss.archived = 0 AND ss.promo_type IS DISTINCT FROM 'MONTHLY_BONUS' AND date(ss.date) = ?), 0) as units
-    FROM sales WHERE type = 'sale' AND archived = 0 AND promo_type IS DISTINCT FROM 'MONTHLY_BONUS' AND date(date) = ?
+      COALESCE((SELECT SUM(si.quantity) FROM sale_items si JOIN sales ss ON si.sale_id = ss.id WHERE ss.type = 'sale' AND ss.archived = 0 AND (ss.status IS NULL OR ss.status != 'returned') AND ss.promo_type IS DISTINCT FROM 'MONTHLY_BONUS' AND date(datetime(ss.date, '+7 hours')) = ?), 0) as units
+    FROM sales WHERE type = 'sale' AND archived = 0 AND (status IS NULL OR status != 'returned') AND promo_type IS DISTINCT FROM 'MONTHLY_BONUS' AND date(datetime(date, '+7 hours')) = ?
   `).get(today, today);
 
-  // Get monthly stats — loại trừ MONTHLY_BONUS
+  // Get monthly stats — loại trừ MONTHLY_BONUS + returned + timezone +7h
   const monthStats = db.prepare(`
     SELECT
       COALESCE(SUM(total), 0) as revenue,
       COALESCE(SUM(profit), 0) as profit,
-      COALESCE((SELECT SUM(si.quantity) FROM sale_items si JOIN sales ss ON si.sale_id = ss.id WHERE ss.type = 'sale' AND ss.archived = 0 AND ss.promo_type IS DISTINCT FROM 'MONTHLY_BONUS' AND date(ss.date) >= ?), 0) as units
-    FROM sales WHERE type = 'sale' AND archived = 0 AND promo_type IS DISTINCT FROM 'MONTHLY_BONUS' AND date(date) >= ?
+      COALESCE((SELECT SUM(si.quantity) FROM sale_items si JOIN sales ss ON si.sale_id = ss.id WHERE ss.type = 'sale' AND ss.archived = 0 AND (ss.status IS NULL OR ss.status != 'returned') AND ss.promo_type IS DISTINCT FROM 'MONTHLY_BONUS' AND date(datetime(ss.date, '+7 hours')) >= ?), 0) as units
+    FROM sales WHERE type = 'sale' AND archived = 0 AND (status IS NULL OR status != 'returned') AND promo_type IS DISTINCT FROM 'MONTHLY_BONUS' AND date(datetime(date, '+7 hours')) >= ?
   `).get(monthStartStr, monthStartStr);
   
   // Get low stock threshold from settings (default: 10)
@@ -114,12 +114,12 @@ router.get('/data', (req, res) => {
     total: inventoryRaw.total + emptyCollected + customerHolding
   };
   
-  // Get recent sales (loại trừ MONTHLY_BONUS — thưởng tháng không hiện trong danh sách bán gần đây)
+  // Get recent sales (loại trừ MONTHLY_BONUS + returned — thưởng tháng không hiện trong danh sách bán gần đây)
   const recentSales = db.prepare(`
     SELECT s.id, s.date, s.total, s.type, COALESCE(c.name, 'Khách lẻ') as customer_name
     FROM sales s
     LEFT JOIN customers c ON c.id = s.customer_id
-    WHERE s.archived = 0 AND s.promo_type IS DISTINCT FROM 'MONTHLY_BONUS'
+    WHERE s.archived = 0 AND s.promo_type IS DISTINCT FROM 'MONTHLY_BONUS' AND (s.status IS NULL OR s.status != 'returned')
     ORDER BY s.date DESC
     LIMIT 10
   `).all();
@@ -132,21 +132,21 @@ router.get('/data', (req, res) => {
 
   const monthlyRevenue = db.prepare(`
     SELECT
-      strftime('%Y-%m', date(date)) as month,
+      strftime('%Y-%m', date(datetime(date, '+7 hours'))) as month,
       COALESCE(SUM(total), 0) as revenue,
       COALESCE(SUM(profit), 0) as profit
     FROM sales
-    WHERE type = 'sale' AND archived = 0 AND promo_type IS DISTINCT FROM 'MONTHLY_BONUS' AND date(date) >= ?
-    GROUP BY strftime('%Y-%m', date(date))
+    WHERE type = 'sale' AND archived = 0 AND (status IS NULL OR status != 'returned') AND promo_type IS DISTINCT FROM 'MONTHLY_BONUS' AND date(datetime(date, '+7 hours')) >= ?
+    GROUP BY strftime('%Y-%m', date(datetime(date, '+7 hours')))
     ORDER BY month
   `).all(sixMonthsAgoStr);
 
   // Get monthly expenses for the same period
   const monthlyExpenses = db.prepare(`
-    SELECT strftime('%Y-%m', date(date)) as month, COALESCE(SUM(amount), 0) as total
+    SELECT strftime('%Y-%m', date(datetime(date, '+7 hours'))) as month, COALESCE(SUM(amount), 0) as total
     FROM expenses
-    WHERE date(date) >= ?
-    GROUP BY strftime('%Y-%m', date(date))
+    WHERE date(datetime(date, '+7 hours')) >= ?
+    GROUP BY strftime('%Y-%m', date(datetime(date, '+7 hours')))
     ORDER BY month
   `).all(sixMonthsAgoStr);
 
@@ -155,24 +155,24 @@ router.get('/data', (req, res) => {
   monthlyExpenses.forEach(e => { monthExpenseMap[e.month] = e.total; });
   monthlyRevenue.forEach(d => { d.expenses = monthExpenseMap[d.month] || 0; });
   
-  // Get daily revenue for chart (last 14 days) — loại trừ MONTHLY_BONUS để revenue chính xác
+  // Get daily revenue for chart (last 14 days) — loại trừ MONTHLY_BONUS + returned + timezone +7h
   const dailyRevenue = db.prepare(`
     SELECT
-      date(date) as day,
+      date(datetime(date, '+7 hours')) as day,
       COALESCE(SUM(total), 0) as revenue,
       COALESCE(SUM(profit), 0) as profit
     FROM sales
-    WHERE type = 'sale' AND archived = 0 AND promo_type IS DISTINCT FROM 'MONTHLY_BONUS' AND date(date) >= ?
-    GROUP BY date(date)
+    WHERE type = 'sale' AND archived = 0 AND (status IS NULL OR status != 'returned') AND promo_type IS DISTINCT FROM 'MONTHLY_BONUS' AND date(datetime(date, '+7 hours')) >= ?
+    GROUP BY date(datetime(date, '+7 hours'))
     ORDER BY day
   `).all(fourteenDaysAgoStr);
 
   // Get daily expenses for the same period (for net profit calculation)
   const dailyExpenses = db.prepare(`
-    SELECT date(date) as day, COALESCE(SUM(amount), 0) as total
+    SELECT date(datetime(date, '+7 hours')) as day, COALESCE(SUM(amount), 0) as total
     FROM expenses
-    WHERE date(date) >= ?
-    GROUP BY date(date)
+    WHERE date(datetime(date, '+7 hours')) >= ?
+    GROUP BY date(datetime(date, '+7 hours'))
     ORDER BY day
   `).all(fourteenDaysAgoStr);
 
@@ -187,7 +187,7 @@ router.get('/data', (req, res) => {
     FROM sale_items si
     JOIN products p ON si.product_id = p.id
     JOIN sales s ON si.sale_id = s.id
-    WHERE s.type = 'sale' AND s.archived = 0 AND s.promo_type IS DISTINCT FROM 'MONTHLY_BONUS' AND date(s.date) >= ?
+    WHERE s.type = 'sale' AND s.archived = 0 AND (s.status IS NULL OR s.status != 'returned') AND s.promo_type IS DISTINCT FROM 'MONTHLY_BONUS' AND date(datetime(s.date, '+7 hours')) >= ?
     GROUP BY p.id
     ORDER BY total_qty DESC
     LIMIT 5
@@ -199,7 +199,7 @@ router.get('/data', (req, res) => {
     FROM sales s
     JOIN customers c ON s.customer_id = c.id
     JOIN sale_items si ON si.sale_id = s.id
-    WHERE s.type = 'sale' AND s.archived = 0 AND s.promo_type IS DISTINCT FROM 'MONTHLY_BONUS' AND date(s.date) >= ?
+    WHERE s.type = 'sale' AND s.archived = 0 AND (s.status IS NULL OR s.status != 'returned') AND s.promo_type IS DISTINCT FROM 'MONTHLY_BONUS' AND date(datetime(s.date, '+7 hours')) >= ?
     GROUP BY c.id
     ORDER BY total DESC
     LIMIT 5
