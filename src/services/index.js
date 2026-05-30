@@ -842,35 +842,23 @@ class PromotionService {
   /**
    * Tính sản lượng tháng hiện tại (CHỈ tính lít MUA thực trả, KHÔNG tính lít tặng)
    * Bia tặng khuyến mãi có si.price = 0 nên được lọc ra
-   * Sử dụng customer_monthly_stats (denormalized) nếu có, fallback về query real-time
+   * LUÔN query real-time để đảm bảo đúng sau khi sửa/xóa đơn hàng
    */
   calculateMonthlyPurchasedLiters(customerId) {
     const now = new Date();
     const year = now.getFullYear();
     const month = now.getMonth() + 1;
 
-    // Try denormalized stats first
-    const cachedStats = db.prepare(`
-      SELECT purchased_liters FROM customer_monthly_stats
-      WHERE customer_id = ? AND year = ? AND month = ?
-    `).get(customerId, year, month);
-
-    if (cachedStats && cachedStats.purchased_liters > 0) {
-      return cachedStats.purchased_liters;
-    }
-
-    // Fallback: query real-time
+    // Luôn query real-time từ sale_items để đảm bảo data mới nhất
     const result = db.prepare(`
       SELECT COALESCE(SUM(si.quantity), 0) as total
       FROM sales s
       JOIN sale_items si ON si.sale_id = s.id
-      JOIN products p ON p.id = si.product_id
       WHERE s.customer_id = ?
         AND s.type = 'sale'
         AND s.archived = 0
         AND s.promo_type IS DISTINCT FROM 'MONTHLY_BONUS'
         AND si.price > 0
-        AND p.type = 'keg'
         AND strftime('%Y', s.date) = ?
         AND strftime('%m', s.date) = ?
     `).get(customerId, String(year), String(month).padStart(2, '0'));
