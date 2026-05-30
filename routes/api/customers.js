@@ -6,6 +6,15 @@ const socketServer = require('../../src/socket/socketServer');
 const emitCustomer = (customer) => { try { if (socketServer) socketServer.emitCustomerUpdated(customer); } catch (_) {} };
 const emitKeg = () => { try { if (socketServer) socketServer.emitKegUpdated(); } catch (_) {} };
 
+// Lazy load SalesStaffService to avoid circular require
+let _salesStaffService = null;
+function getSalesStaffService() {
+  if (!_salesStaffService) {
+    _salesStaffService = require('../../src/services/salesStaff');
+  }
+  return _salesStaffService;
+}
+
 // Sanitize input to prevent XSS — encode HTML entities
 function sanitizeInput(input) {
   if (typeof input === 'string') {
@@ -67,7 +76,10 @@ router.get('/', (req, res) => {
         SELECT customer_id, COALESCE(SUM(si.quantity), 0) as monthly_kegs
         FROM sales s
         JOIN sale_items si ON si.sale_id = s.id
-        WHERE s.type = 'sale' AND s.archived = 0 AND strftime('%Y', s.date) = ? AND strftime('%m', s.date) = ?
+        JOIN products p ON p.id = si.product_id
+        WHERE s.type = 'sale' AND s.archived = 0
+          AND strftime('%Y', s.date) = ? AND strftime('%m', s.date) = ?
+          AND si.price > 0 AND p.type = 'keg'
         GROUP BY customer_id
       ) cm ON cm.customer_id = c.id
       WHERE c.archived = 0
@@ -113,7 +125,7 @@ router.get('/:id', (req, res) => {
 
 // POST /api/customers
 router.post('/', (req, res) => {
-  const { name, phone, deposit, prices, horizontal_fridge, vertical_fridge } = req.body;
+  const { name, phone, deposit, prices, horizontal_fridge, vertical_fridge, sales_id } = req.body;
 
   // Validate required fields
   if (!name || typeof name !== 'string' || name.trim() === '') {
@@ -187,6 +199,15 @@ router.post('/', (req, res) => {
       }
     }
 
+    // Gán sales cho khách hàng mới (nếu có)
+    if (sales_id) {
+      try {
+        getSalesStaffService().assignCustomer(customerId, parseInt(sales_id));
+      } catch (e) {
+        console.error('Sales assignment error:', e.message);
+      }
+    }
+
     const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(customerId);
     emitCustomer(customer);
 
@@ -206,7 +227,7 @@ router.put('/:id', (req, res) => {
     return res.status(404).json({ error: 'Không tìm thấy khách hàng' });
   }
 
-  const { name, phone, deposit, lat, lng, keg_balance, debt, address, note, horizontal_fridge, vertical_fridge, exclude_expected } = req.body;
+  const { name, phone, deposit, lat, lng, keg_balance, debt, address, note, horizontal_fridge, vertical_fridge, exclude_expected, sales_id } = req.body;
 
   // Keep existing values if not provided
   const updated = {
@@ -314,13 +335,36 @@ router.put('/:id', (req, res) => {
       }
     }
 
+    // Cập nhật sales phụ trách (nếu có)
+    if (sales_id !== undefined) {
+      try {
+        const existingAssignment = db.prepare('SELECT id FROM customer_sales_assignments WHERE customer_id = ?').get(id);
+        
+        if (sales_id === null || sales_id === '' || sales_id === undefined) {
+          // Xóa assignment nếu chọn "Không gán sales"
+          if (existingAssignment) {
+            db.prepare('DELETE FROM customer_sales_assignments WHERE customer_id = ?').run(id);
+          }
+        } else {
+          const parsedSalesId = parseInt(sales_id);
+          if (existingAssignment) {
+            db.prepare('UPDATE customer_sales_assignments SET sales_id = ? WHERE customer_id = ?').run(parsedSalesId, id);
+          } else {
+            getSalesStaffService().assignCustomer(id, parsedSalesId);
+          }
+        }
+      } catch (e) {
+        console.error('Sales assignment error:', e.message);
+      }
+    }
+
     const updatedCustomer = db.prepare('SELECT * FROM customers WHERE id = ?').get(id);
     emitCustomer(updatedCustomer);
 
     res.json({ success: true });
   } catch (err) {
-    logger.error('Error updating customer', { error: err.message });
-    res.status(500).json({ error: 'Lỗi cập nhật khách hàng' });
+    logger.error('Error updating customer', { error: err.message, stack: err.stack });
+    res.status(500).json({ error: 'Lỗi cập nhật khách hàng: ' + err.message });
   }
 });
 

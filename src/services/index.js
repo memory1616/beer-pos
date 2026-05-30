@@ -1130,6 +1130,269 @@ class PromotionService {
   }
 
   /**
+   * Tự động trả thưởng cho đơn hàng đầu tiên trong tháng
+   * Thưởng dựa trên sản lượng tháng TRƯỚC (tháng trả thưởng)
+   * Ví dụ: tháng 5 đạt 500L → đơn hàng đầu tiên tháng 6 sẽ được thưởng
+   * @returns {{ success, saleId, rewardLiters, tier } | null}
+   */
+  autoClaimMonthlyReward(customerId) {
+    const settings = this.getSystemPromotionSettings();
+    if (!settings.rewardEnabled) return null;
+
+    // Kiểm tra khách có bật CTKM không
+    const customer = db.prepare('SELECT promotion_enabled FROM customers WHERE id = ?').get(customerId);
+    if (customer && customer.promotion_enabled === 0) return null;
+
+    // Xác định tháng trả thưởng (tháng trước)
+    const now = new Date();
+    const rewardMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1); // Tháng trước
+    const rewardYear = rewardMonth.getFullYear();
+    const rewardMonthNum = rewardMonth.getMonth() + 1;
+    const rewardMonthStr = String(rewardMonthNum).padStart(2, '0');
+    const rewardMonthStart = `${rewardYear}-${rewardMonthStr}-01`;
+
+    // Tính sản lượng của khách trong tháng trả thưởng
+    const purchasedLiters = db.prepare(`
+      SELECT COALESCE(SUM(si.quantity), 0) as total
+      FROM sales s
+      JOIN sale_items si ON si.sale_id = s.id
+      JOIN products p ON p.id = si.product_id
+      WHERE s.customer_id = ?
+        AND s.type = 'sale'
+        AND s.archived = 0
+        AND s.promo_type IS DISTINCT FROM 'MONTHLY_BONUS'
+        AND si.price > 0
+        AND p.type = 'keg'
+        AND strftime('%Y', datetime(s.date, '+7 hours')) = ?
+        AND strftime('%m', datetime(s.date, '+7 hours')) = ?
+    `).get(customerId, String(rewardYear), rewardMonthStr);
+
+    const liters = purchasedLiters ? purchasedLiters.total : 0;
+
+    // Tìm tier cao nhất đạt được trong tháng trả thưởng
+    const tiers = settings.rewardTiers || [];
+    let eligibleTier = null;
+    for (let i = tiers.length - 1; i >= 0; i--) {
+      if (liters >= tiers[i].threshold) {
+        eligibleTier = tiers[i];
+        break;
+      }
+    }
+
+    if (!eligibleTier) return null; // Không đạt mốc nào
+
+    // Kiểm tra đã nhận thưởng tháng trả thưởng chưa
+    const alreadyClaimed = db.prepare(`
+      SELECT COUNT(*) as cnt FROM sales
+      WHERE customer_id = ?
+        AND type = 'sale'
+        AND archived = 0
+        AND promo_type = 'MONTHLY_BONUS'
+        AND strftime('%Y', datetime(date, '+7 hours')) = ?
+        AND strftime('%m', datetime(date, '+7 hours')) = ?
+    `).get(customerId, String(rewardYear), rewardMonthStr);
+
+    if (alreadyClaimed && alreadyClaimed.cnt > 0) return null; // Đã nhận rồi
+
+    // Kiểm tra đơn hàng đầu tiên trong tháng hiện tại
+    const currentYear = now.getFullYear();
+    const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
+    const currentMonthStart = `${currentYear}-${currentMonth}-01`;
+
+    const orderCount = db.prepare(`
+      SELECT COUNT(*) as cnt FROM sales
+      WHERE customer_id = ?
+        AND type = 'sale'
+        AND archived = 0
+        AND promo_type IS DISTINCT FROM 'MONTHLY_BONUS'
+        AND datetime(date, '+7 hours') >= ?
+    `).get(customerId, currentMonthStart);
+
+    if (!orderCount || orderCount.cnt > 1) return null; // Không phải đơn đầu
+
+    console.log(`[AUTO REWARD] Tháng ${rewardMonthStr}/${rewardYear} khách ${customerId} đạt ${liters}L → thưởng ${eligibleTier.reward}L`);
+
+    // Lấy sản phẩm bia vàng mặc định để xuất thưởng
+    const defaultProduct = db.prepare(`
+      SELECT id, name, slug, cost_price FROM products
+      WHERE archived = 0 AND type = 'keg'
+        AND (name LIKE '%Vàng%' OR name LIKE '%VANG%' OR name LIKE '%vàng%' OR name LIKE '%Gold%' OR name LIKE '%gold%')
+        AND (name NOT LIKE '%Đen%' AND name NOT LIKE '%DEN%' AND name NOT LIKE '%den%')
+      ORDER BY id ASC LIMIT 1
+    `).get();
+
+    if (!defaultProduct) {
+      const anyProduct = db.prepare('SELECT id, name, slug, cost_price FROM products WHERE archived = 0 AND type = \'keg\' ORDER BY id ASC LIMIT 1').get();
+      if (!anyProduct) return null;
+      return this.claimMonthlyReward(customerId, anyProduct.id);
+    }
+
+    return this.claimMonthlyReward(customerId, defaultProduct.id);
+  }
+
+  /**
+   * Lấy thông tin thưởng dựa trên sản lượng tháng trước
+   * @returns {{ eligible, rewardLiters, tier, alreadyClaimed }}
+   */
+  getRewardForPrevMonth(customerId) {
+    const settings = this.getSystemPromotionSettings();
+    if (!settings.rewardEnabled) return { eligible: false, rewardLiters: 0, tier: null, alreadyClaimed: false };
+
+    const customer = db.prepare('SELECT promotion_enabled FROM customers WHERE id = ?').get(customerId);
+    if (customer && customer.promotion_enabled === 0) return { eligible: false, rewardLiters: 0, tier: null, alreadyClaimed: false };
+
+    // Tháng trả thưởng (tháng trước)
+    const now = new Date();
+    const rewardMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const rewardYear = rewardMonth.getFullYear();
+    const rewardMonthNum = rewardMonth.getMonth() + 1;
+    const rewardMonthStr = String(rewardMonthNum).padStart(2, '0');
+
+    // Tính sản lượng tháng trước
+    const purchasedLiters = db.prepare(`
+      SELECT COALESCE(SUM(si.quantity), 0) as total
+      FROM sales s
+      JOIN sale_items si ON si.sale_id = s.id
+      JOIN products p ON p.id = si.product_id
+      WHERE s.customer_id = ?
+        AND s.type = 'sale'
+        AND s.archived = 0
+        AND s.promo_type IS DISTINCT FROM 'MONTHLY_BONUS'
+        AND si.price > 0
+        AND p.type = 'keg'
+        AND strftime('%Y', datetime(s.date, '+7 hours')) = ?
+        AND strftime('%m', datetime(s.date, '+7 hours')) = ?
+    `).get(customerId, String(rewardYear), rewardMonthStr);
+
+    const liters = purchasedLiters ? purchasedLiters.total : 0;
+
+    // Tìm tier cao nhất
+    const tiers = settings.rewardTiers || [];
+    let eligibleTier = null;
+    for (let i = tiers.length - 1; i >= 0; i--) {
+      if (liters >= tiers[i].threshold) {
+        eligibleTier = tiers[i];
+        break;
+      }
+    }
+
+    if (!eligibleTier) return { eligible: false, rewardLiters: 0, tier: null, alreadyClaimed: false };
+
+    // Kiểm tra đã nhận thưởng tháng trước chưa
+    const alreadyClaimed = db.prepare(`
+      SELECT COUNT(*) as cnt FROM reward_history
+      WHERE customer_id = ?
+        AND note LIKE ?
+    `).get(customerId, `%tháng ${rewardMonthNum}/${rewardYear}%`);
+
+    const claimed = alreadyClaimed && alreadyClaimed.cnt > 0;
+
+    return {
+      eligible: !claimed,
+      rewardLiters: eligibleTier.reward,
+      tier: eligibleTier.tier || `BONUS_${eligibleTier.reward}L`,
+      alreadyClaimed: claimed
+    };
+  }
+
+  /**
+   * Gắn thưởng vào đơn hàng hiện tại (thay vì tạo đơn riêng)
+   * Dùng cho đơn hàng đầu tiên của tháng
+   * @param {number} customerId - ID khách hàng
+   * @param {number} saleId - ID đơn hàng hiện tại để gắn thưởng
+   * @param {number} rewardLiters - Số lít thưởng
+   * @param {string} tier - Tier thưởng
+   * @returns {{ success, saleId, rewardLiters, tier }}
+   */
+  attachRewardToSale(customerId, saleId, rewardLiters, tier) {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth() + 1;
+
+    // Lấy sản phẩm bia vàng mặc định
+    const defaultProduct = db.prepare(`
+      SELECT id, name, slug, cost_price FROM products
+      WHERE archived = 0 AND type = 'keg'
+        AND (name LIKE '%Vàng%' OR name LIKE '%VANG%' OR name LIKE '%vàng%' OR name LIKE '%Gold%' OR name LIKE '%gold%')
+        AND (name NOT LIKE '%Đen%' AND name NOT LIKE '%DEN%' AND name NOT LIKE '%den%')
+      ORDER BY id ASC LIMIT 1
+    `).get();
+
+    if (!defaultProduct) {
+      const anyProduct = db.prepare('SELECT id FROM products WHERE archived = 0 AND type = \'keg\' ORDER BY id ASC LIMIT 1').get();
+      if (!anyProduct) return { success: false, error: 'Không tìm thấy sản phẩm' };
+      return this._doAttachReward(customerId, saleId, anyProduct.id, rewardLiters, tier, year, month);
+    }
+
+    return this._doAttachReward(customerId, saleId, defaultProduct.id, rewardLiters, tier, year, month);
+  }
+
+  _doAttachReward(customerId, saleId, productId, rewardLiters, tier, year, month) {
+    const tx = db.transaction(() => {
+      // 1. Thêm item vào sale hiện tại (price=0)
+      db.prepare(`
+        INSERT INTO sale_items (sale_id, product_id, quantity, price, cost_price, profit)
+        VALUES (?, ?, ?, 0, 0, 0)
+      `).run(saleId, productId, rewardLiters);
+
+      // 2. TRỪ KHO
+      db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(rewardLiters, productId);
+
+      // 3. Cập nhật total và profit của sale (thưởng = 0 nên không cộng)
+      // Chỉ cập nhật deliver_kegs thêm rewardLiters
+      db.prepare('UPDATE sales SET deliver_kegs = deliver_kegs + ? WHERE id = ?').run(rewardLiters, saleId);
+
+      // 4. Audit log
+      const customer = db.prepare('SELECT name FROM customers WHERE id = ?').get(customerId);
+      db.prepare(`
+        INSERT INTO product_audit_log (product_id, type, quantity, reason, ref_id, ref_type, customer_name, note)
+        VALUES (?, 'export', ?, 'reward', ?, 'sale', ?, ?)
+      `).run(productId, rewardLiters, saleId, customer?.name || '', `Thưởng doanh số tháng ${month}/${year}`);
+
+      // 5. Ghi reward_history
+      db.prepare(`
+        INSERT INTO reward_history (customer_id, reward_tier, reward_liters, note)
+        VALUES (?, ?, ?, ?)
+      `).run(customerId, tier, rewardLiters, `Tự động thưởng tháng ${month}/${year} - đơn đầu tiên`);
+
+      // 6. Cập nhật customer_monthly_stats
+      const existingStats = db.prepare(`
+        SELECT * FROM customer_monthly_stats WHERE customer_id = ? AND year = ? AND month = ?
+      `).get(customerId, year, month);
+
+      if (existingStats) {
+        const newClaimed = (existingStats.reward_claimed_liters || 0) + rewardLiters;
+        db.prepare(`
+          UPDATE customer_monthly_stats SET
+            reward_claimed = 1,
+            reward_claimed_at = CURRENT_TIMESTAMP,
+            reward_claimed_liters = ?,
+            reward_claimed_sale_id = ?,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `).run(newClaimed, saleId, existingStats.id);
+      } else {
+        db.prepare(`
+          INSERT INTO customer_monthly_stats
+            (customer_id, year, month, reward_claimed, reward_claimed_at, reward_claimed_liters, reward_claimed_sale_id)
+          VALUES (?, ?, ?, 1, CURRENT_TIMESTAMP, ?, ?)
+        `).run(customerId, year, month, rewardLiters, saleId);
+      }
+
+      return { saleId, rewardLiters, tier };
+    });
+
+    try {
+      const result = tx();
+      logger.info(`[PromotionService] Reward attached to sale: customer=${customerId}, sale=${saleId}, liters=${rewardLiters}, tier=${tier}`);
+      return { success: true, ...result };
+    } catch (e) {
+      logger.error('attachRewardToSale error:', e);
+      return { success: false, error: e.message };
+    }
+  }
+
+  /**
    * Reset reward tháng mới (gọi khi sang tháng)
    * Tự động reset vào ngày 1 hàng tháng qua cron
    */

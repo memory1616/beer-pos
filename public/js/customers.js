@@ -203,9 +203,11 @@ async function submitAddForm() {
   var addDepositEl = document.getElementById('addDeposit');
   var addHorizontalFridgeEl = document.getElementById('addHorizontalFridge');
   var addVerticalFridgeEl = document.getElementById('addVerticalFridge');
+  var addSalesIdEl = document.getElementById('addSalesId');
   data.deposit = parseFormattedNumber(addDepositEl ? addDepositEl.value : '0');
   data.horizontal_fridge = parseInt(addHorizontalFridgeEl ? addHorizontalFridgeEl.value : '0') || 0;
   data.vertical_fridge = parseInt(addVerticalFridgeEl ? addVerticalFridgeEl.value : '0') || 0;
+  data.sales_id = addSalesIdEl && addSalesIdEl.value ? parseInt(addSalesIdEl.value) : null;
 
   const prices = {};
   document.querySelectorAll('#addPriceList input[data-product]').forEach(input => {
@@ -246,6 +248,7 @@ function resetAddForm() {
   var depositEl = document.getElementById('addDeposit');
   var hfEl = document.getElementById('addHorizontalFridge');
   var vfEl = document.getElementById('addVerticalFridge');
+  var salesEl = document.getElementById('addSalesId');
   if (nameEl) nameEl.value = '';
   if (phoneEl) phoneEl.value = '';
   if (depositEl) {
@@ -254,12 +257,38 @@ function resetAddForm() {
   }
   if (hfEl) hfEl.value = 0;
   if (vfEl) vfEl.value = 0;
+  if (salesEl) salesEl.value = '';
   clearPhoneWarning();
   var pf = document.getElementById('addPriceFields');
   if (pf && !pf.classList.contains('hidden')) pf.classList.add('hidden');
   var tb = document.getElementById('togglePriceBtn');
   if (tb) tb.textContent = '+ Thêm giá';
   addProductsLoaded = false;
+}
+
+// Load danh sách sales cho dropdown
+async function loadSalesList() {
+  var salesEl = document.getElementById('addSalesId');
+  if (!salesEl) return;
+  try {
+    var res = await fetch('/api/sales-staff');
+    var data = await res.json();
+    if (data.success && data.data) {
+      var options = '<option value="">-- Không gán sales --</option>';
+      data.data.forEach(function(s) {
+        options += '<option value="' + s.id + '">' + s.name + '</option>';
+      });
+      salesEl.innerHTML = options;
+    }
+  } catch (e) {
+    console.error('Error loading sales list:', e);
+  }
+}
+
+// Mở modal thêm khách hàng
+async function openAddCustomerModal() {
+  showModal('addModal');
+  loadSalesList();
 }
 
 function formatVND(amount) {
@@ -547,7 +576,46 @@ function changeCustPage(newPage) {
 }
 
 // ========== SHOW/HIDE MODALS ==========
-function showModal(id) {
+function closeModal(id) {
+  if (!id) {
+    // Close all modals
+    document.querySelectorAll('.fixed.inset-0.z-50').forEach(m => m.remove());
+    document.querySelectorAll('[id$="Modal"]').forEach(m => {
+      if (!m.classList.contains('hidden')) {
+        m.classList.add('hidden');
+        m.classList.remove('flex');
+      }
+    });
+  } else {
+    var m = document.getElementById(id);
+    if (m) {
+      if (m.classList.contains('fixed')) {
+        m.remove();
+      } else {
+        m.classList.add('hidden');
+        m.classList.remove('flex');
+      }
+    }
+  }
+}
+
+function showModal(id, html) {
+  // If html is provided, create a dynamic modal
+  if (html) {
+    var container = document.getElementById('modalContainer');
+    container.innerHTML = '<div id="' + id + '" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">' +
+      '<div class="bg-card rounded-xl p-6 w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">' +
+      html +
+      '</div></div>';
+    // Auto-bind close buttons
+    container.querySelectorAll('[onclick*="closeModal"]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        closeModal(id);
+      });
+    });
+    return;
+  }
+
   var m = document.getElementById(id);
   if (!m) { console.warn("[UI] Modal not found:", id); return; }
   m.classList.remove('hidden');

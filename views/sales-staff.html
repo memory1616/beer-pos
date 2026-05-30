@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quản lý Sales</title>
+  <link rel="stylesheet" href="/css/unified.css?v=20260530">
+  <style>
+    body { background: var(--bg-primary); color: var(--text-primary); }
+    .page-header { padding: 16px; border-bottom: 1px solid var(--border); }
+    .page-content { padding: 16px; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+    .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .card-title { font-size: 16px; font-weight: 600; }
+    .btn { padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer; font-size: 14px; }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-secondary { background: var(--bg-soft); color: var(--text-primary); }
+    .btn-success { background: var(--success); color: white; }
+    .btn-danger { background: #ef4444; color: white; }
+    .grid { display: grid; gap: 16px; }
+    .grid-2 { grid-template-columns: repeat(2, 1fr); }
+    .grid-3 { grid-template-columns: repeat(3, 1fr); }
+    .staff-card { cursor: pointer; transition: all 0.2s; }
+    .staff-card:hover { border-color: var(--primary); transform: translateY(-2px); }
+    .staff-card.selected { border-color: var(--primary); background: var(--primary-dim); }
+    .staff-name { font-size: 16px; font-weight: 600; }
+    .staff-stats { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+    .stat-value { font-size: 20px; font-weight: 700; color: var(--primary); }
+    .stat-label { font-size: 12px; color: var(--text-muted); }
+    .salary-detail { margin-top: 16px; }
+    .salary-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); }
+    .salary-row:last-child { border-bottom: none; }
+    .salary-total { font-weight: 700; font-size: 18px; color: var(--success); }
+    .input { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-soft); color: var(--text-primary); font-size: 14px; }
+    .input:focus { outline: none; border-color: var(--primary); }
+    .modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+    .modal-content { background: var(--card); border-radius: 12px; padding: 24px; width: 90%; max-width: 500px; }
+    .modal-header { font-size: 18px; font-weight: 600; margin-bottom: 16px; }
+    .form-group { margin-bottom: 16px; }
+    .form-label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; color: var(--text-muted); }
+    .tab-bar { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+    .tab { padding: 12px 16px; cursor: pointer; border-bottom: 2px solid transparent; font-size: 14px; }
+    .tab.active { border-color: var(--primary); color: var(--primary); }
+    .badge { padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+    .badge-pending { background: rgba(251, 191, 36, 0.2); color: #f59e0b; }
+    .badge-paid { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
+    .empty-state { text-align: center; padding: 40px; color: var(--text-muted); }
+    @media (max-width: 768px) {
+      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div class="page-header">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <a href="/dashboard" style="color: var(--text-muted); text-decoration: none; font-size: 13px;">← Quay lại</a>
+          <h1 style="font-size: 20px; margin-top: 8px;">👔 Quản lý Sales</h1>
+        </div>
+        <button class="btn btn-primary" onclick="openAddStaffModal()">+ Thêm Sales</button>
+      </div>
+    </div>
+
+    <div class="page-content">
+      <!-- Tabs -->
+      <div class="tab-bar">
+        <div class="tab active" onclick="switchTab('list')" id="tab-list">📋 Danh sách</div>
+        <div class="tab" onclick="switchTab('salary')" id="tab-salary">💰 Tính lương</div>
+        <div class="tab" onclick="switchTab('config')" id="tab-config">⚙️ Cấu hình</div>
+      </div>
+
+      <!-- Danh sách Sales -->
+      <div id="content-list">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Nhân viên Sales</div>
+          </div>
+          <div id="staffList" class="grid grid-2">
+            <div class="empty-state">Đang tải...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tính lương -->
+      <div id="content-salary" style="display: none;">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Tính lương tháng</div>
+            <select id="salaryMonth" class="input" style="width: auto;" onchange="loadSalarySummary()">
+              <option value=""></option>
+            </select>
+          </div>
+          <div id="salarySummary"></div>
+        </div>
+        <div id="salaryDetail" style="display: none;">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title" id="detailStaffName">Chi tiết lương</div>
+              <button class="btn btn-success" id="markPaidBtn" onclick="markSalaryPaid()">✓ Đánh dấu đã trả</button>
+            </div>
+            <div id="detailContent"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cấu hình -->
+      <div id="content-config" style="display: none;">
+        <div class="card">
+          <div class="card-title mb-3">Hoa hồng mở cửa hàng mới</div>
+          <div class="form-group">
+            <label class="form-label">Số tiền (VNĐ)</label>
+            <input type="number" id="newShopCommission" class="input" placeholder="500000" onchange="saveNewShopCommission()">
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Hoa hồng theo sản phẩm (lít)</div>
+            <button class="btn btn-secondary" onclick="openAddProductCommission()">+ Thêm sản phẩm</button>
+          </div>
+          <div id="productCommissionList"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Thêm/Sửa Sales -->
+  <div id="staffModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header" id="staffModalTitle">Thêm Sales</div>
+      <input type="hidden" id="editStaffId">
+      <div class="form-group">
+        <label class="form-label">Tên *</label>
+        <input type="text" id="staffName" class="input" placeholder="Nguyễn Văn A">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Số điện thoại</label>
+        <input type="text" id="staffPhone" class="input" placeholder="0901234567">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Email</label>
+        <input type="email" id="staffEmail" class="input" placeholder="email@example.com">
+      </div>
+      <div style="display: flex; gap: 12px; margin-top: 20px;">
+        <button class="btn btn-secondary flex-1" onclick="closeStaffModal()">Hủy</button>
+        <button class="btn btn-primary flex-1" onclick="saveStaff()">Lưu</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Thêm/Sửa Product Commission -->
+  <div id="productCommissionModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header" id="productCommissionModalTitle">Thêm hoa hồng sản phẩm</div>
+      <input type="hidden" id="editProductCommissionId">
+      <div class="form-group">
+        <label class="form-label">Sản phẩm</label>
+        <select id="productSelect" class="input">
+          <option value="">-- Chọn sản phẩm --</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Loại sản phẩm</label>
+        <select id="productTypeSelect" class="input">
+          <option value="keg">Keg (Bồn)</option>
+          <option value="bottle">Bottle (Chai)</option>
+          <option value="box">Box (Thùng)</option>
+          <option value="all">Tất cả</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Hoa hồng (VNĐ / lít)</label>
+        <input type="number" id="salaryPerLiter" class="input" placeholder="1000">
+      </div>
+      <div style="display: flex; gap: 12px; margin-top: 20px;">
+        <button class="btn btn-secondary flex-1" onclick="closeProductCommissionModal()">Hủy</button>
+        <button class="btn btn-primary flex-1" onclick="saveProductCommission()">Lưu</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Khách hàng -->
+  <div id="customerModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 600px;">
+      <div class="modal-header" id="customerModalTitle">Khách hàng của Sales</div>
+      <div id="customerList" style="max-height: 400px; overflow-y: auto;"></div>
+      <div style="text-align: center; margin-top: 16px;">
+        <button class="btn btn-secondary" onclick="document.getElementById('customerModal').style.display='none'">Đóng</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentTab = 'list';
+    let selectedStaffId = null;
+    let staffList = [];
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      loadStaffList();
+      loadCommissionConfig();
+      initMonthSelector();
+    });
+
+    function switchTab(tab) {
+      currentTab = tab;
+      ['list', 'salary', 'config'].forEach(t => {
+        document.getElementById('tab-' + t).classList.toggle('active', t === tab);
+        document.getElementById('content-' + t).style.display = t === tab ? 'block' : 'none';
+      });
+      if (tab === 'salary') {
+        loadSalarySummary();
+      }
+    }
+
+    function initMonthSelector() {
+      const select = document.getElementById('salaryMonth');
+      select.innerHTML = '';
+      const now = new Date();
+      for (let i = 0; i < 12; i++) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        const opt = document.createElement('option');
+        opt.value = val;
+        opt.textContent = `Tháng ${d.getMonth() + 1}/${d.getFullYear()}`;
+        if (i === 0) opt.selected = true; // Mặc định chọn tháng hiện tại
+        select.appendChild(opt);
+      }
+    }
+
+    async function loadStaffList() {
+      try {
+        const res = await fetch('/api/sales-staff');
+        const data = await res.json();
+        if (data.success) {
+          staffList = data.data;
+          renderStaffList();
+        }
+      } catch (e) {
+        document.getElementById('staffList').innerHTML = '<div class="empty-state">Lỗi tải dữ liệu</div>';
+      }
+    }
+
+    function renderStaffList() {
+      const container = document.getElementById('staffList');
+      if (staffList.length === 0) {
+        container.innerHTML = '<div class="empty-state">Chưa có nhân viên sales nào.<br><br><button class="btn btn-primary" onclick="openAddStaffModal()">+ Thêm Sales đầu tiên</button></div>';
+        return;
+      }
+      container.innerHTML = staffList.map(s => `
+        <div class="card staff-card ${selectedStaffId == s.id ? 'selected' : ''}" onclick="selectStaff(${s.id})">
+          <div class="staff-name">${s.name}</div>
+          <div class="staff-stats">📱 ${s.phone || 'Chưa có'} | ${s.total_customers || 0} cửa hàng</div>
+          <div style="margin-top: 8px; display: flex; gap: 8px;">
+            <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); editStaff(${s.id})">✏️ Sửa</button>
+            <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); viewCustomers(${s.id})">🏪 Khách hàng</button>
+            <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); deleteStaff(${s.id}, '${s.name.replace(/'/g, "\\'")}')">🗑️ Xóa</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function selectStaff(id) {
+      selectedStaffId = selectedStaffId === id ? null : id;
+      renderStaffList();
+      if (selectedStaffId) {
+        const monthVal = document.getElementById('salaryMonth').value;
+        if (monthVal) {
+          loadSalaryDetail(id, monthVal);
+        }
+      } else {
+        document.getElementById('salaryDetail').style.display = 'none';
+      }
+    }
+
+    function openAddStaffModal() {
+      document.getElementById('staffModalTitle').textContent = 'Thêm Sales';
+      document.getElementById('editStaffId').value = '';
+      document.getElementById('staffName').value = '';
+      document.getElementById('staffPhone').value = '';
+      document.getElementById('staffEmail').value = '';
+      document.getElementById('staffModal').style.display = 'flex';
+    }
+
+    function closeStaffModal() {
+      document.getElementById('staffModal').style.display = 'none';
+    }
+
+    async function saveStaff() {
+      const name = document.getElementById('staffName').value.trim();
+      if (!name) { alert('Vui lòng nhập tên'); return; }
+      const phone = document.getElementById('staffPhone').value.trim();
+      const email = document.getElementById('staffEmail').value.trim();
+      const id = document.getElementById('editStaffId').value;
+
+      try {
+        const url = id ? `/api/sales-staff/${id}` : '/api/sales-staff';
+        const method = id ? 'PUT' : 'POST';
+        const res = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, phone, email })
+        });
+        const data = await res.json();
+        if (data.success) {
+          closeStaffModal();
+          loadStaffList();
+        } else {
+          alert(data.error || 'Lỗi');
+        }
+      } catch (e) {
+        alert('Lỗi kết nối');
+      }
+    }
+
+    function editStaff(id) {
+      const staff = staffList.find(s => s.id === id);
+      if (!staff) return;
+      document.getElementById('staffModalTitle').textContent = 'Sửa Sales';
+      document.getElementById('editStaffId').value = id;
+      document.getElementById('staffName').value = staff.name;
+      document.getElementById('staffPhone').value = staff.phone || '';
+      document.getElementById('staffEmail').value = staff.email || '';
+      document.getElementById('staffModal').style.display = 'flex';
+    }
+
+    async function viewCustomers(salesId) {
+      try {
+        const res = await fetch(`/api/sales-staff/${salesId}/customers`);
+        const data = await res.json();
+        if (data.success && data.data.length > 0) {
+          // Hiển thị trong modal với link đến trang chi tiết
+          document.getElementById('customerModalTitle').textContent = `Khách hàng của Sales (${data.data.length})`;
+          document.getElementById('customerList').innerHTML = data.data.map(c => `
+            <div class="salary-row" style="cursor:pointer;" onclick="window.open('/customers/${c.id}', '_blank')">
+              <div>
+                <div style="font-weight:600;">${c.name}</div>
+                <div style="font-size:12px;color:var(--text-muted);">${c.phone || 'Không có SĐT'}</div>
+              </div>
+              <div style="text-align:right;">
+                <div style="font-size:12px;color:var(--text-muted);">${c.assigned_at ? 'Gán: ' + formatDate(c.assigned_at) : ''}</div>
+                <div style="font-size:11px;color:var(--primary);">→ Xem chi tiết</div>
+              </div>
+            </div>
+          `).join('');
+          document.getElementById('customerModal').style.display = 'flex';
+        } else {
+          alert('Chưa có khách hàng nào được gán');
+        }
+      } catch (e) {
+        alert('Lỗi tải dữ liệu');
+      }
+    }
+
+    async function deleteStaff(id, name) {
+      if (!confirm(`Xóa nhân viên "${name}"?\n\nNhân viên sẽ bị vô hiệu hóa (không xóa dữ liệu).`)) return;
+      try {
+        const res = await fetch(`/api/sales-staff/${id}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+          loadStaffList();
+        } else {
+          alert(data.error || 'Lỗi xóa');
+        }
+      } catch (e) {
+        alert('Lỗi kết nối');
+      }
+    }
+
+    async function loadSalarySummary() {
+      const monthVal = document.getElementById('salaryMonth').value;
+      if (!monthVal) return;
+
+      const [year, month] = monthVal.split('-');
+      const container = document.getElementById('salarySummary');
+
+      try {
+        const res = await fetch(`/api/sales-staff/salary-summary/${year}/${month}`);
+        const data = await res.json();
+        if (data.success) {
+          renderSalarySummary(data.data);
+        }
+      } catch (e) {
+        container.innerHTML = '<div class="empty-state">Lỗi tải dữ liệu</div>';
+      }
+    }
+
+    function renderSalarySummary(list) {
+      const container = document.getElementById('salarySummary');
+      if (list.length === 0) {
+        container.innerHTML = '<div class="empty-state">Không có nhân viên sales nào</div>';
+        return;
+      }
+
+      container.innerHTML = `
+        <div class="grid grid-3">
+          ${list.map(s => `
+            <div class="card staff-card ${selectedStaffId == s.id ? 'selected' : ''}" onclick="selectStaff(${s.id})">
+              <div style="display:flex;justify-content:space-between;align-items:start;">
+                <div class="staff-name">${s.name}</div>
+                ${s.isPaid ? '<span class="badge badge-paid">Đã trả</span>' : '<span class="badge badge-pending">Chưa trả</span>'}
+              </div>
+              <div style="margin: 12px 0;">
+                <div><span class="stat-label">Tổng lít:</span> <span class="stat-value">${s.totalLiters || 0}</span></div>
+                <div><span class="stat-label">Lương/lít:</span> <span>${formatVND(s.salary_per_liter || 1000)}</span></div>
+              </div>
+              <div class="salary-row">
+                <span>Lương</span>
+                <span>${formatVND(s.totalSalary || 0)}</span>
+              </div>
+              <div class="salary-row">
+                <span>Hoa hồng</span>
+                <span>${formatVND(s.commissionAmount || 0)}</span>
+              </div>
+              <div class="salary-row salary-total">
+                <span>Tổng</span>
+                <span>${formatVND(s.totalAmount || 0)}</span>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    async function loadSalaryDetail(staffId, monthVal) {
+      const [year, month] = monthVal.split('-');
+      document.getElementById('salaryDetail').style.display = 'block';
+
+      const staff = staffList.find(s => s.id === staffId);
+      document.getElementById('detailStaffName').textContent = `Chi tiết lương: ${staff?.name || 'Sales'}`;
+
+      try {
+        const [salaryRes, breakdownRes] = await Promise.all([
+          fetch(`/api/sales-staff/${staffId}/salary/${year}/${month}`),
+          fetch(`/api/sales-staff/${staffId}/breakdown/${year}/${month}`)
+        ]);
+        const salaryData = await salaryRes.json();
+        const breakdownData = await breakdownRes.json();
+
+        if (salaryData.success) {
+          const s = salaryData.data;
+          // Hiển thị/ẩn nút đánh dấu đã trả
+          const markPaidBtn = document.getElementById('markPaidBtn');
+          markPaidBtn.style.display = s.isPaid ? 'none' : 'inline-block';
+          let breakdownHtml = '';
+          if (breakdownData.success && breakdownData.data.length > 0) {
+            breakdownHtml = breakdownData.data.map(b => `
+              <div class="salary-row">
+                <span>${b.product_name}</span>
+                <span>${b.total_liters}L × ${formatVND(b.total_salary / b.total_liters)} = ${formatVND(b.total_salary)}</span>
+              </div>
+            `).join('');
+          }
+
+          document.getElementById('detailContent').innerHTML = `
+            <div class="salary-row">
+              <span>Tổng lít bán được</span>
+              <span>${s.totalLiters} L</span>
+            </div>
+            <div class="salary-row">
+              <span>Lương theo sản lượng</span>
+              <span>${formatVND(s.totalSalary)}</span>
+            </div>
+            <div class="salary-row">
+              <span>Hoa hồng mở cửa hàng</span>
+              <span>${formatVND(s.commissionAmount)}</span>
+            </div>
+            <div class="salary-row salary-total">
+              <span>TỔNG CẦN TRẢ</span>
+              <span>${formatVND(s.totalAmount)}</span>
+            </div>
+            ${s.isPaid ? `<div style="margin-top:12px;padding:12px;background:rgba(34,197,94,0.1);border-radius:8px;text-align:center;color:#22c55e;font-weight:600;">✓ Đã thanh toán ngày ${formatDate(s.paidAt)}</div>` : ''}
+            ${breakdownHtml ? `<div style="margin-top: 16px;"><div class="card-title mb-2">Chi tiết theo sản phẩm:</div>${breakdownHtml}</div>` : ''}
+          `;
+        }
+      } catch (e) {
+        document.getElementById('detailContent').innerHTML = '<div class="empty-state">Lỗi tải dữ liệu</div>';
+      }
+    }
+
+    async function markSalaryPaid() {
+      if (!selectedStaffId) return;
+      const monthVal = document.getElementById('salaryMonth').value;
+      if (!monthVal) return;
+      const [year, month] = monthVal.split('-');
+
+      if (!confirm('Đánh dấu lương đã trả cho nhân viên này?')) return;
+
+      try {
+        const res = await fetch('/api/sales-staff/mark-salary-paid', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ salesId: selectedStaffId, year, month })
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert('Đã đánh dấu đã trả!');
+          loadSalarySummary();
+        }
+      } catch (e) {
+        alert('Lỗi kết nối');
+      }
+    }
+
+    async function loadCommissionConfig() {
+      try {
+        const res = await fetch('/api/sales-staff/config/commissions');
+        const data = await res.json();
+        if (data.success && data.data) {
+          const config = data.data.config || { new_shop_commission: 500000 };
+          const products = data.data.products || [];
+          document.getElementById('newShopCommission').value = config.new_shop_commission || 500000;
+          renderProductCommissions(products);
+        } else {
+          document.getElementById('newShopCommission').value = 500000;
+          renderProductCommissions([]);
+        }
+      } catch (e) {
+        console.error('Error loading config:', e);
+        document.getElementById('newShopCommission').value = 500000;
+        renderProductCommissions([]);
+      }
+    }
+
+    function renderProductCommissions(list) {
+      const container = document.getElementById('productCommissionList');
+      if (!list || list.length === 0) {
+        container.innerHTML = '<div class="empty-state">Chưa có cấu hình hoa hồng nào.<br><br><button class="btn btn-primary" onclick="openAddProductCommission()">+ Thêm cấu hình đầu tiên</button></div>';
+        return;
+      }
+      container.innerHTML = list.map(p => `
+        <div class="card" style="margin-bottom: 8px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <div style="font-weight: 600;">${p.product_name || 'Tất cả sản phẩm'}</div>
+              <div style="font-size: 12px; color: var(--text-muted);">${p.product_type || 'all'}</div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <input type="number" class="input" style="width: 100px;" value="${p.salary_per_liter}"
+                onchange="updateProductCommission(${p.id}, this.value)">
+              <span style="font-size:12px;">đ/lít</span>
+              <button class="btn btn-danger btn-sm" onclick="deleteProductCommission(${p.id})">🗑️</button>
+            </div>
+          </div>
+        </div>
+      `).join('');
+      
+      // Hiển thị tóm tắt
+      const summary = list.map(p => `${p.product_name || 'Tất cả'}: ${formatVND(p.salary_per_liter)}/lít`).join(' | ');
+      container.innerHTML += `<div style="margin-top:16px;padding:12px;background:var(--bg-soft);border-radius:8px;font-size:13px;"><strong>Đang áp dụng:</strong> ${summary}</div>`;
+    }
+
+    async function saveNewShopCommission() {
+      const amount = document.getElementById('newShopCommission').value;
+      try {
+        await fetch('/api/sales-staff/config/new-shop-commission', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ amount: parseFloat(amount) })
+        });
+      } catch (e) {
+        alert('Lỗi lưu cấu hình');
+      }
+    }
+
+    async function loadProducts() {
+      try {
+        const res = await fetch('/api/products');
+        const data = await res.json();
+        const products = Array.isArray(data) ? data : (data.data || []);
+        const select = document.getElementById('productSelect');
+        select.innerHTML = '<option value="">-- Chọn sản phẩm --</option>' +
+          products.map(p => `<option value="${p.id}">${p.name} (${p.type})</option>`).join('');
+      } catch (e) {
+        console.error('Lỗi tải sản phẩm');
+      }
+    }
+
+    function openAddProductCommission() {
+      document.getElementById('productCommissionModalTitle').textContent = 'Thêm hoa hồng sản phẩm';
+      document.getElementById('editProductCommissionId').value = '';
+      document.getElementById('productSelect').value = '';
+      document.getElementById('productTypeSelect').value = 'keg';
+      document.getElementById('salaryPerLiter').value = '';
+      loadProducts();
+      document.getElementById('productCommissionModal').style.display = 'flex';
+    }
+
+    function editProductCommission(id, productName, productType, salaryPerLiter) {
+      document.getElementById('productCommissionModalTitle').textContent = 'Sửa hoa hồng sản phẩm';
+      document.getElementById('editProductCommissionId').value = id;
+      document.getElementById('productSelect').value = '';
+      document.getElementById('productTypeSelect').value = productType;
+      document.getElementById('salaryPerLiter').value = salaryPerLiter;
+      loadProducts();
+      document.getElementById('productCommissionModal').style.display = 'flex';
+    }
+
+    function closeProductCommissionModal() {
+      document.getElementById('productCommissionModal').style.display = 'none';
+    }
+
+    async function saveProductCommission() {
+      const id = document.getElementById('editProductCommissionId').value;
+      const productId = document.getElementById('productSelect').value;
+      const productType = document.getElementById('productTypeSelect').value;
+      const salaryPerLiter = document.getElementById('salaryPerLiter').value;
+
+      if (!salaryPerLiter) {
+        alert('Vui lòng nhập hoa hồng');
+        return;
+      }
+
+      try {
+        const url = id ? `/api/sales-staff/config/product-commission/${id}` : '/api/sales-staff/config/product-commission';
+        const method = id ? 'PUT' : 'POST';
+        const bodyData = { productId: productId || null, productType, salaryPerLiter: parseFloat(salaryPerLiter) };
+        const res = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(bodyData)
+        });
+        const data = await res.json();
+        if (data.success) {
+          closeProductCommissionModal();
+          loadCommissionConfig();
+        } else {
+          alert(data.error || 'Lỗi lưu');
+        }
+      } catch (e) {
+        alert('Lỗi kết nối');
+      }
+    }
+
+    async function deleteProductCommission(id) {
+      if (!confirm('Xóa cấu hình hoa hồng này?')) return;
+      try {
+        const res = await fetch(`/api/sales-staff/config/product-commission/${id}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+          loadCommissionConfig();
+        } else {
+          alert(data.error || 'Lỗi xóa');
+        }
+      } catch (e) {
+        alert('Lỗi kết nối');
+      }
+    }
+
+    function formatVND(num) {
+      return new Intl.NumberFormat('vi-VN').format(num || 0) + ' đ';
+    }
+
+    function formatDate(dateStr) {
+      if (!dateStr) return '';
+      const d = new Date(dateStr);
+      return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    }
+  </script>
+</body>
+</html>
