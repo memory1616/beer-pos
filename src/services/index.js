@@ -774,7 +774,7 @@ class PromotionService {
       rewardTiers
     );
 
-    logger.log('[PromotionService] Saved system promotion settings');
+    logger.info('[PromotionService] Saved system promotion settings');
     return this.getSystemPromotionSettings();
   }
 
@@ -1109,7 +1109,7 @@ class PromotionService {
 
     try {
       const result = tx();
-      logger.log(`[PromotionService] Reward claimed: customer=${customerId}, liters=${result.rewardLiters}, tier=${result.tier}`);
+      logger.info(`[PromotionService] Reward claimed: customer=${customerId}, liters=${result.rewardLiters}, tier=${result.tier}`);
       return { success: true, ...result };
     } catch (e) {
       logger.error('claimMonthlyReward error:', e);
@@ -1155,7 +1155,7 @@ class PromotionService {
         }
       }
 
-      logger.log(`[PromotionService] Monthly rewards reset for ${customers.length} customers`);
+      logger.info(`[PromotionService] Monthly rewards reset for ${customers.length} customers`);
     });
     tx();
   }

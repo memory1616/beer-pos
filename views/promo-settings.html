@@ -221,6 +221,7 @@
         getHeader('Cài đặt KM', '&#127873;') +
         getContent(PROMO_SETTINGS_HTML) +
         getBottomNav('/dashboard');
+      await initPage();
     })();
   </script>
 
@@ -396,15 +397,16 @@
 
     // ── Render settings into form ────────────────────────
     function renderSettings(s) {
-      document.getElementById('toggleNewShop').checked = s.newShopEnabled;
-      document.getElementById('newShopDays').value = s.newShopDays || 30;
-      document.getElementById('goldBuy').value = s.newShopGoldBuy || 10;
-      document.getElementById('goldFree').value = s.newShopGoldFree || 1;
-      document.getElementById('blackBuy').value = s.newShopBlackBuy || 20;
-      document.getElementById('blackFree').value = s.newShopBlackFree || 1;
+      var el;
+      el = document.getElementById('toggleNewShop'); if (el) el.checked = !!s.newShopEnabled;
+      el = document.getElementById('newShopDays'); if (el) el.value = s.newShopDays || 30;
+      el = document.getElementById('goldBuy'); if (el) el.value = s.newShopGoldBuy || 10;
+      el = document.getElementById('goldFree'); if (el) el.value = s.newShopGoldFree || 1;
+      el = document.getElementById('blackBuy'); if (el) el.value = s.newShopBlackBuy || 20;
+      el = document.getElementById('blackFree'); if (el) el.value = s.newShopBlackFree || 1;
       toggleNewShopFields(s.newShopEnabled);
 
-      document.getElementById('toggleReward').checked = s.rewardEnabled;
+      el = document.getElementById('toggleReward'); if (el) el.checked = !!s.rewardEnabled;
       toggleRewardFields(s.rewardEnabled);
 
       tierList = JSON.parse(JSON.stringify(s.rewardTiers || []));
@@ -626,9 +628,15 @@
   <script>
     var _ric = window.requestIdleCallback || function(cb) { return setTimeout(cb, 200); };
     _ric(function() {
-      var s = document.createElement('script');
-      s.src = '/db.js?v=20260430a';
-      document.head.appendChild(s);
+      // Load Dexie first, then db.js
+      var s1 = document.createElement('script');
+      s1.src = '/js/vendor/dexie.min.js?v=20260405';
+      s1.onload = function() {
+        var s = document.createElement('script');
+        s.src = '/db.js?v=20260430a';
+        document.head.appendChild(s);
+      };
+      document.head.appendChild(s1);
     }, { timeout: 5000 });
   </script>
 </body>

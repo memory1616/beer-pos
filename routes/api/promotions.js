@@ -99,6 +99,77 @@ router.get('/products', (req, res) => {
   }
 });
 
+
+/**
+ * GET /api/promotions/settings
+ * Lấy cấu hình hệ thống khuyến mãi
+ */
+router.get('/settings', (req, res) => {
+  try {
+    const settings = PromotionService.getSystemPromotionSettings();
+    res.json({ success: true, data: settings });
+  } catch (e) {
+    logger.error('get settings error:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+/**
+ * PUT /api/promotions/settings
+ * Lưu cấu hình hệ thống khuyến mãi
+ * Body: { newShopEnabled, newShopDays, newShopGoldBuy, newShopGoldFree, newShopBlackBuy, newShopBlackFree, rewardEnabled, rewardTiers }
+ */
+router.put('/settings', (req, res) => {
+  try {
+    const {
+      newShopEnabled,
+      newShopDays,
+      newShopGoldBuy,
+      newShopGoldFree,
+      newShopBlackBuy,
+      newShopBlackFree,
+      rewardEnabled,
+      rewardTiers
+    } = req.body;
+
+    // Validate rewardTiers
+    let parsedTiers = null;
+    if (rewardTiers !== undefined) {
+      if (typeof rewardTiers === 'string') {
+        try { parsedTiers = JSON.parse(rewardTiers); } catch (_) { parsedTiers = null; }
+      } else {
+        parsedTiers = rewardTiers;
+      }
+    }
+
+    const settings = PromotionService.saveSystemPromotionSettings({
+      newShopEnabled: newShopEnabled !== undefined ? !!newShopEnabled : undefined,
+      newShopDays: newShopDays !== undefined ? parseInt(newShopDays) || 30 : undefined,
+      newShopGoldBuy: newShopGoldBuy !== undefined ? parseInt(newShopGoldBuy) || 10 : undefined,
+      newShopGoldFree: newShopGoldFree !== undefined ? parseInt(newShopGoldFree) || 1 : undefined,
+      newShopBlackBuy: newShopBlackBuy !== undefined ? parseInt(newShopBlackBuy) || 20 : undefined,
+      newShopBlackFree: newShopBlackFree !== undefined ? parseInt(newShopBlackFree) || 1 : undefined,
+      rewardEnabled: rewardEnabled !== undefined ? !!rewardEnabled : undefined,
+      rewardTiers: parsedTiers || undefined
+    });
+
+    // Emit realtime update to all clients
+    try {
+      socketServer.forceRefetch(['promotion_settings', 'promotion']);
+    } catch (_) {}
+
+    logger.info('[PROMOTION] Settings updated', {
+      newShopEnabled, newShopDays, newShopGoldBuy, newShopGoldFree,
+      newShopBlackBuy, newShopBlackFree, rewardEnabled, rewardTiers: parsedTiers
+    });
+
+    res.json({ success: true, data: settings, message: 'Đã lưu cài đặt khuyến mãi!' });
+  } catch (e) {
+    logger.error('save settings error:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 /**
  * GET /api/promotions/:id
  * Lấy chi tiết 1 khuyến mãi
@@ -486,75 +557,9 @@ router.get('/near-tier', (req, res) => {
 // PROMOTION SYSTEM v3: ADMIN SETTINGS
 // ================================================================
 
-/**
- * GET /api/promotions/settings
- * Lấy cấu hình hệ thống khuyến mãi
- */
-router.get('/settings', (req, res) => {
-  try {
-    const settings = PromotionService.getSystemPromotionSettings();
-    res.json({ success: true, data: settings });
-  } catch (e) {
-    logger.error('get settings error:', e);
-    res.status(500).json({ success: false, error: e.message });
-  }
-});
 
-/**
- * PUT /api/promotions/settings
- * Lưu cấu hình hệ thống khuyến mãi
- * Body: { newShopEnabled, newShopDays, newShopGoldBuy, newShopGoldFree, newShopBlackBuy, newShopBlackFree, rewardEnabled, rewardTiers }
- */
-router.put('/settings', (req, res) => {
-  try {
-    const {
-      newShopEnabled,
-      newShopDays,
-      newShopGoldBuy,
-      newShopGoldFree,
-      newShopBlackBuy,
-      newShopBlackFree,
-      rewardEnabled,
-      rewardTiers
-    } = req.body;
 
-    // Validate rewardTiers
-    let parsedTiers = null;
-    if (rewardTiers !== undefined) {
-      if (typeof rewardTiers === 'string') {
-        try { parsedTiers = JSON.parse(rewardTiers); } catch (_) { parsedTiers = null; }
-      } else {
-        parsedTiers = rewardTiers;
-      }
-    }
 
-    const settings = PromotionService.saveSystemPromotionSettings({
-      newShopEnabled: newShopEnabled !== undefined ? !!newShopEnabled : undefined,
-      newShopDays: newShopDays !== undefined ? parseInt(newShopDays) || 30 : undefined,
-      newShopGoldBuy: newShopGoldBuy !== undefined ? parseInt(newShopGoldBuy) || 10 : undefined,
-      newShopGoldFree: newShopGoldFree !== undefined ? parseInt(newShopGoldFree) || 1 : undefined,
-      newShopBlackBuy: newShopBlackBuy !== undefined ? parseInt(newShopBlackBuy) || 20 : undefined,
-      newShopBlackFree: newShopBlackFree !== undefined ? parseInt(newShopBlackFree) || 1 : undefined,
-      rewardEnabled: rewardEnabled !== undefined ? !!rewardEnabled : undefined,
-      rewardTiers: parsedTiers || undefined
-    });
-
-    // Emit realtime update to all clients
-    try {
-      socketServer.forceRefetch(['promotion_settings', 'promotion']);
-    } catch (_) {}
-
-    logger.log('[PROMOTION] Settings updated by admin:', {
-      newShopEnabled, newShopDays, newShopGoldBuy, newShopGoldFree,
-      newShopBlackBuy, newShopBlackFree, rewardEnabled, rewardTiers: parsedTiers
-    });
-
-    res.json({ success: true, data: settings, message: 'Đã lưu cài đặt khuyến mãi!' });
-  } catch (e) {
-    logger.error('save settings error:', e);
-    res.status(500).json({ success: false, error: e.message });
-  }
-});
 
 /**
  * GET /api/promotions/reward/highest/:customerId
@@ -695,14 +700,14 @@ router.put('/customer/:id/promotion', (req, res) => {
       socketServer.emitCustomerUpdated({ id: customerId, promotion_enabled: promotionEnabled });
     } catch (_) {}
 
-    logger.log(`[PROMOTION] Customer ${customerId} promotion_enabled set to ${promotionEnabled}`);
+    logger.info(`[PROMOTION] Customer ${customerId} promotion_enabled set to ${promotionEnabled}`);
 
     res.json({
       success: true,
       message: enabled ? 'Đã bật khuyến mãi cho khách' : 'Đã tắt khuyến mãi cho khách'
     });
   } catch (e) {
-    logger.error('update customer promotion error:', e);
+    try { logger.error('update customer promotion error:', e); } catch (_) {}
     res.status(500).json({ success: false, error: e.message });
   }
 });
