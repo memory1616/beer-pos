@@ -1,118 +1,223 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <!-- NO-FLICKER: Apply theme BEFORE first paint to prevent flash -->
-  <script>
-  (function () {
-    var k = 'theme';
-    var sys = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    var saved = localStorage.getItem(k);
-    var theme = (saved === 'light' || saved === 'dark') ? saved : sys;
-    document.documentElement.setAttribute('data-theme', theme);
-    document.documentElement.classList.remove('light', 'dark');
-    document.documentElement.classList.add(theme);
-  })();
-  </script>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Giao hàng</title>
-  <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#0B0E11">
-  <meta name="mobile-web-app-capable" content="yes">
-  <link rel="apple-touch-icon" href="/icon-192.png">
-  <link rel="icon" type="image/png" href="/icon-192.png">
-  <link rel="stylesheet" href="/css/unified.css?v=20260412b-app-shell">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-  <script src="/js/dark-mode.js"></script>
-  <script src="/js/layout.js?v=20260410-binance"></script>
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <style>
-    .delivery-map-wrap { position: relative; z-index: 0; isolation: isolate; overflow: hidden; border-radius: 12px; margin-bottom: 1rem; }
-    .delivery-map-wrap #map { height: 50vh; margin-bottom: 0; }
-    .delivery-map-wrap .leaflet-container { z-index: 0 !important; }
-    .delivery-map-wrap .leaflet-pane { z-index: 0 !important; }
-    .delivery-map-wrap .leaflet-control { z-index: 1 !important; }
-    .delivery-card { transition: all 0.2s; cursor: pointer; }
-    .delivery-card:active { transform: scale(0.98); }
-    .settings-modal-inner { max-height: 85vh; overflow-y: auto; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #0f0f1a; color: #fff; }
+    .header { background: #1a1a2e; padding: 15px; display: flex; justify-content: space-between; align-items: center; }
+    .header h1 { margin: 0; font-size: 18px; }
+    .content { padding: 15px; padding-bottom: 70px; }
+    #map { height: 250px; width: 100%; border-radius: 10px; background: #1a1a2e; }
+    .stats { display: flex; gap: 10px; margin: 15px 0; }
+    .stat-box { flex: 1; background: #1a1a2e; padding: 15px; border-radius: 10px; text-align: center; }
+    .stat-box .val { font-size: 24px; font-weight: bold; color: #3b82f6; }
+    .stat-box .lbl { font-size: 12px; color: #888; }
+    .btn-row { display: flex; gap: 10px; margin-bottom: 15px; }
+    .btn { flex: 1; padding: 12px; border-radius: 8px; border: none; font-size: 14px; cursor: pointer; }
+    .btn-gps { background: #374151; color: #fff; }
+    .btn-route { background: #3b82f6; color: #fff; }
+    .card { background: #1a1a2e; border-radius: 10px; padding: 12px; margin-bottom: 10px; border-left: 3px solid #3b82f6; }
+    .card .name { font-weight: 600; margin-bottom: 4px; }
+    .card .info { font-size: 13px; color: #888; }
+    .card .btns { display: flex; gap: 8px; margin-top: 8px; }
+    .card .btn-sm { padding: 8px; border-radius: 6px; border: none; font-size: 12px; cursor: pointer; background: #374151; color: #fff; text-decoration: none; text-align: center; }
+    .card .btn-del { background: #f59e0b; }
+    .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: #1a1a2e; display: flex; justify-content: space-around; padding: 10px 0; border-top: 1px solid #333; }
+    .nav-link { color: #888; text-decoration: none; font-size: 12px; }
+    .nav-link.active { color: #3b82f6; }
+    .leaflet-container { background: #1a1a2e !important; }
   </style>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
-<body class="bg-bg text-main body--app">
-  <!-- Inject delivery data from server -->
-  <script>
-    window.__DELIVERY_DATA__ = {{DELIVERY_DATA}};
-  </script>
+<body>
+  <div class="header">
+    <h1>🚚 Giao hàng</h1>
+    <button onclick="showSettings()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#fff;">⚙️</button>
+  </div>
 
-  <!-- Header + content + bottom nav all rendered via layout.js -->
-  <div id="app"></div>
-
-  <!-- Settings Modal -->
-  <div id="settingsModal" class="modal-overlay-v2 hidden center" style="z-index:10000">
-    <div class="modal-sheet-v2">
-      <div class="modal-sheet-v2-header">
-        <div class="modal-sheet-v2-title">⚙️ Cấu hình vận chuyển</div>
-        <button type="button" onclick="hideSettingsModal()" class="modal-sheet-v2-close">×</button>
+  <div class="content">
+    <div id="map"></div>
+    
+    <div class="stats">
+      <div class="stat-box">
+        <div class="val" id="count">0</div>
+        <div class="lbl">Đơn hôm nay</div>
       </div>
-      <div class="modal-sheet-v2-body">
-        <div class="space-y-4">
-          <div>
-            <label class="field-label">Phí/km (đ)</label>
-            <input type="number" id="deliveryCostPerKm" class="bn-input bn-input--lg" min="0" step="100">
-          </div>
-          <div>
-            <label class="field-label">Phí cơ bản (đ)</label>
-            <input type="number" id="deliveryBaseCost" class="bn-input bn-input--lg" min="0">
-          </div>
-        </div>
-        <div class="border-t border-muted pt-4 mt-4">
-          <label class="field-label">📍 Vị trí kho/xưởng</label>
-          <div class="grid grid-cols-2 gap-2 mb-2">
-            <div>
-              <label class="text-xs text-muted">Vĩ độ</label>
-              <input type="number" id="distributorLat" class="bn-input" step="0.0001">
-            </div>
-            <div>
-              <label class="text-xs text-muted">Kinh độ</label>
-              <input type="number" id="distributorLng" class="bn-input" step="0.0001">
-            </div>
-          </div>
-          <button onclick="getDistributorLocation()" class="text-sm" style="color:var(--info);">📍 Lấy vị trí hiện tại</button>
-        </div>
-        <div class="flex gap-2 mt-4">
-          <button onclick="hideSettings()" class="btn btn-ghost flex-1">Hủy</button>
-          <button onclick="saveSettings()" class="btn btn-primary flex-1">Lưu</button>
-        </div>
+      <div class="stat-box">
+        <div class="val" id="km" style="color:#22c55e;">-</div>
+        <div class="lbl">Tổng km</div>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-gps" onclick="getLocation()">📍 Vị trí</button>
+      <button class="btn btn-route" onclick="optimize()">⚡ Tối ưu</button>
+    </div>
+
+    <div class="section-title" style="font-size:14px;font-weight:600;margin-bottom:10px;color:#888;">📋 Danh sách giao hàng</div>
+    <div id="list"></div>
+  </div>
+
+  <div class="bottom-nav">
+    <a href="/dashboard" class="nav-link">🏠</a>
+    <a href="/sales" class="nav-link">💰</a>
+    <a href="/delivery" class="nav-link active">🚚</a>
+    <a href="/customers" class="nav-link">👥</a>
+  </div>
+
+  <div id="settingsModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:200;align-items:center;justify-content:center;">
+    <div style="background:#1a1a2e;border-radius:12px;padding:20px;width:90%;max-width:350px;">
+      <h3 style="margin:0 0 15px 0;">⚙️ Cấu hình</h3>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:12px;color:#888;">Phí/km (đ)</label>
+        <input type="number" id="costPerKm" class="btn btn-gps" style="width:100%;text-align:left;">
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:12px;color:#888;">Vĩ độ kho</label>
+        <input type="number" id="lat" class="btn btn-gps" style="width:100%;text-align:left;" step="0.0001">
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:12px;color:#888;">Kinh độ kho</label>
+        <input type="number" id="lng" class="btn btn-gps" style="width:100%;text-align:left;" step="0.0001">
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button onclick="hideSettings()" class="btn btn-gps">Hủy</button>
+        <button onclick="saveSettings()" class="btn btn-route" style="flex:1;">Lưu</button>
       </div>
     </div>
   </div>
 
-  <!-- Load realtime state + delivery JS -->
-  <!-- realtime.js auto-loaded by layout.js -->
-  <script src="/js/delivery.js" defer></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
-    // Render header + bottom nav using layout.js functions
-    const headerActions = `
-      <button onclick="showSettings()" class="btn btn-ghost">⚙️</button>
-    `;
+    var data = {{DELIVERY_DATA}};
+    var customers = data.customers || [];
+    var settings = data.settings || {};
     
-    document.getElementById('app').innerHTML =
-      getHeaderWithActions('Giao hàng', '🚚', headerActions) +
-      getContent(`
-        <div class="delivery-map-wrap">
-          <div id="map"></div>
-        </div>
+    var lat = settings.distributor_lat || 11.3296;
+    var lng = settings.distributor_lng || 106.1495;
+    var costPerKm = settings.delivery_cost_per_km || 3000;
+    var curLat = null, curLng = null;
+    var map = null, userMarker = null;
 
-        <div class="section-title">🚚 Khách hàng</div>
-        <div class="flex gap-2 mb-4">
-          <button onclick="getCurrentLocation()" class="flex-1 btn btn-primary flex items-center justify-center gap-2">📍 Vị trí hiện tại</button>
-          <button onclick="optimizeRoute()" class="flex-1 btn btn-secondary">⚡ Tối ưu lộ trình</button>
-        </div>
+    function dist(lat1, lng1, lat2, lng2) {
+      var R = 6371;
+      var d = (lat2-lat1)*Math.PI/180;
+      var e = (lng2-lng1)*Math.PI/180;
+      var a = Math.sin(d/2)*Math.sin(d/2)+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(e/2)*Math.sin(e/2);
+      return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+    }
 
-        <div id="customersList" class="space-y-2">
-          <!-- Rendered by delivery.js -->
-        </div>
-      `) +
-      getBottomNav('/delivery');
+    function icon(color, size) {
+      size = size || 12;
+      return L.divIcon({ className:'m', html:'<div style="background:'+color+';width:'+size+'px;height:'+size+'px;border-radius:50%;border:2px solid #fff;"></div>', iconSize:[size,size], iconAnchor:[size/2,size/2] });
+    }
+
+    function formatVND(n) {
+      return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    }
+
+    function render() {
+      document.getElementById('count').textContent = customers.length;
+      var totalKm = 0;
+      var originLat = curLat || lat;
+      var originLng = curLng || lng;
+      var html = '';
+      var countWithGPS = 0;
+      
+      customers.forEach(function(c) {
+        var d = 0;
+        if (c.lat && c.lng) {
+          d = dist(originLat, originLng, parseFloat(c.lat), parseFloat(c.lng));
+          totalKm += d;
+          countWithGPS++;
+        }
+        var gpsIcon = c.lat && c.lng ? '<span style="color:#22c55e;">📍</span>' : '<span style="color:#888;">📍</span>';
+        var totalStr = c.total ? formatVND(c.total) + 'đ' : '';
+        html += '<div class="card">' +
+          '<div class="name">'+gpsIcon+' '+c.name+'</div>' +
+          '<div class="info">📞 '+(c.phone||'-')+' '+totalStr+'</div>' +
+          '<div class="btns">' +
+            '<a href="https://www.google.com/maps/dir/?api=1&destination='+c.lat+','+c.lng+'" target="_blank" class="btn-sm">🗺️</a>' +
+            '<a href="/sale?customerId='+c.id+'" class="btn-sm btn-del">📦 Đơn</a>' +
+          '</div>' +
+        '</div>';
+      });
+      
+      document.getElementById('km').textContent = countWithGPS > 0 ? totalKm.toFixed(1) : '-';
+      document.getElementById('list').innerHTML = html || '<p style="text-align:center;color:#888;padding:30px;">Chưa có đơn hàng</p>';
+    }
+
+    function initMap() {
+      map = L.map('map').setView([lat, lng], 12);
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '© OSM © CARTO'
+      }).addTo(map);
+      
+      L.marker([lat, lng], {icon: icon('#22c55e', 16)}).addTo(map).bindPopup('🏭 Kho');
+      
+      customers.forEach(function(c) {
+        if (c.lat && c.lng) {
+          L.marker([parseFloat(c.lat), parseFloat(c.lng)], {icon: icon('#3b82f6', 10)}).addTo(map).bindPopup(c.name);
+        }
+      });
+    }
+
+    window.getLocation = function() {
+      if (!navigator.geolocation) { alert('GPS không hỗ trợ'); return; }
+      navigator.geolocation.getCurrentPosition(function(p) {
+        curLat = p.coords.latitude;
+        curLng = p.coords.longitude;
+        if (map) {
+          map.setView([curLat, curLng], 14);
+          if (userMarker) map.removeLayer(userMarker);
+          userMarker = L.marker([curLat, curLng], {icon: icon('#ef4444', 14)}).addTo(map).bindPopup('📍 Bạn');
+        }
+        render();
+        alert('Đã cập nhật vị trí!');
+      }, function(e) { alert('Lỗi GPS'); }, {enableHighAccuracy: true, timeout: 10000});
+    };
+
+    window.optimize = function() {
+      var originLat = curLat || lat;
+      var originLng = curLng || lng;
+      customers.sort(function(a, b) {
+        return dist(originLat, originLng, parseFloat(a.lat||0), parseFloat(a.lng||0)) - 
+               dist(originLat, originLng, parseFloat(b.lat||0), parseFloat(b.lng||0));
+      });
+      render();
+      alert('Đã sắp xếp theo khoảng cách!');
+    };
+
+    window.showSettings = function() {
+      document.getElementById('costPerKm').value = costPerKm;
+      document.getElementById('lat').value = lat;
+      document.getElementById('lng').value = lng;
+      document.getElementById('settingsModal').style.display = 'flex';
+    };
+
+    window.hideSettings = function() {
+      document.getElementById('settingsModal').style.display = 'none';
+    };
+
+    window.saveSettings = async function() {
+      costPerKm = parseFloat(document.getElementById('costPerKm').value) || 3000;
+      lat = parseFloat(document.getElementById('lat').value) || lat;
+      lng = parseFloat(document.getElementById('lng').value) || lng;
+      try {
+        await fetch('/api/settings/batch', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({delivery_cost_per_km: costPerKm, distributor_lat: lat, distributor_lng: lng})
+        });
+        hideSettings();
+        alert('Đã lưu!');
+      } catch(e) { alert('Lỗi!'); }
+    };
+
+    initMap();
+    render();
   </script>
 </body>
 </html>

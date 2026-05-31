@@ -569,18 +569,32 @@
       }
     }
 
+    function getCommissionLabel(p) {
+      if (p.product_name) return p.product_name;
+      const typeLabels = {
+        all: 'Tất cả sản phẩm',
+        keg: 'Theo loại: Bình (keg)',
+        pet: 'Theo loại: Chai PET',
+        bottle: 'Theo loại: Chai thủy tinh'
+      };
+      return typeLabels[p.product_type] || ('Theo loại: ' + p.product_type);
+    }
+
     function renderProductCommissions(list) {
       const container = document.getElementById('productCommissionList');
       if (!list || list.length === 0) {
         container.innerHTML = '<div class="empty-state">Chưa có cấu hình hoa hồng nào.<br><br><button class="btn btn-primary" onclick="openAddProductCommission()">+ Thêm cấu hình đầu tiên</button></div>';
         return;
       }
+      
+      const summary = list.map(p => `${getCommissionLabel(p)}: ${formatVND(p.salary_per_liter)}/lít`).join(' | ');
+      
       container.innerHTML = list.map(p => `
         <div class="card" style="margin-bottom: 8px;">
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <div>
-              <div style="font-weight: 600;">${p.product_name || 'Tất cả sản phẩm'}</div>
-              <div style="font-size: 12px; color: var(--text-muted);">${p.product_type || 'all'}</div>
+              <div style="font-weight: 600;">${getCommissionLabel(p)}</div>
+              <div style="font-size: 12px; color: var(--text-muted);">${p.product_type}</div>
             </div>
             <div style="display: flex; align-items: center; gap: 8px;">
               <input type="number" class="input" style="width: 100px;" value="${p.salary_per_liter}"
@@ -590,11 +604,22 @@
             </div>
           </div>
         </div>
-      `).join('');
-      
-      // Hiển thị tóm tắt
-      const summary = list.map(p => `${p.product_name || 'Tất cả'}: ${formatVND(p.salary_per_liter)}/lít`).join(' | ');
-      container.innerHTML += `<div style="margin-top:16px;padding:12px;background:var(--bg-soft);border-radius:8px;font-size:13px;"><strong>Đang áp dụng:</strong> ${summary}</div>`;
+      `).join('') + `<div style="margin-top:16px;padding:12px;background:var(--bg-soft);border-radius:8px;font-size:13px;"><strong>Đang áp dụng:</strong> ${summary}</div>`;
+    }
+
+    async function updateProductCommission(id, value) {
+      if (!value && value !== 0) return;
+      try {
+        const res = await fetch(`/api/sales-staff/config/product-commission/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ salaryPerLiter: parseFloat(value) })
+        });
+        const data = await res.json();
+        if (!data.success) alert(data.error || 'Lỗi lưu');
+      } catch (e) {
+        alert('Lỗi kết nối');
+      }
     }
 
     async function saveNewShopCommission() {

@@ -1485,9 +1485,23 @@ try {
   db.exec(`INSERT OR IGNORE INTO sales_commission_config (id, new_shop_commission) VALUES (1, 500000)`);
 } catch (e) { /* ignore */ }
 
-// Khởi tạo commission mặc định cho tất cả sản phẩm
+// Dọn cấu hình hoa hồng trùng (giữ bản ghi id nhỏ nhất cho mỗi cặp product_id + product_type)
 try {
-  db.exec(`INSERT OR IGNORE INTO sales_product_commission (product_type, salary_per_liter) VALUES ('all', 1000)`);
+  db.exec(`
+    DELETE FROM sales_product_commission
+    WHERE id NOT IN (
+      SELECT MIN(id) FROM sales_product_commission
+      GROUP BY COALESCE(product_id, -1), product_type
+    )
+  `);
+} catch (e) { /* ignore */ }
+
+// Chỉ tạo mặc định khi bảng trống (lần đầu cài đặt, không tự thêm lại khi restart)
+try {
+  const commissionCount = db.prepare('SELECT COUNT(*) as c FROM sales_product_commission').get();
+  if (commissionCount.c === 0) {
+    db.prepare(`INSERT INTO sales_product_commission (product_type, salary_per_liter) VALUES ('all', 1000)`).run();
+  }
 } catch (e) { /* ignore */ }
 
 // Indexes cho sales staff

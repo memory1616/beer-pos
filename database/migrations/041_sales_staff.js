@@ -94,8 +94,11 @@ const migration = {
     // Khởi tạo config mặc định
     db.exec(`INSERT OR IGNORE INTO sales_commission_config (id, new_shop_commission) VALUES (1, 500000)`);
 
-    // Khởi tạo commission mặc định cho tất cả sản phẩm
-    db.exec(`INSERT OR IGNORE INTO sales_product_commission (product_type, salary_per_liter) VALUES ('all', 1000)`);
+    // Khởi tạo commission mặc định cho tất cả sản phẩm (chỉ khi bảng trống)
+    const commissionCount = db.prepare('SELECT COUNT(*) as c FROM sales_product_commission').get();
+    if (commissionCount.c === 0) {
+      db.prepare(`INSERT INTO sales_product_commission (product_type, salary_per_liter) VALUES ('all', 1000)`).run();
+    }
 
     // Indexes
     db.exec(`CREATE INDEX IF NOT EXISTS idx_customer_sales ON customer_sales_assignments(customer_id)`);
