@@ -28,25 +28,30 @@ function logKegBalanceChange(customerId, change, note) {
 }
 
 // ========== HELPER: Update customer keg_balance & sync keg_stats.customer_holding ==========
+// Wrapped in explicit transaction to prevent race conditions when concurrent requests
+// modify the same customer's keg balance
 function updateCustomerKegBalance(customerId, deliverKegs = 0, returnKegs = 0) {
   const custId = parseInt(customerId);
   if (!custId) return false;
 
-  const oldCustomer = db.prepare('SELECT keg_balance FROM customers WHERE id = ?').get(custId);
-  if (!oldCustomer) return false;
+  const updateBalance = db.transaction(() => {
+    const oldCustomer = db.prepare('SELECT keg_balance FROM customers WHERE id = ?').get(custId);
+    if (!oldCustomer) return null;
 
-  const oldBalance = oldCustomer.keg_balance || 0;
-  // Luôn tính balance mới từ số dư THỰC TẾ trong DB
-  const newBalance = Math.max(0, oldBalance + deliverKegs - returnKegs);
-  
-  // Update customer
-  db.prepare('UPDATE customers SET keg_balance = ? WHERE id = ?').run(newBalance, custId);
-  
-  // Sync keg_stats.customer_holding = sum of all customer keg_balance
-  const totalHolding = db.prepare('SELECT COALESCE(SUM(keg_balance), 0) as total FROM customers').get();
-  db.prepare('UPDATE keg_stats SET customer_holding = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run(totalHolding.total);
-  
-  return { oldBalance, newBalance, change: newBalance - oldBalance };
+    const oldBalance = oldCustomer.keg_balance || 0;
+    const newBalance = Math.max(0, oldBalance + deliverKegs - returnKegs);
+
+    // Update customer
+    db.prepare('UPDATE customers SET keg_balance = ? WHERE id = ?').run(newBalance, custId);
+
+    // Sync keg_stats.customer_holding = sum of all customer keg_balance
+    const totalHolding = db.prepare('SELECT COALESCE(SUM(keg_balance), 0) as total FROM customers').get();
+    db.prepare('UPDATE keg_stats SET customer_holding = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run(totalHolding.total);
+
+    return { oldBalance, newBalance, change: newBalance - oldBalance };
+  });
+
+  return updateBalance();
 }
 
 // Validate ID parameter
@@ -244,31 +249,39 @@ router.post('/keg/update-balance', (req, res) => {
   }
 
   try {
-    // Check if customer exists
-    const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(custId);
-    if (!customer) {
+    // Wrap in transaction to prevent race conditions
+    const updateBalance = db.transaction(() => {
+      // Check if customer exists
+      const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(custId);
+      if (!customer) return { error: 'not_found' };
+
+      const oldBalance = customer.keg_balance || 0;
+      const newBalance = parseInt(balance);
+      const change = newBalance - oldBalance;
+
+      // Update customer keg_balance
+      db.prepare('UPDATE customers SET keg_balance = ? WHERE id = ?').run(newBalance, custId);
+
+      // Update keg_stats.customer_holding (sum of all customer keg_balance)
+      const totalHolding = db.prepare('SELECT COALESCE(SUM(keg_balance), 0) as total FROM customers').get();
+      db.prepare('UPDATE keg_stats SET customer_holding = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run(totalHolding.total);
+
+      return { success: true, newBalance, change, oldBalance };
+    });
+
+    const result = updateBalance();
+    if (result.error === 'not_found') {
       return res.status(404).json({ error: 'Không tìm thấy khách hàng' });
     }
 
-    const oldBalance = customer.keg_balance || 0;
-    const newBalance = parseInt(balance);
-    const change = newBalance - oldBalance;
-
-    // Update customer keg_balance
-    db.prepare('UPDATE customers SET keg_balance = ? WHERE id = ?').run(newBalance, custId);
-
-    // Update keg_stats.customer_holding (sum of all customer keg_balance)
-    const totalHolding = db.prepare('SELECT COALESCE(SUM(keg_balance), 0) as total FROM customers').get();
-    db.prepare('UPDATE keg_stats SET customer_holding = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run(totalHolding.total);
-
     // Log the change to unified keg_transactions_log
-    if (change !== 0) {
-      logKegBalanceChange(custId, change, note || 'Điều chỉnh số bình');
+    if (result.change !== 0) {
+      logKegBalanceChange(custId, result.change, note || 'Điều chỉnh số bình');
     } else if (note) {
       logKegBalanceChange(custId, 0, note);
     }
 
-    res.json({ success: true, newBalance, change });
+    res.json({ success: true, newBalance: result.newBalance, change: result.change });
   } catch (err) {
     logger.error('Error updating keg balance', { error: err.message });
     res.status(500).json({ error: 'Cập nhật thất bại' });

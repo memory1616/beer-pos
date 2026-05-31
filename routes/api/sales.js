@@ -129,6 +129,29 @@ router.post('/', (req, res) => {
       allProducts.forEach(p => { productMap[p.id] = p; productMap[p.slug] = p; });
     }
 
+    // ========== STOCK VALIDATION ==========
+    // Check if all products have sufficient stock before processing sale
+    const stockErrors = [];
+    for (const item of items) {
+      const queryKey = item.productId || item.productSlug;
+      const product = productMap[queryKey];
+      if (!product) {
+        stockErrors.push(`Sản phẩm không tìm thấy: ${queryKey}`);
+        continue;
+      }
+      const currentStock = product.stock || 0;
+      if (currentStock < item.quantity) {
+        stockErrors.push(`Sản phẩm "${product.name}" có ${currentStock} trong kho, cần ${item.quantity}`);
+      }
+    }
+    if (stockErrors.length > 0) {
+      return res.status(400).json({
+        error: 'Kho không đủ sản phẩm',
+        details: stockErrors,
+        code: 'INSUFFICIENT_STOCK'
+      });
+    }
+
     // Pre-load customer prices in ONE query
     const productIds = items.map(i => {
       const prod = productMap[i.productId || i.productSlug];

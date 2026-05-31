@@ -86,12 +86,25 @@ if (!ADMIN_PASSWORD) {
   process.exit(1);
 }
 
+// SECURITY: Warn if using weak/default password
+const WEAK_PASSWORDS = ['admin', 'password', '123456', 'admin123', 'zxcv@1234', 'Zxcv@1234', 'zxcasd123'];
+if (WEAK_PASSWORDS.includes(ADMIN_PASSWORD.toLowerCase())) {
+  console.warn('WARNING: Using a weak password is not recommended for production!');
+  console.warn('Please change ADMIN_PASSWORD to a strong, unique value.');
+  if (process.env.NODE_ENV === 'production') {
+    console.error('FATAL: Weak password detected in production environment!');
+    console.error('Please set a strong ADMIN_PASSWORD in your .env file.');
+    process.exit(1);
+  }
+}
+
 const AUTH_CONFIG = {
   username: process.env.ADMIN_USER || 'admin',
   sessionDuration: parseInt(process.env.SESSION_DURATION_MS) || (30 * 24 * 60 * 60 * 1000), // 30 days
   cookieName: 'session_token',
   cookieSecure: process.env.NODE_ENV === 'production',
-  cookieSameSite: 'lax'
+  cookieSameSite: 'strict', // Changed from 'lax' for better CSRF protection
+  cookieHttpOnly: true // Ensure cookies are not accessible via JavaScript
 };
 
 // Auth middleware — reads token from cookie OR Authorization header
@@ -141,6 +154,7 @@ function getSession(token) {
 function cookieOptions() {
   return {
     maxAge: AUTH_CONFIG.sessionDuration,
+    httpOnly: AUTH_CONFIG.cookieHttpOnly,
     secure: AUTH_CONFIG.cookieSecure,
     sameSite: AUTH_CONFIG.cookieSameSite
   };
