@@ -1319,6 +1319,22 @@ try {
   }
 } catch (e) { /* may already exist */ }
 
+// Migration: Add start_date/end_date columns if not exists (for promotion validity period)
+try {
+  const cols = db.prepare("PRAGMA table_info(promotion_settings)").all();
+  const colNames = cols.map(c => c.name);
+  if (!colNames.includes('start_date')) {
+    db.exec("ALTER TABLE promotion_settings ADD COLUMN start_date TEXT");
+    logger.log('[PROMOTION] Added start_date column');
+  }
+  if (!colNames.includes('end_date')) {
+    db.exec("ALTER TABLE promotion_settings ADD COLUMN end_date TEXT");
+    logger.log('[PROMOTION] Added end_date column');
+  }
+} catch (e) {
+  logger.error('[PROMOTION] Migration start_date/end_date failed:', e.message);
+}
+
 // Customer Monthly Reward Tracking table — theo dõi sản lượng tháng theo từng khách
 db.exec(`
   CREATE TABLE IF NOT EXISTS customer_monthly_stats (

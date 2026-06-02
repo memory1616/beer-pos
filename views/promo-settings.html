@@ -230,6 +230,30 @@
     var PROMO_SETTINGS_HTML = [
       '<div id="promoSettingsContent" class="hidden" style="padding-bottom:40px;">',
 
+      // SECTION 0: THỜI GIAN ÁP DỤNG
+      '<div class="promo-section" style="border:1px solid rgba(59,130,246,0.25);background:linear-gradient(135deg,rgba(59,130,246,0.03),rgba(59,130,246,0.06));">',
+        '<div class="promo-section-title">&#128197; Thời gian áp dụng</div>',
+        '<div class="promo-section-desc">Để trống = áp dụng vô thời hạn. Có ngày = chỉ áp dụng trong khoảng thời gian này.</div>',
+
+        '<div class="promo-input-row">',
+          '<div class="promo-input-label">Ngày bắt đầu</div>',
+          '<div class="promo-input-wrap">',
+            '<input type="date" id="startDate" class="promo-input" style="width:150px;" onchange="onSettingsChanged()">',
+            '<span class="promo-input-suffix" style="color:#6b7280;">(không bắt buộc)</span>',
+          '</div>',
+        '</div>',
+
+        '<div class="promo-input-row">',
+          '<div class="promo-input-label">Ngày kết thúc</div>',
+          '<div class="promo-input-wrap">',
+            '<input type="date" id="endDate" class="promo-input" style="width:150px;" onchange="onSettingsChanged()">',
+            '<span class="promo-input-suffix" style="color:#6b7280;">(không bắt buộc)</span>',
+          '</div>',
+        '</div>',
+
+        '<div id="periodStatus" class="mt-3 text-center" style="font-size:12px;font-weight:600;"></div>',
+      '</div>',
+
       // Info Banner
       '<div class="info-banner">',
         '<p><strong>Chỉ áp dụng cho đơn hàng mới.</strong> Thay đổi cài đặt KHÔNG làm sai dữ liệu cũ, KHÔNG reset lịch sử, KHÔNG tính lại đơn cũ.</p>',
@@ -410,6 +434,11 @@
       el = document.getElementById('toggleReward'); if (el) el.checked = !!s.rewardEnabled;
       toggleRewardFields(s.rewardEnabled);
 
+      // Render thời gian áp dụng
+      el = document.getElementById('startDate'); if (el) el.value = s.startDate || '';
+      el = document.getElementById('endDate'); if (el) el.value = s.endDate || '';
+      updatePeriodStatus(s.startDate, s.endDate);
+
       tierList = JSON.parse(JSON.stringify(s.rewardTiers || []));
       if (tierList.length === 0) {
         tierList = [{threshold: 300, reward: 10}, {threshold: 500, reward: 20}];
@@ -419,6 +448,48 @@
 
       hasChanges = false;
       document.getElementById('saveBtn').disabled = true;
+    }
+
+    // ── Update period status display ────────────────────
+    function updatePeriodStatus(startDate, endDate) {
+      var statusEl = document.getElementById('periodStatus');
+      if (!statusEl) return;
+
+      var now = new Date();
+      var start = startDate ? new Date(startDate) : null;
+      var end = endDate ? new Date(endDate) : null;
+
+      if (!start && !end) {
+        statusEl.innerHTML = '<span style="color:#22c55e;">&#10003; Đang áp dụng vô thời hạn</span>';
+        return;
+      }
+
+      var isActive = true;
+      var statusText = '';
+
+      if (start && now < start) {
+        isActive = false;
+        statusText = 'Sẽ bắt đầu ngày ' + formatDate(startDate);
+      } else if (end && now > end) {
+        isActive = false;
+        statusText = '&#10007; Đã hết hạn ngày ' + formatDate(endDate);
+      } else if (start && end) {
+        statusText = 'Đang áp dụng: ' + formatDate(startDate) + ' → ' + formatDate(endDate);
+      } else if (start) {
+        statusText = 'Đang áp dụng từ ngày ' + formatDate(startDate);
+      } else if (end) {
+        statusText = 'Đang áp dụng đến ngày ' + formatDate(endDate);
+      }
+
+      statusEl.innerHTML = isActive
+        ? '<span style="color:#22c55e;">&#10003; ' + statusText + '</span>'
+        : '<span style="color:#f59e0b;">&#9203; ' + statusText + '</span>';
+    }
+
+    function formatDate(dateStr) {
+      if (!dateStr) return '';
+      var d = new Date(dateStr);
+      return d.getDate() + '/' + (d.getMonth() + 1) + '/' + d.getFullYear();
     }
 
     // ── Toggle field visibility ───────────────────────────
@@ -544,7 +615,9 @@
           newShopBlackBuy: parseInt(document.getElementById('blackBuy').value) || 20,
           newShopBlackFree: parseInt(document.getElementById('blackFree').value) || 1,
           rewardEnabled: document.getElementById('toggleReward').checked,
-          rewardTiers: tierList
+          rewardTiers: tierList,
+          startDate: document.getElementById('startDate').value || null,
+          endDate: document.getElementById('endDate').value || null
         };
 
         var res = await fetch('/api/promotions/settings', {
