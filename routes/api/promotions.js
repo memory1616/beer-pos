@@ -744,6 +744,7 @@ router.put('/customer/:id', (req, res) => {
     });
   } catch (e) {
     try { logger.error('update customer promotion error:', e); } catch (_) {}
+    console.error('PUT /api/promotions/customer/:id error:', e);
     res.status(500).json({ success: false, error: e.message });
   }
 });
