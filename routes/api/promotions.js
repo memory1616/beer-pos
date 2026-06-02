@@ -735,16 +735,20 @@ router.put('/customer/:id', (req, res) => {
     console.log('UPDATE SUCCESS:', result);
 
     // Emit realtime update
+    console.log('About to emit customer updated');
     try {
       socketServer.emitCustomerUpdated({ id: customerId });
+      console.log('Emit completed');
     } catch (e) {
-      console.error('Socket emit error:', e.message);
+      console.error('Socket emit error:', e.message, e.stack);
     }
 
+    console.log('About to send response');
     res.json({
       success: true,
       message: 'Đã cập nhật khuyến mãi'
     });
+    console.log('Response sent');
   } catch (e) {
     console.error('PUT /api/promotions/customer/:id error:', e.message, e.stack);
     res.status(500).json({ success: false, error: e.message });
