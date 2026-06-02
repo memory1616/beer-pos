@@ -412,18 +412,38 @@ router.post('/', (req, res) => {
     // QUY TẮC: Khách đang hưởng KM quán mới sẽ KHÔNG nhận thưởng tháng
     let autoRewardResult = null;
     if (customerId) {
-      const isInNewShop = PromotionService.isInNewShopPeriod(customerId);
-      if (!isInNewShop) {
-        const rewardInfo = PromotionService.getRewardForPrevMonth(customerId);
-        if (rewardInfo && rewardInfo.eligible && rewardInfo.rewardLiters > 0) {
-          // Gắn thưởng vào đơn hàng hiện tại
-          autoRewardResult = PromotionService.attachRewardToSale(customerId, saleId, rewardInfo.rewardLiters, rewardInfo.tier);
-          if (autoRewardResult && autoRewardResult.success) {
-            console.log('[AUTO REWARD] Đã gắn thưởng vào đơn', customerId, ':', autoRewardResult.rewardLiters, 'L');
-          }
-        }
+      // Kiểm tra tháng trả thưởng (tháng trước) có nằm trong thời gian áp dụng KM không
+      const now = new Date();
+      const rewardMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const rewardMonthEnd = new Date(rewardMonth.getFullYear(), rewardMonth.getMonth() + 1, 0, 23, 59, 59, 999);
+
+      const settings = PromotionService.getSystemPromotionSettings();
+      const isRewardMonthValid = (() => {
+        if (!settings.startDate && !settings.endDate) return true;
+        const promoStart = settings.startDate ? new Date(settings.startDate) : null;
+        const promoEnd = settings.endDate ? new Date(settings.endDate) : null;
+        // Tháng trả thưởng phải nằm trong khoảng thời gian KM
+        if (promoEnd && rewardMonth > promoEnd) return false;
+        if (promoStart && rewardMonthEnd < promoStart) return false;
+        return true;
+      })();
+
+      if (!isRewardMonthValid) {
+        console.log('[AUTO REWARD] Bo qua vi thang tra thuong (thang', rewardMonth.getMonth() + 1, '/', rewardMonth.getFullYear(), ') nam ngoai thoi gian KM');
       } else {
-        console.log('[AUTO REWARD] Bỏ qua vì khách', customerId, 'đang trong thời gian quán mới - không nhận thưởng tháng');
+        const isInNewShop = PromotionService.isInNewShopPeriod(customerId);
+        if (!isInNewShop) {
+          const rewardInfo = PromotionService.getRewardForPrevMonth(customerId);
+          if (rewardInfo && rewardInfo.eligible && rewardInfo.rewardLiters > 0) {
+            // Gắn thưởng vào đơn hàng hiện tại
+            autoRewardResult = PromotionService.attachRewardToSale(customerId, saleId, rewardInfo.rewardLiters, rewardInfo.tier);
+            if (autoRewardResult && autoRewardResult.success) {
+              console.log('[AUTO REWARD] Da gan thuong vao don', customerId, ':', autoRewardResult.rewardLiters, 'L');
+            }
+          }
+        } else {
+          console.log('[AUTO REWARD] Bo qua vi khach', customerId, 'dang trong thoi gian quan moi - khong nhan thuong thang');
+        }
       }
     }
 
