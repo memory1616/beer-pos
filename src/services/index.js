@@ -745,25 +745,6 @@ class PromotionService {
 
     return true;
   }
-      }
-      return {
-        newShopEnabled: !!settings.new_shop_enabled,
-        newShopDays: settings.new_shop_days || 30,
-        newShopGoldBuy: settings.new_shop_gold_buy || 10,
-        newShopGoldFree: settings.new_shop_gold_free || 1,
-        newShopBlackBuy: settings.new_shop_black_buy || 20,
-        newShopBlackFree: settings.new_shop_black_free || 1,
-        rewardEnabled: !!settings.reward_enabled,
-        rewardTiers: this._parseRewardTiers(settings.reward_tiers),
-        startDate: settings.start_date || null,
-        endDate: settings.end_date || null,
-        updatedAt: settings.updated_at
-      };
-    } catch (e) {
-      logger.error('getSystemPromotionSettings error:', e);
-      return this._getDefaultSettings();
-    }
-  }
 
   _getDefaultSettings() {
     return {
