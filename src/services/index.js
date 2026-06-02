@@ -809,6 +809,11 @@ class PromotionService {
         daysRemaining,
         firstOrderDate: customer.created_at,
         newShopDays: settings.newShopDays,
+        // Thêm thông tin tỷ lệ khuyến mãi cho UI
+        buyGold: settings.newShopGoldBuy,
+        freeGold: settings.newShopGoldFree,
+        buyBlack: settings.newShopBlackBuy,
+        freeBlack: settings.newShopBlackFree,
         promotionEnabled: true
       };
     }
