@@ -899,13 +899,16 @@
         window.__customerNewShopEnabled = newShopEnabled;
         window.__customerRewardEnabled = rewardEnabled;
 
-        // Check if system settings are disabled or customer CTKM is off
-        const newShopDisabled = !systemNewShopEnabled || !promotionEnabled;
-        const rewardDisabled = !systemRewardEnabled || !promotionEnabled;
+        // Check if system settings are disabled
+        const newShopDisabled = !systemNewShopEnabled;
+        const rewardDisabled = !systemRewardEnabled;
 
         let newShopStatus = 'Bật';
         let newShopColor = '#22c55e';
-        if (newShopDisabled) {
+        if (!promotionEnabled) {
+          newShopStatus = 'CTKM tắt';
+          newShopColor = '#6b7280';
+        } else if (newShopDisabled) {
           newShopStatus = 'Hệ thống tắt';
           newShopColor = '#6b7280';
         } else if (!newShopEnabled) {
@@ -918,13 +921,20 @@
 
         let rewardStatus = 'Bật';
         let rewardColor = '#22c55e';
-        if (rewardDisabled) {
+        if (!promotionEnabled) {
+          rewardStatus = 'CTKM tắt';
+          rewardColor = '#6b7280';
+        } else if (rewardDisabled) {
           rewardStatus = 'Hệ thống tắt';
           rewardColor = '#6b7280';
         } else if (!rewardEnabled) {
           rewardStatus = 'Tắt riêng';
           rewardColor = '#ef4444';
         }
+
+        const promoControlBtn = !promotionEnabled
+          ? '<div class="text-center mt-3"><button class="btn btn-sm btn-success" onclick="enableCustomerPromotion()">Bật CTKM cho khách này</button></div>'
+          : '';
 
         container.innerHTML = `
           <!-- NEW SHOP PROMOTION -->
@@ -963,7 +973,8 @@
             <div class="text-xs text-muted mt-2">🎯 Đạt 300L/tháng: tặng 10L | 500L/tháng: tặng 20L</div>
           </div>
 
-          ${!promotionEnabled ? '<div class="card p-3 text-center text-sm text-muted" style="border:1px solid rgba(107,114,128,0.25);">CTKM đang tắt cho khách này</div>' : ''}
+          ${promoControlBtn}
+          ${!promotionEnabled ? '<div class="text-center text-sm text-muted mt-2" style="color:#6b7280;">CTKM đang tắt cho khách này</div>' : ''}
         `;
       } catch (e) {
         console.error('loadPromoToggleStatus error:', e);
@@ -1015,6 +1026,27 @@
         }
       } catch (e) {
         toggle.checked = !enabled;
+        if (typeof showToast === 'function') showToast('Lỗi kết nối', 'error');
+      }
+    }
+
+    // Enable CTKM for customer
+    async function enableCustomerPromotion() {
+      try {
+        var res = await fetch('/api/promotions/customer/' + customerId, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled: true })
+        });
+        var data = await res.json();
+        if (data.success) {
+          window.__customerPromoEnabled = true;
+          if (typeof showToast === 'function') showToast('Đã bật CTKM', 'success');
+          loadPromoToggleStatus();
+        } else {
+          if (typeof showToast === 'function') showToast(data.error || 'Lỗi', 'error');
+        }
+      } catch (e) {
         if (typeof showToast === 'function') showToast('Lỗi kết nối', 'error');
       }
     }
