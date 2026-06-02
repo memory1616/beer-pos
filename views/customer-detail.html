@@ -898,19 +898,8 @@
           window.__rewardTiers = data.data.rewardTiers || [];
         }
 
-        // Cập nhật mô tả thưởng doanh số từ settings thực tế
-        var rewardDescEl = document.getElementById('rewardTiersDesc');
-        if (rewardDescEl) {
-          var tiers = window.__rewardTiers || [];
-          if (tiers.length > 0) {
-            var tierTexts = tiers.map(function(t) {
-              return 'Đạt ' + t.threshold + 'L: tặng ' + t.reward + 'L';
-            });
-            rewardDescEl.textContent = '🎯 ' + tierTexts.join(' | ');
-          } else {
-            rewardDescEl.textContent = '🎯 Chưa có cài đặt thưởng tháng';
-          }
-        }
+        // Cập nhật mô tả thưởng doanh số từ settings thực tế (sau khi innerHTML được gán)
+        var tiers = window.__rewardTiers || [];
 
         window.__customerPromoEnabled = promotionEnabled;
         window.__customerNewShopEnabled = newShopEnabled;
@@ -988,6 +977,18 @@
           </div>
 
         `;
+        // Cập nhật mô tả thưởng doanh số (sau khi DOM đã render)
+        var rewardDescEl = document.getElementById('rewardTiersDesc');
+        if (rewardDescEl) {
+          if (tiers.length > 0) {
+            var tierTexts = tiers.map(function(t) {
+              return 'Đạt ' + t.threshold + 'L: tặng ' + t.reward + 'L';
+            });
+            rewardDescEl.textContent = '🎯 ' + tierTexts.join(' | ');
+          } else {
+            rewardDescEl.textContent = '🎯 Chưa có cài đặt thưởng tháng';
+          }
+        }
       } catch (e) {
         console.error('loadPromoToggleStatus error:', e);
         container.innerHTML = '<div class="text-center py-4 text-danger">Lỗi tải khuyến mãi</div>';
