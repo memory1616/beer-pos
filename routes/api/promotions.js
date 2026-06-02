@@ -729,34 +729,20 @@ router.put('/customer/:id', (req, res) => {
     updates.push('updated_at = CURRENT_TIMESTAMP');
     values.push(customerId);
 
-    console.log('DEBUG: updates:', updates);
-    console.log('DEBUG: values:', values);
     const sql = `UPDATE customers SET ${updates.join(', ')} WHERE id = ?`;
-    console.log('DEBUG: SQL:', sql);
-
-    try {
-      const stmt = db.prepare(sql);
-      const result = stmt.run(...values);
-      console.log('DEBUG: result:', result);
-    } catch (e) {
-      console.error('DB ERROR:', e);
-      throw e;
-    }
+    const stmt = db.prepare(sql);
+    const result = stmt.run(...values);
+    console.log('UPDATE SUCCESS:', result);
 
     // Emit realtime update
-    try {
-      socketServer.emitCustomerUpdated({ id: customerId });
-    } catch (_) {}
-
-    logger.info(`[PROMOTION] Customer ${customerId} updated:`, { enabled, newShopEnabled, rewardEnabled });
+    socketServer.emitCustomerUpdated({ id: customerId });
 
     res.json({
       success: true,
       message: 'Đã cập nhật khuyến mãi'
     });
   } catch (e) {
-    try { logger.error('update customer promotion error:', e); } catch (_) {}
-    console.error('PUT /api/promotions/customer/:id error:', e);
+    console.error('PUT /api/promotions/customer/:id error:', e.message, e.stack);
     res.status(500).json({ success: false, error: e.message });
   }
 });
