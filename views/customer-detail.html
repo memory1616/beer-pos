@@ -932,9 +932,6 @@
           rewardColor = '#ef4444';
         }
 
-        const promoControlBtn = !promotionEnabled
-          ? '<div class="text-center mt-3"><button class="btn btn-sm btn-success" onclick="enableCustomerPromotion()">Bật CTKM cho khách này</button></div>'
-          : '';
 
         container.innerHTML = `
           <!-- NEW SHOP PROMOTION -->
@@ -973,8 +970,6 @@
             <div class="text-xs text-muted mt-2">🎯 Đạt 300L/tháng: tặng 10L | 500L/tháng: tặng 20L</div>
           </div>
 
-          ${promoControlBtn}
-          ${!promotionEnabled ? '<div class="text-center text-sm text-muted mt-2" style="color:#6b7280;">CTKM đang tắt cho khách này</div>' : ''}
         `;
       } catch (e) {
         console.error('loadPromoToggleStatus error:', e);
@@ -1026,27 +1021,6 @@
         }
       } catch (e) {
         toggle.checked = !enabled;
-        if (typeof showToast === 'function') showToast('Lỗi kết nối', 'error');
-      }
-    }
-
-    // Enable CTKM for customer
-    async function enableCustomerPromotion() {
-      try {
-        var res = await fetch('/api/promotions/customer/' + customerId, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ enabled: true })
-        });
-        var data = await res.json();
-        if (data.success) {
-          window.__customerPromoEnabled = true;
-          if (typeof showToast === 'function') showToast('Đã bật CTKM', 'success');
-          loadPromoToggleStatus();
-        } else {
-          if (typeof showToast === 'function') showToast(data.error || 'Lỗi', 'error');
-        }
-      } catch (e) {
         if (typeof showToast === 'function') showToast('Lỗi kết nối', 'error');
       }
     }
