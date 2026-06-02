@@ -887,11 +887,11 @@
         var newShopInfo = null;
 
         if (data && data.data) {
-          promotionEnabled = data.data.promotionEnabled !== false;
-          newShopEnabled = data.data.newShopEnabled !== false;
-          rewardEnabled = data.data.rewardEnabled !== false;
-          systemNewShopEnabled = data.data.systemNewShopEnabled;
-          systemRewardEnabled = data.data.systemRewardEnabled;
+          promotionEnabled = data.data.promotionEnabled == 1;
+          newShopEnabled = data.data.newShopEnabled == 1;
+          rewardEnabled = data.data.rewardEnabled == 1;
+          systemNewShopEnabled = data.data.systemNewShopEnabled == 1;
+          systemRewardEnabled = data.data.systemRewardEnabled == 1;
           newShopInfo = data.data.newShop;
         }
 

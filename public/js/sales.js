@@ -1278,7 +1278,7 @@ function checkNewShopPromo(customerId) {
         hidePromoPreview();
 
         // Kiểm tra trạng thái CTKM của khách
-        var promoEnabled = info.promotionEnabled !== false;
+        var promoEnabled = info.promotionEnabled == 1;
         saleState.promotionEnabled = promoEnabled;
         if (promoEnabled) {
           hidePromoDisabledBadge();
