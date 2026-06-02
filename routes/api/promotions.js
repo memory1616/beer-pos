@@ -650,13 +650,18 @@ router.get('/customer/:customerId/overview', (req, res) => {
     const settings = PromotionService.getSystemPromotionSettings();
 
     let newShopInfo = null;
+    let isInNewShopPeriod = false;
     if (customer.promotion_enabled !== 0) {
       newShopInfo = PromotionService.isNewShopEligible(customerId);
+      isInNewShopPeriod = PromotionService.isInNewShopPeriod(customerId);
     }
 
     let rewardInfo = null;
+    let canReceiveReward = false;
     if (customer.promotion_enabled !== 0) {
       rewardInfo = PromotionService.calculateMonthlyReward(customerId);
+      // Khách chỉ có thể nhận thưởng tháng nếu KHÔNG đang trong thời gian quán mới
+      canReceiveReward = !isInNewShopPeriod && settings.rewardEnabled;
     }
 
     res.json({
@@ -667,6 +672,8 @@ router.get('/customer/:customerId/overview', (req, res) => {
         promotionEnabled: customer.promotion_enabled !== 0,
         systemNewShopEnabled: settings.newShopEnabled,
         systemRewardEnabled: settings.rewardEnabled,
+        isInNewShopPeriod,
+        canReceiveReward,
         newShop: newShopInfo,
         monthlyReward: rewardInfo
       }
