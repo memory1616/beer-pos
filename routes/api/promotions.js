@@ -735,7 +735,11 @@ router.put('/customer/:id', (req, res) => {
     console.log('UPDATE SUCCESS:', result);
 
     // Emit realtime update
-    socketServer.emitCustomerUpdated({ id: customerId });
+    try {
+      socketServer.emitCustomerUpdated({ id: customerId });
+    } catch (e) {
+      console.error('Socket emit error:', e.message);
+    }
 
     res.json({
       success: true,
