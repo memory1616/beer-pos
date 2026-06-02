@@ -87,7 +87,7 @@ if (!ADMIN_PASSWORD) {
 }
 
 // SECURITY: Warn if using weak/default password
-const WEAK_PASSWORDS = ['admin', 'password', '123456', 'admin123', 'zxcv@1234', 'Zxcv@1234', 'zxcasd123'];
+const WEAK_PASSWORDS = ['admin', 'password', '123456', 'admin123', 'zxcasd123'];
 if (WEAK_PASSWORDS.includes(ADMIN_PASSWORD.toLowerCase())) {
   console.warn('WARNING: Using a weak password is not recommended for production!');
   console.warn('Please change ADMIN_PASSWORD to a strong, unique value.');
