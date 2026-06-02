@@ -723,22 +723,10 @@
             </div>
           </div>
 
-          <!-- PROMOTION TOGGLE -->
-          <div class="card p-3 mb-3" id="promoToggleCard" style="border:1px solid rgba(168,85,247,0.25);background:linear-gradient(135deg,rgba(168,85,247,0.03),rgba(168,85,247,0.06));">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <span style="font-size:18px;">&#127873;</span>
-                <div>
-                  <div class="font-semibold text-sm" style="color:#a855f7;">Tham gia CTKM</div>
-                  <div class="text-xs text-muted" id="promoToggleStatus">Đang tải...</div>
-                </div>
-              </div>
-              <label class="toggle-switch">
-                <input type="checkbox" id="togglePromoEnabled" onchange="togglePromoEnabled()">
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-            <div id="promoToggleNote" class="text-xs text-muted mt-2 hidden"></div>
+          <!-- PROMOTION TOGGLES -->
+          <div id="promoTogglesSection" class="space-y-3 mb-3">
+            <!-- Loading state -->
+            <div class="text-center py-4 text-muted">Đang tải khuyến mãi...</div>
           </div>
 
           <!-- SALES ASSIGNMENT -->
@@ -882,38 +870,156 @@
       }
     }
 
-    // Load promotion toggle status
+    // Load promotion toggle status (NEW SHOP + REWARD SEPARATE)
     async function loadPromoToggleStatus() {
+      const container = document.getElementById('promoTogglesSection');
+      if (!container) return;
+
       try {
         var res = await fetch('/api/promotions/customer/' + customerId + '/overview');
         var data = await res.json();
-        var enabled = true;
+
+        var promotionEnabled = true;
+        var newShopEnabled = true;
+        var rewardEnabled = true;
+        var systemNewShopEnabled = true;
+        var systemRewardEnabled = true;
+        var newShopInfo = null;
+
         if (data && data.data) {
-          enabled = data.data.promotionEnabled !== false;
-          window.__customerPromoEnabled = enabled;
+          promotionEnabled = data.data.promotionEnabled !== false;
+          newShopEnabled = data.data.newShopEnabled !== false;
+          rewardEnabled = data.data.rewardEnabled !== false;
+          systemNewShopEnabled = data.data.systemNewShopEnabled;
+          systemRewardEnabled = data.data.systemRewardEnabled;
+          newShopInfo = data.data.newShop;
         }
-        var toggle = document.getElementById('togglePromoEnabled');
-        var status = document.getElementById('promoToggleStatus');
-        var note = document.getElementById('promoToggleNote');
-        if (toggle) toggle.checked = enabled;
-        if (status) {
-          status.textContent = enabled ? 'Đang bật' : 'Đang tắt';
-          status.style.color = enabled ? '#22c55e' : '#ef4444';
+
+        window.__customerPromoEnabled = promotionEnabled;
+        window.__customerNewShopEnabled = newShopEnabled;
+        window.__customerRewardEnabled = rewardEnabled;
+
+        // Check if system settings are disabled
+        const newShopDisabled = !systemNewShopEnabled;
+        const rewardDisabled = !systemRewardEnabled;
+
+        let newShopStatus = 'Bật';
+        let newShopColor = '#22c55e';
+        if (newShopDisabled) {
+          newShopStatus = 'Hệ thống tắt';
+          newShopColor = '#6b7280';
+        } else if (!newShopEnabled) {
+          newShopStatus = 'Tắt riêng';
+          newShopColor = '#ef4444';
+        } else if (newShopInfo && newShopInfo.eligible) {
+          newShopStatus = newShopInfo.daysRemaining > 0 ? 'Còn ' + newShopInfo.daysRemaining + ' ngày' : 'Hết ưu đãi';
+          newShopColor = '#f59e0b';
         }
-        if (note) {
-          if (enabled) {
-            note.classList.add('hidden');
-          } else {
-            note.classList.remove('hidden');
-            note.innerHTML = 'Quán mới và thưởng doanh số sẽ không được áp dụng cho khách này.';
-          }
+
+        let rewardStatus = 'Bật';
+        let rewardColor = '#22c55e';
+        if (rewardDisabled) {
+          rewardStatus = 'Hệ thống tắt';
+          rewardColor = '#6b7280';
+        } else if (!rewardEnabled) {
+          rewardStatus = 'Tắt riêng';
+          rewardColor = '#ef4444';
         }
+
+        container.innerHTML = `
+          <!-- NEW SHOP PROMOTION -->
+          <div class="card p-3" style="border:1px solid rgba(168,85,247,0.25);background:linear-gradient(135deg,rgba(168,85,247,0.03),rgba(168,85,247,0.06));">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span style="font-size:18px;">&#128293;</span>
+                <div>
+                  <div class="font-semibold text-sm" style="color:#a855f7;">Khuyến mãi quán mới</div>
+                  <div class="text-xs" style="color:${newShopColor};font-weight:600;" id="newShopStatus">${newShopStatus}</div>
+                </div>
+              </div>
+              <label class="toggle-switch" style="${newShopDisabled ? 'opacity:0.5;pointer-events:none;' : ''}">
+                <input type="checkbox" id="toggleNewShopEnabled" ${newShopEnabled && !newShopDisabled ? 'checked' : ''} onchange="togglePromotionType('newShop')" ${newShopDisabled ? 'disabled' : ''}>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            ${newShopInfo && newShopInfo.eligible && newShopInfo.daysRemaining > 0 ? '<div class="text-xs text-muted mt-2">🎁 Mua ' + newShopInfo.buyGold + 'L vàng + ' + newShopInfo.freeGold + 'L | Mua ' + newShopInfo.buyBlack + 'L đen + ' + newShopInfo.freeBlack + 'L</div>' : ''}
+          </div>
+
+          <!-- REWARD PROMOTION -->
+          <div class="card p-3" style="border:1px solid rgba(245,158,11,0.25);background:linear-gradient(135deg,rgba(245,158,11,0.03),rgba(245,158,11,0.06));">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span style="font-size:18px;">🏆</span>
+                <div>
+                  <div class="font-semibold text-sm" style="color:#f59e0b;">Thưởng doanh số</div>
+                  <div class="text-xs" style="color:${rewardColor};font-weight:600;" id="rewardStatus">${rewardStatus}</div>
+                </div>
+              </div>
+              <label class="toggle-switch" style="${rewardDisabled ? 'opacity:0.5;pointer-events:none;' : ''}">
+                <input type="checkbox" id="toggleRewardEnabled" ${rewardEnabled && !rewardDisabled ? 'checked' : ''} onchange="togglePromotionType('reward')" ${rewardDisabled ? 'disabled' : ''}>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="text-xs text-muted mt-2">🎯 Đạt 300L/tháng: tặng 10L | 500L/tháng: tặng 20L</div>
+          </div>
+
+          ${!promotionEnabled ? '<div class="card p-3 text-center text-sm text-muted" style="border:1px solid rgba(107,114,128,0.25);">CTKM đang tắt cho khách này</div>' : ''}
+        `;
       } catch (e) {
         console.error('loadPromoToggleStatus error:', e);
+        container.innerHTML = '<div class="text-center py-4 text-danger">Lỗi tải khuyến mãi</div>';
       }
     }
 
-    // Toggle promotion enabled
+    // Toggle individual promotion type
+    async function togglePromotionType(type) {
+      var toggle = document.getElementById('toggle' + (type === 'newShop' ? 'NewShop' : 'Reward') + 'Enabled');
+      if (!toggle) return;
+      var enabled = toggle.checked;
+
+      try {
+        var bodyObj = {};
+        if (type === 'newShop') {
+          bodyObj.newShopEnabled = enabled;
+        } else {
+          bodyObj.rewardEnabled = enabled;
+        }
+
+        var res = await fetch('/api/promotions/customer/' + customerId, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(bodyObj)
+        });
+        var data = await res.json();
+        if (data.success) {
+          if (type === 'newShop') {
+            window.__customerNewShopEnabled = enabled;
+            var statusEl = document.getElementById('newShopStatus');
+            if (statusEl) {
+              statusEl.textContent = enabled ? 'Bật' : 'Tắt riêng';
+              statusEl.style.color = enabled ? '#22c55e' : '#ef4444';
+            }
+            if (typeof showToast === 'function') showToast('Đã ' + (enabled ? 'bật' : 'tắt') + ' KM quán mới', 'success');
+          } else {
+            window.__customerRewardEnabled = enabled;
+            var statusEl = document.getElementById('rewardStatus');
+            if (statusEl) {
+              statusEl.textContent = enabled ? 'Bật' : 'Tắt riêng';
+              statusEl.style.color = enabled ? '#22c55e' : '#ef4444';
+            }
+            if (typeof showToast === 'function') showToast('Đã ' + (enabled ? 'bật' : 'tắt') + ' thưởng doanh số', 'success');
+          }
+        } else {
+          toggle.checked = !enabled;
+          if (typeof showToast === 'function') showToast(data.error || 'Lỗi', 'error');
+        }
+      } catch (e) {
+        toggle.checked = !enabled;
+        if (typeof showToast === 'function') showToast('Lỗi kết nối', 'error');
+      }
+    }
+
+    // Legacy toggle (toggles ALL promotions) - kept for backwards compatibility
     async function togglePromoEnabled() {
       var toggle = document.getElementById('togglePromoEnabled');
       if (!toggle) return;

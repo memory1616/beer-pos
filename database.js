@@ -1278,6 +1278,14 @@ try {
   db.exec(`ALTER TABLE customers ADD COLUMN promotion_enabled INTEGER DEFAULT 1`);
 } catch (e) { /* already exists */ }
 
+// Customer-level promotion overrides — cho phép bật/tắt riêng từng loại khuyến mãi
+try {
+  db.exec(`ALTER TABLE customers ADD COLUMN new_shop_enabled INTEGER DEFAULT 1`);
+} catch (e) { /* already exists */ }
+try {
+  db.exec(`ALTER TABLE customers ADD COLUMN reward_enabled INTEGER DEFAULT 1`);
+} catch (e) { /* already exists */ }
+
 // Promotion Settings table — lưu config hệ thống khuyến mãi
 db.exec(`
   CREATE TABLE IF NOT EXISTS promotion_settings (

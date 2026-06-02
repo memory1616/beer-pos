@@ -644,21 +644,25 @@ router.get('/customer/:customerId/overview', (req, res) => {
     const customerId = parseInt(req.params.customerId);
     if (!customerId) return res.status(400).json({ success: false, error: 'ID không hợp lệ' });
 
-    const customer = db.prepare('SELECT id, name, promotion_enabled, created_at FROM customers WHERE id = ?').get(customerId);
+    const customer = db.prepare('SELECT id, name, promotion_enabled, new_shop_enabled, reward_enabled, created_at FROM customers WHERE id = ?').get(customerId);
     if (!customer) return res.status(404).json({ success: false, error: 'Không tìm thấy khách hàng' });
 
     const settings = PromotionService.getSystemPromotionSettings();
 
+    // Customer-level overrides (null = use system default)
+    const customerNewShopEnabled = customer.new_shop_enabled !== null ? customer.new_shop_enabled : 1;
+    const customerRewardEnabled = customer.reward_enabled !== null ? customer.reward_enabled : 1;
+
     let newShopInfo = null;
     let isInNewShopPeriod = false;
-    if (customer.promotion_enabled !== 0) {
+    if (customer.promotion_enabled !== 0 && customerNewShopEnabled) {
       newShopInfo = PromotionService.isNewShopEligible(customerId);
       isInNewShopPeriod = PromotionService.isInNewShopPeriod(customerId);
     }
 
     let rewardInfo = null;
     let canReceiveReward = false;
-    if (customer.promotion_enabled !== 0) {
+    if (customer.promotion_enabled !== 0 && customerRewardEnabled) {
       rewardInfo = PromotionService.calculateMonthlyReward(customerId);
       // Khách chỉ có thể nhận thưởng tháng nếu KHÔNG đang trong thời gian quán mới
       canReceiveReward = !isInNewShopPeriod && settings.rewardEnabled;
@@ -670,6 +674,8 @@ router.get('/customer/:customerId/overview', (req, res) => {
         customerId,
         customerName: customer.name,
         promotionEnabled: customer.promotion_enabled !== 0,
+        newShopEnabled: customerNewShopEnabled,
+        rewardEnabled: customerRewardEnabled,
         systemNewShopEnabled: settings.newShopEnabled,
         systemRewardEnabled: settings.rewardEnabled,
         isInNewShopPeriod,
@@ -685,8 +691,66 @@ router.get('/customer/:customerId/overview', (req, res) => {
 });
 
 /**
+ * PUT /api/promotions/customer/:id
+ * Bật/tắt khuyến mãi cho khách (từng loại hoặc tất cả)
+ * Body: { enabled?: boolean, newShopEnabled?: boolean, rewardEnabled?: boolean }
+ */
+router.put('/customer/:id', (req, res) => {
+  try {
+    const customerId = parseInt(req.params.id);
+    if (!customerId) return res.status(400).json({ success: false, error: 'ID không hợp lệ' });
+
+    const { enabled, newShopEnabled, rewardEnabled } = req.body;
+
+    const customer = db.prepare('SELECT id FROM customers WHERE id = ?').get(customerId);
+    if (!customer) return res.status(404).json({ success: false, error: 'Không tìm thấy khách hàng' });
+
+    // Build update query dynamically
+    const updates = [];
+    const values = [];
+
+    if (enabled !== undefined) {
+      updates.push('promotion_enabled = ?');
+      values.push(enabled ? 1 : 0);
+    }
+    if (newShopEnabled !== undefined) {
+      updates.push('new_shop_enabled = ?');
+      values.push(newShopEnabled ? 1 : 0);
+    }
+    if (rewardEnabled !== undefined) {
+      updates.push('reward_enabled = ?');
+      values.push(rewardEnabled ? 1 : 0);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ success: false, error: 'Không có gì để cập nhật' });
+    }
+
+    updates.push('updated_at = CURRENT_TIMESTAMP');
+    values.push(customerId);
+
+    db.prepare(`UPDATE customers SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+
+    // Emit realtime update
+    try {
+      socketServer.emitCustomerUpdated({ id: customerId });
+    } catch (_) {}
+
+    logger.info(`[PROMOTION] Customer ${customerId} updated:`, { enabled, newShopEnabled, rewardEnabled });
+
+    res.json({
+      success: true,
+      message: 'Đã cập nhật khuyến mãi'
+    });
+  } catch (e) {
+    try { logger.error('update customer promotion error:', e); } catch (_) {}
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+/**
  * PUT /api/customers/:id/promotion
- * Bật/tắt khuyến mãi cho khách
+ * Bật/tắt khuyến mãi cho khách (legacy - tất cả khuyến mãi)
  * Body: { enabled: boolean }
  */
 router.put('/customer/:id/promotion', (req, res) => {
