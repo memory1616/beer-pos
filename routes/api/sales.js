@@ -408,16 +408,22 @@ router.post('/', (req, res) => {
     console.log('[SALE CREATED]', { saleId, itemsInserted: saleItems.length, total, profit, debt: !!debtResult, promo: promoInfo });
 
     // ========== TỰ ĐỘNG GẮN THƯỞNG VÀO ĐƠN HÀNG ĐẦU TIÊN TRONG THÁNG ==========
-    // Nếu khách đủ điều kiện thưởng tháng trước, gắn thưởng vào đơn hàng này
+    // Nếu khách đủ điều kiện thưởng tháng trước VÀ KHÔNG đang trong thời gian quán mới
+    // QUY TẮC: Khách đang hưởng KM quán mới sẽ KHÔNG nhận thưởng tháng
     let autoRewardResult = null;
     if (customerId) {
-      const rewardInfo = PromotionService.getRewardForPrevMonth(customerId);
-      if (rewardInfo && rewardInfo.eligible && rewardInfo.rewardLiters > 0) {
-        // Gắn thưởng vào đơn hàng hiện tại
-        autoRewardResult = PromotionService.attachRewardToSale(customerId, saleId, rewardInfo.rewardLiters, rewardInfo.tier);
-        if (autoRewardResult && autoRewardResult.success) {
-          console.log('[AUTO REWARD] Đã gắn thưởng vào đơn', customerId, ':', autoRewardResult.rewardLiters, 'L');
+      const isInNewShop = PromotionService.isInNewShopPeriod(customerId);
+      if (!isInNewShop) {
+        const rewardInfo = PromotionService.getRewardForPrevMonth(customerId);
+        if (rewardInfo && rewardInfo.eligible && rewardInfo.rewardLiters > 0) {
+          // Gắn thưởng vào đơn hàng hiện tại
+          autoRewardResult = PromotionService.attachRewardToSale(customerId, saleId, rewardInfo.rewardLiters, rewardInfo.tier);
+          if (autoRewardResult && autoRewardResult.success) {
+            console.log('[AUTO REWARD] Đã gắn thưởng vào đơn', customerId, ':', autoRewardResult.rewardLiters, 'L');
+          }
         }
+      } else {
+        console.log('[AUTO REWARD] Bỏ qua vì khách', customerId, 'đang trong thời gian quán mới - không nhận thưởng tháng');
       }
     }
 

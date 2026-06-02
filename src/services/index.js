@@ -816,6 +816,15 @@ class PromotionService {
   }
 
   /**
+   * Kiểm tra khách có đang trong thời gian quán mới (dùng cho trường hợp không muốn áp dụng thưởng tháng)
+   * @returns {boolean} true nếu khách đang trong thời gian quán mới
+   */
+  isInNewShopPeriod(customerId) {
+    const newShopInfo = this.isNewShopEligible(customerId);
+    return newShopInfo.eligible && newShopInfo.daysRemaining > 0;
+  }
+
+  /**
    * Tính lít được tặng cho quán mới theo từng loại bia
    * @param {number} quantityGold - số lít bia vàng mua
    * @param {number} quantityBlack - số lít bia đen mua

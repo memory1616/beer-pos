@@ -78,7 +78,9 @@ let saleState = {
   newShopEligible: false,
   newShopDaysRemaining: 0,
   promotionEnabled: true,
-  promoSettings: null  // Cài đặt khuyến mãi từ server
+  promoSettings: null,  // Cài đặt khuyến mãi từ server
+  isInNewShopPeriod: false,  // Khách đang trong thời gian quán mới
+  canReceiveReward: false  // Có thể nhận thưởng tháng
 };
 
 let _productById = new Map();
@@ -1248,6 +1250,7 @@ function selectCustomer(customerId, customerName) {
   // ── Check new shop eligibility ────────────────────────────
   if (saleState.customerId) {
     checkNewShopPromo(saleState.customerId);
+    checkMonthlyReward(saleState.customerId);
   }
 
   // Fire onCustomerSelected hook
@@ -1285,6 +1288,68 @@ function checkNewShopPromo(customerId) {
       }
     })
     .catch(function() {});
+}
+
+// Kiểm tra thưởng tháng - chỉ hiển thị nếu KHÔNG đang trong thời gian quán mới
+function checkMonthlyReward(customerId) {
+  fetch('/api/promotions/customer/' + customerId + '/overview', { cache: 'no-store' })
+    .then(function(res) { return safeJson(res); })
+    .then(function(data) {
+      if (!data || !data.success) return;
+      if (String(saleState.customerId) !== String(customerId)) return;
+
+      var overview = data.data;
+      // Lưu trạng thái vào saleState
+      saleState.isInNewShopPeriod = overview.isInNewShopPeriod;
+      saleState.canReceiveReward = overview.canReceiveReward;
+
+      // Hiển thị badge thưởng tháng nếu có thể nhận
+      if (overview.monthlyReward && overview.monthlyReward.hasRemaining && overview.canReceiveReward) {
+        showMonthlyRewardBadge(overview.monthlyReward);
+      } else {
+        hideMonthlyRewardBadge();
+      }
+
+      // Nếu đang trong thời gian quán mới, hiển thị thông báo
+      if (overview.isInNewShopPeriod) {
+        showNewShopActiveNotice(overview.newShop);
+      } else {
+        hideNewShopActiveNotice();
+      }
+    })
+    .catch(function() {});
+}
+
+function showMonthlyRewardBadge(reward) {
+  var el = document.getElementById('monthlyRewardBadge');
+  if (el) {
+    el.classList.remove('hidden');
+    el.innerHTML = '<span style="font-size:14px;">&#127942;</span> Thưởng tháng: còn <b>' + reward.remainingReward + 'L</b> có thể nhận<br><span style="font-size:11px;color:#6b7280;">(thưởng sẽ được gắn vào đơn đầu tiên)</span>';
+  }
+}
+
+function hideMonthlyRewardBadge() {
+  var el = document.getElementById('monthlyRewardBadge');
+  if (el) {
+    el.classList.add('hidden');
+    el.innerHTML = '';
+  }
+}
+
+function showNewShopActiveNotice(newShop) {
+  var el = document.getElementById('newShopActiveNotice');
+  if (el && newShop) {
+    el.classList.remove('hidden');
+    el.innerHTML = '<span style="font-size:12px;">&#128293;</span> Khách đang trong thời gian quán mới — còn <b>' + newShop.daysRemaining + '</b> ngày<br><span style="font-size:11px;color:#6b7280;">(thưởng tháng sẽ được áp dụng sau khi hết thời gian quán mới)</span>';
+  }
+}
+
+function hideNewShopActiveNotice() {
+  var el = document.getElementById('newShopActiveNotice');
+  if (el) {
+    el.classList.add('hidden');
+    el.innerHTML = '';
+  }
 }
 
 function showPromoDisabledBadge() {
@@ -1581,10 +1646,14 @@ function resetSaleState() {
   saleState.newShopEligible = false;
   saleState.newShopDaysRemaining = 0;
   saleState.promotionEnabled = true;
+  saleState.isInNewShopPeriod = false;
+  saleState.canReceiveReward = false;
   editingSaleId = null;
   hideNewShopBadge();
   hidePromoPreview();
   hidePromoDisabledBadge();
+  hideMonthlyRewardBadge();
+  hideNewShopActiveNotice();
   renderProducts();
   updateTotal();
 
