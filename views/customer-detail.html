@@ -899,9 +899,9 @@
         window.__customerNewShopEnabled = newShopEnabled;
         window.__customerRewardEnabled = rewardEnabled;
 
-        // Check if system settings are disabled
-        const newShopDisabled = !systemNewShopEnabled;
-        const rewardDisabled = !systemRewardEnabled;
+        // Check if system settings are disabled or customer CTKM is off
+        const newShopDisabled = !systemNewShopEnabled || !promotionEnabled;
+        const rewardDisabled = !systemRewardEnabled || !promotionEnabled;
 
         let newShopStatus = 'Bật';
         let newShopColor = '#22c55e';
