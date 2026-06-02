@@ -117,7 +117,7 @@ router.get('/settings', (req, res) => {
 /**
  * PUT /api/promotions/settings
  * Lưu cấu hình hệ thống khuyến mãi
- * Body: { newShopEnabled, newShopDays, newShopGoldBuy, newShopGoldFree, newShopBlackBuy, newShopBlackFree, rewardEnabled, rewardTiers }
+ * Body: { newShopEnabled, newShopDays, newShopGoldBuy, newShopGoldFree, newShopBlackBuy, newShopBlackFree, rewardEnabled, rewardTiers, startDate, endDate }
  */
 router.put('/settings', (req, res) => {
   try {
@@ -129,7 +129,9 @@ router.put('/settings', (req, res) => {
       newShopBlackBuy,
       newShopBlackFree,
       rewardEnabled,
-      rewardTiers
+      rewardTiers,
+      startDate,
+      endDate
     } = req.body;
 
     // Validate rewardTiers
@@ -150,7 +152,9 @@ router.put('/settings', (req, res) => {
       newShopBlackBuy: newShopBlackBuy !== undefined ? parseInt(newShopBlackBuy) || 20 : undefined,
       newShopBlackFree: newShopBlackFree !== undefined ? parseInt(newShopBlackFree) || 1 : undefined,
       rewardEnabled: rewardEnabled !== undefined ? !!rewardEnabled : undefined,
-      rewardTiers: parsedTiers || undefined
+      rewardTiers: parsedTiers || undefined,
+      startDate: startDate || null,
+      endDate: endDate || null
     });
 
     // Emit realtime update to all clients
@@ -160,7 +164,8 @@ router.put('/settings', (req, res) => {
 
     logger.info('[PROMOTION] Settings updated', {
       newShopEnabled, newShopDays, newShopGoldBuy, newShopGoldFree,
-      newShopBlackBuy, newShopBlackFree, rewardEnabled, rewardTiers: parsedTiers
+      newShopBlackBuy, newShopBlackFree, rewardEnabled, rewardTiers: parsedTiers,
+      startDate, endDate
     });
 
     res.json({ success: true, data: settings, message: 'Đã lưu cài đặt khuyến mãi!' });
@@ -680,6 +685,9 @@ router.get('/customer/:customerId/overview', (req, res) => {
         systemRewardEnabled: settings.rewardEnabled,
         isInNewShopPeriod,
         canReceiveReward,
+        isWithinPromotionPeriod: PromotionService.isWithinPromotionPeriod(),
+        promotionStartDate: settings.startDate,
+        promotionEndDate: settings.endDate,
         newShop: newShopInfo,
         newShopSettings: {
           days: settings.newShopDays,

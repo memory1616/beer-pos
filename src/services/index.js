@@ -703,6 +703,60 @@ class PromotionService {
         newShopBlackFree: settings.new_shop_black_free || 1,
         rewardEnabled: !!settings.reward_enabled,
         rewardTiers: this._parseRewardTiers(settings.reward_tiers),
+        startDate: settings.start_date || null,
+        endDate: settings.end_date || null,
+        updatedAt: settings.updated_at
+      };
+    } catch (e) {
+      logger.error('getSystemPromotionSettings error:', e);
+      return this._getDefaultSettings();
+    }
+  }
+
+  /**
+   * Kiểm tra khuyến mãi có đang trong thời gian áp dụng không
+   * @returns {boolean} true nếu đang trong thời gian, false nếu ngoài thời gian
+   */
+  isWithinPromotionPeriod() {
+    const settings = this.getSystemPromotionSettings();
+    const now = new Date();
+
+    // Nếu không có start_date và end_date -> luôn áp dụng
+    if (!settings.startDate && !settings.endDate) {
+      return true;
+    }
+
+    // Kiểm tra start_date
+    if (settings.startDate) {
+      const startDate = new Date(settings.startDate);
+      if (now < startDate) {
+        return false; // Chưa đến ngày bắt đầu
+      }
+    }
+
+    // Kiểm tra end_date
+    if (settings.endDate) {
+      const endDate = new Date(settings.endDate);
+      endDate.setHours(23, 59, 59, 999); // Cuối ngày end_date
+      if (now > endDate) {
+        return false; // Đã hết hạn
+      }
+    }
+
+    return true;
+  }
+      }
+      return {
+        newShopEnabled: !!settings.new_shop_enabled,
+        newShopDays: settings.new_shop_days || 30,
+        newShopGoldBuy: settings.new_shop_gold_buy || 10,
+        newShopGoldFree: settings.new_shop_gold_free || 1,
+        newShopBlackBuy: settings.new_shop_black_buy || 20,
+        newShopBlackFree: settings.new_shop_black_free || 1,
+        rewardEnabled: !!settings.reward_enabled,
+        rewardTiers: this._parseRewardTiers(settings.reward_tiers),
+        startDate: settings.start_date || null,
+        endDate: settings.end_date || null,
         updatedAt: settings.updated_at
       };
     } catch (e) {
@@ -761,6 +815,8 @@ class PromotionService {
         new_shop_black_free = ?,
         reward_enabled = ?,
         reward_tiers = ?,
+        start_date = ?,
+        end_date = ?,
         updated_at = CURRENT_TIMESTAMP
       WHERE id = 1
     `).run(
@@ -771,7 +827,9 @@ class PromotionService {
       merged.newShopBlackBuy || 20,
       merged.newShopBlackFree || 1,
       rewardEnabled,
-      rewardTiers
+      rewardTiers,
+      merged.startDate || null,
+      merged.endDate || null
     );
 
     logger.info('[PromotionService] Saved system promotion settings');
@@ -788,6 +846,11 @@ class PromotionService {
     const settings = this.getSystemPromotionSettings();
     if (!settings.newShopEnabled) {
       return { eligible: false, reason: 'Khuyến mãi quán mới đã bị tắt' };
+    }
+
+    // Kiểm tra thời gian áp dụng khuyến mãi
+    if (!this.isWithinPromotionPeriod()) {
+      return { eligible: false, reason: 'Khuyến mãi chưa hoặc đã hết thời gian áp dụng' };
     }
 
     const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(customerId);
@@ -923,6 +986,21 @@ class PromotionService {
         litersToNext: 0,
         totalRewardEarned: 0,
         remainingReward: 0
+      };
+    }
+
+    // Kiểm tra thời gian áp dụng khuyến mãi
+    if (!this.isWithinPromotionPeriod()) {
+      return {
+        tier: this.TIER_NONE,
+        liters: 0,
+        nextTier: null,
+        nextTierLiters: 0,
+        progressToNext: 0,
+        litersToNext: 0,
+        totalRewardEarned: 0,
+        remainingReward: 0,
+        outOfPeriod: true
       };
     }
 
