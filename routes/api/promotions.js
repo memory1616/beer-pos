@@ -729,7 +729,19 @@ router.put('/customer/:id', (req, res) => {
     updates.push('updated_at = CURRENT_TIMESTAMP');
     values.push(customerId);
 
-    db.prepare(`UPDATE customers SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+    console.log('DEBUG: updates:', updates);
+    console.log('DEBUG: values:', values);
+    const sql = `UPDATE customers SET ${updates.join(', ')} WHERE id = ?`;
+    console.log('DEBUG: SQL:', sql);
+
+    try {
+      const stmt = db.prepare(sql);
+      const result = stmt.run(...values);
+      console.log('DEBUG: result:', result);
+    } catch (e) {
+      console.error('DB ERROR:', e);
+      throw e;
+    }
 
     // Emit realtime update
     try {
