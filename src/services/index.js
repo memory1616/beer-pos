@@ -797,6 +797,11 @@ class PromotionService {
       return { eligible: false, reason: 'Khách đã tắt tham gia CTKM', promotionEnabled: false };
     }
 
+    // Kiểm tra khách có tắt KM quán mới riêng không
+    if (customer.new_shop_enabled === 0) {
+      return { eligible: false, reason: 'Khách đã tắt khuyến mãi quán mới', promotionEnabled: false };
+    }
+
     const createdDate = new Date(customer.created_at);
     const now = new Date();
     const diffTime = now.getTime() - createdDate.getTime();
