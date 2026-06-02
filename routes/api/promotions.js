@@ -696,9 +696,6 @@ router.get('/customer/:customerId/overview', (req, res) => {
  * Body: { enabled?: boolean, newShopEnabled?: boolean, rewardEnabled?: boolean }
  */
 router.put('/customer/:id', (req, res) => {
-  console.log('PUT /api/promotions/customer/:id called');
-  console.log('  params:', req.params);
-  console.log('  body:', req.body);
   try {
     const customerId = parseInt(req.params.id);
     if (!customerId) return res.status(400).json({ success: false, error: 'ID không hợp lệ' });
