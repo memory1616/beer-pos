@@ -681,6 +681,14 @@ router.get('/customer/:customerId/overview', (req, res) => {
         isInNewShopPeriod,
         canReceiveReward,
         newShop: newShopInfo,
+        newShopSettings: {
+          days: settings.newShopDays,
+          goldBuy: settings.newShopGoldBuy,
+          goldFree: settings.newShopGoldFree,
+          blackBuy: settings.newShopBlackBuy,
+          blackFree: settings.newShopBlackFree
+        },
+        rewardTiers: settings.rewardTiers,
         monthlyReward: rewardInfo
       }
     });

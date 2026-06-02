@@ -893,6 +893,23 @@
           systemNewShopEnabled = data.data.systemNewShopEnabled == 1;
           systemRewardEnabled = data.data.systemRewardEnabled == 1;
           newShopInfo = data.data.newShop;
+          // Lưu settings để hiển thị mô tả động
+          window.__newShopSettings = data.data.newShopSettings || null;
+          window.__rewardTiers = data.data.rewardTiers || [];
+        }
+
+        // Cập nhật mô tả thưởng doanh số từ settings thực tế
+        var rewardDescEl = document.getElementById('rewardTiersDesc');
+        if (rewardDescEl) {
+          var tiers = window.__rewardTiers || [];
+          if (tiers.length > 0) {
+            var tierTexts = tiers.map(function(t) {
+              return 'Đạt ' + t.threshold + 'L: tặng ' + t.reward + 'L';
+            });
+            rewardDescEl.textContent = '🎯 ' + tierTexts.join(' | ');
+          } else {
+            rewardDescEl.textContent = '🎯 Chưa có cài đặt thưởng tháng';
+          }
         }
 
         window.__customerPromoEnabled = promotionEnabled;
@@ -949,7 +966,7 @@
                 <span class="toggle-slider"></span>
               </label>
             </div>
-            ${newShopInfo && newShopInfo.eligible && newShopInfo.daysRemaining > 0 ? '<div class="text-xs text-muted mt-2">🎁 Mua ' + newShopInfo.buyGold + 'L vàng + ' + newShopInfo.freeGold + 'L | Mua ' + newShopInfo.buyBlack + 'L đen + ' + newShopInfo.freeBlack + 'L</div>' : ''}
+            ${newShopInfo && newShopInfo.eligible && newShopInfo.daysRemaining > 0 ? '<div class="text-xs text-muted mt-2" id="newShopPromoDesc">🎁 Mua ' + (window.__newShopSettings ? window.__newShopSettings.goldBuy : newShopInfo.buyGold) + 'L vàng + ' + (window.__newShopSettings ? window.__newShopSettings.goldFree : newShopInfo.freeGold) + 'L | Mua ' + (window.__newShopSettings ? window.__newShopSettings.blackBuy : newShopInfo.buyBlack) + 'L đen + ' + (window.__newShopSettings ? window.__newShopSettings.blackFree : newShopInfo.freeBlack) + 'L</div>' : ''}
           </div>
 
           <!-- REWARD PROMOTION -->
@@ -967,7 +984,7 @@
                 <span class="toggle-slider"></span>
               </label>
             </div>
-            <div class="text-xs text-muted mt-2">🎯 Đạt 300L/tháng: tặng 10L | 500L/tháng: tặng 20L</div>
+            <div class="text-xs text-muted mt-2" id="rewardTiersDesc">🎯 Đang tải...</div>
           </div>
 
         `;
