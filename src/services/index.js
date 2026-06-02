@@ -746,6 +746,36 @@ class PromotionService {
     return true;
   }
 
+  /**
+   * Kiểm tra một tháng có nằm trong thời gian áp dụng khuyến mãi không
+   * @param {Date} monthStart - Ngày đầu tháng
+   * @param {Date} monthEnd - Ngày cuối tháng
+   * @returns {boolean} true nếu tháng nằm trong thời gian áp dụng
+   */
+  _isMonthInPromotionPeriod(monthStart, monthEnd) {
+    const settings = this.getSystemPromotionSettings();
+
+    // Nếu không có giới hạn thời gian -> luôn áp dụng
+    if (!settings.startDate && !settings.endDate) {
+      return true;
+    }
+
+    const promoStart = settings.startDate ? new Date(settings.startDate) : null;
+    const promoEnd = settings.endDate ? new Date(settings.endDate) : null;
+
+    // Kiểm tra tháng bắt đầu SAU ngày kết thúc khuyến mãi -> không áp dụng
+    if (promoEnd && monthStart > promoEnd) {
+      return false;
+    }
+
+    // Kiểm tra tháng kết thúc TRƯỚC ngày bắt đầu khuyến mãi -> không áp dụng
+    if (promoStart && monthEnd < promoStart) {
+      return false;
+    }
+
+    return true;
+  }
+
   _getDefaultSettings() {
     return {
       newShopEnabled: true,
@@ -1203,23 +1233,38 @@ class PromotionService {
    * Tự động trả thưởng cho đơn hàng đầu tiên trong tháng
    * Thưởng dựa trên sản lượng tháng TRƯỚC (tháng trả thưởng)
    * Ví dụ: tháng 5 đạt 500L → đơn hàng đầu tiên tháng 6 sẽ được thưởng
+   * CHỈ trả thưởng nếu tháng trả thưởng nằm trong thời gian áp dụng
    * @returns {{ success, saleId, rewardLiters, tier } | null}
    */
   autoClaimMonthlyReward(customerId) {
     const settings = this.getSystemPromotionSettings();
     if (!settings.rewardEnabled) return null;
 
-    // Kiểm tra khách có bật CTKM không
-    const customer = db.prepare('SELECT promotion_enabled FROM customers WHERE id = ?').get(customerId);
-    if (customer && customer.promotion_enabled === 0) return null;
+    // Kiểm tra thời gian áp dụng khuyến mãi
+    if (!this.isWithinPromotionPeriod()) return null;
 
     // Xác định tháng trả thưởng (tháng trước)
     const now = new Date();
     const rewardMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1); // Tháng trước
     const rewardYear = rewardMonth.getFullYear();
     const rewardMonthNum = rewardMonth.getMonth() + 1;
+
+    // Kiểm tra tháng trả thưởng có nằm trong thời gian áp dụng không
+    // Nếu tháng bắt đầu SAU end_date hoặc kết thúc TRƯỚC start_date thì không áp dụng
+    const rewardMonthStart = new Date(rewardYear, rewardMonthNum - 1, 1);
+    const rewardMonthEnd = new Date(rewardYear, rewardMonthNum, 0, 23, 59, 59, 999);
+
+    if (!this._isMonthInPromotionPeriod(rewardMonthStart, rewardMonthEnd)) {
+      logger.info(`[PROMOTION] Thang ${rewardMonthNum}/${rewardYear} nam ngoai thoi gian ap dung, khong tra thuong`);
+      return null;
+    }
+
+    // Kiểm tra khách có bật CTKM không
+    const customer = db.prepare('SELECT promotion_enabled FROM customers WHERE id = ?').get(customerId);
+    if (customer && customer.promotion_enabled === 0) return null;
+
     const rewardMonthStr = String(rewardMonthNum).padStart(2, '0');
-    const rewardMonthStart = `${rewardYear}-${rewardMonthStr}-01`;
+    const rewardMonthStartStr = `${rewardYear}-${rewardMonthStr}-01`;
 
     // Tính sản lượng của khách trong tháng trả thưởng
     const purchasedLiters = db.prepare(`
