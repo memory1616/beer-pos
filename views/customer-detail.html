@@ -902,6 +902,7 @@
         var rewardDescEl = document.getElementById('rewardTiersDesc');
         if (rewardDescEl) {
           var tiers = window.__rewardTiers || [];
+          console.log('[DEBUG] rewardTiers:', tiers, 'from API:', data.data?.rewardTiers);
           if (tiers.length > 0) {
             var tierTexts = tiers.map(function(t) {
               return 'Đạt ' + t.threshold + 'L: tặng ' + t.reward + 'L';
