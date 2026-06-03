@@ -14,19 +14,6 @@ router.get('/', (req, res) => {
   }
 });
 
-// GET /api/settings/:key - Get specific setting
-router.get('/:key', (req, res) => {
-  try {
-    const setting = db.prepare('SELECT * FROM settings WHERE key = ?').get(req.params.key);
-    if (!setting) {
-      return res.status(404).json({ error: 'Setting not found' });
-    }
-    res.json({ key: setting.key, value: setting.value });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // POST /api/settings - Update setting(s)
 router.post('/', (req, res) => {
   try {
@@ -45,25 +32,7 @@ router.post('/', (req, res) => {
   }
 });
 
-// POST /api/settings/batch - Update multiple settings
-router.post('/batch', (req, res) => {
-  try {
-    const settings = req.body;
-
-    if (!settings || typeof settings !== 'object') {
-      return res.status(400).json({ error: 'Invalid settings object' });
-    }
-
-    const stmt = db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)');
-    Object.entries(settings).forEach(([key, value]) => {
-      stmt.run(key, String(value));
-    });
-
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+// ── SPECIFIC ROUTES MUST COME BEFORE /:key ──────────────────────
 
 // GET /api/settings/delivery-cost - Calculate delivery cost
 router.get('/delivery-cost', (req, res) => {
@@ -98,7 +67,27 @@ router.get('/delivery-cost', (req, res) => {
   }
 });
 
-// ── QR CONFIG SETTINGS ───────────────────────────────────
+// POST /api/settings/batch - Update multiple settings
+router.post('/batch', (req, res) => {
+  try {
+    const settings = req.body;
+
+    if (!settings || typeof settings !== 'object') {
+      return res.status(400).json({ error: 'Invalid settings object' });
+    }
+
+    const stmt = db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)');
+    Object.entries(settings).forEach(([key, value]) => {
+      stmt.run(key, String(value));
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── QR CONFIG SETTINGS ─────────────────────────────────────────
 
 // GET /api/settings/qr-config - Get QR configuration
 router.get('/qr-config', (req, res) => {
@@ -154,6 +143,21 @@ router.post('/qr-config', (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error('Error saving QR config:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GENERIC ROUTE - MUST BE LAST ───────────────────────────────
+
+// GET /api/settings/:key - Get specific setting
+router.get('/:key', (req, res) => {
+  try {
+    const setting = db.prepare('SELECT * FROM settings WHERE key = ?').get(req.params.key);
+    if (!setting) {
+      return res.status(404).json({ error: 'Setting not found' });
+    }
+    res.json({ key: setting.key, value: setting.value });
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
