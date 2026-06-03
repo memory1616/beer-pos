@@ -139,9 +139,7 @@
 
   <script>
     (async () => {
-      console.log('[Stock] IIFE START — window.loadScript=' + typeof window.loadScript);
       await loadVersion();
-      console.log('[Stock] loadVersion done, setting innerHTML...');
       document.getElementById('app').innerHTML =
         getHeader('Kho hàng', '📦') +
       getContent(`
@@ -214,7 +212,6 @@
       if (document.readyState === 'loading') {
         await new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve, { once: true }));
       }
-      console.log('[Stock] DOM ready, calling loadData...');
       await loadData();
     })();
 

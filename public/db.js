@@ -37,15 +37,15 @@ if (window._dbInitialized) {
     try {
       await _db.table(STORE_META).put({ key: 'db_version', value: DB_VERSION });
       await _db.table(STORE_META).put({ key: 'cache_name', value: CACHE_NAME });
-      console.log(`[DB] Registered version ${DB_VERSION} in _meta store`);
+      // _meta registered
       // Verify createdAt index exists by querying with it (will throw if not indexed)
       _db.sales.where('createdAt').anyOf([new Date()]).count().catch(function(e) {
         console.error('[DB] ⚠️ createdAt index NOT found — filter will NOT work:', e.message || e);
       }).then(function() {
-        console.log('[DB] ✅ createdAt index verified');
+        // createdAt index verified
       });
     } catch (e) {
-      console.warn('[DB] Could not write _meta:', e);
+      // _meta write may fail in some contexts
     }
 
     // Notify Service Worker so it can update its cache name
@@ -182,7 +182,6 @@ if (window._dbInitialized) {
       try {
         _db.close();
         await _db.open();
-        console.log(`[DB] ✅ Open success on attempt ${i + 1}`);
         return;
       } catch (e) {
         console.warn(`[DB] ⚠️ Open failed (attempt ${i + 1}/${MAX_RETRIES}):`, e.message || e);
@@ -198,7 +197,7 @@ if (window._dbInitialized) {
 
   // Log when DB is fully ready
   window.dbReady.then(() => {
-    console.log('[DB] 🔥 DB READY');
+    // DB ready
   }).catch(e => {
     console.error('[DB] dbReady rejected:', e.message || e);
   });
@@ -208,7 +207,6 @@ if (window._dbInitialized) {
     try {
       _db.close();
       await _db.open();
-      console.log('[DB] 🔄 DB reopened successfully');
     } catch (e) {
       console.error('[DB] 🔄 DB reopen FAILED:', e.message || e);
     }
@@ -227,7 +225,7 @@ if (window._dbInitialized) {
   // ─── Multi-tab detection ───────────────────────────────────────────────────
   window.addEventListener('storage', (e) => {
     if (e.key === '_dbVersion') {
-      console.warn('[DB] ⚠️ Another tab changed DB version — consider reloading');
+      // Another tab changed DB version — consider reloading
     }
   });
 
@@ -305,21 +303,16 @@ if (window._dbInitialized) {
   async function getProducts() {
     try {
       if (window.dbReady) {
-        console.log('[DB] ⏳ waiting dbReady...');
-        await window.dbReady.catch(e => console.warn('[DB] dbReady error:', e.message));
-        console.log('[DB] ✅ dbReady resolved');
+        await window.dbReady.catch(e => {});
       }
       const result = await _db.products.toArray();
-      console.log('[DB] getProducts: ' + result.length + ' products');
       return result;
     } catch (e) {
       console.error('[DB] getProducts ERROR:', e.message || e);
       try {
         _db.close();
         await _db.open();
-        console.log('[DB] 🔄 DB reopened');
         const result = await _db.products.toArray();
-        console.log('[DB] getProducts (retry): ' + result.length + ' products');
         return result;
       } catch (e2) {
         console.error('[DB] getProducts retry FAILED:', e2.message || e2);
@@ -330,18 +323,18 @@ if (window._dbInitialized) {
 
   async function seedProductsIfEmpty() {
     try {
-      if (window.dbReady) await window.dbReady.catch(e => console.warn('[DB] seed dbReady error:', e.message));
+      if (window.dbReady) await window.dbReady.catch(e => {});
 
       // Only seed on FIRST INSTALL — never re-seed after user deletes products
       const alreadySeeded = localStorage.getItem('products_seeded');
       if (alreadySeeded) {
-        console.log('[DB] products_seeded flag found — skipping seed');
+        // Skipping seed — products_seeded flag found
         return;
       }
 
       const count = await _db.products.count();
       if (count > 0) return;
-      console.warn('[DB] First run → seeding demo products');
+
       const demoProducts = [
         { name: 'Bia tươi 50L', stock: 50, cost_price: 10000, synced: 1, archived: 0 },
         { name: 'Bia bom 20L', stock: 30, cost_price: 12000, synced: 1, archived: 0 },
@@ -349,7 +342,6 @@ if (window._dbInitialized) {
       ];
       await _db.products.bulkAdd(demoProducts);
       localStorage.setItem('products_seeded', 'true');
-      console.log('[DB] ✅ Seeded once');
     } catch (e) {
       console.error('[DB] seedProductsIfEmpty ERROR:', e);
     }
@@ -364,7 +356,7 @@ if (window._dbInitialized) {
           await _db.products.update(item.productId, {
             stock: (product.stock || 0) - item.quantity
           });
-          console.log('[DB] Stock updated for product ' + item.productId + ': ' + product.stock + ' → ' + ((product.stock || 0) - item.quantity));
+        }
         }
       } catch (e) {
         console.error('[DB] updateStockAfterSale error for product ' + item.productId + ':', e);
@@ -424,9 +416,8 @@ if (window._dbInitialized) {
       try {
         const registration = await navigator.serviceWorker.ready;
         await registration.sync.register('sync-sales');
-        console.log('Background sync registered');
       } catch (e) {
-        console.log('Background sync not available:', e.message);
+        // Background sync not available
       }
     }
   }
@@ -506,11 +497,10 @@ if (window._dbInitialized) {
     try {
       const response = await fetch(`${cloudUrl}/api/export?since=${lastSync}`);
       if (response.status === 503) {
-        console.log('[DB] Cloud server unavailable (503), skipping pull');
+        // Cloud server unavailable — skip pull
         return { success: false, message: 'Server temporarily unavailable' };
       }
       if (response.status >= 500) {
-        console.log(`[DB] Cloud server error (${response.status}), skipping pull`);
         return { success: false, message: `Server error (${response.status})` };
       }
       if (!response.ok) {
@@ -579,5 +569,4 @@ if (window._dbInitialized) {
   // sync.js is the primary online sync orchestrator.
   // Keep db.js passive to avoid duplicate sync/reload races.
 
-  console.log(`[DB] BeerPOS initialized (version ${DB_VERSION})`);
 } // end guard

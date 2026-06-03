@@ -280,9 +280,6 @@ async function loadSalesList() {
       });
       salesEl.innerHTML = options;
     }
-  } catch (e) {
-    console.error('Error loading sales list:', e);
-  }
 }
 
 // Mở modal thêm khách hàng
@@ -617,7 +614,7 @@ function showModal(id, html) {
   }
 
   var m = document.getElementById(id);
-  if (!m) { console.warn("[UI] Modal not found:", id); return; }
+  if (!m) return;
   m.classList.remove('hidden');
   m.classList.add('flex');
 
@@ -675,7 +672,7 @@ function initAddForm() {
 
 function hideModal(id) {
   var m = document.getElementById(id);
-  if (!m) { console.warn("[UI] Modal not found:", id); return; }
+  if (!m) return;
   m.classList.add('hidden');
   m.classList.remove('flex');
 }

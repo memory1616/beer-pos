@@ -776,13 +776,13 @@
       if (!reg) {
         var swVer = (typeof window !== 'undefined' && window.APP_VERSION) ? window.APP_VERSION : '1';
         navigator.serviceWorker.register('/sw.js?v=' + swVer).then(function (reg2) {
-          console.log('[SW] Đã đăng ký, phiên bản=' + swVer);
+          // Registered
           reg2.addEventListener('updatefound', function () {
             if (typeof showToast === 'function') {
               showToast('App đã được cập nhật — tải lại trang để dùng phiên bản mới', 'info');
             }
           });
-        }).catch(function (e) { console.warn('[SW] Đăng ký thất bại:', e.message); });
+        }).catch(function (e) { /* Silent SW registration fail */ });
       }
     });
   }

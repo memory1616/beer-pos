@@ -71,7 +71,6 @@ async function syncPendingOrders() {
 
     if (!pending || pending.length === 0) return;
 
-    console.log(`[OrderSync] Pushing ${pending.length} pending orders`);
     const syncedIds = pending.map(o => o.id);
 
     for (const order of pending) {
@@ -80,7 +79,6 @@ async function syncPendingOrders() {
       if (result.success) {
         // Remove from local queue
         await db.orders_queue.delete(order.id);
-        console.log(`[OrderSync] Synced order id ${order.id}`);
       }
     }
   } catch (e) {
@@ -105,11 +103,11 @@ async function pullOrdersFromServer(since) {
   try {
     const res = await fetch(target);
     if (res.status === 503) {
-      console.log('[OrderSync] Cloud server unavailable (503), skipping pull');
+      // Cloud server unavailable — skip pull
       return;
     }
     if (res.status >= 500) {
-      console.log(`[OrderSync] Cloud server error (${res.status}), skipping pull`);
+      // Cloud server error — skip pull
       return;
     }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -156,19 +154,14 @@ async function pullOrdersFromServer(since) {
           }
         }
         imported++;
-      } else if (existing.synced === 0) {
-        console.log(`[OrderSync] Local unsynced order ${order.id} — skipping server version`);
+      } else       if (existing.synced === 0) {
+        // Local unsynced order — skipping server version
       }
     }
 
     if (imported > 0) {
-      console.log(`[OrderSync] Imported ${imported} orders from server`);
       if (typeof showToast === 'function') showToast(`☁️ Đã tải ${imported} đơn mới`, 'success');
     }
-
-    return imported;
-  } catch (e) {
-    console.error('[OrderSync] Pull failed:', e.message);
   }
 }
 
@@ -198,12 +191,10 @@ async function createOrder(orderData) {
       const result = await pushOrderToServer(orderRecord);
       if (result.success) {
         await db.orders_queue.update(id, { synced: 1 });
-        console.log(`[OrderSync] Order ${id} synced immediately`);
         return { id, synced: true };
       }
     }
 
-    console.log(`[OrderSync] Order ${id} queued for later sync`);
     return { id, synced: false };
   } catch (e) {
     if (e.message && e.message.includes('orders_queue')) {
@@ -217,7 +208,6 @@ async function createOrder(orderData) {
 // ============ RETRY: Re-attempt pending sync on network recovery ============
 
 async function retryPendingOrders() {
-  console.log('[OrderSync] Retrying pending orders...');
   await syncPendingOrders();
 }
 
@@ -258,6 +248,5 @@ setTimeout(async () => {
 // ============ AUTO: Retry on reconnect ============
 
 window.addEventListener('online', () => {
-  console.log('[OrderSync] Back online — retrying pending orders');
   setTimeout(() => syncPendingOrders(), 2000);
 });

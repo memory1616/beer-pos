@@ -15,8 +15,6 @@ router.get('/', (req, res) => {
 
     try {
       // Lấy đơn hàng hôm nay - không cần khách có GPS
-      const today = new Date().toISOString().split('T')[0];
-      console.log('[DELIVERY] Today:', today);
       const deliveries = db.prepare(`
         SELECT c.id, c.name, c.phone, c.lat, c.lng, s.id as sale_id, s.date, s.total
         FROM sales s
@@ -28,7 +26,6 @@ router.get('/', (req, res) => {
           AND c.archived = 0
         ORDER BY s.date DESC
       `).all(today);
-      console.log('[DELIVERY] Found deliveries:', deliveries.length);
 
       // Map dữ liệu - thêm flag hasGPS
       const customers = deliveries.map(d => ({

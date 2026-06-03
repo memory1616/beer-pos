@@ -73,7 +73,6 @@ async function writeVersionToMeta(version) {
     });
     _DB_VERSION = parseInt(version, 10);
     _CACHE_NAME = `beer-pos-v${_DB_VERSION}`;
-    console.log(`[SW] Registered DB version ${_DB_VERSION}, cache ${_CACHE_NAME}`);
   } catch {}
 }
 
@@ -131,7 +130,6 @@ async function resolveVersion() {
     _CACHE_NAME = DEFAULT_CACHE_NAME;
   }
 
-  console.log(`[SW] DB version: ${_DB_VERSION}, cache: ${_CACHE_NAME}`);
   return _DB_VERSION;
 }
 
@@ -318,7 +316,6 @@ function notifyClients(msg) {
 // ─── Install ─────────────────────────────────────────────────────────────────
 
 self.addEventListener('install', event => {
-  console.log('[SW] Installing, version=' + DEFAULT_CACHE_NAME);
   event.waitUntil(
     caches.open(DEFAULT_CACHE_NAME)
       .then(async cache => {
@@ -330,8 +327,7 @@ self.addEventListener('install', event => {
           )
         );
         const ok = results.filter(r => r.status === 'fulfilled').length;
-        console.log('[SW] Install complete — cached ' + ok + '/' + APP_SHELL.length + ' app shell assets');
-        self.skipWaiting(); // take control immediately
+        self.skipWaiting();
       })
   );
 });
@@ -339,18 +335,13 @@ self.addEventListener('install', event => {
 // ─── Activate ─────────────────────────────────────────────────────────────────
 
 self.addEventListener('activate', event => {
-  console.log('[SW] Activating — cleaning old caches');
   event.waitUntil(
     resolveVersion().then(async () => {
       const cname = await getCacheName();
       const all   = await caches.keys();
       const stale = all.filter(k => k !== cname);
-      if (stale.length > 0) {
-        console.log('[SW] Deleting ' + stale.length + ' stale cache(s): ' + stale.join(', '));
-      }
       await Promise.all(stale.map(k => caches.delete(k)));
-      console.log('[SW] Activated — now controlling: ' + cname);
-      self.clients.claim(); // take control of all clients immediately
+      self.clients.claim();
     })
   );
 });
@@ -542,15 +533,10 @@ async function networkFirst(request) {
       : new Request(request, { cache: 'no-store' });
     const resp = await fetch(req);
     if (resp.ok) await cachePut(request, resp);
-    if (self.__CONSISTENCY_DEBUG__) {
-      console.log('[CONSISTENCY][SW] networkFirst network', request.url);
-    }
+    if (self.__CONSISTENCY_DEBUG__) {}
     return resp;
   } catch {
     const cached = await caches.match(request);
-    if (self.__CONSISTENCY_DEBUG__) {
-      console.log('[CONSISTENCY][SW] networkFirst fallback-cache', request.url, !!cached);
-    }
     return cached || new Response(JSON.stringify({ error: 'Offline', offline: true }), {
       status: 503, headers: { 'Content-Type': 'application/json' }
     });
@@ -575,18 +561,12 @@ async function staleWhileRevalidate(request, opts = {}) {
       status: resp.status, statusText: resp.statusText, headers
     });
     await cache.put(request, clone);
-    if (self.__CONSISTENCY_DEBUG__) {
-      console.log('[CONSISTENCY][SW] staleWhileRevalidate refreshed', request.url);
-    }
     return resp;
   }).catch(() => null);
 
   if (cached) {
     const swTime = parseInt(cached.headers.get('sw-time') || '0', 10);
     const age    = (Date.now() - swTime) / 1000;
-    if (self.__CONSISTENCY_DEBUG__) {
-      console.log('[CONSISTENCY][SW] staleWhileRevalidate cache-hit', request.url, { age: age, maxAge: maxAge });
-    }
     if (age < maxAge) return cached;
 
     const fresh = await Promise.race([
@@ -594,10 +574,6 @@ async function staleWhileRevalidate(request, opts = {}) {
       new Promise(resolve => setTimeout(() => resolve(null), 3000))
     ]);
     return fresh || cached;
-  }
-
-  if (self.__CONSISTENCY_DEBUG__) {
-    console.log('[CONSISTENCY][SW] staleWhileRevalidate cache-miss', request.url);
   }
 
   // No cache hit — block on network
@@ -632,9 +608,6 @@ async function invalidateRelatedCaches(url) {
     const keyPath = new URL(key.url).pathname;
     if (patterns.some(pattern => keyPath === pattern || keyPath.startsWith(pattern + '?') || keyPath.startsWith(pattern + '/'))) {
       await cache.delete(key);
-      if (self.__CONSISTENCY_DEBUG__) {
-        console.log('[CONSISTENCY][SW] invalidated', key.url, 'after', pathname);
-      }
     }
   }));
 }

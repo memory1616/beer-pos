@@ -1325,8 +1325,6 @@ class PromotionService {
 
     if (!orderCount || orderCount.cnt > 1) return null; // Không phải đơn đầu
 
-    console.log(`[AUTO REWARD] Tháng ${rewardMonthStr}/${rewardYear} khách ${customerId} đạt ${liters}L → thưởng ${eligibleTier.reward}L`);
-
     // Lấy sản phẩm bia vàng mặc định để xuất thưởng
     const defaultProduct = db.prepare(`
       SELECT id, name, slug, cost_price FROM products

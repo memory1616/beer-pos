@@ -721,7 +721,7 @@
         try {
           initCustomersPage(data);
         } catch (e) {
-          console.error('Init error:', e);
+          // Silent fail
         }
 
         // Hide loading, show content
@@ -731,7 +731,6 @@
         if (contentSection) contentSection.classList.remove('hidden');
 
       } catch (err) {
-        console.error('Failed to load data:', err);
         document.getElementById('loading').innerHTML = '<div class="text-danger">Lỗi tải dữ liệu</div>';
       }
     }

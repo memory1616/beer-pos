@@ -45,7 +45,6 @@ class FuzzyCustomerSearch {
    */
   _buildIndex() {
     if (typeof window.Fuse === 'undefined') {
-      console.warn('[FuzzySearch] Fuse.js not loaded');
       return;
     }
 
@@ -359,8 +358,6 @@ class CustomerSearchUI {
     const results = this.searcher.search(query, 8);
     const elapsed = performance.now() - startTime;
 
-    console.log(`[FuzzySearch] "${query}" → ${results.length} results in ${elapsed.toFixed(2)}ms`);
-
     this._results = results;
     this._selectedIndex = results.length > 0 ? 0 : -1;
 
@@ -493,7 +490,6 @@ window._fuzzySearchSelect = function(index) {
 
 // Static method for creating new customer
 CustomerSearchUI.createNew = function(name) {
-  console.log('[FuzzySearch] Create new customer:', name);
   // Trigger new customer modal or callback
   if (typeof window.showNewCustomerModal === 'function') {
     window.showNewCustomerModal(name);

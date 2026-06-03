@@ -59,7 +59,6 @@ function renderCart() {
   var submitBtn = document.getElementById('submitBtn');
 
   if (!cartEl || !totalEl) {
-    console.warn('[UI] Element not found: #cartItems or #cartTotal');
     return;
   }
 
@@ -130,7 +129,6 @@ async function submitPurchase() {
 
     window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'purchase' } }));
   } catch (err) {
-    console.error('[submitPurchase]', err);
     alert('Nhập hàng thất bại: ' + (err.message || 'Lỗi không xác định'));
   } finally {
     if (btnState) restoreButtonLoading(btnState);
@@ -166,7 +164,6 @@ async function deletePurchase(id) {
     alert('Đã xóa phiếu nhập!');
     window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'purchase' } }));
   } catch (err) {
-    console.error('[deletePurchase]', err);
     alert('Xóa thất bại: ' + (err.message || 'Lỗi không xác định'));
   } finally {
     if (btnState) restoreButtonLoading(btnState);
@@ -192,7 +189,6 @@ function shouldRefreshPurchasesPath(pathname) {
 async function refreshPurchasesPage(reason) {
   if (_purchasesRefreshInFlight || typeof loadData !== 'function') return;
   _purchasesRefreshInFlight = true;
-  console.log('[CONSISTENCY][Purchases] refresh', reason || 'mutation');
   try {
     await loadData();
   } finally {

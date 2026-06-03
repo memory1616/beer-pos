@@ -416,7 +416,7 @@
           renderSettings(currentSettings);
         }
       } catch (e) {
-        console.error('loadSettings error:', e);
+        // Silent load fail
       }
     }
 
@@ -650,7 +650,6 @@
           throw new Error(data.error || 'Lỗi không xác định');
         }
       } catch (e) {
-        console.error('saveSettings error:', e);
         btn.innerHTML = decodePromoHtml('&#128104;&#8205;&#127858; Lưu cài đặt');
         btn.disabled = false;
         statusEl.classList.remove('hidden');
@@ -680,16 +679,15 @@
           if (!entities || entities.indexOf('all') !== -1 ||
               entities.indexOf('promotion_settings') !== -1 ||
               entities.indexOf('promotion') !== -1) {
-            console.log('[promo-settings] Refetching settings from server...');
             loadSettings();
           }
         });
 
         socket.on('connect', function() {
-          console.log('[promo-settings] Socket connected');
+          // Connected
         });
       } catch (e) {
-        console.error('[promo-settings] Socket init error:', e);
+        // Silent socket init fail
       }
     }
 

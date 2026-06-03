@@ -563,7 +563,6 @@
           renderProductCommissions([]);
         }
       } catch (e) {
-        console.error('Error loading config:', e);
         document.getElementById('newShopCommission').value = 500000;
         renderProductCommissions([]);
       }
@@ -644,7 +643,7 @@
         select.innerHTML = '<option value="">-- Chọn sản phẩm --</option>' +
           products.map(p => `<option value="${p.id}">${p.name} (${p.type})</option>`).join('');
       } catch (e) {
-        console.error('Lỗi tải sản phẩm');
+        // Silent fail
       }
     }
 

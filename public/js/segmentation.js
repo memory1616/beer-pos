@@ -57,7 +57,6 @@ const SegmentRules = {
     try {
       rules = typeof rulesJson === 'string' ? JSON.parse(rulesJson) : rulesJson;
     } catch (e) {
-      console.error('Invalid rules JSON:', e);
       return [];
     }
 
@@ -140,7 +139,6 @@ const SegmentRules = {
       const data = await res.json();
       return data.data || {};
     } catch (e) {
-      console.error('Failed to fetch customer stats:', e);
       return {};
     }
   },

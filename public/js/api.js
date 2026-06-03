@@ -128,7 +128,6 @@
       } catch (error) {
         // Retry logic
         if (retries > 0 && this._shouldRetry(error)) {
-          console.log(`[API] Retrying ${method} ${url} (${retries} attempts left)`);
           await this._delay(RETRY_DELAYS[3 - retries] || 5000);
           return this._request(method, url, data, { ...options, retries: retries - 1 });
         }
@@ -386,7 +385,5 @@
 
   window.Api = Api;
   window.ApiClient = ApiClient;
-
-  console.log('[API] BeerPOS API Client v' + API_VERSION + ' initialized');
 
 })();

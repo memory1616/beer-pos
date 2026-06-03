@@ -295,7 +295,6 @@
         }
 
         var url = '/report/data?type=custom&startDate=' + start + '&endDate=' + end;
-        console.log('[RPT] Loading:', url);
 
         fetch(url)
           .then(function (res) { return res.json(); })
@@ -304,7 +303,6 @@
             processAndRender(data);
           })
           .catch(function (err) {
-            console.error('[RPT] Error:', err);
             showEmptySkeleton();
           });
       }
@@ -833,7 +831,6 @@
 
       // Auto-init on DOM ready
       function init() {
-        console.log('[RPT] Init — report page');
         loadData();
 
         window.addEventListener('data:mutated', function (evt) {

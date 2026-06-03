@@ -35,7 +35,6 @@ class RealtimeClient {
 
     // Check if socket.io is loaded
     if (typeof io === 'undefined') {
-      console.warn('[Realtime] Socket.IO not loaded yet');
       return null;
     }
 
@@ -51,7 +50,6 @@ class RealtimeClient {
       this._setupListeners();
       return this.io;
     } catch (e) {
-      console.error('[Realtime] Connection error:', e);
       return null;
     }
   }
@@ -63,19 +61,16 @@ class RealtimeClient {
     const socket = this.io;
 
     socket.on('connect', () => {
-      console.log('[Realtime] Connected:', socket.id);
       this.connected = true;
       this.reconnectAttempts = 0;
       this._emit('connected', { socketId: socket.id });
     });
 
     socket.on('disconnect', (reason) => {
-      console.log('[Realtime] Disconnected:', reason);
       this.connected = false;
     });
 
     socket.on('connect_error', (err) => {
-      console.error('[Realtime] Connection error:', err.message);
       this.reconnectAttempts++;
     });
 
@@ -109,13 +104,11 @@ class RealtimeClient {
 
     // ── Debt updates ──────────────────────────────────────────────
     socket.on('debt:updated', (data) => {
-      console.log('[Realtime] Debt updated:', data);
       this._emit('debt:refresh', data);
     });
 
     // ── Refetch request ──────────────────────────────────────────────
     socket.on('refetch:now', (data) => {
-      console.log('[Realtime] Refetch requested:', data.entities);
       this._emit('refetch', data);
     });
   }
@@ -149,7 +142,7 @@ class RealtimeClient {
       try {
         cb(data);
       } catch (e) {
-        console.error('[Realtime] Listener error:', e);
+        // Listener error silently ignored
       }
     });
   }
@@ -271,8 +264,6 @@ if (typeof io !== 'undefined') {
   } else {
     setTimeout(initRealtime, 100);
   }
-} else {
-  console.warn('[Realtime] Socket.IO not found, real-time disabled');
 }
 
 // ─── Export ───────────────────────────────────────────────────────────────────

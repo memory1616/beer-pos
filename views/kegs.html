@@ -145,7 +145,7 @@
         var res = await fetch('/api/customers');
         customers = await res.json();
       } catch (e) {
-        console.error('Load customers error:', e);
+        // Silent fail
       }
     }
 
@@ -169,7 +169,7 @@
         var json = await res.json();
         renderLog(json.data || []);
       } catch (e) {
-        console.error('Load log error:', e);
+        // Silent fail
       }
     }
 
@@ -271,7 +271,10 @@
         renderHistoryList(json.data || []);
         renderHistorySummary(json.data || []);
         renderHistoryPagination();
-      } catch (e) { console.error('Load history error:', e); }
+      } catch (e) {
+        // Silent fail
+      }
+    }
     }
 
     function renderHistoryList(data) {

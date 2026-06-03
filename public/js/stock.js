@@ -235,8 +235,6 @@ function escapeHtmlAttr(s) {
  */
 async function loadData() {
   try {
-    console.log('[Stock] loadData: fetching from server...');
-
     // Step 1: Fetch from server (fresh data — always authoritative)
     var serverProducts = [];
     var serverPurchases = [];
@@ -246,11 +244,9 @@ async function loadData() {
         const data = await res.json();
         serverProducts = data.products || [];
         serverPurchases = data.purchases || [];
-      } else {
-        console.warn('[Stock] Server returned status:', res.status);
       }
     } catch (e) {
-      console.warn('[Stock] Server fetch failed:', e.message || e);
+      // silent fallback
     }
 
     // Step 2: Update IndexedDB with server data (keep local cache in sync)
@@ -270,7 +266,7 @@ async function loadData() {
           })));
         }
       } catch (e) {
-        console.warn('[Stock] Could not sync IndexedDB:', e.message || e);
+        // IndexedDB sync failed silently
       }
     }
 
@@ -281,13 +277,12 @@ async function loadData() {
     // Step 4: If server returned nothing (offline or error), fallback to IndexedDB
     // NOTE: do NOT force seed after user deletes products — seed only runs on first install
     if (products.length === 0) {
-      console.warn('[Stock] No server data — falling back to IndexedDB...');
       if (typeof window.getProducts === 'function') {
         try {
           if (window.dbReady) await window.dbReady.catch(() => {});
           products = await window.getProducts();
         } catch (e) {
-          console.error('[Stock] IndexedDB fallback FAILED:', e.message || e);
+          // IndexedDB fallback failed
         }
       }
     }
@@ -308,7 +303,6 @@ async function loadData() {
     hideLoading();
     return products || [];
   } catch (err) {
-    console.error('[Stock] loadData ERROR:', err);
     hideLoading();
     var contentEl = document.getElementById('contentSection');
     if (contentEl) contentEl.classList.remove('hidden');
@@ -360,7 +354,6 @@ function initStockPage(data) {
 
     hideLoading();
   } catch (err) {
-    console.error('[Stock] initStockPage ERROR:', err);
     hideLoading();
   }
 }
@@ -382,7 +375,6 @@ function renderPurchaseHistory(purchases) {
   const container = document.getElementById('purchaseHistoryList');
 
   if (!container) {
-    console.warn('[UI] Element not found: #purchaseHistoryList');
     return;
   }
 
@@ -432,7 +424,6 @@ async function editPurchase(purchaseId) {
 
     var itemsContainer = document.getElementById('editPurchaseItems');
     if (!itemsContainer) {
-      console.warn('[UI] Element not found: #editPurchaseItems');
       return;
     }
     itemsContainer.innerHTML = itemsData.items.map(function(item) {
@@ -462,7 +453,6 @@ async function editPurchase(purchaseId) {
       purchaseModal.classList.add('flex');
     }
   } catch (err) {
-    console.error('[Stock] editPurchase error:', err);
     alert('Lỗi tải thông tin đơn nhập');
   }
 }
@@ -506,7 +496,7 @@ async function deletePurchase(purchaseId) {
           }
         }
       } catch (e) {
-        console.warn('[Stock] Could not delete purchase from IndexedDB:', e);
+        // IndexedDB delete failed silently
       }
 
     alert('Đã xoá đơn nhập hàng!');
@@ -522,12 +512,11 @@ async function deletePurchase(purchaseId) {
         updateProductsSummary();
       })
       .catch(function(err) {
-        console.error('[Stock] deletePurchase refetch error:', err);
+        // silent
       });
 
     window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'purchase' } }));
   } catch (err) {
-    console.error('[deletePurchase]', err);
     alert('Xoá thất bại: ' + (err.message || 'Lỗi không xác định'));
   } finally {
     if (btnState) restoreButtonLoading(btnState);
@@ -596,7 +585,6 @@ async function deletePurchase(purchaseId) {
 
           window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'purchase' } }));
         } catch (err) {
-          console.error('[editPurchase]', err);
           alert('Cập nhật thất bại: ' + (err.message || 'Lỗi không xác định'));
         } finally {
           if (btnState) restoreButtonLoading(btnState);
@@ -671,7 +659,6 @@ async function deletePurchase(purchaseId) {
 
           window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'product' } }));
         } catch (err) {
-          console.error('[productForm]', err);
           alert((isNew ? 'Thêm' : 'Cập nhật') + ' thất bại: ' + (err.message || 'Lỗi không xác định'));
         } finally {
           if (btnState) restoreButtonLoading(btnState);
@@ -691,11 +678,9 @@ function renderImportForm(products) {
   const container = document.getElementById('importProducts');
 
   if (!container) {
-    console.warn('[UI] Element not found: #importProducts — renderImportForm skipped');
     return;
   }
   if (!Array.isArray(products)) {
-    console.warn('[UI] renderImportForm called without valid products array');
     return;
   }
 
@@ -795,7 +780,6 @@ async function submitImport() {
 
     window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'purchase' } }));
   } catch (err) {
-    console.error('[submitImport]', err);
     alert('Nhập kho thất bại: ' + (err.message || 'Lỗi không xác định'));
   } finally {
     if (btnState) restoreButtonLoading(btnState);
@@ -1027,7 +1011,6 @@ function openProductModal(productId) {
   var stockField = document.getElementById('stockField');
 
   if (!modal || !form) {
-    console.warn('[UI] openProductModal: #productModal or #productForm not found');
     return;
   }
 
@@ -1113,7 +1096,7 @@ function deleteProduct() {
           }
         }
       } catch (e) {
-        console.warn('[Stock] Could not delete from IndexedDB:', e);
+        // IndexedDB delete silently failed
       }
 
       // REFETCH from server to sync all data
@@ -1127,7 +1110,6 @@ function deleteProduct() {
 
       window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'product' } }));
     } catch (err) {
-      console.error('[deleteProduct]', err);
       alert('Xoá thất bại: ' + (err.message || 'Lỗi không xác định'));
     } finally {
       if (btnState) restoreButtonLoading(btnState);
@@ -1202,10 +1184,9 @@ if (document.readyState === 'loading') {
     }
 
     window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'product' } }));
-  } catch (err) {
-    console.error('[productForm outer]', err);
-    alert((isNew ? 'Thêm' : 'Cập nhật') + ' thất bại: ' + (err.message || 'Lỗi không xác định'));
-  } finally {
+        } catch (err) {
+          alert((isNew ? 'Thêm' : 'Cập nhật') + ' thất bại: ' + (err.message || 'Lỗi không xác định'));
+        } finally {
     if (btnState) restoreButtonLoading(btnState);
   }
     });
@@ -1306,7 +1287,7 @@ window.renderProducts = function(products) {
     var total = (products || []).reduce(function(s, p) { return s + Math.max(0, Number(p.stock) || 0); }, 0);
     var totalEl = document.getElementById('totalStock');
     if (totalEl) totalEl.textContent = String(total);
-  } catch (err) {
-    console.error('[Stock] window.renderProducts error:', err);
-  }
+    } catch (err) {
+      // silent
+    }
 };

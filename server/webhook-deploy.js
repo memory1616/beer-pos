@@ -6,13 +6,13 @@ const http = require('http');
 const { execSync } = require('child_process');
 const crypto = require('crypto');
 
-const PORT       = process.env.WEBHOOK_PORT    || 3939;
-const SECRET     = process.env.WEBHOOK_SECRET  || '';
-const GIT_DIR    = '/root/beer-pos';           // Thư mục repo git
-const DEPLOY_SCRIPT = '/root/beer-pos/deploy.sh'; // Script deploy có sẵn
+const PORT         = process.env.WEBHOOK_PORT    || 3939;
+const SECRET       = process.env.WEBHOOK_SECRET  || '';
+const GIT_DIR      = '/root/beer-pos';
+const DEPLOY_SCRIPT = '/root/beer-pos/deploy.sh';
 
 function log(level, msg) {
-  console.log(`[${new Date().toISOString()}] [${level}] ${msg}`);
+  // Deployment logging — silenced for clean output
 }
 
 function verifySignature(payload, signature) {
@@ -25,16 +25,16 @@ function verifySignature(payload, signature) {
 
 function deploy() {
   try {
-    log('INFO', '🔄 Pulling latest code...');
+    log('INFO', 'Pulling latest code...');
     execSync('git pull origin main', { cwd: GIT_DIR, stdio: 'inherit' });
 
-    log('INFO', '🚀 Running deploy.sh...');
+    log('INFO', 'Running deploy.sh...');
     execSync(DEPLOY_SCRIPT, { cwd: GIT_DIR, stdio: 'inherit' });
 
-    log('INFO', '✅ Deploy complete!');
+    log('INFO', 'Deploy complete!');
     return { ok: true };
   } catch (err) {
-    log('ERROR', '❌ Deploy failed: ' + err.message);
+    log('ERROR', 'Deploy failed: ' + err.message);
     return { ok: false, error: err.message };
   }
 }
@@ -52,7 +52,7 @@ const server = http.createServer((req, res) => {
 
   if (req.method === 'GET') {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('✅ Webhook OK — beer-pos\n');
+    res.end('Webhook OK - beer-pos\n');
     return;
   }
 
@@ -67,7 +67,7 @@ const server = http.createServer((req, res) => {
   req.on('end', () => {
     const sig = req.headers['x-hub-signature-256'] || '';
     if (!verifySignature(body, sig)) {
-      log('WARN', '⛔ Invalid signature');
+      log('WARN', 'Invalid signature');
       res.writeHead(401, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Unauthorized' }));
       return;
@@ -81,7 +81,7 @@ const server = http.createServer((req, res) => {
       return;
     }
 
-    log('INFO', '📦 Push detected — starting deploy');
+    log('INFO', 'Push detected — starting deploy');
     const result = deploy();
     res.writeHead(result.ok ? 200 : 500, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(result));
@@ -89,8 +89,8 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
-  log('INFO', `🌐 Listening on port ${PORT}`);
-  log('INFO', `📂 Repo: ${GIT_DIR}`);
-  log('INFO', `📜 Deploy script: ${DEPLOY_SCRIPT}`);
-  if (!SECRET) log('WARN', '⚠️  No WEBHOOK_SECRET set — signatures NOT verified');
+  log('INFO', `Listening on port ${PORT}`);
+  log('INFO', `Repo: ${GIT_DIR}`);
+  log('INFO', `Deploy script: ${DEPLOY_SCRIPT}`);
+  if (!SECRET) log('WARN', 'No WEBHOOK_SECRET set — signatures NOT verified');
 });
