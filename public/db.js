@@ -357,7 +357,6 @@ if (window._dbInitialized) {
             stock: (product.stock || 0) - item.quantity
           });
         }
-        }
       } catch (e) {
         console.error('[DB] updateStockAfterSale error for product ' + item.productId + ':', e);
       }
