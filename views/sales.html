@@ -346,7 +346,7 @@
 
       /* Load scripts */
       if (window._dbScriptLoaded) {
-        await loadScript('/sync-orders.js');
+        await loadScript('/sync-orders.js?v=20260603');
         await loadScript('/js/fuzzy-search.js');
         await loadScript('/js/product-grid.js');
         await loadSalesData();
@@ -356,7 +356,7 @@
       await loadScript('/js/utils.js?v=20260211-toast');
       await loadScript('/js/format.js');
       await loadScript('/db.js?v=20260430a');
-      await loadScript('/sync-orders.js');
+      await loadScript('/sync-orders.js?v=20260603');
       await loadScript('https://cdn.jsdelivr.net/npm/fuse.js@7.0.0/dist/fuse.min.js');
       await loadScript('/js/fuzzy-search.js');
       await loadScript('/js/product-grid.js');
