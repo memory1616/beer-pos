@@ -114,6 +114,7 @@ router.post('/', (req, res) => {
     }
   }
 
+  console.log('[SALE CREATE]', { customerId, itemsCount: items.length, items: items });
 
   try {
     let total = 0;
@@ -234,7 +235,13 @@ router.post('/', (req, res) => {
             else quantityGold += item.quantity;
           }
           promoInfo = PromotionService.calculateNewShopPromotion(quantityGold, quantityBlack);
+          if (promoInfo.totalFree > 0) {
+            console.log('[NEW SHOP PROMO]', promoInfo);
+          }
         }
+      } else {
+        console.log('[PROMO] Customer', customerId, 'has promotions disabled — skipping new shop promo');
+      }
     }
 
     // Calculate keg quantity (bao gồm cả lít tặng)
@@ -279,6 +286,9 @@ router.post('/', (req, res) => {
             // Also update customer_monthly_stats
             const now = new Date();
             PromotionService.updateCustomerMonthlyStats(customerId, paidLiters, now.getFullYear(), now.getMonth() + 1);
+          } else {
+            console.log('[PROMO] Customer', customerId, 'has promotions disabled — skipping monthly stats update');
+          }
         }
       }
 
@@ -388,11 +398,14 @@ router.post('/', (req, res) => {
     let debtResult = null;
     if (debt && customerId && total > 0) {
       debtResult = DebtService.createDebt(customerId, total, saleId, `Bán chịu đơn #${saleId}`);
+      if (debtResult.success) {
+        console.log('[SALE DEBT] Created debt for sale', saleId, ':', total);
         const io = req.app.get('io');
         if (io) io.to('admin').emit('debt:updated', { customerId, newDebt: debtResult.newDebt, action: 'increase', saleId });
       }
     }
 
+    console.log('[SALE CREATED]', { saleId, itemsInserted: saleItems.length, total, profit, debt: !!debtResult, promo: promoInfo });
 
     // ========== TỰ ĐỘNG GẮN THƯỞNG VÀO ĐƠN HÀNG ĐẦU TIÊN TRONG THÁNG ==========
     // Nếu khách đủ điều kiện thưởng tháng trước VÀ KHÔNG đang trong thời gian quán mới
@@ -415,9 +428,22 @@ router.post('/', (req, res) => {
         return true;
       })();
 
+      if (!isRewardMonthValid) {
+        console.log('[AUTO REWARD] Bo qua vi thang tra thuong (thang', rewardMonth.getMonth() + 1, '/', rewardMonth.getFullYear(), ') nam ngoai thoi gian KM');
+      } else {
         const isInNewShop = PromotionService.isInNewShopPeriod(customerId);
         if (!isInNewShop) {
           const rewardInfo = PromotionService.getRewardForPrevMonth(customerId);
+          if (rewardInfo && rewardInfo.eligible && rewardInfo.rewardLiters > 0) {
+            // Gắn thưởng vào đơn hàng hiện tại
+            autoRewardResult = PromotionService.attachRewardToSale(customerId, saleId, rewardInfo.rewardLiters, rewardInfo.tier);
+            if (autoRewardResult && autoRewardResult.success) {
+              console.log('[AUTO REWARD] Da gan thuong vao don', customerId, ':', autoRewardResult.rewardLiters, 'L');
+            }
+          }
+        } else {
+          console.log('[AUTO REWARD] Bo qua vi khach', customerId, 'dang trong thoi gian quan moi - khong nhan thuong thang');
+        }
       }
     }
 
@@ -1054,17 +1080,26 @@ router.get('/export', (req, res) => {
 // DELETE /api/sales/:id - Xóa hóa đơn và hoàn kho (SOFT-DELETE)
 router.delete('/:id', (req, res) => {
   const saleId = req.params.id;
+  console.log('[ORDER DELETE] 🚀 DELETE /api/sales/' + saleId + ' called');
 
   try {
     const result = deleteSaleRestoringInventory(saleId);
 
     if (!result.ok) {
+      if (result.code === 'not_found') {
+        console.log('[ORDER DELETE] ❌ Sale not found:', saleId);
         return res.status(404).json({ error: 'Không tìm thấy hóa đơn' });
       }
+      if (result.code === 'already_deleted') {
+        console.log('[ORDER DELETE] ⚠️ Sale already deleted:', saleId);
         return res.status(400).json({ error: 'Hóa đơn đã được xóa trước đó' });
       }
+      if (result.code === 'returned') {
+        console.log('[ORDER DELETE] ⚠️ Sale already returned:', saleId);
         return res.status(400).json({ error: 'Hóa đơn đã được trả hàng trước đó' });
       }
+      if (result.code === 'transaction_failed') {
+        console.log('[ORDER DELETE] ❌ Transaction failed:', saleId);
         return res.status(500).json({ error: 'Xóa hóa đơn thất bại - transaction error' });
       }
       return res.status(500).json({ error: 'Xóa hóa đơn thất bại' });
@@ -1074,11 +1109,15 @@ router.delete('/:id', (req, res) => {
     const saleBeforeDelete = db.prepare('SELECT customer_id FROM sales WHERE id = ?').get(saleId);
     if (saleBeforeDelete && saleBeforeDelete.customer_id) {
       const debtResult = DebtService.reverseDebtForSale(parseInt(saleId, 10));
+      if (debtResult.success && debtResult.refundedAmount > 0) {
+        console.log('[ORDER DELETE] Debt reversed for sale', saleId, ':', debtResult.refundedAmount);
         const io = req.app.get('io');
         if (io) io.to('admin').emit('debt:updated', { customerId: saleBeforeDelete.customer_id, action: 'reversed', saleId: parseInt(saleId, 10), refundedAmount: debtResult.refundedAmount });
       }
     }
 
+    // CRITICAL: Emit events để tất cả clients refresh
+    console.log('[ORDER DELETE] ✅ Emitting events after successful soft-delete');
     socketServer.emitOrderDeleted(parseInt(saleId, 10));
     socketServer.emitInventoryUpdated();
     socketServer.emitReportUpdated({ reason: 'sale_deleted', saleId: parseInt(saleId, 10) });
@@ -1206,10 +1245,22 @@ router.put('/:id', (req, res) => {
 
       if (freeGold > 0) {
         const goldProduct = db.prepare(`SELECT id, name, slug FROM products WHERE archived = 0 AND type = 'keg' AND name NOT LIKE '%Đen%' AND name NOT LIKE '%Den%' AND name NOT LIKE '%den%' ORDER BY id ASC LIMIT 1`).get();
+        if (goldProduct) {
+          db.prepare('INSERT INTO sale_items (sale_id, product_id, product_slug, quantity, price, cost_price, profit, price_at_time) VALUES (?, ?, ?, ?, 0, 0, 0, 0)')
+            .run(saleId, goldProduct.id, goldProduct.slug || '', freeGold);
+          db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(freeGold, goldProduct.id);
+          console.log('[SALE UPDATE] Added promo gold:', freeGold, 'L');
+        }
       }
 
       if (freeBlack > 0) {
         const blackProduct = db.prepare(`SELECT id, name, slug FROM products WHERE archived = 0 AND type = 'keg' AND (name LIKE '%Đen%' OR name LIKE '%Den%' OR name LIKE '%den%') ORDER BY id ASC LIMIT 1`).get();
+        if (blackProduct) {
+          db.prepare('INSERT INTO sale_items (sale_id, product_id, product_slug, quantity, price, cost_price, profit, price_at_time) VALUES (?, ?, ?, ?, 0, 0, 0, 0)')
+            .run(saleId, blackProduct.id, blackProduct.slug || '', freeBlack);
+          db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(freeBlack, blackProduct.id);
+          console.log('[SALE UPDATE] Added promo black:', freeBlack, 'L');
+        }
       }
 
       promoInfo = { freeGold, freeBlack, totalFree: freeGold + freeBlack, promoType: 'NEW_SHOP' };
@@ -1225,6 +1276,8 @@ router.put('/:id', (req, res) => {
         const diff = newTotal - currentSale.total; // tăng = thêm nợ, giảm = giảm nợ
         if (diff !== 0) {
           const adjResult = DebtService.adjustDebt(customerId, diff, `Sửa đơn #${saleId}: ${diff > 0 ? '+' : ''}${diff}`);
+          if (adjResult.success) {
+            console.log('[SALE UPDATE] Debt adjusted for sale', saleId, ': diff=', diff);
             const io = req.app.get('io');
             if (io) io.to('admin').emit('debt:updated', { customerId, newDebt: adjResult.newDebt, action: 'adjusted', saleId: parseInt(saleId) });
           }
