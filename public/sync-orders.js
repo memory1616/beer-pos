@@ -162,6 +162,8 @@ async function pullOrdersFromServer(since) {
     if (imported > 0) {
       if (typeof showToast === 'function') showToast(`☁️ Đã tải ${imported} đơn mới`, 'success');
     }
+  } catch (e) {
+    console.error('[OrderSync] pullOrdersFromServer error:', e);
   }
 }
 
