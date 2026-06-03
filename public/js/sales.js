@@ -222,6 +222,8 @@ async function reloadSaleProducts() {
       _rebuildMaps();
       renderProducts();
     }
+  } catch (e) {
+    console.error('[SALES] reloadSaleProducts error:', e);
   }
 }
 

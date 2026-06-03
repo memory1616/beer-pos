@@ -154,7 +154,7 @@ async function pullOrdersFromServer(since) {
           }
         }
         imported++;
-      } else       if (existing.synced === 0) {
+      } else if (existing.synced === 0) {
         // Local unsynced order — skipping server version
       }
     }
