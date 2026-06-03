@@ -221,10 +221,7 @@ async function reloadSaleProducts() {
       products = data;
       _rebuildMaps();
       renderProducts();
-      console.log('[reloadSaleProducts] Products refreshed, count:', products.length);
     }
-  } catch (err) {
-    console.error('[reloadSaleProducts] Error:', err);
   }
 }
 
@@ -236,11 +233,10 @@ async function loadPromoSettings() {
     const data = await res.json();
     if (data.success) {
       saleState.promoSettings = data.data;
-      console.log('[loadPromoSettings] Loaded:', saleState.promoSettings);
       return data.data;
     }
   } catch (err) {
-    console.error('[loadPromoSettings] Error:', err);
+    // silent
   }
   return null;
 }
@@ -253,11 +249,10 @@ async function loadQRConfig() {
     const data = await res.json();
     if (data) {
       saleState.qrConfig = data;
-      console.log('[loadQRConfig] Loaded:', saleState.qrConfig);
       return data;
     }
   } catch (err) {
-    console.error('[loadQRConfig] Error:', err);
+    // silent
   }
   return null;
 }
@@ -382,7 +377,7 @@ function renderSaleHistory(sales, page, totalPages) {
       kegsInfo = '<div class="sale-history-kegs">' + parts.join('   |   ') + '</div>';
     }
 
-    return '<div class="sale-history-item" onclick="console.log(\'row click\', ' + s.id + '); viewSale(' + s.id + ')">' +
+    return '<div class="sale-history-item" onclick="viewSale(' + s.id + ')">' +
       '<div class="sale-history-top">' +
         '<div class="sale-history-customer">' + escHtml(customerName) + typeLabel + '</div>' +
         '<div class="sale-history-total">' + totalStr + '</div>' +
@@ -525,14 +520,9 @@ function renderInvoiceModalContent(invoice, saleIdForActions) {
   var itemsList = document.getElementById('invItemsList');
   var invActions = document.getElementById('invActions');
   var vietqrBlock = document.getElementById('vietqrBlock');
-  if (!itemsList) { console.warn('[renderInvoiceModalContent] invItemsList not found'); return; }
+  if (!itemsList) { return; }
   if (!orderEl) orderEl = document.getElementById('invOrderId');
   if (!invActions) invActions = document.getElementById('invActions');
-
-  console.log('[renderInvoiceModalContent] invoice:', JSON.stringify(invoice));
-  console.log('[renderInvoiceModalContent] items:', invoice && invoice.items);
-  console.log('[renderInvoiceModalContent] customer:', invoice && invoice.customer);
-  console.log('[renderInvoiceModalContent] saleIdForActions:', saleIdForActions);
 
   var invDateEl = document.getElementById('invDate');
   var invKegDeliver = document.getElementById('invKegDeliver');
@@ -722,11 +712,9 @@ function openInvoiceModal(source) {
 
   fetch('/sale/' + saleId, { cache: 'no-store' })
     .then(function(res) {
-      console.log('[openInvoiceModal] status:', res.status, 'url:', res.url);
       return safeJson(res);
     })
     .then(function(data) {
-      console.log('[openInvoiceModal] raw data:', JSON.stringify(data));
       if (!data) {
         showToast('Không tìm thấy đơn', 'error');
         var inv = null;
@@ -736,7 +724,6 @@ function openInvoiceModal(source) {
         return;
       }
       var sale = extractSaleFromResponse(data);
-      console.log('[openInvoiceModal] extracted sale:', JSON.stringify(sale));
       if (!sale) {
         showToast('Không tìm thấy đơn', 'error');
         var inv = null;
@@ -751,7 +738,6 @@ function openInvoiceModal(source) {
       showInvoiceModalElement();
     })
     .catch(function(err) {
-      console.error('openInvoiceModal error:', err);
       window._invoiceContext = null;
       renderInvoiceModalContent(null, null);
       showInvoiceModalElement();
@@ -908,25 +894,20 @@ function submitCollectKegForSale(saleId) {
       // Reload invoice to show updated keg values
       var ctx = window._invoiceContext;
       if (ctx) {
-        console.log('[submitCollectKegForSale] Reloading invoice for saleId:', ctx.saleId);
         fetch('/sale/' + ctx.saleId, { cache: 'no-store' })
           .then(function(res) { return safeJson(res); })
           .then(function(respData) {
-            console.log('[submitCollectKegForSale] /sale response:', respData);
             var sale = respData ? extractSaleFromResponse(respData) : null;
-            console.log('[submitCollectKegForSale] extracted sale:', sale);
             if (sale) {
               var inv = normalizeInvoice(sale);
-              console.log('[submitCollectKegForSale] normalized invoice:', inv);
               if (inv) {
                 window._invoiceContext = { saleId: ctx.saleId, rawSale: sale };
                 renderInvoiceModalContent(inv, ctx.saleId);
-                console.log('[submitCollectKegForSale] invoice re-rendered');
               }
             }
           })
           .catch(function(err) {
-            console.error('[submitCollectKegForSale] reload error:', err);
+            // Silent fail
           });
       }
       window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'kegs' } }));
@@ -935,7 +916,6 @@ function submitCollectKegForSale(saleId) {
     }
   })
   .catch(function(err) {
-    console.error('submitCollectKegForSale error:', err);
     showToast('Lỗi kết nối', 'error');
   })
   .finally(function() {
@@ -946,14 +926,9 @@ function submitCollectKegForSale(saleId) {
 // Delete sale
 function deleteSale(saleId) {
   if (!confirm('Xóa đơn #' + saleId + '? Hành động này không thể hoàn tác.')) return;
-  console.log('[deleteSale] sending DELETE /api/sales/' + saleId);
   fetch('/api/sales/' + saleId, { method: 'DELETE' })
-    .then(function(res) {
-      console.log('[deleteSale] status:', res.status);
-      return safeJson(res);
-    })
+    .then(function(res) { return safeJson(res); })
     .then(function(data) {
-      console.log('[deleteSale] response:', JSON.stringify(data));
       if (!data) { showToast('Lỗi kết nối', 'error'); return; }
       if (data.success) {
         showToast('Đã xóa đơn', 'success');
@@ -963,7 +938,7 @@ function deleteSale(saleId) {
         showToast(data.error || 'Lỗi xóa đơn', 'error');
       }
     })
-    .catch(function(err) { console.error('[deleteSale] fetch error:', err); showToast('Lỗi kết nối', 'error'); });
+    .catch(function(err) { showToast('Lỗi kết nối', 'error'); });
 }
 
 function openEditSale(saleId) {
@@ -1026,7 +1001,6 @@ function openEditSale(saleId) {
       document.getElementById('saleMainContent')?.scrollTo(0, 0);
     })
     .catch(function(err) {
-      console.error('openEditSale error:', err);
       showToast('Lỗi tải đơn', 'error');
     });
 }
@@ -1638,7 +1612,6 @@ function submitSale() {
       return;
     }
     if (data.success) {
-      console.log('[submitSale] success, data:', JSON.stringify(data));
       var promoMsg = '';
       if (data.promo && data.promo.totalFree > 0) {
         var parts = [];
@@ -1648,17 +1621,13 @@ function submitSale() {
       }
       showToast((isEditing ? 'Cập nhật thành công!' : 'Bán hàng thành công!') + promoMsg, 'success');
       var invoiceSaleId = isEditing ? editingSaleId : (data.id != null ? Number(data.id) : null);
-      console.log('[submitSale] invoiceSaleId:', invoiceSaleId);
       editingSaleId = null;
       resetSaleState();
       // Notify both sale and inventory listeners
       window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'sale' } }));
       window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'inventory' } }));
-      console.log('[submitSale] calling openInvoiceModal with', invoiceSaleId);
       if (invoiceSaleId && typeof openInvoiceModal === 'function') {
         openInvoiceModal(invoiceSaleId);
-      } else {
-        console.warn('[submitSale] skip openInvoiceModal — saleId:', invoiceSaleId, 'fn:', typeof openInvoiceModal);
       }
     } else {
       showToast(data.error || 'Lỗi khi bán hàng', 'error');
@@ -1666,7 +1635,6 @@ function submitSale() {
     }
   })
   .catch(function(err) {
-    console.error('[POS] submitSale error:', err);
     showToast('Lỗi kết nối', 'error');
     if (btn) { btn.disabled = false; btn.innerHTML = isEditing ? '💾 Cập nhật đơn' : '✅ BÁN HÀNG'; }
   });
@@ -1812,7 +1780,6 @@ function submitReplacement() {
     }
   })
   .catch(function(err) {
-    console.error('submitReplacement error:', err);
     showToast('Lỗi kết nối', 'error');
   })
   .finally(function() {
@@ -1913,7 +1880,6 @@ function saveKegUpdate() {
     }
   })
   .catch(function(err) {
-    console.error('saveKegUpdate error:', err);
     showToast('Lỗi kết nối', 'error');
   })
   .finally(function() {
@@ -2053,7 +2019,6 @@ function submitCollectKeg() {
       }
     })
     .catch(function(err) {
-      console.error('submitCollectKeg error:', err);
       showToast('Lỗi kết nối', 'error');
     })
     .finally(function() { kegSubmitting = false; });
@@ -2100,7 +2065,6 @@ function submitCollectKeg() {
       }
     })
     .catch(function(err) {
-      console.error('submitCollectKeg error:', err);
       showToast('Lỗi kết nối', 'error');
     });
   } else if (deliver > 0) {

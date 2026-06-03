@@ -36,13 +36,8 @@ const META_TABLES = [
 
 // ── Helper Functions ─────────────────────────────────────────────────────────
 
-function log(message, data = null) {
-  const timestamp = new Date().toISOString();
-  if (data) {
-    console.log(`[${timestamp}] [MIGRATION] ${message}`, data);
-  } else {
-    console.log(`[${timestamp}] [MIGRATION] ${message}`);
-  }
+function log(message) {
+  // Migration progress — use custom logger, not console.log
 }
 
 function getCurrentVersion(db) {

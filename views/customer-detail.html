@@ -558,7 +558,6 @@
 
         container.innerHTML = html;
       } catch (err) {
-        console.error('loadDebtHistory error:', err);
         container.innerHTML = '<div class="text-center py-8 text-danger">Lỗi tải dữ liệu</div>';
       }
     }
@@ -866,7 +865,7 @@
           document.getElementById('verticalFridgeCount').textContent = data.vertical_fridge || 0;
         }
       } catch (err) {
-        console.error('Error loading customer:', err);
+        // Silent fail
       }
     }
 
@@ -990,7 +989,6 @@
           }
         }
       } catch (e) {
-        console.error('loadPromoToggleStatus error:', e);
         container.innerHTML = '<div class="text-center py-4 text-danger">Lỗi tải khuyến mãi</div>';
       }
     }
@@ -1173,7 +1171,7 @@
           document.getElementById('lastSale').textContent = 'Chưa có';
         }
       } catch (err) {
-        console.error('Error loading stats:', err);
+        // Silent fail
       }
     }
 
@@ -1262,7 +1260,6 @@
         
         container.innerHTML = html;
       } catch (err) {
-        console.error('Error loading sales:', err);
         container.innerHTML = '<div class="text-center py-8 text-danger">Lỗi tải dữ liệu</div>';
       }
     }
@@ -1299,12 +1296,8 @@
         if (!res.ok || (data && data.error && data.id == null)) {
           throw new Error(data.error || 'Not found');
         }
-        console.log('[viewInvoice] sale data:', data);
-        console.log('[viewInvoice] items:', data.items || data.products);
-        console.log('[viewInvoice] customer_name:', data.customer_name);
         showInvoiceModal(data);
       } catch (err) {
-        console.error(err);
         alert('Không thể tải hóa đơn');
       }
     }
@@ -1313,14 +1306,10 @@
       const modal = document.getElementById('customerInvoiceModal');
       if (!modal) return;
       if (!sale || !sale.id) {
-        console.error('[showInvoiceModal] Invalid sale data:', sale);
         return;
       }
 
       const items = (sale.items || sale.products) || [];
-      console.log('[showInvoiceModal] sale:', sale);
-      console.log('[showInvoiceModal] items count:', items.length, items);
-      console.log('[showInvoiceModal] customer_name:', sale.customer_name);
 
       const customerName = sale.customer_name || sale.customerName || sale.customer?.name || 'Khách lẻ';
       const saleDate = sale.date || sale.created_at || '';

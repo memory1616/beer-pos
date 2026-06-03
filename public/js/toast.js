@@ -132,7 +132,7 @@
       const fn = new Function('return ' + handler)();
       if (typeof fn === 'function') fn();
     } catch (e) {
-      console.error('Toast action error:', e);
+      // Toast action error silently ignored
     }
     dismiss(parseFloat(id));
   };

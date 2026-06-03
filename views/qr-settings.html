@@ -375,7 +375,6 @@
           renderSettings(currentSettings);
         }
       } catch (e) {
-        console.error('loadSettings error:', e);
         // Use defaults
         currentSettings = {
           qrAccountNo: '',
@@ -545,7 +544,6 @@
           throw new Error(data.error || 'Lỗi không xác định');
         }
       } catch (e) {
-        console.error('saveSettings error:', e);
         btn.innerHTML = '💾 Lưu cài đặt';
         btn.disabled = false;
         statusEl.classList.remove('hidden');
@@ -573,16 +571,15 @@
         socket.on('refetch:now', function(data) {
           var entities = data && data.entities;
           if (!entities || entities.indexOf('all') !== -1 || entities.indexOf('qr_settings') !== -1) {
-            console.log('[qr-settings] Refetching settings from server...');
             loadSettings();
           }
         });
 
         socket.on('connect', function() {
-          console.log('[qr-settings] Socket connected');
+          // Connected
         });
       } catch (e) {
-        console.error('[qr-settings] Socket init error:', e);
+        // Silent socket init fail
       }
     }
 

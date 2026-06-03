@@ -747,24 +747,19 @@ router.put('/customer/:id', (req, res) => {
 
     const sql = `UPDATE customers SET ${updates.join(', ')} WHERE id = ?`;
     const stmt = db.prepare(sql);
-    const result = stmt.run(...values);
-    console.log('UPDATE SUCCESS:', result);
+    stmt.run(...values);
 
     // Emit realtime update
-    console.log('About to emit customer updated');
     try {
       socketServer.emitCustomerUpdated({ id: customerId });
-      console.log('Emit completed');
     } catch (e) {
       console.error('Socket emit error:', e.message, e.stack);
     }
 
-    console.log('About to send response');
     res.json({
       success: true,
       message: 'Đã cập nhật khuyến mãi'
     });
-    console.log('Response sent');
   } catch (e) {
     console.error('PUT /api/promotions/customer/:id error:', e.message, e.stack);
     res.status(500).json({ success: false, error: e.message });

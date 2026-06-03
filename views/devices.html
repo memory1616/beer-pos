@@ -929,7 +929,6 @@
         document.getElementById('contentState').classList.remove('hidden');
 
       } catch (err) {
-        console.error('[Devices] loadData error:', err);
         showToast('Lỗi tải dữ liệu', 'error');
       }
     }
@@ -1070,7 +1069,6 @@
         document.getElementById('detailCustomerLink').href = `/customers/${customer.id}`;
         openDetailModal();
       } catch (err) {
-        console.error('[Devices] showCustomerDetail error:', err);
         showToast('Không thể tải thông tin khách', 'error');
       }
     }

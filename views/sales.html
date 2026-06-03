@@ -367,11 +367,9 @@
     })();
 
     async function loadSalesData() {
-      console.log('[POS] loadSalesData START');
       try {
         var res = await fetch('/sale/data', { cache: 'no-store' });
         var data = await res.json();
-        console.log('[POS] products:', (data.products||[]).length, 'customers:', (data.customers||[]).length);
         initSalesPage(data);
       } catch(err) {
         console.error('[POS] loadSalesData error:', err);

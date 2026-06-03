@@ -373,13 +373,10 @@ router.get('/data', (req, res) => {
           nearTierCustomers: nearTierCustomers
         };
       } catch(e) {
-        console.error('[promoStats]', e.message);
         return null;
       }
     })()
   });
-  } catch (err) {
-    console.error('[/dashboard/data] Error:', err.message, err.stack);
     res.status(500).json({ error: 'Internal server error', detail: err.message });
   }
 });

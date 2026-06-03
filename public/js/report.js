@@ -8,4 +8,3 @@
  *
  * Nếu cần tái sử dụng logic IndexedDB, hãy import các hàm riêng lẻ.
  */
-console.warn('[report.js] DEPRECATED — Trang report đã được refactor. Xem inline <script> trong report.html');

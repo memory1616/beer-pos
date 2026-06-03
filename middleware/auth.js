@@ -18,27 +18,27 @@ try {
       )
     `);
     db.exec(`CREATE INDEX IF NOT EXISTS idx_auth_sessions_expires ON auth_sessions(expires_at)`);
-    console.log('Created auth_sessions table (SQLite-backed)');
+    // Table created
   } else {
     // Table exists — migrate schema if needed
     if (!cols.includes('username')) {
       db.exec(`ALTER TABLE auth_sessions ADD COLUMN username TEXT NOT NULL DEFAULT 'admin'`);
-      console.log('Migrated auth_sessions: added username column');
+      // username column added
     }
     if (!cols.includes('created_at')) {
       db.exec(`ALTER TABLE auth_sessions ADD COLUMN created_at TEXT DEFAULT CURRENT_TIMESTAMP`);
-      console.log('Migrated auth_sessions: added created_at column');
+      // created_at column added
     }
     if (!cols.includes('last_active')) {
       db.exec(`ALTER TABLE auth_sessions ADD COLUMN last_active INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)`);
-      console.log('Migrated auth_sessions: added last_active column');
+      // last_active column added
     }
     // Recreate index if missing
     db.exec(`CREATE INDEX IF NOT EXISTS idx_auth_sessions_expires ON auth_sessions(expires_at)`);
   }
-} catch (e) {
-  console.log('auth_sessions table note:', e.message);
-}
+  } catch (e) {
+    // auth_sessions table note
+  }
 
 // Periodic cleanup of expired sessions (runs every 30 minutes)
 let cleanupHandle = null;
@@ -46,11 +46,11 @@ try {
   cleanupHandle = setInterval(() => {
     const now = Date.now();
     const cleaned = db.prepare(`DELETE FROM auth_sessions WHERE expires_at < ?`).run(now).changes;
-    if (cleaned > 0) console.log(`[Auth] Cleaned up ${cleaned} expired session(s)`);
+    if (cleaned > 0) {}
   }, 30 * 60 * 1000);
-} catch (e) {
-  console.log('[Auth] Session cleanup not available:', e.message);
-}
+  } catch (e) {
+    // Session cleanup not available
+  }
 
 function dbGetSession(token) {
   if (!token) return null;

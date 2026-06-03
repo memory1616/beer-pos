@@ -125,7 +125,6 @@ class ProductGrid {
    */
   render() {
     if (!this.container) {
-      console.warn('[ProductGrid] No container');
       return;
     }
 
@@ -134,7 +133,6 @@ class ProductGrid {
       : this.container;
 
     if (!containerEl) {
-      console.warn('[ProductGrid] Container not found:', this.container);
       return;
     }
 

@@ -26,7 +26,6 @@
   // Initialize map
   function initMap() {
     if (typeof L === 'undefined') {
-      console.log('Leaflet not loaded');
       return;
     }
 
@@ -212,9 +211,6 @@
 
   // Init
   function init() {
-    console.log('Init delivery page');
-    console.log('Leaflet loaded:', typeof L !== 'undefined');
-    console.log('Map element:', document.getElementById('map'));
     initMap();
   }
 

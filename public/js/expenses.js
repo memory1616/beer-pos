@@ -320,7 +320,6 @@ function saveExpense(e) {
       }
       window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'expense' } }));
     } catch (err) {
-      console.error('[saveExpense]', err);
       showToast('Lưu chi phí thất bại: ' + (err.message || 'Lỗi không xác định'), 'error');
       if (_currentMonth) {
         await loadExpenses(_currentMonth, { silent: true });
@@ -351,7 +350,6 @@ function deleteExpense(id) {
       }
       window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'expense' } }));
     } catch (err) {
-      console.error('[deleteExpense]', err);
       showToast('Xóa chi phí thất bại: ' + (err.message || 'Lỗi không xác định'), 'error');
       if (_currentMonth) {
         await loadExpenses(_currentMonth, { silent: true });
@@ -513,7 +511,6 @@ function deleteCustomCategory(id, name) {
       return r.json();
     })
     .then(function(result) {
-      console.log('[Expenses] Category deleted:', result);
       // Reset filter if deleted category was active
       if (_currentCategory === name) _currentCategory = 'all';
       // Always refetch from server — clear stale _customCategories
@@ -521,7 +518,6 @@ function deleteCustomCategory(id, name) {
       loadExpenses(_currentMonth);
     })
     .catch(function(err) {
-      console.error('[Expenses] deleteCustomCategory failed:', err);
       alert('Không xóa được: ' + (err.message || 'Lỗi không xác định'));
       // Restore button
       if (btn) {
@@ -597,7 +593,6 @@ function shouldRefreshExpensesPath(pathname) {
 async function refreshExpensesPage(reason) {
   if (_expensesRefreshInFlight) return;
   _expensesRefreshInFlight = true;
-  console.log('[CONSISTENCY][Expenses] refresh', reason || 'mutation');
   try {
     if (_currentMonth) {
       await loadExpenses(_currentMonth, { silent: true });

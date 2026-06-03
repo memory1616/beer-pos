@@ -9,8 +9,8 @@
  *     title: 'Nhập số lượng',
  *     value: 0,
  *     max: 99,
- *     onConfirm: (value) => console.log('Giá trị:', value),
- *     onCancel: () => console.log('Đã hủy')
+ *     onConfirm: (value) => onConfirmCallback(value),
+ *     onCancel: () => onCancelCallback()
  *   });
  */
 

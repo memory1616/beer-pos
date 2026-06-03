@@ -191,7 +191,7 @@
           ? window.APP_VERSION
           : Date.now();
         navigator.serviceWorker.register('/sw.js?v=' + swVer)
-          .catch(function (e) { console.log('[SW] Register failed:', e.message); });
+          .catch(function (e) { /* SW register failed silently */ });
       }
     });
   }

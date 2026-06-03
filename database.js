@@ -379,9 +379,6 @@ try {
 
 // Migration: Add fridge counts to customers
 try {
-  db.exec(`ALTER TABLE customers ADD COLUMN horizontal_fridge INTEGER DEFAULT 0`);
-  db.exec(`ALTER TABLE customers ADD COLUMN vertical_fridge INTEGER DEFAULT 0`);
-  console.log('Added fridge columns to customers');
 } catch (e) {
   // Columns already exist
 }
@@ -510,14 +507,11 @@ try {
     var slug = toSlug(p.name);
     if (slug) {
       updateSlug.run(slug, p.id);
-      console.log('[DB][MIGRATION] Assigned slug "' + slug + '" to product id=' + p.id + ' ("' + p.name + '")');
     }
   });
   if (productsNeedingSlug.length > 0) {
-    console.log('[DB][MIGRATION] Seeded ' + productsNeedingSlug.length + ' product slugs');
   }
 } catch (e) {
-  console.log('[DB][MIGRATION] slug seed error:', e.message);
 }
 
 // Seed product_slug in prices table (backfill from product slug)
@@ -532,10 +526,8 @@ try {
     }
   });
   if (updatedPrices > 0) {
-    console.log('[DB][MIGRATION] Seeded product_slug in ' + updatedPrices + ' price rows');
   }
 } catch (e) {
-  console.log('[DB][MIGRATION] prices.product_slug seed error:', e.message);
 }
 
 // Seed product_slug in sale_items table (backfill from product slug)
@@ -550,10 +542,8 @@ try {
     }
   });
   if (updatedItems > 0) {
-    console.log('[DB][MIGRATION] Seeded product_slug in ' + updatedItems + ' sale_item rows');
   }
 } catch (e) {
-  console.log('[DB][MIGRATION] sale_items.product_slug seed error:', e.message);
 }
 
 // Ensure unique slug constraint on products
@@ -656,7 +646,6 @@ if (productCount.count === 0) {
   insertPrice.run(3, 1, 2640000);  // Riverside - Heineken
   insertPrice.run(3, 4, 3240000);  // Riverside - Stella
 
-  console.log('Database seeded with sample data');
 }
 
 // Update existing sale_items with cost_price if empty
@@ -670,7 +659,6 @@ if (itemsWithoutCost.length > 0) {
       updateItem.run(product.cost_price, item.id);
     }
   });
-  console.log('Updated sale_items with cost prices');
 }
 
 // ==================== INDEXES ====================
@@ -682,15 +670,12 @@ try {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_prices_customer_product ON prices(customer_id, product_id)`);
   // Unique index để tránh trùng giá cho cùng khách-sản phẩm
   db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_prices_unique ON prices(customer_id, product_id)`);
-  console.log('Indexes created successfully');
 } catch (e) {
-  console.log('Indexes may already exist:', e.message);
 }
 
 // Migration: Add type column to sales if not exists
 try {
   db.exec(`ALTER TABLE sales ADD COLUMN type TEXT DEFAULT 'sale'`);
-  console.log('Added type column to sales');
 } catch (e) {
   // Column already exists
 }
@@ -698,7 +683,6 @@ try {
 // Migration: Add note column to sales if not exists
 try {
   db.exec(`ALTER TABLE sales ADD COLUMN note TEXT`);
-  console.log('Added note column to sales');
 } catch (e) {
   // Column already exists
 }
@@ -706,7 +690,6 @@ try {
 // Migration: Add status column to sales if not exists
 try {
   db.exec(`ALTER TABLE sales ADD COLUMN status TEXT DEFAULT 'completed'`);
-  console.log('Added status column to sales');
 } catch (e) {
   // Column already exists
 }
@@ -714,14 +697,12 @@ try {
 // Migration: Add return tracking columns to sales if not exists
 try {
   db.exec(`ALTER TABLE sales ADD COLUMN returned_amount REAL DEFAULT 0`);
-  console.log('Added returned_amount column to sales');
 } catch (e) {
   // Column already exists
 }
 
 try {
   db.exec(`ALTER TABLE sales ADD COLUMN returned_quantity INTEGER DEFAULT 0`);
-  console.log('Added returned_quantity column to sales');
 } catch (e) {
   // Column already exists
 }
@@ -729,28 +710,24 @@ try {
 // Migration: Add routing columns for real driving distance/duration
 try {
   db.exec(`ALTER TABLE sales ADD COLUMN distance_km REAL`);
-  console.log('Added distance_km column to sales');
 } catch (e) {
   // Column already exists
 }
 
 try {
   db.exec(`ALTER TABLE sales ADD COLUMN duration_min INTEGER`);
-  console.log('Added duration_min column to sales');
 } catch (e) {
   // Column already exists
 }
 
 try {
   db.exec(`ALTER TABLE sales ADD COLUMN route_index INTEGER DEFAULT 0`);
-  console.log('Added route_index column to sales');
 } catch (e) {
   // Column already exists
 }
 
 try {
   db.exec(`ALTER TABLE sales ADD COLUMN route_polyline TEXT`);
-  console.log('Added route_polyline column to sales');
 } catch (e) {
   // Column already exists
 }
@@ -758,7 +735,6 @@ try {
 // Migration: Add damaged_stock column to products if not exists
 try {
   db.exec(`ALTER TABLE products ADD COLUMN damaged_stock INTEGER DEFAULT 0`);
-  console.log('Added damaged_stock column to products');
 } catch (e) {
   // Column already exists
 }
@@ -775,7 +751,6 @@ try {
       FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
     )
   `);
-  console.log('Created damaged_products table');
 } catch (e) {
   // Table already exists
 }
@@ -796,7 +771,6 @@ try {
       FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL
     )
   `);
-  console.log('Created devices table');
 } catch (e) {
   // Table already exists
 }
@@ -806,7 +780,6 @@ try {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_devices_status ON devices(status)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_devices_type ON devices(type)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_devices_customer ON devices(customer_id)`);
-  console.log('Created devices indexes');
 } catch (e) {
   // Indexes may already exist
 }
@@ -819,7 +792,6 @@ try {
       value TEXT
     )
   `);
-  console.log('Created settings table');
 
   // Insert default values if not exists
   const defaults = [
@@ -831,9 +803,7 @@ try {
 
   const insertSetting = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)');
   defaults.forEach(([key, value]) => insertSetting.run(key, value));
-  console.log('Inserted default settings');
 } catch (e) {
-  console.log('Settings table may already exist:', e.message);
 }
 
 // Expense Categories table — loại chi phí tự thêm, lưu trên server
@@ -846,9 +816,7 @@ try {
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
-  console.log('Created expense_categories table');
 } catch (e) {
-  console.log('expense_categories table may already exist:', e.message);
 }
 
 // Migrate expense_categories — add icon column if missing
@@ -856,10 +824,8 @@ try {
   const cols = db.prepare("PRAGMA table_info(expense_categories)").all();
   if (!cols.find(c => c.name === 'icon')) {
     db.exec('ALTER TABLE expense_categories ADD COLUMN icon TEXT DEFAULT \'📋\'');
-    console.log('Migrated expense_categories: added icon column');
   }
 } catch (e) {
-  console.log('expense_categories icon migration error:', e.message);
 }
 
 // Expenses table for tracking operational costs
@@ -896,14 +862,12 @@ try {
     )
   `);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_product_audit_product ON product_audit_log(product_id, created_at DESC)`);
-  console.log('Created expenses table');
 
   // Create index for faster date queries
   db.exec(`CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_expenses_category ON expenses(category)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_expenses_type ON expenses(type)`);
 } catch (e) {
-  console.log('Expenses table may already exist:', e.message);
 }
 
 // Sessions table for daily session grouping (STEP 1 - Session Layer)
@@ -921,10 +885,9 @@ try {
       updated_at INTEGER
     )
   `);
-  console.log('Created sessions table');
   db.exec(`CREATE INDEX IF NOT EXISTS idx_sessions_date ON sessions(date)`);
 } catch (e) {
-  console.log('Sessions table may already exist:', e.message);
+  // Sessions table may already exist
 }
 
 // Migration: Add new expense fields if not exists
@@ -974,7 +937,6 @@ try {
   // Migration: Add keg_inventory_balance setting if not exists
 try {
   db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('keg_inventory_balance', '0');
-  console.log('Added keg_inventory_balance setting');
 } catch (e) {
   // Setting may already exist
 }
@@ -982,7 +944,6 @@ try {
 // Migration: Add monthly_expected setting if not exists (kỳ vọng bình/tháng chung)
 try {
   db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('monthly_expected', '200');
-  console.log('Added monthly_expected setting');
 } catch (e) {
   // Setting may already exist
 }
@@ -990,7 +951,6 @@ try {
 // Migration: Add box_to_keg_ratio setting (quy đổi box -> bình)
 try {
   db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('box_to_keg_ratio', '23');
-  console.log('Added box_to_keg_ratio setting');
 } catch (e) {
   // Setting may already exist
 }
@@ -998,7 +958,6 @@ try {
 // Migration: Add max_debt_per_customer setting (giới hạn công nợ mặc định)
 try {
   db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('max_debt_per_customer', '5000000');
-  console.log('Added max_debt_per_customer setting');
 } catch (e) {
   // Setting may already exist
 }
@@ -1028,7 +987,6 @@ try {
   const count = db.prepare('SELECT COUNT(*) as count FROM keg_stats').get();
   if (count.count === 0) {
     db.prepare('INSERT INTO keg_stats (id, inventory, empty_collected, customer_holding) VALUES (1, 0, 0, 0)').run();
-    console.log('Initialized keg_stats table');
   }
 } catch (e) {
   // May already exist
@@ -1267,7 +1225,6 @@ try {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_promotions_dates ON promotions(start_date, end_date)`);
 } catch (e) { /* indexes may exist */ }
 
-console.log('[PROMOTION] Migration completed: customers + sales promotion fields + reward_history table');
 
 // ================================================================
 // PROMOTION SYSTEM v3 — ADMIN SETTINGS PAGE
@@ -1411,7 +1368,6 @@ try {
   logger.log('[PROMOTION] Existing customers with promotions:', excluded ? excluded.c : 0);
 } catch (e) { /* ignore */ }
 
-console.log('[PROMOTION v3] Migration completed: promotion_settings + customer_monthly_stats + promotion_enabled');
 
 // ============================================================
 // SALES STAFF & COMMISSION SYSTEM
@@ -1536,4 +1492,3 @@ try {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_salary_sales ON sales_monthly_salary(sales_id)`);
 } catch (e) { /* ignore */ }
 
-console.log('[SALES STAFF] Commission system initialized');

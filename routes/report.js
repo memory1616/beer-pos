@@ -49,7 +49,6 @@ router.get('/data', (req, res) => {
     endDate = '2100-12-31';
   }
 
-  console.log('[REPORT] Loading:', type, startDate, '->', endDate);
 
   // Get sales with items (join customers for name) - exclude archived
   const sales = db.prepare(`
