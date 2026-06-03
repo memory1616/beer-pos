@@ -428,6 +428,7 @@ app.get('/customers', (req, res) => res.sendFile(path.join(__dirname, 'views', '
 app.get('/customer/:id', (req, res) => res.sendFile(path.join(__dirname, 'views', 'customer-detail.html')));
 app.get('/stock', (req, res) => res.sendFile(path.join(__dirname, 'views', 'stock.html')));
 app.get('/promo-settings', (req, res) => res.sendFile(path.join(__dirname, 'views', 'promo-settings.html')));
+app.get('/qr-settings', (req, res) => res.sendFile(path.join(__dirname, 'views', 'qr-settings.html')));
 app.get('/purchases', (req, res) => res.sendFile(path.join(__dirname, 'views', 'purchases.html')));
 app.get('/kegs', (req, res) => res.sendFile(path.join(__dirname, 'views', 'kegs.html')));
 // /report is handled by routes/report.js (serves full HTML page)

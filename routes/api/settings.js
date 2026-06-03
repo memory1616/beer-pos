@@ -65,18 +65,6 @@ router.post('/batch', (req, res) => {
   }
 });
 
-// Calculate delivery cost between two points
-function calculateDistance(lat1, lng1, lat2, lng2) {
-  const R = 6371; // Earth's radius in km
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-            Math.sin(dLng/2) * Math.sin(dLng/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  return R * c;
-}
-
 // GET /api/settings/delivery-cost - Calculate delivery cost
 router.get('/delivery-cost', (req, res) => {
   try {
@@ -106,6 +94,66 @@ router.get('/delivery-cost', (req, res) => {
       totalCost: cost
     });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── QR CONFIG SETTINGS ───────────────────────────────────
+
+// GET /api/settings/qr-config - Get QR configuration
+router.get('/qr-config', (req, res) => {
+  try {
+    const rows = db.prepare('SELECT key, value FROM settings WHERE key LIKE ?').all('qr%');
+    const config = {
+      qrAccountNo: '',
+      qrAccountName: '',
+      qrBankCode: 'ICB',
+      qrDefaultContent: 'Thanh toan HD {invoice_id}',
+      qrTemplate: 'compact2'
+    };
+
+    rows.forEach(row => {
+      const key = row.key;
+      if (key === 'qr_account_no') config.qrAccountNo = row.value;
+      else if (key === 'qr_account_name') config.qrAccountName = row.value;
+      else if (key === 'qr_bank_code') config.qrBankCode = row.value;
+      else if (key === 'qr_default_content') config.qrDefaultContent = row.value;
+      else if (key === 'qr_template') config.qrTemplate = row.value;
+    });
+
+    res.json(config);
+  } catch (err) {
+    console.error('Error getting QR config:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/settings/qr-config - Save QR configuration
+router.post('/qr-config', (req, res) => {
+  try {
+    const { qrAccountNo, qrAccountName, qrBankCode, qrDefaultContent, qrTemplate } = req.body;
+
+    const stmt = db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)');
+
+    if (qrAccountNo !== undefined) {
+      stmt.run('qr_account_no', String(qrAccountNo).trim());
+    }
+    if (qrAccountName !== undefined) {
+      stmt.run('qr_account_name', String(qrAccountName).trim().toUpperCase());
+    }
+    if (qrBankCode !== undefined) {
+      stmt.run('qr_bank_code', String(qrBankCode).trim().toUpperCase());
+    }
+    if (qrDefaultContent !== undefined) {
+      stmt.run('qr_default_content', String(qrDefaultContent).trim());
+    }
+    if (qrTemplate !== undefined) {
+      stmt.run('qr_template', String(qrTemplate).trim());
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error saving QR config:', err);
     res.status(500).json({ error: err.message });
   }
 });

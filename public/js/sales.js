@@ -80,7 +80,8 @@ let saleState = {
   promotionEnabled: true,
   promoSettings: null,  // Cài đặt khuyến mãi từ server
   isInNewShopPeriod: false,  // Khách đang trong thời gian quán mới
-  canReceiveReward: false  // Có thể nhận thưởng tháng
+  canReceiveReward: false,  // Có thể nhận thưởng tháng
+  qrConfig: null  // Cài đặt QR từ server
 };
 
 let _productById = new Map();
@@ -176,6 +177,9 @@ function initSalesPage(data) {
   // Load promotion settings từ server
   loadPromoSettings();
 
+  // Load QR config từ server
+  loadQRConfig();
+
   // Close dropdown when clicking outside the customer search area
   document.addEventListener('click', function(e) {
     var search = document.getElementById('customerSearch');
@@ -237,6 +241,23 @@ async function loadPromoSettings() {
     }
   } catch (err) {
     console.error('[loadPromoSettings] Error:', err);
+  }
+  return null;
+}
+
+// Load QR config từ server
+async function loadQRConfig() {
+  try {
+    const res = await fetch('/api/settings/qr-config', { cache: 'no-store' });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data) {
+      saleState.qrConfig = data;
+      console.log('[loadQRConfig] Loaded:', saleState.qrConfig);
+      return data;
+    }
+  } catch (err) {
+    console.error('[loadQRConfig] Error:', err);
   }
   return null;
 }
@@ -479,11 +500,22 @@ function normalizeInvoice(sale) {
 function generateVietQR(invoice) {
   var amount = invoice && invoice.totalAmount ? Math.round(invoice.totalAmount) : 0;
   var invoiceId = invoice && invoice.id ? invoice.id : '';
-  var content = 'Thanh toan HD ' + invoiceId;
-  var name = 'NGUYEN MINH QUAN';
+
+  // Sử dụng cài đặt QR từ server hoặc fallback
+  var config = saleState.qrConfig || {};
+  var bankCode = config.qrBankCode || 'ICB';
+  var accountNo = config.qrAccountNo || '107875230331';
+  var accountName = config.qrAccountName || 'NGUYEN MINH QUAN';
+  var template = config.qrTemplate || 'compact2';
+  var defaultContent = config.qrDefaultContent || 'Thanh toan HD {invoice_id}';
+
+  // Xử lý nội dung: thay {invoice_id} bằng số hóa đơn
+  var content = defaultContent.replace(/\{invoice_id\}/gi, invoiceId);
+
   var encodedContent = encodeURIComponent(content);
-  var encodedName = encodeURIComponent(name);
-  return 'https://img.vietqr.io/image/ICB-107875230331-compact2.png?amount=' +
+  var encodedName = encodeURIComponent(accountName.toUpperCase());
+
+  return 'https://img.vietqr.io/image/' + bankCode.toUpperCase() + '-' + accountNo + '-' + template + '.png?amount=' +
     amount + '&addInfo=' + encodedContent + '&accountName=' + encodedName;
 }
 
