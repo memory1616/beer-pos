@@ -280,6 +280,7 @@ async function loadSalesList() {
       });
       salesEl.innerHTML = options;
     }
+  } catch (e) { console.error('loadSalesList error:', e); }
 }
 
 // Mở modal thêm khách hàng
