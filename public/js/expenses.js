@@ -650,3 +650,16 @@ if ('serviceWorker' in navigator) {
     queueExpensesRefresh('sw:' + (data.path || 'unknown'));
   });
 }
+
+// Auto-init year and all-time totals when page loads
+(function() {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() {
+      loadYearTotal();
+      loadAllTimeTotal();
+    });
+  } else {
+    loadYearTotal();
+    loadAllTimeTotal();
+  }
+})();
