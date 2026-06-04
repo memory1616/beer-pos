@@ -36,7 +36,46 @@
       padding-bottom: 100px;
     }
 
-    /* Total card */
+    /* Total cards grid */
+    .expense-totals-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .expense-total-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      text-align: center;
+    }
+    .expense-total-card-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin-bottom: 4px;
+    }
+    .expense-total-card-value {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--danger);
+    }
+    .expense-total-card.year-card {
+      background: linear-gradient(135deg, rgba(239,68,68,0.08), rgba(239,68,68,0.15));
+      border-color: rgba(239,68,68,0.3);
+    }
+    .expense-total-card.all-card {
+      background: linear-gradient(135deg, rgba(245,158,11,0.08), rgba(245,158,11,0.15));
+      border-color: rgba(245,158,11,0.3);
+    }
+    .expense-total-card.all-card .expense-total-card-value {
+      color: var(--warning, #f59e0b);
+    }
+
+    /* Month total (existing) */
     .total-card {
       background: linear-gradient(135deg, var(--danger) 0%, var(--danger-hover, #E53E52) 100%);
       border-radius: 16px;
@@ -450,7 +489,19 @@
       getHeaderWithActions('Chi phí', '💸', headerActions) +
       getContent(`
         <div class="page-expenses">
-          <!-- Total card -->
+          <!-- Totals grid: Year + All time -->
+          <div class="expense-totals-grid">
+            <div class="expense-total-card year-card">
+              <div class="expense-total-card-label">Chi phí năm nay</div>
+              <div class="expense-total-card-value" id="yearTotal">—</div>
+            </div>
+            <div class="expense-total-card all-card">
+              <div class="expense-total-card-label">Toàn thời gian</div>
+              <div class="expense-total-card-value" id="allTimeTotal">—</div>
+            </div>
+          </div>
+
+          <!-- Month total -->
           <div class="total-card">
             <div class="total-card-label">Tổng chi tháng</div>
             <div class="total-card-value" id="monthTotal">0 đ</div>
@@ -480,6 +531,8 @@
 
     // Initialize after layout is rendered
     loadExpenses(initialMonth);
+    loadYearTotal();
+    loadAllTimeTotal();
   </script>
 </body>
 </html>
