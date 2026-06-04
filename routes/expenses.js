@@ -10,28 +10,37 @@ function formatVND(amount) {
   return new Intl.NumberFormat('vi-VN').format(num) + ' đ';
 }
 
-// GET /expenses - Main expenses page (lọc theo tháng/năm giống /report/profit-customer)
+// GET /expenses - Main expenses page (lọc theo tháng/năm/năm/tất cả)
 router.get('/', (req, res, next) => {
   try {
   const today = new Date().toISOString().split('T')[0];
-  const { month, year } = req.query;
+  const { month, year, filter } = req.query;
 
   const now = new Date();
   let startStr;
   let endStr;
   let labelThangNam;
+  let filterMode = filter || 'month'; // 'month', 'year', 'all'
 
-  if (month && year) {
-    const y = parseInt(year, 10);
-    const m = parseInt(month, 10);
-    const lastDay = new Date(y, m, 0).getDate();
-    startStr = `${y}-${String(m).padStart(2, '0')}-01`;
-    endStr = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-    const thangLabels = ['', 'Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6', 'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'];
-    labelThangNam = thangLabels[m] + ' / ' + y;
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  const selectedMonth = month ? parseInt(month, 10) : currentMonth;
+  const selectedYear = year ? parseInt(year, 10) : currentYear;
+
+  if (filterMode === 'all') {
+    // Toàn thời gian - từ ngày đầu tiên có dữ liệu đến hiện tại
+    startStr = '1970-01-01';
+    endStr = today;
+    labelThangNam = 'Toàn thời gian';
+  } else if (filterMode === 'year') {
+    // Lọc theo năm
+    startStr = `${selectedYear}-01-01`;
+    endStr = `${selectedYear}-12-31`;
+    labelThangNam = 'Năm ' + selectedYear;
   } else {
-    const y = now.getFullYear();
-    const m = now.getMonth() + 1;
+    // Lọc theo tháng (mặc định)
+    const y = selectedYear;
+    const m = selectedMonth;
     const lastDay = new Date(y, m, 0).getDate();
     startStr = `${y}-${String(m).padStart(2, '0')}-01`;
     endStr = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
@@ -83,16 +92,30 @@ router.get('/', (req, res, next) => {
   const vnForLabel = new Date(now.getTime() + 7 * 60 * 60 * 1000);
   const curYm = vnForLabel.getUTCFullYear() * 100 + (vnForLabel.getUTCMonth() + 1);
   const selYm = selectedYear * 100 + selectedMonth;
-  const totalExpenseLabel = curYm === selYm ? 'Tổng chi phí tháng này' : ('Tổng chi phí — ' + labelThangNam);
+  let totalExpenseLabel;
+  if (filterMode === 'all') {
+    totalExpenseLabel = 'Tổng chi phí — Toàn thời gian';
+  } else if (filterMode === 'year') {
+    totalExpenseLabel = 'Tổng chi phí — ' + labelThangNam;
+  } else {
+    totalExpenseLabel = curYm === selYm ? 'Tổng chi phí tháng này' : ('Tổng chi phí — ' + labelThangNam);
+  }
 
   // Bộ lọc trùng markup/style với /report/profit-customer
-  const selectStyle = 'flex: 1; border: 2px solid #f59e0b; border-radius: 8px; padding: 10px 12px; font-size: 14px; background: white; color: #1f2937; min-width: 0; outline: none;';
+  const selectStyle = 'border: 2px solid #f59e0b; border-radius: 8px; padding: 10px 12px; font-size: 14px; background: white; color: #1f2937; min-width: 0; outline: none;';
   const filterBlockHtml =
     '<div style="background: #fef3c7; border-radius: 16px; border: 2px solid #f59e0b; padding: 16px; margin-bottom: 16px; overflow: visible;">' +
     '<div class="flex items-center gap-2 mb-3">' +
-    '<span style="color: #92400e; font-size: 14px; font-weight: 600;">📅 Theo tháng - năm</span>' +
+    '<span style="color: #92400e; font-size: 14px; font-weight: 600;">📅 Bộ lọc thời gian</span>' +
     '</div>' +
-    '<div class="flex gap-2 items-center">' +
+    '<div class="flex flex-wrap gap-2 items-center">' +
+    '<div class="flex gap-1 bg-white rounded-lg p-1">' +
+    '<button type="button" id="btnFilterMonth" onclick="setExpFilter(\'month\')" class="px-3 py-2 rounded-lg text-sm font-medium transition-colors">Tháng</button>' +
+    '<button type="button" id="btnFilterYear" onclick="setExpFilter(\'year\')" class="px-3 py-2 rounded-lg text-sm font-medium transition-colors">Năm</button>' +
+    '<button type="button" id="btnFilterAll" onclick="setExpFilter(\'all\')" class="px-3 py-2 rounded-lg text-sm font-medium transition-colors">Tất cả</button>' +
+    '</div>' +
+    '</div>' +
+    '<div id="expMonthYearFilter" class="flex gap-2 items-center mt-3' + (filterMode === 'month' ? '' : ' hidden') + '">' +
     '<select id="expSelMonth" style="' + selectStyle + '">' +
     monthOptions +
     '</select>' +
@@ -101,7 +124,13 @@ router.get('/', (req, res, next) => {
     '</select>' +
     '<button type="button" onclick="applyExpMonthYear()" style="background: #ea580c; color: white; border: none; border-radius: 8px; padding: 8px 16px; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap;">Xem</button>' +
     '</div>' +
-    '<div class="text-xs text-muted mt-1">Đang xem: ' + labelThangNam + '</div>' +
+    '<div id="expYearFilter" class="flex gap-2 items-center mt-3' + (filterMode === 'year' ? '' : ' hidden') + '">' +
+    '<select id="expSelYearOnly" style="' + selectStyle + '">' +
+    yearOptions +
+    '</select>' +
+    '<button type="button" onclick="applyExpYear()" style="background: #ea580c; color: white; border: none; border-radius: 8px; padding: 8px 16px; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap;">Xem</button>' +
+    '</div>' +
+    '<div class="text-xs text-muted mt-2">Đang xem: ' + labelThangNam + '</div>' +
     '</div>';
 
   const summaryBlockHtml =
@@ -316,8 +345,54 @@ router.get('/', (req, res, next) => {
 '    function applyExpMonthYear() {' +
 '      var m = document.getElementById("expSelMonth").value;' +
 '      var y = document.getElementById("expSelYear").value;' +
-'      window.location.href = "/expenses?month=" + m + "&year=" + y;' +
+'      window.location.href = "/expenses?month=" + m + "&year=" + y + "&filter=month";' +
 '    }' +
+'    function applyExpYear() {' +
+'      var y = document.getElementById("expSelYearOnly").value;' +
+'      window.location.href = "/expenses?year=" + y + "&filter=year";' +
+'    }' +
+'    function setExpFilter(mode) {' +
+'      var btnMonth = document.getElementById("btnFilterMonth");' +
+'      var btnYear = document.getElementById("btnFilterYear");' +
+'      var btnAll = document.getElementById("btnFilterAll");' +
+'      var monthFilter = document.getElementById("expMonthYearFilter");' +
+'      var yearFilter = document.getElementById("expYearFilter");' +
+'      var activeStyle = "background: #ea580c; color: white;";' +
+'      var inactiveStyle = "background: transparent; color: #92400e;";' +
+'      if (mode === "month") {' +
+'        btnMonth.style.cssText = activeStyle;' +
+'        btnYear.style.cssText = inactiveStyle;' +
+'        btnAll.style.cssText = inactiveStyle;' +
+'        monthFilter.classList.remove("hidden");' +
+'        yearFilter.classList.add("hidden");' +
+'      } else if (mode === "year") {' +
+'        btnMonth.style.cssText = inactiveStyle;' +
+'        btnYear.style.cssText = activeStyle;' +
+'        btnAll.style.cssText = inactiveStyle;' +
+'        monthFilter.classList.add("hidden");' +
+'        yearFilter.classList.remove("hidden");' +
+'      } else {' +
+'        btnMonth.style.cssText = inactiveStyle;' +
+'        btnYear.style.cssText = inactiveStyle;' +
+'        btnAll.style.cssText = activeStyle;' +
+'        monthFilter.classList.add("hidden");' +
+'        yearFilter.classList.add("hidden");' +
+'        window.location.href = "/expenses?filter=all";' +
+'      }' +
+'    }' +
+'    (function() {' +
+'      var filterMode = "' + filterMode + '";' +
+'      var btnMonth = document.getElementById("btnFilterMonth");' +
+'      var btnYear = document.getElementById("btnFilterYear");' +
+'      var btnAll = document.getElementById("btnFilterAll");' +
+'      var activeStyle = "background: #ea580c; color: white;";' +
+'      var inactiveStyle = "background: transparent; color: #92400e;";' +
+'      if (filterMode === "month") { btnMonth.style.cssText = activeStyle; btnYear.style.cssText = inactiveStyle; btnAll.style.cssText = inactiveStyle; }' +
+'      else if (filterMode === "year") { btnMonth.style.cssText = inactiveStyle; btnYear.style.cssText = activeStyle; btnAll.style.cssText = inactiveStyle; }' +
+'      else { btnMonth.style.cssText = inactiveStyle; btnYear.style.cssText = inactiveStyle; btnAll.style.cssText = activeStyle; }' +
+'      var expSelYearOnly = document.getElementById("expSelYearOnly");' +
+'      if (expSelYearOnly) expSelYearOnly.value = "' + selectedYear + '";' +
+'    })();' +
 '' +
 '    function hideAddCategory() { hideModal("addCategoryModal"); }' +
 '    function addCategoryToDropdown(name) { var sel = document.getElementById("catSelect"); if (!sel) return; var opt = document.createElement("option"); opt.value = name; opt.textContent = name; var customOpt = sel.querySelector("option[value=__custom__]"); sel.insertBefore(opt, customOpt || null); }' +
