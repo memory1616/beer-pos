@@ -129,6 +129,33 @@ function loadExpenses(monthStr, opts) {
     });
 }
 
+function loadYearTotal() {
+  var currentYear = new Date().getFullYear();
+  fetch('/api/expenses/total/year?year=' + currentYear, { cache: 'no-store' })
+    .then(function(r) { return r.ok ? r.json() : { total: 0 }; })
+    .then(function(data) {
+      var el = document.getElementById('yearTotal');
+      if (el) el.textContent = formatVND(data.total || 0);
+    })
+    .catch(function() {
+      var el = document.getElementById('yearTotal');
+      if (el) el.textContent = '—';
+    });
+}
+
+function loadAllTimeTotal() {
+  fetch('/api/expenses/total/all', { cache: 'no-store' })
+    .then(function(r) { return r.ok ? r.json() : { total: 0 }; })
+    .then(function(data) {
+      var el = document.getElementById('allTimeTotal');
+      if (el) el.textContent = formatVND(data.total || 0);
+    })
+    .catch(function() {
+      var el = document.getElementById('allTimeTotal');
+      if (el) el.textContent = '—';
+    });
+}
+
 function updateTotal() {
   var total = getExpensesState().reduce(function(s, e) { return s + (Number(e.amount) || 0); }, 0);
   var headerEl = document.getElementById('headerTotal');

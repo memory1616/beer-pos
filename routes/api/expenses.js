@@ -126,6 +126,35 @@ router.get('/summary', (req, res) => {
   }
 });
 
+// Get total expenses by year
+router.get('/total/year', (req, res) => {
+  try {
+    const year = req.query.year || new Date().getFullYear();
+    const startDate = year + '-01-01';
+    const endDate = year + '-12-31';
+
+    const result = db.prepare(`
+      SELECT SUM(amount) as total FROM expenses
+      WHERE archived = 0 AND date >= ? AND date <= ?
+    `).get(startDate, endDate);
+    res.json({ year: parseInt(year), total: result.total || 0 });
+  } catch (err) {
+    logger.error('Error fetching year expense total', { error: err.message });
+    res.status(500).json({ error: 'Failed to fetch year expense total' });
+  }
+});
+
+// Get total expenses all time (exclude archived)
+router.get('/total/all', (req, res) => {
+  try {
+    const result = db.prepare('SELECT SUM(amount) as total FROM expenses WHERE archived = 0').get();
+    res.json({ total: result.total || 0 });
+  } catch (err) {
+    logger.error('Error fetching all-time expense total', { error: err.message });
+    res.status(500).json({ error: 'Failed to fetch all-time expense total' });
+  }
+});
+
 // Get total expenses in date range (exclude archived)
 router.get('/total', (req, res) => {
   try {
