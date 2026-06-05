@@ -295,6 +295,7 @@ function goSaleHistoryPage(page) {
 }
 
 function filterSaleHistoryByMonth(year, month) {
+  console.log('[DEBUG] filterSaleHistoryByMonth called, year:', year, 'month:', month);
   saleHistoryYear = year;
   saleHistoryMonth = month;
   saleHistoryPage = 1;
@@ -302,6 +303,7 @@ function filterSaleHistoryByMonth(year, month) {
 }
 
 function onSaleHistoryMonthChange(value) {
+  console.log('[DEBUG] onSaleHistoryMonthChange called, value:', value);
   if (!value) {
     filterSaleHistoryByMonth(null, null);
     return;
@@ -331,6 +333,10 @@ function populateSaleHistoryMonthFilter() {
   var m = now.getMonth() + 1;
   var defaultVal = y + '-' + String(m).padStart(2, '0');
   sel.value = defaultVal;
+  // Also add event listener as backup
+  sel.addEventListener('change', function(e) {
+    onSaleHistoryMonthChange(e.target.value);
+  });
   onSaleHistoryMonthChange(defaultVal);
 }
 
