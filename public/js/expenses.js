@@ -2,6 +2,7 @@
 // PERFORMANCE: Separated from HTML, lazy loaded on /expenses route
 var _expensesData = [];
 var _currentCategory = 'all';
+var _currentFilterMode = 'month'; // 'month' | 'year' | 'all'
 
 function getExpensesState() {
   if (window.BeerStore && typeof window.BeerStore.getSlice === 'function') {
@@ -90,6 +91,7 @@ function getParsedExpenseAmount() {
 
 function loadExpenses(monthStr, opts) {
   opts = opts || {};
+  _currentFilterMode = 'month';
   _currentMonth = monthStr;
   var list = document.getElementById('expensesList');
   if (!opts.silent && list) list.innerHTML = '<div class="text-center text-muted py-8">Đang tải...</div>';
@@ -127,6 +129,132 @@ function loadExpenses(monthStr, opts) {
           '<div class="text-center text-danger py-8">Lỗi: ' + e.message + '</div>';
       }
     });
+}
+
+// Load expenses by year
+function loadExpensesByYear(year, opts) {
+  opts = opts || {};
+  _currentFilterMode = 'year';
+  _currentMonth = year;
+  var list = document.getElementById('expensesList');
+  if (!opts.silent && list) list.innerHTML = '<div class="text-center text-muted py-8">Đang tải...</div>';
+
+  var startDate = year + '-01-01';
+  var endDate = year + '-12-31';
+
+  Promise.all([
+    fetch('/api/expenses?startDate=' + startDate + '&endDate=' + endDate, { cache: 'no-store' }).then(function(r) {
+      if (!r.ok) return Promise.reject(new Error('HTTP ' + r.status));
+      return r.json();
+    }),
+    fetch('/api/expenses/categories/all').then(function(r) {
+      if (!r.ok) return Promise.reject(new Error('HTTP ' + r.status));
+      return r.json();
+    })
+  ])
+    .then(function(results) {
+      setExpensesState(Array.isArray(results[0]) ? results[0] : (results[0].expenses || []));
+      _customCategories = Array.isArray(results[1]) ? results[1] : [];
+
+      rebuildExpenseCategorySelect();
+      rebuildCategoryTabs();
+      updateTotal();
+      renderExpenses();
+    })
+    .catch(function(e) {
+      if (document.getElementById('expensesList')) {
+        document.getElementById('expensesList').innerHTML =
+          '<div class="text-center text-danger py-8">Lỗi: ' + e.message + '</div>';
+      }
+    });
+}
+
+// Load all expenses
+function loadAllExpenses(opts) {
+  opts = opts || {};
+  _currentFilterMode = 'all';
+  _currentMonth = 'all';
+  var list = document.getElementById('expensesList');
+  if (!opts.silent && list) list.innerHTML = '<div class="text-center text-muted py-8">Đang tải...</div>';
+
+  Promise.all([
+    fetch('/api/expenses?all=1', { cache: 'no-store' }).then(function(r) {
+      if (!r.ok) return Promise.reject(new Error('HTTP ' + r.status));
+      return r.json();
+    }),
+    fetch('/api/expenses/categories/all').then(function(r) {
+      if (!r.ok) return Promise.reject(new Error('HTTP ' + r.status));
+      return r.json();
+    })
+  ])
+    .then(function(results) {
+      setExpensesState(Array.isArray(results[0]) ? results[0] : (results[0].expenses || []));
+      _customCategories = Array.isArray(results[1]) ? results[1] : [];
+
+      rebuildExpenseCategorySelect();
+      rebuildCategoryTabs();
+      updateTotal();
+      renderExpenses();
+    })
+    .catch(function(e) {
+      if (document.getElementById('expensesList')) {
+        document.getElementById('expensesList').innerHTML =
+          '<div class="text-center text-danger py-8">Lỗi: ' + e.message + '</div>';
+      }
+    });
+}
+
+// Switch between month/year/all view
+function switchToMonthView() {
+  var now = new Date();
+  var initialMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+  var monthInput = document.getElementById('filterMonth');
+  var monthSelector = document.querySelector('.month-selector');
+  var filterIndicator = document.getElementById('filterModeIndicator');
+  var totalsGrid = document.querySelector('.expense-totals-grid');
+
+  if (monthInput) {
+    monthInput.value = initialMonth;
+    monthInput.classList.remove('hidden');
+  }
+  if (monthSelector) monthSelector.classList.remove('hidden');
+  if (filterIndicator) filterIndicator.classList.add('hidden');
+  if (totalsGrid) totalsGrid.classList.remove('hidden');
+
+  loadExpenses(initialMonth);
+}
+
+function switchToYearView() {
+  var year = new Date().getFullYear();
+  var monthSelector = document.querySelector('.month-selector');
+  var monthInput = document.getElementById('filterMonth');
+  var filterIndicator = document.getElementById('filterModeIndicator');
+  var filterLabel = document.getElementById('filterModeLabel');
+  var totalsGrid = document.querySelector('.expense-totals-grid');
+
+  if (monthInput) monthInput.classList.add('hidden');
+  if (monthSelector) monthSelector.classList.add('hidden');
+  if (filterIndicator) filterIndicator.classList.remove('hidden');
+  if (filterLabel) filterLabel.textContent = 'Đang xem chi phí năm ' + year;
+  if (totalsGrid) totalsGrid.classList.add('hidden');
+
+  loadExpensesByYear(year);
+}
+
+function switchToAllView() {
+  var monthSelector = document.querySelector('.month-selector');
+  var monthInput = document.getElementById('filterMonth');
+  var filterIndicator = document.getElementById('filterModeIndicator');
+  var filterLabel = document.getElementById('filterModeLabel');
+  var totalsGrid = document.querySelector('.expense-totals-grid');
+
+  if (monthInput) monthInput.classList.add('hidden');
+  if (monthSelector) monthSelector.classList.add('hidden');
+  if (filterIndicator) filterIndicator.classList.remove('hidden');
+  if (filterLabel) filterLabel.textContent = 'Đang xem toàn bộ chi phí';
+  if (totalsGrid) totalsGrid.classList.add('hidden');
+
+  loadAllExpenses();
 }
 
 function loadYearTotal() {
@@ -195,12 +323,13 @@ function renderExpenses() {
     var icon = _getIconByName(e.category);
     var catLabel = _getLabelByName(e.category);
     var dateStr = e.date ? e.date.split('T')[0].split('-').reverse().join('/') : '';
+    var noteHtml = e.note ? '<div class="expense-note">' + e.note + '</div>' : '';
     html.push(
       '<div class="expense-item" data-expense-id="' + e.id + '">' +
         '<div class="expense-icon">' + icon + '</div>' +
         '<div class="expense-info">' +
           '<div class="expense-cat">' + catLabel + '</div>' +
-          '<div class="expense-note">' + (e.note || '—') + '</div>' +
+          noteHtml +
           '<div class="expense-date">' + dateStr + '</div>' +
         '</div>' +
         '<div class="expense-amount">' + formatVND(e.amount) + '</div>' +
