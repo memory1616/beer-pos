@@ -67,8 +67,7 @@
       <div class="tab-bar">
         <div class="tab active" onclick="switchTab('list')" id="tab-list">📋 Danh sách</div>
         <div class="tab" onclick="switchTab('salary')" id="tab-salary">💰 Tính lương</div>
-        <div class="tab" onclick="switchTab('discounts')" id="tab-discounts">🏷️ Chiết khấu</div>
-        <div class="tab" onclick="switchTab('config')" id="tab-config">⚙️ Cấu hình</div>
+        <div class="tab" onclick="switchTab('config')" id="tab-config">⚙️ Cấu hình lương</div>
       </div>
 
       <!-- Danh sách Sales -->
@@ -105,48 +104,29 @@
         </div>
       </div>
 
-      <!-- Chiết khấu -->
-      <div id="content-discounts" style="display: none;">
+      <!-- Cấu hình lương -->
+      <div id="content-config" style="display: none;">
         <div class="card">
           <div class="card-header">
-            <div class="card-title">🏷️ Chiết khấu sản phẩm theo nhân viên</div>
-            <select id="discountStaffSelect" class="input" style="width: auto;" onchange="loadStaffDiscounts()">
+            <div class="card-title">💰 Cấu hình lương theo nhân viên</div>
+            <select id="salaryConfigStaffSelect" class="input" style="width: auto;" onchange="loadStaffSalaryConfig()">
               <option value="">-- Chọn nhân viên --</option>
             </select>
           </div>
         </div>
-        <div id="discountContent" style="display: none;">
+        <div id="salaryConfigContent" style="display: none;">
           <div class="card">
             <div class="card-header">
-              <div class="card-title">Chiết khấu theo loại sản phẩm (mặc định)</div>
+              <div class="card-title">Lương theo loại sản phẩm (VNĐ / lít)</div>
             </div>
-            <div id="typeDiscountList"></div>
-          </div>
-          <div class="card">
-            <div class="card-header">
-              <div class="card-title">Chiết khấu theo sản phẩm cụ thể</div>
-              <button class="btn btn-primary" onclick="openAddProductDiscount()">+ Thêm sản phẩm</button>
+            <div id="salaryTypeConfig"></div>
+            <div style="margin-top: 16px; padding: 12px; background: var(--bg-soft); border-radius: 8px;">
+              <small style="color: var(--text-muted);">
+                💡 Mức lương này sẽ được áp dụng khi tính lương tháng cho nhân viên. 
+                Nếu không đặt, hệ thống sẽ dùng mức lương mặc định từ tab "Cấu hình".
+              </small>
             </div>
-            <div id="productDiscountList"></div>
           </div>
-        </div>
-      </div>
-
-      <!-- Cấu hình -->
-      <div id="content-config" style="display: none;">
-        <div class="card">
-          <div class="card-title mb-3">Hoa hồng mở cửa hàng mới</div>
-          <div class="form-group">
-            <label class="form-label">Số tiền (VNĐ)</label>
-            <input type="number" id="newShopCommission" class="input" placeholder="500000" onchange="saveNewShopCommission()">
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title">Hoa hồng theo sản phẩm (lít)</div>
-            <button class="btn btn-secondary" onclick="openAddProductCommission()">+ Thêm sản phẩm</button>
-          </div>
-          <div id="productCommissionList"></div>
         </div>
       </div>
     </div>
@@ -218,45 +198,23 @@
     </div>
   </div>
 
-  <!-- Modal Thêm Chiết khấu Sản phẩm -->
-  <div id="productDiscountModal" class="modal" style="display: none;">
-    <div class="modal-content">
-      <div class="modal-header">Thêm chiết khấu sản phẩm</div>
-      <div class="form-group">
-        <label class="form-label">Sản phẩm</label>
-        <select id="discountProductSelect" class="input">
-          <option value="">-- Chọn sản phẩm --</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Chiết khấu (%)</label>
-        <input type="number" id="discountPercent" class="input" placeholder="0" min="0" max="100" step="0.5">
-        <small style="color: var(--text-muted);">VD: 5 = giảm 5% giá bán</small>
-      </div>
-      <div style="display: flex; gap: 12px; margin-top: 20px;">
-        <button class="btn btn-secondary flex-1" onclick="closeProductDiscountModal()">Hủy</button>
-        <button class="btn btn-primary flex-1" onclick="saveProductDiscount()">Lưu</button>
-      </div>
-    </div>
-  </div>
-
   <script>
     let currentTab = 'list';
     let selectedStaffId = null;
     let staffList = [];
-    let selectedDiscountStaffId = null;
+    let selectedSalaryConfigStaffId = null;
 
     // Initialize
     document.addEventListener('DOMContentLoaded', () => {
       loadStaffList();
       loadCommissionConfig();
       initMonthSelector();
-      initDiscountStaffSelector();
+      initSalaryConfigSelector();
     });
 
     function switchTab(tab) {
       currentTab = tab;
-      ['list', 'salary', 'discounts', 'config'].forEach(t => {
+      ['list', 'salary', 'config'].forEach(t => {
         document.getElementById('tab-' + t).classList.toggle('active', t === tab);
         document.getElementById('content-' + t).style.display = t === tab ? 'block' : 'none';
       });
@@ -265,66 +223,64 @@
       }
     }
 
-    // ========== DISCOUNT TAB ==========
-    async function initDiscountStaffSelector() {
+    // ========== SALARY CONFIG TAB ==========
+    async function initSalaryConfigSelector() {
       try {
         const res = await fetch('/api/sales-staff');
         const data = await res.json();
         if (data.success) {
-          const select = document.getElementById('discountStaffSelect');
+          const select = document.getElementById('salaryConfigStaffSelect');
           select.innerHTML = '<option value="">-- Chọn nhân viên --</option>' +
             data.data.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
         }
       } catch (e) {
-        console.error('Error loading staff for discounts:', e);
+        console.error('Error loading staff for salary config:', e);
       }
     }
 
-    async function loadStaffDiscounts() {
-      const staffId = document.getElementById('discountStaffSelect').value;
-      selectedDiscountStaffId = staffId;
+    async function loadStaffSalaryConfig() {
+      const staffId = document.getElementById('salaryConfigStaffSelect').value;
+      selectedSalaryConfigStaffId = staffId;
       
       if (!staffId) {
-        document.getElementById('discountContent').style.display = 'none';
+        document.getElementById('salaryConfigContent').style.display = 'none';
         return;
       }
       
-      document.getElementById('discountContent').style.display = 'block';
+      document.getElementById('salaryConfigContent').style.display = 'block';
       
       try {
-        const res = await fetch(`/api/staff-discounts/${staffId}`);
+        const res = await fetch(`/api/sales-staff/${staffId}/salary-config`);
         const data = await res.json();
         
-        if (data.staff) {
-          renderTypeDiscounts(data.typeDiscounts || []);
-          renderProductDiscounts(data.productDiscounts || []);
+        if (data.success) {
+          renderSalaryTypeConfig(data.data || []);
         }
       } catch (e) {
-        console.error('Error loading discounts:', e);
+        console.error('Error loading salary config:', e);
       }
     }
 
-    function renderTypeDiscounts(list) {
-      const container = document.getElementById('typeDiscountList');
+    function renderSalaryTypeConfig(configs) {
+      const container = document.getElementById('salaryTypeConfig');
       const typeLabels = { keg: 'Keg (Bồn)', pet: 'Pet (Chai nhựa)', box: 'Box (Thùng)' };
+      const typeIcons = { keg: '🍺', pet: '🍶', box: '📦' };
       
       container.innerHTML = `
         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
           ${['keg', 'pet', 'box'].map(type => {
-            const existing = list.find(d => d.product_type === type);
-            const discount = existing ? existing.discount_percent : 0;
+            const existing = configs.find(c => c.product_type === type);
+            const salary = existing ? existing.salary_per_liter : '';
             return `
-              <div class="card" style="padding: 12px;">
-                <div style="font-weight: 600; margin-bottom: 8px;">${typeLabels[type]}</div>
-                <div style="display: flex; align-items: center; gap: 8px;">
-                  <input type="number" class="input" style="width: 80px;" 
-                    value="${discount}" min="0" max="100" step="0.5"
-                    onchange="updateTypeDiscount('${type}', this.value)"
-                    id="typeDiscount_${type}">
-                  <span>%</span>
-                </div>
-                <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">
-                  Áp dụng khi không có chiết khấu riêng
+              <div class="card" style="padding: 16px; text-align: center;">
+                <div style="font-size: 24px; margin-bottom: 8px;">${typeIcons[type]}</div>
+                <div style="font-weight: 600; margin-bottom: 12px;">${typeLabels[type]}</div>
+                <div style="display: flex; align-items: center; justify-content: center; gap: 8px;">
+                  <input type="number" class="input" style="width: 100px; text-align: center;" 
+                    value="${salary}" placeholder="0" min="0"
+                    onchange="updateStaffSalaryConfig('${type}', this.value)"
+                    id="salaryConfig_${type}">
+                  <span style="font-size: 12px; color: var(--text-muted);">đ/L</span>
                 </div>
               </div>
             `;
@@ -333,139 +289,21 @@
       `;
     }
 
-    function renderProductDiscounts(list) {
-      const container = document.getElementById('productDiscountList');
-      
-      if (!list || list.length === 0) {
-        container.innerHTML = '<div class="empty-state">Chưa có chiết khấu sản phẩm nào.<br>Click "+ Thêm sản phẩm" để thiết lập.</div>';
-        return;
-      }
-      
-      container.innerHTML = list.map(d => `
-        <div class="card" style="margin-bottom: 8px; padding: 12px;">
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <div>
-              <div style="font-weight: 600;">${d.product_name || 'Sản phẩm #' + d.product_id}</div>
-              <div style="font-size: 12px; color: var(--text-muted);">${d.product_type}</div>
-            </div>
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <input type="number" class="input" style="width: 80px;" 
-                value="${d.discount_percent}" min="0" max="100" step="0.5"
-                onchange="updateProductDiscount(${d.product_id}, this.value)">
-              <span>%</span>
-              <button class="btn btn-danger btn-sm" onclick="deleteProductDiscount(${d.product_id})">🗑️</button>
-            </div>
-          </div>
-        </div>
-      `).join('');
-    }
-
-    async function updateTypeDiscount(productType, value) {
-      if (!selectedDiscountStaffId) return;
-      const discount = parseFloat(value) || 0;
+    async function updateStaffSalaryConfig(productType, value) {
+      if (!selectedSalaryConfigStaffId) return;
+      const salaryPerLiter = parseFloat(value) || 0;
       
       try {
-        const res = await fetch(`/api/staff-discounts/${selectedDiscountStaffId}/type`, {
-          method: 'POST',
+        const res = await fetch(`/api/sales-staff/${selectedSalaryConfigStaffId}/salary-config`, {
+          method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ productType, discountPercent: discount })
+          body: JSON.stringify({
+            configs: [{ productType, salaryPerLiter }]
+          })
         });
         const data = await res.json();
         if (!data.success) {
-          alert(data.error || 'Lỗi lưu');
-        }
-      } catch (e) {
-        alert('Lỗi kết nối');
-      }
-    }
-
-    async function updateProductDiscount(productId, value) {
-      if (!selectedDiscountStaffId) return;
-      const discount = parseFloat(value) || 0;
-      
-      try {
-        const res = await fetch(`/api/staff-discounts/${selectedDiscountStaffId}/product`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ productId, discountPercent: discount })
-        });
-        const data = await res.json();
-        if (!data.success) {
-          alert(data.error || 'Lỗi lưu');
-        }
-      } catch (e) {
-        alert('Lỗi kết nối');
-      }
-    }
-
-    async function deleteProductDiscount(productId) {
-      if (!confirm('Xóa chiết khấu sản phẩm này?')) return;
-      
-      try {
-        const res = await fetch(`/api/staff-discounts/${selectedDiscountStaffId}/product/${productId}`, {
-          method: 'DELETE'
-        });
-        const data = await res.json();
-        if (data.success) {
-          loadStaffDiscounts();
-        } else {
-          alert(data.error || 'Lỗi xóa');
-        }
-      } catch (e) {
-        alert('Lỗi kết nối');
-      }
-    }
-
-    function openAddProductDiscount() {
-      if (!selectedDiscountStaffId) {
-        alert('Vui lòng chọn nhân viên trước');
-        return;
-      }
-      
-      document.getElementById('discountProductSelect').innerHTML = '<option value="">-- Đang tải... --</option>';
-      document.getElementById('discountPercent').value = '';
-      document.getElementById('productDiscountModal').style.display = 'flex';
-      
-      // Load products
-      fetch('/api/products')
-        .then(res => res.json())
-        .then(data => {
-          const products = Array.isArray(data) ? data : (data.data || []);
-          document.getElementById('discountProductSelect').innerHTML = '<option value="">-- Chọn sản phẩm --</option>' +
-            products.map(p => `<option value="${p.id}">${p.name} (${p.type})</option>`).join('');
-        });
-    }
-
-    function closeProductDiscountModal() {
-      document.getElementById('productDiscountModal').style.display = 'none';
-    }
-
-    async function saveProductDiscount() {
-      const productId = document.getElementById('discountProductSelect').value;
-      const discountPercent = parseFloat(document.getElementById('discountPercent').value);
-      
-      if (!productId) {
-        alert('Vui lòng chọn sản phẩm');
-        return;
-      }
-      
-      if (isNaN(discountPercent) || discountPercent < 0 || discountPercent > 100) {
-        alert('Chiết khấu phải từ 0 đến 100%');
-        return;
-      }
-      
-      try {
-        const res = await fetch(`/api/staff-discounts/${selectedDiscountStaffId}/product`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ productId: parseInt(productId), discountPercent })
-        });
-        const data = await res.json();
-        if (data.success) {
-          closeProductDiscountModal();
-          loadStaffDiscounts();
-        } else {
-          alert(data.error || 'Lỗi lưu');
+          alert(data.error || 'Lỗi lưu cấu hình');
         }
       } catch (e) {
         alert('Lỗi kết nối');

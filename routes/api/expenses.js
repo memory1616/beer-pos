@@ -27,26 +27,29 @@ const TYPE_ICONS = {
 // Get all expenses (exclude archived)
 router.get('/', (req, res) => {
   try {
-    const { startDate, endDate, category } = req.query;
+    const { startDate, endDate, category, all } = req.query;
 
     let sql = 'SELECT * FROM expenses WHERE archived = 0';
     const params = [];
-    
-    if (startDate) {
-      sql += ' AND date >= ?';
-      params.push(startDate);
-    }
-    if (endDate) {
-      sql += ' AND date <= ?';
-      params.push(endDate);
+
+    // If all=1, don't filter by date
+    if (all !== '1') {
+      if (startDate) {
+        sql += ' AND date >= ?';
+        params.push(startDate);
+      }
+      if (endDate) {
+        sql += ' AND date <= ?';
+        params.push(endDate);
+      }
     }
     if (category) {
       sql += ' AND category = ?';
       params.push(category);
     }
-    
+
     sql += ' ORDER BY date DESC, time DESC, id DESC';
-    
+
     const expenses = db.prepare(sql).all(...params);
     res.json(expenses);
   } catch (err) {
