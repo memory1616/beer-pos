@@ -1492,3 +1492,65 @@ try {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_salary_sales ON sales_monthly_salary(sales_id)`);
 } catch (e) { /* ignore */ }
 
+// ============================================================
+// STAFF PRODUCT DISCOUNTS - Chiết khấu theo sản phẩm cho từng nhân viên
+// ============================================================
+
+// Bảng chiết khấu sản phẩm theo nhân viên
+db.exec(`
+  CREATE TABLE IF NOT EXISTS staff_product_discounts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    staff_id INTEGER NOT NULL,
+    product_id INTEGER,
+    product_type TEXT,
+    discount_percent REAL NOT NULL,
+    active INTEGER DEFAULT 1,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (staff_id) REFERENCES sales_staff(id) ON DELETE CASCADE,
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+    UNIQUE(staff_id, product_id)
+  )
+`);
+
+// Bảng chiết khấu mặc định theo loại sản phẩm (khi không có discount riêng cho sản phẩm)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS staff_type_discounts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    staff_id INTEGER NOT NULL,
+    product_type TEXT NOT NULL,
+    discount_percent REAL NOT NULL,
+    active INTEGER DEFAULT 1,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (staff_id) REFERENCES sales_staff(id) ON DELETE CASCADE,
+    UNIQUE(staff_id, product_type)
+  )
+`);
+
+// Migration: Thêm cột sales_id vào sales nếu chưa có (để track nhân viên tạo đơn)
+try {
+  db.exec(`ALTER TABLE sales ADD COLUMN sales_id INTEGER`);
+} catch (e) { /* already exists */ }
+
+// Indexes cho staff discounts
+try {
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_staff_discount_product ON staff_product_discounts(staff_id, product_id)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_staff_type_discount ON staff_type_discounts(staff_id, product_type)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_sales_staff ON sales(sales_id)`);
+} catch (e) { /* ignore */ }
+
+// Seed default type discount cho staff mới (nếu chưa có)
+try {
+  const staffList = db.prepare('SELECT id FROM sales_staff WHERE active = 1').all();
+  staffList.forEach(staff => {
+    const existing = db.prepare('SELECT COUNT(*) as c FROM staff_type_discounts WHERE staff_id = ?').get(staff.id);
+    if (existing.c === 0) {
+      // Mặc định chiết khấu 0% cho tất cả các loại
+      ['keg', 'pet', 'box'].forEach(type => {
+        db.prepare('INSERT OR IGNORE INTO staff_type_discounts (staff_id, product_type, discount_percent) VALUES (?, ?, 0)').run(staff.id, type);
+      });
+    }
+  });
+} catch (e) { /* ignore */ }
+

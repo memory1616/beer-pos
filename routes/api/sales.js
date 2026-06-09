@@ -99,7 +99,24 @@ function validateSaleInput(body) {
 
 // POST /api/sales - Tạo hóa đơn mới (với transaction)
 router.post('/', (req, res) => {
-  const { customerId, items, deliverKegs = 0, returnKegs = 0, debt = false } = req.body;
+  const { customerId, items, deliverKegs = 0, returnKegs = 0, debt = false, staffId } = req.body;
+
+  // ========== STAFF DISCOUNT HELPER ==========
+  function getStaffDiscountForProduct(sid, prodId, prodType) {
+    if (!sid) return 0;
+    // Ưu tiên: product_id cụ thể > product_type
+    const productDiscount = db.prepare(`
+      SELECT discount_percent FROM staff_product_discounts
+      WHERE staff_id = ? AND product_id = ? AND active = 1
+    `).get(sid, prodId);
+    if (productDiscount) return productDiscount.discount_percent;
+
+    const typeDiscount = db.prepare(`
+      SELECT discount_percent FROM staff_type_discounts
+      WHERE staff_id = ? AND product_type = ? AND active = 1
+    `).get(sid, prodType || 'keg');
+    return typeDiscount ? typeDiscount.discount_percent : 0;
+  }
 
   // ========== PRE-VALIDATION ==========
   if (!items || !Array.isArray(items) || items.length === 0) {
@@ -169,14 +186,23 @@ router.post('/', (req, res) => {
       if (!product) return res.status(400).json({ error: 'Không tìm thấy sản phẩm: ' + queryKey });
 
       // Determine effective price: customer price > product sell_price > 0
-      const price = item.price !== undefined && item.price !== null && item.price > 0
+      let basePrice = item.price !== undefined && item.price !== null && item.price > 0
         ? item.price
         : getEffectivePrice(product, priceMap);
 
-      const costPrice = product.cost_price || 0;
-      const itemProfit = (price - costPrice) * item.quantity;
+      // Apply staff discount if staffId is provided
+      let staffDiscountPercent = 0;
+      if (staffId) {
+        staffDiscountPercent = getStaffDiscountForProduct(staffId, product.id, product.type);
+        if (staffDiscountPercent > 0) {
+          basePrice = basePrice * (1 - staffDiscountPercent / 100);
+        }
+      }
 
-      total += price * item.quantity;
+      const costPrice = product.cost_price || 0;
+      const itemProfit = (basePrice - costPrice) * item.quantity;
+
+      total += basePrice * item.quantity;
       profit += itemProfit;
 
       saleItems.push({
@@ -184,10 +210,11 @@ router.post('/', (req, res) => {
         productSlug: product.slug,
         productName: product.name,
         quantity: item.quantity,
-        price: price,
+        price: basePrice,
         cost_price: costPrice,
         profit: itemProfit,
-        type: product.type || 'keg'
+        type: product.type || 'keg',
+        staffDiscountPercent // lưu lại để hiển thị
       });
     }
 
@@ -261,7 +288,7 @@ router.post('/', (req, res) => {
     const createSale = db.transaction(() => {
       // Insert sale with Vietnam-local date
       const saleDate = db.getVietnamDateStr();
-      const saleResult = db.prepare('INSERT INTO sales (customer_id, date, total, profit, deliver_kegs, return_kegs, keg_balance_after, type, promo_free_liters, promo_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(customerId, saleDate, total, profit, finalDeliverKegs, returnKegs, newKegBalance, 'sale', promoFreeTotal, promoInfo ? promoInfo.promoType : null);
+      const saleResult = db.prepare('INSERT INTO sales (customer_id, sales_id, date, total, profit, deliver_kegs, return_kegs, keg_balance_after, type, promo_free_liters, promo_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(customerId, staffId || null, saleDate, total, profit, finalDeliverKegs, returnKegs, newKegBalance, 'sale', promoFreeTotal, promoInfo ? promoInfo.promoType : null);
       const saleId = saleResult.lastInsertRowid;
 
       if (!saleId) throw new Error('Sale creation failed — no lastInsertRowid');

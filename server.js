@@ -463,6 +463,7 @@ app.use('/api/debts', require('./routes/api/debts'));
 app.use('/api/promotions', require('./routes/api/promotions'));
 app.use('/api/segments', require('./routes/api/segments'));
 app.use('/api/sales-staff', require('./routes/api/sales-staff'));
+app.use('/api/staff-discounts', require('./routes/api/staff-discounts'));
 
 // ==================== AUTH ====================
 app.use('/auth', require('./routes/login'));
