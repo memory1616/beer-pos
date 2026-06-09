@@ -46,7 +46,28 @@ const SalesStaffService = {
       INSERT INTO sales_staff (name, phone, email)
       VALUES (?, ?, ?)
     `).run(data.name, data.phone || null, data.email || null);
-    return { id: result.lastInsertRowid, ...data };
+    const staffId = result.lastInsertRowid;
+    
+    // Tạo cấu hình lương mặc định cho nhân viên mới
+    this.createDefaultSalaryConfig(staffId);
+    
+    return { id: staffId, ...data };
+  },
+
+  // Tạo cấu hình lương mặc định cho nhân viên mới
+  createDefaultSalaryConfig(staffId) {
+    // Lấy lương mặc định từ global config
+    const globalConfig = db.prepare(`
+      SELECT salary_per_liter FROM sales_product_commission 
+      WHERE product_type = 'all' AND active = 1 LIMIT 1
+    `).get();
+    const defaultSalary = globalConfig ? globalConfig.salary_per_liter : 1000;
+    
+    // Tạo config cho từng loại sản phẩm
+    ['keg', 'pet', 'box'].forEach(type => {
+      db.prepare('INSERT OR IGNORE INTO staff_salary_config (staff_id, product_type, salary_per_liter) VALUES (?, ?, ?)')
+        .run(staffId, type, defaultSalary);
+    });
   },
 
   // Cập nhật nhân viên
@@ -194,7 +215,7 @@ const SalesStaffService = {
     return { success: true };
   },
 
-  // Tính lương tháng cho 1 sales
+  // Tính lương tháng cho 1 sales (sử dụng cấu hình lương riêng của từng staff)
   calculateMonthlySalary(salesId, year, month) {
     const yearStr = String(year);
     const monthStr = String(month).padStart(2, '0');
@@ -207,7 +228,7 @@ const SalesStaffService = {
     const isPaid = paidRecord && paidRecord.status === 'paid';
 
     // Lấy tất cả đơn hàng của khách được gán cho sales này trong tháng
-    // JOIN ưu tiên: product_id cụ thể > product_type > all
+    // Ưu tiên: staff_salary_config (riêng của từng staff) > sales_product_commission (mặc định)
     const salesData = db.prepare(`
       SELECT
         si.quantity,
@@ -215,6 +236,8 @@ const SalesStaffService = {
         p.type as product_type,
         p.id as product_id,
         COALESCE(
+          (SELECT ssc.salary_per_liter FROM staff_salary_config ssc 
+           WHERE ssc.staff_id = ? AND ssc.product_type = p.type AND ssc.active = 1 LIMIT 1),
           (SELECT spc.salary_per_liter FROM sales_product_commission spc 
            WHERE spc.product_id = p.id AND spc.active = 1 LIMIT 1),
           (SELECT spc.salary_per_liter FROM sales_product_commission spc 
@@ -231,7 +254,7 @@ const SalesStaffService = {
         AND strftime('%Y', s.date) = ?
         AND strftime('%m', s.date) = ?
         AND si.price > 0
-    `).all(salesId, yearStr, monthStr);
+    `).all(salesId, salesId, yearStr, monthStr);
 
     // Tính tổng lít và lương
     let totalLiters = 0;

@@ -233,4 +233,51 @@ router.get('/:id/breakdown/:year/:month', (req, res) => {
   }
 });
 
+// ==================== STAFF SALARY CONFIG ROUTES ====================
+
+// GET /api/sales-staff/:id/salary-config - Lấy cấu hình lương của nhân viên
+router.get('/:id/salary-config', (req, res) => {
+  try {
+    const db = require('../../database');
+    const configs = db.prepare(`
+      SELECT * FROM staff_salary_config WHERE staff_id = ? ORDER BY product_type
+    `).all(req.params.id);
+    res.json({ success: true, data: configs });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// PUT /api/sales-staff/:id/salary-config - Cập nhật cấu hình lương
+router.put('/:id/salary-config', (req, res) => {
+  try {
+    const db = require('../../database');
+    const { configs } = req.body; // [{productType, salaryPerLiter}]
+    
+    if (!configs || !Array.isArray(configs)) {
+      return res.status(400).json({ success: false, error: 'Dữ liệu không hợp lệ' });
+    }
+    
+    const updateOrInsert = db.transaction(() => {
+      configs.forEach(cfg => {
+        const existing = db.prepare('SELECT id FROM staff_salary_config WHERE staff_id = ? AND product_type = ?')
+          .get(req.params.id, cfg.productType);
+        
+        if (existing) {
+          db.prepare('UPDATE staff_salary_config SET salary_per_liter = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+            .run(cfg.salaryPerLiter, existing.id);
+        } else {
+          db.prepare('INSERT INTO staff_salary_config (staff_id, product_type, salary_per_liter) VALUES (?, ?, ?)')
+            .run(req.params.id, cfg.productType, cfg.salaryPerLiter);
+        }
+      });
+    });
+    
+    updateOrInsert();
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 module.exports = router;

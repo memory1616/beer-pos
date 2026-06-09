@@ -1493,6 +1493,46 @@ try {
 } catch (e) { /* ignore */ }
 
 // ============================================================
+// STAFF SALARY CONFIG - Cấu hình lương riêng cho từng nhân viên theo loại sản phẩm
+// ============================================================
+
+// Bảng cấu hình lương theo loại sản phẩm cho từng nhân viên
+db.exec(`
+  CREATE TABLE IF NOT EXISTS staff_salary_config (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    staff_id INTEGER NOT NULL,
+    product_type TEXT NOT NULL,
+    salary_per_liter REAL NOT NULL,
+    active INTEGER DEFAULT 1,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (staff_id) REFERENCES sales_staff(id) ON DELETE CASCADE,
+    UNIQUE(staff_id, product_type)
+  )
+`);
+
+// Seed default salary config cho staff mới (nếu chưa có)
+try {
+  const staffList = db.prepare('SELECT id FROM sales_staff WHERE active = 1').all();
+  const globalConfig = db.prepare(`
+    SELECT salary_per_liter FROM sales_product_commission 
+    WHERE product_type = 'all' AND active = 1 LIMIT 1
+  `).get();
+  const defaultSalary = globalConfig ? globalConfig.salary_per_liter : 1000;
+  
+  staffList.forEach(staff => {
+    ['keg', 'pet', 'box'].forEach(type => {
+      db.prepare('INSERT OR IGNORE INTO staff_salary_config (staff_id, product_type, salary_per_liter) VALUES (?, ?, ?)').run(staff.id, type, defaultSalary);
+    });
+  });
+} catch (e) { /* ignore */ }
+
+// Indexes
+try {
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_staff_salary_config ON staff_salary_config(staff_id, product_type)`);
+} catch (e) { /* ignore */ }
+
+// ============================================================
 // STAFF PRODUCT DISCOUNTS - Chiết khấu theo sản phẩm cho từng nhân viên
 // ============================================================
 

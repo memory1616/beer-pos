@@ -74,6 +74,43 @@
     .expense-total-card.all-card .expense-total-card-value {
       color: var(--warning, #f59e0b);
     }
+    .expense-total-card.clickable {
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .expense-total-card.clickable:hover {
+      transform: scale(1.02);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    .expense-total-card.clickable:active {
+      transform: scale(0.98);
+    }
+
+    /* Filter mode indicator */
+    .filter-mode-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      padding: 8px 12px;
+      background: var(--bg-hover);
+      border-radius: 10px;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+    .filter-mode-indicator .back-btn {
+      padding: 4px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--text-main);
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .filter-mode-indicator .back-btn:hover {
+      background: var(--bg-hover);
+    }
 
     /* Month total (existing) */
     .total-card {
@@ -471,7 +508,7 @@
   </div>
 
   <!-- Load realtime state + expenses JS -->
-  <script src="/js/expenses.js?v=20260411-redesign"></script>
+  <script src="/js/expenses.js?v=20260604-filter"></script>
 
   <script>
     // Set initial month BEFORE rendering layout
@@ -489,13 +526,19 @@
       getHeaderWithActions('Chi phí', '💸', headerActions) +
       getContent(`
         <div class="page-expenses">
+          <!-- Filter mode indicator (hidden by default, shown when not in month mode) -->
+          <div class="filter-mode-indicator hidden" id="filterModeIndicator">
+            <button class="back-btn" onclick="switchToMonthView()">← Tháng</button>
+            <span id="filterModeLabel">Đang xem chi phí năm 2026</span>
+          </div>
+
           <!-- Totals grid: Year + All time -->
           <div class="expense-totals-grid">
-            <div class="expense-total-card year-card">
+            <div class="expense-total-card year-card" onclick="switchToYearView()" style="cursor:pointer;">
               <div class="expense-total-card-label">Chi phí năm nay</div>
               <div class="expense-total-card-value" id="yearTotal">—</div>
             </div>
-            <div class="expense-total-card all-card">
+            <div class="expense-total-card all-card" onclick="switchToAllView()" style="cursor:pointer;">
               <div class="expense-total-card-label">Toàn thời gian</div>
               <div class="expense-total-card-value" id="allTimeTotal">—</div>
             </div>
