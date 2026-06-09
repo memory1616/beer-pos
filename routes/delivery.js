@@ -9,6 +9,7 @@ const DISTRIBUTOR_NAME = process.env.DISTRIBUTOR_NAME || 'Bia Tuoi Gia Huy';
 
 // GET /delivery — HTML page with server-side JSON injection
 router.get('/', (req, res) => {
+  const today = new Date().toISOString().split('T')[0];
   const templatePath = path.join(__dirname, '..', 'views', 'delivery.html');
   fs.readFile(templatePath, 'utf8', (err, html) => {
     if (err) return res.status(500).send('Template not found');
