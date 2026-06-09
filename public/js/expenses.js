@@ -323,7 +323,7 @@ function renderExpenses() {
     var icon = _getIconByName(e.category);
     var catLabel = _getLabelByName(e.category);
     var dateStr = e.date ? e.date.split('T')[0].split('-').reverse().join('/') : '';
-    var noteHtml = e.note ? '<div class="expense-note">' + e.note + '</div>' : '';
+    var noteHtml = e.description ? '<div class="expense-note">' + e.description + '</div>' : '';
     html.push(
       '<div class="expense-item" data-expense-id="' + e.id + '">' +
         '<div class="expense-icon">' + icon + '</div>' +
@@ -421,7 +421,7 @@ function editExpense(id) {
   if (expenseAmountEl) expenseAmountEl.value = formatExpenseAmountField(String(Math.round(Number(exp.amount) || 0)));
   rebuildExpenseCategorySelect();
   if (expenseCategoryEl) expenseCategoryEl.value = exp.category || 'other';
-  if (expenseNoteEl) expenseNoteEl.value = exp.note || '';
+  if (expenseNoteEl) expenseNoteEl.value = exp.description || '';
   if (m) { m.classList.remove('hidden'); m.classList.add('flex'); }
 }
 
@@ -444,7 +444,7 @@ function saveExpense(e) {
   var data = {
     amount: amt,
     category: expenseCategoryEl ? expenseCategoryEl.value : 'other',
-    note: expenseNoteEl ? expenseNoteEl.value : '',
+    description: expenseNoteEl ? expenseNoteEl.value : '',
     year: (_currentMonth.split('-')[0] || ''),
     month: (_currentMonth.split('-')[1] || '')
   };
