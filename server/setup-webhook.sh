@@ -1,48 +1,53 @@
 #!/bin/bash
 # setup-webhook.sh — Chạy TRÊN SERVER (Ubuntu)
-# Giả sử deploy.sh đã có sẵn tại /root/beer-pos/deploy.sh
+# Thiết lập webhook server riêng như một fallback/manual trigger cho deploy.
 
-set -e
+set -euo pipefail
 
 WEBHOOK_DIR="/opt/webhook"
-GIT_DIR="/root/beer-pos"
-DEPLOY_SCRIPT="/root/beer-pos/deploy.sh"
-PORT=3939
+GIT_DIR="${BEER_POS_DIR:-$HOME/beer-pos}"
+DEPLOY_SCRIPT="$GIT_DIR/deploy/deploy.sh"
+PORT="${WEBHOOK_PORT:-3939}"
 SECRET_FILE="$WEBHOOK_DIR/.secret"
+
+if [ ! -f "$GIT_DIR/server/webhook-deploy.js" ]; then
+  echo "❌ Không tìm thấy $GIT_DIR/server/webhook-deploy.js"
+  exit 1
+fi
 
 echo "=== 1. Tạo thư mục ==="
 sudo mkdir -p "$WEBHOOK_DIR"
-sudo chown $USER:$USER "$WEBHOOK_DIR"
+sudo chown "$USER:$USER" "$WEBHOOK_DIR"
 
-echo "=== 2. Copy webhook-deploy.js lên server ==="
-# Từ local: scp webhook-deploy.js root@103.75.183.57:$WEBHOOK_DIR/
-# Hoặc copy trực tiếp nếu đã SSH vào máy này
-echo "📋 Chạy từ local: scp webhook-deploy.js root@103.75.183.57:$WEBHOOK_DIR/"
-echo "   Sau đó tiếp tục bước 3."
+echo "=== 2. Đồng bộ file webhook ==="
+cp "$GIT_DIR/server/webhook-deploy.js" "$WEBHOOK_DIR/webhook-deploy.js"
+chmod +x "$WEBHOOK_DIR/webhook-deploy.js"
 
 echo "=== 3. Tạo secret ngẫu nhiên ==="
 if [ ! -f "$SECRET_FILE" ]; then
   openssl rand -hex 32 | sudo tee "$SECRET_FILE" > /dev/null
-  echo "✅ Secret: $(sudo cat $SECRET_FILE)"
+  echo "✅ Secret: $(sudo cat "$SECRET_FILE")"
 else
-  echo "ℹ️  Secret cũ: $(sudo cat $SECRET_FILE)"
+  echo "ℹ️  Secret cũ: $(sudo cat "$SECRET_FILE")"
 fi
 
-SECRET=$(sudo cat "$SECRET_FILE")
+SECRET="$(sudo cat "$SECRET_FILE")"
 
 echo "=== 4. Khởi động webhook server với PM2 ==="
 cd "$WEBHOOK_DIR"
-pm2 delete webhook 2>/dev/null || true
-WEBHOOK_PORT=$PORT WEBHOOK_SECRET="$SECRET" \
-  node webhook-deploy.js &
-sleep 2
+pm2 delete webhook-beer-pos 2>/dev/null || true
+WEBHOOK_PORT="$PORT" \
+WEBHOOK_SECRET="$SECRET" \
+BEER_POS_DIR="$GIT_DIR" \
+BEER_POS_DEPLOY_SCRIPT="$DEPLOY_SCRIPT" \
+pm2 start "$WEBHOOK_DIR/webhook-deploy.js" --name webhook-beer-pos --interpreter node
 
 echo "=== 5. Lưu PM2 startup ==="
 pm2 save
 sudo env PATH=$PATH:/usr/bin pm2 startup
 
-echo "=== 6. Mở port 3939 ==="
-sudo ufw allow 3939/tcp 2>/dev/null || true
+echo "=== 6. Mở port webhook ==="
+sudo ufw allow "$PORT/tcp" 2>/dev/null || true
 
 echo ""
 echo "========== THÔNG TIN GITHUB WEBHOOK =========="
@@ -53,5 +58,5 @@ echo "📁 Repo dir    : $GIT_DIR"
 echo "📜 Deploy script: $DEPLOY_SCRIPT"
 echo ""
 echo "=== Test nhanh ==="
-curl http://localhost:$PORT/
+curl "http://localhost:$PORT/"
 pm2 list

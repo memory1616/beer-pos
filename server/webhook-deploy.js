@@ -6,10 +6,10 @@ const http = require('http');
 const { execSync } = require('child_process');
 const crypto = require('crypto');
 
-const PORT         = process.env.WEBHOOK_PORT    || 3939;
-const SECRET       = process.env.WEBHOOK_SECRET  || '';
-const GIT_DIR      = '/root/beer-pos';
-const DEPLOY_SCRIPT = '/root/beer-pos/deploy.sh';
+const PORT = process.env.WEBHOOK_PORT || 3939;
+const SECRET = process.env.WEBHOOK_SECRET || '';
+const GIT_DIR = process.env.BEER_POS_DIR || '/root/beer-pos';
+const DEPLOY_SCRIPT = process.env.BEER_POS_DEPLOY_SCRIPT || `${GIT_DIR}/deploy/deploy.sh`;
 
 function log(level, msg) {
   // Deployment logging — silenced for clean output
@@ -25,11 +25,9 @@ function verifySignature(payload, signature) {
 
 function deploy() {
   try {
-    log('INFO', 'Pulling latest code...');
-    execSync('git pull origin main', { cwd: GIT_DIR, stdio: 'inherit' });
-
-    log('INFO', 'Running deploy.sh...');
-    execSync(DEPLOY_SCRIPT, { cwd: GIT_DIR, stdio: 'inherit' });
+    log('INFO', 'Running deploy script...');
+    execSync(`chmod +x "${DEPLOY_SCRIPT}"`, { cwd: GIT_DIR, stdio: 'inherit' });
+    execSync(`"${DEPLOY_SCRIPT}"`, { cwd: GIT_DIR, stdio: 'inherit' });
 
     log('INFO', 'Deploy complete!');
     return { ok: true };
