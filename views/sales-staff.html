@@ -677,7 +677,11 @@
     }
 
     function renderProductCommissions(list) {
-      const container = document.getElementById('productCommissionList');
+      const container = document.getElementById('productCommissionsList');
+      if (!container) {
+        console.error('Missing product commissions container');
+        return;
+      }
       if (!list || list.length === 0) {
         container.innerHTML = '<div class="empty-state">Chưa có cấu hình hoa hồng nào.<br><br><button class="btn btn-primary" onclick="openAddProductCommission()">+ Thêm cấu hình đầu tiên</button></div>';
         return;
