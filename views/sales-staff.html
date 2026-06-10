@@ -232,7 +232,9 @@
     // Initialize
     document.addEventListener('DOMContentLoaded', () => {
       loadStaffList();
-      loadCommissionConfig();
+      if (document.getElementById('productCommissionsList')) {
+        loadCommissionConfig();
+      }
       initMonthSelector();
       initSalaryConfigSelector();
     });
@@ -672,6 +674,9 @@
     }
 
     async function loadCommissionConfig() {
+      const container = document.getElementById('productCommissionsList');
+      if (!container) return;
+
       try {
         const res = await fetch('/api/sales-staff/config/commissions');
         const data = await res.json();
