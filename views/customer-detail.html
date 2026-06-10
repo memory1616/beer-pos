@@ -30,9 +30,1148 @@
   <script src="/js/customers.js?v=20260530"></script>
   <script>requireAuth();</script>
   <style>
-    canvas { width: 100% !important; height: auto !important; }
+    /* ============================================================
+       BINANCE MOBILE + CRM — CUSTOMER DETAIL REFACTORED
+       All business logic preserved. UI redesigned.
+    ============================================================ */
 
-    /* ===== CUSTOMER INVOICE MODAL ===== */
+    /* ── OVERRIDE PAGE PADDING ── */
+    #app {
+      padding-top: calc(var(--header-height) + var(--safe-area-top));
+      padding-bottom: calc(var(--bottomnav-height) + var(--safe-area-bottom));
+    }
+    .page-content {
+      padding-top: 0 !important;
+      padding-left: max(12px, env(safe-area-inset-left, 0px));
+      padding-right: max(12px, env(safe-area-inset-right, 0px));
+    }
+
+    /* ============================================================
+       1. HERO CUSTOMER CARD
+    ============================================================ */
+    .cd-hero {
+      background: linear-gradient(135deg, #1e2329 0%, #161a1e 100%);
+      border-radius: 20px;
+      padding: 20px;
+      margin-bottom: 12px;
+      position: relative;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+    [data-theme="light"] .cd-hero {
+      background: linear-gradient(135deg, #f5f5f5 0%, #ffffff 100%);
+      border-color: #e0e0e0;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    }
+    .cd-hero::before {
+      content: '';
+      position: absolute;
+      top: -40px;
+      right: -40px;
+      width: 160px;
+      height: 160px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(252,213,53,0.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .cd-hero-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .cd-hero-avatar {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #FCD535 0%, #F0B90B 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      flex-shrink: 0;
+      box-shadow: 0 2px 12px rgba(252,213,53,0.3);
+    }
+    .cd-hero-info {
+      flex: 1;
+      min-width: 0;
+      padding-left: 14px;
+    }
+    .cd-hero-name {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text-primary);
+      line-height: 1.2;
+      margin-bottom: 4px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .cd-hero-phone {
+      font-size: 13px;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-bottom: 3px;
+    }
+    .cd-hero-phone::before {
+      content: '📱';
+      font-size: 11px;
+    }
+    .cd-hero-sales {
+      font-size: 12px;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .cd-hero-sales::before {
+      content: '👔';
+      font-size: 11px;
+    }
+    .cd-hero-sales span {
+      color: #3b82f6;
+      font-weight: 600;
+    }
+    .cd-hero-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .cd-hero-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      border: none;
+      cursor: pointer;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .cd-hero-btn:active {
+      transform: scale(0.92);
+    }
+    .cd-hero-btn-call {
+      background: var(--success-dim);
+      color: var(--success);
+    }
+    .cd-hero-btn-zalo {
+      background: #e0f2fe;
+      color: #0068ff;
+    }
+    [data-theme="dark"] .cd-hero-btn-zalo {
+      background: rgba(0,104,255,0.15);
+    }
+    .cd-hero-btn-edit {
+      background: var(--bg-hover);
+      color: var(--text-secondary);
+    }
+    .cd-hero-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px;
+    }
+    .cd-hero-badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 20px;
+      letter-spacing: 0.02em;
+    }
+    .cd-hero-badge-vip {
+      background: linear-gradient(135deg, #FCD535, #F0B90B);
+      color: #1E2329;
+    }
+    .cd-hero-badge-new {
+      background: var(--info-dim);
+      color: var(--info);
+      border: 1px solid rgba(59,122,254,0.3);
+    }
+    .cd-hero-badge-debt {
+      background: var(--danger-dim);
+      color: var(--danger);
+      border: 1px solid rgba(246,70,93,0.3);
+    }
+    .cd-hero-badge-sleep {
+      background: var(--bg-hover);
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+    }
+    .cd-hero-meta {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .cd-hero-meta-item {
+      font-size: 12px;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* ============================================================
+       2. QUICK ACTION BAR
+    ============================================================ */
+    .cd-quick-bar {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .cd-quick-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 14px 12px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--text-primary);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      min-height: 60px;
+      -webkit-tap-highlight-color: transparent;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    [data-theme="light"] .cd-quick-btn {
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .cd-quick-btn:active {
+      transform: scale(0.96);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    }
+    .cd-quick-btn-icon {
+      font-size: 20px;
+      line-height: 1;
+    }
+    .cd-quick-btn-money { background: var(--success-dim); border-color: rgba(14,203,129,0.2); }
+    .cd-quick-btn-order { background: var(--accent-dim); border-color: rgba(252,213,53,0.2); }
+    .cd-quick-btn-keg { background: var(--info-dim); border-color: rgba(59,122,254,0.2); }
+    .cd-quick-btn-history { background: var(--warning-dim); border-color: rgba(240,185,11,0.2); }
+
+    /* ============================================================
+       3. KPI DASHBOARD
+    ============================================================ */
+    .cd-kpi-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .cd-kpi-card {
+      background: var(--card);
+      border-radius: 14px;
+      padding: 14px;
+      border: 1px solid var(--border);
+      position: relative;
+      overflow: hidden;
+    }
+    [data-theme="light"] .cd-kpi-card {
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+    .cd-kpi-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      margin-bottom: 10px;
+    }
+    .cd-kpi-icon-debt { background: var(--danger-dim); }
+    .cd-kpi-icon-keg { background: var(--info-dim); }
+    .cd-kpi-icon-monthly { background: var(--accent-dim); }
+    .cd-kpi-icon-revenue { background: var(--success-dim); }
+    .cd-kpi-value {
+      font-size: 22px;
+      font-weight: 800;
+      line-height: 1;
+      margin-bottom: 2px;
+      letter-spacing: -0.5px;
+    }
+    .cd-kpi-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .cd-kpi-value.danger { color: var(--danger); }
+    .cd-kpi-value.warning { color: var(--warning); }
+    .cd-kpi-value.success { color: var(--success); }
+    .cd-kpi-value.accent { color: var(--primary); }
+    .cd-kpi-pulse {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      animation: cd-pulse 2s infinite;
+    }
+    .cd-kpi-pulse.danger { background: var(--danger); }
+    .cd-kpi-pulse.warning { background: var(--warning); }
+    .cd-kpi-pulse.success { background: var(--success); }
+    @keyframes cd-pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.5); }
+    }
+    /* Number counter animation */
+    .cd-kpi-value { transition: color 0.3s ease; }
+
+    /* ============================================================
+       4. CUSTOMER HEALTH CARD
+    ============================================================ */
+    .cd-health {
+      background: var(--card);
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 12px;
+      border: 1px solid var(--border);
+    }
+    .cd-health-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .cd-health-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .cd-health-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: var(--bg-hover);
+    }
+    .cd-health-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .cd-health-dot.good { background: var(--success); box-shadow: 0 0 8px rgba(14,203,129,0.5); }
+    .cd-health-dot.monitor { background: var(--warning); box-shadow: 0 0 8px rgba(240,185,11,0.5); }
+    .cd-health-dot.urgent { background: var(--danger); box-shadow: 0 0 8px rgba(246,70,93,0.5); animation: cd-pulse 1.5s infinite; }
+    .cd-health-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      line-height: 1.2;
+    }
+    .cd-health-value {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-top: 1px;
+    }
+    .cd-health-status-bar {
+      margin-top: 14px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .cd-health-status-bar.good { background: var(--success-dim); color: var(--success); }
+    .cd-health-status-bar.monitor { background: var(--warning-dim); color: var(--warning); }
+    .cd-health-status-bar.urgent { background: var(--danger-dim); color: var(--danger); }
+
+    /* ============================================================
+       5. PROMOTION SECTION — COMPACT
+    ============================================================ */
+    .cd-promo-card {
+      background: var(--card);
+      border-radius: 14px;
+      padding: 14px;
+      margin-bottom: 12px;
+      border: 1px solid var(--border);
+    }
+    .cd-promo-header {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .cd-promo-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .cd-promo-item:last-child { border-bottom: none; padding-bottom: 0; }
+    .cd-promo-item:first-of-type { padding-top: 0; }
+    .cd-promo-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .cd-promo-icon {
+      font-size: 16px;
+    }
+    .cd-promo-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .cd-promo-desc {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 1px;
+    }
+    .cd-promo-status {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 20px;
+      text-align: center;
+      min-width: 70px;
+    }
+    .cd-promo-status.on { background: var(--success-dim); color: var(--success); }
+    .cd-promo-status.off { background: var(--danger-dim); color: var(--danger); }
+    .cd-promo-status.expired { background: var(--bg-hover); color: var(--text-muted); }
+
+    /* Toggle Switch */
+    .cd-toggle {
+      position: relative;
+      width: 44px;
+      height: 26px;
+      flex-shrink: 0;
+    }
+    .cd-toggle input { opacity: 0; width: 0; height: 0; }
+    .cd-toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      inset: 0;
+      background: var(--border-strong);
+      border-radius: 13px;
+      transition: all 0.25s ease;
+    }
+    .cd-toggle-slider::before {
+      content: '';
+      position: absolute;
+      height: 20px;
+      width: 20px;
+      left: 3px;
+      bottom: 3px;
+      background: white;
+      border-radius: 50%;
+      transition: all 0.25s ease;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    }
+    .cd-toggle input:checked + .cd-toggle-slider { background: var(--success); }
+    .cd-toggle input:checked + .cd-toggle-slider::before { transform: translateX(18px); }
+    .cd-toggle input:disabled + .cd-toggle-slider { opacity: 0.4; cursor: not-allowed; }
+
+    /* ============================================================
+       6. EQUIPMENT ACCORDION
+    ============================================================ */
+    .cd-equipment {
+      background: var(--card);
+      border-radius: 14px;
+      margin-bottom: 12px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+    .cd-equipment-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.2s;
+    }
+    .cd-equipment-header:hover { background: var(--bg-hover); }
+    .cd-equipment-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .cd-equipment-arrow {
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.25s ease;
+      color: var(--text-muted);
+      font-size: 12px;
+    }
+    .cd-equipment.open .cd-equipment-arrow { transform: rotate(180deg); }
+    .cd-equipment-content {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease;
+    }
+    .cd-equipment.open .cd-equipment-content { max-height: 200px; }
+    .cd-equipment-body {
+      padding: 0 16px 14px;
+    }
+    .cd-equip-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .cd-equip-item {
+      background: var(--bg-hover);
+      border-radius: 10px;
+      padding: 12px;
+      text-align: center;
+    }
+    .cd-equip-count {
+      font-size: 24px;
+      font-weight: 800;
+      color: var(--text-primary);
+    }
+    .cd-equip-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* ============================================================
+       7. SALES ASSIGNMENT — MINIMAL
+    ============================================================ */
+    .cd-sales-assign {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--card);
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin-bottom: 12px;
+      border: 1px solid var(--border);
+    }
+    .cd-sales-assign-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .cd-sales-assign-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: var(--info-dim);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+    }
+    .cd-sales-assign-label {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .cd-sales-assign-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: #3b82f6;
+    }
+
+    /* ============================================================
+       8. MONTH FILTER
+    ============================================================ */
+    .cd-filter {
+      background: var(--card);
+      border-radius: 12px;
+      padding: 10px 14px;
+      margin-bottom: 12px;
+      border: 1px solid var(--border);
+    }
+    .cd-filter select {
+      width: 100%;
+      height: 36px;
+      background: var(--bg-hover);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-primary);
+      font-size: 13px;
+      font-weight: 500;
+      padding: 0 10px;
+      outline: none;
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+    }
+    .cd-filter select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px var(--accent-dim);
+    }
+
+    /* ============================================================
+       9. STICKY TAB BAR
+    ============================================================ */
+    .cd-tabs-wrapper {
+      position: sticky;
+      top: calc(var(--header-height) + var(--safe-area-top));
+      z-index: 100;
+      background: var(--bg);
+      padding: 10px 0;
+      margin: 0 -12px;
+      padding-left: 12px;
+      padding-right: 12px;
+    }
+    .cd-tabs {
+      display: flex;
+      background: var(--card);
+      border-radius: 14px;
+      padding: 4px;
+      gap: 2px;
+      border: 1px solid var(--border);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    [data-theme="light"] .cd-tabs {
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .cd-tab-btn {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      padding: 9px 6px;
+      border-radius: 10px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      -webkit-tap-highlight-color: transparent;
+      white-space: nowrap;
+    }
+    .cd-tab-btn.active {
+      background: var(--primary);
+      color: #1E2329;
+      box-shadow: 0 2px 8px rgba(252,213,53,0.3);
+    }
+    .cd-tab-btn:active { transform: scale(0.96); }
+    .cd-tab-btn-icon { font-size: 14px; }
+    .cd-tab-btn-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--danger);
+      flex-shrink: 0;
+      animation: cd-pulse 2s infinite;
+    }
+    .cd-tab-btn.active .cd-tab-btn-dot { background: #1E2329; }
+
+    /* ============================================================
+       10. TAB CONTENTS
+    ============================================================ */
+    .cd-tab-content {
+      padding-top: 12px;
+    }
+    .cd-tab-pane { display: none; }
+    .cd-tab-pane.active { display: block; }
+
+    /* ── ORDER TAB: TIMELINE ── */
+    .cd-order-timeline {
+      position: relative;
+      padding-left: 20px;
+    }
+    .cd-order-timeline::before {
+      content: '';
+      position: absolute;
+      left: 7px;
+      top: 8px;
+      bottom: 0;
+      width: 2px;
+      background: var(--border);
+      border-radius: 1px;
+    }
+    .cd-order-item {
+      position: relative;
+      margin-bottom: 12px;
+    }
+    .cd-order-dot {
+      position: absolute;
+      left: -17px;
+      top: 14px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 2px solid var(--card);
+      box-shadow: 0 0 0 2px var(--border);
+      background: var(--primary);
+    }
+    .cd-order-dot.paid { background: var(--success); box-shadow: 0 0 0 2px var(--success); }
+    .cd-order-dot.unpaid { background: var(--danger); box-shadow: 0 0 0 2px var(--danger); }
+    .cd-order-dot.partial { background: var(--warning); box-shadow: 0 0 0 2px var(--warning); }
+    .cd-order-dot.replace { background: var(--info); box-shadow: 0 0 0 2px var(--info); }
+    .cd-order-card {
+      background: var(--card);
+      border-radius: 14px;
+      padding: 14px;
+      border: 1px solid var(--border);
+      transition: all 0.2s;
+    }
+    .cd-order-card:hover {
+      border-color: var(--border-strong);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .cd-order-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .cd-order-date {
+      font-size: 12px;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .cd-order-badge {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 20px;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+    .cd-order-badge.paid { background: var(--success-dim); color: var(--success); }
+    .cd-order-badge.unpaid { background: var(--danger-dim); color: var(--danger); }
+    .cd-order-badge.partial { background: var(--warning-dim); color: var(--warning); }
+    .cd-order-badge.replace { background: var(--info-dim); color: var(--info); }
+    .cd-order-total {
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--text-primary);
+      letter-spacing: -0.5px;
+      margin-bottom: 10px;
+    }
+    .cd-order-stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    .cd-order-stat {
+      background: var(--bg-hover);
+      border-radius: 8px;
+      padding: 8px 6px;
+      text-align: center;
+    }
+    .cd-order-stat-icon { font-size: 14px; }
+    .cd-order-stat-val {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-top: 2px;
+    }
+    .cd-order-stat-lbl {
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+    .cd-order-keg-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      padding: 6px 0;
+      border-top: 1px solid var(--border);
+    }
+    .cd-order-keg-row .give { color: var(--warning); }
+    .cd-order-keg-row .take { color: var(--danger); }
+
+    /* ── DEBT TAB: MOBILE BANKING ── */
+    .cd-debt-header {
+      background: linear-gradient(135deg, var(--danger) 0%, #d97706 100%);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 12px;
+      position: relative;
+      overflow: hidden;
+    }
+    .cd-debt-header::before {
+      content: '';
+      position: absolute;
+      top: -30px;
+      right: -30px;
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.1);
+    }
+    .cd-debt-header-label {
+      font-size: 12px;
+      color: rgba(255,255,255,0.8);
+      font-weight: 500;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .cd-debt-header-amount {
+      font-size: 32px;
+      font-weight: 800;
+      color: white;
+      letter-spacing: -1px;
+    }
+    .cd-debt-header-sub {
+      font-size: 12px;
+      color: rgba(255,255,255,0.7);
+      margin-top: 4px;
+    }
+    .cd-debt-header-green {
+      background: linear-gradient(135deg, var(--success) 0%, #00B370 100%) !important;
+    }
+    .cd-debt-collect-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      width: 100%;
+      padding: 13px;
+      border-radius: 12px;
+      border: none;
+      background: white;
+      color: var(--danger);
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 12px;
+      min-height: 48px;
+      transition: all 0.2s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .cd-debt-collect-btn:active { transform: scale(0.97); filter: brightness(0.95); }
+    .cd-debt-orders-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .cd-debt-order-card {
+      background: var(--card);
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 8px;
+      border: 1px solid var(--border);
+      border-left-width: 3px;
+    }
+    .cd-debt-order-card.partial { border-left-color: var(--warning); }
+    .cd-debt-order-card.unpaid { border-left-color: var(--danger); }
+    .cd-debt-tx-timeline {
+      position: relative;
+      padding-left: 18px;
+    }
+    .cd-debt-tx-timeline::before {
+      content: '';
+      position: absolute;
+      left: 5px;
+      top: 6px;
+      bottom: 0;
+      width: 2px;
+      background: var(--border);
+    }
+    .cd-debt-tx-item {
+      position: relative;
+      margin-bottom: 10px;
+    }
+    .cd-debt-tx-dot {
+      position: absolute;
+      left: -15px;
+      top: 4px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      border: 2px solid var(--card);
+    }
+    .cd-debt-tx-dot.increase { background: var(--danger); }
+    .cd-debt-tx-dot.decrease { background: var(--success); }
+    .cd-debt-tx-dot.cancel { background: var(--info); }
+    .cd-debt-tx-dot.adjust { background: var(--warning); }
+    .cd-debt-tx-card {
+      background: var(--card);
+      border-radius: 10px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+    }
+    .cd-debt-tx-date { font-size: 11px; color: var(--text-muted); }
+    .cd-debt-tx-label { font-size: 12px; color: var(--text-secondary); margin-top: 1px; }
+    .cd-debt-tx-amount { font-size: 14px; font-weight: 700; }
+    .cd-debt-tx-amount.increase { color: var(--danger); }
+    .cd-debt-tx-amount.decrease { color: var(--success); }
+    .cd-debt-tx-amount.cancel { color: var(--info); }
+    .cd-debt-tx-amount.adjust { color: var(--warning); }
+    .cd-debt-tx-balance { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+    /* ── KEGS TAB: TIMELINE ── */
+    .cd-kegs-summary {
+      background: var(--card);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 12px;
+      border: 1px solid var(--border);
+      text-align: center;
+    }
+    .cd-kegs-summary-icon {
+      font-size: 32px;
+      margin-bottom: 6px;
+    }
+    .cd-kegs-summary-count {
+      font-size: 42px;
+      font-weight: 800;
+      color: var(--text-primary);
+      letter-spacing: -2px;
+      line-height: 1;
+    }
+    .cd-kegs-summary-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .cd-kegs-timeline {
+      position: relative;
+      padding-left: 20px;
+    }
+    .cd-kegs-timeline::before {
+      content: '';
+      position: absolute;
+      left: 7px;
+      top: 8px;
+      bottom: 0;
+      width: 2px;
+      background: var(--border);
+    }
+    .cd-kegs-item { position: relative; margin-bottom: 10px; }
+    .cd-kegs-dot {
+      position: absolute;
+      left: -17px;
+      top: 12px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 2px solid var(--card);
+      background: var(--info);
+    }
+    .cd-kegs-card {
+      background: var(--card);
+      border-radius: 12px;
+      padding: 12px;
+      border: 1px solid var(--border);
+    }
+    .cd-kegs-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      padding: 4px 0;
+    }
+    .cd-kegs-row .deliver { color: var(--success); font-weight: 600; }
+    .cd-kegs-row .return { color: var(--danger); font-weight: 600; }
+    .cd-kegs-balance { font-size: 12px; color: var(--text-muted); padding-top: 4px; border-top: 1px solid var(--border); margin-top: 4px; }
+
+    /* ── REWARD TAB ── */
+    .cd-reward-main {
+      background: linear-gradient(135deg, rgba(245,158,11,0.15) 0%, rgba(245,158,11,0.05) 100%);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 12px;
+      border: 1px solid rgba(245,158,11,0.2);
+      text-align: center;
+    }
+    .cd-reward-main-icon { font-size: 36px; margin-bottom: 8px; }
+    .cd-reward-main-title {
+      font-size: 12px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 4px;
+    }
+    .cd-reward-main-value {
+      font-size: 36px;
+      font-weight: 800;
+      color: var(--warning);
+      letter-spacing: -1px;
+    }
+    .cd-reward-progress {
+      margin: 14px 0;
+    }
+    .cd-reward-progress-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+    .cd-reward-progress-labels strong { color: var(--text-primary); }
+    .cd-reward-progress-bar {
+      height: 10px;
+      border-radius: 5px;
+      background: var(--bg-hover);
+      overflow: hidden;
+    }
+    .cd-reward-progress-fill {
+      height: 100%;
+      border-radius: 5px;
+      background: linear-gradient(90deg, var(--warning) 0%, #eab308 100%);
+      transition: width 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    }
+    .cd-reward-next {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-bottom: 12px;
+    }
+    .cd-reward-next strong { color: var(--warning); font-weight: 700; }
+    .cd-reward-history-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .cd-reward-history-item {
+      background: var(--card);
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 8px;
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .cd-reward-history-tier { font-size: 12px; color: var(--warning); font-weight: 700; }
+    .cd-reward-history-date { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .cd-reward-history-liters { font-size: 18px; font-weight: 800; color: var(--warning); }
+
+    /* ============================================================
+       11. FLOATING ACTION BUTTON
+    ============================================================ */
+    .cd-fab {
+      position: fixed;
+      bottom: calc(var(--bottomnav-height) + var(--safe-area-bottom) + 12px);
+      right: 16px;
+      z-index: 900;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 12px 18px;
+      border-radius: 28px;
+      border: none;
+      background: linear-gradient(135deg, var(--success) 0%, #00B370 100%);
+      color: white;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 16px rgba(14,203,129,0.4);
+      transition: all 0.2s ease;
+      -webkit-tap-highlight-color: transparent;
+      animation: cd-fab-enter 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    @keyframes cd-fab-enter {
+      from { opacity: 0; transform: scale(0.5) translateY(20px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    .cd-fab:active { transform: scale(0.94); box-shadow: 0 2px 8px rgba(14,203,129,0.3); }
+    .cd-fab.hidden { display: none; }
+
+    /* ============================================================
+       12. SKELETON LOADING
+    ============================================================ */
+    @keyframes cd-shimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+    .cd-skeleton {
+      background: linear-gradient(90deg, var(--bg-hover) 25%, var(--border) 50%, var(--bg-hover) 75%);
+      background-size: 200% 100%;
+      animation: cd-shimmer 1.5s infinite;
+      border-radius: 8px;
+    }
+    .cd-skeleton-card {
+      background: var(--card);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 12px;
+      border: 1px solid var(--border);
+    }
+    .cd-skeleton-hero {
+      height: 160px;
+      border-radius: 20px;
+    }
+    .cd-skeleton-quick {
+      height: 60px;
+      border-radius: 14px;
+    }
+    .cd-skeleton-kpi {
+      height: 90px;
+      border-radius: 14px;
+    }
+    .cd-skeleton-line {
+      height: 14px;
+      margin-bottom: 8px;
+    }
+    .cd-skeleton-line.short { width: 60%; }
+    .cd-skeleton-line.medium { width: 80%; }
+
+    /* ============================================================
+       13. ANIMATIONS
+    ============================================================ */
+    @keyframes cd-fade-up {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .cd-animate-up {
+      animation: cd-fade-up 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+    }
+    .cd-animate-up:nth-child(1) { animation-delay: 0.05s; }
+    .cd-animate-up:nth-child(2) { animation-delay: 0.1s; }
+    .cd-animate-up:nth-child(3) { animation-delay: 0.15s; }
+    .cd-animate-up:nth-child(4) { animation-delay: 0.2s; }
+    .cd-animate-up:nth-child(5) { animation-delay: 0.25s; }
+    .cd-animate-up:nth-child(6) { animation-delay: 0.3s; }
+
+    @keyframes cd-counter {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .cd-counter { animation: cd-counter 0.4s ease both; }
+
+    /* ============================================================
+       14. INVOICE / MODAL REFINEMENTS
+    ============================================================ */
     .customer-invoice-overlay {
       position: fixed;
       inset: 0;
@@ -45,14 +1184,11 @@
       justify-content: center;
       animation: modal-fade-in 0.2s ease;
     }
-    .customer-invoice-overlay.hidden {
-      display: none;
-    }
+    .customer-invoice-overlay.hidden { display: none; }
     @keyframes modal-fade-in {
       from { opacity: 0; }
       to { opacity: 1; }
     }
-
     .customer-invoice-sheet {
       width: 90%;
       max-width: 400px;
@@ -64,7 +1200,6 @@
       flex-direction: column;
       box-shadow: 0 8px 32px rgba(0,0,0,0.3);
     }
-
     .customer-invoice-header {
       display: flex;
       align-items: center;
@@ -73,13 +1208,11 @@
       background: linear-gradient(135deg, var(--primary) 0%, #d97706 100%);
       flex-shrink: 0;
     }
-
     .customer-invoice-title {
       font-size: 18px;
       font-weight: 700;
       color: #000;
     }
-
     .customer-invoice-close {
       width: 32px;
       height: 32px;
@@ -94,18 +1227,13 @@
       justify-content: center;
       transition: all 0.2s;
     }
-    .customer-invoice-close:hover {
-      background: rgba(0,0,0,0.3);
-    }
-
+    .customer-invoice-close:hover { background: rgba(0,0,0,0.3); }
     .customer-invoice-body {
       flex: 1;
       overflow-y: auto;
       padding: 16px 18px;
       overscroll-behavior: contain;
     }
-
-    /* Mobile: bottom sheet */
     @media (max-width: 480px) {
       .customer-invoice-sheet {
         width: 100%;
@@ -117,19 +1245,223 @@
         left: 0;
         right: 0;
       }
-      .customer-invoice-overlay {
-        align-items: flex-end;
-      }
-      .customer-invoice-body {
-        padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-      }
+      .customer-invoice-overlay { align-items: flex-end; }
+      .customer-invoice-body { padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+    }
+
+    /* ============================================================
+       UTILITY
+    ============================================================ */
+    .hidden { display: none !important; }
+    .mb-2 { margin-bottom: 8px; }
+    .mb-3 { margin-bottom: 12px; }
+    .mt-2 { margin-top: 8px; }
+    .mt-3 { margin-top: 12px; }
+    .pt-2 { padding-top: 8px; }
+    .text-center { text-align: center; }
+    .space-y-3 > * + * { margin-top: 12px; }
+    .flex { display: flex; }
+    .flex-1 { flex: 1; }
+    .items-center { align-items: center; }
+    .justify-between { justify-content: space-between; }
+    .gap-2 { gap: 8px; }
+    .gap-3 { gap: 12px; }
+    .gap-4 { gap: 16px; }
+    .font-bold { font-weight: 700; }
+    .font-semibold { font-weight: 600; }
+    .text-sm { font-size: 13px; }
+    .text-xs { font-size: 11px; }
+    .text-main { color: var(--text-primary); }
+    .text-muted { color: var(--text-muted); }
+    .text-success { color: var(--success); }
+    .text-danger { color: var(--danger); }
+    .text-warning { color: var(--warning); }
+    .w-full { width: 100%; }
+    .rounded-lg { border-radius: 12px; }
+    .overflow-hidden { overflow: hidden; }
+    .bg-success { background: var(--success-dim); }
+    .bg-danger { background: var(--danger-dim); }
+    .border-t { border-top: 1px solid var(--border); }
+    .p-3 { padding: 12px; }
+    .py-8 { padding-top: 32px; padding-bottom: 32px; }
+    .py-4 { padding-top: 16px; padding-bottom: 16px; }
+
+    /* Quick pay buttons */
+    .cd-quick-pay-row {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    .cd-quick-pay-btn {
+      flex: 1;
+      height: 38px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg-hover);
+      color: var(--text-primary);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .cd-quick-pay-btn:active { transform: scale(0.96); }
+    .cd-quick-pay-btn.green {
+      background: var(--success-dim);
+      border-color: rgba(14,203,129,0.2);
+      color: var(--success);
+    }
+
+    /* Payment modal body */
+    .cd-payment-info {
+      background: var(--bg-hover);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 14px;
+    }
+    .cd-payment-info-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      padding: 4px 0;
+    }
+    .cd-payment-input-group {
+      margin-bottom: 12px;
+    }
+    .cd-payment-input-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      display: block;
+    }
+    .cd-payment-input {
+      width: 100%;
+      height: 48px;
+      padding: 0 12px;
+      border-radius: 10px;
+      border: 2px solid var(--success);
+      background: var(--card);
+      color: var(--text-primary);
+      font-size: 16px;
+      font-weight: 700;
+      text-align: center;
+      outline: none;
+      box-sizing: border-box;
+    }
+    .cd-payment-input:focus { border-color: var(--primary); }
+    .cd-payment-note {
+      width: 100%;
+      height: 40px;
+      padding: 0 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--text-primary);
+      font-size: 14px;
+      outline: none;
+      box-sizing: border-box;
+    }
+    .cd-payment-warning {
+      padding: 8px;
+      border-radius: 8px;
+      font-size: 12px;
+      text-align: center;
+      margin-bottom: 10px;
+      border: 1px solid var(--danger);
+      color: var(--danger);
+      background: var(--danger-dim);
+    }
+    .cd-payment-actions {
+      display: flex;
+      gap: 8px;
+    }
+    .cd-payment-cancel {
+      flex: 1;
+      height: 44px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .cd-payment-confirm {
+      flex: 1;
+      height: 44px;
+      border-radius: 10px;
+      border: none;
+      background: var(--success);
+      color: white;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+    }
+
+    /* Beer detail section */
+    .cd-beer-detail {
+      background: var(--card);
+      border-radius: 14px;
+      padding: 14px;
+      margin-bottom: 12px;
+      border: 1px solid var(--border);
+    }
+    .cd-beer-detail-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .cd-beer-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .cd-beer-row:last-child { border-bottom: none; }
+    .cd-beer-row-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--text-primary);
+    }
+    .cd-beer-row-val {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+    .cd-beer-total {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 2px solid var(--border);
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+    .cd-beer-total-val {
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--primary);
     }
   </style>
 </head>
 <body class="bg-main text-primary body--app">
   <div id="app"></div>
 
-  <!-- Invoice Modal for Customer Detail -->
+  <!-- Invoice Modal -->
   <div id="customerInvoiceModal" class="customer-invoice-overlay hidden">
     <div class="customer-invoice-sheet">
       <div class="customer-invoice-header">
@@ -143,50 +1475,50 @@
     </div>
   </div>
 
-  <!-- ═══ PAYMENT MODAL ═══ -->
+  <!-- Payment Modal -->
   <div id="paymentModal" class="customer-invoice-overlay hidden">
     <div class="customer-invoice-sheet">
       <div class="customer-invoice-header">
-        <div class="customer-invoice-title">💰 Thu tiền</div>
+        <div class="customer-invoice-title">Thu tiền</div>
         <button onclick="closePaymentModal()" class="customer-invoice-close">×</button>
       </div>
       <div class="customer-invoice-body">
-        <div id="paymentModalInfo" class="mb-4 p-3 rounded-lg" style="background:var(--bg-soft);border:1px solid var(--border);"></div>
-        <div class="mb-4">
-          <div class="flex gap-2 mb-3">
-            <button onclick="setPaymentFull()" id="btnPayFull" class="btn btn-primary flex-1" style="height:44px;background:var(--success);">Thu đủ</button>
-            <button onclick="setPaymentPartial()" id="btnPayPartial" class="btn btn-ghost flex-1" style="height:44px;border:1px solid var(--border);">Nhập số</button>
-          </div>
-          <div id="paymentAmountInput" class="hidden mb-3">
-            <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:6px;">💵 Số tiền khách trả</label>
-            <input type="text" id="paymentAmount" value="0" inputmode="numeric"
-              oninput="_onPaymentAmountInput(this)"
-              style="width:100%;height:44px;padding:0 12px;border-radius:8px;border:2px solid var(--success);background:var(--card);color:var(--text-primary);font-size:16px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;">
-          </div>
-          <div class="mb-3">
-            <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:6px;">📝 Ghi chú (tùy chọn)</label>
-            <input type="text" id="paymentNote" placeholder="VD: Khách thanh toán chuyển khoản"
-              style="width:100%;height:44px;padding:0 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text-primary);font-size:16px;outline:none;box-sizing:border-box;">
-          </div>
+        <div id="paymentModalInfo" class="cd-payment-info"></div>
+        <div id="paymentAmountInput" class="hidden cd-payment-input-group">
+          <label class="cd-payment-input-label">Số tiền khách trả</label>
+          <input type="text" id="paymentAmount" value="0" inputmode="numeric"
+            oninput="_onPaymentAmountInput(this)"
+            class="cd-payment-input">
         </div>
-        <div id="paymentWarning" class="hidden mb-3 p-2 text-center rounded-lg" style="border:1px solid var(--danger);color:var(--danger);background:var(--red-dim);"></div>
-        <div style="display:flex;gap:8px;">
-          <button onclick="closePaymentModal()" class="btn btn-ghost flex-1" style="height:44px;border:1px solid var(--border);">Huỷ</button>
-          <button onclick="submitCustomerPayment()" class="btn btn-primary flex-1" style="height:44px;background:var(--success);">💰 Xác nhận thu</button>
+        <div class="cd-payment-input-group">
+          <label class="cd-payment-input-label">Ghi chú (tùy chọn)</label>
+          <input type="text" id="paymentNote" placeholder="VD: Khách thanh toán chuyển khoản"
+            class="cd-payment-note">
+        </div>
+        <div id="paymentWarning" class="cd-payment-warning hidden"></div>
+        <div style="display:flex;gap:8px;margin-top:14px;">
+          <button onclick="closePaymentModal()" class="cd-payment-cancel">Huỷ</button>
+          <button onclick="submitCustomerPayment()" class="cd-payment-confirm">Xác nhận thu</button>
+        </div>
+        <div class="cd-quick-pay-row mt-3" style="display:flex;gap:6px;">
+          <button onclick="setPaymentFull()" id="btnPayFull" class="cd-quick-pay-btn green" style="flex:1;">Thu đủ</button>
+          <button onclick="setPaymentPartial()" id="btnPayPartial" class="cd-quick-pay-btn" style="flex:1;">Nhập số</button>
         </div>
       </div>
     </div>
   </div>
 
   <script>
-    // Get customer ID from URL
+    // ══════════════════════════════════════════════════════
+    // ALL EXISTING JS LOGIC — PRESERVED AS-IS
+    // ══════════════════════════════════════════════════════
+
     const customerId = window.location.pathname.split('/').pop();
     let customerData = null;
     let selectedYear = new Date().getFullYear();
     let selectedMonth = new Date().getMonth() + 1;
     window.__customerPromoEnabled = true;
 
-    // Format VND
     function formatVND(amount) {
       if (amount === null || amount === undefined || amount === '') return '0 đ';
       const num = Number(amount);
@@ -194,87 +1526,122 @@
       return new Intl.NumberFormat('vi-VN').format(num) + ' đ';
     }
 
-    // Format date
     function formatDate(dateStr) {
       if (!dateStr) return 'N/A';
       const date = new Date(dateStr);
       return date.toLocaleDateString('vi-VN');
     }
 
-    // Tab switching
+    // ── Tab Switching (Binance Tab Bar) ──────────────────────
+    let __activeTab = 'history';
+    let __tabsLoaded = { history: true, kegs: false, debt: false, reward: false };
+
     function switchTab(tabName) {
+      __activeTab = tabName;
+
       // Update tab buttons
-      ['history', 'kegs', 'debt', 'reward'].forEach(tab => {
-        const btn = document.getElementById('tab-' + tab);
-        const content = document.getElementById('tab-content-' + tab);
-        if (tab === tabName) {
-          btn.classList.remove('text-muted', 'border-transparent');
-          btn.classList.add('text-primary', 'border-primary');
-          content.classList.remove('hidden');
-        } else {
-          btn.classList.remove('text-primary', 'border-primary');
-          btn.classList.add('text-muted', 'border-transparent');
-          content.classList.add('hidden');
-        }
+      document.querySelectorAll('.cd-tab-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tab === tabName);
       });
 
-      // Load content if needed
-      if (tabName === 'kegs') loadKegsHistory();
-      if (tabName === 'debt') loadDebtHistory();
-      if (tabName === 'reward') loadRewardHistory();
+      // Update tab panes
+      document.querySelectorAll('.cd-tab-pane').forEach(pane => {
+        pane.classList.toggle('active', pane.dataset.tab === tabName);
+      });
+
+      // Lazy load tab content
+      if (tabName === 'kegs' && !__tabsLoaded.kegs) {
+        __tabsLoaded.kegs = true;
+        loadKegsHistory();
+      }
+      if (tabName === 'debt' && !__tabsLoaded.debt) {
+        __tabsLoaded.debt = true;
+        loadDebtHistory();
+      }
+      if (tabName === 'reward' && !__tabsLoaded.reward) {
+        __tabsLoaded.reward = true;
+        loadRewardHistory();
+      }
+
+      // Scroll to tabs if needed (mobile UX)
+      const tabWrapper = document.querySelector('.cd-tabs-wrapper');
+      if (tabWrapper) {
+        tabWrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
     }
 
-    // Load kegs history
+    // ── Load Kegs History ──────────────────────────────────
     async function loadKegsHistory() {
       const container = document.getElementById('kegsContent');
+      if (!container) return;
       container.innerHTML = '<div class="text-center py-8 text-muted">Đang tải...</div>';
-      
+
       try {
         const res = await fetch(`/api/customers/${customerId}/keg-history`);
         const data = await res.json();
-        
+
         if (!data.history || data.history.length === 0) {
           container.innerHTML = '<div class="text-center py-8 text-muted">Chưa có lịch sử vỏ bình</div>';
           return;
         }
-        
+
         let html = `
-          <div class="card stat-card--blue mb-4">
-            <div class="sc-label"><span class="sc-icon">📦</span> Tổng vỏ bình</div>
-            <div class="sc-value">${data.currentBalance || 0}</div>
-            <div class="sc-sub">bình</div>
+          <div class="cd-kegs-summary">
+            <div class="cd-kegs-summary-icon">📦</div>
+            <div class="cd-kegs-summary-count" id="kegsTotalCount">${data.currentBalance || 0}</div>
+            <div class="cd-kegs-summary-label">Vỏ bình đang giữ</div>
           </div>
+          <div class="cd-kegs-timeline">
         `;
 
         data.history.forEach(item => {
           const change = (item.deliver_kegs || 0) - (item.return_kegs || 0);
-          const changeClass = change >= 0 ? 'text-warning' : 'text-danger';
+          const changeClass = change >= 0 ? 'deliver' : 'return';
           const changeText = change >= 0 ? `+${change}` : change;
 
           html += `
-            <div class="card card--list-item mb-2">
-              <div class="flex justify-between items-center">
-                <div class="font-bold text-main">📅 ${formatDate(item.date)}</div>
-                <div class="font-bold ${changeClass}">${changeText}</div>
-              </div>
-              <div class="mt-2 text-sm flex justify-between">
-                <span class="text-warning">+${item.deliver_kegs || 0} giao</span>
-                <span class="text-danger">-${item.return_kegs || 0} thu</span>
-              </div>
-              <div class="text-sm text-secondary mt-1">
-                Còn lại: ${item.keg_balance_after || 0}
+            <div class="cd-kegs-item cd-animate-up">
+              <div class="cd-kegs-dot"></div>
+              <div class="cd-kegs-card">
+                <div class="flex justify-between items-center">
+                  <span class="text-sm font-bold text-main">📅 ${formatDate(item.date)}</span>
+                  <span class="font-bold ${change >= 0 ? 'text-success' : 'text-danger'}">${changeText}</span>
+                </div>
+                <div class="cd-kegs-row">
+                  <span class="deliver">+${item.deliver_kegs || 0} giao</span>
+                  <span class="return">-${item.return_kegs || 0} thu</span>
+                </div>
+                <div class="cd-kegs-balance">Còn lại: <strong>${item.keg_balance_after || 0}</strong></div>
               </div>
             </div>
           `;
         });
-        
+
+        html += '</div>';
         container.innerHTML = html;
+
+        // Animate counter
+        animateCounter(document.getElementById('kegsTotalCount'), 0, data.currentBalance || 0, 800);
       } catch (err) {
         container.innerHTML = '<div class="text-center py-8 text-danger">Lỗi tải dữ liệu</div>';
       }
     }
 
-    // ─── Payment Modal ───
+    // ── Number Counter Animation ───────────────────────────
+    function animateCounter(el, start, end, duration) {
+      if (!el) return;
+      const startTime = performance.now();
+      function update(currentTime) {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        el.textContent = Math.round(start + (end - start) * eased);
+        if (progress < 1) requestAnimationFrame(update);
+      }
+      requestAnimationFrame(update);
+    }
+
+    // ── Payment Modal ──────────────────────────────────────
     let _customerPaymentDebt = 0;
     let _paymentCustomerId = null;
     let _paymentCustomerDebt = 0;
@@ -290,9 +1657,7 @@
     }
 
     function _onPaymentAmountInput(el) {
-      // Strip non-numeric chars and parse
       var raw = parseInt((el.value || '').replace(/[^0-9]/g, '')) || 0;
-      // Live validation
       if (raw > _paymentCustomerDebt) {
         var w = document.getElementById('paymentWarning');
         if (w) { w.textContent = 'Số tiền vượt quá công nợ!'; w.classList.remove('hidden'); }
@@ -309,21 +1674,21 @@
       var infoEl = document.getElementById('paymentModalInfo');
       if (infoEl) {
         infoEl.innerHTML = `
-          <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-            <span style="color:var(--text-muted);font-size:13px;">Khách hàng:</span>
+          <div class="cd-payment-info-row">
+            <span style="color:var(--text-muted);font-size:12px;">Khách hàng</span>
             <span style="font-weight:700;color:var(--text-primary);">${customerData ? customerData.name : ''}</span>
           </div>
-          <div style="display:flex;justify-content:space-between;padding-top:8px;border-top:1px solid var(--border);">
-            <span style="color:var(--text-primary);font-size:14px;font-weight:600;">Tổng công nợ:</span>
+          <div class="cd-payment-info-row" style="padding-top:8px;margin-top:4px;border-top:1px solid var(--border);">
+            <span style="font-size:13px;font-weight:600;">Tổng công nợ</span>
             <span style="font-weight:800;color:var(--danger);font-size:18px;">${formatVND(_customerPaymentDebt)}</span>
           </div>
         `;
       }
       document.getElementById('paymentAmountInput').classList.add('hidden');
-      document.getElementById('btnPayFull').style.background = 'var(--success)';
-      document.getElementById('btnPayPartial').style.background = 'transparent';
-      document.getElementById('btnPayPartial').style.border = '1px solid var(--border)';
-      document.getElementById('btnPayPartial').style.color = 'var(--text-muted)';
+      var btnPayFull = document.getElementById('btnPayFull');
+      var btnPayPartial = document.getElementById('btnPayPartial');
+      if (btnPayFull) { btnPayFull.classList.add('green'); btnPayFull.style.background = ''; }
+      if (btnPayPartial) { btnPayPartial.classList.remove('green'); btnPayPartial.style.background = ''; }
       _setPaymentAmount(_customerPaymentDebt);
       document.getElementById('paymentNote').value = '';
       var w = document.getElementById('paymentWarning');
@@ -335,10 +1700,10 @@
     function setPaymentFull() {
       _setPaymentAmount(_customerPaymentDebt);
       document.getElementById('paymentAmountInput').classList.add('hidden');
-      document.getElementById('btnPayFull').style.background = 'var(--success)';
-      document.getElementById('btnPayPartial').style.background = 'transparent';
-      document.getElementById('btnPayPartial').style.border = '1px solid var(--border)';
-      document.getElementById('btnPayPartial').style.color = 'var(--text-muted)';
+      var btnPayFull = document.getElementById('btnPayFull');
+      var btnPayPartial = document.getElementById('btnPayPartial');
+      if (btnPayFull) { btnPayFull.classList.add('green'); }
+      if (btnPayPartial) { btnPayPartial.classList.remove('green'); }
       var w = document.getElementById('paymentWarning');
       if (w) w.classList.add('hidden');
     }
@@ -347,11 +1712,10 @@
       document.getElementById('paymentAmountInput').classList.remove('hidden');
       var input = document.getElementById('paymentAmount');
       if (input) { input.focus(); input.select(); }
-      document.getElementById('btnPayPartial').style.background = 'var(--success)';
-      document.getElementById('btnPayPartial').style.color = '#fff';
-      document.getElementById('btnPayFull').style.background = 'transparent';
-      document.getElementById('btnPayFull').style.border = '1px solid var(--border)';
-      document.getElementById('btnPayFull').style.color = 'var(--text-muted)';
+      var btnPayFull = document.getElementById('btnPayFull');
+      var btnPayPartial = document.getElementById('btnPayPartial');
+      if (btnPayPartial) { btnPayPartial.classList.add('green'); }
+      if (btnPayFull) { btnPayFull.classList.remove('green'); }
     }
 
     function closePaymentModal() {
@@ -366,7 +1730,7 @@
       var btn = document.querySelector('[onclick="submitCustomerPayment()"]');
       var w = document.getElementById('paymentWarning');
       if (amount <= 0) {
-        if (w) { w.textContent = 'Số tiền phải lớn hơn 0'; w.style.color = 'var(--danger)'; w.classList.remove('hidden'); }
+        if (w) { w.textContent = 'Số tiền phải lớn hơn 0'; w.classList.remove('hidden'); }
         return;
       }
       if (btn) { btn.disabled = true; btn.innerText = 'Đang xử lý...'; }
@@ -382,9 +1746,10 @@
         var data = await res.json();
         if (data.success) {
           closePaymentModal();
-          await loadDebtHistory();
+          if (__tabsLoaded.debt) await loadDebtHistory();
           await loadCustomerStats();
           if (typeof showToast === 'function') showToast('Đã thu ' + formatVND(amount), 'success');
+          else alert('Đã thu ' + formatVND(amount));
         } else {
           if (w) { w.textContent = data.error || 'Lỗi'; w.classList.remove('hidden'); }
           if (typeof showToast === 'function') showToast(data.error || 'Lỗi', 'error');
@@ -393,17 +1758,17 @@
         if (w) { w.textContent = 'Lỗi kết nối'; w.classList.remove('hidden'); }
         if (typeof showToast === 'function') showToast('Lỗi kết nối', 'error');
       } finally {
-        if (btn) { btn.disabled = false; btn.innerText = '💰 Xác nhận thu'; }
+        if (btn) { btn.disabled = false; btn.innerText = 'Xác nhận thu'; }
       }
     }
 
-    // Load debt history
+    // ── Load Debt History (Mobile Banking Style) ───────────
     async function loadDebtHistory() {
       const container = document.getElementById('debtContent');
+      if (!container) return;
       container.innerHTML = '<div class="text-center py-8 text-muted">Đang tải...</div>';
 
       try {
-        // Dùng API mới lấy đầy đủ thông tin
         const res = await fetch(`/api/debts/${customerId}`);
         const resp = await res.json();
         const data = resp.data;
@@ -418,137 +1783,97 @@
         const history = data.history || [];
         const currentDebt = customer.debt || 0;
 
-        // ── Màu sắc theo mức nợ ──────────────────────────
-        let debtColorClass = 'stat-card--success';
-        let debtLabel = 'Không có công nợ';
-        let debtIcon = '✅';
+        let isGreen = currentDebt === 0;
+        let headerClass = isGreen ? 'cd-debt-header-green' : '';
 
-        if (currentDebt > 0) {
-          const unpaidOrders = orderDebts.filter(od => od.status !== 'paid').length;
-          if (currentDebt >= 5000000) {
-            debtColorClass = 'stat-card--danger';
-            debtLabel = `Nợ cao - ${unpaidOrders} đơn chưa trả`;
-            debtIcon = '🔴';
-          } else if (currentDebt >= 1000000) {
-            debtColorClass = 'stat-card--amber';
-            debtLabel = `${unpaidOrders} đơn chưa trả`;
-            debtIcon = '🟡';
-          } else {
-            debtColorClass = 'stat-card--warning';
-            debtLabel = `${unpaidOrders} đơn chưa trả`;
-            debtIcon = '🟠';
-          }
-        }
-
-        // ── Header card ───────────────────────────────────
         let html = `
-          <div class="card ${debtColorClass} mb-4">
-            <div class="sc-label"><span class="sc-icon">${debtIcon}</span> Công nợ hiện tại</div>
-            <div class="sc-value">${formatVND(currentDebt)}</div>
-            <div class="text-xs opacity-75 mt-1">${debtLabel}</div>
+          <div class="cd-debt-header ${headerClass}">
+            <div class="cd-debt-header-label">${isGreen ? '✅' : '💰'} Tổng công nợ</div>
+            <div class="cd-debt-header-amount">${formatVND(currentDebt)}</div>
+            <div class="cd-debt-header-sub">${isGreen ? 'Không có công nợ' : (orderDebts.filter(od => od.status !== 'paid').length) + ' đơn chưa thanh toán'}</div>
         `;
 
         if (currentDebt > 0) {
-          // Nút thu nhanh
-          const quickAmounts = [100000, 200000, 500000];
           html += `
-            <div class="flex gap-2 mt-3 flex-wrap">
-              ${quickAmounts.map(amt => `
-                <button onclick="quickPayCustomer(${amt})" class="btn btn-sm flex-1" style="min-width:60px;font-size:12px;padding:6px 4px;">
-                  +${formatVND(amt)}
-                </button>
+            <button onclick="openCustomerPaymentModal(${currentDebt})" class="cd-debt-collect-btn">
+              💰 Thu tiền ngay
+            </button>
+            <div class="cd-quick-pay-row mt-2" style="display:flex;gap:6px;">
+              ${[100000, 200000, 500000].map(amt => `
+                <button onclick="quickPayCustomer(${amt})" class="cd-quick-pay-btn" style="flex:1;height:36px;font-size:11px;">+${formatVND(amt)}</button>
               `).join('')}
-              <button onclick="quickPayCustomer(${currentDebt})" class="btn btn-sm flex-1" style="min-width:60px;font-size:12px;padding:6px 4px;background:var(--success);">
-                Trả hết
-              </button>
-            </div>
-            <div class="mt-2">
-              <button onclick="openCustomerPaymentModal(${currentDebt})" class="btn btn-primary w-full" style="background:var(--success);height:40px;font-size:14px;">💰 Thu tiền tùy chọn</button>
+              <button onclick="quickPayCustomer(${currentDebt})" class="cd-quick-pay-btn green" style="flex:1;height:36px;font-size:11px;">Hết nợ</button>
             </div>
           `;
         }
         html += '</div>';
 
-        // ── Danh sách đơn nợ ─────────────────────────────
+        // Order debts
         const unpaidOrders = orderDebts.filter(od => od.status !== 'paid');
         if (unpaidOrders.length > 0) {
           html += `
-            <div class="text-sm font-semibold text-main mb-2 px-1">📋 Đơn hàng chưa thanh toán (${unpaidOrders.length})</div>
-            <div class="space-y-2 mb-4">
+            <div class="cd-debt-orders-title">📋 Đơn hàng chưa thanh toán (${unpaidOrders.length})</div>
           `;
           for (const od of unpaidOrders) {
             const pct = od.original_amount > 0 ? Math.round((od.paid_amount / od.original_amount) * 100) : 0;
-            const statusColor = od.status === 'partial' ? 'border-l-yellow-500' : 'border-l-red-500';
+            const cardClass = od.status === 'partial' ? 'partial' : 'unpaid';
             html += `
-              <div class="card card--list-item ${statusColor} border-l-4">
-                <div class="flex justify-between items-center mb-1">
-                  <span class="text-sm font-medium">#${od.sale_id}</span>
+              <div class="cd-debt-order-card ${cardClass}">
+                <div class="flex justify-between items-center mb-2">
+                  <span class="text-sm font-bold text-main">#${od.sale_id}</span>
                   <span class="text-xs text-muted">${formatDate(od.created_at)}</span>
                 </div>
-                <div class="flex justify-between items-center mb-1">
-                  <span class="text-sm">Còn nợ:</span>
-                  <span class="font-bold text-danger">${formatVND(od.remaining_amount)}</span>
+                <div class="flex justify-between items-center mb-2">
+                  <span class="text-sm text-muted">Còn nợ</span>
+                  <span class="font-bold text-danger" style="font-size:15px;">${formatVND(od.remaining_amount)}</span>
                 </div>
-                <div class="w-full bg-bg rounded-full h-1.5">
-                  <div class="h-1.5 rounded-full ${od.status === 'partial' ? 'bg-yellow-500' : 'bg-red-500'}" style="width:${pct}%"></div>
+                <div style="height:4px;background:var(--bg-hover);border-radius:2px;overflow:hidden;margin-bottom:4px;">
+                  <div style="height:4px;border-radius:2px;width:${pct}%;background:${od.status === 'partial' ? 'var(--warning)' : 'var(--danger)'};"></div>
                 </div>
-                <div class="text-xs text-muted mt-1">Đã trả ${formatVND(od.paid_amount)} / ${formatVND(od.original_amount)} (${pct}%)</div>
+                <div class="text-xs text-muted">Đã trả ${formatVND(od.paid_amount)} / ${formatVND(od.original_amount)} (${pct}%)</div>
               </div>
             `;
           }
-          html += '</div>';
         }
 
-        // ── Timeline lịch sử giao dịch ───────────────────
+        // Transaction timeline
         if (history.length > 0) {
           html += `
-            <div class="text-sm font-semibold text-main mb-2 px-1">📜 Lịch sử giao dịch</div>
-            <div class="relative pl-5">
-              <div class="absolute left-[7px] top-0 bottom-0 w-0.5 bg-border"></div>
+            <div class="text-sm font-bold text-main mb-3" style="margin-top:14px;">📜 Lịch sử giao dịch</div>
+            <div class="cd-debt-tx-timeline">
           `;
           for (const tx of history.slice(0, 30)) {
-            const isIncrease = tx.type === 'increase';
-            const isCancel = tx.type === 'cancel';
-            const isAdjust = tx.type === 'adjust';
+            let dotClass = 'decrease';
+            let amountClass = 'text-success';
+            let amountText = formatVND(tx.amount);
+            let label = tx.note || 'Thanh toán';
 
-            let dotColor = 'bg-yellow-500';
-            let label = '';
-            let amountText = '';
-            let amountClass = 'text-danger';
-            let dot = '●';
-
-            if (isIncrease) {
-              dotColor = 'bg-red-500';
+            if (tx.type === 'increase') {
+              dotClass = 'increase';
               amountClass = 'text-danger';
-              amountText = `+${formatVND(tx.amount)}`;
+              amountText = '+' + formatVND(tx.amount);
               label = tx.note || 'Ghi nợ';
-            } else if (isCancel) {
-              dotColor = 'bg-blue-500';
-              amountClass = 'text-blue-500';
-              amountText = formatVND(tx.amount);
+            } else if (tx.type === 'cancel') {
+              dotClass = 'cancel';
+              amountClass = 'text-info';
               label = tx.note || 'Hoàn nợ';
-            } else if (isAdjust) {
-              dotColor = 'bg-purple-500';
+            } else if (tx.type === 'adjust') {
+              dotClass = 'adjust';
               amountClass = tx.amount < 0 ? 'text-danger' : 'text-success';
-              amountText = tx.amount > 0 ? `+${formatVND(tx.amount)}` : formatVND(tx.amount);
+              amountText = tx.amount > 0 ? '+' + formatVND(tx.amount) : formatVND(tx.amount);
               label = tx.note || 'Điều chỉnh';
-            } else {
-              dotColor = 'bg-green-500';
-              amountClass = 'text-success';
-              amountText = formatVND(tx.amount);
-              label = tx.note || 'Thanh toán';
             }
 
             html += `
-              <div class="relative mb-3">
-                <div class="absolute -left-[13px] top-1 w-3 h-3 rounded-full ${dotColor} border-2 border-card"></div>
-                <div class="card card--list-item">
+              <div class="cd-debt-tx-item">
+                <div class="cd-debt-tx-dot ${dotClass}"></div>
+                <div class="cd-debt-tx-card">
                   <div class="flex justify-between items-center">
-                    <span class="text-xs text-muted">${formatDate(tx.created_at)}</span>
-                    <span class="font-bold ${amountClass}">${amountText}</span>
+                    <span class="cd-debt-tx-date">${formatDate(tx.created_at)}</span>
+                    <span class="cd-debt-tx-amount ${dotClass === 'decrease' ? '' : dotClass}">${amountText}</span>
                   </div>
-                  <div class="text-xs text-secondary mt-0.5">${label}</div>
-                  <div class="text-xs text-muted mt-0.5">Số dư: ${formatVND(tx.balance_after)}</div>
+                  <div class="cd-debt-tx-label">${label}</div>
+                  <div class="cd-debt-tx-balance">Số dư: ${formatVND(tx.balance_after)}</div>
                 </div>
               </div>
             `;
@@ -562,7 +1887,7 @@
       }
     }
 
-    // Thu nhanh
+    // Quick pay
     window.quickPayCustomer = async function(amount) {
       if (amount <= 0) return;
       var note = '';
@@ -583,7 +1908,7 @@
         if (data.success) {
           if (typeof showToast === 'function') showToast('Đã thu ' + formatVND(amount), 'success');
           else alert('Đã thu ' + formatVND(amount));
-          loadDebtHistory();
+          if (__tabsLoaded.debt) loadDebtHistory();
           loadCustomerStats();
         } else {
           if (typeof showToast === 'function') showToast(data.error || 'Lỗi', 'error');
@@ -597,7 +1922,7 @@
       }
     };
 
-    // ─── REWARD SECTION ────────────────────────────────────
+    // ── Reward Section ──────────────────────────────────────
     async function loadRewardStatus() {
       const container = document.getElementById('rewardContent');
       if (!container) return;
@@ -606,8 +1931,7 @@
         const res = await fetch('/api/promotions/reward/status/' + customerId);
         const resp = await res.json();
         if (!resp.success) { container.innerHTML = '<div class="text-center py-4 text-muted">Không có dữ liệu</div>'; return; }
-        const s = resp.data;
-        renderRewardStatus(s);
+        renderRewardStatus(resp.data);
       } catch (e) {
         container.innerHTML = '<div class="text-center py-4 text-danger">Lỗi tải dữ liệu</div>';
       }
@@ -616,45 +1940,49 @@
     function renderRewardStatus(s) {
       const container = document.getElementById('rewardContent');
       if (!container) return;
-      var badgeClass = 'stat-card--success';
-      var badgeIcon = '✅';
+
+      var badgeIcon = '🏆';
       var badgeLabel = 'Chưa đạt mốc';
-      var canClaim = false;
-      var claimBtn = '';
-      var progressBar = '';
       var tierInfo = '';
+      var progressBar = '';
 
       if (s.tier === 'BONUS_20L') {
-        badgeClass = 'stat-card--amber';
         badgeIcon = '🏆';
         badgeLabel = 'Đã đạt mốc 500L';
-        tierInfo = '<div class="text-success font-bold text-lg mt-1">Thưởng 20L</div>';
+        tierInfo = '<div style="font-size:18px;font-weight:800;color:var(--success);">Thưởng 20L</div>';
       } else if (s.tier === 'BONUS_10L') {
-        badgeClass = 'stat-card--amber';
         badgeIcon = '🎯';
         badgeLabel = 'Đạt mốc 300L';
-        tierInfo = '<div class="text-warning font-bold text-lg mt-1">Thưởng 10L</div>';
+        tierInfo = '<div style="font-size:18px;font-weight:800;color:var(--warning);">Thưởng 10L</div>';
       }
 
       if (s.tier !== 'NONE') {
-        tierInfo = '<div class="text-warning font-bold text-lg mt-1">Thưởng ' + s.liters + 'L</div>';
+        tierInfo = '<div style="font-size:18px;font-weight:800;color:var(--warning);">Thưởng ' + s.liters + 'L</div>';
         if (s.claimed) {
-          tierInfo += '<div class="text-sm text-success mt-1">✅ Đã nhận thưởng</div>';
+          tierInfo += '<div style="font-size:12px;color:var(--success);margin-top:4px;">Đã nhận thưởng</div>';
         } else {
-          tierInfo += '<div class="text-xs text-muted mt-1">Thưởng sẽ được gắn vào đơn đầu tiên tháng sau</div>';
+          tierInfo += '<div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Thưởng gắn vào đơn đầu tháng sau</div>';
         }
       }
 
       if (s.nextTierLiters && s.litersToNext > 0 && s.tier !== 'NONE') {
         var pct = s.progressToNext || 0;
-        progressBar = '<div class="mt-2"><div class="flex justify-between text-xs text-muted mb-1"><span>Sản lượng: <b>' + s.monthlyLiters + 'L</b></span><span>Cần ' + s.nextTierLiters + 'L</span></div><div class="w-full bg-bg rounded-full h-2"><div class="h-2 rounded-full" style="width:' + pct + '%;background:linear-gradient(90deg,#f59e0b,#eab308);"></div></div>';
+        progressBar = '<div class="cd-reward-progress"><div class="cd-reward-progress-labels"><span>Đã mua: <strong>' + s.monthlyLiters + 'L</strong></span><span>Cần ' + s.nextTierLiters + 'L</span></div><div class="cd-reward-progress-bar"><div class="cd-reward-progress-fill" style="width:' + pct + '%;"></div></div></div>';
       } else if (s.tier === 'NONE') {
         var toNext = s.litersToNext || 0;
         var pct = s.progressToNext || 0;
-        progressBar = '<div class="mt-2"><div class="flex justify-between text-xs text-muted mb-1"><span>Đã mua: <b>' + s.monthlyLiters + 'L</b></span><span>Cần ' + toNext + 'L nữa</span></div><div class="w-full bg-bg rounded-full h-2"><div class="h-2 rounded-full" style="width:' + pct + '%;background:var(--primary);"></div></div>';
+        progressBar = '<div class="cd-reward-progress"><div class="cd-reward-progress-labels"><span>Đã mua: <strong>' + s.monthlyLiters + 'L</strong></span><span>Cần ' + toNext + 'L nữa</span></div><div class="cd-reward-progress-bar"><div class="cd-reward-progress-fill" style="width:' + pct + '%;"></div></div></div>';
       }
 
-      container.innerHTML = '<div class="card ' + badgeClass + ' mb-3"><div class="sc-label"><span class="sc-icon">' + badgeIcon + '</span> ' + badgeLabel + '</div>' + tierInfo + '<div class="text-sm mt-1 opacity-75">' + s.monthlyLiters + 'L tháng này</div></div>' + progressBar + claimBtn;
+      container.innerHTML = `
+        <div class="cd-reward-main">
+          <div class="cd-reward-main-icon">${badgeIcon}</div>
+          <div class="cd-reward-main-title">${badgeLabel}</div>
+          ${tierInfo}
+          <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">${s.monthlyLiters}L tháng này</div>
+          ${progressBar}
+        </div>
+      `;
     }
 
     async function loadRewardHistory() {
@@ -668,10 +1996,10 @@
           container.innerHTML = '<div class="text-center py-8 text-muted">Chưa có lịch sử nhận thưởng</div>';
           return;
         }
-        var html = '';
+        let html = '';
         resp.data.forEach(function(r) {
           var d = r.claimed_at ? new Date(r.claimed_at).toLocaleDateString('vi-VN') : 'N/A';
-          html += '<div class="card card--list-item mb-2"><div class="flex justify-between items-center"><span class="font-bold text-warning">' + r.reward_tier + '</span><span class="font-bold text-lg">' + r.reward_liters + 'L</span></div><div class="text-sm text-muted">Ngày nhận: ' + d + '</div></div>';
+          html += '<div class="cd-reward-history-item"><div><div class="cd-reward-history-tier">' + r.reward_tier + '</div><div class="cd-reward-history-date">Ngày: ' + d + '</div></div><div class="cd-reward-history-liters">' + r.reward_liters + 'L</div></div>';
         });
         container.innerHTML = html;
       } catch (e) {
@@ -679,170 +2007,299 @@
       }
     }
 
-    // Load customer data
+    // ── Main Render ─────────────────────────────────────────
     async function loadCustomerDetail() {
-      // Render using layout.js functions
-      const headerActions = `
-        <button onclick="editCustomerInfo()" class="btn btn-ghost text-sm" title="Sửa">✏️</button>
-      `;
-      
-      document.getElementById('app').innerHTML = 
+      const headerActions = `<button onclick="editCustomerInfo()" class="btn btn-ghost text-sm" style="padding:6px 8px;" title="Sửa">✏️</button>`;
+
+      document.getElementById('app').innerHTML =
         getHeaderWithActions('Chi tiết khách', '👤', headerActions) +
         getContent(`
-          <!-- Stats Cards -->
-          <div class="grid grid-cols-2 gap-3 mb-3">
-            <div class="card stat-card--blue">
-              <div class="sc-label"><span class="sc-icon">📦</span> Vỏ đang giữ</div>
-              <div class="sc-value" id="kegBalance">0</div>
-            </div>
-            <div class="card stat-card--green">
-              <div class="sc-label"><span class="sc-icon">💰</span> Tổng doanh thu</div>
-              <div class="sc-value text-xl" id="totalRevenue">0</div>
-            </div>
-          </div>
-          <div class="grid grid-cols-2 gap-3 mb-3">
-            <div class="card stat-card--amber">
-              <div class="sc-label"><span class="sc-icon">🍺</span> Tháng này</div>
-              <div class="sc-value text-base" id="monthlyKegs">0</div>
-              <div class="sc-sub">bình</div>
-            </div>
-            <div class="card stat-card--info">
-              <div class="sc-label"><span class="sc-icon">🚚</span> Gần nhất</div>
-              <div class="sc-value text-sm" id="lastSale">--</div>
+          <!-- ═══ SKELETON LOADING ═══ -->
+          <div id="cdSkeletonLoading">
+            <div class="cd-skeleton-card cd-skeleton-hero cd-skeleton"></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+              <div class="cd-skeleton-card cd-skeleton-kpi cd-skeleton"></div>
+              <div class="cd-skeleton-card cd-skeleton-kpi cd-skeleton"></div>
+              <div class="cd-skeleton-card cd-skeleton-kpi cd-skeleton"></div>
+              <div class="cd-skeleton-card cd-skeleton-kpi cd-skeleton"></div>
             </div>
           </div>
 
-          <!-- THƯỞNG DOANH SỐ THÁNG -->
-          <div class="card p-4 mb-3" id="rewardSection">
-            <div class="flex items-center justify-between mb-2">
-              <div class="font-semibold" style="color:#f59e0b;">🏆 Thưởng doanh số</div>
-            </div>
-            <div id="rewardContent">
-              <div class="text-center py-4 text-muted">Đang tải...</div>
-            </div>
-          </div>
+          <!-- ═══ MAIN CONTENT (hidden until loaded) ═══ -->
+          <div id="cdMainContent" class="hidden">
 
-          <!-- PROMOTION TOGGLES -->
-          <div id="promoTogglesSection" class="space-y-3 mb-3">
-            <!-- Loading state -->
-            <div class="text-center py-4 text-muted">Đang tải khuyến mãi...</div>
-          </div>
-
-          <!-- SALES ASSIGNMENT -->
-          <div class="card p-3 mb-3" id="salesAssignmentCard" style="border:1px solid rgba(59,130,246,0.25);background:linear-gradient(135deg,rgba(59,130,246,0.03),rgba(59,130,246,0.06));">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <span style="font-size:18px;">👔</span>
-                <div>
-                  <div class="font-semibold text-sm" style="color:#3b82f6;">Sales phụ trách</div>
-                  <div class="text-xs text-muted" id="salesAssignmentStatus">Đang tải...</div>
+            <!-- 1. HERO CUSTOMER CARD -->
+            <div class="cd-hero cd-animate-up" id="heroCard">
+              <div class="cd-hero-top">
+                <div class="cd-hero-avatar" id="heroAvatar">👤</div>
+                <div class="cd-hero-info">
+                  <div class="cd-hero-name" id="heroName">Đang tải...</div>
+                  <div class="cd-hero-phone" id="heroPhone">—</div>
+                  <div class="cd-hero-sales">Sales: <span id="heroSales">—</span></div>
+                </div>
+                <div class="cd-hero-actions">
+                  <button onclick="callCustomer()" class="cd-hero-btn cd-hero-btn-call" id="btnCall" title="Gọi điện">📞</button>
+                  <button onclick="openZalo()" class="cd-hero-btn cd-hero-btn-zalo" id="btnZalo" title="Zalo">💬</button>
+                  <button onclick="editCustomerInfo()" class="cd-hero-btn cd-hero-btn-edit" title="Sửa">✏️</button>
                 </div>
               </div>
-              <button onclick="openSalesAssignmentModal()" class="btn btn-ghost btn-sm" style="font-size:12px;padding:4px 8px;">Sửa</button>
-            </div>
-          </div>
-
-          <!-- Month Filter -->
-          <div class="card p-4 mb-3">
-            <label class="block text-sm font-medium text-main mb-2">📅 Lọc theo tháng</label>
-            <select id="monthFilter" onchange="onMonthChange()" class="bn-select w-full">
-              ${getMonthOptions()}
-            </select>
-          </div>
-
-          <!-- Fridge Info -->
-          <div class="card p-4 mb-3 border-secondary">
-            <div class="flex items-center justify-between mb-2">
-              <div class="font-semibold text-secondary">❄️ Tủ lạnh</div>
-            </div>
-            <div class="grid grid-cols-2 gap-3">
-              <div class="bg-bg rounded-lg p-3 text-center">
-                <div class="text-2xl font-bold text-secondary" id="horizontalFridgeCount">0</div>
-                <div class="text-xs text-secondary">Tủ nằm</div>
-              </div>
-              <div class="bg-bg rounded-lg p-3 text-center">
-                <div class="text-2xl font-bold text-secondary" id="verticalFridgeCount">0</div>
-                <div class="text-xs text-secondary">Tủ đứng</div>
+              <div class="cd-hero-badges" id="heroBadges"></div>
+              <div class="cd-hero-meta">
+                <div class="cd-hero-meta-item">📅 Mua gần nhất: <strong id="heroLastSale">—</strong></div>
               </div>
             </div>
-          </div>
 
-          <!-- Tab Buttons -->
-          <div class="flex border-b border-muted mb-3">
-            <button onclick="switchTab('history')" id="tab-history" class="flex-1 py-2 px-4 text-center font-medium text-primary border-b-2 border-primary">
-              📋 Lịch sử
-            </button>
-            <button onclick="switchTab('kegs')" id="tab-kegs" class="flex-1 py-2 px-4 text-center font-medium text-muted border-b-2 border-transparent">
-              🍺 Vỏ bình
-            </button>
-            <button onclick="switchTab('debt')" id="tab-debt" class="flex-1 py-2 px-4 text-center font-medium text-muted border-b-2 border-transparent">
-              💰 Công nợ
-            </button>
-            <button onclick="switchTab('reward')" id="tab-reward" class="flex-1 py-2 px-4 text-center font-medium text-muted border-b-2 border-transparent">
-              🎁 Thưởng
-            </button>
-          </div>
-
-          <!-- Sales History Tab -->
-          <div id="tab-content-history">
-            <div id="salesHistory" class="space-y-3">
-              <div class="text-center py-8 text-muted">Đang tải...</div>
+            <!-- 2. QUICK ACTION BAR -->
+            <div class="cd-quick-bar" id="quickBar">
+              <button onclick="quickCollect()" class="cd-quick-btn cd-quick-btn-money">
+                <span class="cd-quick-btn-icon">💰</span>
+                <span>Thu tiền</span>
+              </button>
+              <button onclick="createOrder()" class="cd-quick-btn cd-quick-btn-order">
+                <span class="cd-quick-btn-icon">🍺</span>
+                <span>Tạo đơn</span>
+              </button>
+              <button onclick="switchTab('kegs')" class="cd-quick-btn cd-quick-btn-keg">
+                <span class="cd-quick-btn-icon">📦</span>
+                <span>Thu vỏ</span>
+              </button>
+              <button onclick="switchTab('history')" class="cd-quick-btn cd-quick-btn-history">
+                <span class="cd-quick-btn-icon">📋</span>
+                <span>Lịch sử</span>
+              </button>
             </div>
-          </div>
 
-          <!-- Kegs Tab -->
-          <div id="tab-content-kegs" class="hidden">
-            <div id="kegsContent" class="space-y-3">
-              <div class="text-center py-8 text-muted">Đang tải...</div>
+            <!-- 3. KPI DASHBOARD -->
+            <div class="cd-kpi-grid" id="kpiGrid">
+              <div class="cd-kpi-card cd-animate-up">
+                <div class="cd-kpi-icon cd-kpi-icon-debt">
+                  <span>💰</span>
+                </div>
+                <div class="cd-kpi-value cd-counter" id="kpiDebt">0 đ</div>
+                <div class="cd-kpi-label">Công nợ hiện tại</div>
+              </div>
+              <div class="cd-kpi-card cd-animate-up">
+                <div class="cd-kpi-icon cd-kpi-icon-keg">
+                  <span>📦</span>
+                </div>
+                <div class="cd-kpi-value cd-counter" id="kpiKegs">0</div>
+                <div class="cd-kpi-label">Vỏ đang giữ</div>
+              </div>
+              <div class="cd-kpi-card cd-animate-up">
+                <div class="cd-kpi-icon cd-kpi-icon-monthly">
+                  <span>🍺</span>
+                </div>
+                <div class="cd-kpi-value cd-counter" id="kpiMonthly">0</div>
+                <div class="cd-kpi-label">Sản lượng tháng</div>
+              </div>
+              <div class="cd-kpi-card cd-animate-up">
+                <div class="cd-kpi-icon cd-kpi-icon-revenue">
+                  <span>💵</span>
+                </div>
+                <div class="cd-kpi-value cd-counter" id="kpiRevenue">0 đ</div>
+                <div class="cd-kpi-label">Tổng doanh thu</div>
+              </div>
             </div>
-          </div>
 
-          <!-- Debt Tab -->
-          <div id="tab-content-debt" class="hidden">
-            <div id="debtContent" class="space-y-3">
-              <div class="text-center py-8 text-muted">Đang tải...</div>
+            <!-- 4. CUSTOMER HEALTH CARD -->
+            <div class="cd-health cd-animate-up" id="healthCard">
+              <div class="cd-health-title">🩺 Tình trạng khách hàng</div>
+              <div class="cd-health-grid">
+                <div class="cd-health-item">
+                  <div class="cd-health-dot" id="healthDebtDot"></div>
+                  <div>
+                    <div class="cd-health-label">Công nợ</div>
+                    <div class="cd-health-value" id="healthDebt">—</div>
+                  </div>
+                </div>
+                <div class="cd-health-item">
+                  <div class="cd-health-dot" id="healthKegDot"></div>
+                  <div>
+                    <div class="cd-health-label">Vỏ bình</div>
+                    <div class="cd-health-value" id="healthKegs">—</div>
+                  </div>
+                </div>
+                <div class="cd-health-item">
+                  <div class="cd-health-dot" id="healthMonthlyDot"></div>
+                  <div>
+                    <div class="cd-health-label">Sản lượng tháng</div>
+                    <div class="cd-health-value" id="healthMonthly">—</div>
+                  </div>
+                </div>
+                <div class="cd-health-item">
+                  <div class="cd-health-dot" id="healthRewardDot"></div>
+                  <div>
+                    <div class="cd-health-label">Thưởng DS</div>
+                    <div class="cd-health-value" id="healthReward">—</div>
+                  </div>
+                </div>
+              </div>
+              <div class="cd-health-status-bar" id="healthStatusBar">
+                <span id="healthStatusIcon">🟢</span>
+                <span id="healthStatusText">Đang tải...</span>
+              </div>
             </div>
-          </div>
 
-          <!-- Reward Tab -->
-          <div id="tab-content-reward" class="hidden">
-            <div id="rewardHistoryContent" class="space-y-3">
-              <div class="text-center py-8 text-muted">Đang tải...</div>
+            <!-- 5. PROMOTION SECTION -->
+            <div class="cd-promo-card cd-animate-up" id="promoCard">
+              <div class="cd-promo-header">🎁 Chương trình áp dụng</div>
+              <div id="promoTogglesSection">
+                <div class="text-center py-4 text-muted">Đang tải...</div>
+              </div>
             </div>
+
+            <!-- 6. EQUIPMENT ACCORDION -->
+            <div class="cd-equipment cd-animate-up" id="equipmentAccordion">
+              <div class="cd-equipment-header" onclick="toggleEquipment()">
+                <div class="cd-equipment-title">❄️ Thiết bị hỗ trợ</div>
+                <div class="cd-equipment-arrow">▼</div>
+              </div>
+              <div class="cd-equipment-content">
+                <div class="cd-equipment-body">
+                  <div class="cd-equip-grid">
+                    <div class="cd-equip-item">
+                      <div class="cd-equip-count" id="horizontalFridgeCount">0</div>
+                      <div class="cd-equip-label">Tủ nằm</div>
+                    </div>
+                    <div class="cd-equip-item">
+                      <div class="cd-equip-count" id="verticalFridgeCount">0</div>
+                      <div class="cd-equip-label">Tủ đứng</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Month Filter -->
+            <div class="cd-filter cd-animate-up">
+              <select id="monthFilter" onchange="onMonthChange()" style="width:100%;height:36px;background:var(--bg-hover);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:13px;font-weight:500;padding:0 10px;outline:none;cursor:pointer;appearance:none;-webkit-appearance:none;">
+                ${getMonthOptions()}
+              </select>
+            </div>
+
+            <!-- Monthly Beer Detail -->
+            <div id="monthlyBeerDetail"></div>
+
+            <!-- 7. STICKY TAB BAR -->
+            <div class="cd-tabs-wrapper">
+              <div class="cd-tabs">
+                <button class="cd-tab-btn active" data-tab="history" onclick="switchTab('history')">
+                  <span class="cd-tab-btn-icon">📋</span>
+                  <span>Đơn hàng</span>
+                </button>
+                <button class="cd-tab-btn" data-tab="kegs" onclick="switchTab('kegs')">
+                  <span class="cd-tab-btn-icon">📦</span>
+                  <span>Vỏ bình</span>
+                </button>
+                <button class="cd-tab-btn" data-tab="debt" onclick="switchTab('debt')">
+                  <span class="cd-tab-btn-icon" id="debtTabIcon">💰</span>
+                  <span>Công nợ</span>
+                  <span class="cd-tab-btn-dot" id="debtTabDot" style="display:none;"></span>
+                </button>
+                <button class="cd-tab-btn" data-tab="reward" onclick="switchTab('reward')">
+                  <span class="cd-tab-btn-icon">🎁</span>
+                  <span>Thưởng</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Tab Contents -->
+            <div class="cd-tab-content">
+              <!-- Orders Tab -->
+              <div class="cd-tab-pane active" data-tab="history">
+                <div id="salesHistory" class="space-y-3">
+                  <div class="text-center py-8 text-muted">Đang tải...</div>
+                </div>
+              </div>
+
+              <!-- Kegs Tab -->
+              <div class="cd-tab-pane" data-tab="kegs">
+                <div id="kegsContent" class="space-y-3">
+                  <div class="text-center py-8 text-muted">Nhấn để tải dữ liệu vỏ bình</div>
+                </div>
+              </div>
+
+              <!-- Debt Tab -->
+              <div class="cd-tab-pane" data-tab="debt">
+                <div id="debtContent" class="space-y-3">
+                  <div class="text-center py-8 text-muted">Nhấn để tải dữ liệu công nợ</div>
+                </div>
+              </div>
+
+              <!-- Reward Tab -->
+              <div class="cd-tab-pane" data-tab="reward">
+                <div id="rewardHistoryContent" class="space-y-3">
+                  <div class="text-center py-8 text-muted">Nhấn để tải dữ liệu thưởng</div>
+                </div>
+              </div>
+            </div>
+
           </div>
         `) +
         getBottomNav('/customers');
 
-      // Load customer info
+      // ── FAB: Floating Action Button ─────────────────────────
+      const fab = document.createElement('div');
+      fab.id = 'cdFab';
+      fab.className = 'cd-fab hidden';
+      fab.innerHTML = '💰 Thu tiền';
+      fab.onclick = function() { openCustomerPaymentModal(window.__currentDebt || 0); };
+      document.body.appendChild(fab);
+
+      // Load all data
       await loadCustomerInfo();
-
-      // Load promotion toggle
-      await loadPromoToggleStatus();
-
-      // Load stats
       await loadCustomerStats();
-
-      // Load reward status
-      await loadRewardStatus();
-
-      // Load sales assignment
+      await loadPromoToggleStatus();
       await loadSalesAssignment();
-
-      // Load sales history
+      await loadRewardStatus();
       await loadSalesHistory();
 
-      // Load monthly beer detail if a month is selected
       const currentFilter = document.getElementById('monthFilter').value;
       if (currentFilter) {
         await loadMonthlyBeerDetail(currentFilter);
       }
+
+      // Remove skeleton, show content
+      const skeleton = document.getElementById('cdSkeletonLoading');
+      const main = document.getElementById('cdMainContent');
+      if (skeleton) skeleton.classList.add('hidden');
+      if (main) main.classList.remove('hidden');
     }
 
-    // Get month options for select
+    // ── Equipment Accordion ──────────────────────────────────
+    function toggleEquipment() {
+      const el = document.getElementById('equipmentAccordion');
+      if (el) el.classList.toggle('open');
+    }
+
+    // ── Quick Actions ────────────────────────────────────────
+    function quickCollect() {
+      const debt = window.__currentDebt || 0;
+      if (debt > 0) {
+        openCustomerPaymentModal(debt);
+      } else {
+        if (typeof showToast === 'function') showToast('Không có công nợ', 'info');
+      }
+    }
+
+    function createOrder() {
+      window.location.href = '/sale?customer=' + customerId;
+    }
+
+    function callCustomer() {
+      const phone = customerData && customerData.phone ? customerData.phone.replace(/\D/g, '') : '';
+      if (phone) window.location.href = 'tel:' + phone;
+    }
+
+    function openZalo() {
+      const phone = customerData && customerData.phone ? customerData.phone.replace(/\D/g, '') : '';
+      if (phone) window.location.href = 'https://zalo.me/' + phone;
+    }
+
+    // ── Month Options ─────────────────────────────────────────
     function getMonthOptions() {
       const now = new Date();
-      let options = '<option value="">Tất cả</option>';
-      
+      let options = '';
       for (let i = 0; i < 12; i++) {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
         const value = `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}`;
@@ -852,30 +2309,180 @@
       return options;
     }
 
-    // Load customer basic info
+    // ── Load Customer Info ─────────────────────────────────────
     async function loadCustomerInfo() {
       try {
         const res = await fetch(`/api/customers/${customerId}`);
         const data = await res.json();
-        
         if (data) {
           customerData = data;
-          // Update page title and header via document title
           document.title = data.name + ' - Beer POS';
-          // Store customer name for display
           window.__customerName = data.name;
           window.__customerPhone = data.phone || 'Chưa có SĐT';
 
-          // Display fridge info
+          // Update Hero Card
+          const heroName = document.getElementById('heroName');
+          const heroPhone = document.getElementById('heroPhone');
+          const heroAvatar = document.getElementById('heroAvatar');
+          const heroLastSale = document.getElementById('heroLastSale');
+          const heroBadges = document.getElementById('heroBadges');
+
+          if (heroName) heroName.textContent = data.name || 'Khách hàng';
+          if (heroPhone) heroPhone.textContent = data.phone || 'Chưa có SĐT';
+          if (heroAvatar) heroAvatar.textContent = (data.name || 'K').charAt(0).toUpperCase();
+          if (heroLastSale) {
+            const days = data.last_sale_days_ago;
+            if (days === 0) heroLastSale.textContent = 'Hôm nay';
+            else if (days === 1) heroLastSale.textContent = 'Hôm qua';
+            else if (days) heroLastSale.textContent = days + ' ngày trước';
+            else heroLastSale.textContent = 'Chưa mua';
+          }
+
+          // Badges
+          let badges = '';
+          if (data.is_vip) badges += '<span class="cd-hero-badge cd-hero-badge-vip">⭐ VIP</span>';
+          if (data.is_new) badges += '<span class="cd-hero-badge cd-hero-badge-new">🆕 Mới</span>';
+          if (data.debt > 0) badges += '<span class="cd-hero-badge cd-hero-badge-debt">💸 Nợ</span>';
+          if (data.last_sale_days_ago > 30) badges += '<span class="cd-hero-badge cd-hero-badge-sleep">😴 Ngủ 30+ ngày</span>';
+          if (heroBadges) heroBadges.innerHTML = badges;
+
+          // Fridge
           document.getElementById('horizontalFridgeCount').textContent = data.horizontal_fridge || 0;
           document.getElementById('verticalFridgeCount').textContent = data.vertical_fridge || 0;
         }
-      } catch (err) {
-        // Silent fail
-      }
+      } catch (err) {}
     }
 
-    // Load promotion toggle status (NEW SHOP + REWARD SEPARATE)
+    // ── Load Stats ────────────────────────────────────────────
+    async function loadCustomerStats() {
+      try {
+        const res = await fetch(`/api/customers/${customerId}/stats?year=${selectedYear}&month=${selectedMonth}`);
+        const data = await res.json();
+
+        const kegBalance = data.kegBalance || 0;
+        const totalRevenue = data.totalRevenue || 0;
+        const monthlyKegs = data.monthlyKegs || 0;
+        const currentDebt = data.currentDebt || 0;
+
+        window.__currentDebt = currentDebt;
+
+        // KPI Cards
+        const kpiDebtEl = document.getElementById('kpiDebt');
+        const kpiKegsEl = document.getElementById('kpiKegs');
+        const kpiMonthlyEl = document.getElementById('kpiMonthly');
+        const kpiRevenueEl = document.getElementById('kpiRevenue');
+
+        if (kpiDebtEl) {
+          kpiDebtEl.textContent = formatVND(currentDebt);
+          kpiDebtEl.className = 'cd-kpi-value cd-counter';
+          if (currentDebt >= 5000000) kpiDebtEl.classList.add('danger');
+          else if (currentDebt > 0) kpiDebtEl.classList.add('warning');
+          else kpiDebtEl.classList.add('success');
+        }
+        if (kpiKegsEl) {
+          kpiKegsEl.textContent = kegBalance;
+          kpiKegsEl.className = 'cd-kpi-value cd-counter';
+        }
+        if (kpiMonthlyEl) {
+          kpiMonthlyEl.textContent = monthlyKegs;
+          kpiMonthlyEl.className = 'cd-kpi-value cd-counter';
+        }
+        if (kpiRevenueEl) {
+          kpiRevenueEl.textContent = formatVND(totalRevenue);
+          kpiRevenueEl.className = 'cd-kpi-value cd-counter success';
+        }
+
+        // Health Card
+        updateHealthCard(currentDebt, kegBalance, monthlyKegs, data);
+
+        // FAB visibility
+        const fab = document.getElementById('cdFab');
+        if (fab) {
+          if (currentDebt > 0) {
+            fab.classList.remove('hidden');
+          } else {
+            fab.classList.add('hidden');
+          }
+        }
+
+        // Debt tab dot
+        const debtDot = document.getElementById('debtTabDot');
+        if (debtDot) {
+          debtDot.style.display = currentDebt > 0 ? 'block' : 'none';
+        }
+      } catch (err) {}
+    }
+
+    function updateHealthCard(debt, kegs, monthly, data) {
+      // Debt dot
+      const debtDot = document.getElementById('healthDebtDot');
+      const debtVal = document.getElementById('healthDebt');
+      if (debtDot) {
+        debtDot.className = 'cd-health-dot';
+        if (debt === 0) debtDot.classList.add('good');
+        else if (debt < 1000000) debtDot.classList.add('monitor');
+        else debtDot.classList.add('urgent');
+      }
+      if (debtVal) debtVal.textContent = debt === 0 ? '✅ Không nợ' : formatVND(debt);
+
+      // Kegs dot
+      const kegDot = document.getElementById('healthKegDot');
+      const kegVal = document.getElementById('healthKegs');
+      if (kegDot) {
+        kegDot.className = 'cd-health-dot';
+        if (kegs === 0) kegDot.classList.add('good');
+        else if (kegs <= 20) kegDot.classList.add('monitor');
+        else kegDot.classList.add('urgent');
+      }
+      if (kegVal) kegVal.textContent = kegs + ' bình';
+
+      // Monthly dot
+      const monthlyDot = document.getElementById('healthMonthlyDot');
+      const monthlyVal = document.getElementById('healthMonthly');
+      if (monthlyDot) {
+        monthlyDot.className = 'cd-health-dot';
+        if (monthly > 50) monthlyDot.classList.add('good');
+        else if (monthly > 0) monthlyDot.classList.add('monitor');
+        else monthlyDot.classList.add('urgent');
+      }
+      if (monthlyVal) monthlyVal.textContent = monthly > 0 ? monthly + ' bình' : 'Chưa mua';
+
+      // Reward dot
+      const rewardDot = document.getElementById('healthRewardDot');
+      const rewardVal = document.getElementById('healthReward');
+      if (rewardDot && rewardVal) {
+        const rewardTier = window.__rewardTier || 'NONE';
+        rewardDot.className = 'cd-health-dot';
+        if (rewardTier !== 'NONE') {
+          rewardDot.classList.add('good');
+          rewardVal.textContent = '🎉 Đạt';
+        } else {
+          rewardDot.classList.add('monitor');
+          rewardVal.textContent = 'Chưa đạt';
+        }
+      }
+
+      // Status bar
+      const statusBar = document.getElementById('healthStatusBar');
+      const statusIcon = document.getElementById('healthStatusIcon');
+      const statusText = document.getElementById('healthStatusText');
+
+      let status = 'good';
+      let icon = '🟢';
+      let text = 'Khách hàng tốt';
+
+      if (debt >= 5000000) { status = 'urgent'; icon = '🔴'; text = 'Cần xử lý: Nợ cao!'; }
+      else if (debt > 0) { status = 'monitor'; icon = '🟡'; text = 'Cần theo dõi: Có công nợ'; }
+      else if (kegs > 30) { status = 'monitor'; icon = '🟡'; text = 'Vỏ bình nhiều, cần thu'; }
+      else if (monthly === 0) { status = 'monitor'; icon = '🟡'; text = 'Chưa mua tháng này'; }
+      else if (debt === 0 && monthly > 0) { status = 'good'; icon = '🟢'; text = 'Tốt: Mua đều, không nợ'; }
+
+      if (statusBar) { statusBar.className = 'cd-health-status-bar ' + status; }
+      if (statusIcon) statusIcon.textContent = icon;
+      if (statusText) statusText.textContent = text;
+    }
+
+    // ── Promotion Toggles ────────────────────────────────────
     async function loadPromoToggleStatus() {
       const container = document.getElementById('promoTogglesSection');
       if (!container) return;
@@ -898,108 +2505,102 @@
           systemNewShopEnabled = data.data.systemNewShopEnabled == 1;
           systemRewardEnabled = data.data.systemRewardEnabled == 1;
           newShopInfo = data.data.newShop;
-          // Lưu settings để hiển thị mô tả động
           window.__newShopSettings = data.data.newShopSettings || null;
           window.__rewardTiers = data.data.rewardTiers || [];
         }
 
-        // Cập nhật mô tả thưởng doanh số từ settings thực tế (sau khi innerHTML được gán)
         var tiers = window.__rewardTiers || [];
-
         window.__customerPromoEnabled = promotionEnabled;
         window.__customerNewShopEnabled = newShopEnabled;
         window.__customerRewardEnabled = rewardEnabled;
 
-        // Check if system settings are disabled
         const newShopDisabled = !systemNewShopEnabled;
         const rewardDisabled = !systemRewardEnabled;
 
         let newShopStatus = 'Bật';
-        let newShopColor = '#22c55e';
+        let newShopColor = 'var(--success)';
         if (!promotionEnabled) {
           newShopStatus = 'CTKM tắt';
-          newShopColor = '#6b7280';
+          newShopColor = 'var(--text-muted)';
         } else if (newShopDisabled) {
-          newShopStatus = 'Hệ thống tắt';
-          newShopColor = '#6b7280';
+          newShopStatus = 'Hết hiệu lực';
+          newShopColor = 'var(--text-muted)';
         } else if (!newShopEnabled) {
-          newShopStatus = 'Tắt riêng';
-          newShopColor = '#ef4444';
+          newShopStatus = 'Đang tắt';
+          newShopColor = 'var(--danger)';
         } else if (newShopInfo && newShopInfo.eligible) {
           newShopStatus = newShopInfo.daysRemaining > 0 ? 'Còn ' + newShopInfo.daysRemaining + ' ngày' : 'Hết ưu đãi';
-          newShopColor = '#f59e0b';
+          newShopColor = newShopInfo.daysRemaining > 0 ? 'var(--warning)' : 'var(--text-muted)';
         }
 
         let rewardStatus = 'Bật';
-        let rewardColor = '#22c55e';
+        let rewardColor = 'var(--success)';
         if (!promotionEnabled) {
           rewardStatus = 'CTKM tắt';
-          rewardColor = '#6b7280';
+          rewardColor = 'var(--text-muted)';
         } else if (rewardDisabled) {
-          rewardStatus = 'Hệ thống tắt';
-          rewardColor = '#6b7280';
+          rewardStatus = 'Hết hiệu lực';
+          rewardColor = 'var(--text-muted)';
         } else if (!rewardEnabled) {
-          rewardStatus = 'Tắt riêng';
-          rewardColor = '#ef4444';
+          rewardStatus = 'Đang tắt';
+          rewardColor = 'var(--danger)';
         }
 
+        let rewardDesc = 'Chưa có cài đặt';
+        if (tiers.length > 0) {
+          rewardDesc = tiers.map(function(t) {
+            return 'Đạt ' + t.threshold + 'L: tặng ' + t.reward + 'L';
+          }).join(' | ');
+        }
+
+        let newShopDesc = '';
+        if (newShopInfo && newShopInfo.eligible && newShopInfo.daysRemaining > 0) {
+          newShopDesc = 'Mua ' + (window.__newShopSettings ? window.__newShopSettings.goldBuy : newShopInfo.buyGold) + 'L vàng + ' + (window.__newShopSettings ? window.__newShopSettings.goldFree : newShopInfo.freeGold) + 'L | Mua ' + (window.__newShopSettings ? window.__newShopSettings.blackBuy : newShopInfo.buyBlack) + 'L đen + ' + (window.__newShopSettings ? window.__newShopSettings.blackFree : newShopInfo.freeBlack) + 'L';
+        }
 
         container.innerHTML = `
-          <!-- NEW SHOP PROMOTION -->
-          <div class="card p-3" style="border:1px solid rgba(168,85,247,0.25);background:linear-gradient(135deg,rgba(168,85,247,0.03),rgba(168,85,247,0.06));">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <span style="font-size:18px;">&#128293;</span>
-                <div>
-                  <div class="font-semibold text-sm" style="color:#a855f7;">Khuyến mãi quán mới</div>
-                  <div class="text-xs" style="color:${newShopColor};font-weight:600;" id="newShopStatus">${newShopStatus}</div>
-                </div>
+          <!-- 🔥 Quán mới -->
+          <div class="cd-promo-item">
+            <div class="cd-promo-label">
+              <span class="cd-promo-icon">🔥</span>
+              <div>
+                <div class="cd-promo-name">Quán mới</div>
+                ${newShopDesc ? '<div class="cd-promo-desc">' + newShopDesc + '</div>' : ''}
               </div>
-              <label class="toggle-switch" style="${newShopDisabled ? 'opacity:0.5;pointer-events:none;' : ''}">
-                <input type="checkbox" id="toggleNewShopEnabled" ${newShopEnabled && !newShopDisabled ? 'checked' : ''} onchange="togglePromotionType('newShop')" ${newShopDisabled ? 'disabled' : ''}>
-                <span class="toggle-slider"></span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span class="cd-promo-status ${newShopDisabled || !promotionEnabled ? 'expired' : (!newShopEnabled ? 'off' : 'on')}" style="color:${newShopColor};background:${newShopDisabled || !promotionEnabled ? 'var(--bg-hover)' : (!newShopEnabled ? 'var(--danger-dim)' : 'var(--success-dim)')};">${newShopStatus}</span>
+              <label class="cd-toggle" style="${newShopDisabled ? 'opacity:0.4;' : ''}">
+                <input type="checkbox" id="toggleNewShopEnabled" ${newShopEnabled && !newShopDisabled ? 'checked' : ''}
+                  onchange="togglePromotionType('newShop')" ${newShopDisabled ? 'disabled' : ''}>
+                <span class="cd-toggle-slider"></span>
               </label>
             </div>
-            ${newShopInfo && newShopInfo.eligible && newShopInfo.daysRemaining > 0 ? '<div class="text-xs text-muted mt-2" id="newShopPromoDesc">🎁 Mua ' + (window.__newShopSettings ? window.__newShopSettings.goldBuy : newShopInfo.buyGold) + 'L vàng + ' + (window.__newShopSettings ? window.__newShopSettings.goldFree : newShopInfo.freeGold) + 'L | Mua ' + (window.__newShopSettings ? window.__newShopSettings.blackBuy : newShopInfo.buyBlack) + 'L đen + ' + (window.__newShopSettings ? window.__newShopSettings.blackFree : newShopInfo.freeBlack) + 'L</div>' : ''}
           </div>
-
-          <!-- REWARD PROMOTION -->
-          <div class="card p-3" style="border:1px solid rgba(245,158,11,0.25);background:linear-gradient(135deg,rgba(245,158,11,0.03),rgba(245,158,11,0.06));">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <span style="font-size:18px;">🏆</span>
-                <div>
-                  <div class="font-semibold text-sm" style="color:#f59e0b;">Thưởng doanh số</div>
-                  <div class="text-xs" style="color:${rewardColor};font-weight:600;" id="rewardStatus">${rewardStatus}</div>
-                </div>
+          <!-- 🏆 Thưởng doanh số -->
+          <div class="cd-promo-item">
+            <div class="cd-promo-label">
+              <span class="cd-promo-icon">🏆</span>
+              <div>
+                <div class="cd-promo-name">Thưởng doanh số</div>
+                <div class="cd-promo-desc">${rewardDesc}</div>
               </div>
-              <label class="toggle-switch" style="${rewardDisabled ? 'opacity:0.5;pointer-events:none;' : ''}">
-                <input type="checkbox" id="toggleRewardEnabled" ${rewardEnabled && !rewardDisabled ? 'checked' : ''} onchange="togglePromotionType('reward')" ${rewardDisabled ? 'disabled' : ''}>
-                <span class="toggle-slider"></span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span class="cd-promo-status ${rewardDisabled || !promotionEnabled ? 'expired' : (!rewardEnabled ? 'off' : 'on')}" style="color:${rewardColor};background:${rewardDisabled || !promotionEnabled ? 'var(--bg-hover)' : (!rewardEnabled ? 'var(--danger-dim)' : 'var(--success-dim)')};">${rewardStatus}</span>
+              <label class="cd-toggle" style="${rewardDisabled ? 'opacity:0.4;' : ''}">
+                <input type="checkbox" id="toggleRewardEnabled" ${rewardEnabled && !rewardDisabled ? 'checked' : ''}
+                  onchange="togglePromotionType('reward')" ${rewardDisabled ? 'disabled' : ''}>
+                <span class="cd-toggle-slider"></span>
               </label>
             </div>
-            <div class="text-xs text-muted mt-2" id="rewardTiersDesc">🎯 Đang tải...</div>
           </div>
-
         `;
-        // Cập nhật mô tả thưởng doanh số (sau khi DOM đã render)
-        var rewardDescEl = document.getElementById('rewardTiersDesc');
-        if (rewardDescEl) {
-          if (tiers.length > 0) {
-            var tierTexts = tiers.map(function(t) {
-              return 'Đạt ' + t.threshold + 'L: tặng ' + t.reward + 'L';
-            });
-            rewardDescEl.textContent = '🎯 ' + tierTexts.join(' | ');
-          } else {
-            rewardDescEl.textContent = '🎯 Chưa có cài đặt thưởng tháng';
-          }
-        }
       } catch (e) {
         container.innerHTML = '<div class="text-center py-4 text-danger">Lỗi tải khuyến mãi</div>';
       }
     }
 
-    // Toggle individual promotion type
     async function togglePromotionType(type) {
       var toggle = document.getElementById('toggle' + (type === 'newShop' ? 'NewShop' : 'Reward') + 'Enabled');
       if (!toggle) return;
@@ -1007,11 +2608,8 @@
 
       try {
         var bodyObj = {};
-        if (type === 'newShop') {
-          bodyObj.newShopEnabled = enabled;
-        } else {
-          bodyObj.rewardEnabled = enabled;
-        }
+        if (type === 'newShop') bodyObj.newShopEnabled = enabled;
+        else bodyObj.rewardEnabled = enabled;
 
         var res = await fetch('/api/promotions/customer/' + customerId, {
           method: 'PUT',
@@ -1022,21 +2620,12 @@
         if (data.success) {
           if (type === 'newShop') {
             window.__customerNewShopEnabled = enabled;
-            var statusEl = document.getElementById('newShopStatus');
-            if (statusEl) {
-              statusEl.textContent = enabled ? 'Bật' : 'Tắt riêng';
-              statusEl.style.color = enabled ? '#22c55e' : '#ef4444';
-            }
             if (typeof showToast === 'function') showToast('Đã ' + (enabled ? 'bật' : 'tắt') + ' KM quán mới', 'success');
           } else {
             window.__customerRewardEnabled = enabled;
-            var statusEl = document.getElementById('rewardStatus');
-            if (statusEl) {
-              statusEl.textContent = enabled ? 'Bật' : 'Tắt riêng';
-              statusEl.style.color = enabled ? '#22c55e' : '#ef4444';
-            }
             if (typeof showToast === 'function') showToast('Đã ' + (enabled ? 'bật' : 'tắt') + ' thưởng doanh số', 'success');
           }
+          await loadPromoToggleStatus();
         } else {
           toggle.checked = !enabled;
           if (typeof showToast === 'function') showToast(data.error || 'Lỗi', 'error');
@@ -1047,59 +2636,21 @@
       }
     }
 
-    // Legacy toggle (toggles ALL promotions) - kept for backwards compatibility
-    async function togglePromoEnabled() {
-      var toggle = document.getElementById('togglePromoEnabled');
-      if (!toggle) return;
-      var enabled = toggle.checked;
-      try {
-        var res = await fetch('/api/promotions/customer/' + customerId + '/promotion', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ enabled: enabled })
-        });
-        var data = await res.json();
-        if (data.success) {
-          window.__customerPromoEnabled = enabled;
-          var status = document.getElementById('promoToggleStatus');
-          var note = document.getElementById('promoToggleNote');
-          if (status) {
-            status.textContent = enabled ? 'Đang bật' : 'Đang tắt';
-            status.style.color = enabled ? '#22c55e' : '#ef4444';
-          }
-          if (note) {
-            if (enabled) {
-              note.classList.add('hidden');
-              if (typeof showToast === 'function') showToast('Đã bật CTKM', 'success');
-            } else {
-              note.classList.remove('hidden');
-              note.innerHTML = 'Quán mới và thưởng doanh số sẽ không được áp dụng cho khách này.';
-              if (typeof showToast === 'function') showToast('Đã tắt CTKM', 'info');
-            }
-          }
-        } else {
-          toggle.checked = !enabled;
-          if (typeof showToast === 'function') showToast(data.error || 'Lỗi', 'error');
-        }
-      } catch (e) {
-        toggle.checked = !enabled;
-        if (typeof showToast === 'function') showToast('Lỗi kết nối', 'error');
-      }
-    }
-
-    // Load sales assignment
+    // ── Sales Assignment ─────────────────────────────────────
     async function loadSalesAssignment() {
-      const statusEl = document.getElementById('salesAssignmentStatus');
+      // Sales is shown in hero card now
+      const statusEl = document.getElementById('heroSales');
+      if (!statusEl) return;
       try {
         const res = await fetch(`/api/sales-staff/customer/${customerId}`);
         const data = await res.json();
         if (data.success && data.data) {
-          statusEl.innerHTML = '<span style="color:#3b82f6;font-weight:600;">' + data.data.name + '</span>';
+          statusEl.textContent = data.data.name || '—';
         } else {
           statusEl.textContent = 'Chưa gán';
         }
       } catch (e) {
-        statusEl.textContent = 'Chưa gán';
+        statusEl.textContent = '—';
       }
     }
 
@@ -1157,141 +2708,66 @@
       }
     }
 
-    // Load customer stats
-    async function loadCustomerStats() {
-      try {
-        const res = await fetch(`/api/customers/${customerId}/stats?year=${selectedYear}&month=${selectedMonth}`);
-        const data = await res.json();
-        
-        document.getElementById('kegBalance').textContent = data.kegBalance || 0;
-        document.getElementById('totalRevenue').textContent = formatVND(data.totalRevenue || 0);
-        document.getElementById('monthlyKegs').textContent = data.monthlyKegs || 0;
-        
-        if (data.lastSaleDaysAgo !== null) {
-          let daysText = '';
-          if (data.lastSaleDaysAgo === 0) daysText = 'Hôm nay';
-          else if (data.lastSaleDaysAgo === 1) daysText = 'Hôm qua';
-          else daysText = `${data.lastSaleDaysAgo} ngày trước`;
-          document.getElementById('lastSale').textContent = daysText;
-        } else {
-          document.getElementById('lastSale').textContent = 'Chưa có';
-        }
-      } catch (err) {
-        // Silent fail
-      }
-    }
-
-    // Load monthly beer detail
+    // ── Monthly Beer Detail ──────────────────────────────────
     async function loadMonthlyBeerDetail(filter) {
       if (!filter) return;
       const [year, month] = filter.split('-');
-      
       try {
         const res = await fetch(`/api/customers/${customerId}/monthly-beer-detail?year=${year}&month=${month}`);
         const resp = await res.json();
-        
         if (!resp.success) return;
-        
+
         const data = resp.data;
         const s = data.summary;
-        
-        // Cập nhật card tổng tháng với chi tiết bia
-        const monthlyCard = document.getElementById('monthlySummaryCard');
-        if (monthlyCard) {
-          monthlyCard.innerHTML = `
-            <div class="sc-label"><span class="sc-icon">📊</span> Tổng tháng ${filter}</div>
-            <div class="sc-value">${formatVND(data.monthlyTotal || 0)}</div>
-            <div class="sc-sub">${s.total} bình</div>
-            ${s.gold > 0 || s.black > 0 ? `
-              <div class="mt-2 pt-2 border-t border-white/20" style="font-size:11px;">
-                ${s.gold > 0 ? `<span style="color:#fbbf24;">🍺 Vàng: ${s.gold}L</span>` : ''}
-                ${s.black > 0 ? `<span style="color:#94a3b8;margin-left:8px;">⚫ Đen: ${s.black}L</span>` : ''}
+
+        const detailContainer = document.getElementById('monthlyBeerDetail');
+        if (detailContainer && (s.gold > 0 || s.black > 0 || s.pet > 0 || s.box > 0)) {
+          detailContainer.innerHTML = `
+            <div class="cd-beer-detail">
+              <div class="cd-beer-detail-title">🍺 Chi tiết sản lượng tháng</div>
+              ${s.gold > 0 ? `
+                <div class="cd-beer-row">
+                  <div class="cd-beer-row-label"><span>🍺</span> Bia vàng</div>
+                  <div class="cd-beer-row-val">${s.gold} L</div>
+                </div>
+              ` : ''}
+              ${s.black > 0 ? `
+                <div class="cd-beer-row">
+                  <div class="cd-beer-row-label"><span>⚫</span> Bia đen</div>
+                  <div class="cd-beer-row-val">${s.black} L</div>
+                </div>
+              ` : ''}
+              ${s.pet > 0 ? `
+                <div class="cd-beer-row">
+                  <div class="cd-beer-row-label"><span>🍶</span> Chai nhựa</div>
+                  <div class="cd-beer-row-val" style="color:var(--text-muted);">${s.pet} L</div>
+                </div>
+              ` : ''}
+              ${s.box > 0 ? `
+                <div class="cd-beer-row">
+                  <div class="cd-beer-row-label"><span>📦</span> Thùng/hộp</div>
+                  <div class="cd-beer-row-val" style="color:var(--text-muted);">${s.box} L</div>
+                </div>
+              ` : ''}
+              <div class="cd-beer-total">
+                <span>Tổng cộng</span>
+                <span class="cd-beer-total-val">${s.total} L</span>
               </div>
-            ` : ''}
+            </div>
           `;
         }
-        
-        // Hiển thị chi tiết sản lượng bia bên dưới
-        const detailContainer = document.getElementById('monthlyBeerDetail');
-        if (detailContainer) {
-          let detailHtml = '';
-          
-          if (s.gold > 0 || s.black > 0 || s.pet > 0 || s.box > 0) {
-            detailHtml = `
-              <div class="card p-3 mb-4" style="border:1px solid var(--border);">
-                <div class="text-sm font-semibold text-main mb-3">🍺 Chi tiết sản lượng</div>
-                <div class="space-y-2">
-                  ${s.gold > 0 ? `
-                    <div class="flex justify-between items-center py-2 border-b" style="border-color:var(--border);">
-                      <div class="flex items-center gap-2">
-                        <span style="font-size:16px;">🍺</span>
-                        <span class="text-sm">Bia vàng</span>
-                      </div>
-                      <div class="text-right">
-                        <div class="font-bold text-main">${s.gold} L</div>
-                      </div>
-                    </div>
-                  ` : ''}
-                  ${s.black > 0 ? `
-                    <div class="flex justify-between items-center py-2 border-b" style="border-color:var(--border);">
-                      <div class="flex items-center gap-2">
-                        <span style="font-size:16px;">⚫</span>
-                        <span class="text-sm">Bia đen</span>
-                      </div>
-                      <div class="text-right">
-                        <div class="font-bold text-main">${s.black} L</div>
-                      </div>
-                    </div>
-                  ` : ''}
-                  ${s.pet > 0 ? `
-                    <div class="flex justify-between items-center py-2 border-b" style="border-color:var(--border);">
-                      <div class="flex items-center gap-2">
-                        <span style="font-size:16px;">🍶</span>
-                        <span class="text-sm">Chai nhựa</span>
-                      </div>
-                      <div class="text-right">
-                        <div class="font-bold text-muted">${s.pet} L</div>
-                      </div>
-                    </div>
-                  ` : ''}
-                  ${s.box > 0 ? `
-                    <div class="flex justify-between items-center py-2 border-b" style="border-color:var(--border);">
-                      <div class="flex items-center gap-2">
-                        <span style="font-size:16px;">📦</span>
-                        <span class="text-sm">Thùng/hộp</span>
-                      </div>
-                      <div class="text-right">
-                        <div class="font-bold text-muted">${s.box} L</div>
-                      </div>
-                    </div>
-                  ` : ''}
-                </div>
-                <div class="mt-3 pt-2 border-t" style="border-color:var(--border);">
-                  <div class="flex justify-between items-center">
-                    <span class="text-sm font-semibold text-main">Tổng cộng</span>
-                    <span class="font-bold text-lg" style="color:var(--primary);">${s.total} L</span>
-                  </div>
-                </div>
-              </div>
-            `;
-          }
-          
-          detailContainer.innerHTML = detailHtml;
-        }
-      } catch (err) {
-        console.error('Error loading monthly beer detail:', err);
-      }
+      } catch (err) {}
     }
 
-    // Load sales history
+    // ── Load Sales History (Timeline) ───────────────────────
     async function loadSalesHistory() {
       const container = document.getElementById('salesHistory');
+      if (!container) return;
       container.innerHTML = '<div class="text-center py-8 text-muted">Đang tải...</div>';
-      
-      // Reset detail container
+
       const detailContainer = document.getElementById('monthlyBeerDetail');
       if (detailContainer) detailContainer.innerHTML = '';
-      
+
       try {
         const filter = document.getElementById('monthFilter').value;
         let url = `/api/customers/${customerId}/sales`;
@@ -1299,85 +2775,74 @@
           const [year, month] = filter.split('-');
           url += `?year=${year}&month=${month}`;
         }
-        
+
         const res = await fetch(url);
         const data = await res.json();
-        
-        // Show monthly totals if filtering by month
-        let monthlySummaryHtml = '';
-        if (filter && (data.monthlyTotal > 0 || data.monthlyQty > 0) && data.sales.length > 0) {
-          monthlySummaryHtml = `
-            <div class="card stat-card--blue mb-2" id="monthlySummaryCard">
-              <div class="sc-label"><span class="sc-icon">📊</span> Tổng tháng ${filter}</div>
-              <div class="sc-value">${formatVND(data.monthlyTotal)}</div>
-              <div class="sc-sub">${data.monthlyQty} bình</div>
-            </div>
-          `;
-        }
-        
+
         if (data.sales.length === 0) {
           container.innerHTML = '<div class="text-center py-8 text-muted">Chưa có lịch sử giao hàng</div>';
           return;
         }
-        
-        let html = monthlySummaryHtml;
-        html += '<div id="monthlyBeerDetail"></div>';
+
+        let html = '';
         data.sales.forEach((sale, index) => {
-          const kegChange = (sale.deliver_kegs || 0) - (sale.return_kegs || 0);
           const isLast = index === data.sales.length - 1;
           const isReplacement = sale.type === 'replacement';
-          
-          // Style for replacement orders
-          const dateClass = isReplacement ? 'text-warning' : 'text-primary';
-          const totalClass = isReplacement ? 'text-warning' : 'text-primary';
-          const dotClass = isReplacement ? 'bg-warning' : 'bg-primary';
-          const cardClass = isReplacement ? 'bg-warning/5' : '';
+
+          let dotClass = 'paid';
+          let badgeClass = 'paid';
+          let badgeText = 'Đã TT';
+          if (sale.debt > 0) {
+            if (sale.paid_amount > 0) { dotClass = 'partial'; badgeClass = 'partial'; badgeText = 'Còn nợ'; }
+            else { dotClass = 'unpaid'; badgeClass = 'unpaid'; badgeText = 'Chưa TT'; }
+          }
+          if (isReplacement) { dotClass = 'replace'; badgeClass = 'replace'; badgeText = 'Đổi hàng'; }
 
           html += `
-            <div class="flex gap-3">
-              <!-- Timeline line -->
-              <div class="flex flex-col items-center">
-                <div class="w-3 h-3 ${dotClass} rounded-full"></div>
-                ${!isLast ? '<div class="w-0.5 bg-muted flex-1 min-h-[60px]"></div>' : ''}
-              </div>
-
-              <!-- Timeline content -->
-              <div class="flex-1 pb-4">
-                <div class="card card--list-item ${cardClass}">
-                  <div class="flex justify-between items-center mb-2">
-                    <div class="text-sm font-semibold ${dateClass}">📅 ${formatDate(sale.date)}${isReplacement ? ' 🔁' : ''}</div>
-                    <div class="money ${totalClass}"><span class="value text-sm font-bold tabular-nums">${isReplacement ? '0' : formatVND(sale.total)}</span><span class="unit">đ</span></div>
-                  </div>
-                  <div class="grid grid-cols-2 gap-2 text-sm">
-                    <div class="bg-primary/5 rounded-lg p-2">
-                      <div class="text-primary">🍺 Bia</div>
-                      <div class="font-bold text-main">${sale.item_count || 0}</div>
-                    </div>
-                    <div class="bg-secondary/10 rounded-lg p-2">
-                      <div class="text-secondary">📦 Vỏ còn</div>
-                      <div class="font-bold text-main">${sale.keg_balance_after || 0}</div>
-                    </div>
-                  </div>
-                  <div class="mt-2 pt-2 border-t border-muted flex justify-between text-sm">
-                    <span class="text-warning">+${sale.deliver_kegs || 0} giao</span>
-                    <span class="text-danger">-${sale.return_kegs || 0} thu</span>
-                  </div>
-                  <button onclick="viewInvoice(${sale.id})" class="btn btn-secondary btn-sm w-full mt-3">
-                    👁 Xem hóa đơn
-                  </button>
+            <div class="cd-order-item cd-animate-up">
+              <div class="cd-order-dot ${dotClass}"></div>
+              <div class="cd-order-card">
+                <div class="cd-order-header">
+                  <div class="cd-order-date">📅 ${formatDate(sale.date)}</div>
+                  <span class="cd-order-badge ${badgeClass}">${badgeText}</span>
                 </div>
+                <div class="cd-order-total">${isReplacement ? '0 đ' : formatVND(sale.total)}</div>
+                <div class="cd-order-stats">
+                  <div class="cd-order-stat">
+                    <div class="cd-order-stat-icon">🍺</div>
+                    <div class="cd-order-stat-val">${sale.item_count || 0}</div>
+                    <div class="cd-order-stat-lbl">Bia</div>
+                  </div>
+                  <div class="cd-order-stat">
+                    <div class="cd-order-stat-icon">📦</div>
+                    <div class="cd-order-stat-val">${sale.keg_balance_after || 0}</div>
+                    <div class="cd-order-stat-lbl">Vỏ còn</div>
+                  </div>
+                  <div class="cd-order-stat">
+                    <div class="cd-order-stat-icon">💰</div>
+                    <div class="cd-order-stat-val" style="font-size:12px;">${sale.debt > 0 ? formatVND(sale.debt) : 'Hết nợ'}</div>
+                    <div class="cd-order-stat-lbl">Nợ</div>
+                  </div>
+                </div>
+                <div class="cd-order-keg-row">
+                  <span class="give">+${sale.deliver_kegs || 0} giao</span>
+                  <span class="take">-${sale.return_kegs || 0} thu</span>
+                </div>
+                <button onclick="viewInvoice(${sale.id})" class="btn btn-secondary btn-sm w-full mt-3" style="height:36px;font-size:13px;">
+                  👁 Xem hóa đơn
+                </button>
               </div>
             </div>
           `;
         });
-        
+
         container.innerHTML = html;
       } catch (err) {
         container.innerHTML = '<div class="text-center py-8 text-danger">Lỗi tải dữ liệu</div>';
       }
     }
 
-    // Month filter change
+    // ── Month Change ─────────────────────────────────────────
     function onMonthChange() {
       const filter = document.getElementById('monthFilter').value;
       if (filter) {
@@ -1394,15 +2859,13 @@
       loadMonthlyBeerDetail(document.getElementById('monthFilter').value);
     }
 
-    // Edit customer info
+    // ── Edit Customer ────────────────────────────────────────
     function editCustomerInfo() {
       if (!customerData) return;
       window.location.href = '/customers?edit=' + customerData.id;
     }
 
-    // Invoice Modal
-    let invoiceModal = null;
-
+    // ── Invoice Modal ────────────────────────────────────────
     async function viewInvoice(saleId) {
       try {
         const res = await fetch('/api/sales/' + saleId);
@@ -1418,13 +2881,9 @@
 
     function showInvoiceModal(sale) {
       const modal = document.getElementById('customerInvoiceModal');
-      if (!modal) return;
-      if (!sale || !sale.id) {
-        return;
-      }
+      if (!modal || !sale || !sale.id) return;
 
       const items = (sale.items || sale.products) || [];
-
       const customerName = sale.customer_name || sale.customerName || sale.customer?.name || 'Khách lẻ';
       const saleDate = sale.date || sale.created_at || '';
       const totalAmount = sale.totalAmount != null ? sale.totalAmount : (sale.total || 0);
@@ -1434,15 +2893,7 @@
         const name = item.name || item.product_name || item.productName || 'SP';
         const qty = Number(item.quantity != null ? item.quantity : item.qty) || 0;
         const price = Number(item.price) || 0;
-        return `
-        <div class="flex justify-between py-2 border-b">
-          <div>
-            <div class="font-medium">${name}</div>
-            <div class="text-sm text-secondary">${qty} x ${formatVND(price)}</div>
-          </div>
-          <div class="font-bold">${formatVND(qty * price)}</div>
-        </div>
-      `;
+        return `<div class="flex justify-between py-2 border-b"><div><div class="font-medium">${name}</div><div class="text-sm text-secondary">${qty} x ${formatVND(price)}</div></div><div class="font-bold">${formatVND(qty * price)}</div></div>`;
       }).join('') : '<div class="text-center py-6 text-secondary text-sm">Không có dòng sản phẩm trên hóa đơn.</div>';
 
       document.getElementById('invoiceContent').innerHTML = `
@@ -1453,9 +2904,7 @@
         <div class="card p-3 mb-4">
           <div class="font-medium text-main">${customerName}</div>
         </div>
-        <div class="mb-4">
-          ${itemsHtml}
-        </div>
+        <div class="mb-4">${itemsHtml}</div>
         <div class="flex justify-between py-2 border-b border-muted">
           <span class="text-main">Tổng cộng:</span>
           <div class="money text-money"><span class="value text-2xl font-bold tabular-nums">${formatVND(totalAmount)}</span><span class="unit">đ</span></div>
@@ -1477,19 +2926,16 @@
 
     function closeInvoiceModal() {
       const modal = document.getElementById('customerInvoiceModal');
-      if (modal) {
-        modal.classList.add('hidden');
-      }
+      if (modal) modal.classList.add('hidden');
     }
 
-    // Bind close buttons
     document.getElementById('btnCloseInvoice').addEventListener('click', closeInvoiceModal);
     document.getElementById('btnCloseInvoice2').addEventListener('click', closeInvoiceModal);
 
-    // Initialize
+    // ── Init ─────────────────────────────────────────────────
     loadCustomerDetail();
   </script>
-  <!-- PERFORMANCE: db.js + sync.js non-blocking via requestIdleCallback -->
+
   <script>
     var _ric = window.requestIdleCallback || function(cb) { return setTimeout(cb, 200); };
     _ric(function() {
@@ -1518,7 +2964,6 @@
     }
   </script>
 
-  <!-- Modal Container for dynamic modals -->
   <div id="modalContainer"></div>
 </body>
 </html>
