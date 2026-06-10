@@ -651,16 +651,12 @@
         const res = await fetch('/api/sales-staff/config/commissions');
         const data = await res.json();
         if (data.success && data.data) {
-          const config = data.data.config || { new_shop_commission: 500000 };
           const products = data.data.products || [];
-          document.getElementById('newShopCommission').value = config.new_shop_commission || 500000;
           renderProductCommissions(products);
         } else {
-          document.getElementById('newShopCommission').value = 500000;
           renderProductCommissions([]);
         }
       } catch (e) {
-        document.getElementById('newShopCommission').value = 500000;
         renderProductCommissions([]);
       }
     }
@@ -719,19 +715,6 @@
         if (!data.success) alert(data.error || 'Lỗi lưu');
       } catch (e) {
         alert('Lỗi kết nối');
-      }
-    }
-
-    async function saveNewShopCommission() {
-      const amount = document.getElementById('newShopCommission').value;
-      try {
-        await fetch('/api/sales-staff/config/new-shop-commission', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ amount: parseFloat(amount) })
-        });
-      } catch (e) {
-        alert('Lỗi lưu cấu hình');
       }
     }
 
