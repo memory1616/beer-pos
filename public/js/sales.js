@@ -1602,6 +1602,8 @@ function submitSale() {
     })
   };
 
+  console.log('[SUBMIT SALE] payload:', JSON.stringify(payload, null, 2));
+
   var url = isEditing ? '/api/sales/' + editingSaleId : '/api/sales';
   var method = isEditing ? 'PUT' : 'POST';
 
@@ -1610,7 +1612,10 @@ function submitSale() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
   })
-  .then(function(res) { return safeJson(res); })
+  .then(function(res) {
+    console.log('[SUBMIT SALE] response status:', res.status);
+    return safeJson(res);
+  })
   .then(function(data) {
     // ── Handle offline / non-JSON gracefully ──────────────────────
     if (!data || data._offline) {
@@ -1643,7 +1648,7 @@ function submitSale() {
     }
   })
   .catch(function(err) {
-    showToast('Lỗi kết nối', 'error');
+    showToast('Lỗi kết nối: ' + err.message, 'error');
     if (btn) { btn.disabled = false; btn.innerHTML = isEditing ? '💾 Cập nhật đơn' : '✅ BÁN HÀNG'; }
   });
 }
