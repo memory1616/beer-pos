@@ -694,6 +694,87 @@ router.get('/:id/keg-history', (req, res) => {
   res.json({ currentBalance, history });
 });
 
+// GET /api/customers/:id/monthly-beer-detail - Chi tiết sản lượng bia theo loại trong tháng
+router.get('/:id/monthly-beer-detail', (req, res) => {
+  const customerId = parseInt(req.params.id);
+  const { year, month } = req.query;
+  
+  const currentYear = year ? parseInt(year) : new Date().getFullYear();
+  const currentMonth = month ? parseInt(month) : new Date().getMonth() + 1;
+  const monthStr = currentMonth.toString().padStart(2, '0');
+  
+  try {
+    // Lấy chi tiết sản lượng theo loại bia
+    // Phân biệt: bia vàng (không có Đen/Den/den), bia đen (có Đen/Den/den), chai nhựa (pet)
+    const detail = db.prepare(`
+      SELECT 
+        p.type,
+        p.name as product_name,
+        SUM(si.quantity) as total_liters,
+        COUNT(DISTINCT s.id) as order_count
+      FROM sales s
+      JOIN sale_items si ON si.sale_id = s.id
+      JOIN products p ON p.id = si.product_id
+      WHERE s.customer_id = ?
+        AND s.type = 'sale'
+        AND s.archived = 0
+        AND s.promo_type IS DISTINCT FROM 'MONTHLY_BONUS'
+        AND si.price > 0
+        AND strftime('%Y', s.date) = ?
+        AND strftime('%m', s.date) = ?
+      GROUP BY p.type, p.name
+      ORDER BY p.type, p.name
+    `).all(customerId, currentYear.toString(), monthStr);
+
+    // Gom nhóm theo loại: vàng, đen, chai nhựa
+    let goldTotal = 0;
+    let blackTotal = 0;
+    let petTotal = 0;
+    let boxTotal = 0;
+    
+    const byProduct = {};
+    
+    detail.forEach(item => {
+      byProduct[item.product_name] = {
+        type: item.type,
+        liters: item.total_liters,
+        orders: item.order_count
+      };
+      
+      if (item.type === 'keg') {
+        if (/đen|den/i.test(item.product_name)) {
+          blackTotal += item.total_liters;
+        } else {
+          goldTotal += item.total_liters;
+        }
+      } else if (item.type === 'pet') {
+        petTotal += item.total_liters;
+      } else if (item.type === 'box') {
+        boxTotal += item.total_liters;
+      }
+    });
+
+    res.json({
+      success: true,
+      data: {
+        year: currentYear,
+        month: currentMonth,
+        summary: {
+          gold: goldTotal,
+          black: blackTotal,
+          pet: petTotal,
+          box: boxTotal,
+          total: goldTotal + blackTotal + petTotal + boxTotal
+        },
+        byProduct: byProduct
+      }
+    });
+  } catch (err) {
+    logger.error('Error fetching monthly beer detail', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi lấy chi tiết sản lượng' });
+  }
+});
+
 // GET /api/customers/:id/debt - Get customer debt history
 router.get('/:id/debt', (req, res) => {
   const customerId = parseInt(req.params.id);
