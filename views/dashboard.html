@@ -503,8 +503,8 @@
 
     const headerActions = `
       <div class="dsh-hdr-settings-wrap">
-        <button onclick="toggleSettingsDropdown(event)" id="dshSettingsBtn" class="dsh-hdr-settings-btn" title="Cài đặt">⚙️</button>
-        <div class="dsh-hdr-overlay" id="dshSettingsOverlay" onclick="closeSettingsDropdown()"></div>
+        <button id="dshSettingsBtn" class="dsh-hdr-settings-btn" title="Cài đặt">⚙️</button>
+        <div class="dsh-hdr-overlay" id="dshSettingsOverlay"></div>
         <div class="dsh-hdr-dropdown" id="dshSettingsDropdown">
           <div class="dsh-hdr-drop-header">
             <div class="dsh-hdr-drop-icon">⚙️</div>
@@ -583,6 +583,13 @@
     document.addEventListener('keydown', function(e) {
       if (e.key === 'Escape') closeSettingsDropdown();
     });
+    // Attach listeners after innerHTML so the button/overlay exist in DOM
+    function attachDropdownListeners() {
+      const btn = document.getElementById('dshSettingsBtn');
+      const overlay = document.getElementById('dshSettingsOverlay');
+      if (btn) btn.addEventListener('click', toggleSettingsDropdown);
+      if (overlay) overlay.addEventListener('click', closeSettingsDropdown);
+    }
     (async () => {
       try {
         if (typeof loadVersion === 'function') await loadVersion();
@@ -591,14 +598,11 @@
         if (skeleton) skeleton.remove();
         document.getElementById('app').innerHTML =
           getHeaderWithActions('Gia Huy', '🍺', headerActions) +
-          getContent(`
-          <div id="loading" class="text-center py-8">
+          getContent(`<div id="loading" class="text-center py-8">
             <div class="spinner mx-auto"></div>
             <div class="text-muted mt-2">Đang tải...</div>
           </div>
-
           <div id="contentSection" class="hidden" style="padding-bottom:100px">
-
             <!-- Header: date -->
             <div class="flex items-center justify-between mb-4 px-1">
               <div class="text-xs text-muted font-medium" id="dashboardDate"></div>
@@ -739,6 +743,8 @@
           </div>
           `) +
           getBottomNav('/dashboard');
+
+        attachDropdownListeners();
       } catch (err) {
         console.error('Dashboard init error:', err);
         document.getElementById('app').innerHTML = `
