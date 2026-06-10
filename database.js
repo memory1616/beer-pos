@@ -1417,6 +1417,8 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS sales_commission_config (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     new_shop_commission REAL DEFAULT 500000,
+    new_shop_window_days INTEGER DEFAULT 30,
+    new_shop_min_keg_liters REAL DEFAULT 200,
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
   )
 `);
@@ -1462,7 +1464,11 @@ db.exec(`
 
 // Khởi tạo config mặc định
 try {
-  db.exec(`INSERT OR IGNORE INTO sales_commission_config (id, new_shop_commission) VALUES (1, 500000)`);
+  db.exec(`INSERT OR IGNORE INTO sales_commission_config (id, new_shop_commission, new_shop_window_days, new_shop_min_keg_liters) VALUES (1, 500000, 30, 200)`);
+  db.exec(`ALTER TABLE sales_commission_config ADD COLUMN new_shop_window_days INTEGER DEFAULT 30`);
+} catch (e) { /* ignore */ }
+try {
+  db.exec(`ALTER TABLE sales_commission_config ADD COLUMN new_shop_min_keg_liters REAL DEFAULT 200`);
 } catch (e) { /* ignore */ }
 
 // Dọn cấu hình hoa hồng trùng (giữ bản ghi id nhỏ nhất cho mỗi cặp product_id + product_type)

@@ -114,6 +114,31 @@
             </select>
           </div>
         </div>
+        <div class="card" style="margin-top: 16px;">
+          <div class="card-header">
+            <div class="card-title">🏪 Cấu hình hoa hồng mở cửa hàng</div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3, minmax(180px, 1fr));gap:12px;align-items:end;">
+            <div class="form-group" style="margin:0;">
+              <label class="form-label">Tiền hoa hồng (VNĐ)</label>
+              <input type="number" id="newShopCommission" class="input" placeholder="500000" min="0">
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label class="form-label">Số ngày tính doanh số</label>
+              <input type="number" id="newShopWindowDays" class="input" placeholder="30" min="1">
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label class="form-label">Mức tối thiểu keg/inox (lít)</label>
+              <input type="number" id="newShopMinKegLiters" class="input" placeholder="200" min="0" step="0.1">
+            </div>
+          </div>
+          <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;margin-top:16px;flex-wrap:wrap;">
+            <small style="color: var(--text-muted);">
+              Chỉ tính hoa hồng khi khách được gán sales trong tháng đó, là khách mới, và tổng lít bia keg/inox mua trong vòng cấu hình đạt ngưỡng tối thiểu.
+            </small>
+            <button class="btn btn-primary" onclick="saveNewShopCommission()">Lưu cấu hình</button>
+          </div>
+        </div>
         <div id="salaryConfigContent" style="display: none;">
           <div class="card">
             <div class="card-header">
@@ -207,6 +232,7 @@
     // Initialize
     document.addEventListener('DOMContentLoaded', () => {
       loadStaffList();
+      loadCommissionConfig();
       initMonthSelector();
       initSalaryConfigSelector();
     });
@@ -602,7 +628,7 @@
             </div>
             ${s.newCustomersCount > 0 ? `
             <div class="salary-row" style="background:rgba(34,197,94,0.1);">
-              <span>Hoa hồng mở cửa hàng (${s.newCustomersCount} khách mới)</span>
+              <span>Hoa hồng mở cửa hàng (${s.newCustomersCount} khách đạt ${s.minimumKegLiters}L keg/inox trong ${s.commissionWindowDays} ngày)</span>
               <span>${formatVND(s.commissionAmount)}</span>
             </div>
             ` : ''}
@@ -650,7 +676,14 @@
         const res = await fetch('/api/sales-staff/config/commissions');
         const data = await res.json();
         if (data.success && data.data) {
+          const config = data.data.config || {};
           const products = data.data.products || [];
+          const amountInput = document.getElementById('newShopCommission');
+          const windowDaysInput = document.getElementById('newShopWindowDays');
+          const minKegInput = document.getElementById('newShopMinKegLiters');
+          if (amountInput) amountInput.value = config.new_shop_commission || 500000;
+          if (windowDaysInput) windowDaysInput.value = config.new_shop_window_days || 30;
+          if (minKegInput) minKegInput.value = config.new_shop_min_keg_liters || 200;
           renderProductCommissions(products);
         } else {
           renderProductCommissions([]);
@@ -712,6 +745,32 @@
         });
         const data = await res.json();
         if (!data.success) alert(data.error || 'Lỗi lưu');
+      } catch (e) {
+        alert('Lỗi kết nối');
+      }
+    }
+
+    async function saveNewShopCommission() {
+      const amount = parseFloat(document.getElementById('newShopCommission').value) || 0;
+      const windowDays = parseInt(document.getElementById('newShopWindowDays').value, 10) || 30;
+      const minimumKegLiters = parseFloat(document.getElementById('newShopMinKegLiters').value) || 0;
+      try {
+        const res = await fetch('/api/sales-staff/config/new-shop-commission', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ amount, windowDays, minimumKegLiters })
+        });
+        const data = await res.json();
+        if (!data.success) {
+          alert(data.error || 'Lỗi lưu cấu hình');
+          return;
+        }
+        alert('Đã lưu cấu hình hoa hồng mở cửa hàng');
+        loadSalarySummary();
+        if (selectedStaffId) {
+          const monthVal = document.getElementById('salaryMonth').value;
+          if (monthVal) loadSalaryDetail(selectedStaffId, monthVal);
+        }
       } catch (e) {
         alert('Lỗi kết nối');
       }
