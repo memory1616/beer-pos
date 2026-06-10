@@ -1293,6 +1293,52 @@ router.put('/:id', (req, res) => {
       promoInfo = { freeGold, freeBlack, totalFree: freeGold + freeBlack, promoType: 'NEW_SHOP' };
     }
 
+    // ── CẬP NHẬT VỎ BÌNH NẾU THAY ĐỔI ──────────────────────────────
+    // Chỉ xử lý với đơn bán (type === 'sale') và có customerId
+    if (currentSale.type === 'sale' && customerId) {
+      // Tính số vỏ mới = tổng lít bia (không tính PET) trong items mới
+      const newKegQty = items
+        .filter(item => {
+          const p = resolveProduct(item.productId || item.productSlug);
+          return p && p.type !== 'pet';
+        })
+        .reduce((sum, item) => sum + (parseFloat(item.quantity) || 0), 0);
+
+      const oldDeliverKegs = currentSale.deliver_kegs || 0;
+      const oldReturnKegs  = currentSale.return_kegs || 0;
+      const deltaDeliver = newKegQty - oldDeliverKegs;
+
+      // Nếu số vỏ giao thay đổi → cập nhật balance khách
+      if (deltaDeliver !== 0) {
+        const customer = db.prepare('SELECT keg_balance FROM customers WHERE id = ?').get(customerId);
+        const currentKegBalance = customer ? (customer.keg_balance || 0) : 0;
+        const newKegBalance = currentKegBalance + deltaDeliver;
+        console.log(`[SALE UPDATE] Keg balance: customer=${customerId}, oldBalance=${currentKegBalance}, delta=${deltaDeliver}, newBalance=${newKegBalance}`);
+
+        const updateKegs = db.transaction(() => {
+          // 1. Cập nhật đơn hàng với số vỏ mới
+          db.prepare('UPDATE sales SET deliver_kegs = ?, keg_balance_after = ? WHERE id = ?')
+            .run(newKegQty, newKegBalance, saleId);
+
+          // 2. Cập nhật balance khách
+          updateCustomerKegBalance(customerId, deltaDeliver, 0);
+
+          // 3. Cập nhật keg_stats.inventory = inventory - delta (vỏ giao thêm → kho giảm)
+          if (deltaDeliver !== 0) {
+            const stats = db.prepare('SELECT inventory FROM keg_stats WHERE id = 1').get();
+            const currentInventory = stats?.inventory || 0;
+            const newInventory = Math.max(0, currentInventory - deltaDeliver);
+            db.prepare('UPDATE keg_stats SET inventory = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1')
+              .run(newInventory);
+          }
+        });
+
+        updateKegs();
+        const io = req.app.get('io');
+        if (io) io.to('admin').emit('keg:updated', {});
+      }
+    }
+
     // Cập nhật hóa đơn
     db.prepare('UPDATE sales SET customer_id = ?, total = ?, profit = ? WHERE id = ?').run(customerId, newTotal, newProfit, saleId);
 
