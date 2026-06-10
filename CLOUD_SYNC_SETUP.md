@@ -36,36 +36,35 @@ ALLOWED_ORIGIN: '*'  // Cho phép sync từ mọi nơi
 
 ## Triển khai lên VPS
 
-### Bước 1: Upload code lên VPS
+### Cách chuẩn: GitHub Actions tự deploy
+
+Workflow `.github/workflows/deploy.yml` là luồng deploy chính.
+
+- Trigger: mỗi lần push lên nhánh `main`
+- Cách chạy: GitHub Actions SSH vào VPS rồi thực thi `./deploy/deploy.sh`
+- Kiểm tra sau deploy: `pm2 status beer-pos` và `curl http://127.0.0.1:3000/health`
+
+#### Secrets cần có trên GitHub
+- `VPS_HOST`
+- `VPS_USER`
+- `VPS_PORT`
+- `VPS_SSH_KEY`
+
+### Fallback: Webhook server riêng
+
+Nếu cần webhook riêng ngoài GitHub Actions:
+
 ```bash
-# Sử dụng scp hoặc git deploy
-scp -r ./beer-pos root@103.75.183.57:/root/
+cd ~/beer-pos
+chmod +x server/setup-webhook.sh
+./server/setup-webhook.sh
 ```
 
-### Bước 2: Cài đặt dependencies
-```bash
-ssh root@103.75.183.57
-cd /root/beer-pos
-npm install
-```
-
-### Bước 3: Cấu hình ecosystem.config.js (đã có sẵn)
-```bash
-# Edit nếu cần
-nano ecosystem.config.js
-```
-
-### Bước 4: Khởi động với PM2
-```bash
-pm2 start ecosystem.config.js
-pm2 save
-pm2 startup
-```
-
-### Bước 5: Kiểm tra server
-```bash
-curl http://103.75.183.57:3000/api/ping
-```
+Script này sẽ:
+- copy `server/webhook-deploy.js` sang `/opt/webhook`
+- tạo secret nếu chưa có
+- chạy `webhook-beer-pos` bằng PM2
+- cấu hình biến môi trường để webhook gọi đúng `deploy/deploy.sh`
 
 ---
 

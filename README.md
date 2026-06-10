@@ -95,12 +95,22 @@ Beer/
 
 ## Deployment on VPS (Hostinger)
 
-1. Upload files to your VPS
-2. Install Node.js on the VPS
-3. Run `npm install`
-4. Run `npm start`
-5. Use PM2 or similar to keep the server running
-6. Configure reverse proxy (nginx) to point to port 3000
+### Cách khuyến nghị: Auto deploy bằng GitHub Actions
+
+1. Trên VPS, clone repo vào `~/beer-pos`
+2. Cài Node.js, `pm2`, và chạy app bằng `pm2 start ecosystem.config.js`
+3. Đảm bảo file `deploy/deploy.sh` có quyền chạy: `chmod +x deploy/deploy.sh`
+4. Cấu hình GitHub repository secrets:
+   - `VPS_HOST`
+   - `VPS_USER`
+   - `VPS_PORT`
+   - `VPS_SSH_KEY`
+5. Mỗi lần push lên `main`, workflow `.github/workflows/deploy.yml` sẽ SSH vào VPS và chạy `./deploy/deploy.sh`
+6. Workflow sẽ kiểm tra lại `pm2 status beer-pos` và `http://127.0.0.1:3000/health`
+
+### Fallback: Webhook deploy riêng
+
+Nếu cần trigger thủ công hoặc không dùng GitHub Actions, chạy `server/setup-webhook.sh` trên VPS để dựng webhook server riêng qua PM2.
 
 ## Default Data
 
