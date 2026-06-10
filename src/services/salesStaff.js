@@ -142,16 +142,25 @@ const SalesStaffService = {
   // Lấy cấu hình hoa hồng
   getCommissionConfig() {
     const config = db.prepare('SELECT * FROM sales_commission_config WHERE id = 1').get();
-    return config || { id: 1, new_shop_commission: 500000 };
+    return config || {
+      id: 1,
+      new_shop_commission: 500000,
+      new_shop_window_days: 30,
+      new_shop_min_keg_liters: 200
+    };
   },
 
   // Cập nhật cấu hình hoa hồng mở cửa hàng
-  updateCommissionConfig(newShopCommission) {
-    // Đảm bảo bảng có dữ liệu
-    db.exec(`INSERT OR IGNORE INTO sales_commission_config (id, new_shop_commission) VALUES (1, ${newShopCommission})`);
+  updateCommissionConfig({ newShopCommission, newShopWindowDays, newShopMinKegLiters }) {
+    db.exec(`INSERT OR IGNORE INTO sales_commission_config (id, new_shop_commission, new_shop_window_days, new_shop_min_keg_liters) VALUES (1, 500000, 30, 200)`);
     db.prepare(`
-      UPDATE sales_commission_config SET new_shop_commission = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1
-    `).run(newShopCommission);
+      UPDATE sales_commission_config
+      SET new_shop_commission = ?,
+          new_shop_window_days = ?,
+          new_shop_min_keg_liters = ?,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = 1
+    `).run(newShopCommission, newShopWindowDays, newShopMinKegLiters);
     return this.getCommissionConfig();
   },
 
@@ -274,23 +283,36 @@ const SalesStaffService = {
       byProductType[key].salary += salary;
     }
 
-    // Tính hoa hồng mở cửa hàng
-    // Chỉ tính khi tháng gán sale = tháng tạo khách hàng
-    const newShopCommission = db.prepare('SELECT new_shop_commission FROM sales_commission_config WHERE id = 1').get();
-    const commissionRate = newShopCommission ? newShopCommission.new_shop_commission : 500000;
-    
-    // Đếm khách hàng được gán trong tháng này mà tháng tạo = tháng gán
-    const newCustomerCount = db.prepare(`
-      SELECT COUNT(*) as count
+  // Tính hoa hồng mở cửa hàng
+    const commissionConfig = this.getCommissionConfig();
+    const commissionRate = commissionConfig.new_shop_commission || 500000;
+    const commissionWindowDays = commissionConfig.new_shop_window_days || 30;
+    const minimumKegLiters = commissionConfig.new_shop_min_keg_liters || 200;
+
+    const qualifiedCustomers = db.prepare(`
+      SELECT
+        csa.customer_id,
+        c.name as customer_name,
+        csa.assigned_at,
+        COALESCE(SUM(CASE WHEN p.type = 'keg' AND si.price > 0 THEN si.quantity ELSE 0 END), 0) as total_keg_liters
       FROM customer_sales_assignments csa
       JOIN customers c ON c.id = csa.customer_id
+      LEFT JOIN sales s ON s.customer_id = csa.customer_id
+        AND s.type = 'sale'
+        AND s.archived = 0
+        AND date(s.date) >= date(csa.assigned_at)
+        AND date(s.date) <= date(csa.assigned_at, '+' || ? || ' days')
+      LEFT JOIN sale_items si ON si.sale_id = s.id
+      LEFT JOIN products p ON p.id = si.product_id
       WHERE csa.sales_id = ?
         AND strftime('%Y', csa.assigned_at) = ?
         AND strftime('%m', csa.assigned_at) = ?
         AND strftime('%Y-%m', c.created_at) = strftime('%Y-%m', csa.assigned_at)
-    `).get(salesId, yearStr, monthStr);
-    
-    const commissionAmount = (newCustomerCount ? newCustomerCount.count : 0) * commissionRate;
+      GROUP BY csa.customer_id, c.name, csa.assigned_at
+      HAVING total_keg_liters >= ?
+    `).all(commissionWindowDays, salesId, yearStr, monthStr, minimumKegLiters);
+
+    const commissionAmount = qualifiedCustomers.length * commissionRate;
 
     return {
       salesId,
@@ -300,8 +322,11 @@ const SalesStaffService = {
       totalSalary: Math.round(totalSalary),
       commissionAmount: Math.round(commissionAmount),
       totalAmount: Math.round(totalSalary + commissionAmount),
-      newCustomersCount: newCustomerCount ? newCustomerCount.count : 0,
+      newCustomersCount: qualifiedCustomers.length,
       commissionRate: commissionRate,
+      commissionWindowDays,
+      minimumKegLiters,
+      qualifiedCustomers,
       isPaid: isPaid || false,
       paidAt: paidRecord && paidRecord.paid_at || null,
       byProductType

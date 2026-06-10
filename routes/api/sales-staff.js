@@ -19,9 +19,15 @@ router.get('/config/commissions', (req, res) => {
 // PUT /api/sales-staff/config/new-shop-commission - Cập nhật hoa hồng mở cửa hàng
 router.put('/config/new-shop-commission', (req, res) => {
   try {
-    const { amount } = req.body;
-    if (!amount) return res.status(400).json({ success: false, error: 'Thiếu số tiền' });
-    const result = SalesStaffService.updateCommissionConfig(parseFloat(amount));
+    const { amount, windowDays, minimumKegLiters } = req.body;
+    if (amount === undefined || windowDays === undefined || minimumKegLiters === undefined) {
+      return res.status(400).json({ success: false, error: 'Thiếu cấu hình hoa hồng mở cửa hàng' });
+    }
+    const result = SalesStaffService.updateCommissionConfig({
+      newShopCommission: parseFloat(amount),
+      newShopWindowDays: parseInt(windowDays, 10),
+      newShopMinKegLiters: parseFloat(minimumKegLiters)
+    });
     res.json({ success: true, data: result });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
