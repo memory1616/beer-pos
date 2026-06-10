@@ -936,7 +936,7 @@ class PromotionService {
    * Tính sản lượng tháng hiện tại (CHỈ tính lít MUA thực trả, KHÔNG tính lít tặng)
    * Bia tặng khuyến mãi có si.price = 0 nên được lọc ra
    * LUÔN query real-time để đảm bảo đúng sau khi sửa/xóa đơn hàng
-   * CHỈ tính: keg (bia vàng/đen) và pet (bia chai nhựa), KHÔNG tính bottle
+   * CHỈ tính keg (bia bình 1L), KHÔNG tính pet (chai nhựa), box, bottle
    */
   calculateMonthlyPurchasedLiters(customerId) {
     const now = new Date();
@@ -944,7 +944,7 @@ class PromotionService {
     const month = now.getMonth() + 1;
 
     // Luôn query real-time từ sale_items để đảm bảo data mới nhất
-    // Chỉ tính keg và pet, không tính bottle
+    // Chỉ tính keg, không tính pet/box/bottle
     const result = db.prepare(`
       SELECT COALESCE(SUM(si.quantity), 0) as total
       FROM sales s
@@ -955,7 +955,7 @@ class PromotionService {
         AND s.archived = 0
         AND s.promo_type IS DISTINCT FROM 'MONTHLY_BONUS'
         AND si.price > 0
-        AND p.type IN ('keg', 'pet')
+        AND p.type = 'keg'
         AND strftime('%Y', s.date) = ?
         AND strftime('%m', s.date) = ?
     `).get(customerId, String(year), String(month).padStart(2, '0'));
