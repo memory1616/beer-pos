@@ -119,6 +119,7 @@ router.post('/', (req, res) => {
   }
 
   // ========== PRE-VALIDATION ==========
+  console.log('[SALE POST] Body:', JSON.stringify(req.body, null, 2));
   if (!items || !Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: 'Danh sách sản phẩm trống' });
   }

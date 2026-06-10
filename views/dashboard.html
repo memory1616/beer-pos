@@ -551,21 +551,30 @@
     `;
   </script>
   <script>
+    // Track dropdown state independently of DOM classes
+    var _settingsDropdownOpen = false;
+
     function toggleSettingsDropdown(e) {
       e.stopPropagation();
       const btn = document.getElementById('dshSettingsBtn');
       const dropdown = document.getElementById('dshSettingsDropdown');
       const overlay = document.getElementById('dshSettingsOverlay');
+      console.log('[DEBUG] toggleSettingsDropdown called, wasOpen:', _settingsDropdownOpen);
       if (!dropdown || !btn) return;
-      const isOpen = dropdown.classList.contains('open');
-      if (isOpen) {
-        closeSettingsDropdown();
+
+      if (_settingsDropdownOpen) {
+        dropdown.classList.remove('open');
+        btn.classList.remove('active');
+        overlay.classList.remove('open');
+        _settingsDropdownOpen = false;
       } else {
         dropdown.classList.add('open');
         btn.classList.add('active');
         overlay.classList.add('open');
+        _settingsDropdownOpen = true;
       }
     }
+
     function closeSettingsDropdown() {
       const btn = document.getElementById('dshSettingsBtn');
       const dropdown = document.getElementById('dshSettingsDropdown');
@@ -573,6 +582,7 @@
       if (dropdown) dropdown.classList.remove('open');
       if (btn) btn.classList.remove('active');
       if (overlay) overlay.classList.remove('open');
+      _settingsDropdownOpen = false;
     }
     // Close on outside click
     document.addEventListener('click', function(e) {
