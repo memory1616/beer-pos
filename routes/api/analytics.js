@@ -128,9 +128,10 @@ router.get('/daily-cashflow', (req, res) => {
       purchasesByDay = db.prepare(`
         SELECT
           ${vnDateExpr('date')} as day,
-          SUM(total) as expense
+          SUM(total_amount) as expense
         FROM purchases
-        WHERE ${vnDateExpr('date')} >= date(?)
+        WHERE archived = 0
+          AND ${vnDateExpr('date')} >= date(?)
           AND ${vnDateExpr('date')} <= date(?)
         GROUP BY ${vnDateExpr('date')}
       `).all(start, end) || [];
