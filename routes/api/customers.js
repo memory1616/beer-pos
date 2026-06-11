@@ -104,6 +104,15 @@ router.get('/:id', (req, res) => {
     }
     const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(id);
     if (!customer) return res.status(404).json({ error: 'Không tìm thấy khách hàng' });
+
+    // Tinh last_sale_days_ago (dùng giờ Việt Nam UTC+7)
+    const lastSale = db.prepare(`
+      SELECT date, (CAST(strftime('%s', datetime('now', '+7 hours')) AS INTEGER) - CAST(strftime('%s', date) AS INTEGER)) / 86400 as days_ago
+      FROM sales WHERE customer_id = ? AND archived = 0 AND type = 'sale'
+      ORDER BY date DESC LIMIT 1
+    `).get(id);
+    customer.last_sale_days_ago = lastSale ? lastSale.days_ago : null;
+    customer.last_sale_date = lastSale ? lastSale.date : null;
     
     // PERFORMANCE: ?fields= for single customer detail
     const { fields } = req.query;
