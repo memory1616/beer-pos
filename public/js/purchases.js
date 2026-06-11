@@ -163,6 +163,8 @@ async function deletePurchase(id) {
 
     alert('Đã xóa phiếu nhập!');
     window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'purchase' } }));
+    // Force reload to ensure server state is reflected
+    location.reload();
   } catch (err) {
     alert('Xóa thất bại: ' + (err.message || 'Lỗi không xác định'));
   } finally {
