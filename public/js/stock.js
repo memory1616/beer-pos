@@ -501,7 +501,8 @@ async function deletePurchase(purchaseId) {
 
     alert('Đã xoá đơn nhập hàng!');
 
-    // REFETCH products from server to sync stock (stock restored on delete)
+    // Force reload to ensure server state is reflected
+    location.reload();
     fetch('/api/products', { cache: 'no-store' })
       .then(function(res) { return res.json(); })
       .then(function(serverProducts) {
