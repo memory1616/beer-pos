@@ -34,6 +34,7 @@ router.get('/data', (req, res) => {
       p.note,
       (SELECT COUNT(*) FROM purchase_items WHERE purchase_id = p.id) as item_count
     FROM purchases p
+    WHERE p.archived = 0
     ORDER BY datetime(p.date) DESC
     LIMIT 5
   `).all();
