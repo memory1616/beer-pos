@@ -643,7 +643,7 @@ app.get('/report/data', (req, res) => {
       purchases = db2.prepare(
         "SELECT p.id, p.date, p.total_amount as total, COALESCE(p.note, '') as note, " +
         "(SELECT COUNT(*) FROM purchase_items WHERE purchase_id = p.id) as item_count " +
-        "FROM purchases p WHERE " + purchaseDateCond + " ORDER BY datetime(" + purchaseDateCol + ") DESC"
+        "FROM purchases p WHERE p.archived = 0 AND " + purchaseDateCond + " ORDER BY datetime(" + purchaseDateCol + ") DESC"
       ).all(...dateParams);
 
       // Add purchase items detail
