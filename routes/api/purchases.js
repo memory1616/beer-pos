@@ -107,6 +107,7 @@ router.get('/', (req, res) => {
     SELECT p.*,
       (SELECT GROUP_CONCAT(pi.quantity || 'x ' || pr.name) FROM purchase_items pi JOIN products pr ON pi.product_id = pr.id WHERE pi.purchase_id = p.id) as items_summary
     FROM purchases p
+    WHERE p.archived = 0
     ORDER BY p.date DESC
     LIMIT 100
   `).all();
@@ -185,7 +186,7 @@ router.put('/:id', (req, res) => {
   }
 });
 
-// DELETE purchase (soft delete)
+// DELETE purchase (soft delete + reverse stock + return empty kegs)
 router.delete('/:id', (req, res) => {
   const purchaseId = req.params.id;
   logger.debug('Purchase soft delete start', { purchaseId });
@@ -196,11 +197,48 @@ router.delete('/:id', (req, res) => {
   }
 
   try {
-    // Soft delete: set archived = 1 instead of hard delete
+    // Reverse stock: subtract quantity from products
+    const items = db.prepare(`
+      SELECT pi.product_id, pi.quantity, pr.type
+      FROM purchase_items pi
+      JOIN products pr ON pi.product_id = pr.id
+      WHERE pi.purchase_id = ?
+    `).all(purchaseId);
+
+    let totalKegs = 0;
+    for (const item of items) {
+      db.prepare('UPDATE products SET stock = MAX(0, stock - ?) WHERE id = ?').run(item.quantity, item.product_id);
+      const productType = (item.type || 'keg').toLowerCase();
+      if (['keg', 'box'].includes(productType)) {
+        totalKegs += item.quantity;
+      }
+    }
+    logger.debug('Stock reversed', { itemsCount: items.length, totalKegs });
+
+    // Return empty kegs to warehouse
+    let stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
+    if (!stats) {
+      db.prepare('INSERT INTO keg_stats (id, inventory, empty_collected, customer_holding) VALUES (1, 0, 0, 0)').run();
+      stats = { empty_collected: 0 };
+    }
+    const currentEmpty = stats.empty_collected || 0;
+    const newEmpty = currentEmpty + totalKegs;
+
+    db.prepare('UPDATE keg_stats SET empty_collected = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run(newEmpty);
+    logger.debug('Empty kegs returned', { totalKegs, emptyBefore: currentEmpty, emptyAfter: newEmpty });
+
+    if (totalKegs > 0) {
+      db.prepare(`
+        INSERT INTO keg_transactions_log (type, quantity, inventory_after, empty_after, holding_after, note)
+        VALUES ('return', ?, 0, ?, 0, ?)
+      `).run(totalKegs, newEmpty, 'Trả vỏ do xóa đơn nhập #' + purchaseId);
+    }
+
+    // Soft delete
     db.prepare('UPDATE purchases SET archived = 1 WHERE id = ?').run(purchaseId);
     socketServer.emitInventoryUpdated({ purchaseId, archived: true });
-    logger.info('Purchase soft deleted (archived)', { purchaseId });
-    res.json({ success: true, message: 'Đã xóa đơn nhập (có thể khôi phục)', archived: true });
+    logger.info('Purchase soft deleted (archived) with stock reversal', { purchaseId, itemsReverted: items.length, kegsReturned: totalKegs });
+    res.json({ success: true, message: 'Đã xóa đơn nhập và hoàn kho', archived: true });
   } catch (err) {
     logger.error('Purchase soft delete error', { purchaseId, error: err.message });
     res.status(500).json({ error: 'Lỗi xóa đơn nhập' });
