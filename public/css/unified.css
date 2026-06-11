@@ -6329,7 +6329,6 @@ body.modal-open {
 
 /* Override body--app padding for sale page */
 body.body--app #app {
-  padding-top: 0 !important;
   padding-bottom: 0 !important;
   display: flex;
   flex-direction: column;
