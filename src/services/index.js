@@ -850,8 +850,8 @@ class PromotionService {
   // ── 1. KHUYẾN MÃI QUÁN MỚI ──────────────────────────────
 
   /**
-   * Kiểm tra khách hàng có phải "quán mới" (tạo trong N ngày đầu, config được)
-   * Dùng created_at thay vì first_order_date
+   * Kiểm tra khách hàng có phải "quán mới"
+   * Quán mới = tạo từ ngày 09 trở đi trong tháng hiện tại (không đếm ngày)
    */
   isNewShopEligible(customerId) {
     const settings = this.getSystemPromotionSettings();
@@ -859,7 +859,6 @@ class PromotionService {
       return { eligible: false, reason: 'Khuyến mãi quán mới đã bị tắt' };
     }
 
-    // Kiểm tra thời gian áp dụng khuyến mãi
     if (!this.isWithinPromotionPeriod()) {
       return { eligible: false, reason: 'Khuyến mãi chưa hoặc đã hết thời gian áp dụng' };
     }
@@ -871,24 +870,20 @@ class PromotionService {
       return { eligible: false, reason: 'Khách đã tắt tham gia CTKM', promotionEnabled: false };
     }
 
-    // Kiểm tra khách có tắt KM quán mới riêng không
     if (customer.new_shop_enabled === 0) {
       return { eligible: false, reason: 'Khách đã tắt khuyến mãi quán mới', promotionEnabled: false };
     }
 
-    const createdDate = new Date(customer.created_at);
+    const created = new Date(customer.created_at);
     const now = new Date();
-    const diffTime = now.getTime() - createdDate.getTime();
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-    const daysRemaining = settings.newShopDays - diffDays;
+    const isSameMonth = created.getMonth() === now.getMonth() && created.getFullYear() === now.getFullYear();
+    const isDay09Plus = created.getDate() >= 9;
 
-    if (daysRemaining > 0) {
+    if (isSameMonth && isDay09Plus) {
       return {
         eligible: true,
-        daysRemaining,
+        createdDay: created.getDate(),
         firstOrderDate: customer.created_at,
-        newShopDays: settings.newShopDays,
-        // Thêm thông tin tỷ lệ khuyến mãi cho UI
         buyGold: settings.newShopGoldBuy,
         freeGold: settings.newShopGoldFree,
         buyBlack: settings.newShopBlackBuy,
@@ -896,7 +891,7 @@ class PromotionService {
         promotionEnabled: true
       };
     }
-    return { eligible: false, daysRemaining: 0, reason: 'Đã hết hạn ưu đãi quán mới', promotionEnabled: true };
+    return { eligible: false, reason: 'Không thuộc chương trình quán mới', promotionEnabled: true };
   }
 
   /**

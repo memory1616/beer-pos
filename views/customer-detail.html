@@ -2560,8 +2560,8 @@
           newShopStatus = 'Đang tắt';
           newShopColor = 'var(--danger)';
         } else if (newShopInfo && newShopInfo.eligible) {
-          newShopStatus = newShopInfo.daysRemaining > 0 ? 'Còn ' + newShopInfo.daysRemaining + ' ngày' : 'Hết ưu đãi';
-          newShopColor = newShopInfo.daysRemaining > 0 ? 'var(--warning)' : 'var(--text-muted)';
+          newShopStatus = 'Quán mới tháng ' + newShopInfo.createdDay;
+          newShopColor = 'var(--warning)';
         }
 
         let rewardStatus = 'Bật';
@@ -2585,7 +2585,7 @@
         }
 
         let newShopDesc = '';
-        if (newShopInfo && newShopInfo.eligible && newShopInfo.daysRemaining > 0) {
+        if (newShopInfo && newShopInfo.eligible) {
           newShopDesc = 'Mua ' + (window.__newShopSettings ? window.__newShopSettings.goldBuy : newShopInfo.buyGold) + 'L vàng + ' + (window.__newShopSettings ? window.__newShopSettings.goldFree : newShopInfo.freeGold) + 'L | Mua ' + (window.__newShopSettings ? window.__newShopSettings.blackBuy : newShopInfo.buyBlack) + 'L đen + ' + (window.__newShopSettings ? window.__newShopSettings.blackFree : newShopInfo.freeBlack) + 'L';
         }
 
