@@ -9,7 +9,9 @@
     "build": "echo 'No build step required'",
     "build:css": "npx @tailwindcss/cli -i ./public/css/styles.css -o ./public/css/tailwind.css --minify",
     "watch:css": "npx @tailwindcss/cli -i ./public/css/styles.css -o ./public/css/tailwind.css --watch",
-    "build:vendor": "node scripts/build-vendor.js"
+    "build:vendor": "node scripts/build-vendor.js",
+    "test": "jest --coverage",
+    "test:watch": "jest --watch"
   },
   "dependencies": {
     "better-sqlite3": "^9.4.3",
@@ -29,8 +31,10 @@
   },
   "devDependencies": {
     "@tailwindcss/cli": "^4.2.1",
+    "@types/jest": "^30.0.0",
     "autoprefixer": "^10.4.27",
     "dexie": "^4.3.0",
+    "jest": "^29.7.0",
     "postcss": "^8.5.8",
     "tailwindcss": "^4.2.1"
   },
