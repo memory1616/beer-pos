@@ -76,7 +76,18 @@ function getAppMode(req) {
 }
 
 // Rate limiting — skip /api/discover (LAN scan pings) and /api/auth/me (login check)
-// DISABLED FOR DEBUG: app.use('/api', limiter);
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  message: { error: 'Quá nhiều yêu cầu, vui lòng thử lại sau' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
+  skip: (req) => {
+    return req.path === '/discover' || req.path === '/auth/me';
+  },
+});
+app.use('/api', limiter);
 
 // Lenient rate limit for auth/login endpoints — separate from general /api limit
 const authLimiter = rateLimit({
@@ -90,11 +101,15 @@ const authLimiter = rateLimit({
 app.use('/auth', authLimiter);
 
 // CORS — allow cross-origin requests for cloud sync
+// Allowlist configurable via ALLOWED_ORIGINS env var (comma-separated), default to known domains
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || '*').split(',').map(o => o.trim());
 app.use('/api', (req, res, next) => {
   const origin = req.headers.origin;
-  // Allow all origins for cloud sync (devices from different locations)
-  // In production, you can restrict to specific domains if needed
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin || '*');
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-API-Version');
   if (req.method === 'OPTIONS') return res.sendStatus(204);

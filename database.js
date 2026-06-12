@@ -1060,6 +1060,9 @@ addIndex(`CREATE INDEX IF NOT EXISTS idx_sync_queue_synced ON sync_queue(synced)
 addIndex(`CREATE INDEX IF NOT EXISTS idx_sync_queue_entity_synced ON sync_queue(entity, synced)`);
 // payments: debt report aggregates by customer_id
 addIndex(`CREATE INDEX IF NOT EXISTS idx_payments_customer ON payments(customer_id)`);
+addIndex(`CREATE INDEX IF NOT EXISTS idx_payments_date ON payments(payment_date)`);
+// sales: filter by sale_type
+addIndex(`CREATE INDEX IF NOT EXISTS idx_sales_type ON sales(sale_type)`);
 // keg_transactions_log: compound index for type+date queries
 addIndex(`CREATE INDEX IF NOT EXISTS idx_keg_tx_log_type_date ON keg_transactions_log(type, date DESC)`);
 addIndex(`CREATE INDEX IF NOT EXISTS idx_keg_tx_log_customer_date ON keg_transactions_log(customer_id, date DESC)`);
