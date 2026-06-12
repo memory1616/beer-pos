@@ -1179,19 +1179,16 @@ function filterCustomerOptions(query) {
 }
 
 function isNewShopCustomer(customer) {
-  if (!customer.first_order_date) return true;
-  var firstDate = new Date(customer.first_order_date);
-  var now = new Date();
-  var diffDays = Math.floor((now.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24));
-  return diffDays < 30;
+  return getNewShopCreatedDay(customer) !== null;
 }
 
-function getNewShopDaysRemaining(customer) {
-  if (!customer.first_order_date) return 30;
-  var firstDate = new Date(customer.first_order_date);
+function getNewShopCreatedDay(customer) {
+  if (!customer.created_at) return null;
+  var created = new Date(customer.created_at);
   var now = new Date();
-  var diffDays = Math.floor((now.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24));
-  return Math.max(0, 30 - diffDays);
+  var isSameMonth = created.getMonth() === now.getMonth() && created.getFullYear() === now.getFullYear();
+  var isDay09Plus = created.getDate() >= 9;
+  return (isSameMonth && isDay09Plus) ? created.getDate() : null;
 }
 
 function renderCustomerDropdown(list) {
@@ -1202,9 +1199,9 @@ function renderCustomerDropdown(list) {
     dropdown.innerHTML = '<div class="customer-dd-item" style="color:var(--text-muted);cursor:default;">Không tìm thấy</div>';
   } else {
     dropdown.innerHTML = list.map(function(c) {
-      var isNew = isNewShopCustomer(c);
-      var badge = isNew
-        ? '<span style="background:#ffedd5;color:#c2410c;font-size:11px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:6px;white-space:nowrap;">🔥 Quán mới - còn ' + getNewShopDaysRemaining(c) + ' ngày</span>'
+      var createdDay = getNewShopCreatedDay(c);
+      var badge = createdDay
+        ? '<span style="background:#ffedd5;color:#c2410c;font-size:11px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:6px;white-space:nowrap;">🔥 Quán mới ngày ' + createdDay + '</span>'
         : '';
       return '<div class="customer-dd-item" onclick="selectCustomer(\'' + c.id + '\', \'' + escAttr(c.name || '') + '\')">' +
         '<span style="font-weight:600;">' + escHtml(c.name || 'Khách') + '</span>' +
