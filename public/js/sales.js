@@ -76,7 +76,7 @@ let saleState = {
   customerId: null,
   items: [],  // [{productId, qty, price}]
   newShopEligible: false,
-  newShopDaysRemaining: 0,
+  newShopCreatedDay: null,
   promotionEnabled: true,
   promoSettings: null,  // Cài đặt khuyến mãi từ server
   isInNewShopPeriod: false,  // Khách đang trong thời gian quán mới
@@ -805,7 +805,7 @@ function openKegModalForSale(saleId, customerId, invoiceData) {
   kegEditSaleId = saleId;
   saleState.customerId = customerId ? Number(customerId) : null;
   saleState.newShopEligible = false;
-  saleState.newShopDaysRemaining = 0;
+  saleState.newShopCreatedDay = null;
   hideNewShopBadge();
   hidePromoPreview();
   kegSubmitting = false;
@@ -965,7 +965,7 @@ function openEditSale(saleId) {
 
       saleState.customerId = sale.customer_id ? Number(sale.customer_id) : null;
       saleState.newShopEligible = false;
-      saleState.newShopDaysRemaining = 0;
+      saleState.newShopCreatedDay = null;
       hideNewShopBadge();
       hidePromoPreview();
 
@@ -1240,7 +1240,7 @@ function selectCustomer(customerId, customerName) {
 
   // Reset promo state immediately (trước async API response)
   saleState.newShopEligible = false;
-  saleState.newShopDaysRemaining = 0;
+  saleState.newShopCreatedDay = null;
   saleState.promotionEnabled = true;
   hideNewShopBadge();
   hidePromoPreview();
@@ -1282,10 +1282,10 @@ function checkNewShopPromo(customerId) {
 
       var info = data.data;
       saleState.newShopEligible = info.eligible;
-      saleState.newShopDaysRemaining = info.daysRemaining || 0;
+      saleState.newShopCreatedDay = info.createdDay || null;
 
       if (info.eligible) {
-        showNewShopBadge(info.daysRemaining);
+        showNewShopBadge(info.createdDay);
         updatePromoPreview();
       } else {
         hideNewShopBadge();
@@ -1354,7 +1354,7 @@ function showNewShopActiveNotice(newShop) {
   var el = document.getElementById('newShopActiveNotice');
   if (el && newShop) {
     el.classList.remove('hidden');
-    el.innerHTML = '<span style="font-size:12px;">&#128293;</span> Khách đang trong thời gian quán mới — còn <b>' + newShop.daysRemaining + '</b> ngày<br><span style="font-size:11px;color:#6b7280;">(thưởng tháng sẽ được áp dụng sau khi hết thời gian quán mới)</span>';
+    el.innerHTML = '<span style="font-size:12px;">&#128293;</span> Khách đang trong thời gian quán mới (tạo ngày <b>' + newShop.createdDay + '</b>)<br><span style="font-size:11px;color:#6b7280;">(thưởng tháng sẽ được áp dụng sau khi hết thời gian quán mới)</span>';
   }
 }
 
@@ -1385,11 +1385,11 @@ function hidePromoDisabledBadge() {
   }
 }
 
-function showNewShopBadge(daysRemaining) {
+function showNewShopBadge(createdDay) {
   var badge = document.getElementById('newShopBadge');
   if (badge) {
     badge.classList.remove('hidden');
-    badge.innerHTML = '<span style="font-size:14px;">🔥</span> Quán mới — còn <b>' + daysRemaining + '</b> ngày ưu đãi<br><span style="font-size:11px;color:#92400e;">Mua 10L vàng tặng 1L | Mua 20L đen tặng 1L</span>';
+    badge.innerHTML = '<span style="font-size:14px;">🔥</span> Quán mới ngày <b>' + createdDay + '</b><br><span style="font-size:11px;color:#92400e;">Mua 10L vàng tặng 1L | Mua 20L đen tặng 1L</span>';
   }
 }
 
@@ -1657,7 +1657,7 @@ function resetSaleState() {
   saleState.items = [];
   saleState.customerId = null;
   saleState.newShopEligible = false;
-  saleState.newShopDaysRemaining = 0;
+  saleState.newShopCreatedDay = null;
   saleState.promotionEnabled = true;
   saleState.isInNewShopPeriod = false;
   saleState.canReceiveReward = false;
