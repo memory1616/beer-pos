@@ -912,7 +912,7 @@ class PromotionService {
    * Xác định loại khuyến mãi dựa trên ngày tạo khách hàng và tháng target
    * Quy tắc:
    *   - Trong tháng tạo: ngày 01-08 => reward, ngày 09+ => newShop
-   *   - Từ tháng sau trở đi: reward, newShop dựa trên daysSinceCreated
+   *   - Từ tháng sau trở đi: luôn reward (newShop chỉ trong tháng tạo)
    * @param {object} customer - customer object có created_at
    * @param {number} targetMonth - tháng cần kiểm tra (1-12)
    * @param {number} targetYear - năm cần kiểm tra
@@ -937,7 +937,7 @@ class PromotionService {
     const sameMonth = (targetMonth === createdMonth && targetYear === createdYear);
 
     if (sameMonth) {
-      // Trong tháng tạo khách
+      // Trong tháng tạo khách: quyết định ngay từ ngày tạo
       if (createdDay <= 8) {
         const canReward = customer.reward_enabled !== 0 && settings.rewardEnabled;
         return {
@@ -948,38 +948,15 @@ class PromotionService {
             : 'Không tham gia thưởng doanh số'
         };
       } else {
-        // Từ ngày 09 trở đi => KM quán mới, không thưởng tháng này
-        const newShopInfo = this.isNewShopEligible(customer.id);
-        const canNewShop = newShopInfo.eligible && newShopInfo.daysRemaining > 0;
+        // Từ ngày 09 => New Shop trong tháng tạo, không thưởng tháng này
         return {
           rewardEligible: false,
-          newShopEligible: canNewShop,
-          reason: canNewShop
-            ? 'Đang hưởng KM Quán mới - còn ' + newShopInfo.daysRemaining + ' ngày'
-            : 'Đã hết hạn KM Quán mới'
+          newShopEligible: settings.newShopEnabled && customer.new_shop_enabled !== 0,
+          reason: 'Hưởng KM Quán mới trong tháng ' + targetMonth + '. Từ tháng ' + (targetMonth === 12 ? '1' : targetMonth + 1) + ' tham gia thưởng doanh số.'
         };
       }
     } else {
-      // Tháng sau tháng tạo
-      // Ưu tiên: KM Quán mới trước, hết newShop mới sang Reward
-      const now = new Date();
-      const diffTime = now.getTime() - created.getTime();
-      const daysSinceCreated = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-      const inNewShopWindow = daysSinceCreated <= settings.newShopDays;
-
-      if (inNewShopWindow && settings.newShopEnabled) {
-        const newShopInfo = this.isNewShopEligible(customer.id);
-        const canNewShop = newShopInfo.eligible && newShopInfo.daysRemaining > 0;
-        return {
-          rewardEligible: false, // Ưu tiên New Shop
-          newShopEligible: canNewShop,
-          reason: canNewShop
-            ? 'Đang hưởng KM Quán mới - còn ' + newShopInfo.daysRemaining + ' ngày. Từ tháng sau tham gia thưởng doanh số.'
-            : 'Đã hết hạn KM Quán mới'
-        };
-      }
-
-      // Hết New Shop => chuyển sang Reward
+      // Khác tháng tạo: New Shop đã kết thúc, luôn Reward
       const canReward = customer.reward_enabled !== 0 && settings.rewardEnabled;
       return {
         rewardEligible: canReward,
