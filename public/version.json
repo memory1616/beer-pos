@@ -1,11 +1,10 @@
 {
-  "version": "2.0.8",
-  "build": "20260413a",
-  "date": "2026-04-13",
+  "version": "2.0.9",
+  "build": "20260612a",
+  "date": "2026-06-12",
   "changelog": [
-    "feat: product audit history modal — click product card to view import/export log",
-    "feat: filter audit by type (all / import / export)",
-    "fix: kegs transaction log — card layout with qty color coding",
-    "fix: kegs log card — remove hover flash from .card:hover CSS"
+    "feat(dashboard): refactor settings menu — Central Admin Hub with Binance-style cards",
+    "feat(dashboard): add Cài đặt hệ thống section (Khuyến mãi, QR, Sales)",
+    "fix(dashboard): clean up header dropdown — keep only Cảnh báo & Cloud"
   ]
 }
