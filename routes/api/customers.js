@@ -682,11 +682,11 @@ router.get('/:id/keg-history', (req, res) => {
   const customer = db.prepare('SELECT keg_balance FROM customers WHERE id = ?').get(customerId);
   const currentBalance = customer ? customer.keg_balance : 0;
   
-  // Get keg history
+  // Get keg history (only non-archived sales)
   let query = `
     SELECT date, deliver_kegs, return_kegs, keg_balance_after
     FROM sales
-    WHERE customer_id = ?
+    WHERE customer_id = ? AND archived = 0
   `;
   
   const params = [customerId];
