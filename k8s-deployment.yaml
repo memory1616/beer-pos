@@ -1,0 +1,71 @@
+# Beer POS Pro - Kubernetes Deployment (optional)
+# For larger scale deployments
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: beerpos-app
+  labels:
+    app: beerpos
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: beerpos
+  template:
+    metadata:
+      labels:
+        app: beerpos
+    spec:
+      containers:
+      - name: beerpos
+        image: beerpos:latest
+        ports:
+        - containerPort: 3000
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "3000"
+        - name: ADMIN_USER
+          valueFrom:
+            secretKeyRef:
+              name: beerpos-secrets
+              key: admin-user
+        - name: ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: beerpos-secrets
+              key: admin-password
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /api/ping
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /api/ping
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: beerpos-service
+spec:
+  selector:
+    app: beerpos
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 3000
+  type: ClusterIP
