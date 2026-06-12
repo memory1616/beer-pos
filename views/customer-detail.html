@@ -2509,6 +2509,37 @@
           window.__rewardTiers = data.data.rewardTiers || [];
         }
 
+        // Thêm badge promotion vào hero card (append vào badges hiện có)
+        const heroBadgesEl = document.getElementById('heroBadges');
+        if (heroBadgesEl && data && data.data) {
+          // Xóa badge promotion cũ nếu có
+          const oldPromoBadge = heroBadgesEl.querySelector('.cd-hero-promo-badge');
+          if (oldPromoBadge) oldPromoBadge.remove();
+
+          const isNewShop = data.data.isNewShopPromotion;
+          const isReward = data.data.isRewardEligible;
+          const reason = data.data.promotionReason || '';
+          const createdAt = data.data.createdAt || '';
+
+          let promoBadge = '';
+          if (isNewShop) {
+            promoBadge = '<span class="cd-hero-badge cd-hero-badge-new cd-hero-promo-badge">🔥 KM Quán mới</span>';
+          } else if (isReward) {
+            promoBadge = '<span class="cd-hero-badge cd-hero-badge-vip cd-hero-promo-badge">🏆 Tham gia thưởng doanh số</span>';
+          } else {
+            // Chờ sang tháng sau
+            const created = createdAt ? new Date(createdAt) : null;
+            const now = new Date();
+            const isSameMonth = created &&
+              created.getFullYear() === now.getFullYear() &&
+              created.getMonth() === now.getMonth();
+            if (isSameMonth && reason) {
+              promoBadge = '<span class="cd-hero-badge cd-hero-badge-sleep cd-hero-promo-badge">⏳ ' + reason + '</span>';
+            }
+          }
+          if (promoBadge) heroBadgesEl.insertAdjacentHTML('beforeend', promoBadge);
+        }
+
         var tiers = window.__rewardTiers || [];
         window.__customerPromoEnabled = promotionEnabled;
         window.__customerNewShopEnabled = newShopEnabled;

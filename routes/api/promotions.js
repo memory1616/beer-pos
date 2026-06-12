@@ -658,19 +658,20 @@ router.get('/customer/:customerId/overview', (req, res) => {
     const customerNewShopEnabled = customer.new_shop_enabled !== null ? customer.new_shop_enabled : 1;
     const customerRewardEnabled = customer.reward_enabled !== null ? customer.reward_enabled : 1;
 
+    // Dùng helper mới: xác định loại KM dựa trên ngày tạo khách
+    const promoType = PromotionService.getCustomerPromotionType(customerId);
+    const { isNewShopPromotion, isRewardEligible, reason } = promoType;
+
+    // Chỉ hiển thị thông tin quán mới nếu được phép
     let newShopInfo = null;
-    let isInNewShopPeriod = false;
-    if (customer.promotion_enabled !== 0 && customerNewShopEnabled) {
+    if (isNewShopPromotion && customer.promotion_enabled !== 0 && customerNewShopEnabled) {
       newShopInfo = PromotionService.isNewShopEligible(customerId);
-      isInNewShopPeriod = PromotionService.isInNewShopPeriod(customerId);
     }
 
+    // Tính thưởng doanh số nếu được phép
     let rewardInfo = null;
-    let canReceiveReward = false;
-    if (customer.promotion_enabled !== 0 && customerRewardEnabled) {
+    if (isRewardEligible && customer.promotion_enabled !== 0 && customerRewardEnabled) {
       rewardInfo = PromotionService.calculateMonthlyReward(customerId);
-      // Khách chỉ có thể nhận thưởng tháng nếu KHÔNG đang trong thời gian quán mới
-      canReceiveReward = !isInNewShopPeriod && settings.rewardEnabled;
     }
 
     res.json({
@@ -678,13 +679,19 @@ router.get('/customer/:customerId/overview', (req, res) => {
       data: {
         customerId,
         customerName: customer.name,
+        createdAt: customer.created_at,
         promotionEnabled: customer.promotion_enabled !== 0,
         newShopEnabled: customerNewShopEnabled,
         rewardEnabled: customerRewardEnabled,
         systemNewShopEnabled: settings.newShopEnabled,
         systemRewardEnabled: settings.rewardEnabled,
-        isInNewShopPeriod,
-        canReceiveReward,
+        // Loại KM mới dựa trên ngày tạo
+        isNewShopPromotion,
+        isRewardEligible,
+        promotionReason: reason,
+        // Backward compat
+        isInNewShopPeriod: isNewShopPromotion,
+        canReceiveReward: isRewardEligible,
         isWithinPromotionPeriod: PromotionService.isWithinPromotionPeriod(),
         promotionStartDate: settings.startDate,
         promotionEndDate: settings.endDate,

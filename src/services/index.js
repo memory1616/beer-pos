@@ -909,6 +909,101 @@ class PromotionService {
   }
 
   /**
+   * Xác định loại khuyến mãi dựa trên ngày tạo khách hàng và tháng target
+   * Quy tắc:
+   *   - Trong tháng tạo: ngày 01-08 => reward, ngày 09+ => newShop
+   *   - Từ tháng sau trở đi: reward, newShop dựa trên daysSinceCreated
+   * @param {object} customer - customer object có created_at
+   * @param {number} targetMonth - tháng cần kiểm tra (1-12)
+   * @param {number} targetYear - năm cần kiểm tra
+   * @returns {{ rewardEligible: boolean, newShopEligible: boolean, reason: string }}
+   */
+  getPromotionEligibility(customer, targetMonth, targetYear) {
+    const settings = this.getSystemPromotionSettings();
+
+    // Kiểm tra khuyến mãi hệ thống
+    if (!settings.newShopEnabled && !settings.rewardEnabled) {
+      return { rewardEligible: false, newShopEligible: false, reason: 'Chương trình đã kết thúc' };
+    }
+    if (!this.isWithinPromotionPeriod()) {
+      return { rewardEligible: false, newShopEligible: false, reason: 'Ngoài thời gian khuyến mãi' };
+    }
+
+    const created = new Date(customer.created_at);
+    const createdDay = created.getDate();
+    const createdMonth = created.getMonth() + 1;
+    const createdYear = created.getFullYear();
+
+    const sameMonth = (targetMonth === createdMonth && targetYear === createdYear);
+
+    if (sameMonth) {
+      // Trong tháng tạo khách
+      if (createdDay <= 8) {
+        const canReward = customer.reward_enabled !== 0 && settings.rewardEnabled;
+        return {
+          rewardEligible: canReward,
+          newShopEligible: false,
+          reason: canReward
+            ? 'Tham gia thưởng doanh số tháng ' + targetMonth
+            : 'Không tham gia thưởng doanh số'
+        };
+      } else {
+        // Từ ngày 09 trở đi => KM quán mới, không thưởng tháng này
+        const newShopInfo = this.isNewShopEligible(customer.id);
+        const canNewShop = newShopInfo.eligible && newShopInfo.daysRemaining > 0;
+        return {
+          rewardEligible: false,
+          newShopEligible: canNewShop,
+          reason: canNewShop
+            ? 'Đang hưởng KM Quán mới - còn ' + newShopInfo.daysRemaining + ' ngày'
+            : 'Đã hết hạn KM Quán mới'
+        };
+      }
+    } else {
+      // Tháng sau tháng tạo => reward bình thường, newShop dựa trên days
+      const now = new Date();
+      const diffTime = now.getTime() - created.getTime();
+      const daysSinceCreated = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      const inNewShopWindow = daysSinceCreated <= settings.newShopDays;
+
+      const canReward = customer.reward_enabled !== 0 && settings.rewardEnabled;
+      const canNewShop = inNewShopWindow && settings.newShopEnabled;
+
+      return {
+        rewardEligible: canReward,
+        newShopEligible: canNewShop,
+        reason: canReward
+          ? 'Tham gia thưởng doanh số'
+          : 'Không tham gia thưởng doanh số'
+      };
+    }
+  }
+
+  /**
+   * Backward-compatible wrapper cho getPromotionEligibility
+   * Dùng tháng hiện tại làm target
+   * @param {number} customerId
+   * @returns {{ isNewShopPromotion: boolean, isRewardEligible: boolean, reason: string }}
+   */
+  getCustomerPromotionType(customerId) {
+    const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(customerId);
+    if (!customer) {
+      return { isNewShopPromotion: false, isRewardEligible: false, reason: 'Không tìm thấy khách hàng' };
+    }
+    if (customer.promotion_enabled === 0) {
+      return { isNewShopPromotion: false, isRewardEligible: false, reason: 'CTKM đang tắt' };
+    }
+
+    const now = new Date();
+    const result = this.getPromotionEligibility(customer, now.getMonth() + 1, now.getFullYear());
+    return {
+      isNewShopPromotion: result.newShopEligible,
+      isRewardEligible: result.rewardEligible,
+      reason: result.reason
+    };
+  }
+
+  /**
    * Tính lít được tặng cho quán mới theo từng loại bia
    * @param {number} quantityGold - số lít bia vàng mua
    * @param {number} quantityBlack - số lít bia đen mua
