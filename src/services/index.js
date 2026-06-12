@@ -960,18 +960,30 @@ class PromotionService {
         };
       }
     } else {
-      // Tháng sau tháng tạo => reward bình thường, newShop dựa trên days
+      // Tháng sau tháng tạo
+      // Ưu tiên: KM Quán mới trước, hết newShop mới sang Reward
       const now = new Date();
       const diffTime = now.getTime() - created.getTime();
       const daysSinceCreated = Math.floor(diffTime / (1000 * 60 * 60 * 24));
       const inNewShopWindow = daysSinceCreated <= settings.newShopDays;
 
-      const canReward = customer.reward_enabled !== 0 && settings.rewardEnabled;
-      const canNewShop = inNewShopWindow && settings.newShopEnabled;
+      if (inNewShopWindow && settings.newShopEnabled) {
+        const newShopInfo = this.isNewShopEligible(customer.id);
+        const canNewShop = newShopInfo.eligible && newShopInfo.daysRemaining > 0;
+        return {
+          rewardEligible: false, // Ưu tiên New Shop
+          newShopEligible: canNewShop,
+          reason: canNewShop
+            ? 'Đang hưởng KM Quán mới - còn ' + newShopInfo.daysRemaining + ' ngày. Từ tháng sau tham gia thưởng doanh số.'
+            : 'Đã hết hạn KM Quán mới'
+        };
+      }
 
+      // Hết New Shop => chuyển sang Reward
+      const canReward = customer.reward_enabled !== 0 && settings.rewardEnabled;
       return {
         rewardEligible: canReward,
-        newShopEligible: canNewShop,
+        newShopEligible: false,
         reason: canReward
           ? 'Tham gia thưởng doanh số'
           : 'Không tham gia thưởng doanh số'
