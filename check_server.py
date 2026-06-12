@@ -1,37 +1,34 @@
-import subprocess
+#!/usr/bin/env python3
+import paramiko
 
-# Check if file was copied correctly
-r = subprocess.run(
-    ['ssh', '-o', 'StrictHostKeyChecking=no', 'root@103.75.183.57',
-     'grep -n "custom" ~/beer-pos/routes/report.js'],
-    input='Zxcv@1234\n',
-    capture_output=True,
-    text=True,
-    timeout=20
-)
-print("=== File content ===")
-print(r.stdout)
+host, port = '103.75.183.57', 22
+user, pw = 'root', 'Zxcv@1234'
 
-# Check PM2 status
-r2 = subprocess.run(
-    ['ssh', '-o', 'StrictHostKeyChecking=no', 'root@103.75.183.57',
-     'pm2 status'],
-    input='Zxcv@1234\n',
-    capture_output=True,
-    text=True,
-    timeout=20
-)
-print("=== PM2 status ===")
-print(r2.stdout)
+cmds = [
+    'cd ~/beer-pos && git log -3 --oneline',
+    'cd ~/beer-pos && grep -n "archived = 0" routes/api/purchases.js',
+    'cd ~/beer-pos && grep -n "Reverse stock" routes/api/purchases.js',
+    'pm2 status beer-pos',
+    'curl -s http://127.0.0.1:3000/health 2>&1',
+]
 
-# Try to restart
-r3 = subprocess.run(
-    ['ssh', '-o', 'StrictHostKeyChecking=no', 'root@103.75.183.57',
-     'pm2 restart beer-pos && sleep 2 && pm2 status'],
-    input='Zxcv@1234\n',
-    capture_output=True,
-    text=True,
-    timeout=30
-)
-print("=== PM2 restart ===")
-print(r3.stdout)
+try:
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    client.connect(host, port=port, username=user, password=pw, timeout=10)
+    print("Connected!")
+
+    for cmd in cmds:
+        print(f'\n$ {cmd}')
+        stdin, stdout, stderr = client.exec_command(cmd, timeout=20)
+        out = stdout.read()
+        err = stderr.read()
+        if out:
+            print(out.decode('utf-8', 'replace').strip())
+        if err:
+            print('ERR:', err.decode('utf-8', 'replace').strip())
+
+    client.close()
+    print('\nDone!')
+except Exception as e:
+    print(f'Error: {e}')
