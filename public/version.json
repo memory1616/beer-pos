@@ -1,10 +1,14 @@
 {
-  "version": "2.0.9",
-  "build": "20260617a",
+  "version": "2.1.1",
+  "build": "20260617c",
   "date": "2026-06-17",
   "changelog": [
-    "feat: Dashboard — gom Cài đặt Khuyến mãi, QR, Quản lý Sales vào section 'Cài đặt hệ thống' (Binance style, 3 cột desktop / 1 cột mobile)",
-    "refactor: ẩn 3 mục Khuyến mãi/QR/Sales khỏi dropdown header, giữ lại 'Cảnh báo & Cloud'",
-    "feat: data-permission + userHasPermission() — dễ mở rộng phân quyền sau này"
+    "fix(qr-settings): sửa thứ tự script — QR_SETTINGS_HTML được định nghĩa trước khi IIFE mount vào #app, tránh ReferenceError",
+    "fix(qr-settings): cache-busting layout.js lên ?v=20260617b-qrpool",
+    "feat(qr): pool nhiều tài khoản VietQR — CRUD + sắp xếp + bật/tắt trong trang Cài đặt QR",
+    "feat(pos): dropdown chọn QR thủ công trong modal hoá đơn (POS), mỗi hoá đơn chọn QR nào tuỳ ý",
+    "feat(qr): preview QR trực tiếp trong form thêm/sửa và trên mỗi card trong pool",
+    "refactor(qr): giữ settings qr_* cũ làm fallback khi pool rỗng, không break hệ thống cũ",
+    "fix(qr): auto-seed 1 row mặc định từ settings cũ khi nâng cấp, không cần nhập lại"
   ]
 }

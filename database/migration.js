@@ -15,7 +15,7 @@ const fs = require('fs');
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-const MIGRATION_VERSION = 2026041602;
+const MIGRATION_VERSION = 2026061701;
 const SCHEMA_VERSION_KEY = 'schema_version';
 const BUSINESS_FEATURES_VERSION = 2026041602;
 

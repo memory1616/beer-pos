@@ -81,7 +81,9 @@ let saleState = {
   promoSettings: null,  // Cài đặt khuyến mãi từ server
   isInNewShopPeriod: false,  // Khách đang trong thời gian quán mới
   canReceiveReward: false,  // Có thể nhận thưởng tháng
-  qrConfig: null  // Cài đặt QR từ server
+  qrConfig: null,  // Cài đặt QR fallback từ server
+  qrAccountsCache: [],  // Danh sách QR account active
+  currentInvoiceQR: null  // QR đang chọn cho hoá đơn hiện tại
 };
 
 let _productById = new Map();
@@ -164,6 +166,13 @@ window.addEventListener('realtime:refetch', function(e) {
       entities.indexOf('sales') !== -1 || entities.indexOf('inventory') !== -1 ||
       entities.indexOf('products') !== -1) {
     loadSaleHistory();
+  }
+});
+
+// Refresh QR pool khi user quay lại tab (admin vừa đổi QR ở tab khác)
+document.addEventListener('visibilitychange', function() {
+  if (!document.hidden && saleState.qrAccountsCache) {
+    loadQRAccountsForInvoice().catch(function() {});
   }
 });
 
@@ -504,13 +513,25 @@ function generateVietQR(invoice) {
   var amount = invoice && invoice.totalAmount ? Math.round(invoice.totalAmount) : 0;
   var invoiceId = invoice && invoice.id ? invoice.id : '';
 
-  // Sử dụng cài đặt QR từ server hoặc fallback
-  var config = saleState.qrConfig || {};
-  var bankCode = config.qrBankCode || 'ICB';
-  var accountNo = config.qrAccountNo || '107875230331';
-  var accountName = config.qrAccountName || 'NGUYEN MINH QUAN';
-  var template = config.qrTemplate || 'compact2';
-  var defaultContent = config.qrDefaultContent || 'Thanh toan HD {invoice_id}';
+  var bankCode, accountNo, accountName, template, defaultContent;
+
+  if (saleState.currentInvoiceQR) {
+    // Dùng QR đang chọn cho hoá đơn này
+    var qr = saleState.currentInvoiceQR;
+    bankCode = qr.bank_code;
+    accountNo = qr.account_no;
+    accountName = qr.account_name;
+    template = qr.template || 'compact2';
+    defaultContent = qr.default_content || 'Thanh toan HD {invoice_id}';
+  } else {
+    // Fallback về cài đặt QR cũ
+    var config = saleState.qrConfig || {};
+    bankCode = config.qrBankCode || 'ICB';
+    accountNo = config.qrAccountNo || '107875230331';
+    accountName = config.qrAccountName || 'NGUYEN MINH QUAN';
+    template = config.qrTemplate || 'compact2';
+    defaultContent = config.qrDefaultContent || 'Thanh toan HD {invoice_id}';
+  }
 
   // Xử lý nội dung: thay {invoice_id} bằng số hóa đơn
   var content = defaultContent.replace(/\{invoice_id\}/gi, invoiceId);
@@ -520,6 +541,75 @@ function generateVietQR(invoice) {
 
   return 'https://img.vietqr.io/image/' + bankCode.toUpperCase() + '-' + accountNo + '-' + template + '.png?amount=' +
     amount + '&addInfo=' + encodedContent + '&accountName=' + encodedName;
+}
+
+/**
+ * Load danh sách QR account active từ server (cache)
+ */
+async function loadQRAccountsForInvoice() {
+  try {
+    var res = await fetch('/api/settings/qr-accounts/active', { cache: 'no-store' });
+    if (!res.ok) {
+      saleState.qrAccountsCache = [];
+      return [];
+    }
+    var data = await res.json();
+    saleState.qrAccountsCache = Array.isArray(data) ? data : [];
+    return saleState.qrAccountsCache;
+  } catch (err) {
+    saleState.qrAccountsCache = [];
+    return [];
+  }
+}
+
+/**
+ * Fill dropdown chọn QR trong modal hoá đơn
+ */
+function populateInvoiceQRSelect() {
+  var select = document.getElementById('invQRSelect');
+  if (!select) return;
+
+  var list = saleState.qrAccountsCache || [];
+  if (list.length === 0) {
+    select.style.display = 'none';
+    select.innerHTML = '';
+    return;
+  }
+
+  var html = '';
+  list.forEach(function(qr) {
+    var label = qr.label + ' — ' + qr.bank_code + ' ' + qr.account_no;
+    html += '<option value="' + qr.id + '">' + escHtml(label) + '</option>';
+  });
+  select.innerHTML = html;
+  select.style.display = '';
+  // Reset selection to first
+  select.value = String(list[0].id);
+  saleState.currentInvoiceQR = list[0];
+}
+
+/**
+ * Handler khi user đổi QR trong dropdown
+ */
+function onInvoiceQRChange(qrId) {
+  var id = parseInt(qrId);
+  var list = saleState.qrAccountsCache || [];
+  var qr = list.find(function(q) { return q.id === id; });
+  if (!qr) {
+    saleState.currentInvoiceQR = null;
+    return;
+  }
+  saleState.currentInvoiceQR = qr;
+  // Re-render QR image
+  var invImg = document.getElementById('vietqrImage');
+  if (invImg) {
+    var modal = document.getElementById('invPosModal');
+    var invoice = modal && modal._currentInvoice ? modal._currentInvoice : null;
+    if (invoice) {
+      invImg.src = generateVietQR(invoice);
+      invImg.style.display = '';
+    }
+  }
 }
 
 function renderInvoiceModalContent(invoice, saleIdForActions) {
@@ -628,7 +718,16 @@ function renderInvoiceModalContent(invoice, saleIdForActions) {
   }
   if (invTotalValue) invTotalValue.textContent = formatVND(totalDisplay);
 
-  // QR
+  // QR — reset selection về QR đầu tiên (nếu có pool)
+  saleState.currentInvoiceQR = null;
+  if (saleState.qrAccountsCache && saleState.qrAccountsCache.length > 0) {
+    saleState.currentInvoiceQR = saleState.qrAccountsCache[0];
+  }
+  populateInvoiceQRSelect();
+  // Lưu invoice hiện tại lên modal để onInvoiceQRChange dùng
+  var modal = document.getElementById('invPosModal');
+  if (modal) modal._currentInvoice = invoice;
+
   var vietqrUrl = generateVietQR(invoice);
   if (vietqrBlock) vietqrBlock.style.display = '';
   if (vietqrImage) { vietqrImage.src = vietqrUrl; vietqrImage.style.display = ''; }
@@ -694,7 +793,12 @@ function autoScaleInvoiceModal() {
  * Mở modal hóa đơn — chỉ đọc dữ liệu (GET), không tạo / không cập nhật giao dịch.
  * @param {number|string|object|null} source — saleId, object sale đã có, hoặc null (empty state)
  */
-function openInvoiceModal(source) {
+async function openInvoiceModal(source) {
+  // Load QR accounts (nếu cache rỗng, ví dụ tab mới mở)
+  if (!saleState.qrAccountsCache || saleState.qrAccountsCache.length === 0) {
+    try { await loadQRAccountsForInvoice(); } catch (e) {}
+  }
+
   if (source == null || source === '') {
     window._invoiceContext = null;
     renderInvoiceModalContent(null, null);
@@ -718,39 +822,34 @@ function openInvoiceModal(source) {
     return;
   }
 
-  fetch('/sale/' + saleId, { cache: 'no-store' })
-    .then(function(res) {
-      return safeJson(res);
-    })
-    .then(function(data) {
-      if (!data) {
-        showToast('Không tìm thấy đơn', 'error');
-        var inv = null;
-        window._invoiceContext = null;
-        renderInvoiceModalContent(null, null);
-        showInvoiceModalElement();
-        return;
-      }
-      var sale = extractSaleFromResponse(data);
-      if (!sale) {
-        showToast('Không tìm thấy đơn', 'error');
-        var inv = null;
-        window._invoiceContext = null;
-        renderInvoiceModalContent(null, null);
-        showInvoiceModalElement();
-        return;
-      }
-      var invoice = normalizeInvoice(sale);
-      window._invoiceContext = invoice ? { saleId: saleId, rawSale: sale } : null;
-      renderInvoiceModalContent(invoice, saleId);
-      showInvoiceModalElement();
-    })
-    .catch(function(err) {
+  try {
+    var res = await fetch('/sale/' + saleId, { cache: 'no-store' });
+    var data = await safeJson(res);
+    if (!data) {
+      showToast('Không tìm thấy đơn', 'error');
       window._invoiceContext = null;
       renderInvoiceModalContent(null, null);
       showInvoiceModalElement();
-      showToast('Lỗi tải đơn', 'error');
-    });
+      return;
+    }
+    var sale = extractSaleFromResponse(data);
+    if (!sale) {
+      showToast('Không tìm thấy đơn', 'error');
+      window._invoiceContext = null;
+      renderInvoiceModalContent(null, null);
+      showInvoiceModalElement();
+      return;
+    }
+    var invoice = normalizeInvoice(sale);
+    window._invoiceContext = invoice ? { saleId: saleId, rawSale: sale } : null;
+    renderInvoiceModalContent(invoice, saleId);
+    showInvoiceModalElement();
+  } catch (err) {
+    window._invoiceContext = null;
+    renderInvoiceModalContent(null, null);
+    showInvoiceModalElement();
+    showToast('Lỗi tải đơn', 'error');
+  }
 }
 
 function viewSale(saleId) {

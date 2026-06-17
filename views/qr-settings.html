@@ -22,10 +22,10 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
-  <link rel="stylesheet" href="/css/unified.css?v=20250611-app-shell">
+  <link rel="stylesheet" href="/css/unified.css?v=20250611-app-shell-qrpool">
   <script src="/js/auth.js"></script>
   <script src="/js/dark-mode.js"></script>
-  <script src="/js/layout.js?v=20260410-binance"></script>
+  <script src="/js/layout.js?v=20260617b-qrpool"></script>
   <script src="/socket.io/socket.io.js"></script>
   <script>requireAuth();</script>
   <style>
@@ -213,21 +213,242 @@
       font-size: 12px;
       color: var(--text-muted);
     }
+    /* ── QR Account Card (Pool) ───────────────── */
+    .qr-card {
+      background: var(--card-soft);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 10px;
+      transition: all 0.15s;
+    }
+    .qr-card.inactive {
+      opacity: 0.55;
+    }
+    .qr-card-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .qr-card-icon {
+      width: 38px;
+      height: 38px;
+      background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      color: #fff;
+      flex-shrink: 0;
+    }
+    .qr-card-icon.inactive {
+      background: var(--border);
+      color: var(--text-muted);
+    }
+    .qr-card-title {
+      flex: 1;
+      min-width: 0;
+    }
+    .qr-card-label {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .qr-card-meta {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+    .qr-card-actions {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .qr-card-btn {
+      width: 32px;
+      height: 32px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      color: var(--text-secondary);
+      transition: all 0.15s;
+    }
+    .qr-card-btn:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+    .qr-card-btn.danger:hover {
+      border-color: #ef4444;
+      color: #ef4444;
+    }
+    .qr-card-btn.active-on {
+      background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+      color: #fff;
+      border-color: transparent;
+    }
+    .qr-card-row {
+      display: flex;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      padding: 4px 0;
+    }
+    .qr-card-row strong {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+    .qr-card-preview {
+      margin-top: 10px;
+      text-align: center;
+    }
+    .qr-card-preview img {
+      max-width: 140px;
+      background: #fff;
+      padding: 6px;
+      border-radius: 8px;
+    }
+    .add-card-btn {
+      width: 100%;
+      padding: 14px;
+      border: 2px dashed var(--border);
+      background: transparent;
+      border-radius: 12px;
+      color: var(--text-muted);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .add-card-btn:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+      background: rgba(59, 130, 246, 0.05);
+    }
+    /* ── Modal ─────────────────────────────────── */
+    .qr-modal-bg {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      z-index: 9999;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .qr-modal-bg.show {
+      display: flex;
+    }
+    .qr-modal {
+      background: var(--card);
+      border-radius: 16px;
+      max-width: 480px;
+      width: 100%;
+      max-height: 90vh;
+      overflow-y: auto;
+      padding: 20px;
+    }
+    .qr-modal-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 16px;
+    }
+    .qr-modal-row {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-bottom: 12px;
+    }
+    .qr-modal-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+    .qr-modal-input,
+    .qr-modal-select {
+      width: 100%;
+      height: 40px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0 12px;
+      background: var(--card-soft);
+      font-size: 14px;
+      color: var(--text-primary);
+    }
+    .qr-modal-input:focus,
+    .qr-modal-select:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+    .qr-modal-row-check {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      color: var(--text-primary);
+      margin-bottom: 12px;
+      cursor: pointer;
+    }
+    .qr-modal-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 18px;
+    }
+    .qr-modal-actions button {
+      flex: 1;
+      height: 44px;
+      border-radius: 10px;
+      border: none;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .qr-modal-cancel {
+      background: var(--card-soft);
+      color: var(--text-secondary);
+    }
+    .qr-modal-save {
+      background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+      color: #fff;
+    }
+    .qr-modal-save:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .empty-pool {
+      text-align: center;
+      padding: 30px 16px;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 8px;
+      font-size: 10px;
+      font-weight: 700;
+      background: var(--card);
+      color: var(--text-muted);
+    }
+    .badge.default {
+      background: rgba(59, 130, 246, 0.15);
+      color: #3b82f6;
+    }
   </style>
 </head>
 <body class="bg-main text-primary body--app">
   <div id="app"></div>
-
-  <script>
-    (async () => {
-      await loadVersion();
-      document.getElementById('app').innerHTML =
-        getHeader('Cài đặt QR', '&#128179;') +
-        getContent(QR_SETTINGS_HTML) +
-        getBottomNav('/dashboard');
-      await initPage();
-    })();
-  </script>
 
   <script>
     var QR_SETTINGS_HTML = [
@@ -235,13 +456,21 @@
 
       // Info Banner
       '<div class="info-banner">',
-        '<p><strong>QR thanh toán VietQR</strong> hiển thị trên hóa đơn khi khách quét để thanh toán. Thay đổi ở đây sẽ áp dụng cho tất cả hóa đơn mới.</p>',
+        '<p><strong>QR thanh toán VietQR</strong> &mdash; quản lý nhiều tài khoản, mỗi hóa đơn có thể chọn thủ công QR nào hiển thị trong POS.</p>',
       '</div>',
 
-      // SECTION: THÔNG TIN TÀI KHOẢN
+      // SECTION: DANH SÁCH QR POOL
       '<div class="qr-section">',
-        '<div class="qr-section-title">&#128179; Thông tin tài khoản</div>',
-        '<div class="qr-section-desc">Nhập thông tin tài khoản ngân hàng để tạo mã QR thanh toán.</div>',
+        '<div class="qr-section-title">&#128202; Danh sách tài khoản QR</div>',
+        '<div class="qr-section-desc">Thêm nhiều tài khoản ngân hàng. Trong POS, mỗi hóa đơn sẽ có dropdown chọn QR nào dùng để khách quét thanh toán.</div>',
+        '<div id="qrAccountList"></div>',
+        '<button onclick="openQRForm()" class="add-card-btn" style="margin-top:10px;">+ Thêm tài khoản QR</button>',
+      '</div>',
+
+      // SECTION: QR MẶC ĐỊNH (FALLBACK)
+      '<div class="qr-section">',
+        '<div class="qr-section-title">&#128190; QR mặc định (fallback)</div>',
+        '<div class="qr-section-desc">Dùng khi danh sách QR phía trên rỗng. Thay đổi ở đây sẽ áp dụng cho mọi hóa đơn khi chưa có QR nào trong pool.</div>',
 
         '<div class="qr-input-row">',
           '<div>',
@@ -276,7 +505,6 @@
           '</div>',
         '</div>',
 
-        // Account preview
         '<div id="accountPreview" class="account-preview" style="display:none;">',
           '<div class="account-preview-icon">&#128179;</div>',
           '<div class="account-preview-info">',
@@ -284,57 +512,35 @@
             '<div id="previewBank" class="account-preview-bank"></div>',
           '</div>',
         '</div>',
-      '</div>',
-
-      // SECTION: NỘI DUNG MẶC ĐỊNH
-      '<div class="qr-section">',
-        '<div class="qr-section-title">&#128221; Nội dung mặc định</div>',
-        '<div class="qr-section-desc">Nội dung ghi chú khi khách chuyển khoản. Dùng <code style="background:var(--card-soft);padding:2px 6px;border-radius:4px;">{invoice_id}</code> để hiện số hóa đơn.</div>',
 
         '<div class="qr-input-row">',
           '<div>',
             '<div class="qr-input-label">Nội dung thanh toán</div>',
-            '<div class="qr-input-desc">VD: Thanh toan HD {invoice_id}</div>',
+            '<div class="qr-input-desc">Dùng <code style="background:var(--card-soft);padding:2px 4px;border-radius:3px;">{invoice_id}</code> để hiện số hóa đơn</div>',
           '</div>',
           '<div class="qr-input-wrap">',
             '<input type="text" id="qrDefaultContent" class="qr-input" placeholder="Thanh toan HD {invoice_id}" ',
               'oninput="onSettingsChanged()" maxlength="100">',
           '</div>',
         '</div>',
-      '</div>',
-
-      // SECTION: MẪU QR
-      '<div class="qr-section">',
-        '<div class="qr-section-title">&#128247; Mẫu QR</div>',
-        '<div class="qr-section-desc">Chọn giao diện hiển thị mã QR trên hóa đơn.</div>',
 
         '<div class="qr-input-row">',
           '<div>',
-            '<div class="qr-input-label">Loại mẫu</div>',
+            '<div class="qr-input-label">Mẫu QR</div>',
             '<div class="qr-input-desc">Compact: nhỏ gọn, Exact: nhiều thông tin hơn</div>',
           '</div>',
           '<div class="qr-input-wrap">',
-            '<select id="qrTemplate" class="qr-input qr-input-bank" onchange="onSettingsChanged(); updatePreview()">',
+            '<select id="qrTemplate" class="qr-input qr-input-bank" onchange="onSettingsChanged()">',
               '<option value="compact2">Compact</option>',
               '<option value="exact">Exact</option>',
               '<option value="qr_only">QR Only</option>',
             '</select>',
           '</div>',
         '</div>',
-      '</div>',
 
-      // SECTION: PREVIEW
-      '<div class="qr-preview" id="qrPreviewSection">',
-        '<div class="qr-preview-title">&#128269; XEM TRƯỚC QR</div>',
-        '<img id="qrPreviewImg" class="qr-preview-img" src="" alt="QR Preview" style="display:none;">',
-        '<div id="qrPreviewPlaceholder" class="text-muted text-sm">Nhập thông tin tài khoản để xem trước QR</div>',
-        '<div id="qrPreviewInfo" class="qr-preview-info" style="display:none;"></div>',
-        '<button onclick="testQR()" class="test-qr-btn">&#128247; Tải lại QR</button>',
+        '<button id="saveBtn" onclick="saveSettings()" class="qr-save-btn" disabled>&#128190; Lưu cài đặt</button>',
+        '<div id="saveStatus" class="text-center text-sm mt-3 hidden"></div>',
       '</div>',
-
-      // Save Button
-      '<button id="saveBtn" onclick="saveSettings()" class="qr-save-btn" disabled>&#128190; Lưu cài đặt</button>',
-      '<div id="saveStatus" class="text-center text-sm mt-3 hidden"></div>',
 
       // Loading
       '<div id="qrLoading" class="text-center py-8">',
@@ -342,6 +548,67 @@
         '<div class="text-muted mt-2">Đang tải...</div>',
       '</div>',
 
+      '</div>',
+
+      // ── Modal thêm/sửa QR ──────────────────────
+      '<div id="qrModal" class="qr-modal-bg">',
+        '<div class="qr-modal">',
+          '<div id="qrModalTitle" class="qr-modal-title">Thêm tài khoản QR</div>',
+
+          '<div class="qr-modal-row">',
+            '<label class="qr-modal-label">Tên gợi nhớ *</label>',
+            '<input id="qrFormLabel" class="qr-modal-input" placeholder="VD: VCB cá nhân, BIDV công ty" maxlength="80">',
+          '</div>',
+
+          '<div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">',
+            '<div class="qr-modal-row">',
+              '<label class="qr-modal-label">Ngân hàng *</label>',
+              '<input id="qrFormBank" class="qr-modal-input" placeholder="VCB" maxlength="10">',
+            '</div>',
+            '<div class="qr-modal-row">',
+              '<label class="qr-modal-label">Mẫu</label>',
+              '<select id="qrFormTemplate" class="qr-modal-select">',
+                '<option value="compact2">Compact</option>',
+                '<option value="exact">Exact</option>',
+                '<option value="qr_only">QR Only</option>',
+              '</select>',
+            '</div>',
+          '</div>',
+
+          '<div class="qr-modal-row">',
+            '<label class="qr-modal-label">Số tài khoản *</label>',
+            '<input id="qrFormAccountNo" class="qr-modal-input" placeholder="1234567890" inputmode="numeric" maxlength="20">',
+          '</div>',
+
+          '<div class="qr-modal-row">',
+            '<label class="qr-modal-label">Tên chủ tài khoản * (in hoa, không dấu)</label>',
+            '<input id="qrFormAccountName" class="qr-modal-input" placeholder="NGUYEN VAN A" maxlength="50">',
+          '</div>',
+
+          '<div class="qr-modal-row">',
+            '<label class="qr-modal-label">Nội dung thanh toán</label>',
+            '<input id="qrFormContent" class="qr-modal-input" placeholder="Thanh toan HD {invoice_id}" maxlength="100">',
+          '</div>',
+
+          '<div class="qr-modal-row">',
+            '<label class="qr-modal-label">Trọng số (giữ lại cho tương lai)</label>',
+            '<input id="qrFormWeight" type="number" min="0" class="qr-modal-input" value="1">',
+          '</div>',
+
+          '<label class="qr-modal-row-check">',
+            '<input id="qrFormActive" type="checkbox" checked>',
+            '<span>Kích hoạt (hiển thị trong POS)</span>',
+          '</label>',
+
+          '<div id="qrFormPreview" style="text-align:center; margin-top:8px; display:none;">',
+            '<img id="qrFormPreviewImg" style="max-width:160px; background:#fff; padding:8px; border-radius:8px;">',
+          '</div>',
+
+          '<div class="qr-modal-actions">',
+            '<button type="button" class="qr-modal-cancel" onclick="closeQRForm()">Huỷ</button>',
+            '<button type="button" id="qrFormSave" class="qr-modal-save" onclick="saveQRAccountForm()">Lưu</button>',
+          '</div>',
+        '</div>',
       '</div>'
     ].join('');
   </script>
@@ -349,6 +616,8 @@
   <script>
     // ── State ─────────────────────────────────────────────
     var currentSettings = null;
+    var qrAccounts = [];
+    var editingQRId = null;
     var hasChanges = false;
 
     // ── Init ─────────────────────────────────────────────
@@ -358,14 +627,244 @@
       if (loading) loading.classList.remove('hidden');
       if (content) content.classList.add('hidden');
       try {
-        await loadSettings();
+        await Promise.all([loadSettings(), loadQRAccounts()]);
       } finally {
         if (loading) loading.classList.add('hidden');
         if (content) content.classList.remove('hidden');
       }
     }
 
-    // ── Load settings from server ─────────────────────────
+    // ── Load QR Pool ─────────────────────────────────────
+    async function loadQRAccounts() {
+      try {
+        var res = await fetch('/api/settings/qr-accounts', { cache: 'no-store' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        qrAccounts = await res.json();
+        renderQRList();
+      } catch (e) {
+        qrAccounts = [];
+        renderQRList();
+        console.error('loadQRAccounts:', e);
+      }
+    }
+
+    function renderQRList() {
+      var list = document.getElementById('qrAccountList');
+      if (!list) return;
+      if (!qrAccounts || qrAccounts.length === 0) {
+        list.innerHTML = '<div class="empty-pool">Chưa có tài khoản QR nào. Bấm <strong>+ Thêm tài khoản QR</strong> bên dưới để tạo.</div>';
+        return;
+      }
+      var html = '';
+      qrAccounts.forEach(function(qr, idx) {
+        var isActive = qr.active === 1;
+        var isFirst = idx === 0;
+        var isLast = idx === qrAccounts.length - 1;
+        html += '<div class="qr-card ' + (isActive ? '' : 'inactive') + '" data-id="' + qr.id + '">';
+        html += '  <div class="qr-card-header">';
+        html += '    <div class="qr-card-icon ' + (isActive ? '' : 'inactive') + '">&#127974;</div>';
+        html += '    <div class="qr-card-title">';
+        html += '      <div class="qr-card-label">' + escHtml(qr.label) + '</div>';
+        html += '      <div class="qr-card-meta">' + escHtml(qr.bank_code) + ' &middot; ' + escHtml(qr.account_no) + (isFirst ? ' &middot; <span class="badge default">Mặc định</span>' : '') + '</div>';
+        html += '    </div>';
+        html += '    <div class="qr-card-actions">';
+        html += '      <button class="qr-card-btn" title="Lên" onclick="moveQRAccount(' + qr.id + ', -1)"' + (isFirst ? ' disabled style="opacity:0.3;cursor:not-allowed;"' : '') + '>&#9650;</button>';
+        html += '      <button class="qr-card-btn" title="Xuống" onclick="moveQRAccount(' + qr.id + ', 1)"' + (isLast ? ' disabled style="opacity:0.3;cursor:not-allowed;"' : '') + '>&#9660;</button>';
+        html += '      <button class="qr-card-btn ' + (isActive ? 'active-on' : '') + '" title="Bật/Tắt" onclick="toggleQRActive(' + qr.id + ')">' + (isActive ? '&#10004;' : '&#10005;') + '</button>';
+        html += '      <button class="qr-card-btn" title="Sửa" onclick="openQRForm(' + qr.id + ')">&#9998;</button>';
+        html += '      <button class="qr-card-btn danger" title="Xoá" onclick="deleteQRAccount(' + qr.id + ')">&#128465;</button>';
+        html += '    </div>';
+        html += '  </div>';
+        html += '  <div class="qr-card-row"><span>Chủ TK:</span> <strong>' + escHtml(qr.account_name) + '</strong></div>';
+        html += '  <div class="qr-card-row"><span>Nội dung:</span> <strong>' + escHtml(qr.default_content || 'Thanh toan HD {invoice_id}') + '</strong></div>';
+        if (isActive) {
+          var qrUrl = 'https://img.vietqr.io/image/' + encodeURIComponent(qr.bank_code) + '-' + encodeURIComponent(qr.account_no) + '-' + encodeURIComponent(qr.template || 'compact2') + '.png?amount=100000&addInfo=Preview&accountName=' + encodeURIComponent((qr.account_name || '').toUpperCase());
+          html += '  <div class="qr-card-preview"><img src="' + qrUrl + '" alt="QR" onerror="this.style.display=\'none\'"></div>';
+        }
+        html += '</div>';
+      });
+      list.innerHTML = html;
+    }
+
+    async function moveQRAccount(id, dir) {
+      var idx = qrAccounts.findIndex(function(q) { return q.id === id; });
+      if (idx < 0) return;
+      var newIdx = idx + dir;
+      if (newIdx < 0 || newIdx >= qrAccounts.length) return;
+      // Swap
+      var tmp = qrAccounts[idx];
+      qrAccounts[idx] = qrAccounts[newIdx];
+      qrAccounts[newIdx] = tmp;
+      // Persist
+      var items = qrAccounts.map(function(q) { return { id: q.id }; });
+      try {
+        var res = await fetch('/api/settings/qr-accounts/reorder', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items: items })
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        await loadQRAccounts();
+        if (typeof showToast === 'function') showToast('Đã sắp xếp lại', 'success');
+        // Notify other tabs
+        if (window.qrSocket) window.qrSocket.emit('request:refetch', { entities: ['qr_accounts'] });
+      } catch (e) {
+        if (typeof showToast === 'function') showToast('Lỗi: ' + e.message, 'error');
+        await loadQRAccounts();
+      }
+    }
+
+    async function toggleQRActive(id) {
+      try {
+        var res = await fetch('/api/settings/qr-accounts/' + id + '/toggle', { method: 'POST' });
+        var data = await res.json();
+        if (data.success) {
+          await loadQRAccounts();
+          if (typeof showToast === 'function') showToast('Đã cập nhật trạng thái', 'success');
+          if (window.qrSocket) window.qrSocket.emit('request:refetch', { entities: ['qr_accounts'] });
+        } else {
+          throw new Error(data.error || 'Lỗi');
+        }
+      } catch (e) {
+        if (typeof showToast === 'function') showToast('Lỗi: ' + e.message, 'error');
+      }
+    }
+
+    async function deleteQRAccount(id) {
+      var qr = qrAccounts.find(function(q) { return q.id === id; });
+      if (!qr) return;
+      if (!confirm('Xoá tài khoản QR "' + qr.label + '"?\nSTK: ' + qr.account_no + ' - ' + qr.bank_code)) return;
+      try {
+        var res = await fetch('/api/settings/qr-accounts/' + id, { method: 'DELETE' });
+        var data = await res.json();
+        if (data.success) {
+          await loadQRAccounts();
+          if (typeof showToast === 'function') showToast('Đã xoá', 'success');
+          if (window.qrSocket) window.qrSocket.emit('request:refetch', { entities: ['qr_accounts'] });
+        } else {
+          throw new Error(data.error || 'Lỗi');
+        }
+      } catch (e) {
+        if (typeof showToast === 'function') showToast('Lỗi: ' + e.message, 'error');
+      }
+    }
+
+    // ── Modal ────────────────────────────────────────────
+    function openQRForm(id) {
+      editingQRId = id || null;
+      var modal = document.getElementById('qrModal');
+      var title = document.getElementById('qrModalTitle');
+      var lbl = document.getElementById('qrFormLabel');
+      var bank = document.getElementById('qrFormBank');
+      var accNo = document.getElementById('qrFormAccountNo');
+      var accName = document.getElementById('qrFormAccountName');
+      var content = document.getElementById('qrFormContent');
+      var template = document.getElementById('qrFormTemplate');
+      var weight = document.getElementById('qrFormWeight');
+      var active = document.getElementById('qrFormActive');
+      var preview = document.getElementById('qrFormPreview');
+
+      if (id) {
+        var qr = qrAccounts.find(function(q) { return q.id === id; });
+        if (!qr) return;
+        title.textContent = 'Sửa tài khoản QR';
+        lbl.value = qr.label || '';
+        bank.value = qr.bank_code || '';
+        accNo.value = qr.account_no || '';
+        accName.value = qr.account_name || '';
+        content.value = qr.default_content || 'Thanh toan HD {invoice_id}';
+        template.value = qr.template || 'compact2';
+        weight.value = qr.weight || 1;
+        active.checked = qr.active === 1;
+      } else {
+        title.textContent = 'Thêm tài khoản QR';
+        lbl.value = '';
+        bank.value = '';
+        accNo.value = '';
+        accName.value = '';
+        content.value = 'Thanh toan HD {invoice_id}';
+        template.value = 'compact2';
+        weight.value = 1;
+        active.checked = true;
+      }
+      preview.style.display = 'none';
+      if (modal) modal.classList.add('show');
+      setTimeout(function() { lbl && lbl.focus(); }, 50);
+    }
+
+    function closeQRForm() {
+      var modal = document.getElementById('qrModal');
+      if (modal) modal.classList.remove('show');
+      editingQRId = null;
+    }
+
+    function previewQRInForm() {
+      var bank = (document.getElementById('qrFormBank').value || '').trim();
+      var accNo = (document.getElementById('qrFormAccountNo').value || '').trim();
+      var accName = (document.getElementById('qrFormAccountName').value || '').trim();
+      var template = document.getElementById('qrFormTemplate').value;
+      var preview = document.getElementById('qrFormPreview');
+      var img = document.getElementById('qrFormPreviewImg');
+      if (!bank || !accNo || !accName) {
+        preview.style.display = 'none';
+        return;
+      }
+      var url = 'https://img.vietqr.io/image/' + encodeURIComponent(bank.toUpperCase()) + '-' + encodeURIComponent(accNo) + '-' + encodeURIComponent(template) + '.png?amount=100000&addInfo=Preview&accountName=' + encodeURIComponent(accName.toUpperCase());
+      img.src = url;
+      img.onload = function() { preview.style.display = ''; };
+      img.onerror = function() { preview.style.display = 'none'; };
+    }
+
+    async function saveQRAccountForm() {
+      var btn = document.getElementById('qrFormSave');
+      btn.disabled = true;
+      var oldText = btn.textContent;
+      btn.textContent = 'Đang lưu...';
+      try {
+        var payload = {
+          label: (document.getElementById('qrFormLabel').value || '').trim(),
+          bank_code: (document.getElementById('qrFormBank').value || '').trim().toUpperCase(),
+          account_no: (document.getElementById('qrFormAccountNo').value || '').trim(),
+          account_name: (document.getElementById('qrFormAccountName').value || '').trim().toUpperCase(),
+          template: document.getElementById('qrFormTemplate').value,
+          default_content: (document.getElementById('qrFormContent').value || '').trim() || 'Thanh toan HD {invoice_id}',
+          weight: parseInt(document.getElementById('qrFormWeight').value) || 0,
+          active: document.getElementById('qrFormActive').checked ? 1 : 0
+        };
+        var url = '/api/settings/qr-accounts' + (editingQRId ? '/' + editingQRId : '');
+        var res = await fetch(url, {
+          method: editingQRId ? 'PUT' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        var data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error || ('HTTP ' + res.status));
+        closeQRForm();
+        await loadQRAccounts();
+        if (typeof showToast === 'function') showToast('Đã lưu tài khoản QR', 'success');
+        if (window.qrSocket) window.qrSocket.emit('request:refetch', { entities: ['qr_accounts'] });
+      } catch (e) {
+        if (typeof showToast === 'function') showToast('Lỗi: ' + e.message, 'error');
+        else alert('Lỗi: ' + e.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = oldText;
+      }
+    }
+
+    // Live preview
+    document.addEventListener('input', function(e) {
+      if (e.target && e.target.closest && e.target.closest('#qrModal')) {
+        previewQRInForm();
+      }
+    });
+    document.addEventListener('change', function(e) {
+      if (e.target && e.target.closest && e.target.closest('#qrModal')) {
+        previewQRInForm();
+      }
+    });
+
+    // ── Load fallback settings (QR mặc định) ────────────
     async function loadSettings() {
       try {
         var res = await fetch('/api/settings/qr-config', { cache: 'no-store' });
@@ -375,7 +874,6 @@
           renderSettings(currentSettings);
         }
       } catch (e) {
-        // Use defaults
         currentSettings = {
           qrAccountNo: '',
           qrAccountName: '',
@@ -387,7 +885,6 @@
       }
     }
 
-    // ── Render settings into form ────────────────────────
     function renderSettings(s) {
       var el;
       el = document.getElementById('qrAccountNo');
@@ -402,13 +899,12 @@
       if (el) el.value = s.qrTemplate || 'compact2';
 
       previewAccountName();
-      updatePreview();
 
       hasChanges = false;
-      document.getElementById('saveBtn').disabled = true;
+      var saveBtn = document.getElementById('saveBtn');
+      if (saveBtn) saveBtn.disabled = true;
     }
 
-    // ── Preview account name ──────────────────────────────
     function previewAccountName() {
       var accountNo = document.getElementById('qrAccountNo')?.value || '';
       var accountName = document.getElementById('qrAccountName')?.value || '';
@@ -426,75 +922,12 @@
       }
     }
 
-    // ── Update QR Preview ────────────────────────────────
-    function updatePreview() {
-      var accountNo = document.getElementById('qrAccountNo')?.value || '';
-      var accountName = document.getElementById('qrAccountName')?.value || '';
-      var bankCode = document.getElementById('qrBankCode')?.value || 'ICB';
-      var template = document.getElementById('qrTemplate')?.value || 'compact2';
-
-      var previewImg = document.getElementById('qrPreviewImg');
-      var placeholder = document.getElementById('qrPreviewPlaceholder');
-      var previewInfo = document.getElementById('qrPreviewInfo');
-
-      if (!accountNo || !accountName) {
-        if (previewImg) previewImg.style.display = 'none';
-        if (placeholder) placeholder.style.display = '';
-        if (previewInfo) previewInfo.style.display = 'none';
-        return;
-      }
-
-      var encodedName = encodeURIComponent(accountName.toUpperCase());
-      var amount = 100000; // Test amount
-      var content = 'Test QR';
-      var encodedContent = encodeURIComponent(content);
-
-      var qrUrl = 'https://img.vietqr.io/image/' + bankCode.toUpperCase() + '-' + accountNo + '-' + template + '.png?amount=' + amount + '&addInfo=' + encodedContent + '&accountName=' + encodedName;
-
-      if (previewImg) {
-        previewImg.src = qrUrl;
-        previewImg.style.display = '';
-        previewImg.onerror = function() {
-          this.style.display = 'none';
-          if (placeholder) {
-            placeholder.textContent = 'QR không khả dụng. Vui lòng kiểm tra thông tin.';
-            placeholder.style.display = '';
-          }
-        };
-      }
-      if (placeholder) placeholder.style.display = 'none';
-      if (previewInfo) {
-        previewInfo.innerHTML = '<strong>' + formatVND(amount) + '</strong> - ' + escHtml(accountName) + ' (' + bankCode.toUpperCase() + ')';
-        previewInfo.style.display = '';
-      }
-    }
-
-    function testQR() {
-      updatePreview();
-    }
-
-    // ── Format VND ───────────────────────────────────────
-    function formatVND(n) {
-      if (!n) return '0đ';
-      return new Intl.NumberFormat('vi-VN').format(n) + 'đ';
-    }
-
-    function escHtml(str) {
-      if (!str) return '';
-      return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
-    }
-
-    // ── Detect changes ─────────────────────────────────
     function onSettingsChanged() {
       hasChanges = true;
-      document.getElementById('saveBtn').disabled = false;
+      var saveBtn = document.getElementById('saveBtn');
+      if (saveBtn) saveBtn.disabled = false;
     }
 
-    // ── Save settings ────────────────────────────────────
     async function saveSettings() {
       var btn = document.getElementById('saveBtn');
       var statusEl = document.getElementById('saveStatus');
@@ -527,10 +960,9 @@
           btn.style.background = 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)';
           statusEl.classList.remove('hidden');
           statusEl.style.color = 'var(--success)';
-          statusEl.textContent = 'Cài đặt QR đã được lưu thành công!';
+          statusEl.textContent = 'Cài đặt QR mặc định đã được lưu thành công!';
 
-          // Notify socket for realtime update
-          if (typeof window.qrSocket !== 'undefined' && window.qrSocket) {
+          if (window.qrSocket) {
             window.qrSocket.emit('request:refetch', { entities: ['qr_settings'] });
           }
 
@@ -553,7 +985,6 @@
       }
     }
 
-    // ── Warn before leaving ─────────────────────────────
     window.addEventListener('beforeunload', function(e) {
       if (hasChanges) {
         e.preventDefault();
@@ -561,7 +992,7 @@
       }
     });
 
-    // ── Socket.IO: listen for refetch events ───────────
+    // ── Socket.IO: realtime refresh ─────────────────────
     function initSocket() {
       if (typeof io === 'undefined') return;
       try {
@@ -570,22 +1001,32 @@
 
         socket.on('refetch:now', function(data) {
           var entities = data && data.entities;
-          if (!entities || entities.indexOf('all') !== -1 || entities.indexOf('qr_settings') !== -1) {
+          if (!entities) return;
+          if (entities.indexOf('all') !== -1 ||
+              entities.indexOf('qr_settings') !== -1 ||
+              entities.indexOf('qr_accounts') !== -1) {
+            loadQRAccounts();
             loadSettings();
           }
-        });
-
-        socket.on('connect', function() {
-          // Connected
         });
       } catch (e) {
         // Silent socket init fail
       }
     }
-
-    // ── Init ───────────────────────────────────────────
-    initPage();
-    initSocket();
   </script>
-</body>
+
+  <script>
+    (async () => {
+      await loadVersion();
+      document.getElementById('app').innerHTML =
+        getHeader('Cài đặt QR', '&#128179;') +
+        getContent(QR_SETTINGS_HTML) +
+        getBottomNav('/dashboard');
+      await initPage();
+      initSocket();
+    })();
+  </script>
+
+
+<!-- Bottom Navigation --></body>
 </html>
