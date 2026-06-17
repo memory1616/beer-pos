@@ -49,6 +49,7 @@
       .grid-2, .grid-3 { grid-template-columns: 1fr; }
     }
   </style>
+<script src="/js/layout.js"></script>
 </head>
 <body>
   <div id="app">
@@ -875,5 +876,9 @@
       return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
     }
   </script>
+
+
+<!-- Bottom Navigation -->
+<script>document.body.insertAdjacentHTML("beforeend", getBottomNav("/sale"));</script>
 </body>
 </html>

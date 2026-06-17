@@ -8,7 +8,7 @@
     body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #0f0f1a; color: #fff; }
     .header { background: #1a1a2e; padding: 15px; display: flex; justify-content: space-between; align-items: center; }
     .header h1 { margin: 0; font-size: 18px; }
-    .content { padding: 15px; padding-bottom: 70px; }
+    .content { padding: 15px; padding-bottom: calc(var(--bottomnav-height) + var(--safe-area-bottom) + 15px); }
     #map { height: 250px; width: 100%; border-radius: 10px; background: #1a1a2e; }
     .stats { display: flex; gap: 10px; margin: 15px 0; }
     .stat-box { flex: 1; background: #1a1a2e; padding: 15px; border-radius: 10px; text-align: center; }
@@ -24,14 +24,19 @@
     .card .btns { display: flex; gap: 8px; margin-top: 8px; }
     .card .btn-sm { padding: 8px; border-radius: 6px; border: none; font-size: 12px; cursor: pointer; background: #374151; color: #fff; text-decoration: none; text-align: center; }
     .card .btn-del { background: #f59e0b; }
-    .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: #1a1a2e; display: flex; justify-content: space-around; padding: 10px 0; border-top: 1px solid #333; }
-    .nav-link { color: #888; text-decoration: none; font-size: 12px; }
-    .nav-link.active { color: #3b82f6; }
+
     .leaflet-container { background: #1a1a2e !important; }
   </style>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="preload" href="/js/layout.js" as="script">
+  <script src="/js/layout.js"></script>
+  <script>
+  function initPage() {
+    document.body.insertAdjacentHTML("beforeend", getBottomNav("/sale"));
+  }
+  </script>
 </head>
-<body>
+<body onload="initPage()">
   <div class="header">
     <h1>🚚 Giao hàng</h1>
     <button onclick="showSettings()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#fff;">⚙️</button>
@@ -60,12 +65,7 @@
     <div id="list"></div>
   </div>
 
-  <div class="bottom-nav">
-    <a href="/dashboard" class="nav-link">🏠</a>
-    <a href="/sales" class="nav-link">💰</a>
-    <a href="/delivery" class="nav-link active">🚚</a>
-    <a href="/customers" class="nav-link">👥</a>
-  </div>
+
 
   <div id="settingsModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:200;align-items:center;justify-content:center;">
     <div style="background:#1a1a2e;border-radius:12px;padding:20px;width:90%;max-width:350px;">
@@ -219,5 +219,7 @@
     initMap();
     render();
   </script>
+
+
 </body>
 </html>

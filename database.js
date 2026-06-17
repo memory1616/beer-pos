@@ -1603,3 +1603,59 @@ try {
   });
 } catch (e) { /* ignore */ }
 
+// ========== MIGRATION 042: QR ACCOUNTS POOL ==========
+// Pool nhiều tài khoản VietQR, cho phép chọn thủ công trong POS
+// Backward compat: settings table vẫn giữ các key qr_* làm fallback
+
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS qr_accounts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      label TEXT NOT NULL,
+      bank_code TEXT NOT NULL,
+      account_no TEXT NOT NULL,
+      account_name TEXT NOT NULL,
+      template TEXT DEFAULT 'compact2',
+      default_content TEXT DEFAULT 'Thanh toan HD {invoice_id}',
+      weight INTEGER DEFAULT 1,
+      active INTEGER DEFAULT 1,
+      sort_order INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_qr_accounts_active_sort ON qr_accounts(active, sort_order, id)`);
+} catch (e) {
+  logger.log('[QR_ACCOUNTS] Migration note:', e.message);
+}
+
+// Auto-seed: nếu bảng rỗng và settings có qr_account_no → tạo 1 row mặc định
+try {
+  const count = db.prepare('SELECT COUNT(*) as c FROM qr_accounts').get();
+  if (count.c === 0) {
+    const legacyNo = db.prepare('SELECT value FROM settings WHERE key = ?').get('qr_account_no');
+    if (legacyNo && legacyNo.value && legacyNo.value.trim()) {
+      const get = (k, def) => {
+        const r = db.prepare('SELECT value FROM settings WHERE key = ?').get(k);
+        return r && r.value ? r.value : def;
+      };
+      const maxSort = db.prepare('SELECT COALESCE(MAX(sort_order), 0) as m FROM qr_accounts').get().m;
+      db.prepare(`
+        INSERT INTO qr_accounts (label, bank_code, account_no, account_name, template, default_content, weight, active, sort_order)
+        VALUES (?, ?, ?, ?, ?, ?, 1, 1, ?)
+      `).run(
+        'Mặc định (import từ cài đặt cũ)',
+        get('qr_bank_code', 'ICB'),
+        legacyNo.value.trim(),
+        get('qr_account_name', ''),
+        get('qr_template', 'compact2'),
+        get('qr_default_content', 'Thanh toan HD {invoice_id}'),
+        maxSort + 1
+      );
+      logger.log('[QR_ACCOUNTS] Auto-seeded 1 default row from legacy settings');
+    }
+  }
+} catch (e) {
+  logger.log('[QR_ACCOUNTS] Seed note:', e.message);
+}
+

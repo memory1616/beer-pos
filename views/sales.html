@@ -254,6 +254,7 @@
 
           <!-- QR Section -->
           <div class="qr-section" id="vietqrBlock">
+            <select id="invQRSelect" class="qr-select" style="display:none; width:100%; max-width:280px; margin:0 auto 10px; padding:8px 12px; border:1px solid var(--border); border-radius:8px; background:var(--card-soft); color:var(--text-primary); font-size:13px; font-weight:600; cursor:pointer;" onchange="onInvoiceQRChange(this.value)"></select>
             <img id="vietqrImage" class="qr" src="" alt="QR" onerror="this.style.display='none'">
             <div class="qr-note">Quét QR thanh toán</div>
           </div>
@@ -362,7 +363,7 @@
       await loadScript('/js/product-grid.js');
       await loadScript('/socket.io/socket.io.js');
       await loadScript('/js/realtime-client.js');
-      await loadScript('/js/sales.js?v=20260604');
+      await loadScript('/js/sales.js?v=20260617b');
       await loadSalesData();
     })();
 
@@ -378,5 +379,7 @@
     window.loadSalesData = loadSalesData;
   </script>
 
-</body>
+
+
+<!-- Bottom Navigation --></body>
 </html>
