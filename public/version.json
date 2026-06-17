@@ -1,10 +1,10 @@
 {
   "version": "2.0.9",
-  "build": "20260612a",
-  "date": "2026-06-12",
+  "build": "20260617a",
+  "date": "2026-06-17",
   "changelog": [
-    "feat(dashboard): refactor settings menu — Central Admin Hub with Binance-style cards",
-    "feat(dashboard): add Cài đặt hệ thống section (Khuyến mãi, QR, Sales)",
-    "fix(dashboard): clean up header dropdown — keep only Cảnh báo & Cloud"
+    "feat: Dashboard — gom Cài đặt Khuyến mãi, QR, Quản lý Sales vào section 'Cài đặt hệ thống' (Binance style, 3 cột desktop / 1 cột mobile)",
+    "refactor: ẩn 3 mục Khuyến mãi/QR/Sales khỏi dropdown header, giữ lại 'Cảnh báo & Cloud'",
+    "feat: data-permission + userHasPermission() — dễ mở rộng phân quyền sau này"
   ]
 }
