@@ -1,14 +1,10 @@
 {
-  "version": "2.1.1",
-  "build": "20260617c",
-  "date": "2026-06-17",
+  "version": "2.1.2",
+  "build": "20260618a",
+  "date": "2026-06-18",
   "changelog": [
-    "fix(qr-settings): sửa thứ tự script — QR_SETTINGS_HTML được định nghĩa trước khi IIFE mount vào #app, tránh ReferenceError",
-    "fix(qr-settings): cache-busting layout.js lên ?v=20260617b-qrpool",
-    "feat(qr): pool nhiều tài khoản VietQR — CRUD + sắp xếp + bật/tắt trong trang Cài đặt QR",
-    "feat(pos): dropdown chọn QR thủ công trong modal hoá đơn (POS), mỗi hoá đơn chọn QR nào tuỳ ý",
-    "feat(qr): preview QR trực tiếp trong form thêm/sửa và trên mỗi card trong pool",
-    "refactor(qr): giữ settings qr_* cũ làm fallback khi pool rỗng, không break hệ thống cũ",
-    "fix(qr): auto-seed 1 row mặc định từ settings cũ khi nâng cấp, không cần nhập lại"
+    "fix(qr-settings): thêm Cache-Control no-store cho HTML pages admin để browser không cache page cũ (chỉ thấy 1 QR account dù DB có 2)",
+    "fix(sw): bump version để force service worker update cache trên browser của user",
+    "fix(qr-settings): bump version v2.1.2 để user thấy QR pool ngay lập tức"
   ]
 }
