@@ -11,10 +11,11 @@ concurrency:
 
 jobs:
   deploy:
+    name: Deploy to VPS via SSH
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Deploy to VPS via SSH
+      - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -26,8 +27,21 @@ jobs:
           script_stop: true
           script: |
             set -e
+            export GIT_BRANCH=main
+            echo "================================================"
+            echo "  GitHub Action triggered deploy"
+            echo "  Time: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            echo "  Branch: $GIT_BRANCH"
+            echo "================================================"
             cd ~/beer-pos
             chmod +x deploy/deploy.sh
             ./deploy/deploy.sh
+            echo ""
+            echo "=== Verification ==="
+            echo "Server HEAD: $(git rev-parse HEAD)"
+            echo "Server branch: $(git branch --show-current)"
+            git log --oneline -3
+            echo ""
+            echo "=== Health check ==="
             pm2 status beer-pos
-            curl -fsS http://127.0.0.1:3000/health > /dev/null
+            curl -fsS http://127.0.0.1:3000/health && echo "HEALTH OK"

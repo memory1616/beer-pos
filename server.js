@@ -438,14 +438,24 @@ app.get('/login', (req, res) => {
   res.sendFile(path.join(__dirname, 'views', 'login.html'));
 });
 
-app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'views', 'dashboard.html')));
-app.get('/customers', (req, res) => res.sendFile(path.join(__dirname, 'views', 'customers.html')));
-app.get('/customer/:id', (req, res) => res.sendFile(path.join(__dirname, 'views', 'customer-detail.html')));
-app.get('/stock', (req, res) => res.sendFile(path.join(__dirname, 'views', 'stock.html')));
-app.get('/promo-settings', (req, res) => res.sendFile(path.join(__dirname, 'views', 'promo-settings.html')));
-app.get('/qr-settings', (req, res) => res.sendFile(path.join(__dirname, 'views', 'qr-settings.html')));
-app.get('/purchases', (req, res) => res.sendFile(path.join(__dirname, 'views', 'purchases.html')));
-app.get('/kegs', (req, res) => res.sendFile(path.join(__dirname, 'views', 'kegs.html')));
+// ── HTML page routes — no-cache to prevent stale views (PWA SW caches too aggressively) ──
+function sendPageNoCache(req, res, viewName) {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.sendFile(path.join(__dirname, 'views', viewName));
+}
+
+app.get('/dashboard', (req, res) => sendPageNoCache(req, res, 'dashboard.html'));
+app.get('/customers', (req, res) => sendPageNoCache(req, res, 'customers.html'));
+app.get('/customer/:id', (req, res) => sendPageNoCache(req, res, 'customer-detail.html'));
+app.get('/stock', (req, res) => sendPageNoCache(req, res, 'stock.html'));
+app.get('/promo-settings', (req, res) => sendPageNoCache(req, res, 'promo-settings.html'));
+app.get('/qr-settings', (req, res) => sendPageNoCache(req, res, 'qr-settings.html'));
+app.get('/purchases', (req, res) => sendPageNoCache(req, res, 'purchases.html'));
+app.get('/kegs', (req, res) => sendPageNoCache(req, res, 'kegs.html'));
+// /report is handled by routes/report.js (serves full HTML page)
+app.get('/backup', (req, res) => sendPageNoCache(req, res, 'backup.html'));
 // /report is handled by routes/report.js (serves full HTML page)
 app.get('/backup', (req, res) => res.sendFile(path.join(__dirname, 'views', 'backup.html')));
 // analytics, delivery, products, devices, expenses: HTML do routes/*.js (không dùng views/*.html)

@@ -620,6 +620,17 @@
     var editingQRId = null;
     var hasChanges = false;
 
+    // ── Helpers ───────────────────────────────────────────
+    function escHtml(s) {
+      if (s === null || s === undefined) return '';
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
     // ── Init ─────────────────────────────────────────────
     async function initPage() {
       var loading = document.getElementById('qrLoading');
@@ -637,14 +648,21 @@
     // ── Load QR Pool ─────────────────────────────────────
     async function loadQRAccounts() {
       try {
-        var res = await fetch('/api/settings/qr-accounts', { cache: 'no-store' });
+        var res = await fetch('/api/settings/qr-accounts', { cache: 'no-store', credentials: 'same-origin' });
         if (!res.ok) throw new Error('HTTP ' + res.status);
-        qrAccounts = await res.json();
+        var data = await res.json();
+        qrAccounts = Array.isArray(data) ? data : [];
         renderQRList();
+        console.log('[QR] Loaded', qrAccounts.length, 'accounts');
       } catch (e) {
         qrAccounts = [];
         renderQRList();
         console.error('loadQRAccounts:', e);
+        // Show visible debug message in UI
+        var list = document.getElementById('qrAccountList');
+        if (list) {
+          list.innerHTML = '<div class="empty-pool" style="color:var(--danger,#ef4444);">⚠️ Lỗi tải QR accounts: ' + (e.message || e) + '<br><small>Mở DevTools (F12) → Console để xem chi tiết</small></div>';
+        }
       }
     }
 
