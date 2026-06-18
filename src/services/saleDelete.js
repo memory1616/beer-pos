@@ -104,7 +104,33 @@ function deleteSaleRestoringInventory(saleId) {
         db.prepare('UPDATE customers SET keg_balance = ? WHERE id = ?').run(restoredBalance, sale.customer_id);
       }
 
-      // ===== D. SYNC KEG STATS =====
+      // ===== D. RESTORE EMPTY COLLECTED (nếu đơn đã thu vỏ rỗng từ khách) =====
+      if (sale.return_kegs && sale.return_kegs > 0) {
+        const stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
+        const currentEmpty = stats?.empty_collected || 0;
+        const newEmpty = Math.max(0, currentEmpty - sale.return_kegs);
+        db.prepare('UPDATE keg_stats SET empty_collected = ? WHERE id = 1').run(newEmpty);
+
+        const updatedStats = db.prepare('SELECT inventory, empty_collected, customer_holding, lost FROM keg_stats WHERE id = 1').get();
+        const customerForLog = sale.customer_id
+          ? db.prepare('SELECT name FROM customers WHERE id = ?').get(sale.customer_id)
+          : null;
+        db.prepare(`
+          INSERT INTO keg_transactions_log
+            (type, quantity, inventory_after, empty_after, holding_after, lost_after, note)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          'sale_delete',
+          -sale.return_kegs,
+          updatedStats?.inventory || 0,
+          updatedStats?.empty_collected || 0,
+          updatedStats?.customer_holding || 0,
+          updatedStats?.lost || 0,
+          `Hoàn vỏ khi xóa đơn #${id}${customerForLog ? ' (khách: ' + customerForLog.name + ')' : ''}`
+        );
+      }
+
+      // ===== E. SYNC KEG STATS =====
       const inventoryResult = db.prepare(db.SQL_KEG_WAREHOUSE_RAW_STOCK).get();
       const totalHolding = db.prepare("SELECT COALESCE(SUM(keg_balance), 0) as total FROM customers").get();
       db.prepare(`
@@ -113,7 +139,7 @@ function deleteSaleRestoringInventory(saleId) {
         WHERE id = 1
       `).run(inventoryResult.total, totalHolding.total);
 
-      // ===== E. SOFT DELETE =====
+      // ===== F. SOFT DELETE =====
       db.prepare('UPDATE sales SET archived = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(id);
 
     } catch (err) {
