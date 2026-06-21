@@ -68,7 +68,7 @@ router.get('/full', (req, res) => {
         SELECT id, uuid, category, type, amount, description, date, time, km,
                order_id, is_auto, created_at, updated_at, version
         FROM expenses
-        WHERE date = ? AND (deleted = 0 OR deleted IS NULL)
+        WHERE archived = 0 AND date = ? AND (deleted = 0 OR deleted IS NULL)
         ORDER BY time DESC
       `).all(today);
     }
@@ -152,7 +152,7 @@ router.get('/delta', (req, res) => {
       SELECT id, uuid, category, type, amount, description, date, time, km,
              order_id, is_auto, created_at, updated_at, version, deleted
       FROM expenses
-      WHERE updated_at >= ? OR created_at >= ?
+      WHERE archived = 0 AND (updated_at >= ? OR created_at >= ?)
     `).all(sinceDate, sinceDate);
 
     // Keg changes
