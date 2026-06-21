@@ -96,11 +96,11 @@ router.get('/data', (req, res) => {
     var totalProfit = profR ? profR.t : 0;
     var totalOrders = ordR ? ordR.t : 0;
     var totalExpense = 0;
-    try { var expR = db.prepare('SELECT COALESCE(SUM(amount), 0) as t FROM expenses WHERE date >= ? AND date <= ?').get(startDay, endDay); totalExpense = expR ? expR.t : 0; } catch(_){}
+    try { var expR = db.prepare('SELECT COALESCE(SUM(amount), 0) as t FROM expenses WHERE archived = 0 AND date >= ? AND date <= ?').get(startDay, endDay); totalExpense = expR ? expR.t : 0; } catch(_){}
 
     // Daily breakdown
     var daily = db.prepare(
-      "SELECT date(" + dateCol + ") as date, COALESCE(SUM(s.total), 0) as revenue, COALESCE(SUM(s.profit), 0) as profit, COALESCE((SELECT SUM(e.amount) FROM expenses e WHERE date(e.date) = date(" + dateCol + ")), 0) as expense FROM sales s WHERE s.archived = 0 AND (s.status IS NULL OR s.status != 'returned') AND " + dateCond +
+      "SELECT date(" + dateCol + ") as date, COALESCE(SUM(s.total), 0) as revenue, COALESCE(SUM(s.profit), 0) as profit, COALESCE((SELECT SUM(e.amount) FROM expenses e WHERE e.archived = 0 AND date(e.date) = date(" + dateCol + ")), 0) as expense FROM sales s WHERE s.archived = 0 AND (s.status IS NULL OR s.status != 'returned') AND " + dateCond +
       " GROUP BY date(" + dateCol + ") ORDER BY date DESC LIMIT 30"
     ).all(...dateParams);
 

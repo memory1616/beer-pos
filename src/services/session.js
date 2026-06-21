@@ -111,7 +111,7 @@ function refreshSessionData(session) {
     
     // Get today's expenses
     const expenses = db.prepare(`
-      SELECT * FROM expenses WHERE date = ?
+      SELECT * FROM expenses WHERE archived = 0 AND date = ?
     `).all(session.date);
     
     // Calculate totals
