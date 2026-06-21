@@ -11,36 +11,74 @@ concurrency:
 
 jobs:
   deploy:
-    name: Deploy to VPS via SSH
+    name: Deploy to VPS
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Deploy via SSH
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            server.js
+            database.js
+            database/migration.js
+            views/
+            public/
+            routes/
+            middleware/
+            package.json
+            pm2.config.js
+            deploy/
+          sparse-checkout-cone-mode: false
+
+      - name: Setup SSH Key (password-based auth)
+        env:
+          SERVER_PASSWORD: ${{ secrets.VPS_PASSWORD }}
+        run: |
+          # Install sshpass for password-based SCP
+          apt-get update -qq && apt-get install -y -qq sshpass 2>/dev/null
+          echo "SERVER_PASSWORD=$SERVER_PASSWORD" >> $GITHUB_ENV
+
+      - name: Upload to server via SCP
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          VPS_PASSWORD: ${{ secrets.VPS_PASSWORD }}
+        run: |
+          echo "=== Uploading code via SCP (password auth) ==="
+          sshpass -p "$VPS_PASSWORD" scp -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            -r -P "${VPS_PORT:-22} \
+            server.js database.js package.json pm2.config.js \
+            database/ views/ public/ routes/ middleware/ \
+            deploy/ \
+            "${VPS_USER}@${VPS_HOST}:/root/beer-pos_new/"
+          echo "Upload done"
+
+      - name: Run deploy.sh on server
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT }}
+          password: ${{ secrets.VPS_PASSWORD }}
           timeout: 15m
           command_timeout: 15m
           script_stop: true
           script: |
             set -e
-            export GIT_BRANCH=main
             echo "================================================"
             echo "  GitHub Action triggered deploy"
             echo "  Time: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-            echo "  Branch: $GIT_BRANCH"
             echo "================================================"
-            cd ~/beer-pos
-            chmod +x deploy/deploy.sh
-            ./deploy/deploy.sh
+            chmod +x /root/beer-pos/deploy/deploy.sh
+            bash /root/beer-pos/deploy/deploy.sh
             echo ""
             echo "=== Verification ==="
-            echo "Server HEAD: $(git rev-parse HEAD)"
-            echo "Server branch: $(git branch --show-current)"
-            git log --oneline -3
+            echo "Server HEAD: $(git -C /root/beer-pos rev-parse HEAD)"
+            git -C /root/beer-pos log --oneline -3
             echo ""
             echo "=== Health check ==="
             pm2 status beer-pos
