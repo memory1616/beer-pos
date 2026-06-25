@@ -148,25 +148,20 @@ router.post('/', (req, res) => {
     }
 
     // ========== STOCK VALIDATION ==========
-    // Check if all products have sufficient stock before processing sale
-    const stockErrors = [];
+    // Cho phép bán âm kho (stock có thể < 0). Chỉ kiểm tra sản phẩm có tồn tại.
+    const missingProducts = [];
     for (const item of items) {
       const queryKey = item.productId || item.productSlug;
       const product = productMap[queryKey];
       if (!product) {
-        stockErrors.push(`Sản phẩm không tìm thấy: ${queryKey}`);
-        continue;
-      }
-      const currentStock = product.stock || 0;
-      if (currentStock < item.quantity) {
-        stockErrors.push(`Sản phẩm "${product.name}" có ${currentStock} trong kho, cần ${item.quantity}`);
+        missingProducts.push(`Sản phẩm không tìm thấy: ${queryKey}`);
       }
     }
-    if (stockErrors.length > 0) {
+    if (missingProducts.length > 0) {
       return res.status(400).json({
-        error: 'Kho không đủ sản phẩm',
-        details: stockErrors,
-        code: 'INSUFFICIENT_STOCK'
+        error: 'Sản phẩm không tồn tại',
+        details: missingProducts,
+        code: 'PRODUCT_NOT_FOUND'
       });
     }
 
@@ -1325,10 +1320,11 @@ router.put('/:id', (req, res) => {
           updateCustomerKegBalance(customerId, deltaDeliver, 0);
 
           // 3. Cập nhật keg_stats.inventory = inventory - delta (vỏ giao thêm → kho giảm)
+          // Cho phép inventory âm (bán âm kho)
           if (deltaDeliver !== 0) {
             const stats = db.prepare('SELECT inventory FROM keg_stats WHERE id = 1').get();
             const currentInventory = stats?.inventory || 0;
-            const newInventory = Math.max(0, currentInventory - deltaDeliver);
+            const newInventory = currentInventory - deltaDeliver;
             db.prepare('UPDATE keg_stats SET inventory = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1')
               .run(newInventory);
           }
