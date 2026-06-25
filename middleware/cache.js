@@ -11,9 +11,20 @@ class Cache {
     this.ttl = options.ttl || 60000; // Default: 60 seconds
     this.maxSize = options.maxSize || 1000;
     this.enabled = options.enabled !== false;
+    this._cleanupTimer = null;
+    this._startCleanupTimer();
+  }
 
-    // Cleanup interval
-    this.cleanupInterval = setInterval(() => this.cleanup(), 60000);
+  _startCleanupTimer() {
+    // Only create one unref'd timer so it doesn't keep the process alive
+    this._cleanupTimer = setInterval(() => {
+      this.cleanup();
+    }, 60000);
+    // unref() so the timer does NOT keep the process alive
+    // This prevents CPU leak while still running the cleanup
+    if (typeof this._cleanupTimer.unref === 'function') {
+      this._cleanupTimer.unref();
+    }
   }
 
   /**
@@ -117,12 +128,18 @@ class Cache {
    * Stop cleanup interval (call on shutdown)
    */
   shutdown() {
-    if (this.cleanupInterval) {
-      clearInterval(this.cleanupInterval);
+    if (this._cleanupTimer) {
+      clearInterval(this._cleanupTimer);
+      this._cleanupTimer = null;
     }
     this.cache.clear();
   }
 }
+
+// Ensure cleanup timers are stopped on process exit
+process.on('exit', () => {
+  globalCache.shutdown();
+});
 
 // Create global cache instance
 const globalCache = new Cache({

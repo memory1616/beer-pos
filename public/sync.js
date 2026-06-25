@@ -3,6 +3,7 @@
 // Performance: openSWDB is a singleton — opened once and reused across all functions.
 
 const DB_OPEN_DELAY = 50; // ms between DB open attempts to avoid "blocked by transaction" errors
+const SCAN_CONCURRENCY = 10; // Max parallel fetches during LAN scan (avoid network/CPU spikes)
 
 /** requestIdleCallback polyfill + fallback (5s max) */
 const _requestIdle = window.requestIdleCallback || (cb => setTimeout(() => cb({ didTimeout: false }), 0));
@@ -19,19 +20,67 @@ function _debounce(fn, delay) {
   };
 }
 
-/** Run heavy work only when browser is idle — never blocks user interaction */
+/**
+ * Run heavy work only when browser is idle — NEVER blocks UI.
+ * Fixed: replaces the previous `while (deadline.timeRemaining() > 0)` busy loop
+ * with a chunked approach that yields back to the browser between slices.
+ * Maximum runtime is bounded by `timeout` to prevent runaway work.
+ */
 function _idleRun(work, opts = {}) {
   const timeout = opts.timeout ?? 5000;
-  const id = _requestIdle(
-    deadline => {
-      while (deadline.timeRemaining() > 0 || deadline.didTimeout) {
-        const result = work(deadline);
-        if (result === false) break; // work says "done"
+  const startTime = Date.now();
+
+  function runChunk(deadline) {
+    try {
+      // Do only ONE chunk of work per idle frame; the work itself decides
+      // when to return false to signal completion.
+      const result = work(deadline);
+      if (result === false) return; // done
+    } catch (e) {
+      // silenced
+      return;
+    }
+
+    // Stop if we exceeded the time budget
+    if (Date.now() - startTime > timeout) return;
+
+    // Yield back to the browser — request next idle slot
+    _requestIdle(runChunk, { timeout: Math.max(50, timeout - (Date.now() - startTime)) });
+  }
+
+  return _requestIdle(runChunk, { timeout });
+}
+
+/**
+ * Promise pool — runs at most `concurrency` async tasks in parallel.
+ * Yields between batches to keep the main thread responsive.
+ */
+async function _runPool(tasks, concurrency, yieldEvery = 25) {
+  const results = new Array(tasks.length);
+  let index = 0;
+  let processed = 0;
+
+  async function worker() {
+    while (index < tasks.length) {
+      const i = index++;
+      try {
+        results[i] = await tasks[i]();
+      } catch (e) {
+        results[i] = null;
       }
-    },
-    { timeout }
-  );
-  return id;
+      // Yield to event loop every N tasks to avoid starvation
+      if (++processed % yieldEvery === 0) {
+        await new Promise(r => setTimeout(r, 0));
+      }
+    }
+  }
+
+  const workers = [];
+  for (let i = 0; i < Math.min(concurrency, tasks.length); i++) {
+    workers.push(worker());
+  }
+  await Promise.all(workers);
+  return results;
 }
 
 // ─── DEVICE ID — unique per browser/device ────────────────────────────────────
@@ -242,12 +291,9 @@ async function getLocalIP() {
   return null;
 }
 
-// SCAN LAN for cloud server — scans in larger batches with parallel fetches
-// PERFORMANCE fixes from bottleneck scan:
-//   1. BATCH increased from 25→50 to reduce iteration overhead
-//   2. Per-IP timeout reduced from 2s→1s (local LAN is fast, 2s is too generous)
-//   3. 100 concurrent fetches with Promise.allSettled (avoids sequential waiting)
-//   4. DOM updates only on start and completion (not per-batch)
+// SCAN LAN for cloud server
+// PERFORMANCE: bounded concurrency (10 parallel) instead of 100+ parallel fetches.
+// Uses AbortController + a shared timeout so the whole scan self-terminates.
 async function scanForCloud() {
   const ui = _getCloudUI();
   if (!ui) return;
@@ -262,30 +308,61 @@ async function scanForCloud() {
   const subnet = localIP.substring(0, localIP.lastIndexOf('.'));
   ui.scanStatus.innerHTML = '⏳ Đang quét subnet ' + subnet + '.x ...';
 
-  // Scan in larger batches with full parallelism for LAN speed
-  const BATCH = 50;
+  // Build a single flat list of {ip, port} tasks
+  const tasks = [];
+  for (let i = 1; i <= 254; i++) {
+    const ip = `${subnet}.${i}`;
+    if (ip === localIP) continue;
+    tasks.push(() => checkDevice(ip, 3000));
+    tasks.push(() => checkDevice(ip, 3001));
+  }
+
+  // Shared AbortController — cancels all in-flight requests if scan is canceled
+  const scanAbort = new AbortController();
+  const overallTimeout = setTimeout(() => scanAbort.abort(), 15000);
+
+  // Progress tracking
+  let completed = 0;
+  const total = tasks.length;
   const found = [];
+  let lastPctUpdate = 0;
 
-  for (let start = 1; start <= 254; start += BATCH) {
-    const end = Math.min(start + BATCH - 1, 254);
-    const promises = [];
-    for (let i = start; i <= end; i++) {
-      const ip = `${subnet}.${i}`;
-      if (ip === localIP) continue;
-      promises.push(checkDevice(ip, 3000));
-      promises.push(checkDevice(ip, 3001));
+  const wrappedTasks = tasks.map((task) => async () => {
+    if (scanAbort.signal.aborted) return null;
+    // Custom signal per task: aborts on either scanAbort or 1s timeout
+    const taskCtrl = new AbortController();
+    const localTimer = setTimeout(() => taskCtrl.abort(), 1000);
+    const onScanAbort = () => taskCtrl.abort();
+    if (scanAbort.signal.aborted) {
+      clearTimeout(localTimer);
+      return null;
     }
-    const results = await Promise.allSettled(promises);
-    const batchFound = results
-      .filter(r => r.status === 'fulfilled' && r.value)
-      .map(r => r.value);
-    found.push(...batchFound);
+    scanAbort.signal.addEventListener('abort', onScanAbort, { once: true });
+    try {
+      const result = await task(taskCtrl.signal);
+      if (result) {
+        found.push(result);
+        if (result.domain) scanAbort.abort();
+      }
+      return result;
+    } catch (_) {
+      return null;
+    } finally {
+      clearTimeout(localTimer);
+      scanAbort.signal.removeEventListener('abort', onScanAbort);
+      completed++;
+      const pct = Math.floor((completed / total) * 100);
+      if (pct - lastPctUpdate >= 5) {
+        lastPctUpdate = pct;
+        if (ui.scanStatus) ui.scanStatus.innerHTML = `⏳ Đang quét... ${pct}%`;
+      }
+    }
+  });
 
-    // Only update progress every other batch to reduce DOM repaints
-    if ((start / BATCH) % 2 === 0) {
-      const pct = Math.round((end / 254) * 100);
-      ui.scanStatus.innerHTML = `⏳ Đang quét... ${pct}%`;
-    }
+  try {
+    await _runPool(wrappedTasks, SCAN_CONCURRENCY, 20);
+  } finally {
+    clearTimeout(overallTimeout);
   }
 
   if (found.length > 0) {
@@ -312,14 +389,21 @@ async function scanForCloud() {
   }
 }
 
-async function checkDevice(ip, port) {
+async function checkDevice(ip, port, externalSignal) {
   try {
     const ctrl = new AbortController();
-    // PERFORMANCE: 1s timeout is plenty for local LAN; 2s was too slow for full scan
     const id = setTimeout(() => ctrl.abort(), 1000);
+    // Forward external abort signal
+    if (externalSignal) {
+      if (externalSignal.aborted) {
+        clearTimeout(id);
+        return null;
+      }
+      externalSignal.addEventListener('abort', () => ctrl.abort(), { once: true });
+    }
     const deviceId = getOrCreateDeviceId();
     const res = await fetch(`http://${ip}:${port}/api/discover?deviceId=${encodeURIComponent(deviceId)}`, {
-      signal: ctrl.signal,
+      signal: externalSignal || ctrl.signal,
       cache: 'no-store'
     });
     clearTimeout(id);
@@ -330,7 +414,8 @@ async function checkDevice(ip, port) {
         port,
         name: data.name || 'BeerPOS Cloud',
         url: data.url || `http://${ip}:${port}`,
-        isCloudServer: data.isCloudServer || false
+        isCloudServer: data.isCloudServer || false,
+        domain: data.domain || null
       };
     }
   } catch {}

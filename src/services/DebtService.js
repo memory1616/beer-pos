@@ -9,6 +9,21 @@ function formatCurrency(amount) {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(amount || 0);
 }
 
+// ─── Index bootstrap ───────────────────────────────────────────────────────────
+// Idempotent — safe to call multiple times. Ensures the composite index needed
+// by getAllDebts' GROUP BY exists; it covers the (customer_id, status) prefix.
+let _indexesEnsured = false;
+function ensureIndexes() {
+  if (_indexesEnsured) return;
+  try {
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_order_debt_customer_status ON order_debts(customer_id, status)`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_customers_debt_archived ON customers(archived, debt)`);
+  } catch (e) {
+    // best-effort
+  }
+  _indexesEnsured = true;
+}
+
 class DebtService {
   createDebt(customerId, amount, saleId, note) {
     if (!customerId || !amount || amount <= 0) {
@@ -218,14 +233,27 @@ class DebtService {
   }
 
   getAllDebts(filters = {}) {
+    // Make sure the supporting composite index exists
+    ensureIndexes();
+
+    // Replaced correlated subquery with LEFT JOIN + GROUP BY.
+    // Correlated subquery runs once per outer row (O(N) executions).
+    // The new form lets SQLite use a single scan + group, which is O(N)
+    // and — thanks to idx_order_debt_customer_status — an index-only aggregation.
     let sql = `
       SELECT
         c.id, c.name, c.phone, c.tier,
         c.debt,
         COALESCE(c.deposit, 0) as deposit,
         c.last_order_date, c.created_at,
-        (SELECT COUNT(*) FROM order_debts WHERE customer_id = c.id AND status != 'paid') as unpaid_orders
+        COALESCE(od.unpaid_orders, 0) as unpaid_orders
       FROM customers c
+      LEFT JOIN (
+        SELECT customer_id, COUNT(*) AS unpaid_orders
+        FROM order_debts
+        WHERE status != 'paid'
+        GROUP BY customer_id
+      ) od ON od.customer_id = c.id
       WHERE c.archived = 0
     `;
 
