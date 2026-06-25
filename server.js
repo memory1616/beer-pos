@@ -346,7 +346,7 @@ app.locals.formatVND = formatVND;
 app.locals.DISTRIBUTOR_NAME = DISTRIBUTOR_NAME;
 
 // ==================== AUTO BACKUP ====================
-function createBackup(options = {}) {
+async function createBackup(options = {}) {
   const backupDir = path.join(__dirname, 'backup');
   const now = new Date();
   const today = now.toISOString().split('T')[0];
@@ -359,7 +359,7 @@ function createBackup(options = {}) {
   const backupFile = path.join(backupDir, `backup-${timestamp}.db`);
 
   try {
-    fs.copyFileSync(dbPath, backupFile);
+    await fs.promises.copyFile(dbPath, backupFile);
 
     // === Integrity check: try to open backup with SQLite ===
     let integrityOk = false;
@@ -370,21 +370,22 @@ function createBackup(options = {}) {
       testDb.close();
       integrityOk = result && result.integrity_check === 'ok';
     } catch (_) {
-      // Fallback: check file size is reasonable (> 10KB)
-      const stat = fs.statSync(backupFile);
+      const stat = await fs.promises.stat(backupFile);
       integrityOk = stat.size > 10 * 1024;
     }
 
     if (!integrityOk) {
       logger.warn(`Backup file may be corrupted: ${backupFile}, attempting re-copy...`);
-      // Re-copy with a corrupt marker
-      fs.renameSync(backupFile, backupFile.replace('.db', '.corrupt.db'));
-      fs.copyFileSync(dbPath, backupFile);
+      const corruptPath = backupFile.replace('.db', '.corrupt.db');
+      try {
+        await fs.promises.rename(backupFile, corruptPath);
+      } catch (_) {}
+      await fs.promises.copyFile(dbPath, backupFile);
       logger.info('Backup re-copied successfully');
     }
 
     logger.info(`Auto backup: backup-${timestamp}.db (integrity: ${integrityOk ? 'OK' : 'RECHECKED'})`);
-    cleanupOldBackups(backupDir);
+    cleanupOldBackupsAsync(backupDir);
     return { success: true, file: backupFile, integrity: integrityOk };
   } catch (e) {
     logger.error('Backup failed', { error: e.message });
@@ -392,32 +393,45 @@ function createBackup(options = {}) {
   }
 }
 
-function cleanupOldBackups(backupDir) {
+async function cleanupOldBackupsAsync(backupDir) {
   try {
-    const files = fs.readdirSync(backupDir)
-      .filter(f => f.startsWith('backup-') && f.endsWith('.db'))
-      .map(f => ({ name: f, path: path.join(backupDir, f), time: fs.statSync(path.join(backupDir, f)).mtime.getTime() }))
-      .sort((a, b) => b.time - a.time);
-    files.slice(30).forEach(f => {
-      fs.unlinkSync(f.path);
-      logger.info(`Deleted old backup: ${f.name}`);
-    });
+    const files = await fs.promises.readdir(backupDir);
+    const withStats = [];
+    for (const f of files) {
+      if (!f.startsWith('backup-') || !f.endsWith('.db')) continue;
+      try {
+        const stats = await fs.promises.stat(path.join(backupDir, f));
+        withStats.push({ name: f, path: path.join(backupDir, f), time: stats.mtime.getTime() });
+      } catch (_) {}
+    }
+    withStats.sort((a, b) => b.time - a.time);
+    const toDelete = withStats.slice(30);
+    for (const f of toDelete) {
+      try {
+        await fs.promises.unlink(f.path);
+      } catch (_) {}
+    }
   } catch (e) {
     logger.error('Cleanup error', { error: e.message });
   }
 }
 
-cron.schedule('0 23 * * *', () => createBackup({ daily: true }));
+cron.schedule('0 23 * * *', async () => {
+  await createBackup({ daily: true });
+}, {
+  timezone: 'Asia/Ho_Chi_Minh',
+});
 
 // ==================== WAL CHECKPOINT (keep WAL file small) ====================
-// Run every 6 hours to checkpoint WAL → main DB, keeping WAL file small
-cron.schedule('0 */6 * * *', () => {
+cron.schedule('0 */6 * * *', async () => {
   try {
     db.pragma('wal_checkpoint(TRUNCATE)');
     logger.info('WAL checkpoint completed (TRUNCATE mode)');
   } catch (e) {
     logger.error('WAL checkpoint failed', { error: e.message });
   }
+}, {
+  timezone: 'Asia/Ho_Chi_Minh',
 });
 
 // ==================== WEB ROUTES ====================

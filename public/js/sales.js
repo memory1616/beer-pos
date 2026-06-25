@@ -190,15 +190,19 @@ function initSalesPage(data) {
   loadQRConfig();
 
   // Close dropdown when clicking outside the customer search area
-  document.addEventListener('click', function(e) {
-    var search = document.getElementById('customerSearch');
-    var dropdown = document.getElementById('customerDropdown');
-    if (!search || !dropdown) return;
-    var searchBox = search.closest('.sale-section-customer');
-    if (searchBox && searchBox.contains(e.target)) return;
-    if (e.target === search) return;
-    showCustomerDropdown(false);
-  });
+  // Guarded by a flag to prevent duplicate listeners if initSalesPage is re-called
+  if (!window._salesOutsideClickBound) {
+    window._salesOutsideClickBound = true;
+    document.addEventListener('click', function(e) {
+      var search = document.getElementById('customerSearch');
+      var dropdown = document.getElementById('customerDropdown');
+      if (!search || !dropdown) return;
+      var searchBox = search.closest('.sale-section-customer');
+      if (searchBox && searchBox.contains(e.target)) return;
+      if (e.target === search) return;
+      showCustomerDropdown(false);
+    });
+  }
 
   Object.keys(priceMap).forEach(function(cid) {
     var cmap = priceMap[cid];
@@ -304,7 +308,6 @@ function goSaleHistoryPage(page) {
 }
 
 function filterSaleHistoryByMonth(year, month) {
-  console.log('[DEBUG] filterSaleHistoryByMonth called, year:', year, 'month:', month);
   saleHistoryYear = year;
   saleHistoryMonth = month;
   saleHistoryPage = 1;
@@ -312,7 +315,6 @@ function filterSaleHistoryByMonth(year, month) {
 }
 
 function onSaleHistoryMonthChange(value) {
-  console.log('[DEBUG] onSaleHistoryMonthChange called, value:', value);
   if (!value) {
     filterSaleHistoryByMonth(null, null);
     return;
@@ -1698,8 +1700,6 @@ function submitSale() {
     })
   };
 
-  console.log('[SUBMIT SALE] payload:', JSON.stringify(payload, null, 2));
-
   var url = isEditing ? '/api/sales/' + editingSaleId : '/api/sales';
   var method = isEditing ? 'PUT' : 'POST';
 
@@ -1709,7 +1709,6 @@ function submitSale() {
     body: JSON.stringify(payload)
   })
   .then(function(res) {
-    console.log('[SUBMIT SALE] response status:', res.status);
     return safeJson(res);
   })
   .then(function(data) {

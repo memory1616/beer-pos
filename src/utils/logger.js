@@ -46,8 +46,8 @@ const logger = winston.createLogger({
   ],
 });
 
-// In development, also log to console with colors (disabled to reduce CPU)
-if (process.env.NODE_ENV === 'production') {
+// In development, also log to console with colors
+if (process.env.NODE_ENV !== 'production') {
   logger.add(new winston.transports.Console({
     format: combine(
       colorize(),

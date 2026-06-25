@@ -43,6 +43,43 @@ const ROOMS = {
   ALL:     'all',      // All connected clients
 };
 
+// ─── Emit Throttling / Coalescing ─────────────────────────────────────────────
+// Rapid mutations (e.g. bulk imports) can fire hundreds of WS events/sec.
+// We coalesce repeated emits of the same event within a short window so that
+// only the LAST payload is actually broadcast. This avoids flooding clients
+// and spending CPU on the broadcast loop.
+
+const EMIT_COALESCE_MS = 100; // ms — coalesce repeated emits within this window
+const _emitBuffers = new Map(); // eventName -> { payload, timer }
+
+function _flushCoalescedEmit(event) {
+  const buf = _emitBuffers.get(event);
+  if (!buf) return;
+  _emitBuffers.delete(event);
+  if (!io) return;
+  io.to(ROOMS.ALL).emit(event, {
+    ...buf.payload,
+    _ts: Date.now(),
+    _src: 'server',
+  });
+}
+
+function _coalescedEmit(event, payload) {
+  if (!io) return;
+  // Keep only the most recent payload; reset the timer
+  const existing = _emitBuffers.get(event);
+  if (existing) {
+    clearTimeout(existing.timer);
+    existing.payload = payload;
+  } else {
+    _emitBuffers.set(event, { payload, timer: null });
+  }
+  const buf = _emitBuffers.get(event);
+  buf.timer = setTimeout(() => _flushCoalescedEmit(event), EMIT_COALESCE_MS);
+  // unref so a pending coalesce never keeps the process alive
+  if (typeof buf.timer.unref === 'function') buf.timer.unref();
+}
+
 // ─── Socket Server Class ──────────────────────────────────────────────────────
 
 let io = null;
@@ -181,14 +218,25 @@ function emitToAll(event, data) {
  */
 function broadcast(event, data, excludeSocketId = null) {
   if (!io) return;
+  const payload = { ...data, _ts: Date.now(), _src: 'server' };
   for (const [room, clients] of io.sockets.adapter.rooms) {
     for (const clientId of clients) {
       if (excludeSocketId && clientId === excludeSocketId) continue;
-      io.to(clientId).emit(event, {
-        ...data,
-        _ts: Date.now(),
-        _src: 'server',
-      });
+      io.to(clientId).emit(event, payload);
+    }
+  }
+}
+
+/**
+ * Flush any pending coalesced emits — call this at the end of bulk operations
+ * to make sure the last state is broadcast without waiting the full window.
+ */
+function flushCoalesced() {
+  for (const event of Array.from(_emitBuffers.keys())) {
+    const buf = _emitBuffers.get(event);
+    if (buf && buf.timer) {
+      clearTimeout(buf.timer);
+      _flushCoalescedEmit(event);
     }
   }
 }
@@ -196,82 +244,66 @@ function broadcast(event, data, excludeSocketId = null) {
 // ─── High-level event emitters ────────────────────────────────────────────────
 
 /**
- * Emit order:created event
+ * Emit order:created event — coalesced to avoid spam
  * @param {object} sale - The newly created sale
  */
 function emitOrderCreated(sale) {
-  logger.debug('[WS] Emitting order:created', { saleId: sale?.id });
-  emitToAll(EVENTS.ORDER_CREATED, { sale });
+  _coalescedEmit(EVENTS.ORDER_CREATED, { sale });
 }
 
 /**
- * Emit order:updated event
- * @param {object} sale - The updated sale
+ * Emit order:updated event — coalesced
  */
 function emitOrderUpdated(sale) {
-  logger.debug('[WS] Emitting order:updated', { saleId: sale?.id });
-  emitToAll(EVENTS.ORDER_UPDATED, { sale });
+  _coalescedEmit(EVENTS.ORDER_UPDATED, { sale });
 }
 
 /**
- * Emit order:deleted event
- * @param {number|string} saleId - The deleted sale ID
+ * Emit order:deleted event — direct (rare event, no coalesce needed)
  */
 function emitOrderDeleted(saleId) {
-  logger.debug('[WS] Emitting order:deleted', { saleId });
   emitToAll(EVENTS.ORDER_DELETED, { saleId });
 }
 
 /**
- * Emit inventory:updated event
- * @param {object} inventoryData - Current inventory state
+ * Emit inventory:updated event — coalesced (frequently fires)
  */
 function emitInventoryUpdated(inventoryData) {
-  logger.debug('[WS] Emitting inventory:updated');
-  emitToAll(EVENTS.INVENTORY_UPDATED, { inventory: inventoryData });
+  _coalescedEmit(EVENTS.INVENTORY_UPDATED, { inventory: inventoryData });
 }
 
 /**
- * Emit keg:updated event
- * @param {object} kegData - Current keg stats
+ * Emit keg:updated event — coalesced
  */
 function emitKegUpdated(kegData) {
-  logger.debug('[WS] Emitting keg:updated');
-  emitToAll(EVENTS.KEG_UPDATED, { kegs: kegData });
+  _coalescedEmit(EVENTS.KEG_UPDATED, { kegs: kegData });
 }
 
 /**
- * Emit customer:updated event
- * @param {object} customer - Updated customer
+ * Emit customer:updated event — coalesced
  */
 function emitCustomerUpdated(customer) {
-  logger.debug('[WS] Emitting customer:updated', { customerId: customer?.id });
-  emitToAll(EVENTS.CUSTOMER_UPDATED, { customer });
+  _coalescedEmit(EVENTS.CUSTOMER_UPDATED, { customer });
 }
 
 /**
- * Emit expense events
- * @param {string} action - 'created' | 'updated' | 'deleted'
- * @param {object} expense - Expense data
+ * Emit expense events — coalesced
  */
 function emitExpense(action, expense) {
-  logger.debug(`[WS] Emitting expense:${action}`, { expenseId: expense?.id });
   const eventMap = {
     created: EVENTS.EXPENSE_CREATED,
     updated: EVENTS.EXPENSE_UPDATED,
     deleted: EVENTS.EXPENSE_DELETED,
   };
   const event = eventMap[action];
-  if (event) emitToAll(event, { expense });
+  if (event) _coalescedEmit(event, { expense });
 }
 
 /**
- * Emit report:updated event (after any data mutation that affects reports)
- * @param {object} context - Context info about what changed
+ * Emit report:updated event — coalesced (many mutations may fire this)
  */
 function emitReportUpdated(context = {}) {
-  logger.debug('[WS] Emitting report:updated', context);
-  emitToAll(EVENTS.REPORT_UPDATED, context);
+  _coalescedEmit(EVENTS.REPORT_UPDATED, context);
 }
 
 /**
@@ -302,5 +334,11 @@ module.exports = {
   emitExpense,
   emitReportUpdated,
   forceRefetch,
+  flushCoalesced,
   getIO: () => io,
 };
+
+// Cleanup coalesced timers on process exit
+process.on('exit', () => {
+  flushCoalesced();
+});
