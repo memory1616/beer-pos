@@ -126,8 +126,30 @@ ok "Backup xong"
 log ""
 log "[4/7] Deploying new files..."
 if [ "$HAS_NEW" = "1" ]; then
+  # CRITICAL: Never overwrite beer.db (the actual database)
+  # Also exclude other sensitive/generated files
+  EXCLUDE_DIRS="node_modules|.git|coverage|.backup|backups"
+  EXCLUDE_FILES="beer.db|package-lock.json"
+
   cd "$NEW_PATH"
   for item in $(ls -A); do
+    # Skip excluded items
+    skip=0
+    for ex_dir in $EXCLUDE_DIRS; do
+      if echo "$item" | grep -qE "^$ex_dir$"; then
+        skip=1; break
+      fi
+    done
+    for ex_file in $EXCLUDE_FILES; do
+      if echo "$item" | grep -qE "^$ex_file$"; then
+        skip=1; break
+      fi
+    done
+    if [ "$skip" = "1" ]; then
+      log "   skip:  $item (protected)"
+      continue
+    fi
+
     src="$NEW_PATH/$item"
     dst="$VPS_PATH/$item"
     if [ -d "$src" ]; then
@@ -139,6 +161,14 @@ if [ "$HAS_NEW" = "1" ]; then
       log "   file: $item"
     fi
   done
+  # Restore beer.db if it was somehow deleted
+  if [ ! -s "$VPS_PATH/beer.db" ]; then
+    log "   [WARN] beer.db missing or empty - restoring from existing..."
+    if [ -s "$NEW_PATH/beer.db" ]; then
+      cp "$NEW_PATH/beer.db" "$VPS_PATH/beer.db"
+      log "   Restored beer.db from staging"
+    fi
+  fi
 else
   # Git pull mode: files Ã„â€˜ÃƒÂ£ Ã„â€˜Ã†Â°Ã¡Â»Â£c reset vÃ¡Â»Â Ã„â€˜ÃƒÂºng HEAD. Verify bÃ¡ÂºÂ±ng git status.
   cd "$VPS_PATH"
@@ -201,6 +231,21 @@ fi
 # ---- 7. Cleanup + restart PM2 + health check ----
 log ""
 log "[7/7] Cleanup + restart PM2..."
+
+# Bump version.json build so browsers pick up new assets after restart
+if [ -f "$VPS_PATH/public/version.json" ]; then
+  BUILD_ID=$(date +%Y%m%d%H%M%S)
+  node -e "
+    const fs = require('fs');
+    const p = process.argv[1];
+    const build = process.argv[2];
+    const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+    j.build = build;
+    j.date = new Date().toISOString().slice(0, 10);
+    fs.writeFileSync(p, JSON.stringify(j, null, 2) + '\n');
+  " "$VPS_PATH/public/version.json" "$BUILD_ID" 2>/dev/null && log "   version.json build -> $BUILD_ID" || warn "version.json bump skipped"
+fi
+
 if [ "$HAS_NEW" = "1" ]; then
   rm -rf "$NEW_PATH"
   log "   Removed $NEW_PATH"

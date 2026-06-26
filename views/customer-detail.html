@@ -2447,15 +2447,25 @@
       }
       if (monthlyVal) monthlyVal.textContent = monthly > 0 ? monthly + ' bình' : 'Chưa mua';
 
-      // Reward dot
+      // Reward dot — lấy từ dữ liệu đã được load trong loadPromoToggleStatus
       const rewardDot = document.getElementById('healthRewardDot');
       const rewardVal = document.getElementById('healthReward');
+      const rewardTier = window.__rewardTier || null;
+      const monthlyReward = window.__monthlyReward || null;
       if (rewardDot && rewardVal) {
-        const rewardTier = window.__rewardTier || 'NONE';
         rewardDot.className = 'cd-health-dot';
-        if (rewardTier !== 'NONE') {
+        if (monthlyReward && monthlyReward.tier && monthlyReward.tier !== 'NONE') {
           rewardDot.classList.add('good');
-          rewardVal.textContent = '🎉 Đạt';
+          const tierLabel = monthlyReward.tier.startsWith('BONUS_')
+            ? monthlyReward.tier.replace('BONUS_', '').replace('L', 'L thưởng')
+            : monthlyReward.tier;
+          rewardVal.textContent = tierLabel;
+        } else if (monthlyReward && monthlyReward.nextTierLiters) {
+          rewardDot.classList.add('monitor');
+          rewardVal.textContent = (monthlyReward.litersToNext || 0) + 'L nữa đạt';
+        } else if (!window.__customerPromoEnabled) {
+          rewardDot.classList.add('monitor');
+          rewardVal.textContent = 'Chưa tham gia';
         } else {
           rewardDot.classList.add('monitor');
           rewardVal.textContent = 'Chưa đạt';
@@ -2507,6 +2517,7 @@
           newShopInfo = data.data.newShop;
           window.__newShopSettings = data.data.newShopSettings || null;
           window.__rewardTiers = data.data.rewardTiers || [];
+          window.__monthlyReward = data.data.monthlyReward || null;
         }
 
         // Thêm badge promotion vào hero card (append vào badges hiện có)
@@ -2545,9 +2556,34 @@
         window.__customerNewShopEnabled = newShopEnabled;
         window.__customerRewardEnabled = rewardEnabled;
 
+        // Cập nhật health reward card — dùng dữ liệu từ monthlyReward API trả về
+        const rewardDot = document.getElementById('healthRewardDot');
+        const rewardVal = document.getElementById('healthReward');
+        const monthlyReward = data && data.data && data.data.monthlyReward;
+        if (rewardDot && rewardVal) {
+          rewardDot.className = 'cd-health-dot';
+          if (monthlyReward && monthlyReward.tier && monthlyReward.tier !== 'NONE') {
+            rewardDot.classList.add('good');
+            const tierLabel = monthlyReward.tier.startsWith('BONUS_')
+              ? monthlyReward.tier.replace('BONUS_', '').replace('L', 'L thưởng')
+              : monthlyReward.tier;
+            rewardVal.textContent = tierLabel;
+          } else if (monthlyReward && monthlyReward.nextTierLiters) {
+            rewardDot.classList.add('monitor');
+            rewardVal.textContent = monthlyReward.litersToNext + 'L nữa đạt';
+          } else if (!promotionEnabled) {
+            rewardDot.classList.add('monitor');
+            rewardVal.textContent = 'Chưa tham gia';
+          } else {
+            rewardDot.classList.add('monitor');
+            rewardVal.textContent = 'Chưa đạt';
+          }
+        }
+
         const newShopDisabled = !systemNewShopEnabled;
         const rewardDisabled = !systemRewardEnabled;
 
+        // Nhãn trạng thái — phân biệt rõ: CTKM tổng chưa bật vs toggle con đang tắt
         let newShopStatus = 'Bật';
         let newShopColor = 'var(--success)';
         if (!promotionEnabled) {
@@ -2589,7 +2625,30 @@
           newShopDesc = 'Mua ' + (window.__newShopSettings ? window.__newShopSettings.goldBuy : newShopInfo.buyGold) + 'L vàng + ' + (window.__newShopSettings ? window.__newShopSettings.goldFree : newShopInfo.freeGold) + 'L | Mua ' + (window.__newShopSettings ? window.__newShopSettings.blackBuy : newShopInfo.buyBlack) + 'L đen + ' + (window.__newShopSettings ? window.__newShopSettings.blackFree : newShopInfo.freeBlack) + 'L';
         }
 
+        // Nhãn badge CTKM tổng
+        let masterStatus = promotionEnabled ? 'Đang bật' : 'Chưa tham gia';
+        let masterColor = promotionEnabled ? 'var(--success)' : 'var(--text-muted)';
+        let masterBadgeClass = promotionEnabled ? 'on' : 'expired';
+
         container.innerHTML = `
+          <!-- Master Toggle CTKM -->
+          <div class="cd-promo-item" style="border-bottom:1px solid var(--border);padding-bottom:12px;margin-bottom:8px;">
+            <div class="cd-promo-label">
+              <span class="cd-promo-icon">🎁</span>
+              <div>
+                <div class="cd-promo-name">Chương trình khuyến mãi</div>
+                <div class="cd-promo-desc" style="font-size:11px;color:var(--text-muted);">Bật để tham gia CTKM</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span class="cd-promo-status ${masterBadgeClass}" style="color:${masterColor};background:${promotionEnabled ? 'var(--success-dim)' : 'var(--bg-hover)'};">${masterStatus}</span>
+              <label class="cd-toggle">
+                <input type="checkbox" id="toggleMasterPromo" ${promotionEnabled ? 'checked' : ''}
+                  onchange="togglePromotionMaster(this.checked)">
+                <span class="cd-toggle-slider"></span>
+              </label>
+            </div>
+          </div>
           <!-- 🔥 Quán mới -->
           <div class="cd-promo-item">
             <div class="cd-promo-label">
@@ -2601,9 +2660,9 @@
             </div>
             <div style="display:flex;align-items:center;gap:10px;">
               <span class="cd-promo-status ${newShopDisabled || !promotionEnabled ? 'expired' : (!newShopEnabled ? 'off' : 'on')}" style="color:${newShopColor};background:${newShopDisabled || !promotionEnabled ? 'var(--bg-hover)' : (!newShopEnabled ? 'var(--danger-dim)' : 'var(--success-dim)')};">${newShopStatus}</span>
-              <label class="cd-toggle" style="${newShopDisabled ? 'opacity:0.4;' : ''}">
-                <input type="checkbox" id="toggleNewShopEnabled" ${newShopEnabled && !newShopDisabled ? 'checked' : ''}
-                  onchange="togglePromotionType('newShop')" ${newShopDisabled ? 'disabled' : ''}>
+              <label class="cd-toggle" style="${!promotionEnabled || newShopDisabled ? 'opacity:0.4;' : ''}">
+                <input type="checkbox" id="toggleNewShopEnabled" ${newShopEnabled && promotionEnabled && !newShopDisabled ? 'checked' : ''}
+                  onchange="togglePromotionType('newShop')" ${!promotionEnabled || newShopDisabled ? 'disabled' : ''}>
                 <span class="cd-toggle-slider"></span>
               </label>
             </div>
@@ -2619,9 +2678,9 @@
             </div>
             <div style="display:flex;align-items:center;gap:10px;">
               <span class="cd-promo-status ${rewardDisabled || !promotionEnabled ? 'expired' : (!rewardEnabled ? 'off' : 'on')}" style="color:${rewardColor};background:${rewardDisabled || !promotionEnabled ? 'var(--bg-hover)' : (!rewardEnabled ? 'var(--danger-dim)' : 'var(--success-dim)')};">${rewardStatus}</span>
-              <label class="cd-toggle" style="${rewardDisabled ? 'opacity:0.4;' : ''}">
-                <input type="checkbox" id="toggleRewardEnabled" ${rewardEnabled && !rewardDisabled ? 'checked' : ''}
-                  onchange="togglePromotionType('reward')" ${rewardDisabled ? 'disabled' : ''}>
+              <label class="cd-toggle" style="${!promotionEnabled || rewardDisabled ? 'opacity:0.4;' : ''}">
+                <input type="checkbox" id="toggleRewardEnabled" ${rewardEnabled && promotionEnabled && !rewardDisabled ? 'checked' : ''}
+                  onchange="togglePromotionType('reward')" ${!promotionEnabled || rewardDisabled ? 'disabled' : ''}>
                 <span class="cd-toggle-slider"></span>
               </label>
             </div>
@@ -2629,6 +2688,30 @@
         `;
       } catch (e) {
         container.innerHTML = '<div class="text-center py-4 text-danger">Lỗi tải khuyến mãi</div>';
+      }
+    }
+
+    async function togglePromotionMaster(enabled) {
+      var toggle = document.getElementById('toggleMasterPromo');
+      if (!toggle) return;
+      try {
+        var res = await fetch('/api/promotions/customer/' + customerId, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled: enabled })
+        });
+        var data = await res.json();
+        if (data.success) {
+          window.__customerPromoEnabled = enabled;
+          if (typeof showToast === 'function') showToast('Đã ' + (enabled ? 'bật' : 'tắt') + ' CTKM cho khách', 'success');
+          await loadPromoToggleStatus();
+        } else {
+          toggle.checked = !enabled;
+          if (typeof showToast === 'function') showToast(data.error || 'Lỗi', 'error');
+        }
+      } catch (e) {
+        toggle.checked = !enabled;
+        if (typeof showToast === 'function') showToast('Lỗi kết nối', 'error');
       }
     }
 
@@ -2641,6 +2724,8 @@
         var bodyObj = {};
         if (type === 'newShop') bodyObj.newShopEnabled = enabled;
         else bodyObj.rewardEnabled = enabled;
+        // Bật cờ tổng CTKM nếu bật toggle con
+        if (enabled) bodyObj.enabled = true;
 
         var res = await fetch('/api/promotions/customer/' + customerId, {
           method: 'PUT',
@@ -2649,6 +2734,7 @@
         });
         var data = await res.json();
         if (data.success) {
+          window.__customerPromoEnabled = true;
           if (type === 'newShop') {
             window.__customerNewShopEnabled = enabled;
             if (typeof showToast === 'function') showToast('Đã ' + (enabled ? 'bật' : 'tắt') + ' KM quán mới', 'success');

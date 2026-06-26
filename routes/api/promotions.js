@@ -674,6 +674,9 @@ router.get('/customer/:customerId/overview', (req, res) => {
       rewardInfo = PromotionService.calculateMonthlyReward(customerId);
     }
 
+    // Tính promotionStartDate dựa trên ngày tạo khách
+    const promoStartDate = PromotionService.getPromotionStartDate(customer);
+
     res.json({
       success: true,
       data: {
@@ -689,11 +692,11 @@ router.get('/customer/:customerId/overview', (req, res) => {
         isNewShopPromotion,
         isRewardEligible,
         promotionReason: reason,
+        promotionStartDate: promoStartDate,
         // Backward compat
         isInNewShopPeriod: isNewShopPromotion,
         canReceiveReward: isRewardEligible,
         isWithinPromotionPeriod: PromotionService.isWithinPromotionPeriod(),
-        promotionStartDate: settings.startDate,
         promotionEndDate: settings.endDate,
         newShop: newShopInfo,
         newShopSettings: {
