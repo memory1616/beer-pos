@@ -714,6 +714,18 @@ function renderInvoiceModalContent(invoice, saleIdForActions) {
   if (invKegReturn) invKegReturn.textContent = String(invoice.bottleReceived || 0);
   if (invKegBalance) invKegBalance.textContent = String(balance);
 
+  // Volume promotion note (async - fetch from API then update)
+  var promoNoteEl = document.getElementById('invPromoNote');
+  if (promoNoteEl) {
+    promoNoteEl.innerHTML = ''; // Clear first
+    // Async update after modal is shown
+    buildVolumePromoNote(invoice).then(function(html) {
+      if (html && promoNoteEl) {
+        promoNoteEl.innerHTML = html;
+      }
+    });
+  }
+
   var totalDisplay = invoice.totalAmount;
   if (!Number.isFinite(totalDisplay) || totalDisplay == null) {
     totalDisplay = (invoice.items || []).reduce(function(sum, it) { return sum + (it.quantity || 0) * (it.price || 0); }, 0);
@@ -2228,6 +2240,183 @@ window.addEventListener('resize', function() {
     autoScaleInvoiceModal();
   }
 });
+
+// ============================================================
+// VOLUME PROMOTION NOTE (Invoice)
+// ============================================================
+
+/**
+ * Check if promotion is within active period (client-side check)
+ */
+function isPromoPeriodActive() {
+  var settings = saleState.promoSettings;
+  if (!settings) return true; // No settings = always active
+  
+  var now = new Date();
+  var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  
+  // Check start date
+  if (settings.startDate) {
+    var start = new Date(settings.startDate);
+    if (today < start) return false;
+  }
+  
+  // Check end date
+  if (settings.endDate) {
+    var end = new Date(settings.endDate);
+    if (today > end) return false;
+  }
+  
+  return true;
+}
+
+/**
+ * Cache cho volume promo note - tránh gọi API nhiều lần
+ */
+var _volumePromoCache = {};
+var _volumePromoCacheTime = 0;
+var _volumePromoCacheTTL = 60000; // 1 phút
+
+/**
+ * Build promotion note for invoice display.
+ * Only for customers enrolled in volume reward program, during active promotion period.
+ * Only counts Chai Inox (kegs) volume.
+ * Shows current tier achieved and next tier target.
+ * NOTE: Completed customers only show on the day they achieve final tier.
+ * NOTE: Customers in "new shop" period don't participate in volume reward.
+ */
+async function buildVolumePromoNote(invoice) {
+  // Get customer ID from invoice
+  var customerId = invoice && invoice.customer && invoice.customer.id;
+  if (!customerId) return '';
+
+  // Get customer from cache
+  var customer = getCustomer(customerId);
+  if (!customer) return '';
+
+  // Check if customer has promotions disabled
+  if (customer.promotion_enabled === 0) return '';
+
+  // Get promotion settings from saleState
+  var settings = saleState.promoSettings;
+  if (!settings || !settings.rewardEnabled) return '';
+
+  // Check if promotion period is active
+  if (!isPromoPeriodActive()) return '';
+
+  // Check if customer is eligible for monthly reward
+  var customerRewardEnabled = customer.reward_enabled !== 0;
+  if (!customerRewardEnabled) return '';
+
+  // Fetch reward data from API if cache is empty or expired
+  var now = Date.now();
+  var cacheKey = 'customer_' + customerId;
+  
+  if (!_volumePromoCache[cacheKey] || (now - _volumePromoCacheTime) > _volumePromoCacheTTL) {
+    try {
+      var res = await fetch('/api/promotions/customer/' + customerId + '/overview', { cache: 'no-store' });
+      var data = await safeJson(res);
+      if (data && data.success && data.data) {
+        _volumePromoCache[cacheKey] = data.data;
+        _volumePromoCacheTime = now;
+      }
+    } catch (e) {
+      console.error('[buildVolumePromoNote] fetch error:', e);
+    }
+  }
+
+  var rewardData = _volumePromoCache[cacheKey];
+  if (!rewardData) return '';
+
+  // Check if customer is in new shop period - don't show volume reward if in new shop
+  if (rewardData.isNewShopPromotion) return '';
+
+  // Check if can receive reward
+  if (!rewardData.isRewardEligible) return '';
+
+  // Get reward data
+  var monthlyReward = rewardData.monthlyReward;
+  if (!monthlyReward) return '';
+
+  // Get data from API
+  // monthlyLiters = tổng số L khách đã mua trong tháng
+  // litersToNext = số L còn thiếu để đạt tier kế tiếp
+  // nextTierLiters = threshold của tier kế tiếp
+  var monthlyLiters = monthlyReward.monthlyLiters || 0;
+  var litersToNext = monthlyReward.litersToNext || 0;
+  var tier = monthlyReward.tier || '';
+
+  // Get tiers from settings
+  var tiers = settings.rewardTiers;
+  if (!tiers || tiers.length === 0) return '';
+
+  // Sort tiers by threshold
+  tiers = [...tiers].sort(function(a, b) { return a.threshold - b.threshold; });
+
+  // Find current and next tiers based on actual purchased volume
+  var currentTier = null;
+  var currentTierIndex = -1;
+  var nextTier = null;
+  var nextTierIndex = -1;
+
+  for (var i = 0; i < tiers.length; i++) {
+    var tierData = tiers[i];
+    if (monthlyLiters >= tierData.threshold) {
+      currentTier = tierData;
+      currentTierIndex = i;
+    } else if (nextTierIndex < 0) {
+      nextTier = tierData;
+      nextTierIndex = i;
+    }
+  }
+
+  // Check if completed all tiers (currentTier là tier cuối và không còn nextTier)
+  var isCompleted = currentTier && currentTierIndex === tiers.length - 1;
+
+  // Case 3: Completed - only show on the day the tier was achieved
+  // Check if this sale was created today
+  if (isCompleted) {
+    var saleDate = invoice.date ? new Date(invoice.date) : null;
+    var today = new Date();
+    var isToday = saleDate && (
+      saleDate.getFullYear() === today.getFullYear() &&
+      saleDate.getMonth() === today.getMonth() &&
+      saleDate.getDate() === today.getDate()
+    );
+    if (!isToday) return '';
+  }
+
+  // Build note HTML
+  var noteHtml = '';
+
+  if (isCompleted) {
+    // Case 3: Completed all tiers
+    noteHtml =
+      '<div class="promo-note" style="margin:10px 0;padding:10px 12px;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);border-radius:8px;font-size:11px;line-height:1.5;">' +
+        '<div style="font-weight:700;color:#16a34a;margin-bottom:4px;">&#127942; Khuyến mãi Sản lượng Tháng</div>' +
+        '<div style="color:#15803d;">&#127882; Chúc mừng! Anh/Chị đã hoàn thành chương trình khuyến mãi tháng.</div>' +
+        '<div style="color:#166534;margin-top:4px;">Đã nhận thưởng <strong>Mốc ' + (currentTierIndex + 1) + ' (+' + currentTier.reward + 'L)</strong>.</div>' +
+      '</div>';
+  } else if (currentTier && nextTier) {
+    // Case 2: Achieved at least one tier, not the last
+    noteHtml =
+      '<div class="promo-note" style="margin:10px 0;padding:10px 12px;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.3);border-radius:8px;font-size:11px;line-height:1.5;">' +
+        '<div style="font-weight:700;color:#2563eb;margin-bottom:4px;">&#127942; Khuyến mãi Sản lượng Tháng</div>' +
+        '<div style="color:#1d4ed8;">&#127881; Đã đạt <strong>Mốc ' + (currentTierIndex + 1) + ' (+' + currentTier.reward + 'L)</strong></div>' +
+        '<div style="color:#1e40af;margin-top:4px;">Chỉ còn <strong>' + litersToNext + 'L</strong> nữa để nhận <strong>Mốc ' + (nextTierIndex + 1) + ' (+' + nextTier.reward + 'L)</strong>.</div>' +
+      '</div>';
+  } else if (nextTier) {
+    // Case 1: Not yet reached first tier
+    noteHtml =
+      '<div class="promo-note" style="margin:10px 0;padding:10px 12px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:8px;font-size:11px;line-height:1.5;">' +
+        '<div style="font-weight:700;color:#d97706;margin-bottom:4px;">&#127919; Khuyến mãi Sản lượng Tháng</div>' +
+        '<div style="color:#92400e;">Đã tích lũy: <strong>' + monthlyLiters + 'L</strong></div>' +
+        '<div style="color:#b45309;margin-top:4px;">Chỉ còn <strong>' + litersToNext + 'L</strong> nữa để nhận <strong>Mốc ' + (nextTierIndex + 1) + ' (+' + nextTier.reward + 'L)</strong>.</div>' +
+      '</div>';
+  }
+
+  return noteHtml;
+}
 
 // ============================================================
 // UTILITIES

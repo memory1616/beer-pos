@@ -269,24 +269,26 @@ class PromotionService {
   /**
    * Xác định loại khuyến mãi dựa trên ngày tạo khách hàng và tháng target
    * Quy tắc:
-   *   - Trong tháng tạo: ngày 01-08 => reward, ngày 09+ => newShop
-   *   - Từ tháng sau trở đi: luôn reward (newShop chỉ trong tháng tạo)
+   *   - Ngày 01-08: tham gia thưởng doanh số từ ngày tạo
+   *   - Ngày 09+: tháng tạo là quán mới, bắt đầu từ tháng kế tiếp
    * @param {object} customer - customer object có created_at
    * @param {number} targetMonth - tháng cần kiểm tra (1-12)
    * @param {number} targetYear - năm cần kiểm tra
-   * @returns {{ rewardEligible: boolean, newShopEligible: boolean, reason: string }}
+   * @returns {{ rewardEligible: boolean, newShopEligible: boolean, reason: string, promotionStartDate: string }}
    */
   getPromotionEligibility(customer, targetMonth, targetYear) {
     const settings = this.getSystemPromotionSettings();
 
     // Kiểm tra khuyến mãi hệ thống
     if (!settings.newShopEnabled && !settings.rewardEnabled) {
-      return { rewardEligible: false, newShopEligible: false, reason: 'Chương trình đã kết thúc' };
+      return { rewardEligible: false, newShopEligible: false, reason: 'Chương trình đã kết thúc', promotionStartDate: null };
     }
     if (!this.isWithinPromotionPeriod()) {
-      return { rewardEligible: false, newShopEligible: false, reason: 'Ngoài thời gian khuyến mãi' };
+      return { rewardEligible: false, newShopEligible: false, reason: 'Ngoài thời gian khuyến mãi', promotionStartDate: null };
     }
 
+    // Tính ngày bắt đầu khuyến mãi
+    const promotionStartDate = this.getPromotionStartDate(customer);
     const created = new Date(customer.created_at);
     const createdDay = created.getDate();
     const createdMonth = created.getMonth() + 1;
@@ -295,32 +297,36 @@ class PromotionService {
     const sameMonth = (targetMonth === createdMonth && targetYear === createdYear);
 
     if (sameMonth) {
-      // Trong tháng tạo khách: quyết định ngay từ ngày tạo
+      // Trong tháng tạo khách
       if (createdDay <= 8) {
+        // Ngày 01-08: tham gia thưởng doanh số
         const canReward = customer.reward_enabled !== 0 && settings.rewardEnabled;
         return {
           rewardEligible: canReward,
           newShopEligible: false,
+          promotionStartDate,
           reason: canReward
             ? 'Tham gia thưởng doanh số tháng ' + targetMonth
             : 'Không tham gia thưởng doanh số'
         };
       } else {
-        // Từ ngày 09 => New Shop trong tháng tạo, không thưởng tháng này
+        // Ngày 09+: quán mới trong tháng tạo, không thưởng tháng này
         return {
           rewardEligible: false,
           newShopEligible: settings.newShopEnabled && customer.new_shop_enabled !== 0,
+          promotionStartDate,
           reason: 'Hưởng KM Quán mới trong tháng ' + targetMonth + '. Từ tháng ' + (targetMonth === 12 ? '1' : targetMonth + 1) + ' tham gia thưởng doanh số.'
         };
       }
     } else {
-      // Khác tháng tạo: New Shop đã kết thúc, luôn Reward
+      // Khác tháng tạo: luôn tham gia thưởng doanh số
       const canReward = customer.reward_enabled !== 0 && settings.rewardEnabled;
       return {
         rewardEligible: canReward,
         newShopEligible: false,
+        promotionStartDate,
         reason: canReward
-          ? 'Tham gia thưởng doanh số'
+          ? 'Tham gia thưởng doanh số tháng ' + targetMonth
           : 'Không tham gia thưởng doanh số'
       };
     }
@@ -375,15 +381,53 @@ class PromotionService {
   // ── 2. THƯỞNG DOANH SỐ THÁNG ────────────────────────────
 
   /**
+   * Lấy ngày bắt đầu tham gia khuyến mãi sản lượng của khách
+   * Quy tắc:
+   *   - Ngày tạo 01-08: bắt đầu từ ngày tạo
+   *   - Ngày tạo 09+: bắt đầu từ ngày 01 của tháng kế tiếp
+   * @returns {string} YYYY-MM-DD
+   */
+  getPromotionStartDate(customer) {
+    if (!customer || !customer.created_at) return null;
+    
+    const created = new Date(customer.created_at);
+    const day = created.getDate();
+    
+    if (day <= 8) {
+      // Bắt đầu từ ngày tạo
+      return customer.created_at.split('T')[0];
+    } else {
+      // Bắt đầu từ ngày 01 của tháng kế tiếp
+      const nextMonth = new Date(created.getFullYear(), created.getMonth() + 1, 1);
+      return nextMonth.toISOString().split('T')[0];
+    }
+  }
+
+  /**
    * Tính sản lượng tháng hiện tại (CHỈ tính lít MUA thực trả, KHÔNG tính lít tặng)
    * Bia tặng khuyến mãi có si.price = 0 nên được lọc ra
    * LUÔN query real-time để đảm bảo đúng sau khi sửa/xóa đơn hàng
    * CHỈ tính keg (bia bình 1L), KHÔNG tính pet (chai nhựa), box, bottle
+   * @param {number} customerId
+   * @param {string} startDate - ngày bắt đầu tính sản lượng (YYYY-MM-DD)
    */
-  calculateMonthlyPurchasedLiters(customerId) {
+  calculateMonthlyPurchasedLiters(customerId, startDate = null) {
     const now = new Date();
     const year = now.getFullYear();
     const month = now.getMonth() + 1;
+    const monthStr = String(month).padStart(2, '0');
+
+    // Lấy ngày bắt đầu tính sản lượng
+    let effectiveStartDate = startDate;
+    if (!effectiveStartDate) {
+      const customer = db.prepare('SELECT created_at FROM customers WHERE id = ?').get(customerId);
+      if (!customer) return 0;
+      effectiveStartDate = this.getPromotionStartDate(customer);
+    }
+
+    // Nếu ngày bắt đầu lớn hơn ngày đầu tháng, chỉ tính từ ngày bắt đầu
+    const monthStart = `${year}-${monthStr}-01`;
+    const queryStartDate = effectiveStartDate > monthStart ? effectiveStartDate : monthStart;
 
     // Luôn query real-time từ sale_items để đảm bảo data mới nhất
     // Chỉ tính keg, không tính pet/box/bottle
@@ -398,9 +442,10 @@ class PromotionService {
         AND s.promo_type IS DISTINCT FROM 'MONTHLY_BONUS'
         AND si.price > 0
         AND p.type = 'keg'
+        AND s.date >= ?
         AND strftime('%Y', s.date) = ?
         AND strftime('%m', s.date) = ?
-    `).get(customerId, String(year), String(month).padStart(2, '0'));
+    `).get(customerId, queryStartDate, String(year), monthStr);
 
     return result ? result.total : 0;
   }
