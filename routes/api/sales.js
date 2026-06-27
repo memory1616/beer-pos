@@ -282,9 +282,10 @@ router.post('/', (req, res) => {
 
     // ========== STRICT TRANSACTION ==========
     const createSale = db.transaction(() => {
-      // Insert sale with Vietnam-local date
+      // Insert sale with Vietnam-local date and time
       const saleDate = db.getVietnamDateStr();
-      const saleResult = db.prepare('INSERT INTO sales (customer_id, sales_id, date, total, profit, deliver_kegs, return_kegs, keg_balance_after, type, promo_free_liters, promo_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(customerId, staffId || null, saleDate, total, profit, finalDeliverKegs, returnKegs, newKegBalance, 'sale', promoFreeTotal, promoInfo ? promoInfo.promoType : null);
+      const saleTime = db.getVietnamTimeStr();
+      const saleResult = db.prepare('INSERT INTO sales (customer_id, sales_id, date, sale_time, total, profit, deliver_kegs, return_kegs, keg_balance_after, type, promo_free_liters, promo_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(customerId, staffId || null, saleDate, saleTime, total, profit, finalDeliverKegs, returnKegs, newKegBalance, 'sale', promoFreeTotal, promoInfo ? promoInfo.promoType : null);
       const saleId = saleResult.lastInsertRowid;
 
       if (!saleId) throw new Error('Sale creation failed — no lastInsertRowid');

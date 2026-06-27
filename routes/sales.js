@@ -70,13 +70,13 @@ router.get('/history', (req, res) => {
   const totalPages = Math.ceil(total / limit);
 
   const sales = db.prepare(`
-    SELECT s.id, s.date, s.total, s.type, s.status,
+    SELECT s.id, s.date, s.sale_time, s.total, s.type, s.status,
       COALESCE(c.name, 'Khách lẻ') as customer_name,
       s.deliver_kegs, s.return_kegs
     FROM sales s
     LEFT JOIN customers c ON s.customer_id = c.id
     ${whereClause}
-    ORDER BY datetime(s.date) DESC, s.id DESC
+    ORDER BY datetime(s.date || ' ' || COALESCE(s.sale_time, '00:00:00')) DESC, s.id DESC
     LIMIT ? OFFSET ?
   `).all(...params, limit, offset);
 
