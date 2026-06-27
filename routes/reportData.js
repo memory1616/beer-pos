@@ -82,38 +82,38 @@ router.get('/data', (req, res) => {
     var dateParams = [startDay, endDay];
     var salesDateBare = dateCol.indexOf('created_at') !== -1 ? 'created_at' : 'date';
 
-    // Main sales query
+    // Main sales query - CHỈ lấy type='sale', KHÔNG lấy replacement/gift (đúng với KPI)
     var sales = db.prepare(
-      "SELECT s.id, s.customer_id, s.date, s.total, s.profit, s.type, s.deliver_kegs, s.return_kegs, COALESCE(c.name, 'Khách lẻ') as customer_name, (SELECT COALESCE(SUM(si.quantity), 0) FROM sale_items si WHERE si.sale_id = s.id) as quantity FROM sales s LEFT JOIN customers c ON c.id = s.customer_id WHERE s.archived = 0 AND (s.status IS NULL OR s.status != 'returned') AND " + dateCond +
-      " ORDER BY datetime(" + dateCol + ") DESC LIMIT 50"
+      "SELECT s.id, s.customer_id, s.date, s.total, s.profit, s.type, s.deliver_kegs, s.return_kegs, COALESCE(c.name, 'Khách lẻ') as customer_name, (SELECT COALESCE(SUM(si.quantity), 0) FROM sale_items si WHERE si.sale_id = s.id) as quantity FROM sales s LEFT JOIN customers c ON c.id = s.customer_id WHERE s.archived = 0 AND s.type = 'sale' AND (s.status IS NULL OR s.status != 'returned') AND " + dateCond +
+      " ORDER BY datetime(" + dateCol + ") DESC LIMIT 200"
     ).all(...dateParams);
 
-    // Aggregated KPIs
-    var revR = db.prepare('SELECT COALESCE(SUM(total), 0) as t FROM sales WHERE archived = 0 AND (status IS NULL OR status != \'returned\') AND type = \'sale\' AND date(' + salesDateBare + ') >= date(?) AND date(' + salesDateBare + ') <= date(?)').get(...dateParams);
-    var profR = db.prepare('SELECT COALESCE(SUM(profit), 0) as t FROM sales WHERE archived = 0 AND (status IS NULL OR status != \'returned\') AND type = \'sale\' AND date(' + salesDateBare + ') >= date(?) AND date(' + salesDateBare + ') <= date(?)').get(...dateParams);
-    var ordR = db.prepare('SELECT COUNT(*) as t FROM sales WHERE archived = 0 AND (status IS NULL OR status != \'returned\') AND type = \'sale\' AND date(' + salesDateBare + ') >= date(?) AND date(' + salesDateBare + ') <= date(?)').get(...dateParams);
+    // Aggregated KPIs - loại trừ MONTHLY_BONUS (thưởng tháng, không tính là doanh thu)
+    var revR = db.prepare('SELECT COALESCE(SUM(total), 0) as t FROM sales WHERE archived = 0 AND (status IS NULL OR status != \'returned\') AND type = \'sale\' AND promo_type IS DISTINCT FROM \'MONTHLY_BONUS\' AND date(' + salesDateBare + ') >= date(?) AND date(' + salesDateBare + ') <= date(?)').get(...dateParams);
+    var profR = db.prepare('SELECT COALESCE(SUM(profit), 0) as t FROM sales WHERE archived = 0 AND (status IS NULL OR status != \'returned\') AND type = \'sale\' AND promo_type IS DISTINCT FROM \'MONTHLY_BONUS\' AND date(' + salesDateBare + ') >= date(?) AND date(' + salesDateBare + ') <= date(?)').get(...dateParams);
+    var ordR = db.prepare('SELECT COUNT(*) as t FROM sales WHERE archived = 0 AND (status IS NULL OR status != \'returned\') AND type = \'sale\' AND promo_type IS DISTINCT FROM \'MONTHLY_BONUS\' AND date(' + salesDateBare + ') >= date(?) AND date(' + salesDateBare + ') <= date(?)').get(...dateParams);
     var totalRevenue = revR ? revR.t : 0;
     var totalProfit = profR ? profR.t : 0;
     var totalOrders = ordR ? ordR.t : 0;
     var totalExpense = 0;
     try { var expR = db.prepare('SELECT COALESCE(SUM(amount), 0) as t FROM expenses WHERE archived = 0 AND date >= ? AND date <= ?').get(startDay, endDay); totalExpense = expR ? expR.t : 0; } catch(_){}
 
-    // Daily breakdown
+    // Daily breakdown - loại trừ MONTHLY_BONUS
     var daily = db.prepare(
-      "SELECT date(" + dateCol + ") as date, COALESCE(SUM(s.total), 0) as revenue, COALESCE(SUM(s.profit), 0) as profit, COALESCE((SELECT SUM(e.amount) FROM expenses e WHERE e.archived = 0 AND date(e.date) = date(" + dateCol + ")), 0) as expense FROM sales s WHERE s.archived = 0 AND (s.status IS NULL OR s.status != 'returned') AND " + dateCond +
+      "SELECT date(" + dateCol + ") as date, COALESCE(SUM(s.total), 0) as revenue, COALESCE(SUM(s.profit), 0) as profit, COALESCE((SELECT SUM(e.amount) FROM expenses e WHERE e.archived = 0 AND date(e.date) = date(" + dateCol + ")), 0) as expense FROM sales s WHERE s.archived = 0 AND s.type = 'sale' AND s.promo_type IS DISTINCT FROM 'MONTHLY_BONUS' AND (s.status IS NULL OR s.status != 'returned') AND " + dateCond +
       " GROUP BY date(" + dateCol + ") ORDER BY date DESC LIMIT 30"
     ).all(...dateParams);
 
-    // Profit by product
+    // Profit by product - loại trừ MONTHLY_BONUS
     var profitByProduct = db.prepare(
-      'SELECT p.id, p.name, p.type, SUM(si.quantity) as quantity_sold, COUNT(DISTINCT si.sale_id) as order_count, SUM(si.quantity * si.price) as revenue, SUM(si.quantity * si.cost_price) as cost, SUM(si.profit) as profit FROM sale_items si JOIN products p ON p.id = si.product_id JOIN sales s ON s.id = si.sale_id WHERE s.archived = 0 AND (s.status IS NULL OR s.status != \'returned\') AND ' + dateCond +
+      'SELECT p.id, p.name, p.type, SUM(si.quantity) as quantity_sold, COUNT(DISTINCT si.sale_id) as order_count, SUM(si.quantity * si.price) as revenue, SUM(si.quantity * si.cost_price) as cost, SUM(si.profit) as profit FROM sale_items si JOIN products p ON p.id = si.product_id JOIN sales s ON s.id = si.sale_id WHERE s.archived = 0 AND s.type = \'sale\' AND s.promo_type IS DISTINCT FROM \'MONTHLY_BONUS\' AND (s.status IS NULL OR s.status != \'returned\') AND ' + dateCond +
       ' GROUP BY p.id ORDER BY SUM(si.profit) DESC LIMIT 20'
     ).all(...dateParams);
 
-    // Profit by customer
+    // Profit by customer - loại trừ MONTHLY_BONUS
     var profitByCustomer = db.prepare(
       'SELECT c.id, c.name, COUNT(s.id) as order_count, SUM(s.total) as revenue, SUM(s.profit) as profit ' +
-      'FROM sales s JOIN customers c ON c.id = s.customer_id WHERE s.archived = 0 AND s.type = \'sale\' AND ' + dateCond +
+      'FROM sales s JOIN customers c ON c.id = s.customer_id WHERE s.archived = 0 AND s.type = \'sale\' AND s.promo_type IS DISTINCT FROM \'MONTHLY_BONUS\' AND ' + dateCond +
       ' GROUP BY c.id ORDER BY profit DESC LIMIT 20'
     ).all(...dateParams);
 
@@ -122,7 +122,7 @@ router.get('/data', (req, res) => {
       'FROM sale_items si ' +
       'JOIN sales s ON s.id = si.sale_id ' +
       'JOIN products p ON p.id = si.product_id ' +
-      "WHERE s.archived = 0 AND s.type = 'sale' AND (s.status IS NULL OR s.status != 'returned') AND " + dateCond
+      "WHERE s.archived = 0 AND s.type = 'sale' AND s.promo_type IS DISTINCT FROM 'MONTHLY_BONUS' AND (s.status IS NULL OR s.status != 'returned') AND " + dateCond
     ).all(...dateParams);
     var literByCustomerId = {};
     for (var lr = 0; lr < literRows.length; lr++) {
