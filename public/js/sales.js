@@ -514,6 +514,7 @@ function normalizeInvoice(sale) {
     bottleBefore: bottleBefore,
     bottleAfter: bottleAfter,
     date: createdAt,
+    sale_time: sale.sale_time || null,
     status: sale.status,
     type: sale.type,
     raw: sale
