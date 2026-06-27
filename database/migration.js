@@ -15,7 +15,7 @@ const fs = require('fs');
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-const MIGRATION_VERSION = 2026061701;
+const MIGRATION_VERSION = 2026062701;
 const SCHEMA_VERSION_KEY = 'schema_version';
 const BUSINESS_FEATURES_VERSION = 2026041602;
 
@@ -84,6 +84,7 @@ function migrateAddMetadata(db) {
     { table: 'sales',          col: 'updated_at',    type: 'TEXT',     default: "CURRENT_TIMESTAMP" },
     { table: 'sales',          col: 'version',       type: 'INTEGER',  default: '1' },
     { table: 'sales',          col: 'deleted',       type: 'INTEGER',  default: '0' },
+    { table: 'sales',          col: 'sale_time',     type: 'TEXT',     default: null },
 
     { table: 'expenses',       col: 'created_at',    type: 'TEXT',     default: "CURRENT_TIMESTAMP" },
     { table: 'expenses',       col: 'updated_at',    type: 'TEXT',     default: "CURRENT_TIMESTAMP" },
