@@ -458,10 +458,17 @@ router.post('/', (req, res) => {
         if (!isInNewShop) {
           const rewardInfo = PromotionService.getRewardForPrevMonth(customerId);
           if (rewardInfo && rewardInfo.eligible && rewardInfo.rewardLiters > 0) {
-            // Gắn thưởng vào đơn hàng hiện tại
-            autoRewardResult = PromotionService.attachRewardToSale(customerId, saleId, rewardInfo.rewardLiters, rewardInfo.tier);
+            // Gắn thưởng vào đơn hàng hiện tại - TRẢ THƯỞNG SẢN LƯỢNG THÁNG TRƯỚC
+            autoRewardResult = PromotionService.attachRewardToSale(
+              customerId, 
+              saleId, 
+              rewardInfo.rewardLiters, 
+              rewardInfo.tier,
+              rewardInfo.rewardMonth,
+              rewardInfo.rewardYear
+            );
             if (autoRewardResult && autoRewardResult.success) {
-              console.log('[AUTO REWARD] Da gan thuong vao don', customerId, ':', autoRewardResult.rewardLiters, 'L');
+              console.log('[AUTO REWARD] Da gan thuong vao don', customerId, ':', autoRewardResult.rewardLiters, 'L - thang', rewardInfo.rewardMonth, '/', rewardInfo.rewardYear);
             }
           }
         } else {

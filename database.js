@@ -1353,6 +1353,27 @@ try {
   logger.log('[PROMOTION] customer_monthly_stats backfill note:', e.message);
 }
 
+// ============================================================
+// PENDING REWARDS TABLE
+// Lưu thưởng chưa trả - sẽ tự động thêm vào hóa đơn đầu tiên của tháng tiếp theo
+// ============================================================
+db.exec(`
+  CREATE TABLE IF NOT EXISTS pending_rewards (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER NOT NULL,
+    reward_month INTEGER NOT NULL,
+    reward_year INTEGER NOT NULL,
+    reward_liters REAL NOT NULL,
+    reward_tier TEXT,
+    product_id INTEGER,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(customer_id, reward_month, reward_year)
+  )
+`);
+try {
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_pending_rewards_customer ON pending_rewards(customer_id)`);
+} catch (e) { /* index may exist */ }
+
 // Backfill promotionEnabled for existing customers (default to 1 = enabled)
 try {
   db.exec(`UPDATE customers SET promotion_enabled = 1 WHERE promotion_enabled IS NULL`);
