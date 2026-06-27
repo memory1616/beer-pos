@@ -321,11 +321,10 @@
         var byProduct = data.profitByProduct || computeProfitByProduct(sales);
         var byCustomer = data.profitByCustomer || computeProfitByCustomer(sales);
 
-        var revenue = 0, profit = 0;
-        sales.forEach(function (s) {
-          revenue += s.total || 0;
-          profit += s.profit || 0;
-        });
+        // Dùng totalRevenue từ API (đã tính đúng tổng, không bị LIMIT 50)
+        // totalRevenue và totalProfit là tổng thực của TẤT CẢ đơn trong khoảng ngày
+        var revenue = data.totalRevenue || 0;
+        var profit = data.totalProfit || 0;
 
         var netProfit = profit - totalExpense;
         var daily = buildDailyData(sales);
