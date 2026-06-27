@@ -363,9 +363,23 @@ function renderSaleHistory(sales, page, totalPages) {
 
   container.innerHTML = sales.map(function(s) {
     var customerName = s.customer_name || 'Khách lẻ';
-    var dateStr = s.date ? new Date(s.date).toLocaleString('vi-VN', {
-      day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
-    }) : '';
+
+    // Format date with sale_time if available
+    var dateStr = '';
+    if (s.date) {
+      var dateParts = s.date.split('-');
+      if (s.sale_time) {
+        // Use sale_time for accurate time
+        var timeParts = s.sale_time.split(':');
+        var d = new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2]),
+                         parseInt(timeParts[0]), parseInt(timeParts[1]), 0);
+      } else {
+        var d = new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2]), 7, 0, 0);
+      }
+      dateStr = d.toLocaleString('vi-VN', {
+        day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
+      });
+    }
     var itemNames = (s.items || []).map(function(i) {
       return (i.product_name || 'SP') + ' x' + i.quantity;
     }).join(', ');
@@ -657,12 +671,17 @@ function renderInvoiceModalContent(invoice, saleIdForActions) {
   if (!Number.isFinite(sid) || sid == null) sid = invoice.id;
   var dateStr = '';
   if (invoice.date) {
-    var d = new Date(invoice.date);
-    // Fix: date-only strings (e.g. "2026-04-12") → new Date parses as UTC midnight → shows 07:00 in UTC+7.
-    // Detect: if invoice.date has no time part, assume local date.
-    if (/^\d{4}-\d{2}-\d{2}$/.test(invoice.date)) {
-      var parts = invoice.date.split('-');
-      d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 12, 0, 0);
+    var parts = invoice.date.split('-');
+    if (invoice.sale_time) {
+      // Use sale_time for accurate time
+      var timeParts = invoice.sale_time.split(':');
+      var d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]),
+                       parseInt(timeParts[0]), parseInt(timeParts[1]), 0);
+    } else if (/^\d{4}-\d{2}-\d{2}$/.test(invoice.date)) {
+      // Legacy: date-only string → assume noon to avoid UTC offset issue
+      var d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 12, 0, 0);
+    } else {
+      var d = new Date(invoice.date);
     }
     dateStr = d.toLocaleString('vi-VN', {
       day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'

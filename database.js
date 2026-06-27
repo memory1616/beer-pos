@@ -33,8 +33,17 @@ function getVietnamDateStr() {
     String(vn.getUTCDate()).padStart(2, '0');
 }
 
+// Helper: get current Vietnam time string (HH:MM:SS) in Asia/Ho_Chi_Minh timezone
+function getVietnamTimeStr() {
+  const now = new Date();
+  const vn = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+  return String(vn.getUTCHours()).padStart(2, '0') + ':' +
+    String(vn.getUTCMinutes()).padStart(2, '0') + ':' +
+    String(vn.getUTCSeconds()).padStart(2, '0');
+}
+
 // Export for use in other modules
-module.exports = { db, getVietnamDateStr };
+module.exports = { db, getVietnamDateStr, getVietnamTimeStr };
 
 // Enable foreign keys
 db.pragma('foreign_keys = ON');
@@ -200,6 +209,7 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     customer_id INTEGER,
     date TEXT DEFAULT CURRENT_TIMESTAMP,
+    sale_time TEXT,
     total REAL NOT NULL,
     profit REAL DEFAULT 0,
     deliver_kegs INTEGER DEFAULT 0,
@@ -1117,6 +1127,7 @@ function logKegTransaction(type, quantity, state, opts = {}) {
 // getVietnamDateStr already added at top of file — see above
 module.exports = db;
 module.exports.getVietnamDateStr = getVietnamDateStr;
+module.exports.getVietnamTimeStr = getVietnamTimeStr;
 module.exports.logKegTransaction = logKegTransaction;
 module.exports.toSlug = toSlug;
 
