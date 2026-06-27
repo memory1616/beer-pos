@@ -830,9 +830,190 @@ class PromotionService {
     return this.claimMonthlyReward(customerId, defaultProduct.id);
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  // PENDING REWARDS - Lưu thưởng và tự động thêm vào hóa đơn đầu tiên
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * Lưu pending reward vào bảng pending_rewards
+   * Gọi khi kết thúc tháng và khách đạt thưởng
+   */
+  savePendingReward(customerId, rewardMonth, rewardYear, liters, tier) {
+    const monthStr = String(rewardMonth).padStart(2, '0');
+    try {
+      db.prepare(`
+        INSERT OR REPLACE INTO pending_rewards 
+        (customer_id, reward_month, reward_year, reward_liters, reward_tier)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(customerId, rewardMonth, rewardYear, liters, tier || null);
+      logger.info(`[PENDING_REWARD] Saved: customer=${customerId}, month=${rewardMonth}/${rewardYear}, liters=${liters}L`);
+      return true;
+    } catch (e) {
+      logger.error('[PENDING_REWARD] Save error:', e);
+      return false;
+    }
+  }
+
+  /**
+   * Lấy pending reward của khách (nếu có)
+   */
+  getPendingReward(customerId) {
+    const pending = db.prepare(`
+      SELECT * FROM pending_rewards WHERE customer_id = ? LIMIT 1
+    `).get(customerId);
+    return pending || null;
+  }
+
+  /**
+   * Xóa pending reward của khách (sau khi đã thêm vào hóa đơn)
+   */
+  clearPendingReward(customerId) {
+    try {
+      db.prepare('DELETE FROM pending_rewards WHERE customer_id = ?').run(customerId);
+      return true;
+    } catch (e) {
+      logger.error('[PENDING_REWARD] Clear error:', e);
+      return false;
+    }
+  }
+
+  /**
+   * Thêm pending reward vào hóa đơn hiện tại
+   * Gọi sau khi tạo hóa đơn thành công
+   * @returns {{ added, rewardLiters, rewardMonth, rewardYear }}
+   */
+  addPendingRewardToSale(saleId, customerId) {
+    const pending = this.getPendingReward(customerId);
+    if (!pending) return { added: false };
+
+    const { reward_liters, reward_month, reward_year, reward_tier } = pending;
+
+    try {
+      // Lấy sản phẩm bia vàng mặc định
+      const defaultProduct = db.prepare(`
+        SELECT id, name, slug, cost_price FROM products
+        WHERE archived = 0 AND type = 'keg'
+          AND (name LIKE '%Vàng%' OR name LIKE '%VANG%' OR name LIKE '%vàng%' OR name LIKE '%Gold%' OR name LIKE '%gold%')
+          AND (name NOT LIKE '%Đen%' AND name NOT LIKE '%DEN%' AND name NOT LIKE '%den%')
+        ORDER BY id ASC LIMIT 1
+      `).get() || db.prepare('SELECT id, name, slug, cost_price FROM products WHERE archived = 0 AND type = \'keg\' ORDER BY id ASC LIMIT 1').get();
+
+      if (!defaultProduct) {
+        logger.warn('[PENDING_REWARD] No product found for reward');
+        return { added: false };
+      }
+
+      const tx = db.transaction(() => {
+        // 1. Thêm item thưởng vào hóa đơn hiện tại (price=0)
+        db.prepare(`
+          INSERT INTO sale_items (sale_id, product_id, product_slug, quantity, price, cost_price, profit, price_at_time)
+          VALUES (?, ?, ?, ?, 0, 0, 0, 0)
+        `).run(saleId, defaultProduct.id, defaultProduct.slug, reward_liters);
+
+        // 2. Cập nhật tổng tiền hóa đơn (không cộng tiền thưởng - vì price=0)
+
+        // 3. Trừ kho sản phẩm thưởng
+        db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(reward_liters, defaultProduct.id);
+
+        // 4. Cập nhật hóa đơn: đánh dấu có reward + ghi chú tháng thưởng
+        const rewardMonthName = this._getMonthName(reward_month);
+        db.prepare(`
+          UPDATE sales SET 
+            promo_type = 'MONTHLY_BONUS',
+            reward_liters_used = ?,
+            note = COALESCE(note, '') || ' | Trả thưởng sản lượng tháng ' || ? || '/' || ?
+          WHERE id = ?
+        `).run(reward_liters, reward_month, reward_year, saleId);
+
+        // 5. Ghi audit log
+        const customer = db.prepare('SELECT name FROM customers WHERE id = ?').get(customerId);
+        db.prepare(`
+          INSERT INTO product_audit_log (product_id, type, quantity, reason, ref_id, ref_type, customer_name, note)
+          VALUES (?, 'export', ?, 'pending_reward', ?, 'sale', ?, ?)
+        `).run(defaultProduct.id, reward_liters, saleId, customer?.name || '', `Trả thưởng sản lượng tháng ${reward_month}/${reward_year}`);
+
+        // 6. Ghi reward_history
+        db.prepare(`
+          INSERT INTO reward_history (customer_id, reward_tier, reward_liters, note)
+          VALUES (?, ?, ?, ?)
+        `).run(customerId, reward_tier || 'MONTHLY_BONUS', reward_liters, `Trả thưởng sản lượng tháng ${reward_month}/${reward_year} - tự động qua hóa đơn đầu tiên`);
+
+        // 7. Cập nhật customer_monthly_stats
+        const existingStats = db.prepare(`
+          SELECT * FROM customer_monthly_stats WHERE customer_id = ? AND year = ? AND month = ?
+        `).get(customerId, reward_year, reward_month);
+
+        if (existingStats) {
+          const newClaimed = (existingStats.reward_claimed_liters || 0) + reward_liters;
+          db.prepare(`
+            UPDATE customer_monthly_stats SET
+              reward_claimed = 1,
+              reward_claimed_at = CURRENT_TIMESTAMP,
+              reward_claimed_liters = ?,
+              reward_claimed_sale_id = ?,
+              updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+          `).run(newClaimed, saleId, existingStats.id);
+        } else {
+          db.prepare(`
+            INSERT INTO customer_monthly_stats
+              (customer_id, year, month, reward_claimed, reward_claimed_at, reward_claimed_liters, reward_claimed_sale_id)
+            VALUES (?, ?, ?, 1, CURRENT_TIMESTAMP, ?, ?)
+          `).run(customerId, reward_year, reward_month, reward_liters, saleId);
+        }
+
+        // 8. Xóa pending reward
+        db.prepare('DELETE FROM pending_rewards WHERE customer_id = ?').run(customerId);
+      });
+
+      tx();
+      logger.info(`[PENDING_REWARD] Added to sale ${saleId}: ${reward_liters}L for month ${reward_month}/${reward_year}`);
+      return { 
+        added: true, 
+        rewardLiters: reward_liters, 
+        rewardMonth: reward_month, 
+        rewardYear: reward_year,
+        productName: defaultProduct.name
+      };
+    } catch (e) {
+      logger.error('[PENDING_REWARD] Add to sale error:', e);
+      return { added: false, error: e.message };
+    }
+  }
+
+  /**
+   * Kiểm tra và tự động thêm pending reward vào đơn hàng đầu tiên của tháng
+   * Gọi khi tạo hóa đơn mới
+   * @returns {{ added, rewardLiters, rewardMonth, rewardYear }} hoặc null
+   */
+  checkAndAddPendingRewardToFirstSale(customerId, currentSaleId) {
+    // Kiểm tra khách có pending reward không
+    const pending = this.getPendingReward(customerId);
+    if (!pending) return null;
+
+    const { reward_month, reward_year, reward_liters } = pending;
+    const rewardMonthName = this._getMonthName(reward_month);
+
+    // Thêm reward vào hóa đơn
+    const result = this.addPendingRewardToSale(currentSaleId, customerId);
+    if (result.added) {
+      return result;
+    }
+    return null;
+  }
+
+  /**
+   * Lấy tên tháng tiếng Việt
+   */
+  _getMonthName(monthNum) {
+    const months = ['Một', 'Hai', 'Ba', 'Tư', 'Năm', 'Sáu', 'Bảy', 'Tám', 'Chín', 'Mười', 'Mười một', 'Mười hai'];
+    return months[(monthNum - 1) % 12] || 'Unknown';
+  }
+
   /**
    * Lấy thông tin thưởng dựa trên sản lượng tháng trước
-   * @returns {{ eligible, rewardLiters, tier, alreadyClaimed }}
+   * ƯU TIÊN: Kiểm tra pending_rewards trước, nếu không có thì tính toán và lưu vào pending
+   * @returns {{ eligible, rewardLiters, tier, alreadyClaimed, rewardMonth, rewardYear }}
    */
   getRewardForPrevMonth(customerId) {
     const settings = this.getSystemPromotionSettings();
@@ -848,7 +1029,31 @@ class PromotionService {
     const rewardMonthNum = rewardMonth.getMonth() + 1;
     const rewardMonthStr = String(rewardMonthNum).padStart(2, '0');
 
-    // Tính sản lượng tháng trước
+    // ƯU TIÊN 1: Kiểm tra pending_rewards table
+    const pendingReward = db.prepare(`
+      SELECT * FROM pending_rewards 
+      WHERE customer_id = ? AND reward_month = ? AND reward_year = ?
+    `).get(customerId, rewardMonthNum, rewardYear);
+
+    if (pendingReward) {
+      // Đã có pending reward → trả thông tin để gắn vào hóa đơn
+      const claimed = db.prepare(`
+        SELECT COUNT(*) as cnt FROM reward_history
+        WHERE customer_id = ?
+          AND note LIKE ?
+      `).get(customerId, `%tháng ${rewardMonthNum}/${rewardYear}%`);
+
+      return {
+        eligible: !claimed || claimed.cnt === 0,
+        rewardLiters: pendingReward.reward_liters,
+        tier: pendingReward.reward_tier || `BONUS_${pendingReward.reward_liters}L`,
+        alreadyClaimed: claimed && claimed.cnt > 0,
+        rewardMonth: rewardMonthNum,
+        rewardYear: rewardYear
+      };
+    }
+
+    // ƯU TIÊN 2: Tính toán sản lượng tháng trước (backward compatible)
     const purchasedLiters = db.prepare(`
       SELECT COALESCE(SUM(si.quantity), 0) as total
       FROM sales s
@@ -876,7 +1081,7 @@ class PromotionService {
       }
     }
 
-    if (!eligibleTier) return { eligible: false, rewardLiters: 0, tier: null, alreadyClaimed: false };
+    if (!eligibleTier) return { eligible: false, rewardLiters: 0, tier: null, alreadyClaimed: false, rewardMonth: rewardMonthNum, rewardYear };
 
     // Kiểm tra đã nhận thưởng tháng trước chưa
     const alreadyClaimed = db.prepare(`
@@ -887,11 +1092,24 @@ class PromotionService {
 
     const claimed = alreadyClaimed && alreadyClaimed.cnt > 0;
 
+    // Lưu vào pending_rewards để đơn hàng sau có thể sử dụng
+    if (!claimed) {
+      this.savePendingReward(
+        customerId, 
+        rewardMonthNum, 
+        rewardYear, 
+        eligibleTier.reward, 
+        eligibleTier.tier || `BONUS_${eligibleTier.reward}L`
+      );
+    }
+
     return {
       eligible: !claimed,
       rewardLiters: eligibleTier.reward,
       tier: eligibleTier.tier || `BONUS_${eligibleTier.reward}L`,
-      alreadyClaimed: claimed
+      alreadyClaimed: claimed,
+      rewardMonth: rewardMonthNum,
+      rewardYear: rewardYear
     };
   }
 
@@ -902,12 +1120,18 @@ class PromotionService {
    * @param {number} saleId - ID đơn hàng hiện tại để gắn thưởng
    * @param {number} rewardLiters - Số lít thưởng
    * @param {string} tier - Tier thưởng
+   * @param {number} [rewardMonth] - Tháng thưởng (mặc định: tháng trước)
+   * @param {number} [rewardYear] - Năm thưởng (mặc định: năm trước)
    * @returns {{ success, saleId, rewardLiters, tier }}
    */
-  attachRewardToSale(customerId, saleId, rewardLiters, tier) {
+  attachRewardToSale(customerId, saleId, rewardLiters, tier, rewardMonth, rewardYear) {
     const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+
+    // Xác định tháng thưởng: dùng param hoặc mặc định là tháng trước
+    const actualRewardMonth = rewardMonth || new Date(currentYear, currentMonth - 2, 1).getMonth() + 1;
+    const actualRewardYear = rewardYear || (currentMonth === 1 ? currentYear - 1 : currentYear);
 
     // Lấy sản phẩm bia vàng mặc định
     const defaultProduct = db.prepare(`
@@ -921,13 +1145,13 @@ class PromotionService {
     if (!defaultProduct) {
       const anyProduct = db.prepare('SELECT id FROM products WHERE archived = 0 AND type = \'keg\' ORDER BY id ASC LIMIT 1').get();
       if (!anyProduct) return { success: false, error: 'Không tìm thấy sản phẩm' };
-      return this._doAttachReward(customerId, saleId, anyProduct.id, rewardLiters, tier, year, month);
+      return this._doAttachReward(customerId, saleId, anyProduct.id, rewardLiters, tier, actualRewardMonth, actualRewardYear);
     }
 
-    return this._doAttachReward(customerId, saleId, defaultProduct.id, rewardLiters, tier, year, month);
+    return this._doAttachReward(customerId, saleId, defaultProduct.id, rewardLiters, tier, actualRewardMonth, actualRewardYear);
   }
 
-  _doAttachReward(customerId, saleId, productId, rewardLiters, tier, year, month) {
+  _doAttachReward(customerId, saleId, productId, rewardLiters, tier, rewardMonth, rewardYear) {
     const tx = db.transaction(() => {
       // 1. Thêm item vào sale hiện tại (price=0)
       db.prepare(`
@@ -938,27 +1162,32 @@ class PromotionService {
       // 2. TRỪ KHO
       db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(rewardLiters, productId);
 
-      // 3. Cập nhật total và profit của sale (thưởng = 0 nên không cộng)
-      // Chỉ cập nhật deliver_kegs thêm rewardLiters
-      db.prepare('UPDATE sales SET deliver_kegs = deliver_kegs + ? WHERE id = ?').run(rewardLiters, saleId);
+      // 3. Cập nhật sale: đánh dấu có reward + ghi chú tháng thưởng
+      db.prepare(`
+        UPDATE sales SET 
+          promo_type = 'MONTHLY_BONUS',
+          reward_liters_used = ?,
+          note = COALESCE(note, '') || ' | Trả thưởng sản lượng tháng ' || ? || '/' || ?
+        WHERE id = ?
+      `).run(rewardLiters, rewardMonth, rewardYear, saleId);
 
       // 4. Audit log
       const customer = db.prepare('SELECT name FROM customers WHERE id = ?').get(customerId);
       db.prepare(`
         INSERT INTO product_audit_log (product_id, type, quantity, reason, ref_id, ref_type, customer_name, note)
         VALUES (?, 'export', ?, 'reward', ?, 'sale', ?, ?)
-      `).run(productId, rewardLiters, saleId, customer?.name || '', `Thưởng doanh số tháng ${month}/${year}`);
+      `).run(productId, rewardLiters, saleId, customer?.name || '', `Trả thưởng sản lượng tháng ${rewardMonth}/${rewardYear}`);
 
       // 5. Ghi reward_history
       db.prepare(`
         INSERT INTO reward_history (customer_id, reward_tier, reward_liters, note)
         VALUES (?, ?, ?, ?)
-      `).run(customerId, tier, rewardLiters, `Tự động thưởng tháng ${month}/${year} - đơn đầu tiên`);
+      `).run(customerId, tier, rewardLiters, `Trả thưởng sản lượng tháng ${rewardMonth}/${rewardYear} - tự động qua hóa đơn đầu tiên`);
 
-      // 6. Cập nhật customer_monthly_stats
+      // 6. Cập nhật customer_monthly_stats (cập nhật tháng thưởng)
       const existingStats = db.prepare(`
         SELECT * FROM customer_monthly_stats WHERE customer_id = ? AND year = ? AND month = ?
-      `).get(customerId, year, month);
+      `).get(customerId, rewardYear, rewardMonth);
 
       if (existingStats) {
         const newClaimed = (existingStats.reward_claimed_liters || 0) + rewardLiters;
@@ -976,15 +1205,19 @@ class PromotionService {
           INSERT INTO customer_monthly_stats
             (customer_id, year, month, reward_claimed, reward_claimed_at, reward_claimed_liters, reward_claimed_sale_id)
           VALUES (?, ?, ?, 1, CURRENT_TIMESTAMP, ?, ?)
-        `).run(customerId, year, month, rewardLiters, saleId);
+        `).run(customerId, rewardYear, rewardMonth, rewardLiters, saleId);
       }
 
-      return { saleId, rewardLiters, tier };
+      // 7. Xóa pending reward nếu có
+      db.prepare('DELETE FROM pending_rewards WHERE customer_id = ? AND reward_month = ? AND reward_year = ?')
+        .run(customerId, rewardMonth, rewardYear);
+
+      return { saleId, rewardLiters, tier, rewardMonth, rewardYear };
     });
 
     try {
       const result = tx();
-      logger.info(`[PromotionService] Reward attached to sale: customer=${customerId}, sale=${saleId}, liters=${rewardLiters}, tier=${tier}`);
+      logger.info(`[PromotionService] Reward attached to sale: customer=${customerId}, sale=${saleId}, liters=${rewardLiters}, tier=${tier}, month=${rewardMonth}/${rewardYear}`);
       return { success: true, ...result };
     } catch (e) {
       logger.error('attachRewardToSale error:', e);
