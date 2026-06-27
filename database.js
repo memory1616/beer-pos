@@ -209,7 +209,6 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     customer_id INTEGER,
     date TEXT DEFAULT CURRENT_TIMESTAMP,
-    sale_time TEXT,
     total REAL NOT NULL,
     profit REAL DEFAULT 0,
     deliver_kegs INTEGER DEFAULT 0,
