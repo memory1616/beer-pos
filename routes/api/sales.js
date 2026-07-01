@@ -461,20 +461,35 @@ router.post('/', (req, res) => {
       } else {
         const isInNewShop = PromotionService.isInNewShopPeriod(customerId);
         if (!isInNewShop) {
-          const rewardInfo = PromotionService.getRewardForPrevMonth(customerId);
-          if (rewardInfo && rewardInfo.eligible && rewardInfo.rewardLiters > 0) {
-            // Gắn thưởng vào đơn hàng hiện tại - TRẢ THƯỞNG SẢN LƯỢNG THÁNG TRƯỚC
-            autoRewardResult = PromotionService.attachRewardToSale(
-              customerId, 
-              saleId, 
-              rewardInfo.rewardLiters, 
-              rewardInfo.tier,
-              rewardInfo.rewardMonth,
-              rewardInfo.rewardYear
-            );
-            if (autoRewardResult && autoRewardResult.success) {
-              console.log('[AUTO REWARD] Da gan thuong vao don', customerId, ':', autoRewardResult.rewardLiters, 'L - thang', rewardInfo.rewardMonth, '/', rewardInfo.rewardYear);
+          // Chỉ gắn thưởng nếu tháng này KHÔNG có đơn MONTHLY_BONUS nào của khách
+          const rewardMonthNum = rewardMonth.getMonth() + 1;
+          const rewardYear = rewardMonth.getFullYear();
+          const existingRewardSale = db.prepare(`
+            SELECT id FROM sales
+            WHERE customer_id = ? AND type = 'sale' AND archived = 0 AND promo_type = 'MONTHLY_BONUS'
+              AND strftime('%Y', datetime(date, '+7 hours')) = ?
+              AND strftime('%m', datetime(date, '+7 hours')) = ?
+            LIMIT 1
+          `).get(customerId, String(rewardYear), String(rewardMonthNum).padStart(2, '0'));
+
+          if (!existingRewardSale) {
+            const rewardInfo = PromotionService.getRewardForPrevMonth(customerId);
+            if (rewardInfo && rewardInfo.eligible && rewardInfo.rewardLiters > 0) {
+              // Gắn thưởng vào đơn hàng hiện tại - TRẢ THƯỞNG SẢN LƯỢNG THÁNG TRƯỚC
+              autoRewardResult = PromotionService.attachRewardToSale(
+                customerId, 
+                saleId, 
+                rewardInfo.rewardLiters, 
+                rewardInfo.tier,
+                rewardInfo.rewardMonth,
+                rewardInfo.rewardYear
+              );
+              if (autoRewardResult && autoRewardResult.success) {
+                console.log('[AUTO REWARD] Da gan thuong vao don', customerId, ':', autoRewardResult.rewardLiters, 'L - thang', rewardInfo.rewardMonth, '/', rewardInfo.rewardYear);
+              }
             }
+          } else {
+            console.log('[AUTO REWARD] Bo qua vi khach', customerId, 'da nhan thuong thang', rewardMonthNum, '/', rewardYear);
           }
         } else {
           console.log('[AUTO REWARD] Bo qua vi khach', customerId, 'dang trong thoi gian quan moi - khong nhan thuong thang');

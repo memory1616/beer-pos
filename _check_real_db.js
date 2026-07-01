@@ -7,15 +7,24 @@ const PASS = 'Zxcv@1234';
 const conn = new Client();
 conn.on('ready', () => {
   console.log('SSH Connected!');
-  // Check tables
-  const cmd = `sqlite3 /root/beer.db ".tables" 2>&1; echo "---"; sqlite3 /root/beer.db "PRAGMA table_info(sales);" 2>&1`;
+  // First check what tables exist
+  const cmd = `sqlite3 /root/beer-pos/database.sqlite ".tables" 2>&1`;
   conn.exec(cmd, (err, stream) => {
     let out = '';
     stream.on('data', d => out += d);
     stream.stderr.on('data', d => out += d);
     stream.on('end', () => {
-      console.log(out);
-      conn.end();
+      console.log('Existing tables:', out);
+      // Check sales columns
+      conn.exec(`sqlite3 /root/beer-pos/database.sqlite "PRAGMA table_info(sales);" 2>&1`, (err2, stream2) => {
+        let out2 = '';
+        stream2.on('data', d => out2 += d);
+        stream2.stderr.on('data', d => out2 += d);
+        stream2.on('end', () => {
+          console.log('Sales columns:', out2);
+          conn.end();
+        });
+      });
     });
   });
 }).on('error', err => {

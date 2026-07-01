@@ -7,14 +7,13 @@ const PASS = 'Zxcv@1234';
 const conn = new Client();
 conn.on('ready', () => {
   console.log('SSH Connected!');
-  // Check tables
-  const cmd = `sqlite3 /root/beer.db ".tables" 2>&1; echo "---"; sqlite3 /root/beer.db "PRAGMA table_info(sales);" 2>&1`;
-  conn.exec(cmd, (err, stream) => {
+  const sql = Buffer.from("SELECT id, customer_id, note, reward_liters_used, promo_type FROM sales WHERE promo_type = 'MONTHLY_BONUS';").toString('base64');
+  conn.exec('echo "' + sql + '" | base64 -d > /tmp/q.sql && sqlite3 /root/beer-pos/database.sqlite < /tmp/q.sql && rm /tmp/q.sql', (err, stream) => {
     let out = '';
     stream.on('data', d => out += d);
     stream.stderr.on('data', d => out += d);
     stream.on('end', () => {
-      console.log(out);
+      console.log('MONTHLY_BONUS sales:', out || '(empty)');
       conn.end();
     });
   });

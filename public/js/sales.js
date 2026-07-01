@@ -2236,6 +2236,9 @@ function cancelEdit() {
 }
 
 function updateSale() {
+  // Clear volume promo cache so it refetches fresh data after edit
+  _volumePromoCache = {};
+  _volumePromoCacheTime = 0;
   submitSale();
 }
 
@@ -2333,7 +2336,12 @@ async function buildVolumePromoNote(invoice) {
 
   // Fetch reward data from API if cache is empty or expired
   var now = Date.now();
-  var cacheKey = 'customer_' + customerId;
+  // Cache key includes customer + month + year so edits in same month use same cache
+  var invoiceDate = invoice && invoice.date ? invoice.date : new Date().toISOString().split('T')[0];
+  var invParts = invoiceDate.split('-');
+  var cacheMonth = invParts.length >= 2 ? invParts[1] : String(new Date().getMonth() + 1).padStart(2, '0');
+  var cacheYear = invParts.length >= 1 ? invParts[0] : String(new Date().getFullYear());
+  var cacheKey = 'customer_' + customerId + '_' + cacheYear + '_' + cacheMonth;
   
   if (!_volumePromoCache[cacheKey] || (now - _volumePromoCacheTime) > _volumePromoCacheTTL) {
     try {

@@ -7,16 +7,11 @@ const PASS = 'Zxcv@1234';
 const conn = new Client();
 conn.on('ready', () => {
   console.log('SSH Connected!');
-  // Check tables
-  const cmd = `sqlite3 /root/beer.db ".tables" 2>&1; echo "---"; sqlite3 /root/beer.db "PRAGMA table_info(sales);" 2>&1`;
-  conn.exec(cmd, (err, stream) => {
+  conn.exec('pm2 logs beer-pos --lines 80 --nostream', (err, stream) => {
     let out = '';
     stream.on('data', d => out += d);
     stream.stderr.on('data', d => out += d);
-    stream.on('end', () => {
-      console.log(out);
-      conn.end();
-    });
+    stream.on('end', () => { console.log(out); conn.end(); });
   });
 }).on('error', err => {
   console.error('SSH error:', err.message);

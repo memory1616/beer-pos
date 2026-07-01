@@ -7,8 +7,8 @@ const PASS = 'Zxcv@1234';
 const conn = new Client();
 conn.on('ready', () => {
   console.log('SSH Connected!');
-  // Check tables
-  const cmd = `sqlite3 /root/beer.db ".tables" 2>&1; echo "---"; sqlite3 /root/beer.db "PRAGMA table_info(sales);" 2>&1`;
+  // Find beer-pos directory and check pm2 process
+  const cmd = `pm2 jlist 2>&1 | node -e "const d=require('fs').readFileSync('/dev/stdin','utf8');try{const p=JSON.parse(d);p.forEach(x=>console.log(x.pm2_env.pm_cwd,x.name,JSON.stringify(x.pm2_env.env)))}catch(e){console.log(d)}" 2>&1; echo "---"; ls -la /root/beer-pos/ 2>&1`;
   conn.exec(cmd, (err, stream) => {
     let out = '';
     stream.on('data', d => out += d);
