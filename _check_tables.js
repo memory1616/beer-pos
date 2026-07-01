@@ -5,47 +5,21 @@ const USER = 'root';
 const PASS = '***REMOVED***';
 
 const conn = new Client();
-
 conn.on('ready', () => {
   console.log('SSH Connected!');
-
-  // Create a check script on server
-  const checkScript = `
-const Database = require('better-sqlite3');
-const db = new Database('beer.db', { readonly: true });
-
-console.log('=== Database Info ===');
-const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
-console.log('Tables:', tables.map(t => t.name).join(', '));
-
-console.log('\\n=== Record counts ===');
-tables.forEach(t => {
-  try {
-    const c = db.prepare('SELECT COUNT(*) as c FROM ' + t.name).get();
-    console.log(t.name + ': ' + c.c);
-  } catch(e) {}
-});
-
-db.close();
-`;
-
-  const cmd = `
-cd ~/beer-pos && cat > check_db.js << 'SCRIPTEOF'
-${checkScript}
-SCRIPTEOF
-node check_db.js
-`;
-
+  // Check tables
+  const cmd = `sqlite3 /root/beer.db ".tables" 2>&1; echo "---"; sqlite3 /root/beer.db "PRAGMA table_info(sales);" 2>&1`;
   conn.exec(cmd, (err, stream) => {
-    if (err) { console.error('Exec error:', err.message); conn.end(); return; }
-
-    stream.on('data', d => process.stdout.write(d));
-    stream.stderr.on('data', d => process.stderr.write(d));
-    stream.on('close', () => conn.end());
+    let out = '';
+    stream.on('data', d => out += d);
+    stream.stderr.on('data', d => out += d);
+    stream.on('end', () => {
+      console.log(out);
+      conn.end();
+    });
   });
-}).on('error', (err) => {
+}).on('error', err => {
   console.error('SSH error:', err.message);
-  process.exit(1);
 }).connect({
   host: SERVER,
   port: 22,
