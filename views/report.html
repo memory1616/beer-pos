@@ -841,11 +841,16 @@
         if (!deliveryData || !contentEl) return;
 
         var totalKegs = deliveryData.totalKegs || 0;
+        var orderCount = deliveryData.orderCount || 0;
         var products = deliveryData.products || [];
 
         // Summary
         if (summaryEl) {
-          summaryEl.textContent = totalKegs > 0 ? totalKegs + ' vỏ cần giao' : 'Không có đơn giao hôm nay';
+          if (orderCount > 0) {
+            summaryEl.textContent = orderCount + ' đơn • ' + totalKegs + ' vỏ';
+          } else {
+            summaryEl.textContent = 'Không có đơn giao hôm nay';
+          }
         }
 
         var html = '';
