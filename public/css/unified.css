@@ -3953,10 +3953,12 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   overflow: hidden;
   max-height: 2000px;
   transition: max-height 0.25s ease;
+  padding: 16px;
 }
 
 .section-card-body.collapsed {
   max-height: 0;
+  padding: 0 16px;
 }
 
 /* ── APP HEADER (fixed, sticky — used by report, expenses, etc.) ── */
