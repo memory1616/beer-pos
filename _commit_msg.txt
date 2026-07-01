@@ -1,0 +1,8 @@
+feat: auto-attach monthly reward to first invoice of next month
+
+- Add pending_rewards table to store unredeemed rewards
+- Add savePendingReward/getPendingReward/clearPendingReward methods
+- Update getRewardForPrevMonth to use pending_rewards first
+- Update attachRewardToSale to include reward month/year in note
+- Invoice note now shows: "Tra thuong san luong thang X/Y"
+- Clear pending reward after attaching to sale
