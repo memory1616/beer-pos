@@ -1259,9 +1259,9 @@ router.put('/:id', (req, res) => {
     }
 
     // ── XỬ LÝ KHUYẾN MÃI QUÁN MỚI (nếu có) ─────────────────
-    // Khi sửa đơn có promo_type = 'NEW_SHOP', tính lại và thêm sản phẩm tặng
+    // Tính lại promo dựa trên customer hiện tại, không phụ thuộc promo_type cũ
     let promoInfo = null;
-    if (currentSale.promo_type === 'NEW_SHOP' && customerId) {
+    if (customerId) {
       // Đếm số lít mua trong đơn mới (chỉ tính bia, không tính sản phẩm khác)
       let qtyGold = 0;
       let qtyBlack = 0;
@@ -1273,32 +1273,35 @@ router.put('/:id', (req, res) => {
         else qtyGold += item.quantity;
       }
 
-      // Tính số lít được tặng
-      const settings = PromotionService.getSystemPromotionSettings();
-      const freeGold = Math.floor(qtyGold / settings.newShopGoldBuy) * settings.newShopGoldFree;
-      const freeBlack = Math.floor(qtyBlack / settings.newShopBlackBuy) * settings.newShopBlackFree;
+      // Kiểm tra xem khách có đủ điều kiện quán mới không
+      const newShopCheck = PromotionService.isNewShopEligible(customerId);
+      if (newShopCheck.eligible) {
+        const settings = PromotionService.getSystemPromotionSettings();
+        const freeGold = Math.floor(qtyGold / settings.newShopGoldBuy) * settings.newShopGoldFree;
+        const freeBlack = Math.floor(qtyBlack / settings.newShopBlackBuy) * settings.newShopBlackFree;
 
-      if (freeGold > 0) {
-        const goldProduct = db.prepare(`SELECT id, name, slug FROM products WHERE archived = 0 AND type = 'keg' AND name NOT LIKE '%Đen%' AND name NOT LIKE '%Den%' AND name NOT LIKE '%den%' ORDER BY id ASC LIMIT 1`).get();
-        if (goldProduct) {
-          db.prepare('INSERT INTO sale_items (sale_id, product_id, product_slug, quantity, price, cost_price, profit, price_at_time) VALUES (?, ?, ?, ?, 0, 0, 0, 0)')
-            .run(saleId, goldProduct.id, goldProduct.slug || '', freeGold);
-          db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(freeGold, goldProduct.id);
-          console.log('[SALE UPDATE] Added promo gold:', freeGold, 'L');
+        if (freeGold > 0) {
+          const goldProduct = db.prepare(`SELECT id, name, slug FROM products WHERE archived = 0 AND type = 'keg' AND name NOT LIKE '%Đen%' AND name NOT LIKE '%Den%' AND name NOT LIKE '%den%' ORDER BY id ASC LIMIT 1`).get();
+          if (goldProduct) {
+            db.prepare('INSERT INTO sale_items (sale_id, product_id, product_slug, quantity, price, cost_price, profit, price_at_time) VALUES (?, ?, ?, ?, 0, 0, 0, 0)')
+              .run(saleId, goldProduct.id, goldProduct.slug || '', freeGold);
+            db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(freeGold, goldProduct.id);
+            console.log('[SALE UPDATE] Added promo gold:', freeGold, 'L');
+          }
         }
-      }
 
-      if (freeBlack > 0) {
-        const blackProduct = db.prepare(`SELECT id, name, slug FROM products WHERE archived = 0 AND type = 'keg' AND (name LIKE '%Đen%' OR name LIKE '%Den%' OR name LIKE '%den%') ORDER BY id ASC LIMIT 1`).get();
-        if (blackProduct) {
-          db.prepare('INSERT INTO sale_items (sale_id, product_id, product_slug, quantity, price, cost_price, profit, price_at_time) VALUES (?, ?, ?, ?, 0, 0, 0, 0)')
-            .run(saleId, blackProduct.id, blackProduct.slug || '', freeBlack);
-          db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(freeBlack, blackProduct.id);
-          console.log('[SALE UPDATE] Added promo black:', freeBlack, 'L');
+        if (freeBlack > 0) {
+          const blackProduct = db.prepare(`SELECT id, name, slug FROM products WHERE archived = 0 AND type = 'keg' AND (name LIKE '%Đen%' OR name LIKE '%Den%' OR name LIKE '%den%') ORDER BY id ASC LIMIT 1`).get();
+          if (blackProduct) {
+            db.prepare('INSERT INTO sale_items (sale_id, product_id, product_slug, quantity, price, cost_price, profit, price_at_time) VALUES (?, ?, ?, ?, 0, 0, 0, 0)')
+              .run(saleId, blackProduct.id, blackProduct.slug || '', freeBlack);
+            db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(freeBlack, blackProduct.id);
+            console.log('[SALE UPDATE] Added promo black:', freeBlack, 'L');
+          }
         }
-      }
 
-      promoInfo = { freeGold, freeBlack, totalFree: freeGold + freeBlack, promoType: 'NEW_SHOP' };
+        promoInfo = { freeGold, freeBlack, totalFree: freeGold + freeBlack, promoType: 'NEW_SHOP' };
+      }
     }
 
     // ── CẬP NHẬT VỎ BÌNH NẾU THAY ĐỔI ──────────────────────────────
@@ -1312,44 +1315,48 @@ router.put('/:id', (req, res) => {
         })
         .reduce((sum, item) => sum + (parseFloat(item.quantity) || 0), 0);
 
-      const oldDeliverKegs = currentSale.deliver_kegs || 0;
-      const oldReturnKegs  = currentSale.return_kegs || 0;
-      const deltaDeliver = newKegQty - oldDeliverKegs;
+    const oldDeliverKegs = currentSale.deliver_kegs || 0;
+    const oldReturnKegs  = currentSale.return_kegs || 0;
+    const deltaDeliver = newKegQty - oldDeliverKegs;
 
-      // Nếu số vỏ giao thay đổi → cập nhật balance khách
-      if (deltaDeliver !== 0) {
-        const customer = db.prepare('SELECT keg_balance FROM customers WHERE id = ?').get(customerId);
-        const currentKegBalance = customer ? (customer.keg_balance || 0) : 0;
-        const newKegBalance = currentKegBalance + deltaDeliver;
-        console.log(`[SALE UPDATE] Keg balance: customer=${customerId}, oldBalance=${currentKegBalance}, delta=${deltaDeliver}, newBalance=${newKegBalance}`);
+    // Nếu số vỏ giao thay đổi → cập nhật balance khách
+    if (deltaDeliver !== 0) {
+      const customer = db.prepare('SELECT keg_balance FROM customers WHERE id = ?').get(customerId);
+      const currentKegBalance = customer ? (customer.keg_balance || 0) : 0;
+      const newKegBalance = currentKegBalance + deltaDeliver;
+      console.log(`[SALE UPDATE] Keg balance: customer=${customerId}, oldBalance=${currentKegBalance}, delta=${deltaDeliver}, newBalance=${newKegBalance}`);
 
-        const updateKegs = db.transaction(() => {
-          // 1. Cập nhật đơn hàng với số vỏ mới
-          db.prepare('UPDATE sales SET deliver_kegs = ?, keg_balance_after = ? WHERE id = ?')
-            .run(newKegQty, newKegBalance, saleId);
+      const updateKegs = db.transaction(() => {
+        // 1. Cập nhật đơn hàng với số vỏ mới
+        db.prepare('UPDATE sales SET deliver_kegs = ?, return_kegs = ?, keg_balance_after = ? WHERE id = ?')
+          .run(newKegQty, oldReturnKegs, newKegBalance, saleId);
 
-          // 2. Cập nhật balance khách
-          updateCustomerKegBalance(customerId, deltaDeliver, 0);
+        // 2. Cập nhật balance khách
+        updateCustomerKegBalance(customerId, deltaDeliver, 0);
 
-          // 3. Cập nhật keg_stats.inventory = inventory - delta (vỏ giao thêm → kho giảm)
-          // Cho phép inventory âm (bán âm kho)
-          if (deltaDeliver !== 0) {
-            const stats = db.prepare('SELECT inventory FROM keg_stats WHERE id = 1').get();
-            const currentInventory = stats?.inventory || 0;
-            const newInventory = currentInventory - deltaDeliver;
-            db.prepare('UPDATE keg_stats SET inventory = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1')
-              .run(newInventory);
-          }
-        });
+        // 3. Cập nhật keg_stats.inventory = inventory - delta (vỏ giao thêm → kho giảm)
+        // Cho phép inventory âm (bán âm kho)
+        if (deltaDeliver !== 0) {
+          const stats = db.prepare('SELECT inventory FROM keg_stats WHERE id = 1').get();
+          const currentInventory = stats?.inventory || 0;
+          const newInventory = currentInventory - deltaDeliver;
+          db.prepare('UPDATE keg_stats SET inventory = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1')
+            .run(newInventory);
+        }
+      });
 
-        updateKegs();
-        const io = req.app.get('io');
-        if (io) io.to('admin').emit('keg:updated', {});
-      }
+      updateKegs();
+      const io = req.app.get('io');
+      if (io) io.to('admin').emit('keg:updated', {});
+    }
+
+    // Ghi nhận first_order_date nếu đây là đơn đầu tiên của khách
+    PromotionService.setFirstOrderDate(customerId);
     }
 
     // Cập nhật hóa đơn
-    db.prepare('UPDATE sales SET customer_id = ?, total = ?, profit = ? WHERE id = ?').run(customerId, newTotal, newProfit, saleId);
+    db.prepare('UPDATE sales SET customer_id = ?, total = ?, profit = ?, promo_type = ?, promo_free_liters = ? WHERE id = ?')
+      .run(customerId, newTotal, newProfit, promoInfo ? promoInfo.promoType : null, promoInfo ? promoInfo.totalFree : 0, saleId);
 
     // ── Điều chỉnh công nợ nếu đơn có ghi nợ ─────────────────
     if (customerId && newTotal !== currentSale.total) {
