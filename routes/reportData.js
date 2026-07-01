@@ -250,12 +250,12 @@ router.get('/bonus-report', (req, res) => {
     });
 
     // Đã trả = tổng reward_liters_used của các đơn MONTHLY_BONUS của kỳ thưởng đó
-    // Note format: "tháng X/Y" hoặc "tháng X.0/Y.0" (float), dùng pattern đơn giản
+    // Note format: "tháng X/Y" hoặc "tháng X.0/Y.0" (float) - cần match X%/%Y
     var paidReward = db.prepare(`
       SELECT COALESCE(SUM(reward_liters_used), 0) as total
       FROM sales
       WHERE archived = 0 AND promo_type = 'MONTHLY_BONUS' AND reward_liters_used > 0
-        AND (note LIKE '%tháng ' || ? || '/%' || ? || '%')
+        AND (note LIKE '%tháng ' || ? || '%/%' || ? || '%')
     `).get(rewardMonth, rewardYear);
     var alreadyPaid = paidReward ? paidReward.total : 0;
 
