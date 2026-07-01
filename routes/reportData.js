@@ -98,6 +98,38 @@ router.get('/data', (req, res) => {
     var totalExpense = 0;
     try { var expR = db.prepare('SELECT COALESCE(SUM(amount), 0) as t FROM expenses WHERE archived = 0 AND date >= ? AND date <= ?').get(startDay, endDay); totalExpense = expR ? expR.t : 0; } catch(_){}
 
+    // ===== Hàng cần xuất hôm nay =====
+    var todayStr = vn.toISOString().split('T')[0];
+    var todayDeliver = db.prepare(`
+      SELECT COALESCE(SUM(deliver_kegs), 0) as total_deliver, COALESCE(SUM(return_kegs), 0) as total_return
+      FROM sales WHERE archived = 0 AND type = 'sale' AND (status IS NULL OR status != 'returned')
+      AND date(date) = date(?)
+    `).get(todayStr);
+    var todayKegs = (todayDeliver ? todayDeliver.total_deliver : 0) - (todayDeliver ? todayDeliver.total_return : 0);
+
+    // Chi tiết sản phẩm cần xuất hôm nay (chỉ items có giá > 0)
+    var todayProducts = db.prepare(`
+      SELECT p.name, SUM(si.quantity) as qty, p.type
+      FROM sale_items si
+      JOIN sales s ON s.id = si.sale_id
+      JOIN products p ON p.id = si.product_id
+      WHERE s.archived = 0 AND s.type = 'sale' AND si.price > 0
+      AND (s.status IS NULL OR s.status != 'returned')
+      AND date(s.date) = date(?)
+      GROUP BY p.id
+      ORDER BY qty DESC
+    `).all(todayStr);
+
+    // Chi tiết theo khách hàng cần giao hôm nay
+    var todayByCustomer = db.prepare(`
+      SELECT c.name as customer_name, s.deliver_kegs, s.return_kegs, s.deliver_kegs - s.return_kegs as net_kegs
+      FROM sales s
+      LEFT JOIN customers c ON c.id = s.customer_id
+      WHERE s.archived = 0 AND s.type = 'sale' AND (s.status IS NULL OR s.status != 'returned')
+      AND s.deliver_kegs > 0 AND date(s.date) = date(?)
+      ORDER BY s.deliver_kegs DESC
+    `).all(todayStr);
+
     // Daily breakdown - bao gồm tất cả đơn có doanh thu
     var daily = db.prepare(
       "SELECT date(" + dateCol + ") as date, COALESCE(SUM(s.total), 0) as revenue, COALESCE(SUM(s.profit), 0) as profit, COALESCE((SELECT SUM(e.amount) FROM expenses e WHERE e.archived = 0 AND date(e.date) = date(" + dateCol + ")), 0) as expense FROM sales s WHERE s.archived = 0 AND s.type = 'sale' AND (s.status IS NULL OR s.status != 'returned') AND " + dateCond +
@@ -158,7 +190,11 @@ router.get('/data', (req, res) => {
 
     var totalPurchaseAmount = purchases.reduce(function(s, p) { return s + (p.total || 0); }, 0);
 
-    res.json({ sales, totalRevenue, totalProfit, totalOrders, totalExpense, daily, profitByProduct, profitByCustomer, purchases, totalPurchaseAmount });
+    res.json({ 
+      sales, totalRevenue, totalProfit, totalOrders, totalExpense, 
+      daily, profitByProduct, profitByCustomer, purchases, totalPurchaseAmount,
+      todayDeliveries: { totalKegs: todayKegs, products: todayProducts, byCustomer: todayByCustomer }
+    });
   } catch(e) {
     res.status(500).json({ error: e.message });
   }
