@@ -267,12 +267,16 @@ router.post('/', (req, res) => {
       }
     }
 
-    // Calculate keg quantity (bao gồm cả lít tặng)
+    // Calculate keg quantity (bao gồm cả lít tặng từ khuyến mãi)
+    // Luôn cộng promoFreeTotal vào số vỏ giao (kể cả khi frontend gửi deliverKegs)
     const promoFreeTotal = promoInfo ? promoInfo.totalFree : 0;
     const kegQuantity = saleItems
       .filter(item => item.type !== 'pet')
       .reduce((sum, item) => sum + item.quantity, 0);
-    const finalDeliverKegs = deliverKegs > 0 ? deliverKegs : (kegQuantity + promoFreeTotal);
+    // Nếu có khuyến mãi, luôn tính đủ (items + promo). Nếu không có KM, dùng giá trị frontend hoặc tính tự động
+    const finalDeliverKegs = promoFreeTotal > 0 
+      ? (kegQuantity + promoFreeTotal)  // Có KM → tính đủ
+      : (deliverKegs > 0 ? deliverKegs : kegQuantity);  // Không KM → dùng frontend hoặc tính tự động
 
     if (customerId) {
       const customer = db.prepare('SELECT keg_balance FROM customers WHERE id = ?').get(customerId);
