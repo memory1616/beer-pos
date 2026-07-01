@@ -915,15 +915,17 @@ class PromotionService {
         // 3. Trừ kho sản phẩm thưởng
         db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(reward_liters, defaultProduct.id);
 
-        // 4. Cập nhật hóa đơn: đánh dấu có reward + ghi chú tháng thưởng
+        // 4. Cập nhật hóa đơn: đánh dấu có reward + cập nhật số vỏ giao
         const rewardMonthName = this._getMonthName(reward_month);
         db.prepare(`
           UPDATE sales SET 
             promo_type = 'MONTHLY_BONUS',
             reward_liters_used = ?,
+            promo_free_liters = promo_free_liters + ?,
+            deliver_kegs = deliver_kegs + ?,
             note = COALESCE(note, '') || ' | Trả thưởng sản lượng tháng ' || ? || '/' || ?
           WHERE id = ?
-        `).run(reward_liters, reward_month, reward_year, saleId);
+        `).run(reward_liters, reward_liters, reward_liters, reward_month, reward_year, saleId);
 
         // 5. Ghi audit log
         const customer = db.prepare('SELECT name FROM customers WHERE id = ?').get(customerId);
@@ -931,6 +933,9 @@ class PromotionService {
           INSERT INTO product_audit_log (product_id, type, quantity, reason, ref_id, ref_type, customer_name, note)
           VALUES (?, 'export', ?, 'pending_reward', ?, 'sale', ?, ?)
         `).run(defaultProduct.id, reward_liters, saleId, customer?.name || '', `Trả thưởng sản lượng tháng ${reward_month}/${reward_year}`);
+
+        // 5b. Cập nhật keg_balance của khách (thêm vỏ thưởng)
+        db.prepare('UPDATE customers SET keg_balance = keg_balance + ? WHERE id = ?').run(reward_liters, customerId);
 
         // 6. Ghi reward_history
         db.prepare(`
