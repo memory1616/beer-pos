@@ -99,13 +99,15 @@ router.get('/data', (req, res) => {
     try { var expR = db.prepare('SELECT COALESCE(SUM(amount), 0) as t FROM expenses WHERE archived = 0 AND date >= ? AND date <= ?').get(startDay, endDay); totalExpense = expR ? expR.t : 0; } catch(_){}
 
     // ===== Hàng cần xuất hôm nay =====
-    var todayStr = vn.toISOString().split('T')[0];
+    var todayStr = today; // Dùng cùng format với biến today đã tính ở trên
     var todayDeliver = db.prepare(`
-      SELECT COALESCE(SUM(deliver_kegs), 0) as total_deliver, COALESCE(SUM(return_kegs), 0) as total_return
+      SELECT COALESCE(SUM(deliver_kegs), 0) as total_deliver, COALESCE(SUM(return_kegs), 0) as total_return,
+      COUNT(*) as order_count
       FROM sales WHERE archived = 0 AND type = 'sale' AND (status IS NULL OR status != 'returned')
       AND date(date) = date(?)
     `).get(todayStr);
     var todayKegs = (todayDeliver ? todayDeliver.total_deliver : 0) - (todayDeliver ? todayDeliver.total_return : 0);
+    var todayOrderCount = todayDeliver ? todayDeliver.order_count : 0;
 
     // Chi tiết sản phẩm cần xuất hôm nay (bao gồm cả khuyến mãi, KHÔNG phân biệt giá)
     var todayProducts = db.prepare(`
@@ -183,7 +185,7 @@ router.get('/data', (req, res) => {
     res.json({ 
       sales, totalRevenue, totalProfit, totalOrders, totalExpense, 
       daily, profitByProduct, profitByCustomer, purchases, totalPurchaseAmount,
-      todayDeliveries: { totalKegs: todayKegs, products: todayProducts }
+      todayDeliveries: { totalKegs: todayKegs, orderCount: todayOrderCount, products: todayProducts }
     });
   } catch(e) {
     res.status(500).json({ error: e.message });
