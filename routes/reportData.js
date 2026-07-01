@@ -135,8 +135,9 @@ router.get('/data', (req, res) => {
     ).all(...dateParams);
 
     // Profit by customer (loại trừ items free/price=0)
+    // Dùng SUM(si.profit) thay vì SUM(s.profit) để tránh duplicate khi JOIN tạo multiple rows
     var profitByCustomer = db.prepare(
-      'SELECT c.id, c.name, COUNT(DISTINCT s.id) as order_count, SUM(s.total) as revenue, SUM(s.profit) as profit, SUM(si.quantity) as qty ' +
+      'SELECT c.id, c.name, COUNT(DISTINCT s.id) as order_count, SUM(s.total) as revenue, SUM(si.profit) as profit, SUM(si.quantity) as qty ' +
       'FROM sales s JOIN customers c ON c.id = s.customer_id JOIN sale_items si ON si.sale_id = s.id AND si.price > 0 WHERE s.archived = 0 AND s.type = \'sale\' AND ' + dateCond +
       ' GROUP BY c.id ORDER BY profit DESC'
     ).all(...dateParams);
