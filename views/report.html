@@ -25,28 +25,189 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
     .page-report { padding-bottom: 100px; }
-    /* Delivery section */
+
+    /* Icon colors */
     .icon-orange { background: #fff3e0; }
     .icon-purple { background: #f3e8ff; }
-    .delivery-section-title { font-weight: 600; margin: 12px 0 8px; color: var(--text-secondary); font-size: 12px; text-transform: uppercase; }
-    .delivery-products-list, .delivery-customer-list { padding: 0 4px; }
-    .delivery-product-item, .delivery-customer-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border-light); }
-    .delivery-product-name, .delivery-customer-name { font-weight: 500; }
-    .delivery-product-qty { font-weight: 600; color: var(--primary); }
-    .delivery-keg-info { font-size: 13px; color: var(--text-secondary); }
-    .keg-need { color: var(--green); font-weight: 600; }
-    .keg-return { color: var(--red); font-weight: 600; }
-    .empty-delivery { text-align: center; padding: 20px; color: var(--text-secondary); }
-    /* Bonus Report */
+
+    /* Section spacing: 14px between cards */
+    .report-section-wrap {
+      margin-bottom: 14px;
+    }
+
+    /* Card body padding: 16px uniform */
+    .section-card-body {
+      padding: 16px;
+    }
+
+    /* Header: title + sub aligned vertically, icon gap 10px */
+    .section-card-header-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .section-card-title-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .section-card-title {
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 1.3;
+    }
+    .section-card-sub {
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.3;
+    }
+
+    /* Bonus Report specific styles */
     .bonus-section { margin-bottom: 16px; }
-    .bonus-section-title { font-weight: 600; color: var(--text-primary); margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid var(--border-light); }
-    .bonus-row { display: flex; justify-content: space-between; padding: 6px 0; }
-    .bonus-label { color: var(--text-secondary); }
-    .bonus-value { font-weight: 600; }
+    .bonus-section:last-child { margin-bottom: 0; }
+
+    .bonus-section-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 10px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border-light);
+    }
+
+    /* Bonus rows: label left, value right — always aligned */
+    .bonus-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border-light);
+    }
+    .bonus-row:last-child { border-bottom: none; }
+
+    .bonus-label {
+      color: var(--text-secondary);
+      font-size: 13px;
+      min-width: 100px;
+    }
+    .bonus-value {
+      font-size: 14px;
+      font-weight: 600;
+      text-align: right;
+      color: var(--text-primary);
+    }
     .bonus-value.paid { color: var(--green); }
     .bonus-value.remaining { color: var(--red); }
     .bonus-value.promo { color: #7c3aed; }
-    .bonus-loading { text-align: center; padding: 20px; color: var(--text-secondary); }
+
+    .bonus-loading {
+      text-align: center;
+      padding: 24px;
+      color: var(--text-secondary);
+      font-size: 13px;
+    }
+
+    /* Delivery section */
+    .delivery-section-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      margin-bottom: 10px;
+      letter-spacing: 0.3px;
+    }
+
+    .delivery-product-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border-light);
+    }
+    .delivery-product-item:last-child { border-bottom: none; }
+
+    .delivery-product-name {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+    .delivery-product-qty {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--primary);
+    }
+
+    .empty-delivery {
+      text-align: center;
+      padding: 24px 16px;
+      color: var(--text-secondary);
+      font-size: 13px;
+    }
+
+    /* Top list items — consistent padding */
+    .top-list {
+      padding: 4px 0;
+    }
+    .top-item {
+      padding: 10px 0;
+    }
+
+    /* Purchase summary */
+    .purchase-summary-row {
+      display: flex;
+      gap: 12px;
+      padding: 0 16px 12px;
+    }
+    .purchase-stat-box {
+      flex: 1;
+    }
+    .purchase-stat-label {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-bottom: 4px;
+    }
+    .purchase-stat-value {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    /* Purchase table */
+    .purchase-table-wrap {
+      padding: 0 16px 16px;
+    }
+    .purchase-mini-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .purchase-mini-table th {
+      text-align: left;
+      padding: 8px 4px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-secondary);
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+    .purchase-mini-table td {
+      padding: 10px 4px;
+      border-bottom: 1px solid var(--border-light);
+      vertical-align: middle;
+    }
+    .purchase-mini-table tr:last-child td { border-bottom: none; }
+    .text-right { text-align: right; }
+    .text-note { font-size: 12px; color: var(--text-secondary); }
+
+    /* Responsive adjustments */
+    @media (max-width: 360px) {
+      .section-card-body { padding: 14px; }
+      .bonus-row { padding: 7px 0; }
+      .delivery-product-item { padding: 9px 0; }
+      .top-item { padding: 9px 0; }
+      .purchase-summary-row { padding: 0 14px 10px; }
+      .purchase-table-wrap { padding: 0 14px 14px; }
+    }
   </style>
 </head>
 <body class="body--app">
