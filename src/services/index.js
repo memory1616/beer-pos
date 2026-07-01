@@ -791,21 +791,7 @@ class PromotionService {
 
     if (statsRow && statsRow.reward_claimed === 1) return null; // Đã nhận rồi
 
-    // Kiểm tra đơn hàng đầu tiên trong tháng hiện tại
-    const currentYear = now.getFullYear();
-    const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
-    const currentMonthStart = `${currentYear}-${currentMonth}-01`;
-
-    const orderCount = db.prepare(`
-      SELECT COUNT(*) as cnt FROM sales
-      WHERE customer_id = ?
-        AND type = 'sale'
-        AND archived = 0
-        AND promo_type IS DISTINCT FROM 'MONTHLY_BONUS'
-        AND datetime(date, '+7 hours') >= ?
-    `).get(customerId, currentMonthStart);
-
-    if (!orderCount || orderCount.cnt > 1) return null; // Không phải đơn đầu
+    // Bỏ điều kiện đơn đầu tháng - khách đạt tier và chưa nhận thưởng sẽ được tặng
 
     // Lấy sản phẩm bia vàng mặc định để xuất thưởng
     const defaultProduct = db.prepare(`
