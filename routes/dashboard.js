@@ -181,25 +181,25 @@ router.get('/data', (req, res) => {
   dailyExpenses.forEach(e => { expenseMap[e.day] = e.total; });
   dailyRevenue.forEach(d => { d.expenses = expenseMap[d.day] || 0; });
   
-  // Get top products this month - optimized query
+  // Get top products this month - optimized query (loại trừ items free/price=0)
   const topProducts = db.prepare(`
     SELECT p.name, SUM(si.quantity) as total_qty
     FROM sale_items si
     JOIN products p ON si.product_id = p.id
     JOIN sales s ON si.sale_id = s.id
-    WHERE s.type = 'sale' AND s.archived = 0 AND (s.status IS NULL OR s.status != 'returned') AND date(datetime(s.date, '+7 hours')) >= ?
+    WHERE s.type = 'sale' AND s.archived = 0 AND (s.status IS NULL OR s.status != 'returned') AND si.price > 0 AND date(datetime(s.date, '+7 hours')) >= ?
     GROUP BY p.id
     ORDER BY total_qty DESC
     LIMIT 5
   `).all(monthStartStr);
   
-  // Get top customers this month - optimized query
+  // Get top customers this month - optimized query (loại trừ items free/price=0)
   const topCustomers = db.prepare(`
     SELECT c.name, SUM(s.total) as total, SUM(si.quantity) as qty
     FROM sales s
     JOIN customers c ON s.customer_id = c.id
     JOIN sale_items si ON si.sale_id = s.id
-    WHERE s.type = 'sale' AND s.archived = 0 AND (s.status IS NULL OR s.status != 'returned') AND date(datetime(s.date, '+7 hours')) >= ?
+    WHERE s.type = 'sale' AND s.archived = 0 AND (s.status IS NULL OR s.status != 'returned') AND si.price > 0 AND date(datetime(s.date, '+7 hours')) >= ?
     GROUP BY c.id
     ORDER BY total DESC
     LIMIT 5
