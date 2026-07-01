@@ -96,6 +96,27 @@ function deleteSaleRestoringInventory(saleId) {
         db.prepare("DELETE FROM reward_history WHERE customer_id = ? AND claimed_at >= date('now', '-1 day')").run(sale.customer_id);
       }
 
+      // ===== B3. RESET first_order_date nếu đây là đơn đầu tiên =====
+      // Khi xóa đơn đầu tiên, khách có thể nhận thưởng đơn đầu tiên tháng mới
+      if (sale.customer_id && sale.type === 'sale' && sale.promo_type !== 'MONTHLY_BONUS') {
+        const customer = db.prepare('SELECT first_order_date FROM customers WHERE id = ?').get(sale.customer_id);
+        if (customer && customer.first_order_date) {
+          // Kiểm tra xem đây có phải đơn đầu tiên không (đơn có ngày sớm nhất)
+          const earliestSale = db.prepare(`
+            SELECT id, date FROM sales
+            WHERE customer_id = ? AND type = 'sale' AND archived = 0 AND id != ?
+            ORDER BY date ASC, id ASC
+            LIMIT 1
+          `).get(sale.customer_id, id);
+
+          // Nếu không còn đơn nào khác HOẶC đơn này là đơn sớm nhất → reset first_order_date
+          if (!earliestSale || earliestSale.date > sale.date) {
+            db.prepare("UPDATE customers SET first_order_date = NULL WHERE id = ?").run(sale.customer_id);
+            console.log('[ORDER DELETE] Reset first_order_date for customer', sale.customer_id);
+          }
+        }
+      }
+
       // ===== C. RESTORE KEG BALANCE (nếu có customer) =====
       if (sale.customer_id && (sale.deliver_kegs !== 0 || sale.return_kegs !== 0)) {
         const customer = db.prepare('SELECT keg_balance FROM customers WHERE id = ?').get(sale.customer_id);
