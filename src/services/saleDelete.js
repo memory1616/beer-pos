@@ -93,7 +93,7 @@ function deleteSaleRestoringInventory(saleId) {
       // ===== B2. REVERT reward_claimed nếu xóa MONTHLY_BONUS =====
       if (sale.customer_id && sale.promo_type === 'MONTHLY_BONUS') {
         db.prepare("UPDATE customers SET reward_claimed = 0, reward_claimed_at = NULL WHERE id = ?").run(sale.customer_id);
-        db.prepare("DELETE FROM reward_history WHERE customer_id = ? AND claimed_at >= date('now', '-1 day')").run(sale.customer_id);
+        db.prepare("DELETE FROM reward_history WHERE customer_id = ?").run(sale.customer_id);
       }
 
       // ===== B3. RESET first_order_date nếu đây là đơn đầu tiên =====
