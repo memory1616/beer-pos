@@ -517,6 +517,9 @@ function normalizeInvoice(sale) {
     sale_time: sale.sale_time || null,
     status: sale.status,
     type: sale.type,
+    promo_type: sale.promo_type || null,
+    reward_liters_used: sale.reward_liters_used || 0,
+    promo_free_liters: sale.promo_free_liters || 0,
     raw: sale
   };
 }
