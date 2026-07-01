@@ -98,7 +98,7 @@ function deleteSaleRestoringInventory(saleId) {
 
       // ===== B3. RESET first_order_date nếu đây là đơn đầu tiên =====
       // Khi xóa đơn đầu tiên, khách có thể nhận thưởng đơn đầu tiên tháng mới
-      if (sale.customer_id && sale.type === 'sale' && sale.promo_type !== 'MONTHLY_BONUS') {
+      if (sale.customer_id && sale.type === 'sale') {
         const customer = db.prepare('SELECT first_order_date FROM customers WHERE id = ?').get(sale.customer_id);
         if (customer && customer.first_order_date) {
           // Kiểm tra xem đây có phải đơn đầu tiên không (đơn có ngày sớm nhất)
