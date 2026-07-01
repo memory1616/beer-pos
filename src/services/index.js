@@ -1167,14 +1167,19 @@ class PromotionService {
       // 2. TRỪ KHO
       db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(rewardLiters, productId);
 
-      // 3. Cập nhật sale: đánh dấu có reward + ghi chú tháng thưởng
+      // 3. Cập nhật sale: đánh dấu có reward + cập nhật số vỏ giao
       db.prepare(`
         UPDATE sales SET 
           promo_type = 'MONTHLY_BONUS',
           reward_liters_used = ?,
+          promo_free_liters = COALESCE(promo_free_liters, 0) + ?,
+          deliver_kegs = deliver_kegs + ?,
           note = COALESCE(note, '') || ' | Trả thưởng sản lượng tháng ' || ? || '/' || ?
         WHERE id = ?
-      `).run(rewardLiters, rewardMonth, rewardYear, saleId);
+      `).run(rewardLiters, rewardLiters, rewardLiters, rewardMonth, rewardYear, saleId);
+
+      // 3b. Cập nhật keg_balance của khách (thêm vỏ thưởng)
+      db.prepare('UPDATE customers SET keg_balance = keg_balance + ? WHERE id = ?').run(rewardLiters, customerId);
 
       // 4. Audit log
       const customer = db.prepare('SELECT name FROM customers WHERE id = ?').get(customerId);
