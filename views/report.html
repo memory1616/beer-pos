@@ -27,6 +27,7 @@
     .page-report { padding-bottom: 100px; }
     /* Delivery section */
     .icon-orange { background: #fff3e0; }
+    .icon-purple { background: #f3e8ff; }
     .delivery-section-title { font-weight: 600; margin: 12px 0 8px; color: var(--text-secondary); font-size: 12px; text-transform: uppercase; }
     .delivery-products-list, .delivery-customer-list { padding: 0 4px; }
     .delivery-product-item, .delivery-customer-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border-light); }
@@ -36,6 +37,16 @@
     .keg-need { color: var(--green); font-weight: 600; }
     .keg-return { color: var(--red); font-weight: 600; }
     .empty-delivery { text-align: center; padding: 20px; color: var(--text-secondary); }
+    /* Bonus Report */
+    .bonus-section { margin-bottom: 16px; }
+    .bonus-section-title { font-weight: 600; color: var(--text-primary); margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid var(--border-light); }
+    .bonus-row { display: flex; justify-content: space-between; padding: 6px 0; }
+    .bonus-label { color: var(--text-secondary); }
+    .bonus-value { font-weight: 600; }
+    .bonus-value.paid { color: var(--green); }
+    .bonus-value.remaining { color: var(--red); }
+    .bonus-value.promo { color: #7c3aed; }
+    .bonus-loading { text-align: center; padding: 20px; color: var(--text-secondary); }
   </style>
 </head>
 <body class="body--app">
@@ -171,6 +182,25 @@
             </div>
             <div class="section-card-body" id="contentDeliveries">
               <div id="todayDeliveriesContent"></div>
+            </div>
+          </div>
+
+          <!-- SECTION: BÁO CÁO TRẢ THƯỞNG (không phụ thuộc bộ lọc ngày) -->
+          <div class="report-section-wrap" id="sectionBonus">
+            <div class="section-card-header" onclick="RPT.toggleSection('bonus')" id="secBonus">
+              <div class="section-card-header-left">
+                <div class="section-card-icon icon-purple">🎁</div>
+                <div class="section-card-title-wrap">
+                  <div class="section-card-title">Báo cáo trả thưởng</div>
+                  <div class="section-card-sub" id="bonusReportPeriod">—</div>
+                </div>
+              </div>
+              <div class="section-card-arrow">▼</div>
+            </div>
+            <div class="section-card-body" id="contentBonus">
+              <div id="bonusReportContent">
+                <div class="bonus-loading">Đang tải...</div>
+              </div>
             </div>
           </div>
 
@@ -698,6 +728,86 @@
         contentEl.innerHTML = html;
       }
 
+      // Bonus Report - Tải báo cáo trả thưởng (không phụ thuộc bộ lọc ngày)
+      function getReportMonthYear() {
+        var now = new Date();
+        var y = now.getFullYear(), m = now.getMonth() + 1;
+        var filter = _state.filter;
+
+        // Xác định tháng đang xem từ bộ lọc
+        if (filter === 'month') {
+          // Tháng hiện tại
+          return { month: m, year: y };
+        } else if (filter === 'today') {
+          return { month: m, year: y };
+        } else if (filter === 'yesterday') {
+          var d = new Date(now);
+          d.setDate(d.getDate() - 1);
+          return { month: d.getMonth() + 1, year: d.getFullYear() };
+        } else if (filter === '7days') {
+          // 7 ngày gần nhất - lấy tháng của ngày bắt đầu
+          var start = new Date(now);
+          start.setDate(start.getDate() - 6);
+          return { month: start.getMonth() + 1, year: start.getFullYear() };
+        } else if (filter === 'custom' && _state.startDate) {
+          // Custom range - lấy tháng của ngày bắt đầu
+          var parts = _state.startDate.split('-');
+          if (parts.length >= 2) {
+            return { month: parseInt(parts[1]), year: parseInt(parts[0]) };
+          }
+        }
+        return { month: m, year: y };
+      }
+
+      function loadBonusReport() {
+        var rmy = getReportMonthYear();
+
+        var url = '/report/bonus-report?month=' + rmy.month + '&year=' + rmy.year;
+        fetch(url)
+          .then(function (res) { return res.json(); })
+          .then(function (data) {
+            renderBonusReport(data);
+          })
+          .catch(function (err) {
+            var contentEl = document.getElementById('bonusReportContent');
+            if (contentEl) contentEl.innerHTML = '<div class="empty-delivery">Không tải được dữ liệu</div>';
+          });
+      }
+
+      function renderBonusReport(data) {
+        var periodEl = document.getElementById('bonusReportPeriod');
+        var contentEl = document.getElementById('bonusReportContent');
+        if (!data || !contentEl) return;
+
+        var reportMonth = data.reportMonth || 1;
+        var reportYear = data.reportYear || 2026;
+        var rewardMonth = data.rewardMonth || (reportMonth === 1 ? 12 : reportMonth - 1);
+        var rewardYear = data.rewardYear || (reportMonth === 1 ? reportYear - 1 : reportYear);
+
+        // Period subtitle
+        if (periodEl) {
+          periodEl.textContent = 'Tháng ' + String(reportMonth).padStart(2, '0') + '/' + reportYear;
+        }
+
+        var html = '';
+
+        // Thưởng sản lượng
+        html += '<div class="bonus-section">';
+        html += '<div class="bonus-section-title">🎯 Thưởng sản lượng tháng ' + String(rewardMonth).padStart(2, '0') + '/' + rewardYear + '</div>';
+        html += '<div class="bonus-row"><span class="bonus-label">Cần trả:</span><span class="bonus-value">' + data.needToPay + 'L</span></div>';
+        html += '<div class="bonus-row"><span class="bonus-label">Đã trả:</span><span class="bonus-value paid">' + data.alreadyPaid + 'L</span></div>';
+        html += '<div class="bonus-row"><span class="bonus-label">Còn phải trả:</span><span class="bonus-value remaining">' + data.remaining + 'L</span></div>';
+        html += '</div>';
+
+        // Khuyến mãi 10 tặng 1
+        html += '<div class="bonus-section">';
+        html += '<div class="bonus-section-title">🎉 Khuyến mãi 10 tặng 1</div>';
+        html += '<div class="bonus-row"><span class="bonus-label">Đã tặng:</span><span class="bonus-value promo">' + data.buy10Given + 'L</span></div>';
+        html += '</div>';
+
+        contentEl.innerHTML = html;
+      }
+
       function renderPurchases(purchases, totalAmount) {
         var summaryEl = document.getElementById('purchaseSummaryRow');
         var tableEl = document.getElementById('purchaseTableWrap');
@@ -914,11 +1024,13 @@
       // Auto-init on DOM ready
       function init() {
         loadData();
+        loadBonusReport();
 
         window.addEventListener('data:mutated', function (evt) {
           var entity = (evt && evt.detail && evt.detail.entity) || '';
           if (['sale', 'expense', 'purchase', 'customer', 'product', 'sync', ''].indexOf(entity) !== -1) {
             debounceLoad();
+            loadBonusReport();
           }
         });
 

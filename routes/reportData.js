@@ -201,3 +201,68 @@ router.get('/data', (req, res) => {
 });
 
 module.exports = router;
+
+// ============================================================
+// BONUS REPORT API - Báo cáo trả thưởng (KHÔNG phụ thuộc bộ lọc ngày)
+// ============================================================
+router.get('/bonus-report', (req, res) => {
+  try {
+    var now = new Date();
+    var vn = new Date(now.getTime() + 7 * 3600000);
+    var currentMonth = vn.getUTCMonth() + 1;
+    var currentYear = vn.getUTCFullYear();
+
+    // Xác định tháng báo cáo từ query (mặc định = tháng hiện tại)
+    var reportMonth = parseInt(req.query.month) || currentMonth;
+    var reportYear = parseInt(req.query.year) || currentYear;
+
+    // Tháng trước = tháng của kỳ thưởng
+    var rewardMonth = reportMonth === 1 ? 12 : reportMonth - 1;
+    var rewardYear = reportMonth === 1 ? reportYear - 1 : reportYear;
+
+    // ===== 1. Thưởng sản lượng tháng =====
+    // Cần trả = tổng thưởng trong pending_rewards của tháng thưởng
+    var pendingReward = db.prepare(`
+      SELECT COALESCE(SUM(reward_liters), 0) as total
+      FROM pending_rewards
+      WHERE reward_month = ? AND reward_year = ?
+    `).get(rewardMonth, rewardYear);
+    var needToPay = pendingReward ? pendingReward.total : 0;
+
+    // Đã trả = tổng reward_liters_used của các đơn MONTHLY_BONUS của kỳ thưởng đó
+    // Chỉ đếm đơn có ghi chú chứa tháng/năm thưởng
+    var paidReward = db.prepare(`
+      SELECT COALESCE(SUM(reward_liters_used), 0) as total
+      FROM sales
+      WHERE archived = 0 AND promo_type = 'MONTHLY_BONUS' AND reward_liters_used > 0
+        AND (note LIKE '%tháng ' || ? || '/' || ? || '%' OR note LIKE '%' || ? || '/' || ? || '%')
+    `).get(rewardMonth, rewardYear, rewardMonth, rewardYear);
+    var alreadyPaid = paidReward ? paidReward.total : 0;
+
+    // Còn phải trả
+    var remaining = Math.max(0, needToPay - alreadyPaid);
+
+    // ===== 2. Khuyến mãi 10 tặng 1 =====
+    // Đã tặng = tổng promo_free_liters của các đơn trong tháng báo cáo (không phải MONTHLY_BONUS)
+    // promo_free_liters > 0 nhưng promo_type != 'MONTHLY_BONUS'
+    var promoMonth = String(reportMonth).padStart(2, '0');
+    var freePromoLiters = db.prepare(`
+      SELECT COALESCE(SUM(promo_free_liters), 0) as total
+      FROM sales
+      WHERE archived = 0 AND promo_type != 'MONTHLY_BONUS' AND promo_free_liters > 0
+        AND strftime('%Y-%m', date) = ? || '-' || ?
+    `).get(String(reportYear), promoMonth);
+    var buy10Given = freePromoLiters ? freePromoLiters.total : 0;
+
+    res.json({
+      reportMonth, reportYear,
+      rewardMonth, rewardYear,
+      needToPay: Math.round(needToPay),
+      alreadyPaid: Math.round(alreadyPaid),
+      remaining: Math.round(remaining),
+      buy10Given: Math.round(buy10Given)
+    });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
