@@ -25,6 +25,17 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
     .page-report { padding-bottom: 100px; }
+    /* Delivery section */
+    .icon-orange { background: #fff3e0; }
+    .delivery-section-title { font-weight: 600; margin: 12px 0 8px; color: var(--text-secondary); font-size: 12px; text-transform: uppercase; }
+    .delivery-products-list, .delivery-customer-list { padding: 0 4px; }
+    .delivery-product-item, .delivery-customer-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border-light); }
+    .delivery-product-name, .delivery-customer-name { font-weight: 500; }
+    .delivery-product-qty { font-weight: 600; color: var(--primary); }
+    .delivery-keg-info { font-size: 13px; color: var(--text-secondary); }
+    .keg-need { color: var(--green); font-weight: 600; }
+    .keg-return { color: var(--red); font-weight: 600; }
+    .empty-delivery { text-align: center; padding: 20px; color: var(--text-secondary); }
   </style>
 </head>
 <body class="body--app">
@@ -143,6 +154,23 @@
               <div class="chart-container">
                 <canvas id="reportChart"></canvas>
               </div>
+            </div>
+          </div>
+
+          <!-- SECTION: HÀNG CẦN XUẤT HÔM NAY -->
+          <div class="report-section-wrap" id="sectionDeliveries">
+            <div class="section-card-header" onclick="RPT.toggleSection('deliveries')" id="secDeliveries">
+              <div class="section-card-header-left">
+                <div class="section-card-icon icon-orange">🚚</div>
+                <div class="section-card-title-wrap">
+                  <div class="section-card-title">Hàng cần giao hôm nay</div>
+                  <div class="section-card-sub" id="todayDeliveriesSummary">—</div>
+                </div>
+              </div>
+              <div class="section-card-arrow">▼</div>
+            </div>
+            <div class="section-card-body" id="contentDeliveries">
+              <div id="todayDeliveriesContent"></div>
             </div>
           </div>
 
@@ -334,6 +362,7 @@
         renderTopProducts(byProduct);
         renderTopCustomers(byCustomer);
         renderPurchases(data.purchases || [], data.totalPurchaseAmount);
+        renderDeliveries(data.todayDeliveries);
       }
 
       function computeProfitByProduct(sales) {
@@ -613,6 +642,60 @@
         }
 
         el.innerHTML = html;
+      }
+
+      function renderDeliveries(deliveryData) {
+        var summaryEl = document.getElementById('todayDeliveriesSummary');
+        var contentEl = document.getElementById('todayDeliveriesContent');
+        if (!deliveryData || !contentEl) return;
+
+        var totalKegs = deliveryData.totalKegs || 0;
+        var products = deliveryData.products || [];
+        var byCustomer = deliveryData.byCustomer || [];
+
+        // Summary
+        if (summaryEl) {
+          summaryEl.textContent = totalKegs > 0 ? totalKegs + ' vỏ cần giao' : 'Không có đơn giao hôm nay';
+        }
+
+        var html = '';
+
+        // Theo sản phẩm
+        if (products.length > 0) {
+          html += '<div class="delivery-section-title">🍺 Theo sản phẩm</div>';
+          html += '<div class="delivery-products-list">';
+          products.forEach(function(p) {
+            html += '<div class="delivery-product-item">';
+            html += '<span class="delivery-product-name">' + escHtml(p.name) + '</span>';
+            html += '<span class="delivery-product-qty">' + (p.qty || 0) + ' L</span>';
+            html += '</div>';
+          });
+          html += '</div>';
+        }
+
+        // Theo khách hàng
+        if (byCustomer.length > 0) {
+          html += '<div class="delivery-section-title">👤 Theo khách hàng</div>';
+          html += '<div class="delivery-customer-list">';
+          byCustomer.forEach(function(c) {
+            var netKegs = (c.net_kegs || 0) > 0 ? '<span class="keg-need">+' + c.net_kegs + '</span>' : '<span class="keg-return">-' + Math.abs(c.net_kegs || 0) + '</span>';
+            html += '<div class="delivery-customer-item">';
+            html += '<span class="delivery-customer-name">' + escHtml(c.customer_name || 'Khách lẻ') + '</span>';
+            html += '<span class="delivery-keg-info">';
+            html += (c.deliver_kegs > 0 ? '+' + c.deliver_kegs + ' giao ' : '');
+            html += (c.return_kegs > 0 ? '-' + c.return_kegs + ' thu ' : '');
+            html += '→ net ' + netKegs;
+            html += '</span>';
+            html += '</div>';
+          });
+          html += '</div>';
+        }
+
+        if (!products.length && !byCustomer.length) {
+          html = '<div class="empty-delivery">Không có đơn giao hôm nay</div>';
+        }
+
+        contentEl.innerHTML = html;
       }
 
       function renderPurchases(purchases, totalAmount) {
