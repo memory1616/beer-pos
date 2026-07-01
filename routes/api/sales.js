@@ -1367,10 +1367,17 @@ router.put('/:id', (req, res) => {
       }
     }
 
+    // Emit socket event để UI refresh
+    const io = req.app.get('io');
+    if (io) {
+      io.to('admin').emit('keg:updated', {});
+      io.to('admin').emit('sale:updated', { saleId: parseInt(saleId) });
+    }
+
     const updatedSale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId);
-    logger.info(`[api/sales] Sale updated successfully: id=${saleId}, newTotal=${newTotal}`);
+    logger.info(`[api/sales] Sale updated successfully: id=${saleId}, newTotal=${newTotal}, deliver_kegs=${updatedSale.deliver_kegs}`);
     socketServer.emitOrderUpdated(updatedSale);
-    res.json({ success: true, total: newTotal, profit: newProfit });
+    res.json({ success: true, total: newTotal, profit: newProfit, deliver_kegs: updatedSale.deliver_kegs });
   } catch (err) {
     logger.error('Update sale error', { error: err.message, stack: err.stack });
     res.status(500).json({ error: 'Cập nhật thất bại: ' + err.message });
