@@ -211,16 +211,45 @@ router.get('/bonus-report', (req, res) => {
     var rewardYear = reportMonth === 1 ? reportYear - 1 : reportYear;
 
     // ===== 1. Thưởng sản lượng tháng =====
-    // Cần trả = tổng thưởng trong pending_rewards của tháng thưởng
-    var pendingReward = db.prepare(`
-      SELECT COALESCE(SUM(reward_liters), 0) as total
-      FROM pending_rewards
-      WHERE reward_month = ? AND reward_year = ?
-    `).get(rewardMonth, rewardYear);
-    var needToPay = pendingReward ? pendingReward.total : 0;
+    // Lấy tiers thưởng từ settings
+    var settings = db.prepare("SELECT reward_tiers FROM promotion_settings WHERE id = 1").get();
+    var tiers = [];
+    try {
+      tiers = JSON.parse(settings && settings.reward_tiers ? settings.reward_tiers : '[]');
+      tiers.sort(function(a, b) { return a.threshold - b.threshold; });
+    } catch(e) {
+      tiers = [{ threshold: 300, reward: 10 }, { threshold: 500, reward: 20 }];
+    }
+
+    // Cần trả = tổng thưởng của tất cả khách đạt tier trong tháng thưởng
+    // Dựa trên purchased_liters trong customer_monthly_stats
+    var stats = db.prepare(`
+      SELECT SUM(purchased_liters) as total_liters,
+             COUNT(CASE WHEN purchased_liters >= ? THEN 1 END) as count_300plus,
+             COUNT(CASE WHEN purchased_liters >= ? THEN 1 END) as count_500plus
+      FROM customer_monthly_stats
+      WHERE year = ? AND month = ?
+    `).get(300, 500, rewardYear, rewardMonth);
+    var totalLiters = stats ? stats.total_liters : 0;
+
+    // Tính tổng thưởng cần trả (dựa trên tiers)
+    var needToPay = 0;
+    var customers = db.prepare(`
+      SELECT purchased_liters FROM customer_monthly_stats WHERE year = ? AND month = ?
+    `).all(rewardYear, rewardMonth);
+
+    customers.forEach(function(c) {
+      var liters = c.purchased_liters || 0;
+      // Tìm tier cao nhất đạt được
+      for (var i = tiers.length - 1; i >= 0; i--) {
+        if (liters >= tiers[i].threshold) {
+          needToPay += tiers[i].reward;
+          break;
+        }
+      }
+    });
 
     // Đã trả = tổng reward_liters_used của các đơn MONTHLY_BONUS của kỳ thưởng đó
-    // Chỉ đếm đơn có ghi chú chứa tháng/năm thưởng
     var paidReward = db.prepare(`
       SELECT COALESCE(SUM(reward_liters_used), 0) as total
       FROM sales
@@ -233,8 +262,6 @@ router.get('/bonus-report', (req, res) => {
     var remaining = Math.max(0, needToPay - alreadyPaid);
 
     // ===== 2. Khuyến mãi 10 tặng 1 =====
-    // Đã tặng = tổng promo_free_liters của các đơn trong tháng báo cáo (không phải MONTHLY_BONUS)
-    // promo_free_liters > 0 nhưng promo_type != 'MONTHLY_BONUS'
     var promoMonth = String(reportMonth).padStart(2, '0');
     var freePromoLiters = db.prepare(`
       SELECT COALESCE(SUM(promo_free_liters), 0) as total
