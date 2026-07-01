@@ -2365,12 +2365,14 @@ async function buildVolumePromoNote(invoice) {
   if (invoice.promo_type === 'MONTHLY_BONUS' || invoice.reward_liters_used > 0) {
     var rewardLiters = invoice.reward_liters_used || (invoice.promo_free_liters || 0);
     var bonusMonthText = '';
+    // Bonus month is the PREVIOUS month of the invoice date
+    // (e.g., invoice on 07/01/2026 = bonus for June)
     if (invoice.date) {
       var parts = invoice.date.split('-');
       if (parts.length >= 2) {
-        var m = parseInt(parts[1], 10);
-        var monthNames = ['1','2','3','4','5','6','7','8','9','10','11','12'];
-        bonusMonthText = monthNames[m - 1] || '';
+        var m = parseInt(parts[1], 10) - 1; // previous month
+        if (m <= 0) m = 12;
+        bonusMonthText = String(m);
       }
     }
     var bonusMonthLabel = bonusMonthText ? ' tháng ' + bonusMonthText : '';
