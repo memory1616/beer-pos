@@ -94,6 +94,22 @@ function deleteSaleRestoringInventory(saleId) {
       if (sale.customer_id && sale.promo_type === 'MONTHLY_BONUS') {
         db.prepare("UPDATE customers SET reward_claimed = 0, reward_claimed_at = NULL WHERE id = ?").run(sale.customer_id);
         db.prepare("DELETE FROM reward_history WHERE customer_id = ?").run(sale.customer_id);
+
+        // Rollback trạng thái đã nhận thưởng trong tháng tương ứng
+        const rewardNoteMatch = (sale.note || '').match(/tháng\s+(\d+)\/(\d+)/);
+        if (rewardNoteMatch) {
+          const rewardMonth = Number(rewardNoteMatch[1]);
+          const rewardYear = Number(rewardNoteMatch[2]);
+          db.prepare(`
+            UPDATE customer_monthly_stats
+            SET reward_claimed = 0,
+                reward_claimed_at = NULL,
+                reward_claimed_liters = 0,
+                reward_claimed_sale_id = NULL,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE customer_id = ? AND year = ? AND month = ?
+          `).run(sale.customer_id, rewardYear, rewardMonth);
+        }
       }
 
       // ===== B3. RESET first_order_date nếu đây là đơn đầu tiên =====
