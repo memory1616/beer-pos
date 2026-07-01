@@ -2358,6 +2358,16 @@ async function buildVolumePromoNote(invoice) {
   var monthlyReward = rewardData.monthlyReward;
   if (!monthlyReward) return '';
 
+  // Check if this invoice has MONTHLY_BONUS (đơn trả thưởng) - hiển thị thông tin thưởng, không hiển thị tích lũy
+  if (invoice.promo_type === 'MONTHLY_BONUS' || invoice.reward_liters_used > 0) {
+    var rewardLiters = invoice.reward_liters_used || (invoice.promo_free_liters || 0);
+    return '<div class="promo-note" style="margin:10px 0;padding:10px 12px;background:rgba(168,85,247,0.1);border:1px solid rgba(168,85,247,0.3);border-radius:8px;font-size:11px;line-height:1.5;">' +
+      '<div style="font-weight:700;color:#9333ea;margin-bottom:4px;">&#127942; Khuyến mãi Sản lượng Tháng</div>' +
+      '<div style="color:#7e22ce;">&#127882; Đơn trả thưởng <strong>+' + rewardLiters + 'L</strong></div>' +
+      '<div style="color:#6b21a8;margin-top:4px;">Đã tích lũy tháng này: <strong>' + monthlyLiters + 'L</strong></div>' +
+    '</div>';
+  }
+
   // Get data from API
   // monthlyLiters = tổng số L khách đã mua trong tháng
   // litersToNext = số L còn thiếu để đạt tier kế tiếp

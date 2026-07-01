@@ -431,6 +431,7 @@ class PromotionService {
 
     // Luôn query real-time từ sale_items để đảm bảo data mới nhất
     // Chỉ tính keg, không tính pet/box/bottle
+    // Chỉ tính item có price > 0 (không tính item thưởng price = 0)
     const result = db.prepare(`
       SELECT COALESCE(SUM(si.quantity), 0) as total
       FROM sales s
@@ -439,7 +440,6 @@ class PromotionService {
       WHERE s.customer_id = ?
         AND s.type = 'sale'
         AND s.archived = 0
-        AND s.promo_type IS DISTINCT FROM 'MONTHLY_BONUS'
         AND si.price > 0
         AND p.type = 'keg'
         AND s.date >= ?
