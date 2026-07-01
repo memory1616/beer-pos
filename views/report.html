@@ -681,7 +681,6 @@
 
         var totalKegs = deliveryData.totalKegs || 0;
         var products = deliveryData.products || [];
-        var byCustomer = deliveryData.byCustomer || [];
 
         // Summary
         if (summaryEl) {
@@ -690,7 +689,7 @@
 
         var html = '';
 
-        // Theo sản phẩm
+        // Theo sản phẩm (bao gồm cả khuyến mãi)
         if (products.length > 0) {
           html += '<div class="delivery-section-title">🍺 Theo sản phẩm</div>';
           html += '<div class="delivery-products-list">';
@@ -703,25 +702,7 @@
           html += '</div>';
         }
 
-        // Theo khách hàng
-        if (byCustomer.length > 0) {
-          html += '<div class="delivery-section-title">👤 Theo khách hàng</div>';
-          html += '<div class="delivery-customer-list">';
-          byCustomer.forEach(function(c) {
-            var netKegs = (c.net_kegs || 0) > 0 ? '<span class="keg-need">+' + c.net_kegs + '</span>' : '<span class="keg-return">-' + Math.abs(c.net_kegs || 0) + '</span>';
-            html += '<div class="delivery-customer-item">';
-            html += '<span class="delivery-customer-name">' + escHtml(c.customer_name || 'Khách lẻ') + '</span>';
-            html += '<span class="delivery-keg-info">';
-            html += (c.deliver_kegs > 0 ? '+' + c.deliver_kegs + ' giao ' : '');
-            html += (c.return_kegs > 0 ? '-' + c.return_kegs + ' thu ' : '');
-            html += '→ net ' + netKegs;
-            html += '</span>';
-            html += '</div>';
-          });
-          html += '</div>';
-        }
-
-        if (!products.length && !byCustomer.length) {
+        if (!products.length) {
           html = '<div class="empty-delivery">Không có đơn giao hôm nay</div>';
         }
 
