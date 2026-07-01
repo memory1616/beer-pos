@@ -138,7 +138,7 @@ router.get('/data', (req, res) => {
     var profitByCustomer = db.prepare(
       'SELECT c.id, c.name, COUNT(DISTINCT s.id) as order_count, SUM(s.total) as revenue, SUM(s.profit) as profit, SUM(si.quantity) as qty ' +
       'FROM sales s JOIN customers c ON c.id = s.customer_id JOIN sale_items si ON si.sale_id = s.id AND si.price > 0 WHERE s.archived = 0 AND s.type = \'sale\' AND ' + dateCond +
-      ' GROUP BY c.id ORDER BY profit DESC LIMIT 20'
+      ' GROUP BY c.id ORDER BY profit DESC'
     ).all(...dateParams);
 
     var literRows = db.prepare(
