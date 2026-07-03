@@ -315,12 +315,18 @@ router.get('/data', (req, res) => {
     },
     promoStats: (function() {
       try {
-        // Count active new shops (created within 30 days)
+        // Count active new shops in current month (created day >= 9)
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+
         const activeNewShops = db.prepare(`
           SELECT COUNT(*) as cnt FROM customers
           WHERE archived = 0
-            AND created_at >= datetime('now', '-30 days')
-        `).get();
+            AND strftime('%Y', created_at) = ?
+            AND strftime('%m', created_at) = ?
+            AND CAST(strftime('%d', created_at) AS INTEGER) >= 9
+        `).get(String(year), month);
         const newShops = activeNewShops ? activeNewShops.cnt : 0;
 
         // Total free liters this month

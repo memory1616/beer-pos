@@ -117,13 +117,13 @@ router.get('/settings', (req, res) => {
 /**
  * PUT /api/promotions/settings
  * Lưu cấu hình hệ thống khuyến mãi
- * Body: { newShopEnabled, newShopDays, newShopGoldBuy, newShopGoldFree, newShopBlackBuy, newShopBlackFree, rewardEnabled, rewardTiers, startDate, endDate }
+ * Body: { newShopEnabled, newShopGoldBuy, newShopGoldFree, newShopBlackBuy, newShopBlackFree, rewardEnabled, rewardTiers, startDate, endDate }
+ * LUUU Y: newShopDays da bang chi ngay duoc xac dinh theo created_day (ko con la tham so)
  */
 router.put('/settings', (req, res) => {
   try {
     const {
       newShopEnabled,
-      newShopDays,
       newShopGoldBuy,
       newShopGoldFree,
       newShopBlackBuy,
@@ -146,7 +146,7 @@ router.put('/settings', (req, res) => {
 
     const settings = PromotionService.saveSystemPromotionSettings({
       newShopEnabled: newShopEnabled !== undefined ? !!newShopEnabled : undefined,
-      newShopDays: newShopDays !== undefined ? parseInt(newShopDays) || 30 : undefined,
+      // KHONG con newShopDays - chi dung created_day de xac dinh quan moi
       newShopGoldBuy: newShopGoldBuy !== undefined ? parseInt(newShopGoldBuy) || 10 : undefined,
       newShopGoldFree: newShopGoldFree !== undefined ? parseInt(newShopGoldFree) || 1 : undefined,
       newShopBlackBuy: newShopBlackBuy !== undefined ? parseInt(newShopBlackBuy) || 20 : undefined,
@@ -163,7 +163,7 @@ router.put('/settings', (req, res) => {
     } catch (_) {}
 
     logger.info('[PROMOTION] Settings updated', {
-      newShopEnabled, newShopDays, newShopGoldBuy, newShopGoldFree,
+      newShopEnabled, newShopGoldBuy, newShopGoldFree,
       newShopBlackBuy, newShopBlackFree, rewardEnabled, rewardTiers: parsedTiers,
       startDate, endDate
     });
@@ -700,7 +700,7 @@ router.get('/customer/:customerId/overview', (req, res) => {
         promotionEndDate: settings.endDate,
         newShop: newShopInfo,
         newShopSettings: {
-          days: settings.newShopDays,
+          // KHONG con days - chi dung created_day de xac dinh (ngay 09+)
           goldBuy: settings.newShopGoldBuy,
           goldFree: settings.newShopGoldFree,
           blackBuy: settings.newShopBlackBuy,
