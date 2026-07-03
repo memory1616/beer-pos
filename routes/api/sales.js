@@ -467,8 +467,8 @@ router.post('/', (req, res) => {
           const existingRewardSale = db.prepare(`
             SELECT id FROM sales
             WHERE customer_id = ? AND type = 'sale' AND archived = 0 AND promo_type = 'MONTHLY_BONUS'
-              AND strftime('%Y', datetime(date, '+7 hours')) = ?
-              AND strftime('%m', datetime(date, '+7 hours')) = ?
+              AND strftime('%Y', date) = ?
+              AND strftime('%m', date) = ?
             LIMIT 1
           `).get(customerId, String(rewardYear), String(rewardMonthNum).padStart(2, '0'));
 
