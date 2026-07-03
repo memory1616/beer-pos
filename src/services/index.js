@@ -25,17 +25,16 @@ const DebtService = require('./DebtService');
 
 // ============================================================
 // PROMOTION SERVICE - Business logic cho khuyến mãi
-// Bao gồm: khuyến mãi quán mới (30 ngày) và thưởng doanh số theo tháng
+// Bao gồm: khuyến mãi quán mới và thưởng doanh số theo tháng
 //
-// QUY TẮC QUAN TRỌNG:
-// - CHỈ NHẬN MỨC CAO NHẤT: đã nhận 10L → đạt 500L → chỉ nhận thêm 10L
-// - Free liters: trừ kho thật, KHÔNG cộng doanh thu, KHÔNG cộng công nợ, KHÔNG cộng sản lượng xét thưởng
-// - Changing settings: KHÔNG làm sai dữ liệu cũ, KHÔNG reset history, KHÔNG recalculate order cũ
-//   Chỉ áp dụng cho order mới
+// QUY TẮC:
+// - Quán mới: tạo ngày 09+ trong tháng → tháng tạo = NEW_CUSTOMER
+// - Từ tháng kế tiếp: tham gia thưởng sản lượng MONTHLY_VOLUME
+// - Mỗi khách mỗi tháng chỉ một CTKM, không trùng lặp
 // ============================================================
 class PromotionService {
   constructor() {
-    this.NEW_SHOP_DAYS = 30;
+    // Chỉ dùng GOLD/BLACK BUY và FREE cho quán mới (ko dùng 30 ngày)
     this.GOLD_BUY = 10;
     this.GOLD_FREE = 1;
     this.BLACK_BUY = 20;
@@ -59,7 +58,7 @@ class PromotionService {
       }
       return {
         newShopEnabled: !!settings.new_shop_enabled,
-        newShopDays: settings.new_shop_days || 30,
+        // KHONG con newShopDays - chi dung created_day de xac dinh quan moi
         newShopGoldBuy: settings.new_shop_gold_buy || 10,
         newShopGoldFree: settings.new_shop_gold_free || 1,
         newShopBlackBuy: settings.new_shop_black_buy || 20,
@@ -142,7 +141,7 @@ class PromotionService {
   _getDefaultSettings() {
     return {
       newShopEnabled: true,
-      newShopDays: 30,
+      // KHONG con newShopDays - chi dung created_day de xac dinh quan moi
       newShopGoldBuy: 10,
       newShopGoldFree: 1,
       newShopBlackBuy: 20,
@@ -182,7 +181,6 @@ class PromotionService {
     db.prepare(`
       UPDATE promotion_settings SET
         new_shop_enabled = ?,
-        new_shop_days = ?,
         new_shop_gold_buy = ?,
         new_shop_gold_free = ?,
         new_shop_black_buy = ?,
@@ -195,7 +193,6 @@ class PromotionService {
       WHERE id = 1
     `).run(
       newShopEnabled,
-      merged.newShopDays || 30,
       merged.newShopGoldBuy || 10,
       merged.newShopGoldFree || 1,
       merged.newShopBlackBuy || 20,
@@ -258,12 +255,13 @@ class PromotionService {
   }
 
   /**
-   * Kiểm tra khách có đang trong thời gian quán mới (dùng cho trường hợp không muốn áp dụng thưởng tháng)
+   * Kiểm tra khách có đang trong thời gian quán mới của THÁNG HIỆN TẠI
+   * Dựa trên ngày tạo: tạo ngày 09+ → tháng tạo là quán mới
    * @returns {boolean} true nếu khách đang trong thời gian quán mới
    */
   isInNewShopPeriod(customerId) {
     const newShopInfo = this.isNewShopEligible(customerId);
-    return newShopInfo.eligible && newShopInfo.daysRemaining > 0;
+    return newShopInfo.eligible;
   }
 
   /**
@@ -1556,21 +1554,27 @@ class PromotionService {
   // ── 5. STATS PROMOTION ──────────────────────────────────
 
   /**
-   * Lấy số quán mới đang trong N ngày ưu đãi (dựa trên created_at)
+   * Lấy số quán mới trong tháng hiện tại (tạo ngày 09+)
    */
   getActiveNewShopCount() {
     const settings = this.getSystemPromotionSettings();
     if (!settings.newShopEnabled) return 0;
 
-    const cutoffStr = new Date(Date.now() - settings.newShopDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth() + 1;
+    const monthStr = String(month).padStart(2, '0');
 
+    // Đếm khách tạo trong tháng hiện tại với ngày >= 9
     const result = db.prepare(`
       SELECT COUNT(*) as count
       FROM customers
       WHERE archived = 0
-        AND created_at >= ?
+        AND strftime('%Y', created_at) = ?
+        AND strftime('%m', created_at) = ?
+        AND CAST(strftime('%d', created_at) AS INTEGER) >= 9
         AND promotion_enabled = 1
-    `).get(cutoffStr);
+    `).get(String(year), monthStr);
     return result ? result.count : 0;
   }
 
