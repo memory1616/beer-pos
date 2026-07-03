@@ -76,7 +76,7 @@ function deleteSaleRestoringInventory(saleId) {
         }
       }
 
-      // ===== B. RESTORE monthly_purchased_liters (chỉ restore items keg có giá > 0, loại trừ pet/box và lít tặng) =====
+      // ===== B1. RESTORE purchased_liters trong customer_monthly_stats =====
       if (sale.customer_id && sale.type === 'sale' && sale.promo_type !== 'MONTHLY_BONUS') {
         const paidKegItems = db.prepare(`
           SELECT COALESCE(SUM(si.quantity), 0) as total
@@ -86,20 +86,36 @@ function deleteSaleRestoringInventory(saleId) {
         `).get(sale.id);
         const paidLiters = paidKegItems ? paidKegItems.total : 0;
         if (paidLiters > 0) {
+          // Revert customers.monthly_purchased_liters
           db.prepare('UPDATE customers SET monthly_purchased_liters = MAX(0, monthly_purchased_liters - ?) WHERE id = ?').run(paidLiters, sale.customer_id);
+
+          // Revert customer_monthly_stats.purchased_liters (theo tháng của đơn)
+          const saleDate = new Date(sale.date);
+          const saleYear = saleDate.getFullYear();
+          const saleMonth = saleDate.getMonth() + 1;
+          const existingStats = db.prepare(`
+            SELECT id, purchased_liters FROM customer_monthly_stats
+            WHERE customer_id = ? AND year = ? AND month = ?
+          `).get(sale.customer_id, saleYear, saleMonth);
+          if (existingStats) {
+            db.prepare(`
+              UPDATE customer_monthly_stats SET purchased_liters = MAX(0, purchased_liters - ?) WHERE id = ?
+            `).run(paidLiters, existingStats.id);
+          }
         }
       }
 
       // ===== B2. REVERT reward_claimed nếu xóa MONTHLY_BONUS =====
       if (sale.customer_id && sale.promo_type === 'MONTHLY_BONUS') {
         db.prepare("UPDATE customers SET reward_claimed = 0, reward_claimed_at = NULL WHERE id = ?").run(sale.customer_id);
-        db.prepare("DELETE FROM reward_history WHERE customer_id = ?").run(sale.customer_id);
 
         // Rollback trạng thái đã nhận thưởng trong tháng tương ứng
         const rewardNoteMatch = (sale.note || '').match(/tháng\s+(\d+)\/(\d+)/);
         if (rewardNoteMatch) {
           const rewardMonth = Number(rewardNoteMatch[1]);
           const rewardYear = Number(rewardNoteMatch[2]);
+          console.log('[ORDER DELETE] Reverting MONTHLY_BONUS reward: customer=' + sale.customer_id + ', month=' + rewardMonth + '/' + rewardYear);
+
           db.prepare(`
             UPDATE customer_monthly_stats
             SET reward_claimed = 0,
@@ -109,6 +125,21 @@ function deleteSaleRestoringInventory(saleId) {
                 updated_at = CURRENT_TIMESTAMP
             WHERE customer_id = ? AND year = ? AND month = ?
           `).run(sale.customer_id, rewardYear, rewardMonth);
+
+          // Chỉ xóa reward_history của tháng tương ứng (không xóa tất cả)
+          db.prepare(`
+            DELETE FROM reward_history
+            WHERE customer_id = ? AND note LIKE ?
+          `).run(sale.customer_id, `%tháng ${rewardMonth}/${rewardYear}%`);
+        } else {
+          // Nếu không parse được tháng từ note, xóa reward_history mới nhất của khách
+          console.log('[ORDER DELETE] Reverting MONTHLY_BONUS reward (no month in note): customer=' + sale.customer_id);
+          db.prepare(`
+            DELETE FROM reward_history
+            WHERE customer_id = ? AND id = (
+              SELECT id FROM reward_history WHERE customer_id = ? ORDER BY claimed_at DESC LIMIT 1
+            )
+          `).run(sale.customer_id, sale.customer_id);
         }
       }
 
