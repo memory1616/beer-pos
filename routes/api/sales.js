@@ -459,11 +459,18 @@ router.post('/', (req, res) => {
       if (!isRewardMonthValid) {
         console.log('[AUTO REWARD] Bo qua vi thang tra thuong (thang', rewardMonth.getMonth() + 1, '/', rewardMonth.getFullYear(), ') nam ngoai thoi gian KM');
       } else {
-        const isInNewShop = PromotionService.isInNewShopPeriod(customerId);
-        if (!isInNewShop) {
-          // Chỉ gắn thưởng nếu tháng này KHÔNG có đơn MONTHLY_BONUS nào của khách
-          const rewardMonthNum = rewardMonth.getMonth() + 1;
-          const rewardYear = rewardMonth.getFullYear();
+        const rewardMonthNum = rewardMonth.getMonth() + 1;
+        const rewardYear = rewardMonth.getFullYear();
+
+        // Sử dụng determinePromotionProgram để kiểm tra xem tháng đó có thuộc chương trình nào không
+        const program = PromotionService.determinePromotionProgram(customerId, rewardYear, rewardMonthNum);
+
+        if (program === 'NEW_CUSTOMER') {
+          console.log('[AUTO REWARD] Bo qua vi khach', customerId, 'thuoc chuong trinh QUAN MOI thang', rewardMonthNum, '/', rewardYear, '- khong nhan thuong san luong');
+        } else if (program === 'NONE') {
+          console.log('[AUTO REWARD] Bo qua vi khach', customerId, 'khong du dieu kien thuong thang', rewardMonthNum, '/', rewardYear);
+        } else {
+          // MONTHLY_VOLUME - kiểm tra thêm đã nhận chưa
           const existingRewardSale = db.prepare(`
             SELECT id FROM sales
             WHERE customer_id = ? AND type = 'sale' AND archived = 0 AND promo_type = 'MONTHLY_BONUS'
@@ -477,9 +484,9 @@ router.post('/', (req, res) => {
             if (rewardInfo && rewardInfo.eligible && rewardInfo.rewardLiters > 0) {
               // Gắn thưởng vào đơn hàng hiện tại - TRẢ THƯỞNG SẢN LƯỢNG THÁNG TRƯỚC
               autoRewardResult = PromotionService.attachRewardToSale(
-                customerId, 
-                saleId, 
-                rewardInfo.rewardLiters, 
+                customerId,
+                saleId,
+                rewardInfo.rewardLiters,
                 rewardInfo.tier,
                 rewardInfo.rewardMonth,
                 rewardInfo.rewardYear
@@ -491,8 +498,6 @@ router.post('/', (req, res) => {
           } else {
             console.log('[AUTO REWARD] Bo qua vi khach', customerId, 'da nhan thuong thang', rewardMonthNum, '/', rewardYear);
           }
-        } else {
-          console.log('[AUTO REWARD] Bo qua vi khach', customerId, 'dang trong thoi gian quan moi - khong nhan thuong thang');
         }
       }
     }
