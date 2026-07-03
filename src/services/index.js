@@ -1116,8 +1116,9 @@ class PromotionService {
     const currentMonth = now.getMonth() + 1;
 
     // Xác định tháng thưởng: dùng param hoặc mặc định là tháng trước
-    const actualRewardMonth = rewardMonth || new Date(currentYear, currentMonth - 2, 1).getMonth() + 1;
-    const actualRewardYear = rewardYear || (currentMonth === 1 ? currentYear - 1 : currentYear);
+    const prevMonthDate = new Date(currentYear, currentMonth - 2, 1);
+    const actualRewardMonth = (rewardMonth !== undefined && rewardMonth !== null) ? rewardMonth : (prevMonthDate.getMonth() + 1);
+    const actualRewardYear = (rewardYear !== undefined && rewardYear !== null) ? rewardYear : (currentMonth === 1 ? currentYear - 1 : currentYear);
 
     // Lấy sản phẩm bia vàng mặc định
     const defaultProduct = db.prepare(`
