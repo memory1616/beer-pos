@@ -765,8 +765,8 @@ class PromotionService {
         AND s.promo_type IS DISTINCT FROM 'MONTHLY_BONUS'
         AND si.price > 0
         AND p.type = 'keg'
-        AND strftime('%Y', datetime(s.date, '+7 hours')) = ?
-        AND strftime('%m', datetime(s.date, '+7 hours')) = ?
+        AND strftime('%Y', s.date) = ?
+        AND strftime('%m', s.date) = ?
     `).get(customerId, String(rewardYear), rewardMonthStr);
 
     const liters = purchasedLiters ? purchasedLiters.total : 0;
@@ -1051,8 +1051,8 @@ class PromotionService {
         AND s.promo_type IS DISTINCT FROM 'MONTHLY_BONUS'
         AND si.price > 0
         AND p.type = 'keg'
-        AND strftime('%Y', datetime(s.date, '+7 hours')) = ?
-        AND strftime('%m', datetime(s.date, '+7 hours')) = ?
+        AND strftime('%Y', s.date) = ?
+        AND strftime('%m', s.date) = ?
     `).get(customerId, String(rewardYear), rewardMonthStr);
 
     const liters = purchasedLiters ? purchasedLiters.total : 0;
