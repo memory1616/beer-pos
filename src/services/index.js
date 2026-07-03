@@ -287,9 +287,9 @@ class PromotionService {
     const createdMonth = created.getMonth() + 1;
     const createdYear = created.getFullYear();
 
-    // Kiểm tra nếu tháng này thuộc giai đoạn quán mới
-    // Quy tắc: Tạo ngày 09+ → tháng tạo là quán mới
-    const isNewShopMonth = (createdYear === year && createdMonth === month && createdDay >= 9);
+    // Kiểm tra nếu tháng này là THÁNG TẠO khách hàng
+    // TẠT CẢ khách đều có tháng tạo = NEW_CUSTOMER (dù ngày 01-08 hay 09+)
+    const isCreationMonth = (createdYear === year && createdMonth === month);
 
     // Kiểm tra nếu đã có đơn MONTHLY_BONUS trong tháng này (dấu hiệu đã hưởng quán mới)
     const hasMonthlyBonusSale = db.prepare(`
@@ -300,7 +300,7 @@ class PromotionService {
         AND strftime('%m', date) = ?
     `).get(customerId, String(year), String(month).padStart(2, '0'));
 
-    if (isNewShopMonth || (hasMonthlyBonusSale && hasMonthlyBonusSale.cnt > 0)) {
+    if (isCreationMonth || (hasMonthlyBonusSale && hasMonthlyBonusSale.cnt > 0)) {
       return 'NEW_CUSTOMER';
     }
 
@@ -340,6 +340,10 @@ class PromotionService {
   getMonthPromotionStatus(customerId, year, month) {
     const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(customerId);
 
+    // Kiểm tra nếu tháng này là THÁNG TẠO
+    const created = new Date(customer.created_at);
+    const isCreationMonth = (created.getFullYear() === year && (created.getMonth() + 1) === month);
+
     const newShopSale = db.prepare(`
       SELECT COUNT(*) as cnt FROM sales
       WHERE customer_id = ?
@@ -359,8 +363,9 @@ class PromotionService {
     const hasNewShopSale = newShopSale && newShopSale.cnt > 0;
     const hasMonthlyBonusSale = monthlyBonusSale && monthlyBonusSale.cnt > 0;
 
+    // Quy tắc: tháng tạo = NEW_CUSTOMER, có đơn NEW_SHOP/MONTHLY_BONUS = NEW_CUSTOMER
     let program = 'NONE';
-    if (hasNewShopSale || hasMonthlyBonusSale) {
+    if (isCreationMonth || hasNewShopSale || hasMonthlyBonusSale) {
       program = 'NEW_CUSTOMER';
     } else if (customer) {
       const liters = this._getMonthlyLiters(customerId, year, month);
@@ -372,6 +377,7 @@ class PromotionService {
 
     return {
       program,
+      isCreationMonth,
       hasNewShopSale,
       hasMonthlyBonusSale,
       eligibleForMonthly: program === 'MONTHLY_VOLUME'
