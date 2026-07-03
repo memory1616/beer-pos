@@ -267,6 +267,143 @@ class PromotionService {
   }
 
   /**
+   * Xác định chương trình khuyến mãi cho khách hàng trong một tháng cụ thể
+   *
+   * Quy tắc:
+   * - Nếu tháng đó thuộc giai đoạn Quán mới (tạo ngày 09+) → NEW_CUSTOMER
+   * - Nếu tháng đó đã có đơn MONTHLY_BONUS → NEW_CUSTOMER (đã hưởng quán mới)
+   * - Nếu không thuộc quán mới và đủ điều kiện thưởng sản lượng → MONTHLY_VOLUME
+   * - Ngược lại → NONE
+   *
+   * @param {number} customerId - ID khách hàng
+   * @param {number} year - Năm cần kiểm tra
+   * @param {number} month - Tháng cần kiểm tra (1-12)
+   * @returns {string} 'NEW_CUSTOMER' | 'MONTHLY_VOLUME' | 'NONE'
+   */
+  determinePromotionProgram(customerId, year, month) {
+    const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(customerId);
+    if (!customer) return 'NONE';
+
+    const created = new Date(customer.created_at);
+    const createdDay = created.getDate();
+    const createdMonth = created.getMonth() + 1;
+    const createdYear = created.getFullYear();
+
+    // Kiểm tra nếu tháng này thuộc giai đoạn quán mới
+    // Quy tắc: Tạo ngày 09+ → tháng tạo là quán mới
+    const isNewShopMonth = (createdYear === year && createdMonth === month && createdDay >= 9);
+
+    // Kiểm tra nếu đã có đơn MONTHLY_BONUS trong tháng này (dấu hiệu đã hưởng quán mới)
+    const hasMonthlyBonusSale = db.prepare(`
+      SELECT COUNT(*) as cnt FROM sales
+      WHERE customer_id = ?
+        AND promo_type = 'MONTHLY_BONUS'
+        AND strftime('%Y', date) = ?
+        AND strftime('%m', date) = ?
+    `).get(customerId, String(year), String(month).padStart(2, '0'));
+
+    if (isNewShopMonth || (hasMonthlyBonusSale && hasMonthlyBonusSale.cnt > 0)) {
+      return 'NEW_CUSTOMER';
+    }
+
+    // Kiểm tra nếu đủ điều kiện thưởng sản lượng tháng này
+    const settings = this.getSystemPromotionSettings();
+    if (!settings.rewardEnabled) return 'NONE';
+
+    const purchasedLiters = db.prepare(`
+      SELECT COALESCE(SUM(si.quantity), 0) as total
+      FROM sales s
+      JOIN sale_items si ON si.sale_id = s.id
+      JOIN products p ON p.id = si.product_id
+      WHERE s.customer_id = ?
+        AND s.type = 'sale'
+        AND s.archived = 0
+        AND s.promo_type IS DISTINCT FROM 'MONTHLY_BONUS'
+        AND si.price > 0
+        AND p.type = 'keg'
+        AND strftime('%Y', s.date) = ?
+        AND strftime('%m', s.date) = ?
+    `).get(customerId, String(year), String(month).padStart(2, '0'));
+
+    const liters = purchasedLiters ? purchasedLiters.total : 0;
+    const tiers = settings.rewardTiers || [];
+    const eligibleTier = tiers.find(t => liters >= t.threshold);
+
+    return eligibleTier ? 'MONTHLY_VOLUME' : 'NONE';
+  }
+
+  /**
+   * Kiểm tra xem tháng đã thuộc chương trình nào chưa (để tránh trùng lặp)
+   * @param {number} customerId
+   * @param {number} year
+   * @param {number} month
+   * @returns {{ program: string, hasNewShopSale: boolean, hasMonthlyBonusSale: boolean }}
+   */
+  getMonthPromotionStatus(customerId, year, month) {
+    const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(customerId);
+
+    const newShopSale = db.prepare(`
+      SELECT COUNT(*) as cnt FROM sales
+      WHERE customer_id = ?
+        AND promo_type = 'NEW_SHOP'
+        AND strftime('%Y', date) = ?
+        AND strftime('%m', date) = ?
+    `).get(customerId, String(year), String(month).padStart(2, '0'));
+
+    const monthlyBonusSale = db.prepare(`
+      SELECT COUNT(*) as cnt FROM sales
+      WHERE customer_id = ?
+        AND promo_type = 'MONTHLY_BONUS'
+        AND strftime('%Y', date) = ?
+        AND strftime('%m', date) = ?
+    `).get(customerId, String(year), String(month).padStart(2, '0'));
+
+    const hasNewShopSale = newShopSale && newShopSale.cnt > 0;
+    const hasMonthlyBonusSale = monthlyBonusSale && monthlyBonusSale.cnt > 0;
+
+    let program = 'NONE';
+    if (hasNewShopSale || hasMonthlyBonusSale) {
+      program = 'NEW_CUSTOMER';
+    } else if (customer) {
+      const liters = this._getMonthlyLiters(customerId, year, month);
+      const settings = this.getSystemPromotionSettings();
+      const tiers = settings.rewardTiers || [];
+      const eligibleTier = tiers.find(t => liters >= t.threshold);
+      if (eligibleTier) program = 'MONTHLY_VOLUME';
+    }
+
+    return {
+      program,
+      hasNewShopSale,
+      hasMonthlyBonusSale,
+      eligibleForMonthly: program === 'MONTHLY_VOLUME'
+    };
+  }
+
+  /**
+   * Lấy sản lượng tháng của khách hàng
+   * @private
+   */
+  _getMonthlyLiters(customerId, year, month) {
+    const result = db.prepare(`
+      SELECT COALESCE(SUM(si.quantity), 0) as total
+      FROM sales s
+      JOIN sale_items si ON si.sale_id = s.id
+      JOIN products p ON p.id = si.product_id
+      WHERE s.customer_id = ?
+        AND s.type = 'sale'
+        AND s.archived = 0
+        AND s.promo_type IS DISTINCT FROM 'MONTHLY_BONUS'
+        AND si.price > 0
+        AND p.type = 'keg'
+        AND strftime('%Y', s.date) = ?
+        AND strftime('%m', s.date) = ?
+    `).get(customerId, String(year), String(month).padStart(2, '0'));
+
+    return result ? result.total : 0;
+  }
+
+  /**
    * Xác định loại khuyến mãi dựa trên ngày tạo khách hàng và tháng target
    * Quy tắc:
    *   - Ngày 01-08: tham gia thưởng doanh số từ ngày tạo
@@ -999,6 +1136,7 @@ class PromotionService {
   /**
    * Lấy thông tin thưởng dựa trên sản lượng tháng trước
    * ƯU TIÊN: Kiểm tra pending_rewards trước, nếu không có thì tính toán và lưu vào pending
+   * QUY TẮC MỚI: Kiểm tra xem tháng đó có thuộc chương trình NEW_CUSTOMER không
    * @returns {{ eligible, rewardLiters, tier, alreadyClaimed, rewardMonth, rewardYear }}
    */
   getRewardForPrevMonth(customerId) {
@@ -1015,9 +1153,24 @@ class PromotionService {
     const rewardMonthNum = rewardMonth.getMonth() + 1;
     const rewardMonthStr = String(rewardMonthNum).padStart(2, '0');
 
+    // QUY TẮC MỚI: Kiểm tra xem tháng này có thuộc chương trình NEW_CUSTOMER không
+    // Nếu thuộc NEW_CUSTOMER → không cho nhận thưởng sản lượng
+    const program = this.determinePromotionProgram(customerId, rewardYear, rewardMonthNum);
+    if (program === 'NEW_CUSTOMER') {
+      return {
+        eligible: false,
+        rewardLiters: 0,
+        tier: null,
+        alreadyClaimed: false,
+        rewardMonth: rewardMonthNum,
+        rewardYear,
+        reason: 'Thuộc chương trình Quán mới, không nhận thưởng sản lượng'
+      };
+    }
+
     // ƯU TIÊN 1: Kiểm tra pending_rewards table
     const pendingReward = db.prepare(`
-      SELECT * FROM pending_rewards 
+      SELECT * FROM pending_rewards
       WHERE customer_id = ? AND reward_month = ? AND reward_year = ?
     `).get(customerId, rewardMonthNum, rewardYear);
 
@@ -1269,6 +1422,105 @@ class PromotionService {
         VALUES (?, ?, ?, ?)
       `).run(customerId, year, month, purchasedLiters);
     }
+  }
+
+  /**
+   * Quét dữ liệu để phát hiện khách hàng nhận trùng 2 loại khuyến mãi trong cùng tháng
+   * Trả về danh sách các trường hợp sai
+   * @returns {Array} Danh sách khách hàng có dữ liệu sai
+   */
+  auditPromotionConflicts() {
+    const conflicts = [];
+
+    // Lấy tất cả khách hàng
+    const customers = db.prepare('SELECT id, name, created_at FROM customers WHERE archived = 0').all();
+
+    for (const customer of customers) {
+      const created = new Date(customer.created_at);
+      const createdDay = created.getDate();
+      const createdMonth = created.getMonth() + 1;
+      const createdYear = created.getFullYear();
+
+      // Với mỗi tháng từ tháng tạo, kiểm tra xem có xung đột không
+      const now = new Date();
+      let checkMonth = createdMonth;
+      let checkYear = createdYear;
+
+      while (checkYear < now.getFullYear() || (checkYear === now.getFullYear() && checkMonth <= now.getMonth())) {
+        // Kiểm tra xem tháng này có đơn NEW_SHOP và MONTHLY_BONUS không
+        const newShopSales = db.prepare(`
+          SELECT COUNT(*) as cnt FROM sales
+          WHERE customer_id = ?
+            AND promo_type = 'NEW_SHOP'
+            AND strftime('%Y', date) = ?
+            AND strftime('%m', date) = ?
+        `).get(customer.id, String(checkYear), String(checkMonth).padStart(2, '0'));
+
+        const monthlyBonusSales = db.prepare(`
+          SELECT COUNT(*) as cnt FROM sales
+          WHERE customer_id = ?
+            AND promo_type = 'MONTHLY_BONUS'
+            AND strftime('%Y', date) = ?
+            AND strftime('%m', date) = ?
+        `).get(customer.id, String(checkYear), String(checkMonth).padStart(2, '0'));
+
+        // Kiểm tra reward_history
+        const rewardHistory = db.prepare(`
+          SELECT COUNT(*) as cnt FROM reward_history
+          WHERE customer_id = ?
+            AND note LIKE ?
+        `).get(customer.id, `%tháng ${checkMonth}/${checkYear}%`);
+
+        // Kiểm tra pending_rewards
+        const pendingReward = db.prepare(`
+          SELECT * FROM pending_rewards
+          WHERE customer_id = ? AND reward_month = ? AND reward_year = ?
+        `).get(customer.id, checkMonth, checkYear);
+
+        // Xác định chương trình nên áp dụng
+        const shouldBeNewCustomer = (checkYear === createdYear && checkMonth === createdMonth && createdDay >= 9);
+
+        // Kiểm tra xung đột
+        const hasNewShopSale = newShopSales && newShopSales.cnt > 0;
+        const hasMonthlyBonusSale = monthlyBonusSales && monthlyBonusSales.cnt > 0;
+        const hasRewardHistory = rewardHistory && rewardHistory.cnt > 0;
+
+        // Xung đột: có cả NEW_SHOP và MONTHLY_BONUS trong cùng tháng
+        if (hasNewShopSale && hasMonthlyBonusSale) {
+          conflicts.push({
+            customerId: customer.id,
+            customerName: customer.name,
+            year: checkYear,
+            month: checkMonth,
+            type: 'BOTH_NEW_SHOP_AND_MONTHLY_BONUS',
+            message: `Tháng ${checkMonth}/${checkYear}: Có cả đơn NEW_SHOP (${newShopSales.cnt}) và MONTHLY_BONUS (${monthlyBonusSales.cnt})`,
+            shouldBeNewCustomer
+          });
+        }
+
+        // Xung đột: thuộc quán mới nhưng lại có reward_history
+        if (shouldBeNewCustomer && hasRewardHistory && !hasNewShopSale && hasMonthlyBonusSale) {
+          conflicts.push({
+            customerId: customer.id,
+            customerName: customer.name,
+            year: checkYear,
+            month: checkMonth,
+            type: 'NEW_CUSTOMER_RECEIVED_MONTHLY_REWARD',
+            message: `Tháng ${checkMonth}/${checkYear}: Thuộc chương trình Quán mới nhưng có reward_history (${rewardHistory.cnt} lần)`,
+            shouldBeNewCustomer
+          });
+        }
+
+        // Tăng tháng
+        checkMonth++;
+        if (checkMonth > 12) {
+          checkMonth = 1;
+          checkYear++;
+        }
+      }
+    }
+
+    return conflicts;
   }
 
   // ── 4. LỊCH SỬ THƯỞNG ──────────────────────────────────
