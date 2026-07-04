@@ -193,6 +193,157 @@ router.get('/data', (req, res) => {
   }
 });
 
+// ============================================================
+// BONUS DETAIL API - Chi tiết khách nhận thưởng
+// ============================================================
+router.get('/bonus-detail', (req, res) => {
+  try {
+    var now = new Date();
+    var vn = new Date(now.getTime() + 7 * 3600000);
+
+    var reportMonth = parseInt(req.query.month) || (vn.getUTCMonth() + 1);
+    var reportYear = parseInt(req.query.year) || vn.getUTCFullYear();
+
+    // Tháng thưởng = tháng trước
+    var rewardMonth = reportMonth === 1 ? 12 : reportMonth - 1;
+    var rewardYear = reportMonth === 1 ? reportYear - 1 : reportYear;
+
+    // Lấy tiers
+    var settings = db.prepare("SELECT reward_tiers, new_shop_days, start_date FROM promotion_settings WHERE id = 1").get();
+    var tiers = [];
+    var newShopDays = 30;
+    var promoStartDate = '2026-06-01';
+    
+    try {
+      tiers = JSON.parse(settings && settings.reward_tiers ? settings.reward_tiers : '[]');
+      tiers.sort(function(a, b) { return a.threshold - b.threshold; });
+      newShopDays = settings.new_shop_days || 30;
+      promoStartDate = settings.start_date || '2026-06-01';
+    } catch(e) {
+      tiers = [{ threshold: 300, reward: 20 }, { threshold: 500, reward: 40 }];
+    }
+
+    // Lấy tất cả khách có stats trong tháng thưởng
+    // CHỈ lấy khách có reward_enabled = 1 (được tham gia thưởng doanh số)
+    var allStats = db.prepare(`
+      SELECT cms.customer_id, cms.purchased_liters,
+             c.name as customer_name, c.phone, c.created_at, c.reward_enabled, c.new_shop_enabled, c.promotion_enabled
+      FROM customer_monthly_stats cms
+      JOIN customers c ON c.id = cms.customer_id
+      WHERE cms.year = ? AND cms.month = ?
+        AND c.archived = 0
+        AND c.reward_enabled = 1
+        AND c.promotion_enabled != 0
+    `).all(rewardYear, rewardMonth);
+
+    // Lấy danh sách khách đã nhận thưởng từ sales MONTHLY_BONUS
+    var claimedSales = db.prepare(`
+      SELECT customer_id, reward_liters_used, note
+      FROM sales
+      WHERE archived = 0 AND promo_type = 'MONTHLY_BONUS' AND reward_liters_used > 0
+        AND (note LIKE '%tháng ' || ? || '.%/%' || ? || '%'
+             OR note LIKE '%tháng ' || ? || '/%' || ? || '%')
+    `).all(rewardMonth, rewardYear, rewardMonth, rewardYear);
+
+    // Map customer_id -> claimed info
+    var claimedMap = {};
+    claimedSales.forEach(function(s) {
+      if (s.customer_id) {
+        if (!claimedMap[s.customer_id]) claimedMap[s.customer_id] = { liters: 0, sale_id: s.customer_id };
+        claimedMap[s.customer_id].liters += s.reward_liters_used || 0;
+      }
+    });
+
+    // Lấy danh sách khách NEW_SHOP trong tháng để loại trừ
+    var newShopCustomers = db.prepare(`
+      SELECT DISTINCT customer_id
+      FROM sales
+      WHERE archived = 0 AND promo_type = 'NEW_SHOP'
+        AND strftime('%Y-%m', date) = ? || '-' || ?
+    `).all(String(rewardYear), String(rewardMonth).padStart(2, '0'));
+    var newShopMap = {};
+    newShopCustomers.forEach(function(s) {
+      if (s.customer_id) newShopMap[s.customer_id] = true;
+    });
+
+    // Tính tier và phân loại
+    var customers_eligible = [];
+    var customers_claimed = [];
+    var customers_unclaimed = [];
+
+    allStats.forEach(function(stat) {
+      // Loại trừ khách đang trong giai đoạn NEW_SHOP (tháng đó)
+      if (newShopMap[stat.customer_id]) {
+        return; // Skip - đang trong new shop
+      }
+
+      var liters = stat.purchased_liters || 0;
+      var tierReward = 0;
+      var tierName = null;
+
+      for (var i = tiers.length - 1; i >= 0; i--) {
+        if (liters >= tiers[i].threshold) {
+          tierReward = tiers[i].reward;
+          tierName = tiers[i].tier || ('BONUS_' + tierReward + 'L');
+          break;
+        }
+      }
+
+      // Kiểm tra đã nhận thưởng chưa
+      var claimedInfo = claimedMap[stat.customer_id] || null;
+      var isClaimed = claimedInfo !== null && claimedInfo.liters > 0;
+      var claimedLiters = claimedInfo ? claimedInfo.liters : 0;
+
+      var item = {
+        customer_id: stat.customer_id,
+        customer_name: stat.customer_name,
+        phone: stat.phone || '',
+        purchased_liters: liters,
+        tier: tierName,
+        reward_liters: tierReward,
+        claimed: isClaimed,
+        claimed_liters: claimedLiters
+      };
+
+      if (liters >= 300) {
+        customers_eligible.push(item);
+        if (isClaimed) {
+          customers_claimed.push(item);
+        } else {
+          customers_unclaimed.push(item);
+        }
+      }
+    });
+
+    // Tính tổng
+    var total_eligible = customers_eligible.length;
+    var total_claimed = customers_claimed.length;
+    var total_unclaimed = customers_unclaimed.length;
+    var total_reward_needed = customers_unclaimed.reduce(function(sum, c) { return sum + c.reward_liters; }, 0);
+    var total_reward_paid = customers_claimed.reduce(function(sum, c) { return sum + c.claimed_liters; }, 0);
+
+    res.json({
+      reportMonth: reportMonth,
+      reportYear: reportYear,
+      rewardMonth: rewardMonth,
+      rewardYear: rewardYear,
+      tiers: tiers,
+      summary: {
+        total_eligible: total_eligible,
+        total_claimed: total_claimed,
+        total_unclaimed: total_unclaimed,
+        total_reward_needed: total_reward_needed,
+        total_reward_paid: total_reward_paid
+      },
+      customers_eligible: customers_eligible,
+      customers_claimed: customers_claimed,
+      customers_unclaimed: customers_unclaimed
+    });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 module.exports = router;
 
 // ============================================================
@@ -221,27 +372,37 @@ router.get('/bonus-report', (req, res) => {
       tiers = JSON.parse(settings && settings.reward_tiers ? settings.reward_tiers : '[]');
       tiers.sort(function(a, b) { return a.threshold - b.threshold; });
     } catch(e) {
-      tiers = [{ threshold: 300, reward: 10 }, { threshold: 500, reward: 20 }];
+      tiers = [{ threshold: 300, reward: 20 }, { threshold: 500, reward: 40 }];
     }
 
-    // Cần trả = tổng thưởng của tất cả khách đạt tier trong tháng thưởng
-    // Dựa trên purchased_liters trong customer_monthly_stats
-    var stats = db.prepare(`
-      SELECT SUM(purchased_liters) as total_liters,
-             COUNT(CASE WHEN purchased_liters >= ? THEN 1 END) as count_300plus,
-             COUNT(CASE WHEN purchased_liters >= ? THEN 1 END) as count_500plus
-      FROM customer_monthly_stats
-      WHERE year = ? AND month = ?
-    `).get(300, 500, rewardYear, rewardMonth);
-    var totalLiters = stats ? stats.total_liters : 0;
+    // Lấy danh sách khách NEW_SHOP trong tháng thưởng để loại trừ
+    var newShopCustomers = db.prepare(`
+      SELECT DISTINCT customer_id
+      FROM sales
+      WHERE archived = 0 AND promo_type = 'NEW_SHOP'
+        AND strftime('%Y-%m', date) = ? || '-' || ?
+    `).all(String(rewardYear), String(rewardMonth).padStart(2, '0'));
+    var newShopMap = {};
+    newShopCustomers.forEach(function(s) {
+      if (s.customer_id) newShopMap[s.customer_id] = true;
+    });
 
-    // Tính tổng thưởng cần trả (dựa trên tiers)
+    // Cần trả = tổng thưởng của tất cả khách đạt tier trong tháng thưởng
+    // CHỈ lấy khách có reward_enabled = 1 và không phải NEW_SHOP
     var needToPay = 0;
     var customers = db.prepare(`
-      SELECT purchased_liters FROM customer_monthly_stats WHERE year = ? AND month = ?
+      SELECT cms.purchased_liters, c.id as customer_id, c.reward_enabled
+      FROM customer_monthly_stats cms
+      JOIN customers c ON c.id = cms.customer_id
+      WHERE cms.year = ? AND cms.month = ?
+        AND c.archived = 0
+        AND c.reward_enabled = 1
     `).all(rewardYear, rewardMonth);
 
     customers.forEach(function(c) {
+      // Loại trừ khách NEW_SHOP
+      if (newShopMap[c.customer_id]) return;
+      
       var liters = c.purchased_liters || 0;
       // Tìm tier cao nhất đạt được
       for (var i = tiers.length - 1; i >= 0; i--) {
@@ -253,13 +414,13 @@ router.get('/bonus-report', (req, res) => {
     });
 
     // Đã trả = tổng reward_liters_used của các đơn MONTHLY_BONUS của kỳ thưởng đó
-    // Note format: "tháng X/Y" hoặc "tháng X.0/Y.0" (float) - cần match X%/%Y
     var paidReward = db.prepare(`
       SELECT COALESCE(SUM(reward_liters_used), 0) as total
       FROM sales
       WHERE archived = 0 AND promo_type = 'MONTHLY_BONUS' AND reward_liters_used > 0
-        AND (note LIKE '%tháng ' || ? || '%/%' || ? || '%')
-    `).get(rewardMonth, rewardYear);
+        AND (note LIKE '%tháng ' || ? || '.%/%' || ? || '%'
+             OR note LIKE '%tháng ' || ? || '/%' || ? || '%')
+    `).get(rewardMonth, rewardYear, rewardMonth, rewardYear);
     var alreadyPaid = paidReward ? paidReward.total : 0;
 
     // Còn phải trả

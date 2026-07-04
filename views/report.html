@@ -107,6 +107,88 @@
       font-size: 13px;
     }
 
+    /* Bonus customer list styles */
+    .bonus-customer-summary-box {
+      flex: 1;
+      min-width: 80px;
+      background: var(--card-secondary);
+      border-radius: 8px;
+      padding: 8px 12px;
+      text-align: center;
+    }
+    .bonus-customer-summary-label {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-bottom: 4px;
+    }
+    .bonus-customer-summary-value {
+      font-size: 16px;
+      font-weight: 700;
+    }
+    .bonus-customer-summary-value.green { color: var(--green); }
+    .bonus-customer-summary-value.red { color: var(--red); }
+    .bonus-customer-summary-value.purple { color: #7c3aed; }
+
+    .bonus-customer-item {
+      display: flex;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border-light);
+    }
+    .bonus-customer-item:last-child { border-bottom: none; }
+    .bonus-customer-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 14px;
+      margin-right: 10px;
+      flex-shrink: 0;
+    }
+    .bonus-customer-avatar.claimed { background: var(--green); color: #fff; }
+    .bonus-customer-avatar.unclaimed { background: var(--red); color: #fff; }
+    .bonus-customer-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .bonus-customer-name {
+      font-size: 13px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .bonus-customer-meta {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+    .bonus-customer-reward {
+      text-align: right;
+      flex-shrink: 0;
+      margin-left: 10px;
+    }
+    .bonus-customer-reward-value {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--primary);
+    }
+    .bonus-customer-reward-label {
+      font-size: 10px;
+      color: var(--text-secondary);
+    }
+    .bonus-empty {
+      text-align: center;
+      padding: 20px;
+      color: var(--text-secondary);
+      font-size: 13px;
+    }
+
     /* Delivery section */
     .delivery-section-title {
       font-size: 12px;
@@ -362,6 +444,19 @@
               <div id="bonusReportContent">
                 <div class="bonus-loading">Đang tải...</div>
               </div>
+              <!-- Dropdown chi tiết khách -->
+              <div id="bonusDetailSection" style="display:none; margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--border);">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 10px;">
+                  <div style="font-size:13px; font-weight:600;">📋 Chi tiết khách nhận thưởng</div>
+                  <select id="bonusFilterSelect" onchange="RPT.filterBonusCustomers()" style="padding:6px 10px; border-radius:8px; border:1px solid var(--border); background:var(--card); color:var(--text-primary); font-size:12px;">
+                    <option value="all">Tất cả</option>
+                    <option value="claimed">Đã trả</option>
+                    <option value="unclaimed">Chưa trả</option>
+                  </select>
+                </div>
+                <div id="bonusCustomerSummary" style="display:flex; gap:12px; margin-bottom: 12px; flex-wrap:wrap;"></div>
+                <div id="bonusCustomerList"></div>
+              </div>
             </div>
           </div>
 
@@ -434,6 +529,7 @@
       var _chart = null;
       var _debounceTimer = null;
       var _prevData = null;
+      var _bonusDetailData = null;
 
       // Date helpers
       function toLocalDateStr(d) {
@@ -919,6 +1015,17 @@
             var contentEl = document.getElementById('bonusReportContent');
             if (contentEl) contentEl.innerHTML = '<div class="empty-delivery">Không tải được dữ liệu</div>';
           });
+
+        // Load chi tiết khách nhận thưởng
+        fetch('/report/bonus-detail?month=' + rmy.month + '&year=' + rmy.year)
+          .then(function (res) { return res.json(); })
+          .then(function (data) {
+            _bonusDetailData = data;
+            renderBonusDetail(data);
+          })
+          .catch(function (err) {
+            console.log('Bonus detail error:', err);
+          });
       }
 
       function renderBonusReport(data) {
@@ -953,6 +1060,92 @@
         html += '</div>';
 
         contentEl.innerHTML = html;
+      }
+
+      function renderBonusDetail(data) {
+        var detailSection = document.getElementById('bonusDetailSection');
+        var summaryEl = document.getElementById('bonusCustomerSummary');
+        var listEl = document.getElementById('bonusCustomerList');
+        if (!data || !detailSection) return;
+
+        detailSection.style.display = 'block';
+
+        var summary = data.summary || {};
+        var eligible = data.customers_eligible || [];
+        var claimed = data.customers_claimed || [];
+        var unclaimed = data.customers_unclaimed || [];
+
+        // Render summary boxes
+        if (summaryEl) {
+          summaryEl.innerHTML =
+            '<div class="bonus-customer-summary-box">' +
+              '<div class="bonus-customer-summary-label">Đủ điều kiện</div>' +
+              '<div class="bonus-customer-summary-value purple">' + (summary.total_eligible || 0) + '</div>' +
+            '</div>' +
+            '<div class="bonus-customer-summary-box">' +
+              '<div class="bonus-customer-summary-label">Đã trả</div>' +
+              '<div class="bonus-customer-summary-value green">' + (summary.total_claimed || 0) + '</div>' +
+            '</div>' +
+            '<div class="bonus-customer-summary-box">' +
+              '<div class="bonus-customer-summary-label">Chưa trả</div>' +
+              '<div class="bonus-customer-summary-value red">' + (summary.total_unclaimed || 0) + '</div>' +
+            '</div>';
+        }
+
+        // Get current filter and render
+        var filter = document.getElementById('bonusFilterSelect');
+        var filterValue = filter ? filter.value : 'all';
+        renderBonusCustomerList(data, filterValue);
+      }
+
+      function filterBonusCustomers() {
+        var filter = document.getElementById('bonusFilterSelect');
+        var filterValue = filter ? filter.value : 'all';
+        if (_bonusDetailData) {
+          renderBonusCustomerList(_bonusDetailData, filterValue);
+        }
+      }
+
+      function renderBonusCustomerList(data, filter) {
+        var listEl = document.getElementById('bonusCustomerList');
+        if (!listEl || !data) return;
+
+        var all = data.customers_eligible || [];
+        var claimed = data.customers_claimed || [];
+        var unclaimed = data.customers_unclaimed || [];
+
+        var customers = all;
+        if (filter === 'claimed') customers = claimed;
+        else if (filter === 'unclaimed') customers = unclaimed;
+
+        if (customers.length === 0) {
+          var msg = 'Không có khách';
+          if (filter === 'claimed') msg = 'Chưa có khách nào được trả thưởng';
+          else if (filter === 'unclaimed') msg = 'Tất cả khách đã được trả thưởng';
+          listEl.innerHTML = '<div class="bonus-empty">' + msg + '</div>';
+          return;
+        }
+
+        var html = '';
+        customers.forEach(function(c) {
+          var initial = c.customer_name ? c.customer_name.charAt(0).toUpperCase() : '?';
+          var avatarClass = c.claimed ? 'claimed' : 'unclaimed';
+          var statusIcon = c.claimed ? '✓' : '○';
+          html +=
+            '<div class="bonus-customer-item">' +
+              '<div class="bonus-customer-avatar ' + avatarClass + '">' + initial + '</div>' +
+              '<div class="bonus-customer-info">' +
+                '<div class="bonus-customer-name">' + escHtml(c.customer_name) + '</div>' +
+                '<div class="bonus-customer-meta">' + (c.purchased_liters || 0) + 'L tháng này • ' + statusIcon + ' ' + (c.claimed ? 'Đã trả' : 'Chưa trả') + '</div>' +
+              '</div>' +
+              '<div class="bonus-customer-reward">' +
+                '<div class="bonus-customer-reward-value">' + (c.reward_liters || 0) + 'L</div>' +
+                '<div class="bonus-customer-reward-label">Thưởng</div>' +
+              '</div>' +
+            '</div>';
+        });
+
+        listEl.innerHTML = html;
       }
 
       function renderPurchases(purchases, totalAmount) {
@@ -1165,6 +1358,7 @@
         confirmDatePicker: confirmDatePicker,
         toggleSection: toggleSection,
         toggleMore: toggleMore,
+        filterBonusCustomers: filterBonusCustomers,
         reload: debounceLoad
       };
 

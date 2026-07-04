@@ -1535,4 +1535,110 @@ router.post('/:saleId/collect-kegs', (req, res) => {
   }
 });
 
+// POST /api/sales/sync-volume - Sync sản lượng khách hàng từ sale_items
+// Chạy định kỳ hoặc khi cần thiết để đảm bảo dữ liệu chính xác
+router.post('/sync-volume', (req, res) => {
+  try {
+    const { customerId, year, month } = req.body;
+    const now = new Date();
+    const targetYear = year || now.getFullYear();
+    const targetMonth = month || (now.getMonth() + 1);
+
+    // Nếu có customerId cụ thể, chỉ sync 1 khách
+    if (customerId) {
+      // Xóa stats cũ của tháng đó
+      db.prepare(`
+        DELETE FROM customer_monthly_stats 
+        WHERE customer_id = ? AND year = ? AND month = ?
+      `).run(customerId, targetYear, targetMonth);
+
+      // Tính lại từ sale_items
+      const result = db.prepare(`
+        INSERT INTO customer_monthly_stats (customer_id, year, month, purchased_liters)
+        SELECT
+          s.customer_id,
+          CAST(strftime('%Y', s.date) AS INTEGER) as year,
+          CAST(strftime('%m', s.date) AS INTEGER) as month,
+          COALESCE(SUM(si.quantity), 0) as total
+        FROM sales s
+        JOIN sale_items si ON si.sale_id = s.id
+        JOIN products p ON p.id = si.product_id
+        WHERE s.customer_id = ?
+          AND s.archived = 0
+          AND s.type = 'sale'
+          AND s.promo_type IS DISTINCT FROM 'MONTHLY_BONUS'
+          AND si.price > 0
+          AND p.type = 'keg'
+          AND CAST(strftime('%Y', s.date) AS INTEGER) = ?
+          AND CAST(strftime('%m', s.date) AS INTEGER) = ?
+        GROUP BY s.customer_id
+      `).run(customerId, targetYear, targetMonth);
+
+      // Cập nhật customers.monthly_purchased_liters
+      const liters = db.prepare(`
+        SELECT COALESCE(SUM(purchased_liters), 0) as total
+        FROM customer_monthly_stats
+        WHERE customer_id = ? AND year = ? AND month = ?
+      `).get(customerId, targetYear, targetMonth);
+
+      db.prepare(`
+        UPDATE customers SET monthly_purchased_liters = ?
+        WHERE id = ?
+      `).run(liters.total, customerId);
+
+      logger.info('[sync-volume] Synced customer', { customerId, targetYear, targetMonth, liters: liters.total });
+      return res.json({ success: true, customerId, year: targetYear, month: targetMonth, liters: liters.total });
+    }
+
+    // Sync tất cả khách
+    // 1. Xóa stats cũ của tháng
+    db.prepare(`
+      DELETE FROM customer_monthly_stats 
+      WHERE year = ? AND month = ?
+    `).run(targetYear, targetMonth);
+
+    // 2. Tính lại tất cả
+    db.prepare(`
+      INSERT INTO customer_monthly_stats (customer_id, year, month, purchased_liters)
+      SELECT
+        s.customer_id,
+        CAST(strftime('%Y', s.date) AS INTEGER) as year,
+        CAST(strftime('%m', s.date) AS INTEGER) as month,
+        COALESCE(SUM(si.quantity), 0) as total
+      FROM sales s
+      JOIN sale_items si ON si.sale_id = s.id
+      JOIN products p ON p.id = si.product_id
+      WHERE s.archived = 0
+        AND s.type = 'sale'
+        AND s.promo_type IS DISTINCT FROM 'MONTHLY_BONUS'
+        AND si.price > 0
+        AND p.type = 'keg'
+        AND CAST(strftime('%Y', s.date) AS INTEGER) = ?
+        AND CAST(strftime('%m', s.date) AS INTEGER) = ?
+      GROUP BY s.customer_id
+    `).run(targetYear, targetMonth);
+
+    // 3. Cập nhật tất cả customers
+    db.prepare(`
+      UPDATE customers SET monthly_purchased_liters = COALESCE(
+        (SELECT SUM(purchased_liters)
+         FROM customer_monthly_stats
+         WHERE customer_id = customers.id
+           AND year = ?
+           AND month = ?)
+      , 0)
+    `).run(targetYear, targetMonth);
+
+    const count = db.prepare(`
+      SELECT COUNT(*) as cnt FROM customer_monthly_stats WHERE year = ? AND month = ?
+    `).get(targetYear, targetMonth);
+
+    logger.info('[sync-volume] Synced all customers', { year: targetYear, month: targetMonth, count: count.cnt });
+    res.json({ success: true, year: targetYear, month: targetMonth, customersUpdated: count.cnt });
+  } catch (err) {
+    logger.error('sync-volume error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi sync: ' + err.message });
+  }
+});
+
 module.exports = router;
