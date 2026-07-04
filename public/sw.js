@@ -449,25 +449,45 @@ self.addEventListener('fetch', event => {
   if (parsed.pathname.startsWith('/socket.io/') ||
       parsed.pathname === '/js/realtime.js' ||
       parsed.pathname === '/db.js') {
-    event.respondWith(fetch(new Request(event.request, { cache: 'no-store' })));
+    event.respondWith(
+      fetch(new Request(event.request, { cache: 'no-store' }))
+        .catch(() => new Response(JSON.stringify({ error: 'Network unavailable' }), {
+          status: 503, headers: { 'Content-Type': 'application/json' }
+        }))
+    );
     return;
   }
 
   // Auth/login — always live, never cache
   if (parsed.pathname.startsWith('/api/auth') || parsed.pathname.startsWith('/auth')) {
-    event.respondWith(fetch(new Request(event.request, { cache: 'no-store' })));
+    event.respondWith(
+      fetch(new Request(event.request, { cache: 'no-store' }))
+        .catch(() => new Response(JSON.stringify({ error: 'Network unavailable' }), {
+          status: 503, headers: { 'Content-Type': 'application/json' }
+        }))
+    );
     return;
   }
 
   // Sale history — always fresh from server
   if (parsed.pathname === '/sale/history') {
-    event.respondWith(fetch(new Request(event.request, { cache: 'no-store' })));
+    event.respondWith(
+      fetch(new Request(event.request, { cache: 'no-store' }))
+        .catch(() => new Response(JSON.stringify({ error: 'Network unavailable' }), {
+          status: 503, headers: { 'Content-Type': 'application/json' }
+        }))
+    );
     return;
   }
 
   // Navigation — Network-First (always fresh page)
   if (event.request.mode === 'navigate') {
-    event.respondWith(networkFirst(event.request));
+    event.respondWith(
+      networkFirst(event.request)
+        .catch(() => new Response(JSON.stringify({ error: 'Offline', offline: true }), {
+          status: 503, headers: { 'Content-Type': 'application/json' }
+        }))
+    );
     return;
   }
 
@@ -488,24 +508,44 @@ self.addEventListener('fetch', event => {
   // API GET requests must always come from network to ensure data consistency.
   // Stale data causes stock mismatch, price errors, and data race conditions.
   if (parsed.pathname.startsWith('/api/') && event.request.method === 'GET') {
-    event.respondWith(fetch(new Request(event.request, { cache: 'no-store' })));
+    event.respondWith(
+      fetch(new Request(event.request, { cache: 'no-store' }))
+        .catch(() => new Response(JSON.stringify({ error: 'Network unavailable' }), {
+          status: 503, headers: { 'Content-Type': 'application/json' }
+        }))
+    );
     return;
   }
 
   // Page data endpoints (/sale/data, /purchases/data, etc.) — never cache
   if (parsed.pathname.endsWith('/data') && event.request.method === 'GET') {
-    event.respondWith(fetch(new Request(event.request, { cache: 'no-store' })));
+    event.respondWith(
+      fetch(new Request(event.request, { cache: 'no-store' }))
+        .catch(() => new Response(JSON.stringify({ error: 'Network unavailable' }), {
+          status: 503, headers: { 'Content-Type': 'application/json' }
+        }))
+    );
     return;
   }
 
   // Sale individual record — always fresh from server (used by invoice modal)
   if (parsed.pathname.match(/^\/sale\/\d+$/) && event.request.method === 'GET') {
-    event.respondWith(fetch(new Request(event.request, { cache: 'no-store' })));
+    event.respondWith(
+      fetch(new Request(event.request, { cache: 'no-store' }))
+        .catch(() => new Response(JSON.stringify({ error: 'Network unavailable' }), {
+          status: 503, headers: { 'Content-Type': 'application/json' }
+        }))
+    );
     return;
   }
 
   // App Shell & static assets → Cache-First
-  event.respondWith(cacheFirst(event.request));
+  event.respondWith(
+    cacheFirst(event.request)
+      .catch(() => new Response(JSON.stringify({ error: 'Offline', offline: true }), {
+        status: 503, headers: { 'Content-Type': 'application/json' }
+      }))
+  );
 });
 
 // ─── Fetch Strategies ───────────────────────────────────────────────────────

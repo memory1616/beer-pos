@@ -535,8 +535,11 @@ class PromotionService {
     const day = created.getDate();
     
     if (day <= 8) {
-      // Bắt đầu từ ngày tạo
-      return customer.created_at.split('T')[0];
+      // Bắt đầu từ ngày tạo - format date thành YYYY-MM-DD
+      const y = created.getFullYear();
+      const m = String(created.getMonth() + 1).padStart(2, '0');
+      const d = String(created.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
     } else {
       // Bắt đầu từ ngày 01 của tháng kế tiếp
       const nextMonth = new Date(created.getFullYear(), created.getMonth() + 1, 1);
