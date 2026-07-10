@@ -1,4 +1,4 @@
-// BeerPOS Service Worker v34 — Version-safe, single-source-of-truth
+// BeerPOS Service Worker v35 — Version-safe, single-source-of-truth
 // ─────────────────────────────────────────────────────
 // Caching strategies:
 //   • App Shell + JS/CSS        → Cache-First  (instant repeat load)
@@ -8,7 +8,7 @@
 //   • Navigation                → Network-First (always fresh page)
 //   • Auth requests             → No-cache (always live)
 //
-// Versioning (v33):
+// Versioning (v35):
 //   • DB + cache version: read from _meta store on disk — NEVER hardcode here
 //   • Singleton DB — one connection, reused
 //   • Batch sync — all queued items in ONE POST
@@ -85,7 +85,7 @@ async function writeVersionToMeta(version) {
 let _dbPromise = null;
 let _DB_VERSION = null;
 let _CACHE_NAME = null;
-const DEFAULT_DB_VERSION = 34;
+const DEFAULT_DB_VERSION = 41;
 const DEFAULT_CACHE_NAME = `beer-pos-v${DEFAULT_DB_VERSION}`;
 
 // Resolve version from _meta store, then open at that exact version.

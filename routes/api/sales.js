@@ -470,16 +470,15 @@ router.post('/', (req, res) => {
         } else if (program === 'NONE') {
           console.log('[AUTO REWARD] Bo qua vi khach', customerId, 'khong du dieu kien thuong thang', rewardMonthNum, '/', rewardYear);
         } else {
-          // MONTHLY_VOLUME - kiểm tra thêm đã nhận chưa
-          const existingRewardSale = db.prepare(`
-            SELECT id FROM sales
-            WHERE customer_id = ? AND type = 'sale' AND archived = 0 AND promo_type = 'MONTHLY_BONUS'
-              AND strftime('%Y', date) = ?
-              AND strftime('%m', date) = ?
-            LIMIT 1
-          `).get(customerId, String(rewardYear), String(rewardMonthNum).padStart(2, '0'));
+          // MONTHLY_VOLUME - kiểm tra đã nhận thưởng tháng này chưa bằng reward_history
+          // QUAN TRỌNG: Dùng reward_history thay vì sales.promo_type vì khi xóa đơn,
+          // promo_type bị reset nhưng reward_history cũng bị xóa → kiểm tra chính xác hơn
+          const claimedThisMonth = db.prepare(`
+            SELECT COUNT(*) as cnt FROM reward_history
+            WHERE customer_id = ? AND note LIKE ?
+          `).get(customerId, `%tháng ${rewardMonthNum}/${rewardYear}%`);
 
-          if (!existingRewardSale) {
+          if (!claimedThisMonth || claimedThisMonth.cnt === 0) {
             const rewardInfo = PromotionService.getRewardForPrevMonth(customerId);
             if (rewardInfo && rewardInfo.eligible && rewardInfo.rewardLiters > 0) {
               // Gắn thưởng vào đơn hàng hiện tại - TRẢ THƯỞNG SẢN LƯỢNG THÁNG TRƯỚC
@@ -496,7 +495,7 @@ router.post('/', (req, res) => {
               }
             }
           } else {
-            console.log('[AUTO REWARD] Bo qua vi khach', customerId, 'da nhan thuong thang', rewardMonthNum, '/', rewardYear);
+            console.log('[AUTO REWARD] Bo qua vi khach', customerId, 'da co reward_history thang', rewardMonthNum, '/', rewardYear);
           }
         }
       }
