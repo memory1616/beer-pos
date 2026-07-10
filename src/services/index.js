@@ -1268,17 +1268,34 @@ class PromotionService {
    * @param {string} tier - Tier thưởng
    * @param {number} [rewardMonth] - Tháng thưởng (mặc định: tháng trước)
    * @param {number} [rewardYear] - Năm thưởng (mặc định: năm trước)
-   * @returns {{ success, saleId, rewardLiters, tier }}
+   * @returns {{ success, saleId, rewardLiters, tier } | { success: false, error }}
    */
   attachRewardToSale(customerId, saleId, rewardLiters, tier, rewardMonth, rewardYear) {
+    // KIỂM TRA AN TOÀN: Kiểm tra reward_history trước khi gắn
+    // Để tránh trường hợp gọi trực tiếp mà không qua logic chính, hoặc gọi 2 lần
+    const actualRewardMonth = (rewardMonth !== undefined && rewardMonth !== null) ? rewardMonth : null;
+    const actualRewardYear = (rewardYear !== undefined && rewardYear !== null) ? rewardYear : null;
+
+    if (actualRewardMonth !== null && actualRewardYear !== null) {
+      const existingHistory = db.prepare(`
+        SELECT COUNT(*) as cnt FROM reward_history
+        WHERE customer_id = ? AND note LIKE ?
+      `).get(customerId, `%tháng ${actualRewardMonth}/${actualRewardYear}%`);
+
+      if (existingHistory && existingHistory.cnt > 0) {
+        logger.warn(`[PromotionService] attachRewardToSale: Da co reward_history cho thang ${actualRewardMonth}/${actualRewardYear}, khong gan thuong`);
+        return { success: false, error: 'Da co reward history cho thang nay' };
+      }
+    }
+
     const now = new Date();
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth() + 1;
 
     // Xác định tháng thưởng: dùng param hoặc mặc định là tháng trước
     const prevMonthDate = new Date(currentYear, currentMonth - 2, 1);
-    const actualRewardMonth = (rewardMonth !== undefined && rewardMonth !== null) ? rewardMonth : (prevMonthDate.getMonth() + 1);
-    const actualRewardYear = (rewardYear !== undefined && rewardYear !== null) ? rewardYear : (currentMonth === 1 ? currentYear - 1 : currentYear);
+    const finalRewardMonth = (rewardMonth !== undefined && rewardMonth !== null) ? rewardMonth : (prevMonthDate.getMonth() + 1);
+    const finalRewardYear = (rewardYear !== undefined && rewardYear !== null) ? rewardYear : (currentMonth === 1 ? currentYear - 1 : currentYear);
 
     // Lấy sản phẩm bia vàng mặc định
     const defaultProduct = db.prepare(`
@@ -1292,10 +1309,10 @@ class PromotionService {
     if (!defaultProduct) {
       const anyProduct = db.prepare('SELECT id FROM products WHERE archived = 0 AND type = \'keg\' ORDER BY id ASC LIMIT 1').get();
       if (!anyProduct) return { success: false, error: 'Không tìm thấy sản phẩm' };
-      return this._doAttachReward(customerId, saleId, anyProduct.id, rewardLiters, tier, actualRewardMonth, actualRewardYear);
+      return this._doAttachReward(customerId, saleId, anyProduct.id, rewardLiters, tier, finalRewardMonth, finalRewardYear);
     }
 
-    return this._doAttachReward(customerId, saleId, defaultProduct.id, rewardLiters, tier, actualRewardMonth, actualRewardYear);
+    return this._doAttachReward(customerId, saleId, defaultProduct.id, rewardLiters, tier, finalRewardMonth, finalRewardYear);
   }
 
   _doAttachReward(customerId, saleId, productId, rewardLiters, tier, rewardMonth, rewardYear) {

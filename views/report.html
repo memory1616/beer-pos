@@ -1127,6 +1127,7 @@
         }
 
         var html = '';
+        var bonusMonth = (data.rewardMonth || '') + '/' + (data.rewardYear || '');
         customers.forEach(function(c) {
           var initial = c.customer_name ? c.customer_name.charAt(0).toUpperCase() : '?';
           var avatarClass = c.claimed ? 'claimed' : 'unclaimed';
@@ -1136,7 +1137,7 @@
               '<div class="bonus-customer-avatar ' + avatarClass + '">' + initial + '</div>' +
               '<div class="bonus-customer-info">' +
                 '<div class="bonus-customer-name">' + escHtml(c.customer_name) + '</div>' +
-                '<div class="bonus-customer-meta">' + (c.purchased_liters || 0) + 'L tháng này • ' + statusIcon + ' ' + (c.claimed ? 'Đã trả' : 'Chưa trả') + '</div>' +
+                '<div class="bonus-customer-meta">' + (c.purchased_liters || 0) + 'L tháng ' + bonusMonth + ' • ' + statusIcon + ' ' + (c.claimed ? 'Đã trả' : 'Chưa trả') + '</div>' +
               '</div>' +
               '<div class="bonus-customer-reward">' +
                 '<div class="bonus-customer-reward-value">' + (c.reward_liters || 0) + 'L</div>' +

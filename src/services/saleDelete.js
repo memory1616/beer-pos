@@ -111,9 +111,12 @@ function deleteSaleRestoringInventory(saleId) {
 
         // Rollback trạng thái đã nhận thưởng trong tháng tương ứng
         const rewardNoteMatch = (sale.note || '').match(/tháng\s+(\d+)\/(\d+)/);
+        let rewardMonth = null;
+        let rewardYear = null;
+
         if (rewardNoteMatch) {
-          const rewardMonth = Number(rewardNoteMatch[1]);
-          const rewardYear = Number(rewardNoteMatch[2]);
+          rewardMonth = Number(rewardNoteMatch[1]);
+          rewardYear = Number(rewardNoteMatch[2]);
           console.log('[ORDER DELETE] Reverting MONTHLY_BONUS reward: customer=' + sale.customer_id + ', month=' + rewardMonth + '/' + rewardYear);
 
           db.prepare(`
@@ -140,6 +143,13 @@ function deleteSaleRestoringInventory(saleId) {
               SELECT id FROM reward_history WHERE customer_id = ? ORDER BY claimed_at DESC LIMIT 1
             )
           `).run(sale.customer_id, sale.customer_id);
+        }
+
+        // Xóa pending_rewards tương ứng nếu có (để tránh bị gắn thưởng lại khi tạo đơn mới)
+        if (rewardMonth !== null && rewardYear !== null) {
+          db.prepare('DELETE FROM pending_rewards WHERE customer_id = ? AND reward_month = ? AND reward_year = ?')
+            .run(sale.customer_id, rewardMonth, rewardYear);
+          console.log('[ORDER DELETE] Cleared pending_rewards for customer', sale.customer_id, 'month', rewardMonth, '/', rewardYear);
         }
       }
 
