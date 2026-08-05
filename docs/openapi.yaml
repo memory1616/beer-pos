@@ -1,0 +1,531 @@
+openapi: 3.0.3
+info:
+  title: Beer POS Pro+ API
+  version: 2.1.2
+  description: |
+    API cho hệ thống POS phân phối bia tươi (Beer POS Pro+).
+
+    **Lưu ý**: Đây là bản spec ban đầu, chỉ bao gồm các endpoint chính.
+    Spec sẽ được bổ sung dần khi team thêm JSDoc cho từng route.
+
+    Xem `routes/` để biết đầy đủ các endpoint.
+  contact:
+    name: Beer POS Pro+ Team
+servers:
+  - url: https://admin.biatuoitayninh.store
+    description: Production admin
+  - url: http://localhost:3000
+    description: Local dev
+
+tags:
+  - name: sales
+    description: Quản lý đơn bán hàng
+  - name: customers
+    description: Quản lý khách hàng
+  - name: promotions
+    description: Khuyến mãi (MONTHLY_BONUS, NEW_SHOP, 10 tặng 1)
+  - name: products
+    description: Quản lý sản phẩm / giá bán
+  - name: stock
+    description: Quản lý tồn kho
+  - name: kegs
+    description: Quản lý keg (bình bia)
+  - name: analytics
+    description: Báo cáo & phân tích
+  - name: debts
+    description: Công nợ
+  - name: payments
+    description: Thanh toán
+  - name: session
+    description: Phiên làm việc
+  - name: sync
+    description: Đồng bộ mobile ↔ cloud
+  - name: auth
+    description: Đăng nhập / đăng xuất
+
+paths:
+  # ── AUTH ─────────────────────────────────────────────────────────
+  /login:
+    get:
+      tags: [auth]
+      summary: Trang đăng nhập (HTML)
+      responses:
+        '200': { description: HTML }
+    post:
+      tags: [auth]
+      summary: Đăng nhập
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string }
+                password: { type: string, format: password }
+      responses:
+        '200':
+          description: Success, set cookie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /logout:
+    get:
+      tags: [auth]
+      summary: Đăng xuất
+      responses:
+        '200': { description: Redirect }
+
+  # ── SALES ────────────────────────────────────────────────────────
+  /api/sales:
+    get:
+      tags: [sales]
+      summary: Danh sách đơn bán
+      parameters:
+        - in: query
+          name: from
+          schema: { type: string, format: date }
+        - in: query
+          name: to
+          schema: { type: string, format: date }
+        - in: query
+          name: customerId
+          schema: { type: integer }
+      responses:
+        '200':
+          description: List sales
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Sale' }
+    post:
+      tags: [sales]
+      summary: Tạo đơn bán mới (auto-claim MONTHLY_BONUS nếu đủ tier)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaleCreate'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Sale' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /api/sales/{id}:
+    get:
+      tags: [sales]
+      summary: Chi tiết đơn bán
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Sale detail
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Sale' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [sales]
+      summary: Cập nhật đơn
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SaleUpdate' }
+      responses:
+        '200': { description: Updated }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [sales]
+      summary: Xoá đơn (archive, không xoá DB)
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200': { description: Archived }
+
+  /api/sales/sync-volume:
+    post:
+      tags: [sales]
+      summary: Sync lại sản lượng khách (rebuild customer_monthly_stats)
+      description: |
+        Endpoint rebuild `customer_monthly_stats` cho 1 khách hoặc tất cả.
+        **Cẩn thận**: gọi cho tháng đã trả thưởng sẽ KHÔNG mất `reward_claimed_*`
+        (đã có backup/restore từ B10 fix).
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                customerId: { type: integer }
+                year: { type: integer }
+                month: { type: integer, minimum: 1, maximum: 12 }
+      responses:
+        '200': { description: Synced }
+
+  # ── CUSTOMERS ────────────────────────────────────────────────────
+  /api/customers:
+    get:
+      tags: [customers]
+      summary: Danh sách khách hàng
+      parameters:
+        - in: query
+          name: search
+          schema: { type: string }
+      responses:
+        '200':
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Customer' }
+    post:
+      tags: [customers]
+      summary: Tạo khách hàng mới
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CustomerCreate' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Customer' }
+
+  /api/customers/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdParam'
+    get:
+      tags: [customers]
+      summary: Chi tiết khách hàng
+      responses:
+        '200':
+          description: Customer
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Customer' }
+    put:
+      tags: [customers]
+      summary: Cập nhật khách hàng
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CustomerUpdate' }
+      responses:
+        '200': { description: Updated }
+    delete:
+      tags: [customers]
+      summary: Xoá khách (archive)
+
+  /api/customers/{id}/stats:
+    parameters:
+      - $ref: '#/components/parameters/IdParam'
+    get:
+      tags: [customers]
+      summary: Thống kê theo khách
+      responses:
+        '200':
+          description: Stats
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CustomerStats' }
+
+  # ── PROMOTIONS ───────────────────────────────────────────────────
+  /api/promotions/reward/status/{customerId}:
+    parameters:
+      - name: customerId
+        in: path
+        required: true
+        schema: { type: integer }
+    get:
+      tags: [promotions]
+      summary: Trạng thái thưởng tháng của khách
+      responses:
+        '200':
+          description: Reward status
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RewardStatus' }
+
+  /api/promotions/reward/claim:
+    post:
+      tags: [promotions]
+      summary: Claim thưởng thủ công
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [customerId]
+              properties:
+                customerId: { type: integer }
+                month: { type: integer, minimum: 1, maximum: 12 }
+                year: { type: integer }
+      responses:
+        '200':
+          description: Claimed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RewardClaimResult' }
+
+  /api/promotions/reward/auto-generate:
+    post:
+      tags: [promotions]
+      summary: Cron-friendly: tạo `pending_rewards` cho tháng X
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [year, month]
+              properties:
+                year: { type: integer }
+                month: { type: integer, minimum: 1, maximum: 12 }
+      responses:
+        '200':
+          description: Generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  created: { type: integer }
+                  skipped_newcustomer: { type: integer }
+                  skipped_existing_pending: { type: integer }
+
+  # ── DASHBOARD ────────────────────────────────────────────────────
+  /api/dashboard/data:
+    get:
+      tags: [analytics]
+      summary: Dashboard stats (today, this month, KPIs)
+      responses:
+        '200':
+          description: Dashboard data
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Dashboard' }
+
+  /api/report/data:
+    get:
+      tags: [analytics]
+      summary: Báo cáo doanh thu
+      parameters:
+        - in: query
+          name: from
+          schema: { type: string, format: date }
+        - in: query
+          name: to
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Report
+
+  /api/report/bonus-report:
+    get:
+      tags: [analytics]
+      summary: Báo cáo tổng kết thưởng sản lượng
+      responses:
+        '200':
+          description: Bonus report
+
+  /api/report/bonus-detail:
+    get:
+      tags: [analytics]
+      summary: Chi tiết thưởng theo khách
+      responses:
+        '200':
+          description: Detail
+
+  # ── SYNC ─────────────────────────────────────────────────────────
+  /api/sync/push:
+    post:
+      tags: [sync]
+      summary: Mobile push batch thay đổi lên server
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                batch:
+                  type: array
+                  items: { type: object }
+      responses:
+        '200': { description: Pushed }
+
+  /api/sync/pull:
+    post:
+      tags: [sync]
+      summary: Mobile pull delta từ server
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                since: { type: string, format: date-time }
+      responses:
+        '200': { description: Pulled }
+
+components:
+  parameters:
+    IdParam:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer }
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+  schemas:
+    Success:
+      type: object
+      properties:
+        success: { type: boolean }
+        message: { type: string }
+
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+
+    Sale:
+      type: object
+      properties:
+        id: { type: integer }
+        customer_id: { type: integer, nullable: true }
+        date: { type: string, format: date-time }
+        total: { type: number }
+        payment_status: { type: string, enum: [paid, partial, unpaid] }
+        promo_type: { type: string, enum: [NEW_SHOP, MONTHLY_BONUS, ''] }
+        archived: { type: integer, enum: [0, 1] }
+
+    SaleCreate:
+      type: object
+      required: [items]
+      properties:
+        customerId: { type: integer, nullable: true }
+        items:
+          type: array
+          items:
+            type: object
+            required: [productId, quantity]
+            properties:
+              productId: { type: integer }
+              quantity: { type: number }
+              price: { type: number }
+
+    SaleUpdate:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { type: object }
+        note: { type: string }
+
+    Customer:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        phone: { type: string }
+        address: { type: string }
+        created_at: { type: string, format: date-time }
+        reward_enabled: { type: integer, enum: [0, 1] }
+        new_shop_enabled: { type: integer, enum: [0, 1] }
+        keg_balance: { type: number }
+        monthly_purchased_liters: { type: number }
+
+    CustomerCreate:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        phone: { type: string }
+        address: { type: string }
+
+    CustomerUpdate:
+      type: object
+      properties:
+        name: { type: string }
+        phone: { type: string }
+        address: { type: string }
+
+    CustomerStats:
+      type: object
+      properties:
+        total_purchased_liters: { type: number }
+        monthly_purchased_liters: { type: number }
+        reward_claimed: { type: integer }
+        debt_total: { type: number }
+
+    RewardStatus:
+      type: object
+      properties:
+        eligible: { type: boolean }
+        reward_month: { type: integer }
+        reward_year: { type: integer }
+        current_liters: { type: number }
+        next_tier_liters: { type: number, nullable: true }
+        pending: { type: object, nullable: true }
+
+    RewardClaimResult:
+      type: object
+      properties:
+        success: { type: boolean }
+        saleId: { type: integer }
+        rewardLiters: { type: number }
+        tier: { type: string }
+        error: { type: string, nullable: true }
+
+    Dashboard:
+      type: object
+      properties:
+        today:
+          type: object
+          properties:
+            revenue: { type: number }
+            orders: { type: integer }
+            liters: { type: number }
+        this_month:
+          type: object
+          properties:
+            revenue: { type: number }
+            orders: { type: integer }
+            liters: { type: number }
+        promo_stats:
+          type: object
