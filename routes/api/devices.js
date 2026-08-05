@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const db = require('../../database');
 const logger = require('../../src/utils/logger');
+const socketServer = require('../../src/socket/socketServer');
+const emitCustomer = (customer) => { try { if (socketServer) socketServer.emitCustomerUpdated(customer); } catch (_) {} };
 
 // Sanitize input
 function sanitizeInput(input) {
@@ -182,6 +184,26 @@ router.put('/:id', (req, res) => {
     
     if (customer_id !== undefined) {
       if (customer_id === null) {
+        // Unassign device - update customer fridge count BEFORE clearing
+        if (sanitizedCustomerId && device.status === 'in_use') {
+          const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(sanitizedCustomerId);
+          if (customer) {
+            // Recount actual devices from devices table (excluding this device)
+            const actualHorizontal = db.prepare(
+              "SELECT COUNT(*) as count FROM devices WHERE customer_id = ? AND type = 'horizontal' AND status = 'in_use' AND id != ?"
+            ).get(sanitizedCustomerId, id).count;
+            const actualVertical = db.prepare(
+              "SELECT COUNT(*) as count FROM devices WHERE customer_id = ? AND type = 'vertical' AND status = 'in_use' AND id != ?"
+            ).get(sanitizedCustomerId, id).count;
+            
+            db.prepare('UPDATE customers SET horizontal_fridge = ?, vertical_fridge = ? WHERE id = ?')
+              .run(actualHorizontal, actualVertical, sanitizedCustomerId);
+            
+            // Emit update for the customer
+            const updatedCustomer = db.prepare('SELECT * FROM customers WHERE id = ?').get(sanitizedCustomerId);
+            emitCustomer(updatedCustomer);
+          }
+        }
         sanitizedCustomerId = null;
         assignedDate = null;
       } else {
@@ -191,6 +213,26 @@ router.put('/:id', (req, res) => {
           if (!customer) {
             return res.status(400).json({ error: 'Khách hàng không tồn tại' });
           }
+          
+          // Gán thiết bị cho khách mới - cập nhật số tủ của khách
+          const newCustomer = db.prepare('SELECT * FROM customers WHERE id = ?').get(parsedCustomerId);
+          if (newCustomer) {
+            // Recount actual devices from devices table (including this device after update)
+            const actualHorizontal = db.prepare(
+              "SELECT COUNT(*) as count FROM devices WHERE customer_id = ? AND type = 'horizontal' AND status = 'in_use'"
+            ).get(parsedCustomerId).count;
+            const actualVertical = db.prepare(
+              "SELECT COUNT(*) as count FROM devices WHERE customer_id = ? AND type = 'vertical' AND status = 'in_use'"
+            ).get(parsedCustomerId).count;
+            
+            db.prepare('UPDATE customers SET horizontal_fridge = ?, vertical_fridge = ? WHERE id = ?')
+              .run(actualHorizontal, actualVertical, parsedCustomerId);
+            
+            // Emit update for the customer
+            const updatedCustomer = db.prepare('SELECT * FROM customers WHERE id = ?').get(parsedCustomerId);
+            emitCustomer(updatedCustomer);
+          }
+          
           sanitizedCustomerId = parsedCustomerId;
           // Set assigned date if newly assigned
           if (!device.customer_id) {
@@ -232,6 +274,27 @@ router.delete('/:id', (req, res) => {
     const device = db.prepare('SELECT * FROM devices WHERE id = ?').get(id);
     if (!device) return res.status(404).json({ error: 'Không tìm thấy thiết bị' });
     
+    // If device is assigned to a customer, update customer's fridge count before deleting
+    if (device.customer_id && device.status === 'in_use') {
+      const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(device.customer_id);
+      if (customer) {
+        // Recount actual devices from devices table (excluding this device being deleted)
+        const actualHorizontal = db.prepare(
+          "SELECT COUNT(*) as count FROM devices WHERE customer_id = ? AND type = 'horizontal' AND status = 'in_use' AND id != ?"
+        ).get(device.customer_id, id).count;
+        const actualVertical = db.prepare(
+          "SELECT COUNT(*) as count FROM devices WHERE customer_id = ? AND type = 'vertical' AND status = 'in_use' AND id != ?"
+        ).get(device.customer_id, id).count;
+        
+        db.prepare('UPDATE customers SET horizontal_fridge = ?, vertical_fridge = ? WHERE id = ?')
+          .run(actualHorizontal, actualVertical, device.customer_id);
+        
+        // Emit update for the customer
+        const updatedCustomer = db.prepare('SELECT * FROM customers WHERE id = ?').get(device.customer_id);
+        emitCustomer(updatedCustomer);
+      }
+    }
+    
     db.prepare('DELETE FROM devices WHERE id = ?').run(id);
     
     res.json({ message: 'Xóa thiết bị thành công' });
@@ -253,7 +316,27 @@ router.post('/:id/assign', (req, res) => {
     if (!device) return res.status(404).json({ error: 'Không tìm thấy thiết bị' });
     
     if (customer_id === null) {
-      // Unassign
+      // Unassign - update customer fridge count
+      if (device.customer_id && device.status === 'in_use') {
+        const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(device.customer_id);
+        if (customer) {
+          // Recount actual devices from devices table
+          const actualHorizontal = db.prepare(
+            "SELECT COUNT(*) as count FROM devices WHERE customer_id = ? AND type = 'horizontal' AND status = 'in_use'"
+          ).get(device.customer_id).count;
+          const actualVertical = db.prepare(
+            "SELECT COUNT(*) as count FROM devices WHERE customer_id = ? AND type = 'vertical' AND status = 'in_use'"
+          ).get(device.customer_id).count;
+          
+          db.prepare('UPDATE customers SET horizontal_fridge = ?, vertical_fridge = ? WHERE id = ?')
+            .run(actualHorizontal, actualVertical, device.customer_id);
+          
+          // Emit update for the customer
+          const updatedCustomer = db.prepare('SELECT * FROM customers WHERE id = ?').get(device.customer_id);
+          emitCustomer(updatedCustomer);
+        }
+      }
+      
       db.prepare(`
         UPDATE devices SET customer_id = NULL, assigned_date = NULL, status = 'available' WHERE id = ?
       `).run(id);

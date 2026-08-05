@@ -28,7 +28,7 @@
   <link rel="prefetch" href="/js/sales.js">
   <link rel="prefetch" href="/js/stock.js">
 
-  <link rel="stylesheet" href="/css/unified.css?v=20250611-app-shell">
+  <link rel="stylesheet" href="/css/unified.css?v=20250718">
   <script src="/js/auth.js"></script>
   <script src="/js/dark-mode.js"></script>
   <script src="/js/layout.js?v=20260410-binance"></script>
@@ -761,7 +761,7 @@
       navigator.serviceWorker.getRegistration().then(function (reg) {
         if (!reg) {
           var swVer = (typeof window !== 'undefined' && window.APP_VERSION) ? window.APP_VERSION : Date.now();
-          navigator.serviceWorker.register('/sw.js?v=' + swVer).catch(function () {});
+          navigator.serviceWorker.register('/sw.v2.js?v=' + swVer).catch(function () {});
         }
       });
     }

@@ -194,7 +194,7 @@
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.getRegistration().then(function (reg) {
         if (!reg) {
-          navigator.serviceWorker.register('/sw.js?v=20260422a').catch(function () {});
+          navigator.serviceWorker.register('/sw.v2.js?v=20260422a').catch(function () {});
         }
       });
     }

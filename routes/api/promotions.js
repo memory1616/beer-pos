@@ -811,4 +811,154 @@ router.put('/customer/:id/promotion', (req, res) => {
   }
 });
 
+/**
+ * POST /api/promotions/reward/auto-generate
+ * Quét và tạo pending_rewards cho tất cả khách đủ điều kiện trong tháng
+ * Body: { month, year } hoặc mặc định tháng trước
+ *
+ * Cron-friendly: gọi vào đầu mỗi tháng để tránh bug "khách đủ SL nhưng không nhận thưởng"
+ * vì pending_rewards chỉ được tạo khi có ai đó mở /sale và gọi getRewardForPrevMonth.
+ */
+router.post('/reward/auto-generate', (req, res) => {
+  try {
+    const now = new Date();
+    const month = parseInt(req.body.month ?? req.query.month ?? (now.getMonth() + 1), 10);
+    const year = parseInt(req.body.year ?? req.query.year ?? now.getFullYear(), 10);
+
+    const settings = PromotionService.getSystemPromotionSettings();
+    if (!settings.rewardEnabled) {
+      return res.status(400).json({ success: false, error: 'Chương trình thưởng đang tắt' });
+    }
+
+    const rewardTiers = settings.rewardTiers || [];
+    if (rewardTiers.length === 0) {
+      return res.status(400).json({ success: false, error: 'Chưa cấu hình reward tiers' });
+    }
+
+    // Lấy default product
+    const defaultProduct = db.prepare(`
+      SELECT id FROM products WHERE archived = 0 AND type = 'keg'
+        AND (name LIKE '%Vàng%' OR name LIKE '%VANG%' OR name LIKE '%vàng%' OR name LIKE '%Gold%')
+        AND (name NOT LIKE '%Đen%' AND name NOT LIKE '%DEN%' AND name NOT LIKE '%den%')
+      ORDER BY id ASC LIMIT 1
+    `).get() || db.prepare(`SELECT id FROM products WHERE archived = 0 AND type = 'keg' ORDER BY id ASC LIMIT 1`).get();
+
+    // Lấy tất cả khách đủ điều kiện trong tháng
+    // QUAN TRỌNG: MONTHLY_BONUS là đơn thưởng doanh số (có cả phần trả tiền + phần free),
+    //              chỉ loại phần si.price=0 (bia tặng), KHÔNG loại cả đơn.
+    const monthStr = String(month).padStart(2, '0');
+    const customers = db.prepare(`
+      SELECT c.id, c.name, c.created_at, c.reward_enabled, c.promotion_enabled,
+        COALESCE((
+          SELECT SUM(si.quantity)
+          FROM sales s
+          JOIN sale_items si ON si.sale_id = s.id
+          JOIN products p ON p.id = si.product_id
+          WHERE s.customer_id = c.id
+            AND s.type = 'sale'
+            AND s.archived = 0
+            AND si.price > 0
+            AND p.type = 'keg'
+            AND strftime('%Y', s.date) = ? AND strftime('%m', s.date) = ?
+        ), 0) as liters
+      FROM customers c
+      WHERE c.reward_enabled != 0 AND c.promotion_enabled != 0
+    `).all(String(year), monthStr);
+
+    const results = { created: [], skipped_existing: [], skipped_newcustomer: [], skipped_lowvolume: [] };
+
+    // B12: INSERT OR IGNORE thay vì INSERT OR REPLACE để tránh ghi đè
+    //     thông tin pending_rewards cũ (giữ nguyên created_at ban đầu).
+    //     UNIQUE(customer_id, reward_month, reward_year) đã có sẵn ở schema.
+    const insertStmt = db.prepare(`
+      INSERT OR IGNORE INTO pending_rewards (customer_id, reward_month, reward_year, reward_liters, reward_tier, product_id, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    `);
+    const checkExisting = db.prepare(`
+      SELECT id FROM pending_rewards WHERE customer_id = ? AND reward_month = ? AND reward_year = ?
+    `);
+    const checkClaimed = db.prepare(`
+      SELECT COUNT(*) as cnt FROM reward_history WHERE customer_id = ? AND note LIKE ?
+    `);
+    // B5: Bỏ updateCustomerClaim khỏi auto-generate.
+    //     KHÔNG set customers.reward_claimed=1 ở đây vì mới chỉ tạo pending,
+    //     chưa phát thưởng thật. Cờ reward_claimed chỉ nên được set bởi
+    //     _doAttachReward / addPendingRewardToSale khi attach vào đơn hàng.
+
+    const txn = db.transaction(() => {
+      for (const cust of customers) {
+        // Bỏ qua tháng tạo khách + ngày 09+ (NEW_CUSTOMER / quán mới)
+        // Ngày 01-08 vẫn được tham gia thưởng doanh số từ tháng tạo
+        const created = new Date(cust.created_at);
+        if (created.getFullYear() === year && (created.getMonth() + 1) === month && created.getDate() >= 9) {
+          results.skipped_newcustomer.push({ id: cust.id, name: cust.name, reason: 'thang tao + ngay >=9' });
+          continue;
+        }
+
+        // Bỏ qua khách có đơn NEW_SHOP trong tháng (vẫn NEW_CUSTOMER)
+        const hasNewShop = db.prepare(`
+          SELECT COUNT(*) as cnt FROM sales
+          WHERE customer_id = ? AND promo_type = 'NEW_SHOP' AND archived = 0
+            AND strftime('%Y', date) = ? AND strftime('%m', date) = ?
+        `).get(cust.id, String(year), monthStr);
+        if (hasNewShop && hasNewShop.cnt > 0) {
+          results.skipped_newcustomer.push({ id: cust.id, name: cust.name, reason: 'NEW_SHOP' });
+          continue;
+        }
+
+        // Bỏ qua nếu đã nhận thưởng tháng này
+        const claimed = checkClaimed.get(cust.id, `%tháng ${month}/${year}%`);
+        if (claimed && claimed.cnt > 0) {
+          results.skipped_existing.push({ id: cust.id, name: cust.name, reason: 'already claimed' });
+          continue;
+        }
+
+        // Tìm tier
+        let tier = null;
+        for (let i = rewardTiers.length - 1; i >= 0; i--) {
+          if (cust.liters >= rewardTiers[i].threshold) { tier = rewardTiers[i]; break; }
+        }
+        if (!tier) {
+          results.skipped_lowvolume.push({ id: cust.id, name: cust.name, liters: cust.liters });
+          continue;
+        }
+
+        // Bỏ qua nếu đã có pending
+        const existing = checkExisting.get(cust.id, month, year);
+        if (existing) {
+          results.skipped_existing.push({ id: cust.id, name: cust.name, reason: 'already pending' });
+          continue;
+        }
+
+        const tierName = tier.tier || `BONUS_${tier.reward}L`;
+        insertStmt.run(cust.id, month, year, tier.reward, tierName, defaultProduct?.id || null);
+        // B5: Không set reward_claimed=1 ở đây - chờ attach thật.
+        results.created.push({ id: cust.id, name: cust.name, liters: cust.liters, reward: tier.reward, tier: tierName });
+      }
+    });
+
+    txn();
+
+    logger.info(`[AUTO-GENERATE] month=${month}/${year}: created=${results.created.length}, skipped_existing=${results.skipped_existing.length}, skipped_newcustomer=${results.skipped_newcustomer.length}, skipped_lowvolume=${results.skipped_lowvolume.length}`);
+
+    res.json({
+      success: true,
+      data: {
+        month, year,
+        created_count: results.created.length,
+        created: results.created,
+        skipped_existing_count: results.skipped_existing.length,
+        skipped_existing: results.skipped_existing,
+        skipped_newcustomer_count: results.skipped_newcustomer.length,
+        skipped_newcustomer: results.skipped_newcustomer,
+        skipped_lowvolume_count: results.skipped_lowvolume.length,
+        skipped_lowvolume: results.skipped_lowvolume
+      }
+    });
+  } catch (e) {
+    try { logger.error('auto-generate reward error:', e); } catch (_) {}
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 module.exports = router;

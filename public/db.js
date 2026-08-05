@@ -14,7 +14,7 @@
 // because ALL contexts use the SAME version number from ONE source.
 // ─────────────────────────────────────────────────────
 
-const DB_VERSION = 41; // ← bump khi schema thay đổi (v41: fix reward tháng trước không gắn lại khi xóa+tạo lại đơn đầu tiên)
+const DB_VERSION = 44; // ← bump khi schema thay đổi (v44: fix báo cáo loại trừ đơn MONTHLY_BONUS làm mất phần bán thật)
 
 const DB_NAME    = 'BeerPOS';
 const STORE_META = '_meta';

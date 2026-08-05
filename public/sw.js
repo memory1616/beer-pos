@@ -1,4 +1,4 @@
-// BeerPOS Service Worker v35 — Version-safe, single-source-of-truth
+// BeerPOS Service Worker v38 — Version-safe, single-source-of-truth
 // ─────────────────────────────────────────────────────
 // Caching strategies:
 //   • App Shell + JS/CSS        → Cache-First  (instant repeat load)
@@ -85,7 +85,7 @@ async function writeVersionToMeta(version) {
 let _dbPromise = null;
 let _DB_VERSION = null;
 let _CACHE_NAME = null;
-const DEFAULT_DB_VERSION = 41;
+const DEFAULT_DB_VERSION = 44;
 const DEFAULT_CACHE_NAME = `beer-pos-v${DEFAULT_DB_VERSION}`;
 
 // Resolve version from _meta store, then open at that exact version.
@@ -568,12 +568,14 @@ async function cacheFirst(request) {
 /** Network-First — best for navigation */
 async function networkFirst(request) {
   try {
+    // B21: Dùng cache:no-store để request bỏ qua HTTP cache của browser
+    // (no-store header từ server chỉ báo cho browser, không báo cho SW cache)
+    // Đồng thời KHÔNG cache kết quả navigation — mỗi lần F5 luôn là bản mới.
     const req = request.mode === 'navigate'
-      ? request
+      ? new Request(request, { cache: 'no-store' })
       : new Request(request, { cache: 'no-store' });
     const resp = await fetch(req);
-    if (resp.ok) await cachePut(request, resp);
-    if (self.__CONSISTENCY_DEBUG__) {}
+    // KHÔNG cachePut cho navigation — không lưu page vào SW cache
     return resp;
   } catch {
     const cached = await caches.match(request);

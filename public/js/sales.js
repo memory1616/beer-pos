@@ -932,8 +932,10 @@ function returnSale(saleId) {
     .catch(function() { showToast('Lỗi tải đơn', 'error'); });
 }
 
-// Open keg modal pre-filled with sale info — uses INVOICE data, not current customer state
-// invoiceData should contain: deliver_kegs, return_kegs, keg_balance_after, customer_keg_balance
+// Open keg modal pre-filled with sale info — uses CUSTOMER current state, not stale invoice state
+// invoiceData should contain: deliver_kegs, return_kegs (current values of THIS sale)
+// Logic: hiển thị "Tồn trước" = tồn HIỆN TẠI của khách (customer.keg_balance)
+//        "Tồn sau" = tồn hiện tại - deliver cũ + return cũ + deliver mới - return mới
 function openKegModalForSale(saleId, customerId, invoiceData) {
   var modal = document.getElementById('collectKegModal');
   if (!modal) return;
@@ -946,57 +948,41 @@ function openKegModalForSale(saleId, customerId, invoiceData) {
   hidePromoPreview();
   kegSubmitting = false;
 
-  // Extract values from invoice data
-  var deliverKegs = invoiceData?.deliver_kegs ?? 0;
-  var returnKegs = invoiceData?.return_kegs ?? 0;
-  var kegBalanceAfter = invoiceData?.keg_balance_after;
-  var customerKegBalance = invoiceData?.customer_keg_balance;
+  // Extract current values from invoice (deliver/return của đơn này)
+  var oldDeliverKegs = invoiceData?.deliver_kegs ?? 0;
+  var oldReturnKegs = invoiceData?.return_kegs ?? 0;
 
-  // Calculate bottleBefore: tồn kho của khách trước khi đơn này tạo
-  // Formula: bottleBefore = keg_balance_after - deliver + return
-  // If keg_balance_after exists, use it; otherwise calculate from customer balance
-  var bottleBefore = null;
-  if (kegBalanceAfter != null && kegBalanceAfter !== undefined && !isNaN(kegBalanceAfter)) {
-    bottleBefore = kegBalanceAfter - deliverKegs + returnKegs;
-  } else if (customerKegBalance != null && customerKegBalance !== undefined && !isNaN(customerKegBalance)) {
-    // Fallback: customer_keg_balance is current balance, subtract the invoice's effect
-    // customerBalanceAfterInvoice = customerKegBalance
-    // invoiceEffect = +deliver - return
-    // So: customerBalanceBeforeInvoice = customerKegBalance - deliver + return
-    bottleBefore = customerKegBalance - deliverKegs + returnKegs;
-  }
+  // Lấy tồn hiện tại của khách (real-time) - ưu tiên từ customer object trong cache
+  var customer = customerId ? getCustomer(customerId) : null;
+  var currentCustomerBalance = customer ? (customer.keg_balance || 0) : 0;
 
   // Store original invoice values for reference
   window._kegEditSale = {
     saleId: saleId,
     customerId: customerId,
-    oldDelivered: deliverKegs,
-    oldReturned: returnKegs,
-    invoiceBefore: bottleBefore,
-    invoiceAfter: kegBalanceAfter
+    oldDelivered: oldDeliverKegs,
+    oldReturned: oldReturnKegs,
+    customerCurrentBalance: currentCustomerBalance
   };
 
-  var customer = customerId ? getCustomer(customerId) : null;
   var customerName = customer ? customer.name : 'Chưa chọn';
 
-  // Hiển thị thông tin: Tồn trước, Giao, Thu, Tồn sau
+  // Hiển thị thông tin: Tồn hiện tại của khách
   var info = document.getElementById('collectKegInfo');
   if (info) {
-    var beforeText = bottleBefore !== null ? bottleBefore : (customerKegBalance ?? '?');
-    info.innerHTML = '<div style="font-size:13px;">👤 ' + escHtml(customerName) + ' | Tồn trước: <b>' + beforeText + '</b></div>';
+    info.innerHTML = '<div style="font-size:13px;">👤 ' + escHtml(customerName) + ' | Tồn hiện tại: <b>' + currentCustomerBalance + '</b></div>';
+    info.dataset.balance = currentCustomerBalance;
   }
 
-  // Current balance = bottleBefore (tồn trước của đơn)
-  var currentBalance = bottleBefore !== null ? bottleBefore : (customer ? (customer.keg_balance || 0) : 0);
-
+  // Current balance = tồn hiện tại của khách (KHÔNG phải tồn trước đơn)
   var currentBalanceEl = document.getElementById('collectKegCurrentBalance');
-  if (currentBalanceEl) currentBalanceEl.textContent = currentBalance;
+  if (currentBalanceEl) currentBalanceEl.textContent = currentCustomerBalance;
 
   // Reset inputs với giá trị HIỆN TẠI của invoice
   var deliverEl = document.getElementById('collectKegDeliver');
   var returnEl = document.getElementById('collectKegReturn');
-  if (deliverEl) deliverEl.value = String(deliverKegs);
-  if (returnEl) returnEl.value = String(returnKegs);
+  if (deliverEl) deliverEl.value = String(oldDeliverKegs);
+  if (returnEl) returnEl.value = String(oldReturnKegs);
 
   updateCollectKegPreview();
   modal.classList.remove('hidden');
@@ -2074,20 +2060,20 @@ function updateCollectKegPreview() {
   var returned = parseInt(document.getElementById('collectKegReturn')?.value) || 0;
   var info = document.getElementById('collectKegInfo');
 
-  // Ưu tiên dùng invoice data (từ _kegEditSale), không dùng customer hiện tại
-  var currentBalance = 0;
-  var invoiceBefore = null;
+  // Lấy tồn hiện tại của khách (luôn dùng tồn real-time)
+  var currentBalance = parseInt(info?.dataset?.balance) || 0;
 
-  if (window._kegEditSale) {
-    // Đang edit từ invoice - dùng tồn trước của invoice
-    invoiceBefore = window._kegEditSale.invoiceBefore;
-    currentBalance = invoiceBefore !== null ? invoiceBefore : 0;
+  // Nếu đang edit từ invoice, tính lại "Tồn sau" = tồn hiện tại - oldDeliver + oldReturn + newDeliver - newReturn
+  // Vì khi edit, deliver/return cũ đã được tính vào tồn hiện tại rồi
+  var remaining;
+  if (window._kegEditSale && window._kegEditSale.saleId) {
+    var oldDel = window._kegEditSale.oldDelivered || 0;
+    var oldRet = window._kegEditSale.oldReturned || 0;
+    remaining = currentBalance - oldDel + oldRet + deliver - returned;
   } else {
-    // Modal thường - dùng customer hiện tại
-    currentBalance = parseInt(info?.dataset?.balance) || 0;
+    // Modal thường (không qua invoice edit): tồn sau = tồn hiện tại + deliver - return
+    remaining = currentBalance + deliver - returned;
   }
-
-  var remaining = currentBalance + deliver - returned;
 
   var deliverPreview = document.getElementById('collectKegDeliverPreview');
   var returnPreview = document.getElementById('collectKegReturnPreview');

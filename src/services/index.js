@@ -14,6 +14,14 @@
 const db = require('../../database');
 const logger = require('../utils/logger');
 
+// B6: Lock timezone = Asia/Ho_Chi_Minh cho toàn bộ service.
+//     Đảm bảo logic tính tháng/năm nhất quán ngay cả khi file này được
+//     require từ script ngoài server.js (backfill, test).
+//     Nếu server đã set TZ rồi thì set lại không sao (idempotent).
+if (!process.env.TZ) {
+  process.env.TZ = 'Asia/Ho_Chi_Minh';
+}
+
 function formatCurrency(amount) {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(amount || 0);
 }
@@ -288,19 +296,24 @@ class PromotionService {
     const createdYear = created.getFullYear();
 
     // Kiểm tra nếu tháng này là THÁNG TẠO khách hàng
-    // TẠT CẢ khách đều có tháng tạo = NEW_CUSTOMER (dù ngày 01-08 hay 09+)
+    // QUY TẮC NGHIỆP VỤ (Q1_A):
+    //   - Khách tạo ngày 01-08 → VẪN được tham gia thưởng sản lượng ngay tháng tạo
+    //   - Khách tạo ngày 09+   → tháng tạo là NEW_CUSTOMER (quán mới)
     const isCreationMonth = (createdYear === year && createdMonth === month);
+    if (isCreationMonth && createdDay >= 9) {
+      return 'NEW_CUSTOMER';
+    }
 
-    // Kiểm tra nếu đã có đơn MONTHLY_BONUS trong tháng này (dấu hiệu đã hưởng quán mới)
-    const hasMonthlyBonusSale = db.prepare(`
+    // Kiểm tra nếu đã có đơn NEW_SHOP trong tháng này (dấu hiệu quán mới)
+    const hasNewShopSale = db.prepare(`
       SELECT COUNT(*) as cnt FROM sales
       WHERE customer_id = ?
-        AND promo_type = 'MONTHLY_BONUS'
+        AND promo_type = 'NEW_SHOP'
         AND strftime('%Y', date) = ?
         AND strftime('%m', date) = ?
     `).get(customerId, String(year), String(month).padStart(2, '0'));
 
-    if (isCreationMonth || (hasMonthlyBonusSale && hasMonthlyBonusSale.cnt > 0)) {
+    if (hasNewShopSale && hasNewShopSale.cnt > 0) {
       return 'NEW_CUSTOMER';
     }
 
@@ -308,6 +321,7 @@ class PromotionService {
     const settings = this.getSystemPromotionSettings();
     if (!settings.rewardEnabled) return 'NONE';
 
+    // QUAN TRỌNG: MONTHLY_BONUS chỉ loại phần si.price=0 (bia free), KHÔNG loại cả đơn.
     const purchasedLiters = db.prepare(`
       SELECT COALESCE(SUM(si.quantity), 0) as total
       FROM sales s
@@ -316,7 +330,6 @@ class PromotionService {
       WHERE s.customer_id = ?
         AND s.type = 'sale'
         AND s.archived = 0
-        AND s.promo_type IS DISTINCT FROM 'MONTHLY_BONUS'
         AND si.price > 0
         AND p.type = 'keg'
         AND strftime('%Y', s.date) = ?
@@ -389,6 +402,7 @@ class PromotionService {
    * @private
    */
   _getMonthlyLiters(customerId, year, month) {
+    // QUAN TRỌNG: MONTHLY_BONUS chỉ loại phần si.price=0 (bia free), KHÔNG loại cả đơn.
     const result = db.prepare(`
       SELECT COALESCE(SUM(si.quantity), 0) as total
       FROM sales s
@@ -397,7 +411,6 @@ class PromotionService {
       WHERE s.customer_id = ?
         AND s.type = 'sale'
         AND s.archived = 0
-        AND s.promo_type IS DISTINCT FROM 'MONTHLY_BONUS'
         AND si.price > 0
         AND p.type = 'keg'
         AND strftime('%Y', s.date) = ?
@@ -530,10 +543,10 @@ class PromotionService {
    */
   getPromotionStartDate(customer) {
     if (!customer || !customer.created_at) return null;
-    
+
     const created = new Date(customer.created_at);
     const day = created.getDate();
-    
+
     if (day <= 8) {
       // Bắt đầu từ ngày tạo - format date thành YYYY-MM-DD
       const y = created.getFullYear();
@@ -542,8 +555,14 @@ class PromotionService {
       return `${y}-${m}-${d}`;
     } else {
       // Bắt đầu từ ngày 01 của tháng kế tiếp
+      // B7: Dùng local date components thay vì toISOString() để tránh lệch ngày
+      //     khi server ở TZ khác Asia/Ho_Chi_Minh (boundary ngày 31).
+      //     new Date(year, month, 1) tự động cuộn ngày nếu month vượt phạm vi
+      //     (ví dụ: month=12 → next year, month=0 → prev year).
       const nextMonth = new Date(created.getFullYear(), created.getMonth() + 1, 1);
-      return nextMonth.toISOString().split('T')[0];
+      const y = nextMonth.getFullYear();
+      const m = String(nextMonth.getMonth() + 1).padStart(2, '0');
+      return `${y}-${m}-01`;
     }
   }
 
@@ -782,10 +801,13 @@ class PromotionService {
       // 1. Tạo phiếu xuất kho thưởng (sale type='sale', total=0)
       // KHÔNG cộng doanh thu, KHÔNG cộng công nợ
       const saleDate = db.getVietnamDateStr();
+      // B16: Thêm pattern "tháng X/Y" vào note để query `note LIKE '%tháng X/Y%'`
+      //      ở các nơi khác (getRewardForPrevMonth, autoClaimMonthlyReward, reportData)
+      //      có thể detect "đã nhận thưởng tháng này" → tránh double-claim.
       const result = db.prepare(`
         INSERT INTO sales (customer_id, date, total, profit, type, promo_type, reward_liters_used, note)
         VALUES (?, ?, ?, 0, 'sale', 'MONTHLY_BONUS', ?, ?)
-      `).run(customerId, saleDate, 0, rewardLiters, `Thưởng doanh số tháng ${rewardLiters}L miễn phí`);
+      `).run(customerId, saleDate, 0, rewardLiters, `Thưởng doanh số tháng ${month}/${year} - ${rewardLiters}L miễn phí`);
 
       const saleId = result.lastInsertRowid;
 
@@ -875,6 +897,8 @@ class PromotionService {
     if (!this.isWithinPromotionPeriod()) return null;
 
     // Xác định tháng trả thưởng (tháng trước)
+    // B6: Dùng local time của server (server.js:3 set TZ=Asia/Ho_Chi_Minh).
+    //     src/services/index.js cũng lock TZ để defense-in-depth.
     const now = new Date();
     const rewardMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1); // Tháng trước
     const rewardYear = rewardMonth.getFullYear();
@@ -898,6 +922,7 @@ class PromotionService {
     const rewardMonthStartStr = `${rewardYear}-${rewardMonthStr}-01`;
 
     // Tính sản lượng của khách trong tháng trả thưởng
+    // QUAN TRỌNG: MONTHLY_BONUS chỉ loại phần si.price=0 (bia free), KHÔNG loại cả đơn.
     const purchasedLiters = db.prepare(`
       SELECT COALESCE(SUM(si.quantity), 0) as total
       FROM sales s
@@ -906,7 +931,6 @@ class PromotionService {
       WHERE s.customer_id = ?
         AND s.type = 'sale'
         AND s.archived = 0
-        AND s.promo_type IS DISTINCT FROM 'MONTHLY_BONUS'
         AND si.price > 0
         AND p.type = 'keg'
         AND strftime('%Y', s.date) = ?
@@ -1042,13 +1066,14 @@ class PromotionService {
 
         // 4. Cập nhật hóa đơn: đánh dấu có reward + cập nhật số vỏ giao
         const rewardMonthName = this._getMonthName(reward_month);
+        // B19: Cast tháng/năm sang TEXT để tránh concat với REAL (note lỡ có '.0')
         db.prepare(`
-          UPDATE sales SET 
+          UPDATE sales SET
             promo_type = 'MONTHLY_BONUS',
             reward_liters_used = ?,
             promo_free_liters = promo_free_liters + ?,
             deliver_kegs = deliver_kegs + ?,
-            note = COALESCE(note, '') || ' | Trả thưởng sản lượng tháng ' || ? || '/' || ?
+            note = COALESCE(note, '') || ' | Trả thưởng sản lượng tháng ' || CAST(? AS TEXT) || '/' || CAST(? AS TEXT)
           WHERE id = ?
         `).run(reward_liters, reward_liters, reward_liters, reward_month, reward_year, saleId);
 
@@ -1200,6 +1225,7 @@ class PromotionService {
     }
 
     // ƯU TIÊN 2: Tính toán sản lượng tháng trước (backward compatible)
+    // QUAN TRỌNG: MONTHLY_BONUS chỉ loại phần si.price=0 (bia free), KHÔNG loại cả đơn.
     const purchasedLiters = db.prepare(`
       SELECT COALESCE(SUM(si.quantity), 0) as total
       FROM sales s
@@ -1208,7 +1234,6 @@ class PromotionService {
       WHERE s.customer_id = ?
         AND s.type = 'sale'
         AND s.archived = 0
-        AND s.promo_type IS DISTINCT FROM 'MONTHLY_BONUS'
         AND si.price > 0
         AND p.type = 'keg'
         AND strftime('%Y', s.date) = ?
@@ -1327,18 +1352,19 @@ class PromotionService {
       db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(rewardLiters, productId);
 
       // 3. Cập nhật sale: đánh dấu có reward + cập nhật số vỏ giao
+      // B19: Cast tháng/năm sang TEXT để tránh concat với REAL (note lỡ có '.0')
       db.prepare(`
-        UPDATE sales SET 
+        UPDATE sales SET
           promo_type = 'MONTHLY_BONUS',
           reward_liters_used = ?,
           promo_free_liters = COALESCE(promo_free_liters, 0) + ?,
           deliver_kegs = deliver_kegs + ?,
-          note = COALESCE(note, '') || ' | Trả thưởng sản lượng tháng ' || ? || '/' || ?
+          note = COALESCE(note, '') || ' | Trả thưởng sản lượng tháng ' || CAST(? AS TEXT) || '/' || CAST(? AS TEXT)
         WHERE id = ?
       `).run(rewardLiters, rewardLiters, rewardLiters, rewardMonth, rewardYear, saleId);
 
-      // 3b. Cập nhật keg_balance của khách (thêm vỏ thưởng)
-      db.prepare('UPDATE customers SET keg_balance = keg_balance + ? WHERE id = ?').run(rewardLiters, customerId);
+      // 3b. Cập nhật keg_balance và reward_claimed của khách
+      db.prepare('UPDATE customers SET keg_balance = keg_balance + ?, reward_claimed = 1, reward_claimed_at = CURRENT_TIMESTAMP WHERE id = ?').run(rewardLiters, customerId);
 
       // 4. Audit log
       const customer = db.prepare('SELECT name FROM customers WHERE id = ?').get(customerId);

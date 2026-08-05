@@ -441,6 +441,8 @@ router.post('/', (req, res) => {
     let autoRewardResult = null;
     if (customerId) {
       // Kiểm tra tháng trả thưởng (tháng trước) có nằm trong thời gian áp dụng KM không
+      // B6/B9: Dùng local time của server. Server đã set TZ=Asia/Ho_Chi_Minh (server.js:3).
+      //        src/services/index.js cũng lock TZ để defense-in-depth cho backfill scripts.
       const now = new Date();
       const rewardMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
       const rewardMonthEnd = new Date(rewardMonth.getFullYear(), rewardMonth.getMonth() + 1, 0, 23, 59, 59, 999);
@@ -1212,6 +1214,87 @@ router.post('/:id/restore', (req, res) => {
 
     // Restore archived sale
     db.prepare('UPDATE sales SET archived = 0 WHERE id = ?').run(saleId);
+
+    // B8: Rebuild customer_monthly_stats sau khi restore để đảm bảo
+    //     purchased_liters đồng bộ với sales.archived = 0.
+    //     Không ghi đè reward_claimed (sync-volume đã có logic backup).
+    if (sale.customer_id && sale.type === 'sale') {
+      try {
+        const saleDate = sale.date ? new Date(sale.date) : new Date();
+        const year = saleDate.getFullYear();
+        const month = saleDate.getMonth() + 1;
+
+        // Backup reward_claimed
+        const backup = db.prepare(`
+          SELECT customer_id, year, month, reward_claimed, reward_claimed_at,
+                 reward_claimed_liters, reward_claimed_sale_id
+          FROM customer_monthly_stats
+          WHERE customer_id = ? AND year = ? AND month = ?
+        `).get(sale.customer_id, year, month);
+
+        // Xóa stats của tháng đó
+        db.prepare(`
+          DELETE FROM customer_monthly_stats
+          WHERE customer_id = ? AND year = ? AND month = ?
+        `).run(sale.customer_id, year, month);
+
+        // Tính lại từ sales
+        db.prepare(`
+          INSERT INTO customer_monthly_stats (customer_id, year, month, purchased_liters)
+          SELECT
+            s.customer_id,
+            CAST(strftime('%Y', s.date) AS INTEGER) as year,
+            CAST(strftime('%m', s.date) AS INTEGER) as month,
+            COALESCE(SUM(si.quantity), 0) as total
+          FROM sales s
+          JOIN sale_items si ON si.sale_id = s.id
+          JOIN products p ON p.id = si.product_id
+          WHERE s.customer_id = ?
+            AND s.archived = 0
+            AND s.type = 'sale'
+            AND si.price > 0
+            AND p.type = 'keg'
+            AND CAST(strftime('%Y', s.date) AS INTEGER) = ?
+            AND CAST(strftime('%m', s.date) AS INTEGER) = ?
+          GROUP BY s.customer_id
+        `).run(sale.customer_id, year, month);
+
+        // Restore reward_claimed
+        if (backup && backup.reward_claimed) {
+          db.prepare(`
+            UPDATE customer_monthly_stats SET
+              reward_claimed = ?,
+              reward_claimed_at = ?,
+              reward_claimed_liters = ?,
+              reward_claimed_sale_id = ?
+            WHERE customer_id = ? AND year = ? AND month = ?
+          `).run(
+            backup.reward_claimed,
+            backup.reward_claimed_at,
+            backup.reward_claimed_liters,
+            backup.reward_claimed_sale_id,
+            sale.customer_id, year, month
+          );
+        }
+
+        // Cập nhật customers.monthly_purchased_liters
+        const liters = db.prepare(`
+          SELECT COALESCE(purchased_liters, 0) as total
+          FROM customer_monthly_stats
+          WHERE customer_id = ? AND year = ? AND month = ?
+        `).get(sale.customer_id, year, month);
+        if (liters) {
+          db.prepare('UPDATE customers SET monthly_purchased_liters = ? WHERE id = ?')
+            .run(liters.total, sale.customer_id);
+        }
+
+        logger.info('[Sales] Restored stats for customer', { saleId, customerId: sale.customer_id, year, month });
+      } catch (statsErr) {
+        logger.error('Restore stats error', { error: statsErr.message, saleId });
+        // Không fail restore vì lỗi stats - log và tiếp tục
+      }
+    }
+
     logger.info('[Sales] Restored from archive', { saleId });
     socketServer.emitOrderCreated(sale);
     res.json({ success: true, message: 'Đã khôi phục hóa đơn', archived: false });
@@ -1234,6 +1317,20 @@ router.put('/:id', (req, res) => {
       return res.status(404).json({ error: 'Không tìm thấy hóa đơn' });
     }
     logger.info(`[api/sales] Sale found: type=${currentSale.type}, current total=${currentSale.total}`);
+
+    // P0.2: Chặn sửa đơn có MONTHLY_BONUS để bảo toàn reward_history, customer_monthly_stats,
+    //        stock và promo_type. Nếu cần sửa, phải xóa đơn rồi tạo lại.
+    const isMonthlyBonus =
+      currentSale.promo_type === 'MONTHLY_BONUS' ||
+      (currentSale.reward_liters_used || 0) > 0 ||
+      (currentSale.note && /Trả thưởng sản lượng tháng\s+\d+\/\d+/.test(currentSale.note));
+    if (isMonthlyBonus) {
+      logger.warn(`[api/sales] Refuse to edit MONTHLY_BONUS sale ${saleId}`);
+      return res.status(400).json({
+        error: 'Đơn hàng đã gắn thưởng sản lượng, không thể sửa. Vui lòng xóa đơn rồi tạo lại.',
+        code: 'MONTHLY_BONUS_PROTECTED'
+      });
+    }
 
     const oldItems = db.prepare('SELECT * FROM sale_items WHERE sale_id = ?').all(saleId);
 
@@ -1543,16 +1640,30 @@ router.post('/sync-volume', (req, res) => {
     const targetYear = year || now.getFullYear();
     const targetMonth = month || (now.getMonth() + 1);
 
+    // QUAN TRỌNG: backup reward_claimed_* trước khi rebuild stats
+    // để tránh mất trạng thái "đã nhận thưởng" khi đồng bộ lại purchased_liters
+    const backupRewardClaimed = (cid) => {
+      return db.prepare(`
+        SELECT customer_id, year, month,
+               reward_claimed, reward_claimed_at, reward_claimed_liters, reward_claimed_sale_id
+        FROM customer_monthly_stats
+        WHERE year = ? AND month = ? ${cid ? 'AND customer_id = ?' : ''}
+      `).all(targetYear, targetMonth, ...(cid ? [cid] : []));
+    };
+
     // Nếu có customerId cụ thể, chỉ sync 1 khách
     if (customerId) {
-      // Xóa stats cũ của tháng đó
+      // 1. Backup reward_claimed
+      const backup = backupRewardClaimed(customerId);
+
+      // 2. Xóa stats cũ của tháng đó
       db.prepare(`
-        DELETE FROM customer_monthly_stats 
+        DELETE FROM customer_monthly_stats
         WHERE customer_id = ? AND year = ? AND month = ?
       `).run(customerId, targetYear, targetMonth);
 
-      // Tính lại từ sale_items
-      const result = db.prepare(`
+      // 3. Tính lại từ sale_items
+      db.prepare(`
         INSERT INTO customer_monthly_stats (customer_id, year, month, purchased_liters)
         SELECT
           s.customer_id,
@@ -1563,9 +1674,9 @@ router.post('/sync-volume', (req, res) => {
         JOIN sale_items si ON si.sale_id = s.id
         JOIN products p ON p.id = si.product_id
         WHERE s.customer_id = ?
+          AND s.customer_id IS NOT NULL
           AND s.archived = 0
           AND s.type = 'sale'
-          AND s.promo_type IS DISTINCT FROM 'MONTHLY_BONUS'
           AND si.price > 0
           AND p.type = 'keg'
           AND CAST(strftime('%Y', s.date) AS INTEGER) = ?
@@ -1573,7 +1684,29 @@ router.post('/sync-volume', (req, res) => {
         GROUP BY s.customer_id
       `).run(customerId, targetYear, targetMonth);
 
-      // Cập nhật customers.monthly_purchased_liters
+      // 4. Restore reward_claimed từ backup
+      for (const row of backup) {
+        if (row.reward_claimed) {
+          db.prepare(`
+            UPDATE customer_monthly_stats SET
+              reward_claimed = ?,
+              reward_claimed_at = ?,
+              reward_claimed_liters = ?,
+              reward_claimed_sale_id = ?
+            WHERE customer_id = ? AND year = ? AND month = ?
+          `).run(
+            row.reward_claimed,
+            row.reward_claimed_at,
+            row.reward_claimed_liters,
+            row.reward_claimed_sale_id,
+            row.customer_id,
+            row.year,
+            row.month
+          );
+        }
+      }
+
+      // 5. Cập nhật customers.monthly_purchased_liters
       const liters = db.prepare(`
         SELECT COALESCE(SUM(purchased_liters), 0) as total
         FROM customer_monthly_stats
@@ -1590,13 +1723,16 @@ router.post('/sync-volume', (req, res) => {
     }
 
     // Sync tất cả khách
-    // 1. Xóa stats cũ của tháng
+    // 1. Backup reward_claimed của tất cả khách trong tháng
+    const backupAll = backupRewardClaimed(null);
+
+    // 2. Xóa stats cũ của tháng
     db.prepare(`
-      DELETE FROM customer_monthly_stats 
+      DELETE FROM customer_monthly_stats
       WHERE year = ? AND month = ?
     `).run(targetYear, targetMonth);
 
-    // 2. Tính lại tất cả
+    // 3. Tính lại tất cả
     db.prepare(`
       INSERT INTO customer_monthly_stats (customer_id, year, month, purchased_liters)
       SELECT
@@ -1607,9 +1743,9 @@ router.post('/sync-volume', (req, res) => {
       FROM sales s
       JOIN sale_items si ON si.sale_id = s.id
       JOIN products p ON p.id = si.product_id
-      WHERE s.archived = 0
+      WHERE s.customer_id IS NOT NULL
+        AND s.archived = 0
         AND s.type = 'sale'
-        AND s.promo_type IS DISTINCT FROM 'MONTHLY_BONUS'
         AND si.price > 0
         AND p.type = 'keg'
         AND CAST(strftime('%Y', s.date) AS INTEGER) = ?
@@ -1617,7 +1753,29 @@ router.post('/sync-volume', (req, res) => {
       GROUP BY s.customer_id
     `).run(targetYear, targetMonth);
 
-    // 3. Cập nhật tất cả customers
+    // 4. Restore reward_claimed từ backup
+    for (const row of backupAll) {
+      if (row.reward_claimed) {
+        db.prepare(`
+          UPDATE customer_monthly_stats SET
+            reward_claimed = ?,
+            reward_claimed_at = ?,
+            reward_claimed_liters = ?,
+            reward_claimed_sale_id = ?
+          WHERE customer_id = ? AND year = ? AND month = ?
+        `).run(
+          row.reward_claimed,
+          row.reward_claimed_at,
+          row.reward_claimed_liters,
+          row.reward_claimed_sale_id,
+          row.customer_id,
+          row.year,
+          row.month
+        );
+      }
+    }
+
+    // 5. Cập nhật tất cả customers
     db.prepare(`
       UPDATE customers SET monthly_purchased_liters = COALESCE(
         (SELECT SUM(purchased_liters)
