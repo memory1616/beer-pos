@@ -1,0 +1,7 @@
+node_modules/
+coverage/
+public/
+scripts/debug/
+docs/
+package-lock.json
+*.min.js

@@ -1,8 +1,9 @@
 {
   "version": "2.1.2",
-  "build": "20260618a",
-  "date": "2026-06-18",
+  "build": "20260805f",
+  "date": "2026-08-05",
   "changelog": [
+    "bump version 2.1.2 build 20260805f",
     "fix(qr-settings): thêm Cache-Control no-store cho HTML pages admin để browser không cache page cũ (chỉ thấy 1 QR account dù DB có 2)",
     "fix(sw): bump version để force service worker update cache trên browser của user",
     "fix(qr-settings): bump version v2.1.2 để user thấy QR pool ngay lập tức"
