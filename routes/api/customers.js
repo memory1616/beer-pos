@@ -727,7 +727,6 @@ router.get('/:id/monthly-beer-detail', (req, res) => {
       WHERE s.customer_id = ?
         AND s.type = 'sale'
         AND s.archived = 0
-        AND s.promo_type IS DISTINCT FROM 'MONTHLY_BONUS'
         AND si.price > 0
         AND strftime('%Y', s.date) = ?
         AND strftime('%m', s.date) = ?

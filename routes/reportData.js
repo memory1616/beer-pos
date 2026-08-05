@@ -236,19 +236,23 @@ router.get('/bonus-detail', (req, res) => {
         AND c.promotion_enabled != 0
     `).all(rewardYear, rewardMonth);
 
-    // Lấy danh sách khách đã nhận thưởng từ sales MONTHLY_BONUS
+    // B18: Trích xuất tháng/năm từ note bằng regex chính xác để tránh false positive
+    //     Pattern cũ LIKE '%tháng 1/2026%' có thể match '%tháng 11/2026%' vì wildcard.
+    //     Cách mới: lấy tất cả note MONTHLY_BONUS, sau đó filter trong JS bằng regex anchored.
+    //     Note thực tế có thể chứa '.0' do SQL concat với REAL (vd "tháng 7.0/2026.0"),
+    //     nên regex cần linh hoạt: cho phép `.0` tùy chọn sau số tháng và năm.
     var claimedSales = db.prepare(`
       SELECT customer_id, reward_liters_used, note
       FROM sales
       WHERE archived = 0 AND promo_type = 'MONTHLY_BONUS' AND reward_liters_used > 0
-        AND (note LIKE '%tháng ' || ? || '.%/%' || ? || '%'
-             OR note LIKE '%tháng ' || ? || '/%' || ? || '%')
-    `).all(rewardMonth, rewardYear, rewardMonth, rewardYear);
+    `).all();
 
-    // Map customer_id -> claimed info
+    var rxMonthYear = new RegExp('tháng\\s+(\\d{1,2})(?:\\.0)?/(' + rewardYear + ')(?:\\.0)?(?!\\d)');
     var claimedMap = {};
     claimedSales.forEach(function(s) {
-      if (s.customer_id) {
+      if (!s.customer_id || !s.note) return;
+      var m = s.note.match(rxMonthYear);
+      if (m && parseInt(m[1], 10) === rewardMonth) {
         if (!claimedMap[s.customer_id]) claimedMap[s.customer_id] = { liters: 0, sale_id: s.customer_id };
         claimedMap[s.customer_id].liters += s.reward_liters_used || 0;
       }
@@ -414,14 +418,20 @@ router.get('/bonus-report', (req, res) => {
     });
 
     // Đã trả = tổng reward_liters_used của các đơn MONTHLY_BONUS của kỳ thưởng đó
-    var paidReward = db.prepare(`
-      SELECT COALESCE(SUM(reward_liters_used), 0) as total
+    // B18: Dùng JS regex filter thay vì LIKE với wildcard để tránh false positive.
+    //     Hỗ trợ note có '.0' do SQL concat với REAL (backward-compatible).
+    var allPaidSales = db.prepare(`
+      SELECT reward_liters_used, note
       FROM sales
       WHERE archived = 0 AND promo_type = 'MONTHLY_BONUS' AND reward_liters_used > 0
-        AND (note LIKE '%tháng ' || ? || '.%/%' || ? || '%'
-             OR note LIKE '%tháng ' || ? || '/%' || ? || '%')
-    `).get(rewardMonth, rewardYear, rewardMonth, rewardYear);
-    var alreadyPaid = paidReward ? paidReward.total : 0;
+    `).all();
+    var rxPaidYear = new RegExp('tháng\\s+(\\d{1,2})(?:\\.0)?/(' + rewardYear + ')(?:\\.0)?(?!\\d)');
+    var alreadyPaid = allPaidSales.reduce(function(sum, s) {
+      if (!s.note) return sum;
+      var m = s.note.match(rxPaidYear);
+      if (m && parseInt(m[1], 10) === rewardMonth) return sum + (s.reward_liters_used || 0);
+      return sum;
+    }, 0);
 
     // Còn phải trả
     var remaining = Math.max(0, needToPay - alreadyPaid);
