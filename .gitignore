@@ -42,3 +42,39 @@ err.txt
 out.txt
 run_out.txt
 server_out.txt
+
+# Sensitive credentials — never commit
+pass.txt
+*.pem
+cursor_deploy_key
+cursor_deploy_key.pub
+*_rsa*
+*_rsa2*
+*_deploy_key*
+
+# Python / shell debug scripts (kept out of repo)
+/debug_*.py
+/test_*.py
+/simple_*.py
+/ssh_*.py
+/save_file.py
+/start_pm2.py
+/npm_install.py
+/direct_node.py
+/force_restart.py
+/restart_test.py
+/final_test.py
+/rebuild.py
+# API response dumps
+/api_*.txt
+/server_response.txt
+# Deprecated / backup files at root
+/*.deprecated.bak
+/*.bak
+
+# Coverage reports
+/coverage/
+
+# Jest
+/jest.config.js
+/jest.config.ts
