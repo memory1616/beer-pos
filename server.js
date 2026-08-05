@@ -270,6 +270,42 @@ app.get('/favicon.ico', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'icon-192.png'));
 });
 
+// OpenAPI / Swagger UI — serve doc tĩnh từ docs/openapi.yaml
+// Doc: https://swagger.io/specification/
+app.get('/api/openapi.yaml', (req, res) => {
+  res.type('text/yaml');
+  res.sendFile(path.join(__dirname, 'docs', 'openapi.yaml'));
+});
+
+app.get('/api/docs', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.type('text/html; charset=utf-8');
+  res.send(`<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <title>Beer POS Pro+ API Docs</title>
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.17.14/swagger-ui.css" />
+</head>
+<body>
+  <div id="swagger-ui"></div>
+  <script src="https://unpkg.com/swagger-ui-dist@5.17.14/swagger-ui-bundle.js" crossorigin></script>
+  <script>
+    window.onload = () => {
+      window.ui = SwaggerUIBundle({
+        url: '/api/openapi.yaml',
+        dom_id: '#swagger-ui',
+        deepLinking: true,
+        presets: [
+          SwaggerUIBundle.presets.apis
+        ]
+      });
+    };
+  </script>
+</body>
+</html>`);
+});
+
 // Service Worker v2 — always fresh, never cache
 // B21: Đổi tên file từ sw.js → sw.v2.js để force browser download SW mới trên mobile.
 //      Browser cache SW theo URL, đổi path = cache miss = download mới.
