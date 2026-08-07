@@ -1,11 +1,10 @@
 {
-  "version": "2.1.2",
-  "build": "20260805f",
-  "date": "2026-08-05",
+  "version": "2.1.3",
+  "build": "20260807a",
+  "date": "2026-08-07",
   "changelog": [
-    "bump version 2.1.2 build 20260805f",
-    "fix(qr-settings): thêm Cache-Control no-store cho HTML pages admin để browser không cache page cũ (chỉ thấy 1 QR account dù DB có 2)",
-    "fix(sw): bump version để force service worker update cache trên browser của user",
-    "fix(qr-settings): bump version v2.1.2 để user thấy QR pool ngay lập tức"
+    "bump version 2.1.3 build 20260807a",
+    "fix(sw): thêm /report/* vào no-cache để luôn lấy data mới (trước đây bị cache-first, điện thoại thấy data cũ khác với máy tính)",
+    "fix(report): bonus-detail/bonus-report không còn bị SW cache nữa → cùng 1 thời điểm mobile và desktop thấy số liệu giống nhau"
   ]
 }

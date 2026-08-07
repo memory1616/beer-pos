@@ -528,6 +528,17 @@ self.addEventListener('fetch', event => {
     return;
   }
 
+  // Report data — always fresh (bonus report, sale report, dashboard report)
+  if (parsed.pathname.startsWith('/report/') && event.request.method === 'GET') {
+    event.respondWith(
+      fetch(new Request(event.request, { cache: 'no-store' }))
+        .catch(() => new Response(JSON.stringify({ error: 'Network unavailable' }), {
+          status: 503, headers: { 'Content-Type': 'application/json' }
+        }))
+    );
+    return;
+  }
+
   // Sale individual record — always fresh from server (used by invoice modal)
   if (parsed.pathname.match(/^\/sale\/\d+$/) && event.request.method === 'GET') {
     event.respondWith(

@@ -14,7 +14,7 @@
 // because ALL contexts use the SAME version number from ONE source.
 // ─────────────────────────────────────────────────────
 
-const DB_VERSION = 44; // ← bump khi schema thay đổi (v44: fix báo cáo loại trừ đơn MONTHLY_BONUS làm mất phần bán thật)
+const DB_VERSION = 45; // ← bump khi schema thay đổi (v45: thêm /report/* vào no-cache để mobile & desktop luôn thấy data mới nhất)
 
 const DB_NAME    = 'BeerPOS';
 const STORE_META = '_meta';
@@ -176,6 +176,18 @@ if (window._dbInitialized) {
   // v41: Bump version để trigger SW cache refresh sau khi sửa logic trả thưởng sản lượng
   //   Sửa: thưởng tháng trước không gắn lại vào đơn đầu tiên khi xóa+tạo lại đơn
   _db.version(41).stores({
+    customers:   '++id, name, phone, deposit, keg_balance, archived, is_deleted, synced',
+    products:    '++id, name, slug, stock, cost_price, sell_price, is_deleted, synced',
+    sales:       '++id, createdAt, customer_id, customer_name, date, total, total_amount, profit, total_profit, synced, distance_km, duration_min, route_index, route_polyline',
+    sale_items:  '++id, sale_id, product_id, product_slug, product_name, quantity, price, cost_price, profit, profit_estimated, synced',
+    sync_queue:  '++id, entity, action, data, url, method, synced, created_at, retry_count',
+    expenses:    '++id, type, amount, note, date, synced',
+    orders_queue:'++id, customerId, items, total, profit, deliverKegs, returnKegs, type, note, created_at, synced'
+  });
+
+  // v45: Bump version để force SW cập nhật — thêm /report/* vào no-cache
+  //   Fix: điện thoại hiển thị số khách "chưa nhận thưởng" khác máy tính do SW cache response cũ
+  _db.version(45).stores({
     customers:   '++id, name, phone, deposit, keg_balance, archived, is_deleted, synced',
     products:    '++id, name, slug, stock, cost_price, sell_price, is_deleted, synced',
     sales:       '++id, createdAt, customer_id, customer_name, date, total, total_amount, profit, total_profit, synced, distance_km, duration_min, route_index, route_polyline',
