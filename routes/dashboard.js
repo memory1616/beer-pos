@@ -266,7 +266,7 @@ router.get('/data', (req, res) => {
   const todayExpensesByType = db.prepare(`
     SELECT type, COALESCE(SUM(amount), 0) as total 
     FROM expenses 
-    WHERE archived = 0 AND date = ?
+    WHERE date = ?
     GROUP BY type
   `).all(today);
   
