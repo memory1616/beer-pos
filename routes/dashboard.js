@@ -145,7 +145,7 @@ router.get('/data', (req, res) => {
   const monthlyExpenses = db.prepare(`
     SELECT strftime('%Y-%m', date(datetime(date, '+7 hours'))) as month, COALESCE(SUM(amount), 0) as total
     FROM expenses
-    WHERE archived = 0 AND date(datetime(date, '+7 hours')) >= ?
+    WHERE date(datetime(date, '+7 hours')) >= ?
     GROUP BY strftime('%Y-%m', date(datetime(date, '+7 hours')))
     ORDER BY month
   `).all(sixMonthsAgoStr);
@@ -259,7 +259,7 @@ router.get('/data', (req, res) => {
   
   // Get monthly expenses
   const monthExpenses = db.prepare(`
-    SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE archived = 0 AND date(date) >= ?
+    SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE date(date) >= ?
   `).get(monthStartStr);
   
     // Get today's expenses by type
