@@ -117,8 +117,9 @@ router.get('/settings', (req, res) => {
 /**
  * PUT /api/promotions/settings
  * Lưu cấu hình hệ thống khuyến mãi
- * Body: { newShopEnabled, newShopGoldBuy, newShopGoldFree, newShopBlackBuy, newShopBlackFree, rewardEnabled, rewardTiers, startDate, endDate }
+ * Body: { newShopEnabled, newShopGoldBuy, newShopGoldFree, newShopBlackBuy, newShopBlackFree, rewardEnabled, startDate, endDate }
  * LUUU Y: newShopDays da bang chi ngay duoc xac dinh theo created_day (ko con la tham so)
+ * BIA INOX V2: rewardTiers là CỐ ĐỊNH 300L→20L, 500L→40L - bỏ qua từ payload.
  */
 router.put('/settings', (req, res) => {
   try {
@@ -129,20 +130,12 @@ router.put('/settings', (req, res) => {
       newShopBlackBuy,
       newShopBlackFree,
       rewardEnabled,
-      rewardTiers,
       startDate,
       endDate
     } = req.body;
 
-    // Validate rewardTiers
-    let parsedTiers = null;
-    if (rewardTiers !== undefined) {
-      if (typeof rewardTiers === 'string') {
-        try { parsedTiers = JSON.parse(rewardTiers); } catch (_) { parsedTiers = null; }
-      } else {
-        parsedTiers = rewardTiers;
-      }
-    }
+    // BIA INOX V2: tier cố định - không nhận từ client
+    const FIXED_TIERS = [{ threshold: 300, reward: 20 }, { threshold: 500, reward: 40 }];
 
     const settings = PromotionService.saveSystemPromotionSettings({
       newShopEnabled: newShopEnabled !== undefined ? !!newShopEnabled : undefined,
@@ -152,7 +145,7 @@ router.put('/settings', (req, res) => {
       newShopBlackBuy: newShopBlackBuy !== undefined ? parseInt(newShopBlackBuy) || 20 : undefined,
       newShopBlackFree: newShopBlackFree !== undefined ? parseInt(newShopBlackFree) || 1 : undefined,
       rewardEnabled: rewardEnabled !== undefined ? !!rewardEnabled : undefined,
-      rewardTiers: parsedTiers || undefined,
+      rewardTiers: FIXED_TIERS,
       startDate: startDate || null,
       endDate: endDate || null
     });
@@ -164,7 +157,8 @@ router.put('/settings', (req, res) => {
 
     logger.info('[PROMOTION] Settings updated', {
       newShopEnabled, newShopGoldBuy, newShopGoldFree,
-      newShopBlackBuy, newShopBlackFree, rewardEnabled, rewardTiers: parsedTiers,
+      newShopBlackBuy, newShopBlackFree, rewardEnabled,
+      rewardTiers: FIXED_TIERS,
       startDate, endDate
     });
 
@@ -846,33 +840,48 @@ router.post('/reward/auto-generate', (req, res) => {
     // Lấy tất cả khách đủ điều kiện trong tháng
     // QUAN TRỌNG: MONTHLY_BONUS là đơn thưởng doanh số (có cả phần trả tiền + phần free),
     //              chỉ loại phần si.price=0 (bia tặng), KHÔNG loại cả đơn.
+    // Bia Inox V2: lấy product_name để phân loại vàng/đen
     const monthStr = String(month).padStart(2, '0');
+    const allSaleItems = db.prepare(`
+      SELECT s.customer_id, p.name AS product_name, si.quantity
+      FROM sales s
+      JOIN sale_items si ON si.sale_id = s.id
+      JOIN products p ON p.id = si.product_id
+      WHERE s.type = 'sale'
+        AND s.archived = 0
+        AND si.price > 0
+        AND p.type = 'keg'
+        AND strftime('%Y', s.date) = ? AND strftime('%m', s.date) = ?
+    `).all(String(year), monthStr);
+
+    // Group by customer_id: { yellow, black, total }
+    const litersByCustomer = {};
+    for (const item of allSaleItems) {
+      if (!item.customer_id) continue;
+      if (!litersByCustomer[item.customer_id]) {
+        litersByCustomer[item.customer_id] = { yellow: 0, black: 0, total: 0 };
+      }
+      const q = Number(item.quantity) || 0;
+      litersByCustomer[item.customer_id].total += q;
+      if (PromotionService.classifyBeer(item.product_name) === 'black') {
+        litersByCustomer[item.customer_id].black += q;
+      } else {
+        litersByCustomer[item.customer_id].yellow += q;
+      }
+    }
+
     const customers = db.prepare(`
-      SELECT c.id, c.name, c.created_at, c.reward_enabled, c.promotion_enabled,
-        COALESCE((
-          SELECT SUM(si.quantity)
-          FROM sales s
-          JOIN sale_items si ON si.sale_id = s.id
-          JOIN products p ON p.id = si.product_id
-          WHERE s.customer_id = c.id
-            AND s.type = 'sale'
-            AND s.archived = 0
-            AND si.price > 0
-            AND p.type = 'keg'
-            AND strftime('%Y', s.date) = ? AND strftime('%m', s.date) = ?
-        ), 0) as liters
+      SELECT c.id, c.name, c.created_at, c.reward_enabled, c.promotion_enabled
       FROM customers c
       WHERE c.reward_enabled != 0 AND c.promotion_enabled != 0
-    `).all(String(year), monthStr);
+    `).all();
 
     const results = { created: [], skipped_existing: [], skipped_newcustomer: [], skipped_lowvolume: [] };
 
-    // B12: INSERT OR IGNORE thay vì INSERT OR REPLACE để tránh ghi đè
-    //     thông tin pending_rewards cũ (giữ nguyên created_at ban đầu).
-    //     UNIQUE(customer_id, reward_month, reward_year) đã có sẵn ở schema.
     const insertStmt = db.prepare(`
-      INSERT OR IGNORE INTO pending_rewards (customer_id, reward_month, reward_year, reward_liters, reward_tier, product_id, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      INSERT OR IGNORE INTO pending_rewards
+        (customer_id, reward_month, reward_year, reward_liters, reward_yellow_liters, reward_black_liters, mode, reward_tier, product_id, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     `);
     const checkExisting = db.prepare(`
       SELECT id FROM pending_rewards WHERE customer_id = ? AND reward_month = ? AND reward_year = ?
@@ -880,22 +889,17 @@ router.post('/reward/auto-generate', (req, res) => {
     const checkClaimed = db.prepare(`
       SELECT COUNT(*) as cnt FROM reward_history WHERE customer_id = ? AND note LIKE ?
     `);
-    // B5: Bỏ updateCustomerClaim khỏi auto-generate.
-    //     KHÔNG set customers.reward_claimed=1 ở đây vì mới chỉ tạo pending,
-    //     chưa phát thưởng thật. Cờ reward_claimed chỉ nên được set bởi
-    //     _doAttachReward / addPendingRewardToSale khi attach vào đơn hàng.
 
     const txn = db.transaction(() => {
       for (const cust of customers) {
         // Bỏ qua tháng tạo khách + ngày 09+ (NEW_CUSTOMER / quán mới)
-        // Ngày 01-08 vẫn được tham gia thưởng doanh số từ tháng tạo
         const created = new Date(cust.created_at);
         if (created.getFullYear() === year && (created.getMonth() + 1) === month && created.getDate() >= 9) {
           results.skipped_newcustomer.push({ id: cust.id, name: cust.name, reason: 'thang tao + ngay >=9' });
           continue;
         }
 
-        // Bỏ qua khách có đơn NEW_SHOP trong tháng (vẫn NEW_CUSTOMER)
+        // Bỏ qua khách có đơn NEW_SHOP trong tháng
         const hasNewShop = db.prepare(`
           SELECT COUNT(*) as cnt FROM sales
           WHERE customer_id = ? AND promo_type = 'NEW_SHOP' AND archived = 0
@@ -913,13 +917,12 @@ router.post('/reward/auto-generate', (req, res) => {
           continue;
         }
 
-        // Tìm tier
-        let tier = null;
-        for (let i = rewardTiers.length - 1; i >= 0; i--) {
-          if (cust.liters >= rewardTiers[i].threshold) { tier = rewardTiers[i]; break; }
-        }
-        if (!tier) {
-          results.skipped_lowvolume.push({ id: cust.id, name: cust.name, liters: cust.liters });
+        // Bia Inox V2: dùng calculatePromotion()
+        const liters = litersByCustomer[cust.id] || { yellow: 0, black: 0, total: 0 };
+        const calc = require('./src/services/promotionCalc').calculatePromotion(liters.yellow, liters.black);
+
+        if (!calc || calc.totalReward <= 0) {
+          results.skipped_lowvolume.push({ id: cust.id, name: cust.name, liters: liters.total, yellow: liters.yellow, black: liters.black });
           continue;
         }
 
@@ -930,10 +933,13 @@ router.post('/reward/auto-generate', (req, res) => {
           continue;
         }
 
-        const tierName = tier.tier || `BONUS_${tier.reward}L`;
-        insertStmt.run(cust.id, month, year, tier.reward, tierName, defaultProduct?.id || null);
-        // B5: Không set reward_claimed=1 ở đây - chờ attach thật.
-        results.created.push({ id: cust.id, name: cust.name, liters: cust.liters, reward: tier.reward, tier: tierName });
+        const tierName = `BONUS_${calc.totalReward}L`;
+        const goldProduct = calc.yellowReward > 0 ? PromotionService._findRewardProduct('gold') : null;
+        const blackProduct = calc.blackReward > 0 ? PromotionService._findRewardProduct('black') : null;
+        const productId = goldProduct?.id || blackProduct?.id || defaultProduct?.id || null;
+
+        insertStmt.run(cust.id, month, year, calc.totalReward, calc.yellowReward, calc.blackReward, calc.mode, tierName, productId);
+        results.created.push({ id: cust.id, name: cust.name, liters: liters.total, yellow: liters.yellow, black: liters.black, reward: calc.totalReward, yellowReward: calc.yellowReward, blackReward: calc.blackReward, mode: calc.mode, tier: tierName });
       }
     });
 

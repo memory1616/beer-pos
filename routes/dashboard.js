@@ -345,27 +345,52 @@ router.get('/data', (req, res) => {
         const promoCost = Math.round((freeLiters || 0) * (avgPrice && avgPrice.avg > 0 ? avgPrice.avg : 30000));
 
         // Near reward tier customers (within 50L of 300L or 500L)
+        // Bia Inox V2: query yellow/black liters để tính đúng theo logic mới
         const nearTier = db.prepare(`
-          SELECT id, name, monthly_purchased_liters as monthlyLiters
-          FROM customers
-          WHERE monthly_purchased_liters >= 250
-            AND monthly_purchased_liters < 500
-            AND reward_claimed = 0
-          ORDER BY monthly_purchased_liters DESC
+          SELECT c.id, c.name, c.phone,
+                 COALESCE(c.monthly_purchased_liters, 0) as monthlyLiters,
+                 COALESCE(s.purchased_yellow_liters, 0) as yellowLiters,
+                 COALESCE(s.purchased_black_liters, 0) as blackLiters
+          FROM customers c
+          LEFT JOIN customer_monthly_stats s
+            ON s.customer_id = c.id
+           AND s.year = ? AND s.month = ?
+          WHERE c.monthly_purchased_liters >= 250
+            AND c.monthly_purchased_liters < 500
+            AND c.reward_claimed = 0
+          ORDER BY c.monthly_purchased_liters DESC
           LIMIT 5
-        `).all();
+        `).all(now.getFullYear(), month);
 
         const nearTierCustomers = nearTier.map(function(c) {
-          const ml = c.monthlyLiters || 0;
-          var nextTier = ml >= 500 ? 'Thưởng 20L' : 'Thưởng 10L';
-          var target = ml >= 500 ? 500 : 300;
-          var toNext = Math.max(0, target - ml);
-          var pct = Math.min(100, Math.round((ml / target) * 100));
+          // Bia Inox V2: dùng promotionCalc để tính next tier chính xác
+          var PromoCalc = require('../src/services/promotionCalc');
+          var yellowV = c.yellowLiters || 0;
+          var blackV = c.blackLiters || 0;
+          var tierCalc = PromoCalc.calculatePromotion(yellowV, blackV);
+          var nextInfo = PromoCalc.getNextTierProgress(yellowV, blackV);
+          var totalLiters = (yellowV || 0) + (blackV || 0);
+          var nextTierLabel;
+          if (tierCalc.totalReward >= 40) {
+            nextTierLabel = 'Đã đạt tối đa';
+          } else if (nextInfo.nextThreshold === 300) {
+            nextTierLabel = 'Mốc 300L (+20L vàng)';
+          } else if (nextInfo.nextThreshold === 500) {
+            nextTierLabel = 'Mốc 500L (+40L vàng)';
+          } else {
+            nextTierLabel = '—';
+          }
+          var toNext = nextInfo.litersToNext || 0;
+          var pct = nextInfo.nextThreshold
+            ? Math.min(100, Math.round((totalLiters / nextInfo.nextThreshold) * 100))
+            : 100;
           return {
             id: c.id,
             name: c.name || 'N/A',
-            monthlyLiters: ml,
-            nextTier: nextTier,
+            monthlyLiters: totalLiters,
+            yellowLiters: yellowV,
+            blackLiters: blackV,
+            nextTier: nextTierLabel,
             litersToNext: toNext,
             progressPct: pct
           };

@@ -1326,6 +1326,35 @@ try {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_customer_monthly_customer ON customer_monthly_stats(customer_id, year, month)`);
 } catch (e) { /* index may exist */ }
 
+// ========== BIA INOX V2: Tách sản lượng vàng/đen ==========
+// customer_monthly_stats: cột purchased_yellow_liters, purchased_black_liters
+try {
+  db.exec(`ALTER TABLE customer_monthly_stats ADD COLUMN purchased_yellow_liters REAL DEFAULT 0`);
+} catch (e) { /* already exists */ }
+try {
+  db.exec(`ALTER TABLE customer_monthly_stats ADD COLUMN purchased_black_liters REAL DEFAULT 0`);
+} catch (e) { /* already exists */ }
+
+// reward_history: cột reward_yellow_liters, reward_black_liters (lưu từng phần riêng khi SEPARATE)
+try {
+  db.exec(`ALTER TABLE reward_history ADD COLUMN reward_yellow_liters REAL DEFAULT 0`);
+} catch (e) { /* already exists */ }
+try {
+  db.exec(`ALTER TABLE reward_history ADD COLUMN reward_black_liters REAL DEFAULT 0`);
+} catch (e) { /* already exists */ }
+
+// pending_rewards: cột reward_yellow_liters, reward_black_liters
+try {
+  db.exec(`ALTER TABLE pending_rewards ADD COLUMN reward_yellow_liters REAL DEFAULT 0`);
+} catch (e) { /* already exists */ }
+try {
+  db.exec(`ALTER TABLE pending_rewards ADD COLUMN reward_black_liters REAL DEFAULT 0`);
+} catch (e) { /* already exists */ }
+// pending_rewards: thêm cột mode (NONE / YELLOW_ONLY / BLACK_ONLY / SEPARATE / MIXED)
+try {
+  db.exec(`ALTER TABLE pending_rewards ADD COLUMN mode TEXT DEFAULT 'MIXED'`);
+} catch (e) { /* already exists */ }
+
 // Seed customer_monthly_stats cho các tháng trước (backfill)
 try {
   // Get all customers and their monthly purchased liters
