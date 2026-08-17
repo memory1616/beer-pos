@@ -225,8 +225,9 @@ router.get('/bonus-detail', (req, res) => {
 
     // Lấy tất cả khách có stats trong tháng thưởng
     // CHỈ lấy khách có reward_enabled = 1 (được tham gia thưởng doanh số)
+    // Bia Inox V2: lấy cả purchased_yellow_liters + purchased_black_liters
     var allStats = db.prepare(`
-      SELECT cms.customer_id, cms.purchased_liters,
+      SELECT cms.customer_id, cms.purchased_liters, cms.purchased_yellow_liters, cms.purchased_black_liters,
              c.name as customer_name, c.phone, c.created_at, c.reward_enabled, c.new_shop_enabled, c.promotion_enabled
       FROM customer_monthly_stats cms
       JOIN customers c ON c.id = cms.customer_id
@@ -270,10 +271,24 @@ router.get('/bonus-detail', (req, res) => {
       if (s.customer_id) newShopMap[s.customer_id] = true;
     });
 
+    // ============ BIA INOX V2: Lấy yellowVolume + blackVolume riêng ============
+    // Group stats theo customer_id: { yellow, black, total }
+    const litersByCustomer = {};
+    for (const stat of allStats) {
+      litersByCustomer[stat.customer_id] = {
+        yellow: stat.purchased_yellow_liters || 0,
+        black: stat.purchased_black_liters || 0,
+        total: stat.purchased_liters || 0
+      };
+    }
+
     // Tính tier và phân loại
     var customers_eligible = [];
     var customers_claimed = [];
     var customers_unclaimed = [];
+
+    // Bia Inox V2: dùng promotionCalc
+    const promoCalc = require('../src/services/promotionCalc');
 
     allStats.forEach(function(stat) {
       // Loại trừ khách đang trong giai đoạn NEW_SHOP (tháng đó)
@@ -281,17 +296,15 @@ router.get('/bonus-detail', (req, res) => {
         return; // Skip - đang trong new shop
       }
 
-      var liters = stat.purchased_liters || 0;
-      var tierReward = 0;
-      var tierName = null;
-
-      for (var i = tiers.length - 1; i >= 0; i--) {
-        if (liters >= tiers[i].threshold) {
-          tierReward = tiers[i].reward;
-          tierName = tiers[i].tier || ('BONUS_' + tierReward + 'L');
-          break;
-        }
-      }
+      const litersObj = litersByCustomer[stat.customer_id];
+      // Bia Inox V2: dùng calculatePromotion (yellow, black)
+      const calc = promoCalc.calculatePromotion(litersObj.yellow, litersObj.black);
+      const liters = litersObj.total;
+      const tierReward = calc.totalReward;
+      const tierName = tierReward > 0 ? `BONUS_${tierReward}L` : null;
+      const yellowReward = calc.yellowReward;
+      const blackReward = calc.blackReward;
+      const mode = calc.mode;
 
       // Kiểm tra đã nhận thưởng chưa
       var claimedInfo = claimedMap[stat.customer_id] || null;
@@ -303,13 +316,19 @@ router.get('/bonus-detail', (req, res) => {
         customer_name: stat.customer_name,
         phone: stat.phone || '',
         purchased_liters: liters,
+        yellow_volume: litersObj.yellow,
+        black_volume: litersObj.black,
         tier: tierName,
         reward_liters: tierReward,
+        yellow_reward: yellowReward,
+        black_reward: blackReward,
+        mode: mode,
         claimed: isClaimed,
         claimed_liters: claimedLiters
       };
 
-      if (liters >= 300) {
+      // Bia Inox V2: đạt tier khi tổng reward > 0
+      if (tierReward > 0) {
         customers_eligible.push(item);
         if (isClaimed) {
           customers_claimed.push(item);
@@ -393,9 +412,11 @@ router.get('/bonus-report', (req, res) => {
 
     // Cần trả = tổng thưởng của tất cả khách đạt tier trong tháng thưởng
     // CHỈ lấy khách có reward_enabled = 1 và không phải NEW_SHOP
+    // Bia Inox V2: lấy cả yellow/black
     var needToPay = 0;
     var customers = db.prepare(`
-      SELECT cms.purchased_liters, c.id as customer_id, c.reward_enabled
+      SELECT cms.purchased_liters, cms.purchased_yellow_liters, cms.purchased_black_liters,
+             c.id as customer_id, c.reward_enabled
       FROM customer_monthly_stats cms
       JOIN customers c ON c.id = cms.customer_id
       WHERE cms.year = ? AND cms.month = ?
@@ -403,18 +424,16 @@ router.get('/bonus-report', (req, res) => {
         AND c.reward_enabled = 1
     `).all(rewardYear, rewardMonth);
 
+    const promoCalc = require('../src/services/promotionCalc');
     customers.forEach(function(c) {
       // Loại trừ khách NEW_SHOP
       if (newShopMap[c.customer_id]) return;
-      
-      var liters = c.purchased_liters || 0;
-      // Tìm tier cao nhất đạt được
-      for (var i = tiers.length - 1; i >= 0; i--) {
-        if (liters >= tiers[i].threshold) {
-          needToPay += tiers[i].reward;
-          break;
-        }
-      }
+
+      // Bia Inox V2: dùng calculatePromotion(yellow, black)
+      const yellow = c.purchased_yellow_liters || 0;
+      const black = c.purchased_black_liters || 0;
+      const calc = promoCalc.calculatePromotion(yellow, black);
+      needToPay += calc.totalReward;
     });
 
     // Đã trả = tổng reward_liters_used của các đơn MONTHLY_BONUS của kỳ thưởng đó

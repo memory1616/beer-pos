@@ -303,17 +303,28 @@ router.post('/', (req, res) => {
 
         // Cập nhật sản lượng mua trong tháng (chỉ tính keg, không tính pet/box, không tính lít tặng)
         // KHÔNG cộng sản lượng cho khách có promotion_enabled = 0
-        const paidLiters = saleItems
-          .filter(item => item.type === 'keg')
-          .reduce((sum, item) => sum + item.quantity, 0);
+        // BIA INOX V2: tính riêng yellowVolume và blackVolume từ saleItems
+        let paidLiters = 0;
+        let yellowLiters = 0;
+        let blackLiters = 0;
+        for (const item of saleItems) {
+          if (item.type !== 'keg') continue;
+          const q = item.quantity || 0;
+          paidLiters += q;
+          if (PromotionService.classifyBeer(item.productName) === 'black') {
+            blackLiters += q;
+          } else {
+            yellowLiters += q;
+          }
+        }
         if (paidLiters > 0) {
           // Check promotion_enabled
           const custForStats = db.prepare('SELECT promotion_enabled FROM customers WHERE id = ?').get(customerId);
           if (!custForStats || custForStats.promotion_enabled !== 0) {
             db.prepare("UPDATE customers SET monthly_purchased_liters = monthly_purchased_liters + ? WHERE id = ?").run(paidLiters, customerId);
-            // Also update customer_monthly_stats
+            // Also update customer_monthly_stats (BIA INOX V2: truyền yellow/black riêng)
             const now = new Date();
-            PromotionService.updateCustomerMonthlyStats(customerId, paidLiters, now.getFullYear(), now.getMonth() + 1);
+            PromotionService.updateCustomerMonthlyStats(customerId, paidLiters, now.getFullYear(), now.getMonth() + 1, yellowLiters, blackLiters);
           } else {
             console.log('[PROMO] Customer', customerId, 'has promotions disabled — skipping monthly stats update');
           }
@@ -483,17 +494,19 @@ router.post('/', (req, res) => {
           if (!claimedThisMonth || claimedThisMonth.cnt === 0) {
             const rewardInfo = PromotionService.getRewardForPrevMonth(customerId);
             if (rewardInfo && rewardInfo.eligible && rewardInfo.rewardLiters > 0) {
-              // Gắn thưởng vào đơn hàng hiện tại - TRẢ THƯỞNG SẢN LƯỢNG THÁNG TRƯỚC
+              // Bia Inox V2: truyền yellowReward + blackReward riêng
               autoRewardResult = PromotionService.attachRewardToSale(
                 customerId,
                 saleId,
                 rewardInfo.rewardLiters,
                 rewardInfo.tier,
                 rewardInfo.rewardMonth,
-                rewardInfo.rewardYear
+                rewardInfo.rewardYear,
+                rewardInfo.yellowReward,
+                rewardInfo.blackReward
               );
               if (autoRewardResult && autoRewardResult.success) {
-                console.log('[AUTO REWARD] Da gan thuong vao don', customerId, ':', autoRewardResult.rewardLiters, 'L - thang', rewardInfo.rewardMonth, '/', rewardInfo.rewardYear);
+                console.log('[AUTO REWARD] Da gan thuong vao don', customerId, ': y=' + (rewardInfo.yellowReward || 0) + 'L b=' + (rewardInfo.blackReward || 0) + 'L - thang', rewardInfo.rewardMonth, '/', rewardInfo.rewardYear);
               }
             }
           } else {
@@ -1662,14 +1675,10 @@ router.post('/sync-volume', (req, res) => {
         WHERE customer_id = ? AND year = ? AND month = ?
       `).run(customerId, targetYear, targetMonth);
 
-      // 3. Tính lại từ sale_items
-      db.prepare(`
-        INSERT INTO customer_monthly_stats (customer_id, year, month, purchased_liters)
-        SELECT
-          s.customer_id,
-          CAST(strftime('%Y', s.date) AS INTEGER) as year,
-          CAST(strftime('%m', s.date) AS INTEGER) as month,
-          COALESCE(SUM(si.quantity), 0) as total
+      // Bia Inox V2: cần phân biệt yellow/black
+      // Lấy product_name để classify
+      const rows = db.prepare(`
+        SELECT s.customer_id, p.name AS product_name, si.quantity
         FROM sales s
         JOIN sale_items si ON si.sale_id = s.id
         JOIN products p ON p.id = si.product_id
@@ -1681,8 +1690,20 @@ router.post('/sync-volume', (req, res) => {
           AND p.type = 'keg'
           AND CAST(strftime('%Y', s.date) AS INTEGER) = ?
           AND CAST(strftime('%m', s.date) AS INTEGER) = ?
-        GROUP BY s.customer_id
-      `).run(customerId, targetYear, targetMonth);
+      `).all(customerId, targetYear, targetMonth);
+
+      let totalLiters = 0, yellowLiters = 0, blackLiters = 0;
+      for (const r of rows) {
+        const q = Number(r.quantity) || 0;
+        totalLiters += q;
+        if (PromotionService.classifyBeer(r.product_name) === 'black') blackLiters += q;
+        else yellowLiters += q;
+      }
+
+      db.prepare(`
+        INSERT INTO customer_monthly_stats (customer_id, year, month, purchased_liters, purchased_yellow_liters, purchased_black_liters)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(customerId, targetYear, targetMonth, totalLiters, yellowLiters, blackLiters);
 
       // 4. Restore reward_claimed từ backup
       for (const row of backup) {
@@ -1718,8 +1739,8 @@ router.post('/sync-volume', (req, res) => {
         WHERE id = ?
       `).run(liters.total, customerId);
 
-      logger.info('[sync-volume] Synced customer', { customerId, targetYear, targetMonth, liters: liters.total });
-      return res.json({ success: true, customerId, year: targetYear, month: targetMonth, liters: liters.total });
+      logger.info('[sync-volume] Synced customer', { customerId, targetYear, targetMonth, liters: liters.total, yellow: yellowLiters, black: blackLiters });
+      return res.json({ success: true, customerId, year: targetYear, month: targetMonth, liters: liters.total, yellowLiters, blackLiters });
     }
 
     // Sync tất cả khách
@@ -1732,14 +1753,9 @@ router.post('/sync-volume', (req, res) => {
       WHERE year = ? AND month = ?
     `).run(targetYear, targetMonth);
 
-    // 3. Tính lại tất cả
-    db.prepare(`
-      INSERT INTO customer_monthly_stats (customer_id, year, month, purchased_liters)
-      SELECT
-        s.customer_id,
-        CAST(strftime('%Y', s.date) AS INTEGER) as year,
-        CAST(strftime('%m', s.date) AS INTEGER) as month,
-        COALESCE(SUM(si.quantity), 0) as total
+    // Bia Inox V2: cần phân biệt yellow/black
+    const allRows = db.prepare(`
+      SELECT s.customer_id, p.name AS product_name, si.quantity
       FROM sales s
       JOIN sale_items si ON si.sale_id = s.id
       JOIN products p ON p.id = si.product_id
@@ -1750,8 +1766,26 @@ router.post('/sync-volume', (req, res) => {
         AND p.type = 'keg'
         AND CAST(strftime('%Y', s.date) AS INTEGER) = ?
         AND CAST(strftime('%m', s.date) AS INTEGER) = ?
-      GROUP BY s.customer_id
-    `).run(targetYear, targetMonth);
+    `).all(targetYear, targetMonth);
+
+    // Group by customer
+    const byCustomer = {};
+    for (const r of allRows) {
+      if (!byCustomer[r.customer_id]) byCustomer[r.customer_id] = { total: 0, yellow: 0, black: 0 };
+      const q = Number(r.quantity) || 0;
+      byCustomer[r.customer_id].total += q;
+      if (PromotionService.classifyBeer(r.product_name) === 'black') byCustomer[r.customer_id].black += q;
+      else byCustomer[r.customer_id].yellow += q;
+    }
+
+    const insertAll = db.prepare(`
+      INSERT INTO customer_monthly_stats (customer_id, year, month, purchased_liters, purchased_yellow_liters, purchased_black_liters)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+
+    for (const [cid, agg] of Object.entries(byCustomer)) {
+      insertAll.run(Number(cid), targetYear, targetMonth, agg.total, agg.yellow, agg.black);
+    }
 
     // 4. Restore reward_claimed từ backup
     for (const row of backupAll) {

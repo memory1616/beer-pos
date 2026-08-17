@@ -1132,16 +1132,53 @@
           var initial = c.customer_name ? c.customer_name.charAt(0).toUpperCase() : '?';
           var avatarClass = c.claimed ? 'claimed' : 'unclaimed';
           var statusIcon = c.claimed ? '✓' : '○';
+
+          // BIA INOX V2: Hiển thị chi tiết sản lượng vàng/đen
+          var yVol = c.yellow_volume || 0;
+          var bVol = c.black_volume || 0;
+          var totalVol = yVol + bVol;
+          var yReward = c.yellow_reward || 0;
+          var bReward = c.black_reward || 0;
+          var mode = c.mode || 'NONE';
+
+          // Build sản lượng line
+          var volumeDetail = '';
+          if (yVol > 0 && bVol > 0) {
+            volumeDetail = '🟡 ' + yVol + 'L + ⚫ ' + bVol + 'L (tổng ' + totalVol + 'L)';
+          } else if (yVol > 0) {
+            volumeDetail = '🟡 ' + yVol + 'L';
+          } else if (bVol > 0) {
+            volumeDetail = '⚫ ' + bVol + 'L';
+          } else {
+            volumeDetail = totalVol + 'L';
+          }
+
+          // Build reward display (Bia Inox V2: tách vàng/đen nếu SEPARATE)
+          var rewardDisplay = '';
+          var rewardLabel = 'Thưởng';
+          if (yReward > 0 && bReward > 0) {
+            rewardDisplay = '<div class="bonus-customer-reward-value" style="line-height:1.3;">🟡 ' + yReward + 'L<br/>⚫ ' + bReward + 'L</div>';
+            rewardLabel = 'Tách riêng';
+          } else if (yReward > 0) {
+            rewardDisplay = '<div class="bonus-customer-reward-value" style="line-height:1.3;">🟡 ' + yReward + 'L</div>';
+            rewardLabel = mode === 'MIXED' ? 'Hỗn hợp' : 'Bia vàng';
+          } else if (bReward > 0) {
+            rewardDisplay = '<div class="bonus-customer-reward-value" style="line-height:1.3;">⚫ ' + bReward + 'L</div>';
+            rewardLabel = 'Bia đen';
+          } else {
+            rewardDisplay = '<div class="bonus-customer-reward-value">' + (c.reward_liters || 0) + 'L</div>';
+          }
+
           html +=
             '<div class="bonus-customer-item">' +
               '<div class="bonus-customer-avatar ' + avatarClass + '">' + initial + '</div>' +
               '<div class="bonus-customer-info">' +
                 '<div class="bonus-customer-name">' + escHtml(c.customer_name) + '</div>' +
-                '<div class="bonus-customer-meta">' + (c.purchased_liters || 0) + 'L tháng ' + bonusMonth + ' • ' + statusIcon + ' ' + (c.claimed ? 'Đã trả' : 'Chưa trả') + '</div>' +
+                '<div class="bonus-customer-meta">' + volumeDetail + ' tháng ' + bonusMonth + ' • ' + statusIcon + ' ' + (c.claimed ? 'Đã trả' : 'Chưa trả') + '</div>' +
               '</div>' +
               '<div class="bonus-customer-reward">' +
-                '<div class="bonus-customer-reward-value">' + (c.reward_liters || 0) + 'L</div>' +
-                '<div class="bonus-customer-reward-label">Thưởng</div>' +
+                rewardDisplay +
+                '<div class="bonus-customer-reward-label">' + rewardLabel + '</div>' +
               '</div>' +
             '</div>';
         });

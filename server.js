@@ -709,23 +709,43 @@ app.get('/health', (req, res) => {
   }
 
   // Backup check — most recent backup age
+  // Supports both legacy backup/ (pattern: backup-*.db) and current backups/ (pattern: database_*.sqlite.gz)
   try {
-    const backupDir = path.join(__dirname, 'backup');
-    if (fs.existsSync(backupDir)) {
-      const files = fs.readdirSync(backupDir)
-        .filter(f => f.startsWith('backup-') && f.endsWith('.db'))
-        .map(f => ({ name: f, time: fs.statSync(path.join(backupDir, f)).mtime }))
-        .sort((a, b) => b.time - a.time);
-      if (files.length > 0) {
-        const ageHours = (Date.now() - files[0].time.getTime()) / (1000 * 60 * 60);
-        checks.checks.backup = { ok: ageHours < 26, last_file: files[0].name, age_hours: Math.round(ageHours * 10) / 10 };
-        if (ageHours > 26) { checks.ok = false; status.http = 503; }
-      } else {
-        checks.checks.backup = { ok: false, note: 'no backup files found' };
-        checks.ok = false;
+    const projectRoot = __dirname;
+    const candidateDirs = [
+      path.join(projectRoot, 'backups'),
+      path.join(projectRoot, 'backup'),
+    ];
+    const allFiles = [];
+    for (const dir of candidateDirs) {
+      if (!fs.existsSync(dir)) continue;
+      for (const f of fs.readdirSync(dir)) {
+        const full = path.join(dir, f);
+        try {
+          const st = fs.statSync(full);
+          if (!st.isFile()) continue;
+          // Accept legacy pattern (backup-YYYY-MM-DD-HHMM.db) or current pattern (database_YYYYMMDD_HHMMSS.sqlite.gz)
+          const isLegacy = f.startsWith('backup-') && f.endsWith('.db');
+          const isCurrent = f.startsWith('database_') && (f.endsWith('.sqlite') || f.endsWith('.sqlite.gz') || f.endsWith('.db'));
+          if (isLegacy || isCurrent) {
+            allFiles.push({ name: f, dir, time: st.mtime });
+          }
+        } catch (_) {}
       }
+    }
+    allFiles.sort((a, b) => b.time - a.time);
+    if (allFiles.length > 0) {
+      const latest = allFiles[0];
+      const ageHours = (Date.now() - latest.time.getTime()) / (1000 * 60 * 60);
+      checks.checks.backup = {
+        ok: ageHours < 26,
+        last_file: latest.name,
+        last_dir: path.basename(latest.dir),
+        age_hours: Math.round(ageHours * 10) / 10,
+      };
+      if (ageHours > 26) { checks.ok = false; status.http = 503; }
     } else {
-      checks.checks.backup = { ok: false, note: 'no backup dir' };
+      checks.checks.backup = { ok: false, note: 'no backup files found' };
       checks.ok = false;
     }
   } catch (e) {

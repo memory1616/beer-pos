@@ -351,15 +351,20 @@
         '</div>',
 
         '<div id="rewardFields">',
+          // BIA INOX V2: Quy tắc cố định
           '<div class="info-banner purple">',
-            '<p><strong style="color:#a855f7;">Quy tắc nhận thưởng:</strong> Khách đạt mốc nào nhận mốc đó. Đơn hàng đầu tiên trong tháng (tháng trả thưởng) sẽ tự động trả thưởng nếu đủ điều kiện.</p>',
+            '<p><strong style="color:#a855f7;">Quy tắc nhận thưởng (Bia Inox V2):</strong></p>',
+            '<p style="margin-top:6px;">&#8226; <strong>Chỉ bia Vàng:</strong> 300L&rarr;20L Vàng, 500L&rarr;40L Vàng</p>',
+            '<p>&#8226; <strong>Chỉ bia Đen:</strong> 300L&rarr;20L Đen, 500L&rarr;40L Đen</p>',
+            '<p>&#8226; <strong>Cả Vàng + Đen cùng &ge;300L:</strong> thưởng riêng từng loại (20V+20Đ hoặc 40V+40Đ)</p>',
+            '<p>&#8226; <strong>Mua cả 2 nhưng không cùng &ge;300L:</strong> tính theo <em>tổng hỗn hợp</em>, thưởng bằng <strong>Bia Vàng</strong></p>',
+            '<p>&#8226; <strong>Mốc 300 + 500 KHÔNG cộng dồn.</strong> 500L chỉ thưởng 40L, không phải 60L.</p>',
+            '<p style="margin-top:8px;"><span style="color:#6b7280;">&#128161; Tier là cố định theo chương trình. Đơn hàng đầu tiên trong tháng (tháng trả thưởng) sẽ tự động trả thưởng nếu đủ điều kiện.</span></p>',
           '</div>',
 
+          // Tier cố định (hiển thị read-only)
+          '<div style="font-size:12px;font-weight:600;color:var(--text-muted);margin:10px 0;">Mốc thưởng (cố định)</div>',
           '<div id="tierList"></div>',
-
-          '<button onclick="addRewardTier()" class="btn btn-secondary w-full mt-3" style="height:40px;border:1px dashed var(--border);background:transparent;color:var(--text-secondary);">',
-            '+ Thêm mốc thưởng',
-          '</button>',
         '</div>',
       '</div>',
 
@@ -439,9 +444,10 @@
       el = document.getElementById('endDate'); if (el) el.value = s.endDate || '';
       updatePeriodStatus(s.startDate, s.endDate);
 
+      // BIA INOX V2: tier cố định 300→20L, 500→40L (renderTierList() sẽ ép lại)
       tierList = JSON.parse(JSON.stringify(s.rewardTiers || []));
       if (tierList.length === 0) {
-        tierList = [{threshold: 300, reward: 10}, {threshold: 500, reward: 20}];
+        tierList = [{threshold: 300, reward: 20}, {threshold: 500, reward: 40}];
       }
       tierList.sort(function(a, b) { return a.threshold - b.threshold; });
       renderTierList();
@@ -517,75 +523,41 @@
       }
     }
 
-    // ── Tier list rendering ──────────────────────────────
+    // ── Tier list rendering (Bia Inox V2: READ-ONLY) ─────
     function renderTierList() {
       var container = document.getElementById('tierList');
       if (!container) return;
 
-      if (tierList.length === 0) {
-        container.innerHTML = '<div class="text-center text-sm text-muted py-4">Chưa có mốc thưởng nào</div>';
-        return;
-      }
+      // BIA INOX V2: ép dùng tier cố định 300L→20L, 500L→40L (single source of truth)
+      tierList = [
+        { threshold: 300, reward: 20 },
+        { threshold: 500, reward: 40 }
+      ];
 
       var html = '';
       for (var i = 0; i < tierList.length; i++) {
         var tier = tierList[i];
         var badgeClass = 'tier-badge-' + (i === 0 ? '1' : (i === 1 ? '2' : '3'));
         html +=
-          '<div class="tier-row" data-index="' + i + '">' +
+          '<div class="tier-row" data-index="' + i + '" style="opacity:0.95;">' +
             '<div>' +
               '<div class="tier-row-title">' +
                 'Mốc ' + (i + 1) +
-                ' <span class="tier-badge ' + badgeClass + '">' + tier.reward + 'L</span>' +
+                ' <span class="tier-badge ' + badgeClass + '">+' + tier.reward + 'L</span>' +
+                ' <span style="font-size:10px;color:var(--text-muted);font-weight:500;margin-left:6px;">cố định</span>' +
               '</div>' +
-              '<div class="tier-row-desc">Đạt ' + tier.threshold + 'L → Thưởng ' + tier.reward + 'L</div>' +
+              '<div class="tier-row-desc">Đạt ' + tier.threshold + 'L sản lượng mua &rarr; Thưởng ' + tier.reward + 'L (Bia Vàng hoặc Bia Đen tùy case)</div>' +
             '</div>' +
             '<div class="tier-row-inputs">' +
-              '<div class="promo-input-wrap" style="gap:4px;">' +
-                '<span style="font-size:11px;color:var(--text-muted);">≥</span>' +
-                '<input type="number" class="promo-input" value="' + tier.threshold + '" min="1" max="9999" ' +
-                  'onchange="updateTier(' + i + ', \'threshold\', this.value)" style="width:60px;">' +
-                '<span style="font-size:11px;color:var(--text-muted);">L →</span>' +
-                '<input type="number" class="promo-input" value="' + tier.reward + '" min="1" max="100" ' +
-                  'onchange="updateTier(' + i + ', \'reward\', this.value)" style="width:50px;">' +
-                '<span style="font-size:11px;color:var(--text-muted);">L</span>' +
+              '<div style="display:flex;align-items:center;gap:6px;padding:0 8px;">' +
+                '<span style="font-size:13px;color:var(--text-secondary);font-weight:600;">&ge;' + tier.threshold + 'L</span>' +
+                '<span style="font-size:11px;color:var(--text-muted);">&rarr;</span>' +
+                '<span style="font-size:13px;color:var(--success);font-weight:700;">+' + tier.reward + 'L</span>' +
               '</div>' +
-              '<button onclick="removeTier(' + i + ')" style="width:32px;height:32px;padding:0;font-size:16px;color:var(--danger);border:none;background:rgba(239,68,68,0.1);border-radius:8px;cursor:pointer;">×</button>' +
             '</div>' +
           '</div>';
       }
       container.innerHTML = html;
-    }
-
-    function updateTier(index, field, value) {
-      var numVal = parseInt(value) || 0;
-      if (field === 'threshold') tierList[index].threshold = Math.max(1, numVal);
-      if (field === 'reward') tierList[index].reward = Math.max(1, numVal);
-      tierList.sort(function(a, b) { return a.threshold - b.threshold; });
-      renderTierList();
-      onSettingsChanged();
-    }
-
-    function addRewardTier() {
-      var maxThreshold = 0;
-      for (var j = 0; j < tierList.length; j++) {
-        if (tierList[j].threshold > maxThreshold) maxThreshold = tierList[j].threshold;
-      }
-      var nextThreshold = Math.min(maxThreshold + 100, 9999);
-      tierList.push({ threshold: nextThreshold, reward: Math.round(nextThreshold / 20) });
-      tierList.sort(function(a, b) { return a.threshold - b.threshold; });
-      renderTierList();
-      onSettingsChanged();
-    }
-
-    function removeTier(index) {
-      if (tierList.length <= 1) {
-        if (typeof showToast === 'function') showToast('Phải có ít nhất 1 mốc thưởng', 'error');
-        return;
-      }
-      tierList.splice(index, 1);
-      renderTierList();
-      onSettingsChanged();
     }
 
     // ── Detect changes ─────────────────────────────────
@@ -615,7 +587,7 @@
           newShopBlackBuy: parseInt(document.getElementById('blackBuy').value) || 20,
           newShopBlackFree: parseInt(document.getElementById('blackFree').value) || 1,
           rewardEnabled: document.getElementById('toggleReward').checked,
-          rewardTiers: tierList,
+          // BIA INOX V2: tier cố định 300L→20L, 500L→40L. KHÔNG gửi rewardTiers.
           startDate: document.getElementById('startDate').value || null,
           endDate: document.getElementById('endDate').value || null
         };

@@ -1946,18 +1946,43 @@
       var tierInfo = '';
       var progressBar = '';
 
-      if (s.tier === 'BONUS_20L') {
+      // BIA INOX V2: Hiển thị 2 phần thưởng riêng nếu SEPARATE
+      var yellowReward = s.yellowReward || 0;
+      var blackReward = s.blackReward || 0;
+      var totalReward = s.totalReward || s.liters || 0;
+      var mode = s.mode || (yellowReward > 0 && blackReward > 0 ? 'SEPARATE' : (yellowReward > 0 ? 'YELLOW_ONLY' : 'BLACK_ONLY'));
+
+      if (mode === 'SEPARATE' && yellowReward > 0 && blackReward > 0) {
+        // SEPARATE: hiển thị 2 phần
         badgeIcon = '🏆';
-        badgeLabel = 'Đã đạt mốc 500L';
-        tierInfo = '<div style="font-size:18px;font-weight:800;color:var(--success);">Thưởng 20L</div>';
-      } else if (s.tier === 'BONUS_10L') {
-        badgeIcon = '🎯';
-        badgeLabel = 'Đạt mốc 300L';
-        tierInfo = '<div style="font-size:18px;font-weight:800;color:var(--warning);">Thưởng 10L</div>';
+        badgeLabel = 'Đạt cả 2 mốc (riêng từng loại)';
+        tierInfo = '<div style="font-size:14px;font-weight:700;color:var(--success);margin-bottom:4px;">' +
+          '🟡 ' + yellowReward + 'L Bia Vàng<br>' +
+          '⚫ ' + blackReward + 'L Bia Đen' +
+          '</div>';
+      } else if (mode === 'BLACK_ONLY' && blackReward > 0) {
+        badgeIcon = '🏆';
+        badgeLabel = 'Thưởng bia đen';
+        tierInfo = '<div style="font-size:18px;font-weight:800;color:var(--success);">⚫ ' + blackReward + 'L Bia Đen</div>';
+      } else if (yellowReward > 0) {
+        // YELLOW_ONLY hoặc MIXED
+        if (mode === 'MIXED') {
+          badgeIcon = '🏆';
+          badgeLabel = 'Thưởng bia vàng (tổng hỗn hợp)';
+        } else {
+          badgeIcon = '🏆';
+          badgeLabel = 'Thưởng bia vàng';
+        }
+        tierInfo = '<div style="font-size:18px;font-weight:800;color:var(--success);">🟡 ' + yellowReward + 'L Bia Vàng</div>';
+      } else {
+        // Fallback: hiển thị totalReward
+        if (s.tier && s.tier !== 'NONE' && totalReward > 0) {
+          tierInfo = '<div style="font-size:18px;font-weight:800;color:var(--warning);">Thưởng ' + totalReward + 'L</div>';
+        }
       }
 
-      if (s.tier !== 'NONE') {
-        tierInfo = '<div style="font-size:18px;font-weight:800;color:var(--warning);">Thưởng ' + s.liters + 'L</div>';
+      // Claim status
+      if (totalReward > 0) {
         if (s.claimed) {
           tierInfo += '<div style="font-size:12px;color:var(--success);margin-top:4px;">Đã nhận thưởng</div>';
         } else {
@@ -1965,13 +1990,27 @@
         }
       }
 
-      if (s.nextTierLiters && s.litersToNext > 0 && s.tier !== 'NONE') {
+      // BIA INOX V2: Hiển thị yellowVolume/blackVolume/totalVolume
+      var yellowVol = s.yellowVolume || 0;
+      var blackVol = s.blackVolume || 0;
+      var totalVol = s.totalVolume || s.monthlyLiters || 0;
+
+      if (yellowVol > 0 || blackVol > 0) {
+        var volumeHtml = '<div style="font-size:12px;color:var(--text-secondary);margin-top:6px;padding:6px 0;border-top:1px dashed var(--border);">' +
+          '<div>🟡 Bia Vàng: <strong>' + yellowVol + 'L</strong></div>' +
+          '<div>⚫ Bia Đen: <strong>' + blackVol + 'L</strong></div>' +
+          '<div>📊 Tổng: <strong>' + totalVol + 'L</strong></div>' +
+          '</div>';
+        tierInfo += volumeHtml;
+      }
+
+      if (s.nextTierLiters && s.litersToNext > 0 && totalReward > 0) {
         var pct = s.progressToNext || 0;
-        progressBar = '<div class="cd-reward-progress"><div class="cd-reward-progress-labels"><span>Đã mua: <strong>' + s.monthlyLiters + 'L</strong></span><span>Cần ' + s.nextTierLiters + 'L</span></div><div class="cd-reward-progress-bar"><div class="cd-reward-progress-fill" style="width:' + pct + '%;"></div></div></div>';
-      } else if (s.tier === 'NONE') {
+        progressBar = '<div class="cd-reward-progress"><div class="cd-reward-progress-labels"><span>Đã mua: <strong>' + totalVol + 'L</strong></span><span>Cần ' + s.nextTierLiters + 'L</span></div><div class="cd-reward-progress-bar"><div class="cd-reward-progress-fill" style="width:' + pct + '%;"></div></div></div>';
+      } else if (totalReward === 0) {
         var toNext = s.litersToNext || 0;
         var pct = s.progressToNext || 0;
-        progressBar = '<div class="cd-reward-progress"><div class="cd-reward-progress-labels"><span>Đã mua: <strong>' + s.monthlyLiters + 'L</strong></span><span>Cần ' + toNext + 'L nữa</span></div><div class="cd-reward-progress-bar"><div class="cd-reward-progress-fill" style="width:' + pct + '%;"></div></div></div>';
+        progressBar = '<div class="cd-reward-progress"><div class="cd-reward-progress-labels"><span>Đã mua: <strong>' + totalVol + 'L</strong></span><span>Cần ' + toNext + 'L nữa</span></div><div class="cd-reward-progress-bar"><div class="cd-reward-progress-fill" style="width:' + pct + '%;"></div></div></div>';
       }
 
       container.innerHTML = `
@@ -1979,7 +2018,6 @@
           <div class="cd-reward-main-icon">${badgeIcon}</div>
           <div class="cd-reward-main-title">${badgeLabel}</div>
           ${tierInfo}
-          <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">${s.monthlyLiters}L tháng này</div>
           ${progressBar}
         </div>
       `;
@@ -1999,7 +2037,18 @@
         let html = '';
         resp.data.forEach(function(r) {
           var d = r.claimed_at ? new Date(r.claimed_at).toLocaleDateString('vi-VN') : 'N/A';
-          html += '<div class="cd-reward-history-item"><div><div class="cd-reward-history-tier">' + r.reward_tier + '</div><div class="cd-reward-history-date">Ngày: ' + d + '</div></div><div class="cd-reward-history-liters">' + r.reward_liters + 'L</div></div>';
+          // BIA INOX V2: hiển thị yellowReward/blackReward nếu có
+          var rewardDetail = '';
+          if (r.reward_yellow_liters > 0 && r.reward_black_liters > 0) {
+            rewardDetail = r.reward_yellow_liters + 'L vàng + ' + r.reward_black_liters + 'L đen';
+          } else if (r.reward_black_liters > 0) {
+            rewardDetail = '⚫ ' + r.reward_black_liters + 'L đen';
+          } else if (r.reward_yellow_liters > 0) {
+            rewardDetail = '🟡 ' + r.reward_yellow_liters + 'L vàng';
+          } else {
+            rewardDetail = r.reward_liters + 'L';
+          }
+          html += '<div class="cd-reward-history-item"><div><div class="cd-reward-history-tier">' + (r.reward_tier || '') + '</div><div class="cd-reward-history-date">Ngày: ' + d + '</div></div><div class="cd-reward-history-liters">' + rewardDetail + '</div></div>';
         });
         container.innerHTML = html;
       } catch (e) {
@@ -2450,16 +2499,21 @@
       // Reward dot — lấy từ dữ liệu đã được load trong loadPromoToggleStatus
       const rewardDot = document.getElementById('healthRewardDot');
       const rewardVal = document.getElementById('healthReward');
-      const rewardTier = window.__rewardTier || null;
       const monthlyReward = window.__monthlyReward || null;
       if (rewardDot && rewardVal) {
         rewardDot.className = 'cd-health-dot';
-        if (monthlyReward && monthlyReward.tier && monthlyReward.tier !== 'NONE') {
+        // BIA INOX V2: hiển thị yellowReward + blackReward
+        if (monthlyReward && (monthlyReward.totalReward > 0 || (monthlyReward.yellowReward > 0) || (monthlyReward.blackReward > 0))) {
           rewardDot.classList.add('good');
-          const tierLabel = monthlyReward.tier.startsWith('BONUS_')
-            ? monthlyReward.tier.replace('BONUS_', '').replace('L', 'L thưởng')
-            : monthlyReward.tier;
-          rewardVal.textContent = tierLabel;
+          let rewardText = '';
+          if (monthlyReward.mode === 'SEPARATE') {
+            rewardText = (monthlyReward.yellowReward || 0) + 'L vàng + ' + (monthlyReward.blackReward || 0) + 'L đen';
+          } else if (monthlyReward.mode === 'BLACK_ONLY') {
+            rewardText = (monthlyReward.blackReward || 0) + 'L đen';
+          } else {
+            rewardText = (monthlyReward.yellowReward || monthlyReward.totalReward || 0) + 'L vàng';
+          }
+          rewardVal.textContent = rewardText;
         } else if (monthlyReward && monthlyReward.nextTierLiters) {
           rewardDot.classList.add('monitor');
           rewardVal.textContent = (monthlyReward.litersToNext || 0) + 'L nữa đạt';

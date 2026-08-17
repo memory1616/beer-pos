@@ -1457,7 +1457,17 @@ function showMonthlyRewardBadge(reward) {
   var el = document.getElementById('monthlyRewardBadge');
   if (el) {
     el.classList.remove('hidden');
-    el.innerHTML = '<span style="font-size:14px;">&#127942;</span> Thưởng tháng: còn <b>' + reward.remainingReward + 'L</b> có thể nhận<br><span style="font-size:11px;color:#6b7280;">(thưởng sẽ được gắn vào đơn đầu tiên)</span>';
+    // Bia Inox V2: hiển thị chi tiết theo từng loại bia nếu có (yellowReward/blackReward)
+    var remainingText;
+    if (reward.yellowReward != null || reward.blackReward != null) {
+      var parts = [];
+      if (reward.yellowReward && reward.yellowReward > 0) parts.push('<b>' + reward.yellowReward + 'L vàng</b>');
+      if (reward.blackReward && reward.blackReward > 0) parts.push('<b>' + reward.blackReward + 'L đen</b>');
+      remainingText = parts.length > 0 ? parts.join(' + ') : ('<b>' + (reward.remainingReward || 0) + 'L</b>');
+    } else {
+      remainingText = '<b>' + (reward.remainingReward || 0) + 'L</b>';
+    }
+    el.innerHTML = '<span style="font-size:14px;">&#127942;</span> Thưởng tháng: ' + remainingText + ' còn có thể nhận<br><span style="font-size:11px;color:#6b7280;">(thưởng sẽ được gắn vào đơn đầu tiên)</span>';
   }
 }
 
@@ -2357,7 +2367,20 @@ async function buildVolumePromoNote(invoice) {
 
   // Check if this invoice has MONTHLY_BONUS (đơn trả thưởng) - hiển thị thông tin thưởng, không hiển thị tích lũy
   if (invoice.promo_type === 'MONTHLY_BONUS' || invoice.reward_liters_used > 0) {
-    var rewardLiters = invoice.reward_liters_used || (invoice.promo_free_liters || 0);
+    // Bia Inox V2: hiển thị chi tiết Vàng/Đen nếu có
+    var yellowRewardVal = monthlyReward.yellowReward || 0;
+    var blackRewardVal = monthlyReward.blackReward || 0;
+    var rewardBreakdown = '';
+    if (yellowRewardVal && blackRewardVal) {
+      rewardBreakdown = '<strong>+' + yellowRewardVal + 'L Bia Vàng + ' + blackRewardVal + 'L Bia Đen</strong>';
+    } else if (yellowRewardVal) {
+      rewardBreakdown = '<strong>+' + yellowRewardVal + 'L Bia Vàng</strong>';
+    } else if (blackRewardVal) {
+      rewardBreakdown = '<strong>+' + blackRewardVal + 'L Bia Đen</strong>';
+    } else {
+      var rewardLiters = invoice.reward_liters_used || (invoice.promo_free_liters || 0);
+      rewardBreakdown = '<strong>+' + rewardLiters + 'L</strong>';
+    }
     var bonusMonthText = '';
     // Bonus month is the PREVIOUS month of the invoice date
     // (e.g., invoice on 07/01/2026 = bonus for June)
@@ -2370,88 +2393,67 @@ async function buildVolumePromoNote(invoice) {
       }
     }
     var bonusMonthLabel = bonusMonthText ? ' tháng ' + bonusMonthText : '';
-    var monthlyLitersVal = monthlyReward ? (monthlyReward.monthlyLiters || 0) : 0;
+    var yVol = monthlyReward.yellowVolume || 0;
+    var bVol = monthlyReward.blackVolume || 0;
+    var totalVol = (yVol || 0) + (bVol || 0);
     return '<div class="promo-note" style="margin:10px 0;padding:10px 12px;background:rgba(168,85,247,0.1);border:1px solid rgba(168,85,247,0.3);border-radius:8px;font-size:11px;line-height:1.5;">' +
       '<div style="font-weight:700;color:#9333ea;margin-bottom:4px;">&#127942; Khuyến mãi Sản lượng Tháng</div>' +
-      '<div style="color:#7e22ce;">&#127882; Đơn trả thưởng' + bonusMonthLabel + ' <strong>+' + rewardLiters + 'L</strong></div>' +
-      '<div style="color:#6b21a8;margin-top:4px;">Đã tích lũy tháng này: <strong>' + monthlyLitersVal + 'L</strong></div>' +
+      '<div style="color:#7e22ce;">&#127882; Đơn trả thưởng' + bonusMonthLabel + ' ' + rewardBreakdown + '</div>' +
+      '<div style="color:#6b21a8;margin-top:4px;">Đã tích lũy tháng này: <strong>' + totalVol + 'L</strong> (Vàng: ' + yVol + 'L, Đen: ' + bVol + 'L)</div>' +
     '</div>';
   }
 
-  // Get data from API
-  // monthlyLiters = tổng số L khách đã mua trong tháng
-  // litersToNext = số L còn thiếu để đạt tier kế tiếp
-  // nextTierLiters = threshold của tier kế tiếp
-  var monthlyLiters = monthlyReward.monthlyLiters || 0;
+  // Bia Inox V2: lấy yellowVolume, blackVolume, mode, yellowReward, blackReward trực tiếp từ server (single source of truth)
+  var yellowVolume = monthlyReward.yellowVolume || 0;
+  var blackVolume = monthlyReward.blackVolume || 0;
+  var mode = monthlyReward.mode || 'NONE';
+  var yellowReward = monthlyReward.yellowReward || 0;
+  var blackReward = monthlyReward.blackReward || 0;
+  var monthlyLiters = (yellowVolume || 0) + (blackVolume || 0);
   var litersToNext = monthlyReward.litersToNext || 0;
-  var tier = monthlyReward.tier || '';
-
-  // Get tiers from settings
-  var tiers = settings.rewardTiers;
-  if (!tiers || tiers.length === 0) return '';
-
-  // Sort tiers by threshold
-  tiers = [...tiers].sort(function(a, b) { return a.threshold - b.threshold; });
-
-  // Find current and next tiers based on actual purchased volume
-  var currentTier = null;
-  var currentTierIndex = -1;
-  var nextTier = null;
-  var nextTierIndex = -1;
-
-  for (var i = 0; i < tiers.length; i++) {
-    var tierData = tiers[i];
-    if (monthlyLiters >= tierData.threshold) {
-      currentTier = tierData;
-      currentTierIndex = i;
-    } else if (nextTierIndex < 0) {
-      nextTier = tierData;
-      nextTierIndex = i;
-    }
-  }
-
-  // Check if completed all tiers (currentTier là tier cuối và không còn nextTier)
-  var isCompleted = currentTier && currentTierIndex === tiers.length - 1;
-
-  // Case 3: Completed - only show on the day the tier was achieved
-  // Check if this sale was created today
-  if (isCompleted) {
-    var saleDate = invoice.date ? new Date(invoice.date) : null;
-    var today = new Date();
-    var isToday = saleDate && (
-      saleDate.getFullYear() === today.getFullYear() &&
-      saleDate.getMonth() === today.getMonth() &&
-      saleDate.getDate() === today.getDate()
-    );
-    if (!isToday) return '';
-  }
+  var nextThreshold = monthlyReward.nextTierLiters || 0;
 
   // Build note HTML
   var noteHtml = '';
 
-  if (isCompleted) {
-    // Case 3: Completed all tiers
+  // Bia Inox V2: hiển thị thông tin chi tiết (yellow/black) thay vì tier cũ
+  var progressModeLabel = '';
+  if (mode === 'YELLOW_ONLY') progressModeLabel = 'Bia Vàng';
+  else if (mode === 'BLACK_ONLY') progressModeLabel = 'Bia Đen';
+  else if (mode === 'SEPARATE') progressModeLabel = 'Tách riêng (Vàng + Đen)';
+  else if (mode === 'MIXED') progressModeLabel = 'Hỗn hợp';
+
+  // Ưu tiên hiển thị chi tiết Vàng/Đen
+  var hasReward = yellowReward > 0 || blackReward > 0;
+  var isCompleted = !hasReward && monthlyReward.nextTier == null;
+
+  if (hasReward) {
+    // Đã có thưởng: hiển thị chi tiết Vàng/Đen
+    var rewardLines = [];
+    if (yellowReward > 0) rewardLines.push('<strong>' + yellowReward + 'L Bia Vàng</strong>');
+    if (blackReward > 0) rewardLines.push('<strong>' + blackReward + 'L Bia Đen</strong>');
     noteHtml =
-      '<div class="promo-note" style="margin:10px 0;padding:10px 12px;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);border-radius:8px;font-size:11px;line-height:1.5;">' +
-        '<div style="font-weight:700;color:#16a34a;margin-bottom:4px;">&#127942; Khuyến mãi Sản lượng Tháng</div>' +
-        '<div style="color:#15803d;">&#127882; Chúc mừng! Anh/Chị đã hoàn thành chương trình khuyến mãi tháng.</div>' +
-        '<div style="color:#166534;margin-top:4px;">Đã nhận thưởng <strong>Mốc ' + (currentTierIndex + 1) + ' (+' + currentTier.reward + 'L)</strong>.</div>' +
+      '<div class="promo-note" style="margin:10px 0;padding:10px 12px;background:rgba(168,85,247,0.1);border:1px solid rgba(168,85,247,0.3);border-radius:8px;font-size:11px;line-height:1.5;">' +
+        '<div style="font-weight:700;color:#9333ea;margin-bottom:4px;">&#127942; Khuyến mãi Sản lượng Tháng</div>' +
+        '<div style="color:#7e22ce;">&#127881; Thưởng: ' + rewardLines.join(' + ') + '</div>' +
+        '<div style="color:#6b21a8;margin-top:4px;">Tích lũy: Vàng <strong>' + yellowVolume + 'L</strong>, Đen <strong>' + blackVolume + 'L</strong> (Tổng ' + monthlyLiters + 'L, ' + progressModeLabel + ')</div>' +
       '</div>';
-  } else if (currentTier && nextTier) {
-    // Case 2: Achieved at least one tier, not the last
-    noteHtml =
-      '<div class="promo-note" style="margin:10px 0;padding:10px 12px;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.3);border-radius:8px;font-size:11px;line-height:1.5;">' +
-        '<div style="font-weight:700;color:#2563eb;margin-bottom:4px;">&#127942; Khuyến mãi Sản lượng Tháng</div>' +
-        '<div style="color:#1d4ed8;">&#127881; Đã đạt <strong>Mốc ' + (currentTierIndex + 1) + ' (+' + currentTier.reward + 'L)</strong></div>' +
-        '<div style="color:#1e40af;margin-top:4px;">Chỉ còn <strong>' + litersToNext + 'L</strong> nữa để nhận <strong>Mốc ' + (nextTierIndex + 1) + ' (+' + nextTier.reward + 'L)</strong>.</div>' +
-      '</div>';
-  } else if (nextTier) {
-    // Case 1: Not yet reached first tier
+  } else if (nextThreshold && litersToNext > 0) {
+    // Có mốc tiếp theo
+    var nextLabel = monthlyReward.nextTier || ('Mốc ' + nextThreshold + 'L');
     noteHtml =
       '<div class="promo-note" style="margin:10px 0;padding:10px 12px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:8px;font-size:11px;line-height:1.5;">' +
         '<div style="font-weight:700;color:#d97706;margin-bottom:4px;">&#127919; Khuyến mãi Sản lượng Tháng</div>' +
-        '<div style="color:#92400e;">Đã tích lũy: <strong>' + monthlyLiters + 'L</strong></div>' +
-        '<div style="color:#b45309;margin-top:4px;">Chỉ còn <strong>' + litersToNext + 'L</strong> nữa để nhận <strong>Mốc ' + (nextTierIndex + 1) + ' (+' + nextTier.reward + 'L)</strong>.</div>' +
+        '<div style="color:#92400e;">Tích lũy: Vàng <strong>' + yellowVolume + 'L</strong>, Đen <strong>' + blackVolume + 'L</strong> (Tổng ' + monthlyLiters + 'L)</div>' +
+        '<div style="color:#b45309;margin-top:4px;">Còn <strong>' + litersToNext + 'L</strong> để đạt <strong>' + nextLabel + '</strong>.</div>' +
+      '</div>';
+  } else if (monthlyLiters > 0) {
+    // Có mua nhưng chưa đạt mốc nào
+    noteHtml =
+      '<div class="promo-note" style="margin:10px 0;padding:10px 12px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:8px;font-size:11px;line-height:1.5;">' +
+        '<div style="font-weight:700;color:#d97706;margin-bottom:4px;">&#127919; Khuyến mãi Sản lượng Tháng</div>' +
+        '<div style="color:#92400e;">Tích lũy: Vàng <strong>' + yellowVolume + 'L</strong>, Đen <strong>' + blackVolume + 'L</strong> (Tổng ' + monthlyLiters + 'L)</div>' +
+        '<div style="color:#b45309;margin-top:4px;">Chưa đạt mốc thưởng nào. Cần tối thiểu 300L.</div>' +
       '</div>';
   }
 

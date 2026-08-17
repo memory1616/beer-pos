@@ -11,6 +11,7 @@
  */
 const db = require('../../database');
 const logger = require('../../src/utils/logger');
+const { PromotionService } = require('./index');
 
 /** Đơn loại này đã trừ products.stock khi tạo → cần cộng lại khi xóa (kể cả type legacy / sync). */
 function shouldReverseProductStock(sale) {
@@ -77,14 +78,27 @@ function deleteSaleRestoringInventory(saleId) {
       }
 
       // ===== B1. RESTORE purchased_liters trong customer_monthly_stats =====
-      if (sale.customer_id && sale.type === 'sale' && sale.promo_type !== 'MONTHLY_BONUS') {
-        const paidKegItems = db.prepare(`
-          SELECT COALESCE(SUM(si.quantity), 0) as total
+      // Bia Inox V2: REVERT PHẦN MUA (price>0) cho cả MONTHLY_BONUS sale
+      // vì MONTHLY_BONUS sale vẫn có items mua thật (price>0) + items thưởng (price=0).
+      // Nếu skip MONTHLY_BONUS thì xóa sale có gắn thưởng sẽ KHÔNG revert lít mua → sai.
+      // Lưu ý: KHÔNG revert reward_* (logic đó handle ở B2).
+      if (sale.customer_id && sale.type === 'sale') {
+        // Bia Inox V2: lấy product_name để tách yellow/black
+        const items = db.prepare(`
+          SELECT si.quantity, p.name AS product_name
           FROM sale_items si
           JOIN products p ON p.id = si.product_id
           WHERE si.sale_id = ? AND si.price > 0 AND p.type = 'keg'
-        `).get(sale.id);
-        const paidLiters = paidKegItems ? paidKegItems.total : 0;
+        `).all(sale.id);
+        let paidLiters = 0;
+        let yellowLiters = 0;
+        let blackLiters = 0;
+        for (const item of items) {
+          const q = Number(item.quantity) || 0;
+          paidLiters += q;
+          if (PromotionService.classifyBeer(item.product_name) === 'black') blackLiters += q;
+          else yellowLiters += q;
+        }
         if (paidLiters > 0) {
           // Revert customers.monthly_purchased_liters
           db.prepare('UPDATE customers SET monthly_purchased_liters = MAX(0, monthly_purchased_liters - ?) WHERE id = ?').run(paidLiters, sale.customer_id);
@@ -99,8 +113,12 @@ function deleteSaleRestoringInventory(saleId) {
           `).get(sale.customer_id, saleYear, saleMonth);
           if (existingStats) {
             db.prepare(`
-              UPDATE customer_monthly_stats SET purchased_liters = MAX(0, purchased_liters - ?) WHERE id = ?
-            `).run(paidLiters, existingStats.id);
+              UPDATE customer_monthly_stats SET
+                purchased_liters = MAX(0, purchased_liters - ?),
+                purchased_yellow_liters = MAX(0, COALESCE(purchased_yellow_liters, 0) - ?),
+                purchased_black_liters = MAX(0, COALESCE(purchased_black_liters, 0) - ?)
+              WHERE id = ?
+            `).run(paidLiters, yellowLiters, blackLiters, existingStats.id);
           }
         }
       }
