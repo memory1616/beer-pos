@@ -171,7 +171,7 @@ router.get('/data', (req, res) => {
   const dailyExpenses = db.prepare(`
     SELECT date(datetime(date, '+7 hours')) as day, COALESCE(SUM(amount), 0) as total
     FROM expenses
-    WHERE archived = 0 AND date(datetime(date, '+7 hours')) >= ?
+    WHERE date(datetime(date, '+7 hours')) >= ?
     GROUP BY date(datetime(date, '+7 hours'))
     ORDER BY day
   `).all(fourteenDaysAgoStr);
@@ -281,7 +281,7 @@ router.get('/data', (req, res) => {
   
   // Get today's expenses
   const todayExpenses = db.prepare(`
-    SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE archived = 0 AND date = ?
+    SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE date = ?
   `).get(today);
 
   res.json({
