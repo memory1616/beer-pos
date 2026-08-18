@@ -139,9 +139,80 @@ app.use(helmet({
 // Request logging
 app.use(requestLogger);
 
-// ── GitHub webhook: POST /deploy (khớp Payload URL trên GitHub)
-// Phải dùng raw body + đặt TRƯỚC bodyParser.json để verify HMAC đúng.
+// ============================================================
+// DEPLOY WEBHOOK - Gộp cả 2 endpoint (/deploy và /webhook/deploy)
+// ============================================================
+// - GitHub webhook: POST /deploy  (verify HMAC SHA256 + x-hub-signature-256)
+// - Custom token:  POST /webhook/deploy  (Bearer token)
+// - Status:        GET /deploy/status  (trạng thái deploy hiện tại)
+// - Log tail:      GET /deploy/log     (xem 100 dòng log gần nhất)
+//
+// Tính năng:
+//   - Lock file chống concurrent deploy (PID tracking)
+//   - Idempotency: cùng X-Deploy-ID bỏ qua trong vòng 5 phút
+//   - Rate limit: 1 deploy / 30 giây
+//   - Tự động chạy deploy.sh ở background, trả lời webhook ngay
+//   - Log deploy ra logs/deploy-webhook.log
+//
+// Note: 'fs', 'path' đã được require ở đầu file.
+//       Không require lại để tránh SyntaxError duplicate identifier.
+//       'execFile' lấy từ child_process (đã require ở đầu file).
+// ============================================================
+const fsPromises = fs.promises;
+
 const GITHUB_WEBHOOK_SECRET = process.env.GITHUB_WEBHOOK_SECRET || '';
+const DEPLOY_WEBHOOK_SECRET = process.env.DEPLOY_WEBHOOK_SECRET || null;
+const DEPLOY_LOCK_FILE = '/tmp/beerpos-deploy.lock';
+const DEPLOY_STATE_FILE = path.join(__dirname, 'logs', 'deploy-state.json');
+const DEPLOY_LOG_FILE = path.join(__dirname, 'logs', 'deploy-webhook.log');
+const DEPLOY_IDEMPOTENCY_TTL_MS = 5 * 60 * 1000; // 5 phút
+const DEPLOY_RATE_LIMIT_MS = 30 * 1000; // 30 giây
+
+// ── Deploy state (in-memory + persisted to file) ────────────────
+let deployState = {
+  status: 'idle',       // idle | running | success | failed
+  pid: null,
+  started_at: null,
+  finished_at: null,
+  trigger: null,        // github | token | manual
+  ref: null,
+  commit: null,
+  message: null,
+  error: null,
+  last_deploy_id: null,
+  last_deploy_at: null,
+  rate_limit_until: null,
+};
+
+async function loadDeployState() {
+  try {
+    const raw = await fsPromises.readFile(DEPLOY_STATE_FILE, 'utf8');
+    deployState = { ...deployState, ...JSON.parse(raw) };
+  } catch {
+    // First run - state file may not exist yet
+  }
+}
+
+async function saveDeployState() {
+  try {
+    await fsPromises.mkdir(path.dirname(DEPLOY_STATE_FILE), { recursive: true });
+    await fsPromises.writeFile(DEPLOY_STATE_FILE, JSON.stringify(deployState, null, 2));
+  } catch (e) {
+    logger.error('Cannot save deploy state', { error: e.message });
+  }
+}
+
+async function appendDeployLog(line) {
+  try {
+    await fsPromises.mkdir(path.dirname(DEPLOY_LOG_FILE), { recursive: true });
+    await fsPromises.appendFile(
+      DEPLOY_LOG_FILE,
+      `[${new Date().toISOString()}] ${line}\n`
+    );
+  } catch (e) {
+    logger.error('Cannot append deploy log', { error: e.message });
+  }
+}
 
 function verifyGithubSignature256(payloadBuf, signatureHeader) {
   if (!signatureHeader || !GITHUB_WEBHOOK_SECRET) return false;
@@ -154,6 +225,169 @@ function verifyGithubSignature256(payloadBuf, signatureHeader) {
   }
 }
 
+async function isConcurrentDeployRunning() {
+  try {
+    const pidStr = await fsPromises.readFile(DEPLOY_LOCK_FILE, 'utf8');
+    const pid = parseInt(pidStr.trim(), 10);
+    if (pid && !isNaN(pid)) {
+      try {
+        process.kill(pid, 0); // signal 0 = test existence
+        return true;
+      } catch {
+        // Process not running - stale lock
+        return false;
+      }
+    }
+  } catch {
+    // Lock file doesn't exist
+  }
+  return false;
+}
+
+function checkRateLimit() {
+  if (deployState.rate_limit_until && Date.now() < deployState.rate_limit_until) {
+    const waitMs = deployState.rate_limit_until - Date.now();
+    return { allowed: false, wait_ms: waitMs };
+  }
+  return { allowed: true };
+}
+
+async function runDeploySh(trigger, ref, message, deployId) {
+  const deployScript = path.join(__dirname, 'deploy', 'deploy.sh');
+  if (!fs.existsSync(deployScript)) {
+    throw new Error(`Deploy script not found: ${deployScript}`);
+  }
+
+  deployState = {
+    ...deployState,
+    status: 'running',
+    started_at: new Date().toISOString(),
+    finished_at: null,
+    trigger,
+    ref,
+    message,
+    error: null,
+    last_deploy_id: deployId,
+    last_deploy_at: new Date().toISOString(),
+  };
+  await saveDeployState();
+  await appendDeployLog(`DEPLOY STARTED - trigger=${trigger} ref=${ref || 'n/a'} id=${deployId}`);
+
+  return new Promise((resolve) => {
+    execFile('bash', [deployScript], { cwd: __dirname, maxBuffer: 10 * 1024 * 1024 }, async (err, stdout, stderr) => {
+      const finishedAt = new Date().toISOString();
+      if (err) {
+        deployState.status = 'failed';
+        deployState.error = err.message;
+        deployState.finished_at = finishedAt;
+        await saveDeployState();
+        await appendDeployLog(`DEPLOY FAILED - ${err.message}`);
+        logger.error('Deploy failed', { error: err.message, deployId });
+        if (stdout) logger.error('Deploy stdout', { output: stdout.slice(-2000) });
+        if (stderr) logger.error('Deploy stderr', { output: stderr.slice(-2000) });
+        return resolve({ success: false, error: err.message });
+      }
+      deployState.status = 'success';
+      deployState.finished_at = finishedAt;
+      deployState.rate_limit_until = Date.now() + DEPLOY_RATE_LIMIT_MS;
+      await saveDeployState();
+      await appendDeployLog(`DEPLOY SUCCESS in ${Date.now() - new Date(deployState.started_at).getTime()}ms`);
+      logger.info('Deploy completed', { deployId, duration_ms: Date.now() - new Date(deployState.started_at).getTime() });
+      if (stdout) logger.info('Deploy output', { output: stdout.slice(-1000) });
+      if (stderr) logger.warn('Deploy stderr', { output: stderr.slice(-1000) });
+      resolve({ success: true });
+    });
+  });
+}
+
+// ── Webhook handler (gộp cả GitHub + token-based) ───────────────
+async function handleDeployWebhook(req, res, opts = {}) {
+  const { trigger, rawBody, githubEvent, githubSignature, token } = opts;
+
+  // 1. Authenticate
+  if (trigger === 'github') {
+    if (!GITHUB_WEBHOOK_SECRET) {
+      return res.status(503).json({ error: 'NO_SECRET', message: 'GITHUB_WEBHOOK_SECRET not configured' });
+    }
+    if (!verifyGithubSignature256(rawBody, githubSignature)) {
+      return res.status(401).json({
+        error: 'Unauthorized',
+        message: 'Invalid GitHub webhook signature',
+      });
+    }
+    if (githubEvent && githubEvent !== 'push') {
+      return res.json({ ok: true, ignored_event: githubEvent });
+    }
+  } else if (trigger === 'token') {
+    if (DEPLOY_WEBHOOK_SECRET && token !== DEPLOY_WEBHOOK_SECRET) {
+      logger.warn('Webhook deploy rejected: invalid token');
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+  }
+
+  // 2. Parse payload (for GitHub)
+  let payload = {};
+  if (trigger === 'github' && rawBody) {
+    try {
+      payload = JSON.parse(rawBody.toString('utf8'));
+    } catch {
+      return res.status(400).json({ error: 'Invalid JSON payload' });
+    }
+    if (payload.ref && payload.ref !== 'refs/heads/main') {
+      return res.json({ ok: true, ignored_ref: payload.ref });
+    }
+  } else if (trigger === 'token' && req.body) {
+    payload = req.body;
+  }
+
+  const ref = payload.ref || (payload.ref_override || 'manual');
+  const message = payload.message || payload.head_commit?.message || 'Manual deploy';
+  const commit = payload.head_commit?.id || payload.commit || null;
+  const deployId = payload.deploy_id || req.get('x-deploy-id') || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+  // 3. Idempotency check (same deployId within TTL = skip)
+  if (deployState.last_deploy_id === deployId) {
+    const ageMs = Date.now() - new Date(deployState.last_deploy_at || 0).getTime();
+    if (ageMs < DEPLOY_IDEMPOTENCY_TTL_MS) {
+      logger.info('Idempotent deploy skipped', { deployId, age_ms: ageMs });
+      return res.json({ ok: true, idempotent: true, deploy_id: deployId, state: deployState });
+    }
+  }
+
+  // 4. Rate limit check
+  const rate = checkRateLimit();
+  if (!rate.allowed) {
+    return res.status(429).json({
+      error: 'Rate limited',
+      retry_after_seconds: Math.ceil(rate.wait_ms / 1000),
+    });
+  }
+
+  // 5. Concurrent deploy check
+  if (await isConcurrentDeployRunning()) {
+    return res.status(409).json({
+      error: 'Deploy already in progress',
+      state: deployState,
+    });
+  }
+
+  // 6. Respond immediately, run deploy in background
+  res.json({
+    ok: true,
+    message: 'Deploy started',
+    deploy_id: deployId,
+    trigger,
+    ref,
+    state: { ...deployState, status: 'running', started_at: new Date().toISOString() },
+  });
+
+  // 7. Run deploy.sh async (don't await - response already sent)
+  runDeploySh(trigger, ref, message, deployId).catch((e) => {
+    logger.error('runDeploySh threw', { error: e.message });
+  });
+}
+
+// ── GitHub webhook: POST /deploy ────────────────────────────────
 app.post(
   '/deploy',
   express.raw({ type: ['application/json', 'application/*+json'], limit: '10mb' }),
@@ -162,68 +396,52 @@ app.post(
     if (!Buffer.isBuffer(buf)) {
       return res.status(400).json({ error: 'Invalid body' });
     }
-
-    const sig = req.get('x-hub-signature-256');
-    const computedSecret = process.env.GITHUB_WEBHOOK_SECRET;
-    if (!computedSecret) {
-      res.status(503).json({ error: 'NO_SECRET' });
-      return;
-    }
-    if (!verifyGithubSignature256(buf, sig)) {
-      res.status(401).json({
-        error: 'Unauthorized',
-        debug: {
-          hasSecret: !!computedSecret,
-          secretLen: computedSecret.length,
-          hasSig: !!sig,
-          sigHeader: sig,
-          bodyLen: buf.length,
-          bodyPreview: buf.toString('utf8').substring(0, 50)
-        }
-      });
-      return;
-    }
-
-    const event = req.get('x-github-event') || '';
-    if (event === 'ping') {
-      return res.json({ ok: true, message: 'pong' });
-    }
-    if (event && event !== 'push') {
-      return res.json({ ok: true, ignored: event });
-    }
-
-    let payload;
-    try {
-      payload = JSON.parse(buf.toString('utf8'));
-    } catch {
-      return res.status(400).json({ error: 'Invalid JSON' });
-    }
-
-    const ref = payload.ref;
-    if (ref && ref !== 'refs/heads/main') {
-      return res.json({ ok: true, ignored_ref: ref });
-    }
-
-    const deployScript = path.join(__dirname, 'deploy', 'deploy.sh');
-    if (!fs.existsSync(deployScript)) {
-      return res.status(500).json({ error: 'Deploy script not found' });
-    }
-
-    logger.info('POST /deploy: push main — chạy deploy/deploy.sh');
-
-    const { exec } = require('child_process');
-    exec(`bash "${deployScript}"`, { cwd: __dirname }, (err, stdout, stderr) => {
-      if (err) logger.error('Deploy failed', { error: err.message });
-      else {
-        if (stdout) logger.info('Deploy output: ' + stdout.trim());
-        if (stderr) logger.warn('Deploy stderr: ' + stderr.trim());
-        logger.info('Deploy completed successfully');
-      }
+    handleDeployWebhook(req, res, {
+      trigger: 'github',
+      rawBody: buf,
+      githubEvent: req.get('x-github-event'),
+      githubSignature: req.get('x-hub-signature-256'),
+    }).catch((e) => {
+      logger.error('GitHub webhook error', { error: e.message });
+      if (!res.headersSent) res.status(500).json({ error: 'Internal error' });
     });
-
-    return res.json({ ok: true, message: 'Deploy started' });
   }
 );
+
+// ── Token webhook: POST /webhook/deploy ─────────────────────────
+app.post('/webhook/deploy', async (req, res) => {
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.replace(/^Bearer\s+/i, '') || req.body?.token || req.query?.token;
+  await handleDeployWebhook(req, res, { trigger: 'token', token });
+});
+
+// ── Deploy status: GET /deploy/status ───────────────────────────
+// (Khong can auth cho status - chi la thong tin deploy)
+// Neu can protect, them check bearer token o day.
+app.get('/deploy/status', (req, res) => {
+  res.json({
+    ok: true,
+    state: deployState,
+    server: {
+      hostname: os.hostname(),
+      uptime_seconds: Math.floor(process.uptime()),
+      node_version: process.version,
+    },
+  });
+});
+
+// ── Deploy log: GET /deploy/log ─────────────────────────────────
+app.get('/deploy/log', async (req, res) => {
+  const lines = Math.min(parseInt(req.query.lines || '100', 10), 500);
+  try {
+    const data = await fsPromises.readFile(DEPLOY_LOG_FILE, 'utf8');
+    const arr = data.split('\n').filter(Boolean);
+    const tail = arr.slice(-lines).join('\n');
+    res.type('text/plain').send(tail || '(log empty)');
+  } catch {
+    res.type('text/plain').send('(log file not found - no deploy has been triggered yet)');
+  }
+});
 
 // Middleware
 app.use(bodyParser.json({ limit: '10mb' }));
@@ -637,43 +855,9 @@ app.get('/api/auth/me', (req, res) => {
   res.json({ loggedIn: true, username: session.username });
 });
 
-// ==================== WEBHOOK DEPLOY ====================
-// POST /webhook/deploy - Trigger auto-deploy (protected by secret token)
-const DEPLOY_WEBHOOK_SECRET = process.env.DEPLOY_WEBHOOK_SECRET || null;
-
-app.post('/webhook/deploy', async (req, res) => {
-  const authHeader = req.headers.authorization;
-  const token = authHeader?.replace(/^Bearer\s+/i, '') || req.body?.token || req.query?.token;
-  
-  // If secret is configured, validate it
-  if (DEPLOY_WEBHOOK_SECRET && token !== DEPLOY_WEBHOOK_SECRET) {
-    logger.warn('Webhook deploy rejected: invalid token');
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  
-  const { exec } = require('child_process');
-  const deployScript = path.join(__dirname, 'deploy', 'deploy.sh');
-  
-  if (!fs.existsSync(deployScript)) {
-    return res.status(500).json({ error: 'Deploy script not found' });
-  }
-  
-  logger.info('Webhook deploy triggered');
-  
-  // Run deploy script asynchronously
-  exec(`bash "${deployScript}"`, { cwd: __dirname }, (err, stdout, stderr) => {
-    if (err) {
-      logger.error('Deploy failed', { error: err.message });
-      return; // Don't respond to webhook request after timeout
-    }
-    if (stdout) logger.info('Deploy output: ' + stdout.trim());
-    if (stderr) logger.warn('Deploy stderr: ' + stderr.trim());
-    logger.info('Deploy completed successfully');
-  });
-  
-  // Respond immediately to avoid timeout
-  res.json({ ok: true, message: 'Deploy started' });
-});
+// ==================== WEBHOOK DEPLOY (moved above) ====================
+// Both /deploy and /webhook/deploy are registered above (before bodyParser).
+// See handleDeployWebhook() for the unified implementation.
 
 // ==================== HEALTH CHECK ====================
 app.get('/api/ping', (req, res) => {
@@ -752,6 +936,15 @@ app.get('/health', (req, res) => {
     checks.checks.backup = { ok: false, error: e.message };
     checks.ok = false;
   }
+
+  // Auto-deploy info (for monitoring)
+  checks.checks.deploy = {
+    status: deployState.status,
+    last_at: deployState.last_deploy_at,
+    last_commit: deployState.commit,
+    trigger: deployState.trigger,
+    rate_limit_active: deployState.rate_limit_until ? Date.now() < deployState.rate_limit_until : false,
+  };
 
   // Memory usage
   const mem = process.memoryUsage();
@@ -852,6 +1045,13 @@ function getNetworkIPs() {
   }
   return ips;
 }
+
+// Load deploy state from previous run (if any)
+loadDeployState().then(() => {
+  logger.info('Deploy state loaded', { status: deployState.status });
+}).catch((e) => {
+  logger.warn('Deploy state load failed', { error: e.message });
+});
 
 const server = app.listen(PORT, HOST, () => {
   // Initialize real-time WebSocket server (Socket.IO)

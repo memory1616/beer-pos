@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      message:
+        description: 'Deployment message'
+        required: false
+        default: 'Manual deploy via workflow_dispatch'
 
 concurrency:
   group: deploy-production
@@ -18,56 +23,79 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
+          fetch-depth: 1
           sparse-checkout: |
             server.js
             database.js
-            database/migration.js
+            database/
             views/
             public/
             routes/
             middleware/
+            src/
             package.json
-            pm2.config.js
+            package-lock.json
+            ecosystem.config.js
             deploy/
+            scripts/
           sparse-checkout-cone-mode: false
 
-      - name: Setup SSH Key (password-based auth)
-        env:
-          SERVER_PASSWORD: ${{ secrets.VPS_PASSWORD }}
-        run: |
-          # Install sshpass for password-based SCP
-          apt-get update -qq && apt-get install -y -qq sshpass 2>/dev/null
-          echo "SERVER_PASSWORD=$SERVER_PASSWORD" >> $GITHUB_ENV
+      - name: Setup Node.js (for syntax check)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          check-latest: true
 
-      - name: Upload to server via SCP
+      - name: Pre-flight syntax check
+        run: |
+          echo "=== Syntax checking Node files ==="
+          ERRORS=0
+          for js in server.js database.js database/migration.js; do
+            if [ -f "$js" ]; then
+              if ! node --check "$js" 2>/dev/null; then
+                echo "SYNTAX ERROR: $js"
+                ERRORS=$((ERRORS + 1))
+              else
+                echo "OK: $js"
+              fi
+            fi
+          done
+          for js in $(find routes middleware -name "*.js" 2>/dev/null); do
+            if ! node --check "$js" 2>/dev/null; then
+              echo "SYNTAX ERROR: $js"
+              ERRORS=$((ERRORS + 1))
+            fi
+          done
+          if [ "$ERRORS" -gt 0 ]; then
+            echo "Found $ERRORS syntax errors - aborting deploy"
+            exit 1
+          fi
+
+      - name: Verify deploy script exists
+        run: |
+          if [ ! -f "deploy/deploy.sh" ]; then
+            echo "ERROR: deploy/deploy.sh not found"
+            exit 1
+          fi
+          echo "Deploy script OK: $(wc -l < deploy/deploy.sh) lines"
+
+      - name: Deploy to server via SSH
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
           VPS_PORT: ${{ secrets.VPS_PORT }}
-          VPS_PASSWORD: ${{ secrets.VPS_PASSWORD }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
         run: |
-          echo "=== Uploading code via SCP (password auth) ==="
-          sshpass -p "$VPS_PASSWORD" scp -o StrictHostKeyChecking=no \
-            -o UserKnownHostsFile=/dev/null \
-            -r -P "${VPS_PORT:-22} \
-            server.js database.js package.json pm2.config.js \
-            database/ views/ public/ routes/ middleware/ \
-            deploy/ \
-            "${VPS_USER}@${VPS_HOST}:/root/beer-pos_new/"
-          echo "Upload done"
+          # Write SSH key to a temp file with correct perms
+          mkdir -p ~/.ssh
+          echo "$VPS_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
 
-      - name: Run deploy.sh on server
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT }}
-          password: ${{ secrets.VPS_PASSWORD }}
-          timeout: 15m
-          command_timeout: 15m
-          script_stop: true
-          script: |
+          # SSH options: disable strict host key for first run, batch mode for no prompts
+          SSH_OPTS="-i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new -o BatchMode=yes -p ${VPS_PORT:-22}"
+
+          echo "=== Running deploy.sh on $VPS_HOST ==="
+          ssh $SSH_OPTS "${VPS_USER}@${VPS_HOST}" << 'REMOTE_SCRIPT'
             set -e
             echo "================================================"
             echo "  GitHub Action triggered deploy"
@@ -77,9 +105,17 @@ jobs:
             bash /root/beer-pos/deploy/deploy.sh
             echo ""
             echo "=== Verification ==="
-            echo "Server HEAD: $(git -C /root/beer-pos rev-parse HEAD)"
-            git -C /root/beer-pos log --oneline -3
+            cd /root/beer-pos
+            echo "Server HEAD: $(git rev-parse HEAD 2>/dev/null || echo 'unknown')"
+            git log --oneline -3 2>/dev/null || echo "(no git history)"
             echo ""
             echo "=== Health check ==="
-            pm2 status beer-pos
-            curl -fsS http://127.0.0.1:3000/health && echo "HEALTH OK"
+            pm2 status beer-pos 2>&1 | head -10
+            curl -fsS http://127.0.0.1:3000/health && echo "HEALTH OK" || echo "HEALTH FAILED"
+          REMOTE_SCRIPT
+
+      - name: Cleanup SSH key
+        if: always()
+        run: |
+          rm -f ~/.ssh/deploy_key
+          echo "SSH key cleaned up"
