@@ -51,12 +51,15 @@ param(
     [switch]$UseHostAlias
 )
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Continue"
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $ProjectRoot
 
-$VPSPath = "/root/beer-pos"
-$StagingPath = "/root/beer-pos_new"
+# Server app directory - WARNING: must match VPS_PATH in deploy.sh
+# Production VPS uses /var/www/beer-pos (NOT /root/beer-pos)
+# Override via env var: $env:VPS_PATH_OVERRIDE = "/some/path"
+$VPSPath = if ($env:VPS_PATH_OVERRIDE) { $env:VPS_PATH_OVERRIDE } else { "/var/www/beer-pos" }
+$StagingPath = "$VPSPath`_new"
 
 # Colors
 function Write-Step($msg) { Write-Host "`n===> $msg" -ForegroundColor Cyan }
@@ -120,47 +123,252 @@ if ($UseHostAlias) {
 # Test connection
 Write-Step "Test SSH connection to $sshTarget"
 $testCmd = if ($UseHostAlias) { $sshTarget } else { $sshHost }
-$testResult = ssh @sshCommon -o ConnectTimeout=8 "$testCmd" "echo CONN_OK: \$(whoami)@\$(hostname)" 2>&1
-if ($LASTEXITCODE -ne 0) {
-    Write-Err "Cannot SSH. Check key + server status."
-    Write-Host $testResult
+
+# SSH "Permanently added" warning writes to stderr and PowerShell treats
+# it as a non-terminating error. Use .NET Process to fully suppress.
+$psi = New-Object System.Diagnostics.ProcessStartInfo
+$psi.FileName = "ssh"
+$psi.Arguments = ($sshCommon -join " ") + " -o ConnectTimeout=8 `"$testCmd`" `"echo CONN_OK: \$(whoami)@\$(hostname)`""
+$psi.UseShellExecute = $false
+$psi.RedirectStandardOutput = $true
+$psi.RedirectStandardError = $true
+$psi.CreateNoWindow = $true
+
+try {
+    $proc = [System.Diagnostics.Process]::Start($psi)
+    $stdout = $proc.StandardOutput.ReadToEnd()
+    $stderr = $proc.StandardError.ReadToEnd()
+    $proc.WaitForExit(10000) | Out-Null
+    $testExit = $proc.ExitCode
+} catch {
+    Write-Err "Cannot start SSH: $_"
     exit 1
 }
-Write-OK $testResult
+
+$testOutput = $stdout + $stderr
+if ($testExit -ne 0 -or $stdout -notmatch "CONN_OK") {
+    Write-Err "Cannot SSH. Check key + server status. (exit=$testExit)"
+    Write-Host $testOutput
+    exit 1
+}
+Write-OK $stdout.Trim()
 
 # --- 1. Build list of files to deploy ---
 Write-Step "Determining files to deploy"
 
 # Exclusion patterns - CHI sync source code, KHONG dong bo:
-# - node_modules (npm install se tu chay tren server)
-# - .git (git pull se tu lam)
-# - database sqlite files (production DB, KHONG DUOC PHEP overwrite)
-# - backups, logs, coverage (chi ton bandwidth)
-# - sensitive credentials (.env, .pem)
-$exclude = @(
-    "node_modules",
-    ".git",
-    "coverage",
-    ".backup",
-    "backups",
-    "backup",
-    "logs",
-    "__pycache__",
+#
+# Nhom 1: Directory can exclude (tên chính xác)
+$excludeDirs = @(
+    "node_modules",      # npm install se tu chay tren server
+    ".git",              # git pull se tu lam
+    "coverage",          # coverage reports
+    ".backup",           # backup files cua deploy.sh
+    "backups",           # database backups
+    "backup",            # legacy backup dir
+    "logs",              # log files
+    "__pycache__",       # python cache
+    ".husky",            # git hooks
+    ".cursor",           # cursor IDE config
+    "deploy",            # KHONG deploy deploy.sh len staging (se copy qua .backup)
+    "scripts"            # dev/debug scripts
+)
+
+# Nhom 2: Wildcard patterns (file extension hoặc prefix)
+$excludeGlobs = @(
     "*.log",
     "*.db",
     "*.sqlite",
     "*.sqlite-shm",
     "*.sqlite-wal",
-    ".env",
-    ".env.local",
-    ".env.*.local",
-    "*.pem",
-    "*.key",
     "*.bak",
     "*.bak.*",
     "*.old",
-    "*.bak.*"
+    "*.tmp",
+    "*.swp",
+    "*.pyc",
+    "*.pyo"
 )
+
+# Nhom 3: Sensitive files (KHONG BAO GIO deploy) - exact match hoặc glob
+$excludeSensitive = @(
+    ".env",
+    ".env.local",
+    ".env.*.local",
+    ".env.production",
+    ".env.example.bak",
+    ".git-commit-msg.txt",
+    ".git-commit-msg-deploy*.txt",
+    "pass.txt",
+    "*.pem",
+    "*.key",
+    "*_rsa*",
+    "*_rsa2*",
+    "*_deploy_key*",
+    "cursor_deploy_key",
+    "cursor_deploy_key.pub",
+    "id_ed25519",
+    "id_ed25519.pub",
+    "id_rsa*",
+    "known_hosts",
+    "config"            # SSH config cua ~\.ssh\config
+)
+
+# Nhom 4: Files leak debug / temp / scratch (bắt đầu bằng _ hoặc prefix đặc biệt)
+$excludeScratch = @(
+    "_*.py",
+    "_*.pem",
+    "_*.sql",
+    "_*.sqlite",
+    "_*.db",
+    "_*.key",
+    "_*.gz",
+    "_*.sh",
+    "_*.bat",
+    "_*.txt",           # _deploy_test_marker.txt, _commit_msg.txt, _test_*.txt
+    "_*.md",            # _notes.md, _scratch.md
+    "_*.json",          # _data.json, _test_data.json
+    "_*.log",           # _app.log, _scratch.log
+    "_commit_msg.txt",
+    "debug_*.py",
+    "debug_*.js",
+    "test_*.py",        # python tests
+    "why_*.py",
+    "check_*.py",
+    "inspect_*.py",
+    "precheck_*.py",
+    "query_*.py",
+    "pull_*.py",
+    "find_*.py",
+    "run_*.py",
+    "verify_*.py",
+    "update_*.py",
+    "upload*.py",  # uploadsakey.py, uploadrclone.py, upload_sa_key.py, upload_and_restore.py
+    "restore_*.py",
+    "swap_files.py",
+    "save_file.py",
+    "start_pm2.py",
+    "npm_install.py",
+    "direct_node.py",
+    "force_restart.py",
+    "restart_test.py",
+    "final_test.py",
+    "rebuild.py",
+    "simple_check.py",
+    "ssh_*.py",
+    "ssh-*",
+    "ssh_*",
+    "fix-*.bat",
+    "stage-fix.bat",
+    "commit-fix.bat",
+    "deploy-fix.bat",
+    "check-*.bat",
+    "check-*.sh",
+    "test-*.bat",
+    "test-*.js",
+    "diag-*.bat",
+    "diag-*.sh",
+    "smoke-test.bat",
+    "finaltest.py",
+    "final-*.py",
+    "e2e_test.py",
+    # Touch / scratch files (deploy test markers)
+    "_deploy_test_*",
+    "_touch_*",
+    "_scratch_*"
+)
+
+# Nhom 5: Other noisy files
+$excludeOther = @(
+    "*.zip",
+    "*.rar",
+    "*.7z",
+    "*.tar",
+    "*.tar.gz",
+    "*.tgz",
+    "package-lock.json",  # server se tao lai khi npm install
+    "yarn.lock",
+    "pnpm-lock.yaml",
+    "tsconfig.tsbuildinfo",
+    ".DS_Store",
+    "Thumbs.db",
+    "desktop.ini",
+    "*.mp4",              # video demo (lon)
+    "*.mov",
+    "*.avi",
+    "*.png.bak"
+)
+
+# Helper function: check if path matches any pattern
+function Test-Excluded([string]$relPath, [string[]]$dirs, [string[]]$globs, [string[]]$sensitive, [string[]]$scratch, [string[]]$other) {
+    # Check directory components (any path part matches a dir name)
+    $pathParts = $relPath -split '[\\/]'
+    foreach ($dir in $dirs) {
+        if ($pathParts -contains $dir) { return $true }
+    }
+
+    $fileName = Split-Path $relPath -Leaf
+
+    # Check glob patterns (file name matches wildcard)
+    foreach ($glob in $globs) {
+        if ($fileName -like $glob) { return $true }
+    }
+
+    # Check sensitive (exact match OR wildcard)
+    foreach ($pat in $sensitive) {
+        if ($pat -like "*\*") {
+            # contains wildcard, use -like
+            if ($fileName -like $pat) { return $true }
+        } elseif ($pat -like "*\?*") {
+            if ($fileName -like $pat) { return $true }
+        } else {
+            # exact match
+            if ($fileName -eq $pat) { return $true }
+        }
+    }
+
+    # Check scratch patterns
+    foreach ($pat in $scratch) {
+        if ($fileName -like $pat) { return $true }
+    }
+
+    # Check other
+    foreach ($pat in $other) {
+        if ($fileName -like $pat) { return $true }
+    }
+
+    return $false
+}
+
+# Quick test: print excluded paths to verify logic
+$testExcluded = @{
+    "pass.txt" = $true
+    "cursor_deploy_key" = $true
+    "cursor_deploy_key.pub" = $true
+    "id_ed25519" = $true
+    "my_private_key.pem" = $true
+    "_debug.py" = $true
+    "debug_db.py" = $true
+    "node_modules\foo.js" = $true
+    ".env" = $true
+    ".env.local" = $true
+    "server.js" = $false
+    "database.js" = $false
+    "routes\api\sales.js" = $false
+    "package.json" = $false
+}
+$testsOk = 0; $testsFail = 0
+foreach ($k in $testExcluded.Keys) {
+    $expected = $testExcluded[$k]
+    $actual = Test-Excluded -relPath $k -dirs $excludeDirs -globs $excludeGlobs -sensitive $excludeSensitive -scratch $excludeScratch -other $excludeOther
+    if ($expected -eq $actual) {
+        $testsOk++
+    } else {
+        $testsFail++
+        Write-Warn "Test FAIL: '$k' expected=$expected got=$actual"
+    }
+}
+Write-OK "Exclude unit tests: $testsOk ok, $testsFail fail"
 
 $items = @()
 if ($All) {
@@ -168,19 +376,23 @@ if ($All) {
     $items = Get-ChildItem -Path $ProjectRoot -Recurse -File |
         Where-Object {
             $rel = $_.FullName.Substring($ProjectRoot.Length + 1)
-            # Skip if matches any exclusion
-            $skip = $false
-            foreach ($ex in $exclude) {
-                # Check if exclusion applies to directory part of path
-                $pathParts = $rel -split '[\\/]'
-                if ($pathParts -contains $ex) { $skip = $true; break }
-                # Check wildcard patterns (file extension)
-                if ($ex -like "*.*" -and $rel -like $ex) { $skip = $true; break }
-            }
-            -not $skip
+            -not (Test-Excluded -relPath $rel -dirs $excludeDirs -globs $excludeGlobs -sensitive $excludeSensitive -scratch $excludeScratch -other $excludeOther)
         } |
         ForEach-Object { $_.FullName.Substring($ProjectRoot.Length + 1) }
-    Write-OK "All mode: $($items.Count) files"
+
+    # Sanity check: verify no sensitive files leaked
+    $leaked = @()
+    foreach ($item in $items) {
+        if (Test-Excluded -relPath $item -dirs $excludeDirs -globs $excludeGlobs -sensitive $excludeSensitive -scratch $excludeScratch -other $excludeOther) {
+            $leaked += $item
+        }
+    }
+    if ($leaked.Count -gt 0) {
+        Write-Err "LEAK: $($leaked.Count) sensitive files would be deployed!"
+        $leaked | Select-Object -First 10 | ForEach-Object { Write-Host "  - $_" -ForegroundColor Red }
+        exit 1
+    }
+    Write-OK "All mode: $($items.Count) files (leak check: PASS)"
 } elseif ($Path) {
     $abs = if (Test-Path $Path) { (Resolve-Path $Path).Path } else { Join-Path $ProjectRoot $Path }
     if (-not (Test-Path $abs)) {
@@ -189,6 +401,13 @@ if ($All) {
     }
     # Use relative path from project root (preserves directory structure for SCP)
     $relPath = $abs.Substring($ProjectRoot.Length + 1)
+
+    # Abort if user explicitly tries to deploy a sensitive file
+    if (Test-Excluded -relPath $relPath -dirs $excludeDirs -globs $excludeGlobs -sensitive $excludeSensitive -scratch $excludeScratch -other $excludeOther) {
+        Write-Err "Refusing to deploy sensitive file: $relPath"
+        Write-Host "  This file matches an exclude pattern (sensitive, debug, or scratch)." -ForegroundColor Yellow
+        exit 1
+    }
     $items = @($relPath)
     Write-OK "Single item: $($items -join ', ')"
 } else {

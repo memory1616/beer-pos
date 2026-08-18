@@ -15,12 +15,43 @@
 #   5. Syntax check (node -c)
 #   6. npm install (neu package.json doi)
 #   7. Bump version.json, restart PM2, health check
+#
+# Signal handling:
+#   - SIGHUP / SIGPIPE: cleanup + exit (tranh partial state)
+#   - EXIT trap: remove lock file
 # ============================================================
 
-set -euo pipefail
+# NOTE: KHONG dùng 'set -o pipefail' - nó gây SIGPIPE khi output lớn
+# (vd khi SCP upload nhieu files, ls -A in 300+ items)
+# Thay vào đó, dung `|| true` cho các command pipe không critical.
+set -eu
 
-VPS_PATH="$HOME/beer-pos"
-NEW_PATH="$HOME/beer-pos_new"
+# Signal traps - cleanup neu bi interrupt
+cleanup_on_signal() {
+    local sig=$1
+    err "Script interrupted by SIG$sig - cleaning up"
+    # Lock file sẽ được trap EXIT xóa
+    exit 130
+}
+trap 'cleanup_on_signal HUP' SIGHUP
+trap 'cleanup_on_signal PIPE' SIGPIPE
+trap 'cleanup_on_signal INT' SIGINT
+trap 'cleanup_on_signal TERM' SIGTERM
+
+# VPS_PATH - thư mục app trên server. Đặt qua env VPS_PATH_OVERRIDE nếu khác default.
+# Mặc định: /var/www/beer-pos (production)
+# Fallback: /root/beer-pos (cũ, nếu quên update)
+VPS_PATH="${VPS_PATH_OVERRIDE:-}"
+if [ -z "$VPS_PATH" ]; then
+    if [ -d "/var/www/beer-pos" ]; then
+        VPS_PATH="/var/www/beer-pos"
+    elif [ -d "$HOME/beer-pos" ]; then
+        VPS_PATH="$HOME/beer-pos"
+    else
+        VPS_PATH="$HOME/beer-pos"  # default fallback
+    fi
+fi
+NEW_PATH="${VPS_PATH}_new"
 BACKUP_DIR="$VPS_PATH/.backup"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 HEALTH_URL="http://127.0.0.1:3000/health"
@@ -69,10 +100,14 @@ log_to_file "Deploy started - $(date)"
 
 # ---- 2. Phat hien cach deploy ----
 HAS_NEW=0
-if [ -d "$NEW_PATH" ] && [ -n "$(ls -A "$NEW_PATH" 2>/dev/null)" ]; then
+# Check if staging directory has content (use 'find' instead of 'ls -A' for safety)
+if [ -d "$NEW_PATH" ] && [ -n "$(find "$NEW_PATH" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]; then
     HAS_NEW=1
     log "[1/7] Mode: MANUAL SCP - staging directory $NEW_PATH co files"
-    ls -la "$NEW_PATH" | head -10
+    # Limit output to first 10 items (may be huge otherwise)
+    find "$NEW_PATH" -mindepth 1 -maxdepth 1 | head -10 | while IFS= read -r f; do
+        ls -la "$f" 2>/dev/null | head -1
+    done
 else
     log "[1/7] Mode: GIT PULL - se fetch + reset tu origin/$GIT_BRANCH"
 fi
@@ -184,26 +219,38 @@ log "[4/7] Deploying new files..."
 if [ "$HAS_NEW" = "1" ]; then
     # CRITICAL: Never overwrite beer.db / database.sqlite (the actual database)
     # Also exclude sensitive / generated files
-    EXCLUDE_DIRS="node_modules|.git|coverage|.backup|backups|__pycache__|logs"
-    EXCLUDE_FILES="beer.db|database.sqlite|database.sqlite-shm|database.sqlite-wal|database_live.sqlite|database_check.sqlite|database_server.sqlite|database_new.sqlite|temp_restore.db|package-lock.json|.*.bak|*.pem|*.key|.env.local"
+    EXCLUDE_DIRS="node_modules .git coverage .backup backups __pycache__ logs .husky .cursor deploy scripts"
+    EXCLUDE_FILES="beer.db database.sqlite database.sqlite-shm database.sqlite-wal database_live.sqlite database_check.sqlite database_server.sqlite database_new.sqlite temp_restore.db package-lock.json *.bak *.pem *.key *.gz *.zip *.tar"
 
     cd "$NEW_PATH"
-    for item in $(ls -A); do
+
+    # Use 'find' instead of 'ls -A' for safety with large directories.
+    # 'find -maxdepth 1' lists only top-level (no recursion), avoids issues with:
+    #   - 'ls -A' breaking on filenames with spaces/special chars
+    #   - 'set -o pipefail' causing SIGPIPE on large output
+    #   - command substitution size limits
+    while IFS= read -r item; do
+        # find in ra "./ten_file" -> strip leading "./"
+        item="${item#./}"
+
         # Skip excluded items
         skip=0
-        for ex_dir in $(echo "$EXCLUDE_DIRS" | tr '|' ' '); do
+        for ex_dir in $EXCLUDE_DIRS; do
             if [ "$item" = "$ex_dir" ]; then
                 skip=1
                 break
             fi
         done
-        for ex_file in $(echo "$EXCLUDE_FILES" | tr '|' ' '); do
-            case "$item" in
-                $ex_file)
-                    skip=1
-                    ;;
-            esac
-        done
+        if [ "$skip" = "0" ]; then
+            for ex_file in $EXCLUDE_FILES; do
+                # shellcheck disable=SC2254
+                case "$item" in
+                    $ex_file)
+                        skip=1
+                        ;;
+                esac
+            done
+        fi
         if [ "$skip" = "1" ]; then
             log "   skip:  $item (protected)"
             continue
@@ -220,7 +267,7 @@ if [ "$HAS_NEW" = "1" ]; then
             cp "$src" "$dst"
             log "   file: $item"
         fi
-    done
+    done < <(find . -mindepth 1 -maxdepth 1 -printf '%f\n' | sort)
 
     # Safety: NEVER touch the actual database file
     if [ -f "$NEW_PATH/database.sqlite" ] || [ -f "$NEW_PATH/beer.db" ]; then
