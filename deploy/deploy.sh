@@ -138,6 +138,44 @@ if [ "$HAS_NEW" = "0" ]; then
     OLD_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
     log "   Current HEAD: $OLD_COMMIT"
 
+    # ---- PRESERVE critical files truoc khi reset --hard ----
+    # Git reset --hard se XOA toan bo files khong tracked trong git.
+    # Critical files (env, db, config) can duoc backup va restore.
+    PRESERVE_BACKUP="/tmp/beerpos-preserve-$$"
+    mkdir -p "$PRESERVE_BACKUP"
+    log "   Preserving critical files -> $PRESERVE_BACKUP"
+
+    # Critical files can preserve (exists on server but not in git)
+    PRESERVE_FILES=(
+        ".env"
+        ".env.production"
+        ".env.local"
+        ".env.*.local"
+        "database.sqlite"
+        "database.sqlite-shm"
+        "database.sqlite-wal"
+        "database_live.sqlite"
+        "ecosystem.config.js"
+        "version.json"
+        ".pm2/"
+    )
+    # Critical directories can preserve
+    PRESERVE_DIRS=(
+        "logs/"
+        ".backup/"
+    )
+
+    for f in "${PRESERVE_FILES[@]}"; do
+        if [ -e "$f" ]; then
+            cp -r "$f" "$PRESERVE_BACKUP/" 2>/dev/null && log "     preserved: $f"
+        fi
+    done
+    for d in "${PRESERVE_DIRS[@]}"; do
+        if [ -e "$d" ]; then
+            cp -r "$d" "$PRESERVE_BACKUP/" 2>/dev/null && log "     preserved dir: $d"
+        fi
+    done
+
     # Fetch tu remote
     log "   git fetch origin $GIT_BRANCH..."
     if ! git fetch origin "$GIT_BRANCH" 2>&1 | tail -5; then
@@ -152,6 +190,24 @@ if [ "$HAS_NEW" = "0" ]; then
         err "git reset FAILED"
         exit 2
     fi
+
+    # ---- RESTORE critical files sau khi reset ----
+    log "   Restoring critical files..."
+    for f in "${PRESERVE_FILES[@]}"; do
+        src="$PRESERVE_BACKUP/$f"
+        if [ -e "$src" ]; then
+            # Make sure parent directory exists
+            mkdir -p "$(dirname "$f")" 2>/dev/null
+            cp -r "$src" "$f" 2>/dev/null && log "     restored: $f"
+        fi
+    done
+    for d in "${PRESERVE_DIRS[@]}"; do
+        src="$PRESERVE_BACKUP/$d"
+        if [ -e "$src" ]; then
+            cp -r "$src" . 2>/dev/null && log "     restored dir: $d"
+        fi
+    done
+    rm -rf "$PRESERVE_BACKUP"
 
     NEW_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
     log "   New HEAD:     $NEW_COMMIT"
