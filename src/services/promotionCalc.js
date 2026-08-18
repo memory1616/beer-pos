@@ -26,10 +26,13 @@
  *       - Bia đen:  300 ≤ <500 → 20L đen;  ≥ 500 → 40L đen
  *
  *   TRƯỜNG HỢP C2 — Mua cả 2 loại nhưng KHÔNG cùng ≥ 300L:
- *     ⇒ Tính theo tổng hỗn hợp (MIXED), phần thưởng LUÔN là BIA VÀNG:
- *       - total < 300               → không thưởng
- *       - 300 ≤ total < 500         → 20L vàng
- *       - total ≥ 500               → 40L vàng
+ *     ⇒ Tách riêng từng loại trước (loại đạt mốc thì thưởng theo loại đó):
+ *       - Bia vàng: ≥ 300 → 20L vàng; ≥ 500 → 40L vàng
+ *       - Bia đen:  ≥ 300 → 20L đen;  ≥ 500 → 40L đen
+ *     ⇒ Nếu cả 2 đều < 300L → cộng tổng hỗn hợp, thưởng BIA VÀNG:
+ *       - total < 300          → không thưởng
+ *       - 300 ≤ total < 500    → 20L vàng
+ *       - total ≥ 500          → 40L vàng
  *
  * KHÔNG TÍNH QUÀ TẶNG VÀO SẢN LƯỢNG MUA.
  *
@@ -121,13 +124,26 @@ function calculatePromotion(yellowVolume, blackVolume) {
     };
   }
 
-  // C2 — Mua cả 2 nhưng không cùng ≥ 300L → dùng tổng hỗn hợp, thưởng bia vàng
-  const yReward = tierReward(total);
+  // C2 — Mua cả 2 nhưng không cùng ≥ 300L
+  // Bước 1: Tách riêng từng loại, loại nào đạt 300 → 20, 500 → 40 thưởng theo loại đó
+  // Bước 2: Nếu cả 2 đều < 300L → dùng tổng hỗn hợp, thưởng bia vàng
+  const yReward = tierReward(y);
+  const bReward = tierReward(b);
+  if (yReward > 0 || bReward > 0) {
+    return {
+      mode: REWARD_MODES.MIXED,
+      yellowReward: yReward,
+      blackReward: bReward,
+      totalReward: yReward + bReward
+    };
+  }
+  // Cả 2 đều < 300L → tính tổng, thưởng vàng
+  const totalReward = tierReward(total);
   return {
     mode: REWARD_MODES.MIXED,
-    yellowReward: yReward,
+    yellowReward: totalReward,
     blackReward: 0,
-    totalReward: yReward
+    totalReward
   };
 }
 
