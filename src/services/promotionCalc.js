@@ -125,11 +125,22 @@ function calculatePromotion(yellowVolume, blackVolume) {
   }
 
   // C2 — Mua cả 2 nhưng không cùng ≥ 300L
-  // Bước 1: Tách riêng từng loại, loại nào đạt 300 → 20, 500 → 40 thưởng theo loại đó
-  // Bước 2: Nếu cả 2 đều < 300L → dùng tổng hỗn hợp, thưởng bia vàng
-  const yReward = tierReward(y);
-  const bReward = tierReward(b);
+  // Bước 1: Tách riêng từng loại
+  // Bước 2: Nếu một loại đạt 300→20, kiểm tra thêm tổng hỗn hợp:
+  //         - Nếu tổng ≥ 500 và CHỈ 1 loại đạt → thưởng 40L VÀNG (tiết kiệm hơn)
+  //         - Nếu tổng 300-500 → giữ nguyên 20L theo loại đạt
+  // Bước 3: Nếu cả 2 đều < 300L → dùng tổng hỗn hợp, thưởng bia vàng
+  let yReward = tierReward(y);
+  let bReward = tierReward(b);
   if (yReward > 0 || bReward > 0) {
+    // Có ít nhất 1 loại đạt 300L. Kiểm tra tổng để quyết định tier.
+    if (total >= 500) {
+      // Tổng đạt mốc 500 → thưởng 40L VÀNG (chỉ 1 loại đạt, loại kia < 300)
+      // Vì chỉ tách riêng khi cả 2 đều ≥ 300 (đã loại ở SEPARATE), nên ở đây
+      // chỉ có nhiều nhất 1 loại đạt mốc. Thưởng 40L vàng tiết kiệm hơn 40L đen.
+      yReward = TIER_REWARDS[500];
+      bReward = 0;
+    }
     return {
       mode: REWARD_MODES.MIXED,
       yellowReward: yReward,
