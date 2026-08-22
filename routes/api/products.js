@@ -17,6 +17,42 @@ function syncKegInventory() {
   }
 }
 
+// ========== HELPER: Seed default price for ALL active customers ==========
+// Khi thêm sản phẩm mới, tự động gán giá mặc định (sell_price) cho TẤT CẢ khách active.
+// Dùng INSERT OR IGNORE để KHÔNG ghi đè giá custom mà admin đã chỉnh riêng cho từng khách.
+function seedDefaultPricesForProduct(productId, productSlug, sellPrice) {
+  try {
+    const customers = db.prepare('SELECT id FROM customers WHERE archived = 0 AND deleted = 0').all();
+    if (!customers || customers.length === 0) {
+      return { inserted: 0, total: 0 };
+    }
+
+    const insertStmt = db.prepare(
+      'INSERT OR IGNORE INTO prices (customer_id, product_id, product_slug, price) VALUES (?, ?, ?, ?)'
+    );
+    const insertMany = db.transaction((rows) => {
+      let count = 0;
+      for (const r of rows) {
+        const info = insertStmt.run(r.customer_id, r.product_id, r.product_slug, r.price);
+        if (info.changes > 0) count++;
+      }
+      return count;
+    });
+    const rows = customers.map((c) => ({
+      customer_id: c.id,
+      product_id: productId,
+      product_slug: productSlug,
+      price: sellPrice,
+    }));
+    const inserted = insertMany(rows);
+    logger.info('[Products] Seeded default prices', { productId, totalCustomers: customers.length, inserted });
+    return { inserted, total: customers.length };
+  } catch (err) {
+    logger.error('seedDefaultPricesForProduct error', { error: err.message });
+    return { inserted: 0, error: err.message };
+  }
+}
+
 // ========== HELPER: Slug utilities ==========
 function toSlug(name) {
   if (!name) return '';
@@ -247,10 +283,22 @@ router.post('/', (req, res) => {
       syncKegInventory();
     }
 
+    // Auto-seed default price cho TẤT CẢ khách active (INSERT OR IGNORE: không ghi đè giá custom)
+    const seedResult = seedDefaultPricesForProduct(productId, productSlug, parseFloat(sell_price) || 0);
+
     const product = db.prepare('SELECT * FROM products WHERE id = ?').get(productId);
     socketServer.emitInventoryUpdated({ product });
     logger.info('[Products] Created', { id: productId, slug: productSlug, name });
-    res.json({ id: productId, slug: productSlug, name, stock: parseInt(stock) || 0, cost_price: parseFloat(cost_price) || 0, sell_price: parseFloat(sell_price) || 0, type: productType });
+    res.json({
+      id: productId,
+      slug: productSlug,
+      name,
+      stock: parseInt(stock) || 0,
+      cost_price: parseFloat(cost_price) || 0,
+      sell_price: parseFloat(sell_price) || 0,
+      type: productType,
+      seededCustomers: seedResult,
+    });
   } catch (err) {
     logger.error('Error creating product', { error: err.message });
     res.status(500).json({ error: 'Lỗi khi tạo sản phẩm: ' + err.message });

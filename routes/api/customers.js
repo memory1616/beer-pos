@@ -206,6 +206,21 @@ router.post('/', (req, res) => {
           insertPrice.run(customerId, prodId, prodSlug, parseFloat(price));
         }
       }
+    } else {
+      // Không truyền prices → tự động gán giá mặc định (products.sell_price) cho TẤT CẢ sản phẩm active
+      // Dùng INSERT OR IGNORE để an toàn nếu đã có sẵn row.
+      const products = db.prepare('SELECT id, slug, sell_price FROM products WHERE archived = 0').all();
+      const insertDefaultPrice = db.prepare('INSERT OR IGNORE INTO prices (customer_id, product_id, product_slug, price) VALUES (?, ?, ?, ?)');
+      const insertDefaults = db.transaction((rows) => {
+        let count = 0;
+        for (const p of rows) {
+          const info = insertDefaultPrice.run(customerId, p.id, p.slug, p.sell_price || 0);
+          if (info.changes > 0) count++;
+        }
+        return count;
+      });
+      const insertedDefaults = insertDefaults(products);
+      logger.info('[Customers] Seeded default prices for new customer', { customerId, totalProducts: products.length, inserted: insertedDefaults });
     }
 
     // Gán sales cho khách hàng mới (nếu có)

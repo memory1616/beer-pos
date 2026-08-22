@@ -603,6 +603,7 @@ async function deletePurchase(purchaseId) {
         var productNameEl = document.getElementById('productName');
         var productTypeEl = document.getElementById('productType');
         var productCostPriceEl = document.getElementById('productCostPrice');
+        var productSellPriceEl = document.getElementById('productSellPrice');
         var productStockEl = document.getElementById('productStock');
         if (!productIdEl || !productNameEl) return;
 
@@ -610,6 +611,7 @@ async function deletePurchase(purchaseId) {
         var name = productNameEl.value.trim();
         var type = productTypeEl ? productTypeEl.value : 'keg';
         var cost_price = parseFloat(productCostPriceEl ? productCostPriceEl.value : '0') || 0;
+        var sell_price = parseFloat(productSellPriceEl ? productSellPriceEl.value : '0') || 0;
         var stock = productId ? (parseInt(productStockEl ? productStockEl.value : '0') || 0) : 0;
 
         if (!name) {
@@ -617,9 +619,21 @@ async function deletePurchase(purchaseId) {
           return;
         }
 
+        // Khi tạo mới: bắt buộc phải có giá bán mặc định (sẽ gán cho tất cả khách)
+        if (!productId && (!productSellPriceEl || isNaN(sell_price) || sell_price < 0)) {
+          alert('Vui lòng nhập giá bán mặc định (đ) — đây là giá sẽ tự động gán cho tất cả khách hàng');
+          if (productSellPriceEl) productSellPriceEl.focus();
+          return;
+        }
+
         var data = { name: name, type: type, cost_price: cost_price };
         if (productId) {
+          // Edit: gửi sell_price kèm theo (PUT endpoint chấp nhận update)
           data.stock = stock;
+          data.sell_price = sell_price;
+        } else {
+          // Create: gửi sell_price để backend auto-seed cho tất cả khách
+          data.sell_price = sell_price;
         }
 
         var method = productId ? 'PUT' : 'POST';
@@ -1027,11 +1041,13 @@ function openProductModal(productId) {
     var productNameEl = document.getElementById('productName');
     var productTypeEl = document.getElementById('productType');
     var productCostPriceEl = document.getElementById('productCostPrice');
+    var productSellPriceEl = document.getElementById('productSellPrice');
     var productStockEl = document.getElementById('productStock');
     if (productIdEl) productIdEl.value = product.id;
     if (productNameEl) productNameEl.value = product.name;
     if (productTypeEl) productTypeEl.value = product.type || 'keg';
     if (productCostPriceEl) productCostPriceEl.value = product.cost_price || 0;
+    if (productSellPriceEl) productSellPriceEl.value = product.sell_price || 0;
     if (productStockEl) productStockEl.value = product.stock;
     if (deleteBtn) deleteBtn.classList.remove('hidden');
     if (stockField) stockField.classList.remove('hidden');
@@ -1040,8 +1056,10 @@ function openProductModal(productId) {
     if (title) title.textContent = 'Thêm sản phẩm';
     var productIdEl = document.getElementById('productId');
     var productTypeEl = document.getElementById('productType');
+    var productSellPriceEl = document.getElementById('productSellPrice');
     if (productIdEl) productIdEl.value = '';
     if (productTypeEl) productTypeEl.value = 'keg';
+    if (productSellPriceEl) productSellPriceEl.value = '';
     if (deleteBtn) deleteBtn.classList.add('hidden');
     if (stockField) stockField.classList.add('hidden');
   }
