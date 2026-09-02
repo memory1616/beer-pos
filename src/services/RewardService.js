@@ -27,6 +27,7 @@
 
 const db = require('../../database');
 const logger = require('../utils/logger');
+const promotionCalc = require('./promotionCalc');
 
 // ────────────────────────────────────────────────────────────────────────────────
 // CLASSIFICATION
@@ -150,17 +151,134 @@ class RewardService {
       };
     }
 
+    // Uu tien 3 (FALLBACK): pending_rewards khong co → tinh real-time tu liters thang truoc
+    // Dam bao don dau tien cua thang moi van duoc ap thuong neu auto-generate chua chay.
+    // Cung luu vao pending_rewards de lan sau kiem tra nhanh.
+    return this._calculateRewardFromPrevMonth(customerId, rewardMonthNum, rewardYear, orderDate);
+  }
+
+  /**
+   * Fallback: tinh reward tu liters thang truoc (khi pending_rewards chua co row).
+   * Chi ap dung neu:
+   *   - Khach co purchased_liters (yellow/black) trong customer_monthly_stats
+   *   - Hoac co the tinh real-time tu sale_items (fallback cuoi cung)
+   * Luu ket qua vao pending_rewards de lan sau doc nhanh.
+   * @returns RewardAvailability (cung shape voi cac branch khac)
+   */
+  _calculateRewardFromPrevMonth(customerId, rewardMonthNum, rewardYear, orderDate) {
+    let yellowTotal = 0, blackTotal = 0;
+
+    // Thu 1: doc tu customer_monthly_stats (snapshot da tinh san)
+    try {
+      const stats = db.prepare(`
+        SELECT purchased_yellow_liters, purchased_black_liters
+        FROM customer_monthly_stats
+        WHERE customer_id = ? AND year = ? AND month = ?
+      `).get(customerId, rewardYear, rewardMonthNum);
+      if (stats) {
+        yellowTotal = Number(stats.purchased_yellow_liters) || 0;
+        blackTotal = Number(stats.purchased_black_liters) || 0;
+      }
+    } catch (_) { /* bang co the chua co cot */ }
+
+    // Thu 2: neu stats rong → tinh real-time tu sale_items (de phong stats chua rebuild)
+    if (yellowTotal === 0 && blackTotal === 0) {
+      try {
+        const rewardMonthStr = String(rewardMonthNum).padStart(2, '0');
+        const items = db.prepare(`
+          SELECT p.name AS product_name, si.quantity
+          FROM sales s
+          JOIN sale_items si ON si.sale_id = s.id
+          JOIN products p ON p.id = si.product_id
+          WHERE s.customer_id = ?
+            AND s.type = 'sale'
+            AND s.archived = 0
+            AND si.price > 0
+            AND p.type = 'keg'
+            AND strftime('%Y', s.date) = ?
+            AND strftime('%m', s.date) = ?
+        `).all(customerId, String(rewardYear), rewardMonthStr);
+        for (const it of items) {
+          const q = Number(it.quantity) || 0;
+          if (classifyBeer(it.product_name) === 'black') blackTotal += q;
+          else yellowTotal += q;
+        }
+      } catch (_) { /* skip */ }
+    }
+
+    if (yellowTotal <= 0 && blackTotal <= 0) {
+      return {
+        available: false,
+        reason: 'no_pending_reward',
+        pendingId: null,
+        total: 0, remaining: 0,
+        yellowTotal: 0, yellowRemaining: 0,
+        blackTotal: 0, blackRemaining: 0,
+        mode: null,
+        rewardMonth: rewardMonthNum,
+        rewardYear: rewardYear,
+        status: 'none'
+      };
+    }
+
+    // Tinh reward theo promotionCalc
+    const calc = promotionCalc.calculatePromotion(yellowTotal, blackTotal);
+    if (!calc || calc.totalReward <= 0) {
+      return {
+        available: false,
+        reason: 'no_pending_reward',
+        pendingId: null,
+        total: 0, remaining: 0,
+        yellowTotal: 0, yellowRemaining: 0,
+        blackTotal: 0, blackRemaining: 0,
+        mode: null,
+        rewardMonth: rewardMonthNum,
+        rewardYear: rewardYear,
+        status: 'none'
+      };
+    }
+
+    // Luu vao pending_rewards de lan sau doc nhanh (idempotent).
+    // BO QUA khach co don MONTHLY_BONUS trong thang hien tai (thang order) → da nhan roi.
+    let savedPendingId = null;
+    try {
+      const now = orderDate ? new Date(orderDate) : new Date();
+      const orderMonthNum = now.getMonth() + 1;
+      const orderYear = now.getFullYear();
+      const orderMonthStr = String(orderMonthNum).padStart(2, '0');
+      const alreadyClaimed = db.prepare(`
+        SELECT COUNT(*) as cnt FROM sales
+        WHERE customer_id = ? AND archived = 0 AND promo_type = 'MONTHLY_BONUS'
+          AND strftime('%Y', date) = ? AND strftime('%m', date) = ?
+      `).get(customerId, String(orderYear), orderMonthStr);
+      if (!alreadyClaimed || alreadyClaimed.cnt === 0) {
+        const result = db.prepare(`
+          INSERT OR IGNORE INTO pending_rewards
+            (customer_id, reward_month, reward_year, reward_liters, reward_yellow_liters, reward_black_liters, mode, status, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', CURRENT_TIMESTAMP)
+        `).run(customerId, rewardMonthNum, rewardYear, calc.totalReward, calc.yellowReward, calc.blackReward, calc.mode);
+        // Lay id cua row vua insert (neu moi) hoac row da ton tai
+        const existing = db.prepare(`
+          SELECT id FROM pending_rewards WHERE customer_id = ? AND reward_month = ? AND reward_year = ?
+        `).get(customerId, rewardMonthNum, rewardYear);
+        savedPendingId = existing ? existing.id : (result.lastInsertRowid || null);
+      }
+    } catch (_) { /* ignore - pending_rewards insert khong quan trong */ }
+
     return {
-      available: false,
-      reason: 'no_pending_reward',
-      pendingId: null,
-      total: 0, remaining: 0,
-      yellowTotal: 0, yellowRemaining: 0,
-      blackTotal: 0, blackRemaining: 0,
-      mode: null,
+      available: true,
+      reason: 'calculated_fallback',
+      pendingId: savedPendingId,
+      total: calc.totalReward,
+      remaining: calc.totalReward,
+      yellowTotal: calc.yellowReward,
+      yellowRemaining: calc.yellowReward,
+      blackTotal: calc.blackReward,
+      blackRemaining: calc.blackReward,
+      mode: calc.mode,
       rewardMonth: rewardMonthNum,
       rewardYear: rewardYear,
-      status: 'none'
+      status: 'pending'
     };
   }
 
