@@ -484,20 +484,35 @@ router.get('/bonus-report', (req, res) => {
     //     Hỗ trợ note có '.0' do SQL concat với REAL (backward-compatible).
     // Đơn MONTHLY_BONUS là đơn trả thưởng (KHÔNG có sale_items — không bán hàng), nên alreadyPaid
     // phải lấy từ s.reward_liters_used (tổng) thay vì SUM(si.paid/reward_quantity).
-    // Tách vàng/đen từ note khi có pattern "(XL vàng + YL đen)"; nếu không thì gán vàng/đen
-    // theo tỷ lệ needToPayYellow/Black.
+    // Tách vàng/đen:
+    //   - Nếu note có "(XL vàng + YL đen)" → dùng breakdown đó
+    //   - Nếu không → tra tier ratio của customer tương ứng trong stats tháng thưởng
     var allPaidSales = db.prepare(`
-      SELECT s.id, s.reward_liters_used, s.note
+      SELECT s.id, s.customer_id, s.reward_liters_used, s.note
       FROM sales s
       WHERE s.archived = 0 AND s.promo_type = 'MONTHLY_BONUS' AND s.reward_liters_used > 0
     `).all();
     var rxPaidYear = new RegExp('tháng\\s+(\\d{1,2})(?:\\.0)?/(' + rewardYear + ')(?:\\.0)?(?!\\d)');
     var rxYellowBlack = /\(\s*(\d+(?:\.\d+)?)\s*[Ll]?\s*v[aà]ng\s*\+\s*(\d+(?:\.\d+)?)\s*[Ll]?\s*đen\s*\)/i;
+
+    // Map customer_id -> { yellowReward, blackReward } từ calculatePromotion(stats)
+    var tierByCustomer = {};
+    customers.forEach(function(c) {
+      if (newShopMap[c.customer_id]) return;
+      var y = c.purchased_yellow_liters || 0;
+      var b = c.purchased_black_liters || 0;
+      var calc = promoCalc.calculatePromotion(y, b);
+      if (calc.totalReward > 0) {
+        tierByCustomer[c.customer_id] = {
+          yellow: calc.yellowReward,
+          black: calc.blackReward,
+          total: calc.totalReward
+        };
+      }
+    });
+
     var alreadyPaidYellow = 0;
     var alreadyPaidBlack = 0;
-    // Tỷ lệ vàng/đen dùng để fallback khi note không có breakdown
-    var yellowRatio = needToPay > 0 ? (needToPayYellow / needToPay) : 0.5;
-    var blackRatio = needToPay > 0 ? (needToPayBlack / needToPay) : 0.5;
     allPaidSales.forEach(function(s) {
       if (!s.note) return;
       var m = s.note.match(rxPaidYear);
@@ -508,9 +523,16 @@ router.get('/bonus-report', (req, res) => {
         alreadyPaidYellow += parseFloat(mb[1]) || 0;
         alreadyPaidBlack += parseFloat(mb[2]) || 0;
       } else {
-        // Không có breakdown → fallback theo tỷ lệ tier
-        alreadyPaidYellow += total * yellowRatio;
-        alreadyPaidBlack += total * blackRatio;
+        // Không có breakdown → dùng tier ratio của customer
+        var tier = tierByCustomer[s.customer_id];
+        if (tier && tier.total > 0) {
+          alreadyPaidYellow += total * (tier.yellow / tier.total);
+          alreadyPaidBlack += total * (tier.black / tier.total);
+        } else {
+          // Fallback: chia đều
+          alreadyPaidYellow += total * 0.5;
+          alreadyPaidBlack += total * 0.5;
+        }
       }
     });
     var alreadyPaid = alreadyPaidYellow + alreadyPaidBlack;
