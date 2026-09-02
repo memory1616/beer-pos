@@ -110,7 +110,7 @@ const migration = {
       { sql: 'CREATE INDEX IF NOT EXISTS idx_sale_items_reward ON sale_items(sale_id, reward_quantity)' },
       { sql: 'CREATE INDEX IF NOT EXISTS idx_pending_rewards_status ON pending_rewards(customer_id, status)' },
       { sql: 'CREATE INDEX IF NOT EXISTS idx_reward_history_sale_item ON reward_history(sale_item_id)' },
-      { sql: 'CREATE UNIQUE INDEX IF NOT EXISTS idx_reward_history_unique ON reward_history(customer_id, reward_month, reward_year, sale_item_id)' },
+      { sql: 'CREATE INDEX IF NOT EXISTS idx_reward_history_customer ON reward_history(customer_id, sale_item_id)' },
     ];
 
     for (const idx of indexes) {
