@@ -29,7 +29,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../../database');
 const logger = require('../../src/utils/logger');
-const { PromotionService, RewardService } = require('../../src/services');
+const { PromotionService } = require('../../src/services');
 const { cache, cacheKeys } = require('../../src/cache');
 const socketServer = require('../../src/socket/socketServer');
 
@@ -964,46 +964,6 @@ router.post('/reward/auto-generate', (req, res) => {
   } catch (e) {
     try { logger.error('auto-generate reward error:', e); } catch (_) {}
     res.status(500).json({ success: false, error: e.message });
-  }
-});
-
-// ============================================================
-// REWARD PENDING & SUMMARY (Migration 043)
-// ============================================================
-
-/**
- * GET /api/promotions/pending/:customerId
- * Tra ve pending_rewards cho customer (gồm consumed/remaining/status).
- */
-router.get('/pending/:customerId', (req, res) => {
-  try {
-    const customerId = parseInt(req.params.customerId);
-    if (!Number.isFinite(customerId)) {
-      return res.status(400).json({ error: 'customerId khong hop le' });
-    }
-    const available = RewardService.getAvailableReward(customerId);
-    res.json({ success: true, data: available });
-  } catch (e) {
-    logger.error('getAvailableReward error:', e);
-    res.status(500).json({ error: e.message });
-  }
-});
-
-/**
- * GET /api/promotions/orders/reward-summary
- * Tra ve { paidQuantity, rewardQuantity, lineTotal, totalReward } cho từng item của 1 don.
- */
-router.get('/orders/reward-summary', (req, res) => {
-  try {
-    const saleId = parseInt(req.query.saleId);
-    if (!Number.isFinite(saleId)) {
-      return res.status(400).json({ error: 'saleId khong hop le' });
-    }
-    const summary = RewardService.getRewardSummary(saleId);
-    res.json({ success: true, data: summary });
-  } catch (e) {
-    logger.error('getRewardSummary error:', e);
-    res.status(500).json({ error: e.message });
   }
 });
 
