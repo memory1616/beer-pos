@@ -1046,17 +1046,28 @@
         var html = '';
 
         // Thưởng sản lượng
+        var needToPay = data.needToPay || 0;
+        var alreadyPaid = data.alreadyPaid || 0;
+        var remaining = data.remaining || 0;
+        var buy10Given = data.buy10Given || 0;
+
         html += '<div class="bonus-section">';
         html += '<div class="bonus-section-title">🎯 Thưởng sản lượng tháng ' + String(rewardMonth).padStart(2, '0') + '/' + rewardYear + '</div>';
-        html += '<div class="bonus-row"><span class="bonus-label">Cần trả:</span><span class="bonus-value">' + data.needToPay + 'L</span></div>';
-        html += '<div class="bonus-row"><span class="bonus-label">Đã trả:</span><span class="bonus-value paid">' + data.alreadyPaid + 'L</span></div>';
-        html += '<div class="bonus-row"><span class="bonus-label">Còn phải trả:</span><span class="bonus-value remaining">' + data.remaining + 'L</span></div>';
+        html += '<div class="bonus-row"><span class="bonus-label">Cần trả:</span><span class="bonus-value">' + needToPay + 'L</span></div>';
+        html += '<div class="bonus-row"><span class="bonus-label">&nbsp;&nbsp;🟡 Bia vàng:</span><span class="bonus-value" style="color:#FFA000;">' + (data.needToPayYellow || 0) + 'L</span></div>';
+        html += '<div class="bonus-row"><span class="bonus-label">&nbsp;&nbsp;⚫ Bia đen:</span><span class="bonus-value" style="color:#424242;">' + (data.needToPayBlack || 0) + 'L</span></div>';
+        html += '<div class="bonus-row"><span class="bonus-label">Đã trả:</span><span class="bonus-value paid">' + alreadyPaid + 'L</span></div>';
+        html += '<div class="bonus-row"><span class="bonus-label">&nbsp;&nbsp;🟡 Bia vàng:</span><span class="bonus-value paid" style="color:#FFA000;">' + (data.alreadyPaidYellow || 0) + 'L</span></div>';
+        html += '<div class="bonus-row"><span class="bonus-label">&nbsp;&nbsp;⚫ Bia đen:</span><span class="bonus-value paid" style="color:#424242;">' + (data.alreadyPaidBlack || 0) + 'L</span></div>';
+        html += '<div class="bonus-row"><span class="bonus-label">Còn phải trả:</span><span class="bonus-value remaining">' + remaining + 'L</span></div>';
+        html += '<div class="bonus-row"><span class="bonus-label">&nbsp;&nbsp;🟡 Bia vàng:</span><span class="bonus-value remaining" style="color:#FFA000;">' + (data.remainingYellow || 0) + 'L</span></div>';
+        html += '<div class="bonus-row"><span class="bonus-label">&nbsp;&nbsp;⚫ Bia đen:</span><span class="bonus-value remaining" style="color:#424242;">' + (data.remainingBlack || 0) + 'L</span></div>';
         html += '</div>';
 
         // Khuyến mãi 10 tặng 1
         html += '<div class="bonus-section">';
         html += '<div class="bonus-section-title">🎉 Khuyến mãi 10 tặng 1</div>';
-        html += '<div class="bonus-row"><span class="bonus-label">Đã tặng:</span><span class="bonus-value promo">' + data.buy10Given + 'L</span></div>';
+        html += '<div class="bonus-row"><span class="bonus-label">Đã tặng:</span><span class="bonus-value promo">' + buy10Given + 'L</span></div>';
         html += '</div>';
 
         contentEl.innerHTML = html;

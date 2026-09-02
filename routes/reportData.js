@@ -8,6 +8,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../database');
+const promoCalc = require('../src/services/promotionCalc');
 
 function litersFromProductName(name) {
   if (!name) return 1;
@@ -410,22 +411,23 @@ router.get('/bonus-report', (req, res) => {
       if (s.customer_id) newShopMap[s.customer_id] = true;
     });
 
-    // Cần trả = tổng thưởng của tất cả khách đạt tier trong tháng thưởng
-    // CHỈ lấy khách có reward_enabled = 1 và không phải NEW_SHOP
-    // Bia Inox V2: lấy cả yellow/black
-    var needToPay = 0;
-    var customers = db.prepare(`
-      SELECT cms.purchased_liters, cms.purchased_yellow_liters, cms.purchased_black_liters,
-             c.id as customer_id, c.reward_enabled
+    // Bia Inox V2: lấy yellow/black breakdown
+    // Lấy danh sách khách có stats trong tháng thưởng (rewardMonth)
+    var eligibleCustomers = db.prepare(`
+      SELECT cms.customer_id, cms.purchased_liters, cms.purchased_yellow_liters, cms.purchased_black_liters,
+             c.name as customer_name, c.phone, c.created_at, c.reward_enabled, c.new_shop_enabled, c.promotion_enabled
       FROM customer_monthly_stats cms
       JOIN customers c ON c.id = cms.customer_id
       WHERE cms.year = ? AND cms.month = ?
         AND c.archived = 0
         AND c.reward_enabled = 1
+        AND c.promotion_enabled != 0
     `).all(rewardYear, rewardMonth);
 
-    const promoCalc = require('../src/services/promotionCalc');
-    customers.forEach(function(c) {
+    var yellowNeeded = 0;
+    var blackNeeded = 0;
+    var needToPay = 0;
+    eligibleCustomers.forEach(function(c) {
       // Loại trừ khách NEW_SHOP
       if (newShopMap[c.customer_id]) return;
 
@@ -434,6 +436,8 @@ router.get('/bonus-report', (req, res) => {
       const black = c.purchased_black_liters || 0;
       const calc = promoCalc.calculatePromotion(yellow, black);
       needToPay += calc.totalReward;
+      yellowNeeded += calc.yellowReward;
+      blackNeeded += calc.blackReward;
     });
 
     // Đã trả = tổng reward_liters_used của các đơn MONTHLY_BONUS của kỳ thưởng đó
@@ -452,8 +456,31 @@ router.get('/bonus-report', (req, res) => {
       return sum;
     }, 0);
 
+    // Bia Inox V2: Đã trả theo từng loại - lấy từ reward_history (lưu chính xác yellow/black)
+    // Nhưng bảng reward_history không có cột tháng/năm riêng, dùng note để filter
+    var rewardHistory = db.prepare(`
+      SELECT reward_liters, reward_yellow_liters, reward_black_liters, note
+      FROM reward_history
+      WHERE reward_tier NOT LIKE 'NEW_SHOP%'
+    `).all();
+    var rxHistoryMonth = new RegExp('tháng\\s+(\\d{1,2})(?:\\.0)?/(' + rewardYear + ')(?:\\.0)?');
+    var yellowPaid = 0;
+    var blackPaid = 0;
+    rewardHistory.forEach(function(r) {
+      if (!r.note) return;
+      var m = r.note.match(rxHistoryMonth);
+      if (m && parseInt(m[1], 10) === rewardMonth) {
+        yellowPaid += r.reward_yellow_liters || 0;
+        blackPaid += r.reward_black_liters || 0;
+      }
+    });
+    // Sync: alreadyPaid = yellowPaid + blackPaid (dùng con số chính xác từ reward_history)
+    alreadyPaid = yellowPaid + blackPaid;
+
     // Còn phải trả
     var remaining = Math.max(0, needToPay - alreadyPaid);
+    var yellowRemaining = Math.max(0, yellowNeeded - yellowPaid);
+    var blackRemaining = Math.max(0, blackNeeded - blackPaid);
 
     // ===== 2. Khuyến mãi 10 tặng 1 =====
     var promoMonth = String(reportMonth).padStart(2, '0');
@@ -469,8 +496,14 @@ router.get('/bonus-report', (req, res) => {
       reportMonth, reportYear,
       rewardMonth, rewardYear,
       needToPay: Math.round(needToPay),
+      needToPayYellow: Math.round(yellowNeeded),
+      needToPayBlack: Math.round(blackNeeded),
       alreadyPaid: Math.round(alreadyPaid),
+      alreadyPaidYellow: Math.round(yellowPaid),
+      alreadyPaidBlack: Math.round(blackPaid),
       remaining: Math.round(remaining),
+      remainingYellow: Math.round(yellowRemaining),
+      remainingBlack: Math.round(blackRemaining),
       buy10Given: Math.round(buy10Given)
     });
   } catch(e) {
