@@ -89,45 +89,11 @@ router.get('/data', (req, res) => {
     ).all(...dateParams);
 
     // Aggregated KPIs - loại trừ returned (bao gồm MONTHLY_BONUS vì có doanh thu thực)
-    // Migration 043: Tách rõ revenue vs reward vs COGS vs profit.
-    //   - revenue = SUM(s.total) (total = paidQty * price, không cộng reward)
-    //   - cogs = SUM(sale_items.quantity * cost_price) (COGS = delivered × cost, kể cả reward)
-    //   - profit = revenue - cogs (đã đúng sau refactor, không còn sai khi có reward)
-    //   - rewardLiters = SUM(sale_items.reward_quantity) - phần thưởng sản lượng tháng trước
-    //   - rewardRevenueLost = SUM(reward_quantity * price) - doanh thu "mất" vì thưởng
     var revR = db.prepare('SELECT COALESCE(SUM(total), 0) as t FROM sales WHERE archived = 0 AND (status IS NULL OR status != \'returned\') AND type = \'sale\' AND date(' + salesDateBare + ') >= date(?) AND date(' + salesDateBare + ') <= date(?)').get(...dateParams);
-    var totalRevenue = revR ? revR.t : 0;
-
-    // COGS chính xác: SUM(sale_items.quantity * cost_price) (đã được filter type=sale + archived=0 + date range)
-    var cogsR = db.prepare(`
-      SELECT COALESCE(SUM(si.quantity * si.cost_price), 0) as t
-      FROM sale_items si
-      JOIN sales s ON s.id = si.sale_id
-      WHERE s.archived = 0 AND (s.status IS NULL OR s.status != 'returned') AND s.type = 'sale'
-        AND date(` + salesDateBare + `) >= date(?) AND date(` + salesDateBare + `) <= date(?)
-    `).get(...dateParams);
-    var totalCOGS = cogsR ? cogsR.t : 0;
-
-    // Profit đúng = Revenue - COGS (tính lại, vì profit hiện tính sai khi có reward)
-    var totalProfit = totalRevenue - totalCOGS;
-
-    // Reward summary (Migration 043): tính tổng reward liters và revenue "mất" vì thưởng
-    var rewardR = db.prepare(`
-      SELECT
-        COALESCE(SUM(si.reward_quantity), 0) as total_liters,
-        COALESCE(SUM(si.reward_quantity * si.price), 0) as revenue_lost,
-        COUNT(DISTINCT s.id) as order_count
-      FROM sale_items si
-      JOIN sales s ON s.id = si.sale_id
-      WHERE s.archived = 0 AND (s.status IS NULL OR s.status != 'returned') AND s.type = 'sale'
-        AND si.reward_quantity > 0
-        AND date(` + salesDateBare + `) >= date(?) AND date(` + salesDateBare + `) <= date(?)
-    `).get(...dateParams);
-    var totalRewardLiters = rewardR ? rewardR.total_liters : 0;
-    var totalRewardRevenueLost = rewardR ? rewardR.revenue_lost : 0;
-    var totalRewardOrders = rewardR ? rewardR.order_count : 0;
-
+    var profR = db.prepare('SELECT COALESCE(SUM(profit), 0) as t FROM sales WHERE archived = 0 AND (status IS NULL OR status != \'returned\') AND type = \'sale\' AND date(' + salesDateBare + ') >= date(?) AND date(' + salesDateBare + ') <= date(?)').get(...dateParams);
     var ordR = db.prepare('SELECT COUNT(*) as t FROM sales WHERE archived = 0 AND (status IS NULL OR status != \'returned\') AND type = \'sale\' AND date(' + salesDateBare + ') >= date(?) AND date(' + salesDateBare + ') <= date(?)').get(...dateParams);
+    var totalRevenue = revR ? revR.t : 0;
+    var totalProfit = profR ? profR.t : 0;
     var totalOrders = ordR ? ordR.t : 0;
     var totalExpense = 0;
     try { var expR = db.prepare('SELECT COALESCE(SUM(amount), 0) as t FROM expenses WHERE archived = 0 AND date >= ? AND date <= ?').get(startDay, endDay); totalExpense = expR ? expR.t : 0; } catch(_){}
@@ -217,13 +183,8 @@ router.get('/data', (req, res) => {
 
     var totalPurchaseAmount = purchases.reduce(function(s, p) { return s + (p.total || 0); }, 0);
 
-    res.json({
-      sales, totalRevenue, totalProfit, totalCOGS, totalOrders, totalExpense,
-      rewardSummary: {
-        totalLiters: totalRewardLiters,
-        revenueLost: totalRewardRevenueLost,
-        orderCount: totalRewardOrders
-      },
+    res.json({ 
+      sales, totalRevenue, totalProfit, totalOrders, totalExpense, 
       daily, profitByProduct, profitByCustomer, purchases, totalPurchaseAmount,
       todayDeliveries: { totalKegs: todayKegs, orderCount: todayOrderCount, products: todayProducts }
     });
@@ -464,8 +425,6 @@ router.get('/bonus-report', (req, res) => {
     `).all(rewardYear, rewardMonth);
 
     const promoCalc = require('../src/services/promotionCalc');
-    var needToPayYellow = 0;
-    var needToPayBlack = 0;
     customers.forEach(function(c) {
       // Loại trừ khách NEW_SHOP
       if (newShopMap[c.customer_id]) return;
@@ -474,68 +433,24 @@ router.get('/bonus-report', (req, res) => {
       const yellow = c.purchased_yellow_liters || 0;
       const black = c.purchased_black_liters || 0;
       const calc = promoCalc.calculatePromotion(yellow, black);
-      needToPayYellow += calc.yellowReward;
-      needToPayBlack += calc.blackReward;
       needToPay += calc.totalReward;
     });
 
     // Đã trả = tổng reward_liters_used của các đơn MONTHLY_BONUS của kỳ thưởng đó
     // B18: Dùng JS regex filter thay vì LIKE với wildcard để tránh false positive.
     //     Hỗ trợ note có '.0' do SQL concat với REAL (backward-compatible).
-    // Đơn MONTHLY_BONUS là đơn trả thưởng (KHÔNG có sale_items — không bán hàng), nên alreadyPaid
-    // phải lấy từ s.reward_liters_used (tổng) thay vì SUM(si.paid/reward_quantity).
-    // Tách vàng/đen:
-    //   - Nếu note có "(XL vàng + YL đen)" → dùng breakdown đó
-    //   - Nếu không → tra tier ratio của customer tương ứng trong stats tháng thưởng
     var allPaidSales = db.prepare(`
-      SELECT s.id, s.customer_id, s.reward_liters_used, s.note
-      FROM sales s
-      WHERE s.archived = 0 AND s.promo_type = 'MONTHLY_BONUS' AND s.reward_liters_used > 0
+      SELECT reward_liters_used, note
+      FROM sales
+      WHERE archived = 0 AND promo_type = 'MONTHLY_BONUS' AND reward_liters_used > 0
     `).all();
     var rxPaidYear = new RegExp('tháng\\s+(\\d{1,2})(?:\\.0)?/(' + rewardYear + ')(?:\\.0)?(?!\\d)');
-    var rxYellowBlack = /\(\s*(\d+(?:\.\d+)?)\s*[Ll]?\s*v[aà]ng\s*\+\s*(\d+(?:\.\d+)?)\s*[Ll]?\s*đen\s*\)/i;
-
-    // Map customer_id -> { yellowReward, blackReward } từ calculatePromotion(stats)
-    var tierByCustomer = {};
-    customers.forEach(function(c) {
-      if (newShopMap[c.customer_id]) return;
-      var y = c.purchased_yellow_liters || 0;
-      var b = c.purchased_black_liters || 0;
-      var calc = promoCalc.calculatePromotion(y, b);
-      if (calc.totalReward > 0) {
-        tierByCustomer[c.customer_id] = {
-          yellow: calc.yellowReward,
-          black: calc.blackReward,
-          total: calc.totalReward
-        };
-      }
-    });
-
-    var alreadyPaidYellow = 0;
-    var alreadyPaidBlack = 0;
-    allPaidSales.forEach(function(s) {
-      if (!s.note) return;
+    var alreadyPaid = allPaidSales.reduce(function(sum, s) {
+      if (!s.note) return sum;
       var m = s.note.match(rxPaidYear);
-      if (!m || parseInt(m[1], 10) !== rewardMonth) return;
-      var total = s.reward_liters_used || 0;
-      var mb = s.note.match(rxYellowBlack);
-      if (mb) {
-        alreadyPaidYellow += parseFloat(mb[1]) || 0;
-        alreadyPaidBlack += parseFloat(mb[2]) || 0;
-      } else {
-        // Không có breakdown → dùng tier ratio của customer
-        var tier = tierByCustomer[s.customer_id];
-        if (tier && tier.total > 0) {
-          alreadyPaidYellow += total * (tier.yellow / tier.total);
-          alreadyPaidBlack += total * (tier.black / tier.total);
-        } else {
-          // Fallback: chia đều
-          alreadyPaidYellow += total * 0.5;
-          alreadyPaidBlack += total * 0.5;
-        }
-      }
-    });
-    var alreadyPaid = alreadyPaidYellow + alreadyPaidBlack;
+      if (m && parseInt(m[1], 10) === rewardMonth) return sum + (s.reward_liters_used || 0);
+      return sum;
+    }, 0);
 
     // Còn phải trả
     var remaining = Math.max(0, needToPay - alreadyPaid);
@@ -554,14 +469,8 @@ router.get('/bonus-report', (req, res) => {
       reportMonth, reportYear,
       rewardMonth, rewardYear,
       needToPay: Math.round(needToPay),
-      needToPayYellow: Math.round(needToPayYellow),
-      needToPayBlack: Math.round(needToPayBlack),
       alreadyPaid: Math.round(alreadyPaid),
-      alreadyPaidYellow: Math.round(alreadyPaidYellow),
-      alreadyPaidBlack: Math.round(alreadyPaidBlack),
-      remaining: Math.round(Math.max(0, needToPay - alreadyPaid)),
-      remainingYellow: Math.round(Math.max(0, needToPayYellow - alreadyPaidYellow)),
-      remainingBlack: Math.round(Math.max(0, needToPayBlack - alreadyPaidBlack)),
+      remaining: Math.round(remaining),
       buy10Given: Math.round(buy10Given)
     });
   } catch(e) {
