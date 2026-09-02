@@ -301,43 +301,23 @@ router.post('/', (req, res) => {
 
         // Ghi first_order_date nếu là đơn đầu tiên
         PromotionService.setFirstOrderDate(customerId);
-
-        // Cập nhật sản lượng mua trong tháng (chỉ tính keg, không tính pet/box, không tính lít tặng)
-        // KHÔNG cộng sản lượng cho khách có promotion_enabled = 0
-        // BIA INOX V2: tính riêng yellowVolume và blackVolume từ saleItems
-        let paidLiters = 0;
-        let yellowLiters = 0;
-        let blackLiters = 0;
-        for (const item of saleItems) {
-          if (item.type !== 'keg') continue;
-          const q = item.quantity || 0;
-          paidLiters += q;
-          if (PromotionService.classifyBeer(item.productName) === 'black') {
-            blackLiters += q;
-          } else {
-            yellowLiters += q;
-          }
-        }
-        if (paidLiters > 0) {
-          // Check promotion_enabled
-          const custForStats = db.prepare('SELECT promotion_enabled FROM customers WHERE id = ?').get(customerId);
-          if (!custForStats || custForStats.promotion_enabled !== 0) {
-            db.prepare("UPDATE customers SET monthly_purchased_liters = monthly_purchased_liters + ? WHERE id = ?").run(paidLiters, customerId);
-            // Also update customer_monthly_stats (BIA INOX V2: truyền yellow/black riêng)
-            const now = new Date();
-            PromotionService.updateCustomerMonthlyStats(customerId, paidLiters, now.getFullYear(), now.getMonth() + 1, yellowLiters, blackLiters);
-          } else {
-            console.log('[PROMO] Customer', customerId, 'has promotions disabled — skipping monthly stats update');
-          }
-        }
       }
+
+      // QUAN TRONG: KHONG cap nhat monthly_purchased_liters / customer_monthly_stats O DAY.
+      // Ly do: monthly stats phai tinh theo PAID_QUANTITY (so lit khach TRA TIEN),
+      // KHONG tinh reward_quantity (so lit THUONG). Field paid_quantity tren sale_items
+      // moi duoc cap nhat chinh xac SAU khi RewardService.applyRewardToOrder chay xong
+      // (o ngoai transaction ben duoi, o muc "TU DONG GAN THUONG").
+      // Neu cap nhat o day theo quantity (= paidQty + rewardQty), thi thang sau khach se
+      // nhan thuong it hon vi reward (lit tang) bi tinh vao tich luy.
 
       // Update products and insert sale_items (reuse pre-loaded data — no extra queries)
       for (const item of saleItems) {
         // Trừ kho: chỉ trừ số lượng MUA (không trừ lít tặng ở đây)
         db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(item.quantity, item.productId);
-        db.prepare('INSERT INTO sale_items (sale_id, product_id, product_slug, quantity, price, cost_price, profit, price_at_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-          .run(saleId, item.productId, item.productSlug, item.quantity, item.price, item.cost_price, item.profit, item.price);
+        // paid_quantity mac dinh = quantity; se bi giam di boi reward_quantity neu co reward
+        db.prepare('INSERT INTO sale_items (sale_id, product_id, product_slug, quantity, paid_quantity, price, cost_price, profit, price_at_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+          .run(saleId, item.productId, item.productSlug, item.quantity, item.quantity, item.price, item.cost_price, item.profit, item.price);
       }
 
       // ========== XỬ LÝ KHUYẾN MÃI QUÁN MỚI: Tặng bia cùng loại ==========
@@ -502,6 +482,46 @@ router.post('/', (req, res) => {
             console.log('[AUTO REWARD] Khong ap dung duoc reward - ordered khong phu hop voi pending reward');
           }
         }
+      }
+    }
+
+    // ========== CẬP NHẬT MONTHLY STATS (SAU khi reward đã apply) ==========
+    // Tính theo PAID_QUANTITY từ sale_items (chỉ phần khách TRẢ TIỀN, không tính reward).
+    // Phải chạy SAU applyRewardToOrder vì lúc đó paid_quantity mới chính xác
+    // (paid_quantity = quantity - reward_quantity).
+    if (customerId) {
+      const custForStats = db.prepare('SELECT promotion_enabled FROM customers WHERE id = ?').get(customerId);
+      if (!custForStats || custForStats.promotion_enabled !== 0) {
+        const lines = db.prepare(`
+          SELECT si.paid_quantity, si.reward_quantity, p.name AS product_name, p.type AS product_type
+          FROM sale_items si
+          JOIN products p ON p.id = si.product_id
+          WHERE si.sale_id = ?
+        `).all(saleId);
+
+        let paidLiters = 0;
+        let yellowLiters = 0;
+        let blackLiters = 0;
+        for (const line of lines) {
+          if (line.product_type !== 'keg') continue;
+          const paid = Number(line.paid_quantity) || 0;
+          if (paid <= 0) continue;
+          paidLiters += paid;
+          if (PromotionService.classifyBeer(line.product_name) === 'black') {
+            blackLiters += paid;
+          } else {
+            yellowLiters += paid;
+          }
+        }
+
+        if (paidLiters > 0) {
+          db.prepare("UPDATE customers SET monthly_purchased_liters = monthly_purchased_liters + ? WHERE id = ?").run(paidLiters, customerId);
+          const now = new Date();
+          PromotionService.updateCustomerMonthlyStats(customerId, paidLiters, now.getFullYear(), now.getMonth() + 1, yellowLiters, blackLiters);
+          console.log(`[MONTHLY STATS] Customer ${customerId} +${paidLiters}L (yellow=${yellowLiters}, black=${blackLiters}) - chi tinh PAID`);
+        }
+      } else {
+        console.log('[PROMO] Customer', customerId, 'has promotions disabled — skipping monthly stats update');
       }
     }
 

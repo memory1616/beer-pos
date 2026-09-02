@@ -177,6 +177,20 @@ function deleteSaleRestoringInventory(saleId) {
           `).run(sale.customer_id, `%tháng ${rewardMonth}/${rewardYear}%`, `%thang ${rewardMonth}/${rewardYear}%`);
 
           console.log('[ORDER DELETE] Cleared reward_history for customer', sale.customer_id, 'month', rewardMonth, '/', rewardYear);
+
+          // Reset pending_rewards: consumed_liters = 0, status = 'pending'
+          // Ly do: khi xoa don MONTHLY_BONUS, reward_history da bi xoa phia tren,
+          // nhung pending_rewards van giu consumed_liters cu (vi reverseRewardFromOrder
+          // khong con tim thay reward_quantity > 0 tren sale_items da bi reset).
+          // Neu khong reset, pending_rewards se bi stuck o status=paid/consumed=total,
+          // va auto-reward se KHONG bao gio chay lai cho thang nay.
+          db.prepare(`
+            UPDATE pending_rewards
+            SET consumed_liters = 0,
+                status = 'pending'
+            WHERE customer_id = ? AND reward_month = ? AND reward_year = ?
+          `).run(sale.customer_id, rewardMonth, rewardYear);
+          console.log('[ORDER DELETE] Reset pending_rewards for customer', sale.customer_id, 'month', rewardMonth, '/', rewardYear);
         } else {
           console.log('[ORDER DELETE] MONTHLY_BONUS detected but cannot determine month/year for customer', sale.customer_id);
         }
