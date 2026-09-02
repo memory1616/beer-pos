@@ -482,28 +482,35 @@ router.get('/bonus-report', (req, res) => {
     // Đã trả = tổng reward_liters_used của các đơn MONTHLY_BONUS của kỳ thưởng đó
     // B18: Dùng JS regex filter thay vì LIKE với wildcard để tránh false positive.
     //     Hỗ trợ note có '.0' do SQL concat với REAL (backward-compatible).
-    // Bia Inox V2: Tách vàng/đen từ sale_items
+    // Đơn MONTHLY_BONUS là đơn trả thưởng (KHÔNG có sale_items — không bán hàng), nên alreadyPaid
+    // phải lấy từ s.reward_liters_used (tổng) thay vì SUM(si.paid/reward_quantity).
+    // Tách vàng/đen từ note khi có pattern "(XL vàng + YL đen)"; nếu không thì gán vàng/đen
+    // theo tỷ lệ needToPayYellow/Black.
     var allPaidSales = db.prepare(`
-      SELECT s.id, s.reward_liters_used, s.note,
-             COALESCE(SUM(si.paid_quantity), 0) as paid_liters,
-             COALESCE(SUM(si.reward_quantity), 0) as reward_liters
+      SELECT s.id, s.reward_liters_used, s.note
       FROM sales s
-      LEFT JOIN sale_items si ON si.sale_id = s.id
       WHERE s.archived = 0 AND s.promo_type = 'MONTHLY_BONUS' AND s.reward_liters_used > 0
-      GROUP BY s.id
     `).all();
     var rxPaidYear = new RegExp('tháng\\s+(\\d{1,2})(?:\\.0)?/(' + rewardYear + ')(?:\\.0)?(?!\\d)');
+    var rxYellowBlack = /\(\s*(\d+(?:\.\d+)?)\s*[Ll]?\s*v[aà]ng\s*\+\s*(\d+(?:\.\d+)?)\s*[Ll]?\s*đen\s*\)/i;
     var alreadyPaidYellow = 0;
     var alreadyPaidBlack = 0;
+    // Tỷ lệ vàng/đen dùng để fallback khi note không có breakdown
+    var yellowRatio = needToPay > 0 ? (needToPayYellow / needToPay) : 0.5;
+    var blackRatio = needToPay > 0 ? (needToPayBlack / needToPay) : 0.5;
     allPaidSales.forEach(function(s) {
       if (!s.note) return;
       var m = s.note.match(rxPaidYear);
-      if (m && parseInt(m[1], 10) === rewardMonth) {
-        // Đã trả theo kỳ này → tách vàng/đen từ paid/reward quantity
-        var paid = s.paid_liters || 0;
-        var reward = s.reward_liters || 0;
-        alreadyPaidYellow += paid;
-        alreadyPaidBlack += reward;
+      if (!m || parseInt(m[1], 10) !== rewardMonth) return;
+      var total = s.reward_liters_used || 0;
+      var mb = s.note.match(rxYellowBlack);
+      if (mb) {
+        alreadyPaidYellow += parseFloat(mb[1]) || 0;
+        alreadyPaidBlack += parseFloat(mb[2]) || 0;
+      } else {
+        // Không có breakdown → fallback theo tỷ lệ tier
+        alreadyPaidYellow += total * yellowRatio;
+        alreadyPaidBlack += total * blackRatio;
       }
     });
     var alreadyPaid = alreadyPaidYellow + alreadyPaidBlack;
