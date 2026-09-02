@@ -15,9 +15,9 @@ const fs = require('fs');
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-const MIGRATION_VERSION = 2026062701;
+const MIGRATION_VERSION = 2026090201; // 2026-09-02 — Auto-apply reward on sale (paid/reward quantity)
 const SCHEMA_VERSION_KEY = 'schema_version';
-const BUSINESS_FEATURES_VERSION = 2026041602;
+const BUSINESS_FEATURES_VERSION = 2026090202; // 2026-09-02 — paid/reward quantity schema
 
 // Các bảng cần thêm metadata
 const META_TABLES = [
@@ -571,9 +571,13 @@ function runBusinessFeaturesMigration(db) {
   log(`  Current version: ${bizVersion}, Target: ${BUSINESS_FEATURES_VERSION}`);
 
   try {
-    // Run business features migration
-    const businessMigration = require('./migrations/004_business_features');
-    businessMigration.runMigration(db);
+    // Run business features migrations in order
+    const biz04 = require('./migrations/004_business_features');
+    biz04.runMigration(db);
+
+    // Migration 043: paid_quantity / reward_quantity schema
+    const biz043 = require('./migrations/043_paid_reward_quantity');
+    biz043.up(db);
 
     // Update version
     db.prepare("INSERT OR REPLACE INTO sync_meta (key, value) VALUES (?, ?)")
