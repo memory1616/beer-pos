@@ -882,12 +882,12 @@ class PromotionService {
       const goldProduct = this._findRewardProduct('gold');
       const blackProduct = this._findRewardProduct('black');
 
-      // Bia vàng
+      // Bia vàng - lưu cost_price để tính lợi nhuận đúng
       if (yellowReward > 0 && goldProduct) {
         db.prepare(`
-          INSERT INTO sale_items (sale_id, product_id, quantity, price, cost_price, profit)
-          VALUES (?, ?, ?, 0, 0, 0)
-        `).run(saleId, goldProduct.id, yellowReward);
+          INSERT INTO sale_items (sale_id, product_id, quantity, price, cost_price, profit, paid_quantity, reward_quantity, reward_source)
+          VALUES (?, ?, ?, 0, ?, 0, 0, ?, 'MONTHLY_BONUS')
+        `).run(saleId, goldProduct.id, yellowReward, goldProduct.cost_price || 0, yellowReward);
         db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(yellowReward, goldProduct.id);
 
         const customerNameRec = db.prepare('SELECT name FROM customers WHERE id = ?').get(customerId);
@@ -897,12 +897,12 @@ class PromotionService {
         `).run(goldProduct.id, yellowReward, saleId, customerNameRec?.name || '', `Thưởng doanh số tháng ${month}/${year} - bia vàng`);
       }
 
-      // Bia đen
+      // Bia đen - lưu cost_price để tính lợi nhuận đúng
       if (blackReward > 0 && blackProduct) {
         db.prepare(`
-          INSERT INTO sale_items (sale_id, product_id, quantity, price, cost_price, profit)
-          VALUES (?, ?, ?, 0, 0, 0)
-        `).run(saleId, blackProduct.id, blackReward);
+          INSERT INTO sale_items (sale_id, product_id, quantity, price, cost_price, profit, paid_quantity, reward_quantity, reward_source)
+          VALUES (?, ?, ?, 0, ?, 0, 0, ?, 'MONTHLY_BONUS')
+        `).run(saleId, blackProduct.id, blackReward, blackProduct.cost_price || 0, blackReward);
         db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(blackReward, blackProduct.id);
 
         const customerNameRec = db.prepare('SELECT name FROM customers WHERE id = ?').get(customerId);
@@ -917,6 +917,14 @@ class PromotionService {
         INSERT INTO reward_history (customer_id, reward_tier, reward_liters, reward_yellow_liters, reward_black_liters, note)
         VALUES (?, ?, ?, ?, ?, ?)
       `).run(customerId, status.tier, rewardLiters, yellowReward, blackReward, `Nhận thưởng tháng ${month}/${year} - ${noteSuffix}`);
+
+      // 4b. Cập nhật sales.profit = SUM(quantity * price - quantity * cost_price) cho TẤT CẢ items
+      // Đảm bảo profit bao gồm COGS của bia tặng (price=0 nhưng cost_price > 0)
+      const saleProfitCalc3 = db.prepare(`
+        SELECT COALESCE(SUM(quantity * price - quantity * cost_price), 0) as profit
+        FROM sale_items WHERE sale_id = ?
+      `).get(saleId);
+      db.prepare('UPDATE sales SET profit = ? WHERE id = ?').run(saleProfitCalc3 ? saleProfitCalc3.profit : 0, saleId);
 
       // 5. Cập nhật customer_monthly_stats
       const existingStats = db.prepare(`
@@ -1137,12 +1145,12 @@ class PromotionService {
       }
 
       const tx = db.transaction(() => {
-        // 1a. Bia vàng (nếu có)
+        // 1a. Bia vàng (nếu có) - lưu cost_price để tính lợi nhuận đúng
         if (reward_yellow > 0 && goldProduct) {
           db.prepare(`
-            INSERT INTO sale_items (sale_id, product_id, product_slug, quantity, price, cost_price, profit, price_at_time)
-            VALUES (?, ?, ?, ?, 0, 0, 0, 0)
-          `).run(saleId, goldProduct.id, goldProduct.slug || '', reward_yellow);
+            INSERT INTO sale_items (sale_id, product_id, product_slug, quantity, price, cost_price, profit, price_at_time, paid_quantity, reward_quantity, reward_source, reward_month, reward_year)
+            VALUES (?, ?, ?, ?, 0, ?, 0, 0, 0, ?, 'MONTHLY_BONUS', ?, ?)
+          `).run(saleId, goldProduct.id, goldProduct.slug || '', reward_yellow, goldProduct.cost_price || 0, reward_yellow, reward_month, reward_year);
           db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(reward_yellow, goldProduct.id);
 
           const customer = db.prepare('SELECT name FROM customers WHERE id = ?').get(customerId);
@@ -1152,12 +1160,12 @@ class PromotionService {
           `).run(goldProduct.id, reward_yellow, saleId, customer?.name || '', `Trả thưởng sản lượng tháng ${reward_month}/${reward_year} - bia vàng`);
         }
 
-        // 1b. Bia đen (nếu có)
+        // 1b. Bia đen (nếu có) - lưu cost_price để tính lợi nhuận đúng
         if (reward_black > 0 && blackProduct) {
           db.prepare(`
-            INSERT INTO sale_items (sale_id, product_id, product_slug, quantity, price, cost_price, profit, price_at_time)
-            VALUES (?, ?, ?, ?, 0, 0, 0, 0)
-          `).run(saleId, blackProduct.id, blackProduct.slug || '', reward_black);
+            INSERT INTO sale_items (sale_id, product_id, product_slug, quantity, price, cost_price, profit, price_at_time, paid_quantity, reward_quantity, reward_source, reward_month, reward_year)
+            VALUES (?, ?, ?, ?, 0, ?, 0, 0, 0, ?, 'MONTHLY_BONUS', ?, ?)
+          `).run(saleId, blackProduct.id, blackProduct.slug || '', reward_black, blackProduct.cost_price || 0, reward_black, reward_month, reward_year);
           db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(reward_black, blackProduct.id);
 
           const customer = db.prepare('SELECT name FROM customers WHERE id = ?').get(customerId);
@@ -1181,6 +1189,14 @@ class PromotionService {
             note = COALESCE(note, '') || ' | Trả thưởng sản lượng tháng ' || CAST(? AS TEXT) || '/' || CAST(? AS TEXT) || ?
           WHERE id = ?
         `).run(reward_liters, reward_liters, reward_liters, reward_month, reward_year, noteSuffix, saleId);
+
+        // 2b. Cập nhật sales.profit = SUM(quantity * price - quantity * cost_price) cho TẤT CẢ items
+        // Đảm bảo profit bao gồm cả COGS của bia tặng (reward có price=0 nhưng cost_price > 0)
+        const saleProfitCalc = db.prepare(`
+          SELECT COALESCE(SUM(quantity * price - quantity * cost_price), 0) as profit
+          FROM sale_items WHERE sale_id = ?
+        `).get(saleId);
+        db.prepare('UPDATE sales SET profit = ? WHERE id = ?').run(saleProfitCalc ? saleProfitCalc.profit : 0, saleId);
 
         // 5b. Cập nhật keg_balance của khách (thêm vỏ thưởng)
         db.prepare('UPDATE customers SET keg_balance = keg_balance + ? WHERE id = ?').run(reward_liters, customerId);
@@ -1434,10 +1450,10 @@ class PromotionService {
     const blackProduct = (blackReward > 0) ? this._findRewardProduct('black') : null;
 
     if (!goldProduct && !blackProduct) {
-      // Fallback: lấy bất kỳ keg nào
-      const anyProduct = db.prepare('SELECT id FROM products WHERE archived = 0 AND type = \'keg\' ORDER BY id ASC LIMIT 1').get();
+      // Fallback: lấy bất kỳ keg nào (cần cost_price để tính COGS)
+      const anyProduct = db.prepare('SELECT id, cost_price FROM products WHERE archived = 0 AND type = \'keg\' ORDER BY id ASC LIMIT 1').get();
       if (!anyProduct) return { success: false, error: 'Không tìm thấy sản phẩm' };
-      return this._doAttachReward(customerId, saleId, anyProduct.id, rewardLiters, tier, finalRewardMonth, finalRewardYear, yellowReward, blackReward);
+      return this._doAttachReward(customerId, saleId, anyProduct.id, rewardLiters, tier, finalRewardMonth, finalRewardYear, yellowReward, blackReward, null, null, anyProduct.cost_price);
     }
 
     return this._doAttachReward(customerId, saleId, null, rewardLiters, tier, finalRewardMonth, finalRewardYear, yellowReward, blackReward, goldProduct, blackProduct);
@@ -1447,19 +1463,21 @@ class PromotionService {
    * _doAttachReward — Bia Inox V2: hỗ trợ 2 reward riêng (vàng + đen).
    * @param {object} goldProduct (optional)
    * @param {object} blackProduct (optional)
+   * @param {number} fallbackCostPrice (optional) - dùng khi goldProduct/blackProduct null
    */
-  _doAttachReward(customerId, saleId, productId, rewardLiters, tier, rewardMonth, rewardYear, yellowReward, blackReward, goldProduct, blackProduct) {
+  _doAttachReward(customerId, saleId, productId, rewardLiters, tier, rewardMonth, rewardYear, yellowReward, blackReward, goldProduct, blackProduct, fallbackCostPrice) {
     yellowReward = yellowReward || 0;
     blackReward = blackReward || 0;
 
     const tx = db.transaction(() => {
       // 1. Thêm item vào sale hiện tại (price=0)
       // Bia Inox V2: tách thành 2 row nếu có cả vàng + đen
+      // Lưu cost_price để tính lợi nhuận đúng (COGS = 100L × giá vốn)
       if (yellowReward > 0 && goldProduct) {
         db.prepare(`
-          INSERT INTO sale_items (sale_id, product_id, quantity, price, cost_price, profit)
-          VALUES (?, ?, ?, 0, 0, 0)
-        `).run(saleId, goldProduct.id, yellowReward);
+          INSERT INTO sale_items (sale_id, product_id, quantity, price, cost_price, profit, paid_quantity, reward_quantity, reward_source, reward_month, reward_year)
+          VALUES (?, ?, ?, 0, ?, 0, 0, ?, 'MONTHLY_BONUS', ?, ?)
+        `).run(saleId, goldProduct.id, yellowReward, goldProduct.cost_price || 0, yellowReward, rewardMonth, rewardYear);
         db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(yellowReward, goldProduct.id);
 
         const customer = db.prepare('SELECT name FROM customers WHERE id = ?').get(customerId);
@@ -1471,9 +1489,9 @@ class PromotionService {
 
       if (blackReward > 0 && blackProduct) {
         db.prepare(`
-          INSERT INTO sale_items (sale_id, product_id, quantity, price, cost_price, profit)
-          VALUES (?, ?, ?, 0, 0, 0)
-        `).run(saleId, blackProduct.id, blackReward);
+          INSERT INTO sale_items (sale_id, product_id, quantity, price, cost_price, profit, paid_quantity, reward_quantity, reward_source, reward_month, reward_year)
+          VALUES (?, ?, ?, 0, ?, 0, 0, ?, 'MONTHLY_BONUS', ?, ?)
+        `).run(saleId, blackProduct.id, blackReward, blackProduct.cost_price || 0, blackReward, rewardMonth, rewardYear);
         db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(blackReward, blackProduct.id);
 
         const customer = db.prepare('SELECT name FROM customers WHERE id = ?').get(customerId);
@@ -1483,12 +1501,12 @@ class PromotionService {
         `).run(blackProduct.id, blackReward, saleId, customer?.name || '', `Trả thưởng sản lượng tháng ${rewardMonth}/${rewardYear} - bia đen`);
       }
 
-      // Fallback: 1 row nếu không có tách
+      // Fallback: 1 row nếu không có tách - lưu cost_price để tính COGS đúng
       if (yellowReward === 0 && blackReward === 0 && productId) {
         db.prepare(`
-          INSERT INTO sale_items (sale_id, product_id, quantity, price, cost_price, profit)
-          VALUES (?, ?, ?, 0, 0, 0)
-        `).run(saleId, productId, rewardLiters);
+          INSERT INTO sale_items (sale_id, product_id, quantity, price, cost_price, profit, paid_quantity, reward_quantity, reward_source, reward_month, reward_year)
+          VALUES (?, ?, ?, 0, ?, 0, 0, ?, 'MONTHLY_BONUS', ?, ?)
+        `).run(saleId, productId, rewardLiters, fallbackCostPrice || 0, rewardLiters, rewardMonth, rewardYear);
         db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(rewardLiters, productId);
       }
 
@@ -1507,7 +1525,15 @@ class PromotionService {
         WHERE id = ?
       `).run(rewardLiters, rewardLiters, rewardLiters, rewardMonth, rewardYear, noteSuffix, saleId);
 
-      // 3b. Cập nhật keg_balance và reward_claimed của khách
+      // 3b. Cập nhật sales.profit = SUM(quantity * price - quantity * cost_price) cho TẤT CẢ items
+      // Đảm bảo profit bao gồm cả COGS của bia tặng (reward có price=0 nhưng cost_price > 0)
+      const saleProfitCalc2 = db.prepare(`
+        SELECT COALESCE(SUM(quantity * price - quantity * cost_price), 0) as profit
+        FROM sale_items WHERE sale_id = ?
+      `).get(saleId);
+      db.prepare('UPDATE sales SET profit = ? WHERE id = ?').run(saleProfitCalc2 ? saleProfitCalc2.profit : 0, saleId);
+
+      // 3c. Cập nhật keg_balance và reward_claimed của khách
       db.prepare('UPDATE customers SET keg_balance = keg_balance + ?, reward_claimed = 1, reward_claimed_at = CURRENT_TIMESTAMP WHERE id = ?').run(rewardLiters, customerId);
 
       // 5. Ghi reward_history (lưu cả 2 phần riêng)
