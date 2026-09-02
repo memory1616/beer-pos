@@ -3,7 +3,7 @@ const router = express.Router();
 const db = require('../../database');
 const logger = require('../../src/utils/logger');
 const { syncKegInventory } = require('./products');
-const { DebtService, PromotionService } = require('../../src/services');
+const { DebtService, PromotionService, RewardService } = require('../../src/services');
 const { updateCustomerKegBalance } = require('./payments');
 const { deleteSaleRestoringInventory } = require('../../src/services/saleDelete');
 const socketServer = require('../../src/socket/socketServer');
@@ -285,10 +285,11 @@ router.post('/', (req, res) => {
     }
 
     // ========== STRICT TRANSACTION ==========
+    // Khai báo saleDate/saleTime 1 lần ở ngoài để dùng cho cả transaction lẫn auto-reward
+    const saleDate = db.getVietnamDateStr();
+    const saleTime = db.getVietnamTimeStr();
     const createSale = db.transaction(() => {
       // Insert sale with Vietnam-local date and time
-      const saleDate = db.getVietnamDateStr();
-      const saleTime = db.getVietnamTimeStr();
       const saleResult = db.prepare('INSERT INTO sales (customer_id, sales_id, date, sale_time, total, profit, deliver_kegs, return_kegs, keg_balance_after, type, promo_free_liters, promo_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(customerId, staffId || null, saleDate, saleTime, total, profit, finalDeliverKegs, returnKegs, newKegBalance, 'sale', promoFreeTotal, promoInfo ? promoInfo.promoType : null);
       const saleId = saleResult.lastInsertRowid;
 
@@ -446,71 +447,59 @@ router.post('/', (req, res) => {
 
     console.log('[SALE CREATED]', { saleId, itemsInserted: saleItems.length, total, profit, debt: !!debtResult, promo: promoInfo });
 
-    // ========== TỰ ĐỘNG GẮN THƯỞNG VÀO ĐƠN HÀNG ĐẦU TIÊN TRONG THÁNG ==========
-    // Nếu khách đủ điều kiện thưởng tháng trước VÀ KHÔNG đang trong thời gian quán mới
-    // QUY TẮC: Khách đang hưởng KM quán mới sẽ KHÔNG nhận thưởng tháng
+    // ========== TỰ ĐỘNG GẮN THƯỞNG VÀO ĐƠN HÀNG (Migration 043) ==========
+    // Logic mới: dùng RewardService.calculateRewardApplication để trừ reward vào paid_quantity
+    // trên cùng 1 dòng sản phẩm (KHÔNG tạo dòng riêng price=0).
     let autoRewardResult = null;
     if (customerId) {
-      // Kiểm tra tháng trả thưởng (tháng trước) có nằm trong thời gian áp dụng KM không
-      // B6/B9: Dùng local time của server. Server đã set TZ=Asia/Ho_Chi_Minh (server.js:3).
-      //        src/services/index.js cũng lock TZ để defense-in-depth cho backfill scripts.
-      const now = new Date();
-      const rewardMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const rewardMonthEnd = new Date(rewardMonth.getFullYear(), rewardMonth.getMonth() + 1, 0, 23, 59, 59, 999);
-
-      const settings = PromotionService.getSystemPromotionSettings();
-      const isRewardMonthValid = (() => {
-        if (!settings.startDate && !settings.endDate) return true;
-        const promoStart = settings.startDate ? new Date(settings.startDate) : null;
-        const promoEnd = settings.endDate ? new Date(settings.endDate) : null;
-        // Tháng trả thưởng phải nằm trong khoảng thời gian KM
-        if (promoEnd && rewardMonth > promoEnd) return false;
-        if (promoStart && rewardMonthEnd < promoStart) return false;
-        return true;
-      })();
-
-      if (!isRewardMonthValid) {
-        console.log('[AUTO REWARD] Bo qua vi thang tra thuong (thang', rewardMonth.getMonth() + 1, '/', rewardMonth.getFullYear(), ') nam ngoai thoi gian KM');
+      // Idempotency: chống double-apply khi user double-click
+      const hasReward = RewardService.hasRewardApplied(saleId);
+      if (hasReward) {
+        console.log('[AUTO REWARD] Bo qua vi don', saleId, 'da co reward truoc do');
       } else {
-        const rewardMonthNum = rewardMonth.getMonth() + 1;
-        const rewardYear = rewardMonth.getFullYear();
+        const available = RewardService.getAvailableReward(customerId, saleDate);
 
-        // Sử dụng determinePromotionProgram để kiểm tra xem tháng đó có thuộc chương trình nào không
-        const program = PromotionService.determinePromotionProgram(customerId, rewardYear, rewardMonthNum);
-
-        if (program === 'NEW_CUSTOMER') {
-          console.log('[AUTO REWARD] Bo qua vi khach', customerId, 'thuoc chuong trinh QUAN MOI thang', rewardMonthNum, '/', rewardYear, '- khong nhan thuong san luong');
-        } else if (program === 'NONE') {
-          console.log('[AUTO REWARD] Bo qua vi khach', customerId, 'khong du dieu kien thuong thang', rewardMonthNum, '/', rewardYear);
+        if (!available.available) {
+          console.log('[AUTO REWARD] Bo qua vi khach', customerId, 'khong co pending reward:', available.reason || 'no_pending_reward');
         } else {
-          // MONTHLY_VOLUME - kiểm tra đã nhận thưởng tháng này chưa bằng reward_history
-          // QUAN TRỌNG: Dùng reward_history thay vì sales.promo_type vì khi xóa đơn,
-          // promo_type bị reset nhưng reward_history cũng bị xóa → kiểm tra chính xác hơn
-          const claimedThisMonth = db.prepare(`
-            SELECT COUNT(*) as cnt FROM reward_history
-            WHERE customer_id = ? AND note LIKE ?
-          `).get(customerId, `%tháng ${rewardMonthNum}/${rewardYear}%`);
+          // Lay danh sach orderedItems de tinh reward application
+          // Moi item: { productId, productSlug, productName, quantity, price, costPrice, type }
+          // saleItems (trong route) duoc build voi key camelCase (productId, cost_price)
+          const orderedItems = saleItems.map(si => ({
+            saleItemId: si.id || null,
+            productId: si.productId || si.product_id,
+            productSlug: si.productSlug || si.product_slug,
+            productName: si.productName || '',
+            quantity: si.quantity,
+            price: si.price,
+            costPrice: si.cost_price || 0,
+            type: si.type || 'keg'
+          }));
 
-          if (!claimedThisMonth || claimedThisMonth.cnt === 0) {
-            const rewardInfo = PromotionService.getRewardForPrevMonth(customerId);
-            if (rewardInfo && rewardInfo.eligible && rewardInfo.rewardLiters > 0) {
-              // Bia Inox V2: truyền yellowReward + blackReward riêng
-              autoRewardResult = PromotionService.attachRewardToSale(
-                customerId,
+          const application = RewardService.calculateRewardApplication(orderedItems, available);
+
+          if (application.applied) {
+            try {
+              autoRewardResult = RewardService.applyRewardToOrder(
                 saleId,
-                rewardInfo.rewardLiters,
-                rewardInfo.tier,
-                rewardInfo.rewardMonth,
-                rewardInfo.rewardYear,
-                rewardInfo.yellowReward,
-                rewardInfo.blackReward
+                customerId,
+                application,
+                available.pendingId,
+                application.rewardMonth,
+                application.rewardYear
               );
               if (autoRewardResult && autoRewardResult.success) {
-                console.log('[AUTO REWARD] Da gan thuong vao don', customerId, ': y=' + (rewardInfo.yellowReward || 0) + 'L b=' + (rewardInfo.blackReward || 0) + 'L - thang', rewardInfo.rewardMonth, '/', rewardInfo.rewardYear);
+                console.log('[AUTO REWARD] Da ap dung reward vao don', saleId, ':',
+                  application.totalRewardApplied, 'L (y=' + application.yellowApplied,
+                  'L b=' + application.blackApplied, 'L) - thang', application.rewardMonth, '/', application.rewardYear,
+                  '- con lai:', autoRewardResult.remaining, 'L');
               }
+            } catch (rewardErr) {
+              // Khong rollback don hang neu reward fail (cho phep retry sau)
+              console.error('[AUTO REWARD] Loi khi ap dung reward vao don', saleId, ':', rewardErr.message);
             }
           } else {
-            console.log('[AUTO REWARD] Bo qua vi khach', customerId, 'da co reward_history thang', rewardMonthNum, '/', rewardYear);
+            console.log('[AUTO REWARD] Khong ap dung duoc reward - ordered khong phu hop voi pending reward');
           }
         }
       }

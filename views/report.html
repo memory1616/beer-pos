@@ -1048,9 +1048,60 @@
         // Thưởng sản lượng
         html += '<div class="bonus-section">';
         html += '<div class="bonus-section-title">🎯 Thưởng sản lượng tháng ' + String(rewardMonth).padStart(2, '0') + '/' + rewardYear + '</div>';
-        html += '<div class="bonus-row"><span class="bonus-label">Cần trả:</span><span class="bonus-value">' + data.needToPay + 'L</span></div>';
-        html += '<div class="bonus-row"><span class="bonus-label">Đã trả:</span><span class="bonus-value paid">' + data.alreadyPaid + 'L</span></div>';
-        html += '<div class="bonus-row"><span class="bonus-label">Còn phải trả:</span><span class="bonus-value remaining">' + data.remaining + 'L</span></div>';
+
+        // Cần trả (tách vàng/đen)
+        var needY = data.needToPayYellow || 0;
+        var needB = data.needToPayBlack || 0;
+        var needT = data.needToPay || 0;
+        html += '<div class="bonus-row">';
+        html += '<span class="bonus-label">Cần trả:</span>';
+        if (needY > 0 || needB > 0) {
+          html += '<span class="bonus-value">';
+          if (needY > 0) html += '🟡 ' + needY + 'L';
+          if (needY > 0 && needB > 0) html += ' + ';
+          if (needB > 0) html += '⚫ ' + needB + 'L';
+          html += ' = ' + needT + 'L';
+          html += '</span>';
+        } else {
+          html += '<span class="bonus-value">' + needT + 'L</span>';
+        }
+        html += '</div>';
+
+        // Đã trả (tách vàng/đen)
+        var paidY = data.alreadyPaidYellow || 0;
+        var paidB = data.alreadyPaidBlack || 0;
+        var paidT = data.alreadyPaid || 0;
+        html += '<div class="bonus-row">';
+        html += '<span class="bonus-label">Đã trả:</span>';
+        if (paidY > 0 || paidB > 0) {
+          html += '<span class="bonus-value paid">';
+          if (paidY > 0) html += '🟡 ' + paidY + 'L';
+          if (paidY > 0 && paidB > 0) html += ' + ';
+          if (paidB > 0) html += '⚫ ' + paidB + 'L';
+          html += ' = ' + paidT + 'L';
+          html += '</span>';
+        } else {
+          html += '<span class="bonus-value paid">' + paidT + 'L</span>';
+        }
+        html += '</div>';
+
+        // Còn phải trả (tách vàng/đen)
+        var remY = data.remainingYellow || 0;
+        var remB = data.remainingBlack || 0;
+        var remT = data.remaining || 0;
+        html += '<div class="bonus-row">';
+        html += '<span class="bonus-label">Còn phải trả:</span>';
+        if (remY > 0 || remB > 0) {
+          html += '<span class="bonus-value remaining">';
+          if (remY > 0) html += '🟡 ' + remY + 'L';
+          if (remY > 0 && remB > 0) html += ' + ';
+          if (remB > 0) html += '⚫ ' + remB + 'L';
+          html += ' = ' + remT + 'L';
+          html += '</span>';
+        } else {
+          html += '<span class="bonus-value remaining">' + remT + 'L</span>';
+        }
+        html += '</div>';
         html += '</div>';
 
         // Khuyến mãi 10 tặng 1

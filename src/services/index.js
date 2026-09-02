@@ -2078,5 +2078,6 @@ module.exports = {
   InventoryService: new InventoryService(),
   DebtService: new DebtService(),
   PromotionService: new PromotionService(),
-  AnalyticsService: new AnalyticsService()
+  AnalyticsService: new AnalyticsService(),
+  RewardService: new (require('./RewardService'))()
 };

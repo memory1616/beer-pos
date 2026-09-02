@@ -11,7 +11,7 @@
  */
 const db = require('../../database');
 const logger = require('../../src/utils/logger');
-const { PromotionService } = require('./index');
+const { PromotionService, RewardService } = require('./index');
 
 /** Đơn loại này đã trừ products.stock khi tạo → cần cộng lại khi xóa (kể cả type legacy / sync). */
 function shouldReverseProductStock(sale) {
@@ -127,16 +127,16 @@ function deleteSaleRestoringInventory(saleId) {
       // B15: Phát hiện MONTHLY_BONUS qua nhiều dấu hiệu (defense-in-depth):
       //   1. promo_type === 'MONTHLY_BONUS' (chưa archive)
       //   2. reward_liters_used > 0 (đã từng gắn thưởng)
-      //   3. note có chứa "Trả thưởng sản lượng tháng X/YYYY" (các note phổ biến)
+      //   3. note có chứa "Trả thưởng sản lượng tháng X/YYYY" (co the co dau hoac khong dau)
       const isMonthlyBonus = sale.promo_type === 'MONTHLY_BONUS'
         || (sale.reward_liters_used && sale.reward_liters_used > 0)
-        || (sale.note && /Trả thưởng sản lượng tháng\s+\d+\/\d+/.test(sale.note));
+        || (sale.note && /Tr[ảa] th[ưu][ơo]ng s[ảa]n l[ưu][ơo]ng th[aá]ng\s+\d+\/\d+/.test(sale.note));
 
       if (sale.customer_id && isMonthlyBonus) {
         db.prepare("UPDATE customers SET reward_claimed = 0, reward_claimed_at = NULL WHERE id = ?").run(sale.customer_id);
 
-        // Tìm tháng/năm thưởng từ nhiều nguồn: note pattern, hoặc monthly_stats của khách
-        const rewardNoteMatch = (sale.note || '').match(/tháng\s+(\d+)\/(\d+)/);
+        // Tìm tháng/năm thưởng từ nhiều nguồn: note pattern (co the co dau hoac khong dau), hoac monthly_stats của khách
+        const rewardNoteMatch = (sale.note || '').match(/th[aá]ng\s+(\d+)\/(\d+)/);
         let rewardMonth = null;
         let rewardYear = null;
 
@@ -170,21 +170,44 @@ function deleteSaleRestoringInventory(saleId) {
           `).run(sale.customer_id, rewardYear, rewardMonth);
 
           // Xóa reward_history của tháng tương ứng (để đơn mới có thể gắn lại thưởng)
+          // NOTE: pattern co the co dau hoac khong dau (data cu) → OR ca 2
           db.prepare(`
             DELETE FROM reward_history
-            WHERE customer_id = ? AND note LIKE ?
-          `).run(sale.customer_id, `%tháng ${rewardMonth}/${rewardYear}%`);
+            WHERE customer_id = ? AND (note LIKE ? OR note LIKE ?)
+          `).run(sale.customer_id, `%tháng ${rewardMonth}/${rewardYear}%`, `%thang ${rewardMonth}/${rewardYear}%`);
 
           console.log('[ORDER DELETE] Cleared reward_history for customer', sale.customer_id, 'month', rewardMonth, '/', rewardYear);
         } else {
           console.log('[ORDER DELETE] MONTHLY_BONUS detected but cannot determine month/year for customer', sale.customer_id);
         }
 
-        // Xóa pending_rewards tương ứng nếu có (để tránh bị gắn thưởng lại khi tạo đơn mới)
+        // QUAN TRONG: KHONG XOA pending_rewards o day.
+        // Ly do: pending_rewards la tong thuong khach duoc nhan trong thang (vd: 40L).
+        // consumed_liters da duoc dieu chinh (giam di rewardQty) trong
+        // RewardService.reverseRewardFromOrder() ben duoi. Neu xoa luon
+        // pending_rewards thi khach se mat luon tier thuong, khong the nhan lai.
+        // (Bug cu: customer 39 thang 8/2026 bi xoa mat pending 40L khi xoa don #687.)
         if (rewardMonth !== null && rewardYear !== null) {
-          db.prepare('DELETE FROM pending_rewards WHERE customer_id = ? AND reward_month = ? AND reward_year = ?')
-            .run(sale.customer_id, rewardMonth, rewardYear);
-          console.log('[ORDER DELETE] Cleared pending_rewards for customer', sale.customer_id, 'month', rewardMonth, '/', rewardYear);
+          console.log('[ORDER DELETE] Keep pending_rewards for customer', sale.customer_id, 'month', rewardMonth, '/', rewardYear, '- consumed_liters will be adjusted by reverseRewardFromOrder()');
+        }
+      }
+
+      // ===== B3. REWARD REVERSE (Migration 043) =====
+      // Logic moi: dung RewardService.reverseRewardFromOrder() de:
+      //   - Doc sale_items.reward_quantity > 0
+      //   - Cong lai consumed_liters tren pending_rewards
+      //   - Cap nhat status (pending/partial/paid)
+      //   - Xoa reward_history tuong ung
+      if (sale.customer_id) {
+        try {
+          const reverseResult = RewardService.reverseRewardFromOrder(sale.id);
+          if (reverseResult.reversedLiters > 0) {
+            console.log('[ORDER DELETE] RewardService reverted ' + reverseResult.reversedLiters +
+              'L (y=' + reverseResult.yellowReversed + ', b=' + reverseResult.blackReversed + ') for sale ' + sale.id);
+          }
+        } catch (rewardErr) {
+          console.error('[ORDER DELETE] RewardService.reverseRewardFromOrder failed:', rewardErr.message);
+          throw rewardErr; // Rollback transaction
         }
       }
 
