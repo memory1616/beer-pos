@@ -1,4 +1,4 @@
-// Sales Page JavaScript — Card-Based POS v2
+// Sales Page JavaScript — Card-Based POS v2 — reward-split-display
 // Single column layout: customer search → product cards → total/checkout
 
 // ============================================================
@@ -470,15 +470,63 @@ function normalizeInvoice(sale) {
   var rawItems = sale.items || sale.products || [];
   if (!Array.isArray(rawItems)) rawItems = [];
 
-  var items = rawItems.map(function(it) {
+  var items = [];
+  rawItems.forEach(function(it) {
     var qty = Number(it.quantity != null ? it.quantity : it.qty) || 0;
     var price = Number(it.price != null ? it.price : it.unitPrice) || 0;
-    return {
-      name: it.name || it.product_name || it.productName || 'SP',
-      quantity: qty,
-      price: price,
-      product_id: it.product_id != null ? it.product_id : it.productId
-    };
+    var paidQty = it.paid_quantity != null ? Number(it.paid_quantity) : null;
+    var rewardQty = it.reward_quantity != null ? Number(it.reward_quantity) : 0;
+    var rewardSource = it.reward_source || null;
+
+    // Neu khong co paid_quantity, fallback: paid = quantity, reward = 0
+    if (paidQty == null) paidQty = Math.max(0, qty - rewardQty);
+
+    var itemName = it.name || it.product_name || it.productName || 'SP';
+    var productId = it.product_id != null ? it.product_id : it.productId;
+    var costPrice = Number(it.cost_price) || 0;
+    var profit = Number(it.profit) || 0;
+
+    // Dong paid (tinh tien)
+    if (paidQty > 0) {
+      items.push({
+        name: itemName,
+        quantity: paidQty,
+        price: price,
+        product_id: productId,
+        kind: 'paid',
+        cost_price: costPrice,
+        profit: profit,
+        reward_source: rewardSource
+      });
+    }
+
+    // Dong reward (mien phi) - tach rieng de frontend render ro rang
+    if (rewardQty > 0) {
+      items.push({
+        name: itemName,
+        quantity: rewardQty,
+        price: 0,
+        product_id: productId,
+        kind: 'reward',
+        cost_price: costPrice,
+        profit: 0,
+        reward_source: rewardSource
+      });
+    }
+
+    // Neu ca 2 deu = 0 (vd reward_quantity > quantity do data loi), giu nguyen de khong mat
+    if (paidQty <= 0 && rewardQty <= 0 && qty > 0) {
+      items.push({
+        name: itemName,
+        quantity: qty,
+        price: price,
+        product_id: productId,
+        kind: 'paid',
+        cost_price: costPrice,
+        profit: profit,
+        reward_source: rewardSource
+      });
+    }
   });
 
   var totalAmount = sale.totalAmount != null ? Number(sale.totalAmount) : (sale.total != null ? Number(sale.total) : NaN);
@@ -708,16 +756,22 @@ function renderInvoiceModalContent(invoice, saleIdForActions) {
     var lineTotal = (item.quantity || 0) * (item.price || 0);
     var shortName = (item.name || 'SP').slice(0, 20);
     var isUltra = modal && modal.classList.contains('ultra-compact');
-    var isFree = item.price === 0 || item.price === null || item.price === undefined;
+    var isFree = item.kind === 'reward' || item.price === 0 || item.price === null || item.price === undefined;
+    var rewardTag = '';
+    if (isFree && item.kind === 'reward') {
+      rewardTag = ' <small style="color:#f97316;font-size:10px;font-weight:600;">🎁 THƯỞNG</small>';
+    } else if (isFree) {
+      rewardTag = ' <small style="color:#f97316;font-size:10px;">TẶNG</small>';
+    }
     var nameHtml = isFree
-      ? '<div class="invoice-item-name" style="color:#f97316;">🎁 ' + escHtml(shortName) + ' <small style="color:#f97316;font-size:10px;">TẶNG</small></div>'
+      ? '<div class="invoice-item-name" style="color:#f97316;font-weight:600;">🎁 ' + escHtml(shortName) + rewardTag + '</div>'
       : '<div class="invoice-item-name">' + escHtml(shortName) + '</div>';
     return '<div class="invoice-item">' +
       '<div class="invoice-item-left">' +
         nameHtml +
         (isUltra ? '' : '<small>x' + item.quantity + ' · ' + (isFree ? '<span style="color:#f97316;">Miễn phí</span>' : formatVND(item.price)) + '</small>') +
       '</div>' +
-      '<div class="invoice-item-total">' + (isUltra ? item.quantity + ' × ' : '') + (isFree ? '<span style="color:#f97316;">Miễn phí</span>' : formatVND(lineTotal)) + '</div>' +
+      '<div class="invoice-item-total">' + (isUltra ? item.quantity + ' × ' : '') + (isFree ? '<span style="color:#f97316;font-weight:600;">Miễn phí</span>' : formatVND(lineTotal)) + '</div>' +
     '</div>';
   }).join('');
 
@@ -1384,6 +1438,8 @@ function selectCustomer(customerId, customerName) {
   if (saleState.customerId) {
     checkNewShopPromo(saleState.customerId);
     checkMonthlyReward(saleState.customerId);
+    // Migration 043: load pending reward qua endpoint moi
+    loadPendingReward(saleState.customerId);
   }
 
   // Fire onCustomerSelected hook
@@ -1457,18 +1513,49 @@ function showMonthlyRewardBadge(reward) {
   var el = document.getElementById('monthlyRewardBadge');
   if (el) {
     el.classList.remove('hidden');
-    // Bia Inox V2: hiển thị chi tiết theo từng loại bia nếu có (yellowReward/blackReward)
+    // Bia Inox V2 + Migration 043: hien thi theo yellow/black neu co
+    // Backend field: { yellow, black, remaining, total, mode, reward_month, reward_year }
     var remainingText;
-    if (reward.yellowReward != null || reward.blackReward != null) {
+    if (reward.yellow != null || reward.black != null) {
       var parts = [];
-      if (reward.yellowReward && reward.yellowReward > 0) parts.push('<b>' + reward.yellowReward + 'L vàng</b>');
-      if (reward.blackReward && reward.blackReward > 0) parts.push('<b>' + reward.blackReward + 'L đen</b>');
-      remainingText = parts.length > 0 ? parts.join(' + ') : ('<b>' + (reward.remainingReward || 0) + 'L</b>');
+      if (reward.yellow && reward.yellow > 0) parts.push('<b>' + reward.yellow + 'L vàng</b>');
+      if (reward.black && reward.black > 0) parts.push('<b>' + reward.black + 'L đen</b>');
+      remainingText = parts.length > 0 ? parts.join(' + ') : ('<b>' + (reward.remaining || 0) + 'L</b>');
     } else {
-      remainingText = '<b>' + (reward.remainingReward || 0) + 'L</b>';
+      // Backward compat: remainingReward, yellowReward, blackReward (cu)
+      if (reward.yellowReward != null || reward.blackReward != null) {
+        var parts2 = [];
+        if (reward.yellowReward && reward.yellowReward > 0) parts2.push('<b>' + reward.yellowReward + 'L vàng</b>');
+        if (reward.blackReward && reward.blackReward > 0) parts2.push('<b>' + reward.blackReward + 'L đen</b>');
+        remainingText = parts2.length > 0 ? parts2.join(' + ') : ('<b>' + (reward.remainingReward || 0) + 'L</b>');
+      } else {
+        remainingText = '<b>' + (reward.remainingReward || reward.remaining || 0) + 'L</b>';
+      }
     }
-    el.innerHTML = '<span style="font-size:14px;">&#127942;</span> Thưởng tháng: ' + remainingText + ' còn có thể nhận<br><span style="font-size:11px;color:#6b7280;">(thưởng sẽ được gắn vào đơn đầu tiên)</span>';
+    var monthInfo = (reward.reward_month != null && reward.reward_year != null)
+      ? ' (tháng ' + reward.reward_month + '/' + reward.reward_year + ')'
+      : '';
+    el.innerHTML = '<span style="font-size:14px;">&#127942;</span> Thưởng tháng: ' + remainingText + ' còn có thể nhận' + monthInfo + '<br><span style="font-size:11px;color:#6b7280;">(thưởng sẽ được gắn vào đơn đầu tiên)</span>';
   }
+}
+
+/**
+ * Load pending reward qua endpoint moi (Migration 043) - GET /api/promotions/pending/:customerId
+ */
+function loadPendingReward(customerId) {
+  if (!customerId) return;
+  return fetch('/api/promotions/pending/' + encodeURIComponent(customerId))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data || !data.success || !data.data) return;
+      var pending = data.data;
+      if (pending.available && pending.remaining > 0 && saleState.canReceiveReward !== false) {
+        showMonthlyRewardBadge(pending);
+      } else {
+        hideMonthlyRewardBadge();
+      }
+    })
+    .catch(function() { hideMonthlyRewardBadge(); });
 }
 
 function hideMonthlyRewardBadge() {
