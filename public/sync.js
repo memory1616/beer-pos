@@ -888,8 +888,10 @@ function _startAutoSync() {
 
 _startAutoSync();
 
-// PERFORMANCE: Clear interval on page unload — prevents memory leak
-window.addEventListener('unload', () => {
+// PERFORMANCE: Clear interval on page hide — prevents memory leak
+// Using 'pagehide' instead of 'unload' for better browser compatibility
+// and to avoid Permissions Policy violations in modern browsers
+window.addEventListener('pagehide', (event) => {
   if (_autoSyncIntervalId) { clearInterval(_autoSyncIntervalId); _autoSyncIntervalId = null; }
 });
 
