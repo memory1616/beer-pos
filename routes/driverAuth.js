@@ -40,7 +40,7 @@ router.get('/', (req, res) => {
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
   res.setHeader('Surrogate-Control', 'no-store');
-  res.sendFile(path.join(__dirname, '../../views/driver/login.html'));
+  res.sendFile(path.join(__dirname, '../views/driver/login.html'));
 });
 
 // POST /auth/driver — xử lý đăng nhập tài xế
