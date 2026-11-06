@@ -454,16 +454,17 @@ SQL
 
 | Hạng mục | Kết quả |
 |---|---|
-| `tests/driver-portal.test.js` | **51/51 PASS** |
+| `tests/driver-portal.test.js` | **61/61 PASS** |
 | Smoke test tích hợp (HTTP thật, server.js thật) | **40/40 PASS** |
-| Full suite (`npx jest`) | **161 PASS** — 10 suite fail **có sẵn từ trước** (thư mục `backups/` và script tự gọi `process.exit`), xác nhận bằng stash trước/sau: 110 → 161 pass, số suite fail **không đổi** |
+| Full suite (`npx jest`) | **171 PASS** — 10 suite fail **có sẵn từ trước** (thư mục `backups/` và script tự gọi `process.exit`), xác nhận bằng stash trước/sau: 110 → 171 pass, số suite fail **không đổi** |
 
 ### Bằng chứng bảo mật đã kiểm thử
 - Driver không đọc được `cost_price` / `profit` / `revenue` ở bất kỳ endpoint nào.
 - Driver bị **403 `DRIVER_FORBIDDEN`** ở 8 API admin: `/api/analytics`,
   `/api/expenses`, `/api/products`, `/api/sales`, `/api/customers`,
   `/api/backup/list`, `/api/settings`, `/api/state/full`.
-- Driver bị **403** ở 6 trang HTML quản trị.
+- Driver bị **403** ở 6 trang HTML quản trị — kể cả khi request **không có header
+  `Accept`** (guard dựa trên phần mở rộng file, không dựa vào `Accept`).
 - Driver 2 không xem/sửa/huỷ được đơn của Driver 1 (`DRIVER_SCOPE`).
 - Driver không đăng nhập được qua `/auth` (domain admin) → 401.
 - Cookie `driver_session_token` là **host-only** (không có `domain=`) → không rò
@@ -473,3 +474,66 @@ SQL
 - Tạo lại delivery record → `created: false`, không nhân đôi lịch sử.
 - `cost_price` của `sale_items` không bị đổi khi tài xế tạo đơn.
 - Mọi thay đổi giao hàng đều ghi vào `delivery_events` kèm `actor_username`.
+
+### 10.1. Xác minh trên production (2026-11-07)
+
+Đã deploy lên `giaohang.biatuoitayninh.store` và kiểm chứng thực tế:
+
+| Kiểm tra | Kết quả |
+|---|---|
+| `GET /auth/driver` | 200 — trang đăng nhập tài xế |
+| `POST /auth/driver` | 200 — đăng nhập thành công, trả token + role `DRIVER` |
+| `GET /api/driver/me` | 200 — trả hồ sơ tài xế |
+| `GET /api/driver/products` | 200 — **không có** `cost_price` / `profit` |
+| `GET /api/driver/dashboard` | 200 — chỉ số vận hành, không doanh thu/lợi nhuận |
+| `GET /api/analytics`, `/api/expenses`, `/api/backup/list`, `/api/products`, `/api/sales`, `/api/state/full`, `/api/admin/drivers` (với token DRIVER) | **403 `DRIVER_FORBIDDEN`** — tất cả |
+| `GET /dashboard`, `/report`, `/expenses`, `/backup`, `/products`, `/stock` (cookie driver, **không** header `Accept`) | **403** — tất cả |
+| `GET /api/products`, `/api/customers`, `/api/sales`, `/api/expenses` (token ADMIN) | 200 — admin không bị ảnh hưởng |
+| Tạo tài khoản qua `POST /api/admin/drivers` | 201, mật khẩu hash scrypt |
+| Driver tự tạo tài khoản (`POST /api/admin/drivers` với token DRIVER) | 403 — không tạo được |
+| Driver tự nâng role lên ADMIN (`PUT /api/admin/drivers/:id`) | 403 — role không đổi |
+| Admin khoá tài xế | `active = 0`, session bị huỷ, không đăng nhập lại được |
+
+---
+
+## 11. Troubleshooting
+
+### 11.1. `/driver` redirect về `/` (không vào được Driver Portal)
+**Nguyên nhân:** nginx set `X-App-Mode: admin` cho cả `giaohang.*`.
+**Cách sửa (đã áp dụng):** `src/utils/appMode.js` ưu tiên **Host header** trước
+`X-App-Mode` — Host luôn đúng theo domain người dùng gõ.
+Nếu vẫn lỗi, kiểm tra nginx:
+```bash
+sudo nginx -T | grep -A5 giaohang   # phải có server_name giaohang.biatuoitayninh.store
+```
+
+### 11.2. `/auth/driver` trả 500 (Server error)
+**Nguyên nhân phổ biến nhất:** body JSON **không đúng format** (thiếu dấu nháy) →
+`body-parser` ném `SyntaxError` → error handler trả 500.
+**Cách kiểm tra log server:**
+```bash
+# Endpoint chẩn đoán (chỉ ADMIN):
+curl -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  https://admin.biatuoitayninh.store/api/admin/logs/error?lines=40
+# Hoặc trên server:
+tail -50 /var/www/beer-pos/src/logs/error.log
+```
+
+### 11.3. Trang HTML quản trị trả 200 thay vì 403 khi dùng cookie tài xế
+**Nguyên nhân:** guard HTML chỉ chạy khi request có header `Accept: text/html` →
+attacker bỏ header là lách được.
+**Cách sửa (đã áp dụng):** `server.js` phân biệt static asset (có phần mở rộng file)
+với đường dẫn trang, bỏ qua `/api` (đã có `apiGuard` riêng).
+
+### 11.4. API phân trang trả 500 `datatype mismatch`
+**Nguyên nhân:** `req.query.page` / `req.query.limit` là **string**; giá trị rỗng
+hoặc `undefined` khi bind vào `LIMIT ?` làm SQLite ném lỗi.
+**Cách sửa (đã áp dụng):** ép về số nguyên ở mọi route phân trang:
+```js
+const page  = Math.max(1, parseInt(req.query.page) || 1);
+const limit = Math.min(500, Math.max(1, parseInt(req.query.limit) || 50));
+```
+
+### 11.5. `/backup` trả 500 `ENOENT views/backup.html`
+`views/backup.html` đã bị gỡ bỏ (dead code) nhưng route còn sót → đã xoá route.
+Quản lý backup hiện dùng API `/api/backup/*`.
