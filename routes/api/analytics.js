@@ -177,7 +177,8 @@ router.get('/daily-cashflow', (req, res) => {
 router.get('/customer-history/:customerId', (req, res) => {
   try {
     const { customerId } = req.params;
-    const { limit = 20 } = req.query;
+    // Ép số nguyên — chuỗi rỗng/undefined gây "datatype mismatch" khi bind LIMIT ?
+    const limit = Math.min(500, Math.max(1, parseInt(req.query.limit) || 20));
     
     // Thông tin khách hàng
     const customer = db.prepare(`
@@ -205,7 +206,7 @@ router.get('/customer-history/:customerId', (req, res) => {
       GROUP BY s.id
       ORDER BY s.date DESC
       LIMIT ?
-    `).all(customerId, parseInt(limit));
+    `).all(customerId, limit);
     
     // Chi tiết từng đơn - PERFORMANCE: Batch query to avoid N+1
     if (orders.length === 0) {

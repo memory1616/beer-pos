@@ -628,7 +628,11 @@ router.post('/update-kegs', (req, res) => {
 // GET /api/sales - Lấy danh sách hóa đơn (phân trang, mặc định tháng hiện tại)
 router.get('/', (req, res) => {
   // PERFORMANCE: ?fields=id,date,total,profit reduces payload for list views
-  const { fields, page, limit, month, status } = req.query;
+  const { fields, month, status } = req.query;
+  // Phân trang: PHẢI ép về số nguyên — req.query trả string, và giá trị
+  // undefined/rỗng làm SQLite ném "datatype mismatch" khi bind vào LIMIT ?.
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const limit = Math.min(500, Math.max(1, parseInt(req.query.limit) || 50));
   let saleFields = 's.*';
   if (fields) {
     const requestedFields = fields.split(',').map(f => f.trim()).filter(Boolean);
@@ -681,7 +685,10 @@ router.get('/', (req, res) => {
 // GET /api/sales/walkin-kegs - Lấy đơn bán cho khách lẻ (không có customer_id)
 router.get('/walkin-kegs', (req, res) => {
   try {
-    const { page = 1, limit = 50, month } = req.query;
+    const { month } = req.query;
+    // Ép số nguyên — chuỗi rỗng/undefined làm LIMIT ? ném "datatype mismatch".
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(500, Math.max(1, parseInt(req.query.limit) || 50));
 
     let whereClause = `
       WHERE s.type = 'sale'

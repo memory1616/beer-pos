@@ -500,8 +500,11 @@ router.get('/stats', (req, res) => {
 
 // GET /api/kegs/history - Transaction history from log table
 router.get('/history', (req, res) => {
-  const { type, customer_id, from, to, page = 1, limit = 50 } = req.query;
-  const offset = (parseInt(page) - 1) * parseInt(limit);
+  const { type, customer_id, from, to } = req.query;
+  // Ép số nguyên — req.query trả string; giá trị rỗng/undefined gây lỗi SQL.
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const limit = Math.min(500, Math.max(1, parseInt(req.query.limit) || 50));
+  const offset = (page - 1) * limit;
 
   try {
     let where = [];
@@ -519,7 +522,7 @@ router.get('/history', (req, res) => {
       ${whereClause}
       ORDER BY date DESC
       LIMIT ? OFFSET ?
-    `).all(...params, parseInt(limit), offset);
+    `).all(...params, limit, offset);
 
     const countRow = db.prepare(`
       SELECT COUNT(*) as total FROM keg_transactions_log ${whereClause}
@@ -528,9 +531,9 @@ router.get('/history', (req, res) => {
     res.json({
       data: history,
       total: countRow.total,
-      page: parseInt(page),
-      limit: parseInt(limit),
-      pages: Math.ceil(countRow.total / parseInt(limit))
+      page,
+      limit,
+      pages: Math.ceil(countRow.total / limit)
     });
   } catch (err) {
     logger.error('Get keg history error', { error: err.message });
