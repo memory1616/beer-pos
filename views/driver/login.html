@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Đăng nhập Tài xế — Bia Tươi Tây Ninh</title>
+  <meta name="theme-color" content="#0B0E11">
+  <link rel="stylesheet" href="/css/driver.css?v=20261106">
+  <style>
+    /* No-flicker theme */
+    html { background: #0B0E11; }
+  </style>
+</head>
+<body>
+  <div class="drv-login">
+    <div class="drv-login__box">
+      <div class="drv-login__logo">🚚</div>
+      <h1 class="drv-login__title">Đăng nhập Tài xế</h1>
+      <p class="drv-login__subtitle">Bia Tươi Tây Ninh</p>
+
+      <div class="drv-login__error" id="errorMsg"></div>
+
+      <form id="loginForm" autocomplete="on">
+        <div class="drv-field">
+          <label class="drv-field__label" for="username">Tài khoản</label>
+          <input class="drv-input" type="text" id="username" name="username"
+                 autocomplete="username" autocapitalize="none" autocorrect="off"
+                 spellcheck="false" required>
+        </div>
+
+        <div class="drv-field">
+          <label class="drv-field__label" for="password">Mật khẩu</label>
+          <input class="drv-input" type="password" id="password" name="password"
+                 autocomplete="current-password" required>
+        </div>
+
+        <button class="drv-btn drv-btn--primary" type="submit" id="submitBtn">Đăng nhập</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="/js/driver/core.js?v=20261106"></script>
+  <script>
+  (function () {
+    'use strict';
+
+    var SESSION_KEY = 'driver_session_token';
+    var form = document.getElementById('loginForm');
+    var usernameEl = document.getElementById('username');
+    var passwordEl = document.getElementById('password');
+    var submitBtn = document.getElementById('submitBtn');
+    var errorEl = document.getElementById('errorMsg');
+
+    setTimeout(function () { usernameEl.focus(); }, 120);
+
+    // Đã đăng nhập → vào thẳng
+    (async function checkSession() {
+      var token = null;
+      try { token = localStorage.getItem(SESSION_KEY); } catch (_) {}
+      if (!token) return;
+      try {
+        var res = await fetch('/api/driver/me', {
+          headers: { 'Authorization': 'Bearer ' + token },
+          credentials: 'include'
+        });
+        if (res.ok) { window.location.href = '/driver'; return; }
+      } catch (_) {}
+      try { localStorage.removeItem(SESSION_KEY); } catch (_) {}
+    })();
+
+    function showError(msg) {
+      errorEl.innerHTML = '<span>⚠️</span> ' + msg;
+      errorEl.classList.add('is-visible');
+    }
+
+    function clearError() {
+      errorEl.classList.remove('is-visible');
+      errorEl.textContent = '';
+    }
+
+    usernameEl.addEventListener('input', clearError);
+    passwordEl.addEventListener('input', clearError);
+    passwordEl.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); form.dispatchEvent(new Event('submit')); }
+    });
+
+    form.addEventListener('submit', async function (e) {
+      e.preventDefault();
+      clearError();
+
+      var username = usernameEl.value.trim();
+      var password = passwordEl.value;
+
+      if (!username) { showError('Vui lòng nhập tài khoản'); usernameEl.focus(); return; }
+      if (!password) { showError('Vui lòng nhập mật khẩu'); passwordEl.focus(); return; }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Đang đăng nhập...';
+
+      try {
+        var res = await fetch('/auth/driver', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ username: username, password: password })
+        });
+
+        if (res.status === 429) {
+          showError('Quá nhiều yêu cầu. Vui lòng đợi khoảng 15 phút rồi thử lại.');
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Đăng nhập';
+          return;
+        }
+
+        var data = await res.json().catch(function () { return {}; });
+
+        if (res.ok && data.success) {
+          try { localStorage.setItem(SESSION_KEY, data.token); } catch (_) {}
+          window.location.href = data.redirect || '/driver';
+        } else {
+          showError(data.error || 'Tài khoản hoặc mật khẩu không đúng.');
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Đăng nhập';
+          passwordEl.focus();
+        }
+      } catch (err) {
+        showError('Lỗi kết nối. Vui lòng kiểm tra mạng và thử lại.');
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Đăng nhập';
+      }
+    });
+  })();
+  </script>
+</body>
+</html>

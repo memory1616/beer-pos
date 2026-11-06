@@ -20,6 +20,13 @@ try {
   if (bizResult.success && !bizResult.skipped) {
     logger.log('[MIGRATION] Business features migration completed');
   }
+
+  // Run driver portal migration (idempotent, chạy độc lập version gate)
+  const { runDriverPortalMigration } = require('./database/migration');
+  const driverResult = runDriverPortalMigration(db);
+  if (driverResult.success) {
+    logger.log('[MIGRATION] Driver portal schema ready');
+  }
 } catch (error) {
   logger.error('[MIGRATION] Migration error:', error.message);
 }

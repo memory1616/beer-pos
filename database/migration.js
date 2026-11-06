@@ -532,6 +532,18 @@ function runMigrations(db) {
     }
   }
 
+  // ── Driver Portal migration (043) ───────────────────────────────────────
+  // Chạy SAU main migrations, idempotent (CREATE TABLE IF NOT EXISTS / PRAGMA check).
+  // Rollback an toàn: chỉ xóa bảng driver, không đụng dữ liệu kinh doanh.
+  try {
+    const driverMigration = require('./migrations/043_driver_portal');
+    driverMigration.up(db);
+    log('[DRIVER_PORTAL] Migration 043 applied');
+  } catch (e) {
+    log(`[DRIVER_PORTAL] Migration error: ${e.message}`);
+    throw e;
+  }
+
   // Update version
   setVersion(db, MIGRATION_VERSION);
 
@@ -596,6 +608,22 @@ function getBusinessFeaturesVersion(db) {
   }
 }
 
+// ── Driver Portal migration (043) ─────────────────────────────────────────────
+// Chạy ĐỘC LẬP với version gate của main migration (main đã chạy xong trước đó).
+// Idempotent: CREATE TABLE IF NOT EXISTS + kiểm tra PRAGMA trước khi ALTER.
+// Rollback an toàn: chỉ xóa bảng driver, không đụng dữ liệu kinh doanh.
+function runDriverPortalMigration(db) {
+  try {
+    const driverMigration = require('./migrations/043_driver_portal');
+    driverMigration.up(db);
+    log('[DRIVER_PORTAL] Migration 043 applied');
+    return { success: true };
+  } catch (e) {
+    log(`[DRIVER_PORTAL] Migration error: ${e.message}`);
+    return { success: false, error: e.message };
+  }
+}
+
 // ── Utility: Generate UUID ─────────────────────────────────────────────────────
 
 function generateUUID() {
@@ -613,6 +641,7 @@ module.exports = {
   BUSINESS_FEATURES_VERSION,
   runMigrations,
   runBusinessFeaturesMigration,
+  runDriverPortalMigration,
   generateUUID,
   getCurrentVersion,
   setVersion,

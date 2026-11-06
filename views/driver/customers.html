@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Khách hàng — Bia Tươi Tây Ninh</title>
+  <meta name="theme-color" content="#0B0E11">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="stylesheet" href="/css/driver.css?v=20261106">
+</head>
+<body>
+  <header class="drv-header">
+    <div class="drv-header__title" id="drv-page-title">KHÁCH HÀNG</div>
+    <div class="drv-header__user" id="drv-user">…</div>
+    <button class="drv-header__logout" id="drv-logout" type="button">Thoát</button>
+  </header>
+
+  <main class="drv-main">
+    <section class="drv-section">
+      <div class="drv-field">
+        <input class="drv-input" id="cust-search" type="search" inputmode="search"
+               placeholder="🔍 Tìm khách theo tên, SĐT, địa chỉ…" autocomplete="off">
+      </div>
+      <button class="drv-btn drv-btn--primary drv-mb-12" id="btn-new-cust" type="button">
+        ➕ Thêm khách hàng mới
+      </button>
+      <div id="cust-list">
+        <div class="drv-loading">Đang tải…</div>
+      </div>
+    </section>
+  </main>
+
+  <nav class="drv-nav">
+    <a class="drv-nav__item" data-nav="home" href="/driver">
+      <span class="drv-nav__icon">🏠</span><span>TRANG CHỦ</span>
+    </a>
+    <a class="drv-nav__item" data-nav="sale" href="/driver/ban-hang">
+      <span class="drv-nav__icon">🛒</span><span>BÁN HÀNG</span>
+    </a>
+    <a class="drv-nav__item" data-nav="delivery" href="/driver/giao-hang">
+      <span class="drv-nav__icon">🚚</span><span>GIAO HÀNG</span>
+      <span class="drv-nav__badge" data-nav-badge style="display:none">0</span>
+    </a>
+    <a class="drv-nav__item" data-nav="customers" href="/driver/khach-hang">
+      <span class="drv-nav__icon">👥</span><span>KHÁCH HÀNG</span>
+    </a>
+  </nav>
+
+  <script src="/js/driver/core.js?v=20261106"></script>
+  <script src="/js/driver/customers.js?v=20261106"></script>
+</body>
+</html>
