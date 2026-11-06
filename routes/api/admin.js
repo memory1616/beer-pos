@@ -13,6 +13,8 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../../database');
+const fs = require('fs');
+const path = require('path');
 const logger = require('../../src/utils/logger');
 const UserService = require('../../src/services/UserService');
 const { ROLE_ADMIN, ROLE_DRIVER } = require('../../middleware/permissions');
@@ -144,6 +146,23 @@ router.get('/drivers/:id/sessions', requireAdmin, (req, res) => {
   } catch (err) {
     logger.error('[admin/drivers] sessions error', { error: err.message });
     res.status(500).json({ error: 'Lỗi khi tải phiên đăng nhập' });
+  }
+});
+
+// GET /api/admin/logs/error — đọc N dòng cuối của logs/error.log (chẩn đoán)
+// Chỉ ADMIN. Không chứa dữ liệu kinh doanh, chỉ log kỹ thuật.
+router.get('/logs/error', requireAdmin, (req, res) => {
+  try {
+    const lines = Math.min(parseInt(req.query.lines || '60', 10), 500);
+    const logFile = path.join(__dirname, '../../logs/error.log');
+    if (!fs.existsSync(logFile)) {
+      return res.json({ error: 'log file not found', file: logFile });
+    }
+    const content = fs.readFileSync(logFile, 'utf8');
+    const tail = content.split('\n').filter(Boolean).slice(-lines).join('\n');
+    res.type('text/plain').send(tail || '(empty)');
+  } catch (err) {
+    res.status(500).json({ error: 'Không đọc được log: ' + err.message });
   }
 });
 

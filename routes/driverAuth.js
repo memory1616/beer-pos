@@ -23,6 +23,7 @@ const {
   driverCookieOptions,
 } = require('../middleware/auth');
 const { ROLE_DRIVER } = require('../middleware/permissions');
+const logger = require('../src/utils/logger');
 
 // GET /auth/driver — hiển thị form login tài xế
 router.get('/', (req, res) => {
@@ -47,23 +48,36 @@ router.get('/', (req, res) => {
 router.post('/', express.json(), (req, res) => {
   const { username, password } = req.body || {};
 
-  // driverOnly = true → admin (tài khoản .env) KHÔNG đăng nhập được ở đây
-  const result = login(username, password, { driverOnly: true });
+  try {
+    // driverOnly = true → admin (tài khoản .env) KHÔNG đăng nhập được ở đây
+    const result = login(username, password, { driverOnly: true });
 
-  if (result && result.role === ROLE_DRIVER) {
-    res.cookie(DRIVER_COOKIE_NAME, result.token, driverCookieOptions());
-    res.json({
-      success: true,
-      token: result.token,
-      role: result.role,
-      username: result.username,
-      fullName: result.fullName,
-      redirect: '/driver',
+    if (result && result.role === ROLE_DRIVER) {
+      res.cookie(DRIVER_COOKIE_NAME, result.token, driverCookieOptions());
+      res.json({
+        success: true,
+        token: result.token,
+        role: result.role,
+        username: result.username,
+        fullName: result.fullName,
+        redirect: '/driver',
+      });
+    } else {
+      res.status(401).json({
+        success: false,
+        error: 'Tên đăng nhập hoặc mật khẩu không đúng',
+      });
+    }
+  } catch (err) {
+    // Log đầy đủ để chẩn đoán (không lộ thông tin nhạy cảm cho client)
+    logger.error('Driver login error', {
+      username: username || null,
+      message: err.message,
+      stack: err.stack,
     });
-  } else {
-    res.status(401).json({
+    res.status(500).json({
       success: false,
-      error: 'Tên đăng nhập hoặc mật khẩu không đúng',
+      error: 'Lỗi hệ thống khi đăng nhập',
     });
   }
 });
