@@ -440,6 +440,22 @@ describe('Driver Portal — RBAC & Data Protection', () => {
       }
     });
 
+    test('getAppMode ưu tiên Host header (giaohang → driver kể cả khi nginx set admin)', () => {
+      const { getAppMode } = require('../src/utils/appMode');
+      expect(getAppMode({
+        headers: { host: 'giaohang.biatuoitayninh.store', 'x-app-mode': 'admin' },
+      })).toBe('driver');
+      expect(getAppMode({
+        headers: { host: 'giaohang.biatuoitayninh.store', 'x-app-mode': 'driver' },
+      })).toBe('driver');
+      expect(getAppMode({
+        headers: { host: 'admin.biatuoitayninh.store', 'x-app-mode': 'admin' },
+      })).toBe('admin');
+      expect(getAppMode({
+        headers: { host: 'biatuoitayninh.store', 'x-app-mode': 'public' },
+      })).toBe('public');
+    });
+
     test('ghi nhận sai lệch → trạng thái DISCREPANCY', async () => {
       const res = await request(app)
         .post('/api/driver/deliveries/' + testDeliveryId + '/discrepancy')

@@ -55,35 +55,13 @@ const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 
 // Environment: 'admin' | 'public' | 'driver'
-// Detected by nginx X-App-Mode header, or fallback by Host header
-const ADMIN_DOMAIN = process.env.ADMIN_DOMAIN || 'admin.biatuoitayninh.store';
-const PUBLIC_DOMAIN = process.env.PUBLIC_DOMAIN || 'biatuoitayninh.store';
-const DRIVER_DOMAIN = process.env.DRIVER_DOMAIN || 'giaohang.biatuoitayninh.store';
-
-function getAppMode(req) {
-  // nginx sets this header to tell Express which app is being served
-  if (req.headers['x-app-mode'] === 'admin') return 'admin';
-  if (req.headers['x-app-mode'] === 'public') return 'public';
-  if (req.headers['x-app-mode'] === 'driver') return 'driver';
-  // Fallback by Host header
-  const host = (req.headers.host || '').split(':')[0].toLowerCase();
-  // Driver portal — kiểm tra TRƯỚC admin để tránh nhầm subdomain
-  if (
-    host === DRIVER_DOMAIN ||
-    host === 'driver.localhost' ||
-    host.startsWith('giaohang.')
-  ) return 'driver';
-  // Support localhost development + production domains
-  if (
-    host === ADMIN_DOMAIN ||
-    host.endsWith('.admin.' + PUBLIC_DOMAIN.replace('www.', '')) ||
-    host === 'admin.localhost' ||
-    host === 'localhost' ||
-    host === '127.0.0.1' ||
-    host.startsWith('admin.')
-  ) return 'admin';
-  return 'public';
-}
+// Logic phát hiện nằm ở src/utils/appMode.js (dùng chung với test).
+const {
+  getAppMode,
+  ADMIN_DOMAIN,
+  PUBLIC_DOMAIN,
+  DRIVER_DOMAIN,
+} = require('./src/utils/appMode');
 
 // Rate limiting — skip /api/discover (LAN scan pings) and /api/auth/me (login check)
 const limiter = rateLimit({
