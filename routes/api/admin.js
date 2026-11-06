@@ -154,13 +154,27 @@ router.get('/drivers/:id/sessions', requireAdmin, (req, res) => {
 router.get('/logs/error', requireAdmin, (req, res) => {
   try {
     const lines = Math.min(parseInt(req.query.lines || '60', 10), 500);
-    const logFile = path.join(__dirname, '../../logs/error.log');
-    if (!fs.existsSync(logFile)) {
-      return res.json({ error: 'log file not found', file: logFile });
+    // Logger ghi vào <root>/src/logs (src/utils/logger.js → path.join(__dirname,'..','logs'))
+    // nhưng server.js deploy log dùng <root>/logs — thử cả hai.
+    const candidates = [
+      path.join(__dirname, '../../src/logs/error.log'),
+      path.join(__dirname, '../../logs/error.log'),
+    ];
+    const found = candidates.find((f) => fs.existsSync(f));
+    if (!found) {
+      const dirs = candidates.map((f) => path.dirname(f));
+      const listing = dirs.map((d) => {
+        try {
+          return d + ' => [' + fs.readdirSync(d).join(', ') + ']';
+        } catch (e) {
+          return d + ' => (unreadable: ' + e.message + ')';
+        }
+      });
+      return res.type('text/plain').send('NOT FOUND\n' + listing.join('\n'));
     }
-    const content = fs.readFileSync(logFile, 'utf8');
+    const content = fs.readFileSync(found, 'utf8');
     const tail = content.split('\n').filter(Boolean).slice(-lines).join('\n');
-    res.type('text/plain').send(tail || '(empty)');
+    res.type('text/plain').send(found + '\n' + (tail || '(empty)'));
   } catch (err) {
     res.status(500).json({ error: 'Không đọc được log: ' + err.message });
   }
