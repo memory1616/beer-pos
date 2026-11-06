@@ -190,11 +190,12 @@ function login(username, password, opts = {}) {
   }
 
   // Endpoint admin KHÔNG chấp nhận tài khoản tài xế.
-  if (wantAdmin) return null;
+  // (Tài khoản ADMIN trong app_users vẫn được phép — xử lý bên dưới.)
 
   // ── Driver (app_users) ────────────────────────────────────────────────
   const appUser = findAppUser(username);
   if (appUser && appUser.role === 'DRIVER') {
+    if (wantAdmin) return null; // chặn driver đăng nhập chéo sang domain admin
     if (!verifyPassword(password, appUser.password_hash)) return null;
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = Date.now() + AUTH_CONFIG.sessionDuration;
@@ -208,6 +209,26 @@ function login(username, password, opts = {}) {
       username,
       fullName: appUser.full_name || username,
       redirect: '/driver',
+    };
+  }
+
+  // ── Admin trong app_users (role ADMIN) ───────────────────────────────
+  // Cho phép nhiều tài khoản quản trị (ngoài tài khoản .env).
+  // KHÔNG được đăng nhập qua Driver Portal (driverOnly = true).
+  if (appUser && appUser.role === 'ADMIN' && !wantDriver) {
+    if (!verifyPassword(password, appUser.password_hash)) return null;
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = Date.now() + AUTH_CONFIG.sessionDuration;
+    dbSaveSession(token, username, expiresAt, 'ADMIN', appUser.id);
+    try {
+      db.prepare("UPDATE app_users SET last_login_at = datetime('now') WHERE id = ?").run(appUser.id);
+    } catch (_) {}
+    return {
+      token,
+      role: 'ADMIN',
+      username,
+      fullName: appUser.full_name || username,
+      redirect: '/',
     };
   }
 

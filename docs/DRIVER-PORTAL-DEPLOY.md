@@ -62,21 +62,23 @@
 | `database/migrations/043_driver_portal.js` | Migration idempotent: `app_users`, `delivery_records`, `delivery_record_items`, `delivery_events`, cột `role`/`app_user_id` trên `auth_sessions`, cột `driver_username`/`delivery_status` trên `sales` |
 | `middleware/permissions.js` | RBAC + sanitizer: role constants, permission catalogue, `optionalAuth`, `apiGuard`, `attachSanitizer`, `adminPageGuard`, `salesScopeClause` |
 | `src/utils/password.js` | Hash/verify mật khẩu bằng `crypto.scrypt` (`scrypt$N$r$p$salt$hash`) |
+| `src/utils/appMode.js` | Phát hiện app mode (`admin`/`public`/`driver`) — ưu tiên `Host` header, dùng chung giữa `server.js` và test |
 | `src/services/UserService.js` | CRUD tài khoản tài xế trong `app_users` |
 | `src/services/DeliveryService.js` | State machine giao hàng + audit `delivery_events` + đồng bộ keg |
 | `routes/api/driver.js` | Toàn bộ API Driver Portal (`/api/driver/*`) |
 | `routes/driverAuth.js` | Đăng nhập/đăng xuất riêng (`/auth/driver`) |
 | `scripts/create-driver.js` | CLI quản lý tài khoản tài xế |
+| `routes/api/admin.js` | API ADMIN quản lý tài khoản tài xế (`/api/admin/drivers`) |
 | `views/driver/*.html` | 5 trang: login, trang chủ, bán hàng, giao hàng, khách hàng |
 | `public/js/driver/*.js` | 5 module: core, home, sale, delivery, customers |
 | `public/css/driver.css` | Design system mobile-first cho Driver Portal |
-| `tests/driver-portal.test.js` | 51 test case RBAC / sanitization / delivery / integrity |
+| `tests/driver-portal.test.js` | 60 test case RBAC / sanitization / delivery / integrity / quản lý tài xế |
 
 ### Chỉnh sửa
 | File | Thay đổi |
 |---|---|
-| `server.js` | Thêm app mode `driver`, mount `/api/driver`, `optionalAuth`+`apiGuard`+`attachSanitizer`, `adminPageGuard`, route trang `/driver/*` |
-| `middleware/auth.js` | `login()` hỗ trợ `app_users` (role DRIVER), `adminOnly`/`driverOnly`, session lưu `role`+`app_user_id`, cookie `driver_session_token` host-only |
+| `server.js` | Thêm app mode `driver`, mount `/api/driver` + `/api/admin`, `optionalAuth`+`apiGuard`+`attachSanitizer`, `adminPageGuard`, route trang `/driver/*` |
+| `middleware/auth.js` | `login()` hỗ trợ `app_users` (role DRIVER **và** role ADMIN), `adminOnly`/`driverOnly`, session lưu `role`+`app_user_id`, cookie `driver_session_token` host-only |
 | `routes/login.js` | `login(..., { adminOnly: true })` → tài xế KHÔNG đăng nhập được ở domain admin |
 | `database.js` | Wire `runDriverPortalMigration(db)` |
 | `database/migration.js` | Export `runDriverPortalMigration` |
@@ -188,12 +190,38 @@ Mật khẩu luôn được hash bằng `scrypt` — **không lưu plaintext**.
 Đăng nhập tại `https://giaohang.biatuoitayninh.store/auth/driver`.
 
 ### Phân quyền tài xế
-Phân quyền thực hiện bằng **role** (`app_users.role`), không có UI phân quyền
-chi tiết:
+Phân quyền thực hiện bằng **role** (`app_users.role`):
 - `role = 'DRIVER'` → vào Driver Portal, bị chặn toàn bộ API/trang quản trị.
 - Muốn thu hồi quyền: `disable` tài khoản (session cũ vẫn còn hiệu lực tới khi
   hết hạn — dùng `DELETE FROM auth_sessions WHERE username = ?` nếu cần cưỡng
   buộc đăng xuất).
+
+### 5.1. Quản lý tài xế từ API (ADMIN)
+
+Ngoài CLI, quản trị viên có thể quản lý tài xế qua API `/api/admin/drivers`.
+Endpoint này **chỉ ADMIN** được gọi — tài xế nhận `403 DRIVER_FORBIDDEN` từ
+`apiGuard` (vì `/api/admin` không nằm trong whitelist `DRIVER_ALLOWED_API_PREFIXES`).
+
+| Method | Path | Mô tả |
+|---|---|---|
+| GET | `/api/admin/drivers` | Danh sách tài khoản (không có `password_hash`) |
+| GET | `/api/admin/drivers/:id` | Chi tiết một tài khoản |
+| POST | `/api/admin/drivers` | Tạo tài khoản tài xế (`username`, `password`, `fullName`, `phone`) |
+| PUT | `/api/admin/drivers/:id` | Sửa hồ sơ / khoá / đổi `role` |
+| POST | `/api/admin/drivers/:id/reset-password` | Đặt lại mật khẩu |
+| DELETE | `/api/admin/drivers/:id` | Khoá tài khoản (soft delete + huỷ session) |
+| GET | `/api/admin/drivers/:id/sessions` | Phiên đăng nhập đang hoạt động |
+
+```bash
+curl -X POST https://admin.biatuoitayninh.store/api/admin/drivers \
+  -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"username":"tai_xe_01","password":"TaiXe@2026","fullName":"Nguyễn Văn A","phone":"0900123456"}'
+```
+
+> Lưu ý: `middleware/auth.js` hỗ trợ đăng nhập cho cả tài khoản `role = 'ADMIN'`
+> lưu trong `app_users` (ngoài tài khoản `.env`), nhưng tài khoản ADMIN
+> **không** được đăng nhập qua Driver Portal (`driverOnly`).
 
 ---
 

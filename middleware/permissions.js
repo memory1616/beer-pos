@@ -82,6 +82,7 @@ const DRIVER_DENIED_PATH_PREFIXES = [
   '/api/sync',
   '/api/routing',      // tính chi phí giao hàng/km
   '/api/session',
+  '/api/admin',       // quản lý tài khoản tài xế (chỉ ADMIN)
   // Nghiệp vụ bán hàng / kho / giá — driver dùng bản /api/driver/* (đã scope)
   '/api/sales',
   '/api/orders',

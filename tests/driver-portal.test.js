@@ -48,6 +48,7 @@ function buildApp() {
   app.use('/api/expenses', require('../routes/api/expenses'));
   app.use('/api/backup', require('../routes/api/backup'));
   app.use('/api/settings', require('../routes/api/settings'));
+  app.use('/api/admin', require('../routes/api/admin'));
 
   return app;
 }
@@ -313,6 +314,112 @@ describe('Driver Portal — RBAC & Data Protection', () => {
         .set('Authorization', 'Bearer ' + driverToken)
         .send({ name: 'hack' });
       expect(res.status).toBe(403);
+    });
+
+    test('GET /api/admin/drivers bị chặn (403)', async () => {
+      const res = await request(app)
+        .get('/api/admin/drivers')
+        .set('Authorization', 'Bearer ' + driverToken);
+      expect(res.status).toBe(403);
+      expect(res.body.code).toBe('DRIVER_FORBIDDEN');
+    });
+
+    test('POST /api/admin/drivers bị chặn — driver KHÔNG tự tạo tài khoản', async () => {
+      const before = db.prepare('SELECT COUNT(*) AS c FROM app_users').get().c;
+      const res = await request(app)
+        .post('/api/admin/drivers')
+        .set('Authorization', 'Bearer ' + driverToken)
+        .send({ username: 'driver_self_created', password: 'HackerPass123' });
+      expect(res.status).toBe(403);
+      const after = db.prepare('SELECT COUNT(*) AS c FROM app_users').get().c;
+      expect(after).toBe(before);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════
+  describe('D2. Admin quản lý tài xế (API /api/admin/drivers)', () => {
+    const NEW_DRIVER = 'admin_created_driver_01';
+    let createdId;
+
+    beforeAll(() => {
+      const { hashPassword } = require('../src/utils/password');
+      db.prepare(
+        `INSERT OR REPLACE INTO app_users (username, password_hash, role, active, full_name)
+         VALUES ('admin_test_user', ?, 'ADMIN', 1, 'Admin Test')`
+      ).run(hashPassword('AdminPass123'));
+      adminToken = loginAs('admin_test_user', 'AdminPass123', false).token;
+    });
+
+    afterAll(() => {
+      try {
+        db.prepare('DELETE FROM app_users WHERE username IN (?, ?)').run(NEW_DRIVER, 'admin_test_user');
+        db.prepare('DELETE FROM auth_sessions WHERE username IN (?, ?)')
+          .run(NEW_DRIVER, 'admin_test_user');
+      } catch (_) {}
+    });
+
+    test('Admin tạo được tài khoản tài xế mới', async () => {
+      const res = await request(app)
+        .post('/api/admin/drivers')
+        .set('Authorization', 'Bearer ' + adminToken)
+        .send({
+          username: NEW_DRIVER,
+          password: 'TaiXeMoi@2026',
+          fullName: 'Tài xế Mới',
+          phone: '0900111222',
+        });
+      expect(res.status).toBe(201);
+      expect(res.body.success).toBe(true);
+      expect(res.body.role).toBe(ROLE_DRIVER);
+      createdId = res.body.id;
+
+      const row = db.prepare('SELECT * FROM app_users WHERE id = ?').get(createdId);
+      expect(row).toBeDefined();
+      // Mật khẩu phải được hash, không lưu plaintext
+      expect(row.password_hash).not.toContain('TaiXeMoi@2026');
+      expect(row.password_hash.length).toBeGreaterThan(20);
+    });
+
+    test('Danh sách tài xế KHÔNG chứa password_hash', async () => {
+      const res = await request(app)
+        .get('/api/admin/drivers')
+        .set('Authorization', 'Bearer ' + adminToken);
+      expect(res.status).toBe(200);
+      const raw = JSON.stringify(res.body);
+      expect(raw).not.toContain('password_hash');
+      expect(raw).not.toContain('passwordHash');
+    });
+
+    test('Tài xế tạo xong đăng nhập được vào Driver Portal', async () => {
+      const res = loginAs(NEW_DRIVER, 'TaiXeMoi@2026');
+      expect(res).not.toBeNull();
+      expect(res.role).toBe(ROLE_DRIVER);
+    });
+
+    test('Tài xế tự nâng role lên ADMIN bị từ chối', async () => {
+      const res = await request(app)
+        .put('/api/admin/drivers/' + createdId)
+        .set('Authorization', 'Bearer ' + driverToken)
+        .send({ role: ROLE_ADMIN });
+      expect(res.status).toBe(403);
+      const row = db.prepare('SELECT role FROM app_users WHERE id = ?').get(createdId);
+      expect(row.role).toBe(ROLE_DRIVER);
+    });
+
+    test('Admin khoá được tài xế — session bị huỷ', async () => {
+      const res = await request(app)
+        .delete('/api/admin/drivers/' + createdId)
+        .set('Authorization', 'Bearer ' + adminToken);
+      expect(res.status).toBe(200);
+      const row = db.prepare('SELECT active FROM app_users WHERE id = ?').get(createdId);
+      expect(row.active).toBe(0);
+      const sess = db.prepare('SELECT COUNT(*) AS c FROM auth_sessions WHERE app_user_id = ?')
+        .get(createdId).c;
+      expect(sess).toBe(0);
+    });
+
+    test('Tài khoản bị khoá không đăng nhập được', () => {
+      expect(loginAs(NEW_DRIVER, 'TaiXeMoi@2026')).toBeNull();
     });
   });
 

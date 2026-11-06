@@ -5,6 +5,7 @@
  * Dùng:
  *   node scripts/create-driver.js list
  *   node scripts/create-driver.js create <username> <password> [tên đầy đủ] [SĐT]
+ *   node scripts/create-driver.js create-admin <username> <password> [tên đầy đủ] [SĐT]
  *   node scripts/create-driver.js reset-password <username> <password>
  *   node scripts/create-driver.js disable <username>
  *   node scripts/create-driver.js enable <username>
@@ -24,6 +25,7 @@ function printUsage() {
 
   node scripts/create-driver.js list
   node scripts/create-driver.js create <username> <password> [fullName] [phone]
+  node scripts/create-driver.js create-admin <username> <password> [fullName] [phone]
   node scripts/create-driver.js reset-password <username> <password>
   node scripts/create-driver.js disable <username>
   node scripts/create-driver.js enable <username>
@@ -55,7 +57,7 @@ function cmdList() {
   console.log('');
 }
 
-function cmdCreate(args) {
+function cmdCreate(args, role = ROLE_DRIVER) {
   const [username, password, fullName, phone] = args;
   if (!username || !password) {
     console.error('Thieu tham so. Cu phap: create <username> <password> [fullName] [phone]');
@@ -65,7 +67,7 @@ function cmdCreate(args) {
   const result = UserService.create({
     username,
     password,
-    role: ROLE_DRIVER,
+    role,
     fullName: fullName || null,
     phone: phone || null,
   });
@@ -74,8 +76,13 @@ function cmdCreate(args) {
     console.error('LOI:', result.error);
     process.exit(1);
   }
-  console.log(`\nDa tao tai khoan tai xet "${username}" (ID ${result.id}).`);
-  console.log('  Dang nhap tai: https://giaohang.biatuoitayninh.store/auth/driver\n');
+  if (role === ROLE_ADMIN) {
+    console.log(`\nDa tao tai khoan QUAN TRI "${username}" (ID ${result.id}).`);
+    console.log('  Dang nhap tai: https://admin.biatuoitayninh.store/\n');
+  } else {
+    console.log(`\nDa tao tai khoan tai xet "${username}" (ID ${result.id}).`);
+    console.log('  Dang nhap tai: https://giaohang.biatuoitayninh.store/auth/driver\n');
+  }
 }
 
 function cmdResetPassword(args) {
@@ -135,6 +142,7 @@ function main() {
   switch (cmd) {
     case 'list': cmdList(); break;
     case 'create': cmdCreate(args); break;
+    case 'create-admin': cmdCreate(args, ROLE_ADMIN); break;
     case 'reset-password': cmdResetPassword(args); break;
     case 'disable': cmdToggle(args, false); break;
     case 'enable': cmdToggle(args, true); break;

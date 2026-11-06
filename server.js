@@ -857,6 +857,9 @@ app.use('/api/promotions', require('./routes/api/promotions'));
 app.use('/api/segments', require('./routes/api/segments'));
 app.use('/api/sales-staff', require('./routes/api/sales-staff'));
 
+// Admin-only APIs — quản lý tài khoản tài xế (requireAdmin trong file)
+app.use('/api/admin', require('./routes/api/admin'));
+
 // ==================== AUTH ====================
 app.use('/auth', require('./routes/login'));
 // Driver login — cookie riêng (host-only) cho domain giaohang
