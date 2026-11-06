@@ -768,8 +768,14 @@ app.get('/', (req, res) => {
 // ==================== DRIVER PORTAL PAGES ====================
 // Guard trang HTML quản trị: tài xế (role DRIVER) bị chặn ở BACKEND.
 // Phải mount TRƯỚC mọi route trả HTML quản trị.
-app.use(optionalAuth);
-app.use(adminPageGuard);
+// CHỈ áp dụng cho request HTML (trang), không áp dụng cho static asset.
+app.use((req, res, next) => {
+  const accepts = req.get('accept') || '';
+  const isApi = req.path.startsWith('/api');
+  const wantsHtml = accepts.includes('text/html');
+  if (isApi || !wantsHtml) return next();
+  return optionalAuth(req, res, () => adminPageGuard(req, res, next));
+});
 
 // Trang riêng cho tài xế: /driver, /driver/ban-hang, /driver/giao-hang, /driver/khach-hang
 app.get('/driver', (req, res) => {
