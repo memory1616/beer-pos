@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Trang chủ Tài xế — Bia Tươi Tây Ninh</title>
+  <meta name="theme-color" content="#0B0E11">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Giao Hàng">
+  <link rel="stylesheet" href="/css/driver.css?v=20261106">
+</head>
+<body>
+  <!-- HEADER -->
+  <header class="drv-header">
+    <div class="drv-header__title" id="drv-page-title">TRANG CHỦ</div>
+    <div class="drv-header__user" id="drv-user">…</div>
+    <button class="drv-header__logout" id="drv-logout" type="button">Thoát</button>
+  </header>
+
+  <!-- MAIN -->
+  <main class="drv-main">
+    <!-- Quick actions -->
+    <div class="drv-quick">
+      <a class="drv-quick__btn" href="/driver/ban-hang">
+        <div class="drv-quick__icon">🛒</div>
+        <div class="drv-quick__label">Bán hàng</div>
+      </a>
+      <a class="drv-quick__btn" href="/driver/giao-hang">
+        <div class="drv-quick__icon">🚚</div>
+        <div class="drv-quick__label">Giao hàng</div>
+      </a>
+    </div>
+
+    <!-- Stats -->
+    <section class="drv-section">
+      <h2 class="drv-section__title">Hôm nay</h2>
+      <div class="drv-stats">
+        <div class="drv-stat drv-stat--accent">
+          <div class="drv-stat__value" id="st-total">0</div>
+          <div class="drv-stat__label">Đơn cần giao</div>
+        </div>
+        <div class="drv-stat drv-stat--success">
+          <div class="drv-stat__value" id="st-delivered">0</div>
+          <div class="drv-stat__label">Đã giao</div>
+        </div>
+        <div class="drv-stat drv-stat--warning">
+          <div class="drv-stat__value" id="st-pending">0</div>
+          <div class="drv-stat__label">Chưa giao</div>
+        </div>
+        <div class="drv-stat drv-stat--info">
+          <div class="drv-stat__value" id="st-stops">0</div>
+          <div class="drv-stat__label">Khách cần ghé</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Liters -->
+    <section class="drv-section">
+      <h2 class="drv-section__title">Sản lượng giao</h2>
+      <div class="drv-stats">
+        <div class="drv-stat drv-stat--accent">
+          <div class="drv-stat__value" id="st-to-deliver">0</div>
+          <div class="drv-stat__label">Lít cần giao</div>
+        </div>
+        <div class="drv-stat drv-stat--success">
+          <div class="drv-stat__value" id="st-delivered-liters">0</div>
+          <div class="drv-stat__label">Lít đã giao</div>
+        </div>
+        <div class="drv-stat drv-stat--warning">
+          <div class="drv-stat__value" id="st-missing">0</div>
+          <div class="drv-stat__label">Lít thiếu</div>
+        </div>
+        <div class="drv-stat drv-stat--info">
+          <div class="drv-stat__value" id="st-kegs">0</div>
+          <div class="drv-stat__label">Vỏ đã thu</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Walk-in -->
+    <section class="drv-section">
+      <h2 class="drv-section__title">Bán trực tiếp</h2>
+      <div class="drv-card">
+        <div class="drv-cart__row">
+          <span class="drv-cart__label">Số đơn bán trực tiếp hôm nay</span>
+          <strong id="st-walkin">0</strong>
+        </div>
+        <div class="drv-cart__row">
+          <span class="drv-cart__label">Đơn chờ giao</span>
+          <strong id="st-wait">0</strong>
+        </div>
+        <div class="drv-cart__row">
+          <span class="drv-cart__label">Sai lệch chờ xử lý</span>
+          <strong id="st-discrepancy">0</strong>
+        </div>
+      </div>
+    </section>
+
+    <!-- Stops -->
+    <section class="drv-section">
+      <h2 class="drv-section__title">Khách hàng cần ghé</h2>
+      <div id="stop-list">
+        <div class="drv-loading">Đang tải…</div>
+      </div>
+    </section>
+  </main>
+
+  <!-- NAV -->
+  <nav class="drv-nav">
+    <a class="drv-nav__item" data-nav="home" href="/driver">
+      <span class="drv-nav__icon">🏠</span><span>TRANG CHỦ</span>
+    </a>
+    <a class="drv-nav__item" data-nav="sale" href="/driver/ban-hang">
+      <span class="drv-nav__icon">🛒</span><span>BÁN HÀNG</span>
+    </a>
+    <a class="drv-nav__item" data-nav="delivery" href="/driver/giao-hang">
+      <span class="drv-nav__icon">🚚</span><span>GIAO HÀNG</span>
+      <span class="drv-nav__badge" data-nav-badge style="display:none">0</span>
+    </a>
+    <a class="drv-nav__item" data-nav="customers" href="/driver/khach-hang">
+      <span class="drv-nav__icon">👥</span><span>KHÁCH HÀNG</span>
+    </a>
+  </nav>
+
+  <script src="/js/driver/core.js?v=20261106"></script>
+  <script src="/js/driver/home.js?v=20261106"></script>
+</body>
+</html>

@@ -15,7 +15,8 @@ const crypto = require('crypto');
 const logger = require('./src/utils/logger');
 const db = require('./database');
 const socketServer = require('./src/socket/socketServer');
-const { getSession, AUTH_CONFIG } = require('./middleware/auth');
+const { getSession, AUTH_CONFIG, requireAuth } = require('./middleware/auth');
+const { apiGuard, attachSanitizer, optionalAuth, adminPageGuard } = require('./middleware/permissions');
 const compression = require('compression');
 const helmet = require('helmet');
 
@@ -53,17 +54,25 @@ app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 
-// Environment: 'admin' or 'public'
+// Environment: 'admin' | 'public' | 'driver'
 // Detected by nginx X-App-Mode header, or fallback by Host header
 const ADMIN_DOMAIN = process.env.ADMIN_DOMAIN || 'admin.biatuoitayninh.store';
 const PUBLIC_DOMAIN = process.env.PUBLIC_DOMAIN || 'biatuoitayninh.store';
+const DRIVER_DOMAIN = process.env.DRIVER_DOMAIN || 'giaohang.biatuoitayninh.store';
 
 function getAppMode(req) {
   // nginx sets this header to tell Express which app is being served
   if (req.headers['x-app-mode'] === 'admin') return 'admin';
   if (req.headers['x-app-mode'] === 'public') return 'public';
+  if (req.headers['x-app-mode'] === 'driver') return 'driver';
   // Fallback by Host header
   const host = (req.headers.host || '').split(':')[0].toLowerCase();
+  // Driver portal — kiểm tra TRƯỚC admin để tránh nhầm subdomain
+  if (
+    host === DRIVER_DOMAIN ||
+    host === 'driver.localhost' ||
+    host.startsWith('giaohang.')
+  ) return 'driver';
   // Support localhost development + production domains
   if (
     host === ADMIN_DOMAIN ||
@@ -127,7 +136,7 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net', 'https://unpkg.com'],
       styleSrcElem: ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net', 'https://unpkg.com'],
       imgSrc: ["'self'", 'data:', 'https:', 'https://img.vietqr.io', 'https://*.basemaps.cartocdn.com'],
-      connectSrc: ["'self'", 'http://103.75.183.57:3000', 'https://103.75.183.57:3000', 'https://admin.biatuoitayninh.store', 'https://biatuoitayninh.store', 'https://img.vietqr.io', 'https://unpkg.com', 'https://cdn.jsdelivr.net', 'https://*.basemaps.cartocdn.com'],
+      connectSrc: ["'self'", 'http://103.195.236.38:3000', 'https://103.195.236.38:3000', 'https://admin.biatuoitayninh.store', 'https://biatuoitayninh.store', 'https://img.vietqr.io', 'https://unpkg.com', 'https://cdn.jsdelivr.net', 'https://*.basemaps.cartocdn.com', 'wss://admin.biatuoitayninh.store', 'ws://admin.biatuoitayninh.store'],
       fontSrc: ["'self'"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
@@ -748,8 +757,57 @@ app.get('/', (req, res) => {
     // Admin subdomain: serve admin dashboard
     return res.sendFile(path.join(__dirname, 'views', 'dashboard.html'));
   }
+  if (mode === 'driver') {
+    // Driver subdomain: serve Driver Portal
+    return res.redirect('/driver');
+  }
   // Public domain: serve landing page
   res.sendFile(path.join(__dirname, 'public', 'landing.html'));
+});
+
+// ==================== DRIVER PORTAL PAGES ====================
+// Guard trang HTML quản trị: tài xế (role DRIVER) bị chặn ở BACKEND.
+// Phải mount TRƯỚC mọi route trả HTML quản trị.
+// CHỈ áp dụng cho request HTML (trang), không áp dụng cho static asset.
+app.use((req, res, next) => {
+  const accepts = req.get('accept') || '';
+  const isApi = req.path.startsWith('/api');
+  const wantsHtml = accepts.includes('text/html');
+  if (isApi || !wantsHtml) return next();
+  return optionalAuth(req, res, () => adminPageGuard(req, res, next));
+});
+
+// Trang riêng cho tài xế: /driver, /driver/ban-hang, /driver/giao-hang, /driver/khach-hang
+app.get('/driver', (req, res) => {
+  if (getAppMode(req) !== 'driver') {
+    // Domain admin/public không mở Driver Portal → chuyển hướng admin
+    return res.redirect('/');
+  }
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.sendFile(path.join(__dirname, 'views', 'driver', 'index.html'));
+});
+
+app.get('/driver/ban-hang', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.sendFile(path.join(__dirname, 'views', 'driver', 'sale.html'));
+});
+
+app.get('/driver/giao-hang', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.sendFile(path.join(__dirname, 'views', 'driver', 'delivery.html'));
+});
+
+app.get('/driver/khach-hang', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.sendFile(path.join(__dirname, 'views', 'driver', 'customers.html'));
 });
 
 // Admin app pages — all at root for admin subdomain
@@ -783,6 +841,19 @@ app.get('/backup', (req, res) => res.sendFile(path.join(__dirname, 'views', 'bac
 app.use('/admin', (req, res) => res.redirect(req.path === '/admin' ? '/' : req.path));
 
 // ==================== API ROUTES ====================
+// ==================== DRIVER PORTAL API ====================
+// Namespace riêng /api/driver/* — có middleware requireDriver + scope theo tài xế.
+// Được mount TRƯỚC apiGuard để driver guard áp dụng cho các API admin còn lại.
+app.use('/api/driver', requireAuth, require('./routes/api/driver'));
+
+// ==================== AUTH CHECK (global) ====================
+// Sau khi route /api/driver đã xử lý xong, áp dụng guard chung cho các API
+// còn lại: DRIVER bị chặn ở BACKEND (không chỉ ẩn UI).
+//
+// optionalAuth KHÔNG chặn 401 → giữ nguyên hành vi hiện tại của các API
+// công khai (landing, LAN device sync /api/sync/*) và không ảnh hưởng admin.
+app.use('/api', optionalAuth, apiGuard, attachSanitizer);
+
 app.use('/api/customers', require('./routes/api/customers'));
 app.use('/api/products', require('./routes/api/products'));
 app.use('/api/sales', require('./routes/api/sales'));
@@ -810,6 +881,8 @@ app.use('/api/sales-staff', require('./routes/api/sales-staff'));
 
 // ==================== AUTH ====================
 app.use('/auth', require('./routes/login'));
+// Driver login — cookie riêng (host-only) cho domain giaohang
+app.use('/auth/driver', require('./routes/driverAuth'));
 
 // ==================== PAGE DATA ROUTES ====================
 app.use('/customers', require('./routes/customers'));

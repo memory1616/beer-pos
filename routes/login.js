@@ -24,7 +24,9 @@ router.get('/', (req, res) => {
 router.post('/', express.json(), (req, res) => {
   const { username, password } = req.body;
 
-  const result = login(username, password);
+  // adminOnly=true → CHỈ nhận tài khoản ADMIN (.env).
+  // Tài khoản tài xế KHÔNG được đăng nhập chéo sang domain admin.
+  const result = login(username, password, { adminOnly: true });
 
   if (result) {
     res.cookie(AUTH_CONFIG.cookieName, result.token, cookieOptions());

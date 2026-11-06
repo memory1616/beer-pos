@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Bán hàng — Bia Tươi Tây Ninh</title>
+  <meta name="theme-color" content="#0B0E11">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="stylesheet" href="/css/driver.css?v=20261106">
+</head>
+<body>
+  <header class="drv-header">
+    <div class="drv-header__title" id="drv-page-title">BÁN HÀNG</div>
+    <div class="drv-header__user" id="drv-user">…</div>
+    <button class="drv-header__logout" id="drv-logout" type="button">Thoát</button>
+  </header>
+
+  <main class="drv-main">
+    <!-- Bước 1: Chọn khách -->
+    <section class="drv-section">
+      <h2 class="drv-section__title">1. Khách hàng</h2>
+      <div class="drv-card">
+        <div id="selected-customer" class="drv-hidden">
+          <div class="drv-cart__row">
+            <div>
+              <div style="font-weight:800;font-size:1.05rem;" id="cust-name">—</div>
+              <div class="drv-muted" style="font-size:0.85rem;" id="cust-meta">—</div>
+            </div>
+            <button class="drv-btn drv-btn--ghost drv-btn--sm" id="btn-change-cust" type="button">Đổi</button>
+          </div>
+          <div class="drv-cart__row">
+            <span class="drv-cart__label">Nợ hiện tại</span>
+            <strong id="cust-debt">0 đ</strong>
+          </div>
+          <div class="drv-cart__row">
+            <span class="drv-cart__label">Số vỏ khách đang giữ</span>
+            <strong id="cust-kegs">0</strong>
+          </div>
+        </div>
+
+        <div id="customer-picker">
+          <div class="drv-field">
+            <input class="drv-input" id="cust-search" type="search" inputmode="search"
+                   placeholder="🔍 Tìm khách theo tên, SĐT, địa chỉ…" autocomplete="off">
+          </div>
+          <button class="drv-btn drv-btn--primary" id="btn-new-cust" type="button">
+            ➕ Khách mới
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Bước 2: Chọn sản phẩm -->
+    <section class="drv-section">
+      <h2 class="drv-section__title">2. Sản phẩm</h2>
+      <div class="drv-card">
+        <div class="drv-field">
+          <input class="drv-input" id="prod-search" type="search" inputmode="search"
+                 placeholder="🔍 Tìm sản phẩm…" autocomplete="off">
+        </div>
+        <div id="product-list" class="drv-search-list">
+          <div class="drv-loading">Đang tải…</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Bước 3: Giỏ hàng -->
+    <section class="drv-section" id="cart-section">
+      <h2 class="drv-section__title">3. Đơn hàng</h2>
+      <div class="drv-cart" id="cart-items">
+        <div class="drv-cart__row">
+          <span class="drv-cart__label">Chưa chọn sản phẩm</span>
+          <strong>0 đ</strong>
+        </div>
+      </div>
+
+      <div class="drv-card">
+        <div class="drv-field">
+          <label class="drv-field__label" for="deliver-kegs">Số vỏ giao đi</label>
+          <input class="drv-input" id="deliver-kegs" type="number" inputmode="numeric" min="0" value="0">
+        </div>
+        <div class="drv-field">
+          <label class="drv-field__label" for="return-kegs">Số vỏ khách trả lại</label>
+          <input class="drv-input" id="return-kegs" type="number" inputmode="numeric" min="0" value="0">
+        </div>
+        <div class="drv-field">
+          <label class="drv-field__label" for="sale-note">Ghi chú</label>
+          <input class="drv-input" id="sale-note" type="text" placeholder="Ghi chú đơn hàng (không bắt buộc)">
+        </div>
+      </div>
+
+      <div class="drv-btn-row drv-mt-12">
+        <button class="drv-btn drv-btn--ghost" id="btn-cancel-order" type="button">Xoá giỏ</button>
+        <button class="drv-btn drv-btn--primary" id="btn-save-order" type="button" disabled>
+          Lưu đơn
+        </button>
+      </div>
+    </section>
+
+    <!-- Lịch sử đơn -->
+    <section class="drv-section">
+      <h2 class="drv-section__title">Đơn hàng của tôi</h2>
+      <div class="drv-scroll-x drv-mb-12">
+        <button class="drv-chip is-active" data-month="">Tất cả</button>
+        <button class="drv-chip" data-month="2026-11">Tháng 11/2026</button>
+        <button class="drv-chip" data-month="2026-10">Tháng 10/2026</button>
+        <button class="drv-chip" data-month="2026-09">Tháng 9/2026</button>
+      </div>
+      <div id="sales-list">
+        <div class="drv-loading">Đang tải…</div>
+      </div>
+    </section>
+  </main>
+
+  <nav class="drv-nav">
+    <a class="drv-nav__item" data-nav="home" href="/driver">
+      <span class="drv-nav__icon">🏠</span><span>TRANG CHỦ</span>
+    </a>
+    <a class="drv-nav__item" data-nav="sale" href="/driver/ban-hang">
+      <span class="drv-nav__icon">🛒</span><span>BÁN HÀNG</span>
+    </a>
+    <a class="drv-nav__item" data-nav="delivery" href="/driver/giao-hang">
+      <span class="drv-nav__icon">🚚</span><span>GIAO HÀNG</span>
+      <span class="drv-nav__badge" data-nav-badge style="display:none">0</span>
+    </a>
+    <a class="drv-nav__item" data-nav="customers" href="/driver/khach-hang">
+      <span class="drv-nav__icon">👥</span><span>KHÁCH HÀNG</span>
+    </a>
+  </nav>
+
+  <script src="/js/driver/core.js?v=20261106"></script>
+  <script src="/js/driver/sale.js?v=20261106"></script>
+</body>
+</html>
