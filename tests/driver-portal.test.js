@@ -547,6 +547,35 @@ describe('Driver Portal — RBAC & Data Protection', () => {
       }
     });
 
+    test('driver bị chặn trang HTML quản trị kể cả khi KHÔNG có header Accept', () => {
+      // Regression: guard HTML trước đây dựa vào `Accept: text/html`,
+      // attacker bỏ header → lách guard. Phải chặn bất kể Accept.
+      const { adminPageGuard } = require('../middleware/permissions');
+      const mk = (path, accept) => {
+        const req = {
+          path,
+          method: 'GET',
+          headers: accept ? { accept } : {},
+          user: { role: ROLE_DRIVER, username: TEST_DRIVER },
+        };
+        const res = {
+          statusCode: 200,
+          status(c) { this.statusCode = c; return this; },
+          send(body) { this.body = body; return this; },
+        };
+        adminPageGuard(req, res, () => { res.passed = true; });
+        return res;
+      };
+
+      for (const accept of [undefined, '', 'application/json', '*/*', 'text/html']) {
+        for (const p of ['/dashboard', '/report', '/expenses', '/backup', '/products']) {
+          const res = mk(p, accept);
+          expect(res.passed).toBeUndefined();
+          expect(res.statusCode).toBe(403);
+        }
+      }
+    });
+
     test('getAppMode ưu tiên Host header (giaohang → driver kể cả khi nginx set admin)', () => {
       const { getAppMode } = require('../src/utils/appMode');
       expect(getAppMode({

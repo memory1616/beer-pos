@@ -746,12 +746,17 @@ app.get('/', (req, res) => {
 // ==================== DRIVER PORTAL PAGES ====================
 // Guard trang HTML quản trị: tài xế (role DRIVER) bị chặn ở BACKEND.
 // Phải mount TRƯỚC mọi route trả HTML quản trị.
-// CHỈ áp dụng cho request HTML (trang), không áp dụng cho static asset.
+//
+// KHÔNG dựa vào header `Accept` để quyết định có guard hay không —
+// attacker có thể bỏ Accept để lách guard. Thay vào đó:
+//   - /api/*            → bỏ qua (đã có apiGuard riêng)
+//   - đường dẫn có ĐUÔI FILE (static asset: .js/.css/.png…) → bỏ qua
+//   - mọi request còn lại → guard (đây là đường dẫn HTML/trang)
 app.use((req, res, next) => {
-  const accepts = req.get('accept') || '';
-  const isApi = req.path.startsWith('/api');
-  const wantsHtml = accepts.includes('text/html');
-  if (isApi || !wantsHtml) return next();
+  if (req.path.startsWith('/api')) return next();
+  // Static asset: có phần mở rộng file ở cuối (không tính query string)
+  const cleanPath = req.path.split('?')[0];
+  if (/\.[a-zA-Z0-9]{2,5}$/.test(cleanPath)) return next();
   return optionalAuth(req, res, () => adminPageGuard(req, res, next));
 });
 
