@@ -815,9 +815,8 @@ app.get('/qr-settings', (req, res) => sendPageNoCache(req, res, 'qr-settings.htm
 app.get('/purchases', (req, res) => sendPageNoCache(req, res, 'purchases.html'));
 app.get('/kegs', (req, res) => sendPageNoCache(req, res, 'kegs.html'));
 // /report is handled by routes/report.js (serves full HTML page)
-app.get('/backup', (req, res) => sendPageNoCache(req, res, 'backup.html'));
-// /report is handled by routes/report.js (serves full HTML page)
-app.get('/backup', (req, res) => res.sendFile(path.join(__dirname, 'views', 'backup.html')));
+// Lưu ý: KHÔNG có route /backup — views/backup.html đã bị gỡ bỏ (dead code).
+// API backup vẫn hoạt động tại /api/backup/* (quản lý backup qua API).
 // analytics, delivery, products, devices, expenses: HTML do routes/*.js (không dùng views/*.html)
 
 // Redirect legacy /admin/* paths to clean paths
