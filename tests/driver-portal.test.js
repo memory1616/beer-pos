@@ -810,4 +810,53 @@ describe('Driver Portal — RBAC & Data Protection', () => {
       expect(hasProfitField).toBe(true);
     });
   });
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // I. Chống reload liên tục (reload loop)
+  // ═══════════════════════════════════════════════════════════════════════
+  describe('I. Chống vòng lặp reload liên tục', () => {
+    const fs = require('fs');
+    const path = require('path');
+
+    const coreSrc = fs.readFileSync(
+      path.join(__dirname, '../public/js/driver/core.js'), 'utf8');
+    const loginSrc = fs.readFileSync(
+      path.join(__dirname, '../views/driver/login.html'), 'utf8');
+    const serverSrc = fs.readFileSync(
+      path.join(__dirname, '../server.js'), 'utf8');
+
+    test('core.js chỉ redirect khi 401, KHÔNG redirect khi 429', () => {
+      // Đoạn xử lý 401 phải nằm sau check 401, và 429 phải được đánh dấu
+      expect(coreSrc).toMatch(/res\.status === 401/);
+      expect(coreSrc).toMatch(/err\.rateLimited\s*=\s*true/);
+      // Không được có nhánh redirect chung cho mọi lỗi
+      expect(coreSrc).not.toMatch(/catch\s*\(\s*_\s*\)\s*\{\s*window\.location\.href\s*=\s*'\/auth\/driver'/);
+    });
+
+    test('requireAuth bỏ qua redirect khi lỗi tạm thời (429/5xx/mạng)', () => {
+      expect(coreSrc).toMatch(/transient/);
+      expect(coreSrc).toMatch(/err\.rateLimited\s*\|\|\s*err\.status === 429/);
+    });
+
+    test('có bộ đếm chặn vòng lặp redirect (MAX_REDIRECTS)', () => {
+      expect(coreSrc).toMatch(/MAX_REDIRECTS/);
+      expect(coreSrc).toMatch(/guardRedirect/);
+      expect(loginSrc).toMatch(/g\.count > 5/);
+    });
+
+    test('login.html KHÔNG xoá token khi API lỗi tạm thời (429/5xx)', () => {
+      // Chỉ xoá token khi 401
+      expect(loginSrc).toMatch(/res\.status === 401[\s\S]{0,200}removeItem/);
+      // Không xoá token trong catch (lỗi mạng)
+      const catchBlock = loginSrc.slice(loginSrc.indexOf('} catch (_) {'));
+      expect(catchBlock.slice(0, 200)).not.toMatch(/removeItem/);
+    });
+
+    test('server có limiter riêng cho /api/driver, tính theo token', () => {
+      expect(serverSrc).toMatch(/app\.use\('\/api\/driver',\s*driverLimiter\)/);
+      expect(serverSrc).toMatch(/keyGenerator/);
+      // Limiter chung phải BỎ QUA /api/driver
+      expect(serverSrc).toMatch(/req\.path\.startsWith\('\/driver\/'\)/);
+    });
+  });
 });

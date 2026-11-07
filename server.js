@@ -51,6 +51,9 @@ try {
 
 const app = express();
 app.set('trust proxy', 1);
+// cookieParser phải mount TRƯỚC các rate limiter, vì driverLimiter dùng
+// `req.cookies.driver_session_token` làm key (mỗi tài xế 1 quota riêng).
+app.use(cookieParser());
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 
@@ -72,10 +75,39 @@ const limiter = rateLimit({
   legacyHeaders: false,
   validate: { xForwardedForHeader: false },
   skip: (req) => {
-    return req.path === '/discover' || req.path === '/auth/me';
+    if (req.path === '/discover' || req.path === '/auth/me') return true;
+    // Driver Portal có limiter riêng (thấy bên dưới) — không áp limiter chung.
+    if (req.path === '/driver' || req.path.startsWith('/driver/')) return true;
+    return false;
   },
 });
 app.use('/api', limiter);
+
+// ── Rate limit RIÊNG cho Driver Portal ─────────────────────────────────────
+// Driver Portal chạy trên mạng di động: nhiều tài xế dùng CHUNG IP (NAT).
+// Limiter chung 200 req/15 phút rất dễ bị 429 → client cũ redirect → reload loop.
+// → Tách limiter riêng:
+//   1. Quota tính theo PHIÊN (token) thay vì theo IP → tài xế không bị ảnh hưởng
+//      bởi người khác cùng IP.
+//   2. Endpoint đọc (GET/HEAD) không tính quota → chỉ mutation mới tính.
+const driverLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 600,
+  message: { error: 'Quá nhiều yêu cầu, vui lòng thử lại sau' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
+  keyGenerator: (req) => {
+    // Ưu tiên token phiên → mỗi tài xế 1 quota riêng.
+    const auth = req.headers.authorization || '';
+    if (auth.startsWith('Bearer ')) return 'd:' + auth.slice(7, 47);
+    const ck = req.cookies && req.cookies.driver_session_token;
+    if (ck) return 'd:' + String(ck).slice(0, 40);
+    return 'd:ip:' + req.ip;
+  },
+  skip: (req) => req.method === 'GET' || req.method === 'HEAD',
+});
+app.use('/api/driver', driverLimiter);
 
 // Lenient rate limit for auth/login endpoints — separate from general /api limit
 const authLimiter = rateLimit({
@@ -434,7 +466,6 @@ app.get('/deploy/log', async (req, res) => {
 // Middleware
 app.use(bodyParser.json({ limit: '10mb' }));
 app.use(bodyParser.urlencoded({ extended: true }));
-app.use(cookieParser());
 app.use(compression());
 // Dynamic JSON "page data" — must not be cached by browsers/CDN (PWA SW used to cache these)
 app.use((req, res, next) => {

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Đăng nhập Tài xế — Bia Tươi Tây Ninh</title>
   <meta name="theme-color" content="#0B0E11">
-  <link rel="stylesheet" href="/css/driver.css?v=20261106">
+  <link rel="stylesheet" href="/css/driver.css?v=20261107g">
   <style>
     /* No-flicker theme */
     html { background: #0B0E11; }
@@ -39,7 +39,7 @@
     </div>
   </div>
 
-  <script src="/js/driver/core.js?v=20261106"></script>
+  <script src="/js/driver/core.js?v=20261107g"></script>
   <script>
   (function () {
     'use strict';
@@ -54,6 +54,9 @@
     setTimeout(function () { usernameEl.focus(); }, 120);
 
     // Đã đăng nhập → vào thẳng
+    // QUAN TRỌNG: bỏ qua khi API lỗi tạm thời (429 rate-limit / 5xx / mạng).
+    // Nếu không, sẽ tạo vòng lặp: /auth/driver → /driver → API lỗi → lại
+    // /auth/driver → ... (reload liên tục).
     (async function checkSession() {
       var token = null;
       try { token = localStorage.getItem(SESSION_KEY); } catch (_) {}
@@ -63,9 +66,39 @@
           headers: { 'Authorization': 'Bearer ' + token },
           credentials: 'include'
         });
-        if (res.ok) { window.location.href = '/driver'; return; }
-      } catch (_) {}
-      try { localStorage.removeItem(SESSION_KEY); } catch (_) {}
+        if (res.ok) {
+          // Chống vòng lặp reload: đếm số lần chuyển trang trong 10 giây.
+          // Nếu > 5 lần → dừng, không redirect (tránh reload liên tục).
+          var guardKey = 'drv_redirect_guard';
+          var now = Date.now();
+          var g = { count: 0, first: now };
+          try {
+            var raw = sessionStorage.getItem(guardKey);
+            if (raw) g = JSON.parse(raw);
+          } catch (_) {}
+          if (now - (g.first || now) > 10000) g = { count: 0, first: now };
+          g.count = (g.count || 0) + 1;
+          try { sessionStorage.setItem(guardKey, JSON.stringify(g)); } catch (_) {}
+
+          if (g.count > 5) {
+            try { sessionStorage.removeItem(guardKey); } catch (_) {}
+            console.error('[DRIVER] Dừng vòng lặp chuyển trang sau ' + g.count + ' lần.');
+            return;
+          }
+          window.location.href = '/driver';
+          return;
+        }
+        // 401 = token hỏng → xoá token, ở lại trang login
+        if (res.status === 401) {
+          try { localStorage.removeItem(SESSION_KEY); } catch (_) {}
+          return;
+        }
+        // 429 / 5xx → giữ token, KHÔNG redirect (tránh reload loop)
+        return;
+      } catch (_) {
+        // Lỗi mạng → giữ token, không redirect
+        return;
+      }
     })();
 
     function showError(msg) {

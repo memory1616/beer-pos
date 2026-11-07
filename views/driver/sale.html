@@ -31,12 +31,12 @@
   <!-- ═══ DÙNG CHUNG GIAO DIỆN ADMIN (unified.css) ═══ -->
   <link rel="stylesheet" href="/css/unified.css?v=20260419-thutien-click">
   <!-- Lớp bổ sung cho Driver Portal: bottom menu 4 mục + header tài xế -->
-  <link rel="stylesheet" href="/css/driver.css?v=20261107f">
+  <link rel="stylesheet" href="/css/driver.css?v=20261107g">
 
   <script src="/js/dark-mode.js"></script>
   <script src="/js/layout.js?v=20261107-rt"></script>
   <!-- Đồng bộ real-time giữa trang Bán hàng ↔ Giao hàng -->
-  <script src="/js/driver/sync.js?v=20261107f"></script>
+  <script src="/js/driver/sync.js?v=20261107g"></script>
   <script src="https://unpkg.com/dexie@3/dist/dexie.min.js"></script>
 </head>
 <body class="body--app">
@@ -286,8 +286,8 @@
 
     (async function() {
       /* ═══ 1. Nạp core driver TRƯỚC (cần Drv.requireAuth + getDriverBottomNav) ═══ */
-      await loadScript('/js/driver/core.js?v=20261107');
-      await loadScript('/js/driver/api-shim.js?v=20261107');
+      await loadScript('/js/driver/core.js?v=20261107g');
+      await loadScript('/js/driver/api-shim.js?v=20261107g');
 
       /* ═══ 2. Xác thực tài xế (bắt buộc) ═══ */
       try {

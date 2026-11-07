@@ -13,6 +13,45 @@
 
   var SESSION_KEY = 'driver_session_token';
 
+  // ── Chống vòng lặp reload ───────────────────────────────────────────────
+  // Nếu trang bị redirect liên tục (login ↔ dashboard), dừng ngay sau N lần
+  // trong 10 giây và báo lỗi thay vì reload mãi.
+  var REDIRECT_GUARD_KEY = 'drv_redirect_guard';
+  var MAX_REDIRECTS = 5;
+  var REDIRECT_WINDOW_MS = 10000;
+
+  function guardRedirect(target) {
+    var now = Date.now();
+    var info = { count: 0, first: now, last: now };
+    try {
+      var raw = sessionStorage.getItem(REDIRECT_GUARD_KEY);
+      if (raw) info = JSON.parse(raw);
+    } catch (_) {}
+
+    if (now - (info.first || now) > REDIRECT_WINDOW_MS) {
+      info = { count: 0, first: now, last: now };
+    }
+    info.count = (info.count || 0) + 1;
+    info.last = now;
+    try { sessionStorage.setItem(REDIRECT_GUARD_KEY, JSON.stringify(info)); } catch (_) {}
+
+    if (info.count > MAX_REDIRECTS) {
+      try { sessionStorage.removeItem(REDIRECT_GUARD_KEY); } catch (_) {}
+      console.error('[DRIVER] Dừng vòng lặp chuyển trang sau ' + info.count +
+        ' lần redirect liên tiếp. Trang hiện tại: ' + location.pathname);
+      if (typeof toast === 'function') {
+        toast('Đã dừng tải lại liên tục. Vui lòng kiểm tra kết nối mạng.', 'error');
+      }
+      return false;
+    }
+    return true;
+  }
+
+  /** Xoá bộ đếm khi điều hướng bình thường (không phải vòng lặp). */
+  function clearRedirectGuard() {
+    try { sessionStorage.removeItem(REDIRECT_GUARD_KEY); } catch (_) {}
+  }
+
   // ── Token ───────────────────────────────────────────────────────────────
   function getToken() {
     try { return localStorage.getItem(SESSION_KEY) || null; } catch (_) { return null; }
@@ -41,9 +80,12 @@
       body: options.body ? JSON.stringify(options.body) : undefined
     });
 
+    // CHỈ redirect khi phiên thực sự hết hạn (401).
+    // 429 (rate-limit) / 5xx / lỗi mạng KHÔNG được redirect — nếu không sẽ
+    // tạo vòng lặp reload: 429 → /auth/driver → /driver → 429 → ...
     if (res.status === 401) {
       setToken(null);
-      window.location.href = '/auth/driver';
+      if (guardRedirect('/auth/driver')) window.location.href = '/auth/driver';
       throw new Error('Phiên đăng nhập đã hết hạn');
     }
 
@@ -55,6 +97,11 @@
       var err = new Error(msg);
       err.status = res.status;
       err.data = data;
+      if (res.status === 429) {
+        err.rateLimited = true;
+        err.retryAfterSec = parseInt(res.headers.get('Retry-After') || '0', 10) || 60;
+        notifyRateLimited(err.retryAfterSec);
+      }
       throw err;
     }
     return data;
@@ -233,6 +280,17 @@
     toastTimer = setTimeout(function () { el.style.display = 'none'; }, 2800);
   }
 
+  // ── Cảnh báo rate-limit (429) ───────────────────────────────────────────
+  // Hiển thị 1 lần mỗi 60s để không spam khi nhiều request cùng lúc bị chặn.
+  var lastRateLimitToast = 0;
+  function notifyRateLimited(retryAfterSec) {
+    var now = Date.now();
+    if (now - lastRateLimitToast < 60000) return;
+    lastRateLimitToast = now;
+    var wait = retryAfterSec || 60;
+    toast('Máy chủ đang bận, vui lòng thử lại sau ' + wait + ' giây', 'warning');
+  }
+
   // ── Modal ───────────────────────────────────────────────────────────────
   function openModal(html, opts) {
     opts = opts || {};
@@ -408,8 +466,15 @@
       var me = await API.me();
       window.DRV_USER = me;
       return me;
-    } catch (_) {
-      window.location.href = '/auth/driver';
+    } catch (err) {
+      // KHÔNG redirect khi lỗi tạm thời (429 rate-limit, 5xx, mạng lỗi).
+      // Redirect trong các trường hợp này gây vòng lặp reload liên tục.
+      var transient = err && (err.rateLimited || err.status === 429 || err.status >= 500 || !err.status);
+      if (transient) {
+        console.warn('[DRIVER] requireAuth transient error (không redirect):', err && err.message);
+        return null;
+      }
+      if (guardRedirect('/auth/driver')) window.location.href = '/auth/driver';
       return null;
     }
   }
