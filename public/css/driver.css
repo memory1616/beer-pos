@@ -1216,6 +1216,7 @@ body.body--app .page-content {
 .drv-home-stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
   gap: 8px;
 }
 
@@ -1223,6 +1224,7 @@ body.body--app .page-content {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 4px;
   min-width: 0;
   padding: 12px 6px 11px;
@@ -1238,6 +1240,11 @@ body.body--app .page-content {
 }
 
 .drv-home-kpi__label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.4em;
   font-size: 0.68rem;
   font-weight: 600;
   color: var(--text-secondary);
