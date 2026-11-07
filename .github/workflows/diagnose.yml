@@ -16,6 +16,8 @@ jobs:
     name: Diagnose SSH access
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: write
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
