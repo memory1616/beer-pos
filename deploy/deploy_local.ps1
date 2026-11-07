@@ -8,7 +8,7 @@
     voi Host alias "beer-server", hoac tu cursor_deploy_key).
 
 .PARAMETER ServerHost
-    VPS hostname/IP (default: 103.75.183.57)
+    VPS hostname/IP (default: 103.195.236.38)
 
 .PARAMETER User
     SSH user (default: root)
@@ -42,7 +42,7 @@
 
 [CmdletBinding()]
 param(
-    [string]$ServerHost = "103.75.183.57",
+    [string]$ServerHost = "103.195.236.38",
     [string]$User = "root",
     [string]$Path = "",
     [switch]$All,
