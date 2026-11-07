@@ -944,8 +944,21 @@ describe('Driver Portal — RBAC & Data Protection', () => {
         expect(homeHtml).toMatch(/id="home-liters"/);
         expect(homeHtml).toMatch(/id="home-kegs"/);
         expect(homeHtml).toMatch(/Số đơn/);
-        expect(homeHtml).toMatch(/Số lít/);
+        expect(homeHtml).toMatch(/Số lít bia/);
         expect(homeHtml).toMatch(/Vỏ đã thu/);
+
+        // Đúng 3 thẻ KPI, không thêm thẻ thống kê nào khác
+        const kpiCount = (homeHtml.match(/class="drv-home-kpi drv-home-kpi--/g) || []).length;
+        expect(kpiCount).toBe(3);
+
+        // Icon Lucide: SVG inline, stroke=currentColor, viewBox chuẩn 24
+        const svgs = homeHtml.match(/<svg[^>]*>/g) || [];
+        expect(svgs.length).toBe(3);
+        for (const svg of svgs) {
+          expect(svg).toMatch(/viewBox="0 0 24 24"/);
+          expect(svg).toMatch(/stroke="currentColor"/);
+          expect(svg).toMatch(/fill="none"/);
+        }
 
         // Không còn các thẻ thống kê cũ
         for (const old of ['st-total', 'st-delivered', 'st-pending', 'st-stops',
@@ -997,6 +1010,13 @@ describe('Driver Portal — RBAC & Data Protection', () => {
         expect(css).toMatch(/\.drv-home-kpi--liters/);
         expect(css).toMatch(/\.drv-home-kpi--kegs/);
         expect(css).toMatch(/\.drv-home-user__name/);
+
+        // Nền thẻ #202830 + bo góc 12px
+        expect(css).toMatch(/\.drv-home-kpi\s*\{[^}]*background:\s*#202830/);
+        expect(css).toMatch(/\.drv-home-kpi\s*\{[^}]*border-radius:\s*12px/);
+        // Desktop 3 cột, mobile 2 cột
+        expect(css).toMatch(/\.drv-home-stats\s*\{[^}]*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
+        expect(css).toMatch(/@media \(max-width: 560px\)\s*\{[^}]*repeat\(2,\s*minmax\(0,\s*1fr\)\)/s);
       });
     });
   });
