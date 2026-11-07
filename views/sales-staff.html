@@ -45,6 +45,8 @@
     .badge-pending { background: rgba(251, 191, 36, 0.2); color: #f59e0b; }
     .badge-paid { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
     .empty-state { text-align: center; padding: 40px; color: var(--text-muted); }
+    .opacity-60 { opacity: .55; }
+    .badge-active { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
     @media (max-width: 768px) {
       .grid-2, .grid-3 { grid-template-columns: 1fr; }
     }
@@ -69,6 +71,8 @@
         <div class="tab active" onclick="switchTab('list')" id="tab-list">📋 Danh sách</div>
         <div class="tab" onclick="switchTab('salary')" id="tab-salary">💰 Tính lương</div>
         <div class="tab" onclick="switchTab('config')" id="tab-config">⚙️ Cấu hình lương</div>
+        <div class="tab" onclick="switchTab('drivers')" id="tab-drivers">🚚 Tài xế</div>
+        <div class="tab" onclick="switchTab('driverSalary')" id="tab-driverSalary">💵 Lương tài xế</div>
       </div>
 
       <!-- Danh sách Sales -->
@@ -148,12 +152,143 @@
             <div id="salaryTypeConfig"></div>
             <div style="margin-top: 16px; padding: 12px; background: var(--bg-soft); border-radius: 8px;">
               <small style="color: var(--text-muted);">
-                💡 Mức lương này sẽ được áp dụng khi tính lương tháng cho nhân viên. 
+                💡 Mức lương này sẽ được áp dụng khi tính lương tháng cho nhân viên.
                 Nếu không đặt, hệ thống sẽ dùng mức lương mặc định từ tab "Cấu hình".
               </small>
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- ══════════ TAB: QUẢN LÝ TÀI XẾ ══════════ -->
+      <div id="content-drivers" style="display: none;">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">🚚 Danh sách tài xế</div>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <label style="font-size:13px;color:var(--text-muted);display:flex;align-items:center;gap:6px;cursor:pointer;">
+                <input type="checkbox" id="showInactiveDrivers" onchange="loadDriverList()">
+                Hiện đã khoá
+              </label>
+              <button class="btn btn-primary" onclick="openDriverModal()">+ Thêm tài xế</button>
+            </div>
+          </div>
+          <div id="driverList" class="grid grid-2">
+            <div class="empty-state">Đang tải...</div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:16px;">
+          <div class="card-header">
+            <div class="card-title">ℹ️ Hướng dẫn</div>
+          </div>
+          <small style="color:var(--text-muted);line-height:1.7;display:block;">
+            • Mỗi tài xế có 1 <strong>tài khoản đăng nhập</strong> để vào Driver Portal
+            (<code>giaohang.biatuoitayninh.store</code>) và 1 <strong>hồ sơ</strong> lương.<br>
+            • <strong>Mức lương cố định</strong> ở đây là mức lương tháng mặc định — dùng làm
+              lương cơ bản khi chưa thiết lập riêng cho từng tháng.<br>
+            • Khoá tài xế sẽ huỷ luôn phiên đăng nhập đang hoạt động.
+          </small>
+        </div>
+      </div>
+
+      <!-- ══════════ TAB: LƯƠNG TÀI XẾ ══════════ -->
+      <div id="content-driverSalary" style="display: none;">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">💵 Lương tài xế theo tháng</div>
+            <select id="driverSalaryMonth" class="input" style="width: auto;" onchange="loadDriverSalarySummary()">
+              <option value=""></option>
+            </select>
+          </div>
+          <div id="driverSalarySummary"></div>
+        </div>
+        <div id="driverSalaryDetail" style="display:none;">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title" id="driverSalaryDetailTitle">Chi tiết lương tài xế</div>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <button class="btn btn-secondary" id="driverUnmarkPaidBtn" style="display:none;" onclick="unmarkDriverSalaryPaid()">↩ Bỏ đánh dấu đã trả</button>
+                <button class="btn btn-success" id="driverMarkPaidBtn" onclick="markDriverSalaryPaid()">✓ Đánh dấu đã trả</button>
+              </div>
+            </div>
+            <div id="driverSalaryDetailContent"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Thêm/Sửa Tài xế -->
+  <div id="driverModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header" id="driverModalTitle">Thêm tài xế</div>
+      <input type="hidden" id="editDriverId">
+      <div class="form-group">
+        <label class="form-label">Tên đăng nhập *</label>
+        <input type="text" id="driverUsername" class="input" placeholder="tai_xe_01" autocomplete="off">
+        <small style="color:var(--text-muted);font-size:11px;">3-32 ký tự: chữ thường, số, dấu . _ -</small>
+      </div>
+      <div class="form-group" id="driverPasswordGroup">
+        <label class="form-label">Mật khẩu *</label>
+        <input type="password" id="driverPassword" class="input" placeholder="Tối thiểu 8 ký tự" autocomplete="new-password">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Họ và tên</label>
+        <input type="text" id="driverFullName" class="input" placeholder="Nguyễn Văn A">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Số điện thoại</label>
+        <input type="text" id="driverPhone" class="input" placeholder="0901234567">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Lương cố định / tháng (VNĐ)</label>
+        <input type="number" id="driverMonthlySalary" class="input" placeholder="5000000" min="0" step="1000">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Số tài khoản ngân hàng</label>
+        <input type="text" id="driverBankAccount" class="input" placeholder="0123456789 (tuỳ chọn)">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Ghi chú</label>
+        <input type="text" id="driverNote" class="input" placeholder="Ghi chú nội bộ (tuỳ chọn)">
+      </div>
+      <div style="display: flex; gap: 12px; margin-top: 20px;">
+        <button class="btn btn-secondary flex-1" onclick="closeDriverModal()">Hủy</button>
+        <button class="btn btn-primary flex-1" onclick="saveDriver()">Lưu</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Thiết lập lương tài xế -->
+  <div id="driverSalaryModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header" id="driverSalaryModalTitle">Thiết lập lương tháng</div>
+      <input type="hidden" id="driverSalaryDriverId">
+      <div class="form-group">
+        <label class="form-label">Lương cơ bản (VNĐ)</label>
+        <input type="number" id="driverSalaryBase" class="input" placeholder="5000000" min="0" step="1000">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Thưởng (VNĐ)</label>
+        <input type="number" id="driverSalaryBonus" class="input" placeholder="0" min="0" step="1000">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Phạt / trừ (VNĐ)</label>
+        <input type="number" id="driverSalaryDeduction" class="input" placeholder="0" min="0" step="1000">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Ghi chú</label>
+        <input type="text" id="driverSalaryNote" class="input" placeholder="Lý do thưởng/phạt (tuỳ chọn)">
+      </div>
+      <div style="padding:12px;background:var(--bg-soft);border-radius:8px;margin-bottom:16px;">
+        <div class="salary-row"><span>Lương cơ bản</span><span id="driverSalaryPreviewBase">0 đ</span></div>
+        <div class="salary-row"><span>Thưởng</span><span id="driverSalaryPreviewBonus">0 đ</span></div>
+        <div class="salary-row"><span>Phạt / trừ</span><span id="driverSalaryPreviewDeduction">0 đ</span></div>
+        <div class="salary-row salary-total"><span>TỔNG</span><span id="driverSalaryPreviewTotal">0 đ</span></div>
+      </div>
+      <div style="display: flex; gap: 12px; margin-top: 20px;">
+        <button class="btn btn-secondary flex-1" onclick="closeDriverSalaryModal()">Hủy</button>
+        <button class="btn btn-primary flex-1" onclick="saveDriverSalary()">Lưu</button>
       </div>
     </div>
   </div>
@@ -229,6 +364,9 @@
     let selectedStaffId = null;
     let staffList = [];
     let selectedSalaryConfigStaffId = null;
+    let driverList = [];
+    let selectedDriverId = null;
+    let driverSalarySummary = [];
 
     // Initialize
     document.addEventListener('DOMContentLoaded', () => {
@@ -238,17 +376,490 @@
       }
       initMonthSelector();
       initSalaryConfigSelector();
+      initDriverSalaryMonthSelector();
     });
 
     function switchTab(tab) {
       currentTab = tab;
-      ['list', 'salary', 'config'].forEach(t => {
+      ['list', 'salary', 'config', 'drivers', 'driverSalary'].forEach(t => {
         document.getElementById('tab-' + t).classList.toggle('active', t === tab);
         document.getElementById('content-' + t).style.display = t === tab ? 'block' : 'none';
       });
       if (tab === 'salary') {
         loadSalarySummary();
       }
+      if (tab === 'drivers') {
+        loadDriverList();
+      }
+      if (tab === 'driverSalary') {
+        loadDriverSalarySummary();
+      }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // TAB: QUẢN LÝ TÀI XẾ
+    // ══════════════════════════════════════════════════════════════════════
+
+    async function loadDriverList() {
+      const container = document.getElementById('driverList');
+      if (!container) return;
+      const includeInactive = document.getElementById('showInactiveDrivers')?.checked;
+      try {
+        const res = await fetch('/api/admin/driver-staff' + (includeInactive ? '?includeInactive=1' : ''));
+        const data = await res.json();
+        if (!data.success) {
+          container.innerHTML = `<div class="empty-state">${data.error || 'Lỗi tải dữ liệu'}</div>`;
+          return;
+        }
+        driverList = data.data || [];
+        renderDriverList();
+      } catch (e) {
+        container.innerHTML = '<div class="empty-state">Lỗi tải dữ liệu</div>';
+      }
+    }
+
+    function renderDriverList() {
+      const container = document.getElementById('driverList');
+      if (!container) return;
+      if (driverList.length === 0) {
+        container.innerHTML = `<div class="empty-state">Chưa có tài xế nào.<br><br>
+          <button class="btn btn-primary" onclick="openDriverModal()">+ Thêm tài xế đầu tiên</button></div>`;
+        return;
+      }
+      container.innerHTML = driverList.map(d => {
+        const locked = !d.active;
+        const accountLocked = d.account_active === 0;
+        return `
+        <div class="card staff-card ${locked ? 'opacity-60' : ''}">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+            <div>
+              <div class="staff-name">${escapeHtml(d.full_name || d.username)}</div>
+              <div class="staff-stats">@${escapeHtml(d.username)} · ${d.phone ? escapeHtml(d.phone) : 'Chưa có SĐT'}</div>
+            </div>
+            ${locked ? '<span class="badge badge-pending">Đã khoá</span>'
+                     : (accountLocked ? '<span class="badge badge-pending">Tài khoản bị khoá</span>'
+                     : '<span class="badge badge-paid">Hoạt động</span>')}
+          </div>
+          <div style="margin-top:10px;">
+            <span class="stat-label">Lương cố định/tháng:</span>
+            <span class="stat-value">${formatVND(d.monthly_salary || 0)}</span>
+          </div>
+          ${d.bank_account ? `<div style="font-size:12px;color:var(--text-muted);margin-top:4px;">🏦 ${escapeHtml(d.bank_account)}</div>` : ''}
+          <div style="margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap;">
+            <button class="btn btn-secondary btn-sm" onclick="openDriverModal(${d.id})">✏️ Sửa</button>
+            <button class="btn btn-secondary btn-sm" onclick="openDriverSalaryModal(${d.id})">💵 Lương</button>
+            <button class="btn btn-secondary btn-sm" onclick="resetDriverPassword(${d.id})">🔑 Đổi MK</button>
+            ${locked
+              ? `<button class="btn btn-success btn-sm" onclick="toggleDriverActive(${d.id}, 1)">🔓 Mở khoá</button>`
+              : `<button class="btn btn-danger btn-sm" onclick="toggleDriverActive(${d.id}, 0)">🔒 Khoá</button>`}
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    function openDriverModal(id) {
+      const modal = document.getElementById('driverModal');
+      document.getElementById('editDriverId').value = id || '';
+      document.getElementById('driverModalTitle').textContent = id ? 'Sửa tài xế' : 'Thêm tài xế';
+
+      if (id) {
+        const d = driverList.find(x => x.id === id);
+        if (!d) return;
+        document.getElementById('driverUsername').value = d.username;
+        document.getElementById('driverUsername').disabled = true;
+        document.getElementById('driverPasswordGroup').style.display = 'none';
+        document.getElementById('driverFullName').value = d.full_name || '';
+        document.getElementById('driverPhone').value = d.phone || '';
+        document.getElementById('driverMonthlySalary').value = d.monthly_salary || 0;
+        document.getElementById('driverBankAccount').value = d.bank_account || '';
+        document.getElementById('driverNote').value = d.note || '';
+      } else {
+        document.getElementById('driverUsername').value = '';
+        document.getElementById('driverUsername').disabled = false;
+        document.getElementById('driverPasswordGroup').style.display = 'block';
+        document.getElementById('driverPassword').value = '';
+        document.getElementById('driverFullName').value = '';
+        document.getElementById('driverPhone').value = '';
+        document.getElementById('driverMonthlySalary').value = '';
+        document.getElementById('driverBankAccount').value = '';
+        document.getElementById('driverNote').value = '';
+      }
+      modal.style.display = 'flex';
+    }
+
+    function closeDriverModal() {
+      document.getElementById('driverModal').style.display = 'none';
+    }
+
+    async function saveDriver() {
+      const id = document.getElementById('editDriverId').value;
+      const username = document.getElementById('driverUsername').value.trim().toLowerCase();
+      const password = document.getElementById('driverPassword').value;
+      const fullName = document.getElementById('driverFullName').value.trim();
+      const phone = document.getElementById('driverPhone').value.trim();
+      const monthlySalary = document.getElementById('driverMonthlySalary').value;
+      const bankAccount = document.getElementById('driverBankAccount').value.trim();
+      const note = document.getElementById('driverNote').value.trim();
+
+      if (!id && !username) { alert('Vui lòng nhập tên đăng nhập'); return; }
+      if (!id && password.length < 8) { alert('Mật khẩu phải có ít nhất 8 ký tự'); return; }
+
+      try {
+        const url = id ? `/api/admin/driver-staff/${id}` : '/api/admin/driver-staff';
+        const method = id ? 'PUT' : 'POST';
+        const body = id
+          ? { fullName, phone, monthlySalary, bankAccount, note }
+          : { username, password, fullName, phone, monthlySalary, bankAccount, note };
+        const res = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (data.success) {
+          closeDriverModal();
+          loadDriverList();
+          loadDriverSalarySummary();
+        } else {
+          alert(data.error || 'Lỗi');
+        }
+      } catch (e) {
+        alert('Lỗi kết nối');
+      }
+    }
+
+    async function toggleDriverActive(id, active) {
+      const d = driverList.find(x => x.id === id);
+      const name = d ? (d.full_name || d.username) : '';
+      if (!active && !confirm(`Khoá tài xế "${name}"?\n\nTài khoản đăng nhập và phiên hiện tại sẽ bị vô hiệu hoá.`)) return;
+      try {
+        const res = await fetch(`/api/admin/driver-staff/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ active: !!active })
+        });
+        const data = await res.json();
+        if (data.success) {
+          loadDriverList();
+        } else {
+          alert(data.error || 'Lỗi');
+        }
+      } catch (e) {
+        alert('Lỗi kết nối');
+      }
+    }
+
+    async function resetDriverPassword(id) {
+      const d = driverList.find(x => x.id === id);
+      const name = d ? (d.full_name || d.username) : '';
+      const pwd = prompt(`Đặt mật khẩu mới cho "${name}" (tối thiểu 8 ký tự):`);
+      if (pwd === null) return;
+      if (pwd.length < 8) { alert('Mật khẩu phải có ít nhất 8 ký tự'); return; }
+      try {
+        const res = await fetch(`/api/admin/driver-staff/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: pwd })
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert('Đã đổi mật khẩu thành công');
+        } else {
+          alert(data.error || 'Lỗi');
+        }
+      } catch (e) {
+        alert('Lỗi kết nối');
+      }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // TAB: LƯƠNG TÀI XẾ
+    // ══════════════════════════════════════════════════════════════════════
+
+    function initDriverSalaryMonthSelector() {
+      const select = document.getElementById('driverSalaryMonth');
+      if (!select) return;
+      select.innerHTML = '';
+      const now = new Date();
+      for (let i = 0; i < 12; i++) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        const opt = document.createElement('option');
+        opt.value = val;
+        opt.textContent = `Tháng ${d.getMonth() + 1}/${d.getFullYear()}`;
+        if (i === 0) opt.selected = true;
+        select.appendChild(opt);
+      }
+    }
+
+    async function loadDriverSalarySummary() {
+      const container = document.getElementById('driverSalarySummary');
+      if (!container) return;
+      const monthVal = document.getElementById('driverSalaryMonth').value;
+      if (!monthVal) return;
+      const [year, month] = monthVal.split('-');
+      try {
+        const res = await fetch(`/api/admin/driver-staff/salary/summary?year=${year}&month=${month}`);
+        const data = await res.json();
+        if (!data.success) {
+          container.innerHTML = `<div class="empty-state">${data.error || 'Lỗi tải dữ liệu'}</div>`;
+          return;
+        }
+        driverSalarySummary = data.data || [];
+        renderDriverSalarySummary(monthVal);
+      } catch (e) {
+        container.innerHTML = '<div class="empty-state">Lỗi tải dữ liệu</div>';
+      }
+    }
+
+    function renderDriverSalarySummary(monthVal) {
+      const container = document.getElementById('driverSalarySummary');
+      if (!container) return;
+      if (driverSalarySummary.length === 0) {
+        container.innerHTML = `<div class="empty-state">Chưa có tài xế nào.<br><br>
+          <button class="btn btn-primary" onclick="switchTab('drivers')">+ Thêm tài xế</button></div>`;
+        return;
+      }
+      const totalPay = driverSalarySummary.reduce((s, d) => s + (d.total || 0), 0);
+      container.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+          <small style="color:var(--text-muted);">Tổng lương phải trả tháng ${monthVal}: <strong>${formatVND(totalPay)}</strong></small>
+        </div>
+        <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead>
+            <tr style="text-align:left;border-bottom:1px solid var(--border);">
+              <th style="padding:8px;">Tài xế</th>
+              <th style="padding:8px;">Lương cơ bản</th>
+              <th style="padding:8px;">Thưởng</th>
+              <th style="padding:8px;">Phạt/trừ</th>
+              <th style="padding:8px;">Tổng</th>
+              <th style="padding:8px;">Trạng thái</th>
+              <th style="padding:8px;"></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${driverSalarySummary.map(d => `
+              <tr style="border-bottom:1px solid var(--border);${d.active ? '' : 'opacity:.5;'}">
+                <td style="padding:8px;cursor:pointer;" onclick="showDriverSalaryDetail(${d.driverId})">
+                  <div style="font-weight:600;">${escapeHtml(d.fullName)}</div>
+                  <div style="font-size:11px;color:var(--text-muted);">@${escapeHtml(d.username)}</div>
+                </td>
+                <td style="padding:8px;">${formatVND(d.baseSalary || 0)}</td>
+                <td style="padding:8px;">${formatVND(d.bonus || 0)}</td>
+                <td style="padding:8px;">${d.deduction ? formatVND(d.deduction) : '-'}</td>
+                <td style="padding:8px;font-weight:700;">${formatVND(d.total || 0)}</td>
+                <td style="padding:8px;">
+                  ${d.status === 'paid' ? '<span class="badge badge-paid">Đã trả</span>' : '<span class="badge badge-pending">Chưa trả</span>'}
+                  ${d.isDraft ? '<div style="font-size:10px;color:var(--text-muted);margin-top:2px;">(mức cố định)</div>' : ''}
+                </td>
+                <td style="padding:8px;text-align:right;white-space:nowrap;">
+                  <button class="btn btn-secondary btn-sm" onclick="openDriverSalaryModal(${d.driverId})">✏️</button>
+                  <button class="btn btn-success btn-sm" onclick="markDriverSalaryPaidById(${d.driverId})">✓</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        </div>`;
+    }
+
+    async function showDriverSalaryDetail(driverId) {
+      const monthVal = document.getElementById('driverSalaryMonth').value;
+      if (!monthVal) return;
+      const [year, month] = monthVal.split('-');
+      selectedDriverId = driverId;
+
+      const detailBox = document.getElementById('driverSalaryDetail');
+      const content = document.getElementById('driverSalaryDetailContent');
+      detailBox.style.display = 'block';
+
+      try {
+        const [salaryRes, historyRes] = await Promise.all([
+          fetch(`/api/admin/driver-staff/${driverId}/salary-history?limit=12`),
+          fetch(`/api/admin/driver-staff/${driverId}`)
+        ]);
+        const salaryData = await salaryRes.json();
+        const profileData = await historyRes.json();
+        const row = driverSalarySummary.find(d => d.driverId === driverId);
+        const name = row ? row.fullName : (profileData.data ? (profileData.data.full_name || profileData.data.username) : '');
+
+        document.getElementById('driverSalaryDetailTitle').textContent = `Chi tiết lương — ${name}`;
+
+        const isPaid = row && row.status === 'paid';
+        document.getElementById('driverMarkPaidBtn').style.display = isPaid ? 'none' : 'inline-block';
+        document.getElementById('driverUnmarkPaidBtn').style.display = isPaid ? 'inline-block' : 'none';
+
+        const history = salaryData.success ? (salaryData.data || []) : [];
+
+        content.innerHTML = `
+          <div class="salary-row">
+            <span>Lương cơ bản</span>
+            <span>${formatVND(row ? (row.baseSalary || 0) : 0)}</span>
+          </div>
+          <div class="salary-row">
+            <span>Thưởng</span>
+            <span>${formatVND(row ? (row.bonus || 0) : 0)}</span>
+          </div>
+          <div class="salary-row">
+            <span>Phạt / trừ</span>
+            <span>${formatVND(row ? (row.deduction || 0) : 0)}</span>
+          </div>
+          <div class="salary-row salary-total">
+            <span>TỔNG CẦN TRẢ</span>
+            <span>${formatVND(row ? (row.total || 0) : 0)}</span>
+          </div>
+          ${row && row.note ? `<div style="margin-top:12px;padding:12px;background:var(--bg-soft);border-radius:8px;font-size:13px;">
+            <strong>Ghi chú:</strong> ${escapeHtml(row.note)}</div>` : ''}
+          ${isPaid ? `<div style="margin-top:12px;padding:12px;background:rgba(34,197,94,0.1);border-radius:8px;text-align:center;color:#22c55e;font-weight:600;">✓ Đã thanh toán ngày ${formatDate(row.paidAt)}</div>` : ''}
+
+          <div style="margin-top:20px;">
+            <div class="card-title" style="margin-bottom:8px;">Lịch sử lương:</div>
+            ${history.length === 0
+              ? '<small style="color:var(--text-muted);">Chưa có bản ghi lương nào.</small>'
+              : history.map(h => `
+                <div class="salary-row">
+                  <span>Tháng ${h.month}/${h.year}${h.note ? ' — ' + escapeHtml(h.note) : ''}</span>
+                  <span>
+                    ${formatVND(h.total)}
+                    ${h.status === 'paid'
+                      ? '<span class="badge badge-paid" style="margin-left:8px;">Đã trả</span>'
+                      : '<span class="badge badge-pending" style="margin-left:8px;">Chưa trả</span>'}
+                  </span>
+                </div>`).join('')}
+          </div>`;
+      } catch (e) {
+        content.innerHTML = '<div class="empty-state">Lỗi tải dữ liệu</div>';
+      }
+    }
+
+    async function unmarkDriverSalaryPaid() {
+      if (!selectedDriverId) return;
+      const monthVal = document.getElementById('driverSalaryMonth').value;
+      if (!monthVal) return;
+      const [year, month] = monthVal.split('-');
+      if (!confirm('Bỏ đánh dấu đã trả cho tài xế này?')) return;
+      try {
+        const res = await fetch(`/api/admin/driver-staff/${selectedDriverId}/salary/paid`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ year: parseInt(year, 10), month: parseInt(month, 10), paid: false })
+        });
+        const data = await res.json();
+        if (data.success) {
+          loadDriverSalarySummary();
+          showDriverSalaryDetail(selectedDriverId);
+        } else {
+          alert(data.error || 'Lỗi');
+        }
+      } catch (e) {
+        alert('Lỗi kết nối');
+      }
+    }
+
+    function openDriverSalaryModal(driverId) {
+      const monthVal = document.getElementById('driverSalaryMonth').value;
+      if (!monthVal) { alert('Chọn tháng trước'); return; }
+      const [year, month] = monthVal.split('-');
+      const row = driverSalarySummary.find(d => d.driverId === driverId);
+      const d = driverList.find(x => x.id === driverId);
+
+      document.getElementById('driverSalaryDriverId').value = driverId;
+      document.getElementById('driverSalaryModalTitle').textContent =
+        `Lương tháng ${month}/${year} — ${row ? row.fullName : (d ? (d.full_name || d.username) : '')}`;
+      document.getElementById('driverSalaryBase').value = row ? (row.baseSalary || 0) : (d ? (d.monthly_salary || 0) : 0);
+      document.getElementById('driverSalaryBonus').value = row ? (row.bonus || 0) : 0;
+      document.getElementById('driverSalaryDeduction').value = row ? (row.deduction || 0) : 0;
+      document.getElementById('driverSalaryNote').value = row ? (row.note || '') : '';
+
+      ['driverSalaryBase', 'driverSalaryBonus', 'driverSalaryDeduction'].forEach(id => {
+        document.getElementById(id).setAttribute('oninput', 'updateDriverSalaryPreview()');
+      });
+      updateDriverSalaryPreview();
+      document.getElementById('driverSalaryModal').style.display = 'flex';
+    }
+
+    function closeDriverSalaryModal() {
+      document.getElementById('driverSalaryModal').style.display = 'none';
+    }
+
+    function updateDriverSalaryPreview() {
+      const base = parseFloat(document.getElementById('driverSalaryBase').value) || 0;
+      const bonus = parseFloat(document.getElementById('driverSalaryBonus').value) || 0;
+      const deduction = parseFloat(document.getElementById('driverSalaryDeduction').value) || 0;
+      document.getElementById('driverSalaryPreviewBase').textContent = formatVND(base);
+      document.getElementById('driverSalaryPreviewBonus').textContent = formatVND(bonus);
+      document.getElementById('driverSalaryPreviewDeduction').textContent = formatVND(deduction);
+      document.getElementById('driverSalaryPreviewTotal').textContent = formatVND(base + bonus - deduction);
+    }
+
+    async function saveDriverSalary() {
+      const driverId = parseInt(document.getElementById('driverSalaryDriverId').value);
+      const monthVal = document.getElementById('driverSalaryMonth').value;
+      if (!driverId || !monthVal) return;
+      const [year, month] = monthVal.split('-');
+
+      try {
+        const res = await fetch(`/api/admin/driver-staff/${driverId}/salary`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            year: parseInt(year, 10),
+            month: parseInt(month, 10),
+            baseSalary: parseFloat(document.getElementById('driverSalaryBase').value) || 0,
+            bonus: parseFloat(document.getElementById('driverSalaryBonus').value) || 0,
+            deduction: parseFloat(document.getElementById('driverSalaryDeduction').value) || 0,
+            note: document.getElementById('driverSalaryNote').value.trim()
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          closeDriverSalaryModal();
+          loadDriverSalarySummary();
+        } else {
+          alert(data.error || 'Lỗi lưu');
+        }
+      } catch (e) {
+        alert('Lỗi kết nối');
+      }
+    }
+
+    async function markDriverSalaryPaid() {
+      if (!selectedDriverId) return;
+      await markDriverSalaryPaidById(selectedDriverId);
+    }
+
+    async function markDriverSalaryPaidById(driverId) {
+      const monthVal = document.getElementById('driverSalaryMonth').value;
+      if (!monthVal) return;
+      const [year, month] = monthVal.split('-');
+      if (!confirm('Đánh dấu lương tháng này đã trả cho tài xế?')) return;
+      try {
+        const res = await fetch(`/api/admin/driver-staff/${driverId}/salary/paid`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ year: parseInt(year, 10), month: parseInt(month, 10), paid: true })
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert('Đã đánh dấu đã trả');
+          loadDriverSalarySummary();
+        } else {
+          alert(data.error || 'Lỗi');
+        }
+      } catch (e) {
+        alert('Lỗi kết nối');
+      }
+    }
+
+    function escapeHtml(str) {
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
     }
 
     // ========== SALARY CONFIG TAB ==========

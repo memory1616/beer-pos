@@ -22,10 +22,16 @@ try {
   }
 
   // Run driver portal migration (idempotent, chạy độc lập version gate)
-  const { runDriverPortalMigration } = require('./database/migration');
+  const { runDriverPortalMigration, runDriverStaffMigration } = require('./database/migration');
   const driverResult = runDriverPortalMigration(db);
   if (driverResult.success) {
     logger.log('[MIGRATION] Driver portal schema ready');
+  }
+
+  // Run driver staff & salary migration (bảng lương tài xế)
+  const driverStaffResult = runDriverStaffMigration(db);
+  if (driverStaffResult.success) {
+    logger.log('[MIGRATION] Driver staff salary schema ready');
   }
 } catch (error) {
   logger.error('[MIGRATION] Migration error:', error.message);

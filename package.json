@@ -3,6 +3,21 @@
   "version": "2.1.2",
   "description": "Beer distributor management system PRO+",
   "main": "server.js",
+  "jest": {
+    "testEnvironment": "node",
+    "maxWorkers": 1,
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/backups/",
+      "/\\.backup/"
+    ],
+    "collectCoverageFrom": [
+      "routes/**/*.js",
+      "src/services/**/*.js",
+      "middleware/**/*.js"
+    ],
+    "testTimeout": 30000
+  },
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",

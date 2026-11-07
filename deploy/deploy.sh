@@ -248,6 +248,11 @@ BACKUP_FILES=(
     "public/version.json"
     "routes/api/settings.js"
     "routes/api/sales.js"
+    "routes/api/driverStaff.js"
+    "routes/api/admin.js"
+    "src/services/DriverStaffService.js"
+    "database/migrations/044_driver_staff_salary.js"
+    "views/sales-staff.html"
 )
 
 BACKUP_COUNT=0

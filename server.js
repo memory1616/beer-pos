@@ -861,6 +861,9 @@ app.use('/api/promotions', require('./routes/api/promotions'));
 app.use('/api/segments', require('./routes/api/segments'));
 app.use('/api/sales-staff', require('./routes/api/sales-staff'));
 
+// Admin-only APIs — hồ sơ tài xế + lương tháng (mount TRƯỚC /api/admin để
+// các path /api/admin/driver-staff/* được router riêng xử lý trước)
+app.use('/api/admin/driver-staff', require('./routes/api/driverStaff'));
 // Admin-only APIs — quản lý tài khoản tài xế (requireAdmin trong file)
 app.use('/api/admin', require('./routes/api/admin'));
 

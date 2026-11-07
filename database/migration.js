@@ -624,6 +624,21 @@ function runDriverPortalMigration(db) {
   }
 }
 
+// ── Driver Staff & Salary migration (044) ───────────────────────────────────
+// Chạy ĐỘC LẬP với version gate (như 043). Idempotent: CREATE TABLE IF NOT EXISTS.
+// Rollback an toàn: chỉ xoá bảng lương tài xế.
+function runDriverStaffMigration(db) {
+  try {
+    const migration = require('./migrations/044_driver_staff_salary');
+    migration.up(db);
+    log('[DRIVER_STAFF] Migration 044 applied');
+    return { success: true };
+  } catch (e) {
+    log(`[DRIVER_STAFF] Migration error: ${e.message}`);
+    return { success: false, error: e.message };
+  }
+}
+
 // ── Utility: Generate UUID ─────────────────────────────────────────────────────
 
 function generateUUID() {
@@ -642,6 +657,7 @@ module.exports = {
   runMigrations,
   runBusinessFeaturesMigration,
   runDriverPortalMigration,
+  runDriverStaffMigration,
   generateUUID,
   getCurrentVersion,
   setVersion,
