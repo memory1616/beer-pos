@@ -80,6 +80,29 @@ body.body--app {
   overflow: visible;
 }
 
+/* Khi mở modal (POS checkout / đổi lỗi / vỏ) → khoá cuộn nền.
+ * PHẢI có specificity cao hơn `body.body--app` (0,2,1) để đè rule trên,
+ * và cao hơn `body.modal-open` của unified.css (0,1,1).
+ *
+ * Vì giờ document (html) là vùng cuộn duy nhất → khoá `html` cũng bắt buộc,
+ * nếu không nền vẫn cuộn được khi modal đang mở.
+ * `:has()` được dùng để áp rule lên `html` dựa theo class của `body`
+ * (browser hỗ trợ từ 2023: Chrome 105+, Safari 15.4+, Firefox 121+). */
+body.body--app.modal-open {
+  overflow: hidden;
+}
+
+html:has(body.body--app.modal-open) {
+  overflow: hidden;
+}
+
+/* Class do public/js/driver/sync.js gắn khi modal đang mở.
+ * Khoá scroll của document (html) — vùng cuộn duy nhất của Driver Portal. */
+html.drv-scroll-locked {
+  overflow: hidden;
+  touch-action: none;
+}
+
 body.body--app .app {
   min-height: 100dvh;
   height: auto;

@@ -144,4 +144,42 @@
   };
 
   window.DrvSync = window.__DRIVER_SYNC__;
+
+  /* ── Khoá cuộn nền khi mở modal ──────────────────────────────────────────
+   * Driver Portal dùng DOCUMENT làm vùng cuộn duy nhất (body overflow visible).
+   * Vì vậy khi modal mở, phải khoá scroll ở CẢ `html` lẫn `body`,
+   * nếu không nền vẫn cuộn được sau modal.
+   *
+   * Gắn listener ở cấp document (capture) để áp dụng cho mọi modal:
+   *  - class `modal-open` (sales.js, unified.css)
+   *  - inline `body.style.overflow = 'hidden'` (driver/core.js)
+   */
+  function syncScrollLock() {
+    var body = document.body;
+    if (!body) return;
+    var locked = body.classList.contains('modal-open') ||
+      (body.style && body.style.overflow === 'hidden') ||
+      !!document.querySelector('.drv-modal');
+    document.documentElement.classList.toggle('drv-scroll-locked', locked);
+  }
+
+  window.DrvSync.syncScrollLock = syncScrollLock;
+
+  // Quan sát thay đổi class/style của body
+  if (window.MutationObserver) {
+    var mo = new MutationObserver(syncScrollLock);
+    var startObserve = function () {
+      if (!document.body) return setTimeout(startObserve, 50);
+      mo.observe(document.body, { attributes: true, attributeFilter: ['class', 'style'] });
+      syncScrollLock();
+    };
+    startObserve();
+  }
+
+  // Bảo đảm khoá được set khi modal vừa được thêm vào DOM
+  document.addEventListener('DOMNodeInserted', function (e) {
+    if (e.target && e.target.classList && e.target.classList.contains('drv-modal')) {
+      setTimeout(syncScrollLock, 0);
+    }
+  }, true);
 })();
