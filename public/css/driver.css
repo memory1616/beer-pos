@@ -1278,9 +1278,9 @@ body.body--app .page-content {
 /* Dải ngày */
 .drv-home-filter__days {
   display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
-  gap: 6px;
-  max-height: 168px;
+  grid-template-columns: repeat(16, minmax(0, 1fr));
+  gap: 5px;
+  max-height: 150px;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
@@ -1291,13 +1291,13 @@ body.body--app .page-content {
   align-items: center;
   justify-content: center;
   min-width: 0;
-  aspect-ratio: 1 / 1;
+  height: 34px;
   padding: 0;
   border: 1px solid var(--border);
-  border-radius: 9px;
+  border-radius: 8px;
   background: #202830;
   color: var(--text-secondary);
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   cursor: pointer;
@@ -1324,15 +1324,15 @@ body.body--app .page-content {
   font-weight: 800;
 }
 
-/* Ngày hôm nay (vòng tròn nhỏ) */
+/* Ngày hôm nay (chấm nhỏ) */
 .drv-home-day.is-today::after {
   content: '';
   position: absolute;
-  bottom: 5px;
+  bottom: 3px;
   left: 50%;
-  width: 4px;
-  height: 4px;
-  margin-left: -2px;
+  width: 3px;
+  height: 3px;
+  margin-left: -1.5px;
   border-radius: 50%;
   background: var(--info);
 }
@@ -1390,10 +1390,10 @@ body.body--app .page-content {
   color: var(--text-secondary);
 }
 
-/* Mobile: dải ngày 7 cột */
+/* Mobile: dải ngày 8 cột */
 @media (max-width: 560px) {
   .drv-home-filter__days {
-    grid-template-columns: repeat(7, minmax(0, 1fr));
+    grid-template-columns: repeat(8, minmax(0, 1fr));
   }
 }
 
