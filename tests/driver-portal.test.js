@@ -910,5 +910,93 @@ describe('Driver Portal — RBAC & Data Protection', () => {
       expect(coreSrc).toMatch(/function openAccountModal\(\)/);
       expect(coreSrc).toMatch(/openAccountModal:\s*openAccountModal/);
     });
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // J. Trang chủ tài xế — thiết kế lại
+    // ═══════════════════════════════════════════════════════════════════════
+    describe('J. Trang chủ tài xế (thiết kế lại)', () => {
+      const fs2 = require('fs');
+      const path2 = require('path');
+      const homeHtml = fs2.readFileSync(
+        path2.join(__dirname, '../views/driver/index.html'), 'utf8');
+      const homeJs = fs2.readFileSync(
+        path2.join(__dirname, '../public/js/driver/home.js'), 'utf8');
+      const driverApiSrc = fs2.readFileSync(
+        path2.join(__dirname, '../routes/api/driver.js'), 'utf8');
+
+      test('HEADER có logo BIA TƯƠI TÂY NINH + nhãn CỔNG TÀI XẾ', () => {
+        expect(homeHtml).toMatch(/BIA TƯƠI TÂY NINH/);
+        expect(homeHtml).toMatch(/CỔNG TÀI XẾ/);
+      });
+
+      test('HEADER có tên tài xế, ngày hiện tại và trạng thái tài khoản', () => {
+        expect(homeHtml).toMatch(/id="home-user-name"/);
+        expect(homeHtml).toMatch(/id="home-date"/);
+        expect(homeHtml).toMatch(/id="home-status"/);
+        // home.js phải đổ đủ 3 trường này
+        expect(homeJs).toMatch(/setText\('home-user-name'/);
+        expect(homeJs).toMatch(/renderDate\(\)/);
+        expect(homeJs).toMatch(/setStatus\(/);
+      });
+
+      test('THỐNG KÊ có các thẻ: số đơn + số lít + tổng vỏ đã thu', () => {
+        expect(homeHtml).toMatch(/id="home-orders"/);
+        expect(homeHtml).toMatch(/id="home-liters"/);
+        expect(homeHtml).toMatch(/id="home-kegs"/);
+        expect(homeHtml).toMatch(/Số đơn hôm nay/);
+        expect(homeHtml).toMatch(/Số lít hôm nay/);
+        expect(homeHtml).toMatch(/Tổng vỏ đã thu hôm nay/);
+
+        // Không còn các thẻ thống kê cũ
+        for (const old of ['st-total', 'st-delivered', 'st-pending', 'st-stops',
+          'st-to-deliver', 'st-delivered-liters', 'st-missing', 'st-kegs',
+          'st-walkin', 'st-wait', 'st-discrepancy']) {
+          expect(homeHtml).not.toContain('id="' + old + '"');
+        }
+        // Không còn section "Sản lượng giao" / "Bán trực tiếp" / "Khách hàng cần ghé"
+        expect(homeHtml).not.toMatch(/Sản lượng giao/);
+        expect(homeHtml).not.toMatch(/Bán trực tiếp/);
+        expect(homeHtml).not.toMatch(/Khách hàng cần ghé/);
+      });
+
+      test('API /api/driver/home chỉ trả về chỉ số tối giản, không lộ tài chính', () => {
+        expect(driverApiSrc).toMatch(/router\.get\('\/home',\s*requireDriver/);
+        expect(driverApiSrc).toMatch(/todayOrders/);
+        expect(driverApiSrc).toMatch(/todayLiters/);
+        expect(driverApiSrc).toMatch(/todayKegs/);
+
+        // Chỉ xét riêng handler /home (không tính các endpoint khác của file)
+        const homeHandler = driverApiSrc.slice(
+          driverApiSrc.indexOf("router.get('/home'"),
+          driverApiSrc.indexOf("router.get('/home'") + 2500);
+        expect(homeHandler).not.toMatch(/profit/);
+        expect(homeHandler).not.toMatch(/cost_price/);
+        expect(homeHandler).not.toMatch(/revenue|\btotal\b.*money/i);
+      });
+
+      test('Số lít hôm nay phải TÍNH CẢ BIA PET (không lọc p.type = keg)', () => {
+        const homeStart = driverApiSrc.indexOf("router.get('/home'");
+        const homeHandler = driverApiSrc.slice(homeStart, homeStart + 2500);
+        // Không được lọc bỏ pet trong phép tính lít
+        expect(homeHandler).not.toMatch(/p\.type = 'keg'/);
+        expect(homeHandler).not.toMatch(/p\.type != 'pet'/);
+        // Phải cộng toàn bộ số lượng item (keg + pet + box)
+        expect(homeHandler).toMatch(/SUM\(si\.quantity\)/);
+      });
+
+      test('Tổng vỏ đã thu hôm nay lấy từ delivery_records (status DELIVERED)', () => {
+        expect(driverApiSrc).toMatch(/collected_kegs/);
+        expect(driverApiSrc).toMatch(/dr\.status = 'DELIVERED'/);
+      });
+
+      test('CSS có style riêng cho trang chủ mới', () => {
+        const css = fs2.readFileSync(
+          path2.join(__dirname, '../public/css/driver.css'), 'utf8');
+        expect(css).toMatch(/\.drv-home-header\b/);
+        expect(css).toMatch(/\.drv-home-stat--orders/);
+        expect(css).toMatch(/\.drv-home-stat--liters/);
+        expect(css).toMatch(/\.drv-home-user__name/);
+      });
+    });
   });
 });

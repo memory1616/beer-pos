@@ -118,6 +118,67 @@ router.get('/dashboard', requireDriver, (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// GET /api/driver/home — dữ liệu tối giản cho TRANG CHỦ tài xế
+// ───────────────────────────────────────────────────────────────────────────
+// Chỉ trả về đúng những gì UI cần (nhẹ, nhanh trên mobile):
+//   - date        : ngày VN hiện tại (YYYY-MM-DD)
+//   - todayOrders : số đơn của tài xế HÔM NAY (bán trực tiếp + giao hàng)
+//   - todayLiters : tổng số lít bia HÔM NAY — TÍNH CẢ BIA PET
+//                   (quy ước: 1 đơn vị bán của mọi loại = 1 lít)
+//   - todayKegs   : tổng số vỏ bình đã thu hôm nay
+//
+// KHÔNG có doanh thu / lợi nhuận / giá vốn.
+// ═══════════════════════════════════════════════════════════════════════════
+router.get('/home', requireDriver, (req, res) => {
+  try {
+    const date = db.getVietnamDateStr();
+
+    // Số đơn hôm nay + tổng lít (BAO GỒM BIA PET / BOX)
+    // Quy ước (đồng bộ với routes/api/customers.js và salesStaff.js):
+    //   1 đơn vị bán của bất kỳ loại nào (keg / pet / box) = 1 lít.
+    const row = db
+      .prepare(
+        `
+        SELECT
+          COUNT(DISTINCT s.id) AS today_orders,
+          COALESCE(SUM(si.quantity), 0) AS today_liters
+        FROM sales s
+        LEFT JOIN sale_items si ON si.sale_id = s.id
+        WHERE DATE(s.date) = ?
+          AND s.type IN ('sale', 'replacement')
+          AND s.archived = 0
+          AND s.deleted = 0
+          AND (s.driver_username = ? OR s.driver_username IS NULL OR s.driver_username = '')
+      `
+      )
+      .get(date, req.user.username);
+
+    // Tổng vỏ bình đã thu hôm nay (chỉ tính phiếu giao đã hoàn tất)
+    const kegRow = db
+      .prepare(
+        `
+        SELECT COALESCE(SUM(dr.collected_kegs), 0) AS today_kegs
+        FROM delivery_records dr
+        WHERE dr.driver_username = ?
+          AND DATE(dr.scheduled_date) = ?
+          AND dr.status = 'DELIVERED'
+      `
+      )
+      .get(req.user.username, date);
+
+    res.json({
+      date,
+      todayOrders: row.today_orders || 0,
+      todayLiters: row.today_liters || 0,
+      todayKegs: kegRow.today_kegs || 0,
+    });
+  } catch (err) {
+    logger.error('[driver] home error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi tải dữ liệu trang chủ' });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 // MODULE BÁN HÀNG — tái sử dụng nghiệp vụ chuẩn
 // ═══════════════════════════════════════════════════════════════════════════
 

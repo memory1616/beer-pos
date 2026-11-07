@@ -1035,9 +1035,271 @@ body.body--app .page-content {
   padding-top: calc(var(--header-height) + var(--safe-area-top));
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * TRANG CHỦ TÀI XẾ — thiết kế lại (đơn giản, hiện đại, ưu tiên điện thoại)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Header ────────────────────────────────────────────────────────────── */
+.drv-home-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: calc(env(safe-area-inset-top) + 14px) 16px 14px;
+  background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-card) 100%);
+  border-bottom: 1px solid var(--border);
+}
+
+.drv-home-header__brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+}
+
+.drv-home-header__logo {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  display: grid;
+  place-items: center;
+  font-size: 1.35rem;
+  border-radius: 12px;
+  background: var(--accent-dim);
+  border: 1px solid rgba(252, 213, 53, 0.28);
+}
+
+.drv-home-header__brandtext { min-width: 0; }
+
+.drv-home-header__name {
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  color: var(--text-primary);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.drv-home-header__tag {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 2px 8px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.9px;
+  color: var(--accent);
+  background: var(--accent-dim);
+  border: 1px solid rgba(252, 213, 53, 0.3);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.drv-home-header__meta {
+  text-align: right;
+  flex: 0 0 auto;
+}
+
+.drv-home-header__date {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.drv-home-header__status {
+  margin-top: 5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--success);
+  background: var(--success-dim);
+  border: 1px solid rgba(14, 203, 129, 0.3);
+  white-space: nowrap;
+}
+
+.drv-home-header__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: 0 0 6px;
+}
+
+.drv-home-header__status.is-error {
+  color: var(--danger);
+  background: var(--danger-dim);
+  border-color: rgba(246, 70, 93, 0.3);
+}
+
+/* ── Main ─────────────────────────────────────────────────────────────── */
+.drv-home-main {
+  padding: 16px;
+  padding-bottom: calc(var(--driver-nav-h) + env(safe-area-inset-bottom) + 20px);
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+/* ── Card tài xế ──────────────────────────────────────────────────────── */
+.drv-home-user {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 14px 15px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  margin-bottom: 22px;
+}
+
+.drv-home-user__avatar {
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+  display: grid;
+  place-items: center;
+  font-size: 1.3rem;
+  border-radius: 14px;
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+}
+
+.drv-home-user__body { min-width: 0; flex: 1; }
+
+.drv-home-user__label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.drv-home-user__name {
+  margin-top: 3px;
+  font-size: 1.08rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drv-home-user__username {
+  margin-top: 1px;
+  font-size: 0.74rem;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Section title ────────────────────────────────────────────────────── */
+.drv-home-section__title {
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-secondary);
+  margin: 0 0 12px;
+}
+
+/* ── 2 thẻ thống kê ──────────────────────────────────────────────────── */
+.drv-home-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.drv-home-stat {
+  position: relative;
+  overflow: hidden;
+  padding: 20px 14px 18px;
+  text-align: center;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+}
+
+.drv-home-stat::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: var(--accent);
+}
+
+.drv-home-stat--liters::before { background: var(--success); }
+.drv-home-stat--kegs::before { background: var(--info); }
+
+/* Thẻ thứ 3 chiếm nguyên hàng (grid 2 cột) */
+.drv-home-stat--kegs { grid-column: 1 / -1; }
+
+.drv-home-stat__icon {
+  font-size: 1.5rem;
+  line-height: 1;
+  margin-bottom: 10px;
+}
+
+.drv-home-stat--orders::before { background: var(--accent); }
+.drv-home-stat--orders .drv-home-stat__value { color: var(--accent); }
+
+.drv-home-stat__value {
+  font-size: 2.4rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.5px;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.drv-home-stat--liters .drv-home-stat__value { color: var(--success); }
+.drv-home-stat--kegs .drv-home-stat__value { color: var(--info); }
+
+.drv-home-stat__label {
+  margin-top: 9px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  line-height: 1.3;
+}
+
+.drv-home-stat__note {
+  display: block;
+  margin-top: 3px;
+  font-size: 0.66rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  opacity: 0.75;
+}
+
+/* ── Hint ─────────────────────────────────────────────────────────────── */
+.drv-home-hint {
+  display: none;
+  margin-top: 16px;
+  padding: 11px 14px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+}
+
+.drv-home-hint.is-visible { display: block; }
+.drv-home-hint.is-error { color: var(--danger); border-color: rgba(246, 70, 93, 0.3); }
+
 /* ── PRINT (đơn hàng) ──────────────────────────────────────────────────── */
 @media print {
-  .drv-nav, .drv-header, .drv-quick, .drv-btn { display: none !important; }
+  .drv-nav, .drv-header, .drv-quick, .drv-btn,
+  .drv-home-header, .drv-home-main { display: none !important; }
   body { background: #fff; color: #000; padding: 0; }
   .drv-card { border: 1px solid #999; background: #fff; }
 }
