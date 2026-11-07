@@ -479,6 +479,41 @@
     }
   }
 
+  // ── Modal tài khoản (header nút 👤) ─────────────────────────────────────
+  /**
+   * Mở modal thông tin tài xế.
+   * Tách riêng khỏi inline `onclick` vì HTML chứa dấu nháy kép sẽ phá vỡ
+   * attribute onclick (khiến phần code bị lộ ra ngoài dưới dạng text).
+   */
+  function openAccountModal() {
+    var me = window.DRV_USER || {};
+    var name = me.fullName || me.username || '—';
+    openModal(
+      '<div class="drv-cart__row">' +
+        '<span class="drv-cart__label">Tài khoản</span>' +
+        '<strong>' + escapeHtml(name) + '</strong>' +
+      '</div>' +
+      (me.username
+        ? '<div class="drv-cart__row">' +
+            '<span class="drv-cart__label">Đăng nhập</span>' +
+            '<strong>' + escapeHtml(me.username) + '</strong>' +
+          '</div>'
+        : '') +
+      '<div class="drv-btn-row drv-mt-12">' +
+        '<button class="drv-btn drv-btn--ghost" onclick="window.Drv.closeModal()">Đóng</button>' +
+        '<button class="drv-btn drv-btn--danger" onclick="window.Drv.logout()">Thoát</button>' +
+      '</div>',
+      { title: 'Tài khoản' }
+    );
+  }
+
+  function escapeHtml(s) {
+    return String(s === null || s === undefined ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+      .replace(/'/g, '&#x27;');
+  }
+
   // ── Export ──────────────────────────────────────────────────────────────
   window.Drv = {
     api: API,
@@ -493,6 +528,7 @@
     toast: toast,
     openModal: openModal,
     closeModal: closeModal,
+    openAccountModal: openAccountModal,
     confirm: confirmDialog,
     prompt: promptDialog,
     setupNav: setupNav,

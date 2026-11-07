@@ -890,5 +890,25 @@ describe('Driver Portal — RBAC & Data Protection', () => {
         expect(src).not.toMatch(/data-nav="customers"/);
       }
     });
+
+    test('không có inline onclick chứa dấu nháy kép (phá vỡ attribute → lộ code ra text)', () => {
+      const saleSrc = fs.readFileSync(
+        path.join(__dirname, '../views/driver/sale.html'), 'utf8');
+
+      // onclick="..." không được chứa thêm dấu nháy kép bên trong
+      const badOnclick = saleSrc.match(/onclick="[^"]*"[^"]*"/g) || [];
+      // Mọi match phải là attribute onclick hợp lệ (dấu nháy kép đóng ngay sau code JS)
+      for (const m of badOnclick) {
+        // onclick hợp lệ: onclick="..." rồi tiếp theo là space hoặc > hoặc dấu nháy đơn
+        expect(m).toMatch(/onclick="[^"]*"(\s|>|$)/);
+      }
+
+      // Nút tài khoản phải dùng hàm riêng, không nhúng HTML vào onclick
+      expect(saleSrc).toMatch(/onclick="window\.Drv\.openAccountModal\(\)"/);
+      expect(saleSrc).not.toMatch(/onclick="window\.Drv\.openModal\(/);
+      // Hàm openAccountModal phải tồn tại trong core.js
+      expect(coreSrc).toMatch(/function openAccountModal\(\)/);
+      expect(coreSrc).toMatch(/openAccountModal:\s*openAccountModal/);
+    });
   });
 });
