@@ -858,5 +858,37 @@ describe('Driver Portal — RBAC & Data Protection', () => {
       // Limiter chung phải BỎ QUA /api/driver
       expect(serverSrc).toMatch(/req\.path\.startsWith\('\/driver\/'\)/);
     });
+
+    test('token ưu tiên Authorization header, không để cookie admin đè lên driver', () => {
+      const authSrc = fs.readFileSync(
+        path.join(__dirname, '../middleware/auth.js'), 'utf8');
+      const permSrc = fs.readFileSync(
+        path.join(__dirname, '../middleware/permissions.js'), 'utf8');
+
+      // requireAuth: thử header TRƯỚC cookie admin
+      expect(authSrc).toMatch(
+        /candidates\s*=\s*\[headerToken,\s*driverCookieToken,\s*adminCookieToken,\s*queryToken\]/);
+      // optionalAuth: cùng thứ tự ưu tiên
+      expect(permSrc).toMatch(/headerToken \|\| driverCookieToken \|\| adminCookieToken/);
+    });
+
+    test('bottom menu Driver chỉ có 4 mục: Trang Chủ | Bán Hàng | Giao Hàng | Đăng Xuất', () => {
+      expect(coreSrc).toMatch(/\{ key: 'home', href: '\/driver'/);
+      expect(coreSrc).toMatch(/\{ key: 'sale', href: '\/driver\/ban-hang'/);
+      expect(coreSrc).toMatch(/\{ key: 'delivery', href: '\/driver\/giao-hang'/);
+      // KHÔNG còn mục KHÁCH HÀNG trong bottom menu
+      expect(coreSrc).not.toMatch(/key: 'customers'/);
+
+      // Các trang dùng nav cũng phải có đủ 4 mục
+      for (const f of ['index.html', 'customers.html']) {
+        const src = fs.readFileSync(
+          path.join(__dirname, '../views/driver', f), 'utf8');
+        expect(src).toMatch(/data-nav="home"/);
+        expect(src).toMatch(/data-nav="sale"/);
+        expect(src).toMatch(/data-nav="delivery"/);
+        expect(src).toMatch(/data-nav="logout"/);
+        expect(src).not.toMatch(/data-nav="customers"/);
+      }
+    });
   });
 });

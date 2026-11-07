@@ -143,21 +143,34 @@ function findAppUser(username) {
 
 // Auth middleware — reads token from cookie OR Authorization header
 function requireAuth(req, res, next) {
-  const cookieToken = req.cookies?.[AUTH_CONFIG.cookieName];
+  const adminCookieToken = req.cookies?.[AUTH_CONFIG.cookieName];
+  const driverCookieToken = req.cookies?.[DRIVER_COOKIE_NAME];
   const headerToken = req.headers.authorization?.replace('Bearer ', '');
   const queryToken = req.query?.token;
-  // Cookie riêng của Driver Portal (host-only) — fallback khi JS không gửi Bearer.
-  const driverCookieToken = req.cookies?.[DRIVER_COOKIE_NAME];
 
-  const token = cookieToken || headerToken || queryToken || driverCookieToken;
-
-  if (!token) {
-    return res.status(401).json({ error: 'Unauthorized', loginRequired: true });
+  // ── Thứ tự ưu tiên token ────────────────────────────────────────────────
+  // 1. Authorization header  — client chủ động gửi token đúng ý mình.
+  // 2. Cookie driver_session_token — session riêng của Driver Portal.
+  // 3. Cookie session_token (admin).
+  // 4. ?token=.
+  //
+  // BUG ĐÃ SỬA: trước đây cookie admin được ưu tiên trên Authorization header.
+  // Khi 1 trình duyệt có CẢ cookie admin lẫn session driver, mọi request của
+  // tài xế bị resolve thành session ADMIN → API trả 403 DRIVER_ONLY →
+  // client redirect → reload liên tục.
+  //
+  // Duyệt lần lượt & chỉ nhận session HỢP LỆ (chưa hết hạn) → không hồi quy
+  // khi token header đã cũ nhưng cookie admin còn sống.
+  const candidates = [headerToken, driverCookieToken, adminCookieToken, queryToken];
+  let session = null;
+  for (let i = 0; i < candidates.length; i++) {
+    if (!candidates[i]) continue;
+    session = dbGetSession(candidates[i]);
+    if (session) break;
   }
 
-  const session = dbGetSession(token);
   if (!session) {
-    return res.status(401).json({ error: 'Session expired', loginRequired: true });
+    return res.status(401).json({ error: 'Unauthorized', loginRequired: true });
   }
 
   req.user = session;

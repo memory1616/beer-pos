@@ -187,11 +187,12 @@ function getSessionRole(req) {
  * Mục đích: apiGuard chỉ cần biết "request này có phải của DRIVER không".
  */
 function optionalAuth(req, res, next) {
-  const cookieToken =
-    req.cookies?.session_token ||
-    req.cookies?.driver_session_token;
+  const adminCookieToken = req.cookies?.session_token;
+  const driverCookieToken = req.cookies?.driver_session_token;
   const headerToken = req.headers.authorization?.replace('Bearer ', '');
-  const token = cookieToken || headerToken;
+  // Thứ tự ưu tiên giống requireAuth: header > driver cookie > admin cookie.
+  // Nếu không, cookie admin sẽ "đè" session driver → resolve sai role.
+  const token = headerToken || driverCookieToken || adminCookieToken;
 
   if (token) {
     try {

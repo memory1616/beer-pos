@@ -389,16 +389,16 @@
 
   /**
    * Bottom menu riêng cho Driver Portal — 4 mục:
-   * BÁN HÀNG · GIAO HÀNG · KHÁCH HÀNG (nếu cần cho Sale) · ĐĂNG XUẤT
+   * TRANG CHỦ · BÁN HÀNG · GIAO HÀNG · ĐĂNG XUẤT
    *
    * Dùng CHUNG class `.drv-nav` / `.drv-nav__item` của Driver Portal
    * (public/css/driver.css) — đây là bản Driver của `getBottomNav()` của Admin.
    */
   function getDriverBottomNav(activeKey) {
     var items = [
+      { key: 'home', href: '/driver', icon: '🏠', label: 'TRANG CHỦ' },
       { key: 'sale', href: '/driver/ban-hang', icon: '🛒', label: 'BÁN HÀNG' },
-      { key: 'delivery', href: '/driver/giao-hang', icon: '🚚', label: 'GIAO HÀNG', badge: true },
-      { key: 'customers', href: '/driver/khach-hang', icon: '👥', label: 'KHÁCH HÀNG' }
+      { key: 'delivery', href: '/driver/giao-hang', icon: '🚚', label: 'GIAO HÀNG', badge: true }
     ];
 
     var html = items.map(function (item) {
