@@ -10,7 +10,7 @@
 
   <!-- ═══ CSS GỐC CỦA ADMIN (module Giao hàng) ═══ -->
   <link rel="stylesheet" href="/css/unified.css?v=20260419">
-  <link rel="stylesheet" href="/css/driver.css?v=20261107">
+  <link rel="stylesheet" href="/css/driver.css?v=20261107e">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
   <style>
@@ -73,6 +73,9 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="/js/driver/core.js?v=20261107"></script>
+  <!-- Đồng bộ real-time giữa trang Bán hàng ↔ Giao hàng -->
+  <script src="/js/driver/sync.js?v=20261107c"></script>
+  <script src="/js/layout.js?v=20261107-rt"></script>
   <script>
   /* ═══════════════════════════════════════════════════════════════════════
    * MODULE GIAO HÀNG — TÀI XẾ
@@ -391,11 +394,56 @@
       }
     }
 
+    /* ── Đồng bộ real-time với trang Bán hàng ────────────────────────────
+     * Khi Admin/tài xế khác tạo hoặc sửa đơn, Socket.IO phát
+     * `order:created` / `order:updated` → realtime.js dispatch
+     * `realtime:refetch` → module driver/sync.js gọi callback ở đây.
+     * Nhờ vậy "ĐƠN GẦN ĐÂY" (trang Bán hàng) và danh sách này luôn khớp.
+     * ────────────────────────────────────────────────────────────────── */
+    async function reloadDeliveries() {
+      try {
+        var fresh = await window.Drv.api.get('/api/driver/delivery/page-data');
+        customers = (fresh && fresh.customers) || [];
+        if (fresh && fresh.settings) {
+          settings = fresh.settings;
+          if (settings.distributor_lat) lat = settings.distributor_lat;
+          if (settings.distributor_lng) lng = settings.distributor_lng;
+        }
+        render();
+        // Cập nhật marker trên map (nếu có)
+        if (map) {
+          if (window.__drvMarkers) {
+            window.__drvMarkers.forEach(function (m) { map.removeLayer(m); });
+            window.__drvMarkers = [];
+          }
+          window.__drvMarkers = [];
+          customers.forEach(function (c) {
+            if (c.lat && c.lng) {
+              var mk = L.marker([parseFloat(c.lat), parseFloat(c.lng)], { icon: icon('#3b82f6', 10) })
+                .addTo(map)
+                .bindPopup(esc(c.name));
+              window.__drvMarkers.push(mk);
+            }
+          });
+        }
+      } catch (e) {
+        console.error('[DELIVERY] reload error:', e);
+      }
+    }
+
     /* ── Boot ── */
     initMap();
     render();
     renderNav();
     window.Drv.setupHeader();
+
+    // Đăng ký listener đồng bộ (nếu module driver/sync.js được nạp)
+    if (window.DrvSync && typeof window.DrvSync.onChange === 'function') {
+      window.DrvSync.onChange(function (reason) {
+        if (reason === 'focus' || reason === 'visibility') return; // đã refresh khi quay lại
+        reloadDeliveries();
+      });
+    }
 
     document.getElementById('list').addEventListener('click', function (e) {
       if (e.target.closest('a')) return;

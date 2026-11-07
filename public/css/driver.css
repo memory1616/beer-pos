@@ -22,15 +22,103 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-html, body {
+/* ── SCROLL ROOT ────────────────────────────────────────────────────────────
+ * QUAN TRỌNG: chỉ có MỘT vùng cuộn duy nhất — `html`/document.
+ *
+ * Vì sao?
+ *  - `body` có `overflow-y: auto` → body trở thành scroll container riêng.
+ *    Khi body là flex container (unified.css: display:flex; flex-direction:column)
+ *    và `.app` có min-height 100dvh, chiều cao content của body = viewport
+ *    → body KHÔNG bao giờ cuộn, còn document thì cuộn nhưng gesture trên
+ *    mobile bị "ăn" bởi container con → user thấy trang đứng yên.
+ *  - `body` phải để `overflow: visible` (mặc định) → document cuộn tự nhiên.
+ *
+ * Luật cứng:
+ *  - KHÔNG dùng `overflow: hidden` trên html/body (khoá cuộn toàn trang).
+ *  - KHÔNG dùng `height: 100%` cho body (cắt nội dung dài).
+ *  - `overscroll-behavior-y: contain` chỉ chặn pull-to-refresh, KHÔNG chặn cuộn.
+ */
+html {
+  min-height: 100%;
+  overflow-x: clip;
+  overflow-y: visible;
+  -webkit-text-size-adjust: 100%;
+}
+body {
   margin: 0;
   padding: 0;
-  padding-bottom: calc(var(--driver-nav-h) + env(safe-area-inset-bottom));
+  min-height: 100dvh;
+  /* `overflow: visible` (mặc định) — PHẢI để visible:
+   *   - `auto` biến body thành scroll container riêng → `position: sticky`
+   *     bên trong (.sale-checkout-box) bám sai container → không dính.
+   *   - `hidden` khoá cuộn hoàn toàn.
+   * Khi html/body đều visible → document là vùng cuộn duy nhất.
+   */
+  overflow: visible;
   background: var(--bg-primary);
   color: var(--text-primary);
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   font-size: 16px;
   line-height: 1.45;
+  overscroll-behavior-y: contain;
+}
+
+/* ── APP SHELL (Driver) ────────────────────────────────────────────────────
+ * Trang Driver dùng chung `.app` / `.app-main` của Admin (unified.css).
+ * `.app-main` mặc định có `overflow-y: auto` → lồng vùng cuộn với `body`,
+ * khiến touch-scroll trên mobile bị "kẹt" giữa 2 container.
+ * Driver chuyển sang MỘT vùng cuộn duy nhất: `body`.
+ *   - `.app`      → min-height (không height cố định)
+ *   - `.app-main` → overflow visible, flex: 1 0 auto (nội dung cao hơn viewport
+ *                   → body cuộn tự nhiên, không bị cắt).
+ */
+body.body--app {
+  min-height: 100dvh;
+  height: auto;
+  /* overflow: visible (mặc định) → document là vùng cuộn duy nhất,
+   * giữ cho `position: sticky` (ô tổng tiền + nút BÁN HÀNG) hoạt động đúng. */
+  overflow: visible;
+}
+
+body.body--app .app {
+  min-height: 100dvh;
+  height: auto;
+}
+
+body.body--app .app-main {
+  flex: 1 0 auto;
+  min-height: 0;
+  /* QUAN TRỌNG: `overflow-x: hidden` + `overflow-y: visible` bị browser ép
+   * `visible` → `auto` (CSS spec: một trục `visible` + trục kia khác visible
+   * → visible bị coi như auto) → tạo vùng cuộn lồng, kẹt touch-scroll.
+   * Dùng `overflow-x: clip` (KHÔNG tạo scroll container) + `overflow-y: visible`
+   * → giữ đúng 1 vùng cuộn duy nhất là `body`.
+   */
+  overflow-x: clip;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+  /* Padding-bottom để nội dung không bị bottom menu fixed che mất */
+  padding-bottom: calc(var(--driver-nav-h) + env(safe-area-inset-bottom) + 16px);
+}
+
+/* Cuộn mượt trên iOS */
+@media (hover: none) and (pointer: coarse) {
+  body.body--app .app-main {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Cho phép cuộn dọc trên mọi vùng trong Driver Portal.
+ * `touch-action: pan-y` cho phép cuộn dọc nhưng vẫn giữ zoom pinch. */
+body.body--app .app-main,
+body.body--app .page-content,
+body.body--app .sale-section {
+  touch-action: pan-y;
+}
+
+/* Không có hiệu ứng "dính" khi cuộn trên iOS */
+body.body--app .app-main {
+  -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
 }
 
@@ -364,13 +452,20 @@ html, body {
   z-index: 60;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
+  align-items: stretch;
   height: calc(var(--driver-nav-h) + env(safe-area-inset-bottom));
-  padding-bottom: env(safe-area-inset-bottom);
+  padding: 0 4px env(safe-area-inset-bottom);
   background: var(--bg-secondary);
   border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.28);
+  /* Nền blur + safe-area cho iOS */
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  will-change: transform;
 }
 
 .drv-nav__item {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -382,15 +477,42 @@ html, body {
   font-weight: 700;
   letter-spacing: 0.3px;
   min-height: var(--driver-nav-h);
-  transition: color 0.15s;
+  /* Tap target ≥ 48px, không nhảy layout khi bấm */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.15s, transform 0.12s;
 }
 
+/* Vùng chạm rộng hơn phần hiển thị (44px theo chuẩn) */
+.drv-nav__item::before {
+  content: '';
+  position: absolute;
+  inset: 6px 4px 10px;
+  border-radius: 12px;
+  background: transparent;
+  transition: background 0.15s;
+}
+
+.drv-nav__item:active { transform: scale(0.94); }
 .drv-nav__item.is-active { color: var(--accent); }
-.drv-nav__icon { font-size: 1.3rem; line-height: 1; }
+.drv-nav__item.is-active::before {
+  background: var(--accent-dim, rgba(250, 204, 21, 0.12));
+}
+
+.drv-nav__icon {
+  font-size: 1.3rem;
+  line-height: 1;
+  position: relative;
+  z-index: 1;
+}
+.drv-nav__item > span:not(.drv-nav__icon):not(.drv-nav__badge) { position: relative; z-index: 1; }
+
 .drv-nav__badge {
   position: absolute;
   top: 8px;
-  margin-left: 20px;
+  left: 50%;
+  margin-left: 6px;
+  transform: translateX(4px);
   background: var(--danger);
   color: #fff;
   font-size: 0.62rem;
@@ -402,6 +524,8 @@ html, body {
   align-items: center;
   justify-content: center;
   padding: 0 4px;
+  z-index: 2;
+  box-shadow: 0 0 0 2px var(--bg-secondary);
 }
 
 /* ── MODAL / SHEET ─────────────────────────────────────────────────────── */
@@ -419,8 +543,11 @@ html, body {
   background: var(--bg-secondary);
   width: 100%;
   max-width: 640px;
-  max-height: 92vh;
+  /* dvh = dynamic viewport height → đúng trên mobile khi thanh địa chỉ ẩn/hiện */
+  max-height: 92dvh;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   border-radius: 20px 20px 0 0;
   padding: 18px 16px calc(18px + env(safe-area-inset-bottom));
   animation: drvSlideUp 0.2s ease;
@@ -833,6 +960,56 @@ html, body {
   background: var(--accent);
   color: var(--text-on-dark);
   border-color: var(--accent);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * OVERRIDE CHO MODULE SALE CỦA ADMIN (driver/ban-hang)
+ * Driver dùng chung `public/js/sales.js` + `unified.css` của Admin.
+ * Các rule dưới đây CHỈ áp dụng trong Driver Portal (scope `body.body--app`)
+ * để không ảnh hưởng Admin.
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Ô tổng tiền + nút BÁN HÀNG: sticky sát trên bottom menu, không bị che */
+body.body--app .sale-checkout-box {
+  position: sticky;
+  bottom: calc(var(--driver-nav-h) + env(safe-area-inset-bottom) + 8px);
+  z-index: 20;
+  margin: 0 0 12px;
+  border-radius: 14px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.28);
+}
+
+/* Bảng "ĐƠN GẦN ĐÂY" cuộn ngang không cần, giữ gọn */
+body.body--app .sale-history-item {
+  cursor: pointer;
+}
+
+/* Sheet bán hàng (modal) cuộn được + không bị bottom menu che.
+ * GIỮ `overflow: hidden` trên `.pos-modal-sheet` (layout flex: header + body),
+ * phần cuộn nằm ở `.pos-modal-body` (đã có overflow-y: auto trong unified.css).
+ * Chỉ nới max-height cho mobile + thêm padding-bottom an toàn. */
+body.body--app .pos-modal-sheet {
+  max-height: min(90dvh, calc(100dvh - env(safe-area-inset-top) - 24px));
+  overflow: hidden;
+}
+
+body.body--app .pos-modal-body {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  /* Padding-bottom để nút bấm không bị sát mép / che bởi bottom menu */
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+}
+
+/* Overlay modal: nền tối phủ toàn màn hình, cho phép cuộn bên trong sheet */
+body.body--app .pos-modal-overlay {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Header Admin (fixed) + nội dung: chừa đúng chiều cao header */
+body.body--app .page-content {
+  padding-top: calc(var(--header-height) + var(--safe-area-top));
 }
 
 /* ── PRINT (đơn hàng) ──────────────────────────────────────────────────── */

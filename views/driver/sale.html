@@ -31,10 +31,12 @@
   <!-- ═══ DÙNG CHUNG GIAO DIỆN ADMIN (unified.css) ═══ -->
   <link rel="stylesheet" href="/css/unified.css?v=20260419-thutien-click">
   <!-- Lớp bổ sung cho Driver Portal: bottom menu 4 mục + header tài xế -->
-  <link rel="stylesheet" href="/css/driver.css?v=20261107">
+  <link rel="stylesheet" href="/css/driver.css?v=20261107e">
 
   <script src="/js/dark-mode.js"></script>
-  <script src="/js/layout.js?v=20260412b-app-shell"></script>
+  <script src="/js/layout.js?v=20261107-rt"></script>
+  <!-- Đồng bộ real-time giữa trang Bán hàng ↔ Giao hàng -->
+  <script src="/js/driver/sync.js?v=20261107c"></script>
   <script src="https://unpkg.com/dexie@3/dist/dexie.min.js"></script>
 </head>
 <body class="body--app">
@@ -382,6 +384,19 @@
       if (window.Drv) {
         window.Drv.setupHeader();
         window.Drv.setupNav('sale');
+      }
+
+      // 4e. Đồng bộ real-time: "ĐƠN GẦN ĐÂY" phải khớp với trang Giao hàng.
+      //     sales.js đã tự listen 'data:mutated' / 'realtime:refetch',
+      //     nhưng ta thêm listener riêng để chắc chắn reload khi trang
+      //     Giao hàng / Admin tạo hoặc sửa đơn.
+      if (window.DrvSync && typeof window.DrvSync.onChange === 'function') {
+        window.DrvSync.onChange(function (reason) {
+          if (reason === 'focus' || reason === 'visibility') return; // đã refresh khi quay lại
+          if (typeof loadSaleHistory === 'function') {
+            try { loadSaleHistory(); } catch (e) { console.error('[DRIVER-SYNC] loadSaleHistory error:', e); }
+          }
+        });
       }
     })();
 

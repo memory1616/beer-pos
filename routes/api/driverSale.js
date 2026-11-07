@@ -112,9 +112,17 @@ function forwardTo(routerRef, req, res, subPath, label) {
 }
 
 // ── Helper: scope đơn của tài xế ───────────────────────────────────────────
+// Đồng bộ với `/history` và `DeliveryService.listForDriver`:
+//   - đơn do chính tài xế tạo
+//   - đơn CHƯA gán tài xế nào (NULL / chuỗi rỗng) → tài xế có thể nhận & xem
+// Đơn đã gán cho tài xế KHÁC → không lộ (đúng nguyên tắc bảo mật).
 function getOwnSale(saleId, username) {
   return db
-    .prepare('SELECT * FROM sales WHERE id = ? AND driver_username = ?')
+    .prepare(
+      `SELECT * FROM sales
+       WHERE id = ?
+         AND (driver_username = ? OR driver_username IS NULL OR driver_username = '')`
+    )
     .get(saleId, username);
 }
 
@@ -184,6 +192,12 @@ router.get('/products', requireDriver, (req, res) => {
 // ═══════════════════════════════════════════════════════════════════════════
 // GET /api/driver/sale/history — lịch sử bán hàng (scope theo tài xế)
 // Shape: { sales, total, page, totalPages }  (giống GET /sale/history)
+//
+// ĐỒNG BỘ 2 TRANG (Bán hàng ↔ Giao hàng):
+//   Trang GIAO HÀNG dùng scope: đơn của chính tài xế + đơn CHƯA gán tài xế.
+//   Nếu "ĐƠN GẦN ĐÂY" chỉ lọc `driver_username = ?` thì 2 trang lệch nhau
+//   (đơn Admin tạo chưa gán xuất hiện ở Giao hàng nhưng biến mất ở ĐƠN GẦN ĐÂY).
+//   → Dùng CHUNG scope với DeliveryService.listForDriver cho cả 2 trang.
 // ═══════════════════════════════════════════════════════════════════════════
 router.get('/history', requireDriver, (req, res) => {
   try {
@@ -194,8 +208,16 @@ router.get('/history', requireDriver, (req, res) => {
     const year = req.query.year ? parseInt(req.query.year) : null;
     const month = req.query.month ? parseInt(req.query.month) : null;
 
+    // Scope thống nhất với trang Giao hàng:
+    //   - đơn do chính tài xế tạo
+    //   - đơn Admin tạo mà CHƯA gán tài xế nào (NULL hoặc chuỗi rỗng)
+    //   - bỏ qua đơn của khách đã ẩn/archived (giống DeliveryService.listForDriver)
     let whereClause =
-      "WHERE s.type IN ('sale', 'replacement', 'damage_return') AND s.archived = 0 AND s.deleted = 0 AND s.driver_username = ?";
+      `WHERE s.type IN ('sale', 'replacement', 'damage_return')
+         AND s.archived = 0
+         AND s.deleted = 0
+         AND (s.driver_username = ? OR s.driver_username IS NULL OR s.driver_username = '')
+         AND (c.id IS NULL OR c.archived = 0)`;
     const params = [req.user.username];
 
     if (year && month) {
@@ -205,14 +227,23 @@ router.get('/history', requireDriver, (req, res) => {
       params.push(yStr + '-' + mStr);
     }
 
-    const total = db.prepare(`SELECT COUNT(*) as count FROM sales s ${whereClause}`).get(...params).count;
+    const total = db
+      .prepare(
+        `SELECT COUNT(*) as count FROM sales s
+         LEFT JOIN customers c ON s.customer_id = c.id
+         ${whereClause}`
+      )
+      .get(...params).count;
     const totalPages = Math.ceil(total / limit);
 
     const sales = db
       .prepare(
         `SELECT s.id, s.date, s.sale_time, s.total, s.type, s.status,
                 COALESCE(c.name, 'Khách lẻ') as customer_name,
-                s.deliver_kegs, s.return_kegs
+                s.deliver_kegs, s.return_kegs,
+                s.driver_username,
+                s.payment_status,
+                s.delivery_status
          FROM sales s
          LEFT JOIN customers c ON s.customer_id = c.id
          ${whereClause}
@@ -379,18 +410,24 @@ router.post('/', requireDriver, (req, res) => {
     // Driver không được dùng giảm giá nhân viên (staffId) — bỏ qua.
     delete body.staffId;
 
+    // Gán tài xế NGAY TRONG body → route gốc INSERT một lần với
+    // driver_username đúng (atomic, không có khoảng trống thời gian).
+    // Nhờ vậy đơn lập tức hiện đồng thời ở "ĐƠN GẦN ĐÂY" và trang Giao hàng.
+    body.driverUsername = req.user.username;
+
     forwardToSales(req, res, '/', 'POST', (payload) => {
+      // Fallback: nếu route gốc chưa hỗ trợ driverUsername (deploy cũ),
+      // vẫn gán bằng UPDATE để không mất dữ liệu.
       if (payload && payload.success && payload.id) {
         try {
-          db.prepare('UPDATE sales SET driver_username = ? WHERE id = ?').run(
-            req.user.username,
-            payload.id
-          );
+          db.prepare(
+            'UPDATE sales SET driver_username = ? WHERE id = ? AND (driver_username IS NULL OR driver_username = ?)'
+          ).run(req.user.username, payload.id, req.user.username);
         } catch (e) {
           logger.error('[driver-sale] set driver_username error', { error: e.message });
         }
       }
-    });
+    }, body);
   } catch (err) {
     logger.error('[driver-sale] create error', { error: err.message });
     res.status(500).json({ error: 'Lỗi khi tạo đơn hàng: ' + err.message });
@@ -438,14 +475,52 @@ router.post('/replacement', requireDriver, (req, res) => {
       return res.status(400).json({ error: 'Vui lòng chọn khách hàng' });
     }
 
-    forwardToSales(req, res, '/replacement', 'POST', null, {
-      customer_id: body.customer_id ? parseInt(body.customer_id) : null,
-      product_id: productId,
-      quantity,
-      reason: body.reason || 'Bia hư',
-      gift: isGift,
-      giftGuestName: body.giftGuestName || body.gift_guest_name || '',
-    });
+    forwardToSales(
+      req,
+      res,
+      '/replacement',
+      'POST',
+      (payload) => {
+        // Fallback: nếu route gốc chưa hỗ trợ driverUsername (deploy cũ),
+        // tìm đơn vừa tạo và gán tài xế.
+        if (payload && payload.success) {
+          try {
+            const row = db
+              .prepare(
+                `SELECT id FROM sales
+                 WHERE type = 'replacement'
+                   AND archived = 0
+                   AND deleted = 0
+                   AND (driver_username IS NULL OR driver_username = '')
+                   AND (customer_id IS ? OR customer_id = ?)
+                 ORDER BY id DESC LIMIT 1`
+              )
+              .get(
+                body.customer_id ? parseInt(body.customer_id) : null,
+                body.customer_id ? parseInt(body.customer_id) : null
+              );
+            if (row && row.id) {
+              db.prepare('UPDATE sales SET driver_username = ? WHERE id = ?').run(
+                req.user.username,
+                row.id
+              );
+            }
+          } catch (e) {
+            logger.error('[driver-sale] replacement set driver_username error', { error: e.message });
+          }
+        }
+      },
+      {
+        customer_id: body.customer_id ? parseInt(body.customer_id) : null,
+        product_id: productId,
+        quantity,
+        reason: body.reason || 'Bia hư',
+        gift: isGift,
+        giftGuestName: body.giftGuestName || body.gift_guest_name || '',
+        // Gán tài xế ngay lúc INSERT → đơn đổi lỗi hiện ở "ĐƠN GẦN ĐÂY"
+        driverUsername: req.user.username,
+      }
+    );
   } catch (err) {
     logger.error('[driver-sale] replacement error', { error: err.message });
     res.status(500).json({ error: 'Lỗi khi đổi bia lỗi: ' + err.message });

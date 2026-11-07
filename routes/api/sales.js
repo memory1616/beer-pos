@@ -101,6 +101,16 @@ function validateSaleInput(body) {
 router.post('/', (req, res) => {
   const { customerId, items, deliverKegs = 0, returnKegs = 0, debt = false, staffId } = req.body;
 
+  // driverUsername: chỉ được set bởi Driver Portal (forward từ
+  // routes/api/driverSale.js). Gán NGAY LÚC INSERT → đơn atomic, không
+  // có khoảng trống thời gian mà đơn chưa gán tài xế (gây lệch dữ liệu
+  // giữa trang "Bán hàng" và trang "Giao hàng").
+  // Admin tạo đơn → không truyền field này → driver_username = NULL.
+  const driverUsername =
+    typeof req.body?.driverUsername === 'string' && req.body.driverUsername.trim()
+      ? req.body.driverUsername.trim()
+      : null;
+
   // ========== STAFF DISCOUNT HELPER ==========
   function getStaffDiscountForProduct(sid, prodId, prodType) {
     if (!sid) return 0;
@@ -289,7 +299,7 @@ router.post('/', (req, res) => {
       // Insert sale with Vietnam-local date and time
       const saleDate = db.getVietnamDateStr();
       const saleTime = db.getVietnamTimeStr();
-      const saleResult = db.prepare('INSERT INTO sales (customer_id, sales_id, date, sale_time, total, profit, deliver_kegs, return_kegs, keg_balance_after, type, promo_free_liters, promo_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(customerId, staffId || null, saleDate, saleTime, total, profit, finalDeliverKegs, returnKegs, newKegBalance, 'sale', promoFreeTotal, promoInfo ? promoInfo.promoType : null);
+      const saleResult = db.prepare('INSERT INTO sales (customer_id, sales_id, date, sale_time, total, profit, deliver_kegs, return_kegs, keg_balance_after, type, promo_free_liters, promo_type, driver_username) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(customerId, staffId || null, saleDate, saleTime, total, profit, finalDeliverKegs, returnKegs, newKegBalance, 'sale', promoFreeTotal, promoInfo ? promoInfo.promoType : null, driverUsername);
       const saleId = saleResult.lastInsertRowid;
 
       if (!saleId) throw new Error('Sale creation failed — no lastInsertRowid');
@@ -802,6 +812,13 @@ router.post('/replacement', (req, res) => {
   const { customer_id, product_id, quantity, reason, gift, giftGuestName } = req.body;
   logger.info('[replacement] request', { customer_id, product_id, quantity, isGift: !!gift });
 
+  // driverUsername: set bởi Driver Portal (forward từ driverSale.js) để
+  // đơn đổi lỗi của tài xế xuất hiện ngay trong "ĐƠN GẦN ĐÂY".
+  const driverUsername =
+    typeof req.body?.driverUsername === 'string' && req.body.driverUsername.trim()
+      ? req.body.driverUsername.trim()
+      : null;
+
   if (!product_id || !quantity || quantity <= 0) {
     return res.status(400).json({ error: 'Thiếu thông tin cần thiết' });
   }
@@ -836,9 +853,9 @@ router.post('/replacement', (req, res) => {
     const doReplacement = db.transaction(() => {
       const saleDate = db.getVietnamDateStr();
       const result = db.prepare(`
-        INSERT INTO sales (customer_id, total, type, note, date)
-        VALUES (?, 0, 'replacement', ?, ?)
-      `).run(customer_id || null, note, saleDate);
+        INSERT INTO sales (customer_id, total, type, note, date, driver_username)
+        VALUES (?, 0, 'replacement', ?, ?, ?)
+      `).run(customer_id || null, note, saleDate, driverUsername);
       const saleId = result.lastInsertRowid;
       logger.info('[replacement] sale inserted', { saleId });
 
