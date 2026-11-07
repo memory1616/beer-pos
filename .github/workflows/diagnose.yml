@@ -77,4 +77,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A ssh-diagnose.txt
+          git commit -m "chore(diag): cap nhat ket qua chan doan SSH" || echo "nothing to commit"
           git push origin HEAD:diagnostics/ssh --force
