@@ -146,16 +146,25 @@ router.get('/dashboard', requireDriver, (req, res) => {
 // KHÔNG có doanh thu / lợi nhuận / giá vốn.
 // ═══════════════════════════════════════════════════════════════════════════
 
-// Chuẩn hoá ngày: chỉ chấp nhận YYYY-MM-DD, và nằm trong tháng yêu cầu
+// Chuẩn hoá ngày: chỉ chấp nhận YYYY-MM-DD hợp lệ, và nằm trong tháng yêu cầu
 function normalizeHomeDate(rawDate, month) {
   const today = db.getVietnamDateStr();
+  const [my, mm] = month.split('-').map(Number);
+  const lastDay = new Date(my, mm, 0).getDate();
+
   if (typeof rawDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
-    if (rawDate.slice(0, 7) === month) return rawDate;
-    // Ngày hợp lệ nhưng nằm ngoài tháng → dùng ngày đầu tháng
-    const [y, m] = month.split('-').map(Number);
-    const lastDay = new Date(y, m, 0).getDate();
-    const day = Math.min(Math.max(Number(rawDate.slice(8, 10)) || 1, 1), lastDay);
-    return `${month}-${String(day).padStart(2, '0')}`;
+    const day = Number(rawDate.slice(8, 10));
+    const year = Number(rawDate.slice(0, 4));
+    const mon = Number(rawDate.slice(5, 7));
+    // Ngày không tồn tại trong tháng → kẹp vào biên hợp lệ
+    if (day >= 1 && day <= lastDay && year === my && mon === mm) {
+      return rawDate;
+    }
+    if (day >= 1 && day <= lastDay && rawDate.slice(0, 7) !== month) {
+      // Ngày hợp lệ nhưng nằm ngoài tháng → giữ ngày, kẹp vào tháng đang xem
+      return `${month}-${String(day).padStart(2, '0')}`;
+    }
+    return `${month}-01`;
   }
   return today.slice(0, 7) === month ? today : `${month}-01`;
 }
@@ -181,7 +190,12 @@ router.get('/home', requireDriver, (req, res) => {
     // Tháng đang xem (mặc định: tháng hiện tại)
     let month = currentMonth;
     if (typeof req.query.month === 'string' && /^\d{4}-\d{2}$/.test(req.query.month)) {
-      month = req.query.month;
+      const my = Number(req.query.month.slice(0, 4));
+      const mm = Number(req.query.month.slice(5, 7));
+      // Tháng hợp lệ: 01..12 và năm trong khoảng 2000..2100
+      if (mm >= 1 && mm <= 12 && my >= 2000 && my <= 2100) {
+        month = req.query.month;
+      }
     }
     const monthStart = `${month}-01`;
     const monthEnd = `${month}-${String(daysInMonth(month)).padStart(2, '0')}`;
