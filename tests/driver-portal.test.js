@@ -952,8 +952,9 @@ describe('Driver Portal — RBAC & Data Protection', () => {
         expect(kpiCount).toBe(3);
 
         // Icon Lucide: SVG inline, stroke=currentColor, viewBox chuẩn 24
+        // (3 icon KPI + 2 icon nút chuyển tháng)
         const svgs = homeHtml.match(/<svg[^>]*>/g) || [];
-        expect(svgs.length).toBe(3);
+        expect(svgs.length).toBe(5);
         for (const svg of svgs) {
           expect(svg).toMatch(/viewBox="0 0 24 24"/);
           expect(svg).toMatch(/stroke="currentColor"/);
@@ -999,7 +1000,7 @@ describe('Driver Portal — RBAC & Data Protection', () => {
 
       test('Tổng vỏ đã thu hôm nay lấy từ 2 nguồn + dedupe theo đơn', () => {
         const homeStart = driverApiSrc.indexOf("router.get('/home'");
-        const homeHandler = driverApiSrc.slice(homeStart, homeStart + 4000);
+        const homeHandler = driverApiSrc.slice(homeStart, homeStart + 6000);
 
         // Nguồn 1: vỏ thu trên đơn bán (sales.return_kegs)
         expect(homeHandler).toMatch(/s\.return_kegs/);
@@ -1007,11 +1008,54 @@ describe('Driver Portal — RBAC & Data Protection', () => {
         expect(homeHandler).toMatch(/dr\.collected_kegs/);
         // Dedupe: MAX theo order_key trong subquery
         expect(homeHandler).toMatch(/GROUP BY order_key/);
-        expect(homeHandler).toMatch(/MAX\(kegs_sale, kegs_delivery\)/);
+        expect(homeHandler).toMatch(/MAX\(kegs\) AS kegs/);
         // Ngày tính = ngày hoàn tất thực tế, KHÔNG dùng scheduled_date
         expect(homeHandler).toMatch(/COALESCE\(NULLIF\(dr\.completed_at, ''\), dr\.updated_at, dr\.scheduled_date\)/);
         // Không được giới hạn status = DELIVERED (bỏ sót đơn DISCREPANCY)
         expect(homeHandler).not.toMatch(/dr\.status = 'DELIVERED'/);
+      });
+
+      test('Bộ lọc thống kê theo ngày trong tháng: API hỗ trợ month + date', () => {
+        const homeStart = driverApiSrc.indexOf("router.get('/home'");
+        const homeHandler = driverApiSrc.slice(homeStart, homeStart + 6000);
+
+        // Nhận query param month / date
+        expect(homeHandler).toMatch(/req\.query\.month/);
+        expect(homeHandler).toMatch(/req\.query\.date/);
+        // Chuẩn hoá ngày + giới hạn trong tháng
+        expect(driverApiSrc).toMatch(/function normalizeHomeDate/);
+        expect(driverApiSrc).toMatch(/function daysInMonth/);
+        // Trả về dữ liệu theo từng ngày + tổng tháng + điều hướng tháng
+        expect(homeHandler).toMatch(/daily/);
+        expect(homeHandler).toMatch(/monthTotals/);
+        expect(homeHandler).toMatch(/prevMonth/);
+        expect(homeHandler).toMatch(/nextMonth/);
+        expect(homeHandler).toMatch(/selectedDate/);
+      });
+
+      test('UI có bộ lọc ngày trong tháng (chuyển tháng + dải ngày + tổng tháng)', () => {
+        expect(homeHtml).toMatch(/id="home-prev-month"/);
+        expect(homeHtml).toMatch(/id="home-next-month"/);
+        expect(homeHtml).toMatch(/id="home-day-list"/);
+        expect(homeHtml).toMatch(/id="home-month-label"/);
+        expect(homeHtml).toMatch(/id="home-sum-orders"/);
+        expect(homeHtml).toMatch(/id="home-sum-liters"/);
+        expect(homeHtml).toMatch(/id="home-sum-kegs"/);
+        expect(homeHtml).toMatch(/id="home-stats-title"/);
+
+        // JS: dựng dải ngày + gửi query param
+        expect(homeJs).toMatch(/renderDayList/);
+        expect(homeJs).toMatch(/month=/);
+        expect(homeJs).toMatch(/date=/);
+        expect(homeJs).toMatch(/changeMonth/);
+        expect(homeJs).toMatch(/selectDate/);
+
+        // CSS cho bộ lọc
+        const css = fs2.readFileSync(
+          path2.join(__dirname, '../public/css/driver.css'), 'utf8');
+        expect(css).toMatch(/\.drv-home-filter\b/);
+        expect(css).toMatch(/\.drv-home-day\b/);
+        expect(css).toMatch(/\.drv-home-day\.is-selected/);
       });
 
       test('CSS có style riêng cho trang chủ mới', () => {

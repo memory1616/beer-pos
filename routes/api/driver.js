@@ -120,6 +120,10 @@ router.get('/dashboard', requireDriver, (req, res) => {
 // ═══════════════════════════════════════════════════════════════════════════
 // GET /api/driver/home — dữ liệu tối giản cho TRANG CHỦ tài xế
 // ───────────────────────────────────────────────────────────────────────────
+// Query params (tùy chọn):
+//   - month=YYYY-MM : thống kê tháng cần xem (mặc định = tháng hiện tại)
+//   - date=YYYY-MM-DD: ngày được chọn trong tháng (mặc định = hôm nay)
+//
 // Chỉ trả về đúng những gì UI cần (nhẹ, nhanh trên mobile):
 //   - date        : ngày VN hiện tại (YYYY-MM-DD)
 //   - todayOrders : số đơn của tài xế HÔM NAY (bán trực tiếp + giao hàng)
@@ -134,73 +138,172 @@ router.get('/dashboard', requireDriver, (req, res) => {
 //                   - Tính mọi trạng thái (DELIVERED / DISCREPANCY) — tài xế đã thu
 //                     vỏ thì vẫn phải hiện trong KPI
 //
+//   - month/monthLabel : tháng đang xem
+//   - daily            : mảng thống kê theo TỪNG NGÀY trong tháng (cho bộ lọc)
+//   - monthTotals      : tổng cả tháng
+//   - prevMonth/nextMonth: tháng trước / tháng sau (để điều hướng)
+//
 // KHÔNG có doanh thu / lợi nhuận / giá vốn.
 // ═══════════════════════════════════════════════════════════════════════════
+
+// Chuẩn hoá ngày: chỉ chấp nhận YYYY-MM-DD, và nằm trong tháng yêu cầu
+function normalizeHomeDate(rawDate, month) {
+  const today = db.getVietnamDateStr();
+  if (typeof rawDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
+    if (rawDate.slice(0, 7) === month) return rawDate;
+    // Ngày hợp lệ nhưng nằm ngoài tháng → dùng ngày đầu tháng
+    const [y, m] = month.split('-').map(Number);
+    const lastDay = new Date(y, m, 0).getDate();
+    const day = Math.min(Math.max(Number(rawDate.slice(8, 10)) || 1, 1), lastDay);
+    return `${month}-${String(day).padStart(2, '0')}`;
+  }
+  return today.slice(0, 7) === month ? today : `${month}-01`;
+}
+
+// Số ngày trong tháng (YYYY-MM)
+function daysInMonth(month) {
+  const [y, m] = month.split('-').map(Number);
+  return new Date(y, m, 0).getDate();
+}
+
+// Đổi tháng (YYYY-MM) ± 1
+function shiftMonth(month, delta) {
+  const [y, m] = month.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
 router.get('/home', requireDriver, (req, res) => {
   try {
-    const date = db.getVietnamDateStr();
+    const today = db.getVietnamDateStr();
+    const currentMonth = today.slice(0, 7);
 
-    // Số đơn hôm nay + tổng lít (BAO GỒM BIA PET / BOX)
+    // Tháng đang xem (mặc định: tháng hiện tại)
+    let month = currentMonth;
+    if (typeof req.query.month === 'string' && /^\d{4}-\d{2}$/.test(req.query.month)) {
+      month = req.query.month;
+    }
+    const monthStart = `${month}-01`;
+    const monthEnd = `${month}-${String(daysInMonth(month)).padStart(2, '0')}`;
+
+    // Ngày được chọn trong tháng (mặc định: hôm nay)
+    const selectedDate = normalizeHomeDate(req.query.date, month);
+
+    // Số đơn + tổng lít theo TỪNG NGÀY trong tháng (BAO GỒM BIA PET / BOX)
     // Quy ước (đồng bộ với routes/api/customers.js và salesStaff.js):
     //   1 đơn vị bán của bất kỳ loại nào (keg / pet / box) = 1 lít.
-    const row = db
+    const dailyRows = db
       .prepare(
         `
-        SELECT
-          COUNT(DISTINCT s.id) AS today_orders,
-          COALESCE(SUM(si.quantity), 0) AS today_liters
+        SELECT DATE(s.date) AS d,
+               COUNT(DISTINCT s.id) AS orders,
+               COALESCE(SUM(si.quantity), 0) AS liters
         FROM sales s
         LEFT JOIN sale_items si ON si.sale_id = s.id
-        WHERE DATE(s.date) = ?
+        WHERE DATE(s.date) BETWEEN ? AND ?
           AND s.type IN ('sale', 'replacement')
           AND s.archived = 0
           AND s.deleted = 0
           AND (s.driver_username = ? OR s.driver_username IS NULL OR s.driver_username = '')
+        GROUP BY DATE(s.date)
       `
       )
-      .get(date, req.user.username);
+      .all(monthStart, monthEnd, req.user.username);
 
-    // Tổng vỏ bình đã thu hôm nay
+    // Tổng vỏ bình đã thu theo TỪNG NGÀY trong tháng
     // - UNION 2 nguồn, GROUP BY đơn + MAX → không đếm trùng
     // - Ngày = ngày hoàn tất thực tế (fallback updated_at → scheduled_date)
-    const kegRow = db
+    // - Dedupe theo đơn XUYÊN NGÀY: nếu 1 đơn có cả 2 nguồn ở 2 ngày khác nhau
+    //   → tính 1 lần, ưu tiên ngày của đơn bán (ngày giao).
+    const kegRows = db
       .prepare(
         `
-        SELECT COALESCE(SUM(collected), 0) AS today_kegs
+        WITH keg_rows AS (
+          -- Nguồn 1: vỏ thu trên đơn bán (màn "Cập nhật vỏ")
+          SELECT s.id AS order_key,
+                 DATE(s.date) AS sale_date,
+                 NULL AS del_date,
+                 COALESCE(s.return_kegs, 0) AS kegs
+          FROM sales s
+          WHERE s.type IN ('sale', 'replacement')
+            AND s.archived = 0
+            AND s.deleted = 0
+            AND DATE(s.date) BETWEEN ? AND ?
+            AND (s.driver_username = ? OR s.driver_username IS NULL OR s.driver_username = '')
+          UNION ALL
+          -- Nguồn 2: vỏ thu trên phiếu giao (màn "Xác nhận giao")
+          SELECT COALESCE(dr.sale_id, -dr.id) AS order_key,
+                 NULL AS sale_date,
+                 DATE(COALESCE(NULLIF(dr.completed_at, ''), dr.updated_at, dr.scheduled_date)) AS del_date,
+                 COALESCE(dr.collected_kegs, 0) AS kegs
+          FROM delivery_records dr
+          WHERE COALESCE(dr.collected_kegs, 0) > 0
+            AND DATE(COALESCE(NULLIF(dr.completed_at, ''), dr.updated_at, dr.scheduled_date))
+                BETWEEN ? AND ?
+            AND (dr.driver_username = ? OR dr.driver_username IS NULL OR dr.driver_username = '')
+        )
+        SELECT COALESCE(sale_date, del_date) AS d,
+               SUM(kegs) AS kegs
         FROM (
-          SELECT order_key, MAX(kegs_sale, kegs_delivery) AS collected
-          FROM (
-            -- Nguồn 1: vỏ thu trên đơn bán (màn "Cập nhật vỏ")
-            SELECT s.id AS order_key,
-                   COALESCE(s.return_kegs, 0) AS kegs_sale,
-                   0 AS kegs_delivery
-            FROM sales s
-            WHERE s.type IN ('sale', 'replacement')
-              AND s.archived = 0
-              AND s.deleted = 0
-              AND DATE(s.date) = ?
-              AND (s.driver_username = ? OR s.driver_username IS NULL OR s.driver_username = '')
-            UNION ALL
-            -- Nguồn 2: vỏ thu trên phiếu giao (màn "Xác nhận giao")
-            SELECT COALESCE(dr.sale_id, -dr.id) AS order_key,
-                   0 AS kegs_sale,
-                   COALESCE(dr.collected_kegs, 0) AS kegs_delivery
-            FROM delivery_records dr
-            WHERE COALESCE(dr.collected_kegs, 0) > 0
-              AND DATE(COALESCE(NULLIF(dr.completed_at, ''), dr.updated_at, dr.scheduled_date)) = ?
-              AND (dr.driver_username = ? OR dr.driver_username IS NULL OR dr.driver_username = '')
-          )
+          SELECT order_key,
+                 MAX(sale_date) AS sale_date,
+                 MAX(del_date) AS del_date,
+                 MAX(kegs) AS kegs
+          FROM keg_rows
           GROUP BY order_key
         )
+        WHERE COALESCE(sale_date, del_date) IS NOT NULL
+        GROUP BY COALESCE(sale_date, del_date)
       `
       )
-      .get(date, req.user.username, date, req.user.username);
+      .all(
+        monthStart,
+        monthEnd,
+        req.user.username,
+        monthStart,
+        monthEnd,
+        req.user.username
+      );
+
+    // Gom theo ngày
+    const byDate = {};
+    for (const r of dailyRows) {
+      byDate[r.d] = { orders: r.orders || 0, liters: r.liters || 0, kegs: 0 };
+    }
+    for (const r of kegRows) {
+      if (!byDate[r.d]) byDate[r.d] = { orders: 0, liters: 0, kegs: 0 };
+      byDate[r.d].kegs += r.kegs || 0;
+    }
+
+    // Mảng 31 ngày (đủ số ngày trong tháng)
+    const totalDays = daysInMonth(month);
+    const daily = [];
+    let monthTotals = { orders: 0, liters: 0, kegs: 0 };
+    for (let i = 1; i <= totalDays; i++) {
+      const d = `${month}-${String(i).padStart(2, '0')}`;
+      const v = byDate[d] || { orders: 0, liters: 0, kegs: 0 };
+      daily.push({ date: d, day: i, orders: v.orders, liters: v.liters, kegs: v.kegs });
+      monthTotals.orders += v.orders;
+      monthTotals.liters += v.liters;
+      monthTotals.kegs += v.kegs;
+    }
+
+    // Chỉ số của ngày đang chọn
+    const sel = byDate[selectedDate] || { orders: 0, liters: 0, kegs: 0 };
 
     res.json({
-      date,
-      todayOrders: row.today_orders || 0,
-      todayLiters: row.today_liters || 0,
-      todayKegs: kegRow.today_kegs || 0,
+      date: today,
+      todayOrders: sel.orders,
+      todayLiters: sel.liters,
+      todayKegs: sel.kegs,
+      selectedDate,
+      isToday: selectedDate === today,
+      month,
+      monthLabel: `Tháng ${month.slice(5, 7)}/${month.slice(0, 4)}`,
+      daily,
+      monthTotals,
+      prevMonth: shiftMonth(month, -1),
+      nextMonth: shiftMonth(month, 1),
     });
   } catch (err) {
     logger.error('[driver] home error', { error: err.message });

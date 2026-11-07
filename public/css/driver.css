@@ -1220,6 +1220,183 @@ body.body--app .page-content {
   margin: 0 0 12px;
 }
 
+/* ── BỘ LỌC THỐNG KÊ THEO NGÀY TRONG THÁNG ─────────────────────────────── */
+.drv-home-filter {
+  margin-bottom: 18px;
+  padding: 14px 12px 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+/* Thanh chuyển tháng */
+.drv-home-filter__monthbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.drv-home-filter__nav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: #202830;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.drv-home-filter__nav:hover {
+  border-color: var(--accent);
+  background: #262f39;
+}
+
+.drv-home-filter__nav:active { transform: scale(0.94); }
+
+.drv-home-filter__nav svg {
+  width: 18px;
+  height: 18px;
+}
+
+.drv-home-filter__month {
+  flex: 1 1 auto;
+  text-align: center;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+/* Dải ngày */
+.drv-home-filter__days {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 6px;
+  max-height: 168px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.drv-home-day {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  aspect-ratio: 1 / 1;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: #202830;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+
+.drv-home-day:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+/* Ngày có dữ liệu */
+.drv-home-day.has-data {
+  color: var(--text-primary);
+  border-color: rgba(46, 160, 67, 0.35);
+  background: #1d262e;
+}
+
+/* Ngày đang chọn */
+.drv-home-day.is-selected {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #10141a;
+  font-weight: 800;
+}
+
+/* Ngày hôm nay (vòng tròn nhỏ) */
+.drv-home-day.is-today::after {
+  content: '';
+  position: absolute;
+  bottom: 5px;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  margin-left: -2px;
+  border-radius: 50%;
+  background: var(--info);
+}
+
+.drv-home-day.is-selected.is-today::after { background: #10141a; }
+
+/* Tooltip số liệu khi rê chuột (desktop) */
+.drv-home-day__tip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: none;
+  padding: 5px 9px;
+  white-space: nowrap;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: #12171d;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+
+.drv-home-day:hover .drv-home-day__tip { display: block; }
+
+/* Tổng cả tháng */
+.drv-home-filter__summary {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+  padding-top: 11px;
+  border-top: 1px solid var(--border);
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.drv-home-filter__sumitem b {
+  color: var(--text-primary);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.drv-home-filter__sep { color: var(--border); }
+
+.drv-home-filter__sumlabel {
+  margin-left: auto;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-secondary);
+}
+
+/* Mobile: dải ngày 7 cột */
+@media (max-width: 560px) {
+  .drv-home-filter__days {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+}
+
 /* ── KPI: 3 thẻ, desktop 1 hàng / mobile grid 2 cột ───────────────────── */
 .drv-home-stats {
   display: grid;
