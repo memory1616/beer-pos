@@ -86,6 +86,14 @@
       var kegInfo = 'giao ' + D.num(r.deliver_kegs || 0) + ' vỏ';
       if (r.collected_kegs > 0) kegInfo += ' · thu ' + D.num(r.collected_kegs);
 
+      var dir = D.mapDirectionsLink({
+        lat: r.lat, lng: r.lng, address: r.customer_address
+      });
+      var dirBtn = dir
+        ? '<a href="' + esc(dir) + '" target="_blank" rel="noopener" ' +
+          'class="drv-btn drv-btn--primary drv-btn--sm" style="width:auto;">🗺️ Chỉ đường</a>'
+        : '<span class="drv-muted" style="font-size:0.75rem;">Chưa có GPS</span>';
+
       return '<div class="drv-card drv-card--tap" data-sale-id="' + r.sale_id + '" ' +
                  'data-delivery-id="' + (r.delivery_id || '') + '">' +
         '<div style="display:flex;align-items:flex-start;gap:10px;">' +
@@ -104,7 +112,9 @@
             '<div class="drv-muted" style="font-size:0.83rem;margin-top:4px;">' +
               D.num(r.expected_liters || 0) + ' lít · ' + kegInfo +
             '</div>' +
-            '<div class="drv-mt-8" style="display:flex;gap:6px;flex-wrap:wrap;">' + badge + promo + '</div>' +
+            '<div class="drv-mt-8" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">' +
+              badge + promo + dirBtn +
+            '</div>' +
           '</div>' +
           '<div class="drv-item__right">' +
             '<div class="drv-item__amount">' + D.money(r.total) + '</div>' +
@@ -171,6 +181,19 @@
     var items = record.items || [];
     var events = record.events || [];
 
+    var dirLink = D.mapDirectionsLink({
+      lat: record.lat, lng: record.lng, address: record.customer_address
+    });
+    var navRow = dirLink
+      ? '<div class="drv-btn-row drv-mt-12">' +
+          (record.customer_phone
+            ? '<a href="tel:' + esc(record.customer_phone) + '" class="drv-btn drv-btn--ghost drv-btn--sm">📞 Gọi khách</a>'
+            : '<span></span>') +
+          '<a href="' + esc(dirLink) + '" target="_blank" rel="noopener" ' +
+            'class="drv-btn drv-btn--primary drv-btn--sm">🗺️ Chỉ đường</a>' +
+        '</div>'
+      : '';
+
     var html =
       '<div class="drv-cart__row"><span class="drv-cart__label">Khách</span>' +
         '<strong>' + esc(record.customer_name || '—') + '</strong></div>' +
@@ -185,6 +208,7 @@
         : '') +
       '<div class="drv-cart__row"><span class="drv-cart__label">Tổng đơn</span>' +
         '<strong>' + D.money(record.sale_total || 0) + '</strong></div>' +
+      navRow +
 
       '<div class="drv-section__title drv-mt-16">Số lượng giao</div>' +
       (items.length
@@ -337,6 +361,10 @@
     });
 
     $('delivery-list').addEventListener('click', function (e) {
+      if (e.target.closest('a[href^="https://www.google.com/maps"]')) {
+        e.stopPropagation();
+        return;
+      }
       var card = e.target.closest('[data-sale-id]');
       if (!card) return;
       var saleId = parseInt(card.getAttribute('data-sale-id'));

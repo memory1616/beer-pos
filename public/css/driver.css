@@ -573,6 +573,178 @@ html, body {
 .drv-search-item__meta { font-size: 0.8rem; color: var(--text-secondary); margin-top: 2px; }
 .drv-search-item__check { color: var(--success); font-size: 1.2rem; font-weight: 700; }
 
+/* ── POS PRODUCT GRID (Trang bán hàng) ─────────────────────────────────── */
+.drv-prod {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 10px;
+  border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.06));
+}
+.drv-prod:last-child { border-bottom: none; }
+
+.drv-prod__main { flex: 1; min-width: 0; }
+
+.drv-prod__name {
+  font-weight: 700;
+  font-size: 0.92rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drv-prod__meta {
+  font-size: 0.76rem;
+  color: var(--text-secondary);
+  margin-top: 1px;
+}
+
+.drv-prod__price-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 5px;
+}
+
+.drv-prod__price {
+  width: 108px;
+  min-height: 38px;
+  padding: 6px 10px;
+  border-radius: 9px;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.14));
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 0.92rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.drv-prod__price.is-edited { border-color: var(--accent); color: var(--accent); }
+.drv-prod__price:focus { outline: none; border-color: var(--accent); }
+
+.drv-prod__price-label {
+  font-size: 0.74rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.drv-prod__qty {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.drv-prod__qty-input {
+  width: 56px;
+  min-height: 40px;
+  padding: 6px 4px;
+  border-radius: 9px;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.14));
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 800;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.drv-prod__qty-input:focus { outline: none; border-color: var(--accent); }
+
+.drv-prod__qty .drv-qty__btn { width: 38px; height: 38px; font-size: 1.15rem; }
+
+/* ── CHECKBOX ROW ──────────────────────────────────────────────────────── */
+.drv-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  padding: 10px 12px;
+  border-radius: 11px;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+  background: var(--bg-secondary);
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+.drv-check input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--accent);
+  flex-shrink: 0;
+}
+
+/* ── PROMO BADGES ──────────────────────────────────────────────────────── */
+.drv-promo-badge {
+  padding: 9px 12px;
+  border-radius: 11px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin-top: 8px;
+  line-height: 1.4;
+}
+.drv-promo-badge--new {
+  background: rgba(249, 115, 22, 0.14);
+  border: 1px solid rgba(249, 115, 22, 0.42);
+  color: #f97316;
+}
+.drv-promo-badge--reward {
+  background: var(--info-dim, rgba(59, 130, 246, 0.15));
+  border: 1px solid rgba(59, 130, 246, 0.42);
+  color: #60a5fa;
+}
+.drv-promo-badge--danger {
+  background: var(--danger-dim);
+  border: 1px solid var(--danger);
+  color: var(--danger);
+}
+
+.drv-promo-preview {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(249, 115, 22, 0.12);
+  border: 1px solid rgba(249, 115, 22, 0.38);
+  color: #f97316;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+/* ── INVOICE CARD ──────────────────────────────────────────────────────── */
+.drv-invoice__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  font-size: 0.9rem;
+  border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.06));
+}
+.drv-invoice__row:last-child { border-bottom: none; }
+.drv-invoice__row span:first-child { color: var(--text-secondary); }
+
+.drv-invoice__items { margin: 8px 0; }
+
+.drv-invoice__row--total {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--accent);
+  border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+}
+
+.drv-invoice__qr {
+  margin-top: 12px;
+  text-align: center;
+}
+
+.drv-invoice__qr-img {
+  width: 100%;
+  max-width: 260px;
+  height: auto;
+  border-radius: 12px;
+  background: #fff;
+  padding: 8px;
+  display: block;
+  margin: 0 auto 6px;
+}
+
 /* ── LOGIN PAGE ────────────────────────────────────────────────────────── */
 .drv-login {
   min-height: 100vh;

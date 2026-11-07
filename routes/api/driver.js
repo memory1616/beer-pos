@@ -15,6 +15,7 @@ const db = require('../../database');
 const logger = require('../../src/utils/logger');
 const DeliveryService = require('../../src/services/DeliveryService');
 const { ROLE_DRIVER } = require('../../middleware/permissions');
+const { PromotionService } = require('../../src/services');
 
 // Router sales chuẩn — dùng lại để forward (tái sử dụng nghiệp vụ)
 const salesRouter = require('./sales');
@@ -43,8 +44,9 @@ function requireDriver(req, res, next) {
  * @param {string} subPath - path tương đối trong router sales (vd: '/', '/123')
  * @param {string} method
  * @param {function} onJson - callback (payload) sau khi handler gốc res.json
+ * @param {object} bodyOverride - body thay thế (dùng khi tài xế gửi payload khác)
  */
-function forwardToSales(req, res, subPath, method, onJson) {
+function forwardToSales(req, res, subPath, method, onJson, bodyOverride) {
   const originalJson = res.json.bind(res);
   let intercepted = false;
 
@@ -62,14 +64,20 @@ function forwardToSales(req, res, subPath, method, onJson) {
 
   const originalUrl = req.url;
   const originalMethod = req.method;
+  const originalBody = req.body;
   req.url = subPath;
   req.method = method;
+  if (bodyOverride !== undefined) req.body = bodyOverride;
 
   salesRouter(req, res, (err) => {
     // Handler gốc không match → trả lỗi
     req.url = originalUrl;
     req.method = originalMethod;
-    if (err) return next(err);
+    req.body = originalBody;
+    if (err) {
+      logger.error('[driver] forward error', { error: err.message });
+      return res.status(500).json({ error: 'Lỗi xử lý yêu cầu: ' + err.message });
+    }
     res.status(404).json({ error: 'Không tìm thấy endpoint' });
   });
 }
@@ -145,6 +153,10 @@ router.get('/sales', requireDriver, (req, res) => {
                 s.return_kegs, s.keg_balance_after, s.type, s.note, s.payment_status,
                 s.promo_free_liters, s.promo_type, s.delivery_status,
                 COALESCE(c.name, 'Khách lẻ') AS customer_name,
+                c.phone AS customer_phone,
+                c.address AS customer_address,
+                c.lat AS customer_lat,
+                c.lng AS customer_lng,
                 (SELECT COALESCE(SUM(si.quantity), 0) FROM sale_items si WHERE si.sale_id = s.id) AS items_qty
          FROM sales s
          LEFT JOIN customers c ON c.id = s.customer_id
@@ -173,7 +185,12 @@ router.get('/sales/:id', requireDriver, (req, res) => {
                 s.return_kegs, s.keg_balance_after, s.type, s.note, s.payment_status,
                 s.promo_free_liters, s.promo_type, s.reward_liters_used, s.delivery_status,
                 s.driver_username,
-                COALESCE(c.name, 'Khách lẻ') AS customer_name
+                COALESCE(c.name, 'Khách lẻ') AS customer_name,
+                c.phone AS customer_phone,
+                c.address AS customer_address,
+                c.lat AS customer_lat,
+                c.lng AS customer_lng,
+                c.keg_balance AS customer_keg_balance
          FROM sales s
          LEFT JOIN customers c ON c.id = s.customer_id
          WHERE s.id = ?`
@@ -646,6 +663,198 @@ router.get('/debts/:customerId', requireDriver, (req, res) => {
   } catch (err) {
     logger.error('[driver] debts error', { error: err.message });
     res.status(500).json({ error: 'Lỗi khi tải công nợ' });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MODULE POS NÂNG CAO — khuyến mãi, QR, vỏ, đổi lỗi, công nợ
+// (Tất cả scope theo tài xế / khách hàng — KHÔNG lộ dữ liệu tài chính)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// GET /api/driver/promotions/overview/:customerId
+// Tổng quan KM của khách: quán mới + thưởng sản lượng (KHÔNG có doanh thu/lợi nhuận)
+router.get('/promotions/overview/:customerId', requireDriver, (req, res) => {
+  try {
+    const customerId = parseInt(req.params.customerId);
+    if (!customerId) return res.status(400).json({ error: 'ID khách hàng không hợp lệ' });
+
+    const customer = db
+      .prepare(
+        `SELECT id, name, promotion_enabled, new_shop_enabled, reward_enabled, created_at
+         FROM customers WHERE id = ? AND archived = 0`
+      )
+      .get(customerId);
+    if (!customer) return res.status(404).json({ error: 'Không tìm thấy khách hàng' });
+
+    const settings = PromotionService.getSystemPromotionSettings();
+    const customerNewShopEnabled = customer.new_shop_enabled !== null ? customer.new_shop_enabled : 1;
+    const customerRewardEnabled = customer.reward_enabled !== null ? customer.reward_enabled : 1;
+
+    const promoType = PromotionService.getCustomerPromotionType(customerId);
+    const isNewShopPromotion = promoType.isNewShopPromotion;
+    const isRewardEligible = promoType.isRewardEligible;
+
+    let newShopInfo = null;
+    if (isNewShopPromotion && customer.promotion_enabled !== 0 && customerNewShopEnabled) {
+      newShopInfo = PromotionService.isNewShopEligible(customerId);
+    }
+
+    let rewardInfo = null;
+    if (isRewardEligible && customer.promotion_enabled !== 0 && customerRewardEnabled) {
+      rewardInfo = PromotionService.calculateMonthlyReward(customerId);
+    }
+
+    const promoStartDate = PromotionService.getPromotionStartDate(customer);
+
+    res.json({
+      success: true,
+      data: {
+        customerId,
+        customerName: customer.name,
+        createdAt: customer.created_at,
+        promotionEnabled: customer.promotion_enabled !== 0,
+        newShopEnabled: customerNewShopEnabled,
+        rewardEnabled: customerRewardEnabled,
+        systemNewShopEnabled: settings.newShopEnabled,
+        systemRewardEnabled: settings.rewardEnabled,
+        isNewShopPromotion,
+        isRewardEligible,
+        promotionReason: promoType.reason,
+        promotionStartDate: promoStartDate,
+        isInNewShopPeriod: isNewShopPromotion,
+        canReceiveReward: isRewardEligible,
+        isWithinPromotionPeriod: PromotionService.isWithinPromotionPeriod(),
+        promotionEndDate: settings.endDate,
+        newShop: newShopInfo,
+        newShopSettings: {
+          goldBuy: settings.newShopGoldBuy,
+          goldFree: settings.newShopGoldFree,
+          blackBuy: settings.newShopBlackBuy,
+          blackFree: settings.newShopBlackFree,
+        },
+        monthlyReward: rewardInfo,
+      },
+    });
+  } catch (err) {
+    logger.error('[driver] promotions overview error', { error: err.message });
+    res.status(500).json({ success: false, error: 'Lỗi khi tải thông tin khuyến mãi' });
+  }
+});
+
+// GET /api/driver/qr-accounts — danh sách tài khoản QR đang active (để in hoá đơn)
+router.get('/qr-accounts', requireDriver, (req, res) => {
+  try {
+    const rows = db
+      .prepare(
+        `SELECT id, label, bank_code, account_no, account_name, template, default_content
+         FROM qr_accounts WHERE active = 1 ORDER BY sort_order ASC, id ASC`
+      )
+      .all();
+
+    // Fallback: nếu chưa có row nào, đọc từ settings
+    if (!rows.length) {
+      const settings = db.prepare('SELECT key, value FROM settings').all();
+      const map = {};
+      settings.forEach((s) => { map[s.key] = s.value; });
+      if (map.qr_account_no) {
+        res.json([
+          {
+            id: 0,
+            label: 'Tài khoản mặc định',
+            bank_code: map.qr_bank_code || 'ICB',
+            account_no: map.qr_account_no,
+            account_name: map.qr_account_name || '',
+            template: map.qr_template || 'compact2',
+            default_content: map.qr_default_content || 'Thanh toan HD {invoice_id}',
+          },
+        ]);
+        return;
+      }
+    }
+
+    res.json(rows);
+  } catch (err) {
+    logger.error('[driver] qr accounts error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi tải tài khoản QR' });
+  }
+});
+
+// POST /api/driver/sales/:id/kegs — cập nhật vỏ giao/thu cho 1 đơn của tài xế
+// Dùng chung nghiệp vụ với POST /api/sales/update-kegs (forward nội bộ).
+router.post('/sales/:id/kegs', requireDriver, (req, res) => {
+  try {
+    const saleId = parseInt(req.params.id);
+    if (!saleId) return res.status(400).json({ error: 'ID đơn hàng không hợp lệ' });
+
+    const sale = db.prepare('SELECT customer_id, driver_username FROM sales WHERE id = ?').get(saleId);
+    if (!sale) return res.status(404).json({ error: 'Không tìm thấy đơn hàng' });
+    if (sale.driver_username !== req.user.username) {
+      return res.status(403).json({ error: 'Không có quyền cập nhật đơn hàng này', code: 'DRIVER_SCOPE' });
+    }
+    if (!sale.customer_id) {
+      return res.status(400).json({ error: 'Đơn khách lẻ không có số vỏ khách' });
+    }
+
+    const { deliver = 0, returned = 0 } = req.body || {};
+    forwardToSales(req, res, '/update-kegs', 'POST', null, {
+      saleId,
+      customerId: sale.customer_id,
+      deliver: parseInt(deliver) || 0,
+      returned: parseInt(returned) || 0,
+    });
+  } catch (err) {
+    logger.error('[driver] update kegs error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi cập nhật vỏ: ' + err.message });
+  }
+});
+
+// POST /api/driver/replacement — đổi bia lỗi / tặng uống thử (KHÔNG tính tiền)
+// Dùng chung nghiệp vụ với POST /api/sales/replacement (forward nội bộ).
+router.post('/replacement', requireDriver, (req, res) => {
+  try {
+    const body = { ...(req.body || {}) };
+    const quantity = parseInt(body.quantity) || 0;
+    const productId = parseInt(body.product_id || body.productId) || 0;
+    const isGift = !!body.gift;
+
+    if (!productId || quantity <= 0) {
+      return res.status(400).json({ error: 'Thiếu thông tin cần thiết' });
+    }
+    if (!isGift && !body.customer_id) {
+      return res.status(400).json({ error: 'Vui lòng chọn khách hàng' });
+    }
+
+    // Chuẩn hoá key cho đúng nghiệp vụ gốc
+    forwardToSales(req, res, '/replacement', 'POST', null, {
+      customer_id: body.customer_id ? parseInt(body.customer_id) : null,
+      product_id: productId,
+      quantity,
+      reason: body.reason || 'Bia hư',
+      gift: isGift,
+      giftGuestName: body.giftGuestName || body.gift_guest_name || '',
+    });
+  } catch (err) {
+    logger.error('[driver] replacement error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi đổi bia lỗi: ' + err.message });
+  }
+});
+
+// PATCH /api/driver/sales/:id/payment-status — cập nhật trạng thái thanh toán
+router.patch('/sales/:id/payment-status', requireDriver, (req, res) => {
+  try {
+    const saleId = parseInt(req.params.id);
+    if (!saleId) return res.status(400).json({ error: 'ID đơn hàng không hợp lệ' });
+
+    const sale = db.prepare('SELECT driver_username FROM sales WHERE id = ?').get(saleId);
+    if (!sale) return res.status(404).json({ error: 'Không tìm thấy đơn hàng' });
+    if (sale.driver_username !== req.user.username) {
+      return res.status(403).json({ error: 'Không có quyền cập nhật đơn hàng này', code: 'DRIVER_SCOPE' });
+    }
+
+    forwardToSales(req, res, `/${saleId}/payment-status`, 'PATCH', null, req.body || {});
+  } catch (err) {
+    logger.error('[driver] payment-status error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi cập nhật trạng thái thanh toán: ' + err.message });
   }
 });
 

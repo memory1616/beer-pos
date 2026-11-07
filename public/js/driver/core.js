@@ -118,7 +118,27 @@
         body: { customerId: customerId, amount: amount, note: note }
       });
     },
-    customerDebts: function (id) { return api('/api/driver/debts/' + id); }
+    customerDebts: function (id) { return api('/api/driver/debts/' + id); },
+
+    // ── POS nâng cao (khuyến mãi, QR, vỏ, đổi lỗi, trạng thái thanh toán) ──
+    promotionsOverview: function (customerId) {
+      return api('/api/driver/promotions/overview/' + encodeURIComponent(customerId));
+    },
+    qrAccounts: function () { return api('/api/driver/qr-accounts'); },
+    updateSaleKegs: function (id, deliver, returned) {
+      return api('/api/driver/sales/' + id + '/kegs', {
+        method: 'POST',
+        body: { deliver: deliver, returned: returned }
+      });
+    },
+    replacement: function (b) {
+      return api('/api/driver/replacement', { method: 'POST', body: b });
+    },
+    updatePaymentStatus: function (id, status) {
+      return api('/api/driver/sales/' + id + '/payment-status', {
+        method: 'PATCH', body: { payment_status: status }
+      });
+    }
   };
 
   // ── Format ──────────────────────────────────────────────────────────────
@@ -151,6 +171,48 @@
   function timeNow() {
     var d = new Date();
     return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  }
+
+  // ── Bản đồ / Chỉ đường ─────────────────────────────────────────────────
+  /**
+   * Tạo link Google Maps chỉ đường tới khách hàng.
+   * - Có lat/lng  → điểm chính xác
+   * - Chỉ có địa chỉ → tìm theo text
+   * Trả về null nếu không có đủ thông tin.
+   */
+  function mapDirectionsLink(customer) {
+    if (!customer) return null;
+    var lat = customer.lat;
+    var lng = customer.lng;
+    var hasPoint = lat !== null && lat !== undefined && lng !== null && lng !== undefined &&
+                   lat !== '' && lng !== '' && !isNaN(Number(lat)) && !isNaN(Number(lng));
+
+    if (hasPoint) {
+      return 'https://www.google.com/maps/dir/?api=1&destination=' +
+        encodeURIComponent(Number(lat) + ',' + Number(lng));
+    }
+
+    var address = (customer.address || '').trim();
+    if (!address) return null;
+
+    return 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(address);
+  }
+
+  /** Mở Google Maps chỉ đường (tab mới) */
+  function openDirections(customer) {
+    var link = mapDirectionsLink(customer);
+    if (!link) {
+      toast('Khách chưa có địa chỉ hoặc tọa độ để chỉ đường', 'warning');
+      return null;
+    }
+    window.open(link, '_blank', 'noopener');
+    return link;
+  }
+
+  /** Link gọi điện cho khách */
+  function telLink(phone) {
+    var p = (phone || '').replace(/[^\d+]/g, '');
+    return p ? 'tel:' + p : null;
   }
 
   // ── Toast ───────────────────────────────────────────────────────────────
@@ -320,6 +382,9 @@
     num: num,
     dateLabel: dateLabel,
     timeNow: timeNow,
+    mapDirectionsLink: mapDirectionsLink,
+    openDirections: openDirections,
+    telLink: telLink,
     toast: toast,
     openModal: openModal,
     closeModal: closeModal,
