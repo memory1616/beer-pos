@@ -98,6 +98,27 @@ fi
 ok "Server: $(hostname)  Path: $VPS_PATH"
 log_to_file "Deploy started - $(date)"
 
+# ---- 0.5 Bootstrap SSH key (one-time, idempotent) ----
+# Cho phep may local goi lai SSH bang key thay vi password.
+# Key duoc lay tu file <repo>/deploy/deploy_bootstrap_key.pub.
+BOOTSTRAP_PUB="$VPS_PATH/deploy/deploy_bootstrap_key.pub"
+if [ -f "$BOOTSTRAP_PUB" ]; then
+    BOOTSTRAP_KEY=$(grep -vE '^\s*(#|$)' "$BOOTSTRAP_PUB" | head -1)
+    if [ -n "$BOOTSTRAP_KEY" ]; then
+        mkdir -p /root/.ssh
+        chmod 700 /root/.ssh
+        touch /root/.ssh/authorized_keys
+        chmod 600 /root/.ssh/authorized_keys
+        if ! grep -qF "$BOOTSTRAP_KEY" /root/.ssh/authorized_keys 2>/dev/null; then
+            echo "$BOOTSTRAP_KEY" >> /root/.ssh/authorized_keys
+            log "[0/7] Bootstrap SSH key installed to /root/.ssh/authorized_keys"
+            log_to_file "Bootstrap SSH key installed"
+        else
+            log "[0/7] Bootstrap SSH key already present"
+        fi
+    fi
+fi
+
 # ---- 2. Phat hien cach deploy ----
 HAS_NEW=0
 # Check if staging directory has content (use 'find' instead of 'ls -A' for safety)
