@@ -943,9 +943,9 @@ describe('Driver Portal — RBAC & Data Protection', () => {
         expect(homeHtml).toMatch(/id="home-orders"/);
         expect(homeHtml).toMatch(/id="home-liters"/);
         expect(homeHtml).toMatch(/id="home-kegs"/);
-        expect(homeHtml).toMatch(/Số đơn hôm nay/);
-        expect(homeHtml).toMatch(/Số lít hôm nay/);
-        expect(homeHtml).toMatch(/Tổng vỏ đã thu hôm nay/);
+        expect(homeHtml).toMatch(/Số đơn/);
+        expect(homeHtml).toMatch(/Số lít/);
+        expect(homeHtml).toMatch(/Vỏ đã thu/);
 
         // Không còn các thẻ thống kê cũ
         for (const old of ['st-total', 'st-delivered', 'st-pending', 'st-stops',
@@ -993,8 +993,9 @@ describe('Driver Portal — RBAC & Data Protection', () => {
         const css = fs2.readFileSync(
           path2.join(__dirname, '../public/css/driver.css'), 'utf8');
         expect(css).toMatch(/\.drv-home-header\b/);
-        expect(css).toMatch(/\.drv-home-stat--orders/);
-        expect(css).toMatch(/\.drv-home-stat--liters/);
+        expect(css).toMatch(/\.drv-home-kpi--orders/);
+        expect(css).toMatch(/\.drv-home-kpi--liters/);
+        expect(css).toMatch(/\.drv-home-kpi--kegs/);
         expect(css).toMatch(/\.drv-home-user__name/);
       });
     });
