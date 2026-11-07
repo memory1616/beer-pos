@@ -1,0 +1,71 @@
+name: Diagnose SSH
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/diagnose.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: diagnose-production
+  cancel-in-progress: true
+
+jobs:
+  diagnose:
+    name: Diagnose SSH access
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Diagnose
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          echo "=== Secrets present ==="
+          echo "VPS_HOST=$VPS_HOST"
+          echo "VPS_USER=$VPS_USER"
+          echo "VPS_PORT=$VPS_PORT"
+          echo "VPS_SSH_KEY length: ${#VPS_SSH_KEY}"
+
+          mkdir -p ~/.ssh
+          echo "$VPS_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          # Print the public key of the secret so we can compare locally
+          echo "=== Secret key fingerprint ==="
+          ssh-keygen -lf ~/.ssh/deploy_key || true
+          ssh-keygen -y -f ~/.ssh/deploy_key || true
+
+          echo "=== SSH attempt (verbose tail) ==="
+          ssh -v -i ~/.ssh/deploy_key \
+            -o StrictHostKeyChecking=accept-new \
+            -o BatchMode=yes \
+            -o ConnectTimeout=15 \
+            -p "${VPS_PORT:-22}" \
+            "${VPS_USER}@${VPS_HOST}" 'echo SSH_OK; hostname; uptime' 2>&1 | tail -40 || true
+
+          echo "=== Server-side inspection ==="
+          ssh -i ~/.ssh/deploy_key \
+            -o StrictHostKeyChecking=accept-new \
+            -o BatchMode=yes \
+            -o ConnectTimeout=15 \
+            -p "${VPS_PORT:-22}" \
+            "${VPS_USER}@${VPS_HOST}" 'bash -s' << 'REMOTE' 2>&1 || true
+          echo "--- hostname ---"
+          hostname
+          echo "--- public IPs ---"
+          (curl -s --max-time 5 ifconfig.me || true); echo
+          echo "--- sshd_config auth lines ---"
+          grep -RihE "^(PubkeyAuthentication|PasswordAuthentication|PermitRootLogin|AuthorizedKeysFile|Port)" /etc/ssh/sshd_config /etc/ssh/sshd_config.d/ 2>/dev/null
+          echo "--- /root/.ssh listing ---"
+          ls -la /root/.ssh/ 2>&1
+          echo "--- authorized_keys ---"
+          cat /root/.ssh/authorized_keys 2>&1
+          echo "--- fail2ban ---"
+          (fail2ban-client status sshd 2>&1 || true)
+          echo "--- ufw ---"
+          (ufw status 2>&1 || true)
+          REMOTE
