@@ -997,9 +997,21 @@ describe('Driver Portal — RBAC & Data Protection', () => {
         expect(homeHandler).toMatch(/SUM\(si\.quantity\)/);
       });
 
-      test('Tổng vỏ đã thu hôm nay lấy từ delivery_records (status DELIVERED)', () => {
-        expect(driverApiSrc).toMatch(/collected_kegs/);
-        expect(driverApiSrc).toMatch(/dr\.status = 'DELIVERED'/);
+      test('Tổng vỏ đã thu hôm nay lấy từ 2 nguồn + dedupe theo đơn', () => {
+        const homeStart = driverApiSrc.indexOf("router.get('/home'");
+        const homeHandler = driverApiSrc.slice(homeStart, homeStart + 4000);
+
+        // Nguồn 1: vỏ thu trên đơn bán (sales.return_kegs)
+        expect(homeHandler).toMatch(/s\.return_kegs/);
+        // Nguồn 2: vỏ thu trên phiếu giao (delivery_records.collected_kegs)
+        expect(homeHandler).toMatch(/dr\.collected_kegs/);
+        // Dedupe: MAX theo order_key trong subquery
+        expect(homeHandler).toMatch(/GROUP BY order_key/);
+        expect(homeHandler).toMatch(/MAX\(kegs_sale, kegs_delivery\)/);
+        // Ngày tính = ngày hoàn tất thực tế, KHÔNG dùng scheduled_date
+        expect(homeHandler).toMatch(/COALESCE\(NULLIF\(dr\.completed_at, ''\), dr\.updated_at, dr\.scheduled_date\)/);
+        // Không được giới hạn status = DELIVERED (bỏ sót đơn DISCREPANCY)
+        expect(homeHandler).not.toMatch(/dr\.status = 'DELIVERED'/);
       });
 
       test('CSS có style riêng cho trang chủ mới', () => {

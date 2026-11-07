@@ -125,7 +125,14 @@ router.get('/dashboard', requireDriver, (req, res) => {
 //   - todayOrders : số đơn của tài xế HÔM NAY (bán trực tiếp + giao hàng)
 //   - todayLiters : tổng số lít bia HÔM NAY — TÍNH CẢ BIA PET
 //                   (quy ước: 1 đơn vị bán của mọi loại = 1 lít)
-//   - todayKegs   : tổng số vỏ bình đã thu hôm nay
+//   - todayKegs   : tổng số vỏ bình đã thu HÔM NAY
+//                   - Gộp 2 nguồn: `sales.return_kegs` (vỏ thu ở màn Bán hàng)
+//                     + `delivery_records.collected_kegs` (vỏ thu ở màn Giao hàng)
+//                   - Dedupe theo đơn (MAX) → đơn có cả 2 nguồn chỉ tính 1 lần
+//                   - Ngày tính = ngày THỰC TẾ hoàn tất (completed_at/updated_at),
+//                     không dùng scheduled_date (ngày hẹn) để tránh lệch sang ngày
+//                   - Tính mọi trạng thái (DELIVERED / DISCREPANCY) — tài xế đã thu
+//                     vỏ thì vẫn phải hiện trong KPI
 //
 // KHÔNG có doanh thu / lợi nhuận / giá vốn.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -153,18 +160,41 @@ router.get('/home', requireDriver, (req, res) => {
       )
       .get(date, req.user.username);
 
-    // Tổng vỏ bình đã thu hôm nay (chỉ tính phiếu giao đã hoàn tất)
+    // Tổng vỏ bình đã thu hôm nay
+    // - UNION 2 nguồn, GROUP BY đơn + MAX → không đếm trùng
+    // - Ngày = ngày hoàn tất thực tế (fallback updated_at → scheduled_date)
     const kegRow = db
       .prepare(
         `
-        SELECT COALESCE(SUM(dr.collected_kegs), 0) AS today_kegs
-        FROM delivery_records dr
-        WHERE dr.driver_username = ?
-          AND DATE(dr.scheduled_date) = ?
-          AND dr.status = 'DELIVERED'
+        SELECT COALESCE(SUM(collected), 0) AS today_kegs
+        FROM (
+          SELECT order_key, MAX(kegs_sale, kegs_delivery) AS collected
+          FROM (
+            -- Nguồn 1: vỏ thu trên đơn bán (màn "Cập nhật vỏ")
+            SELECT s.id AS order_key,
+                   COALESCE(s.return_kegs, 0) AS kegs_sale,
+                   0 AS kegs_delivery
+            FROM sales s
+            WHERE s.type IN ('sale', 'replacement')
+              AND s.archived = 0
+              AND s.deleted = 0
+              AND DATE(s.date) = ?
+              AND (s.driver_username = ? OR s.driver_username IS NULL OR s.driver_username = '')
+            UNION ALL
+            -- Nguồn 2: vỏ thu trên phiếu giao (màn "Xác nhận giao")
+            SELECT COALESCE(dr.sale_id, -dr.id) AS order_key,
+                   0 AS kegs_sale,
+                   COALESCE(dr.collected_kegs, 0) AS kegs_delivery
+            FROM delivery_records dr
+            WHERE COALESCE(dr.collected_kegs, 0) > 0
+              AND DATE(COALESCE(NULLIF(dr.completed_at, ''), dr.updated_at, dr.scheduled_date)) = ?
+              AND (dr.driver_username = ? OR dr.driver_username IS NULL OR dr.driver_username = '')
+          )
+          GROUP BY order_key
+        )
       `
       )
-      .get(req.user.username, date);
+      .get(date, req.user.username, date, req.user.username);
 
     res.json({
       date,
