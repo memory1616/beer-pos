@@ -1215,7 +1215,7 @@ body.body--app .page-content {
 /* ── KPI gọn: icon + label + value, 3 cột ─────────────────────────────── */
 .drv-home-stats {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -1224,6 +1224,7 @@ body.body--app .page-content {
   flex-direction: column;
   align-items: center;
   gap: 4px;
+  min-width: 0;
   padding: 12px 6px 11px;
   text-align: center;
   background: var(--bg-card);
@@ -1241,7 +1242,8 @@ body.body--app .page-content {
   font-weight: 600;
   color: var(--text-secondary);
   line-height: 1.2;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .drv-home-kpi__label em {
