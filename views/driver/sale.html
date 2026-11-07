@@ -1,162 +1,401 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
+  <!-- NO-FLICKER: Apply theme BEFORE first paint to prevent flash -->
+  <script>
+  (function () {
+    var k = 'theme';
+    var sys = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    var saved = localStorage.getItem(k);
+    var theme = (saved === 'light' || saved === 'dark') ? saved : sys;
+    document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.classList.remove('light', 'dark');
+    document.documentElement.classList.add(theme);
+    var metaTheme = document.querySelector('meta[name="theme-color"]');
+    if (metaTheme) {
+      metaTheme.setAttribute('content', theme === 'light' ? '#FFFFFF' : '#0B0E11');
+    }
+  })();
+  </script>
+  <script>window.BASE_PATH = '/';</script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Bán hàng — Bia Tươi Tây Ninh</title>
+  <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#0B0E11">
   <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="icon" type="image/png" href="/icon-192.png">
+
+  <!-- ═══ DÙNG CHUNG GIAO DIỆN ADMIN (unified.css) ═══ -->
+  <link rel="stylesheet" href="/css/unified.css?v=20260419-thutien-click">
+  <!-- Lớp bổ sung cho Driver Portal: bottom menu 4 mục + header tài xế -->
   <link rel="stylesheet" href="/css/driver.css?v=20261107">
+
+  <script src="/js/dark-mode.js"></script>
+  <script src="/js/layout.js?v=20260412b-app-shell"></script>
+  <script src="https://unpkg.com/dexie@3/dist/dexie.min.js"></script>
 </head>
-<body>
-  <header class="drv-header">
-    <div class="drv-header__title" id="drv-page-title">BÁN HÀNG</div>
-    <div class="drv-header__user" id="drv-user">…</div>
-    <button class="drv-header__logout" id="drv-logout" type="button">Thoát</button>
-  </header>
+<body class="body--app">
 
-  <main class="drv-main">
-    <!-- ═══ Bước 1: Khách hàng ═══ -->
-    <section class="drv-section">
-      <h2 class="drv-section__title">1. Khách hàng</h2>
-      <div class="drv-card">
-        <div id="selected-customer" class="drv-hidden">
-          <div class="drv-cart__row">
-            <div style="min-width:0;">
-              <div style="font-weight:800;font-size:1.05rem;" id="cust-name">—</div>
-              <div class="drv-muted" style="font-size:0.85rem;" id="cust-meta">—</div>
-              <div class="drv-muted" style="font-size:0.82rem;margin-top:2px;" id="cust-addr">—</div>
+  <div id="app" class="app"></div>
+
+  <!-- ═══ CHECKOUT MODAL ═══ -->
+  <div id="checkoutModal" class="pos-modal-overlay hidden">
+    <div class="pos-modal-sheet">
+      <div class="pos-modal-header">
+        <div class="pos-modal-title">XÁC NHẬN BÁN HÀNG</div>
+        <button onclick="closeCheckoutModal()" class="pos-modal-close">×</button>
+      </div>
+      <div class="pos-modal-body" id="checkoutModalBody">
+        <!-- Rendered by JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ KEG MODAL ═══ -->
+  <div id="kegModal" class="modal-overlay-v2 hidden center">
+    <div class="modal-sheet-v2">
+      <div class="modal-sheet-v2-header">
+        <div style="font-size:15px;font-weight:700;color:var(--accent);">📦 Cập nhật vỏ bình</div>
+        <button onclick="closeKegModal()" class="modal-sheet-v2-close">×</button>
+      </div>
+      <div class="modal-sheet-v2-body">
+        <div id="kegModalBadge" class="hidden mb-3 p-2 rounded-lg text-center text-sm" style="background:var(--card-soft);border:1px solid var(--border);">
+          <span style="color:var(--text-secondary);">Đã giao: <span id="kegBadgeGiao" style="font-weight:700;color:var(--success);">0</span>
+          <span style="color:var(--text-secondary);margin:0 8px;">|</span>
+          Đã thu: <span id="kegBadgeThu" style="font-weight:700;color:var(--danger);">0</span></span>
+        </div>
+        <div class="card mb-4 text-center" style="background:var(--primary-dim);border:1px solid rgba(252,213,53,0.2);border-radius:8px;padding:12px;">
+          <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Bia đã bán</div>
+          <div style="font-size:32px;font-weight:800;color:var(--accent);" id="kegBeerQuantity">0</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div>
+            <label style="display:block;font-size:12px;font-weight:600;color:var(--success);margin-bottom:6px;">📦 Giao vỏ</label>
+            <input type="number" id="kegDeliver" value="0" inputmode="numeric" min="0"
+              style="width:100%;height:44px;padding:0 12px;border-radius:8px;border:2px solid var(--success);background:var(--card);color:var(--text-primary);font-size:16px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;"
+              oninput="typeof updateKegModalPreview === 'function' && updateKegModalPreview()" onchange="typeof updateKegModalPreview === 'function' && updateKegModalPreview()">
+          </div>
+          <div>
+            <label style="display:block;font-size:12px;font-weight:600;color:var(--danger);margin-bottom:6px;">🔄 Thu vỏ</label>
+            <input type="number" id="kegReturn" value="0" inputmode="numeric" min="0"
+              style="width:100%;height:44px;padding:0 12px;border-radius:8px;border:2px solid var(--danger);background:var(--card);color:var(--text-primary);font-size:16px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;"
+              oninput="typeof updateKegModalPreview === 'function' && updateKegModalPreview()" onchange="typeof updateKegModalPreview === 'function' && updateKegModalPreview()">
+          </div>
+          <div class="card p-3" style="background:var(--card-soft);border:1px solid var(--border);border-radius:8px;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="color:var(--text-muted);font-size:13px;">Vỏ hiện tại:</span><span id="kegCurrentBalance" style="font-weight:700;color:var(--text-primary);">0</span></div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="color:var(--text-muted);font-size:13px;">Sẽ giao thêm:</span><span id="kegDeliverPreview" style="font-weight:700;color:var(--success);">0</span></div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="color:var(--text-muted);font-size:13px;">Sẽ thu về:</span><span id="kegReturnPreview" style="font-weight:700;color:var(--accent);">0</span></div>
+            <div style="display:flex;justify-content:space-between;padding-top:6px;border-top:1px solid var(--border);margin-top:6px;"><span style="color:var(--text-muted);font-size:13px;font-weight:600;">Số vỏ tại khách:</span><span id="kegNewBalance" style="font-weight:700;color:var(--success);">0</span></div>
+          </div>
+          <div id="kegModalWarning" class="hidden" style="padding:10px;border:1px solid var(--danger);border-radius:8px;text-align:center;font-size:13px;color:var(--danger);background:var(--red-dim);">⚠️ Số vỏ thu vượt quá khách đang giữ</div>
+        </div>
+        <div style="margin-top:12px;">
+          <button onclick="typeof saveKegUpdate === 'function' && saveKegUpdate()" id="kegSaveBtn" class="btn btn-primary w-full" style="height:44px;">💾 <span id="kegSaveBtnText">Lưu</span></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ COLLECT KEG MODAL ═══ -->
+  <div id="collectKegModal" class="modal-overlay-v2 hidden center">
+    <div class="modal-sheet-v2" style="max-width:400px;margin:auto;">
+      <div class="modal-sheet-v2-header">
+        <div style="font-size:15px;font-weight:700;color:var(--accent);">📦 Giao / Thu vỏ</div>
+        <button onclick="closeCollectKegModal()" class="modal-sheet-v2-close">×</button>
+      </div>
+      <div class="modal-sheet-v2-body">
+        <div id="collectKegInfo" class="card p-3 mb-4 text-center text-sm" style="background:var(--primary-dim);border:1px solid rgba(252,213,53,0.2);border-radius:8px;color:var(--accent);"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+          <div>
+            <label style="display:block;font-size:11px;font-weight:600;color:var(--success);margin-bottom:6px;text-align:center;">📦 Giao vỏ</label>
+            <input type="number" id="collectKegDeliver" value="0" min="0" inputmode="numeric"
+              style="width:100%;height:44px;padding:0 12px;border-radius:8px;border:2px solid var(--success);background:var(--card);color:var(--text-primary);font-size:16px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;"
+              oninput="typeof updateCollectKegPreview === 'function' && updateCollectKegPreview()">
+          </div>
+          <div>
+            <label style="display:block;font-size:11px;font-weight:600;color:var(--danger);margin-bottom:6px;text-align:center;">🔄 Thu vỏ</label>
+            <input type="number" id="collectKegReturn" value="0" min="0" inputmode="numeric"
+              style="width:100%;height:44px;padding:0 12px;border-radius:8px;border:2px solid var(--danger);background:var(--card);color:var(--text-primary);font-size:16px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;"
+              oninput="typeof updateCollectKegPreview === 'function' && updateCollectKegPreview()">
+          </div>
+        </div>
+        <div class="card p-3 mb-4" style="background:var(--card-soft);border:1px solid var(--border);border-radius:8px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="color:var(--text-muted);font-size:13px;">📦 Tồn trước đơn:</span><span id="collectKegCurrentBalance" style="font-weight:700;color:var(--text-primary);">0</span></div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span id="collectKegCurrentLabel" style="color:var(--text-muted);font-size:13px;">📊 Tồn hiện tại khách:</span><span id="collectKegCurrentCustomerBalance" style="font-weight:700;color:var(--text-muted);">—</span></div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="color:var(--text-muted);font-size:13px;">📦 Giao thêm:</span><span id="collectKegDeliverPreview" style="font-weight:700;color:var(--success);">0</span></div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="color:var(--text-muted);font-size:13px;">🔄 Thu về:</span><span id="collectKegReturnPreview" style="font-weight:700;color:var(--accent);">0</span></div>
+          <div style="display:flex;justify-content:space-between;padding-top:6px;border-top:1px solid var(--border);margin-top:6px;"><span style="color:var(--text-muted);font-size:13px;font-weight:600;">Tồn sau đơn:</span><span id="collectKegRemaining" style="font-weight:700;color:var(--success);">0</span></div>
+        </div>
+        <div id="collectKegWarning" class="hidden mb-3 p-2 text-center text-sm" style="border:1px solid var(--danger);border-radius:8px;color:var(--danger);background:var(--red-dim);"></div>
+        <div style="display:flex;gap:8px;">
+          <button onclick="typeof closeCollectKegModal === 'function' && closeCollectKegModal()" class="btn btn-ghost" style="flex:1;height:44px;border:1px solid var(--border);">Huỷ</button>
+          <button onclick="typeof submitCollectKeg === 'function' && submitCollectKeg()" class="btn btn-primary" style="flex:1;height:44px;background:var(--accent);color:var(--btn-primary-color);">Xác nhận</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ REPLACEMENT MODAL ═══ -->
+  <div id="replacementModal" class="modal-overlay-v2 hidden center">
+    <div class="modal-sheet-v2">
+      <div class="modal-sheet-v2-header">
+        <div style="font-size:15px;font-weight:700;color:var(--accent);">🔄 Đổi bia lỗi</div>
+        <button onclick="typeof closeReplacementModal === 'function' && closeReplacementModal()" class="modal-sheet-v2-close">×</button>
+      </div>
+      <div class="modal-sheet-v2-body">
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div id="giftGuestRow" class="hidden">
+            <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:6px;">👤 Tên khách tặng</label>
+            <input type="text" id="giftGuestName" placeholder="Nhập tên khách"
+              style="width:100%;height:44px;padding:0 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text-primary);font-size:16px;outline:none;box-sizing:border-box;">
+          </div>
+          <div>
+            <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:6px;">👤 Khách hàng</label>
+            <select id="replacementCustomer" onchange="typeof loadReplacementProducts === 'function' && loadReplacementProducts()"
+              style="width:100%;height:44px;padding:0 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text-primary);font-size:16px;outline:none;box-sizing:border-box;">
+              <option value="">-- Chọn khách hàng --</option>
+            </select>
+          </div>
+          <div>
+            <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:6px;">📦 Sản phẩm</label>
+            <select id="replacementProduct"
+              style="width:100%;height:44px;padding:0 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text-primary);font-size:16px;outline:none;box-sizing:border-box;">
+              <option value="">-- Chọn sản phẩm --</option>
+            </select>
+          </div>
+          <div>
+            <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:6px;">Số lượng</label>
+            <input type="number" id="replacementQty" value="1" min="1"
+              style="width:100%;height:44px;padding:0 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text-primary);font-size:16px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;">
+          </div>
+          <div>
+            <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:6px;">Lý do</label>
+            <select id="replacementReason"
+              style="width:100%;height:44px;padding:0 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text-primary);font-size:16px;outline:none;box-sizing:border-box;">
+              <option value="Bia hư">Bia hư</option>
+              <option value="Bia chua">Bia chua</option>
+              <option value="Bia hết hạn">Bia hết hạn</option>
+              <option value="Khác">Khác</option>
+            </select>
+          </div>
+          <div style="padding:12px;border:1px solid rgba(252,213,53,0.3);border-radius:8px;background:var(--primary-dim);">
+            <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;">
+              <input type="checkbox" id="giftKegs" onchange="typeof toggleGiftMode === 'function' && toggleGiftMode()" style="width:18px;height:18px;margin-top:2px;accent-color:var(--accent);">
+              <span style="font-size:13px;font-weight:600;color:var(--text-primary);line-height:1.4;">🎁 Tặng uống thử (khách mới)</span>
+            </label>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:16px;">
+          <button type="button" onclick="typeof closeReplacementModal === 'function' && closeReplacementModal()" style="flex:1;height:44px;border:1px solid var(--border);background:transparent;color:var(--text-muted);border-radius:8px;font-weight:600;cursor:pointer;font-size:14px;">Huỷ</button>
+          <button type="button" onclick="typeof submitReplacement === 'function' && submitReplacement()" style="flex:1;height:44px;border:none;background:var(--accent);color:var(--btn-primary-color);border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">💾 Cập nhật</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sync status indicator -->
+  <div id="syncStatusIndicator" style="position:fixed;top:8px;right:8px;z-index:200;font-size:11px;padding:4px 8px;border-radius:20px;background:var(--card-soft);border:1px solid var(--border);opacity:0.8;display:none;"></div>
+
+  <!-- Invoice Modal — Flat POS Style (GIỐNG ADMIN) -->
+  <div id="invoiceModal" class="inv-overlay hidden">
+    <div class="inv-pos" id="invPosModal">
+
+      <!-- Header -->
+      <div class="inv-pos-header">
+        <button onclick="closeInvoice()" class="inv-close">&times;</button>
+        <div class="inv-pos-title">HÓA ĐƠN</div>
+      </div>
+
+      <!-- Body: flex column, space-between, no scroll -->
+      <div class="inv-pos-body">
+        <div class="inv-pos-inner">
+
+          <!-- Total -->
+          <div class="invoice-total">
+            <div class="invoice-total-label">TỔNG THANH TOÁN</div>
+            <div class="invoice-total-value" id="invTotalValue">0đ</div>
+          </div>
+
+          <!-- Info -->
+          <div class="invoice-info">
+            <div class="invoice-info-date" id="invDate">—</div>
+            <div class="invoice-info-customer" id="invCustomerMeta">—</div>
+          </div>
+
+          <hr class="divider">
+
+          <!-- Product list -->
+          <div class="invoice-list" id="invItemsList"></div>
+
+          <!-- Volume Promotion Note -->
+          <div class="invoice-promo-note" id="invPromoNote"></div>
+
+          <!-- Spacer: fills dead space, pushes bottle+QR to bottom of inner area -->
+          <div class="inv-spacer"></div>
+
+          <hr class="divider">
+
+          <!-- Bottle inline -->
+          <div class="bottle">
+            <div class="bottle-row">
+              <span>📦 Giao vỏ</span>
+              <span class="green" id="invKegDeliver">0</span>
             </div>
-            <button class="drv-btn drv-btn--ghost drv-btn--sm" id="btn-change-cust" type="button">Đổi</button>
+            <div class="bottle-row">
+              <span>🔄 Thu vỏ</span>
+              <span class="red" id="invKegReturn">0</span>
+            </div>
+            <div class="bottle-row">
+              <span>Đang giữ</span>
+              <span class="yellow" id="invKegBalance">0</span>
+            </div>
           </div>
-          <div class="drv-cart__row">
-            <span class="drv-cart__label">Nợ hiện tại</span>
-            <strong id="cust-debt">0 đ</strong>
-          </div>
-          <div class="drv-cart__row">
-            <span class="drv-cart__label">Số vỏ khách đang giữ</span>
-            <strong id="cust-kegs">0</strong>
-          </div>
-          <div class="drv-btn-row drv-mt-12">
-            <button class="drv-btn drv-btn--ghost drv-btn--sm" id="btn-call-cust" type="button">📞 Gọi khách</button>
-            <button class="drv-btn drv-btn--primary drv-btn--sm" id="btn-directions-cust" type="button">🗺️ Chỉ đường</button>
+
+          <hr class="divider">
+
+          <!-- QR Section -->
+          <div class="qr-section" id="vietqrBlock">
+            <select id="invQRSelect" class="qr-select" style="display:none; width:100%; max-width:280px; margin:0 auto 10px; padding:8px 12px; border:1px solid var(--border); border-radius:8px; background:var(--card-soft); color:var(--text-primary); font-size:13px; font-weight:600; cursor:pointer;" onchange="onInvoiceQRChange(this.value)"></select>
+            <img id="vietqrImage" class="qr" src="" alt="QR" onerror="this.style.display='none'">
+            <div class="qr-note">Quét QR thanh toán</div>
           </div>
         </div>
-
-        <div id="customer-picker">
-          <div class="drv-field">
-            <input class="drv-input" id="cust-search" type="search" inputmode="search"
-                   placeholder="🔍 Tìm khách theo tên, SĐT, địa chỉ…" autocomplete="off">
-          </div>
-          <button class="drv-btn drv-btn--primary" id="btn-new-cust" type="button">
-            ➕ Khách mới
-          </button>
-        </div>
-
-        <!-- Badge khuyến mãi / thưởng sản lượng -->
-        <div id="promo-badges" class="drv-hidden drv-mt-12"></div>
-      </div>
-    </section>
-
-    <!-- ═══ Bước 2: Sản phẩm (POS) ═══ -->
-    <section class="drv-section">
-      <h2 class="drv-section__title">2. Sản phẩm</h2>
-      <div class="drv-card">
-        <div class="drv-field">
-          <input class="drv-input" id="prod-search" type="search" inputmode="search"
-                 placeholder="🔍 Tìm sản phẩm…" autocomplete="off">
-        </div>
-        <div id="product-list" class="drv-search-list">
-          <div class="drv-loading">Đang tải…</div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ═══ Bước 3: Đơn hàng ═══ -->
-    <section class="drv-section" id="cart-section">
-      <h2 class="drv-section__title">3. Đơn hàng</h2>
-
-      <div class="drv-cart" id="cart-items">
-        <div class="drv-cart__row">
-          <span class="drv-cart__label">Chưa chọn sản phẩm</span>
-          <strong>0 đ</strong>
-        </div>
       </div>
 
-      <!-- Preview khuyến mãi quán mới -->
-      <div id="promo-preview" class="drv-hidden drv-promo-preview"></div>
+      <!-- Actions -->
+      <div class="inv-pos-actions" id="invActions"></div>
+    </div>
+  </div>
 
-      <div class="drv-card">
-        <div class="drv-field">
-          <label class="drv-field__label" for="deliver-kegs">Số vỏ giao đi</label>
-          <input class="drv-input" id="deliver-kegs" type="number" inputmode="numeric" min="0" value="0">
-        </div>
-        <div class="drv-field">
-          <label class="drv-field__label" for="return-kegs">Số vỏ khách trả lại</label>
-          <input class="drv-input" id="return-kegs" type="number" inputmode="numeric" min="0" value="0">
-        </div>
-        <div class="drv-field">
-          <label class="drv-field__label" for="sale-note">Ghi chú</label>
-          <input class="drv-input" id="sale-note" type="text" placeholder="Ghi chú đơn hàng (không bắt buộc)">
-        </div>
-        <label class="drv-check" for="sale-debt">
-          <input type="checkbox" id="sale-debt">
-          <span>💰 Bán chịu (tạo công nợ)</span>
-        </label>
-      </div>
+  <!-- ═══ DRIVER SCRIPT LOADER ═══ -->
+  <script>
+    async function loadScript(src) {
+      return new Promise(function(resolve, reject) {
+        var s = document.createElement('script');
+        s.src = src;
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
 
-      <div class="drv-btn-row drv-mt-12">
-        <button class="drv-btn drv-btn--ghost" id="btn-cancel-order" type="button">Xoá giỏ</button>
-        <button class="drv-btn drv-btn--primary" id="btn-save-order" type="button" disabled>
-          Lưu đơn
-        </button>
-      </div>
-      <button class="drv-btn drv-btn--warning drv-mt-8" id="btn-replacement" type="button">
-        🔄 Đổi bia lỗi / tặng uống thử
-      </button>
-    </section>
+    (async function() {
+      /* ═══ 1. Nạp core driver TRƯỚC (cần Drv.requireAuth + getDriverBottomNav) ═══ */
+      await loadScript('/js/driver/core.js?v=20261107');
+      await loadScript('/js/driver/api-shim.js?v=20261107');
 
-    <!-- ═══ Hoá đơn / VietQR ═══ -->
-    <section class="drv-section" id="invoice-section">
-      <h2 class="drv-section__title">Hoá đơn</h2>
-      <div class="drv-card" id="invoice-card">
-        <div class="drv-empty">
-          <div class="drv-empty__icon">🧾</div>
-          <div class="drv-empty__text">Chọn đơn hàng để xem hoá đơn & QR thanh toán</div>
-        </div>
-      </div>
-    </section>
+      /* ═══ 2. Xác thực tài xế (bắt buộc) ═══ */
+      try {
+        await window.Drv.requireAuth();
+      } catch (_) { /* requireAuth tự redirect */ }
 
-    <!-- ═══ Lịch sử đơn ═══ -->
-    <section class="drv-section">
-      <h2 class="drv-section__title">Đơn hàng của tôi</h2>
-      <div class="drv-scroll-x drv-mb-12" id="month-chips">
-        <button class="drv-chip is-active" data-month="">Tất cả</button>
-      </div>
-      <div id="sales-list">
-        <div class="drv-loading">Đang tải…</div>
-      </div>
-      <div id="sales-pagination" class="drv-btn-row drv-mt-12"></div>
-    </section>
-  </main>
+      /* ═══ 3. Render layout: header Admin + nội dung + bottom menu Driver ═══ */
+      document.getElementById('app').innerHTML =
+        getHeaderWithActions('Bán hàng', '🍺',
+          '<button onclick="window.Drv.openModal(\'<div class="drv-cart__row"><span class="drv-cart__label">Tài xế</span><strong id="drv-user-name">…</strong></div><div class="drv-btn-row drv-mt-12"><button class="drv-btn drv-btn--ghost" onclick="window.Drv.closeModal()">Đóng</button><button class="drv-btn drv-btn--danger" onclick="window.Drv.logout()">Thoát</button></div>\', { title: \'Tài khoản\' })" title="Tài khoản">👤</button>') +
+        getContent(
+          /* Customer search */
+          '<div class="sale-section">' +
+            '<div class="sale-section-label">KHÁCH HÀNG</div>' +
+            '<div style="position:relative;">' +
+              '<input type="text" id="customerSearch" placeholder="🔍 Tìm khách hàng..."' +
+                ' autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"' +
+                ' class="sale-search-input"' +
+                ' oninput="typeof filterCustomerOptions === \'function\' && filterCustomerOptions(this.value)" onfocus="typeof showCustomerDropdown === \'function\' && showCustomerDropdown(true)">' +
+              '<input type="hidden" id="customerSelect">' +
+              '<div id="customerDropdown" class="hidden sale-customer-dropdown"></div>' +
+            '</div>' +
+            '<div id="selectedCustomerBadge" class="hidden sale-customer-badge"></div>' +
+            '<div id="customerActions" class="hidden" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">' +
+              '<a id="btnCallCustomer" href="tel:" class="btn btn--secondary btn--sm">📞 Gọi khách</a>' +
+              '<a id="btnDirectionsCustomer" href="#" target="_blank" rel="noopener" class="btn btn--secondary btn--sm">🗺️ Chỉ đường</a>' +
+            '</div>' +
+            '<div id="newShopBadge" class="hidden" style="margin-top:6px;padding:8px 12px;background:linear-gradient(135deg,rgba(249,115,22,0.15),rgba(234,179,8,0.15));border:1px solid rgba(249,115,22,0.4);border-radius:8px;font-size:13px;font-weight:600;color:#f97316;"></div>' +
+            '<div id="newShopActiveNotice" class="hidden" style="margin-top:6px;padding:8px 12px;background:rgba(168,85,247,0.1);border:1px solid rgba(168,85,247,0.3);border-radius:8px;font-size:12px;color:#a855f7;"></div>' +
+            '<div id="monthlyRewardBadge" class="hidden" style="margin-top:6px;padding:8px 12px;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.3);border-radius:8px;font-size:12px;color:#3b82f6;"></div>' +
+            '<div id="promoDisabledBadge" class="hidden" style="margin-top:6px;padding:8px 12px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:8px;font-size:13px;font-weight:600;color:#ef4444;text-align:center;">🚫 Khách tắt CTKM — Không áp dụng khuyến mãi</div>' +
+            '</div>' +
 
-  <nav class="drv-nav">
-    <a class="drv-nav__item" data-nav="home" href="/driver">
-      <span class="drv-nav__icon">🏠</span><span>TRANG CHỦ</span>
-    </a>
-    <a class="drv-nav__item" data-nav="sale" href="/driver/ban-hang">
-      <span class="drv-nav__icon">🛒</span><span>BÁN HÀNG</span>
-    </a>
-    <a class="drv-nav__item" data-nav="delivery" href="/driver/giao-hang">
-      <span class="drv-nav__icon">🚚</span><span>GIAO HÀNG</span>
-      <span class="drv-nav__badge" data-nav-badge style="display:none">0</span>
-    </a>
-    <a class="drv-nav__item" data-nav="customers" href="/driver/khach-hang">
-      <span class="drv-nav__icon">👥</span><span>KHÁCH HÀNG</span>
-    </a>
-  </nav>
+          /* Product list */
+          '<div class="sale-section">' +
+            '<div class="sale-section-label">SẢN PHẨM</div>' +
+            '<div id="productList"></div>' +
+          '</div>' +
 
-  <script src="/js/driver/core.js?v=20261107"></script>
-  <script src="/js/driver/sale.js?v=20261107"></script>
+          /* Edit auxiliary sheet — shown when editing a sale */
+          '<div id="saleEditAuxSheet" class="hidden sale-edit-aux">' +
+            '<div class="sale-edit-aux__inner">' +
+              '<div id="saleEditAuxText" class="sale-edit-aux__text">✏️ Đang chỉnh sửa đơn</div>' +
+              '<button onclick="cancelEdit()" class="btn btn--secondary btn--sm">Huỷ</button>' +
+            '</div>' +
+          '</div>' +
+
+          /* Checkout box — between products and history */
+          '<div class="sale-checkout-box" id="saleFooter">' +
+            '<div class="sale-checkout-row">' +
+              '<span class="sale-checkout-label">Tổng tiền</span>' +
+              '<span class="sale-checkout-value" id="totalAmount">0đ</span>' +
+            '</div>' +
+            '<div id="promoPreview" class="hidden" style="margin:4px 0;font-size:13px;font-weight:600;color:#f97316;"></div>' +
+            '<div class="sale-checkout-actions">' +
+              '<button type="button" onclick="openReplacementModal()" class="btn btn--accent-outline btn--sm">🔄 Đổi lỗi</button>' +
+              '<button type="button" onclick="openCheckoutModal()" id="sellBtn" class="sale-btn-checkout" disabled>✅ BÁN HÀNG</button>' +
+            '</div>' +
+          '</div>' +
+
+          /* Recent sales history (max 5 orders) — bottom of page */
+          '<div class="sale-section" id="saleHistorySection">' +
+            '<div class="sale-section-header">' +
+              '<div class="sale-section-label">ĐƠN GẦN ĐÂY</div>' +
+              '<div class="sale-history-filter">' +
+                '<select id="saleHistoryMonth" onchange="typeof onSaleHistoryMonthChange === \"function\" && onSaleHistoryMonthChange(this.value)" style="' +
+                  'padding:4px 8px;border-radius:6px;border:1px solid var(--border);' +
+                  'background:var(--card);color:var(--text-primary);font-size:13px;outline:none;cursor:pointer;">' +
+                  '<option value="">Tất cả</option>' +
+                '</select>' +
+              '</div>' +
+            '</div>' +
+            '<div id="saleHistoryList"></div>' +
+            '<div id="saleHistoryPagination"></div>' +
+          '</div>'
+        ) +
+        getDriverBottomNav('sale');
+
+      /* ═══ 4. Load scripts — ĐÚNG THỨ TỰ ═══ */
+      // 4a. Script dùng chung với Admin
+      await loadScript('/js/utils.js?v=20260211-toast');
+      await loadScript('/js/format.js');
+      await loadScript('/js/fuzzy-search.js');
+      await loadScript('/js/product-grid.js');
+      await loadScript('/js/toast.js');
+
+      // 4b. MODULE SALE GỐC CỦA ADMIN — nạp nguyên file, KHÔNG sửa 1 dòng
+      await loadScript('/js/sales.js?v=20260627b');
+
+      // 4c. Tải dữ liệu (shim sẽ tự rewrite '/sale/data' → '/api/driver/sale/data')
+      await loadSalesData();
+
+      // 4d. Gắn header + bottom nav cho Driver
+      if (window.Drv) {
+        window.Drv.setupHeader();
+        window.Drv.setupNav('sale');
+      }
+    })();
+
+    async function loadSalesData() {
+      try {
+        var res = await fetch('/sale/data', { cache: 'no-store' });
+        var data = await res.json();
+        initSalesPage(data);
+      } catch(err) {
+        console.error('[POS] loadSalesData error:', err);
+        if (window.Drv) window.Drv.toast('Lỗi tải dữ liệu bán hàng', 'error');
+      }
+    }
+    window.loadSalesData = loadSalesData;
+  </script>
 </body>
 </html>

@@ -617,6 +617,105 @@ describe('Driver Portal — RBAC & Data Protection', () => {
   });
 
   // ═══════════════════════════════════════════════════════════════════════
+  describe('F2. Phạm vi giao hàng — own_plus_unassigned', () => {
+    let unassignedSaleId;
+    let otherDriverSaleId;
+
+    beforeAll(() => {
+      const today = new Date().toISOString().split('T')[0];
+
+      // Đơn Admin tạo — CHƯA gán tài xế
+      const s1 = db
+        .prepare(
+          `INSERT INTO sales (customer_id, date, type, total, driver_username, created_at)
+           VALUES (?, ?, 'sale', 100000, NULL, datetime('now'))`
+        )
+        .run(testCustomerId, today);
+      unassignedSaleId = s1.lastInsertRowid;
+      db.prepare(
+        `INSERT INTO sale_items (sale_id, product_id, quantity, price, cost_price)
+         VALUES (?, ?, 5, 21000, 11000)`
+      ).run(unassignedSaleId, testProductId);
+
+      // Đơn của tài xế KHÁC — driver 1 KHÔNG được thấy
+      const s2 = db
+        .prepare(
+          `INSERT INTO sales (customer_id, date, type, total, driver_username, created_at)
+           VALUES (?, ?, 'sale', 100000, ?, datetime('now'))`
+        )
+        .run(testCustomerId, today, TEST_DRIVER2);
+      otherDriverSaleId = s2.lastInsertRowid;
+      db.prepare(
+        `INSERT INTO sale_items (sale_id, product_id, quantity, price, cost_price)
+         VALUES (?, ?, 5, 21000, 11000)`
+      ).run(otherDriverSaleId, testProductId);
+    });
+
+    afterAll(() => {
+      for (const id of [unassignedSaleId, otherDriverSaleId]) {
+        if (!id) continue;
+        try {
+          db.prepare('DELETE FROM sale_items WHERE sale_id = ?').run(id);
+          db.prepare('DELETE FROM delivery_records WHERE sale_id = ?').run(id);
+          db.prepare('DELETE FROM sales WHERE id = ?').run(id);
+        } catch (_) {}
+      }
+    });
+
+    test('delivery/page-data chỉ trả đơn của mình + đơn chưa gán (KHÔNG có đơn tài xế khác)', async () => {
+      const res = await request(app)
+        .get('/api/driver/delivery/page-data')
+        .set('Authorization', 'Bearer ' + driverToken);
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body.customers)).toBe(true);
+
+      const saleIds = res.body.customers.map((c) => c.sale_id);
+      expect(saleIds).toContain(unassignedSaleId);
+      expect(saleIds).not.toContain(otherDriverSaleId);
+    });
+
+    test('page-data KHÔNG lộ delivery_cost_per_km (dữ liệu chi phí)', async () => {
+      const res = await request(app)
+        .get('/api/driver/delivery/page-data')
+        .set('Authorization', 'Bearer ' + driverToken);
+      expect(res.status).toBe(200);
+      expect(res.body.settings).not.toHaveProperty('delivery_cost_per_km');
+      expect(res.body.settings).not.toHaveProperty('delivery_base_cost');
+    });
+
+    test('page-data KHÔNG lộ cost_price / profit', async () => {
+      const res = await request(app)
+        .get('/api/driver/delivery/page-data')
+        .set('Authorization', 'Bearer ' + driverToken);
+      const raw = JSON.stringify(res.body);
+      expect(raw).not.toContain('cost_price');
+      expect(raw).not.toContain('profit');
+    });
+
+    test('driver KHÔNG tạo được delivery record cho đơn của tài xế khác', async () => {
+      const res = await request(app)
+        .post('/api/driver/deliveries')
+        .set('Authorization', 'Bearer ' + driverToken)
+        .send({ saleId: otherDriverSaleId });
+      expect(res.status).toBe(403);
+    });
+
+    test('driver CÓ tạo được delivery record cho đơn chưa gán và được gán cho mình', async () => {
+      const res = await request(app)
+        .post('/api/driver/deliveries')
+        .set('Authorization', 'Bearer ' + driverToken)
+        .send({ saleId: unassignedSaleId });
+      expect(res.status).toBe(201);
+      expect(res.body.delivery.driver_username).toBe(TEST_DRIVER);
+
+      const sale = db
+        .prepare('SELECT driver_username FROM sales WHERE id = ?')
+        .get(unassignedSaleId);
+      expect(sale.driver_username).toBe(TEST_DRIVER);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════
   describe('G. Tính toàn vẹn dữ liệu', () => {
     test('đơn tạo bởi driver được ghi nhận driver_username', async () => {
       const sale = db.prepare('SELECT driver_username FROM sales WHERE id = ?').get(testSaleId);

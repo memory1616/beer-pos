@@ -43,6 +43,11 @@ class DeliveryService {
    * Lấy danh sách đơn cần giao cho 1 tài xế trong ngày.
    * Nguồn: các `sales` đã tạo (type='sale') chưa có delivery_record
    * hoặc đã có nhưng chưa hoàn tất.
+   *
+   * PHẠM VI (Driver Portal):
+   *  - Đơn do chính tài xế này tạo (`s.driver_username = ?`), HOẶC
+   *  - Đơn Admin tạo mà CHƯA được gán cho tài xế nào (`driver_username IS NULL`).
+   *    → Đơn đã gán cho tài xế KHÁC thì không hiện.
    */
   static listForDriver(driverUsername, opts = {}) {
     const date = opts.date || db.getVietnamDateStr();
@@ -89,6 +94,11 @@ class DeliveryService {
           AND c.archived = 0
           AND DATE(s.date) = ?
           AND (
+                s.driver_username = ?
+             OR s.driver_username IS NULL
+             OR s.driver_username = ''
+          )
+          AND (
                 dr.id IS NULL
              OR dr.status NOT IN ('DELIVERED')
           )
@@ -97,7 +107,7 @@ class DeliveryService {
         LIMIT ?
       `
       )
-      .all(driverUsername, date, limit);
+      .all(driverUsername, date, driverUsername, limit);
 
     return rows;
   }

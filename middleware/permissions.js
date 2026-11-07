@@ -240,13 +240,19 @@ function apiGuard(req, res, next) {
   }
 
   // 3. Namespace /api/driver chỉ được dùng với các method an toàn đã khai báo
-  //    (driver.js tự kiểm tra requireDriver + scope theo username).
-  if (path.startsWith('/api/driver') && method === 'DELETE' && !path.includes('/sales/')) {
-    return res.status(403).json({
-      error: 'Thao tác không được phép',
-      code: 'DRIVER_FORBIDDEN',
-      path,
-    });
+  //    (driver.js / driverSale.js tự kiểm tra requireDriver + scope theo username).
+  //    DELETE bị chặn trừ khi là xoá đơn của chính tài xế:
+  //      /api/driver/sales/:id  và  /api/driver/sale/:id
+  if (path.startsWith('/api/driver') && method === 'DELETE') {
+    const isOwnSaleDelete =
+      /^\/api\/driver\/sales\/\d+$/.test(path) || /^\/api\/driver\/sale\/\d+$/.test(path);
+    if (!isOwnSaleDelete) {
+      return res.status(403).json({
+        error: 'Thao tác không được phép',
+        code: 'DRIVER_FORBIDDEN',
+        path,
+      });
+    }
   }
 
   return next();
@@ -284,7 +290,9 @@ function adminPageGuard(req, res, next) {
   if (req.path.startsWith('/api')) return next();
 
   // Driver chỉ được vào các trang của Driver Portal
-  const allowed = ['/', '/login', '/logout', '/driver'];
+  // '/auth/driver' + '/auth/driver/logout' PHẢI được cho phép — nếu không,
+  // tài xế đã đăng nhập (còn cookie) mà mở lại form đăng nhập sẽ bị 403.
+  const allowed = ['/', '/login', '/logout', '/driver', '/auth/driver', '/auth/driver/logout'];
   if (allowed.includes(req.path) || req.path.startsWith('/driver')) {
     return next();
   }

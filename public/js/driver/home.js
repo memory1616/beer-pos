@@ -8,7 +8,8 @@
 
   async function load() {
     await D.requireAuth();
-    D.setupNav('home');
+    // Trang chủ không có trong bottom menu 4 mục của Driver
+    D.setupNav(null);
     D.setupHeader();
 
     var listEl = document.getElementById('stop-list');

@@ -329,6 +329,46 @@
     });
   }
 
+  /**
+   * Bottom menu riêng cho Driver Portal — 4 mục:
+   * BÁN HÀNG · GIAO HÀNG · KHÁCH HÀNG (nếu cần cho Sale) · ĐĂNG XUẤT
+   *
+   * Dùng CHUNG class `.drv-nav` / `.drv-nav__item` của Driver Portal
+   * (public/css/driver.css) — đây là bản Driver của `getBottomNav()` của Admin.
+   */
+  function getDriverBottomNav(activeKey) {
+    var items = [
+      { key: 'sale', href: '/driver/ban-hang', icon: '🛒', label: 'BÁN HÀNG' },
+      { key: 'delivery', href: '/driver/giao-hang', icon: '🚚', label: 'GIAO HÀNG', badge: true },
+      { key: 'customers', href: '/driver/khach-hang', icon: '👥', label: 'KHÁCH HÀNG' }
+    ];
+
+    var html = items.map(function (item) {
+      var active = item.key === activeKey ? ' is-active' : '';
+      var badge = item.badge
+        ? '<span class="drv-nav__badge" data-nav-badge style="display:none">0</span>'
+        : '';
+      return '<a class="drv-nav__item' + active + '" data-nav="' + item.key + '" href="' + item.href + '">' +
+        '<span class="drv-nav__icon">' + item.icon + '</span>' +
+        '<span>' + item.label + '</span>' + badge +
+      '</a>';
+    }).join('');
+
+    // Nút đăng xuất
+    html += '<a class="drv-nav__item" data-nav="logout" href="/auth/driver/logout" ' +
+      'onclick="event.preventDefault(); window.Drv.logout();">' +
+      '<span class="drv-nav__icon">🚪</span><span>ĐĂNG XUẤT</span></a>';
+
+    return '<nav class="drv-nav">' + html + '</nav>';
+  }
+
+  /** Đăng xuất tài xế */
+  async function logout() {
+    try { await fetch('/auth/driver/logout', { method: 'POST', credentials: 'include' }); } catch (_) {}
+    setToken(null);
+    window.location.href = '/auth/driver';
+  }
+
   function setNavBadge(count) {
     var el = document.querySelector('[data-nav-badge]');
     if (!el) return;
@@ -391,10 +431,15 @@
     confirm: confirmDialog,
     prompt: promptDialog,
     setupNav: setupNav,
+    getDriverBottomNav: getDriverBottomNav,
+    logout: logout,
     setNavBadge: setNavBadge,
     setupHeader: setupHeader,
     requireAuth: requireDriverAuth,
     getToken: getToken,
     setToken: setToken
   };
+
+  // Bản global — tương đương `getBottomNav()` của Admin, dùng trong template.
+  window.getDriverBottomNav = getDriverBottomNav;
 })();

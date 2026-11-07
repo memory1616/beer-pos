@@ -827,6 +827,9 @@ app.use('/admin', (req, res) => res.redirect(req.path === '/admin' ? '/' : req.p
 // Namespace riêng /api/driver/* — có middleware requireDriver + scope theo tài xế.
 // Được mount TRƯỚC apiGuard để driver guard áp dụng cho các API admin còn lại.
 app.use('/api/driver', requireAuth, require('./routes/api/driver'));
+// API proxy cho module SALE của Admin — chạy NGUYÊN public/js/sales.js gốc.
+// Shim (public/js/driver/api-shim.js) rewrite /sale/* & /api/sales/* → /api/driver/sale/*.
+app.use('/api/driver/sale', requireAuth, require('./routes/api/driverSale'));
 
 // ==================== AUTH CHECK (global) ====================
 // Sau khi route /api/driver đã xử lý xong, áp dụng guard chung cho các API

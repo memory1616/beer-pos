@@ -497,6 +497,81 @@ router.get('/deliveries/history', requireDriver, (req, res) => {
   }
 });
 
+// GET /api/driver/delivery/page-data
+// Payload GIỐNG HỆT route /delivery của Admin (views/delivery.html):
+//   { customers: [...], settings: {...}, todayCount, today, distributorName }
+// Dùng để render module GIAO HÀNG gốc của Admin (public/js/delivery.js).
+// Scope: đơn của chính tài xế + đơn chưa gán tài xế nào.
+router.get('/delivery/page-data', requireDriver, (req, res) => {
+  try {
+    const today = req.query.date || db.getVietnamDateStr();
+
+    const rows = db
+      .prepare(
+        `SELECT c.id, c.name, c.phone, c.lat, c.lng, s.id as sale_id, s.date, s.total,
+                s.deliver_kegs, s.return_kegs, s.payment_status,
+                dr.status AS delivery_status, dr.delivered_liters, dr.missing_liters,
+                dr.excess_liters, dr.damaged_liters, dr.collected_kegs, dr.note AS delivery_note
+         FROM sales s
+         JOIN customers c ON c.id = s.customer_id
+         LEFT JOIN delivery_records dr
+                ON dr.sale_id = s.id AND dr.driver_username = ?
+         WHERE s.archived = 0
+           AND s.deleted = 0
+           AND s.type = 'sale'
+           AND DATE(s.date) = ?
+           AND c.archived = 0
+           AND (s.driver_username = ? OR s.driver_username IS NULL OR s.driver_username = '')
+         ORDER BY s.date DESC`
+      )
+      .all(req.user.username, today, req.user.username);
+
+    const customers = rows.map((d) => ({
+      id: d.id,
+      name: d.name,
+      phone: d.phone,
+      lat: d.lat,
+      lng: d.lng,
+      sale_id: d.sale_id,
+      date: d.date,
+      total: d.total,
+      hasGPS: !!(d.lat && d.lng),
+      delivery_status: d.delivery_status,
+      deliver_kegs: d.deliver_kegs,
+      return_kegs: d.return_kegs,
+      payment_status: d.payment_status,
+      collected_kegs: d.collected_kegs,
+      delivered_liters: d.delivered_liters,
+      missing_liters: d.missing_liters,
+      excess_liters: d.excess_liters,
+      damaged_liters: d.damaged_liters,
+      delivery_note: d.delivery_note,
+    }));
+
+    const settings = {};
+    db.prepare('SELECT `key`, value FROM settings').all().forEach((s) => {
+      settings[s.key] = s.value;
+    });
+
+    const numSettings = {
+      // KHÔNG gửi delivery_cost_per_km (dữ liệu chi phí) cho tài xế.
+      distributor_lat: parseFloat(settings.distributor_lat) || 10.7679,
+      distributor_lng: parseFloat(settings.distributor_lng) || 106.6893,
+    };
+
+    res.json({
+      customers,
+      settings: numSettings,
+      todayCount: customers.length,
+      today,
+      distributorName: process.env.DISTRIBUTOR_NAME || 'Bia Tuoi Gia Huy',
+    });
+  } catch (err) {
+    logger.error('[driver] delivery page-data error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi tải dữ liệu giao hàng' });
+  }
+});
+
 // POST /api/driver/deliveries — tạo record giao cho 1 đơn bán
 router.post('/deliveries', requireDriver, (req, res) => {
   try {
@@ -504,10 +579,12 @@ router.post('/deliveries', requireDriver, (req, res) => {
     const id = parseInt(saleId);
     if (!id) return res.status(400).json({ error: 'Thiếu saleId' });
 
-    // Chỉ được tạo record cho đơn của chính mình
+    // Được tạo record cho: đơn của chính mình, HOẶC đơn chưa gán tài xế nào
     const sale = db.prepare('SELECT driver_username FROM sales WHERE id = ?').get(id);
     if (!sale) return res.status(404).json({ error: 'Không tìm thấy đơn hàng' });
-    if (sale.driver_username !== req.user.username) {
+    const isOwn = sale.driver_username === req.user.username;
+    const isUnassigned = !sale.driver_username || sale.driver_username === '';
+    if (!isOwn && !isUnassigned) {
       return res.status(403).json({
         error: 'Không có quyền thao tác đơn hàng này',
         code: 'DRIVER_SCOPE',
@@ -516,6 +593,19 @@ router.post('/deliveries', requireDriver, (req, res) => {
 
     const result = DeliveryService.ensureRecord(id, req.user.username);
     if (!result.success) return res.status(400).json({ error: result.error });
+
+    // Gán đơn cho tài xế nếu trước đó chưa được gán (đơn Admin tạo)
+    if (isUnassigned) {
+      try {
+        db.prepare('UPDATE sales SET driver_username = ? WHERE id = ?').run(
+          req.user.username,
+          id
+        );
+      } catch (e) {
+        logger.error('[driver] assign delivery error', { error: e.message });
+      }
+    }
+
     res.status(result.created ? 201 : 200).json(result);
   } catch (err) {
     logger.error('[driver] create delivery error', { error: err.message });

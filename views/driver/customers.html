@@ -6,7 +6,7 @@
   <title>Khách hàng — Bia Tươi Tây Ninh</title>
   <meta name="theme-color" content="#0B0E11">
   <meta name="mobile-web-app-capable" content="yes">
-  <link rel="stylesheet" href="/css/driver.css?v=20261106">
+  <link rel="stylesheet" href="/css/driver.css?v=20261107">
 </head>
 <body>
   <header class="drv-header">
@@ -31,9 +31,6 @@
   </main>
 
   <nav class="drv-nav">
-    <a class="drv-nav__item" data-nav="home" href="/driver">
-      <span class="drv-nav__icon">🏠</span><span>TRANG CHỦ</span>
-    </a>
     <a class="drv-nav__item" data-nav="sale" href="/driver/ban-hang">
       <span class="drv-nav__icon">🛒</span><span>BÁN HÀNG</span>
     </a>
@@ -44,9 +41,13 @@
     <a class="drv-nav__item" data-nav="customers" href="/driver/khach-hang">
       <span class="drv-nav__icon">👥</span><span>KHÁCH HÀNG</span>
     </a>
+    <a class="drv-nav__item" data-nav="logout" href="/auth/driver/logout"
+       onclick="event.preventDefault(); window.Drv.logout();">
+      <span class="drv-nav__icon">🚪</span><span>ĐĂNG XUẤT</span>
+    </a>
   </nav>
 
-  <script src="/js/driver/core.js?v=20261106"></script>
-  <script src="/js/driver/customers.js?v=20261106"></script>
+  <script src="/js/driver/core.js?v=20261107"></script>
+  <script src="/js/driver/customers.js?v=20261107"></script>
 </body>
 </html>

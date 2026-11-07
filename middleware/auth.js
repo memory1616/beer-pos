@@ -146,8 +146,10 @@ function requireAuth(req, res, next) {
   const cookieToken = req.cookies?.[AUTH_CONFIG.cookieName];
   const headerToken = req.headers.authorization?.replace('Bearer ', '');
   const queryToken = req.query?.token;
+  // Cookie riêng của Driver Portal (host-only) — fallback khi JS không gửi Bearer.
+  const driverCookieToken = req.cookies?.[DRIVER_COOKIE_NAME];
 
-  const token = cookieToken || headerToken || queryToken;
+  const token = cookieToken || headerToken || queryToken || driverCookieToken;
 
   if (!token) {
     return res.status(401).json({ error: 'Unauthorized', loginRequired: true });
