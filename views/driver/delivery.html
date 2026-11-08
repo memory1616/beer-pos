@@ -10,15 +10,88 @@
 
   <!-- ═══ CSS GỐC CỦA ADMIN (module Giao hàng) ═══ -->
   <link rel="stylesheet" href="/css/unified.css?v=20260419">
-  <link rel="stylesheet" href="/css/driver.css?v=20261107m">
+  <link rel="stylesheet" href="/css/driver.css?v=20261108d">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
   <style>
-    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #0f0f1a; color: #fff; }
-    .header { background: #1a1a2e; padding: 15px; display: flex; justify-content: space-between; align-items: center; }
-    .header h1 { margin: 0; font-size: 18px; }
-    .content { padding: 15px; padding-bottom: calc(var(--driver-nav-h, 62px) + env(safe-area-inset-bottom) + 15px); }
-    #map { height: 250px; width: 100%; border-radius: 10px; background: #1a1a2e; }
+    /* ── Nền chung + token ─────────────────────────────────────────────── */
+    :root {
+      --drv-card-radius: 18px;
+      --drv-card-radius-sm: 14px;
+      --drv-grad-gold: linear-gradient(160deg, rgba(252, 213, 53, .14) 0%, rgba(252, 213, 53, 0) 52%);
+      --drv-grad-gold-strong: linear-gradient(135deg, #FDE047 0%, #F0B90B 100%);
+      --drv-grad-surface: linear-gradient(160deg, var(--bg-card, #1E2329) 0%, var(--bg-secondary, #161A1E) 100%);
+      --drv-border: rgba(255, 255, 255, .08);
+      --drv-border-strong: rgba(255, 255, 255, .14);
+      --drv-shadow-card: 0 8px 24px rgba(0, 0, 0, .22);
+      --drv-shadow-pop: 0 10px 32px rgba(0, 0, 0, .32);
+    }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      background:
+        radial-gradient(120% 60% at 50% 0%, rgba(252, 213, 53, .08) 0%, rgba(252, 213, 53, 0) 55%),
+        var(--bg-primary, #0B0E11);
+      color: var(--text-primary, #EAECEF);
+    }
+
+    /* ── Header ────────────────────────────────────────────────────────── */
+    .header {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      padding: calc(env(safe-area-inset-top) + 14px) 15px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      background:
+        var(--drv-grad-gold),
+        var(--drv-grad-surface);
+      border-bottom: 1px solid rgba(252, 213, 53, .16);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 1.05rem;
+      font-weight: 800;
+      letter-spacing: .3px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+    }
+    .header h1 .drv-header__logo {
+      width: 38px;
+      height: 38px;
+      flex: 0 0 38px;
+      display: grid;
+      place-items: center;
+      font-size: 1.2rem;
+      border-radius: 12px;
+      background: var(--drv-grad-gold-strong);
+      box-shadow: 0 6px 16px rgba(240, 185, 11, .26);
+    }
+
+    /* ── Content ───────────────────────────────────────────────────────── */
+    .content {
+      padding: 15px;
+      max-width: 860px;
+      margin: 0 auto;
+      padding-bottom: calc(var(--driver-nav-h, 68px) + env(safe-area-inset-bottom) + 20px);
+    }
+
+    /* ── Bản đồ ────────────────────────────────────────────────────────── */
+    #map {
+      height: 250px;
+      width: 100%;
+      border-radius: var(--drv-card-radius);
+      background: var(--bg-card, #1E2329);
+      border: 1px solid var(--drv-border);
+      box-shadow: var(--drv-shadow-card);
+      overflow: hidden;
+    }
 
     /* Nút chuyển lớp bản đồ (Google / Vệ tinh / Tối) */
     .drv-map-layers { display: flex; flex-direction: column; gap: 6px; }
@@ -36,30 +109,100 @@
     }
     .drv-map-layer-ico { pointer-events: none; }
 
-    .stats { display: flex; gap: 10px; margin: 15px 0; }
-    .stat-box { flex: 1; background: #1a1a2e; padding: 15px; border-radius: 10px; text-align: center; }
-    .stat-box .val { font-size: 24px; font-weight: bold; color: #3b82f6; }
-    .stat-box .lbl { font-size: 12px; color: #888; }
-    .btn-row { display: flex; gap: 10px; margin-bottom: 15px; }
-    .btn { flex: 1; padding: 12px; border-radius: 8px; border: none; font-size: 14px; cursor: pointer; }
-    .btn-gps { background: #374151; color: #fff; }
-    .btn-route { background: #3b82f6; color: #fff; }
-    .card { background: #1a1a2e; border-radius: 10px; padding: 12px; margin-bottom: 10px; border-left: 3px solid #3b82f6; cursor: pointer; }
-    .card .name { font-weight: 600; margin-bottom: 4px; }
-    .card .info { font-size: 13px; color: #888; }
-    .card .btns { display: flex; gap: 8px; margin-top: 8px; }
-    .card .btn-sm { padding: 8px; border-radius: 6px; border: none; font-size: 12px; cursor: pointer; background: #374151; color: #fff; text-decoration: none; text-align: center; }
+    /* ── Thẻ chỉ số ───────────────────────────────────────────────────── */
+    .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 15px 0; }
+    .stat-box {
+      padding: 16px 12px;
+      border-radius: var(--drv-card-radius);
+      background: var(--drv-grad-surface);
+      border: 1px solid var(--drv-border);
+      box-shadow: var(--drv-shadow-card);
+      text-align: center;
+    }
+    .stat-box .val { font-size: 1.7rem; font-weight: 800; color: var(--accent, #FCD535); line-height: 1.1; }
+    .stat-box .lbl { font-size: .72rem; color: var(--text-secondary, #848E9C); margin-top: 4px; text-transform: uppercase; letter-spacing: .5px; }
+
+    /* ── Nút hành động ─────────────────────────────────────────────────── */
+    .btn-row { display: flex; gap: 10px; margin-bottom: 16px; }
+    .btn {
+      flex: 1;
+      min-height: 48px;
+      padding: 12px;
+      border-radius: var(--drv-card-radius-sm);
+      border: 1px solid var(--drv-border-strong);
+      font-size: .92rem;
+      font-weight: 700;
+      cursor: pointer;
+      background: var(--bg-hover, #2B3139);
+      color: var(--text-primary, #EAECEF);
+      transition: transform .1s ease;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn-gps { background: var(--bg-hover, #2B3139); color: var(--text-primary, #EAECEF); }
+    .btn-route {
+      background: var(--drv-grad-gold-strong);
+      color: #1a1405;
+      border-color: rgba(252, 213, 53, .5);
+      box-shadow: 0 6px 18px rgba(240, 185, 11, .26);
+    }
+
+    /* ── Card khách ────────────────────────────────────────────────────── */
+    .card {
+      position: relative;
+      background: var(--drv-grad-surface);
+      border: 1px solid var(--drv-border);
+      border-radius: var(--drv-card-radius);
+      padding: 14px 15px;
+      margin-bottom: 12px;
+      border-left: 3px solid var(--accent, #FCD535);
+      box-shadow: var(--drv-shadow-card);
+      cursor: pointer;
+      overflow: hidden;
+    }
+    .card .name { font-weight: 700; font-size: .98rem; margin-bottom: 5px; display: flex; align-items: center; flex-wrap: wrap; }
+    .card .info { font-size: .82rem; color: var(--text-secondary, #848E9C); }
+    .card .btns { display: flex; gap: 8px; margin-top: 11px; }
+    .card .btn-sm {
+      padding: 9px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--drv-border-strong);
+      font-size: .8rem;
+      font-weight: 600;
+      cursor: pointer;
+      background: var(--bg-hover, #2B3139);
+      color: var(--text-primary, #EAECEF);
+      text-decoration: none;
+      text-align: center;
+    }
     .card .btn-dir { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; font-weight: 600; }
     .card .btn-dir svg { width: 14px; height: 14px; flex: 0 0 14px; }
     .card .btn-dir.is-disabled { opacity: .45; cursor: not-allowed; }
-    .card__status { font-size: 11px; padding: 2px 8px; border-radius: 10px; margin-left: 6px; }
-    .st-PENDING { background: #374151; color: #cbd5e1; }
-    .st-IN_PROGRESS { background: #3b82f6; color: #fff; }
-    .st-DELIVERED { background: #22c55e; color: #06240f; }
-    .st-FAILED { background: #ef4444; color: #fff; }
+    .card__status {
+      font-size: .66rem;
+      font-weight: 700;
+      padding: 3px 9px;
+      border-radius: 999px;
+      margin-left: 6px;
+      letter-spacing: .3px;
+      text-transform: uppercase;
+    }
+    .st-PENDING { background: rgba(240, 185, 11, .16); color: #F0B90B; border: 1px solid rgba(240, 185, 11, .3); }
+    .st-IN_PROGRESS { background: rgba(59, 122, 254, .16); color: #7EA6FF; border: 1px solid rgba(59, 122, 254, .3); }
+    .st-DELIVERED { background: rgba(14, 203, 129, .16); color: #0ECB81; border: 1px solid rgba(14, 203, 129, .3); }
+    .st-FAILED { background: rgba(246, 70, 93, .16); color: #F6465D; border: 1px solid rgba(246, 70, 93, .3); }
+    .st-DISCREPANCY { background: rgba(249, 115, 22, .16); color: #FB923C; border: 1px solid rgba(249, 115, 22, .3); }
     /* Panel giao hàng nội tuyến (thay cho modal) */
-    .card.is-open { border-left-color: #22c55e; box-shadow: 0 0 0 1px rgba(34,197,94,.45); }
-    .card__panel { display: none; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,.08); }
+    .card.is-open {
+      border-left-color: #0ECB81;
+      border-color: rgba(14, 203, 129, .35);
+      box-shadow: 0 10px 32px rgba(0, 0, 0, .32), 0 0 0 1px rgba(14, 203, 129, .25);
+    }
+    .card__panel {
+      display: none;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--drv-border);
+    }
     .card__panel.is-open, .card__panel.is-loading { display: block; }
     .card__panel .drv-loading { padding: 10px 0; font-size: 13px; color: #888; }
     .card__panel .drv-section__title { font-size: 12px; font-weight: 700; color: #94a3b8; margin: 10px 0 4px; }
@@ -88,16 +231,40 @@
     .card__disc.is-open { display:flex; }
     .card__disc .drv-field { flex:1; min-width:76px; margin:0; }
     .card__disc .drv-btn { flex:0 0 auto; padding:9px 12px; }
-    .card .btn-deliver { display:inline-flex; align-items:center; gap:6px; padding:8px 12px; font-weight:700; background:#22c55e; color:#06240f; }
+    .card .btn-deliver {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 13px;
+      font-weight: 700;
+      font-size: .8rem;
+      border: 1px solid rgba(14, 203, 129, .4);
+      border-radius: 10px;
+      background: linear-gradient(135deg, #0ECB81, #00B370);
+      color: #06240f;
+    }
     .card .btn-deliver svg { width:14px; height:14px; flex:0 0 14px; }
     .card .btn-deliver.is-busy { opacity:.55; cursor:wait; }
-    .leaflet-container { background: #1a1a2e !important; }
+    .leaflet-container { background: var(--bg-card, #1E2329) !important; }
+
+    /* Tiêu đề section trong content */
+    .section-title {
+      font-size: .78rem !important;
+      font-weight: 700 !important;
+      text-transform: uppercase;
+      letter-spacing: .9px;
+      color: var(--text-secondary, #848E9C) !important;
+      margin: 18px 0 10px !important;
+    }
   </style>
 </head>
 <body>
 
   <div class="header">
-    <h1>🚚 Giao hàng</h1>
+    <h1>
+      <span class="drv-header__logo" aria-hidden="true">🚚</span>
+      <span>Giao hàng</span>
+    </h1>
     <button onclick="showSettings()" style="display:none"></button>
   </div>
 

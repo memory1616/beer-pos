@@ -129,7 +129,8 @@ router.get('/dashboard', requireDriver, (req, res) => {
 //   - todayOrders : số đơn của tài xế HÔM NAY (bán trực tiếp + giao hàng)
 //   - todayLiters : tổng số lít bia HÔM NAY — TÍNH CẢ BIA PET
 //                   (quy ước: 1 đơn vị bán của mọi loại = 1 lít)
-//   - todayKegs   : tổng số vỏ bình đã thu HÔM NAY
+//   - todayKegs   : tổng số vỏ bình đã thu HÔM NAY (CỦA CHÍNH tài xế)
+//   - todayKegsNet: vỏ giao đi - vỏ thu về (vỏ còn lưu lượng của tài xế)
 //                   - Gộp 2 nguồn: `sales.return_kegs` (vỏ thu ở màn Bán hàng)
 //                     + `delivery_records.collected_kegs` (vỏ thu ở màn Giao hàng)
 //                   - Dedupe theo đơn (MAX) → đơn có cả 2 nguồn chỉ tính 1 lần
@@ -234,16 +235,23 @@ router.get('/home', requireDriver, (req, res) => {
       )
       .all(monthStart, monthEnd, req.user.username);
 
-    // Tổng vỏ bình đã thu theo TỪNG NGÀY trong tháng
-    // - UNION 2 nguồn, GROUP BY đơn + MAX → không đếm trùng
-    // - Ngày = ngày hoàn tất thực tế (fallback updated_at → scheduled_date)
-    // - Dedupe theo đơn XUYÊN NGÀY: nếu 1 đơn có cả 2 nguồn ở 2 ngày khác nhau
-    //   → tính 1 lần, ưu tiên ngày của đơn bán (ngày giao).
+    // ── VỎ: 2 khái niệm riêng biệt ──────────────────────────────────────
+    //  1) `kegs`   = VỎ ĐÃ THU của CHÍNH tài xế (khách trả lại vỏ rỗng)
+    //                - Nguồn A: `sales.return_kegs` của đơn CỦA TÀI XẾ
+    //                - Nguồn B: `delivery_records.collected_kegs` của PHIẾU GIAO
+    //                  của tài xế
+    //                → Dedupe theo đơn (MAX) để không đếm trùng 2 nguồn
+    //  2) `kegsNet` = VỎ GIAO ĐI - VỎ THU VỀ  (nguyên tắc "phải trừ vỏ đã giao")
+    //                = số vỏ còn lưu lượng trên xe / trong kho của tài xế
+    //
+    // ⚠ FIX: trước đây query lấy `return_kegs` của MỌI đơn trong tháng
+    //   (kể cả đơn Admin tạo, driver_username = NULL) → KPI của tài xế bị
+    //   "nhập" vỏ của người khác. Nay CHỈ tính đơn của chính tài xế.
     const kegRows = db
       .prepare(
         `
         WITH keg_rows AS (
-          -- Nguồn 1: vỏ thu trên đơn bán (màn "Cập nhật vỏ")
+          -- Nguồn A: vỏ thu trên đơn bán CỦA TÀI XẾ (màn "Cập nhật vỏ")
           SELECT s.id AS order_key,
                  DATE(s.date) AS sale_date,
                  NULL AS del_date,
@@ -253,9 +261,9 @@ router.get('/home', requireDriver, (req, res) => {
             AND s.archived = 0
             AND s.deleted = 0
             AND DATE(s.date) BETWEEN ? AND ?
-            AND (s.driver_username = ? OR s.driver_username IS NULL OR s.driver_username = '')
+            AND s.driver_username = ?
           UNION ALL
-          -- Nguồn 2: vỏ thu trên phiếu giao (màn "Xác nhận giao")
+          -- Nguồn B: vỏ thu trên phiếu giao CỦA TÀI XẾ (màn "Xác nhận giao")
           SELECT COALESCE(dr.sale_id, -dr.id) AS order_key,
                  NULL AS sale_date,
                  DATE(COALESCE(NULLIF(dr.completed_at, ''), dr.updated_at, dr.scheduled_date)) AS del_date,
@@ -264,7 +272,7 @@ router.get('/home', requireDriver, (req, res) => {
           WHERE COALESCE(dr.collected_kegs, 0) > 0
             AND DATE(COALESCE(NULLIF(dr.completed_at, ''), dr.updated_at, dr.scheduled_date))
                 BETWEEN ? AND ?
-            AND (dr.driver_username = ? OR dr.driver_username IS NULL OR dr.driver_username = '')
+            AND dr.driver_username = ?
         )
         SELECT COALESCE(sale_date, del_date) AS d,
                SUM(kegs) AS kegs
@@ -289,27 +297,64 @@ router.get('/home', requireDriver, (req, res) => {
         req.user.username
       );
 
+    // VỎ GIAO ĐI của tài xế theo từng ngày (để tính NET = giao - thu)
+    const kegDeliverRows = db
+      .prepare(
+        `
+        SELECT DATE(s.date) AS d,
+               SUM(COALESCE(s.deliver_kegs, 0)) AS kegs
+        FROM sales s
+        WHERE s.type IN ('sale', 'replacement')
+          AND s.archived = 0
+          AND s.deleted = 0
+          AND DATE(s.date) BETWEEN ? AND ?
+          AND s.driver_username = ?
+        GROUP BY DATE(s.date)
+      `
+      )
+      .all(monthStart, monthEnd, req.user.username);
+
     // Gom theo ngày
     const byDate = {};
     for (const r of dailyRows) {
-      byDate[r.d] = { orders: r.orders || 0, liters: r.liters || 0, kegs: 0 };
+      byDate[r.d] = { orders: r.orders || 0, liters: r.liters || 0, kegs: 0, kegsNet: 0 };
     }
     for (const r of kegRows) {
-      if (!byDate[r.d]) byDate[r.d] = { orders: 0, liters: 0, kegs: 0 };
+      if (!byDate[r.d]) byDate[r.d] = { orders: 0, liters: 0, kegs: 0, kegsNet: 0 };
       byDate[r.d].kegs += r.kegs || 0;
+    }
+    // Gom vỏ giao đi theo ngày
+    const deliverByDate = {};
+    for (const r of kegDeliverRows) {
+      deliverByDate[r.d] = r.kegs || 0;
+    }
+
+    // Tính NET cho MỌI ngày có dữ liệu:
+    //   kegsNet = vỏ giao đi - vỏ thu về
+    // (ngày chỉ có thu mà không có giao → NET âm, vẫn phải tính đúng)
+    for (const d of Object.keys(byDate)) {
+      byDate[d].kegsNet = (deliverByDate[d] || 0) - (byDate[d].kegs || 0);
     }
 
     // Mảng 31 ngày (đủ số ngày trong tháng)
     const totalDays = daysInMonth(month);
     const daily = [];
-    let monthTotals = { orders: 0, liters: 0, kegs: 0 };
+    let monthTotals = { orders: 0, liters: 0, kegs: 0, kegsNet: 0 };
     for (let i = 1; i <= totalDays; i++) {
       const d = `${month}-${String(i).padStart(2, '0')}`;
-      const v = byDate[d] || { orders: 0, liters: 0, kegs: 0 };
-      daily.push({ date: d, day: i, orders: v.orders, liters: v.liters, kegs: v.kegs });
+      const v = byDate[d] || { orders: 0, liters: 0, kegs: 0, kegsNet: 0 };
+      daily.push({
+        date: d,
+        day: i,
+        orders: v.orders,
+        liters: v.liters,
+        kegs: v.kegs,
+        kegsNet: v.kegsNet,
+      });
       monthTotals.orders += v.orders;
       monthTotals.liters += v.liters;
       monthTotals.kegs += v.kegs;
+      monthTotals.kegsNet += v.kegsNet;
     }
 
     // HÀNG CẦN GIAO HÔM NAY — các đơn hôm nay chưa giao xong
@@ -419,13 +464,14 @@ router.get('/home', requireDriver, (req, res) => {
       }));
 
     // Chỉ số của ngày đang chọn
-    const sel = byDate[selectedDate] || { orders: 0, liters: 0, kegs: 0 };
+    const sel = byDate[selectedDate] || { orders: 0, liters: 0, kegs: 0, kegsNet: 0 };
 
     res.json({
       date: today,
       todayOrders: sel.orders,
       todayLiters: sel.liters,
       todayKegs: sel.kegs,
+      todayKegsNet: sel.kegsNet,
       selectedDate,
       isToday: selectedDate === today,
       month,

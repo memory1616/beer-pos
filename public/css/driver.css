@@ -15,6 +15,26 @@
   --driver-radius: 14px;
   --driver-gap: 12px;
   --driver-touch: 52px;
+
+  /* ── DESIGN SYSTEM DRIVER PORTAL ──────────────────────────────────────
+   * Chuẩn hoá toàn bộ giao diện: Card bo góc + nền gradient vàng nhạt.
+   * Mọi trang (Trang chủ / Bán hàng / Giao hàng / Khách hàng / Đăng nhập)
+   * dùng chung các token này → giao diện nhất quán.
+   */
+  --drv-card-radius: 18px;
+  --drv-card-radius-sm: 14px;
+  --drv-card-pad: 16px;
+
+  /* Nền gradient vàng nhạt — dùng cho header + card nổi bật */
+  --drv-grad-gold: linear-gradient(160deg, rgba(252, 213, 53, .14) 0%, rgba(252, 213, 53, 0) 52%);
+  --drv-grad-gold-strong: linear-gradient(135deg, #FDE047 0%, #F0B90B 100%);
+  --drv-grad-gold-soft: linear-gradient(160deg, rgba(252, 213, 53, .10) 0%, rgba(252, 213, 53, .02) 60%);
+  --drv-grad-surface: linear-gradient(160deg, var(--bg-card) 0%, var(--bg-secondary) 100%);
+
+  --drv-border: rgba(255, 255, 255, .08);
+  --drv-border-strong: rgba(255, 255, 255, .14);
+  --drv-shadow-card: 0 8px 24px rgba(0, 0, 0, .22);
+  --drv-shadow-pop: 0 10px 32px rgba(0, 0, 0, .32);
 }
 
 * {
@@ -145,7 +165,11 @@ body.body--app .app-main {
   overscroll-behavior-y: contain;
 }
 
-/* ── HEADER ────────────────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════
+ * DESIGN SYSTEM DRIVER PORTAL — v2 (Card bo góc + nền gradient vàng nhạt)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── HEADER CHUNG (Trang Khách hàng / Giao hàng / Bán hàng) ────────────── */
 .drv-header {
   position: sticky;
   top: 0;
@@ -157,14 +181,36 @@ body.body--app .app-main {
   padding: 0 14px;
   padding-top: env(safe-area-inset-top);
   height: calc(var(--driver-header-h) + env(safe-area-inset-top));
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+  background: var(--drv-grad-surface);
+  border-bottom: 1px solid var(--drv-border);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.drv-header__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.drv-header__icon {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  display: grid;
+  place-items: center;
+  font-size: 1.1rem;
+  border-radius: 11px;
+  background: var(--drv-grad-gold-strong);
+  box-shadow: 0 5px 14px rgba(240, 185, 11, .24);
 }
 
 .drv-header__title {
-  font-size: 1.05rem;
-  font-weight: 700;
-  letter-spacing: 0.3px;
+  font-size: 1.02rem;
+  font-weight: 800;
+  letter-spacing: 0.4px;
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -173,11 +219,11 @@ body.body--app .app-main {
 }
 
 .drv-header__user {
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   color: var(--text-secondary);
   text-align: right;
   line-height: 1.2;
-  max-width: 45%;
+  max-width: 42%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -185,17 +231,19 @@ body.body--app .app-main {
 
 .drv-header__logout {
   background: transparent;
-  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  border: 1px solid var(--drv-border-strong);
   color: var(--text-secondary);
   border-radius: 10px;
-  padding: 8px 10px;
-  font-size: 0.8rem;
+  padding: 8px 11px;
+  font-size: 0.78rem;
+  font-weight: 700;
   cursor: pointer;
   min-height: 40px;
+  flex: 0 0 auto;
 }
 .drv-header__logout:active { background: var(--bg-hover); }
 
-/* ── MAIN ──────────────────────────────────────────────────────────────── */
+/* ── MAIN CHUNG ───────────────────────────────────────────────────────── */
 .drv-main {
   padding: var(--driver-gap);
   max-width: 900px;
@@ -207,28 +255,39 @@ body.body--app .app-main {
 }
 
 .drv-section__title {
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.8px;
+  letter-spacing: 0.9px;
   color: var(--text-secondary);
   margin: 0 0 10px;
   padding-left: 2px;
 }
 
-/* ── CARD ──────────────────────────────────────────────────────────────── */
+/* ── CARD CHUẨN (bo góc, nền gradient nhẹ) ───────────────────────────── */
 .drv-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.07));
-  border-radius: var(--driver-radius);
-  padding: 14px;
-  margin-bottom: 10px;
+  position: relative;
+  background: var(--drv-grad-surface);
+  border: 1px solid var(--drv-border);
+  border-radius: var(--drv-card-radius);
+  padding: var(--drv-card-pad);
+  margin-bottom: 12px;
+  box-shadow: var(--drv-shadow-card);
+  overflow: hidden;
+}
+
+/* Card "nổi bật" — nền gradient vàng nhạt (dùng cho section quan trọng) */
+.drv-card--gold {
+  background:
+    var(--drv-grad-gold),
+    var(--drv-grad-surface);
+  border-color: rgba(252, 213, 53, .22);
 }
 
 .drv-card--tap { cursor: pointer; }
 .drv-card--tap:active { background: var(--bg-hover); }
 
-/* ── STAT GRID (Trang chủ) ─────────────────────────────────────────────── */
+/* ── STAT GRID ─────────────────────────────────────────────────────────── */
 .drv-stats {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -240,11 +299,12 @@ body.body--app .app-main {
 }
 
 .drv-stat {
-  background: var(--bg-card);
-  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.07));
-  border-radius: var(--driver-radius);
+  background: var(--drv-grad-surface);
+  border: 1px solid var(--drv-border);
+  border-radius: var(--drv-card-radius-sm);
   padding: 14px 12px;
   text-align: center;
+  box-shadow: var(--drv-shadow-card);
 }
 
 .drv-stat__value {
@@ -271,14 +331,17 @@ body.body--app .app-main {
 
 /* ── LIST ITEM ─────────────────────────────────────────────────────────── */
 .drv-item {
-  background: var(--bg-card);
-  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.07));
-  border-radius: var(--driver-radius);
-  padding: 13px 14px;
-  margin-bottom: 9px;
+  position: relative;
+  background: var(--drv-grad-surface);
+  border: 1px solid var(--drv-border);
+  border-radius: var(--drv-card-radius);
+  padding: 14px 15px;
+  margin-bottom: 10px;
   display: flex;
   align-items: center;
   gap: 12px;
+  box-shadow: var(--drv-shadow-card);
+  overflow: hidden;
 }
 
 .drv-item__body { flex: 1; min-width: 0; }
@@ -342,7 +405,7 @@ body.body--app .app-main {
   gap: 8px;
   min-height: var(--driver-touch);
   padding: 12px 18px;
-  border-radius: 12px;
+  border-radius: var(--drv-card-radius-sm);
   border: 1px solid transparent;
   background: var(--bg-hover);
   color: var(--text-primary);
@@ -357,11 +420,16 @@ body.body--app .app-main {
 .drv-btn:active { transform: scale(0.975); opacity: 0.9; }
 .drv-btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
 
-.drv-btn--primary { background: var(--accent); color: var(--text-on-dark); }
+.drv-btn--primary {
+  background: var(--drv-grad-gold-strong);
+  color: #1a1405;
+  border-color: rgba(252, 213, 53, .5);
+  box-shadow: 0 6px 18px rgba(240, 185, 11, .26);
+}
 .drv-btn--success { background: var(--success); color: var(--text-on-dark); }
 .drv-btn--danger  { background: var(--danger);  color: var(--text-on-dark); }
 .drv-btn--warning { background: var(--warning); color: var(--text-on-dark); }
-.drv-btn--ghost   { background: transparent; border-color: var(--border-color, rgba(255,255,255,0.14)); }
+.drv-btn--ghost   { background: transparent; border-color: var(--drv-border-strong); }
 .drv-btn--sm      { min-height: 42px; padding: 8px 14px; font-size: 0.9rem; width: auto; }
 
 .drv-btn-row {
@@ -377,18 +445,20 @@ body.body--app .app-main {
   width: 100%;
   min-height: var(--driver-touch);
   padding: 11px 14px;
-  border-radius: 12px;
-  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  border-radius: var(--drv-card-radius-sm);
+  border: 1px solid var(--drv-border-strong);
   background: var(--bg-secondary);
   color: var(--text-primary);
   font-size: 1rem;
   font-family: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .drv-input:focus,
 .drv-select:focus {
   outline: none;
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim);
 }
 
 .drv-input::placeholder { color: var(--text-disabled); }
@@ -478,12 +548,11 @@ body.body--app .app-main {
   align-items: stretch;
   height: calc(var(--driver-nav-h) + env(safe-area-inset-bottom));
   padding: 0 4px env(safe-area-inset-bottom);
-  background: var(--bg-secondary);
-  border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.28);
-  /* Nền blur + safe-area cho iOS */
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: rgba(22, 26, 30, .92);
+  border-top: 1px solid var(--drv-border);
+  box-shadow: 0 -6px 24px rgba(0, 0, 0, .32);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
   will-change: transform;
 }
 
@@ -500,13 +569,11 @@ body.body--app .app-main {
   font-weight: 700;
   letter-spacing: 0.3px;
   min-height: var(--driver-nav-h);
-  /* Tap target ≥ 48px, không nhảy layout khi bấm */
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
   transition: color 0.15s, transform 0.12s;
 }
 
-/* Vùng chạm rộng hơn phần hiển thị (44px theo chuẩn) */
 .drv-nav__item::before {
   content: '';
   position: absolute;
@@ -519,7 +586,8 @@ body.body--app .app-main {
 .drv-nav__item:active { transform: scale(0.94); }
 .drv-nav__item.is-active { color: var(--accent); }
 .drv-nav__item.is-active::before {
-  background: var(--accent-dim, rgba(250, 204, 21, 0.12));
+  background: var(--drv-grad-gold);
+  border: 1px solid rgba(252, 213, 53, .18);
 }
 
 .drv-nav__icon {
@@ -556,7 +624,9 @@ body.body--app .app-main {
   position: fixed;
   inset: 0;
   z-index: 100;
-  background: rgba(0, 0, 0, 0.62);
+  background: rgba(0, 0, 0, .66);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -566,18 +636,18 @@ body.body--app .app-main {
   background: var(--bg-secondary);
   width: 100%;
   max-width: 640px;
-  /* dvh = dynamic viewport height → đúng trên mobile khi thanh địa chỉ ẩn/hiện */
   max-height: 92dvh;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  border-radius: 20px 20px 0 0;
+  border-radius: 22px 22px 0 0;
   padding: 18px 16px calc(18px + env(safe-area-inset-bottom));
-  animation: drvSlideUp 0.2s ease;
+  border-top: 1px solid rgba(252, 213, 53, .2);
+  animation: drvSlideUp 0.22s cubic-bezier(.22, 1, .36, 1);
 }
 
 @keyframes drvSlideUp {
-  from { transform: translateY(22px); opacity: 0; }
+  from { transform: translateY(26px); opacity: 0; }
   to   { transform: translateY(0);    opacity: 1; }
 }
 
@@ -625,13 +695,13 @@ body.body--app .app-main {
   bottom: calc(var(--driver-nav-h) + 16px + env(safe-area-inset-bottom));
   z-index: 200;
   background: var(--bg-card);
-  border: 1px solid var(--border-color, rgba(255,255,255,0.14));
+  border: 1px solid var(--drv-border-strong);
   color: var(--text-primary);
   padding: 12px 18px;
-  border-radius: 12px;
+  border-radius: 14px;
   font-size: 0.92rem;
   font-weight: 600;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--drv-shadow-pop);
   max-width: calc(100vw - 32px);
   text-align: center;
 }
@@ -675,7 +745,7 @@ body.body--app .app-main {
   font-size: 1rem;
 }
 
-/* ── QUICK ACTIONS (Trang chủ) ─────────────────────────────────────────── */
+/* ── QUICK ACTIONS ─────────────────────────────────────────────────────── */
 .drv-quick {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
@@ -684,9 +754,9 @@ body.body--app .app-main {
 }
 
 .drv-quick__btn {
-  background: var(--bg-card);
-  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.07));
-  border-radius: var(--driver-radius);
+  background: var(--drv-grad-surface);
+  border: 1px solid var(--drv-border);
+  border-radius: var(--drv-card-radius);
   padding: 18px 12px;
   text-align: center;
   cursor: pointer;
@@ -694,6 +764,7 @@ body.body--app .app-main {
   color: var(--text-primary);
   display: block;
   min-height: 92px;
+  box-shadow: var(--drv-shadow-card);
 }
 
 .drv-quick__btn:active { background: var(--bg-hover); }
@@ -713,7 +784,7 @@ body.body--app .app-main {
   padding: 13px 12px;
   border-radius: 12px;
   cursor: pointer;
-  border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.06));
+  border-bottom: 1px solid rgba(255, 255, 255, .06);
 }
 
 .drv-search-item:active { background: var(--bg-hover); }
@@ -897,30 +968,42 @@ body.body--app .app-main {
 
 /* ── LOGIN PAGE ────────────────────────────────────────────────────────── */
 .drv-login {
-  min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 20px;
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(252, 213, 53, .13) 0%, rgba(252, 213, 53, 0) 58%),
+    var(--bg-primary);
 }
 
 .drv-login__box {
   width: 100%;
   max-width: 400px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.09));
-  border-radius: 18px;
-  padding: 26px 20px;
+  background:
+    var(--drv-grad-gold),
+    var(--drv-grad-surface);
+  border: 1px solid rgba(252, 213, 53, .2);
+  border-radius: 24px;
+  padding: 30px 22px;
+  box-shadow: var(--drv-shadow-pop);
 }
 
 .drv-login__logo {
-  font-size: 2.6rem;
-  text-align: center;
-  margin-bottom: 6px;
+  width: 68px;
+  height: 68px;
+  margin: 0 auto 14px;
+  display: grid;
+  place-items: center;
+  font-size: 2rem;
+  border-radius: 20px;
+  background: var(--drv-grad-gold-strong);
+  box-shadow: 0 10px 28px rgba(240, 185, 11, .3);
 }
 
 .drv-login__title {
-  font-size: 1.2rem;
+  font-size: 1.24rem;
   font-weight: 800;
   text-align: center;
   margin: 0 0 4px;
@@ -937,7 +1020,7 @@ body.body--app .app-main {
   background: var(--danger-dim);
   border: 1px solid var(--danger);
   color: var(--danger);
-  border-radius: 10px;
+  border-radius: 12px;
   padding: 11px 13px;
   font-size: 0.87rem;
   margin-bottom: 14px;
@@ -1030,6 +1113,43 @@ body.body--app .pos-modal-overlay {
   padding-bottom: env(safe-area-inset-bottom);
 }
 
+/* ── Header của Admin (trang Bán hàng) → đồng bộ Driver Portal ────────── */
+body.body--app .app-header {
+  background:
+    var(--drv-grad-gold),
+    rgba(30, 35, 41, .92);
+  border-bottom-color: rgba(252, 213, 53, .18);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+body.body--app .app-header-title,
+body.body--app .app-header-left h1,
+body.body--app .app-header-left h2 {
+  font-weight: 800;
+  letter-spacing: .3px;
+}
+
+/* Card / sheet trong Driver Portal → bo góc + shadow đồng bộ */
+body.body--app .card,
+body.body--app .pos-modal-sheet,
+body.body--app .modal-sheet-v2 {
+  border-radius: var(--drv-card-radius);
+}
+
+body.body--app .pos-modal-sheet {
+  border: 1px solid var(--drv-border);
+  box-shadow: var(--drv-shadow-pop);
+}
+
+/* Nút chính trong Driver Portal → gradient vàng */
+body.body--app .btn-primary {
+  background: var(--drv-grad-gold-strong);
+  color: #1a1405;
+  border-color: rgba(252, 213, 53, .5);
+  box-shadow: 0 6px 18px rgba(240, 185, 11, .26);
+}
+
 /* Header Admin (fixed) + nội dung: chừa đúng chiều cao header */
 body.body--app .page-content {
   padding-top: calc(var(--header-height) + var(--safe-area-top));
@@ -1049,8 +1169,12 @@ body.body--app .page-content {
   justify-content: space-between;
   gap: 12px;
   padding: calc(env(safe-area-inset-top) + 14px) 16px 14px;
-  background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-card) 100%);
-  border-bottom: 1px solid var(--border);
+  background:
+    var(--drv-grad-gold),
+    var(--drv-grad-surface);
+  border-bottom: 1px solid rgba(252, 213, 53, .16);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
 }
 
 .drv-home-header__brand {
@@ -1066,10 +1190,10 @@ body.body--app .page-content {
   flex: 0 0 42px;
   display: grid;
   place-items: center;
-  font-size: 1.35rem;
-  border-radius: 12px;
-  background: var(--accent-dim);
-  border: 1px solid rgba(252, 213, 53, 0.28);
+  font-size: 1.3rem;
+  border-radius: 13px;
+  background: var(--drv-grad-gold-strong);
+  box-shadow: 0 6px 18px rgba(240, 185, 11, .26);
 }
 
 .drv-home-header__brandtext { min-width: 0; }
@@ -1092,9 +1216,8 @@ body.body--app .page-content {
   font-size: 0.62rem;
   font-weight: 700;
   letter-spacing: 0.9px;
-  color: var(--accent);
-  background: var(--accent-dim);
-  border: 1px solid rgba(252, 213, 53, 0.3);
+  color: #1a1405;
+  background: var(--drv-grad-gold-strong);
   border-radius: 999px;
   white-space: nowrap;
 }
@@ -1148,7 +1271,6 @@ body.body--app .page-content {
   margin: 0 auto;
 }
 
-/* Desktop: 3 thẻ KPI nằm cùng một hàng, rộng thoải mái */
 @media (min-width: 768px) {
   .drv-home-main {
     max-width: 860px;
@@ -1161,11 +1283,14 @@ body.body--app .page-content {
   display: flex;
   align-items: center;
   gap: 13px;
-  padding: 14px 15px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-color, rgba(255,255,255,.08));
-  border-radius: 16px;
-  margin-bottom: 22px;
+  padding: 15px 16px;
+  background:
+    var(--drv-grad-gold),
+    var(--drv-grad-surface);
+  border: 1px solid rgba(252, 213, 53, .2);
+  border-radius: var(--drv-card-radius);
+  margin-bottom: 18px;
+  box-shadow: var(--drv-shadow-card);
 }
 
 .drv-home-user__avatar {
@@ -1177,7 +1302,7 @@ body.body--app .page-content {
   font-size: 1.3rem;
   border-radius: 14px;
   background: var(--bg-hover);
-  border: 1px solid var(--border-color, rgba(255,255,255,.08));
+  border: 1px solid var(--drv-border);
 }
 
 .drv-home-user__body { min-width: 0; flex: 1; }
@@ -1223,10 +1348,11 @@ body.body--app .page-content {
 /* ── BỘ LỌC THỐNG KÊ THEO NGÀY TRONG THÁNG ─────────────────────────────── */
 .drv-home-filter {
   margin-bottom: 18px;
-  padding: 14px 12px 12px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-color, rgba(255,255,255,.08));
-  border-radius: 12px;
+  padding: 15px 14px 13px;
+  background: var(--drv-grad-surface);
+  border: 1px solid var(--drv-border);
+  border-radius: var(--drv-card-radius);
+  box-shadow: var(--drv-shadow-card);
 }
 
 /* Thanh chuyển tháng */
@@ -1242,13 +1368,13 @@ body.body--app .page-content {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
-  flex: 0 0 34px;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
   padding: 0;
-  border: 1px solid var(--border-color, rgba(255,255,255,.08));
-  border-radius: 9px;
-  background: #202830;
+  border: 1px solid var(--drv-border);
+  border-radius: 11px;
+  background: var(--bg-hover);
   color: var(--text-primary);
   cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease;
@@ -1256,7 +1382,7 @@ body.body--app .page-content {
 
 .drv-home-filter__nav:hover {
   border-color: var(--accent);
-  background: #262f39;
+  background: var(--bg-active);
 }
 
 .drv-home-filter__nav:active { transform: scale(0.94); }
@@ -1293,9 +1419,9 @@ body.body--app .page-content {
   min-width: 0;
   height: 34px;
   padding: 0;
-  border: 1px solid var(--border-color, rgba(255,255,255,.08));
-  border-radius: 8px;
-  background: #202830;
+  border: 1px solid var(--drv-border);
+  border-radius: 9px;
+  background: var(--bg-hover);
   color: var(--text-secondary);
   font-size: 0.76rem;
   font-weight: 600;
@@ -1312,15 +1438,15 @@ body.body--app .page-content {
 /* Ngày có dữ liệu */
 .drv-home-day.has-data {
   color: var(--text-primary);
-  border-color: rgba(46, 160, 67, 0.35);
-  background: #1d262e;
+  border-color: rgba(14, 203, 129, .32);
+  background: rgba(14, 203, 129, .07);
 }
 
 /* Ngày đang chọn */
 .drv-home-day.is-selected {
   border-color: var(--accent);
-  background: var(--accent);
-  color: #10141a;
+  background: var(--drv-grad-gold-strong);
+  color: #1a1405;
   font-weight: 800;
 }
 
@@ -1337,7 +1463,7 @@ body.body--app .page-content {
   background: var(--info);
 }
 
-.drv-home-day.is-selected.is-today::after { background: #10141a; }
+.drv-home-day.is-selected.is-today::after { background: #1a1405; }
 
 /* Tooltip số liệu khi rê chuột (desktop) */
 .drv-home-day__tip {
@@ -1353,9 +1479,9 @@ body.body--app .page-content {
   font-weight: 600;
   color: var(--text-primary);
   background: #12171d;
-  border: 1px solid var(--border-color, rgba(255,255,255,.08));
+  border: 1px solid var(--drv-border);
   border-radius: 8px;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .45);
   pointer-events: none;
 }
 
@@ -1369,7 +1495,7 @@ body.body--app .page-content {
   gap: 6px;
   margin-top: 12px;
   padding-top: 11px;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--drv-border);
   font-size: 0.78rem;
   color: var(--text-secondary);
 }
@@ -1380,7 +1506,7 @@ body.body--app .page-content {
   font-variant-numeric: tabular-nums;
 }
 
-.drv-home-filter__sep { color: var(--border); }
+.drv-home-filter__sep { color: var(--drv-border-strong); }
 
 .drv-home-filter__sumlabel {
   margin-left: auto;
@@ -1413,12 +1539,12 @@ body.body--app .page-content {
   min-width: 0;
   padding: 18px 12px 16px;
   text-align: center;
-  background: #202830;
-  border: 1px solid var(--border-color, rgba(255,255,255,.08));
-  border-radius: 12px;
+  background: var(--drv-grad-surface);
+  border: 1px solid var(--drv-border);
+  border-radius: var(--drv-card-radius);
+  box-shadow: var(--drv-shadow-card);
 }
 
-/* Icon Lucide (SVG inline, stroke = currentColor) */
 .drv-home-kpi__icon {
   display: inline-flex;
   align-items: center;
@@ -1448,10 +1574,22 @@ body.body--app .page-content {
   overflow-wrap: anywhere;
 }
 
-/* Màu theo từng chỉ số */
-.drv-home-kpi--orders { color: var(--accent); }   /* vàng */
-.drv-home-kpi--liters { color: var(--success); }  /* xanh lá */
-.drv-home-kpi--kegs { color: var(--info); }       /* xanh dương */
+.drv-home-kpi__note {
+  font-size: .68rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: var(--info);
+  background: var(--info-dim);
+  border: 1px solid rgba(59, 122, 254, .28);
+  white-space: nowrap;
+}
+
+.drv-home-kpi__note[hidden] { display: none; }
+
+.drv-home-kpi--orders { color: var(--accent); }
+.drv-home-kpi--liters { color: var(--success); }
+.drv-home-kpi--kegs { color: var(--info); }
 
 .drv-home-kpi--orders .drv-home-kpi__value { color: var(--accent); }
 .drv-home-kpi--liters .drv-home-kpi__value { color: var(--success); }
@@ -1471,20 +1609,20 @@ body.body--app .page-content {
 /* ── HÀNG CẦN GIAO HÔM NAY ──────────────────────────────────────────── */
 .drv-home-load {
   margin-top: 22px;
-  padding: 16px 14px 14px;
-  border-radius: 16px;
+  padding: 17px 15px 15px;
+  border-radius: var(--drv-card-radius);
   background:
-    linear-gradient(160deg, rgba(250, 204, 21, .10) 0%, rgba(250, 204, 21, 0) 46%),
-    var(--bg-card, #202830);
-  border: 1px solid var(--border-color, rgba(255, 255, 255, .08));
-  box-shadow: 0 8px 24px rgba(0, 0, 0, .22);
+    var(--drv-grad-gold),
+    var(--drv-grad-surface);
+  border: 1px solid rgba(252, 213, 53, .22);
+  box-shadow: var(--drv-shadow-pop);
 }
 
 .drv-home-load__head {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 14px;
+  margin-bottom: 15px;
 }
 
 .drv-home-load__headtext {
@@ -1494,7 +1632,7 @@ body.body--app .page-content {
 
 .drv-home-load__title {
   margin: 0;
-  font-size: .82rem;
+  font-size: .84rem;
   color: var(--text-primary);
 }
 
@@ -1509,20 +1647,20 @@ body.body--app .page-content {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
-  border-radius: 11px;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
   color: #1a1405;
-  background: linear-gradient(135deg, #fde047, #f59e0b);
-  box-shadow: 0 4px 12px rgba(245, 158, 11, .28);
+  background: var(--drv-grad-gold-strong);
+  box-shadow: 0 6px 16px rgba(245, 158, 11, .3);
 }
 
 .drv-home-load__badge svg {
-  width: 20px;
-  height: 20px;
+  width: 21px;
+  height: 21px;
 }
 
-/* ── Danh sách loại hàng ─────────────────────────────────────── */
+/* ── Danh sách loại hàng ──────────────────────────────────────────────── */
 .drv-home-load__list {
   display: flex;
   flex-direction: column;
@@ -1533,10 +1671,10 @@ body.body--app .page-content {
   display: flex;
   align-items: center;
   gap: 11px;
-  padding: 11px 13px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, .035);
-  border: 1px solid var(--border-color, rgba(255, 255, 255, .06));
+  padding: 12px 13px;
+  border-radius: var(--drv-card-radius-sm);
+  background: rgba(255, 255, 255, .04);
+  border: 1px solid var(--drv-border);
 }
 
 .drv-home-load__icon {
@@ -1544,17 +1682,18 @@ body.body--app .page-content {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  font-size: 1.05rem;
-  background: rgba(255, 255, 255, .06);
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  font-size: 1.1rem;
+  background: rgba(255, 255, 255, .07);
+  border: 1px solid var(--drv-border);
 }
 
 .drv-home-load__name {
   flex: 1;
   min-width: 0;
-  font-size: .92rem;
+  font-size: .93rem;
   font-weight: 600;
   color: var(--text-primary);
   overflow: hidden;
@@ -1567,14 +1706,14 @@ body.body--app .page-content {
   display: inline-flex;
   align-items: baseline;
   gap: 4px;
-  padding: 5px 11px;
+  padding: 6px 12px;
   border-radius: 999px;
-  background: rgba(250, 204, 21, .13);
-  border: 1px solid rgba(250, 204, 21, .3);
+  background: var(--drv-grad-gold);
+  border: 1px solid rgba(252, 213, 53, .3);
 }
 
 .drv-home-load__qty b {
-  font-size: 1.02rem;
+  font-size: 1.05rem;
   font-weight: 800;
   color: var(--accent);
   line-height: 1;
@@ -1587,19 +1726,19 @@ body.body--app .page-content {
   color: var(--text-secondary);
 }
 
-/* ── Rỗng ──────────────────────────────────────────────────────────── */
+/* ── Rỗng ──────────────────────────────────────────────────────────────── */
 .drv-home-load__empty {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 9px;
-  padding: 18px 14px;
-  border-radius: 12px;
+  padding: 20px 14px;
+  border-radius: var(--drv-card-radius-sm);
   font-size: .84rem;
   font-weight: 600;
   color: var(--text-secondary);
   background: rgba(255, 255, 255, .03);
-  border: 1px dashed var(--border-color, rgba(255, 255, 255, .12));
+  border: 1px dashed var(--drv-border-strong);
 }
 
 .drv-home-load__emptyicon { font-size: 1.1rem; }

@@ -77,6 +77,14 @@
       setText('home-liters', D.num(data.todayLiters || 0));
       setText('home-kegs', D.num(data.todayKegs || 0));
 
+      // Vỏ: hiện "đã thu" + ghi chú "còn lưu lượng" (giao đi - thu về)
+      var netEl = document.getElementById('home-kegs-net');
+      if (netEl) {
+        var net = data.todayKegsNet || 0;
+        netEl.textContent = net > 0 ? 'còn ' + D.num(net) + ' vỏ' : (net < 0 ? 'thừa ' + D.num(Math.abs(net)) + ' vỏ' : '');
+        netEl.hidden = net === 0;
+      }
+
       renderMonthLabel(data);
       renderDayList(data);
       renderMonthSummary(data);
@@ -136,7 +144,7 @@
         if (d.orders || d.liters || d.kegs) {
           hint =
             '<span class="drv-home-day__tip">' +
-            d.orders + ' đơn · ' + D.num(d.liters) + ' lít · ' + D.num(d.kegs) + ' vỏ' +
+            d.orders + ' đơn · ' + D.num(d.liters) + ' lít · ' + D.num(d.kegs) + ' vỏ thu' +
             '</span>';
         }
 
@@ -167,6 +175,15 @@
     setText('home-sum-orders', D.num(t.orders || 0));
     setText('home-sum-liters', D.num(t.liters || 0));
     setText('home-sum-kegs', D.num(t.kegs || 0));
+
+    var netEl = document.getElementById('home-sum-kegs-net');
+    var netWrap = document.getElementById('home-sum-kegs-net-wrap');
+    if (netEl) {
+      var net = t.kegsNet || 0;
+      netEl.textContent = net > 0 ? D.num(net) + ' còn lưu' : '';
+      netEl.hidden = net <= 0;
+      if (netWrap) netWrap.hidden = net <= 0;
+    }
   }
 
   /** Danh sách loại hàng cần giao hôm nay (loại + số lượng). */
