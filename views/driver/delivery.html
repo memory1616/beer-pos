@@ -557,24 +557,29 @@
       panel.innerHTML = buildPanel(detail);
       bindPanel(panel, deliveryId, card, detail.sale_id || c.sale_id);
 
-      // Cuộn panel vào vùng nhìn: panel dài, các ô nhập vỏ nằm dưới
-      // bottom menu fixed nếu không cuộn → không gõ được.
+      // Cuộn ô "Vỏ thu về" vào giữa khung nhìn khi mở panel.
+      // Panel dài + bottom menu fixed → ô nhập nằm ngoài tầm nhìn, không gõ được.
+      // Dùng scrollIntoView (native) để tự xử lý đúng scroll container.
       try {
         setTimeout(function () {
+          var kegEl = panel.querySelector('#dl-kegs');
+          if (!kegEl) return;
           var navEl = document.querySelector('.drv-nav');
           var navH = navEl ? navEl.getBoundingClientRect().height : 0;
           var headerEl = document.querySelector('.header');
           var headH = headerEl ? headerEl.getBoundingClientRect().height : 0;
-          var panelRect = panel.getBoundingClientRect();
-          var targetTop = panelRect.top + window.pageYOffset - headH - 8;
-          // Ưu tiên đưa ô "Vỏ thu về" vào giữa khung nhìn
-          var kegEl = panel.querySelector('#dl-kegs');
-          if (kegEl) {
-            var kr = kegEl.getBoundingClientRect();
-            targetTop = kr.top + window.pageYOffset - (window.innerHeight - navH) / 2;
+          var top = kegEl.getBoundingClientRect().top + window.pageYOffset - headH - 12;
+          var bottom = top + kegEl.getBoundingClientRect().height + navH + 12;
+          var vTop = window.pageYOffset + headH;
+          var vBottom = window.pageYOffset + window.innerHeight - navH;
+          // Chỉ cuộn nếu ô chưa nằm trọn trong vùng nhìn khả dụng
+          if (top < vTop || bottom > vBottom) {
+            window.scrollTo({
+              top: top - (window.innerHeight - navH - kegEl.getBoundingClientRect().height) / 2,
+              behavior: 'smooth'
+            });
           }
-          window.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' });
-        }, 80);
+        }, 120);
       } catch (_) {}
     }
 
