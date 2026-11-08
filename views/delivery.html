@@ -10,6 +10,23 @@
     .header h1 { margin: 0; font-size: 18px; }
     .content { padding: 15px; padding-bottom: calc(var(--bottomnav-height) + var(--safe-area-bottom) + 15px); }
     #map { height: 250px; width: 100%; border-radius: 10px; background: #1a1a2e; }
+
+    /* Nút chuyển lớp bản đồ (Google / Vệ tinh / Tối) */
+    .drv-map-layers { display: flex; flex-direction: column; gap: 6px; }
+    .drv-map-layer-btn {
+      width: 34px; height: 34px; border-radius: 8px; cursor: pointer;
+      background: rgba(17, 20, 24, 0.85); border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #fff; font-size: 16px; line-height: 1; display: flex; align-items: center; justify-content: center;
+      transition: background .15s, border-color .15s, transform .1s;
+      -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+    }
+    .drv-map-layer-btn:hover { background: rgba(59, 130, 246, 0.85); }
+    .drv-map-layer-btn:active { transform: scale(0.94); }
+    .drv-map-layer-btn.is-active {
+      background: #3b82f6; border-color: #93c5fd; box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.35);
+    }
+    .drv-map-layer-ico { pointer-events: none; }
+
     .stats { display: flex; gap: 10px; margin: 15px 0; }
     .stat-box { flex: 1; background: #1a1a2e; padding: 15px; border-radius: 10px; text-align: center; }
     .stat-box .val { font-size: 24px; font-weight: bold; color: #3b82f6; }
@@ -90,7 +107,7 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="/js/map-tiles.js?v=20261108a"></script>
+  <script src="/js/map-tiles.js?v=20261108b"></script>
   <script>
     var data = {{DELIVERY_DATA}};
     var customers = data.customers || [];
@@ -153,12 +170,14 @@
     function initMap() {
       map = L.map('map').setView([lat, lng], 12);
 
-      // Bản đồ tối qua proxy của server (không cần API key, không bị chặn Referer)
-      if (window.MapTiles && window.MapTiles.addDarkTiles) {
-        window.MapTiles.addDarkTiles(map);
+      // Google Maps qua proxy của server (không cần API key, không bị chặn Referer)
+      var tiles = null;
+      if (window.MapTiles && window.MapTiles.addTiles) {
+        tiles = window.MapTiles.addTiles(map, { layer: 'google' });
+        window.MapTiles.addLayerSwitcher(map, null, { layer: 'google', tiles: tiles });
       } else {
-        L.tileLayer('/map-tiles/{z}/{x}/{y}.jpg', {
-          attribution: 'Bản đồ © Esri / OpenStreetMap', maxZoom: 19
+        L.tileLayer('/map-tiles/{z}/{x}/{y}.jpg?layer=google', {
+          attribution: '© Google Maps', maxZoom: 19
         }).addTo(map);
       }
 

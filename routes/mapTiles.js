@@ -33,10 +33,31 @@ const TILE_SOURCES = [
     attribution: 'Tiles © Esri',
   },
   {
+    // Google Maps — bản đồ đường giao thông, tên đường rõ nhất
+    name: 'google-road',
+    url: (z, x, y) => `https://mt1.google.com/vt/lyrs=m&x=${x}&y=${y}&z=${z}`,
+    referer: null,
+    attribution: '© Google Maps',
+  },
+  {
+    name: 'google-sat',
+    url: (z, x, y) => `https://mt1.google.com/vt/lyrs=s&x=${x}&y=${y}&z=${z}`,
+    referer: null,
+    attribution: '© Google Maps',
+  },
+  {
     name: 'osm',
     url: (z, x, y) => `https://tile.openstreetmap.org/${z}/${x}/${y}.png`,
     referer: null, // OSM chặn Referer website → không gửi Referer
     attribution: '© OpenStreetMap contributors',
+  },
+  {
+    // Esri vệ tinh — fallback cho lớp satellite khi Google bị chặn
+    name: 'esri-img',
+    url: (z, x, y) =>
+      `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`,
+    referer: 'https://giaohang.biatuoitayninh.store/',
+    attribution: 'Tiles © Esri',
   },
   {
     name: 'esri-topo',
@@ -86,7 +107,10 @@ function cacheSet(key, buf, type) {
 function fetchTile(src, z, x, y) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 8000);
-  const headers = { 'User-Agent': 'Mozilla/5.0 (compatible; BeerPOS-MapProxy/1.0)' };
+  const headers = {
+    'User-Agent':
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  };
   // OSM chặn Referer của website → chỉ gửi Referer cho Esri
   if (src.referer) headers['Referer'] = src.referer;
 
@@ -100,7 +124,19 @@ function fetchTile(src, z, x, y) {
     .finally(() => clearTimeout(timer));
 }
 
-// Route: /map-tiles/:z/:x/:y.jpg
+// Các bộ nguồn theo lớp bản đồ (client chọn qua ?layer=)
+const LAYERS = {
+  // Google đường giao thông — tên đường rõ, phù hợp tìm địa chỉ khách
+  google: ['google-road', 'esri-topo', 'osm'],
+  // Google vệ tinh — nhìn tổng thể khu vực giao hàng
+  satellite: ['google-sat', 'esri-img', 'osm'],
+  // Bản đồ tối (Esri) — hợp với giao diện dark của app
+  dark: ['esri-dark', 'esri-topo', 'osm'],
+  // Bản đồ sáng — dễ đọc dưới ánh sáng mạnh
+  light: ['google-road', 'esri-topo', 'osm'],
+};
+
+// Route: /map-tiles/:z/:x/:y.jpg  (?layer=google|satellite|dark|light)
 router.get('/map-tiles/:z/:x/:y.jpg', async (req, res) => {
   const z = parseInt(req.params.z, 10);
   const x = parseInt(req.params.x, 10);
@@ -114,21 +150,28 @@ router.get('/map-tiles/:z/:x/:y.jpg', async (req, res) => {
     return res.status(400).type('text/plain').send('Tile out of range');
   }
 
-  const key = `${z}/${x}/${y}`;
+  const layerKey = String(req.query.layer || 'google').toLowerCase();
+  const order = LAYERS[layerKey] || LAYERS.google;
+
+  const key = `${layerKey}/${z}/${x}/${y}`;
   const cached = cacheGet(key);
   if (cached) {
     res.set('X-Tile-Cache', 'HIT');
+    res.set('X-Tile-Layer', layerKey);
     res.set('Cache-Control', 'public, max-age=3600');
     return res.type(cached.type).send(cached.buf);
   }
 
-  // Thử từng nguồn cho tới khi có ảnh hợp lệ
+  // Thử từng nguồn trong lớp cho tới khi có ảnh hợp lệ
   let lastErr = null;
-  for (const src of TILE_SOURCES) {
+  for (const name of order) {
+    const src = TILE_SOURCES.find((s) => s.name === name);
+    if (!src) continue;
     try {
       const { buf, type } = await fetchTile(src, z, x, y);
       cacheSet(key, buf, type);
       res.set('X-Tile-Cache', 'MISS');
+      res.set('X-Tile-Layer', layerKey);
       res.set('Cache-Control', 'public, max-age=3600');
       return res.type(type).send(buf);
     } catch (e) {
@@ -136,13 +179,14 @@ router.get('/map-tiles/:z/:x/:y.jpg', async (req, res) => {
     }
   }
 
-  logger.warn('[map-tiles] khong lay duoc tile', { z, x, y, error: lastErr && lastErr.message });
+  logger.warn('[map-tiles] khong lay duoc tile', { z, x, y, layer: layerKey, error: lastErr && lastErr.message });
   return res.status(502).type('text/plain').send('Tile unavailable');
 });
 
 // Route: /map-tiles/attribution — trả attribution của các nguồn đang dùng
 router.get('/map-tiles/attribution', (req, res) => {
   res.json({
+    layers: Object.keys(LAYERS),
     sources: TILE_SOURCES.map((s) => ({ name: s.name, attribution: s.attribution })),
   });
 });
