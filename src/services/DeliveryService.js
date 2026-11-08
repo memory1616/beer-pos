@@ -348,7 +348,9 @@ class DeliveryService {
           const expected = item.expected_quantity || 0;
           const delivered = Number(input.deliveredQuantity ?? expected) || 0;
           const damaged = Number(input.damagedQuantity || 0) || 0;
-          const excess = Number(input.excessQuantity || 0) || 0;
+          // `let` (không phải const): bên dưới có `excess += -missing` khi giao
+          // nhiều hơn số lượng cần giao → const sẽ ném "Assignment to constant variable".
+          let excess = Number(input.excessQuantity || 0) || 0;
 
           // Missing = expected - delivered (không âm). Nếu delivered > expected → tính excess.
           let missing = expected - delivered;

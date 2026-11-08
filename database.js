@@ -4,8 +4,16 @@ const fs = require('fs');
 
 const logger = console;
 
-const dbPath = path.join(__dirname, 'database.sqlite');
+// Cho phép trỏ sang DB khác qua env DB_PATH (dùng cho test/script kiểm thử
+// trên bản sao, tránh ghi nhầm vào DB thật).
+const dbPath = process.env.DB_PATH
+  ? path.resolve(process.env.DB_PATH)
+  : path.join(__dirname, 'database.sqlite');
 const db = new Database(dbPath);
+
+if (process.env.DB_PATH) {
+  logger.log(`[DB] Using custom database path: ${dbPath}`);
+}
 
 // Run database migrations
 try {
