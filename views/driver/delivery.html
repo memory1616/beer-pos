@@ -417,9 +417,11 @@
       }
 
       panel.addEventListener('click', async function (e) {
+        // Mọi click bên trong panel đều KHÔNG được bubble lên #list,
+        // nếu không click vào ô nhập sẽ làm panel đóng lại.
+        e.stopPropagation();
         var btn = e.target.closest('[data-act]');
         if (!btn) return;
-        e.stopPropagation();
         var act = btn.getAttribute('data-act');
         btn.disabled = true;
 
@@ -466,7 +468,7 @@
             var r = await window.Drv.api.post('/api/driver/deliveries/' + deliveryId + '/confirm', {
               items: payloadItems,
               collectedKegs: returnedKegs,
-              note: noteEl.value.trim()
+              note: noteEl ? noteEl.value.trim() : ''
             });
             var sm = r.summary || {};
             if (sm.totalMissing > 0 || sm.totalExcess > 0 || sm.totalDamaged > 0) {
@@ -480,6 +482,7 @@
           }
 
           if (act === 'fail') {
+            if (!noteEl) return;
             var reason = noteEl.value.trim();
             if (!reason) {
               window.Drv.toast('Vui lòng nhập lý do thất bại ở ô ghi chú', 'warning');
@@ -496,11 +499,15 @@
           }
 
           if (act === 'save-disc') {
+            var dMissing = panel.querySelector('[data-disc="missing"]');
+            var dExcess = panel.querySelector('[data-disc="excess"]');
+            var dDamaged = panel.querySelector('[data-disc="damaged"]');
+            if (!dMissing || !dExcess || !dDamaged) return;
             await window.Drv.api.post('/api/driver/deliveries/' + deliveryId + '/discrepancy', {
-              missingLiters: parseFloat(panel.querySelector('[data-disc="missing"]').value) || 0,
-              excessLiters: parseFloat(panel.querySelector('[data-disc="excess"]').value) || 0,
-              damagedLiters: parseFloat(panel.querySelector('[data-disc="damaged"]').value) || 0,
-              note: noteEl.value.trim()
+              missingLiters: parseFloat(dMissing.value) || 0,
+              excessLiters: parseFloat(dExcess.value) || 0,
+              damagedLiters: parseFloat(dDamaged.value) || 0,
+              note: noteEl ? noteEl.value.trim() : ''
             });
             window.Drv.toast('Đã ghi nhận sai lệch', 'warning');
             closePanel();
@@ -512,7 +519,7 @@
         } finally {
           btn.disabled = false;
         }
-      });
+      }, { signal: abort.signal });
     }
 
     async function toggleDeliveryDetail(c, card) {
@@ -605,6 +612,9 @@
     document.getElementById('list').addEventListener('click', function (e) {
       if (e.target.closest('a')) return;
       if (e.target.closest('.btn-dir.is-disabled')) return;
+      // Click bên trong panel giao hàng (ô nhập vỏ, số lượng, ghi chú…)
+      // → không đóng panel, không chuyển đơn.
+      if (e.target.closest('.card__panel')) return;
       var card = e.target.closest('[data-customer-id]');
       if (!card) return;
       var cid = parseInt(card.getAttribute('data-customer-id'));
