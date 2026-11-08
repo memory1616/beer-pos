@@ -53,9 +53,19 @@ class DeliveryService {
     const date = opts.date || db.getVietnamDateStr();
     const limit = Math.min(500, parseInt(opts.limit) || 200);
 
-    const rows = db
-      .prepare(
-        `
+  // ── BỌC LỌC: đơn gắn với tài xế KHÔNG còn tồn tại ──────────────────
+  // Bug: `sales.driver_username` trỏ tới tài khoản đã bị xoá / khoá (vd: tài
+  // khoản test) → đơn rơi vào "mồ": Admin thấy (không lọc driver) nhưng
+  // Driver Portal KHÔNG thấy (lọc `driver_username = tôi`) → LỆCH 2 TRANG,
+  // và tài xế thật không bao giờ nhận được đơn đó.
+  //
+  // Fix: coi đơn gắn cho tài khoản không tồn tại (hoặc đã bị khoá) như đơn
+  // CHƯA GÁN → mọi tài xế đều có thể nhận & giao (đúng nguyên tắc "đơn chưa
+  // có tài xế nào phụ trách"). Đơn của tài xế ĐANG HOẠT ĐỘNG vẫn giữ nguyên
+  // (không lộ cho tài xế khác).
+  const drvRows = db
+    .prepare(
+      `
         SELECT
           s.id AS sale_id,
           s.date,
@@ -97,6 +107,7 @@ class DeliveryService {
                 s.driver_username = ?
              OR s.driver_username IS NULL
              OR s.driver_username = ''
+             OR s.driver_username NOT IN (SELECT username FROM app_users WHERE role = 'DRIVER')
           )
           AND (
                 dr.id IS NULL
@@ -106,11 +117,33 @@ class DeliveryService {
                  COALESCE(c.name, 'Khách lẻ'), s.id DESC
         LIMIT ?
       `
-      )
-      .all(driverUsername, date, driverUsername, limit);
+    )
+    .all(driverUsername, date, driverUsername, limit);
 
-    return rows;
-  }
+  // ── Lọc phạm vi (bảo mật) ────────────────────────────────────────────
+  // SQL đã mở rộng để bao gồm "đơn mồ" (gắn cho tài khoản KHÔNG còn tồn
+  // tại trong app_users). Ở đây ta loại đơn của tài xế KHÁC — đúng nguyên tắc
+  // bảo mật scope.
+  //
+  //   owner rỗng / NULL                      → chưa gán ai          → AI CŨNG thấy
+  //   owner === tài xế đang xem               → đơn của chính mình   → thấy
+  //   owner không còn trong app_users        → coi như chưa gán     → AI CŨNG thấy
+  //   owner là tài xế KHÁC (còn tồn tại)      → đã có người phụ trách → ẨN
+  const knownDrivers = new Set(
+    db
+      .prepare("SELECT username FROM app_users WHERE role = 'DRIVER'")
+      .all()
+      .map((r) => r.username)
+  );
+
+  return drvRows.filter((r) => {
+    const owner = r.driver_username;
+    if (!owner) return true;                       // chưa gán ai
+    if (owner === driverUsername) return true;     // đơn của chính mình
+    if (!knownDrivers.has(owner)) return true;     // tài khoản không còn tồn tại → coi như chưa gán
+    return false;                                  // tài xế khác → ẩn
+  });
+}
 
   /**
    * Lấy danh sách đơn ĐÃ giao của tài xế (lịch sử).

@@ -211,12 +211,16 @@ router.get('/history', requireDriver, (req, res) => {
     // Scope thống nhất với trang Giao hàng:
     //   - đơn do chính tài xế tạo
     //   - đơn Admin tạo mà CHƯA gán tài xế nào (NULL hoặc chuỗi rỗng)
+    //   - đơn gắn cho tài khoản KHÔNG CÒN TỒN TẠI trong app_users
+    //     (vd: tài khoản test đã bị xoá) → coi như CHƯA GÁN.
+    //     Bug: đơn "mồ" → Admin thấy nhưng Driver KHÔNG thấy → lệch 2 trang.
     //   - bỏ qua đơn của khách đã ẩn/archived (giống DeliveryService.listForDriver)
     let whereClause =
       `WHERE s.type IN ('sale', 'replacement', 'damage_return')
          AND s.archived = 0
          AND s.deleted = 0
-         AND (s.driver_username = ? OR s.driver_username IS NULL OR s.driver_username = '')
+         AND (s.driver_username = ? OR s.driver_username IS NULL OR s.driver_username = ''
+              OR s.driver_username NOT IN (SELECT username FROM app_users WHERE role = 'DRIVER'))
          AND (c.id IS NULL OR c.archived = 0)`;
     const params = [req.user.username];
 

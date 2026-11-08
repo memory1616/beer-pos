@@ -252,7 +252,36 @@ function deleteSaleRestoringInventory(saleId) {
         WHERE id = 1
       `).run(inventoryResult.total, totalHolding.total);
 
-      // ===== F. SOFT DELETE =====
+      // ===== F. DỌN PHIẾU GIAO (delivery_records) CỦA ĐƠN ĐÃ XOÁ =====
+      // BUG FIX: Xoá đơn (soft-delete) nhưng GIỮ delivery_records → khi đơn
+      // được khôi phục (POST /api/sales/:id/restore) hoặc tạo lại với cùng id,
+      // trang Giao hàng vẫn thấy dr.status='DELIVERED' cũ → ĐƠN KHÔNG HIỆN Ở
+      // TRANG GIAO HÀNG (nhưng vẫn hiện ở trang Admin) → LỆCH 2 TRANG.
+      //
+      // Fix: khi xoá đơn → xoá luôn phiếu giao + items + events của đơn đó.
+      // Đơn bị xoá = đơn không còn tồn tại → phiếu giao cũng không còn ý nghĩa.
+      // (Nếu cần audit, `delivery_events` đã ghi lại lịch sử trước khi xoá.)
+      try {
+        const drIds = db
+          .prepare('SELECT id FROM delivery_records WHERE sale_id = ?')
+          .all(id)
+          .map((r) => r.id);
+
+        for (const drId of drIds) {
+          db.prepare('DELETE FROM delivery_record_items WHERE delivery_id = ?').run(drId);
+          db.prepare('DELETE FROM delivery_events WHERE delivery_id = ?').run(drId);
+        }
+        if (drIds.length) {
+          db.prepare('DELETE FROM delivery_records WHERE sale_id = ?').run(id);
+        }
+        db.prepare('UPDATE sales SET delivery_status = NULL WHERE id = ?').run(id);
+        console.log('[ORDER DELETE] Cleaned delivery_records for sale', id, ':', drIds.length);
+      } catch (drErr) {
+        // Không được fail xoá đơn vì lỗi dọn phiếu giao.
+        console.error('[ORDER DELETE] Clean delivery_records error:', drErr.message);
+      }
+
+      // ===== G. SOFT DELETE =====
       db.prepare('UPDATE sales SET archived = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(id);
 
     } catch (err) {

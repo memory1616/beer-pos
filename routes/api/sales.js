@@ -1270,6 +1270,32 @@ router.post('/:id/restore', (req, res) => {
     // Restore archived sale
     db.prepare('UPDATE sales SET archived = 0 WHERE id = ?').run(saleId);
 
+    // B9: Dọn phiếu giao "mồ" còn sót từ lần xoá trước.
+    // Khi đơn bị xoá, `saleDelete.js` đã xoá delivery_records → nhưng với dữ
+    // liệu cũ (trước khi có fix) thì dr còn tồn tại với status='DELIVERED'.
+    // → Sau khi khôi phục, trang Giao hàng vẫn lọc đơn này đi (đơn KHÔNG hiện)
+    // trong khi trang Admin ĐÃ hiện → LỆCH 2 TRANG.
+    // Fix: xoá phiếu giao cũ + reset delivery_status của đơn.
+    try {
+      const drIds = db
+        .prepare('SELECT id FROM delivery_records WHERE sale_id = ?')
+        .all(saleId)
+        .map((r) => r.id);
+      for (const drId of drIds) {
+        db.prepare('DELETE FROM delivery_record_items WHERE delivery_id = ?').run(drId);
+        db.prepare('DELETE FROM delivery_events WHERE delivery_id = ?').run(drId);
+      }
+      if (drIds.length) {
+        db.prepare('DELETE FROM delivery_records WHERE sale_id = ?').run(saleId);
+      }
+      db.prepare('UPDATE sales SET delivery_status = NULL WHERE id = ?').run(saleId);
+      if (drIds.length) {
+        console.log('[Sales] Cleaned stale delivery_records on restore:', saleId, drIds.length);
+      }
+    } catch (drErr) {
+      console.error('[Sales] Clean delivery_records on restore error:', drErr.message);
+    }
+
     // B8: Rebuild customer_monthly_stats sau khi restore để đảm bảo
     //     purchased_liters đồng bộ với sales.archived = 0.
     //     Không ghi đè reward_claimed (sync-volume đã có logic backup).
