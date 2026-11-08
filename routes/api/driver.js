@@ -138,9 +138,9 @@ router.get('/dashboard', requireDriver, (req, res) => {
 //                   - Tính mọi trạng thái (DELIVERED / DISCREPANCY) — tài xế đã thu
 //                     vỏ thì vẫn phải hiện trong KPI
 //
-//   - pendingDeliveries : danh sách đơn HÔM NAY cần giao (chưa DELIVERED)
 //   - pendingSummary    : tổng lít / vỏ giao / vỏ thu / số đơn cần giao
-//   - pendingProducts   : breakdown sản phẩm cần giao (Bia Bom Vàng, Bia Pet...)
+//   - pendingProducts   : LOẠI HÀNG + SỐ LƯỢNG cần giao hôm nay
+//                         [{ name, slug, type, qty, unit }]
 //   - month/monthLabel : tháng đang xem
 //   - daily            : mảng thống kê theo TỪNG NGÀY trong tháng (cho bộ lọc)
 //   - monthTotals      : tổng cả tháng
@@ -171,6 +171,13 @@ function normalizeHomeDate(rawDate, month) {
   }
   return today.slice(0, 7) === month ? today : `${month}-01`;
 }
+
+// Đơn vị đếm theo loại sản phẩm (tài xế chất hàng lên xe)
+const PRODUCT_UNIT = {
+  keg: 'vỏ',
+  box: 'thùng',
+  pet: 'chai',
+};
 
 // Số ngày trong tháng (YYYY-MM)
 function daysInMonth(month) {
@@ -403,7 +410,13 @@ router.get('/home', requireDriver, (req, res) => {
       `
       )
       .all(today, req.user.username, req.user.username, today, req.user.username)
-      .map((r) => ({ name: r.name, slug: r.slug, type: r.ptype, qty: r.qty || 0 }));
+      .map((r) => ({
+        name: r.name,
+        slug: r.slug,
+        type: r.ptype,
+        qty: r.qty || 0,
+        unit: PRODUCT_UNIT[r.ptype] || 'lít',
+      }));
 
     // Chỉ số của ngày đang chọn
     const sel = byDate[selectedDate] || { orders: 0, liters: 0, kegs: 0 };
@@ -419,8 +432,6 @@ router.get('/home', requireDriver, (req, res) => {
       monthLabel: `Tháng ${month.slice(5, 7)}/${month.slice(0, 4)}`,
       daily,
       monthTotals,
-      pendingDeliveries,
-      pendingDeliveryCount: pendingDeliveries.length,
       pendingSummary,
       pendingProducts,
       prevMonth: shiftMonth(month, -1),
