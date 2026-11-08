@@ -914,6 +914,8 @@ app.use('/purchases', require('./routes/purchases'));
 app.use('/dashboard', require('./routes/dashboard'));
 app.use('/analytics', require('./routes/analytics'));
 app.use('/delivery', require('./routes/delivery'));
+// Proxy bản đồ (tile) — né hạn chế API key / Referer của các nhà cung cấp tile
+app.use('/', require('./routes/mapTiles'));
 app.use('/products', require('./routes/products'));
 app.use('/devices', require('./routes/devices'));
 // Serve expenses HTML

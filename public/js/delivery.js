@@ -35,12 +35,12 @@
       zoomControl: true
     });
 
-    // Dark tile (Esri World Dark Gray — không cần API key như CARTO)
+    // Dark tile qua proxy của server (không cần API key, không bị chặn Referer)
     if (window.MapTiles && window.MapTiles.addDarkTiles) {
       window.MapTiles.addDarkTiles(state.map);
     } else {
-      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
-        attribution: 'Tiles © Esri',
+      L.tileLayer('/map-tiles/{z}/{x}/{y}.jpg', {
+        attribution: 'Bản đồ © Esri / OpenStreetMap',
         maxZoom: 19
       }).addTo(state.map);
     }
