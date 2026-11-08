@@ -90,6 +90,7 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="/js/map-tiles.js?v=20261108a"></script>
   <script>
     var data = {{DELIVERY_DATA}};
     var customers = data.customers || [];
@@ -151,10 +152,16 @@
 
     function initMap() {
       map = L.map('map').setView([lat, lng], 12);
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '© OSM © CARTO'
-      }).addTo(map);
-      
+
+      // Bản đồ tối (Esri World Dark Gray — không cần API key như CARTO)
+      if (window.MapTiles && window.MapTiles.addDarkTiles) {
+        window.MapTiles.addDarkTiles(map);
+      } else {
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+          attribution: 'Tiles © Esri', maxZoom: 19
+        }).addTo(map);
+      }
+
       L.marker([lat, lng], {icon: icon('#22c55e', 16)}).addTo(map).bindPopup('🏭 Kho');
       
       customers.forEach(function(c) {

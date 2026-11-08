@@ -35,11 +35,15 @@
       zoomControl: true
     });
 
-    // Dark tile
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '© OpenStreetMap © CARTO',
-      maxZoom: 19
-    }).addTo(state.map);
+    // Dark tile (Esri World Dark Gray — không cần API key như CARTO)
+    if (window.MapTiles && window.MapTiles.addDarkTiles) {
+      window.MapTiles.addDarkTiles(state.map);
+    } else {
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles © Esri',
+        maxZoom: 19
+      }).addTo(state.map);
+    }
 
     // Warehouse marker
     L.marker([state.distributorLat, state.distributorLng], {
