@@ -138,6 +138,9 @@ router.get('/dashboard', requireDriver, (req, res) => {
 //                   - Tính mọi trạng thái (DELIVERED / DISCREPANCY) — tài xế đã thu
 //                     vỏ thì vẫn phải hiện trong KPI
 //
+//   - pendingDeliveries : danh sách đơn HÔM NAY cần giao (chưa DELIVERED)
+//   - pendingSummary    : tổng lít / vỏ giao / vỏ thu / số đơn cần giao
+//   - pendingProducts   : breakdown sản phẩm cần giao (Bia Bom Vàng, Bia Pet...)
 //   - month/monthLabel : tháng đang xem
 //   - daily            : mảng thống kê theo TỪNG NGÀY trong tháng (cho bộ lọc)
 //   - monthTotals      : tổng cả tháng
@@ -302,6 +305,106 @@ router.get('/home', requireDriver, (req, res) => {
       monthTotals.kegs += v.kegs;
     }
 
+    // HÀNG CẦN GIAO HÔM NAY — các đơn hôm nay chưa giao xong
+    //   - Chưa có phiếu giao (dr.id IS NULL) → chờ giao
+    //   - Có phiếu giao nhưng chưa DELIVERED → đang giao / thất bại / sai lệch
+    //     (đồng bộ với DeliveryService.getList: FAILED vẫn cần giao lại)
+    // Phạm vi: đơn của chính tài xế + đơn Admin tạo chưa gán tài xế
+    const pendingDeliveries = db
+      .prepare(
+        `
+        SELECT s.id AS sale_id,
+               s.total,
+               s.deliver_kegs,
+               s.return_kegs,
+               s.payment_status,
+               s.sale_time,
+               COALESCE(c.name, 'Khách lẻ') AS customer_name,
+               c.phone AS customer_phone,
+               c.address AS customer_address,
+               dr.id AS delivery_id,
+               dr.status AS delivery_status,
+               dr.expected_kegs,
+               dr.collected_kegs,
+               (SELECT COALESCE(SUM(si.quantity), 0)
+                  FROM sale_items si WHERE si.sale_id = s.id) AS total_liters
+        FROM sales s
+        LEFT JOIN customers c ON c.id = s.customer_id
+        LEFT JOIN delivery_records dr
+               ON dr.sale_id = s.id AND dr.driver_username = ?
+        WHERE s.type = 'sale'
+          AND s.archived = 0
+          AND s.deleted = 0
+          AND DATE(s.date) = ?
+          AND (c.archived = 0 OR c.id IS NULL)
+          AND (s.driver_username = ? OR s.driver_username IS NULL OR s.driver_username = '')
+          AND (dr.id IS NULL OR dr.status NOT IN ('DELIVERED'))
+        ORDER BY (dr.status IS NULL) DESC,
+                 CASE dr.status WHEN 'IN_PROGRESS' THEN 0 ELSE 1 END,
+                 s.sale_time IS NULL, s.sale_time, s.id DESC
+        LIMIT 100
+      `
+      )
+      .all(req.user.username, today, req.user.username)
+      .map((d) => ({
+        sale_id: d.sale_id,
+        customer_name: d.customer_name,
+        customer_phone: d.customer_phone,
+        customer_address: d.customer_address,
+        total: d.total,
+        total_liters: d.total_liters || 0,
+        deliver_kegs: d.deliver_kegs || 0,
+        return_kegs: d.return_kegs || 0,
+        payment_status: d.payment_status,
+        delivery_id: d.delivery_id,
+        delivery_status: d.delivery_status || 'PENDING',
+        expected_kegs: d.expected_kegs,
+        collected_kegs: d.collected_kegs || 0,
+      }));
+
+    // Tổng hợp "hàng cần giao hôm nay" + breakdown theo sản phẩm
+    const pendingSummary = {
+      orders: pendingDeliveries.length,
+      liters: pendingDeliveries.reduce((a, d) => a + (d.total_liters || 0), 0),
+      deliverKegs: pendingDeliveries.reduce((a, d) => a + (d.deliver_kegs || 0), 0),
+      returnKegs: pendingDeliveries.reduce((a, d) => a + (d.return_kegs || 0), 0),
+    };
+
+    // Breakdown sản phẩm trong các đơn cần giao hôm nay
+    const pendingProducts = db
+      .prepare(
+        `
+        SELECT COALESCE(si.product_slug, p.slug, 'khac') AS slug,
+               COALESCE(p.name, si.product_slug, 'Sản phẩm') AS name,
+               COALESCE(p.type, '') AS ptype,
+               SUM(si.quantity) AS qty
+        FROM sales s
+        JOIN sale_items si ON si.sale_id = s.id
+        LEFT JOIN products p ON p.id = si.product_id
+        WHERE s.type = 'sale'
+          AND s.archived = 0
+          AND s.deleted = 0
+          AND DATE(s.date) = ?
+          AND (s.driver_username = ? OR s.driver_username IS NULL OR s.driver_username = '')
+          AND s.id IN (
+            SELECT s2.id FROM sales s2
+            LEFT JOIN delivery_records dr2
+                   ON dr2.sale_id = s2.id AND dr2.driver_username = ?
+            WHERE s2.type = 'sale'
+              AND s2.archived = 0
+              AND s2.deleted = 0
+              AND DATE(s2.date) = ?
+              AND (s2.driver_username = ? OR s2.driver_username IS NULL OR s2.driver_username = '')
+              AND (dr2.id IS NULL OR dr2.status NOT IN ('DELIVERED'))
+          )
+        GROUP BY slug, name, ptype
+        ORDER BY qty DESC
+        LIMIT 20
+      `
+      )
+      .all(today, req.user.username, req.user.username, today, req.user.username)
+      .map((r) => ({ name: r.name, slug: r.slug, type: r.ptype, qty: r.qty || 0 }));
+
     // Chỉ số của ngày đang chọn
     const sel = byDate[selectedDate] || { orders: 0, liters: 0, kegs: 0 };
 
@@ -316,6 +419,10 @@ router.get('/home', requireDriver, (req, res) => {
       monthLabel: `Tháng ${month.slice(5, 7)}/${month.slice(0, 4)}`,
       daily,
       monthTotals,
+      pendingDeliveries,
+      pendingDeliveryCount: pendingDeliveries.length,
+      pendingSummary,
+      pendingProducts,
       prevMonth: shiftMonth(month, -1),
       nextMonth: shiftMonth(month, 1),
     });

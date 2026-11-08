@@ -8,7 +8,8 @@
  *
  * API: GET /api/driver/home?month=YYYY-MM&date=YYYY-MM-DD
  *    → { date, todayOrders, todayLiters, todayKegs, selectedDate, isToday,
- *        month, monthLabel, daily[], monthTotals, prevMonth, nextMonth }
+ *        month, monthLabel, daily[], monthTotals, pendingDeliveries[],
+ *        pendingDeliveryCount, prevMonth, nextMonth }
  */
 (function () {
   'use strict';
@@ -67,6 +68,7 @@
       renderDayList(data);
       renderMonthSummary(data);
       renderStatsTitle(data);
+      renderPending(data);
 
       showHint('', false);
     } catch (err) {
@@ -152,6 +154,137 @@
     setText('home-sum-orders', D.num(t.orders || 0));
     setText('home-sum-liters', D.num(t.liters || 0));
     setText('home-sum-kegs', D.num(t.kegs || 0));
+  }
+
+  /** Trạng thái giao hàng → nhãn + class. */
+  var DELIVERY_STATUS = {
+    PENDING: { label: 'Chờ giao', cls: 'is-pending' },
+    IN_PROGRESS: { label: 'Đang giao', cls: 'is-progress' },
+    DELIVERED: { label: 'Đã giao', cls: 'is-delivered' },
+    FAILED: { label: 'Thất bại', cls: 'is-failed' },
+    DISCREPANCY: { label: 'Sai lệch', cls: 'is-discrepancy' },
+  };
+
+  /** Danh sách "Hàng cần giao hôm nay". */
+  function renderPending(data) {
+    var list = document.getElementById('home-pending-list');
+    var section = document.getElementById('home-pending-section');
+    var countEl = document.getElementById('home-pending-count');
+    if (!list) return;
+
+    var items = data.pendingDeliveries || [];
+    var sum = data.pendingSummary || {};
+    var products = data.pendingProducts || [];
+
+    if (countEl) countEl.textContent = D.num(items.length);
+
+    // Ẩn section nếu không có hàng cần giao
+    if (section) section.classList.toggle('is-empty', items.length === 0);
+    if (!items.length) {
+      list.innerHTML =
+        '<div class="drv-home-pending__empty">' +
+        '<span aria-hidden="true">✅</span> Đã giao xong hết hàng hôm nay' +
+        '</div>';
+      hidePendingExtras();
+      return;
+    }
+
+    renderPendingSummary(sum);
+    renderPendingProducts(products);
+
+    list.innerHTML = items
+      .map(function (d) {
+        var st = DELIVERY_STATUS[d.delivery_status] || DELIVERY_STATUS.PENDING;
+
+        var kegs = [];
+        if (d.deliver_kegs) kegs.push('📦 ' + D.num(d.deliver_kegs) + ' giao');
+        if (d.return_kegs) kegs.push('🔄 ' + D.num(d.return_kegs) + ' thu');
+
+        var meta = [];
+        if (d.total_liters) meta.push(D.num(d.total_liters) + ' lít');
+        if (kegs.length) meta.push(kegs.join(' · '));
+        if (d.customer_phone) meta.push('☎ ' + d.customer_phone);
+
+        return (
+          '<a class="drv-home-pending__item ' + st.cls + '" href="/driver/giao-hang">' +
+            '<div class="drv-home-pending__main">' +
+              '<div class="drv-home-pending__top">' +
+                '<span class="drv-home-pending__name">' +
+                  escapeHtml(d.customer_name || 'Khách lẻ') +
+                '</span>' +
+                '<span class="drv-home-pending__status">' + st.label + '</span>' +
+              '</div>' +
+              '<div class="drv-home-pending__meta">' +
+                (meta.length ? escapeHtml(meta.join(' · ')) : '') +
+              '</div>' +
+              '<div class="drv-home-pending__addr">' +
+                escapeHtml(d.customer_address || '') +
+              '</div>' +
+            '</div>' +
+            '<div class="drv-home-pending__side">' +
+              '<span class="drv-home-pending__total">' +
+                D.num(d.total || 0) + ' ₫' +
+              '</span>' +
+              '<span class="drv-home-pending__go" aria-hidden="true">›</span>' +
+            '</div>' +
+          '</a>'
+        );
+      })
+      .join('');
+  }
+
+  /** Dải tổng hợp: lít / vỏ giao / vỏ thu / đơn. */
+  function renderPendingSummary(sum) {
+    var box = document.getElementById('home-pending-summary');
+    if (box) box.hidden = false;
+    setText('home-pending-liters', D.num(sum.liters || 0));
+    setText('home-pending-deliver-kegs', D.num(sum.deliverKegs || 0));
+    setText('home-pending-return-kegs', D.num(sum.returnKegs || 0));
+    setText('home-pending-orders', D.num(sum.orders || 0));
+  }
+
+  /** Breakdown sản phẩm cần giao. */
+  function renderPendingProducts(products) {
+    var box = document.getElementById('home-pending-products');
+    if (!box) return;
+    if (!products.length) {
+      box.hidden = true;
+      box.innerHTML = '';
+      return;
+    }
+    box.hidden = false;
+    box.innerHTML = products
+      .map(function (p) {
+        var unit = p.type === 'keg' ? 'vỏ' : p.type === 'box' ? 'thùng' : 'lít';
+        return (
+          '<span class="drv-home-pending__chip">' +
+            escapeHtml(p.name) +
+            ' <b>' + D.num(p.qty) + '</b> ' + unit +
+          '</span>'
+        );
+      })
+      .join('');
+  }
+
+  /** Ẩn dải tổng hợp + breakdown khi không có hàng. */
+  function hidePendingExtras() {
+    var sumBox = document.getElementById('home-pending-summary');
+    var prodBox = document.getElementById('home-pending-products');
+    if (sumBox) sumBox.hidden = true;
+    if (prodBox) {
+      prodBox.hidden = true;
+      prodBox.innerHTML = '';
+    }
+  }
+
+  /** Escape HTML. */
+  function escapeHtml(str) {
+    return String(str == null ? '' : str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   /** Chuyển tháng. */

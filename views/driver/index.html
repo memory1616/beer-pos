@@ -8,7 +8,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Giao Hàng">
-  <link rel="stylesheet" href="/css/driver.css?v=20261107m">
+  <link rel="stylesheet" href="/css/driver.css?v=20261108a">
 </head>
 <body class="drv-home-body">
 
@@ -130,6 +130,36 @@
       </div>
     </section>
 
+    <!-- HÀNG CẦN GIAO HÔM NAY -->
+    <section class="drv-home-pending" id="home-pending-section">
+      <div class="drv-home-pending__head">
+        <h2 class="drv-home-section__title drv-home-pending__title">Hàng cần giao hôm nay</h2>
+        <span class="drv-home-pending__count" id="home-pending-count">0</span>
+      </div>
+      <div class="drv-home-pending__summary" id="home-pending-summary" hidden>
+        <div class="drv-home-pending__sum">
+          <b id="home-pending-liters">0</b>
+          <span>lít</span>
+        </div>
+        <div class="drv-home-pending__sum">
+          <b id="home-pending-deliver-kegs">0</b>
+          <span>vỏ giao</span>
+        </div>
+        <div class="drv-home-pending__sum">
+          <b id="home-pending-return-kegs">0</b>
+          <span>vỏ thu</span>
+        </div>
+        <div class="drv-home-pending__sum">
+          <b id="home-pending-orders">0</b>
+          <span>đơn</span>
+        </div>
+      </div>
+
+      <div class="drv-home-pending__products" id="home-pending-products" hidden></div>
+
+      <div class="drv-home-pending__list" id="home-pending-list"></div>
+    </section>
+
     <!-- Trạng thái -->
     <div class="drv-home-hint" id="home-hint"></div>
   </main>
@@ -153,6 +183,6 @@
   </nav>
 
   <script src="/js/driver/core.js?v=20261107k"></script>
-  <script src="/js/driver/home.js?v=20261107k"></script>
+  <script src="/js/driver/home.js?v=20261108a"></script>
 </body>
 </html>
