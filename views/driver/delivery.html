@@ -57,6 +57,35 @@
     .st-IN_PROGRESS { background: #3b82f6; color: #fff; }
     .st-DELIVERED { background: #22c55e; color: #06240f; }
     .st-FAILED { background: #ef4444; color: #fff; }
+    /* Panel giao hàng nội tuyến (thay cho modal) */
+    .card.is-open { border-left-color: #22c55e; box-shadow: 0 0 0 1px rgba(34,197,94,.45); }
+    .card__panel { display: none; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,.08); }
+    .card__panel.is-open, .card__panel.is-loading { display: block; }
+    .card__panel .drv-loading { padding: 10px 0; font-size: 13px; color: #888; }
+    .card__panel .drv-section__title { font-size: 12px; font-weight: 700; color: #94a3b8; margin: 10px 0 4px; }
+    .card__panel .drv-dl-item { display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid rgba(255,255,255,.06); }
+    .card__panel .drv-dl-item__name { flex:1; min-width:0; font-size:13px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .card__panel .drv-dl-item__expected { font-size:11px; color:#888; font-weight:500; }
+    .card__panel .drv-dl-item__qty { width:58px; text-align:center; font-weight:800; font-size:14px; }
+    .card__panel .drv-field { margin: 8px 0 0; }
+    .card__panel .drv-field__label { display:block; font-size:11px; color:#94a3b8; margin-bottom:3px; font-weight:600; }
+    .card__panel .drv-input { width:100%; padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.05); color:#fff; font-size:13px; box-sizing:border-box; }
+    .card__panel .drv-btn-row { display:flex; gap:8px; margin-top:10px; }
+    .card__panel .drv-btn { flex:1; padding:9px; border-radius:8px; border:none; font-size:12px; font-weight:600; cursor:pointer; }
+    .card__panel .drv-btn--ghost { background:#374151; color:#fff; }
+    .card__panel .drv-btn--primary { background:#3b82f6; color:#fff; }
+    .card__panel .drv-btn--success { background:#22c55e; color:#06240f; }
+    .card__panel .drv-btn--warning { background:#f59e0b; color:#1a1a2e; }
+    .card__panel .drv-btn--danger { background:#ef4444; color:#fff; }
+    .card__panel .drv-btn:disabled { opacity:.5; cursor:wait; }
+    .card__panel .drv-btn--sm { padding:7px 10px; font-size:12px; flex:0 0 auto; text-decoration:none; display:inline-flex; align-items:center; gap:5px; }
+    .card__disc { display:none; gap:8px; flex-wrap:wrap; align-items:flex-end; margin-top:10px; padding:10px; border-radius:9px; background:rgba(239,68,68,.08); border:1px solid rgba(239,68,68,.25); }
+    .card__disc.is-open { display:flex; }
+    .card__disc .drv-field { flex:1; min-width:76px; margin:0; }
+    .card__disc .drv-btn { flex:0 0 auto; padding:9px 12px; }
+    .card .btn-deliver { display:inline-flex; align-items:center; gap:6px; padding:8px 12px; font-weight:700; background:#22c55e; color:#06240f; }
+    .card .btn-deliver svg { width:14px; height:14px; flex:0 0 14px; }
+    .card .btn-deliver.is-busy { opacity:.55; cursor:wait; }
     .leaflet-container { background: #1a1a2e !important; }
   </style>
 </head>
@@ -201,7 +230,15 @@
                   '<line x1="9" x2="9" y1="3" y2="18"/>' +
                   '<line x1="15" x2="15" y1="6" y2="21"/>' +
                   '</svg>Chỉ đường</span>') +
+            '<button class="btn-sm btn-deliver" data-act="open-delivery" type="button">' +
+              '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+              'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+              '<path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/>' +
+              '<path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14"/>' +
+              '<circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/>' +
+              '</svg>Giao hàng</button>' +
           '</div>' +
+          '<div class="card__panel"></div>' +
         '</div>';
       });
 
@@ -278,159 +315,203 @@
       window.Drv.setupNav('delivery');
     }
 
-    /* ── Thao tác vận hành đơn giao ── */
-    async function openDeliveryDetail(c) {
-      var D = window.Drv;
-      try {
-        var res = await D.api.post('/api/driver/deliveries', { saleId: c.sale_id });
-        var deliveryId = res.delivery && res.delivery.id;
-        var detail = await D.api.get('/api/driver/deliveries/' + deliveryId);
-        var items = detail.items || [];
+    /* ── Thao tác vận hành đơn giao (PANEL NỘI TUYẾN, không dùng modal) ──
+     * Bấm vào thẻ khách → mở panel ngay trong thẻ: số lượng giao, vỏ thu,
+     * ghi chú và 4 nút hành động. Không che màn hình, tài xế vẫn thấy
+     * danh sách + bản đồ để đối chiếu địa chỉ.
+     * ────────────────────────────────────────────────────────────────── */
+    function buildPanel(detail) {
+      var items = detail.items || [];
+      var events = detail.events || [];
+      var dirLink = window.Drv.mapDirectionsLink({
+        lat: detail.lat, lng: detail.lng, address: detail.customer_address
+      });
 
-        var dirLink = D.mapDirectionsLink({
-          lat: detail.lat, lng: detail.lng, address: detail.customer_address
-        });
+      var itemsHtml = items.length
+        ? '<div class="drv-section__title">Số lượng giao</div>' +
+          items.map(function (it) {
+            return '<div class="drv-dl-item">' +
+              '<div style="flex:1;min-width:0;">' +
+                '<div class="drv-dl-item__name">' + esc(it.product_name || '—') +
+                  (it.is_reward ? ' <span class="drv-badge drv-badge--reward">THƯỞNG</span>' : '') + '</div>' +
+                '<div class="drv-dl-item__expected">Cần giao: ' + window.Drv.num(it.expected_quantity) + '</div>' +
+              '</div>' +
+              '<input class="drv-input drv-dl-item__qty" type="number" inputmode="numeric" min="0" ' +
+                'data-item-id="' + it.id + '" value="' +
+                (it.delivered_quantity > 0 ? it.delivered_quantity : it.expected_quantity) + '">' +
+            '</div>';
+          }).join('')
+        : '<div class="drv-section__title">Số lượng giao</div>' +
+          '<div style="font-size:12px;color:#888;">Không có chi tiết sản phẩm</div>';
 
-        var html =
-          '<div class="drv-cart__row"><span class="drv-cart__label">Khách</span>' +
-            '<strong>' + esc(detail.customer_name || c.name) + '</strong></div>' +
-          '<div class="drv-cart__row"><span class="drv-cart__label">SĐT</span>' +
-            '<strong>' + (detail.customer_phone
-              ? '<a href="tel:' + esc(detail.customer_phone) + '" style="color:var(--accent);">' + esc(detail.customer_phone) + '</a>'
-              : '—') + '</strong></div>' +
-          (detail.customer_address
-            ? '<div class="drv-cart__row"><span class="drv-cart__label">Địa chỉ</span>' +
-              '<strong style="text-align:right;max-width:60%;">' + esc(detail.customer_address) + '</strong></div>'
-            : '') +
-          '<div class="drv-cart__row"><span class="drv-cart__label">Tổng đơn</span>' +
-            '<strong>' + D.money(detail.sale_total || c.total || 0) + '</strong></div>' +
-          '<div class="drv-btn-row drv-mt-12">' +
-            (detail.customer_phone
-              ? '<a href="tel:' + esc(detail.customer_phone) + '" class="drv-btn drv-btn--ghost drv-btn--sm">📞 Gọi</a>'
-              : '<span></span>') +
-            (dirLink
-              ? '<a href="' + esc(dirLink) + '" target="_blank" rel="noopener" class="drv-btn drv-btn--primary drv-btn--sm">🗺️ Chỉ đường</a>'
-              : '<span></span>') +
-          '</div>' +
-          '<div class="drv-section__title drv-mt-16">Số lượng giao</div>' +
-          (items.length
-            ? items.map(function(it) {
-                return '<div class="drv-dl-item">' +
-                  '<div style="flex:1;min-width:0;">' +
-                    '<div class="drv-dl-item__name">' + esc(it.product_name || '—') +
-                      (it.is_reward ? ' <span class="drv-badge drv-badge--reward">THƯỞNG</span>' : '') + '</div>' +
-                    '<div class="drv-dl-item__expected">Cần giao: ' + D.num(it.expected_quantity) + '</div>' +
-                  '</div>' +
-                  '<input class="drv-input drv-dl-item__qty" type="number" inputmode="numeric" min="0" ' +
-                    'data-item-id="' + it.id + '" value="' +
-                    (it.delivered_quantity > 0 ? it.delivered_quantity : it.expected_quantity) + '">' +
-                '</div>';
-              }).join('')
-            : '<div class="drv-muted">Không có chi tiết sản phẩm</div>') +
-          '<div class="drv-field drv-mt-16">' +
-            '<label class="drv-field__label">Số vỏ đã thu hồi</label>' +
-            '<input class="drv-input" id="dl-kegs" type="number" inputmode="numeric" min="0" value="' + (detail.collected_kegs || 0) + '">' +
-          '</div>' +
-          '<div class="drv-field">' +
-            '<label class="drv-field__label">Ghi chú giao hàng</label>' +
-            '<input class="drv-input" id="dl-note" type="text" placeholder="Ghi chú (không bắt buộc)" value="' + esc(detail.note || '') + '">' +
-          '</div>' +
-          '<div class="drv-btn-row drv-mt-12">' +
-            '<button class="drv-btn drv-btn--ghost" id="dl-start" type="button">Bắt đầu giao</button>' +
-            '<button class="drv-btn drv-btn--success" id="dl-confirm" type="button">Xác nhận giao</button>' +
-          '</div>' +
-          '<div class="drv-btn-row drv-mt-8">' +
-            '<button class="drv-btn drv-btn--warning" id="dl-fail" type="button">Giao thất bại</button>' +
-            '<button class="drv-btn drv-btn--danger" id="dl-disc" type="button">Có sai lệch</button>' +
-          '</div>' +
-          '<button class="drv-btn drv-btn--ghost drv-mt-8" id="dl-close" type="button">Đóng</button>';
+      var historyHtml = events.length
+        ? '<div class="drv-section__title">Lịch sử</div>' +
+          events.slice(0, 5).map(function (e) {
+            return '<div style="display:flex;justify-content:space-between;font-size:11px;color:#94a3b8;padding:2px 0;">' +
+              '<span>' + esc(e.event_type) +
+                (e.to_status ? ' → ' + esc(e.to_status) : '') + '</span>' +
+              '<span>' + esc(e.actor_username || '') + '</span>' +
+            '</div>';
+          }).join('')
+        : '';
 
-        D.openModal(html, { title: 'Giao đơn #' + c.sale_id });
+      return itemsHtml +
+        '<div class="drv-field">' +
+          '<label class="drv-field__label">Số vỏ đã thu hồi</label>' +
+          '<input class="drv-input" id="dl-kegs" type="number" inputmode="numeric" min="0" value="' +
+            (detail.collected_kegs || 0) + '">' +
+        '</div>' +
+        '<div class="drv-field">' +
+          '<label class="drv-field__label">Ghi chú / lý do thất bại</label>' +
+          '<input class="drv-input" id="dl-note" type="text" placeholder="Không bắt buộc" value="' +
+            esc(detail.note || '') + '">' +
+        '</div>' +
+        '<div class="card__disc">' +
+          '<div class="drv-field"><label class="drv-field__label">Thiếu (lít)</label>' +
+            '<input class="drv-input" data-disc="missing" type="number" inputmode="numeric" min="0" value="0"></div>' +
+          '<div class="drv-field"><label class="drv-field__label">Thừa (lít)</label>' +
+            '<input class="drv-input" data-disc="excess" type="number" inputmode="numeric" min="0" value="0"></div>' +
+          '<div class="drv-field"><label class="drv-field__label">Hư hỏng (lít)</label>' +
+            '<input class="drv-input" data-disc="damaged" type="number" inputmode="numeric" min="0" value="0"></div>' +
+          '<button class="drv-btn drv-btn--danger" data-act="save-disc" type="button">Lưu sai lệch</button>' +
+        '</div>' +
+        '<div class="drv-btn-row">' +
+          '<button class="drv-btn drv-btn--ghost" data-act="start" type="button">Bắt đầu giao</button>' +
+          '<button class="drv-btn drv-btn--success" data-act="confirm" type="button">Xác nhận giao</button>' +
+        '</div>' +
+        '<div class="drv-btn-row">' +
+          '<button class="drv-btn drv-btn--warning" data-act="fail" type="button">Giao thất bại</button>' +
+          '<button class="drv-btn drv-btn--danger" data-act="disc" type="button">Có sai lệch</button>' +
+        '</div>' +
+        historyHtml;
+    }
 
-        document.getElementById('dl-close').addEventListener('click', D.closeModal);
+    function bindPanel(panel, deliveryId, card) {
+      var kegsEl = panel.querySelector('#dl-kegs');
+      var noteEl = panel.querySelector('#dl-note');
+      var discBox = panel.querySelector('.card__disc');
 
-        document.getElementById('dl-start').addEventListener('click', async function () {
-          try {
-            await D.api.patch('/api/driver/deliveries/' + deliveryId + '/status', { status: 'IN_PROGRESS' });
-            D.closeModal();
-            D.toast('Đã bắt đầu giao', 'success');
-            setTimeout(function () { location.reload(); }, 700);
-          } catch (err) { D.toast(err.message, 'error'); }
-        });
+      function closePanel() {
+        panel.classList.remove('is-open');
+        panel.innerHTML = '';
+        card.classList.remove('is-open');
+      }
 
-        document.getElementById('dl-confirm').addEventListener('click', async function () {
-          var payloadItems = [];
-          document.querySelectorAll('[data-item-id]').forEach(function(el) {
-            payloadItems.push({
-              itemId: parseInt(el.getAttribute('data-item-id')),
-              deliveredQuantity: parseFloat(el.value) || 0
+      panel.addEventListener('click', async function (e) {
+        var btn = e.target.closest('[data-act]');
+        if (!btn) return;
+        e.stopPropagation();
+        var act = btn.getAttribute('data-act');
+        btn.disabled = true;
+
+        try {
+          if (act === 'disc') {
+            discBox.classList.add('is-open');
+            return;
+          }
+
+          if (act === 'start') {
+            await window.Drv.api.patch('/api/driver/deliveries/' + deliveryId + '/status', { status: 'IN_PROGRESS' });
+            window.Drv.toast('Đã bắt đầu giao', 'success');
+            closePanel();
+            await reloadDeliveries();
+            return;
+          }
+
+          if (act === 'confirm') {
+            var payloadItems = [];
+            panel.querySelectorAll('[data-item-id]').forEach(function (el) {
+              payloadItems.push({
+                itemId: parseInt(el.getAttribute('data-item-id')),
+                deliveredQuantity: parseFloat(el.value) || 0
+              });
             });
-          });
-          try {
-            var r = await D.api.post('/api/driver/deliveries/' + deliveryId + '/confirm', {
+            var r = await window.Drv.api.post('/api/driver/deliveries/' + deliveryId + '/confirm', {
               items: payloadItems,
-              collectedKegs: parseInt(document.getElementById('dl-kegs').value) || 0,
-              note: document.getElementById('dl-note').value.trim()
+              collectedKegs: parseInt(kegsEl.value) || 0,
+              note: noteEl.value.trim()
             });
-            D.closeModal();
-            var s = r.summary || {};
-            if (s.totalMissing > 0 || s.totalExcess > 0 || s.totalDamaged > 0) {
-              D.toast('Đã ghi nhận — có sai lệch, chờ xử lý', 'warning');
+            var sm = r.summary || {};
+            if (sm.totalMissing > 0 || sm.totalExcess > 0 || sm.totalDamaged > 0) {
+              window.Drv.toast('Đã ghi nhận — có sai lệch, chờ xử lý', 'warning');
             } else {
-              D.toast('Giao hàng thành công', 'success');
+              window.Drv.toast('Giao hàng thành công', 'success');
             }
-            setTimeout(function () { location.reload(); }, 700);
-          } catch (err) { D.toast(err.message, 'error'); }
-        });
+            closePanel();
+            await reloadDeliveries();
+            return;
+          }
 
-        document.getElementById('dl-fail').addEventListener('click', async function () {
-          var reason = await D.prompt('Giao thất bại', 'Lý do thất bại', '', { type: 'text' });
-          if (reason === null) return;
-          try {
-            await D.api.patch('/api/driver/deliveries/' + deliveryId + '/status', {
+          if (act === 'fail') {
+            var reason = noteEl.value.trim();
+            if (!reason) {
+              window.Drv.toast('Vui lòng nhập lý do thất bại ở ô ghi chú', 'warning');
+              noteEl.focus();
+              return;
+            }
+            await window.Drv.api.patch('/api/driver/deliveries/' + deliveryId + '/status', {
               status: 'FAILED', failureReason: reason, note: reason
             });
-            D.closeModal();
-            D.toast('Đã ghi nhận giao thất bại', 'warning');
-            setTimeout(function () { location.reload(); }, 700);
-          } catch (err) { D.toast(err.message, 'error'); }
-        });
+            window.Drv.toast('Đã ghi nhận giao thất bại', 'warning');
+            closePanel();
+            await reloadDeliveries();
+            return;
+          }
 
-        document.getElementById('dl-disc').addEventListener('click', function () {
-          D.openModal(
-            '<div class="drv-field"><label class="drv-field__label">Thiếu (lít)</label>' +
-              '<input class="drv-input" id="dc-missing" type="number" inputmode="numeric" min="0" value="0"></div>' +
-            '<div class="drv-field"><label class="drv-field__label">Thừa (lít)</label>' +
-              '<input class="drv-input" id="dc-excess" type="number" inputmode="numeric" min="0" value="0"></div>' +
-            '<div class="drv-field"><label class="drv-field__label">Hư hỏng (lít)</label>' +
-              '<input class="drv-input" id="dc-damaged" type="number" inputmode="numeric" min="0" value="0"></div>' +
-            '<div class="drv-field"><label class="drv-field__label">Ghi chú</label>' +
-              '<input class="drv-input" id="dc-note" type="text" placeholder="Mô tả sai lệch"></div>' +
-            '<div class="drv-btn-row">' +
-              '<button class="drv-btn drv-btn--ghost" id="dc-cancel" type="button">Huỷ</button>' +
-              '<button class="drv-btn drv-btn--danger" id="dc-save" type="button">Lưu sai lệch</button>' +
-            '</div>',
-            { title: 'Ghi nhận sai lệch' }
-          );
+          if (act === 'save-disc') {
+            await window.Drv.api.post('/api/driver/deliveries/' + deliveryId + '/discrepancy', {
+              missingLiters: parseFloat(panel.querySelector('[data-disc="missing"]').value) || 0,
+              excessLiters: parseFloat(panel.querySelector('[data-disc="excess"]').value) || 0,
+              damagedLiters: parseFloat(panel.querySelector('[data-disc="damaged"]').value) || 0,
+              note: noteEl.value.trim()
+            });
+            window.Drv.toast('Đã ghi nhận sai lệch', 'warning');
+            closePanel();
+            await reloadDeliveries();
+            return;
+          }
+        } catch (err) {
+          window.Drv.toast(err.message || 'Lỗi thao tác giao hàng', 'error');
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    }
 
-          document.getElementById('dc-cancel').addEventListener('click', D.closeModal);
-          document.getElementById('dc-save').addEventListener('click', async function () {
-            try {
-              await D.api.post('/api/driver/deliveries/' + deliveryId + '/discrepancy', {
-                missingLiters: parseFloat(document.getElementById('dc-missing').value) || 0,
-                excessLiters: parseFloat(document.getElementById('dc-excess').value) || 0,
-                damagedLiters: parseFloat(document.getElementById('dc-damaged').value) || 0,
-                note: document.getElementById('dc-note').value.trim()
-              });
-              D.closeModal();
-              D.toast('Đã ghi nhận sai lệch', 'warning');
-              setTimeout(function () { location.reload(); }, 700);
-            } catch (err) { D.toast(err.message, 'error'); }
-          });
-        });
-      } catch (err) {
-        window.Drv.toast(err.message || 'Lỗi tải đơn giao', 'error');
+    async function toggleDeliveryDetail(c, card) {
+      var panel = card.querySelector('.card__panel');
+      if (!panel) return;
+
+      // Đang mở → đóng lại
+      if (panel.classList.contains('is-open')) {
+        panel.classList.remove('is-open');
+        panel.innerHTML = '';
+        card.classList.remove('is-open');
+        return;
       }
+      // Đang tải → bỏ qua
+      if (panel.classList.contains('is-loading')) return;
+
+      panel.classList.add('is-loading');
+      panel.innerHTML = '<div class="drv-loading">Đang tải…</div>';
+
+      var deliveryId, detail;
+      try {
+        var res = await window.Drv.api.post('/api/driver/deliveries', { saleId: c.sale_id });
+        deliveryId = res.delivery && res.delivery.id;
+        detail = await window.Drv.api.get('/api/driver/deliveries/' + deliveryId);
+      } catch (err) {
+        panel.classList.remove('is-loading');
+        panel.innerHTML = '';
+        window.Drv.toast(err.message || 'Lỗi tải đơn giao', 'error');
+        return;
+      }
+
+      panel.classList.remove('is-loading');
+      panel.classList.add('is-open');
+      card.classList.add('is-open');
+      panel.innerHTML = buildPanel(detail);
+      bindPanel(panel, deliveryId, card);
     }
 
     /* ── Đồng bộ real-time với trang Bán hàng ────────────────────────────
@@ -491,7 +572,20 @@
       if (!card) return;
       var cid = parseInt(card.getAttribute('data-customer-id'));
       var c = customers.find(function (x) { return x.id === cid; });
-      if (c) openDeliveryDetail(c);
+      if (!c) return;
+
+      // Nút "Giao hàng" → mở/đóng panel, không xử lý bấm card
+      var delivBtn = e.target.closest('[data-act="open-delivery"]');
+      if (delivBtn) {
+        e.stopPropagation();
+        delivBtn.classList.add('is-busy');
+        toggleDeliveryDetail(c, card).finally(function () {
+          delivBtn.classList.remove('is-busy');
+        });
+        return;
+      }
+
+      toggleDeliveryDetail(c, card);
     });
   })();
   </script>
