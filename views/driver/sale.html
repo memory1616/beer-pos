@@ -1,20 +1,14 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <!-- NO-FLICKER: Apply theme BEFORE first paint to prevent flash -->
+  <!-- NO-FLICKER: Driver Portal LUÔN dùng theme tối (đồng nhất 3 trang) -->
   <script>
   (function () {
-    var k = 'theme';
-    var sys = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    var saved = localStorage.getItem(k);
-    var theme = (saved === 'light' || saved === 'dark') ? saved : sys;
-    document.documentElement.setAttribute('data-theme', theme);
-    document.documentElement.classList.remove('light', 'dark');
-    document.documentElement.classList.add(theme);
+    document.documentElement.setAttribute('data-theme', 'dark');
+    document.documentElement.classList.remove('light');
+    document.documentElement.classList.add('dark');
     var metaTheme = document.querySelector('meta[name="theme-color"]');
-    if (metaTheme) {
-      metaTheme.setAttribute('content', theme === 'light' ? '#FFFFFF' : '#0B0E11');
-    }
+    if (metaTheme) metaTheme.setAttribute('content', '#0B0E11');
   })();
   </script>
   <script>window.BASE_PATH = '/';</script>
@@ -30,16 +24,15 @@
 
   <!-- ═══ DÙNG CHUNG GIAO DIỆN ADMIN (unified.css) ═══ -->
   <link rel="stylesheet" href="/css/unified.css?v=20260419-thutien-click">
-  <!-- Lớp bổ sung cho Driver Portal: bottom menu 4 mục + header tài xế -->
-  <link rel="stylesheet" href="/css/driver.css?v=20261108d">
+  <!-- ═══ DESIGN SYSTEM DRIVER PORTAL (dùng chung 3 trang) ═══ -->
+  <link rel="stylesheet" href="/css/driver-system.css?v=20261108e">
 
-  <script src="/js/dark-mode.js"></script>
-  <script src="/js/layout.js?v=20261107j-rt"></script>
+  <script src="/js/layout.js?v=20261108e-rt"></script>
   <!-- Đồng bộ real-time giữa trang Bán hàng ↔ Giao hàng -->
-  <script src="/js/driver/sync.js?v=20261107j"></script>
+  <script src="/js/driver/sync.js?v=20261108e"></script>
   <script src="https://unpkg.com/dexie@3/dist/dexie.min.js"></script>
 </head>
-<body class="body--app">
+<body class="body--app ds-app">
 
   <div id="app" class="app"></div>
 
@@ -285,20 +278,22 @@
     }
 
     (async function() {
-      /* ═══ 1. Nạp core driver TRƯỚC (cần Drv.requireAuth + getDriverBottomNav) ═══ */
-      await loadScript('/js/driver/core.js?v=20261107j');
-      await loadScript('/js/driver/api-shim.js?v=20261107j');
+      /* ═══ 1. Nạp core driver TRƯỚC (cần Drv.requireAuth) ═══ */
+      await loadScript('/js/driver/core.js?v=20261108e');
+      await loadScript('/js/driver/api-shim.js?v=20261108e');
+      await loadScript('/js/driver/shell.js?v=20261108e');
 
       /* ═══ 2. Xác thực tài xế (bắt buộc) ═══ */
       try {
         await window.Drv.requireAuth();
       } catch (_) { /* requireAuth tự redirect */ }
 
-      /* ═══ 3. Render layout: header Admin + nội dung + bottom menu Driver ═══ */
-      document.getElementById('app').innerHTML =
-        getHeaderWithActions('Bán hàng', '🍺',
-          '<button onclick="window.Drv.openAccountModal()" title="Tài khoản">👤</button>') +
-        getContent(
+      /* ═══ 3. Render shell dùng chung (app bar + main + bottom nav) ═══ */
+      window.DrvShell.mount({
+        key: 'sale',
+        icon: '🛒',
+        title: 'Bán hàng',
+        content:
           /* Customer search */
           '<div class="sale-section">' +
             '<div class="sale-section-label">KHÁCH HÀNG</div>' +
@@ -331,7 +326,7 @@
             '</div>' +
           '</div>' +
 
-          /* Checkout box — between products and history */
+          /* Checkout box — sticky sát bottom nav (vùng ngón cái) */
           '<div class="sale-checkout-box" id="saleFooter">' +
             '<div class="sale-checkout-row">' +
               '<span class="sale-checkout-label">Tổng tiền</span>' +
@@ -359,8 +354,7 @@
             '<div id="saleHistoryList"></div>' +
             '<div id="saleHistoryPagination"></div>' +
           '</div>'
-        ) +
-        getDriverBottomNav('sale');
+      });
 
       /* ═══ 4. Load scripts — ĐÚNG THỨ TỰ ═══ */
       // 4a. Script dùng chung với Admin
@@ -376,10 +370,9 @@
       // 4c. Tải dữ liệu (shim sẽ tự rewrite '/sale/data' → '/api/driver/sale/data')
       await loadSalesData();
 
-      // 4d. Gắn header + bottom nav cho Driver
+      // 4d. Gắn tên tài xế lên app bar
       if (window.Drv) {
         window.Drv.setupHeader();
-        window.Drv.setupNav('sale');
       }
 
       // 4e. Đồng bộ real-time: "ĐƠN GẦN ĐÂY" phải khớp với trang Giao hàng.

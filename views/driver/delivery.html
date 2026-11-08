@@ -8,319 +8,42 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
 
-  <!-- ═══ CSS GỐC CỦA ADMIN (module Giao hàng) ═══ -->
-  <link rel="stylesheet" href="/css/unified.css?v=20260419">
-  <link rel="stylesheet" href="/css/driver.css?v=20261108d">
+  <!-- ═══ DESIGN SYSTEM (dùng chung 3 trang) ═══ -->
+  <link rel="stylesheet" href="/css/driver-system.css?v=20261108e">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-
-  <style>
-    /* ── Nền chung + token ─────────────────────────────────────────────── */
-    :root {
-      --drv-card-radius: 18px;
-      --drv-card-radius-sm: 14px;
-      --drv-grad-gold: linear-gradient(160deg, rgba(252, 213, 53, .14) 0%, rgba(252, 213, 53, 0) 52%);
-      --drv-grad-gold-strong: linear-gradient(135deg, #FDE047 0%, #F0B90B 100%);
-      --drv-grad-surface: linear-gradient(160deg, var(--bg-card, #1E2329) 0%, var(--bg-secondary, #161A1E) 100%);
-      --drv-border: rgba(255, 255, 255, .08);
-      --drv-border-strong: rgba(255, 255, 255, .14);
-      --drv-shadow-card: 0 8px 24px rgba(0, 0, 0, .22);
-      --drv-shadow-pop: 0 10px 32px rgba(0, 0, 0, .32);
-    }
-
-    body {
-      margin: 0;
-      font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-      background:
-        radial-gradient(120% 60% at 50% 0%, rgba(252, 213, 53, .08) 0%, rgba(252, 213, 53, 0) 55%),
-        var(--bg-primary, #0B0E11);
-      color: var(--text-primary, #EAECEF);
-    }
-
-    /* ── Header ────────────────────────────────────────────────────────── */
-    .header {
-      position: sticky;
-      top: 0;
-      z-index: 50;
-      padding: calc(env(safe-area-inset-top) + 14px) 15px 14px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
-      background:
-        var(--drv-grad-gold),
-        var(--drv-grad-surface);
-      border-bottom: 1px solid rgba(252, 213, 53, .16);
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
-    }
-    .header h1 {
-      margin: 0;
-      font-size: 1.05rem;
-      font-weight: 800;
-      letter-spacing: .3px;
-      display: flex;
-      align-items: center;
-      gap: 9px;
-    }
-    .header h1 .drv-header__logo {
-      width: 38px;
-      height: 38px;
-      flex: 0 0 38px;
-      display: grid;
-      place-items: center;
-      font-size: 1.2rem;
-      border-radius: 12px;
-      background: var(--drv-grad-gold-strong);
-      box-shadow: 0 6px 16px rgba(240, 185, 11, .26);
-    }
-
-    /* ── Content ───────────────────────────────────────────────────────── */
-    .content {
-      padding: 15px;
-      max-width: 860px;
-      margin: 0 auto;
-      padding-bottom: calc(var(--driver-nav-h, 68px) + env(safe-area-inset-bottom) + 20px);
-    }
-
-    /* ── Bản đồ ────────────────────────────────────────────────────────── */
-    #map {
-      height: 250px;
-      width: 100%;
-      border-radius: var(--drv-card-radius);
-      background: var(--bg-card, #1E2329);
-      border: 1px solid var(--drv-border);
-      box-shadow: var(--drv-shadow-card);
-      overflow: hidden;
-    }
-
-    /* Nút chuyển lớp bản đồ (Google / Vệ tinh / Tối) */
-    .drv-map-layers { display: flex; flex-direction: column; gap: 6px; }
-    .drv-map-layer-btn {
-      width: 34px; height: 34px; border-radius: 8px; cursor: pointer;
-      background: rgba(17, 20, 24, 0.85); border: 1px solid rgba(255, 255, 255, 0.15);
-      color: #fff; font-size: 16px; line-height: 1; display: flex; align-items: center; justify-content: center;
-      transition: background .15s, border-color .15s, transform .1s;
-      -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
-    }
-    .drv-map-layer-btn:hover { background: rgba(59, 130, 246, 0.85); }
-    .drv-map-layer-btn:active { transform: scale(0.94); }
-    .drv-map-layer-btn.is-active {
-      background: #3b82f6; border-color: #93c5fd; box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.35);
-    }
-    .drv-map-layer-ico { pointer-events: none; }
-
-    /* ── Thẻ chỉ số ───────────────────────────────────────────────────── */
-    .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 15px 0; }
-    .stat-box {
-      padding: 16px 12px;
-      border-radius: var(--drv-card-radius);
-      background: var(--drv-grad-surface);
-      border: 1px solid var(--drv-border);
-      box-shadow: var(--drv-shadow-card);
-      text-align: center;
-    }
-    .stat-box .val { font-size: 1.7rem; font-weight: 800; color: var(--accent, #FCD535); line-height: 1.1; }
-    .stat-box .lbl { font-size: .72rem; color: var(--text-secondary, #848E9C); margin-top: 4px; text-transform: uppercase; letter-spacing: .5px; }
-
-    /* ── Nút hành động ─────────────────────────────────────────────────── */
-    .btn-row { display: flex; gap: 10px; margin-bottom: 16px; }
-    .btn {
-      flex: 1;
-      min-height: 48px;
-      padding: 12px;
-      border-radius: var(--drv-card-radius-sm);
-      border: 1px solid var(--drv-border-strong);
-      font-size: .92rem;
-      font-weight: 700;
-      cursor: pointer;
-      background: var(--bg-hover, #2B3139);
-      color: var(--text-primary, #EAECEF);
-      transition: transform .1s ease;
-    }
-    .btn:active { transform: scale(.97); }
-    .btn-gps { background: var(--bg-hover, #2B3139); color: var(--text-primary, #EAECEF); }
-    .btn-route {
-      background: var(--drv-grad-gold-strong);
-      color: #1a1405;
-      border-color: rgba(252, 213, 53, .5);
-      box-shadow: 0 6px 18px rgba(240, 185, 11, .26);
-    }
-
-    /* ── Card khách ────────────────────────────────────────────────────── */
-    .card {
-      position: relative;
-      background: var(--drv-grad-surface);
-      border: 1px solid var(--drv-border);
-      border-radius: var(--drv-card-radius);
-      padding: 14px 15px;
-      margin-bottom: 12px;
-      border-left: 3px solid var(--accent, #FCD535);
-      box-shadow: var(--drv-shadow-card);
-      cursor: pointer;
-      overflow: hidden;
-    }
-    .card .name { font-weight: 700; font-size: .98rem; margin-bottom: 5px; display: flex; align-items: center; flex-wrap: wrap; }
-    .card .info { font-size: .82rem; color: var(--text-secondary, #848E9C); }
-    .card .btns { display: flex; gap: 8px; margin-top: 11px; }
-    .card .btn-sm {
-      padding: 9px 12px;
-      border-radius: 10px;
-      border: 1px solid var(--drv-border-strong);
-      font-size: .8rem;
-      font-weight: 600;
-      cursor: pointer;
-      background: var(--bg-hover, #2B3139);
-      color: var(--text-primary, #EAECEF);
-      text-decoration: none;
-      text-align: center;
-    }
-    .card .btn-dir { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; font-weight: 600; }
-    .card .btn-dir svg { width: 14px; height: 14px; flex: 0 0 14px; }
-    .card .btn-dir.is-disabled { opacity: .45; cursor: not-allowed; }
-    .card__status {
-      font-size: .66rem;
-      font-weight: 700;
-      padding: 3px 9px;
-      border-radius: 999px;
-      margin-left: 6px;
-      letter-spacing: .3px;
-      text-transform: uppercase;
-    }
-    .st-PENDING { background: rgba(240, 185, 11, .16); color: #F0B90B; border: 1px solid rgba(240, 185, 11, .3); }
-    .st-IN_PROGRESS { background: rgba(59, 122, 254, .16); color: #7EA6FF; border: 1px solid rgba(59, 122, 254, .3); }
-    .st-DELIVERED { background: rgba(14, 203, 129, .16); color: #0ECB81; border: 1px solid rgba(14, 203, 129, .3); }
-    .st-FAILED { background: rgba(246, 70, 93, .16); color: #F6465D; border: 1px solid rgba(246, 70, 93, .3); }
-    .st-DISCREPANCY { background: rgba(249, 115, 22, .16); color: #FB923C; border: 1px solid rgba(249, 115, 22, .3); }
-    /* Panel giao hàng nội tuyến (thay cho modal) */
-    .card.is-open {
-      border-left-color: #0ECB81;
-      border-color: rgba(14, 203, 129, .35);
-      box-shadow: 0 10px 32px rgba(0, 0, 0, .32), 0 0 0 1px rgba(14, 203, 129, .25);
-    }
-    .card__panel {
-      display: none;
-      margin-top: 12px;
-      padding-top: 12px;
-      border-top: 1px solid var(--drv-border);
-    }
-    .card__panel.is-open, .card__panel.is-loading { display: block; }
-    .card__panel .drv-loading { padding: 10px 0; font-size: 13px; color: #888; }
-    .card__panel .drv-section__title { font-size: 12px; font-weight: 700; color: #94a3b8; margin: 10px 0 4px; }
-    .card__panel .drv-dl-item { display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid rgba(255,255,255,.06); }
-    .card__panel .drv-dl-item__name { flex:1; min-width:0; font-size:13px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .card__panel .drv-dl-item__expected { font-size:11px; color:#888; font-weight:500; }
-    .card__panel .drv-dl-item__qty { width:58px; max-width:58px; min-width:0; flex:0 0 58px; text-align:center; font-weight:800; font-size:14px; }
-    .card__panel .card__kegs { display:flex; gap:8px; flex-wrap:wrap; }
-    .card__panel .card__kegs .drv-field { flex:1; min-width:120px; margin:0; }
-    .card__panel .card__kegs .drv-input { text-align:center; font-weight:800; font-size:15px; }
-    .card__panel .card__kegs .drv-input[readonly] { opacity:.65; cursor:default; }
-    .card__panel .card__keg-info { font-size:11px; color:#94a3b8; margin-top:4px; }
-    .card__panel .drv-field { margin: 8px 0 0; }
-    .card__panel .drv-field__label { display:block; font-size:11px; color:#94a3b8; margin-bottom:3px; font-weight:600; }
-    .card__panel .drv-input { width:100%; max-width:100%; padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.05); color:#fff; font-size:13px; box-sizing:border-box; }
-    .card__panel .drv-btn-row { display:flex; gap:8px; margin-top:10px; }
-    .card__panel .drv-btn { flex:1; padding:9px; border-radius:8px; border:none; font-size:12px; font-weight:600; cursor:pointer; }
-    .card__panel .drv-btn--ghost { background:#374151; color:#fff; }
-    .card__panel .drv-btn--primary { background:#3b82f6; color:#fff; }
-    .card__panel .drv-btn--success { background:#22c55e; color:#06240f; }
-    .card__panel .drv-btn--warning { background:#f59e0b; color:#1a1a2e; }
-    .card__panel .drv-btn--danger { background:#ef4444; color:#fff; }
-    .card__panel .drv-btn:disabled { opacity:.5; cursor:wait; }
-    .card__panel .drv-btn--sm { padding:7px 10px; font-size:12px; flex:0 0 auto; text-decoration:none; display:inline-flex; align-items:center; gap:5px; }
-    .card__disc { display:none; gap:8px; flex-wrap:wrap; align-items:flex-end; margin-top:10px; padding:10px; border-radius:9px; background:rgba(239,68,68,.08); border:1px solid rgba(239,68,68,.25); }
-    .card__disc.is-open { display:flex; }
-    .card__disc .drv-field { flex:1; min-width:76px; margin:0; }
-    .card__disc .drv-btn { flex:0 0 auto; padding:9px 12px; }
-    .card .btn-deliver {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 9px 13px;
-      font-weight: 700;
-      font-size: .8rem;
-      border: 1px solid rgba(14, 203, 129, .4);
-      border-radius: 10px;
-      background: linear-gradient(135deg, #0ECB81, #00B370);
-      color: #06240f;
-    }
-    .card .btn-deliver svg { width:14px; height:14px; flex:0 0 14px; }
-    .card .btn-deliver.is-busy { opacity:.55; cursor:wait; }
-    .leaflet-container { background: var(--bg-card, #1E2329) !important; }
-
-    /* Tiêu đề section trong content */
-    .section-title {
-      font-size: .78rem !important;
-      font-weight: 700 !important;
-      text-transform: uppercase;
-      letter-spacing: .9px;
-      color: var(--text-secondary, #848E9C) !important;
-      margin: 18px 0 10px !important;
-    }
-  </style>
 </head>
-<body>
+<body class="ds-app">
 
-  <div class="header">
-    <h1>
-      <span class="drv-header__logo" aria-hidden="true">🚚</span>
-      <span>Giao hàng</span>
-    </h1>
-    <button onclick="showSettings()" style="display:none"></button>
-  </div>
-
-  <div class="content">
-    <div id="map"></div>
-
-    <div class="stats">
-      <div class="stat-box">
-        <div class="val" id="count">0</div>
-        <div class="lbl">Đơn hôm nay</div>
-      </div>
-      <div class="stat-box">
-        <div class="val" id="km" style="color:#22c55e;">-</div>
-        <div class="lbl">Tổng km</div>
-      </div>
-    </div>
-
-    <div class="btn-row">
-      <button class="btn btn-gps" onclick="getLocation()">📍 Vị trí</button>
-      <button class="btn btn-route" onclick="optimize()">⚡ Tối ưu</button>
-    </div>
-
-    <div class="section-title" style="font-size:14px;font-weight:600;margin-bottom:10px;color:#888;">📋 Danh sách giao hàng</div>
-    <div id="list"></div>
-  </div>
+  <div id="app"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="/js/map-tiles.js?v=20261108b"></script>
-  <script src="/js/driver/core.js?v=20261107j"></script>
+  <script src="/js/driver/core.js?v=20261108e"></script>
+  <script src="/js/driver/shell.js?v=20261108e"></script>
   <!-- Đồng bộ real-time giữa trang Bán hàng ↔ Giao hàng -->
-  <script src="/js/driver/sync.js?v=20261107j"></script>
-  <script src="/js/layout.js?v=20261107j-rt"></script>
+  <script src="/js/driver/sync.js?v=20261108e"></script>
   <script>
   /* ═══════════════════════════════════════════════════════════════════════
    * MODULE GIAO HÀNG — TÀI XẾ
+   * ═══════════════════════════════════════════════════════════════════════
+   * Dùng CHUNG Design System với Trang chủ & Bán hàng:
+   *   • App bar + bottom nav do shell.js dựng (không tự vẽ header/nav)
+   *   • Component: ds-card, ds-stat, ds-btn, ds-row, ds-field…
    *
-   * UI giống HỆT module Giao hàng của Admin (admin.biatuoitayninh.store/delivery):
-   *   • Leaflet map + marker kho / khách
-   *   • Số đơn hôm nay, tổng km
-   *   • Nút GPS + Tối ưu tuyến
-   *   • Card khách: tên, SĐT, tổng tiền, nút Chỉ đường / Tạo đơn
-   *
-   * Khác biệt DUY NHẤT so với Admin (thuần trao đổi dữ liệu, KHÔNG viết lại
-   * business logic):
-   *   1. Dữ liệu lấy từ /api/driver/delivery/page-data — CHỈ gồm đơn của
-   *      chính tài xế + đơn Admin tạo chưa gán ai (không thấy đơn tài xế khác).
-   *   2. Nút "Tạo đơn" → trang BÁN HÀNG của tài xế.
-   *   3. Thêm thao tác vận hành: Bắt đầu giao / Xác nhận giao / Giao thất bại /
-   *      Sai lệch — dùng chung DeliveryService với Admin.
-   *   4. Bottom menu riêng 4 mục của Driver Portal.
+   * Nghiệp vụ (không đổi):
+   *   1. Dữ liệu từ /api/driver/delivery/page-data — đơn của chính tài xế
+   *      + đơn Admin tạo chưa gán ai.
+   *   2. Panel giao nội tuyến (không modal): số lượng giao, vỏ thu, ghi chú,
+   *      4 nút hành động — dùng chung DeliveryService với Admin.
+   *   3. Đồng bộ vỏ giao/thu với màn Bán hàng qua /api/driver/sales/:id/kegs.
    * ═══════════════════════════════════════════════════════════════════════ */
   (async function () {
     /* ── Bắt buộc đăng nhập tài xế ── */
     try {
       await window.Drv.requireAuth();
     } catch (_) { return; }
+
+    var S = window.DrvShell;
 
     /* ── Dữ liệu (scope tài xế) ── */
     var data = { customers: [], settings: {} };
@@ -335,21 +58,70 @@
 
     var lat = settings.distributor_lat || 11.3296;
     var lng = settings.distributor_lng || 106.1495;
-    var costPerKm = settings.delivery_cost_per_km || 3000;
     var curLat = null, curLng = null;
     var map = null, userMarker = null;
 
+    /* ═══════════════════════════════════════════════════════════════════
+     * Markup — dùng chung component của Design System
+     * ═══════════════════════════════════════════════════════════════════ */
+    function markup() {
+      return '' +
+        /* ── Bản đồ ── */
+        '<section class="ds-section">' +
+          '<div class="ds-map" id="map"></div>' +
+        '</section>' +
+
+        /* ── Chỉ số ── */
+        '<section class="ds-section">' +
+          '<div class="ds-stats">' +
+            '<div class="ds-stat">' +
+              '<span class="ds-stat__value" id="count">0</span>' +
+              '<span class="ds-stat__label">Đơn hôm nay</span>' +
+            '</div>' +
+            '<div class="ds-stat ds-stat--ok">' +
+              '<span class="ds-stat__value" id="km">-</span>' +
+              '<span class="ds-stat__label">Tổng km</span>' +
+            '</div>' +
+          '</div>' +
+        '</section>' +
+
+        /* ── Hành động (vùng ngón cái) ── */
+        '<section class="ds-section">' +
+          '<div class="ds-btn-row">' +
+            '<button class="ds-btn" onclick="getLocation()" type="button">📍 Vị trí</button>' +
+            '<button class="ds-btn ds-btn--primary" onclick="optimize()" type="button">⚡ Tối ưu</button>' +
+          '</div>' +
+        '</section>' +
+
+        /* ── Danh sách giao hàng ── */
+        '<section class="ds-section">' +
+          '<div class="ds-section__head">' +
+            '<h2 class="ds-section__title">Danh sách giao hàng</h2>' +
+            '<span class="ds-section__badge" id="dl-list-count">0</span>' +
+          '</div>' +
+          '<div class="ds-list" id="list"></div>' +
+        '</section>';
+    }
+
     function dist(lat1, lng2, lat2, lng3) {
       var R = 6371;
-      var d = (lat2-lat1)*Math.PI/180;
-      var e = (lng3-lng2)*Math.PI/180;
-      var a = Math.sin(d/2)*Math.sin(d/2)+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(e/2)*Math.sin(e/2);
-      return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+      var d = (lat2 - lat1) * Math.PI / 180;
+      var e = (lng3 - lng2) * Math.PI / 180;
+      var a = Math.sin(d / 2) * Math.sin(d / 2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(e / 2) * Math.sin(e / 2);
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     }
 
     function icon(color, size) {
       size = size || 12;
-      return L.divIcon({ className:'m', html:'<div style="background:'+color+';width:'+size+'px;height:'+size+'px;border-radius:50%;border:2px solid #fff;"></div>', iconSize:[size,size], iconAnchor:[size/2,size/2] });
+      return L.divIcon({
+        className: 'm',
+        html: '<div style="background:' + color + ';width:' + size + 'px;height:' + size +
+              'px;border-radius:50%;border:2px solid #fff;"></div>',
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2]
+      });
     }
 
     function formatVND(n) {
@@ -358,74 +130,89 @@
 
     function esc(s) {
       return String(s === null || s === undefined ? '' : s)
-        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-        .replace(/"/g,'&quot;').replace(/'/g,'&#x27;');
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
     }
 
+    /* ═══════════════════════════════════════════════════════════════════
+     * Render danh sách khách
+     * ═══════════════════════════════════════════════════════════════════ */
     function render() {
-      document.getElementById('count').textContent = customers.length;
+      var countEl = document.getElementById('count');
+      if (countEl) countEl.textContent = customers.length;
+
+      var badgeEl = document.getElementById('dl-list-count');
+      if (badgeEl) badgeEl.textContent = customers.length;
+
       var totalKm = 0;
       var originLat = curLat || lat;
       var originLng = curLng || lng;
       var html = '';
       var countWithGPS = 0;
 
-      customers.forEach(function(c) {
+      customers.forEach(function (c) {
         var d = 0;
         if (c.lat && c.lng) {
           d = dist(originLat, originLng, parseFloat(c.lat), parseFloat(c.lng));
           totalKm += d;
           countWithGPS++;
         }
-        var gpsIcon = c.lat && c.lng ? '<span style="color:#22c55e;">📍</span>' : '<span style="color:#888;">📍</span>';
+        var gpsIcon = c.lat && c.lng
+          ? '<span style="color:#0ECB81">📍</span>'
+          : '<span style="color:var(--ds-text-3)">📍</span>';
         var totalStr = c.total ? formatVND(c.total) + 'đ' : '';
         var st = c.delivery_status
-          ? '<span class="card__status st-' + esc(c.delivery_status) + '">' + esc(c.delivery_status) + '</span>'
+          ? '<span class="ds-status ds-status--' + esc(c.delivery_status) + '">' +
+            esc(c.delivery_status) + '</span>'
           : '';
-        html += '<div class="card" data-customer-id="' + c.id + '">' +
-          '<div class="name">' + gpsIcon + ' ' + esc(c.name) + st + '</div>' +
-          '<div class="info">📞 ' + esc(c.phone || '-') + ' ' + totalStr +
-            (c.lat && c.lng ? ' | 📍 ' + d.toFixed(1) + ' km' : '') + '</div>' +
-          '<div class="btns">' +
+
+        html += '<article class="ds-delivery" data-customer-id="' + c.id + '">' +
+          '<div class="ds-delivery__name">' + gpsIcon + ' ' + esc(c.name) + st + '</div>' +
+          '<div class="ds-delivery__info">📞 ' + esc(c.phone || '-') +
+            (totalStr ? ' · ' + totalStr : '') +
+            (c.lat && c.lng ? ' · 📍 ' + d.toFixed(1) + ' km' : '') +
+          '</div>' +
+          '<div class="ds-delivery__actions">' +
             (c.lat && c.lng
-              ? '<a href="https://www.google.com/maps/dir/?api=1&destination=' + c.lat + ',' + c.lng + '" target="_blank" rel="noopener" class="btn-sm btn-dir">' +
+              ? '<a href="https://www.google.com/maps/dir/?api=1&destination=' + c.lat + ',' + c.lng +
+                '" target="_blank" rel="noopener" class="ds-btn--dir">' +
                   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
                   'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
                   '<polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21 3 6"/>' +
-                  '<line x1="9" x2="9" y1="3" y2="18"/>' +
-                  '<line x1="15" x2="15" y1="6" y2="21"/>' +
-                  '</svg>Chỉ đường</a>'
-              : '<span class="btn-sm btn-dir is-disabled" title="Khách chưa có tọa độ GPS">' +
+                  '<line x1="9" x2="9" y1="3" y2="18"/><line x1="15" x2="15" y1="6" y2="21"/></svg>Chỉ đường</a>'
+              : '<span class="ds-btn--dir is-disabled" title="Khách chưa có tọa độ GPS">' +
                   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
                   'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
                   '<polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21 3 6"/>' +
-                  '<line x1="9" x2="9" y1="3" y2="18"/>' +
-                  '<line x1="15" x2="15" y1="6" y2="21"/>' +
-                  '</svg>Chỉ đường</span>') +
-            '<button class="btn-sm btn-deliver" data-act="open-delivery" type="button">' +
+                  '<line x1="9" x2="9" y1="3" y2="18"/><line x1="15" x2="15" y1="6" y2="21"/></svg>Chỉ đường</span>') +
+            '<button class="ds-btn--deliver" data-act="open-delivery" type="button">' +
               '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
               'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
-              '<path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/>' +
-              '<path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14"/>' +
-              '<circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/>' +
-              '</svg>Giao hàng</button>' +
+              '<path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/>' +
+              '<path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A2 2 0 0 0 17.52 8H14"/>' +
+              '<circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/></svg>Giao hàng</button>' +
           '</div>' +
-          '<div class="card__panel"></div>' +
-        '</div>';
+          '<div class="ds-delivery__panel"></div>' +
+        '</article>';
       });
 
-      document.getElementById('km').textContent = countWithGPS > 0 ? totalKm.toFixed(1) : '-';
-      document.getElementById('list').innerHTML = html || '<p style="text-align:center;color:#888;padding:30px;">Chưa có đơn hàng</p>';
+      var kmEl = document.getElementById('km');
+      if (kmEl) kmEl.textContent = countWithGPS > 0 ? totalKm.toFixed(1) : '-';
+
+      var list = document.getElementById('list');
+      if (list) list.innerHTML = html || S.empty('📦', 'Chưa có đơn hàng');
     }
 
+    /* ═══════════════════════════════════════════════════════════════════
+     * Bản đồ
+     * ═══════════════════════════════════════════════════════════════════ */
     function initMap() {
       if (typeof L === 'undefined') return;
       map = L.map('map').setView([lat, lng], 12);
 
       // Google Maps qua proxy của server (không cần API key, không bị chặn Referer)
-      var tiles = null;
       if (window.MapTiles && window.MapTiles.addTiles) {
-        tiles = window.MapTiles.addTiles(map, { layer: 'google' });
+        var tiles = window.MapTiles.addTiles(map, { layer: 'google' });
         window.MapTiles.addLayerSwitcher(map, null, { layer: 'google', tiles: tiles });
       } else {
         L.tileLayer('/map-tiles/{z}/{x}/{y}.jpg?layer=google', {
@@ -433,140 +220,128 @@
         }).addTo(map);
       }
 
-      L.marker([lat, lng], {icon: icon('#22c55e', 16)}).addTo(map).bindPopup('🏭 Kho');
+      L.marker([lat, lng], { icon: icon('#0ECB81', 16) }).addTo(map).bindPopup('🏭 Kho');
 
-      customers.forEach(function(c) {
+      customers.forEach(function (c) {
         if (c.lat && c.lng) {
-          L.marker([parseFloat(c.lat), parseFloat(c.lng)], {icon: icon('#3b82f6', 10)}).addTo(map).bindPopup(esc(c.name));
+          L.marker([parseFloat(c.lat), parseFloat(c.lng)], { icon: icon('#3b82f6', 10) })
+            .addTo(map).bindPopup(esc(c.name));
         }
       });
     }
 
-    window.getLocation = function() {
-      if (!navigator.geolocation) { alert('GPS không hỗ trợ'); return; }
-      navigator.geolocation.getCurrentPosition(function(p) {
+    window.getLocation = function () {
+      if (!navigator.geolocation) { window.Drv.toast('GPS không hỗ trợ', 'warning'); return; }
+      navigator.geolocation.getCurrentPosition(function (p) {
         curLat = p.coords.latitude;
         curLng = p.coords.longitude;
         if (map) {
           map.setView([curLat, curLng], 14);
           if (userMarker) map.removeLayer(userMarker);
-          userMarker = L.marker([curLat, curLng], {icon: icon('#ef4444', 14)}).addTo(map).bindPopup('📍 Bạn');
+          userMarker = L.marker([curLat, curLng], { icon: icon('#F6465D', 14) })
+            .addTo(map).bindPopup('📍 Bạn');
         }
         render();
-        alert('Đã cập nhật vị trí!');
-      }, function(e) { alert('Lỗi GPS'); }, {enableHighAccuracy: true, timeout: 10000});
+        window.Drv.toast('Đã cập nhật vị trí!', 'success');
+      }, function () {
+        window.Drv.toast('Không lấy được vị trí GPS', 'error');
+      }, { enableHighAccuracy: true, timeout: 10000 });
     };
 
-    window.optimize = function() {
+    window.optimize = function () {
       var originLat = curLat || lat;
       var originLng = curLng || lng;
-      customers.sort(function(a, b) {
-        return dist(originLat, originLng, parseFloat(a.lat||0), parseFloat(a.lng||0)) -
-               dist(originLat, originLng, parseFloat(b.lat||0), parseFloat(b.lng||0));
+      customers.sort(function (a, b) {
+        return dist(originLat, originLng, parseFloat(a.lat || 0), parseFloat(a.lng || 0)) -
+               dist(originLat, originLng, parseFloat(b.lat || 0), parseFloat(b.lng || 0));
       });
       render();
-      alert('Đã sắp xếp theo khoảng cách!');
+      window.Drv.toast('Đã sắp xếp theo khoảng cách!', 'success');
     };
 
-    window.showSettings = function() {
-      // Tài xế KHÔNG được sửa cấu hình kho/giá giao hàng (dữ liệu quản trị).
+    window.showSettings = function () {
+      window.Drv.toast('Chỉ Admin mới cấu hình được phí giao hàng', 'warning');
+    };
+    window.hideSettings = function () {};
+    window.saveSettings = function () {
       window.Drv.toast('Chỉ Admin mới cấu hình được phí giao hàng', 'warning');
     };
 
-    window.hideSettings = function() {};
-
-    window.saveSettings = async function() {
-      window.Drv.toast('Chỉ Admin mới cấu hình được phí giao hàng', 'warning');
-    };
-
-    /* ── Bottom menu Driver ── */
-    function renderNav() {
-      var holder = document.createElement('div');
-      holder.innerHTML = window.Drv.getDriverBottomNav('delivery');
-      document.body.appendChild(holder.firstChild);
-      window.Drv.setupNav('delivery');
-    }
-
-    /* ── Thao tác vận hành đơn giao (PANEL NỘI TUYẾN, không dùng modal) ──
-     * Bấm vào thẻ khách → mở panel ngay trong thẻ: số lượng giao, vỏ thu,
-     * ghi chú và 4 nút hành động. Không che màn hình, tài xế vẫn thấy
-     * danh sách + bản đồ để đối chiếu địa chỉ.
-     * ────────────────────────────────────────────────────────────────── */
+    /* ═══════════════════════════════════════════════════════════════════
+     * Panel giao hàng nội tuyến
+     * ═══════════════════════════════════════════════════════════════════ */
     function buildPanel(detail) {
       var items = detail.items || [];
       var events = detail.events || [];
-      var dirLink = window.Drv.mapDirectionsLink({
-        lat: detail.lat, lng: detail.lng, address: detail.customer_address
-      });
 
-      var itemsHtml = items.length
-        ? '<div class="drv-section__title">Số lượng giao</div>' +
-          items.map(function (it) {
-            return '<div class="drv-dl-item">' +
-              '<div style="flex:1;min-width:0;">' +
-                '<div class="drv-dl-item__name">' + esc(it.product_name || '—') +
-                  (it.is_reward ? ' <span class="drv-badge drv-badge--reward">THƯỞNG</span>' : '') + '</div>' +
-                '<div class="drv-dl-item__expected">Cần giao: ' + window.Drv.num(it.expected_quantity) + '</div>' +
-              '</div>' +
-              '<input class="drv-input drv-dl-item__qty" type="number" inputmode="numeric" min="0" ' +
-                'data-item-id="' + it.id + '" value="' +
-                (it.delivered_quantity > 0 ? it.delivered_quantity : it.expected_quantity) + '">' +
-            '</div>';
-          }).join('')
-        : '<div class="drv-section__title">Số lượng giao</div>' +
-          '<div style="font-size:12px;color:#888;">Không có chi tiết sản phẩm</div>';
+      var itemsHtml = '<div class="ds-section__title">Số lượng giao</div>' +
+        (items.length
+          ? '<div class="ds-dl-list">' + items.map(function (it) {
+              return '<div class="ds-dl-item">' +
+                '<div class="ds-dl-item__body">' +
+                  '<div class="ds-dl-item__name">' + esc(it.product_name || '—') +
+                    (it.is_reward ? ' <span class="ds-badge ds-badge--brand">THƯỞNG</span>' : '') + '</div>' +
+                  '<div class="ds-dl-item__expected">Cần giao: ' +
+                    window.Drv.num(it.expected_quantity) + '</div>' +
+                '</div>' +
+                '<input class="ds-dl-item__qty" type="number" inputmode="numeric" min="0" ' +
+                  'data-item-id="' + it.id + '" value="' +
+                  (it.delivered_quantity > 0 ? it.delivered_quantity : it.expected_quantity) + '">' +
+              '</div>';
+            }).join('') + '</div>'
+          : '<div class="ds-muted" style="font-size:var(--ds-f-sm)">Không có chi tiết sản phẩm</div>');
 
       var historyHtml = events.length
-        ? '<div class="drv-section__title">Lịch sử</div>' +
-          events.slice(0, 5).map(function (e) {
-            return '<div style="display:flex;justify-content:space-between;font-size:11px;color:#94a3b8;padding:2px 0;">' +
+        ? '<div class="ds-section__title">Lịch sử</div>' +
+          '<div class="ds-dl-list">' + events.slice(0, 5).map(function (e) {
+            return '<div class="ds-history">' +
               '<span>' + esc(e.event_type) +
                 (e.to_status ? ' → ' + esc(e.to_status) : '') + '</span>' +
               '<span>' + esc(e.actor_username || '') + '</span>' +
             '</div>';
-          }).join('')
+          }).join('') + '</div>'
         : '';
 
       return itemsHtml +
-        '<div class="card__kegs drv-mt-12">' +
-          '<div class="drv-field">' +
-            '<label class="drv-field__label">📦 Vỏ giao đi</label>' +
-            '<input class="drv-input" id="dl-keg-deliver" type="number" inputmode="numeric" min="0" value="' +
+        '<div class="ds-kegs ds-mt-3">' +
+          '<div class="ds-field">' +
+            '<label class="ds-label" for="dl-keg-deliver">📦 Vỏ giao đi</label>' +
+            '<input class="ds-input" id="dl-keg-deliver" type="number" inputmode="numeric" min="0" value="' +
               (detail.sale_deliver_kegs || 0) + '">' +
           '</div>' +
-          '<div class="drv-field">' +
-            '<label class="drv-field__label">🔄 Vỏ thu về</label>' +
-            '<input class="drv-input" id="dl-kegs" type="number" inputmode="numeric" min="0" value="' +
+          '<div class="ds-field">' +
+            '<label class="ds-label" for="dl-kegs">🔄 Vỏ thu về</label>' +
+            '<input class="ds-input" id="dl-kegs" type="number" inputmode="numeric" min="0" value="' +
               (detail.collected_kegs || detail.sale_return_kegs || 0) + '">' +
           '</div>' +
         '</div>' +
-        '<div class="card__keg-info">Tồn vỏ khách hiện có: <strong>' +
+        '<div class="ds-keg-note">Tồn vỏ khách hiện có: <strong>' +
           window.Drv.num(detail.customer_keg_balance || 0) + '</strong> vỏ' +
           (detail.sale_deliver_kegs
             ? ' · Đơn này giao đi <strong>' + window.Drv.num(detail.sale_deliver_kegs) + '</strong> vỏ'
             : '') +
         '</div>' +
-        '<div class="drv-field">' +
-          '<label class="drv-field__label">Ghi chú / lý do thất bại</label>' +
-          '<input class="drv-input" id="dl-note" type="text" placeholder="Không bắt buộc" value="' +
+        '<div class="ds-field ds-mt-3">' +
+          '<label class="ds-label" for="dl-note">Ghi chú / lý do thất bại</label>' +
+          '<input class="ds-input" id="dl-note" type="text" placeholder="Không bắt buộc" value="' +
             esc(detail.note || '') + '">' +
         '</div>' +
-        '<div class="card__disc">' +
-          '<div class="drv-field"><label class="drv-field__label">Thiếu (lít)</label>' +
-            '<input class="drv-input" data-disc="missing" type="number" inputmode="numeric" min="0" value="0"></div>' +
-          '<div class="drv-field"><label class="drv-field__label">Thừa (lít)</label>' +
-            '<input class="drv-input" data-disc="excess" type="number" inputmode="numeric" min="0" value="0"></div>' +
-          '<div class="drv-field"><label class="drv-field__label">Hư hỏng (lít)</label>' +
-            '<input class="drv-input" data-disc="damaged" type="number" inputmode="numeric" min="0" value="0"></div>' +
-          '<button class="drv-btn drv-btn--danger" data-act="save-disc" type="button">Lưu sai lệch</button>' +
+        '<div class="ds-disc">' +
+          '<div class="ds-field"><label class="ds-label">Thiếu (lít)</label>' +
+            '<input class="ds-input" data-disc="missing" type="number" inputmode="numeric" min="0" value="0"></div>' +
+          '<div class="ds-field"><label class="ds-label">Thừa (lít)</label>' +
+            '<input class="ds-input" data-disc="excess" type="number" inputmode="numeric" min="0" value="0"></div>' +
+          '<div class="ds-field"><label class="ds-label">Hư hỏng (lít)</label>' +
+            '<input class="ds-input" data-disc="damaged" type="number" inputmode="numeric" min="0" value="0"></div>' +
+          '<button class="ds-btn ds-btn--danger ds-btn--sm" data-act="save-disc" type="button">Lưu sai lệch</button>' +
         '</div>' +
-        '<div class="drv-btn-row">' +
-          '<button class="drv-btn drv-btn--ghost" data-act="start" type="button">Bắt đầu giao</button>' +
-          '<button class="drv-btn drv-btn--success" data-act="confirm" type="button">Xác nhận giao</button>' +
+        '<div class="ds-btn-row ds-mt-3">' +
+          '<button class="ds-btn ds-btn--ghost" data-act="start" type="button">Bắt đầu giao</button>' +
+          '<button class="ds-btn ds-btn--success" data-act="confirm" type="button">Xác nhận giao</button>' +
         '</div>' +
-        '<div class="drv-btn-row">' +
-          '<button class="drv-btn drv-btn--warning" data-act="fail" type="button">Giao thất bại</button>' +
-          '<button class="drv-btn drv-btn--danger" data-act="disc" type="button">Có sai lệch</button>' +
+        '<div class="ds-btn-row ds-mt-2">' +
+          '<button class="ds-btn ds-btn--warn" data-act="fail" type="button">Giao thất bại</button>' +
+          '<button class="ds-btn ds-btn--danger" data-act="disc" type="button">Có sai lệch</button>' +
         '</div>' +
         historyHtml;
     }
@@ -599,12 +374,11 @@
         var act = btn.getAttribute('data-act');
         btn.disabled = true;
 
-        // Query lại element: innerHTML của panel đã bị xoá khi đóng,
-        // nên không thể giữ tham chiếu từ lúc bind.
+        // Query lại element: innerHTML của panel đã bị xoá khi đóng.
         var kegsEl = panel.querySelector('#dl-kegs');
         var kegDeliverEl = panel.querySelector('#dl-keg-deliver');
         var noteEl = panel.querySelector('#dl-note');
-        var discBox = panel.querySelector('.card__disc');
+        var discBox = panel.querySelector('.ds-disc');
 
         try {
           if (act === 'disc') {
@@ -641,7 +415,6 @@
                   returned: returnedKegs
                 });
               } catch (kegErr) {
-                // Không chặn giao hàng — chỉ cảnh báo
                 window.Drv.toast('Cảnh báo: cập nhật vỏ không thành công — ' + kegErr.message, 'error');
               }
             }
@@ -704,7 +477,7 @@
     }
 
     async function toggleDeliveryDetail(c, card) {
-      var panel = card.querySelector('.card__panel');
+      var panel = card.querySelector('.ds-delivery__panel');
       if (!panel) return;
 
       // Đang mở → đóng lại
@@ -718,7 +491,7 @@
       if (panel.classList.contains('is-loading')) return;
 
       panel.classList.add('is-loading');
-      panel.innerHTML = '<div class="drv-loading">Đang tải…</div>';
+      panel.innerHTML = '<div class="ds-loading">Đang tải…</div>';
 
       var deliveryId, detail;
       try {
@@ -739,21 +512,18 @@
       bindPanel(panel, deliveryId, card, detail.sale_id || c.sale_id);
 
       // Cuộn ô "Vỏ thu về" vào giữa khung nhìn khi mở panel.
-      // Panel dài + bottom menu fixed → ô nhập nằm ngoài tầm nhìn, không gõ được.
-      // Dùng scrollIntoView (native) để tự xử lý đúng scroll container.
       try {
         setTimeout(function () {
           var kegEl = panel.querySelector('#dl-kegs');
           if (!kegEl) return;
-          var navEl = document.querySelector('.drv-nav');
+          var navEl = document.querySelector('.ds-nav');
           var navH = navEl ? navEl.getBoundingClientRect().height : 0;
-          var headerEl = document.querySelector('.header');
+          var headerEl = document.querySelector('.ds-appbar');
           var headH = headerEl ? headerEl.getBoundingClientRect().height : 0;
           var top = kegEl.getBoundingClientRect().top + window.pageYOffset - headH - 12;
           var bottom = top + kegEl.getBoundingClientRect().height + navH + 12;
           var vTop = window.pageYOffset + headH;
           var vBottom = window.pageYOffset + window.innerHeight - navH;
-          // Chỉ cuộn nếu ô chưa nằm trọn trong vùng nhìn khả dụng
           if (top < vTop || bottom > vBottom) {
             window.scrollTo({
               top: top - (window.innerHeight - navH - kegEl.getBoundingClientRect().height) / 2,
@@ -764,12 +534,9 @@
       } catch (_) {}
     }
 
-    /* ── Đồng bộ real-time với trang Bán hàng ────────────────────────────
-     * Khi Admin/tài xế khác tạo hoặc sửa đơn, Socket.IO phát
-     * `order:created` / `order:updated` → realtime.js dispatch
-     * `realtime:refetch` → module driver/sync.js gọi callback ở đây.
-     * Nhờ vậy "ĐƠN GẦN ĐÂY" (trang Bán hàng) và danh sách này luôn khớp.
-     * ────────────────────────────────────────────────────────────────── */
+    /* ═══════════════════════════════════════════════════════════════════
+     * Đồng bộ real-time với trang Bán hàng
+     * ═══════════════════════════════════════════════════════════════════ */
     async function reloadDeliveries() {
       try {
         var fresh = await window.Drv.api.get('/api/driver/delivery/page-data');
@@ -780,7 +547,6 @@
           if (settings.distributor_lng) lng = settings.distributor_lng;
         }
         render();
-        // Cập nhật marker trên map (nếu có)
         if (map) {
           if (window.__drvMarkers) {
             window.__drvMarkers.forEach(function (m) { map.removeLayer(m); });
@@ -790,8 +556,7 @@
           customers.forEach(function (c) {
             if (c.lat && c.lng) {
               var mk = L.marker([parseFloat(c.lat), parseFloat(c.lng)], { icon: icon('#3b82f6', 10) })
-                .addTo(map)
-                .bindPopup(esc(c.name));
+                .addTo(map).bindPopup(esc(c.name));
               window.__drvMarkers.push(mk);
             }
           });
@@ -801,26 +566,34 @@
       }
     }
 
-    /* ── Boot ── */
+    /* ═══════════════════════════════════════════════════════════════════
+     * Boot
+     * ═══════════════════════════════════════════════════════════════════ */
+    S.mount({
+      key: 'delivery',
+      icon: '🚚',
+      title: 'Giao hàng',
+      content: markup()
+    });
+
     initMap();
     render();
-    renderNav();
+
+    // Tên tài xế trên app bar
     window.Drv.setupHeader();
 
-    // Đăng ký listener đồng bộ (nếu module driver/sync.js được nạp)
     if (window.DrvSync && typeof window.DrvSync.onChange === 'function') {
       window.DrvSync.onChange(function (reason) {
-        if (reason === 'focus' || reason === 'visibility') return; // đã refresh khi quay lại
+        if (reason === 'focus' || reason === 'visibility') return;
         reloadDeliveries();
       });
     }
 
     document.getElementById('list').addEventListener('click', function (e) {
       if (e.target.closest('a')) return;
-      if (e.target.closest('.btn-dir.is-disabled')) return;
-      // Click bên trong panel giao hàng (ô nhập vỏ, số lượng, ghi chú…)
-      // → không đóng panel, không chuyển đơn.
-      if (e.target.closest('.card__panel')) return;
+      if (e.target.closest('.ds-btn--dir.is-disabled')) return;
+      // Click bên trong panel giao hàng → không đóng panel, không chuyển đơn.
+      if (e.target.closest('.ds-delivery__panel')) return;
       var card = e.target.closest('[data-customer-id]');
       if (!card) return;
       var cid = parseInt(card.getAttribute('data-customer-id'));

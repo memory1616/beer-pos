@@ -15,6 +15,24 @@
 
   function $(id) { return document.getElementById(id); }
 
+  function markup() {
+    return '' +
+      '<section class="ds-section">' +
+        '<div class="ds-field">' +
+          '<input class="ds-input" id="cust-search" type="search" inputmode="search" ' +
+            'placeholder="🔍 Tìm khách theo tên, SĐT, địa chỉ…" autocomplete="off">' +
+        '</div>' +
+        '<button class="ds-btn ds-btn--primary ds-btn--block" id="btn-new-cust" type="button">' +
+          '➕ Thêm khách hàng mới' +
+        '</button>' +
+      '</section>' +
+      '<section class="ds-section">' +
+        '<div class="ds-list" id="cust-list">' +
+          '<div class="ds-loading">Đang tải…</div>' +
+        '</div>' +
+      '</section>';
+  }
+
   async function load(q) {
     var el = $('cust-list');
     try {
@@ -22,37 +40,33 @@
       var list = res.customers || [];
 
       if (!list.length) {
-        el.innerHTML = '<div class="drv-empty"><div class="drv-empty__icon">🔍</div>' +
-          '<div class="drv-empty__text">Không tìm thấy khách hàng</div></div>';
+        el.innerHTML = window.DrvShell.empty('🔍', 'Không tìm thấy khách hàng');
         return;
       }
 
       el.innerHTML = list.map(function (c) {
         var debtBadge = (c.debt > 0)
-          ? '<span class="drv-badge drv-badge--failed">Nợ ' + D.moneyShort(c.debt) + '</span>'
-          : '<span class="drv-badge drv-badge--delivered">Sạch nợ</span>';
-        var kegBadge = '<span class="drv-badge drv-badge--progress">Vỏ: ' +
+          ? '<span class="ds-badge ds-badge--danger">Nợ ' + D.moneyShort(c.debt) + '</span>'
+          : '<span class="ds-badge ds-badge--ok">Sạch nợ</span>';
+        var kegBadge = '<span class="ds-badge ds-badge--info">Vỏ: ' +
           D.num(c.keg_balance || 0) + '</span>';
 
-        return '<div class="drv-item drv-card--tap" data-cust-id="' + c.id + '">' +
-          '<div class="drv-item__body">' +
-            '<div class="drv-item__title">' + esc(c.name) + '</div>' +
-            '<div class="drv-item__meta">' +
+        return '<div class="ds-row ds-card--tap" data-cust-id="' + c.id + '">' +
+          '<span class="ds-row__body">' +
+            '<span class="ds-row__title">' + esc(c.name) + '</span>' +
+            '<span class="ds-row__meta">' +
               (c.phone
-                ? '<a href="tel:' + esc(c.phone) + '" style="color:var(--accent);">' + esc(c.phone) + '</a>'
+                ? '<a href="tel:' + esc(c.phone) + '" style="color:var(--ds-brand-500);">' + esc(c.phone) + '</a>'
                 : '—') +
               (c.address ? ' · ' + esc(c.address) : '') +
-            '</div>' +
-            '<div class="drv-mt-8" style="display:flex;gap:6px;flex-wrap:wrap;">' +
-              debtBadge + kegBadge +
-            '</div>' +
-          '</div>' +
-          '<div class="drv-item__right drv-muted" style="font-size:1.3rem;">›</div>' +
+            '</span>' +
+            '<span class="ds-wrap ds-mt-2">' + debtBadge + kegBadge + '</span>' +
+          '</span>' +
+          '<span class="ds-row__tail ds-muted" style="font-size:1.3rem;">›</span>' +
         '</div>';
       }).join('');
     } catch (err) {
-      el.innerHTML = '<div class="drv-empty"><div class="drv-empty__icon">⚠️</div>' +
-        '<div class="drv-empty__text">' + esc(err.message) + '</div></div>';
+      el.innerHTML = window.DrvShell.empty('⚠️', esc(err.message));
     }
   }
 
@@ -164,7 +178,15 @@
 
   async function init() {
     await D.requireAuth();
-    D.setupNav('customers');
+
+    // Dựng shell dùng chung (app bar + main + bottom nav)
+    window.DrvShell.mount({
+      key: 'customers',
+      icon: '👥',
+      title: 'Khách hàng',
+      content: markup()
+    });
+
     D.setupHeader();
     load();
 

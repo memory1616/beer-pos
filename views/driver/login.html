@@ -5,41 +5,42 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Đăng nhập Tài xế — Bia Tươi Tây Ninh</title>
   <meta name="theme-color" content="#0B0E11">
-  <link rel="stylesheet" href="/css/driver.css?v=20261108d">
+  <link rel="stylesheet" href="/css/driver.css?v=20261108e">
+  <link rel="stylesheet" href="/css/driver-system.css?v=20261108e">
   <style>
     /* No-flicker theme */
     html { background: #0B0E11; }
   </style>
 </head>
 <body>
-  <div class="drv-login">
-    <div class="drv-login__box">
-      <div class="drv-login__logo">🚚</div>
-      <h1 class="drv-login__title">Cổng Tài xế</h1>
-      <p class="drv-login__subtitle">Bia Tươi Tây Ninh — Giao hàng &amp; Bán hàng</p>
+  <div class="ds-auth">
+    <div class="ds-auth__card">
+      <div class="ds-auth__logo" aria-hidden="true">🚚</div>
+      <h1 class="ds-auth__title">Cổng Tài xế</h1>
+      <p class="ds-auth__sub">Bia Tươi Tây Ninh — Giao hàng &amp; Bán hàng</p>
 
-      <div class="drv-login__error" id="errorMsg"></div>
+      <div class="ds-auth__error" id="errorMsg"></div>
 
       <form id="loginForm" autocomplete="on">
-        <div class="drv-field">
-          <label class="drv-field__label" for="username">Tài khoản</label>
-          <input class="drv-input" type="text" id="username" name="username"
+        <div class="ds-field">
+          <label class="ds-label" for="username">Tài khoản</label>
+          <input class="ds-input" type="text" id="username" name="username"
                  autocomplete="username" autocapitalize="none" autocorrect="off"
                  spellcheck="false" required>
         </div>
 
-        <div class="drv-field">
-          <label class="drv-field__label" for="password">Mật khẩu</label>
-          <input class="drv-input" type="password" id="password" name="password"
+        <div class="ds-field">
+          <label class="ds-label" for="password">Mật khẩu</label>
+          <input class="ds-input" type="password" id="password" name="password"
                  autocomplete="current-password" required>
         </div>
 
-        <button class="drv-btn drv-btn--primary" type="submit" id="submitBtn">Đăng nhập</button>
+        <button class="ds-btn ds-btn--primary ds-btn--block ds-btn--lg" type="submit" id="submitBtn">Đăng nhập</button>
       </form>
     </div>
   </div>
 
-  <script src="/js/driver/core.js?v=20261107j"></script>
+  <script src="/js/driver/core.js?v=20261108e"></script>
   <script>
   (function () {
     'use strict';
