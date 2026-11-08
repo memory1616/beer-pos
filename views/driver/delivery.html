@@ -405,11 +405,18 @@
     }
 
     function bindPanel(panel, deliveryId, card, saleId) {
-      var kegsEl = panel.querySelector('#dl-kegs');
-      var kegDeliverEl = panel.querySelector('#dl-keg-deliver');
-      var noteEl = panel.querySelector('#dl-note');
-      var discBox = panel.querySelector('.card__disc');
+      // panel là element CỐ ĐỊNH của card (chỉ innerHTML bị xoá khi đóng).
+      // → Mỗi lần mở lại sẽ chồng thêm listener 'click', khiến bấm
+      //   "Xác nhận giao" gửi API nhiều lần. Dùng AbortController để
+      //   gỡ listener cũ trước khi gắn listener mới.
+      if (panel.__abort) {
+        try { panel.__abort.abort(); } catch (_) {}
+      }
+      var abort = new AbortController();
+      panel.__abort = abort;
 
+      // KHÔNG query element ở đây: innerHTML của panel bị xoá khi đóng →
+      // các node đã bị huỷ. Phải query lại bên trong handler.
       function closePanel() {
         panel.classList.remove('is-open');
         panel.innerHTML = '';
@@ -425,9 +432,16 @@
         var act = btn.getAttribute('data-act');
         btn.disabled = true;
 
+        // Query lại element: innerHTML của panel đã bị xoá khi đóng,
+        // nên không thể giữ tham chiếu từ lúc bind.
+        var kegsEl = panel.querySelector('#dl-kegs');
+        var kegDeliverEl = panel.querySelector('#dl-keg-deliver');
+        var noteEl = panel.querySelector('#dl-note');
+        var discBox = panel.querySelector('.card__disc');
+
         try {
           if (act === 'disc') {
-            discBox.classList.add('is-open');
+            if (discBox) discBox.classList.add('is-open');
             return;
           }
 
@@ -448,7 +462,7 @@
               });
             });
             var deliverKegs = kegDeliverEl ? (parseInt(kegDeliverEl.value) || 0) : 0;
-            var returnedKegs = parseInt(kegsEl.value) || 0;
+            var returnedKegs = kegsEl ? (parseInt(kegsEl.value) || 0) : 0;
 
             // Đồng bộ vỏ giao đi / vỏ thu về với đơn bán (màn Bán hàng) qua
             // cùng nghiệp vụ modal giao/thu vỏ → tồn vỏ khách + keg_stats
