@@ -365,7 +365,7 @@
           '<div class="drv-field">' +
             '<label class="drv-field__label">📦 Vỏ giao đi</label>' +
             '<input class="drv-input" id="dl-keg-deliver" type="number" inputmode="numeric" min="0" value="' +
-              (detail.sale_deliver_kegs || 0) + '" readonly>' +
+              (detail.sale_deliver_kegs || 0) + '">' +
           '</div>' +
           '<div class="drv-field">' +
             '<label class="drv-field__label">🔄 Vỏ thu về</label>' +
@@ -404,8 +404,9 @@
         historyHtml;
     }
 
-    function bindPanel(panel, deliveryId, card) {
+    function bindPanel(panel, deliveryId, card, saleId) {
       var kegsEl = panel.querySelector('#dl-kegs');
+      var kegDeliverEl = panel.querySelector('#dl-keg-deliver');
       var noteEl = panel.querySelector('#dl-note');
       var discBox = panel.querySelector('.card__disc');
 
@@ -444,9 +445,27 @@
                 deliveredQuantity: parseFloat(el.value) || 0
               });
             });
+            var deliverKegs = kegDeliverEl ? (parseInt(kegDeliverEl.value) || 0) : 0;
+            var returnedKegs = parseInt(kegsEl.value) || 0;
+
+            // Đồng bộ vỏ giao đi / vỏ thu về với đơn bán (màn Bán hàng) qua
+            // cùng nghiệp vụ modal giao/thu vỏ → tồn vỏ khách + keg_stats
+            // luôn khớp giữa 2 màn.
+            if (saleId) {
+              try {
+                await window.Drv.api.post('/api/driver/sales/' + saleId + '/kegs', {
+                  deliver: deliverKegs,
+                  returned: returnedKegs
+                });
+              } catch (kegErr) {
+                // Không chặn giao hàng — chỉ cảnh báo
+                window.Drv.toast('Cảnh báo: cập nhật vỏ không thành công — ' + kegErr.message, 'error');
+              }
+            }
+
             var r = await window.Drv.api.post('/api/driver/deliveries/' + deliveryId + '/confirm', {
               items: payloadItems,
-              collectedKegs: parseInt(kegsEl.value) || 0,
+              collectedKegs: returnedKegs,
               note: noteEl.value.trim()
             });
             var sm = r.summary || {};
@@ -529,7 +548,7 @@
       panel.classList.add('is-open');
       card.classList.add('is-open');
       panel.innerHTML = buildPanel(detail);
-      bindPanel(panel, deliveryId, card);
+      bindPanel(panel, deliveryId, card, detail.sale_id || c.sale_id);
     }
 
     /* ── Đồng bộ real-time với trang Bán hàng ────────────────────────────
