@@ -626,6 +626,24 @@ router.post('/update-kegs', (req, res) => {
 
     updateKegs();
 
+    // Đồng bộ chiều ngược: nếu đơn này có phiếu giao (delivery_records),
+    // cập nhật `collected_kegs` cho khớp với `sales.return_kegs`.
+    // Nếu không, màn Giao hàng sẽ hiển thị số vỏ thu khác với modal giao/thu vỏ
+    // ở màn Bán hàng → tồn vỏ khách bị lệch.
+    try {
+      const DeliveryService = require('../../src/services/DeliveryService');
+      const linked = db
+        .prepare('SELECT id FROM delivery_records WHERE sale_id = ? ORDER BY id DESC LIMIT 1')
+        .get(saleId);
+      if (linked) {
+        db.prepare(
+          "UPDATE delivery_records SET collected_kegs = ?, updated_at = datetime('now') WHERE id = ?"
+        ).run(returned, linked.id);
+      }
+    } catch (e) {
+      logger.error('Sync delivery collected_kegs error', { error: e.message });
+    }
+
     socketServer.emitKegUpdated();
     socketServer.emitOrderUpdated({ id: saleId, returned: true });
     res.json({ success: true, message: 'Đã cập nhật vỏ', newBalance: newKegBalance });

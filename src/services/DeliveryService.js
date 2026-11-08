@@ -153,7 +153,10 @@ class DeliveryService {
         `
         SELECT dr.*, c.name AS customer_name, c.phone AS customer_phone,
                c.address AS customer_address, c.lat, c.lng,
-               s.total AS sale_total, s.date AS sale_date
+               c.keg_balance AS customer_keg_balance,
+               s.total AS sale_total, s.date AS sale_date,
+               s.deliver_kegs AS sale_deliver_kegs,
+               s.return_kegs AS sale_return_kegs
         FROM delivery_records dr
         LEFT JOIN customers c ON c.id = dr.customer_id
         LEFT JOIN sales s ON s.id = dr.sale_id
@@ -397,6 +400,18 @@ class DeliveryService {
           db.prepare('UPDATE sales SET delivery_status = ? WHERE id = ?').run(nextStatus, record.sale_id);
         } catch (_) {}
 
+        // Đồng bộ vỏ thu về: phiếu giao → sales.return_kegs + tồn vỏ khách + keg_stats
+        // (đồng bộ với modal giao/thu vỏ ở màn Bán hàng)
+        if (record.sale_id && record.customer_id) {
+          DeliveryService.syncCollectedKegs(
+            record.sale_id,
+            record.customer_id,
+            collectedKegs,
+            record.collected_kegs || 0,
+            `Thu vỏ qua phiếu giao #${deliveryId}`
+          );
+        }
+
         DeliveryService.logEvent(
           deliveryId,
           'CONFIRMED',
@@ -428,6 +443,92 @@ class DeliveryService {
     } catch (e) {
       logger.error('[DeliveryService] confirmDelivery error', { error: e.message });
       return { success: false, error: e.message };
+    }
+  }
+
+  /**
+   * Đồng bộ số vỏ thu của phiếu giao về đơn bán + tồn vỏ khách + keg_stats.
+   *
+   * Bối cảnh: số vỏ "giao đi" nằm ở `sales.deliver_kegs` (do màn Bán hàng
+   * nhập), còn số vỏ "thu về" có 2 nguồn:
+   *   - `sales.return_kegs`  (màn Bán hàng — modal giao/thu vỏ)
+   *   - `delivery_records.collected_kegs` (màn Giao hàng — phiếu giao)
+   * Trước đây 2 nguồn này KHÔNG đồng bộ với nhau → tồn vỏ khách bị sai.
+   * Hàm này đặt `sales.return_kegs = collectedKegs` (giá trị chuẩn của phiếu
+   * giao) rồi cập nhật tồn khách + keg_stats theo đúng delta.
+   *
+   * @param {number} saleId       id đơn bán
+   * @param {number} customerId   id khách
+   * @param {number} collected    số vỏ thu về (mới)
+   * @param {number} prevCollected số vỏ thu về trước đó trên phiếu giao
+   * @param {string} note         ghi chú log
+   */
+  static syncCollectedKegs(saleId, customerId, collected, prevCollected, note) {
+    if (!saleId || !customerId) return;
+
+    const sale = db
+      .prepare('SELECT deliver_kegs, return_kegs FROM sales WHERE id = ?')
+      .get(saleId);
+    if (!sale) return;
+
+    const prevReturned = sale.return_kegs || 0;
+    const target = Math.max(0, parseInt(collected) || 0);
+
+    // Delta so với GIÁ TRỊ ĐANG LƯU trên sales (đơn bán là nguồn chuẩn)
+    const delta = target - prevReturned;
+    if (delta === 0 && target === prevCollected) {
+      // Không có thay đổi → vẫn đảm bảo sales khớp phiếu giao
+      if (prevReturned !== target) {
+        db.prepare('UPDATE sales SET return_kegs = ? WHERE id = ?').run(target, saleId);
+      }
+      return;
+    }
+
+    db.prepare('UPDATE sales SET return_kegs = ? WHERE id = ?').run(target, saleId);
+
+    if (delta === 0) return;
+
+    // Tồn vỏ khách: giao thêm (deliver) đã được cộng lúc tạo đơn,
+    // thu về (return) sẽ trừ khỏi tồn khách.
+    const customer = db.prepare('SELECT keg_balance FROM customers WHERE id = ?').get(customerId);
+    if (customer) {
+      const newBalance = Math.max(0, (customer.keg_balance || 0) - delta);
+      db.prepare('UPDATE customers SET keg_balance = ? WHERE id = ?').run(newBalance, customerId);
+    }
+
+    // keg_stats: thu thêm → empty_collected tăng; giảm thu → trả vỏ cho khách
+    const stats = db.prepare('SELECT inventory, empty_collected FROM keg_stats WHERE id = 1').get();
+    const currentEmpty = stats?.empty_collected || 0;
+    const newlyCollected = Math.max(0, delta);
+    const newlyReturnedToCustomer = Math.max(0, -delta);
+    const newEmpty = Math.max(0, currentEmpty + newlyCollected - newlyReturnedToCustomer);
+    db.prepare(
+      "UPDATE keg_stats SET empty_collected = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1"
+    ).run(newEmpty);
+
+    const totalHolding = db
+      .prepare('SELECT COALESCE(SUM(keg_balance), 0) as total FROM customers')
+      .get();
+    db.prepare(
+      "UPDATE keg_stats SET customer_holding = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1"
+    ).run(totalHolding.total);
+
+    // Chỉ ghi log khi thu thêm (giảm thu không phải vỏ mới về kho)
+    if (newlyCollected > 0) {
+      const customer2 = db.prepare('SELECT name FROM customers WHERE id = ?').get(customerId);
+      db.prepare(
+        `INSERT INTO keg_transactions_log
+           (type, quantity, customer_id, customer_name, inventory_after, empty_after, holding_after, note)
+         VALUES ('collect', ?, ?, ?, ?, ?, ?, ?)`
+      ).run(
+        newlyCollected,
+        customerId,
+        customer2?.name || '',
+        stats?.inventory || 0,
+        newEmpty,
+        totalHolding.total,
+        note || `Thu vỏ qua đơn giao #${saleId}`
+      );
     }
   }
 
@@ -498,46 +599,14 @@ class DeliveryService {
           `UPDATE delivery_records SET collected_kegs = ?, updated_at = datetime('now') WHERE id = ?`
         ).run(collected, deliveryId);
 
-        // Cập nhật số vỏ trả lại trên đơn bán + keg_stats (giống logic routes/api/sales.js)
-        if (record.sale_id && record.customer_id && delta !== 0) {
-          const sale = db
-            .prepare('SELECT deliver_kegs, return_kegs FROM sales WHERE id = ?')
-            .get(record.sale_id);
-          if (sale) {
-            const newReturned = (sale.return_kegs || 0) + delta;
-            db.prepare('UPDATE sales SET return_kegs = ? WHERE id = ?').run(newReturned, record.sale_id);
-          }
-
-          const customer = db.prepare('SELECT keg_balance FROM customers WHERE id = ?').get(record.customer_id);
-          if (customer) {
-            const newBalance = Math.max(0, (customer.keg_balance || 0) - delta);
-            db.prepare('UPDATE customers SET keg_balance = ? WHERE id = ?').run(newBalance, record.customer_id);
-          }
-
-          const stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
-          const newEmpty = Math.max(0, (stats?.empty_collected || 0) + delta);
-          db.prepare(
-            "UPDATE keg_stats SET empty_collected = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1"
-          ).run(newEmpty);
-
-          const totalHolding = db
-            .prepare('SELECT COALESCE(SUM(keg_balance), 0) as total FROM customers')
-            .get();
-          db.prepare(
-            "UPDATE keg_stats SET customer_holding = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1"
-          ).run(totalHolding.total);
-
-          db.prepare(
-            `INSERT INTO keg_transactions_log
-               (type, quantity, customer_id, customer_name, inventory_after, empty_after, holding_after, note)
-             VALUES ('collect', ?, ?, ?, ?, ?, ?, ?)`
-          ).run(
-            delta,
+        // Đồng bộ vỏ thu: đơn bán (sales.return_kegs) + tồn vỏ khách + keg_stats
+        // Dùng chung helper với confirmDelivery để 2 nguồn không lệch nhau.
+        if (record.sale_id && record.customer_id) {
+          DeliveryService.syncCollectedKegs(
+            record.sale_id,
             record.customer_id,
-            record.customer_name || '',
-            stats?.empty_collected || 0,
-            newEmpty,
-            totalHolding.total,
+            collected,
+            prev,
             `Thu vỏ qua đơn giao #${deliveryId}`
           );
         }

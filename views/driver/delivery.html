@@ -66,10 +66,15 @@
     .card__panel .drv-dl-item { display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid rgba(255,255,255,.06); }
     .card__panel .drv-dl-item__name { flex:1; min-width:0; font-size:13px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .card__panel .drv-dl-item__expected { font-size:11px; color:#888; font-weight:500; }
-    .card__panel .drv-dl-item__qty { width:58px; text-align:center; font-weight:800; font-size:14px; }
+    .card__panel .drv-dl-item__qty { width:58px; max-width:58px; min-width:0; flex:0 0 58px; text-align:center; font-weight:800; font-size:14px; }
+    .card__panel .card__kegs { display:flex; gap:8px; flex-wrap:wrap; }
+    .card__panel .card__kegs .drv-field { flex:1; min-width:120px; margin:0; }
+    .card__panel .card__kegs .drv-input { text-align:center; font-weight:800; font-size:15px; }
+    .card__panel .card__kegs .drv-input[readonly] { opacity:.65; cursor:default; }
+    .card__panel .card__keg-info { font-size:11px; color:#94a3b8; margin-top:4px; }
     .card__panel .drv-field { margin: 8px 0 0; }
     .card__panel .drv-field__label { display:block; font-size:11px; color:#94a3b8; margin-bottom:3px; font-weight:600; }
-    .card__panel .drv-input { width:100%; padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.05); color:#fff; font-size:13px; box-sizing:border-box; }
+    .card__panel .drv-input { width:100%; max-width:100%; padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.05); color:#fff; font-size:13px; box-sizing:border-box; }
     .card__panel .drv-btn-row { display:flex; gap:8px; margin-top:10px; }
     .card__panel .drv-btn { flex:1; padding:9px; border-radius:8px; border:none; font-size:12px; font-weight:600; cursor:pointer; }
     .card__panel .drv-btn--ghost { background:#374151; color:#fff; }
@@ -356,10 +361,23 @@
         : '';
 
       return itemsHtml +
-        '<div class="drv-field">' +
-          '<label class="drv-field__label">Số vỏ đã thu hồi</label>' +
-          '<input class="drv-input" id="dl-kegs" type="number" inputmode="numeric" min="0" value="' +
-            (detail.collected_kegs || 0) + '">' +
+        '<div class="card__kegs drv-mt-12">' +
+          '<div class="drv-field">' +
+            '<label class="drv-field__label">📦 Vỏ giao đi</label>' +
+            '<input class="drv-input" id="dl-keg-deliver" type="number" inputmode="numeric" min="0" value="' +
+              (detail.sale_deliver_kegs || 0) + '" readonly>' +
+          '</div>' +
+          '<div class="drv-field">' +
+            '<label class="drv-field__label">🔄 Vỏ thu về</label>' +
+            '<input class="drv-input" id="dl-kegs" type="number" inputmode="numeric" min="0" value="' +
+              (detail.collected_kegs || detail.sale_return_kegs || 0) + '">' +
+          '</div>' +
+        '</div>' +
+        '<div class="card__keg-info">Tồn vỏ khách hiện có: <strong>' +
+          window.Drv.num(detail.customer_keg_balance || 0) + '</strong> vỏ' +
+          (detail.sale_deliver_kegs
+            ? ' · Đơn này giao đi <strong>' + window.Drv.num(detail.sale_deliver_kegs) + '</strong> vỏ'
+            : '') +
         '</div>' +
         '<div class="drv-field">' +
           '<label class="drv-field__label">Ghi chú / lý do thất bại</label>' +
