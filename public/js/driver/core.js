@@ -185,6 +185,18 @@
       return api('/api/driver/sales/' + id + '/payment-status', {
         method: 'PATCH', body: { payment_status: status }
       });
+    },
+
+    // ── Phiếu thu vỏ (tài xế thu vỏ rỗng ngoài chuyến giao) ──
+    kegReceipts: function (limit) {
+      var qs = limit ? '?limit=' + encodeURIComponent(limit) : '';
+      return api('/api/driver/keg-receipts' + qs);
+    },
+    kegReceipt: function (id) {
+      return api('/api/driver/keg-receipts/' + encodeURIComponent(id));
+    },
+    createKegReceipt: function (b) {
+      return api('/api/driver/keg-receipts', { method: 'POST', body: b });
     }
   };
 
@@ -320,6 +332,48 @@
     var m = document.getElementById('drv-modal');
     if (m) m.remove();
     document.body.style.overflow = '';
+  }
+
+  // ── Bottom sheet (Design System) ────────────────────────────────────────
+  /**
+   * Mở bottom sheet trượt lên từ đáy (mobile-first, vùng ngón cái).
+   * Dùng cho các form nhập liệu dài trên Driver Portal.
+   *
+   * @param {string} html  nội dung bên trong sheet
+   * @param {object} opts  { title, onClose }
+   * @returns {HTMLElement} phần thân sheet (để gắn event)
+   */
+  function openSheet(html, opts) {
+    opts = opts || {};
+    closeSheet();
+
+    var wrap = document.createElement('div');
+    wrap.className = 'ds-sheet';
+    wrap.id = 'drv-sheet';
+    wrap.innerHTML =
+      '<div class="ds-sheet__panel" role="dialog" aria-modal="true">' +
+        '<div class="ds-sheet__title">' +
+          '<span>' + (opts.title || '') + '</span>' +
+          '<button type="button" class="ds-sheet__close" id="drv-sheet-close" ' +
+            'aria-label="Đóng">&times;</button>' +
+        '</div>' +
+        '<div id="drv-sheet-body">' + html + '</div>' +
+      '</div>';
+
+    document.body.appendChild(wrap);
+
+    wrap.addEventListener('click', function (e) {
+      if (e.target === wrap) closeSheet();
+    });
+    var closeBtn = document.getElementById('drv-sheet-close');
+    if (closeBtn) closeBtn.addEventListener('click', closeSheet);
+
+    return document.getElementById('drv-sheet-body');
+  }
+
+  function closeSheet() {
+    var s = document.getElementById('drv-sheet');
+    if (s) s.remove();
   }
 
   // ── Confirm dialog ─────────────────────────────────────────────────────
@@ -528,6 +582,8 @@
     toast: toast,
     openModal: openModal,
     closeModal: closeModal,
+    openSheet: openSheet,
+    closeSheet: closeSheet,
     openAccountModal: openAccountModal,
     confirm: confirmDialog,
     prompt: promptDialog,

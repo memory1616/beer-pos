@@ -639,6 +639,21 @@ function runDriverStaffMigration(db) {
   }
 }
 
+// ── Driver Keg Receipt migration (045) ─────────────────────────────────────
+// Chạy ĐỘC LẬP với version gate (như 043/044). Idempotent: CREATE TABLE IF NOT EXISTS.
+// Rollback an toàn: chỉ xoá bảng phiếu thu vỏ.
+function runDriverKegReceiptMigration(db) {
+  try {
+    const migration = require('./migrations/045_driver_keg_receipt');
+    migration.up(db);
+    log('[DRIVER_KEG_RECEIPT] Migration 045 applied');
+    return { success: true };
+  } catch (e) {
+    log(`[DRIVER_KEG_RECEIPT] Migration error: ${e.message}`);
+    return { success: false, error: e.message };
+  }
+}
+
 // ── Utility: Generate UUID ─────────────────────────────────────────────────────
 
 function generateUUID() {
@@ -658,6 +673,7 @@ module.exports = {
   runBusinessFeaturesMigration,
   runDriverPortalMigration,
   runDriverStaffMigration,
+  runDriverKegReceiptMigration,
   generateUUID,
   getCurrentVersion,
   setVersion,

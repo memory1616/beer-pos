@@ -265,7 +265,12 @@ body.ds-app > .app {
 }
 
 @media (min-width: 768px) {
-  .ds-main { max-width: 880px; padding: var(--ds-s-6); }
+  .ds-main {
+    max-width: 880px;
+    padding: var(--ds-s-6);
+    /* GIỮ chỗ cho bottom nav fixed (không được ghi đè bởi shorthand ở trên) */
+    padding-bottom: calc(var(--ds-nav-h) + env(safe-area-inset-bottom) + var(--ds-s-5));
+  }
 }
 
 /* ── 3.3 Bottom navigation (one-hand: luôn ở đáy) ───────────────────── */
@@ -907,6 +912,181 @@ body.ds-app > .app {
   display: none;
 }
 .ds-auth__error.is-visible { display: block; }
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * §5.11  PHIẾU THU VỎ — Receipt (in / chia sẻ với khách)
+ * ═══════════════════════════════════════════════════════════════════════ */
+.ds-receipt {
+  padding: var(--ds-s-5) var(--ds-s-4);
+  border-radius: var(--ds-r-lg);
+  border: 1px solid var(--ds-line-strong);
+  background:
+    var(--ds-grad-tint),
+    var(--ds-grad-surface);
+  box-shadow: var(--ds-shadow-2);
+  color: var(--ds-text-1);
+}
+
+.ds-receipt__head {
+  text-align: center;
+  padding-bottom: var(--ds-s-4);
+  border-bottom: 1px dashed var(--ds-line-strong);
+}
+
+.ds-receipt__brand {
+  font-size: var(--ds-f-md);
+  font-weight: 900;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+  color: var(--ds-brand-500);
+}
+
+.ds-receipt__title {
+  margin-top: var(--ds-s-1);
+  font-size: var(--ds-f-lg);
+  font-weight: 800;
+}
+
+.ds-receipt__no {
+  margin-top: var(--ds-s-1);
+  font-size: var(--ds-f-sm);
+  font-weight: 700;
+  color: var(--ds-text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.ds-receipt__body { padding: var(--ds-s-4) 0; }
+
+.ds-receipt__grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--ds-s-2) var(--ds-s-3);
+  font-size: var(--ds-f-sm);
+}
+
+.ds-receipt__grid dt { color: var(--ds-text-2); }
+.ds-receipt__grid dd {
+  margin: 0;
+  font-weight: 700;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.ds-receipt__amount {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--ds-s-3);
+  margin-top: var(--ds-s-4);
+  padding: var(--ds-s-3) var(--ds-s-4);
+  border-radius: var(--ds-r-md);
+  background: var(--ds-grad-brand);
+  color: var(--ds-brand-ink);
+}
+
+.ds-receipt__amount span {
+  font-size: var(--ds-f-sm);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+
+.ds-receipt__amount b {
+  font-size: var(--ds-f-xl);
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.ds-receipt__note {
+  margin-top: var(--ds-s-3);
+  padding: var(--ds-s-3);
+  border-radius: var(--ds-r-sm);
+  border: 1px solid var(--ds-line);
+  background: var(--ds-surface-2);
+  font-size: var(--ds-f-sm);
+  color: var(--ds-text-2);
+}
+
+.ds-receipt__foot {
+  margin-top: var(--ds-s-4);
+  padding-top: var(--ds-s-3);
+  border-top: 1px dashed var(--ds-line-strong);
+  text-align: center;
+  font-size: var(--ds-f-xs);
+  color: var(--ds-text-3);
+}
+
+/* Chữ ký 2 bên (tài xế / khách) */
+.ds-receipt__sign {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--ds-s-4);
+  margin-top: var(--ds-s-5);
+  text-align: center;
+}
+
+.ds-receipt__sign b {
+  display: block;
+  font-size: var(--ds-f-sm);
+  font-weight: 700;
+}
+
+.ds-receipt__sign i {
+  display: block;
+  margin-top: var(--ds-s-6);
+  font-size: var(--ds-f-xs);
+  font-style: normal;
+  color: var(--ds-text-3);
+}
+
+/* Nút hành động của phiếu */
+.ds-receipt__actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--ds-s-2);
+  margin-top: var(--ds-s-4);
+}
+
+@media (max-width: 380px) {
+  .ds-receipt__actions { grid-template-columns: 1fr; }
+}
+
+/* Chế độ in phiếu */
+@media print {
+  body.ds-app .ds-appbar,
+  body.ds-app .ds-nav,
+  body.ds-app .ds-sheet,
+  body.ds-app .ds-receipt__actions { display: none !important; }
+
+  html, body.ds-app {
+    overflow: visible !important;
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  .ds-receipt {
+    border: 1px solid #999 !important;
+    background: #fff !important;
+    color: #000 !important;
+    box-shadow: none !important;
+  }
+
+  .ds-receipt__brand,
+  .ds-receipt__amount b,
+  .ds-receipt__amount span { color: #000 !important; }
+
+  .ds-receipt__amount {
+    background: #f2f2f2 !important;
+    color: #000 !important;
+    border: 1px solid #999;
+  }
+
+  .ds-receipt__grid dt,
+  .ds-receipt__foot,
+  .ds-receipt__sign i { color: #555 !important; }
+
+  .ds-receipt__note { background: #fafafa !important; color: #333 !important; }
+}
 
 /* ═══════════════════════════════════════════════════════════════════════
  * §6  UTILITIES

@@ -14,6 +14,7 @@ const router = express.Router();
 const db = require('../../database');
 const logger = require('../../src/utils/logger');
 const DeliveryService = require('../../src/services/DeliveryService');
+const KegReceiptService = require('../../src/services/KegReceiptService');
 const { ROLE_DRIVER } = require('../../middleware/permissions');
 const { PromotionService } = require('../../src/services');
 
@@ -252,7 +253,7 @@ router.get('/home', requireDriver, (req, res) => {
         `
         WITH keg_rows AS (
           -- Nguồn A: vỏ thu trên đơn bán CỦA TÀI XẾ (màn "Cập nhật vỏ")
-          SELECT s.id AS order_key,
+          SELECT 'S' || s.id AS order_key,
                  DATE(s.date) AS sale_date,
                  NULL AS del_date,
                  COALESCE(s.return_kegs, 0) AS kegs
@@ -264,7 +265,7 @@ router.get('/home', requireDriver, (req, res) => {
             AND s.driver_username = ?
           UNION ALL
           -- Nguồn B: vỏ thu trên phiếu giao CỦA TÀI XẾ (màn "Xác nhận giao")
-          SELECT COALESCE(dr.sale_id, -dr.id) AS order_key,
+          SELECT 'D' || COALESCE(dr.sale_id, -dr.id) AS order_key,
                  NULL AS sale_date,
                  DATE(COALESCE(NULLIF(dr.completed_at, ''), dr.updated_at, dr.scheduled_date)) AS del_date,
                  COALESCE(dr.collected_kegs, 0) AS kegs
@@ -273,6 +274,17 @@ router.get('/home', requireDriver, (req, res) => {
             AND DATE(COALESCE(NULLIF(dr.completed_at, ''), dr.updated_at, dr.scheduled_date))
                 BETWEEN ? AND ?
             AND dr.driver_username = ?
+          UNION ALL
+          -- Nguồn C: PHIẾU THU VỎ độc lập (thu vỏ rỗng ngoài chuyến giao)
+          -- Mỗi phiếu là 1 order_key riêng (id dương) → không bao giờ đếm trùng.
+          SELECT 'R' || r.id AS order_key,
+                 NULL AS sale_date,
+                 DATE(r.created_at) AS del_date,
+                 COALESCE(r.kegs, 0) AS kegs
+          FROM driver_keg_receipts r
+          WHERE COALESCE(r.kegs, 0) > 0
+            AND DATE(r.created_at) BETWEEN ? AND ?
+            AND r.driver_username = ?
         )
         SELECT COALESCE(sale_date, del_date) AS d,
                SUM(kegs) AS kegs
@@ -289,6 +301,9 @@ router.get('/home', requireDriver, (req, res) => {
       `
       )
       .all(
+        monthStart,
+        monthEnd,
+        req.user.username,
         monthStart,
         monthEnd,
         req.user.username,
@@ -1071,6 +1086,57 @@ router.post('/deliveries/:id/kegs', requireDriver, (req, res) => {
   } catch (err) {
     logger.error('[driver] update kegs error', { error: err.message });
     res.status(500).json({ error: 'Lỗi khi cập nhật số vỏ: ' + err.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PHIẾU THU VỎ — tài xế thu vỏ rỗng ngoài chuyến giao
+// ═══════════════════════════════════════════════════════════════════════════
+
+// GET /api/driver/keg-receipts — danh sách phiếu thu vỏ của tài xế
+router.get('/keg-receipts', requireDriver, (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 30;
+    const receipts = KegReceiptService.listReceipts(req.user.username, limit);
+    res.json({ receipts });
+  } catch (err) {
+    logger.error('[driver] keg receipts list error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi tải phiếu thu vỏ' });
+  }
+});
+
+// GET /api/driver/keg-receipts/:id — chi tiết 1 phiếu (để in / chia sẻ)
+router.get('/keg-receipts/:id', requireDriver, (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID phiếu không hợp lệ' });
+
+    const receipt = KegReceiptService.getReceipt(id, req.user.username);
+    if (!receipt) {
+      return res.status(404).json({ error: 'Không tìm thấy phiếu thu vỏ' });
+    }
+    res.json({ receipt });
+  } catch (err) {
+    logger.error('[driver] keg receipt detail error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi tải phiếu thu vỏ' });
+  }
+});
+
+// POST /api/driver/keg-receipts — tạo phiếu thu vỏ
+router.post('/keg-receipts', requireDriver, (req, res) => {
+  try {
+    const { customerId, kegs, note } = req.body || {};
+    const result = KegReceiptService.createReceipt({
+      customerId,
+      kegs,
+      note,
+      driverUsername: req.user.username,
+    });
+    if (!result.success) return res.status(400).json({ error: result.error });
+    res.status(201).json(result);
+  } catch (err) {
+    logger.error('[driver] keg receipt create error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi tạo phiếu thu vỏ: ' + err.message });
   }
 });
 

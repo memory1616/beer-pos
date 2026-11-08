@@ -96,6 +96,18 @@
         '<div class="ds-list" id="home-load-list"></div>' +
       '</section>' +
 
+      /* ── Hành động nhanh: Phiếu thu vỏ ── */
+      '<section class="ds-section ds-mt-4" id="home-keg-section">' +
+        '<button class="ds-btn ds-btn--primary ds-btn--block ds-btn--lg" ' +
+                'id="home-keg-receipt" type="button">' +
+          '📄 Tạo phiếu thu vỏ' +
+        '</button>' +
+        '<p class="ds-section__note ds-mt-2">' +
+          'Thu vỏ rỗng khi không giao hàng — lập phiếu để báo cáo với khách. ' +
+          'Số vỏ sẽ trừ khỏi vỏ khách đang giữ.' +
+        '</p>' +
+      '</section>' +
+
       /* ── Gợi ý / lỗi ── */
       '<div class="ds-mt-3" id="home-hint" hidden></div>';
   }
@@ -383,6 +395,18 @@
         var btn = e.target.closest ? e.target.closest('[data-date]') : null;
         if (!btn) return;
         selectDate(btn.getAttribute('data-date'));
+      });
+    }
+
+    // Nút tạo phiếu thu vỏ
+    var kegBtn = document.getElementById('home-keg-receipt');
+    if (kegBtn) {
+      kegBtn.addEventListener('click', function () {
+        if (window.DrvKegReceipt) {
+          window.DrvKegReceipt.open();
+        } else {
+          D.toast('Tính năng phiếu thu vỏ chưa sẵn sàng', 'error');
+        }
       });
     }
 
