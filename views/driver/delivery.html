@@ -556,6 +556,20 @@
       card.classList.add('is-open');
       panel.innerHTML = buildPanel(detail);
       bindPanel(panel, deliveryId, card, detail.sale_id || c.sale_id);
+
+      // Cuộn panel vào vùng nhìn (bottom menu fixed có thể che ô nhập vỏ)
+      try {
+        var navH = 0;
+        var navEl = document.querySelector('.drv-nav');
+        if (navEl) navH = navEl.getBoundingClientRect().height || 0;
+        var top = panel.getBoundingClientRect().top + window.pageYOffset - 12;
+        var visibleH = window.innerHeight - navH - 24;
+        var panelH = panel.getBoundingClientRect().height;
+        // Chỉ cuộn nếu panel không vừa khung nhìn hoặc đang bị che
+        if (panelH > visibleH || panel.getBoundingClientRect().top < 0) {
+          window.scrollTo({ top: top, behavior: 'smooth' });
+        }
+      } catch (_) {}
     }
 
     /* ── Đồng bộ real-time với trang Bán hàng ────────────────────────────
