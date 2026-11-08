@@ -10,6 +10,7 @@ const fs = require('fs');
 const { execFile } = require('child_process');
 const cron = require('node-cron');
 const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = require('express-rate-limit');
 const os = require('os');
 const crypto = require('crypto');
 const logger = require('./src/utils/logger');
@@ -103,7 +104,10 @@ const driverLimiter = rateLimit({
     if (auth.startsWith('Bearer ')) return 'd:' + auth.slice(7, 47);
     const ck = req.cookies && req.cookies.driver_session_token;
     if (ck) return 'd:' + String(ck).slice(0, 40);
-    return 'd:ip:' + req.ip;
+    // Fallback theo IP: phải dùng `ipKeyGenerator` để xử lý đúng IPv6
+    // (nếu dùng req.ip trực tiếp, express-rate-limit báo ValidationError
+    //  ERR_ERL_KEY_GEN_IPV6 và có thể bị bypass rate limit qua IPv6).
+    return 'd:ip:' + ipKeyGenerator(req.ip);
   },
   skip: (req) => req.method === 'GET' || req.method === 'HEAD',
 });
