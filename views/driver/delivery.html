@@ -32,7 +32,9 @@
     .card .info { font-size: 13px; color: #888; }
     .card .btns { display: flex; gap: 8px; margin-top: 8px; }
     .card .btn-sm { padding: 8px; border-radius: 6px; border: none; font-size: 12px; cursor: pointer; background: #374151; color: #fff; text-decoration: none; text-align: center; }
-    .card .btn-del { background: #f59e0b; }
+    .card .btn-dir { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; font-weight: 600; }
+    .card .btn-dir svg { width: 14px; height: 14px; flex: 0 0 14px; }
+    .card .btn-dir.is-disabled { opacity: .45; cursor: not-allowed; }
     .card__status { font-size: 11px; padding: 2px 8px; border-radius: 10px; margin-left: 6px; }
     .st-PENDING { background: #374151; color: #cbd5e1; }
     .st-IN_PROGRESS { background: #3b82f6; color: #fff; }
@@ -167,9 +169,20 @@
             (c.lat && c.lng ? ' | 📍 ' + d.toFixed(1) + ' km' : '') + '</div>' +
           '<div class="btns">' +
             (c.lat && c.lng
-              ? '<a href="https://www.google.com/maps/dir/?api=1&destination=' + c.lat + ',' + c.lng + '" target="_blank" rel="noopener" class="btn-sm">🗺️</a>'
-              : '<span class="btn-sm" style="opacity:.4">🗺️</span>') +
-            '<a href="/driver/ban-hang?customerId=' + c.id + '" class="btn-sm btn-del">📦 Đơn</a>' +
+              ? '<a href="https://www.google.com/maps/dir/?api=1&destination=' + c.lat + ',' + c.lng + '" target="_blank" rel="noopener" class="btn-sm btn-dir">' +
+                  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+                  'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+                  '<polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21 3 6"/>' +
+                  '<line x1="9" x2="9" y1="3" y2="18"/>' +
+                  '<line x1="15" x2="15" y1="6" y2="21"/>' +
+                  '</svg>Chỉ đường</a>'
+              : '<span class="btn-sm btn-dir is-disabled" title="Khách chưa có tọa độ GPS">' +
+                  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+                  'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+                  '<polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21 3 6"/>' +
+                  '<line x1="9" x2="9" y1="3" y2="18"/>' +
+                  '<line x1="15" x2="15" y1="6" y2="21"/>' +
+                  '</svg>Chỉ đường</span>') +
           '</div>' +
         '</div>';
       });
@@ -447,6 +460,7 @@
 
     document.getElementById('list').addEventListener('click', function (e) {
       if (e.target.closest('a')) return;
+      if (e.target.closest('.btn-dir.is-disabled')) return;
       var card = e.target.closest('[data-customer-id]');
       if (!card) return;
       var cid = parseInt(card.getAttribute('data-customer-id'));
