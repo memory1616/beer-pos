@@ -557,18 +557,24 @@
       panel.innerHTML = buildPanel(detail);
       bindPanel(panel, deliveryId, card, detail.sale_id || c.sale_id);
 
-      // Cuộn panel vào vùng nhìn (bottom menu fixed có thể che ô nhập vỏ)
+      // Cuộn panel vào vùng nhìn: panel dài, các ô nhập vỏ nằm dưới
+      // bottom menu fixed nếu không cuộn → không gõ được.
       try {
-        var navH = 0;
-        var navEl = document.querySelector('.drv-nav');
-        if (navEl) navH = navEl.getBoundingClientRect().height || 0;
-        var top = panel.getBoundingClientRect().top + window.pageYOffset - 12;
-        var visibleH = window.innerHeight - navH - 24;
-        var panelH = panel.getBoundingClientRect().height;
-        // Chỉ cuộn nếu panel không vừa khung nhìn hoặc đang bị che
-        if (panelH > visibleH || panel.getBoundingClientRect().top < 0) {
-          window.scrollTo({ top: top, behavior: 'smooth' });
-        }
+        setTimeout(function () {
+          var navEl = document.querySelector('.drv-nav');
+          var navH = navEl ? navEl.getBoundingClientRect().height : 0;
+          var headerEl = document.querySelector('.header');
+          var headH = headerEl ? headerEl.getBoundingClientRect().height : 0;
+          var panelRect = panel.getBoundingClientRect();
+          var targetTop = panelRect.top + window.pageYOffset - headH - 8;
+          // Ưu tiên đưa ô "Vỏ thu về" vào giữa khung nhìn
+          var kegEl = panel.querySelector('#dl-kegs');
+          if (kegEl) {
+            var kr = kegEl.getBoundingClientRect();
+            targetTop = kr.top + window.pageYOffset - (window.innerHeight - navH) / 2;
+          }
+          window.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' });
+        }, 80);
       } catch (_) {}
     }
 
