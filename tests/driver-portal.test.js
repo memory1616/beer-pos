@@ -988,6 +988,22 @@ describe('Driver Portal — RBAC & Data Protection', () => {
         expect(homeHandler).not.toMatch(/revenue|\btotal\b.*money/i);
       });
 
+      test('Công thức "Vỏ đã thu" dedupe đúng — KHÔNG đếm trùng đơn', () => {
+        // BUG (đã fix): query gắn prefix 'S'||id và 'D'||sale_id cho 2 nguồn
+        // cùng 1 đơn → GROUP BY order_key không gộp được → đếm trùng 2 lần.
+        // Sửa: order_key = sale_id cho CẢ A và B (đơn có cả 2 nguồn chỉ tính 1).
+        expect(driverApiSrc).not.toMatch(/'S'\s*\|\|\s*s\.id/);
+        expect(driverApiSrc).not.toMatch(/'D'\s*\|\|\s*COALESCE\(dr\.sale_id/);
+        expect(driverApiSrc).not.toMatch(/'R'\s*\|\|\s*r\.id/);
+
+        // Nguồn A dùng s.id trực tiếp làm order_key
+        expect(driverApiSrc).toMatch(/SELECT s\.id AS order_key/);
+        // Nguồn B dùng COALESCE(dr.sale_id, -dr.id) → cùng key với Nguồn A
+        expect(driverApiSrc).toMatch(/SELECT COALESCE\(dr\.sale_id, -dr\.id\) AS order_key/);
+        // Nguồn C (phiếu thu vỏ độc lập) dùng key ÂM riêng để không trùng đơn
+        expect(driverApiSrc).toMatch(/-1000000000 - r\.id AS order_key/);
+      });
+
       test('Số lít hôm nay phải TÍNH CẢ BIA PET (không lọc p.type = keg)', () => {
         const homeStart = driverApiSrc.indexOf("router.get('/home'");
         const homeHandler = driverApiSrc.slice(homeStart, homeStart + 2500);

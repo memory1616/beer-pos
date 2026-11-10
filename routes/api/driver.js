@@ -253,7 +253,10 @@ router.get('/home', requireDriver, (req, res) => {
         `
         WITH keg_rows AS (
           -- Nguồn A: vỏ thu trên đơn bán CỦA TÀI XẾ (màn "Cập nhật vỏ")
-          SELECT 'S' || s.id AS order_key,
+          -- KHÔNG gắn prefix ở đây: order_key = sale_id để NGUỒN B (cùng đơn)
+          -- gộp chung được. Gắn prefix 'S'/'D' sẽ khiến cùng 1 đơn bị đếm
+          -- 2 lần (đếm trùng) vì 2 nguồn luôn có cùng giá trị.
+          SELECT s.id AS order_key,
                  DATE(s.date) AS sale_date,
                  NULL AS del_date,
                  COALESCE(s.return_kegs, 0) AS kegs
@@ -265,7 +268,9 @@ router.get('/home', requireDriver, (req, res) => {
             AND s.driver_username = ?
           UNION ALL
           -- Nguồn B: vỏ thu trên phiếu giao CỦA TÀI XẾ (màn "Xác nhận giao")
-          SELECT 'D' || COALESCE(dr.sale_id, -dr.id) AS order_key,
+          -- order_key = sale_id (dùng -id cho phiếu không gắn đơn) → cùng đơn
+          -- với Nguồn A sẽ bị GROUP BY gộp lại, MAX(kegs) chọn 1 giá trị.
+          SELECT COALESCE(dr.sale_id, -dr.id) AS order_key,
                  NULL AS sale_date,
                  DATE(COALESCE(NULLIF(dr.completed_at, ''), dr.updated_at, dr.scheduled_date)) AS del_date,
                  COALESCE(dr.collected_kegs, 0) AS kegs
@@ -276,8 +281,9 @@ router.get('/home', requireDriver, (req, res) => {
             AND dr.driver_username = ?
           UNION ALL
           -- Nguồn C: PHIẾU THU VỎ độc lập (thu vỏ rỗng ngoài chuyến giao)
-          -- Mỗi phiếu là 1 order_key riêng (id dương) → không bao giờ đếm trùng.
-          SELECT 'R' || r.id AS order_key,
+          -- KHÔNG gắn vào sale_id (không có đơn) → dùng số ÂM riêng biệt
+          -- để không bao giờ trùng với order_key của đơn.
+          SELECT -1000000000 - r.id AS order_key,
                  NULL AS sale_date,
                  DATE(r.created_at) AS del_date,
                  COALESCE(r.kegs, 0) AS kegs
