@@ -30,7 +30,7 @@ try {
   }
 
   // Run driver portal migration (idempotent, chạy độc lập version gate)
-  const { runDriverPortalMigration, runDriverStaffMigration, runDriverKegReceiptMigration } = require('./database/migration');
+  const { runDriverPortalMigration, runDriverStaffMigration, runDriverKegReceiptMigration, runDriverWorkDaysMigration } = require('./database/migration');
   const driverResult = runDriverPortalMigration(db);
   if (driverResult.success) {
     logger.log('[MIGRATION] Driver portal schema ready');
@@ -46,6 +46,12 @@ try {
   const kegReceiptResult = runDriverKegReceiptMigration(db);
   if (kegReceiptResult.success) {
     logger.log('[MIGRATION] Driver keg receipt schema ready');
+  }
+
+  // Run driver work-days migration (tính lương theo ngày làm)
+  const workDaysResult = runDriverWorkDaysMigration(db);
+  if (workDaysResult.success) {
+    logger.log('[MIGRATION] Driver salary work-days schema ready');
   }
 } catch (error) {
   logger.error('[MIGRATION] Migration error:', error.message);

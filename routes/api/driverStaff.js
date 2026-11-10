@@ -86,6 +86,7 @@ router.post('/', requireAdmin, (req, res) => {
       monthlySalary,
       bankAccount,
       note,
+      startDate,
       mustChangePassword,
     } = req.body || {};
 
@@ -101,6 +102,7 @@ router.post('/', requireAdmin, (req, res) => {
       monthlySalary,
       bankAccount,
       note,
+      startDate,
       mustChangePassword,
     });
 
@@ -160,6 +162,7 @@ router.put('/:id/salary', requireAdmin, (req, res) => {
       baseSalary: req.body?.baseSalary,
       bonus: req.body?.bonus,
       deduction: req.body?.deduction,
+      workDays: req.body?.workDays,
       note: req.body?.note,
       status: req.body?.status,
     });

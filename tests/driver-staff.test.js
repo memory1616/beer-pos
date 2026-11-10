@@ -212,11 +212,12 @@ describe('Driver Staff Management — RBAC & Lương tháng', () => {
       expect(res.body.data.monthly_salary).toBe(5000000);
     });
 
-    test('Thiết lập lương: total = base + bonus - deduction', async () => {
+    test('Thiết lập lương: total = lương theo ngày + bonus - deduction', async () => {
+      // workDays = 26 → lương theo ngày = 5000000/26 × 26 = 5000000
       const res = await request(app)
         .put('/api/admin/driver-staff/' + driverId + '/salary')
         .set('Authorization', 'Bearer ' + adminToken)
-        .send({ year, month, baseSalary: 5000000, bonus: 1000000, deduction: 200000 });
+        .send({ year, month, baseSalary: 5000000, bonus: 1000000, deduction: 200000, workDays: 26 });
       expect(res.status).toBe(200);
       expect(res.body.data.total).toBe(5800000);
 
@@ -225,13 +226,16 @@ describe('Driver Staff Management — RBAC & Lương tháng', () => {
         .get(driverId, year, month);
       expect(row.total).toBe(5800000);
       expect(row.status).toBe('pending');
+      expect(row.work_days).toBe(26);
     });
 
+
     test('Cập nhật một phần KHÔNG mất trường khác', async () => {
+      // workDays = 26 → lương theo ngày = 5000000
       const res = await request(app)
         .put('/api/admin/driver-staff/' + driverId + '/salary')
         .set('Authorization', 'Bearer ' + adminToken)
-        .send({ year, month, bonus: 1500000 });
+        .send({ year, month, bonus: 1500000, workDays: 26 });
       expect(res.status).toBe(200);
 
       const row = db
@@ -252,6 +256,12 @@ describe('Driver Staff Management — RBAC & Lương tháng', () => {
       expect(row).toBeDefined();
       expect(row.total).toBe(6300000);
       expect(row.username).toBe(NEW_DRIVER + '_sal');
+      // Thông tin tính lương theo ngày làm
+      expect(row.standardWorkDays).toBe(26);
+      expect(row.workDays).toBe(26);
+      expect(row.workDaysManual).toBe(true);
+      expect(row.dailyRate).toBeCloseTo(5000000 / 26, 4);
+      expect(row.proratedBase).toBe(5000000);
     });
 
     test('Đánh dấu đã trả lương', async () => {
@@ -283,6 +293,20 @@ describe('Driver Staff Management — RBAC & Lương tháng', () => {
       expect(res.status).toBe(200);
       expect(res.body.data.length).toBeGreaterThan(0);
       expect(res.body.data[0].year).toBe(year);
+    });
+
+    test('Số ngày làm tự tính từ ngày vào làm (không tính Chủ Nhật)', async () => {
+      // Không truyền workDays → hệ thống tự tính từ ngày vào làm
+      const res2 = await request(app)
+        .put('/api/admin/driver-staff/' + driverId + '/salary')
+        .set('Authorization', 'Bearer ' + adminToken)
+        .send({ year, month, baseSalary: 5000000, bonus: 0, deduction: 0, workDays: null });
+      expect(res2.status).toBe(200);
+      expect(res2.body.data.workDays).toBeGreaterThan(0);
+      expect(res2.body.data.dailyRate).toBeCloseTo(5000000 / 26, 4);
+      expect(res2.body.data.proratedBase).toBe(
+        Math.round((5000000 / 26) * res2.body.data.workDays)
+      );
     });
   });
 

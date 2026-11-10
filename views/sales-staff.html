@@ -186,6 +186,9 @@
             (<code>giaohang.biatuoitayninh.store</code>) và 1 <strong>hồ sơ</strong> lương.<br>
             • <strong>Mức lương cố định</strong> ở đây là mức lương tháng mặc định — dùng làm
               lương cơ bản khi chưa thiết lập riêng cho từng tháng.<br>
+            • <strong>Ngày vào làm</strong> là mốc tính số ngày làm trong tháng.<br>
+            • Công thức lương: <strong>(lương tháng ÷ 26) × số ngày làm</strong> — số ngày làm
+              tính từ ngày vào làm đến ngày hiện tại, <strong>không tính Chủ Nhật</strong>.<br>
             • Khoá tài xế sẽ huỷ luôn phiên đăng nhập đang hoạt động.
           </small>
         </div>
@@ -245,6 +248,13 @@
         <input type="number" id="driverMonthlySalary" class="input" placeholder="5000000" min="0" step="1000">
       </div>
       <div class="form-group">
+        <label class="form-label">Ngày vào làm</label>
+        <input type="date" id="driverStartDate" class="input">
+        <small style="color:var(--text-muted);font-size:11px;">
+          Dùng làm mốc tính số ngày làm trong tháng (không tính Chủ Nhật).
+        </small>
+      </div>
+      <div class="form-group">
         <label class="form-label">Số tài khoản ngân hàng</label>
         <input type="text" id="driverBankAccount" class="input" placeholder="0123456789 (tuỳ chọn)">
       </div>
@@ -265,8 +275,19 @@
       <div class="modal-header" id="driverSalaryModalTitle">Thiết lập lương tháng</div>
       <input type="hidden" id="driverSalaryDriverId">
       <div class="form-group">
-        <label class="form-label">Lương cơ bản (VNĐ)</label>
+        <label class="form-label">Lương cố định / tháng (VNĐ)</label>
         <input type="number" id="driverSalaryBase" class="input" placeholder="5000000" min="0" step="1000">
+        <small style="color:var(--text-muted);font-size:11px;">
+          Lương tháng dùng làm cơ sở: <strong>lương ngày = lương tháng ÷ 26</strong>.
+        </small>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Số ngày làm (để trống = tự tính)</label>
+        <input type="number" id="driverSalaryWorkDays" class="input" placeholder="Tự động" min="0" max="31" step="1">
+        <small style="color:var(--text-muted);font-size:11px;">
+          Để trống để hệ thống tự tính từ <strong>ngày vào làm</strong> đến ngày hiện tại
+          (không tính Chủ Nhật). Nhập số để ghi đè thủ công.
+        </small>
       </div>
       <div class="form-group">
         <label class="form-label">Thưởng (VNĐ)</label>
@@ -281,7 +302,9 @@
         <input type="text" id="driverSalaryNote" class="input" placeholder="Lý do thưởng/phạt (tuỳ chọn)">
       </div>
       <div style="padding:12px;background:var(--bg-soft);border-radius:8px;margin-bottom:16px;">
-        <div class="salary-row"><span>Lương cơ bản</span><span id="driverSalaryPreviewBase">0 đ</span></div>
+        <div class="salary-row"><span>Lương 1 ngày</span><span id="driverSalaryPreviewDaily">0 đ</span></div>
+        <div class="salary-row"><span>Số ngày làm</span><span id="driverSalaryPreviewWorkDays">0</span></div>
+        <div class="salary-row"><span>Lương theo ngày làm</span><span id="driverSalaryPreviewBase">0 đ</span></div>
         <div class="salary-row"><span>Thưởng</span><span id="driverSalaryPreviewBonus">0 đ</span></div>
         <div class="salary-row"><span>Phạt / trừ</span><span id="driverSalaryPreviewDeduction">0 đ</span></div>
         <div class="salary-row salary-total"><span>TỔNG</span><span id="driverSalaryPreviewTotal">0 đ</span></div>
@@ -367,6 +390,9 @@
     let driverList = [];
     let selectedDriverId = null;
     let driverSalarySummary = [];
+    // Số ngày làm do server tự tính cho tài xế đang mở modal (fallback khi
+    // admin để trống ô "Số ngày làm")
+    let driverSalaryCurrentWorkDays = 0;
 
     // Initialize
     document.addEventListener('DOMContentLoaded', () => {
@@ -444,6 +470,12 @@
             <span class="stat-label">Lương cố định/tháng:</span>
             <span class="stat-value">${formatVND(d.monthly_salary || 0)}</span>
           </div>
+          <div style="margin-top:4px;">
+            <span class="stat-label">Ngày vào làm:</span>
+            <span class="stat-value">${d.start_date ? formatDate(d.start_date) : 'Chưa khai báo'}</span>
+          </div>
+          ${d.start_date ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">
+            ≈ ${formatVND(Math.round((d.monthly_salary || 0) / 26))}/ngày · ${d.monthly_salary ? Math.round((d.monthly_salary || 0) / 26) : 0} ngày làm = đủ tháng</div>` : ''}
           ${d.bank_account ? `<div style="font-size:12px;color:var(--text-muted);margin-top:4px;">🏦 ${escapeHtml(d.bank_account)}</div>` : ''}
           <div style="margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap;">
             <button class="btn btn-secondary btn-sm" onclick="openDriverModal(${d.id})">✏️ Sửa</button>
@@ -471,6 +503,7 @@
         document.getElementById('driverFullName').value = d.full_name || '';
         document.getElementById('driverPhone').value = d.phone || '';
         document.getElementById('driverMonthlySalary').value = d.monthly_salary || 0;
+        document.getElementById('driverStartDate').value = d.start_date || '';
         document.getElementById('driverBankAccount').value = d.bank_account || '';
         document.getElementById('driverNote').value = d.note || '';
       } else {
@@ -481,6 +514,7 @@
         document.getElementById('driverFullName').value = '';
         document.getElementById('driverPhone').value = '';
         document.getElementById('driverMonthlySalary').value = '';
+        document.getElementById('driverStartDate').value = '';
         document.getElementById('driverBankAccount').value = '';
         document.getElementById('driverNote').value = '';
       }
@@ -498,6 +532,7 @@
       const fullName = document.getElementById('driverFullName').value.trim();
       const phone = document.getElementById('driverPhone').value.trim();
       const monthlySalary = document.getElementById('driverMonthlySalary').value;
+      const startDate = document.getElementById('driverStartDate').value;
       const bankAccount = document.getElementById('driverBankAccount').value.trim();
       const note = document.getElementById('driverNote').value.trim();
 
@@ -508,8 +543,8 @@
         const url = id ? `/api/admin/driver-staff/${id}` : '/api/admin/driver-staff';
         const method = id ? 'PUT' : 'POST';
         const body = id
-          ? { fullName, phone, monthlySalary, bankAccount, note }
-          : { username, password, fullName, phone, monthlySalary, bankAccount, note };
+          ? { fullName, phone, monthlySalary, startDate, bankAccount, note }
+          : { username, password, fullName, phone, monthlySalary, startDate, bankAccount, note };
         const res = await fetch(url, {
           method,
           headers: { 'Content-Type': 'application/json' },
@@ -624,13 +659,17 @@
       container.innerHTML = `
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
           <small style="color:var(--text-muted);">Tổng lương phải trả tháng ${monthVal}: <strong>${formatVND(totalPay)}</strong></small>
+          <small style="color:var(--text-muted);">Lương = (lương tháng ÷ 26) × số ngày làm (không tính Chủ Nhật)</small>
         </div>
         <div style="overflow-x:auto;">
         <table style="width:100%;border-collapse:collapse;font-size:13px;">
           <thead>
             <tr style="text-align:left;border-bottom:1px solid var(--border);">
               <th style="padding:8px;">Tài xế</th>
-              <th style="padding:8px;">Lương cơ bản</th>
+              <th style="padding:8px;">Ngày vào làm</th>
+              <th style="padding:8px;">Ngày làm</th>
+              <th style="padding:8px;">Lương/ngày</th>
+              <th style="padding:8px;">Lương theo ngày</th>
               <th style="padding:8px;">Thưởng</th>
               <th style="padding:8px;">Phạt/trừ</th>
               <th style="padding:8px;">Tổng</th>
@@ -645,13 +684,19 @@
                   <div style="font-weight:600;">${escapeHtml(d.fullName)}</div>
                   <div style="font-size:11px;color:var(--text-muted);">@${escapeHtml(d.username)}</div>
                 </td>
-                <td style="padding:8px;">${formatVND(d.baseSalary || 0)}</td>
+                <td style="padding:8px;white-space:nowrap;">${d.startDate ? formatDate(d.startDate) : '-'}</td>
+                <td style="padding:8px;white-space:nowrap;">
+                  <strong>${d.workDays || 0}</strong> ngày
+                  ${d.workDaysManual ? '<div style="font-size:10px;color:var(--text-muted);">(nhập tay)</div>' : ''}
+                </td>
+                <td style="padding:8px;white-space:nowrap;">${formatVND(d.dailyRate || 0)}</td>
+                <td style="padding:8px;white-space:nowrap;">${formatVND(d.proratedBase || 0)}</td>
                 <td style="padding:8px;">${formatVND(d.bonus || 0)}</td>
                 <td style="padding:8px;">${d.deduction ? formatVND(d.deduction) : '-'}</td>
                 <td style="padding:8px;font-weight:700;">${formatVND(d.total || 0)}</td>
                 <td style="padding:8px;">
                   ${d.status === 'paid' ? '<span class="badge badge-paid">Đã trả</span>' : '<span class="badge badge-pending">Chưa trả</span>'}
-                  ${d.isDraft ? '<div style="font-size:10px;color:var(--text-muted);margin-top:2px;">(mức cố định)</div>' : ''}
+                  ${d.isDraft ? '<div style="font-size:10px;color:var(--text-muted);margin-top:2px;">(tự tính)</div>' : ''}
                 </td>
                 <td style="padding:8px;text-align:right;white-space:nowrap;">
                   <button class="btn btn-secondary btn-sm" onclick="openDriverSalaryModal(${d.driverId})">✏️</button>
@@ -694,8 +739,28 @@
 
         content.innerHTML = `
           <div class="salary-row">
-            <span>Lương cơ bản</span>
+            <span>Lương cố định / tháng</span>
             <span>${formatVND(row ? (row.baseSalary || 0) : 0)}</span>
+          </div>
+          <div class="salary-row">
+            <span>Ngày vào làm</span>
+            <span>${row && row.startDate ? formatDate(row.startDate) : 'Chưa khai báo'}</span>
+          </div>
+          <div class="salary-row">
+            <span>Kỳ tính</span>
+            <span>${row && row.periodStart ? formatDate(row.periodStart) + ' → ' + formatDate(row.periodEnd) : '-'}</span>
+          </div>
+          <div class="salary-row">
+            <span>Số ngày làm${row && row.workDaysManual ? ' (nhập tay)' : ''}</span>
+            <span>${row ? (row.workDays || 0) : 0} / ${row ? (row.standardWorkDays || 26) : 26} ngày</span>
+          </div>
+          <div class="salary-row">
+            <span>Lương 1 ngày (÷ ${row ? (row.standardWorkDays || 26) : 26})</span>
+            <span>${formatVND(row ? (row.dailyRate || 0) : 0)}</span>
+          </div>
+          <div class="salary-row">
+            <span>Lương theo ngày làm</span>
+            <span>${formatVND(row ? (row.proratedBase || 0) : 0)}</span>
           </div>
           <div class="salary-row">
             <span>Thưởng</span>
@@ -771,8 +836,12 @@
       document.getElementById('driverSalaryBonus').value = row ? (row.bonus || 0) : 0;
       document.getElementById('driverSalaryDeduction').value = row ? (row.deduction || 0) : 0;
       document.getElementById('driverSalaryNote').value = row ? (row.note || '') : '';
+      // Số ngày làm: để trống nếu hệ thống đang tự tính (chỉ giữ khi admin ghi đè tay)
+      document.getElementById('driverSalaryWorkDays').value =
+        row && row.workDaysManual ? row.workDays : '';
+      driverSalaryCurrentWorkDays = row ? (row.workDays || 0) : 0;
 
-      ['driverSalaryBase', 'driverSalaryBonus', 'driverSalaryDeduction'].forEach(id => {
+      ['driverSalaryBase', 'driverSalaryBonus', 'driverSalaryDeduction', 'driverSalaryWorkDays'].forEach(id => {
         document.getElementById(id).setAttribute('oninput', 'updateDriverSalaryPreview()');
       });
       updateDriverSalaryPreview();
@@ -783,14 +852,32 @@
       document.getElementById('driverSalaryModal').style.display = 'none';
     }
 
+    /**
+     * Preview lương theo ngày làm.
+     * Công thức: lương_ngày = lương_tháng ÷ 26 ; lương = lương_ngày × số_ngày_làm
+     */
     function updateDriverSalaryPreview() {
       const base = parseFloat(document.getElementById('driverSalaryBase').value) || 0;
       const bonus = parseFloat(document.getElementById('driverSalaryBonus').value) || 0;
       const deduction = parseFloat(document.getElementById('driverSalaryDeduction').value) || 0;
-      document.getElementById('driverSalaryPreviewBase').textContent = formatVND(base);
+      const workDaysInput = document.getElementById('driverSalaryWorkDays').value.trim();
+
+      const dailyRate = base / 26;
+      let workDays;
+      if (workDaysInput !== '') {
+        workDays = Math.max(0, parseInt(workDaysInput, 10) || 0);
+      } else {
+        workDays = driverSalaryCurrentWorkDays || 0;
+      }
+      const proratedBase = Math.round(dailyRate * workDays);
+
+      document.getElementById('driverSalaryPreviewDaily').textContent = formatVND(dailyRate);
+      document.getElementById('driverSalaryPreviewWorkDays').textContent =
+        workDaysInput !== '' ? workDays + ' (nhập tay)' : workDays + ' (tự tính)';
+      document.getElementById('driverSalaryPreviewBase').textContent = formatVND(proratedBase);
       document.getElementById('driverSalaryPreviewBonus').textContent = formatVND(bonus);
       document.getElementById('driverSalaryPreviewDeduction').textContent = formatVND(deduction);
-      document.getElementById('driverSalaryPreviewTotal').textContent = formatVND(base + bonus - deduction);
+      document.getElementById('driverSalaryPreviewTotal').textContent = formatVND(proratedBase + bonus - deduction);
     }
 
     async function saveDriverSalary() {
@@ -798,6 +885,7 @@
       const monthVal = document.getElementById('driverSalaryMonth').value;
       if (!driverId || !monthVal) return;
       const [year, month] = monthVal.split('-');
+      const workDaysRaw = document.getElementById('driverSalaryWorkDays').value.trim();
 
       try {
         const res = await fetch(`/api/admin/driver-staff/${driverId}/salary`, {
@@ -809,6 +897,7 @@
             baseSalary: parseFloat(document.getElementById('driverSalaryBase').value) || 0,
             bonus: parseFloat(document.getElementById('driverSalaryBonus').value) || 0,
             deduction: parseFloat(document.getElementById('driverSalaryDeduction').value) || 0,
+            workDays: workDaysRaw === '' ? null : (parseInt(workDaysRaw, 10) || 0),
             note: document.getElementById('driverSalaryNote').value.trim()
           })
         });
@@ -1483,7 +1572,15 @@
 
     function formatDate(dateStr) {
       if (!dateStr) return '';
+      // YYYY-MM-DD: parse thủ công theo giờ địa phương để tránh lệch 1 ngày do UTC
+      const raw = String(dateStr).trim().slice(0, 10);
+      const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (m) {
+        const d = new Date(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10));
+        return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      }
       const d = new Date(dateStr);
+      if (Number.isNaN(d.getTime())) return '';
       return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
     }
   </script>

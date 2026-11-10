@@ -654,6 +654,21 @@ function runDriverKegReceiptMigration(db) {
   }
 }
 
+// ── Driver Salary by Work Days migration (046) ─────────────────────────────
+// Chạy ĐỘC LẬP với version gate (như 043/044/045). Idempotent: CREATE TABLE IF NOT EXISTS.
+// Rollback an toàn: chỉ gỡ cột mới.
+function runDriverWorkDaysMigration(db) {
+  try {
+    const migration = require('./migrations/046_driver_salary_workdays');
+    migration.up(db);
+    log('[DRIVER_WORKDAYS] Migration 046 applied');
+    return { success: true };
+  } catch (e) {
+    log(`[DRIVER_WORKDAYS] Migration error: ${e.message}`);
+    return { success: false, error: e.message };
+  }
+}
+
 // ── Utility: Generate UUID ─────────────────────────────────────────────────────
 
 function generateUUID() {
@@ -674,6 +689,7 @@ module.exports = {
   runDriverPortalMigration,
   runDriverStaffMigration,
   runDriverKegReceiptMigration,
+  runDriverWorkDaysMigration,
   generateUUID,
   getCurrentVersion,
   setVersion,
