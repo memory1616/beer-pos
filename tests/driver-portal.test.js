@@ -879,15 +879,21 @@ describe('Driver Portal — RBAC & Data Protection', () => {
       // KHÔNG còn mục KHÁCH HÀNG trong bottom menu
       expect(coreSrc).not.toMatch(/key: 'customers'/);
 
-      // Các trang dùng nav cũng phải có đủ 4 mục
+      // Design System mới: bottom nav được render động trong shell.js
+      // (không còn hardcode data-nav="..." trong từng file HTML).
+      const shellSrc = fs.readFileSync(
+        path.join(__dirname, '../public/js/driver/shell.js'), 'utf8');
+      expect(shellSrc).toMatch(/key:\s*'home'/);
+      expect(shellSrc).toMatch(/key:\s*'sale'/);
+      expect(shellSrc).toMatch(/key:\s*'delivery'/);
+      expect(shellSrc).toMatch(/data-nav="logout"/);
+      expect(shellSrc).not.toMatch(/key:\s*'customers'/);
+
+      // Các trang dùng nav cũng phải nạp shell.js để dựng đủ 4 mục
       for (const f of ['index.html', 'customers.html']) {
         const src = fs.readFileSync(
           path.join(__dirname, '../views/driver', f), 'utf8');
-        expect(src).toMatch(/data-nav="home"/);
-        expect(src).toMatch(/data-nav="sale"/);
-        expect(src).toMatch(/data-nav="delivery"/);
-        expect(src).toMatch(/data-nav="logout"/);
-        expect(src).not.toMatch(/data-nav="customers"/);
+        expect(src).toMatch(/\/js\/driver\/shell\.js/);
       }
     });
 
@@ -904,8 +910,13 @@ describe('Driver Portal — RBAC & Data Protection', () => {
       }
 
       // Nút tài khoản phải dùng hàm riêng, không nhúng HTML vào onclick
-      expect(saleSrc).toMatch(/onclick="window\.Drv\.openAccountModal\(\)"/);
-      expect(saleSrc).not.toMatch(/onclick="window\.Drv\.openModal\(/);
+      // Nút tài khoản / đăng xuất do shell.js (app bar) dựng, không hardcode trong sale.html
+      const shellSrc3 = fs.readFileSync(
+        path.join(__dirname, '../public/js/driver/shell.js'), 'utf8');
+      expect(shellSrc3).toMatch(/id="drv-logout"/);
+      expect(shellSrc3).not.toMatch(/onclick="window\.Drv\.openModal\(/);
+      // sale.html không được nhúng onclick mở modal tài khoản
+      expect(saleSrc).not.toMatch(/onclick="window\.Drv\.openAccountModal/);
       // Hàm openAccountModal phải tồn tại trong core.js
       expect(coreSrc).toMatch(/function openAccountModal\(\)/);
       expect(coreSrc).toMatch(/openAccountModal:\s*openAccountModal/);
@@ -925,36 +936,43 @@ describe('Driver Portal — RBAC & Data Protection', () => {
         path2.join(__dirname, '../routes/api/driver.js'), 'utf8');
 
       test('HEADER có logo BIA TƯƠI TÂY NINH + nhãn CỔNG TÀI XẾ', () => {
-        expect(homeHtml).toMatch(/BIA TƯƠI TÂY NINH/);
-        expect(homeHtml).toMatch(/CỔNG TÀI XẾ/);
+        // Design System mới: header render động bằng JS (home.js + shell.js),
+        // file HTML chỉ là khung #app rỗng.
+        expect(homeHtml).toMatch(/Bia Tươi Tây Ninh/);   // <title>
+        const shellSrc2 = fs2.readFileSync(
+          path2.join(__dirname, '../public/js/driver/shell.js'), 'utf8');
+        expect(shellSrc2).toMatch(/Cổng Tài xế/);        // tiêu đề app bar
+        expect(homeHtml).toMatch(/id="app"/);            // khung render của shell
       });
 
       test('HEADER có tên tài xế, ngày hiện tại và trạng thái tài khoản', () => {
-        expect(homeHtml).toMatch(/id="home-user-name"/);
-        expect(homeHtml).toMatch(/id="home-date"/);
-        expect(homeHtml).toMatch(/id="home-status"/);
-        // home.js phải đổ đủ 3 trường này
+        expect(homeJs).toMatch(/id="home-user-name"/);
+        expect(homeJs).toMatch(/id="home-user-username"/);
+        // home.js phải đổ tên + username tài xế
         expect(homeJs).toMatch(/setText\('home-user-name'/);
-        expect(homeJs).toMatch(/renderDate\(\)/);
-        expect(homeJs).toMatch(/setStatus\(/);
+        expect(homeJs).toMatch(/setText\('home-user-username'/);
+        // Ngày hiện tại hiển thị qua bộ lọc lịch trong tháng
+        expect(homeJs).toMatch(/id="home-month-label"/);
+        expect(homeJs).toMatch(/id="home-day-list"/);
+        expect(homeJs).toMatch(/is-today/);
       });
 
       test('THỐNG KÊ có các thẻ: số đơn + số lít + tổng vỏ đã thu', () => {
-        expect(homeHtml).toMatch(/id="home-orders"/);
-        expect(homeHtml).toMatch(/id="home-liters"/);
-        expect(homeHtml).toMatch(/id="home-kegs"/);
-        expect(homeHtml).toMatch(/Số đơn/);
-        expect(homeHtml).toMatch(/Số lít bia/);
-        expect(homeHtml).toMatch(/Vỏ đã thu/);
+        expect(homeJs).toMatch(/id: 'home-orders'/);
+        expect(homeJs).toMatch(/id: 'home-liters'/);
+        expect(homeJs).toMatch(/id: 'home-kegs'/);
+        expect(homeJs).toMatch(/Số đơn/);
+        expect(homeJs).toMatch(/Số lít bia/);
+        expect(homeJs).toMatch(/Vỏ đã thu/);
 
-        // Đúng 3 thẻ KPI, không thêm thẻ thống kê nào khác
-        const kpiCount = (homeHtml.match(/class="drv-home-kpi drv-home-kpi--/g) || []).length;
+        // Đúng 3 thẻ KPI (Design System: ds-stat), không thêm thẻ thống kê nào khác
+        const kpiCount = (homeJs.match(/stat\(0, '/g) || []).length;
         expect(kpiCount).toBe(3);
 
         // Icon Lucide: SVG inline, stroke=currentColor, viewBox chuẩn 24
-        // (3 icon KPI + 2 icon nút chuyển tháng)
-        const svgs = homeHtml.match(/<svg[^>]*>/g) || [];
-        expect(svgs.length).toBe(5);
+        // (3 icon KPI + 2 icon nút chuyển tháng + 1 icon xe tải "hàng cần giao")
+        const svgs = homeJs.match(/<svg[^>]*>/g) || [];
+        expect(svgs.length).toBe(6);
         for (const svg of svgs) {
           expect(svg).toMatch(/viewBox="0 0 24 24"/);
           expect(svg).toMatch(/stroke="currentColor"/);
@@ -1016,7 +1034,7 @@ describe('Driver Portal — RBAC & Data Protection', () => {
 
       test('Tổng vỏ đã thu hôm nay lấy từ 2 nguồn + dedupe theo đơn', () => {
         const homeStart = driverApiSrc.indexOf("router.get('/home'");
-        const homeHandler = driverApiSrc.slice(homeStart, homeStart + 6000);
+        const homeHandler = driverApiSrc.slice(homeStart, homeStart + 14000);
 
         // Nguồn 1: vỏ thu trên đơn bán (sales.return_kegs)
         expect(homeHandler).toMatch(/s\.return_kegs/);
@@ -1033,7 +1051,7 @@ describe('Driver Portal — RBAC & Data Protection', () => {
 
       test('Bộ lọc thống kê theo ngày trong tháng: API hỗ trợ month + date', () => {
         const homeStart = driverApiSrc.indexOf("router.get('/home'");
-        const homeHandler = driverApiSrc.slice(homeStart, homeStart + 6000);
+        const homeHandler = driverApiSrc.slice(homeStart, homeStart + 14000);
 
         // Nhận query param month / date
         expect(homeHandler).toMatch(/req\.query\.month/);
@@ -1050,14 +1068,14 @@ describe('Driver Portal — RBAC & Data Protection', () => {
       });
 
       test('UI có bộ lọc ngày trong tháng (chuyển tháng + dải ngày + tổng tháng)', () => {
-        expect(homeHtml).toMatch(/id="home-prev-month"/);
-        expect(homeHtml).toMatch(/id="home-next-month"/);
-        expect(homeHtml).toMatch(/id="home-day-list"/);
-        expect(homeHtml).toMatch(/id="home-month-label"/);
-        expect(homeHtml).toMatch(/id="home-sum-orders"/);
-        expect(homeHtml).toMatch(/id="home-sum-liters"/);
-        expect(homeHtml).toMatch(/id="home-sum-kegs"/);
-        expect(homeHtml).toMatch(/id="home-stats-title"/);
+        expect(homeJs).toMatch(/id="home-prev-month"/);
+        expect(homeJs).toMatch(/id="home-next-month"/);
+        expect(homeJs).toMatch(/id="home-day-list"/);
+        expect(homeJs).toMatch(/id="home-month-label"/);
+        expect(homeJs).toMatch(/id="home-sum-orders"/);
+        expect(homeJs).toMatch(/id="home-sum-liters"/);
+        expect(homeJs).toMatch(/id="home-sum-kegs"/);
+        expect(homeJs).toMatch(/id="home-stats-title"/);
 
         // JS: dựng dải ngày + gửi query param
         expect(homeJs).toMatch(/renderDayList/);
@@ -1066,29 +1084,27 @@ describe('Driver Portal — RBAC & Data Protection', () => {
         expect(homeJs).toMatch(/changeMonth/);
         expect(homeJs).toMatch(/selectDate/);
 
-        // CSS cho bộ lọc
+        // CSS cho bộ lọc (Design System: driver-system.css)
         const css = fs2.readFileSync(
-          path2.join(__dirname, '../public/css/driver.css'), 'utf8');
-        expect(css).toMatch(/\.drv-home-filter\b/);
-        expect(css).toMatch(/\.drv-home-day\b/);
-        expect(css).toMatch(/\.drv-home-day\.is-selected/);
+          path2.join(__dirname, '../public/css/driver-system.css'), 'utf8');
+        expect(css).toMatch(/\.ds-calendar\b/);
+        expect(css).toMatch(/\.ds-day\b/);
+        expect(css).toMatch(/\.ds-day\.is-selected/);
       });
 
       test('CSS có style riêng cho trang chủ mới', () => {
         const css = fs2.readFileSync(
-          path2.join(__dirname, '../public/css/driver.css'), 'utf8');
-        expect(css).toMatch(/\.drv-home-header\b/);
-        expect(css).toMatch(/\.drv-home-kpi--orders/);
-        expect(css).toMatch(/\.drv-home-kpi--liters/);
-        expect(css).toMatch(/\.drv-home-kpi--kegs/);
-        expect(css).toMatch(/\.drv-home-user__name/);
+          path2.join(__dirname, '../public/css/driver-system.css'), 'utf8');
+        expect(css).toMatch(/\.ds-me__name\b/);
+        expect(css).toMatch(/\.ds-stats\b/);
+        expect(css).toMatch(/\.ds-stat\b/);
 
-        // Nền thẻ #202830 + bo góc 12px
-        expect(css).toMatch(/\.drv-home-kpi\s*\{[^}]*background:\s*#202830/);
-        expect(css).toMatch(/\.drv-home-kpi\s*\{[^}]*border-radius:\s*12px/);
+        // Nền thẻ dùng token của Design System + bo góc
+        expect(css).toMatch(/\.ds-stat\s*\{[^}]*background:\s*var\(--ds-grad-surface\)/);
+        expect(css).toMatch(/\.ds-stat\s*\{[^}]*border-radius:\s*var\(--ds-r-lg\)/);
         // Desktop 3 cột, mobile 2 cột
-        expect(css).toMatch(/\.drv-home-stats\s*\{[^}]*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
-        expect(css).toMatch(/@media \(max-width: 560px\)\s*\{[^}]*repeat\(2,\s*minmax\(0,\s*1fr\)\)/s);
+        expect(css).toMatch(/\.ds-stats\s*\{[^}]*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
+        expect(css).toMatch(/@media \(max-width: 420px\)\s*\{[^}]*repeat\(2,\s*minmax\(0,\s*1fr\)\)/s);
       });
     });
   });
