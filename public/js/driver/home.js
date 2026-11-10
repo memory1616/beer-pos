@@ -47,7 +47,7 @@
         '</span>' +
         // Lương dự kiến (chưa tính thưởng/phạt) — ẩn nếu tài xế chưa có hồ sơ lương
         '<span class="ds-me__salary" id="home-salary" hidden>' +
-          '<span class="ds-me__salary-label">Lương dự kiến</span>' +
+          '<span class="ds-me__salary-label" id="home-salary-label">Lương dự kiến</span>' +
           '<b class="ds-me__salary-value" id="home-salary-amount">—</b>' +
           '<span class="ds-me__salary-note" id="home-salary-note"></span>' +
         '</span>' +
@@ -355,6 +355,15 @@
       if (s.startDate) parts.push('vào làm ' + formatShortDate(s.startDate));
       if (!s.isCurrentMonth) parts.push('tháng đã qua');
       noteEl.textContent = parts.join(' · ');
+    }
+
+    // Nhãn tháng — luôn là tháng hiện tại
+    var labelEl = document.getElementById('home-salary-label');
+    if (labelEl) {
+      var m = String(s.month || '').slice(0, 7);
+      labelEl.textContent = m
+        ? 'Lương dự kiến T' + m.slice(5, 7) + '/' + m.slice(0, 4)
+        : 'Lương dự kiến';
     }
   }
 

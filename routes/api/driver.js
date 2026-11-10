@@ -248,6 +248,7 @@ function getEstimatedSalary(username, month) {
     });
 
     return {
+      month: `${y}-${String(m).padStart(2, '0')}`,
       baseSalary,
       dailyRate: calc.dailyRate,
       workDays: calc.workDays,
@@ -557,10 +558,11 @@ router.get('/home', requireDriver, (req, res) => {
     // Chỉ số của ngày đang chọn
     const sel = byDate[selectedDate] || { orders: 0, liters: 0, kegs: 0, kegsNet: 0 };
 
-    // ── LƯƠNG DỰ KIẾN THÁNG ĐANG XEM (chưa tính thưởng/phạt) ───────────
+    // ── LƯƠNG DỰ KIẾN THÁNG HIỆN TẠI (chưa tính thưởng/phạt) ─────────────
     // Công thức: (lương cố định tháng ÷ 26) × số ngày làm thực tế
     // (từ ngày vào làm đến ngày hiện tại, không tính Chủ Nhật).
-    const salaryInfo = getEstimatedSalary(req.user.username, month);
+    // LUÔN tính theo tháng hiện tại — không phụ thuộc tháng đang lọc trên lịch.
+    const salaryInfo = getEstimatedSalary(req.user.username, currentMonth);
 
     res.json({
       date: today,

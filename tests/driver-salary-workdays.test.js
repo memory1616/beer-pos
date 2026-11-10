@@ -207,6 +207,11 @@ describe('Driver Salary Calculator — tính lương theo ngày làm', () => {
     let app;
     let driverToken;
     const DRIVER_USER = 'ds_est_' + Date.now().toString().slice(-6);
+    const TODAY = db.getVietnamDateStr();
+    const CUR_Y = Number(TODAY.slice(0, 4));
+    const CUR_M = Number(TODAY.slice(5, 7));
+    const CUR_MONTH = TODAY.slice(0, 7);
+    const START_DATE = `${CUR_Y}-${String(CUR_M).padStart(2, '0')}-01`;
 
     beforeAll(() => {
       const express = require('express');
@@ -223,14 +228,14 @@ describe('Driver Salary Calculator — tính lương theo ngày làm', () => {
          VALUES (?, ?, 'DRIVER', 1, ?)`
       ).run(DRIVER_USER, hashPassword('DriverPass123'), 'Tài xế Dự Kiến');
 
-      // Hồ sơ lương: vào làm 2026-11-01, lương 5.200.000/tháng
+      // Hồ sơ lương: vào làm đầu tháng hiện tại, lương 5.200.000/tháng
       const Service = require('../src/services/DriverStaffService');
       const created = Service.create({
         username: DRIVER_USER,
         password: 'DriverPass123',
         fullName: 'Tài xế Dự Kiến',
         monthlySalary: 5200000,
-        startDate: '2026-11-01',
+        startDate: START_DATE,
       });
       expect(created.success).toBe(true);
 
@@ -260,14 +265,26 @@ describe('Driver Salary Calculator — tính lương theo ngày làm', () => {
       expect(s.dailyRate).toBeCloseTo(5200000 / 26, 4);
       expect(s.workDays).toBeGreaterThan(0);
       expect(s.amount).toBe(Math.round(s.dailyRate * s.workDays));
-      expect(s.startDate).toBe('2026-11-01');
+      expect(s.startDate).toBe(START_DATE);
+      // Luôn theo tháng hiện tại, không phụ thuộc tháng đang lọc trên lịch
+      expect(s.month).toBe(CUR_MONTH);
+    });
+
+    test('Lọc tháng khác → estimatedSalary vẫn là tháng hiện tại', async () => {
+      const otherMonth = CUR_MONTH === '2026-01' ? '2026-02' : '2026-01';
+      const res = await request(app)
+        .get('/api/driver/home?month=' + otherMonth)
+        .set('Authorization', 'Bearer ' + driverToken);
+      expect(res.status).toBe(200);
+      expect(res.body.month).toBe(otherMonth);
+      expect(res.body.estimatedSalary.month).toBe(CUR_MONTH);
     });
 
     test('estimatedSalary KHÔNG cộng thưởng/phạt', async () => {
       const Service = require('../src/services/DriverStaffService');
       const driver = Service.getByUsername(DRIVER_USER);
       // Chốt lương tháng có thưởng 1.000.000 + phạt 200.000
-      Service.setMonthlySalary(driver.id, 2026, 11, {
+      Service.setMonthlySalary(driver.id, CUR_Y, CUR_M, {
         baseSalary: 5200000,
         bonus: 1000000,
         deduction: 200000,
@@ -275,7 +292,7 @@ describe('Driver Salary Calculator — tính lương theo ngày làm', () => {
       });
 
       const res = await request(app)
-        .get('/api/driver/home?month=2026-11')
+        .get('/api/driver/home')
         .set('Authorization', 'Bearer ' + driverToken);
       const s = res.body.estimatedSalary;
       expect(s).toBeTruthy();
@@ -287,7 +304,7 @@ describe('Driver Salary Calculator — tính lương theo ngày làm', () => {
     test('Số ngày làm admin ghi đè tay được dùng cho lương dự kiến', async () => {
       const Service = require('../src/services/DriverStaffService');
       const driver = Service.getByUsername(DRIVER_USER);
-      Service.setMonthlySalary(driver.id, 2026, 11, {
+      Service.setMonthlySalary(driver.id, CUR_Y, CUR_M, {
         baseSalary: 5200000,
         bonus: 0,
         deduction: 0,
@@ -295,7 +312,7 @@ describe('Driver Salary Calculator — tính lương theo ngày làm', () => {
       });
 
       const res = await request(app)
-        .get('/api/driver/home?month=2026-11')
+        .get('/api/driver/home')
         .set('Authorization', 'Bearer ' + driverToken);
       const s = res.body.estimatedSalary;
       expect(s.workDays).toBe(10);
