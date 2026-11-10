@@ -957,6 +957,33 @@ describe('Driver Portal — RBAC & Data Protection', () => {
         expect(homeJs).toMatch(/is-today/);
       });
 
+      test('Thẻ tài xế hiển thị LƯƠNG DỰ KIẾN (chưa tính thưởng)', () => {
+        // Markup: khối lương dự kiến trong thẻ ds-me, mặc định ẩn
+        expect(homeJs).toMatch(/id="home-salary"/);
+        expect(homeJs).toMatch(/id="home-salary-amount"/);
+        expect(homeJs).toMatch(/id="home-salary-note"/);
+        expect(homeJs).toMatch(/ds-me__salary/);
+        expect(homeJs).toMatch(/Lương dự kiến/);
+
+        // JS: render từ data.estimatedSalary
+        expect(homeJs).toMatch(/renderEstimatedSalary/);
+        expect(homeJs).toMatch(/data\.estimatedSalary/);
+        expect(homeJs).toMatch(/home-salary-amount/);
+        expect(homeJs).toMatch(/home-salary-note/);
+
+        // API: /home phải trả estimatedSalary (lương/26 × ngày làm)
+        expect(driverApiSrc).toMatch(/estimatedSalary/);
+        expect(driverApiSrc).toMatch(/getEstimatedSalary/);
+        expect(driverApiSrc).toMatch(/DriverSalaryCalculator\.calculate/);
+
+        // CSS: style cho khối lương dự kiến
+        const css2 = fs2.readFileSync(
+          path2.join(__dirname, '../public/css/driver-system.css'), 'utf8');
+        expect(css2).toMatch(/\.ds-me__salary\b/);
+        expect(css2).toMatch(/\.ds-me__salary-value/);
+        expect(css2).toMatch(/\.ds-me__salary-note/);
+      });
+
       test('THỐNG KÊ có các thẻ: số đơn + số lít + tổng vỏ đã thu', () => {
         expect(homeJs).toMatch(/id: 'home-orders'/);
         expect(homeJs).toMatch(/id: 'home-liters'/);

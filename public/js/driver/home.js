@@ -45,6 +45,12 @@
           '<span class="ds-me__name" id="home-user-name">…</span>' +
           '<span class="ds-me__id" id="home-user-username"></span>' +
         '</span>' +
+        // Lương dự kiến (chưa tính thưởng/phạt) — ẩn nếu tài xế chưa có hồ sơ lương
+        '<span class="ds-me__salary" id="home-salary" hidden>' +
+          '<span class="ds-me__salary-label">Lương dự kiến</span>' +
+          '<b class="ds-me__salary-value" id="home-salary-amount">—</b>' +
+          '<span class="ds-me__salary-note" id="home-salary-note"></span>' +
+        '</span>' +
       '</section>' +
 
       /* ── Bộ lọc ngày trong tháng ── */
@@ -206,6 +212,7 @@
       renderMonthSummary(data);
       renderStatsTitle(data);
       renderLoad(data);
+      renderEstimatedSalary(data);
       showHint('', false);
     } catch (err) {
       setText('home-orders', '—');
@@ -319,6 +326,43 @@
         '</span>' +
       '</div>';
     }).join('');
+  }
+
+  /**
+   * Lương dự kiến (chưa tính thưởng/phạt).
+   * Công thức: (lương cố định tháng ÷ 26) × số ngày làm thực tế.
+   */
+  function renderEstimatedSalary(data) {
+    var box = document.getElementById('home-salary');
+    if (!box) return;
+
+    var s = data.estimatedSalary;
+    if (!s || !s.baseSalary) {
+      box.hidden = true;
+      return;
+    }
+
+    box.hidden = false;
+
+    var amountEl = document.getElementById('home-salary-amount');
+    if (amountEl) amountEl.textContent = D.money(s.amount || 0);
+
+    var noteEl = document.getElementById('home-salary-note');
+    if (noteEl) {
+      var parts = [];
+      parts.push(s.workDays + '/' + (s.standardWorkDays || 26) + ' ngày');
+      parts.push(D.money(s.dailyRate || 0) + '/ngày');
+      if (s.startDate) parts.push('vào làm ' + formatShortDate(s.startDate));
+      if (!s.isCurrentMonth) parts.push('tháng đã qua');
+      noteEl.textContent = parts.join(' · ');
+    }
+  }
+
+  /** Định dạng ngày ngắn gọn (dd/mm/yyyy) — tránh lệch ngày do UTC */
+  function formatShortDate(dateStr) {
+    var m = String(dateStr || '').slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return '';
+    return m[3] + '/' + m[2] + '/' + m[1];
   }
 
   function escapeHtml(str) {

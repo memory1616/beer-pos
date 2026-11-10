@@ -1423,6 +1423,51 @@ body.ds-app .btn--accent-outline {
   white-space: nowrap;
 }
 
+/* Lương dự kiến (chưa tính thưởng/phạt) */
+.ds-me__salary {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  padding: var(--ds-s-2) var(--ds-s-3);
+  border-radius: var(--ds-r-md);
+  border: 1px solid rgba(252, 213, 53, .28);
+  background: var(--ds-surface-3);
+  text-align: right;
+}
+.ds-me__salary-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .4px;
+  text-transform: uppercase;
+  color: var(--ds-text-2);
+}
+.ds-me__salary-value {
+  font-size: var(--ds-f-md);
+  font-weight: 800;
+  color: var(--ds-brand-500);
+  line-height: 1.15;
+  white-space: nowrap;
+}
+.ds-me__salary-note {
+  font-size: 10px;
+  color: var(--ds-text-2);
+  white-space: nowrap;
+}
+
+/* Màn hình hẹp: lương xuống dòng dưới, canh phải */
+@media (max-width: 420px) {
+  .ds-me {
+    flex-wrap: wrap;
+  }
+  .ds-me__salary {
+    flex: 1 1 100%;
+    align-items: stretch;
+    text-align: left;
+  }
+}
+
 /* Bộ lọc ngày */
 .ds-calendar {
   padding: var(--ds-s-4);

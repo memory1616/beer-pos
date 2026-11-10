@@ -198,4 +198,128 @@ describe('Driver Salary Calculator — tính lương theo ngày làm', () => {
       expect(row.workDays).toBe(12);
     });
   });
+
+  // ═══════════════════════════════════════════════════════════════════════
+  describe('D. API /api/driver/home — estimatedSalary (lương dự kiến)', () => {
+    const request = require('supertest');
+    const { hashPassword } = require('../src/utils/password');
+
+    let app;
+    let driverToken;
+    const DRIVER_USER = 'ds_est_' + Date.now().toString().slice(-6);
+
+    beforeAll(() => {
+      const express = require('express');
+      const cookieParser = require('cookie-parser');
+      const { requireAuth } = require('../middleware/auth');
+
+      app = express();
+      app.use(express.json());
+      app.use(cookieParser());
+      app.use('/api/driver', requireAuth, require('../routes/api/driver'));
+
+      db.prepare(
+        `INSERT OR REPLACE INTO app_users (username, password_hash, role, active, full_name)
+         VALUES (?, ?, 'DRIVER', 1, ?)`
+      ).run(DRIVER_USER, hashPassword('DriverPass123'), 'Tài xế Dự Kiến');
+
+      // Hồ sơ lương: vào làm 2026-11-01, lương 5.200.000/tháng
+      const Service = require('../src/services/DriverStaffService');
+      const created = Service.create({
+        username: DRIVER_USER,
+        password: 'DriverPass123',
+        fullName: 'Tài xế Dự Kiến',
+        monthlySalary: 5200000,
+        startDate: '2026-11-01',
+      });
+      expect(created.success).toBe(true);
+
+      const { login } = require('../middleware/auth');
+      driverToken = login(DRIVER_USER, 'DriverPass123').token;
+    });
+
+    afterAll(() => {
+      try {
+        db.prepare('DELETE FROM driver_monthly_salary WHERE driver_id IN (SELECT id FROM driver_staff WHERE username = ?)').run(DRIVER_USER);
+        db.prepare('DELETE FROM driver_staff WHERE username = ?').run(DRIVER_USER);
+        db.prepare('DELETE FROM auth_sessions WHERE username = ?').run(DRIVER_USER);
+        db.prepare('DELETE FROM app_users WHERE username = ?').run(DRIVER_USER);
+      } catch (_) {}
+    });
+
+    test('API trả estimatedSalary với công thức (lương ÷ 26) × ngày làm', async () => {
+      const res = await request(app)
+        .get('/api/driver/home?month=2026-11')
+        .set('Authorization', 'Bearer ' + driverToken);
+      expect(res.status).toBe(200);
+
+      const s = res.body.estimatedSalary;
+      expect(s).toBeTruthy();
+      expect(s.baseSalary).toBe(5200000);
+      expect(s.standardWorkDays).toBe(26);
+      expect(s.dailyRate).toBeCloseTo(5200000 / 26, 4);
+      expect(s.workDays).toBeGreaterThan(0);
+      expect(s.amount).toBe(Math.round(s.dailyRate * s.workDays));
+      expect(s.startDate).toBe('2026-11-01');
+    });
+
+    test('estimatedSalary KHÔNG cộng thưởng/phạt', async () => {
+      const Service = require('../src/services/DriverStaffService');
+      const driver = Service.getByUsername(DRIVER_USER);
+      // Chốt lương tháng có thưởng 1.000.000 + phạt 200.000
+      Service.setMonthlySalary(driver.id, 2026, 11, {
+        baseSalary: 5200000,
+        bonus: 1000000,
+        deduction: 200000,
+        workDays: null,
+      });
+
+      const res = await request(app)
+        .get('/api/driver/home?month=2026-11')
+        .set('Authorization', 'Bearer ' + driverToken);
+      const s = res.body.estimatedSalary;
+      expect(s).toBeTruthy();
+      // amount = lương theo ngày làm, KHÔNG phải tổng có thưởng
+      expect(s.amount).toBe(Math.round(s.dailyRate * s.workDays));
+      expect(s.amount).toBeLessThan(5200000 + 1000000 - 200000);
+    });
+
+    test('Số ngày làm admin ghi đè tay được dùng cho lương dự kiến', async () => {
+      const Service = require('../src/services/DriverStaffService');
+      const driver = Service.getByUsername(DRIVER_USER);
+      Service.setMonthlySalary(driver.id, 2026, 11, {
+        baseSalary: 5200000,
+        bonus: 0,
+        deduction: 0,
+        workDays: 10,
+      });
+
+      const res = await request(app)
+        .get('/api/driver/home?month=2026-11')
+        .set('Authorization', 'Bearer ' + driverToken);
+      const s = res.body.estimatedSalary;
+      expect(s.workDays).toBe(10);
+      expect(s.amount).toBe(Math.round((5200000 / 26) * 10));
+    });
+
+    test('Tài xế KHÔNG có hồ sơ lương → estimatedSalary = null', async () => {
+      const noProfile = 'ds_est_np_' + Date.now().toString().slice(-6);
+      db.prepare(
+        `INSERT OR REPLACE INTO app_users (username, password_hash, role, active, full_name)
+         VALUES (?, ?, 'DRIVER', 1, ?)`
+      ).run(noProfile, hashPassword('DriverPass123'), 'Không hồ sơ');
+
+      const { login } = require('../middleware/auth');
+      const token = login(noProfile, 'DriverPass123').token;
+
+      const res = await request(app)
+        .get('/api/driver/home')
+        .set('Authorization', 'Bearer ' + token);
+      expect(res.status).toBe(200);
+      expect(res.body.estimatedSalary).toBeNull();
+
+      db.prepare('DELETE FROM auth_sessions WHERE username = ?').run(noProfile);
+      db.prepare('DELETE FROM app_users WHERE username = ?').run(noProfile);
+    });
+  });
 });

@@ -15,6 +15,7 @@ const db = require('../../database');
 const logger = require('../../src/utils/logger');
 const DeliveryService = require('../../src/services/DeliveryService');
 const KegReceiptService = require('../../src/services/KegReceiptService');
+const DriverSalaryCalculator = require('../../src/services/DriverSalaryCalculator');
 const { ROLE_DRIVER } = require('../../middleware/permissions');
 const { PromotionService } = require('../../src/services');
 
@@ -192,6 +193,75 @@ function shiftMonth(month, delta) {
   const [y, m] = month.split('-').map(Number);
   const d = new Date(y, m - 1 + delta, 1);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LƯƠNG DỰ KIẾN — (lương cố định ÷ 26) × số ngày làm (chưa tính thưởng/phạt)
+// ═══════════════════════════════════════════════════════════════════════════
+/**
+ * Tính lương dự kiến của 1 tài xế cho tháng đang xem.
+ *
+ * - Tài xế chưa có hồ sơ trong `driver_staff` → trả về null (UI ẩn).
+ * - Số ngày làm: từ `start_date` đến ngày hiện tại (tháng đang xem),
+ *   KHÔNG tính Chủ Nhật. Nếu admin đã ghi đè số ngày làm trong
+ *   `driver_monthly_salary.work_days` → dùng giá trị đó.
+ * - KHÔNG cộng thưởng / trừ phạt (đây là lương DỰ KIẾN).
+ */
+function getEstimatedSalary(username, month) {
+  try {
+    const [y, m] = month.split('-').map(Number);
+    if (!y || !m) return null;
+
+    const driver = db
+      .prepare(
+        `SELECT id, monthly_salary, start_date
+         FROM driver_staff
+         WHERE username = ?
+         LIMIT 1`
+      )
+      .get(username);
+
+    if (!driver) return null;
+
+    // Bản ghi lương của tháng (nếu có) — lấy work_days do admin ghi đè tay
+    const salary = db
+      .prepare(
+        `SELECT base_salary, bonus, deduction, work_days
+         FROM driver_monthly_salary
+         WHERE driver_id = ? AND year = ? AND month = ?`
+      )
+      .get(driver.id, y, m);
+
+    const baseSalary = salary && salary.base_salary
+      ? Number(salary.base_salary)
+      : Number(driver.monthly_salary) || 0;
+
+    // Nếu admin đã chốt lương theo ngày làm cho tháng này → dùng số ngày đó
+    const manualWorkDays =
+      salary && salary.work_days !== null && salary.work_days !== undefined
+        ? salary.work_days
+        : null;
+
+    const calc = DriverSalaryCalculator.calculate(driver, y, m, {
+      baseSalary,
+      manualWorkDays,
+    });
+
+    return {
+      baseSalary,
+      dailyRate: calc.dailyRate,
+      workDays: calc.workDays,
+      standardWorkDays: calc.standardWorkDays,
+      amount: calc.proratedBase,
+      startDate: calc.startDate,
+      isCurrentMonth: calc.isCurrentMonth,
+      periodStart: calc.periodStart,
+      periodEnd: calc.periodEnd,
+    };
+  } catch (err) {
+    logger.error('[driver] estimated salary error', { error: err.message });
+    return null;
+  }
 }
 
 router.get('/home', requireDriver, (req, res) => {
@@ -487,6 +557,11 @@ router.get('/home', requireDriver, (req, res) => {
     // Chỉ số của ngày đang chọn
     const sel = byDate[selectedDate] || { orders: 0, liters: 0, kegs: 0, kegsNet: 0 };
 
+    // ── LƯƠNG DỰ KIẾN THÁNG ĐANG XEM (chưa tính thưởng/phạt) ───────────
+    // Công thức: (lương cố định tháng ÷ 26) × số ngày làm thực tế
+    // (từ ngày vào làm đến ngày hiện tại, không tính Chủ Nhật).
+    const salaryInfo = getEstimatedSalary(req.user.username, month);
+
     res.json({
       date: today,
       todayOrders: sel.orders,
@@ -497,6 +572,7 @@ router.get('/home', requireDriver, (req, res) => {
       isToday: selectedDate === today,
       month,
       monthLabel: `Tháng ${month.slice(5, 7)}/${month.slice(0, 4)}`,
+      estimatedSalary: salaryInfo,
       daily,
       monthTotals,
       pendingSummary,
