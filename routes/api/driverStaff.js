@@ -206,4 +206,62 @@ router.get('/:id/salary-history', requireAdmin, (req, res) => {
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ỨNG LƯƠNG TÀI XẾ
+// ═══════════════════════════════════════════════════════════════════════════
+
+// GET /api/admin/driver-staff/:id/advances?year=&month= — danh sách khoản ứng
+router.get('/:id/advances', requireAdmin, (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const period = parsePeriod(
+      req.query.year || new Date().getFullYear(),
+      req.query.month || new Date().getMonth() + 1
+    );
+    if (!period) return res.status(400).json({ error: 'Kỳ lương không hợp lệ' });
+
+    const advances = DriverStaffService.getAdvances(id, period.year, period.month);
+    const total = DriverStaffService.getAdvanceTotal(id, period.year, period.month);
+    res.json({ success: true, data: advances, total, year: period.year, month: period.month });
+  } catch (err) {
+    logger.error('[admin/driver-staff] list advances error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi tải danh sách ứng lương' });
+  }
+});
+
+// POST /api/admin/driver-staff/:id/advances — ghi nhận khoản ứng lương
+router.post('/:id/advances', requireAdmin, (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const period = parsePeriod(req.body?.year, req.body?.month);
+    if (!period) return res.status(400).json({ error: 'Kỳ lương không hợp lệ' });
+
+    const result = DriverStaffService.createAdvance(id, period.year, period.month, {
+      amount: req.body?.amount,
+      method: req.body?.method,
+      note: req.body?.note,
+      createdBy: req.user?.username || null,
+    });
+    if (!result.success) return res.status(400).json({ error: result.error });
+
+    res.status(201).json({ success: true, data: result });
+  } catch (err) {
+    logger.error('[admin/driver-staff] create advance error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi ghi nhận ứng lương' });
+  }
+});
+
+// DELETE /api/admin/driver-staff/advances/:advanceId — huỷ khoản ứng
+router.delete('/advances/:advanceId', requireAdmin, (req, res) => {
+  try {
+    const advanceId = parseInt(req.params.advanceId);
+    const result = DriverStaffService.cancelAdvance(advanceId);
+    if (!result.success) return res.status(400).json({ error: result.error });
+    res.json({ success: true });
+  } catch (err) {
+    logger.error('[admin/driver-staff] cancel advance error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi huỷ khoản ứng' });
+  }
+});
+
 module.exports = router;

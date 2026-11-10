@@ -1455,6 +1455,16 @@ body.ds-app .btn--accent-outline {
   color: var(--ds-text-2);
   white-space: nowrap;
 }
+.ds-me__salary-advance {
+  margin-top: 3px;
+  padding: 3px 7px;
+  border-radius: var(--ds-r-sm, 6px);
+  font-size: 10px;
+  color: var(--ds-warn);
+  background: var(--ds-warn-dim);
+  white-space: nowrap;
+}
+.ds-me__salary-advance b { font-weight: 800; }
 
 /* Màn hình hẹp: lương xuống dòng dưới, canh phải */
 @media (max-width: 420px) {

@@ -50,6 +50,10 @@
           '<span class="ds-me__salary-label" id="home-salary-label">Lương dự kiến</span>' +
           '<b class="ds-me__salary-value" id="home-salary-amount">—</b>' +
           '<span class="ds-me__salary-note" id="home-salary-note"></span>' +
+          '<span class="ds-me__salary-advance" id="home-salary-advance" hidden>' +
+            'Đã ứng <b id="home-salary-advance-amount">0</b>' +
+            ' · còn nhận <b id="home-salary-net">0</b>' +
+          '</span>' +
         '</span>' +
       '</section>' +
 
@@ -364,6 +368,19 @@
       labelEl.textContent = m
         ? 'Lương dự kiến T' + m.slice(5, 7) + '/' + m.slice(0, 4)
         : 'Lương dự kiến';
+    }
+
+    // ── Khoản đã ứng (nếu có) ──────────────────────────────────────────
+    var advBox = document.getElementById('home-salary-advance');
+    if (advBox) {
+      var adv = Number(s.advanceTotal) || 0;
+      advBox.hidden = adv <= 0;
+      if (adv > 0) {
+        var advEl = document.getElementById('home-salary-advance-amount');
+        if (advEl) advEl.textContent = D.money(adv);
+        var netEl = document.getElementById('home-salary-net');
+        if (netEl) netEl.textContent = D.money(Math.max(0, (s.netAmount !== undefined ? s.netAmount : s.amount) || 0));
+      }
     }
   }
 

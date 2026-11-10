@@ -669,6 +669,21 @@ function runDriverWorkDaysMigration(db) {
   }
 }
 
+// ── Driver Salary Advance migration (047) ───────────────────────────────────
+// Ứng lương tài xế: admin ghi nhận khoản ứng, tự động trừ khi chốt lương.
+// Chạy ĐỘC LẬP với version gate (như 043/044/045/046). Idempotent.
+function runDriverSalaryAdvanceMigration(db) {
+  try {
+    const migration = require('./migrations/047_driver_salary_advance');
+    migration.up(db);
+    log('[DRIVER_SALARY_ADVANCE] Migration 047 applied');
+    return { success: true };
+  } catch (e) {
+    log(`[DRIVER_SALARY_ADVANCE] Migration error: ${e.message}`);
+    return { success: false, error: e.message };
+  }
+}
+
 // ── Utility: Generate UUID ─────────────────────────────────────────────────────
 
 function generateUUID() {
@@ -690,6 +705,7 @@ module.exports = {
   runDriverStaffMigration,
   runDriverKegReceiptMigration,
   runDriverWorkDaysMigration,
+  runDriverSalaryAdvanceMigration,
   generateUUID,
   getCurrentVersion,
   setVersion,

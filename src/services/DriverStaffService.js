@@ -356,6 +356,18 @@ class DriverStaffService {
     const bonus = Number(record ? record.bonus : 0) || 0;
     const deduction = Number(record ? record.deduction : 0) || 0;
 
+    // ── Khoản ứng lương của kỳ ───────────────────────────────────────────
+    // Tổng các khoản ứng còn hiệu lực (không tính khoản đã huỷ).
+    const driverId = record ? record.driver_id : (driver ? driver.id : null);
+    const advanceTotal = driverId
+      ? DriverStaffService.getAdvanceTotal(driverId, year, month)
+      : 0;
+
+    // TỔNG GỐC = lương theo ngày làm + thưởng − phạt
+    const grossTotal = Math.round((calc.proratedBase + bonus - deduction) * 100) / 100;
+    // TỔNG THỰC NHẬN = tổng gốc − khoản đã ứng (không âm)
+    const netTotal = Math.round((grossTotal - advanceTotal) * 100) / 100;
+
     return {
       ...record,
       // Thông tin ngày làm
@@ -372,7 +384,15 @@ class DriverStaffService {
       effective_base: calc.proratedBase,
       bonus,
       deduction,
-      total: calc.proratedBase + bonus - deduction,
+      // ── Ứng lương ──
+      advance_total: advanceTotal,
+      advance_paid: record && record.advance_paid !== undefined && record.advance_paid !== null
+        ? Number(record.advance_paid) || 0
+        : advanceTotal,
+      gross_total: grossTotal,
+      net_total: Math.max(0, netTotal),
+      // total = số tiền THỰC TRẢ (đã trừ khoản ứng, không âm)
+      total: Math.max(0, netTotal),
     };
   }
 
@@ -441,9 +461,14 @@ class DriverStaffService {
       manualWorkDays,
     });
 
-    // TỔNG = lương theo ngày làm + thưởng − phạt
+    // TỔNG GỐC = lương theo ngày làm + thưởng − phạt
     const proratedBase = calc.proratedBase;
-    const finalTotal = Math.round((proratedBase + bonus - deduction) * 100) / 100;
+    const grossTotal = Math.round((proratedBase + bonus - deduction) * 100) / 100;
+
+    // TRỪ khoản ứng lương của kỳ này (nếu có)
+    const advanceTotal = DriverStaffService.getAdvanceTotal(driverId, year, month);
+    // TỔNG THỰC TRẢ = tổng gốc − đã ứng (không âm)
+    const finalTotal = Math.max(0, Math.round((grossTotal - advanceTotal) * 100) / 100);
 
     try {
       if (existing) {
@@ -455,15 +480,16 @@ class DriverStaffService {
                status = ?,
                work_days = ?,
                daily_rate = ?,
+               advance_paid = ?,
                paid_at = CASE WHEN ? = 'paid' THEN COALESCE(paid_at, datetime('now')) ELSE paid_at END,
                updated_at = datetime('now')
            WHERE id = ?`
-        ).run(base, bonus, deduction, finalTotal, note, status, manualWorkDays, calc.dailyRate, status, existing.id);
+        ).run(base, bonus, deduction, finalTotal, note, status, manualWorkDays, calc.dailyRate, advanceTotal, status, existing.id);
       } else {
         db.prepare(
           `INSERT INTO driver_monthly_salary
-             (driver_id, year, month, base_salary, bonus, deduction, total, status, note, work_days, daily_rate)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+             (driver_id, year, month, base_salary, bonus, deduction, total, status, note, work_days, daily_rate, advance_paid)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         ).run(
           driverId,
           year,
@@ -475,7 +501,8 @@ class DriverStaffService {
           payload.status || SALARY_STATUS.PENDING,
           note,
           manualWorkDays,
-          calc.dailyRate
+          calc.dailyRate,
+          advanceTotal
         );
       }
 
@@ -485,6 +512,9 @@ class DriverStaffService {
         year,
         month,
         total: finalTotal,
+        grossTotal,
+        advanceTotal,
+        netTotal: finalTotal,
         workDays: calc.workDays,
         dailyRate: calc.dailyRate,
         proratedBase,
@@ -565,6 +595,10 @@ class DriverStaffService {
         isCurrentMonth: !!salary.is_current_month,
         periodStart: salary.period_start,
         periodEnd: salary.period_end,
+        // ── Ứng lương ──
+        advanceTotal: salary.advance_total || 0,
+        grossTotal: salary.gross_total || salary.total || 0,
+        netTotal: salary.net_total || salary.total || 0,
       };
     });
   }
@@ -576,13 +610,137 @@ class DriverStaffService {
     return db
       .prepare(
         `SELECT id, driver_id, year, month, base_salary, bonus, deduction, total,
-                status, paid_at, note, work_days, daily_rate, created_at, updated_at
+                status, paid_at, note, work_days, daily_rate, advance_paid, created_at, updated_at
          FROM driver_monthly_salary
          WHERE driver_id = ?
          ORDER BY year DESC, month DESC
          LIMIT ?`
       )
       .all(driverId, limit);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // ỨNG LƯƠNG TÀI XẾ
+  // ═══════════════════════════════════════════════════════════════════════
+
+  /**
+   * Tổng khoản ứng còn hiệu lực của 1 tài xế trong 1 kỳ lương.
+   * Bỏ qua các khoản đã huỷ (status = 'cancelled').
+   */
+  static getAdvanceTotal(driverId, year, month) {
+    if (!driverId) return 0;
+    const row = db
+      .prepare(
+        `SELECT COALESCE(SUM(amount), 0) AS total
+         FROM driver_salary_advances
+         WHERE driver_id = ? AND year = ? AND month = ? AND status <> 'cancelled'`
+      )
+      .get(driverId, year, month);
+    return Math.round((Number(row && row.total) || 0) * 100) / 100;
+  }
+
+  /**
+   * Danh sách khoản ứng của 1 tài xế (mới nhất trước).
+   */
+  static getAdvances(driverId, year, month) {
+    if (!driverId) return [];
+    return db
+      .prepare(
+        `SELECT id, driver_id, year, month, amount, method, note, status,
+                deducted, created_by, created_at, updated_at
+         FROM driver_salary_advances
+         WHERE driver_id = ? AND year = ? AND month = ?
+         ORDER BY created_at DESC, id DESC`
+      )
+      .all(driverId, year, month);
+  }
+
+  /**
+   * Ghi nhận khoản ứng lương cho 1 tài xế trong 1 kỳ.
+   *
+   * - `amount` phải > 0.
+   * - Khoản ứng sẽ được TRỪ khỏi tổng lương thực nhận của kỳ đó.
+   */
+  static createAdvance(driverId, year, month, payload = {}) {
+    try {
+      const driver = DriverStaffService.getById(driverId);
+      if (!driver) return { success: false, error: 'Không tìm thấy tài xế' };
+
+      const amount = Number(payload.amount);
+      if (!Number.isFinite(amount) || amount <= 0) {
+        return { success: false, error: 'Số tiền ứng không hợp lệ (phải > 0)' };
+      }
+
+      const method = payload.method ? String(payload.method).slice(0, 30) : 'cash';
+      const note = payload.note ? String(payload.note).trim().slice(0, 500) : null;
+
+      const result = db
+        .prepare(
+          `INSERT INTO driver_salary_advances
+             (driver_id, year, month, amount, method, note, status, deducted, created_by, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, 'pending', 0, ?, datetime('now'), datetime('now'))`
+        )
+        .run(driverId, year, month, amount, method, note, payload.createdBy || null);
+
+      // Cập nhật lại total của kỳ lương (đã trừ khoản ứng)
+      DriverStaffService.recalcSalaryTotal(driverId, year, month);
+
+      return { success: true, id: result.lastInsertRowid, amount };
+    } catch (err) {
+      logger.error('[DriverStaffService] createAdvance error', { error: err.message });
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * Huỷ (xoá mềm) một khoản ứng → không còn tính vào lương kỳ đó.
+   */
+  static cancelAdvance(advanceId) {
+    try {
+      const adv = db
+        .prepare('SELECT id, driver_id, year, month FROM driver_salary_advances WHERE id = ?')
+        .get(advanceId);
+      if (!adv) return { success: false, error: 'Không tìm thấy khoản ứng' };
+
+      db.prepare(
+        `UPDATE driver_salary_advances
+         SET status = 'cancelled', deducted = 0, updated_at = datetime('now')
+         WHERE id = ?`
+      ).run(advanceId);
+
+      DriverStaffService.recalcSalaryTotal(adv.driver_id, adv.year, adv.month);
+      return { success: true };
+    } catch (err) {
+      logger.error('[DriverStaffService] cancelAdvance error', { error: err.message });
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * Tính lại `total` của bản ghi lương theo kỳ, đã trừ khoản ứng.
+   * Bản ghi lương chưa tồn tại → không tạo (chờ admin chốt).
+   */
+  static recalcSalaryTotal(driverId, year, month) {
+    try {
+      const record = db
+        .prepare('SELECT id FROM driver_monthly_salary WHERE driver_id = ? AND year = ? AND month = ?')
+        .get(driverId, year, month);
+      if (!record) return null;
+
+      const driver = DriverStaffService.getById(driverId);
+      const salary = DriverStaffService.getMonthlySalary(driverId, year, month);
+
+      db.prepare(
+        `UPDATE driver_monthly_salary
+         SET total = ?, advance_paid = ?, updated_at = datetime('now')
+         WHERE id = ?`
+      ).run(salary.total, salary.advance_total, record.id);
+
+      return salary.total;
+    } catch (err) {
+      logger.error('[DriverStaffService] recalcSalaryTotal error', { error: err.message });
+      return null;
+    }
   }
 }
 

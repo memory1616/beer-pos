@@ -298,6 +298,15 @@
         <input type="number" id="driverSalaryDeduction" class="input" placeholder="0" min="0" step="1000">
       </div>
       <div class="form-group">
+        <label class="form-label">Đã ứng trước (VNĐ)</label>
+        <input type="number" id="driverSalaryAdvance" class="input" placeholder="0" min="0" step="1000" readonly
+               style="background:var(--bg-soft);cursor:not-allowed;">
+        <small style="color:var(--text-muted);font-size:11px;">
+          Khoản ứng đã ghi nhận trong tháng này — được <strong>trừ khỏi tổng lương</strong>.
+          Nhấn nút <strong>Ứng lương</strong> bên dưới để thêm khoản ứng.
+        </small>
+      </div>
+      <div class="form-group">
         <label class="form-label">Ghi chú</label>
         <input type="text" id="driverSalaryNote" class="input" placeholder="Lý do thưởng/phạt (tuỳ chọn)">
       </div>
@@ -307,11 +316,45 @@
         <div class="salary-row"><span>Lương theo ngày làm</span><span id="driverSalaryPreviewBase">0 đ</span></div>
         <div class="salary-row"><span>Thưởng</span><span id="driverSalaryPreviewBonus">0 đ</span></div>
         <div class="salary-row"><span>Phạt / trừ</span><span id="driverSalaryPreviewDeduction">0 đ</span></div>
-        <div class="salary-row salary-total"><span>TỔNG</span><span id="driverSalaryPreviewTotal">0 đ</span></div>
+        <div class="salary-row"><span>Đã ứng trước</span><span id="driverSalaryPreviewAdvance">0 đ</span></div>
+        <div class="salary-row salary-total"><span>TỔNG THỰC NHẬN</span><span id="driverSalaryPreviewTotal">0 đ</span></div>
       </div>
       <div style="display: flex; gap: 12px; margin-top: 20px;">
-        <button class="btn btn-secondary flex-1" onclick="closeDriverSalaryModal()">Hủy</button>
+        <button class="btn btn-secondary" onclick="closeDriverSalaryModal()">Hủy</button>
+        <button class="btn btn-secondary" id="driverSalaryAdvanceBtn" onclick="openDriverAdvanceModal()">Ứng lương</button>
         <button class="btn btn-primary flex-1" onclick="saveDriverSalary()">Lưu</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Ứng lương tài xế -->
+  <div id="driverAdvanceModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header" id="driverAdvanceModalTitle">Ghi nhận ứng lương</div>
+      <input type="hidden" id="driverAdvanceDriverId">
+      <div class="form-group">
+        <label class="form-label">Số tiền ứng (VNĐ)</label>
+        <input type="number" id="driverAdvanceAmount" class="input" placeholder="1000000" min="1" step="1000">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Hình thức</label>
+        <select id="driverAdvanceMethod" class="input">
+          <option value="cash">Tiền mặt</option>
+          <option value="bank">Chuyển khoản</option>
+          <option value="other">Khác</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Ghi chú</label>
+        <input type="text" id="driverAdvanceNote" class="input" placeholder="Lý do ứng (tuỳ chọn)">
+      </div>
+      <div style="padding:12px;background:var(--bg-soft);border-radius:8px;margin-bottom:16px;">
+        <div class="salary-row"><span>Đã ứng trong tháng</span><span id="driverAdvanceCurrentTotal">0 đ</span></div>
+        <div class="salary-row salary-total"><span>SẼ TRỪ THÊM</span><span id="driverAdvancePreviewTotal">0 đ</span></div>
+      </div>
+      <div style="display: flex; gap: 12px; margin-top: 20px;">
+        <button class="btn btn-secondary flex-1" onclick="closeDriverAdvanceModal()">Hủy</button>
+        <button class="btn btn-primary flex-1" onclick="saveDriverAdvance()">Ghi nhận ứng lương</button>
       </div>
     </div>
   </div>
@@ -389,10 +432,10 @@
     let selectedSalaryConfigStaffId = null;
     let driverList = [];
     let selectedDriverId = null;
-    let driverSalarySummary = [];
-    // Số ngày làm do server tự tính cho tài xế đang mở modal (fallback khi
+    let driverSalarySummary = [];    // Số ngày làm do server tự tính cho tài xế đang mở modal (fallback khi
     // admin để trống ô "Số ngày làm")
     let driverSalaryCurrentWorkDays = 0;
+    let driverSalaryCurrentAdvance = 0;
 
     // Initialize
     document.addEventListener('DOMContentLoaded', () => {
@@ -672,7 +715,8 @@
               <th style="padding:8px;">Lương theo ngày</th>
               <th style="padding:8px;">Thưởng</th>
               <th style="padding:8px;">Phạt/trừ</th>
-              <th style="padding:8px;">Tổng</th>
+              <th style="padding:8px;">Đã ứng</th>
+              <th style="padding:8px;">Thực nhận</th>
               <th style="padding:8px;">Trạng thái</th>
               <th style="padding:8px;"></th>
             </tr>
@@ -693,7 +737,10 @@
                 <td style="padding:8px;white-space:nowrap;">${formatVND(d.proratedBase || 0)}</td>
                 <td style="padding:8px;">${formatVND(d.bonus || 0)}</td>
                 <td style="padding:8px;">${d.deduction ? formatVND(d.deduction) : '-'}</td>
-                <td style="padding:8px;font-weight:700;">${formatVND(d.total || 0)}</td>
+                <td style="padding:8px;white-space:nowrap;color:var(--warn,#f59e0b);">
+                  ${d.advanceTotal ? formatVND(d.advanceTotal) : '-'}
+                </td>
+                <td style="padding:8px;font-weight:700;white-space:nowrap;">${formatVND(d.total || 0)}</td>
                 <td style="padding:8px;">
                   ${d.status === 'paid' ? '<span class="badge badge-paid">Đã trả</span>' : '<span class="badge badge-pending">Chưa trả</span>'}
                   ${d.isDraft ? '<div style="font-size:10px;color:var(--text-muted);margin-top:2px;">(tự tính)</div>' : ''}
@@ -720,14 +767,40 @@
       detailBox.style.display = 'block';
 
       try {
-        const [salaryRes, historyRes] = await Promise.all([
+        const [salaryRes, historyRes, advanceRes] = await Promise.all([
           fetch(`/api/admin/driver-staff/${driverId}/salary-history?limit=12`),
-          fetch(`/api/admin/driver-staff/${driverId}`)
+          fetch(`/api/admin/driver-staff/${driverId}`),
+          fetch(`/api/admin/driver-staff/${driverId}/advances?year=${year}&month=${month}`)
         ]);
         const salaryData = await salaryRes.json();
         const profileData = await historyRes.json();
+        const advanceData = await advanceRes.json();
         const row = driverSalarySummary.find(d => d.driverId === driverId);
         const name = row ? row.fullName : (profileData.data ? (profileData.data.full_name || profileData.data.username) : '');
+
+        // Tổng khoản ứng của tháng (dùng cho modal ứng lương)
+        driverSalaryCurrentAdvance = advanceData.success ? (advanceData.total || 0) : (row ? (row.advanceTotal || 0) : 0);
+
+        // Danh sách khoản ứng
+        const advanceList = advanceData.success ? (advanceData.data || []) : [];
+        const advanceListHtml = advanceList.length === 0
+          ? '<small style="color:var(--text-muted);">Chưa có khoản ứng nào trong tháng này.</small>'
+          : advanceList.map(a => `
+            <div class="salary-row">
+              <span>
+                ${formatVND(a.amount)}
+                <span style="font-size:11px;color:var(--text-muted);">
+                  (${escapeHtml(a.method || 'cash')})${a.note ? ' — ' + escapeHtml(a.note) : ''}
+                </span>
+                ${a.status === 'cancelled' ? '<span class="badge badge-pending" style="margin-left:6px;">Đã huỷ</span>' : ''}
+              </span>
+              <span>
+                <small style="color:var(--text-muted);font-size:11px;">${a.created_at ? formatDate(String(a.created_at).slice(0, 10)) : ''}</small>
+                ${a.status !== 'cancelled'
+                  ? `<button class="btn btn-secondary btn-sm" onclick="cancelDriverAdvance(${a.id})">Huỷ</button>`
+                  : ''}
+              </span>
+            </div>`).join('');
 
         document.getElementById('driverSalaryDetailTitle').textContent = `Chi tiết lương — ${name}`;
 
@@ -770,9 +843,21 @@
             <span>Phạt / trừ</span>
             <span>${formatVND(row ? (row.deduction || 0) : 0)}</span>
           </div>
+          <div class="salary-row">
+            <span>Đã ứng trước</span>
+            <span style="color:var(--warn,#f59e0b);">${formatVND(row ? (row.advanceTotal || 0) : 0)}</span>
+          </div>
           <div class="salary-row salary-total">
-            <span>TỔNG CẦN TRẢ</span>
+            <span>TỔNG THỰC NHẬN</span>
             <span>${formatVND(row ? (row.total || 0) : 0)}</span>
+          </div>
+
+          <div style="margin-top:16px;">
+            <div class="card-title" style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
+              <span>Khoản ứng đã ghi nhận</span>
+              <button class="btn btn-secondary btn-sm" onclick="openDriverAdvanceModal()">+ Ứng lương</button>
+            </div>
+            <div id="driverAdvanceList">${advanceListHtml}</div>
           </div>
           ${row && row.note ? `<div style="margin-top:12px;padding:12px;background:var(--bg-soft);border-radius:8px;font-size:13px;">
             <strong>Ghi chú:</strong> ${escapeHtml(row.note)}</div>` : ''}
@@ -840,6 +925,9 @@
       document.getElementById('driverSalaryWorkDays').value =
         row && row.workDaysManual ? row.workDays : '';
       driverSalaryCurrentWorkDays = row ? (row.workDays || 0) : 0;
+      // Khoản ứng đã ghi nhận trong tháng (read-only — dùng modal riêng để thêm)
+      driverSalaryCurrentAdvance = row ? (row.advanceTotal || 0) : 0;
+      document.getElementById('driverSalaryAdvance').value = driverSalaryCurrentAdvance;
 
       ['driverSalaryBase', 'driverSalaryBonus', 'driverSalaryDeduction', 'driverSalaryWorkDays'].forEach(id => {
         document.getElementById(id).setAttribute('oninput', 'updateDriverSalaryPreview()');
@@ -852,6 +940,101 @@
       document.getElementById('driverSalaryModal').style.display = 'none';
     }
 
+    // ══════════════════════════════════════════════════════════════════════
+    // ỨNG LƯƠNG TÀI XẾ
+    // ══════════════════════════════════════════════════════════════════════
+
+    /** Mở modal ghi nhận ứng lương cho tài xế của tháng đang chọn */
+    function openDriverAdvanceModal() {
+      const driverId = parseInt(document.getElementById('driverSalaryDriverId').value);
+      const monthVal = document.getElementById('driverSalaryMonth').value;
+      if (!driverId || !monthVal) { alert('Chọn tài xế và tháng trước'); return; }
+      const [year, month] = monthVal.split('-');
+      const row = driverSalarySummary.find(d => d.driverId === driverId);
+      const name = row ? row.fullName : '';
+
+      document.getElementById('driverAdvanceDriverId').value = driverId;
+      document.getElementById('driverAdvanceModalTitle').textContent =
+        `Ứng lương — ${name} (Tháng ${month}/${year})`;
+      document.getElementById('driverAdvanceAmount').value = '';
+      document.getElementById('driverAdvanceMethod').value = 'cash';
+      document.getElementById('driverAdvanceNote').value = '';
+      document.getElementById('driverAdvanceCurrentTotal').textContent =
+        formatVND(driverSalaryCurrentAdvance || 0);
+      document.getElementById('driverAdvanceAmount').setAttribute('oninput', 'updateDriverAdvancePreview()');
+      updateDriverAdvancePreview();
+      document.getElementById('driverAdvanceModal').style.display = 'flex';
+    }
+
+    function closeDriverAdvanceModal() {
+      document.getElementById('driverAdvanceModal').style.display = 'none';
+    }
+
+    /** Huỷ một khoản ứng (xoá mềm — không còn tính vào lương tháng) */
+    async function cancelDriverAdvance(advanceId) {
+      if (!confirm('Huỷ khoản ứng này? Khoản này sẽ không còn được trừ khỏi lương tháng.')) return;
+      try {
+        const res = await fetch(`/api/admin/driver-staff/advances/${advanceId}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+          await loadDriverSalarySummary();
+          if (selectedDriverId) showDriverSalaryDetail(selectedDriverId);
+        } else {
+          alert(data.error || 'Lỗi huỷ ứng lương');
+        }
+      } catch (e) {
+        alert('Lỗi kết nối');
+      }
+    }
+
+    function updateDriverAdvancePreview() {
+      const amount = parseFloat(document.getElementById('driverAdvanceAmount').value) || 0;
+      const current = driverSalaryCurrentAdvance || 0;
+      document.getElementById('driverAdvancePreviewTotal').textContent = formatVND(amount);
+      // Tổng sau khi thêm
+      document.getElementById('driverAdvanceCurrentTotal').textContent =
+        formatVND(current + amount);
+    }
+
+    /** Lưu khoản ứng lương */
+    async function saveDriverAdvance() {
+      const driverId = parseInt(document.getElementById('driverAdvanceDriverId').value);
+      const monthVal = document.getElementById('driverSalaryMonth').value;
+      if (!driverId || !monthVal) return;
+      const [year, month] = monthVal.split('-');
+      const amount = parseFloat(document.getElementById('driverAdvanceAmount').value) || 0;
+      if (amount <= 0) { alert('Nhập số tiền ứng lớn hơn 0'); return; }
+
+      try {
+        const res = await fetch(`/api/admin/driver-staff/${driverId}/advances`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            year: parseInt(year, 10),
+            month: parseInt(month, 10),
+            amount: amount,
+            method: document.getElementById('driverAdvanceMethod').value,
+            note: document.getElementById('driverAdvanceNote').value.trim()
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          closeDriverAdvanceModal();
+          await loadDriverSalarySummary();
+          // Cập nhật lại số ứng trong modal lương đang mở
+          const row = driverSalarySummary.find(d => d.driverId === driverId);
+          driverSalaryCurrentAdvance = row ? (row.advanceTotal || 0) : 0;
+          document.getElementById('driverSalaryAdvance').value = driverSalaryCurrentAdvance;
+          updateDriverSalaryPreview();
+          alert('Đã ghi nhận ứng lương');
+        } else {
+          alert(data.error || 'Lỗi lưu ứng lương');
+        }
+      } catch (e) {
+        alert('Lỗi kết nối');
+      }
+    }
+
     /**
      * Preview lương theo ngày làm.
      * Công thức: lương_ngày = lương_tháng ÷ 26 ; lương = lương_ngày × số_ngày_làm
@@ -861,6 +1044,7 @@
       const bonus = parseFloat(document.getElementById('driverSalaryBonus').value) || 0;
       const deduction = parseFloat(document.getElementById('driverSalaryDeduction').value) || 0;
       const workDaysInput = document.getElementById('driverSalaryWorkDays').value.trim();
+      const advance = driverSalaryCurrentAdvance || 0;
 
       const dailyRate = base / 26;
       let workDays;
@@ -877,7 +1061,10 @@
       document.getElementById('driverSalaryPreviewBase').textContent = formatVND(proratedBase);
       document.getElementById('driverSalaryPreviewBonus').textContent = formatVND(bonus);
       document.getElementById('driverSalaryPreviewDeduction').textContent = formatVND(deduction);
-      document.getElementById('driverSalaryPreviewTotal').textContent = formatVND(proratedBase + bonus - deduction);
+      document.getElementById('driverSalaryPreviewAdvance').textContent = formatVND(advance);
+      // TỔNG THỰC NHẬN = lương theo ngày + thưởng − phạt − đã ứng (không âm)
+      document.getElementById('driverSalaryPreviewTotal').textContent =
+        formatVND(Math.max(0, proratedBase + bonus - deduction - advance));
     }
 
     async function saveDriverSalary() {

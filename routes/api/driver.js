@@ -16,6 +16,7 @@ const logger = require('../../src/utils/logger');
 const DeliveryService = require('../../src/services/DeliveryService');
 const KegReceiptService = require('../../src/services/KegReceiptService');
 const DriverSalaryCalculator = require('../../src/services/DriverSalaryCalculator');
+const DriverStaffService = require('../../src/services/DriverStaffService');
 const { ROLE_DRIVER } = require('../../middleware/permissions');
 const { PromotionService } = require('../../src/services');
 
@@ -97,12 +98,18 @@ router.get('/me', requireDriver, (req, res) => {
     )
     .get(req.user.username);
 
+  // Lương dự kiến tháng hiện tại + khoản đã ứng (tài xế xem để đối chiếu)
+  const today = db.getVietnamDateStr();
+  const currentMonth = today.slice(0, 7);
+  const estimatedSalary = getEstimatedSalary(req.user.username, currentMonth);
+
   res.json({
     username: req.user.username,
     role: req.user.role,
     fullName: user?.full_name || req.user.username,
     phone: user?.phone || null,
     lastLoginAt: user?.last_login_at || null,
+    estimatedSalary,
   });
 });
 
@@ -206,6 +213,7 @@ function shiftMonth(month, delta) {
  *   KHÔNG tính Chủ Nhật. Nếu admin đã ghi đè số ngày làm trong
  *   `driver_monthly_salary.work_days` → dùng giá trị đó.
  * - KHÔNG cộng thưởng / trừ phạt (đây là lương DỰ KIẾN).
+ * - `amount` = lương dự kiến (chưa trừ ứng). `netAmount` = sau khi trừ ứng.
  */
 function getEstimatedSalary(username, month) {
   try {
@@ -247,6 +255,9 @@ function getEstimatedSalary(username, month) {
       manualWorkDays,
     });
 
+    // Khoản ứng lương đã ghi nhận trong kỳ
+    const advanceTotal = DriverStaffService.getAdvanceTotal(driver.id, y, m);
+
     return {
       month: `${y}-${String(m).padStart(2, '0')}`,
       baseSalary,
@@ -254,6 +265,8 @@ function getEstimatedSalary(username, month) {
       workDays: calc.workDays,
       standardWorkDays: calc.standardWorkDays,
       amount: calc.proratedBase,
+      advanceTotal,
+      netAmount: Math.max(0, Math.round((calc.proratedBase - advanceTotal) * 100) / 100),
       startDate: calc.startDate,
       isCurrentMonth: calc.isCurrentMonth,
       periodStart: calc.periodStart,
