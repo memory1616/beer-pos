@@ -1,11 +1,11 @@
-feat(driver): trang phiếu thu vỏ dạng hoá đơn để chụp màn hình gửi khách
+feat(driver): mở phiếu thu vỏ bằng MODAL trong trang (không mở tab mới)
 
-Thay vì window.print() (in thẳng ra giấy, không dùng được trên điện thoại),
-nút "In / Chụp phiếu" giờ mở trang mới /driver/phieu-thu-vo?id=<id>:
-
-- Tờ phiếu nền trắng, bố cục giống hoá đơn giấy (logo, số phiếu, thông tin
-  khách, ngày giờ, tài xế, khối số vỏ, tồn vỏ trước/sau, ghi chú, chữ ký)
-- Thanh công cụ dưới: Quay lại / Copy / Chia sẻ (Web Share API) / In
-- Gợi ý "Chụp màn hình phần phiếu để gửi khách", tự ẩn thanh công cụ khi cuộn
-- CSS riêng public/css/driver-receipt-print.css, hỗ trợ @media print
-- Route GET /driver/phieu-thu-vo trong server.js
+- Tạo module dùng chung public/js/driver/receipt-view.js (window.DrvReceipt):
+  paperHtml() / text() / open() — 1 nguồn markup cho cả modal lẫn trang riêng
+- Nút "In / Chụp phiếu" giờ mở modal overlay ngay trong trang (đóng sheet trước)
+  → tài xế chụp màn hình tờ phiếu trắng dạng hoá đơn rồi gửi khách
+- Modal có: tờ phiếu cuộn được, nút Copy / Chia sẻ (Web Share) / In,
+  gợi ý "chụp màn hình", đóng bằng nút X / Esc / chạm nền ngoài
+- CSS: .rp-modal, .rp-modal__panel/__top/__scroll/__bar/__hint
+- @media print: in từ modal chỉ in tờ phiếu, bỏ nền tối + thanh nút
+- Trang /driver/phieu-thu-vo giữ lại (in/chia sẻ link trực tiếp), dùng lại module

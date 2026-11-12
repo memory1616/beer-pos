@@ -385,10 +385,10 @@
     if (!body) return;
 
     $('kr-print').addEventListener('click', function () {
-      // Mở trang phiếu dạng hoá đơn (nền trắng) để tài xế CHỤP MÀN HÌNH
-      // rồi gửi khách — hoặc in ra giấy.
-      var url = '/driver/phieu-thu-vo?id=' + encodeURIComponent(r.id);
-      window.open(url, '_blank', 'noopener');
+      // Mở MODAL phiếu ngay trong trang (không mở tab mới) — tờ phiếu nền
+      // trắng dạng hoá đơn để tài xế CHỤP MÀN HÌNH rồi gửi khách.
+      D.closeSheet();
+      window.DrvReceipt.open(r);
     });
 
     $('kr-edit').addEventListener('click', function () {

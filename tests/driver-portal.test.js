@@ -1296,23 +1296,56 @@ describe('Driver Portal — RBAC & Data Protection', () => {
             expect(receiptHtml).toMatch(/<div id="app">/);
           });
 
-          test('Nút "In phiếu" mở trang phiếu (KHÔNG gọi window.print trực tiếp)', () => {
-            // Trong modal phiếu (keg-receipt.js): mở tab mới tới /driver/phieu-thu-vo
-            expect(kegJs).toMatch(/window\.open\(\s*url,\s*'_blank'/);
-            expect(kegJs).toMatch(/\/driver\/phieu-thu-vo\?id=/);
-            // Trang phiếu mới có nút In thật sự
+          test('Nút "In phiếu" mở MODAL trong trang (KHÔNG mở tab mới)', () => {
+            // Trong modal phiếu (keg-receipt.js): mở modal DrvReceipt, KHÔNG window.open
+            expect(kegJs).toMatch(/window\.DrvReceipt\.open\(/);
+            expect(kegJs).not.toMatch(/window\.open\(\s*url,\s*'_blank'/);
+            // Trang phiếu riêng vẫn còn để in/chia sẻ link
             expect(printJs).toMatch(/window\.print\(\)/);
           });
 
+          test('Có module dùng chung receipt-view.js (1 nguồn markup)', () => {
+            const viewJs = fs4.readFileSync(
+              path4.join(__dirname, '../public/js/driver/receipt-view.js'), 'utf8');
+            expect(viewJs).toMatch(/window\.DrvReceipt\s*=/);
+            expect(viewJs).toMatch(/paperHtml/);
+            expect(viewJs).toMatch(/function open\(r\)/);
+            // Modal không dùng window.open
+            expect(viewJs).not.toMatch(/window\.open\(/);
+            // Trang riêng dùng lại module chung
+            expect(printJs).toMatch(/window\.DrvReceipt/);
+            expect(printJs).toMatch(/R\.paperHtml\(receipt\)/);
+            expect(printJs).toMatch(/R\.text\(receipt\)/);
+          });
+
+          test('Trang driver index nạp script + CSS cho modal phiếu', () => {
+            const idxHtml = fs4.readFileSync(
+              path4.join(__dirname, '../views/driver/index.html'), 'utf8');
+            expect(idxHtml).toMatch(/\/js\/driver\/receipt-view\.js/);
+            expect(idxHtml).toMatch(/\/css\/driver-receipt-print\.css/);
+            // receipt-view phải nạp TRƯỚC keg-receipt (dùng lúc click, không bắt buộc thứ tự)
+            expect(idxHtml).toMatch(/\/js\/driver\/core\.js/);
+          });
+
+          test('CSS có style modal phiếu (overlay, panel, thanh nút)', () => {
+            expect(printCss).toMatch(/\.rp-modal\s*\{/);
+            expect(printCss).toMatch(/\.rp-modal__panel/);
+            expect(printCss).toMatch(/\.rp-modal__bar/);
+            expect(printCss).toMatch(/\.rp-modal__close/);
+            expect(printCss).toMatch(/body\.rp-modal-open \.rp-modal/);
+          });
+
           test('Trang phiếu hiển thị đầy đủ thông tin như hoá đơn', () => {
-            expect(printJs).toMatch(/PHIẾU THU VỎ/);
-            expect(printJs).toMatch(/Số phiếu/);
-            expect(printJs).toMatch(/Khách hàng/);
-            expect(printJs).toMatch(/Số vỏ thu về/);
-            expect(printJs).toMatch(/Trước khi thu/);
-            expect(printJs).toMatch(/Sau khi thu/);
-            expect(printJs).toMatch(/Tài xế/);
-            expect(printJs).toMatch(/Khách hàng<\/div>/);
+            const viewJs = fs4.readFileSync(
+              path4.join(__dirname, '../public/js/driver/receipt-view.js'), 'utf8');
+            expect(viewJs).toMatch(/PHIẾU THU VỎ/);
+            expect(viewJs).toMatch(/Số phiếu/);
+            expect(viewJs).toMatch(/Khách hàng/);
+            expect(viewJs).toMatch(/Số vỏ thu về/);
+            expect(viewJs).toMatch(/Trước khi thu/);
+            expect(viewJs).toMatch(/Sau khi thu/);
+            expect(viewJs).toMatch(/Tài xế/);
+            expect(viewJs).toMatch(/Khách hàng<\/div>/);
           });
 
           test('Trang phiếu có nút Copy / Chia sẻ / In + gợi ý chụp màn hình', () => {
