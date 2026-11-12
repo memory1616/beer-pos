@@ -1,3 +1,9 @@
 #!/bin/bash
-export SSHPASS='***REMOVED***'
-sshpass -e ssh -o StrictHostKeyChecking=no root@103.75.183.57 "cd ~/beer-pos && pwd && ls -la && echo '---' && sqlite3 database.sqlite 'SELECT id, date, total, type FROM sales ORDER BY id DESC LIMIT 20;'" 2>&1
+# Kiểm tra nhanh server production qua SSH key (không dùng mật khẩu).
+# Dùng alias `beer-server` trong ~/.ssh/config — xem docs/BEER_CLEANUP_PLAN.md §12.
+set -euo pipefail
+
+ssh beer-server "cd /var/www/beer-pos && \
+  echo '---FILES---' && ls -la | head -20 && \
+  echo '---SALES---' && sqlite3 database.sqlite 'SELECT id, date, total, type FROM sales ORDER BY id DESC LIMIT 20;' && \
+  echo '---TODAY---' && sqlite3 database.sqlite \"SELECT COUNT(*) FROM sales WHERE date(date) = date('now', 'localtime') AND type = 'sale';\""

@@ -1,5 +1,4 @@
 @echo off
-echo ***REMOVED*** > temp_pass.txt
-echo Connecting to server...
-"C:\Program Files\Git\usr\bin\ssh.exe" -o StrictHostKeyChecking=no -o BatchMode=yes root@103.75.183.57 "cd ~/beer-pos && pwd && echo '---FILES---' && ls -la && echo '---SALES---' && sqlite3 database.sqlite 'SELECT id, date, total, type FROM sales ORDER BY id DESC LIMIT 20;' && echo '---TODAY---' && sqlite3 database.sqlite \"SELECT COUNT(*) FROM sales WHERE date(date) = date('now', 'localtime') AND type = 'sale';\""
-del temp_pass.txt
+REM Kiểm tra nhanh server production qua SSH key (khong dung mat khau).
+REM Dung alias `beer-server` trong ~/.ssh/config - xem docs/BEER_CLEANUP_PLAN.md §12.
+ssh beer-server "cd /var/www/beer-pos && echo '---FILES---' && ls -la | head -20 && echo '---SALES---' && sqlite3 database.sqlite 'SELECT id, date, total, type FROM sales ORDER BY id DESC LIMIT 20;' && echo '---TODAY---' && sqlite3 database.sqlite \"SELECT COUNT(*) FROM sales WHERE date(date) = date('now', 'localtime') AND type = 'sale';\""
