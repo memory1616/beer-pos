@@ -1047,6 +1047,8 @@ router.get('/delivery/page-data', requireDriver, (req, res) => {
       customers,
       settings: numSettings,
       todayCount: customers.length,
+      // Nhãn trạng thái tiếng Việt (PENDING → "Chờ giao", DELIVERED → "Đã giao"…)
+      statusLabels: DeliveryService.STATUS_LABELS,
       today,
       distributorName: process.env.DISTRIBUTOR_NAME || 'Bia Tuoi Gia Huy',
     });

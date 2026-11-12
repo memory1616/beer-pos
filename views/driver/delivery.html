@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
 
   <!-- ═══ DESIGN SYSTEM (dùng chung 3 trang) ═══ -->
-  <link rel="stylesheet" href="/css/driver-system.css?v=20261108e">
+  <link rel="stylesheet" href="/css/driver-system.css?v=20261112a">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 <body class="ds-app">
@@ -18,10 +18,10 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="/js/map-tiles.js?v=20261108b"></script>
-  <script src="/js/driver/core.js?v=20261108e"></script>
-  <script src="/js/driver/shell.js?v=20261108e"></script>
+  <script src="/js/driver/core.js?v=20261112a"></script>
+  <script src="/js/driver/shell.js?v=20261112a"></script>
   <!-- Đồng bộ real-time giữa trang Bán hàng ↔ Giao hàng -->
-  <script src="/js/driver/sync.js?v=20261108e"></script>
+  <script src="/js/driver/sync.js?v=20261112a"></script>
   <script>
   /* ═══════════════════════════════════════════════════════════════════════
    * MODULE GIAO HÀNG — TÀI XẾ
@@ -55,6 +55,35 @@
 
     var customers = data.customers || [];
     var settings = data.settings || {};
+
+    /* Nhãn trạng thái tiếng Việt (fallback nếu API không trả) */
+    var STATUS_LABELS = data.statusLabels || {
+      PENDING: 'Chờ giao',
+      IN_PROGRESS: 'Đang giao',
+      DELIVERED: 'Đã giao',
+      FAILED: 'Giao thất bại',
+      DISCREPANCY: 'Chờ xử lý sai lệch'
+    };
+
+    /** Tra nhãn tiếng Việt của 1 trạng thái giao hàng */
+    function statusLabel(key) {
+      if (!key) return '';
+      return STATUS_LABELS[key] || key;
+    }
+
+    /** Nhãn tiếng Việt của loại sự kiện trong lịch sử */
+    var EVENT_LABELS = {
+      CREATED: 'Tạo phiếu giao',
+      STATUS_CHANGED: 'Đổi trạng thái',
+      CONFIRMED: 'Xác nhận giao',
+      DISCREPANCY: 'Báo sai lệch',
+      KEGS_UPDATED: 'Cập nhật vỏ'
+    };
+
+    function eventLabel(key) {
+      if (!key) return '';
+      return EVENT_LABELS[key] || key;
+    }
 
     var lat = settings.distributor_lat || 11.3296;
     var lng = settings.distributor_lng || 106.1495;
@@ -163,7 +192,7 @@
         var totalStr = c.total ? formatVND(c.total) + 'đ' : '';
         var st = c.delivery_status
           ? '<span class="ds-status ds-status--' + esc(c.delivery_status) + '">' +
-            esc(c.delivery_status) + '</span>'
+            esc(statusLabel(c.delivery_status)) + '</span>'
           : '';
 
         html += '<article class="ds-delivery" data-customer-id="' + c.id + '">' +
@@ -295,8 +324,8 @@
         ? '<div class="ds-section__title">Lịch sử</div>' +
           '<div class="ds-dl-list">' + events.slice(0, 5).map(function (e) {
             return '<div class="ds-history">' +
-              '<span>' + esc(e.event_type) +
-                (e.to_status ? ' → ' + esc(e.to_status) : '') + '</span>' +
+              '<span>' + esc(eventLabel(e.event_type)) +
+                (e.to_status ? ' → ' + esc(statusLabel(e.to_status)) : '') + '</span>' +
               '<span>' + esc(e.actor_username || '') + '</span>' +
             '</div>';
           }).join('') + '</div>'
@@ -541,6 +570,9 @@
       try {
         var fresh = await window.Drv.api.get('/api/driver/delivery/page-data');
         customers = (fresh && fresh.customers) || [];
+        if (fresh && fresh.statusLabels) {
+          STATUS_LABELS = fresh.statusLabels;
+        }
         if (fresh && fresh.settings) {
           settings = fresh.settings;
           if (settings.distributor_lat) lat = settings.distributor_lat;

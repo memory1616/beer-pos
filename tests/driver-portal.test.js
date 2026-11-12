@@ -692,6 +692,19 @@ describe('Driver Portal — RBAC & Data Protection', () => {
       expect(raw).not.toContain('profit');
     });
 
+    test('page-data trả statusLabels tiếng Việt cho trạng thái giao hàng', async () => {
+      const res = await request(app)
+        .get('/api/driver/delivery/page-data')
+        .set('Authorization', 'Bearer ' + driverToken);
+      expect(res.status).toBe(200);
+      expect(res.body.statusLabels).toBeTruthy();
+      expect(res.body.statusLabels.DELIVERED).toBe('Đã giao');
+      expect(res.body.statusLabels.PENDING).toBe('Chờ giao');
+      expect(res.body.statusLabels.IN_PROGRESS).toBe('Đang giao');
+      expect(res.body.statusLabels.FAILED).toBe('Giao thất bại');
+      expect(res.body.statusLabels.DISCREPANCY).toBe('Chờ xử lý sai lệch');
+    });
+
     test('driver KHÔNG tạo được delivery record cho đơn của tài xế khác', async () => {
       const res = await request(app)
         .post('/api/driver/deliveries')
@@ -1132,6 +1145,27 @@ describe('Driver Portal — RBAC & Data Protection', () => {
         // Desktop 3 cột, mobile 2 cột
         expect(css).toMatch(/\.ds-stats\s*\{[^}]*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
         expect(css).toMatch(/@media \(max-width: 420px\)\s*\{[^}]*repeat\(2,\s*minmax\(0,\s*1fr\)\)/s);
+      });
+
+      test('Trang giao hàng hiển thị trạng thái đơn bằng TIẾNG VIỆT', () => {
+        const path3 = require('path');
+        const deliveryHtml = fs2.readFileSync(
+          path3.join(__dirname, '../views/driver/delivery.html'), 'utf8');
+
+        // Badge trạng thái phải dùng nhãn tiếng Việt, không in thẳng mã trạng thái
+        expect(deliveryHtml).toMatch(/statusLabel\(c\.delivery_status\)/);
+        expect(deliveryHtml).not.toMatch(/esc\(c\.delivery_status\) \+ '<\/span>'/);
+
+        // Bảng nhãn fallback tiếng Việt
+        expect(deliveryHtml).toMatch(/DELIVERED:\s*'Đã giao'/);
+        expect(deliveryHtml).toMatch(/PENDING:\s*'Chờ giao'/);
+        expect(deliveryHtml).toMatch(/IN_PROGRESS:\s*'Đang giao'/);
+        expect(deliveryHtml).toMatch(/FAILED:\s*'Giao thất bại'/);
+        expect(deliveryHtml).toMatch(/DISCREPANCY:\s*'Chờ xử lý sai lệch'/);
+
+        // Lịch sử sự kiện cũng dùng nhãn tiếng Việt
+        expect(deliveryHtml).toMatch(/eventLabel\(e\.event_type\)/);
+        expect(deliveryHtml).toMatch(/statusLabel\(e\.to_status\)/);
       });
     });
   });
