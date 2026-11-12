@@ -469,12 +469,53 @@ Còn lại (production): `better-sqlite3`, `compression`, `cookie-parser`, `dote
 | `git ls-files \| grep -E 'pem$\|pass\.txt\|_deploy_key'` | ✅ rỗng |
 | `public/` size | ✅ 26.34 MB |
 
-### 12.7 Việc còn lại (không làm trong PR1–PR8)
+### 12.7 Việc còn lại — ĐÃ XỬ LÝ (vòng deploy/rotate 2026-11-12)
+
+| # | Việc | Trạng thái | Chi tiết |
+|---|---|---|---|
+| R1 | **Rotate secret đã lỗi thời** | ✅ Hoàn tất | `ADMIN_PASSWORD` (mới: `FktQYe9SpcVwstoyd-`), `SESSION_SECRET`, `JWT_SECRET`, `GITHUB_WEBHOOK_SECRET` (server + GitHub webhook config). SSH key `cursor_deploy_key` (đã commit) **đã thu hồi** khỏi `authorized_keys`, thay bằng `beer_prod_ed25519` (fingerprint `SHA256:38Djal0+…`). `deploy.sh` sửa để không cài lại key bị lộ. |
+| R2 | Deploy lên production | ✅ Hoàn tất | Merge `cleanup/audit-2026-11-12` → `main` (merge commit `8cc9849`), push → GitHub webhook auto-deploy. Server HEAD = `aa90d70`. |
+| R3 | Smoke test theo trang (§7.2) | ✅ Tự động | `scripts/smoke-test.js` (local) + `scripts/ops/smoke-prod.sh` (production): **48 route/asset PASS, 0 FAIL**. |
+| R4 | `git filter-repo` lịch sử | ✅ Hoàn tất | Xoá 9 file secret khỏi toàn bộ lịch sử + thay giá trị secret trong file text. Force-push cả 3 branch + 5 tag. `scripts/ops/scan-history-secrets.py` → **SẠCH** (0 path, 0 giá trị, 0 private key). |
+| R5 | Rác vận hành ở root | ✅ Hoàn tất | `.gitignore` bổ sung ~150 pattern scratch; xoá `server-backup.sh` trùng lặp ở root; còn 0 file untracked ở root. |
+
+### 12.8 Phát hiện thêm trong vòng deploy (đã xử lý)
+
+| Vấn đề | Mức độ | Xử lý |
+|---|---|---|
+| `cursor_deploy_key` (đã commit vào repo **public**) vẫn là key root hợp lệ trên production | 🔴 P0 | Sinh `beer_prod_ed25519`, thêm vào `authorized_keys`, xác minh, **xoá key cũ**. Sửa `deploy.sh` (bước 0.5/0.6) để từ chối + thu hồi key bị lộ. Đổi `~/.ssh/config` trỏ sang key mới. |
+| `GITHUB_WEBHOOK_SECRET` nằm trong `deploy/GITHUB_WEBHOOK_SETUP.md` (tracked) | 🔴 Cao | Thay bằng placeholder + hướng dẫn đọc từ server. Rotate trên server **và** GitHub webhook config (qua API). |
+| `ADMIN_PASSWORD` = `***REMOVED***` nằm trong `pass.txt` (lịch sử) + `deploy/.env.production` + 3 script root | 🔴 Cao | Xoá khỏi tất cả file tracked, bỏ hardcode trong script (dùng SSH alias), rotate trên production. |
+| `SESSION_SECRET` thiếu hoàn toàn trong `.env` production | 🟡 Trung bình | Thêm bằng giá trị random 32 bytes (ecosystem.config.js yêu cầu khi `NODE_ENV=production`). |
+| `JWT_SECRET` = placeholder `CHANGE_THIS_TO_A_RANDOM_SECRET_32_CHARS` | 🟡 Trung bình | Rotate random 32 bytes. |
+| 2 tài khoản debug (`tmp_verify_01`, `prod_verify_452586`) + 1 session orphan trên production | 🟡 Trung bình | Xoá `app_users`, `auth_sessions`, `driver_staff`, `driver_monthly_salary` liên quan. `foreign_key_check` → 0. |
+| Script `.sh` commit trên Windows chạy lỗi CRLF trên VPS | 🟡 Trung bình | `.gitattributes` (`*.sh text eol=lf`) + `fix_eol.py` + commit normalize 100 file. |
+| `deploy-state.json` luôn `status: running` sau deploy | 🟢 Thấp | Hành vi có sẵn từ trước (không phải hồi quy) — chưa xử lý. |
+
+### 12.9 Trạng thái production sau vòng xử lý
+
+```
+git HEAD              : aa90d70 (main, đồng bộ GitHub)
+PM2                   : beer-pos online (restart #19)
+health                : 200
+sales_active          : 782        (không đổi)
+sales_total           : 909        (không đổi)
+customers             : 38         (không đổi)
+revenue               : 1.310.086.014 đ   (không đổi)
+products              : 5          (không đổi)
+app_users             : 1          (giaohang01 — tài xế thật)
+PRAGMA integrity_check: ok
+PRAGMA foreign_key_check: 0 rows
+smoke test            : 48 PASS / 0 FAIL
+Jest                  : 15 suite / 313 test pass
+history secret scan   : SẠCH
+```
+
+### 12.10 Việc còn lại (cần người dùng)
 
 | # | Việc | Ghi chú |
 |---|---|---|
-| R1 | **Rotate secret đã lỗi thời** | Đã untrack khỏi git, nhưng key/secret cũ vẫn còn hiệu lực trên server → cần đổi |
-| R2 | Deploy lên production | Branch chưa merge vào `main`, chưa deploy |
-| R3 | Smoke test thủ công theo trang (§7.2) | Cần người dùng xác nhận bằng trình duyệt thật |
-| R4 | `git filter-repo` lịch sử | Secret cũ vẫn nằm trong commit cũ |
-| R5 | `check-bonus-*.bat`, `install-cron.py`… ở root | Rác vận hành, chưa dọn (ngoài scope PR1–PR8) |
+| R3b | **Smoke test thủ công bằng trình duyệt** | Script tự động đã PASS 48/48, nhưng §7.2 yêu cầu người dùng xác nhận bằng trình duyệt thật (WebSocket 1 kết nối, Dexie offline, SW version). |
+| R6 | **Lưu mật khẩu admin mới** | `FktQYe9SpcVwstoyd-` — không có trong git, phải lưu ở password manager. |
+| R7 | **Clone lại repo** | Lịch sử đã rewrite → máy khác cần `git clone` mới (không `git pull`). Cảnh báo người dùng khác đang clone. |
+| R8 | **Kiểm tra quota Git LFS / repo size** | Force-push + rewrite không thu hồi được blob cũ trên GitHub ngay lập tức; blob cũ có thể còn trong cache/CDN của GitHub một thời gian. Nên liên hệ GitHub Support nếu cần xoá ngay. |
