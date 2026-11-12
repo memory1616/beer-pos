@@ -559,9 +559,18 @@ app.get('/sw.v2.js', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'sw.v2.js'));
 });
 
-// sw.js cũ — redirect sang v2 để cleanup
+// sw.js cũ — serve NỘI DUNG sw.v2.js (KHÔNG redirect).
+// Lý do: Service Worker script KHÔNG được phép nằm sau redirect — Chrome/Edge
+//        ném lỗi "The script resource is behind a redirect, which is disallowed",
+//        khiến SW đã đăng ký ở /sw.js KHÔNG BAO GIỜ update được.
+//        Trả 200 + nội dung mới → SW cũ tự update, cache stale được dọn.
+//        Giữ route /sw.js để tương thích ngược với các client đã cache SW cũ.
 app.get('/sw.js', (req, res) => {
-  res.redirect('/sw.v2.js');
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.type('application/javascript');
+  res.sendFile(path.join(__dirname, 'public', 'sw.v2.js'));
 });
 
 // PWA manifest — add headers for installability on iOS

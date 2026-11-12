@@ -56,5 +56,13 @@ for p in /sw.v2.js /js/realtime.js /js/vendor/dexie.min.js /js/vendor/chart.umd.
 done
 
 echo
-echo "=== SW REDIRECT ==="
-check /sw.js 302
+echo "=== SW (phải 200, KHÔNG redirect — SW script không được nằm sau redirect) ==="
+check /sw.js 200
+check /sw.v2.js 200
+# Nội dung /sw.js phải giống hệt /sw.v2.js để SW cũ tự update
+if curl -s "$BASE/sw.js" | diff -q - "$BASE/sw.v2.js" >/dev/null 2>&1; then
+  echo "PASS: /sw.js == /sw.v2.js (nội dung giống hệt)"
+else
+  echo "FAIL: /sw.js khác /sw.v2.js"
+  FAIL=$((FAIL+1))
+fi

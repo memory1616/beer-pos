@@ -29,6 +29,8 @@ const checks = [
   ['GET', '/api/segments', [200]],
   ['GET', '/login', [200]],
   ['GET', '/sw.v2.js', [200]],
+  // /sw.js phải trả 200 (không redirect) — Chrome chặn SW script sau redirect
+  ['GET', '/sw.js', [200]],
   ['GET', '/js/vendor/dexie.min.js', [200]],
   ['GET', '/js/realtime.js', [200]],
   ['GET', '/js/realtime-client.js', [404]],
