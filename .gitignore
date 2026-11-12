@@ -85,3 +85,117 @@ _gen_key.bat
 # Jest
 /jest.config.js
 /jest.config.ts
+
+# ── Scratch / debug files ở root (R5 cleanup plan) ─────────────────
+# Một lô script debug từ các phiên làm việc trước. KHÔNG commit — đã
+# thay bằng bộ script có trật tự trong scripts/ops/.
+/_*.js
+/_*.log
+/_*.py
+/_*.txt
+/_*.err
+/_*.out
+/_shot.png
+/_acceptance*.js
+/_smoke*.js
+/_pollute*.js
+/_walkin*.js
+/_users.js
+/_state.js
+/_salary.js
+/_repro.js
+
+# Script debug Python ở root
+/*_check*.py
+/*_diff*.py
+/*_test*.py
+/*_verify*.py
+/*_inspect*.py
+/*_setup*.py
+/*_restore*.py
+/*_deploy*.py
+/*_upload*.py
+/*_backup*.py
+/*_logs.py
+/*_cron.py
+/*_auth*.py
+/*_download*.py
+/*_find*.py
+/*_precheck*.py
+/*_probe*.py
+/*_key*.py
+/*_sakey.py
+/*_rclone.py
+
+# Log ở root
+/*.log
+/*.err.log
+/*.out.log
+/check-firewall.*.txt
+
+# Backup DB cục bộ (file .bak-* và thư mục backups/ cũ)
+/database.sqlite.bak-*
+/backups/*.sqlite.gz
+/backups/*.txt
+
+# Cấu hình công cụ backup chứa credential
+/rclone.conf
+/gdrive-sa-key.json.json
+
+# Script debug Python ở root (đã có danh sách exclude trong deploy_local.ps1)
+/apply_*.py
+/check_*.py
+/detect_service.py
+/diagnose_*.py
+/download_server_db.py
+/final*.py
+/find_*.py
+/fix_*.py
+/full-*.py
+/inspect_*.py
+/precheck_*.py
+/pull_*.py
+/query_*.py
+/swap_files.py
+/sync_from_server.py
+/test-*.py
+/test_*.py
+/verify_*.py
+/verify-*.js
+/why_*.py
+/upload*.py
+
+# Batch/PowerShell scratch ở root
+/check-*.bat
+/check-*.ps1
+/commit-fix.bat
+/deploy-fix.bat
+/diag-*.bat
+/install-task.ps1
+/pull-backup.ps1
+/smoke-test.bat
+/ssh-askpass.bat
+/ssh-check-server.bat
+/ssh-test-server.bat
+/stage-fix.bat
+/sync-backup-daily.bat
+/test-*.bat
+
+# Shell/batch helper tạm
+/ssh-pass*.bat
+/ssh-pass*.ps1
+/ssh_askpass.bat
+/ssh-pass-helper.bat
+/ssh-exec.ps1
+/ssh-connect.ps1
+/ssh-gitpull.ps1
+/ssh-deploy-keg.ps1
+/gen-ssh-key.bat
+/test-ssh-key.bat
+/fix-known-hosts.bat
+/tmp_key_inspect.py
+/tmp_probe_ssh.py
+/tmp_split_keys.py
+/check_open_files.py
+/check_wal.py
+/check_firewall.*
