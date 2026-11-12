@@ -30,7 +30,7 @@ try {
   }
 
   // Run driver portal migration (idempotent, chạy độc lập version gate)
-  const { runDriverPortalMigration, runDriverStaffMigration, runDriverKegReceiptMigration, runDriverWorkDaysMigration, runDriverSalaryAdvanceMigration } = require('./database/migration');
+  const { runDriverPortalMigration, runDriverStaffMigration, runDriverKegReceiptMigration, runDriverWorkDaysMigration, runDriverSalaryAdvanceMigration, runMissingBusinessTablesMigration } = require('./database/migration');
   const driverResult = runDriverPortalMigration(db);
   if (driverResult.success) {
     logger.log('[MIGRATION] Driver portal schema ready');
@@ -58,6 +58,12 @@ try {
   const advanceResult = runDriverSalaryAdvanceMigration(db);
   if (advanceResult.success) {
     logger.log('[MIGRATION] Driver salary advance schema ready');
+  }
+
+  // Run missing business tables migration (bảng nghiệp vụ bị thiếu do 004 bị skip)
+  const missingTablesResult = runMissingBusinessTablesMigration(db);
+  if (missingTablesResult.success) {
+    logger.log('[MIGRATION] Missing business tables schema ready');
   }
 } catch (error) {
   logger.error('[MIGRATION] Migration error:', error.message);

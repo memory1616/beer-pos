@@ -23,10 +23,6 @@ if (!process.env.TZ) {
   process.env.TZ = 'Asia/Ho_Chi_Minh';
 }
 
-function formatCurrency(amount) {
-  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(amount || 0);
-}
-
 // ── Import from modular service files ────────────────────────────────────────
 const SaleService = require('./SaleService');
 const InventoryService = require('./InventoryService');

@@ -13,11 +13,19 @@ const path = require('path');
 const fs = require('fs');
 
 const dbPath = path.join(__dirname, 'database.sqlite');
-const db = new Database(dbPath);
+const defaultDb = new Database(dbPath);
 
 const logger = console;
 
-function runMigration() {
+/**
+ * Chạy migration business features.
+ * @param {object} [targetDb] - Instance better-sqlite3 của DB CHÍNH cần migrate.
+ *   Nếu không truyền, dùng DB mặc định (chỉ dành cho chạy trực tiếp).
+ *   Bắt buộc phải truyền khi gọi từ migration.js — nếu không, các bảng sẽ
+ *   được tạo trong file DB riêng và DB chính sẽ KHÔNG có các bảng này.
+ */
+function runMigration(targetDb) {
+  const db = targetDb || defaultDb;
   logger.log('[MIGRATION] Running business features migration...');
 
   // ========== 1. PROMOTIONS TABLE ==========
@@ -269,12 +277,11 @@ function runMigration() {
   }
 
   // ========== MIGRATE EXISTING DATA ==========
-  migrateExistingData();
-
+  migrateExistingData(db);
   logger.log('[MIGRATION] Business features migration completed!');
 }
 
-function migrateExistingData() {
+function migrateExistingData(db) {
   // Auto-assign customer tiers based on spending
   try {
     const customers = db.prepare(`
@@ -351,8 +358,8 @@ function migrateExistingData() {
 
 // Run if called directly
 if (require.main === module) {
-  runMigration();
-  db.close();
+  runMigration(defaultDb);
+  defaultDb.close();
 }
 
 module.exports = { runMigration };

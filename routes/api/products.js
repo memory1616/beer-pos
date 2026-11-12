@@ -75,43 +75,6 @@ function findProduct(query, includeArchived = false) {
 }
 
 // Validate product input
-function validateProductInput(body, isUpdate = false) {
-  const errors = [];
-
-  if (!body) {
-    errors.push('Dữ liệu yêu cầu trống');
-    return { valid: false, errors };
-  }
-
-  const { name, stock, cost_price, sell_price, type } = body;
-
-  // Validate name (required for create)
-  if (!isUpdate && (!name || name.trim() === '')) {
-    errors.push('Tên sản phẩm là bắt buộc');
-  }
-
-  // Validate stock
-  if (stock !== undefined && stock !== null && (isNaN(parseInt(stock)) || parseInt(stock) < 0)) {
-    errors.push('Tồn kho phải là số nguyên không âm');
-  }
-
-  // Validate cost_price
-  if (cost_price !== undefined && cost_price !== null && isNaN(parseFloat(cost_price))) {
-    errors.push('Gía nhập phải là số');
-  }
-
-  // Validate sell_price
-  if (sell_price !== undefined && sell_price !== null && isNaN(parseFloat(sell_price))) {
-    errors.push('Gía bán phải là số');
-  }
-
-  // Validate type
-  if (type && !['keg', 'pet', 'box'].includes(type)) {
-    errors.push('Loại sản phẩm không hợp lệ (keg, pet, box)');
-  }
-
-  return { valid: errors.length === 0, errors };
-}
 
 // ========== GET /api/products/:id ==========
 router.get('/prices', (req, res) => {

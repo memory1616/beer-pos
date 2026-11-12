@@ -695,14 +695,38 @@ async function syncQueueToCloud() {
       const now = new Date().toISOString();
       setLastSyncForCloud(cloudUrl, now);
 
-      // Clear queue using readwrite transaction
+      // Chỉ xóa các item ĐÃ được server áp dụng (server trả `applied`).
+      // Không xóa toàn bộ queue — nếu có conflict/lỗi thì item đó phải
+      // được giữ lại để thử lại, tránh mất dữ liệu offline.
+      let appliedIdx = null;
+      let hadConflict = false;
       try {
-        const db2  = await getDB();
-        const tx2  = db2.transaction(SW_STORE, 'readwrite');
-        const dIdx = tx2.objectStore(SW_STORE).index('synced');
-        const cur  = dIdx.openCursor(IDBKeyRange.only(0));
-        cur.onsuccess = e => { const c = e.target.result; if (c) { c.delete(); c.continue(); } };
-      } catch {}
+        const data = await res.clone().json();
+        if (Array.isArray(data?.applied)) {
+          appliedIdx = new Set(data.applied.map(a => a.index));
+        }
+        hadConflict = Array.isArray(data?.conflicts) && data.conflicts.length > 0;
+      } catch { /* ignore */ }
+
+      const toDelete = [];
+      items.forEach((item, idx) => {
+        if (appliedIdx) {
+          if (appliedIdx.has(idx)) toDelete.push(item.id);
+        } else if (!hadConflict) {
+          toDelete.push(item.id);
+        }
+      });
+
+      if (toDelete.length) {
+        try {
+          const db2  = await getDB();
+          const tx2  = db2.transaction(SW_STORE, 'readwrite');
+          const store2 = tx2.objectStore(SW_STORE);
+          for (const id of toDelete) {
+            try { store2.delete(id); } catch (e) { /* ignore */ }
+          }
+        } catch {}
+      }
 
       _invalidatePending();
     }

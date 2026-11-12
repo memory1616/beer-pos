@@ -53,6 +53,7 @@ cursor_deploy_key.pub
 *_rsa*
 *_rsa2*
 *_deploy_key*
+_gen_key.bat
 
 # Python / shell debug scripts (kept out of repo)
 /debug_*.py

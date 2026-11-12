@@ -75,7 +75,7 @@ module.exports = {
         ALLOWED_ORIGINS: '*',
         IS_CLOUD_SERVER: 'false',
         CLOUD_MODE: 'false',
-        SESSION_SECRET: 'dev-only-not-secure',
+        SESSION_SECRET: process.env.SESSION_SECRET || 'dev-only-not-secure',
       },
 
       // ── Logging ─────────────────────────────────────────────────────

@@ -397,11 +397,46 @@ async function processSyncQueue() {
       body: JSON.stringify({ changes, deviceId: getDeviceIdFromScope(base) })
     }).catch(() => null);
 
-    // Clear entire queue
-    const dtx  = db.transaction(STORE_SYNC, 'readwrite');
-    const didx = dtx.objectStore(STORE_SYNC).index('synced');
-    const cur  = didx.openCursor(IDBKeyRange.only(0));
-    cur.onsuccess = e => { const c = e.target.result; if (c) { c.delete(); c.continue(); } };
+    // Chỉ xóa các item ĐÃ được server áp dụng thành công.
+    // Server trả về `applied` = [{ index, entity, entity_id }] theo đúng thứ tự
+    // với mảng `changes` đã gửi. Nếu không có danh sách applied (server cũ),
+    // fallback: chỉ xóa khi response OK và không có conflict.
+    let appliedIdx = null;
+    let hadConflict = false;
+
+    if (resp?.ok) {
+      try {
+        const data = await resp.clone().json();
+        if (Array.isArray(data?.applied)) {
+          appliedIdx = new Set(data.applied.map(a => a.index));
+        }
+        hadConflict = Array.isArray(data?.conflicts) && data.conflicts.length > 0;
+        if (Array.isArray(data?.failed)) {
+          for (const f of data.failed) {
+            const item = all[f.index];
+            if (item) await incrementRetryCount(item.id, (item.retry_count || 0) + 1);
+          }
+        }
+      } catch { /* ignore parse error */ }
+    }
+
+    const toDelete = [];
+    all.forEach((item, idx) => {
+      if (appliedIdx) {
+        if (appliedIdx.has(idx)) toDelete.push(item.id);
+      } else if (resp?.ok && !hadConflict) {
+        // Fallback: server không trả applied → chỉ xóa khi không có conflict
+        toDelete.push(item.id);
+      }
+    });
+
+    if (toDelete.length) {
+      const dtx  = db.transaction(STORE_SYNC, 'readwrite');
+      const store = dtx.objectStore(STORE_SYNC);
+      for (const id of toDelete) {
+        try { store.delete(id); } catch (e) { /* ignore */ }
+      }
+    }
 
     if (resp?.ok) {
       notifyClients({ type: 'SYNC_COMPLETE' });
@@ -409,10 +444,11 @@ async function processSyncQueue() {
       if (resp) {
         try {
           const data = await resp.clone().json();
-          if (data?.failed?.length) {
-            for (const fid of data.failed) {
-              const item = all.find(i => i.id === fid);
-              if (item) await incrementRetryCount(fid, (item.retry_count || 0) + 1);
+          const failedItems = Array.isArray(data?.failed) ? data.failed : null;
+          if (failedItems?.length) {
+            for (const f of failedItems) {
+              const item = all[f.index];
+              if (item) await incrementRetryCount(item.id, (item.retry_count || 0) + 1);
             }
           } else {
             for (const item of all) {

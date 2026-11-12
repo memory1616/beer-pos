@@ -210,33 +210,55 @@ router.post('/push', (req, res) => {
     const { changes = [] } = req.body;
     let synced = 0;
     const conflicts = [];
+    // Danh sách item đã được server áp dụng thành công.
+    // Client (Service Worker / sync.js) dùng danh sách này để chỉ xóa
+    // NHỮNG item đã đồng bộ — không xóa toàn bộ queue (tránh mất dữ liệu
+    // khi có conflict hoặc item lỗi).
+    const applied = [];
+    const failed = [];
 
-    changes.forEach(change => {
+    changes.forEach((change, idx) => {
       const { entity, entity_id, action, data, client_updated_at } = change;
-      if (!entity || !action) return;
+      if (!entity || !action) {
+        failed.push({ index: idx, entity, entity_id, reason: 'missing_entity_or_action' });
+        return;
+      }
 
       const tableName = ENTITY_TO_TABLE[entity] || (entity + 's');
       if (entity_id && client_updated_at) {
         const serverRow = db.prepare(`SELECT updated_at FROM ${tableName} WHERE id = ?`).get(entity_id);
         if (serverRow && serverRow.updated_at && new Date(serverRow.updated_at) > new Date(client_updated_at)) {
-          conflicts.push({ entity, entity_id, reason: 'server_newer' });
+          conflicts.push({ index: idx, entity, entity_id, reason: 'server_newer' });
           return;
         }
       }
 
-      switch (entity) {
-        case 'sale': applySaleChange(action, entity_id, data); break;
-        case 'customer': applyCustomerChange(action, entity_id, data); break;
-        case 'product': applyProductChange(action, entity_id, data); break;
-        case 'expense': applyExpenseChange(action, entity_id, data); break;
-        case 'payment': applyPaymentChange(action, entity_id, data); break;
-        case 'keg_transaction': applyKegTransactionChange(action, entity_id, data); break;
-        default: break;
+      try {
+        switch (entity) {
+          case 'sale': applySaleChange(action, entity_id, data); break;
+          case 'customer': applyCustomerChange(action, entity_id, data); break;
+          case 'product': applyProductChange(action, entity_id, data); break;
+          case 'expense': applyExpenseChange(action, entity_id, data); break;
+          case 'payment': applyPaymentChange(action, entity_id, data); break;
+          case 'keg_transaction': applyKegTransactionChange(action, entity_id, data); break;
+          default: break;
+        }
+        applied.push({ index: idx, entity, entity_id });
+        synced++;
+      } catch (itemErr) {
+        // Lỗi cục bộ 1 item → không chặn các item còn lại
+        failed.push({ index: idx, entity, entity_id, reason: itemErr.message });
       }
-      synced++;
     });
 
-    res.json({ success: true, synced, conflicts, synced_at: new Date().toISOString() });
+    res.json({
+      success: true,
+      synced,
+      conflicts,
+      applied,
+      failed,
+      synced_at: new Date().toISOString(),
+    });
   } catch (err) {
     logger.error('Sync push error', { error: err.message });
     res.status(500).json({ error: err.message });
@@ -275,7 +297,9 @@ router.post('/pull', (req, res) => {
     let pendingQueue = [];
     try {
       pendingQueue = db.prepare(`
-        SELECT * FROM sync_queue WHERE synced = 0 ORDER BY created_at ASC LIMIT 100
+        SELECT * FROM sync_queue
+        WHERE synced_at IS NULL AND status IN ('pending', 'failed', 'processing')
+        ORDER BY created_at ASC LIMIT 100
       `).all();
     } catch (e) {
       logger.warn('sync_queue table not found, skipping');
@@ -318,9 +342,11 @@ router.get('/export', (req, res) => {
 // GET /api/sync/status - Check sync status
 router.get('/status', (req, res) => {
   try {
-    const pending = db.prepare('SELECT COUNT(*) as count FROM sync_queue WHERE synced = 0').get();
+    const pending = db.prepare(
+      "SELECT COUNT(*) as count FROM sync_queue WHERE synced_at IS NULL AND status IN ('pending', 'failed', 'processing')"
+    ).get();
     const lastSyncMeta = db.prepare("SELECT value FROM sync_meta WHERE key = 'last_sync'").get();
-    const syncedTotal = db.prepare('SELECT COUNT(*) as count FROM sync_queue WHERE synced = 1').get();
+    const syncedTotal = db.prepare('SELECT COUNT(*) as count FROM sync_queue WHERE synced_at IS NOT NULL').get();
 
     res.json({
       pending: pending.count,
@@ -342,7 +368,9 @@ router.post('/mark', (req, res) => {
     if (ids.length === 0) return res.json({ success: true });
 
     const placeholders = ids.map(() => '?').join(',');
-    const result = db.prepare(`UPDATE sync_queue SET synced = 1 WHERE id IN (${placeholders})`).run(...ids);
+    const result = db.prepare(
+      `UPDATE sync_queue SET synced_at = ?, status = 'synced' WHERE id IN (${placeholders})`
+    ).run(new Date().toISOString(), ...ids);
 
     db.prepare(`INSERT OR REPLACE INTO sync_meta (key, value) VALUES ('last_sync', ?)`).run(new Date().toISOString());
 

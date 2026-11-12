@@ -54,48 +54,6 @@ function getEffectivePrice(product, priceMap) {
 }
 
 // Helper function to validate sale input
-function validateSaleInput(body) {
-  const errors = [];
-
-  if (!body) {
-    errors.push('Dữ liệu yêu cầu trống');
-    return { valid: false, errors };
-  }
-
-  const { customerId, items } = body;
-
-  // Validate items
-  if (!items) {
-    errors.push('Danh sách sản phẩm trống');
-  } else if (!Array.isArray(items)) {
-    errors.push('Danh sách sản phẩm phải là mảng');
-  } else if (items.length === 0) {
-    errors.push('Danh sách sản phẩm trống');
-  } else {
-    // Validate each item
-    items.forEach((item, index) => {
-      if (!item.productId) {
-        errors.push(`Sản phẩm thứ ${index + 1}: Thiếu mã sản phẩm`);
-      }
-      if (!item.quantity || item.quantity <= 0) {
-        errors.push(`Sản phẩm thứ ${index + 1}: Số lượng phải lớn hơn 0`);
-      }
-      if (item.price !== undefined && item.price < 0) {
-        errors.push(`Sản phẩm thứ ${index + 1}: Giá không được âm`);
-      }
-    });
-  }
-
-  // Validate kegs (optional)
-  if (body.deliverKegs !== undefined && body.deliverKegs < 0) {
-    errors.push('Số vỏ giao không được âm');
-  }
-  if (body.returnKegs !== undefined && body.returnKegs < 0) {
-    errors.push('Số vỏ trả không được âm');
-  }
-
-  return { valid: errors.length === 0, errors };
-}
 
 // POST /api/sales - Tạo hóa đơn mới (với transaction)
 router.post('/', (req, res) => {

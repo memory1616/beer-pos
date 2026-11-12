@@ -200,30 +200,12 @@ function getNextTierProgress(yellowVolume, blackVolume) {
   return { nextThreshold: null, litersToNext: 0, isSeparate: false, isMixed: true };
 }
 
-/**
- * Format label mô tả thưởng (cho UI/invoice).
- * @param {{ yellowReward: number, blackReward: number, mode: string }} calcResult
- * @returns {string} "Không thưởng" | "20L Bia Vàng" | "20L Bia Đen" | "20L Bia Vàng + 20L Bia Đen" | "40L Bia Vàng" | ...
- */
-function formatRewardLabel(calcResult) {
-  if (!calcResult) return 'Không thưởng';
-  const { yellowReward, blackReward, mode } = calcResult;
-  if (yellowReward === 0 && blackReward === 0) return 'Không thưởng';
-
-  const parts = [];
-  if (yellowReward > 0) parts.push(`${yellowReward}L Bia Vàng`);
-  if (blackReward > 0) parts.push(`${blackReward}L Bia Đen`);
-  return parts.join(' + ');
-}
-
 // ────────────────────────────────────────────────────────────
 // EXPORTS
 // ────────────────────────────────────────────────────────────
-
 module.exports = {
   calculatePromotion,
   getNextTierProgress,
-  formatRewardLabel,
   tierReward,
   TIER_THRESHOLDS,
   TIER_REWARDS,
