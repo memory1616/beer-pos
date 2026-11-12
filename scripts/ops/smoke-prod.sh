@@ -9,9 +9,10 @@ check() {
   code=$(curl -s -o /dev/null -w '%{http_code}' "$BASE$path")
   if [ "$code" = "$expect" ]; then
     echo "PASS  $path -> $code"
-  else
-    echo "FAIL  $path -> $code (expected $expect)"
-  fi
+else
+  echo "FAIL  $path -> $code (expected $expect)"
+  FAILED=$(( ${FAILED:-0} + 1 ))
+fi
 }
 
 echo "=== ROUTE TỪNG BỊ SHADOW (phải 200) ==="
@@ -60,9 +61,21 @@ echo "=== SW (phải 200, KHÔNG redirect — SW script không được nằm sa
 check /sw.js 200
 check /sw.v2.js 200
 # Nội dung /sw.js phải giống hệt /sw.v2.js để SW cũ tự update
-if curl -s "$BASE/sw.js" | diff -q - "$BASE/sw.v2.js" >/dev/null 2>&1; then
+SW_JS_MD5=$(curl -s "$BASE/sw.js" | md5sum | cut -d' ' -f1)
+SW_V2_MD5=$(curl -s "$BASE/sw.v2.js" | md5sum | cut -d' ' -f1)
+if [ "$SW_JS_MD5" = "$SW_V2_MD5" ]; then
   echo "PASS: /sw.js == /sw.v2.js (nội dung giống hệt)"
 else
-  echo "FAIL: /sw.js khác /sw.v2.js"
-  FAIL=$((FAIL+1))
+  echo "FAIL: /sw.js khác /sw.v2.js ($SW_JS_MD5 vs $SW_V2_MD5)"
+  FAILED=$(( ${FAILED:-0} + 1 ))
+fi
+
+echo
+echo "=== TỔNG KẾT ==="
+if [ "${FAILED:-0}" -eq 0 ]; then
+  echo "SMOKE PROD: 100% PASS (0 FAIL)"
+  exit 0
+else
+  echo "SMOKE PROD: ${FAILED} FAIL"
+  exit 1
 fi
