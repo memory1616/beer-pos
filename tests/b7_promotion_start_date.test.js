@@ -1,4 +1,9 @@
-// Set timezone trước khi tạo Date
+/**
+ * B7 — Tính ngày bắt đầu chương trình khuyến mãi "quán mới" theo ngày tạo khách.
+ *
+ * Quy tắc: nếu khách được tạo từ ngày 1 → 8 tháng đó thì chương trình bắt đầu
+ * ngay ngày tạo; nếu tạo từ ngày 9 trở đi thì bắt đầu từ ngày 1 của tháng sau.
+ */
 process.env.TZ = 'Asia/Ho_Chi_Minh';
 
 function getPromotionStartDate(customer) {
@@ -20,25 +25,24 @@ function getPromotionStartDate(customer) {
   }
 }
 
-const cases = [
-  ['2026-08-31 00:00', '2026-09-01', 'Ngay 31 thang 8 -> start = 1/9'],
-  ['2026-12-31 00:00', '2027-01-01', 'Ngay 31 thang 12 -> start = 1/1 nam sau (rollover)'],
-  ['2026-07-31 00:00', '2026-08-01', 'Ngay 31 thang 7 -> start = 1/8'],
-  ['2026-04-30 00:00', '2026-05-01', 'Ngay 30 thang 4 -> start = 1/5'],
-  ['2026-06-09 00:00', '2026-07-01', 'Ngay 9 thang 6 -> start = 1/7'],
-  ['2026-07-01 00:00', '2026-07-01', 'Ngay 1 thang 7 (day <= 8) -> start = 1/7'],
-  ['2026-07-08 00:00', '2026-07-08', 'Ngay 8 thang 7 (day <= 8) -> start = 8/7'],
-  ['2026-07-09 00:00', '2026-08-01', 'Ngay 9 thang 7 -> start = 1/8'],
-];
+describe('B7 — ngày bắt đầu khuyến mãi quán mới', () => {
+  const cases = [
+    ['2026-08-31 00:00', '2026-09-01', 'Ngày 31 tháng 8 -> start = 1/9'],
+    ['2026-12-31 00:00', '2027-01-01', 'Ngày 31 tháng 12 -> start = 1/1 năm sau (rollover)'],
+    ['2026-07-31 00:00', '2026-08-01', 'Ngày 31 tháng 7 -> start = 1/8'],
+    ['2026-04-30 00:00', '2026-05-01', 'Ngày 30 tháng 4 -> start = 1/5'],
+    ['2026-06-09 00:00', '2026-07-01', 'Ngày 9 tháng 6 -> start = 1/7'],
+    ['2026-07-01 00:00', '2026-07-01', 'Ngày 1 tháng 7 (day <= 8) -> start = 1/7'],
+    ['2026-07-08 00:00', '2026-07-08', 'Ngày 8 tháng 7 (day <= 8) -> start = 8/7'],
+    ['2026-07-09 00:00', '2026-08-01', 'Ngày 9 tháng 7 -> start = 1/8'],
+  ];
 
-let passed = 0, failed = 0;
+  test.each(cases)('created=%s -> %s (%s)', (created, expected) => {
+    expect(getPromotionStartDate({ created_at: created })).toBe(expected);
+  });
 
-for (const [created, expected, desc] of cases) {
-  const result = getPromotionStartDate({ created_at: created });
-  const ok = result === expected;
-  console.log(`${ok ? 'PASS' : 'FAIL'}: ${desc} | created=${created} got=${result} expected=${expected}`);
-  if (ok) passed++; else failed++;
-}
-
-console.log(`\n=== RESULT: ${passed} passed, ${failed} failed ===`);
-process.exit(failed > 0 ? 1 : 0);
+  test('không có created_at -> null', () => {
+    expect(getPromotionStartDate({})).toBeNull();
+    expect(getPromotionStartDate(null)).toBeNull();
+  });
+});

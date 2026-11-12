@@ -6,12 +6,6 @@ const express = require('express');
 const router = express.Router();
 const db = require('../database');
 
-function formatVND(amount) {
-  if (amount === null || amount === undefined || amount === '') return '0 đ';
-  const num = Number(amount);
-  if (isNaN(num)) return '0 đ';
-  return new Intl.NumberFormat('vi-VN').format(num) + ' đ';
-}
 
 // GET /report — Simple Report Page
 router.get('/', (req, res) => {

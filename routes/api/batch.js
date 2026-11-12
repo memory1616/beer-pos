@@ -31,6 +31,7 @@ const {
   AnalyticsService
 } = require('../../src/services');
 
+const db = require('../../database');
 const { cache, cacheKeys } = require('../../src/cache');
 
 /**

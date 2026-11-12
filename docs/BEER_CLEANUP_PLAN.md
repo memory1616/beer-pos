@@ -1,0 +1,480 @@
+# BEER CLEANUP PLAN — Kế hoạch xóa dead code & chuẩn hoá
+
+> **Ngày:** 2026-11-12
+> **Trạng thái:** ✅ **ĐÃ THỰC HIỆN XONG** — branch `cleanup/audit-2026-11-12` (PR1–PR8).
+> Xem bảng trạng thái ở [§12. KẾT QUẢ THỰC THI](#12-kết-quả-thực-thi).
+> **Điều kiện tiên quyết:** Đọc `docs/BEER_PROJECT_AUDIT.md` trước.
+> **Quy tắc bất di bất dịch:** Không xóa dữ liệu, không đổi schema nếu chưa có migration + rollback, không sửa Production trực tiếp.
+
+---
+
+## 0. CHECKLIST TRƯỚC KHI BẮT ĐẦU
+
+```bash
+# 1. Backup DB (dùng .backup của SQLite — an toàn hơn copy file khi đang có WAL)
+node -e "const D=require('better-sqlite3');const db=new D('database.sqlite');db.exec(\"VACUUM INTO 'backup/pre_cleanup_$(date +%Y%m%d_%H%M%S).sqlite'\");db.close()"
+
+# 2. Baseline test
+npm test 2>&1 | tee logs/test_baseline.txt
+
+# 3. Branch riêng
+git checkout -b chore/deadcode-cleanup
+git tag pre-cleanup-$(date +%Y%m%d)
+```
+
+---
+
+## 1. FILE CẦN XÓA — SAFE TO DELETE
+
+> Đã chứng minh **0 reference** qua: `require()`, `<script src>`, `loadScript()`, `@import`,
+> `sendFile`/`res.render`, `package.json` scripts, cron config, deploy config, nginx config.
+> **Không xóa file nào trong nhóm này nếu chưa chạy `npm test` sau khi xóa.**
+
+### 1.1 Frontend JavaScript (5 file)
+
+| # | File | Bằng chứng | Module bị ảnh hưởng | Test sau khi xóa |
+|---|---|---|---|---|
+| F1 | `public/js/api.js` | `git grep "/js/api.js"` → 0 hit; không view nào `<script src>`; `window.Api` chỉ được set trong chính file | Admin POS (không) — các trang dùng `fetch` trực tiếp | Mở `/dashboard`, `/customers`, `/sale` — kiểm tra console không lỗi 404 |
+| F2 | `public/js/empty-state.js` | 0 reference | Không có (chỉ class CSS `.empty-state` cũng dead) | `npm test`; load `/customers` |
+| F3 | `public/js/numeric-keypad.js` | `git grep numeric-keypad` → 0 hit | Không có | Mở `/sale` (bàn phím số chạy inline) |
+| F4 | `public/js/segmentation.js` | `git grep segmentation` → 0 hit | `/api/segments` (API riêng) | Mở trang phân khúc |
+| F5 | `public/js/debts-promotions.js` | Chỉ khớp 1 dòng trong `REFACTOR_STEP1.md` (doc) | Dashboard | Mở `/dashboard` → tab Công nợ/KM |
+| F6 | `public/js/delivery.js` | `views/delivery.html` chỉ load `layout.js` + `map-tiles.js` | Trang Giao hàng (Admin) | Mở `/delivery` — bản đồ + danh sách phải hoạt động |
+| F7 | `public/js/driver/delivery.js` | `views/driver/delivery.html` load `map-tiles.js`, `driver/core.js`, `driver/shell.js`, `driver/sync.js` — **không có** file này | Driver Portal | Mở `/driver/giao-hang` — trạng thái đơn phải cập nhật |
+| F8 | `public/js/driver/sale.js` | `views/driver/sale.html` KHÔNG load (dùng `driver/api-shim.js` + `public/js/sales.js`) | Driver Portal bán hàng | Mở `/driver/ban-hang` — tạo đơn thử |
+| F9 | `public/js/report.js` | Tự ghi `DEPRECATED` ở dòng 2; 0 reference | Báo cáo | Mở `/report` |
+
+### 1.2 Component / CSS (9 file)
+
+| # | File | Bằng chứng | Ảnh hưởng | Test |
+|---|---|---|---|---|
+| F10 | `public/components/common/customer-card.html` | `git grep "components/common"` → 0 hit | Không có | Visual check admin |
+| F11 | `public/components/common/index.html` | idem | Không có | — |
+| F12 | `public/components/common/product-card.html` | idem | Không có | — |
+| F13 | `public/components/common/section.html` | idem | Không có | — |
+| F14 | `public/components/common/total-bar.html` | idem | Không có | — |
+| F15 | `public/components/shell/app-shell.html` | `git grep app-shell` → chỉ khớp version string `layout.js?v=20260412b-app-shell` (false positive) | Không có | — |
+| F16 | `public/components/ui/index.css` | Chỉ tự tham chiếu trong comment của chính nó | Không có | — |
+| F17 | `public/components/ui/button.css` | idem | Không có | — |
+| F18 | `public/components/ui/card.css` | idem | Không có | — |
+| F19 | `public/components/ui/input.css` | idem | Không có | — |
+| F20 | `public/css/ui-components.css` | `git grep ui-components` → 0 hit (chỉ chứa `.empty-state`, `.btn`... đã lỗi thời) | Không có | Visual check mọi trang |
+
+> **Lưu ý:** `public/core/theme.css` **KHÔNG** nằm trong danh sách xóa — nó được `@import` bởi `public/css/unified.css:11`.
+
+### 1.3 Assets (3 file)
+
+| # | File | Kích thước | Bằng chứng | Ảnh hưởng |
+|---|---|---|---|---|
+| F21 | `public/landing-assets/beer.mp4` | **61 MB** | `landing.html` chỉ ref `beer-mobile.mp4` | Landing page — vẫn phát video mobile |
+| F22 | `public/landing-assets/product-yellow-pet.png` | 160 KB | 0 reference trong `landing.html` / `landing.css` | Landing page — kiểm tra section sản phẩm hiển thị đúng |
+| F23 | `public/landing-assets/beer-web.mp4` | 14 MB | Chỉ xuất hiện trong **comment hướng dẫn** (`landing.html:260`) | ⚠️ **Cần xác nhận**: có dùng làm fallback desktop không? Nếu không → xóa; nếu có → giữ |
+
+### 1.4 Migration legacy (2 file)
+
+| # | File | Bằng chứng | Ảnh hưởng | Test |
+|---|---|---|---|---|
+| F24 | `database/migrations/042_sale_time.js` | Nội dung: `// This file is deprecated - sale_time is now added in database/migration.js`; `migration.js` không require | Không có | `npm test`; kiểm tra `sales.sale_time` vẫn tồn tại |
+| F25 | `database/migrations/041_sales_staff.js` | `migration.js` **không** require file này → chưa từng chạy. Schema đã được tạo trong `database.js` L1481+ (`CREATE TABLE IF NOT EXISTS sales_staff` …). Các bảng đều tồn tại trong DB | Nhân viên sales / hoa hồng | `npm test`; mở `/sales-staff`; chạy `scripts/test-driver-staff.js` |
+
+> ⚠️ **KHÔNG xóa `database/migrations/004_business_features.js`** — nó chứa định nghĩa 3 bảng đang thiếu (`debt_transactions`, `customer_segments`, `delivery_schedules`). Xem §4.
+
+---
+
+## 2. FUNCTION CẦN XÓA
+
+> Tất cả đều đã verify: định nghĩa nhưng **không có call site nào** trong toàn repo.
+
+| # | Hàm | File:Line | Bằng chứng | Lý do xóa | Test |
+|---|---|---|---|---|---|
+| FN1 | `formatVND` | `routes/dashboard.js` | 1 self-ref (chỉ dòng định nghĩa) | Trùng lặp, không dùng | `npm test` |
+| FN2 | `formatVND` | `routes/purchases.js` | idem | idem | `npm test` |
+| FN3 | `formatVND` | `routes/report.js` | idem | idem | `npm test` |
+| FN4 | `formatVND` | `routes/sales.js` | idem | idem | `npm test` |
+| FN5 | `formatVND` | `routes/stock.js` | idem | idem | `npm test` |
+| FN6 | `formatCurrency` | `src/services/index.js:26` | 1 self-ref | Trùng lặp | `npm test` |
+| FN7 | `formatCurrency` | `src/services/SaleService.js:7` | 1 self-ref | Trùng lặp | `npm test` |
+| FN8 | `validateSaleInput` | `routes/api/sales.js:60` | 1 self-ref | Đã inline trong `POST /` | `npm test`; POST `/api/sales` invalid payload → vẫn 400 |
+| FN9 | `validateProductInput` | `routes/api/products.js` | 1 self-ref | Không dùng | `npm test` |
+| FN10 | `validatePaymentInput` | `routes/api/payments.js` | 1 self-ref | Không dùng | `npm test` |
+| FN11 | `validateStockInput` | `routes/api/stock.js` | 1 self-ref | Không dùng | `npm test` |
+| FN12 | `getActualInventory` | `routes/api/kegs.js` | 1 self-ref | Không dùng | `npm test` |
+| FN13 | `litersFromProductName` | `routes/reportData.js` | 1 self-ref | Không dùng | `npm test` |
+| FN14 | `sanitizeQRAccount` | `routes/api/settings.js` | 1 self-ref | Không dùng | `npm test`; PUT `/api/settings/qr-accounts` |
+| FN15 | `validateQRAccount` | `routes/api/settings.js` | 1 self-ref | Không dùng | idem |
+| FN16 | `createCartStore` | `src/store/index.js` | 1 self-ref | Không dùng | `npm test` |
+| FN17 | `formatRewardLabel` | `src/services/promotionCalc.js` | Chỉ export | Frontend tự format | `npm test`; báo cáo thưởng hiển thị đúng |
+
+> ⚠️ **NEEDS INVESTIGATION — KHÔNG xóa:**
+> - `getOsrmRoute`, `getGoogleRoute`, `haversineDistance` (`src/services/routingService.js`) — cần verify `routes/api/routing.js` không gọi qua alias/object.
+> - `src/store/index.js` — file chứa `createCartStore` nhưng còn nhiều thứ khác; xem §3.
+
+---
+
+## 3. FILE CẦN GIỮ (MUST KEEP)
+
+| File | Lý do |
+|---|---|
+| `server.js` | Entry point HTTP |
+| `database.js` | Kết nối DB + migration + helper query |
+| `database/migration.js` | Orchestrator migration |
+| `database/migrations/004_business_features.js` | **Định nghĩa 3 bảng đang thiếu** (`debt_transactions`, `customer_segments`, `delivery_schedules`) — xem §4 |
+| `database/migrations/043..047_*.js` | Đang chạy (version-gated riêng) |
+| `src/services/index.js` | `PromotionService` + `SaleService` façade — dùng bởi 6 route |
+| `src/services/promotionCalc.js` | **SSOT khuyến mãi** — dùng bởi backend + đọc từ server cho frontend |
+| `src/services/saleDelete.js` | Xóa đơn + hoàn kho — dùng bởi `/api/sales` và `/api/sync/push` |
+| `src/services/DebtService.js` | Công nợ — **đang broken**, xem §4 |
+| `src/services/session.js` | Dùng bởi `routes/api/session.js` |
+| `src/socket/socketServer.js` | Realtime server |
+| `src/cache/index.js` | Dùng bởi `routes/api/segments.js` + `batch.js` |
+| `middleware/*.js` (4 file) | Auth / RBAC / cache / validation / error handler |
+| `public/sw.v2.js` | Service Worker hiện hành |
+| `public/sw.js` | **OBSOLETE BUT REFERENCED** — `public/js/login.js:193` register `/sw.js`; `server.js:562` redirect. Xem §5 |
+| `public/db.js` | Lớp Dexie offline — load bởi 7 view |
+| `public/sync.js` | Đồng bộ client |
+| `public/js/realtime.js` | Realtime client (giữ, bỏ `realtime-client.js`) |
+| `public/js/vendor/dexie.min.js`, `chart.umd.min.js` | Đang load bởi views |
+| `public/icons/*` | Manifest PWA |
+| `ecosystem.config.js` | PM2 — `Dockerfile:45`, `.github/workflows/deploy.yml:38`, `deploy/deploy.sh` |
+| `check_devices.js`, `sync_devices.js`, `fix_device_customer.js` | Script vận hành — **cần chủ repo xác nhận**, xem §6 |
+| `tests/**` | 10 file test Jest |
+| `deploy/**`, `scripts/**` | Vận hành — trừ script debug |
+
+---
+
+## 4. FILE CẦN ĐIỀU TRA THÊM (NEEDS INVESTIGATION)
+
+### 4.1 `src/store/index.js` (305 dòng)
+
+- **Hiện trạng:** Backend file này **không ai `require`**. Nhưng frontend có `window.BeerStore` dùng ở `public/js/customers.js:1306`, `public/js/expenses.js:8`, `public/js/sync.js:729`.
+- **Cần xác minh:** `window.BeerStore` được định nghĩa ở đâu? (grep `BeerStore =` trong `public/` → **không tìm thấy** → có thể `public/db.js` expose nó dưới tên khác, hoặc là dead code ở frontend).
+- **Hành động:** Grep `BeerStore` trong `public/db.js`. Nếu frontend cũng không định nghĩa → cả `src/store/index.js` lẫn các call site `window.BeerStore` đều là **dead code có guard an toàn** (`if (window.BeerStore && ...)`) → xóa được cả hai.
+
+### 4.2 `public/sw.js` (26 KB)
+
+- **Hiện trạng:** Bản cũ. `server.js:562` redirect `/sw.js` → `/sw.v2.js`. Nhưng `public/js/login.js:193` vẫn `register('/sw.js')`.
+- **Cần làm:** Đổi `login.js:193` → `register('/sw.v2.js')`. Sau đó `public/sw.js` mới xóa được. Đồng thời rà `public/js/driver/sync.js` và `public/js/realtime.js` xem có register `/sw.js` không.
+
+### 4.3 `public/css/styles.css` (24 byte)
+
+- **Hiện trạng:** Chỉ là input cho `npm run build:css` (Tailwind CLI). Output `public/css/tailwind.css` bị `.gitignore`.
+- **Cần xác minh:** Tailwind còn được dùng không? Nếu `tailwind.css` không được load ở bất kỳ view nào → gỡ cả `build:css`/`watch:css` + 4 devDependency Tailwind/PostCSS/Autoprefixer.
+
+### 4.4 `public/landing-assets/beer-web.mp4` (14 MB)
+
+- Xác nhận có fallback desktop không (xem F23).
+
+### 4.5 `check_devices.js`, `sync_devices.js`, `fix_device_customer.js`
+
+- Script vận hành ad-hoc ở root, không có trong `package.json` scripts.
+- Đề xuất: gom vào `scripts/ops/` hoặc xóa — cần chủ repo xác nhận.
+
+### 4.6 Test script cũ ở root
+
+`test_edge_cases.js`, `test_full_flow.js`, `test_integration.js`, `test_promotion.js`, `test_first_month_reward.js`
+- Không chạy trong Jest (không có `describe/test` hoặc không nằm trong `tests/`).
+- Cần xác nhận còn dùng tay không → chuyển vào `tests/` (chuyển sang Jest) hoặc xóa.
+
+### 4.7 `ejs` dependency
+
+- `server.js` khai báo `app.engine('html', require('ejs').renderFile)` nhưng **không view nào dùng EJS syntax** (tất cả là HTML tĩnh qua `sendFile`).
+- Xác minh: `git grep -E "<%" views/` → nếu 0 hit → `ejs` là dead dependency → gỡ khỏi `package.json` + `server.js`.
+
+---
+
+## 5. DEPENDENCY CẦN GỠ
+
+| # | Package | Lý do | Bằng chứng | Rủi ro | Test |
+|---|---|---|---|---|---|
+| DP1 | `socket.io-client` | Frontend dùng `/socket.io/socket.io.js` do server serve (`socketServer.js:93 serveClient:true`), không import npm | 0 `require('socket.io-client')`; `public/js/realtime.js:653` set `script.src = ...'/socket.io/socket.io.js'` | 🟢 Thấp — nhưng **giữ `socket.io` (server)** | Mở `/dashboard` → WebSocket kết nối, sự kiện realtime hoạt động |
+| DP2 | `chart.js` | Frontend dùng bản vendor `public/js/vendor/chart.umd.min.js` | 0 import npm | 🟢 Thấp | Mở `/dashboard` → biểu đồ vẽ |
+| DP3 | `dexie` | Frontend dùng `public/js/vendor/dexie.min.js` (v4) — nhưng `views/driver/sale.html:33` dùng **CDN dexie@3** → 2 phiên bản | 0 import npm | 🟡 Trung bình — **nên hợp nhất về 1 phiên bản** | Mở `/driver/ban-hang` → offline queue hoạt động |
+| DP4 | `body-parser` | Express 4.18 đã có `express.json()` / `express.urlencoded()` | `server.js` dùng `bodyParser.json({limit:'10mb'})` | 🟡 Trung bình — cần giữ `limit:'10mb'` khi chuyển | Test upload payload > 1MB |
+| DP5 | `ejs` | Có thể dead (xem §4.7) | `server.js` chỉ khai báo engine | 🟢 Thấp | Mở mọi trang → 200 OK |
+
+**Không gỡ:** `better-sqlite3`, `compression`, `cookie-parser`, `express`, `express-rate-limit`, `helmet`, `node-cron`, `socket.io`, `winston`.
+
+---
+
+## 6. MODULE CÓ THỂ BỊ ẢNH HƯỞNG
+
+| Module | File liên quan | Rủi ro khi xóa |
+|---|---|---|
+| Admin POS | `public/js/sales.js`, `views/sales.html` | Trung bình — nếu `api.js` thực sự được dùng gián tiếp |
+| Dashboard | `views/dashboard.html`, `public/js/dashboard.js` | Thấp |
+| Driver Portal | `views/driver/*`, `public/js/driver/*` | Cao — nhiều file trùng chức năng, dễ nhầm |
+| Landing page | `public/landing.html`, `public/landing-assets/*` | Trung bình — xóa video ảnh hưởng UX |
+| Sync / PWA | `public/sw.v2.js`, `public/sync.js`, `public/db.js` | Cao — không xóa `sw.js` trước khi sửa `login.js` |
+| Realtime | `public/js/realtime.js`, `public/js/realtime-client.js` | Trung bình — xóa sai file sẽ mất realtime |
+| Báo cáo | `routes/reportData.js`, `routes/report.js` | Thấp |
+| Nhân viên sales | `routes/api/sales-staff.js`, `src/services/salesStaff.js` | Trung bình — liên quan migration 041 |
+
+---
+
+## 7. TEST CẦN CHẠY SAU MỦI THAY ĐỔI
+
+### 7.1 Tự động
+
+```bash
+npm test                              # Jest + coverage
+npm run lint                          # ESLint
+npm run format:check                  # Prettier
+node -e "require('./server.js')"      # smoke: server boot không lỗi require
+```
+
+### 7.2 Smoke test thủ công theo trang
+
+| Trang | URL | Kiểm tra |
+|---|---|---|
+| Landing | `/` | Video phát, icon load, không 404 |
+| Login admin | `/login` | Đăng nhập OK, SW register (Network tab: `sw.v2.js`) |
+| Dashboard | `/dashboard` | KPI đúng, chart vẽ, WebSocket 1 kết nối duy nhất, realtime hoạt động |
+| Bán hàng | `/sale` | Tạo đơn, giá theo bảng giá khách, KM quán mới, thưởng sản lượng |
+| Khách hàng | `/customers` | Danh sách, tạo/sửa, đồng bộ offline |
+| Chi tiết KH | `/customer/:id` | Công nợ, lịch sử, thống kê |
+| Tồn kho | `/stock` | Nhập/xuất, không lỗi Dexie |
+| Vỏ | `/kegs` | Thu/giao vỏ, số khớp |
+| Nhập hàng | `/purchases` | Tạo phiếu nhập |
+| Công nợ | `/report` → tab công nợ | Đối soát `customers.debt` vs tổng đơn chưa trả |
+| Báo cáo | `/report` | Doanh thu không tính đơn đã hủy |
+| Nhân viên sales | `/sales-staff` | Lương, hoa hồng |
+| QR | `/qr-settings` | Thêm/sửa tài khoản QR |
+| Driver login | `/driver` | Đăng nhập tài xế |
+| Driver bán hàng | `/driver/ban-hang` | Tạo đơn, giá khách, KM |
+| Driver giao hàng | `/driver/giao-hang` | Xác nhận giao, sai lệch, thu vỏ |
+| Driver khách | `/driver/khach-hang` | Danh sách, thu tiền công nợ |
+| Phiếu thu vỏ | `/driver/phieu-thu-vo` | Tạo, xem, xóa |
+| API docs | `/api/docs`, `/api/openapi.yaml` | Load OK |
+| Health | `/health` | 200 |
+
+### 7.3 Test hồi quy nghiệp vụ (bắt buộc trước khi đụng nghiệp vụ)
+
+```bash
+# Bán chịu (hiện BROKEN — sau khi sửa §8 mới chạy được)
+curl -X POST /api/sales -H 'Content-Type: application/json' \
+  -d '{"customerId":1,"items":[{"productId":1,"quantity":10}],"debt":true}'
+
+# Kiểm tra công nợ khớp
+node -e "
+const D=require('better-sqlite3');const db=new D('database.sqlite',{readonly:true});
+console.log(db.prepare('SELECT customer_id, debt FROM customers WHERE debt>0').all());
+console.log(db.prepare('SELECT customer_id, SUM(remaining_amount) r FROM order_debts GROUP BY 1').all());
+"
+# → 2 kết quả phải khớp
+
+# Hủy đơn hoàn kho đúng 1 lần
+curl -X DELETE /api/sales/<id>
+curl -X DELETE /api/sales/<id>   # lần 2 phải trả "already deleted", không hoàn kho lần 2
+
+# Không tính doanh thu đơn đã hủy
+node -e "
+const D=require('better-sqlite3');const db=new D('database.sqlite',{readonly:true});
+console.log(db.prepare('SELECT COUNT(*) c FROM sales WHERE archived=1').get());
+console.log(db.prepare('SELECT SUM(total) t FROM sales WHERE archived=0').get());
+"
+```
+
+### 7.4 Test đồng bộ
+
+1. Tắt mạng → tạo 1 đơn trên Driver Portal → đợi SW queue.
+2. Bật mạng → quan sát SW sync → kiểm tra đơn có trong DB server **đúng 1 lần**.
+3. Tạo đơn → reload server (PM2 restart) trong lúc queue chưa sync → sync lại → **không được nhân bản**.
+4. Sửa đơn trên server rồi sync từ client cũ → phải báo conflict, không ghi đè.
+5. Kiểm tra `GET /api/sync/status` trả 200 (hiện **500** — xem §8).
+
+---
+
+## 8. BẢNG SỬA LỖI (BUG FIX) — ĐỀ XUẤT RIÊNG
+
+> Đây **KHÔNG phải** dead code, nhưng là P0 — cần sửa trước để hệ thống hoạt động đúng.
+> Chi tiết phân tích: `docs/BEER_PROJECT_AUDIT.md` §6, §7, §8.
+
+| # | File:Line | Lỗi | Sửa | Rủi ro | Test |
+|---|---|---|---|---|---|
+| B1 | `routes/api/promotions.js:922` | `require('./src/services/promotionCalc')` → path sai | → `require('../../src/services/promotionCalc')` | 🟢 | `npm test`; tạo thưởng hàng loạt |
+| B2 | `routes/api/segments.js` | Thiếu `const db = require('../../database');` | Thêm 1 dòng | 🟢 | `npm test`; `GET /api/segments` → 200 |
+| B3 | `routes/api/batch.js` | Thiếu `const db = require('../../database');` | Thêm 1 dộng | 🟢 | `npm test`; `POST /api/batch` → 200 |
+| B4 | `routes/api/products.js:165` | `!price === undefined` luôn false | → `price === undefined` | 🟢 | POST giá thiếu → 400 |
+| B5 | `routes/api/sales.js:815` | `GET /:id` shadow `GET /export` | Di chuyển `/export` lên **trên** `/:id` | 🟡 | `GET /api/sales/export` → 200 |
+| B6 | `routes/api/customers.js:99` | `GET /:id` shadow `GET /alerts` | Di chuyển `/alerts` lên trên | 🟡 | `GET /api/customers/alerts` → 200 |
+| B7 | `routes/api/promotions.js:176` | `GET /:id` shadow `GET /near-tier` | Di chuyển `/near-tier` lên trên | 🟡 | `GET /api/promotions/near-tier` → 200 |
+| B8 | `routes/api/session.js:32` | `GET /:date` shadow `GET /check-migration` | Di chuyển `/check-migration` lên trên | 🟡 | `GET /api/session/check-migration` → 200 |
+| B9 | `routes/api/sync.js:316,319,273,341` | Query `WHERE synced = 0/1` — column không tồn tại | Dùng `status` / `synced_at` theo schema thật | 🔴 | `GET /api/sync/status` → 200; `POST /api/sync/pull` → 200 |
+| B10 | `database/migrations/048_missing_business_tables.js` (MỚI) | 3 bảng thiếu: `debt_transactions`, `customer_segments`, `delivery_schedules` | Migration idempotent `CREATE TABLE IF NOT EXISTS` | 🔴 | `npm test`; bán chịu; thu tiền; `GET /api/segments` |
+| B11 | `database/migration.js:577` | Version gate skip migration (`2026090202.0 >= 2026041602`) | Nâng `BUSINESS_FEATURES_VERSION` hoặc bỏ gate (migration idempotent) | 🔴 | Kiểm tra 3 bảng tồn tại sau restart |
+| B12 | `routes/api/customers.js` + `database.js` | `customers.segment_id` không tồn tại | Thêm cột (idempotent, trong migration 048) | 🔴 | `GET /api/segments/:id` → 200 |
+| B13 | `public/sw.v2.js:401` + `public/sync.js:699` | Xóa toàn bộ queue sau POST, kể cả item failed | Chỉ xóa item có `results[].success === true` | 🔴 | Test offline → online (mục 7.4) |
+| B14 | `routes/api/sync.js:9` | Idempotency chỉ in-RAM 60s | Thêm bảng `sync_dedup(sync_id PK, created_at)` | 🟡 | Restart server giữa lúc sync → không nhân bản |
+| B15 | `views/dashboard.html:56`, `views/sales.html:369` | Load `realtime-client.js` + `layout.js`(→`realtime.js`) → **2 socket** | Bỏ `<script src="/js/realtime-client.js">` | 🟢 | DevTools → Network → 1 WS connection |
+| B16 | `public/js/login.js:193` | Register `/sw.js` (bản cũ) | → `/sw.v2.js` | 🟢 | DevTools → Application → SW đúng version |
+| B17 | `middleware/auth.js:55`, `routes/api/sync.js:12` | `setInterval` không `unref()` | Thêm `.unref()` (như `middleware/cache.js:25`) | 🟢 | Không đổi hành vi |
+| B18 | `routes/api/products.js:165` | (đã ở B4) | — | — | — |
+| B19 | Git history | Secret đã commit (`*.pem`, `pass.txt`, `*_deploy_key*`) | `git rm --cached` + **rotate key** + cân nhắc `git filter-repo` | 🟡 | `git ls-files \| grep -E 'pem\|pass.txt'` → rỗng |
+| B20 | `src/services/saleDelete.js:160,178,205,277` | `console.log` thay `logger` | Đổi sang `logger.info` | 🟢 | `npm test` |
+
+---
+
+## 9. THỨ TỰ THỰC HIỆN ĐỀ XUẤT
+
+```
+B0  Baseline: backup DB + git tag + npm test
+ │
+ ├─ PR 1  Bug fix không đụng schema      → B1,B2,B3,B4,B15,B16,B17,B20
+ ├─ PR 2  Route shadow fix               → B5,B6,B7,B8
+ ├─ PR 3  Xóa dead file (frontend)      → F1..F20,F23(?)
+ ├─ PR 4  Xóa function chết             → FN1..FN17
+ ├─ PR 5  Gỡ dependency                  → DP1,DP2,DP4,DP5
+ ├─ PR 6  Secret hygiene                 → B19
+ ├─ PR 7  Migration bảng thiếu + sync    → B9,B10,B11,B12,B13,B14  ⚠️ CẦN BACKUP + ROLLBACK
+ ├─ PR 8  Đồng bộ & realtime             → B13,B14,B15
+ └─ PR 9  Tái cấu trúc (giai đoạn sau)   → D1,D2,D7,D9 — tách riêng, test snapshot
+```
+
+**Ưu tiên tuyệt đối:** PR 1–6 an toàn, revert được bằng 1 lệnh. PR 7 cần backup DB + rollback script + deploy giờ traffic thấp.
+
+---
+
+## 10. ROLLBACK
+
+| Loại thay đổi | Cách rollback |
+|---|---|
+| Xóa file | `git revert <commit>` hoặc `git checkout <tag> -- <file>` |
+| Sửa code | `git revert <commit>` |
+| Thêm bảng DB | `DROP TABLE <ten_bang_moi>;` — chỉ an toàn khi bảng rỗng; script rollback trong file migration |
+| Thêm cột | `ALTER TABLE ... DROP COLUMN` (SQLite ≥ 3.35) hoặc restore từ backup |
+| Đổi query sync | `git revert` + `VACUUM INTO` backup trước khi deploy |
+| Rotate secret | Giữ key cũ song song 24h trước khi thu hồi |
+
+**Backup DB bắt buộc trước PR 7+:**
+```bash
+node -e "const D=require('better-sqlite3');const db=new D('database.sqlite');db.exec(\"VACUUM INTO 'backup/pre_pr7.sqlite'\");db.close()"
+```
+
+---
+
+## 11. CHECKLIST NGHIỆM THU
+
+- [ ] `git grep "/js/api.js"` → 0 hit
+- [ ] `git grep numeric-keypad` → 0 hit
+- [ ] `git grep segmentation` → 0 hit
+- [ ] `git grep "components/common"` → 0 hit
+- [ ] `npm test` → pass (không có test mới fail)
+- [ ] `npm run lint` → 0 error
+- [ ] `GET /api/sync/status` → 200
+- [ ] `POST /api/sync/pull` → 200
+- [ ] Bán chịu (`debt=true`) → tạo đơn thành công, `customers.debt` tăng, `order_debts` có row
+- [ ] Thu tiền công nợ → `customers.debt` giảm đúng, `payments` có row
+- [ ] `GET /api/segments` → 200
+- [ ] `GET /api/sales/export` → 200
+- [ ] `GET /api/customers/alerts` → 200
+- [ ] `GET /api/promotions/near-tier` → 200
+- [ ] `GET /api/session/check-migration` → 200
+- [ ] DevTools → Network → **1** WebSocket connection trên `/dashboard`
+- [ ] `public/` giảm từ 102.3 MB → < 40 MB
+- [ ] `git ls-files | grep -E 'pem$|pass\.txt|_deploy_key'` → rỗng
+- [ ] `PRAGMA integrity_check` → ok
+- [ ] `PRAGMA foreign_key_check` → none
+- [ ] Số đơn trước/sau cleanup: không đổi
+- [ ] Tổng doanh thu trước/sau cleanup: không đổi
+
+---
+
+**Tóm tắt:** 25 file + 17 function + 5 dependency có thể xóa/gỡ với bằng chứng cụ thể. 6 file cần điều tra thêm trước khi quyết định. 20 lỗi bug (B1–B20) cần sửa — trong đó 4 lỗi P0 đang làm hỏng chức năng cốt lõi.
+
+---
+
+## 12. KẾT QUẢ THỰC THI
+
+> Branch: `cleanup/audit-2026-11-12` · Ngày: 2026-11-12 · Tất cả PR1–PR8 đã merge vào branch.
+
+### 12.1 Danh sách commit
+
+| Commit | Nội dung |
+|---|---|
+| `98dd984` | PR1 — fix P0 bug (B1,B2,B3,B4,B15,B16,B17,B20) + PR2 route shadow (B5,B6,B7,B8) |
+| `192fcbd` | PR3 — xóa dead frontend assets + orphan migration (F1–F22) |
+| `9057e2f` | PR4–PR7 — dead functions, deps, secret hygiene, migration 048 + sync fixes |
+| `53bd4d2` | B14 — idempotency key persist qua `sync_dedup` |
+| `28d3eed` | Chuyển `b7`/`b18` từ script sang Jest suite |
+| `7e8766e` | Tách DB test khỏi DB vận hành (`tests/setup.js` + `globalTeardown.js`) |
+| `e155645` | `DISABLE_BACKGROUND_JOBS` + `scripts/cleanup-test-data.js` |
+| `HEAD` | PR8 — dead assets/deps còn lại + 5 script test gốc → Jest |
+
+### 12.2 Bug đã sửa (B1–B20)
+
+| # | Trạng thái | Ghi chú |
+|---|---|---|
+| B1 | ✅ | `routes/api/promotions.js` — require path đúng |
+| B2, B3 | ✅ | Thêm `const db = require('../../database')` vào `segments.js`, `batch.js` |
+| B4, B18 | ✅ | `price === undefined \|\| price === null` |
+| B5–B8 | ✅ | `/export`, `/alerts`, `/near-tier`, `/check-migration` chuyển lên trên `/:id` |
+| B9 | ✅ | `synced` → `status` / `synced_at` |
+| B10–B12 | ✅ | Migration 048 + `businessTablesPresent()` bypass version gate |
+| B13 | ✅ | `sw.v2.js` + `sync.js` chỉ xóa item trong `applied[]` |
+| B14 | ✅ | Bảng `sync_dedup` — idempotency sống sót qua restart server |
+| B15 | ✅ | Bỏ `<script src="/js/realtime-client.js">` khỏi dashboard + sales |
+| B16 | ✅ | `login.js` register `/sw.v2.js` |
+| B17 | ✅ | `.unref()` cho interval cleanup (auth + sync) |
+| B19 | ✅ | `git rm --cached` 9 file secret; `SESSION_SECRET` từ env |
+| B20 | ✅ | `console.log` → `logger.info/warn` |
+
+### 12.3 File đã xóa
+
+| Nhóm | Số file | Ghi chú |
+|---|---|---|
+| Frontend JS dead | 10 | `api.js`, `empty-state.js`, `numeric-keypad.js`, `segmentation.js`, `debts-promotions.js`, `delivery.js`, `report.js`, `driver/delivery.js`, `driver/sale.js`, `realtime-client.js` |
+| Component/CSS dead | 11 | `components/common/*` (5), `components/shell/app-shell.html`, `components/ui/*.css` (4), `css/ui-components.css` |
+| Asset nặng | 3 | `beer.mp4` (61MB), `beer-web.mp4` (14MB), `product-yellow-pet.png` |
+| Migration orphan | 2 | `041_sales_staff.js`, `042_sale_time.js` |
+| SW cũ + store | 2 | `public/sw.js` (26KB), `src/store/index.js` (314 dòng) |
+| Script test gốc | 5 | `test_promotion.js`, `test_integration.js`, `test_edge_cases.js`, `test_full_flow.js`, `test_first_month_reward.js` → chuyển thành 5 Jest suite |
+
+**`public/` giảm 102.3 MB → 26.34 MB** (mục tiêu < 40 MB ✅)
+
+### 12.4 Dependency đã gỡ
+
+| Package | Lý do |
+|---|---|
+| `socket.io-client` | Frontend dùng `/socket.io/socket.io.js` do server serve |
+| `chart.js` | Dùng vendor bundle `public/js/vendor/chart.umd.min.js` |
+| `dexie` | Dùng vendor bundle `public/js/vendor/dexie.min.js` (v4) |
+| `body-parser` | Express 4.18 đã có `express.json()` — giữ nguyên `limit: '10mb'` |
+| `ejs` | 0 `res.render`, 0 cú pháp `<%` trong views |
+| `tailwindcss`, `@tailwindcss/cli`, `postcss`, `autoprefixer` | `tailwind.css` không view nào load; utility class đã định nghĩa trong `unified.css` |
+
+Còn lại (production): `better-sqlite3`, `compression`, `cookie-parser`, `dotenv`, `express`, `express-rate-limit`, `helmet`, `node-cron`, `socket.io`, `winston`.
+
+### 12.5 Việc ngoài kế hoạch (phát sinh khi thực thi)
+
+| # | Vấn đề | Cách xử lý |
+|---|---|---|
+| N1 | Jest ghi thẳng vào `database.sqlite` (7 đơn + 138 user test lọt vào DB thật) | `tests/setup.js` clone DB vào thư mục tạm; `tests/globalTeardown.js` dọn |
+| N2 | `node-cron` giữ event loop → script CLI không thoát | `DISABLE_BACKGROUND_JOBS=1` trong `database.js` |
+| N3 | `tests/b7`, `tests/b18` gọi `process.exit()` → Jest bị hủy | Viết lại thành suite chuẩn |
+| N4 | Migration 004 tạo bảng trong `database/database.sqlite` (file riêng) thay vì DB đích | `runMigration(targetDb)` nhận DB instance |
+| N5 | `formatRewardLabel` bị xóa ở PR4 nhưng `test_promotion.js` vẫn dùng | Khôi phục hàm (có test bao phủ) |
+| N6 | `test_promotion.js` có 3 kỳ vọng cũ không khớp logic SSOT hiện tại | Cập nhật kỳ vọng theo `promotionCalc.js` (MIXED giữ 20L của loại đạt mốc) |
+
+### 12.6 Kết quả kiểm chứng
+
+| Kiểm tra | Kết quả |
+|---|---|
+| `npx jest` | ✅ **15 suite / 313 test pass** (trước: 10 suite / 235 test) |
+| `npx eslint` | 1586 → 1595 problems (chênh lệch do file mới; các file mới sạch) |
+| Smoke test server | ✅ 14/14 route trả đúng status (200) + login admin OK |
+| `PRAGMA integrity_check` | ✅ ok |
+| `PRAGMA foreign_key_check` | ✅ none |
+| Số đơn trước/sau cleanup | ✅ Không đổi: **474 đơn / 774.719.014 đ** |
+| DB vận hành sau khi chạy test | ✅ Không bị test đụng vào (0 sales test, 0 app_user test) |
+| `git ls-files \| grep -E 'pem$\|pass\.txt\|_deploy_key'` | ✅ rỗng |
+| `public/` size | ✅ 26.34 MB |
+
+### 12.7 Việc còn lại (không làm trong PR1–PR8)
+
+| # | Việc | Ghi chú |
+|---|---|---|
+| R1 | **Rotate secret đã lỗi thời** | Đã untrack khỏi git, nhưng key/secret cũ vẫn còn hiệu lực trên server → cần đổi |
+| R2 | Deploy lên production | Branch chưa merge vào `main`, chưa deploy |
+| R3 | Smoke test thủ công theo trang (§7.2) | Cần người dùng xác nhận bằng trình duyệt thật |
+| R4 | `git filter-repo` lịch sử | Secret cũ vẫn nằm trong commit cũ |
+| R5 | `check-bonus-*.bat`, `install-cron.py`… ở root | Rác vận hành, chưa dọn (ngoài scope PR1–PR8) |

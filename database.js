@@ -30,7 +30,7 @@ try {
   }
 
   // Run driver portal migration (idempotent, chạy độc lập version gate)
-  const { runDriverPortalMigration, runDriverStaffMigration, runDriverKegReceiptMigration, runDriverWorkDaysMigration, runDriverSalaryAdvanceMigration } = require('./database/migration');
+  const { runDriverPortalMigration, runDriverStaffMigration, runDriverKegReceiptMigration, runDriverWorkDaysMigration, runDriverSalaryAdvanceMigration, runMissingBusinessTablesMigration } = require('./database/migration');
   const driverResult = runDriverPortalMigration(db);
   if (driverResult.success) {
     logger.log('[MIGRATION] Driver portal schema ready');
@@ -58,6 +58,12 @@ try {
   const advanceResult = runDriverSalaryAdvanceMigration(db);
   if (advanceResult.success) {
     logger.log('[MIGRATION] Driver salary advance schema ready');
+  }
+
+  // Run missing business tables migration (bảng nghiệp vụ bị thiếu do 004 bị skip)
+  const missingTablesResult = runMissingBusinessTablesMigration(db);
+  if (missingTablesResult.success) {
+    logger.log('[MIGRATION] Missing business tables schema ready');
   }
 } catch (error) {
   logger.error('[MIGRATION] Migration error:', error.message);
@@ -1116,33 +1122,42 @@ addIndex(`CREATE INDEX IF NOT EXISTS idx_keg_tx_log_type_date ON keg_transaction
 addIndex(`CREATE INDEX IF NOT EXISTS idx_keg_tx_log_customer_date ON keg_transactions_log(customer_id, date DESC)`);
 
 // ========== AUTO BACKUP — runs every day at 2 AM ==========
-try {
-  const cron = require('node-cron');
-  const backupDir = path.join(__dirname, 'backups');
-  if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
+// Script CLI/backfill/test chỉ cần DB, không cần cron 2AM. Bật qua bằng
+// env var DISABLE_BACKGROUND_JOBS=1 để process có thể thoát bình thường
+// (node-cron giữ event loop sống → script bị treo).
+const _disableBackgroundJobs =
+  process.env.DISABLE_BACKGROUND_JOBS === '1' ||
+  process.env.DISABLE_BACKGROUND_JOBS === 'true';
 
-  cron.schedule('0 2 * * *', () => {
-    const timestamp = new Date().toISOString().slice(0, 10);
-    const backupPath = path.join(backupDir, `db_${timestamp}.sqlite`);
-    try {
-      db.backup(backupPath);
-      logger.log('[BACKUP] SQLite backup saved:', backupPath);
-    } catch (e) {
-      logger.error('[BACKUP] Failed:', e.message);
-    }
-    // Keep only last 30 backups
-    try {
-      const files = fs.readdirSync(backupDir)
-        .filter(f => f.startsWith('db_') && f.endsWith('.sqlite'))
-        .sort()
-        .reverse();
-      files.slice(30).forEach(f => fs.unlinkSync(path.join(backupDir, f)));
-    } catch (_) {}
-  }, { timezone: 'Asia/Ho_Chi_Minh' });
+if (!_disableBackgroundJobs) {
+  try {
+    const cron = require('node-cron');
+    const backupDir = path.join(__dirname, 'backups');
+    if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
 
-  logger.log('[BACKUP] Daily cron scheduled (2 AM)');
-} catch (e) {
-  logger.log('[BACKUP] node-cron not available, auto-backup disabled');
+    cron.schedule('0 2 * * *', () => {
+      const timestamp = new Date().toISOString().slice(0, 10);
+      const backupPath = path.join(backupDir, `db_${timestamp}.sqlite`);
+      try {
+        db.backup(backupPath);
+        logger.log('[BACKUP] SQLite backup saved:', backupPath);
+      } catch (e) {
+        logger.error('[BACKUP] Failed:', e.message);
+      }
+      // Keep only last 30 backups
+      try {
+        const files = fs.readdirSync(backupDir)
+          .filter(f => f.startsWith('db_') && f.endsWith('.sqlite'))
+          .sort()
+          .reverse();
+        files.slice(30).forEach(f => fs.unlinkSync(path.join(backupDir, f)));
+      } catch (_) {}
+    }, { timezone: 'Asia/Ho_Chi_Minh' });
+
+    logger.log('[BACKUP] Daily cron scheduled (2 AM)');
+  } catch (e) {
+    logger.log('[BACKUP] node-cron not available, auto-backup disabled');
+  }
 }
 
 // ========== EXPORT HELPERS for other modules ==========

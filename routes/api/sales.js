@@ -54,48 +54,6 @@ function getEffectivePrice(product, priceMap) {
 }
 
 // Helper function to validate sale input
-function validateSaleInput(body) {
-  const errors = [];
-
-  if (!body) {
-    errors.push('Dữ liệu yêu cầu trống');
-    return { valid: false, errors };
-  }
-
-  const { customerId, items } = body;
-
-  // Validate items
-  if (!items) {
-    errors.push('Danh sách sản phẩm trống');
-  } else if (!Array.isArray(items)) {
-    errors.push('Danh sách sản phẩm phải là mảng');
-  } else if (items.length === 0) {
-    errors.push('Danh sách sản phẩm trống');
-  } else {
-    // Validate each item
-    items.forEach((item, index) => {
-      if (!item.productId) {
-        errors.push(`Sản phẩm thứ ${index + 1}: Thiếu mã sản phẩm`);
-      }
-      if (!item.quantity || item.quantity <= 0) {
-        errors.push(`Sản phẩm thứ ${index + 1}: Số lượng phải lớn hơn 0`);
-      }
-      if (item.price !== undefined && item.price < 0) {
-        errors.push(`Sản phẩm thứ ${index + 1}: Giá không được âm`);
-      }
-    });
-  }
-
-  // Validate kegs (optional)
-  if (body.deliverKegs !== undefined && body.deliverKegs < 0) {
-    errors.push('Số vỏ giao không được âm');
-  }
-  if (body.returnKegs !== undefined && body.returnKegs < 0) {
-    errors.push('Số vỏ trả không được âm');
-  }
-
-  return { valid: errors.length === 0, errors };
-}
 
 // POST /api/sales - Tạo hóa đơn mới (với transaction)
 router.post('/', (req, res) => {
@@ -811,6 +769,18 @@ router.get('/walkin-kegs/summary', (req, res) => {
   }
 });
 
+// GET /api/sales/export - Xuất toàn bộ dữ liệu bán hàng (đặt TRƯỚC /:id để tránh bị shadow)
+router.get('/export', (req, res) => {
+  try {
+    const sales = db.prepare('SELECT * FROM sales ORDER BY datetime(date) DESC').all();
+    const saleItems = db.prepare('SELECT * FROM sale_items').all();
+    res.json({ sales, sale_items: saleItems });
+  } catch (err) {
+    console.error('[EXPORT ERROR]', err);
+    res.status(500).json({ error: 'Export failed: ' + err.message });
+  }
+});
+
 // GET /api/sales/:id - Lấy chi tiết hóa đơn
 router.get('/:id', (req, res) => {
   const sale = db.prepare(`SELECT s.*, COALESCE(c.name, 'Khách lẻ') as customer_name FROM sales s LEFT JOIN customers c ON s.customer_id = c.id WHERE s.id = ?`).get(req.params.id);
@@ -1177,17 +1147,6 @@ router.post('/:id/return-items', (req, res) => {
 });
 
 // GET /api/export - Backup: full export of all sales and sale_items
-router.get('/export', (req, res) => {
-  try {
-    const sales = db.prepare('SELECT * FROM sales ORDER BY datetime(date) DESC').all();
-    const saleItems = db.prepare('SELECT * FROM sale_items').all();
-    res.json({ sales, sale_items: saleItems });
-  } catch (err) {
-    console.error('[EXPORT ERROR]', err);
-    res.status(500).json({ error: 'Export failed: ' + err.message });
-  }
-});
-
 // DELETE /api/sales/:id - Xóa hóa đơn và hoàn kho (SOFT-DELETE)
 router.delete('/:id', (req, res) => {
   const saleId = req.params.id;

@@ -95,6 +95,42 @@ router.get('/', (req, res) => {
   }
 });
 
+// GET /api/customer-alerts - Khách dưới mức kỳ vọng bình/tháng
+// (đặt TRƯỚC /:id để không bị shadow bởi route tham số)
+router.get('/alerts', (req, res) => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const monthStartStr = `${year}-${month}-01`;
+
+  const monthlyExpectedSetting = db.prepare("SELECT value FROM settings WHERE key = 'monthly_expected'").get();
+  const monthlyExpected = monthlyExpectedSetting ? parseFloat(monthlyExpectedSetting.value) : 300;
+  const daysElapsed = now.getDate();
+  const daysInMonth = new Date(year, now.getMonth() + 1, 0).getDate();
+  const expectedUnits = monthlyExpected * daysElapsed / daysInMonth;
+
+  const alerts = db.prepare(`
+    SELECT c.id, c.name, c.phone, c.last_order_date,
+      COALESCE(mc.monthly_qty, 0) as monthly_qty,
+      ROUND(?) - COALESCE(mc.monthly_qty, 0) as shortfall
+    FROM customers c
+    LEFT JOIN (
+      SELECT s.customer_id, SUM(si.quantity) as monthly_qty
+      FROM sales s
+      JOIN sale_items si ON si.sale_id = s.id
+      WHERE s.type = 'sale' AND s.date >= ?
+      GROUP BY s.customer_id
+    ) mc ON mc.customer_id = c.id
+    WHERE c.archived = 0
+    AND (c.exclude_expected IS NULL OR c.exclude_expected = 0)
+    AND ROUND(?) - COALESCE(mc.monthly_qty, 0) > 0
+    ORDER BY shortfall DESC
+    LIMIT 10
+  `).all(expectedUnits, monthStartStr, expectedUnits);
+
+  res.json(alerts);
+});
+
 // GET /api/customers/:id
 router.get('/:id', (req, res) => {
   try {
@@ -651,41 +687,6 @@ router.get('/:id/sales', (req, res) => {
   }
   
   res.json({ sales, monthlyTotal, monthlyQty });
-});
-
-// GET /api/customer-alerts - Khách dưới mức kỳ vọng bình/tháng
-router.get('/alerts', (req, res) => {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const monthStartStr = `${year}-${month}-01`;
-
-  const monthlyExpectedSetting = db.prepare("SELECT value FROM settings WHERE key = 'monthly_expected'").get();
-  const monthlyExpected = monthlyExpectedSetting ? parseFloat(monthlyExpectedSetting.value) : 300;
-  const daysElapsed = now.getDate();
-  const daysInMonth = new Date(year, now.getMonth() + 1, 0).getDate();
-  const expectedUnits = monthlyExpected * daysElapsed / daysInMonth;
-
-  const alerts = db.prepare(`
-    SELECT c.id, c.name, c.phone, c.last_order_date,
-      COALESCE(mc.monthly_qty, 0) as monthly_qty,
-      ROUND(?) - COALESCE(mc.monthly_qty, 0) as shortfall
-    FROM customers c
-    LEFT JOIN (
-      SELECT s.customer_id, SUM(si.quantity) as monthly_qty
-      FROM sales s
-      JOIN sale_items si ON si.sale_id = s.id
-      WHERE s.type = 'sale' AND s.date >= ?
-      GROUP BY s.customer_id
-    ) mc ON mc.customer_id = c.id
-    WHERE c.archived = 0
-    AND (c.exclude_expected IS NULL OR c.exclude_expected = 0)
-    AND ROUND(?) - COALESCE(mc.monthly_qty, 0) > 0
-    ORDER BY shortfall DESC
-    LIMIT 10
-  `).all(expectedUnits, monthStartStr, expectedUnits);
-
-  res.json(alerts);
 });
 
 // GET /api/customers/:id/keg-history - Get customer keg history

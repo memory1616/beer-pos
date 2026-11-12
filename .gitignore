@@ -42,6 +42,8 @@ err.txt
 out.txt
 run_out.txt
 server_out.txt
+NUL
+__pycache__/
 
 # Sensitive credentials — never commit
 pass.txt
@@ -51,6 +53,7 @@ cursor_deploy_key.pub
 *_rsa*
 *_rsa2*
 *_deploy_key*
+_gen_key.bat
 
 # Python / shell debug scripts (kept out of repo)
 /debug_*.py

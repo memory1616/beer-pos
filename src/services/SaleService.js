@@ -4,10 +4,6 @@
 const db = require('../../database');
 const logger = require('../utils/logger');
 
-function formatCurrency(amount) {
-  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(amount || 0);
-}
-
 class SaleService {
   constructor() {
     this._saleCache = new Map();

@@ -1,4 +1,4 @@
-# Hướng Dẫn Setup GitHub Webhook cho Auto Deploy
+﻿# Hướng Dẫn Setup GitHub Webhook cho Auto Deploy
 
 > Mục tiêu: Khi push code lên GitHub → server tự động deploy.
 
@@ -11,10 +11,15 @@
 | **GitHub repo** | `your-username/beer-pos` (thay b�ng tên repo thực tế) |
 | **Server public URL** | `http://103.75.183.57:3000` (hoặc domain nếu có HTTPS) |
 | **Webhook endpoint** | `POST http://103.75.183.57:3000/deploy` |
-| **Secret** | `***REMOVED***` |
+| **Secret** | `<GITHUB_WEBHOOK_SECRET>` — xem `scripts/gen-secrets.sh` |
 
 ⚠️ **Lưu ý bảo mật**:
 - Secret ở trên là `GITHUB_WEBHOOK_SECRET` trong file `.env` trên server.
+- **KHÔNG BAO GIỜ commit giá trị secret thật vào repo.** Lấy nó từ server:
+  ```bash
+  ssh beer-server "grep GITHUB_WEBHOOK_SECRET /var/www/beer-pos/.env"
+  ```
+- Tạo secret mới: `bash scripts/gen-secrets.sh`
 - Server hiện không có HTTPS (chỉ HTTP) → GitHub cho phép nhưng phải chấp nhận rủi ro.
 - **Khuyến nghị**: Dùng Cloudflare Tunnel hoặc nginx + Let's Encrypt nếu cần HTTPS.
 
@@ -37,7 +42,7 @@
 |---|---|---|
 | **Payload URL** | `http://103.75.183.57:3000/deploy` | Endpoint webhook server |
 | **Content type** | `application/json` | Mặc định |
-| **Secret** | `***REMOVED***` | Phải khớp với `GITHUB_WEBHOOK_SECRET` trên server |
+| **Secret** | `<GITHUB_WEBHOOK_SECRET>` | Phải khớp với `GITHUB_WEBHOOK_SECRET` trên server (xem Bước 1) |
 | **SSL verification** | Disable (nếu HTTP) | GitHub yêu cầu HTTPS, nhưng có thể tắt để test |
 | **Which events...** | "Just the push event" | Chỉ cần push, không cần PR |
 | **Active** | ✅ Checked | Bật |
@@ -81,10 +86,11 @@ ssh beer-server "curl -s http://127.0.0.1:3000/deploy/log?lines=30"
 ### Test 3: Test thủ công (không cần GitHub)
 
 ```bash
-# Local từ server (giả lập GitHub payload)
+# Local từ server (giả lập GitHub payload) — secret lấy động từ .env trên server
 ssh beer-server "python3 -c '
 import hmac, hashlib, json, urllib.request
-secret = \"***REMOVED***\"
+secret = open(\"/var/www/beer-pos/.env\").read()
+secret = [l.split(\"=\",1)[1].strip() for l in secret.splitlines() if l.startswith(\"GITHUB_WEBHOOK_SECRET=\")][0]
 payload = {\"ref\":\"refs/heads/main\", \"after\":\"abc123\", \"head_commit\":{\"message\":\"manual test\", \"id\":\"abc123\"}}
 body = json.dumps(payload).encode()
 sig = \"sha256=\" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()

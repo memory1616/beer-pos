@@ -57,6 +57,10 @@ try {
     const cleaned = db.prepare(`DELETE FROM auth_sessions WHERE expires_at < ?`).run(now).changes;
     if (cleaned > 0) {}
   }, 30 * 60 * 1000);
+  // unref() để timer không giữ process sống (nhất quán với middleware/cache.js)
+  if (cleanupHandle && typeof cleanupHandle.unref === 'function') {
+    cleanupHandle.unref();
+  }
   } catch (e) {
     // Session cleanup not available
   }

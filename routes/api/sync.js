@@ -6,17 +6,82 @@ const { deleteSaleRestoringInventory } = require('../../src/services/saleDelete'
 const { isValidId, isPositiveNumber, sanitizeString } = require('../../middleware/validation');
 
 // ========== DEDUP CACHE ==========
+// Idempotency 2 tầng:
+//  1. RAM cache (_processedIds) — nhanh, tự xóa sau CACHE_TTL.
+//  2. Bảng `sync_dedup` — sống qua restart server, chống ghi trùng khi
+//     client push lại cùng batch sau khi server restart giữa chừng.
 const _processedIds = new Map();
 const CACHE_TTL = 60000;
+const DEDUP_TABLE = 'sync_dedup';
 
-setInterval(() => {
+function ensureDedupTable() {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS ${DEDUP_TABLE} (
+        sync_id TEXT PRIMARY KEY,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_sync_dedup_created ON ${DEDUP_TABLE}(created_at)`);
+    return true;
+  } catch (e) {
+    logger.warn('sync_dedup table not ready', { error: e.message });
+    return false;
+  }
+}
+
+// Đọc set sync_id đã xử lý từ DB (gọi 1 lần / batch)
+function loadPersistedDedup(syncIds) {
+  const ids = syncIds.filter(Boolean);
+  if (!ids.length) return new Set();
+  try {
+    if (!ensureDedupTable()) return new Set();
+    const placeholders = ids.map(() => '?').join(',');
+    const rows = db
+      .prepare(`SELECT sync_id FROM ${DEDUP_TABLE} WHERE sync_id IN (${placeholders})`)
+      .all(...ids);
+    return new Set(rows.map(r => r.sync_id));
+  } catch (e) {
+    logger.warn('load persisted dedup failed', { error: e.message });
+    return new Set();
+  }
+}
+
+// Ghi các sync_id đã xử lý vào DB
+function persistDedup(syncIds) {
+  const ids = syncIds.filter(Boolean);
+  if (!ids.length) return;
+  try {
+    if (!ensureDedupTable()) return;
+    const stmt = db.prepare(`INSERT OR IGNORE INTO ${DEDUP_TABLE} (sync_id) VALUES (?)`);
+    const tx = db.transaction((list) => { list.forEach(id => stmt.run(id)); });
+    tx(ids);
+  } catch (e) {
+    logger.warn('persist dedup failed', { error: e.message });
+  }
+}
+
+// Dọn bảng dedup cũ (giữ 7 ngày)
+function pruneDedupTable() {
+  try {
+    if (!ensureDedupTable()) return;
+    db.prepare(`DELETE FROM ${DEDUP_TABLE} WHERE created_at < datetime('now', '-7 days')`).run();
+  } catch (e) { /* ignore */ }
+}
+
+const _dedupCleanupTimer = setInterval(() => {
   const now = Date.now();
   for (const [key, timestamp] of _processedIds) {
     if (now - timestamp > CACHE_TTL) {
       _processedIds.delete(key);
     }
   }
+  pruneDedupTable();
 }, 30000);
+// unref() để timer không giữ process sống
+if (typeof _dedupCleanupTimer.unref === 'function') {
+  _dedupCleanupTimer.unref();
+}
 
 // ========== HELPER: Slug utilities ==========
 function toSlug(name) {
@@ -55,6 +120,10 @@ router.post('/batch', async (req, res) => {
   let duplicates = 0;
   const startTime = Date.now();
 
+  // Dedup đã lưu trong DB (sống qua restart server)
+  const persistedDedup = loadPersistedDedup(items.map(i => i && i.syncId));
+  const newlyApplied = [];
+
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
     const { syncId, entity, action, data, client_updated_at } = item;
@@ -76,7 +145,7 @@ router.post('/batch', async (req, res) => {
       continue;
     }
 
-    if (_processedIds.has(syncId)) {
+    if (_processedIds.has(syncId) || persistedDedup.has(syncId)) {
       duplicates++;
       results.push({ syncId, success: true, duplicate: true });
       continue;
@@ -106,6 +175,7 @@ router.post('/batch', async (req, res) => {
       }
 
       _processedIds.set(syncId, Date.now());
+      newlyApplied.push(syncId);
       results.push({ syncId, success: true });
       succeeded++;
 
@@ -118,6 +188,9 @@ router.post('/batch', async (req, res) => {
 
   const elapsed = Date.now() - startTime;
   logger.info(`[SYNC/BATCH] ${items.length} items in ${elapsed}ms`, { succeeded, failed, duplicates });
+
+  // Ghi dedup xuống DB để chống ghi trùng nếu server restart giữa chừng
+  persistDedup(newlyApplied);
 
   res.json({
     success: true,
@@ -206,33 +279,55 @@ router.post('/push', (req, res) => {
     const { changes = [] } = req.body;
     let synced = 0;
     const conflicts = [];
+    // Danh sách item đã được server áp dụng thành công.
+    // Client (Service Worker / sync.js) dùng danh sách này để chỉ xóa
+    // NHỮNG item đã đồng bộ — không xóa toàn bộ queue (tránh mất dữ liệu
+    // khi có conflict hoặc item lỗi).
+    const applied = [];
+    const failed = [];
 
-    changes.forEach(change => {
+    changes.forEach((change, idx) => {
       const { entity, entity_id, action, data, client_updated_at } = change;
-      if (!entity || !action) return;
+      if (!entity || !action) {
+        failed.push({ index: idx, entity, entity_id, reason: 'missing_entity_or_action' });
+        return;
+      }
 
       const tableName = ENTITY_TO_TABLE[entity] || (entity + 's');
       if (entity_id && client_updated_at) {
         const serverRow = db.prepare(`SELECT updated_at FROM ${tableName} WHERE id = ?`).get(entity_id);
         if (serverRow && serverRow.updated_at && new Date(serverRow.updated_at) > new Date(client_updated_at)) {
-          conflicts.push({ entity, entity_id, reason: 'server_newer' });
+          conflicts.push({ index: idx, entity, entity_id, reason: 'server_newer' });
           return;
         }
       }
 
-      switch (entity) {
-        case 'sale': applySaleChange(action, entity_id, data); break;
-        case 'customer': applyCustomerChange(action, entity_id, data); break;
-        case 'product': applyProductChange(action, entity_id, data); break;
-        case 'expense': applyExpenseChange(action, entity_id, data); break;
-        case 'payment': applyPaymentChange(action, entity_id, data); break;
-        case 'keg_transaction': applyKegTransactionChange(action, entity_id, data); break;
-        default: break;
+      try {
+        switch (entity) {
+          case 'sale': applySaleChange(action, entity_id, data); break;
+          case 'customer': applyCustomerChange(action, entity_id, data); break;
+          case 'product': applyProductChange(action, entity_id, data); break;
+          case 'expense': applyExpenseChange(action, entity_id, data); break;
+          case 'payment': applyPaymentChange(action, entity_id, data); break;
+          case 'keg_transaction': applyKegTransactionChange(action, entity_id, data); break;
+          default: break;
+        }
+        applied.push({ index: idx, entity, entity_id });
+        synced++;
+      } catch (itemErr) {
+        // Lỗi cục bộ 1 item → không chặn các item còn lại
+        failed.push({ index: idx, entity, entity_id, reason: itemErr.message });
       }
-      synced++;
     });
 
-    res.json({ success: true, synced, conflicts, synced_at: new Date().toISOString() });
+    res.json({
+      success: true,
+      synced,
+      conflicts,
+      applied,
+      failed,
+      synced_at: new Date().toISOString(),
+    });
   } catch (err) {
     logger.error('Sync push error', { error: err.message });
     res.status(500).json({ error: err.message });
@@ -271,7 +366,9 @@ router.post('/pull', (req, res) => {
     let pendingQueue = [];
     try {
       pendingQueue = db.prepare(`
-        SELECT * FROM sync_queue WHERE synced = 0 ORDER BY created_at ASC LIMIT 100
+        SELECT * FROM sync_queue
+        WHERE synced_at IS NULL AND status IN ('pending', 'failed', 'processing')
+        ORDER BY created_at ASC LIMIT 100
       `).all();
     } catch (e) {
       logger.warn('sync_queue table not found, skipping');
@@ -314,9 +411,11 @@ router.get('/export', (req, res) => {
 // GET /api/sync/status - Check sync status
 router.get('/status', (req, res) => {
   try {
-    const pending = db.prepare('SELECT COUNT(*) as count FROM sync_queue WHERE synced = 0').get();
+    const pending = db.prepare(
+      "SELECT COUNT(*) as count FROM sync_queue WHERE synced_at IS NULL AND status IN ('pending', 'failed', 'processing')"
+    ).get();
     const lastSyncMeta = db.prepare("SELECT value FROM sync_meta WHERE key = 'last_sync'").get();
-    const syncedTotal = db.prepare('SELECT COUNT(*) as count FROM sync_queue WHERE synced = 1').get();
+    const syncedTotal = db.prepare('SELECT COUNT(*) as count FROM sync_queue WHERE synced_at IS NOT NULL').get();
 
     res.json({
       pending: pending.count,
@@ -338,7 +437,9 @@ router.post('/mark', (req, res) => {
     if (ids.length === 0) return res.json({ success: true });
 
     const placeholders = ids.map(() => '?').join(',');
-    const result = db.prepare(`UPDATE sync_queue SET synced = 1 WHERE id IN (${placeholders})`).run(...ids);
+    const result = db.prepare(
+      `UPDATE sync_queue SET synced_at = ?, status = 'synced' WHERE id IN (${placeholders})`
+    ).run(new Date().toISOString(), ...ids);
 
     db.prepare(`INSERT OR REPLACE INTO sync_meta (key, value) VALUES ('last_sync', ?)`).run(new Date().toISOString());
 

@@ -190,7 +190,7 @@
         var swVer = (typeof window !== 'undefined' && window.APP_VERSION)
           ? window.APP_VERSION
           : Date.now();
-        navigator.serviceWorker.register('/sw.js?v=' + swVer)
+        navigator.serviceWorker.register('/sw.v2.js?v=' + swVer)
           .catch(function (e) { /* SW register failed silently */ });
       }
     });

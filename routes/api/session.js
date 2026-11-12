@@ -27,6 +27,20 @@ router.get('/today', (req, res) => {
 });
 
 /**
+ * GET /api/session/check-migration - Check if old data needs migration
+ * (đặt TRƯỚC /:date để không bị shadow bởi route tham số)
+ */
+router.get('/check-migration', (req, res) => {
+  try {
+    const migrationStatus = session.checkOldDataMigration();
+    res.json(migrationStatus);
+  } catch (err) {
+    logger.error('Error checking migration status', { error: err.message });
+    res.status(500).json({ error: 'Failed to check migration status' });
+  }
+});
+
+/**
  * GET /api/session/:date - Get session by date
  */
 router.get('/:date', (req, res) => {
@@ -79,19 +93,6 @@ router.post('/migrate', (req, res) => {
   } catch (err) {
     logger.error('Error migrating session', { error: err.message });
     res.status(500).json({ error: 'Failed to migrate session' });
-  }
-});
-
-/**
- * GET /api/session/check-migration - Check if old data needs migration
- */
-router.get('/check-migration', (req, res) => {
-  try {
-    const migrationStatus = session.checkOldDataMigration();
-    res.json(migrationStatus);
-  } catch (err) {
-    logger.error('Error checking migration status', { error: err.message });
-    res.status(500).json({ error: 'Failed to check migration status' });
   }
 });
 

@@ -574,9 +574,16 @@ function runBusinessFeaturesMigration(db) {
 
   // Check if already run
   const bizVersion = getBusinessFeaturesVersion(db);
-  if (bizVersion >= BUSINESS_FEATURES_VERSION) {
+  if (bizVersion >= BUSINESS_FEATURES_VERSION && businessTablesPresent(db)) {
     log('Business features already migrated');
     return { success: true, skipped: true };
+  }
+
+  // Version gate có thể đã được set nhưng bảng thực tế chưa tồn tại
+  // (bug lịch sử: 004 từng tạo bảng trong file DB riêng thay vì DB chính).
+  // Trường hợp này phải chạy lại 004 để tạo bảng còn thiếu.
+  if (bizVersion >= BUSINESS_FEATURES_VERSION) {
+    log('[BUSINESS_FEATURES] Version đã đủ nhưng bảng nghiệp vụ còn thiếu → chạy lại migration 004');
   }
 
   log(`\n[BUSINESS_FEATURES] Running business features migration...`);
@@ -605,6 +612,23 @@ function getBusinessFeaturesVersion(db) {
     return row ? parseInt(row.value) : 0;
   } catch (e) {
     return 0;
+  }
+}
+
+/**
+ * Kiểm tra các bảng nghiệp vụ của 004_business_features đã tồn tại thật chưa.
+ * Dùng để tránh bỏ qua migration chỉ vì version đã được set.
+ */
+function businessTablesPresent(db) {
+  const required = ['customer_segments', 'delivery_schedules', 'debt_transactions'];
+  try {
+    const existing = db
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (?, ?, ?)")
+      .all(...required)
+      .map((r) => r.name);
+    return required.every((t) => existing.includes(t));
+  } catch (e) {
+    return false;
   }
 }
 
@@ -684,6 +708,23 @@ function runDriverSalaryAdvanceMigration(db) {
   }
 }
 
+// ── Missing Business Tables migration (048) ─────────────────────────────────
+// Bù các bảng/cột nghiệp vụ bị THIẾU do 004_business_features bị skip
+// (version gate của DB cao hơn BUSINESS_FEATURES_VERSION trong code).
+// Chạy ĐỘC LẬP, idempotent: CREATE TABLE IF NOT EXISTS + ALTER bọc try/catch.
+// Rollback an toàn: chỉ gỡ bảng/cột mới, không đụng dữ liệu kinh doanh.
+function runMissingBusinessTablesMigration(db) {
+  try {
+    const migration = require('./migrations/048_missing_business_tables');
+    migration.up(db);
+    log('[MISSING_BUSINESS_TABLES] Migration 048 applied');
+    return { success: true };
+  } catch (e) {
+    log(`[MISSING_BUSINESS_TABLES] Migration error: ${e.message}`);
+    return { success: false, error: e.message };
+  }
+}
+
 // ── Utility: Generate UUID ─────────────────────────────────────────────────────
 
 function generateUUID() {
@@ -706,6 +747,7 @@ module.exports = {
   runDriverKegReceiptMigration,
   runDriverWorkDaysMigration,
   runDriverSalaryAdvanceMigration,
+  runMissingBusinessTablesMigration,
   generateUUID,
   getCurrentVersion,
   setVersion,

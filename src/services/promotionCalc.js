@@ -207,7 +207,7 @@ function getNextTierProgress(yellowVolume, blackVolume) {
  */
 function formatRewardLabel(calcResult) {
   if (!calcResult) return 'Không thưởng';
-  const { yellowReward, blackReward, mode } = calcResult;
+  const { yellowReward, blackReward } = calcResult;
   if (yellowReward === 0 && blackReward === 0) return 'Không thưởng';
 
   const parts = [];
@@ -219,11 +219,10 @@ function formatRewardLabel(calcResult) {
 // ────────────────────────────────────────────────────────────
 // EXPORTS
 // ────────────────────────────────────────────────────────────
-
 module.exports = {
   calculatePromotion,
-  getNextTierProgress,
   formatRewardLabel,
+  getNextTierProgress,
   tierReward,
   TIER_THRESHOLDS,
   TIER_REWARDS,

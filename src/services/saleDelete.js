@@ -157,7 +157,7 @@ function deleteSaleRestoringInventory(saleId) {
         }
 
         if (rewardMonth !== null && rewardYear !== null) {
-          console.log('[ORDER DELETE] Reverting MONTHLY_BONUS reward: customer=' + sale.customer_id + ', month=' + rewardMonth + '/' + rewardYear);
+          logger.info('[ORDER DELETE] Reverting MONTHLY_BONUS reward', { customerId: sale.customer_id, month: rewardMonth, year: rewardYear });
 
           db.prepare(`
             UPDATE customer_monthly_stats
@@ -175,16 +175,16 @@ function deleteSaleRestoringInventory(saleId) {
             WHERE customer_id = ? AND note LIKE ?
           `).run(sale.customer_id, `%tháng ${rewardMonth}/${rewardYear}%`);
 
-          console.log('[ORDER DELETE] Cleared reward_history for customer', sale.customer_id, 'month', rewardMonth, '/', rewardYear);
+          logger.info('[ORDER DELETE] Cleared reward_history', { customerId: sale.customer_id, month: rewardMonth, year: rewardYear });
         } else {
-          console.log('[ORDER DELETE] MONTHLY_BONUS detected but cannot determine month/year for customer', sale.customer_id);
+          logger.warn('[ORDER DELETE] MONTHLY_BONUS detected but cannot determine month/year', { customerId: sale.customer_id });
         }
 
         // Xóa pending_rewards tương ứng nếu có (để tránh bị gắn thưởng lại khi tạo đơn mới)
         if (rewardMonth !== null && rewardYear !== null) {
           db.prepare('DELETE FROM pending_rewards WHERE customer_id = ? AND reward_month = ? AND reward_year = ?')
             .run(sale.customer_id, rewardMonth, rewardYear);
-          console.log('[ORDER DELETE] Cleared pending_rewards for customer', sale.customer_id, 'month', rewardMonth, '/', rewardYear);
+          logger.info('[ORDER DELETE] Cleared pending_rewards', { customerId: sale.customer_id, month: rewardMonth, year: rewardYear });
         }
       }
 
@@ -204,7 +204,7 @@ function deleteSaleRestoringInventory(saleId) {
           // Nếu không còn đơn nào khác HOẶC đơn này là đơn sớm nhất → reset first_order_date
           if (!earliestSale || earliestSale.date > sale.date) {
             db.prepare("UPDATE customers SET first_order_date = NULL WHERE id = ?").run(sale.customer_id);
-            console.log('[ORDER DELETE] Reset first_order_date for customer', sale.customer_id);
+            logger.info('[ORDER DELETE] Reset first_order_date', { customerId: sale.customer_id });
           }
         }
       }
@@ -275,10 +275,10 @@ function deleteSaleRestoringInventory(saleId) {
           db.prepare('DELETE FROM delivery_records WHERE sale_id = ?').run(id);
         }
         db.prepare('UPDATE sales SET delivery_status = NULL WHERE id = ?').run(id);
-        console.log('[ORDER DELETE] Cleaned delivery_records for sale', id, ':', drIds.length);
+        logger.info('[ORDER DELETE] Cleaned delivery_records', { saleId: id, count: drIds.length });
       } catch (drErr) {
         // Không được fail xoá đơn vì lỗi dọn phiếu giao.
-        console.error('[ORDER DELETE] Clean delivery_records error:', drErr.message);
+        logger.error('[ORDER DELETE] Clean delivery_records error', { saleId: id, error: drErr.message });
       }
 
       // ===== G. SOFT DELETE =====

@@ -3,7 +3,6 @@
 process.env.TZ = 'Asia/Ho_Chi_Minh';
 require('dotenv').config({ path: __dirname + '/.env' });
 const express = require('express');
-const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
 const path = require('path');
 const fs = require('fs');
@@ -468,8 +467,10 @@ app.get('/deploy/log', async (req, res) => {
 });
 
 // Middleware
-app.use(bodyParser.json({ limit: '10mb' }));
-app.use(bodyParser.urlencoded({ extended: true }));
+// Express 4.18+ đã có sẵn express.json()/express.urlencoded() — không cần body-parser.
+// Giữ nguyên limit 10mb (payload bán hàng / import lớn).
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(compression());
 // Dynamic JSON "page data" — must not be cached by browsers/CDN (PWA SW used to cache these)
 app.use((req, res, next) => {
@@ -638,8 +639,9 @@ app.use((req, res, next) => {
 });
 
 // View engine
+// Không dùng template engine: mọi view là HTML tĩnh, serve bằng res.sendFile().
+// (Đã bỏ ejs — 0 res.render trong toàn repo.)
 app.set('view engine', 'html');
-app.engine('html', require('ejs').renderFile);
 
 // Constants
 const DISTRIBUTOR_NAME = process.env.DISTRIBUTOR_NAME || 'Bia Tươi Gia Huy';
@@ -966,7 +968,7 @@ app.get('/api/auth/me', (req, res) => {
 });
 
 // ==================== WEBHOOK DEPLOY (moved above) ====================
-// Both /deploy and /webhook/deploy are registered above (before bodyParser).
+// Both /deploy and /webhook/deploy are registered above (before the JSON body parser).
 // See handleDeployWebhook() for the unified implementation.
 
 // ==================== HEALTH CHECK ====================
