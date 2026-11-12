@@ -161,7 +161,7 @@ router.post('/prices', (req, res) => {
   try {
     const { customerId, productId, productSlug, price } = req.body;
 
-    if (!customerId || !price === undefined) {
+    if (!customerId || price === undefined || price === null) {
       return res.status(400).json({ error: 'Thiếu thông tin bắt buộc' });
     }
 

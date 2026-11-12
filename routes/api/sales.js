@@ -811,6 +811,18 @@ router.get('/walkin-kegs/summary', (req, res) => {
   }
 });
 
+// GET /api/sales/export - Xuất toàn bộ dữ liệu bán hàng (đặt TRƯỚC /:id để tránh bị shadow)
+router.get('/export', (req, res) => {
+  try {
+    const sales = db.prepare('SELECT * FROM sales ORDER BY datetime(date) DESC').all();
+    const saleItems = db.prepare('SELECT * FROM sale_items').all();
+    res.json({ sales, sale_items: saleItems });
+  } catch (err) {
+    console.error('[EXPORT ERROR]', err);
+    res.status(500).json({ error: 'Export failed: ' + err.message });
+  }
+});
+
 // GET /api/sales/:id - Lấy chi tiết hóa đơn
 router.get('/:id', (req, res) => {
   const sale = db.prepare(`SELECT s.*, COALESCE(c.name, 'Khách lẻ') as customer_name FROM sales s LEFT JOIN customers c ON s.customer_id = c.id WHERE s.id = ?`).get(req.params.id);
@@ -1177,17 +1189,6 @@ router.post('/:id/return-items', (req, res) => {
 });
 
 // GET /api/export - Backup: full export of all sales and sale_items
-router.get('/export', (req, res) => {
-  try {
-    const sales = db.prepare('SELECT * FROM sales ORDER BY datetime(date) DESC').all();
-    const saleItems = db.prepare('SELECT * FROM sale_items').all();
-    res.json({ sales, sale_items: saleItems });
-  } catch (err) {
-    console.error('[EXPORT ERROR]', err);
-    res.status(500).json({ error: 'Export failed: ' + err.message });
-  }
-});
-
 // DELETE /api/sales/:id - Xóa hóa đơn và hoàn kho (SOFT-DELETE)
 router.delete('/:id', (req, res) => {
   const saleId = req.params.id;

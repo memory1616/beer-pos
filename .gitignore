@@ -42,6 +42,8 @@ err.txt
 out.txt
 run_out.txt
 server_out.txt
+NUL
+__pycache__/
 
 # Sensitive credentials — never commit
 pass.txt

@@ -9,7 +9,7 @@ const { isValidId, isPositiveNumber, sanitizeString } = require('../../middlewar
 const _processedIds = new Map();
 const CACHE_TTL = 60000;
 
-setInterval(() => {
+const _dedupCleanupTimer = setInterval(() => {
   const now = Date.now();
   for (const [key, timestamp] of _processedIds) {
     if (now - timestamp > CACHE_TTL) {
@@ -17,6 +17,10 @@ setInterval(() => {
     }
   }
 }, 30000);
+// unref() để timer không giữ process sống
+if (typeof _dedupCleanupTimer.unref === 'function') {
+  _dedupCleanupTimer.unref();
+}
 
 // ========== HELPER: Slug utilities ==========
 function toSlug(name) {

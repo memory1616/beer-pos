@@ -170,6 +170,22 @@ router.put('/settings', (req, res) => {
 });
 
 /**
+ * GET /api/promotions/near-tier
+ * Danh sách khách gần đạt mốc thưởng
+ * (đặt TRƯỚC /:id để không bị shadow bởi route tham số)
+ */
+router.get('/near-tier', (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 10;
+    const customers = PromotionService.getNearRewardCustomers(limit);
+    res.json({ success: true, data: customers });
+  } catch (e) {
+    logger.error('near-tier error:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+/**
  * GET /api/promotions/:id
  * Lấy chi tiết 1 khuyến mãi
  */
@@ -533,21 +549,6 @@ router.get('/dashboard/stats', (req, res) => {
     });
   } catch (e) {
     logger.error('promotion dashboard stats error:', e);
-    res.status(500).json({ success: false, error: e.message });
-  }
-});
-
-/**
- * GET /api/promotions/near-tier
- * Danh sách khách gần đạt mốc thưởng
- */
-router.get('/near-tier', (req, res) => {
-  try {
-    const limit = parseInt(req.query.limit) || 10;
-    const customers = PromotionService.getNearRewardCustomers(limit);
-    res.json({ success: true, data: customers });
-  } catch (e) {
-    logger.error('near-tier error:', e);
     res.status(500).json({ success: false, error: e.message });
   }
 });
@@ -919,7 +920,7 @@ router.post('/reward/auto-generate', (req, res) => {
 
         // Bia Inox V2: dùng calculatePromotion()
         const liters = litersByCustomer[cust.id] || { yellow: 0, black: 0, total: 0 };
-        const calc = require('./src/services/promotionCalc').calculatePromotion(liters.yellow, liters.black);
+        const calc = require('../../src/services/promotionCalc').calculatePromotion(liters.yellow, liters.black);
 
         if (!calc || calc.totalReward <= 0) {
           results.skipped_lowvolume.push({ id: cust.id, name: cust.name, liters: liters.total, yellow: liters.yellow, black: liters.black });

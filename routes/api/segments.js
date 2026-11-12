@@ -13,6 +13,7 @@
 const express = require('express');
 const router = express.Router();
 
+const db = require('../../database');
 const { cache, cacheKeys } = require('../../src/cache');
 
 /**
