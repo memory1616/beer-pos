@@ -101,21 +101,45 @@ log_to_file "Deploy started - $(date)"
 # ---- 0.5 Bootstrap SSH key (one-time, idempotent) ----
 # Cho phep may local goi lai SSH bang key thay vi password.
 # Key duoc lay tu file <repo>/deploy/deploy_bootstrap_key.pub.
+#
+# ⚠️ SECURITY: key nao da bi COMMIT vao repo public KHONG duoc cai lai.
+#    Private key tuong ung da bi thu hoi khoi may chu (authorized_keys).
+#    Script nay chi cai key moi, tu choi key da bi lo.
 BOOTSTRAP_PUB="$VPS_PATH/deploy/deploy_bootstrap_key.pub"
+# Fingerprint cua key bi lo (cursor_deploy_key) — KHONG bao gio duoc them lai
+LEAKED_KEY_FP='SHA256:qhojEgvCkgKefZkKLq37QdhHjffwP5ZyZ9WeFHd/lGg'
 if [ -f "$BOOTSTRAP_PUB" ]; then
     BOOTSTRAP_KEY=$(grep -vE '^\s*(#|$)' "$BOOTSTRAP_PUB" | head -1)
     if [ -n "$BOOTSTRAP_KEY" ]; then
-        mkdir -p /root/.ssh
-        chmod 700 /root/.ssh
-        touch /root/.ssh/authorized_keys
-        chmod 600 /root/.ssh/authorized_keys
-        if ! grep -qF "$BOOTSTRAP_KEY" /root/.ssh/authorized_keys 2>/dev/null; then
-            echo "$BOOTSTRAP_KEY" >> /root/.ssh/authorized_keys
-            log "[0/7] Bootstrap SSH key installed to /root/.ssh/authorized_keys"
-            log_to_file "Bootstrap SSH key installed"
+        # Bo qua key bi lo
+        BOOTSTRAP_FP=$(printf '%s\n' "$BOOTSTRAP_KEY" | ssh-keygen -lf - 2>/dev/null | awk '{print $2}')
+        if [ "$BOOTSTRAP_FP" = "$LEAKED_KEY_FP" ]; then
+            log "[0/7] Bootstrap key bi lo — BO QUA (khong them vao authorized_keys)"
+            log_to_file "Bootstrap key skipped (leaked key refused)"
         else
-            log "[0/7] Bootstrap SSH key already present"
+            mkdir -p /root/.ssh
+            chmod 700 /root/.ssh
+            touch /root/.ssh/authorized_keys
+            chmod 600 /root/.ssh/authorized_keys
+            if ! grep -qF "$BOOTSTRAP_KEY" /root/.ssh/authorized_keys 2>/dev/null; then
+                echo "$BOOTSTRAP_KEY" >> /root/.ssh/authorized_keys
+                log "[0/7] Bootstrap SSH key installed to /root/.ssh/authorized_keys"
+                log_to_file "Bootstrap SSH key installed"
+            else
+                log "[0/7] Bootstrap SSH key already present"
+            fi
         fi
+    fi
+fi
+
+# ---- 0.6 Thu hoi key SSH da bi lo (idempotent) ----
+# Key cu da commit vao repo public -> phai bi xoa khoi authorized_keys
+if [ -f /root/.ssh/authorized_keys ]; then
+    if ssh-keygen -lf /root/.ssh/authorized_keys 2>/dev/null | grep -qF "$LEAKED_KEY_FP"; then
+        cp /root/.ssh/authorized_keys "/root/.ssh/authorized_keys.bak.$(date +%s)"
+        sed -i '/cursor-agent@beer-pos/d' /root/.ssh/authorized_keys
+        log "[0/7] Da thu hoi SSH key bi lo khoi authorized_keys"
+        log_to_file "Revoked leaked SSH key from authorized_keys"
     fi
 fi
 
