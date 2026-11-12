@@ -1167,6 +1167,26 @@ describe('Driver Portal — RBAC & Data Protection', () => {
         expect(deliveryHtml).toMatch(/eventLabel\(e\.event_type\)/);
         expect(deliveryHtml).toMatch(/statusLabel\(e\.to_status\)/);
       });
+
+      test('Bấm "Xác nhận giao" → mở Hoá đơn giống nút "👁 Xem" ở ĐƠN GẦN ĐÂY', () => {
+        const path3 = require('path');
+        const deliveryHtml = fs2.readFileSync(
+          path3.join(__dirname, '../views/driver/delivery.html'), 'utf8');
+        const saleHtml = fs2.readFileSync(
+          path3.join(__dirname, '../views/driver/sale.html'), 'utf8');
+
+        // Trang giao hàng: sau khi confirm → gọi openInvoiceForSale(saleId)
+        expect(deliveryHtml).toMatch(/openInvoiceForSale/);
+        expect(deliveryHtml).toMatch(/if \(saleId\)\s*\{\s*openInvoiceForSale\(saleId\);/);
+        // Hàm chuyển sang trang Bán hàng kèm tham số mở hoá đơn
+        expect(deliveryHtml).toMatch(/window\.location\.href\s*=\s*'\/driver\/ban-hang\?invoice='/);
+
+        // Trang Bán hàng: đọc ?invoice=<id> và gọi openInvoiceModal (module chung)
+        expect(saleHtml).toMatch(/params\.get\('invoice'\)/);
+        expect(saleHtml).toMatch(/window\.openInvoiceModal\(invoiceId\)/);
+        // Xoá tham số sau khi mở để F5 không mở lại
+        expect(saleHtml).toMatch(/history\.replaceState/);
+      });
     });
   });
 });

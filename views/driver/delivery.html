@@ -70,7 +70,6 @@
       if (!key) return '';
       return STATUS_LABELS[key] || key;
     }
-
     /** Nhãn tiếng Việt của loại sự kiện trong lịch sử */
     var EVENT_LABELS = {
       CREATED: 'Tạo phiếu giao',
@@ -83,6 +82,21 @@
     function eventLabel(key) {
       if (!key) return '';
       return EVENT_LABELS[key] || key;
+    }
+
+    /**
+     * Mở hóa đơn của 1 đơn — GIỐNG HỆT nút "👁 Xem" ở tab ĐƠN GẦN ĐÂY
+     * (trang Bán hàng).
+     *
+     * Cách làm: chuyển sang trang Bán hàng kèm `?invoice=<saleId>`.
+     * Trang Bán hàng đọc tham số này và gọi đúng `openInvoiceModal()` —
+     * nên hóa đơn render y hệt (cùng module sales.js dùng chung),
+     * không viết lại logic hóa đơn ở đây.
+     */
+    function openInvoiceForSale(saleId) {
+      var id = parseInt(saleId, 10);
+      if (!Number.isFinite(id) || id <= 0) return;
+      window.location.href = '/driver/ban-hang?invoice=' + id;
     }
 
     var lat = settings.distributor_lat || 11.3296;
@@ -461,6 +475,12 @@
             }
             closePanel();
             await reloadDeliveries();
+
+            // MỞ HÓA ĐƠN của đơn vừa giao — giống hệt bấm nút "👁 Xem"
+            // ở tab ĐƠN GẦN ĐÂY (trang Bán hàng).
+            if (saleId) {
+              openInvoiceForSale(saleId);
+            }
             return;
           }
 

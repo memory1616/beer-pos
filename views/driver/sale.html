@@ -370,6 +370,26 @@
       // 4c. Tải dữ liệu (shim sẽ tự rewrite '/sale/data' → '/api/driver/sale/data')
       await loadSalesData();
 
+      // 4c-1. MỞ HÓA ĐƠN TỪ URL (?invoice=<saleId>)
+      //      Dùng khi tài xế bấm "Xác nhận giao" ở trang Giao hàng →
+      //      chuyển sang Bán hàng và xem hóa đơn của đơn vừa giao.
+      try {
+        var params = new URLSearchParams(window.location.search || '');
+        var invoiceId = parseInt(params.get('invoice') || '', 10);
+        if (Number.isFinite(invoiceId) && invoiceId > 0) {
+          // Xoá tham số để F5 không mở lại hóa đơn cũ
+          if (window.history && window.history.replaceState) {
+            window.history.replaceState({}, '', window.location.pathname);
+          }
+          await new Promise(function (r) { setTimeout(r, 400); });
+          if (typeof window.openInvoiceModal === 'function') {
+            await window.openInvoiceModal(invoiceId);
+          }
+        }
+      } catch (e) {
+        console.error('[DRIVER-SALE] open invoice from URL error:', e);
+      }
+
       // 4d. Gắn tên tài xế lên app bar
       if (window.Drv) {
         window.Drv.setupHeader();
