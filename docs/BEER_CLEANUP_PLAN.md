@@ -495,8 +495,8 @@ Còn lại (production): `better-sqlite3`, `compression`, `cookie-parser`, `dote
 ### 12.9 Trạng thái production sau vòng xử lý
 
 ```
-git HEAD              : aa90d70 (main, đồng bộ GitHub)
-PM2                   : beer-pos online (restart #19)
+git HEAD              : 1786eba (main, đồng bộ GitHub)
+PM2                   : beer-pos online (restart #22)
 health                : 200
 sales_active          : 782        (không đổi)
 sales_total           : 909        (không đổi)
@@ -506,16 +506,36 @@ products              : 5          (không đổi)
 app_users             : 1          (giaohang01 — tài xế thật)
 PRAGMA integrity_check: ok
 PRAGMA foreign_key_check: 0 rows
-smoke test            : 48 PASS / 0 FAIL
+smoke test            : 100% PASS / 0 FAIL
 Jest                  : 15 suite / 313 test pass
 history secret scan   : SẠCH
 ```
+
+### 12.9b Smoke test thủ công bằng trình duyệt (2026-11-12, R3b)
+
+| Hạng mục | Kết quả |
+|---|---|
+| Đăng nhập admin (`admin` / mật khẩu mới) tại `admin.biatuoitayninh.store/login` | ✅ Chuyển hướng `/` → dashboard, dữ liệu render (`todayRevenue` 13.360.000đ, `kegTotal` 4004, `recentSales`, chart) |
+| WebSocket / Socket.IO | ✅ `connected: true`, socket id cấp, BroadcastChannel hỗ trợ, 0 event pending |
+| Dexie / IndexedDB | ✅ `BeerPOS` version **450** |
+| Service Worker | ✅ Đăng ký tại `/sw.js`, nội dung khớp `sw.v2.js`, cache stale đã được dọn |
+| Cache | ✅ Chỉ còn `beer-pos-v45` (cache `v44` cũ đã bị xoá) |
+| 12 route chính (`/`, `/sale`, `/customers`, `/stock`, `/report`, `/devices`, `/delivery`, `/expenses`, `/promo-settings`, `/qr-settings`, `/sales-staff`, `/customers/23`) | ✅ 200 OK |
+| Public portal `biatuoitayninh.store` | ✅ Landing page render đầy đủ; `/login` → redirect về landing (đúng thiết kế) |
+| Driver portal `giaohang.biatuoitayninh.store/driver` | ✅ 200; `/api/driver/me` → 401 (đúng — chưa login) |
+| Asset đã xoá (`/css/tailwind.css`, `/css/styles.css`, `/landing-assets/beer-web.mp4`) | ✅ 404 đúng như thiết kế |
+
+### 12.8b Lỗi phát hiện & sửa trong vòng verify thủ công
+
+| Vấn đề | Mức độ | Xử lý |
+|---|---|---|
+| `/sw.js` trả **302 redirect** → Chrome chặn SW script sau redirect (`The script resource is behind a redirect, which is disallowed`) → SW đã đăng ký ở `/sw.js` **không bao giờ update được**, cache cũ `beer-pos-v44` tồn tại song song với `v45` | 🔴 Cao | `server.js`: `/sw.js` giờ trả **200 + nội dung `sw.v2.js`** (`Cache-Control: no-store`) thay vì redirect → SW cũ tự update, cache stale tự dọn ở `activate`. Thêm case kiểm tra vào `scripts/ops/smoke-prod.sh` (so sánh md5 `/sw.js` vs `/sw.v2.js`) + `scripts/smoke-test.js`. Commit `2397e53`, `1786eba`. |
 
 ### 12.10 Việc còn lại (cần người dùng)
 
 | # | Việc | Ghi chú |
 |---|---|---|
-| R3b | **Smoke test thủ công bằng trình duyệt** | Script tự động đã PASS 48/48, nhưng §7.2 yêu cầu người dùng xác nhận bằng trình duyệt thật (WebSocket 1 kết nối, Dexie offline, SW version). |
+| R3b | ~~**Smoke test thủ công bằng trình duyệt**~~ | ✅ **Xong** (2026-11-12) — xem §12.9b. Phát hiện & sửa lỗi SW redirect (§12.8b). |
 | R6 | **Lưu mật khẩu admin mới** | `FktQYe9SpcVwstoyd-` — không có trong git, phải lưu ở password manager. |
 | R7 | **Clone lại repo** | Lịch sử đã rewrite → máy khác cần `git clone` mới (không `git pull`). Cảnh báo người dùng khác đang clone. |
 | R8 | **Kiểm tra quota Git LFS / repo size** | Force-push + rewrite không thu hồi được blob cũ trên GitHub ngay lập tức; blob cũ có thể còn trong cache/CDN của GitHub một thời gian. Nên liên hệ GitHub Support nếu cần xoá ngay. |
