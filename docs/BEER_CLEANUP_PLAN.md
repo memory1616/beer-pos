@@ -473,7 +473,7 @@ Còn lại (production): `better-sqlite3`, `compression`, `cookie-parser`, `dote
 
 | # | Việc | Trạng thái | Chi tiết |
 |---|---|---|---|
-| R1 | **Rotate secret đã lỗi thời** | ✅ Hoàn tất | `ADMIN_PASSWORD` (mới: `FktQYe9SpcVwstoyd-`), `SESSION_SECRET`, `JWT_SECRET`, `GITHUB_WEBHOOK_SECRET` (server + GitHub webhook config). SSH key `cursor_deploy_key` (đã commit) **đã thu hồi** khỏi `authorized_keys`, thay bằng `beer_prod_ed25519` (fingerprint `SHA256:38Djal0+…`). `deploy.sh` sửa để không cài lại key bị lộ. |
+| R1 | **Rotate secret đã lỗi thời** | ✅ Hoàn tất | `ADMIN_PASSWORD` (đã đổi lại → `***REMOVED***` theo yêu cầu user 2026-11-13; bản rotate mạnh trước đó là `FktQYe9SpcVwstoyd-`), `SESSION_SECRET`, `JWT_SECRET`, `GITHUB_WEBHOOK_SECRET` (server + GitHub webhook config). SSH key `cursor_deploy_key` (đã commit) **đã thu hồi** khỏi `authorized_keys`, thay bằng `beer_prod_ed25519` (fingerprint `SHA256:38Djal0+…`). `deploy.sh` sửa để không cài lại key bị lộ. |
 | R2 | Deploy lên production | ✅ Hoàn tất | Merge `cleanup/audit-2026-11-12` → `main` (merge commit `8cc9849`), push → GitHub webhook auto-deploy. Server HEAD = `aa90d70`. |
 | R3 | Smoke test theo trang (§7.2) | ✅ Tự động | `scripts/smoke-test.js` (local) + `scripts/ops/smoke-prod.sh` (production): **48 route/asset PASS, 0 FAIL**. |
 | R4 | `git filter-repo` lịch sử | ✅ Hoàn tất | Xoá 9 file secret khỏi toàn bộ lịch sử + thay giá trị secret trong file text. Force-push cả 3 branch + 5 tag. `scripts/ops/scan-history-secrets.py` → **SẠCH** (0 path, 0 giá trị, 0 private key). |
@@ -536,6 +536,6 @@ history secret scan   : SẠCH
 | # | Việc | Ghi chú |
 |---|---|---|
 | R3b | ~~**Smoke test thủ công bằng trình duyệt**~~ | ✅ **Xong** (2026-11-12) — xem §12.9b. Phát hiện & sửa lỗi SW redirect (§12.8b). |
-| R6 | **Lưu mật khẩu admin mới** | `FktQYe9SpcVwstoyd-` — không có trong git, phải lưu ở password manager. |
+| R6 | **Lưu mật khẩu admin mới** | ⚠️ Đã đổi lại theo yêu cầu user (2026-11-13 06:45) → `***REMOVED***`. **CẢNH BÁO**: đây chính là mật khẩu cũ đã bị lộ công khai (repo public + còn plaintext trong 4 file tooling ở HEAD) — nên cân nhắc đổi lại sang chuỗi mạnh. |
 | R7 | **Clone lại repo** | Lịch sử đã rewrite → máy khác cần `git clone` mới (không `git pull`). Cảnh báo người dùng khác đang clone. |
 | R8 | **Kiểm tra quota Git LFS / repo size** | Force-push + rewrite không thu hồi được blob cũ trên GitHub ngay lập tức; blob cũ có thể còn trong cache/CDN của GitHub một thời gian. Nên liên hệ GitHub Support nếu cần xoá ngay. |
