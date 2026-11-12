@@ -1,12 +1,11 @@
-feat(driver): xem/sửa/xoá phiếu thu vỏ trên Cổng Tài xế
+feat(driver): trang phiếu thu vỏ dạng hoá đơn để chụp màn hình gửi khách
 
-- API PATCH/DELETE /api/driver/keg-receipts/:id (scope theo chính tài xế)
-- KegReceiptService.updateReceipt: đổi số vỏ → cân bằng lại tồn vỏ khách
-  và keg_stats.empty_collected; đổi ghi chú
-- KegReceiptService.deleteReceipt: hoàn lại toàn bộ vỏ cho khách + xoá phiếu
-- permissions.js: cho phép DELETE /api/driver/keg-receipts/:id
-- Trang chủ tài xế: danh sách "Phiếu thu vỏ đã lập" ngay dưới nút Tạo phiếu,
-  mỗi dòng có 3 nút Xem / Sửa / Xoá
-- Modal xem phiếu có thêm nút Sửa / Xoá (kèm xác nhận, hoàn vỏ)
-- CSS: .ds-rowacts / .ds-rowact cho nút hành động trên dòng
-- Script verify-driver-keg-receipts.js: 22 case tích hợp HTTP thật
+Thay vì window.print() (in thẳng ra giấy, không dùng được trên điện thoại),
+nút "In / Chụp phiếu" giờ mở trang mới /driver/phieu-thu-vo?id=<id>:
+
+- Tờ phiếu nền trắng, bố cục giống hoá đơn giấy (logo, số phiếu, thông tin
+  khách, ngày giờ, tài xế, khối số vỏ, tồn vỏ trước/sau, ghi chú, chữ ký)
+- Thanh công cụ dưới: Quay lại / Copy / Chia sẻ (Web Share API) / In
+- Gợi ý "Chụp màn hình phần phiếu để gửi khách", tự ẩn thanh công cụ khi cuộn
+- CSS riêng public/css/driver-receipt-print.css, hỗ trợ @media print
+- Route GET /driver/phieu-thu-vo trong server.js

@@ -375,7 +375,7 @@
     var body = D.openSheet(
       receiptHtml(r) +
       '<div class="ds-receipt__actions">' +
-        '<button class="ds-btn ds-btn--ghost" id="kr-print" type="button">🖨️ In phiếu</button>' +
+        '<button class="ds-btn ds-btn--ghost" id="kr-print" type="button">📄 In / Chụp phiếu</button>' +
         '<button class="ds-btn ds-btn--ghost" id="kr-edit" type="button">✏️ Sửa</button>' +
         '<button class="ds-btn ds-btn--danger" id="kr-delete" type="button">🗑 Xoá</button>' +
         '<button class="ds-btn ds-btn--primary" id="kr-copy" type="button">📋 Copy nội dung</button>' +
@@ -385,7 +385,10 @@
     if (!body) return;
 
     $('kr-print').addEventListener('click', function () {
-      window.print();
+      // Mở trang phiếu dạng hoá đơn (nền trắng) để tài xế CHỤP MÀN HÌNH
+      // rồi gửi khách — hoặc in ra giấy.
+      var url = '/driver/phieu-thu-vo?id=' + encodeURIComponent(r.id);
+      window.open(url, '_blank', 'noopener');
     });
 
     $('kr-edit').addEventListener('click', function () {

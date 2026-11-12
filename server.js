@@ -828,6 +828,14 @@ app.get('/driver/khach-hang', (req, res) => {
   res.sendFile(path.join(__dirname, 'views', 'driver', 'customers.html'));
 });
 
+// Trang PHIẾU THU VỎ dạng hoá đơn — tài xế chụp màn hình gửi khách
+app.get('/driver/phieu-thu-vo', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.sendFile(path.join(__dirname, 'views', 'driver', 'receipt.html'));
+});
+
 // Admin app pages — all at root for admin subdomain
 app.get('/login', (req, res) => {
   res.sendFile(path.join(__dirname, 'views', 'login.html'));

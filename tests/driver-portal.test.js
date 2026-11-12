@@ -1269,6 +1269,71 @@ describe('Driver Portal — RBAC & Data Protection', () => {
           expect(css3).toMatch(/\.ds-rowact--edit/);
           expect(css3).toMatch(/\.ds-rowact--delete/);
         });
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // L. Trang PHIẾU THU VỎ dạng hoá đơn (chụp màn hình gửi khách)
+        // ═══════════════════════════════════════════════════════════════════════
+        describe('L. Trang phiếu thu vỏ (chụp màn hình gửi khách)', () => {
+          const fs4 = require('fs');
+          const path4 = require('path');
+          const receiptHtml = fs4.readFileSync(
+            path4.join(__dirname, '../views/driver/receipt.html'), 'utf8');
+          const printJs = fs4.readFileSync(
+            path4.join(__dirname, '../public/js/driver/receipt-print.js'), 'utf8');
+          const printCss = fs4.readFileSync(
+            path4.join(__dirname, '../public/css/driver-receipt-print.css'), 'utf8');
+          const serverSrc = fs4.readFileSync(
+            path4.join(__dirname, '../server.js'), 'utf8');
+
+          test('Có route /driver/phieu-thu-vo phục vụ trang phiếu', () => {
+            expect(serverSrc).toMatch(/app\.get\('\/driver\/phieu-thu-vo'/);
+            expect(serverSrc).toMatch(/views',\s*'driver',\s*'receipt\.html'/);
+          });
+
+          test('Trang phiếu nạp đúng script + CSS riêng', () => {
+            expect(receiptHtml).toMatch(/\/js\/driver\/receipt-print\.js/);
+            expect(receiptHtml).toMatch(/\/css\/driver-receipt-print\.css/);
+            expect(receiptHtml).toMatch(/<div id="app">/);
+          });
+
+          test('Nút "In phiếu" mở trang phiếu (KHÔNG gọi window.print trực tiếp)', () => {
+            // Trong modal phiếu (keg-receipt.js): mở tab mới tới /driver/phieu-thu-vo
+            expect(kegJs).toMatch(/window\.open\(\s*url,\s*'_blank'/);
+            expect(kegJs).toMatch(/\/driver\/phieu-thu-vo\?id=/);
+            // Trang phiếu mới có nút In thật sự
+            expect(printJs).toMatch(/window\.print\(\)/);
+          });
+
+          test('Trang phiếu hiển thị đầy đủ thông tin như hoá đơn', () => {
+            expect(printJs).toMatch(/PHIẾU THU VỎ/);
+            expect(printJs).toMatch(/Số phiếu/);
+            expect(printJs).toMatch(/Khách hàng/);
+            expect(printJs).toMatch(/Số vỏ thu về/);
+            expect(printJs).toMatch(/Trước khi thu/);
+            expect(printJs).toMatch(/Sau khi thu/);
+            expect(printJs).toMatch(/Tài xế/);
+            expect(printJs).toMatch(/Khách hàng<\/div>/);
+          });
+
+          test('Trang phiếu có nút Copy / Chia sẻ / In + gợi ý chụp màn hình', () => {
+            expect(printJs).toMatch(/id="rp-copy"/);
+            expect(printJs).toMatch(/id="rp-share"/);
+            expect(printJs).toMatch(/id="rp-print"/);
+            expect(printJs).toMatch(/id="rp-back"/);
+            expect(printJs).toMatch(/Chụp màn hình/);
+            // Dùng Web Share API để gửi cho khách
+            expect(printJs).toMatch(/navigator\.share/);
+          });
+
+          test('CSS trang phiếu: nền trắng + tờ giấy + ẩn nút khi in', () => {
+            expect(printCss).toMatch(/\.rp-paper\b/);
+            expect(printCss).toMatch(/background:\s*#fff/);
+            expect(printCss).toMatch(/\.rp-amount\b/);
+            expect(printCss).toMatch(/\.rp-sign\b/);
+            expect(printCss).toMatch(/@media print/);
+            expect(printCss).toMatch(/\.rp-toolbar\s*\{\s*display:\s*none\s*!important/);
+          });
+        });
       });
     });
   });
