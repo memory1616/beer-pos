@@ -116,6 +116,14 @@
           'Thu vỏ rỗng khi không giao hàng — lập phiếu để báo cáo với khách. ' +
           'Số vỏ sẽ trừ khỏi vỏ khách đang giữ.' +
         '</p>' +
+
+        /* ── Phiếu đã lập: XEM / SỬA / XOÁ ── */
+        '<div class="ds-divider ds-mt-4"></div>' +
+        '<div class="ds-section__head ds-mt-3">' +
+          '<h2 class="ds-section__title">Phiếu thu vỏ đã lập</h2>' +
+          '<span class="ds-section__badge" id="home-keg-count">0</span>' +
+        '</div>' +
+        '<div class="ds-list" id="home-keg-list"></div>' +
       '</section>' +
 
       /* ── Gợi ý / lỗi ── */
@@ -477,6 +485,33 @@
         } else {
           D.toast('Tính năng phiếu thu vỏ chưa sẵn sàng', 'error');
         }
+      });
+    }
+
+    // Danh sách phiếu thu vỏ đã lập (Xem / Sửa / Xoá)
+    var kegList = document.getElementById('home-keg-list');
+    if (kegList && window.DrvKegReceipt) {
+      window.DrvKegReceipt.renderInto('home-keg-list');
+
+      kegList.addEventListener('click', function (e) {
+        var actBtn = e.target.closest('[data-act]');
+        if (actBtn) {
+          e.stopPropagation();
+          var act = actBtn.getAttribute('data-act');
+          var aid = parseInt(actBtn.getAttribute('data-id'), 10);
+          var receipt = window.DrvKegReceipt.find(aid);
+          if (!receipt) return;
+          if (act === 'view') window.DrvKegReceipt.view(receipt);
+          else if (act === 'edit') window.DrvKegReceipt.edit(receipt);
+          else if (act === 'delete') window.DrvKegReceipt.remove(receipt);
+          return;
+        }
+
+        var item = e.target.closest('[data-receipt-id]');
+        if (!item) return;
+        var id = parseInt(item.getAttribute('data-receipt-id'), 10);
+        var r = window.DrvKegReceipt.find(id);
+        if (r) window.DrvKegReceipt.view(r);
       });
     }
 

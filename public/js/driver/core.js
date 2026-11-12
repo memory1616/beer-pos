@@ -197,6 +197,12 @@
     },
     createKegReceipt: function (b) {
       return api('/api/driver/keg-receipts', { method: 'POST', body: b });
+    },
+    updateKegReceipt: function (id, b) {
+      return api('/api/driver/keg-receipts/' + encodeURIComponent(id), { method: 'PATCH', body: b });
+    },
+    deleteKegReceipt: function (id) {
+      return api('/api/driver/keg-receipts/' + encodeURIComponent(id), { method: 'DELETE' });
     }
   };
 

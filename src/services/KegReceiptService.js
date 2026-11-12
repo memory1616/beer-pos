@@ -196,6 +196,216 @@ const KegReceiptService = {
   },
 
   /**
+   * SỬA phiếu thu vỏ.
+   *
+   * Cho phép đổi số vỏ và ghi chú. Khi đổi số vỏ → hoàn/trừ lại tồn vỏ
+   * khách + `keg_stats.empty_collected` cho khớp với số vỏ thực tế.
+   *
+   * @param {number} id
+   * @param {object} opts
+   * @param {number} [opts.kegs]       số vỏ MỚI (bỏ qua nếu undefined)
+   * @param {string} [opts.note]       ghi chú MỚI
+   * @param {string} opts.driverUsername
+   */
+  updateReceipt(id, opts) {
+    const receiptId = parseInt(id);
+    if (!receiptId || isNaN(receiptId)) {
+      return { success: false, error: 'ID phiếu không hợp lệ' };
+    }
+    const driverUsername = opts.driverUsername;
+    const row = db
+      .prepare('SELECT * FROM driver_keg_receipts WHERE id = ? AND driver_username = ?')
+      .get(receiptId, driverUsername);
+    if (!row) {
+      return { success: false, error: 'Không tìm thấy phiếu thu vỏ' };
+    }
+
+    const oldKegs = row.kegs || 0;
+    const newKegs = opts.kegs === undefined || opts.kegs === null
+      ? oldKegs
+      : parseInt(opts.kegs);
+    if (isNaN(newKegs) || newKegs < 1) {
+      return { success: false, error: 'Số vỏ phải lớn hơn 0' };
+    }
+
+    const newNote = opts.note === undefined ? (row.note || '') : String(opts.note).trim();
+    const kegsChanged = newKegs !== oldKegs;
+
+    // Khách hiện tại: tồn = balance_after + (số vỏ đã thu ở phiếu này) ...
+    // → nếu GIẢM số vỏ thu → phải trả lại vỏ cho khách.
+    const customer = db
+      .prepare('SELECT id, name, keg_balance FROM customers WHERE id = ?')
+      .get(row.customer_id);
+    if (!customer) {
+      return { success: false, error: 'Không tìm thấy khách hàng của phiếu' };
+    }
+
+    // diff = số vỏ cần TRẢ LẠI cho khách (khi giảm) hoặc thu thêm (khi tăng)
+    const diff = oldKegs - newKegs; // >0: trả lại, <0: thu thêm
+    const currentBalance = customer.keg_balance || 0;
+
+    if (diff < 0) {
+      // Thu thêm N vỏ → khách phải đang giữ đủ N vỏ
+      const need = -diff;
+      if (currentBalance < need) {
+        return {
+          success: false,
+          error: `Khách hiện chỉ còn giữ ${currentBalance} vỏ, không thể thu thêm ${need} vỏ`,
+        };
+      }
+    }
+
+    const run = db.transaction(() => {
+      if (kegsChanged) {
+        // diff > 0 → trả lại diff vỏ cho khách (deliverKegs = +diff)
+        // diff < 0 → thu thêm (-diff) vỏ (returnKegs = -diff)
+        updateCustomerKegBalance(row.customer_id, diff > 0 ? diff : 0, diff < 0 ? -diff : 0);
+
+        // Đồng bộ vỏ rỗng trong kho
+        const stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
+        const currentEmpty = stats?.empty_collected || 0;
+        const newEmpty = Math.max(0, currentEmpty - diff);
+        db.prepare(
+          'UPDATE keg_stats SET empty_collected = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1'
+        ).run(newEmpty);
+
+        // balance_before/after của phiếu được tính lại theo số vỏ MỚI
+        const balanceBefore = newKegs + (currentBalance - oldKegs);
+        const balanceAfter = balanceBefore - newKegs;
+
+        db.prepare(
+          `UPDATE driver_keg_receipts
+             SET kegs = ?, note = ?, balance_before = ?, balance_after = ?,
+                 updated_at = datetime('now', '+7 hours')
+           WHERE id = ?`
+        ).run(newKegs, newNote || null, balanceBefore, balanceAfter, receiptId);
+
+        // Ghi log điều chỉnh
+        const after = db
+          .prepare('SELECT inventory, empty_collected, customer_holding FROM keg_stats WHERE id = 1')
+          .get();
+        db.prepare(
+          `INSERT INTO keg_transactions_log
+             (type, quantity, customer_id, customer_name, inventory_after, empty_after, holding_after, note)
+           VALUES ('collect', ?, ?, ?, ?, ?, ?, ?)`
+        ).run(
+          diff,
+          row.customer_id,
+          row.customer_name || customer.name || '',
+          after?.inventory || 0,
+          after?.empty_collected || 0,
+          after?.customer_holding || 0,
+          `Điều chỉnh phiếu thu vỏ ${row.receipt_no} — tài xế ${driverUsername}`
+        );
+      } else {
+        db.prepare(
+          `UPDATE driver_keg_receipts
+             SET note = ?, updated_at = datetime('now', '+7 hours')
+           WHERE id = ?`
+        ).run(newNote || null, receiptId);
+      }
+    });
+
+    try {
+      run();
+    } catch (err) {
+      logger.error('[KegReceipt] update error', { error: err.message });
+      return { success: false, error: 'Lỗi khi sửa phiếu: ' + err.message };
+    }
+
+    const receipt = KegReceiptService.getReceipt(receiptId, driverUsername);
+    try {
+      socketServer.emitKegUpdated({
+        inventory: db.prepare(db.SQL_KEG_WAREHOUSE_POSITIVE_STOCK).get().total,
+        emptyCollected: db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get().empty_collected,
+        customerHolding: db.prepare('SELECT COALESCE(SUM(keg_balance), 0) AS t FROM customers').get().t,
+      });
+      socketServer.emitCustomerUpdated({ id: row.customer_id });
+    } catch (e) {
+      logger.error('[KegReceipt] socket error', { error: e.message });
+    }
+
+    return { success: true, receipt };
+  },
+
+  /**
+   * XOÁ phiếu thu vỏ → HOÀN lại số vỏ cho khách + trừ vỏ rỗng trong kho.
+   */
+  deleteReceipt(id, driverUsername) {
+    const receiptId = parseInt(id);
+    if (!receiptId || isNaN(receiptId)) {
+      return { success: false, error: 'ID phiếu không hợp lệ' };
+    }
+    const row = db
+      .prepare('SELECT * FROM driver_keg_receipts WHERE id = ? AND driver_username = ?')
+      .get(receiptId, driverUsername);
+    if (!row) {
+      return { success: false, error: 'Không tìm thấy phiếu thu vỏ' };
+    }
+
+    const kegs = row.kegs || 0;
+    const customer = db
+      .prepare('SELECT id, name FROM customers WHERE id = ?')
+      .get(row.customer_id);
+
+    const run = db.transaction(() => {
+      // 1. Trả lại vỏ cho khách
+      if (kegs > 0) {
+        updateCustomerKegBalance(row.customer_id, kegs, 0);
+      }
+
+      // 2. Trừ vỏ rỗng trong kho
+      const stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
+      const currentEmpty = stats?.empty_collected || 0;
+      const newEmpty = Math.max(0, currentEmpty - kegs);
+      db.prepare(
+        'UPDATE keg_stats SET empty_collected = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1'
+      ).run(newEmpty);
+
+      // 3. Ghi log hoàn vỏ
+      const after = db
+        .prepare('SELECT inventory, empty_collected, customer_holding FROM keg_stats WHERE id = 1')
+        .get();
+      db.prepare(
+        `INSERT INTO keg_transactions_log
+           (type, quantity, customer_id, customer_name, inventory_after, empty_after, holding_after, note)
+         VALUES ('collect', ?, ?, ?, ?, ?, ?, ?)`
+      ).run(
+        -kegs,
+        row.customer_id,
+        row.customer_name || customer?.name || '',
+        after?.inventory || 0,
+        after?.empty_collected || 0,
+        after?.customer_holding || 0,
+        `Xoá phiếu thu vỏ ${row.receipt_no} — tài xế ${driverUsername}`
+      );
+
+      // 4. Xoá phiếu
+      db.prepare('DELETE FROM driver_keg_receipts WHERE id = ?').run(receiptId);
+    });
+
+    try {
+      run();
+    } catch (err) {
+      logger.error('[KegReceipt] delete error', { error: err.message });
+      return { success: false, error: 'Lỗi khi xoá phiếu: ' + err.message };
+    }
+
+    try {
+      socketServer.emitKegUpdated({
+        inventory: db.prepare(db.SQL_KEG_WAREHOUSE_POSITIVE_STOCK).get().total,
+        emptyCollected: db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get().empty_collected,
+        customerHolding: db.prepare('SELECT COALESCE(SUM(keg_balance), 0) AS t FROM customers').get().t,
+      });
+      socketServer.emitCustomerUpdated({ id: row.customer_id });
+    } catch (e) {
+      logger.error('[KegReceipt] socket error', { error: e.message });
+    }
+
+    return { success: true };
+  },
+
+  /**
    * Gắn tên khách + định dạng số liệu cho phiếu.
    */
   decorate(row) {

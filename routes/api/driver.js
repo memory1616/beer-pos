@@ -1239,6 +1239,41 @@ router.post('/keg-receipts', requireDriver, (req, res) => {
   }
 });
 
+// PATCH /api/driver/keg-receipts/:id — sửa phiếu thu vỏ
+router.patch('/keg-receipts/:id', requireDriver, (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID phiếu không hợp lệ' });
+
+    const { kegs, note } = req.body || {};
+    const result = KegReceiptService.updateReceipt(id, {
+      kegs: kegs === undefined ? undefined : kegs,
+      note: note === undefined ? undefined : note,
+      driverUsername: req.user.username,
+    });
+    if (!result.success) return res.status(400).json({ error: result.error });
+    res.json(result);
+  } catch (err) {
+    logger.error('[driver] keg receipt update error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi sửa phiếu thu vỏ: ' + err.message });
+  }
+});
+
+// DELETE /api/driver/keg-receipts/:id — xoá phiếu thu vỏ (hoàn vỏ cho khách)
+router.delete('/keg-receipts/:id', requireDriver, (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID phiếu không hợp lệ' });
+
+    const result = KegReceiptService.deleteReceipt(id, req.user.username);
+    if (!result.success) return res.status(400).json({ error: result.error });
+    res.json(result);
+  } catch (err) {
+    logger.error('[driver] keg receipt delete error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi xoá phiếu thu vỏ: ' + err.message });
+  }
+});
+
 // ═══════════════════════════════════════════════════════════════════════════
 // THANH TOÁN / CÔNG NỢ
 // ═══════════════════════════════════════════════════════════════════════════

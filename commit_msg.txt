@@ -1,8 +1,12 @@
-feat: add sale_time column to track exact sale timestamp
+feat(driver): xem/sửa/xoá phiếu thu vỏ trên Cổng Tài xế
 
-- Added sale_time column to sales table for accurate invoice timestamps
-- Added getVietnamTimeStr() helper function in database.js
-- Migration 042 adds column to existing databases
-- Updated sale creation to record exact time (HH:MM:SS)
-- Updated frontend to display sale_time instead of defaulting to 07:00
-- ORDER BY now uses date + sale_time for correct sorting
+- API PATCH/DELETE /api/driver/keg-receipts/:id (scope theo chính tài xế)
+- KegReceiptService.updateReceipt: đổi số vỏ → cân bằng lại tồn vỏ khách
+  và keg_stats.empty_collected; đổi ghi chú
+- KegReceiptService.deleteReceipt: hoàn lại toàn bộ vỏ cho khách + xoá phiếu
+- permissions.js: cho phép DELETE /api/driver/keg-receipts/:id
+- Trang chủ tài xế: danh sách "Phiếu thu vỏ đã lập" ngay dưới nút Tạo phiếu,
+  mỗi dòng có 3 nút Xem / Sửa / Xoá
+- Modal xem phiếu có thêm nút Sửa / Xoá (kèm xác nhận, hoàn vỏ)
+- CSS: .ds-rowacts / .ds-rowact cho nút hành động trên dòng
+- Script verify-driver-keg-receipts.js: 22 case tích hợp HTTP thật

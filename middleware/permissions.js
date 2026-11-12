@@ -242,12 +242,14 @@ function apiGuard(req, res, next) {
 
   // 3. Namespace /api/driver chỉ được dùng với các method an toàn đã khai báo
   //    (driver.js / driverSale.js tự kiểm tra requireDriver + scope theo username).
-  //    DELETE bị chặn trừ khi là xoá đơn của chính tài xế:
+  //    DELETE bị chặn trừ khi là xoá đơn / phiếu của CHÍNH tài xế:
   //      /api/driver/sales/:id  và  /api/driver/sale/:id
+  //      /api/driver/keg-receipts/:id  (KegReceiptService scope theo driver_username)
   if (path.startsWith('/api/driver') && method === 'DELETE') {
     const isOwnSaleDelete =
       /^\/api\/driver\/sales\/\d+$/.test(path) || /^\/api\/driver\/sale\/\d+$/.test(path);
-    if (!isOwnSaleDelete) {
+    const isOwnKegReceiptDelete = /^\/api\/driver\/keg-receipts\/\d+$/.test(path);
+    if (!isOwnSaleDelete && !isOwnKegReceiptDelete) {
       return res.status(403).json({
         error: 'Thao tác không được phép',
         code: 'DRIVER_FORBIDDEN',

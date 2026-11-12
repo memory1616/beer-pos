@@ -644,6 +644,41 @@ body.ds-app > .app {
   white-space: nowrap;
 }
 
+/* ── 5.3b Row actions (Xem / Sửa / Xoá) ─────────────────────────────── */
+.ds-rowacts {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-s-1);
+  flex: 0 0 auto;
+}
+
+.ds-rowact {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 34px;
+  min-height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--ds-line-strong);
+  border-radius: var(--ds-r-xs);
+  background: var(--ds-surface-3);
+  color: var(--ds-text-1);
+  font-family: inherit;
+  font-size: var(--ds-f-xs);
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform var(--ds-fast), background var(--ds-fast), border-color var(--ds-fast);
+}
+.ds-rowact:hover { background: var(--ds-surface-2); }
+.ds-rowact:active { transform: scale(.94); }
+.ds-rowact svg { width: 15px; height: 15px; }
+
+.ds-rowact--view   { color: var(--ds-info); border-color: rgba(59, 122, 254, .35); }
+.ds-rowact--edit   { color: var(--ds-brand-500); border-color: rgba(252, 213, 53, .35); }
+.ds-rowact--delete { color: var(--ds-danger); border-color: rgba(246, 70, 93, .35); }
+.ds-rowact--delete:hover { background: var(--ds-danger-dim); }
+
 /* ── 5.4 Stat / KPI ─────────────────────────────────────────────────── */
 .ds-stats {
   display: grid;
@@ -1045,6 +1080,10 @@ body.ds-app > .app {
   grid-template-columns: 1fr 1fr;
   gap: var(--ds-s-2);
   margin-top: var(--ds-s-4);
+}
+/* 4 nút: In / Sửa / Xoá / Copy → 2x2 trên mobile, 4 cột trên màn rộng */
+@media (min-width: 520px) {
+  .ds-receipt__actions { grid-template-columns: repeat(4, 1fr); }
 }
 
 @media (max-width: 380px) {

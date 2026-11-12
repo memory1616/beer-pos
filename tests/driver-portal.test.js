@@ -1187,6 +1187,89 @@ describe('Driver Portal — RBAC & Data Protection', () => {
         // Xoá tham số sau khi mở để F5 không mở lại
         expect(saleHtml).toMatch(/history\.replaceState/);
       });
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // K. Phiếu thu vỏ — XEM / SỬA / XOÁ
+      // ═══════════════════════════════════════════════════════════════════════
+      describe('K. Phiếu thu vỏ (Xem / Sửa / Xoá)', () => {
+        const fs3 = require('fs');
+        const path3 = require('path');
+        const kegJs = fs3.readFileSync(
+          path3.join(__dirname, '../public/js/driver/keg-receipt.js'), 'utf8');
+        const coreJs = fs3.readFileSync(
+          path3.join(__dirname, '../public/js/driver/core.js'), 'utf8');
+        const serviceSrc = fs3.readFileSync(
+          path3.join(__dirname, '../src/services/KegReceiptService.js'), 'utf8');
+        const permSrc = fs3.readFileSync(
+          path3.join(__dirname, '../middleware/permissions.js'), 'utf8');
+
+        test('API có PATCH (sửa) và DELETE (xoá) phiếu thu vỏ', () => {
+          expect(driverApiSrc).toMatch(/router\.patch\('\/keg-receipts\/:id',\s*requireDriver/);
+          expect(driverApiSrc).toMatch(/router\.delete\('\/keg-receipts\/:id',\s*requireDriver/);
+          expect(coreJs).toMatch(/updateKegReceipt/);
+          expect(coreJs).toMatch(/deleteKegReceipt/);
+        });
+
+        test('Service có updateReceipt + deleteReceipt, cân bằng lại tồn vỏ khách', () => {
+          expect(serviceSrc).toMatch(/updateReceipt\s*\(/);
+          expect(serviceSrc).toMatch(/deleteReceipt\s*\(/);
+          // Sửa → gọi updateCustomerKegBalance để hoàn/trừ vỏ
+          expect(serviceSrc).toMatch(/updateCustomerKegBalance\(row\.customer_id,\s*diff\s*>\s*0\s*\?\s*diff\s*:\s*0/);
+          // Xoá → hoàn lại toàn bộ số vỏ cho khách
+          expect(serviceSrc).toMatch(/updateCustomerKegBalance\(row\.customer_id,\s*kegs,\s*0\)/);
+        });
+
+        test('Tài xế được phép DELETE phiếu của CHÍNH mình trong /api/driver', () => {
+          expect(permSrc).toMatch(/isOwnKegReceiptDelete/);
+          expect(permSrc).toMatch(/\^\\\/api\\\/driver\\\/keg-receipts\\\/\\d\+\$/);
+        });
+
+        test('UI: danh sách phiếu có 3 nút Xem / Sửa / Xoá trên mỗi dòng', () => {
+          expect(kegJs).toMatch(/data-act="view"/);
+          expect(kegJs).toMatch(/data-act="edit"/);
+          expect(kegJs).toMatch(/data-act="delete"/);
+          expect(kegJs).toMatch(/ds-rowact--view/);
+          expect(kegJs).toMatch(/ds-rowact--edit/);
+          expect(kegJs).toMatch(/ds-rowact--delete/);
+        });
+
+        test('UI: có form sửa phiếu (số vỏ + ghi chú) và xác nhận xoá', () => {
+          expect(kegJs).toMatch(/function openEditForm/);
+          expect(kegJs).toMatch(/kr-e-kegs/);
+          expect(kegJs).toMatch(/kr-e-note/);
+          // Xoá phải qua hộp xác nhận
+          expect(kegJs).toMatch(/D\.confirm\(/);
+          expect(kegJs).toMatch(/danger:\s*true/);
+        });
+
+        test('UI: modal xem phiếu có nút In / Sửa / Xoá / Copy', () => {
+          expect(kegJs).toMatch(/id="kr-print"/);
+          expect(kegJs).toMatch(/id="kr-edit"/);
+          expect(kegJs).toMatch(/id="kr-delete"/);
+          expect(kegJs).toMatch(/id="kr-copy"/);
+        });
+
+        test('Trang chủ tài xế hiển thị danh sách phiếu ngay dưới nút Tạo phiếu', () => {
+          expect(homeJs).toMatch(/id="home-keg-list"/);
+          expect(homeJs).toMatch(/id="home-keg-count"/);
+          expect(homeJs).toMatch(/Phiếu thu vỏ đã lập/);
+          // home.js phải nối event Xem / Sửa / Xoá
+          expect(homeJs).toMatch(/DrvKegReceipt\.renderInto/);
+          expect(homeJs).toMatch(/DrvKegReceipt\.view/);
+          expect(homeJs).toMatch(/DrvKegReceipt\.edit/);
+          expect(homeJs).toMatch(/DrvKegReceipt\.remove/);
+        });
+
+        test('CSS có style cho nút hành động trên dòng', () => {
+          const css3 = fs3.readFileSync(
+            path3.join(__dirname, '../public/css/driver-system.css'), 'utf8');
+          expect(css3).toMatch(/\.ds-rowacts\b/);
+          expect(css3).toMatch(/\.ds-rowact\b/);
+          expect(css3).toMatch(/\.ds-rowact--view/);
+          expect(css3).toMatch(/\.ds-rowact--edit/);
+          expect(css3).toMatch(/\.ds-rowact--delete/);
+        });
+      });
     });
   });
 });
