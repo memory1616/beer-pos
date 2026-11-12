@@ -6,6 +6,10 @@
   "jest": {
     "testEnvironment": "node",
     "maxWorkers": 1,
+    "setupFiles": [
+      "<rootDir>/tests/setup.js"
+    ],
+    "globalTeardown": "<rootDir>/tests/globalTeardown.js",
     "testPathIgnorePatterns": [
       "/node_modules/",
       "/backups/",
