@@ -27,7 +27,7 @@ const MAX_CACHE   = 100; // entries — prevent unbounded cache growth
 const APP_SHELL = [
   '/', '/index.html', '/manifest.json',
   '/icon-192.png', '/icon-512.png',
-  '/css/tailwind.css', '/css/unified.css',
+  '/css/unified.css',
   '/js/layout.js', '/js/auth.js', '/js/dark-mode.js',
 ];
 

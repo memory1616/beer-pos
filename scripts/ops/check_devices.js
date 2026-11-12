@@ -1,4 +1,6 @@
-const db = require('./database');
+// Script CLI độc lập → tắt cron backup nền để process thoát sau khi in kết quả.
+process.env.DISABLE_BACKGROUND_JOBS = '1';
+const db = require('../../database');
 
 console.log('=== Devices Table ===');
 const devices = db.prepare('SELECT id, name, type, status, customer_id FROM devices ORDER BY id').all();

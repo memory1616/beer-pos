@@ -1,9 +1,11 @@
-const db = require('./database');
+// Script CLI độc lập → tắt cron backup nền để process thoát sau khi in kết quả.
+process.env.DISABLE_BACKGROUND_JOBS = '1';
+const db = require('../../database');
 
 console.log('=== Sync all customers with devices table ===\n');
 
 let fixed = 0;
-let customers = db.prepare('SELECT id, name, horizontal_fridge, vertical_fridge FROM customers').all();
+const customers = db.prepare('SELECT id, name, horizontal_fridge, vertical_fridge FROM customers').all();
 
 for (const customer of customers) {
   const actualHorizontal = db.prepare(

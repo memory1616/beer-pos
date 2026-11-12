@@ -14,6 +14,10 @@ const path = require('path');
 // Set test environment
 process.env.NODE_ENV = 'test';
 
+// Tắt các cron job nền (backup 2AM...) trong test: cron giữ event loop sống
+// khiến `jest` không tự thoát sau khi chạy xong.
+process.env.DISABLE_BACKGROUND_JOBS = '1';
+
 // Increase timeout for database tests
 jest.setTimeout(10000);
 
