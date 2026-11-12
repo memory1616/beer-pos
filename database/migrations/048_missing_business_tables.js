@@ -146,10 +146,24 @@ const migration = {
     } catch (e) {
       // FK đã tồn tại hoặc SQLite không hỗ trợ thêm FK qua ALTER
     }
+
+    // ── 5. sync_dedup — idempotency sống qua restart server ────────────────
+    // Client có thể push lại cùng batch sau khi server restart giữa chừng.
+    // Bảng này ghi lại sync_id đã xử lý để chống ghi trùng dữ liệu.
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS sync_dedup (
+        sync_id TEXT PRIMARY KEY,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_sync_dedup_created ON sync_dedup(created_at)`);
   },
 
   // Rollback: chỉ gỡ những gì migration này tạo ra.
   down: (db) => {
+    db.exec(`DROP INDEX IF EXISTS idx_sync_dedup_created`);
+    db.exec(`DROP TABLE IF EXISTS sync_dedup`);
+
     db.exec(`DROP INDEX IF EXISTS idx_debt_tx_customer`);
     db.exec(`DROP TABLE IF EXISTS debt_transactions`);
 

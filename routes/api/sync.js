@@ -6,8 +6,68 @@ const { deleteSaleRestoringInventory } = require('../../src/services/saleDelete'
 const { isValidId, isPositiveNumber, sanitizeString } = require('../../middleware/validation');
 
 // ========== DEDUP CACHE ==========
+// Idempotency 2 tầng:
+//  1. RAM cache (_processedIds) — nhanh, tự xóa sau CACHE_TTL.
+//  2. Bảng `sync_dedup` — sống qua restart server, chống ghi trùng khi
+//     client push lại cùng batch sau khi server restart giữa chừng.
 const _processedIds = new Map();
 const CACHE_TTL = 60000;
+const DEDUP_TABLE = 'sync_dedup';
+
+function ensureDedupTable() {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS ${DEDUP_TABLE} (
+        sync_id TEXT PRIMARY KEY,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_sync_dedup_created ON ${DEDUP_TABLE}(created_at)`);
+    return true;
+  } catch (e) {
+    logger.warn('sync_dedup table not ready', { error: e.message });
+    return false;
+  }
+}
+
+// Đọc set sync_id đã xử lý từ DB (gọi 1 lần / batch)
+function loadPersistedDedup(syncIds) {
+  const ids = syncIds.filter(Boolean);
+  if (!ids.length) return new Set();
+  try {
+    if (!ensureDedupTable()) return new Set();
+    const placeholders = ids.map(() => '?').join(',');
+    const rows = db
+      .prepare(`SELECT sync_id FROM ${DEDUP_TABLE} WHERE sync_id IN (${placeholders})`)
+      .all(...ids);
+    return new Set(rows.map(r => r.sync_id));
+  } catch (e) {
+    logger.warn('load persisted dedup failed', { error: e.message });
+    return new Set();
+  }
+}
+
+// Ghi các sync_id đã xử lý vào DB
+function persistDedup(syncIds) {
+  const ids = syncIds.filter(Boolean);
+  if (!ids.length) return;
+  try {
+    if (!ensureDedupTable()) return;
+    const stmt = db.prepare(`INSERT OR IGNORE INTO ${DEDUP_TABLE} (sync_id) VALUES (?)`);
+    const tx = db.transaction((list) => { list.forEach(id => stmt.run(id)); });
+    tx(ids);
+  } catch (e) {
+    logger.warn('persist dedup failed', { error: e.message });
+  }
+}
+
+// Dọn bảng dedup cũ (giữ 7 ngày)
+function pruneDedupTable() {
+  try {
+    if (!ensureDedupTable()) return;
+    db.prepare(`DELETE FROM ${DEDUP_TABLE} WHERE created_at < datetime('now', '-7 days')`).run();
+  } catch (e) { /* ignore */ }
+}
 
 const _dedupCleanupTimer = setInterval(() => {
   const now = Date.now();
@@ -16,6 +76,7 @@ const _dedupCleanupTimer = setInterval(() => {
       _processedIds.delete(key);
     }
   }
+  pruneDedupTable();
 }, 30000);
 // unref() để timer không giữ process sống
 if (typeof _dedupCleanupTimer.unref === 'function') {
@@ -59,6 +120,10 @@ router.post('/batch', async (req, res) => {
   let duplicates = 0;
   const startTime = Date.now();
 
+  // Dedup đã lưu trong DB (sống qua restart server)
+  const persistedDedup = loadPersistedDedup(items.map(i => i && i.syncId));
+  const newlyApplied = [];
+
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
     const { syncId, entity, action, data, client_updated_at } = item;
@@ -80,7 +145,7 @@ router.post('/batch', async (req, res) => {
       continue;
     }
 
-    if (_processedIds.has(syncId)) {
+    if (_processedIds.has(syncId) || persistedDedup.has(syncId)) {
       duplicates++;
       results.push({ syncId, success: true, duplicate: true });
       continue;
@@ -110,6 +175,7 @@ router.post('/batch', async (req, res) => {
       }
 
       _processedIds.set(syncId, Date.now());
+      newlyApplied.push(syncId);
       results.push({ syncId, success: true });
       succeeded++;
 
@@ -122,6 +188,9 @@ router.post('/batch', async (req, res) => {
 
   const elapsed = Date.now() - startTime;
   logger.info(`[SYNC/BATCH] ${items.length} items in ${elapsed}ms`, { succeeded, failed, duplicates });
+
+  // Ghi dedup xuống DB để chống ghi trùng nếu server restart giữa chừng
+  persistDedup(newlyApplied);
 
   res.json({
     success: true,
