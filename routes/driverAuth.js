@@ -24,6 +24,7 @@ const {
 } = require('../middleware/auth');
 const { ROLE_DRIVER } = require('../middleware/permissions');
 const logger = require('../src/utils/logger');
+const socketServer = require('../src/socket/socketServer');
 
 // GET /auth/driver — hiển thị form login tài xế
 router.get('/', (req, res) => {
@@ -87,6 +88,8 @@ router.get('/logout', (req, res) => {
   const token = req.cookies?.[DRIVER_COOKIE_NAME] ||
                 req.headers.authorization?.replace('Bearer ', '');
 
+  // A4: ngắt socket của tài xế → thiết bị khác mất phiên ngay lập tức.
+  try { socketServer.disconnectToken(token, 'logout'); } catch (_) { /* ignore */ }
   if (token) logout(token);
   res.clearCookie(DRIVER_COOKIE_NAME);
   res.redirect('/auth/driver');
@@ -97,6 +100,7 @@ router.post('/logout', (req, res) => {
   const token = req.cookies?.[DRIVER_COOKIE_NAME] ||
                 req.headers.authorization?.replace('Bearer ', '');
 
+  try { socketServer.disconnectToken(token, 'logout'); } catch (_) { /* ignore */ }
   if (token) logout(token);
   res.clearCookie(DRIVER_COOKIE_NAME);
   res.json({ success: true });

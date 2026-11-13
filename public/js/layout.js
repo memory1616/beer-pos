@@ -262,7 +262,7 @@ function restoreButtonLoading(btnState) {
     window.__BEERPOS_REALTIME_LOADING__ = true;
 
     var script = document.createElement('script');
-    script.src = '/js/realtime.js?v=20260408b';
+    script.src = '/js/realtime.js?v=20261113a';
     script.defer = true;
     script.onload = function () {
       window.__BEERPOS_REALTIME_LOADING__ = false;
@@ -273,6 +273,38 @@ function restoreButtonLoading(btnState) {
 
     document.head.appendChild(script);
   }
+
+  // ── A4: Xử lý phiên bị thu hồi / từ chối kết nối ──────────────────────
+  // Server ngắt socket khi admin huỷ phiên từ xa, khoá tài khoản, hoặc
+  // đổi mật khẩu → client phải đưa người dùng về trang đăng nhập ngay.
+  function handleSessionGone(detail) {
+    var reason = (detail && detail.reason) || 'session_revoked';
+    // Admin: dùng logout() sẵn có (xoá localStorage + cookie).
+    if (typeof window.logout === 'function' && window.APP_MODE !== 'driver') {
+      window.logout();
+      return;
+    }
+    // Driver Portal: dùng Drv.logout() nếu có.
+    if (window.APP_MODE === 'driver' && window.Drv && typeof window.Drv.logout === 'function') {
+      window.Drv.logout();
+      return;
+    }
+    // Dự phòng: xoá token cục bộ rồi về trang đăng nhập.
+    try {
+      localStorage.removeItem('beer_session_token');
+      localStorage.removeItem('driver_session_token');
+      localStorage.removeItem('auth_uid');
+    } catch (_) {}
+    window.location.href = window.APP_MODE === 'driver' ? '/auth/driver' : '/login';
+  }
+
+  window.addEventListener('realtime:session-revoked', function (e) {
+    handleSessionGone(e.detail);
+  });
+
+  window.addEventListener('realtime:unauthorized', function () {
+    handleSessionGone({ reason: 'unauthorized' });
+  });
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', loadRealtime);

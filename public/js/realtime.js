@@ -60,6 +60,7 @@
   let _pendingEvents   = []; // queued while disconnected
   let _online             = navigator.onLine;
   let _transportMode      = null; // 'websocket' | 'polling' | null
+  let _authFailed         = false; // A4: handshake bị từ chối → không reconnect lại
 
   // Anti-duplicate emit map: key → timestamp of last emit
   let _lastEmit = {};
@@ -144,6 +145,11 @@
    * Safe to call multiple times — only connects once.
    */
   function connect() {
+    // A4: handshake đã bị từ chối → không thử lại (token cần đăng nhập lại).
+    if (_authFailed) {
+      log('WARN', 'connect() skipped — previous auth failure');
+      return;
+    }
     // NGĂN DOUBLE CALL — nếu connect() được gọi lần 2 (do script load 2 lần
     // hoặc autoInit chạy 2 lần), bỏ qua ngay.
     if (_initCalled) {
@@ -158,7 +164,10 @@
     _connectStarted = true;
 
     // Detect mode
-    var mode = (window.APP_MODE === 'public') ? 'public' : 'admin';
+    // A4: 'driver' phải là mode riêng — server dùng role trong DB để gán room,
+    // nhưng mode gửi lên giúp server biết client này KHÔNG có phiên (public).
+    var appMode = window.APP_MODE || 'admin';
+    var mode = (appMode === 'public') ? 'public' : (appMode === 'driver' ? 'driver' : 'admin');
 
     // Socket.IO client from the socket.io-client package (served at /socket.io/socket.io.js)
     var io = window.io;
@@ -235,7 +244,26 @@
     });
 
     _socket.on('connect_error', function (err) {
-      // silently ignore connection errors
+      // A4: server từ chối handshake khi không có session hợp lệ.
+      // Dừng reconnect liên tục để tránh spam & tải server.
+      if (err && err.data && err.data.code === 'UNAUTHORIZED') {
+        _connected = false;
+        _authFailed = true;
+        _socket.io.opts.reconnection = false;
+        log('ERROR', 'Socket unauthorized — stopping reconnect');
+        if (typeof window.dispatchEvent === 'function') {
+          window.dispatchEvent(new CustomEvent('realtime:unauthorized'));
+        }
+      }
+    });
+
+    // A4: server ngắt phiên (đăng xuất / đổi mật khẩu) → báo cho app biết.
+    _socket.on('session:revoked', function (data) {
+      _connected = false;
+      log('ERROR', 'Session revoked by server', data);
+      if (typeof window.dispatchEvent === 'function') {
+        window.dispatchEvent(new CustomEvent('realtime:session-revoked', { detail: data || {} }));
+      }
     });
 
     _socket.on('upgrade', function (nextTransport) {
@@ -474,17 +502,28 @@
 
   // ── Auth token helper ───────────────────────────────────────────────────────
 
+  /**
+   * Lấy session token để gửi kèm handshake Socket.IO.
+   *
+   * A4 — SỬA LỖI: trước đây đọc key `auth_token` nhưng ứng dụng thật dùng
+   * `beer_session_token` (admin) và `driver_session_token` (tài xế) → token
+   * luôn null → server từ chối handshake sau khi bật auth.
+   *
+   * Thứ tự: driver → admin → cookie (fallback cuối).
+   */
   function getAuthToken() {
-    try {
-      var stored = localStorage.getItem('auth_token');
-      if (stored) {
-        var parsed = JSON.parse(stored);
-        return parsed.token || stored;
-      }
-    } catch (e) { /* ignore */ }
+    var keys = ['driver_session_token', 'beer_session_token'];
+    for (var i = 0; i < keys.length; i++) {
+      try {
+        var v = localStorage.getItem(keys[i]);
+        if (v) return v;
+      } catch (e) { /* ignore */ }
+    }
+    // Fallback: cookie (httpOnly vẫn được browser gửi kèm handshake nếu
+    // dùng `withCredentials`, nhưng đây chỉ là đường dự phòng).
     if (document.cookie) {
-      var match = document.cookie.match(/session_token=([^;]+)/);
-      if (match) return match[1];
+      var match = document.cookie.match(/(?:driver_)?session_token=([^;]+)/);
+      if (match) return decodeURIComponent(match[1]);
     }
     return null;
   }

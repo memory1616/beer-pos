@@ -582,6 +582,8 @@
     .dsh-hub-card-promo .dsh-hub-card-icon { background: rgba(168,85,247,0.15); }
     .dsh-hub-card-qr .dsh-hub-card-icon { background: rgba(14,203,129,0.15); }
     .dsh-hub-card-sales .dsh-hub-card-icon { background: rgba(59,122,254,0.15); }
+    .dsh-hub-card-report-notify .dsh-hub-card-icon { background: rgba(168,85,247,0.15); }
+    .dsh-hub-card-sessions .dsh-hub-card-icon { background: rgba(239,68,68,0.15); }
     .dsh-hub-card-body { flex: 1; min-width: 0; }
     .dsh-hub-card-name {
       font-size: 14px;
@@ -611,6 +613,8 @@
     .dsh-hub-card-promo .dsh-hub-card-cta { background: rgba(168,85,247,0.12); color: #a855f7; }
     .dsh-hub-card-qr .dsh-hub-card-cta { background: rgba(14,203,129,0.12); color: #0ECB81; }
     .dsh-hub-card-sales .dsh-hub-card-cta { background: rgba(59,122,254,0.12); color: #3b7afe; }
+    .dsh-hub-card-report-notify .dsh-hub-card-cta { background: rgba(168,85,247,0.12); color: #a855f7; }
+    .dsh-hub-card-sessions .dsh-hub-card-cta { background: rgba(239,68,68,0.12); color: #ef4444; }
     .dsh-hub-card:hover .dsh-hub-card-cta { filter: brightness(1.1); }
     @media (max-width: 640px) {
       .dsh-hub-card-cta { display: none; }
@@ -870,6 +874,22 @@
                   <div class="dsh-hub-card-body">
                     <div class="dsh-hub-card-name">Quản lý Sales</div>
                     <div class="dsh-hub-card-desc">Quản lý nhân viên kinh doanh</div>
+                  </div>
+                  <div class="dsh-hub-card-cta">Mở ›</div>
+                </a>
+                <a href="/report-notify" class="dsh-hub-card dsh-hub-card-report-notify" data-permission="reportNotify">
+                  <div class="dsh-hub-card-icon">📨</div>
+                  <div class="dsh-hub-card-body">
+                    <div class="dsh-hub-card-name">Báo cáo tự động</div>
+                    <div class="dsh-hub-card-desc">Gửi báo cáo hằng ngày qua Zalo</div>
+                  </div>
+                  <div class="dsh-hub-card-cta">Mở ›</div>
+                </a>
+                <a href="/sessions" class="dsh-hub-card dsh-hub-card-sessions" data-permission="sessions">
+                  <div class="dsh-hub-card-icon">🔐</div>
+                  <div class="dsh-hub-card-body">
+                    <div class="dsh-hub-card-name">Phiên đăng nhập</div>
+                    <div class="dsh-hub-card-desc">Xem &amp; huỷ phiên từ xa</div>
                   </div>
                   <div class="dsh-hub-card-cta">Mở ›</div>
                 </a>

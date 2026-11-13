@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <script>
+  (function () {
+    var k = 'theme';
+    var sys = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    var saved = localStorage.getItem(k);
+    var theme = (saved === 'light' || saved === 'dark') ? saved : sys;
+    document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.classList.remove('light', 'dark');
+    document.documentElement.classList.add(theme);
+  })();
+  </script>
+  <script>window.BASE_PATH = '/';</script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Phiên đăng nhập</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0B0E11">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="icon" type="image/png" href="/icon-192.png">
+  <link rel="stylesheet" href="/css/unified.css?v=20250718">
+  <script src="/js/auth.js"></script>
+  <script src="/js/dark-mode.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>requireAuth();</script>
+  <style>
+    .ss-section {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px;
+      margin-bottom: 16px;
+    }
+    .ss-section-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .ss-section-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+      line-height: 1.5;
+    }
+    .ss-btn {
+      height: 44px;
+      padding: 0 18px;
+      border: none;
+      border-radius: 10px;
+      background: var(--primary);
+      color: #000;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: filter 0.2s;
+    }
+    .ss-btn:hover { filter: brightness(1.1); }
+    .ss-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .ss-btn-secondary {
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+    }
+    .ss-btn-danger {
+      background: rgba(239, 68, 68, 0.15);
+      color: #ef4444;
+    }
+    .ss-btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
+    .ss-btn-sm {
+      height: 32px;
+      padding: 0 12px;
+      font-size: 12px;
+      border-radius: 8px;
+    }
+    .ss-item {
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .ss-item:last-child { border-bottom: none; }
+    .ss-item-main { flex: 1; min-width: 0; }
+    .ss-item-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .ss-item-meta {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 3px;
+    }
+    .ss-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: 10px;
+      font-weight: 700;
+    }
+    .ss-badge-admin { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+    .ss-badge-driver { background: rgba(249, 115, 22, 0.15); color: #f97316; }
+    .ss-badge-current { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
+    .ss-empty {
+      text-align: center;
+      padding: 24px;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+    .ss-info-banner {
+      padding: 12px 14px;
+      border-radius: 10px;
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.25);
+      margin-bottom: 16px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.55;
+    }
+    .ss-info-banner strong { color: #3b82f6; }
+    .ss-status {
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--text-muted);
+      min-height: 16px;
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div class="ss-empty">⏳ Đang tải danh sách phiên...</div>
+</div>
+
+<script>
+  (function () {
+    'use strict';
+
+    var state = { sessions: [], loading: false };
+
+    // ── Helpers ────────────────────────────────────────────────────────────
+    function esc(s) {
+      return String(s === null || s === undefined ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function fmtDateTime(ms) {
+      if (!ms) return '—';
+      try {
+        var d = new Date(ms);
+        if (isNaN(d.getTime())) return String(ms);
+        var vn = new Date(d.getTime() + 7 * 3600000);
+        return vn.getUTCFullYear() + '-' +
+          String(vn.getUTCMonth() + 1).padStart(2, '0') + '-' +
+          String(vn.getUTCDate()).padStart(2, '0') + ' ' +
+          String(vn.getUTCHours()).padStart(2, '0') + ':' +
+          String(vn.getUTCMinutes()).padStart(2, '0');
+      } catch (e) { return String(ms); }
+    }
+
+    function timeAgo(ms) {
+      if (!ms) return '—';
+      var diff = Date.now() - ms;
+      var min = Math.floor(diff / 60000);
+      if (min < 1) return 'vừa xong';
+      if (min < 60) return min + ' phút trước';
+      var h = Math.floor(min / 60);
+      if (h < 24) return h + ' giờ trước';
+      var d = Math.floor(h / 24);
+      return d + ' ngày trước';
+    }
+
+    function api(url, options) {
+      if (typeof authFetch === 'function') {
+        return authFetch(url, Object.assign({
+          headers: { 'Content-Type': 'application/json' }
+        }, options || {})).then(function (r) {
+          return r.json().then(function (data) {
+            if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
+            return data;
+          });
+        });
+      }
+      return fetch(url, Object.assign({
+        headers: { 'Content-Type': 'application/json' }
+      }, options || {})).then(function (r) {
+        return r.json().then(function (data) {
+          if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
+          return data;
+        });
+      });
+    }
+
+    // ── Render ─────────────────────────────────────────────────────────────
+    function renderSessions() {
+      if (!state.sessions.length) {
+        return '<div class="ss-empty">Không có phiên nào đang hoạt động</div>';
+      }
+      return state.sessions.map(function (s) {
+        var roleBadge = s.role === 'DRIVER'
+          ? '<span class="ss-badge ss-badge-driver">Tài xế</span>'
+          : '<span class="ss-badge ss-badge-admin">Admin</span>';
+        var currentBadge = s.isCurrent
+          ? '<span class="ss-badge ss-badge-current">Phiên này</span>'
+          : '';
+        return '<div class="ss-item" data-token="' + esc(s.token) + '">' +
+          '<div class="ss-item-main">' +
+            '<div class="ss-item-name">' + esc(s.username) + ' ' + roleBadge + ' ' + currentBadge + '</div>' +
+            '<div class="ss-item-meta">🕘 Hoạt động ' + timeAgo(s.lastActive) +
+              ' · Đăng nhập ' + fmtDateTime(s.createdAt) +
+              ' · Hết hạn ' + fmtDateTime(s.expiresAt) + '</div>' +
+          '</div>' +
+          (s.isCurrent
+            ? '<span style="font-size:11px;color:var(--text-muted)">—</span>'
+            : '<button class="ss-btn ss-btn-danger ss-btn-sm ss-revoke" data-token="' + esc(s.token) + '">Huỷ</button>') +
+          '</div>';
+      }).join('');
+    }
+
+    function render() {
+      document.getElementById('app').innerHTML =
+        (typeof getHeader === 'function' ? getHeader('Phiên đăng nhập', '🔐') : '') +
+        '<div style="padding:16px">' +
+        '<div class="ss-info-banner">' +
+          '<strong>Quản lý phiên đăng nhập.</strong> Mỗi thiết bị đang mở ứng dụng sẽ có một phiên riêng. ' +
+          'Khi bạn <b>Huỷ</b>, thiết bị đó bị đăng xuất ngay lập tức — kể cả đang mở dữ liệu trên màn hình. ' +
+          'Phiên hiện tại của bạn không thể tự huỷ tại đây (dùng nút Đăng xuất).' +
+        '</div>' +
+        '<div class="ss-section">' +
+          '<div class="ss-section-title">🔐 Đang hoạt động (' + state.sessions.length + ')</div>' +
+          '<div class="ss-section-desc">Các phiên đăng nhập hiện tại trên mọi thiết bị.</div>' +
+          '<div id="ssList">' + renderSessions() + '</div>' +
+        '</div>' +
+        '<div class="ss-section">' +
+          '<div class="ss-section-title">🧹 Huỷ hàng loạt</div>' +
+          '<div class="ss-section-desc">Đăng xuất toàn bộ tài xế, hoặc mọi tài khoản trừ phiên của bạn.</div>' +
+          '<div class="ss-btn-row">' +
+            '<button class="ss-btn ss-btn-secondary" id="ssRevokeDrivers">🚕 Huỷ tất cả tài xế</button>' +
+            '<button class="ss-btn ss-btn-danger" id="ssRevokeAll">⚠️ Huỷ tất cả (trừ phiên này)</button>' +
+          '</div>' +
+          '<div class="ss-status" id="ssStatus"></div>' +
+        '</div>' +
+        '</div>' +
+        (typeof getBottomNav === 'function' ? getBottomNav('/dashboard') : '');
+
+      bindEvents();
+    }
+
+    // ── Events ─────────────────────────────────────────────────────────────
+    function setStatus(msg, type) {
+      var el = document.getElementById('ssStatus');
+      if (!el) return;
+      el.textContent = msg || '';
+      el.style.color = type === 'ok' ? 'var(--success)'
+        : type === 'err' ? 'var(--danger)'
+        : type === 'warn' ? 'var(--warning)' : 'var(--text-muted)';
+    }
+
+    function bindEvents() {
+      Array.prototype.forEach.call(
+        document.querySelectorAll('.ss-revoke'),
+        function (btn) {
+          btn.addEventListener('click', function () {
+            revokeOne(btn.getAttribute('data-token'), btn);
+          });
+        }
+      );
+
+      var drvBtn = document.getElementById('ssRevokeDrivers');
+      if (drvBtn) drvBtn.addEventListener('click', function () { revokeAll('drivers', drvBtn); });
+
+      var allBtn = document.getElementById('ssRevokeAll');
+      if (allBtn) allBtn.addEventListener('click', function () { revokeAll('all', allBtn); });
+    }
+
+    async function revokeOne(token, btn) {
+      if (!token) return;
+      if (!window.confirm('Huỷ phiên này? Thiết bị tương ứng sẽ bị đăng xuất ngay lập tức.')) return;
+
+      btn.disabled = true;
+      btn.textContent = '⏳';
+      setStatus('');
+      try {
+        var data = await api('/api/sessions/' + encodeURIComponent(token) + '/revoke', {
+          method: 'POST'
+        });
+        setStatus('✓ Đã huỷ phiên của ' + (data.username || '') +
+          (data.socketsDisconnected ? ' (' + data.socketsDisconnected + ' thiết bị đã ngắt)' : ''), 'ok');
+        await load();
+      } catch (err) {
+        setStatus('✗ ' + err.message, 'err');
+        btn.disabled = false;
+        btn.textContent = 'Huỷ';
+      }
+    }
+
+    async function revokeAll(scope, btn) {
+      var label = scope === 'drivers' ? 'tất cả tài xế' : 'tất cả tài khoản';
+      if (!window.confirm('Huỷ ' + label + '? Các thiết bị tương ứng sẽ bị đăng xuất ngay lập tức.')) return;
+
+      btn.disabled = true;
+      var original = btn.innerHTML;
+      btn.innerHTML = '⏳ Đang huỷ...';
+      setStatus('');
+      try {
+        var data = await api('/api/sessions/revoke-all', {
+          method: 'POST',
+          body: JSON.stringify({ scope: scope })
+        });
+        setStatus('✓ Đã huỷ ' + data.revoked + ' phiên' +
+          (data.socketsDisconnected ? ' (' + data.socketsDisconnected + ' thiết bị đã ngắt)' : ''), 'ok');
+        await load();
+      } catch (err) {
+        setStatus('✗ ' + err.message, 'err');
+        btn.disabled = false;
+        btn.innerHTML = original;
+      }
+    }
+
+    // ── Load ───────────────────────────────────────────────────────────────
+    async function load() {
+      try {
+        var data = await api('/api/sessions');
+        state.sessions = data.sessions || [];
+        render();
+      } catch (err) {
+        document.getElementById('app').innerHTML =
+          '<div class="ss-empty">✗ Không tải được danh sách phiên: ' + esc(err.message) + '</div>';
+      }
+    }
+
+    (async function init() {
+      if (typeof initPage === 'function') { try { await initPage(); } catch (_) {} }
+      await load();
+    })();
+  })();
+</script>
+</body>
+</html>

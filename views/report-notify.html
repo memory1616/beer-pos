@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <script>
+  (function () {
+    var k = 'theme';
+    var sys = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    var saved = localStorage.getItem(k);
+    var theme = (saved === 'light' || saved === 'dark') ? saved : sys;
+    document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.classList.remove('light', 'dark');
+    document.documentElement.classList.add(theme);
+  })();
+  </script>
+  <script>window.BASE_PATH = '/';</script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Báo cáo tự động</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0B0E11">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="icon" type="image/png" href="/icon-192.png">
+  <link rel="stylesheet" href="/css/unified.css?v=20250718">
+  <script src="/js/auth.js"></script>
+  <script src="/js/dark-mode.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>requireAuth();</script>
+  <style>
+    .rn-section {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px;
+      margin-bottom: 16px;
+    }
+    .rn-section-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .rn-section-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+      line-height: 1.5;
+    }
+    .rn-field {
+      margin-bottom: 14px;
+    }
+    .rn-field:last-child {
+      margin-bottom: 0;
+    }
+    .rn-label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+    .rn-hint {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      line-height: 1.45;
+    }
+    .rn-input, .rn-select {
+      width: 100%;
+      height: 44px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0 12px;
+      background: var(--card);
+      color: var(--text-primary);
+      font-size: 14px;
+      font-family: inherit;
+    }
+    .rn-input:focus, .rn-select:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+    .rn-toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 0;
+    }
+    .rn-toggle-info {
+      flex: 1;
+      padding-right: 12px;
+    }
+    .rn-switch {
+      position: relative;
+      width: 48px;
+      height: 28px;
+      flex-shrink: 0;
+    }
+    .rn-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .rn-slider {
+      position: absolute;
+      inset: 0;
+      background: var(--border);
+      border-radius: 28px;
+      transition: 0.2s;
+      cursor: pointer;
+    }
+    .rn-slider:before {
+      content: '';
+      position: absolute;
+      height: 22px;
+      width: 22px;
+      left: 3px;
+      bottom: 3px;
+      background: #fff;
+      border-radius: 50%;
+      transition: 0.2s;
+    }
+    .rn-switch input:checked + .rn-slider {
+      background: var(--primary);
+    }
+    .rn-switch input:checked + .rn-slider:before {
+      transform: translateX(20px);
+    }
+    .rn-btn {
+      width: 100%;
+      height: 48px;
+      border-radius: 12px;
+      border: none;
+      background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+      color: #fff;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s;
+      margin-top: 8px;
+    }
+    .rn-btn:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 16px rgba(59, 130, 246, 0.35);
+    }
+    .rn-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .rn-btn-secondary {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+    }
+    .rn-btn-row {
+      display: flex;
+      gap: 10px;
+    }
+    .rn-btn-row .rn-btn {
+      flex: 1;
+    }
+    .rn-status {
+      margin-top: 10px;
+      font-size: 12px;
+      text-align: center;
+      min-height: 16px;
+    }
+    .rn-preview {
+      background: var(--card-soft);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      margin-top: 12px;
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--text-secondary);
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 420px;
+      overflow-y: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    .rn-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: 10px;
+      font-weight: 700;
+      margin-left: 6px;
+    }
+    .rn-badge-ok { background: rgba(34,197,94,0.15); color: #22c55e; }
+    .rn-badge-off { background: rgba(148,163,184,0.15); color: #94a3b8; }
+    .rn-badge-err { background: rgba(239,68,68,0.15); color: #ef4444; }
+    .rn-history-item {
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    .rn-history-item:last-child { border-bottom: none; }
+    .rn-history-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 3px;
+    }
+    .rn-empty {
+      text-align: center;
+      padding: 24px;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+    .rn-info-banner {
+      padding: 12px 14px;
+      border-radius: 10px;
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.25);
+      margin-bottom: 16px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.55;
+    }
+    .rn-info-banner strong { color: #3b82f6; }
+    .rn-info-banner ol {
+      margin: 8px 0 0;
+      padding-left: 20px;
+    }
+    .rn-info-banner li { margin-bottom: 4px; }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div class="rn-empty">⏳ Đang tải cấu hình...</div>
+</div>
+
+<script>
+  (function () {
+    'use strict';
+
+    var state = {
+      config: null,
+      loading: false
+    };
+
+    // ── Helpers ────────────────────────────────────────────────────────────
+    function esc(s) {
+      return String(s === null || s === undefined ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function fmtDateTime(iso) {
+      if (!iso) return '—';
+      try {
+        var d = new Date(iso);
+        if (isNaN(d.getTime())) return String(iso);
+        var vn = new Date(d.getTime() + 7 * 3600000);
+        return vn.getUTCFullYear() + '-' +
+          String(vn.getUTCMonth() + 1).padStart(2, '0') + '-' +
+          String(vn.getUTCDate()).padStart(2, '0') + ' ' +
+          String(vn.getUTCHours()).padStart(2, '0') + ':' +
+          String(vn.getUTCMinutes()).padStart(2, '0');
+      } catch (e) { return String(iso); }
+    }
+
+    function setStatus(msg, type) {
+      var el = document.getElementById('rnStatus');
+      if (!el) return;
+      el.textContent = msg || '';
+      el.style.color = type === 'ok' ? 'var(--success)'
+        : type === 'err' ? 'var(--danger)'
+        : type === 'warn' ? 'var(--warning)' : 'var(--text-muted)';
+    }
+
+    function api(url, options) {
+      // Dùng authFetch nếu có (gửi Authorization: Bearer + credentials) —
+      // cookie httpOnly không tự động được JS đọc, nên header là bắt buộc.
+      if (typeof authFetch === 'function') {
+        return authFetch(url, Object.assign({
+          headers: { 'Content-Type': 'application/json' }
+        }, options || {})).then(function (r) {
+          return r.json().then(function (data) {
+            if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
+            return data;
+          });
+        });
+      }
+      return fetch(url, Object.assign({
+        headers: { 'Content-Type': 'application/json' }
+      }, options || {})).then(function (r) {
+        return r.json().then(function (data) {
+          if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
+          return data;
+        });
+      });
+    }
+
+    // ── Render ─────────────────────────────────────────────────────────────
+    function channelBadge(ch) {
+      if (!ch) return '<span class="rn-badge rn-badge-off">Chưa cấu hình</span>';
+      if (ch.configured) return '<span class="rn-badge rn-badge-ok">Đã cấu hình</span>';
+      return '<span class="rn-badge rn-badge-off">Thiếu cấu hình</span>';
+    }
+
+    function renderConfig() {
+      var c = state.config;
+      var channelsHtml = c.channels.map(function (ch) {
+        return '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">' +
+          '<span style="font-size:13px;color:var(--text-primary)">' + esc(ch.label) + '</span>' +
+          channelBadge(ch) + '</div>';
+      }).join('');
+
+      var zaloFields = '';
+      if (c.channel === 'zalo') {
+        zaloFields =
+          '<div class="rn-field">' +
+            '<label class="rn-label" for="zaloToken">Zalo OA Access Token</label>' +
+            '<div class="rn-hint">Lấy tại <strong>openapi.zalo.me</strong> → OA quản lý → Access Token. Token được lưu trong DB, không nằm trong code/git.</div>' +
+            '<input class="rn-input" id="zaloToken" type="password" autocomplete="off" placeholder="' +
+            (c.hasToken.zalo ? '•••••••• (đã lưu — để trống nếu không đổi)' : 'Dán access token') + '">' +
+          '</div>' +
+          '<div class="rn-field">' +
+            '<label class="rn-label" for="zaloUserId">User ID người nhận</label>' +
+            '<div class="rn-hint">Người nhận phải đã nhắn tin cho OA ít nhất 1 lần để tạo user_id.</div>' +
+            '<input class="rn-input" id="zaloUserId" type="text" value="' + esc(c.recipients.zalo) + '" placeholder="VD: 1234567890">' +
+          '</div>';
+      }
+
+      var tgFields = '';
+      if (c.channel === 'telegram') {
+        tgFields =
+          '<div class="rn-field">' +
+            '<label class="rn-label" for="tgToken">Telegram Bot Token</label>' +
+            '<div class="rn-hint">Lấy từ <strong>@BotFather</strong>. Dạng: <code>123456789:AA...</code></div>' +
+            '<input class="rn-input" id="tgToken" type="password" autocomplete="off" placeholder="' +
+            (c.hasToken.telegram ? '•••••••• (đã lưu — để trống nếu không đổi)' : 'Dán bot token') + '">' +
+          '</div>' +
+          '<div class="rn-field">' +
+            '<label class="rn-label" for="tgChatId">Chat ID</label>' +
+            '<div class="rn-hint">ID nhóm/kênh, bắt đầu bằng <code>-</100...</code> cho nhóm. Nhắn /start cho bot rồi gọi getUpdates để lấy.</div>' +
+            '<input class="rn-input" id="tgChatId" type="text" value="' + esc(c.recipients.telegram) + '" placeholder="VD: -1001234567890">' +
+          '</div>';
+      }
+
+      var whFields = '';
+      if (c.channel === 'webhook') {
+        whFields =
+          '<div class="rn-field">' +
+            '<label class="rn-label" for="whUrl">Webhook URL</label>' +
+            '<div class="rn-hint">Nhận POST JSON: <code>{ title, text, data, sent_at }</code></div>' +
+            '<input class="rn-input" id="whUrl" type="url" value="' + esc(c.recipients.webhook) + '" placeholder="https://...">' +
+          '</div>';
+      }
+
+      return '' +
+      '<div class="rn-info-banner">' +
+        '<strong>Cách hoạt động:</strong> mỗi tối đúng giờ đã cấu hình, hệ thống tự tổng hợp doanh thu, lợi nhuận, ' +
+        'sản lượng, công nợ và tồn keg trong ngày rồi gửi tin nhắn. ' +
+        'Hệ thống tự so sánh với hôm qua và tuần trước để bạn thấy xu hướng ngay trên tin nhắn.' +
+      '</div>' +
+
+      '<div class="rn-section">' +
+        '<div class="rn-section-title">⏰ Lịch gửi</div>' +
+        '<div class="rn-section-desc">Báo cáo được gửi tự động mỗi ngày. Hệ thống tự bỏ qua nếu ngày đó đã gửi thành công.</div>' +
+
+        '<div class="rn-toggle-row">' +
+          '<div class="rn-toggle-info">' +
+            '<div style="font-size:14px;font-weight:600;color:var(--text-primary)">Bật gửi tự động</div>' +
+            '<div style="font-size:11px;color:var(--text-muted);margin-top:2px">Tắt thì hệ thống không gửi tin nhắn nào</div>' +
+          '</div>' +
+          '<label class="rn-switch">' +
+            '<input type="checkbox" id="rnEnabled"' + (c.enabled ? ' checked' : '') + '>' +
+            '<span class="rn-slider"></span>' +
+          '</label>' +
+        '</div>' +
+
+        '<div class="rn-field">' +
+          '<label class="rn-label" for="rnTime">Giờ gửi (giờ Việt Nam)</label>' +
+          '<input class="rn-input" id="rnTime" type="time" value="' + esc(c.time) + '">' +
+        '</div>' +
+
+        '<div class="rn-field">' +
+          '<label class="rn-label" for="rnChannel">Kênh gửi</label>' +
+          '<select class="rn-select" id="rnChannel">' +
+            c.channels.map(function (ch) {
+              return '<option value="' + esc(ch.key) + '"' + (c.channel === ch.key ? ' selected' : '') + '>' + esc(ch.label) + '</option>';
+            }).join('') +
+          '</select>' +
+        '</div>' +
+      '</div>' +
+
+      '<div class="rn-section">' +
+        '<div class="rn-section-title">🔑 Thông tin kênh nhận</div>' +
+        '<div class="rn-section-desc">Trạng thái cấu hình các kênh hiện có.</div>' +
+        channelsHtml +
+        '<div style="height:14px"></div>' +
+        (zaloFields || '') + (tgFields || '') + (whFields || '') +
+      '</div>' +
+
+      '<div class="rn-section">' +
+        '<div class="rn-section-title">💾 Lưu cấu hình</div>' +
+        '<button class="rn-btn" id="rnSave">💾 Lưu cấu hình</button>' +
+        '<div class="rn-status" id="rnStatus"></div>' +
+      '</div>';
+    }
+
+    function renderHistory(history) {
+      if (!history || !history.length) {
+        return '<div class="rn-empty">Chưa có lịch sử gửi báo cáo</div>';
+      }
+      return history.map(function (h) {
+        var badge = h.status === 'sent'
+          ? '<span class="rn-badge rn-badge-ok">Đã gửi</span>'
+          : '<span class="rn-badge rn-badge-err">Lỗi</span>';
+        return '<div class="rn-history-item">' +
+          '<div class="rn-history-head">' +
+            '<strong style="color:var(--text-primary)">' + esc(h.report_date) + '</strong>' + badge +
+          '</div>' +
+          '<div>' + esc(h.channel) + ' · ' + fmtDateTime(h.sent_at || h.created_at) + '</div>' +
+          (h.summary ? '<div style="margin-top:2px">' + esc(h.summary) + '</div>' : '') +
+          (h.error_message ? '<div style="margin-top:3px;color:var(--danger)">⚠️ ' + esc(h.error_message) + '</div>' : '') +
+          '</div>';
+      }).join('');
+    }
+
+    function render() {
+      var c = state.config;
+      document.getElementById('app').innerHTML =
+        (typeof getHeader === 'function' ? getHeader('Báo cáo tự động', '📨') : '') +
+        '<div style="padding:16px">' +
+        renderConfig() +
+        '<div class="rn-section">' +
+          '<div class="rn-section-title">🧪 Xem thử & gửi ngay</div>' +
+          '<div class="rn-section-desc">Xem trước nội dung tin nhắn, hoặc gửi thử ngay để kiểm tra kênh đã cấu hình đúng chưa.</div>' +
+          '<div class="rn-btn-row">' +
+            '<button class="rn-btn rn-btn-secondary" id="rnPreview">👁 Xem thử</button>' +
+            '<button class="rn-btn" id="rnSend">📤 Gửi ngay</button>' +
+          '</div>' +
+          '<div class="rn-status" id="rnSendStatus"></div>' +
+          '<div class="rn-preview" id="rnPreviewBox" style="display:none"></div>' +
+        '</div>' +
+        '<div class="rn-section">' +
+          '<div class="rn-section-title">🕘 Lịch sử gửi</div>' +
+          '<div class="rn-section-desc">20 lần gửi gần nhất.</div>' +
+          '<div id="rnHistory">' + renderHistory(state.history) + '</div>' +
+        '</div>' +
+        '</div>' +
+        (typeof getBottomNav === 'function' ? getBottomNav('/dashboard') : '');
+
+      bindEvents();
+    }
+
+    // ── Events ─────────────────────────────────────────────────────────────
+    function bindEvents() {
+      var saveBtn = document.getElementById('rnSave');
+      if (saveBtn) saveBtn.addEventListener('click', saveConfig);
+
+      var channelSel = document.getElementById('rnChannel');
+      if (channelSel) {
+        channelSel.addEventListener('change', function () {
+          // Đổi kênh → vẽ lại form để hiện đúng field cần nhập
+          loadConfig(true);
+        });
+      }
+
+      var previewBtn = document.getElementById('rnPreview');
+      if (previewBtn) previewBtn.addEventListener('click', previewReport);
+
+      var sendBtn = document.getElementById('rnSend');
+      if (sendBtn) sendBtn.addEventListener('click', sendNow);
+    }
+
+    function collectPayload() {
+      var payload = {
+        report_notify_enabled: document.getElementById('rnEnabled').checked ? '1' : '0',
+        report_notify_time: document.getElementById('rnTime').value,
+        report_notify_channel: document.getElementById('rnChannel').value
+      };
+
+      var ch = payload.report_notify_channel;
+      if (ch === 'zalo') {
+        var tok = document.getElementById('zaloToken');
+        if (tok && tok.value.trim()) payload.zalo_oa_access_token = tok.value.trim();
+        payload.zalo_report_user_id = document.getElementById('zaloUserId').value.trim();
+      } else if (ch === 'telegram') {
+        var t = document.getElementById('tgToken');
+        if (t && t.value.trim()) payload.telegram_bot_token = t.value.trim();
+        payload.telegram_report_chat_id = document.getElementById('tgChatId').value.trim();
+      } else if (ch === 'webhook') {
+        payload.report_notify_webhook_url = document.getElementById('whUrl').value.trim();
+      }
+      return payload;
+    }
+
+    async function saveConfig() {
+      var btn = document.getElementById('rnSave');
+      btn.disabled = true;
+      btn.innerHTML = '⏳ Đang lưu...';
+      setStatus('');
+
+      try {
+        await api('/api/report-notify/config', {
+          method: 'POST',
+          body: JSON.stringify(collectPayload())
+        });
+        setStatus('✓ Đã lưu cấu hình', 'ok');
+        btn.innerHTML = '✓ Đã lưu!';
+        await loadConfig(true);
+        setStatus('✓ Đã lưu cấu hình', 'ok');
+      } catch (err) {
+        setStatus('✗ ' + err.message, 'err');
+        btn.innerHTML = '💾 Lưu cấu hình';
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          setTimeout(function () { if (btn) btn.innerHTML = '💾 Lưu cấu hình'; }, 2000);
+        }
+      }
+    }
+
+    async function previewReport() {
+      var box = document.getElementById('rnPreviewBox');
+      var btn = document.getElementById('rnPreview');
+      btn.disabled = true;
+      btn.innerHTML = '⏳ Đang dựng...';
+      try {
+        var data = await api('/api/report-notify/preview', {
+          method: 'POST',
+          body: JSON.stringify({})
+        });
+        box.style.display = 'block';
+        box.textContent = data.text;
+      } catch (err) {
+        setStatus('✗ ' + err.message, 'err');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '👁 Xem thử';
+      }
+    }
+
+    async function sendNow() {
+      var btn = document.getElementById('rnSend');
+      var statusEl = document.getElementById('rnSendStatus');
+      btn.disabled = true;
+      btn.innerHTML = '⏳ Đang gửi...';
+      statusEl.textContent = '';
+      statusEl.style.color = 'var(--text-muted)';
+
+      try {
+        var data = await api('/api/report-notify/send', {
+          method: 'POST',
+          body: JSON.stringify({})
+        });
+        statusEl.textContent = '✓ Đã gửi thành công qua ' + data.channel;
+        statusEl.style.color = 'var(--success)';
+        await loadHistory();
+      } catch (err) {
+        statusEl.textContent = '✗ ' + err.message;
+        statusEl.style.color = 'var(--danger)';
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '📤 Gửi ngay';
+      }
+    }
+
+    // ── Load ───────────────────────────────────────────────────────────────
+    async function loadHistory() {
+      try {
+        var data = await api('/api/report-notify/history?limit=20');
+        state.history = data.history || [];
+        var el = document.getElementById('rnHistory');
+        if (el) el.innerHTML = renderHistory(state.history);
+      } catch (_) {
+        state.history = [];
+      }
+    }
+
+    async function loadConfig(keepScroll) {
+      try {
+        var data = await api('/api/report-notify/config');
+        state.config = data;
+        render();
+        await loadHistory();
+      } catch (err) {
+        document.getElementById('app').innerHTML =
+          '<div class="rn-empty">✗ Không tải được cấu hình: ' + esc(err.message) + '</div>';
+      }
+    }
+
+    (async function init() {
+      if (typeof initPage === 'function') { try { await initPage(); } catch (_) {} }
+      await loadConfig();
+    })();
+  })();
+</script>
+</body>
+</html>

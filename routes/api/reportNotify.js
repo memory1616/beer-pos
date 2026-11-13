@@ -1,0 +1,204 @@
+/**
+ * Report Notify API — Cấu hình & điều khiển gửi báo cáo tự động.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Mount tại /api/report-notify — CHỈ ADMIN.
+ *
+ * Endpoint:
+ *  GET  /api/report-notify/config      — đọc cấu hình + trạng thái kênh
+ *  POST /api/report-notify/config      — lưu cấu hình (bật/tắt, kênh, giờ)
+ *  POST /api/report-notify/preview     — dựng nội dung báo cáo (không gửi)
+ *  POST /api/report-notify/send        — gửi ngay (force = true)
+ *  GET  /api/report-notify/history     — lịch sử gửi
+ */
+
+const express = require('express');
+const router = express.Router();
+const logger = require('../../src/utils/logger');
+const DailyReportService = require('../../src/services/DailyReportService');
+const NotificationService = require('../../src/services/NotificationService');
+const ReportNotifyService = require('../../src/services/ReportNotifyService');
+const { ROLE_ADMIN } = require('../../middleware/permissions');
+
+// ── Chỉ ADMIN ───────────────────────────────────────────────────────────────
+function requireAdmin(req, res, next) {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Unauthorized', loginRequired: true });
+  }
+  if (req.user.role !== ROLE_ADMIN) {
+    return res.status(403).json({
+      error: 'Chỉ quản trị viên mới được cấu hình báo cáo tự động',
+      code: 'ADMIN_ONLY',
+    });
+  }
+  next();
+}
+
+// ── GET /config ──────────────────────────────────────────────────────────────
+router.get('/config', requireAdmin, (req, res) => {
+  try {
+    const cfg = ReportNotifyService.getConfig();
+
+    // KHÔNG trả về token ra ngoài — chỉ trả về trạng thái đã cấu hình hay chưa.
+    res.json({
+      enabled: cfg.report_notify_enabled === '1',
+      channel: ReportNotifyService.getChannel(),
+      time: cfg.report_notify_time || '21:30',
+      title: cfg.report_notify_title || 'Báo cáo bán hàng',
+      channels: NotificationService.getChannelStatus(),
+      recipients: {
+        zalo: cfg.zalo_report_user_id || '',
+        telegram: cfg.telegram_report_chat_id || '',
+        webhook: cfg.report_notify_webhook_url || '',
+      },
+      hasToken: {
+        zalo: Boolean(cfg.zalo_oa_access_token),
+        telegram: Boolean(cfg.telegram_bot_token),
+      },
+    });
+  } catch (err) {
+    logger.error('[REPORT_NOTIFY] config error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi tải cấu hình báo cáo' });
+  }
+});
+
+// ── POST /config ─────────────────────────────────────────────────────────────
+router.post('/config', requireAdmin, (req, res) => {
+  try {
+    const body = req.body || {};
+
+    const allowed = new Set([
+      'report_notify_enabled',
+      'report_notify_channel',
+      'report_notify_time',
+      'report_notify_title',
+      'zalo_oa_access_token',
+      'zalo_report_user_id',
+      'telegram_bot_token',
+      'telegram_report_chat_id',
+      'report_notify_webhook_url',
+    ]);
+
+    // Chuẩn hoá boolean → '0'/'1'
+    if (body.report_notify_enabled !== undefined) {
+      body.report_notify_enabled =
+        body.report_notify_enabled === true ||
+        body.report_notify_enabled === '1' ||
+        body.report_notify_enabled === 1
+          ? '1'
+          : '0';
+    }
+
+    // Validate giờ gửi (HH:mm)
+    if (body.report_notify_time !== undefined) {
+      const t = String(body.report_notify_time).trim();
+      if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(t)) {
+        return res.status(400).json({ error: 'Giờ gửi không hợp lệ (phải là HH:mm)' });
+      }
+      body.report_notify_time = t;
+    }
+
+    // Validate kênh
+    if (body.report_notify_channel !== undefined) {
+      const ch = String(body.report_notify_channel).trim().toLowerCase();
+      if (!NotificationService.CHANNELS[ch]) {
+        return res.status(400).json({
+          error: `Kênh không hợp lệ. Hỗ trợ: ${Object.keys(NotificationService.CHANNELS).join(', ')}`,
+        });
+      }
+      body.report_notify_channel = ch;
+    }
+
+    const stmt = require('../../database').prepare(
+      'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)'
+    );
+
+    const applied = {};
+    Object.entries(body).forEach(([key, value]) => {
+      if (!allowed.has(key)) return;
+      // Cho phép xoá token (chuỗi rỗng) → set rỗng
+      const v = value === null || value === undefined ? '' : String(value);
+      stmt.run(key, v);
+      applied[key] = v;
+    });
+
+    if (Object.keys(applied).length === 0) {
+      return res.status(400).json({ error: 'Không có cấu hình hợp lệ' });
+    }
+
+    logger.info('[REPORT_NOTIFY] Config updated', {
+      keys: Object.keys(applied),
+      user: req.user.username,
+    });
+
+    res.json({ success: true, updated: Object.keys(applied) });
+  } catch (err) {
+    logger.error('[REPORT_NOTIFY] config save error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi lưu cấu hình báo cáo' });
+  }
+});
+
+// ── POST /preview ────────────────────────────────────────────────────────────
+router.post('/preview', requireAdmin, (req, res) => {
+  try {
+    const date = req.body?.date || DailyReportService.todayVN();
+    const report = DailyReportService.buildDailyReport(date);
+    res.json({
+      success: true,
+      date,
+      text: DailyReportService.formatReportText(report),
+      report,
+    });
+  } catch (err) {
+    logger.error('[REPORT_NOTIFY] preview error', { error: err.message });
+    res.status(500).json({ error: 'Không dựng được báo cáo: ' + err.message });
+  }
+});
+
+// ── POST /send ───────────────────────────────────────────────────────────────
+router.post('/send', requireAdmin, async (req, res) => {
+  try {
+    const date = req.body?.date || DailyReportService.todayVN();
+    const channel = req.body?.channel || ReportNotifyService.getChannel();
+    const dryRun = req.body?.dryRun === true;
+
+    const result = await ReportNotifyService.dispatchDailyReport({
+      date,
+      channel,
+      force: true,
+      dryRun,
+    });
+
+    if (result.ok) {
+      res.json({
+        success: true,
+        dryRun: Boolean(result.dryRun),
+        date,
+        channel,
+        text: result.text,
+      });
+    } else {
+      res.status(502).json({
+        success: false,
+        error: result.error || 'Gửi báo cáo thất bại',
+        date,
+        channel,
+      });
+    }
+  } catch (err) {
+    logger.error('[REPORT_NOTIFY] send error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi gửi báo cáo: ' + err.message });
+  }
+});
+
+// ── GET /history ─────────────────────────────────────────────────────────────
+router.get('/history', requireAdmin, (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 30;
+    res.json({ success: true, history: ReportNotifyService.getHistory(limit) });
+  } catch (err) {
+    logger.error('[REPORT_NOTIFY] history error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi tải lịch sử gửi báo cáo' });
+  }
+});
+
+module.exports = router;

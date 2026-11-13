@@ -581,7 +581,7 @@ app.get('/manifest.json', (req, res) => {
 });
 
 // Inject global app context into every HTML page served by Express
-// - window.APP_MODE: 'admin' | 'public'
+// - window.APP_MODE: 'admin' | 'public' | 'driver'
 // - window.BASE_PATH: '/' (admin) | null (public)
 // - window.APP_VERSION: git hash or timestamp for cache busting
 app.use((req, res, next) => {
@@ -772,6 +772,25 @@ cron.schedule('5 0 1 * *', async () => {
   timezone: 'Asia/Ho_Chi_Minh',
 });
 
+// ==================== DAILY REPORT NOTIFY (Zalo/Telegram) ====================
+// Gửi báo cáo bán hàng tự động mỗi tối theo giờ cấu hình trong
+// `settings.report_notify_time` (mặc định 21:30, giờ VN).
+//
+// Vì giờ gửi có thể đổi trong UI mà không cần restart server, cron chạy mỗi
+// phút và so sánh với giờ đã cấu hình. Cơ chế chống gửi trùng nằm ở
+// `ReportNotifyService.hasSent()` → lịch sử bảng `report_notifications`.
+cron.schedule('* * * * *', async () => {
+  try {
+    const ReportNotifyService = require('./src/services/ReportNotifyService');
+    if (!ReportNotifyService.shouldRunNow()) return;
+    await ReportNotifyService.runScheduledDailyReport();
+  } catch (e) {
+    logger.error('Daily report notify cron error', { error: e.message });
+  }
+}, {
+  timezone: 'Asia/Ho_Chi_Minh',
+});
+
 // ==================== WEB ROUTES ====================
 
 // Landing page — public domain
@@ -866,6 +885,9 @@ app.get('/customer/:id', (req, res) => sendPageNoCache(req, res, 'customer-detai
 app.get('/stock', (req, res) => sendPageNoCache(req, res, 'stock.html'));
 app.get('/promo-settings', (req, res) => sendPageNoCache(req, res, 'promo-settings.html'));
 app.get('/qr-settings', (req, res) => sendPageNoCache(req, res, 'qr-settings.html'));
+app.get('/report-notify', (req, res) => sendPageNoCache(req, res, 'report-notify.html'));
+// A4 — Quản lý phiên đăng nhập (xem / huỷ phiên từ xa)
+app.get('/sessions', (req, res) => sendPageNoCache(req, res, 'sessions.html'));
 app.get('/purchases', (req, res) => sendPageNoCache(req, res, 'purchases.html'));
 app.get('/kegs', (req, res) => sendPageNoCache(req, res, 'kegs.html'));
 // /report is handled by routes/report.js (serves full HTML page)
@@ -917,6 +939,12 @@ app.use('/api/debts', require('./routes/api/debts'));
 app.use('/api/promotions', require('./routes/api/promotions'));
 app.use('/api/segments', require('./routes/api/segments'));
 app.use('/api/sales-staff', require('./routes/api/sales-staff'));
+
+// Báo cáo tự động qua Zalo/Telegram — requireAdmin nằm trong file
+app.use('/api/report-notify', require('./routes/api/reportNotify'));
+
+// A4 — Quản lý phiên đăng nhập (xem / huỷ phiên từ xa). requireAdmin trong file.
+app.use('/api/sessions', require('./routes/api/sessions'));
 
 // Admin-only APIs — hồ sơ tài xế + lương tháng (mount TRƯỚC /api/admin để
 // các path /api/admin/driver-staff/* được router riêng xử lý trước)

@@ -30,7 +30,7 @@ try {
   }
 
   // Run driver portal migration (idempotent, chạy độc lập version gate)
-  const { runDriverPortalMigration, runDriverStaffMigration, runDriverKegReceiptMigration, runDriverWorkDaysMigration, runDriverSalaryAdvanceMigration, runMissingBusinessTablesMigration } = require('./database/migration');
+  const { runDriverPortalMigration, runDriverStaffMigration, runDriverKegReceiptMigration, runDriverWorkDaysMigration, runDriverSalaryAdvanceMigration, runMissingBusinessTablesMigration, runDailyReportNotifyMigration } = require('./database/migration');
   const driverResult = runDriverPortalMigration(db);
   if (driverResult.success) {
     logger.log('[MIGRATION] Driver portal schema ready');
@@ -64,6 +64,12 @@ try {
   const missingTablesResult = runMissingBusinessTablesMigration(db);
   if (missingTablesResult.success) {
     logger.log('[MIGRATION] Missing business tables schema ready');
+  }
+
+  // Run daily report notify migration (lịch sử gửi báo cáo tự động qua Zalo/Telegram)
+  const reportNotifyResult = runDailyReportNotifyMigration(db);
+  if (reportNotifyResult.success) {
+    logger.log('[MIGRATION] Daily report notify schema ready');
   }
 } catch (error) {
   logger.error('[MIGRATION] Migration error:', error.message);

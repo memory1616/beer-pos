@@ -725,6 +725,22 @@ function runMissingBusinessTablesMigration(db) {
   }
 }
 
+// ── Daily Report Notify migration (049) ──────────────────────────────────────
+// Lịch sử gửi báo cáo tự động (Zalo/Telegram) + seed setting cho kênh báo cáo.
+// Chạy ĐỘC LẬP, idempotent: CREATE TABLE IF NOT EXISTS + INSERT OR IGNORE setting.
+// Rollback an toàn: chỉ gỡ bảng `report_notifications` (không đụng dữ liệu kinh doanh).
+function runDailyReportNotifyMigration(db) {
+  try {
+    const migration = require('./migrations/049_daily_report_notify');
+    migration.up(db);
+    log('[DAILY_REPORT_NOTIFY] Migration 049 applied');
+    return { success: true };
+  } catch (e) {
+    log(`[DAILY_REPORT_NOTIFY] Migration error: ${e.message}`);
+    return { success: false, error: e.message };
+  }
+}
+
 // ── Utility: Generate UUID ─────────────────────────────────────────────────────
 
 function generateUUID() {
@@ -748,6 +764,7 @@ module.exports = {
   runDriverWorkDaysMigration,
   runDriverSalaryAdvanceMigration,
   runMissingBusinessTablesMigration,
+  runDailyReportNotifyMigration,
   generateUUID,
   getCurrentVersion,
   setVersion,

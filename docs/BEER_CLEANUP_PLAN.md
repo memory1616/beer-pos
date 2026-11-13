@@ -576,3 +576,149 @@ history secret scan   : SẠCH
 | 5 tag remote | ✅ Không tag nào chứa giá trị secret |
 | Private key marker trong tag | ✅ **False positive** — `gen_key.js` chỉ chứa header PEM dạng string literal (script sinh key), không phải key thật. File này đã bị xoá khỏi `main`. |
 | Tag `18/03/2026` | ⚠️ Trong lúc push, tag bị dời nhầm về HEAD → đã khôi phục đúng là annotated tag trỏ tới commit `7f2ec58` (khớp `fast-export.original`) |
+
+---
+
+## 13. TÍNH NĂNG MỚI — BÁO CÁO TỰ ĐỘNG QUA ZALO OA (2026-11-13)
+
+### 13.1 Vấn đề giải quyết
+
+Chủ xe phải mở máy tính, vào `/report`, chọn ngày, xem 4-5 tab — mỗi ngày mất nhiều phút và thường bị bỏ qua. Hệ thống **không có kênh báo cáo tự động nào**.
+
+### 13.2 Thay đổi
+
+| Hạng mục | Chi tiết |
+|---|---|
+| `database/migrations/049_daily_report_notify.js` | Bảng `report_notifications` (lịch sử gửi) + index; seed setting cho kênh báo cáo |
+| `src/services/DailyReportService.js` | Tổng hợp số liệu ngày + render text (plain text, không HTML — Zalo/Telegram không parse HTML) |
+| `src/services/NotificationService.js` | Adapter kênh: Zalo OA / Telegram Bot / Webhook (dùng `fetch` native Node 20, không thêm dependency) |
+| `src/services/ReportNotifyService.js` | Điều phối: đọc config, chống gửi trùng, ghi lịch sử, `shouldRunNow()` cho cron |
+| `routes/api/reportNotify.js` | API admin: `/config`, `/preview`, `/send`, `/history` (requireAdmin) |
+| `views/report-notify.html` | Trang cấu hình (bật/tắt, giờ, kênh, xem thử, gửi ngay, lịch sử) |
+| `server.js` | Cron `* * * * *` (giờ VN) — so sánh với `report_notify_time`; mount route API + trang |
+| `views/dashboard.html` | Card "📨 Báo cáo tự động" trong hub Cài đặt hệ thống |
+
+### 13.3 Quyết định thiết kế đáng chú ý
+
+| Quyết định | Lý do |
+|---|---|
+| Token lưu trong bảng `settings` (DB), **không** trong `.env` | `.env` có thể lọt vào git; UI admin cho phép đổi token không cần restart server |
+| API `GET /config` **không** trả về token | Chỉ trả `hasToken: true/false` — tránh lộ secret qua network tab |
+| Sản lượng tính bằng `SUM(si.quantity)` với `products.type = 'keg'` | Khớp SSOT của `PromotionService` (mốc thưởng 300L = 300 bình) |
+| Tồn vỏ rỗng đọc từ `keg_stats.empty_collected` | `keg_stats` là SSOT của module keg; `keg_ledger` chỉ là log giao dịch |
+| Cron chạy **mỗi phút** + so sánh giờ | Cho phép đổi giờ gửi trong UI mà không cần restart PM2 |
+| `hasSent()` chống gửi trùng theo `(report_date, channel)` | Cron có thể chạy lại (restart, deploy) → không gửi 2 lần cùng ngày |
+| Mọi SQL JOIN đều có tiền tố bảng | `sales` và `products` đều có cột `type`/`archived` → "ambiguous column name" nếu không alias |
+
+### 13.4 Nội dung báo cáo
+
+Doanh thu (+ so sánh hôm qua / tuần trước) · Lợi nhuận gộp & chi phí · Lợi nhuận ròng · Số đơn & sản lượng · Giao/thu keg & tồn kho · Thu tiền & công nợ · Top sản phẩm · Top khách hàng.
+
+### 13.5 Cách dùng
+
+1. Vào **Dashboard → Cài đặt hệ thống → 📨 Báo cáo tự động**
+2. Chọn kênh **Zalo OA** → dán **Access Token** (openapi.zalo.me → OA quản lý) và **user ID** người nhận (người đó phải đã nhắn tin cho OA ít nhất 1 lần)
+3. Bật "Bật gửi tự động" + đặt giờ → **Lưu cấu hình**
+4. Bấm **👁 Xem thử** để xem nội dung, **📤 Gửi ngay** để kiểm tra kênh đã cấu hình đúng chưa
+
+### 13.6 Kiểm chứng
+
+| Hạng mục | Kết quả |
+|---|---|
+| Jest | ✅ 16 suite / 340 test (thêm 27 test mới trong `tests/daily-report-notify.test.js`) |
+| ESLint (file mới) | ✅ 0 lỗi |
+| Smoke API (admin) | ✅ `/config` 200 · `/preview` 200 · `/send` 502 đúng khi thiếu token · `/history` ghi đúng lịch sử |
+| Phân quyền driver | ✅ Driver nhận **403** ở cả 4 endpoint |
+| Trình duyệt | ✅ `/report-notify` render đầy đủ, preview hiển thị đúng, card xuất hiện ở Dashboard |
+| Cron | ✅ `shouldRunNow()` test đúng ở 21:30 / 21:29 / 21:31 / 00:00 / giờ sai định dạng |
+
+**Lưu ý phát hiện khi verify:** các API admin cần `Authorization: Bearer` header (cookie `session_token` là `httpOnly` nên JS không đọc được). Trang mới dùng `authFetch()` sẵn có trong `public/js/auth.js` — tương thích với pattern của các trang khác.
+
+---
+
+## 14. TÍNH NĂNG MỚI — A4: SOCKET.IO AUTH & QUẢN LÝ PHIÊN (2026-11-13)
+
+### 14.1 Vấn đề phát hiện khi rà soát
+
+Rà soát toàn bộ luồng WebSocket phát hiện **3 lỗ hổng bảo mật nghiêm trọng** — không phải tính năng thiếu, mà là lỗi **đang tồn tại**:
+
+| # | Vấn đề | Mức độ |
+|---|---|---|
+| 1 | **Socket.IO không xác thực** — `io.use()` chỉ log `has_token` rồi `next()` cho mọi client. Bất kỳ ai cũng kết nối được và nhận event nghiệp vụ. | 🔴 Cao |
+| 2 | **Driver nhận dữ liệu tài chính** — `mode=driver` bị map thành room `admin`; thêm nữa mọi client đều join room `all` và `emitToAll` gửi payload **đầy đủ** (chứa `profit`, `total`) → tài xế nhận được lợi nhuận từng đơn. | 🔴 Nghiêm trọng |
+| 3 | **`POST /auth/logout` trả 404** — `public/js/auth.js` gọi POST nhưng server chỉ có GET → session **không bị xoá** phía server, token vẫn hiệu lực 30 ngày, socket vẫn kết nối được. Đăng xuất không an toàn. | 🟠 Trung bình |
+
+Ngoài ra client có 2 lỗi khiến tính năng "bật auth" sẽ hỏng ngay:
+- `public/js/realtime.js` đọc key `auth_token` trong `localStorage`, nhưng ứng dụng thật dùng `beer_session_token` (admin) / `driver_session_token` (driver) → **token luôn null**.
+- `window.APP_MODE` không bao giờ có giá trị `'driver'` → không phân biệt được Driver Portal.
+
+### 14.2 Thay đổi
+
+| Hạng mục | Chi tiết |
+|---|---|
+| `src/socket/socketAuth.js` | *(mới)* Module auth tách riêng: `extractToken`, `resolveSession`, `roomForRole`, `sanitizeForDriver`, `driverSalePayload`, `buildDriverOrderPayload` — test được không cần mở socket thật. Dùng **chung** `FORBIDDEN_FIELDS` với REST API |
+| `src/socket/socketServer.js` | Handshake **bắt buộc** có session hợp lệ; room do **server** quyết định theo role trong DB; thêm room `driver`; **không còn ai join room `all`**; `emitToRoles()` sanitize payload cho tài xế; `ADMIN_ONLY_EVENTS` (expense/report) không gửi cho driver; client `PUBLIC` không nhận dữ liệu nghiệp vụ; `disconnectToken()` / `disconnectUser()` |
+| `routes/api/sessions.js` | *(mới)* API admin: `GET /api/sessions` · `POST /api/sessions/:token/revoke` · `POST /api/sessions/revoke-all` |
+| `views/sessions.html` | *(mới)* Trang quản lý phiên: xem thiết bị đang mở app, huỷ phiên từ xa, huỷ hàng loạt |
+| `routes/login.js` | Thêm `POST /logout` (trước đây 404); cả GET và POST đều ngắt socket |
+| `routes/driverAuth.js` | Logout tài xế cũng ngắt socket |
+| `src/services/UserService.js` | `changePassword` / `setActive` → huỷ session + ngắt WebSocket |
+| `public/js/realtime.js` | Đọc đúng key token (`driver_session_token` → `beer_session_token` → cookie); `APP_MODE` hỗ trợ `'driver'`; dừng reconnect khi bị `UNAUTHORIZED`; nghe `session:revoked` |
+| `public/js/layout.js` | Nghe `realtime:session-revoked` / `realtime:unauthorized` → đưa người dùng về trang đăng nhập |
+| `public/js/driver/core.js` | Nạp `realtime.js` cho **mọi** trang Driver Portal (trước chỉ trang Bán hàng); nghe `session:revoked` → về `/auth/driver` |
+| `middleware/permissions.js` | Chặn driver ở `/api/sessions` và trang `/sessions`, `/report-notify` |
+| `server.js` | Mount `/api/sessions` + route trang `/sessions` |
+| `views/dashboard.html` | Card "🔐 Phiên đăng nhập" |
+| `package.json` | Thêm `socket.io-client` (devDependency) để test tích hợp |
+
+### 14.3 Quyết định thiết kế đáng chú ý
+
+| Quyết định | Lý do |
+|---|---|
+| **Room do server quyết định**, không tin `mode` của client | Client có thể tự khai `mode=admin` để leo thang. Server đọc role từ DB → không thể spoof. |
+| **Room `all` chỉ dùng cho tín hiệu điều khiển** | Trước đây `all` = admin + driver và nhận payload đầy đủ. Nay **không còn client nào join room `all`** — mọi event đi qua `emitToRoles()` / `broadcast()` để sanitize. |
+| **Client `PUBLIC` không nhận dữ liệu nghiệp vụ** | Landing page không đăng nhập vẫn kết nối được socket (không vỡ trang), nhưng không nhận payload nghiệp vụ. |
+| **Sanitize ở SERVER, không ở client** | Client không có quyền quyết định dữ liệu nào được nhìn thấy. |
+| **Bảng `sales` rút gọn cho driver** (`DRIVER_SAFE_SALE_FIELDS`) | Driver cần id/số vỏ/đơn để làm việc, nhưng không cần `total`/`profit`/`note` nội bộ. |
+| **`disconnectToken()` dùng `handshake.auth.token`** | Token không nằm trong DB query → so sánh O(1), không cần index phụ. |
+| **Token trả về trong `GET /api/sessions`** | Admin cần token để huỷ phiên. Đây là hành vi chủ ý — admin đã có toàn quyền hệ thống. |
+| **Không huỷ được chính phiên của mình** | Tránh admin tự khoá mình ra khỏi hệ thống bằng một click nhầm. |
+| `mode=public` vẫn cho phép kết nối | Landing page / menu công khai không có dữ liệu nhạy cảm; chặn sẽ làm hỏng trang. |
+
+### 14.4 Hành vi mới
+
+| Tình huống | Trước | Sau |
+|---|---|---|
+| Client không token kết nối socket | ✅ được | ❌ `UNAUTHORIZED` |
+| Tài xế nhận `order:created` | ✅ có `profit`, `total`, `note` | ❌ chỉ id/số vỏ/khách |
+| Tài xế nhận `expense:created` / `report:updated` | ✅ có | ❌ không |
+| Tài xế tự khai `mode=admin` | ✅ vào room admin | ❌ vẫn room driver |
+| Admin huỷ phiên tài xế | ⛔ token vẫn sống | ✅ socket ngắt + token vô hiệu |
+| Đổi mật khẩu tài xế | ⛔ phiên cũ vẫn dùng được | ✅ huỷ hết phiên + ngắt socket |
+| Khoá tài khoản tài xế | ⛔ socket vẫn mở | ✅ ngắt ngay |
+| Đăng xuất (POST /auth/logout) | ⛔ 404, token còn sống | ✅ xoá session + ngắt socket |
+
+### 14.5 Kiểm chứng
+
+| Hạng mục | Kết quả |
+|---|---|
+| Jest | ✅ **19 suite / 391 test** (thêm 51 test: 25 unit `socket-auth.test.js` + 16 tích hợp `socket-auth-integration.test.js` + 10 API `sessions-api.test.js`) |
+| ESLint (file mới/sửa) | ✅ 0 lỗi (1 warning pre-existing ở `UserService.js`) |
+| Smoke end-to-end (socket thật) | ✅ **26/26** — xác thực handshake, phân quyền room, sanitize payload, thu hồi phiên, `POST /auth/logout` |
+| Trình duyệt thật (Chrome) | ✅ Socket admin tự kết nối; huỷ phiên → socket nhận `session:revoked` rồi bị ngắt; trang tự về `/login`; driver bị **403** ở `/sessions`; driver socket tự khai `mode=admin` vẫn vào room `driver` |
+| Phân quyền driver | ✅ Driver **403** ở `/api/sessions`; socket driver không vào room admin |
+| Tích hợp DB | ✅ session bị huỷ → `GET /api/driver/me` trả 401 |
+
+### 14.6 Lỗ hổng bổ sung phát hiện khi verify (đã vá)
+
+Trong lúc verify trên trình duyệt thật, phát hiện 3 vấn đề còn sót so với thiết kế:
+
+| # | Vấn đề | Cách vá |
+|---|---|---|
+| 1 | **Room `all` vẫn còn tồn tại** — driver vẫn join room `all`. Dù `emitToRoles()` đã sanitize, nhưng bất kỳ code nào gọi `io.to(ROOMS.ALL).emit(...)` với payload thô là rò rỉ ngay. | **Không còn client nào join room `all`.** `emitToAll()` / `broadcast()` nay duyệt theo **socket** và tự sanitize cho tài xế. Test `không client nào join room legacy 'all'` chốt hành vi này. |
+| 2 | **`broadcast()` gửi payload đầy đủ cho client `PUBLIC`** (chưa đăng nhập) — landing page công khai có thể nhận `profit`. | Bỏ qua socket `PUBLIC` trong `broadcast()` và `emitToAll()`. |
+| 3 | **Hai bộ key nhạy cảm lệch nhau** — `socketAuth.js` có bộ riêng, thiếu `cost`, `totalCost`, `returned_profit`, `grossProfit`… so với `FORBIDDEN_FIELDS` của REST API. Rủi ro: thêm field mới vào REST mà quên WebSocket. | `socketAuth.js` nay **dùng chung** `FORBIDDEN_FIELDS` từ `middleware/permissions.js` + regex bổ sung. Một nguồn sự thật duy nhất. |
+
+**Bài học rút ra:** kiểm tra bằng trình duyệt thật bắt được thứ mà unit test không bắt được — test chỉ kiểm chứng các đường đi đã viết, còn verify UI phát hiện được đường đi còn sót (`emitToAll` gọi từ code khác).
+
+**Lưu ý vận hành:** `socket.io-client` được thêm vào `devDependencies` (chỉ dùng cho test). Client trình duyệt vẫn dùng `/socket.io/socket.io.js` do server serve (`serveClient: true`) — không thêm bundle nào vào production.

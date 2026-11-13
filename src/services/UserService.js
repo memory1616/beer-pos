@@ -14,6 +14,7 @@
 const db = require('../../database');
 const { hashPassword, verifyPassword, validatePasswordStrength } = require('../../src/utils/password');
 const logger = require('../../src/utils/logger');
+const socketServer = require('../socket/socketServer');
 
 const ROLE_ADMIN = 'ADMIN';
 const ROLE_DRIVER = 'DRIVER';
@@ -132,10 +133,43 @@ class UserService {
     try {
       db.prepare("UPDATE app_users SET password_hash = ?, updated_at = datetime('now') WHERE id = ?")
         .run(hashPassword(newPassword), id);
+      // A4: đổi mật khẩu → huỷ phiên cũ + ngắt socket (thiết bị đang mở app
+      // phải đăng nhập lại, nếu không phiên cũ vẫn dùng được).
+      UserService.revokeAllSessions(id, 'password_changed');
       return { success: true };
     } catch (e) {
       return { success: false, error: e.message };
     }
+  }
+
+  /**
+   * A4: Huỷ toàn bộ phiên của một user + ngắt WebSocket tương ứng.
+   * @param {number} id - app_users.id
+   * @param {string} [reason]
+   * @returns {number} số phiên bị huỷ
+   */
+  static revokeAllSessions(id, reason = 'sessions_revoked') {
+    let rows = [];
+    try {
+      rows = db.prepare('SELECT token FROM auth_sessions WHERE app_user_id = ?').all(id);
+    } catch (_) {
+      return 0;
+    }
+    if (rows.length === 0) return 0;
+
+    try {
+      db.prepare('DELETE FROM auth_sessions WHERE app_user_id = ?').run(id);
+    } catch (_) { /* ignore */ }
+
+    let sockets = 0;
+    for (const row of rows) {
+      try {
+        sockets += socketServer.disconnectToken(row.token, reason);
+      } catch (_) { /* ignore */ }
+    }
+
+    logger.info('[UserService] Revoked sessions', { userId: id, count: rows.length, sockets, reason });
+    return rows.length;
   }
 
   /** Khoá / mở khoá tài khoản */
@@ -146,6 +180,13 @@ class UserService {
       // Huỷ mọi session đang hoạt động của user bị khoá
       if (!active) {
         db.prepare('DELETE FROM auth_sessions WHERE app_user_id = ?').run(id);
+        // A4: ngắt WebSocket → thiết bị đang mở app mất phiên ngay lập tức.
+        try {
+          socketServer.disconnectUser(
+            db.prepare('SELECT username FROM app_users WHERE id = ?').get(id)?.username,
+            'account_locked'
+          );
+        } catch (_) { /* ignore */ }
       }
       return { success: true };
     } catch (e) {

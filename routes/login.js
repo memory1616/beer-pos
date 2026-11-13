@@ -2,12 +2,13 @@ const express = require('express');
 const router = express.Router();
 const path = require('path');
 const { login, logout, getSession, AUTH_CONFIG, cookieOptions } = require('../middleware/auth');
+const socketServer = require('../src/socket/socketServer');
 
 // GET /login - Hiển thị form login
 router.get('/', (req, res) => {
   const token = req.cookies?.[AUTH_CONFIG.cookieName] ||
                 req.headers.authorization?.replace('Bearer ', '') ||
-                req.query?.token;
+    req.query?.token;
 
   if (token && getSession(token)) {
     return res.redirect('/'); // Admin is at root /
@@ -43,15 +44,39 @@ router.post('/', express.json(), (req, res) => {
   }
 });
 
-// GET /logout - Đăng xuất (clears cookie)
-router.get('/logout', (req, res) => {
+// ── Logout ─────────────────────────────────────────────────────────────────
+//
+// A4: thêm POST /logout. Trước đây public/js/auth.js gọi POST /auth/logout
+// nhưng server CHỈ có GET /logout → session KHÔNG bị xoá phía server, chỉ
+// cookie bị clear. Token vẫn còn hiệu lực trong DB (30 ngày) và socket
+// vẫn kết nối được → đăng xuất không thật sự an toàn.
+//
+// GET /logout vẫn giữ (dùng bởi link / truy cập trực tiếp) nhưng giờ cũng
+// ngắt socket tương ứng.
+function handleLogout(req, res) {
   const token = req.cookies?.[AUTH_CONFIG.cookieName] ||
                 req.headers.authorization?.replace('Bearer ', '') ||
                 req.query?.token;
 
+  // A4: ngắt mọi socket dùng token này → các thiết bị khác mất phiên ngay.
+  try {
+    socketServer.disconnectToken(token, 'logout');
+  } catch (_) { /* ignore */ }
+
   logout(token);
   res.clearCookie(AUTH_CONFIG.cookieName);
+}
+
+// GET /logout - Đăng xuất (clears cookie)
+router.get('/logout', (req, res) => {
+  handleLogout(req, res);
   res.redirect('/login');
+});
+
+// POST /logout - Đăng xuất qua fetch (dùng bởi public/js/auth.js)
+router.post('/logout', (req, res) => {
+  handleLogout(req, res);
+  res.json({ success: true });
 });
 
 module.exports = router;

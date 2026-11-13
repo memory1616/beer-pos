@@ -52,6 +52,24 @@
     try { sessionStorage.removeItem(REDIRECT_GUARD_KEY); } catch (_) {}
   }
 
+  // ── A4: Nạp realtime.js cho Driver Portal ────────────────────────────────
+  // Driver Portal cần socket để nhận thông báo phiên bị thu hồi từ xa
+  // (admin huỷ phiên / khoá tài khoản) và đồng bộ đơn giữa các trang.
+  // Trước A4 chỉ trang /driver/ban-hang nạp realtime (qua layout.js).
+  function loadRealtime() {
+    if (window.__BEERPOS_REALTIME__) return;
+    if (document.querySelector('script[src*="/js/realtime.js"]')) return;
+    if (window.__BEERPOS_REALTIME_LOADING__) return;
+
+    window.__BEERPOS_REALTIME_LOADING__ = true;
+    var script = document.createElement('script');
+    script.src = '/js/realtime.js?v=20261113a';
+    script.defer = true;
+    script.onload = function () { window.__BEERPOS_REALTIME_LOADING__ = false; };
+    script.onerror = function () { window.__BEERPOS_REALTIME_LOADING__ = false; };
+    document.head.appendChild(script);
+  }
+
   // ── Token ───────────────────────────────────────────────────────────────
   function getToken() {
     try { return localStorage.getItem(SESSION_KEY) || null; } catch (_) { return null; }
@@ -487,6 +505,21 @@
     window.location.href = '/auth/driver';
   }
 
+  // ── A4: Phiên bị thu hồi từ xa ──────────────────────────────────────────
+  // Admin huỷ phiên / khoá tài khoản / đổi mật khẩu → server ngắt socket →
+  // client phải đưa tài xế về trang đăng nhập ngay, không để màn hình treo.
+  window.addEventListener('realtime:session-revoked', function () {
+    console.warn('[DRIVER] Session revoked by server');
+    setToken(null);
+    window.location.href = '/auth/driver';
+  });
+
+  window.addEventListener('realtime:unauthorized', function () {
+    console.warn('[DRIVER] Socket unauthorized');
+    setToken(null);
+    window.location.href = '/auth/driver';
+  });
+
   function setNavBadge(count) {
     var el = document.querySelector('[data-nav-badge]');
     if (!el) return;
@@ -605,4 +638,12 @@
 
   // Bản global — tương đương `getBottomNav()` của Admin, dùng trong template.
   window.getDriverBottomNav = getDriverBottomNav;
+
+  // A4: nạp realtime (socket) cho mọi trang Driver Portal.
+  // Chạy sau khi DOM sẵn sàng để không chặn render.
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', loadRealtime);
+  } else {
+    loadRealtime();
+  }
 })();
