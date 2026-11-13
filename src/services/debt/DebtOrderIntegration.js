@@ -487,6 +487,15 @@ function reverseOrderDebt(saleId, opts = {}) {
 
 /**
  * Danh sách đơn đã DELIVERED nhưng CHƯA có bút toán ORDER_DEBT (dùng cho đối soát).
+ *
+ * ⚠️ CHỈ trả về đơn THỰC SỰ LÀ BÁN CHỊU — đơn thu tiền (is_credit=0, không
+ * có dòng `order_debts`, không có bút toán PAYMENT gắn với đơn) KHÔNG phải
+ * lỗi đối soát, chỉ là chưa ghi công nợ (đúng như thiết kế).
+ *
+ * Tiêu chí "bán chịu":
+ *   - `sales.is_credit = 1` (cờ bền vững lúc tạo đơn), HOẶC
+ *   - có dòng trong `order_debts` (đơn cũ đã ghi nợ), HOẶC
+ *   - có bút toán PAYMENT gắn với đơn (đã thu tiền → không được ghi nợ)
  */
 function listDeliveredWithoutDebt(limit = 200) {
   return db
@@ -505,6 +514,16 @@ function listDeliveredWithoutDebt(limit = 200) {
              WHERE dt.reference_type = 'ORDER'
                AND dt.reference_id = CAST(s.id AS TEXT)
                AND dt.transaction_type = 'ORDER_DEBT'
+          )
+          AND (
+                s.is_credit = 1
+             OR EXISTS (SELECT 1 FROM order_debts od WHERE od.sale_id = s.id)
+             OR EXISTS (
+                  SELECT 1 FROM debt_transactions dt2
+                   WHERE dt2.reference_type = 'ORDER'
+                     AND dt2.reference_id = CAST(s.id AS TEXT)
+                     AND dt2.transaction_type = 'PAYMENT'
+                )
           )
         ORDER BY s.date DESC, s.id DESC
         LIMIT ?`
