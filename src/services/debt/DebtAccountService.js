@@ -37,7 +37,9 @@ function setOpeningBalance(customerId, openingBalance, opts = {}) {
 
   const customer = db.prepare('SELECT id, archived FROM customers WHERE id = ?').get(custId);
   if (!customer) return { success: false, error: 'Không tìm thấy khách hàng' };
-  if (customer.archived) return { success: false, error: 'Khách hàng đã bị lưu trữ' };
+  if (customer.archived && !opts.allowArchivedCustomer) {
+    return { success: false, error: 'Khách hàng đã bị lưu trữ' };
+  }
 
   const key = opts.idempotencyKey || `opening_balance:${custId}`;
 
@@ -56,6 +58,8 @@ function setOpeningBalance(customerId, openingBalance, opts = {}) {
     source: opts.source || SOURCES.MANUAL_UI,
     idempotencyKey: key,
     allowNegativeBalance: true,
+    // Khách đã archive vẫn có thể còn dư nợ → cho phép ghi công nợ đầu kỳ
+    allowArchivedCustomer: true,
   });
 
   if (result.success && !result.duplicate) {

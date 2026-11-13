@@ -108,6 +108,8 @@ function syncMirror(customerId, balance) {
  * @param {string} [opts.source] - SOURCES.*
  * @param {string} [opts.idempotencyKey] - UNIQUE, chống ghi trùng
  * @param {boolean} [opts.allowNegativeBalance] - cho phép âm (không dùng mặc định)
+ * @param {boolean} [opts.allowArchivedCustomer] - cho phép ghi cho khách đã lưu trữ
+ *   (CHỈ dùng cho migrate công nợ đầu kỳ — khách archive vẫn còn dư nợ)
  * @returns {{success:boolean, transactionId?:number, balanceBefore?:number, balanceAfter?:number, error?:string, duplicate?:boolean}}
  */
 function recordTransaction(opts = {}) {
@@ -123,6 +125,7 @@ function recordTransaction(opts = {}) {
     source = SOURCES.POS,
     idempotencyKey = null,
     allowNegativeBalance = false,
+    allowArchivedCustomer = false,
   } = opts;
 
   const custId = parseInt(customerId, 10);
@@ -145,7 +148,9 @@ function recordTransaction(opts = {}) {
       .prepare('SELECT id, name, archived FROM customers WHERE id = ?')
       .get(custId);
     if (!customer) throw new Error('Không tìm thấy khách hàng');
-    if (customer.archived) throw new Error('Khách hàng đã bị lưu trữ');
+    if (customer.archived && !allowArchivedCustomer) {
+      throw new Error('Khách hàng đã bị lưu trữ');
+    }
 
     // 2. Idempotency — nếu key đã tồn tại thì KHÔNG ghi lại
     if (idempotencyKey) {
