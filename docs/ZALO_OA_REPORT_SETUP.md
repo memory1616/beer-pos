@@ -63,7 +63,32 @@
 
 ## 3. Lấy Access Token
 
-### Cách A — Token tĩnh (đơn giản, dùng thử nhanh)
+> ⭐ **Cách nhanh nhất (khuyến nghị):** xem [Mục 3.1](#31-cách-nhanh-1-click--nút-kết-nối-zalo-oa).
+> Chỉ cần nhấn 1 nút trong hệ thống, Zalo mở trang cấp quyền, bạn bấm **Cho phý**,
+> xong hệ thống tự lưu token. Không cần copy code verifier, không cần gọi curl.
+
+### 3.1 Cách nhanh (1 click — nút "Kết nối Zalo OA")
+
+**Điều kiện:** App đã tạo ở Bước 2, và **Callback URL** đã được đăng ký trong App:
+```
+https://admin.biatuoitayninh.store/api/report-notify/zalo/callback
+```
+
+**Cách làm:**
+
+1. Vào `/report-notify` → kênh **Zalo OA**
+2. Mở mục **🔑 Nâng cao — OAuth v4** → nhập **App ID** + **Secret Key** →
+   bấm **💾 Lưu cấu hình**
+3. Bấm nút **🔗 Kết nối Zalo OA**
+4. Zalo mở tab cấp quyền → chọn **đúng OA** của bạn → bấm **Cho phép**
+5. Zalo redirect về trang báo **"✅ Đã cấu hình Zalo OA thành công!"**
+6. Quay lại `/report-notify` → access token + refresh token đã được lưu tự động
+7. Tiếp tục sang [Bước 4](#4-chuẩn-bị-người-nhận) và [Bước 5](#5-cấu-hình-trong-beer-pos)
+
+> Hệ thống tự sinh `code_verifier` (PKCE S256), lưu tạm vào DB, dùng khi đổi code
+> → token, rồi xoá. Bạn không cần làm gì thủ công.
+
+### 3.2 Cách A — Token tĩnh (đơn giản, dùng thử nhanh)
 
 1. Vào <https://developers.zalo.me> → **OA quản lý** → chọn OA của bạn.
 2. Mục **Access Token** → **Tạo access token** → copy chuỗi token.
@@ -71,7 +96,7 @@
 > ⚠️ Access token chỉ sống **25 giờ**. Dùng cách A thì hệ thống sẽ ngừng gửi
 > sau ~1 ngày. Nếu chỉ dùng để test thì OK.
 
-### Cách B — OAuth v4 (khuyến nghị, dùng lâu dài)
+### 3.3 Cách B — OAuth v4 thủ công (khuyến nghị, dùng lâu dài)
 
 1. Trong App đã tạo, vào **Cấu hình OAuth**:
    - **Callback URL**: `https://admin.biatuoitayninh.store/api/report-notify/zalo/callback`
@@ -207,6 +232,7 @@ Log kỳ vọng:
 | Gửi tin CS (báo cáo) | `POST https://openapi.zalo.me/v3.0/oa/message/cs` |
 | Lấy danh sách user | `GET  https://openapi.zalo.me/v3.0/oa/user/getlist?data={...}` |
 | Chi tiết user | `GET  https://openapi.zalo.me/v3.0/oa/user/detail?data={...}` |
+| Cấp quyền (authorize) | `GET  https://oauth.zaloapp.com/v4/oa/auth?app_id=&redirect_uri=&code_challenge=` |
 | Lấy / refresh token | `POST https://oauth.zaloapp.com/v4/oa/access_token` |
 
 Body gửi tin (v3.0 — **khác v2.0**):
@@ -243,6 +269,7 @@ Gửi thủ công (**📤 Gửi ngay**) luôn bỏ qua cơ chế này.
 | `zalo_oa_refresh_token` | Refresh token (OAuth v4) |
 | `zalo_oa_app_id` | App ID |
 | `zalo_oa_secret_key` | Secret key |
+| `zalo_oa_code_verifier` | PKCE verifier tạm (tự sinh, tự xoá sau khi đổi code) |
 | `zalo_report_user_id` | `user_id` người nhận báo cáo |
 
 Tất cả secret được lưu trong SQLite, **không** nằm trong code/git.
