@@ -139,10 +139,10 @@ https://admin.biatuoitayninh.store/api/report-notify/zalo/callback
 2. Lấy **Authorization Code**:
    - Mở URL (thay `APP_ID`):
      ```
-     https://oauth.zaloapp.com/v4/oa/auth?app_id=APP_ID&redirect_uri=https%3A%2F%2Fadmin.biatuoitayninh.store%2Fapi%2Freport-notify%2Fzalo%2Fcallback&code_challenge=CODE_CHALLENGE
+     https://oauth.zaloapp.com/v4/oa/permission?app_id=APP_ID&redirect_uri=https%3A%2F%2Fadmin.biatuoitayninh.store%2Fapi%2Freport-notify%2Fzalo%2Fcallback&code_challenge=CODE_CHALLENGE&code_challenge_method=S256&state=STATE
      ```
    - Admin OA chọn đúng OA → **Cho phép** → Zalo redirect về callback URL kèm:
-     `?code=<AUTHORIZATION_CODE>&oa_id=<OA_ID>`
+     `?code=<AUTHORIZATION_CODE>&oa_id=<OA_ID>&state=<STATE>`
 3. Đổi code lấy token:
    ```bash
    curl -X POST 'https://oauth.zaloapp.com/v4/oa/access_token' \
@@ -243,6 +243,11 @@ S.dispatchDailyReport({date:require('./src/services/DailyReportService').todayVN
 | `Forbidden - permission` khi lấy danh sách | App chưa bật quyền "Quản lý thông tin người dùng" | Bật quyền trong `developers.zalo.me` → App → cấp quyền, hoặc dán `user_id` thủ công |
 | Tin nhắn tới nhưng rỗng/không đủ | Báo cáo > 2000 ký tự | Code đã tự cắt còn 2000 ký tự (giới hạn Zalo) |
 | Không tự gửi đúng giờ | Cron chưa chạy / sai múi giờ | Cron dùng `timezone: Asia/Ho_Chi_Minh`, chạy mỗi phút. Kiểm tra `pm2 logs` |
+| `{"error":404,...empty api}` khi bấm Kết nối | Endpoint authorize sai | Đã sửa: dùng `/v4/oa/permission` (KHÔNG phải `/v4/oa/auth`) |
+| `Phiên cấp quyền không hợp lệ (state mismatch)` | `state` không khớp (có thể do mở nhiều tab, hoặc code đã dùng) | Bấm lại **🔗 Kết nối Zalo OA** để tạo phiên mới, chỉ mở 1 tab |
+| `Invalid code / code expired` | Authorization code đã dùng hoặc quá 10 phút | Bấm lại nút Kết nối để lấy code mới |
+| `redirect_uri does not match` | Callback URL trong Zalo App lệch với URL hệ thống dùng | Sửa Callback URL trong Zalo App thành `https://admin.biatuoitayninh.store/api/report-notify/zalo/callback` (khớp chính xác, kể cả dấu `/` cuối) |
+| `-242 Invalid appsecret_proof` | App bật chế độ bắt buộc proof nhưng thiếu header | Hệ thống đã tự gửi `X-Appsecret-Proof`; kiểm tra `zalo_oa_secret_key` đã lưu đúng |
 
 ### Kiểm tra cron có chạy không
 
@@ -267,7 +272,7 @@ Log kỳ vọng:
 | Gửi tin CS (báo cáo) | `POST https://openapi.zalo.me/v3.0/oa/message/cs` |
 | Lấy danh sách user | `GET  https://openapi.zalo.me/v3.0/oa/user/getlist?data={...}` |
 | Chi tiết user | `GET  https://openapi.zalo.me/v3.0/oa/user/detail?data={...}` |
-| Cấp quyền (authorize) | `GET  https://oauth.zaloapp.com/v4/oa/auth?app_id=&redirect_uri=&code_challenge=` |
+| Cấp quyền (authorize) | `GET  https://oauth.zaloapp.com/v4/oa/permission?app_id=&redirect_uri=&code_challenge=&state=` |
 | Lấy / refresh token | `POST https://oauth.zaloapp.com/v4/oa/access_token` |
 
 Body gửi tin (v3.0 — **khác v2.0**):
