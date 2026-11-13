@@ -34,7 +34,12 @@
   <script>requireAuth();</script>
 
   <style>
-    .dbt-page { padding-bottom: 100px; }
+    .dbt-page {
+      /* Bottom nav là fixed → cần chừa chỗ để nội dung cuối không bị che.
+         `getContent()` (page-content.app-main) đã lo padding-bottom theo
+         --bottomnav-height; giá trị này chỉ là lưới an toàn khi fallback. */
+      padding-bottom: 24px;
+    }
 
     /* ── KPI cards ───────────────────────────────────────────────────── */
     .dbt-kpi-grid {
@@ -356,7 +361,7 @@
     }
   </style>
 </head>
-<body>
+<body class="bg-main text-primary body--app">
 <div id="app">
   <div class="dbt-empty">⏳ Đang tải sổ công nợ...</div>
 </div>
@@ -804,10 +809,17 @@
 
     document.getElementById('app').innerHTML =
       (typeof getHeader === 'function' ? getHeader('Sổ công nợ', '📒') : '') +
-      '<div class="dbt-page" style="padding:16px">' +
-        '<div class="dbt-tabs">' + tabsHtml + '</div>' +
-        '<div id="dbtBody">' + body + '</div>' +
-      '</div>' +
+      (typeof getContent === 'function'
+        ? getContent(
+            '<div class="dbt-page">' +
+              '<div class="dbt-tabs">' + tabsHtml + '</div>' +
+              '<div id="dbtBody">' + body + '</div>' +
+            '</div>'
+          )
+        : '<div class="dbt-page" style="padding:16px">' +
+            '<div class="dbt-tabs">' + tabsHtml + '</div>' +
+            '<div id="dbtBody">' + body + '</div>' +
+          '</div>') +
       (typeof getBottomNav === 'function' ? getBottomNav('/dashboard') : '');
 
     fillCustomerSelect();

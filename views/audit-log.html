@@ -214,7 +214,7 @@
     .al-rank-row:last-child { border-bottom: none; }
   </style>
 </head>
-<body>
+<body class="bg-main text-primary body--app">
 <div id="app">
   <div class="al-empty">⏳ Đang tải nhật ký...</div>
 </div>
@@ -399,9 +399,7 @@
 
     function render() {
       var totalPages = Math.max(1, Math.ceil(state.total / state.limit));
-      document.getElementById('app').innerHTML =
-        (typeof getHeader === 'function' ? getHeader('Nhật ký hệ thống', '📜') : '') +
-        '<div style="padding:16px">' +
+      var inner =
         '<div class="al-section">' +
           '<div class="al-section-title">🔎 Tìm kiếm nhật ký</div>' +
           '<div class="al-section-desc">Ghi lại mọi thao tác quan trọng: ai làm gì, lúc nào, thay đổi gì.</div>' +
@@ -416,8 +414,13 @@
             '<span>Trang ' + state.page + ' / ' + totalPages + '</span>' +
             '<button class="al-btn al-btn-secondary al-btn-sm" id="alNext"' + (state.page >= totalPages ? ' disabled' : '') + '>Sau →</button>' +
           '</div>' +
-        '</div>' +
-        '</div>' +
+        '</div>';
+
+      document.getElementById('app').innerHTML =
+        (typeof getHeader === 'function' ? getHeader('Nhật ký hệ thống', '📜') : '') +
+        (typeof getContent === 'function'
+          ? getContent('<div style="padding:16px">' + inner + '</div>')
+          : '<div style="padding:16px">' + inner + '</div>') +
         (typeof getBottomNav === 'function' ? getBottomNav('/dashboard') : '');
 
       bindEvents();

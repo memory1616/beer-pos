@@ -259,7 +259,7 @@
     .rn-info-banner li { margin-bottom: 4px; }
   </style>
 </head>
-<body>
+<body class="bg-main text-primary body--app">
 <div id="app">
   <div class="rn-empty">⏳ Đang tải cấu hình...</div>
 </div>
@@ -487,9 +487,7 @@
 
     function render() {
       var c = state.config;
-      document.getElementById('app').innerHTML =
-        (typeof getHeader === 'function' ? getHeader('Báo cáo tự động', '📨') : '') +
-        '<div style="padding:16px">' +
+      var inner =
         renderConfig() +
         '<div class="rn-section">' +
           '<div class="rn-section-title">🧪 Xem thử & gửi ngay</div>' +
@@ -505,8 +503,13 @@
           '<div class="rn-section-title">🕘 Lịch sử gửi</div>' +
           '<div class="rn-section-desc">20 lần gửi gần nhất.</div>' +
           '<div id="rnHistory">' + renderHistory(state.history) + '</div>' +
-        '</div>' +
-        '</div>' +
+        '</div>';
+
+      document.getElementById('app').innerHTML =
+        (typeof getHeader === 'function' ? getHeader('Báo cáo tự động', '📨') : '') +
+        (typeof getContent === 'function'
+          ? getContent('<div style="padding:16px">' + inner + '</div>')
+          : '<div style="padding:16px">' + inner + '</div>') +
         (typeof getBottomNav === 'function' ? getBottomNav('/dashboard') : '');
 
       bindEvents();

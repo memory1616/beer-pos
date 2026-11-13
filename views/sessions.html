@@ -139,7 +139,7 @@
     }
   </style>
 </head>
-<body>
+<body class="bg-main text-primary body--app">
 <div id="app">
   <div class="ss-empty">⏳ Đang tải danh sách phiên...</div>
 </div>
@@ -231,9 +231,7 @@
     }
 
     function render() {
-      document.getElementById('app').innerHTML =
-        (typeof getHeader === 'function' ? getHeader('Phiên đăng nhập', '🔐') : '') +
-        '<div style="padding:16px">' +
+      var inner =
         '<div class="ss-info-banner">' +
           '<strong>Quản lý phiên đăng nhập.</strong> Mỗi thiết bị đang mở ứng dụng sẽ có một phiên riêng. ' +
           'Khi bạn <b>Huỷ</b>, thiết bị đó bị đăng xuất ngay lập tức — kể cả đang mở dữ liệu trên màn hình. ' +
@@ -252,8 +250,13 @@
             '<button class="ss-btn ss-btn-danger" id="ssRevokeAll">⚠️ Huỷ tất cả (trừ phiên này)</button>' +
           '</div>' +
           '<div class="ss-status" id="ssStatus"></div>' +
-        '</div>' +
-        '</div>' +
+        '</div>';
+
+      document.getElementById('app').innerHTML =
+        (typeof getHeader === 'function' ? getHeader('Phiên đăng nhập', '🔐') : '') +
+        (typeof getContent === 'function'
+          ? getContent('<div style="padding:16px">' + inner + '</div>')
+          : '<div style="padding:16px">' + inner + '</div>') +
         (typeof getBottomNav === 'function' ? getBottomNav('/dashboard') : '');
 
       bindEvents();

@@ -141,7 +141,7 @@
     .pn-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
   </style>
 </head>
-<body>
+<body class="bg-main text-primary body--app">
 <div id="app">
   <div class="pn-empty">⏳ Đang tải cấu hình...</div>
 </div>
@@ -271,32 +271,35 @@
 
   function render() {
     var c = state.config;
+    var inner =
+      renderConfig() +
+      '<div class="pn-section">' +
+        '<div class="pn-section-title">🧪 Gửi thử</div>' +
+        '<div class="pn-section-desc">Gửi 1 thông báo thử tới 1 tài xế để kiểm tra thiết bị đã đăng ký đúng chưa.</div>' +
+        '<div class="pn-field">' +
+          '<label class="pn-label" for="pnTestUser">Tài xế</label>' +
+          '<select class="pn-input" id="pnTestUser">' +
+            ((c && c.stats && c.stats.length)
+              ? c.stats.map(function (s) {
+                  return '<option value="' + esc(s.username) + '">' + esc(s.username) + '</option>';
+                }).join('')
+              : '<option value="">— Chưa có tài xế nào bật —</option>') +
+          '</select>' +
+        '</div>' +
+        '<button class="pn-btn pn-btn-secondary" id="pnTest">📤 Gửi thông báo thử</button>' +
+        '<div class="pn-status" id="pnTestStatus"></div>' +
+      '</div>' +
+      '<div class="pn-section">' +
+        '<div class="pn-section-title">🕘 Lịch sử gửi</div>' +
+        '<div class="pn-section-desc">50 lần gửi gần nhất.</div>' +
+        renderHistory() +
+      '</div>';
+
     document.getElementById('app').innerHTML =
       (typeof getHeader === 'function' ? getHeader('Thông báo đẩy tài xế', '🔔') : '') +
-      '<div style="padding:16px">' +
-        renderConfig() +
-        '<div class="pn-section">' +
-          '<div class="pn-section-title">🧪 Gửi thử</div>' +
-          '<div class="pn-section-desc">Gửi 1 thông báo thử tới 1 tài xế để kiểm tra thiết bị đã đăng ký đúng chưa.</div>' +
-          '<div class="pn-field">' +
-            '<label class="pn-label" for="pnTestUser">Tài xế</label>' +
-            '<select class="pn-input" id="pnTestUser">' +
-              ((c && c.stats && c.stats.length)
-                ? c.stats.map(function (s) {
-                    return '<option value="' + esc(s.username) + '">' + esc(s.username) + '</option>';
-                  }).join('')
-                : '<option value="">— Chưa có tài xế nào bật —</option>') +
-            '</select>' +
-          '</div>' +
-          '<button class="pn-btn pn-btn-secondary" id="pnTest">📤 Gửi thông báo thử</button>' +
-          '<div class="pn-status" id="pnTestStatus"></div>' +
-        '</div>' +
-        '<div class="pn-section">' +
-          '<div class="pn-section-title">🕘 Lịch sử gửi</div>' +
-          '<div class="pn-section-desc">50 lần gửi gần nhất.</div>' +
-          renderHistory() +
-        '</div>' +
-      '</div>' +
+      (typeof getContent === 'function'
+        ? getContent('<div style="padding:16px">' + inner + '</div>')
+        : '<div style="padding:16px">' + inner + '</div>') +
       (typeof getBottomNav === 'function' ? getBottomNav('/dashboard') : '');
 
     bindEvents();
