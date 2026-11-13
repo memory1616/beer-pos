@@ -24,7 +24,9 @@
   <link rel="icon" type="image/png" href="/icon-192.png">
 
   <link rel="preload" href="/js/layout.js?v=20260410-binance" as="script">
-  <link rel="preload" href="/css/unified.css?v=20250718" as="stylesheet">
+  <!-- ⚠️ `as` cho CSS phải là "style" (không phải "stylesheet") — "stylesheet" là
+       giá trị không hợp lệ theo spec → console warning "must have a valid `as` value". -->
+  <link rel="preload" href="/css/unified.css?v=20250718" as="style">
 
   <link rel="stylesheet" href="/css/unified.css?v=20250718">
   <script src="/js/auth.js"></script>
@@ -393,6 +395,23 @@
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
+  /**
+   * Escape một giá trị để nhúng vào inline `onclick="fn(...)"` (chuỗi JS).
+   *
+   * ⚠️ BẮT BUỘC dùng cho mọi giá trị CHUỖI lấy từ DB khi chèn vào onclick.
+   *    Nếu chèn thẳng (không có dấu nháy) → JS hiểu là TÊN BIẾN:
+   *      onclick="revokePerm(giaohang01, 42)" → ReferenceError: giaohang01 is not defined
+   *    Nếu chèn thẳng CÓ dấu nháy → tên chứa `'` hoặc `\` sẽ phá vỡ cú pháp:
+   *      onclick="revokePerm('O'Brien', 42)" → SyntaxError
+   *    Hàm này xử lý cả 2: trả về chuỗi JS hợp lệ (sẵn dấu nháy + escape).
+   */
+  function jsArg(s) {
+    return "'" + String(s === null || s === undefined ? '' : s)
+      .replace(/\\/g, '\\\\')
+      .replace(/'/g, "\\'")
+      .replace(/\r?\n/g, ' ') + "'";
+  }
+
   function money(n) {
     var num = Number(n || 0);
     if (isNaN(num)) num = 0;
@@ -713,7 +732,7 @@
             '<td>' + esc(x.customer_name || ('#' + x.customer_id)) + '</td>' +
             '<td>' + (Number(x.can_record_payment) === 1 ? '✅ Có' : '❌ Không') + '</td>' +
             '<td><span class="dbt-badge ' + (x.status === 'active' ? 'dbt-badge-ok' : 'dbt-badge-warn') + '">' + esc(x.status) + '</span></td>' +
-            (state.isAdmin ? '<td style="text-align:right"><button class="dbt-btn dbt-btn-danger dbt-btn-sm" onclick="revokePerm(' + x.staff_id + ',' + x.customer_id + ')">Thu hồi</button></td>' : '') +
+            (state.isAdmin ? '<td style="text-align:right"><button class="dbt-btn dbt-btn-danger dbt-btn-sm" onclick="revokePerm(' + jsArg(x.staff_id) + ',' + x.customer_id + ')">Thu hồi</button></td>' : '') +
           '</tr>';
         }).join('') +
         '</tbody></table></div>'
