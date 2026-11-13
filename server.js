@@ -916,6 +916,9 @@ app.get('/sessions', (req, res) => sendPageNoCache(req, res, 'sessions.html'));
 app.get('/audit-log', (req, res) => sendPageNoCache(req, res, 'audit-log.html'));
 // Web Push cho tài xế — cấu hình + theo dõi trạng thái thiết bị
 app.get('/push-notify', (req, res) => sendPageNoCache(req, res, 'push-notify.html'));
+// Sổ Công nợ Gia Huy — module quản lý công nợ khách hàng
+app.get('/debts', (req, res) => sendPageNoCache(req, res, 'debts.html'));
+app.get('/so-cong-no', (req, res) => res.redirect('/debts'));
 app.get('/purchases', (req, res) => sendPageNoCache(req, res, 'purchases.html'));
 app.get('/kegs', (req, res) => sendPageNoCache(req, res, 'kegs.html'));
 // /report is handled by routes/report.js (serves full HTML page)
@@ -975,6 +978,8 @@ app.use('/api/routing', require('./routes/api/routing'));
 // Business Features APIs
 app.use('/api/batch', require('./routes/api/batch'));
 app.use('/api/debts', require('./routes/api/debts'));
+// Sổ Công nợ Gia Huy — module quản lý công nợ (ledger append-only + đối soát)
+app.use('/api/debt-ledger', require('./routes/api/debtLedger'));
 app.use('/api/promotions', require('./routes/api/promotions'));
 app.use('/api/segments', require('./routes/api/segments'));
 app.use('/api/sales-staff', require('./routes/api/sales-staff'));

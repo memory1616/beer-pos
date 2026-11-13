@@ -37,6 +37,7 @@ const ALLOWED_TRANSITIONS = {
 
 const db = require('../../database');
 const logger = require('../../src/utils/logger');
+const DebtOrderIntegration = require('./debt/DebtOrderIntegration');
 
 class DeliveryService {
   /**
@@ -344,6 +345,27 @@ class DeliveryService {
       });
 
       const updated = db.prepare('SELECT * FROM delivery_records WHERE id = ?').get(deliveryId);
+
+      // ── SỔ CÔNG NỢ: ghi công nợ khi đơn chuyển sang DELIVERED ──────────
+      // (lỗi sổ công nợ KHÔNG được làm hỏng luồng giao hàng)
+      if (toStatus === DELIVERY_STATUS.DELIVERED) {
+        try {
+          const debtResult = DebtOrderIntegration.onDeliveryStatusChanged({
+            saleId: record.sale_id,
+            fromStatus: record.status,
+            toStatus,
+            actor: driverUsername,
+          });
+          if (debtResult && debtResult.success && !debtResult.skipped) {
+            updated.debtTransactionId = debtResult.transactionId;
+            updated.debtAmount = debtResult.amountOwed;
+            updated.debtBalanceAfter = debtResult.balanceAfter;
+          }
+        } catch (debtErr) {
+          logger.error('[DeliveryService] debt integration error', { error: debtErr.message });
+        }
+      }
+
       return { success: true, delivery: updated };
     } catch (e) {
       logger.error('[DeliveryService] updateStatus error', { error: e.message });
@@ -474,6 +496,27 @@ class DeliveryService {
 
       const summary = tx();
       const updated = db.prepare('SELECT * FROM delivery_records WHERE id = ?').get(deliveryId);
+
+      // ── SỔ CÔNG NỢ: ghi công nợ khi đơn được giao thành công sạch ─────
+      // Chỉ ghi khi trạng thái MỚI là DELIVERED (sạch). DISCREPANCY → KHÔNG ghi.
+      if (summary.nextStatus === DELIVERY_STATUS.DELIVERED) {
+        try {
+          const debtResult = DebtOrderIntegration.onDeliveryStatusChanged({
+            saleId: record.sale_id,
+            fromStatus: record.status,
+            toStatus: summary.nextStatus,
+            actor: driverUsername,
+          });
+          if (debtResult && debtResult.success && !debtResult.skipped) {
+            updated.debtTransactionId = debtResult.transactionId;
+            updated.debtAmount = debtResult.amountOwed;
+            updated.debtBalanceAfter = debtResult.balanceAfter;
+          }
+        } catch (debtErr) {
+          logger.error('[DeliveryService] debt integration error', { error: debtErr.message });
+        }
+      }
+
       return { success: true, delivery: updated, summary };
     } catch (e) {
       logger.error('[DeliveryService] confirmDelivery error', { error: e.message });

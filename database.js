@@ -30,7 +30,7 @@ try {
   }
 
   // Run driver portal migration (idempotent, chạy độc lập version gate)
-  const { runDriverPortalMigration, runDriverStaffMigration, runDriverKegReceiptMigration, runDriverWorkDaysMigration, runDriverSalaryAdvanceMigration, runMissingBusinessTablesMigration, runDailyReportNotifyMigration, runAuditLogMigration, runDriverPushMigration, runZaloOauthMigration } = require('./database/migration');
+  const { runDriverPortalMigration, runDriverStaffMigration, runDriverKegReceiptMigration, runDriverWorkDaysMigration, runDriverSalaryAdvanceMigration, runMissingBusinessTablesMigration, runDailyReportNotifyMigration, runAuditLogMigration, runDriverPushMigration, runZaloOauthMigration, runDebtManagementMigration, runDebtSaleCreditFlagMigration } = require('./database/migration');
   const driverResult = runDriverPortalMigration(db);
   if (driverResult.success) {
     logger.log('[MIGRATION] Driver portal schema ready');
@@ -88,6 +88,18 @@ try {
   const zaloOauthResult = runZaloOauthMigration(db);
   if (zaloOauthResult.success) {
     logger.log('[MIGRATION] Zalo OA OAuth settings ready');
+  }
+
+  // Run Debt Management migration (sổ công nợ Gia Huy — 7 bảng `debt_*`)
+  const debtResult = runDebtManagementMigration(db);
+  if (debtResult.success) {
+    logger.log('[MIGRATION] Debt management schema ready');
+  }
+
+  // Run Debt credit-flag migration (cột `sales.is_credit` — đánh dấu đơn bán chịu)
+  const debtFlagResult = runDebtSaleCreditFlagMigration(db);
+  if (debtFlagResult.success) {
+    logger.log('[MIGRATION] Debt sale credit flag ready');
   }
 } catch (error) {
   logger.error('[MIGRATION] Migration error:', error.message);

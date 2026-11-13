@@ -370,7 +370,7 @@ router.post('/', async (req, res) => {
       // Insert sale with Vietnam-local date and time
       const saleDate = db.getVietnamDateStr();
       const saleTime = db.getVietnamTimeStr();
-      const saleResult = db.prepare('INSERT INTO sales (customer_id, sales_id, date, sale_time, total, profit, deliver_kegs, return_kegs, keg_balance_after, type, promo_free_liters, promo_type, driver_username) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(customerId, staffId || null, saleDate, saleTime, total, profit, finalDeliverKegs, returnKegs, newKegBalance, 'sale', promoFreeTotal, promoInfo ? promoInfo.promoType : null, driverUsername);
+      const saleResult = db.prepare('INSERT INTO sales (customer_id, sales_id, date, sale_time, total, profit, deliver_kegs, return_kegs, keg_balance_after, type, promo_free_liters, promo_type, driver_username, is_credit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(customerId, staffId || null, saleDate, saleTime, total, profit, finalDeliverKegs, returnKegs, newKegBalance, 'sale', promoFreeTotal, promoInfo ? promoInfo.promoType : null, driverUsername, debt && customerId ? 1 : 0);
       const saleId = saleResult.lastInsertRowid;
 
       if (!saleId) throw new Error('Sale creation failed — no lastInsertRowid');
@@ -514,14 +514,27 @@ router.post('/', async (req, res) => {
 
     if (!saleId) throw new Error('Sale creation returned null');
 
-    // ── Tạo công nợ nếu bán chịu ───────────────────────────────
+    // ── Đơn BÁN CHỊU: chỉ đánh dấu, CHƯA ghi công nợ ────────────────
+    // Theo nghiệp vụ mới: công nợ CHỈ phát sinh khi đơn chuyển sang
+    // DELIVERED (xem DebtOrderIntegration.onDeliveryStatusChanged).
+    // Lúc TẠO đơn chỉ:
+    //   1. đánh dấu `sales.is_credit = 1` (dấu hiệu bền vững)
+    //   2. tạo dòng chiếu `order_debts` (để UI cũ/driver portal hiển thị)
+    // KHÔNG ghi bút toán ledger ở bước này.
     let debtResult = null;
     if (debt && customerId && total > 0) {
-      debtResult = DebtService.createDebt(customerId, total, saleId, `Bán chịu đơn #${saleId}`);
-      if (debtResult.success) {
-        console.log('[SALE DEBT] Created debt for sale', saleId, ':', total);
-        const io = req.app.get('io');
-        if (io) io.to('admin').emit('debt:updated', { customerId, newDebt: debtResult.newDebt, action: 'increase', saleId });
+      try {
+        db.prepare('UPDATE sales SET is_credit = 1 WHERE id = ?').run(saleId);
+        const proj = db.prepare('SELECT id FROM order_debts WHERE sale_id = ?').get(saleId);
+        if (!proj) {
+          db.prepare(
+            `INSERT INTO order_debts (sale_id, customer_id, original_amount, paid_amount, remaining_amount, status)
+             VALUES (?, ?, ?, 0, ?, 'pending')`
+          ).run(saleId, customerId, total, total);
+        }
+        debtResult = { success: true, newDebt: null, marked: true };
+      } catch (debtMarkErr) {
+        console.error('[SALE DEBT] Mark credit sale error:', debtMarkErr.message);
       }
     }
 
@@ -1304,13 +1317,23 @@ router.delete('/:id', (req, res) => {
     }
 
     // ── Hoàn công nợ nếu đơn có ghi nợ ──────────────────────
-    const saleBeforeDelete = db.prepare('SELECT customer_id FROM sales WHERE id = ?').get(saleId);
+    // SỔ CÔNG NỢ: tạo bút toán REVERSAL (KHÔNG xoá bút toán gốc).
+    const saleBeforeDelete = db
+      .prepare('SELECT customer_id FROM sales WHERE id = ?')
+      .get(saleId);
     if (saleBeforeDelete && saleBeforeDelete.customer_id) {
       const debtResult = DebtService.reverseDebtForSale(parseInt(saleId, 10));
       if (debtResult.success && debtResult.refundedAmount > 0) {
         console.log('[ORDER DELETE] Debt reversed for sale', saleId, ':', debtResult.refundedAmount);
         const io = req.app.get('io');
-        if (io) io.to('admin').emit('debt:updated', { customerId: saleBeforeDelete.customer_id, action: 'reversed', saleId: parseInt(saleId, 10), refundedAmount: debtResult.refundedAmount });
+        if (io) {
+          io.to('admin').emit('debt:updated', {
+            customerId: saleBeforeDelete.customer_id,
+            action: 'reversed',
+            saleId: parseInt(saleId, 10),
+            refundedAmount: debtResult.refundedAmount,
+          });
+        }
       }
     }
 
@@ -1643,18 +1666,32 @@ router.put('/:id', (req, res) => {
       .run(customerId, newTotal, newProfit, promoInfo ? promoInfo.promoType : null, promoInfo ? promoInfo.totalFree : 0, saleId);
 
     // ── Điều chỉnh công nợ nếu đơn có ghi nợ ─────────────────
+    // Dùng SỔ CÔNG NỢ (ledger): tạo bút toán ADJUSTMENT gắn với đơn,
+    // KHÔNG sửa/xoá bút toán gốc. Chỉ áp dụng khi đơn đã ghi công nợ
+    // (tức đã DELIVERED và đã có bút toán ORDER_DEBT).
     if (customerId && newTotal !== currentSale.total) {
-      const orderDebt = db.prepare('SELECT * FROM order_debts WHERE sale_id = ?').get(saleId);
-      if (orderDebt) {
-        const diff = newTotal - currentSale.total; // tăng = thêm nợ, giảm = giảm nợ
-        if (diff !== 0) {
-          const adjResult = DebtService.adjustDebt(customerId, diff, `Sửa đơn #${saleId}: ${diff > 0 ? '+' : ''}${diff}`);
-          if (adjResult.success) {
-            console.log('[SALE UPDATE] Debt adjusted for sale', saleId, ': diff=', diff);
-            const io = req.app.get('io');
-            if (io) io.to('admin').emit('debt:updated', { customerId, newDebt: adjResult.newDebt, action: 'adjusted', saleId: parseInt(saleId) });
+      try {
+        const debtAdjust = require('../../src/services/debt/DebtOrderIntegration').adjustOrderDebtAfterChange(
+          saleId,
+          {
+            actor: (req.user && req.user.username) || 'system',
+            reason: `Sửa đơn #${saleId}: ${newTotal - currentSale.total > 0 ? '+' : ''}${newTotal - currentSale.total}`,
+          }
+        );
+        if (debtAdjust && debtAdjust.success && !debtAdjust.skipped) {
+          console.log('[SALE UPDATE] Debt adjusted for sale', saleId, ': diff=', debtAdjust.diff);
+          const io = req.app.get('io');
+          if (io) {
+            io.to('admin').emit('debt:updated', {
+              customerId,
+              newDebt: debtAdjust.balanceAfter,
+              action: 'adjusted',
+              saleId: parseInt(saleId),
+            });
           }
         }
+      } catch (debtErr) {
+        console.error('[SALE UPDATE] Debt adjust error:', debtErr.message);
       }
     }
 

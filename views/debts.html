@@ -1,0 +1,1171 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <!-- NO-FLICKER: Apply theme BEFORE first paint -->
+  <script>
+  (function () {
+    var k = 'theme';
+    var sys = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    var saved = localStorage.getItem(k);
+    var theme = (saved === 'light' || saved === 'dark') ? saved : sys;
+    document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.classList.remove('light', 'dark');
+    document.documentElement.classList.add(theme);
+  })();
+  </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Sổ công nợ</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0B0E11">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="icon" type="image/png" href="/icon-192.png">
+
+  <link rel="preload" href="/js/layout.js?v=20260410-binance" as="script">
+  <link rel="preload" href="/css/unified.css?v=20250718" as="stylesheet">
+
+  <link rel="stylesheet" href="/css/unified.css?v=20250718">
+  <script src="/js/auth.js"></script>
+  <script src="/js/dark-mode.js"></script>
+  <script src="/js/layout.js?v=20260410-binance"></script>
+  <script src="/js/numfmt.js"></script>
+  <script>requireAuth();</script>
+
+  <style>
+    .dbt-page { padding-bottom: 100px; }
+
+    /* ── KPI cards ───────────────────────────────────────────────────── */
+    .dbt-kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .dbt-kpi {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 13px 14px;
+    }
+    .dbt-kpi-label {
+      font-size: 10.5px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 4px;
+    }
+    .dbt-kpi-value {
+      font-size: 19px;
+      font-weight: 800;
+      color: var(--text-primary);
+      line-height: 1.2;
+      word-break: break-word;
+    }
+    .dbt-kpi-value.red { color: #ef4444; }
+    .dbt-kpi-value.green { color: #22c55e; }
+    .dbt-kpi-value.orange { color: #f59e0b; }
+    .dbt-kpi-sub { font-size: 10.5px; color: var(--text-muted); margin-top: 2px; }
+
+    /* ── Tabs ────────────────────────────────────────────────────────── */
+    .dbt-tabs {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding: 4px 0 12px;
+      -webkit-overflow-scrolling: touch;
+    }
+    .dbt-tab {
+      flex: 0 0 auto;
+      padding: 8px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--text-secondary);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s;
+    }
+    .dbt-tab.active {
+      background: var(--primary);
+      color: #000;
+      border-color: var(--primary);
+    }
+    .dbt-tab:hover:not(.active) { border-color: var(--primary); }
+
+    /* ── Panel / section ────────────────────────────────────────────── */
+    .dbt-section {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 15px;
+      margin-bottom: 14px;
+    }
+    .dbt-section-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 3px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .dbt-section-desc {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      line-height: 1.5;
+      margin-bottom: 12px;
+    }
+
+    /* ── Bảng ───────────────────────────────────────────────────────── */
+    .dbt-table-wrap { overflow-x: auto; margin: 0 -4px; }
+    .dbt-table { width: 100%; border-collapse: collapse; font-size: 12.5px; min-width: 560px; }
+    .dbt-table th {
+      text-align: left;
+      font-size: 10.5px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      padding: 8px 8px;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    .dbt-table td {
+      padding: 10px 8px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-secondary);
+      vertical-align: middle;
+    }
+    .dbt-table tr:last-child td { border-bottom: none; }
+    .dbt-table tr.clickable { cursor: pointer; }
+    .dbt-table tr.clickable:hover td { background: var(--bg-secondary); }
+    .dbt-name { font-weight: 700; color: var(--text-primary); }
+    .dbt-mono { font-variant-numeric: tabular-nums; font-weight: 700; }
+    .dbt-amount-neg { color: #ef4444; }
+    .dbt-amount-pos { color: #22c55e; }
+    .dbt-muted { color: var(--text-muted); font-size: 11px; }
+
+    /* ── Badge ──────────────────────────────────────────────────────── */
+    .dbt-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: 10px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .dbt-badge-order { background: rgba(59,130,246,0.15); color: #3b82f6; }
+    .dbt-badge-payment { background: rgba(34,197,94,0.15); color: #22c55e; }
+    .dbt-badge-manual { background: rgba(245,158,11,0.15); color: #f59e0b; }
+    .dbt-badge-adjust { background: rgba(168,85,247,0.15); color: #a855f7; }
+    .dbt-badge-reversal { background: rgba(239,68,68,0.15); color: #ef4444; }
+    .dbt-badge-opening { background: rgba(100,116,139,0.18); color: #94a3b8; }
+    .dbt-badge-ok { background: rgba(34,197,94,0.15); color: #22c55e; }
+    .dbt-badge-warn { background: rgba(245,158,11,0.15); color: #f59e0b; }
+    .dbt-badge-crit { background: rgba(239,68,68,0.15); color: #ef4444; }
+    .dbt-badge-info { background: rgba(59,130,246,0.15); color: #3b82f6; }
+
+    /* ── Form ───────────────────────────────────────────────────────── */
+    .dbt-field { margin-bottom: 14px; }
+    .dbt-label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 5px;
+    }
+    .dbt-input, .dbt-select, .dbt-textarea {
+      width: 100%;
+      min-height: 44px;
+      padding: 0 12px;
+      border-radius: 11px;
+      border: 1.5px solid var(--border);
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      font-size: 15px;
+      box-sizing: border-box;
+    }
+    .dbt-textarea { min-height: 70px; padding: 10px 12px; resize: vertical; font-size: 14px; }
+    .dbt-input:focus, .dbt-select:focus, .dbt-textarea:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+    }
+    .dbt-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    .dbt-btn {
+      height: 44px;
+      padding: 0 18px;
+      border: none;
+      border-radius: 11px;
+      background: var(--primary);
+      color: #000;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: filter 0.15s;
+    }
+    .dbt-btn:hover { filter: brightness(1.08); }
+    .dbt-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .dbt-btn-secondary {
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+    }
+    .dbt-btn-danger { background: rgba(239,68,68,0.15); color: #ef4444; }
+    .dbt-btn-sm { height: 32px; padding: 0 12px; font-size: 12px; border-radius: 8px; }
+    .dbt-btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    /* ── Quick entry ────────────────────────────────────────────────── */
+    .dbt-quick {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .dbt-quick-btn {
+      height: 54px;
+      border-radius: 12px;
+      border: 1.5px solid var(--border);
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      font-size: 16px;
+      font-weight: 800;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .dbt-quick-btn.plus:hover { border-color: #22c55e; color: #22c55e; }
+    .dbt-quick-btn.minus:hover { border-color: #f59e0b; color: #f59e0b; }
+    .dbt-quick-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── Modal ──────────────────────────────────────────────────────── */
+    .dbt-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+      padding: 16px;
+    }
+    .dbt-modal.hidden { display: none; }
+    .dbt-modal-box {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      width: 100%;
+      max-width: 520px;
+      max-height: 88vh;
+      overflow-y: auto;
+      padding: 18px;
+    }
+    .dbt-modal-title {
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--text-primary);
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .dbt-modal-close {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 26px;
+      line-height: 1;
+      cursor: pointer;
+      padding: 0 4px;
+    }
+
+    /* ── Toast ──────────────────────────────────────────────────────── */
+    .dbt-toast {
+      position: fixed;
+      bottom: 84px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 11px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+      z-index: 20000;
+      max-width: 90vw;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    }
+    .dbt-toast.ok { border-color: #22c55e; color: #22c55e; }
+    .dbt-toast.err { border-color: #ef4444; color: #ef4444; }
+
+    .dbt-empty {
+      text-align: center;
+      padding: 28px 14px;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+    .dbt-hint {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 5px;
+      line-height: 1.5;
+    }
+    .dbt-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      margin-bottom: 12px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--primary);
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 0;
+    }
+    .dbt-detail-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 9px;
+      margin-bottom: 14px;
+    }
+    .dbt-detail-cell {
+      padding: 10px;
+      border-radius: 11px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+    }
+    .dbt-detail-label {
+      font-size: 10px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      font-weight: 700;
+    }
+    .dbt-detail-value {
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--text-primary);
+      margin-top: 2px;
+      font-variant-numeric: tabular-nums;
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div class="dbt-empty">⏳ Đang tải sổ công nợ...</div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var API = '/api/debt-ledger';
+
+  var state = {
+    tab: 'overview',
+    overview: null,
+    customers: [],
+    detail: null,
+    detailCustomerId: null,
+    groups: [],
+    permissions: { permissions: [], staff: [] },
+    reconciliation: null,
+    bridge: null,
+    isAdmin: false,
+    loading: false,
+  };
+
+  // ── Helpers ────────────────────────────────────────────────────────────
+  function esc(s) {
+    return String(s === null || s === undefined ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function money(n) {
+    var num = Number(n || 0);
+    if (isNaN(num)) num = 0;
+    return new Intl.NumberFormat('vi-VN').format(num) + 'đ';
+  }
+
+  function num(n) {
+    var v = Number(n || 0);
+    if (isNaN(v)) v = 0;
+    return new Intl.NumberFormat('vi-VN').format(v);
+  }
+
+  function fmtDateTime(s) {
+    if (!s) return '—';
+    var m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+    if (m) return m[1] + '-' + m[2] + '-' + m[3] + ' ' + m[4] + ':' + m[5];
+    var d = new Date(s);
+    return isNaN(d.getTime()) ? String(s) : d.toLocaleString('vi-VN');
+  }
+
+  function api(url, options) {
+    var opts = Object.assign({
+      headers: { 'Content-Type': 'application/json' }
+    }, options || {});
+
+    var doFetch = function () {
+      if (typeof authFetch === 'function') return authFetch(url, opts);
+      return fetch(url, Object.assign({ credentials: 'include' }, opts));
+    };
+
+    return doFetch().then(function (r) {
+      return r.json().then(function (data) {
+        if (!r.ok) {
+          var msg = (data && (data.error || data.message)) || ('HTTP ' + r.status);
+          throw new Error(msg);
+        }
+        return data;
+      });
+    });
+  }
+
+  function toast(msg, kind) {
+    var old = document.getElementById('dbtToast');
+    if (old) old.remove();
+    var el = document.createElement('div');
+    el.id = 'dbtToast';
+    el.className = 'dbt-toast ' + (kind || '');
+    el.textContent = msg;
+    document.body.appendChild(el);
+    setTimeout(function () {
+      if (el.parentNode) el.parentNode.removeChild(el);
+    }, 3200);
+  }
+
+  function parseMoney(v) {
+    if (typeof v === 'number') return v;
+    return parseFloat(String(v || '').replace(/[^\d.-]/g, '')) || 0;
+  }
+
+  var TX_LABEL = {
+    OPENING_BALANCE: ['Công nợ đầu kỳ', 'dbt-badge-opening'],
+    ORDER_DEBT: ['Nợ đơn hàng', 'dbt-badge-order'],
+    MANUAL_DEBT: ['Nợ tay', 'dbt-badge-manual'],
+    PAYMENT: ['Thanh toán', 'dbt-badge-payment'],
+    ADJUSTMENT: ['Điều chỉnh', 'dbt-badge-adjust'],
+    REVERSAL: ['Đảo giao dịch', 'dbt-badge-reversal'],
+  };
+
+  function txBadge(type) {
+    var info = TX_LABEL[type] || [type, 'dbt-badge-info'];
+    return '<span class="dbt-badge ' + info[1] + '">' + esc(info[0]) + '</span>';
+  }
+
+  // ── Render: Overview ───────────────────────────────────────────────────
+  function renderOverview() {
+    var o = state.overview || {};
+    var top = o.topDebtors || [];
+
+    var topRows = top.length
+      ? '<div class="dbt-table-wrap"><table class="dbt-table"><thead><tr>' +
+        '<th>Khách hàng</th><th>SĐT</th><th style="text-align:right">Công nợ</th></tr></thead><tbody>' +
+        top.map(function (t) {
+          return '<tr class="clickable" onclick="openDetail(' + t.customerId + ')">' +
+            '<td class="dbt-name">' + esc(t.name) + '</td>' +
+            '<td class="dbt-muted">' + esc(t.phone || '—') + '</td>' +
+            '<td class="dbt-mono dbt-amount-neg" style="text-align:right">' + money(t.balance) + '</td></tr>';
+        }).join('') +
+        '</tbody></table></div>'
+      : '<div class="dbt-empty">🎉 Không có khách hàng nào đang nợ</div>';
+
+    return '' +
+      '<div class="dbt-kpi-grid">' +
+        '<div class="dbt-kpi"><div class="dbt-kpi-label">Tổng công nợ</div>' +
+          '<div class="dbt-kpi-value red">' + money(o.totalDebt) + '</div>' +
+          '<div class="dbt-kpi-sub">Số khách còn nợ: ' + (o.debtCustomerCount || 0) + '</div></div>' +
+        '<div class="dbt-kpi"><div class="dbt-kpi-label">Nợ phát sinh hôm nay</div>' +
+          '<div class="dbt-kpi-value orange">' + money(o.todayDebtAdded) + '</div>' +
+          '<div class="dbt-kpi-sub">Từ đơn hàng + nợ tay</div></div>' +
+        '<div class="dbt-kpi"><div class="dbt-kpi-label">Tiền thu hôm nay</div>' +
+          '<div class="dbt-kpi-value green">' + money(o.todayPayment) + '</div>' +
+          '<div class="dbt-kpi-sub">Lệnh + và nhập tay</div></div>' +
+        '<div class="dbt-kpi"><div class="dbt-kpi-label">Tổng bút toán</div>' +
+          '<div class="dbt-kpi-value">' + num(o.transactionCount) + '</div>' +
+          '<div class="dbt-kpi-sub">' + num(o.customersWithLedger) + ' khách có sổ</div></div>' +
+      '</div>' +
+
+      '<div class="dbt-section">' +
+        '<div class="dbt-section-title">💰 Khách nợ cao nhất</div>' +
+        '<div class="dbt-section-desc">Sắp xếp theo số dư công nợ hiện tại (nguồn: sổ công nợ append-only).</div>' +
+        topRows +
+      '</div>' +
+
+      '<div class="dbt-section">' +
+        '<div class="dbt-section-title">⚡ Nhập nhanh</div>' +
+        '<div class="dbt-section-desc">Ghi nhanh thanh toán (+) hoặc nợ phát sinh (−). Đơn vị nhập là nghìn đồng (1000 = 1.000.000đ).</div>' +
+        '<div class="dbt-field">' +
+          '<label class="dbt-label">Khách hàng</label>' +
+          '<select id="qeCustomer" class="dbt-select"></select>' +
+        '</div>' +
+        '<div class="dbt-field">' +
+          '<label class="dbt-label">Lệnh (ví dụ: +1000 hoặc -1000)</label>' +
+          '<input id="qeCommand" class="dbt-input" inputmode="numeric" placeholder="+1000" autocomplete="off">' +
+          '<div class="dbt-hint">Chỉ nhân viên được phân quyền mới ghi được. Lệnh <b>−</b> KHÔNG tạo đơn hàng, chỉ là bút toán công nợ.</div>' +
+        '</div>' +
+        '<div class="dbt-quick">' +
+          '<button class="dbt-quick-btn plus" onclick="quickEntry(\'+\')">+ Thu tiền</button>' +
+          '<button class="dbt-quick-btn minus" onclick="quickEntry(\'-\')">− Ghi nợ</button>' +
+        '</div>' +
+        '<div class="dbt-btn-row" style="margin-top:10px">' +
+          '<button class="dbt-btn" style="flex:1" onclick="quickEntry(\'submit\')">Ghi nhận</button>' +
+        '</div>' +
+      '</div>';
+  }
+
+  // ── Render: Customers ──────────────────────────────────────────────────
+  function renderCustomers() {
+    var rows = state.customers || [];
+    if (!rows.length) {
+      return '<div class="dbt-section"><div class="dbt-empty">Không có khách hàng nào được phân công</div></div>';
+    }
+
+    return '<div class="dbt-section">' +
+      '<div class="dbt-section-title">👥 Danh sách khách hàng (' + rows.length + ')</div>' +
+      '<div class="dbt-section-desc">Nhấn vào 1 khách để xem chi tiết công nợ.</div>' +
+      '<div class="dbt-table-wrap"><table class="dbt-table"><thead><tr>' +
+        '<th>Tên</th><th>Mã</th><th>Nhóm Zalo</th>' +
+        '<th style="text-align:right">Tổng nợ</th>' +
+        '<th style="text-align:right">Đã trả</th>' +
+        '<th style="text-align:right">Số dư</th>' +
+      '</tr></thead><tbody>' +
+      rows.map(function (c) {
+        var groups = (c.groups || []).filter(function (g) { return g.status === 'active'; });
+        var groupTxt = groups.length
+          ? esc(groups[0].group_name || groups[0].group_id)
+          : '<span class="dbt-muted">Chưa liên kết</span>';
+        var paid = Math.abs((c.breakdown && c.breakdown.payment) || 0);
+        return '<tr class="clickable" onclick="openDetail(' + c.id + ')">' +
+          '<td class="dbt-name">' + esc(c.name) + '</td>' +
+          '<td class="dbt-muted">#' + c.id + '</td>' +
+          '<td>' + groupTxt + '</td>' +
+          '<td class="dbt-mono" style="text-align:right">' + money((c.breakdown && c.breakdown.orderDebt) || 0) + '</td>' +
+          '<td class="dbt-mono dbt-amount-pos" style="text-align:right">' + money(paid) + '</td>' +
+          '<td class="dbt-mono ' + (c.balance > 0 ? 'dbt-amount-neg' : '') + '" style="text-align:right">' + money(c.balance) + '</td>' +
+        '</tr>';
+      }).join('') +
+      '</tbody></table></div></div>';
+  }
+
+  // ── Render: Detail ─────────────────────────────────────────────────────
+  function renderDetail() {
+    var d = state.detail;
+    if (!d) return '<div class="dbt-empty">⏳ Đang tải chi tiết...</div>';
+
+    var b = d.breakdown || {};
+    var cust = d.customer || {};
+
+    var txRows = (d.transactions || []).length
+      ? '<div class="dbt-table-wrap"><table class="dbt-table"><thead><tr>' +
+        '<th>Loại</th><th>Mô tả</th><th>Người tạo</th>' +
+        '<th style="text-align:right">Số tiền</th><th style="text-align:right">Số dư</th><th>Thời gian</th>' +
+        '</tr></thead><tbody>' +
+        d.transactions.map(function (t) {
+          var isDecrease = t.direction === 'DECREASE';
+          var amt = Number(t.amount || 0);
+          return '<tr>' +
+            '<td>' + txBadge(t.transaction_type) + '</td>' +
+            '<td>' + esc(t.description || '—') +
+              (t.reference_type === 'ORDER' && t.reference_id
+                ? ' <span class="dbt-muted">(đơn #' + esc(t.reference_id) + ')</span>' : '') +
+            '</td>' +
+            '<td class="dbt-muted">' + esc(t.created_by || '—') + '</td>' +
+            '<td class="dbt-mono ' + (isDecrease ? 'dbt-amount-pos' : 'dbt-amount-neg') + '" style="text-align:right">' +
+              (isDecrease ? '−' : '+') + money(amt) + '</td>' +
+            '<td class="dbt-mono" style="text-align:right">' + money(t.balance_after) + '</td>' +
+            '<td class="dbt-muted">' + esc(fmtDateTime(t.created_at)) + '</td>' +
+          '</tr>';
+        }).join('') +
+        '</tbody></table></div>'
+      : '<div class="dbt-empty">Chưa có giao dịch nào</div>';
+
+    var groups = (d.groups || []).length
+      ? d.groups.map(function (g) {
+          return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">' +
+            '<div><strong>' + esc(g.group_name || g.group_id) + '</strong> ' +
+            '<span class="dbt-muted">' + esc(g.platform) + ' · ' + esc(g.group_id) + '</span></div>' +
+            '<span class="dbt-badge ' + (g.status === 'active' ? 'dbt-badge-ok' : 'dbt-badge-warn') + '">' + esc(g.status) + '</span>' +
+          '</div>';
+        }).join('')
+      : '<div class="dbt-muted">Chưa liên kết nhóm Zalo nào</div>';
+
+    return '' +
+      '<button class="dbt-back" onclick="showTab(\'customers\')">← Quay lại danh sách</button>' +
+      '<div class="dbt-section">' +
+        '<div class="dbt-section-title">👤 ' + esc(cust.name || '') + ' <span class="dbt-muted">#' + (cust.id || '') + '</span></div>' +
+        '<div class="dbt-section-desc">' + esc(cust.phone || '') + (cust.address ? ' · ' + esc(cust.address) : '') + '</div>' +
+        '<div class="dbt-detail-grid">' +
+          '<div class="dbt-detail-cell"><div class="dbt-detail-label">Đầu kỳ</div><div class="dbt-detail-value">' + money(b.openingBalance) + '</div></div>' +
+          '<div class="dbt-detail-cell"><div class="dbt-detail-label">Nợ đơn hàng</div><div class="dbt-detail-value">' + money(b.orderDebt) + '</div></div>' +
+          '<div class="dbt-detail-cell"><div class="dbt-detail-label">Nợ tay</div><div class="dbt-detail-value">' + money(b.manualDebt) + '</div></div>' +
+          '<div class="dbt-detail-cell"><div class="dbt-detail-label">Đã thanh toán</div><div class="dbt-detail-value dbt-amount-pos">' + money(Math.abs(b.payment || 0)) + '</div></div>' +
+          '<div class="dbt-detail-cell"><div class="dbt-detail-label">Điều chỉnh</div><div class="dbt-detail-value">' + money(b.adjustment) + '</div></div>' +
+          '<div class="dbt-detail-cell"><div class="dbt-detail-label">Số dư cuối kỳ</div><div class="dbt-detail-value ' + (d.balance > 0 ? 'dbt-amount-neg' : '') + '">' + money(d.balance) + '</div></div>' +
+        '</div>' +
+        '<div class="dbt-btn-row">' +
+          '<button class="dbt-btn" onclick="openPaymentModal(' + cust.id + ')">💵 Nhập thanh toán</button>' +
+          '<button class="dbt-btn dbt-btn-secondary" onclick="openManualDebtModal(' + cust.id + ')">📝 Ghi nợ tay</button>' +
+          (state.isAdmin ? '<button class="dbt-btn dbt-btn-secondary" onclick="openAdjustModal(' + cust.id + ')">⚙️ Điều chỉnh</button>' : '') +
+        '</div>' +
+      '</div>' +
+
+      '<div class="dbt-section">' +
+        '<div class="dbt-section-title">📜 Lịch sử giao dịch</div>' +
+        txRows +
+      '</div>' +
+
+      '<div class="dbt-section">' +
+        '<div class="dbt-section-title">💬 Nhóm Zalo liên kết</div>' +
+        '<div class="dbt-section-desc">Nhóm Zalo cá nhân (không dùng Zalo OA). Nhân viên được phân công có thể ghi lệnh +/− trong nhóm.</div>' +
+        groups +
+      '</div>';
+  }
+
+  // ── Render: Groups (mapping) ───────────────────────────────────────────
+  function renderGroups() {
+    var rows = state.groups || [];
+    var body = rows.length
+      ? '<div class="dbt-table-wrap"><table class="dbt-table"><thead><tr>' +
+        '<th>Khách</th><th>Nhóm</th><th>Platform</th><th>Trạng thái</th>' +
+        (state.isAdmin ? '<th></th>' : '') +
+        '</tr></thead><tbody>' +
+        rows.map(function (g) {
+          return '<tr>' +
+            '<td class="dbt-name">' + esc(g.customer_name || ('#' + g.customer_id)) + '</td>' +
+            '<td>' + esc(g.group_name || g.group_id) + '</td>' +
+            '<td class="dbt-muted">' + esc(g.platform) + '</td>' +
+            '<td><span class="dbt-badge ' + (g.status === 'active' ? 'dbt-badge-ok' : 'dbt-badge-warn') + '">' + esc(g.status) + '</span></td>' +
+            (state.isAdmin ? '<td style="text-align:right"><button class="dbt-btn dbt-btn-danger dbt-btn-sm" onclick="unlinkGroup(' + g.id + ')">Gỡ</button></td>' : '') +
+          '</tr>';
+        }).join('') +
+        '</tbody></table></div>'
+      : '<div class="dbt-empty">Chưa liên kết nhóm Zalo nào</div>';
+
+    var addBtn = state.isAdmin
+      ? '<div class="dbt-btn-row" style="margin-top:12px">' +
+        '<button class="dbt-btn" onclick="openGroupModal()">➕ Liên kết nhóm Zalo</button></div>'
+      : '';
+
+    return '<div class="dbt-section">' +
+      '<div class="dbt-section-title">💬 Nhóm Zalo ↔ Khách hàng</div>' +
+      '<div class="dbt-section-desc">Mỗi khách có thể liên kết nhiều nhóm Zalo cá nhân. Hệ thống KHÔNG dùng Zalo OA.</div>' +
+      body + addBtn +
+    '</div>';
+  }
+
+  // ── Render: Permissions ────────────────────────────────────────────────
+  function renderPermissions() {
+    var p = state.permissions || { permissions: [], staff: [] };
+    var perms = p.permissions || [];
+    var staff = p.staff || [];
+
+    var body = perms.length
+      ? '<div class="dbt-table-wrap"><table class="dbt-table"><thead><tr>' +
+        '<th>Nhân viên</th><th>Khách</th><th>Ghi thanh toán</th><th>Trạng thái</th>' +
+        (state.isAdmin ? '<th></th>' : '') +
+        '</tr></thead><tbody>' +
+        perms.map(function (x) {
+          return '<tr>' +
+            '<td class="dbt-name">' + esc(x.staff_id) + '</td>' +
+            '<td>' + esc(x.customer_name || ('#' + x.customer_id)) + '</td>' +
+            '<td>' + (Number(x.can_record_payment) === 1 ? '✅ Có' : '❌ Không') + '</td>' +
+            '<td><span class="dbt-badge ' + (x.status === 'active' ? 'dbt-badge-ok' : 'dbt-badge-warn') + '">' + esc(x.status) + '</span></td>' +
+            (state.isAdmin ? '<td style="text-align:right"><button class="dbt-btn dbt-btn-danger dbt-btn-sm" onclick="revokePerm(' + x.staff_id + ',' + x.customer_id + ')">Thu hồi</button></td>' : '') +
+          '</tr>';
+        }).join('') +
+        '</tbody></table></div>'
+      : '<div class="dbt-empty">Chưa phân quyền cho nhân viên nào</div>';
+
+    var addBtn = state.isAdmin && staff.length
+      ? '<div class="dbt-btn-row" style="margin-top:12px">' +
+        '<button class="dbt-btn" onclick="openPermModal()">➕ Phân quyền nhân viên</button></div>'
+      : '';
+
+    return '<div class="dbt-section">' +
+      '<div class="dbt-section-title">🔐 Phân quyền nhân viên</div>' +
+      '<div class="dbt-section-desc">Nhân viên chỉ ghi được thanh toán / ghi nợ cho khách hàng được phân công. Quản trị viên có toàn quyền.</div>' +
+      body + addBtn +
+    '</div>';
+  }
+
+  // ── Render: Reconciliation ─────────────────────────────────────────────
+  function renderReconciliation() {
+    var r = state.reconciliation;
+    if (!r) return '<div class="dbt-empty">⏳ Đang chạy đối soát...</div>';
+
+    var s = r.summary || {};
+    var issues = r.issues || [];
+
+    var issueRows = issues.length
+      ? '<div class="dbt-table-wrap"><table class="dbt-table"><thead><tr>' +
+        '<th>Mức độ</th><th>Loại</th><th>Chi tiết</th><th style="text-align:right">Giá trị</th>' +
+        '</tr></thead><tbody>' +
+        issues.map(function (i) {
+          var sev = i.severity === 'critical' ? 'dbt-badge-crit' : (i.severity === 'warning' ? 'dbt-badge-warn' : 'dbt-badge-info');
+          var sevTxt = i.severity === 'critical' ? 'Nghiêm trọng' : (i.severity === 'warning' ? 'Cảnh báo' : 'Thông tin');
+          return '<tr>' +
+            '<td><span class="dbt-badge ' + sev + '">' + sevTxt + '</span></td>' +
+            '<td class="dbt-muted">' + esc(i.type) + '</td>' +
+            '<td>' + esc(i.message) + '</td>' +
+            '<td class="dbt-mono" style="text-align:right">' + money(i.amount || 0) + '</td>' +
+          '</tr>';
+        }).join('') +
+        '</tbody></table></div>'
+      : '<div class="dbt-empty">✅ Không phát hiện sai lệch</div>';
+
+    return '<div class="dbt-section">' +
+      '<div class="dbt-section-title">🔍 Đối soát sổ công nợ</div>' +
+      '<div class="dbt-section-desc">Đối chiếu đơn hàng DELIVERED với bút toán ORDER_DEBT, phát hiện giao dịch trùng và số dư không khớp.</div>' +
+      '<div class="dbt-kpi-grid">' +
+        '<div class="dbt-kpi"><div class="dbt-kpi-label">Tổng lỗi</div><div class="dbt-kpi-value">' + (s.total || 0) + '</div></div>' +
+        '<div class="dbt-kpi"><div class="dbt-kpi-label">Nghiêm trọng</div><div class="dbt-kpi-value red">' + (s.critical || 0) + '</div></div>' +
+        '<div class="dbt-kpi"><div class="dbt-kpi-label">Cảnh báo</div><div class="dbt-kpi-value orange">' + (s.warning || 0) + '</div></div>' +
+        '<div class="dbt-kpi"><div class="dbt-kpi-label">Thiếu bút toán</div><div class="dbt-kpi-value">' + (s.missingOrderDebt || 0) + '</div></div>' +
+      '</div>' +
+      (state.isAdmin && (s.total || 0) > 0
+        ? '<div class="dbt-btn-row" style="margin-bottom:12px">' +
+          '<button class="dbt-btn" onclick="applyReconciliation()">🔧 Xử lý tự động (có audit log)</button></div>'
+        : '') +
+      issueRows +
+    '</div>';
+  }
+
+  // ── Render: Bridge ─────────────────────────────────────────────────────
+  function renderBridge() {
+    var b = state.bridge || {};
+    var features = b.features || {};
+
+    var featRows = [
+      ['Nhận tin nhắn', features.receiveMessages],
+      ['Gửi phản hồi', features.sendMessages],
+      ['Xác định senderId', features.resolveSenderId],
+      ['Xác định groupId', features.resolveGroupId],
+    ].map(function (f) {
+      return '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">' +
+        '<span>' + esc(f[0]) + '</span>' +
+        '<span class="dbt-badge ' + (f[1] ? 'dbt-badge-ok' : 'dbt-badge-warn') + '">' + (f[1] ? 'Có' : 'Không') + '</span></div>';
+    }).join('');
+
+    var unavailable = b.available === false;
+
+    return '<div class="dbt-section">' +
+      '<div class="dbt-section-title">🔌 Trạng thái Zalo Personal Bridge</div>' +
+      '<div class="dbt-section-desc">' +
+        (unavailable
+          ? 'Bridge chưa khả dụng → hệ thống dùng <b>Nhập nhanh trên Beer POS</b> thay thế. Sổ công nợ hoạt động bình thường.'
+          : 'Bridge đang hoạt động.') +
+      '</div>' +
+      '<div style="padding:10px 12px;border-radius:11px;background:var(--bg-secondary);border:1px solid var(--border);margin-bottom:12px">' +
+        '<div class="dbt-muted">Trạng thái</div>' +
+        '<div style="font-weight:800;font-size:15px;margin-top:2px">' + esc(b.state || 'NOT_AVAILABLE') + '</div>' +
+        (b.reason ? '<div class="dbt-hint" style="margin-top:6px">' + esc(b.reason) + '</div>' : '') +
+      '</div>' +
+      featRows +
+      '<div class="dbt-detail-grid" style="margin-top:12px">' +
+        '<div class="dbt-detail-cell"><div class="dbt-detail-label">Đơn vị lệnh</div><div class="dbt-detail-value">' + num((b.settings || {}).commandUnit) + 'đ</div></div>' +
+        '<div class="dbt-detail-cell"><div class="dbt-detail-label">Hạn mức/lệnh</div><div class="dbt-detail-value">' + num((b.settings || {}).maxCommandAmount) + '</div></div>' +
+      '</div>' +
+      '<div class="dbt-hint">Hạn mức tính theo đơn vị lệnh (nghìn đồng). Ví dụ hạn mức 100000 = tối đa 100.000.000đ mỗi lệnh.</div>' +
+    '</div>';
+  }
+
+  // ── Render shell ───────────────────────────────────────────────────────
+  var TABS = [
+    { id: 'overview', label: '📊 Tổng quan' },
+    { id: 'customers', label: '👥 Khách hàng' },
+    { id: 'groups', label: '💬 Nhóm Zalo' },
+    { id: 'permissions', label: '🔐 Phân quyền' },
+    { id: 'reconciliation', label: '🔍 Đối soát' },
+    { id: 'bridge', label: '🔌 Zalo Bridge' },
+  ];
+
+  function render() {
+    var tabsHtml = TABS.map(function (t) {
+      return '<button class="dbt-tab' + (state.tab === t.id ? ' active' : '') + '" onclick="showTab(\'' + t.id + '\')">' + t.label + '</button>';
+    }).join('');
+
+    var body = '';
+    if (state.tab === 'overview') body = renderOverview();
+    else if (state.tab === 'customers') body = renderCustomers();
+    else if (state.tab === 'detail') body = renderDetail();
+    else if (state.tab === 'groups') body = renderGroups();
+    else if (state.tab === 'permissions') body = renderPermissions();
+    else if (state.tab === 'reconciliation') body = renderReconciliation();
+    else if (state.tab === 'bridge') body = renderBridge();
+
+    document.getElementById('app').innerHTML =
+      (typeof getHeader === 'function' ? getHeader('Sổ công nợ', '📒') : '') +
+      '<div class="dbt-page" style="padding:16px">' +
+        '<div class="dbt-tabs">' + tabsHtml + '</div>' +
+        '<div id="dbtBody">' + body + '</div>' +
+      '</div>' +
+      (typeof getBottomNav === 'function' ? getBottomNav('/dashboard') : '');
+
+    fillCustomerSelect();
+  }
+
+  function fillCustomerSelect() {
+    var sel = document.getElementById('qeCustomer');
+    if (!sel) return;
+    var current = sel.value;
+    var opts = ['<option value="">— Chọn khách hàng —</option>'];
+    (state.customers || []).forEach(function (c) {
+      opts.push('<option value="' + c.id + '">' + esc(c.name) + ' (#' + c.id + ')</option>');
+    });
+    sel.innerHTML = opts.join('');
+    if (current) sel.value = current;
+  }
+
+  // ── Actions ────────────────────────────────────────────────────────────
+  function showTab(tab) {
+    state.tab = tab;
+    render();
+    loadForTab(tab);
+  }
+
+  function openDetail(customerId) {
+    state.tab = 'detail';
+    state.detailCustomerId = customerId;
+    state.detail = null;
+    render();
+    api(API + '/customers/' + customerId).then(function (res) {
+      state.detail = res.data;
+      render();
+    }).catch(function (e) {
+      toast('✗ ' + e.message, 'err');
+      state.tab = 'customers';
+      render();
+    });
+  }
+
+  function quickEntry(mode) {
+    var sel = document.getElementById('qeCustomer');
+    var input = document.getElementById('qeCommand');
+    var customerId = sel && sel.value;
+    var content = input ? input.value.trim() : '';
+
+    if (!customerId) { toast('✗ Chọn khách hàng trước', 'err'); return; }
+
+    if (mode === '+' || mode === '-') {
+      var units = prompt('Nhập số tiền (nghìn đồng):\nVD: 1000 = 1.000.000đ');
+      if (units === null) return;
+      units = String(units).trim();
+      if (!/^\d+$/.test(units)) { toast('✗ Số tiền không hợp lệ', 'err'); return; }
+      content = mode + units;
+    }
+
+    if (!content) { toast('✗ Nhập lệnh (VD: +1000)', 'err'); return; }
+
+    api(API + '/quick-entry', {
+      method: 'POST',
+      body: JSON.stringify({ customerId: parseInt(customerId, 10), content: content })
+    }).then(function (res) {
+      toast('✅ ' + (res.reply || 'Đã ghi nhận').split('\n').filter(Boolean).slice(-2).join(' · '), 'ok');
+      if (input) input.value = '';
+      refreshOverview();
+      if (state.detail) openDetail(state.detailCustomerId);
+    }).catch(function (e) {
+      toast('✗ ' + e.message, 'err');
+    });
+  }
+
+  function refreshOverview() {
+    return api(API + '/overview').then(function (res) {
+      state.overview = res.data;
+      state.isAdmin = res.data.scope === 'ALL';
+      return api(API + '/customers');
+    }).then(function (res) {
+      state.customers = res.data || [];
+      render();
+    }).catch(function () { /* ignore */ });
+  }
+
+  function openPaymentModal(customerId) {
+    showModal('Nhập thanh toán công nợ', '' +
+      '<div class="dbt-field"><label class="dbt-label">Khách hàng</label>' +
+        '<select id="pmCustomer" class="dbt-select">' + customerOptions(customerId) + '</select></div>' +
+      '<div class="dbt-field"><label class="dbt-label">Số tiền (đ)</label>' +
+        '<input id="pmAmount" class="dbt-input" inputmode="numeric" data-format-number placeholder="1.000.000">' +
+        '<div class="dbt-hint">Không được vượt quá số dư công nợ hiện tại.</div></div>' +
+      '<div class="dbt-field"><label class="dbt-label">Ghi chú</label>' +
+        '<input id="pmNote" class="dbt-input" placeholder="VD: Khách trả tiền mặt"></div>' +
+      '<div class="dbt-btn-row"><button class="dbt-btn dbt-btn-secondary" onclick="closeModal()">Hủy</button>' +
+        '<button class="dbt-btn" style="flex:1" onclick="submitPayment()">💵 Ghi nhận thanh toán</button></div>');
+  }
+
+  function openManualDebtModal(customerId) {
+    showModal('Ghi nợ tay (lệnh −)', '' +
+      '<div class="dbt-field"><label class="dbt-label">Khách hàng</label>' +
+        '<select id="mdCustomer" class="dbt-select">' + customerOptions(customerId) + '</select></div>' +
+      '<div class="dbt-field"><label class="dbt-label">Số tiền (đ)</label>' +
+        '<input id="mdAmount" class="dbt-input" inputmode="numeric" data-format-number placeholder="1.000.000">' +
+        '<div class="dbt-hint">⚠️ Bút toán công nợ bổ sung — KHÔNG tạo đơn hàng, KHÔNG thay đổi doanh thu bán hàng.</div></div>' +
+      '<div class="dbt-field"><label class="dbt-label">Lý do</label>' +
+        '<input id="mdNote" class="dbt-input" placeholder="VD: Khách mượn thêm vỏ bình"></div>' +
+      '<div class="dbt-btn-row"><button class="dbt-btn dbt-btn-secondary" onclick="closeModal()">Hủy</button>' +
+        '<button class="dbt-btn" style="flex:1" onclick="submitManualDebt()">📝 Ghi nợ</button></div>');
+  }
+
+  function openAdjustModal(customerId) {
+    showModal('Điều chỉnh công nợ (Admin)', '' +
+      '<div class="dbt-field"><label class="dbt-label">Khách hàng</label>' +
+        '<select id="ajCustomer" class="dbt-select">' + customerOptions(customerId) + '</select></div>' +
+      '<div class="dbt-field"><label class="dbt-label">Số tiền (đ, âm = giảm nợ)</label>' +
+        '<input id="ajAmount" class="dbt-input" inputmode="numeric" data-format-number placeholder="500.000"></div>' +
+      '<div class="dbt-field"><label class="dbt-label">Lý do (bắt buộc)</label>' +
+        '<input id="ajReason" class="dbt-input" placeholder="VD: Chênh lệch doanh thu"></div>' +
+      '<div class="dbt-btn-row"><button class="dbt-btn dbt-btn-secondary" onclick="closeModal()">Hủy</button>' +
+        '<button class="dbt-btn" style="flex:1" onclick="submitAdjust()">⚙️ Điều chỉnh</button></div>');
+  }
+
+  function openGroupModal() {
+    showModal('Liên kết nhóm Zalo ↔ Khách hàng', '' +
+      '<div class="dbt-field"><label class="dbt-label">Khách hàng</label>' +
+        '<select id="gpCustomer" class="dbt-select">' + customerOptions() + '</select></div>' +
+      '<div class="dbt-field"><label class="dbt-label">Group ID</label>' +
+        '<input id="gpGroupId" class="dbt-input" placeholder="VD: 1234567890"></div>' +
+      '<div class="dbt-field"><label class="dbt-label">Tên nhóm</label>' +
+        '<input id="gpGroupName" class="dbt-input" placeholder="VD: Nhóm Zalo Anh Hùng"></div>' +
+      '<div class="dbt-field"><label class="dbt-label">Nền tảng</label>' +
+        '<select id="gpPlatform" class="dbt-select"><option value="zalo_personal">Zalo cá nhân</option></select>' +
+        '<div class="dbt-hint">Chỉ hỗ trợ nhóm Zalo cá nhân. Hệ thống KHÔNG dùng Zalo OA.</div></div>' +
+      '<div class="dbt-btn-row"><button class="dbt-btn dbt-btn-secondary" onclick="closeModal()">Hủy</button>' +
+        '<button class="dbt-btn" style="flex:1" onclick="submitGroup()">💬 Liên kết</button></div>');
+  }
+
+  function openPermModal() {
+    var staffOpts = (state.permissions.staff || []).map(function (s) {
+      return '<option value="' + esc(s.username) + '">' + esc(s.full_name || s.username) + ' (' + esc(s.role) + ')</option>';
+    }).join('');
+
+    showModal('Phân quyền nhân viên', '' +
+      '<div class="dbt-field"><label class="dbt-label">Nhân viên</label>' +
+        '<select id="pmStaff" class="dbt-select">' + staffOpts + '</select></div>' +
+      '<div class="dbt-field"><label class="dbt-label">Khách hàng</label>' +
+        '<select id="pmPermCustomer" class="dbt-select">' + customerOptions() + '</select></div>' +
+      '<div class="dbt-btn-row"><button class="dbt-btn dbt-btn-secondary" onclick="closeModal()">Hủy</button>' +
+        '<button class="dbt-btn" style="flex:1" onclick="submitPerm()">🔐 Phân quyền</button></div>');
+  }
+
+  function customerOptions(selectedId) {
+    return (state.customers || []).map(function (c) {
+      return '<option value="' + c.id + '"' + (String(selectedId) === String(c.id) ? ' selected' : '') + '>' +
+        esc(c.name) + ' (#' + c.id + ')</option>';
+    }).join('');
+  }
+
+  function showModal(title, html) {
+    var el = document.getElementById('dbtModal');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'dbtModal';
+      el.className = 'dbt-modal hidden';
+      el.onclick = function (e) { if (e.target === el) closeModal(); };
+      document.body.appendChild(el);
+    }
+    el.innerHTML = '<div class="dbt-modal-box">' +
+      '<div class="dbt-modal-title">' + esc(title) + '<button class="dbt-modal-close" onclick="closeModal()">×</button></div>' +
+      html + '</div>';
+    el.classList.remove('hidden');
+    if (typeof initAllNumberFormats === 'function') initAllNumberFormats();
+  }
+
+  function closeModal() {
+    var el = document.getElementById('dbtModal');
+    if (el) el.classList.add('hidden');
+  }
+
+  function submitPayment() {
+    var customerId = parseInt(document.getElementById('pmCustomer').value, 10);
+    var amount = parseMoney(document.getElementById('pmAmount').value);
+    var note = document.getElementById('pmNote').value;
+    if (!customerId || !amount) { toast('✗ Thiếu khách hàng hoặc số tiền', 'err'); return; }
+
+    api(API + '/payment', {
+      method: 'POST',
+      body: JSON.stringify({ customerId: customerId, amount: amount, note: note })
+    }).then(function (res) {
+      closeModal();
+      toast('✅ Đã thu ' + money(res.data.appliedAmount) + ' · Còn nợ ' + money(res.data.balanceAfter), 'ok');
+      refreshOverview();
+      if (state.detail) openDetail(state.detailCustomerId);
+    }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
+  }
+
+  function submitManualDebt() {
+    var customerId = parseInt(document.getElementById('mdCustomer').value, 10);
+    var amount = parseMoney(document.getElementById('mdAmount').value);
+    var note = document.getElementById('mdNote').value;
+    if (!customerId || !amount) { toast('✗ Thiếu khách hàng hoặc số tiền', 'err'); return; }
+
+    api(API + '/manual-debt', {
+      method: 'POST',
+      body: JSON.stringify({ customerId: customerId, amount: amount, note: note })
+    }).then(function (res) {
+      closeModal();
+      toast('✅ Đã ghi nợ ' + money(amount) + ' · Còn nợ ' + money(res.data.balanceAfter), 'ok');
+      refreshOverview();
+      if (state.detail) openDetail(state.detailCustomerId);
+    }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
+  }
+
+  function submitAdjust() {
+    var customerId = parseInt(document.getElementById('ajCustomer').value, 10);
+    var amount = parseMoney(document.getElementById('ajAmount').value);
+    var reason = document.getElementById('ajReason').value;
+    if (!customerId || !amount) { toast('✗ Thiếu khách hàng hoặc số tiền', 'err'); return; }
+    if (!reason) { toast('✗ Cần nhập lý do điều chỉnh', 'err'); return; }
+
+    api(API + '/adjust', {
+      method: 'POST',
+      body: JSON.stringify({ customerId: customerId, amount: amount, reason: reason })
+    }).then(function (res) {
+      closeModal();
+      toast('✅ Đã điều chỉnh · Số dư ' + money(res.data.balanceAfter), 'ok');
+      refreshOverview();
+      if (state.detail) openDetail(state.detailCustomerId);
+    }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
+  }
+
+  function submitGroup() {
+    var customerId = parseInt(document.getElementById('gpCustomer').value, 10);
+    var groupId = document.getElementById('gpGroupId').value.trim();
+    var groupName = document.getElementById('gpGroupName').value.trim();
+    var platform = document.getElementById('gpPlatform').value;
+    if (!customerId || !groupId) { toast('✗ Thiếu khách hàng hoặc Group ID', 'err'); return; }
+
+    api(API + '/groups', {
+      method: 'POST',
+      body: JSON.stringify({ customerId: customerId, groupId: groupId, groupName: groupName, platform: platform })
+    }).then(function () {
+      closeModal();
+      toast('✅ Đã liên kết nhóm Zalo', 'ok');
+      loadGroups();
+    }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
+  }
+
+  function unlinkGroup(id) {
+    if (!window.confirm('Gỡ liên kết nhóm Zalo này?')) return;
+    api(API + '/groups/' + id, { method: 'DELETE' }).then(function () {
+      toast('✅ Đã gỡ liên kết', 'ok');
+      loadGroups();
+    }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
+  }
+
+  function submitPerm() {
+    var staffId = document.getElementById('pmStaff').value;
+    var customerId = parseInt(document.getElementById('pmPermCustomer').value, 10);
+    if (!staffId || !customerId) { toast('✗ Thiếu nhân viên hoặc khách hàng', 'err'); return; }
+
+    api(API + '/permissions', {
+      method: 'POST',
+      body: JSON.stringify({ staffId: staffId, customerId: customerId, canRecordPayment: true })
+    }).then(function () {
+      closeModal();
+      toast('✅ Đã phân quyền', 'ok');
+      loadPermissions();
+    }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
+  }
+
+  function revokePerm(staffId, customerId) {
+    if (!window.confirm('Thu hồi quyền của ' + staffId + '?')) return;
+    api(API + '/permissions', {
+      method: 'DELETE',
+      body: JSON.stringify({ staffId: staffId, customerId: customerId })
+    }).then(function () {
+      toast('✅ Đã thu hồi quyền', 'ok');
+      loadPermissions();
+    }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
+  }
+
+  function applyReconciliation() {
+    if (!window.confirm('Xử lý các sai lệch đối soát?\n\n• Ghi bút toán ORDER_DEBT cho đơn thiếu\n• Đồng bộ số dư khách với sổ công nợ\n\nMọi thay đổi đều được ghi audit log.')) return;
+    api(API + '/reconciliation', { method: 'POST', body: JSON.stringify({ apply: true }) })
+      .then(function (res) {
+        toast('✅ Đã xử lý ' + res.data.summary.fixed + ' vấn đề', 'ok');
+        loadReconciliation();
+        refreshOverview();
+      }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
+  }
+
+  // ── Loaders ────────────────────────────────────────────────────────────
+  function loadGroups() {
+    return api(API + '/groups').then(function (res) {
+      state.groups = res.data || [];
+      render();
+    }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
+  }
+
+  function loadPermissions() {
+    return api(API + '/permissions').then(function (res) {
+      state.permissions = res.data || { permissions: [], staff: [] };
+      render();
+    }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
+  }
+
+  function loadReconciliation() {
+    state.reconciliation = null;
+    render();
+    return api(API + '/reconciliation').then(function (res) {
+      state.reconciliation = res.data;
+      render();
+    }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
+  }
+
+  function loadBridge() {
+    return api(API + '/bridge').then(function (res) {
+      state.bridge = res.data;
+      render();
+    }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
+  }
+
+  function loadForTab(tab) {
+    if (tab === 'overview' || tab === 'customers') return refreshOverview();
+    if (tab === 'groups') return loadGroups();
+    if (tab === 'permissions') return loadPermissions();
+    if (tab === 'reconciliation') return loadReconciliation();
+    if (tab === 'bridge') return loadBridge();
+    return Promise.resolve();
+  }
+
+  // ── Init ───────────────────────────────────────────────────────────────
+  (async function init() {
+    try {
+      await refreshOverview();
+    } catch (e) {
+      document.getElementById('app').innerHTML =
+        '<div class="dbt-empty">✗ Không tải được dữ liệu: ' + esc(e.message) + '</div>';
+    }
+  })();
+
+  // Expose cho onclick inline
+  window.showTab = showTab;
+  window.openDetail = openDetail;
+  window.quickEntry = quickEntry;
+  window.closeModal = closeModal;
+  window.submitPayment = submitPayment;
+  window.submitManualDebt = submitManualDebt;
+  window.submitAdjust = submitAdjust;
+  window.submitGroup = submitGroup;
+  window.unlinkGroup = unlinkGroup;
+  window.submitPerm = submitPerm;
+  window.revokePerm = revokePerm;
+  window.applyReconciliation = applyReconciliation;
+  window.openPaymentModal = openPaymentModal;
+  window.openManualDebtModal = openManualDebtModal;
+  window.openAdjustModal = openAdjustModal;
+  window.openGroupModal = openGroupModal;
+  window.openPermModal = openPermModal;
+})();
+</script>
+</body>
+</html>

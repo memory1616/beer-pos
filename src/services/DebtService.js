@@ -1,22 +1,54 @@
 /**
- * DebtService - Core business logic cho cong no (v2)
- * Dam bao: transaction, audit trail, khong am, idempotent
+ * DebtService — Lớp tương thích ngược (legacy facade) cho sổ công nợ Gia Huy
+ * ─────────────────────────────────────────────────────────────────────────────
+ * ⚠️ LƯU Ý KIẾN TRÚC:
+ *  Trước đây `DebtService` ghi thẳng vào bảng `debt_transactions` (schema cũ:
+ *  `type`/`sale_id`/`payment_id`/`note`) và tự cập nhật `customers.debt`.
+ *  Sau khi module Sổ Công nợ được triển khai, bảng `debt_transactions` đã được
+ *  thay bằng SỔ CÁI mới (`transaction_type`/`direction`/`idempotency_key`/...).
+ *
+ *  `DebtService` giờ là FACADE mỏng: mọi ghi đều đi qua `DebtLedgerService`
+ *  ⇒ **một nguồn sự thật duy nhất**, `customers.debt` chỉ là mirror được
+ *  đồng bộ tự động bởi ledger.
+ *
+ *  Hợp đồng API (giữ nguyên 100% cho route/UI cũ):
+ *    createDebt(customerId, amount, saleId, note)
+ *    payDebt(customerId, amount, note, saleId)
+ *    reverseDebtForSale(saleId)
+ *    adjustDebt(customerId, amount, reason)
+ *    recalcDebt(customerId)
+ *    getAllDebts(filters) / getCustomerDebt(id) / getSalePayments(saleId)
+ *
+ *  Bảng `order_debts` được giữ lại làm BẢNG CHIẾU (projection) cho UI cũ
+ *  (driver portal, customer-detail) — nhưng KHÔNG còn là nguồn sự thật.
  */
+
 const db = require('../../database');
 const logger = require('../utils/logger');
+const DebtLedgerService = require('./debt/DebtLedgerService');
+const {
+  TRANSACTION_TYPES,
+  SOURCES,
+  REFERENCE_TYPES,
+} = require('./debt/constants');
 
 function formatCurrency(amount) {
-  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(amount || 0);
+  return new Intl.NumberFormat('vi-VN', {
+    style: 'currency',
+    currency: 'VND',
+    maximumFractionDigits: 0,
+  }).format(amount || 0);
 }
 
 // ─── Index bootstrap ───────────────────────────────────────────────────────────
-// Idempotent — safe to call multiple times. Ensures the composite index needed
-// by getAllDebts' GROUP BY exists; it covers the (customer_id, status) prefix.
+// Idempotent — safe to call multiple times.
 let _indexesEnsured = false;
 function ensureIndexes() {
   if (_indexesEnsured) return;
   try {
-    db.exec(`CREATE INDEX IF NOT EXISTS idx_order_debt_customer_status ON order_debts(customer_id, status)`);
+    db.exec(
+      `CREATE INDEX IF NOT EXISTS idx_order_debt_customer_status ON order_debts(customer_id, status)`
+    );
     db.exec(`CREATE INDEX IF NOT EXISTS idx_customers_debt_archived ON customers(archived, debt)`);
   } catch (e) {
     // best-effort
@@ -24,222 +56,329 @@ function ensureIndexes() {
   _indexesEnsured = true;
 }
 
+/**
+ * Idempotency key chuẩn cho bút toán nợ của 1 đơn hàng.
+ * Nhờ UNIQUE constraint → mỗi đơn CHỈ CÓ MỘT bút toán ORDER_DEBT.
+ */
+function orderDebtKey(saleId) {
+  return saleId ? `order_debt:sale:${saleId}` : null;
+}
+
+/** Số tiền khách thực sự còn phải trả cho 1 đơn. */
+function computeAmountOwed(saleId, customerId) {
+  const sale = db
+    .prepare('SELECT id, total, payment_status, status FROM sales WHERE id = ?')
+    .get(saleId);
+  if (!sale) return null;
+
+  // Tiền đã thu gắn với đơn này (ledger PAYMENT reference ORDER + bảng payments cũ)
+  const ledgerPaid =
+    db
+      .prepare(
+        `SELECT COALESCE(SUM(amount), 0) AS total
+           FROM debt_transactions
+          WHERE customer_id = ? AND reference_type = 'ORDER' AND reference_id = ?
+            AND transaction_type = 'PAYMENT' AND direction = 'DECREASE'`
+      )
+      .get(customerId, String(saleId))?.total || 0;
+
+  const legacyPaid =
+    db
+      .prepare(
+        `SELECT COALESCE(od.paid_amount, 0) AS total
+           FROM order_debts od
+          WHERE od.sale_id = ? AND od.customer_id = ?`
+      )
+      .get(saleId, customerId)?.total || 0;
+
+  const paid = Math.max(ledgerPaid, legacyPaid);
+  const owed = Math.max(0, (sale.total || 0) - paid);
+  return { sale, paid, owed };
+}
+
 class DebtService {
+  /**
+   * Ghi nợ cho 1 đơn hàng (ORDER_DEBT).
+   * Idempotent theo saleId — gọi lại nhiều lần chỉ ghi 1 bút toán.
+   */
   createDebt(customerId, amount, saleId, note) {
     if (!customerId || !amount || amount <= 0) {
       return { success: false, error: 'Dữ liệu không hợp lệ' };
     }
 
-    const tx = db.transaction(() => {
-      const customer = db.prepare('SELECT * FROM customers WHERE id = ? AND archived = 0').get(customerId);
-      if (!customer) {
-        throw new Error('Không tìm thấy khách hàng');
+    try {
+      const custId = parseInt(customerId, 10);
+      const value = parseFloat(amount);
+
+      const result = DebtLedgerService.recordTransaction({
+        customerId: custId,
+        transactionType: TRANSACTION_TYPES.ORDER_DEBT,
+        amount: value,
+        direction: DebtLedgerService.DIRECTION.INCREASE,
+        referenceType: saleId ? REFERENCE_TYPES.ORDER : REFERENCE_TYPES.NONE,
+        referenceId: saleId || null,
+        description: note || `Nợ đơn hàng #${saleId}`,
+        createdBy: 'system',
+        source: SOURCES.POS,
+        idempotencyKey: orderDebtKey(saleId),
+      });
+
+      if (!result.success) {
+        return { success: false, error: result.error };
       }
 
-      const balanceBefore = customer.debt || 0;
-      const balanceAfter = balanceBefore + amount;
-
-      const debtTxResult = db.prepare(`
-        INSERT INTO debt_transactions (customer_id, type, amount, balance_before, balance_after, sale_id, note)
-        VALUES (?, 'increase', ?, ?, ?, ?, ?)
-      `).run(customerId, amount, balanceBefore, balanceAfter, saleId || null, note || `Nợ đơn hàng #${saleId}`);
-
-      db.prepare('UPDATE customers SET debt = ? WHERE id = ?').run(balanceAfter, customerId);
-
+      // Bảng chiếu `order_debts` (cho UI cũ) — không phải nguồn sự thật
       let orderDebtId = null;
       if (saleId) {
         const existing = db.prepare('SELECT id FROM order_debts WHERE sale_id = ?').get(saleId);
         if (!existing) {
-          const odResult = db.prepare(`
-            INSERT INTO order_debts (sale_id, customer_id, original_amount, remaining_amount, status)
-            VALUES (?, ?, ?, ?, 'pending')
-          `).run(saleId, customerId, amount, amount);
+          const odResult = db
+            .prepare(
+              `INSERT INTO order_debts (sale_id, customer_id, original_amount, remaining_amount, status)
+               VALUES (?, ?, ?, ?, 'pending')`
+            )
+            .run(saleId, custId, value, value);
           orderDebtId = odResult.lastInsertRowid;
-          db.prepare("UPDATE sales SET payment_status = 'partial' WHERE id = ? AND type = 'sale'").run(saleId);
+          db.prepare("UPDATE sales SET payment_status = 'partial' WHERE id = ? AND type = 'sale'").run(
+            saleId
+          );
         } else {
           orderDebtId = existing.id;
         }
       }
 
-      return { debtTransactionId: debtTxResult.lastInsertRowid, orderDebtId, newDebt: balanceAfter };
-    });
-
-    try {
-      const result = tx();
-      return { success: true, ...result };
+      return {
+        success: true,
+        debtTransactionId: result.transactionId,
+        orderDebtId,
+        newDebt: result.balanceAfter,
+        duplicate: !!result.duplicate,
+      };
     } catch (e) {
       logger.error('DebtService.createDebt error:', e);
       return { success: false, error: e.message };
     }
   }
 
-  payDebt(customerId, amount, note, saleId = null) {
+  /**
+   * Ghi nhận thanh toán (PAYMENT).
+   * Giữ hành vi legacy: số tiền áp dụng = min(amount, số dư nợ hiện tại)
+   * (không để số dư âm). Phần vượt được trả lại cho người nhập.
+   */
+  payDebt(customerId, amount, note, saleId = null, opts = {}) {
     if (!customerId || !amount || amount <= 0) {
       return { success: false, error: 'Dữ liệu không hợp lệ' };
     }
 
-    const tx = db.transaction(() => {
-      const customer = db.prepare('SELECT * FROM customers WHERE id = ? AND archived = 0').get(customerId);
-      if (!customer) {
-        throw new Error('Không tìm thấy khách hàng');
-      }
-
-      const balanceBefore = customer.debt || 0;
-      const appliedAmount = Math.min(amount, balanceBefore);
-      const balanceAfter = Math.max(0, balanceBefore - appliedAmount);
-
-      const paymentResult = db.prepare(`
-        INSERT INTO payments (customer_id, amount, date, note)
-        VALUES (?, ?, ?, ?)
-      `).run(customerId, appliedAmount, db.getVietnamDateStr(), note || `Thu tiền${saleId ? ` đơn #${saleId}` : ''}`);
-      const paymentId = paymentResult.lastInsertRowid;
-
-      const debtTxResult = db.prepare(`
-        INSERT INTO debt_transactions (customer_id, type, amount, balance_before, balance_after, sale_id, payment_id, note)
-        VALUES (?, 'decrease', ?, ?, ?, ?, ?, ?)
-      `).run(customerId, -appliedAmount, balanceBefore, balanceAfter, saleId || null, paymentId, note || `Thu tiền${saleId ? ` đơn #${saleId}` : ''}`);
-      const debtTransactionId = debtTxResult.lastInsertRowid;
-
-      db.prepare('UPDATE customers SET debt = ? WHERE id = ?').run(balanceAfter, customerId);
-
-      let appliedToSale = null;
-      if (saleId) {
-        const orderDebt = db.prepare('SELECT * FROM order_debts WHERE sale_id = ?').get(saleId);
-        if (orderDebt) {
-          const newPaid = orderDebt.paid_amount + appliedAmount;
-          const newRemaining = Math.max(0, orderDebt.original_amount - newPaid);
-          const status = newRemaining <= 0 ? 'paid' : 'partial';
-          db.prepare('UPDATE order_debts SET paid_amount = ?, remaining_amount = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-            .run(newPaid, newRemaining, status, orderDebt.id);
-          db.prepare("UPDATE sales SET payment_status = ? WHERE id = ?").run(status, saleId);
-          appliedToSale = { saleId, newRemaining, status };
-        }
-      } else {
-        const unpaidOrders = db.prepare(`
-          SELECT * FROM order_debts WHERE customer_id = ? AND status != 'paid' ORDER BY created_at ASC
-        `).all(customerId);
-
-        let remaining = appliedAmount;
-        for (const od of unpaidOrders) {
-          if (remaining <= 0) break;
-          const toApply = Math.min(remaining, od.remaining_amount);
-          const newPaid = od.paid_amount + toApply;
-          const newRemaining = Math.max(0, od.original_amount - newPaid);
-          const status = newRemaining <= 0 ? 'paid' : 'partial';
-          db.prepare('UPDATE order_debts SET paid_amount = ?, remaining_amount = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-            .run(newPaid, newRemaining, status, od.id);
-          db.prepare("UPDATE sales SET payment_status = ? WHERE id = ?").run(status, od.sale_id);
-          remaining -= toApply;
-          appliedToSale = { saleId: od.sale_id, newRemaining, status };
-        }
-      }
-
-      return { paymentId, debtTransactionId, newDebt: balanceAfter, appliedAmount, appliedToSale };
-    });
-
     try {
-      const result = tx();
-      return { success: true, ...result };
+      const custId = parseInt(customerId, 10);
+      const requested = parseFloat(amount);
+      const balanceBefore = DebtLedgerService.computeBalance(custId);
+
+      if (balanceBefore <= 0) {
+        return { success: false, error: 'Khách hàng không có công nợ' };
+      }
+
+      const appliedAmount = Math.min(requested, balanceBefore);
+
+      // Toàn bộ thao tác (ledger + payments + bảng chiếu) nằm trong MỘT
+      // transaction DB → atomic. Nếu server crash giữa chừng thì không còn
+      // trạng thái nửa vời (đã trừ nợ nhưng chưa ghi lịch sử thu tiền).
+      const tx = db.transaction(() => {
+        const result = DebtLedgerService.recordTransaction({
+          customerId: custId,
+          transactionType: TRANSACTION_TYPES.PAYMENT,
+          amount: appliedAmount,
+          direction: DebtLedgerService.DIRECTION.DECREASE,
+          referenceType: saleId ? REFERENCE_TYPES.ORDER : REFERENCE_TYPES.NONE,
+          referenceId: saleId || null,
+          description:
+            note || `Thu tiền${saleId ? ` đơn #${saleId}` : ''}${opts.createdBy ? ` (${opts.createdBy})` : ''}`,
+          createdBy: opts.createdBy || null,
+          source: opts.source || SOURCES.MANUAL_UI,
+          idempotencyKey: opts.idempotencyKey || null,
+        });
+
+        if (!result.success) {
+          throw new Error(result.error || 'Không ghi được bút toán');
+        }
+
+        // Bảng `payments` (lịch sử thu tiền legacy) — giữ để không phá báo cáo cũ
+        const paymentResult = db
+          .prepare('INSERT INTO payments (customer_id, amount, date, note) VALUES (?, ?, ?, ?)')
+          .run(
+            custId,
+            appliedAmount,
+            db.getVietnamDateStr(),
+            note || `Thu tiền${saleId ? ` đơn #${saleId}` : ''}`
+          );
+        const paymentId = paymentResult.lastInsertRowid;
+
+        // Phân bổ vào `order_debts` (bảng chiếu)
+        let appliedToSale = null;
+        if (saleId) {
+          const orderDebt = db.prepare('SELECT * FROM order_debts WHERE sale_id = ?').get(saleId);
+          if (orderDebt) {
+            const newPaid = orderDebt.paid_amount + appliedAmount;
+            const newRemaining = Math.max(0, orderDebt.original_amount - newPaid);
+            const status = newRemaining <= 0 ? 'paid' : 'partial';
+            db.prepare(
+              `UPDATE order_debts
+                  SET paid_amount = ?, remaining_amount = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?`
+            ).run(newPaid, newRemaining, status, orderDebt.id);
+            db.prepare('UPDATE sales SET payment_status = ? WHERE id = ?').run(status, saleId);
+            appliedToSale = { saleId, newRemaining, status };
+          }
+        } else {
+          const unpaidOrders = db
+            .prepare(
+              `SELECT * FROM order_debts WHERE customer_id = ? AND status != 'paid' ORDER BY created_at ASC`
+            )
+            .all(custId);
+
+          let remaining = appliedAmount;
+          for (const od of unpaidOrders) {
+            if (remaining <= 0) break;
+            const toApply = Math.min(remaining, od.remaining_amount);
+            const newPaid = od.paid_amount + toApply;
+            const newRemaining = Math.max(0, od.original_amount - newPaid);
+            const status = newRemaining <= 0 ? 'paid' : 'partial';
+            db.prepare(
+              `UPDATE order_debts
+                  SET paid_amount = ?, remaining_amount = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?`
+            ).run(newPaid, newRemaining, status, od.id);
+            db.prepare('UPDATE sales SET payment_status = ? WHERE id = ?').run(status, od.sale_id);
+            remaining -= toApply;
+            appliedToSale = { saleId: od.sale_id, newRemaining, status };
+          }
+        }
+
+        return {
+          success: true,
+          paymentId,
+          debtTransactionId: result.transactionId,
+          newDebt: result.balanceAfter,
+          appliedAmount,
+          excessAmount: Math.max(0, requested - appliedAmount),
+          appliedToSale,
+        };
+      });
+
+      return tx();
     } catch (e) {
       logger.error('DebtService.payDebt error:', e);
       return { success: false, error: e.message };
     }
   }
 
+  /**
+   * Hoàn công nợ khi đơn hàng bị hủy/xoá.
+   * KHÔNG xoá bút toán gốc — tạo bút toán REVERSAL đối ứng (có audit log).
+   */
   reverseDebtForSale(saleId) {
     if (!saleId) {
       return { success: false, error: 'Thiếu saleId' };
     }
 
-    const tx = db.transaction(() => {
+    try {
       const orderDebt = db.prepare('SELECT * FROM order_debts WHERE sale_id = ?').get(saleId);
       if (!orderDebt) {
         return { success: true, refundedAmount: 0 };
       }
 
-      const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(orderDebt.customer_id);
-      if (!customer) {
-        throw new Error('Không tìm thấy khách hàng');
+      // Tìm bút toán ORDER_DEBT gốc trong ledger
+      const original = db
+        .prepare(
+          `SELECT * FROM debt_transactions
+            WHERE reference_type = 'ORDER' AND reference_id = ?
+              AND transaction_type = 'ORDER_DEBT'
+            ORDER BY id DESC LIMIT 1`
+        )
+        .get(String(saleId));
+
+      let refundedAmount = 0;
+      if (original) {
+        const rev = DebtLedgerService.reverseTransaction(original.id, {
+          createdBy: 'system',
+          source: SOURCES.POS,
+          reason: `Huỷ đơn #${saleId}, hoàn ${formatCurrency(original.amount)}`,
+        });
+        if (!rev.success) {
+          return { success: false, error: rev.error };
+        }
+        refundedAmount = original.amount;
+      } else {
+        // Không có bút toán gốc trong ledger (nợ nhập tay) → chỉ cập nhật bảng chiếu
+        refundedAmount = orderDebt.remaining_amount || 0;
+        db.prepare("UPDATE order_debts SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(
+          orderDebt.id
+        );
       }
 
-      const refundAmount = orderDebt.remaining_amount;
-      const balanceBefore = customer.debt || 0;
-      const balanceAfter = Math.max(0, balanceBefore - refundAmount);
-
-      db.prepare(`
-        INSERT INTO debt_transactions (customer_id, type, amount, balance_before, balance_after, sale_id, note)
-        VALUES (?, 'cancel', ?, ?, ?, ?, ?)
-      `).run(orderDebt.customer_id, -refundAmount, balanceBefore, balanceAfter, saleId, `Huỷ đơn #${saleId}, hoàn ${formatCurrency(refundAmount)}`);
-
-      db.prepare('UPDATE customers SET debt = ? WHERE id = ?').run(balanceAfter, orderDebt.customer_id);
-      db.prepare('DELETE FROM order_debts WHERE sale_id = ?').run(saleId);
+      // Đánh dấu bảng chiếu (KHÔNG xoá vật lý — giữ dấu vết)
+      db.prepare("UPDATE order_debts SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(
+        orderDebt.id
+      );
       db.prepare("UPDATE sales SET payment_status = 'cancelled' WHERE id = ?").run(saleId);
 
-      return { refundedAmount: refundAmount };
-    });
-
-    try {
-      const result = tx();
-      return { success: true, ...result };
+      return { success: true, refundedAmount };
     } catch (e) {
       logger.error('DebtService.reverseDebtForSale error:', e);
       return { success: false, error: e.message };
     }
   }
 
+  /** Điều chỉnh công nợ (ADJUSTMENT) — luôn tạo bút toán mới. */
   adjustDebt(customerId, amount, reason) {
     if (!customerId) {
       return { success: false, error: 'Thiếu customerId' };
     }
 
-    const tx = db.transaction(() => {
-      const customer = db.prepare('SELECT * FROM customers WHERE id = ? AND archived = 0').get(customerId);
-      if (!customer) {
-        throw new Error('Không tìm thấy khách hàng');
-      }
-
-      const balanceBefore = customer.debt || 0;
-      let balanceAfter = balanceBefore + amount;
-      if (balanceAfter < 0) balanceAfter = 0;
-
-      db.prepare(`
-        INSERT INTO debt_transactions (customer_id, type, amount, balance_before, balance_after, note)
-        VALUES (?, 'adjust', ?, ?, ?, ?)
-      `).run(customerId, amount < 0 ? amount : -Math.abs(amount), balanceBefore, balanceAfter, reason || 'Điều chỉnh thủ công');
-
-      db.prepare('UPDATE customers SET debt = ? WHERE id = ?').run(balanceAfter, customerId);
-      return { newDebt: balanceAfter };
-    });
-
     try {
-      const result = tx();
-      return { success: true, ...result };
+      const result = DebtLedgerService.adjust(parseInt(customerId, 10), parseFloat(amount) || 0, {
+        createdBy: 'system',
+        source: SOURCES.MANUAL_UI,
+        reason: reason || 'Điều chỉnh thủ công',
+      });
+
+      if (!result.success) {
+        return { success: false, error: result.error };
+      }
+      return { success: true, newDebt: result.balanceAfter, debtTransactionId: result.transactionId };
     } catch (e) {
       logger.error('DebtService.adjustDebt error:', e);
       return { success: false, error: e.message };
     }
   }
 
+  /** Đối soát nhanh: ledger vs bảng chiếu order_debts. */
   recalcDebt(customerId) {
     const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(customerId);
     if (!customer) return { success: false, error: 'Không tìm thấy khách' };
 
-    const orderDebts = db.prepare('SELECT * FROM order_debts WHERE customer_id = ?').all(customerId);
+    const orderDebts = db
+      .prepare('SELECT * FROM order_debts WHERE customer_id = ?')
+      .all(customerId);
     const calculatedDebt = orderDebts.reduce((sum, od) => sum + (od.remaining_amount || 0), 0);
+    const ledgerBalance = DebtLedgerService.computeBalance(customerId);
     const actualDebt = customer.debt || 0;
-    const diff = actualDebt - calculatedDebt;
 
-    return { success: true, calculatedDebt, actualDebt, diff, orderDebts };
+    return {
+      success: true,
+      calculatedDebt,
+      actualDebt,
+      ledgerBalance,
+      diff: actualDebt - ledgerBalance,
+      projectionDiff: actualDebt - calculatedDebt,
+      orderDebts,
+    };
   }
 
   getAllDebts(filters = {}) {
-    // Make sure the supporting composite index exists
     ensureIndexes();
 
-    // Replaced correlated subquery with LEFT JOIN + GROUP BY.
-    // Correlated subquery runs once per outer row (O(N) executions).
-    // The new form lets SQLite use a single scan + group, which is O(N)
-    // and — thanks to idx_order_debt_customer_status — an index-only aggregation.
     let sql = `
       SELECT
         c.id, c.name, c.phone, c.tier,
@@ -267,7 +406,10 @@ class DebtService {
     if (filters.limit) {
       sql += ' LIMIT ?';
       params.push(filters.limit);
-      if (filters.offset) { sql += ' OFFSET ?'; params.push(filters.offset); }
+      if (filters.offset) {
+        sql += ' OFFSET ?';
+        params.push(filters.offset);
+      }
     }
 
     return db.prepare(sql).all(...params);
@@ -277,11 +419,27 @@ class DebtService {
     const customer = db.prepare('SELECT * FROM customers WHERE id = ? AND archived = 0').get(customerId);
     if (!customer) return null;
 
-    const orderDebts = db.prepare('SELECT * FROM order_debts WHERE customer_id = ? ORDER BY created_at DESC').all(customerId);
-    const payments = db.prepare('SELECT * FROM payments WHERE customer_id = ? ORDER BY date DESC LIMIT 50').all(customerId);
-    const history = db.prepare(`
-      SELECT * FROM debt_transactions WHERE customer_id = ? ORDER BY created_at DESC LIMIT 100
-    `).all(customerId);
+    const orderDebts = db
+      .prepare('SELECT * FROM order_debts WHERE customer_id = ? ORDER BY created_at DESC')
+      .all(customerId);
+    const payments = db
+      .prepare('SELECT * FROM payments WHERE customer_id = ? ORDER BY date DESC LIMIT 50')
+      .all(customerId);
+
+    // Lịch sử từ ledger mới, map về shape legacy cho UI cũ (type/note/amount)
+    const history = DebtLedgerService.listTransactions(customerId, 100).map((tx) => ({
+      id: tx.id,
+      customer_id: tx.customer_id,
+      type: legacyTypeOf(tx),
+      amount: legacyAmountOf(tx),
+      balance_before: tx.balance_before,
+      balance_after: tx.balance_after,
+      sale_id: tx.reference_type === 'ORDER' ? tx.reference_id : null,
+      note: tx.description,
+      created_at: tx.created_at,
+      transaction_type: tx.transaction_type,
+      source: tx.source,
+    }));
 
     return {
       customer,
@@ -289,7 +447,7 @@ class DebtService {
       payments,
       history,
       totalDebt: customer.debt || 0,
-      unpaidCount: orderDebts.filter(od => od.status !== 'paid').length
+      unpaidCount: orderDebts.filter((od) => od.status !== 'paid').length,
     };
   }
 
@@ -298,15 +456,26 @@ class DebtService {
     if (!sale) return null;
 
     const orderDebt = db.prepare('SELECT * FROM order_debts WHERE sale_id = ?').get(saleId);
-    const payments = db.prepare(`
-      SELECT p.* FROM payments p
-      JOIN debt_transactions dt ON dt.payment_id = p.id
-      WHERE dt.sale_id = ?
-      ORDER BY p.date DESC
-    `).all(saleId);
 
-    const totalPaid = orderDebt ? orderDebt.paid_amount : 0;
-    const remaining = orderDebt ? orderDebt.remaining_amount : sale.total;
+    // Khoản thu gắn với đơn này — lấy từ LEDGER (nguồn sự thật).
+    const ledgerPayments = db
+      .prepare(
+        `SELECT * FROM debt_transactions
+          WHERE reference_type = 'ORDER' AND reference_id = ?
+            AND transaction_type = 'PAYMENT' AND direction = 'DECREASE'
+          ORDER BY id DESC`
+      )
+      .all(String(saleId));
+
+    // Lịch sử thu tiền legacy của khách (bảng `payments`) — giữ cho tương thích
+    const payments = sale.customer_id
+      ? db
+          .prepare('SELECT * FROM payments WHERE customer_id = ? ORDER BY date DESC LIMIT 50')
+          .all(sale.customer_id)
+      : [];
+
+    const totalPaid = ledgerPayments.reduce((s, t) => s + t.amount, 0);
+    const remaining = orderDebt ? orderDebt.remaining_amount : Math.max(0, sale.total - totalPaid);
 
     return {
       sale,
@@ -315,10 +484,33 @@ class DebtService {
       remaining,
       payments,
       customerDebt: sale.customer_id
-        ? (db.prepare('SELECT debt FROM customers WHERE id = ?').get(sale.customer_id)?.debt || 0)
-        : 0
+        ? db.prepare('SELECT debt FROM customers WHERE id = ?').get(sale.customer_id)?.debt || 0
+        : 0,
     };
   }
 }
 
+/** Map transaction_type mới → `type` legacy (cho UI cũ). */
+function legacyTypeOf(tx) {
+  switch (tx.transaction_type) {
+    case TRANSACTION_TYPES.PAYMENT:
+      return 'decrease';
+    case TRANSACTION_TYPES.REVERSAL:
+      return 'cancel';
+    case TRANSACTION_TYPES.ADJUSTMENT:
+      return 'adjust';
+    case TRANSACTION_TYPES.OPENING_BALANCE:
+      return 'opening';
+    default:
+      return 'increase';
+  }
+}
+
+/** Map amount (luôn > 0 trong ledger) → amount có dấu kiểu legacy. */
+function legacyAmountOf(tx) {
+  return tx.direction === 'DECREASE' ? -tx.amount : tx.amount;
+}
+
 module.exports = DebtService;
+module.exports.computeAmountOwed = computeAmountOwed;
+module.exports.orderDebtKey = orderDebtKey;

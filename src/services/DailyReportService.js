@@ -182,12 +182,40 @@ function queryDayStats(dateStr) {
   const liters = literRow.total || 0;
 
   // Nợ phát sinh trong ngày (khách mua chịu)
-  const debtAdded = db
+  // Ledger mới: transaction_type='ORDER_DEBT' + direction='INCREASE'.
+  // Cần giữ tương thích với bảng legacy `debt_transactions_legacy` (type='increase').
+  const debtAddedRow = db
     .prepare(
       `SELECT COALESCE(SUM(dt.amount), 0) AS total FROM debt_transactions dt
-       WHERE dt.type = 'increase' AND date(dt.created_at) = date(?)`
+       WHERE dt.transaction_type = 'ORDER_DEBT' AND dt.direction = 'INCREASE'
+         AND date(dt.created_at) = date(?)`
     )
     .get(dateStr);
+
+  let debtAdded = debtAddedRow ? debtAddedRow.total || 0 : 0;
+
+  // Bổ sung nợ ghi bằng tay (MANUAL_DEBT) — cũng là nợ phát sinh trong ngày
+  const manualDebtRow = db
+    .prepare(
+      `SELECT COALESCE(SUM(dt.amount), 0) AS total FROM debt_transactions dt
+       WHERE dt.transaction_type = 'MANUAL_DEBT' AND dt.direction = 'INCREASE'
+         AND date(dt.created_at) = date(?)`
+    )
+    .get(dateStr);
+  debtAdded += manualDebtRow ? manualDebtRow.total || 0 : 0;
+
+  // Dữ liệu legacy (trước khi chuyển sang ledger) — chỉ đọc, không ghi thêm
+  try {
+    const legacyRow = db
+      .prepare(
+        `SELECT COALESCE(SUM(dt.amount), 0) AS total FROM debt_transactions_legacy dt
+         WHERE dt.type = 'increase' AND date(dt.created_at) = date(?)`
+      )
+      .get(dateStr);
+    debtAdded += legacyRow ? legacyRow.total || 0 : 0;
+  } catch (_) {
+    // Bảng legacy chưa tồn tại (DB mới) → bỏ qua
+  }
 
   // Tồn nợ hiện tại toàn hệ thống
   const totalDebt = db

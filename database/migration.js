@@ -790,6 +790,40 @@ function runZaloOauthMigration(db) {
   }
 }
 
+// ── Debt Management migration (053) ───────────────────────────────────────────
+// Sổ công nợ Gia Huy: 7 bảng mới (`debt_*`) làm nguồn sự thật cho công nợ.
+// Chạy ĐỘC LẬP, idempotent (CREATE TABLE IF NOT EXISTS + INSERT OR IGNORE setting).
+// Rollback an toàn: chỉ gỡ 7 bảng mới (không đụng dữ liệu kinh doanh).
+function runDebtManagementMigration(db) {
+  try {
+    const migration = require('./migrations/053_debt_management');
+    migration.up(db);
+    log('[DEBT_MANAGEMENT] Migration 053 applied');
+    return { success: true };
+  } catch (e) {
+    log(`[DEBT_MANAGEMENT] Migration error: ${e.message}`);
+    return { success: false, error: e.message };
+  }
+}
+
+// ── Debt sale credit flag migration (054) ─────────────────────────────────────
+// Cột `sales.is_credit` — dấu hiệu bền vững "đơn này là bán chịu" (đơn được
+// tạo với cờ `debt`). Cần cột này vì module Sổ Công nợ ghi nợ khi DELIVERED
+// (sau khi đơn đã tạo, cờ `debt` trong payload không còn tồn tại).
+// Chạy ĐỘC LẬP, idempotent: ALTER TABLE ADD COLUMN có kiểm tra PRAGMA trước.
+// Rollback an toàn: chỉ gỡ cột `sales.is_credit` (không đụng dữ liệu khác).
+function runDebtSaleCreditFlagMigration(db) {
+  try {
+    const migration = require('./migrations/054_debt_sale_credit_flag');
+    migration.up(db);
+    log('[DEBT_CREDIT_FLAG] Migration 054 applied');
+    return { success: true };
+  } catch (e) {
+    log(`[DEBT_CREDIT_FLAG] Migration error: ${e.message}`);
+    return { success: false, error: e.message };
+  }
+}
+
 // ── Utility: Generate UUID ─────────────────────────────────────────────────────
 
 function generateUUID() {
@@ -817,6 +851,8 @@ module.exports = {
   runAuditLogMigration,
   runDriverPushMigration,
   runZaloOauthMigration,
+  runDebtManagementMigration,
+  runDebtSaleCreditFlagMigration,
   generateUUID,
   getCurrentVersion,
   setVersion,
