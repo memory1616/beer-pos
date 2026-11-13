@@ -183,11 +183,22 @@ function queryDayStats(dateStr) {
 
   // Nợ phát sinh trong ngày (khách mua chịu) — TÍNH NET
   //   + ORDER_DEBT / MANUAL_DEBT / ADJUSTMENT (INCREASE)
-  //   − REVERSAL có direction='DECREASE' (đảo 1 bút toán tăng nợ)
+  //   − ORDER_DEBT / MANUAL_DEBT / ADJUSTMENT (DECREASE)
+  //   − REVERSAL (DECREASE) = đảo bút toán TĂNG nợ (huỷ đơn / huỷ nợ tay)
+  //   (REVERSAL INCREASE = đảo bút toán thanh toán → KHÔNG phát sinh nợ)
+  //
+  // ⚠️ Phải phân biệt REVERSAL theo `direction` — nếu gộp chung, huỷ đơn
+  //    sẽ bị tính nhầm là nợ mới phát sinh.
   // Cần giữ tương thích với bảng legacy `debt_transactions_legacy` (type='increase').
   const debtAddedRow = db
     .prepare(
-      `SELECT COALESCE(SUM(CASE WHEN dt.direction = 'INCREASE' THEN dt.amount ELSE -dt.amount END), 0) AS total
+      `SELECT COALESCE(SUM(
+                CASE
+                  WHEN dt.transaction_type = 'REVERSAL' AND dt.direction = 'DECREASE' THEN -dt.amount
+                  WHEN dt.transaction_type = 'REVERSAL' THEN 0
+                  WHEN dt.direction = 'INCREASE' THEN dt.amount
+                  ELSE -dt.amount
+                END), 0) AS total
          FROM debt_transactions dt
         WHERE dt.transaction_type IN ('ORDER_DEBT','MANUAL_DEBT','ADJUSTMENT','REVERSAL')
           AND date(dt.created_at) = date(?)`
