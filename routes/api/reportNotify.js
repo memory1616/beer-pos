@@ -17,6 +17,7 @@ const logger = require('../../src/utils/logger');
 const DailyReportService = require('../../src/services/DailyReportService');
 const NotificationService = require('../../src/services/NotificationService');
 const ReportNotifyService = require('../../src/services/ReportNotifyService');
+const ZaloOAuthService = require('../../src/services/ZaloOAuthService');
 const { ROLE_ADMIN } = require('../../middleware/permissions');
 
 // ── Chỉ ADMIN ───────────────────────────────────────────────────────────────
@@ -79,6 +80,7 @@ router.post('/config', requireAdmin, (req, res) => {
       'zalo_oa_refresh_token',
       'zalo_oa_app_id',
       'zalo_oa_secret_key',
+      'zalo_oa_code_verifier',
       'zalo_report_user_id',
       'telegram_bot_token',
       'telegram_report_chat_id',
@@ -194,6 +196,73 @@ router.post('/send', requireAdmin, async (req, res) => {
   } catch (err) {
     logger.error('[REPORT_NOTIFY] send error', { error: err.message });
     res.status(500).json({ error: 'Lỗi khi gửi báo cáo: ' + err.message });
+  }
+});
+
+// ── GET /zalo/authorize-url ──────────────────────────────────────────────────
+// Tạo URL cấp quyền Zalo OAuth v4 (PKCE) để admin OA mở và đồng ý.
+router.get('/zalo/authorize-url', requireAdmin, (req, res) => {
+  try {
+    const redirectUri =
+      req.query.redirect_uri ||
+      `${req.protocol}://${req.get('host')}/api/report-notify/zalo/callback`;
+
+    const result = ZaloOAuthService.buildAuthorizeUrl(redirectUri);
+    if (!result.ok) {
+      return res.status(400).json({ success: false, error: result.error });
+    }
+    res.json({ success: true, url: result.url });
+  } catch (err) {
+    logger.error('[REPORT_NOTIFY] zalo authorize url error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi tạo URL cấp quyền Zalo' });
+  }
+});
+
+// ── GET /zalo/callback ───────────────────────────────────────────────────────
+// Callback của Zalo: redirect về kèm ?code=<AUTHORIZATION_CODE>&oa_id=...
+// Đổi code lấy access_token + refresh_token, lưu vào DB.
+router.get('/zalo/callback', async (req, res) => {
+  try {
+    const { code, error: zaloError, error_description: errorDesc } = req.query;
+
+    if (zaloError) {
+      return res
+        .status(400)
+        .send(
+          `<h3 style="font-family:sans-serif">❌ Zalo từ chối cấp quyền</h3><p>${
+            errorDesc || zaloError
+          }</p><p><a href="/report-notify">← Quay lại cấu hình</a></p>`
+        );
+    }
+
+    if (!code) {
+      return res
+        .status(400)
+        .send(
+          '<h3 style="font-family:sans-serif">❌ Thiếu authorization code</h3><p><a href="/report-notify">← Quay lại cấu hình</a></p>'
+        );
+    }
+
+    const result = await ZaloOAuthService.exchangeCodeForToken(code);
+
+    if (!result.ok) {
+      return res
+        .status(400)
+        .send(
+          `<h3 style="font-family:sans-serif">❌ Không đổi được token</h3><p>${result.error}</p><p><a href="/report-notify">← Quay lại cấu hình</a></p>`
+        );
+    }
+
+    res.send(
+      `<h3 style="font-family:sans-serif">✅ Đã cấu hình Zalo OA thành công!</h3>` +
+        '<p>Access token đã được lưu. Hệ thống sẽ tự làm mới token mỗi ngày lúc 03:00.</p>' +
+        '<p><a href="/report-notify">← Quay lại cấu hình báo cáo</a></p>'
+    );
+  } catch (err) {
+    logger.error('[REPORT_NOTIFY] zalo callback error', { error: err.message });
+    res.status(500).send(
+      '<h3 style="font-family:sans-serif">❌ Lỗi callback</h3><p><a href="/report-notify">← Quay lại cấu hình</a></p>'
+    );
   }
 });
 

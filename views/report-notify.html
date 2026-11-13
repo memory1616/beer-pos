@@ -344,6 +344,14 @@
       var zaloFields = '';
       if (c.channel === 'zalo') {
         zaloFields =
+          '<div class="rn-card" style="border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:14px;background:var(--bg-soft,transparent)">' +
+            '<div style="font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:6px">🔗 Kết nối Zalo OA (khuyến nghị)</div>' +
+            '<div class="rn-hint" style="margin-bottom:10px">Bấm nút bên dưới → Zalo mở trang cấp quyền → chọn OA và bấm <strong>Cho phép</strong>. Hệ thống tự lưu access token + refresh token (tự làm mới hằng ngày).</div>' +
+            '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
+              '<button class="rn-btn rn-btn-ghost" id="zaloConnectBtn" type="button" style="white-space:nowrap">🔗 Kết nối Zalo OA</button>' +
+              '<span id="zaloConnectStatus" class="rn-hint"></span>' +
+            '</div>' +
+          '</div>' +
           '<div class="rn-field">' +
             '<label class="rn-label" for="zaloToken">Zalo OA Access Token</label>' +
             '<div class="rn-hint">Lấy tại <strong>developers.zalo.me</strong> → OA quản lý → Access Token (hoặc qua OAuth v4). Token được lưu trong DB, không nằm trong code/git.</div>' +
@@ -526,8 +534,55 @@
       var fetchUsersBtn = document.getElementById('zaloFetchUsers');
       if (fetchUsersBtn) fetchUsersBtn.addEventListener('click', fetchZaloUsers);
 
+      var connectBtn = document.getElementById('zaloConnectBtn');
+      if (connectBtn) connectBtn.addEventListener('click', connectZaloOAuth);
+
       var refreshBtn = document.getElementById('zaloRefreshBtn');
       if (refreshBtn) refreshBtn.addEventListener('click', refreshZaloTokenNow);
+    }
+
+    // ── Zalo: kết nối OAuth v4 (mở trang cấp quyền) ───────────────────────
+    async function connectZaloOAuth() {
+      var btn = document.getElementById('zaloConnectBtn');
+      var status = document.getElementById('zaloConnectStatus');
+      if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Đang chuẩn bị...'; }
+      if (status) status.textContent = '';
+
+      try {
+        // Lưu App ID / Secret Key trước nếu có nhập (bắt buộc để đổi code)
+        var extra = {};
+        var appId = document.getElementById('zaloAppId');
+        if (appId && appId.value.trim()) extra.zalo_oa_app_id = appId.value.trim();
+        var secret = document.getElementById('zaloSecretKey');
+        if (secret && secret.value.trim()) extra.zalo_oa_secret_key = secret.value.trim();
+        if (Object.keys(extra).length) {
+          await api('/api/report-notify/config', { method: 'POST', body: JSON.stringify(extra) });
+          if (status) status.textContent = '✓ Đã lưu App ID / Secret Key';
+        }
+
+        var res = await api('/api/report-notify/zalo/authorize-url');
+        if (!res.url) throw new Error(res.error || 'Không tạo được URL cấp quyền');
+
+        // Mở tab mới để admin OA đồng ý; tab hiện tại theo dõi trạng thái
+        var popup = window.open(res.url, '_blank');
+        if (!popup) {
+          // Bị chặn popup → hướng dẫn mở thủ công
+          if (status) {
+            status.innerHTML = '⚠️ Trình duyệt chặn popup. <a href="' + esc(res.url) + '" target="_blank" style="color:var(--primary)">Mở trang cấp quyền</a>';
+          }
+          return;
+        }
+
+        // Đợi callback hoàn tất rồi reload config
+        setTimeout(function () {
+          window.location.reload();
+        }, 20000);
+
+        if (status) status.textContent = '⏳ Đang chờ bạn cấp quyền trên Zalo...';
+      } catch (e) {
+        if (status) status.textContent = '✗ ' + e.message;
+        if (btn) { btn.disabled = false; btn.innerHTML = '🔗 Kết nối Zalo OA'; }
+      }
     }
 
     // ── Zalo: lấy danh sách user_id từ OA ──────────────────────────────────
