@@ -212,18 +212,17 @@ function recordTransaction(opts = {}) {
     // 7. Mirror `customers.debt`
     syncMirror(custId, balanceAfter);
 
-    // 8. Audit log (cùng transaction)
-    DebtAuditService.record({
-      transactionId,
-      action:
-        transactionType === TRANSACTION_TYPES.ADJUSTMENT
-          ? DebtAuditService.AUDIT_ACTIONS.ADJUST
-          : DebtAuditService.AUDIT_ACTIONS.CREATE,
-      actorId: createdBy,
-      beforeData: { balance: balanceBefore, transactionType, amount: value },
-      afterData: { balance: balanceAfter, transactionType, amount: value },
-    });
-
+  // 8. Audit log (cùng transaction)
+  DebtAuditService.record({
+    transactionId,
+    action:
+      transactionType === TRANSACTION_TYPES.ADJUSTMENT
+        ? DebtAuditService.AUDIT_ACTIONS.ADJUST
+        : DebtAuditService.AUDIT_ACTIONS.CREATE,
+    actorId: createdBy,
+    beforeData: { balance: balanceBefore, transactionType, amount: value },
+    afterData: { balance: balanceAfter, transactionType, amount: value },
+  });
     return {
       success: true,
       transactionId,

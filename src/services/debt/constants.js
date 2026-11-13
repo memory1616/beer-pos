@@ -93,6 +93,7 @@ const BRIDGE_STATUS = {
 // ── Action của debt_audit_logs ────────────────────────────────────────────────
 const AUDIT_ACTIONS = {
   CREATE: 'CREATE',
+  COMMAND: 'COMMAND', // Ghi qua lệnh `+`/`-` (Quick Entry / Zalo) — bổ sung ngữ cảnh
   REVERSE: 'REVERSE',
   ADJUST: 'ADJUST',
   RECONCILE_FIX: 'RECONCILE_FIX',

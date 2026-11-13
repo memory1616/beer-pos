@@ -361,10 +361,11 @@ function handleMessage(message = {}) {
     /* ignore */
   }
 
-  // 8. Audit log
+  // 8. Audit log — action riêng (COMMAND) để phân biệt với CREATE của ledger
+  //    (ledger đã ghi 1 bản ghi CREATE; bản này bổ sung ngữ cảnh lệnh + messageId)
   DebtAuditService.record({
     transactionId: result.transactionId,
-    action: DebtAuditService.AUDIT_ACTIONS.CREATE,
+    action: DebtAuditService.AUDIT_ACTIONS.COMMAND,
     actorId: senderId,
     beforeData: { balance: balanceBefore, source: platform, messageId, groupId },
     afterData: {
