@@ -773,6 +773,23 @@ function runDriverPushMigration(db) {
   }
 }
 
+// ── Zalo OA OAuth v4 migration (052) ───────────────────────────────────────────
+// Seed setting cho OAuth v4 (refresh_token / app_id / secret_key) để làm mới
+// access token Zalo (hết hạn sau 25 giờ) mà không cần admin vào UI mỗi ngày.
+// Chạy ĐỘC LẬP, idempotent: INSERT OR IGNORE setting.
+// Rollback an toàn: chỉ gỡ 3 setting mới (không đụng dữ liệu kinh doanh).
+function runZaloOauthMigration(db) {
+  try {
+    const migration = require('./migrations/052_zalo_oa_oauth_v4');
+    migration.up(db);
+    log('[ZALO_OAUTH] Migration 052 applied');
+    return { success: true };
+  } catch (e) {
+    log(`[ZALO_OAUTH] Migration error: ${e.message}`);
+    return { success: false, error: e.message };
+  }
+}
+
 // ── Utility: Generate UUID ─────────────────────────────────────────────────────
 
 function generateUUID() {
@@ -799,6 +816,7 @@ module.exports = {
   runDailyReportNotifyMigration,
   runAuditLogMigration,
   runDriverPushMigration,
+  runZaloOauthMigration,
   generateUUID,
   getCurrentVersion,
   setVersion,

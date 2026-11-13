@@ -56,6 +56,12 @@ const migration = {
       ['report_notify_time', '21:30'],
       // Zalo OA — Access Token (lấy ở openapi.zalo.me → OA quản lý → Access Token)
       ['zalo_oa_access_token', ''],
+      // Zalo OA — Refresh Token (OAuth v4, hết hạn 3 tháng, chỉ dùng 1 lần)
+      ['zalo_oa_refresh_token', ''],
+      // Zalo OA — App ID (để refresh access token)
+      ['zalo_oa_app_id', ''],
+      // Zalo OA — Secret Key của app (để refresh access token)
+      ['zalo_oa_secret_key', ''],
       // Zalo OA — user_id người nhận (người chat với OA để nhận user_id)
       ['zalo_report_user_id', ''],
       // Tên hiển thị trong tin nhắn

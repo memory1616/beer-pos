@@ -30,7 +30,7 @@ try {
   }
 
   // Run driver portal migration (idempotent, chạy độc lập version gate)
-  const { runDriverPortalMigration, runDriverStaffMigration, runDriverKegReceiptMigration, runDriverWorkDaysMigration, runDriverSalaryAdvanceMigration, runMissingBusinessTablesMigration, runDailyReportNotifyMigration, runAuditLogMigration, runDriverPushMigration } = require('./database/migration');
+  const { runDriverPortalMigration, runDriverStaffMigration, runDriverKegReceiptMigration, runDriverWorkDaysMigration, runDriverSalaryAdvanceMigration, runMissingBusinessTablesMigration, runDailyReportNotifyMigration, runAuditLogMigration, runDriverPushMigration, runZaloOauthMigration } = require('./database/migration');
   const driverResult = runDriverPortalMigration(db);
   if (driverResult.success) {
     logger.log('[MIGRATION] Driver portal schema ready');
@@ -82,6 +82,12 @@ try {
   const pushResult = runDriverPushMigration(db);
   if (pushResult.success) {
     logger.log('[MIGRATION] Driver push notification schema ready');
+  }
+
+  // Run Zalo OA OAuth v4 migration (seed setting refresh_token / app_id / secret_key)
+  const zaloOauthResult = runZaloOauthMigration(db);
+  if (zaloOauthResult.success) {
+    logger.log('[MIGRATION] Zalo OA OAuth settings ready');
   }
 } catch (error) {
   logger.error('[MIGRATION] Migration error:', error.message);

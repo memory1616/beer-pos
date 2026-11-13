@@ -54,6 +54,10 @@ router.get('/config', requireAdmin, (req, res) => {
         zalo: Boolean(cfg.zalo_oa_access_token),
         telegram: Boolean(cfg.telegram_bot_token),
       },
+      // OAuth v4 (nâng cao) — không trả secret, chỉ trả trạng thái
+      zaloAppId: cfg.zalo_oa_app_id || '',
+      hasZaloSecret: Boolean(cfg.zalo_oa_secret_key),
+      hasZaloRefresh: Boolean(cfg.zalo_oa_refresh_token),
     });
   } catch (err) {
     logger.error('[REPORT_NOTIFY] config error', { error: err.message });
@@ -72,6 +76,9 @@ router.post('/config', requireAdmin, (req, res) => {
       'report_notify_time',
       'report_notify_title',
       'zalo_oa_access_token',
+      'zalo_oa_refresh_token',
+      'zalo_oa_app_id',
+      'zalo_oa_secret_key',
       'zalo_report_user_id',
       'telegram_bot_token',
       'telegram_report_chat_id',
@@ -187,6 +194,50 @@ router.post('/send', requireAdmin, async (req, res) => {
   } catch (err) {
     logger.error('[REPORT_NOTIFY] send error', { error: err.message });
     res.status(500).json({ error: 'Lỗi khi gửi báo cáo: ' + err.message });
+  }
+});
+
+// ── GET /zalo/users ──────────────────────────────────────────────────────────
+// Lấy danh sách user_id đã tương tác với OA — giúp admin chọn đúng người nhận.
+router.get('/zalo/users', requireAdmin, async (req, res) => {
+  try {
+    const result = await NotificationService.fetchZaloUsers({
+      offset: req.query.offset,
+      count: req.query.count,
+      tagName: req.query.tag_name,
+    });
+
+    if (!result.ok) {
+      return res.status(502).json({
+        success: false,
+        error: result.error || 'Không lấy được danh sách user Zalo',
+        code: result.code,
+      });
+    }
+
+    res.json({
+      success: true,
+      users: result.users,
+      total: result.total,
+    });
+  } catch (err) {
+    logger.error('[REPORT_NOTIFY] zalo users error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi lấy danh sách user Zalo' });
+  }
+});
+
+// ── POST /zalo/refresh-token ────────────────────────────────────────────────
+// Làm mới OA Access Token (access token hết hạn sau 25 giờ).
+router.post('/zalo/refresh-token', requireAdmin, async (req, res) => {
+  try {
+    const result = await NotificationService.refreshZaloToken();
+    if (!result.ok) {
+      return res.status(400).json({ success: false, error: result.error });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    logger.error('[REPORT_NOTIFY] zalo refresh token error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi làm mới token Zalo' });
   }
 });
 

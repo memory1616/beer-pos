@@ -156,6 +156,32 @@
       border: 1px solid var(--border);
       color: var(--text-primary);
     }
+    /* Nút phụ (nhỏ, viền mảnh) — dùng cho hành động phụ như lấy danh sách user */
+    .rn-btn-ghost {
+      width: auto;
+      height: auto;
+      min-height: 34px;
+      margin-top: 0;
+      padding: 7px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .rn-btn-ghost:hover:not(:disabled) {
+      border-color: var(--primary);
+      color: var(--primary);
+      transform: none;
+      box-shadow: none;
+    }
+    .rn-btn-ghost:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
     .rn-btn-row {
       display: flex;
       gap: 10px;
@@ -320,15 +346,38 @@
         zaloFields =
           '<div class="rn-field">' +
             '<label class="rn-label" for="zaloToken">Zalo OA Access Token</label>' +
-            '<div class="rn-hint">Lấy tại <strong>openapi.zalo.me</strong> → OA quản lý → Access Token. Token được lưu trong DB, không nằm trong code/git.</div>' +
+            '<div class="rn-hint">Lấy tại <strong>developers.zalo.me</strong> → OA quản lý → Access Token (hoặc qua OAuth v4). Token được lưu trong DB, không nằm trong code/git.</div>' +
             '<input class="rn-input" id="zaloToken" type="password" autocomplete="off" placeholder="' +
             (c.hasToken.zalo ? '•••••••• (đã lưu — để trống nếu không đổi)' : 'Dán access token') + '">' +
           '</div>' +
           '<div class="rn-field">' +
             '<label class="rn-label" for="zaloUserId">User ID người nhận</label>' +
-            '<div class="rn-hint">Người nhận phải đã nhắn tin cho OA ít nhất 1 lần để tạo user_id.</div>' +
-            '<input class="rn-input" id="zaloUserId" type="text" value="' + esc(c.recipients.zalo) + '" placeholder="VD: 1234567890">' +
-          '</div>';
+            '<div class="rn-hint">Người nhận phải đã nhắn tin hoặc quan tâm OA ít nhất 1 lần để có user_id. Bấm <strong>📋 Lấy danh sách</strong> để tra cứu tự động.</div>' +
+            '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
+              '<input class="rn-input" id="zaloUserId" type="text" value="' + esc(c.recipients.zalo) + '" placeholder="VD: 4572947693969771653" style="flex:1;min-width:220px">' +
+              '<button class="rn-btn rn-btn-ghost" id="zaloFetchUsers" type="button" style="white-space:nowrap">📋 Lấy danh sách</button>' +
+            '</div>' +
+            '<div id="zaloUsersBox" style="margin-top:8px"></div>' +
+          '</div>' +
+          '<details style="margin-top:12px;border:1px solid var(--border);border-radius:8px;padding:10px 12px">' +
+            '<summary style="cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary)">🔑 Nâng cao — OAuth v4 (tự làm mới token)</summary>' +
+            '<div class="rn-hint" style="margin:8px 0">Access token Zalo hết hạn sau <strong>25 giờ</strong>. Nếu có refresh token + app id + secret key, hệ thống sẽ tự làm mới khi gặp lỗi <code>-216</code>.</div>' +
+            '<div class="rn-field">' +
+              '<label class="rn-label" for="zaloAppId">App ID</label>' +
+              '<input class="rn-input" id="zaloAppId" type="text" value="' + esc(c.zaloAppId || '') + '" placeholder="VD: 1234567890">' +
+            '</div>' +
+            '<div class="rn-field">' +
+              '<label class="rn-label" for="zaloSecretKey">Secret Key</label>' +
+              '<input class="rn-input" id="zaloSecretKey" type="password" autocomplete="off" placeholder="' +
+              (c.hasZaloSecret ? '•••••••• (đã lưu)' : 'Secret key của app') + '">' +
+            '</div>' +
+            '<div class="rn-field">' +
+              '<label class="rn-label" for="zaloRefreshToken">Refresh Token</label>' +
+              '<input class="rn-input" id="zaloRefreshToken" type="password" autocomplete="off" placeholder="' +
+              (c.hasZaloRefresh ? '•••••••• (đã lưu)' : 'Refresh token (hết hạn 3 tháng)') + '">' +
+            '</div>' +
+            '<button class="rn-btn rn-btn-ghost" id="zaloRefreshBtn" type="button">♻️ Làm mới token ngay</button>' +
+          '</details>';
       }
 
       var tgFields = '';
@@ -473,6 +522,98 @@
 
       var sendBtn = document.getElementById('rnSend');
       if (sendBtn) sendBtn.addEventListener('click', sendNow);
+
+      var fetchUsersBtn = document.getElementById('zaloFetchUsers');
+      if (fetchUsersBtn) fetchUsersBtn.addEventListener('click', fetchZaloUsers);
+
+      var refreshBtn = document.getElementById('zaloRefreshBtn');
+      if (refreshBtn) refreshBtn.addEventListener('click', refreshZaloTokenNow);
+    }
+
+    // ── Zalo: lấy danh sách user_id từ OA ──────────────────────────────────
+    async function fetchZaloUsers() {
+      var btn = document.getElementById('zaloFetchUsers');
+      var box = document.getElementById('zaloUsersBox');
+      if (!box) return;
+
+      // Cần token → bắt người dùng lưu trước nếu chưa có
+      var tokenInput = document.getElementById('zaloToken');
+      if (tokenInput && tokenInput.value.trim()) {
+        box.innerHTML = '<div class="rn-hint">⏳ Đang lưu token trước khi tra cứu...</div>';
+        try {
+          await api('/api/report-notify/config', {
+            method: 'POST',
+            body: JSON.stringify({ zalo_oa_access_token: tokenInput.value.trim() })
+          });
+          tokenInput.value = '';
+        } catch (e) {
+          box.innerHTML = '<div class="rn-hint" style="color:var(--danger)">✗ Không lưu được token: ' + esc(e.message) + '</div>';
+          return;
+        }
+      }
+
+      if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Đang tải...'; }
+      box.innerHTML = '<div class="rn-hint">⏳ Đang tra cứu danh sách người dùng...</div>';
+
+      try {
+        var res = await api('/api/report-notify/zalo/users?count=50');
+        var users = res.users || [];
+        if (!users.length) {
+          box.innerHTML = '<div class="rn-hint">⚠️ Không có người dùng nào. Yêu cầu người nhận <strong>nhắn tin hoặc quan tâm OA</strong> trước, rồi thử lại.</div>';
+          return;
+        }
+
+        var rows = users.map(function (u) {
+          var id = typeof u === 'string' ? u : (u.user_id || u.display_name || '');
+          return '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px">' +
+            '<code style="word-break:break-all">' + esc(id) + '</code>' +
+            '<button class="rn-btn rn-btn-ghost" type="button" data-pick-user="' + esc(id) + '" style="padding:4px 10px;font-size:12px">Chọn</button>' +
+            '</div>';
+        }).join('');
+
+        box.innerHTML = '<div style="max-height:260px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:8px 12px">' +
+          '<div class="rn-hint" style="margin:0 0 6px 0">Tìm thấy ' + users.length + ' người dùng (tổng ' + (res.total || users.length) + '). Bấm <strong>Chọn</strong> để điền vào ô User ID.</div>' +
+          rows + '</div>';
+
+        box.querySelectorAll('[data-pick-user]').forEach(function (b) {
+          b.addEventListener('click', function () {
+            var input = document.getElementById('zaloUserId');
+            if (input) input.value = b.getAttribute('data-pick-user');
+            box.innerHTML = '<div class="rn-hint" style="color:var(--success)">✓ Đã chọn user_id. Bấm <strong>💾 Lưu cấu hình</strong> để lưu.</div>';
+          });
+        });
+      } catch (e) {
+        box.innerHTML = '<div class="rn-hint" style="color:var(--danger)">✗ ' + esc(e.message) + '</div>';
+      } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = '📋 Lấy danh sách'; }
+      }
+    }
+
+    // ── Zalo: làm mới access token ─────────────────────────────────────────
+    async function refreshZaloTokenNow() {
+      var btn = document.getElementById('zaloRefreshBtn');
+      if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Đang làm mới...'; }
+
+      try {
+        // Lưu app_id / secret / refresh token trước nếu có nhập
+        var extra = {};
+        var appId = document.getElementById('zaloAppId');
+        if (appId) extra.zalo_oa_app_id = appId.value.trim();
+        var secret = document.getElementById('zaloSecretKey');
+        if (secret && secret.value.trim()) extra.zalo_oa_secret_key = secret.value.trim();
+        var refresh = document.getElementById('zaloRefreshToken');
+        if (refresh && refresh.value.trim()) extra.zalo_oa_refresh_token = refresh.value.trim();
+        if (Object.keys(extra).length) {
+          await api('/api/report-notify/config', { method: 'POST', body: JSON.stringify(extra) });
+        }
+
+        await api('/api/report-notify/zalo/refresh-token', { method: 'POST' });
+        setStatus('✓ Đã làm mới Zalo access token', 'ok');
+      } catch (e) {
+        setStatus('✗ ' + e.message, 'err');
+      } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = '♻️ Làm mới token ngay'; }
+      }
     }
 
     function collectPayload() {
@@ -487,6 +628,14 @@
         var tok = document.getElementById('zaloToken');
         if (tok && tok.value.trim()) payload.zalo_oa_access_token = tok.value.trim();
         payload.zalo_report_user_id = document.getElementById('zaloUserId').value.trim();
+
+        // OAuth v4 (nâng cao) — chỉ gửi field có giá trị để không ghi đè
+        var appId = document.getElementById('zaloAppId');
+        if (appId) payload.zalo_oa_app_id = appId.value.trim();
+        var secret = document.getElementById('zaloSecretKey');
+        if (secret && secret.value.trim()) payload.zalo_oa_secret_key = secret.value.trim();
+        var refresh = document.getElementById('zaloRefreshToken');
+        if (refresh && refresh.value.trim()) payload.zalo_oa_refresh_token = refresh.value.trim();
       } else if (ch === 'telegram') {
         var t = document.getElementById('tgToken');
         if (t && t.value.trim()) payload.telegram_bot_token = t.value.trim();

@@ -791,6 +791,30 @@ cron.schedule('* * * * *', async () => {
   timezone: 'Asia/Ho_Chi_Minh',
 });
 
+// ==================== ZALO OA TOKEN REFRESH ====================
+// Zalo OA access token chỉ sống 25 giờ, refresh token sống 3 tháng (dùng 1 lần).
+// Cron refresh mỗi ngày lúc 03:00 để token luôn sẵn sàng cho báo cáo tối.
+// Nếu chưa cấu hình OAuth v4 thì cron bỏ qua (không log cảnh báo mỗi ngày).
+cron.schedule('15 3 * * *', async () => {
+  try {
+    const db = require('./database');
+    const row = db
+      .prepare("SELECT value FROM settings WHERE key = 'zalo_oa_refresh_token'")
+      .get();
+    if (!row || !String(row.value || '').trim()) return; // chưa cấu hình → bỏ qua
+
+    const NotificationService = require('./src/services/NotificationService');
+    const result = await NotificationService.refreshZaloToken();
+    if (!result.ok) {
+      logger.error('[ZALO] Daily token refresh failed', { error: result.error });
+    }
+  } catch (e) {
+    logger.error('Zalo token refresh cron error', { error: e.message });
+  }
+}, {
+  timezone: 'Asia/Ho_Chi_Minh',
+});
+
 // ==================== WEB ROUTES ====================
 
 // Landing page — public domain

@@ -40,10 +40,14 @@ async function fetchWithTimeout(url, options = {}) {
 }
 
 // ── Kênh: Zalo OA ───────────────────────────────────────────────────────────
-// Tài liệu: https://openapi.zalo.me/v2.0/oa/message/cs
+// Tài liệu: https://docs.zaloplatforms.com/docs/OA/tin-nhan/tin-tu-van/gui-tin-tu-van-dang-van-ban
+//
+// ⚠️ API v2.0 ĐÃ BỊ ZALO SHUTDOWN (lỗi -240 "api v2 shutdown").
+//    Endpoint đúng là v3.0 và body phải bọc `recipient.user_id`.
+//
 // Yêu cầu:
-//   - OA Access Token (lấy ở openapi.zalo.me → OA quản lý → Access Token)
-//   - user_id của người nhận (người đã chat với OA để nhận user_id)
+//   - OA Access Token (OAuth v4: https://oauth.zaloapp.com/v4/oa/access_token)
+//   - user_id của người nhận (lấy từ API GET v3.0/oa/user/getlist)
 async function sendZalo({ text }) {
   const accessToken = getSetting('zalo_oa_access_token');
   const userId = getSetting('zalo_report_user_id');
@@ -55,25 +59,48 @@ async function sendZalo({ text }) {
     return { ok: false, code: 0, error: 'Chưa cấu hình user_id người nhận Zalo' };
   }
 
+  const result = await postZaloMessage(accessToken, userId, text);
+
+  // Token hết hạn (sau 25h) → thử refresh 1 lần rồi gửi lại.
+  if (!result.ok && result.code === -216 && getSetting('zalo_oa_refresh_token')) {
+    logger.warn('[ZALO] Access token expired, trying refresh');
+    const refreshed = await refreshZaloToken();
+    if (refreshed.ok && refreshed.accessToken) {
+      return postZaloMessage(refreshed.accessToken, userId, text);
+    }
+    return {
+      ok: false,
+      code: result.code,
+      error: `Token Zalo đã hết hạn và refresh thất bại: ${refreshed.error}`,
+    };
+  }
+
+  return result;
+}
+
+/** Gửi 1 tin nhắn CS (v3.0) với token cho trước. */
+async function postZaloMessage(accessToken, userId, text) {
   try {
-    const res = await fetchWithTimeout('https://openapi.zalo.me/v2.0/oa/message/cs', {
+    const res = await fetchWithTimeout('https://openapi.zalo.me/v3.0/oa/message/cs', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         access_token: accessToken,
       },
       body: JSON.stringify({
-        user_id: String(userId),
-        message: { text: text },
+        // v3.0 yêu cầu object `recipient`, không phải `user_id` ở top-level.
+        recipient: { user_id: String(userId) },
+        message: { text: String(text).slice(0, 2000) }, // giới hạn 2000 ký tự
       }),
     });
 
     const body = await res.json().catch(() => ({}));
 
-    if (!res.ok || body.error) {
+    // Zalo trả HTTP 200 kể cả khi lỗi → phải kiểm tra body.error
+    if (!res.ok || (body.error && body.error !== 0)) {
       const msg =
         body.message || `HTTP ${res.status}${body.error ? ' ' + body.error : ''}`;
-      return { ok: false, code: body.code || res.status, error: msg };
+      return { ok: false, code: body.error || res.status, error: msg };
     }
 
     return { ok: true, code: 0, data: body.data || null };
@@ -156,6 +183,134 @@ async function sendWebhook({ text, title, meta }) {
       ok: false,
       code: 0,
       error: err.name === 'AbortError' ? 'Timeout khi gọi webhook' : err.message,
+    };
+  }
+}
+
+// ── Kênh: Zalo OA — công cụ hỗ trợ (lấy user_id, refresh token) ─────────────
+
+/**
+ * Lấy danh sách user_id đã tương tác/quan tâm với OA.
+ * Endpoint: GET https://openapi.zalo.me/v3.0/oa/user/getlist
+ * Yêu cầu app có quyền "Quản lý thông tin người dùng".
+ *
+ * @param {object} [options]
+ * @param {number} [options.offset=0]
+ * @param {number} [options.count=50] - tối đa 50/request
+ * @param {string} [options.tagName]
+ * @returns {Promise<{ok:boolean, code:number, error?:string, users?:Array, total?:number}>}
+ */
+async function fetchZaloUsers(options = {}) {
+  const accessToken = getSetting('zalo_oa_access_token');
+  if (!accessToken) {
+    return { ok: false, code: 0, error: 'Chưa cấu hình Zalo OA Access Token' };
+  }
+
+  const offset = Math.max(0, parseInt(options.offset) || 0);
+  const count = Math.min(50, Math.max(1, parseInt(options.count) || 50));
+
+  const data = { offset, count };
+  if (options.tagName) data.tag_name = options.tagName;
+
+  try {
+    const res = await fetchWithTimeout(
+      `https://openapi.zalo.me/v3.0/oa/user/getlist?data=${encodeURIComponent(
+        JSON.stringify(data)
+      )}`,
+      { method: 'GET', headers: { access_token: accessToken } }
+    );
+
+    const body = await res.json().catch(() => ({}));
+
+    if (!res.ok || (body.error && body.error !== 0)) {
+      const msg =
+        body.message || `HTTP ${res.status}${body.error ? ' ' + body.error : ''}`;
+      return { ok: false, code: body.error || res.status, error: msg };
+    }
+
+    const users = Array.isArray(body.data?.users) ? body.data.users : [];
+    return {
+      ok: true,
+      code: 0,
+      users,
+      total: body.data?.total || users.length,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      code: 0,
+      error: err.name === 'AbortError' ? 'Timeout khi lấy danh sách user Zalo' : err.message,
+    };
+  }
+}
+
+/**
+ * Làm mới OA Access Token bằng refresh token (OAuth v4).
+ * Endpoint: POST https://oauth.zaloapp.com/v4/oa/access_token
+ * Body (x-www-form-urlencoded): grant_type=refresh_token&refresh_token&app_id
+ * Header: secret_key
+ *
+ * LƯU Ý: refresh token chỉ dùng được 1 lần, sau đó phải lưu refresh token mới.
+ * @returns {Promise<{ok:boolean, error?:string, accessToken?:string, refreshToken?:string}>}
+ */
+async function refreshZaloToken() {
+  const refreshToken = getSetting('zalo_oa_refresh_token');
+  const appId = getSetting('zalo_oa_app_id');
+  const secretKey = getSetting('zalo_oa_secret_key');
+
+  if (!refreshToken || !appId || !secretKey) {
+    return {
+      ok: false,
+      error:
+        'Thiếu cấu hình refresh token. Cần zalo_oa_refresh_token + zalo_oa_app_id + zalo_oa_secret_key',
+    };
+  }
+
+  try {
+    const res = await fetchWithTimeout('https://oauth.zaloapp.com/v4/oa/access_token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        secret_key: secretKey,
+      },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+        app_id: String(appId),
+      }).toString(),
+    });
+
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || body.error) {
+      return {
+        ok: false,
+        error: body.message || `HTTP ${res.status}`,
+      };
+    }
+
+    // Lưu token mới (access token hết hạn sau 25h, refresh token sau 3 tháng)
+    const db = require('../../database');
+    const stmt = db.prepare(
+      'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)'
+    );
+    if (body.access_token) stmt.run('zalo_oa_access_token', String(body.access_token));
+    if (body.refresh_token) {
+      stmt.run('zalo_oa_refresh_token', String(body.refresh_token));
+    }
+
+    logger.info('[ZALO] Refreshed OA access token', {
+      expires_in: body.expires_in || null,
+    });
+
+    return {
+      ok: true,
+      accessToken: body.access_token || null,
+      refreshToken: body.refresh_token || null,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err.name === 'AbortError' ? 'Timeout khi refresh token Zalo' : err.message,
     };
   }
 }
@@ -252,5 +407,7 @@ module.exports = {
   sendVia,
   sendReport,
   getChannelStatus,
+  fetchZaloUsers,
+  refreshZaloToken,
   CHANNELS,
 };
