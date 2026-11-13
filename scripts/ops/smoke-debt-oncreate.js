@@ -162,5 +162,19 @@ function sqlite(sql) {
   process.exit(ok ? 0 : 1);
 })().catch((e) => {
   console.error('❌ Lỗi:', e.message);
+  // Dọn khách test còn sót (trường hợp script lỗi giữa chừng)
+  try {
+    const left = getDb()
+      .prepare("SELECT id FROM customers WHERE name LIKE '__SMOKE_DEBT_%'")
+      .all();
+    for (const c of left) {
+      getDb().prepare('DELETE FROM customers WHERE id = ?').run(c.id);
+    }
+    if (left.length) {
+      console.log(`🧹 Đã dọn ${left.length} khách test còn sót`);
+    }
+  } catch (_) {
+    /* ignore */
+  }
   process.exit(1);
 });
