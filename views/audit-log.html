@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <script>
+  (function () {
+    var k = 'theme';
+    var sys = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    var saved = localStorage.getItem(k);
+    var theme = (saved === 'light' || saved === 'dark') ? saved : sys;
+    document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.classList.remove('light', 'dark');
+    document.documentElement.classList.add(theme);
+  })();
+  </script>
+  <script>window.BASE_PATH = '/';</script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Nhật ký hệ thống</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0B0E11">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="icon" type="image/png" href="/icon-192.png">
+  <link rel="stylesheet" href="/css/unified.css?v=20250718">
+  <script src="/js/auth.js"></script>
+  <script src="/js/dark-mode.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>requireAuth();</script>
+  <style>
+    .al-section {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px;
+      margin-bottom: 16px;
+    }
+    .al-section-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .al-section-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+      line-height: 1.5;
+    }
+    .al-filters {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .al-field label {
+      display: block;
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+      font-weight: 600;
+    }
+    .al-field input, .al-field select {
+      width: 100%;
+      height: 38px;
+      padding: 0 10px;
+      border-radius: 9px;
+      border: 1px solid var(--border);
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      font-size: 13px;
+    }
+    .al-btn {
+      height: 38px;
+      padding: 0 16px;
+      border: none;
+      border-radius: 9px;
+      background: var(--primary);
+      color: #000;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: filter 0.2s;
+    }
+    .al-btn:hover { filter: brightness(1.1); }
+    .al-btn-secondary {
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+    }
+    .al-btn-danger {
+      background: rgba(239, 68, 68, 0.15);
+      color: #ef4444;
+    }
+    .al-btn-sm { height: 32px; padding: 0 12px; font-size: 12px; border-radius: 8px; }
+    .al-btn-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+
+    .al-log {
+      border-bottom: 1px solid var(--border);
+      padding: 12px 0;
+    }
+    .al-log:last-child { border-bottom: none; }
+    .al-log-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 4px;
+    }
+    .al-actor {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+    .al-action {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 6px;
+      background: var(--bg-secondary);
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+    }
+    .al-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: 10px;
+      font-weight: 700;
+    }
+    .al-badge-admin { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+    .al-badge-driver { background: rgba(249, 115, 22, 0.15); color: #f97316; }
+    .al-badge-failed { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+    .al-badge-success { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
+    .al-time {
+      margin-left: auto;
+      font-size: 11px;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+    .al-desc {
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+      word-break: break-word;
+    }
+    .al-meta {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+    .al-changes {
+      margin-top: 8px;
+      padding: 10px 12px;
+      border-radius: 9px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      font-size: 11px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      color: var(--text-secondary);
+      overflow-x: auto;
+    }
+    .al-change-row { padding: 2px 0; }
+    .al-change-key { color: var(--primary); }
+    .al-change-from { color: #ef4444; text-decoration: line-through; opacity: 0.8; }
+    .al-change-to { color: #22c55e; }
+    .al-empty {
+      text-align: center;
+      padding: 32px 16px;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+    .al-stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 10px;
+    }
+    .al-stat-card {
+      padding: 12px;
+      border-radius: 12px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+    }
+    .al-stat-num {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--text-primary);
+      line-height: 1.2;
+    }
+    .al-stat-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+    .al-pager {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding-top: 14px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .al-rank-list { font-size: 12px; color: var(--text-secondary); }
+    .al-rank-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .al-rank-row:last-child { border-bottom: none; }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div class="al-empty">⏳ Đang tải nhật ký...</div>
+</div>
+
+<script>
+  (function () {
+    'use strict';
+
+    var state = {
+      logs: [],
+      total: 0,
+      page: 1,
+      limit: 50,
+      actions: [],
+      stats: null,
+      filters: { actor: '', action: '', entity: '', status: '', from: '', to: '', search: '' },
+      loading: false,
+    };
+
+    // ── Helpers ────────────────────────────────────────────────────────────
+    function esc(s) {
+      return String(s === null || s === undefined ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function fmtDateTime(s) {
+      if (!s) return '—';
+      // created_at là 'YYYY-MM-DD HH:MM:SS' theo giờ server (VN)
+      var m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/);
+      if (m) return m[1] + '-' + m[2] + '-' + m[3] + ' ' + m[4] + ':' + m[5];
+      var d = new Date(s);
+      if (isNaN(d.getTime())) return String(s);
+      return d.toLocaleString('vi-VN');
+    }
+
+    function api(url, options) {
+      var opts = Object.assign({
+        headers: { 'Content-Type': 'application/json' }
+      }, options || {});
+      if (typeof authFetch === 'function') return authFetch(url, opts);
+      return fetch(url, opts).then(function (r) {
+        return r.json().then(function (data) {
+          if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
+          return data;
+        });
+      });
+    }
+
+    function fmtVal(v) {
+      if (v === null || v === undefined) return '∅';
+      if (typeof v === 'object') return JSON.stringify(v);
+      return String(v);
+    }
+
+    /** Chuẩn hoá action để hiển thị tiếng Việt dễ hiểu. */
+    function actionLabel(action) {
+      var map = {
+        login: 'Đăng nhập',
+        login_failed: 'Đăng nhập thất bại',
+        logout: 'Đăng xuất',
+        session_revoked: 'Huỷ phiên',
+        password_changed: 'Đổi mật khẩu',
+        sale_created: 'Tạo đơn bán',
+        sale_updated: 'Sửa đơn bán',
+        sale_deleted: 'Xoá đơn bán',
+        customer_created: 'Thêm khách hàng',
+        customer_updated: 'Sửa khách hàng',
+        customer_deleted: 'Xoá khách hàng',
+        product_created: 'Thêm sản phẩm',
+        product_updated: 'Sửa sản phẩm',
+        product_deleted: 'Xoá sản phẩm',
+        expense_created: 'Thêm chi phí',
+        expense_updated: 'Sửa chi phí',
+        expense_deleted: 'Xoá chi phí',
+        purchase_created: 'Tạo phiếu mua',
+        stock_updated: 'Cập nhật kho',
+        keg_updated: 'Cập nhật vỏ',
+        promotion_updated: 'Sửa khuyến mãi',
+        settings_updated: 'Đổi cấu hình',
+        backup_created: 'Tạo backup',
+        report_sent: 'Gửi báo cáo',
+        user_created: 'Tạo tài khoản',
+        user_updated: 'Sửa tài khoản',
+      };
+      return map[action] || action;
+    }
+
+    // ── Render ─────────────────────────────────────────────────────────────
+    function renderChanges(changes) {
+      if (!changes || typeof changes !== 'object') return '';
+      var keys = Object.keys(changes);
+      if (!keys.length) return '';
+      var rows = keys.map(function (k) {
+        var c = changes[k] || {};
+        return '<div class="al-change-row">' +
+          '<span class="al-change-key">' + esc(k) + '</span>: ' +
+          '<span class="al-change-from">' + esc(fmtVal(c.from)) + '</span> → ' +
+          '<span class="al-change-to">' + esc(fmtVal(c.to)) + '</span>' +
+          '</div>';
+      }).join('');
+      return '<div class="al-changes">' + rows + '</div>';
+    }
+
+    function renderLogs() {
+      if (!state.logs.length) {
+        return '<div class="al-empty">Không có nhật ký nào phù hợp</div>';
+      }
+      return state.logs.map(function (l) {
+        var roleBadge = l.role === 'DRIVER'
+          ? '<span class="al-badge al-badge-driver">Tài xế</span>'
+          : (l.role === 'ADMIN' ? '<span class="al-badge al-badge-admin">Admin</span>' : '');
+        var statusBadge = l.status === 'failed'
+          ? '<span class="al-badge al-badge-failed">Thất bại</span>'
+          : '<span class="al-badge al-badge-success">OK</span>';
+        var meta = [];
+        if (l.entity) meta.push('Loại: ' + l.entity + (l.entityId ? ' #' + l.entityId : ''));
+        if (l.ip) meta.push('IP: ' + l.ip);
+
+        return '<div class="al-log">' +
+          '<div class="al-log-head">' +
+            '<span class="al-actor">' + esc(l.actor || 'hệ thống') + '</span>' +
+            roleBadge +
+            '<span class="al-action">' + esc(actionLabel(l.action)) + '</span>' +
+            statusBadge +
+            '<span class="al-time">' + esc(fmtDateTime(l.createdAt)) + '</span>' +
+          '</div>' +
+          '<div class="al-desc">' + esc(l.description || l.action) + '</div>' +
+          (meta.length ? '<div class="al-meta">' + esc(meta.join(' · ')) + '</div>' : '') +
+          renderChanges(l.changes) +
+          '</div>';
+      }).join('');
+    }
+
+    function renderStats() {
+      if (!state.stats) return '';
+      var s = state.stats;
+      var total = s.byActor.reduce(function (acc, x) { return acc + x.count; }, 0);
+      return '<div class="al-section">' +
+        '<div class="al-section-title">📊 Thống kê ' + esc(s.since) + ' → hôm nay</div>' +
+        '<div class="al-section-desc">Tổng quan hoạt động trong ' +
+          Math.max(1, Math.round((Date.now() - new Date(s.since).getTime()) / 86400000)) + ' ngày gần nhất.</div>' +
+        '<div class="al-stats-grid">' +
+          '<div class="al-stat-card"><div class="al-stat-num">' + total + '</div><div class="al-stat-label">Lượt thao tác</div></div>' +
+          '<div class="al-stat-card"><div class="al-stat-num">' + s.byActor.length + '</div><div class="al-stat-label">Tài khoản hoạt động</div></div>' +
+          '<div class="al-stat-card"><div class="al-stat-num">' + s.failed + '</div><div class="al-stat-label">Thao tác thất bại</div></div>' +
+          '<div class="al-stat-card"><div class="al-stat-num">' + s.byAction.length + '</div><div class="al-stat-label">Loại thao tác</div></div>' +
+        '</div>' +
+        (s.byActor.length ? '<div style="margin-top:14px" class="al-rank-list">' +
+          s.byActor.map(function (a) {
+            return '<div class="al-rank-row"><span>' + esc(a.actor) +
+              (a.role ? ' <span class="al-badge al-badge-' + (a.role === 'ADMIN' ? 'admin' : 'driver') + '">' +
+                (a.role === 'ADMIN' ? 'Admin' : 'Tài xế') + '</span>' : '') +
+              '</span><strong>' + a.count + '</strong></div>';
+          }).join('') + '</div>' : '') +
+        '</div>';
+    }
+
+    function renderFilters() {
+      var actionOptions = state.actions.map(function (a) {
+        return '<option value="' + esc(a) + '">' + esc(actionLabel(a)) + '</option>';
+      }).join('');
+      return '<div class="al-filters">' +
+        '<div class="al-field"><label>Từ ngày</label><input type="date" id="alFrom" value="' + esc(state.filters.from) + '"></div>' +
+        '<div class="al-field"><label>Đến ngày</label><input type="date" id="alTo" value="' + esc(state.filters.to) + '"></div>' +
+        '<div class="al-field"><label>Tài khoản</label><input type="text" id="alActor" placeholder="vd: admin" value="' + esc(state.filters.actor) + '"></div>' +
+        '<div class="al-field"><label>Loại thao tác</label><select id="alAction"><option value="">Tất cả</option>' + actionOptions + '</select></div>' +
+        '<div class="al-field"><label>Trạng thái</label><select id="alStatus">' +
+          '<option value="">Tất cả</option>' +
+          '<option value="success">Thành công</option>' +
+          '<option value="failed">Thất bại</option>' +
+        '</select></div>' +
+        '<div class="al-field"><label>Tìm kiếm</label><input type="text" id="alSearch" placeholder="mô tả, loại, mã…" value="' + esc(state.filters.search) + '"></div>' +
+      '</div>' +
+      '<div class="al-btn-row">' +
+        '<button class="al-btn" id="alApply">🔍 Lọc</button>' +
+        '<button class="al-btn al-btn-secondary" id="alReset">↺ Đặt lại</button>' +
+        '<button class="al-btn al-btn-secondary al-btn-sm" id="alRefresh">⟳ Làm mới</button>' +
+        '<button class="al-btn al-btn-danger al-btn-sm" id="alPurge">🗑 Dọn log cũ</button>' +
+      '</div>';
+    }
+
+    function render() {
+      var totalPages = Math.max(1, Math.ceil(state.total / state.limit));
+      document.getElementById('app').innerHTML =
+        (typeof getHeader === 'function' ? getHeader('Nhật ký hệ thống', '📜') : '') +
+        '<div style="padding:16px">' +
+        '<div class="al-section">' +
+          '<div class="al-section-title">🔎 Tìm kiếm nhật ký</div>' +
+          '<div class="al-section-desc">Ghi lại mọi thao tác quan trọng: ai làm gì, lúc nào, thay đổi gì.</div>' +
+          renderFilters() +
+        '</div>' +
+        renderStats() +
+        '<div class="al-section">' +
+          '<div class="al-section-title">📜 Nhật ký (' + state.total + ' bản ghi)</div>' +
+          '<div id="alList">' + (state.loading ? '<div class="al-empty">⏳ Đang tải...</div>' : renderLogs()) + '</div>' +
+          '<div class="al-pager">' +
+            '<button class="al-btn al-btn-secondary al-btn-sm" id="alPrev"' + (state.page <= 1 ? ' disabled' : '') + '>← Trước</button>' +
+            '<span>Trang ' + state.page + ' / ' + totalPages + '</span>' +
+            '<button class="al-btn al-btn-secondary al-btn-sm" id="alNext"' + (state.page >= totalPages ? ' disabled' : '') + '>Sau →</button>' +
+          '</div>' +
+        '</div>' +
+        '</div>' +
+        (typeof getBottomNav === 'function' ? getBottomNav('/dashboard') : '');
+
+      bindEvents();
+    }
+
+    // ── Events ─────────────────────────────────────────────────────────────
+    function bindEvents() {
+      var apply = document.getElementById('alApply');
+      if (apply) apply.addEventListener('click', function () {
+        state.filters = {
+          actor: (document.getElementById('alActor') || {}).value || '',
+          action: (document.getElementById('alAction') || {}).value || '',
+          status: (document.getElementById('alStatus') || {}).value || '',
+          from: (document.getElementById('alFrom') || {}).value || '',
+          to: (document.getElementById('alTo') || {}).value || '',
+          search: (document.getElementById('alSearch') || {}).value || '',
+        };
+        state.page = 1;
+        load();
+      });
+
+      var reset = document.getElementById('alReset');
+      if (reset) reset.addEventListener('click', function () {
+        state.filters = { actor: '', action: '', entity: '', status: '', from: '', to: '', search: '' };
+        state.page = 1;
+        load();
+      });
+
+      var refresh = document.getElementById('alRefresh');
+      if (refresh) refresh.addEventListener('click', function () { load(); });
+
+      var prev = document.getElementById('alPrev');
+      if (prev) prev.addEventListener('click', function () {
+        if (state.page > 1) { state.page--; load(); }
+      });
+
+      var next = document.getElementById('alNext');
+      if (next) next.addEventListener('click', function () {
+        state.page++; load();
+      });
+
+      var purge = document.getElementById('alPurge');
+      if (purge) purge.addEventListener('click', async function () {
+        if (!window.confirm('Xoá nhật ký cũ hơn 90 ngày? Hành động này không thể hoàn tác.')) return;
+        purge.disabled = true;
+        try {
+          var data = await api('/api/audit-log/purge', {
+            method: 'POST',
+            body: JSON.stringify({ days: 90 })
+          });
+          window.alert('Đã xoá ' + data.deleted + ' bản ghi.');
+          load();
+        } catch (err) {
+          window.alert('✗ ' + err.message);
+        } finally {
+          purge.disabled = false;
+        }
+      });
+    }
+
+    // ── Load ───────────────────────────────────────────────────────────────
+    function buildQuery() {
+      var p = new URLSearchParams();
+      p.set('limit', String(state.limit));
+      p.set('offset', String((state.page - 1) * state.limit));
+      Object.keys(state.filters).forEach(function (k) {
+        var v = state.filters[k];
+        if (v) p.set(k, v);
+      });
+      return p.toString();
+    }
+
+    async function load() {
+      state.loading = true;
+      render();
+      try {
+        var data = await api('/api/audit-log?' + buildQuery());
+        state.logs = data.logs || [];
+        state.total = data.total || 0;
+      } catch (err) {
+        state.logs = [];
+        state.total = 0;
+        document.getElementById('app').innerHTML =
+          '<div class="al-empty">✗ Không tải được nhật ký: ' + esc(err.message) + '</div>';
+        return;
+      } finally {
+        state.loading = false;
+      }
+      render();
+    }
+
+    async function loadMeta() {
+      try {
+        var a = await api('/api/audit-log/actions');
+        state.actions = a.actions || [];
+      } catch (_) { state.actions = []; }
+      try {
+        var s = await api('/api/audit-log/stats?days=7');
+        state.stats = s.stats || null;
+      } catch (_) { state.stats = null; }
+    }
+
+    (async function init() {
+      if (typeof initPage === 'function') { try { await initPage(); } catch (_) {} }
+      await loadMeta();
+      await load();
+    })();
+  })();
+</script>
+</body>
+</html>

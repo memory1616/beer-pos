@@ -85,6 +85,7 @@ const DRIVER_DENIED_PATH_PREFIXES = [
   '/api/admin',       // quản lý tài khoản tài xế (chỉ ADMIN)
   '/api/report-notify', // A4 — cấu hình báo cáo tự động (chỉ ADMIN)
   '/api/sessions',      // A4 — quản lý phiên đăng nhập (chỉ ADMIN)
+  '/api/audit-log',     // A3 — nhật ký hệ thống (chỉ ADMIN)
   // Nghiệp vụ bán hàng / kho / giá — driver dùng bản /api/driver/* (đã scope)
   '/api/sales',
   '/api/orders',
@@ -288,6 +289,7 @@ const ADMIN_ONLY_PAGES = [
   '/walkin-kegs',
   '/report-notify', // A4 — cấu hình báo cáo tự động (chỉ ADMIN)
   '/sessions',      // A4 — quản lý phiên đăng nhập (chỉ ADMIN)
+  '/audit-log',     // A3 — nhật ký hệ thống (chỉ ADMIN)
 ];
 
 function adminPageGuard(req, res, next) {

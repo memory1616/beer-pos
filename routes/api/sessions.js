@@ -19,6 +19,7 @@ const router = express.Router();
 const db = require('../../database');
 const logger = require('../../src/utils/logger');
 const socketServer = require('../../src/socket/socketServer');
+const AuditLogService = require('../../src/services/AuditLogService');
 const { ROLE_ADMIN } = require('../../middleware/permissions');
 
 // ── Chỉ ADMIN ───────────────────────────────────────────────────────────────
@@ -115,6 +116,14 @@ router.post('/:token/revoke', requireAdmin, (req, res) => {
       by: req.user.username,
     });
 
+    // A3: ghi nhật ký huỷ phiên
+    AuditLogService.recordFromRequest(req, AuditLogService.ACTIONS.SESSION_REVOKED, {
+      entity: 'session',
+      entityId: session.username,
+      description: `Admin huỷ phiên của ${session.username} (${session.role})`,
+      changes: { revokedUser: { from: session.username, to: null } },
+    });
+
     res.json({ success: true, username: session.username, socketsDisconnected: sockets });
   } catch (err) {
     logger.error('[sessions] revoke error', { error: err.message });
@@ -148,6 +157,14 @@ router.post('/revoke-all', requireAdmin, (req, res) => {
     }
 
     logger.info('[sessions] revoke-all', { scope, count: rows.length, sockets, by: req.user.username });
+
+    // A3: ghi nhật ký huỷ hàng loạt
+    AuditLogService.recordFromRequest(req, AuditLogService.ACTIONS.SESSION_REVOKED, {
+      entity: 'session',
+      description: `Admin huỷ ${rows.length} phiên (phạm vi: ${scope})`,
+      changes: { scope: { from: null, to: scope }, count: { from: null, to: rows.length } },
+    });
+
     res.json({ success: true, scope, revoked: rows.length, socketsDisconnected: sockets });
   } catch (err) {
     logger.error('[sessions] revoke-all error', { error: err.message });

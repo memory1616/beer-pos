@@ -741,6 +741,22 @@ function runDailyReportNotifyMigration(db) {
   }
 }
 
+// ── Audit Log migration (050) ────────────────────────────────────────────────
+// Nhật ký thao tác: ai làm gì, lúc nào, thay đổi gì.
+// Chạy ĐỘC LẬP, idempotent: CREATE TABLE IF NOT EXISTS + CREATE INDEX IF NOT EXISTS.
+// Rollback an toàn: chỉ gỡ bảng `audit_logs` (không đụng dữ liệu kinh doanh).
+function runAuditLogMigration(db) {
+  try {
+    const migration = require('./migrations/050_audit_log');
+    migration.up(db);
+    log('[AUDIT_LOG] Migration 050 applied');
+    return { success: true };
+  } catch (e) {
+    log(`[AUDIT_LOG] Migration error: ${e.message}`);
+    return { success: false, error: e.message };
+  }
+}
+
 // ── Utility: Generate UUID ─────────────────────────────────────────────────────
 
 function generateUUID() {
@@ -765,6 +781,7 @@ module.exports = {
   runDriverSalaryAdvanceMigration,
   runMissingBusinessTablesMigration,
   runDailyReportNotifyMigration,
+  runAuditLogMigration,
   generateUUID,
   getCurrentVersion,
   setVersion,

@@ -25,6 +25,7 @@ const {
 const { ROLE_DRIVER } = require('../middleware/permissions');
 const logger = require('../src/utils/logger');
 const socketServer = require('../src/socket/socketServer');
+const AuditLogService = require('../src/services/AuditLogService');
 
 // GET /auth/driver — hiển thị form login tài xế
 router.get('/', (req, res) => {
@@ -55,6 +56,14 @@ router.post('/', express.json(), (req, res) => {
 
     if (result && result.role === ROLE_DRIVER) {
       res.cookie(DRIVER_COOKIE_NAME, result.token, driverCookieOptions());
+      // A3: ghi nhật ký đăng nhập tài xế
+      AuditLogService.record({
+        action: AuditLogService.ACTIONS.LOGIN,
+        actorUsername: result.username,
+        actorRole: result.role,
+        description: `Tài xế đăng nhập (${result.fullName || result.username})`,
+        req,
+      });
       res.json({
         success: true,
         token: result.token,
@@ -64,6 +73,15 @@ router.post('/', express.json(), (req, res) => {
         redirect: '/driver',
       });
     } else {
+      // A3: ghi nhận ký đăng nhập thất bại (KHÔNG ghi mật khẩu)
+      AuditLogService.record({
+        action: AuditLogService.ACTIONS.LOGIN_FAILED,
+        actorUsername: username || null,
+        actorRole: ROLE_DRIVER,
+        description: 'Tài xế đăng nhập thất bại — sai tên đăng nhập hoặc mật khẩu',
+        status: 'failed',
+        req,
+      });
       res.status(401).json({
         success: false,
         error: 'Tên đăng nhập hoặc mật khẩu không đúng',
@@ -88,9 +106,24 @@ router.get('/logout', (req, res) => {
   const token = req.cookies?.[DRIVER_COOKIE_NAME] ||
                 req.headers.authorization?.replace('Bearer ', '');
 
+  // A3: lấy thông tin phiên TRƯỚC khi xoá để ghi nhật ký
+  const session = token ? getSession(token) : null;
+
   // A4: ngắt socket của tài xế → thiết bị khác mất phiên ngay lập tức.
   try { socketServer.disconnectToken(token, 'logout'); } catch (_) { /* ignore */ }
   if (token) logout(token);
+
+  // A3: ghi nhật ký đăng xuất tài xế
+  if (session) {
+    AuditLogService.record({
+      action: AuditLogService.ACTIONS.LOGOUT,
+      actorUsername: session.username,
+      actorRole: session.role,
+      description: 'Tài xế đăng xuất',
+      req,
+    });
+  }
+
   res.clearCookie(DRIVER_COOKIE_NAME);
   res.redirect('/auth/driver');
 });

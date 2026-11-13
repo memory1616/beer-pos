@@ -888,6 +888,8 @@ app.get('/qr-settings', (req, res) => sendPageNoCache(req, res, 'qr-settings.htm
 app.get('/report-notify', (req, res) => sendPageNoCache(req, res, 'report-notify.html'));
 // A4 — Quản lý phiên đăng nhập (xem / huỷ phiên từ xa)
 app.get('/sessions', (req, res) => sendPageNoCache(req, res, 'sessions.html'));
+// A3 — Nhật ký hệ thống (ai làm gì, lúc nào)
+app.get('/audit-log', (req, res) => sendPageNoCache(req, res, 'audit-log.html'));
 app.get('/purchases', (req, res) => sendPageNoCache(req, res, 'purchases.html'));
 app.get('/kegs', (req, res) => sendPageNoCache(req, res, 'kegs.html'));
 // /report is handled by routes/report.js (serves full HTML page)
@@ -902,6 +904,13 @@ app.use('/admin', (req, res) => res.redirect(req.path === '/admin' ? '/' : req.p
 // ==================== DRIVER PORTAL API ====================
 // Namespace riêng /api/driver/* — có middleware requireDriver + scope theo tài xế.
 // Được mount TRƯỚC apiGuard để driver guard áp dụng cho các API admin còn lại.
+//
+// A3 — Audit Log: ghi nhật ký tự động cho mọi thao tác MUTATION.
+// Mount TRƯỚC mọi route API (kể cả Driver Portal) để không bỏ sót thao tác
+// của tài xế. Middleware đọc `req.user` trong callback 'finish' (chạy SAU khi
+// requireAuth đã gán) → không cần optionalAuth ở trước.
+app.use('/api', require('./middleware/auditLog'));
+
 app.use('/api/driver', requireAuth, require('./routes/api/driver'));
 // API proxy cho module SALE của Admin — chạy NGUYÊN public/js/sales.js gốc.
 // Shim (public/js/driver/api-shim.js) rewrite /sale/* & /api/sales/* → /api/driver/sale/*.
@@ -945,6 +954,9 @@ app.use('/api/report-notify', require('./routes/api/reportNotify'));
 
 // A4 — Quản lý phiên đăng nhập (xem / huỷ phiên từ xa). requireAdmin trong file.
 app.use('/api/sessions', require('./routes/api/sessions'));
+
+// A3 — Nhật ký thao tác (ai làm gì, lúc nào). requireAdmin trong file.
+app.use('/api/audit-log', require('./routes/api/auditLog'));
 
 // Admin-only APIs — hồ sơ tài xế + lương tháng (mount TRƯỚC /api/admin để
 // các path /api/admin/driver-staff/* được router riêng xử lý trước)

@@ -3,6 +3,7 @@ const router = express.Router();
 const path = require('path');
 const { login, logout, getSession, AUTH_CONFIG, cookieOptions } = require('../middleware/auth');
 const socketServer = require('../src/socket/socketServer');
+const AuditLogService = require('../src/services/AuditLogService');
 
 // GET /login - Hiển thị form login
 router.get('/', (req, res) => {
@@ -31,12 +32,29 @@ router.post('/', express.json(), (req, res) => {
 
   if (result) {
     res.cookie(AUTH_CONFIG.cookieName, result.token, cookieOptions());
+    // A3: ghi nhật ký đăng nhập thành công
+    AuditLogService.record({
+      action: AuditLogService.ACTIONS.LOGIN,
+      actorUsername: result.username,
+      actorRole: result.role,
+      description: `Đăng nhập thành công (${result.role})`,
+      req,
+    });
     res.json({
       success: true,
       token: result.token,
       redirect: '/' // Admin is at root /
     });
   } else {
+    // A3: ghi nhận ký đăng nhập thất bại (KHÔNG ghi mật khẩu)
+    AuditLogService.record({
+      action: AuditLogService.ACTIONS.LOGIN_FAILED,
+      actorUsername: username || null,
+      actorRole: null,
+      description: 'Đăng nhập thất bại — sai tên đăng nhập hoặc mật khẩu',
+      status: 'failed',
+      req,
+    });
     res.status(401).json({
       success: false,
       error: 'Tên đăng nhập hoặc mật khẩu không đúng'
@@ -58,12 +76,27 @@ function handleLogout(req, res) {
                 req.headers.authorization?.replace('Bearer ', '') ||
                 req.query?.token;
 
+  // A3: lấy thông tin phiên TRƯỚC khi xoá để ghi nhật ký
+  const session = token ? getSession(token) : null;
+
   // A4: ngắt mọi socket dùng token này → các thiết bị khác mất phiên ngay.
   try {
     socketServer.disconnectToken(token, 'logout');
   } catch (_) { /* ignore */ }
 
   logout(token);
+
+  // A3: ghi nhật ký đăng xuất
+  if (session) {
+    AuditLogService.record({
+      action: AuditLogService.ACTIONS.LOGOUT,
+      actorUsername: session.username,
+      actorRole: session.role,
+      description: 'Đăng xuất',
+      req,
+    });
+  }
+
   res.clearCookie(AUTH_CONFIG.cookieName);
 }
 

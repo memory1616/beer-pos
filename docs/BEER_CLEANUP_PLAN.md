@@ -760,6 +760,201 @@ Trong lúc verify trên trình duyệt thật, phát hiện 3 vấn đề còn s
 
 #### Việc cần làm tiếp (không chặn deploy)
 
-- **`deploy/DEPLOY.md` và `deploy/AUTO_DEPLOY.md` vẫn ghi IP `103.75.183.57`** — server thật là `103.195.236.38`. Sửa để tránh deploy nhầm máy.
-- **Domain driver `giaohang.` không có `location /socket.io/` riêng** trong nginx — hiện vẫn chạy được nhờ `location /` có `Upgrade`/`Connection` headers, nhưng nên thêm block riêng để nhất quán với domain admin (giống hệt block admin + `proxy_buffering off`).
-- **`NODE_ENV=development` trên production** — nên đổi sang `production`.
+- ~~**`deploy/DEPLOY.md` và `deploy/AUTO_DEPLOY.md` vẫn ghi IP `103.75.183.57`**~~ → ✅ đã sửa thành `103.195.236.38`.
+- ~~**Domain driver `giaohang.` không có `location /socket.io/` riêng**~~ → ✅ đã thêm block riêng (kèm `proxy_buffering off`) + đồng bộ vào `deploy/nginx/beerpos.conf`.
+- ~~**`NODE_ENV=development` trên production**~~ → ✅ đã đổi sang `production` (xem Mục 14.8).
+
+---
+
+## 14.8 — Ops Hardening: NODE_ENV=production + Rate Limit IPv6 + Log Rotation
+
+**Ngày thực hiện:** 2026-11-13 · **Trạng thái:** ✅ hoàn tất trên production
+
+### 14.8.1 — `NODE_ENV=development` → `production`
+
+**Vấn đề:** Server production chạy với `NODE_ENV=development`. Hệ quả:
+
+| Hệ quả | Mức độ |
+|---|---|
+| `AUTH_CONFIG.cookieSecure = false` → cookie phiên đăng nhập gửi qua HTTP (không mã hoá khi truy cập bằng IP) | 🔴 Cao |
+| `errorHandler` trả `err.message` thay vì thông báo chung → lộ chi tiết lỗi nội bộ | 🟠 Trung bình |
+| Winston bật thêm Console transport → ghi log trùng (console + file) | 🟡 Thấp |
+| `express-rate-limit` bỏ qua kiểm tra weak password (chỉ chặn khi `NODE_ENV === 'production'`) | 🟠 Trung bình |
+
+**Thực hiện trên server `beer-server`:**
+
+1. Backup `.env` → `.env.bak.nodeenv.<timestamp>`
+2. Pre-flight check (abort nếu không an toàn):
+   - `SESSION_SECRET` dài ≥ 33 ký tự ✅ (64)
+   - `ADMIN_PASSWORD` không nằm trong danh sách weak ✅ (24 ký tự)
+3. `sed -i 's/^NODE_ENV=.*/NODE_ENV=production/' .env`
+4. `pm2 restart ecosystem.config.js --update-env`
+5. Health check `http://127.0.0.1:3000/health` → 200 (có auto-rollback nếu fail)
+
+**Verify sau khi đổi:**
+
+| Kiểm tra | Kết quả |
+|---|---|
+| `pm2 env` → `NODE_ENV` | ✅ `production` |
+| Cookie phiên sau login | ✅ `session_token=…; HttpOnly; Secure; SameSite=Strict` (trước đây **thiếu `Secure`**) |
+| `GET /api/sessions` bằng cookie | ✅ 200 |
+| `/health` trên cả 4 domain | ✅ 200 |
+| `/sessions`, `/report-notify`, `/login` | ✅ 200 |
+| Socket handshake không token | ✅ vẫn trả `44 UNAUTHORIZED` |
+| Login qua IP `https://103.195.236.38` | ⚠️ **TLS không match** (cert chỉ có SAN domain) — client thật phải dùng domain |
+| Port 3000 từ internet | ✅ **BLOCKED** bởi UFW (chỉ nginx 80/443 được mở) |
+
+> **Ghi chú:** `https://103.195.236.38` dùng cert của `admin.biatuoitayninh.store` → trình duyệt cảnh báo
+> "certificate mismatch". Không ảnh hưởng nghiệp vụ (mọi domain đều có SAN đúng), nhưng
+> **không được dùng IP để đăng nhập**.
+
+### 14.8.2 — Lỗi `express-rate-limit` IPv6 (`ERR_ERL_KEY_GEN_IPV6`)
+
+**Chẩn đoán:** Lỗi trong `beer-pos-error.log` **đã cũ** — lần cuối là `2026-11-08 10:16`, tức là
+**trước** commit fix `b3a3258` (cùng ngày). Fix đã được deploy:
+
+```js
+const { ipKeyGenerator } = require('express-rate-limit');
+// ...
+keyGenerator: (req) => {
+  // ...
+  return 'd:ip:' + ipKeyGenerator(req.ip);   // ← bọc IP bằng helper
+}
+```
+
+**Verify:** `grep -c '2026-11-1[23]' beer-pos-error.log` → **0** (không có lỗi mới sau khi restart với `NODE_ENV=production`).
+
+**Bổ sung hardening:** `app.set('trust proxy', 1)` đã có sẵn → `req.ip` là IP client thật
+(không phải IP của nginx) → rate-limit tính đúng quota theo từng người dùng.
+
+### 14.8.3 — Log rotation (pm2-logrotate)
+
+**Vấn đề:** `pm2-logrotate` **chưa được cài**. `beer-pos-out.log` đã phình lên **3.5 MB** và
+tiếp tục tăng không giới hạn (disk còn 23G trống nên chưa gấp, nhưng là rủi ro dài hạn).
+
+**Thực hiện:**
+
+```bash
+npm install -g pm2-logrotate
+pm2 install pm2-logrotate
+pm2 set pm2-logrotate:max_size 20M
+pm2 set pm2-logrotate:retain 5
+pm2 set pm2-logrotate:compress true
+pm2 save
+```
+
+→ Xoay vòng **mỗi ngày lúc 00:00**, giữ **5 bản**, **nén** (gz). Đã `pm2 save` để sống sót
+sau reboot.
+
+### 14.8.4 — Danh sách kiểm tra bảo mật đã xác nhận
+
+| Hạng mục | Trạng thái |
+|---|---|
+| UFW chỉ mở 22/80/443 | ✅ port 3000 không lộ ra internet |
+| HTTP → HTTPS redirect cho cả 3 domain | ✅ 301 |
+| HSTS trên domain public | ✅ `max-age=31536000; includeSubDomains` |
+| `trust proxy = 1` | ✅ rate-limit theo IP thật |
+| `SESSION_SECRET` mạnh | ✅ 64 ký tự random |
+| `ADMIN_PASSWORD` không yếu | ✅ 24 ký tự |
+
+---
+
+## 15 — A3: Nhật ký kiểm toán (Audit Log)
+
+**Ngày thực hiện:** 2026-11-13 · **Trạng thái:** ✅ triển khai (local) — chờ deploy production
+
+### 15.1 — Vấn đề
+
+Hệ thống không lưu dấu vết ai đã làm gì. Khi có khiếu nại ("tôi không xoá đơn đó", "số liệu
+báo cáo sai", "ai đổi giá?") → không có cách nào trả lời ngoài việc đoán. Đây là rủi ro vận
+hành lớn nhất còn lại sau A4.
+
+### 15.2 — Kiến trúc
+
+| Thành phần | File | Vai trò |
+|---|---|---|
+| Schema | `database/migrations/050_audit_log.js` | Bảng `audit_logs` + 4 index (idempotent) |
+| Migration runner | `database/migration.js` → `runAuditLogMigration()` | Gọi từ `database.js` khi khởi động |
+| Service | `src/services/AuditLogService.js` | Ghi log, diff, lọc, thống kê, dọn dữ liệu |
+| Middleware | `middleware/auditLog.js` | Ghi log **tự động** mọi route MUTATION |
+| API | `routes/api/auditLog.js` | `/api/audit-log` (chỉ ADMIN) |
+| UI | `views/audit-log.html` | Trang `/audit-log` — lọc, phân trang, thống kê |
+
+**Cấu trúc bảng `audit_logs`:**
+
+```
+id, actor_username, actor_role, action, entity, entity_id,
+description, changes, ip_address, user_agent, status, created_at
+```
+
+Index: `created_at DESC`, `actor_username`, `action`, `(entity, entity_id)`.
+
+### 15.3 — Nguyên tắc thiết kế
+
+1. **FAIL-OPEN** — lỗi ghi log **không** được làm hỏng thao tác chính. Mọi lỗi chỉ được
+   log lại qua Winston.
+2. **Không lưu dữ liệu bí mật** — `password`, `token`, `secret`, `*_hash`… bị lọc bỏ ở mọi
+   tầng (`SENSITIVE_FIELDS` + pattern `contains('password'|'token'|'secret')`).
+3. **`changes` chỉ chứa field đã thay đổi** — dạng `{ field: { from, to } }` để admin thấy
+   chính xác "cái gì bị đổi".
+4. **Chỉ ghi MUTATION** — `GET` không tạo giá trị và làm bảng phình to vô ích.
+5. **Ghi tay + ghi tự động** — route quan trọng (login/logout/session revoke) ghi tay;
+   phần còn lại do middleware lo.
+
+### 15.4 — Coverage
+
+| Nhóm | Action |
+|---|---|
+| Đăng nhập / phiên | `login`, `login_failed`, `logout`, `session_revoked` |
+| Người dùng | `user_created`, `user_updated`, `password_changed` |
+| Bán hàng | `sale_created`, `sale_updated`, `sale_deleted`, `payment_created` |
+| Khách hàng / sản phẩm | `customer_*`, `product_*` |
+| Kho / vỏ | `stock_updated`, `keg_updated`, `purchase_created` |
+| Tài chính | `expense_*` |
+| Cấu hình | `settings_updated`, `promotion_updated` |
+| Hệ thống | `backup_created`, `report_sent`, `audit_log_purged` |
+
+**Ghi tay (explicit):** `routes/login.js` (login/logout), `routes/driverAuth.js` (login/logout
+tài xế), `routes/api/sessions.js` (huỷ phiên).
+
+**Ghi tự động (middleware):** mọi `POST/PUT/PATCH/DELETE` dưới `/api/*` — admin API và
+**Driver Portal** (`/api/driver/*`) đều được cover.
+
+**Bỏ qua có chủ đích:** `/api/audit-log` (tự tham chiếu), `/api/sessions`, `/auth`,
+`/api/sync` (tần suất rất cao), `/api/backup`, `/api/report-notify` (đã có log riêng).
+
+### 15.5 — API
+
+| Endpoint | Method | Mô tả |
+|---|---|---|
+| `/api/audit-log` | GET | Danh sách + lọc (`actor`, `action`, `entity`, `entityId`, `status`, `from`, `to`, `search`) + phân trang (`limit`, `offset`/`page`) |
+| `/api/audit-log/stats` | GET | Thống kê N ngày: top actor, top action, số thao tác thất bại |
+| `/api/audit-log/actions` | GET | Danh mục action để đổ vào dropdown |
+| `/api/audit-log/purge` | POST | Xoá log cũ hơn N ngày (mặc định 90) — thao tác này cũng được ghi lại |
+
+**Phân quyền:** chỉ `ROLE_ADMIN`. Driver bị chặn 403 (`ADMIN_ONLY`) ở mọi endpoint, và
+`/api/audit-log` + `/audit-log` nằm trong `DRIVER_DENIED_PATH_PREFIXES` / danh sách chặn trang.
+
+### 15.6 — Kiểm thử
+
+`tests/audit-log.test.js` — **38 test**, tất cả pass:
+
+- Migration: bảng tồn tại, đủ cột, đủ index
+- Service: ghi log, `status=failed`, FAIL-OPEN, lọc field nhạy cảm (kể cả nested),
+  `diffObjects` (chỉ field đổi, bỏ field nhạy cảm, input invalid), list/lọc/phân trang/thứ tự,
+  stats
+- API: 401 chưa đăng nhập, 403 driver, admin đọc được, lọc qua query string,
+  stats/actions, purge (driver bị chặn, admin purge được và được ghi log lại)
+- Middleware: POST → `sale_created`, DELETE → `sale_deleted` + `entity_id`,
+  GET → không ghi, path lạ → không ghi, `resolveEntity`/`resolveAction`/`resolveEntityId`,
+  `SKIP_PATHS`
+
+**Toàn bộ suite:** 20 test suite, **429 test pass**, 0 fail.
+
+### 15.7 — Ghi chú vận hành
+
+- Bảng `audit_logs` chỉ ghi MUTATION → dung lượng rất thấp. Dự kiến ~1–5 MB/năm.
+- Nên chạy `purge` định kỳ (cron hàng tháng) nếu muốn giữ sạch.
+- `user_agent` lưu tối đa 300 ký tự, `description` tối đa 500 ký tự, `changes` tối đa 8 KB.
+- Cân nhắc thêm: ghi log cho thao tác **đọc dữ liệu nhạy cảm** (`/api/analytics`,
+  `/api/state`) — hiện tại chỉ ghi MUTATION.
