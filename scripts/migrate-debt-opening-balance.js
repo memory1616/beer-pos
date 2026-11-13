@@ -36,7 +36,7 @@ function main() {
 
   // Tổng quan trước khi migrate
   const before = {
-    mirrorSum: db.prepare('SELECT COALESCE(SUM(debt),0) s FROM customers WHERE archived = 0').get().s,
+    mirrorSum: db.prepare('SELECT COALESCE(SUM(debt),0) s FROM customers').get().s,
     ledgerSum: DebtLedgerService.computeBalance
       ? db
           .prepare(
@@ -70,7 +70,7 @@ function main() {
   console.log('');
 
   const after = {
-    mirrorSum: db.prepare('SELECT COALESCE(SUM(debt),0) s FROM customers WHERE archived = 0').get().s,
+    mirrorSum: db.prepare('SELECT COALESCE(SUM(debt),0) s FROM customers').get().s,
     ledgerSum: db
       .prepare(
         "SELECT COALESCE(SUM(CASE WHEN direction='INCREASE' THEN amount ELSE -amount END),0) s FROM debt_transactions"
@@ -85,13 +85,13 @@ function main() {
   console.log(`  số bút toán ledger  : ${after.txCount}\n`);
 
   // Kiểm tra toàn vẹn: mirror phải khớp ledger cho từng khách có ledger
+  // (KHÔNG lọc archived — khách archive vẫn phải khớp)
   const mismatches = db
     .prepare(
       `SELECT c.id, c.name, c.debt AS mirror,
               COALESCE(SUM(CASE WHEN dt.direction='INCREASE' THEN dt.amount ELSE -dt.amount END),0) AS ledger
          FROM customers c
          JOIN debt_transactions dt ON dt.customer_id = c.id
-        WHERE c.archived = 0
         GROUP BY c.id
         HAVING ABS(c.debt - ledger) > 0.01`
     )

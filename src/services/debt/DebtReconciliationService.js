@@ -108,7 +108,6 @@ function findMirrorMismatches(limit = 500) {
                                  THEN dt.amount ELSE -dt.amount END), 0) AS ledger_balance
            FROM customers c
            LEFT JOIN debt_transactions dt ON dt.customer_id = c.id
-          WHERE c.archived = 0
           GROUP BY c.id
          HAVING ABS(COALESCE(c.debt, 0) - ledger_balance) > 0.5
           LIMIT ?`

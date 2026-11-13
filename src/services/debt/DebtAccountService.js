@@ -118,12 +118,16 @@ function migrateOpeningBalances(opts = {}) {
   const dryRun = !!opts.dryRun;
 
   // Chỉ migrate khách CHƯA có bất kỳ bút toán nào trong ledger mới.
+  //
+  // ⚠️ KHÔNG lọc `archived = 0`:
+  //   Khách đã archive vẫn có thể còn dư nợ (tiền chưa thu). Bỏ qua họ sẽ
+  //   tạo lệch giữa mirror (`customers.debt`) và ledger → đối soát báo sai.
+  //   Ledger là bản ghi lịch sử: khách archive vẫn phải có bút toán mở đầu.
   const rows = db
     .prepare(
       `SELECT c.id, c.name, c.debt
          FROM customers c
-        WHERE c.archived = 0
-          AND COALESCE(c.debt, 0) != 0
+        WHERE COALESCE(c.debt, 0) != 0
           AND NOT EXISTS (
             SELECT 1 FROM debt_transactions dt WHERE dt.customer_id = c.id
           )
