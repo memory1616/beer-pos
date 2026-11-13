@@ -536,7 +536,7 @@ history secret scan   : SẠCH
 | # | Việc | Ghi chú |
 |---|---|---|
 | R3b | ~~**Smoke test thủ công bằng trình duyệt**~~ | ✅ **Xong** (2026-11-12) — xem §12.9b. Phát hiện & sửa lỗi SW redirect (§12.8b). |
-| R6 | **Lưu mật khẩu admin mới** | ⚠️ Đã đổi lại theo yêu cầu user (2026-11-13 06:45) — giá trị chỉ nằm trong `.env` local + production, **không ghi vào git/docs** để tránh tái lộ. **CẢNH BÁO**: đây là mật khẩu cũ từng bị lộ công khai (repo public); plaintext đã được gỡ khỏi lịch sử git ở vòng filter-repo lần 2, nhưng mật khẩu vẫn yếu — nên đổi sang chuỗi mạnh khi thuận tiện. |
+| R6 | **Lưu mật khẩu admin mới** | ✅ Đã đặt lại mật khẩu mạnh (24 ký tự, `secrets`-random, chỉ gồm `A-Za-z0-9-_.` để an toàn cho `.env`/shell) — **2026-11-13**. Giá trị chỉ nằm trong `.env` local + production, **không ghi vào git/docs** để tránh tái lộ. Mật khẩu cũ (từng lộ công khai) đã bị vô hiệu hóa và plaintext của nó đã được gỡ khỏi lịch sử git ở vòng filter-repo lần 2 (§12.11). |
 | R7 | **Clone lại repo** | Lịch sử đã rewrite → máy khác cần `git clone` mới (không `git pull`). Cảnh báo người dùng khác đang clone. |
 | R8 | **Kiểm tra quota Git LFS / repo size** | Force-push + rewrite không thu hồi được blob cũ trên GitHub ngay lập tức; blob cũ có thể còn trong cache/CDN của GitHub một thời gian. Nên liên hệ GitHub Support nếu cần xoá ngay. |
 
@@ -563,3 +563,16 @@ history secret scan   : SẠCH
 | `scripts/ops/rewrite-history.sh` | Bỏ hardcode secret trong vòng verify; đọc file local; dừng với lỗi rõ ràng nếu thiếu file local |
 | `docs/BEER_CLEANUP_PLAN.md` | Gỡ mọi giá trị secret cụ thể khỏi tài liệu (chỉ giữ nhãn/mô tả) |
 | `.gitignore` | Thêm `secret-fingerprints.local.json`, `secret-replacements.local.txt` |
+
+**Kết quả vòng filter-repo lần 2**
+
+| Kiểm tra | Kết quả |
+|---|---|
+| `git filter-repo` | ✅ 947 commit parse, lịch sử viết lại (SHA mới cho `main`) |
+| `scan-history-secrets.py` (local repo) | ✅ **SẠCH** — 0 path đáng ngờ, 0 private key, 0 giá trị secret, 0 dangling blob |
+| `git log --all -S "<secret>"` | ✅ 0 commit chứa bất kỳ giá trị secret nào |
+| Clone sạch từ GitHub (`D:\Beer-verify-clone`) | ✅ HEAD = `fd13003`; scanner chạy trên clone → **SẠCH** |
+| 3 branch remote (`main`, `cleanup/audit-2026-11-12`, `feature/driver-portal`) | ✅ Không branch nào chứa giá trị secret |
+| 5 tag remote | ✅ Không tag nào chứa giá trị secret |
+| Private key marker trong tag | ✅ **False positive** — `gen_key.js` chỉ chứa header PEM dạng string literal (script sinh key), không phải key thật. File này đã bị xoá khỏi `main`. |
+| Tag `18/03/2026` | ⚠️ Trong lúc push, tag bị dời nhầm về HEAD → đã khôi phục đúng là annotated tag trỏ tới commit `7f2ec58` (khớp `fast-export.original`) |
