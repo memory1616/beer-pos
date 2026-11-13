@@ -59,6 +59,11 @@ _gen_key.bat
 *.key
 *sa-key*.json
 
+# Danh sách secret dùng để quét lịch sử — chỉ tồn tại LOCAL, KHÔNG commit.
+# Commit bản .example.json (chỉ mẫu, không có giá trị thật).
+scripts/ops/secret-fingerprints.local.json
+scripts/ops/secret-replacements.local.txt
+
 # Python / shell debug scripts (kept out of repo)
 /debug_*.py
 /test_*.py

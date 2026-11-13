@@ -473,7 +473,7 @@ Còn lại (production): `better-sqlite3`, `compression`, `cookie-parser`, `dote
 
 | # | Việc | Trạng thái | Chi tiết |
 |---|---|---|---|
-| R1 | **Rotate secret đã lỗi thời** | ✅ Hoàn tất | `ADMIN_PASSWORD` (đã đổi lại → `***REMOVED***` theo yêu cầu user 2026-11-13; bản rotate mạnh trước đó là `FktQYe9SpcVwstoyd-`), `SESSION_SECRET`, `JWT_SECRET`, `GITHUB_WEBHOOK_SECRET` (server + GitHub webhook config). SSH key `cursor_deploy_key` (đã commit) **đã thu hồi** khỏi `authorized_keys`, thay bằng `beer_prod_ed25519` (fingerprint `SHA256:38Djal0+…`). `deploy.sh` sửa để không cài lại key bị lộ. |
+| R1 | **Rotate secret đã lỗi thời** | ✅ Hoàn tất | `ADMIN_PASSWORD` (đã đổi lại theo yêu cầu user 2026-11-13 — xem §12.10 R6), `SESSION_SECRET`, `JWT_SECRET`, `GITHUB_WEBHOOK_SECRET` (server + GitHub webhook config). SSH key `cursor_deploy_key` (đã commit) **đã thu hồi** khỏi `authorized_keys`, thay bằng `beer_prod_ed25519` (fingerprint `SHA256:38Djal0+…`). `deploy.sh` sửa để không cài lại key bị lộ. |
 | R2 | Deploy lên production | ✅ Hoàn tất | Merge `cleanup/audit-2026-11-12` → `main` (merge commit `8cc9849`), push → GitHub webhook auto-deploy. Server HEAD = `aa90d70`. |
 | R3 | Smoke test theo trang (§7.2) | ✅ Tự động | `scripts/smoke-test.js` (local) + `scripts/ops/smoke-prod.sh` (production): **48 route/asset PASS, 0 FAIL**. |
 | R4 | `git filter-repo` lịch sử | ✅ Hoàn tất | Xoá 9 file secret khỏi toàn bộ lịch sử + thay giá trị secret trong file text. Force-push cả 3 branch + 5 tag. `scripts/ops/scan-history-secrets.py` → **SẠCH** (0 path, 0 giá trị, 0 private key). |
@@ -485,7 +485,7 @@ Còn lại (production): `better-sqlite3`, `compression`, `cookie-parser`, `dote
 |---|---|---|
 | `cursor_deploy_key` (đã commit vào repo **public**) vẫn là key root hợp lệ trên production | 🔴 P0 | Sinh `beer_prod_ed25519`, thêm vào `authorized_keys`, xác minh, **xoá key cũ**. Sửa `deploy.sh` (bước 0.5/0.6) để từ chối + thu hồi key bị lộ. Đổi `~/.ssh/config` trỏ sang key mới. |
 | `GITHUB_WEBHOOK_SECRET` nằm trong `deploy/GITHUB_WEBHOOK_SETUP.md` (tracked) | 🔴 Cao | Thay bằng placeholder + hướng dẫn đọc từ server. Rotate trên server **và** GitHub webhook config (qua API). |
-| `ADMIN_PASSWORD` = `***REMOVED***` nằm trong `pass.txt` (lịch sử) + `deploy/.env.production` + 3 script root | 🔴 Cao | Xoá khỏi tất cả file tracked, bỏ hardcode trong script (dùng SSH alias), rotate trên production. |
+| `ADMIN_PASSWORD` (giá trị cũ) nằm trong `pass.txt` (lịch sử) + `deploy/.env.production` + 3 script root | 🔴 Cao | Xoá khỏi tất cả file tracked, bỏ hardcode trong script (dùng SSH alias), rotate trên production. |
 | `SESSION_SECRET` thiếu hoàn toàn trong `.env` production | 🟡 Trung bình | Thêm bằng giá trị random 32 bytes (ecosystem.config.js yêu cầu khi `NODE_ENV=production`). |
 | `JWT_SECRET` = placeholder `CHANGE_THIS_TO_A_RANDOM_SECRET_32_CHARS` | 🟡 Trung bình | Rotate random 32 bytes. |
 | 2 tài khoản debug (`tmp_verify_01`, `prod_verify_452586`) + 1 session orphan trên production | 🟡 Trung bình | Xoá `app_users`, `auth_sessions`, `driver_staff`, `driver_monthly_salary` liên quan. `foreign_key_check` → 0. |
@@ -536,6 +536,30 @@ history secret scan   : SẠCH
 | # | Việc | Ghi chú |
 |---|---|---|
 | R3b | ~~**Smoke test thủ công bằng trình duyệt**~~ | ✅ **Xong** (2026-11-12) — xem §12.9b. Phát hiện & sửa lỗi SW redirect (§12.8b). |
-| R6 | **Lưu mật khẩu admin mới** | ⚠️ Đã đổi lại theo yêu cầu user (2026-11-13 06:45) → `***REMOVED***`. **CẢNH BÁO**: đây chính là mật khẩu cũ đã bị lộ công khai (repo public + còn plaintext trong 4 file tooling ở HEAD) — nên cân nhắc đổi lại sang chuỗi mạnh. |
+| R6 | **Lưu mật khẩu admin mới** | ⚠️ Đã đổi lại theo yêu cầu user (2026-11-13 06:45) — giá trị chỉ nằm trong `.env` local + production, **không ghi vào git/docs** để tránh tái lộ. **CẢNH BÁO**: đây là mật khẩu cũ từng bị lộ công khai (repo public); plaintext đã được gỡ khỏi lịch sử git ở vòng filter-repo lần 2, nhưng mật khẩu vẫn yếu — nên đổi sang chuỗi mạnh khi thuận tiện. |
 | R7 | **Clone lại repo** | Lịch sử đã rewrite → máy khác cần `git clone` mới (không `git pull`). Cảnh báo người dùng khác đang clone. |
 | R8 | **Kiểm tra quota Git LFS / repo size** | Force-push + rewrite không thu hồi được blob cũ trên GitHub ngay lập tức; blob cũ có thể còn trong cache/CDN của GitHub một thời gian. Nên liên hệ GitHub Support nếu cần xoá ngay. |
+
+### 12.11 Vòng dọn lịch sử lần 2 (2026-11-13)
+
+**Vấn đề phát hiện:** vòng filter-repo đầu tiên (2026-11-12) chạy **trước** khi các script tooling được thêm vào repo. Các file đó tự chứa plaintext secret làm "pattern đối chiếu", khiến 4 blob vẫn **reachable** từ refs:
+
+| Blob | Path |
+|---|---|
+| `6011f77e…` | `scripts/ops/rewrite-history.sh` |
+| `6d68c13e…` | `scripts/ops/secret-replacements.txt` |
+| `9977fb9f…` | `scripts/ops/scan-history-secrets.py` |
+| `5164154a…` / `cb615c3e…` | `deploy/deploy_bootstrap_key.pub` (đã untrack nhưng blob còn) |
+
+**Nguyên tắc áp dụng:** mã hoá base64/hex **không phải** bảo mật — ai có file cũng giải mã được, và file đó vẫn nằm trong git history. Vì vậy danh sách secret được đưa **ra khỏi git hoàn toàn**.
+
+| Thay đổi | Chi tiết |
+|---|---|
+| `scripts/ops/scan-history-secrets.py` | Viết lại: đọc danh sách từ file LOCAL `secret-fingerprints.local.json`; **chỉ quét blob reachable** (blob dangling không tính là leak vì đã prune khỏi lịch sử push); thêm mục "chuỗi hình dạng secret" để cảnh báo; tự dòng khi thiếu file local |
+| `scripts/ops/secret-fingerprints.example.json` | Mẫu commit (không chứa giá trị thật) — hướng dẫn tạo file local |
+| `scripts/ops/secret-fingerprints.local.json` | File LOCAL, `.gitignore` — chứa giá trị thật để quét |
+| `scripts/ops/secret-replacements.local.txt` | File LOCAL thay cho `secret-replacements.txt` đã commit |
+| `scripts/ops/secret-replacements.txt` | **Untrack** + xoá khỏi lịch sử (`--path … --invert-paths`) |
+| `scripts/ops/rewrite-history.sh` | Bỏ hardcode secret trong vòng verify; đọc file local; dừng với lỗi rõ ràng nếu thiếu file local |
+| `docs/BEER_CLEANUP_PLAN.md` | Gỡ mọi giá trị secret cụ thể khỏi tài liệu (chỉ giữ nhãn/mô tả) |
+| `.gitignore` | Thêm `secret-fingerprints.local.json`, `secret-replacements.local.txt` |
