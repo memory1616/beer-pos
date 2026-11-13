@@ -861,7 +861,7 @@ sau reboot.
 
 ## 15 — A3: Nhật ký kiểm toán (Audit Log)
 
-**Ngày thực hiện:** 2026-11-13 · **Trạng thái:** ✅ triển khai (local) — chờ deploy production
+**Ngày thực hiện:** 2026-11-13 · **Trạng thái:** ✅ đã deploy & verify trên production
 
 ### 15.1 — Vấn đề
 
@@ -951,7 +951,40 @@ tài xế), `routes/api/sessions.js` (huỷ phiên).
 
 **Toàn bộ suite:** 20 test suite, **429 test pass**, 0 fail.
 
-### 15.7 — Ghi chú vận hành
+### 15.7 — Deploy & verify trên production
+
+**Commit:** `3dbe4e6` → push `origin/main` → auto-deploy webhook (`2026-11-13T01:35:00Z`).
+
+| Kiểm tra | Kết quả |
+|---|---|
+| `git log -1` trên server | ✅ `3dbe4e6 feat(audit): A3 - nhat ky kiem toan (audit log)` |
+| PM2 | ✅ `beer-pos` online, version 2.1.2 |
+| Bảng `audit_logs` | ✅ tồn tại, **12 cột** đúng thiết kế, **4 index** (`created`, `actor`, `action`, `entity`) |
+| `/health` — localhost + 3 domain | ✅ 200 |
+| Trang `/audit-log` | ✅ 200 |
+| `NODE_ENV` sau deploy | ✅ `production` (không bị deploy reset về `development`) |
+| Error log | ✅ **không có lỗi mới** (dòng cuối vẫn là `2026-11-08` — lỗi IPv6 cũ) |
+
+**E2E trên production thật:**
+
+| Tình huống | Kết quả |
+|---|---|
+| Login đúng | ✅ ghi `login` (actor `admin`, role `ADMIN`, IP + user-agent) |
+| Login sai | ✅ ghi `login_failed` (status `failed`) |
+| `GET /api/audit-log` | ✅ trả danh sách + `total` |
+| Lọc `?action=login_failed` | ✅ lọc đúng |
+| `GET /api/audit-log/stats` | ✅ `byActor`, `byAction`, `failed` |
+| `GET /api/audit-log/actions` | ✅ danh mục action |
+| `POST /api/products` (mutation) | ✅ tự động ghi `product_created` (entity `product`, actor `admin`) |
+| Driver gọi `/api/audit-log` (domain admin) | ✅ **403** `DRIVER_FORBIDDEN` |
+| Driver gọi `/api/audit-log` (domain driver) | ✅ **403** `DRIVER_FORBIDDEN` |
+| Driver mở trang `/audit-log` | ✅ **403** |
+| Driver login | ✅ ghi `login` (role `DRIVER`) |
+
+**Dữ liệu test đã dọn sạch trên production:** sản phẩm `A3_E2E_TEST_PRODUCT`, tài khoản
+`a3_e2e_driver`, phiên test và các dòng audit liên quan — tất cả đã xoá.
+
+### 15.8 — Ghi chú vận hành
 
 - Bảng `audit_logs` chỉ ghi MUTATION → dung lượng rất thấp. Dự kiến ~1–5 MB/năm.
 - Nên chạy `purge` định kỳ (cron hàng tháng) nếu muốn giữ sạch.
