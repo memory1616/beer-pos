@@ -23,6 +23,41 @@
 
 > Nếu doanh nghiệp **đã có OA** (tên hiển thị ví dụ `Biáu Tươi Tây Ninh`) thì bỏ qua bước này.
 
+### 1.1 Xác thực domain (nếu Zalo yêu cầu)
+
+Khi đăng ký OA, Zalo có thể yêu cầu **xác thực website** của doanh nghiệp. Zalo
+sẽ cấp cho bạn 1 file HTML, ví dụ `zalo_verifierOCI75BdpBZX6vAbklFOoPcxPv5c2hpy0CZKs.html`,
+và đòi host file này ở **root domain**:
+
+```
+https://<domain-cua-ban>/zalo_verifierOCI75BdpBZX6vAbklFOoPcxPv5c2hpy0CZKs.html
+```
+
+**Cách làm trên Beer POS:**
+
+1. Đặt file vào `public/` (đã có sẵn trong repo cho OA hiện tại):
+   ```
+   public/zalo_verifierOCI75BdpBZX6vAbklFOoPcxPv5c2hpy0CZKs.html
+   ```
+2. Chạy script để nginx serve file trực tiếp trên HTTP (bypass redirect):
+   ```bash
+   cd /var/www/beer-pos
+   python3 scripts/setup-zalo-domain-verification.py zalo_verifierOCI75BdpBZX6vAbklFOoPcxPv5c2hpy0CZKs.html
+   ```
+   Script tự backup config, chạy `nginx -t` và rollback nếu có lỗi.
+
+3. Kiểm tra:
+   ```bash
+   curl -s https://<domain-cua-ban>/zalo_verifierOCI75BdpBZX6vAbklFOoPcxPv5c2hpy0CZKs.html
+   ```
+   Phải trả về nội dung chứa meta tag `zalo-platform-site-verification`.
+
+> **Vì sao cần bước này?** Domain gốc chạy nginx redirect HTTP → HTTPS. Zalo bot
+> đôi khi không follow redirect nên verification sẽ fail. Script thêm
+> `location = /<file>` vào block `listen 80` để serve thẳng từ disk.
+
+### 1.2 Đăng ký OA
+
 1. Truy cập <https://oa.zalo.me>
 2. Chọn **Đăng ký OA** → đăng ký bằng tài khoản Zalo của chủ doanh nghiệp.
 3. Điền thông tin doanh nghiệp:
