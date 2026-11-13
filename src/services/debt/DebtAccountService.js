@@ -155,6 +155,8 @@ function migrateOpeningBalances(opts = {}) {
           row.debt
         ).toLocaleString('vi-VN')}đ) vào sổ công nợ`,
         idempotencyKey: `opening_balance:${row.id}`,
+        // Khách đã archive vẫn có thể còn dư nợ → cho phép ghi bút toán mở đầu
+        allowArchivedCustomer: true,
       });
 
       if (result.success) {
