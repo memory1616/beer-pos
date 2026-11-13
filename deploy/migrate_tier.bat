@@ -1,8 +1,8 @@
-@echo off
+﻿@echo off
 chcp 65001 >nul
 title BeerPOS - Run Migration (Add tier column)
 
-set SSH_HOST=103.75.183.57
+set SSH_HOST=103.195.236.38
 set SSH_USER=root
 set VPS_PATH=/root/beer-pos
 

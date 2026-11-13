@@ -9,8 +9,8 @@
 | Mục | Giá trị |
 |---|---|
 | **GitHub repo** | `your-username/beer-pos` (thay b�ng tên repo thực tế) |
-| **Server public URL** | `http://103.75.183.57:3000` (hoặc domain nếu có HTTPS) |
-| **Webhook endpoint** | `POST http://103.75.183.57:3000/deploy` |
+| **Server public URL** | `http://admin.biatuoitayninh.store` (hoặc domain nếu có HTTPS) |
+| **Webhook endpoint** | `POST http://admin.biatuoitayninh.store/deploy` |
 | **Secret** | `<GITHUB_WEBHOOK_SECRET>` — xem `scripts/gen-secrets.sh` |
 
 ⚠️ **Lưu ý bảo mật**:
@@ -40,7 +40,7 @@
 
 | Field | Value | Ghi chú |
 |---|---|---|
-| **Payload URL** | `http://103.75.183.57:3000/deploy` | Endpoint webhook server |
+| **Payload URL** | `http://admin.biatuoitayninh.store/deploy` | Endpoint webhook server |
 | **Content type** | `application/json` | Mặc định |
 | **Secret** | `<GITHUB_WEBHOOK_SECRET>` | Phải khớp với `GITHUB_WEBHOOK_SECRET` trên server (xem Bước 1) |
 | **SSL verification** | Disable (nếu HTTP) | GitHub yêu cầu HTTPS, nhưng có thể tắt để test |

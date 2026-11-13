@@ -763,6 +763,7 @@ Trong lúc verify trên trình duyệt thật, phát hiện 3 vấn đề còn s
 - ~~**`deploy/DEPLOY.md` và `deploy/AUTO_DEPLOY.md` vẫn ghi IP `103.75.183.57`**~~ → ✅ đã sửa thành `103.195.236.38`.
 - ~~**Domain driver `giaohang.` không có `location /socket.io/` riêng**~~ → ✅ đã thêm block riêng (kèm `proxy_buffering off`) + đồng bộ vào `deploy/nginx/beerpos.conf`.
 - ~~**`NODE_ENV=development` trên production**~~ → ✅ đã đổi sang `production` (xem Mục 14.8).
+- ~~**`.env` production chứa giá trị LOCAL**~~ → ✅ đã sửa (xem Mục 14.9).
 
 ---
 
@@ -856,6 +857,93 @@ sau reboot.
 | `trust proxy = 1` | ✅ rate-limit theo IP thật |
 | `SESSION_SECRET` mạnh | ✅ 64 ký tự random |
 | `ADMIN_PASSWORD` không yếu | ✅ 24 ký tự |
+
+---
+
+## 14.9 — Sửa cấu hình `.env` production bị copy nhầm từ môi trường local
+
+**Ngày phát hiện:** 2026-11-13 (trong lúc pre-check sau A3) · **Trạng thái:** ✅ đã sửa & verify
+
+### 14.9.1 — Vấn đề
+
+File `.env` trên server production chứa **giá trị của môi trường local**:
+
+```
+ADMIN_DOMAIN=localhost          # ← sai, phải là admin.biatuoitayninh.store
+PUBLIC_DOMAIN=localhost         # ← sai
+IS_CLOUD_SERVER=false            # ← sai, server này LÀ cloud server
+CLOUD_MODE=false                # ← sai
+CLOUD_DOMAIN=http://localhost:3000   # ← sai
+DISTRIBUTOR_NAME=BeerPOS Local  # ← sai, phải là "Bia Tươi Tây Ninh"
+```
+
+**Hậu quả cụ thể:**
+
+| Hệ quả | Mức độ |
+|---|---|
+| `/api/discover` trả `url`/`domain` = `http://localhost:3000` → client đồng bộ tưởng mình đang kết nối chính nó, **đồng bộ cloud hỏng** | 🔴 Cao |
+| `IS_CLOUD_SERVER=false` → không ghi `device_last_seen_*` vào `sync_meta` → **mất toàn bộ dấu vết thiết bị** đã kết nối | 🔴 Cao |
+| `appMode` dựa vào `ADMIN_DOMAIN`/`PUBLIC_DOMAIN` sai → dựa hoàn toàn vào fallback (`host.startsWith('admin.')`, header `X-App-Mode`) mới chạy đúng — **may mắn, không ổn định** | 🟠 Trung bình |
+| Tên hiển thị trên landing/discover là "BeerPOS Local" thay vì "Bia Tươi Tây Ninh" | 🟡 Thấp |
+
+> **Ghi nhận:** `appMode` vẫn trả đúng trước khi sửa nhờ các fallback trong
+> `src/utils/appMode.js` (`host.startsWith('admin.')`, `host.startsWith('giaohang.')`,
+> header `X-App-Mode` từ nginx). Nếu thiếu header nginx, domain admin có thể bị
+> phân loại sai → chỉ là may mắn, không phải thiết kế đúng.
+
+### 14.9.2 — Sửa
+
+Backup `.env` → `.env.bak.cfg.<timestamp>`, sửa 7 khoá, `pm2 restart --update-env`,
+health check 200 (có auto-rollback nếu fail).
+
+| Khoá | Giá trị cũ | Giá trị mới |
+|---|---|---|
+| `ADMIN_DOMAIN` | `localhost` | `admin.biatuoitayninh.store` |
+| `PUBLIC_DOMAIN` | `localhost` | `biatuoitayninh.store` |
+| `DRIVER_DOMAIN` | *(thiếu)* | `giaohang.biatuoitayninh.store` |
+| `CLOUD_DOMAIN` | `http://localhost:3000` | `https://admin.biatuoitayninh.store` |
+| `IS_CLOUD_SERVER` | `false` | `true` |
+| `CLOUD_MODE` | `false` | `true` |
+| `DISTRIBUTOR_NAME` | `BeerPOS Local` | `Bia Tươi Tây Ninh` |
+
+**`/api/discover` sau khi sửa:**
+
+```json
+{"cloud":true,"name":"Bia Tươi Tây Ninh","lanIPs":["103.195.236.38"],
+ "url":"https://admin.biatuoitayninh.store",
+ "domain":"https://admin.biatuoitayninh.store","isCloudServer":true}
+```
+
+### 14.9.3 — Verify sau khi sửa
+
+| Kiểm tra | Kết quả |
+|---|---|
+| `/health` localhost + 3 domain | ✅ 200 |
+| Trang `/`, `/driver`, `/auth/driver`, `/audit-log`, `/sessions` | ✅ 200 |
+| `appMode` — `/driver` trên domain admin | ✅ 302 → `/` (đúng, admin không mở Driver Portal) |
+| `appMode` — `/driver` trên domain driver | ✅ 200 (đúng) |
+| Socket handshake không token | ✅ `44 UNAUTHORIZED` |
+| Login admin → `/api/audit-log`, `/api/sessions` | ✅ 200 |
+| Driver → `/api/audit-log`, `/api/sessions`, `/api/analytics`, `/api/report-notify/config` (**cả 2 domain**) | ✅ **403** `DRIVER_FORBIDDEN` |
+| Driver → trang `/audit-log`, `/sessions`, `/report-notify` | ✅ **403** |
+| Driver → `/api/driver/me` | ✅ 200 (API riêng vẫn dùng được) |
+| Error log | ✅ không có lỗi mới |
+
+### 14.9.4 — Phòng ngừa tái phát
+
+- `deploy/.env.production` đã cập nhật đúng giá trị production + thêm cảnh báo đầu
+  file về việc **không được copy `.env` từ máy local**.
+- Bổ sung `SESSION_SECRET` + `DRIVER_DOMAIN` vào file mẫu (trước đây thiếu).
+- `deploy/GITHUB_WEBHOOK_SETUP.md` + `deploy/migrate_tier.bat`: đổi IP cũ
+  `103.75.183.57` → `103.195.236.38` / domain thật.
+
+### 14.9.5 — Ghi chú
+
+- `GET /api/sales` **không token** trả 200 — đây là hành vi **có sẵn**, không phải hậu quả
+  của việc sửa env: `apiGuard` chỉ chặn role `DRIVER`, request không đăng nhập đi qua
+  (ghi rõ trong comment của `middleware/permissions.js`). Đánh giá lại nếu muốn siết.
+- `/api/report-notify` (không có sub-path) trả 404 — đúng thiết kế, router chỉ có
+  `/config`, `/preview`, `/send`, `/history`.
 
 ---
 
