@@ -8,6 +8,7 @@ const { updateCustomerKegBalance } = require('./payments');
 const { deleteSaleRestoringInventory } = require('../../src/services/saleDelete');
 const socketServer = require('../../src/socket/socketServer');
 const PushService = require('../../src/services/PushService');
+const DebtOnCreateService = require('../../src/services/debt/DebtOnCreateService');
 
 // ========== HELPER: Resolve product by id (numeric) or slug ==========
 function resolveProduct(query) {
@@ -296,25 +297,32 @@ router.post('/', async (req, res) => {
     }
 
     // ========== MAX DEBT CHECK ==========
-    if (debt && customerId) {
-      const maxDebtSetting = db.prepare("SELECT value FROM settings WHERE key = 'max_debt_per_customer'").get();
-      const maxDebt = maxDebtSetting ? parseFloat(maxDebtSetting.value) : 5000000;
+    // Mô hình mới: mọi đơn có khách đều tính nợ (ghi khi TẠO đơn).
+    // Hạn mức công nợ chỉ CẢNH BÁO trừ khi bật `debt_max_limit_enabled=1`
+    // (mặc định TẮT → không chặn bán hàng).
+    let debtLimitWarning = null;
+    if (customerId && total > 0) {
+      const limitEnabled = DebtOnCreateService.isMaxLimitEnabled();
+      const maxDebt = DebtOnCreateService.getMaxDebt();
 
       const customer = db.prepare('SELECT debt FROM customers WHERE id = ?').get(customerId);
       const currentDebt = customer ? (customer.debt || 0) : 0;
       const newTotalDebt = currentDebt + total;
 
       if (newTotalDebt > maxDebt) {
-        return res.status(400).json({
-          error: `Vượt hạn mức công nợ!`,
-          details: {
-            currentDebt,
-            orderTotal: total,
-            newTotalDebt,
-            maxDebt,
-            limitExceeded: true
-          }
-        });
+        debtLimitWarning = {
+          currentDebt,
+          orderTotal: total,
+          newTotalDebt,
+          maxDebt,
+          limitExceeded: true,
+        };
+        if (limitEnabled) {
+          return res.status(400).json({
+            error: `Vượt hạn mức công nợ!`,
+            details: debtLimitWarning,
+          });
+        }
       }
     }
 
@@ -514,27 +522,45 @@ router.post('/', async (req, res) => {
 
     if (!saleId) throw new Error('Sale creation returned null');
 
-    // ── Đơn BÁN CHỊU: chỉ đánh dấu, CHƯA ghi công nợ ────────────────
-    // Theo nghiệp vụ mới: công nợ CHỈ phát sinh khi đơn chuyển sang
-    // DELIVERED (xem DebtOrderIntegration.onDeliveryStatusChanged).
-    // Lúc TẠO đơn chỉ:
-    //   1. đánh dấu `sales.is_credit = 1` (dấu hiệu bền vững)
-    //   2. tạo dòng chiếu `order_debts` (để UI cũ/driver portal hiển thị)
-    // KHÔNG ghi bút toán ledger ở bước này.
+    // ── SỔ CÔNG NỢ: ghi nợ NGAY khi tạo đơn ──────────────────────────
+    // Mô hình nghiệp vụ mới (2026-11-13):
+    //   Khách có đơn trong ngày = ĐANG NỢ, cho tới khi nhập thanh toán.
+    //   → Mọi đơn có khách đều ghi bút toán ORDER_DEBT tại thời điểm tạo.
+    //   → Bút toán gắn `idempotency_key = order_debt:sale:<saleId>` nên
+    //     mỗi đơn CHỈ CÓ 1 bút toán (an toàn khi retry / webhook lặp).
+    //   → Đơn cũ (trước khi bật) KHÔNG bị backfill — chỉ đơn mới tính nợ.
+    //
+    // Vẫn đánh dấu `sales.is_credit = 1` để đối soát & UI cũ nhận biết
+    // đơn này đã ghi vào sổ công nợ.
     let debtResult = null;
-    if (debt && customerId && total > 0) {
+    if (customerId && total > 0) {
       try {
         db.prepare('UPDATE sales SET is_credit = 1 WHERE id = ?').run(saleId);
-        const proj = db.prepare('SELECT id FROM order_debts WHERE sale_id = ?').get(saleId);
-        if (!proj) {
-          db.prepare(
-            `INSERT INTO order_debts (sale_id, customer_id, original_amount, paid_amount, remaining_amount, status)
-             VALUES (?, ?, ?, 0, ?, 'pending')`
-          ).run(saleId, customerId, total, total);
-        }
-        debtResult = { success: true, newDebt: null, marked: true };
       } catch (debtMarkErr) {
         console.error('[SALE DEBT] Mark credit sale error:', debtMarkErr.message);
+      }
+
+      debtResult = DebtOnCreateService.recordOrderDebtSafely({
+        saleId,
+        customerId,
+        amount: total,
+        actor: (req.user && req.user.username) || 'system',
+      });
+
+      if (!debtResult || !debtResult.success) {
+        console.error(
+          '[SALE DEBT] Ghi nợ thất bại:',
+          debtResult && debtResult.error ? debtResult.error : 'unknown'
+        );
+      } else if (debtResult.skipped) {
+        console.log('[SALE DEBT] Bỏ qua ghi nợ:', debtResult.reason);
+      } else {
+        console.log(
+          '[SALE DEBT] Đã ghi nợ:',
+          debtResult.transactionId,
+          'số dư mới =',
+          debtResult.balanceAfter
+        );
       }
     }
 
@@ -632,8 +658,10 @@ router.post('/', async (req, res) => {
       id: saleId,
       total,
       profit,
-      debtCreated: debtResult?.success,
-      newDebt: debtResult?.newDebt,
+      debtCreated: debtResult?.success && !debtResult?.skipped,
+      newDebt: debtResult?.balanceAfter ?? null,
+      debtSkipped: debtResult?.skipped ? debtResult.reason : null,
+      debtLimitWarning,
       promo: promoInfo,
       autoReward: autoRewardResult
     });

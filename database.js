@@ -1052,6 +1052,18 @@ try {
   // Setting may already exist
 }
 
+// ── Sổ công nợ: ghi nợ NGAY khi tạo đơn (mô hình 2026-11-13) ────────────────
+// `debt_record_on_create` = '1' → mọi đơn có khách đều phát sinh công nợ khi
+//   TẠO đơn (không đợi giao xong). Bạn nhập thanh toán khi đã nhận tiền.
+// `debt_max_limit_enabled` = '0' → hạn mức công nợ chỉ CẢNH BÁO, không chặn
+//   bán hàng. Đặt '1' nếu muốn chặn khi vượt `max_debt_per_customer`.
+try {
+  db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('debt_record_on_create', '1');
+  db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('debt_max_limit_enabled', '0');
+} catch (e) {
+  // Setting may already exist
+}
+
 // Keg Stats table - Centralized keg state management
 db.exec(`
   CREATE TABLE IF NOT EXISTS keg_stats (

@@ -110,7 +110,11 @@ function computeAmountOwed(saleId, customerId) {
       )
       .get(saleId)?.total || 0;
 
-  // Đã hoàn / đảo gắn với đơn này
+  // Đã hoàn / đảo gắn với đơn này.
+  // ⚠️ CHỈ tính REVERSAL — KHÔNG tính ADJUSTMENT.
+  //    ADJUSTMENT là bút toán điều chỉnh để bù lại chênh lệch của chính bút
+  //    toán ORDER_DEBT, nếu trừ thêm vào đây thì sửa đơn 2 lần sẽ tính sai
+  //    (lệch kép). Công thức đúng: amountOwed = total_gross - total_paid.
   const refunded =
     db
       .prepare(
@@ -118,7 +122,7 @@ function computeAmountOwed(saleId, customerId) {
            FROM debt_transactions
           WHERE customer_id = ? AND reference_type = 'ORDER' AND reference_id = ?
             AND direction = 'DECREASE'
-            AND transaction_type IN ('REVERSAL','ADJUSTMENT')`
+            AND transaction_type = 'REVERSAL'`
       )
       .get(customerId, String(saleId))?.total || 0;
 
@@ -388,6 +392,31 @@ function onDeliveryStatusChanged(params = {}) {
 }
 
 /**
+ * Số dư công nợ HIỆN TẠI của 1 đơn trong ledger.
+ * = ORDER_DEBT gốc + các bút toán ADJUSTMENT đã tạo cho đơn (có dấu).
+ *
+ * ⚠️ Không dùng `original.amount` một mình: sau khi sửa đơn 1 lần, đã có
+ *    bút toán ADJUSTMENT. Nếu so sánh với `original.amount` thì mỗi lần sửa
+ *    sau đều tính lệch (diff bị nhân đôi).
+ *
+ * @param {number} saleId
+ * @returns {number}
+ */
+function getOrderDebtBalance(saleId) {
+  const row = db
+    .prepare(
+      `SELECT COALESCE(
+                SUM(CASE WHEN direction = 'INCREASE' THEN amount ELSE -amount END), 0
+              ) AS balance
+         FROM debt_transactions
+        WHERE reference_type = 'ORDER' AND reference_id = ?
+          AND transaction_type IN ('ORDER_DEBT', 'ADJUSTMENT')`
+    )
+    .get(String(saleId));
+  return row ? row.balance || 0 : 0;
+}
+
+/**
  * Đơn hàng thay đổi SAU khi đã ghi công nợ (sửa tổng, trả hàng) →
  * tạo bút toán ADJUSTMENT (không xoá bút toán gốc).
  *
@@ -408,7 +437,12 @@ function adjustOrderDebtAfterChange(saleId, opts = {}) {
   }
 
   const owed = computeAmountOwed(id, sale.customer_id);
-  const currentAmount = original.amount;
+  // Số dư công nợ HIỆN TẠI của đơn:
+  //   = (ORDER_DEBT gốc + các ADJUSTMENT đã tạo) - (số tiền khách đã trả cho đơn này)
+  // Dùng `getOrderDebtBalance` thay vì `original.amount` để:
+  //   - Không nhân đôi chênh lệch khi sửa đơn nhiều lần
+  //   - Tính đúng khi khách đã thanh toán một phần trước khi sửa đơn
+  const currentAmount = getOrderDebtBalance(id) - owed.totalPaid;
   const diff = owed.amountOwed - currentAmount;
 
   if (Math.abs(diff) < 0.01) {
@@ -432,6 +466,24 @@ function adjustOrderDebtAfterChange(saleId, opts = {}) {
 
   if (!result.success) return { success: false, error: result.error };
 
+  // Đồng bộ bảng chiếu `order_debts` (UI cũ / driver portal)
+  try {
+    const proj = db.prepare('SELECT * FROM order_debts WHERE sale_id = ?').get(id);
+    if (proj) {
+      const newRemaining = Math.max(0, owed.amountOwed);
+      const status = newRemaining <= 0 ? 'paid' : 'partial';
+      db.prepare(
+        `UPDATE order_debts
+            SET original_amount = ?, remaining_amount = ?, status = ?,
+                updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?`
+      ).run(owed.totalGross, newRemaining, status, proj.id);
+      db.prepare('UPDATE sales SET payment_status = ? WHERE id = ?').run(status, id);
+    }
+  } catch (e) {
+    logger.error('[DEBT_ORDER] adjust projection error', { saleId: id, error: e.message });
+  }
+
   return {
     success: true,
     skipped: false,
@@ -444,7 +496,18 @@ function adjustOrderDebtAfterChange(saleId, opts = {}) {
 
 /**
  * Đơn hàng bị HỦY / XOÁ sau khi đã ghi công nợ →
- * tạo bút toán REVERSAL (giữ nguyên bút toán gốc).
+ * đảo TOÀN BỘ các bút toán gắn với đơn (giữ nguyên bút toán gốc).
+ *
+ * ⚠️ Phải đảo TẤT CẢ bút toán của đơn, không chỉ bút toán ORDER_DEBT gốc:
+ *   - `ORDER_DEBT` (nợ gốc)
+ *   - `ADJUSTMENT` (điều chỉnh khi sửa đơn)
+ *   - `PAYMENT` (khách đã trả cho đơn này → phải trả lại tiền khách)
+ *
+ *   Nếu chỉ đảo ORDER_DEBT mà bỏ qua PAYMENT thì số dư sẽ ÂM
+ *   (đã thu tiền khách nhưng vẫn giữ nợ) → ledger chặn ghi âm → lỗi.
+ *
+ * @param {number} saleId
+ * @param {object} opts { actor, reason, force }
  */
 function reverseOrderDebt(saleId, opts = {}) {
   const id = parseInt(saleId, 10);
@@ -467,21 +530,63 @@ function reverseOrderDebt(saleId, opts = {}) {
     return { success: true, skipped: true, reason: 'Đơn đã được đảo công nợ trước đó' };
   }
 
-  const result = DebtLedgerService.reverseTransaction(original.id, {
-    createdBy: opts.actor || 'system',
-    source: opts.source || SOURCES.POS,
-    reason: opts.reason || `Huỷ đơn hàng #${id}, hoàn công nợ`,
-  });
+  // Đảo TẤT CẢ bút toán gắn với đơn (chưa bị đảo)
+  // ⚠️ THỨ TỰ QUAN TRỌNG: đảo bút toán GIẢM (PAYMENT) trước, rồi mới đảo bút
+  //    toán TĂNG (ORDER_DEBT / ADJUSTMENT). Nếu đảo nợ gốc trước thì số dư
+  //    tạm thời âm (đã thu tiền khách nhưng vẫn giữ nợ) → ledger chặn ghi âm.
+  const txToReverse = db
+    .prepare(
+      `SELECT id, amount, transaction_type, direction FROM debt_transactions
+        WHERE reference_type = 'ORDER' AND reference_id = ?
+          AND transaction_type IN ('ORDER_DEBT', 'ADJUSTMENT', 'PAYMENT')
+        ORDER BY CASE WHEN direction = 'DECREASE' THEN 0 ELSE 1 END, id ASC`
+    )
+    .all(String(id));
 
-  if (!result.success) return { success: false, error: result.error };
+  if (txToReverse.length === 0) {
+    return { success: true, skipped: true, reason: 'Đơn không có bút toán nào để đảo' };
+  }
+
+  let totalReversed = 0;
+  let lastResult = null;
+  for (const tx of txToReverse) {
+    const result = DebtLedgerService.reverseTransaction(tx.id, {
+      createdBy: opts.actor || 'system',
+      source: opts.source || SOURCES.POS,
+      reason:
+        opts.reason ||
+        `Huỷ đơn hàng #${id}, hoàn công nợ (${tx.transaction_type})`,
+    });
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error,
+        reversedCount: totalReversed,
+        refundedAmount: totalReversed,
+      };
+    }
+    totalReversed += tx.amount;
+    lastResult = result;
+  }
+
+  // Đánh dấu bảng chiếu (KHÔNG xoá vật lý — giữ dấu vết)
+  try {
+    db.prepare(
+      "UPDATE order_debts SET status = 'cancelled', remaining_amount = 0, updated_at = CURRENT_TIMESTAMP WHERE sale_id = ?"
+    ).run(id);
+    db.prepare("UPDATE sales SET payment_status = 'cancelled' WHERE id = ?").run(id);
+  } catch (e) {
+    logger.error('[DEBT_ORDER] reverse projection error', { saleId: id, error: e.message });
+  }
 
   return {
     success: true,
     skipped: false,
-    transactionId: result.transactionId,
+    transactionId: lastResult ? lastResult.transactionId : null,
     originalTransactionId: original.id,
-    refundedAmount: original.amount,
-    balanceAfter: result.balanceAfter,
+    reversedCount: txToReverse.length,
+    refundedAmount: totalReversed,
+    balanceAfter: lastResult ? lastResult.balanceAfter : null,
   };
 }
 
@@ -537,6 +642,7 @@ module.exports = {
   getSale,
   computeAmountOwed,
   findActiveOrderDebt,
+  getOrderDebtBalance,
   isCreditSale,
   recordOrderDebtOnDelivered,
   onDeliveryStatusChanged,

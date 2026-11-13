@@ -126,6 +126,7 @@ Tin nhắn (Zalo | UI Quick Entry)
 | `src/services/debt/DebtLedgerService.js` | **Sổ cái append-only** — ghi/đảo/điều chỉnh, tính balance & breakdown, idempotency, sync mirror |
 | `src/services/debt/DebtAccountService.js` | Tài khoản công nợ (1/khách), công nợ đầu kỳ, migrate số dư cũ (idempotent) |
 | `src/services/debt/DebtOrderIntegration.js` | Hook vòng đời đơn hàng, `computeAmountOwed`, đảo nợ khi huỷ đơn, tìm đơn thiếu bút toán |
+| `src/services/debt/DebtOnCreateService.js` | **Ghi nợ NGAY khi tạo đơn** (mô hình 2026-11-13) — idempotent, cảnh báo hạn mức |
 | `src/services/debt/DebtPermissionService.js` | RBAC: `ADMIN` / `STAFF` / `DRIVER` / `CUSTOMER`, ma trận hành động, phân công khách |
 | `src/services/debt/DebtCommandService.js` | Parser `+`/`-`, xử lý message, chống trùng, sinh phản hồi Zalo |
 | `src/services/debt/DebtPaymentService.js` | Ghi nhận thanh toán (chặn vượt số dư), audit log |
@@ -153,7 +154,7 @@ Tin nhắn (Zalo | UI Quick Entry)
 | `src/services/DebtService.js` | Viết lại thành **facade** trên `DebtLedgerService` (hợp đồng API giữ nguyên 100%) |
 | `src/services/DeliveryService.js` | Hook `DebtOrderIntegration.onDeliveryStatusChanged` khi chuyển `DELIVERED` |
 | `src/services/DailyReportService.js` | Truy vấn báo cáo ngày khớp schema `debt_transactions` mới |
-| `routes/api/sales.js` | Set `sales.is_credit = 1` lúc tạo đơn; sửa/xoá đơn dùng ledger ADJUSTMENT/REVERSAL |
+| `routes/api/sales.js` | Set `sales.is_credit = 1` + ghi nợ qua `DebtOnCreateService` lúc tạo đơn; sửa/xoá đơn dùng ledger ADJUSTMENT/REVERSAL |
 | `database/migration.js`, `database.js` | Đăng ký migration 053 & 054 |
 | `src/services/debt/DebtCommandService.js` | Hỗ trợ `message.source` (ghi đè nguồn `ZALO` → `MANUAL_UI` cho UI) |
 
@@ -186,7 +187,7 @@ debt_bridge_events      Nhật ký adapter (platform, message_id UNIQUE)
 
 ```
 Balance = Opening Balance
-        + ORDER_DEBT          (nợ tự động từ đơn hàng DELIVERED)
+        + ORDER_DEBT          (nợ tự động từ đơn hàng — TẠO ĐƠN hoặc khi DELIVERED)
         + MANUAL_DEBT         (nợ tay từ lệnh `-`)
         - PAYMENT             (tiền khách trả: lệnh `+` hoặc nhập tay)
         + ADJUSTMENT          (điều chỉnh có audit log)
@@ -207,6 +208,41 @@ amount_owed    = MAX(0, total_gross − total_paid − total_refunded)
 > ❌ **KHÔNG** mặc định lấy tổng đơn khi khách đã trả trước / trả một phần / trả đủ.
 
 ### 5.3. Điều kiện ghi công nợ
+
+> ⚠️ **MÔ HÌNH ĐỔI NGÀY 2026-11-13**: công nợ phát sinh **NGAY KHI TẠO ĐƠN**,
+> không đợi giao hàng xong. Xem mục 5.3b bên dưới.
+
+#### 5.3b. Mô hình hiện hành — ghi nợ khi TẠO ĐƠN
+
+**Nguyên tắc**: Khách có đơn trong ngày = **đang nợ**, cho tới khi bạn nhập
+"đã thanh toán" sau khi nhận được tiền.
+
+```
+Tạo đơn (có khách)  ──►  ghi ORDER_DEBT ngay (idempotency: order_debt:sale:<id>)
+Nhận tiền từ khách ──►  ghi PAYMENT (giảm công nợ)
+Huỷ / xoá đơn      ──►  đảo TẤT CẢ bút toán của đơn (ORDER_DEBT + ADJUSTMENT + PAYMENT)
+Sửa đơn            ──►  ghi ADJUSTMENT (chênh lệch so với số dư hiện tại của đơn)
+```
+
+| Tình huống | Ghi ORDER_DEBT? |
+|---|---|
+| **Tạo đơn có khách (bất kể giao hay chưa)** | ✅ (1 lần duy nhất) |
+| Tạo đơn khách lẻ (không có `customer_id`) | ❌ |
+| Tổng đơn = 0 | ❌ |
+| Khách hàng đã lưu trữ | ❌ |
+| Retry / double-click / webhook lặp | ❌ (idempotent theo `saleId`) |
+| Server restart giữa chừng | ❌ (idempotent key UNIQUE) |
+| Đơn cũ (trước ngày bật) | ❌ (KHÔNG backfill) |
+
+**Cờ cấu hình** (`settings`):
+
+| Key | Mặc định | Ý nghĩa |
+|---|---|---|
+| `debt_record_on_create` | `1` | `1` = ghi nợ khi tạo đơn · `0` = tắt (quay về mô hình ghi nợ khi `DELIVERED`) |
+| `debt_max_limit_enabled` | `0` | `0` = hạn mức công nợ chỉ CẢNH BÁO (không chặn bán hàng) · `1` = chặn khi vượt `max_debt_per_customer` |
+| `max_debt_per_customer` | `5000000` | Ngưỡng cảnh báo (VND) |
+
+#### 5.3c. Mô hình cũ — ghi nợ khi `DELIVERED` (vẫn giữ, dùng khi tắt cờ)
 
 | Tình huống | Ghi ORDER_DEBT? |
 |---|---|

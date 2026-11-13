@@ -603,6 +603,29 @@
         }).join('')
       : '<div class="dbt-muted">Chưa liên kết nhóm Zalo nào</div>';
 
+    // Bảng đơn hàng đang nợ — giúp nhân viên biết đơn nào chưa được thanh toán
+    var openOrders = (d.orderDebts || []).filter(function (od) {
+      return od.status !== 'paid' && od.status !== 'cancelled' && (od.remaining_amount || 0) > 0;
+    });
+    var orderRows = openOrders.length
+      ? '<div class="dbt-table-wrap"><table class="dbt-table"><thead><tr>' +
+        '<th>Đơn</th><th>Ngày</th><th>Tổng</th>' +
+        '<th style="text-align:right">Đã trả</th><th style="text-align:right">Còn nợ</th><th></th>' +
+        '</tr></thead><tbody>' +
+        openOrders.map(function (od) {
+          var rem = Number(od.remaining_amount || 0);
+          return '<tr>' +
+            '<td class="dbt-mono">#' + (od.sale_id || '') + '</td>' +
+            '<td class="dbt-muted">' + esc(od.sale_date || '—') + '</td>' +
+            '<td class="dbt-mono" style="text-align:right">' + money(od.original_amount || 0) + '</td>' +
+            '<td class="dbt-mono dbt-amount-pos" style="text-align:right">' + money(od.paid_amount || 0) + '</td>' +
+            '<td class="dbt-mono dbt-amount-neg" style="text-align:right">' + money(rem) + '</td>' +
+            '<td style="text-align:right"><button class="dbt-btn dbt-btn-sm" onclick="openPaymentModal(' + cust.id + ')">💵 Thu tiền</button></td>' +
+          '</tr>';
+        }).join('') +
+        '</tbody></table></div>'
+      : '<div class="dbt-muted">Không có đơn hàng nào đang nợ</div>';
+
     return '' +
       '<button class="dbt-back" onclick="showTab(\'customers\')">← Quay lại danh sách</button>' +
       '<div class="dbt-section">' +
@@ -621,6 +644,12 @@
           '<button class="dbt-btn dbt-btn-secondary" onclick="openManualDebtModal(' + cust.id + ')">📝 Ghi nợ tay</button>' +
           (state.isAdmin ? '<button class="dbt-btn dbt-btn-secondary" onclick="openAdjustModal(' + cust.id + ')">⚙️ Điều chỉnh</button>' : '') +
         '</div>' +
+      '</div>' +
+
+      '<div class="dbt-section">' +
+        '<div class="dbt-section-title">🧾 Đơn hàng đang nợ (' + openOrders.length + ')</div>' +
+        '<div class="dbt-section-desc">Nhận tiền từ khách → bấm "💵 Nhập thanh toán" ở trên để ghi vào sổ.</div>' +
+        orderRows +
       '</div>' +
 
       '<div class="dbt-section">' +

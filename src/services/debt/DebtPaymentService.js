@@ -116,6 +116,39 @@ function recordPayment(opts = {}) {
     } catch (e) {
       logger.error('[DEBT_PAYMENT] allocate to order_debts error', { error: e.message });
     }
+  } else {
+    // 5b. KHÔNG gắn đơn cụ thể → phân bổ vào các đơn chưa thanh toán của khách
+    // (theo thứ tự cũ nhất trước — FIFO). Cần thiết với mô hình "ghi nợ khi tạo
+    // đơn": khi khách trả tiền mặt cho nhiều đơn gộp lại, các đơn này phải
+    // được đánh dấu paid/partial tương ứng.
+    try {
+      const unpaidOrders = db
+        .prepare(
+          `SELECT * FROM order_debts
+            WHERE customer_id = ? AND status != 'paid' AND status != 'cancelled'
+            ORDER BY created_at ASC, id ASC`
+        )
+        .all(custId);
+
+      let remaining = value;
+      for (const od of unpaidOrders) {
+        if (remaining <= 0) break;
+        const toApply = Math.min(remaining, od.remaining_amount || 0);
+        if (toApply <= 0) continue;
+        const newPaid = (od.paid_amount || 0) + toApply;
+        const newRemaining = Math.max(0, od.original_amount - newPaid);
+        const status = newRemaining <= 0 ? 'paid' : 'partial';
+        db.prepare(
+          `UPDATE order_debts
+              SET paid_amount = ?, remaining_amount = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?`
+        ).run(newPaid, newRemaining, status, od.id);
+        db.prepare('UPDATE sales SET payment_status = ? WHERE id = ?').run(status, od.sale_id);
+        remaining -= toApply;
+      }
+    } catch (e) {
+      logger.error('[DEBT_PAYMENT] FIFO allocate error', { error: e.message });
+    }
   }
 
   // 6. Audit log

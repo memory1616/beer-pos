@@ -288,42 +288,46 @@ class DebtService {
         return { success: true, refundedAmount: 0 };
       }
 
-      // Tìm bút toán ORDER_DEBT gốc trong ledger
-      const original = db
+      // Các bút toán cần đảo (chưa bị đảo)
+      // ⚠️ Đảo TẤT CẢ (ORDER_DEBT + ADJUSTMENT + PAYMENT), không chỉ bút toán gốc.
+      //    Bỏ qua PAYMENT → số dư âm (đã thu tiền khách nhưng vẫn giữ nợ).
+      //    THỨ TỰ: đảo bút toán GIẢM (PAYMENT) trước để số dư không âm tạm thời.
+      const txToReverse = db
         .prepare(
-          `SELECT * FROM debt_transactions
+          `SELECT id, amount, transaction_type, direction FROM debt_transactions
             WHERE reference_type = 'ORDER' AND reference_id = ?
-              AND transaction_type = 'ORDER_DEBT'
-            ORDER BY id DESC LIMIT 1`
+              AND transaction_type IN ('ORDER_DEBT', 'ADJUSTMENT', 'PAYMENT')
+            ORDER BY CASE WHEN direction = 'DECREASE' THEN 0 ELSE 1 END, id ASC`
         )
-        .get(String(saleId));
+        .all(String(saleId));
 
       let refundedAmount = 0;
-      if (original) {
-        const rev = DebtLedgerService.reverseTransaction(original.id, {
+      let reversedCount = 0;
+      for (const tx of txToReverse) {
+        const rev = DebtLedgerService.reverseTransaction(tx.id, {
           createdBy: 'system',
           source: SOURCES.POS,
-          reason: `Huỷ đơn #${saleId}, hoàn ${formatCurrency(original.amount)}`,
+          reason: `Huỷ đơn #${saleId}, hoàn ${formatCurrency(tx.amount)} (${tx.transaction_type})`,
         });
         if (!rev.success) {
-          return { success: false, error: rev.error };
+          return { success: false, error: rev.error, refundedAmount };
         }
-        refundedAmount = original.amount;
-      } else {
-        // Không có bút toán gốc trong ledger (nợ nhập tay) → chỉ cập nhật bảng chiếu
+        refundedAmount += tx.amount;
+        reversedCount += 1;
+      }
+
+      if (reversedCount === 0) {
+        // Không có bút toán nào trong ledger (nợ nhập tay) → chỉ cập nhật bảng chiếu
         refundedAmount = orderDebt.remaining_amount || 0;
-        db.prepare("UPDATE order_debts SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(
-          orderDebt.id
-        );
       }
 
       // Đánh dấu bảng chiếu (KHÔNG xoá vật lý — giữ dấu vết)
-      db.prepare("UPDATE order_debts SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(
-        orderDebt.id
-      );
+      db.prepare(
+        "UPDATE order_debts SET status = 'cancelled', remaining_amount = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+      ).run(orderDebt.id);
       db.prepare("UPDATE sales SET payment_status = 'cancelled' WHERE id = ?").run(saleId);
 
-      return { success: true, refundedAmount };
+      return { success: true, refundedAmount, reversedCount };
     } catch (e) {
       logger.error('DebtService.reverseDebtForSale error:', e);
       return { success: false, error: e.message };

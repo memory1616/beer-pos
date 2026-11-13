@@ -1842,6 +1842,17 @@ function submitSale() {
         promoMsg = ' | 🎁 Tặng ' + parts.join(' ');
       }
       showToast((isEditing ? 'Cập nhật thành công!' : 'Bán hàng thành công!') + promoMsg, 'success');
+
+      // ⚠️ Cảnh báo vượt hạn mức công nợ (KHÔNG chặn bán hàng)
+      if (data.debtLimitWarning && data.debtLimitWarning.limitExceeded) {
+        var w = data.debtLimitWarning;
+        showToast(
+          '⚠️ Vượt hạn mức công nợ (' +
+            formatVND(w.currentDebt) + ' + ' + formatVND(w.orderTotal) +
+            ' > ' + formatVND(w.maxDebt) + ')',
+          'warning'
+        );
+      }
       var invoiceSaleId = isEditing ? editingSaleId : (data.id != null ? Number(data.id) : null);
       editingSaleId = null;
       resetSaleState();
