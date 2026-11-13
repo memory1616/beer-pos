@@ -83,7 +83,9 @@ let saleState = {
   canReceiveReward: false,  // Có thể nhận thưởng tháng
   qrConfig: null,  // Cài đặt QR fallback từ server
   qrAccountsCache: [],  // Danh sách QR account active
-  currentInvoiceQR: null  // QR đang chọn cho hoá đơn hiện tại
+  currentInvoiceQR: null,  // QR đang chọn cho hoá đơn hiện tại
+  driverUsername: null,  // Tài xế được gán đơn (Admin chọn)
+  driversCache: null  // Danh sách tài xế (lazy-load 1 lần)
 };
 
 let _productById = new Map();
@@ -1656,6 +1658,63 @@ function updateTotal() {
 // ============================================================
 // CHECKOUT MODAL
 // ============================================================
+
+/**
+ * Tải danh sách tài xế (cache 1 lần).
+ * API: GET /api/admin/drivers?role=DRIVER
+ * @returns {Promise<Array<{username:string, full_name:string}>>}
+ */
+async function loadDriversForAssign() {
+  if (saleState.driversCache) return saleState.driversCache;
+  try {
+    var res = await fetch('/api/admin/drivers?role=DRIVER', { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    var data = await res.json();
+    var list = (data && data.drivers) || [];
+    // Chỉ nhận tài xế đang hoạt động
+    saleState.driversCache = list.filter(function (d) {
+      return d.active !== 0 && d.active !== false;
+    });
+  } catch (e) {
+    console.error('[SALES] loadDriversForAssign error:', e);
+    saleState.driversCache = [];
+  }
+  return saleState.driversCache;
+}
+
+/**
+ * HTML select chọn tài xế giao đơn.
+ * Admin chọn tài xế → đơn được gán → tài xế nhận thông báo đẩy ngay.
+ *
+ * ⚠️ Driver Portal dùng CHUNG file sales.js này → tài xế KHÔNG được thấy
+ * ô chọn (tài xế tự gán đơn của mình qua Driver Portal).
+ */
+function buildDriverAssignHtml() {
+  // Chỉ ADMIN mới được gán tài xế
+  if (window.APP_MODE === 'driver') return '';
+
+  var drivers = saleState.driversCache || [];
+  var options = '<option value="">-- Chưa gán tài xế --</option>';
+  drivers.forEach(function (d) {
+    var label = d.full_name ? (d.full_name + ' (' + d.username + ')') : d.username;
+    var selected = saleState.driverUsername === d.username ? ' selected' : '';
+    options += '<option value="' + escHtml(d.username) + '"' + selected + '>' +
+      escHtml(label) + '</option>';
+  });
+
+  return '<div class="pos-modal-driver">' +
+    '<label class="pos-modal-driver__label" for="sale-driver-assign">🚚 Giao cho tài xế</label>' +
+    '<select id="sale-driver-assign" class="pos-modal-driver__select" ' +
+      'onchange="window.setSaleDriver(this.value)">' + options + '</select>' +
+    '<div class="pos-modal-driver__hint">Chọn tài xế → họ nhận thông báo đơn giao mới ngay trên điện thoại.</div>' +
+  '</div>';
+}
+
+/** Ghi lại tài xế được chọn. */
+window.setSaleDriver = function (username) {
+  saleState.driverUsername = username || null;
+};
+
 function openCheckoutModal() {
   var validItems = saleState.items.filter(function(i) { return i.qty > 0; });
   if (validItems.length === 0) return;
@@ -1688,6 +1747,7 @@ function openCheckoutModal() {
     '<div class="pos-modal-customer">👤 ' + escHtml(customerName) + '</div>' +
     itemsHtml +
     buildPromoDetailHtml() +
+    buildDriverAssignHtml() +
     '<div class="pos-modal-summary">' +
       '<div class="pos-modal-summary-label">Tổng cộng</div>' +
       '<div class="pos-modal-summary-value">' + formatVND(total) + '</div>' +
@@ -1699,6 +1759,23 @@ function openCheckoutModal() {
 
   modal.classList.remove('hidden');
   document.body.classList.add('modal-open');
+
+  // Nạp danh sách tài xế (bất đồng bộ) → cập nhật select sau khi có data
+  // (chỉ Admin — Driver Portal không có ô này)
+  if (window.APP_MODE === 'driver') return;
+  loadDriversForAssign().then(function () {
+    if (modal.classList.contains('hidden')) return; // đã đóng modal
+    var sel = document.getElementById('sale-driver-assign');
+    if (!sel) return;
+    var options = '<option value="">-- Chưa gán tài xế --</option>';
+    saleState.driversCache.forEach(function (d) {
+      var label = d.full_name ? (d.full_name + ' (' + d.username + ')') : d.username;
+      var selected = saleState.driverUsername === d.username ? ' selected' : '';
+      options += '<option value="' + escHtml(d.username) + '"' + selected + '>' +
+        escHtml(label) + '</option>';
+    });
+    sel.innerHTML = options;
+  });
 }
 
 function closeCheckoutModal() {
@@ -1730,6 +1807,12 @@ function submitSale() {
       return { productId: item.productId, quantity: item.qty, price: item.price };
     })
   };
+
+  // Gán tài xế (chỉ khi TẠO MỚI — sửa đơn không đổi tài xế đã giao).
+  // → Server sẽ tạo phiếu giao + đẩy thông báo cho tài xế đó.
+  if (!isEditing && saleState.driverUsername) {
+    payload.driverUsername = saleState.driverUsername;
+  }
 
   var url = isEditing ? '/api/sales/' + editingSaleId : '/api/sales';
   var method = isEditing ? 'PUT' : 'POST';
@@ -1787,6 +1870,7 @@ function resetSaleState() {
   saleState.promotionEnabled = true;
   saleState.isInNewShopPeriod = false;
   saleState.canReceiveReward = false;
+  saleState.driverUsername = null;
   editingSaleId = null;
   hideNewShopBadge();
   hidePromoPreview();

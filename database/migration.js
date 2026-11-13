@@ -757,6 +757,22 @@ function runAuditLogMigration(db) {
   }
 }
 
+// ── Driver Push Notifications migration (051) ──────────────────────────────────
+// Web Push cho tài xế: lưu subscription của thiết bị + lịch sử gửi + seed setting.
+// Chạy ĐỘC LẬP, idempotent: CREATE TABLE IF NOT EXISTS + INSERT OR IGNORE setting.
+// Rollback an toàn: chỉ gỡ 2 bảng mới (không đụng dữ liệu kinh doanh).
+function runDriverPushMigration(db) {
+  try {
+    const migration = require('./migrations/051_driver_push_notifications');
+    migration.up(db);
+    log('[DRIVER_PUSH] Migration 051 applied');
+    return { success: true };
+  } catch (e) {
+    log(`[DRIVER_PUSH] Migration error: ${e.message}`);
+    return { success: false, error: e.message };
+  }
+}
+
 // ── Utility: Generate UUID ─────────────────────────────────────────────────────
 
 function generateUUID() {
@@ -782,6 +798,7 @@ module.exports = {
   runMissingBusinessTablesMigration,
   runDailyReportNotifyMigration,
   runAuditLogMigration,
+  runDriverPushMigration,
   generateUUID,
   getCurrentVersion,
   setVersion,

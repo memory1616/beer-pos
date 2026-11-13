@@ -30,7 +30,7 @@ try {
   }
 
   // Run driver portal migration (idempotent, chạy độc lập version gate)
-  const { runDriverPortalMigration, runDriverStaffMigration, runDriverKegReceiptMigration, runDriverWorkDaysMigration, runDriverSalaryAdvanceMigration, runMissingBusinessTablesMigration, runDailyReportNotifyMigration, runAuditLogMigration } = require('./database/migration');
+  const { runDriverPortalMigration, runDriverStaffMigration, runDriverKegReceiptMigration, runDriverWorkDaysMigration, runDriverSalaryAdvanceMigration, runMissingBusinessTablesMigration, runDailyReportNotifyMigration, runAuditLogMigration, runDriverPushMigration } = require('./database/migration');
   const driverResult = runDriverPortalMigration(db);
   if (driverResult.success) {
     logger.log('[MIGRATION] Driver portal schema ready');
@@ -76,6 +76,12 @@ try {
   const auditLogResult = runAuditLogMigration(db);
   if (auditLogResult.success) {
     logger.log('[MIGRATION] Audit log schema ready');
+  }
+
+  // Run driver push notification migration (Web Push cho tài xế)
+  const pushResult = runDriverPushMigration(db);
+  if (pushResult.success) {
+    logger.log('[MIGRATION] Driver push notification schema ready');
   }
 } catch (error) {
   logger.error('[MIGRATION] Migration error:', error.message);

@@ -70,6 +70,24 @@
     document.head.appendChild(script);
   }
 
+  // ── Thông báo đơn giao mới (realtime + Web Push) ─────────────────────────
+  // Nạp 2 module:
+  //  - notify.js: hiển thị banner + âm báo + rung khi nhận `order:assigned`.
+  //  - push.js  : đăng ký Web Push (Service Worker) cho thiết bị tài xế.
+  function loadNotifyModules() {
+    var files = [
+      '/js/driver/notify.js?v=20261113a',
+      '/js/driver/push.js?v=20261113a'
+    ];
+    files.forEach(function (src) {
+      if (document.querySelector('script[src="' + src + '"]')) return;
+      var s = document.createElement('script');
+      s.src = src;
+      s.defer = true;
+      document.head.appendChild(s);
+    });
+  }
+
   // ── Token ───────────────────────────────────────────────────────────────
   function getToken() {
     try { return localStorage.getItem(SESSION_KEY) || null; } catch (_) { return null; }
@@ -581,7 +599,7 @@
   function openAccountModal() {
     var me = window.DRV_USER || {};
     var name = me.fullName || me.username || '—';
-    openModal(
+    var body = openModal(
       '<div class="drv-cart__row">' +
         '<span class="drv-cart__label">Tài khoản</span>' +
         '<strong>' + escapeHtml(name) + '</strong>' +
@@ -592,12 +610,90 @@
             '<strong>' + escapeHtml(me.username) + '</strong>' +
           '</div>'
         : '') +
+      // ── Thông báo đơn giao mới (Web Push) ──────────────────────────────
+      '<div class="drv-push-row">' +
+        '<div class="drv-push-row__info">' +
+          '<div class="drv-push-row__label">🔔 Thông báo đơn giao mới</div>' +
+          '<div class="drv-push-row__hint" id="drv-push-hint">Đang kiểm tra…</div>' +
+        '</div>' +
+        '<button class="drv-btn drv-btn--primary" id="drv-push-toggle" type="button">' +
+          'Bật' +
+        '</button>' +
+      '</div>' +
       '<div class="drv-btn-row drv-mt-12">' +
         '<button class="drv-btn drv-btn--ghost" onclick="window.Drv.closeModal()">Đóng</button>' +
         '<button class="drv-btn drv-btn--danger" onclick="window.Drv.logout()">Thoát</button>' +
       '</div>',
       { title: 'Tài khoản' }
     );
+
+    setupPushToggle(body);
+  }
+
+  /**
+   * Cài đặt nút bật/tắt thông báo đẩy trong modal tài khoản.
+   * @param {HTMLElement} body
+   */
+  function setupPushToggle(body) {
+    if (!body) return;
+    var hint = body.querySelector('#drv-push-hint');
+    var btn = body.querySelector('#drv-push-toggle');
+    if (!btn || !hint) return;
+
+    function setHint(text) {
+      hint.textContent = text;
+    }
+
+    if (!window.DrvPush || !window.DrvPush.isSupported()) {
+      btn.disabled = true;
+      setHint('Trình duyệt này không hỗ trợ thông báo đẩy');
+      return;
+    }
+    if (!window.isSecureContext) {
+      btn.disabled = true;
+      setHint('Cần kết nối HTTPS để bật thông báo đẩy');
+      return;
+    }
+
+    var state = window.DrvPush.status();
+
+    function render() {
+      state = window.DrvPush.status();
+      if (state.permission === 'denied') {
+        btn.disabled = true;
+        btn.textContent = 'Đã chặn';
+        setHint('Bạn đã chặn thông báo trong cài đặt trình duyệt');
+        return;
+      }
+      if (state.permission === 'granted') {
+        btn.textContent = 'Đang bật';
+        setHint('Đang bật — bạn sẽ nhận thông báo khi có đơn giao mới');
+        return;
+      }
+      btn.textContent = 'Bật';
+      setHint('Nhận thông báo khi có đơn giao mới (kể cả khi khoá màn hình)');
+    }
+
+    render();
+
+    btn.addEventListener('click', async function () {
+      btn.disabled = true;
+      try {
+        if (state.permission === 'granted') {
+          var off = await window.DrvPush.disable();
+          if (off.ok) toast('Đã tắt thông báo đẩy', 'success');
+          else toast('Không tắt được thông báo', 'warning');
+        } else {
+          var on = await window.DrvPush.enable();
+          if (on.ok) toast('Đã bật thông báo đơn giao mới', 'success');
+          else toast(on.reason || 'Không bật được thông báo', 'warning');
+        }
+      } catch (err) {
+        toast('Lỗi: ' + (err.message || 'không rõ'), 'error');
+      }
+      render();
+      btn.disabled = false;
+    });
   }
 
   function escapeHtml(s) {
@@ -643,7 +739,9 @@
   // Chạy sau khi DOM sẵn sàng để không chặn render.
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', loadRealtime);
+    document.addEventListener('DOMContentLoaded', loadNotifyModules);
   } else {
     loadRealtime();
+    loadNotifyModules();
   }
 })();

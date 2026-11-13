@@ -534,6 +534,34 @@ body.body--app .app-main {
   font-weight: 800;
 }
 
+/* ── DÒNG BẬT/TẮT THÔNG BÁO ĐẨY (modal tài khoản) ─────────────────────── */
+.drv-push-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid var(--drv-border-strong, rgba(255, 255, 255, 0.1));
+  border-radius: 12px;
+  background: var(--bg-hover, rgba(255, 255, 255, 0.03));
+}
+
+.drv-push-row__info { min-width: 0; }
+
+.drv-push-row__label {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text-primary, #fff);
+  margin-bottom: 3px;
+}
+
+.drv-push-row__hint {
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--text-muted, #9aa4b2);
+}
+
 .drv-cart__label { color: var(--text-secondary); }
 
 /* ── NAVIGATION (bottom tabs) ──────────────────────────────────────────── */
@@ -709,6 +737,91 @@ body.body--app .app-main {
 .drv-toast--success { border-color: var(--success); color: var(--success); }
 .drv-toast--error   { border-color: var(--danger);  color: var(--danger); }
 .drv-toast--warning { border-color: var(--warning); color: var(--warning); }
+
+/* ── BANNER ĐƠN GIAO MỚI (Admin gán đơn) ─────────────────────────────────── */
+.drv-order-banner {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 500;
+  width: min(420px, calc(100vw - 32px));
+  padding: 22px 20px 18px;
+  border-radius: 20px;
+  background: var(--bg-card, #12161c);
+  border: 2px solid var(--warning, #facc15);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+  text-align: center;
+  animation: drv-banner-in 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes drv-banner-in {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.85); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+.drv-order-banner__icon {
+  font-size: 2.4rem;
+  line-height: 1;
+  margin-bottom: 6px;
+  animation: drv-banner-ring 0.9s ease-in-out infinite;
+}
+
+@keyframes drv-banner-ring {
+  0%, 100% { transform: rotate(-8deg); }
+  50%      { transform: rotate(8deg); }
+}
+
+.drv-order-banner__title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--warning, #facc15);
+  margin-bottom: 10px;
+}
+
+.drv-order-banner__body {
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: var(--text-primary, #fff);
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.drv-order-banner__addr {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.86rem;
+  font-weight: 500;
+  color: var(--text-muted, #9aa4b2);
+}
+
+.drv-order-banner__call {
+  display: inline-block;
+  margin-top: 14px;
+  padding: 10px 18px;
+  border-radius: 12px;
+  background: var(--success, #22c55e);
+  color: #06210f;
+  font-weight: 800;
+  font-size: 0.95rem;
+  text-decoration: none;
+}
+
+.drv-order-banner__close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted, #9aa4b2);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
 
 /* ── DELIVERY ITEM ROW ─────────────────────────────────────────────────── */
 .drv-dl-item {

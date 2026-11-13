@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <script>
+  (function () {
+    var k = 'theme';
+    var sys = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    var saved = localStorage.getItem(k);
+    var theme = (saved === 'light' || saved === 'dark') ? saved : sys;
+    document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.classList.remove('light', 'dark');
+    document.documentElement.classList.add(theme);
+  })();
+  </script>
+  <script>window.BASE_PATH = '/';</script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Thông báo đẩy tài xế</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0B0E11">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="icon" type="image/png" href="/icon-192.png">
+  <link rel="stylesheet" href="/css/unified.css?v=20250718">
+  <script src="/js/auth.js"></script>
+  <script src="/js/dark-mode.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>requireAuth();</script>
+  <style>
+    .pn-section {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px;
+      margin-bottom: 16px;
+    }
+    .pn-section-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .pn-section-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+      line-height: 1.5;
+    }
+    .pn-banner {
+      background: rgba(59, 130, 246, 0.08);
+      border: 1px solid rgba(59, 130, 246, 0.28);
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 12.5px;
+      color: var(--text-primary);
+      line-height: 1.6;
+      margin-bottom: 16px;
+    }
+    .pn-banner strong { color: #3b82f6; }
+    .pn-banner ol { margin: 8px 0 0; padding-left: 20px; }
+    .pn-banner li { margin-bottom: 4px; }
+    .pn-field { margin-bottom: 14px; }
+    .pn-field:last-child { margin-bottom: 0; }
+    .pn-label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+    .pn-hint {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      line-height: 1.45;
+    }
+    .pn-input {
+      width: 100%;
+      height: 44px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0 12px;
+      background: var(--card);
+      color: var(--text-primary);
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+    .pn-toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 14px;
+    }
+    .pn-toggle-row:last-child { border-bottom: none; margin-bottom: 0; }
+    .pn-switch { position: relative; display: inline-block; width: 46px; height: 26px; flex-shrink: 0; }
+    .pn-switch input { opacity: 0; width: 0; height: 0; }
+    .pn-slider {
+      position: absolute; cursor: pointer; inset: 0;
+      background: var(--border); border-radius: 26px; transition: 0.2s;
+    }
+    .pn-slider:before {
+      position: absolute; content: ""; height: 20px; width: 20px;
+      left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: 0.2s;
+    }
+    .pn-switch input:checked + .pn-slider { background: #3b82f6; }
+    .pn-switch input:checked + .pn-slider:before { transform: translateX(20px); }
+    .pn-btn {
+      width: 100%; height: 44px; border: none; border-radius: 12px;
+      background: var(--primary); color: #fff; font-weight: 700; font-size: 14px;
+      cursor: pointer;
+    }
+    .pn-btn-secondary {
+      background: transparent; border: 1px solid var(--border); color: var(--text-primary);
+    }
+    .pn-btn-row { display: flex; gap: 8px; }
+    .pn-btn-row .pn-btn { flex: 1; }
+    .pn-status { font-size: 12px; margin-top: 8px; min-height: 16px; }
+    .pn-status--ok { color: var(--success, #22c55e); }
+    .pn-status--err { color: var(--danger, #ef4444); }
+    .pn-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .pn-table th, .pn-table td {
+      text-align: left; padding: 9px 8px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-primary);
+    }
+    .pn-table th { font-size: 11px; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.04em; }
+    .pn-badge {
+      display: inline-block; padding: 3px 8px; border-radius: 999px;
+      font-size: 11px; font-weight: 700;
+    }
+    .pn-badge--ok { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
+    .pn-badge--err { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+    .pn-empty { padding: 24px; text-align: center; color: var(--text-muted); font-size: 13px; }
+    .pn-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div class="pn-empty">⏳ Đang tải cấu hình...</div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var state = { config: null, history: [], loading: false };
+
+  function esc(s) {
+    return String(s === null || s === undefined ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+      .replace(/'/g, '&#x27;');
+  }
+
+  function api(path, options) {
+    options = options || {};
+    return fetch(path, {
+      method: options.method || 'GET',
+      headers: Object.assign({ 'Content-Type': 'application/json' }, options.headers || {}),
+      credentials: 'include',
+      body: options.body ? JSON.stringify(options.body) : undefined,
+    }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (data) {
+        if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+        return data;
+      });
+    });
+  }
+
+  function setStatus(el, msg, kind) {
+    if (!el) return;
+    el.textContent = msg || '';
+    el.className = 'pn-status' + (kind ? ' pn-status--' + kind : '');
+  }
+
+  // ── Render ───────────────────────────────────────────────────────────────
+  function renderConfig() {
+    var c = state.config;
+    if (!c) return '';
+
+    var driverRows = (c.stats && c.stats.length)
+      ? c.stats.map(function (s) {
+          return '<tr>' +
+            '<td><strong>' + esc(s.username) + '</strong></td>' +
+            '<td>' + esc(s.devices) + ' thiết bị</td>' +
+            '<td class="pn-mono">' + esc(s.last_used_at || '—') + '</td>' +
+          '</tr>';
+        }).join('')
+      : '<tr><td colspan="3" style="text-align:center;color:var(--text-muted);padding:18px">' +
+        'Chưa có tài xế nào bật thông báo</td></tr>';
+
+    return '' +
+      '<div class="pn-banner">' +
+        '<strong>Cách hoạt động:</strong> khi bạn chọn tài xế ở màn bán hàng, hệ thống sẽ ' +
+        'gửi thông báo "Đơn giao mới" tới điện thoại tài xế đó — kể cả khi họ đang khoá màn hình. ' +
+        'Tài xế cần tự bật thông báo trong Driver Portal (menu Tài khoản → Thông báo đơn giao mới).' +
+        '<ol>' +
+          '<li>Bật công tắc "Gửi thông báo đẩy" bên dưới.</li>' +
+          '<li>Yêu cầu tài xế mở Driver Portal → menu Tài khoản → bật thông báo.</li>' +
+          '<li>Khi tạo đơn, chọn tài xế ở ô "Giao cho tài xế" trong màn bán hàng.</li>' +
+        '</ol>' +
+      '</div>' +
+
+      '<div class="pn-section">' +
+        '<div class="pn-section-title">⚙️ Cấu hình</div>' +
+        '<div class="pn-section-desc">Bật/tắt toàn hệ thống đẩy thông báo đơn giao cho tài xế.</div>' +
+
+        '<div class="pn-toggle-row">' +
+          '<div>' +
+            '<div style="font-size:14px;font-weight:600;color:var(--text-primary)">Gửi thông báo đẩy</div>' +
+            '<div style="font-size:11px;color:var(--text-muted);margin-top:2px">' +
+              'Tắt thì hệ thống vẫn gán đơn cho tài xế nhưng không gửi thông báo đẩy' +
+            '</div>' +
+          '</div>' +
+          '<label class="pn-switch">' +
+            '<input type="checkbox" id="pnEnabled"' + (c.enabled ? ' checked' : '') + '>' +
+            '<span class="pn-slider"></span>' +
+          '</label>' +
+        '</div>' +
+
+        '<div class="pn-field">' +
+          '<label class="pn-label" for="pnTitle">Tiêu đề thông báo</label>' +
+          '<div class="pn-hint">Hiển thị trên thông báo điện thoại tài xế.</div>' +
+          '<input class="pn-input" id="pnTitle" type="text" maxlength="100" value="' +
+            esc(c.titleTemplate || '🔔 Đơn giao mới') + '">' +
+        '</div>' +
+
+        '<div class="pn-btn-row">' +
+          '<button class="pn-btn" id="pnSave">💾 Lưu cấu hình</button>' +
+        '</div>' +
+        '<div class="pn-status" id="pnSaveStatus"></div>' +
+      '</div>' +
+
+      '<div class="pn-section">' +
+        '<div class="pn-section-title">📱 Tài xế đã bật thông báo</div>' +
+        '<div class="pn-section-desc">Mỗi tài xế có thể đăng ký nhiều thiết bị (điện thoại, máy tính).</div>' +
+        '<table class="pn-table">' +
+          '<thead><tr><th>Tài xế</th><th>Thiết bị</th><th>Dùng lần cuối</th></tr></thead>' +
+          '<tbody>' + driverRows + '</tbody>' +
+        '</table>' +
+      '</div>';
+  }
+
+  function renderHistory() {
+    if (!state.history.length) {
+      return '<div class="pn-empty">Chưa có lịch sử gửi thông báo</div>';
+    }
+    return '<table class="pn-table">' +
+      '<thead><tr><th>Thời gian</th><th>Đơn</th><th>Tài xế</th><th>Trạng thái</th></tr></thead>' +
+      '<tbody>' +
+      state.history.map(function (h) {
+        var badge = h.status === 'sent'
+          ? '<span class="pn-badge pn-badge--ok">Đã gửi (' + (h.sent_count || 0) + ')</span>'
+          : '<span class="pn-badge pn-badge--err">Lỗi</span>';
+        return '<tr>' +
+          '<td class="pn-mono">' + esc(h.created_at || '') + '</td>' +
+          '<td>#' + esc(h.sale_id || '—') + '</td>' +
+          '<td>' + esc(h.driver_username || '—') + '</td>' +
+          '<td>' + badge + '</td>' +
+        '</tr>';
+      }).join('') +
+      '</tbody></table>';
+  }
+
+  function render() {
+    var c = state.config;
+    document.getElementById('app').innerHTML =
+      (typeof getHeader === 'function' ? getHeader('Thông báo đẩy tài xế', '🔔') : '') +
+      '<div style="padding:16px">' +
+        renderConfig() +
+        '<div class="pn-section">' +
+          '<div class="pn-section-title">🧪 Gửi thử</div>' +
+          '<div class="pn-section-desc">Gửi 1 thông báo thử tới 1 tài xế để kiểm tra thiết bị đã đăng ký đúng chưa.</div>' +
+          '<div class="pn-field">' +
+            '<label class="pn-label" for="pnTestUser">Tài xế</label>' +
+            '<select class="pn-input" id="pnTestUser">' +
+              ((c && c.stats && c.stats.length)
+                ? c.stats.map(function (s) {
+                    return '<option value="' + esc(s.username) + '">' + esc(s.username) + '</option>';
+                  }).join('')
+                : '<option value="">— Chưa có tài xế nào bật —</option>') +
+            '</select>' +
+          '</div>' +
+          '<button class="pn-btn pn-btn-secondary" id="pnTest">📤 Gửi thông báo thử</button>' +
+          '<div class="pn-status" id="pnTestStatus"></div>' +
+        '</div>' +
+        '<div class="pn-section">' +
+          '<div class="pn-section-title">🕘 Lịch sử gửi</div>' +
+          '<div class="pn-section-desc">50 lần gửi gần nhất.</div>' +
+          renderHistory() +
+        '</div>' +
+      '</div>' +
+      (typeof getBottomNav === 'function' ? getBottomNav('/dashboard') : '');
+
+    bindEvents();
+  }
+
+  // ── Events ───────────────────────────────────────────────────────────────
+  function bindEvents() {
+    var saveBtn = document.getElementById('pnSave');
+    if (saveBtn) {
+      saveBtn.addEventListener('click', function () {
+        var status = document.getElementById('pnSaveStatus');
+        var enabled = document.getElementById('pnEnabled').checked;
+        var title = document.getElementById('pnTitle').value.trim();
+        saveBtn.disabled = true;
+        setStatus(status, 'Đang lưu...');
+        api('/api/push/admin/config', {
+          method: 'POST',
+          body: { enabled: enabled, titleTemplate: title },
+        })
+          .then(function () {
+            setStatus(status, '✓ Đã lưu', 'ok');
+            return load();
+          })
+          .catch(function (e) {
+            setStatus(status, '✗ ' + e.message, 'err');
+          })
+          .finally(function () { saveBtn.disabled = false; });
+      });
+    }
+
+    var testBtn = document.getElementById('pnTest');
+    if (testBtn) {
+      testBtn.addEventListener('click', function () {
+        var status = document.getElementById('pnTestStatus');
+        var username = document.getElementById('pnTestUser').value;
+        if (!username) {
+          setStatus(status, 'Chưa có tài xế nào bật thông báo', 'err');
+          return;
+        }
+        testBtn.disabled = true;
+        setStatus(status, 'Đang gửi...');
+        api('/api/push/admin/test/' + encodeURIComponent(username), { method: 'POST' })
+          .then(function (res) {
+            if (res.success) {
+              setStatus(status, '✓ Đã gửi tới ' + res.sent + ' thiết bị', 'ok');
+            } else {
+              setStatus(status, '⚠ ' + (res.error || 'Không gửi được'), 'err');
+            }
+          })
+          .catch(function (e) {
+            setStatus(status, '✗ ' + e.message, 'err');
+          })
+          .finally(function () { testBtn.disabled = false; });
+      });
+    }
+  }
+
+  // ── Load ─────────────────────────────────────────────────────────────────
+  function load() {
+    if (state.loading) return Promise.resolve();
+    state.loading = true;
+    return Promise.all([
+      api('/api/push/admin/config'),
+      api('/api/push/admin/history?limit=50'),
+    ])
+      .then(function (res) {
+        state.config = res[0];
+        state.history = res[1].history || [];
+        render();
+      })
+      .catch(function (e) {
+        document.getElementById('app').innerHTML =
+          '<div class="pn-empty">✗ Không tải được cấu hình: ' + esc(e.message) + '</div>';
+      })
+      .finally(function () { state.loading = false; });
+  }
+
+  load();
+})();
+</script>
+</body>
+</html>

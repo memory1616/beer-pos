@@ -890,6 +890,8 @@ app.get('/report-notify', (req, res) => sendPageNoCache(req, res, 'report-notify
 app.get('/sessions', (req, res) => sendPageNoCache(req, res, 'sessions.html'));
 // A3 — Nhật ký hệ thống (ai làm gì, lúc nào)
 app.get('/audit-log', (req, res) => sendPageNoCache(req, res, 'audit-log.html'));
+// Web Push cho tài xế — cấu hình + theo dõi trạng thái thiết bị
+app.get('/push-notify', (req, res) => sendPageNoCache(req, res, 'push-notify.html'));
 app.get('/purchases', (req, res) => sendPageNoCache(req, res, 'purchases.html'));
 app.get('/kegs', (req, res) => sendPageNoCache(req, res, 'kegs.html'));
 // /report is handled by routes/report.js (serves full HTML page)
@@ -915,6 +917,10 @@ app.use('/api/driver', requireAuth, require('./routes/api/driver'));
 // API proxy cho module SALE của Admin — chạy NGUYÊN public/js/sales.js gốc.
 // Shim (public/js/driver/api-shim.js) rewrite /sale/* & /api/sales/* → /api/driver/sale/*.
 app.use('/api/driver/sale', requireAuth, require('./routes/api/driverSale'));
+
+// Web Push cho tài xế — mount TRƯỚC apiGuard vì driver cần gọi /api/push/*
+// (subscribe/unsubscribe/status). Phần admin dùng requireAdmin trong file.
+app.use('/api/push', requireAuth, require('./routes/api/push'));
 
 // ==================== AUTH CHECK (global) ====================
 // Sau khi route /api/driver đã xử lý xong, áp dụng guard chung cho các API

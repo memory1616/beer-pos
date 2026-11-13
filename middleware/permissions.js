@@ -63,6 +63,7 @@ const DRIVER_ALLOWED_API_PREFIXES = [
   '/api/auth/me',     // kiểm tra phiên đăng nhập
   '/api/ping',        // health check
   '/api/discover',    // LAN discovery
+  '/api/push',        // Web Push: subscribe / unsubscribe / status (requireDriver trong file)
 ];
 
 const DRIVER_DENIED_PATH_PREFIXES = [
@@ -290,6 +291,7 @@ const ADMIN_ONLY_PAGES = [
   '/report-notify', // A4 — cấu hình báo cáo tự động (chỉ ADMIN)
   '/sessions',      // A4 — quản lý phiên đăng nhập (chỉ ADMIN)
   '/audit-log',     // A3 — nhật ký hệ thống (chỉ ADMIN)
+  '/push-notify',   // Web Push cho tài xế — cấu hình (chỉ ADMIN)
 ];
 
 function adminPageGuard(req, res, next) {

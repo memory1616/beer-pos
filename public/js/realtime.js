@@ -399,6 +399,24 @@
       bcastSend('sync', { source: 'socket' });
     });
 
+    // ── ĐƠN GIAO MỚI (Admin gán cho tài xế) ─────────────────────────────────
+    // Event này CHỈ tới đúng 1 tài xế được gán (room `driver:<username>`).
+    // Payload KHÔNG chứa dữ liệu tài chính.
+    _socket.on('order:assigned', function (data) {
+      log('EVENT', 'order:assigned received', data);
+      var key = 'order:assigned:' + ((data && data.saleId) || '');
+      if (_shouldDebounce(key)) return;
+
+      // 1. Báo cho UI Driver Portal (toast + âm báo + rung)
+      window.dispatchEvent(new CustomEvent('driver:order-assigned', {
+        detail: data || {}
+      }));
+
+      // 2. Refresh danh sách đơn giao
+      triggerRefetch(['orders', 'deliveries', 'sales']);
+      bcastSend('sync', { source: 'socket' });
+    });
+
     // ── Ping ───────────────────────────────────────────────────────────────
     _socket.on('ping', function (data) {
       log('PING', 'Server ping received', data);

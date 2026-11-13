@@ -584,6 +584,7 @@
     .dsh-hub-card-sales .dsh-hub-card-icon { background: rgba(59,122,254,0.15); }
     .dsh-hub-card-report-notify .dsh-hub-card-icon { background: rgba(168,85,247,0.15); }
     .dsh-hub-card-sessions .dsh-hub-card-icon { background: rgba(239,68,68,0.15); }
+    .dsh-hub-card-push-notify .dsh-hub-card-icon { background: rgba(250,204,21,0.15); }
     .dsh-hub-card-body { flex: 1; min-width: 0; }
     .dsh-hub-card-name {
       font-size: 14px;
@@ -615,6 +616,7 @@
     .dsh-hub-card-sales .dsh-hub-card-cta { background: rgba(59,122,254,0.12); color: #3b7afe; }
     .dsh-hub-card-report-notify .dsh-hub-card-cta { background: rgba(168,85,247,0.12); color: #a855f7; }
     .dsh-hub-card-sessions .dsh-hub-card-cta { background: rgba(239,68,68,0.12); color: #ef4444; }
+    .dsh-hub-card-push-notify .dsh-hub-card-cta { background: rgba(250,204,21,0.12); color: #facc15; }
     .dsh-hub-card:hover .dsh-hub-card-cta { filter: brightness(1.1); }
     @media (max-width: 640px) {
       .dsh-hub-card-cta { display: none; }
@@ -707,22 +709,26 @@
     var _settingsDropdownOpen = false;
 
     function toggleSettingsDropdown(e) {
-      e.stopPropagation();
+      if (e) e.stopPropagation();
       const btn = document.getElementById('dshSettingsBtn');
       const dropdown = document.getElementById('dshSettingsDropdown');
       const overlay = document.getElementById('dshSettingsOverlay');
-      console.log('[DEBUG] toggleSettingsDropdown called, wasOpen:', _settingsDropdownOpen);
       if (!dropdown || !btn) return;
 
-      if (_settingsDropdownOpen) {
+      // Đọc state TRỰC TIẾP từ DOM (class 'open') thay vì biến JS.
+      // → Tránh lệch state khi DOM bị render lại (innerHTML) nhưng script
+      //   không chạy lại → dropdown bị "kẹt" không đóng được.
+      const isOpen = dropdown.classList.contains('open');
+
+      if (isOpen) {
         dropdown.classList.remove('open');
         btn.classList.remove('active');
-        overlay.classList.remove('open');
+        if (overlay) overlay.classList.remove('open');
         _settingsDropdownOpen = false;
       } else {
         dropdown.classList.add('open');
         btn.classList.add('active');
-        overlay.classList.add('open');
+        if (overlay) overlay.classList.add('open');
         _settingsDropdownOpen = true;
       }
     }
@@ -898,6 +904,14 @@
                   <div class="dsh-hub-card-body">
                     <div class="dsh-hub-card-name">Nhật ký hệ thống</div>
                     <div class="dsh-hub-card-desc">Xem ai đã làm gì</div>
+                  </div>
+                  <div class="dsh-hub-card-cta">Mở ›</div>
+                </a>
+                <a href="/push-notify" class="dsh-hub-card dsh-hub-card-push-notify" data-permission="pushNotify">
+                  <div class="dsh-hub-card-icon">🔔</div>
+                  <div class="dsh-hub-card-body">
+                    <div class="dsh-hub-card-name">Thông báo tài xế</div>
+                    <div class="dsh-hub-card-desc">Đẩy đơn giao tới điện thoại</div>
                   </div>
                   <div class="dsh-hub-card-cta">Mở ›</div>
                 </a>

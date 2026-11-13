@@ -6201,6 +6201,46 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   font-variant-numeric: tabular-nums;
 }
 
+/* Chọn tài xế giao đơn (modal thanh toán) */
+.pos-modal-driver {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card-soft, rgba(255, 255, 255, 0.03));
+}
+
+.pos-modal-driver__label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+}
+
+.pos-modal-driver__select {
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text-primary);
+  font-size: 15px;
+  outline: none;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+.pos-modal-driver__hint {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
 .pos-modal-actions {
   display: flex;
   gap: 8px;

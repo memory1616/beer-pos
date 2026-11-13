@@ -7,6 +7,7 @@ const { DebtService, PromotionService } = require('../../src/services');
 const { updateCustomerKegBalance } = require('./payments');
 const { deleteSaleRestoringInventory } = require('../../src/services/saleDelete');
 const socketServer = require('../../src/socket/socketServer');
+const PushService = require('../../src/services/PushService');
 
 // ========== HELPER: Resolve product by id (numeric) or slug ==========
 function resolveProduct(query) {
@@ -55,19 +56,131 @@ function getEffectivePrice(product, priceMap) {
 
 // Helper function to validate sale input
 
+/**
+ * Đẩy thông báo "đơn giao mới" tới tài xế được Admin gán.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Gồm 2 kênh (fail-safe, không chặn luồng tạo đơn):
+ *  1. Socket.IO `order:assigned` → tài xế đang mở app thấy ngay (toast + âm báo).
+ *  2. Web Push           → tài xế đang khoá màn hình / đóng app vẫn nhận được.
+ *
+ * ⚠️ Payload KHÔNG chứa tổng tiền / lợi nhuận (tài xế không được thấy).
+ *
+ * @param {number} saleId
+ * @param {string} driverUsername
+ */
+async function notifyAssignedDriver(saleId, driverUsername) {
+  const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId);
+  if (!sale) return;
+
+  const customer = sale.customer_id
+    ? db
+        .prepare('SELECT name, phone, address FROM customers WHERE id = ?')
+        .get(sale.customer_id)
+    : null;
+
+  // Số lít cần giao (bỏ PET — PET không giao vỏ)
+  const litersRow = db
+    .prepare(
+      `SELECT COALESCE(SUM(si.quantity), 0) AS liters
+       FROM sale_items si
+       LEFT JOIN products p ON p.id = si.product_id
+       WHERE si.sale_id = ? AND (p.type IS NULL OR p.type != 'pet')`
+    )
+    .get(saleId);
+
+  const payload = {
+    saleId,
+    customerName: customer?.name || null,
+    customerAddress: customer?.address || null,
+    customerPhone: customer?.phone || null,
+    kegs: sale.deliver_kegs || 0,
+    liters: litersRow?.liters || 0,
+    date: sale.date,
+    saleTime: sale.sale_time || null,
+  };
+
+  // 1. Tạo phiếu giao cho tài xế (nếu chưa có) → đơn xuất hiện ngay ở
+  //    màn "Giao hàng" của tài xế với trạng thái "Chờ giao".
+  try {
+    const DeliveryService = require('../../src/services/DeliveryService');
+    DeliveryService.ensureRecord(saleId, driverUsername);
+  } catch (deliveryErr) {
+    logger.error('[api/sales] ensureRecord failed', {
+      saleId,
+      driverUsername,
+      error: deliveryErr.message,
+    });
+  }
+
+  // 2. Realtime (socket) — chỉ tới tài xế được gán
+  try {
+    socketServer.emitOrderAssigned(driverUsername, payload);
+  } catch (socketErr) {
+    logger.error('[api/sales] emitOrderAssigned failed', {
+      saleId,
+      error: socketErr.message,
+    });
+  }
+
+  // 3. Web Push — chỉ khi admin đã bật tính năng
+  try {
+    if (PushService.isEnabled()) {
+      await PushService.notifyNewOrder({ driverUsername, ...payload });
+    }
+  } catch (pushErr) {
+    logger.error('[api/sales] PushService.notifyNewOrder failed', {
+      saleId,
+      driverUsername,
+      error: pushErr.message,
+    });
+  }
+}
+
 // POST /api/sales - Tạo hóa đơn mới (với transaction)
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const { customerId, items, deliverKegs = 0, returnKegs = 0, debt = false, staffId } = req.body;
 
-  // driverUsername: chỉ được set bởi Driver Portal (forward từ
-  // routes/api/driverSale.js). Gán NGAY LÚC INSERT → đơn atomic, không
-  // có khoảng trống thời gian mà đơn chưa gán tài xế (gây lệch dữ liệu
-  // giữa trang "Bán hàng" và trang "Giao hàng").
-  // Admin tạo đơn → không truyền field này → driver_username = NULL.
-  const driverUsername =
+  // driverUsername: tài xế phụ trách đơn.
+  //  - Driver Portal tự tạo đơn → forward từ routes/api/driverSale.js.
+  //  - Admin gán đơn cho tài xế cụ thể qua UI (mới) → truyền driverUsername.
+  // Gán NGAY LÚC INSERT → đơn atomic, không có khoảng trống thời gian mà
+  // đơn chưa gán tài xế (gây lệch dữ liệu giữa trang "Bán hàng" và
+  // trang "Giao hàng").
+  //
+  // ⚠️ Bảo mật: chỉ ADMIN mới được gán tài xế (tài xế tự gán đơn của mình).
+  // Tài xế gán tài xế khác → 403.
+  let driverUsername =
     typeof req.body?.driverUsername === 'string' && req.body.driverUsername.trim()
       ? req.body.driverUsername.trim()
       : null;
+
+  const requesterRole = req.user?.role || 'ADMIN';
+  if (requesterRole !== 'ADMIN' && driverUsername && driverUsername !== req.user?.username) {
+    logger.warn('[api/sales] Driver tried to assign another driver', {
+      requester: req.user?.username,
+      target: driverUsername,
+    });
+    return res.status(403).json({
+      error: 'Chỉ quản trị viên mới được gán đơn cho tài xế khác',
+      code: 'DRIVER_ASSIGN_FORBIDDEN',
+    });
+  }
+
+  // Admin gán tài xế → validate tài xế có tồn tại & đang hoạt động
+  if (requesterRole === 'ADMIN' && driverUsername) {
+    const driverRow = db
+      .prepare(
+        `SELECT username FROM app_users
+         WHERE username = ? AND role = 'DRIVER' AND active = 1`
+      )
+      .get(driverUsername);
+    if (!driverRow) {
+      return res.status(400).json({
+        error: `Tài xế "${driverUsername}" không tồn tại hoặc đã bị khoá`,
+        code: 'DRIVER_NOT_FOUND',
+      });
+    }
+  }
 
   // ========== STAFF DISCOUNT HELPER ==========
   function getStaffDiscountForProduct(sid, prodId, prodType) {
@@ -486,6 +599,21 @@ router.post('/', (req, res) => {
 
     const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId);
     socketServer.emitOrderCreated(sale);
+
+    // ── ĐẨY THÔNG BÁO TÀI XẾ (khi Admin gán đơn cho tài xế cụ thể) ──────
+    // Không chặn luồng tạo đơn: lỗi push chỉ được log.
+    if (driverUsername && requesterRole === 'ADMIN') {
+      try {
+        await notifyAssignedDriver(saleId, driverUsername);
+      } catch (pushErr) {
+        logger.error('[api/sales] Failed to push notify to driver', {
+          saleId,
+          driverUsername,
+          error: pushErr.message,
+        });
+      }
+    }
+
     res.json({
       success: true,
       id: saleId,

@@ -155,6 +155,17 @@ function roomForRole(role) {
 }
 
 /**
+ * Room RIÊNG của 1 tài xế: `driver:<username>`.
+ * Dùng để đẩy thông báo "đơn giao mới" chỉ tới đúng tài xế được gán.
+ *
+ * @param {string} username
+ * @returns {string}
+ */
+function driverRoom(username) {
+  return `${ROOM_DRIVER}:${String(username || '').toLowerCase()}`;
+}
+
+/**
  * Loại bỏ mọi field tài chính khỏi payload (đệ quy).
  * @param {any} input
  * @param {number} [depth]
@@ -219,6 +230,7 @@ module.exports = {
   extractToken,
   resolveSession,
   roomForRole,
+  driverRoom,
   isSensitiveKey,
   sanitizeForDriver,
   driverSalePayload,

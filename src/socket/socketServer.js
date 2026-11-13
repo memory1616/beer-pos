@@ -24,6 +24,8 @@ const {
   ROOM_PUBLIC,
   resolveSession,
   roomForRole,
+  driverRoom,
+  sanitizeForDriver,
   buildDriverOrderPayload,
 } = socketAuth;
 
@@ -34,6 +36,9 @@ const EVENTS = {
   ORDER_CREATED:   'order:created',
   ORDER_UPDATED:   'order:updated',
   ORDER_DELETED:   'order:deleted',
+
+  // Admin gán đơn cho 1 tài xế cụ thể → đẩy riêng tới tài xế đó
+  ORDER_ASSIGNED:  'order:assigned',
 
   // Inventory events
   INVENTORY_UPDATED: 'inventory:updated',
@@ -212,12 +217,22 @@ function init(httpServer) {
 
     socket.join(room);
 
+    // ── Room RIÊNG từng tài xế: `driver:<username>` ───────────────────────
+    // Cho phép Admin gán đơn cho đúng 1 tài xế → đẩy thông báo chỉ tới
+    // người được gán (thay vì đẩy cho tất cả).
+    const rooms = [room];
+    if (role === ROLE_DRIVER && socket.data.username) {
+      const personalRoom = driverRoom(socket.data.username);
+      socket.join(personalRoom);
+      rooms.push(personalRoom);
+    }
+
     logger.info(`[WS] Client connected: ${id} from ${ip}, role=${role}, room=${room}`);
 
     // Emit connected confirmation
     socket.emit(EVENTS.CONNECTED, {
       socketId: id,
-      rooms: [room],
+      rooms,
       role,
       username: socket.data.username || null,
       serverTime: new Date().toISOString(),
@@ -377,6 +392,32 @@ function emitOrderDeleted(saleId) {
 }
 
 /**
+ * Đẩy event "đơn giao mới" tới ĐÚNG 1 tài xế được Admin gán.
+ *
+ * Dùng room riêng `driver:<username>` → chỉ tài xế đó nhận.
+ * Payload được sanitize (bỏ field tài chính) giống mọi event gửi tài xế.
+ *
+ * @param {string} driverUsername - username tài xế nhận đơn
+ * @param {object} payload - { saleId, customerName, customerAddress, customerPhone, kegs, liters }
+ * @returns {number} số socket đã gửi (0 = tài xế đang offline)
+ */
+function emitOrderAssigned(driverUsername, payload) {
+  if (!io || !driverUsername) return 0;
+  const room = driverRoom(driverUsername);
+  const envelope = {
+    ...sanitizeForDriver(payload),
+    _ts: Date.now(),
+    _src: 'server',
+  };
+  io.to(room).emit(EVENTS.ORDER_ASSIGNED, envelope);
+  logger.info('[WS] order:assigned emitted', {
+    driver: driverUsername,
+    saleId: payload?.saleId,
+  });
+  return io.sockets.adapter.rooms.get(room)?.size || 0;
+}
+
+/**
  * Emit inventory:updated event — coalesced (frequently fires)
    */
 function emitInventoryUpdated(inventoryData) {
@@ -502,7 +543,8 @@ module.exports = {
   emitToRoles,
   emitOrderCreated,
   emitOrderUpdated,
-    emitOrderDeleted,
+  emitOrderDeleted,
+  emitOrderAssigned,
   emitInventoryUpdated,
   emitKegUpdated,
   emitCustomerUpdated,
