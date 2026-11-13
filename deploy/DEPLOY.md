@@ -84,12 +84,12 @@ Xem chi tiết ở `deploy/DEPLOY.md` cũ. Tóm tắt:
 ssh-keygen -t ed25519
 
 # 2. Copy public key lên server
-type $HOME\.ssh\id_ed25519.pub | ssh root@103.75.183.57 "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
+type $HOME\.ssh\id_ed25519.pub | ssh root@103.195.236.38 "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
 ```
 
 Sau khi setup, test:
 ```powershell
-ssh root@103.75.183.57 "echo OK"
+ssh root@103.195.236.38 "echo OK"
 ```
 
 ---
@@ -143,7 +143,7 @@ Script sẽ sync TẤT CẢ files (trừ `node_modules`, `.git`, `coverage`, `.b
 .\deploy\migrate_tier.bat
 
 # Hoặc thủ công qua SSH
-ssh root@103.75.183.57 "bash /root/beer-pos/deploy/migrate_add_tier.sh"
+ssh root@103.195.236.38 "bash /root/beer-pos/deploy/migrate_add_tier.sh"
 ```
 
 Script sẽ:
@@ -158,10 +158,10 @@ Script sẽ:
 
 ```bash
 # 1. Copy file mới
-scp .\deploy\nginx\beerpos.conf root@103.75.183.57:/etc/nginx/sites-available/beerpos.conf.new
+scp .\deploy\nginx\beerpos.conf root@103.195.236.38:/etc/nginx/sites-available/beerpos.conf.new
 
 # 2. Backup + swap
-ssh root@103.75.183.57
+ssh root@103.195.236.38
 cp /etc/nginx/sites-available/beerpos.conf /etc/nginx/sites-available/beerpos.conf.bak.$(date +%Y%m%d)
 cp /etc/nginx/sites-available/beerpos.conf.new /etc/nginx/sites-available/beerpos.conf
 
@@ -178,7 +178,7 @@ nginx -t && systemctl reload nginx
 Nếu deploy mới bị lỗi, server tự động giữ backup ở `/root/beer-pos/.backup/`:
 
 ```bash
-ssh root@103.75.183.57
+ssh root@103.195.236.38
 ls -la /root/beer-pos/.backup/        # Xem các bản backup
 cp /root/beer-pos/.backup/server.js.bak.20260618_123456 /root/beer-pos/server.js
 pm2 restart beer-pos
@@ -192,7 +192,7 @@ Hoặc chạy lại `deploy_local.ps1` với bản cũ ở local.
 
 ### Lỗi "Permission denied" khi SCP
 - Kiểm tra SSH key đã add vào server chưa
-- Test: `ssh -o BatchMode=yes root@103.75.183.57 echo OK`
+- Test: `ssh -o BatchMode=yes root@103.195.236.38 echo OK`
 
 ### Lỗi "SYNTAX ERROR" trong deploy.sh
 - Server tự động restore từ backup

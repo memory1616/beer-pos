@@ -722,3 +722,44 @@ Trong lúc verify trên trình duyệt thật, phát hiện 3 vấn đề còn s
 **Bài học rút ra:** kiểm tra bằng trình duyệt thật bắt được thứ mà unit test không bắt được — test chỉ kiểm chứng các đường đi đã viết, còn verify UI phát hiện được đường đi còn sót (`emitToAll` gọi từ code khác).
 
 **Lưu ý vận hành:** `socket.io-client` được thêm vào `devDependencies` (chỉ dùng cho test). Client trình duyệt vẫn dùng `/socket.io/socket.io.js` do server serve (`serveClient: true`) — không thêm bundle nào vào production.
+
+### 14.7 Deploy production (2026-11-13)
+
+| Hạng mục | Kết quả |
+|---|---|
+| Commit | `66f7d02` → push `origin/main` → auto-deploy webhook kích hoạt |
+| Server | `beer-server` → `103.195.236.38` (alias trong `~/.ssh/config`). **IP `103.75.183.57` trong `deploy/DEPLOY.md` đã cũ** — cần cập nhật. |
+| Thư mục app | `/var/www/beer-pos` (PM2 app `beer-pos`) |
+| Quy trình deploy | Server tự `git fetch + git reset --hard origin/main` qua webhook khi push → `npm install` → bump `version.json` → `pm2 restart` → health check |
+| Health check | ✅ `http://127.0.0.1:3000/health` → 200 |
+| B1 (Zalo daily report) | ✅ Ngoài A4, **B1 cũng chưa từng lên production** — đã deploy kèm. Migration `049_daily_report_notify` đã chạy: bảng `report_notifications` tồn tại với 12 cột. |
+| Bảng `auth_sessions` | ✅ Đã có sẵn trên production (11 phiên, cột `token/username/created_at/expires_at/last_active/role/app_user_id`) |
+
+#### Verify trên production (không phải local)
+
+| Kiểm tra | Kết quả |
+|---|---|
+| 3 domain | ✅ `biatuoitayninh.store` / `admin.` / `giaohang.` → `/health` đều 200 |
+| Trang mới | ✅ `/sessions` 200, `/report-notify` 200 |
+| API sessions (chưa login) | ✅ 401 `{"error":"Unauthorized"}` |
+| Socket handshake (không token, không cookie) | ✅ `44 {"code":"UNAUTHORIZED"}` |
+| Socket handshake (token sai) | ✅ `44 {"code":"UNAUTHORIZED"}` |
+| Socket handshake (`mode=public`) | ✅ `42 ["connected", {rooms:["public"], role:"PUBLIC"}]` |
+| Socket token hợp lệ (admin) | ✅ `role: ADMIN`, `rooms: ["admin"]` — **không còn room `all`** |
+| Socket token hợp lệ (driver) | ✅ `role: DRIVER`, `rooms: ["driver"]` — tự khai `mode=admin` vẫn bị gán room driver |
+| WebSocket upgrade (cả 2 domain) | ✅ HTTP 101 Switching Protocols — nginx forward đúng |
+| API sessions (driver) | ✅ **403** `DRIVER_FORBIDDEN` |
+| `/api/driver/me` (driver) | ✅ 200, role `DRIVER` |
+| Thu hồi phiên | ✅ HTTP 200, `socketsDisconnected: 1`, socket nhận `session:revoked` (`reason: session_revoked`) → bị ngắt |
+| Token sau thu hồi | ✅ 401 — không dùng lại được |
+| Tự thu hồi chính mình | ✅ 400 với thông báo rõ ràng |
+| Logout trên trình duyệt | ✅ `POST /auth/logout` → socket bị cắt → trang tự về `/login` |
+| Realtime client trên production | ✅ `connected: true`, `wsUrl: https://admin.biatuoitayninh.store` |
+
+**Dữ liệu test đã dọn sạch trên production:** tài khoản `a4_prod_test_driver` và các phiên test đã xoá; toàn bộ script tạm trong `/tmp` đã xoá.
+
+#### Việc cần làm tiếp (không chặn deploy)
+
+- **`deploy/DEPLOY.md` và `deploy/AUTO_DEPLOY.md` vẫn ghi IP `103.75.183.57`** — server thật là `103.195.236.38`. Sửa để tránh deploy nhầm máy.
+- **Domain driver `giaohang.` không có `location /socket.io/` riêng** trong nginx — hiện vẫn chạy được nhờ `location /` có `Upgrade`/`Connection` headers, nhưng nên thêm block riêng để nhất quán với domain admin (giống hệt block admin + `proxy_buffering off`).
+- **`NODE_ENV=development` trên production** — nên đổi sang `production`.

@@ -1,4 +1,4 @@
-﻿# BeerPOS - Auto Deploy Guide (tá»•ng há»£p)
+# BeerPOS - Auto Deploy Guide (tá»•ng há»£p)
 
 > **Cáº­p nháº­t 2026-08-18:** Há»‡ thá»‘ng auto deploy Ä‘Ã£ Ä‘Æ°á»£c chuáº©n hoÃ¡.
 > CÃ³ **2 cÃ¡ch chÃ­nh** Ä‘á»ƒ deploy, má»—i cÃ¡ch phá»¥c vá»¥ má»™t má»¥c Ä‘Ã­ch khÃ¡c nhau.
@@ -142,16 +142,16 @@ curl https://admin.biatuoitayninh.store/deploy/status
 ssh-keygen -t ed25519 -f "$HOME\.ssh\id_ed25519"
 
 # 2. Copy public key lÃªn server
-type $HOME\.ssh\id_ed25519.pub | ssh root@103.75.183.57 "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
+type $HOME\.ssh\id_ed25519.pub | ssh root@103.195.236.38 "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
 
 # 3. Test
-ssh root@103.75.183.57 "echo OK"
+ssh root@103.195.236.38 "echo OK"
 
 # 4. (Optional) Config SSH Host alias Ä‘á»ƒ gá»n hÆ¡n
 # File: C:\Users\ADMIN\.ssh\config
 # Ná»™i dung:
 #   Host beer-server
-#       HostName 103.75.183.57
+#       HostName 103.195.236.38
 #       User root
 #       IdentityFile D:/Beer/cursor_deploy_key
 #       IdentitiesOnly yes
@@ -263,10 +263,10 @@ ssh root@server "pm2 restart beer-pos --update-env"
 
 ```powershell
 # Test SSH
-ssh -v root@103.75.183.57 "echo OK"
+ssh -v root@103.195.236.38 "echo OK"
 
 # Náº¿u bÃ¡o "Permission denied"
-type $HOME\.ssh\id_ed25519.pub | ssh root@103.75.183.57 "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
+type $HOME\.ssh\id_ed25519.pub | ssh root@103.195.236.38 "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
 
 # Náº¿u bÃ¡o "Connection refused"
 # â†’ Server cháº¿t hoáº·c firewall cháº·n port 22. VÃ o Hostinger panel check.
