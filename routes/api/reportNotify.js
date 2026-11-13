@@ -81,6 +81,7 @@ router.post('/config', requireAdmin, (req, res) => {
       'zalo_oa_app_id',
       'zalo_oa_secret_key',
       'zalo_oa_code_verifier',
+      'zalo_oa_state',
       'zalo_report_user_id',
       'telegram_bot_token',
       'telegram_report_chat_id',
@@ -223,7 +224,13 @@ router.get('/zalo/authorize-url', requireAdmin, (req, res) => {
 // Đổi code lấy access_token + refresh_token, lưu vào DB.
 router.get('/zalo/callback', async (req, res) => {
   try {
-    const { code, error: zaloError, error_description: errorDesc } = req.query;
+    const {
+      code,
+      state,
+      oa_id: oaId,
+      error: zaloError,
+      error_description: errorDesc,
+    } = req.query;
 
     if (zaloError) {
       return res
@@ -243,6 +250,18 @@ router.get('/zalo/callback', async (req, res) => {
         );
     }
 
+    // Kiểm tra state (chống CSRF) — chỉ bỏ qua nếu không có state đã lưu
+    if (!ZaloOAuthService.verifyState(state)) {
+      logger.warn('[REPORT_NOTIFY] Zalo callback state mismatch', {
+        hasState: Boolean(state),
+      });
+      return res.status(400).send(
+        '<h3 style="font-family:sans-serif">❌ Phiên cấp quyền không hợp lệ (state mismatch)</h3>' +
+          '<p>Vui lòng bấm lại nút <strong>🔗 Kết nối Zalo OA</strong> để bắt đầu phiên mới.</p>' +
+          '<p><a href="/report-notify">← Quay lại cấu hình</a></p>'
+      );
+    }
+
     const result = await ZaloOAuthService.exchangeCodeForToken(code);
 
     if (!result.ok) {
@@ -256,6 +275,9 @@ router.get('/zalo/callback', async (req, res) => {
     res.send(
       `<h3 style="font-family:sans-serif">✅ Đã cấu hình Zalo OA thành công!</h3>` +
         '<p>Access token đã được lưu. Hệ thống sẽ tự làm mới token mỗi ngày lúc 03:00.</p>' +
+        (oaId
+          ? `<p>OA ID: <code>${String(oaId)}</code></p>`
+          : '') +
         '<p><a href="/report-notify">← Quay lại cấu hình báo cáo</a></p>'
     );
   } catch (err) {

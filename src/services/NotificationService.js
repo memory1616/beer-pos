@@ -78,15 +78,32 @@ async function sendZalo({ text }) {
   return result;
 }
 
+/**
+ * Tạo header chuẩn cho Zalo OA OpenAPI.
+ * - `access_token` : bắt buộc
+ * - `X-Appsecret-Proof` : HMAC-SHA256(access_token, secret_key) — Zalo có thể
+ *   bắt buộc proof cho app (thiếu → lỗi -242). Gửi kèm luôn nếu có secret key.
+ *
+ * @param {string} accessToken
+ * @returns {Record<string, string>}
+ */
+function buildZaloHeaders(accessToken) {
+  const headers = {
+    'Content-Type': 'application/json',
+    access_token: accessToken,
+  };
+  const secretKey = getSetting('zalo_oa_secret_key');
+  const proof = require('./ZaloOAuthService').buildAppSecretProof(accessToken, secretKey);
+  if (proof) headers['X-Appsecret-Proof'] = proof;
+  return headers;
+}
+
 /** Gửi 1 tin nhắn CS (v3.0) với token cho trước. */
 async function postZaloMessage(accessToken, userId, text) {
   try {
     const res = await fetchWithTimeout('https://openapi.zalo.me/v3.0/oa/message/cs', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        access_token: accessToken,
-      },
+      headers: buildZaloHeaders(accessToken),
       body: JSON.stringify({
         // v3.0 yêu cầu object `recipient`, không phải `user_id` ở top-level.
         recipient: { user_id: String(userId) },
@@ -217,7 +234,7 @@ async function fetchZaloUsers(options = {}) {
       `https://openapi.zalo.me/v3.0/oa/user/getlist?data=${encodeURIComponent(
         JSON.stringify(data)
       )}`,
-      { method: 'GET', headers: { access_token: accessToken } }
+      { method: 'GET', headers: buildZaloHeaders(accessToken) }
     );
 
     const body = await res.json().catch(() => ({}));

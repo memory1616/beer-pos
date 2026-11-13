@@ -14,7 +14,7 @@
 const crypto = require('crypto');
 const logger = require('../utils/logger');
 
-const OA_AUTH_URL = 'https://oauth.zaloapp.com/v4/oa/auth';
+const OA_AUTH_URL = 'https://oauth.zaloapp.com/v4/oa/permission';
 const OA_TOKEN_URL = 'https://oauth.zaloapp.com/v4/oa/access_token';
 const REQUEST_TIMEOUT_MS = 15000;
 
@@ -60,14 +60,37 @@ function base64UrlEncode(buffer) {
 
 /**
  * Sinh cặp code_verifier / code_challenge (PKCE S256).
+ *
+ * Theo SDK chính thức Zalo (zalo-php-sdk):
+ *   code_verifier = Base64URL(random 32 bytes)   → 43 ký tự
+ *   code_challenge = Base64URL(SHA-256(verifier)) → không padding
+ *
  * @returns {{codeVerifier: string, codeChallenge: string}}
  */
 function generatePkce() {
-  const codeVerifier = base64UrlEncode(crypto.randomBytes(48));
+  // 32 bytes → base64url = 43 ký tự (đúng yêu cầu của Zalo)
+  const codeVerifier = base64UrlEncode(crypto.randomBytes(32));
   const codeChallenge = base64UrlEncode(
-    crypto.createHash('sha256').update(codeVerifier).digest()
+    crypto.createHash('sha256').update(codeVerifier, 'ascii').digest()
   );
   return { codeVerifier, codeChallenge };
+}
+
+/**
+ * Tính appsecret_proof = HMAC-SHA256(access_token, secret_key) hex.
+ * Header `X-Appsecret-Proof` — Zalo có thể bật chế độ bắt buộc proof cho app
+ * (nếu thiếu → lỗi -242).
+ *
+ * @param {string} accessToken
+ * @param {string} secretKey
+ * @returns {string|null} hex string, hoặc null nếu thiếu secret key
+ */
+function buildAppSecretProof(accessToken, secretKey) {
+  if (!accessToken || !secretKey) return null;
+  return crypto
+    .createHmac('sha256', secretKey)
+    .update(accessToken)
+    .digest('hex');
 }
 
 // ── Bước 1: tạo authorize URL ───────────────────────────────────────────────
@@ -90,18 +113,48 @@ function buildAuthorizeUrl(redirectUri) {
   // Lưu verifier để callback dùng khi đổi code → token
   setSetting('zalo_oa_code_verifier', codeVerifier);
 
+  // `state` chống CSRF: Zalo trả lại nguyên giá trị, ta kiểm tra ở callback.
+  const state = base64UrlEncode(crypto.randomBytes(16));
+  setSetting('zalo_oa_state', state);
+
   const params = new URLSearchParams({
     app_id: String(appId),
     redirect_uri: redirectUri,
     code_challenge: codeChallenge,
     code_challenge_method: 'S256',
+    state,
   });
 
   return {
     ok: true,
     url: `${OA_AUTH_URL}?${params.toString()}`,
     codeChallenge,
+    state,
   };
+}
+
+/**
+ * Kiểm tra `state` trả về từ Zalo có khớp với giá trị đã lưu không.
+ * @param {string} state
+ * @returns {boolean}
+ */
+function verifyState(state) {
+  if (!state) return false;
+  const saved = getSetting('zalo_oa_state');
+  if (!saved) return false; // không có state đã lưu → không hợp lệ
+  return saved === String(state);
+}
+
+/**
+ * Xoá state + verifier sau khi đã dùng (chống replay).
+ */
+function clearOAuthSession() {
+  try {
+    setSetting('zalo_oa_state', '');
+    setSetting('zalo_oa_code_verifier', '');
+  } catch (_) {
+    /* ignore */
+  }
 }
 
 // ── Bước 2: đổi authorization code lấy token ───────────────────────────────
@@ -149,8 +202,8 @@ async function exchangeCodeForToken(code) {
 
     if (json.access_token) setSetting('zalo_oa_access_token', String(json.access_token));
     if (json.refresh_token) setSetting('zalo_oa_refresh_token', String(json.refresh_token));
-    // Code chỉ dùng 1 lần → xoá verifier sau khi dùng
-    setSetting('zalo_oa_code_verifier', '');
+    // Code chỉ dùng 1 lần → xoá verifier + state sau khi dùng
+    clearOAuthSession();
 
     logger.info('[ZALO_OAUTH] Access token obtained', {
       expires_in: json.expires_in || null,
@@ -174,5 +227,8 @@ async function exchangeCodeForToken(code) {
 module.exports = {
   buildAuthorizeUrl,
   exchangeCodeForToken,
+  verifyState,
+  clearOAuthSession,
   generatePkce,
+  buildAppSecretProof,
 };
