@@ -181,28 +181,20 @@ function queryDayStats(dateStr) {
 
   const liters = literRow.total || 0;
 
-  // Nợ phát sinh trong ngày (khách mua chịu)
-  // Ledger mới: transaction_type='ORDER_DEBT' + direction='INCREASE'.
+  // Nợ phát sinh trong ngày (khách mua chịu) — TÍNH NET
+  //   + ORDER_DEBT / MANUAL_DEBT / ADJUSTMENT (INCREASE)
+  //   − REVERSAL có direction='DECREASE' (đảo 1 bút toán tăng nợ)
   // Cần giữ tương thích với bảng legacy `debt_transactions_legacy` (type='increase').
   const debtAddedRow = db
     .prepare(
-      `SELECT COALESCE(SUM(dt.amount), 0) AS total FROM debt_transactions dt
-       WHERE dt.transaction_type = 'ORDER_DEBT' AND dt.direction = 'INCREASE'
-         AND date(dt.created_at) = date(?)`
+      `SELECT COALESCE(SUM(CASE WHEN dt.direction = 'INCREASE' THEN dt.amount ELSE -dt.amount END), 0) AS total
+         FROM debt_transactions dt
+        WHERE dt.transaction_type IN ('ORDER_DEBT','MANUAL_DEBT','ADJUSTMENT','REVERSAL')
+          AND date(dt.created_at) = date(?)`
     )
     .get(dateStr);
 
   let debtAdded = debtAddedRow ? debtAddedRow.total || 0 : 0;
-
-  // Bổ sung nợ ghi bằng tay (MANUAL_DEBT) — cũng là nợ phát sinh trong ngày
-  const manualDebtRow = db
-    .prepare(
-      `SELECT COALESCE(SUM(dt.amount), 0) AS total FROM debt_transactions dt
-       WHERE dt.transaction_type = 'MANUAL_DEBT' AND dt.direction = 'INCREASE'
-         AND date(dt.created_at) = date(?)`
-    )
-    .get(dateStr);
-  debtAdded += manualDebtRow ? manualDebtRow.total || 0 : 0;
 
   // Dữ liệu legacy (trước khi chuyển sang ledger) — chỉ đọc, không ghi thêm
   try {

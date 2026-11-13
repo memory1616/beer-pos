@@ -111,20 +111,24 @@ router.get('/overview', requireAuth, (req, res) => {
 
     const today = db.getVietnamDateStr();
 
+    // Nợ phát sinh trong ngày (NET — đã trừ các bút toán đảo REVERSAL)
+    //   + ORDER_DEBT / MANUAL_DEBT / ADJUSTMENT (INCREASE)
+    //   − REVERSAL có direction=DECREASE (đảo 1 bút toán tăng nợ)
     const todayDebt = scoped(
-      `SELECT COALESCE(SUM(dt.amount), 0) AS total
+      `SELECT COALESCE(SUM(CASE WHEN dt.direction = 'INCREASE' THEN dt.amount ELSE -dt.amount END), 0) AS total
          FROM debt_transactions dt
-        WHERE dt.direction = 'INCREASE'
-          AND dt.transaction_type IN ('ORDER_DEBT','MANUAL_DEBT')
+        WHERE dt.transaction_type IN ('ORDER_DEBT','MANUAL_DEBT','ADJUSTMENT','REVERSAL')
           AND date(dt.created_at) = date(?)`,
       [today]
     )[0];
 
+    // Tiền khách trả trong ngày (NET)
+    //   + PAYMENT (DECREASE)
+    //   − REVERSAL có direction=INCREASE (đảo 1 bút toán thanh toán)
     const todayPayment = scoped(
-      `SELECT COALESCE(SUM(dt.amount), 0) AS total
+      `SELECT COALESCE(SUM(CASE WHEN dt.direction = 'DECREASE' THEN dt.amount ELSE -dt.amount END), 0) AS total
          FROM debt_transactions dt
-        WHERE dt.direction = 'DECREASE'
-          AND dt.transaction_type = 'PAYMENT'
+        WHERE dt.transaction_type IN ('PAYMENT','REVERSAL')
           AND date(dt.created_at) = date(?)`,
       [today]
     )[0];
