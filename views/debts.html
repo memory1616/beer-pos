@@ -248,6 +248,38 @@
     .dbt-quick-btn.plus:hover { border-color: #22c55e; color: #22c55e; }
     .dbt-quick-btn.minus:hover { border-color: #f59e0b; color: #f59e0b; }
     .dbt-quick-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .dbt-quick-btn.partial:hover { border-color: #3b82f6; color: #3b82f6; }
+
+    /* ── Panel thu tiền nhanh (mở khi click vào 1 khách) ─────────────── */
+    .dbt-collect {
+      margin: 12px 0 14px;
+      padding: 13px 14px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: var(--bg-secondary);
+    }
+    .dbt-collect-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .dbt-collect-amount {
+      font-size: 15px;
+      font-weight: 800;
+      color: #ef4444;
+      font-variant-numeric: tabular-nums;
+    }
+    .dbt-collect-amount.zero { color: #22c55e; }
+    .dbt-collect-hint {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      margin-top: 8px;
+    }
 
     /* ── Modal ──────────────────────────────────────────────────────── */
     .dbt-modal {
@@ -580,6 +612,42 @@
       '</tbody></table></div></div>';
   }
 
+  /**
+   * Panel "Thu tiền nhanh" — hiện ngay khi mở chi tiết 1 khách.
+   *
+   * 2 lựa chọn:
+   *   1. Thu Toàn Bộ — thu đúng số dư công nợ hiện tại của khách (1 chạm).
+   *   2. Thu (1 Phần)   — mở modal nhập số tiền (mặc định = số dư còn nợ),
+   *                      dùng khi khách trả một phần / trả tiền mặt một khoản.
+   */
+  function renderCollectPanel(d, cust) {
+    var balance = Number(d.balance || 0);
+    var hasDebt = balance > 0;
+    var openOrders = (d.orderDebts || []).filter(function (od) {
+      return od.status !== 'paid' && od.status !== 'cancelled' && (od.remaining_amount || 0) > 0;
+    });
+    var ordersHint = openOrders.length
+      ? openOrders.length + ' đơn hàng đang nợ'
+      : 'Không có đơn nào đang nợ';
+
+    return '<div class="dbt-collect">' +
+      '<div class="dbt-collect-title">' +
+        '<span>💵 Thu tiền nhanh</span>' +
+        '<span class="dbt-collect-amount' + (hasDebt ? '' : ' zero') + '">' +
+          money(balance) + '</span>' +
+      '</div>' +
+      '<div class="dbt-quick">' +
+        '<button class="dbt-quick-btn plus" ' + (hasDebt ? '' : 'disabled') +
+          ' onclick="collectAll(' + cust.id + ')">Thu Toàn Bộ</button>' +
+        '<button class="dbt-quick-btn partial" ' + (hasDebt ? '' : 'disabled') +
+          ' onclick="collectPartial(' + cust.id + ')">Thu (1 Phần)</button>' +
+      '</div>' +
+      '<div class="dbt-collect-hint">' + esc(ordersHint) +
+        (hasDebt ? ' · Số dư nợ hiện tại của khách.' : ' · Khách không còn nợ.') +
+      '</div>' +
+    '</div>';
+  }
+
   // ── Render: Detail ─────────────────────────────────────────────────────
   function renderDetail() {
     var d = state.detail;
@@ -650,6 +718,7 @@
       '<div class="dbt-section">' +
         '<div class="dbt-section-title">👤 ' + esc(cust.name || '') + ' <span class="dbt-muted">#' + (cust.id || '') + '</span></div>' +
         '<div class="dbt-section-desc">' + esc(cust.phone || '') + (cust.address ? ' · ' + esc(cust.address) : '') + '</div>' +
+        renderCollectPanel(d, cust) +
         '<div class="dbt-detail-grid">' +
           '<div class="dbt-detail-cell"><div class="dbt-detail-label">Đầu kỳ</div><div class="dbt-detail-value">' + money(b.openingBalance) + '</div></div>' +
           '<div class="dbt-detail-cell"><div class="dbt-detail-label">Nợ đơn hàng</div><div class="dbt-detail-value">' + money(b.orderDebt) + '</div></div>' +
@@ -1044,6 +1113,75 @@
     if (el) el.classList.add('hidden');
   }
 
+  /**
+   * Thu TOÀN BỘ số dư công nợ hiện tại của khách (1 chạm).
+   * Dùng khi khách trả đủ số nợ đang có.
+   */
+  function collectAll(customerId) {
+    var id = parseInt(customerId, 10);
+    if (!id) { toast('✗ Khách hàng không hợp lệ', 'err'); return; }
+
+    var d = state.detail;
+    var balance = d && d.customer && String(d.customer.id) === String(id)
+      ? Number(d.balance || 0)
+      : 0;
+
+    if (balance <= 0) { toast('✗ Khách không có công nợ', 'err'); return; }
+    if (!window.confirm('Thu toàn bộ ' + money(balance) + ' cho khách này?')) return;
+
+    api(API + '/payment', {
+      method: 'POST',
+      body: JSON.stringify({ customerId: id, amount: balance, note: 'Thu toàn bộ công nợ' })
+    }).then(function (res) {
+      toast('✅ Đã thu ' + money(res.data.appliedAmount) + ' · Còn nợ ' + money(res.data.balanceAfter), 'ok');
+      refreshOverview();
+      if (state.detail) openDetail(state.detailCustomerId);
+    }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
+  }
+
+  /**
+   * Thu MỘT PHẦN — mở modal nhập số tiền, mặc định = số dư còn nợ.
+   * Dùng khi khách trả một khoản nhỏ hơn tổng nợ.
+   */
+  function collectPartial(customerId) {
+    var id = parseInt(customerId, 10);
+    if (!id) { toast('✗ Khách hàng không hợp lệ', 'err'); return; }
+
+    var d = state.detail;
+    var balance = d && d.customer && String(d.customer.id) === String(id)
+      ? Number(d.balance || 0)
+      : 0;
+
+    if (balance <= 0) { toast('✗ Khách không có công nợ', 'err'); return; }
+
+    showModal('Thu một phần — ' + ((d && d.customer && d.customer.name) || ''), '' +
+      '<div class="dbt-field"><label class="dbt-label">Số tiền thu (đ)</label>' +
+        '<input id="cpAmount" class="dbt-input" inputmode="numeric" data-format-number value="' + balance + '">' +
+        '<div class="dbt-hint">Tối đa ' + money(balance) + ' (số dư công nợ hiện tại).</div></div>' +
+      '<div class="dbt-field"><label class="dbt-label">Ghi chú</label>' +
+        '<input id="cpNote" class="dbt-input" placeholder="VD: Khách trả một phần"></div>' +
+      '<div class="dbt-btn-row"><button class="dbt-btn dbt-btn-secondary" onclick="closeModal()">Hủy</button>' +
+        '<button class="dbt-btn" style="flex:1" onclick="submitCollectPartial()">💵 Thu tiền</button></div>');
+  }
+
+  function submitCollectPartial() {
+    var customerId = parseInt(state.detailCustomerId, 10);
+    var amount = parseMoney(document.getElementById('cpAmount').value);
+    var note = document.getElementById('cpNote').value;
+
+    if (!customerId || !amount) { toast('✗ Thiếu khách hàng hoặc số tiền', 'err'); return; }
+
+    api(API + '/payment', {
+      method: 'POST',
+      body: JSON.stringify({ customerId: customerId, amount: amount, note: note || 'Thu một phần' })
+    }).then(function (res) {
+      closeModal();
+      toast('✅ Đã thu ' + money(res.data.appliedAmount) + ' · Còn nợ ' + money(res.data.balanceAfter), 'ok');
+      refreshOverview();
+      if (state.detail) openDetail(state.detailCustomerId);
+    }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
+  }
+
   function submitPayment() {
     var customerId = parseInt(document.getElementById('pmCustomer').value, 10);
     var amount = parseMoney(document.getElementById('pmAmount').value);
@@ -1225,6 +1363,9 @@
   window.openAdjustModal = openAdjustModal;
   window.openGroupModal = openGroupModal;
   window.openPermModal = openPermModal;
+  window.collectAll = collectAll;
+  window.collectPartial = collectPartial;
+  window.submitCollectPartial = submitCollectPartial;
 })();
 </script>
 </body>

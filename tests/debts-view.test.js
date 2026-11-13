@@ -162,3 +162,62 @@ describe('views/debts.html — lỗi inline onclick & preload', () => {
     expect(bad).toEqual([]);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Panel "Thu tiền nhanh" — mở khi click vào 1 khách
+// ═══════════════════════════════════════════════════════════════════════════
+describe('views/debts.html — panel Thu tiền nhanh', () => {
+  test('renderCollectPanel() tồn tại và có 2 nút Thu Toàn Bộ / Thu (1 Phần)', () => {
+    expect(html).toMatch(/function\s+renderCollectPanel\s*\(/);
+    expect(html).toMatch(/function\s+collectAll\s*\(/);
+    expect(html).toMatch(/function\s+collectPartial\s*\(/);
+    expect(html).toMatch(/function\s+submitCollectPartial\s*\(/);
+
+    expect(html).toContain('Thu Toàn Bộ');
+    expect(html).toContain('Thu (1 Phần)');
+  });
+
+  test('3 hàm mới được expose ra window cho inline onclick', () => {
+    expect(html).toMatch(/window\.collectAll\s*=\s*collectAll/);
+    expect(html).toMatch(/window\.collectPartial\s*=\s*collectPartial/);
+    expect(html).toMatch(/window\.submitCollectPartial\s*=\s*submitCollectPartial/);
+  });
+
+  test('panel được chèn vào màn chi tiết khách', () => {
+    expect(html).toMatch(/renderCollectPanel\(d,\s*cust\)/);
+  });
+
+  test('collectAll gửi đúng amount = số dư công nợ của khách', () => {
+    // Không được để amount rỗng / 0 — phải lấy từ d.balance
+    expect(html).toMatch(/amount:\s*balance/);
+    expect(html).toMatch(/customerId:\s*id,\s*amount:\s*balance/);
+  });
+
+  test('collectPartial mở modal có sẵn số tiền = số dư công nợ', () => {
+    expect(html).toMatch(/id="cpAmount"/);
+    expect(html).toContain('data-format-number value="\' + balance + \'"');
+    expect(html).toMatch(/id="cpNote"/);
+  });
+
+  test('nút bị disable khi khách không còn nợ', () => {
+    // hasDebt = balance > 0 → disabled khi không có nợ
+    expect(html).toMatch(/hasDebt\s*\?\s*''\s*:\s*'disabled'/);
+  });
+
+  test('CSS cho panel thu tiền nhanh tồn tại', () => {
+    expect(html).toMatch(/\.dbt-collect\s*\{/);
+    expect(html).toMatch(/\.dbt-collect-title\s*\{/);
+    expect(html).toMatch(/\.dbt-collect-amount\s*\{/);
+    expect(html).toMatch(/\.dbt-quick-btn\.partial:hover/);
+  });
+
+  test('hàm collectAll / collectPartial dùng đúng API endpoint', () => {
+    const all = html.slice(html.indexOf('function collectAll('), html.indexOf('function collectPartial('));
+    expect(all).toContain("API + '/payment'");
+    expect(all).toContain("method: 'POST'");
+
+    const partial = html.slice(html.indexOf('function submitCollectPartial('));
+    expect(partial).toContain("API + '/payment'");
+    expect(partial).toContain("method: 'POST'");
+  });
+});
