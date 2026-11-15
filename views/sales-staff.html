@@ -78,7 +78,7 @@
       padding: 9px 4px;
       border-radius: 9px;
       cursor: pointer;
-      min-height: 40px;
+      min-height: 44px;
       transition: background var(--transition-fast), color var(--transition-fast);
       white-space: nowrap;
       overflow: hidden;
@@ -100,7 +100,7 @@
     .ss-subtabs::-webkit-scrollbar { display: none; }
     .ss-subtab {
       flex: 0 0 auto;
-      padding: 7px 13px;
+      padding: 0 14px;
       border-radius: 999px;
       border: 1px solid var(--border);
       background: var(--card);
@@ -109,7 +109,10 @@
       font-weight: 600;
       cursor: pointer;
       white-space: nowrap;
-      min-height: 34px;
+      /* Touch target ≥ 44px (chuẩn mobile) */
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
     }
     .ss-subtab.active {
       background: var(--primary-dim);
@@ -172,7 +175,8 @@
     .ss-btn--success { background: var(--green); color: var(--text-on-dark); border-color: var(--green); }
     .ss-btn--danger { background: var(--danger-dim); color: var(--danger); border-color: rgba(246,70,93,.35); }
     .ss-btn--warn { background: var(--warning-dim); color: var(--warning); border-color: rgba(240,185,11,.35); }
-    .ss-btn--sm { min-height: 38px; padding: 0 12px; font-size: 12.5px; border-radius: 10px; }
+    /* Nút nhỏ: vẫn giữ touch target ≥ 40px để dễ bấm trên mobile */
+    .ss-btn--sm { min-height: 40px; padding: 0 13px; font-size: 12.5px; border-radius: 10px; }
     .ss-btn--block { width: 100%; }
 
     /* ── Form ─────────────────────────────────────────────────────── */
