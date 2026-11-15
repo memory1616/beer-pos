@@ -4,6 +4,8 @@ const db = require('../../database');
 const logger = require('../../src/utils/logger');
 const { syncKegInventory } = require('./products');
 const socketServer = require('../../src/socket/socketServer');
+const AuditService = require('../../src/services/AuditService');
+const KegBalanceService = require('../../src/services/KegBalanceService');
 
 // ========== HELPER: Resolve product by id (numeric) or slug ==========
 function resolveProduct(query) {
@@ -62,22 +64,32 @@ router.post('/', (req, res) => {
     logger.debug('Product stock updated');
 
     // ========== BƯỚC 4: Cập nhật vỏ rỗng ==========
+    //
+    // ⚠️ CHO PHÉP ÂM: lấy N vỏ BIA ĐẦY về từ nhà máy = N vỏ rỗng đi kèm.
+    //    Nếu trong kho chỉ có 500 vỏ rỗng mà lấy 1000 vỏ đầy về → rỗng = -500
+    //    (tạm ứng trước nhà máy). Số âm sẽ được bù dần khi thu vỏ rỗng từ khách.
+    //    Xem src/services/KegBalanceService.js.
     let stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
     if (!stats) {
       db.prepare('INSERT INTO keg_stats (id, inventory, empty_collected, customer_holding) VALUES (1, 0, 0, 0)').run();
       stats = { empty_collected: 0 };
     }
     const currentEmpty = stats.empty_collected || 0;
-    const newEmpty = Math.max(0, currentEmpty - totalKegs);
+    const newEmpty = KegBalanceService.peekEmptyCollected(-totalKegs);
 
     db.prepare('UPDATE keg_stats SET empty_collected = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run(newEmpty);
     logger.debug('Empty kegs updated', { emptyBefore: currentEmpty, totalKegs, emptyAfter: newEmpty });
 
     if (totalKegs > 0) {
-      db.prepare(`
-        INSERT INTO keg_transactions_log (type, quantity, inventory_after, empty_after, holding_after, note)
-        VALUES ('import', ?, 0, ?, 0, ?)
-      `).run(totalKegs, newEmpty, 'Nhập ' + totalKegs + ' vỏ từ nhà máy');
+      AuditService.logKeg({
+        type: 'import',
+        quantity: totalKegs,
+        inventoryAfter: 0,
+        emptyAfter: newEmpty,
+        holdingAfter: 0,
+        note: 'Nhập ' + totalKegs + ' vỏ từ nhà máy',
+        req,
+      });
     }
 
     // ========== BƯỚC 5: Sync keg inventory ==========
@@ -228,10 +240,15 @@ router.delete('/:id', (req, res) => {
     logger.debug('Empty kegs returned', { totalKegs, emptyBefore: currentEmpty, emptyAfter: newEmpty });
 
     if (totalKegs > 0) {
-      db.prepare(`
-        INSERT INTO keg_transactions_log (type, quantity, inventory_after, empty_after, holding_after, note)
-        VALUES ('return', ?, 0, ?, 0, ?)
-      `).run(totalKegs, newEmpty, 'Trả vỏ do xóa đơn nhập #' + purchaseId);
+      AuditService.logKeg({
+        type: 'return',
+        quantity: totalKegs,
+        inventoryAfter: 0,
+        emptyAfter: newEmpty,
+        holdingAfter: 0,
+        note: 'Trả vỏ do xóa đơn nhập #' + purchaseId,
+        req,
+      });
     }
 
     // Soft delete

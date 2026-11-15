@@ -87,11 +87,12 @@ function recordPayment(opts = {}) {
   }
 
   // 4. Bảng `payments` (lịch sử thu tiền legacy — giữ để không phá báo cáo cũ)
+  //    `date` = ngày NGHIỆP VỤ (cutoff 19:00) → khớp với ledger.
   try {
     db.prepare('INSERT INTO payments (customer_id, amount, date, note) VALUES (?, ?, ?, ?)').run(
       custId,
       value,
-      db.getVietnamDateStr(),
+      db.getBusinessDateStr(),
       note || `Thu tiền công nợ (${value.toLocaleString('vi-VN')}đ)`
     );
   } catch (e) {

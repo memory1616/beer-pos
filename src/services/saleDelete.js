@@ -12,6 +12,8 @@
 const db = require('../../database');
 const logger = require('../../src/utils/logger');
 const { PromotionService } = require('./index');
+const AuditService = require('./AuditService');
+const KegBalanceService = require('./KegBalanceService');
 
 /** Đơn loại này đã trừ products.stock khi tạo → cần cộng lại khi xóa (kể cả type legacy / sync). */
 function shouldReverseProductStock(sale) {
@@ -70,10 +72,16 @@ function deleteSaleRestoringInventory(saleId) {
           const customer = sale.customer_id
             ? db.prepare('SELECT name FROM customers WHERE id = ?').get(sale.customer_id)
             : null;
-          db.prepare(`
-            INSERT INTO product_audit_log (product_id, type, quantity, reason, ref_id, ref_type, customer_name, note)
-            VALUES (?, 'restore', ?, 'sale_delete', ?, 'sale', ?, ?)
-          `).run(item.product_id, item.quantity, id, customer ? customer.name : null, 'Hoàn kho do xóa đơn');
+          AuditService.logStock({
+            productId: item.product_id,
+            type: 'restore',
+            quantity: item.quantity,
+            reason: 'sale_delete',
+            refId: id,
+            refType: 'sale',
+            customerName: customer ? customer.name : null,
+            note: 'Hoàn kho do xóa đơn',
+          });
         }
       }
 
@@ -100,25 +108,43 @@ function deleteSaleRestoringInventory(saleId) {
           else yellowLiters += q;
         }
         if (paidLiters > 0) {
-          // Revert customers.monthly_purchased_liters
-          db.prepare('UPDATE customers SET monthly_purchased_liters = MAX(0, monthly_purchased_liters - ?) WHERE id = ?').run(paidLiters, sale.customer_id);
+          // Revert customer_monthly_stats.purchased_liters (theo tháng NGHIỆP VỤ của đơn)
+          //
+          // ⚠️ `sales.date` là NGÀY NGHIỆP VỜ (cutoff 19:00) → đơn tạo sau 19h
+          //    thuộc tháng sau. Phải dùng ĐÚNG tháng này để khớp với lúc tạo đơn
+          //    (`routes/api/sales.js` → updateCustomerMonthlyStats).
+          //    Parse thẳng từ chuỗi 'YYYY-MM-DD' để tránh lệch múi giờ.
+          const saleParts = String(sale.date || '').split('-');
+          const saleYear = Number(saleParts[0]);
+          const saleMonth = Number(saleParts[1]);
 
-          // Revert customer_monthly_stats.purchased_liters (theo tháng của đơn)
-          const saleDate = new Date(sale.date);
-          const saleYear = saleDate.getFullYear();
-          const saleMonth = saleDate.getMonth() + 1;
-          const existingStats = db.prepare(`
-            SELECT id, purchased_liters FROM customer_monthly_stats
-            WHERE customer_id = ? AND year = ? AND month = ?
-          `).get(sale.customer_id, saleYear, saleMonth);
-          if (existingStats) {
-            db.prepare(`
-              UPDATE customer_monthly_stats SET
-                purchased_liters = MAX(0, purchased_liters - ?),
-                purchased_yellow_liters = MAX(0, COALESCE(purchased_yellow_liters, 0) - ?),
-                purchased_black_liters = MAX(0, COALESCE(purchased_black_liters, 0) - ?)
-              WHERE id = ?
-            `).run(paidLiters, yellowLiters, blackLiters, existingStats.id);
+          // Revert customers.monthly_purchased_liters — chỉ khi tháng nghiệp vụ
+          // của đơn trùng tháng lịch thực hiện tại (counter là số liệu tháng
+          // đang chạy). Nếu khác tháng → bỏ qua (net zero với lúc tạo đơn).
+          const nowParts = db.getVietnamDateStr().split('-');
+          if (
+            saleYear === Number(nowParts[0]) &&
+            saleMonth === Number(nowParts[1]) &&
+            !Number.isNaN(saleYear) &&
+            !Number.isNaN(saleMonth)
+          ) {
+            db.prepare('UPDATE customers SET monthly_purchased_liters = MAX(0, monthly_purchased_liters - ?) WHERE id = ?').run(paidLiters, sale.customer_id);
+          }
+
+          if (!Number.isNaN(saleYear) && !Number.isNaN(saleMonth)) {
+            const existingStats = db.prepare(`
+              SELECT id, purchased_liters FROM customer_monthly_stats
+              WHERE customer_id = ? AND year = ? AND month = ?
+            `).get(sale.customer_id, saleYear, saleMonth);
+            if (existingStats) {
+              db.prepare(`
+                UPDATE customer_monthly_stats SET
+                  purchased_liters = MAX(0, purchased_liters - ?),
+                  purchased_yellow_liters = MAX(0, COALESCE(purchased_yellow_liters, 0) - ?),
+                  purchased_black_liters = MAX(0, COALESCE(purchased_black_liters, 0) - ?)
+                WHERE id = ?
+              `).run(paidLiters, yellowLiters, blackLiters, existingStats.id);
+            }
           }
         }
       }
@@ -218,29 +244,28 @@ function deleteSaleRestoringInventory(saleId) {
       }
 
       // ===== D. RESTORE EMPTY COLLECTED (nếu đơn đã thu vỏ rỗng từ khách) =====
+      // ⚠️ CHO PHÉP ÂM — xem src/services/KegBalanceService.js
       if (sale.return_kegs && sale.return_kegs > 0) {
         const stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
         const currentEmpty = stats?.empty_collected || 0;
-        const newEmpty = Math.max(0, currentEmpty - sale.return_kegs);
+        const newEmpty = KegBalanceService.peekEmptyCollected(-sale.return_kegs);
         db.prepare('UPDATE keg_stats SET empty_collected = ? WHERE id = 1').run(newEmpty);
 
         const updatedStats = db.prepare('SELECT inventory, empty_collected, customer_holding, lost FROM keg_stats WHERE id = 1').get();
         const customerForLog = sale.customer_id
           ? db.prepare('SELECT name FROM customers WHERE id = ?').get(sale.customer_id)
           : null;
-        db.prepare(`
-          INSERT INTO keg_transactions_log
-            (type, quantity, inventory_after, empty_after, holding_after, lost_after, note)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
-        `).run(
-          'sale_delete',
-          -sale.return_kegs,
-          updatedStats?.inventory || 0,
-          updatedStats?.empty_collected || 0,
-          updatedStats?.customer_holding || 0,
-          updatedStats?.lost || 0,
-          `Hoàn vỏ khi xóa đơn #${id}${customerForLog ? ' (khách: ' + customerForLog.name + ')' : ''}`
-        );
+        AuditService.logKeg({
+          type: 'sale_delete',
+          quantity: -sale.return_kegs,
+          inventoryAfter: updatedStats?.inventory || 0,
+          emptyAfter: updatedStats?.empty_collected || 0,
+          holdingAfter: updatedStats?.customer_holding || 0,
+          lostAfter: updatedStats?.lost || 0,
+          customerId: sale.customer_id || null,
+          customerName: customerForLog ? customerForLog.name : null,
+          note: `Hoàn vỏ khi xóa đơn #${id}${customerForLog ? ' (khách: ' + customerForLog.name + ')' : ''}`,
+        });
       }
 
       // ===== E. SYNC KEG STATS =====

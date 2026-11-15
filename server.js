@@ -815,6 +815,28 @@ cron.schedule('15 3 * * *', async () => {
   timezone: 'Asia/Ho_Chi_Minh',
 });
 
+// ==================== AUDIT LOG RETENTION (dọn log cũ) ====================
+// 3 bảng nhật ký (audit_logs, product_audit_log, keg_transactions_log) phình
+// vô hạn nếu không dọn → DB nặng, truy vấn lịch sử chậm dần.
+// Cron 03:30 mỗi đêm dọn theo policy trong settings:
+//   audit_log_retention_days (180) · stock_log_retention_days (365) · keg_log_retention_days (365)
+// Admin có thể đổi policy qua POST /api/audit-log/retention-policy.
+cron.schedule('30 3 * * *', async () => {
+  try {
+    const AuditRetentionService = require('./src/services/AuditRetentionService');
+    const result = AuditRetentionService.runPurge();
+    if (result.total > 0) {
+      logger.info('Audit retention purge done', {
+        total: result.total,
+        ...result.deletedByTable,
+      });
+    }
+  } catch (e) {
+    logger.error('Audit retention purge cron error', { error: e.message });
+  }
+}, {
+  timezone: 'Asia/Ho_Chi_Minh',
+});
 // ==================== WEB ROUTES ====================
 
 // Landing page — public domain

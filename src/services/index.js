@@ -14,6 +14,7 @@
 const db = require('../../database');
 const logger = require('../utils/logger');
 const promotionCalc = require('./promotionCalc');
+const AuditService = require('./AuditService');
 
 // B6: Lock timezone = Asia/Ho_Chi_Minh cho toàn bộ service.
 //     Đảm bảo logic tính tháng/năm nhất quán ngay cả khi file này được
@@ -858,15 +859,17 @@ class PromotionService {
 
     const tx = db.transaction(() => {
       // 1. Tạo phiếu xuất kho thưởng (sale type='sale', total=0)
-      const saleDate = db.getVietnamDateStr();
+      // `date` = NGÀY NGHIỆP VỤ (cutoff 19:00), `created_on` = ngày lịch thực
+      const createdOn = db.getVietnamDateStr();
+      const saleDate = db.getBusinessDateStr();
       // B16/Bia Inox V2: Note có "tháng X/Y" + thông tin yellow/black để detect đã nhận
       const noteSuffix = yellowReward > 0 && blackReward > 0
         ? `${rewardLiters}L (${yellowReward}L vàng + ${blackReward}L đen)`
         : `${rewardLiters}L`;
       const result = db.prepare(`
-        INSERT INTO sales (customer_id, date, total, profit, type, promo_type, reward_liters_used, note)
+        INSERT INTO sales (customer_id, date, created_on, total, profit, type, promo_type, reward_liters_used, note)
         VALUES (?, ?, ?, 0, 'sale', 'MONTHLY_BONUS', ?, ?)
-      `).run(customerId, saleDate, 0, rewardLiters, `Thưởng doanh số tháng ${month}/${year} - ${noteSuffix} miễn phí`);
+      `).run(customerId, saleDate, createdOn, rewardLiters, `Thưởng doanh số tháng ${month}/${year} - ${noteSuffix} miễn phí`);
 
       const saleId = result.lastInsertRowid;
 
@@ -887,10 +890,16 @@ class PromotionService {
         db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(yellowReward, goldProduct.id);
 
         const customerNameRec = db.prepare('SELECT name FROM customers WHERE id = ?').get(customerId);
-        db.prepare(`
-          INSERT INTO product_audit_log (product_id, type, quantity, reason, ref_id, ref_type, customer_name, note)
-          VALUES (?, 'export', ?, 'reward', ?, 'sale', ?, ?)
-        `).run(goldProduct.id, yellowReward, saleId, customerNameRec?.name || '', `Thưởng doanh số tháng ${month}/${year} - bia vàng`);
+        AuditService.logStock({
+          productId: goldProduct.id,
+          type: 'export',
+          quantity: yellowReward,
+          reason: 'reward',
+          refId: saleId,
+          refType: 'sale',
+          customerName: customerNameRec?.name || '',
+          note: `Thưởng doanh số tháng ${month}/${year} - bia vàng`,
+        });
       }
 
       // Bia đen - lưu cost_price để tính lợi nhuận đúng
@@ -902,10 +911,16 @@ class PromotionService {
         db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(blackReward, blackProduct.id);
 
         const customerNameRec = db.prepare('SELECT name FROM customers WHERE id = ?').get(customerId);
-        db.prepare(`
-          INSERT INTO product_audit_log (product_id, type, quantity, reason, ref_id, ref_type, customer_name, note)
-          VALUES (?, 'export', ?, 'reward', ?, 'sale', ?, ?)
-        `).run(blackProduct.id, blackReward, saleId, customerNameRec?.name || '', `Thưởng doanh số tháng ${month}/${year} - bia đen`);
+        AuditService.logStock({
+          productId: blackProduct.id,
+          type: 'export',
+          quantity: blackReward,
+          reason: 'reward',
+          refId: saleId,
+          refType: 'sale',
+          customerName: customerNameRec?.name || '',
+          note: `Thưởng doanh số tháng ${month}/${year} - bia đen`,
+        });
       }
 
       // 4. Ghi reward_history (lưu cả 2 phần riêng)
@@ -1150,10 +1165,16 @@ class PromotionService {
           db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(reward_yellow, goldProduct.id);
 
           const customer = db.prepare('SELECT name FROM customers WHERE id = ?').get(customerId);
-          db.prepare(`
-            INSERT INTO product_audit_log (product_id, type, quantity, reason, ref_id, ref_type, customer_name, note)
-            VALUES (?, 'export', ?, 'pending_reward', ?, 'sale', ?, ?)
-          `).run(goldProduct.id, reward_yellow, saleId, customer?.name || '', `Trả thưởng sản lượng tháng ${reward_month}/${reward_year} - bia vàng`);
+          AuditService.logStock({
+            productId: goldProduct.id,
+            type: 'export',
+            quantity: reward_yellow,
+            reason: 'pending_reward',
+            refId: saleId,
+            refType: 'sale',
+            customerName: customer?.name || '',
+            note: `Trả thưởng sản lượng tháng ${reward_month}/${reward_year} - bia vàng`,
+          });
         }
 
         // 1b. Bia đen (nếu có) - lưu cost_price để tính lợi nhuận đúng
@@ -1165,10 +1186,16 @@ class PromotionService {
           db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(reward_black, blackProduct.id);
 
           const customer = db.prepare('SELECT name FROM customers WHERE id = ?').get(customerId);
-          db.prepare(`
-            INSERT INTO product_audit_log (product_id, type, quantity, reason, ref_id, ref_type, customer_name, note)
-            VALUES (?, 'export', ?, 'pending_reward', ?, 'sale', ?, ?)
-          `).run(blackProduct.id, reward_black, saleId, customer?.name || '', `Trả thưởng sản lượng tháng ${reward_month}/${reward_year} - bia đen`);
+          AuditService.logStock({
+            productId: blackProduct.id,
+            type: 'export',
+            quantity: reward_black,
+            reason: 'pending_reward',
+            refId: saleId,
+            refType: 'sale',
+            customerName: customer?.name || '',
+            note: `Trả thưởng sản lượng tháng ${reward_month}/${reward_year} - bia đen`,
+          });
         }
 
         // 2. Cập nhật hóa đơn: đánh dấu có reward + cập nhật số vỏ giao
@@ -1477,10 +1504,16 @@ class PromotionService {
         db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(yellowReward, goldProduct.id);
 
         const customer = db.prepare('SELECT name FROM customers WHERE id = ?').get(customerId);
-        db.prepare(`
-          INSERT INTO product_audit_log (product_id, type, quantity, reason, ref_id, ref_type, customer_name, note)
-          VALUES (?, 'export', ?, 'reward', ?, 'sale', ?, ?)
-        `).run(goldProduct.id, yellowReward, saleId, customer?.name || '', `Trả thưởng sản lượng tháng ${rewardMonth}/${rewardYear} - bia vàng`);
+        AuditService.logStock({
+          productId: goldProduct.id,
+          type: 'export',
+          quantity: yellowReward,
+          reason: 'reward',
+          refId: saleId,
+          refType: 'sale',
+          customerName: customer?.name || '',
+          note: `Trả thưởng sản lượng tháng ${rewardMonth}/${rewardYear} - bia vàng`,
+        });
       }
 
       if (blackReward > 0 && blackProduct) {
@@ -1491,10 +1524,16 @@ class PromotionService {
         db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(blackReward, blackProduct.id);
 
         const customer = db.prepare('SELECT name FROM customers WHERE id = ?').get(customerId);
-        db.prepare(`
-          INSERT INTO product_audit_log (product_id, type, quantity, reason, ref_id, ref_type, customer_name, note)
-          VALUES (?, 'export', ?, 'reward', ?, 'sale', ?, ?)
-        `).run(blackProduct.id, blackReward, saleId, customer?.name || '', `Trả thưởng sản lượng tháng ${rewardMonth}/${rewardYear} - bia đen`);
+        AuditService.logStock({
+          productId: blackProduct.id,
+          type: 'export',
+          quantity: blackReward,
+          reason: 'reward',
+          refId: saleId,
+          refType: 'sale',
+          customerName: customer?.name || '',
+          note: `Trả thưởng sản lượng tháng ${rewardMonth}/${rewardYear} - bia đen`,
+        });
       }
 
       // Fallback: 1 row nếu không có tách - lưu cost_price để tính COGS đúng
@@ -2066,26 +2105,30 @@ class AnalyticsService {
    * Get date range từ period
    */
   _getDateRange(period) {
-    const today = db.getVietnamDateStr();
-    let startDate, endDate = today;
+    // Ngày NGHIỆP VỤ (cutoff 19:00): `sales.date` đã lưu ngày nghiệp vụ →
+    // lọc theo ngày nghiệp vụ là đúng (đơn sau 19:00 không tính vào hôm nay).
+    const businessToday = db.getBusinessDateStr();
+    let startDate;
+    const endDate = businessToday;
 
     switch (period) {
       case 'today':
-        startDate = today;
+        startDate = businessToday;
         break;
-      case 'week':
-        startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-          .toISOString().split('T')[0];
+      case 'week': {
+        const d = new Date(`${businessToday}T00:00:00Z`);
+        d.setUTCDate(d.getUTCDate() - 7);
+        startDate = d.toISOString().slice(0, 10);
         break;
+      }
       case 'month':
-        const d = new Date();
-        startDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+        startDate = `${businessToday.slice(0, 7)}-01`;
         break;
       case 'year':
-        startDate = `${new Date().getFullYear()}-01-01`;
+        startDate = `${businessToday.slice(0, 4)}-01-01`;
         break;
       default:
-        startDate = today;
+        startDate = businessToday;
     }
 
     return { startDate, endDate };

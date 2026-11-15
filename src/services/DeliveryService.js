@@ -38,6 +38,8 @@ const ALLOWED_TRANSITIONS = {
 const db = require('../../database');
 const logger = require('../../src/utils/logger');
 const DebtOrderIntegration = require('./debt/DebtOrderIntegration');
+const AuditService = require('./AuditService');
+const KegBalanceService = require('./KegBalanceService');
 
 class DeliveryService {
   /**
@@ -103,7 +105,7 @@ class DeliveryService {
           AND s.archived = 0
           AND s.deleted = 0
           AND c.archived = 0
-          AND DATE(s.date) = ?
+          AND COALESCE(DATE(s.created_on), DATE(s.date)) = ?
           AND (
                 s.driver_username = ?
              OR s.driver_username IS NULL
@@ -253,7 +255,11 @@ class DeliveryService {
           sale.customer_id || null,
           driverUsername,
           DELIVERY_STATUS.PENDING,
-          sale.date || db.getVietnamDateStr(),
+          // `scheduled_date` = ngày LỊCH THỰC giao (dùng `created_on`).
+          // Đơn tạo sau 19:00 vẫn thuộc lịch giao HÔM NAY (quyết định
+          // "keep-visible" cho Driver Portal), dù `sales.date` đã lùi sang
+          // ngày nghiệp vụ ngày mai.
+          sale.created_on || sale.date || db.getVietnamDateStr(),
           expectedKegs
         );
 
@@ -465,7 +471,8 @@ class DeliveryService {
             record.customer_id,
             collectedKegs,
             record.collected_kegs || 0,
-            `Thu vỏ qua phiếu giao #${deliveryId}`
+            `Thu vỏ qua phiếu giao #${deliveryId}`,
+            driverUsername
           );
         }
 
@@ -540,8 +547,9 @@ class DeliveryService {
    * @param {number} collected    số vỏ thu về (mới)
    * @param {number} prevCollected số vỏ thu về trước đó trên phiếu giao
    * @param {string} note         ghi chú log
+   * @param {string} [driverUsername] tài xế thực hiện (ghi vào log vỏ)
    */
-  static syncCollectedKegs(saleId, customerId, collected, prevCollected, note) {
+  static syncCollectedKegs(saleId, customerId, collected, prevCollected, note, driverUsername) {
     if (!saleId || !customerId) return;
 
     const sale = db
@@ -575,11 +583,15 @@ class DeliveryService {
     }
 
     // keg_stats: thu thêm → empty_collected tăng; giảm thu → trả vỏ cho khách
+    // ⚠️ CHO PHÉP ÂM: thu vỏ rỗng từ khách bù được vào số âm (vỏ tạm ứng
+    //    trước nhà máy). Xem src/services/KegBalanceService.js.
     const stats = db.prepare('SELECT inventory, empty_collected FROM keg_stats WHERE id = 1').get();
     const currentEmpty = stats?.empty_collected || 0;
     const newlyCollected = Math.max(0, delta);
     const newlyReturnedToCustomer = Math.max(0, -delta);
-    const newEmpty = Math.max(0, currentEmpty + newlyCollected - newlyReturnedToCustomer);
+    const newEmpty = KegBalanceService.peekEmptyCollected(
+      newlyCollected - newlyReturnedToCustomer
+    );
     db.prepare(
       "UPDATE keg_stats SET empty_collected = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1"
     ).run(newEmpty);
@@ -594,19 +606,17 @@ class DeliveryService {
     // Chỉ ghi log khi thu thêm (giảm thu không phải vỏ mới về kho)
     if (newlyCollected > 0) {
       const customer2 = db.prepare('SELECT name FROM customers WHERE id = ?').get(customerId);
-      db.prepare(
-        `INSERT INTO keg_transactions_log
-           (type, quantity, customer_id, customer_name, inventory_after, empty_after, holding_after, note)
-         VALUES ('collect', ?, ?, ?, ?, ?, ?, ?)`
-      ).run(
-        newlyCollected,
+      AuditService.logKeg({
+        type: 'collect',
+        quantity: newlyCollected,
         customerId,
-        customer2?.name || '',
-        stats?.inventory || 0,
-        newEmpty,
-        totalHolding.total,
-        note || `Thu vỏ qua đơn giao #${saleId}`
-      );
+        customerName: customer2?.name || '',
+        inventoryAfter: stats?.inventory || 0,
+        emptyAfter: newEmpty,
+        holdingAfter: totalHolding.total,
+        note: note || `Thu vỏ qua đơn giao #${saleId}`,
+        actor: driverUsername || undefined,
+      });
     }
   }
 
@@ -685,7 +695,8 @@ class DeliveryService {
             record.customer_id,
             collected,
             prev,
-            `Thu vỏ qua đơn giao #${deliveryId}`
+            `Thu vỏ qua đơn giao #${deliveryId}`,
+            driverUsername
           );
         }
 
@@ -729,13 +740,14 @@ class DeliveryService {
       .get(driverUsername, date);
 
     // Đơn bán trực tiếp (không qua giao hàng) của tài xế hôm nay
+    // (dùng `created_on` = ngày LỊCH THỰC → đơn tạo sau 19:00 vẫn hiện)
     const walkin = db
       .prepare(
         `
         SELECT COUNT(*) AS cnt, COALESCE(SUM(s.total), 0) AS total_amount
         FROM sales s
         WHERE s.driver_username = ?
-          AND DATE(s.date) = ?
+          AND COALESCE(DATE(s.created_on), DATE(s.date)) = ?
           AND s.type = 'sale'
           AND s.archived = 0
           AND (s.customer_id IS NULL OR s.customer_id = 0)
@@ -753,7 +765,7 @@ class DeliveryService {
         LEFT JOIN products p ON p.id = si.product_id
         LEFT JOIN delivery_records dr
                ON dr.sale_id = s.id AND dr.driver_username = ?
-        WHERE DATE(s.date) = ?
+        WHERE COALESCE(DATE(s.created_on), DATE(s.date)) = ?
           AND s.type = 'sale'
           AND s.archived = 0
           AND (dr.id IS NULL OR dr.status != 'DELIVERED')
@@ -772,7 +784,7 @@ class DeliveryService {
         JOIN customers c ON c.id = s.customer_id
         LEFT JOIN delivery_records dr
                ON dr.sale_id = s.id AND dr.driver_username = ?
-        WHERE DATE(s.date) = ?
+        WHERE COALESCE(DATE(s.created_on), DATE(s.date)) = ?
           AND s.type = 'sale' AND s.archived = 0
           AND c.archived = 0
           AND (dr.id IS NULL OR dr.status != 'DELIVERED')

@@ -201,7 +201,7 @@ function queryDayStats(dateStr) {
                 END), 0) AS total
          FROM debt_transactions dt
         WHERE dt.transaction_type IN ('ORDER_DEBT','MANUAL_DEBT','ADJUSTMENT','REVERSAL')
-          AND date(dt.created_at) = date(?)`
+          AND COALESCE(dt.business_date, date(dt.created_at, '+7 hours')) = date(?)`
     )
     .get(dateStr);
 
@@ -294,11 +294,12 @@ function pctChange(current, previous) {
 
 /**
  * Tổng hợp báo cáo ngày + so sánh xu hướng.
- * @param {string} [dateStr] - YYYY-MM-DD, mặc định hôm nay (giờ VN)
+ * @param {string} [dateStr] - YYYY-MM-DD, mặc định = NGÀY NGHIỆP VỤ hôm nay
+ *   (cutoff 19:00 → sau 19:00 thuộc ngày mai).
  * @returns {object}
  */
 function buildDailyReport(dateStr) {
-  const date = dateStr || todayVN();
+  const date = dateStr || db.getBusinessDateStr();
   const yesterday = shiftDate(date, -1);
   const lastWeek = shiftDate(date, -7);
 

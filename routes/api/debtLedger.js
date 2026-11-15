@@ -109,7 +109,9 @@ router.get('/overview', requireAuth, (req, res) => {
       return db.prepare(`${sql} AND dt.customer_id IN (${placeholders})`).all(...params, ...allowedIds);
     };
 
-    const today = db.getVietnamDateStr();
+    // Ngày NGHIỆP VỤ của hôm nay (cutoff 19:00 → sau 19:00 thuộc ngày mai).
+    // KPI "hôm nay" dùng ngày này, KHÔNG dùng ngày lịch thực.
+    const today = db.getBusinessDateStr();
 
     // Nợ phát sinh trong ngày (NET)
     //   + ORDER_DEBT / MANUAL_DEBT / ADJUSTMENT (INCREASE)
@@ -129,7 +131,7 @@ router.get('/overview', requireAuth, (req, res) => {
                 END), 0) AS total
          FROM debt_transactions dt
         WHERE dt.transaction_type IN ('ORDER_DEBT','MANUAL_DEBT','ADJUSTMENT','REVERSAL')
-          AND date(dt.created_at) = date(?)`,
+          AND COALESCE(dt.business_date, date(dt.created_at, '+7 hours')) = date(?)`,
       [today]
     )[0];
 
@@ -149,7 +151,7 @@ router.get('/overview', requireAuth, (req, res) => {
                 END), 0) AS total
          FROM debt_transactions dt
         WHERE dt.transaction_type IN ('PAYMENT','REVERSAL')
-          AND date(dt.created_at) = date(?)`,
+          AND COALESCE(dt.business_date, date(dt.created_at, '+7 hours')) = date(?)`,
       [today]
     )[0];
 

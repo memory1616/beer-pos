@@ -3,6 +3,7 @@
  */
 const db = require('../../database');
 const logger = require('../utils/logger');
+const AuditService = require('./AuditService');
 
 class InventoryService {
   getStockSummary() {
@@ -45,10 +46,15 @@ class InventoryService {
 
         db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(item.quantity, item.productId);
 
-        db.prepare(`
-          INSERT INTO product_audit_log (product_id, type, quantity, reason, ref_id, ref_type, note)
-          VALUES (?, 'import', ?, 'purchase', ?, 'purchase', ?)
-        `).run(item.productId, item.quantity, purchaseId, note || '');
+        AuditService.logStock({
+          productId: item.productId,
+          type: 'import',
+          quantity: item.quantity,
+          reason: 'purchase',
+          refId: purchaseId,
+          refType: 'purchase',
+          note: note || '',
+        });
       }
 
       db.prepare('UPDATE purchases SET total_amount = ? WHERE id = ?').run(totalAmount, purchaseId);

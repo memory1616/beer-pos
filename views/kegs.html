@@ -52,7 +52,8 @@
         </div>
         <div>
           <label class="field-label">Số lượng vỏ rỗng mới</label>
-          <input type="number" id="adjustQty" min="0" value="0" class="bn-input bn-input--lg bn-input--center">
+          <input type="number" id="adjustQty" step="1" value="0" class="bn-input bn-input--lg bn-input--center">
+          <div class="text-xs text-muted mt-1">Cho phép nhập số ÂM = đang tạm ứng vỏ trước nhà máy</div>
         </div>
         <div>
           <label class="field-label">Ghi chú</label>
@@ -185,6 +186,25 @@
       set('statHolding', hold);
       set('statLost', lost);
       set('currentEmptyDisplay', empty + ' vỏ');
+
+      // Số vỏ rỗng ÂM = đang tạm ứng vỏ trước nhà máy → tô đỏ + giải thích
+      var emptyEl = document.getElementById('statEmpty');
+      if (emptyEl) {
+        if (empty < 0) {
+          emptyEl.style.color = 'var(--red)';
+          emptyEl.title = 'Đang tạm ứng ' + Math.abs(empty) + ' vỏ trước nhà máy';
+        } else {
+          emptyEl.style.color = '';
+          emptyEl.title = 'Vỏ rỗng đã thu về, chờ nạp lại';
+        }
+      }
+      var subEl = document.getElementById('statEmptySub');
+      if (subEl) {
+        subEl.textContent = empty < 0
+          ? 'Tạm ứng trước nhà máy'
+          : 'Chờ nạp lại';
+        subEl.style.color = empty < 0 ? 'var(--red)' : '';
+      }
     }
 
     function typeBadgeClass(type) {
@@ -329,13 +349,14 @@
     // ========== MODAL HELPERS ==========
     function openModal(id) { var el = document.getElementById(id); if (el) { el.classList.remove('hidden'); el.classList.add('flex'); } }
     function closeModal(id) { var el = document.getElementById(id); if (el) { el.classList.add('hidden'); el.classList.remove('flex'); } }
-    function adjustQty(inputId, delta) { var input = document.getElementById(inputId); if (input) input.value = Math.max(parseInt(input.min||0), parseInt(input.value||0) + delta); }
+    function adjustQty(inputId, delta) { var input = document.getElementById(inputId); if (input) { var min = input.min !== undefined && input.min !== '' ? parseInt(input.min) : -999999; input.value = Math.max(min, parseInt(input.value||0) + delta); } }
 
     // ========== SUBMIT HANDLERS ==========
     async function submitAdjust() {
       var qty = parseInt((document.getElementById('adjustQty') || {}).value);
       var note = (document.getElementById('adjustNote') || {}).value || '';
-      if (isNaN(qty) || qty < 0) { showToast('Số lượng không hợp lệ', 'error'); return; }
+      // Cho phép số ÂM (tạm ứng vỏ trước nhà máy) — chỉ chặn giá trị rác
+      if (isNaN(qty)) { showToast('Số lượng không hợp lệ', 'error'); return; }
       try {
         var res = await fetch('/api/kegs/state', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ emptyCollected:qty, note:note }) });
         var result = await res.json();
@@ -363,7 +384,7 @@
             <div class="card stat-card--info cursor-pointer" onclick="openModal('adjustModal')">
               <div class="sc-label"><span class="sc-icon">🧹</span> Vỏ rỗng</div>
               <div class="sc-value" id="statEmpty">-</div>
-              <div class="sc-sub">Chờ nạp lại</div>
+              <div class="sc-sub" id="statEmptySub">Chờ nạp lại</div>
             </div>
             <div class="card stat-card--amber">
               <div class="sc-label"><span class="sc-icon">👥</span> Khách giữ</div>

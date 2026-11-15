@@ -9,7 +9,9 @@ const DISTRIBUTOR_NAME = process.env.DISTRIBUTOR_NAME || 'Bia Tuoi Gia Huy';
 
 // GET /delivery — HTML page with server-side JSON injection
 router.get('/', (req, res) => {
-  const today = new Date().toISOString().split('T')[0];
+  // Ngày LỊCH THỰC (giờ VN) — đơn tạo sau 19:00 vẫn hiện trong danh sách
+  // giao hàng của hôm nay (dùng `sales.date` đã lùi sang ngày nghiệp vụ mai).
+  const today = db.getVietnamDateStr();
   const templatePath = path.join(__dirname, '..', 'views', 'delivery.html');
   fs.readFile(templatePath, 'utf8', (err, html) => {
     if (err) return res.status(500).send('Template not found');
@@ -23,7 +25,7 @@ router.get('/', (req, res) => {
         WHERE s.archived = 0 
           AND s.deleted = 0
           AND s.type = 'sale'
-          AND DATE(s.date) = ?
+          AND COALESCE(DATE(s.created_on), DATE(s.date)) = ?
           AND c.archived = 0
         ORDER BY s.date DESC
       `).all(today);

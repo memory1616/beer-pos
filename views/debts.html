@@ -250,6 +250,59 @@
     .dbt-quick-btn:disabled { opacity: 0.4; cursor: not-allowed; }
     .dbt-quick-btn.partial:hover { border-color: #3b82f6; color: #3b82f6; }
 
+    /* ── Chọn dấu +/− (bàn phím điện thoại KHÔNG có phím "+") ─────────── */
+    .dbt-sign {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .dbt-sign-btn {
+      height: 46px;
+      border-radius: 11px;
+      border: 1.5px solid var(--border);
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      font-size: 15px;
+      font-weight: 800;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .dbt-sign-btn.active.plus {
+      background: #22c55e;
+      border-color: #22c55e;
+      color: #fff;
+    }
+    .dbt-sign-btn.active.minus {
+      background: #f59e0b;
+      border-color: #f59e0b;
+      color: #fff;
+    }
+    .dbt-sign-btn:active { transform: scale(0.97); }
+
+    /* Ô nhập số liền kề nút đã chọn dấu */
+    .dbt-amount-row { display: flex; gap: 8px; align-items: stretch; }
+    .dbt-amount-row .dbt-input { flex: 1; min-width: 0; }
+    .dbt-amount-badge {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 52px;
+      padding: 0 12px;
+      border-radius: 11px;
+      border: 1.5px solid var(--border);
+      background: var(--bg-secondary);
+      font-size: 22px;
+      font-weight: 800;
+      flex-shrink: 0;
+    }
+    .dbt-amount-badge.plus { color: #22c55e; border-color: #22c55e; }
+    .dbt-amount-badge.minus { color: #f59e0b; border-color: #f59e0b; }
+
     /* ── Panel thu tiền nhanh (mở khi click vào 1 khách) ─────────────── */
     .dbt-collect {
       margin: 12px 0 14px;
@@ -418,6 +471,9 @@
     bridge: null,
     isAdmin: false,
     loading: false,
+    // Dấu của lệnh nhập nhanh: '+' (thu tiền) hoặc '−' (ghi nợ).
+    // Chọn bằng NÚT vì bàn phím điện thoại không có phím "+".
+    quickSign: '+',
   };
 
   // ── Helpers ────────────────────────────────────────────────────────────
@@ -524,11 +580,10 @@
 
     var topRows = top.length
       ? '<div class="dbt-table-wrap"><table class="dbt-table"><thead><tr>' +
-        '<th>Khách hàng</th><th>SĐT</th><th style="text-align:right">Công nợ</th></tr></thead><tbody>' +
+        '<th>Khách hàng</th><th style="text-align:right">Số tiền đang nợ</th></tr></thead><tbody>' +
         top.map(function (t) {
           return '<tr class="clickable" onclick="openDetail(' + t.customerId + ')">' +
             '<td class="dbt-name">' + esc(t.name) + '</td>' +
-            '<td class="dbt-muted">' + esc(t.phone || '—') + '</td>' +
             '<td class="dbt-mono dbt-amount-neg" style="text-align:right">' + money(t.balance) + '</td></tr>';
         }).join('') +
         '</tbody></table></div>'
@@ -564,13 +619,18 @@
           '<select id="qeCustomer" class="dbt-select"></select>' +
         '</div>' +
         '<div class="dbt-field">' +
-          '<label class="dbt-label">Lệnh (ví dụ: +1000 hoặc -1000)</label>' +
-          '<input id="qeCommand" class="dbt-input" inputmode="numeric" placeholder="+1000" autocomplete="off">' +
-          '<div class="dbt-hint">Chỉ nhân viên được phân quyền mới ghi được. Lệnh <b>−</b> KHÔNG tạo đơn hàng, chỉ là bút toán công nợ.</div>' +
-        '</div>' +
-        '<div class="dbt-quick">' +
-          '<button class="dbt-quick-btn plus" onclick="quickEntry(\'+\')">+ Thu tiền</button>' +
-          '<button class="dbt-quick-btn minus" onclick="quickEntry(\'-\')">− Ghi nợ</button>' +
+          '<label class="dbt-label">Số tiền & loại ghi nhận</label>' +
+          // Chọn dấu bằng NÚT (bàn phím điện thoại không có phím "+"),
+          // ô nhập chỉ nhận SỐ → không cần gõ dấu.
+          '<div class="dbt-sign">' +
+            '<button type="button" class="dbt-sign-btn plus active" id="qeSignPlus" onclick="setQuickSign(\'+\')">+ Thu tiền</button>' +
+            '<button type="button" class="dbt-sign-btn minus" id="qeSignMinus" onclick="setQuickSign(\'-\')">− Ghi nợ</button>' +
+          '</div>' +
+          '<div class="dbt-amount-row">' +
+            '<input id="qeCommand" class="dbt-input" inputmode="numeric" placeholder="1000" autocomplete="off">' +
+            '<div class="dbt-amount-badge plus" id="qeSignBadge">+</div>' +
+          '</div>' +
+          '<div class="dbt-hint">Nhập số tiền <b>không cần gõ dấu</b> — chọn dấu ở trên. Đơn vị là nghìn đồng (1000 = 1.000.000đ). Chỉ nhân viên được phân quyền mới ghi được. Lệnh <b>−</b> KHÔNG tạo đơn hàng, chỉ là bút toán công nợ.</div>' +
         '</div>' +
         '<div class="dbt-btn-row" style="margin-top:10px">' +
           '<button class="dbt-btn" style="flex:1" onclick="quickEntry(\'submit\')">Ghi nhận</button>' +
@@ -940,6 +1000,37 @@
       (typeof getBottomNav === 'function' ? getBottomNav('/dashboard') : '');
 
     fillCustomerSelect();
+    setQuickSign(state.quickSign);
+    bindQuickInput();
+  }
+
+  /**
+   * Gắn sự kiện cho ô nhập lệnh:
+   *  - Chỉ cho nhập CHỮ SỐ (bàn phím mobile không có phím "+", nhưng có
+   *    thể dính ký tự thừa từ clipboard).
+   *  - Enter → ghi nhận ngay (tiện khi dùng bàn phím ngoài).
+   *
+   * Gắn qua dataset để không nhân đôi listener khi render lại.
+   */
+  function bindQuickInput() {
+    var input = document.getElementById('qeCommand');
+    if (!input || input.dataset.bound === '1') return;
+    input.dataset.bound = '1';
+
+    input.addEventListener('input', function () {
+      // Bỏ mọi ký tự không phải số (giữ dấu +/− nếu có, để tương thích cũ)
+      var cleaned = input.value.replace(/[^0-9+-]/g, '');
+      // Chỉ giữ 1 dấu ở đầu
+      cleaned = cleaned.replace(/^([+-])\1+/, '$1');
+      if (cleaned !== input.value) input.value = cleaned;
+    });
+
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        quickEntry('submit');
+      }
+    });
   }
 
   function fillCustomerSelect() {
@@ -976,6 +1067,52 @@
     });
   }
 
+  /**
+   * Chọn DẤU của lệnh nhập nhanh (+ hoặc −).
+   *
+   * Vì sao cần: bàn phím điện thoại KHÔNG có phím "+" / "−" → người dùng
+   * không gõ được lệnh "+1000". Nay chọn dấu bằng NÚT, ô nhập chỉ nhận số.
+   *
+   * @param {string} sign '+' hoặc '−'
+   */
+  function setQuickSign(sign) {
+    state.quickSign = (sign === '-') ? '-' : '+';
+
+    var btnPlus = document.getElementById('qeSignPlus');
+    var btnMinus = document.getElementById('qeSignMinus');
+    if (btnPlus) btnPlus.classList.toggle('active', state.quickSign === '+');
+    if (btnMinus) btnMinus.classList.toggle('active', state.quickSign === '-');
+
+    var badge = document.getElementById('qeSignBadge');
+    if (badge) {
+      badge.textContent = state.quickSign;
+      badge.className = 'dbt-amount-badge ' + (state.quickSign === '+' ? 'plus' : 'minus');
+    }
+
+    var input = document.getElementById('qeCommand');
+    if (input) {
+      input.setAttribute('placeholder', state.quickSign === '+' ? '1000' : '1000');
+      input.setAttribute('aria-label',
+        state.quickSign === '+' ? 'Số tiền khách thanh toán (nghìn đồng)' : 'Số tiền ghi nợ (nghìn đồng)');
+    }
+  }
+
+  /**
+   * Chuẩn hoá nội dung ô nhập → lệnh đầy đủ có dấu.
+   * Chấp nhận cả 2 kiểu:
+   *   - người dùng gõ "1000" → ghép dấu đang chọn → "+1000"
+   *   - người dùng gõ "+1000" / "-1000" → giữ nguyên (bàn phím máy tính)
+   */
+  function buildQuickContent(raw, sign) {
+    var text = String(raw || '').trim();
+    if (!text) return '';
+    // Đã có dấu ở đầu → dùng luôn
+    if (text.charAt(0) === '+' || text.charAt(0) === '-') return text;
+    // Chỉ là số → ghép dấu đang chọn
+    if (/^\d+$/.test(text)) return (sign || '+') + text;
+    return text;
+  }
+
   function quickEntry(mode) {
     var sel = document.getElementById('qeCustomer');
     var input = document.getElementById('qeCommand');
@@ -985,14 +1122,23 @@
     if (!customerId) { toast('✗ Chọn khách hàng trước', 'err'); return; }
 
     if (mode === '+' || mode === '-') {
-      var units = prompt('Nhập số tiền (nghìn đồng):\nVD: 1000 = 1.000.000đ');
-      if (units === null) return;
-      units = String(units).trim();
-      if (!/^\d+$/.test(units)) { toast('✗ Số tiền không hợp lệ', 'err'); return; }
-      content = mode + units;
+      // Nút "+ Thu tiền" / "− Ghi nợ": chỉ CHỌN DẤU rồi focus ô nhập.
+      // Không dùng hộp thoại nhập của trình duyệt — rất bất tiện trên điện thoại.
+      setQuickSign(mode);
+      var focusTarget = document.getElementById('qeCommand');
+      if (focusTarget) {
+        focusTarget.focus();
+        if (!focusTarget.value) {
+          toast('Nhập số tiền (nghìn đồng) — VD: 1000 = 1.000.000đ');
+        }
+      }
+      return;
+    } else {
+      // Ô nhập chỉ chứa số → ghép dấu đang chọn (nút +/−)
+      content = buildQuickContent(content, state.quickSign);
     }
 
-    if (!content) { toast('✗ Nhập lệnh (VD: +1000)', 'err'); return; }
+    if (!content) { toast('✗ Nhập số tiền (VD: 1000)', 'err'); return; }
 
     api(API + '/quick-entry', {
       method: 'POST',
@@ -1366,6 +1512,8 @@
   window.collectAll = collectAll;
   window.collectPartial = collectPartial;
   window.submitCollectPartial = submitCollectPartial;
+  // Chọn dấu +/− cho lệnh nhập nhanh (bàn phím mobile không có phím "+")
+  window.setQuickSign = setQuickSign;
 })();
 </script>
 </body>

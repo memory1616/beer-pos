@@ -17,6 +17,7 @@ const db = require('../../database');
 const UserService = require('./UserService');
 const logger = require('../../src/utils/logger');
 const DriverSalaryCalculator = require('./DriverSalaryCalculator');
+const DriverAttendanceService = require('./DriverAttendanceService');
 
 const ROLE_DRIVER = 'DRIVER';
 
@@ -339,7 +340,7 @@ class DriverStaffService {
    * Gắn thông tin tính lương theo ngày làm vào một bản ghi lương.
    *
    * - `work_days` trong DB = giá trị admin SỬA TAY (ghi đè tay) → dùng luôn.
-   * - `work_days` NULL → tự động tính từ ngày vào làm đến ngày hiện tại.
+   * - `work_days` NULL → tự động tính: LỊCH (không tính CN) ∪ CHẤM CÔNG.
    */
   static attachProration(record, driver, year, month) {
     const manualWorkDays =
@@ -347,9 +348,16 @@ class DriverStaffService {
         ? record.work_days
         : null;
 
+    // Ngày đã chấm công (có thể gồm Chủ Nhật) → hợp nhất vào số ngày làm
+    const driverId = record ? record.driver_id : (driver ? driver.id : null);
+    const attendanceDates = driverId
+      ? DriverAttendanceService.getWorkDatesInMonth(driverId, year, month)
+      : [];
+
     const calc = DriverSalaryCalculator.calculate(driver, year, month, {
       baseSalary: record ? record.base_salary : (driver ? driver.monthly_salary : 0),
       manualWorkDays,
+      attendanceDates,
     });
 
     const base = Number(record ? record.base_salary : 0) || 0;
@@ -358,7 +366,6 @@ class DriverStaffService {
 
     // ── Khoản ứng lương của kỳ ───────────────────────────────────────────
     // Tổng các khoản ứng còn hiệu lực (không tính khoản đã huỷ).
-    const driverId = record ? record.driver_id : (driver ? driver.id : null);
     const advanceTotal = driverId
       ? DriverStaffService.getAdvanceTotal(driverId, year, month)
       : 0;
@@ -378,6 +385,11 @@ class DriverStaffService {
       work_days: calc.workDays,
       work_days_manual: manualWorkDays !== null,
       standard_work_days: calc.standardWorkDays,
+      // ── Chi tiết nguồn ngày làm (lịch ∪ chấm công) ──
+      schedule_work_days: calc.scheduleWorkDays,
+      attendance_work_days: calc.attendanceWorkDays,
+      extra_attendance_days: calc.extraAttendanceDays,
+      attendance_dates: attendanceDates,
       daily_rate: calc.dailyRate,
       prorated_base: calc.proratedBase,
       // Lương cơ bản DÙNG ĐỂ TÍNH = giá trị đã prorate theo ngày làm
@@ -459,6 +471,7 @@ class DriverStaffService {
     const calc = DriverSalaryCalculator.calculate(driver, year, month, {
       baseSalary: base,
       manualWorkDays,
+      attendanceDates: DriverAttendanceService.getWorkDatesInMonth(driverId, year, month),
     });
 
     // TỔNG GỐC = lương theo ngày làm + thưởng − phạt
@@ -589,6 +602,11 @@ class DriverStaffService {
         workDays: salary.work_days,
         workDaysManual: !!salary.work_days_manual,
         standardWorkDays: salary.standard_work_days,
+        // Lịch ∪ chấm công
+        scheduleWorkDays: salary.schedule_work_days,
+        attendanceWorkDays: salary.attendance_work_days,
+        extraAttendanceDays: salary.extra_attendance_days,
+        attendanceDates: salary.attendance_dates || [],
         dailyRate: salary.daily_rate,
         proratedBase: salary.prorated_base,
         effectiveBase: salary.effective_base,

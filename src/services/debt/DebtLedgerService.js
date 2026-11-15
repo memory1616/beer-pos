@@ -110,6 +110,9 @@ function syncMirror(customerId, balance) {
  * @param {boolean} [opts.allowNegativeBalance] - cho phép âm (không dùng mặc định)
  * @param {boolean} [opts.allowArchivedCustomer] - cho phép ghi cho khách đã lưu trữ
  *   (CHỈ dùng cho migrate công nợ đầu kỳ — khách archive vẫn còn dư nợ)
+ * @param {string} [opts.businessDate] - ngày NGHIỆP VỤ của bút toán (YYYY-MM-DD).
+ *   Mặc định = ngày nghiệp vụ hiện tại (cutoff 19:00) → bút toán ghi sau 19:00
+ *   thuộc ngày mai, KHÔNG tính vào KPI "hôm nay".
  * @returns {{success:boolean, transactionId?:number, balanceBefore?:number, balanceAfter?:number, error?:string, duplicate?:boolean}}
  */
 function recordTransaction(opts = {}) {
@@ -126,6 +129,7 @@ function recordTransaction(opts = {}) {
     idempotencyKey = null,
     allowNegativeBalance = false,
     allowArchivedCustomer = false,
+    businessDate = null,
   } = opts;
 
   const custId = parseInt(customerId, 10);
@@ -185,13 +189,16 @@ function recordTransaction(opts = {}) {
     if (balanceAfter < 0) balanceAfter = 0;
 
     // 6. Ghi bút toán
+    //    `business_date` = ngày NGHIỆP VỤ (cutoff 19:00). Đơn/bút toán ghi sau
+    //    19:00 thuộc ngày mai → không tính vào KPI "hôm nay".
+    const bizDate = businessDate || db.getBusinessDateStr();
     const info = db
       .prepare(
         `INSERT INTO debt_transactions
            (customer_id, transaction_type, amount, direction,
             balance_before, balance_after, reference_type, reference_id,
-            description, created_by, source, idempotency_key)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            description, created_by, source, idempotency_key, business_date)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         custId,
@@ -205,7 +212,8 @@ function recordTransaction(opts = {}) {
         description,
         createdBy,
         source,
-        idempotencyKey
+        idempotencyKey,
+        bizDate
       );
     const transactionId = info.lastInsertRowid;
 
@@ -316,6 +324,7 @@ function adjust(customerId, amount, opts = {}) {
     referenceType = REFERENCE_TYPES.NONE,
     referenceId = null,
     idempotencyKey = null,
+    businessDate = null,
   } = opts;
 
   const value = roundMoney(amount);
@@ -335,6 +344,7 @@ function adjust(customerId, amount, opts = {}) {
     source,
     idempotencyKey,
     allowNegativeBalance: false,
+    businessDate,
   });
 }
 

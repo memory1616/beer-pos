@@ -280,6 +280,7 @@ function recordOrderDebtOnDelivered(saleId, opts = {}) {
   }
 
   // 6. Ghi bút toán (idempotent theo saleId)
+  //    `businessDate` = NGÀY NGHIỆP VỤ CỦA ĐƠN (`sales.date`) → khớp doanh thu.
   const result = DebtLedgerService.recordTransaction({
     customerId: sale.customer_id,
     transactionType: TRANSACTION_TYPES.ORDER_DEBT,
@@ -291,6 +292,7 @@ function recordOrderDebtOnDelivered(saleId, opts = {}) {
     createdBy: opts.actor || 'system',
     source: opts.source || SOURCES.POS,
     idempotencyKey: orderDebtKey(id),
+    businessDate: sale.date || db.getBusinessDateStr(),
   });
 
   if (!result.success) {
@@ -462,6 +464,7 @@ function adjustOrderDebtAfterChange(saleId, opts = {}) {
     referenceType: REFERENCE_TYPES.ORDER,
     referenceId: String(id),
     idempotencyKey: opts.idempotencyKey || null,
+    businessDate: sale.date || db.getBusinessDateStr(),
   });
 
   if (!result.success) return { success: false, error: result.error };

@@ -14,6 +14,7 @@
 const express = require('express');
 const router = express.Router();
 const logger = require('../../src/utils/logger');
+const db = require('../../database');
 const DailyReportService = require('../../src/services/DailyReportService');
 const NotificationService = require('../../src/services/NotificationService');
 const ReportNotifyService = require('../../src/services/ReportNotifyService');
@@ -150,7 +151,7 @@ router.post('/config', requireAdmin, (req, res) => {
 // ── POST /preview ────────────────────────────────────────────────────────────
 router.post('/preview', requireAdmin, (req, res) => {
   try {
-    const date = req.body?.date || DailyReportService.todayVN();
+    const date = req.body?.date || db.getBusinessDateStr();
     const report = DailyReportService.buildDailyReport(date);
     res.json({
       success: true,
@@ -167,7 +168,7 @@ router.post('/preview', requireAdmin, (req, res) => {
 // ── POST /send ───────────────────────────────────────────────────────────────
 router.post('/send', requireAdmin, async (req, res) => {
   try {
-    const date = req.body?.date || DailyReportService.todayVN();
+    const date = req.body?.date || db.getBusinessDateStr();
     const channel = req.body?.channel || ReportNotifyService.getChannel();
     const dryRun = req.body?.dryRun === true;
 

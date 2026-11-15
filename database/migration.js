@@ -508,7 +508,8 @@ function runMigrations(db) {
   const migrationSteps = [
     { name: 'metadata', fn: () => migrateAddMetadata(db) },
     { name: 'uuids', fn: () => migrateGenerateUUIDs(db) },
-    { name: 'actionLogs', fn: () => migrateCreateActionLogs(db) },
+    // `action_logs` đã bị bỏ ở migration 056 (bảng chết — không code nào ghi vào).
+    // KHÔNG tạo lại ở đây, nếu không nó sẽ sống lại mỗi lần boot.
     { name: 'syncQueue', fn: () => migrateCreateSyncQueue(db) },
     { name: 'devices', fn: () => migrateCreateDevicesTable(db) },
     { name: 'indexes', fn: () => migrateCreateIndexes(db) },
@@ -824,6 +825,54 @@ function runDebtSaleCreditFlagMigration(db) {
   }
 }
 
+// ── Business day cutoff migration (055) ──────────────────────────────────────
+// Ngày nghiệp vụ: đơn tạo SAU giờ chốt (mặc định 19:00 giờ VN) thuộc ngày
+// hôm sau. Thêm `sales.created_on` + `debt_transactions.business_date`.
+// Chạy ĐỘC LẬP, idempotent: ALTER TABLE ADD COLUMN có kiểm tra PRAGMA trước.
+// Rollback an toàn: chỉ gỡ 2 cột + 2 index + 1 setting.
+function runBusinessDayCutoffMigration(db) {
+  try {
+    const migration = require('./migrations/055_business_day_cutoff');
+    migration.up(db);
+    log('[BUSINESS_DAY] Migration 055 applied');
+    return { success: true };
+  } catch (e) {
+    log(`[BUSINESS_DAY] Migration error: ${e.message}`);
+    return { success: false, error: e.message };
+  }
+}
+
+// ── Audit log unification migration (056) ─────────────────────────────────────
+// Thêm `actor_username` + `ip_address` cho `product_audit_log` &
+// `keg_transactions_log`, tạo index composite, drop bảng chết `action_logs`,
+// seed setting retention. Chạy idempotent.
+function runAuditLogUnificationMigration(db) {
+  try {
+    const migration = require('./migrations/056_audit_log_unification');
+    migration.up(db);
+    log('[AUDIT] Migration 056 applied');
+    return { success: true };
+  } catch (e) {
+    log(`[AUDIT] Migration error: ${e.message}`);
+    return { success: false, error: e.message };
+  }
+}
+
+// ── Driver attendance migration (057) ────────────────────────────────────────
+// Bảng chấm công tài xế: admin tick tay từng ngày (kể cả Chủ Nhật) → ngày đó
+// được cộng vào số ngày làm khi tính lương. Chạy ĐỘC LẬP, idempotent.
+function runDriverAttendanceMigration(db) {
+  try {
+    const migration = require('./migrations/057_driver_attendance');
+    migration.up(db);
+    log('[DRIVER_ATTENDANCE] Migration 057 applied');
+    return { success: true };
+  } catch (e) {
+    log(`[DRIVER_ATTENDANCE] Migration error: ${e.message}`);
+    return { success: false, error: e.message };
+  }
+}
+
 // ── Utility: Generate UUID ─────────────────────────────────────────────────────
 
 function generateUUID() {
@@ -853,6 +902,9 @@ module.exports = {
   runZaloOauthMigration,
   runDebtManagementMigration,
   runDebtSaleCreditFlagMigration,
+  runBusinessDayCutoffMigration,
+  runAuditLogUnificationMigration,
+  runDriverAttendanceMigration,
   generateUUID,
   getCurrentVersion,
   setVersion,

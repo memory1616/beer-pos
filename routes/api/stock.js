@@ -4,6 +4,8 @@ const db = require('../../database');
 const logger = require('../../src/utils/logger');
 const { syncKegInventory } = require('./products');
 const socketServer = require('../../src/socket/socketServer');
+const AuditService = require('../../src/services/AuditService');
+const KegBalanceService = require('../../src/services/KegBalanceService');
 
 // Validate ID parameter
 function validateId(id) {
@@ -241,6 +243,8 @@ router.post('/multiple', (req, res) => {
 
     // ========== Cập nhật vỏ rỗng ==========
     // Nhập hàng từ nhà máy: dùng vỏ rỗng đi đổi bia → empty_collected GIẢM
+    // ⚠️ CHO PHÉP ÂM: lấy N vỏ đầy về = N vỏ rỗng đi kèm. Nếu không đủ vỏ
+    //    rỗng để đổi → số âm (tạm ứng trước nhà máy). Xem KegBalanceService.
     let totalKegs = 0;
     for (const item of validItems) {
       const product = db.prepare('SELECT type FROM products WHERE id = ?').get(item.productId);
@@ -257,14 +261,19 @@ router.post('/multiple', (req, res) => {
         stats = { empty_collected: 0 };
       }
       const currentEmpty = stats.empty_collected || 0;
-      const newEmpty = Math.max(0, currentEmpty - totalKegs);
+      const newEmpty = KegBalanceService.peekEmptyCollected(-totalKegs);
 
       db.prepare('UPDATE keg_stats SET empty_collected = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run(newEmpty);
 
-      db.prepare(`
-        INSERT INTO keg_transactions_log (type, quantity, inventory_after, empty_after, holding_after, note)
-        VALUES ('import', ?, 0, ?, 0, ?)
-      `).run(totalKegs, newEmpty, 'Nhập kho từ trang stock');
+      AuditService.logKeg({
+        type: 'import',
+        quantity: totalKegs,
+        inventoryAfter: 0,
+        emptyAfter: newEmpty,
+        holdingAfter: 0,
+        note: 'Nhập kho từ trang stock',
+        req,
+      });
 
       logger.debug('Stock multiple import', { emptyBefore: currentEmpty, totalKegs, emptyAfter: newEmpty });
     }

@@ -62,6 +62,9 @@ router.get('/data', (req, res) => {
   const year = now.getFullYear();
   const month = now.getMonth();
   const today = getVietnamDateStr();
+  // Ngày NGHIỆP VỤ (cutoff 19:00) — doanh thu "hôm nay" dùng ngày này.
+  // Đơn tạo sau 19:00 đã lưu `sales.date` = ngày mai → không tính vào hôm nay.
+  const businessToday = db.getBusinessDateStr();
   const monthStartStr = getVietnamMonthStart();
   const fourteenDaysAgoStr = getVietnamDaysAgo(13); // 13 days ago = last 14 days
 
@@ -73,7 +76,7 @@ router.get('/data', (req, res) => {
       COUNT(*) as orders,
       COALESCE((SELECT SUM(si.quantity) FROM sale_items si JOIN sales ss ON si.sale_id = ss.id WHERE ss.type = 'sale' AND ss.archived = 0 AND (ss.status IS NULL OR ss.status != 'returned') AND date(datetime(ss.date, '+7 hours')) = ?), 0) as units
     FROM sales WHERE type = 'sale' AND archived = 0 AND (status IS NULL OR status != 'returned') AND date(datetime(date, '+7 hours')) = ?
-  `).get(today, today);
+  `).get(businessToday, businessToday);
 
   // Get monthly stats — loại trừ returned + timezone +7h (bao gồm MONTHLY_BONUS)
   const monthStats = db.prepare(`

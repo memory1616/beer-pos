@@ -413,8 +413,32 @@
       };
 
       window.openCollectModal = function(saleId, deliverKegs, returnKegs) {
+        // ⚠️ Luôn GET LẠI ĐƠN từ server để lấy số vỏ giao/thu MỚI NHẤT.
+        //    Nếu user vừa sửa đơn (đổi số vỏ giao) mà danh sách chưa refresh,
+        //    tham số deliverKegs/returnKegs truyền vào là số CŨ → modal hiển thị sai.
+        fetch('/api/sales/' + saleId, { cache: 'no-store' })
+          .then(function (res) { return res.json(); })
+          .then(function (data) {
+            var sale = (data && data.sale) ? data.sale : data;
+            if (!sale || !sale.id) {
+              showToast('Không tìm thấy đơn', 'error');
+              return;
+            }
+            showCollectModal(
+              sale.id,
+              Number(sale.deliver_kegs) || 0,
+              Number(sale.return_kegs) || 0
+            );
+          })
+          .catch(function () {
+            // Fallback: dùng số liệu đã có trong list
+            showCollectModal(saleId, deliverKegs, returnKegs);
+          });
+      };
+
+      window.showCollectModal = function(saleId, deliverKegs, returnKegs) {
         window._modalSaleId = saleId;
-        window._modalMaxKegs = deliverKegs - returnKegs;
+        window._modalMaxKegs = Math.max(0, deliverKegs - returnKegs);
         window._modalKegs = Math.min(1, window._modalMaxKegs);
         document.getElementById('collectModalSub').textContent =
           'Đơn #' + saleId + ' — thu ' + returnKegs + '/' + deliverKegs + ' vỏ';

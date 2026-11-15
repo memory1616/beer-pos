@@ -152,7 +152,26 @@ function initDashboard(data) {
     setText('kegEmptyCollected', emptyCollected);
     setText('kegCustomerHolding', customerHolding);
     setText('kegTotal', total);
-    
+
+    // Số vỏ rỗng ÂM = đang "tạm ứng" vỏ trước nhà máy (đã lấy vỏ đầy về
+    // nhưng chưa thu được vỏ rỗng từ khách) → tô đỏ + tooltip giải thích.
+    const emptyEl = document.getElementById('kegEmptyCollected');
+    if (emptyEl) {
+      if (emptyCollected < 0) {
+        emptyEl.style.color = 'var(--red)';
+        emptyEl.title = 'Đang tạm ứng ' + Math.abs(emptyCollected) +
+          ' vỏ trước nhà máy (lấy vỏ đầy về nhưng chưa thu được vỏ rỗng từ khách)';
+      } else {
+        emptyEl.style.color = '';
+        emptyEl.title = 'Vỏ rỗng đã thu về, chờ nạp lại';
+      }
+    }
+    const emptyCard = emptyEl ? emptyEl.closest('.kpi-card') : null;
+    if (emptyCard) {
+      emptyCard.style.setProperty('--card-accent', emptyCollected < 0 ? 'var(--red)' : 'var(--warning)');
+      emptyCard.style.setProperty('--card-accent-dim', emptyCollected < 0 ? 'var(--red-dim)' : 'var(--warning-dim)');
+    }
+
     // % theo 3 ô Kho/Khách/Rỗng (tổng hiển thị); TỔNG VỎ có thể nhỏ hơn khi kho âm
     const sumCards = inventory + emptyCollected + customerHolding;
     const pctBase = sumCards > 0 ? sumCards : (total > 0 ? total : 1);

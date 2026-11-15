@@ -22,6 +22,9 @@ src/logs/
 
 # Backup
 backup/
+# Thư mục backup DB cục bộ (chứa database.sqlite thật — TUYỆT ĐỐI không commit)
+backups/
+/backups/
 
 # OS
 .DS_Store
@@ -63,6 +66,13 @@ _gen_key.bat
 # Commit bản .example.json (chỉ mẫu, không có giá trị thật).
 scripts/ops/secret-fingerprints.local.json
 scripts/ops/secret-replacements.local.txt
+
+# Script scratch/tạm trong scripts/ (prefix _ hoặc .tmp) — KHÔNG commit
+scripts/**/_*.js
+scripts/**/_*.sh
+scripts/**/_*.py
+scripts/**/_*.txt
+scripts/**/*.tmp
 
 # Python / shell debug scripts (kept out of repo)
 /debug_*.py

@@ -17,6 +17,7 @@ const DeliveryService = require('../../src/services/DeliveryService');
 const KegReceiptService = require('../../src/services/KegReceiptService');
 const DriverSalaryCalculator = require('../../src/services/DriverSalaryCalculator');
 const DriverStaffService = require('../../src/services/DriverStaffService');
+const DriverAttendanceService = require('../../src/services/DriverAttendanceService');
 const { ROLE_DRIVER } = require('../../middleware/permissions');
 const { PromotionService } = require('../../src/services');
 
@@ -253,6 +254,7 @@ function getEstimatedSalary(username, month) {
     const calc = DriverSalaryCalculator.calculate(driver, y, m, {
       baseSalary,
       manualWorkDays,
+      attendanceDates: DriverAttendanceService.getWorkDatesInMonth(driver.id, y, m),
     });
 
     // Khoản ứng lương đã ghi nhận trong kỳ
@@ -264,6 +266,10 @@ function getEstimatedSalary(username, month) {
       dailyRate: calc.dailyRate,
       workDays: calc.workDays,
       standardWorkDays: calc.standardWorkDays,
+      // Lịch ∪ chấm công (CN đi làm vẫn được tính)
+      scheduleWorkDays: calc.scheduleWorkDays,
+      attendanceWorkDays: calc.attendanceWorkDays,
+      extraAttendanceDays: calc.extraAttendanceDays,
       amount: calc.proratedBase,
       advanceTotal,
       netAmount: Math.max(0, Math.round((calc.proratedBase - advanceTotal) * 100) / 100),
@@ -492,7 +498,7 @@ router.get('/home', requireDriver, (req, res) => {
         WHERE s.type = 'sale'
           AND s.archived = 0
           AND s.deleted = 0
-          AND DATE(s.date) = ?
+          AND COALESCE(DATE(s.created_on), DATE(s.date)) = ?
           AND (c.archived = 0 OR c.id IS NULL)
           AND (s.driver_username = ? OR s.driver_username IS NULL OR s.driver_username = '')
           AND (dr.id IS NULL OR dr.status NOT IN ('DELIVERED'))
@@ -541,7 +547,7 @@ router.get('/home', requireDriver, (req, res) => {
         WHERE s.type = 'sale'
           AND s.archived = 0
           AND s.deleted = 0
-          AND DATE(s.date) = ?
+          AND COALESCE(DATE(s.created_on), DATE(s.date)) = ?
           AND (s.driver_username = ? OR s.driver_username IS NULL OR s.driver_username = '')
           AND s.id IN (
             SELECT s2.id FROM sales s2
@@ -550,7 +556,7 @@ router.get('/home', requireDriver, (req, res) => {
             WHERE s2.type = 'sale'
               AND s2.archived = 0
               AND s2.deleted = 0
-              AND DATE(s2.date) = ?
+              AND COALESCE(DATE(s2.created_on), DATE(s2.date)) = ?
               AND (s2.driver_username = ? OR s2.driver_username IS NULL OR s2.driver_username = '')
               AND (dr2.id IS NULL OR dr2.status NOT IN ('DELIVERED'))
           )
@@ -1003,7 +1009,7 @@ router.get('/delivery/page-data', requireDriver, (req, res) => {
          WHERE s.archived = 0
            AND s.deleted = 0
            AND s.type = 'sale'
-           AND DATE(s.date) = ?
+           AND COALESCE(DATE(s.created_on), DATE(s.date)) = ?
            AND c.archived = 0
            AND (s.driver_username = ? OR s.driver_username IS NULL OR s.driver_username = '')
          ORDER BY s.date DESC`

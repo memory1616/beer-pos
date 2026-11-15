@@ -473,10 +473,12 @@ function applySaleChange(action, entity_id, data) {
       `).run(customer_id, date, total, profit, deliver_kegs, return_kegs, keg_balance_after, type, note, status, entity_id);
     } else {
       const { customer_id, date, total, profit, deliver_kegs = 0, return_kegs = 0, keg_balance_after, type = 'sale', note = '', status = 'completed' } = data || {};
+      // `date` do client gửi lên (đã là ngày nghiệp vụ của client).
+      // `created_on` = ngày lịch thực server nhận đơn.
       db.prepare(`
-        INSERT INTO sales (id, customer_id, date, total, profit, deliver_kegs, return_kegs, keg_balance_after, type, note, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(entity_id, customer_id, date, total, profit, deliver_kegs, return_kegs, keg_balance_after, type, note, status);
+        INSERT INTO sales (id, customer_id, date, created_on, total, profit, deliver_kegs, return_kegs, keg_balance_after, type, note, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(entity_id, customer_id, date, date ? date(date) : db.getVietnamDateStr(), total, profit, deliver_kegs, return_kegs, keg_balance_after, type, note, status);
     }
 
     if (data?.items && Array.isArray(data.items)) {

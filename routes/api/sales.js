@@ -9,6 +9,8 @@ const { deleteSaleRestoringInventory } = require('../../src/services/saleDelete'
 const socketServer = require('../../src/socket/socketServer');
 const PushService = require('../../src/services/PushService');
 const DebtOnCreateService = require('../../src/services/debt/DebtOnCreateService');
+const AuditService = require('../../src/services/AuditService');
+const KegBalanceService = require('../../src/services/KegBalanceService');
 
 // ========== HELPER: Resolve product by id (numeric) or slug ==========
 function resolveProduct(query) {
@@ -376,9 +378,13 @@ router.post('/', async (req, res) => {
     // ========== STRICT TRANSACTION ==========
     const createSale = db.transaction(() => {
       // Insert sale with Vietnam-local date and time
-      const saleDate = db.getVietnamDateStr();
+      //
+      // ⚠️ `date` = NGÀY NGHIỆP VỤ (cutoff 19:00 → đơn tạo sau 19h thuộc ngày mai).
+      //    `created_on` = ngày LỊCH THỰC (dùng cho Driver Portal giữ đơn hôm nay).
+      const createdOn = db.getVietnamDateStr();
+      const saleDate = db.getBusinessDateStr();
       const saleTime = db.getVietnamTimeStr();
-      const saleResult = db.prepare('INSERT INTO sales (customer_id, sales_id, date, sale_time, total, profit, deliver_kegs, return_kegs, keg_balance_after, type, promo_free_liters, promo_type, driver_username, is_credit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(customerId, staffId || null, saleDate, saleTime, total, profit, finalDeliverKegs, returnKegs, newKegBalance, 'sale', promoFreeTotal, promoInfo ? promoInfo.promoType : null, driverUsername, debt && customerId ? 1 : 0);
+      const saleResult = db.prepare('INSERT INTO sales (customer_id, sales_id, date, created_on, sale_time, total, profit, deliver_kegs, return_kegs, keg_balance_after, type, promo_free_liters, promo_type, driver_username, is_credit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(customerId, staffId || null, saleDate, createdOn, saleTime, total, profit, finalDeliverKegs, returnKegs, newKegBalance, 'sale', promoFreeTotal, promoInfo ? promoInfo.promoType : null, driverUsername, debt && customerId ? 1 : 0);
       const saleId = saleResult.lastInsertRowid;
 
       if (!saleId) throw new Error('Sale creation failed — no lastInsertRowid');
@@ -412,8 +418,15 @@ router.post('/', async (req, res) => {
           if (!custForStats || custForStats.promotion_enabled !== 0) {
             db.prepare("UPDATE customers SET monthly_purchased_liters = monthly_purchased_liters + ? WHERE id = ?").run(paidLiters, customerId);
             // Also update customer_monthly_stats (BIA INOX V2: truyền yellow/black riêng)
-            const now = new Date();
-            PromotionService.updateCustomerMonthlyStats(customerId, paidLiters, now.getFullYear(), now.getMonth() + 1, yellowLiters, blackLiters);
+            //
+            // ⚠️ Dùng NGÀY NGHIỆP VỤ (`saleDate`) chứ không phải `new Date()`:
+            //    đơn tạo sau 19:00 thuộc ngày mai → sản lượng tính vào tháng
+            //    của ngày mai. Nhất quán với `saleDelete.js` (đọc `sales.date`)
+            //    nên khi xoá đơn KHÔNG bị lệch số liệu tháng.
+            const bizParts = saleDate.split('-');
+            const bizYear = Number(bizParts[0]);
+            const bizMonth = Number(bizParts[1]);
+            PromotionService.updateCustomerMonthlyStats(customerId, paidLiters, bizYear, bizMonth, yellowLiters, blackLiters);
           } else {
             console.log('[PROMO] Customer', customerId, 'has promotions disabled — skipping monthly stats update');
           }
@@ -455,10 +468,17 @@ router.post('/', async (req, res) => {
             db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(promoInfo.freeGold, goldProduct.id);
             db.prepare('INSERT INTO sale_items (sale_id, product_id, product_slug, quantity, price, cost_price, profit, price_at_time) VALUES (?, ?, ?, ?, 0, 0, 0, 0)')
               .run(saleId, goldProduct.id, goldProduct.slug || '', promoInfo.freeGold);
-            db.prepare(`
-              INSERT INTO product_audit_log (product_id, type, quantity, reason, ref_id, ref_type, customer_name, note)
-              VALUES (?, 'export', ?, 'promo_new_shop', ?, 'sale', ?, ?)
-            `).run(goldProduct.id, promoInfo.freeGold, saleId, customerNameRec?.name || '', `Khuyến mãi quán mới: +${promoInfo.freeGold}L bia vàng`);
+            AuditService.logStock({
+              productId: goldProduct.id,
+              type: 'export',
+              quantity: promoInfo.freeGold,
+              reason: 'promo_new_shop',
+              refId: saleId,
+              refType: 'sale',
+              customerName: customerNameRec?.name || '',
+              note: `Khuyến mãi quán mới: +${promoInfo.freeGold}L bia vàng`,
+              req,
+            });
           }
         }
 
@@ -484,10 +504,17 @@ router.post('/', async (req, res) => {
             db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(promoInfo.freeBlack, blackProduct.id);
             db.prepare('INSERT INTO sale_items (sale_id, product_id, product_slug, quantity, price, cost_price, profit, price_at_time) VALUES (?, ?, ?, ?, 0, 0, 0, 0)')
               .run(saleId, blackProduct.id, blackProduct.slug || '', promoInfo.freeBlack);
-            db.prepare(`
-              INSERT INTO product_audit_log (product_id, type, quantity, reason, ref_id, ref_type, customer_name, note)
-              VALUES (?, 'export', ?, 'promo_new_shop', ?, 'sale', ?, ?)
-            `).run(blackProduct.id, promoInfo.freeBlack, saleId, customerNameRec?.name || '', `Khuyến mãi quán mới: +${promoInfo.freeBlack}L bia đen`);
+            AuditService.logStock({
+              productId: blackProduct.id,
+              type: 'export',
+              quantity: promoInfo.freeBlack,
+              reason: 'promo_new_shop',
+              refId: saleId,
+              refType: 'sale',
+              customerName: customerNameRec?.name || '',
+              note: `Khuyến mãi quán mới: +${promoInfo.freeBlack}L bia đen`,
+              req,
+            });
           }
         }
       }
@@ -723,10 +750,14 @@ router.post('/update-kegs', (req, res) => {
       // 3. Update keg_stats.empty_collected
       //    newlyCollected > 0   → thu thêm → empty_collected += newlyCollected
       //    newlyReturnedToCustomer > 0 → giảm thu → empty_collected -= newlyReturnedToCustomer
+      //    ⚠️ CHO PHÉP ÂM: thu vỏ rỗng từ khách BÙ ĐƯỢC vào số âm (vỏ tạm ứng
+      //       trước nhà máy). Xem src/services/KegBalanceService.js.
       if (newlyCollected > 0 || newlyReturnedToCustomer > 0) {
         const stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
         const currentEmpty = stats?.empty_collected || 0;
-        const newEmpty = Math.max(0, currentEmpty + newlyCollected - newlyReturnedToCustomer);
+        const newEmpty = KegBalanceService.peekEmptyCollected(
+          newlyCollected - newlyReturnedToCustomer
+        );
         db.prepare('UPDATE keg_stats SET empty_collected = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1')
           .run(newEmpty);
       }
@@ -735,19 +766,17 @@ router.post('/update-kegs', (req, res) => {
       if (newlyCollected > 0) {
         const updatedStats = db.prepare('SELECT inventory, empty_collected, customer_holding FROM keg_stats WHERE id = 1').get();
         const customer2 = db.prepare('SELECT name FROM customers WHERE id = ?').get(customerId);
-        db.prepare(`
-          INSERT INTO keg_transactions_log
-            (type, quantity, customer_id, customer_name, inventory_after, empty_after, holding_after, note)
-          VALUES ('collect', ?, ?, ?, ?, ?, ?, ?)
-        `).run(
-          newlyCollected,
+        AuditService.logKeg({
+          type: 'collect',
+          quantity: newlyCollected,
           customerId,
-          customer2?.name || '',
-          updatedStats?.inventory || 0,
-          updatedStats?.empty_collected || 0,
-          updatedStats?.customer_holding || 0,
-          `Thu vỏ qua đơn hàng #${saleId}`
-        );
+          customerName: customer2?.name || '',
+          inventoryAfter: updatedStats?.inventory || 0,
+          emptyAfter: updatedStats?.empty_collected || 0,
+          holdingAfter: updatedStats?.customer_holding || 0,
+          note: `Thu vỏ qua đơn hàng #${saleId}`,
+          req,
+        });
       }
     });
 
@@ -1008,11 +1037,12 @@ router.post('/replacement', (req, res) => {
       : reason || 'Đổi bia lỗi';
 
     const doReplacement = db.transaction(() => {
-      const saleDate = db.getVietnamDateStr();
+      const createdOn = db.getVietnamDateStr();
+      const saleDate = db.getBusinessDateStr();
       const result = db.prepare(`
-        INSERT INTO sales (customer_id, total, type, note, date, driver_username)
-        VALUES (?, 0, 'replacement', ?, ?, ?)
-      `).run(customer_id || null, note, saleDate, driverUsername);
+        INSERT INTO sales (customer_id, total, type, note, date, created_on, driver_username)
+        VALUES (?, 0, 'replacement', ?, ?, ?, ?)
+      `).run(customer_id || null, note, saleDate, createdOn, driverUsername);
       const saleId = result.lastInsertRowid;
       logger.info('[replacement] sale inserted', { saleId });
 
@@ -1027,11 +1057,19 @@ router.post('/replacement', (req, res) => {
       const stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
       const newEmpty = (stats?.empty_collected || 0) + quantity;
       db.prepare('UPDATE keg_stats SET empty_collected = ? WHERE id = 1').run(newEmpty);
-      db.prepare(`
-        INSERT INTO keg_transactions_log
-          (type, quantity, exchanged, purchased, customer_id, customer_name, inventory_after, empty_after, holding_after, note)
-        VALUES (?, ?, ?, 0, ?, ?, ?, ?, 0, ?)
-      `).run(isGift ? 'gift' : 'replacement', quantity, quantity, customer_id || null, customerName, product.stock - quantity, newEmpty, note);
+      AuditService.logKeg({
+        type: isGift ? 'gift' : 'replacement',
+        quantity,
+        exchanged: quantity,
+        purchased: 0,
+        customerId: customer_id || null,
+        customerName,
+        inventoryAfter: product.stock - quantity,
+        emptyAfter: newEmpty,
+        holdingAfter: 0,
+        note,
+        req,
+      });
 
       return saleId;
     });
@@ -1090,10 +1128,17 @@ router.post('/:id/return', (req, res) => {
         const customerName = sale.customer_id
           ? (db.prepare('SELECT name FROM customers WHERE id = ?').get(sale.customer_id) || {}).name
           : null;
-        db.prepare(`
-          INSERT INTO product_audit_log (product_id, type, quantity, reason, ref_id, ref_type, customer_name, note)
-          VALUES (?, 'restore', ?, 'return', ?, 'sale', ?, ?)
-        `).run(item.product_id, item.quantity, saleId, customerName, 'Trả hàng hoàn kho');
+        AuditService.logStock({
+          productId: item.product_id,
+          type: 'restore',
+          quantity: item.quantity,
+          reason: 'return',
+          refId: saleId,
+          refType: 'sale',
+          customerName,
+          note: 'Trả hàng hoàn kho',
+          req,
+        });
       }
     } else if (returnType === 'damage_return') {
       // Bia lỗi - ghi nhận vào bảng hàng lỗi, không cộng kho
@@ -1133,16 +1178,17 @@ router.post('/:id/return', (req, res) => {
       db.prepare('UPDATE keg_stats SET empty_collected = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run(newEmpty);
       
       // Ghi log kho vỏ
-      db.prepare(`
-        INSERT INTO keg_transactions_log (type, quantity, inventory_after, empty_after, holding_after, note)
-        VALUES ('collect_return', ?, 0, ?, 0, ?)
-      `).run(
-        deliverKegs,
-        newEmpty,
-        reason || 'Thu vỏ từ đơn trả hàng'
-      );
-      
-      inventoryBalance = newEmpty;
+        AuditService.logKeg({
+          type: 'collect_return',
+          quantity: deliverKegs,
+          inventoryAfter: 0,
+          emptyAfter: newEmpty,
+          holdingAfter: 0,
+          note: reason || 'Thu vỏ từ đơn trả hàng',
+          req,
+        });
+
+        inventoryBalance = newEmpty;
     }
     
     // Cập nhật trạng thái hóa đơn với loại return (bao gồm cập nhật lợi nhuận)
@@ -1214,10 +1260,17 @@ router.post('/:id/return-items', (req, res) => {
         const customerName = sale.customer_id
           ? (db.prepare('SELECT name FROM customers WHERE id = ?').get(sale.customer_id) || {}).name
           : null;
-        db.prepare(`
-          INSERT INTO product_audit_log (product_id, type, quantity, reason, ref_id, ref_type, customer_name, note)
-          VALUES (?, 'restore', ?, 'return', ?, 'sale', ?, ?)
-        `).run(productId, quantity, saleId, customerName, 'Trả hàng một phần hoàn kho');
+        AuditService.logStock({
+          productId: productId,
+          type: 'restore',
+          quantity: quantity,
+          reason: 'return',
+          refId: saleId,
+          refType: 'sale',
+          customerName,
+          note: 'Trả hàng một phần hoàn kho',
+          req,
+        });
       } else if (returnType === 'damage_return') {
         // Bia lỗi - ghi nhận vào bảng hàng lỗi
         db.prepare('UPDATE products SET damaged_stock = damaged_stock + ? WHERE id = ?').run(quantity, productId);
@@ -1253,15 +1306,16 @@ router.post('/:id/return-items', (req, res) => {
       db.prepare('UPDATE keg_stats SET empty_collected = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run(newEmpty);
       
       // Ghi log kho vỏ
-      db.prepare(`
-        INSERT INTO keg_transactions_log (type, quantity, inventory_after, empty_after, holding_after, note)
-        VALUES ('collect_return', ?, 0, ?, 0, ?)
-      `).run(
-        returnedKegs,
-        newEmpty,
-        reason || 'Thu vỏ từ đơn trả hàng'
-      );
-      
+      AuditService.logKeg({
+        type: 'collect_return',
+        quantity: returnedKegs,
+        inventoryAfter: 0,
+        emptyAfter: newEmpty,
+        holdingAfter: 0,
+        note: reason || 'Thu vỏ từ đơn trả hàng',
+        req,
+      });
+
       inventoryBalance = newEmpty;
     }
     
@@ -1640,53 +1694,62 @@ router.put('/:id', (req, res) => {
     }
 
     // ── CẬP NHẬT VỎ BÌNH NẾU THAY ĐỔI ──────────────────────────────
-    // Chỉ xử lý với đơn bán (type === 'sale') và có customerId
-    if (currentSale.type === 'sale' && customerId) {
-      // Tính số vỏ mới = tổng lít bia (không tính PET) trong items mới
-      const newKegQty = items
-        .filter(item => {
-          const p = resolveProduct(item.productId || item.productSlug);
-          return p && p.type !== 'pet';
-        })
-        .reduce((sum, item) => sum + (parseFloat(item.quantity) || 0), 0);
+    // Chỉ xử lý với đơn bán (type === 'sale')
+    if (currentSale.type === 'sale') {
+      // Tính số vỏ mới = tổng lít bia (không tính PET) trong sale_items MỚI.
+      // ⚠️ Đọc từ DB (sau khi đã insert items + BIA KHUYẾN MÃI) để số vỏ giao
+      //    luôn khớp với số bia thực tế của đơn. Trước đây chỉ tính từ payload
+      //    `items` → BỎ SÓT bia tặng (promo) → deliver_kegs bị giảm sai lệch
+      //    → modal thu vỏ hiển thị "số vỏ giao" không khớp đơn hàng.
+      const newKegQty = db.prepare(`
+        SELECT COALESCE(SUM(si.quantity), 0) AS qty
+        FROM sale_items si
+        LEFT JOIN products p ON p.id = si.product_id
+        WHERE si.sale_id = ? AND (p.type IS NULL OR p.type <> 'pet')
+      `).get(saleId).qty;
 
-    const oldDeliverKegs = currentSale.deliver_kegs || 0;
-    const oldReturnKegs  = currentSale.return_kegs || 0;
-    const deltaDeliver = newKegQty - oldDeliverKegs;
+      const oldDeliverKegs = currentSale.deliver_kegs || 0;
+      const oldReturnKegs  = currentSale.return_kegs || 0;
+      const deltaDeliver = newKegQty - oldDeliverKegs;
 
-    // Nếu số vỏ giao thay đổi → cập nhật balance khách
-    if (deltaDeliver !== 0) {
-      const customer = db.prepare('SELECT keg_balance FROM customers WHERE id = ?').get(customerId);
-      const currentKegBalance = customer ? (customer.keg_balance || 0) : 0;
-      const newKegBalance = currentKegBalance + deltaDeliver;
-      console.log(`[SALE UPDATE] Keg balance: customer=${customerId}, oldBalance=${currentKegBalance}, delta=${deltaDeliver}, newBalance=${newKegBalance}`);
+      if (deltaDeliver !== 0) {
+        // Tồn vỏ hiện tại của khách (đơn khách lẻ không theo dõi balance → 0)
+        let currentKegBalance = 0;
+        if (customerId) {
+          const customer = db.prepare('SELECT keg_balance FROM customers WHERE id = ?').get(customerId);
+          currentKegBalance = customer ? (customer.keg_balance || 0) : 0;
+        }
+        const newKegBalance = customerId ? (currentKegBalance + deltaDeliver) : 0;
+        console.log(`[SALE UPDATE] Keg balance: customer=${customerId}, oldBalance=${currentKegBalance}, delta=${deltaDeliver}, newBalance=${newKegBalance}`);
 
-      const updateKegs = db.transaction(() => {
-        // 1. Cập nhật đơn hàng với số vỏ mới
-        db.prepare('UPDATE sales SET deliver_kegs = ?, return_kegs = ?, keg_balance_after = ? WHERE id = ?')
-          .run(newKegQty, oldReturnKegs, newKegBalance, saleId);
+        const updateKegs = db.transaction(() => {
+          // 1. Cập nhật đơn hàng với số vỏ mới
+          db.prepare('UPDATE sales SET deliver_kegs = ?, return_kegs = ?, keg_balance_after = ? WHERE id = ?')
+            .run(newKegQty, oldReturnKegs, newKegBalance, saleId);
 
-        // 2. Cập nhật balance khách
-        updateCustomerKegBalance(customerId, deltaDeliver, 0);
+          // 2. Cập nhật balance khách
+          if (customerId) {
+            updateCustomerKegBalance(customerId, deltaDeliver, 0);
+          }
 
-        // 3. Cập nhật keg_stats.inventory = inventory - delta (vỏ giao thêm → kho giảm)
-        // Cho phép inventory âm (bán âm kho)
-        if (deltaDeliver !== 0) {
+          // 3. Cập nhật keg_stats.inventory = inventory - delta (vỏ giao thêm → kho giảm)
+          // Cho phép inventory âm (bán âm kho)
           const stats = db.prepare('SELECT inventory FROM keg_stats WHERE id = 1').get();
           const currentInventory = stats?.inventory || 0;
           const newInventory = currentInventory - deltaDeliver;
           db.prepare('UPDATE keg_stats SET inventory = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1')
             .run(newInventory);
-        }
-      });
+        });
 
-      updateKegs();
-      const io = req.app.get('io');
-      if (io) io.to('admin').emit('keg:updated', {});
-    }
+        updateKegs();
+        const io = req.app.get('io');
+        if (io) io.to('admin').emit('keg:updated', {});
+      }
 
-    // Ghi nhận first_order_date nếu đây là đơn đầu tiên của khách
-    PromotionService.setFirstOrderDate(customerId);
+      // Ghi nhận first_order_date nếu đây là đơn đầu tiên của khách
+      if (customerId) {
+        PromotionService.setFirstOrderDate(customerId);
+      }
     }
 
     // Cập nhật hóa đơn
@@ -1769,10 +1832,17 @@ router.post('/:id/restore-inventory', (req, res) => {
         const customer = sale.customer_id
           ? db.prepare('SELECT name FROM customers WHERE id = ?').get(sale.customer_id)
           : null;
-        db.prepare(`
-          INSERT INTO product_audit_log (product_id, type, quantity, reason, ref_id, ref_type, customer_name, note)
-          VALUES (?, 'restore', ?, 'manual_restore', ?, 'sale', ?, ?)
-        `).run(item.product_id, item.quantity, saleId, customer ? customer.name : null, 'Hoàn kho thủ công cho đơn đã xóa');
+        AuditService.logStock({
+          productId: item.product_id,
+          type: 'restore',
+          quantity: item.quantity,
+          reason: 'manual_restore',
+          refId: saleId,
+          refType: 'sale',
+          customerName: customer ? customer.name : null,
+          note: 'Hoàn kho thủ công cho đơn đã xóa',
+          req,
+        });
       }
     });
 
@@ -1849,11 +1919,15 @@ router.post('/:saleId/collect-kegs', (req, res) => {
       db.prepare('UPDATE keg_stats SET empty_collected = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run(newEmpty);
 
       // 3. Ghi log
-      db.prepare(`
-        INSERT INTO keg_transactions_log
-          (type, quantity, inventory_after, empty_after, holding_after, note)
-        VALUES ('collect_return', ?, 0, ?, 0, ?)
-      `).run(returnedKegs, newEmpty, note || 'Thu vỏ từ đơn #' + saleId);
+      AuditService.logKeg({
+        type: 'collect_return',
+        quantity: returnedKegs,
+        inventoryAfter: 0,
+        emptyAfter: newEmpty,
+        holdingAfter: 0,
+        note: note || 'Thu vỏ từ đơn #' + saleId,
+        req,
+      });
     })();
 
     logger.info('[walkin-collect] Collected kegs', { saleId, returnedKegs, newReturned });

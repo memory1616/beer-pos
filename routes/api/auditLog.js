@@ -14,6 +14,8 @@ const express = require('express');
 const router = express.Router();
 const logger = require('../../src/utils/logger');
 const AuditLogService = require('../../src/services/AuditLogService');
+const AuditService = require('../../src/services/AuditService');
+const AuditRetentionService = require('../../src/services/AuditRetentionService');
 const { ROLE_ADMIN } = require('../../middleware/permissions');
 
 // ── Chỉ ADMIN ───────────────────────────────────────────────────────────────
@@ -80,21 +82,76 @@ router.get('/actions', requireAdmin, (req, res) => {
 });
 
 // ── POST /purge ──────────────────────────────────────────────────────────────
+// Dọn CẢ 3 bảng nhật ký (audit_logs + product_audit_log + keg_transactions_log)
+// theo retention. `days` (tuỳ chọn) ghi đè policy cho TẤT CẢ bảng.
+// `dryRun=true` → chỉ đếm, không xoá (xem trước).
 router.post('/purge', requireAdmin, (req, res) => {
   try {
-    const days = Math.min(3650, Math.max(1, parseInt(req.body?.days) || 90));
-    const result = AuditLogService.purge(days);
+    const days = req.body?.days ? Math.min(3650, Math.max(1, parseInt(req.body.days) || 90)) : null;
+    const dryRun = req.body?.dryRun === true;
 
-    // Ghi lại chính thao tác xoá (sau khi xoá để không bị xoá mất)
-    AuditLogService.recordFromRequest(req, 'audit_log_purged', {
-      description: `Xoá ${result.deleted} dòng nhật ký cũ hơn ${days} ngày`,
-      changes: { days: { from: null, to: days }, deleted: { from: null, to: result.deleted } },
+    const result = AuditService.purgeAll({
+      ...(days ? { days } : {}),
+      dryRun,
     });
 
-    res.json({ success: true, ...result });
+    // Ghi lại chính thao tác xoá (sau khi xoá để không bị xoá mất)
+    if (!dryRun) {
+      AuditLogService.recordFromRequest(req, 'audit_log_purged', {
+        description: `Dọn ${result.total} dòng nhật ký cũ (${JSON.stringify(result.policy)} ngày)`,
+        changes: {
+          days: { from: null, to: days || 'policy' },
+          deleted: { from: null, to: result.total },
+          deletedByTable: { from: null, to: result.deletedByTable },
+        },
+      });
+    }
+
+    res.json({ success: true, dryRun, ...result });
   } catch (err) {
     logger.error('[AUDIT] purge error', { error: err.message });
     res.status(500).json({ error: 'Lỗi khi dọn nhật ký cũ' });
+  }
+});
+
+// ── GET /retention ───────────────────────────────────────────────────────────
+// Thống kê 3 bảng nhật ký + policy retention hiện tại (admin chỉnh trong Settings).
+router.get('/retention', requireAdmin, (req, res) => {
+  try {
+    res.json({ success: true, ...AuditRetentionService.stats() });
+  } catch (err) {
+    logger.error('[AUDIT] retention stats error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi tải thống kê bảng nhật ký' });
+  }
+});
+
+// ── POST /retention-policy ───────────────────────────────────────────────────
+// Cập nhật số ngày giữ cho từng bảng.
+router.post('/retention-policy', requireAdmin, (req, res) => {
+  try {
+    const db = require('../../database');
+    const map = {
+      auditLogs: 'audit_log_retention_days',
+      stockLogs: 'stock_log_retention_days',
+      kegLogs: 'keg_log_retention_days',
+    };
+    const applied = {};
+    for (const [key, settingKey] of Object.entries(map)) {
+      if (req.body?.[key] == null) continue;
+      const days = Math.min(3650, Math.max(1, parseInt(req.body[key]) || 1));
+      db.prepare(
+        'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value'
+      ).run(settingKey, String(days));
+      applied[settingKey] = days;
+    }
+    AuditLogService.recordFromRequest(req, 'audit_log_retention_updated', {
+      description: `Cập nhật retention: ${JSON.stringify(applied)}`,
+      changes: applied,
+    });
+    res.json({ success: true, applied, policy: AuditService.retentionPolicy() });
+  } catch (err) {
+    logger.error('[AUDIT] update retention policy error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi cập nhật chính sách lưu trữ nhật ký' });
   }
 });
 

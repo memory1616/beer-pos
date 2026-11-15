@@ -137,7 +137,8 @@ function resolveRecipient(channel) {
  * @returns {Promise<object>}
  */
 async function dispatchDailyReport(options = {}) {
-  const date = options.date || DailyReportService.todayVN();
+  // Mặc định = NGÀY NGHIỆP VỤ (cutoff 19:00) — đơn tạo sau 19:00 thuộc ngày mai.
+  const date = options.date || db.getBusinessDateStr();
   const channel = options.channel || getChannel();
   const force = Boolean(options.force);
   const dryRun = Boolean(options.dryRun);
@@ -263,7 +264,7 @@ function shouldRunNow(now) {
  * @returns {Promise<object>}
  */
 async function runScheduledDailyReport() {
-  const date = DailyReportService.todayVN();
+  const date = db.getBusinessDateStr();
   const cfg = getConfig();
 
   if (cfg.report_notify_enabled !== '1') {

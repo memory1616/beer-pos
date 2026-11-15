@@ -221,3 +221,126 @@ describe('views/debts.html — panel Thu tiền nhanh', () => {
     expect(partial).toContain("method: 'POST'");
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NHẬP NHANH — chọn DẤU bằng NÚT (bàn phím điện thoại không có phím "+")
+// ═══════════════════════════════════════════════════════════════════════════
+describe('views/debts.html — nhập nhanh không cần phím "+"', () => {
+  test('có 2 nút chọn dấu +/−', () => {
+    expect(html).toContain('id="qeSignPlus"');
+    expect(html).toContain('id="qeSignMinus"');
+    // Trong HTML, onclick nằm trong chuỗi JS → dấu nháy bị escape
+    expect(html).toContain("setQuickSign(\\'+\\')");
+    expect(html).toContain("setQuickSign(\\'-\\')");
+    expect(html).toContain('window.setQuickSign = setQuickSign;');
+  });
+
+  test('ô nhập KHÔNG yêu cầu gõ dấu (placeholder chỉ số)', () => {
+    // placeholder KHÔNG được chứa "+" → bàn phím mobile không có phím này
+    const inputLine = html
+      .split('\n')
+      .find((l) => l.includes('id="qeCommand"') && l.includes('placeholder'));
+    expect(inputLine).toBeTruthy();
+    expect(inputLine).toContain('placeholder="1000"');
+    expect(inputLine).not.toContain('placeholder="+1000"');
+  });
+
+  test('có badge hiển thị dấu đang chọn', () => {
+    expect(html).toContain('id="qeSignBadge"');
+    expect(html).toMatch(/\.dbt-amount-badge\.plus/);
+    expect(html).toMatch(/\.dbt-amount-badge\.minus/);
+  });
+
+  test('hàm setQuickSign() tồn tại và cập nhật state', () => {
+    expect(html).toMatch(/function\s+setQuickSign\s*\(/);
+    const fn = html.slice(
+      html.indexOf('function setQuickSign('),
+      html.indexOf('function buildQuickContent(')
+    );
+    expect(fn).toContain("state.quickSign");
+    expect(fn).toContain('qeSignPlus');
+    expect(fn).toContain('qeSignMinus');
+    expect(fn).toContain('qeSignBadge');
+  });
+
+  test('buildQuickContent() ghép dấu khi người dùng chỉ gõ số', () => {
+    expect(html).toMatch(/function\s+buildQuickContent\s*\(/);
+    const start = html.indexOf('function buildQuickContent(');
+    const bodyStart = html.indexOf('{', start);
+    let depth = 0;
+    let end = -1;
+    for (let i = bodyStart; i < html.length; i++) {
+      if (html[i] === '{') depth++;
+      else if (html[i] === '}') {
+        depth--;
+        if (depth === 0) {
+          end = i;
+          break;
+        }
+      }
+    }
+    expect(end).toBeGreaterThan(-1);
+    const fnSrc = html.slice(start, end + 1);
+    // eslint-disable-next-line no-new-func
+    const buildQuickContent = new Function(`${fnSrc}; return buildQuickContent;`)();
+
+    // Chỉ gõ số → ghép dấu đang chọn
+    expect(buildQuickContent('1000', '+')).toBe('+1000');
+    expect(buildQuickContent('1000', '-')).toBe('-1000');
+    // Đã có dấu → giữ nguyên (tương thích bàn phím máy tính)
+    expect(buildQuickContent('+1000', '-')).toBe('+1000');
+    expect(buildQuickContent('-1000', '+')).toBe('-1000');
+    // Rỗng → rỗng
+    expect(buildQuickContent('', '+')).toBe('');
+    expect(buildQuickContent(null, '+')).toBe('');
+  });
+
+  test('quickEntry dùng buildQuickContent khi submit', () => {
+    const fn = html.slice(html.indexOf('function quickEntry('), html.indexOf('function refreshOverview('));
+    expect(fn).toContain('buildQuickContent(content, state.quickSign)');
+  });
+
+  test('input chỉ nhận số + Enter để ghi nhận', () => {
+    expect(html).toMatch(/function\s+bindQuickInput\s*\(/);
+    const fn = html.slice(
+      html.indexOf('function bindQuickInput('),
+      html.indexOf('function setQuickSign(')
+    );
+    expect(fn).toContain("replace(/[^0-9+-]/g");
+    expect(fn).toContain("e.key === 'Enter'");
+    expect(fn).toContain("quickEntry('submit')");
+  });
+
+  test('nút +/− không còn dùng prompt() (bất tiện trên điện thoại)', () => {
+    const fn = html.slice(html.indexOf('function quickEntry('), html.indexOf('function refreshOverview('));
+    expect(fn).not.toContain('prompt(');
+    expect(fn).toContain('setQuickSign(mode)');
+    expect(fn).toContain('focusTarget.focus()');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Bảng "Khách nợ cao nhất" — cột SĐT đã bị thay bằng "Số tiền đang nợ"
+// (yêu cầu 2026-11-13): ô `.dbt-muted` từng hiện SĐT, nay hiện số tiền.
+// ═══════════════════════════════════════════════════════════════════════════
+describe('views/debts.html — bảng Khách nợ cao nhất', () => {
+  const overviewFn = html.slice(
+    html.indexOf('function renderOverview('),
+    html.indexOf('function renderCustomers(')
+  );
+
+  test('không còn cột SĐT trong bảng top debtors', () => {
+    expect(overviewFn).not.toContain('<th>SĐT</th>');
+    expect(overviewFn).not.toContain('dbt-muted');
+  });
+
+  test('cột "Số tiền đang nợ" hiện balance, canh phải', () => {
+    expect(overviewFn).toContain('<th style="text-align:right">Số tiền đang nợ</th>');
+    expect(overviewFn).toMatch(/<td class="dbt-mono dbt-amount-neg" style="text-align:right">'\s*\+\s*money\(t\.balance\)/);
+  });
+
+  test('bảng chỉ còn 2 cột: Khách hàng + Số tiền đang nợ', () => {
+    const thCount = (overviewFn.match(/<th[\s>]/g) || []).length;
+    expect(thCount).toBe(2);
+  });
+});

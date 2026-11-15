@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require('../../database');
 const logger = require('../../src/utils/logger');
 const socketServer = require('../../src/socket/socketServer');
+const AuditService = require('../../src/services/AuditService');
 const emitCustomer = (customer) => { try { if (socketServer) socketServer.emitCustomerUpdated(customer); } catch (_) {} };
 const emitKeg = () => { try { if (socketServer) socketServer.emitKegUpdated(); } catch (_) {} };
 
@@ -485,37 +486,33 @@ router.put('/:id/archive', (req, res) => {
       const lostAfter = currentLost + kegsLost;
 
       // Log collect transaction
-      db.prepare(`
-        INSERT INTO keg_transactions_log
-          (type, quantity, customer_id, customer_name, inventory_after, empty_after, holding_after, lost_after, note)
-        VALUES ('collect', ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        kegsToCollect,
-        id,
-        existing.name,
+      AuditService.logKeg({
+        type: 'collect',
+        quantity: kegsToCollect,
+        customerId: id,
+        customerName: existing.name,
         inventoryAfter,
         emptyAfter,
         holdingAfter,
         lostAfter,
-        `Thu vỏ khi lưu trữ khách (mất ${kegsLost})`
-      );
+        note: `Thu vỏ khi lưu trữ khách (mất ${kegsLost})`,
+        req,
+      });
 
       if (kegsLost > 0) {
         // Log lost transaction with same AFTER values
-        db.prepare(`
-          INSERT INTO keg_transactions_log
-            (type, quantity, customer_id, customer_name, inventory_after, empty_after, holding_after, lost_after, note)
-          VALUES ('lost', ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(
-          kegsLost,
-          id,
-          existing.name,
+        AuditService.logKeg({
+          type: 'lost',
+          quantity: kegsLost,
+          customerId: id,
+          customerName: existing.name,
           inventoryAfter,
           emptyAfter,
           holdingAfter,
           lostAfter,
-          `Vỏ mất khi lưu trữ khách (${kegsLost} vỏ)`
-        );
+          note: `Vỏ mất khi lưu trữ khách (${kegsLost} vỏ)`,
+          req,
+        });
       }
 
       logger.info(`[Customer Archive] ${existing.name}: total=${totalKegs}, collected=${kegsToCollect}, lost=${kegsLost}, holdingAfter=${holdingAfter}`);

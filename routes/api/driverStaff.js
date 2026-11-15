@@ -17,6 +17,7 @@ const express = require('express');
 const router = express.Router();
 const logger = require('../../src/utils/logger');
 const DriverStaffService = require('../../src/services/DriverStaffService');
+const DriverAttendanceService = require('../../src/services/DriverAttendanceService');
 const { requireAdmin } = require('./admin');
 
 // ── Helper: parse year/month an toàn ────────────────────────────────────────
@@ -261,6 +262,140 @@ router.delete('/advances/:advanceId', requireAdmin, (req, res) => {
   } catch (err) {
     logger.error('[admin/driver-staff] cancel advance error', { error: err.message });
     res.status(500).json({ error: 'Lỗi khi huỷ khoản ứng' });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CHẤM CÔNG TÀI XẾ
+// ═══════════════════════════════════════════════════════════════════════════
+// Admin tick từng ngày trên lịch. Ngày có chấm công được cộng thêm vào số
+// ngày làm (kể cả Chủ Nhật — trước đây CN luôn bị bỏ qua → thiếu lương).
+
+// GET /api/admin/driver-staff/attendance/summary?year=&month=
+// Bảng chấm công của TẤT CẢ tài xế trong tháng.
+router.get('/attendance/summary', requireAdmin, (req, res) => {
+  try {
+    const now = new Date();
+    const period = parsePeriod(
+      req.query.year || now.getFullYear(),
+      req.query.month || now.getMonth() + 1
+    );
+    if (!period) return res.status(400).json({ error: 'Kỳ lương không hợp lệ' });
+
+    const data = DriverAttendanceService.getMonthSummary(period.year, period.month);
+    res.json({ success: true, data, year: period.year, month: period.month });
+  } catch (err) {
+    logger.error('[admin/driver-staff] attendance summary error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi tải bảng chấm công' });
+  }
+});
+
+// GET /api/admin/driver-staff/:id/attendance?year=&month=
+// Lịch chi tiết 1 tài xế trong tháng (từng ngày + trạng thái chấm công).
+router.get('/:id/attendance', requireAdmin, (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (!id) return res.status(400).json({ error: 'Tài xế không hợp lệ' });
+    const period = parsePeriod(
+      req.query.year || new Date().getFullYear(),
+      req.query.month || new Date().getMonth() + 1
+    );
+    if (!period) return res.status(400).json({ error: 'Kỳ lương không hợp lệ' });
+
+    const grid = DriverAttendanceService.getMonthGrid(id, period.year, period.month);
+    const workDates = DriverAttendanceService.getWorkDatesInMonth(id, period.year, period.month);
+    res.json({
+      success: true,
+      data: grid,
+      workDates,
+      checkedCount: workDates.length,
+      year: period.year,
+      month: period.month,
+    });
+  } catch (err) {
+    logger.error('[admin/driver-staff] attendance grid error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi tải lịch chấm công' });
+  }
+});
+
+// POST /api/admin/driver-staff/:id/attendance — chấm công 1 ngày
+// Body: { date: 'YYYY-MM-DD', note?: string }
+router.post('/:id/attendance', requireAdmin, (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const result = DriverAttendanceService.mark(id, req.body?.date, {
+      note: req.body?.note,
+      createdBy: req.user?.username || null,
+    });
+    if (!result.success) return res.status(400).json({ error: result.error });
+    res.status(201).json({ success: true, data: result });
+  } catch (err) {
+    logger.error('[admin/driver-staff] mark attendance error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi chấm công' });
+  }
+});
+
+// POST /api/admin/driver-staff/:id/attendance/toggle — tick / untick 1 ngày
+router.post('/:id/attendance/toggle', requireAdmin, (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const result = DriverAttendanceService.toggle(id, req.body?.date, {
+      note: req.body?.note,
+      createdBy: req.user?.username || null,
+    });
+    if (!result.success) return res.status(400).json({ error: result.error });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    logger.error('[admin/driver-staff] toggle attendance error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi chấm công' });
+  }
+});
+
+// POST /api/admin/driver-staff/:id/attendance/bulk — chấm công nhiều ngày
+// Body: { dates: ['YYYY-MM-DD', ...], note?: string }
+router.post('/:id/attendance/bulk', requireAdmin, (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const result = DriverAttendanceService.markMany(id, req.body?.dates, {
+      note: req.body?.note,
+      createdBy: req.user?.username || null,
+    });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    logger.error('[admin/driver-staff] bulk attendance error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi chấm công hàng loạt' });
+  }
+});
+
+// DELETE /api/admin/driver-staff/:id/attendance?date=YYYY-MM-DD — bỏ chấm công 1 ngày
+router.delete('/:id/attendance', requireAdmin, (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const result = DriverAttendanceService.unmark(id, req.query.date || req.body?.date);
+    if (!result.success) return res.status(400).json({ error: result.error });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    logger.error('[admin/driver-staff] unmark attendance error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi bỏ chấm công' });
+  }
+});
+
+// DELETE /api/admin/driver-staff/:id/attendance/month?year=&month= — xoá cả tháng
+router.delete('/:id/attendance/month', requireAdmin, (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const period = parsePeriod(
+      req.query.year || new Date().getFullYear(),
+      req.query.month || new Date().getMonth() + 1
+    );
+    if (!period) return res.status(400).json({ error: 'Kỳ lương không hợp lệ' });
+
+    const result = DriverAttendanceService.clearMonth(id, period.year, period.month);
+    if (!result.success) return res.status(400).json({ error: result.error });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    logger.error('[admin/driver-staff] clear attendance month error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi xoá chấm công tháng' });
   }
 });
 

@@ -17,6 +17,8 @@ const db = require('../../database');
 const logger = require('../../src/utils/logger');
 const socketServer = require('../../src/socket/socketServer');
 const { updateCustomerKegBalance } = require('../../routes/api/payments');
+const AuditService = require('./AuditService');
+const KegBalanceService = require('./KegBalanceService');
 
 const KegReceiptService = {
   /**
@@ -89,9 +91,11 @@ const KegReceiptService = {
       updateCustomerKegBalance(customerId, 0, kegs);
 
       // 2. Cộng vỏ rỗng về kho chờ nạp lại
+      //    ⚠️ CHO PHÉP ÂM: thu vỏ từ khách BÙ ĐƯỢC vào số âm (vỏ tạm ứng
+      //       trước nhà máy). Xem src/services/KegBalanceService.js.
       const stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
       const currentEmpty = stats?.empty_collected || 0;
-      const newEmpty = currentEmpty + kegs;
+      const newEmpty = KegBalanceService.peekEmptyCollected(kegs);
       db.prepare(
         "UPDATE keg_stats SET empty_collected = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1"
       ).run(newEmpty);
@@ -120,19 +124,17 @@ const KegReceiptService = {
       const after = db
         .prepare('SELECT inventory, empty_collected, customer_holding FROM keg_stats WHERE id = 1')
         .get();
-      db.prepare(
-        `INSERT INTO keg_transactions_log
-           (type, quantity, customer_id, customer_name, inventory_after, empty_after, holding_after, note)
-         VALUES ('collect', ?, ?, ?, ?, ?, ?, ?)`
-      ).run(
-        kegs,
+      AuditService.logKeg({
+        type: 'collect',
+        quantity: kegs,
         customerId,
-        customer.name || '',
-        after?.inventory || 0,
-        after?.empty_collected || 0,
-        after?.customer_holding || 0,
-        `Phiếu thu vỏ ${receiptNo} — tài xế ${driverUsername}`
-      );
+        customerName: customer.name || '',
+        inventoryAfter: after?.inventory || 0,
+        emptyAfter: after?.empty_collected || 0,
+        holdingAfter: after?.customer_holding || 0,
+        note: `Phiếu thu vỏ ${receiptNo} — tài xế ${driverUsername}`,
+        actor: driverUsername,
+      });
 
       return receiptId;
     });
@@ -261,10 +263,10 @@ const KegReceiptService = {
         // diff < 0 → thu thêm (-diff) vỏ (returnKegs = -diff)
         updateCustomerKegBalance(row.customer_id, diff > 0 ? diff : 0, diff < 0 ? -diff : 0);
 
-        // Đồng bộ vỏ rỗng trong kho
+        // Đồng bộ vỏ rỗng trong kho (CHO PHÉP ÂM — xem KegBalanceService)
         const stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
         const currentEmpty = stats?.empty_collected || 0;
-        const newEmpty = Math.max(0, currentEmpty - diff);
+        const newEmpty = KegBalanceService.peekEmptyCollected(-diff);
         db.prepare(
           'UPDATE keg_stats SET empty_collected = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1'
         ).run(newEmpty);
@@ -284,19 +286,17 @@ const KegReceiptService = {
         const after = db
           .prepare('SELECT inventory, empty_collected, customer_holding FROM keg_stats WHERE id = 1')
           .get();
-        db.prepare(
-          `INSERT INTO keg_transactions_log
-             (type, quantity, customer_id, customer_name, inventory_after, empty_after, holding_after, note)
-           VALUES ('collect', ?, ?, ?, ?, ?, ?, ?)`
-        ).run(
-          diff,
-          row.customer_id,
-          row.customer_name || customer.name || '',
-          after?.inventory || 0,
-          after?.empty_collected || 0,
-          after?.customer_holding || 0,
-          `Điều chỉnh phiếu thu vỏ ${row.receipt_no} — tài xế ${driverUsername}`
-        );
+        AuditService.logKeg({
+          type: 'collect',
+          quantity: diff,
+          customerId: row.customer_id,
+          customerName: row.customer_name || customer.name || '',
+          inventoryAfter: after?.inventory || 0,
+          emptyAfter: after?.empty_collected || 0,
+          holdingAfter: after?.customer_holding || 0,
+          note: `Điều chỉnh phiếu thu vỏ ${row.receipt_no} — tài xế ${driverUsername}`,
+          actor: driverUsername,
+        });
       } else {
         db.prepare(
           `UPDATE driver_keg_receipts
@@ -354,10 +354,10 @@ const KegReceiptService = {
         updateCustomerKegBalance(row.customer_id, kegs, 0);
       }
 
-      // 2. Trừ vỏ rỗng trong kho
+      // 2. Trừ vỏ rỗng trong kho (CHO PHÉP ÂM — xem KegBalanceService)
       const stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
       const currentEmpty = stats?.empty_collected || 0;
-      const newEmpty = Math.max(0, currentEmpty - kegs);
+      const newEmpty = KegBalanceService.peekEmptyCollected(-kegs);
       db.prepare(
         'UPDATE keg_stats SET empty_collected = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1'
       ).run(newEmpty);
@@ -366,19 +366,17 @@ const KegReceiptService = {
       const after = db
         .prepare('SELECT inventory, empty_collected, customer_holding FROM keg_stats WHERE id = 1')
         .get();
-      db.prepare(
-        `INSERT INTO keg_transactions_log
-           (type, quantity, customer_id, customer_name, inventory_after, empty_after, holding_after, note)
-         VALUES ('collect', ?, ?, ?, ?, ?, ?, ?)`
-      ).run(
-        -kegs,
-        row.customer_id,
-        row.customer_name || customer?.name || '',
-        after?.inventory || 0,
-        after?.empty_collected || 0,
-        after?.customer_holding || 0,
-        `Xoá phiếu thu vỏ ${row.receipt_no} — tài xế ${driverUsername}`
-      );
+      AuditService.logKeg({
+        type: 'collect',
+        quantity: -kegs,
+        customerId: row.customer_id,
+        customerName: row.customer_name || customer?.name || '',
+        inventoryAfter: after?.inventory || 0,
+        emptyAfter: after?.empty_collected || 0,
+        holdingAfter: after?.customer_holding || 0,
+        note: `Xoá phiếu thu vỏ ${row.receipt_no} — tài xế ${driverUsername}`,
+        actor: driverUsername,
+      });
 
       // 4. Xoá phiếu
       db.prepare('DELETE FROM driver_keg_receipts WHERE id = ?').run(receiptId);

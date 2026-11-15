@@ -49,7 +49,7 @@ router.get('/full', (req, res) => {
     const today = db.getVietnamDateStr();
     if (entities === 'all' || entities.includes('sales')) {
       state.sales = db.prepare(`
-        SELECT s.id, s.uuid, s.customer_id, s.date, s.total, s.profit,
+        SELECT s.id, s.uuid, s.customer_id, s.date, s.created_on, s.total, s.profit,
                s.deliver_kegs, s.return_kegs, s.keg_balance_after,
                s.type, s.status, s.note, s.distance_km, s.duration_min,
                s.returned_amount, s.returned_quantity,
@@ -57,7 +57,8 @@ router.get('/full', (req, res) => {
                s.created_at, s.updated_at, s.version
         FROM sales s
         LEFT JOIN customers c ON s.customer_id = c.id
-        WHERE s.date = ? AND (s.deleted = 0 OR s.deleted IS NULL)
+        WHERE COALESCE(DATE(s.created_on), DATE(s.date)) = ?
+          AND (s.deleted = 0 OR s.deleted IS NULL)
         ORDER BY s.id DESC
       `).all(today);
     }
@@ -161,13 +162,19 @@ router.get('/delta', (req, res) => {
     `).get();
 
     // Action logs since lastSync
-    delta.actionLogs = db.prepare(`
-      SELECT uuid, action, entity, entity_id, payload, created_at
-      FROM action_logs
-      WHERE created_at >= ?
-      ORDER BY created_at ASC
-      LIMIT 100
-    `).all(sinceDate);
+    // Bảng `action_logs` đã bị bỏ (migration 056 — bảng chết, không ai ghi vào).
+    // Truy vấn có thể lỗi nếu bảng không tồn tại → bọc try/catch cho an toàn.
+    try {
+      delta.actionLogs = db.prepare(`
+        SELECT uuid, action, entity, entity_id, payload, created_at
+        FROM action_logs
+        WHERE created_at >= ?
+        ORDER BY created_at ASC
+        LIMIT 100
+      `).all(sinceDate);
+    } catch (_) {
+      delta.actionLogs = [];
+    }
 
     delta.meta = {
       timestamp: new Date().toISOString(),

@@ -73,6 +73,7 @@
         <div class="tab" onclick="switchTab('config')" id="tab-config">⚙️ Cấu hình lương</div>
         <div class="tab" onclick="switchTab('drivers')" id="tab-drivers">🚚 Tài xế</div>
         <div class="tab" onclick="switchTab('driverSalary')" id="tab-driverSalary">💵 Lương tài xế</div>
+        <div class="tab" onclick="switchTab('attendance')" id="tab-attendance">📅 Chấm công</div>
       </div>
 
       <!-- Danh sách Sales -->
@@ -215,6 +216,44 @@
               </div>
             </div>
             <div id="driverSalaryDetailContent"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════ TAB: CHẤM CÔNG TÀI XẾ ══════════ -->
+      <div id="content-attendance" style="display: none;">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">📅 Bảng chấm công tài xế</div>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <select id="attendanceMonth" class="input" style="width: auto;" onchange="loadAttendanceSummary()">
+                <option value=""></option>
+              </select>
+              <select id="attendanceDriver" class="input" style="width:auto;min-width:180px;" onchange="loadAttendanceGrid()">
+                <option value="">-- Chọn tài xế --</option>
+              </select>
+            </div>
+          </div>
+          <div style="padding:0 16px 16px;">
+            <small style="color:var(--text-muted);line-height:1.7;display:block;margin-bottom:8px;">
+              • Lương = <strong>(lương tháng ÷ 26) × số ngày làm</strong>.<br>
+              • Số ngày làm = <strong>lịch (không tính Chủ Nhật) ∪ chấm công</strong> —
+                tick ngày Chủ Nhật tài xế đi làm ở đây để được tính lương.<br>
+              • Ngày nằm ở cả lịch lẫn chấm công chỉ được tính <strong>1 lần</strong>.
+            </small>
+          </div>
+          <div id="attendanceSummary"></div>
+        </div>
+        <div id="attendanceGridCard" style="display:none;">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title" id="attendanceGridTitle">Lịch chấm công</div>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <button class="btn btn-secondary btn-sm" onclick="attendanceMarkWeekdays()">✓ Tick T2–T7</button>
+                <button class="btn btn-secondary btn-sm" onclick="attendanceClearMonth()">🗑 Xoá tháng</button>
+              </div>
+            </div>
+            <div id="attendanceGrid"></div>
           </div>
         </div>
       </div>
@@ -446,11 +485,12 @@
       initMonthSelector();
       initSalaryConfigSelector();
       initDriverSalaryMonthSelector();
+      initAttendanceMonthSelector();
     });
 
     function switchTab(tab) {
       currentTab = tab;
-      ['list', 'salary', 'config', 'drivers', 'driverSalary'].forEach(t => {
+      ['list', 'salary', 'config', 'drivers', 'driverSalary', 'attendance'].forEach(t => {
         document.getElementById('tab-' + t).classList.toggle('active', t === tab);
         document.getElementById('content-' + t).style.display = t === tab ? 'block' : 'none';
       });
@@ -462,6 +502,250 @@
       }
       if (tab === 'driverSalary') {
         loadDriverSalarySummary();
+      }
+      if (tab === 'attendance') {
+        loadAttendanceSummary();
+      }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // TAB: CHẤM CÔNG TÀI XẾ
+    // ══════════════════════════════════════════════════════════════════════
+    // Ngày đi làm thực tế (kể cả Chủ Nhật) → được cộng vào số ngày làm
+    // khi tính lương. Công thức UNION: lịch ∪ chấm công (không tính trùng).
+
+    let attendanceGridData = [];
+
+    function initAttendanceMonthSelector() {
+      const select = document.getElementById('attendanceMonth');
+      if (!select) return;
+      select.innerHTML = '';
+      const now = new Date();
+      for (let i = 0; i < 12; i++) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        const opt = document.createElement('option');
+        opt.value = val;
+        opt.textContent = `Tháng ${d.getMonth() + 1}/${d.getFullYear()}`;
+        if (i === 0) opt.selected = true;
+        select.appendChild(opt);
+      }
+    }
+
+    function attendancePeriod() {
+      const monthVal = document.getElementById('attendanceMonth')?.value;
+      if (!monthVal) return null;
+      const [year, month] = monthVal.split('-').map(Number);
+      if (!year || !month) return null;
+      return { year, month, monthVal };
+    }
+
+    async function loadAttendanceSummary() {
+      const container = document.getElementById('attendanceSummary');
+      if (!container) return;
+      const period = attendancePeriod();
+      if (!period) return;
+
+      try {
+        const res = await fetch(`/api/admin/driver-staff/attendance/summary?year=${period.year}&month=${period.month}`);
+        const data = await res.json();
+        if (!data.success) {
+          container.innerHTML = `<div class="empty-state">${data.error || 'Lỗi tải dữ liệu'}</div>`;
+          return;
+        }
+
+        const rows = data.data || [];
+        await loadAttendanceDriverOptions(rows);
+
+        if (rows.length === 0) {
+          container.innerHTML = `<div class="empty-state">Chưa có tài xế nào.</div>`;
+          return;
+        }
+
+        const totalDays = rows.reduce((s, r) => s + r.count, 0);
+        const totalSunday = rows.reduce((s, r) => s + r.sundayCount, 0);
+        container.innerHTML = `
+          <div style="padding:0 16px 12px;display:flex;gap:16px;flex-wrap:wrap;align-items:center;">
+            <small style="color:var(--text-muted);">
+              Tổng ngày đã chấm công: <strong>${totalDays}</strong>
+              ${totalSunday > 0 ? ` (gồm <strong style="color:var(--warn,#f59e0b)">${totalSunday} ngày Chủ Nhật</strong>)` : ''}
+            </small>
+          </div>
+          <div style="overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;font-size:13px;">
+            <thead>
+              <tr style="text-align:left;border-bottom:1px solid var(--border);">
+                <th style="padding:8px;">Tài xế</th>
+                <th style="padding:8px;">Ngày đã chấm</th>
+                <th style="padding:8px;">Trong đó CN</th>
+                <th style="padding:8px;">Chi tiết</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows.map(r => `
+                <tr style="border-bottom:1px solid var(--border);">
+                  <td style="padding:8px;">
+                    <div style="font-weight:600;">${escapeHtml(r.fullName)}</div>
+                    <div style="font-size:11px;color:var(--text-muted);">@${escapeHtml(r.username)}</div>
+                  </td>
+                  <td style="padding:8px;"><strong>${r.count}</strong> ngày</td>
+                  <td style="padding:8px;color:${r.sundayCount > 0 ? 'var(--warn,#f59e0b)' : 'var(--text-muted)'};">
+                    ${r.sundayCount > 0 ? r.sundayCount : '-'}
+                  </td>
+                  <td style="padding:8px;font-size:11px;color:var(--text-muted);max-width:420px;">
+                    ${r.workDates.length ? escapeHtml(r.workDates.join(', ')) : '-'}
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          </div>`;
+      } catch (e) {
+        container.innerHTML = '<div class="empty-state">Lỗi tải dữ liệu</div>';
+      }
+    }
+
+    async function loadAttendanceDriverOptions(rows) {
+      const select = document.getElementById('attendanceDriver');
+      if (!select) return;
+      const current = select.value;
+      select.innerHTML = '<option value="">-- Chọn tài xế --</option>';
+      for (const r of rows) {
+        const opt = document.createElement('option');
+        opt.value = r.driverId;
+        opt.textContent = `${r.fullName} (@${r.username})`;
+        select.appendChild(opt);
+      }
+      if (current && rows.some(r => String(r.driverId) === String(current))) {
+        select.value = current;
+        await loadAttendanceGrid();
+      }
+    }
+
+    async function loadAttendanceGrid() {
+      const driverId = document.getElementById('attendanceDriver')?.value;
+      const period = attendancePeriod();
+      const card = document.getElementById('attendanceGridCard');
+      const gridEl = document.getElementById('attendanceGrid');
+      if (!card || !gridEl) return;
+      if (!driverId || !period) {
+        card.style.display = 'none';
+        return;
+      }
+      card.style.display = 'block';
+
+      try {
+        const res = await fetch(`/api/admin/driver-staff/${driverId}/attendance?year=${period.year}&month=${period.month}`);
+        const data = await res.json();
+        if (!data.success) {
+          gridEl.innerHTML = `<div class="empty-state">${data.error || 'Lỗi tải lịch'}</div>`;
+          return;
+        }
+        attendanceGridData = data.data || [];
+        const name = document.getElementById('attendanceDriver')?.selectedOptions?.[0]?.textContent || '';
+        document.getElementById('attendanceGridTitle').textContent =
+          `Lịch chấm công — ${name} (${period.monthVal})`;
+
+        const checkedCount = data.checkedCount || 0;
+        // Offset để ngày 1 nằm đúng cột thứ trong tuần
+        const firstDow = attendanceGridData.length ? attendanceGridData[0].dayOfWeek : 0;
+        const blanks = Array.from({ length: firstDow }, () => '<div></div>').join('');
+
+        gridEl.innerHTML = `
+          <div style="padding:0 16px 12px;">
+            <small style="color:var(--text-muted);">
+              Đã chấm <strong>${checkedCount}</strong> ngày ·
+              <span style="color:var(--warn,#f59e0b);">ngày Chủ Nhật</span> được tô đậm.
+            </small>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(7,minmax(88px,1fr));gap:6px;padding:0 16px 16px;">
+            ${['CN','T2','T3','T4','T5','T6','T7'].map(d =>
+              `<div style="text-align:center;font-size:11px;color:var(--text-muted);font-weight:600;padding:4px 0;">${d}</div>`
+            ).join('')}
+            ${blanks}
+            ${attendanceGridData.map(d => `
+              <button type="button" onclick="attendanceToggle('', '${d.date}')"
+                title="${d.dayName} ${d.date}${d.note ? ' — ' + escapeHtml(d.note) : ''}"
+                style="padding:10px 4px;border-radius:8px;border:1px solid ${d.checked ? 'var(--primary,#2563eb)' : 'var(--border)'};
+                  background:${d.checked ? 'var(--primary,#2563eb)' : 'transparent'};
+                  color:${d.checked ? '#fff' : 'var(--text)'};
+                  ${d.isSunday ? 'font-weight:700;' : ''}
+                  cursor:pointer;font-size:13px;line-height:1.4;">
+                <div>${d.day}</div>
+                <div style="font-size:10px;opacity:.85;">${d.isSunday ? 'CN' : ''}</div>
+              </button>
+            `).join('')}
+          </div>`;
+      } catch (e) {
+        gridEl.innerHTML = '<div class="empty-state">Lỗi tải lịch</div>';
+      }
+    }
+
+    async function attendanceToggle(driverId, date) {
+      const select = document.getElementById('attendanceDriver');
+      const id = driverId || select?.value;
+      if (!id) return;
+      try {
+        const res = await fetch(`/api/admin/driver-staff/${id}/attendance/toggle`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ date })
+        });
+        const data = await res.json();
+        if (!data.success) {
+          window.alert('✗ ' + (data.error || 'Lỗi chấm công'));
+          return;
+        }
+        await loadAttendanceGrid();
+        await loadAttendanceSummary();
+      } catch (e) {
+        window.alert('✗ ' + e.message);
+      }
+    }
+
+    async function attendanceMarkWeekdays() {
+      const id = document.getElementById('attendanceDriver')?.value;
+      const period = attendancePeriod();
+      if (!id || !period) return;
+      const dates = attendanceGridData.filter(d => !d.isSunday).map(d => d.date);
+      if (dates.length === 0) return;
+      if (!window.confirm(`Tick ${dates.length} ngày (T2–T7) cho tài xế này?`)) return;
+      try {
+        const res = await fetch(`/api/admin/driver-staff/${id}/attendance/bulk`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dates })
+        });
+        const data = await res.json();
+        if (!data.success) {
+          window.alert('✗ ' + (data.error || 'Lỗi'));
+          return;
+        }
+        await loadAttendanceGrid();
+        await loadAttendanceSummary();
+      } catch (e) {
+        window.alert('✗ ' + e.message);
+      }
+    }
+
+    async function attendanceClearMonth() {
+      const id = document.getElementById('attendanceDriver')?.value;
+      const period = attendancePeriod();
+      if (!id || !period) return;
+      if (!window.confirm('Xoá TOÀN BỘ chấm công của tài xế này trong tháng?')) return;
+      try {
+        const res = await fetch(`/api/admin/driver-staff/${id}/attendance/month?year=${period.year}&month=${period.month}`, {
+          method: 'DELETE'
+        });
+        const data = await res.json();
+        if (!data.success) {
+          window.alert('✗ ' + (data.error || 'Lỗi'));
+          return;
+        }
+        await loadAttendanceGrid();
+        await loadAttendanceSummary();
+      } catch (e) {
+        window.alert('✗ ' + e.message);
       }
     }
 
@@ -702,7 +986,7 @@
       container.innerHTML = `
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
           <small style="color:var(--text-muted);">Tổng lương phải trả tháng ${monthVal}: <strong>${formatVND(totalPay)}</strong></small>
-          <small style="color:var(--text-muted);">Lương = (lương tháng ÷ 26) × số ngày làm (không tính Chủ Nhật)</small>
+          <small style="color:var(--text-muted);">Lương = (lương tháng ÷ 26) × số ngày làm (lịch không tính CN ∪ chấm công)</small>
         </div>
         <div style="overflow-x:auto;">
         <table style="width:100%;border-collapse:collapse;font-size:13px;">
@@ -732,6 +1016,9 @@
                 <td style="padding:8px;white-space:nowrap;">
                   <strong>${d.workDays || 0}</strong> ngày
                   ${d.workDaysManual ? '<div style="font-size:10px;color:var(--text-muted);">(nhập tay)</div>' : ''}
+                  ${d.extraAttendanceDays > 0
+                    ? `<div style="font-size:10px;color:var(--warn,#f59e0b);">+${d.extraAttendanceDays} chấm công</div>`
+                    : ''}
                 </td>
                 <td style="padding:8px;white-space:nowrap;">${formatVND(d.dailyRate || 0)}</td>
                 <td style="padding:8px;white-space:nowrap;">${formatVND(d.proratedBase || 0)}</td>

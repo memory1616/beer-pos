@@ -156,6 +156,13 @@ function recordDebtOnCreate(opts = {}) {
   }
 
   // 5. Ghi bút toán ORDER_DEBT
+  //    `businessDate` = NGÀY NGHIỆP VỤ CỦA ĐƠN (`sales.date`) → đơn tạo sau
+  //    19:00 thuộc ngày mai, nợ cũng lùi sang ngày mai (khớp doanh thu).
+  const saleRow = db
+    .prepare('SELECT date FROM sales WHERE id = ?')
+    .get(id);
+  const orderBusinessDate = saleRow?.date || db.getBusinessDateStr();
+
   const result = DebtLedgerService.recordTransaction({
     customerId: custId,
     transactionType: TRANSACTION_TYPES.ORDER_DEBT,
@@ -167,6 +174,7 @@ function recordDebtOnCreate(opts = {}) {
     createdBy: actor || 'system',
     source: SOURCES.POS,
     idempotencyKey: `order_debt:sale:${id}`,
+    businessDate: orderBusinessDate,
   });
 
   if (!result.success) {

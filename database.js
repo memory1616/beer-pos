@@ -30,7 +30,7 @@ try {
   }
 
   // Run driver portal migration (idempotent, chạy độc lập version gate)
-  const { runDriverPortalMigration, runDriverStaffMigration, runDriverKegReceiptMigration, runDriverWorkDaysMigration, runDriverSalaryAdvanceMigration, runMissingBusinessTablesMigration, runDailyReportNotifyMigration, runAuditLogMigration, runDriverPushMigration, runZaloOauthMigration, runDebtManagementMigration, runDebtSaleCreditFlagMigration } = require('./database/migration');
+  const { runDriverPortalMigration, runDriverStaffMigration, runDriverKegReceiptMigration, runDriverWorkDaysMigration, runDriverSalaryAdvanceMigration, runMissingBusinessTablesMigration, runDailyReportNotifyMigration, runAuditLogMigration, runDriverPushMigration, runZaloOauthMigration, runDebtManagementMigration, runDebtSaleCreditFlagMigration, runBusinessDayCutoffMigration, runAuditLogUnificationMigration, runDriverAttendanceMigration } = require('./database/migration');
   const driverResult = runDriverPortalMigration(db);
   if (driverResult.success) {
     logger.log('[MIGRATION] Driver portal schema ready');
@@ -101,6 +101,25 @@ try {
   if (debtFlagResult.success) {
     logger.log('[MIGRATION] Debt sale credit flag ready');
   }
+
+  // Run Business day cutoff migration (ngày nghiệp vụ — cutoff 19:00)
+  const businessDayResult = runBusinessDayCutoffMigration(db);
+  if (businessDayResult.success) {
+    logger.log('[MIGRATION] Business day cutoff ready');
+  }
+
+  // Run Audit log unification migration (056) — actor cho log kho/vỏ,
+  // index composite, drop bảng chết `action_logs`, seed retention.
+  const auditUnifyResult = runAuditLogUnificationMigration(db);
+  if (auditUnifyResult.success) {
+    logger.log('[MIGRATION] Audit log unification ready');
+  }
+
+  // Run driver attendance migration (057) — bảng chấm công tài xế
+  const attendanceResult = runDriverAttendanceMigration(db);
+  if (attendanceResult.success) {
+    logger.log('[MIGRATION] Driver attendance schema ready');
+  }
 } catch (error) {
   logger.error('[MIGRATION] Migration error:', error.message);
 }
@@ -123,8 +142,72 @@ function getVietnamTimeStr() {
     String(vn.getUTCSeconds()).padStart(2, '0');
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// NGÀY NGHIỆP VỤ (BUSINESS DAY) — cutoff 19:00 giờ VN
+// ═══════════════════════════════════════════════════════════════════════════
+// Quy tắc nghiệp vụ: "những đơn hàng được tạo sau 19h hằng ngày, được tính
+// là đơn hàng ngày mai".
+//
+//  - `getVietnamDateStr()`      → ngày LỊCH THỰC (dùng cho Driver Portal,
+//                                 hiển thị đơn hôm nay, lịch giao...).
+//  - `getBusinessDateStr()`     → ngày NGHIỆP VỤ (dùng cho doanh thu, báo
+//                                 cáo, công nợ). Sau giờ chốt → ngày hôm sau.
+//
+// Giờ chốt lấy từ setting `business_day_cutoff_hour` (mặc định 19).
+// Đặt `business_day_cutoff_hour = 0` để TẮT quy tắc (ngày nghiệp vụ luôn
+// bằng ngày lịch thực) — dùng để rollback nhanh không cần deploy lại.
+
+/** Giờ chốt ngày nghiệp vụ (0-23), lấy từ settings, mặc định 19. */
+function getBusinessCutoffHour() {
+  try {
+    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('business_day_cutoff_hour');
+    if (!row || row.value === null || row.value === undefined || row.value === '') return 19;
+    const n = parseInt(row.value, 10);
+    if (!Number.isFinite(n) || n < 0 || n > 23) return 19;
+    return n;
+  } catch (_) {
+    return 19;
+  }
+}
+
+/**
+ * Ngày nghiệp vụ hiện tại (YYYY-MM-DD, giờ VN).
+ *
+ * Nếu giờ VN hiện tại >= giờ chốt → trả về NGÀY MAI, ngược lại trả về HÔM NAY.
+ *
+ * @param {Date} [now] - mốc thời gian (mặc định = hiện tại). Dùng cho test.
+ * @returns {string} YYYY-MM-DD
+ */
+function getBusinessDateStr(now = new Date()) {
+  const vn = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+  const cutoff = getBusinessCutoffHour();
+
+  // Sao chép ngày VN rồi cộng 1 ngày nếu đã qua giờ chốt
+  const businessDay = new Date(vn.getTime());
+  if (cutoff > 0 && vn.getUTCHours() >= cutoff) {
+    businessDay.setUTCDate(businessDay.getUTCDate() + 1);
+  }
+
+  return businessDay.getUTCFullYear() + '-' +
+    String(businessDay.getUTCMonth() + 1).padStart(2, '0') + '-' +
+    String(businessDay.getUTCDate()).padStart(2, '0');
+}
+
+/**
+ * Ngày nghiệp vụ của 1 mốc thời gian bất kỳ (dùng để ghi bút toán cũ,
+ * backfill, đối soát).
+ *
+ * @param {Date|string|number} at
+ * @returns {string} YYYY-MM-DD
+ */
+function getBusinessDateFor(at = new Date()) {
+  const d = at instanceof Date ? at : new Date(at);
+  if (Number.isNaN(d.getTime())) return getBusinessDateStr();
+  return getBusinessDateStr(d);
+}
+
 // Export for use in other modules
-module.exports = { db, getVietnamDateStr, getVietnamTimeStr };
+module.exports = { db, getVietnamDateStr, getVietnamTimeStr, getBusinessDateStr, getBusinessDateFor, getBusinessCutoffHour };
 
 // Enable foreign keys
 db.pragma('foreign_keys = ON');
@@ -1211,17 +1294,27 @@ if (!_disableBackgroundJobs) {
 // ========== EXPORT HELPERS for other modules ==========
 // logKegTransaction — unified function used by kegs.js, payments.js, stock.js
 function logKegTransaction(type, quantity, state, opts = {}) {
-  const { exchanged = 0, purchased = 0, customerId = null, customerName = null, note = null } = opts;
+  // Dùng AuditService (lõi ghi log thống nhất) → tự có actor + IP +
+  // ngày nghiệp vụ VN. FAIL-OPEN: lỗi log không làm hỏng thao tác chính.
   try {
-    db.prepare(`
-      INSERT INTO keg_transactions_log
-        (type, quantity, exchanged, purchased, customer_id, customer_name,
-         inventory_after, empty_after, holding_after, note)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(type, quantity, exchanged, purchased, customerId, customerName,
-           state.inventory, state.emptyCollected, state.customerHolding, note);
+    const AuditService = require('./src/services/AuditService');
+    return AuditService.logKeg({
+      type,
+      quantity,
+      exchanged: opts.exchanged || 0,
+      purchased: opts.purchased || 0,
+      customerId: opts.customerId,
+      customerName: opts.customerName,
+      inventoryAfter: state.inventory,
+      emptyAfter: state.emptyCollected,
+      holdingAfter: state.customerHolding,
+      note: opts.note,
+      req: opts.req,
+      actor: opts.actor,
+    });
   } catch (e) {
     logger.error('logKegTransaction error:', e.message);
+    return null;
   }
 }
 
@@ -1229,6 +1322,9 @@ function logKegTransaction(type, quantity, state, opts = {}) {
 module.exports = db;
 module.exports.getVietnamDateStr = getVietnamDateStr;
 module.exports.getVietnamTimeStr = getVietnamTimeStr;
+module.exports.getBusinessDateStr = getBusinessDateStr;
+module.exports.getBusinessDateFor = getBusinessDateFor;
+module.exports.getBusinessCutoffHour = getBusinessCutoffHour;
 module.exports.logKegTransaction = logKegTransaction;
 module.exports.toSlug = toSlug;
 

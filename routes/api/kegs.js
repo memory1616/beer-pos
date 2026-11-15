@@ -4,6 +4,8 @@ const db = require('../../database');
 const logger = require('../../src/utils/logger');
 const { syncKegInventory } = require('./products');
 const socketServer = require('../../src/socket/socketServer');
+const AuditService = require('../../src/services/AuditService');
+const KegBalanceService = require('../../src/services/KegBalanceService');
 
 // ========== KEG STATE: SINGLE SOURCE OF TRUTH ==========
 // inventory  -> SUM(stock>0) keg (hiển thị ô Kho)
@@ -38,11 +40,13 @@ function getKegState() {
 /**
  * Sync keg_stats.empty_collected (only value we store)
  * Call this when user manually adjusts empty kegs
+ *
+ * ⚠️ CHO PHÉP ÂM: số vỏ rỗng âm = đang "tạm ứng" vỏ trước nhà máy
+ *    (đã lấy vỏ đầy về nhưng chưa thu được vỏ rỗng từ khách).
+ *    Xem KegBalanceService để hiểu đầy đủ nghiệp vụ.
  */
 function updateEmptyCollected(newValue) {
-  const safeValue = Math.max(0, Math.floor(newValue || 0));
-  db.prepare('UPDATE keg_stats SET empty_collected = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run(safeValue);
-  return safeValue;
+  return KegBalanceService.setEmptyCollected(newValue);
 }
 
 /**
@@ -102,7 +106,7 @@ router.post('/state', (req, res) => {
 
     // Log adjust transaction
     if (didAdjust) {
-      logKegTransaction('adjust', newState.emptyCollected, newState, { note });
+      logKegTransaction('adjust', newState.emptyCollected, newState, { note, req });
     }
 
     socketServer.emitKegUpdated(newState);
@@ -151,15 +155,25 @@ router.get('/sync', (req, res) => {
 
 /**
  * Log a keg transaction to the history log (keg_transactions_log)
+ *
+ * Dùng `AuditService.logKeg` (lõi ghi log thống nhất) → tự động có
+ * `actor_username` + `ip_address` + ngày nghiệp vụ VN.
  */
 function logKegTransaction(type, quantity, state, opts = {}) {
-  const { exchanged = 0, purchased = 0, customerId = null, customerName = null, note = null } = opts;
-  db.prepare(`
-    INSERT INTO keg_transactions_log
-      (type, quantity, exchanged, purchased, customer_id, customer_name, inventory_after, empty_after, holding_after, note)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(type, quantity, exchanged, purchased, customerId, customerName,
-         state.inventory, state.emptyCollected, state.customerHolding, note);
+  return AuditService.logKeg({
+    type,
+    quantity,
+    exchanged: opts.exchanged,
+    purchased: opts.purchased,
+    customerId: opts.customerId,
+    customerName: opts.customerName,
+    inventoryAfter: state.inventory,
+    emptyAfter: state.emptyCollected,
+    holdingAfter: state.customerHolding,
+    note: opts.note,
+    req: opts.req,
+    actor: opts.actor,
+  });
 }
 
 // 1. DELIVER KEGS - Giao bia cho khách
@@ -211,7 +225,7 @@ router.post('/deliver', (req, res) => {
 
     const newState = getKegState();
     logKegTransaction('deliver', quantity, newState, {
-      customerId, customerName: customer?.name, note
+      customerId, customerName: customer?.name, note, req
     });
 
     socketServer.emitKegUpdated(newState);
@@ -266,7 +280,7 @@ router.post('/collect', (req, res) => {
 
     const newState = getKegState();
     logKegTransaction('collect', quantity, newState, {
-      customerId, customerName: customer?.name, note
+      customerId, customerName: customer?.name, note, req
     });
 
     socketServer.emitKegUpdated(newState);
@@ -295,9 +309,13 @@ router.post('/import', (req, res) => {
   try {
     const state = getKegState();
     
-    // Calculate actual used from empty kegs (never negative)
-    const usedFromEmpty = Math.min(state.emptyCollected, exchanged);
-    const newEmptyCollected = Math.max(0, state.emptyCollected - usedFromEmpty);
+    // Số vỏ rỗng DÙNG ĐỂ ĐỔI:
+    //   • `exchanged` = số vỏ rỗng đưa đi đổi lấy vỏ đầy → làm số rỗng GIẢM.
+    //     Nếu trong kho không đủ vỏ rỗng → số rỗng xuống ÂM (tạm ứng trước nhà máy).
+    //   • `purchased` = vỏ MUA MỚI (đã trả tiền) → không ảnh hưởng số vỏ rỗng.
+    // Xem src/services/KegBalanceService.js.
+    const usedFromEmpty = Math.min(Math.max(0, state.emptyCollected), exchanged);
+    const newEmptyCollected = KegBalanceService.peekEmptyCollected(-exchanged);
     
     // Get keg product
     const kegProduct = db.prepare(
@@ -393,10 +411,13 @@ router.post('/return', (req, res) => {
       }
 
       // 3. Cập nhật empty_collected (thu thêm → +; trả lại → -)
+      //    ⚠️ CHO PHÉP ÂM: thu vỏ rỗng từ khách bù được vào số âm.
       if (newlyCollected > 0 || newlyReturnedToCustomer > 0) {
         const stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
         const currentEmpty = stats?.empty_collected || 0;
-        const newEmpty = Math.max(0, currentEmpty + newlyCollected - newlyReturnedToCustomer);
+        const newEmpty = KegBalanceService.peekEmptyCollected(
+          newlyCollected - newlyReturnedToCustomer
+        );
         db.prepare('UPDATE keg_stats SET empty_collected = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1')
           .run(newEmpty);
       }
@@ -405,19 +426,17 @@ router.post('/return', (req, res) => {
       if (newlyCollected > 0) {
         const updatedStats = db.prepare('SELECT inventory, empty_collected, customer_holding FROM keg_stats WHERE id = 1').get();
         const customer2 = db.prepare('SELECT name FROM customers WHERE id = ?').get(customerId);
-        db.prepare(`
-          INSERT INTO keg_transactions_log
-            (type, quantity, customer_id, customer_name, inventory_after, empty_after, holding_after, note)
-          VALUES ('collect', ?, ?, ?, ?, ?, ?, ?)
-        `).run(
-          newlyCollected,
+        AuditService.logKeg({
+          type: 'collect',
+          quantity: newlyCollected,
           customerId,
-          customer2?.name || '',
-          updatedStats?.inventory || 0,
-          updatedStats?.empty_collected || 0,
-          updatedStats?.customer_holding || 0,
-          `Thu vỏ qua đơn #${sale_id}`
-        );
+          customerName: customer2?.name || '',
+          inventoryAfter: updatedStats?.inventory || 0,
+          emptyAfter: updatedStats?.empty_collected || 0,
+          holdingAfter: updatedStats?.customer_holding || 0,
+          note: `Thu vỏ qua đơn #${sale_id}`,
+          req,
+        });
       }
     });
 
@@ -449,12 +468,9 @@ router.post('/sell-empty', (req, res) => {
   try {
     const state = getKegState();
 
-    if (state.emptyCollected < quantity) {
-      return res.status(400).json({
-        error: `Không đủ vỏ rỗng. Có: ${state.emptyCollected} vỏ`
-      });
-    }
-
+    // ⚠️ KHÔNG chặn khi số vỏ rỗng đang âm (theo yêu cầu nghiệp vụ):
+    //    bán vỏ rỗng khi đang âm sẽ làm số âm sâu hơn — hợp lý vì
+    //    "đã bán vỏ rỗng" nghĩa là mất vỏ khỏi hệ thống.
     const sellEmpty = db.transaction(() => {
       updateEmptyCollected(state.emptyCollected - quantity);
       // Sync inventory để dashboard hiển thị đúng (inventory luôn = products.stock)

@@ -226,9 +226,23 @@ function initSalesPage(data) {
   loadSaleHistory();
 }
 
-// Reload products from server (for inventory/sale changes)
-async function reloadSaleProducts() {
+// Refresh tồn vỏ (keg_balance) của khách trong cache sau khi sửa đơn
+async function refreshCustomerKegBalance(customerId) {
+  if (!customerId) return;
   try {
+    var res = await fetch('/api/customers/' + customerId + '?fields=keg_balance', { cache: 'no-store' });
+    if (!res.ok) return;
+    var data = await res.json();
+    if (data == null || data.keg_balance == null) return;
+    var cached = getCustomer(customerId);
+    if (cached) {
+      cached.keg_balance = Number(data.keg_balance) || 0;
+    }
+  } catch (e) { /* im lặng — không chặn luồng chính */ }
+}
+
+// Reload products from server (for inventory/sale changes)
+async function reloadSaleProducts() {  try {
     const res = await fetch('/api/products');
     if (!res.ok) return;
     const data = await res.json();
@@ -900,18 +914,23 @@ function viewInvoice(saleId) {
 }
 
 // Mở modal vỏ từ trong invoice modal (chỉ đọc context / GET — không tạo giao dịch)
+// ⚠️ LUÔN GET LẠI ĐƠN từ server: nếu user vừa sửa đơn (đổi số vỏ giao) thì
+//    window._invoiceContext.rawSale vẫn là bản CŨ → modal thu vỏ hiển thị sai.
 function openKegFromInvoice(saleId) {
-  var ctx = window._invoiceContext;
-  var sale = ctx && ctx.rawSale;
-  if (sale && Number(ctx.saleId) === Number(saleId)) {
-    openKegFromSaleData(sale, saleId);
-    return;
-  }
   fetch('/sale/' + saleId, { cache: 'no-store' })
     .then(function(res) { return safeJson(res); })
     .then(function(data) {
       var s = data ? extractSaleFromResponse(data) : null;
-      if (s) openKegFromSaleData(s, saleId);
+      if (s) {
+        // Đồng bộ cache invoice để các thao tác sau cũng dùng data mới
+        var ctx = window._invoiceContext;
+        if (ctx && Number(ctx.saleId) === Number(saleId)) {
+          window._invoiceContext = { saleId: Number(saleId), rawSale: s };
+        }
+        openKegFromSaleData(s, saleId);
+      } else {
+        showToast('Không tìm thấy đơn', 'error');
+      }
     })
     .catch(function() { showToast('Lỗi tải đơn', 'error'); });
 }
@@ -954,9 +973,13 @@ function openKegModalForSale(saleId, customerId, invoiceData) {
   var oldDeliverKegs = invoiceData?.deliver_kegs ?? 0;
   var oldReturnKegs = invoiceData?.return_kegs ?? 0;
 
-  // Lấy tồn hiện tại của khách (real-time) - ưu tiên từ customer object trong cache
+  // Lấy tồn hiện tại của khách (real-time).
+  // Ưu tiên `customer_keg_balance` trả về cùng đơn (đọc trực tiếp từ DB),
+  // sau đó mới fallback về customer object trong cache.
   var customer = customerId ? getCustomer(customerId) : null;
-  var currentCustomerBalance = customer ? (customer.keg_balance || 0) : 0;
+  var currentCustomerBalance = invoiceData?.customer_keg_balance != null
+    ? Number(invoiceData.customer_keg_balance)
+    : (customer ? (customer.keg_balance || 0) : 0);
 
   // Store original invoice values for reference
   window._kegEditSale = {
@@ -967,7 +990,9 @@ function openKegModalForSale(saleId, customerId, invoiceData) {
     customerCurrentBalance: currentCustomerBalance
   };
 
-  var customerName = customer ? customer.name : 'Chưa chọn';
+  var customerName = invoiceData?.customer_name
+    ? invoiceData.customer_name
+    : (customer ? customer.name : 'Chưa chọn');
 
   // Hiển thị thông tin: Tồn hiện tại của khách
   var info = document.getElementById('collectKegInfo');
@@ -1854,8 +1879,13 @@ function submitSale() {
         );
       }
       var invoiceSaleId = isEditing ? editingSaleId : (data.id != null ? Number(data.id) : null);
+      var editedCustomerId = saleState.customerId;
       editingSaleId = null;
       resetSaleState();
+      // Refresh tồn vỏ khách trong cache (sửa đơn có thể đổi số vỏ giao)
+      if (typeof refreshCustomerKegBalance === 'function') {
+        refreshCustomerKegBalance(editedCustomerId);
+      }
       // Notify both sale and inventory listeners
       window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'sale' } }));
       window.dispatchEvent(new CustomEvent('data:mutated', { detail: { entity: 'inventory' } }));
@@ -2144,8 +2174,9 @@ function openCollectKegModal() {
   if (deliverEl) deliverEl.value = '0';
   if (returnEl) returnEl.value = '0';
 
-  var customerName = saleState.customerId ? (getCustomer(saleState.customerId)?.name || 'Khách') : 'Chưa chọn';
-  var balance = saleState.customerId ? (getCustomer(saleState.customerId)?.keg_balance || 0) : 0;
+  var customerId = saleState.customerId;
+  var customerName = customerId ? (getCustomer(customerId)?.name || 'Khách') : 'Chưa chọn';
+  var balance = customerId ? (getCustomer(customerId)?.keg_balance || 0) : 0;
 
   if (info) {
     info.innerHTML = '<div style="font-size:13px;">👤 ' + escHtml(customerName) + ' | Tồn hiện tại: <b>' + balance + '</b></div>';
@@ -2158,6 +2189,24 @@ function openCollectKegModal() {
   updateCollectKegPreview();
   modal.classList.remove('hidden');
   document.body.classList.add('modal-open');
+
+  // ⚠️ Lấy lại tồn vỏ khách real-time từ server (cache có thể cũ sau khi sửa đơn)
+  if (customerId) {
+    fetch('/api/customers/' + customerId, { cache: 'no-store' })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        if (!data || data.keg_balance == null) return;
+        var freshBalance = Number(data.keg_balance) || 0;
+        if (info) {
+          info.innerHTML = '<div style="font-size:13px;">👤 ' + escHtml(data.name || customerName) +
+            ' | Tồn hiện tại: <b>' + freshBalance + '</b></div>';
+          info.dataset.balance = freshBalance;
+        }
+        if (currentBalanceEl) currentBalanceEl.textContent = freshBalance;
+        updateCollectKegPreview();
+      })
+      .catch(function() { /* giữ giá trị cache */ });
+  }
 }
 
 function updateCollectKegPreview() {

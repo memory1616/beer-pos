@@ -11,11 +11,14 @@ router.post('/', (req, res) => {
   }
 
   try {
+    // `date` = NGÀY NGHIỆP VỤ (cutoff 19:00), `created_on` = ngày lịch thực
+    const createdOn = db.getVietnamDateStr();
+    const saleDate = db.getBusinessDateStr();
     const stmt = db.prepare(`
-      INSERT INTO sales (customer_id, date, total, profit, deliver_kegs, return_kegs, type, note, status, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'completed', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      INSERT INTO sales (customer_id, date, created_on, total, profit, deliver_kegs, return_kegs, type, note, status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `);
-    const result = stmt.run(customerId || null, new Date().toISOString(), total || 0, profit || 0, deliverKegs, returnKegs, type, note);
+    const result = stmt.run(customerId || null, saleDate, createdOn, total || 0, profit || 0, deliverKegs, returnKegs, type, note);
 
     const saleId = result.lastInsertRowid;
 

@@ -2,29 +2,24 @@ const express = require('express');
 const router = express.Router();
 const db = require('../../database');
 const logger = require('../../src/utils/logger');
+const AuditService = require('../../src/services/AuditService');
 
 // Helper: log keg balance adjustment to keg_transactions_log
-function logKegBalanceChange(customerId, change, note) {
-  const state = {
-    inventory: 0,
-    emptyCollected: 0,
-    customerHolding: 0,
-  };
-  try {
-    const inv = db.prepare(db.SQL_KEG_WAREHOUSE_RAW_STOCK).get();
-    const emp = db.prepare('SELECT COALESCE(empty_collected,0) as t FROM keg_stats WHERE id=1').get();
-    const hold = db.prepare('SELECT COALESCE(SUM(keg_balance),0) as t FROM customers').get();
-    state.inventory = inv?.total || 0;
-    state.emptyCollected = emp?.t || 0;
-    state.customerHolding = hold?.t || 0;
-  } catch (_) {}
+function logKegBalanceChange(customerId, change, note, req) {
+  const state = AuditService.kegState({ raw: true });
 
-  db.prepare(`
-    INSERT INTO keg_transactions_log
-      (type, quantity, exchanged, purchased, customer_id, inventory_after, empty_after, holding_after, note)
-    VALUES (?, ?, 0, 0, ?, ?, ?, ?, ?)
-  `).run('adjust', change, customerId, state.inventory, state.emptyCollected, state.customerHolding,
-    note || 'Điều chỉnh số bình');
+  AuditService.logKeg({
+    type: 'adjust',
+    quantity: change,
+    exchanged: 0,
+    purchased: 0,
+    customerId,
+    inventoryAfter: state.inventory,
+    emptyAfter: state.emptyCollected,
+    holdingAfter: state.customerHolding,
+    note: note || 'Điều chỉnh số bình',
+    req,
+  });
 }
 
 // ========== HELPER: Update customer keg_balance & sync keg_stats.customer_holding ==========
@@ -276,9 +271,9 @@ router.post('/keg/update-balance', (req, res) => {
 
     // Log the change to unified keg_transactions_log
     if (result.change !== 0) {
-      logKegBalanceChange(custId, result.change, note || 'Điều chỉnh số bình');
+      logKegBalanceChange(custId, result.change, note || 'Điều chỉnh số bình', req);
     } else if (note) {
-      logKegBalanceChange(custId, 0, note);
+      logKegBalanceChange(custId, 0, note, req);
     }
 
     res.json({ success: true, newBalance: result.newBalance, change: result.change });

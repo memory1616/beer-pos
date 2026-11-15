@@ -60,11 +60,12 @@ class SaleService {
     }
 
     const createSale = db.transaction(() => {
-      const saleDate = db.getVietnamDateStr();
+      const createdOn = db.getVietnamDateStr();
+      const saleDate = db.getBusinessDateStr();
       const result = db.prepare(`
-        INSERT INTO sales (customer_id, date, total, profit, deliver_kegs, return_kegs, keg_balance_after, type)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'sale')
-      `).run(customerId, saleDate, total, profit, finalDeliverKegs, returnKegs, newKegBalance);
+        INSERT INTO sales (customer_id, date, created_on, total, profit, deliver_kegs, return_kegs, keg_balance_after, type)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'sale')
+      `).run(customerId, saleDate, createdOn, total, profit, finalDeliverKegs, returnKegs, newKegBalance);
       const saleId = result.lastInsertRowid;
 
       if (!saleId) throw new Error('Sale creation failed');

@@ -464,14 +464,20 @@
 
       var purge = document.getElementById('alPurge');
       if (purge) purge.addEventListener('click', async function () {
-        if (!window.confirm('Xoá nhật ký cũ hơn 90 ngày? Hành động này không thể hoàn tác.')) return;
+        if (!window.confirm('Xoá nhật ký cũ hơn 90 ngày ở CẢ 3 bảng (nhật ký hệ thống, lịch sử kho, lịch sử giao dịch vỏ)? Hành động này không thể hoàn tác.')) return;
         purge.disabled = true;
         try {
           var data = await api('/api/audit-log/purge', {
             method: 'POST',
             body: JSON.stringify({ days: 90 })
           });
-          window.alert('Đã xoá ' + data.deleted + ' bản ghi.');
+          var byTable = data.deletedByTable || {};
+          window.alert(
+            'Đã xoá ' + data.deleted + ' bản ghi:\n' +
+            '• Nhật ký hệ thống: ' + (byTable.audit_logs || 0) + '\n' +
+            '• Lịch sử kho: ' + (byTable.product_audit_log || 0) + '\n' +
+            '• Lịch sử giao dịch vỏ: ' + (byTable.keg_transactions_log || 0)
+          );
           load();
         } catch (err) {
           window.alert('✗ ' + err.message);
