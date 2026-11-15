@@ -49,6 +49,10 @@ try {
   APP_VERSION = String(Date.now()).slice(0, 10);
 }
 
+// BUILD_ID: đánh dấu lần build trên server (dùng cho cache-busting).
+// Tính lúc khởi động → thay đổi mỗi lần restart PM2, không cần ghi file.
+const BUILD_ID = process.env.BUILD_ID || `${APP_VERSION}-${Date.now().toString().slice(-8)}`;
+
 const app = express();
 app.set('trust proxy', 1);
 // cookieParser phải mount TRƯỚC các rate limiter, vì driverLimiter dùng
@@ -504,6 +508,34 @@ app.use((req, res, next) => {
   }
   next();
 });
+// ── /version.json — phục vụ ĐỘNG (dynamic) ───────────────────────────────
+// Lý do: trước đây deploy.sh ghi đè `public/version.json` (file ĐANG được
+// git track) mỗi lần deploy → working tree trên server luôn "dirty" →
+// `git pull --ff-only` bị chặn với lỗi "Cannot fast-forward your working tree".
+//
+// Nay: file trên đĩa là nguồn chuẩn cho `version` + `changelog` (do dev
+// bump qua `npm run bump:version`), còn `build`/`date` do server tự sinh
+// lúc runtime → KHÔNG file nào trên đĩa bị sửa → git tree luôn sạch.
+//
+// Route này phải được đăng ký TRƯỚC `express.static` để thắng static.
+app.get('/version.json', (req, res) => {
+  let meta = { version: '1.0.0', changelog: [] };
+  try {
+    const raw = fs.readFileSync(path.join(__dirname, 'public', 'version.json'), 'utf8');
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object') meta = { ...meta, ...parsed };
+  } catch (e) {
+    /* file chưa tồn tại → dùng giá trị mặc định */
+  }
+  meta.build = BUILD_ID;
+  meta.date = new Date().toISOString().slice(0, 10);
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  res.type('application/json');
+  res.send(JSON.stringify(meta, null, 2));
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Favicon — always serve icon

@@ -179,6 +179,17 @@ if [ "$HAS_NEW" = "0" ]; then
     git config user.name  "BeerPOS Deploy"     2>/dev/null || true
     git config user.email "deploy@beerpos.local" 2>/dev/null || true
 
+    # Git >= 2.35.2 "dubious ownership" -> chặn mọi lệnh git khi owner file
+    # khác user đang chạy (hay gặp khi deploy bằng user khác root).
+    git config --global --add safe.directory "$VPS_PATH" 2>/dev/null || true
+
+    # Bảo đảm file nào cũng KHÔNG bị sửa trên đĩa bởi deploy.
+    # `public/version.json` từng bị deploy.sh ghi đè (build id) → working tree
+    # luôn dirty → `git pull --ff-only` bị chặn. Nay route /version.json tự
+    # sinh runtime (xem server.js) nên deploy KHÔNG ghi file nào.
+    # Lệnh dưới đây chỉ đảm bảo repo sạch trước khi reset.
+    git checkout -- public/version.json 2>/dev/null || true
+
     # Luu commit hien tai de so sanh
     OLD_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
     log "   Current HEAD: $OLD_COMMIT"
@@ -470,19 +481,18 @@ fi
 log ""
 log "[7/7] Cleanup + restart PM2..."
 
-# Bump version.json build so browsers pick up new assets after restart
-if [ -f "$VPS_PATH/public/version.json" ]; then
-    BUILD_ID=$(date +%Y%m%d%H%M%S)
-    node -e "
-        const fs = require('fs');
-        const p = process.argv[1];
-        const build = process.argv[2];
-        const j = JSON.parse(fs.readFileSync(p, 'utf8'));
-        j.build = build;
-        j.date = new Date().toISOString().slice(0, 10);
-        fs.writeFileSync(p, JSON.stringify(j, null, 2) + '\n');
-    " "$VPS_PATH/public/version.json" "$BUILD_ID" 2>/dev/null && log "   version.json build -> $BUILD_ID" || warn "version.json bump skipped"
-fi
+# KHÔNG ghi đè `public/version.json` nữa!
+# Lý do: file này ĐANG được git track → mỗi lần deploy làm working tree
+# server bị "dirty" → `git pull --ff-only` sau đó bị chặn với lỗi
+# "Cannot fast-forward your working tree".
+#
+# Nay server tự sinh `build`/`date` runtime qua route /version.json
+# (xem server.js), nên deploy không cần đụng file nào trên đĩa.
+# BUILD_ID vẫn được set để PM2 restart tạo ra build id mới.
+BUILD_ID="$(date +%Y%m%d%H%M%S)"
+# Export để `pm2 restart --update-env` truyền BUILD_ID xuống process Node
+export BUILD_ID
+log "   build id (runtime) -> $BUILD_ID"
 
 # Clean staging directory
 if [ "$HAS_NEW" = "1" ]; then
