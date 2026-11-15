@@ -1,218 +1,633 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="vi">
 <head>
+  <!-- NO-FLICKER: apply theme BEFORE first paint -->
+  <script>
+  (function () {
+    var k = 'theme';
+    var sys = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    var saved = localStorage.getItem(k);
+    var theme = (saved === 'light' || saved === 'dark') ? saved : sys;
+    document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.classList.remove('light', 'dark');
+    document.documentElement.classList.add(theme);
+  })();
+  </script>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Quản lý Sales</title>
-  <link rel="stylesheet" href="/css/unified.css?v=20260530">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Quản lý Nhân viên - Bia Tươi Gia Huy</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0B0E11">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="icon" type="image/png" href="/icon-192.png">
+  <link rel="stylesheet" href="/css/unified.css?v=20250718">
+  <script src="/js/auth.js"></script>
+  <script src="/js/dark-mode.js"></script>
+  <script src="/js/layout.js?v=20260410-binance"></script>
+  <script src="/js/format.js"></script>
+  <script src="/js/utils.js"></script>
+  <script>requireAuth();</script>
+
   <style>
-    body { background: var(--bg-primary); color: var(--text-primary); }
-    .page-header { padding: 16px; border-bottom: 1px solid var(--border); }
-    .page-content { padding: 16px; }
-    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
-    .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-    .card-title { font-size: 16px; font-weight: 600; }
-    .btn { padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer; font-size: 14px; }
-    .btn-primary { background: var(--primary); color: white; }
-    .btn-secondary { background: var(--bg-soft); color: var(--text-primary); }
-    .btn-success { background: var(--success); color: white; }
-    .btn-danger { background: #ef4444; color: white; }
-    .grid { display: grid; gap: 16px; }
-    .grid-2 { grid-template-columns: repeat(2, 1fr); }
-    .grid-3 { grid-template-columns: repeat(3, 1fr); }
-    .staff-card { cursor: pointer; transition: all 0.2s; }
-    .staff-card:hover { border-color: var(--primary); transform: translateY(-2px); }
-    .staff-card.selected { border-color: var(--primary); background: var(--primary-dim); }
-    .staff-name { font-size: 16px; font-weight: 600; }
-    .staff-stats { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
-    .stat-value { font-size: 20px; font-weight: 700; color: var(--primary); }
-    .stat-label { font-size: 12px; color: var(--text-muted); }
-    .salary-detail { margin-top: 16px; }
-    .salary-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); }
-    .salary-row:last-child { border-bottom: none; }
-    .salary-total { font-weight: 700; font-size: 18px; color: var(--success); }
-    .input { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-soft); color: var(--text-primary); font-size: 14px; }
-    .input:focus { outline: none; border-color: var(--primary); }
-    .modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; }
-    .modal-content { background: var(--card); border-radius: 12px; padding: 24px; width: 90%; max-width: 500px; }
-    .modal-header { font-size: 18px; font-weight: 600; margin-bottom: 16px; }
-    .form-group { margin-bottom: 16px; }
-    .form-label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; color: var(--text-muted); }
-    .tab-bar { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
-    .tab { padding: 12px 16px; cursor: pointer; border-bottom: 2px solid transparent; font-size: 14px; }
-    .tab.active { border-color: var(--primary); color: var(--primary); }
-    .badge { padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
-    .badge-pending { background: rgba(251, 191, 36, 0.2); color: #f59e0b; }
-    .badge-paid { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
-    .empty-state { text-align: center; padding: 40px; color: var(--text-muted); }
-    .opacity-60 { opacity: .55; }
-    .badge-active { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
-    @media (max-width: 768px) {
-      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    /* ═══════════════════════════════════════════════════════════════
+       SALES-STAFF — Mobile-first redesign
+       Nguyên tắc:
+       • 1 cột trên mobile, 2-3 cột từ 640px
+       • Mọi touch target ≥ 44px
+       • Bảng → card list (không cuộn ngang)
+       • Modal → bottom sheet (trượt lên từ đáy)
+       • Sticky tab bar + sticky action footer
+       ═══════════════════════════════════════════════════════════════ */
+
+    .ss-main {
+      padding-left: 0;
+      padding-right: 0;
+      /* QUAN TRỌNG: `.app-main` mặc định có `overflow-y:auto` → tạo scroll container
+         riêng, khiến `position:sticky` của .ss-nav tính theo scrollport của main
+         (main không scroll được) → nav bị đẩy lệch & không dính khi cuộn trang.
+         Override thành visible để sticky neo theo viewport. */
+      overflow: visible !important;
+    }
+
+    /* ── Sticky nav ───────────────────────────────────────────────── */
+    .ss-nav {
+      position: sticky;
+      top: calc(var(--header-height) + var(--safe-area-top));
+      z-index: 60;
+      background: var(--bg);
+      padding: 10px 16px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .ss-nav-group {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 4px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 4px;
+    }
+    .ss-nav-btn {
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 13px;
+      font-weight: 700;
+      padding: 9px 4px;
+      border-radius: 9px;
+      cursor: pointer;
+      min-height: 40px;
+      transition: background var(--transition-fast), color var(--transition-fast);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .ss-nav-btn.active {
+      background: var(--primary);
+      color: var(--text-on-dark);
+    }
+
+    .ss-subtabs {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding: 10px 0;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .ss-subtabs::-webkit-scrollbar { display: none; }
+    .ss-subtab {
+      flex: 0 0 auto;
+      padding: 7px 13px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--text-secondary);
+      font-size: 12.5px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      min-height: 34px;
+    }
+    .ss-subtab.active {
+      background: var(--primary-dim);
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    /* ── Content wrapper ──────────────────────────────────────────── */
+    .ss-content { padding: 14px 16px 24px; }
+
+    /* ── Section header ───────────────────────────────────────────── */
+    .ss-sec-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .ss-sec-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .ss-sec-sub {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      line-height: 1.55;
+      margin-top: 3px;
+    }
+
+    /* ── Buttons ──────────────────────────────────────────────────── */
+    .ss-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      min-height: 44px;
+      padding: 0 16px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      font-size: 13.5px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform var(--transition-fast), opacity var(--transition-fast);
+      white-space: nowrap;
+    }
+    .ss-btn:active { transform: scale(0.97); opacity: 0.9; }
+    .ss-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .ss-btn--primary {
+      background: var(--primary);
+      color: var(--text-on-dark);
+      border-color: var(--primary);
+    }
+    .ss-btn--success { background: var(--green); color: var(--text-on-dark); border-color: var(--green); }
+    .ss-btn--danger { background: var(--danger-dim); color: var(--danger); border-color: rgba(246,70,93,.35); }
+    .ss-btn--warn { background: var(--warning-dim); color: var(--warning); border-color: rgba(240,185,11,.35); }
+    .ss-btn--sm { min-height: 38px; padding: 0 12px; font-size: 12.5px; border-radius: 10px; }
+    .ss-btn--block { width: 100%; }
+
+    /* ── Form ─────────────────────────────────────────────────────── */
+    .ss-field { display: block; margin-bottom: 12px; }
+    .ss-field:last-child { margin-bottom: 0; }
+    .ss-label {
+      display: block;
+      font-size: 11.5px;
+      font-weight: 700;
+      color: var(--text-muted);
+      margin-bottom: 5px;
+      letter-spacing: 0.02em;
+    }
+    .ss-hint { font-size: 11px; color: var(--text-muted); margin-top: 4px; line-height: 1.5; }
+    .ss-input, .ss-select {
+      width: 100%;
+      height: 46px;
+      padding: 0 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      font-size: 16px; /* ≥16px để iOS không auto-zoom khi focus */
+      font-family: inherit;
+    }
+    .ss-input:focus, .ss-select:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px var(--primary-dim);
+    }
+    .ss-input[readonly] { opacity: 0.7; cursor: not-allowed; }
+    .ss-select { appearance: none; background-image: none; }
+
+    /* ── Cards ────────────────────────────────────────────────────── */
+    .ss-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px;
+      margin-bottom: 10px;
+    }
+    .ss-card--tap { cursor: pointer; transition: background var(--transition-fast); }
+    .ss-card--tap:active { background: var(--bg-hover); }
+    .ss-card--dim { opacity: 0.55; }
+    .ss-card--selected { border-color: var(--primary); background: var(--primary-dim); }
+
+    .ss-card-top {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .ss-avatar {
+      width: 42px; height: 42px;
+      flex-shrink: 0;
+      border-radius: 12px;
+      background: var(--primary-dim);
+      color: var(--primary);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px; font-weight: 800;
+    }
+    .ss-card-title-wrap { flex: 1; min-width: 0; }
+    .ss-card-title {
+      font-size: 15px; font-weight: 700; color: var(--text-primary);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .ss-card-sub {
+      font-size: 11.5px; color: var(--text-muted); margin-top: 2px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+
+    /* ── Badges ───────────────────────────────────────────────────── */
+    .ss-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: 10.5px; font-weight: 700;
+      white-space: nowrap; flex-shrink: 0;
+    }
+    .ss-badge--ok { background: var(--success-dim); color: var(--green); }
+    .ss-badge--warn { background: var(--warning-dim); color: var(--warning); }
+    .ss-badge--danger { background: var(--danger-dim); color: var(--danger); }
+    .ss-badge--info { background: var(--info-dim); color: var(--info); }
+    .ss-badge--muted { background: var(--bg-hover); color: var(--text-muted); }
+
+    /* ── Metrics grid ─────────────────────────────────────────────── */
+    .ss-metrics {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .ss-metric {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 7px 9px;
+      min-width: 0;
+    }
+    .ss-metric-label {
+      display: block;
+      font-size: 10px; color: var(--text-muted); font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.03em;
+      margin-bottom: 2px;
+    }
+    .ss-metric-value {
+      display: block;
+      font-size: 13px; font-weight: 700; color: var(--text-primary);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .ss-metric-value--green { color: var(--green); }
+    .ss-metric-value--warn { color: var(--warning); }
+    .ss-metric-value--danger { color: var(--danger); }
+
+    /* ── Total bar ────────────────────────────────────────────────── */
+    .ss-total-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 10px;
+      background: var(--primary-dim);
+      border: 1px solid var(--primary);
+      border-radius: 14px;
+      padding: 12px 14px;
+      margin-bottom: 12px;
+    }
+    .ss-total-label { font-size: 12px; color: var(--text-muted); font-weight: 600; }
+    .ss-total-value {
+      font-size: 19px; font-weight: 800; color: var(--primary);
+      letter-spacing: -0.4px; white-space: nowrap;
+    }
+
+    /* ── Row list (dòng dữ liệu dạng key/value) ───────────────────── */
+    .ss-row {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 13.5px;
+    }
+    .ss-row:last-child { border-bottom: none; }
+    .ss-row-label { color: var(--text-muted); flex-shrink: 0; }
+    .ss-row-value { font-weight: 600; text-align: right; word-break: break-word; }
+    .ss-row--total { border-top: 1px solid var(--border); border-bottom: none; margin-top: 4px; padding-top: 12px; }
+    .ss-row--total .ss-row-label { font-weight: 700; color: var(--text-primary); font-size: 14px; }
+    .ss-row--total .ss-row-value { font-size: 18px; font-weight: 800; color: var(--green); }
+
+    /* ── Card action row ──────────────────────────────────────────── */
+    .ss-actions {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .ss-actions--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .ss-actions .ss-btn { min-width: 0; padding: 0 8px; font-size: 12.5px; }
+
+    /* ── Empty state ──────────────────────────────────────────────── */
+    .ss-empty {
+      text-align: center;
+      padding: 36px 16px;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+    .ss-empty-icon { font-size: 34px; margin-bottom: 10px; opacity: 0.75; }
+    .ss-empty .ss-btn { margin-top: 14px; }
+
+    /* ── Info box ─────────────────────────────────────────────────── */
+    .ss-info {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 13px;
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.7;
+      margin-top: 10px;
+    }
+    .ss-info strong { color: var(--text-primary); }
+
+    /* ── Attendance calendar ──────────────────────────────────────── */
+    .ss-att-grid {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 5px;
+    }
+    .ss-att-dow {
+      text-align: center;
+      font-size: 10.5px;
+      font-weight: 700;
+      color: var(--text-muted);
+      padding: 4px 0;
+    }
+    .ss-att-day {
+      aspect-ratio: 1 / 1.08;
+      border-radius: 9px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-primary);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 600;
+      cursor: pointer;
+      padding: 0;
+      min-height: 40px;
+      transition: transform var(--transition-fast);
+    }
+    .ss-att-day:active { transform: scale(0.93); }
+    .ss-att-day.checked {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: var(--text-on-dark);
+    }
+    .ss-att-day.sunday { font-weight: 800; }
+    .ss-att-day.sunday:not(.checked) { color: var(--warning); border-color: rgba(240,185,11,.4); }
+    .ss-att-day .cn { font-size: 9px; opacity: 0.8; line-height: 1; }
+
+    /* ── Bottom sheet (modal) ─────────────────────────────────────── */
+    .ss-sheet-wrap {
+      position: fixed; inset: 0;
+      z-index: var(--z-modal);
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+    }
+    .ss-sheet-backdrop {
+      position: absolute; inset: 0;
+      background: var(--modal-overlay-bg);
+      animation: ss-fade-in 0.2s ease;
+    }
+    .ss-sheet {
+      position: relative;
+      background: var(--card);
+      border-radius: 22px 22px 0 0;
+      width: 100%;
+      max-width: 540px;
+      margin: 0 auto;
+      max-height: 92dvh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: var(--shadow-xl);
+      animation: ss-slide-up 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+      overflow: hidden;
+    }
+    .ss-sheet-handle {
+      width: 38px; height: 4px;
+      border-radius: 999px;
+      background: var(--border-strong);
+      margin: 8px auto 0;
+      flex-shrink: 0;
+    }
+    .ss-sheet-header {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 10px;
+      padding: 12px 16px 10px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .ss-sheet-title {
+      font-size: 16px; font-weight: 800; color: var(--text-primary);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .ss-sheet-close {
+      width: 34px; height: 34px;
+      border-radius: 50%;
+      border: none;
+      background: var(--bg-hover);
+      color: var(--text-muted);
+      font-size: 20px; line-height: 1;
+      cursor: pointer;
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .ss-sheet-body {
+      padding: 14px 16px;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+    }
+    .ss-sheet-footer {
+      padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 10px;
+      background: var(--card);
+      flex-shrink: 0;
+    }
+    .ss-sheet-footer .ss-btn { flex: 1; min-width: 0; }
+
+    @keyframes ss-fade-in { from { opacity: 0 } to { opacity: 1 } }
+    @keyframes ss-slide-up { from { transform: translateY(100%) } to { transform: translateY(0) } }
+
+    /* ── Responsive ───────────────────────────────────────────────── */
+    @media (min-width: 640px) {
+      .ss-content { padding: 16px 20px 28px; max-width: 820px; margin: 0 auto; }
+      .ss-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      .ss-card-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+      .ss-card-list .ss-card { margin-bottom: 0; }
+      .ss-sheet { border-radius: 22px; margin-bottom: 0; }
+    }
+    @media (min-width: 1000px) {
+      .ss-content { max-width: 980px; }
+      .ss-card-list--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     }
   </style>
-<script src="/js/layout.js"></script>
 </head>
-<body>
-  <div id="app">
-    <div class="page-header">
-      <div style="display: flex; justify-content: space-between; align-items: center;">
-        <div>
-          <a href="/dashboard" style="color: var(--text-muted); text-decoration: none; font-size: 13px;">← Quay lại</a>
-          <h1 style="font-size: 20px; margin-top: 8px;">👔 Quản lý Sales</h1>
-        </div>
-        <button class="btn btn-primary" onclick="openAddStaffModal()">+ Thêm Sales</button>
-      </div>
-    </div>
+<body class="body--app">
+  <div id="app"></div>
 
-    <div class="page-content">
-      <!-- Tabs -->
-      <div class="tab-bar">
-        <div class="tab active" onclick="switchTab('list')" id="tab-list">📋 Danh sách</div>
-        <div class="tab" onclick="switchTab('salary')" id="tab-salary">💰 Tính lương</div>
-        <div class="tab" onclick="switchTab('config')" id="tab-config">⚙️ Cấu hình lương</div>
-        <div class="tab" onclick="switchTab('drivers')" id="tab-drivers">🚚 Tài xế</div>
-        <div class="tab" onclick="switchTab('driverSalary')" id="tab-driverSalary">💵 Lương tài xế</div>
-        <div class="tab" onclick="switchTab('attendance')" id="tab-attendance">📅 Chấm công</div>
+  <main class="page-content ss-main app-main" id="ssMain">
+    <!-- ── Primary nav (3 nhóm) ───────────────────────────────────── -->
+    <nav class="ss-nav" aria-label="Điều hướng chính">
+      <div class="ss-nav-group" role="tablist">
+        <button type="button" class="ss-nav-btn active" data-group="sales" role="tab" aria-selected="true">👔 Sales</button>
+        <button type="button" class="ss-nav-btn" data-group="driver" role="tab" aria-selected="false">🚚 Tài xế</button>
+        <button type="button" class="ss-nav-btn" data-group="attendance" role="tab" aria-selected="false">📅 Chấm công</button>
       </div>
+      <div class="ss-subtabs" id="ssSubtabs"><!-- render động theo nhóm --></div>
+    </nav>
 
-      <!-- Danh sách Sales -->
+    <div class="ss-content">
+
+      <!-- ══════════ TAB: DANH SÁCH SALES ══════════ -->
       <div id="content-list">
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title">Nhân viên Sales</div>
+        <div class="ss-sec-head">
+          <div>
+            <div class="ss-sec-title">👔 Nhân viên Sales</div>
+            <div class="ss-sec-sub">Danh sách nhân viên phụ trách cửa hàng và số khách hàng được gán.</div>
           </div>
-          <div id="staffList" class="grid grid-2">
-            <div class="empty-state">Đang tải...</div>
-          </div>
+          <button type="button" class="ss-btn ss-btn--primary" onclick="openAddStaffModal()">+ Thêm Sales</button>
+        </div>
+        <div id="staffList" class="ss-card-list ss-card-list--3">
+          <div class="ss-empty"><div class="ss-empty-icon">⏳</div>Đang tải...</div>
         </div>
       </div>
 
-      <!-- Tính lương -->
+      <!-- ══════════ TAB: TÍNH LƯƠNG SALES ══════════ -->
       <div id="content-salary" style="display: none;">
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title">Tính lương tháng</div>
-            <select id="salaryMonth" class="input" style="width: auto;" onchange="loadSalarySummary()">
-              <option value=""></option>
-            </select>
+        <div class="ss-sec-head">
+          <div>
+            <div class="ss-sec-title">💰 Tính lương tháng</div>
+            <div class="ss-sec-sub">Chọn tháng để xem lương từng nhân viên Sales.</div>
           </div>
-          <div id="salarySummary"></div>
+          <select id="salaryMonth" class="ss-select" style="width:auto;min-width:140px;" onchange="loadSalarySummary()">
+            <option value=""></option>
+          </select>
         </div>
-        <div id="salaryDetail" style="display: none;">
-          <div class="card">
-            <div class="card-header">
-              <div class="card-title" id="detailStaffName">Chi tiết lương</div>
-              <button class="btn btn-success" id="markPaidBtn" onclick="markSalaryPaid()">✓ Đánh dấu đã trả</button>
+        <div id="salarySummary"></div>
+        <div id="salaryDetail" style="display: none; margin-top: 12px;">
+          <div class="ss-card">
+            <div class="ss-sec-head">
+              <div class="ss-sec-title" id="detailStaffName">Chi tiết lương</div>
+              <button type="button" class="ss-btn ss-btn--success ss-btn--sm" id="markPaidBtn" onclick="markSalaryPaid()">✓ Đánh dấu đã trả</button>
             </div>
             <div id="detailContent"></div>
           </div>
         </div>
       </div>
 
-      <!-- Cấu hình lương -->
+      <!-- ══════════ TAB: CẤU HÌNH LƯƠNG ══════════ -->
       <div id="content-config" style="display: none;">
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title">💰 Cấu hình lương theo nhân viên</div>
-            <select id="salaryConfigStaffSelect" class="input" style="width: auto;" onchange="loadStaffSalaryConfig()">
+        <div class="ss-card">
+          <div class="ss-sec-head">
+            <div class="ss-sec-title">💰 Lương theo nhân viên</div>
+          </div>
+          <div class="ss-field">
+            <label class="ss-label" for="salaryConfigStaffSelect">Chọn nhân viên</label>
+            <select id="salaryConfigStaffSelect" class="ss-select" onchange="loadStaffSalaryConfig()">
               <option value="">-- Chọn nhân viên --</option>
             </select>
           </div>
         </div>
-        <div class="card" style="margin-top: 16px;">
-          <div class="card-header">
-            <div class="card-title">🏪 Cấu hình hoa hồng mở cửa hàng</div>
-          </div>
-          <div style="display:grid;grid-template-columns:repeat(3, minmax(180px, 1fr));gap:12px;align-items:end;">
-            <div class="form-group" style="margin:0;">
-              <label class="form-label">Tiền hoa hồng (VNĐ)</label>
-              <input type="number" id="newShopCommission" class="input" placeholder="500000" min="0">
+
+        <div id="salaryConfigContent" style="display: none;">
+          <div class="ss-card">
+            <div class="ss-sec-title" style="margin-bottom: 12px;">🍺 Lương theo loại sản phẩm (VNĐ / lít)</div>
+            <div id="salaryTypeConfig"></div>
+            <div class="ss-info">
+              💡 Mức lương này sẽ được áp dụng khi tính lương tháng cho nhân viên.
+              Nếu không đặt, hệ thống sẽ dùng mức lương mặc định từ tab <strong>Cấu hình</strong>.
             </div>
-            <div class="form-group" style="margin:0;">
-              <label class="form-label">Số ngày tính doanh số</label>
-              <input type="number" id="newShopWindowDays" class="input" placeholder="30" min="1">
-            </div>
-            <div class="form-group" style="margin:0;">
-              <label class="form-label">Mức tối thiểu keg/inox (lít)</label>
-              <input type="number" id="newShopMinKegLiters" class="input" placeholder="200" min="0" step="0.1">
-            </div>
-          </div>
-          <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;margin-top:16px;flex-wrap:wrap;">
-            <small style="color: var(--text-muted);">
-              Chỉ tính hoa hồng khi khách được gán sales trong tháng đó, là khách mới, và tổng lít bia keg/inox mua trong vòng cấu hình đạt ngưỡng tối thiểu.
-            </small>
-            <button class="btn btn-primary" onclick="saveNewShopCommission()">Lưu cấu hình</button>
           </div>
         </div>
-        <div id="salaryConfigContent" style="display: none;">
-          <div class="card">
-            <div class="card-header">
-              <div class="card-title">Lương theo loại sản phẩm (VNĐ / lít)</div>
-            </div>
-            <div id="salaryTypeConfig"></div>
-            <div style="margin-top: 16px; padding: 12px; background: var(--bg-soft); border-radius: 8px;">
-              <small style="color: var(--text-muted);">
-                💡 Mức lương này sẽ được áp dụng khi tính lương tháng cho nhân viên.
-                Nếu không đặt, hệ thống sẽ dùng mức lương mặc định từ tab "Cấu hình".
-              </small>
-            </div>
+
+        <div class="ss-card">
+          <div class="ss-sec-title" style="margin-bottom: 12px;">🏪 Hoa hồng mở cửa hàng</div>
+          <div class="ss-field">
+            <label class="ss-label" for="newShopCommission">Tiền hoa hồng (VNĐ)</label>
+            <input type="number" id="newShopCommission" class="ss-input" inputmode="numeric" placeholder="500000" min="0">
           </div>
+          <div class="ss-field">
+            <label class="ss-label" for="newShopWindowDays">Số ngày tính doanh số</label>
+            <input type="number" id="newShopWindowDays" class="ss-input" inputmode="numeric" placeholder="30" min="1">
+          </div>
+          <div class="ss-field">
+            <label class="ss-label" for="newShopMinKegLiters">Mức tối thiểu keg/inox (lít)</label>
+            <input type="number" id="newShopMinKegLiters" class="ss-input" inputmode="decimal" placeholder="200" min="0" step="0.1">
+          </div>
+          <div class="ss-info" style="margin-top: 4px;">
+            Chỉ tính hoa hồng khi khách được gán sales trong tháng đó, là khách mới,
+            và tổng lít bia keg/inox mua trong vòng cấu hình đạt ngưỡng tối thiểu.
+          </div>
+          <button type="button" class="ss-btn ss-btn--primary ss-btn--block" style="margin-top: 12px;" onclick="saveNewShopCommission()">Lưu cấu hình</button>
+        </div>
+
+        <div class="ss-card">
+          <div class="ss-sec-head">
+            <div class="ss-sec-title">🏷️ Hoa hồng theo sản phẩm</div>
+            <button type="button" class="ss-btn ss-btn--primary ss-btn--sm" onclick="openAddProductCommission()">+ Thêm</button>
+          </div>
+          <div id="productCommissionsList"></div>
         </div>
       </div>
 
-      <!-- ══════════ TAB: QUẢN LÝ TÀI XẾ ══════════ -->
+      <!-- ══════════ TAB: TÀI XẾ ══════════ -->
       <div id="content-drivers" style="display: none;">
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title">🚚 Danh sách tài xế</div>
-            <div style="display:flex;gap:8px;align-items:center;">
-              <label style="font-size:13px;color:var(--text-muted);display:flex;align-items:center;gap:6px;cursor:pointer;">
-                <input type="checkbox" id="showInactiveDrivers" onchange="loadDriverList()">
-                Hiện đã khoá
-              </label>
-              <button class="btn btn-primary" onclick="openDriverModal()">+ Thêm tài xế</button>
-            </div>
+        <div class="ss-sec-head">
+          <div>
+            <div class="ss-sec-title">🚚 Danh sách tài xế</div>
+            <div class="ss-sec-sub">Mỗi tài xế có 1 tài khoản đăng nhập Driver Portal và 1 hồ sơ lương.</div>
           </div>
-          <div id="driverList" class="grid grid-2">
-            <div class="empty-state">Đang tải...</div>
-          </div>
+          <button type="button" class="ss-btn ss-btn--primary" onclick="openDriverModal()">+ Thêm tài xế</button>
         </div>
-        <div class="card" style="margin-top:16px;">
-          <div class="card-header">
-            <div class="card-title">ℹ️ Hướng dẫn</div>
-          </div>
-          <small style="color:var(--text-muted);line-height:1.7;display:block;">
-            • Mỗi tài xế có 1 <strong>tài khoản đăng nhập</strong> để vào Driver Portal
-            (<code>giaohang.biatuoitayninh.store</code>) và 1 <strong>hồ sơ</strong> lương.<br>
-            • <strong>Mức lương cố định</strong> ở đây là mức lương tháng mặc định — dùng làm
-              lương cơ bản khi chưa thiết lập riêng cho từng tháng.<br>
-            • <strong>Ngày vào làm</strong> là mốc tính số ngày làm trong tháng.<br>
-            • Công thức lương: <strong>(lương tháng ÷ 26) × số ngày làm</strong> — số ngày làm
-              tính từ ngày vào làm đến ngày hiện tại, <strong>không tính Chủ Nhật</strong>.<br>
-            • Khoá tài xế sẽ huỷ luôn phiên đăng nhập đang hoạt động.
-          </small>
+        <label class="ss-btn ss-btn--sm" style="margin-bottom: 12px; cursor: pointer;">
+          <input type="checkbox" id="showInactiveDrivers" onchange="loadDriverList()">
+          Hiện cả tài xế đã khoá
+        </label>
+        <div id="driverList" class="ss-card-list ss-card-list--3">
+          <div class="ss-empty"><div class="ss-empty-icon">⏳</div>Đang tải...</div>
+        </div>
+        <div class="ss-info">
+          ℹ️ <strong>Công thức lương:</strong> (lương tháng ÷ 26) × số ngày làm —
+          số ngày làm tính từ ngày vào làm đến ngày hiện tại, <strong>không tính Chủ Nhật</strong>.
+          Ngày Chủ Nhật tài xế đi làm được tính ở tab <strong>📅 Chấm công</strong>.
+          Khoá tài xế sẽ huỷ luôn phiên đăng nhập đang hoạt động.
         </div>
       </div>
 
       <!-- ══════════ TAB: LƯƠNG TÀI XẾ ══════════ -->
       <div id="content-driverSalary" style="display: none;">
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title">💵 Lương tài xế theo tháng</div>
-            <select id="driverSalaryMonth" class="input" style="width: auto;" onchange="loadDriverSalarySummary()">
-              <option value=""></option>
-            </select>
+        <div class="ss-sec-head">
+          <div>
+            <div class="ss-sec-title">💵 Lương tài xế theo tháng</div>
+            <div class="ss-sec-sub">Số ngày làm = lịch (không tính CN) ∪ chấm công.</div>
           </div>
-          <div id="driverSalarySummary"></div>
+          <select id="driverSalaryMonth" class="ss-select" style="width:auto;min-width:140px;" onchange="loadDriverSalarySummary()">
+            <option value=""></option>
+          </select>
         </div>
-        <div id="driverSalaryDetail" style="display:none;">
-          <div class="card">
-            <div class="card-header">
-              <div class="card-title" id="driverSalaryDetailTitle">Chi tiết lương tài xế</div>
-              <div style="display:flex;gap:8px;align-items:center;">
-                <button class="btn btn-secondary" id="driverUnmarkPaidBtn" style="display:none;" onclick="unmarkDriverSalaryPaid()">↩ Bỏ đánh dấu đã trả</button>
-                <button class="btn btn-success" id="driverMarkPaidBtn" onclick="markDriverSalaryPaid()">✓ Đánh dấu đã trả</button>
+        <div id="driverSalarySummary"></div>
+        <div id="driverSalaryDetail" style="display:none; margin-top: 12px;">
+          <div class="ss-card">
+            <div class="ss-sec-head">
+              <div class="ss-sec-title" id="driverSalaryDetailTitle">Chi tiết lương tài xế</div>
+              <div style="display:flex; gap:8px;">
+                <button type="button" class="ss-btn ss-btn--sm" id="driverUnmarkPaidBtn" style="display:none;" onclick="unmarkDriverSalaryPaid()">↩ Bỏ đánh dấu</button>
+                <button type="button" class="ss-btn ss-btn--success ss-btn--sm" id="driverMarkPaidBtn" onclick="markDriverSalaryPaid()">✓ Đã trả</button>
               </div>
             </div>
             <div id="driverSalaryDetailContent"></div>
@@ -220,609 +635,733 @@
         </div>
       </div>
 
-      <!-- ══════════ TAB: CHẤM CÔNG TÀI XẾ ══════════ -->
+      <!-- ══════════ TAB: CHẤM CÔNG ══════════ -->
       <div id="content-attendance" style="display: none;">
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title">📅 Bảng chấm công tài xế</div>
-            <div style="display:flex;gap:8px;align-items:center;">
-              <select id="attendanceMonth" class="input" style="width: auto;" onchange="loadAttendanceSummary()">
-                <option value=""></option>
-              </select>
-              <select id="attendanceDriver" class="input" style="width:auto;min-width:180px;" onchange="loadAttendanceGrid()">
-                <option value="">-- Chọn tài xế --</option>
-              </select>
-            </div>
+        <div class="ss-sec-head">
+          <div>
+            <div class="ss-sec-title">📅 Bảng chấm công tài xế</div>
+            <div class="ss-sec-sub">Tick ngày Chủ Nhật tài xế đi làm để được tính lương.</div>
           </div>
-          <div style="padding:0 16px 16px;">
-            <small style="color:var(--text-muted);line-height:1.7;display:block;margin-bottom:8px;">
-              • Lương = <strong>(lương tháng ÷ 26) × số ngày làm</strong>.<br>
-              • Số ngày làm = <strong>lịch (không tính Chủ Nhật) ∪ chấm công</strong> —
-                tick ngày Chủ Nhật tài xế đi làm ở đây để được tính lương.<br>
-              • Ngày nằm ở cả lịch lẫn chấm công chỉ được tính <strong>1 lần</strong>.
-            </small>
-          </div>
-          <div id="attendanceSummary"></div>
         </div>
+        <div class="ss-card" style="margin-bottom: 12px;">
+          <div class="ss-field">
+            <label class="ss-label" for="attendanceMonth">Tháng</label>
+            <select id="attendanceMonth" class="ss-select" onchange="loadAttendanceSummary()">
+              <option value=""></option>
+            </select>
+          </div>
+          <div class="ss-field">
+            <label class="ss-label" for="attendanceDriver">Tài xế</label>
+            <select id="attendanceDriver" class="ss-select" onchange="loadAttendanceGrid()">
+              <option value="">-- Chọn tài xế --</option>
+            </select>
+          </div>
+          <div class="ss-info">
+            • Lương = <strong>(lương tháng ÷ 26) × số ngày làm</strong>.<br>
+            • Số ngày làm = <strong>lịch (không tính Chủ Nhật) ∪ chấm công</strong>.<br>
+            • Ngày nằm ở cả lịch lẫn chấm công chỉ được tính <strong>1 lần</strong>.
+          </div>
+        </div>
+        <div id="attendanceSummary"></div>
         <div id="attendanceGridCard" style="display:none;">
-          <div class="card">
-            <div class="card-header">
-              <div class="card-title" id="attendanceGridTitle">Lịch chấm công</div>
-              <div style="display:flex;gap:8px;align-items:center;">
-                <button class="btn btn-secondary btn-sm" onclick="attendanceMarkWeekdays()">✓ Tick T2–T7</button>
-                <button class="btn btn-secondary btn-sm" onclick="attendanceClearMonth()">🗑 Xoá tháng</button>
+          <div class="ss-card">
+            <div class="ss-sec-head">
+              <div class="ss-sec-title" id="attendanceGridTitle">Lịch chấm công</div>
+              <div style="display:flex; gap:8px;">
+                <button type="button" class="ss-btn ss-btn--sm" onclick="attendanceMarkWeekdays()">✓ Tick T2–T7</button>
+                <button type="button" class="ss-btn ss-btn--danger ss-btn--sm" onclick="attendanceClearMonth()">🗑 Xoá</button>
               </div>
             </div>
             <div id="attendanceGrid"></div>
           </div>
         </div>
       </div>
-    </div>
-  </div>
 
-  <!-- Modal Thêm/Sửa Tài xế -->
-  <div id="driverModal" class="modal" style="display: none;">
-    <div class="modal-content">
-      <div class="modal-header" id="driverModalTitle">Thêm tài xế</div>
-      <input type="hidden" id="editDriverId">
-      <div class="form-group">
-        <label class="form-label">Tên đăng nhập *</label>
-        <input type="text" id="driverUsername" class="input" placeholder="tai_xe_01" autocomplete="off">
-        <small style="color:var(--text-muted);font-size:11px;">3-32 ký tự: chữ thường, số, dấu . _ -</small>
-      </div>
-      <div class="form-group" id="driverPasswordGroup">
-        <label class="form-label">Mật khẩu *</label>
-        <input type="password" id="driverPassword" class="input" placeholder="Tối thiểu 8 ký tự" autocomplete="new-password">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Họ và tên</label>
-        <input type="text" id="driverFullName" class="input" placeholder="Nguyễn Văn A">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Số điện thoại</label>
-        <input type="text" id="driverPhone" class="input" placeholder="0901234567">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Lương cố định / tháng (VNĐ)</label>
-        <input type="number" id="driverMonthlySalary" class="input" placeholder="5000000" min="0" step="1000">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Ngày vào làm</label>
-        <input type="date" id="driverStartDate" class="input">
-        <small style="color:var(--text-muted);font-size:11px;">
-          Dùng làm mốc tính số ngày làm trong tháng (không tính Chủ Nhật).
-        </small>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Số tài khoản ngân hàng</label>
-        <input type="text" id="driverBankAccount" class="input" placeholder="0123456789 (tuỳ chọn)">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Ghi chú</label>
-        <input type="text" id="driverNote" class="input" placeholder="Ghi chú nội bộ (tuỳ chọn)">
-      </div>
-      <div style="display: flex; gap: 12px; margin-top: 20px;">
-        <button class="btn btn-secondary flex-1" onclick="closeDriverModal()">Hủy</button>
-        <button class="btn btn-primary flex-1" onclick="saveDriver()">Lưu</button>
-      </div>
     </div>
-  </div>
+  </main>
 
-  <!-- Modal Thiết lập lương tài xế -->
-  <div id="driverSalaryModal" class="modal" style="display: none;">
-    <div class="modal-content">
-      <div class="modal-header" id="driverSalaryModalTitle">Thiết lập lương tháng</div>
-      <input type="hidden" id="driverSalaryDriverId">
-      <div class="form-group">
-        <label class="form-label">Lương cố định / tháng (VNĐ)</label>
-        <input type="number" id="driverSalaryBase" class="input" placeholder="5000000" min="0" step="1000">
-        <small style="color:var(--text-muted);font-size:11px;">
-          Lương tháng dùng làm cơ sở: <strong>lương ngày = lương tháng ÷ 26</strong>.
-        </small>
+  <!-- ══════════ SHEET: THÊM / SỬA TÀI XẾ ══════════ -->
+  <div id="driverModal" class="ss-sheet-wrap" style="display: none;">
+    <div class="ss-sheet-backdrop" onclick="closeDriverModal()"></div>
+    <div class="ss-sheet">
+      <div class="ss-sheet-handle"></div>
+      <div class="ss-sheet-header">
+        <div class="ss-sheet-title" id="driverModalTitle">Thêm tài xế</div>
+        <button type="button" class="ss-sheet-close" onclick="closeDriverModal()" aria-label="Đóng">×</button>
       </div>
-      <div class="form-group">
-        <label class="form-label">Số ngày làm (để trống = tự tính)</label>
-        <input type="number" id="driverSalaryWorkDays" class="input" placeholder="Tự động" min="0" max="31" step="1">
-        <small style="color:var(--text-muted);font-size:11px;">
-          Để trống để hệ thống tự tính từ <strong>ngày vào làm</strong> đến ngày hiện tại
-          (không tính Chủ Nhật). Nhập số để ghi đè thủ công.
-        </small>
+      <div class="ss-sheet-body">
+        <input type="hidden" id="editDriverId">
+        <div class="ss-field">
+          <label class="ss-label" for="driverUsername">Tên đăng nhập *</label>
+          <input type="text" id="driverUsername" class="ss-input" placeholder="tai_xe_01" autocomplete="off" autocapitalize="none" spellcheck="false">
+          <div class="ss-hint">3–32 ký tự: chữ thường, số, dấu . _ -</div>
+        </div>
+        <div class="ss-field" id="driverPasswordGroup">
+          <label class="ss-label" for="driverPassword">Mật khẩu *</label>
+          <input type="password" id="driverPassword" class="ss-input" placeholder="Tối thiểu 8 ký tự" autocomplete="new-password">
+        </div>
+        <div class="ss-field">
+          <label class="ss-label" for="driverFullName">Họ và tên</label>
+          <input type="text" id="driverFullName" class="ss-input" placeholder="Nguyễn Văn A">
+        </div>
+        <div class="ss-field">
+          <label class="ss-label" for="driverPhone">Số điện thoại</label>
+          <input type="tel" id="driverPhone" class="ss-input" inputmode="tel" placeholder="0901234567">
+        </div>
+        <div class="ss-field">
+          <label class="ss-label" for="driverMonthlySalary">Lương cố định / tháng (VNĐ)</label>
+          <input type="number" id="driverMonthlySalary" class="ss-input" inputmode="numeric" placeholder="5000000" min="0" step="1000">
+        </div>
+        <div class="ss-field">
+          <label class="ss-label" for="driverStartDate">Ngày vào làm</label>
+          <input type="date" id="driverStartDate" class="ss-input">
+          <div class="ss-hint">Mốc tính số ngày làm trong tháng (không tính Chủ Nhật).</div>
+        </div>
+        <div class="ss-field">
+          <label class="ss-label" for="driverBankAccount">Số tài khoản ngân hàng</label>
+          <input type="text" id="driverBankAccount" class="ss-input" inputmode="numeric" placeholder="0123456789 (tuỳ chọn)">
+        </div>
+        <div class="ss-field">
+          <label class="ss-label" for="driverNote">Ghi chú</label>
+          <input type="text" id="driverNote" class="ss-input" placeholder="Ghi chú nội bộ (tuỳ chọn)">
+        </div>
       </div>
-      <div class="form-group">
-        <label class="form-label">Thưởng (VNĐ)</label>
-        <input type="number" id="driverSalaryBonus" class="input" placeholder="0" min="0" step="1000">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Phạt / trừ (VNĐ)</label>
-        <input type="number" id="driverSalaryDeduction" class="input" placeholder="0" min="0" step="1000">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Đã ứng trước (VNĐ)</label>
-        <input type="number" id="driverSalaryAdvance" class="input" placeholder="0" min="0" step="1000" readonly
-               style="background:var(--bg-soft);cursor:not-allowed;">
-        <small style="color:var(--text-muted);font-size:11px;">
-          Khoản ứng đã ghi nhận trong tháng này — được <strong>trừ khỏi tổng lương</strong>.
-          Nhấn nút <strong>Ứng lương</strong> bên dưới để thêm khoản ứng.
-        </small>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Ghi chú</label>
-        <input type="text" id="driverSalaryNote" class="input" placeholder="Lý do thưởng/phạt (tuỳ chọn)">
-      </div>
-      <div style="padding:12px;background:var(--bg-soft);border-radius:8px;margin-bottom:16px;">
-        <div class="salary-row"><span>Lương 1 ngày</span><span id="driverSalaryPreviewDaily">0 đ</span></div>
-        <div class="salary-row"><span>Số ngày làm</span><span id="driverSalaryPreviewWorkDays">0</span></div>
-        <div class="salary-row"><span>Lương theo ngày làm</span><span id="driverSalaryPreviewBase">0 đ</span></div>
-        <div class="salary-row"><span>Thưởng</span><span id="driverSalaryPreviewBonus">0 đ</span></div>
-        <div class="salary-row"><span>Phạt / trừ</span><span id="driverSalaryPreviewDeduction">0 đ</span></div>
-        <div class="salary-row"><span>Đã ứng trước</span><span id="driverSalaryPreviewAdvance">0 đ</span></div>
-        <div class="salary-row salary-total"><span>TỔNG THỰC NHẬN</span><span id="driverSalaryPreviewTotal">0 đ</span></div>
-      </div>
-      <div style="display: flex; gap: 12px; margin-top: 20px;">
-        <button class="btn btn-secondary" onclick="closeDriverSalaryModal()">Hủy</button>
-        <button class="btn btn-secondary" id="driverSalaryAdvanceBtn" onclick="openDriverAdvanceModal()">Ứng lương</button>
-        <button class="btn btn-primary flex-1" onclick="saveDriverSalary()">Lưu</button>
+      <div class="ss-sheet-footer">
+        <button type="button" class="ss-btn" onclick="closeDriverModal()">Hủy</button>
+        <button type="button" class="ss-btn ss-btn--primary" onclick="saveDriver()">Lưu</button>
       </div>
     </div>
   </div>
 
-  <!-- Modal Ứng lương tài xế -->
-  <div id="driverAdvanceModal" class="modal" style="display: none;">
-    <div class="modal-content">
-      <div class="modal-header" id="driverAdvanceModalTitle">Ghi nhận ứng lương</div>
-      <input type="hidden" id="driverAdvanceDriverId">
-      <div class="form-group">
-        <label class="form-label">Số tiền ứng (VNĐ)</label>
-        <input type="number" id="driverAdvanceAmount" class="input" placeholder="1000000" min="1" step="1000">
+  <!-- ══════════ SHEET: THIẾT LẬP LƯƠNG TÀI XẾ ══════════ -->
+  <div id="driverSalaryModal" class="ss-sheet-wrap" style="display: none;">
+    <div class="ss-sheet-backdrop" onclick="closeDriverSalaryModal()"></div>
+    <div class="ss-sheet">
+      <div class="ss-sheet-handle"></div>
+      <div class="ss-sheet-header">
+        <div class="ss-sheet-title" id="driverSalaryModalTitle">Thiết lập lương tháng</div>
+        <button type="button" class="ss-sheet-close" onclick="closeDriverSalaryModal()" aria-label="Đóng">×</button>
       </div>
-      <div class="form-group">
-        <label class="form-label">Hình thức</label>
-        <select id="driverAdvanceMethod" class="input">
-          <option value="cash">Tiền mặt</option>
-          <option value="bank">Chuyển khoản</option>
-          <option value="other">Khác</option>
-        </select>
+      <div class="ss-sheet-body">
+        <input type="hidden" id="driverSalaryDriverId">
+        <div class="ss-field">
+          <label class="ss-label" for="driverSalaryBase">Lương cố định / tháng (VNĐ)</label>
+          <input type="number" id="driverSalaryBase" class="ss-input" inputmode="numeric" placeholder="5000000" min="0" step="1000">
+          <div class="ss-hint">Cơ sở: <strong>lương ngày = lương tháng ÷ 26</strong>.</div>
+        </div>
+        <div class="ss-field">
+          <label class="ss-label" for="driverSalaryWorkDays">Số ngày làm (để trống = tự tính)</label>
+          <input type="number" id="driverSalaryWorkDays" class="ss-input" inputmode="numeric" placeholder="Tự động" min="0" max="31" step="1">
+          <div class="ss-hint">Để trống để hệ thống tự tính từ <strong>ngày vào làm</strong> đến ngày hiện tại (không tính Chủ Nhật).</div>
+        </div>
+        <div class="ss-field">
+          <label class="ss-label" for="driverSalaryBonus">Thưởng (VNĐ)</label>
+          <input type="number" id="driverSalaryBonus" class="ss-input" inputmode="numeric" placeholder="0" min="0" step="1000">
+        </div>
+        <div class="ss-field">
+          <label class="ss-label" for="driverSalaryDeduction">Phạt / trừ (VNĐ)</label>
+          <input type="number" id="driverSalaryDeduction" class="ss-input" inputmode="numeric" placeholder="0" min="0" step="1000">
+        </div>
+        <div class="ss-field">
+          <label class="ss-label" for="driverSalaryAdvance">Đã ứng trước (VNĐ)</label>
+          <input type="number" id="driverSalaryAdvance" class="ss-input" readonly style="opacity:.7; cursor:not-allowed;">
+          <div class="ss-hint">Khoản ứng đã ghi nhận trong tháng này — được <strong>trừ khỏi tổng lương</strong>.</div>
+        </div>
+        <div class="ss-field">
+          <label class="ss-label" for="driverSalaryNote">Ghi chú</label>
+          <input type="text" id="driverSalaryNote" class="ss-input" placeholder="Lý do thưởng/phạt (tuỳ chọn)">
+        </div>
+
+        <div class="ss-card" style="margin: 4px 0 0; background: var(--bg-secondary);">
+          <div class="ss-row"><span class="ss-row-label">Lương 1 ngày</span><span class="ss-row-value" id="driverSalaryPreviewDaily">0 đ</span></div>
+          <div class="ss-row"><span class="ss-row-label">Số ngày làm</span><span class="ss-row-value" id="driverSalaryPreviewWorkDays">0</span></div>
+          <div class="ss-row"><span class="ss-row-label">Lương theo ngày làm</span><span class="ss-row-value" id="driverSalaryPreviewBase">0 đ</span></div>
+          <div class="ss-row"><span class="ss-row-label">Thưởng</span><span class="ss-row-value" id="driverSalaryPreviewBonus">0 đ</span></div>
+          <div class="ss-row"><span class="ss-row-label">Phạt / trừ</span><span class="ss-row-value" id="driverSalaryPreviewDeduction">0 đ</span></div>
+          <div class="ss-row"><span class="ss-row-label">Đã ứng trước</span><span class="ss-row-value" id="driverSalaryPreviewAdvance">0 đ</span></div>
+          <div class="ss-row ss-row--total"><span class="ss-row-label">TỔNG THỰC NHẬN</span><span class="ss-row-value" id="driverSalaryPreviewTotal">0 đ</span></div>
+        </div>
       </div>
-      <div class="form-group">
-        <label class="form-label">Ghi chú</label>
-        <input type="text" id="driverAdvanceNote" class="input" placeholder="Lý do ứng (tuỳ chọn)">
-      </div>
-      <div style="padding:12px;background:var(--bg-soft);border-radius:8px;margin-bottom:16px;">
-        <div class="salary-row"><span>Đã ứng trong tháng</span><span id="driverAdvanceCurrentTotal">0 đ</span></div>
-        <div class="salary-row salary-total"><span>SẼ TRỪ THÊM</span><span id="driverAdvancePreviewTotal">0 đ</span></div>
-      </div>
-      <div style="display: flex; gap: 12px; margin-top: 20px;">
-        <button class="btn btn-secondary flex-1" onclick="closeDriverAdvanceModal()">Hủy</button>
-        <button class="btn btn-primary flex-1" onclick="saveDriverAdvance()">Ghi nhận ứng lương</button>
+      <div class="ss-sheet-footer">
+        <button type="button" class="ss-btn" onclick="closeDriverSalaryModal()">Hủy</button>
+        <button type="button" class="ss-btn ss-btn--warn" id="driverSalaryAdvanceBtn" onclick="openDriverAdvanceModal()">Ứng lương</button>
+        <button type="button" class="ss-btn ss-btn--primary" onclick="saveDriverSalary()">Lưu</button>
       </div>
     </div>
   </div>
 
-  <!-- Modal Thêm/Sửa Sales -->
-  <div id="staffModal" class="modal" style="display: none;">
-    <div class="modal-content">
-      <div class="modal-header" id="staffModalTitle">Thêm Sales</div>
-      <input type="hidden" id="editStaffId">
-      <div class="form-group">
-        <label class="form-label">Tên *</label>
-        <input type="text" id="staffName" class="input" placeholder="Nguyễn Văn A">
+  <!-- ══════════ SHEET: ỨNG LƯƠNG TÀI XẾ ══════════ -->
+  <div id="driverAdvanceModal" class="ss-sheet-wrap" style="display: none;">
+    <div class="ss-sheet-backdrop" onclick="closeDriverAdvanceModal()"></div>
+    <div class="ss-sheet">
+      <div class="ss-sheet-handle"></div>
+      <div class="ss-sheet-header">
+        <div class="ss-sheet-title" id="driverAdvanceModalTitle">Ghi nhận ứng lương</div>
+        <button type="button" class="ss-sheet-close" onclick="closeDriverAdvanceModal()" aria-label="Đóng">×</button>
       </div>
-      <div class="form-group">
-        <label class="form-label">Số điện thoại</label>
-        <input type="text" id="staffPhone" class="input" placeholder="0901234567">
+      <div class="ss-sheet-body">
+        <input type="hidden" id="driverAdvanceDriverId">
+        <div class="ss-field">
+          <label class="ss-label" for="driverAdvanceAmount">Số tiền ứng (VNĐ)</label>
+          <input type="number" id="driverAdvanceAmount" class="ss-input" inputmode="numeric" placeholder="1000000" min="1" step="1000">
+        </div>
+        <div class="ss-field">
+          <label class="ss-label" for="driverAdvanceMethod">Hình thức</label>
+          <select id="driverAdvanceMethod" class="ss-select">
+            <option value="cash">Tiền mặt</option>
+            <option value="bank">Chuyển khoản</option>
+            <option value="other">Khác</option>
+          </select>
+        </div>
+        <div class="ss-field">
+          <label class="ss-label" for="driverAdvanceNote">Ghi chú</label>
+          <input type="text" id="driverAdvanceNote" class="ss-input" placeholder="Lý do ứng (tuỳ chọn)">
+        </div>
+        <div class="ss-card" style="margin: 4px 0 0; background: var(--bg-secondary);">
+          <div class="ss-row"><span class="ss-row-label">Đã ứng trong tháng</span><span class="ss-row-value" id="driverAdvanceCurrentTotal">0 đ</span></div>
+          <div class="ss-row ss-row--total"><span class="ss-row-label">SẼ TRỪ THÊM</span><span class="ss-row-value" id="driverAdvancePreviewTotal">0 đ</span></div>
+        </div>
       </div>
-      <div class="form-group">
-        <label class="form-label">Email</label>
-        <input type="email" id="staffEmail" class="input" placeholder="email@example.com">
-      </div>
-      <div style="display: flex; gap: 12px; margin-top: 20px;">
-        <button class="btn btn-secondary flex-1" onclick="closeStaffModal()">Hủy</button>
-        <button class="btn btn-primary flex-1" onclick="saveStaff()">Lưu</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Modal Thêm/Sửa Product Commission -->
-  <div id="productCommissionModal" class="modal" style="display: none;">
-    <div class="modal-content">
-      <div class="modal-header" id="productCommissionModalTitle">Thêm hoa hồng sản phẩm</div>
-      <input type="hidden" id="editProductCommissionId">
-      <div class="form-group">
-        <label class="form-label">Sản phẩm</label>
-        <select id="productSelect" class="input">
-          <option value="">-- Chọn sản phẩm --</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Loại sản phẩm</label>
-        <select id="productTypeSelect" class="input">
-          <option value="keg">Keg (Bồn)</option>
-          <option value="bottle">Bottle (Chai)</option>
-          <option value="box">Box (Thùng)</option>
-          <option value="all">Tất cả</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Hoa hồng (VNĐ / lít)</label>
-        <input type="number" id="salaryPerLiter" class="input" placeholder="1000">
-      </div>
-      <div style="display: flex; gap: 12px; margin-top: 20px;">
-        <button class="btn btn-secondary flex-1" onclick="closeProductCommissionModal()">Hủy</button>
-        <button class="btn btn-primary flex-1" onclick="saveProductCommission()">Lưu</button>
+      <div class="ss-sheet-footer">
+        <button type="button" class="ss-btn" onclick="closeDriverAdvanceModal()">Hủy</button>
+        <button type="button" class="ss-btn ss-btn--primary" onclick="saveDriverAdvance()">Ghi nhận</button>
       </div>
     </div>
   </div>
 
-  <!-- Modal Khách hàng -->
-  <div id="customerModal" class="modal" style="display: none;">
-    <div class="modal-content" style="max-width: 600px;">
-      <div class="modal-header" id="customerModalTitle">Khách hàng của Sales</div>
-      <div id="customerList" style="max-height: 400px; overflow-y: auto;"></div>
-      <div style="text-align: center; margin-top: 16px;">
-        <button class="btn btn-secondary" onclick="document.getElementById('customerModal').style.display='none'">Đóng</button>
+  <!-- ══════════ SHEET: THÊM / SỬA SALES ══════════ -->
+  <div id="staffModal" class="ss-sheet-wrap" style="display: none;">
+    <div class="ss-sheet-backdrop" onclick="closeStaffModal()"></div>
+    <div class="ss-sheet">
+      <div class="ss-sheet-handle"></div>
+      <div class="ss-sheet-header">
+        <div class="ss-sheet-title" id="staffModalTitle">Thêm Sales</div>
+        <button type="button" class="ss-sheet-close" onclick="closeStaffModal()" aria-label="Đóng">×</button>
+      </div>
+      <div class="ss-sheet-body">
+        <input type="hidden" id="editStaffId">
+        <div class="ss-field">
+          <label class="ss-label" for="staffName">Tên *</label>
+          <input type="text" id="staffName" class="ss-input" placeholder="Nguyễn Văn A">
+        </div>
+        <div class="ss-field">
+          <label class="ss-label" for="staffPhone">Số điện thoại</label>
+          <input type="tel" id="staffPhone" class="ss-input" inputmode="tel" placeholder="0901234567">
+        </div>
+        <div class="ss-field">
+          <label class="ss-label" for="staffEmail">Email</label>
+          <input type="email" id="staffEmail" class="ss-input" inputmode="email" placeholder="email@example.com" autocapitalize="none" spellcheck="false">
+        </div>
+      </div>
+      <div class="ss-sheet-footer">
+        <button type="button" class="ss-btn" onclick="closeStaffModal()">Hủy</button>
+        <button type="button" class="ss-btn ss-btn--primary" onclick="saveStaff()">Lưu</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ SHEET: HOA HỒNG SẢN PHẨM ══════════ -->
+  <div id="productCommissionModal" class="ss-sheet-wrap" style="display: none;">
+    <div class="ss-sheet-backdrop" onclick="closeProductCommissionModal()"></div>
+    <div class="ss-sheet">
+      <div class="ss-sheet-handle"></div>
+      <div class="ss-sheet-header">
+        <div class="ss-sheet-title" id="productCommissionModalTitle">Thêm hoa hồng sản phẩm</div>
+        <button type="button" class="ss-sheet-close" onclick="closeProductCommissionModal()" aria-label="Đóng">×</button>
+      </div>
+      <div class="ss-sheet-body">
+        <input type="hidden" id="editProductCommissionId">
+        <div class="ss-field">
+          <label class="ss-label" for="productSelect">Sản phẩm</label>
+          <select id="productSelect" class="ss-select">
+            <option value="">-- Chọn sản phẩm --</option>
+          </select>
+        </div>
+        <div class="ss-field">
+          <label class="ss-label" for="productTypeSelect">Loại sản phẩm</label>
+          <select id="productTypeSelect" class="ss-select">
+            <option value="keg">Keg (Bồn)</option>
+            <option value="bottle">Bottle (Chai)</option>
+            <option value="box">Box (Thùng)</option>
+            <option value="all">Tất cả</option>
+          </select>
+        </div>
+        <div class="ss-field">
+          <label class="ss-label" for="salaryPerLiter">Hoa hồng (VNĐ / lít)</label>
+          <input type="number" id="salaryPerLiter" class="ss-input" inputmode="numeric" placeholder="1000">
+        </div>
+      </div>
+      <div class="ss-sheet-footer">
+        <button type="button" class="ss-btn" onclick="closeProductCommissionModal()">Hủy</button>
+        <button type="button" class="ss-btn ss-btn--primary" onclick="saveProductCommission()">Lưu</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ SHEET: KHÁCH HÀNG CỦA SALES ══════════ -->
+  <div id="customerModal" class="ss-sheet-wrap" style="display: none;">
+    <div class="ss-sheet-backdrop" onclick="closeCustomerModal()"></div>
+    <div class="ss-sheet">
+      <div class="ss-sheet-handle"></div>
+      <div class="ss-sheet-header">
+        <div class="ss-sheet-title" id="customerModalTitle">Khách hàng của Sales</div>
+        <button type="button" class="ss-sheet-close" onclick="closeCustomerModal()" aria-label="Đóng">×</button>
+      </div>
+      <div class="ss-sheet-body">
+        <div id="customerList"></div>
+      </div>
+      <div class="ss-sheet-footer">
+        <button type="button" class="ss-btn ss-btn--block" onclick="closeCustomerModal()">Đóng</button>
       </div>
     </div>
   </div>
 
   <script>
+  (function () {
+    'use strict';
+
+    // ══════════ STATE ══════════
     let currentTab = 'list';
+    let currentGroup = 'sales';
     let selectedStaffId = null;
     let staffList = [];
     let selectedSalaryConfigStaffId = null;
     let driverList = [];
     let selectedDriverId = null;
-    let driverSalarySummary = [];    // Số ngày làm do server tự tính cho tài xế đang mở modal (fallback khi
-    // admin để trống ô "Số ngày làm")
+    let driverSalarySummary = [];
     let driverSalaryCurrentWorkDays = 0;
     let driverSalaryCurrentAdvance = 0;
+    let attendanceGridData = [];
 
-    // Initialize
-    document.addEventListener('DOMContentLoaded', () => {
+    // Nhóm tab → danh sách tab con
+    const TAB_GROUPS = {
+      sales: ['list', 'salary', 'config'],
+      driver: ['drivers', 'driverSalary'],
+      attendance: ['attendance'],
+    };
+    // Nhãn + icon cho từng sub-tab (render động theo nhóm)
+    const TAB_META = {
+      list: { icon: '📋', label: 'Danh sách' },
+      salary: { icon: '💰', label: 'Tính lương' },
+      config: { icon: '⚙️', label: 'Cấu hình' },
+      drivers: { icon: '🚚', label: 'Danh sách' },
+      driverSalary: { icon: '💵', label: 'Tính lương' },
+      attendance: { icon: '📅', label: 'Lịch chấm công' },
+    };
+
+    // ══════════ BOOTSTRAP ══════════
+    document.addEventListener('DOMContentLoaded', async () => {
+      document.getElementById('app').innerHTML = getHeader('Quản lý Nhân viên', '👔');
+      loadVersion();
       loadStaffList();
-      if (document.getElementById('productCommissionsList')) {
-        loadCommissionConfig();
-      }
+      loadCommissionConfig();
       initMonthSelector();
       initSalaryConfigSelector();
       initDriverSalaryMonthSelector();
       initAttendanceMonthSelector();
+      bindNav();
+      switchGroup('sales');
+      switchTab('list');
     });
+
+    /** Gắn sự kiện cho nav 3 nhóm + render sub-tab động theo nhóm */
+    function bindNav() {
+      document.querySelectorAll('.ss-nav-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          const group = btn.dataset.group;
+          const first = TAB_GROUPS[group][0];
+          switchGroup(group);
+          switchTab(first);
+        });
+      });
+    }
+
+    function switchGroup(group) {
+      currentGroup = group;
+      document.querySelectorAll('.ss-nav-btn').forEach(function (btn) {
+        const on = btn.dataset.group === group;
+        btn.classList.toggle('active', on);
+        btn.setAttribute('aria-selected', on ? 'true' : 'false');
+      });
+      renderSubtabs(group);
+    }
+
+    /** Render sub-tabs của nhóm hiện tại (tab con đổi theo nhóm) */
+    function renderSubtabs(group) {
+      var wrap = document.getElementById('ssSubtabs');
+      if (!wrap) return;
+      var tabs = TAB_GROUPS[group] || [];
+      wrap.innerHTML = tabs.map(function (t) {
+        var meta = TAB_META[t] || { icon: '', label: t };
+        return '<button type="button" class="ss-subtab" data-tab="' + t + '" onclick="switchTab(\'' + t + '\')">' +
+          meta.icon + ' ' + escapeHtml(meta.label) + '</button>';
+      }).join('');
+    }
 
     function switchTab(tab) {
       currentTab = tab;
-      ['list', 'salary', 'config', 'drivers', 'driverSalary', 'attendance'].forEach(t => {
-        document.getElementById('tab-' + t).classList.toggle('active', t === tab);
-        document.getElementById('content-' + t).style.display = t === tab ? 'block' : 'none';
+
+      // Tự chuyển nhóm nếu tab thuộc nhóm khác
+      var owner = null;
+      Object.keys(TAB_GROUPS).forEach(function (g) {
+        if (TAB_GROUPS[g].indexOf(tab) !== -1) owner = g;
       });
-      if (tab === 'salary') {
-        loadSalarySummary();
-      }
-      if (tab === 'drivers') {
-        loadDriverList();
-      }
-      if (tab === 'driverSalary') {
-        loadDriverSalarySummary();
-      }
-      if (tab === 'attendance') {
-        loadAttendanceSummary();
-      }
+      if (owner && owner !== currentGroup) switchGroup(owner);
+
+      var tabs = Object.keys(TAB_GROUPS).reduce(function (acc, g) { return acc.concat(TAB_GROUPS[g]); }, []);
+
+      tabs.forEach(function (t) {
+        var el = document.getElementById('content-' + t);
+        if (el) el.style.display = t === tab ? 'block' : 'none';
+      });
+      document.querySelectorAll('.ss-subtab').forEach(function (el) {
+        el.classList.toggle('active', el.dataset.tab === tab);
+      });
+
+      if (tab === 'salary') loadSalarySummary();
+      if (tab === 'drivers') loadDriverList();
+      if (tab === 'driverSalary') loadDriverSalarySummary();
+      if (tab === 'attendance') loadAttendanceSummary();
     }
 
-    // ══════════════════════════════════════════════════════════════════════
+    // ══════════ SHEET HELPERS ══════════
+    function openSheet(id) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.style.display = 'flex';
+      document.body.style.overflow = 'hidden';
+    }
+    function closeSheet(id) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.style.display = 'none';
+      document.body.style.overflow = '';
+    }
+    function closeCustomerModal() { closeSheet('customerModal'); }
+
+    // ══════════ HELPERS ══════════
+    function escapeHtml(str) {
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function initials(name) {
+      var n = String(name || '').trim();
+      if (!n) return '?';
+      var parts = n.split(/\s+/).filter(Boolean);
+      if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+
+    function formatVND(num) {
+      return new Intl.NumberFormat('vi-VN').format(num || 0) + ' đ';
+    }
+
+    function formatDate(dateStr) {
+      if (!dateStr) return '';
+      var raw = String(dateStr).trim().slice(0, 10);
+      var m = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (m) {
+        var d = new Date(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10));
+        return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      }
+      var d2 = new Date(dateStr);
+      if (Number.isNaN(d2.getTime())) return '';
+      return d2.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    }
+
+    function toast(msg, type) {
+      if (typeof showToast === 'function') showToast(msg, type || 'info');
+      else alert(msg);
+    }
+
+    // ══════════════════════════════════════════════════════════════
     // TAB: CHẤM CÔNG TÀI XẾ
-    // ══════════════════════════════════════════════════════════════════════
-    // Ngày đi làm thực tế (kể cả Chủ Nhật) → được cộng vào số ngày làm
-    // khi tính lương. Công thức UNION: lịch ∪ chấm công (không tính trùng).
-
-    let attendanceGridData = [];
-
+    // ══════════════════════════════════════════════════════════════
     function initAttendanceMonthSelector() {
-      const select = document.getElementById('attendanceMonth');
+      var select = document.getElementById('attendanceMonth');
       if (!select) return;
       select.innerHTML = '';
-      const now = new Date();
-      for (let i = 0; i < 12; i++) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-        const opt = document.createElement('option');
+      var now = new Date();
+      for (var i = 0; i < 12; i++) {
+        var d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        var val = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+        var opt = document.createElement('option');
         opt.value = val;
-        opt.textContent = `Tháng ${d.getMonth() + 1}/${d.getFullYear()}`;
+        opt.textContent = 'Tháng ' + (d.getMonth() + 1) + '/' + d.getFullYear();
         if (i === 0) opt.selected = true;
         select.appendChild(opt);
       }
     }
 
     function attendancePeriod() {
-      const monthVal = document.getElementById('attendanceMonth')?.value;
+      var monthVal = (document.getElementById('attendanceMonth') || {}).value;
       if (!monthVal) return null;
-      const [year, month] = monthVal.split('-').map(Number);
-      if (!year || !month) return null;
-      return { year, month, monthVal };
+      var parts = monthVal.split('-').map(Number);
+      if (!parts[0] || !parts[1]) return null;
+      return { year: parts[0], month: parts[1], monthVal: monthVal };
     }
 
     async function loadAttendanceSummary() {
-      const container = document.getElementById('attendanceSummary');
+      var container = document.getElementById('attendanceSummary');
       if (!container) return;
-      const period = attendancePeriod();
+      var period = attendancePeriod();
       if (!period) return;
 
       try {
-        const res = await fetch(`/api/admin/driver-staff/attendance/summary?year=${period.year}&month=${period.month}`);
-        const data = await res.json();
+        var res = await authFetch('/api/admin/driver-staff/attendance/summary?year=' + period.year + '&month=' + period.month);
+        var data = await res.json();
         if (!data.success) {
-          container.innerHTML = `<div class="empty-state">${data.error || 'Lỗi tải dữ liệu'}</div>`;
+          container.innerHTML = '<div class="ss-empty">' + escapeHtml(data.error || 'Lỗi tải dữ liệu') + '</div>';
           return;
         }
-
-        const rows = data.data || [];
+        var rows = data.data || [];
         await loadAttendanceDriverOptions(rows);
 
         if (rows.length === 0) {
-          container.innerHTML = `<div class="empty-state">Chưa có tài xế nào.</div>`;
+          container.innerHTML = '<div class="ss-empty"><div class="ss-empty-icon">🚚</div>Chưa có tài xế nào.</div>';
           return;
         }
 
-        const totalDays = rows.reduce((s, r) => s + r.count, 0);
-        const totalSunday = rows.reduce((s, r) => s + r.sundayCount, 0);
-        container.innerHTML = `
-          <div style="padding:0 16px 12px;display:flex;gap:16px;flex-wrap:wrap;align-items:center;">
-            <small style="color:var(--text-muted);">
-              Tổng ngày đã chấm công: <strong>${totalDays}</strong>
-              ${totalSunday > 0 ? ` (gồm <strong style="color:var(--warn,#f59e0b)">${totalSunday} ngày Chủ Nhật</strong>)` : ''}
-            </small>
-          </div>
-          <div style="overflow-x:auto;">
-          <table style="width:100%;border-collapse:collapse;font-size:13px;">
-            <thead>
-              <tr style="text-align:left;border-bottom:1px solid var(--border);">
-                <th style="padding:8px;">Tài xế</th>
-                <th style="padding:8px;">Ngày đã chấm</th>
-                <th style="padding:8px;">Trong đó CN</th>
-                <th style="padding:8px;">Chi tiết</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rows.map(r => `
-                <tr style="border-bottom:1px solid var(--border);">
-                  <td style="padding:8px;">
-                    <div style="font-weight:600;">${escapeHtml(r.fullName)}</div>
-                    <div style="font-size:11px;color:var(--text-muted);">@${escapeHtml(r.username)}</div>
-                  </td>
-                  <td style="padding:8px;"><strong>${r.count}</strong> ngày</td>
-                  <td style="padding:8px;color:${r.sundayCount > 0 ? 'var(--warn,#f59e0b)' : 'var(--text-muted)'};">
-                    ${r.sundayCount > 0 ? r.sundayCount : '-'}
-                  </td>
-                  <td style="padding:8px;font-size:11px;color:var(--text-muted);max-width:420px;">
-                    ${r.workDates.length ? escapeHtml(r.workDates.join(', ')) : '-'}
-                  </td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-          </div>`;
+        var totalDays = rows.reduce(function (s, r) { return s + r.count; }, 0);
+        var totalSunday = rows.reduce(function (s, r) { return s + r.sundayCount; }, 0);
+
+        container.innerHTML =
+          '<div class="ss-total-bar" style="background:var(--bg-secondary);border-color:var(--border);">' +
+            '<span class="ss-total-label">Tổng ngày đã chấm công</span>' +
+            '<span class="ss-total-value" style="color:var(--text-primary);">' + totalDays +
+              (totalSunday > 0 ? ' <span style="font-size:12px;color:var(--warning);">(+' + totalSunday + ' CN)</span>' : '') +
+            '</span>' +
+          '</div>' +
+          '<div class="ss-card-list ss-card-list--3">' +
+            rows.map(function (r) {
+              return '<div class="ss-card">' +
+                '<div class="ss-card-top">' +
+                  '<div class="ss-avatar">' + escapeHtml(initials(r.fullName)) + '</div>' +
+                  '<div class="ss-card-title-wrap">' +
+                    '<div class="ss-card-title">' + escapeHtml(r.fullName) + '</div>' +
+                    '<div class="ss-card-sub">@' + escapeHtml(r.username) + '</div>' +
+                  '</div>' +
+                  (r.sundayCount > 0
+                    ? '<span class="ss-badge ss-badge--warn">' + r.sundayCount + ' CN</span>'
+                    : '<span class="ss-badge ss-badge--muted">0 CN</span>') +
+                '</div>' +
+                '<div class="ss-metrics">' +
+                  '<div class="ss-metric"><span class="ss-metric-label">Đã chấm</span><span class="ss-metric-value">' + r.count + ' ngày</span></div>' +
+                  '<div class="ss-metric" style="grid-column: 1 / -1;"><span class="ss-metric-label">Chi tiết</span>' +
+                    '<span class="ss-metric-value" style="font-size:11.5px;font-weight:500;white-space:normal;" title="' + escapeHtml((r.workDates || []).join(', ')) + '">' +
+                    escapeHtml((r.workDates || []).join(', ') || '-') + '</span></div>' +
+                '</div>' +
+              '</div>';
+            }).join('') +
+          '</div>';
       } catch (e) {
-        container.innerHTML = '<div class="empty-state">Lỗi tải dữ liệu</div>';
+        container.innerHTML = '<div class="ss-empty">Lỗi tải dữ liệu</div>';
       }
     }
 
     async function loadAttendanceDriverOptions(rows) {
-      const select = document.getElementById('attendanceDriver');
+      var select = document.getElementById('attendanceDriver');
       if (!select) return;
-      const current = select.value;
+      var current = select.value;
       select.innerHTML = '<option value="">-- Chọn tài xế --</option>';
-      for (const r of rows) {
-        const opt = document.createElement('option');
+      rows.forEach(function (r) {
+        var opt = document.createElement('option');
         opt.value = r.driverId;
-        opt.textContent = `${r.fullName} (@${r.username})`;
+        opt.textContent = r.fullName + ' (@' + r.username + ')';
         select.appendChild(opt);
-      }
-      if (current && rows.some(r => String(r.driverId) === String(current))) {
+      });
+      if (current && rows.some(function (r) { return String(r.driverId) === String(current); })) {
         select.value = current;
         await loadAttendanceGrid();
       }
     }
 
     async function loadAttendanceGrid() {
-      const driverId = document.getElementById('attendanceDriver')?.value;
-      const period = attendancePeriod();
-      const card = document.getElementById('attendanceGridCard');
-      const gridEl = document.getElementById('attendanceGrid');
+      var sel = document.getElementById('attendanceDriver');
+      var driverId = sel ? sel.value : '';
+      var period = attendancePeriod();
+      var card = document.getElementById('attendanceGridCard');
+      var gridEl = document.getElementById('attendanceGrid');
       if (!card || !gridEl) return;
-      if (!driverId || !period) {
-        card.style.display = 'none';
-        return;
-      }
+      if (!driverId || !period) { card.style.display = 'none'; return; }
       card.style.display = 'block';
 
       try {
-        const res = await fetch(`/api/admin/driver-staff/${driverId}/attendance?year=${period.year}&month=${period.month}`);
-        const data = await res.json();
+        var res = await authFetch('/api/admin/driver-staff/' + driverId + '/attendance?year=' + period.year + '&month=' + period.month);
+        var data = await res.json();
         if (!data.success) {
-          gridEl.innerHTML = `<div class="empty-state">${data.error || 'Lỗi tải lịch'}</div>`;
+          gridEl.innerHTML = '<div class="ss-empty">' + escapeHtml(data.error || 'Lỗi tải lịch') + '</div>';
           return;
         }
         attendanceGridData = data.data || [];
-        const name = document.getElementById('attendanceDriver')?.selectedOptions?.[0]?.textContent || '';
-        document.getElementById('attendanceGridTitle').textContent =
-          `Lịch chấm công — ${name} (${period.monthVal})`;
+        var name = sel && sel.selectedOptions && sel.selectedOptions[0] ? sel.selectedOptions[0].textContent : '';
+        document.getElementById('attendanceGridTitle').textContent = 'Lịch chấm công — ' + name;
 
-        const checkedCount = data.checkedCount || 0;
-        // Offset để ngày 1 nằm đúng cột thứ trong tuần
-        const firstDow = attendanceGridData.length ? attendanceGridData[0].dayOfWeek : 0;
-        const blanks = Array.from({ length: firstDow }, () => '<div></div>').join('');
+        var checkedCount = data.checkedCount || 0;
+        var firstDow = attendanceGridData.length ? attendanceGridData[0].dayOfWeek : 0;
+        var blanks = Array.from({ length: firstDow }, function () { return '<div></div>'; }).join('');
 
-        gridEl.innerHTML = `
-          <div style="padding:0 16px 12px;">
-            <small style="color:var(--text-muted);">
-              Đã chấm <strong>${checkedCount}</strong> ngày ·
-              <span style="color:var(--warn,#f59e0b);">ngày Chủ Nhật</span> được tô đậm.
-            </small>
-          </div>
-          <div style="display:grid;grid-template-columns:repeat(7,minmax(88px,1fr));gap:6px;padding:0 16px 16px;">
-            ${['CN','T2','T3','T4','T5','T6','T7'].map(d =>
-              `<div style="text-align:center;font-size:11px;color:var(--text-muted);font-weight:600;padding:4px 0;">${d}</div>`
-            ).join('')}
-            ${blanks}
-            ${attendanceGridData.map(d => `
-              <button type="button" onclick="attendanceToggle('', '${d.date}')"
-                title="${d.dayName} ${d.date}${d.note ? ' — ' + escapeHtml(d.note) : ''}"
-                style="padding:10px 4px;border-radius:8px;border:1px solid ${d.checked ? 'var(--primary,#2563eb)' : 'var(--border)'};
-                  background:${d.checked ? 'var(--primary,#2563eb)' : 'transparent'};
-                  color:${d.checked ? '#fff' : 'var(--text)'};
-                  ${d.isSunday ? 'font-weight:700;' : ''}
-                  cursor:pointer;font-size:13px;line-height:1.4;">
-                <div>${d.day}</div>
-                <div style="font-size:10px;opacity:.85;">${d.isSunday ? 'CN' : ''}</div>
-              </button>
-            `).join('')}
-          </div>`;
+        gridEl.innerHTML =
+          '<div class="ss-hint" style="margin-bottom: 10px;">Đã chấm <strong>' + checkedCount + '</strong> ngày · <span style="color:var(--warning);">ngày Chủ Nhật</span> được tô đậm.</div>' +
+          '<div class="ss-att-grid">' +
+            ['CN','T2','T3','T4','T5','T6','T7'].map(function (d) {
+              return '<div class="ss-att-dow">' + d + '</div>';
+            }).join('') +
+            blanks +
+            attendanceGridData.map(function (d) {
+              return '<button type="button" class="ss-att-day' + (d.checked ? ' checked' : '') + (d.isSunday ? ' sunday' : '') + '"' +
+                ' onclick="attendanceToggle(\'' + d.date + '\')"' +
+                ' title="' + escapeHtml(d.dayName + ' ' + d.date + (d.note ? ' — ' + d.note : '')) + '">' +
+                '<span>' + d.day + '</span>' +
+                (d.isSunday ? '<span class="cn">CN</span>' : '') +
+              '</button>';
+            }).join('') +
+          '</div>';
       } catch (e) {
-        gridEl.innerHTML = '<div class="empty-state">Lỗi tải lịch</div>';
+        gridEl.innerHTML = '<div class="ss-empty">Lỗi tải lịch</div>';
       }
     }
 
-    async function attendanceToggle(driverId, date) {
-      const select = document.getElementById('attendanceDriver');
-      const id = driverId || select?.value;
+    async function attendanceToggle(date) {
+      var sel = document.getElementById('attendanceDriver');
+      var id = sel ? sel.value : '';
       if (!id) return;
       try {
-        const res = await fetch(`/api/admin/driver-staff/${id}/attendance/toggle`, {
+        var res = await authFetch('/api/admin/driver-staff/' + id + '/attendance/toggle', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ date })
+          body: JSON.stringify({ date: date })
         });
-        const data = await res.json();
-        if (!data.success) {
-          window.alert('✗ ' + (data.error || 'Lỗi chấm công'));
-          return;
-        }
+        var data = await res.json();
+        if (!data.success) { toast('✗ ' + (data.error || 'Lỗi chấm công'), 'error'); return; }
         await loadAttendanceGrid();
         await loadAttendanceSummary();
       } catch (e) {
-        window.alert('✗ ' + e.message);
+        toast('✗ ' + e.message, 'error');
       }
     }
 
     async function attendanceMarkWeekdays() {
-      const id = document.getElementById('attendanceDriver')?.value;
-      const period = attendancePeriod();
+      var sel = document.getElementById('attendanceDriver');
+      var id = sel ? sel.value : '';
+      var period = attendancePeriod();
       if (!id || !period) return;
-      const dates = attendanceGridData.filter(d => !d.isSunday).map(d => d.date);
+      var dates = attendanceGridData.filter(function (d) { return !d.isSunday; }).map(function (d) { return d.date; });
       if (dates.length === 0) return;
-      if (!window.confirm(`Tick ${dates.length} ngày (T2–T7) cho tài xế này?`)) return;
+      if (!confirm('Tick ' + dates.length + ' ngày (T2–T7) cho tài xế này?')) return;
       try {
-        const res = await fetch(`/api/admin/driver-staff/${id}/attendance/bulk`, {
+        var res = await authFetch('/api/admin/driver-staff/' + id + '/attendance/bulk', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ dates })
+          body: JSON.stringify({ dates: dates })
         });
-        const data = await res.json();
-        if (!data.success) {
-          window.alert('✗ ' + (data.error || 'Lỗi'));
-          return;
-        }
+        var data = await res.json();
+        if (!data.success) { toast('✗ ' + (data.error || 'Lỗi'), 'error'); return; }
         await loadAttendanceGrid();
         await loadAttendanceSummary();
+        toast('Đã tick ' + dates.length + ' ngày', 'success');
       } catch (e) {
-        window.alert('✗ ' + e.message);
+        toast('✗ ' + e.message, 'error');
       }
     }
 
     async function attendanceClearMonth() {
-      const id = document.getElementById('attendanceDriver')?.value;
-      const period = attendancePeriod();
+      var sel = document.getElementById('attendanceDriver');
+      var id = sel ? sel.value : '';
+      var period = attendancePeriod();
       if (!id || !period) return;
-      if (!window.confirm('Xoá TOÀN BỘ chấm công của tài xế này trong tháng?')) return;
+      if (!confirm('Xoá TOÀN BỘ chấm công của tài xế này trong tháng?')) return;
       try {
-        const res = await fetch(`/api/admin/driver-staff/${id}/attendance/month?year=${period.year}&month=${period.month}`, {
-          method: 'DELETE'
-        });
-        const data = await res.json();
-        if (!data.success) {
-          window.alert('✗ ' + (data.error || 'Lỗi'));
-          return;
-        }
+        var res = await authFetch('/api/admin/driver-staff/' + id + '/attendance/month?year=' + period.year + '&month=' + period.month, { method: 'DELETE' });
+        var data = await res.json();
+        if (!data.success) { toast('✗ ' + (data.error || 'Lỗi'), 'error'); return; }
         await loadAttendanceGrid();
         await loadAttendanceSummary();
+        toast('Đã xoá chấm công tháng', 'success');
       } catch (e) {
-        window.alert('✗ ' + e.message);
+        toast('✗ ' + e.message, 'error');
       }
     }
 
-    // ══════════════════════════════════════════════════════════════════════
+    // ══════════════════════════════════════════════════════════════
     // TAB: QUẢN LÝ TÀI XẾ
-    // ══════════════════════════════════════════════════════════════════════
-
+    // ══════════════════════════════════════════════════════════════
     async function loadDriverList() {
-      const container = document.getElementById('driverList');
+      var container = document.getElementById('driverList');
       if (!container) return;
-      const includeInactive = document.getElementById('showInactiveDrivers')?.checked;
+      var inc = document.getElementById('showInactiveDrivers');
+      var includeInactive = inc && inc.checked;
       try {
-        const res = await fetch('/api/admin/driver-staff' + (includeInactive ? '?includeInactive=1' : ''));
-        const data = await res.json();
+        var res = await authFetch('/api/admin/driver-staff' + (includeInactive ? '?includeInactive=1' : ''));
+        var data = await res.json();
         if (!data.success) {
-          container.innerHTML = `<div class="empty-state">${data.error || 'Lỗi tải dữ liệu'}</div>`;
+          container.innerHTML = '<div class="ss-empty">' + escapeHtml(data.error || 'Lỗi tải dữ liệu') + '</div>';
           return;
         }
         driverList = data.data || [];
         renderDriverList();
       } catch (e) {
-        container.innerHTML = '<div class="empty-state">Lỗi tải dữ liệu</div>';
+        container.innerHTML = '<div class="ss-empty">Lỗi tải dữ liệu</div>';
       }
     }
 
     function renderDriverList() {
-      const container = document.getElementById('driverList');
+      var container = document.getElementById('driverList');
       if (!container) return;
       if (driverList.length === 0) {
-        container.innerHTML = `<div class="empty-state">Chưa có tài xế nào.<br><br>
-          <button class="btn btn-primary" onclick="openDriverModal()">+ Thêm tài xế đầu tiên</button></div>`;
+        container.innerHTML = '<div class="ss-empty"><div class="ss-empty-icon">🚚</div>Chưa có tài xế nào.' +
+          '<br><button type="button" class="ss-btn ss-btn--primary" onclick="openDriverModal()">+ Thêm tài xế đầu tiên</button></div>';
         return;
       }
-      container.innerHTML = driverList.map(d => {
-        const locked = !d.active;
-        const accountLocked = d.account_active === 0;
-        return `
-        <div class="card staff-card ${locked ? 'opacity-60' : ''}">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
-            <div>
-              <div class="staff-name">${escapeHtml(d.full_name || d.username)}</div>
-              <div class="staff-stats">@${escapeHtml(d.username)} · ${d.phone ? escapeHtml(d.phone) : 'Chưa có SĐT'}</div>
-            </div>
-            ${locked ? '<span class="badge badge-pending">Đã khoá</span>'
-                     : (accountLocked ? '<span class="badge badge-pending">Tài khoản bị khoá</span>'
-                     : '<span class="badge badge-paid">Hoạt động</span>')}
-          </div>
-          <div style="margin-top:10px;">
-            <span class="stat-label">Lương cố định/tháng:</span>
-            <span class="stat-value">${formatVND(d.monthly_salary || 0)}</span>
-          </div>
-          <div style="margin-top:4px;">
-            <span class="stat-label">Ngày vào làm:</span>
-            <span class="stat-value">${d.start_date ? formatDate(d.start_date) : 'Chưa khai báo'}</span>
-          </div>
-          ${d.start_date ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">
-            ≈ ${formatVND(Math.round((d.monthly_salary || 0) / 26))}/ngày · ${d.monthly_salary ? Math.round((d.monthly_salary || 0) / 26) : 0} ngày làm = đủ tháng</div>` : ''}
-          ${d.bank_account ? `<div style="font-size:12px;color:var(--text-muted);margin-top:4px;">🏦 ${escapeHtml(d.bank_account)}</div>` : ''}
-          <div style="margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap;">
-            <button class="btn btn-secondary btn-sm" onclick="openDriverModal(${d.id})">✏️ Sửa</button>
-            <button class="btn btn-secondary btn-sm" onclick="openDriverSalaryModal(${d.id})">💵 Lương</button>
-            <button class="btn btn-secondary btn-sm" onclick="resetDriverPassword(${d.id})">🔑 Đổi MK</button>
-            ${locked
-              ? `<button class="btn btn-success btn-sm" onclick="toggleDriverActive(${d.id}, 1)">🔓 Mở khoá</button>`
-              : `<button class="btn btn-danger btn-sm" onclick="toggleDriverActive(${d.id}, 0)">🔒 Khoá</button>`}
-          </div>
-        </div>`;
+      container.innerHTML = driverList.map(function (d) {
+        var locked = !d.active;
+        var accountLocked = d.account_active === 0;
+        var daily = Math.round((d.monthly_salary || 0) / 26);
+        return '<div class="ss-card' + (locked ? ' ss-card--dim' : '') + '">' +
+          '<div class="ss-card-top">' +
+            '<div class="ss-avatar">' + escapeHtml(initials(d.full_name || d.username)) + '</div>' +
+            '<div class="ss-card-title-wrap">' +
+              '<div class="ss-card-title">' + escapeHtml(d.full_name || d.username) + '</div>' +
+              '<div class="ss-card-sub">@' + escapeHtml(d.username) + ' · ' + (d.phone ? escapeHtml(d.phone) : 'Chưa có SĐT') + '</div>' +
+            '</div>' +
+            (locked
+              ? '<span class="ss-badge ss-badge--warn">Đã khoá</span>'
+              : (accountLocked
+                ? '<span class="ss-badge ss-badge--warn">TK bị khoá</span>'
+                : '<span class="ss-badge ss-badge--ok">Hoạt động</span>')) +
+          '</div>' +
+          '<div class="ss-metrics">' +
+            '<div class="ss-metric"><span class="ss-metric-label">Lương/tháng</span><span class="ss-metric-value">' + formatVND(d.monthly_salary || 0) + '</span></div>' +
+            '<div class="ss-metric"><span class="ss-metric-label">Lương/ngày</span><span class="ss-metric-value">' + formatVND(daily) + '</span></div>' +
+            '<div class="ss-metric"><span class="ss-metric-label">Ngày vào làm</span><span class="ss-metric-value">' + (d.start_date ? formatDate(d.start_date) : 'Chưa khai báo') + '</span></div>' +
+            '<div class="ss-metric"><span class="ss-metric-label">Ngân hàng</span><span class="ss-metric-value">' + escapeHtml(d.bank_account || '—') + '</span></div>' +
+          '</div>' +
+          '<div class="ss-actions ss-actions--3">' +
+            '<button type="button" class="ss-btn ss-btn--sm" onclick="openDriverModal(' + d.id + ')">✏️ Sửa</button>' +
+            '<button type="button" class="ss-btn ss-btn--sm" onclick="openDriverSalaryModal(' + d.id + ')">💵 Lương</button>' +
+            '<button type="button" class="ss-btn ss-btn--sm" onclick="resetDriverPassword(' + d.id + ')">🔑 Đổi MK</button>' +
+          '</div>' +
+          '<div class="ss-actions" style="margin-top: 8px;">' +
+            (locked
+              ? '<button type="button" class="ss-btn ss-btn--success ss-btn--sm ss-btn--block" onclick="toggleDriverActive(' + d.id + ', 1)">🔓 Mở khoá</button>'
+              : '<button type="button" class="ss-btn ss-btn--danger ss-btn--sm ss-btn--block" onclick="toggleDriverActive(' + d.id + ', 0)">🔒 Khoá tài xế</button>') +
+          '</div>' +
+        '</div>';
       }).join('');
     }
 
     function openDriverModal(id) {
-      const modal = document.getElementById('driverModal');
       document.getElementById('editDriverId').value = id || '';
       document.getElementById('driverModalTitle').textContent = id ? 'Sửa tài xế' : 'Thêm tài xế';
 
       if (id) {
-        const d = driverList.find(x => x.id === id);
+        var d = driverList.find(function (x) { return x.id === id; });
         if (!d) return;
         document.getElementById('driverUsername').value = d.username;
         document.getElementById('driverUsername').disabled = true;
@@ -845,502 +1384,428 @@
         document.getElementById('driverBankAccount').value = '';
         document.getElementById('driverNote').value = '';
       }
-      modal.style.display = 'flex';
+      openSheet('driverModal');
     }
 
-    function closeDriverModal() {
-      document.getElementById('driverModal').style.display = 'none';
-    }
+    function closeDriverModal() { closeSheet('driverModal'); }
 
     async function saveDriver() {
-      const id = document.getElementById('editDriverId').value;
-      const username = document.getElementById('driverUsername').value.trim().toLowerCase();
-      const password = document.getElementById('driverPassword').value;
-      const fullName = document.getElementById('driverFullName').value.trim();
-      const phone = document.getElementById('driverPhone').value.trim();
-      const monthlySalary = document.getElementById('driverMonthlySalary').value;
-      const startDate = document.getElementById('driverStartDate').value;
-      const bankAccount = document.getElementById('driverBankAccount').value.trim();
-      const note = document.getElementById('driverNote').value.trim();
+      var id = document.getElementById('editDriverId').value;
+      var username = document.getElementById('driverUsername').value.trim().toLowerCase();
+      var password = document.getElementById('driverPassword').value;
+      var fullName = document.getElementById('driverFullName').value.trim();
+      var phone = document.getElementById('driverPhone').value.trim();
+      var monthlySalary = document.getElementById('driverMonthlySalary').value;
+      var startDate = document.getElementById('driverStartDate').value;
+      var bankAccount = document.getElementById('driverBankAccount').value.trim();
+      var note = document.getElementById('driverNote').value.trim();
 
-      if (!id && !username) { alert('Vui lòng nhập tên đăng nhập'); return; }
-      if (!id && password.length < 8) { alert('Mật khẩu phải có ít nhất 8 ký tự'); return; }
+      if (!id && !username) { toast('Vui lòng nhập tên đăng nhập', 'error'); return; }
+      if (!id && password.length < 8) { toast('Mật khẩu phải có ít nhất 8 ký tự', 'error'); return; }
 
       try {
-        const url = id ? `/api/admin/driver-staff/${id}` : '/api/admin/driver-staff';
-        const method = id ? 'PUT' : 'POST';
-        const body = id
-          ? { fullName, phone, monthlySalary, startDate, bankAccount, note }
-          : { username, password, fullName, phone, monthlySalary, startDate, bankAccount, note };
-        const res = await fetch(url, {
-          method,
+        var url = id ? '/api/admin/driver-staff/' + id : '/api/admin/driver-staff';
+        var method = id ? 'PUT' : 'POST';
+        var body = id
+          ? { fullName: fullName, phone: phone, monthlySalary: monthlySalary, startDate: startDate, bankAccount: bankAccount, note: note }
+          : { username: username, password: password, fullName: fullName, phone: phone, monthlySalary: monthlySalary, startDate: startDate, bankAccount: bankAccount, note: note };
+        var res = await authFetch(url, {
+          method: method,
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body)
         });
-        const data = await res.json();
+        var data = await res.json();
         if (data.success) {
           closeDriverModal();
           loadDriverList();
           loadDriverSalarySummary();
+          toast(id ? 'Đã cập nhật tài xế' : 'Đã thêm tài xế', 'success');
         } else {
-          alert(data.error || 'Lỗi');
+          toast(data.error || 'Lỗi', 'error');
         }
       } catch (e) {
-        alert('Lỗi kết nối');
+        toast('Lỗi kết nối', 'error');
       }
     }
 
     async function toggleDriverActive(id, active) {
-      const d = driverList.find(x => x.id === id);
-      const name = d ? (d.full_name || d.username) : '';
-      if (!active && !confirm(`Khoá tài xế "${name}"?\n\nTài khoản đăng nhập và phiên hiện tại sẽ bị vô hiệu hoá.`)) return;
+      var d = driverList.find(function (x) { return x.id === id; });
+      var name = d ? (d.full_name || d.username) : '';
+      if (!active && !confirm('Khoá tài xế "' + name + '"?\n\nTài khoản đăng nhập và phiên hiện tại sẽ bị vô hiệu hoá.')) return;
       try {
-        const res = await fetch(`/api/admin/driver-staff/${id}`, {
+        var res = await authFetch('/api/admin/driver-staff/' + id, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ active: !!active })
         });
-        const data = await res.json();
+        var data = await res.json();
         if (data.success) {
           loadDriverList();
+          toast(active ? 'Đã mở khoá tài xế' : 'Đã khoá tài xế', 'success');
         } else {
-          alert(data.error || 'Lỗi');
+          toast(data.error || 'Lỗi', 'error');
         }
       } catch (e) {
-        alert('Lỗi kết nối');
+        toast('Lỗi kết nối', 'error');
       }
     }
 
     async function resetDriverPassword(id) {
-      const d = driverList.find(x => x.id === id);
-      const name = d ? (d.full_name || d.username) : '';
-      const pwd = prompt(`Đặt mật khẩu mới cho "${name}" (tối thiểu 8 ký tự):`);
+      var d = driverList.find(function (x) { return x.id === id; });
+      var name = d ? (d.full_name || d.username) : '';
+      var pwd = prompt('Đặt mật khẩu mới cho "' + name + '" (tối thiểu 8 ký tự):');
       if (pwd === null) return;
-      if (pwd.length < 8) { alert('Mật khẩu phải có ít nhất 8 ký tự'); return; }
+      if (pwd.length < 8) { toast('Mật khẩu phải có ít nhất 8 ký tự', 'error'); return; }
       try {
-        const res = await fetch(`/api/admin/driver-staff/${id}`, {
+        var res = await authFetch('/api/admin/driver-staff/' + id, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ password: pwd })
         });
-        const data = await res.json();
-        if (data.success) {
-          alert('Đã đổi mật khẩu thành công');
-        } else {
-          alert(data.error || 'Lỗi');
-        }
+        var data = await res.json();
+        if (data.success) toast('Đã đổi mật khẩu thành công', 'success');
+        else toast(data.error || 'Lỗi', 'error');
       } catch (e) {
-        alert('Lỗi kết nối');
+        toast('Lỗi kết nối', 'error');
       }
     }
 
-    // ══════════════════════════════════════════════════════════════════════
+    // ══════════════════════════════════════════════════════════════
     // TAB: LƯƠNG TÀI XẾ
-    // ══════════════════════════════════════════════════════════════════════
-
+    // ══════════════════════════════════════════════════════════════
     function initDriverSalaryMonthSelector() {
-      const select = document.getElementById('driverSalaryMonth');
+      var select = document.getElementById('driverSalaryMonth');
       if (!select) return;
       select.innerHTML = '';
-      const now = new Date();
-      for (let i = 0; i < 12; i++) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-        const opt = document.createElement('option');
+      var now = new Date();
+      for (var i = 0; i < 12; i++) {
+        var d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        var val = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+        var opt = document.createElement('option');
         opt.value = val;
-        opt.textContent = `Tháng ${d.getMonth() + 1}/${d.getFullYear()}`;
+        opt.textContent = 'Tháng ' + (d.getMonth() + 1) + '/' + d.getFullYear();
         if (i === 0) opt.selected = true;
         select.appendChild(opt);
       }
     }
 
     async function loadDriverSalarySummary() {
-      const container = document.getElementById('driverSalarySummary');
+      var container = document.getElementById('driverSalarySummary');
       if (!container) return;
-      const monthVal = document.getElementById('driverSalaryMonth').value;
+      var monthVal = document.getElementById('driverSalaryMonth').value;
       if (!monthVal) return;
-      const [year, month] = monthVal.split('-');
+      var parts = monthVal.split('-');
       try {
-        const res = await fetch(`/api/admin/driver-staff/salary/summary?year=${year}&month=${month}`);
-        const data = await res.json();
+        var res = await authFetch('/api/admin/driver-staff/salary/summary?year=' + parts[0] + '&month=' + parts[1]);
+        var data = await res.json();
         if (!data.success) {
-          container.innerHTML = `<div class="empty-state">${data.error || 'Lỗi tải dữ liệu'}</div>`;
+          container.innerHTML = '<div class="ss-empty">' + escapeHtml(data.error || 'Lỗi tải dữ liệu') + '</div>';
           return;
         }
         driverSalarySummary = data.data || [];
         renderDriverSalarySummary(monthVal);
       } catch (e) {
-        container.innerHTML = '<div class="empty-state">Lỗi tải dữ liệu</div>';
+        container.innerHTML = '<div class="ss-empty">Lỗi tải dữ liệu</div>';
       }
     }
 
     function renderDriverSalarySummary(monthVal) {
-      const container = document.getElementById('driverSalarySummary');
+      var container = document.getElementById('driverSalarySummary');
       if (!container) return;
       if (driverSalarySummary.length === 0) {
-        container.innerHTML = `<div class="empty-state">Chưa có tài xế nào.<br><br>
-          <button class="btn btn-primary" onclick="switchTab('drivers')">+ Thêm tài xế</button></div>`;
+        container.innerHTML = '<div class="ss-empty"><div class="ss-empty-icon">🚚</div>Chưa có tài xế nào.' +
+          '<br><button type="button" class="ss-btn ss-btn--primary" onclick="switchGroup(\'driver\'); switchTab(\'drivers\')">+ Thêm tài xế</button></div>';
         return;
       }
-      const totalPay = driverSalarySummary.reduce((s, d) => s + (d.total || 0), 0);
-      container.innerHTML = `
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
-          <small style="color:var(--text-muted);">Tổng lương phải trả tháng ${monthVal}: <strong>${formatVND(totalPay)}</strong></small>
-          <small style="color:var(--text-muted);">Lương = (lương tháng ÷ 26) × số ngày làm (lịch không tính CN ∪ chấm công)</small>
-        </div>
-        <div style="overflow-x:auto;">
-        <table style="width:100%;border-collapse:collapse;font-size:13px;">
-          <thead>
-            <tr style="text-align:left;border-bottom:1px solid var(--border);">
-              <th style="padding:8px;">Tài xế</th>
-              <th style="padding:8px;">Ngày vào làm</th>
-              <th style="padding:8px;">Ngày làm</th>
-              <th style="padding:8px;">Lương/ngày</th>
-              <th style="padding:8px;">Lương theo ngày</th>
-              <th style="padding:8px;">Thưởng</th>
-              <th style="padding:8px;">Phạt/trừ</th>
-              <th style="padding:8px;">Đã ứng</th>
-              <th style="padding:8px;">Thực nhận</th>
-              <th style="padding:8px;">Trạng thái</th>
-              <th style="padding:8px;"></th>
-            </tr>
-          </thead>
-          <tbody>
-            ${driverSalarySummary.map(d => `
-              <tr style="border-bottom:1px solid var(--border);${d.active ? '' : 'opacity:.5;'}">
-                <td style="padding:8px;cursor:pointer;" onclick="showDriverSalaryDetail(${d.driverId})">
-                  <div style="font-weight:600;">${escapeHtml(d.fullName)}</div>
-                  <div style="font-size:11px;color:var(--text-muted);">@${escapeHtml(d.username)}</div>
-                </td>
-                <td style="padding:8px;white-space:nowrap;">${d.startDate ? formatDate(d.startDate) : '-'}</td>
-                <td style="padding:8px;white-space:nowrap;">
-                  <strong>${d.workDays || 0}</strong> ngày
-                  ${d.workDaysManual ? '<div style="font-size:10px;color:var(--text-muted);">(nhập tay)</div>' : ''}
-                  ${d.extraAttendanceDays > 0
-                    ? `<div style="font-size:10px;color:var(--warn,#f59e0b);">+${d.extraAttendanceDays} chấm công</div>`
-                    : ''}
-                </td>
-                <td style="padding:8px;white-space:nowrap;">${formatVND(d.dailyRate || 0)}</td>
-                <td style="padding:8px;white-space:nowrap;">${formatVND(d.proratedBase || 0)}</td>
-                <td style="padding:8px;">${formatVND(d.bonus || 0)}</td>
-                <td style="padding:8px;">${d.deduction ? formatVND(d.deduction) : '-'}</td>
-                <td style="padding:8px;white-space:nowrap;color:var(--warn,#f59e0b);">
-                  ${d.advanceTotal ? formatVND(d.advanceTotal) : '-'}
-                </td>
-                <td style="padding:8px;font-weight:700;white-space:nowrap;">${formatVND(d.total || 0)}</td>
-                <td style="padding:8px;">
-                  ${d.status === 'paid' ? '<span class="badge badge-paid">Đã trả</span>' : '<span class="badge badge-pending">Chưa trả</span>'}
-                  ${d.isDraft ? '<div style="font-size:10px;color:var(--text-muted);margin-top:2px;">(tự tính)</div>' : ''}
-                </td>
-                <td style="padding:8px;text-align:right;white-space:nowrap;">
-                  <button class="btn btn-secondary btn-sm" onclick="openDriverSalaryModal(${d.driverId})">✏️</button>
-                  <button class="btn btn-success btn-sm" onclick="markDriverSalaryPaidById(${d.driverId})">✓</button>
-                </td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-        </div>`;
+      var totalPay = driverSalarySummary.reduce(function (s, d) { return s + (d.total || 0); }, 0);
+      container.innerHTML =
+        '<div class="ss-total-bar">' +
+          '<span class="ss-total-label">Tổng lương ' + escapeHtml(monthVal) + '</span>' +
+          '<span class="ss-total-value">' + formatVND(totalPay) + '</span>' +
+        '</div>' +
+        '<div class="ss-card-list ss-card-list--3">' +
+          driverSalarySummary.map(function (d) {
+            return '<div class="ss-card' + (d.active ? '' : ' ss-card--dim') + '">' +
+              '<div class="ss-card-top">' +
+                '<div class="ss-avatar">' + escapeHtml(initials(d.fullName)) + '</div>' +
+                '<div class="ss-card-title-wrap" onclick="showDriverSalaryDetail(' + d.driverId + ')">' +
+                  '<div class="ss-card-title">' + escapeHtml(d.fullName) + '</div>' +
+                  '<div class="ss-card-sub">@' + escapeHtml(d.username) + '</div>' +
+                '</div>' +
+                (d.status === 'paid'
+                  ? '<span class="ss-badge ss-badge--ok">Đã trả</span>'
+                  : '<span class="ss-badge ss-badge--warn">Chưa trả</span>') +
+              '</div>' +
+              '<div class="ss-metrics">' +
+                '<div class="ss-metric"><span class="ss-metric-label">Ngày làm</span><span class="ss-metric-value">' + (d.workDays || 0) + ' ngày</span></div>' +
+                '<div class="ss-metric"><span class="ss-metric-label">Lương/ngày</span><span class="ss-metric-value">' + formatVND(d.dailyRate || 0) + '</span></div>' +
+                '<div class="ss-metric"><span class="ss-metric-label">Lương theo ngày</span><span class="ss-metric-value">' + formatVND(d.proratedBase || 0) + '</span></div>' +
+                '<div class="ss-metric"><span class="ss-metric-label">Đã ứng</span><span class="ss-metric-value' + (d.advanceTotal ? ' ss-metric-value--warn' : '') + '">' + (d.advanceTotal ? formatVND(d.advanceTotal) : '—') + '</span></div>' +
+              '</div>' +
+              (d.extraAttendanceDays > 0
+                ? '<div class="ss-hint" style="color:var(--warning);margin-bottom:8px;">+' + d.extraAttendanceDays + ' ngày chấm công (CN)</div>'
+                : '') +
+              (d.workDaysManual
+                ? '<div class="ss-hint" style="margin-bottom:8px;">Số ngày làm nhập tay</div>'
+                : '') +
+              '<div class="ss-row ss-row--total" style="margin-bottom: 10px;">' +
+                '<span class="ss-row-label">Thực nhận</span>' +
+                '<span class="ss-row-value">' + formatVND(d.total || 0) + '</span>' +
+              '</div>' +
+              '<div class="ss-actions">' +
+                '<button type="button" class="ss-btn ss-btn--sm" onclick="openDriverSalaryModal(' + d.driverId + ')">✏️ Sửa lương</button>' +
+                '<button type="button" class="ss-btn ss-btn--success ss-btn--sm" onclick="markDriverSalaryPaidById(' + d.driverId + ')">✓ Đánh dấu đã trả</button>' +
+              '</div>' +
+            '</div>';
+          }).join('') +
+        '</div>';
     }
 
     async function showDriverSalaryDetail(driverId) {
-      const monthVal = document.getElementById('driverSalaryMonth').value;
+      var monthVal = document.getElementById('driverSalaryMonth').value;
       if (!monthVal) return;
-      const [year, month] = monthVal.split('-');
+      var parts = monthVal.split('-');
+      var year = parts[0], month = parts[1];
       selectedDriverId = driverId;
 
-      const detailBox = document.getElementById('driverSalaryDetail');
-      const content = document.getElementById('driverSalaryDetailContent');
+      var detailBox = document.getElementById('driverSalaryDetail');
+      var content = document.getElementById('driverSalaryDetailContent');
       detailBox.style.display = 'block';
 
       try {
-        const [salaryRes, historyRes, advanceRes] = await Promise.all([
-          fetch(`/api/admin/driver-staff/${driverId}/salary-history?limit=12`),
-          fetch(`/api/admin/driver-staff/${driverId}`),
-          fetch(`/api/admin/driver-staff/${driverId}/advances?year=${year}&month=${month}`)
+        var results = await Promise.all([
+          authFetch('/api/admin/driver-staff/' + driverId + '/salary-history?limit=12'),
+          authFetch('/api/admin/driver-staff/' + driverId),
+          authFetch('/api/admin/driver-staff/' + driverId + '/advances?year=' + year + '&month=' + month)
         ]);
-        const salaryData = await salaryRes.json();
-        const profileData = await historyRes.json();
-        const advanceData = await advanceRes.json();
-        const row = driverSalarySummary.find(d => d.driverId === driverId);
-        const name = row ? row.fullName : (profileData.data ? (profileData.data.full_name || profileData.data.username) : '');
+        var salaryData = await results[0].json();
+        var profileData = await results[1].json();
+        var advanceData = await results[2].json();
+        var row = driverSalarySummary.find(function (d) { return d.driverId === driverId; });
+        var name = row ? row.fullName : (profileData.data ? (profileData.data.full_name || profileData.data.username) : '');
 
-        // Tổng khoản ứng của tháng (dùng cho modal ứng lương)
         driverSalaryCurrentAdvance = advanceData.success ? (advanceData.total || 0) : (row ? (row.advanceTotal || 0) : 0);
 
-        // Danh sách khoản ứng
-        const advanceList = advanceData.success ? (advanceData.data || []) : [];
-        const advanceListHtml = advanceList.length === 0
-          ? '<small style="color:var(--text-muted);">Chưa có khoản ứng nào trong tháng này.</small>'
-          : advanceList.map(a => `
-            <div class="salary-row">
-              <span>
-                ${formatVND(a.amount)}
-                <span style="font-size:11px;color:var(--text-muted);">
-                  (${escapeHtml(a.method || 'cash')})${a.note ? ' — ' + escapeHtml(a.note) : ''}
-                </span>
-                ${a.status === 'cancelled' ? '<span class="badge badge-pending" style="margin-left:6px;">Đã huỷ</span>' : ''}
-              </span>
-              <span>
-                <small style="color:var(--text-muted);font-size:11px;">${a.created_at ? formatDate(String(a.created_at).slice(0, 10)) : ''}</small>
-                ${a.status !== 'cancelled'
-                  ? `<button class="btn btn-secondary btn-sm" onclick="cancelDriverAdvance(${a.id})">Huỷ</button>`
-                  : ''}
-              </span>
-            </div>`).join('');
+        var advanceList = advanceData.success ? (advanceData.data || []) : [];
+        var advanceListHtml = advanceList.length === 0
+          ? '<div class="ss-hint">Chưa có khoản ứng nào trong tháng này.</div>'
+          : advanceList.map(function (a) {
+              return '<div class="ss-row">' +
+                '<span class="ss-row-label" style="text-align:left;flex:1;min-width:0;">' +
+                  formatVND(a.amount) +
+                  ' <span style="font-size:11px;">(' + escapeHtml(a.method || 'cash') + ')' + (a.note ? ' — ' + escapeHtml(a.note) : '') + '</span>' +
+                  (a.status === 'cancelled' ? ' <span class="ss-badge ss-badge--muted">Đã huỷ</span>' : '') +
+                '</span>' +
+                '<span style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' +
+                  '<small style="color:var(--text-muted);font-size:11px;">' + (a.created_at ? formatDate(String(a.created_at).slice(0, 10)) : '') + '</small>' +
+                  (a.status !== 'cancelled'
+                    ? '<button type="button" class="ss-btn ss-btn--danger ss-btn--sm" onclick="cancelDriverAdvance(' + a.id + ')">Huỷ</button>'
+                    : '') +
+                '</span>' +
+              '</div>';
+            }).join('');
 
-        document.getElementById('driverSalaryDetailTitle').textContent = `Chi tiết lương — ${name}`;
+        document.getElementById('driverSalaryDetailTitle').textContent = 'Chi tiết — ' + name;
 
-        const isPaid = row && row.status === 'paid';
-        document.getElementById('driverMarkPaidBtn').style.display = isPaid ? 'none' : 'inline-block';
-        document.getElementById('driverUnmarkPaidBtn').style.display = isPaid ? 'inline-block' : 'none';
+        var isPaid = row && row.status === 'paid';
+        document.getElementById('driverMarkPaidBtn').style.display = isPaid ? 'none' : 'inline-flex';
+        document.getElementById('driverUnmarkPaidBtn').style.display = isPaid ? 'inline-flex' : 'none';
 
-        const history = salaryData.success ? (salaryData.data || []) : [];
+        var history = salaryData.success ? (salaryData.data || []) : [];
 
-        content.innerHTML = `
-          <div class="salary-row">
-            <span>Lương cố định / tháng</span>
-            <span>${formatVND(row ? (row.baseSalary || 0) : 0)}</span>
-          </div>
-          <div class="salary-row">
-            <span>Ngày vào làm</span>
-            <span>${row && row.startDate ? formatDate(row.startDate) : 'Chưa khai báo'}</span>
-          </div>
-          <div class="salary-row">
-            <span>Kỳ tính</span>
-            <span>${row && row.periodStart ? formatDate(row.periodStart) + ' → ' + formatDate(row.periodEnd) : '-'}</span>
-          </div>
-          <div class="salary-row">
-            <span>Số ngày làm${row && row.workDaysManual ? ' (nhập tay)' : ''}</span>
-            <span>${row ? (row.workDays || 0) : 0} / ${row ? (row.standardWorkDays || 26) : 26} ngày</span>
-          </div>
-          <div class="salary-row">
-            <span>Lương 1 ngày (÷ ${row ? (row.standardWorkDays || 26) : 26})</span>
-            <span>${formatVND(row ? (row.dailyRate || 0) : 0)}</span>
-          </div>
-          <div class="salary-row">
-            <span>Lương theo ngày làm</span>
-            <span>${formatVND(row ? (row.proratedBase || 0) : 0)}</span>
-          </div>
-          <div class="salary-row">
-            <span>Thưởng</span>
-            <span>${formatVND(row ? (row.bonus || 0) : 0)}</span>
-          </div>
-          <div class="salary-row">
-            <span>Phạt / trừ</span>
-            <span>${formatVND(row ? (row.deduction || 0) : 0)}</span>
-          </div>
-          <div class="salary-row">
-            <span>Đã ứng trước</span>
-            <span style="color:var(--warn,#f59e0b);">${formatVND(row ? (row.advanceTotal || 0) : 0)}</span>
-          </div>
-          <div class="salary-row salary-total">
-            <span>TỔNG THỰC NHẬN</span>
-            <span>${formatVND(row ? (row.total || 0) : 0)}</span>
-          </div>
+        content.innerHTML =
+          '<div class="ss-row"><span class="ss-row-label">Lương cố định / tháng</span><span class="ss-row-value">' + formatVND(row ? (row.baseSalary || 0) : 0) + '</span></div>' +
+          '<div class="ss-row"><span class="ss-row-label">Ngày vào làm</span><span class="ss-row-value">' + (row && row.startDate ? formatDate(row.startDate) : 'Chưa khai báo') + '</span></div>' +
+          '<div class="ss-row"><span class="ss-row-label">Kỳ tính</span><span class="ss-row-value">' + (row && row.periodStart ? formatDate(row.periodStart) + ' → ' + formatDate(row.periodEnd) : '-') + '</span></div>' +
+          '<div class="ss-row"><span class="ss-row-label">Số ngày làm' + (row && row.workDaysManual ? ' (nhập tay)' : '') + '</span><span class="ss-row-value">' + (row ? (row.workDays || 0) : 0) + ' / ' + (row ? (row.standardWorkDays || 26) : 26) + ' ngày</span></div>' +
+          '<div class="ss-row"><span class="ss-row-label">Lương 1 ngày (÷ ' + (row ? (row.standardWorkDays || 26) : 26) + ')</span><span class="ss-row-value">' + formatVND(row ? (row.dailyRate || 0) : 0) + '</span></div>' +
+          '<div class="ss-row"><span class="ss-row-label">Lương theo ngày làm</span><span class="ss-row-value">' + formatVND(row ? (row.proratedBase || 0) : 0) + '</span></div>' +
+          '<div class="ss-row"><span class="ss-row-label">Thưởng</span><span class="ss-row-value">' + formatVND(row ? (row.bonus || 0) : 0) + '</span></div>' +
+          '<div class="ss-row"><span class="ss-row-label">Phạt / trừ</span><span class="ss-row-value">' + formatVND(row ? (row.deduction || 0) : 0) + '</span></div>' +
+          '<div class="ss-row"><span class="ss-row-label">Đã ứng trước</span><span class="ss-row-value" style="color:var(--warning);">' + formatVND(row ? (row.advanceTotal || 0) : 0) + '</span></div>' +
+          '<div class="ss-row ss-row--total"><span class="ss-row-label">TỔNG THỰC NHẬN</span><span class="ss-row-value">' + formatVND(row ? (row.total || 0) : 0) + '</span></div>' +
 
-          <div style="margin-top:16px;">
-            <div class="card-title" style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
-              <span>Khoản ứng đã ghi nhận</span>
-              <button class="btn btn-secondary btn-sm" onclick="openDriverAdvanceModal()">+ Ứng lương</button>
-            </div>
-            <div id="driverAdvanceList">${advanceListHtml}</div>
-          </div>
-          ${row && row.note ? `<div style="margin-top:12px;padding:12px;background:var(--bg-soft);border-radius:8px;font-size:13px;">
-            <strong>Ghi chú:</strong> ${escapeHtml(row.note)}</div>` : ''}
-          ${isPaid ? `<div style="margin-top:12px;padding:12px;background:rgba(34,197,94,0.1);border-radius:8px;text-align:center;color:#22c55e;font-weight:600;">✓ Đã thanh toán ngày ${formatDate(row.paidAt)}</div>` : ''}
+          '<div style="margin-top: 16px;">' +
+            '<div class="ss-sec-head"><div class="ss-sec-title" style="font-size:13.5px;">Khoản ứng đã ghi nhận</div>' +
+            '<button type="button" class="ss-btn ss-btn--warn ss-btn--sm" onclick="openDriverAdvanceModal()">+ Ứng lương</button></div>' +
+            '<div id="driverAdvanceList">' + advanceListHtml + '</div>' +
+          '</div>' +
+          (row && row.note
+            ? '<div class="ss-info" style="margin-top:12px;"><strong>Ghi chú:</strong> ' + escapeHtml(row.note) + '</div>'
+            : '') +
+          (isPaid
+            ? '<div class="ss-info" style="margin-top:12px;text-align:center;color:var(--green);font-weight:700;">✓ Đã thanh toán ngày ' + formatDate(row.paidAt) + '</div>'
+            : '') +
 
-          <div style="margin-top:20px;">
-            <div class="card-title" style="margin-bottom:8px;">Lịch sử lương:</div>
-            ${history.length === 0
-              ? '<small style="color:var(--text-muted);">Chưa có bản ghi lương nào.</small>'
-              : history.map(h => `
-                <div class="salary-row">
-                  <span>Tháng ${h.month}/${h.year}${h.note ? ' — ' + escapeHtml(h.note) : ''}</span>
-                  <span>
-                    ${formatVND(h.total)}
-                    ${h.status === 'paid'
-                      ? '<span class="badge badge-paid" style="margin-left:8px;">Đã trả</span>'
-                      : '<span class="badge badge-pending" style="margin-left:8px;">Chưa trả</span>'}
-                  </span>
-                </div>`).join('')}
-          </div>`;
+          '<div style="margin-top: 16px;">' +
+            '<div class="ss-sec-title" style="font-size:13.5px;margin-bottom:8px;">Lịch sử lương</div>' +
+            (history.length === 0
+              ? '<div class="ss-hint">Chưa có bản ghi lương nào.</div>'
+              : history.map(function (h) {
+                  return '<div class="ss-row"><span class="ss-row-label" style="text-align:left;flex:1;">Tháng ' + h.month + '/' + h.year + (h.note ? ' — ' + escapeHtml(h.note) : '') + '</span>' +
+                    '<span class="ss-row-value">' + formatVND(h.total) +
+                    ' <span class="ss-badge ' + (h.status === 'paid' ? 'ss-badge--ok' : 'ss-badge--warn') + '">' + (h.status === 'paid' ? 'Đã trả' : 'Chưa trả') + '</span></span></div>';
+                }).join('')) +
+          '</div>';
       } catch (e) {
-        content.innerHTML = '<div class="empty-state">Lỗi tải dữ liệu</div>';
+        content.innerHTML = '<div class="ss-empty">Lỗi tải dữ liệu</div>';
       }
     }
 
     async function unmarkDriverSalaryPaid() {
       if (!selectedDriverId) return;
-      const monthVal = document.getElementById('driverSalaryMonth').value;
+      var monthVal = document.getElementById('driverSalaryMonth').value;
       if (!monthVal) return;
-      const [year, month] = monthVal.split('-');
+      var parts = monthVal.split('-');
       if (!confirm('Bỏ đánh dấu đã trả cho tài xế này?')) return;
       try {
-        const res = await fetch(`/api/admin/driver-staff/${selectedDriverId}/salary/paid`, {
+        var res = await authFetch('/api/admin/driver-staff/' + selectedDriverId + '/salary/paid', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ year: parseInt(year, 10), month: parseInt(month, 10), paid: false })
+          body: JSON.stringify({ year: parseInt(parts[0], 10), month: parseInt(parts[1], 10), paid: false })
         });
-        const data = await res.json();
+        var data = await res.json();
         if (data.success) {
           loadDriverSalarySummary();
           showDriverSalaryDetail(selectedDriverId);
+          toast('Đã bỏ đánh dấu', 'info');
         } else {
-          alert(data.error || 'Lỗi');
+          toast(data.error || 'Lỗi', 'error');
         }
       } catch (e) {
-        alert('Lỗi kết nối');
+        toast('Lỗi kết nối', 'error');
       }
     }
 
     function openDriverSalaryModal(driverId) {
-      const monthVal = document.getElementById('driverSalaryMonth').value;
-      if (!monthVal) { alert('Chọn tháng trước'); return; }
-      const [year, month] = monthVal.split('-');
-      const row = driverSalarySummary.find(d => d.driverId === driverId);
-      const d = driverList.find(x => x.id === driverId);
+      var monthVal = document.getElementById('driverSalaryMonth').value;
+      if (!monthVal) { toast('Chọn tháng trước', 'error'); return; }
+      var parts = monthVal.split('-');
+      var year = parts[0], month = parts[1];
+      var row = driverSalarySummary.find(function (d) { return d.driverId === driverId; });
+      var d = driverList.find(function (x) { return x.id === driverId; });
 
       document.getElementById('driverSalaryDriverId').value = driverId;
       document.getElementById('driverSalaryModalTitle').textContent =
-        `Lương tháng ${month}/${year} — ${row ? row.fullName : (d ? (d.full_name || d.username) : '')}`;
+        'Lương ' + month + '/' + year + ' — ' + (row ? row.fullName : (d ? (d.full_name || d.username) : ''));
       document.getElementById('driverSalaryBase').value = row ? (row.baseSalary || 0) : (d ? (d.monthly_salary || 0) : 0);
       document.getElementById('driverSalaryBonus').value = row ? (row.bonus || 0) : 0;
       document.getElementById('driverSalaryDeduction').value = row ? (row.deduction || 0) : 0;
       document.getElementById('driverSalaryNote').value = row ? (row.note || '') : '';
-      // Số ngày làm: để trống nếu hệ thống đang tự tính (chỉ giữ khi admin ghi đè tay)
-      document.getElementById('driverSalaryWorkDays').value =
-        row && row.workDaysManual ? row.workDays : '';
+      document.getElementById('driverSalaryWorkDays').value = (row && row.workDaysManual) ? row.workDays : '';
       driverSalaryCurrentWorkDays = row ? (row.workDays || 0) : 0;
-      // Khoản ứng đã ghi nhận trong tháng (read-only — dùng modal riêng để thêm)
       driverSalaryCurrentAdvance = row ? (row.advanceTotal || 0) : 0;
       document.getElementById('driverSalaryAdvance').value = driverSalaryCurrentAdvance;
 
-      ['driverSalaryBase', 'driverSalaryBonus', 'driverSalaryDeduction', 'driverSalaryWorkDays'].forEach(id => {
+      ['driverSalaryBase', 'driverSalaryBonus', 'driverSalaryDeduction', 'driverSalaryWorkDays'].forEach(function (id) {
         document.getElementById(id).setAttribute('oninput', 'updateDriverSalaryPreview()');
       });
       updateDriverSalaryPreview();
-      document.getElementById('driverSalaryModal').style.display = 'flex';
+      openSheet('driverSalaryModal');
     }
 
-    function closeDriverSalaryModal() {
-      document.getElementById('driverSalaryModal').style.display = 'none';
-    }
+    function closeDriverSalaryModal() { closeSheet('driverSalaryModal'); }
 
-    // ══════════════════════════════════════════════════════════════════════
+    // ══════════════════════════════════════════════════════════════
     // ỨNG LƯƠNG TÀI XẾ
-    // ══════════════════════════════════════════════════════════════════════
-
-    /** Mở modal ghi nhận ứng lương cho tài xế của tháng đang chọn */
+    // ══════════════════════════════════════════════════════════════
     function openDriverAdvanceModal() {
-      const driverId = parseInt(document.getElementById('driverSalaryDriverId').value);
-      const monthVal = document.getElementById('driverSalaryMonth').value;
-      if (!driverId || !monthVal) { alert('Chọn tài xế và tháng trước'); return; }
-      const [year, month] = monthVal.split('-');
-      const row = driverSalarySummary.find(d => d.driverId === driverId);
-      const name = row ? row.fullName : '';
+      var driverId = parseInt(document.getElementById('driverSalaryDriverId').value, 10);
+      var monthVal = document.getElementById('driverSalaryMonth').value;
+      if (!driverId || !monthVal) { toast('Chọn tài xế và tháng trước', 'error'); return; }
+      var parts = monthVal.split('-');
+      var row = driverSalarySummary.find(function (d) { return d.driverId === driverId; });
 
       document.getElementById('driverAdvanceDriverId').value = driverId;
       document.getElementById('driverAdvanceModalTitle').textContent =
-        `Ứng lương — ${name} (Tháng ${month}/${year})`;
+        'Ứng lương — ' + (row ? row.fullName : '') + ' (' + parts[1] + '/' + parts[0] + ')';
       document.getElementById('driverAdvanceAmount').value = '';
       document.getElementById('driverAdvanceMethod').value = 'cash';
       document.getElementById('driverAdvanceNote').value = '';
-      document.getElementById('driverAdvanceCurrentTotal').textContent =
-        formatVND(driverSalaryCurrentAdvance || 0);
+      document.getElementById('driverAdvanceCurrentTotal').textContent = formatVND(driverSalaryCurrentAdvance || 0);
       document.getElementById('driverAdvanceAmount').setAttribute('oninput', 'updateDriverAdvancePreview()');
       updateDriverAdvancePreview();
-      document.getElementById('driverAdvanceModal').style.display = 'flex';
+      openSheet('driverAdvanceModal');
     }
 
-    function closeDriverAdvanceModal() {
-      document.getElementById('driverAdvanceModal').style.display = 'none';
-    }
+    function closeDriverAdvanceModal() { closeSheet('driverAdvanceModal'); }
 
-    /** Huỷ một khoản ứng (xoá mềm — không còn tính vào lương tháng) */
     async function cancelDriverAdvance(advanceId) {
       if (!confirm('Huỷ khoản ứng này? Khoản này sẽ không còn được trừ khỏi lương tháng.')) return;
       try {
-        const res = await fetch(`/api/admin/driver-staff/advances/${advanceId}`, { method: 'DELETE' });
-        const data = await res.json();
+        var res = await authFetch('/api/admin/driver-staff/advances/' + advanceId, { method: 'DELETE' });
+        var data = await res.json();
         if (data.success) {
           await loadDriverSalarySummary();
           if (selectedDriverId) showDriverSalaryDetail(selectedDriverId);
+          toast('Đã huỷ khoản ứng', 'success');
         } else {
-          alert(data.error || 'Lỗi huỷ ứng lương');
+          toast(data.error || 'Lỗi huỷ ứng lương', 'error');
         }
       } catch (e) {
-        alert('Lỗi kết nối');
+        toast('Lỗi kết nối', 'error');
       }
     }
 
     function updateDriverAdvancePreview() {
-      const amount = parseFloat(document.getElementById('driverAdvanceAmount').value) || 0;
-      const current = driverSalaryCurrentAdvance || 0;
+      var amount = parseFloat(document.getElementById('driverAdvanceAmount').value) || 0;
+      var current = driverSalaryCurrentAdvance || 0;
       document.getElementById('driverAdvancePreviewTotal').textContent = formatVND(amount);
-      // Tổng sau khi thêm
-      document.getElementById('driverAdvanceCurrentTotal').textContent =
-        formatVND(current + amount);
+      document.getElementById('driverAdvanceCurrentTotal').textContent = formatVND(current + amount);
     }
 
-    /** Lưu khoản ứng lương */
     async function saveDriverAdvance() {
-      const driverId = parseInt(document.getElementById('driverAdvanceDriverId').value);
-      const monthVal = document.getElementById('driverSalaryMonth').value;
+      var driverId = parseInt(document.getElementById('driverAdvanceDriverId').value, 10);
+      var monthVal = document.getElementById('driverSalaryMonth').value;
       if (!driverId || !monthVal) return;
-      const [year, month] = monthVal.split('-');
-      const amount = parseFloat(document.getElementById('driverAdvanceAmount').value) || 0;
-      if (amount <= 0) { alert('Nhập số tiền ứng lớn hơn 0'); return; }
+      var parts = monthVal.split('-');
+      var amount = parseFloat(document.getElementById('driverAdvanceAmount').value) || 0;
+      if (amount <= 0) { toast('Nhập số tiền ứng lớn hơn 0', 'error'); return; }
 
       try {
-        const res = await fetch(`/api/admin/driver-staff/${driverId}/advances`, {
+        var res = await authFetch('/api/admin/driver-staff/' + driverId + '/advances', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            year: parseInt(year, 10),
-            month: parseInt(month, 10),
+            year: parseInt(parts[0], 10),
+            month: parseInt(parts[1], 10),
             amount: amount,
             method: document.getElementById('driverAdvanceMethod').value,
             note: document.getElementById('driverAdvanceNote').value.trim()
           })
         });
-        const data = await res.json();
+        var data = await res.json();
         if (data.success) {
           closeDriverAdvanceModal();
           await loadDriverSalarySummary();
-          // Cập nhật lại số ứng trong modal lương đang mở
-          const row = driverSalarySummary.find(d => d.driverId === driverId);
+          var row = driverSalarySummary.find(function (d) { return d.driverId === driverId; });
           driverSalaryCurrentAdvance = row ? (row.advanceTotal || 0) : 0;
           document.getElementById('driverSalaryAdvance').value = driverSalaryCurrentAdvance;
           updateDriverSalaryPreview();
-          alert('Đã ghi nhận ứng lương');
+          toast('Đã ghi nhận ứng lương', 'success');
         } else {
-          alert(data.error || 'Lỗi lưu ứng lương');
+          toast(data.error || 'Lỗi lưu ứng lương', 'error');
         }
       } catch (e) {
-        alert('Lỗi kết nối');
+        toast('Lỗi kết nối', 'error');
       }
     }
 
-    /**
-     * Preview lương theo ngày làm.
-     * Công thức: lương_ngày = lương_tháng ÷ 26 ; lương = lương_ngày × số_ngày_làm
-     */
     function updateDriverSalaryPreview() {
-      const base = parseFloat(document.getElementById('driverSalaryBase').value) || 0;
-      const bonus = parseFloat(document.getElementById('driverSalaryBonus').value) || 0;
-      const deduction = parseFloat(document.getElementById('driverSalaryDeduction').value) || 0;
-      const workDaysInput = document.getElementById('driverSalaryWorkDays').value.trim();
-      const advance = driverSalaryCurrentAdvance || 0;
+      var base = parseFloat(document.getElementById('driverSalaryBase').value) || 0;
+      var bonus = parseFloat(document.getElementById('driverSalaryBonus').value) || 0;
+      var deduction = parseFloat(document.getElementById('driverSalaryDeduction').value) || 0;
+      var workDaysInput = document.getElementById('driverSalaryWorkDays').value.trim();
+      var advance = driverSalaryCurrentAdvance || 0;
 
-      const dailyRate = base / 26;
-      let workDays;
+      var dailyRate = base / 26;
+      var workDays;
       if (workDaysInput !== '') {
         workDays = Math.max(0, parseInt(workDaysInput, 10) || 0);
       } else {
         workDays = driverSalaryCurrentWorkDays || 0;
       }
-      const proratedBase = Math.round(dailyRate * workDays);
+      var proratedBase = Math.round(dailyRate * workDays);
 
       document.getElementById('driverSalaryPreviewDaily').textContent = formatVND(dailyRate);
       document.getElementById('driverSalaryPreviewWorkDays').textContent =
@@ -1349,25 +1814,24 @@
       document.getElementById('driverSalaryPreviewBonus').textContent = formatVND(bonus);
       document.getElementById('driverSalaryPreviewDeduction').textContent = formatVND(deduction);
       document.getElementById('driverSalaryPreviewAdvance').textContent = formatVND(advance);
-      // TỔNG THỰC NHẬN = lương theo ngày + thưởng − phạt − đã ứng (không âm)
       document.getElementById('driverSalaryPreviewTotal').textContent =
         formatVND(Math.max(0, proratedBase + bonus - deduction - advance));
     }
 
     async function saveDriverSalary() {
-      const driverId = parseInt(document.getElementById('driverSalaryDriverId').value);
-      const monthVal = document.getElementById('driverSalaryMonth').value;
+      var driverId = parseInt(document.getElementById('driverSalaryDriverId').value, 10);
+      var monthVal = document.getElementById('driverSalaryMonth').value;
       if (!driverId || !monthVal) return;
-      const [year, month] = monthVal.split('-');
-      const workDaysRaw = document.getElementById('driverSalaryWorkDays').value.trim();
+      var parts = monthVal.split('-');
+      var workDaysRaw = document.getElementById('driverSalaryWorkDays').value.trim();
 
       try {
-        const res = await fetch(`/api/admin/driver-staff/${driverId}/salary`, {
+        var res = await authFetch('/api/admin/driver-staff/' + driverId + '/salary', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            year: parseInt(year, 10),
-            month: parseInt(month, 10),
+            year: parseInt(parts[0], 10),
+            month: parseInt(parts[1], 10),
             baseSalary: parseFloat(document.getElementById('driverSalaryBase').value) || 0,
             bonus: parseFloat(document.getElementById('driverSalaryBonus').value) || 0,
             deduction: parseFloat(document.getElementById('driverSalaryDeduction').value) || 0,
@@ -1375,15 +1839,16 @@
             note: document.getElementById('driverSalaryNote').value.trim()
           })
         });
-        const data = await res.json();
+        var data = await res.json();
         if (data.success) {
           closeDriverSalaryModal();
           loadDriverSalarySummary();
+          toast('Đã lưu lương', 'success');
         } else {
-          alert(data.error || 'Lỗi lưu');
+          toast(data.error || 'Lỗi lưu', 'error');
         }
       } catch (e) {
-        alert('Lỗi kết nối');
+        toast('Lỗi kết nối', 'error');
       }
     }
 
@@ -1393,180 +1858,77 @@
     }
 
     async function markDriverSalaryPaidById(driverId) {
-      const monthVal = document.getElementById('driverSalaryMonth').value;
+      var monthVal = document.getElementById('driverSalaryMonth').value;
       if (!monthVal) return;
-      const [year, month] = monthVal.split('-');
+      var parts = monthVal.split('-');
       if (!confirm('Đánh dấu lương tháng này đã trả cho tài xế?')) return;
       try {
-        const res = await fetch(`/api/admin/driver-staff/${driverId}/salary/paid`, {
+        var res = await authFetch('/api/admin/driver-staff/' + driverId + '/salary/paid', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ year: parseInt(year, 10), month: parseInt(month, 10), paid: true })
+          body: JSON.stringify({ year: parseInt(parts[0], 10), month: parseInt(parts[1], 10), paid: true })
         });
-        const data = await res.json();
+        var data = await res.json();
         if (data.success) {
-          alert('Đã đánh dấu đã trả');
+          toast('Đã đánh dấu đã trả', 'success');
           loadDriverSalarySummary();
+          if (selectedDriverId === driverId) showDriverSalaryDetail(driverId);
         } else {
-          alert(data.error || 'Lỗi');
+          toast(data.error || 'Lỗi', 'error');
         }
       } catch (e) {
-        alert('Lỗi kết nối');
+        toast('Lỗi kết nối', 'error');
       }
     }
 
-    function escapeHtml(str) {
-      if (str === null || str === undefined) return '';
-      return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-    }
-
-    // ========== SALARY CONFIG TAB ==========
-    async function initSalaryConfigSelector() {
-      try {
-        const res = await fetch('/api/sales-staff');
-        const data = await res.json();
-        if (data.success) {
-          const select = document.getElementById('salaryConfigStaffSelect');
-          select.innerHTML = '<option value="">-- Chọn nhân viên --</option>' +
-            data.data.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
-        }
-      } catch (e) {
-        console.error('Error loading staff for salary config:', e);
-      }
-    }
-
-    async function loadStaffSalaryConfig() {
-      const staffId = document.getElementById('salaryConfigStaffSelect').value;
-      selectedSalaryConfigStaffId = staffId;
-      
-      if (!staffId) {
-        document.getElementById('salaryConfigContent').style.display = 'none';
-        return;
-      }
-      
-      document.getElementById('salaryConfigContent').style.display = 'block';
-      
-      try {
-        const res = await fetch(`/api/sales-staff/${staffId}/salary-config`);
-        const data = await res.json();
-        
-        if (data.success) {
-          renderSalaryTypeConfig(data.data || []);
-        }
-      } catch (e) {
-        console.error('Error loading salary config:', e);
-      }
-    }
-
-    function renderSalaryTypeConfig(configs) {
-      const container = document.getElementById('salaryTypeConfig');
-      const typeLabels = { keg: 'Keg (Bồn)', pet: 'Pet (Chai nhựa)', box: 'Box (Thùng)' };
-      const typeIcons = { keg: '🍺', pet: '🍶', box: '📦' };
-      
-      container.innerHTML = `
-        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
-          ${['keg', 'pet', 'box'].map(type => {
-            const existing = configs.find(c => c.product_type === type);
-            const salary = existing ? existing.salary_per_liter : '';
-            return `
-              <div class="card" style="padding: 16px; text-align: center;">
-                <div style="font-size: 24px; margin-bottom: 8px;">${typeIcons[type]}</div>
-                <div style="font-weight: 600; margin-bottom: 12px;">${typeLabels[type]}</div>
-                <div style="display: flex; align-items: center; justify-content: center; gap: 8px;">
-                  <input type="number" class="input" style="width: 100px; text-align: center;" 
-                    value="${salary}" placeholder="0" min="0"
-                    onchange="updateStaffSalaryConfig('${type}', this.value)"
-                    id="salaryConfig_${type}">
-                  <span style="font-size: 12px; color: var(--text-muted);">đ/L</span>
-                </div>
-              </div>
-            `;
-          }).join('')}
-        </div>
-      `;
-    }
-
-    async function updateStaffSalaryConfig(productType, value) {
-      if (!selectedSalaryConfigStaffId) return;
-      const salaryPerLiter = parseFloat(value) || 0;
-      
-      try {
-        const res = await fetch(`/api/sales-staff/${selectedSalaryConfigStaffId}/salary-config`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            configs: [{ productType, salaryPerLiter }]
-          })
-        });
-        const data = await res.json();
-        if (!data.success) {
-          alert(data.error || 'Lỗi lưu cấu hình');
-        }
-      } catch (e) {
-        alert('Lỗi kết nối');
-      }
-    }
-
-    function initMonthSelector() {
-      const select = document.getElementById('salaryMonth');
-      select.innerHTML = '';
-      const now = new Date();
-      for (let i = 0; i < 12; i++) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-        const opt = document.createElement('option');
-        opt.value = val;
-        opt.textContent = `Tháng ${d.getMonth() + 1}/${d.getFullYear()}`;
-        if (i === 0) opt.selected = true; // Mặc định chọn tháng hiện tại
-        select.appendChild(opt);
-      }
-    }
-
+    // ══════════════════════════════════════════════════════════════
+    // SALES STAFF — LIST
+    // ══════════════════════════════════════════════════════════════
     async function loadStaffList() {
       try {
-        const res = await fetch('/api/sales-staff');
-        const data = await res.json();
+        var res = await authFetch('/api/sales-staff');
+        var data = await res.json();
         if (data.success) {
           staffList = data.data;
           renderStaffList();
         }
       } catch (e) {
-        document.getElementById('staffList').innerHTML = '<div class="empty-state">Lỗi tải dữ liệu</div>';
+        document.getElementById('staffList').innerHTML = '<div class="ss-empty">Lỗi tải dữ liệu</div>';
       }
     }
 
     function renderStaffList() {
-      const container = document.getElementById('staffList');
+      var container = document.getElementById('staffList');
+      if (!container) return;
       if (staffList.length === 0) {
-        container.innerHTML = '<div class="empty-state">Chưa có nhân viên sales nào.<br><br><button class="btn btn-primary" onclick="openAddStaffModal()">+ Thêm Sales đầu tiên</button></div>';
+        container.innerHTML = '<div class="ss-empty"><div class="ss-empty-icon">👔</div>Chưa có nhân viên sales nào.' +
+          '<br><button type="button" class="ss-btn ss-btn--primary" onclick="openAddStaffModal()">+ Thêm Sales đầu tiên</button></div>';
         return;
       }
-      container.innerHTML = staffList.map(s => `
-        <div class="card staff-card ${selectedStaffId == s.id ? 'selected' : ''}" onclick="selectStaff(${s.id})">
-          <div class="staff-name">${s.name}</div>
-          <div class="staff-stats">📱 ${s.phone || 'Chưa có'} | ${s.total_customers || 0} cửa hàng</div>
-          <div style="margin-top: 8px; display: flex; gap: 8px;">
-            <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); editStaff(${s.id})">✏️ Sửa</button>
-            <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); viewCustomers(${s.id})">🏪 Khách hàng</button>
-            <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); deleteStaff(${s.id}, '${s.name.replace(/'/g, "\\'")}')">🗑️ Xóa</button>
-          </div>
-        </div>
-      `).join('');
+      container.innerHTML = staffList.map(function (s) {
+        return '<div class="ss-card ss-card--tap' + (selectedStaffId == s.id ? ' ss-card--selected' : '') + '" onclick="selectStaff(' + s.id + ')">' +
+          '<div class="ss-card-top">' +
+            '<div class="ss-avatar">' + escapeHtml(initials(s.name)) + '</div>' +
+            '<div class="ss-card-title-wrap">' +
+              '<div class="ss-card-title">' + escapeHtml(s.name) + '</div>' +
+              '<div class="ss-card-sub">📱 ' + escapeHtml(s.phone || 'Chưa có') + ' · ' + (s.total_customers || 0) + ' cửa hàng</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="ss-actions ss-actions--3">' +
+            '<button type="button" class="ss-btn ss-btn--sm" onclick="event.stopPropagation(); editStaff(' + s.id + ')">✏️ Sửa</button>' +
+            '<button type="button" class="ss-btn ss-btn--sm" onclick="event.stopPropagation(); viewCustomers(' + s.id + ')">🏪 Khách</button>' +
+            '<button type="button" class="ss-btn ss-btn--danger ss-btn--sm" onclick="event.stopPropagation(); deleteStaff(' + s.id + ')">🗑 Xoá</button>' +
+          '</div>' +
+        '</div>';
+      }).join('');
     }
 
     function selectStaff(id) {
       selectedStaffId = selectedStaffId === id ? null : id;
       renderStaffList();
       if (selectedStaffId) {
-        const monthVal = document.getElementById('salaryMonth').value;
-        if (monthVal) {
-          loadSalaryDetail(id, monthVal);
-        }
+        var monthVal = document.getElementById('salaryMonth').value;
+        if (monthVal) loadSalaryDetail(id, monthVal);
       } else {
         document.getElementById('salaryDetail').style.display = 'none';
       }
@@ -1578,289 +1940,351 @@
       document.getElementById('staffName').value = '';
       document.getElementById('staffPhone').value = '';
       document.getElementById('staffEmail').value = '';
-      document.getElementById('staffModal').style.display = 'flex';
+      openSheet('staffModal');
     }
 
-    function closeStaffModal() {
-      document.getElementById('staffModal').style.display = 'none';
-    }
+    function closeStaffModal() { closeSheet('staffModal'); }
 
     async function saveStaff() {
-      const name = document.getElementById('staffName').value.trim();
-      if (!name) { alert('Vui lòng nhập tên'); return; }
-      const phone = document.getElementById('staffPhone').value.trim();
-      const email = document.getElementById('staffEmail').value.trim();
-      const id = document.getElementById('editStaffId').value;
+      var name = document.getElementById('staffName').value.trim();
+      if (!name) { toast('Vui lòng nhập tên', 'error'); return; }
+      var phone = document.getElementById('staffPhone').value.trim();
+      var email = document.getElementById('staffEmail').value.trim();
+      var id = document.getElementById('editStaffId').value;
 
       try {
-        const url = id ? `/api/sales-staff/${id}` : '/api/sales-staff';
-        const method = id ? 'PUT' : 'POST';
-        const res = await fetch(url, {
-          method,
+        var url = id ? '/api/sales-staff/' + id : '/api/sales-staff';
+        var method = id ? 'PUT' : 'POST';
+        var res = await authFetch(url, {
+          method: method,
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, phone, email })
+          body: JSON.stringify({ name: name, phone: phone, email: email })
         });
-        const data = await res.json();
+        var data = await res.json();
         if (data.success) {
           closeStaffModal();
           loadStaffList();
+          toast(id ? 'Đã cập nhật Sales' : 'Đã thêm Sales', 'success');
         } else {
-          alert(data.error || 'Lỗi');
+          toast(data.error || 'Lỗi', 'error');
         }
       } catch (e) {
-        alert('Lỗi kết nối');
+        toast('Lỗi kết nối', 'error');
       }
     }
 
     function editStaff(id) {
-      const staff = staffList.find(s => s.id === id);
+      var staff = staffList.find(function (s) { return s.id === id; });
       if (!staff) return;
       document.getElementById('staffModalTitle').textContent = 'Sửa Sales';
       document.getElementById('editStaffId').value = id;
       document.getElementById('staffName').value = staff.name;
       document.getElementById('staffPhone').value = staff.phone || '';
       document.getElementById('staffEmail').value = staff.email || '';
-      document.getElementById('staffModal').style.display = 'flex';
+      openSheet('staffModal');
     }
 
     async function viewCustomers(salesId) {
       try {
-        const res = await fetch(`/api/sales-staff/${salesId}/customers`);
-        const data = await res.json();
+        var res = await authFetch('/api/sales-staff/' + salesId + '/customers');
+        var data = await res.json();
         if (data.success && data.data.length > 0) {
-          // Hiển thị trong modal với link đến trang chi tiết
-          document.getElementById('customerModalTitle').textContent = `Khách hàng của Sales (${data.data.length})`;
-          document.getElementById('customerList').innerHTML = data.data.map(c => `
-            <div class="salary-row" style="cursor:pointer;" onclick="window.open('/customers/${c.id}', '_blank')">
-              <div>
-                <div style="font-weight:600;">${c.name}</div>
-                <div style="font-size:12px;color:var(--text-muted);">${c.phone || 'Không có SĐT'}</div>
-              </div>
-              <div style="text-align:right;">
-                <div style="font-size:12px;color:var(--text-muted);">${c.assigned_at ? 'Gán: ' + formatDate(c.assigned_at) : ''}</div>
-                <div style="font-size:11px;color:var(--primary);">→ Xem chi tiết</div>
-              </div>
-            </div>
-          `).join('');
-          document.getElementById('customerModal').style.display = 'flex';
+          document.getElementById('customerModalTitle').textContent = 'Khách hàng của Sales (' + data.data.length + ')';
+          document.getElementById('customerList').innerHTML = data.data.map(function (c) {
+            return '<div class="ss-card ss-card--tap" onclick="window.open(\'/customers/' + c.id + '\', \'_blank\')">' +
+              '<div class="ss-card-top" style="margin-bottom:6px;">' +
+                '<div class="ss-card-title-wrap">' +
+                  '<div class="ss-card-title">' + escapeHtml(c.name) + '</div>' +
+                  '<div class="ss-card-sub">' + escapeHtml(c.phone || 'Không có SĐT') + '</div>' +
+                '</div>' +
+                '<span class="ss-badge ss-badge--info">→ Xem</span>' +
+              '</div>' +
+              '<div class="ss-hint">Gán từ ' + (c.assigned_at ? formatDate(c.assigned_at) : '—') + '</div>' +
+            '</div>';
+          }).join('');
+          openSheet('customerModal');
         } else {
-          alert('Chưa có khách hàng nào được gán');
+          toast('Chưa có khách hàng nào được gán', 'info');
         }
       } catch (e) {
-        alert('Lỗi tải dữ liệu');
+        toast('Lỗi tải dữ liệu', 'error');
       }
     }
 
-    async function deleteStaff(id, name) {
-      if (!confirm(`Xóa nhân viên "${name}"?\n\nNhân viên sẽ bị vô hiệu hóa (không xóa dữ liệu).`)) return;
+    async function deleteStaff(id) {
+      var staff = staffList.find(function (s) { return s.id === id; });
+      var name = staff ? staff.name : '';
+      if (!confirm('Xóa nhân viên "' + name + '"?\n\nNhân viên sẽ bị vô hiệu hóa (không xóa dữ liệu).')) return;
       try {
-        const res = await fetch(`/api/sales-staff/${id}`, { method: 'DELETE' });
-        const data = await res.json();
+        var res = await authFetch('/api/sales-staff/' + id, { method: 'DELETE' });
+        var data = await res.json();
         if (data.success) {
           loadStaffList();
+          toast('Đã vô hiệu hóa nhân viên', 'success');
         } else {
-          alert(data.error || 'Lỗi xóa');
+          toast(data.error || 'Lỗi xóa', 'error');
         }
       } catch (e) {
-        alert('Lỗi kết nối');
+        toast('Lỗi kết nối', 'error');
       }
     }
 
+    // ══════════════════════════════════════════════════════════════
+    // SALES — TÍNH LƯƠNG
+    // ══════════════════════════════════════════════════════════════
     async function loadSalarySummary() {
-      const monthVal = document.getElementById('salaryMonth').value;
+      var monthVal = document.getElementById('salaryMonth').value;
       if (!monthVal) return;
-
-      const [year, month] = monthVal.split('-');
-      const container = document.getElementById('salarySummary');
+      var parts = monthVal.split('-');
+      var container = document.getElementById('salarySummary');
 
       try {
-        const res = await fetch(`/api/sales-staff/salary-summary/${year}/${month}`);
-        const data = await res.json();
-        if (data.success) {
-          renderSalarySummary(data.data);
-        }
+        var res = await authFetch('/api/sales-staff/salary-summary/' + parts[0] + '/' + parts[1]);
+        var data = await res.json();
+        if (data.success) renderSalarySummary(data.data);
       } catch (e) {
-        container.innerHTML = '<div class="empty-state">Lỗi tải dữ liệu</div>';
+        container.innerHTML = '<div class="ss-empty">Lỗi tải dữ liệu</div>';
       }
     }
 
     function renderSalarySummary(list) {
-      const container = document.getElementById('salarySummary');
+      var container = document.getElementById('salarySummary');
+      if (!container) return;
       if (list.length === 0) {
-        container.innerHTML = '<div class="empty-state">Không có nhân viên sales nào</div>';
+        container.innerHTML = '<div class="ss-empty"><div class="ss-empty-icon">💰</div>Không có nhân viên sales nào</div>';
         return;
       }
+      var total = list.reduce(function (s, x) { return s + (x.totalAmount || 0); }, 0);
 
-      container.innerHTML = `
-        <div class="grid grid-3">
-          ${list.map(s => `
-            <div class="card staff-card ${selectedStaffId == s.id ? 'selected' : ''}" onclick="selectStaff(${s.id})">
-              <div style="display:flex;justify-content:space-between;align-items:start;">
-                <div class="staff-name">${s.name}</div>
-                ${s.isPaid ? '<span class="badge badge-paid">Đã trả</span>' : '<span class="badge badge-pending">Chưa trả</span>'}
-              </div>
-              <div style="margin: 12px 0;">
-                <div><span class="stat-label">Tổng lít:</span> <span class="stat-value">${s.totalLiters || 0}</span></div>
-                <div><span class="stat-label">Lương/lít:</span> <span>${formatVND(s.salary_per_liter || 1000)}</span></div>
-              </div>
-              <div class="salary-row">
-                <span>Lương</span>
-                <span>${formatVND(s.totalSalary || 0)}</span>
-              </div>
-              <div class="salary-row">
-                <span>Hoa hồng</span>
-                <span>${formatVND(s.commissionAmount || 0)}</span>
-              </div>
-              <div class="salary-row salary-total">
-                <span>Tổng</span>
-                <span>${formatVND(s.totalAmount || 0)}</span>
-              </div>
-            </div>
-          `).join('')}
-        </div>
-      `;
+      container.innerHTML =
+        '<div class="ss-total-bar">' +
+          '<span class="ss-total-label">Tổng lương phải trả</span>' +
+          '<span class="ss-total-value">' + formatVND(total) + '</span>' +
+        '</div>' +
+        '<div class="ss-card-list ss-card-list--3">' +
+          list.map(function (s) {
+            return '<div class="ss-card ss-card--tap' + (selectedStaffId == s.id ? ' ss-card--selected' : '') + '" onclick="selectStaff(' + s.id + ')">' +
+              '<div class="ss-card-top">' +
+                '<div class="ss-avatar">' + escapeHtml(initials(s.name)) + '</div>' +
+                '<div class="ss-card-title-wrap">' +
+                  '<div class="ss-card-title">' + escapeHtml(s.name) + '</div>' +
+                  '<div class="ss-card-sub">' + (s.totalLiters || 0) + ' lít bán được</div>' +
+                '</div>' +
+                (s.isPaid
+                  ? '<span class="ss-badge ss-badge--ok">Đã trả</span>'
+                  : '<span class="ss-badge ss-badge--warn">Chưa trả</span>') +
+              '</div>' +
+              '<div class="ss-metrics">' +
+                '<div class="ss-metric"><span class="ss-metric-label">Tổng lít</span><span class="ss-metric-value">' + (s.totalLiters || 0) + ' L</span></div>' +
+                '<div class="ss-metric"><span class="ss-metric-label">Lương/lít</span><span class="ss-metric-value">' + formatVND(s.salary_per_liter || 1000) + '</span></div>' +
+                '<div class="ss-metric"><span class="ss-metric-label">Lương</span><span class="ss-metric-value">' + formatVND(s.totalSalary || 0) + '</span></div>' +
+                '<div class="ss-metric"><span class="ss-metric-label">Hoa hồng</span><span class="ss-metric-value">' + formatVND(s.commissionAmount || 0) + '</span></div>' +
+              '</div>' +
+              '<div class="ss-row ss-row--total" style="margin-bottom:0;">' +
+                '<span class="ss-row-label">Tổng</span>' +
+                '<span class="ss-row-value">' + formatVND(s.totalAmount || 0) + '</span>' +
+              '</div>' +
+            '</div>';
+          }).join('') +
+        '</div>';
     }
 
     async function loadSalaryDetail(staffId, monthVal) {
-      const [year, month] = monthVal.split('-');
+      var parts = monthVal.split('-');
       document.getElementById('salaryDetail').style.display = 'block';
 
-      const staff = staffList.find(s => s.id === staffId);
-      document.getElementById('detailStaffName').textContent = `Chi tiết lương: ${staff?.name || 'Sales'}`;
+      var staff = staffList.find(function (s) { return s.id === staffId; });
+      document.getElementById('detailStaffName').textContent = 'Chi tiết — ' + (staff ? staff.name : 'Sales');
 
       try {
-        const [salaryRes, breakdownRes] = await Promise.all([
-          fetch(`/api/sales-staff/${staffId}/salary/${year}/${month}`),
-          fetch(`/api/sales-staff/${staffId}/breakdown/${year}/${month}`)
+        var results = await Promise.all([
+          authFetch('/api/sales-staff/' + staffId + '/salary/' + parts[0] + '/' + parts[1]),
+          authFetch('/api/sales-staff/' + staffId + '/breakdown/' + parts[0] + '/' + parts[1])
         ]);
-        const salaryData = await salaryRes.json();
-        const breakdownData = await breakdownRes.json();
+        var salaryData = await results[0].json();
+        var breakdownData = await results[1].json();
 
-        if (salaryData.success) {
-          const s = salaryData.data;
-          // Hiển thị/ẩn nút đánh dấu đã trả
-          const markPaidBtn = document.getElementById('markPaidBtn');
-          markPaidBtn.style.display = s.isPaid ? 'none' : 'inline-block';
-          let breakdownHtml = '';
-          if (breakdownData.success && breakdownData.data.length > 0) {
-            breakdownHtml = breakdownData.data.map(b => `
-              <div class="salary-row">
-                <span>${b.product_name}</span>
-                <span>${b.total_liters}L × ${formatVND(b.total_salary / b.total_liters)} = ${formatVND(b.total_salary)}</span>
-              </div>
-            `).join('');
-          }
-
-          // Build customer breakdown HTML
-          let customerBreakdownHtml = '';
-          if (s.byCustomer) {
-            const customers = Object.values(s.byCustomer).sort((a, b) => b.liters - a.liters);
-            customerBreakdownHtml = `
-              <div style="margin-top:16px;">
-                <div class="card-title mb-2">Chi tiết theo khách hàng:</div>
-                ${customers.map(c => `
-                  <div style="margin-bottom:12px;padding:12px;background:var(--bg-soft);border-radius:8px;">
-                    <div style="font-weight:600;margin-bottom:8px;">${c.customerName}</div>
-                    <div style="font-size:13px;">
-                      <div class="flex justify-between"><span>Tổng lít:</span><span>${c.liters}L</span></div>
-                      <div class="flex justify-between"><span>Tiền lương:</span><span>${formatVND(c.salary)}</span></div>
-                      ${c.items.map(item => `
-                        <div style="margin-left:12px;padding:4px 0;border-bottom:1px dashed var(--border);font-size:12px;color:var(--text-muted);">
-                          ${item.date.substring(0,10)} - ${item.productName}: ${item.quantity}L × ${formatVND(item.salaryPerLiter)} = ${formatVND(item.salary)}
-                        </div>
-                      `).join('')}
-                    </div>
-                  </div>
-                `).join('')}
-              </div>
-            `;
-          }
-
-          // Build product breakdown HTML
-          let productBreakdownHtml = '';
-          if (s.byProductType) {
-            const products = Object.entries(s.byProductType).filter(([, data]) => data.liters > 0);
-            const typeLabels = { keg: 'Keg (Bồn)', pet: 'Pet (Chai nhựa)', bottle: 'Chai', box: 'Thùng', other: 'Khác' };
-            productBreakdownHtml = `
-              <div style="margin-top:16px;">
-                <div class="card-title mb-2">Chi tiết theo sản phẩm:</div>
-                ${products.map(([type, data]) => `
-                  <div class="salary-row" style="background:var(--bg-soft);">
-                    <span>${typeLabels[type] || type}</span>
-                    <span>${data.liters}L × ${formatVND(data.salaryPerLiter || 1000)} = ${formatVND(data.salary)}</span>
-                  </div>
-                `).join('')}
-              </div>
-            `;
-          }
-
-          document.getElementById('detailContent').innerHTML = `
-            <div class="salary-row">
-              <span>Tổng lít bán được</span>
-              <span>${s.totalLiters} L</span>
-            </div>
-            <div class="salary-row">
-              <span>Lương theo sản lượng</span>
-              <span>${formatVND(s.totalSalary)}</span>
-            </div>
-            ${s.newCustomersCount > 0 ? `
-            <div class="salary-row" style="background:rgba(34,197,94,0.1);">
-              <span>Hoa hồng mở cửa hàng (${s.newCustomersCount} khách đạt ${s.minimumKegLiters}L keg/inox trong ${s.commissionWindowDays} ngày)</span>
-              <span>${formatVND(s.commissionAmount)}</span>
-            </div>
-            ` : ''}
-            <div class="salary-row salary-total">
-              <span>TỔNG CẦN TRẢ</span>
-              <span>${formatVND(s.totalAmount)}</span>
-            </div>
-            ${s.isPaid ? `<div style="margin-top:12px;padding:12px;background:rgba(34,197,94,0.1);border-radius:8px;text-align:center;color:#22c55e;font-weight:600;">✓ Đã thanh toán ngày ${formatDate(s.paidAt)}</div>` : ''}
-            ${customerBreakdownHtml}
-            ${productBreakdownHtml}
-          `;
+        if (!salaryData.success) {
+          document.getElementById('detailContent').innerHTML = '<div class="ss-empty">Lỗi tải dữ liệu</div>';
+          return;
         }
+        var s = salaryData.data;
+        var markPaidBtn = document.getElementById('markPaidBtn');
+        markPaidBtn.style.display = s.isPaid ? 'none' : 'inline-flex';
+
+        var breakdownHtml = '';
+        if (breakdownData.success && breakdownData.data.length > 0) {
+          breakdownHtml = breakdownData.data.map(function (b) {
+            return '<div class="ss-row"><span class="ss-row-label" style="text-align:left;flex:1;">' + escapeHtml(b.product_name) + '</span>' +
+              '<span class="ss-row-value">' + b.total_liters + 'L × ' + formatVND(b.total_salary / b.total_liters) + ' = ' + formatVND(b.total_salary) + '</span></div>';
+          }).join('');
+        }
+
+        var customerBreakdownHtml = '';
+        if (s.byCustomer) {
+          var customers = Object.values(s.byCustomer).sort(function (a, b) { return b.liters - a.liters; });
+          customerBreakdownHtml = '<div style="margin-top:16px;">' +
+            '<div class="ss-sec-title" style="font-size:13.5px;margin-bottom:8px;">Chi tiết theo khách hàng</div>' +
+            customers.map(function (c) {
+              return '<div class="ss-card" style="background:var(--bg-secondary);margin-bottom:8px;">' +
+                '<div class="ss-card-title" style="font-size:13.5px;margin-bottom:6px;">' + escapeHtml(c.customerName) + '</div>' +
+                '<div class="ss-row"><span class="ss-row-label">Tổng lít</span><span class="ss-row-value">' + c.liters + ' L</span></div>' +
+                '<div class="ss-row"><span class="ss-row-label">Tiền lương</span><span class="ss-row-value">' + formatVND(c.salary) + '</span></div>' +
+                c.items.map(function (item) {
+                  return '<div class="ss-hint" style="padding:5px 0;border-bottom:1px dashed var(--border);">' +
+                    escapeHtml(String(item.date).substring(0, 10)) + ' — ' + escapeHtml(item.productName) + ': ' +
+                    item.quantity + 'L × ' + formatVND(item.salaryPerLiter) + ' = ' + formatVND(item.salary) + '</div>';
+                }).join('') +
+              '</div>';
+            }).join('') + '</div>';
+        }
+
+        var productBreakdownHtml = '';
+        if (s.byProductType) {
+          var products = Object.entries(s.byProductType).filter(function (e) { return e[1].liters > 0; });
+          var typeLabels = { keg: 'Keg (Bồn)', pet: 'Pet (Chai nhựa)', bottle: 'Chai', box: 'Thùng', other: 'Khác' };
+          productBreakdownHtml = '<div style="margin-top:16px;">' +
+            '<div class="ss-sec-title" style="font-size:13.5px;margin-bottom:8px;">Chi tiết theo sản phẩm</div>' +
+            products.map(function (e) {
+              return '<div class="ss-row"><span class="ss-row-label">' + (typeLabels[e[0]] || e[0]) + '</span>' +
+                '<span class="ss-row-value">' + e[1].liters + 'L × ' + formatVND(e[1].salaryPerLiter || 1000) + ' = ' + formatVND(e[1].salary) + '</span></div>';
+            }).join('') + '</div>';
+        }
+
+        document.getElementById('detailContent').innerHTML =
+          '<div class="ss-row"><span class="ss-row-label">Tổng lít bán được</span><span class="ss-row-value">' + s.totalLiters + ' L</span></div>' +
+          '<div class="ss-row"><span class="ss-row-label">Lương theo sản lượng</span><span class="ss-row-value">' + formatVND(s.totalSalary) + '</span></div>' +
+          (s.newCustomersCount > 0
+            ? '<div class="ss-row" style="background:var(--success-dim);border-radius:10px;padding:10px 12px;margin:6px 0;">' +
+              '<span class="ss-row-label" style="text-align:left;flex:1;">Hoa hồng mở cửa hàng (' + s.newCustomersCount + ' khách đạt ' + s.minimumKegLiters + 'L)</span>' +
+              '<span class="ss-row-value" style="color:var(--green);">' + formatVND(s.commissionAmount) + '</span></div>'
+            : '') +
+          '<div class="ss-row ss-row--total"><span class="ss-row-label">TỔNG CẦN TRẢ</span><span class="ss-row-value">' + formatVND(s.totalAmount) + '</span></div>' +
+          (s.isPaid
+            ? '<div class="ss-info" style="text-align:center;color:var(--green);font-weight:700;">✓ Đã thanh toán ngày ' + formatDate(s.paidAt) + '</div>'
+            : '') +
+          (breakdownHtml ? '<div style="margin-top:14px;"><div class="ss-sec-title" style="font-size:13.5px;margin-bottom:6px;">Chi tiết theo sản phẩm đã bán</div>' + breakdownHtml + '</div>' : '') +
+          customerBreakdownHtml +
+          productBreakdownHtml;
       } catch (e) {
-        document.getElementById('detailContent').innerHTML = '<div class="empty-state">Lỗi tải dữ liệu</div>';
+        document.getElementById('detailContent').innerHTML = '<div class="ss-empty">Lỗi tải dữ liệu</div>';
       }
     }
 
     async function markSalaryPaid() {
       if (!selectedStaffId) return;
-      const monthVal = document.getElementById('salaryMonth').value;
+      var monthVal = document.getElementById('salaryMonth').value;
       if (!monthVal) return;
-      const [year, month] = monthVal.split('-');
-
+      var parts = monthVal.split('-');
       if (!confirm('Đánh dấu lương đã trả cho nhân viên này?')) return;
 
       try {
-        const res = await fetch('/api/sales-staff/mark-salary-paid', {
+        var res = await authFetch('/api/sales-staff/mark-salary-paid', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ salesId: selectedStaffId, year, month })
+          body: JSON.stringify({ salesId: selectedStaffId, year: parts[0], month: parts[1] })
         });
-        const data = await res.json();
+        var data = await res.json();
         if (data.success) {
-          alert('Đã đánh dấu đã trả!');
+          toast('Đã đánh dấu đã trả!', 'success');
           loadSalarySummary();
           loadSalaryDetail(selectedStaffId, monthVal);
         }
       } catch (e) {
-        alert('Lỗi kết nối');
+        toast('Lỗi kết nối', 'error');
       }
     }
 
+    // ══════════════════════════════════════════════════════════════
+    // SALES — CẤU HÌNH LƯƠNG
+    // ══════════════════════════════════════════════════════════════
+    async function initSalaryConfigSelector() {
+      try {
+        var res = await authFetch('/api/sales-staff');
+        var data = await res.json();
+        if (data.success) {
+          var select = document.getElementById('salaryConfigStaffSelect');
+          select.innerHTML = '<option value="">-- Chọn nhân viên --</option>' +
+            data.data.map(function (s) { return '<option value="' + s.id + '">' + escapeHtml(s.name) + '</option>'; }).join('');
+        }
+      } catch (e) {
+        console.error('Error loading staff for salary config:', e);
+      }
+    }
+
+    async function loadStaffSalaryConfig() {
+      var staffId = document.getElementById('salaryConfigStaffSelect').value;
+      selectedSalaryConfigStaffId = staffId;
+
+      if (!staffId) {
+        document.getElementById('salaryConfigContent').style.display = 'none';
+        return;
+      }
+      document.getElementById('salaryConfigContent').style.display = 'block';
+
+      try {
+        var res = await authFetch('/api/sales-staff/' + staffId + '/salary-config');
+        var data = await res.json();
+        if (data.success) renderSalaryTypeConfig(data.data || []);
+      } catch (e) {
+        console.error('Error loading salary config:', e);
+      }
+    }
+
+    function renderSalaryTypeConfig(configs) {
+      var container = document.getElementById('salaryTypeConfig');
+      if (!container) return;
+      var typeLabels = { keg: '🍺 Keg (Bồn)', pet: '🍶 Pet (Chai nhựa)', box: '📦 Box (Thùng)' };
+
+      container.innerHTML = '<div class="ss-metrics" style="grid-template-columns:repeat(3,minmax(0,1fr));">' +
+        ['keg', 'pet', 'box'].map(function (type) {
+          var existing = configs.find(function (c) { return c.product_type === type; });
+          var salary = existing ? existing.salary_per_liter : '';
+          return '<div class="ss-card" style="margin:0;text-align:center;padding:12px 8px;">' +
+            '<div style="font-size:20px;margin-bottom:4px;">' + (typeLabels[type] || type).split(' ')[0] + '</div>' +
+            '<div style="font-size:11.5px;font-weight:700;color:var(--text-primary);margin-bottom:8px;">' +
+              (typeLabels[type] || type).split(' ').slice(1).join(' ') + '</div>' +
+            '<input type="number" class="ss-input" style="text-align:center;font-weight:700;" ' +
+              'value="' + salary + '" placeholder="0" min="0" inputmode="numeric" ' +
+              'onchange="updateStaffSalaryConfig(\'' + type + '\', this.value)">' +
+            '<div class="ss-hint">đ / lít</div>' +
+          '</div>';
+        }).join('') + '</div>';
+    }
+
+    async function updateStaffSalaryConfig(productType, value) {
+      if (!selectedSalaryConfigStaffId) return;
+      var salaryPerLiter = parseFloat(value) || 0;
+      try {
+        var res = await authFetch('/api/sales-staff/' + selectedSalaryConfigStaffId + '/salary-config', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ configs: [{ productType: productType, salaryPerLiter: salaryPerLiter }] })
+        });
+        var data = await res.json();
+        if (!data.success) toast(data.error || 'Lỗi lưu cấu hình', 'error');
+        else toast('Đã lưu', 'success');
+      } catch (e) {
+        toast('Lỗi kết nối', 'error');
+      }
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // HOA HỒNG SẢN PHẨM + HOA HỒNG MỞ CỬA HÀNG
+    // ══════════════════════════════════════════════════════════════
     async function loadCommissionConfig() {
-      const container = document.getElementById('productCommissionsList');
+      var container = document.getElementById('productCommissionsList');
       if (!container) return;
 
       try {
-        const res = await fetch('/api/sales-staff/config/commissions');
-        const data = await res.json();
+        var res = await authFetch('/api/sales-staff/config/commissions');
+        var data = await res.json();
         if (data.success && data.data) {
-          const config = data.data.config || {};
-          const products = data.data.products || [];
-          const amountInput = document.getElementById('newShopCommission');
-          const windowDaysInput = document.getElementById('newShopWindowDays');
-          const minKegInput = document.getElementById('newShopMinKegLiters');
+          var config = data.data.config || {};
+          var products = data.data.products || [];
+          var amountInput = document.getElementById('newShopCommission');
+          var windowDaysInput = document.getElementById('newShopWindowDays');
+          var minKegInput = document.getElementById('newShopMinKegLiters');
           if (amountInput) amountInput.value = config.new_shop_commission || 500000;
           if (windowDaysInput) windowDaysInput.value = config.new_shop_window_days || 30;
           if (minKegInput) minKegInput.value = config.new_shop_min_keg_liters || 200;
@@ -1875,7 +2299,7 @@
 
     function getCommissionLabel(p) {
       if (p.product_name) return p.product_name;
-      const typeLabels = {
+      var typeLabels = {
         all: 'Tất cả sản phẩm',
         keg: 'Theo loại: Bình (keg)',
         pet: 'Theo loại: Chai PET',
@@ -1885,85 +2309,79 @@
     }
 
     function renderProductCommissions(list) {
-      const container = document.getElementById('productCommissionsList');
-      if (!container) {
-        console.error('Missing product commissions container');
-        return;
-      }
+      var container = document.getElementById('productCommissionsList');
+      if (!container) return;
       if (!list || list.length === 0) {
-        container.innerHTML = '<div class="empty-state">Chưa có cấu hình hoa hồng nào.<br><br><button class="btn btn-primary" onclick="openAddProductCommission()">+ Thêm cấu hình đầu tiên</button></div>';
+        container.innerHTML = '<div class="ss-empty" style="padding:20px 8px;">Chưa có cấu hình hoa hồng nào.' +
+          '<br><button type="button" class="ss-btn ss-btn--primary ss-btn--sm" onclick="openAddProductCommission()">+ Thêm cấu hình</button></div>';
         return;
       }
-      
-      const summary = list.map(p => `${getCommissionLabel(p)}: ${formatVND(p.salary_per_liter)}/lít`).join(' | ');
-      
-      container.innerHTML = list.map(p => `
-        <div class="card" style="margin-bottom: 8px;">
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <div>
-              <div style="font-weight: 600;">${getCommissionLabel(p)}</div>
-              <div style="font-size: 12px; color: var(--text-muted);">${p.product_type}</div>
-            </div>
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <input type="number" class="input" style="width: 100px;" value="${p.salary_per_liter}"
-                onchange="updateProductCommission(${p.id}, this.value)">
-              <span style="font-size:12px;">đ/lít</span>
-              <button class="btn btn-danger btn-sm" onclick="deleteProductCommission(${p.id})">🗑️</button>
-            </div>
-          </div>
-        </div>
-      `).join('') + `<div style="margin-top:16px;padding:12px;background:var(--bg-soft);border-radius:8px;font-size:13px;"><strong>Đang áp dụng:</strong> ${summary}</div>`;
+
+      container.innerHTML = list.map(function (p) {
+        return '<div class="ss-card" style="margin-bottom:8px;padding:12px;">' +
+          '<div class="ss-card-top" style="margin-bottom:8px;">' +
+            '<div class="ss-card-title-wrap">' +
+              '<div class="ss-card-title" style="font-size:13.5px;">' + escapeHtml(getCommissionLabel(p)) + '</div>' +
+              '<div class="ss-card-sub">' + escapeHtml(p.product_type) + '</div>' +
+            '</div>' +
+            '<button type="button" class="ss-btn ss-btn--danger ss-btn--sm" onclick="deleteProductCommission(' + p.id + ')">🗑</button>' +
+          '</div>' +
+          '<div style="display:flex;align-items:center;gap:8px;">' +
+            '<input type="number" class="ss-input" style="flex:1;" inputmode="numeric" value="' + p.salary_per_liter + '" ' +
+              'onchange="updateProductCommission(' + p.id + ', this.value)">' +
+            '<span style="font-size:12px;color:var(--text-muted);white-space:nowrap;">đ / lít</span>' +
+          '</div>' +
+        '</div>';
+      }).join('');
     }
 
     async function updateProductCommission(id, value) {
-      if (!value && value !== 0) return;
+      if (value === '' || value === null) return;
       try {
-        const res = await fetch(`/api/sales-staff/config/product-commission/${id}`, {
+        var res = await authFetch('/api/sales-staff/config/product-commission/' + id, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ salaryPerLiter: parseFloat(value) })
         });
-        const data = await res.json();
-        if (!data.success) alert(data.error || 'Lỗi lưu');
+        var data = await res.json();
+        if (!data.success) toast(data.error || 'Lỗi lưu', 'error');
+        else toast('Đã lưu', 'success');
       } catch (e) {
-        alert('Lỗi kết nối');
+        toast('Lỗi kết nối', 'error');
       }
     }
 
     async function saveNewShopCommission() {
-      const amount = parseFloat(document.getElementById('newShopCommission').value) || 0;
-      const windowDays = parseInt(document.getElementById('newShopWindowDays').value, 10) || 30;
-      const minimumKegLiters = parseFloat(document.getElementById('newShopMinKegLiters').value) || 0;
+      var amount = parseFloat(document.getElementById('newShopCommission').value) || 0;
+      var windowDays = parseInt(document.getElementById('newShopWindowDays').value, 10) || 30;
+      var minimumKegLiters = parseFloat(document.getElementById('newShopMinKegLiters').value) || 0;
       try {
-        const res = await fetch('/api/sales-staff/config/new-shop-commission', {
+        var res = await authFetch('/api/sales-staff/config/new-shop-commission', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ amount, windowDays, minimumKegLiters })
+          body: JSON.stringify({ amount: amount, windowDays: windowDays, minimumKegLiters: minimumKegLiters })
         });
-        const data = await res.json();
-        if (!data.success) {
-          alert(data.error || 'Lỗi lưu cấu hình');
-          return;
-        }
-        alert('Đã lưu cấu hình hoa hồng mở cửa hàng');
+        var data = await res.json();
+        if (!data.success) { toast(data.error || 'Lỗi lưu cấu hình', 'error'); return; }
+        toast('Đã lưu cấu hình hoa hồng mở cửa hàng', 'success');
         loadSalarySummary();
         if (selectedStaffId) {
-          const monthVal = document.getElementById('salaryMonth').value;
+          var monthVal = document.getElementById('salaryMonth').value;
           if (monthVal) loadSalaryDetail(selectedStaffId, monthVal);
         }
       } catch (e) {
-        alert('Lỗi kết nối');
+        toast('Lỗi kết nối', 'error');
       }
     }
 
     async function loadProducts() {
       try {
-        const res = await fetch('/api/products');
-        const data = await res.json();
-        const products = Array.isArray(data) ? data : (data.data || []);
-        const select = document.getElementById('productSelect');
+        var res = await authFetch('/api/products');
+        var data = await res.json();
+        var products = Array.isArray(data) ? data : (data.data || []);
+        var select = document.getElementById('productSelect');
         select.innerHTML = '<option value="">-- Chọn sản phẩm --</option>' +
-          products.map(p => `<option value="${p.id}">${p.name} (${p.type})</option>`).join('');
+          products.map(function (p) { return '<option value="' + p.id + '">' + escapeHtml(p.name) + ' (' + escapeHtml(p.type) + ')</option>'; }).join('');
       } catch (e) {
         // Silent fail
       }
@@ -1976,91 +2394,137 @@
       document.getElementById('productTypeSelect').value = 'keg';
       document.getElementById('salaryPerLiter').value = '';
       loadProducts();
-      document.getElementById('productCommissionModal').style.display = 'flex';
+      openSheet('productCommissionModal');
     }
 
-    function editProductCommission(id, productName, productType, salaryPerLiter) {
-      document.getElementById('productCommissionModalTitle').textContent = 'Sửa hoa hồng sản phẩm';
-      document.getElementById('editProductCommissionId').value = id;
-      document.getElementById('productSelect').value = '';
-      document.getElementById('productTypeSelect').value = productType;
-      document.getElementById('salaryPerLiter').value = salaryPerLiter;
-      loadProducts();
-      document.getElementById('productCommissionModal').style.display = 'flex';
-    }
-
-    function closeProductCommissionModal() {
-      document.getElementById('productCommissionModal').style.display = 'none';
-    }
+    function closeProductCommissionModal() { closeSheet('productCommissionModal'); }
 
     async function saveProductCommission() {
-      const id = document.getElementById('editProductCommissionId').value;
-      const productId = document.getElementById('productSelect').value;
-      const productType = document.getElementById('productTypeSelect').value;
-      const salaryPerLiter = document.getElementById('salaryPerLiter').value;
+      var id = document.getElementById('editProductCommissionId').value;
+      var productId = document.getElementById('productSelect').value;
+      var productType = document.getElementById('productTypeSelect').value;
+      var salaryPerLiter = document.getElementById('salaryPerLiter').value;
 
-      if (!salaryPerLiter) {
-        alert('Vui lòng nhập hoa hồng');
-        return;
-      }
+      if (!salaryPerLiter) { toast('Vui lòng nhập hoa hồng', 'error'); return; }
 
       try {
-        const url = id ? `/api/sales-staff/config/product-commission/${id}` : '/api/sales-staff/config/product-commission';
-        const method = id ? 'PUT' : 'POST';
-        const bodyData = { productId: productId || null, productType, salaryPerLiter: parseFloat(salaryPerLiter) };
-        const res = await fetch(url, {
-          method,
+        var url = id
+          ? '/api/sales-staff/config/product-commission/' + id
+          : '/api/sales-staff/config/product-commission';
+        var method = id ? 'PUT' : 'POST';
+        var bodyData = { productId: productId || null, productType: productType, salaryPerLiter: parseFloat(salaryPerLiter) };
+        var res = await authFetch(url, {
+          method: method,
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(bodyData)
         });
-        const data = await res.json();
+        var data = await res.json();
         if (data.success) {
           closeProductCommissionModal();
           loadCommissionConfig();
+          toast('Đã lưu', 'success');
         } else {
-          alert(data.error || 'Lỗi lưu');
+          toast(data.error || 'Lỗi lưu', 'error');
         }
       } catch (e) {
-        alert('Lỗi kết nối');
+        toast('Lỗi kết nối', 'error');
       }
     }
 
     async function deleteProductCommission(id) {
       if (!confirm('Xóa cấu hình hoa hồng này?')) return;
       try {
-        const res = await fetch(`/api/sales-staff/config/product-commission/${id}`, { method: 'DELETE' });
-        const data = await res.json();
+        var res = await authFetch('/api/sales-staff/config/product-commission/' + id, { method: 'DELETE' });
+        var data = await res.json();
         if (data.success) {
           loadCommissionConfig();
+          toast('Đã xoá', 'success');
         } else {
-          alert(data.error || 'Lỗi xóa');
+          toast(data.error || 'Lỗi xóa', 'error');
         }
       } catch (e) {
-        alert('Lỗi kết nối');
+        toast('Lỗi kết nối', 'error');
       }
     }
 
-    function formatVND(num) {
-      return new Intl.NumberFormat('vi-VN').format(num || 0) + ' đ';
+    // ══════════ MONTH SELECTORS ══════════
+    function initMonthSelector() {
+      var select = document.getElementById('salaryMonth');
+      if (!select) return;
+      select.innerHTML = '';
+      var now = new Date();
+      for (var i = 0; i < 12; i++) {
+        var d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        var val = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+        var opt = document.createElement('option');
+        opt.value = val;
+        opt.textContent = 'Tháng ' + (d.getMonth() + 1) + '/' + d.getFullYear();
+        if (i === 0) opt.selected = true;
+        select.appendChild(opt);
+      }
     }
 
-    function formatDate(dateStr) {
-      if (!dateStr) return '';
-      // YYYY-MM-DD: parse thủ công theo giờ địa phương để tránh lệch 1 ngày do UTC
-      const raw = String(dateStr).trim().slice(0, 10);
-      const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-      if (m) {
-        const d = new Date(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10));
-        return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
-      }
-      const d = new Date(dateStr);
-      if (Number.isNaN(d.getTime())) return '';
-      return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
-    }
+    // ══════════ EXPOSE TO WINDOW (inline onclick chạy ngoài scope IIFE) ══════════
+    // LƯU Ý: không dùng eval() vì strict-mode direct eval KHÔNG nhìn thấy
+    // function-scoped declarations của IIFE (chỉ thấy lexical scope) → ReferenceError.
+    // Dùng object literal để gán trực tiếp các function declaration.
+    Object.assign(window, {
+      switchTab: switchTab,
+      switchGroup: switchGroup,
+      renderSubtabs: renderSubtabs,
+      loadStaffList: loadStaffList,
+      loadSalarySummary: loadSalarySummary,
+      loadSalaryDetail: loadSalaryDetail,
+      loadDriverList: loadDriverList,
+      loadDriverSalarySummary: loadDriverSalarySummary,
+      loadAttendanceSummary: loadAttendanceSummary,
+      loadAttendanceGrid: loadAttendanceGrid,
+      loadStaffSalaryConfig: loadStaffSalaryConfig,
+      loadCommissionConfig: loadCommissionConfig,
+      loadProducts: loadProducts,
+      openAddStaffModal: openAddStaffModal,
+      closeStaffModal: closeStaffModal,
+      saveStaff: saveStaff,
+      editStaff: editStaff,
+      viewCustomers: viewCustomers,
+      deleteStaff: deleteStaff,
+      selectStaff: selectStaff,
+      markSalaryPaid: markSalaryPaid,
+      openDriverModal: openDriverModal,
+      closeDriverModal: closeDriverModal,
+      saveDriver: saveDriver,
+      toggleDriverActive: toggleDriverActive,
+      resetDriverPassword: resetDriverPassword,
+      openDriverSalaryModal: openDriverSalaryModal,
+      closeDriverSalaryModal: closeDriverSalaryModal,
+      saveDriverSalary: saveDriverSalary,
+      showDriverSalaryDetail: showDriverSalaryDetail,
+      markDriverSalaryPaid: markDriverSalaryPaid,
+      markDriverSalaryPaidById: markDriverSalaryPaidById,
+      unmarkDriverSalaryPaid: unmarkDriverSalaryPaid,
+      openDriverAdvanceModal: openDriverAdvanceModal,
+      closeDriverAdvanceModal: closeDriverAdvanceModal,
+      saveDriverAdvance: saveDriverAdvance,
+      cancelDriverAdvance: cancelDriverAdvance,
+      updateDriverSalaryPreview: updateDriverSalaryPreview,
+      updateDriverAdvancePreview: updateDriverAdvancePreview,
+      attendanceToggle: attendanceToggle,
+      attendanceMarkWeekdays: attendanceMarkWeekdays,
+      attendanceClearMonth: attendanceClearMonth,
+      openAddProductCommission: openAddProductCommission,
+      closeProductCommissionModal: closeProductCommissionModal,
+      saveProductCommission: saveProductCommission,
+      deleteProductCommission: deleteProductCommission,
+      updateProductCommission: updateProductCommission,
+      updateStaffSalaryConfig: updateStaffSalaryConfig,
+      saveNewShopCommission: saveNewShopCommission,
+      closeCustomerModal: closeCustomerModal,
+    });
+
+  })();
   </script>
 
-
-<!-- Bottom Navigation -->
 <script>document.body.insertAdjacentHTML("beforeend", getBottomNav("/sale"));</script>
 </body>
 </html>
+
