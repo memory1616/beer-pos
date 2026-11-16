@@ -1,0 +1,24 @@
+User-agent: *
+Allow: /
+
+# Admin / Driver — không cần index (không liên quan marketing)
+Disallow: /dashboard
+Disallow: /sale
+Disallow: /customers
+Disallow: /customer/
+Disallow: /stock
+Disallow: /promo-settings
+Disallow: /qr-settings
+Disallow: /report-notify
+Disallow: /sessions
+Disallow: /audit-log
+Disallow: /push-notify
+Disallow: /debts
+Disallow: /purchases
+Disallow: /kegs
+Disallow: /driver
+Disallow: /login
+Disallow: /api/
+Disallow: /deploy
+
+Sitemap: https://biatuoitayninh.store/sitemap.xml

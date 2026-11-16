@@ -536,7 +536,18 @@ app.get('/version.json', (req, res) => {
   res.send(JSON.stringify(meta, null, 2));
 });
 
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+  setHeaders(res, filePath) {
+    // Asset có content-hash trong tên (vd. hero-freezer.edbb3639.webp)
+    // → URL thay đổi mỗi khi nội dung đổi → cache immutable 1 năm là an toàn.
+    // File KHÔNG có hash (vd. video-poster.svg) → cache ngắn hơn để cập nhật kịp.
+    if (/\.[0-9a-f]{8}\.(webp|png|jpg|jpeg|mp4|svg|woff2?)$/i.test(filePath)) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    } else if (/[\\/](landing-assets|icons)[\\/]/.test(filePath)) {
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+    }
+  },
+}));
 
 // Favicon — always serve icon
 app.get('/favicon.ico', (req, res) => {

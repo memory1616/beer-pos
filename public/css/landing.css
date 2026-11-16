@@ -2,8 +2,10 @@
  * Beer POS — Landing Page Styles
  * Design system: unified.css (tokens + btn base) + landing overrides
  * Consistent: colors → CSS variables, buttons → .btn system
+ *
+ * KHÔNG @import Google Fonts ở đây — landing.html đã khai báo <link> trong
+ * <head>. @import sẽ tạo thêm 1 vòng request chặn render (render-blocking).
  */
-@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,600&display=swap');
 
 /* ================================================================
    1. LANDING CSS VARIABLES (override POS tokens where needed)
@@ -41,8 +43,7 @@ body {
 
 /* ================================================================
    3. NAVIGATION
-   ================================================================ */
-.navbar {
+   ================================================================ */.navbar {
   position: fixed; top: 0; left: 0; right: 0; z-index: 100;
   background: rgba(255,249,232,0.94);
   backdrop-filter: blur(12px);
@@ -220,6 +221,14 @@ body {
   padding: 0.5rem 0.85rem; border-radius: 10px;
   transform: rotate(-5deg);
   box-shadow: 0 6px 20px rgba(245,184,0,0.5);
+}
+.hero-badge-stock {
+  position: absolute; bottom: 8%; right: 0;
+  background: linear-gradient(135deg, #2e7d32, #1b5e20); color: #fff;
+  font-weight: 800; font-size: 0.7rem;
+  padding: 0.45rem 0.75rem; border-radius: 8px;
+  transform: rotate(3deg);
+  box-shadow: 0 4px 14px rgba(46,125,50,0.4);
 }
 
 /* ================================================================
@@ -594,7 +603,7 @@ body {
    ================================================================ */
 .sticky-cta {
   position: fixed; bottom: 20px; right: 20px; z-index: 999;
-  display: flex; flex-direction: column; gap: 10px;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 10px;
 }
 .sticky-btn {
   display: flex; align-items: center; gap: 8px;
@@ -602,6 +611,7 @@ body {
   font-weight: 800; font-size: 0.85rem; text-decoration: none;
   box-shadow: 0 6px 24px rgba(0,0,0,0.2);
   transition: transform 0.2s, box-shadow 0.2s;
+  min-height: 48px;
 }
 .sticky-btn:hover { transform: translateY(-3px); box-shadow: 0 10px 32px rgba(0,0,0,0.25); }
 .sticky-btn.call {
@@ -611,6 +621,7 @@ body {
 .sticky-btn.zalo {
   background: linear-gradient(135deg, #0068ff, #004ec2);
   color: #fff;
+  animation: zaloPulse 3s ease-in-out infinite;
 }
 .sticky-btn.zalo::after {
   content: "HOT";
@@ -618,12 +629,24 @@ body {
   font-size: 10px; font-weight: 800;
   padding: 2px 6px; border-radius: 6px; margin-left: 6px;
 }
+@keyframes zaloPulse {
+  0%, 100% { box-shadow: 0 6px 24px rgba(0,0,0,0.2), 0 0 0 0 rgba(0,104,255,0.45); }
+  50%      { box-shadow: 0 6px 24px rgba(0,0,0,0.2), 0 0 0 10px rgba(0,104,255,0); }
+}
 
 /* ================================================================
-   20. REVEAL ANIMATIONS (reduced — no overdesign)
+   24. REVEAL — chỉ ẩn khi JS đã bật (fallback an toàn)
    ================================================================ */
-.reveal { opacity: 0; transform: translateY(24px); transition: opacity 0.5s ease, transform 0.5s ease; }
-.reveal.visible { opacity: 1; transform: translateY(0); }
+.js .reveal { opacity: 0; transform: translateY(24px); transition: opacity 0.5s ease, transform 0.5s ease; }
+.js .reveal.visible { opacity: 1; transform: translateY(0); }
+.reveal { opacity: 1; transform: none; }
+/* Tôn trọng thiết lập giảm chuyển động của hệ điều hành */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .js .reveal { opacity: 1; transform: none; transition: none; }
+  .chat-fab, .sticky-btn.zalo { animation: none !important; }
+  * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}
 
 /* Pulse for sticky buttons */
 @keyframes pulse {
@@ -636,6 +659,136 @@ body {
 /* ================================================================
    21. RESPONSIVE
    ================================================================ */
+/* ── Touch target tối thiểu 44px (chuẩn mobile) ─────────────────── */
+@media (pointer: coarse) {
+  .btn { min-height: 48px; }
+  .nav-links a { padding: 0.7rem 0.8rem; font-size: 0.85rem; }
+  .mobile-menu-btn { padding: 0.75rem; min-width: 48px; min-height: 48px; }
+  .sticky-btn { min-height: 48px; }
+  .chat-reply-btn { padding: 12px 16px; }
+  .chat-cta-btn { min-height: 48px; display: flex; align-items: center; justify-content: center; }
+}
+
+/* ── Bảng so sánh: cuộn ngang trên màn hình hẹp ───────────────── */
+.compare-wrap { max-width: 720px; margin: 0 auto; }
+.compare-table {
+  width: 100%; border-collapse: collapse;
+  border-radius: var(--landing-radius); overflow: hidden;
+  box-shadow: var(--landing-shadow);
+  background: #fff;
+}
+.compare-table thead th {
+  padding: 1rem 1.25rem; font-size: 0.9rem; font-weight: 700;
+  color: #fff; background: var(--landing-ink); text-align: left;
+}
+.compare-table thead th.col-beer {
+  text-align: center; background: linear-gradient(135deg, #8b0000, var(--landing-red));
+}
+.compare-table thead th.col-soda {
+  text-align: center; background: #f5f5f5; color: var(--landing-ink);
+}
+.compare-table tbody td {
+  padding: 0.85rem 1.25rem; font-weight: 600;
+  border-bottom: 1px solid rgba(26,18,8,0.06);
+  vertical-align: middle;
+}
+.compare-table tbody tr:nth-child(even) { background: rgba(255,249,232,0.5); }
+.compare-table tbody tr:last-child td { border-bottom: none; }
+.compare-table td.col-beer { text-align: center; font-weight: 800; color: var(--landing-red); }
+.compare-table td.col-beer.is-good { color: #2e7d32; }
+.compare-table td.col-soda { text-align: center; color: var(--landing-muted); }
+.compare-note {
+  text-align: center; margin-top: 1.25rem;
+  font-weight: 700; color: var(--landing-ink-soft);
+}
+
+/* ── Video wrapper ─────────────────────────────────────────────── */
+.video-wrap {
+  position: relative; width: 100%; max-width: 800px; margin: 0 auto;
+  border-radius: var(--radius-lg); overflow: hidden;
+  box-shadow: var(--shadow); background: #1a0a00;
+  aspect-ratio: 16/9; max-height: min(75vh, 520px);
+}
+.video-play-overlay {
+  position: absolute; inset: 0; display: flex;
+  align-items: center; justify-content: center; pointer-events: none;
+}
+.video-play-btn {
+  pointer-events: auto; width: 72px; height: 72px; border-radius: 50%;
+  border: 3px solid #FFD700; background: rgba(0,0,0,0.55);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: transform 0.2s, background 0.2s;
+}
+.video-play-btn:hover { transform: scale(1.06); background: rgba(0,0,0,0.72); }
+
+/* ── Ảnh có khung ──────────────────────────────────────────────── */
+.img-frame {
+  width: 100%; max-width: 920px; height: auto; display: block; margin: 0 auto;
+  border-radius: var(--radius-lg); box-shadow: var(--shadow);
+  border: 4px solid #fff; object-fit: cover;
+}
+.figcap {
+  margin-top: 0.75rem; font-size: 0.88rem;
+  color: var(--landing-muted); font-weight: 600;
+}
+
+/* ── Nút lên đầu trang ─────────────────────────────────────────── */
+.to-top-btn {
+  width: 44px; height: 44px; border-radius: 50%;
+  border: 1px solid rgba(26,18,8,0.12); background: #fff; color: var(--landing-ink);
+  font-size: 1.15rem; font-weight: 800; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.14);
+  opacity: 0; visibility: hidden; transform: translateY(8px);
+  transition: opacity 0.2s, transform 0.2s, visibility 0.2s;
+  margin-bottom: 2px;
+}
+.to-top-btn.is-visible { opacity: 1; visibility: visible; transform: translateY(0); }
+.to-top-btn:hover { background: var(--landing-amber); }
+
+/* ================================================================
+   21b. DARK MODE — landing dùng chung token với app (data-theme)
+   ================================================================ */
+[data-theme="dark"] body { background: #14110c; color: #f2ece1; }
+[data-theme="dark"] .hero { background: linear-gradient(180deg, #241c10 0%, #1a140c 40%, #14110c 100%); }
+[data-theme="dark"] .section-alt,
+[data-theme="dark"] .brand-strip { background: #14110c; }
+[data-theme="dark"] .navbar { background: rgba(24,19,11,0.92); border-bottom-color: rgba(255,204,0,0.2); }
+[data-theme="dark"] .nav-links a { color: #e8dfcd; }
+[data-theme="dark"] .nav-links a:hover { background: rgba(255,204,0,0.18); color: #fff; }
+[data-theme="dark"] .nav-links.open { background: #1c160d; }
+[data-theme="dark"] .nav-logo { color: #f5efe2; }
+[data-theme="dark"] .section-title { color: #f7f2e7; }
+[data-theme="dark"] .section-sub,
+[data-theme="dark"] .hero-lead { color: #bdb3a1; }
+[data-theme="dark"] .hero h1 { color: #f7f2e7; }
+[data-theme="dark"] .check-card,
+[data-theme="dark"] .contact-card,
+[data-theme="dark"] .mini-card { background: #1e1811; border-color: rgba(255,255,255,0.08); box-shadow: none; }
+[data-theme="dark"] .check-card strong { color: #f2ece1; }
+[data-theme="dark"] .check-card p { color: #b0a693; }
+[data-theme="dark"] .support-list li { border-bottom-color: rgba(255,255,255,0.08); color: #ded4c2; }
+[data-theme="dark"] .pricing-card { background: linear-gradient(135deg, #33280f, #241c0a); }
+[data-theme="dark"] .pricing-list li { background: #1e1811; border-color: rgba(255,204,0,0.3); color: #f0e8d8; }
+[data-theme="dark"] .pricing-note { color: #ddd2bd; }
+[data-theme="dark"] .policy-card { background: #1e1811; }
+[data-theme="dark"] .policy-card p,
+[data-theme="dark"] .policy-grid p { color: #b0a693 !important; }
+[data-theme="dark"] .cert-badge { background: #1e1811; color: #f2ece1; }
+[data-theme="dark"] .compare-table { background: #1e1811; }
+[data-theme="dark"] .compare-table tbody td { border-bottom-color: rgba(255,255,255,0.07); }
+[data-theme="dark"] .compare-table tbody tr:nth-child(even) { background: rgba(255,249,232,0.05); }
+[data-theme="dark"] .compare-note { color: #ded4c2; }
+[data-theme="dark"] .compare-table td.col-soda { color: #a89e8c; }
+[data-theme="dark"] .highlight-bar { color: #e8dfcd; }
+[data-theme="dark"] .btn-outline { background: #1e1811; color: #f2ece1; border-color: rgba(255,255,255,0.18); }
+[data-theme="dark"] .footer { background: #0d0a06; }
+[data-theme="dark"] .brand-strip { border-color: rgba(255,255,255,0.08); }
+[data-theme="dark"] .brand-strip p { color: #b0a693; }
+[data-theme="dark"] .hero-pill { background: rgba(255,255,255,0.06); color: #ddd2bd; border-color: rgba(255,255,255,0.1); }
+[data-theme="dark"] .audience { background: #0d0a06; }
+[data-theme="dark"] .hero-visual-bg { display: none; }
+
 @media (max-width: 900px) {
   .nav-links { display: none; }
   .nav-links.open {
@@ -668,13 +821,14 @@ body {
    22. CHATBOT WIDGET — Zalo-style (kept as-is, distinctive brand element)
    ================================================================ */
 .chat-fab {
-  position: fixed; bottom: 156px; right: 20px; z-index: 9998;
+  position: fixed; bottom: 196px; right: 20px; z-index: 9998;
   display: flex; align-items: center; gap: 8px;
   background: var(--landing-red-bright); color: #fff;
-  padding: 10px 16px; border-radius: 28px;
+  padding: 12px 18px; border-radius: 28px;
   font-weight: 700; font-size: 0.88rem;
   box-shadow: 0 4px 16px rgba(211,47,47,0.45);
   cursor: pointer; border: none;
+  min-height: 48px;
   animation: fabBounce 2.4s ease-in-out infinite;
   transition: transform 0.15s, background 0.15s;
 }
@@ -690,8 +844,8 @@ body {
 }
 
 .chat-box {
-  position: fixed; bottom: 218px; right: 20px; z-index: 9999;
-  width: 320px; height: 460px;
+  position: fixed; bottom: 258px; right: 20px; z-index: 9999;
+  width: 340px; height: min(520px, calc(100vh - 300px));
   background: #fff; border-radius: 16px;
   box-shadow: 0 12px 48px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.06);
   display: flex; flex-direction: column; overflow: hidden;
@@ -801,13 +955,59 @@ body {
 /* ================================================================
    23. MOBILE BOTTOM SHEET
    ================================================================ */
-@media (max-width: 480px) {
-  .chat-fab { bottom: 132px; right: 12px; }
+@media (max-width: 600px) {
+  /* Sticky CTA thành thanh ngang full-width ở đáy màn hình.
+     Chatbot FAB nằm ngay TRÊN thanh này → không còn chồng lên nhau. */
+  .sticky-cta {
+    left: 0; right: 0; bottom: 0;
+    flex-direction: row; align-items: center; justify-content: center;
+    gap: 0.6rem;
+    padding: 0.55rem 0.75rem calc(0.55rem + env(safe-area-inset-bottom));
+    background: rgba(255,255,255,0.94);
+    backdrop-filter: blur(12px);
+    border-top: 1px solid rgba(26,18,8,0.1);
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.08);
+  }
+  .sticky-btn { flex: 1; justify-content: center; min-height: 48px; padding: 10px 12px; }
+  .to-top-btn {
+    position: absolute; right: 12px; top: -56px;
+    margin-bottom: 0; width: 44px; height: 44px;
+  }
+  .chat-fab { bottom: 84px; right: 12px; }
   .chat-box {
     bottom: 0; right: 0; left: 0;
-    width: 100%; height: 80vh;
+    width: 100%; height: 82vh;
     border-bottom-left-radius: 0; border-bottom-right-radius: 0;
     transform: translateY(100%);
   }
   .chat-box.open { transform: translateY(0); }
+  .chat-cta-btn { border-radius: 24px; }
+}
+
+/* Mobile: bảng so sánh cuộn ngang, cột đầu sticky */
+@media (max-width: 700px) {
+  .compare-wrap {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: var(--landing-radius);
+  }
+  .compare-table { min-width: 560px; }
+  .compare-table thead th,
+  .compare-table tbody td { padding: 0.7rem 0.85rem; font-size: 0.85rem; }
+}
+
+/* Mobile: ảnh hero không tràn, badge không đè chữ */
+@media (max-width: 480px) {
+  .hero { padding: 84px 0 40px; }
+  .hero h1 { font-size: clamp(1.55rem, 7.2vw, 2rem); }
+  .hero-sub { font-size: 0.85rem; padding: 0.45rem 0.8rem; }
+  .hero-badge-float { font-size: 0.72rem; padding: 0.45rem 0.7rem; top: -3%; }
+  .hero-badge-hot { font-size: 0.68rem; padding: 0.4rem 0.7rem; bottom: 12%; }
+  .hero-badge-stock { font-size: 0.62rem; padding: 0.35rem 0.6rem; bottom: 4%; right: 0; }
+  .hero-ctas .btn { width: 100%; }
+  .section { padding: 3rem 0; }
+  .section-header { margin-bottom: 2rem; }
+  .contact-card a.phone { font-size: 1.5rem; }
+  .sticky-btn { font-size: 0.8rem; }
 }

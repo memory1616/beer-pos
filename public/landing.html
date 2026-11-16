@@ -12,27 +12,99 @@
     document.documentElement.setAttribute('data-theme', theme);
     document.documentElement.classList.remove('light', 'dark');
     document.documentElement.classList.add(theme);
+    // Đánh dấu JS đã bật → .reveal mới ẩn trước khi scroll tới.
+    // Nếu JS lỗi/tắt, nội dung vẫn hiện (fallback an toàn).
+    document.documentElement.classList.add('js');
   })();
   </script>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Bia Tươi Tây Ninh — Bia tươi & bia đen công nghệ Đức | Giá sỉ quán</title>
   <meta name="description" content="Bia tươi nguyên chất, bia đen & bia vàng NEWDOBEER — công nghệ Đức. Giá sỉ tốt, hỗ trợ setup tủ mát, banner, giao hàng Tây Ninh và khu vực. Hotline 0974 012 652.">
-  <link rel="icon" href="/icons/icon-192.png" sizes="192x192" type="image/png">
-  <link rel="apple-touch-icon" href="/icons/icon-180.png">
+  <link rel="canonical" href="https://biatuoitayninh.store/">
+
+  <!-- Open Graph / Twitter Card (chia sẻ link Zalo/Facebook đẹp hơn) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Bia Tươi Tây Ninh">
+  <meta property="og:locale" content="vi_VN">
+  <meta property="og:url" content="https://biatuoitayninh.store/">
+  <meta property="og:title" content="Bia Tươi Tây Ninh — Bia tươi & bia đen công nghệ Đức | Giá sỉ quán">
+  <meta property="og:description" content="Chai inox 1L & chai nhựa 900ml — bia vàng best seller, bia đen đậm đà. Biên lợi nhuận 30–50%, setup quán trong 1 ngày. Hotline 0974 012 652.">
+  <meta property="og:image" content="https://biatuoitayninh.store/landing-assets/hero-freezer.edbb3639.webp">
+  <meta property="og:image:width" content="1024">
+  <meta property="og:image:height" content="768">
+  <meta property="og:image:alt" content="Tủ bia tươi đầy chai inox tại điểm bán">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Bia Tươi Tây Ninh — Giá sỉ bia tươi & bia đen">
+  <meta name="twitter:description" content="Setup có khách trong 1–3 ngày. Biên lợi nhuận 30–50%. Chỉ nhận 5 quán/khu vực.">
+  <meta name="twitter:image" content="https://biatuoitayninh.store/landing-assets/hero-freezer.edbb3639.webp">
+  <meta name="theme-color" content="#c62828">
+  <meta name="robots" content="index, follow">
+  <meta name="geo.region" content="VN-65">
+  <meta name="geo.placename" content="Tây Ninh">
+
+  <link rel="icon" href="/icons/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon-180.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preload" as="image" href="/landing-assets/hero-freezer.edbb3639.webp" type="image/webp" fetchpriority="high">
   <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,600&display=swap" rel="stylesheet">
   <!-- Unified design system (tokens, btn base, card system) -->
   <link rel="stylesheet" href="/css/unified.css">
   <!-- Landing page styles (overrides + marketing-specific) -->
   <link rel="stylesheet" href="/css/landing.css">
+  <!-- Structured data: LocalBusiness → hiển thị rich snippet trên Google -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "LocalBusiness",
+    "@id": "https://biatuoitayninh.store/#business",
+    "name": "Bia Tươi Tây Ninh",
+    "description": "Phân phối bia tươi & bia đen công nghệ Đức (NEWDOBEER) cho quán nhậu, BBQ, nhà hàng. Giá sỉ theo khu vực, hỗ trợ setup tủ mát, banner và giao hàng.",
+    "url": "https://biatuoitayninh.store/",
+    "telephone": "+84974012652",
+    "image": "https://biatuoitayninh.store/landing-assets/hero-freezer.edbb3639.webp",
+    "logo": "https://biatuoitayninh.store/landing-assets/logo.bfd99ebd.webp",
+    "priceRange": "$$",
+    "currenciesAccepted": "VND",
+    "paymentAccepted": "Cash, Bank Transfer, MoMo, ZaloPay",
+    "areaServed": [
+      { "@type": "AdministrativeArea", "name": "Tây Ninh" },
+      { "@type": "AdministrativeArea", "name": "Bình Dương" },
+      { "@type": "AdministrativeArea", "name": "Thành phố Hồ Chí Minh" }
+    ],
+    "address": {
+      "@type": "PostalAddress",
+      "addressRegion": "Tây Ninh",
+      "addressCountry": "VN"
+    },
+    "openingHoursSpecification": [{
+      "@type": "OpeningHoursSpecification",
+      "dayOfWeek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"],
+      "opens": "06:00",
+      "closes": "22:00"
+    }],
+    "aggregateRating": {
+      "@type": "AggregateRating",
+      "ratingValue": "4.9",
+      "reviewCount": "100"
+    },
+    "hasOfferCatalog": {
+      "@type": "OfferCatalog",
+      "name": "Sản phẩm bia tươi",
+      "itemListElement": [
+        { "@type": "Offer", "itemOffered": { "@type": "Product", "name": "Bia vàng NEWDOBEER 1L (chai inox) & 900ml (chai nhựa)" } },
+        { "@type": "Offer", "itemOffered": { "@type": "Product", "name": "Bia đen NEWDOBEER 1L — nồng độ 4.5%" } }
+      ]
+    }
+  }
+  </script>
 </head>
 <body>
 
   <nav class="navbar" id="navbar">
     <div class="container navbar-inner">
       <a href="#" class="nav-logo" aria-label="Bia Tươi Tây Ninh — về đầu trang">
-        <img class="nav-logo-img" src="/icons/icon-192.png" width="40" height="40" alt="" decoding="async">
+        <img class="nav-logo-img" src="/landing-assets/logo.bfd99ebd.webp" width="40" height="23" alt="" decoding="async">
         <div class="nav-logo-text">Bia Tươi Tây Ninh <small>Công nghệ Đức · NEWDOBEER</small></div>
       </a>
       <ul class="nav-links" id="navLinks">
@@ -90,13 +162,13 @@
         </div>
       </div>
       <div class="hero-visual-wrap">
-        <!-- THAY ẢNH: Dùng ảnh tủ bia thật — tủ mở đầy chai inox thực tế -->
-        <!-- Khi có ảnh thật: thay src="/images/freezer.jpg" -->
-        <img class="hero-img" src="/landing-assets/hero-freezer.png" width="520" height="380" alt="Tủ bia tươi đầy chai inox thực tế" loading="eager" decoding="async">
+        <!-- Ảnh hero: dùng .webp (nhẹ hơn 46%) + preload ở <head> để LCP nhanh -->
+        <img class="hero-img" src="/landing-assets/hero-freezer.edbb3639.webp" width="1024" height="768"
+             alt="Tủ bia tươi đầy chai inox thực tế tại điểm bán" loading="eager" decoding="async" fetchpriority="high">
         <div class="hero-badge-float">🔥 BÁN CHẠY NHẤT</div>
         <div class="hero-badge-hot">🔥 BÁN CHẠY</div>
         <!-- Badge HÀNG LUÔN CÓ SẴN -->
-        <div style="position:absolute;bottom:8%;right:0;background:linear-gradient(135deg,#2e7d32,#1b5e20);color:#fff;font-weight:800;font-size:0.7rem;padding:0.45rem 0.75rem;border-radius:8px;transform:rotate(3deg);box-shadow:0 4px 14px rgba(46,125,50,0.4);">🔥 HÀNG LUÔN CÓ SẴN</div>
+        <div class="hero-badge-stock">🔥 HÀNG LUÔN CÓ SẴN</div>
       </div>
       <p style="font-weight:700;color:var(--landing-red);font-size:0.88rem;margin-top:-0.5rem;margin-bottom:0;">👉 Hình ảnh thực tế tại điểm bán</p>
     </div>
@@ -204,44 +276,44 @@
         <h2 class="section-title">Bia tươi vs Nước ngọt — Ai lời hơn?</h2>
         <p class="section-sub">Cùng 1 khách, cùng 1 bill — tính lại xem.</p>
       </div>
-      <div style="max-width:720px;margin:0 auto;" class="reveal">
-        <table style="width:100%;border-collapse:collapse;border-radius:var(--landing-radius);overflow:hidden;box-shadow:var(--landing-shadow);">
+      <div class="compare-wrap reveal">
+        <table class="compare-table">
           <thead>
-            <tr style="background:var(--landing-ink);color:#fff;">
-              <th style="padding:1rem 1.25rem;text-align:left;font-size:0.9rem;font-weight:700;">Tiêu chí</th>
-              <th style="padding:1rem 1.25rem;text-align:center;font-size:0.9rem;font-weight:700;background:linear-gradient(135deg,#8b0000,var(--landing-red));">🍺 Bia tươi</th>
-              <th style="padding:1rem 1.25rem;text-align:center;font-size:0.9rem;font-weight:700;background:#f5f5f5;color:var(--landing-ink);">🥤 Nước ngọt</th>
+            <tr>
+              <th scope="col">Tiêu chí</th>
+              <th scope="col" class="col-beer">🍺 Bia tươi</th>
+              <th scope="col" class="col-soda">🥤 Nước ngọt</th>
             </tr>
           </thead>
           <tbody>
-            <tr style="background:#fff;border-bottom:1px solid rgba(26,18,8,0.06);">
-              <td style="padding:0.85rem 1.25rem;font-weight:600;">Giá nhập / Lít</td>
-              <td style="padding:0.85rem 1.25rem;text-align:center;font-weight:800;color:var(--landing-red);">Giá sỉ cạnh tranh</td>
-              <td style="padding:0.85rem 1.25rem;text-align:center;color:var(--landing-muted);">10–15K</td>
+            <tr>
+              <td>Giá nhập / Lít</td>
+              <td class="col-beer">Giá sỉ cạnh tranh</td>
+              <td class="col-soda">10–15K</td>
             </tr>
-            <tr style="background:rgba(255,249,232,0.5);border-bottom:1px solid rgba(26,18,8,0.06);">
-              <td style="padding:0.85rem 1.25rem;font-weight:600;">Lợi nhuận / Lít</td>
-              <td style="padding:0.85rem 1.25rem;text-align:center;font-weight:800;color:#2e7d32;">Biên lợi nhuận 30–50%</td>
-              <td style="padding:0.85rem 1.25rem;text-align:center;color:var(--landing-muted);">Biên lợi nhuận 10–20%</td>
+            <tr>
+              <td>Lợi nhuận / Lít</td>
+              <td class="col-beer is-good">Biên lợi nhuận 30–50%</td>
+              <td class="col-soda">Biên lợi nhuận 10–20%</td>
             </tr>
-            <tr style="background:#fff;border-bottom:1px solid rgba(26,18,8,0.06);">
-              <td style="padding:0.85rem 1.25rem;font-weight:600;">Khách uống nhanh?</td>
-              <td style="padding:0.85rem 1.25rem;text-align:center;font-weight:800;color:#2e7d32;">🍺 Nhanh — gọi thêm</td>
-              <td style="padding:0.85rem 1.25rem;text-align:center;color:var(--landing-muted);">Trung bình — 1 ly là đủ</td>
+            <tr>
+              <td>Khách uống nhanh?</td>
+              <td class="col-beer is-good">🍺 Nhanh — gọi thêm</td>
+              <td class="col-soda">Trung bình — 1 ly là đủ</td>
             </tr>
-            <tr style="background:rgba(255,249,232,0.5);border-bottom:1px solid rgba(26,18,8,0.06);">
-              <td style="padding:0.85rem 1.25rem;font-weight:600;">Gây chú ý khách mới?</td>
-              <td style="padding:0.85rem 1.25rem;text-align:center;font-weight:800;color:#2e7d32;">✅ Tủ bia lạ mắt, hút khách</td>
-              <td style="padding:0.85rem 1.25rem;text-align:center;color:var(--landing-muted);">❌ Quá bình thường</td>
+            <tr>
+              <td>Gây chú ý khách mới?</td>
+              <td class="col-beer is-good">✅ Tủ bia lạ mắt, hút khách</td>
+              <td class="col-soda">❌ Quá bình thường</td>
             </tr>
-            <tr style="background:#fff;">
-              <td style="padding:0.85rem 1.25rem;font-weight:600;">Thu hồi vốn</td>
-              <td style="padding:0.85rem 1.25rem;text-align:center;font-weight:800;color:#2e7d32;">⚡ 1–2 tuần</td>
-              <td style="padding:0.85rem 1.25rem;text-align:center;color:var(--landing-muted);">Chậm hơn nhiều</td>
+            <tr>
+              <td>Thu hồi vốn</td>
+              <td class="col-beer is-good">⚡ 1–2 tuần</td>
+              <td class="col-soda">Chậm hơn nhiều</td>
             </tr>
           </tbody>
         </table>
-        <p style="text-align:center;margin-top:1.25rem;font-weight:700;color:var(--landing-ink-soft);">
+        <p class="compare-note">
           💡 <strong>Kết luận:</strong> Bia tươi lời gấp 2–3 lần nước ngọt trên cùng 1 đơn hàng.
         </p>
       </div>
@@ -251,14 +323,13 @@
   <!-- VIDEO HOOK SECTION -->
   <!--
     MOBILE AUTOPLAY FIX GUIDE:
-    1. Dung lượng: nen < 5MB, < 10s, 720p. Neu co the, tao video ngan 3-5s:
-       ffmpeg -i input.mp4 -vf "scale=1280:720" -r 30 -c:v libx264 -profile:v baseline -level 3.0 \
-         -pix_fmt yuv420p -c:a aac -b:a 96k -movflags +faststart -y beer-teaser.mp4
-    2. Neu video van khong autoplay tren iOS, thu:
-       - Them controls vao the <video> (iOS bat buoc can controls de play)
-       - Hoac dung video poster + click-to-play (da lam o duoi)
-    3. Neu 16MB van qua nang: doi src thanh /landing-assets/beer-web.mp4 (14MB)
-       hoac tao video moi < 5MB nhu huong dan o buoc 1
+    1. Video dùng bản nén 720p (beer-mobile-720.<hash>.mp4, ~1.5MB thay vì 16MB).
+       Nén lại nếu đổi nội dung:
+         ffmpeg -i input.mp4 -vf "scale=1280:720" -r 30 -c:v libx264 -profile:v main \
+           -crf 32 -preset slow -pix_fmt yuv420p -c:a aac -b:a 64k -movflags +faststart -y out.mp4
+    2. preload="none" + IntersectionObserver → chỉ tải video khi khách scroll tới.
+    3. Nếu video vẫn không autoplay trên iOS: thêm controls vào <video>
+       (iOS bắt buộc có controls để play) hoặc dùng poster + click-to-play.
   -->
   <section class="section" style="padding-top:0;padding-bottom:0;" id="video-hook">
     <div class="container" style="max-width:800px;margin:0 auto;">
@@ -270,10 +341,10 @@
         Khung co aspect-ratio de khong bi sup (video position:absolute truoc day lam vo hinh).
         Chi an nut play khi su kien playing — khong an o loadeddata (neu play() bi block se thanh man hinh den).
       -->
-      <div id="videoWrapper" style="position:relative;width:100%;max-width:800px;margin:0 auto;border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow);background:#1a0a00;aspect-ratio:16/9;max-height:min(75vh,520px);">
+      <div id="videoWrapper" class="video-wrap">
         <video id="beerHookVideo"
           poster="/landing-assets/video-poster.svg"
-          preload="metadata"
+          preload="none"
           muted
           loop
           playsinline
@@ -281,19 +352,11 @@
           disablepictureinpicture
           style="width:100%;height:100%;display:block;object-fit:contain;background:#000;"
         >
-          <source src="/landing-assets/beer-mobile.mp4" type="video/mp4">
-          Trình duyệt không hỗ trợ video. <a href="/landing-assets/beer-mobile.mp4" style="color:#FFD700;">Tải video</a>
+          <source src="/landing-assets/beer-mobile-720.9f9b9ea7.mp4" type="video/mp4">
+          Trình duyệt không hỗ trợ video. <a href="/landing-assets/beer-mobile-720.9f9b9ea7.mp4" style="color:#FFD700;">Tải video</a>
         </video>
-        <div id="videoPlayBtn" style="
-          position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-          pointer-events:none;
-        ">
-          <button type="button" id="videoPlayBtnInner" onclick="window.beerHookPlay && window.beerHookPlay()" aria-label="Phát video"
-            style="
-              pointer-events:auto;width:72px;height:72px;border-radius:50%;border:3px solid #FFD700;
-              background:rgba(0,0,0,0.55);cursor:pointer;display:flex;align-items:center;justify-content:center;
-              transition:transform 0.2s,background 0.2s;
-            ">
+        <div id="videoPlayBtn" class="video-play-overlay">
+          <button type="button" id="videoPlayBtnInner" onclick="window.beerHookPlay && window.beerHookPlay()" aria-label="Phát video" class="video-play-btn">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="#FFD700" aria-hidden="true">
               <polygon points="5,3 19,12 5,21"/>
             </svg>
@@ -306,12 +369,24 @@
           var v = document.getElementById('beerHookVideo');
           if (!v) return;
 
+          // preload="none" → chưa tải video cho tới khi sắp vào viewport.
+          // Nhờ vậy khách ở đầu trang không phải tải 1.5MB video vô ích.
+          var loaded = false;
+          function loadVideo() {
+            if (loaded) return;
+            loaded = true;
+            v.preload = 'auto';
+            // Safari/iOS đôi khi cần gọi load() sau khi đổi preload
+            try { v.load(); } catch (e) { /* ignore */ }
+          }
+
           function showPlayUi(show) {
             if (!playWrap) return;
             playWrap.style.display = show ? 'flex' : 'none';
           }
 
           function tryPlayMuted() {
+            loadVideo();
             v.muted = true;
             v.defaultMuted = true;
             v.setAttribute('muted', '');
@@ -337,6 +412,7 @@
           });
 
           window.beerHookPlay = function () {
+            loadVideo();
             v.muted = false;
             v.play().catch(function () {
               v.muted = true;
@@ -344,18 +420,26 @@
             });
           };
 
-          v.addEventListener('loadeddata', tryPlayMuted);
-          if (v.readyState >= 2) tryPlayMuted();
-
+          // Nạp + phát khi video lọt vào viewport (đã scroll tới gần)
           var io = new IntersectionObserver(function (entries) {
             entries.forEach(function (e) {
-              if (e.isIntersecting) tryPlayMuted();
+              if (e.isIntersecting) {
+                tryPlayMuted();
+                io.unobserve(v);
+              }
             });
-          }, { threshold: 0.15 });
+          }, { rootMargin: '200px', threshold: 0.15 });
           io.observe(v);
 
+          // Chỉ tự phát lại khi người dùng đã tương tác với trang
+          // (tránh bị browser chặn autoplay và tránh tải video vô ích).
+          var userEngaged = false;
+          ['click', 'scroll', 'touchstart', 'keydown'].forEach(function (ev) {
+            window.addEventListener(ev, function () { userEngaged = true; }, { once: true, passive: true });
+          });
+
           document.addEventListener('visibilitychange', function () {
-            if (!document.hidden) tryPlayMuted();
+            if (!document.hidden && userEngaged) tryPlayMuted();
           });
         })();
       </script>
@@ -405,8 +489,8 @@
       </div>
       <p class="highlight-bar reveal">👉 <strong>Mô hình đã test thực tế:</strong> bán nhanh — quay vòng tiền tốt.</p>
       <figure style="margin-top:2.5rem;text-align:center" class="reveal">
-        <img src="/landing-assets/setup-freezer.png" width="1000" height="560" alt="Tủ bia thực tế tại quán" loading="lazy" decoding="async" style="width:100%;max-width:920px;height:auto;border-radius:var(--radius-lg);box-shadow:var(--shadow);border:4px solid #fff;object-fit:cover">
-        <figcaption style="margin-top:0.75rem;font-size:0.88rem;color:var(--landing-muted);font-weight:600">Tủ mát trưng bày — chai inox 1L, đủ sức gây chú ý khách qua đường</figcaption>
+        <img src="/landing-assets/setup-freezer.cf839a91.webp" width="1024" height="832" alt="Tủ bia thực tế tại quán" loading="lazy" decoding="async" class="img-frame">
+        <figcaption class="figcap">Tủ mát trưng bày — chai inox 1L, đủ sức gây chú ý khách qua đường</figcaption>
       </figure>
     </div>
   </section>
@@ -421,7 +505,7 @@
       <div class="product-showcase">
         <article class="product-row reveal">
           <div class="product-visual">
-            <img src="/landing-assets/product-black.png" width="600" height="400" alt="Chai bia đen thực tế" loading="lazy" decoding="async">
+            <img src="/landing-assets/product-black.543165ce.webp" width="995" height="1006" alt="Chai bia đen thực tế" loading="lazy" decoding="async">
             <span class="product-badge green">🔥 LỢI NHUẬN CAO</span>
           </div>
           <div class="product-body">
@@ -441,7 +525,7 @@
         </article>
         <article class="product-row reverse reveal">
           <div class="product-visual light-bg">
-            <img src="/landing-assets/hero-bottle-gold.png" width="600" height="400" alt="Chai bia vàng thực tế" loading="lazy" decoding="async">
+            <img src="/landing-assets/hero-bottle-gold.6360f973.webp" width="918" height="927" alt="Chai bia vàng thực tế" loading="lazy" decoding="async">
             <span class="product-badge">🔥 BÁN CHẠY NHẤT</span>
           </div>
           <div class="product-body">
@@ -503,7 +587,7 @@
           <li><span class="tick">✔</span> Hỗ trợ kỹ thuật tận nơi</li>
         </ul>
         <div class="support-photo">
-          <img src="/landing-assets/setup-freezer.png" width="640" height="400" alt="Tủ mát trưng bày bia thực tế tại quán" loading="lazy" decoding="async">
+          <img src="/landing-assets/setup-freezer.cf839a91.webp" width="1024" height="832" alt="Tủ mát trưng bày bia thực tế tại quán" loading="lazy" decoding="async">
         </div>
       </div>
       <p style="text-align:center;margin-top:2rem;color:var(--landing-muted);font-weight:600;" class="reveal">
@@ -514,7 +598,7 @@
 
   <section class="section brand-strip">
     <div class="container brand-strip-inner reveal">
-      <img src="/landing-assets/banner-standee.png" width="400" height="560" alt="Banner standee thực tế" loading="lazy" decoding="async">
+      <img src="/landing-assets/banner-standee.dc0fdd61.webp" width="768" height="1024" alt="Banner standee thực tế" loading="lazy" decoding="async">
       <div>
         <span class="eyebrow">Thương hiệu đồng hành</span>
         <h2 class="section-title" style="text-align:left">NEWDOBEER — bia tươi nguyên chất, hương vị tự nhiên</h2>
@@ -633,14 +717,28 @@
 
   <!-- STICKY CTA -->
   <div class="sticky-cta">
+    <button type="button" class="to-top-btn" id="toTopBtn" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Lên đầu trang">↑</button>
     <a class="sticky-btn call" href="tel:0974012652">📞 GỌI NGAY</a>
-    <a class="sticky-btn zalo" href="https://zalo.me/0974012652" target="_blank" rel="noopener" style="animation:zaloPulse 3s ease-in-out infinite;">💬 ZALO</a>
+    <a class="sticky-btn zalo" href="https://zalo.me/0974012652" target="_blank" rel="noopener">💬 ZALO</a>
   </div>
 
   <script>
-    window.addEventListener('scroll', function () {
-      document.getElementById('navbar').classList.toggle('scrolled', window.scrollY > 16);
-    });
+    // ── Navbar: scrolled state (rAF throttle để không dùng CPU khi scroll) ──
+    (function () {
+      var nav = document.getElementById('navbar');
+      var ticking = false;
+      function onScroll() {
+        if (ticking) return;
+        ticking = true;
+        window.requestAnimationFrame(function () {
+          nav.classList.toggle('scrolled', window.scrollY > 16);
+          ticking = false;
+        });
+      }
+      window.addEventListener('scroll', onScroll, { passive: true });
+      onScroll();
+    })();
+
     function toggleMenu() {
       document.getElementById('navLinks').classList.toggle('open');
     }
@@ -649,17 +747,40 @@
         document.getElementById('navLinks').classList.remove('open');
       });
     });
-    var revealEls = document.querySelectorAll('.reveal');
-    var revealObserver = new IntersectionObserver(function (entries) {
-      entries.forEach(function (entry, i) {
-        if (entry.isIntersecting) {
-          setTimeout(function () { entry.target.classList.add('visible'); }, i * 60);
-          revealObserver.unobserve(entry.target);
-        }
-      });
-    }, { threshold: 0.12 });
-    revealEls.forEach(function (el) { revealObserver.observe(el); });
 
+    // ── Nút "lên đầu trang": chỉ hiện sau khi scroll 400px ──
+    (function () {
+      var btn = document.getElementById('toTopBtn');
+      if (!btn) return;
+      var ticking = false;
+      function onScroll() {
+        if (ticking) return;
+        ticking = true;
+        window.requestAnimationFrame(function () {
+          btn.classList.toggle('is-visible', window.scrollY > 400);
+          ticking = false;
+        });
+      }
+      window.addEventListener('scroll', onScroll, { passive: true });
+      onScroll();
+    })();
+
+    // ── Reveal on scroll ──
+    var revealEls = document.querySelectorAll('.reveal');
+    if ('IntersectionObserver' in window) {
+      var revealObserver = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry, i) {
+          if (entry.isIntersecting) {
+            setTimeout(function () { entry.target.classList.add('visible'); }, i * 60);
+            revealObserver.unobserve(entry.target);
+          }
+        });
+      }, { threshold: 0.12 });
+      revealEls.forEach(function (el) { revealObserver.observe(el); });
+    } else {
+      // Fallback: trình duyệt cũ không hỗ trợ IO → hiện tất cả nội dung
+      revealEls.forEach(function (el) { el.classList.add('visible'); });
+    }
   </script>
   <!-- ============================================
        CHATBOT WIDGET
@@ -997,13 +1118,9 @@
       }
     };
 
-    // Auto-open chatbot after 5 seconds
-    setTimeout(function() {
-      var fab = document.getElementById('chatFab');
-      if (fab && getComputedStyle(fab).display !== 'none') {
-        toggleChat();
-      }
-    }, 5000);
+    // KHÔNG tự mở chatbot sau 5s — hành vi cũ chặn nội dung và gây khó chịu.
+    // Chỉ mở khi khách chủ động bấm nút "Tư vấn nhanh".
+    window.beerChatAutoOpened = false;
   })();
   </script>
   <!-- ============================================ -->
