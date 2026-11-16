@@ -2120,6 +2120,45 @@ body.ds-app .btn--accent-outline {
   .ds-map { height: 340px; }
 }
 
+/* ── 9.0a Nút chuyển lớp bản đồ (Leaflet control) ───────────────────────
+ * Driver Portal KHÔNG có style riêng cho `.drv-map-layer-btn` → nút bị
+ * co về kích thước mặc định của UA (~34×23px), khó bấm bằng chuột.
+ * Định nghĩa lại tại đây cho toàn bộ Driver Portal.
+ */
+.drv-map-layers {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.drv-map-layer-btn {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  border-radius: var(--ds-r-xs);
+  cursor: pointer;
+  background: rgba(17, 20, 24, .85);
+  border: 1px solid rgba(255, 255, 255, .15);
+  color: #fff;
+  font-size: 16px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background .15s, border-color .15s, transform .1s;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+.drv-map-layer-btn:hover { background: rgba(59, 122, 254, .85); }
+.drv-map-layer-btn:active { transform: scale(.94); }
+.drv-map-layer-btn.is-active {
+  background: var(--ds-brand-500);
+  border-color: rgba(255, 255, 255, .5);
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, .35);
+}
+.drv-map-layer-ico { pointer-events: none; line-height: 1; }
+
 /* ── 9.0 Card giao hàng — thiết kế ưu tiên tài xế ngoài đường ────────── */
 .ds-delivery {
   position: relative;
@@ -2509,7 +2548,7 @@ body.ds-app .btn--accent-outline {
   /* Layout 2 cột: trái = bản đồ (sticky), phải = chỉ số + hành động + danh sách */
   .ds-main--delivery {
     display: grid;
-    grid-template-columns: minmax(300px, 0.8fr) minmax(0, 1.2fr);
+    grid-template-columns: minmax(320px, 0.85fr) minmax(0, 1.15fr);
     column-gap: var(--ds-s-6);
     align-items: start;
   }
@@ -2526,13 +2565,44 @@ body.ds-app .btn--accent-outline {
   .ds-dl__actionsection { grid-column: 2; grid-row: 2; margin-top: 0; }
   .ds-dl__listsection   { grid-column: 2; grid-row: 3; margin-top: 0; }
 
-  /* Bản đồ cao bằng vùng nội dung bên phải (tối thiểu 420px) */
+  /* Bản đồ cao bằng vùng nội dung bên phải (tối thiểu 460px) */
   .ds-dl__map {
-    height: clamp(420px, calc(100dvh - var(--ds-header-h) - var(--ds-s-8)), 720px);
+    height: clamp(460px, calc(100dvh - var(--ds-header-h) - var(--ds-s-8)), 820px);
   }
 
   .ds-delivery__actions {
     flex-wrap: nowrap;
+  }
+
+  /* Chỉ số dạng lưới 3 ô trên desktop, không co lại như mobile */
+  .ds-dl__statssection .ds-stats {
+    gap: var(--ds-s-4);
+  }
+}
+
+/* ── 9.9 DESKTOP RỘNG (≥1440px): danh sách giao hàng thành lưới 2 cột ──
+ * Ở màn 1440px, cột danh sách rộng ~660px nhưng mỗi card chỉ dùng ~55%
+ * → lãng phí không gian. Chia 2 cột giúp mỗi card vừa đọc, dễ quét nhanh.
+ */
+@media (min-width: 1440px) {
+  .ds-dl__listsection .ds-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--ds-s-3);
+    align-items: start;
+  }
+  .ds-dl__listsection .ds-delivery { margin-bottom: 0; }
+
+  /* Card mở rộng (panel giao hàng) phải chiếm đủ 1 cột */
+  .ds-dl__listsection .ds-delivery.is-open {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ── 9.10 DESKTOP RỘNG (≥1600px): 3 cột danh sách ───────────────────── */
+@media (min-width: 1600px) {
+  .ds-dl__listsection .ds-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 

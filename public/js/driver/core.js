@@ -52,6 +52,47 @@
     try { sessionStorage.removeItem(REDIRECT_GUARD_KEY); } catch (_) {}
   }
 
+  /** Trang đăng nhập của Driver Portal (dùng để tránh reload chính nó). */
+  function isLoginPage() {
+    var p = String(location.pathname || '').replace(/\/+$/, '');
+    return p === '/auth/driver' || p === '/auth/driver/login';
+  }
+
+  /**
+   * Đưa tài xế về trang đăng nhập — AN TOÀN (chống reload vô hạn).
+   *
+   * BUG ĐÃ SỬA (vòng lặp reload liên tục trên production):
+   *  1. Handler `realtime:unauthorized` gọi thẳng `window.location.href =
+   *     '/auth/driver'`. Khi người dùng ĐÃ ở trang /auth/driver, lệnh này
+   *     RELOAD lại chính trang đó → socket lại kết nối → lại unauthorized →
+   *     reload → vòng lặp vô hạn (tab trắng nhấp nháy liên tục).
+   *
+   *  2. Khi token trong localStorage hỏng nhưng COOKIE `driver_session_token`
+   *     vẫn còn hiệu lực, server GET /auth/driver sẽ redirect về /driver
+   *     → tạo ping-pong /auth/driver ⇄ /driver.
+   *
+   * Sửa:
+   *  - Đã ở trang login → KHÔNG điều hướng (chặn reload).
+   *  - Dùng `location.replace()` thay vì `location.href` → không tạo thêm
+   *    entry trong lịch sử, tránh nút "Back" quay lại trang lỗi.
+   *  - Xoá luôn cookie phiên để server không còn redirect ngược lại.
+   */
+  function redirectToLogin() {
+    if (isLoginPage()) {
+      // Đã ở trang login rồi → không reload (nguyên nhân vòng lặp).
+      return;
+    }
+    if (!guardRedirect('/auth/driver')) return;
+    // Xoá cookie phiên phía server để GET /auth/driver KHÔNG redirect
+    // ngược về /driver (cookie là httpOnly nên JS không xoá được).
+    // `?logout=1` là chốt chặn phía server nếu POST logout chưa kịp xong.
+    try {
+      fetch('/auth/driver/logout', { method: 'POST', credentials: 'include' })
+        .catch(function () {});
+    } catch (_) {}
+    window.location.replace('/auth/driver?logout=1');
+  }
+
   // ── A4: Nạp realtime.js cho Driver Portal ────────────────────────────────
   // Driver Portal cần socket để nhận thông báo phiên bị thu hồi từ xa
   // (admin huỷ phiên / khoá tài khoản) và đồng bộ đơn giữa các trang.
@@ -60,6 +101,11 @@
     if (window.__BEERPOS_REALTIME__) return;
     if (document.querySelector('script[src*="/js/realtime.js"]')) return;
     if (window.__BEERPOS_REALTIME_LOADING__) return;
+
+    // KHÔNG mở socket trên trang đăng nhập: socket chưa xác thực sẽ nhận
+    // UNAUTHORIZED → sự kiện realtime:unauthorized → điều hướng lại
+    // /auth/driver → reload vòng lặp. Trang login không cần realtime.
+    if (isLoginPage()) return;
 
     window.__BEERPOS_REALTIME_LOADING__ = true;
     var script = document.createElement('script');
@@ -121,7 +167,7 @@
     // tạo vòng lặp reload: 429 → /auth/driver → /driver → 429 → ...
     if (res.status === 401) {
       setToken(null);
-      if (guardRedirect('/auth/driver')) window.location.href = '/auth/driver';
+      redirectToLogin();
       throw new Error('Phiên đăng nhập đã hết hạn');
     }
 
@@ -520,7 +566,7 @@
   async function logout() {
     try { await fetch('/auth/driver/logout', { method: 'POST', credentials: 'include' }); } catch (_) {}
     setToken(null);
-    window.location.href = '/auth/driver';
+    redirectToLogin();
   }
 
   // ── A4: Phiên bị thu hồi từ xa ──────────────────────────────────────────
@@ -529,13 +575,13 @@
   window.addEventListener('realtime:session-revoked', function () {
     console.warn('[DRIVER] Session revoked by server');
     setToken(null);
-    window.location.href = '/auth/driver';
+    redirectToLogin();
   });
 
   window.addEventListener('realtime:unauthorized', function () {
     console.warn('[DRIVER] Socket unauthorized');
     setToken(null);
-    window.location.href = '/auth/driver';
+    redirectToLogin();
   });
 
   function setNavBadge(count) {
@@ -561,7 +607,7 @@
         logoutBtn.addEventListener('click', async function () {
           try { await fetch('/auth/driver/logout', { method: 'POST', credentials: 'include' }); } catch (_) {}
           setToken(null);
-          window.location.href = '/auth/driver';
+          redirectToLogin();
         });
       }
       window.DRV_USER = me;
@@ -585,7 +631,7 @@
         console.warn('[DRIVER] requireAuth transient error (không redirect):', err && err.message);
         return null;
       }
-      if (guardRedirect('/auth/driver')) window.location.href = '/auth/driver';
+      redirectToLogin();
       return null;
     }
   }

@@ -5153,7 +5153,8 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
 }
 
 .inv-pos-title {
-  font-size: 10px;
+  /* 10px quá nhỏ trên PC (mất ~40% chiều cao chữ khi phóng to màn hình) */
+  font-size: 11px;
   font-weight: 700;
   color: var(--text-muted);
   letter-spacing: 1.5px;

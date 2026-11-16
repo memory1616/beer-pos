@@ -35,7 +35,24 @@ router.get('/', (req, res) => {
   if (token) {
     const session = getSession(token);
     if (session && session.role === ROLE_DRIVER) {
-      return res.redirect('/driver');
+      // CHỈ chuyển hướng khi client KHÔNG yêu cầu thoát.
+      //
+      // BUG ĐÃ SỬA (vòng lặp reload liên tục): client xử lý 401 bằng cách
+      // xoá token rồi điều hướng về /auth/driver. Nếu cookie httpOnly
+      // `driver_session_token` vẫn còn hiệu lực, server lại redirect về
+      // /driver → client lại gặp 401 → redirect /auth/driver → ping-pong
+      // vô hạn (tab nhấp nháy liên tục).
+      //
+      // Giải pháp: client gửi header `X-Logout: 1` khi chủ động thoát phiên
+      // → server xoá cookie và KHÔNG redirect. Ngoài ra chỉ redirect khi
+      // không có tham số `?stay` (dùng để debug).
+      const wantsLogout = String(req.get('X-Logout') || '') === '1' ||
+                          req.query.logout === '1';
+      if (!wantsLogout && req.query.stay !== '1') {
+        return res.redirect('/driver');
+      }
+      // Yêu cầu thoát → xoá cookie, hiển thị form đăng nhập.
+      res.clearCookie(DRIVER_COOKIE_NAME);
     }
   }
 

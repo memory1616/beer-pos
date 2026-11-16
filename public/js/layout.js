@@ -241,8 +241,12 @@ function restoreButtonLoading(btnState) {
 // khởi tạo socket (bug khiến trang Driver không đồng bộ real-time).
 (function () {
   function loadRealtime() {
-    // Skip login page — no data to sync
-    if (window.location.pathname === '/login') return;
+    // Skip login page — no data to sync.
+    // Quan trọng: mở socket trên trang đăng nhập sẽ nhận UNAUTHORIZED →
+    // sự kiện realtime:unauthorized → điều hướng lại chính trang login →
+    // vòng lặp reload vô hạn.
+    var p = String(window.location.pathname || '').replace(/\/+$/, '');
+    if (p === '/login' || p === '/auth/driver') return;
 
     // GUARD 1: realtime.js already loaded (its own __BEERPOS_REALTIME__ flag)
     if (window.__BEERPOS_REALTIME__) {
@@ -295,7 +299,10 @@ function restoreButtonLoading(btnState) {
       localStorage.removeItem('driver_session_token');
       localStorage.removeItem('auth_uid');
     } catch (_) {}
-    window.location.href = window.APP_MODE === 'driver' ? '/auth/driver' : '/login';
+    // KHÔNG reload lại chính trang đăng nhập (nguyên nhân vòng lặp reload).
+    var loginPath = window.APP_MODE === 'driver' ? '/auth/driver' : '/login';
+    var here = String(window.location.pathname || '').replace(/\/+$/, '');
+    if (here !== loginPath) window.location.href = loginPath;
   }
 
   window.addEventListener('realtime:session-revoked', function (e) {
