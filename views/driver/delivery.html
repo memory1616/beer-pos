@@ -319,9 +319,12 @@
 
       L.marker([lat, lng], { icon: icon('#0ECB81', 16) }).addTo(map).bindPopup('🏭 Kho');
 
+      var pts = [[lat, lng]];
       customers.forEach(function (c) {
         if (c.lat && c.lng) {
-          L.marker([parseFloat(c.lat), parseFloat(c.lng)], { icon: icon('#3b82f6', 10) })
+          var p = [parseFloat(c.lat), parseFloat(c.lng)];
+          pts.push(p);
+          L.marker(p, { icon: icon('#3b82f6', 10) })
             .addTo(map).bindPopup(esc(c.name));
         }
       });
@@ -334,7 +337,17 @@
         if (map) map.invalidateSize();
       });
       setTimeout(function () {
-        if (map) map.invalidateSize();
+        if (!map) return;
+        map.invalidateSize();
+        // Khung nhìn mặc định chỉ quanh kho → khách ở xa nằm ngoài màn hình.
+        // Tự động bao toàn bộ kho + các điểm giao để tài xế thấy hết đường đi.
+        if (pts.length > 1) {
+          try {
+            map.fitBounds(L.latLngBounds(pts).pad(0.18), { animate: false });
+          } catch (_) {
+            map.setView([lat, lng], 12);
+          }
+        }
       }, 400);
 
       // Khi đổi kích thước cửa sổ (xoay máy, đổi layout) → đo lại bản đồ.
