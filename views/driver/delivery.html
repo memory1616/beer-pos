@@ -325,6 +325,26 @@
             .addTo(map).bindPopup(esc(c.name));
         }
       });
+
+      // ⚠️ Leaflet đo kích thước container NGAY khi khởi tạo. Với layout
+      // responsive mới (grid 2 cột + sticky), container có thể chưa có kích
+      // thước cuối cùng → tile/marker đặt sai vị trí, hiển thị lệch hoặc trống.
+      // invalidateSize() buộc Leaflet đo lại sau khi layout đã ổn định.
+      requestAnimationFrame(function () {
+        if (map) map.invalidateSize();
+      });
+      setTimeout(function () {
+        if (map) map.invalidateSize();
+      }, 400);
+
+      // Khi đổi kích thước cửa sổ (xoay máy, đổi layout) → đo lại bản đồ.
+      window.addEventListener('resize', function () {
+        if (map) map.invalidateSize();
+      });
+      // Khi quay lại tab → Leaflet cần đo lại (bản đồ hay bị lệch sau khi ẩn).
+      window.addEventListener('orientationchange', function () {
+        setTimeout(function () { if (map) map.invalidateSize(); }, 250);
+      });
     }
 
     window.getLocation = function () {
