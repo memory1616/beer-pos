@@ -5,6 +5,7 @@ const logger = require('../../src/utils/logger');
 const socketServer = require('../../src/socket/socketServer');
 const AuditService = require('../../src/services/AuditService');
 const RegionService = require('../../src/services/RegionService');
+const GeocodeService = require('../../src/services/GeocodeService');
 const emitCustomer = (customer) => { try { if (socketServer) socketServer.emitCustomerUpdated(customer); } catch (_) {} };
 const emitKeg = () => { try { if (socketServer) socketServer.emitKegUpdated(); } catch (_) {} };
 
@@ -468,6 +469,24 @@ router.put('/:id', (req, res) => {
     const updatedCustomer = db.prepare('SELECT * FROM customers WHERE id = ?').get(id);
     emitCustomer(updatedCustomer);
 
+    // ── TỰ ĐỘNG TRA ĐỊA CHỈ TỪ GPS ──────────────────────────────────────
+    // Cập nhật tọa độ mà chưa có địa chỉ → tra ngược và tự điền.
+    // Chạy nền, không chặn response.
+    const hasAddress = updated.address && String(updated.address).trim();
+    const coordsChanged =
+      (updated.lat ?? null) !== (existing.lat ?? null) ||
+      (updated.lng ?? null) !== (existing.lng ?? null);
+    if (!hasAddress && coordsChanged) {
+      GeocodeService.ensureCustomerAddress(db, id, { lat: updated.lat, lng: updated.lng })
+        .then((geo) => {
+          if (geo.filled) {
+            const fresh = db.prepare('SELECT * FROM customers WHERE id = ?').get(id);
+            emitCustomer(fresh);
+          }
+        })
+        .catch(() => {});
+    }
+
     // ── TÁI ĐIỀU PHỔ ĐƠN KHI KHÁCH ĐỔI KHU VỰC ─────────────────────────
     // Khách chuyển khu vực → đơn CHƯA hoàn tất của khách chuyển sang tài
     // xế phụ trách khu vực mới (hoặc bỏ gán nếu khu vực mới chưa có tài xế
@@ -655,6 +674,21 @@ router.post('/location', (req, res) => {
     const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(customerId);
     emitCustomer(customer);
 
+    // ── TỰ ĐỘNG TRA ĐỊA CHỈ TỪ GPS ──────────────────────────────────────
+    // Khách vừa có tọa độ nhưng chưa có địa chỉ → tra ngược (reverse geocode)
+    // và tự điền địa chỉ. Chạy nền (không chặn response) vì gọi ra ngoài mất
+    // ~1s; sau khi điền xong sẽ emit lại để UI/admin đồng bộ.
+    if (!address) {
+      GeocodeService.ensureCustomerAddress(db, customerId, { lat: latNum, lng: lngNum })
+        .then((geo) => {
+          if (geo.filled) {
+            const fresh = db.prepare('SELECT * FROM customers WHERE id = ?').get(customerId);
+            emitCustomer(fresh);
+          }
+        })
+        .catch(() => {});
+    }
+
     res.json({ success: true });
   } catch (err) {
     logger.error('Location update error', { error: err.message });
@@ -671,6 +705,16 @@ router.post('/customer/location', (req, res) => {
   db.prepare('UPDATE customers SET lat = ?, lng = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(lat, lng, customerId);
   const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(customerId);
   emitCustomer(customer);
+
+  // Tự động tra địa chỉ từ GPS nếu khách chưa có địa chỉ.
+  GeocodeService.ensureCustomerAddress(db, customerId, { lat, lng })
+    .then((geo) => {
+      if (geo.filled) {
+        emitCustomer(db.prepare('SELECT * FROM customers WHERE id = ?').get(customerId));
+      }
+    })
+    .catch(() => {});
+
   res.json({ success: true });
 });
 

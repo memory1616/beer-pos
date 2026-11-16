@@ -141,13 +141,16 @@
   }
 
   function createCustomer() {
+    window.__ncLat = null;
+    window.__ncLng = null;
     D.openModal(
       '<div class="drv-field"><label class="drv-field__label">Tên khách *</label>' +
         '<input class="drv-input" id="nc-name" type="text" autocomplete="off"></div>' +
       '<div class="drv-field"><label class="drv-field__label">Số điện thoại</label>' +
         '<input class="drv-input" id="nc-phone" type="tel" inputmode="tel" autocomplete="off"></div>' +
       '<div class="drv-field"><label class="drv-field__label">Địa chỉ</label>' +
-        '<input class="drv-input" id="nc-address" type="text" autocomplete="off"></div>' +
+        '<input class="drv-input" id="nc-address" type="text" autocomplete="off">' +
+        '<div id="nc-gps" class="drv-field__hint" style="margin-top:6px;"></div></div>' +
       '<div class="drv-btn-row">' +
         '<button class="drv-btn drv-btn--ghost" id="nc-cancel" type="button">Huỷ</button>' +
         '<button class="drv-btn drv-btn--primary" id="nc-save" type="button">Tạo</button>' +
@@ -163,13 +166,67 @@
         await D.api.createCustomer({
           name: name,
           phone: document.getElementById('nc-phone').value.trim(),
-          address: document.getElementById('nc-address').value.trim()
+          address: document.getElementById('nc-address').value.trim(),
+          lat: window.__ncLat || null,
+          lng: window.__ncLng || null
         });
         D.closeModal();
         D.toast('Đã tạo khách hàng', 'success');
         load($('cust-search').value);
       } catch (err) { D.toast(err.message, 'error'); }
     });
+
+    // ── Tự động lấy GPS + địa chỉ ────────────────────────────────────────
+    // Tài xế đang đứng tại điểm giao → lấy tọa độ và tự tra địa chỉ.
+    captureGpsIntoAddress();
+  }
+
+  /**
+   * Lấy tọa độ hiện tại → tra địa chỉ (server reverse-geocode) → điền vào ô
+   * "Địa chỉ" nếu người dùng chưa tự nhập.
+   */
+  async function captureGpsIntoAddress() {
+    var gpsEl = $('nc-gps');
+    var addressEl = $('nc-address');
+    if (!gpsEl || !addressEl) return;
+
+    if (!navigator.geolocation) {
+      gpsEl.textContent = 'Thiết bị không hỗ trợ GPS.';
+      return;
+    }
+
+    gpsEl.textContent = '⏳ Đang lấy vị trí GPS...';
+    try {
+      var pos = await new Promise(function (resolve, reject) {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 30000
+        });
+      });
+      var lat = pos.coords.latitude;
+      var lng = pos.coords.longitude;
+
+      // Lưu tọa độ để gửi kèm khi tạo khách (server sẽ tự tra địa chỉ nếu thiếu).
+      window.__ncLat = lat;
+      window.__ncLng = lng;
+
+      gpsEl.textContent = '📍 ' + lat.toFixed(5) + ', ' + lng.toFixed(5) + ' — đang tra địa chỉ...';
+
+      var res = await fetch('/api/geocode/reverse?lat=' + lat + '&lng=' + lng);
+      var data = await res.json();
+
+      if (data.success && data.address) {
+        if (!addressEl.value.trim()) {
+          addressEl.value = data.address;
+        }
+        gpsEl.textContent = '✓ Đã tự động điền địa chỉ từ GPS';
+      } else {
+        gpsEl.textContent = '📍 ' + lat.toFixed(5) + ', ' + lng.toFixed(5) + ' — chưa tra được địa chỉ, nhập tay giúp nhé';
+      }
+    } catch (err) {
+      gpsEl.textContent = 'Không lấy được vị trí GPS — vui lòng nhập địa chỉ tay.';
+    }
   }
 
   function debounce(fn, ms) {

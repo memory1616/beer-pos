@@ -1029,6 +1029,7 @@ app.use('/api/push', requireAuth, require('./routes/api/push'));
 app.use('/api', optionalAuth, apiGuard, attachSanitizer);
 
 app.use('/api/customers', require('./routes/api/customers'));
+app.use('/api/geocode', require('./routes/api/geocode'));
 app.use('/api/products', require('./routes/api/products'));
 app.use('/api/sales', require('./routes/api/sales'));
 app.use('/api/orders', require('./routes/api/orders'));

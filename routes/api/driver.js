@@ -19,6 +19,7 @@ const DriverSalaryCalculator = require('../../src/services/DriverSalaryCalculato
 const DriverStaffService = require('../../src/services/DriverStaffService');
 const DriverAttendanceService = require('../../src/services/DriverAttendanceService');
 const RegionService = require('../../src/services/RegionService');
+const GeocodeService = require('../../src/services/GeocodeService');
 const { ROLE_DRIVER } = require('../../middleware/permissions');
 const { PromotionService } = require('../../src/services');
 
@@ -969,6 +970,22 @@ router.post('/customers', requireDriver, (req, res) => {
 
     const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(result.lastInsertRowid);
     res.status(201).json({ success: true, id: result.lastInsertRowid, customer });
+
+    // ── TỰ ĐỘNG TRA ĐỊA CHỈ TỪ GPS ──────────────────────────────────────
+    // Tài xế tạo khách ngay tại điểm giao (có tọa độ) nhưng chưa nhập địa chỉ
+    // → tra ngược và tự điền (chạy nền, không chặn response).
+    if (lat && lng && !address) {
+      GeocodeService.ensureCustomerAddress(db, result.lastInsertRowid, { lat, lng })
+        .then((geo) => {
+          if (geo.filled) {
+            logger.info('[driver] da dien dia chi tu GPS', {
+              customerId: result.lastInsertRowid,
+              source: geo.source,
+            });
+          }
+        })
+        .catch(() => {});
+    }
   } catch (err) {
     logger.error('[driver] create customer error', { error: err.message });
     res.status(500).json({ error: 'Lỗi khi tạo khách hàng: ' + err.message });

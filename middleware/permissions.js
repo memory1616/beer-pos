@@ -65,6 +65,7 @@ const DRIVER_ALLOWED_API_PREFIXES = [
   '/api/discover',    // LAN discovery
   '/api/push',        // Web Push: subscribe / unsubscribe / status (requireDriver trong file)
   '/api/regions',     // Danh mục khu vực (đọc) + /my = khu vực tài xế phụ trách
+  '/api/geocode',     // Tra địa chỉ từ tọa độ GPS (tài xế cần khi chỉ đường)
 ];
 
 const DRIVER_DENIED_PATH_PREFIXES = [

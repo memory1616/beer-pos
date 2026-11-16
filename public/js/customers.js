@@ -1293,12 +1293,39 @@ function getLocation(customerId) {
           <span class="badge badge-success">✅ Đã có vị trí</span>
         </div>
         <div class="text-xs text-muted mb-1">📍 ${customer.lat.toFixed(6)}, ${customer.lng.toFixed(6)}</div>
-        ${customer.address ? '<div class="text-xs text-muted">' + customer.address + '</div>' : ''}
+        ${customer.address ? '<div class="text-xs text-muted">' + escapeHtml(customer.address) + '</div>' : ''}
       </div>
     `;
     if (manualLatEl) manualLatEl.value = customer.lat.toFixed(6);
     if (manualLngEl) manualLngEl.value = customer.lng.toFixed(6);
     if (updateGPSSectionEl) updateGPSSectionEl.classList.remove('hidden');
+
+    // ── Tự động tra địa chỉ khi khách CÓ GPS nhưng CHƯA CÓ địa chỉ ───────
+    if (!customer.address || !String(customer.address).trim()) {
+      if (detectedAddressEl) {
+        detectedAddressEl.innerHTML = '<p class="text-info">⏳ Đang tra địa chỉ từ tọa độ đã lưu...</p>';
+      }
+      fetch('/api/geocode/reverse?lat=' + customer.lat + '&lng=' + customer.lng)
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+          if (!data.success || !data.address) {
+            if (detectedAddressEl) {
+              detectedAddressEl.innerHTML = '<p class="text-muted">Không tra được địa chỉ — bấm "Cập nhật vị trí" để thử lại.</p>';
+            }
+            return;
+          }
+          window.detectedAddress = data.address;
+          if (detectedAddressEl) {
+            detectedAddressEl.innerHTML = '<p class="text-sm text-main">📍 ' + escapeHtml(data.address) + '</p>' +
+              '<p class="text-xs text-success mt-1">✓ Đã tự động điền địa chỉ — bấm "Lưu" để ghi vào hồ sơ.</p>';
+          }
+        })
+        .catch(function () {
+          if (detectedAddressEl) {
+            detectedAddressEl.innerHTML = '<p class="text-muted">Không tra được địa chỉ — vui lòng nhập tay.</p>';
+          }
+        });
+    }
   } else {
     // No GPS yet — auto-trigger GPS acquisition
     setTimeout(() => {
@@ -1365,23 +1392,35 @@ function getGPSLocation() {
       if (manualLatEl) manualLatEl.value = lat.toFixed(6);
       if (manualLngEl) manualLngEl.value = lng.toFixed(6);
 
-      // Try reverse geocoding to get address
+      // ── Tự động lấy địa chỉ từ tọa độ (reverse geocode qua server) ───────
+      // Gọi server (cache tập trung + rate-limit) thay vì Nominatim trực tiếp
+      // từ trình duyệt (dễ bị 429/CORS).
       if (addressEl) {
-        addressEl.innerHTML = '<p class="text-info">⏳ Đang lấy địa chỉ...</p>';
+        addressEl.innerHTML = '<p class="text-info">⏳ Đang lấy địa chỉ từ GPS...</p>';
         try {
-          var res = await fetch('https://nominatim.openstreetmap.org/reverse?lat=' + lat + '&lon=' + lng + '&format=json');
+          var res = await fetch('/api/geocode/reverse?lat=' + lat + '&lng=' + lng);
           var data = await res.json();
 
-          if (data.display_name) {
-            addressEl.innerHTML = '<p class="text-sm text-main">📍 ' + data.display_name + '</p>' +
-              '<button onclick="useDetectedAddress(\'' + data.display_name.replace(/'/g, "\\'") + '\')" class="mt-2 text-xs btn btn-secondary btn-sm">' +
-              'Sử dụng địa chỉ này' +
+          if (data.success && data.address) {
+            // Tự động chọn luôn — không bắt user bấm "Sử dụng địa chỉ này".
+            window.detectedAddress = data.address;
+            addressEl.innerHTML = '<p class="text-sm text-main">📍 ' + escapeHtml(data.address) + '</p>' +
+              '<p class="text-xs text-success mt-1">✓ Đã tự động điền địa chỉ — bấm "Lưu" để ghi vào hồ sơ.</p>' +
+              '<button type="button" id="btnUseDetectedAddress" class="mt-2 text-xs btn btn-secondary btn-sm">' +
+              'Sử dụng địa chỉ khác' +
               '</button>';
-            window.detectedAddress = data.display_name;
+            var useBtn = document.getElementById('btnUseDetectedAddress');
+            if (useBtn) {
+              useBtn.addEventListener('click', function () {
+                window.detectedAddress = null;
+                addressEl.innerHTML = '<p class="text-muted">Đã bỏ địa chỉ tự động. Bấm "Lấy vị trí GPS" để lấy lại.</p>';
+              });
+            }
+          } else {
+            addressEl.innerHTML = '<p class="text-muted">Không tìm thấy địa chỉ cho tọa độ này — vui lòng nhập tay.</p>';
           }
         } catch (err) {
-          // silenced
-          addressEl.innerHTML = '<p class="text-muted">Không thể lấy địa chỉ</p>';
+          addressEl.innerHTML = '<p class="text-muted">Không thể lấy địa chỉ tự động — vui lòng nhập tay.</p>';
         }
       }
     },
