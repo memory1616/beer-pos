@@ -158,6 +158,9 @@ router.post('/', async (req, res) => {
       ? req.body.driverUsername.trim()
       : null;
 
+  // Admin/tài xế chỉ định tài xế TAY → đơn sẽ được đánh dấu 'MANUAL'.
+  const explicitDriver = !!driverUsername;
+
   const requesterRole = req.user?.role || 'ADMIN';
   if (requesterRole !== 'ADMIN' && driverUsername && driverUsername !== req.user?.username) {
     logger.warn('[api/sales] Driver tried to assign another driver', {
@@ -441,7 +444,14 @@ router.post('/', async (req, res) => {
       const createdOn = db.getVietnamDateStr();
       const saleDate = db.getBusinessDateStr();
       const saleTime = db.getVietnamTimeStr();
-      const saleResult = db.prepare('INSERT INTO sales (customer_id, sales_id, date, created_on, sale_time, total, profit, deliver_kegs, return_kegs, keg_balance_after, type, promo_free_liters, promo_type, driver_username, is_credit, region_id, region_name, region_driver_username) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(customerId, staffId || null, saleDate, createdOn, saleTime, total, profit, finalDeliverKegs, returnKegs, newKegBalance, 'sale', promoFreeTotal, promoInfo ? promoInfo.promoType : null, driverUsername, debt && customerId ? 1 : 0, regionSnapshot.regionId, regionSnapshot.regionName, driverUsername || regionSnapshot.driverUsername);
+      // Trạng thái điều phố: AUTO (tự gán) / MANUAL (Admin chọn tay) /
+      // UNASSIGNED (không tìm được tài xế → chờ Admin điều phố).
+      const dispatchStatus = RegionService.computeDispatchStatus({
+        driverUsername,
+        autoDispatch,
+        explicitDriver,
+      });
+      const saleResult = db.prepare('INSERT INTO sales (customer_id, sales_id, date, created_on, sale_time, total, profit, deliver_kegs, return_kegs, keg_balance_after, type, promo_free_liters, promo_type, driver_username, is_credit, region_id, region_name, region_driver_username, dispatch_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(customerId, staffId || null, saleDate, createdOn, saleTime, total, profit, finalDeliverKegs, returnKegs, newKegBalance, 'sale', promoFreeTotal, promoInfo ? promoInfo.promoType : null, driverUsername, debt && customerId ? 1 : 0, regionSnapshot.regionId, regionSnapshot.regionName, driverUsername || regionSnapshot.driverUsername, dispatchStatus);
       const saleId = saleResult.lastInsertRowid;
 
       if (!saleId) throw new Error('Sale creation failed — no lastInsertRowid');
@@ -1111,10 +1121,15 @@ router.post('/replacement', (req, res) => {
     const doReplacement = db.transaction(() => {
       const createdOn = db.getVietnamDateStr();
       const saleDate = db.getBusinessDateStr();
+      const replacementDispatchStatus = RegionService.computeDispatchStatus({
+        driverUsername,
+        autoDispatch: replacementRegion,
+        explicitDriver: !!driverUsername && !replacementRegion?.driverUsername,
+      });
       const result = db.prepare(`
         INSERT INTO sales (customer_id, total, type, note, date, created_on, driver_username,
-                           region_id, region_name, region_driver_username)
-        VALUES (?, 0, 'replacement', ?, ?, ?, ?, ?, ?, ?)
+                           region_id, region_name, region_driver_username, dispatch_status)
+        VALUES (?, 0, 'replacement', ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         customer_id || null,
         note,
@@ -1123,7 +1138,8 @@ router.post('/replacement', (req, res) => {
         driverUsername,
         replacementRegion ? replacementRegion.regionId : null,
         replacementRegion ? replacementRegion.regionName : null,
-        driverUsername || (replacementRegion ? replacementRegion.driverUsername : null)
+        driverUsername || (replacementRegion ? replacementRegion.driverUsername : null),
+        replacementDispatchStatus
       );
       const saleId = result.lastInsertRowid;
       logger.info('[replacement] sale inserted', { saleId });

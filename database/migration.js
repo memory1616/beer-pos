@@ -889,6 +889,23 @@ function runBusinessRegionsMigration(db) {
   }
 }
 
+// ── Sale dispatch status migration (059) ───────────────────────────────────
+// Cờ `sales.dispatch_status`: đánh dấu đơn MỚI đã đi qua hệ thống điều phố
+// ('AUTO' / 'MANUAL' / 'UNASSIGNED'). Đơn cũ (NULL) = trước khi có hệ thống
+// phân tuyến → không hiện trong danh sách "Đơn chờ điều phố".
+// Chạy ĐỘC LẬP, idempotent.
+function runSaleDispatchStatusMigration(db) {
+  try {
+    const migration = require('./migrations/059_sale_dispatch_status');
+    migration.up(db);
+    log('[SALE_DISPATCH_STATUS] Migration 059 applied');
+    return { success: true };
+  } catch (e) {
+    log('[SALE_DISPATCH_STATUS] Migration error: ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
 // ── Utility: Generate UUID ─────────────────────────────────────────────────────
 
 function generateUUID() {
@@ -922,6 +939,7 @@ module.exports = {
   runAuditLogUnificationMigration,
   runDriverAttendanceMigration,
   runBusinessRegionsMigration,
+  runSaleDispatchStatusMigration,
   generateUUID,
   getCurrentVersion,
   setVersion,

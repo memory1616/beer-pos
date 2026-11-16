@@ -293,6 +293,7 @@ function assignDriver(regionId, driverUsername, opts = {}) {
         const r = assignSaleDriver(s.id, result.newUsername, {
           actor: opts.actor || null,
           note: 'Tự động theo phân công khu vực',
+          autoAssign: true,
         });
         if (r.success) {
           reassigned++;
@@ -601,6 +602,58 @@ function validateRegionId(value) {
 const LOCKED_DELIVERY_STATUSES = ['DELIVERED', 'FAILED', 'DISCREPANCY'];
 
 /**
+ * Trạng thái điều phố của một đơn.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * - 'AUTO'       : đơn mới được hệ thống TỰ ĐỘNG gán tài xế theo khu vực.
+ * - 'MANUAL'     : Admin chỉ định tài xế tay (ghi đè tự động).
+ * - 'UNASSIGNED' : đơn mới KHÔNG tìm được tài xế → chờ Admin điều phố.
+ * - null         : đơn CŨ (trước khi có hệ thống phân tuyến) → không hiện
+ *                  trong danh sách "Đơn chờ điều phố" (đã giao xong rồi).
+ */
+const DISPATCH_STATUS = {
+  AUTO: 'AUTO',
+  MANUAL: 'MANUAL',
+  UNASSIGNED: 'UNASSIGNED',
+};
+
+/**
+ * Tính trạng thái điều phố khi tạo đơn.
+ * @param {object} opts - { driverUsername, autoDispatch, explicitDriver }
+ *   - driverUsername  : tài xế cuối cùng được gán (null = chưa gán)
+ *   - autoDispatch    : kết quả RegionService.autoDispatchForCustomer()
+ *   - explicitDriver  : true nếu Admin chỉ định tài xế tay
+ * @returns {'AUTO'|'MANUAL'|'UNASSIGNED'}
+ */
+function computeDispatchStatus(opts = {}) {
+  const { driverUsername, autoDispatch, explicitDriver } = opts;
+
+  if (driverUsername) {
+    // Admin chỉ định tay → MANUAL; hệ thống tự gán → AUTO.
+    return explicitDriver ? DISPATCH_STATUS.MANUAL : DISPATCH_STATUS.AUTO;
+  }
+  // Không có tài xế.
+  if (autoDispatch && autoDispatch.reason) {
+    return DISPATCH_STATUS.UNASSIGNED;
+  }
+  // Không chạy auto-dispatch (ví dụ đơn không có khách) → coi như unassigned.
+  return DISPATCH_STATUS.UNASSIGNED;
+}
+
+/**
+ * Ghi trạng thái điều phố cho một đơn.
+ * @param {number} saleId
+ * @param {'AUTO'|'MANUAL'|'UNASSIGNED'} status
+ */
+function setSaleDispatchStatus(saleId, status) {
+  if (!status) return;
+  try {
+    db.prepare('UPDATE sales SET dispatch_status = ? WHERE id = ?').run(status, saleId);
+  } catch (err) {
+    logger.error('[RegionService] setSaleDispatchStatus error', { error: err.message });
+  }
+}
+
+/**
  * Lấy danh sách id khu vực mà tài xế đang phụ trách.
  * @param {string} username
  * @returns {number[]}
@@ -888,12 +941,21 @@ function assignSaleDriver(saleId, driverUsername, opts = {}) {
   }
 
   try {
+    // Trạng thái điều phố:
+    //  - có tài xế → 'MANUAL' (Admin/điều phố gán tay) hoặc 'AUTO' nếu hệ
+    //    thống tự gán theo khu vực (opts.autoAssign = true).
+    //  - bỏ gán     → 'UNASSIGNED' (đơn quay lại hàng đợi chờ điều phố).
+    const dispatchStatus = username
+      ? (opts.autoAssign ? DISPATCH_STATUS.AUTO : DISPATCH_STATUS.MANUAL)
+      : DISPATCH_STATUS.UNASSIGNED;
+
     db.prepare(
       `UPDATE sales
        SET driver_username = ?, region_id = ?, region_name = ?,
-           region_driver_username = ?, updated_at = CURRENT_TIMESTAMP
+           region_driver_username = ?, dispatch_status = ?,
+           updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`
-    ).run(username, regionId, regionName, username, id);
+    ).run(username, regionId, regionName, username, dispatchStatus, id);
 
     logger.info('[RegionService] sale driver assigned', {
       saleId: id,
@@ -1053,6 +1115,7 @@ function redispatchCustomerSales(customerId, newRegionId, opts = {}) {
       note: opts.note || 'Tái điều phố: khách hàng đổi khu vực',
       regionId: regionId,
       regionName: regionName,
+      autoAssign: true,
     });
     if (!r.success) {
       preserved++;
@@ -1110,7 +1173,15 @@ function redispatchCustomerSales(customerId, newRegionId, opts = {}) {
 }
 
 /**
- * Đơn chờ điều phối (chưa có tài xế, chưa khoá) — cho Admin.
+ * Đơn chờ điều phối — cho Admin.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * CHỈ trả về đơn THỰC SỰ bị bỏ qua auto-dispatch, tức là:
+ *   `dispatch_status = 'UNASSIGNED'` — đơn MỚI tạo mà không xác định được
+ *   tài xế phụ trách khu vực (khách chưa có khu vực, hoặc khu vực chưa có
+ *   tài xế).
+ *
+ * Đơn CŨ (`dispatch_status IS NULL`) — tức đơn từ trước khi có hệ thống
+ * phân tuyến — ĐÃ được giao xong nên KHÔNG hiện trong danh sách này.
  */
 function listUnassignedSales(opts = {}) {
   const date = opts.date || null;
@@ -1124,11 +1195,12 @@ function listUnassignedSales(opts = {}) {
   const rows = db
     .prepare(
       `SELECT s.id, s.date, s.sale_time, s.total, s.customer_id, s.driver_username,
-              s.region_id, s.region_name, s.delivery_status,
+              s.region_id, s.region_name, s.delivery_status, s.dispatch_status,
               c.name AS customer_name, c.phone AS customer_phone, c.address AS customer_address
        FROM sales s
        LEFT JOIN customers c ON c.id = s.customer_id
        WHERE s.type = 'sale' AND s.archived = 0 AND s.deleted = 0
+         AND s.dispatch_status = 'UNASSIGNED'
          AND (s.driver_username IS NULL OR s.driver_username = '')
          AND NOT EXISTS (
            SELECT 1 FROM delivery_records dr
@@ -1140,7 +1212,20 @@ function listUnassignedSales(opts = {}) {
        LIMIT ?`
     )
     .all(...params, limit);
-  return rows;
+
+  // Bổ sung lý do chờ điều phố để Admin hiểu ngay cần xử lý gì.
+  return rows.map((r) => {
+    let reason = null;
+    if (!r.region_id) {
+      reason = 'Khách hàng chưa có khu vực';
+    } else {
+      const driver = getActiveDriver(r.region_id);
+      if (!driver) {
+        reason = `Khu vực ${r.region_name} chưa có tài xế phụ trách`;
+      }
+    }
+    return { ...r, dispatch_reason: reason };
+  });
 }
 
 module.exports = {
@@ -1160,6 +1245,10 @@ module.exports = {
   resolveForCustomer,
   autoDispatchForCustomer,
   validateRegionId,
+  // Trạng thái điều phố
+  DISPATCH_STATUS,
+  computeDispatchStatus,
+  setSaleDispatchStatus,
   // Phân quyền theo khu vực
   LOCKED_DELIVERY_STATUSES,
   getDriverRegionIds,

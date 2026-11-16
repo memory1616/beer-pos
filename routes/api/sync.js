@@ -19,7 +19,15 @@ const { isValidId, isPositiveNumber, sanitizeString } = require('../../middlewar
 function applyAutoDispatch(saleId, customerId) {
   try {
     const dispatch = RegionService.autoDispatchForCustomer(customerId);
-    if (!dispatch.autoAssigned || !dispatch.driverUsername) return false;
+    if (!dispatch.autoAssigned || !dispatch.driverUsername) {
+      // Không tìm được tài xế → đánh dấu đơn chờ điều phố (chỉ hiện trong
+      // danh sách "Đơn chờ điều phố" của Admin).
+      RegionService.setSaleDispatchStatus(
+        saleId,
+        RegionService.DISPATCH_STATUS.UNASSIGNED
+      );
+      return false;
+    }
 
     db.prepare(
       `UPDATE sales
@@ -27,6 +35,7 @@ function applyAutoDispatch(saleId, customerId) {
            region_id = ?,
            region_name = ?,
            region_driver_username = ?,
+           dispatch_status = ?,
            updated_at = CURRENT_TIMESTAMP
        WHERE id = ? AND (driver_username IS NULL OR driver_username = '')`
     ).run(
@@ -34,6 +43,7 @@ function applyAutoDispatch(saleId, customerId) {
       dispatch.regionId,
       dispatch.regionName,
       dispatch.driverUsername,
+      RegionService.DISPATCH_STATUS.AUTO,
       saleId
     );
     logger.info('[api/sync] auto-dispatch by region', {

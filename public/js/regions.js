@@ -199,7 +199,10 @@
         '<td>' + esc(s.customer_name || 'Khách lẻ') + '</td>' +
         '<td>' + (s.region_name
             ? '<span class="rg-badge rg-badge--ok">' + esc(s.region_name) + '</span>'
-            : '<span class="rg-badge rg-badge--none">Chưa có khu vực</span>') + '</td>' +
+            : '<span class="rg-badge rg-badge--none">Chưa có khu vực</span>') +
+          (s.dispatch_reason
+            ? '<div style="color:var(--text-muted);font-size:11px;margin-top:3px">⚠️ ' + esc(s.dispatch_reason) + '</div>'
+            : '') + '</td>' +
         '<td>' + fmtVND(s.total) + '</td>' +
         '<td><select class="rg-select" data-dispatch="' + s.id + '" style="min-width:150px">' + options + '</select> ' +
           '<button class="rg-btn" data-dispatch-save="' + s.id + '">Gán</button></td>' +

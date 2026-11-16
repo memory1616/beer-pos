@@ -24,8 +24,9 @@ router.post('/', (req, res) => {
 
     const stmt = db.prepare(`
       INSERT INTO sales (customer_id, date, created_on, total, profit, deliver_kegs, return_kegs, type, note, status,
-                         driver_username, region_id, region_name, region_driver_username, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed', ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                         driver_username, region_id, region_name, region_driver_username, created_at, updated_at,
+                         dispatch_status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed', ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)
     `);
     const result = stmt.run(
       customerId || null,
@@ -40,7 +41,8 @@ router.post('/', (req, res) => {
       driverUsername,
       dispatch.regionId,
       dispatch.regionName,
-      driverUsername
+      driverUsername,
+      RegionService.computeDispatchStatus({ driverUsername, autoDispatch: dispatch })
     );
 
     const saleId = result.lastInsertRowid;

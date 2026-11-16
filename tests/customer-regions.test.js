@@ -42,6 +42,7 @@ function buildApp(role, username) {
   a.use('/api/admin/regions', require('../routes/api/regions'));
   a.use('/api/regions', require('../routes/api/regionCatalog'));
   a.use('/api/driver/sale', require('../routes/api/driverSale'));
+  a.use('/api/sales', require('../routes/api/sales'));
   return a;
 }
 
@@ -73,12 +74,16 @@ function createCustomer(name, regionId) {
   return r.lastInsertRowid;
 }
 
+function getProduct() {
+  return db.prepare('SELECT id, cost_price, sell_price FROM products WHERE archived = 0 LIMIT 1').get();
+}
+
 function createSale(customerId, regionId, driverUsername) {
   const today = db.getVietnamDateStr();
   const r = db
     .prepare(
-      `INSERT INTO sales (customer_id, date, created_on, sale_time, total, profit, type, driver_username, region_id, region_name)
-       VALUES (?, ?, ?, ?, 100000, 50000, 'sale', ?, ?, ?)`
+      `INSERT INTO sales (customer_id, date, created_on, sale_time, total, profit, type, driver_username, region_id, region_name, dispatch_status)
+       VALUES (?, ?, ?, ?, 100000, 50000, 'sale', ?, ?, ?, ?)`
     )
     .run(
       customerId,
@@ -87,7 +92,10 @@ function createSale(customerId, regionId, driverUsername) {
       db.getVietnamTimeStr(),
       driverUsername || null,
       regionId || null,
-      regionId ? 'R' + regionId : null
+      regionId ? 'R' + regionId : null,
+      // Đơn tạo trực tiếp bằng SQL (không qua API) → coi như đơn MỚI chưa
+      // được điều phố → 'UNASSIGNED' nếu chưa có tài xế.
+      driverUsername ? 'MANUAL' : 'UNASSIGNED'
     );
   return r.lastInsertRowid;
 }
@@ -415,6 +423,79 @@ describe('I/J. Đơn chờ điều phối & Admin điều phối', () => {
     expect(res.status).toBe(200);
     const ids = res.body.sales.map((s) => s.id);
     expect(ids).toContain(saleUnassigned);
+  });
+
+  test('đơn CŨ (dispatch_status = NULL) KHÔNG hiện trong danh sách chờ điều phố', async () => {
+    // Đơn tạo trước khi có hệ thống phân tuyến → dispatch_status = NULL
+    const today = db.getVietnamDateStr();
+    const r = db
+      .prepare(
+        `INSERT INTO sales (customer_id, date, created_on, sale_time, total, profit, type, driver_username, region_id, region_name)
+         VALUES (?, ?, ?, ?, 100000, 50000, 'sale', NULL, ?, ?)`
+      )
+      .run(custA, today, today, db.getVietnamTimeStr(), regionIds.HOA_THANH, 'R' + regionIds.HOA_THANH);
+    const oldSaleId = r.lastInsertRowid;
+
+    const res = await request(adminApp).get('/api/admin/regions/dispatch/unassigned');
+    const ids = res.body.sales.map((s) => s.id);
+    // Đơn cũ (NULL) không hiện; đơn mới UNASSIGNED thì có hiện.
+    expect(ids).not.toContain(oldSaleId);
+    expect(ids).toContain(saleUnassigned);
+  });
+
+  test('đơn mới tạo qua API mà không tìm được tài xế → hiện trong danh sách chờ', async () => {
+    // Khách CHƯA có khu vực → auto-dispatch không tìm được tài xế
+    const custNoRegion = createCustomer('RG_TEST_KhachKhongKhuVuc', null);
+    const res = await request(adminApp)
+      .post('/api/sales')
+      .send({
+        customerId: custNoRegion,
+        items: [{ productId: getProduct().id, quantity: 1, price: getProduct().sell_price }],
+      });
+    expect(res.status).toBe(200);
+
+    const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(res.body.id);
+    expect(sale.dispatch_status).toBe('UNASSIGNED');
+
+    const list = await request(adminApp).get('/api/admin/regions/dispatch/unassigned');
+    const ids = list.body.sales.map((s) => s.id);
+    expect(ids).toContain(sale.id);
+  });
+
+  test('đơn mới tạo qua API, tự động gán tài xế → KHÔNG hiện trong danh sách chờ', async () => {
+    const res = await request(adminApp)
+      .post('/api/sales')
+      .send({
+        customerId: custA,
+        items: [{ productId: getProduct().id, quantity: 1, price: getProduct().sell_price }],
+      });
+    expect(res.status).toBe(200);
+
+    const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(res.body.id);
+    expect(sale.dispatch_status).toBe('AUTO');
+    expect(sale.driver_username).toBe(DRIVER_A);
+
+    const list = await request(adminApp).get('/api/admin/regions/dispatch/unassigned');
+    const ids = list.body.sales.map((s) => s.id);
+    expect(ids).not.toContain(sale.id);
+  });
+
+  test('đơn mới tạo qua API, Admin chỉ định tài xế tay → KHÔNG hiện trong danh sách chờ', async () => {
+    const res = await request(adminApp)
+      .post('/api/sales')
+      .send({
+        customerId: custA,
+        driverUsername: DRIVER_B,
+        items: [{ productId: getProduct().id, quantity: 1, price: getProduct().sell_price }],
+      });
+    expect(res.status).toBe(200);
+
+    const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(res.body.id);
+    expect(sale.dispatch_status).toBe('MANUAL');
+
+    const list = await request(adminApp).get('/api/admin/regions/dispatch/unassigned');
+    const ids = list.body.sales.map((s) => s.id);
+    expect(ids).not.toContain(sale.id);
   });
 
   test('đơn đã gán tài xế KHÔNG nằm trong danh sách chờ', async () => {
