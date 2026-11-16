@@ -2333,11 +2333,54 @@ body.ds-app .btn--accent-outline {
   border: 1px solid rgba(14, 203, 129, .28);
 }
 
+/* Card giao hàng là "container" để hàng nút thích ứng theo BỀ RỘNG THẬT của card,
+   không phụ thuộc viewport (desktop nhiều cột → card hẹp → nút phải xuống hàng). */
+.ds-delivery {
+  container-type: inline-size;
+  container-name: ds-card;
+}
+
 .ds-delivery__actions {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  /* Card hẹp (mobile, hoặc desktop nhiều cột):
+     hàng 1 = nút "Gọi" full-width, hàng 2 = "Chỉ đường" + "Giao hàng".
+     Nhờ vậy SĐT dài không bao giờ bị cắt và mọi card (có/không SĐT) giống nhau. */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-areas:
+    "call call"
+    "dir  del";
   gap: var(--ds-s-2);
   margin-top: var(--ds-s-3);
+}
+.ds-delivery__actions > .ds-btn--call { grid-area: call; }
+.ds-delivery__actions > .ds-btn--dir   { grid-area: dir; }
+.ds-delivery__actions > .ds-btn--deliver { grid-area: del; }
+
+/* Nội dung nút: 1 dòng + ellipsis để 3 nút luôn đều nhau dù SĐT dài/ngắn */
+.ds-btn__text {
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* An toàn: mọi icon trong hàng nút phải có kích thước cố định
+   (tránh SVG không khai báo width/height bị giãn theo viewBox) */
+.ds-delivery__actions svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+}
+
+/* Card đủ rộng (≥380px): 3 nút cùng hàng — đây là điều kiện thực sự quyết định,
+   vì ở desktop nhiều cột, card có thể hẹp dù viewport rộng.
+   Ngưỡng 380px = 3 × (nút ~124px) + 2 × gap 8px → không cắt chữ "Chỉ đường"/SĐT. */
+@container ds-card (min-width: 380px) {
+  .ds-delivery__actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-areas: "dir call del";
+  }
 }
 
 .ds-delivery__panel {
@@ -2488,7 +2531,9 @@ body.ds-app .btn--accent-outline {
 .ds-btn--deliver {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
+  min-width: 0;
   padding: var(--ds-s-2) var(--ds-s-3);
   border: 1px solid rgba(14, 203, 129, .4);
   border-radius: var(--ds-r-xs);
@@ -2506,7 +2551,9 @@ body.ds-app .btn--accent-outline {
 .ds-btn--dir {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
+  min-width: 0;
   padding: var(--ds-s-2) var(--ds-s-3);
   min-height: var(--ds-touch-sm);
   border: 1px solid var(--ds-line-strong);
@@ -2517,8 +2564,6 @@ body.ds-app .btn--accent-outline {
   font-size: var(--ds-f-sm);
   text-decoration: none;
   cursor: pointer;
-  flex: 1 1 auto;
-  justify-content: center;
 }
 .ds-btn--dir svg { width: 14px; height: 14px; flex: 0 0 14px; }
 .ds-btn--dir.is-disabled { opacity: .45; cursor: not-allowed; }
@@ -2529,6 +2574,7 @@ body.ds-app .btn--accent-outline {
   align-items: center;
   justify-content: center;
   gap: 6px;
+  min-width: 0;
   padding: var(--ds-s-2) var(--ds-s-3);
   min-height: var(--ds-touch-sm);
   border: 1px solid rgba(59, 122, 254, .4);
@@ -2539,9 +2585,18 @@ body.ds-app .btn--accent-outline {
   font-size: var(--ds-f-sm);
   text-decoration: none;
   cursor: pointer;
-  flex: 1 1 auto;
+  overflow: hidden;
 }
+.ds-btn--call svg { width: 14px; height: 14px; flex: 0 0 14px; }
 .ds-btn--call:active { transform: scale(.96); }
+.ds-btn--call.is-disabled {
+  opacity: .4;
+  cursor: not-allowed;
+  border-style: dashed;
+  border-color: var(--ds-line-strong);
+  background: transparent;
+  color: var(--ds-text-2);
+}
 
 /* ── 9.8 DESKTOP (≥1024px): bản đồ + danh sách cạnh nhau ─────────────── */
 @media (min-width: 1024px) {
@@ -2570,8 +2625,9 @@ body.ds-app .btn--accent-outline {
     height: clamp(460px, calc(100dvh - var(--ds-header-h) - var(--ds-s-8)), 820px);
   }
 
+  /* Hàng nút dùng grid 3 cột nên không cần chỉnh flex-wrap ở desktop */
   .ds-delivery__actions {
-    flex-wrap: nowrap;
+    gap: var(--ds-s-2);
   }
 
   /* Chỉ số dạng lưới 3 ô trên desktop, không co lại như mobile */

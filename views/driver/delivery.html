@@ -244,14 +244,20 @@
           : '';
 
         // Nút gọi — tap-to-call, nút lớn vùng ngón cái
+        // LUÔN render 1 ô "Gọi" (disabled nếu khách không có SĐT) để hàng nút
+        // luôn có 3 cột đều nhau → không bị lệch layout giữa card có/không SĐT.
         var phone = c.phone || '';
         var phoneBlock = phone
-          ? '<a class="ds-btn--call" href="tel:' + esc(phone.replace(/\s+/g, '')) + '">' +
+          ? '<a class="ds-btn--call" href="tel:' + esc(phone.replace(/\s+/g, '')) + '" title="Gọi ' + esc(phone) + '">' +
               '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
               'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
               '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>' +
-              esc(phone) + '</a>'
-          : '';
+              '<span class="ds-btn__text">' + esc(phone) + '</span></a>'
+          : '<span class="ds-btn--call is-disabled" aria-disabled="true" title="Khách không có số điện thoại">' +
+              '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+              'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+              '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>' +
+              '<span class="ds-btn__text">Không có SĐT</span></span>';
 
         html += '<article class="ds-delivery" data-customer-id="' + c.id + '">' +
           '<div class="ds-delivery__head">' +
@@ -272,19 +278,19 @@
                   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
                   'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
                   '<polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21 3 6"/>' +
-                  '<line x1="9" x2="9" y1="3" y2="18"/><line x1="15" x2="15" y1="6" y2="21"/></svg>Chỉ đường</a>'
+                  '<line x1="9" x2="9" y1="3" y2="18"/><line x1="15" x2="15" y1="6" y2="21"/></svg><span class="ds-btn__text">Chỉ đường</span></a>'
               : '<span class="ds-btn--dir is-disabled" title="Khách chưa có tọa độ GPS">' +
                   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
                   'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
                   '<polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21 3 6"/>' +
-                  '<line x1="9" x2="9" y1="3" y2="18"/><line x1="15" x2="15" y1="6" y2="21"/></svg>Chỉ đường</span>') +
+                  '<line x1="9" x2="9" y1="3" y2="18"/><line x1="15" x2="15" y1="6" y2="21"/></svg><span class="ds-btn__text">Chỉ đường</span></span>') +
             phoneBlock +
             '<button class="ds-btn--deliver" data-act="open-delivery" type="button">' +
               '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
               'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
               '<path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/>' +
               '<path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A2 2 0 0 0 17.52 8H14"/>' +
-              '<circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/></svg>Giao hàng</button>' +
+              '<circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/></svg><span class="ds-btn__text">Giao hàng</span></button>' +
           '</div>' +
           '<div class="ds-delivery__panel"></div>' +
         '</article>';
@@ -732,6 +738,8 @@
     document.getElementById('list').addEventListener('click', function (e) {
       if (e.target.closest('a')) return;
       if (e.target.closest('.ds-btn--dir.is-disabled')) return;
+      // Nút gọi bị vô hiệu (khách không có SĐT) → không mở panel giao hàng
+      if (e.target.closest('.ds-btn--call.is-disabled')) return;
       // Click bên trong panel giao hàng → không đóng panel, không chuyển đơn.
       if (e.target.closest('.ds-delivery__panel')) return;
       var card = e.target.closest('[data-customer-id]');
