@@ -1,0 +1,129 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b0e11"/>
+      <stop offset="55%" stop-color="#12161b"/>
+      <stop offset="100%" stop-color="#05070a"/>
+    </linearGradient>
+    <radialGradient id="glowGold" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#ffcf4d" stop-opacity="0.55"/>
+      <stop offset="45%" stop-color="#f5b800" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#f5b800" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowWarm" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#ff9d2e" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#ff9d2e" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="beer" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffd34d"/>
+      <stop offset="35%" stop-color="#f2a413"/>
+      <stop offset="78%" stop-color="#d97b06"/>
+      <stop offset="100%" stop-color="#a94f02"/>
+    </linearGradient>
+    <linearGradient id="beerSide" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.42"/>
+      <stop offset="28%" stop-color="#ffffff" stop-opacity="0.05"/>
+      <stop offset="78%" stop-color="#000000" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.42"/>
+    </linearGradient>
+    <linearGradient id="foam" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="55%" stop-color="#fdf6e3"/>
+      <stop offset="100%" stop-color="#eadfc2"/>
+    </linearGradient>
+    <linearGradient id="glassSheen" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.85"/>
+      <stop offset="50%" stop-color="#ffd76a" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.75"/>
+    </linearGradient>
+    <filter id="softBlur" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="26"/>
+    </filter>
+    <filter id="dropShadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="26" stdDeviation="26" flood-color="#000" flood-opacity="0.7"/>
+    </filter>
+    <clipPath id="glassClip">
+      <path d="M600 250 L620 760 Q620 790 650 790 L950 790 Q980 790 980 760 L1000 250 Z"/>
+    </clipPath>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+
+  <ellipse cx="1180" cy="250" rx="520" ry="420" fill="url(#glowGold)" filter="url(#softBlur)"/>
+  <ellipse cx="330" cy="700" rx="420" ry="320" fill="url(#glowWarm)" filter="url(#softBlur)"/>
+
+  <g opacity="0.10" transform="rotate(-18 800 450)">
+    <rect x="240" y="-200" width="120" height="1400" fill="#ffd76a"/>
+    <rect x="520" y="-200" width="46" height="1400" fill="#ffd76a"/>
+    <rect x="1180" y="-200" width="90" height="1400" fill="#ffd76a"/>
+  </g>
+
+  <rect x="0" y="778" width="1600" height="122" fill="#0a0c0f"/>
+  <rect x="0" y="778" width="1600" height="5" fill="#f5b800" opacity="0.35"/>
+  <ellipse cx="800" cy="800" rx="330" ry="34" fill="#f5b800" opacity="0.12" filter="url(#softBlur)"/>
+
+  <g filter="url(#dropShadow)">
+    <path d="M600 250 L620 760 Q620 790 650 790 L950 790 Q980 790 980 760 L1000 250 Z"
+          fill="#0f1418" fill-opacity="0.55" stroke="url(#rim)" stroke-width="7"/>
+
+    <g clip-path="url(#glassClip)">
+      <rect x="590" y="300" width="420" height="500" fill="url(#beer)"/>
+      <rect x="590" y="300" width="420" height="500" fill="url(#beerSide)"/>
+      <path d="M590 318 Q640 300 690 314 Q740 296 790 312 Q840 294 890 310 Q940 296 990 314 L1010 300 L1010 262 L590 262 Z" fill="url(#foam)"/>
+      <g fill="url(#foam)">
+        <circle cx="646" cy="272" r="34"/>
+        <circle cx="702" cy="258" r="40"/>
+        <circle cx="762" cy="272" r="32"/>
+        <circle cx="818" cy="256" r="42"/>
+        <circle cx="878" cy="270" r="33"/>
+        <circle cx="936" cy="258" r="38"/>
+        <circle cx="978" cy="272" r="30"/>
+      </g>
+      <ellipse cx="700" cy="470" rx="60" ry="180" fill="#fff6cf" opacity="0.18"/>
+    </g>
+
+    <ellipse cx="800" cy="252" rx="200" ry="30" fill="none" stroke="url(#rim)" stroke-width="8"/>
+    <ellipse cx="800" cy="254" rx="182" ry="24" fill="#fffaf0" opacity="0.16"/>
+
+    <path d="M636 290 L652 748" stroke="url(#glassSheen)" stroke-width="17" stroke-linecap="round" opacity="0.75"/>
+    <path d="M962 300 L948 720" stroke="#ffffff" stroke-width="8" stroke-linecap="round" opacity="0.16"/>
+
+    <g fill="#ffffff" opacity="0.30">
+      <ellipse cx="700" cy="420" rx="9" ry="13"/>
+      <ellipse cx="726" cy="520" rx="7" ry="10"/>
+      <ellipse cx="686" cy="596" rx="8" ry="11"/>
+      <ellipse cx="930" cy="452" rx="8" ry="11"/>
+      <ellipse cx="912" cy="580" rx="6" ry="9"/>
+    </g>
+  </g>
+
+  <g fill="#ffffff">
+    <circle cx="724" cy="404" r="7" opacity="0.42"/>
+    <circle cx="756" cy="352" r="5" opacity="0.34"/>
+    <circle cx="866" cy="396" r="6" opacity="0.38"/>
+    <circle cx="838" cy="470" r="4" opacity="0.28"/>
+    <circle cx="690" cy="500" r="5" opacity="0.30"/>
+    <circle cx="884" cy="560" r="7" opacity="0.34"/>
+    <circle cx="748" cy="600" r="6" opacity="0.26"/>
+  </g>
+
+  <g fill="#ffd76a">
+    <ellipse cx="1140" cy="300" rx="9" ry="14" opacity="0.42"/>
+    <ellipse cx="1204" cy="392" rx="7" ry="11" opacity="0.30"/>
+    <ellipse cx="470" cy="238" rx="8" ry="12" opacity="0.34"/>
+    <ellipse cx="398" cy="336" rx="6" ry="9" opacity="0.26"/>
+  </g>
+
+  <g fill="#ffe6a8">
+    <circle cx="1350" cy="180" r="3" opacity="0.45"/>
+    <circle cx="1420" cy="420" r="2" opacity="0.35"/>
+    <circle cx="250" cy="430" r="3" opacity="0.32"/>
+    <circle cx="180" cy="250" r="2" opacity="0.40"/>
+    <circle cx="1290" cy="640" r="2.5" opacity="0.28"/>
+    <circle cx="300" cy="120" r="2" opacity="0.36"/>
+  </g>
+</svg>

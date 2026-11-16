@@ -1,0 +1,110 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" width="1200" height="800">
+  <defs>
+    <linearGradient id="pbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#12100a"/>
+      <stop offset="50%" stop-color="#1a1509"/>
+      <stop offset="100%" stop-color="#07070a"/>
+    </linearGradient>
+    <radialGradient id="pglow" cx="0.5" cy="0.45" r="0.55">
+      <stop offset="0%" stop-color="#ffd76a" stop-opacity="0.5"/>
+      <stop offset="55%" stop-color="#f5b800" stop-opacity="0.14"/>
+      <stop offset="100%" stop-color="#f5b800" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="pbeer" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffd34d"/>
+      <stop offset="60%" stop-color="#e89709"/>
+      <stop offset="100%" stop-color="#a85402"/>
+    </linearGradient>
+    <linearGradient id="pglass" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.42"/>
+      <stop offset="30%" stop-color="#ffffff" stop-opacity="0.04"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.35"/>
+    </linearGradient>
+    <linearGradient id="pkeg" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#4a545c"/>
+      <stop offset="35%" stop-color="#95a1aa"/>
+      <stop offset="72%" stop-color="#3b444b"/>
+      <stop offset="100%" stop-color="#232a30"/>
+    </linearGradient>
+    <linearGradient id="pribbon" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#ffcc00"/>
+      <stop offset="100%" stop-color="#ff8a00"/>
+    </linearGradient>
+    <filter id="pblur" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="24"/>
+    </filter>
+    <filter id="pshadow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="18" stdDeviation="20" flood-color="#000" flood-opacity="0.65"/>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="800" fill="url(#pbg)"/>
+  <ellipse cx="600" cy="380" rx="520" ry="400" fill="url(#pglow)"/>
+
+  <g opacity="0.10" transform="rotate(-22 600 400)">
+    <rect x="120" y="-260" width="90" height="1400" fill="#ffd76a"/>
+    <rect x="640" y="-260" width="130" height="1400" fill="#ffd76a"/>
+    <rect x="1000" y="-260" width="60" height="1400" fill="#ffd76a"/>
+  </g>
+
+  <rect x="0" y="660" width="1200" height="140" fill="#0a0806"/>
+  <rect x="0" y="658" width="1200" height="4" fill="#f5b800" opacity="0.35"/>
+  <ellipse cx="600" cy="690" rx="380" ry="36" fill="#f5b800" opacity="0.14" filter="url(#pblur)"/>
+
+  <g filter="url(#pshadow)">
+    <rect x="720" y="430" width="330" height="86" rx="10" fill="url(#pkeg)"/>
+    <rect x="720" y="430" width="330" height="22" rx="8" fill="url(#pribbon)" opacity="0.85"/>
+    <rect x="720" y="466" width="330" height="10" fill="#0f0c07" opacity="0.55"/>
+    <rect x="700" y="380" width="300" height="72" rx="10" fill="url(#pkeg)" opacity="0.95"/>
+    <rect x="700" y="380" width="300" height="20" rx="8" fill="url(#pribbon)" opacity="0.7"/>
+  </g>
+
+  <g filter="url(#pshadow)">
+    <g transform="translate(300, 0)">
+      <path d="M52 292 L52 192 Q52 180 66 172 L78 164 Q88 158 88 142 L88 100 L112 100 L112 142 Q112 158 122 164 L134 172 Q148 180 148 192 L148 292 Z" fill="url(#pbeer)"/>
+      <path d="M52 292 L52 192 Q52 180 66 172 L78 164 Q88 158 88 142 L88 100 L112 100 L112 142 Q112 158 122 164 L134 172 Q148 180 148 192 L148 292 Z" fill="url(#pglass)"/>
+      <path d="M46 300 L46 190 Q46 176 62 168 L74 160 Q84 154 84 140 L84 96 L116 96 L116 140 Q116 154 126 160 L138 168 Q154 176 154 190 L154 300 Z" fill="none" stroke="#ffd76a" stroke-width="3" stroke-opacity="0.5"/>
+      <rect x="58" y="200" width="84" height="62" rx="5" fill="#12100a" opacity="0.82"/>
+      <rect x="58" y="200" width="84" height="12" rx="4" fill="url(#pribbon)"/>
+      <circle cx="100" cy="238" r="15" fill="none" stroke="#ffd76a" stroke-width="3" opacity="0.85"/>
+      <rect x="76" y="250" width="48" height="5" rx="2" fill="#ffd76a" opacity="0.7"/>
+      <rect x="84" y="84" width="32" height="16" rx="3" fill="#cbb27a"/>
+    </g>
+    <g transform="translate(410, -50)">
+      <path d="M52 292 L52 192 Q52 180 66 172 L78 164 Q88 158 88 142 L88 100 L112 100 L112 142 Q112 158 122 164 L134 172 Q148 180 148 192 L148 292 Z" fill="url(#pbeer)"/>
+      <path d="M52 292 L52 192 Q52 180 66 172 L78 164 Q88 158 88 142 L88 100 L112 100 L112 142 Q112 158 122 164 L134 172 Q148 180 148 192 L148 292 Z" fill="url(#pglass)"/>
+      <path d="M46 300 L46 190 Q46 176 62 168 L74 160 Q84 154 84 140 L84 96 L116 96 L116 140 Q116 154 126 160 L138 168 Q154 176 154 190 L154 300 Z" fill="none" stroke="#ffd76a" stroke-width="3" stroke-opacity="0.6"/>
+      <rect x="58" y="196" width="84" height="70" rx="5" fill="#12100a" opacity="0.85"/>
+      <rect x="58" y="196" width="84" height="14" rx="4" fill="url(#pribbon)"/>
+      <circle cx="100" cy="238" r="17" fill="none" stroke="#ffd76a" stroke-width="3.5" opacity="0.9"/>
+      <path d="M92 238 l6 7 11 -14" fill="none" stroke="#ffd76a" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="74" y="256" width="52" height="5" rx="2" fill="#ffd76a" opacity="0.7"/>
+      <rect x="84" y="84" width="32" height="16" rx="3" fill="#cbb27a"/>
+      <ellipse cx="82" cy="170" rx="10" ry="60" fill="#fff6cf" opacity="0.28"/>
+    </g>
+    <g transform="translate(520, 0)">
+      <path d="M52 292 L52 192 Q52 180 66 172 L78 164 Q88 158 88 142 L88 100 L112 100 L112 142 Q112 158 122 164 L134 172 Q148 180 148 192 L148 292 Z" fill="url(#pbeer)"/>
+      <path d="M52 292 L52 192 Q52 180 66 172 L78 164 Q88 158 88 142 L88 100 L112 100 L112 142 Q112 158 122 164 L134 172 Q148 180 148 192 L148 292 Z" fill="url(#pglass)"/>
+      <path d="M46 300 L46 190 Q46 176 62 168 L74 160 Q84 154 84 140 L84 96 L116 96 L116 140 Q116 154 126 160 L138 168 Q154 176 154 190 L154 300 Z" fill="none" stroke="#ffd76a" stroke-width="3" stroke-opacity="0.5"/>
+      <rect x="58" y="200" width="84" height="62" rx="5" fill="#12100a" opacity="0.8"/>
+      <rect x="58" y="200" width="84" height="12" rx="4" fill="url(#pribbon)"/>
+      <circle cx="100" cy="238" r="15" fill="none" stroke="#ffd76a" stroke-width="3" opacity="0.8"/>
+      <rect x="76" y="250" width="48" height="5" rx="2" fill="#ffd76a" opacity="0.65"/>
+      <rect x="84" y="84" width="32" height="16" rx="3" fill="#cbb27a"/>
+    </g>
+  </g>
+
+  <g fill="#ffe6a8">
+    <circle cx="250" cy="200" r="4" opacity="0.55"/>
+    <circle cx="720" cy="180" r="3" opacity="0.45"/>
+    <circle cx="1040" cy="280" r="4" opacity="0.5"/>
+    <circle cx="1130" cy="440" r="3" opacity="0.38"/>
+    <circle cx="150" cy="380" r="3" opacity="0.42"/>
+    <circle cx="620" cy="120" r="3" opacity="0.48"/>
+    <circle cx="900" cy="620" r="3" opacity="0.32"/>
+    <circle cx="300" cy="580" r="2.5" opacity="0.34"/>
+  </g>
+
+  <path d="M60 640 Q300 590 560 630 T1180 620" fill="none" stroke="url(#pribbon)" stroke-width="7" opacity="0.45"/>
+  <path d="M40 690 Q320 646 600 684 T1180 676" fill="none" stroke="#ffd76a" stroke-width="3" opacity="0.25"/>
+</svg>
