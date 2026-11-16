@@ -73,6 +73,10 @@ scripts/**/_*.sh
 scripts/**/_*.py
 scripts/**/_*.txt
 scripts/**/*.tmp
+scripts/.responsive-manifest.json
+
+# QA responsive — ảnh chụp & report tạm, KHÔNG commit
+/.qa-shots/
 
 # Python / shell debug scripts (kept out of repo)
 /debug_*.py

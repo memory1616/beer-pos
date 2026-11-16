@@ -181,7 +181,7 @@ describe('Landing page — hệ thống hình ảnh', () => {
   });
 
   it('ảnh hero được preload + fetchpriority=high', () => {
-    expect(html).toMatch(/<link rel="preload" as="image"[^>]*hero-beer\.[0-9a-f]{8}\.webp/);
+    expect(html).toMatch(/<link rel="preload" as="image"[^>]*hero-beer-1600\.[0-9a-f]{8}\.webp/);
     expect(html).toMatch(/fetchpriority="high"/);
   });
 
@@ -202,7 +202,6 @@ describe('Landing page — hệ thống hình ảnh', () => {
       .reduce((s, f) => s + fs.statSync(path.join(homeImgDir, f)).size, 0);
     expect(total).toBeLessThan(200 * 1024);
   });
-
   it('không còn tham chiếu ảnh PNG nặng', () => {
     const pngRefs = [...html.matchAll(/landing-assets\/[\w-]+\.png/g)].map((m) => m[0]);
     expect(pngRefs).toEqual([]);
@@ -252,7 +251,7 @@ describe('Landing page — SEO', () => {
   });
 
   it('sitemap.xml liệt kê ảnh mới và không chứa brand bị cấm', () => {
-    expect(sitemap).toMatch(/images\/home\/hero-beer\.[0-9a-f]{8}\.webp/);
+    expect(sitemap).toMatch(/images\/home\/hero-beer-1600\.[0-9a-f]{8}\.webp/);
     expect(sitemap).not.toMatch(/gia[\s_-]?huy/i);
   });
 
@@ -287,7 +286,7 @@ describe('Landing page — UX mobile & accessibility', () => {
 
   it('bảng so sánh cuộn ngang được trên màn hình hẹp', () => {
     expect(html).toMatch(/class="compare-wrap/);
-    expect(css).toMatch(/@media \(max-width: 700px\)[\s\S]*?overflow-x: auto/);
+    expect(css).toMatch(/\.compare-wrap \{[\s\S]*?overflow-x: auto/);
   });
 
   it('có nút "lên đầu trang"', () => {
@@ -323,6 +322,137 @@ describe('Landing page — UX mobile & accessibility', () => {
   it('touch target ≥ 48px trên thiết bị cảm ứng', () => {
     expect(css).toMatch(/@media \(pointer: coarse\)/);
     expect(css).toMatch(/min-height: 48px/);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════
+//  RESPONSIVE DESIGN — MOBILE-FIRST
+// ════════════════════════════════════════════════════════════════════
+describe('Landing page — Responsive Design (mobile-first)', () => {
+  const BREAKPOINTS = [320, 375, 390, 430, 768, 1024, 1366, 1920];
+
+  it('viewport meta đúng chuẩn (viewport-fit=cover cho safe-area)', () => {
+    expect(html).toMatch(/<meta name="viewport" content="width=device-width, initial-scale=1\.0, viewport-fit=cover">/);
+  });
+
+  it('CSS là MOBILE-FIRST: dùng min-width để mở rộng, không max-width để thu nhỏ', () => {
+    // Không dùng max-width cho các layout chính
+    expect(css).not.toMatch(/@media \(max-width: (1024|1280|1600)px\)[\s\S]{0,200}?\.hero-grid/);
+    // Có các breakpoint min-width chuẩn
+    [480, 640, 820, 1024, 1280, 1600].forEach((bp) => {
+      expect(css).toMatch(new RegExp(`@media \\(min-width: ${bp}px\\)`));
+    });
+  });
+
+  it('mọi breakpoint trong bảng yêu cầu đều được hỗ trợ', () => {
+    // 320 = base (không cần media query), các còn lại phải có min-width
+    [375, 390, 430, 768, 1024, 1366, 1920].forEach((w) => {
+      if (w < 480) return; // 375/390/430 nằm trong khoảng base→480
+      const bp = w <= 640 ? 640 : w <= 820 ? 820 : w <= 1024 ? 1024 : w <= 1280 ? 1280 : 1600;
+      expect(css).toMatch(new RegExp(`@media \\(min-width: ${bp}px\\)`));
+    });
+  });
+
+  it('KHÔNG dùng User-Agent sniffing để xác định thiết bị', () => {
+    expect(html).not.toMatch(/navigator\.userAgent/);
+    expect(html).not.toMatch(/Android|iPhone|iPad|Windows Phone/i);
+  });
+
+  it('header: mobile có hamburger + nút gọi, desktop có menu ngang + hotline', () => {
+    expect(html).toMatch(/class="nav-call"/);
+    expect(html).toMatch(/class="nav-call-desktop"/);
+    expect(html).toMatch(/class="mobile-menu-btn"/);
+    // Menu ngang chỉ bật từ 1024px
+    expect(css).toMatch(/@media \(min-width: 1024px\)[\s\S]*?\.nav-links \{[\s\S]*?display: flex/);
+    expect(css).toMatch(/@media \(min-width: 1024px\)[\s\S]*?\.mobile-menu-btn \{ display: none/);
+  });
+
+  it('hero: 1 cột ở mobile, 2 cột từ 1024px', () => {
+    expect(css).toMatch(/\.hero-grid \{[\s\S]*?grid-template-columns: 1fr/);
+    expect(css).toMatch(/@media \(min-width: 1024px\)[\s\S]*?\.hero-grid \{ grid-template-columns: 1\.05fr 0\.95fr/);
+  });
+
+  it('3 lợi thế: 1 cột mobile → 2 cột tablet → 3 cột desktop', () => {
+    expect(css).toMatch(/\.adv-grid \{[\s\S]*?grid-template-columns: 1fr/);
+    expect(css).toMatch(/@media \(min-width: 640px\)[\s\S]*?\.adv-grid \{ grid-template-columns: repeat\(2/);
+    expect(css).toMatch(/@media \(min-width: 1024px\)[\s\S]*?\.adv-grid \{ grid-template-columns: repeat\(3/);
+  });
+
+  it('ảnh dùng width:100% + height auto + object-fit (không méo, không vỡ layout)', () => {
+    expect(css).toMatch(/img \{ max-width: 100%; height: auto; display: block/);
+    expect(css).toMatch(/\.hero-img \{[\s\S]*?object-fit: cover/);
+    expect(css).toMatch(/\.prod-visual img \{[\s\S]*?object-fit: contain/);
+    expect(css).toMatch(/\.adv-figure img \{[\s\S]*?object-fit: cover/);
+  });
+
+  it('dùng picture/srcset/sizes cho ảnh responsive', () => {
+    expect(html).toMatch(/<picture>/);
+    expect(html).toMatch(/srcset="/);
+    expect(html).toMatch(/sizes="/);
+    // Ảnh hero preload kèm imagesrcset
+    expect(html).toMatch(/<link rel="preload" as="image"[^>]*imagesrcset=/);
+  });
+
+  it('biến thể ảnh responsive thực sự tồn tại trên đĩa', () => {
+    const refs = [...new Set([...html.matchAll(/\/(?:images\/home|landing-assets)\/[\w.-]+\.webp/g)].map((m) => m[0]))];
+    expect(refs.length).toBeGreaterThanOrEqual(15);
+    refs.forEach((r) => expect(fs.existsSync(path.join(ROOT, 'public', r.replace(/^\//, '')))).toBe(true));
+    // Mỗi base ảnh minh họa có ít nhất 2 kích thước
+    ['hero-beer', 'warehouse', 'beer-delivery', 'monthly-promotion', 'illuminated-signage'].forEach((b) => {
+      const sizes = fs.readdirSync(homeImgDir).filter((f) => f.startsWith(b + '-'));
+      expect(sizes.length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  it('responsive typography dùng clamp()', () => {
+    expect(css).toMatch(/font-size: clamp\(/);
+    expect(html).toMatch(/font-size:clamp\(/);
+  });
+
+  it('không tràn ngang: body có overflow-x hidden + scroll-padding cho anchor', () => {
+    expect(css).toMatch(/body \{[\s\S]*?overflow-x: hidden/);
+    expect(css).toMatch(/scroll-padding-top/);
+    expect(css).toMatch(/section, footer \{ scroll-margin-top/);
+  });
+
+  it('sticky CTA chuyển từ thanh ngang (mobile) sang cột nổi (desktop ≥1024px)', () => {
+    expect(css).toMatch(/\.sticky-cta \{[\s\S]*?flex-direction: row/);
+    expect(css).toMatch(/@media \(min-width: 1024px\)[\s\S]*?\.sticky-cta \{[\s\S]*?flex-direction: column/);
+  });
+
+  it('body chừa padding-bottom cho thanh CTA chỉ ở mobile', () => {
+    expect(css).toMatch(/body \{[\s\S]*?padding-bottom: 78px/);
+    expect(css).toMatch(/@media \(min-width: 1024px\)[\s\S]*?body \{ padding-bottom: 0/);
+  });
+
+  it('chatbox: full-sheet trên mobile, khung nhỏ trên desktop', () => {
+    expect(css).toMatch(/\.chat-box \{[\s\S]*?width: 100%/);
+    expect(css).toMatch(/@media \(min-width: 1024px\)[\s\S]*?\.chat-box \{[\s\S]*?width: 340px/);
+  });
+
+  it('màn hình lớn (≥1600px) giới hạn chiều rộng, KHÔNG kéo giãn ảnh', () => {
+    expect(css).toMatch(/@media \(min-width: 1600px\)[\s\S]*?--container: 1320px/);
+    expect(css).toMatch(/@media \(min-width: 1600px\)[\s\S]*?\.hero-visual-wrap \{ max-width: 660px/);
+  });
+
+  it('không có font bên thứ 3 (self-host để tương thích CSP font-src self)', () => {
+    expect(html).not.toMatch(/fonts\.googleapis\.com/);
+    expect(html).not.toMatch(/fonts\.gstatic\.com/);
+    expect(html).toMatch(/\/fonts\/be-vietnam-pro\.css/);
+    expect(fs.existsSync(path.join(ROOT, 'public', 'fonts', 'be-vietnam-pro.css'))).toBe(true);
+  });
+
+  it('CSP font-src self được server cho phép cache immutable cho woff2', () => {
+    expect(serverJs).toMatch(/fontSrc: \["'self'"\]/);
+    expect(serverJs).toMatch(/fonts/);
+    expect(serverJs).toMatch(/woff2/);
+  });
+
+  it('script QA responsive tồn tại và bao phủ đủ 8 breakpoint', () => {
+    const qa = fs.readFileSync(path.join(ROOT, 'scripts', 'responsive-qa.js'), 'utf8');
+    BREAKPOINTS.forEach((w) => expect(qa).toMatch(new RegExp(`w: ${w},`)));
+    expect(qa).toMatch(/horizontalScroll/);
+    expect(qa).toMatch(/overflowCount/);
   });
 });
 

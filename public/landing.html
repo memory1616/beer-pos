@@ -29,14 +29,14 @@
   <meta property="og:url" content="https://biatuoitayninh.store/">
   <meta property="og:title" content="Tây Ninh Bia Tươi — Nhà phân phối bia tươi tại Tây Ninh | Giao từ 50 lít">
   <meta property="og:description" content="Kho tại Tây Ninh · Giao hàng từ 50 lít · Thưởng sản lượng hàng tháng · Đồng hành cùng quán lâu dài. Hotline 0974 012 652.">
-  <meta property="og:image" content="https://biatuoitayninh.store/images/home/hero-beer.56274e53.webp">
+  <meta property="og:image" content="https://biatuoitayninh.store/images/home/hero-beer-1600.7db8bd10.webp">
   <meta property="og:image:width" content="1600">
   <meta property="og:image:height" content="900">
   <meta property="og:image:alt" content="Ly bia tươi vàng lạnh — hình minh họa sản phẩm của Tây Ninh Bia Tươi">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Tây Ninh Bia Tươi — Nhà phân phối bia tươi tại Tây Ninh">
   <meta name="twitter:description" content="Giao hàng từ 50 lít. Thưởng sản lượng hàng tháng. Hỗ trợ hộp đèn hàng năm. Hotline 0974 012 652.">
-  <meta name="twitter:image" content="https://biatuoitayninh.store/images/home/hero-beer.56274e53.webp">
+  <meta name="twitter:image" content="https://biatuoitayninh.store/images/home/hero-beer-1600.7db8bd10.webp">
   <meta name="theme-color" content="#0b0e11">
   <meta name="robots" content="index, follow">
   <meta name="geo.region" content="VN-65">
@@ -44,10 +44,15 @@
 
   <link rel="icon" href="/icons/favicon-32.png" sizes="32x32" type="image/png">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon-180.png">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="preload" as="image" href="/images/home/hero-beer.56274e53.webp" type="image/webp" fetchpriority="high">
-  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,600&display=swap" rel="stylesheet">
+  <link rel="preload" as="image" href="/images/home/hero-beer-1600.7db8bd10.webp" type="image/webp" fetchpriority="high"
+        imagesrcset="/images/home/hero-beer-640.d21ec787.webp 640w,
+                     /images/home/hero-beer-960.5ad0878b.webp 960w,
+                     /images/home/hero-beer-1600.7db8bd10.webp 1600w"
+        imagesizes="(min-width: 1024px) 46vw, 100vw">
+  <!-- Font self-host (CSP font-src 'self' chặn Google Fonts → console error + render-blocking) -->
+  <link rel="stylesheet" href="/fonts/be-vietnam-pro.css">
+  <link rel="preload" as="font" type="font/woff2" href="/fonts/v12-QdVPSTAyLFyeg_IDWvOJmVES_Hw3BXo.woff2" crossorigin>
+  <link rel="preload" as="font" type="font/woff2" href="/fonts/v12-QdVPSTAyLFyeg_IDWvOJmVES_Hw4BXoKZA.woff2" crossorigin>
   <!-- Unified design system (tokens, btn base, card system) -->
   <link rel="stylesheet" href="/css/unified.css">
   <!-- Landing page styles -->
@@ -64,7 +69,7 @@
     "description": "Nhà phân phối bia tươi tại Tây Ninh: kho hàng tại Tây Ninh, giao hàng từ 50 lít, chương trình thưởng sản lượng hàng tháng và hỗ trợ hộp đèn nhận diện thương hiệu theo chính sách hàng năm.",
     "url": "https://biatuoitayninh.store/",
     "telephone": "+84974012652",
-    "image": "https://biatuoitayninh.store/images/home/hero-beer.56274e53.webp",
+    "image": "https://biatuoitayninh.store/images/home/hero-beer-1600.7db8bd10.webp",
     "logo": "https://biatuoitayninh.store/landing-assets/logo.bfd99ebd.webp",
     "priceRange": "$$",
     "currenciesAccepted": "VND",
@@ -112,8 +117,10 @@
         <li><a href="#quy-trinh">Quy trình</a></li>
         <li><a href="#lien-he">Liên hệ</a></li>
       </ul>
-      <button type="button" class="mobile-menu-btn" onclick="toggleMenu()" aria-label="Mở menu">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <a class="nav-call" href="tel:0974012652" aria-label="Gọi hotline 0974 012 652">📞</a>
+      <a class="nav-call-desktop" href="tel:0974012652">📞 0974 012 652</a>
+      <button type="button" class="mobile-menu-btn" onclick="toggleMenu()" aria-label="Mở menu" aria-controls="navLinks" aria-expanded="false">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
           <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
         </svg>
       </button>
@@ -150,9 +157,16 @@
       </div>
 
       <div class="hero-visual-wrap">
-        <img class="hero-img" src="/images/home/hero-beer.56274e53.webp" width="1600" height="900"
-             alt="Ly bia tươi vàng lạnh, bọt bia trắng — hình minh họa sản phẩm của Tây Ninh Bia Tươi"
-             loading="eager" decoding="async" fetchpriority="high" width="1600">
+        <picture>
+          <source type="image/webp"
+                  srcset="/images/home/hero-beer-640.d21ec787.webp 640w,
+                          /images/home/hero-beer-960.5ad0878b.webp 960w,
+                          /images/home/hero-beer-1600.7db8bd10.webp 1600w"
+                  sizes="(min-width: 1024px) 46vw, 100vw">
+          <img class="hero-img" src="/images/home/hero-beer-960.5ad0878b.webp" width="1600" height="900"
+               alt="Ly bia tươi vàng lạnh, bọt bia trắng — hình minh họa sản phẩm của Tây Ninh Bia Tươi"
+               loading="eager" decoding="async" fetchpriority="high">
+        </picture>
         <span class="hero-badge b1">Giao từ 50 lít</span>
         <span class="hero-badge b2">Kho tại Tây Ninh</span>
         <p class="hero-caption">Hình minh họa sản phẩm — liên hệ để xem mẫu thực tế tại kho.</p>
@@ -184,8 +198,15 @@
             <li>Chủ động bổ sung bia theo nhu cầu kinh doanh</li>
           </ul>
           <figure class="adv-figure">
-            <img src="/images/home/warehouse.3fc184ee.webp" width="1200" height="800"
-                 alt="Hình minh họa kho bia phân phối với các két bia xếp ngay ngắn" loading="lazy" decoding="async">
+            <picture>
+              <source type="image/webp"
+                      srcset="/images/home/warehouse-480.6f9bc6d8.webp 480w,
+                              /images/home/warehouse-800.8fc69da8.webp 800w,
+                              /images/home/warehouse-1200.6d0a936a.webp 1200w"
+                      sizes="(min-width: 1024px) 33vw, (min-width: 640px) 48vw, 100vw">
+              <img src="/images/home/warehouse-800.8fc69da8.webp" width="1200" height="800"
+                   alt="Hình minh họa kho bia phân phối với các két bia xếp ngay ngắn" loading="lazy" decoding="async">
+            </picture>
             <figcaption>Hình minh họa — kho hàng và hoạt động xuất hàng</figcaption>
           </figure>
         </article>
@@ -201,8 +222,15 @@
             <li>Tạo động lực tăng trưởng doanh số cho cửa hàng</li>
           </ul>
           <figure class="adv-figure">
-            <img src="/images/home/monthly-promotion.ec3a9bcf.webp" width="1200" height="800"
-                 alt="Hình minh họa chai bia và két bia thưởng với ánh sáng vàng" loading="lazy" decoding="async">
+            <picture>
+              <source type="image/webp"
+                      srcset="/images/home/monthly-promotion-480.04b6db6b.webp 480w,
+                              /images/home/monthly-promotion-800.bb818ec3.webp 800w,
+                              /images/home/monthly-promotion-1200.c86b8e8e.webp 1200w"
+                      sizes="(min-width: 1024px) 33vw, (min-width: 640px) 48vw, 100vw">
+              <img src="/images/home/monthly-promotion-800.bb818ec3.webp" width="1200" height="800"
+                   alt="Hình minh họa chai bia và két bia thưởng với ánh sáng vàng" loading="lazy" decoding="async">
+            </picture>
             <figcaption>Hình minh họa — bia thưởng theo chương trình sản lượng</figcaption>
           </figure>
         </article>
@@ -218,8 +246,15 @@
             <li>Hỗ trợ thay mới khi hộp đèn bị phai màu, xuống cấp theo chính sách</li>
           </ul>
           <figure class="adv-figure">
-            <img src="/images/home/illuminated-signage.dadbbfdd.webp" width="1200" height="800"
-                 alt="Hình minh họa hộp đèn thương hiệu phát sáng trên mặt tiền quán vào buổi tối" loading="lazy" decoding="async">
+            <picture>
+              <source type="image/webp"
+                      srcset="/images/home/illuminated-signage-480.4133d760.webp 480w,
+                              /images/home/illuminated-signage-800.b3a7ad62.webp 800w,
+                              /images/home/illuminated-signage-1200.a6b34d6a.webp 1200w"
+                      sizes="(min-width: 1024px) 33vw, (min-width: 640px) 48vw, 100vw">
+              <img src="/images/home/illuminated-signage-800.b3a7ad62.webp" width="1200" height="800"
+                   alt="Hình minh họa hộp đèn thương hiệu phát sáng trên mặt tiền quán vào buổi tối" loading="lazy" decoding="async">
+            </picture>
             <figcaption>Hình minh họa — hộp đèn nhận diện thương hiệu ban đêm</figcaption>
           </figure>
         </article>
@@ -279,8 +314,15 @@
 
       <div class="promo-grid">
         <figure class="promo-figure reveal">
-          <img src="/images/home/monthly-promotion.ec3a9bcf.webp" width="1200" height="800"
-               alt="Hình minh họa chai bia và két bia thưởng trong chương trình thưởng sản lượng" loading="lazy" decoding="async">
+          <picture>
+            <source type="image/webp"
+                    srcset="/images/home/monthly-promotion-480.04b6db6b.webp 480w,
+                            /images/home/monthly-promotion-800.bb818ec3.webp 800w,
+                            /images/home/monthly-promotion-1200.c86b8e8e.webp 1200w"
+                    sizes="(min-width: 1024px) 52vw, 100vw">
+            <img src="/images/home/monthly-promotion-800.bb818ec3.webp" width="1200" height="800"
+                 alt="Hình minh họa chai bia và két bia thưởng trong chương trình thưởng sản lượng" loading="lazy" decoding="async">
+          </picture>
           <figcaption>Hình minh họa — bia thưởng theo chương trình sản lượng hàng tháng</figcaption>
         </figure>
 
@@ -328,8 +370,15 @@
 
       <div class="sign-grid">
         <figure class="sign-figure reveal">
-          <img src="/images/home/illuminated-signage.dadbbfdd.webp" width="1200" height="800"
-               alt="Hình minh họa hộp đèn thương hiệu phát sáng trên mặt tiền quán nhậu vào buổi tối" loading="lazy" decoding="async">
+          <picture>
+            <source type="image/webp"
+                    srcset="/images/home/illuminated-signage-480.4133d760.webp 480w,
+                            /images/home/illuminated-signage-800.b3a7ad62.webp 800w,
+                            /images/home/illuminated-signage-1200.a6b34d6a.webp 1200w"
+                    sizes="(min-width: 1024px) 46vw, 100vw">
+            <img src="/images/home/illuminated-signage-800.b3a7ad62.webp" width="1200" height="800"
+                 alt="Hình minh họa hộp đèn thương hiệu phát sáng trên mặt tiền quán nhậu vào buổi tối" loading="lazy" decoding="async">
+          </picture>
           <figcaption>Hình minh họa — hộp đèn nhận diện thương hiệu phát sáng ban đêm</figcaption>
         </figure>
 
@@ -374,8 +423,15 @@
       <div class="prod-grid">
         <article class="prod-card reveal">
           <div class="prod-visual">
-            <img src="/landing-assets/hero-bottle-gold.6360f973.webp" width="918" height="927"
-                 alt="Chai bia vàng thực tế của Tây Ninh Bia Tươi" loading="lazy" decoding="async">
+            <picture>
+              <source type="image/webp"
+                      srcset="/landing-assets/hero-bottle-gold-320.52aa2d7c.webp 320w,
+                              /landing-assets/hero-bottle-gold-640.ed3fe518.webp 640w,
+                              /landing-assets/hero-bottle-gold.6360f973.webp 918w"
+                      sizes="(min-width: 1024px) 28vw, (min-width: 640px) 46vw, 92vw">
+              <img src="/landing-assets/hero-bottle-gold-640.ed3fe518.webp" width="918" height="927"
+                   alt="Chai bia vàng thực tế của Tây Ninh Bia Tươi" loading="lazy" decoding="async">
+            </picture>
             <span class="p-badge">Bán chạy nhất</span>
           </div>
           <div class="prod-body">
@@ -390,8 +446,15 @@
 
         <article class="prod-card reveal">
           <div class="prod-visual">
-            <img src="/landing-assets/product-black.543165ce.webp" width="995" height="1006"
-                 alt="Chai bia đen thực tế của Tây Ninh Bia Tươi" loading="lazy" decoding="async">
+            <picture>
+              <source type="image/webp"
+                      srcset="/landing-assets/product-black-320.57c2d038.webp 320w,
+                              /landing-assets/product-black-640.cd9aaf5a.webp 640w,
+                              /landing-assets/product-black.543165ce.webp 995w"
+                      sizes="(min-width: 1024px) 28vw, (min-width: 640px) 46vw, 92vw">
+              <img src="/landing-assets/product-black-640.cd9aaf5a.webp" width="995" height="1006"
+                   alt="Chai bia đen thực tế của Tây Ninh Bia Tươi" loading="lazy" decoding="async">
+            </picture>
             <span class="p-badge">Đậm đà, khác biệt</span>
           </div>
           <div class="prod-body">
@@ -406,8 +469,15 @@
 
         <article class="prod-card reveal">
           <div class="prod-visual">
-            <img src="/landing-assets/setup-freezer.cf839a91.webp" width="1024" height="832"
-                 alt="Tủ mát trưng bày bia tươi thực tế tại điểm bán" loading="lazy" decoding="async">
+            <picture>
+              <source type="image/webp"
+                      srcset="/landing-assets/setup-freezer-480.8b4691ef.webp 480w,
+                              /landing-assets/setup-freezer-800.6470a1d0.webp 800w,
+                              /landing-assets/setup-freezer.cf839a91.webp 1024w"
+                      sizes="(min-width: 1024px) 28vw, (min-width: 640px) 46vw, 92vw">
+              <img src="/landing-assets/setup-freezer-800.6470a1d0.webp" width="1024" height="832"
+                   alt="Tủ mát trưng bày bia tươi thực tế tại điểm bán" loading="lazy" decoding="async">
+            </picture>
             <span class="p-badge">Trưng bày</span>
           </div>
           <div class="prod-body">
@@ -422,8 +492,15 @@
 
         <article class="prod-card reveal">
           <div class="prod-visual">
-            <img src="/landing-assets/banner-standee.dc0fdd61.webp" width="768" height="1024"
-                 alt="Banner standee nhận diện thương hiệu tại điểm bán" loading="lazy" decoding="async">
+            <picture>
+              <source type="image/webp"
+                      srcset="/landing-assets/banner-standee-320.730ae291.webp 320w,
+                              /landing-assets/banner-standee-640.6c03d858.webp 640w,
+                              /landing-assets/banner-standee.dc0fdd61.webp 768w"
+                      sizes="(min-width: 1024px) 28vw, (min-width: 640px) 46vw, 92vw">
+              <img src="/landing-assets/banner-standee-640.6c03d858.webp" width="768" height="1024"
+                   alt="Banner standee nhận diện thương hiệu tại điểm bán" loading="lazy" decoding="async">
+            </picture>
             <span class="p-badge">Nhận diện</span>
           </div>
           <div class="prod-body">
@@ -525,8 +602,15 @@
 
       <div class="cap-grid">
         <figure class="cap-figure reveal">
-          <img src="/images/home/beer-delivery.18b599d9.webp" width="1200" height="800"
-               alt="Hình minh họa xe giao hàng bia và két bia đang vận chuyển" loading="lazy" decoding="async">
+          <picture>
+            <source type="image/webp"
+                    srcset="/images/home/beer-delivery-480.2dfd45c6.webp 480w,
+                            /images/home/beer-delivery-800.2b5415ee.webp 800w,
+                            /images/home/beer-delivery-1200.eecc6d36.webp 1200w"
+                    sizes="(min-width: 1024px) 50vw, 100vw">
+            <img src="/images/home/beer-delivery-800.2b5415ee.webp" width="1200" height="800"
+                 alt="Hình minh họa xe giao hàng bia và két bia đang vận chuyển" loading="lazy" decoding="async">
+          </picture>
           <figcaption>Hình minh họa — hoạt động giao hàng tận quán</figcaption>
         </figure>
 
@@ -716,13 +800,32 @@
     })();
 
     function toggleMenu() {
-      document.getElementById('navLinks').classList.toggle('open');
+      var links = document.getElementById('navLinks');
+      var btn = document.querySelector('.mobile-menu-btn');
+      var open = links.classList.toggle('open');
+      if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
     }
     document.querySelectorAll('.nav-links a').forEach(function (a) {
       a.addEventListener('click', function () {
         document.getElementById('navLinks').classList.remove('open');
+        var btn = document.querySelector('.mobile-menu-btn');
+        if (btn) btn.setAttribute('aria-expanded', 'false');
       });
     });
+    // Đóng menu khi chuyển sang breakpoint desktop (menu ngang)
+    (function () {
+      var mq = window.matchMedia('(min-width: 1024px)');
+      var onChange = function (e) {
+        if (e.matches) {
+          var links = document.getElementById('navLinks');
+          links.classList.remove('open');
+          var btn = document.querySelector('.mobile-menu-btn');
+          if (btn) btn.setAttribute('aria-expanded', 'false');
+        }
+      };
+      if (mq.addEventListener) mq.addEventListener('change', onChange);
+      else if (mq.addListener) mq.addListener(onChange);
+    })();
 
     // ── Nút "lên đầu trang": chỉ hiện sau khi scroll 400px ──
     (function () {

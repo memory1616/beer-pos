@@ -545,6 +545,12 @@ app.use(express.static(path.join(__dirname, 'public'), {
       res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     } else if (/[\\/](landing-assets|icons)[\\/]/.test(filePath)) {
       res.setHeader('Cache-Control', 'public, max-age=86400');
+    } else if (/[\\/]fonts[\\/].*\.woff2$/i.test(filePath)) {
+      // Font self-host (Be Vietnam Pro): tên file đã content-addressed sẵn từ Google
+      // → immutable an toàn, không bao giờ đổi nội dung.
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    } else if (/[\\/]fonts[\\/]/.test(filePath)) {
+      res.setHeader('Cache-Control', 'public, max-age=86400');
     }
   },
 }));
