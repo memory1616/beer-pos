@@ -468,7 +468,36 @@ router.put('/:id', (req, res) => {
     const updatedCustomer = db.prepare('SELECT * FROM customers WHERE id = ?').get(id);
     emitCustomer(updatedCustomer);
 
-    res.json({ success: true });
+    // ── TÁI ĐIỀU PHỔ ĐƠN KHI KHÁCH ĐỔI KHU VỰC ─────────────────────────
+    // Khách chuyển khu vực → đơn CHƯA hoàn tất của khách chuyển sang tài
+    // xế phụ trách khu vực mới (hoặc bỏ gán nếu khu vực mới chưa có tài xế
+    // → đơn về hàng đợi "chờ điều phố"). Đơn đã hoàn tất giữ nguyên lịch sử.
+    const regionChanged = (existing.region_id ?? null) !== (updated.region_id ?? null);
+    let redispatch = null;
+    if (regionChanged) {
+      try {
+        redispatch = RegionService.redispatchCustomerSales(id, updated.region_id, {
+          actor: req.user?.username || null,
+          req,
+        });
+      } catch (e) {
+        logger.error('[customers] redispatch sales error', { error: e.message });
+      }
+    }
+
+    res.json({
+      success: true,
+      ...(redispatch
+        ? {
+            redispatch: {
+              reassigned: redispatch.reassigned,
+              unassigned: redispatch.unassigned,
+              preserved: redispatch.preserved,
+              driverUsername: redispatch.driverUsername,
+            },
+          }
+        : {}),
+    });
   } catch (err) {
     logger.error('Error updating customer', { error: err.message, stack: err.stack });
     res.status(500).json({ error: 'Lỗi cập nhật khách hàng: ' + err.message });

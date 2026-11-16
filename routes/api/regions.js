@@ -152,6 +152,17 @@ router.post('/dispatch/:saleId/assign', requireAdmin, (req, res) => {
     if (!result.success) {
       return res.status(400).json({ error: result.error });
     }
+
+    // Đồng bộ phiếu giao + thông báo cho tài xế mới (nếu có)
+    const driverUsername = result.driverUsername || null;
+    if (driverUsername) {
+      try {
+        RegionService.syncDeliveryAndNotify([saleId], driverUsername);
+      } catch (e) {
+        logger.error('[admin/regions] notify driver error', { error: e.message });
+      }
+    }
+
     res.json({ success: true, ...result });
   } catch (err) {
     logger.error('[admin/regions] dispatch assign error', { error: err.message });

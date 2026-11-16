@@ -977,6 +977,19 @@ async function saveCustomerEdit() {
       window.store.customers = customers;
       patchCustomerRow(updated);
     }
+
+    // Đổi khu vực → đơn chưa hoàn tất đã được tái điều phố
+    var rd = result.redispatch;
+    if (rd) {
+      var parts = [];
+      if (rd.reassigned > 0) parts.push(rd.reassigned + ' đơn chuyển tới ' + (rd.driverUsername || 'tài xế mới'));
+      if (rd.unassigned > 0) parts.push(rd.unassigned + ' đơn chờ điều phố');
+      if (rd.preserved > 0) parts.push(rd.preserved + ' đơn đã hoàn tất giữ nguyên');
+      showToast(
+        '🗺️ Đã cập nhật khu vực' + (parts.length ? ': ' + parts.join(' · ') : ''),
+        rd.unassigned > 0 ? 'info' : 'success'
+      );
+    }
   } catch (err) {
     // silenced
     await softRefreshCustomers();

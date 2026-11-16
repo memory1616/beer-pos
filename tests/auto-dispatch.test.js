@@ -386,3 +386,277 @@ describe('L. Tự động điều phố ở các luồng tạo đơn khác', () 
     expect(sale.region_name).toBe('Hòa Thành');
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// M. TÁI ĐIỀU PHỐ KHI KHÁCH HÀNG ĐỔI KHU VỰC
+// ═══════════════════════════════════════════════════════════════════════════
+describe('M. Đổi khu vực khách hàng → tái điều phố đơn chưa hoàn tất', () => {
+  let cust;
+  let prod;
+
+  function customersApp() {
+    const app = express();
+    app.use(express.json());
+    app.use((req, res, next) => {
+      req.user = { username: ADMIN_USER, role: 'ADMIN' };
+      next();
+    });
+    app.use('/api/customers', require('../routes/api/customers'));
+    return app;
+  }
+
+  function createSaleFor(customerId, regionId, driverUsername) {
+    const today = db.getVietnamDateStr();
+    const r = db
+      .prepare(
+        `INSERT INTO sales (customer_id, date, created_on, sale_time, total, profit, type,
+                            driver_username, region_id, region_name)
+         VALUES (?, ?, ?, ?, 100000, 50000, 'sale', ?, ?, ?)`
+      )
+      .run(
+        customerId,
+        today,
+        today,
+        db.getVietnamTimeStr(),
+        driverUsername || null,
+        regionId || null,
+        regionId ? 'R' + regionId : null
+      );
+    return r.lastInsertRowid;
+  }
+
+  beforeEach(() => {
+    RegionService.assignDriver(regionIds.HOA_THANH, DRIVER_A, { actor: ADMIN_USER });
+    RegionService.assignDriver(regionIds.TAN_BIEN, DRIVER_B, { actor: ADMIN_USER });
+    cust = createCustomer('AD_TEST_M_Khach', regionIds.HOA_THANH);
+    prod = getProduct();
+  });
+
+  test('M1. Đổi khu vực → đơn chưa hoàn tất chuyển sang tài xế khu vực mới', async () => {
+    const saleId = createSaleFor(cust, regionIds.HOA_THANH, DRIVER_A);
+
+    const res = await request(customersApp())
+      .put('/api/customers/' + cust)
+      .send({ region_id: regionIds.TAN_BIEN });
+
+    expect(res.status).toBe(200);
+    expect(res.body.redispatch.reassigned).toBe(1);
+
+    const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId);
+    expect(sale.driver_username).toBe(DRIVER_B);
+    expect(sale.region_id).toBe(regionIds.TAN_BIEN);
+  });
+
+  test('M2. Đơn đã hoàn tất → GIỮ NGUYÊN lịch sử tài xế + khu vực', async () => {
+    const saleDone = createSaleFor(cust, regionIds.HOA_THANH, DRIVER_A);
+    // Đánh dấu đã giao → khoá
+    db.prepare(
+      `INSERT INTO delivery_records (sale_id, customer_id, driver_username, status, scheduled_date)
+       VALUES (?, ?, ?, 'DELIVERED', ?)`
+    ).run(saleDone, cust, DRIVER_A, db.getVietnamDateStr());
+
+    const res = await request(customersApp())
+      .put('/api/customers/' + cust)
+      .send({ region_id: regionIds.TAN_BIEN });
+
+    expect(res.status).toBe(200);
+    expect(res.body.redispatch.preserved).toBe(1);
+    expect(res.body.redispatch.reassigned).toBe(0);
+
+    const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleDone);
+    expect(sale.driver_username).toBe(DRIVER_A);
+    expect(sale.region_id).toBe(regionIds.HOA_THANH);
+  });
+
+  test('M3. Đổi sang khu vực CHƯA có tài xế → đơn bỏ gán (về hàng đợi chờ điều phố)', async () => {
+    const saleId = createSaleFor(cust, regionIds.HOA_THANH, DRIVER_A);
+
+    const res = await request(customersApp())
+      .put('/api/customers/' + cust)
+      .send({ region_id: regionIds.GO_DAU });
+
+    expect(res.status).toBe(200);
+    expect(res.body.redispatch.unassigned).toBe(1);
+
+    const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId);
+    expect(sale.driver_username).toBeNull();
+    expect(sale.region_id).toBe(regionIds.GO_DAU);
+  });
+
+  test('M4. Bỏ khu vực của khách → đơn chưa hoàn tất bỏ gán tài xế', async () => {
+    const saleId = createSaleFor(cust, regionIds.HOA_THANH, DRIVER_A);
+
+    const res = await request(customersApp())
+      .put('/api/customers/' + cust)
+      .send({ region_id: null });
+
+    expect(res.status).toBe(200);
+    expect(res.body.redispatch.unassigned).toBe(1);
+
+    const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId);
+    expect(sale.driver_username).toBeNull();
+    expect(sale.region_id).toBeNull();
+  });
+
+  test('M5. KHÔNG đổi khu vực → không tái điều phố (đơn giữ nguyên)', async () => {
+    const saleId = createSaleFor(cust, regionIds.HOA_THANH, DRIVER_A);
+
+    const res = await request(customersApp())
+      .put('/api/customers/' + cust)
+      .send({ name: 'AD_TEST_M_Khach đổi tên' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.redispatch).toBeUndefined();
+
+    const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId);
+    expect(sale.driver_username).toBe(DRIVER_A);
+  });
+
+  test('M6. Đổi khu vực → đơn MỚI tạo sau đó về tài xế khu vực mới', async () => {
+    await request(customersApp())
+      .put('/api/customers/' + cust)
+      .send({ region_id: regionIds.TAN_BIEN });
+
+    const res = await request(adminApp)
+      .post('/api/sales')
+      .send({
+        customerId: cust,
+        items: [{ productId: prod.id, quantity: 1, price: prod.sell_price }],
+      });
+
+    expect(res.status).toBe(200);
+    const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(res.body.id);
+    expect(sale.driver_username).toBe(DRIVER_B);
+  });
+
+  test('M7. Đổi khu vực → phiếu giao (delivery_records) chuyển sang tài xế mới', async () => {
+    const saleId = createSaleFor(cust, regionIds.HOA_THANH, DRIVER_A);
+    // Tạo phiếu giao cho tài xế A
+    const DeliveryService = require('../src/services/DeliveryService');
+    const r = DeliveryService.ensureRecord(saleId, DRIVER_A);
+    expect(r.success).toBe(true);
+
+    await request(customersApp())
+      .put('/api/customers/' + cust)
+      .send({ region_id: regionIds.TAN_BIEN });
+
+    // Phiếu giao cũ của A không còn active → đã chuyển sang B
+    const oldRec = db
+      .prepare("SELECT * FROM delivery_records WHERE sale_id = ? AND driver_username = ?")
+      .get(saleId, DRIVER_A);
+    expect(oldRec).toBeFalsy();
+
+    const newRec = db
+      .prepare("SELECT * FROM delivery_records WHERE sale_id = ? AND driver_username = ?")
+      .get(saleId, DRIVER_B);
+    expect(newRec).toBeTruthy();
+    expect(newRec.status).toBe('PENDING');
+  });
+
+  test('M8. Đổi sang khu vực chưa có tài xế → giải phóng phiếu giao (đơn về hàng đợi)', async () => {
+    const saleId = createSaleFor(cust, regionIds.HOA_THANH, DRIVER_A);
+    const DeliveryService = require('../src/services/DeliveryService');
+    DeliveryService.ensureRecord(saleId, DRIVER_A);
+
+    await request(customersApp())
+      .put('/api/customers/' + cust)
+      .send({ region_id: regionIds.GO_DAU });
+
+    const rec = db
+      .prepare("SELECT * FROM delivery_records WHERE sale_id = ? AND status IN ('PENDING','IN_PROGRESS')")
+      .get(saleId);
+    expect(rec).toBeFalsy();
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// N. ĐỔI TÀI XẾ KHU VỰC → TÁI PHÂN CÔNG ĐƠN + ĐỒNG BỘ PHIẾU GIAO
+// ═══════════════════════════════════════════════════════════════════════════
+describe('N. Đổi tài xế phụ trách khu vực → đơn & phiếu giao đi theo', () => {
+  let cust;
+  let prod;
+
+  function createSaleFor(customerId, regionId, driverUsername) {
+    const today = db.getVietnamDateStr();
+    const r = db
+      .prepare(
+        `INSERT INTO sales (customer_id, date, created_on, sale_time, total, profit, type,
+                            driver_username, region_id, region_name)
+         VALUES (?, ?, ?, ?, 100000, 50000, 'sale', ?, ?, ?)`
+      )
+      .run(
+        customerId,
+        today,
+        today,
+        db.getVietnamTimeStr(),
+        driverUsername || null,
+        regionId || null,
+        regionId ? 'R' + regionId : null
+      );
+    return r.lastInsertRowid;
+  }
+
+  beforeEach(() => {
+    RegionService.assignDriver(regionIds.HOA_THANH, DRIVER_A, { actor: ADMIN_USER });
+    cust = createCustomer('AD_TEST_N_Khach', regionIds.HOA_THANH);
+    prod = getProduct();
+  });
+
+  test('N1. Đổi tài xế khu vực → đơn chưa hoàn tất chuyển sang tài xế mới', () => {
+    const saleId = createSaleFor(cust, regionIds.HOA_THANH, DRIVER_A);
+
+    const r = RegionService.assignDriver(regionIds.HOA_THANH, DRIVER_B, { actor: ADMIN_USER });
+    expect(r.success).toBe(true);
+
+    const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId);
+    expect(sale.driver_username).toBe(DRIVER_B);
+  });
+
+  test('N2. Đổi tài xế khu vực → phiếu giao chuyển sang tài xế mới', () => {
+    const saleId = createSaleFor(cust, regionIds.HOA_THANH, DRIVER_A);
+    const DeliveryService = require('../src/services/DeliveryService');
+    DeliveryService.ensureRecord(saleId, DRIVER_A);
+
+    RegionService.assignDriver(regionIds.HOA_THANH, DRIVER_B, { actor: ADMIN_USER });
+
+    const oldRec = db
+      .prepare('SELECT * FROM delivery_records WHERE sale_id = ? AND driver_username = ?')
+      .get(saleId, DRIVER_A);
+    expect(oldRec).toBeFalsy();
+
+    const newRec = db
+      .prepare('SELECT * FROM delivery_records WHERE sale_id = ? AND driver_username = ?')
+      .get(saleId, DRIVER_B);
+    expect(newRec).toBeTruthy();
+    expect(newRec.status).toBe('PENDING');
+  });
+
+  test('N3. Đổi tài xế khu vực → đơn đã hoàn tất GIỮ NGUYÊN lịch sử', () => {
+    const saleId = createSaleFor(cust, regionIds.HOA_THANH, DRIVER_A);
+    db.prepare(
+      `INSERT INTO delivery_records (sale_id, customer_id, driver_username, status, scheduled_date)
+       VALUES (?, ?, ?, 'DELIVERED', ?)`
+    ).run(saleId, cust, DRIVER_A, db.getVietnamDateStr());
+
+    RegionService.assignDriver(regionIds.HOA_THANH, DRIVER_B, { actor: ADMIN_USER });
+
+    const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId);
+    expect(sale.driver_username).toBe(DRIVER_A);
+  });
+
+  test('N4. Ngừng phân công tài xế → đơn chưa hoàn tất về hàng đợi chờ điều phố', () => {
+    const saleId = createSaleFor(cust, regionIds.HOA_THANH, DRIVER_A);
+    const DeliveryService = require('../src/services/DeliveryService');
+    DeliveryService.ensureRecord(saleId, DRIVER_A);
+
+    RegionService.unassignDriver(regionIds.HOA_THANH, { actor: ADMIN_USER });
+
+    const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId);
+    expect(sale.driver_username).toBeNull();
+
+    const rec = db
+      .prepare("SELECT * FROM delivery_records WHERE sale_id = ? AND status IN ('PENDING','IN_PROGRESS')")
+      .get(saleId);
+    expect(rec).toBeFalsy();
+  });
+});

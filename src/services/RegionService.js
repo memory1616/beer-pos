@@ -221,6 +221,10 @@ function assignDriver(regionId, driverUsername, opts = {}) {
     return { success: false, error: err.message };
   }
 
+  // Số đơn được tái phân công / giữ nguyên (để UI thông báo)
+  let reassignedSales = 0;
+  let preservedSales = 0;
+
   // Ghi lịch sử phân công
   if (result.changed) {
     const action = !result.newUsername
@@ -269,6 +273,8 @@ function assignDriver(regionId, driverUsername, opts = {}) {
     //  - Đơn đã KHOÁ (DELIVERED/FAILED/DISCREPANCY) → GIỮ NGUYÊN lịch sử.
     let reassigned = 0;
     let preserved = 0;
+    const notified = [];
+    const released = [];
     try {
       const openSales = db
         .prepare(
@@ -288,11 +294,35 @@ function assignDriver(regionId, driverUsername, opts = {}) {
           actor: opts.actor || null,
           note: 'Tự động theo phân công khu vực',
         });
-        if (r.success) reassigned++;
-        else preserved++;
+        if (r.success) {
+          reassigned++;
+          if (result.newUsername) notified.push(s.id);
+          else released.push(s.id);
+        } else {
+          preserved++;
+        }
       }
     } catch (err) {
       logger.error('[RegionService] reassign open sales error', { error: err.message });
+    }
+
+    // Đồng bộ phiếu giao + thông báo tài xế mới
+    if (notified.length) {
+      syncDeliveryAndNotify(notified, result.newUsername);
+    }
+
+    // Ngừng phân công → giải phóng phiếu giao (đơn về hàng đợi chờ điều phố)
+    if (released.length) {
+      try {
+        for (const sid of released) {
+          db.prepare(
+            `DELETE FROM delivery_records
+             WHERE sale_id = ? AND status IN ('PENDING','IN_PROGRESS')`
+          ).run(sid);
+        }
+      } catch (err) {
+        logger.error('[RegionService] release delivery records error', { error: err.message });
+      }
     }
 
     if (reassigned || preserved) {
@@ -302,6 +332,8 @@ function assignDriver(regionId, driverUsername, opts = {}) {
         preserved,
       });
     }
+    reassignedSales = reassigned;
+    preservedSales = preserved;
   }
 
   logger.info('[RegionService] assignment changed', {
@@ -315,6 +347,8 @@ function assignDriver(regionId, driverUsername, opts = {}) {
     changed: result.changed,
     previousDriver: result.previousUsername,
     driver: result.newUsername,
+    reassignedSales: reassignedSales,
+    preservedSales: preservedSales,
   };
 }
 
@@ -809,7 +843,9 @@ function isSaleLocked(saleId) {
  *
  * @param {number} saleId
  * @param {string|null} driverUsername
- * @param {object} opts - { actor, req, note }
+ * @param {object} opts - { actor, req, note, regionId, regionName }
+ *   regionId/regionName: ghi đè snapshot khu vực (dùng cho tái điều phố khi
+ *   khách hàng đổi khu vực). Truyền `null` để XOÁ khu vực của đơn.
  */
 function assignSaleDriver(saleId, driverUsername, opts = {}) {
   const id = parseInt(saleId, 10);
@@ -819,7 +855,7 @@ function assignSaleDriver(saleId, driverUsername, opts = {}) {
   if (!sale) return { success: false, error: 'Không tìm thấy đơn hàng' };
 
   if (isSaleLocked(id)) {
-    return { success: false, error: 'Đơn đã hoàn tất — không thể đổi tài xế' };
+    return { success: false, error: 'Đơn đã hoàn tất — không thể đổi tài xế', locked: true };
   }
 
   const username = driverUsername ? normalizeUsername(driverUsername) : null;
@@ -843,6 +879,14 @@ function assignSaleDriver(saleId, driverUsername, opts = {}) {
     regionName = resolved.regionName;
   }
 
+  // Ghi đè khu vực (tái điều phố khi khách đổi khu vực)
+  if (opts.hasOwnProperty('regionId')) {
+    regionId = opts.regionId ?? null;
+    regionName = opts.hasOwnProperty('regionName')
+      ? (opts.regionName ?? null)
+      : (regionId ? regionName : null);
+  }
+
   try {
     db.prepare(
       `UPDATE sales
@@ -862,6 +906,207 @@ function assignSaleDriver(saleId, driverUsername, opts = {}) {
     logger.error('[RegionService] assignSaleDriver error', { error: err.message });
     return { success: false, error: err.message };
   }
+}
+
+/**
+ * Đồng bộ phiếu giao + thông báo tài xế sau khi đổi tài xế của một đơn.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * - Đơn đang có phiếu giao của tài xế KHÁC → chuyển phiếu sang tài xế mới.
+ * - Đơn chưa có phiếu giao → tạo phiếu mới (PENDING).
+ * - Gửi Socket.IO `order:assigned` + Web Push cho tài xế mới.
+ *
+ * @param {number[]} saleIds
+ * @param {string} driverUsername
+ */
+function syncDeliveryAndNotify(saleIds, driverUsername) {
+  if (!driverUsername || !Array.isArray(saleIds) || !saleIds.length) return;
+
+  try {
+    const DeliveryService = require('./DeliveryService');
+    for (const sid of saleIds) {
+      const dr = db
+        .prepare(
+          `SELECT id FROM delivery_records
+           WHERE sale_id = ? AND driver_username IS NOT NULL AND driver_username != ?`
+        )
+        .get(sid, driverUsername);
+      if (dr) {
+        db.prepare(
+          `UPDATE delivery_records
+           SET driver_username = ?, updated_at = datetime('now')
+           WHERE id = ?`
+        ).run(driverUsername, dr.id);
+      }
+      DeliveryService.ensureRecord(sid, driverUsername);
+    }
+  } catch (err) {
+    logger.error('[RegionService] syncDeliveryAndNotify error', { error: err.message });
+  }
+
+  try {
+    const socketServer = require('../socket/socketServer');
+    const PushService = require('./PushService');
+    for (const sid of saleIds) {
+      const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(sid);
+      const customer = sale?.customer_id
+        ? db.prepare('SELECT name, phone, address FROM customers WHERE id = ?').get(sale.customer_id)
+        : null;
+      const payload = {
+        saleId: sid,
+        customerName: customer?.name || null,
+        customerAddress: customer?.address || null,
+        customerPhone: customer?.phone || null,
+        kegs: sale?.deliver_kegs || 0,
+        date: sale?.date,
+        saleTime: sale?.sale_time || null,
+      };
+      socketServer.emitOrderAssigned(driverUsername, payload);
+      if (PushService.isEnabled()) {
+        PushService.notifyNewOrder({ driverUsername, ...payload }).catch(() => {});
+      }
+    }
+  } catch (err) {
+    logger.error('[RegionService] notify driver error', { error: err.message });
+  }
+}
+
+/**
+ * TÁI ĐIỀU PHỔ ĐƠN khi khách hàng đổi khu vực.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Khi Admin chuyển khách hàng sang khu vực khác, các đơn CHƯA hoàn tất
+ * của khách đó phải được chuyển sang tài xế phụ trách khu vực MỚI
+ * (hoặc bỏ gán nếu khu vực mới chưa có tài xế → đơn về hàng đợi chờ điều phố).
+ *
+ * Quy tắc bất biến lịch sử:
+ *  - Đơn đã KHOÁ (DELIVERED/FAILED/DISCREPANCY) → giữ nguyên tài xế + khu vực.
+ *  - Đơn CHƯA khoá → cập nhật driver_username + snapshot khu vực.
+ *
+ * @param {number} customerId
+ * @param {number|null} newRegionId - khu vực MỚI của khách (null = bỏ khu vực)
+ * @param {object} opts - { actor, req, note }
+ * @returns {{success:boolean, reassigned:number, unassigned:number, preserved:number,
+ *            driverUsername:string|null, error?:string}}
+ */
+function redispatchCustomerSales(customerId, newRegionId, opts = {}) {
+  const cid = parseInt(customerId, 10);
+  if (!cid) return { success: false, error: 'Khách hàng không hợp lệ', reassigned: 0, unassigned: 0, preserved: 0 };
+
+  const regionId = newRegionId ? parseInt(newRegionId, 10) : null;
+  let regionName = null;
+  let driverUsername = null;
+
+  if (regionId) {
+    const region = getRegionById(regionId);
+    if (!region) {
+      return { success: false, error: 'Không tìm thấy khu vực', reassigned: 0, unassigned: 0, preserved: 0 };
+    }
+    regionName = region.name;
+    const driver = getActiveDriver(regionId);
+    driverUsername = driver ? driver.username : null;
+  }
+
+  // Đơn của khách còn "mở" (chưa khoá, chưa xoá, chưa archive).
+  let openSales = [];
+  let lockedSales = [];
+  try {
+    openSales = db
+      .prepare(
+        `SELECT s.id FROM sales s
+         WHERE s.customer_id = ?
+           AND s.type = 'sale' AND s.archived = 0 AND s.deleted = 0
+           AND NOT EXISTS (
+             SELECT 1 FROM delivery_records dr
+             WHERE dr.sale_id = s.id
+               AND dr.status IN ('DELIVERED','FAILED','DISCREPANCY')
+           )`
+      )
+      .all(cid);
+
+    // Đơn đã hoàn tất → giữ nguyên lịch sử (không tái điều phố)
+    lockedSales = db
+      .prepare(
+        `SELECT s.id FROM sales s
+         WHERE s.customer_id = ?
+           AND s.type = 'sale' AND s.archived = 0 AND s.deleted = 0
+           AND EXISTS (
+             SELECT 1 FROM delivery_records dr
+             WHERE dr.sale_id = s.id
+               AND dr.status IN ('DELIVERED','FAILED','DISCREPANCY')
+           )`
+      )
+      .all(cid);
+  } catch (err) {
+    logger.error('[RegionService] redispatchCustomerSales query error', { error: err.message });
+    return { success: false, error: err.message, reassigned: 0, unassigned: 0, preserved: 0 };
+  }
+
+  let reassigned = 0;
+  let unassigned = 0;
+  let preserved = lockedSales.length;
+  const notified = [];
+  const released = [];
+
+  for (const s of openSales) {
+    const r = assignSaleDriver(s.id, driverUsername, {
+      actor: opts.actor || null,
+      req: opts.req || null,
+      note: opts.note || 'Tái điều phố: khách hàng đổi khu vực',
+      regionId: regionId,
+      regionName: regionName,
+    });
+    if (!r.success) {
+      preserved++;
+      continue;
+    }
+    if (driverUsername) {
+      reassigned++;
+      notified.push(s.id);
+    } else {
+      unassigned++;
+      released.push(s.id);
+    }
+  }
+
+  // ── Đồng bộ phiếu giao + báo tài xế MỚI ────────────────────────────────
+  // Đơn đã có phiếu giao của tài xế cũ → chuyển phiếu sang tài xế mới
+  // (đơn chưa bị khoá) để tài xế mới thấy ngay trong màn "Giao hàng".
+  if (notified.length) {
+    syncDeliveryAndNotify(notified, driverUsername);
+  }
+
+  // ── Giải phóng phiếu giao của tài xế cũ (đơn về hàng đợi chờ điều phố) ──
+  if (released.length) {
+    try {
+      for (const sid of released) {
+        db.prepare(
+          `DELETE FROM delivery_records
+           WHERE sale_id = ? AND status IN ('PENDING','IN_PROGRESS')`
+        ).run(sid);
+      }
+    } catch (err) {
+      logger.error('[RegionService] release delivery records error', { error: err.message });
+    }
+  }
+
+  if (reassigned || unassigned || preserved) {
+    logger.info('[RegionService] customer sales redispatched', {
+      customerId: cid,
+      regionId,
+      regionName,
+      driverUsername,
+      reassigned,
+      unassigned,
+      preserved,
+    });
+  }
+
+  return {
+    success: true,
+    reassigned,
+    unassigned,
+    preserved,
+    driverUsername,
+  };
 }
 
 /**
@@ -926,6 +1171,8 @@ module.exports = {
   driverRegionScopeClause,
   isSaleLocked,
   assignSaleDriver,
+  redispatchCustomerSales,
+  syncDeliveryAndNotify,
   listUnassignedSales,
 };
 

@@ -257,7 +257,12 @@
     }).then(function (r) { return r.json().then(function (b) { return { ok: r.ok, body: b }; }); })
       .then(function (res) {
         if (!res.ok) throw new Error(res.body.error || 'Không phân công được');
-        toast(res.body.changed ? 'Đã cập nhật phân công' : 'Phân công không thay đổi');
+        var msg = res.body.changed ? 'Đã cập nhật phân công' : 'Phân công không thay đổi';
+        var n = res.body.reassignedSales || 0;
+        if (n > 0) msg += ' · ' + n + ' đơn chuyển tài xế';
+        var p = res.body.preservedSales || 0;
+        if (p > 0) msg += ' · ' + p + ' đơn đã hoàn tất giữ nguyên';
+        toast(msg);
         return loadAll();
       }).catch(function (e) { toast(e.message, true); });
   }
