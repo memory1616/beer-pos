@@ -4,6 +4,7 @@ const db = require('../../database');
 const logger = require('../../src/utils/logger');
 const socketServer = require('../../src/socket/socketServer');
 const AuditService = require('../../src/services/AuditService');
+const RegionService = require('../../src/services/RegionService');
 const emitCustomer = (customer) => { try { if (socketServer) socketServer.emitCustomerUpdated(customer); } catch (_) {} };
 const emitKeg = () => { try { if (socketServer) socketServer.emitKegUpdated(); } catch (_) {} };
 
@@ -56,23 +57,34 @@ router.get('/', (req, res) => {
     let customerFields = 'c.*';
     if (fields) {
       const requestedFields = fields.split(',').map(f => f.trim()).filter(Boolean);
-      const allowed = ['id','name','phone','address','debt','deposit','keg_balance','lat','lng','last_order_date','archived','monthly_expected','exclude_expected','horizontal_fridge','vertical_fridge','note','updated_at'];
+      const allowed = ['id','name','phone','address','debt','deposit','keg_balance','lat','lng','last_order_date','archived','monthly_expected','exclude_expected','horizontal_fridge','vertical_fridge','note','updated_at','region_id'];
       const valid = requestedFields.filter(f => allowed.includes(f));
       if (valid.length > 0) customerFields = 'c.' + valid.join(', c.');
+    }
+
+    // Lọc theo khu vực kinh doanh (?regionId=)
+    const regionId = req.query.regionId ? parseInt(req.query.regionId, 10) : null;
+    let regionClause = '';
+    const regionParams = [];
+    if (regionId) {
+      regionClause = ' AND c.region_id = ?';
+      regionParams.push(regionId);
     }
 
     // Count total (for pagination)
     const totalResult = db.prepare(`
       SELECT COUNT(*) as total
       FROM customers c
-      WHERE c.archived = 0
-    `).get();
+      WHERE c.archived = 0${regionClause}
+    `).get(...regionParams);
     const total = totalResult.total;
     const totalPages = Math.ceil(total / limit);
 
     const customers = db.prepare(`
-      SELECT ${customerFields}, COALESCE(cm.monthly_kegs, 0) as monthly_liters
+      SELECT ${customerFields}, r.name as region_name, r.code as region_code,
+             COALESCE(cm.monthly_kegs, 0) as monthly_liters
       FROM customers c
+      LEFT JOIN business_regions r ON r.id = c.region_id
       LEFT JOIN (
         SELECT customer_id, COALESCE(SUM(si.quantity), 0) as monthly_kegs
         FROM sales s
@@ -83,10 +95,10 @@ router.get('/', (req, res) => {
           AND si.price > 0 AND p.type = 'keg'
         GROUP BY customer_id
       ) cm ON cm.customer_id = c.id
-      WHERE c.archived = 0
+      WHERE c.archived = 0${regionClause}
       ORDER BY c.name
       LIMIT ? OFFSET ?
-    `).all(currentYear.toString(), currentMonthStr, limit, offset);
+    `).all(currentYear.toString(), currentMonthStr, ...regionParams, limit, offset);
 
     // If page > 1 and no results, return empty array (not an error)
     res.json({ customers, total, page, totalPages, limit });
@@ -155,10 +167,25 @@ router.get('/:id', (req, res) => {
     const { fields } = req.query;
     if (fields) {
       const requestedFields = fields.split(',').map(f => f.trim()).filter(Boolean);
-      const allowed = ['id','name','phone','address','debt','deposit','keg_balance','lat','lng','last_order_date','archived','monthly_expected','exclude_expected','horizontal_fridge','vertical_fridge','note','updated_at'];
+      const allowed = ['id','name','phone','address','debt','deposit','keg_balance','lat','lng','last_order_date','archived','monthly_expected','exclude_expected','horizontal_fridge','vertical_fridge','note','updated_at','region_id'];
       const valid = requestedFields.filter(f => allowed.includes(f));
       if (valid.length > 0) {
         return res.json(valid.reduce((obj, f) => { obj[f] = customer[f]; return obj; }, {}));
+      }
+    }
+
+    // Khu vực kinh doanh (tên + tài xế phụ trách) — khách cũ chưa có → null
+    customer.region = null;
+    if (customer.region_id) {
+      const region = RegionService.getRegionById(customer.region_id);
+      if (region) {
+        const driver = RegionService.getActiveDriver(region.id);
+        customer.region = {
+          id: region.id,
+          name: region.name,
+          code: region.code,
+          driverUsername: driver ? driver.username : null,
+        };
       }
     }
 
@@ -171,11 +198,17 @@ router.get('/:id', (req, res) => {
 
 // POST /api/customers
 router.post('/', (req, res) => {
-  const { name, phone, deposit, prices, horizontal_fridge, vertical_fridge, sales_id } = req.body;
+  const { name, phone, deposit, prices, horizontal_fridge, vertical_fridge, sales_id, region_id } = req.body;
 
   // Validate required fields
   if (!name || typeof name !== 'string' || name.trim() === '') {
     return res.status(400).json({ error: 'Tên khách hàng là bắt buộc' });
+  }
+
+  // Validate khu vực (nếu có) — region_id hợp lệ hoặc null
+  const regionCheck = RegionService.validateRegionId(region_id);
+  if (!regionCheck.ok) {
+    return res.status(400).json({ error: regionCheck.error });
   }
 
   // Sanitize inputs
@@ -183,13 +216,14 @@ router.post('/', (req, res) => {
   const sanitizedPhone = phone ? sanitizeInput(phone) : null;
 
   try {
-    const stmt = db.prepare('INSERT INTO customers (name, phone, deposit, keg_balance, horizontal_fridge, vertical_fridge) VALUES (?, ?, ?, 0, ?, ?)');
+    const stmt = db.prepare('INSERT INTO customers (name, phone, deposit, keg_balance, horizontal_fridge, vertical_fridge, region_id) VALUES (?, ?, ?, 0, ?, ?, ?)');
     const result = stmt.run(
-      sanitizedName, 
-      sanitizedPhone, 
+      sanitizedName,
+      sanitizedPhone,
       parseFloat(deposit) || 0,
       parseInt(horizontal_fridge) || 0,
-      parseInt(vertical_fridge) || 0
+      parseInt(vertical_fridge) || 0,
+      regionCheck.regionId
     );
     const customerId = result.lastInsertRowid;
 
@@ -288,7 +322,17 @@ router.put('/:id', (req, res) => {
     return res.status(404).json({ error: 'Không tìm thấy khách hàng' });
   }
 
-  const { name, phone, deposit, lat, lng, keg_balance, debt, address, note, horizontal_fridge, vertical_fridge, exclude_expected, sales_id } = req.body;
+  const { name, phone, deposit, lat, lng, keg_balance, debt, address, note, horizontal_fridge, vertical_fridge, exclude_expected, sales_id, region_id } = req.body;
+
+  // Validate khu vực (nếu có) — region_id hợp lệ hoặc null
+  let regionId = existing.region_id ?? null;
+  if (region_id !== undefined) {
+    const regionCheck = RegionService.validateRegionId(region_id);
+    if (!regionCheck.ok) {
+      return res.status(400).json({ error: regionCheck.error });
+    }
+    regionId = regionCheck.regionId;
+  }
 
   // Keep existing values if not provided
   const updated = {
@@ -304,6 +348,7 @@ router.put('/:id', (req, res) => {
     horizontal_fridge: horizontal_fridge ?? existing.horizontal_fridge,
     vertical_fridge:   vertical_fridge  ?? existing.vertical_fridge,
     exclude_expected:  exclude_expected !== undefined ? exclude_expected : existing.exclude_expected,
+    region_id:        regionId,
   };
 
   // Calculate fridge difference
@@ -319,7 +364,7 @@ router.put('/:id', (req, res) => {
     // Update customer info
     db.prepare(`
       UPDATE customers
-      SET name = ?, phone = ?, deposit = ?, lat = ?, lng = ?, keg_balance = ?, debt = ?, address = ?, note = ?, horizontal_fridge = ?, vertical_fridge = ?, exclude_expected = ?, updated_at = CURRENT_TIMESTAMP
+      SET name = ?, phone = ?, deposit = ?, lat = ?, lng = ?, keg_balance = ?, debt = ?, address = ?, note = ?, horizontal_fridge = ?, vertical_fridge = ?, exclude_expected = ?, region_id = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `).run(
       updated.name,
@@ -334,6 +379,7 @@ router.put('/:id', (req, res) => {
       updated.horizontal_fridge,
       updated.vertical_fridge,
       updated.exclude_expected,
+      updated.region_id,
       id
     );
 

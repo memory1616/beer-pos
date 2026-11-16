@@ -40,6 +40,7 @@ const logger = require('../../src/utils/logger');
 const DebtOrderIntegration = require('./debt/DebtOrderIntegration');
 const AuditService = require('./AuditService');
 const KegBalanceService = require('./KegBalanceService');
+const RegionService = require('./RegionService');
 
 class DeliveryService {
   /**
@@ -81,6 +82,8 @@ class DeliveryService {
           s.promo_type,
           s.payment_status,
           s.driver_username,
+          s.region_id,
+          s.region_name,
           c.name AS customer_name,
           c.phone AS customer_phone,
           c.address AS customer_address,
@@ -132,6 +135,10 @@ class DeliveryService {
   //   owner === tài xế đang xem               → đơn của chính mình   → thấy
   //   owner không còn trong app_users        → coi như chưa gán     → AI CŨNG thấy
   //   owner là tài xế KHÁC (còn tồn tại)      → đã có người phụ trách → ẨN
+  //
+  // PHÂN QUYỀN THEO KHU VỰC (bổ sung):
+  //   Đơn CHƯA gán ai → chỉ hiện nếu khu vực đơn thuộc quyền phụ trách
+  //   của tài xế. Tài xế KHÔNG thấy đơn "mồ" của khu vực người khác.
   const knownDrivers = new Set(
     db
       .prepare("SELECT username FROM app_users WHERE role = 'DRIVER'")
@@ -139,12 +146,33 @@ class DeliveryService {
       .map((r) => r.username)
   );
 
+  // Tập id khu vực tài xế đang phụ trách (có thể NHIỀU khu vực).
+  const myRegionIds = new Set(RegionService.getDriverRegionIds(driverUsername));
+  // ⚠️ Tài xế CHƯA được gán khu vực nào → giữ hành vi cũ (chưa áp dụng
+  //    phân quyền khu vực) để không phá vỡ vận hành hiện tại.
+  const regionRestrictionActive = myRegionIds.size > 0;
+
   return drvRows.filter((r) => {
     const owner = r.driver_username;
-    if (!owner) return true;                       // chưa gán ai
-    if (owner === driverUsername) return true;     // đơn của chính mình
-    if (!knownDrivers.has(owner)) return true;     // tài khoản không còn tồn tại → coi như chưa gán
-    return false;                                  // tài xế khác → ẩn
+    if (owner === driverUsername) return true;     // đơn của chính mình → thấy
+
+    if (owner) {
+      // Tài xế khác còn tồn tại → ẩn
+      if (knownDrivers.has(owner)) return false;
+      // Tài khoản không còn tồn tại → coi như "chưa gán" → xem rule bên dưới
+    }
+
+    // Chưa áp dụng phân quyền khu vực → hành vi cũ (thấy đơn chưa gán ai)
+    if (!regionRestrictionActive) {
+      // Hệ thống đã bắt đầu phân công khu vực nhưng tài xế này chưa được gán
+      // khu vực nào → KHÔNG thấy đơn nào (chờ Admin phân công).
+      if (!RegionService.driverHasNoRegionRestriction(driverUsername)) return false;
+      return true;
+    }
+
+    // Đơn chưa gán ai → chỉ thấy nếu khu vực thuộc quyền phụ trách
+    if (!r.region_id) return false;                // không rõ khu vực → Admin điều phối
+    return myRegionIds.has(r.region_id);
   });
 }
 
@@ -221,6 +249,29 @@ class DeliveryService {
   static ensureRecord(saleId, driverUsername) {
     const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId);
     if (!sale) return { success: false, error: 'Không tìm thấy đơn hàng' };
+
+    // ── PHÂN QUYỀN THEO KHU VỰC ───────────────────────────────────────────
+    // Tài xế KHÔNG được tạo/chiếm đơn giao thuộc khu vực không được phân công.
+    // Admin tạo đơn cho khu vực chưa có tài xế → đơn nằm "chờ điều phối",
+    // tài xế không tự nhận.
+    const access = RegionService.canDriverAccessSale(sale, driverUsername, 'DRIVER');
+    // Chỉ bypass khi lý do từ chối là "ngoài phạm vi khu vực" VÀ tài xế chưa
+    // được phân công khu vực nào (chế độ chưa áp dụng phân quyền).
+    // ⚠️ TUYỆT ĐỐI KHÔNG bypass trường hợp đơn đã gán cho tài xế KHÁC.
+    const bypassRegion = RegionService.canBypassRegionCheck(access.code, driverUsername);
+    if (!access.allowed && !bypassRegion) {
+      logger.warn('[DeliveryService] ensureRecord blocked — outside region', {
+        driver: driverUsername,
+        saleId,
+        regionId: sale.region_id,
+        reason: access.reason,
+      });
+      return {
+        success: false,
+        error: access.reason || 'Đơn hàng không thuộc khu vực bạn phụ trách',
+        code: access.code || 'DRIVER_REGION_FORBIDDEN',
+      };
+    }
 
     const existing = db
       .prepare('SELECT * FROM delivery_records WHERE sale_id = ? AND driver_username = ?')

@@ -509,7 +509,7 @@ function applyCustomerChange(action, entity_id, data) {
   if (action === 'create' || action === 'update') {
     const exists = db.prepare('SELECT id FROM customers WHERE id = ?').get(entity_id);
     if (exists) {
-      const { name, phone, deposit, keg_balance, debt, address, lat, lng, note, horizontal_fridge, vertical_fridge, archived } = data || {};
+      const { name, phone, deposit, keg_balance, debt, address, lat, lng, note, horizontal_fridge, vertical_fridge, archived, region_id } = data || {};
       db.prepare(`
         UPDATE customers SET
           name = COALESCE(?, name),
@@ -524,15 +524,16 @@ function applyCustomerChange(action, entity_id, data) {
           horizontal_fridge = COALESCE(?, horizontal_fridge),
           vertical_fridge = COALESCE(?, vertical_fridge),
           archived = COALESCE(?, archived),
+          region_id = COALESCE(?, region_id),
           updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-      `).run(name, phone, deposit, keg_balance, debt, address, lat, lng, note, horizontal_fridge, vertical_fridge, archived, entity_id);
+      `).run(name, phone, deposit, keg_balance, debt, address, lat, lng, note, horizontal_fridge, vertical_fridge, archived, region_id ?? null, entity_id);
     } else {
-      const { name = 'Unknown', phone = '', deposit = 0, keg_balance = 0, debt = 0, address = '', lat, lng, note = '', horizontal_fridge = 0, vertical_fridge = 0, archived = 0 } = data || {};
+      const { name = 'Unknown', phone = '', deposit = 0, keg_balance = 0, debt = 0, address = '', lat, lng, note = '', horizontal_fridge = 0, vertical_fridge = 0, archived = 0, region_id = null } = data || {};
       db.prepare(`
-        INSERT INTO customers (id, name, phone, deposit, keg_balance, debt, address, lat, lng, note, horizontal_fridge, vertical_fridge, archived)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(entity_id, name, phone, deposit, keg_balance, debt, address, lat, lng, note, horizontal_fridge, vertical_fridge, archived);
+        INSERT INTO customers (id, name, phone, deposit, keg_balance, debt, address, lat, lng, note, horizontal_fridge, vertical_fridge, archived, region_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(entity_id, name, phone, deposit, keg_balance, debt, address, lat, lng, note, horizontal_fridge, vertical_fridge, archived, region_id);
     }
   } else if (action === 'delete') {
     db.prepare('DELETE FROM customers WHERE id = ?').run(entity_id);

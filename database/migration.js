@@ -873,6 +873,22 @@ function runDriverAttendanceMigration(db) {
   }
 }
 
+// ── Business regions migration (058) ──────────────────────────────────────
+// Danh mục 9 khu vực kinh doanh + phân công tài xế + snapshot khu vực trên đơn.
+// Chạy ĐỘC LẬP, idempotent: CREATE TABLE IF NOT EXISTS + PRAGMA check trước ALTER.
+// Rollback an toàn: chỉ gỡ bảng/cột MỚI (không đụng dữ liệu kinh doanh).
+function runBusinessRegionsMigration(db) {
+  try {
+    const migration = require('./migrations/058_business_regions');
+    migration.up(db);
+    log('[BUSINESS_REGIONS] Migration 058 applied');
+    return { success: true };
+  } catch (e) {
+    log('[BUSINESS_REGIONS] Migration error: ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
 // ── Utility: Generate UUID ─────────────────────────────────────────────────────
 
 function generateUUID() {
@@ -905,6 +921,7 @@ module.exports = {
   runBusinessDayCutoffMigration,
   runAuditLogUnificationMigration,
   runDriverAttendanceMigration,
+  runBusinessRegionsMigration,
   generateUUID,
   getCurrentVersion,
   setVersion,

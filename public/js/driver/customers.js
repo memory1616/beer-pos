@@ -54,6 +54,9 @@
         return '<div class="ds-row ds-card--tap" data-cust-id="' + c.id + '">' +
           '<span class="ds-row__body">' +
             '<span class="ds-row__title">' + esc(c.name) + '</span>' +
+            (c.region_name
+              ? '<span class="ds-row__meta">🗺️ ' + esc(c.region_name) + '</span>'
+              : '') +
             '<span class="ds-row__meta">' +
               (c.phone
                 ? '<a href="tel:' + esc(c.phone) + '" style="color:var(--ds-brand-500);">' + esc(c.phone) + '</a>'
@@ -76,6 +79,8 @@
       var history = c.purchaseHistory || [];
 
       var html =
+        '<div class="drv-cart__row"><span class="drv-cart__label">Khu vực</span>' +
+          '<strong>' + (c.region_name ? '🗺️ ' + esc(c.region_name) : '—') + '</strong></div>' +
         '<div class="drv-cart__row"><span class="drv-cart__label">Số điện thoại</span>' +
           '<strong>' + (c.phone
             ? '<a href="tel:' + esc(c.phone) + '" style="color:var(--accent);">' + esc(c.phone) + '</a>'

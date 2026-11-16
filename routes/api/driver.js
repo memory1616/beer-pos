@@ -18,6 +18,7 @@ const KegReceiptService = require('../../src/services/KegReceiptService');
 const DriverSalaryCalculator = require('../../src/services/DriverSalaryCalculator');
 const DriverStaffService = require('../../src/services/DriverStaffService');
 const DriverAttendanceService = require('../../src/services/DriverAttendanceService');
+const RegionService = require('../../src/services/RegionService');
 const { ROLE_DRIVER } = require('../../middleware/permissions');
 const { PromotionService } = require('../../src/services');
 
@@ -111,6 +112,13 @@ router.get('/me', requireDriver, (req, res) => {
     phone: user?.phone || null,
     lastLoginAt: user?.last_login_at || null,
     estimatedSalary,
+    // Danh sách khu vực kinh doanh được phân công phụ trách (nhiều khu vực/tài xế)
+    regions: RegionService.getDriverRegionIds(req.user.username)
+      .map((id) => {
+        const r = RegionService.getRegionById(id);
+        return r ? { id: r.id, name: r.name, code: r.code } : null;
+      })
+      .filter(Boolean),
   });
 });
 
@@ -621,6 +629,14 @@ router.get('/sales', requireDriver, (req, res) => {
     const where = ["s.driver_username = ?", "s.type = 'sale'", "s.archived = 0", "s.deleted = 0"];
     const params = [req.user.username];
 
+    // PHÂN QUYỀN THEO KHU VỰC: tài xế chỉ thấy đơn thuộc khu vực được
+    // phân công (ngoài ra đơn gán trực tiếp cho chính mình ở điều kiện trên).
+    const regionScope = RegionService.getDriverRegionIds(req.user.username);
+    if (regionScope.length) {
+      where.push(`s.region_id IN (${regionScope.map(() => '?').join(',')})`);
+      params.push(...regionScope);
+    }
+
     if (req.query.month) {
       where.push("strftime('%Y-%m', s.date) = ?");
       params.push(req.query.month);
@@ -675,6 +691,8 @@ router.get('/sales/:id', requireDriver, (req, res) => {
                 s.return_kegs, s.keg_balance_after, s.type, s.note, s.payment_status,
                 s.promo_free_liters, s.promo_type, s.reward_liters_used, s.delivery_status,
                 s.driver_username,
+                s.region_id,
+                s.region_name,
                 COALESCE(c.name, 'Khách lẻ') AS customer_name,
                 c.phone AS customer_phone,
                 c.address AS customer_address,
@@ -688,10 +706,26 @@ router.get('/sales/:id', requireDriver, (req, res) => {
       .get(saleId);
 
     if (!sale) return res.status(404).json({ error: 'Không tìm thấy đơn hàng' });
-    if (sale.driver_username !== req.user.username) {
+
+    // PHÂN QUYỀN THEO KHU VỰC: đơn phải thuộc khu vực tài xế phụ trách.
+    //   - Đơn của chính tài xế → OK (kể cả khi khu vực đã đổi).
+    //   - Đơn chưa gán ai → OK nếu khu vực thuộc quyền quản lý.
+    //   - Đơn gán tài xế khác → chặn.
+    //   - Tài xế chưa được gán khu vực nào → giữ hành vi cũ.
+    const regionCheck = RegionService.canDriverAccessSale(sale, req.user.username, 'DRIVER');
+    // Chỉ bypass khi lý do từ chối là "ngoài phạm vi khu vực" VÀ tài xế chưa
+    // được phân công khu vực nào (chế độ chưa áp dụng phân quyền).
+    // ⚠️ TUYỆT ĐỐI KHÔNG bypass trường hợp đơn đã gán cho tài xế KHÁC.
+    const bypassRegion = RegionService.canBypassRegionCheck(regionCheck.code, req.user.username);
+    if (!regionCheck.allowed && !bypassRegion) {
+      logger.warn('[driver] sale detail blocked — outside region', {
+        driver: req.user.username,
+        saleId,
+        regionId: sale.region_id,
+      });
       return res.status(403).json({
-        error: 'Không có quyền truy cập đơn hàng này',
-        code: 'DRIVER_SCOPE',
+        error: regionCheck.reason || 'Đơn hàng không thuộc khu vực bạn phụ trách',
+        code: regionCheck.code || 'DRIVER_REGION_FORBIDDEN',
       });
     }
 
@@ -804,19 +838,35 @@ router.get('/customers', requireDriver, (req, res) => {
     const search = (req.query.q || '').trim();
     const limit = Math.min(200, parseInt(req.query.limit) || 50);
 
+    // PHÂN QUYỀN THEO KHU VỰC: tài xế chỉ thấy khách hàng thuộc khu vực
+    // được phân công. Tài xế chưa được gán khu vực nào → không lọc (giữ
+    // hành vi cũ cho tới khi Admin phân công).
+    const regionScope = RegionService.getDriverRegionIds(req.user.username);
+
     let sql = `
-      SELECT id, name, phone, address, lat, lng, keg_balance, debt, deposit,
-             last_order_date, reward_tier, monthly_purchased_liters
-      FROM customers
-      WHERE archived = 0 AND deleted = 0`;
+      SELECT c.id, c.name, c.phone, c.address, c.lat, c.lng, c.keg_balance, c.debt, c.deposit,
+             c.last_order_date, c.reward_tier, c.monthly_purchased_liters,
+             r.name AS region_name
+      FROM customers c
+      LEFT JOIN business_regions r ON r.id = c.region_id
+      WHERE c.archived = 0 AND c.deleted = 0`;
     const params = [];
 
+    if (regionScope.length) {
+      sql += ` AND c.region_id IN (${regionScope.map(() => '?').join(',')})`;
+      params.push(...regionScope);
+    } else if (!RegionService.driverHasNoRegionRestriction(req.user.username)) {
+      // Hệ thống đã phân công khu vực nhưng tài xế này chưa được gán khu vực
+      // nào → KHÔNG được thấy khách hàng nào (chờ Admin phân công).
+      sql += ' AND 1 = 0';
+    }
+
     if (search) {
-      sql += ` AND (name LIKE ? OR phone LIKE ? OR address LIKE ?)`;
+      sql += ` AND (c.name LIKE ? OR c.phone LIKE ? OR c.address LIKE ?)`;
       const like = `%${search}%`;
       params.push(like, like, like);
     }
-    sql += ` ORDER BY name LIMIT ?`;
+    sql += ` ORDER BY c.name LIMIT ?`;
     params.push(limit);
 
     const customers = db.prepare(sql).all(...params);
@@ -835,14 +885,26 @@ router.get('/customers/:id', requireDriver, (req, res) => {
 
     const customer = db
       .prepare(
-        `SELECT id, name, phone, address, lat, lng, keg_balance, debt, deposit,
-                last_order_date, note, reward_tier, monthly_purchased_liters,
-                horizontal_fridge, vertical_fridge
-         FROM customers WHERE id = ? AND archived = 0`
+        `SELECT c.id, c.name, c.phone, c.address, c.lat, c.lng, c.keg_balance, c.debt, c.deposit,
+                c.last_order_date, c.note, c.reward_tier, c.monthly_purchased_liters,
+                c.horizontal_fridge, c.vertical_fridge, c.region_id,
+                r.name AS region_name
+         FROM customers c
+         LEFT JOIN business_regions r ON r.id = c.region_id
+         WHERE c.id = ? AND c.archived = 0`
       )
       .get(id);
 
     if (!customer) return res.status(404).json({ error: 'Không tìm thấy khách hàng' });
+
+    // Chặn tài xế xem khách hàng ngoài lãnh thổ phụ trách
+    const access = RegionService.canDriverAccessCustomer(customer, req.user.username, 'DRIVER');
+    if (!access.allowed && !RegionService.canBypassRegionCheck(access.code, req.user.username)) {
+      return res.status(403).json({
+        error: access.reason,
+        code: access.code || 'DRIVER_REGION_FORBIDDEN',
+      });
+    }
 
     // Lịch sử sản phẩm khách đã mua (không có giá vốn/lợi nhuận)
     const history = db
@@ -865,17 +927,35 @@ router.get('/customers/:id', requireDriver, (req, res) => {
 });
 
 // POST /api/driver/customers — tạo khách mới (chỉ field cần thiết)
+// PHÂN QUYỀN KHU VỰC: tài xế chỉ tạo được khách thuộc khu vực mình phụ trách.
+// Nếu không truyền regionId → tự động gán khu vực đầu tiên đang phụ trách.
 router.post('/customers', requireDriver, (req, res) => {
   try {
-    const { name, phone, address, lat, lng, deposit } = req.body || {};
+    const { name, phone, address, lat, lng, deposit, regionId } = req.body || {};
     if (!name || !String(name).trim()) {
       return res.status(400).json({ error: 'Tên khách hàng là bắt buộc' });
     }
 
+    const myRegionIds = RegionService.getDriverRegionIds(req.user.username);
+    const restricted = myRegionIds.length > 0;
+
+    let regionIdValue = regionId ? parseInt(regionId, 10) : null;
+    if (restricted) {
+      if (!regionIdValue) {
+        // Tự động gán khu vực phụ trách đầu tiên
+        regionIdValue = myRegionIds[0];
+      } else if (!myRegionIds.includes(regionIdValue)) {
+        return res.status(403).json({
+          error: 'Khu vực khách hàng không thuộc phạm vi phụ trách của tài xế',
+          code: 'DRIVER_REGION_FORBIDDEN',
+        });
+      }
+    }
+
     const result = db
       .prepare(
-        `INSERT INTO customers (name, phone, address, lat, lng, deposit, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`
+        `INSERT INTO customers (name, phone, address, lat, lng, deposit, region_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`
       )
       .run(
         String(name).trim(),
@@ -883,7 +963,8 @@ router.post('/customers', requireDriver, (req, res) => {
         address || null,
         lat || null,
         lng || null,
-        parseFloat(deposit) || 0
+        parseFloat(deposit) || 0,
+        regionIdValue || null
       );
 
     const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(result.lastInsertRowid);
@@ -919,6 +1000,20 @@ router.get('/prices', requireDriver, (req, res) => {
   try {
     const customerId = parseInt(req.query.customerId);
     if (!customerId) return res.status(400).json({ error: 'Thiếu customerId' });
+
+    // Chặn tài xế lấy giá riêng của khách ngoài lãnh thổ phụ trách
+    const customer = db
+      .prepare('SELECT id, name, region_id FROM customers WHERE id = ?')
+      .get(customerId);
+    if (!customer) return res.status(404).json({ error: 'Không tìm thấy khách hàng' });
+
+    const access = RegionService.canDriverAccessCustomer(customer, req.user.username, 'DRIVER');
+    if (!access.allowed && !RegionService.canBypassRegionCheck(access.code, req.user.username)) {
+      return res.status(403).json({
+        error: access.reason,
+        code: access.code || 'DRIVER_REGION_FORBIDDEN',
+      });
+    }
 
     const prices = db
       .prepare(
@@ -1295,6 +1390,20 @@ router.post('/payments', requireDriver, (req, res) => {
   }
 
   try {
+    // Chặn tài xế thu tiền công nợ của khách ngoài lãnh thổ phụ trách
+    const customer = db
+      .prepare('SELECT id, name, region_id FROM customers WHERE id = ?')
+      .get(custId);
+    if (!customer) return res.status(404).json({ error: 'Không tìm thấy khách hàng' });
+
+    const access = RegionService.canDriverAccessCustomer(customer, req.user.username, 'DRIVER');
+    if (!access.allowed && !RegionService.canBypassRegionCheck(access.code, req.user.username)) {
+      return res.status(403).json({
+        error: access.reason,
+        code: access.code || 'DRIVER_REGION_FORBIDDEN',
+      });
+    }
+
     // Tái sử dụng DebtService.payDebt (logic công nợ chuẩn)
     const { DebtService } = require('../../src/services');
     const result = DebtService.payDebt(custId, amountValue, note || `Thu tiền tại điểm giao`);
@@ -1313,9 +1422,18 @@ router.get('/debts/:customerId', requireDriver, (req, res) => {
     if (!custId) return res.status(400).json({ error: 'ID khách hàng không hợp lệ' });
 
     const customer = db
-      .prepare('SELECT id, name, phone, debt, deposit, keg_balance FROM customers WHERE id = ?')
+      .prepare('SELECT id, name, phone, debt, deposit, keg_balance, region_id FROM customers WHERE id = ?')
       .get(custId);
     if (!customer) return res.status(404).json({ error: 'Không tìm thấy khách hàng' });
+
+    // Chặn tài xế xem công nợ của khách ngoài lãnh thổ phụ trách
+    const access = RegionService.canDriverAccessCustomer(customer, req.user.username, 'DRIVER');
+    if (!access.allowed && !RegionService.canBypassRegionCheck(access.code, req.user.username)) {
+      return res.status(403).json({
+        error: access.reason,
+        code: access.code || 'DRIVER_REGION_FORBIDDEN',
+      });
+    }
 
     const debts = db
       .prepare(
@@ -1348,11 +1466,20 @@ router.get('/promotions/overview/:customerId', requireDriver, (req, res) => {
 
     const customer = db
       .prepare(
-        `SELECT id, name, promotion_enabled, new_shop_enabled, reward_enabled, created_at
+        `SELECT id, name, promotion_enabled, new_shop_enabled, reward_enabled, created_at, region_id
          FROM customers WHERE id = ? AND archived = 0`
       )
       .get(customerId);
     if (!customer) return res.status(404).json({ error: 'Không tìm thấy khách hàng' });
+
+    // Chặn tài xế xem tổng quan KM của khách ngoài lãnh thổ phụ trách
+    const access = RegionService.canDriverAccessCustomer(customer, req.user.username, 'DRIVER');
+    if (!access.allowed && !RegionService.canBypassRegionCheck(access.code, req.user.username)) {
+      return res.status(403).json({
+        error: access.reason,
+        code: access.code || 'DRIVER_REGION_FORBIDDEN',
+      });
+    }
 
     const settings = PromotionService.getSystemPromotionSettings();
     const customerNewShopEnabled = customer.new_shop_enabled !== null ? customer.new_shop_enabled : 1;
@@ -1490,6 +1617,22 @@ router.post('/replacement', requireDriver, (req, res) => {
     }
     if (!isGift && !body.customer_id) {
       return res.status(400).json({ error: 'Vui lòng chọn khách hàng' });
+    }
+
+    // Chặn tài xế tạo phiếu đổi bia lỗi cho khách ngoài lãnh thổ phụ trách
+    if (body.customer_id) {
+      const cust = db
+        .prepare('SELECT id, name, region_id FROM customers WHERE id = ?')
+        .get(parseInt(body.customer_id));
+      if (!cust) return res.status(404).json({ error: 'Không tìm thấy khách hàng' });
+
+      const access = RegionService.canDriverAccessCustomer(cust, req.user.username, 'DRIVER');
+      if (!access.allowed && !RegionService.canBypassRegionCheck(access.code, req.user.username)) {
+        return res.status(403).json({
+          error: access.reason,
+          code: access.code || 'DRIVER_REGION_FORBIDDEN',
+        });
+      }
     }
 
     // Chuẩn hoá key cho đúng nghiệp vụ gốc

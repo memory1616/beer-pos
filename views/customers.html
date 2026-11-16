@@ -373,6 +373,19 @@
               <span class="warning-text">SĐT đã tồn tại: <span id="addPhoneDupName"></span></span>
             </div>
           </div>
+
+          <!-- Khu vực khách hàng (bắt buộc) -->
+          <div class="add-field-group">
+            <label for="addRegionId" class="field-label">Khu vực khách hàng <span class="text-danger">*</span></label>
+            <input type="search" id="addRegionSearch" class="add-bn-input" placeholder="🔍 Tìm nhanh khu vực..." autocomplete="off" enterkeyhint="next" style="margin-bottom:6px;">
+            <select name="region_id" id="addRegionId" required data-field="region_id" class="add-bn-input">
+              <option value="">-- Chọn khu vực --</option>
+            </select>
+            <div id="addRegionHint" class="add-field-warning hidden">
+              <span class="warning-icon">💡</span>
+              <span class="warning-text" id="addRegionHintText"></span>
+            </div>
+          </div>
         </div>
 
         <!-- ===== SECTION 2: Tài sản & Thiết bị ===== -->
@@ -470,6 +483,13 @@
             <div>
               <label for="editPhone" class="field-label">Điện thoại</label>
               <input type="tel" name="phone" id="editPhone" inputmode="numeric" autocomplete="tel" enterkeyhint="next" data-field="phone" placeholder="0xxx xxx xxx" class="bn-input bn-input--lg">
+            </div>
+            <div>
+              <label for="editRegionId" class="field-label">Khu vực khách hàng</label>
+              <input type="search" id="editRegionSearch" class="bn-input bn-input--lg" placeholder="🔍 Tìm nhanh khu vực..." autocomplete="off" style="margin-bottom:6px;">
+              <select name="region_id" id="editRegionId" data-field="region_id" class="bn-input bn-input--lg">
+                <option value="">-- Chọn khu vực --</option>
+              </select>
             </div>
           </div>
         </div>
@@ -695,6 +715,13 @@
 
           <div class="mb-4">
             <input type="text" id="searchInput" placeholder="🔍 Tìm khách hàng..." onkeyup="filterCustomers()" oninput="filterCustomers()" class="bn-input bn-input--lg">
+          </div>
+
+          <!-- Filter theo khu vực kinh doanh -->
+          <div class="mb-4">
+            <select id="regionFilter" onchange="filterByRegion()" class="bn-input bn-input--lg" style="width:100%">
+              <option value="">🗺️ Tất cả khu vực</option>
+            </select>
           </div>
 
           <!-- Customers List - CRM Cards -->

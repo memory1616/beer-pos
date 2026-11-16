@@ -18,8 +18,7 @@ if (process.env.DB_PATH) {
 // Run database migrations
 try {
   const { runMigrations, runBusinessFeaturesMigration } = require('./database/migration');
-  const migrationResult = runMigrations(db);
-  if (migrationResult.success && !migrationResult.skipped) {
+  const migrationResult = runMigrations(db);  if (migrationResult.success && !migrationResult.skipped) {
     logger.log('[MIGRATION] Database migrations completed successfully');
   }
 
@@ -30,7 +29,7 @@ try {
   }
 
   // Run driver portal migration (idempotent, chạy độc lập version gate)
-  const { runDriverPortalMigration, runDriverStaffMigration, runDriverKegReceiptMigration, runDriverWorkDaysMigration, runDriverSalaryAdvanceMigration, runMissingBusinessTablesMigration, runDailyReportNotifyMigration, runAuditLogMigration, runDriverPushMigration, runZaloOauthMigration, runDebtManagementMigration, runDebtSaleCreditFlagMigration, runBusinessDayCutoffMigration, runAuditLogUnificationMigration, runDriverAttendanceMigration } = require('./database/migration');
+  const { runDriverPortalMigration, runDriverStaffMigration, runDriverKegReceiptMigration, runDriverWorkDaysMigration, runDriverSalaryAdvanceMigration, runMissingBusinessTablesMigration, runDailyReportNotifyMigration, runAuditLogMigration, runDriverPushMigration, runZaloOauthMigration, runDebtManagementMigration, runDebtSaleCreditFlagMigration, runBusinessDayCutoffMigration, runAuditLogUnificationMigration, runDriverAttendanceMigration, runBusinessRegionsMigration } = require('./database/migration');
   const driverResult = runDriverPortalMigration(db);
   if (driverResult.success) {
     logger.log('[MIGRATION] Driver portal schema ready');
@@ -119,6 +118,12 @@ try {
   const attendanceResult = runDriverAttendanceMigration(db);
   if (attendanceResult.success) {
     logger.log('[MIGRATION] Driver attendance schema ready');
+  }
+
+  // Run business regions migration (058) — khu vực kinh doanh + phân công tài xế
+  const regionsResult = runBusinessRegionsMigration(db);
+  if (regionsResult.success) {
+    logger.log('[MIGRATION] Business regions schema ready');
   }
 } catch (error) {
   logger.error('[MIGRATION] Migration error:', error.message);

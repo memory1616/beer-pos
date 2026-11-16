@@ -1462,6 +1462,33 @@ body.ds-app .btn--accent-outline {
   white-space: nowrap;
 }
 
+/* Danh sách khu vực kinh doanh được phân công phụ trách */
+.ds-me__regions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.ds-me__region {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  font-size: var(--ds-f-xs);
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--ds-brand-700);
+  background: var(--ds-warn-dim);
+  border: 1px solid rgba(240, 185, 11, .35);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.ds-me__regions--empty {
+  font-size: var(--ds-f-xs);
+  color: var(--ds-text-2);
+  font-style: italic;
+}
+
 /* Lương dự kiến (chưa tính thưởng/phạt) */
 .ds-me__salary {
   flex: 0 0 auto;

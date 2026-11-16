@@ -1,0 +1,870 @@
+/**
+ * RegionService — Danh mục khu vực kinh doanh & phân công tài xế
+ * ─────────────────────────────────────────────────────────────────────────────
+ * SINGLE SOURCE OF TRUTH cho toàn bộ logic khu vực:
+ *  - Danh mục 9 khu vực (đọc từ bảng `business_regions` — seeded bởi migration 058).
+ *  - Gán / thay đổi / ngừng phân công tài xế cho khu vực.
+ *  - Lịch sử phân công.
+ *  - Thống kê khách hàng & sản lượng theo khu vực.
+ *  - Tra cứu tài xế phụ trách hiện hành của một khu vực.
+ *
+ * Nguyên tắc:
+ *  - 1 khu vực → 1 tài xế chính ĐANG HOẠT ĐỘNG (partial unique index ở DB).
+ *  - 1 tài xế → N khu vực.
+ *  - Khu vực chưa có tài xế → trả về null, KHÔNG chặn đơn hàng.
+ *  - Mọi thay đổi phân công đều ghi log (audit_logs + region_assignment_history).
+ */
+
+const db = require('../../database');
+const logger = require('../utils/logger');
+const AuditLogService = require('./AuditLogService');
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Chuẩn hoá tên khu vực: bỏ khoảng trắng thừa, so khớp không phân biệt hoa thường. */
+function normalizeName(name) {
+  return String(name || '').trim().replace(/\s+/g, ' ');
+}
+
+/** Chuẩn hoá username tài xế: trim + lowercase. */
+function normalizeUsername(username) {
+  return String(username || '').trim().toLowerCase();
+}
+
+/**
+ * Tìm khu vực theo id.
+ * @returns {object|null}
+ */
+function getRegionById(id) {
+  const rid = parseInt(id, 10);
+  if (!rid) return null;
+  return db
+    .prepare(
+      `SELECT id, name, code, active, sort_order, note, created_at, updated_at
+       FROM business_regions WHERE id = ?`
+    )
+    .get(rid) || null;
+}
+
+/**
+ * Tìm khu vực theo tên (không phân biệt hoa thường).
+ * @returns {object|null}
+ */
+function getRegionByName(name) {
+  const n = normalizeName(name);
+  if (!n) return null;
+  return (
+    db
+      .prepare(
+        `SELECT id, name, code, active, sort_order, note, created_at, updated_at
+         FROM business_regions WHERE name = ? COLLATE NOCASE`
+      )
+      .get(n) || null
+  );
+}
+
+/**
+ * Danh sách khu vực (mặc định chỉ khu vực đang active).
+ * @param {{includeInactive?: boolean}} opts
+ */
+function listRegions(opts = {}) {
+  const includeInactive = opts.includeInactive === true;
+  const sql = includeInactive
+    ? `SELECT id, name, code, active, sort_order, note, created_at, updated_at
+       FROM business_regions ORDER BY sort_order, name`
+    : `SELECT id, name, code, active, sort_order, note, created_at, updated_at
+       FROM business_regions WHERE active = 1 ORDER BY sort_order, name`;
+  return db.prepare(sql).all();
+}
+
+/**
+ * Tài xế phụ trách HIỆN HÀNH của một khu vực.
+ * @returns {{username:string, driver_id:number|null, assigned_at:string, assigned_by:string|null}|null}
+ */
+function getActiveDriver(regionId) {
+  const rid = parseInt(regionId, 10);
+  if (!rid) return null;
+  const row = db
+    .prepare(
+      `SELECT driver_username, driver_id, assigned_at, assigned_by
+       FROM region_driver_assignments
+       WHERE region_id = ? AND active = 1
+       LIMIT 1`
+    )
+    .get(rid);
+  if (!row) return null;
+  return {
+    username: row.driver_username,
+    driver_id: row.driver_id,
+    assigned_at: row.assigned_at,
+    assigned_by: row.assigned_by,
+  };
+}
+
+/**
+ * Danh sách khu vực + tài xế phụ trách + số khách hàng.
+ * Dùng cho trang Admin "Quản lý khu vực giao hàng".
+ */
+function listAssignments() {
+  const regions = listRegions({ includeInactive: true });
+  return regions.map((r) => {
+    const driver = getActiveDriver(r.id);
+    const counts = db
+      .prepare(
+        `SELECT
+           COUNT(*) AS total,
+           SUM(CASE WHEN archived = 0 THEN 1 ELSE 0 END) AS active
+         FROM customers WHERE region_id = ?`
+      )
+      .get(r.id) || { total: 0, active: 0 };
+    return {
+      regionId: r.id,
+      regionName: r.name,
+      regionCode: r.code,
+      active: !!r.active,
+      driverUsername: driver ? driver.username : null,
+      driverId: driver ? driver.driver_id : null,
+      assignedAt: driver ? driver.assigned_at : null,
+      assignedBy: driver ? driver.assigned_by : null,
+      customerCount: counts.total || 0,
+      activeCustomerCount: counts.active || 0,
+      hasDriver: !!driver,
+    };
+  });
+}
+
+/**
+ * Gán / thay đổi tài xế phụ trách cho khu vực.
+ * - Tài xế mới → tự động deactivate tài xế cũ (nếu có) + ghi lịch sử.
+ * - Không tự động gỡ các khu vực KHÁC của tài xế cũ (1 tài xế → N khu vực).
+ *
+ * @param {number} regionId
+ * @param {string|null} driverUsername - null → ngừng phân công
+ * @param {object} opts - { note, actor, req }
+ */
+function assignDriver(regionId, driverUsername, opts = {}) {
+  const rid = parseInt(regionId, 10);
+  if (!rid) return { success: false, error: 'Khu vực không hợp lệ' };
+
+  const region = getRegionById(rid);
+  if (!region) return { success: false, error: 'Không tìm thấy khu vực' };
+
+  const username = driverUsername ? normalizeUsername(driverUsername) : null;
+  let driver = null;
+
+  if (username) {
+    driver = db
+      .prepare(
+        `SELECT id, username, full_name, active FROM driver_staff WHERE username = ?`
+      )
+      .get(username);
+    if (!driver) {
+      // Cho phép gán theo tài khoản DRIVER chưa có hồ sơ (driver_staff).
+      const account = db
+        .prepare(
+          `SELECT id, username, full_name, active FROM app_users
+           WHERE username = ? AND role = 'DRIVER'`
+        )
+        .get(username);
+      if (!account) {
+        return { success: false, error: `Tài xế "${username}" không tồn tại` };
+      }
+      driver = {
+        id: null,
+        username: account.username,
+        full_name: account.full_name,
+        active: account.active,
+      };
+    }
+  }
+
+  const tx = db.transaction(() => {
+    const current = getActiveDriver(rid);
+    const previousUsername = current ? current.username : null;
+
+    if (previousUsername === username) {
+      // Không đổi → chỉ cập nhật ghi chú nếu có
+      if (opts.note) {
+        db.prepare(
+          `UPDATE region_driver_assignments SET note = ?, updated_at = CURRENT_TIMESTAMP
+           WHERE region_id = ? AND active = 1`
+        ).run(opts.note, rid);
+      }
+      return { changed: false, previousUsername, newUsername: username };
+    }
+
+    // Ngừng phân công tài xế cũ (giữ lịch sử → chuyển active = 0)
+    if (previousUsername) {
+      db.prepare(
+        `UPDATE region_driver_assignments
+         SET active = 0, unassigned_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+         WHERE region_id = ? AND active = 1`
+      ).run(rid);
+    }
+
+    if (username) {
+      db.prepare(
+        `INSERT INTO region_driver_assignments
+           (region_id, driver_username, driver_id, active, assigned_at, assigned_by, note)
+         VALUES (?, ?, ?, 1, CURRENT_TIMESTAMP, ?, ?)`
+      ).run(rid, username, driver.id, opts.actor || null, opts.note || null);
+    }
+
+    return { changed: true, previousUsername, newUsername: username };
+  });
+
+  let result;
+  try {
+    result = tx();
+  } catch (err) {
+    logger.error('[RegionService] assignDriver error', { error: err.message });
+    return { success: false, error: err.message };
+  }
+
+  // Ghi lịch sử phân công
+  if (result.changed) {
+    const action = !result.newUsername
+      ? 'unassign'
+      : (!result.previousUsername ? 'assign' : 'reassign');
+    try {
+      db.prepare(
+        `INSERT INTO region_assignment_history
+           (region_id, region_name, action, previous_driver_username, new_driver_username, note, actor_username)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
+      ).run(
+        rid,
+        region.name,
+        action,
+        result.previousUsername,
+        result.newUsername,
+        opts.note || null,
+        opts.actor || null
+      );
+    } catch (err) {
+      logger.error('[RegionService] history insert error', { error: err.message });
+    }
+
+    // Ghi vào nhật ký hệ thống (audit_logs)
+    try {
+      AuditLogService.recordFromRequest(opts.req, 'region_assignment_changed', {
+        entity: 'business_region',
+        entityId: String(rid),
+        description:
+          `Phân công tài xế cho khu vực ${region.name}: ` +
+          `${result.previousUsername || '(chưa có)'} → ${result.newUsername || '(ngừng)'}`,
+        changes: {
+          region: { from: region.name, to: region.name },
+          driver: { from: result.previousUsername, to: result.newUsername },
+        },
+      });
+    } catch (_) { /* fail-open */ }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // TÁI PHÂN CÔNG ĐƠN CHƯA KHOÁ của khu vực
+    // ═══════════════════════════════════════════════════════════════════════
+    // Quy tắc: "Khi Admin thay đổi phân công, quyền mới được áp dụng cho các
+    // đơn chưa được khoá hoặc hoàn tất."
+    //  - Đơn CHƯA gán tài xế → gán tài xế mới (nếu có).
+    //  - Đơn đã gán tài xế CŨ → chuyển sang tài xế mới.
+    //  - Đơn đã KHOÁ (DELIVERED/FAILED/DISCREPANCY) → GIỮ NGUYÊN lịch sử.
+    let reassigned = 0;
+    let preserved = 0;
+    try {
+      const openSales = db
+        .prepare(
+          `SELECT s.id FROM sales s
+           WHERE s.region_id = ?
+             AND s.type = 'sale' AND s.archived = 0 AND s.deleted = 0
+             AND NOT EXISTS (
+               SELECT 1 FROM delivery_records dr
+               WHERE dr.sale_id = s.id
+                 AND dr.status IN ('DELIVERED','FAILED','DISCREPANCY')
+             )`
+        )
+        .all(rid);
+
+      for (const s of openSales) {
+        const r = assignSaleDriver(s.id, result.newUsername, {
+          actor: opts.actor || null,
+          note: 'Tự động theo phân công khu vực',
+        });
+        if (r.success) reassigned++;
+        else preserved++;
+      }
+    } catch (err) {
+      logger.error('[RegionService] reassign open sales error', { error: err.message });
+    }
+
+    if (reassigned || preserved) {
+      logger.info('[RegionService] open sales reassigned', {
+        regionId: rid,
+        reassigned,
+        preserved,
+      });
+    }
+  }
+
+  logger.info('[RegionService] assignment changed', {
+    regionId: rid,
+    from: result.previousUsername,
+    to: result.newUsername,
+  });
+
+  return {
+    success: true,
+    changed: result.changed,
+    previousDriver: result.previousUsername,
+    driver: result.newUsername,
+  };
+}
+
+/**
+ * Ngừng phân công tài xế cho khu vực.
+ */
+function unassignDriver(regionId, opts = {}) {
+  return assignDriver(regionId, null, opts);
+}
+
+/**
+ * Lịch sử phân công của một khu vực (mới nhất trước).
+ */
+function getHistory(regionId, limit = 50) {
+  const rid = parseInt(regionId, 10);
+  if (!rid) return [];
+  return db
+    .prepare(
+      `SELECT id, region_id, region_name, action, previous_driver_username,
+              new_driver_username, note, actor_username, created_at
+       FROM region_assignment_history
+       WHERE region_id = ?
+       ORDER BY datetime(created_at) DESC, id DESC
+       LIMIT ?`
+    )
+    .all(rid, Math.min(200, Math.max(1, parseInt(limit, 10) || 50)));
+}
+
+/**
+ * Lịch sử phân công TOÀN BỘ (dùng cho trang Admin xem gần đây).
+ */
+function listHistory(limit = 100) {
+  return db
+    .prepare(
+      `SELECT id, region_id, region_name, action, previous_driver_username,
+              new_driver_username, note, actor_username, created_at
+       FROM region_assignment_history
+       ORDER BY datetime(created_at) DESC, id DESC
+       LIMIT ?`
+    )
+    .all(Math.min(500, Math.max(1, parseInt(limit, 10) || 100)));
+}
+
+/**
+ * Thống kê theo khu vực: số khách hàng + sản lượng (lít) + doanh thu.
+ * @param {{year?:number, month?:number}} opts - bỏ trống → tất cả thời gian
+ */
+function getStats(opts = {}) {
+  const year = opts.year ? parseInt(opts.year, 10) : null;
+  const month = opts.month ? parseInt(opts.month, 10) : null;
+
+  let periodClause = '';
+  const periodParams = [];
+  if (year && month) {
+    periodClause = ` AND strftime('%Y', s.date) = ? AND strftime('%m', s.date) = ?`;
+    periodParams.push(String(year), String(month).padStart(2, '0'));
+  }
+
+  const regions = listRegions({ includeInactive: true });
+  return regions.map((r) => {
+    const cust = db
+      .prepare(
+        `SELECT COUNT(*) AS total,
+                SUM(CASE WHEN archived = 0 THEN 1 ELSE 0 END) AS active
+         FROM customers WHERE region_id = ?`
+      )
+      .get(r.id) || { total: 0, active: 0 };
+
+    const sales = db
+      .prepare(
+        `SELECT COUNT(DISTINCT s.id) AS orders,
+                COALESCE(SUM(s.total), 0) AS revenue
+         FROM sales s
+         WHERE s.archived = 0 AND s.type = 'sale' AND s.region_id = ?${periodClause}`
+      )
+      .get(r.id, ...periodParams) || { orders: 0, revenue: 0 };
+
+    const liters = db
+      .prepare(
+        `SELECT COALESCE(SUM(si.quantity), 0) AS liters
+         FROM sales s
+         JOIN sale_items si ON si.sale_id = s.id
+         WHERE s.archived = 0 AND s.type = 'sale' AND s.region_id = ?${periodClause}`
+      )
+      .get(r.id, ...periodParams) || { liters: 0 };
+
+    const driver = getActiveDriver(r.id);
+
+    return {
+      regionId: r.id,
+      regionName: r.name,
+      regionCode: r.code,
+      active: !!r.active,
+      driverUsername: driver ? driver.username : null,
+      customerCount: cust.total || 0,
+      activeCustomerCount: cust.active || 0,
+      orderCount: sales.orders || 0,
+      revenue: Math.round((sales.revenue || 0) * 100) / 100,
+      liters: Math.round((liters.liters || 0) * 100) / 100,
+    };
+  });
+}
+
+/**
+ * Gợi ý khu vực theo tọa độ / địa chỉ (KHÔNG tự động ghi đè lựa chọn của user).
+ *
+ * - Ưu tiên tọa độ: dùng bảng `business_regions` có tọa độ trung tâm? Chưa có →
+ *   dùng tên khu vực trong địa chỉ (khớp không phân biệt hoa thường).
+ * - Luôn trả về kèm `confidence` để UI chỉ hiển thị gợi ý.
+ *
+ * @param {{lat?:number, lng?:number, address?:string}} input
+ * @returns {{regionId:number, regionName:string, confidence:'address'|'none'}|null}
+ */
+function suggestRegion(input = {}) {
+  const address = normalizeName(input.address);
+  if (!address) return null;
+  const lower = address.toLowerCase();
+  for (const r of listRegions()) {
+    const name = r.name.toLowerCase();
+    // Bỏ dấu để so khớp "Hòa Thành" với "Hoa Thanh"
+    const plain = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const plainAddress = lower.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (plainAddress.includes(plain) || lower.includes(name)) {
+      return { regionId: r.id, regionName: r.name, confidence: 'address' };
+    }
+  }
+  return null;
+}
+
+/**
+ * Snapshot khu vực + tài xế cho một đơn hàng (dùng khi tạo đơn).
+ * @param {number|null} customerId
+ * @returns {{regionId:number|null, regionName:string|null, driverUsername:string|null}}
+ */
+function resolveForCustomer(customerId) {
+  if (!customerId) return { regionId: null, regionName: null, driverUsername: null };
+  const cust = db
+    .prepare('SELECT id, region_id FROM customers WHERE id = ?')
+    .get(customerId);
+  if (!cust || !cust.region_id) {
+    return { regionId: null, regionName: null, driverUsername: null };
+  }
+  const region = getRegionById(cust.region_id);
+  if (!region) {
+    return { regionId: null, regionName: null, driverUsername: null };
+  }
+  const driver = getActiveDriver(region.id);
+  return {
+    regionId: region.id,
+    regionName: region.name,
+    driverUsername: driver ? driver.username : null,
+  };
+}
+
+/**
+ * Validate region id đầu vào (từ API).
+ * @returns {{ok:boolean, regionId:number|null, error?:string}}
+ */
+function validateRegionId(value) {
+  if (value === undefined || value === null || value === '') {
+    return { ok: true, regionId: null };
+  }
+  const rid = parseInt(value, 10);
+  if (!rid) return { ok: false, regionId: null, error: 'Khu vực không hợp lệ' };
+  const region = getRegionById(rid);
+  if (!region) return { ok: false, regionId: null, error: 'Không tìm thấy khu vực' };
+  return { ok: true, regionId: rid };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PHÂN QUYỀN GIAO HÀNG THEO KHU VỰC
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Luật bắt buộc:
+//  1. MỘT khu vực chỉ có MỘT tài xế chính đang hoạt động.
+//  2. MỘT tài xế có thể quản lý NHIỀU khu vực.
+//  3. Tài xế chỉ xem/xử lý được đơn thuộc khu vực được phân công.
+//  4. Đơn CHƯA CÓ tài xế → "chờ điều phối" (Admin điều phối, tài xế KHÔNG
+//     tự nhận nếu khu vực không thuộc quyền).
+//  5. Đơn đã KHOÁ / HOÀN TẤT → giữ nguyên snapshot khu vực + tài xế.
+//  6. Đổi phân công → quyền mới CHỈ áp dụng cho đơn CHƯA khoá/hoàn tất.
+//
+// Quyền được kiểm tra ở TẦNG BACKEND (SQL scope + guard), không phải ẩn UI.
+
+/**
+ * Trạng thái đơn coi là "đã khoá" (không đổi quyền khi đổi phân công).
+ * Đơn đã hoàn tất → giữ nguyên lịch sử tài xế & khu vực.
+ */
+const LOCKED_DELIVERY_STATUSES = ['DELIVERED', 'FAILED', 'DISCREPANCY'];
+
+/**
+ * Lấy danh sách id khu vực mà tài xế đang phụ trách.
+ * @param {string} username
+ * @returns {number[]}
+ */
+function getDriverRegionIds(username) {
+  const u = normalizeUsername(username);
+  if (!u) return [];
+  try {
+    return db
+      .prepare(
+        `SELECT region_id FROM region_driver_assignments
+         WHERE active = 1 AND driver_username = ?`
+      )
+      .all(u)
+      .map((r) => r.region_id);
+  } catch (_) {
+    return [];
+  }
+}
+
+/**
+ * Tài xế có phụ trách khu vực này không?
+ * @param {string} username
+ * @param {number|null} regionId
+ */
+function driverOwnsRegion(username, regionId) {
+  if (!regionId) return false;
+  const u = normalizeUsername(username);
+  if (!u) return false;
+  try {
+    const row = db
+      .prepare(
+        `SELECT 1 AS ok FROM region_driver_assignments
+         WHERE active = 1 AND driver_username = ? AND region_id = ?`
+      )
+      .get(u, parseInt(regionId, 10));
+    return !!row;
+  } catch (_) {
+    return false;
+  }
+}
+
+/**
+ * Tài xế có quyền xử lý đơn này không?
+ *
+ * Quy tắc:
+ *  - ADMIN → luôn có quyền.
+ *  - DRIVER:
+ *      + Đơn CHƯA gán tài xế (driver_username rỗng/NULL) → CHỈ được xem nếu
+ *        khu vực của đơn nằm trong quyền quản lý. Nếu khu vực KHÔNG thuộc
+ *        quyền → từ chối (đúng quy tắc "không được xem đơn ngoài quyền").
+ *      + Đơn đã gán cho CHÍNH tài xế → được phép (kể cả khu vực đã đổi).
+ *      + Đơn gán cho tài xế KHÁC → từ chối.
+ *
+ * @param {object} sale - row từ bảng `sales` (cần driver_username, region_id)
+ * @param {string} username
+ * @param {string} role
+ * @returns {{allowed:boolean, reason?:string}}
+ */
+function canDriverAccessSale(sale, username, role) {
+  if (role === 'ADMIN') return { allowed: true };
+
+  const u = normalizeUsername(username);
+  if (!u) return { allowed: false, reason: 'Không xác định được tài xế', code: 'DRIVER_SCOPE' };
+
+  const owner = sale?.driver_username ? normalizeUsername(sale.driver_username) : null;
+
+  // Đơn đã gán cho chính tài xế → OK (giữ lịch sử kể cả khi khu vực đổi)
+  if (owner && owner === u) return { allowed: true };
+
+  // Đơn gán cho tài xế khác → chặn (KHÔNG BAO GIỜ bypass)
+  if (owner) {
+    const known = db
+      .prepare("SELECT 1 AS ok FROM app_users WHERE role = 'DRIVER' AND username = ?")
+      .get(owner);
+    if (known) {
+      return {
+        allowed: false,
+        reason: 'Đơn này đã được gán cho tài xế khác',
+        code: 'DRIVER_SCOPE',
+      };
+    }
+    // Tài khoản không còn tồn tại → coi như "chưa gán ai" → kiểm tra khu vực
+  }
+
+  // Đơn chưa gán ai (hoặc gán tài khoản đã xoá) → kiểm tra khu vực trong quyền
+  const regionId = sale?.region_id || null;
+  if (!regionId) {
+    // Chưa xác định khu vực (dữ liệu legacy) → có thể bypass nếu tài xế chưa
+    // được phân công khu vực nào (chế độ chưa áp dụng phân quyền).
+    return {
+      allowed: false,
+      reason: 'Đơn chưa xác định khu vực — cần Admin điều phối',
+      code: 'DRIVER_REGION_UNKNOWN',
+    };
+  }
+
+  // Đơn CÓ khu vực → tài xế phải phụ trách đúng khu vực đó (nghiêm ngặt).
+  if (driverOwnsRegion(u, regionId)) return { allowed: true };
+  return {
+    allowed: false,
+    reason: 'Khu vực của đơn không thuộc phạm vi phụ trách của tài xế',
+    code: 'DRIVER_REGION_FORBIDDEN',
+  };
+}
+
+/**
+ * Tài xế có quyền xem/xử lý KHÁCH HÀNG này không?
+ *
+ * Quy tắc:
+ *  - ADMIN → luôn có quyền.
+ *  - DRIVER:
+ *      + Khách chưa gán khu vực → chỉ được xem nếu tài xế CHƯA được phân công
+ *        khu vực nào (chế độ chưa áp dụng phân quyền) — tránh vỡ vận hành.
+ *      + Khách có khu vực thuộc phạm vi phụ trách → OK.
+ *      + Khách có khu vực ngoài phạm vi → từ chối.
+ *
+ * @param {object} customer - row từ bảng `customers` (cần region_id)
+ * @param {string} username
+ * @param {string} role
+ * @returns {{allowed:boolean, reason?:string}}
+ */
+function canDriverAccessCustomer(customer, username, role) {
+  if (role === 'ADMIN') return { allowed: true };
+  const u = normalizeUsername(username);
+  if (!u) return { allowed: false, reason: 'Không xác định được tài xế', code: 'DRIVER_SCOPE' };
+
+  const regionId = customer?.region_id || null;
+
+  // Khách chưa có khu vực → chỉ mở khi chưa áp dụng phân quyền khu vực
+  // (khách legacy chưa được Admin gán khu vực).
+  if (!regionId) {
+    if (driverHasNoRegionRestriction(u)) return { allowed: true };
+    return {
+      allowed: false,
+      reason: 'Khách hàng chưa được gán khu vực — cần Admin phân công',
+      code: 'DRIVER_REGION_UNKNOWN',
+    };
+  }
+
+  if (driverOwnsRegion(u, regionId)) return { allowed: true };
+  return {
+    allowed: false,
+    reason: 'Khu vực khách hàng không thuộc phạm vi phụ trách của tài xế',
+    code: 'DRIVER_REGION_FORBIDDEN',
+  };
+}
+
+/**
+ * Tài xế CHƯA được gán khu vực nào → đang ở chế độ "chưa áp dụng phân quyền
+ * khu vực" (giữ nguyên hành vi cũ) cho tới khi Admin phân công.
+ *
+ * Bắt buộc để không phá vỡ vận hành hiện tại: hiện có 1 tài xế, chưa gán khu vực.
+ *
+ * ⚠️ CHỈ áp dụng khi hệ thống CHƯA bắt đầu phân công khu vực. Ngay khi có
+ *    bất kỳ phân công active nào trong hệ thống, mọi tài xế chưa được gán
+ *    khu vực đều bị giới hạn (không thấy khách/đơn nào) → tránh lộ dữ liệu.
+ */
+function driverHasNoRegionRestriction(username) {
+  const u = normalizeUsername(username);
+  if (!u) return true;
+  try {
+    const row = db
+      .prepare(
+        `SELECT 1 AS ok FROM region_driver_assignments
+         WHERE active = 1 AND driver_username = ? LIMIT 1`
+      )
+      .get(u);
+    if (row) return false;
+
+    // Hệ thống đã bắt đầu phân công khu vực → tài xế này KHÔNG có quyền
+    // truy cập rộng nữa (Admin cần gán khu vực cho tài xế).
+    const any = db
+      .prepare(`SELECT 1 AS ok FROM region_driver_assignments WHERE active = 1 LIMIT 1`)
+      .get();
+    return !any;
+  } catch (_) {
+    return true;
+  }
+}
+
+/**
+ * Tài xế có được bypass kiểm tra khu vực không?
+ *
+ * - `DRIVER_SCOPE` (đơn đã gán cho tài xế KHÁC) → KHÔNG BAO GIỜ bypass.
+ * - Lỗi khu vực / chưa xác định khu vực → bypass CHỈ khi hệ thống chưa bắt
+ *   đầu phân công khu vực (tài xế chưa được gán khu vực nào).
+ *
+ * @param {string} code - mã lỗi từ canDriverAccessSale / canDriverAccessCustomer
+ * @param {string} username
+ * @returns {boolean}
+ */
+function canBypassRegionCheck(code, username) {
+  if (code === 'DRIVER_SCOPE') return false;
+  if (code !== 'DRIVER_REGION_FORBIDDEN' && code !== 'DRIVER_REGION_UNKNOWN') return false;
+  return driverHasNoRegionRestriction(username);
+}
+
+/**
+ * Điều kiện SQL giới hạn đơn theo khu vực phụ trách của tài xế.
+ * Dùng trong query để KHÔNG thể lấy đơn ngoài quyền (bảo mật backend).
+ *
+ * @param {string} username - username tài xế
+ * @param {string} alias - alias bảng sales (mặc định 's')
+ * @returns {{sql:string, params:any[]}}
+ */
+function driverRegionScopeClause(username, alias = 's') {
+  const u = normalizeUsername(username);
+  if (!u) return { sql: ' AND 1 = 0', params: [] };
+  const regionIds = getDriverRegionIds(u);
+  if (!regionIds.length) {
+    // Tài xế chưa có khu vực nào → chỉ được thấy đơn của chính mình
+    return { sql: ` AND ${alias}.driver_username = ?`, params: [u] };
+  }
+  const placeholders = regionIds.map(() => '?').join(',');
+  return {
+    sql: ` AND (${alias}.driver_username = ? OR ${alias}.region_id IN (${placeholders}))`,
+    params: [u, ...regionIds],
+  };
+}
+
+/**
+ * Đơn đã khoá (hoàn tất / thất bại / sai lệch) — không đổi quyền khi đổi phân công.
+ * @param {number} saleId
+ */
+function isSaleLocked(saleId) {
+  const row = db
+    .prepare(
+      `SELECT dr.status FROM delivery_records dr WHERE dr.sale_id = ? LIMIT 1`
+    )
+    .get(saleId);
+  if (!row) return false;
+  return LOCKED_DELIVERY_STATUSES.includes(row.status);
+}
+
+/**
+ * Gán tài xế cho một đơn (Admin điều phối / chuyển đơn giữa các tài xế).
+ * - Không đụng vào đơn đã khoá (DELIVERED/FAILED/DISCREPANCY).
+ * - Ghi lại snapshot khu vực nếu đơn chưa có.
+ *
+ * @param {number} saleId
+ * @param {string|null} driverUsername
+ * @param {object} opts - { actor, req, note }
+ */
+function assignSaleDriver(saleId, driverUsername, opts = {}) {
+  const id = parseInt(saleId, 10);
+  if (!id) return { success: false, error: 'Đơn hàng không hợp lệ' };
+
+  const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(id);
+  if (!sale) return { success: false, error: 'Không tìm thấy đơn hàng' };
+
+  if (isSaleLocked(id)) {
+    return { success: false, error: 'Đơn đã hoàn tất — không thể đổi tài xế' };
+  }
+
+  const username = driverUsername ? normalizeUsername(driverUsername) : null;
+  if (username) {
+    const driver = db
+      .prepare(
+        `SELECT username FROM app_users WHERE username = ? AND role = 'DRIVER' AND active = 1`
+      )
+      .get(username);
+    if (!driver) {
+      return { success: false, error: `Tài xế "${username}" không tồn tại hoặc đã bị khoá` };
+    }
+  }
+
+  // Snapshot khu vực (nếu đơn chưa có) — lấy từ khách hàng
+  let regionId = sale.region_id || null;
+  let regionName = sale.region_name || null;
+  if (!regionId && sale.customer_id) {
+    const resolved = resolveForCustomer(sale.customer_id);
+    regionId = resolved.regionId;
+    regionName = resolved.regionName;
+  }
+
+  try {
+    db.prepare(
+      `UPDATE sales
+       SET driver_username = ?, region_id = ?, region_name = ?,
+           region_driver_username = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`
+    ).run(username, regionId, regionName, username, id);
+
+    logger.info('[RegionService] sale driver assigned', {
+      saleId: id,
+      from: sale.driver_username,
+      to: username,
+      actor: opts.actor || null,
+    });
+    return { success: true, saleId: id, driverUsername: username, regionId, regionName };
+  } catch (err) {
+    logger.error('[RegionService] assignSaleDriver error', { error: err.message });
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Đơn chờ điều phối (chưa có tài xế, chưa khoá) — cho Admin.
+ */
+function listUnassignedSales(opts = {}) {
+  const date = opts.date || null;
+  const limit = Math.min(500, parseInt(opts.limit, 10) || 200);
+  const params = [];
+  let dateClause = '';
+  if (date) {
+    dateClause = ' AND COALESCE(DATE(s.created_on), DATE(s.date)) = ?';
+    params.push(date);
+  }
+  const rows = db
+    .prepare(
+      `SELECT s.id, s.date, s.sale_time, s.total, s.customer_id, s.driver_username,
+              s.region_id, s.region_name, s.delivery_status,
+              c.name AS customer_name, c.phone AS customer_phone, c.address AS customer_address
+       FROM sales s
+       LEFT JOIN customers c ON c.id = s.customer_id
+       WHERE s.type = 'sale' AND s.archived = 0 AND s.deleted = 0
+         AND (s.driver_username IS NULL OR s.driver_username = '')
+         AND NOT EXISTS (
+           SELECT 1 FROM delivery_records dr
+           WHERE dr.sale_id = s.id
+             AND dr.status IN ('DELIVERED','FAILED','DISCREPANCY')
+         )
+         ${dateClause}
+       ORDER BY s.id DESC
+       LIMIT ?`
+    )
+    .all(...params, limit);
+  return rows;
+}
+
+module.exports = {
+  normalizeName,
+  normalizeUsername,
+  getRegionById,
+  getRegionByName,
+  listRegions,
+  getActiveDriver,
+  listAssignments,
+  assignDriver,
+  unassignDriver,
+  getHistory,
+  listHistory,
+  getStats,
+  suggestRegion,
+  resolveForCustomer,
+  validateRegionId,
+  // Phân quyền theo khu vực
+  LOCKED_DELIVERY_STATUSES,
+  getDriverRegionIds,
+  driverOwnsRegion,
+  driverHasNoRegionRestriction,
+  canBypassRegionCheck,
+  canDriverAccessSale,
+  canDriverAccessCustomer,
+  driverRegionScopeClause,
+  isSaleLocked,
+  assignSaleDriver,
+  listUnassignedSales,
+};
+
+

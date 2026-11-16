@@ -35,8 +35,18 @@ router.get('/data', (req, res) => {
     searchParams = [searchPattern, searchPattern];
   }
 
+  // Filter theo khu vực kinh doanh
+  let regionClause = '';
+  const regionId = parseInt(req.query.regionId, 10);
+  if (regionId) {
+    regionClause = ' AND c.region_id = ?';
+    searchParams.push(regionId);
+  }
+
   const baseQuery = `
     SELECT c.*,
+      r.name AS region_name,
+      r.code AS region_code,
       (SELECT GROUP_CONCAT(p.name || ': ' || pr.price) FROM prices pr JOIN products p ON pr.product_id = p.id WHERE pr.customer_id = c.id) as prices,
       c.last_order_date as last_sale_date,
       COALESCE(cm.monthly_kegs, 0) as monthly_liters,
@@ -47,6 +57,7 @@ router.get('/data', (req, res) => {
         ELSE CAST(julianday(date('now','localtime')) - julianday(date(c.last_order_date)) AS INTEGER)
       END as days_since_last_order
     FROM customers c
+    LEFT JOIN business_regions r ON r.id = c.region_id
       LEFT JOIN (
       SELECT customer_id,
         COALESCE(SUM(si.quantity), 0) as monthly_kegs,
@@ -63,21 +74,21 @@ router.get('/data', (req, res) => {
       SELECT customer_id, COALESCE(SUM(total), 0) as total_revenue
       FROM sales WHERE type = 'sale' AND archived = 0 GROUP BY customer_id
     ) cs ON cs.customer_id = c.id
-    WHERE ${whereClause}${searchClause}
+    WHERE ${whereClause}${searchClause}${regionClause}
     ORDER BY c.name
   `;
 
   const queryParams = [currentYear.toString(), currentMonthStr, ...searchParams];
 
   if (tab === 'archived') {
-    const countQuery = `SELECT COUNT(*) as total FROM customers c WHERE c.archived = 1${searchClause}`;
+    const countQuery = `SELECT COUNT(*) as total FROM customers c WHERE c.archived = 1${searchClause}${regionClause}`;
     const totalResult = db.prepare(countQuery).get(...searchParams);
     const total = totalResult.total;
     const totalPages = Math.ceil(total / limit);
     const archived = db.prepare(baseQuery + ' LIMIT ? OFFSET ?').all(...queryParams, limit, offset);
     return res.json({ customers: [], archived, total, page, totalPages, limit, archivedTotal: total });
   } else {
-    const countQuery = `SELECT COUNT(*) as total FROM customers c WHERE c.archived = 0${searchClause}`;
+    const countQuery = `SELECT COUNT(*) as total FROM customers c WHERE c.archived = 0${searchClause}${regionClause}`;
     const totalResult = db.prepare(countQuery).get(...searchParams);
     const total = totalResult.total;
     const totalPages = Math.ceil(total / limit);

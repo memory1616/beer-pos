@@ -44,6 +44,8 @@
           '<span class="ds-me__label">Tài xế đang đăng nhập</span>' +
           '<span class="ds-me__name" id="home-user-name">…</span>' +
           '<span class="ds-me__id" id="home-user-username"></span>' +
+          // Danh sách khu vực kinh doanh được phân công phụ trách (nhiều khu vực/tài xế)
+          '<span class="ds-me__regions" id="home-user-regions"></span>' +
         '</span>' +
         // Lương dự kiến (chưa tính thưởng/phạt) — ẩn nếu tài xế chưa có hồ sơ lương
         '<span class="ds-me__salary" id="home-salary" hidden>' +
@@ -184,6 +186,7 @@
     window.DRV_USER = me;
     setText('home-user-name', me.fullName || me.username || '—');
     setText('home-user-username', me.username ? '@' + me.username : '');
+    renderMyRegions(me.regions);
 
     // Tên tài xế hiện trên app bar
     var barUser = document.getElementById('drv-user');
@@ -390,6 +393,25 @@
         if (netEl) netEl.textContent = D.money(Math.max(0, (s.netAmount !== undefined ? s.netAmount : s.amount) || 0));
       }
     }
+  }
+
+  /**
+   * Render danh sách khu vực kinh doanh được phân công phụ trách.
+   * Nguồn: GET /api/driver/me → regions[] (server đã lọc theo phân công thật).
+   */
+  function renderMyRegions(regions) {
+    var box = document.getElementById('home-user-regions');
+    if (!box) return;
+    var list = Array.isArray(regions) ? regions : [];
+    if (!list.length) {
+      box.className = 'ds-me__regions ds-me__regions--empty';
+      box.textContent = 'Chưa được phân công khu vực';
+      return;
+    }
+    box.className = 'ds-me__regions';
+    box.innerHTML = list.map(function (r) {
+      return '<span class="ds-me__region">🗺️ ' + escapeHtml(r.name) + '</span>';
+    }).join('');
   }
 
   /** Định dạng ngày ngắn gọn (dd/mm/yyyy) — tránh lệch ngày do UTC */

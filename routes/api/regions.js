@@ -1,0 +1,212 @@
+/**
+ * Admin API — Quản lý khu vực giao hàng & phân công tài xế
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Mount tại /api/admin/regions — CHỈ ADMIN.
+ *
+ * Endpoint:
+ *  GET    /api/admin/regions                    → danh mục khu vực + tài xế + SL khách
+ *  GET    /api/admin/regions/stats              → thống kê khách / đơn / lít theo khu vực
+ *  GET    /api/admin/regions/history            → lịch sử phân công (toàn bộ)
+ *  GET    /api/admin/regions/:id/history        → lịch sử phân công của 1 khu vực
+ *  POST   /api/admin/regions/:id/assign         → gán / thay đổi tài xế
+ *  DELETE /api/admin/regions/:id/assign         → ngừng phân công
+ *
+ * Bảo mật:
+ *  - requireAdmin (role = ADMIN). Driver bị chặn 403 từ apiGuard.
+ *  - Driver KHÔNG tự ý đổi khu vực phụ trách (đã chặn ở tầng API).
+ */
+
+const express = require('express');
+const router = express.Router();
+const logger = require('../../src/utils/logger');
+const db = require('../../database');
+const RegionService = require('../../src/services/RegionService');
+const { requireAdmin } = require('./admin');
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DANH MỤC KHU VỰC + PHÂN CÔNG
+// ═══════════════════════════════════════════════════════════════════════════
+
+// GET /api/admin/regions — danh sách khu vực + tài xế phụ trách + số khách
+router.get('/', requireAdmin, (req, res) => {
+  try {
+    const includeInactive = req.query.includeInactive === '1' || req.query.includeInactive === 'true';
+    const regions = RegionService.listAssignments().filter((r) => includeInactive || r.active);
+
+    // Danh sách tài xế (để UI chọn) — driver_staff + app_users(role=DRIVER).
+    const drivers = [];
+    try {
+      const rows = db
+        .prepare(
+          `SELECT ds.id, ds.username, ds.full_name, ds.phone, ds.active,
+                  au.active AS account_active
+           FROM driver_staff ds
+           LEFT JOIN app_users au ON au.id = ds.app_user_id
+           ORDER BY ds.active DESC, ds.full_name, ds.username`
+        )
+        .all();
+      for (const r of rows) {
+        drivers.push({
+          id: r.id,
+          username: r.username,
+          fullName: r.full_name || r.username,
+          phone: r.phone,
+          active: !!r.active && r.account_active !== 0,
+        });
+      }
+    } catch (_) { /* bảng driver_staff có thể chưa có — trả mảng rỗng */ }
+
+    // Tài xế có tài khoản DRIVER nhưng chưa có hồ sơ driver_staff
+    try {
+      const accounts = db
+        .prepare(
+          `SELECT username, full_name, phone, active FROM app_users
+           WHERE role = 'DRIVER' AND username NOT IN (SELECT username FROM driver_staff)
+           ORDER BY full_name, username`
+        )
+        .all();
+      for (const a of accounts) {
+        drivers.push({
+          id: null,
+          username: a.username,
+          fullName: a.full_name || a.username,
+          phone: a.phone,
+          active: !!a.active,
+        });
+      }
+    } catch (_) { /* ignore */ }
+
+    res.json({ success: true, regions, drivers });
+  } catch (err) {
+    logger.error('[admin/regions] list error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi tải danh sách khu vực' });
+  }
+});
+
+// GET /api/admin/regions/stats — thống kê theo khu vực
+router.get('/stats', requireAdmin, (req, res) => {
+  try {
+    const year = req.query.year ? parseInt(req.query.year, 10) : null;
+    const month = req.query.month ? parseInt(req.query.month, 10) : null;
+    const stats = RegionService.getStats({ year, month });
+    res.json({ success: true, stats, year, month });
+  } catch (err) {
+    logger.error('[admin/regions] stats error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi tải thống kê khu vực' });
+  }
+});
+
+// GET /api/admin/regions/history — lịch sử phân công toàn bộ
+router.get('/history', requireAdmin, (req, res) => {
+  try {
+    const limit = req.query.limit ? parseInt(req.query.limit, 10) : 100;
+    res.json({ success: true, history: RegionService.listHistory(limit) });
+  } catch (err) {
+    logger.error('[admin/regions] history error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi tải lịch sử phân công' });
+  }
+});
+
+// GET /api/admin/regions/:id/history — lịch sử phân công 1 khu vực
+router.get('/:id/history', requireAdmin, (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ error: 'Khu vực không hợp lệ' });
+    res.json({ success: true, history: RegionService.getHistory(id, req.query.limit) });
+  } catch (err) {
+    logger.error('[admin/regions] region history error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi tải lịch sử phân công' });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ĐIỀU PHỐI ĐƠN HÀNG
+// ═══════════════════════════════════════════════════════════════════════════
+
+// GET /api/admin/regions/dispatch/unassigned — đơn chờ điều phối (chưa có tài xế)
+router.get('/dispatch/unassigned', requireAdmin, (req, res) => {
+  try {
+    const sales = RegionService.listUnassignedSales({
+      date: req.query.date || null,
+      limit: req.query.limit,
+    });
+    res.json({ success: true, sales, count: sales.length });
+  } catch (err) {
+    logger.error('[admin/regions] unassigned list error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi tải danh sách đơn chờ điều phối' });
+  }
+});
+
+// POST /api/admin/regions/dispatch/:saleId/assign — gán / chuyển tài xế cho đơn
+router.post('/dispatch/:saleId/assign', requireAdmin, (req, res) => {
+  try {
+    const saleId = parseInt(req.params.saleId, 10);
+    if (!saleId) return res.status(400).json({ error: 'Đơn hàng không hợp lệ' });
+
+    const result = RegionService.assignSaleDriver(saleId, req.body?.driverUsername || null, {
+      actor: req.user?.username || null,
+      req,
+      note: req.body?.note || null,
+    });
+
+    if (!result.success) {
+      return res.status(400).json({ error: result.error });
+    }
+    res.json({ success: true, ...result });
+  } catch (err) {
+    logger.error('[admin/regions] dispatch assign error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi điều phối đơn hàng' });
+  }
+});
+
+// POST /api/admin/regions/:id/assign — gán / thay đổi tài xế
+router.post('/:id/assign', requireAdmin, (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ error: 'Khu vực không hợp lệ' });
+
+    const driverUsername = req.body?.driverUsername || null;
+    const result = RegionService.assignDriver(id, driverUsername, {
+      note: req.body?.note || null,
+      actor: req.user?.username || null,
+      req,
+    });
+
+    if (!result.success) {
+      return res.status(400).json({ error: result.error });
+    }
+    res.json({ success: true, ...result });
+  } catch (err) {
+    logger.error('[admin/regions] assign error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi phân công tài xế' });
+  }
+});
+
+// DELETE /api/admin/regions/:id/assign — ngừng phân công
+router.delete('/:id/assign', requireAdmin, (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ error: 'Khu vực không hợp lệ' });
+
+    const result = RegionService.unassignDriver(id, {
+      note: req.body?.note || req.query.note || null,
+      actor: req.user?.username || null,
+      req,
+    });
+
+    if (!result.success) {
+      return res.status(400).json({ error: result.error });
+    }
+    res.json({ success: true, ...result });
+  } catch (err) {
+    logger.error('[admin/regions] unassign error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi ngừng phân công tài xế' });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ĐIỀU PHỐI ĐƠN HÀNG
+// ═══════════════════════════════════════════════════════════════════════════
+
+module.exports = router;
+module.exports.requireAdmin = requireAdmin;

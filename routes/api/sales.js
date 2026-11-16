@@ -11,6 +11,7 @@ const PushService = require('../../src/services/PushService');
 const DebtOnCreateService = require('../../src/services/debt/DebtOnCreateService');
 const AuditService = require('../../src/services/AuditService');
 const KegBalanceService = require('../../src/services/KegBalanceService');
+const RegionService = require('../../src/services/RegionService');
 
 // ========== HELPER: Resolve product by id (numeric) or slug ==========
 function resolveProduct(query) {
@@ -183,6 +184,38 @@ router.post('/', async (req, res) => {
         code: 'DRIVER_NOT_FOUND',
       });
     }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // SNAPSHOT KHU VỰC (region) — lưu tại thời điểm tạo đơn
+  // ═══════════════════════════════════════════════════════════════════════
+  //  - Lấy regionId từ khách hàng.
+  //  - Xác định tài xế phụ trách theo bảng phân công HIỆN HÀNH.
+  //  - Lưu cả 3: region_id, region_name, region_driver_username.
+  //  → Đổi phân công sau này KHÔNG làm thay đổi lịch sử đơn cũ.
+  //
+  // ⚠️ Tài xế chỉ được tạo đơn cho khách thuộc khu vực MÌNH phụ trách.
+  const regionSnapshot = RegionService.resolveForCustomer(customerId);
+
+  if (requesterRole !== 'ADMIN' && regionSnapshot.regionId) {
+    const owns = RegionService.driverOwnsRegion(req.user?.username, regionSnapshot.regionId);
+    if (!owns) {
+      logger.warn('[api/sales] Driver tried to create order outside assigned region', {
+        requester: req.user?.username,
+        customerId,
+        regionId: regionSnapshot.regionId,
+      });
+      return res.status(403).json({
+        error: 'Khách hàng không thuộc khu vực bạn phụ trách',
+        code: 'DRIVER_REGION_FORBIDDEN',
+      });
+    }
+  }
+
+  // Admin tạo đơn mà KHÔNG chỉ định tài xế → gán tài xế phụ trách khu vực
+  // (nếu khu vực có tài xế). Nếu chưa có → đơn rơi vào "chờ điều phối".
+  if (requesterRole === 'ADMIN' && !driverUsername && regionSnapshot.driverUsername) {
+    driverUsername = regionSnapshot.driverUsername;
   }
 
   // ========== STAFF DISCOUNT HELPER ==========
@@ -384,7 +417,7 @@ router.post('/', async (req, res) => {
       const createdOn = db.getVietnamDateStr();
       const saleDate = db.getBusinessDateStr();
       const saleTime = db.getVietnamTimeStr();
-      const saleResult = db.prepare('INSERT INTO sales (customer_id, sales_id, date, created_on, sale_time, total, profit, deliver_kegs, return_kegs, keg_balance_after, type, promo_free_liters, promo_type, driver_username, is_credit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(customerId, staffId || null, saleDate, createdOn, saleTime, total, profit, finalDeliverKegs, returnKegs, newKegBalance, 'sale', promoFreeTotal, promoInfo ? promoInfo.promoType : null, driverUsername, debt && customerId ? 1 : 0);
+      const saleResult = db.prepare('INSERT INTO sales (customer_id, sales_id, date, created_on, sale_time, total, profit, deliver_kegs, return_kegs, keg_balance_after, type, promo_free_liters, promo_type, driver_username, is_credit, region_id, region_name, region_driver_username) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(customerId, staffId || null, saleDate, createdOn, saleTime, total, profit, finalDeliverKegs, returnKegs, newKegBalance, 'sale', promoFreeTotal, promoInfo ? promoInfo.promoType : null, driverUsername, debt && customerId ? 1 : 0, regionSnapshot.regionId, regionSnapshot.regionName, driverUsername || regionSnapshot.driverUsername);
       const saleId = saleResult.lastInsertRowid;
 
       if (!saleId) throw new Error('Sale creation failed — no lastInsertRowid');

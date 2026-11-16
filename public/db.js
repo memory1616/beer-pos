@@ -197,6 +197,22 @@ if (window._dbInitialized) {
     orders_queue:'++id, customerId, items, total, profit, deliverKegs, returnKegs, type, note, created_at, synced'
   });
 
+  // v46: thêm region_id vào customers (khu vực khách hàng — phân tuyến tài xế)
+  _db.version(46).stores({
+    customers:   '++id, name, phone, deposit, keg_balance, archived, is_deleted, region_id, synced',
+    products:    '++id, name, slug, stock, cost_price, sell_price, is_deleted, synced',
+    sales:       '++id, createdAt, customer_id, customer_name, date, total, total_amount, profit, total_profit, synced, distance_km, duration_min, route_index, route_polyline',
+    sale_items:  '++id, sale_id, product_id, product_slug, product_name, quantity, price, cost_price, profit, profit_estimated, synced',
+    sync_queue:  '++id, entity, action, data, url, method, synced, created_at, retry_count',
+    expenses:    '++id, type, amount, note, date, synced',
+    orders_queue:'++id, customerId, items, total, profit, deliverKegs, returnKegs, type, note, created_at, synced'
+  }).upgrade(tx => {
+    // Khách hàng cũ chưa có khu vực → NULL (an toàn dữ liệu legacy)
+    return tx.table('customers').toCollection().modify(c => {
+      if (c.region_id === undefined) c.region_id = null;
+    });
+  });
+
   // ─── Safe DB open with retries ─────────────────────────────────────────────
   async function openDBSafe() {
     const MAX_RETRIES = 3;

@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <script>
+  (function () {
+    var k = 'theme';
+    var sys = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    var saved = localStorage.getItem(k);
+    var theme = (saved === 'light' || saved === 'dark') ? saved : sys;
+    document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.classList.remove('light', 'dark');
+    document.documentElement.classList.add(theme);
+  })();
+  </script>
+  <script>window.BASE_PATH = '/';</script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Khu vực giao hàng</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0B0E11">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="icon" type="image/png" href="/icon-192.png">
+  <link rel="stylesheet" href="/css/unified.css?v=20250718">
+  <script src="/js/auth.js"></script>
+  <script src="/js/dark-mode.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>requireAuth();</script>
+  <style>
+    .rg-page { max-width: 1180px; margin: 0 auto; padding: 12px 12px 96px; }
+    .rg-hero {
+      background: linear-gradient(135deg, rgba(252,213,53,.14), rgba(255,255,255,.03));
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+    .rg-hero-title { font-size: 18px; font-weight: 800; color: var(--text-primary); display: flex; align-items: center; gap: 8px; }
+    .rg-hero-desc { font-size: 12.5px; color: var(--text-muted); line-height: 1.6; margin-top: 6px; }
+
+    .rg-section {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+    .rg-section-title { font-size: 15px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+    .rg-section-desc { font-size: 12px; color: var(--text-muted); line-height: 1.55; margin-bottom: 12px; }
+
+    /* Bảng phân công */
+    .rg-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .rg-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 640px; }
+    .rg-table th {
+      text-align: left; padding: 9px 8px; font-size: 11px; font-weight: 700;
+      color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em;
+      border-bottom: 1px solid var(--border); white-space: nowrap;
+    }
+    .rg-table td { padding: 10px 8px; border-bottom: 1px solid var(--border); color: var(--text-primary); vertical-align: middle; }
+    .rg-table tr:last-child td { border-bottom: none; }
+
+    .rg-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 9px; border-radius: 999px;
+      font-size: 11px; font-weight: 700; white-space: nowrap;
+    }
+    .rg-badge--ok { background: rgba(74,222,128,.15); color: #4ade80; }
+    .rg-badge--warn { background: rgba(249,115,22,.15); color: #fb923c; }
+    .rg-badge--none { background: rgba(148,163,184,.16); color: #94a3b8; }
+
+    .rg-select {
+      width: 100%; height: 38px; padding: 0 10px;
+      border-radius: 9px; border: 1px solid var(--border);
+      background: var(--bg-secondary); color: var(--text-primary); font-size: 13px;
+    }
+    .rg-btn {
+      height: 38px; padding: 0 14px; border: none; border-radius: 9px;
+      font-size: 13px; font-weight: 700; cursor: pointer;
+      background: var(--primary); color: #0B0E11; min-width: 44px;
+    }
+    .rg-btn--ghost { background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border); }
+    .rg-btn--danger { background: rgba(239,68,68,.15); color: #f87171; border: 1px solid rgba(239,68,68,.3); }
+    .rg-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+    /* Multi-select khu vực */
+    .rg-driver-card {
+      background: var(--bg-secondary); border: 1px solid var(--border);
+      border-radius: 13px; padding: 12px; margin-bottom: 10px;
+    }
+    .rg-driver-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+    .rg-driver-name { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+    .rg-driver-meta { font-size: 11.5px; color: var(--text-muted); }
+    .rg-region-grid {
+      display: grid; gap: 8px;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    }
+    .rg-check {
+      display: flex; align-items: center; gap: 8px;
+      padding: 9px 10px; border-radius: 10px;
+      border: 1px solid var(--border); background: var(--card);
+      cursor: pointer; font-size: 12.5px; color: var(--text-primary);
+      min-height: 44px; user-select: none;
+    }
+    .rg-check input { width: 18px; height: 18px; accent-color: var(--primary); flex-shrink: 0; cursor: pointer; }
+    .rg-check--on { border-color: var(--primary); background: rgba(252,213,53,.08); }
+
+    .rg-stat-grid { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
+    .rg-stat {
+      background: var(--bg-secondary); border: 1px solid var(--border);
+      border-radius: 11px; padding: 10px 12px;
+    }
+    .rg-stat-label { font-size: 11px; color: var(--text-muted); margin-bottom: 3px; }
+    .rg-stat-value { font-size: 16px; font-weight: 800; color: var(--text-primary); }
+    .rg-stat-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+    .rg-empty { text-align: center; padding: 22px 10px; color: var(--text-muted); font-size: 13px; }
+    .rg-history-row {
+      display: flex; gap: 8px; align-items: flex-start;
+      padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 12.5px;
+      color: var(--text-primary); flex-wrap: wrap;
+    }
+    .rg-history-row:last-child { border-bottom: none; }
+    .rg-history-time { color: var(--text-muted); font-size: 11.5px; white-space: nowrap; }
+
+    .rg-toast {
+      position: fixed; left: 50%; transform: translateX(-50%);
+      bottom: 24px; z-index: 999; padding: 11px 18px; border-radius: 11px;
+      font-size: 13px; font-weight: 700; box-shadow: 0 8px 26px rgba(0,0,0,.35);
+      background: var(--primary); color: #0B0E11; max-width: calc(100vw - 32px);
+    }
+    .rg-toast--err { background: #ef4444; color: #fff; }
+
+    @media (max-width: 640px) {
+      .rg-page { padding: 10px 10px 96px; }
+      .rg-hero-title { font-size: 16px; }
+      .rg-region-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+    }
+  </style>
+</head>
+<body class="bg-main text-primary body--app">
+  <div id="app"></div>
+
+  <main class="page-content app-main">
+    <div class="rg-page">
+
+      <div class="rg-hero">
+        <div class="rg-hero-title">🗺️ Quản lý khu vực giao hàng</div>
+        <div class="rg-hero-desc">
+          9 khu vực kinh doanh nội bộ theo địa bàn cũ. Mỗi tài xế phụ trách một hoặc nhiều khu vực;
+          mỗi khu vực chỉ có <strong>một</strong> tài xế chính đang hoạt động.
+        </div>
+      </div>
+
+      <!-- Bảng phân công -->
+      <div class="rg-section">
+        <div class="rg-section-title">📋 Bảng phân công tài xế</div>
+        <div class="rg-section-desc">
+          Mỗi khu vực có đúng một tài xế chính. Bỏ chọn tài xế để ngừng phân công khu vực đó.
+        </div>
+        <div class="rg-table-wrap">
+          <table class="rg-table">
+            <thead>
+              <tr>
+                <th>Khu vực</th>
+                <th>Mã vùng</th>
+                <th>Tài xế phụ trách</th>
+                <th>Khách</th>
+                <th>Đơn</th>
+                <th>Sản lượng</th>
+                <th>Trạng thái</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="rgAssignBody">
+              <tr><td colspan="8" class="rg-empty">Đang tải…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Gán nhiều khu vực cho 1 tài xế -->
+      <div class="rg-section">
+        <div class="rg-section-title">✅ Gán nhiều khu vực cho một tài xế</div>
+        <div class="rg-section-desc">
+          Tick các khu vực rồi bấm "Lưu". Tài xế sẽ phụ trách TẤT CẢ khu vực đã tick.
+          Khu vực đã có tài xế khác sẽ được chuyển sang tài xế này.
+        </div>
+        <div id="rgDriverList">
+          <div class="rg-empty">Đang tải…</div>
+        </div>
+      </div>
+
+      <!-- Điều phối đơn chờ -->
+      <div class="rg-section">
+        <div class="rg-section-title">🚚 Đơn chờ điều phối</div>
+        <div class="rg-section-desc">
+          Đơn chưa có tài xế (khu vực chưa có tài xế phụ trách, hoặc Admin chưa gán).
+          Gán tài xế hoặc chuyển đơn giữa các tài xế.
+        </div>
+        <div class="rg-table-wrap">
+          <table class="rg-table">
+            <thead>
+              <tr>
+                <th>Đơn</th>
+                <th>Khách</th>
+                <th>Khu vực</th>
+                <th>Tiền</th>
+                <th>Gán tài xế</th>
+              </tr>
+            </thead>
+            <tbody id="rgUnassignedBody">
+              <tr><td colspan="5" class="rg-empty">Đang tải…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Lịch sử phân công -->
+      <div class="rg-section">
+        <div class="rg-section-title">🕘 Lịch sử phân công</div>
+        <div class="rg-section-desc">Mọi thay đổi phân công đều được ghi lại để truy vết.</div>
+        <div id="rgHistoryList">
+          <div class="rg-empty">Đang tải…</div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <script src="/js/regions.js?v=20261116a"></script>
+  <script>
+    (function () {
+      var app = document.getElementById('app');
+      if (!app) return;
+      app.innerHTML = getHeader('Khu vực giao hàng', '🗺️');
+    })();
+  </script>
+</body>
+</html>

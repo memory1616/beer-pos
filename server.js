@@ -1067,8 +1067,13 @@ app.use('/api/audit-log', require('./routes/api/auditLog'));
 // Admin-only APIs — hồ sơ tài xế + lương tháng (mount TRƯỚC /api/admin để
 // các path /api/admin/driver-staff/* được router riêng xử lý trước)
 app.use('/api/admin/driver-staff', require('./routes/api/driverStaff'));
+// Admin-only APIs — quản lý khu vực giao hàng & phân công tài xế
+app.use('/api/admin/regions', require('./routes/api/regions'));
 // Admin-only APIs — quản lý tài khoản tài xế (requireAdmin trong file)
 app.use('/api/admin', require('./routes/api/admin'));
+
+// Danh mục khu vực (đọc — dùng cho form khách hàng + bộ lọc + Driver Portal)
+app.use('/api/regions', require('./routes/api/regionCatalog'));
 
 // ==================== AUTH ====================
 app.use('/auth', require('./routes/login'));
@@ -1083,6 +1088,8 @@ app.use('/purchases', require('./routes/purchases'));
 app.use('/dashboard', require('./routes/dashboard'));
 app.use('/analytics', require('./routes/analytics'));
 app.use('/delivery', require('./routes/delivery'));
+// Quản lý khu vực giao hàng (Admin) — danh mục khu vực + phân công tài xế
+app.use('/regions', require('./routes/regions'));
 // Proxy bản đồ (tile) — né hạn chế API key / Referer của các nhà cung cấp tile
 app.use('/', require('./routes/mapTiles'));
 app.use('/products', require('./routes/products'));

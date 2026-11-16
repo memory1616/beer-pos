@@ -116,32 +116,70 @@ function forwardTo(routerRef, req, res, subPath, label) {
 //   - đơn do chính tài xế tạo
 //   - đơn CHƯA gán tài xế nào (NULL / chuỗi rỗng) → tài xế có thể nhận & xem
 // Đơn đã gán cho tài xế KHÁC → không lộ (đúng nguyên tắc bảo mật).
+/**
+ * Lấy đơn mà tài xế ĐƯỢC phép xem/xử lý.
+ *
+ * PHÂN QUYỀN THEO KHU VỰC:
+ *  - Đơn gán cho chính tài xế → OK.
+ *  - Đơn CHƯA gán ai → OK nếu khu vực đơn thuộc quyền phụ trách.
+ *  - Đơn gán tài xế khác → KHÔNG thấy.
+ *  - Tài xế chưa được gán khu vực nào → hành vi cũ (chỉ đơn của mình /
+ *    đơn chưa gán ai) để không phá vỡ vận hành hiện tại.
+ */
 function getOwnSale(saleId, username) {
-  return db
+  const sale = db
     .prepare(
       `SELECT * FROM sales
        WHERE id = ?
          AND (driver_username = ? OR driver_username IS NULL OR driver_username = '')`
     )
     .get(saleId, username);
+  if (!sale) return null;
+
+  const RegionService = require('../../src/services/RegionService');
+  const check = RegionService.canDriverAccessSale(sale, username, 'DRIVER');
+  if (check.allowed) return sale;
+
+  // Chưa áp dụng phân quyền khu vực → giữ hành vi cũ
+  // ⚠️ Chỉ bypass lý do "ngoài phạm vi khu vực"; đơn gán tài xế KHÁC vẫn chặn.
+  if (RegionService.canBypassRegionCheck(check.code, username)) return sale;
+
+  return null;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
 // GET /api/driver/sale/data — payload giống hệt GET /sale/data của Admin
 // Shape: { customers, products, priceMap }
 // KHÔNG có cost_price. Giữ đủ field để POS Admin hoạt động nguyên vẹn.
+//
+// PHÂN QUYỀN THEO KHU VỰC: danh sách khách hàng bị scope theo các khu vực
+// được phân công phụ trách. Tài xế KHÔNG được thấy khách hàng ngoài lãnh thổ.
 // ═══════════════════════════════════════════════════════════════════════════
 router.get('/data', requireDriver, (req, res) => {
   try {
+    const RegionService = require('../../src/services/RegionService');
+    const regionIds = RegionService.getDriverRegionIds(req.user.username);
+    const restricted = regionIds.length > 0;
+    // Hệ thống đã phân công khu vực nhưng tài xế chưa được gán khu vực nào
+    // → không thấy khách hàng nào (chờ Admin phân công).
+    const noAccess =
+      !restricted && !RegionService.driverHasNoRegionRestriction(req.user.username);
+
     // Khách hàng: đủ field cho POS + badge quán mới (created_at) + giao hàng
-    const customers = db
-      .prepare(
-        `SELECT id, name, phone, deposit, keg_balance, created_at, debt, address,
-                lat, lng, last_order_date, note, reward_tier, monthly_purchased_liters,
-                promotion_enabled, new_shop_enabled, reward_enabled
-         FROM customers WHERE archived = 0 AND deleted = 0 ORDER BY name`
-      )
-      .all();
+    let customerSql =
+      `SELECT id, name, phone, deposit, keg_balance, created_at, debt, address,
+              lat, lng, last_order_date, note, reward_tier, monthly_purchased_liters,
+              promotion_enabled, new_shop_enabled, reward_enabled, region_id
+       FROM customers WHERE archived = 0 AND deleted = 0`;
+    const customerParams = [];
+    if (restricted) {
+      customerSql += ` AND region_id IN (${regionIds.map(() => '?').join(',')})`;
+      customerParams.push(...regionIds);
+    } else if (noAccess) {
+      customerSql += ' AND 1 = 0';
+    }
+    customerSql += ' ORDER BY name';
+    const customers = db.prepare(customerSql).all(...customerParams);
 
     // Sản phẩm: BỎ cost_price (bảo mật) — giữ đúng field Admin POS dùng
     const products = db
@@ -152,9 +190,13 @@ router.get('/data', requireDriver, (req, res) => {
       .all();
 
     // Bảng giá riêng theo khách (dùng để tính giá bán đúng)
+    // → chỉ giữ giá của khách hàng TRONG phạm vi được xem (tránh lộ giá riêng
+    //   của khách ngoài lãnh thổ tài xế).
+    const visibleCustomerIds = new Set(customers.map((c) => c.id));
     const prices = db.prepare('SELECT customer_id, product_id, product_slug, price FROM prices').all();
     const priceMap = {};
     prices.forEach((p) => {
+      if (!visibleCustomerIds.has(p.customer_id)) return;
       if (!priceMap[p.customer_id]) priceMap[p.customer_id] = {};
       priceMap[p.customer_id][p.product_id] = p.price;
       if (p.product_slug) {
@@ -215,14 +257,38 @@ router.get('/history', requireDriver, (req, res) => {
     //     (vd: tài khoản test đã bị xoá) → coi như CHƯA GÁN.
     //     Bug: đơn "mồ" → Admin thấy nhưng Driver KHÔNG thấy → lệch 2 trang.
     //   - bỏ qua đơn của khách đã ẩn/archived (giống DeliveryService.listForDriver)
+    //
+    // PHÂN QUYỀN THEO KHU VỰC:
+    //   Khi tài xế ĐÃ được phân công khu vực → chỉ thấy đơn của chính mình
+    //   HOẶC đơn thuộc khu vực phụ trách. Đơn chưa gán tài xế nhưng nằm ngoài
+    //   lãnh thổ → KHÔNG lộ (nằm trong hàng đợi điều phối của Admin).
+    const RegionService = require('../../src/services/RegionService');
+    const regionIds = RegionService.getDriverRegionIds(req.user.username);
+    const regionRestricted = regionIds.length > 0;
+
     let whereClause =
       `WHERE s.type IN ('sale', 'replacement', 'damage_return')
          AND s.archived = 0
-         AND s.deleted = 0
-         AND (s.driver_username = ? OR s.driver_username IS NULL OR s.driver_username = ''
-              OR s.driver_username NOT IN (SELECT username FROM app_users WHERE role = 'DRIVER'))
-         AND (c.id IS NULL OR c.archived = 0)`;
-    const params = [req.user.username];
+         AND s.deleted = 0`;
+    const params = [];
+
+    if (regionRestricted) {
+      const ph = regionIds.map(() => '?').join(',');
+      whereClause +=
+        ` AND (s.driver_username = ? OR s.region_id IN (${ph}))`;
+      params.push(req.user.username, ...regionIds);
+    } else if (!RegionService.driverHasNoRegionRestriction(req.user.username)) {
+      // Hệ thống đã phân công khu vực nhưng tài xế này chưa được gán khu vực
+      // nào → KHÔNG thấy đơn nào (chờ Admin phân công).
+      whereClause += ' AND 1 = 0';
+    } else {
+      whereClause +=
+        ` AND (s.driver_username = ? OR s.driver_username IS NULL OR s.driver_username = ''
+              OR s.driver_username NOT IN (SELECT username FROM app_users WHERE role = 'DRIVER'))`;
+      params.push(req.user.username);
+    }
+
+    whereClause += ` AND (c.id IS NULL OR c.archived = 0)`;
 
     if (year && month) {
       const yStr = String(year);

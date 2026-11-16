@@ -64,6 +64,7 @@ const DRIVER_ALLOWED_API_PREFIXES = [
   '/api/ping',        // health check
   '/api/discover',    // LAN discovery
   '/api/push',        // Web Push: subscribe / unsubscribe / status (requireDriver trong file)
+  '/api/regions',     // Danh mục khu vực (đọc) + /my = khu vực tài xế phụ trách
 ];
 
 const DRIVER_DENIED_PATH_PREFIXES = [
@@ -98,9 +99,6 @@ const DRIVER_DENIED_PATH_PREFIXES = [
   '/api/stock',
   '/api/promotions',
 ];
-
-// Write paths bị chặn cho DRIVER (ngoài những path được allow riêng).
-const DRIVER_DENIED_METHODS_ON = {};
 
 // ── Field bị loại bỏ khỏi response cho DRIVER ───────────────────────────────
 const FORBIDDEN_FIELDS = new Set([
@@ -203,7 +201,9 @@ function optionalAuth(req, res, next) {
       const { getSession } = require('./auth');
       const session = getSession(token);
       if (session) req.user = session;
-    } catch (_) {}
+    } catch (_) {
+      // Token không hợp lệ → coi như chưa đăng nhập, guard phía dưới sẽ chặn.
+    }
   }
   next();
 }
@@ -218,7 +218,12 @@ function apiGuard(req, res, next) {
   const role = getSessionRole(req);
   if (role !== ROLE_DRIVER) return next(); // ADMIN (hoặc không có role) → qua
 
-  const path = req.path; // ví dụ /api/sales/123
+  // ⚠️ Middleware này được mount tại `app.use('/api', ...)` → `req.path` KHÔNG
+  //    chứa prefix '/api' (ví dụ '/regions/my' chứ không phải '/api/regions/my').
+  //    Vì vậy phải dựng lại đường dẫn đầy đủ từ `req.baseUrl + req.path`
+  //    để allow-list so khớp đúng. Nếu không, driver sẽ bị chặn cả các API
+  //    được cho phép (ví dụ GET /api/regions/my).
+  const path = (req.baseUrl || '') + req.path; // ví dụ /api/sales/123
   const method = req.method.toUpperCase();
 
   // 1. Chỉ cho phép namespace API dành riêng cho driver
@@ -267,8 +272,10 @@ function apiGuard(req, res, next) {
 
 // ── Guard: chặn page HTML quản trị ─────────────────────────────────────────
 /**
- * Chặn driver truy cập các trang quản trị.
- * Mount ở nhánh view routes (áp dụng khi req.user.role === DRIVER).
+ * Danh sách trang quản trị (ADMIN-ONLY).
+ *
+ * Dùng allow-list trong `adminPageGuard` để chặn driver, nhưng hằng số vẫn
+ * được export làm "tài liệu" cho tầng view routes + test.
  */
 const ADMIN_ONLY_PAGES = [
   '/dashboard',
@@ -292,6 +299,7 @@ const ADMIN_ONLY_PAGES = [
   '/sessions',      // A4 — quản lý phiên đăng nhập (chỉ ADMIN)
   '/audit-log',     // A3 — nhật ký hệ thống (chỉ ADMIN)
   '/push-notify',   // Web Push cho tài xế — cấu hình (chỉ ADMIN)
+  '/regions',       // Quản lý khu vực giao hàng & phân công tài xế (chỉ ADMIN)
 ];
 
 function adminPageGuard(req, res, next) {
@@ -338,11 +346,68 @@ function salesScopeClause(req, alias = 's') {
 
 /**
  * Kiểm tra driver có quyền truy cập sale này không.
+ *
+ * PHÂN QUYỀN THEO KHU VỰC (mở rộng so với bản cũ chỉ so sánh driver_username):
+ *  - Đơn của chính tài xế → OK.
+ *  - Đơn chưa gán ai → OK nếu khu vực đơn nằm trong quyền phụ trách.
+ *  - Đơn gán tài xế khác → chặn.
+ *  - Đơn chưa có khu vực → chặn (Admin điều phối).
  */
 function canAccessSale(req, sale) {
   if (getSessionRole(req) !== ROLE_DRIVER) return true;
   if (!sale) return false;
-  return sale.driver_username === req.user.username;
+
+  // Lazy require để tránh vòng tròn require (RegionService → database).
+  let RegionService;
+  try {
+    RegionService = require('../src/services/RegionService');
+  } catch (_) {
+    // Fallback: so sánh driver_username (hành vi cũ)
+    return sale.driver_username === req.user.username;
+  }
+
+  const check = RegionService.canDriverAccessSale(sale, req.user.username, ROLE_DRIVER);
+  return !!check.allowed;
+}
+
+/**
+ * Middleware: chặn tài xế truy cập MỘT đơn cụ thể ngoài phạm vi khu vực.
+ * Mount sau requireDriver trong các route có `:saleId` / `:id` (đơn hàng).
+ *
+ * @param {function} lookup - (req) => row của sales (hoặc null)
+ */
+function requireRegionAccess(lookup) {
+  return (req, res, next) => {
+    if (getSessionRole(req) !== ROLE_DRIVER) return next();
+    const sale = typeof lookup === 'function' ? lookup(req) : null;
+    if (!sale) return res.status(404).json({ error: 'Không tìm thấy đơn hàng' });
+
+    let RegionService;
+    try {
+      RegionService = require('../src/services/RegionService');
+    } catch (_) {
+      return next();
+    }
+
+  const check = RegionService.canDriverAccessSale(sale, req.user.username, ROLE_DRIVER);
+  if (!check.allowed) {
+    // Tài xế CHƯA được gán khu vực nào → giữ hành vi cũ (chưa áp dụng
+    // phân quyền khu vực) để không phá vỡ vận hành hiện tại.
+    if (RegionService.driverHasNoRegionRestriction(req.user.username)) {
+      return next();
+    }
+    logger.warn('[permissions] Driver region access denied', {
+      driver: req.user.username,
+      saleId: sale.id,
+      reason: check.reason,
+    });
+    return res.status(403).json({
+      error: check.reason || 'Bạn không có quyền xử lý đơn hàng này',
+      code: 'DRIVER_REGION_FORBIDDEN',
+    });
+  }
+  return next();
+};
 }
 
 module.exports = {
@@ -352,6 +417,7 @@ module.exports = {
   DRIVER_DENIED_PERMISSIONS,
   DRIVER_DENIED_PATH_PREFIXES,
   DRIVER_ALLOWED_API_PREFIXES,
+  ADMIN_ONLY_PAGES,
   FORBIDDEN_FIELDS,
   sanitizeObject,
   attachSanitizer,
@@ -360,6 +426,7 @@ module.exports = {
   adminPageGuard,
   salesScopeClause,
   canAccessSale,
+  requireRegionAccess,
   getSessionRole,
   logger,
   db,

@@ -2095,6 +2095,8 @@
               <div class="cd-hero-badges" id="heroBadges"></div>
               <div class="cd-hero-meta">
                 <div class="cd-hero-meta-item">📅 Mua gần nhất: <strong id="heroLastSale">—</strong></div>
+                <div class="cd-hero-meta-item">🗺️ Khu vực: <strong id="heroRegion">—</strong></div>
+                <div class="cd-hero-meta-item" id="heroRegionDriverWrap" style="display:none">🚚 Tài xế phụ trách: <strong id="heroRegionDriver">—</strong></div>
               </div>
             </div>
 
@@ -2375,10 +2377,24 @@
           const heroAvatar = document.getElementById('heroAvatar');
           const heroLastSale = document.getElementById('heroLastSale');
           const heroBadges = document.getElementById('heroBadges');
+          const heroRegion = document.getElementById('heroRegion');
+          const heroRegionDriver = document.getElementById('heroRegionDriver');
+          const heroRegionDriverWrap = document.getElementById('heroRegionDriverWrap');
 
           if (heroName) heroName.textContent = data.name || 'Khách hàng';
           if (heroPhone) heroPhone.textContent = data.phone || 'Chưa có SĐT';
           if (heroAvatar) heroAvatar.textContent = (data.name || 'K').charAt(0).toUpperCase();
+
+          // Khu vực khách hàng + tài xế phụ trách
+          if (heroRegion) {
+            heroRegion.textContent = (data.region && data.region.name) || 'Chưa phân khu vực';
+          }
+          if (heroRegionDriver && data.region && data.region.driverUsername) {
+            heroRegionDriver.textContent = data.region.driverUsername;
+            if (heroRegionDriverWrap) heroRegionDriverWrap.style.display = '';
+          } else if (heroRegionDriverWrap) {
+            heroRegionDriverWrap.style.display = 'none';
+          }
           if (heroLastSale) {
             const days = data.last_sale_days_ago;
             if (days === 0) heroLastSale.textContent = 'Hôm nay';

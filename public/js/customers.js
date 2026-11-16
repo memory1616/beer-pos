@@ -21,6 +21,84 @@ function patchCustomerRow(customer) {
 
 const _custCardMap = new Map(); // id → DOM element
 
+// ========== KHU VỰC KHÁCH HÀNG ==========
+// Danh mục khu vực được load từ API (single source of truth: bảng business_regions).
+let businessRegions = [];
+let _regionsLoaded = false;
+
+/** Load danh mục khu vực (cache 1 lần / phiên). */
+async function loadBusinessRegions(force) {
+  if (_regionsLoaded && !force) return businessRegions;
+  try {
+    var res = await fetch('/api/regions', { cache: 'no-store' });
+    var data = await res.json();
+    if (data && data.success && Array.isArray(data.regions)) {
+      businessRegions = data.regions;
+      _regionsLoaded = true;
+    }
+  } catch (e) {
+    console.error('loadBusinessRegions error:', e);
+  }
+  return businessRegions;
+}
+
+/** Render options cho một <select> khu vực. */
+function renderRegionOptions(selectEl, selectedId) {
+  if (!selectEl) return;
+  var opts = '<option value="">-- Chọn khu vực --</option>';
+  businessRegions.forEach(function (r) {
+    opts += '<option value="' + r.id + '"' +
+      (String(selectedId) === String(r.id) ? ' selected' : '') + '>' +
+      escapeHtml(r.name) + '</option>';
+  });
+  selectEl.innerHTML = opts;
+}
+
+/** escapeHtml — tránh XSS khi chèn tên khu vực. */
+function escapeHtml(s) {
+  return String(s === null || s === undefined ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
+}
+
+/**
+ * Gắn ô tìm kiếm nhanh cho <select> khu vực.
+ * Lọc danh sách option theo tên (không phân biệt hoa thường / dấu).
+ */
+function attachRegionQuickSearch(searchEl, selectEl) {
+  if (!searchEl || !selectEl) return;
+  if (searchEl.dataset.bound === '1') return;
+  searchEl.dataset.bound = '1';
+  var selectedValue = selectEl.value;
+
+  searchEl.addEventListener('input', function () {
+    var q = (searchEl.value || '').trim().toLowerCase();
+    var plain = q.normalize ? q.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : q;
+
+    // Lưu lại option gốc (chỉ 1 lần)
+    if (!selectEl.dataset.allOptions) {
+      selectEl.dataset.allOptions = selectEl.innerHTML;
+    }
+    if (!q) {
+      selectEl.innerHTML = selectEl.dataset.allOptions;
+      if (selectedValue) selectEl.value = selectedValue;
+      return;
+    }
+    var matched = businessRegions.filter(function (r) {
+      var name = String(r.name).toLowerCase();
+      var plainName = name.normalize ? name.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : name;
+      return name.indexOf(q) !== -1 || plainName.indexOf(plain) !== -1;
+    });
+    var opts = '<option value="">-- Chọn khu vực --</option>';
+    matched.forEach(function (r) {
+      opts += '<option value="' + r.id + '"' +
+        (String(selectedValue) === String(r.id) ? ' selected' : '') + '>' +
+        escapeHtml(r.name) + '</option>';
+    });
+    selectEl.innerHTML = opts;
+  });
+}
+
 // ========== PHONE UTILITY ==========
 // Normalize all phone formats to 0xxxxxxxxx
 const Phone = {
@@ -179,7 +257,15 @@ function validateAddForm() {
       return null;
     }
   }
-  return { name, phone: Phone.normalize(phone) || null };
+  // Khu vực khách hàng — BẮT BUỘC
+  var regionEl = document.getElementById('addRegionId');
+  var regionId = regionEl ? regionEl.value : '';
+  if (!regionId) {
+    showToast('Vui lòng chọn Khu vực khách hàng', 'error');
+    if (regionEl) regionEl.focus();
+    return null;
+  }
+  return { name, phone: Phone.normalize(phone) || null, region_id: parseInt(regionId, 10) };
 }
 
 // ========== SUBMIT ADD FORM ==========
@@ -200,6 +286,7 @@ async function submitAddForm() {
   }
 
   var data = { name: name, phone: phone };
+  if (validation.region_id) data.region_id = validation.region_id;
   var addDepositEl = document.getElementById('addDeposit');
   var addHorizontalFridgeEl = document.getElementById('addHorizontalFridge');
   var addVerticalFridgeEl = document.getElementById('addVerticalFridge');
@@ -258,6 +345,10 @@ function resetAddForm() {
   if (hfEl) hfEl.value = 0;
   if (vfEl) vfEl.value = 0;
   if (salesEl) salesEl.value = '';
+  var regionEl = document.getElementById('addRegionId');
+  if (regionEl) regionEl.value = '';
+  var regionSearch = document.getElementById('addRegionSearch');
+  if (regionSearch) regionSearch.value = '';
   clearPhoneWarning();
   var pf = document.getElementById('addPriceFields');
   if (pf && !pf.classList.contains('hidden')) pf.classList.add('hidden');
@@ -287,6 +378,12 @@ async function loadSalesList() {
 async function openAddCustomerModal() {
   showModal('addModal');
   loadSalesList();
+  await loadBusinessRegions();
+  renderRegionOptions(document.getElementById('addRegionId'), '');
+  attachRegionQuickSearch(
+    document.getElementById('addRegionSearch'),
+    document.getElementById('addRegionId')
+  );
 }
 
 function formatVND(amount) {
@@ -321,6 +418,10 @@ function renderCustomerCard(c) {
     ? `<div class="customer-card-volume">📈 ${c.monthly_liters} bình/tháng</div>`
     : '';
 
+  const regionLine = c.region_name
+    ? `<div class="customer-card-region">🗺️ ${escapeHtml(c.region_name)}</div>`
+    : '';
+
   const actionsBlock = currentTab === 'active' ? `
         <div class="order-actions customer-card-actions">
           <button type="button" onclick="getLocation(${c.id})" class="btn btn-ghost btn-sm">📍 GPS</button>
@@ -345,6 +446,7 @@ function renderCustomerCard(c) {
           </div>
           <div class="customer-card-phone">📱 ${c.phone || 'Chưa có SĐT'}</div>
           ${volumeLine}
+          ${regionLine}
         </div>
         <div class="customer-card-keg-panel">
           <div class="customer-keg-box">
@@ -419,6 +521,9 @@ function initCustomersPage(data) {
   if (data.archived) archivedCustomers = data.archived;
   if (products.length === 0 && data.products) products = data.products;
 
+  // Bộ lọc khu vực — nạp danh mục khu vực (idempotent, chỉ nạp 1 lần)
+  if (typeof initRegionFilter === 'function') initRegionFilter();
+
   // Update pagination state from API response
   if (data.page !== undefined) {
     custPagination.page = data.page;
@@ -464,6 +569,10 @@ async function loadPageData(tab, searchQuery = '') {
     const params = new URLSearchParams({ page: custPagination.page, limit: custPagination.limit, tab: tab });
     if (searchQuery) {
       params.set('search', searchQuery);
+    }
+    const regionFilter = document.getElementById('regionFilter');
+    if (regionFilter && regionFilter.value) {
+      params.set('regionId', regionFilter.value);
     }
     const res = await fetch('/customers/data?' + params.toString(), { cache: 'no-store' });
     const data = await res.json();
@@ -741,6 +850,23 @@ function filterCustomers() {
   }, 200);
 }
 
+/** Lọc khách hàng theo khu vực kinh doanh. */
+function filterByRegion() {
+  custPagination.page = 1;
+  const searchInput = document.getElementById('searchInput');
+  loadPageData(currentTab, searchInput ? searchInput.value.toLowerCase().trim() : '');
+}
+
+/** Nạp danh mục khu vực vào bộ lọc. */
+async function initRegionFilter() {
+  const sel = document.getElementById('regionFilter');
+  if (!sel) return;
+  const regions = await loadBusinessRegions();
+  sel.innerHTML = '<option value="">🗺️ Tất cả khu vực</option>' + regions.map(function (r) {
+    return '<option value="' + r.id + '">' + escapeHtml(r.name) + '</option>';
+  }).join('');
+}
+
 function editCustomer(id, name, phone, deposit) {
   var editIdEl = document.getElementById('editId');
   var editNameEl = document.getElementById('editName');
@@ -759,13 +885,21 @@ function editCustomer(id, name, phone, deposit) {
     formatNumberInput(depEl, true);
   }
 
-  // Load fridge counts and exclude_expected
+  // Load fridge counts, exclude_expected và khu vực
   fetch('/api/customers/' + id)
     .then(res => res.json())
-    .then(data => {
+    .then(async data => {
       if (hfEl) hfEl.value = data.horizontal_fridge || 0;
       if (vfEl) vfEl.value = data.vertical_fridge || 0;
       if (exEl) exEl.checked = data.exclude_expected === 1;
+
+      await loadBusinessRegions();
+      var regionEl = document.getElementById('editRegionId');
+      renderRegionOptions(regionEl, data.region_id || '');
+      attachRegionQuickSearch(
+        document.getElementById('editRegionSearch'),
+        regionEl
+      );
     });
 
   showModal('editModal');
@@ -800,6 +934,7 @@ async function saveCustomerEdit() {
   var editHfEl = document.getElementById('editHorizontalFridge');
   var editVfEl = document.getElementById('editVerticalFridge');
   var editExEl = document.getElementById('editExcludeExpected');
+  var editRegionEl = document.getElementById('editRegionId');
 
   if (!editIdEl) { alert('Lỗi: Không tìm thấy ID khách hàng'); return; }
   var id = editIdEl.value;
@@ -809,6 +944,7 @@ async function saveCustomerEdit() {
   var horizontal_fridge = editHfEl ? (parseInt(editHfEl.value) || 0) : 0;
   var vertical_fridge = editVfEl ? (parseInt(editVfEl.value) || 0) : 0;
   var exclude_expected = editExEl && editExEl.checked ? 1 : 0;
+  var region_id = editRegionEl && editRegionEl.value ? parseInt(editRegionEl.value, 10) : null;
 
   if (!id) {
     alert('Lỗi: Không tìm thấy ID khách hàng');
@@ -827,7 +963,7 @@ async function saveCustomerEdit() {
     var res = await fetch('/api/customers/' + id, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, phone, deposit, horizontal_fridge, vertical_fridge, exclude_expected }),
+      body: JSON.stringify({ name, phone, deposit, horizontal_fridge, vertical_fridge, exclude_expected, region_id }),
       cache: 'no-store'
     });
     var result;
@@ -1035,6 +1171,7 @@ document.addEventListener('DOMContentLoaded', function() {
   if (kegCollectInput) {
     kegCollectInput.addEventListener('input', updateArchiveKegNote);
   }
+  initRegionFilter();
 });
 
 async function submitArchiveCustomer() {

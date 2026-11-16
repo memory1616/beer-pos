@@ -26,7 +26,7 @@ router.get('/full', (req, res) => {
       state.customers = db.prepare(`
         SELECT id, uuid, name, phone, address, lat, lng, debt, deposit,
                keg_balance, last_order_date, horizontal_fridge, vertical_fridge,
-               monthly_expected, exclude_expected, archived, note,
+               monthly_expected, exclude_expected, archived, note, region_id,
                created_at, updated_at, version
         FROM customers
         WHERE deleted = 0 OR deleted IS NULL
@@ -126,7 +126,7 @@ router.get('/delta', (req, res) => {
     delta.customers = db.prepare(`
       SELECT id, uuid, name, phone, address, lat, lng, debt, deposit,
              keg_balance, last_order_date, horizontal_fridge, vertical_fridge,
-             monthly_expected, exclude_expected, archived, note,
+             monthly_expected, exclude_expected, archived, note, region_id,
              created_at, updated_at, version, deleted
       FROM customers
       WHERE updated_at >= ? OR created_at >= ?
