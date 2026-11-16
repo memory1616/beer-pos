@@ -1093,11 +1093,18 @@ router.get('/delivery/page-data', requireDriver, (req, res) => {
 
     const rows = db
       .prepare(
-        `SELECT c.id, c.name, c.phone, c.lat, c.lng, s.id as sale_id, s.date, s.total,
+        `SELECT c.id, c.name, c.phone, c.address, c.lat, c.lng,
+                s.id as sale_id, s.date, s.total, s.is_credit,
                 s.deliver_kegs, s.return_kegs, s.payment_status,
                 s.region_id, s.region_name,
                 dr.status AS delivery_status, dr.delivered_liters, dr.missing_liters,
-                dr.excess_liters, dr.damaged_liters, dr.collected_kegs, dr.note AS delivery_note
+                dr.excess_liters, dr.damaged_liters, dr.collected_kegs, dr.note AS delivery_note,
+                (SELECT COALESCE(SUM(si.quantity), 0)
+                   FROM sale_items si
+                   LEFT JOIN products p ON p.id = si.product_id
+                  WHERE si.sale_id = s.id AND (p.type IS NULL OR p.type != 'pet')
+                ) AS expected_liters,
+                (SELECT COUNT(*) FROM sale_items si WHERE si.sale_id = s.id) AS item_count
          FROM sales s
          JOIN customers c ON c.id = s.customer_id
          LEFT JOIN delivery_records dr
@@ -1116,6 +1123,7 @@ router.get('/delivery/page-data', requireDriver, (req, res) => {
       id: d.id,
       name: d.name,
       phone: d.phone,
+      address: d.address || null,
       lat: d.lat,
       lng: d.lng,
       sale_id: d.sale_id,
@@ -1126,12 +1134,17 @@ router.get('/delivery/page-data', requireDriver, (req, res) => {
       deliver_kegs: d.deliver_kegs,
       return_kegs: d.return_kegs,
       payment_status: d.payment_status,
+      // Đơn công nợ (chưa thanh toán) — tài xế cần biết để thu tiền.
+      is_credit: !!d.is_credit,
       collected_kegs: d.collected_kegs,
       delivered_liters: d.delivered_liters,
       missing_liters: d.missing_liters,
       excess_liters: d.excess_liters,
       damaged_liters: d.damaged_liters,
       delivery_note: d.delivery_note,
+      // Tổng số lít cần giao của đơn (không tính chai PET) + số dòng sản phẩm.
+      expected_liters: d.expected_liters || 0,
+      item_count: d.item_count || 0,
       // Khu vực của đơn — tài xế biết đơn này thuộc lãnh thổ của mình.
       region_id: d.region_id,
       region_name: d.region_name,
@@ -1187,13 +1200,26 @@ router.post('/deliveries', requireDriver, (req, res) => {
 
     // Gán đơn cho tài xế nếu trước đó chưa được gán (đơn Admin tạo)
     if (isUnassigned) {
-      try {
-        db.prepare('UPDATE sales SET driver_username = ? WHERE id = ?').run(
-          req.user.username,
-          id
-        );
-      } catch (e) {
-        logger.error('[driver] assign delivery error', { error: e.message });
+      // Tài xế ĐẢM NHẬN đơn đang chờ điều phố → `dispatch_status = 'MANUAL'`
+      // (đơn đã có tài xế → không còn nằm trong hàng đợi "chờ điều phố").
+      // `claimUnassignedSale` còn chuyển các đơn chờ điều phố CÙNG KHU VỰC
+      // (chưa giao) cho tài xế này.
+      const claim = RegionService.claimUnassignedSale(id, req.user.username, {
+        actor: req.user.username,
+        req,
+        note: 'Tài xế đảm nhận đơn',
+      });
+      if (!claim.success) {
+        logger.warn('[driver] claim unassigned sale failed', {
+          saleId: id,
+          error: claim.error,
+        });
+      } else if (claim.transferred > 0) {
+        logger.info('[driver] transferred pending sales on claim', {
+          saleId: id,
+          driverUsername: req.user.username,
+          transferred: claim.transferred,
+        });
       }
     }
 

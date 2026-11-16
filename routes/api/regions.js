@@ -164,21 +164,45 @@ router.post('/dispatch/:saleId/assign', requireAdmin, (req, res) => {
     const saleId = parseInt(req.params.saleId, 10);
     if (!saleId) return res.status(400).json({ error: 'Đơn hàng không hợp lệ' });
 
-    const result = RegionService.assignSaleDriver(saleId, req.body?.driverUsername || null, {
-      actor: req.user?.username || null,
-      req,
-      note: req.body?.note || null,
-    });
+    const driverUsername = req.body?.driverUsername || null;
+
+    // Gán cho tài xế → dùng chung cơ chế "đảm nhận" để các đơn chờ điều phố
+    // CÙNG KHU VỰC (chưa giao) cũng chuyển cho tài xế đó.
+    let result;
+    if (driverUsername) {
+      result = RegionService.claimUnassignedSale(saleId, driverUsername, {
+        actor: req.user?.username || null,
+        req,
+        note: req.body?.note || null,
+        skipRegionCheck: true,
+      });
+      // Đơn đã có tài xế khác → fallback sang gán trực tiếp (Admin có quyền).
+      if (!result.success && result.error === 'Đơn này đã được gán cho tài xế khác') {
+        result = RegionService.assignSaleDriver(saleId, driverUsername, {
+          actor: req.user?.username || null,
+          req,
+          note: req.body?.note || null,
+        });
+      }
+    } else {
+      result = RegionService.assignSaleDriver(saleId, null, {
+        actor: req.user?.username || null,
+        req,
+        note: req.body?.note || null,
+      });
+    }
 
     if (!result.success) {
       return res.status(400).json({ error: result.error });
     }
 
     // Đồng bộ phiếu giao + thông báo cho tài xế mới (nếu có)
-    const driverUsername = result.driverUsername || null;
-    if (driverUsername) {
+    // ⚠️ `claimUnassignedSale` đã tự sync + notify → chỉ sync lại khi dùng
+    //    đường `assignSaleDriver` (gán trực tiếp / bỏ gán).
+    const assignedDriver = result.driverUsername || null;
+    if (assignedDriver && result.transferred === undefined) {
       try {
-        RegionService.syncDeliveryAndNotify([saleId], driverUsername);
+        RegionService.syncDeliveryAndNotify([saleId], assignedDriver);
       } catch (e) {
         logger.error('[admin/regions] notify driver error', { error: e.message });
       }

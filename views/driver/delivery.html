@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
 
   <!-- ═══ DESIGN SYSTEM (dùng chung 3 trang) ═══ -->
-  <link rel="stylesheet" href="/css/driver-system.css?v=20261116r">
+  <link rel="stylesheet" href="/css/driver-system.css?v=20261116s">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 <body class="ds-app">
@@ -17,11 +17,11 @@
   <div id="app"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="/js/map-tiles.js?v=20261108b"></script>
-  <script src="/js/driver/core.js?v=20261112a"></script>
-  <script src="/js/driver/shell.js?v=20261112a"></script>
+  <script src="/js/map-tiles.js?v=20261116s"></script>
+  <script src="/js/driver/core.js?v=20261116s"></script>
+  <script src="/js/driver/shell.js?v=20261116s"></script>
   <!-- Đồng bộ real-time giữa trang Bán hàng ↔ Giao hàng -->
-  <script src="/js/driver/sync.js?v=20261112a"></script>
+  <script src="/js/driver/sync.js?v=20261116s"></script>
   <script>
   /* ═══════════════════════════════════════════════════════════════════════
    * MODULE GIAO HÀNG — TÀI XẾ
@@ -110,12 +110,12 @@
     function markup() {
       return '' +
         /* ── Bản đồ ── */
-        '<section class="ds-section">' +
-          '<div class="ds-map" id="map"></div>' +
+        '<section class="ds-section ds-dl__mapsection">' +
+          '<div class="ds-map ds-dl__map" id="map"></div>' +
         '</section>' +
 
         /* ── Chỉ số ── */
-        '<section class="ds-section">' +
+        '<section class="ds-section ds-dl__statssection">' +
           '<div class="ds-stats">' +
             '<div class="ds-stat">' +
               '<span class="ds-stat__value" id="count">0</span>' +
@@ -125,11 +125,15 @@
               '<span class="ds-stat__value" id="km">-</span>' +
               '<span class="ds-stat__label">Tổng km</span>' +
             '</div>' +
+            '<div class="ds-stat ds-stat--info">' +
+              '<span class="ds-stat__value" id="dl-liters">0</span>' +
+              '<span class="ds-stat__label">Tổng lít</span>' +
+            '</div>' +
           '</div>' +
         '</section>' +
 
         /* ── Hành động (vùng ngón cái) ── */
-        '<section class="ds-section">' +
+        '<section class="ds-section ds-dl__actionsection">' +
           '<div class="ds-btn-row">' +
             '<button class="ds-btn" onclick="getLocation()" type="button">📍 Vị trí</button>' +
             '<button class="ds-btn ds-btn--primary" onclick="optimize()" type="button">⚡ Tối ưu</button>' +
@@ -137,12 +141,12 @@
         '</section>' +
 
         /* ── Danh sách giao hàng ── */
-        '<section class="ds-section">' +
+        '<section class="ds-section ds-dl__listsection">' +
           '<div class="ds-section__head">' +
             '<h2 class="ds-section__title">Danh sách giao hàng</h2>' +
             '<span class="ds-section__badge" id="dl-list-count">0</span>' +
           '</div>' +
-          '<div class="ds-list" id="list"></div>' +
+          '<div class="ds-list ds-dl__list" id="list"></div>' +
         '</section>';
     }
 
@@ -188,6 +192,7 @@
       if (badgeEl) badgeEl.textContent = customers.length;
 
       var totalKm = 0;
+      var totalLiters = 0;
       var originLat = curLat || lat;
       var originLng = curLng || lng;
       var html = '';
@@ -212,14 +217,54 @@
         var regionTag = c.region_name
           ? '<span class="ds-delivery__region">🗺️ ' + esc(c.region_name) + '</span>'
           : '';
+        // Công nợ — đơn tín công nợ hiển thị nổi bật cho tài xế.
+        var debtTag = c.is_credit
+          ? '<span class="ds-badge ds-badge--danger">Nợ ' + formatVND(c.total || 0) + 'đ</span>'
+          : '';
+
+        // Số lít dự kiến giao (loại trừ PET) + số vỏ giao / thu
+        var liters = parseInt(c.expected_liters || 0, 10);
+        totalLiters += liters;
+        var qtyChips = '';
+        if (liters > 0) {
+          qtyChips += '<span class="ds-chip ds-chip--beer">🍺 ' + liters + ' lít</span>';
+        }
+        var deliverKegs = parseInt(c.deliver_kegs || 0, 10);
+        var returnKegs = parseInt(c.return_kegs || 0, 10);
+        if (deliverKegs > 0) {
+          qtyChips += '<span class="ds-chip ds-chip--keg">📦 Giao ' + deliverKegs + ' vỏ</span>';
+        }
+        if (returnKegs > 0) {
+          qtyChips += '<span class="ds-chip ds-chip--keg ds-chip--muted">↩ Thu ' + returnKegs + ' vỏ</span>';
+        }
+
+        // Địa chỉ — dòng riêng, dễ đọc ngoài trời
+        var addr = c.address
+          ? '<div class="ds-delivery__addr">🏠 ' + esc(c.address) + '</div>'
+          : '';
+
+        // Nút gọi — tap-to-call, nút lớn vùng ngón cái
+        var phone = c.phone || '';
+        var phoneBlock = phone
+          ? '<a class="ds-btn--call" href="tel:' + esc(phone.replace(/\s+/g, '')) + '">' +
+              '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+              'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+              '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>' +
+              esc(phone) + '</a>'
+          : '';
 
         html += '<article class="ds-delivery" data-customer-id="' + c.id + '">' +
-          '<div class="ds-delivery__name">' + gpsIcon + ' ' + esc(c.name) + st + '</div>' +
-          '<div class="ds-delivery__info">📞 ' + esc(c.phone || '-') +
-            (totalStr ? ' · ' + totalStr : '') +
-            (c.lat && c.lng ? ' · 📍 ' + d.toFixed(1) + ' km' : '') +
+          '<div class="ds-delivery__head">' +
+            '<div class="ds-delivery__name">' + gpsIcon + ' ' + esc(c.name) + st + '</div>' +
             regionTag +
           '</div>' +
+          addr +
+          '<div class="ds-delivery__info">' +
+            (totalStr ? '<span class="ds-delivery__total">' + totalStr + '</span>' : '') +
+            (c.lat && c.lng ? '<span class="ds-delivery__km">📍 ' + d.toFixed(1) + ' km</span>' : '') +
+          '</div>' +
+          (qtyChips ? '<div class="ds-delivery__qty">' + qtyChips + '</div>' : '') +
+          (debtTag ? '<div class="ds-delivery__qty">' + debtTag + '</div>' : '') +
           '<div class="ds-delivery__actions">' +
             (c.lat && c.lng
               ? '<a href="https://www.google.com/maps/dir/?api=1&destination=' + c.lat + ',' + c.lng +
@@ -233,6 +278,7 @@
                   'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
                   '<polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21 3 6"/>' +
                   '<line x1="9" x2="9" y1="3" y2="18"/><line x1="15" x2="15" y1="6" y2="21"/></svg>Chỉ đường</span>') +
+            phoneBlock +
             '<button class="ds-btn--deliver" data-act="open-delivery" type="button">' +
               '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
               'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
@@ -246,6 +292,9 @@
 
       var kmEl = document.getElementById('km');
       if (kmEl) kmEl.textContent = countWithGPS > 0 ? totalKm.toFixed(1) : '-';
+
+      var litersEl = document.getElementById('dl-liters');
+      if (litersEl) litersEl.textContent = totalLiters;
 
       var list = document.getElementById('list');
       if (list) list.innerHTML = html || S.empty('📦', 'Chưa có đơn hàng');
@@ -630,6 +679,7 @@
       key: 'delivery',
       icon: '🚚',
       title: 'Giao hàng',
+      layout: 'ds-main--delivery',
       content: markup()
     });
 

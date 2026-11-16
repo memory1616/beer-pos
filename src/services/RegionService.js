@@ -102,6 +102,28 @@ function getActiveDriver(regionId) {
 }
 
 /**
+ * Ngày bắt đầu "kỷ nguyên điều phố theo khu vực" (YYYY-MM-DD giờ VN).
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Hệ thống khu vực được bật khi bảng `business_regions` được tạo. Các đơn
+ * tạo TRƯỚC mốc đó không có snapshot khu vực (và không thuộc hệ thống phân
+ * tuyến) → tuyệt đối không được coi là "chờ điều phố" (tránh tràn hàng đợi).
+ *
+ * @returns {string|null} - null nếu chưa xác định được (→ bỏ qua bộ lọc).
+ */
+function getDispatchEraStart() {
+  try {
+    const row = db
+      .prepare(
+        `SELECT date(MIN(created_at), '+7 hours') AS d FROM business_regions`
+      )
+      .get();
+    return row && row.d ? row.d : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+/**
  * Danh sách khu vực đang được gán cho một tài xế (active).
  * @param {string} username
  * @returns {number[]}
@@ -353,38 +375,59 @@ function assignDriver(regionId, driverUsername, opts = {}) {
         },
       });
     } catch (_) { /* fail-open */ }
+  } // ← đóng if (result.changed) — phần đồng bộ đơn chạy cho cả 2 trường hợp
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // TÁI PHÂN CÔNG ĐƠN CHƯA KHOÁ của khu vực
-    // ═══════════════════════════════════════════════════════════════════════
-    // Quy tắc: "Khi Admin thay đổi phân công, quyền mới được áp dụng cho các
-    // đơn chưa được khoá hoặc hoàn tất."
-    //  - Đơn CHƯA gán tài xế → gán tài xế mới (nếu có).
-    //  - Đơn đã gán tài xế CŨ → chuyển sang tài xế mới.
-    //  - Đơn đã KHOÁ (DELIVERED/FAILED/DISCREPANCY) → GIỮ NGUYÊN lịch sử.
-    let reassigned = 0;
-    let preserved = 0;
-    const notified = [];
-    const released = [];
-    try {
+  // ═══════════════════════════════════════════════════════════════════════
+  // TÁI PHÂN CÔNG ĐƠN CHƯA KHOÁ của khu vực
+  // ═══════════════════════════════════════════════════════════════════════
+  // Quy tắc: "Khi Admin thay đổi phân công, quyền mới được áp dụng cho các
+  // đơn chưa được khoá hoặc hoàn tất."
+  //  - Đơn CHƯA gán tài xế → gán tài xế mới (nếu có).
+  //  - Đơn đã gán tài xế CŨ → chuyển sang tài xế mới.
+  //  - Đơn đã KHOÁ (DELIVERED/FAILED/DISCREPANCY) → GIỮ NGUYÊN lịch sử.
+  //
+  // ⚠️ Khối này chạy KỂ CẢ khi `changed = false` (Admin bấm "Lưu" lại cùng
+  //    tài xế đang được gán) → đồng bộ lại các đơn CHỜ ĐIỀU PHỐ của khu vực
+  //    về tài xế (nếu không, đơn kẹt vĩnh viễn trong hàng đợi).
+  let reassigned = 0;
+  let preserved = 0;
+  const notified = [];
+  const released = [];
+  try {
+      // ── Tìm đơn "chưa hoàn tất" thuộc khu vực ────────────────────────────
+      // Ngoài snapshot `s.region_id`, dùng THÊM fallback về `customers.region_id`
+      // cho các đơn tạo trước khi khách hàng được gán khu vực (snapshot NULL).
+      // Đồng thời chỉ xét đơn thuộc "kỷ nguyên điều phố" (tạo từ ngày hệ
+      // thống khu vực bật) → đơn cũ đã giao xong KHÔNG bị đụng tới.
+      const eraStart = getDispatchEraStart();
+      const eraClause = eraStart
+        ? ' AND COALESCE(s.created_on, DATE(s.date)) >= ?'
+        : '';
+      const eraParams = eraStart ? [eraStart] : [];
+
       const openSales = db
         .prepare(
           `SELECT s.id FROM sales s
-           WHERE s.region_id = ?
+           LEFT JOIN customers c ON c.id = s.customer_id
+           WHERE (s.region_id = ? OR (s.region_id IS NULL AND c.region_id = ?))
              AND s.type = 'sale' AND s.archived = 0 AND s.deleted = 0
+             ${eraClause}
              AND NOT EXISTS (
                SELECT 1 FROM delivery_records dr
                WHERE dr.sale_id = s.id
                  AND dr.status IN ('DELIVERED','FAILED','DISCREPANCY')
              )`
         )
-        .all(rid);
+        .all(rid, rid, ...eraParams);
 
       for (const s of openSales) {
         const r = assignSaleDriver(s.id, result.newUsername, {
           actor: opts.actor || null,
           note: 'Tự động theo phân công khu vực',
           autoAssign: true,
+          // Giữ/ghi snapshot khu vực của đơn (kể cả đơn vốn chưa có snapshot).
+          regionId: rid,
+          regionName: region.name,
         });
         if (r.success) {
           reassigned++;
@@ -426,7 +469,6 @@ function assignDriver(regionId, driverUsername, opts = {}) {
     }
     reassignedSales = reassigned;
     preservedSales = preserved;
-  }
 
   logger.info('[RegionService] assignment changed', {
     regionId: rid,
@@ -1264,6 +1306,165 @@ function redispatchCustomerSales(customerId, newRegionId, opts = {}) {
 }
 
 /**
+ * TÀI XẾ ĐẢM NHẬN ĐƠN — chuyển đơn chờ điều phố sang tài xế đó.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Yêu cầu nghiệp vụ:
+ *   "Khi tài xế đảm nhận, nếu đơn chưa giao thì sẽ chuyển cho tài xế đó."
+ *
+ * Cơ chế:
+ *  1. Đơn được đảm nhận → `driver_username = tài xế`, `dispatch_status = 'MANUAL'`.
+ *  2. Các đơn CHỜ ĐIỀU PHỔ còn lại CÙNG KHU VỰC (và chưa giao) →
+ *     chuyển luôn cho tài xế đó (tài xế phụ trách khu vực đó).
+ *
+ * @param {number} saleId - đơn được đảm nhận
+ * @param {string} driverUsername - tài xế đảm nhận
+ * @param {object} opts - { actor, req, note, skipRegionCheck, transferRegion }
+ *   skipRegionCheck: Admin gán đơn → bỏ qua kiểm tra quyền khu vực.
+ *   transferRegion : có kéo các đơn chờ điều phố cùng khu vực sang không.
+ * @returns {{success:boolean, claimed:boolean, transferred:number, regionId:number|null,
+ *            driverUsername:string, error?:string}}
+ */
+function claimUnassignedSale(saleId, driverUsername, opts = {}) {
+  const id = parseInt(saleId, 10);
+  if (!id) return { success: false, error: 'Đơn hàng không hợp lệ', claimed: false, transferred: 0 };
+
+  const username = normalizeUsername(driverUsername);
+  if (!username) {
+    return { success: false, error: 'Tài xế không hợp lệ', claimed: false, transferred: 0 };
+  }
+
+  const skipRegionCheck = opts.skipRegionCheck === true;
+  const transferRegion = opts.transferRegion !== false;
+
+  const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(id);
+  if (!sale) return { success: false, error: 'Không tìm thấy đơn hàng', claimed: false, transferred: 0 };
+
+  if (isSaleLocked(id)) {
+    return { success: false, error: 'Đơn đã hoàn tất — không thể đảm nhận', claimed: false, transferred: 0 };
+  }
+
+  // Xác định khu vực của đơn (snapshot → fallback về khách hàng).
+  let regionId = sale.region_id || null;
+  let regionName = sale.region_name || null;
+  if (!regionId && sale.customer_id) {
+    const snapshot = resolveForCustomer(sale.customer_id);
+    regionId = snapshot.regionId;
+    regionName = snapshot.regionName;
+  }
+
+  // Đơn đã có tài xế khác → không cho đảm nhận (giữ nguyên lịch sử).
+  const currentDriver = sale.driver_username ? normalizeUsername(sale.driver_username) : null;
+  if (currentDriver && currentDriver !== username) {
+    return {
+      success: false,
+      error: 'Đơn này đã được gán cho tài xế khác',
+      claimed: false,
+      transferred: 0,
+    };
+  }
+
+  // Tài xế chỉ được đảm nhận đơn thuộc khu vực mình phụ trách
+  // (trừ khi chưa áp dụng phân quyền khu vực).
+  if (
+    regionId &&
+    !skipRegionCheck &&
+    !driverHasNoRegionRestriction(username) &&
+    !driverOwnsRegion(username, regionId)
+  ) {
+    return {
+      success: false,
+      error: 'Khu vực của đơn không thuộc phạm vi phụ trách của tài xế',
+      code: 'DRIVER_REGION_FORBIDDEN',
+      claimed: false,
+      transferred: 0,
+    };
+  }
+
+  // ── 1. Đảm nhận đơn này ────────────────────────────────────────────────
+  const claimResult = assignSaleDriver(id, username, {
+    actor: opts.actor || null,
+    req: opts.req || null,
+    note: opts.note || 'Tài xế đảm nhận đơn chờ điều phố',
+    regionId: regionId,
+    regionName: regionName,
+    autoAssign: false,
+  });
+  if (!claimResult.success) {
+    return { success: false, error: claimResult.error, claimed: false, transferred: 0 };
+  }
+
+  let transferred = 0;
+  const notified = [id];
+
+  // ── 2. Chuyển các đơn chờ điều phố CÙNG KHU VỰC cho tài xế ──────────
+  // (chỉ đơn chưa giao + thuộc kỷ nguyên điều phố)
+  if (regionId && transferRegion) {
+    try {
+      const eraStart = getDispatchEraStart();
+      const eraClause = eraStart ? ' AND COALESCE(s.created_on, DATE(s.date)) >= ?' : '';
+      const eraParams = eraStart ? [eraStart] : [];
+
+      const pending = db
+        .prepare(
+          `SELECT s.id FROM sales s
+           LEFT JOIN customers c ON c.id = s.customer_id
+           WHERE s.dispatch_status = 'UNASSIGNED'
+             AND (s.driver_username IS NULL OR s.driver_username = '')
+             AND COALESCE(s.region_id, c.region_id) = ?
+             AND s.type = 'sale' AND s.archived = 0 AND s.deleted = 0
+             ${eraClause}
+             AND NOT EXISTS (
+               SELECT 1 FROM delivery_records dr
+               WHERE dr.sale_id = s.id
+                 AND dr.status IN ('DELIVERED','FAILED','DISCREPANCY')
+             )`
+        )
+        .all(regionId, ...eraParams);
+
+      for (const p of pending) {
+        if (p.id === id) continue;
+        const r = assignSaleDriver(p.id, username, {
+          actor: opts.actor || null,
+          req: opts.req || null,
+          note: 'Chuyển cho tài xế đảm nhận khu vực',
+          regionId: regionId,
+          regionName: regionName,
+          autoAssign: false,
+        });
+        if (r.success) {
+          transferred++;
+          notified.push(p.id);
+        }
+      }
+    } catch (err) {
+      logger.error('[RegionService] claim transfer error', { error: err.message });
+    }
+  }
+
+  // Đồng bộ phiếu giao + báo tài xế.
+  try {
+    syncDeliveryAndNotify(notified, username);
+  } catch (err) {
+    logger.error('[RegionService] claim notify error', { error: err.message });
+  }
+
+  logger.info('[RegionService] sale claimed', {
+    saleId: id,
+    driverUsername: username,
+    regionId,
+    transferred,
+  });
+
+  return {
+    success: true,
+    claimed: true,
+    transferred,
+    regionId,
+    driverUsername: username,
+  };
+}
+
+/**
  * Đơn chờ điều phối — cho Admin.
  * ─────────────────────────────────────────────────────────────────────────────
  * CHỈ trả về đơn THỰC SỰ bị bỏ qua auto-dispatch, tức là:
@@ -1286,10 +1487,13 @@ function listUnassignedSales(opts = {}) {
   const rows = db
     .prepare(
       `SELECT s.id, s.date, s.sale_time, s.total, s.customer_id, s.driver_username,
-              s.region_id, s.region_name, s.delivery_status, s.dispatch_status,
+              COALESCE(s.region_id, c.region_id) AS region_id,
+              COALESCE(s.region_name, br.name) AS region_name,
+              s.delivery_status, s.dispatch_status,
               c.name AS customer_name, c.phone AS customer_phone, c.address AS customer_address
        FROM sales s
        LEFT JOIN customers c ON c.id = s.customer_id
+       LEFT JOIN business_regions br ON br.id = COALESCE(s.region_id, c.region_id)
        WHERE s.type = 'sale' AND s.archived = 0 AND s.deleted = 0
          AND s.dispatch_status = 'UNASSIGNED'
          AND (s.driver_username IS NULL OR s.driver_username = '')
@@ -1329,6 +1533,7 @@ module.exports = {
   listAssignments,
   listDriversWithRegions,
   getDriverAssignedRegionIds,
+  getDispatchEraStart,
   assignDriver,
   unassignDriver,
   getHistory,
@@ -1353,6 +1558,7 @@ module.exports = {
   driverRegionScopeClause,
   isSaleLocked,
   assignSaleDriver,
+  claimUnassignedSale,
   redispatchCustomerSales,
   syncDeliveryAndNotify,
   listUnassignedSales,

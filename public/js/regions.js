@@ -303,10 +303,19 @@
           }
           throw new Error(res.body.error || 'Không phân công được');
         }
-        var msg = res.body.changed ? 'Đã cập nhật phân công' : 'Phân công không thay đổi';
         var n = res.body.reassignedSales || 0;
-        if (n > 0) msg += ' · ' + n + ' đơn chuyển tài xế';
         var p = res.body.preservedSales || 0;
+        var msg;
+        if (res.body.changed) {
+          msg = 'Đã cập nhật phân công';
+        } else if (n > 0) {
+          // Phân công không đổi nhưng đơn chờ điều phố của khu vực đã được
+          // đồng bộ về tài xế → báo rõ để Admin không hiểu nhầm là lỗi.
+          msg = 'Phân công giữ nguyên · đã đồng bộ ' + n + ' đơn chờ điều phố';
+        } else {
+          msg = 'Phân công không thay đổi';
+        }
+        if (res.body.changed && n > 0) msg += ' · ' + n + ' đơn chuyển tài xế';
         if (p > 0) msg += ' · ' + p + ' đơn đã hoàn tất giữ nguyên';
         toast(msg);
         return loadAll();
@@ -328,8 +337,27 @@
     var toRemove = current.filter(function (id) { return checked.indexOf(id) === -1; });
 
     if (!toAdd.length && !toRemove.length) {
-      toast('Không có thay đổi');
-      return Promise.resolve();
+      // Không có thay đổi phân công, nhưng vẫn gọi API cho các khu vực đang
+      // tick → đồng bộ các đơn CHỜ ĐIỀU PHỐ của khu vực về tài xế
+      // (tránh đơn kẹt vĩnh viễn trong hàng đợi).
+      var syncOps = checked.map(function (id) {
+        return apiFetch('/api/admin/regions/' + id + '/assign', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ driverUsername: username })
+        }).then(function (r) { return r.json().then(function (b) { return { ok: r.ok, body: b }; }); });
+      });
+
+      return syncOps.reduce(function (chain, p) {
+        return chain.then(function () { return p; });
+      }, Promise.resolve())
+        .then(function (res) {
+          var total = 0;
+          res.forEach(function (x) { total += (x.body && x.body.reassignedSales) || 0; });
+          toast(total > 0 ? 'Đã đồng bộ ' + total + ' đơn chờ điều phố' : 'Không có thay đổi');
+          return loadAll();
+        })
+        .catch(function (e) { toast('Lỗi lưu phân công: ' + e.message, true); return loadAll(); });
     }
 
     // ⚠️ Thứ tự quan trọng: BỎ gán trước, rồi GÁN mới.

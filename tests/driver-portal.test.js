@@ -885,7 +885,7 @@ describe('Driver Portal — RBAC & Data Protection', () => {
       expect(permSrc).toMatch(/headerToken \|\| driverCookieToken \|\| adminCookieToken/);
     });
 
-    test('bottom menu Driver chỉ có 4 mục: Trang Chủ | Bán Hàng | Giao Hàng | Đăng Xuất', () => {
+    test('bottom menu Driver có 4 mục: Tổng quan | Bán Hàng | Giao Hàng | Tài khoản', () => {
       expect(coreSrc).toMatch(/\{ key: 'home', href: '\/driver'/);
       expect(coreSrc).toMatch(/\{ key: 'sale', href: '\/driver\/ban-hang'/);
       expect(coreSrc).toMatch(/\{ key: 'delivery', href: '\/driver\/giao-hang'/);
@@ -899,8 +899,15 @@ describe('Driver Portal — RBAC & Data Protection', () => {
       expect(shellSrc).toMatch(/key:\s*'home'/);
       expect(shellSrc).toMatch(/key:\s*'sale'/);
       expect(shellSrc).toMatch(/key:\s*'delivery'/);
-      expect(shellSrc).toMatch(/data-nav="logout"/);
-      expect(shellSrc).not.toMatch(/key:\s*'customers'/);
+      // Mục thứ 4 của bottom nav là "Tài khoản" (mở modal tài khoản),
+      // nút đăng xuất nằm riêng trên app bar / sidebar.
+      expect(shellSrc).toMatch(/data-nav="account"/);
+      expect(shellSrc).toMatch(/key:\s*'account'/);
+      // KHÔNG có mục Khách hàng trong BOTTOM NAV của mobile
+      // (chỉ nằm trong sidebar desktop).
+      const bottomNavFn = shellSrc.slice(shellSrc.indexOf('function bottomNav'),
+        shellSrc.indexOf('function sidebar'));
+      expect(bottomNavFn).not.toMatch(/key: 'customers'/);
 
       // Các trang dùng nav cũng phải nạp shell.js để dựng đủ 4 mục
       for (const f of ['index.html', 'customers.html']) {
@@ -908,6 +915,20 @@ describe('Driver Portal — RBAC & Data Protection', () => {
           path.join(__dirname, '../views/driver', f), 'utf8');
         expect(src).toMatch(/\/js\/driver\/shell\.js/);
       }
+    });
+
+    test('shell.js dựng sidebar desktop + app bar dùng chung (responsive)', () => {
+      const shellSrc = fs.readFileSync(
+        path.join(__dirname, '../public/js/driver/shell.js'), 'utf8');
+      // Sidebar (desktop ≥1024px) có đủ 5 mục + đăng xuất
+      expect(shellSrc).toMatch(/class="ds-sidebar"/);
+      expect(shellSrc).toMatch(/class="ds-side__logout"/);
+      expect(shellSrc).toMatch(/id="drv-logout"/);
+      // App bar có nút đăng xuất
+      expect(shellSrc).toMatch(/id="drv-logout"/);
+      // Mọi trang dùng chung 1 shell, không tự vẽ header riêng
+      expect(shellSrc).toMatch(/function mount\(opts\)/);
+      expect(shellSrc).toMatch(/ds-shell/);
     });
 
     test('không có inline onclick chứa dấu nháy kép (phá vỡ attribute → lộ code ra text)', () => {

@@ -22,9 +22,21 @@ function applyAutoDispatch(saleId, customerId) {
     if (!dispatch.autoAssigned || !dispatch.driverUsername) {
       // Không tìm được tài xế → đánh dấu đơn chờ điều phố (chỉ hiện trong
       // danh sách "Đơn chờ điều phố" của Admin).
-      RegionService.setSaleDispatchStatus(
-        saleId,
-        RegionService.DISPATCH_STATUS.UNASSIGNED
+      // ⚠️ PHẢI ghi luôn snapshot khu vực — nếu không, đơn sẽ không biết
+      //    thuộc khu vực nào → Admin bỏ phân công khu vực không giải phóng
+      //    được đơn này (đơn mồi côi trong hàng đợi chờ điều phố).
+      db.prepare(
+        `UPDATE sales
+            SET region_id = COALESCE(region_id, ?),
+                region_name = COALESCE(region_name, ?),
+                dispatch_status = ?,
+                updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?`
+      ).run(
+        dispatch.regionId || null,
+        dispatch.regionName || null,
+        RegionService.DISPATCH_STATUS.UNASSIGNED,
+        saleId
       );
       return false;
     }
@@ -572,6 +584,10 @@ function applySaleChange(action, entity_id, data) {
 function applyCustomerChange(action, entity_id, data) {
   if (action === 'create' || action === 'update') {
     const exists = db.prepare('SELECT id FROM customers WHERE id = ?').get(entity_id);
+    // Ghi nhớ khu vực CŨ trước khi cập nhật (để biết có cần tái điều phố).
+    const previous = exists
+      ? db.prepare('SELECT region_id FROM customers WHERE id = ?').get(entity_id)
+      : null;
     if (exists) {
       const { name, phone, deposit, keg_balance, debt, address, lat, lng, note, horizontal_fridge, vertical_fridge, archived, region_id } = data || {};
       db.prepare(`
@@ -598,6 +614,31 @@ function applyCustomerChange(action, entity_id, data) {
         INSERT INTO customers (id, name, phone, deposit, keg_balance, debt, address, lat, lng, note, horizontal_fridge, vertical_fridge, archived, region_id)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(entity_id, name, phone, deposit, keg_balance, debt, address, lat, lng, note, horizontal_fridge, vertical_fridge, archived, region_id);
+    }
+
+    // ── TÁI ĐIỀU PHỐ ĐƠN KHI KHÁCH ĐỔI KHU VỰC (qua LAN sync) ────────────
+    // Khách chuyển khu vực → đơn CHƯA hoàn tất của khách phải chuyển sang
+    // tài xế phụ trách khu vực mới (hoặc về hàng đợi chờ điều phố nếu khu vực
+    // mới chưa có tài xế). Đơn đã hoàn tất giữ nguyên lịch sử.
+    //
+    // ⚠️ `region_id = COALESCE(?, region_id)` nghĩa là `null` KHÔNG xoá được
+    //    khu vực → chỉ xét khi client gửi khu vực KHÁC NULL.
+    const effectiveRegionId =
+      data && Object.prototype.hasOwnProperty.call(data, 'region_id') && data.region_id != null
+        ? parseInt(data.region_id, 10)
+        : previous
+          ? previous.region_id
+          : null;
+    const previousRegionId = previous ? previous.region_id : null;
+
+    if (effectiveRegionId !== previousRegionId) {
+      try {
+        RegionService.redispatchCustomerSales(entity_id, effectiveRegionId, {
+          note: 'Tái điều phố: khách hàng đổi khu vực (LAN sync)',
+        });
+      } catch (e) {
+        logger.error('[api/sync] redispatch customer sales error', { error: e.message });
+      }
     }
   } else if (action === 'delete') {
     db.prepare('DELETE FROM customers WHERE id = ?').run(entity_id);

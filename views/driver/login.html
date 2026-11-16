@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Đăng nhập Tài xế — Bia Tươi Tây Ninh</title>
   <meta name="theme-color" content="#0B0E11">
-  <link rel="stylesheet" href="/css/driver.css?v=20261108e">
-  <link rel="stylesheet" href="/css/driver-system.css?v=20261108e">
+  <link rel="stylesheet" href="/css/driver.css?v=20261116s">
+  <link rel="stylesheet" href="/css/driver-system.css?v=20261116s">
   <style>
     /* No-flicker theme */
     html { background: #0B0E11; }
@@ -14,6 +14,20 @@
 </head>
 <body>
   <div class="ds-auth">
+    <!-- Panel thương hiệu: chỉ hiện trên tablet/desktop -->
+    <aside class="ds-auth__brand" aria-hidden="true">
+      <div class="ds-auth__brand-logo">🍺</div>
+      <h2 class="ds-auth__brand-title">TÂY NINH BIA TƯƠI</h2>
+      <p class="ds-auth__brand-sub">
+        Cổng Tài xế — Quản lý bán hàng, giao hàng và thu hồi vỏ.
+      </p>
+      <ul class="ds-auth__brand-list">
+        <li>📦 Bán hàng tại chỗ, đồng bộ offline</li>
+        <li>🛵 Giao hàng theo khu vực phân công</li>
+        <li>📄 Lập phiếu thu vỏ rỗng</li>
+      </ul>
+    </aside>
+
     <div class="ds-auth__card">
       <div class="ds-auth__logo" aria-hidden="true">🚚</div>
       <h1 class="ds-auth__title">Cổng Tài xế</h1>
@@ -40,7 +54,7 @@
     </div>
   </div>
 
-  <script src="/js/driver/core.js?v=20261108e"></script>
+  <script src="/js/driver/core.js?v=20261116s"></script>
   <script>
   (function () {
     'use strict';

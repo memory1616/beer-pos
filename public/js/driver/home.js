@@ -37,8 +37,8 @@
    * ═══════════════════════════════════════════════════════════════════ */
   function markup() {
     return '' +
-      /* ── Thẻ tài xế ── */
-      '<section class="ds-me">' +
+    /* ── Thẻ tài xế ── */
+      '<section class="ds-me ds-me--block">' +
         '<span class="ds-me__avatar" aria-hidden="true">👤</span>' +
         '<span class="ds-me__body">' +
           '<span class="ds-me__label">Tài xế đang đăng nhập</span>' +
@@ -47,7 +47,7 @@
           // Danh sách khu vực kinh doanh được phân công phụ trách (nhiều khu vực/tài xế)
           '<span class="ds-me__regions" id="home-user-regions"></span>' +
         '</span>' +
-        // Lương dự kiến (chưa tính thưởng/phạt) — ẩn nếu tài xế chưa có hồ sơ lương
+    // Lương dự kiến (chưa tính thưởng/phạt) — ẩn nếu tài xế chưa có hồ sơ lương
         '<span class="ds-me__salary" id="home-salary" hidden>' +
           '<span class="ds-me__salary-label" id="home-salary-label">Lương dự kiến</span>' +
           '<b class="ds-me__salary-value" id="home-salary-amount">—</b>' +
@@ -60,7 +60,7 @@
       '</section>' +
 
       /* ── Bộ lọc ngày trong tháng ── */
-      '<section class="ds-calendar ds-mt-4" id="home-calendar">' +
+      '<section class="ds-calendar ds-mt-4 ds-home__calendar" id="home-calendar">' +
         '<div class="ds-calendar__bar">' +
           '<button class="ds-calendar__nav" id="home-prev-month" type="button" aria-label="Tháng trước">' +
             '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" ' +
@@ -85,7 +85,7 @@
       '</section>' +
 
       /* ── KPI ── */
-      '<section class="ds-section ds-mt-4">' +
+      '<section class="ds-section ds-mt-4 ds-home__stats">' +
         '<div class="ds-section__head">' +
           '<h2 class="ds-section__title" id="home-stats-title">Thống kê hôm nay</h2>' +
         '</div>' +
@@ -97,7 +97,7 @@
       '</section>' +
 
       /* ── Hàng cần giao hôm nay ── */
-      '<section class="ds-load ds-mt-4" id="home-load-section">' +
+      '<section class="ds-load ds-mt-4 ds-home__load" id="home-load-section">' +
         '<div class="ds-load__head">' +
           '<span class="ds-load__icon" aria-hidden="true">' + ICON_TRUCK + '</span>' +
           '<span class="ds-load__text">' +
@@ -109,7 +109,7 @@
       '</section>' +
 
       /* ── Hành động nhanh: Phiếu thu vỏ ── */
-      '<section class="ds-section ds-mt-4" id="home-keg-section">' +
+      '<section class="ds-section ds-mt-4 ds-home__keg" id="home-keg-section">' +
         '<button class="ds-btn ds-btn--primary ds-btn--block ds-btn--lg" ' +
                 'id="home-keg-receipt" type="button">' +
           '📄 Tạo phiếu thu vỏ' +
@@ -481,6 +481,7 @@
       key: 'home',
       icon: '🍺',
       title: 'Trang chủ',
+      layout: 'ds-main--home',
       content: markup()
     });
 

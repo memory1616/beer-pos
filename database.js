@@ -29,7 +29,7 @@ try {
   }
 
   // Run driver portal migration (idempotent, chạy độc lập version gate)
-  const { runDriverPortalMigration, runDriverStaffMigration, runDriverKegReceiptMigration, runDriverWorkDaysMigration, runDriverSalaryAdvanceMigration, runMissingBusinessTablesMigration, runDailyReportNotifyMigration, runAuditLogMigration, runDriverPushMigration, runZaloOauthMigration, runDebtManagementMigration, runDebtSaleCreditFlagMigration, runBusinessDayCutoffMigration, runAuditLogUnificationMigration, runDriverAttendanceMigration, runBusinessRegionsMigration, runSaleDispatchStatusMigration } = require('./database/migration');
+  const { runDriverPortalMigration, runDriverStaffMigration, runDriverKegReceiptMigration, runDriverWorkDaysMigration, runDriverSalaryAdvanceMigration, runMissingBusinessTablesMigration, runDailyReportNotifyMigration, runAuditLogMigration, runDriverPushMigration, runZaloOauthMigration, runDebtManagementMigration, runDebtSaleCreditFlagMigration, runBusinessDayCutoffMigration, runAuditLogUnificationMigration, runDriverAttendanceMigration, runBusinessRegionsMigration, runSaleDispatchStatusMigration, runSaleRegionDispatchBackfillMigration } = require('./database/migration');
   const driverResult = runDriverPortalMigration(db);
   if (driverResult.success) {
     logger.log('[MIGRATION] Driver portal schema ready');
@@ -130,6 +130,13 @@ try {
   const dispatchStatusResult = runSaleDispatchStatusMigration(db);
   if (dispatchStatusResult.success) {
     logger.log('[MIGRATION] Sale dispatch status schema ready');
+  }
+
+  // Run sale region dispatch backfill migration (060) — vá snapshot khu vực
+  // + trạng thái điều phố cho đơn trong kỷ nguyên điều phố
+  const backfillResult = runSaleRegionDispatchBackfillMigration(db);
+  if (backfillResult.success) {
+    logger.log('[MIGRATION] Sale region dispatch backfill ready');
   }
 } catch (error) {
   logger.error('[MIGRATION] Migration error:', error.message);

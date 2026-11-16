@@ -85,14 +85,14 @@
   --ds-s-8: 32px;
   --ds-s-10: 40px;
 
-  /* ── Type ──────────────────────────────────────────────────────────── */
-  --ds-f-xs: 11px;
-  --ds-f-sm: 13px;
-  --ds-f-base: 15px;
-  --ds-f-md: 17px;
-  --ds-f-lg: 20px;
-  --ds-f-xl: 26px;
-  --ds-f-display: 34px;
+  /* ── Type (responsive: clamp() → tự co giãn theo viewport) ─────────── */
+  --ds-f-xs: clamp(10.5px, 0.42vw + 9.6px, 12px);
+  --ds-f-sm: clamp(12.5px, 0.36vw + 12px, 13.5px);
+  --ds-f-base: clamp(15px, 0.28vw + 14.4px, 16px);
+  --ds-f-md: clamp(16.5px, 0.4vw + 15.8px, 18px);
+  --ds-f-lg: clamp(19px, 0.7vw + 17.6px, 22px);
+  --ds-f-xl: clamp(23px, 1.1vw + 21px, 28px);
+  --ds-f-display: clamp(28px, 2vw + 24px, 40px);
 
   /* ── Touch (one-hand: tối thiểu 48px) ─────────────────────────────── */
   --ds-touch: 48px;
@@ -101,6 +101,13 @@
   /* ── Shell metrics ─────────────────────────────────────────────────── */
   --ds-nav-h: 68px;
   --ds-header-h: 58px;
+  --ds-sidebar-w: 248px;
+
+  /* ── Container (độ rộng vùng nội dung theo breakpoint) ───────────── */
+  --ds-container: 560px;      /* mobile  */
+  --ds-container-md: 900px;   /* tablet */
+  --ds-container-lg: 1180px;  /* laptop */
+  --ds-container-xl: 1560px;  /* màn lớn */
 
   /* ── Elevation ─────────────────────────────────────────────────────── */
   --ds-shadow-1: 0 2px 8px rgba(0, 0, 0, .24);
@@ -111,6 +118,7 @@
   --ds-grad-brand: linear-gradient(135deg, var(--ds-brand-500) 0%, var(--ds-brand-600) 100%);
   --ds-grad-surface: linear-gradient(165deg, var(--ds-surface-2) 0%, var(--ds-surface-1) 100%);
   --ds-grad-tint: linear-gradient(165deg, rgba(252, 213, 53, .12) 0%, rgba(252, 213, 53, 0) 55%);
+  --ds-grad-text: linear-gradient(120deg, #FCD535 0%, #F5A623 55%, #FCD535 100%);
 
   /* ── Motion ────────────────────────────────────────────────────────── */
   --ds-ease: cubic-bezier(.22, 1, .36, 1);
@@ -126,6 +134,8 @@ html {
   overflow-x: clip;
   overflow-y: visible;
   -webkit-text-size-adjust: 100%;
+  /* Cuộn tới anchor/element → không bị bottom nav + ô tổng tiền dính che */
+  scroll-padding-bottom: calc(var(--ds-nav-h) + env(safe-area-inset-bottom) + var(--ds-s-8));
 }
 
 body.ds-app {
@@ -174,10 +184,25 @@ body.ds-app > .app {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
- * §3  SHELL — header · main · bottom nav
+ * §3  SHELL — sidebar · header · main · bottom nav
+ *
+ *   Mobile / Tablet (<1024px)          Desktop (≥1024px)
+ *   ┌──────────────────────┐          ┌────────┬─────────────────────┐
+ *   │  app bar (sticky)   │          │ side   │  app bar (sticky)   │
+ *   ├──────────────────────┤          │ bar    ├─────────────────────┤
+ *   │  main (1 cột)       │          │ (fixed)│  main (rộng)        │
+ *   ├──────────────────────┤          │        │                     │
+ *   │  bottom nav (fixed)  │          │        │                     │
+ *   └──────────────────────┘          └────────┴─────────────────────┘
  * ═══════════════════════════════════════════════════════════════════════ */
 
-/* ── 3.1 App bar (dùng chung 3 trang) ───────────────────────────────── */
+/* ── 3.0 Shell wrapper ────────────────────────────────────────────── */
+.ds-shell {
+  display: block;
+  min-height: 100dvh;
+}
+
+/* ── 3.1 App bar (dùng chung mọi trang) ────────────────────────────── */
 .ds-appbar {
   position: sticky;
   top: 0;
@@ -250,6 +275,7 @@ body.ds-app > .app {
   background: var(--ds-surface-3);
   color: var(--ds-text-1);
   cursor: pointer;
+  text-decoration: none;
   transition: transform var(--ds-fast), background var(--ds-fast);
 }
 .ds-appbar__action:active { transform: scale(.92); }
@@ -257,7 +283,7 @@ body.ds-app > .app {
 /* ── 3.2 Main ───────────────────────────────────────────────────────── */
 .ds-main {
   width: 100%;
-  max-width: 560px;
+  max-width: var(--ds-container);
   margin: 0 auto;
   padding: var(--ds-s-4);
   /* chừa chỗ cho bottom nav fixed */
@@ -266,11 +292,16 @@ body.ds-app > .app {
 
 @media (min-width: 768px) {
   .ds-main {
-    max-width: 880px;
+    max-width: var(--ds-container-md);
     padding: var(--ds-s-6);
     /* GIỮ chỗ cho bottom nav fixed (không được ghi đè bởi shorthand ở trên) */
     padding-bottom: calc(var(--ds-nav-h) + env(safe-area-inset-bottom) + var(--ds-s-5));
   }
+}
+
+/* Tablet ngang (≥900px): 2 cột cho các section ngắn */
+@media (min-width: 900px) and (max-width: 1023.98px) {
+  .ds-main { max-width: var(--ds-container-md); }
 }
 
 /* ── 3.3 Bottom navigation (one-hand: luôn ở đáy) ───────────────────── */
@@ -338,6 +369,184 @@ body.ds-app > .app {
   position: relative;
   z-index: 1;
   text-transform: uppercase;
+  /* Nhãn ngắn trên mobile — không xuống dòng, không tràn */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  padding: 0 2px;
+}
+
+/* ── 3.4 Sidebar (desktop ≥1024px) ──────────────────────────────────── */
+.ds-sidebar { display: none; }
+
+.ds-side__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-s-3);
+  padding: var(--ds-s-4) var(--ds-s-4) var(--ds-s-3);
+  border-bottom: 1px solid var(--ds-line);
+}
+
+.ds-side__logo {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  font-size: 1.25rem;
+  border-radius: var(--ds-r-sm);
+  background: var(--ds-grad-brand);
+  box-shadow: 0 5px 14px rgba(240, 185, 11, .26);
+}
+
+.ds-side__brandtext { min-width: 0; }
+
+.ds-side__name {
+  display: block;
+  font-size: var(--ds-f-base);
+  font-weight: 800;
+  letter-spacing: .2px;
+  color: var(--ds-text-1);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.ds-side__tag {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--ds-f-xs);
+  font-weight: 600;
+  color: var(--ds-text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ds-side__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--ds-s-3) var(--ds-s-2);
+}
+
+.ds-side__item {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-s-3);
+  width: 100%;
+  min-height: 46px;
+  padding: 0 var(--ds-s-3);
+  border: 0;
+  border-radius: var(--ds-r-sm);
+  background: none;
+  color: var(--ds-text-2);
+  font-family: inherit;
+  font-size: var(--ds-f-sm);
+  font-weight: 700;
+  letter-spacing: .4px;
+  text-decoration: none;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--ds-fast), color var(--ds-fast), transform var(--ds-fast);
+}
+.ds-side__item:hover { background: rgba(255, 255, 255, .05); color: var(--ds-text-1); }
+.ds-side__item:active { transform: scale(.98); }
+.ds-side__item.is-active {
+  background: var(--ds-grad-tint);
+  color: var(--ds-brand-500);
+  box-shadow: inset 0 0 0 1px rgba(252, 213, 53, .22);
+}
+
+.ds-side__icon {
+  flex: 0 0 auto;
+  width: 26px;
+  font-size: 1.15rem;
+  line-height: 1;
+  text-align: center;
+}
+
+.ds-side__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-side__foot {
+  margin-top: auto;
+  padding: var(--ds-s-3) var(--ds-s-2) var(--ds-s-4);
+  border-top: 1px solid var(--ds-line);
+}
+
+.ds-side__logout {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-s-3);
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--ds-s-3);
+  border-radius: var(--ds-r-sm);
+  color: var(--ds-text-2);
+  font-size: var(--ds-f-sm);
+  font-weight: 700;
+  letter-spacing: .4px;
+  text-decoration: none;
+  transition: background var(--ds-fast), color var(--ds-fast);
+}
+.ds-side__logout:hover { background: var(--ds-danger-dim); color: var(--ds-danger); }
+
+/* ── 3.5 DESKTOP (≥1024px): sidebar + nội dung rộng ─────────────────── */
+@media (min-width: 1024px) {
+  .ds-shell {
+    display: flex;
+    align-items: stretch;
+  }
+
+  .ds-sidebar {
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 var(--ds-sidebar-w);
+    width: var(--ds-sidebar-w);
+    position: sticky;
+    top: 0;
+    align-self: flex-start;
+    height: 100dvh;
+    overflow-y: auto;
+    background: var(--ds-surface-1);
+    border-right: 1px solid var(--ds-line);
+  }
+
+  .ds-shell__body {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  /* Bottom nav không còn cần thiết trên desktop */
+  .ds-nav { display: none; }
+
+  .ds-appbar {
+    padding: var(--ds-s-3) var(--ds-s-6);
+  }
+
+  .ds-main {
+    max-width: var(--ds-container-lg);
+    padding: var(--ds-s-6);
+    padding-bottom: var(--ds-s-10);
+  }
+
+  /* Nút khách hàng trên app bar trùng với sidebar → ẩn */
+  .ds-appbar__action--link { display: none; }
+}
+
+@media (min-width: 1600px) {
+  .ds-main { max-width: var(--ds-container-xl); }
+}
+
+/* Tablet dọc (768–1023): bỏ bớt padding ngang */
+@media (min-width: 768px) and (max-width: 1023.98px) {
+  .ds-appbar { padding-left: var(--ds-s-5); padding-right: var(--ds-s-5); }
 }
 
 .ds-nav__badge {
@@ -612,18 +821,22 @@ body.ds-app > .app {
 .ds-row__body { flex: 1 1 auto; min-width: 0; }
 
 .ds-row__title {
+  display: block;
   font-size: var(--ds-f-base);
   font-weight: 700;
   color: var(--ds-text-1);
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .ds-row__meta {
+  display: block;
   margin-top: 2px;
   font-size: var(--ds-f-sm);
   color: var(--ds-text-2);
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -805,6 +1018,29 @@ body.ds-app > .app {
   to   { transform: translateY(0);    opacity: 1; }
 }
 
+/* Desktop (≥768px): modal chuyển thành DIALOG giữa màn hình
+ * (tránh tràn, dễ đóng, không che nội dung). */
+@media (min-width: 768px) {
+  .ds-sheet {
+    align-items: center;
+    padding: var(--ds-s-5);
+  }
+
+  .ds-sheet__panel {
+    max-width: 600px;
+    max-height: min(86dvh, 780px);
+    border-radius: var(--ds-r-xl);
+    border: 1px solid rgba(252, 213, 53, .2);
+    padding: var(--ds-s-5) var(--ds-s-5) var(--ds-s-5);
+    animation: ds-dialog-in .2s var(--ds-ease);
+  }
+
+  @keyframes ds-dialog-in {
+    from { transform: translateY(12px) scale(.98); opacity: 0; }
+    to   { transform: translateY(0) scale(1); opacity: 1; }
+  }
+}
+
 .ds-sheet__title {
   display: flex;
   align-items: center;
@@ -893,7 +1129,11 @@ body.ds-app > .app {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--ds-s-5);
+  padding:
+    calc(var(--ds-s-5) + env(safe-area-inset-top))
+    calc(var(--ds-s-5) + env(safe-area-inset-right))
+    calc(var(--ds-s-5) + env(safe-area-inset-bottom))
+    calc(var(--ds-s-5) + env(safe-area-inset-left));
   background:
     radial-gradient(120% 70% at 50% 0%, rgba(252, 213, 53, .14) 0%, rgba(252, 213, 53, 0) 58%),
     var(--ds-bg);
@@ -926,6 +1166,65 @@ body.ds-app > .app {
   font-size: var(--ds-f-lg);
   font-weight: 800;
   text-align: center;
+}
+
+/* Panel thương hiệu — chỉ hiện từ tablet trở lên */
+.ds-auth__brand { display: none; }
+
+@media (min-width: 900px) {
+  .ds-auth {
+    gap: var(--ds-s-8);
+    align-items: center;
+  }
+  .ds-auth__brand {
+    display: block;
+    width: min(420px, 38vw);
+  }
+  .ds-auth__brand-logo {
+    width: 72px;
+    height: 72px;
+    display: grid;
+    place-items: center;
+    font-size: 2.2rem;
+    border-radius: var(--ds-r-lg);
+    background: var(--ds-grad-brand);
+    box-shadow: 0 10px 28px rgba(240, 185, 11, .3);
+  }
+  .ds-auth__brand-title {
+    margin: var(--ds-s-4) 0 var(--ds-s-2);
+    font-size: var(--ds-f-xl);
+    font-weight: 900;
+    letter-spacing: .5px;
+    background: var(--ds-grad-text);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .ds-auth__brand-sub {
+    margin: 0 0 var(--ds-s-5);
+    color: var(--ds-text-2);
+    font-size: var(--ds-f-base);
+    line-height: 1.6;
+  }
+  .ds-auth__brand-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: var(--ds-s-3);
+  }
+  .ds-auth__brand-list li {
+    display: flex;
+    align-items: center;
+    gap: var(--ds-s-3);
+    padding: var(--ds-s-3) var(--ds-s-4);
+    border: 1px solid var(--ds-line);
+    border-radius: var(--ds-r-md);
+    background: var(--ds-surface-1);
+    color: var(--ds-text-1);
+    font-size: var(--ds-f-base);
+    font-weight: 600;
+  }
 }
 
 .ds-auth__sub {
@@ -1236,7 +1535,7 @@ body.ds-app .page-content {
   flex: 1 0 auto;
   min-height: 0;
   width: 100%;
-  max-width: 560px;
+  max-width: var(--ds-container);
   margin: 0 auto;
   padding: var(--ds-s-4);
   padding-top: var(--ds-s-4);
@@ -1247,7 +1546,15 @@ body.ds-app .page-content {
 }
 @media (min-width: 768px) {
   body.ds-app .app-main,
-  body.ds-app .page-content { max-width: 880px; padding: var(--ds-s-6); }
+  body.ds-app .page-content { max-width: var(--ds-container-md); padding: var(--ds-s-6); }
+}
+@media (min-width: 1024px) {
+  body.ds-app .app-main,
+  body.ds-app .page-content {
+    max-width: var(--ds-container-lg);
+    padding: var(--ds-s-6);
+    padding-bottom: var(--ds-s-10);
+  }
 }
 
 /* Section của Admin → section của Design System */
@@ -1265,7 +1572,7 @@ body.ds-app .sale-section-label {
   color: var(--ds-text-2);
 }
 
-/* Ô tổng tiền + nút BÁN HÀNG: sticky sát bottom nav */
+/* Ô tổng tiền + nút BÁN HÀNG: sticky sát bottom nav (vùng ngón cái) */
 body.ds-app .sale-checkout-box {
   position: sticky;
   bottom: calc(var(--ds-nav-h) + env(safe-area-inset-bottom) + var(--ds-s-2));
@@ -1275,6 +1582,60 @@ body.ds-app .sale-checkout-box {
   border: 1px solid var(--ds-line) !important;
   background: var(--ds-grad-surface) !important;
   box-shadow: var(--ds-shadow-3) !important;
+}
+
+/* ── TABLET (768–1023px): danh sách sản phẩm 2 cột để không lãng phí bề ngang ── */
+@media (min-width: 768px) and (max-width: 1023.98px) {
+  body.ds-app .ds-main--pos #productList {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--ds-s-3);
+    align-items: start;
+  }
+  body.ds-app .ds-main--pos #productList .sale-product-card { margin-bottom: 0; }
+}
+
+/* ── DESKTOP: trang Bán hàng dùng layout 2 cột (dual-pane POS) ──────────
+ * Trái  = chọn khách + danh sách sản phẩm
+ * Phải = ô tổng tiền + nút BÁN HÀNG (dính theo khi cuộn)
+ * Cùng nghiệp vụ, cùng API — chỉ khác bố cục trình bày.
+ * ────────────────────────────────────────────────────────────────────── */
+@media (min-width: 1024px) {
+  body.ds-app .ds-main--pos {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 380px;
+    grid-template-areas:
+      'cust  cart'
+      'prod  cart'
+      'edit  cart'
+      'hist  hist';
+    align-items: start;
+    column-gap: var(--ds-s-6);
+    row-gap: 0;
+    max-width: var(--ds-container-lg);
+  }
+  body.ds-app .ds-main--pos .sale-section--customer { grid-area: cust; }
+  body.ds-app .ds-main--pos .sale-section--products { grid-area: prod; }
+  body.ds-app .ds-main--pos .sale-edit-aux          { grid-area: edit; }
+  body.ds-app .ds-main--pos .sale-checkout-box      { grid-area: cart; }
+  body.ds-app .ds-main--pos .sale-section--history  { grid-area: hist; }
+
+  /* Ô tổng tiền dính theo khi cuộn (desktop không có bottom nav) */
+  body.ds-app .ds-main--pos .sale-checkout-box {
+    position: sticky;
+    top: calc(var(--ds-header-h) + var(--ds-s-5));
+    bottom: auto;
+    margin-bottom: var(--ds-s-4);
+  }
+
+  /* Lịch sử đơn: 2 cột cho desktop */
+  body.ds-app .ds-main--pos #saleHistoryList {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--ds-s-3);
+    align-items: start;
+  }
+  body.ds-app .ds-main--pos .sale-history-item { margin-bottom: 0 !important; }
 }
 
 /* Nút chính */
@@ -1322,6 +1683,33 @@ body.ds-app .pos-modal-overlay {
   background: rgba(0, 0, 0, .66) !important;
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
+}
+
+/* Desktop (≥768px): các sheet của Admin cũng thành dialog giữa màn hình
+ * để không bị tràn ra ngoài hoặc bị che bởi bottom nav. */
+@media (min-width: 768px) {
+  body.ds-app .pos-modal-overlay,
+  body.ds-app .modal-overlay-v2 {
+    align-items: center !important;
+    justify-content: center !important;
+    padding: var(--ds-s-5) !important;
+  }
+
+  body.ds-app .pos-modal-sheet,
+  body.ds-app .modal-sheet-v2 {
+    max-width: 560px !important;
+    max-height: min(86dvh, 780px) !important;
+    border-radius: var(--ds-r-xl) !important;
+    border: 1px solid rgba(252, 213, 53, .2) !important;
+    margin: auto !important;
+  }
+
+  /* Hoá đơn (inv-pos) — panel hẹp, giữ nguyên dạng cột */
+  body.ds-app .inv-pos {
+    max-width: 460px !important;
+    max-height: min(92dvh, 900px) !important;
+    height: auto !important;
+  }
 }
 
 /* Bottom nav của Admin (nếu bị inject) → nav của Design System */
@@ -1727,6 +2115,12 @@ body.ds-app .btn--accent-outline {
   overflow: hidden;
 }
 
+/* Tablet: bản đồ cao hơn để đọc được đường đi */
+@media (min-width: 600px) and (max-width: 1023.98px) {
+  .ds-map { height: 340px; }
+}
+
+/* ── 9.0 Card giao hàng — thiết kế ưu tiên tài xế ngoài đường ────────── */
 .ds-delivery {
   position: relative;
   padding: var(--ds-s-4);
@@ -1745,19 +2139,144 @@ body.ds-app .btn--accent-outline {
   box-shadow: var(--ds-shadow-3), 0 0 0 1px rgba(14, 203, 129, .22);
 }
 
+/* Đầu card: tên khách + các badge trạng thái/khu vực */
+.ds-delivery__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ds-s-2);
+  flex-wrap: wrap;
+}
+
 .ds-delivery__name {
+  flex: 1 1 auto;
+  min-width: 0;
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
   gap: 6px;
   font-size: var(--ds-f-md);
+  font-weight: 800;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.ds-delivery__gps { color: var(--ds-ok); flex: 0 0 auto; }
+.ds-delivery__gps.is-off { color: var(--ds-text-3); }
+
+.ds-delivery__tags {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  justify-content: flex-end;
+}
+
+/* Địa chỉ — dễ đọc ngoài trời, xuống dòng riêng */
+.ds-delivery__addr {
+  margin-top: 6px;
+  font-size: var(--ds-f-sm);
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--ds-text-1);
+  overflow-wrap: anywhere;
+}
+
+/* Dòng meta: điện thoại · khoảng cách · tổng tiền */
+.ds-delivery__meta {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  font-size: var(--ds-f-sm);
+  color: var(--ds-text-2);
+}
+
+.ds-delivery__phone {
   font-weight: 700;
+  color: var(--ds-brand-500);
+  text-decoration: none;
+  font-variant-numeric: tabular-nums;
+}
+.ds-delivery__phone.is-off { color: var(--ds-text-3); font-weight: 500; }
+
+.ds-delivery__dist {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.ds-delivery__total {
+  margin-left: auto;
+  font-weight: 800;
+  color: var(--ds-brand-500);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Dòng số lượng: lít + vỏ */
+.ds-delivery__qty {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-s-2);
+}
+
+.ds-delivery__kegs {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: var(--ds-r-full);
+  background: rgba(59, 122, 254, .12);
+  border: 1px solid rgba(59, 122, 254, .28);
+  font-size: var(--ds-f-xs);
+  font-weight: 700;
+  color: #7EA6FF;
+  white-space: nowrap;
 }
 
 .ds-delivery__info {
   margin-top: 5px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
   font-size: var(--ds-f-sm);
   color: var(--ds-text-2);
+}
+
+.ds-delivery__km {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* Chip số lượng bia / vỏ */
+.ds-chip--beer,
+.ds-chip--keg {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: var(--ds-r-full);
+  font-size: var(--ds-f-xs);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.ds-chip--beer {
+  color: var(--ds-brand-500);
+  background: rgba(252, 213, 53, .12);
+  border: 1px solid rgba(252, 213, 53, .30);
+}
+.ds-chip--keg {
+  color: #7EA6FF;
+  background: rgba(59, 122, 254, .12);
+  border: 1px solid rgba(59, 122, 254, .28);
+}
+.ds-chip--muted {
+  color: var(--ds-text-2);
+  background: var(--ds-surface-3);
+  border-color: var(--ds-line);
 }
 
 /* Badge khu vực của đơn (tài xế phụ trách) */
@@ -1959,9 +2478,74 @@ body.ds-app .btn--accent-outline {
   font-size: var(--ds-f-sm);
   text-decoration: none;
   cursor: pointer;
+  flex: 1 1 auto;
+  justify-content: center;
 }
 .ds-btn--dir svg { width: 14px; height: 14px; flex: 0 0 14px; }
 .ds-btn--dir.is-disabled { opacity: .45; cursor: not-allowed; }
+
+/* Nút gọi khách — 1 chạm, phù hợp vùng ngón cái */
+.ds-btn--call {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: var(--ds-s-2) var(--ds-s-3);
+  min-height: var(--ds-touch-sm);
+  border: 1px solid rgba(59, 122, 254, .4);
+  border-radius: var(--ds-r-xs);
+  background: rgba(59, 122, 254, .14);
+  color: #7EA6FF;
+  font-weight: 700;
+  font-size: var(--ds-f-sm);
+  text-decoration: none;
+  cursor: pointer;
+  flex: 1 1 auto;
+}
+.ds-btn--call:active { transform: scale(.96); }
+
+/* ── 9.8 DESKTOP (≥1024px): bản đồ + danh sách cạnh nhau ─────────────── */
+@media (min-width: 1024px) {
+  /* Layout 2 cột: trái = bản đồ (sticky), phải = chỉ số + hành động + danh sách */
+  .ds-main--delivery {
+    display: grid;
+    grid-template-columns: minmax(300px, 0.8fr) minmax(0, 1.2fr);
+    column-gap: var(--ds-s-6);
+    align-items: start;
+  }
+
+  .ds-dl__mapsection {
+    grid-column: 1;
+    grid-row: 1 / span 3;
+    margin-top: 0;
+    position: sticky;
+    top: calc(var(--ds-header-h) + var(--ds-s-4));
+    z-index: 5;
+  }
+  .ds-dl__statssection  { grid-column: 2; grid-row: 1; margin-top: 0; }
+  .ds-dl__actionsection { grid-column: 2; grid-row: 2; margin-top: 0; }
+  .ds-dl__listsection   { grid-column: 2; grid-row: 3; margin-top: 0; }
+
+  /* Bản đồ cao bằng vùng nội dung bên phải (tối thiểu 420px) */
+  .ds-dl__map {
+    height: clamp(420px, calc(100dvh - var(--ds-header-h) - var(--ds-s-8)), 720px);
+  }
+
+  .ds-delivery__actions {
+    flex-wrap: nowrap;
+  }
+}
+
+/* Tablet ngang (768–1023): 2 cột danh sách giao hàng */
+@media (min-width: 768px) and (max-width: 1023.98px) {
+  .ds-dl__listsection .ds-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--ds-s-3);
+    align-items: start;
+  }
+  .ds-dl__listsection .ds-delivery { margin-bottom: 0; }
+}
 
 /* ═══════════════════════════════════════════════════════════════════════
  * §11  COMPAT — class drv-* (core.js dùng chung cho mọi trang)
@@ -1993,6 +2577,21 @@ body.ds-app .btn--accent-outline {
   background: var(--ds-surface-1);
   box-shadow: var(--ds-shadow-3);
   animation: ds-sheet-in .24s var(--ds-ease);
+}
+
+/* Desktop: modal thành dialog giữa màn hình */
+@media (min-width: 768px) {
+  .drv-modal {
+    align-items: center;
+    padding: var(--ds-s-5);
+  }
+  .drv-modal__panel {
+    max-width: 560px;
+    max-height: min(86dvh, 780px);
+    border-radius: var(--ds-r-xl);
+    border: 1px solid rgba(252, 213, 53, .2);
+    padding: var(--ds-s-5);
+  }
 }
 
 .drv-modal__title {
@@ -2184,10 +2783,86 @@ body.ds-app .btn--accent-outline {
 .drv-toast--warning { border-color: var(--ds-warn);   color: var(--ds-warn); }
 
 /* ═══════════════════════════════════════════════════════════════════════
- * §12  IN
+ * §13  LAYOUT DESKTOP — Trang Tổng quan (/driver)
+ *
+ * Desktop (≥1024px): 2 cột — trái = bộ lọc ngày + KPI, phải = hàng cần giao
+ * + phiếu thu vỏ. Cùng dữ liệu, cùng API với mobile.
+ * ═══════════════════════════════════════════════════════════════════════ */
+@media (min-width: 1024px) {
+  .ds-home__calendar {
+    margin-top: 0;
+  }
+
+  /* Bộ lọc ngày: dải ngày rộng hơn, nhiều cột hơn */
+  .ds-calendar__days {
+    grid-template-columns: repeat(16, minmax(0, 1fr));
+    max-height: none;
+    overflow: visible;
+  }
+
+  .ds-me--block { margin-bottom: var(--ds-s-5); }
+}
+
+/* Desktop ≥1024px: trang Tổng quan dùng lưới 2 cột
+ *   Cột trái  : bộ lọc ngày + thống kê KPI
+ *   Cột phải  : hàng cần giao + phiếu thu vỏ
+ */
+@media (min-width: 1024px) {
+  .ds-main--home {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+    grid-template-areas:
+      "me     me"
+      "cal    load"
+      "stats  keg";
+    column-gap: var(--ds-s-6);
+    row-gap: var(--ds-s-5);
+    align-items: start;
+  }
+
+  .ds-main--home > .ds-me--block { grid-area: me; }
+  .ds-main--home > .ds-home__calendar { grid-area: cal; }
+  .ds-main--home > .ds-home__stats     { grid-area: stats; }
+  .ds-main--home > .ds-home__load      { grid-area: load; }
+  .ds-main--home > .ds-home__keg       { grid-area: keg; }
+  .ds-main--home > #home-hint          { grid-column: 1 / -1; }
+
+  .ds-main--home .ds-home__stats,
+  .ds-main--home .ds-home__load,
+  .ds-main--home .ds-home__keg,
+  .ds-main--home .ds-home__calendar { margin-top: 0; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * §14  LAYOUT DESKTOP — Trang Khách hàng (/driver/khach-hang)
+ * Danh sách dạng lưới nhiều cột thay vì 1 cột dài.
+ * ═══════════════════════════════════════════════════════════════════════ */
+@media (min-width: 768px) {
+  .ds-customers__section { margin-top: 0; }
+  .ds-customers__search { max-width: 420px; }
+  .ds-customers__new { width: auto; padding-inline: var(--ds-s-6); }
+
+  .ds-customers__list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--ds-s-3);
+    align-items: start;
+  }
+  .ds-customers__list .ds-row { margin-bottom: 0; }
+}
+
+@media (min-width: 1280px) {
+  .ds-customers__list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * §15  IN
  * ═══════════════════════════════════════════════════════════════════════ */
 @media print {
-  .ds-nav, .ds-appbar, .ds-app .app-header { display: none !important; }
+  .ds-nav, .ds-appbar, .ds-sidebar, .ds-app .app-header { display: none !important; }
   body.ds-app { background: #fff; color: #000; padding: 0; }
   .ds-card { border: 1px solid #999; background: #fff; box-shadow: none; }
+  .ds-main { max-width: none; padding: 0; }
 }

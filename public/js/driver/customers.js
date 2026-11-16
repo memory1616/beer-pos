@@ -17,17 +17,17 @@
 
   function markup() {
     return '' +
-      '<section class="ds-section">' +
-        '<div class="ds-field">' +
+      '<section class="ds-section ds-customers__section">' +
+        '<div class="ds-field ds-customers__search">' +
           '<input class="ds-input" id="cust-search" type="search" inputmode="search" ' +
             'placeholder="🔍 Tìm khách theo tên, SĐT, địa chỉ…" autocomplete="off">' +
         '</div>' +
-        '<button class="ds-btn ds-btn--primary ds-btn--block" id="btn-new-cust" type="button">' +
+        '<button class="ds-btn ds-btn--primary ds-btn--block ds-customers__new" id="btn-new-cust" type="button">' +
           '➕ Thêm khách hàng mới' +
         '</button>' +
       '</section>' +
-      '<section class="ds-section">' +
-        '<div class="ds-list" id="cust-list">' +
+      '<section class="ds-section ds-customers__section">' +
+        '<div class="ds-list ds-customers__list" id="cust-list">' +
           '<div class="ds-loading">Đang tải…</div>' +
         '</div>' +
       '</section>';

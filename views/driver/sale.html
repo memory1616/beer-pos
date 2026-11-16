@@ -23,14 +23,14 @@
   <link rel="icon" type="image/png" href="/icon-192.png">
 
   <!-- ═══ DÙNG CHUNG GIAO DIỆN ADMIN (unified.css) ═══ -->
-  <link rel="stylesheet" href="/css/unified.css?v=20261116r">
+  <link rel="stylesheet" href="/css/unified.css?v=20261116s">
   <!-- ═══ DESIGN SYSTEM DRIVER PORTAL (dùng chung 3 trang) ═══ -->
-  <link rel="stylesheet" href="/css/driver-system.css?v=20261116r">
+  <link rel="stylesheet" href="/css/driver-system.css?v=20261116s">
 
-  <script src="/js/layout.js?v=20261108e-rt"></script>
+  <script src="/js/layout.js?v=20261116s-rt"></script>
   <!-- Đồng bộ real-time giữa trang Bán hàng ↔ Giao hàng -->
-  <script src="/js/driver/sync.js?v=20261108e"></script>
-  <script src="/js/vendor/dexie.min.js?v=20260408"></script>
+  <script src="/js/driver/sync.js?v=20261116s"></script>
+  <script src="/js/vendor/dexie.min.js?v=20261116s"></script>
 </head>
 <body class="body--app ds-app">
 
@@ -279,9 +279,9 @@
 
     (async function() {
       /* ═══ 1. Nạp core driver TRƯỚC (cần Drv.requireAuth) ═══ */
-      await loadScript('/js/driver/core.js?v=20261108e');
-      await loadScript('/js/driver/api-shim.js?v=20261108e');
-      await loadScript('/js/driver/shell.js?v=20261108e');
+      await loadScript('/js/driver/core.js?v=20261116s');
+      await loadScript('/js/driver/api-shim.js?v=20261116s');
+      await loadScript('/js/driver/shell.js?v=20261116s');
 
       /* ═══ 2. Xác thực tài xế (bắt buộc) ═══ */
       try {
@@ -293,9 +293,10 @@
         key: 'sale',
         icon: '🛒',
         title: 'Bán hàng',
+        layout: 'ds-main--pos',
         content:
           /* Customer search */
-          '<div class="sale-section">' +
+          '<div class="sale-section sale-section--customer">' +
             '<div class="sale-section-label">KHÁCH HÀNG</div>' +
             '<div style="position:relative;">' +
               '<input type="text" id="customerSearch" placeholder="🔍 Tìm khách hàng..."' +
@@ -313,7 +314,7 @@
             '</div>' +
 
           /* Product list */
-          '<div class="sale-section">' +
+          '<div class="sale-section sale-section--products">' +
             '<div class="sale-section-label">SẢN PHẨM</div>' +
             '<div id="productList"></div>' +
           '</div>' +
@@ -340,7 +341,7 @@
           '</div>' +
 
           /* Recent sales history (max 5 orders) — bottom of page */
-          '<div class="sale-section" id="saleHistorySection">' +
+          '<div class="sale-section sale-section--history" id="saleHistorySection">' +
             '<div class="sale-section-header">' +
               '<div class="sale-section-label">ĐƠN GẦN ĐÂY</div>' +
               '<div class="sale-history-filter">' +
@@ -358,14 +359,14 @@
 
       /* ═══ 4. Load scripts — ĐÚNG THỨ TỰ ═══ */
       // 4a. Script dùng chung với Admin
-      await loadScript('/js/utils.js?v=20260211-toast');
+      await loadScript('/js/utils.js?v=20261116s-toast');
       await loadScript('/js/format.js');
       await loadScript('/js/fuzzy-search.js');
       await loadScript('/js/product-grid.js');
       await loadScript('/js/toast.js');
 
       // 4b. MODULE SALE GỐC CỦA ADMIN — nạp nguyên file, KHÔNG sửa 1 dòng
-      await loadScript('/js/sales.js?v=20261116r');
+      await loadScript('/js/sales.js?v=20261116s');
 
       // 4c. Tải dữ liệu (shim sẽ tự rewrite '/sale/data' → '/api/driver/sale/data')
       await loadSalesData();

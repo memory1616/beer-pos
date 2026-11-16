@@ -906,6 +906,23 @@ function runSaleDispatchStatusMigration(db) {
   }
 }
 
+// ── Sale region dispatch backfill migration (060) ───────────────────────────
+// Vá snapshot `sales.region_id` / `region_name` + `dispatch_status` cho các đơn
+// tạo trong "kỷ nguyên điều phố" (từ ngày hệ thống khu vực bật). Đơn cũ hơn
+// KHÔNG bị đụng tới → không tràn danh sách "Đơn chờ điều phố".
+// Chạy ĐỘC LẬP, idempotent.
+function runSaleRegionDispatchBackfillMigration(db) {
+  try {
+    const migration = require('./migrations/060_sale_region_dispatch_backfill');
+    migration.up(db);
+    log('[SALE_REGION_BACKFILL] Migration 060 applied');
+    return { success: true };
+  } catch (e) {
+    log('[SALE_REGION_BACKFILL] Migration error: ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
 // ── Utility: Generate UUID ─────────────────────────────────────────────────────
 
 function generateUUID() {
@@ -940,6 +957,7 @@ module.exports = {
   runDriverAttendanceMigration,
   runBusinessRegionsMigration,
   runSaleDispatchStatusMigration,
+  runSaleRegionDispatchBackfillMigration,
   generateUUID,
   getCurrentVersion,
   setVersion,
