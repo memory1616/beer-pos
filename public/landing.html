@@ -766,17 +766,48 @@
     })();
 
     // ── Reveal on scroll ──
-    var revealEls = document.querySelectorAll('.reveal');
+    var revealEls = Array.prototype.slice.call(document.querySelectorAll('.reveal'));
+    var pendingReveals = revealEls.slice();
+
+    function revealNow(el) {
+      if (el.classList.contains('visible')) return;
+      el.classList.add('visible');
+      var i = pendingReveals.indexOf(el);
+      if (i !== -1) pendingReveals.splice(i, 1);
+    }
+
     if ('IntersectionObserver' in window) {
       var revealObserver = new IntersectionObserver(function (entries) {
         entries.forEach(function (entry, i) {
           if (entry.isIntersecting) {
-            setTimeout(function () { entry.target.classList.add('visible'); }, i * 60);
+            setTimeout(function () { revealNow(entry.target); }, i * 60);
             revealObserver.unobserve(entry.target);
           }
         });
       }, { threshold: 0.12 });
       revealEls.forEach(function (el) { revealObserver.observe(el); });
+
+      // SAFEGUARD: IO có thể không bắn với element bị bỏ qua (scroll nhảy,
+      // container ẩn, render bằng JS…). Dùng scroll handler bổ sung để
+      // hiện mọi element đã lọt vào/đã đi qua viewport.
+      // → Nội dung KHÔNG BAO GIỜ bị ẩn vĩnh viễn, nhưng vẫn giữ hiệu ứng
+      //   cuộn cho các section phía dưới.
+      var revealTicking = false;
+      function checkReveals() {
+        if (revealTicking) return;
+        revealTicking = true;
+        window.requestAnimationFrame(function () {
+          var vh = window.innerHeight;
+          pendingReveals.slice().forEach(function (el) {
+            var rect = el.getBoundingClientRect();
+            if (rect.top < vh * 1.15 && rect.bottom > -vh * 0.5) revealNow(el);
+          });
+          revealTicking = false;
+        });
+      }
+      window.addEventListener('scroll', checkReveals, { passive: true });
+      window.addEventListener('resize', checkReveals, { passive: true });
+      checkReveals();
     } else {
       // Fallback: trình duyệt cũ không hỗ trợ IO → hiện tất cả nội dung
       revealEls.forEach(function (el) { el.classList.add('visible'); });
