@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
 
   <!-- ═══ DESIGN SYSTEM (dùng chung 3 trang) ═══ -->
-  <link rel="stylesheet" href="/css/driver-system.css?v=20261112a">
+  <link rel="stylesheet" href="/css/driver-system.css?v=20261116r">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 <body class="ds-app">
@@ -208,12 +208,17 @@
           ? '<span class="ds-status ds-status--' + esc(c.delivery_status) + '">' +
             esc(statusLabel(c.delivery_status)) + '</span>'
           : '';
+        // Badge khu vực — tài xế biết đơn này thuộc khu vực mình phụ trách.
+        var regionTag = c.region_name
+          ? '<span class="ds-delivery__region">🗺️ ' + esc(c.region_name) + '</span>'
+          : '';
 
         html += '<article class="ds-delivery" data-customer-id="' + c.id + '">' +
           '<div class="ds-delivery__name">' + gpsIcon + ' ' + esc(c.name) + st + '</div>' +
           '<div class="ds-delivery__info">📞 ' + esc(c.phone || '-') +
             (totalStr ? ' · ' + totalStr : '') +
             (c.lat && c.lng ? ' · 📍 ' + d.toFixed(1) + ' km' : '') +
+            regionTag +
           '</div>' +
           '<div class="ds-delivery__actions">' +
             (c.lat && c.lng

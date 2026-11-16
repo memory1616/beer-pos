@@ -6241,6 +6241,50 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   color: var(--text-muted);
 }
 
+/* ── Banner trạng thái tự động điều phố ───────────────────────────────── */
+.pos-modal-driver__banner {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.4;
+  border: 1px solid transparent;
+}
+
+.pos-modal-driver__banner strong {
+  font-weight: 700;
+}
+
+/* Đơn sẽ tự về tài xế của khu vực */
+.pos-modal-driver__banner--auto {
+  background: rgba(74, 222, 128, 0.12);
+  border-color: rgba(74, 222, 128, 0.35);
+  color: #4ade80;
+}
+
+/* Admin đang ghi đè tài xế */
+.pos-modal-driver__banner--override {
+  background: rgba(250, 204, 21, 0.12);
+  border-color: rgba(250, 204, 21, 0.35);
+  color: #facc15;
+}
+
+/* Khu vực chưa có tài xế / khách chưa có khu vực */
+.pos-modal-driver__banner--warn {
+  background: rgba(251, 146, 60, 0.12);
+  border-color: rgba(251, 146, 60, 0.35);
+  color: #fb923c;
+}
+
+.pos-modal-driver__region {
+  font-weight: 400;
+  opacity: 0.85;
+}
+
 .pos-modal-actions {
   display: flex;
   gap: 8px;

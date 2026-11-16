@@ -19,7 +19,17 @@ router.get('/', (req, res) => {
 router.get('/data', (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
-  const customers = db.prepare('SELECT * FROM customers WHERE archived = 0 ORDER BY name').all();
+  const customers = db.prepare(`
+    SELECT c.*, r.name AS region_name, r.code AS region_code,
+           a.driver_username AS region_driver_username,
+           a.driver_id AS region_driver_id
+    FROM customers c
+    LEFT JOIN business_regions r ON r.id = c.region_id
+    LEFT JOIN region_driver_assignments a
+           ON a.region_id = c.region_id AND a.active = 1
+    WHERE c.archived = 0
+    ORDER BY c.name
+  `).all();
   const products = db.prepare('SELECT id, slug, name, stock, cost_price, sell_price, type, damaged_stock FROM products WHERE archived = 0 ORDER BY name').all();
 
   // Get prices for each customer-product combination

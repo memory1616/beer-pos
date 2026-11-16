@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../../database');
+const RegionService = require('../../src/services/RegionService');
 
 // POST /api/orders — Create a new order (sale)
 router.post('/', (req, res) => {
@@ -14,11 +15,33 @@ router.post('/', (req, res) => {
     // `date` = NGÀY NGHIỆP VỤ (cutoff 19:00), `created_on` = ngày lịch thực
     const createdOn = db.getVietnamDateStr();
     const saleDate = db.getBusinessDateStr();
+
+    // ── TỰ ĐỘNG ĐIỀU PHỐ THEO KHU VỰC ─────────────────────────────────
+    // Đơn đồng bộ từ máy LAN cũng được gán tài xế phụ trách khu vực của
+    // khách → tài xế thấy đơn ngay ở Driver Portal.
+    const dispatch = RegionService.autoDispatchForCustomer(customerId || null);
+    const driverUsername = dispatch.driverUsername || null;
+
     const stmt = db.prepare(`
-      INSERT INTO sales (customer_id, date, created_on, total, profit, deliver_kegs, return_kegs, type, note, status, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      INSERT INTO sales (customer_id, date, created_on, total, profit, deliver_kegs, return_kegs, type, note, status,
+                         driver_username, region_id, region_name, region_driver_username, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed', ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `);
-    const result = stmt.run(customerId || null, saleDate, createdOn, total || 0, profit || 0, deliverKegs, returnKegs, type, note);
+    const result = stmt.run(
+      customerId || null,
+      saleDate,
+      createdOn,
+      total || 0,
+      profit || 0,
+      deliverKegs,
+      returnKegs,
+      type,
+      note,
+      driverUsername,
+      dispatch.regionId,
+      dispatch.regionName,
+      driverUsername
+    );
 
     const saleId = result.lastInsertRowid;
 

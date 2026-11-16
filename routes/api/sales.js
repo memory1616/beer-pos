@@ -187,7 +187,7 @@ router.post('/', async (req, res) => {
   }
 
   // ═══════════════════════════════════════════════════════════════════════
-  // SNAPSHOT KHU VỰC (region) — lưu tại thời điểm tạo đơn
+  // SNAPSHOT KHU VỰC + TỰ ĐỘNG ĐIỀU PHỐ
   // ═══════════════════════════════════════════════════════════════════════
   //  - Lấy regionId từ khách hàng.
   //  - Xác định tài xế phụ trách theo bảng phân công HIỆN HÀNH.
@@ -212,10 +212,34 @@ router.post('/', async (req, res) => {
     }
   }
 
-  // Admin tạo đơn mà KHÔNG chỉ định tài xế → gán tài xế phụ trách khu vực
-  // (nếu khu vực có tài xế). Nếu chưa có → đơn rơi vào "chờ điều phối".
-  if (requesterRole === 'ADMIN' && !driverUsername && regionSnapshot.driverUsername) {
-    driverUsername = regionSnapshot.driverUsername;
+  // ── TỰ ĐỘNG ĐIỀU PHỐ ───────────────────────────────────────────────────
+  // Đơn KHÔNG cần Admin chọn tài xế: server tự gán tài xế đang phụ trách
+  // khu vực của khách hàng. Ưu tiên:
+  //   1. Tài xế được chỉ định tường minh trong body (Admin/tài xế chọn tay).
+  //   2. Nếu không có → tự động lấy tài xế phụ trách khu vực của khách.
+  //
+  // Trường hợp không gán được:
+  //   - Khách chưa có khu vực        → Admin cần phân công khu vực cho khách.
+  //   - Khu vực chưa có tài xế        → đơn nằm hàng đợi "chờ điều phố" của Admin.
+  let autoDispatch = null;
+  if (!driverUsername) {
+    autoDispatch = RegionService.autoDispatchForCustomer(customerId);
+    if (autoDispatch.driverUsername) {
+      driverUsername = autoDispatch.driverUsername;
+      logger.info('[api/sales] auto-dispatch by region', {
+        saleCustomerId: customerId,
+        regionId: autoDispatch.regionId,
+        regionName: autoDispatch.regionName,
+        driverUsername,
+        requesterRole,
+      });
+    } else if (autoDispatch.reason) {
+      logger.info('[api/sales] auto-dispatch skipped', {
+        saleCustomerId: customerId,
+        reason: autoDispatch.reason,
+        requesterRole,
+      });
+    }
   }
 
   // ========== STAFF DISCOUNT HELPER ==========
@@ -699,9 +723,13 @@ router.post('/', async (req, res) => {
     const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId);
     socketServer.emitOrderCreated(sale);
 
-    // ── ĐẨY THÔNG BÁO TÀI XẾ (khi Admin gán đơn cho tài xế cụ thể) ──────
+    // ── ĐẨY THÔNG BÁO TÀI XẾ ─────────────────────────────────────────────
+    // Gửi khi đơn được gán cho tài xế KHÁC người tạo:
+    //   - Admin chỉ định tài xế tay, HOẶC
+    //   - Đơn được TỰ ĐỘNG điều phố theo khu vực (auto-dispatch).
+    // Không gửi khi chính tài xế tạo đơn của mình (đã thấy ngay trong app).
     // Không chặn luồng tạo đơn: lỗi push chỉ được log.
-    if (driverUsername && requesterRole === 'ADMIN') {
+    if (driverUsername && driverUsername !== req.user?.username) {
       try {
         await notifyAssignedDriver(saleId, driverUsername);
       } catch (pushErr) {
@@ -1033,10 +1061,21 @@ router.post('/replacement', (req, res) => {
 
   // driverUsername: set bởi Driver Portal (forward từ driverSale.js) để
   // đơn đổi lỗi của tài xế xuất hiện ngay trong "ĐƠN GẦN ĐÂY".
-  const driverUsername =
+  let driverUsername =
     typeof req.body?.driverUsername === 'string' && req.body.driverUsername.trim()
       ? req.body.driverUsername.trim()
       : null;
+
+  // ── TỰ ĐỘNG ĐIỀU PHỐ THEO KHU VỰC ───────────────────────────────────
+  // Đơn đổi bia lỗi cũng cần tài xế phụ trách khu vực của khách để theo
+  // dõi việc giao bù. Ưu tiên tài xế được chỉ định tường minh.
+  let replacementRegion = null;
+  if (!driverUsername && customer_id) {
+    replacementRegion = RegionService.autoDispatchForCustomer(customer_id);
+    if (replacementRegion.driverUsername) {
+      driverUsername = replacementRegion.driverUsername;
+    }
+  }
 
   if (!product_id || !quantity || quantity <= 0) {
     return res.status(400).json({ error: 'Thiếu thông tin cần thiết' });
@@ -1073,9 +1112,19 @@ router.post('/replacement', (req, res) => {
       const createdOn = db.getVietnamDateStr();
       const saleDate = db.getBusinessDateStr();
       const result = db.prepare(`
-        INSERT INTO sales (customer_id, total, type, note, date, created_on, driver_username)
-        VALUES (?, 0, 'replacement', ?, ?, ?, ?)
-      `).run(customer_id || null, note, saleDate, createdOn, driverUsername);
+        INSERT INTO sales (customer_id, total, type, note, date, created_on, driver_username,
+                           region_id, region_name, region_driver_username)
+        VALUES (?, 0, 'replacement', ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        customer_id || null,
+        note,
+        saleDate,
+        createdOn,
+        driverUsername,
+        replacementRegion ? replacementRegion.regionId : null,
+        replacementRegion ? replacementRegion.regionName : null,
+        driverUsername || (replacementRegion ? replacementRegion.driverUsername : null)
+      );
       const saleId = result.lastInsertRowid;
       logger.info('[replacement] sale inserted', { saleId });
 
@@ -1125,7 +1174,7 @@ router.post('/replacement', (req, res) => {
       : `Đã đổi ${quantity} bia lỗi cho khách — vỏ đổi đã vào kho vỏ rỗng`;
 
     logger.info('[replacement] success', { saleId, message });
-    res.json({ success: true, message });
+    res.json({ success: true, id: saleId, message });
   } catch (err) {
     logger.error('Create replacement error', { error: err.message, stack: err.stack });
     res.status(500).json({ error: 'Tạo đơn đổi bia thất bại: ' + err.message });

@@ -1095,6 +1095,7 @@ router.get('/delivery/page-data', requireDriver, (req, res) => {
       .prepare(
         `SELECT c.id, c.name, c.phone, c.lat, c.lng, s.id as sale_id, s.date, s.total,
                 s.deliver_kegs, s.return_kegs, s.payment_status,
+                s.region_id, s.region_name,
                 dr.status AS delivery_status, dr.delivered_liters, dr.missing_liters,
                 dr.excess_liters, dr.damaged_liters, dr.collected_kegs, dr.note AS delivery_note
          FROM sales s
@@ -1131,6 +1132,9 @@ router.get('/delivery/page-data', requireDriver, (req, res) => {
       excess_liters: d.excess_liters,
       damaged_liters: d.damaged_liters,
       delivery_note: d.delivery_note,
+      // Khu vực của đơn — tài xế biết đơn này thuộc lãnh thổ của mình.
+      region_id: d.region_id,
+      region_name: d.region_name,
     }));
 
     const settings = {};

@@ -1384,6 +1384,9 @@ function selectCustomer(customerId, customerName) {
 
   saleState.customerId = customerId ? Number(customerId) : null;
 
+  // Đổi khách → bỏ ghi đè tài xế (đơn sẽ tự động về tài xế của khu vực khách mới).
+  saleState.driverUsername = null;
+
   // Reset promo state immediately (trước async API response)
   saleState.newShopEligible = false;
   saleState.newShopCreatedDay = null;
@@ -1708,8 +1711,11 @@ async function loadDriversForAssign() {
 }
 
 /**
- * HTML select chọn tài xế giao đơn.
- * Admin chọn tài xế → đơn được gán → tài xế nhận thông báo đẩy ngay.
+ * HTML phần gán tài xế cho đơn.
+ *
+ * MÀC ĐỊNH: đơn được TỰ ĐỘNG điều phố về tài xế đang phụ trách khu vực
+ * của khách hàng (server xử lý — xem RegionService.autoDispatchForCustomer).
+ * Admin chỉ cần thao tác khi muốn GHI ĐÈ (chuyển sang tài xế khác).
  *
  * ⚠️ Driver Portal dùng CHUNG file sales.js này → tài xế KHÔNG được thấy
  * ô chọn (tài xế tự gán đơn của mình qua Driver Portal).
@@ -1718,27 +1724,119 @@ function buildDriverAssignHtml() {
   // Chỉ ADMIN mới được gán tài xế
   if (window.APP_MODE === 'driver') return '';
 
+  var customer = saleState.customerId ? getCustomer(saleState.customerId) : null;
+  var regionName = customer && customer.region_name ? customer.region_name : null;
+  var autoDriver = customer ? customer.region_driver_username : null;
+  var autoDriverName = null;
+  if (autoDriver) {
+    var d = (saleState.driversCache || []).filter(function (x) { return x.username === autoDriver; })[0];
+    autoDriverName = d ? (d.full_name || d.username) : autoDriver;
+  }
+
+  // Tài xế đang chọn (ghi đè thủ công) — nếu có
+  var chosen = saleState.driverUsername;
+  var overrideDriver = null;
+  if (chosen && chosen !== autoDriver) {
+    var cd = (saleState.driversCache || []).filter(function (x) { return x.username === chosen; })[0];
+    overrideDriver = { username: chosen, name: cd ? (cd.full_name || cd.username) : chosen };
+  }
+
   var drivers = saleState.driversCache || [];
-  var options = '<option value="">-- Chưa gán tài xế --</option>';
+  var options = '<option value="">-- Tự động theo khu vực --</option>';
   drivers.forEach(function (d) {
     var label = d.full_name ? (d.full_name + ' (' + d.username + ')') : d.username;
-    var selected = saleState.driverUsername === d.username ? ' selected' : '';
+    var selected = chosen === d.username ? ' selected' : '';
     options += '<option value="' + escHtml(d.username) + '"' + selected + '>' +
       escHtml(label) + '</option>';
   });
 
+  // Banner tình trạng điều phố
+  var banner;
+  if (overrideDriver) {
+    banner = '<div class="pos-modal-driver__banner pos-modal-driver__banner--override">' +
+      '✋ Đang ghi đè: giao cho <strong>' + escHtml(overrideDriver.name) + '</strong>' +
+      '</div>';
+  } else if (autoDriver) {
+    banner = '<div class="pos-modal-driver__banner pos-modal-driver__banner--auto">' +
+      '🗺️ Tự động điều phố về <strong>' + escHtml(autoDriverName) + '</strong>' +
+      (regionName ? ' <span class="pos-modal-driver__region">(' + escHtml(regionName) + ')</span>' : '') +
+      '</div>';
+  } else if (regionName) {
+    banner = '<div class="pos-modal-driver__banner pos-modal-driver__banner--warn">' +
+      '⚠️ Khu vực <strong>' + escHtml(regionName) + '</strong> chưa có tài xế — đơn sẽ chờ điều phố' +
+      '</div>';
+  } else {
+    banner = '<div class="pos-modal-driver__banner pos-modal-driver__banner--warn">' +
+      '⚠️ Khách hàng chưa có khu vực — đơn sẽ chờ điều phố' +
+      '</div>';
+  }
+
   return '<div class="pos-modal-driver">' +
-    '<label class="pos-modal-driver__label" for="sale-driver-assign">🚚 Giao cho tài xế</label>' +
+    '<label class="pos-modal-driver__label" for="sale-driver-assign">🚚 Tài xế giao đơn</label>' +
+    banner +
     '<select id="sale-driver-assign" class="pos-modal-driver__select" ' +
       'onchange="window.setSaleDriver(this.value)">' + options + '</select>' +
-    '<div class="pos-modal-driver__hint">Chọn tài xế → họ nhận thông báo đơn giao mới ngay trên điện thoại.</div>' +
+    '<div class="pos-modal-driver__hint">' +
+      'Đơn tự động về tài xế phụ trác khu vực của khách. Chọn tên khác để ghi đè — ' +
+      'tài xế nhận thông báo đơn giao mới ngay trên điện thoại.' +
+    '</div>' +
   '</div>';
 }
 
-/** Ghi lại tài xế được chọn. */
+/**
+ * Ghi lại tài xế được chọn (ghi đè tự động điều phố).
+ * Chọn rỗng → quay về chế độ tự động theo khu vực của khách.
+ */
 window.setSaleDriver = function (username) {
   saleState.driverUsername = username || null;
+  refreshDriverAssignBanner();
 };
+
+/**
+ * Refresh riêng phần banner + select trong modal thanh toán (không render
+ * lại toàn modal → không mất trạng thái items/giá).
+ */
+function refreshDriverAssignBanner() {
+  var wrap = document.querySelector('.pos-modal-driver');
+  if (!wrap) return;
+
+  var customer = saleState.customerId ? getCustomer(saleState.customerId) : null;
+  var regionName = customer && customer.region_name ? customer.region_name : null;
+  var autoDriver = customer ? customer.region_driver_username : null;
+  var autoDriverName = null;
+  if (autoDriver) {
+    var d = (saleState.driversCache || []).filter(function (x) { return x.username === autoDriver; })[0];
+    autoDriverName = d ? (d.full_name || d.username) : autoDriver;
+  }
+
+  var chosen = saleState.driverUsername;
+  var overrideDriver = null;
+  if (chosen && chosen !== autoDriver) {
+    var cd = (saleState.driversCache || []).filter(function (x) { return x.username === chosen; })[0];
+    overrideDriver = { username: chosen, name: cd ? (cd.full_name || cd.username) : chosen };
+  }
+
+  var bannerEl = wrap.querySelector('.pos-modal-driver__banner');
+  if (bannerEl) {
+    if (overrideDriver) {
+      bannerEl.className = 'pos-modal-driver__banner pos-modal-driver__banner--override';
+      bannerEl.innerHTML = '✋ Đang ghi đè: giao cho <strong>' + escHtml(overrideDriver.name) + '</strong>';
+    } else if (autoDriver) {
+      bannerEl.className = 'pos-modal-driver__banner pos-modal-driver__banner--auto';
+      bannerEl.innerHTML = '🗺️ Tự động điều phố về <strong>' + escHtml(autoDriverName) + '</strong>' +
+        (regionName ? ' <span class="pos-modal-driver__region">(' + escHtml(regionName) + ')</span>' : '');
+    } else if (regionName) {
+      bannerEl.className = 'pos-modal-driver__banner pos-modal-driver__banner--warn';
+      bannerEl.innerHTML = '⚠️ Khu vực <strong>' + escHtml(regionName) + '</strong> chưa có tài xế — đơn sẽ chờ điều phố';
+    } else {
+      bannerEl.className = 'pos-modal-driver__banner pos-modal-driver__banner--warn';
+      bannerEl.innerHTML = '⚠️ Khách hàng chưa có khu vực — đơn sẽ chờ điều phố';
+    }
+  }
+
+  var sel = document.getElementById('sale-driver-assign');
+  if (sel) sel.value = chosen || '';
+}
 
 function openCheckoutModal() {
   var validItems = saleState.items.filter(function(i) { return i.qty > 0; });
@@ -1785,14 +1883,14 @@ function openCheckoutModal() {
   modal.classList.remove('hidden');
   document.body.classList.add('modal-open');
 
-  // Nạp danh sách tài xế (bất đồng bộ) → cập nhật select sau khi có data
+  // Nạp danh sách tài xế (bất đồng bộ) → cập nhật select + banner sau khi có data
   // (chỉ Admin — Driver Portal không có ô này)
   if (window.APP_MODE === 'driver') return;
   loadDriversForAssign().then(function () {
     if (modal.classList.contains('hidden')) return; // đã đóng modal
     var sel = document.getElementById('sale-driver-assign');
     if (!sel) return;
-    var options = '<option value="">-- Chưa gán tài xế --</option>';
+    var options = '<option value="">-- Tự động theo khu vực --</option>';
     saleState.driversCache.forEach(function (d) {
       var label = d.full_name ? (d.full_name + ' (' + d.username + ')') : d.username;
       var selected = saleState.driverUsername === d.username ? ' selected' : '';
@@ -1800,6 +1898,8 @@ function openCheckoutModal() {
         escHtml(label) + '</option>';
     });
     sel.innerHTML = options;
+    // Cập nhật banner (tên tài xế đầy đủ chỉ có sau khi load cache).
+    refreshDriverAssignBanner();
   });
 }
 

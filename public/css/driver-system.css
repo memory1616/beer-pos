@@ -1760,6 +1760,21 @@ body.ds-app .btn--accent-outline {
   color: var(--ds-text-2);
 }
 
+/* Badge khu vực của đơn (tài xế phụ trách) */
+.ds-delivery__region {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: var(--ds-f-xs);
+  font-weight: 600;
+  color: var(--ds-accent);
+  background: rgba(14, 203, 129, .12);
+  border: 1px solid rgba(14, 203, 129, .28);
+}
+
 .ds-delivery__actions {
   display: flex;
   flex-wrap: wrap;

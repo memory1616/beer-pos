@@ -470,6 +470,67 @@ function resolveForCustomer(customerId) {
 }
 
 /**
+ * TỰ ĐỘNG ĐIỀU PHỐ — gán tài xế cho đơn theo khu vực của khách hàng.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Luồng nghiệp vụ:
+ *   Khách hàng → khu vực (customers.region_id) → tài xế phụ trách
+ *   (region_driver_assignments.active = 1)
+ *
+ * Quy tắc:
+ *  - Nếu đơn ĐÃ có tài xế → giữ nguyên (không ghi đè lựa chọn của Admin/tài xế).
+ *  - Nếu khách CHƯA có khu vực → không gán (Admin cần phân công khu vực).
+ *  - Nếu khu vực CHƯA có tài xế → đơn nằm "chờ điều phố" của Admin.
+ *  - Chỉ gán tài xế đang HOẠT ĐỘNG (app_users.active = 1, role = DRIVER).
+ *
+ * @param {number|null} customerId
+ * @returns {{regionId:number|null, regionName:string|null, driverUsername:string|null,
+ *            autoAssigned:boolean, reason?:string}}
+ */
+function autoDispatchForCustomer(customerId) {
+  const snapshot = resolveForCustomer(customerId);
+
+  // Khách chưa có khu vực → Admin cần phân công khu vực cho khách.
+  if (!snapshot.regionId) {
+    return {
+      ...snapshot,
+      autoAssigned: false,
+      reason: 'Khách hàng chưa được gán khu vực — cần Admin phân công',
+    };
+  }
+
+  // Khu vực chưa có tài xế phụ trách → đơn chờ điều phố.
+  if (!snapshot.driverUsername) {
+    return {
+      ...snapshot,
+      autoAssigned: false,
+      reason: `Khu vực ${snapshot.regionName} chưa có tài xế phụ trách`,
+    };
+  }
+
+  // Tài xế phụ trách đã bị khoá/gỡ → không gán (đơn chờ điều phố).
+  const active = db
+    .prepare(
+      `SELECT 1 AS ok FROM app_users
+       WHERE username = ? AND role = 'DRIVER' AND active = 1`
+    )
+    .get(snapshot.driverUsername);
+  if (!active) {
+    return {
+      ...snapshot,
+      driverUsername: null,
+      autoAssigned: false,
+      reason: `Tài xế phụ trách khu vực ${snapshot.regionName} đã bị khoá`,
+    };
+  }
+
+  return {
+    ...snapshot,
+    autoAssigned: true,
+    reason: `Tự động gán tài xế phụ trách khu vực ${snapshot.regionName}`,
+  };
+}
+
+/**
  * Validate region id đầu vào (từ API).
  * @returns {{ok:boolean, regionId:number|null, error?:string}}
  */
@@ -852,6 +913,7 @@ module.exports = {
   getStats,
   suggestRegion,
   resolveForCustomer,
+  autoDispatchForCustomer,
   validateRegionId,
   // Phân quyền theo khu vực
   LOCKED_DELIVERY_STATUSES,

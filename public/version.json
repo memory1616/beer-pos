@@ -1,8 +1,9 @@
 {
-  "version": "2.2.0",
-  "build": "20261116q",
+  "version": "2.3.0",
+  "build": "20261116r",
   "date": "2026-11-16",
   "changelog": [
+    "feat(dispatch): đơn tự động điều phố về tài xế phụ trách khu vực của khách (POS, LAN sync, đổi bia lỗi) — Admin chỉ cần ghi đè khi muốn",
     "feat(regions): quản lý khu vực khách hàng & phân quyền giao hàng theo khu vực (9 khu vực Tây Ninh, 1 tài xế quản lý nhiều khu vực, data isolation tài xế)",
     "bump version 2.2.0 build 20261116q",
     "bump version 2.1.3 build 20260807a",

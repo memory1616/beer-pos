@@ -3,7 +3,53 @@ const router = express.Router();
 const db = require('../../database');
 const logger = require('../../src/utils/logger');
 const { deleteSaleRestoringInventory } = require('../../src/services/saleDelete');
+const RegionService = require('../../src/services/RegionService');
 const { isValidId, isPositiveNumber, sanitizeString } = require('../../middleware/validation');
+
+/**
+ * Tự động điều phố đơn theo khu vực của khách hàng.
+ *
+ * Gán `driver_username` + snapshot khu vực cho đơn vừa tạo từ LAN sync,
+ * dựa trên tài xế đang phụ trách khu vực của khách.
+ *
+ * - Đơn đã có tài xế → giữ nguyên.
+ * - Khách chưa có khu vực / khu vực chưa có tài xế → đơn chờ điều phố.
+ * - Lỗi không được làm hỏng luồng sync (fail-open).
+ */
+function applyAutoDispatch(saleId, customerId) {
+  try {
+    const dispatch = RegionService.autoDispatchForCustomer(customerId);
+    if (!dispatch.autoAssigned || !dispatch.driverUsername) return false;
+
+    db.prepare(
+      `UPDATE sales
+       SET driver_username = ?,
+           region_id = ?,
+           region_name = ?,
+           region_driver_username = ?,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ? AND (driver_username IS NULL OR driver_username = '')`
+    ).run(
+      dispatch.driverUsername,
+      dispatch.regionId,
+      dispatch.regionName,
+      dispatch.driverUsername,
+      saleId
+    );
+    logger.info('[api/sync] auto-dispatch by region', {
+      saleId,
+      regionName: dispatch.regionName,
+      driverUsername: dispatch.driverUsername,
+    });
+    return true;
+  } catch (err) {
+    logger.error('[api/sync] auto-dispatch failed', {
+      saleId,
+      error: err.message,
+    });
+    return false;
+  }
+}
 
 // ========== DEDUP CACHE ==========
 // Idempotency 2 tầng:
@@ -475,10 +521,18 @@ function applySaleChange(action, entity_id, data) {
       const { customer_id, date, total, profit, deliver_kegs = 0, return_kegs = 0, keg_balance_after, type = 'sale', note = '', status = 'completed' } = data || {};
       // `date` do client gửi lên (đã là ngày nghiệp vụ của client).
       // `created_on` = ngày lịch thực server nhận đơn.
+      // ⚠️ Biến `date` trong scope che global `Date` → không dùng `date(date)`.
+      //    Dùng `db.getVietnamDateStr()` cho ngày lịch thực và giữ `date` gốc
+      //    của client cho cột `date` (ngày nghiệp vụ).
       db.prepare(`
         INSERT INTO sales (id, customer_id, date, created_on, total, profit, deliver_kegs, return_kegs, keg_balance_after, type, note, status)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(entity_id, customer_id, date, date ? date(date) : db.getVietnamDateStr(), total, profit, deliver_kegs, return_kegs, keg_balance_after, type, note, status);
+      `).run(entity_id, customer_id, date, db.getVietnamDateStr(), total, profit, deliver_kegs, return_kegs, keg_balance_after, type, note, status);
+
+      // ── TỰ ĐỘNG ĐIỀU PHỐ THEO KHU VỰC ─────────────────────────────────
+      // Đơn đồng bộ từ máy LAN cũng được gán tài xế phụ trách khu vực
+      // của khách → tài xế thấy đơn ngay ở Driver Portal.
+      applyAutoDispatch(entity_id, customer_id);
     }
 
     if (data?.items && Array.isArray(data.items)) {
