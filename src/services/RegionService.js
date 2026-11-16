@@ -102,6 +102,27 @@ function getActiveDriver(regionId) {
 }
 
 /**
+ * Danh sách khu vực đang được gán cho một tài xế (active).
+ * @param {string} username
+ * @returns {number[]}
+ */
+function getDriverAssignedRegionIds(username) {
+  const u = normalizeUsername(username);
+  if (!u) return [];
+  try {
+    return db
+      .prepare(
+        `SELECT region_id FROM region_driver_assignments
+         WHERE active = 1 AND driver_username = ?`
+      )
+      .all(u)
+      .map((r) => r.region_id);
+  } catch (_) {
+    return [];
+  }
+}
+
+/**
  * Danh sách khu vực + tài xế phụ trách + số khách hàng.
  * Dùng cho trang Admin "Quản lý khu vực giao hàng".
  */
@@ -134,9 +155,56 @@ function listAssignments() {
 }
 
 /**
+ * Danh sách tài xế (DRIVER) + các khu vực đang phụ trách.
+ * Dùng cho UI "gán khu vực" để tránh chồng chéo:
+ * mỗi khu vực chỉ được gán cho 1 tài xế tại một thời điểm.
+ */
+function listDriversWithRegions() {
+  const rows = db
+    .prepare(
+      `SELECT username, full_name, phone, active
+       FROM app_users WHERE role = 'DRIVER'
+       ORDER BY full_name, username`
+    )
+    .all();
+
+  const assignments = db
+    .prepare(
+      `SELECT driver_username, region_id
+       FROM region_driver_assignments WHERE active = 1`
+    )
+    .all();
+
+  // regionId → username
+  const ownerByRegion = {};
+  const regionsByDriver = {};
+  for (const a of assignments) {
+    ownerByRegion[a.region_id] = a.driver_username;
+    if (!regionsByDriver[a.driver_username]) regionsByDriver[a.driver_username] = [];
+    regionsByDriver[a.driver_username].push(a.region_id);
+  }
+
+  return rows.map((u) => ({
+    username: u.username,
+    fullName: u.full_name || u.username,
+    phone: u.phone || null,
+    active: !!u.active,
+    regionIds: regionsByDriver[u.username] || [],
+    // Danh sách khu vực đang do TÀI XẾ KHÁC phụ trách (để UI khoá lựa chọn).
+    takenRegionIds: Object.keys(ownerByRegion)
+      .filter((rid) => ownerByRegion[rid] !== u.username)
+      .map(Number),
+  }));
+}
+
+/**
  * Gán / thay đổi tài xế phụ trách cho khu vực.
  * - Tài xế mới → tự động deactivate tài xế cũ (nếu có) + ghi lịch sử.
  * - Không tự động gỡ các khu vực KHÁC của tài xế cũ (1 tài xế → N khu vực).
+ *
+ * ⚠️ RÀNG BUỘC CHỐNG CHỒNG CHÉO: mỗi khu vực chỉ có 1 tài xế chính.
+ *    Gán tài xế mới cho khu vực đã có tài xế → tài xế cũ bị thay thế
+ *    (không phải 2 tài xế cùng giao 1 khu vực).
  *
  * @param {number} regionId
  * @param {string|null} driverUsername - null → ngừng phân công
@@ -151,6 +219,29 @@ function assignDriver(regionId, driverUsername, opts = {}) {
 
   const username = driverUsername ? normalizeUsername(driverUsername) : null;
   let driver = null;
+
+  // Chặn gán cho khu vực đang do tài xế KHÁC phụ trách khi Admin chưa xác nhận.
+  if (username && opts.confirmTakeover !== true) {
+    const current = getActiveDriver(rid);
+    if (current && current.username !== username) {
+      const owner = db
+        .prepare(
+          `SELECT full_name, username FROM app_users WHERE username = ?`
+        )
+        .get(current.username);
+      return {
+        success: false,
+        requiresConfirm: true,
+        code: 'REGION_ALREADY_ASSIGNED',
+        currentDriver: current.username,
+        currentDriverName: owner?.full_name || current.username,
+        error:
+          `Khu vực "${region.name}" đang do tài xế ` +
+          `"${owner?.full_name || current.username}" phụ trách. ` +
+          `Chuyển sang "${username}" sẽ thu hồi khu vực của tài xế cũ.`,
+      };
+    }
+  }
 
   if (username) {
     driver = db
@@ -1236,6 +1327,8 @@ module.exports = {
   listRegions,
   getActiveDriver,
   listAssignments,
+  listDriversWithRegions,
+  getDriverAssignedRegionIds,
   assignDriver,
   unassignDriver,
   getHistory,

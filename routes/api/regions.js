@@ -76,6 +76,27 @@ router.get('/', requireAdmin, (req, res) => {
       }
     } catch (_) { /* ignore */ }
 
+    // ── Chống chồng chéo khu vực ──────────────────────────────────────
+    // Mỗi khu vực chỉ có 1 tài xế chính. Gửi kèm cho mỗi tài xế:
+    //  - regionIds      : khu vực đang phụ trách.
+    //  - takenRegionIds : khu vực đang do TÀI XẾ KHÁC phụ trách (UI khoá chọn).
+    let overlapInfo = {};
+    try {
+      const list = RegionService.listDriversWithRegions();
+      overlapInfo = list.reduce((acc, d) => {
+        acc[d.username] = { regionIds: d.regionIds, takenRegionIds: d.takenRegionIds };
+        return acc;
+      }, {});
+    } catch (e) {
+      logger.error('[admin/regions] overlap info error', { error: e.message });
+    }
+
+    for (const d of drivers) {
+      const info = overlapInfo[d.username] || {};
+      d.regionIds = info.regionIds || [];
+      d.takenRegionIds = info.takenRegionIds || [];
+    }
+
     res.json({ success: true, regions, drivers });
   } catch (err) {
     logger.error('[admin/regions] list error', { error: err.message });
@@ -181,10 +202,18 @@ router.post('/:id/assign', requireAdmin, (req, res) => {
       note: req.body?.note || null,
       actor: req.user?.username || null,
       req,
+      // Admin xác nhận thu hồi khu vực đang có tài xế khác phụ trách.
+      confirmTakeover: req.body?.confirmTakeover === true,
     });
 
     if (!result.success) {
-      return res.status(400).json({ error: result.error });
+      return res.status(400).json({
+        error: result.error,
+        requiresConfirm: !!result.requiresConfirm,
+        code: result.code || null,
+        currentDriver: result.currentDriver || null,
+        currentDriverName: result.currentDriverName || null,
+      });
     }
     res.json({ success: true, ...result });
   } catch (err) {

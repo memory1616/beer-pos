@@ -104,6 +104,17 @@
     }
     .rg-check input { width: 18px; height: 18px; accent-color: var(--primary); flex-shrink: 0; cursor: pointer; }
     .rg-check--on { border-color: var(--primary); background: rgba(252,213,53,.08); }
+    /* Khu vực đang do tài xế KHÁC phụ trách → khoá (chống chồng chéo) */
+    .rg-check--taken {
+      opacity: .45; cursor: not-allowed;
+      border-style: dashed; background: rgba(148,163,184,.06);
+    }
+    .rg-check--taken input { cursor: not-allowed; }
+    .rg-check--taken span { color: var(--text-muted); }
+    .rg-check-hint {
+      display: block; font-size: 10.5px; color: var(--text-muted);
+      margin-top: 2px; font-weight: 600;
+    }
 
     .rg-stat-grid { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
     .rg-stat {

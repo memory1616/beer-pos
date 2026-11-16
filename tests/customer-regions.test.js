@@ -229,7 +229,10 @@ describe('C. Gán nhiều khu vực cho một tài xế', () => {
 describe('D. Một khu vực chỉ có một tài xế chính', () => {
   test('gán tài xế B đè tài xế A → A bị deactivate, B thành chính', () => {
     RegionService.assignDriver(regionIds.TP_TAY_NINH, DRIVER_A, { actor: ADMIN_USER });
-    const r = RegionService.assignDriver(regionIds.TP_TAY_NINH, DRIVER_B, { actor: ADMIN_USER });
+    const r = RegionService.assignDriver(regionIds.TP_TAY_NINH, DRIVER_B, {
+      actor: ADMIN_USER,
+      confirmTakeover: true,
+    });
     expect(r.success).toBe(true);
 
     const active = RegionService.getActiveDriver(regionIds.TP_TAY_NINH);
@@ -241,8 +244,65 @@ describe('D. Một khu vực chỉ có một tài xế chính', () => {
     expect(activeRows).toBe(1);
   });
 
+  test('CHỐNG CHỒNG CHÉO: gán tài xế khác vào khu vực đang có tài xế → bị chặn, cần xác nhận', () => {
+    RegionService.assignDriver(regionIds.TP_TAY_NINH, DRIVER_A, { actor: ADMIN_USER });
+    const r = RegionService.assignDriver(regionIds.TP_TAY_NINH, DRIVER_B, { actor: ADMIN_USER });
+
+    expect(r.success).toBe(false);
+    expect(r.requiresConfirm).toBe(true);
+    expect(r.code).toBe('REGION_ALREADY_ASSIGNED');
+    expect(r.currentDriver).toBe(DRIVER_A);
+
+    // Tài xế cũ vẫn giữ khu vực (không bị thu hồi khi chưa xác nhận).
+    const active = RegionService.getActiveDriver(regionIds.TP_TAY_NINH);
+    expect(active.username).toBe(DRIVER_A);
+  });
+
+  test('xác nhận thu hồi → tài xế mới tiếp quản, tài xế cũ mất khu vực', () => {
+    RegionService.assignDriver(regionIds.TP_TAY_NINH, DRIVER_A, { actor: ADMIN_USER });
+    const r = RegionService.assignDriver(regionIds.TP_TAY_NINH, DRIVER_B, {
+      actor: ADMIN_USER,
+      confirmTakeover: true,
+    });
+    expect(r.success).toBe(true);
+    expect(RegionService.getActiveDriver(regionIds.TP_TAY_NINH).username).toBe(DRIVER_B);
+    expect(RegionService.getDriverRegionIds(DRIVER_A)).not.toContain(regionIds.TP_TAY_NINH);
+  });
+
+  test('gán lại CHÍNH tài xế đang phụ trách → không cần xác nhận', () => {
+    RegionService.assignDriver(regionIds.TP_TAY_NINH, DRIVER_A, { actor: ADMIN_USER });
+    const r = RegionService.assignDriver(regionIds.TP_TAY_NINH, DRIVER_A, { actor: ADMIN_USER });
+    expect(r.success).toBe(true);
+    expect(r.requiresConfirm).toBeFalsy();
+  });
+
+  test('ngừng phân công → không cần xác nhận (cho phép bỏ gán)', () => {
+    RegionService.assignDriver(regionIds.TP_TAY_NINH, DRIVER_A, { actor: ADMIN_USER });
+    const r = RegionService.assignDriver(regionIds.TP_TAY_NINH, null, { actor: ADMIN_USER });
+    expect(r.success).toBe(true);
+  });
+
+  test('UI: mỗi tài xế biết khu vực nào đang bị tài xế KHÁC giữ (takenRegionIds)', () => {
+    RegionService.assignDriver(regionIds.TP_TAY_NINH, DRIVER_A, { actor: ADMIN_USER });
+    RegionService.assignDriver(regionIds.TAN_BIEN, DRIVER_B, { actor: ADMIN_USER });
+
+    const list = RegionService.listDriversWithRegions();
+    const a = list.find((d) => d.username === DRIVER_A);
+    const b = list.find((d) => d.username === DRIVER_B);
+
+    expect(a.regionIds).toContain(regionIds.TP_TAY_NINH);
+    expect(a.takenRegionIds).toContain(regionIds.TAN_BIEN);
+    expect(a.takenRegionIds).not.toContain(regionIds.TP_TAY_NINH);
+
+    expect(b.regionIds).toContain(regionIds.TAN_BIEN);
+    expect(b.takenRegionIds).toContain(regionIds.TP_TAY_NINH);
+  });
+
   test('tài xế A không còn có quyền ở khu vực đã chuyển cho B', () => {
-    RegionService.assignDriver(regionIds.TP_TAY_NINH, DRIVER_B, { actor: ADMIN_USER });
+    RegionService.assignDriver(regionIds.TP_TAY_NINH, DRIVER_B, {
+      actor: ADMIN_USER,
+      confirmTakeover: true,
+    });
     const ids = RegionService.getDriverRegionIds(DRIVER_A);
     expect(ids).not.toContain(regionIds.TP_TAY_NINH);
   });
@@ -365,8 +425,11 @@ describe('G/H. Đổi phân công & bất biến lịch sử đơn hoàn tất',
   });
 
   test('đơn chưa khoá → đổi phân công áp dụng quyền mới', () => {
-    // Chuyển khu vực sang tài xế B
-    RegionService.assignDriver(regionIds.HOA_THANH, DRIVER_B, { actor: ADMIN_USER });
+    // Chuyển khu vực sang tài xế B (xác nhận thu hồi khu vực của A)
+    RegionService.assignDriver(regionIds.HOA_THANH, DRIVER_B, {
+      actor: ADMIN_USER,
+      confirmTakeover: true,
+    });
 
     const openSale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleOpen);
     const doneSale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleDone);

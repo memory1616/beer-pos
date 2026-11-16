@@ -110,9 +110,14 @@
       var current = r.driverUsername || '';
       var options = '<option value="">— Chưa gán —</option>';
       state.drivers.forEach(function (d) {
+        // Tài xế đang phụ trách khu vực KHÁC → gán sẽ thu hồi khu vực đó.
+        var ownsOther = (d.regionIds || []).some(function (rid) {
+          return Number(rid) !== Number(r.regionId);
+        });
+        var suffix = ownsOther ? ' ⚠️ (đang giữ khu vực khác)' : '';
         options += '<option value="' + esc(d.username) + '"' +
           (current === d.username ? ' selected' : '') + '>' +
-          esc(d.fullName || d.username) + (d.active ? '' : ' (đã khoá)') + '</option>';
+          esc(d.fullName || d.username) + (d.active ? '' : ' (đã khoá)') + suffix + '</option>';
       });
 
       var badge = r.hasDriver
@@ -157,12 +162,31 @@
     });
 
     var html = state.drivers.map(function (d) {
+      // Khu vực đang do tài xế KHÁC phụ trách → KHÔNG cho tick (chống chồng chéo).
+      var taken = d.takenRegionIds || [];
+      var ownerNameById = {};
+      state.regions.forEach(function (r) {
+        if (r.driverUsername) ownerNameById[r.regionId] = driverLabel(r.driverUsername) || r.driverUsername;
+      });
+
       var boxes = state.regions.map(function (r) {
-        var checked = ownerByRegion[r.regionId] === d.username ? ' checked' : '';
-        var on = checked ? ' rg-check--on' : '';
-        return '<label class="rg-check' + on + '" data-check-wrap="' + d.username + '-' + r.regionId + '">' +
-          '<input type="checkbox" data-driver="' + esc(d.username) + '" data-region="' + r.regionId + '"' + checked + '>' +
-          '<span>' + esc(r.regionName) + '</span>' +
+        var isMine = ownerByRegion[r.regionId] === d.username;
+        var isTaken = !isMine && taken.indexOf(Number(r.regionId)) !== -1;
+
+        var checked = isMine ? ' checked' : '';
+        var on = isMine ? ' rg-check--on' : '';
+        var disabled = isTaken ? ' disabled' : '';
+        var cls = 'rg-check' + on + (isTaken ? ' rg-check--taken' : '');
+        var title = isTaken
+          ? ' title="Khu vực đang do ' + esc(ownerNameById[r.regionId] || 'tài xế khác') + ' phụ trách — bỏ gán khu vực đó trước"'
+          : '';
+        var hint = isTaken
+          ? '<span class="rg-check-hint">🔒 ' + esc(ownerNameById[r.regionId] || 'đã gán') + '</span>'
+          : '';
+
+        return '<label class="' + cls + '"' + title + ' data-check-wrap="' + esc(d.username) + '-' + r.regionId + '">' +
+          '<input type="checkbox" data-driver="' + esc(d.username) + '" data-region="' + r.regionId + '"' + checked + disabled + '>' +
+          '<span>' + esc(r.regionName) + hint + '</span>' +
         '</label>';
       }).join('');
 
@@ -252,14 +276,33 @@
   }
 
   // ── Actions ───────────────────────────────────────────────────────────
-  function assignRegion(regionId, driverUsername) {
+  function assignRegion(regionId, driverUsername, confirmTakeover) {
     return apiFetch('/api/admin/regions/' + regionId + '/assign', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ driverUsername: driverUsername || null })
+      body: JSON.stringify({
+        driverUsername: driverUsername || null,
+        confirmTakeover: !!confirmTakeover
+      })
     }).then(function (r) { return r.json().then(function (b) { return { ok: r.ok, body: b }; }); })
       .then(function (res) {
-        if (!res.ok) throw new Error(res.body.error || 'Không phân công được');
+        if (!res.ok) {
+          // Khu vực đang có tài xế khác → yêu cầu Admin xác nhận thu hồi.
+          if (res.body && res.body.requiresConfirm) {
+            var regionName = '';
+            state.regions.forEach(function (r) {
+              if (String(r.regionId) === String(regionId)) regionName = r.regionName;
+            });
+            var ok = confirm(
+              '⚠️ ' + (res.body.error || 'Khu vực đang có tài xế khác phụ trách.') +
+              '\n\nXác nhận chuyển khu vực "' + regionName + '" sang tài xế mới?'
+            );
+            if (ok) return assignRegion(regionId, driverUsername, true);
+            toast('Đã huỷ — khu vực giữ nguyên tài xế hiện tại', true);
+            return null;
+          }
+          throw new Error(res.body.error || 'Không phân công được');
+        }
         var msg = res.body.changed ? 'Đã cập nhật phân công' : 'Phân công không thay đổi';
         var n = res.body.reassignedSales || 0;
         if (n > 0) msg += ' · ' + n + ' đơn chuyển tài xế';
@@ -289,14 +332,10 @@
       return Promise.resolve();
     }
 
+    // ⚠️ Thứ tự quan trọng: BỎ gán trước, rồi GÁN mới.
+    // Nếu gán trước, khu vực đang thuộc tài xế khác sẽ bị chặn (chống chồng chéo)
+    // và việc bỏ gán sau sẽ vô nghĩa.
     var ops = [];
-    toAdd.forEach(function (id) {
-      ops.push(apiFetch('/api/admin/regions/' + id + '/assign', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ driverUsername: username })
-      }));
-    });
     toRemove.forEach(function (id) {
       ops.push(apiFetch('/api/admin/regions/' + id + '/assign', {
         method: 'DELETE',
@@ -305,9 +344,27 @@
       }));
     });
 
-    return Promise.all(ops)
+    // Gán mới — nếu khu vực còn tài xế khác thì cần Admin xác nhận thu hồi.
+    var pending = Promise.resolve();
+    toAdd.forEach(function (id) {
+      pending = pending.then(function () {
+        return apiFetch('/api/admin/regions/' + id + '/assign', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ driverUsername: username, confirmTakeover: true })
+        }).then(function (r) { return r.json().then(function (b) { return { ok: r.ok, body: b }; }); })
+          .then(function (res) {
+            if (!res.ok) throw new Error(res.body.error || 'Không gán được');
+          });
+      });
+    });
+
+    return ops.reduce(function (chain, p) {
+      return chain.then(function () { return p; });
+    }, Promise.resolve())
+      .then(function () { return pending; })
       .then(function () { toast('Đã lưu phân công khu vực'); return loadAll(); })
-      .catch(function (e) { toast('Lỗi lưu phân công: ' + e.message, true); });
+      .catch(function (e) { toast('Lỗi lưu phân công: ' + e.message, true); return loadAll(); });
   }
 
   function dispatchSale(saleId, driverUsername) {

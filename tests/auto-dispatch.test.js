@@ -286,8 +286,11 @@ describe('K. Đơn tự động điều phố về tài xế phụ trách khu v�
       });
     expect(db.prepare('SELECT driver_username FROM sales WHERE id = ?').get(first.body.id).driver_username).toBe(DRIVER_A);
 
-    // Chuyển khu vực sang tài xế B.
-    RegionService.assignDriver(regionIds.HOA_THANH, DRIVER_B, { actor: ADMIN_USER });
+    // Chuyển khu vực sang tài xế B (xác nhận thu hồi khu vực của A).
+    RegionService.assignDriver(regionIds.HOA_THANH, DRIVER_B, {
+      actor: ADMIN_USER,
+      confirmTakeover: true,
+    });
 
     // Đơn MỚI → về B.
     const second = await request(adminApp)
@@ -605,7 +608,10 @@ describe('N. Đổi tài xế phụ trách khu vực → đơn & phiếu giao đ
   test('N1. Đổi tài xế khu vực → đơn chưa hoàn tất chuyển sang tài xế mới', () => {
     const saleId = createSaleFor(cust, regionIds.HOA_THANH, DRIVER_A);
 
-    const r = RegionService.assignDriver(regionIds.HOA_THANH, DRIVER_B, { actor: ADMIN_USER });
+    const r = RegionService.assignDriver(regionIds.HOA_THANH, DRIVER_B, {
+      actor: ADMIN_USER,
+      confirmTakeover: true,
+    });
     expect(r.success).toBe(true);
 
     const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId);
@@ -617,7 +623,10 @@ describe('N. Đổi tài xế phụ trách khu vực → đơn & phiếu giao đ
     const DeliveryService = require('../src/services/DeliveryService');
     DeliveryService.ensureRecord(saleId, DRIVER_A);
 
-    RegionService.assignDriver(regionIds.HOA_THANH, DRIVER_B, { actor: ADMIN_USER });
+    RegionService.assignDriver(regionIds.HOA_THANH, DRIVER_B, {
+      actor: ADMIN_USER,
+      confirmTakeover: true,
+    });
 
     const oldRec = db
       .prepare('SELECT * FROM delivery_records WHERE sale_id = ? AND driver_username = ?')
@@ -638,7 +647,10 @@ describe('N. Đổi tài xế phụ trách khu vực → đơn & phiếu giao đ
        VALUES (?, ?, ?, 'DELIVERED', ?)`
     ).run(saleId, cust, DRIVER_A, db.getVietnamDateStr());
 
-    RegionService.assignDriver(regionIds.HOA_THANH, DRIVER_B, { actor: ADMIN_USER });
+    RegionService.assignDriver(regionIds.HOA_THANH, DRIVER_B, {
+      actor: ADMIN_USER,
+      confirmTakeover: true,
+    });
 
     const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId);
     expect(sale.driver_username).toBe(DRIVER_A);

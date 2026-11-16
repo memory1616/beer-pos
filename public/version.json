@@ -1,8 +1,9 @@
 {
-  "version": "2.5.0",
-  "build": "20261116t",
+  "version": "2.6.0",
+  "build": "20261116u",
   "date": "2026-11-16",
   "changelog": [
+    "feat(regions): chống chồng chéo khu vực giao hàng — mỗi khu vực chỉ 1 tài xế chính; UI khoá khu vực đã gán cho tài xế khác, backend yêu cầu xác nhận khi thu hồi",
     "fix(regions): danh sách 'Đơn chờ điều phố' CHỈ hiện đơn MỚI bị bỏ qua auto-dispatch (thêm cờ sales.dispatch_status) — không còn 447 đơn cũ đã giao xong",
     "feat(dispatch): đổi khu vực khách hàng → tái điều phố tự động các đơn chưa hoàn tất (đơn đã giao giữ nguyên lịch sử)",
     "feat(dispatch): đổi tài xế khu vực → đồng bộ phiếu giao + socket/push thông báo tài xế mới, đơn bỏ gán về hàng đợi chờ điều phố",
