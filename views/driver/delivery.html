@@ -217,9 +217,12 @@
         var regionTag = c.region_name
           ? '<span class="ds-delivery__region">🗺️ ' + esc(c.region_name) + '</span>'
           : '';
-        // Công nợ — đơn tín công nợ hiển thị nổi bật cho tài xế.
-        var debtTag = c.is_credit
-          ? '<span class="ds-badge ds-badge--danger">Nợ ' + formatVND(c.total || 0) + 'đ</span>'
+        // Công nợ — số dư theo SỔ CÔNG NỢ (tổng nợ của khách, đã trừ khoản
+        // đã trả) — KHÔNG dùng `c.total` (tiền của RIÊNG đơn này).
+        // Hiện khi khách còn nợ (tài xế cần biết để thu tiền).
+        var debtAmount = Math.round(parseFloat(c.debt || 0));
+        var debtTag = debtAmount > 0
+          ? '<span class="ds-badge ds-badge--danger">Nợ ' + formatVND(debtAmount) + 'đ</span>'
           : '';
 
         // Số lít dự kiến giao (loại trừ PET) + số vỏ giao / thu

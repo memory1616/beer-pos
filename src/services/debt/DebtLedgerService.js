@@ -67,6 +67,75 @@ function computeBalance(customerId) {
   return roundMoney(row ? row.balance : 0);
 }
 
+/**
+ * Tính số dư công nợ của NHIỀU khách trong 1 truy vấn (tránh N+1 query).
+ *
+ * Dùng cho các màn danh sách (giao hàng, khách hàng) của tài xế — mỗi lần
+ * hiển thị badge "Nợ ..." đều phải lấy số dư theo SỔ CÔNG NỢ (ledger), KHÔNG
+ * phải `customers.debt` (mirror — có thể lệch) và KHÔNG phải tổng đơn.
+ *
+ * @param {Array<number>} customerIds
+ * @returns {Map<number, number>} Map customerId → số dư (thiếu thì = 0)
+ */
+function computeBalances(customerIds) {
+  const ids = [
+    ...new Set(
+      (customerIds || [])
+        .map((id) => parseInt(id, 10))
+        .filter((id) => Number.isInteger(id) && id > 0)
+    ),
+  ];
+  const result = new Map();
+  if (ids.length === 0) return result;
+
+  try {
+    const placeholders = ids.map(() => '?').join(',');
+    const rows = db
+      .prepare(
+        `SELECT customer_id,
+                COALESCE(SUM(CASE WHEN direction = 'INCREASE'
+                                 THEN amount ELSE -amount END), 0) AS balance
+           FROM debt_transactions
+          WHERE customer_id IN (${placeholders})
+          GROUP BY customer_id`
+      )
+      .all(...ids);
+
+    for (const r of rows) {
+      result.set(r.customer_id, roundMoney(r.balance));
+    }
+  } catch (e) {
+    logger.error('[DEBT_LEDGER] computeBalances error', { error: e.message });
+  }
+
+  // Khách chưa có bút toán nào → số dư 0 (để caller luôn có giá trị).
+  for (const id of ids) {
+    if (!result.has(id)) result.set(id, 0);
+  }
+  return result;
+}
+
+/**
+ * Đếm số bút toán của 1 khách trong sổ công nợ.
+ *
+ * Dùng để phân biệt:
+ *   - `count === 0` → khách CHƯA từng có bút toán (số dư công nợ chỉ tồn tại
+ *     ở mirror `customers.debt`, chưa được migrate sang sổ).
+ *   - `count > 0`   → khách đã dùng hệ thống sổ công nợ.
+ *
+ * ⚠️ Quan trọng khi đồng bộ mirror: khách `count === 0` có ledger = 0, nên
+ *    đồng bộ mirror về ledger sẽ XOÁ MẤT công nợ thật.
+ *
+ * @param {number} customerId
+ * @returns {number}
+ */
+function countTransactions(customerId) {
+  const row = db
+    .prepare('SELECT COUNT(*) AS c FROM debt_transactions WHERE customer_id = ?')
+    .get(customerId);
+  return row ? row.c : 0;
+}
+
 /** Tạo tài khoản công nợ nếu chưa có (lazy, idempotent). */
 function ensureAccount(customerId) {
   const existing = db
@@ -523,6 +592,8 @@ module.exports = {
   reverseTransaction,
   adjust,
   computeBalance,
+  computeBalances,
+  countTransactions,
   getBalanceBreakdown,
   listTransactions,
   listAccounts,

@@ -20,6 +20,7 @@ const DriverStaffService = require('../../src/services/DriverStaffService');
 const DriverAttendanceService = require('../../src/services/DriverAttendanceService');
 const RegionService = require('../../src/services/RegionService');
 const GeocodeService = require('../../src/services/GeocodeService');
+const DebtLedgerService = require('../../src/services/debt/DebtLedgerService');
 const { ROLE_DRIVER } = require('../../middleware/permissions');
 const { PromotionService } = require('../../src/services');
 
@@ -871,6 +872,14 @@ router.get('/customers', requireDriver, (req, res) => {
     params.push(limit);
 
     const customers = db.prepare(sql).all(...params);
+
+    // Số dư công nợ theo SỔ CÔNG NỢ (ledger) — nguồn sự thật duy nhất.
+    // `c.debt` chỉ là MIRROR → có thể lệch (đã thấy lệch 60.000đ ở 1 khách).
+    const debtBalances = DebtLedgerService.computeBalances(customers.map((c) => c.id));
+    for (const c of customers) {
+      c.debt = debtBalances.get(c.id) || 0;
+    }
+
     res.json({ customers });
   } catch (err) {
     logger.error('[driver] customers error', { error: err.message });
@@ -919,6 +928,10 @@ router.get('/customers/:id', requireDriver, (req, res) => {
          LIMIT 30`
       )
       .all(id);
+
+    // Số dư công nợ theo SỔ CÔNG NỢ (ledger) — nguồn sự thật duy nhất.
+    // `c.debt` chỉ là MIRROR → có thể lệch với ledger.
+    customer.debt = DebtLedgerService.computeBalance(id);
 
     res.json({ ...customer, purchaseHistory: history });
   } catch (err) {
@@ -1136,6 +1149,11 @@ router.get('/delivery/page-data', requireDriver, (req, res) => {
       )
       .all(req.user.username, today, req.user.username);
 
+    // SỐ NỢ THEO SỔ CÔNG NỢ (ledger) — nguồn sự thật duy nhất.
+    // Tính 1 lần cho toàn bộ danh sách (tránh N+1 query).
+    // `customers.debt` chỉ là MIRROR → có thể lệch với ledger.
+    const debtBalances = DebtLedgerService.computeBalances(rows.map((d) => d.customer_id));
+
     const customers = rows.map((d) => ({
       id: d.id,
       name: d.name,
@@ -1153,6 +1171,11 @@ router.get('/delivery/page-data', requireDriver, (req, res) => {
       payment_status: d.payment_status,
       // Đơn công nợ (chưa thanh toán) — tài xế cần biết để thu tiền.
       is_credit: !!d.is_credit,
+      // Số dư công nợ THỰC TẾ theo sổ công nợ (tổng nợ của khách, đã trừ
+      // các khoản đã thanh toán) — dùng để hiển thị badge "Nợ ...".
+      // ⚠️ KHÔNG dùng `total` của đơn: đó là tiền của RIÊNG đơn này, không
+      // phải công nợ tích luỹ của khách.
+      debt: debtBalances.get(d.customer_id) || 0,
       collected_kegs: d.collected_kegs,
       delivered_liters: d.delivered_liters,
       missing_liters: d.missing_liters,

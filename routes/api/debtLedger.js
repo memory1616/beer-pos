@@ -302,6 +302,9 @@ router.get('/customers/:id', requireAuth, (req, res) => {
 
     const breakdown = DebtLedgerService.getBalanceBreakdown(customerId);
     const transactions = DebtLedgerService.listTransactions(customerId, 200);
+    // Số dư theo SỔ CÔNG NỢ (ledger) — nguồn sự thật duy nhất.
+    // `customers.debt` chỉ là MIRROR → có thể lệch với ledger.
+    customer.debt = breakdown.balance;
     const account = db
       .prepare('SELECT * FROM debt_accounts WHERE customer_id = ?')
       .get(customerId);

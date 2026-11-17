@@ -13,6 +13,12 @@
  *  - KHÔNG xoá dữ liệu. Mọi "sửa" đều là bút toán MỚI (append-only).
  *  - Mỗi lần xử lý đều ghi vào `debt_audit_logs` với action RECONCILE_FIX.
  *  - Hàm `run()` mặc định CHỈ ĐỌC (dry-run) → an toàn để gọi tự động.
+ *
+ * ⚠️ THỨ TỰ BẮT BUỘC khi `apply: true`:
+ *   1. Migrate OPENING_BALANCE cho khách chưa có bút toán nào (giữ nguyên
+ *      `customers.debt` → không mất tiền).
+ *   2. Đồng bộ mirror theo ledger cho khách ĐÃ có bút toán.
+ *   Nếu đảo thứ tự → khách chưa có bút toán sẽ bị set mirror = 0 → MẤT TIỀN.
  */
 
 const db = require('../../../database');
@@ -20,6 +26,7 @@ const logger = require('../../utils/logger');
 const DebtLedgerService = require('./DebtLedgerService');
 const DebtAuditService = require('./DebtAuditService');
 const DebtOrderIntegration = require('./DebtOrderIntegration');
+const DebtAccountService = require('./DebtAccountService');
 const { SOURCES, AUDIT_ACTIONS } = require('./constants');
 
 // ── Loại lỗi đối soát ────────────────────────────────────────────────────────
@@ -229,6 +236,32 @@ function run(opts = {}) {
   const fixed = [];
 
   if (apply) {
+    // ── BƯỚC 0: Migrate OPENING_BALANCE cho khách chưa có bút toán nào ──────
+    // ⚠️ BẮT BUỘC chạy TRƯỚC bước đồng bộ mirror.
+    //   Khách chưa có bút toán → ledger = 0 nhưng mirror có thể là công nợ THẬT.
+    //   Nếu đồng bộ mirror trước → mirror bị set về 0 → XOÁ MẤT TIỀN.
+    //   Migrate giữ nguyên giá trị mirror → an toàn, idempotent.
+    try {
+      const migration = DebtAccountService.migrateOpeningBalances({
+        actorId: actor,
+        dryRun: false,
+      });
+      if (migration.migrated > 0) {
+        logger.info('[DEBT_RECON] Migrated opening balances', {
+          migrated: migration.migrated,
+          skipped: migration.skipped,
+          total: migration.total,
+        });
+        fixed.push({
+          action: 'migrate_opening_balances',
+          migrated: migration.migrated,
+          skipped: migration.skipped,
+        });
+      }
+    } catch (e) {
+      logger.error('[DEBT_RECON] migrateOpeningBalances error', { error: e.message });
+    }
+
     for (const issue of issues) {
       if (issue.type !== ISSUE_TYPES.MISSING_ORDER_DEBT) continue;
 
@@ -258,7 +291,34 @@ function run(opts = {}) {
     // Đồng bộ mirror `customers.debt` theo ledger (KHÔNG ghi bút toán — chỉ sửa mirror)
     for (const issue of issues) {
       if (issue.type !== ISSUE_TYPES.MISMATCH_MIRROR) continue;
+
       const balance = DebtLedgerService.computeBalance(issue.customerId);
+      const txCount = DebtLedgerService.countTransactions(issue.customerId);
+
+      // ⚠️ AN TOÀN: khách CHƯA có bút toán nào trong ledger → ledger = 0, nhưng
+      // mirror có thể đang là CÔNG NỢ THẬT (chưa được migrate sang sổ).
+      // Đồng bộ mirror = 0 ở đây sẽ XOÁ MẤT TIỀN.
+      // → BỎ QUA, để `migrateOpeningBalances()` xử lý (migrate = giữ nguyên giá trị).
+      if (txCount === 0) {
+        DebtAuditService.record({
+          action: AUDIT_ACTIONS.RECONCILE_FIX,
+          actorId: actor,
+          beforeData: { customerId: issue.customerId, mirrorDebt: issue.mirrorDebt },
+          afterData: {
+            customerId: issue.customerId,
+            skipped: true,
+            reason: 'NO_LEDGER_TRANSACTION',
+            hint: 'Khách chưa có bút toán trong sổ công nợ — cần migrate OPENING_BALANCE, không đồng bộ mirror về 0',
+          },
+        });
+        fixed.push({
+          issue,
+          action: 'skip_sync_mirror_no_ledger',
+          reason: 'NO_LEDGER_TRANSACTION',
+        });
+        continue;
+      }
+
       db.prepare('UPDATE customers SET debt = ? WHERE id = ?').run(balance, issue.customerId);
       DebtAuditService.record({
         action: AUDIT_ACTIONS.RECONCILE_FIX,
