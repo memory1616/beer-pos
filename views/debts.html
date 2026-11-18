@@ -473,6 +473,345 @@
     }
     .dbt-claim-actions .dbt-btn { flex: 1 1 auto; min-width: 120px; }
 
+    /* ══════════════════════════════════════════════════════════════════
+       MODAL XEM TRƯỚC CÔNG NỢ (mở từ nút "Gửi Zalo" ở modal soạn nội dung)
+       ── Mô phỏng đúng kiểu modal HÓA ĐƠN (inv-pos) của POS:
+          thẻ hẹp, header gọn, tổng tiền lớn, nội dung, QR, nút ghim đáy.
+       ══════════════════════════════════════════════════════════════════ */
+    .dbt-modal.dbt-modal--preview {
+      padding: 0;
+      align-items: stretch;
+      background: rgba(0,0,0,0.6);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+    }
+    .dbt-preview-box {
+      position: relative;
+      z-index: 100;
+      width: 100%;
+      max-width: 420px;
+      margin: auto;
+      background: var(--card);
+      border-radius: 16px;
+      overflow: hidden;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      height: auto;
+      max-height: 92vh;
+    }
+    /* Header — giống .inv-pos-header */
+    .dbt-preview-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px 8px;
+      flex-shrink: 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .dbt-preview-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      letter-spacing: 1.5px;
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .dbt-preview-customer {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .dbt-preview-close {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: var(--border);
+      border: none;
+      color: var(--text-muted);
+      font-size: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: background 0.15s;
+    }
+    .dbt-preview-close:hover { background: var(--red); color: #fff; }
+
+    /* Body — 1 vùng scroll duy nhất */
+    .dbt-preview-body {
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+      min-height: 0;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    .dbt-preview-inner {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      flex: 0 0 auto;
+    }
+
+    /* Tổng tiền — giống .invoice-total */
+    .dbt-preview-total {
+      text-align: center;
+      padding: clamp(8px, 2.5vw, 14px) clamp(12px, 4vw, 16px) clamp(4px, 1.5vw, 8px);
+      flex-shrink: 0;
+    }
+    .dbt-preview-total-label {
+      font-size: clamp(9px, 2.5vw, 11px);
+      font-weight: 700;
+      color: var(--text-muted);
+      letter-spacing: 1.5px;
+      margin-bottom: 2px;
+    }
+    .dbt-preview-total-value {
+      font-size: clamp(30px, 8vw, 46px);
+      font-weight: 700;
+      color: var(--danger);
+      font-variant-numeric: tabular-nums;
+      line-height: 1.1;
+      overflow-wrap: anywhere;
+    }
+    /* Thông tin người nhận */
+    .dbt-preview-info {
+      padding: 0 clamp(12px, 4vw, 16px) clamp(4px, 1.5vw, 8px);
+      flex-shrink: 0;
+      text-align: center;
+    }
+    .dbt-preview-info-name {
+      font-size: clamp(12px, 3.2vw, 14px);
+      font-weight: 600;
+      color: var(--primary);
+      overflow-wrap: anywhere;
+    }
+    .dbt-preview-info-sub {
+      font-size: clamp(11px, 3vw, 13px);
+      color: var(--text-muted);
+      overflow-wrap: anywhere;
+    }
+    .dbt-preview-divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 0;
+      flex-shrink: 0;
+    }
+    .dbt-preview-spacer {
+      flex: 0 0 auto;
+      min-height: clamp(4px, 2vw, 10px);
+    }
+
+    /* Nội dung thông báo công nợ — tự xuống dòng, không tràn */
+    .dbt-preview-msg {
+      margin: 0;
+      padding: clamp(10px, 2.5vw, 12px) clamp(12px, 4vw, 16px);
+      font-size: clamp(11px, 3vw, 13px);
+      line-height: 1.55;
+      color: var(--text-primary);
+      white-space: pre-wrap;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+      overflow-x: hidden;
+      min-width: 0;
+      max-height: 32vh;
+      overflow-y: auto;
+    }
+
+    /* Danh sách đơn còn nợ */
+    .dbt-preview-orders {
+      padding: 0 clamp(12px, 4vw, 16px) clamp(6px, 1.5vw, 10px);
+      flex-shrink: 0;
+      min-width: 0;
+    }
+    .dbt-preview-orders-title {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin-bottom: 5px;
+    }
+    .dbt-preview-order {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 0;
+      font-size: clamp(11px, 3vw, 13px);
+      color: var(--text-primary);
+      border-bottom: 1px dashed var(--border);
+      min-width: 0;
+    }
+    .dbt-preview-order:last-child { border-bottom: none; }
+    .dbt-preview-order-left {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .dbt-preview-order-amt {
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      flex-shrink: 0;
+    }
+
+    /* Hạn thanh toán */
+    .dbt-preview-due {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      padding: 8px clamp(12px, 4vw, 16px);
+      background: rgba(245, 158, 11, 0.10);
+      border-top: 1px solid rgba(245, 158, 11, 0.35);
+      border-bottom: 1px solid rgba(245, 158, 11, 0.35);
+      font-size: clamp(11px, 3vw, 13px);
+      font-weight: 700;
+      color: #f59e0b;
+      flex-shrink: 0;
+      min-width: 0;
+    }
+    .dbt-preview-due span { overflow-wrap: anywhere; }
+
+    /* QR — giống .qr-section của modal hoá đơn */
+    .dbt-preview-qr {
+      text-align: center;
+      padding: clamp(6px, 1.5vw, 10px) clamp(12px, 4vw, 16px) clamp(6px, 2vw, 10px);
+      flex-shrink: 0;
+      min-width: 0;
+    }
+    .dbt-preview-qr-box {
+      background: #fff;
+      border-radius: 12px;
+      padding: 8px;
+      display: inline-block;
+      max-width: 100%;
+    }
+    .dbt-preview-qr-box img {
+      display: block;
+      width: min(220px, 58vw);
+      max-width: 100%;
+      height: auto;
+      aspect-ratio: 1 / 1;
+      object-fit: contain;
+    }
+    .dbt-preview-qr-note {
+      color: var(--text-secondary);
+      font-size: clamp(12px, 3.2vw, 14px);
+      margin-top: 4px;
+    }
+    /* Logo ngân hàng / VietQR */
+    .dbt-preview-bank {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 6px;
+      min-width: 0;
+    }
+    .dbt-preview-bank-logo {
+      height: 22px;
+      width: auto;
+      max-width: 96px;
+      object-fit: contain;
+      display: block;
+    }
+    .dbt-preview-bank-name {
+      font-size: clamp(11px, 3vw, 13px);
+      font-weight: 700;
+      color: var(--text-primary);
+      overflow-wrap: anywhere;
+    }
+    /* Thông tin tài khoản nhận tiền */
+    .dbt-preview-account {
+      padding: 6px clamp(12px, 4vw, 16px) clamp(8px, 1.5vw, 12px);
+      text-align: center;
+      flex-shrink: 0;
+      min-width: 0;
+    }
+    .dbt-preview-account-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin-bottom: 3px;
+    }
+    .dbt-preview-account-no {
+      font-size: clamp(13px, 3.4vw, 16px);
+      font-weight: 700;
+      color: var(--text-primary);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.5px;
+      overflow-wrap: anywhere;
+    }
+    .dbt-preview-account-name {
+      font-size: clamp(11px, 3vw, 13px);
+      color: var(--text-secondary);
+      overflow-wrap: anywhere;
+    }
+
+    /* Actions — ghim đáy (giống .inv-pos-actions) */
+    .dbt-preview-actions {
+      display: flex;
+      gap: clamp(6px, 2vw, 10px);
+      padding: clamp(6px, 2vw, 10px) clamp(12px, 4vw, 16px) clamp(6px, 2vw, 10px);
+      flex-shrink: 0;
+      border-top: 1px solid var(--border);
+    }
+    .dbt-preview-btn {
+      flex: 1;
+      min-width: 0;
+      height: clamp(40px, 10vw, 46px);
+      border-radius: 10px;
+      border: none;
+      font-size: clamp(12px, 3.2vw, 14px);
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+    }
+    .dbt-preview-btn-ghost { background: var(--border); color: var(--text-muted); }
+    .dbt-preview-btn-ghost:hover { background: var(--border-strong, var(--border)); color: var(--text-primary); }
+    .dbt-preview-btn-primary { background: var(--primary); color: var(--btn-primary-color, #000); }
+    .dbt-preview-btn-primary:hover { background: var(--primary-hover, var(--primary)); }
+
+    /* ── MOBILE: gần toàn màn hình ── */
+    @media (max-width: 480px) {
+      .dbt-preview-box {
+        max-width: 100%;
+        max-height: 100dvh;
+        height: 100dvh;
+        border-radius: 0;
+      }
+      .dbt-preview-qr-box img {
+        width: min(240px, 66vw);
+      }
+    }
+    /* Tablet */
+    @media (min-width: 481px) and (max-width: 900px) {
+      .dbt-preview-box { max-width: 460px; }
+    }
+    /* Desktop */
+    @media (min-width: 901px) {
+      .dbt-modal.dbt-modal--preview { align-items: center; }
+      .dbt-preview-box { max-height: 90vh; }
+    }
+
     /* ── Toast ──────────────────────────────────────────────────────── */
     .dbt-toast {
       position: fixed;
@@ -1277,6 +1616,24 @@
     customerId: null,
   };
 
+  // ══════════════════════════════════════════════════════════════════════
+  // MODAL XEM TRƯỚC CÔNG NỢ (mở từ nút "Gửi Zalo" ở modal soạn nội dung)
+  // ══════════════════════════════════════════════════════════════════════
+  // Mục đích: nhân viên XEM TRƯỚC đầy đủ thông báo công nợ + QR trước khi
+  //   tự chia sẻ qua Zalo (chụp màn hình / gửi ảnh QR cho khách).
+  // ⚠️ KHÔNG tự động gửi Zalo — người dùng tự chia sẻ.
+  // Dữ liệu lấy nguyên từ modal soạn nội dung (không tính lại).
+  var previewState = {
+    message: '',
+    amount: 0,
+    qr: null,
+    qrUrl: '',
+    bankLogoUrl: '',
+    customer: null,
+    orders: [],
+    dueDate: '',
+  };
+
   /**
    * Tải pool QR ngân hàng (active) — dùng chung endpoint với modal hoá đơn.
    */
@@ -1404,7 +1761,7 @@
         '<button class="dbt-btn dbt-btn-secondary" onclick="closeModal()">Hủy</button>' +
         '<button class="dbt-btn dbt-btn-secondary" onclick="regenerateClaimMessage()">🔄 Tạo lại nội dung</button>' +
         '<button class="dbt-btn dbt-btn-secondary" onclick="copyClaimMessage()">📋 Sao chép nội dung</button>' +
-        '<button class="dbt-btn" onclick="sendClaimZalo()">💬 Gửi Zalo</button>' +
+        '<button class="dbt-btn" onclick="openClaimPreviewModal()">💬 Gửi Zalo</button>' +
       '</div>', true);
 
     populateClaimQRSelect();
@@ -1430,6 +1787,198 @@
       populateClaimQRSelect();
       return list;
     });
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // MODAL XEM TRƯỚC CÔNG NỢ
+  // ══════════════════════════════════════════════════════════════════════
+  // Mở từ nút "💬 Gửi Zalo" ở modal Tạo nội dung công nợ.
+  //
+  // ⚠️ KHÔNG gửi Zalo tự động — chỉ mở modal xem trước để nhân viên tự
+  //    chụp màn hình / chia sẻ ảnh QR cho khách.
+  //
+  // Dữ liệu lấy NGUYÊN TỪ modal soạn nội dung (message đã soạn, số tiền
+  // đã nhập, tài khoản đã chọn) — KHÔNG tính lại.
+  function openClaimPreviewModal() {
+    // 1) Gom dữ liệu từ modal soạn nội dung (đang mở)
+    var msgEl = document.getElementById('clMessage');
+    var amountEl = document.getElementById('clAmount');
+    var dueEl = document.getElementById('clDueDate');
+    var qr = claimState.qrSelected;
+
+    var d = state.detail;
+    var cust = (d && d.customer) || {};
+    var orders = ((d && d.orderDebts) || []).filter(function (od) {
+      return od.status !== 'paid' && od.status !== 'cancelled' && (od.remaining_amount || 0) > 0;
+    });
+
+    // Số tiền: lấy đúng giá trị đã nhập ở modal trước (không tính lại).
+    var amount = amountEl ? parseMoney(amountEl.value) : Number((d && d.balance) || 0);
+    var message = msgEl ? String(msgEl.value || '') : '';
+    var dueDate = dueEl ? String(dueEl.value || '').trim() : '';
+
+    if (!message.trim()) {
+      toast('✗ Chưa có nội dung công nợ', 'err');
+      return;
+    }
+    if (!qr) {
+      toast('✗ Chưa chọn tài khoản nhận tiền', 'err');
+      return;
+    }
+
+    // 2) Lưu state cho modal xem trước
+    previewState.message = message;
+    previewState.amount = amount;
+    previewState.qr = qr;
+    previewState.qrUrl = buildClaimQRUrl(amount, qr);
+    previewState.bankLogoUrl = 'https://img.vietqr.io/image/' +
+      String(qr.bank_code || '').toUpperCase() + '-logo.png';
+    previewState.customer = cust;
+    previewState.orders = orders;
+    previewState.dueDate = dueDate;
+
+    // 3) Đóng modal soạn nội dung, mở modal xem trước
+    closeModal();
+    renderClaimPreviewModal();
+  }
+
+  /**
+   * Render modal xem trước công nợ (kiểu modal hoá đơn POS).
+   */
+  function renderClaimPreviewModal() {
+    var qr = previewState.qr;
+    var cust = previewState.customer || {};
+    var phone = String(cust.phone || '');
+
+    var ordersHtml = '';
+    if (previewState.orders && previewState.orders.length) {
+      ordersHtml = '<div class="dbt-preview-orders">' +
+        '<div class="dbt-preview-orders-title">Các đơn hàng còn nợ (' +
+          previewState.orders.length + ')</div>' +
+        previewState.orders.map(function (od) {
+          var rem = Number(od.remaining_amount || 0);
+          return '<div class="dbt-preview-order">' +
+            '<span class="dbt-preview-order-left">#' + esc(od.sale_id || '') +
+              (od.sale_date ? ' · ' + esc(od.sale_date) : '') + '</span>' +
+            '<span class="dbt-preview-order-amt">' + money(rem) + '</span>' +
+          '</div>';
+        }).join('') +
+        '</div>';
+    }
+
+    var el = document.getElementById('dbtModal');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'dbtModal';
+      el.className = 'dbt-modal hidden';
+      el.onclick = function (e) { if (e.target === el) closeModal(); };
+      document.body.appendChild(el);
+    }
+
+    el.innerHTML = '<div class="dbt-preview-box">' +
+      /* ── Header ── */
+      '<div class="dbt-preview-header">' +
+        '<div style="min-width:0;flex:1">' +
+          '<div class="dbt-preview-title">CÔNG NỢ</div>' +
+          '<div class="dbt-preview-customer">' + esc(cust.name || 'Quý khách') + '</div>' +
+        '</div>' +
+        '<button class="dbt-preview-close" onclick="closeModal()">×</button>' +
+      '</div>' +
+
+      /* ── Body (1 vùng scroll) ── */
+      '<div class="dbt-preview-body"><div class="dbt-preview-inner">' +
+
+        /* Tổng tiền công nợ */
+        '<div class="dbt-preview-total">' +
+          '<div class="dbt-preview-total-label">TỔNG CÔNG NỢ CẦN THANH TOÁN</div>' +
+          '<div class="dbt-preview-total-value">' + money(previewState.amount) + '</div>' +
+        '</div>' +
+
+        /* Thông tin khách */
+        '<div class="dbt-preview-info">' +
+          '<div class="dbt-preview-info-name">' + esc(cust.name || 'Quý khách') +
+            (phone ? ' · ' + esc(phone) : '') + '</div>' +
+        '</div>' +
+
+        '<hr class="dbt-preview-divider">' +
+
+        /* Nội dung thông báo công nợ (đã soạn) */
+        '<div class="dbt-preview-msg">' + esc(previewState.message) + '</div>' +
+
+        /* Danh sách đơn còn nợ */
+        ordersHtml +
+
+        /* Hạn thanh toán */
+        (previewState.dueDate
+          ? '<div class="dbt-preview-due"><span>⏰ Hạn thanh toán</span><span>' +
+              esc(previewState.dueDate) + '</span></div>'
+          : '') +
+
+        '<div class="dbt-preview-spacer"></div>' +
+
+        '<hr class="dbt-preview-divider">' +
+
+        /* QR thanh toán */
+        '<div class="dbt-preview-qr">' +
+          '<div class="dbt-preview-qr-box">' +
+            '<img id="claimPreviewQR" src="' + esc(previewState.qrUrl) + '" alt="QR thanh toán công nợ" onerror="this.style.display=\'none\'">' +
+          '</div>' +
+          '<div class="dbt-preview-qr-note">Quét QR để chuyển khoản</div>' +
+          /* Logo ngân hàng / VietQR */
+          '<div class="dbt-preview-bank">' +
+            '<img class="dbt-preview-bank-logo" src="' + esc(previewState.bankLogoUrl) + '" alt="' + esc(qr.bank_code || '') + '" onerror="this.style.display=\'none\'">' +
+            '<span class="dbt-preview-bank-name">' + esc(qr.bank_code || '') + ' · VietQR</span>' +
+          '</div>' +
+        '</div>' +
+
+        /* Thông tin tài khoản nhận tiền */
+        '<div class="dbt-preview-account">' +
+          '<div class="dbt-preview-account-label">Tài khoản nhận tiền</div>' +
+          '<div class="dbt-preview-account-no">' + esc(qr.account_no || '') + '</div>' +
+          '<div class="dbt-preview-account-name">' + esc(qr.account_name || '') + '</div>' +
+        '</div>' +
+
+      '</div></div>' +
+
+      /* ── Actions (ghim đáy) ── */
+      '<div class="dbt-preview-actions">' +
+        '<button class="dbt-preview-btn dbt-preview-btn-ghost" onclick="closeModal()">Đóng</button>' +
+        '<button class="dbt-preview-btn dbt-preview-btn-primary" onclick="copyClaimPreview()">📋 Sao chép nội dung công nợ</button>' +
+      '</div>' +
+      '</div>';
+
+    el.classList.add('dbt-modal--preview');
+    el.classList.remove('hidden');
+  }
+
+  /**
+   * Sao chép nội dung thông báo công nợ (kèm thông tin tài khoản nhận tiền).
+   */
+  function copyClaimPreview() {
+    var text = previewState.message || '';
+    var qr = previewState.qr;
+    if (qr) {
+      text += '\n\n🏦 Chuyển khoản: ' + qr.bank_code + ' ' + qr.account_no +
+        '\nChủ tài khoản: ' + qr.account_name;
+    }
+    var done = function () { toast('✅ Đã sao chép nội dung công nợ', 'ok'); };
+    var fail = function () { toast('✗ Không sao chép được, hãy copy thủ công', 'err'); };
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(fail);
+    } else {
+      var ta = document.getElementById('claimPreviewQR');
+      if (!ta) { fail(); return; }
+      try {
+        var range = document.createRange();
+        range.selectNodeContents(ta);
+        var sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        document.execCommand('copy');
+        done();
+      } catch (e) { fail(); }
+    }
   }
 
   /**
@@ -1533,26 +2082,6 @@
     }
   }
 
-  /**
-   * Gửi nội dung qua Zalo cho khách (mở Zalo với sẵn nội dung).
-   */
-  function sendClaimZalo() {
-    var ta = document.getElementById('clMessage');
-    var cust = (state.detail && state.detail.customer) || {};
-    var phone = String(cust.phone || '').replace(/\D/g, '');
-    if (!phone) { toast('✗ Khách chưa có số điện thoại', 'err'); return; }
-    if (!ta || !ta.value.trim()) { toast('✗ Nội dung trống', 'err'); return; }
-
-    var qr = claimState.qrSelected;
-    var text = ta.value;
-    if (qr) {
-      text += '\n\n🏦 Chuyển khoản: ' + qr.bank_code + ' ' + qr.account_no +
-        '\nChủ tài khoản: ' + qr.account_name;
-    }
-    var url = 'https://zalo.me/' + phone + '?text=' + encodeURIComponent(text);
-    window.open(url, '_blank');
-  }
-
   function openPaymentModal(customerId) {
     showModal('Nhập thanh toán công nợ', '' +
       '<div class="dbt-field"><label class="dbt-label">Khách hàng</label>' +
@@ -1620,7 +2149,10 @@
 
   function closeModal() {
     var el = document.getElementById('dbtModal');
-    if (el) el.classList.add('hidden');
+    if (el) {
+      el.classList.add('hidden');
+      el.classList.remove('dbt-modal--preview');
+    }
   }
 
   /**
@@ -1836,7 +2368,8 @@
     window.onClaimQRChange = onClaimQRChange;
     window.renderClaimQR = renderClaimQR;
     window.copyClaimMessage = copyClaimMessage;
-    window.sendClaimZalo = sendClaimZalo;
+    window.openClaimPreviewModal = openClaimPreviewModal;
+    window.copyClaimPreview = copyClaimPreview;
     window.regenerateClaimMessage = regenerateClaimMessage;
   window.openGroupModal = openGroupModal;
   window.openPermModal = openPermModal;

@@ -61,9 +61,10 @@ describe('views/debts.html — lỗi inline onclick & preload', () => {
       'applyReconciliation', 'closeModal', 'submitPayment',
       'submitGroup', 'submitPerm', 'event', 'this', 'return',
       'stopPropagation', 'preventDefault', 'confirm', 'alert',
-      // Modal "Tạo nội dung công nợ"
+      // Modal "Tạo nội dung công nợ" + modal xem trước công nợ
       'openClaimContentModal', 'onClaimQRChange', 'copyClaimMessage',
-      'sendClaimZalo', 'regenerateClaimMessage', 'renderClaimQR',
+      'regenerateClaimMessage', 'renderClaimQR',
+      'openClaimPreviewModal', 'copyClaimPreview',
     ]);
 
     const offenders = [];
