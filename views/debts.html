@@ -500,28 +500,41 @@
       height: auto;
       max-height: 92vh;
     }
-    /* Header — giống .inv-pos-header */
+    /* Header — giống .inv-pos-header (nút × đặt TRƯỚC tiêu đề như HÓA ĐƠN) */
     .dbt-preview-header {
       display: flex;
       align-items: center;
       gap: 10px;
-      padding: 10px 14px 8px;
+      /* safe-area: iOS/Android có thanh trạng thái → header không bị che */
+      padding: calc(env(safe-area-inset-top, 0px) + 12px) 14px 12px;
       flex-shrink: 0;
       border-bottom: 1px solid var(--border);
+      background: var(--card);
+      position: relative;
+      z-index: 2;
     }
     .dbt-preview-title {
-      font-size: 11px;
+      font-size: clamp(13px, 3.6vw, 16px);
       font-weight: 700;
       color: var(--text-muted);
       letter-spacing: 1.5px;
-      flex: 1;
       min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+    .dbt-preview-order {
+      font-size: clamp(13px, 3.6vw, 15px);
+      font-weight: 700;
+      color: var(--text-primary);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
     .dbt-preview-customer {
-      font-size: 14px;
+      font-size: clamp(14px, 4vw, 17px);
       font-weight: 700;
       color: var(--text-primary);
       white-space: nowrap;
@@ -529,13 +542,14 @@
       text-overflow: ellipsis;
     }
     .dbt-preview-close {
-      width: 32px;
-      height: 32px;
+      width: 38px;
+      height: 38px;
       border-radius: 8px;
       background: var(--border);
       border: none;
       color: var(--text-muted);
-      font-size: 18px;
+      font-size: 24px;
+      line-height: 1;
       cursor: pointer;
       display: flex;
       align-items: center;
@@ -544,6 +558,17 @@
       transition: background 0.15s;
     }
     .dbt-preview-close:hover { background: var(--red); color: #fff; }
+
+    /* Tên khách (dưới header) */
+    .dbt-preview-customer-row {
+      padding: 10px clamp(12px, 4vw, 16px) 0;
+      font-size: clamp(15px, 4.2vw, 18px);
+      font-weight: 700;
+      color: var(--text-primary);
+      text-align: center;
+      overflow-wrap: anywhere;
+      flex-shrink: 0;
+    }
 
     /* Body — 1 vùng scroll duy nhất */
     .dbt-preview-body {
@@ -569,7 +594,7 @@
       flex-shrink: 0;
     }
     .dbt-preview-total-label {
-      font-size: clamp(9px, 2.5vw, 11px);
+      font-size: clamp(11px, 3vw, 13px);
       font-weight: 700;
       color: var(--text-muted);
       letter-spacing: 1.5px;
@@ -590,13 +615,13 @@
       text-align: center;
     }
     .dbt-preview-info-name {
-      font-size: clamp(12px, 3.2vw, 14px);
+      font-size: clamp(13px, 3.6vw, 16px);
       font-weight: 600;
       color: var(--primary);
       overflow-wrap: anywhere;
     }
     .dbt-preview-info-sub {
-      font-size: clamp(11px, 3vw, 13px);
+      font-size: clamp(12px, 3.4vw, 14px);
       color: var(--text-muted);
       overflow-wrap: anywhere;
     }
@@ -610,9 +635,9 @@
     /* Nội dung thông báo công nợ — tự xuống dòng, không tràn */
     .dbt-preview-msg {
       margin: 0;
-      padding: clamp(10px, 2.5vw, 12px) clamp(12px, 4vw, 16px);
-      font-size: clamp(11px, 3vw, 13px);
-      line-height: 1.55;
+      padding: clamp(12px, 3.5vw, 16px) clamp(12px, 4vw, 18px);
+      font-size: clamp(13px, 3.8vw, 15px);
+      line-height: 1.6;
       color: var(--text-primary);
       white-space: pre-wrap;
       word-break: break-word;
@@ -1483,6 +1508,7 @@
   // ⚠️ KHÔNG tự động gửi Zalo — người dùng tự chia sẻ.
   // Dữ liệu lấy nguyên từ modal soạn nội dung (không tính lại).
   var previewState = {
+    refNo: '',
     message: '',
     amount: 0,
     qr: null,
@@ -1490,6 +1516,34 @@
     customer: null,
     orders: [],
   };
+
+  /**
+   * Sinh số phiếu công nợ (mã tham chiếu hiển thị ở header, kiểu "HÓA ĐƠN").
+   * Dạng: CN-<YYMMDD>-<KH>-<số thứ tự trong ngày>
+   *   YY   = 2 năm cuối, MMDD = ngày
+   *   KH   = mã khách (2–4 chữ số)
+   *   seq  = số thứ tự phiếu trong ngày (đếm từ localStorage để không cần
+   *          thêm bảng DB — chỉ dùng để hiển thị cho nhân viên)
+   */
+  function buildClaimRefNo(customerId) {
+    var now = new Date();
+    var yy = String(now.getFullYear()).slice(-2);
+    var mm = String(now.getMonth() + 1).padStart(2, '0');
+    var dd = String(now.getDate()).padStart(2, '0');
+    var custPart = String(customerId || 0).replace(/\D/g, '').slice(-4).padStart(2, '0');
+
+    var dayKey = 'dbt_ref_' + yy + mm + dd;
+    var seq = 0;
+    try {
+      seq = parseInt(localStorage.getItem(dayKey) || '0', 10) || 0;
+      seq += 1;
+      localStorage.setItem(dayKey, String(seq));
+    } catch (e) {
+      seq = 1;
+    }
+
+    return 'CN-' + yy + mm + dd + '-' + custPart + '-' + String(seq).padStart(2, '0');
+  }
 
   /**
    * Tải pool QR ngân hàng (active) — dùng chung endpoint với modal hoá đơn.
@@ -1669,6 +1723,7 @@
     }
 
     // 2) Lưu state cho modal xem trước
+    previewState.refNo = buildClaimRefNo(claimState.customerId);
     previewState.message = message;
     previewState.amount = amount;
     previewState.qr = qr;
@@ -1698,13 +1753,15 @@
     }
 
     el.innerHTML = '<div class="dbt-preview-box">' +
-      /* ── Header ── */
+      /* ── Header (giống HÓA ĐƠN: × + tiêu đề + số phiếu) ── */
       '<div class="dbt-preview-header">' +
-        '<div style="min-width:0;flex:1">' +
-          '<div class="dbt-preview-title">CÔNG NỢ</div>' +
-          '<div class="dbt-preview-customer">' + esc(cust.name || 'Quý khách') + '</div>' +
-        '</div>' +
         '<button class="dbt-preview-close" onclick="closeModal()">×</button>' +
+        '<div class="dbt-preview-title">CÔNG NỢ</div>' +
+        '<div class="dbt-preview-order">' + esc(previewState.refNo) + '</div>' +
+      '</div>' +
+      /* Tên khách */
+      '<div class="dbt-preview-customer-row">' +
+        esc(cust.name || 'Quý khách') +
       '</div>' +
 
       /* ── Body (1 vùng scroll) ── */
