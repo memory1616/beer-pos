@@ -130,7 +130,30 @@
 
     /* ── Bảng ───────────────────────────────────────────────────────── */
     .dbt-table-wrap { overflow-x: auto; margin: 0 -4px; }
-    .dbt-table { width: 100%; border-collapse: collapse; font-size: 12.5px; min-width: 560px; }
+    /* ⚠️ KHÔNG ép `min-width` cứng cho MỌI bảng:
+       bảng 2 cột (Khách hàng + Số tiền đang nợ) trên màn hình điện thoại
+       (~360px) sẽ bị đẩy cột tiền ra ngoài màn hình → phải kéo ngang mới
+       thấy số tiền nợ.
+       → Bảng hẹp: không min-width (vừa màn hình).
+       → Bảng nhiều cột: thêm class `.dbt-table--wide` (min-width 560px) để
+         vẫn cuộn ngang được. */
+    .dbt-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12.5px;
+    }
+    /* Bảng nhiều cột (giao dịch, đơn hàng, khách hàng…) → vẫn cuộn ngang */
+    .dbt-table--wide { min-width: 560px; }
+    /* Bảng hẹp (2 cột): cột tiền luôn nằm gọn bên phải, không xuống dòng,
+       tên khách được cắt gọn (ellipsis) thay vì đẩy bảng rộng ra. */
+    .dbt-table--narrow th:last-child,
+    .dbt-table--narrow td:last-child { white-space: nowrap; }
+    .dbt-table--narrow td.dbt-name {
+      max-width: 0;              /* ép cột tên co lại → cột tiền vẫn vừa */
+      width: 55%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
     .dbt-table th {
       text-align: left;
       font-size: 10.5px;
@@ -579,7 +602,7 @@
     var top = o.topDebtors || [];
 
     var topRows = top.length
-      ? '<div class="dbt-table-wrap"><table class="dbt-table"><thead><tr>' +
+      ? '<div class="dbt-table-wrap"><table class="dbt-table dbt-table--narrow"><thead><tr>' +
         '<th>Khách hàng</th><th style="text-align:right">Số tiền đang nợ</th></tr></thead><tbody>' +
         top.map(function (t) {
           return '<tr class="clickable" onclick="openDetail(' + t.customerId + ')">' +
@@ -648,7 +671,7 @@
     return '<div class="dbt-section">' +
       '<div class="dbt-section-title">👥 Danh sách khách hàng (' + rows.length + ')</div>' +
       '<div class="dbt-section-desc">Nhấn vào 1 khách để xem chi tiết công nợ.</div>' +
-      '<div class="dbt-table-wrap"><table class="dbt-table"><thead><tr>' +
+      '<div class="dbt-table-wrap"><table class="dbt-table dbt-table--wide"><thead><tr>' +
         '<th>Tên</th><th>Mã</th><th>Nhóm Zalo</th>' +
         '<th style="text-align:right">Tổng nợ</th>' +
         '<th style="text-align:right">Đã trả</th>' +
@@ -717,7 +740,7 @@
     var cust = d.customer || {};
 
     var txRows = (d.transactions || []).length
-      ? '<div class="dbt-table-wrap"><table class="dbt-table"><thead><tr>' +
+      ? '<div class="dbt-table-wrap"><table class="dbt-table dbt-table--wide"><thead><tr>' +
         '<th>Loại</th><th>Mô tả</th><th>Người tạo</th>' +
         '<th style="text-align:right">Số tiền</th><th style="text-align:right">Số dư</th><th>Thời gian</th>' +
         '</tr></thead><tbody>' +
@@ -755,7 +778,7 @@
       return od.status !== 'paid' && od.status !== 'cancelled' && (od.remaining_amount || 0) > 0;
     });
     var orderRows = openOrders.length
-      ? '<div class="dbt-table-wrap"><table class="dbt-table"><thead><tr>' +
+      ? '<div class="dbt-table-wrap"><table class="dbt-table dbt-table--wide"><thead><tr>' +
         '<th>Đơn</th><th>Ngày</th><th>Tổng</th>' +
         '<th style="text-align:right">Đã trả</th><th style="text-align:right">Còn nợ</th><th></th>' +
         '</tr></thead><tbody>' +
@@ -816,7 +839,7 @@
   function renderGroups() {
     var rows = state.groups || [];
     var body = rows.length
-      ? '<div class="dbt-table-wrap"><table class="dbt-table"><thead><tr>' +
+      ? '<div class="dbt-table-wrap"><table class="dbt-table dbt-table--wide"><thead><tr>' +
         '<th>Khách</th><th>Nhóm</th><th>Platform</th><th>Trạng thái</th>' +
         (state.isAdmin ? '<th></th>' : '') +
         '</tr></thead><tbody>' +
@@ -851,7 +874,7 @@
     var staff = p.staff || [];
 
     var body = perms.length
-      ? '<div class="dbt-table-wrap"><table class="dbt-table"><thead><tr>' +
+      ? '<div class="dbt-table-wrap"><table class="dbt-table dbt-table--wide"><thead><tr>' +
         '<th>Nhân viên</th><th>Khách</th><th>Ghi thanh toán</th><th>Trạng thái</th>' +
         (state.isAdmin ? '<th></th>' : '') +
         '</tr></thead><tbody>' +
@@ -888,7 +911,7 @@
     var issues = r.issues || [];
 
     var issueRows = issues.length
-      ? '<div class="dbt-table-wrap"><table class="dbt-table"><thead><tr>' +
+      ? '<div class="dbt-table-wrap"><table class="dbt-table dbt-table--wide"><thead><tr>' +
         '<th>Mức độ</th><th>Loại</th><th>Chi tiết</th><th style="text-align:right">Giá trị</th>' +
         '</tr></thead><tbody>' +
         issues.map(function (i) {

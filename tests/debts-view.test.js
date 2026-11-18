@@ -344,3 +344,52 @@ describe('views/debts.html — bảng Khách nợ cao nhất', () => {
     expect(thCount).toBe(2);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Bảng hẹp phải VỪA MÀN HÌNH ĐIỆN THOẠI (bug 2026-11-18)
+// ─────────────────────────────────────────────────────────────────────────────
+// Bug: `.dbt-table { min-width: 560px }` áp cho MỌI bảng → bảng 2 cột
+// ("Khách hàng" + "Số tiền đang nợ") trên màn hình ~360px bị đẩy cột tiền
+// ra ngoài màn hình → phải kéo ngang mới thấy số tiền nợ.
+// Fix: bỏ `min-width` khỏi `.dbt-table`; bảng NHIỀU cột dùng class
+//      `.dbt-table--wide` để vẫn cuộn ngang được.
+// ═══════════════════════════════════════════════════════════════════════════
+describe('views/debts.html — bảng vừa màn hình điện thoại', () => {
+  const styleBlock = html.slice(html.indexOf('<style>'), html.indexOf('</style>'));
+
+  test('.dbt-table KHÔNG còn min-width cứng', () => {
+    // Lấy đúng khối rule `.dbt-table { ... }` (không phải `.dbt-table--wide`)
+    const rule = styleBlock.match(/\.dbt-table\s*\{[^}]*\}/);
+    expect(rule).not.toBeNull();
+    expect(rule[0]).not.toContain('min-width');
+  });
+
+  test('có class .dbt-table--wide cho bảng nhiều cột', () => {
+    expect(styleBlock).toMatch(/\.dbt-table--wide\s*\{[^}]*min-width:\s*560px/);
+  });
+
+  test('bảng top debtors (2 cột) dùng --narrow (vừa màn hình, KHÔNG --wide)', () => {
+    const overviewFn = html.slice(
+      html.indexOf('function renderOverview('),
+      html.indexOf('function renderCustomers(')
+    );
+    expect(overviewFn).toContain('<table class="dbt-table dbt-table--narrow">');
+    expect(overviewFn).not.toContain('dbt-table--wide');
+  });
+
+  test('các bảng nhiều cột ĐỀU dùng --wide (giữ được cuộn ngang)', () => {
+    const tables = html.match(/<table class="dbt-table[^"]*"/g) || [];
+    // 7 bảng: top debtors (hẹp) + 6 bảng rộng
+    expect(tables).toHaveLength(7);
+    const wide = tables.filter((t) => t.includes('dbt-table--wide'));
+    expect(wide).toHaveLength(6);
+  });
+
+  test('.dbt-table--narrow giữ cột tiền nowrap + tên cắt gọn', () => {
+    const narrow = styleBlock.match(/\.dbt-table--narrow[^{]*\{[^}]*\}/g) || [];
+    expect(narrow.length).toBeGreaterThan(0);
+    const joined = narrow.join(' ');
+    expect(joined).toContain('white-space: nowrap');
+    expect(joined).toContain('text-overflow: ellipsis');
+  });
+});
