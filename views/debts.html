@@ -487,7 +487,9 @@
     }
     .dbt-preview-box {
       position: relative;
-      z-index: 100;
+      /* phải CAO hơn topbar (.app-header / .topbar dùng z-index 200) —
+         nếu không, topbar fixed sẽ đè lên header modal và che mất. */
+      z-index: 1000;
       width: 100%;
       max-width: 420px;
       margin: auto;
