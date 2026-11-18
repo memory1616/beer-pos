@@ -383,10 +383,10 @@ describe('views/debts.html — bảng vừa màn hình điện thoại', () => {
 
   test('các bảng nhiều cột ĐỀU dùng --wide (giữ được cuộn ngang)', () => {
     const tables = html.match(/<table class="dbt-table[^"]*"/g) || [];
-    // 7 bảng: top debtors (hẹp) + 6 bảng rộng
-    expect(tables).toHaveLength(7);
+    // 8 bảng: top debtors (hẹp) + 7 bảng rộng (gồm bảng giao dịch Sepay)
+    expect(tables).toHaveLength(8);
     const wide = tables.filter((t) => t.includes('dbt-table--wide'));
-    expect(wide).toHaveLength(6);
+    expect(wide).toHaveLength(7);
   });
 
   test('.dbt-table--narrow giữ cột tiền nowrap + tên cắt gọn', () => {
