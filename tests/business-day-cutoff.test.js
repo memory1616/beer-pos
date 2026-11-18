@@ -1,19 +1,19 @@
 /**
- * NGÀY NGHIỆP VỤ (BUSINESS DAY) — cutoff 19:00 giờ Việt Nam
+ * NGÀY NGHIỆP VỤ (BUSINESS DAY) — ĐÃ BỎ CUTOFF (từ 2026-11-18)
  * ─────────────────────────────────────────────────────────────────────────────
- * Quy tắc nghiệp vụ: "những đơn hàng được tạo sau 19h hằng ngày, được tính
- * là đơn hàng ngày mai".
+ * Trước đây có quy tắc: "những đơn hàng được tạo sau 19h hằng ngày, được
+ * tính là đơn hàng ngày mai". Quy tắc này đã BỎ hoàn toàn.
  *
- * Cơ chế đã triển khai:
- *  - `sales.date`        = NGÀY NGHIỆP VỤ (đơn tạo sau 19:00 → ngày mai)
- *  - `sales.created_on`  = NGÀY LỊCH THỰC (giữ đơn hôm nay cho Driver Portal)
+ * Cơ chế HIỆN TẠI:
+ *  - `sales.date`        = NGÀY LỊCH THỰC (giờ VN) — không còn lệch ngày
+ *  - `sales.created_on`  = NGÀY LỊCH THỰC (giờ VN) — giữ nguyên cho Driver Portal
  *  - `debt_transactions.business_date` = ngày nghiệp vụ của bút toán công nợ
  *
  * Test này kiểm tra:
- *  A. `getBusinessDateStr()` — ranh giới giờ chốt (18:59 / 19:00 / 23:59 / 00:00)
- *  B. Tạo đơn qua API → `sales.date` = ngày nghiệp vụ, `created_on` = ngày lịch thực
+ *  A. `getBusinessDateStr()` — LUÔN bằng ngày lịch thực ở mọi giờ trong ngày
+ *  B. Tạo đơn qua API → `sales.date` = `created_on` = ngày lịch thực
  *  C. Bút toán công nợ kế thừa `business_date` của đơn
- *  D. Driver Portal vẫn thấy đơn tạo hôm nay (dù ngày nghiệp vụ là ngày mai)
+ *  D. Driver Portal vẫn thấy đơn tạo hôm nay
  *  E. KPI công nợ "hôm nay" lọc theo ngày nghiệp vụ
  */
 process.env.NODE_ENV = 'test';
@@ -111,45 +111,45 @@ afterAll(() => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// A. Hàm ngày nghiệp vụ — ranh giới giờ chốt
+// A. Hàm ngày nghiệp vụ — LUÔN bằng ngày lịch thực (cutoff đã bỏ)
 // ═══════════════════════════════════════════════════════════════════════════
-describe('A. getBusinessDateStr — ranh giới giờ chốt 19:00', () => {
-  test('trước 19:00 → ngày nghiệp vụ = hôm nay', () => {
+describe('A. getBusinessDateStr — không còn lệch ngày (cutoff đã bỏ)', () => {
+  test('mọi giờ trong ngày → ngày nghiệp vụ = ngày lịch thực', () => {
     expect(db.getBusinessDateStr(vnTime(2026, 11, 13, 0, 0))).toBe('2026-11-13');
     expect(db.getBusinessDateStr(vnTime(2026, 11, 13, 12, 30))).toBe('2026-11-13');
     expect(db.getBusinessDateStr(vnTime(2026, 11, 13, 18, 59))).toBe('2026-11-13');
   });
 
-  test('đúng 19:00 → lùi sang ngày mai', () => {
-    expect(db.getBusinessDateStr(vnTime(2026, 11, 13, 19, 0))).toBe('2026-11-14');
+  test('trước 19:00 → vẫn là hôm nay', () => {
+    expect(db.getBusinessDateStr(vnTime(2026, 11, 13, 19, 0))).toBe('2026-11-13');
   });
 
-  test('sau 19:00 → lùi sang ngày mai', () => {
-    expect(db.getBusinessDateStr(vnTime(2026, 11, 13, 19, 1))).toBe('2026-11-14');
-    expect(db.getBusinessDateStr(vnTime(2026, 11, 13, 23, 59))).toBe('2026-11-14');
+  test('sau 19:00 → KHÔNG lùi sang ngày mai (cutoff đã bỏ)', () => {
+    expect(db.getBusinessDateStr(vnTime(2026, 11, 13, 19, 1))).toBe('2026-11-13');
+    expect(db.getBusinessDateStr(vnTime(2026, 11, 13, 23, 59))).toBe('2026-11-13');
   });
 
-  test('nửa đêm (00:00) → ngày nghiệp vụ = hôm nay (không lùi)', () => {
+  test('nửa đêm (00:00) → ngày nghiệp vụ = hôm nay', () => {
     expect(db.getBusinessDateStr(vnTime(2026, 11, 14, 0, 0))).toBe('2026-11-14');
   });
 
-  test('sau 19:00 ngày 31/12 → sang 01/01 năm sau', () => {
-    expect(db.getBusinessDateStr(vnTime(2026, 12, 31, 20, 0))).toBe('2027-01-01');
+  test('cuối năm → KHÔNG tự nhảy sang năm sau', () => {
+    expect(db.getBusinessDateStr(vnTime(2026, 12, 31, 20, 0))).toBe('2026-12-31');
+    expect(db.getBusinessDateStr(vnTime(2026, 12, 31, 23, 59))).toBe('2026-12-31');
   });
 
-  test('giờ chốt lấy từ settings, mặc định 19', () => {
-    expect(db.getBusinessCutoffHour()).toBe(19);
+  test('giờ chốt luôn = 0 (tính năng đã tắt)', () => {
+    expect(db.getBusinessCutoffHour()).toBe(0);
   });
 
-  test('đổi giờ chốt trong settings → hàm dùng giờ mới', () => {
+  test('setting business_day_cutoff_hour KHÔNG còn ảnh hưởng', () => {
     const existed = db.prepare('SELECT value FROM settings WHERE key = ?').get('business_day_cutoff_hour');
     const original = existed ? existed.value : null;
     try {
       db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(
         'business_day_cutoff_hour',
-        '0'
+        '19'
       );
-      // cutoff = 0 → TẮT quy tắc → ngày nghiệp vụ = ngày lịch thực
       expect(db.getBusinessCutoffHour()).toBe(0);
       expect(db.getBusinessDateStr(vnTime(2026, 11, 13, 22, 0))).toBe('2026-11-13');
     } finally {
@@ -165,16 +165,16 @@ describe('A. getBusinessDateStr — ranh giới giờ chốt 19:00', () => {
   });
 
   test('getBusinessDateFor() chấp nhận Date / string / số', () => {
-    expect(db.getBusinessDateFor(vnTime(2026, 11, 13, 20, 0))).toBe('2026-11-14');
+    expect(db.getBusinessDateFor(vnTime(2026, 11, 13, 20, 0))).toBe('2026-11-13');
     expect(db.getBusinessDateFor(vnTime(2026, 11, 13, 10, 0))).toBe('2026-11-13');
-    expect(db.getBusinessDateFor(vnTime(2026, 11, 13, 20, 0).getTime())).toBe('2026-11-14');
+    expect(db.getBusinessDateFor(vnTime(2026, 11, 13, 20, 0).getTime())).toBe('2026-11-13');
   });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// B. Tạo đơn → sales.date = ngày nghiệp vụ, created_on = ngày lịch thực
+// B. Tạo đơn → sales.date = created_on = ngày lịch thực
 // ═══════════════════════════════════════════════════════════════════════════
-describe('B. Tạo đơn hàng — date (nghiệp vụ) vs created_on (lịch thực)', () => {
+describe('B. Tạo đơn hàng — date và created_on đều là ngày lịch thực', () => {
   test('POST /api/sales ghi đúng date + created_on', async () => {
     const res = await request(app)
       .post('/api/sales')
@@ -194,9 +194,11 @@ describe('B. Tạo đơn hàng — date (nghiệp vụ) vs created_on (lịch th
     const row = db.prepare('SELECT date, created_on FROM sales WHERE id = ?').get(saleId);
     expect(row.date).toBe(todayBusiness);
     expect(row.created_on).toBe(todayReal);
+    // Cutoff đã bỏ → date KHÔNG được lệch khỏi created_on
+    expect(row.date).toBe(row.created_on);
   });
 
-  test('đơn tạo sau 19:00 → sales.date = ngày mai, created_on = hôm nay', async () => {
+  test('đơn tạo sau 19:00 → sales.date VẪN = hôm nay (không lùi ngày mai)', async () => {
     // Giả lập thời điểm 20:30 VN bằng cách tạm dừng hàm helper của db.
     const original = db.getBusinessDateStr;
     db.getBusinessDateStr = () => '2099-01-02'; // "ngày mai" giả lập
@@ -287,7 +289,7 @@ describe('C. debt_transactions.business_date kế thừa từ đơn', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// D. Driver Portal — đơn tạo hôm nay vẫn hiện (dù ngày nghiệp vụ = mai)
+// D. Driver Portal — đơn tạo hôm nay vẫn hiện
 // ═══════════════════════════════════════════════════════════════════════════
 describe('D. Driver Portal giữ đơn tạo hôm nay', () => {
   let driverToken;

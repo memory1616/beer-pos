@@ -3,6 +3,7 @@ const router = express.Router();
 const fs = require('fs');
 const path = require('path');
 const logger = require('../../src/utils/logger');
+const Database = require('better-sqlite3');
 
 const BACKUP_DIR = path.join(__dirname, '../../backup');
 const DB_PATH = path.join(__dirname, '../../database.sqlite');
@@ -10,6 +11,36 @@ const DB_PATH = path.join(__dirname, '../../database.sqlite');
 // Ensure backup directory exists
 if (!fs.existsSync(BACKUP_DIR)) {
   fs.mkdirSync(BACKUP_DIR, { recursive: true });
+}
+
+/**
+ * Tạo bản sao lưu NHẤT QUÁN của database.
+ *
+ * ⚠️ KHÔNG dùng `fs.copyFile(DB_PATH, ...)` khi DB ở chế độ WAL!
+ *   File `database.sqlite` chỉ chứa các page đã checkpoint. Mọi transaction
+ *   mới ghi vào `database.sqlite-wal`. Copy mỗi file chính sẽ TẠO BẢN SAO
+ *   THIẾU dữ liệu (mất đơn hàng mới nhất) — và nếu copy cả `-wal`/`-shm` riêng
+ *   lệch thời điểm thì còn có thể hỏng WAL.
+ *
+ *   → Dùng `VACUUM INTO` (SQLite ≥ 3.27): tạo file mới chứa TOÀN BỘ dữ liệu
+ *     đã commit, tự động gộp WAL, không ảnh hưởng DB đang chạy.
+ *
+ * @param {string} destPath - đường dẫn file backup đích (phải chưa tồn tại)
+ * @returns {Promise<{bytes:number}>}
+ */
+async function createConsistentBackup(destPath) {
+  // Mở connection riêng ở chế độ read-only để không tranh chấp lock ghi
+  // với tiến trình server chính.
+  const src = new Database(DB_PATH, { readonly: false, fileMustExist: true });
+  try {
+    // VACUUM INTO không ghi vào DB nguồn nhưng vẫn cần quyền đọc WAL.
+    src.pragma('busy_timeout = 15000');
+    src.exec(`VACUUM INTO '${destPath.replace(/'/g, "''")}'`);
+  } finally {
+    src.close();
+  }
+  const stats = await fs.promises.stat(destPath);
+  return { bytes: stats.size };
 }
 
 // GET /api/backup/list - List all backups
@@ -43,16 +74,15 @@ router.get('/create', async (req, res) => {
     const backupFile = `backup-${timestamp}.db`;
     const backupPath = path.join(BACKUP_DIR, backupFile);
 
-    await fs.promises.copyFile(DB_PATH, backupPath);
+    const { bytes } = await createConsistentBackup(backupPath);
 
-    const stats = await fs.promises.stat(backupPath);
     cleanupOldBackupsAsync(30);
 
     res.json({
       success: true,
       message: 'Backup created successfully',
       file: backupFile,
-      size: formatBytes(stats.size)
+      size: formatBytes(bytes)
     });
   } catch (error) {
     logger.error('Backup error', { error: error.message });
@@ -88,8 +118,22 @@ router.post('/restore', async (req, res) => {
 
   try {
     const preRestoreBackup = `pre-restore-${Date.now()}.db`;
-    await fs.promises.copyFile(DB_PATH, path.join(BACKUP_DIR, preRestoreBackup));
+    // Bản sao lưu trước khi restore — dùng VACUUM INTO cho nhất quán.
+    await createConsistentBackup(path.join(BACKUP_DIR, preRestoreBackup));
+
+    // Copy file backup (đã là file .db hoàn chỉnh) đè lên DB chính.
     await fs.promises.copyFile(backupPath, DB_PATH);
+
+    // ⚠️ Xóa file WAL/SHM cũ: chúng chứa các page của DB CŨ. Giữ lại sẽ khiến
+    //    SQLite áp WAL cũ lên DB mới → dữ liệu bị lẫn/mất. Phải restart server
+    //    sau khi restore (đã có trong message).
+    for (const suffix of ['-wal', '-shm']) {
+      try {
+        await fs.promises.unlink(DB_PATH + suffix);
+      } catch (_) {
+        /* không tồn tại → bỏ qua */
+      }
+    }
 
     res.json({ success: true, message: 'Database restored successfully. Please restart the server.' });
   } catch (error) {
@@ -197,7 +241,8 @@ async function runScheduledBackup(intervalDays, isStartup) {
   try {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
     const backupFile = `backup-${timestamp}.db`;
-    await fs.promises.copyFile(DB_PATH, path.join(BACKUP_DIR, backupFile));
+    // VACUUM INTO → bản sao nhất quán (gộp WAL), không copy file thô.
+    await createConsistentBackup(path.join(BACKUP_DIR, backupFile));
     logger.info('Scheduled backup completed', { backupFile, isStartup });
     cleanupOldBackupsAsync(30);
   } catch (e) {

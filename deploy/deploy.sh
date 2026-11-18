@@ -197,6 +197,16 @@ if [ "$HAS_NEW" = "0" ]; then
     # ---- PRESERVE critical files truoc khi reset --hard ----
     # Git reset --hard se XOA toan bo files khong tracked trong git.
     # Critical files (env, db, config) can duoc backup va restore.
+    #
+    # ⚠️ CRITICAL — DATABASE (database.sqlite) KHÔNG ĐƯỢC restore từ snapshot!
+    #   Lý do: giữa lúc `cp` snapshot và lúc `cp` lại, PM2 vẫn đang CHẠY và
+    #   ghi vào DB. Khi `cp` snapshot cũ đè lên file DB đang mở:
+    #     • mọi transaction commit sau thời điểm snapshot → MẤT VĨNH VIỄN
+    #     • file -wal/-shm bị copy lệch → WAL frames hỏng → mất thêm dữ liệu
+    #   Đây chính là nguyên nhân đơn hàng "tự biến mất" sau khi deploy.
+    #
+    #   → Chỉ backup DB để dự phòng (copy ra nơi khác, KHÔNG copy ngược lại).
+    #   → Database trên server KHÔNG bị git quản lý → reset --hard không xóa nó.
     PRESERVE_BACKUP="/tmp/beerpos-preserve-$$"
     mkdir -p "$PRESERVE_BACKUP"
     log "   Preserving critical files -> $PRESERVE_BACKUP"
@@ -207,10 +217,6 @@ if [ "$HAS_NEW" = "0" ]; then
         ".env.production"
         ".env.local"
         ".env.*.local"
-        "database.sqlite"
-        "database.sqlite-shm"
-        "database.sqlite-wal"
-        "database_live.sqlite"
         "ecosystem.config.js"
         "version.json"
         ".pm2/"
@@ -232,6 +238,18 @@ if [ "$HAS_NEW" = "0" ]; then
         fi
     done
 
+    # ---- BACKUP DATABASE (dự phòng, KHÔNG restore) ----
+    # Chỉ tạo bản sao lưu để phục hồi thủ công nếu cần. KHÔNG copy ngược
+    # lại database.sqlite sau khi reset (xem giải thích ở trên).
+    DB_SAFETY_DIR="/tmp/beerpos-db-safety-$TIMESTAMP"
+    mkdir -p "$DB_SAFETY_DIR"
+    for dbfile in database.sqlite database_live.sqlite; do
+        if [ -f "$dbfile" ]; then
+            cp "$dbfile" "$DB_SAFETY_DIR/" 2>/dev/null \
+                && log "     db safety copy: $dbfile -> $DB_SAFETY_DIR (KHONG restore)"
+        fi
+    done
+
     # Fetch tu remote
     log "   git fetch origin $GIT_BRANCH..."
     if ! git fetch origin "$GIT_BRANCH" 2>&1 | tail -5; then
@@ -248,6 +266,9 @@ if [ "$HAS_NEW" = "0" ]; then
     fi
 
     # ---- RESTORE critical files sau khi reset ----
+    # ⚠️ KHÔNG restore database.sqlite / -wal / -shm ở đây!
+    #   Xem giải thích ở khối PRESERVE phía trên: restore DB trong lúc PM2
+    #   đang chạy sẽ xóa vĩnh viễn các đơn hàng được tạo trong lúc deploy.
     log "   Restoring critical files..."
     for f in "${PRESERVE_FILES[@]}"; do
         src="$PRESERVE_BACKUP/$f"
@@ -264,6 +285,22 @@ if [ "$HAS_NEW" = "0" ]; then
         fi
     done
     rm -rf "$PRESERVE_BACKUP"
+
+    # ---- Safety net: đảm bảo database.sqlite vẫn tồn tại sau reset --hard ----
+    # database.sqlite KHÔNG được git track (.gitignore loại *.sqlite) → reset
+    # --hard không xóa. Nhưng nếu file biến mất (vd do thao tác tay), deploy
+    # phải ABORT thay vì khởi tạo DB rỗng và âm thầm làm mất dữ liệu.
+    if [ ! -f "$VPS_PATH/database.sqlite" ] && [ -f "$DB_SAFETY_DIR/database.sqlite" ]; then
+        err "database.sqlite MISSING sau git reset - phuc hoi tu db safety copy"
+        cp "$DB_SAFETY_DIR/database.sqlite" "$VPS_PATH/database.sqlite" 2>/dev/null \
+            && log "     RESTORED database.sqlite from safety copy"
+    fi
+    if [ ! -f "$VPS_PATH/database.sqlite" ]; then
+        err "database.sqlite KHONG TON TAI - ABORT deploy (khong tao DB rong)"
+        log_to_file "Deploy ABORTED - database.sqlite missing"
+        exit 7
+    fi
+    ok "Database present sau reset (KHONG restore tu snapshot)"
 
     NEW_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
     log "   New HEAD:     $NEW_COMMIT"

@@ -161,54 +161,49 @@ function getVietnamTimeStr() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// NGÀY NGHIỆP VỤ (BUSINESS DAY) — cutoff 19:00 giờ VN
+// NGÀY NGHIỆP VỤ (BUSINESS DAY) — ĐÃ BỎ CUTOFF (từ 2026-11-18)
 // ═══════════════════════════════════════════════════════════════════════════
-// Quy tắc nghiệp vụ: "những đơn hàng được tạo sau 19h hằng ngày, được tính
-// là đơn hàng ngày mai".
+// Lịch sử: trước đây có quy tắc "đơn tạo sau 19:00 hằng ngày được tính là
+// đơn của ngày mai" (giờ chốt lấy từ setting `business_day_cutoff_hour`,
+// mặc định 19). Quy tắc này đã bị BỎ hoàn toàn theo yêu cầu nghiệp vụ.
 //
-//  - `getVietnamDateStr()`      → ngày LỊCH THỰC (dùng cho Driver Portal,
-//                                 hiển thị đơn hôm nay, lịch giao...).
-//  - `getBusinessDateStr()`     → ngày NGHIỆP VỤ (dùng cho doanh thu, báo
-//                                 cáo, công nợ). Sau giờ chốt → ngày hôm sau.
+// Hiện tại:
+//  - `getVietnamDateStr()`  → ngày LỊCH THỰC (giờ VN) — nguồn duy nhất.
+//  - `getBusinessDateStr()` → TRÙNG với ngày lịch thực (không còn lệch).
 //
-// Giờ chốt lấy từ setting `business_day_cutoff_hour` (mặc định 19).
-// Đặt `business_day_cutoff_hour = 0` để TẮT quy tắc (ngày nghiệp vụ luôn
-// bằng ngày lịch thực) — dùng để rollback nhanh không cần deploy lại.
+// Setting `business_day_cutoff_hour` vẫn còn trong DB để TƯƠNG THÍCH NGƯỢC
+// (rollback an toàn), nhưng KHÔNG còn được đọc để tính ngày.
+//
+// ⚠️ `sales.date` của các đơn ĐÃ tạo trước khi bỏ cutoff vẫn giữ nguyên
+//    giá trị ngày nghiệp vụ cũ (có thể là ngày hôm sau). Không sửa dữ liệu
+//    lịch sử để tránh sai lệch các báo cáo đã đối soát.
 
-/** Giờ chốt ngày nghiệp vụ (0-23), lấy từ settings, mặc định 19. */
+/**
+ * Giờ chốt ngày nghiệp vụ — ĐÃ BỎ (từ 2026-11-18), luôn trả 0.
+ *
+ * Ngày nghiệp vụ luôn bằng ngày LỊCH THỰC (giờ VN).
+ * Setting `business_day_cutoff_hour` vẫn còn trong DB (tương thích ngược)
+ * nhưng KHÔNG còn được đọc.
+ *
+ * @returns {number} 0
+ */
 function getBusinessCutoffHour() {
-  try {
-    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('business_day_cutoff_hour');
-    if (!row || row.value === null || row.value === undefined || row.value === '') return 19;
-    const n = parseInt(row.value, 10);
-    if (!Number.isFinite(n) || n < 0 || n > 23) return 19;
-    return n;
-  } catch (_) {
-    return 19;
-  }
+  return 0;
 }
 
 /**
  * Ngày nghiệp vụ hiện tại (YYYY-MM-DD, giờ VN).
  *
- * Nếu giờ VN hiện tại >= giờ chốt → trả về NGÀY MAI, ngược lại trả về HÔM NAY.
+ * KHÔNG còn áp dụng quy tắc chốt 19:00 → luôn trả về ngày LỊCH THỰC.
  *
  * @param {Date} [now] - mốc thời gian (mặc định = hiện tại). Dùng cho test.
  * @returns {string} YYYY-MM-DD
  */
 function getBusinessDateStr(now = new Date()) {
   const vn = new Date(now.getTime() + 7 * 60 * 60 * 1000);
-  const cutoff = getBusinessCutoffHour();
-
-  // Sao chép ngày VN rồi cộng 1 ngày nếu đã qua giờ chốt
-  const businessDay = new Date(vn.getTime());
-  if (cutoff > 0 && vn.getUTCHours() >= cutoff) {
-    businessDay.setUTCDate(businessDay.getUTCDate() + 1);
-  }
-
-  return businessDay.getUTCFullYear() + '-' +
-    String(businessDay.getUTCMonth() + 1).padStart(2, '0') + '-' +
-    String(businessDay.getUTCDate()).padStart(2, '0');
+  return vn.getUTCFullYear() + '-' +
+    String(vn.getUTCMonth() + 1).padStart(2, '0') + '-' +
+    String(vn.getUTCDate()).padStart(2, '0');
 }
 
 /**
