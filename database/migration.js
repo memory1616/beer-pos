@@ -923,6 +923,23 @@ function runSaleRegionDispatchBackfillMigration(db) {
   }
 }
 
+// ── Sepay debt settlement migration (061) ─────────────────────────────────────
+// Gạch nợ công nợ tự động từ giao dịch Sepay: bảng `sepay_transactions`
+// (nhật ký giao dịch) + `sepay_settings` (cấu hình) + cột `customers.debt_code`
+// (mã định danh nhúng vào nội dung chuyển khoản).
+// Chạy ĐỘC LẬP, idempotent.
+function runSepayDebtSettlementMigration(db) {
+  try {
+    const migration = require('./migrations/061_sepay_debt_settlement');
+    migration.up(db);
+    log('[SEPAY] Migration 061 applied');
+    return { success: true };
+  } catch (e) {
+    log('[SEPAY] Migration error: ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
 // ── Utility: Generate UUID ─────────────────────────────────────────────────────
 
 function generateUUID() {
@@ -958,6 +975,7 @@ module.exports = {
   runBusinessRegionsMigration,
   runSaleDispatchStatusMigration,
   runSaleRegionDispatchBackfillMigration,
+  runSepayDebtSettlementMigration,
   generateUUID,
   getCurrentVersion,
   setVersion,

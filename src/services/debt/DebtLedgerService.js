@@ -176,7 +176,8 @@ function syncMirror(customerId, balance) {
  * @param {string} [opts.createdBy] - username nhân viên
  * @param {string} [opts.source] - SOURCES.*
  * @param {string} [opts.idempotencyKey] - UNIQUE, chống ghi trùng
- * @param {boolean} [opts.allowNegativeBalance] - cho phép âm (không dùng mặc định)
+ * @param {boolean} [opts.allowNegativeBalance] - cho phép âm (ghi 0 thay vì âm)
+ * @param {boolean} [opts.keepNegativeBalance] - GIỮ số dư âm thật (bút toán CREDIT)
  * @param {boolean} [opts.allowArchivedCustomer] - cho phép ghi cho khách đã lưu trữ
  *   (CHỈ dùng cho migrate công nợ đầu kỳ — khách archive vẫn còn dư nợ)
  * @param {string} [opts.businessDate] - ngày NGHIỆP VỤ của bút toán (YYYY-MM-DD).
@@ -197,6 +198,7 @@ function recordTransaction(opts = {}) {
     source = SOURCES.POS,
     idempotencyKey = null,
     allowNegativeBalance = false,
+    keepNegativeBalance = false,
     allowArchivedCustomer = false,
     businessDate = null,
   } = opts;
@@ -250,12 +252,18 @@ function recordTransaction(opts = {}) {
     let balanceAfter = roundMoney(balanceBefore + delta);
 
     // 5. Chặn âm (quyết định đã chốt: KHÔNG cho trả vượt số dư nợ)
-    if (balanceAfter < 0 && !allowNegativeBalance) {
-      throw new Error(
-        `Số tiền vượt quá công nợ hiện tại (${balanceBefore.toLocaleString('vi-VN')}đ)`
-      );
+    //    - `allowNegativeBalance = true` → cho phép âm nhưng VẪN ghi 0 (hành vi
+    //      cũ, giữ nguyên cho các caller hiện có).
+    //    - `keepNegativeBalance = true` → GIỮ số dư âm thật (dùng cho bút toán
+    //      CREDIT — tiền khách nợ lại hệ thống sau khi chuyển DƯ qua Sepay).
+    if (balanceAfter < 0) {
+      if (!allowNegativeBalance) {
+        throw new Error(
+          `Số tiền vượt quá công nợ hiện tại (${balanceBefore.toLocaleString('vi-VN')}đ)`
+        );
+      }
+      if (!keepNegativeBalance) balanceAfter = 0;
     }
-    if (balanceAfter < 0) balanceAfter = 0;
 
     // 6. Ghi bút toán
     //    `business_date` = ngày NGHIỆP VỤ (cutoff 19:00). Đơn/bút toán ghi sau
@@ -483,6 +491,7 @@ function getBalanceBreakdown(customerId) {
     payment: 0,
     adjustment: 0,
     reversal: 0,
+    credit: 0,
   };
 
   for (const r of rows) {
@@ -506,6 +515,9 @@ function getBalanceBreakdown(customerId) {
       case TRANSACTION_TYPES.REVERSAL:
         breakdown.reversal += signed;
         break;
+      case TRANSACTION_TYPES.CREDIT:
+        breakdown.credit += signed;
+        break;
       default:
         break;
     }
@@ -519,7 +531,8 @@ function getBalanceBreakdown(customerId) {
         breakdown.manualDebt +
         breakdown.payment +
         breakdown.adjustment +
-        breakdown.reversal
+        breakdown.reversal +
+        breakdown.credit
     ),
   };
 }

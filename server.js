@@ -446,6 +446,12 @@ app.post('/webhook/deploy', async (req, res) => {
   await handleDeployWebhook(req, res, { trigger: 'token', token });
 });
 
+// ── Sepay webhook: POST /webhook/sepay ──────────────────────────
+// Nhận giao dịch ngân hàng → gạch nợ công nợ tự động.
+// PUBLIC (không cần đăng nhập) nhưng BẮT BUỘC xác thực HMAC/API key.
+// Mount ở đây (trước auth guard + rate limit /api) vì Sepay gọi từ ngoài.
+app.use('/webhook/sepay', require('./routes/sepayWebhook'));
+
 // ── Deploy status: GET /deploy/status ───────────────────────────
 // (Khong can auth cho status - chi la thong tin deploy)
 // Neu can protect, them check bearer token o day.
@@ -1096,6 +1102,9 @@ app.use('/api/routing', require('./routes/api/routing'));
 app.use('/api/batch', require('./routes/api/batch'));
 app.use('/api/debts', require('./routes/api/debts'));
 // Sổ Công nợ Gia Huy — module quản lý công nợ (ledger append-only + đối soát)
+// Sepay — gạch nợ công nợ tự động (webhook public đã mount ở /webhook/sepay)
+// Mount TRƯỚC /api/debt-ledger để không bị router chung "nuốt" path.
+app.use('/api/debt-ledger/sepay', require('./routes/api/sepay'));
 app.use('/api/debt-ledger', require('./routes/api/debtLedger'));
 app.use('/api/promotions', require('./routes/api/promotions'));
 app.use('/api/segments', require('./routes/api/segments'));

@@ -29,7 +29,7 @@ try {
   }
 
   // Run driver portal migration (idempotent, chạy độc lập version gate)
-  const { runDriverPortalMigration, runDriverStaffMigration, runDriverKegReceiptMigration, runDriverWorkDaysMigration, runDriverSalaryAdvanceMigration, runMissingBusinessTablesMigration, runDailyReportNotifyMigration, runAuditLogMigration, runDriverPushMigration, runZaloOauthMigration, runDebtManagementMigration, runDebtSaleCreditFlagMigration, runBusinessDayCutoffMigration, runAuditLogUnificationMigration, runDriverAttendanceMigration, runBusinessRegionsMigration, runSaleDispatchStatusMigration, runSaleRegionDispatchBackfillMigration } = require('./database/migration');
+  const { runDriverPortalMigration, runDriverStaffMigration, runDriverKegReceiptMigration, runDriverWorkDaysMigration, runDriverSalaryAdvanceMigration, runMissingBusinessTablesMigration, runDailyReportNotifyMigration, runAuditLogMigration, runDriverPushMigration, runZaloOauthMigration, runDebtManagementMigration, runDebtSaleCreditFlagMigration, runBusinessDayCutoffMigration, runAuditLogUnificationMigration, runDriverAttendanceMigration, runBusinessRegionsMigration, runSaleDispatchStatusMigration, runSaleRegionDispatchBackfillMigration, runSepayDebtSettlementMigration } = require('./database/migration');
   const driverResult = runDriverPortalMigration(db);
   if (driverResult.success) {
     logger.log('[MIGRATION] Driver portal schema ready');
@@ -137,6 +137,12 @@ try {
   const backfillResult = runSaleRegionDispatchBackfillMigration(db);
   if (backfillResult.success) {
     logger.log('[MIGRATION] Sale region dispatch backfill ready');
+  }
+
+  // Run Sepay migration (061) — gạch nợ công nợ tự động từ giao dịch Sepay
+  const sepayResult = runSepayDebtSettlementMigration(db);
+  if (sepayResult.success) {
+    logger.log('[MIGRATION] Sepay debt settlement schema ready');
   }
 } catch (error) {
   logger.error('[MIGRATION] Migration error:', error.message);

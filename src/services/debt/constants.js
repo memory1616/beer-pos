@@ -13,6 +13,7 @@ const TRANSACTION_TYPES = {
   PAYMENT: 'PAYMENT', // Khách thanh toán (lệnh `+` hoặc nhập tay)
   ADJUSTMENT: 'ADJUSTMENT', // Điều chỉnh có audit log
   REVERSAL: 'REVERSAL', // Đảo giao dịch (bút toán gốc KHÔNG bị xoá)
+  CREDIT: 'CREDIT', // Tiền khách nợ lại hệ thống (chuyển DƯ qua Sepay)
 };
 
 // Dấu quyết định theo loại bút toán.
@@ -24,6 +25,7 @@ const SIGN_BY_TYPE = {
   [TRANSACTION_TYPES.PAYMENT]: -1,
   [TRANSACTION_TYPES.ADJUSTMENT]: +1,
   [TRANSACTION_TYPES.REVERSAL]: +1,
+  [TRANSACTION_TYPES.CREDIT]: -1,
 };
 
 /** Loại bút toán làm TĂNG công nợ hay GIẢM công nợ. */

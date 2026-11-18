@@ -294,7 +294,9 @@ router.get('/customers/:id', requireAuth, (req, res) => {
     }
 
     const customer = db
-      .prepare('SELECT id, name, phone, address, debt, archived FROM customers WHERE id = ?')
+      .prepare(
+        'SELECT id, name, phone, address, debt, archived, debt_code FROM customers WHERE id = ?'
+      )
       .get(customerId);
     if (!customer) {
       return res.status(404).json({ success: false, error: 'Không tìm thấy khách hàng' });
