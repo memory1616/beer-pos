@@ -51,7 +51,9 @@ const stamp = new Date().toISOString().replace(/[:.]/g, '-');
 const backupDir = path.join(__dirname, '..', '..', 'backups');
 fs.mkdirSync(backupDir, { recursive: true });
 const backupFile = path.join(backupDir, `database.sqlite.pre-debtreset.${stamp}.bak`);
-fs.copyFileSync(dbPath, backupFile);
+// ⚠️ VACUUM INTO (không copyFile) — DB ở chế độ WAL nên copy thô sẽ thiếu
+// các transaction chưa checkpoint (mất đơn hàng mới nhất trong backup).
+db.exec(`VACUUM INTO '${backupFile.replace(/'/g, "''")}'`);
 console.log('\nBackup:', backupFile);
 
 // ── Reset ────────────────────────────────────────────────────────────────────

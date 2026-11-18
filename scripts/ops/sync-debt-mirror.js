@@ -88,11 +88,9 @@ if (!APPLY) {
 const TS = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
 const BACKUP = path.join(process.cwd(), 'backups', `database.sqlite.pre-debt-sync.${TS}.bak`);
 fs.mkdirSync(path.dirname(BACKUP), { recursive: true });
-db.pragma('wal_checkpoint(TRUNCATE)');
-fs.copyFileSync(DB_PATH, BACKUP);
-for (const ext of ['-wal', '-shm']) {
-  if (fs.existsSync(DB_PATH + ext)) fs.copyFileSync(DB_PATH + ext, BACKUP + ext);
-}
+// ⚠️ VACUUM INTO (không copyFile) — DB ở chế độ WAL nên copy thô sẽ thiếu
+// các transaction chưa checkpoint (mất đơn hàng mới nhất trong backup).
+db.exec(`VACUUM INTO '${BACKUP.replace(/'/g, "''")}'`);
 console.log('\n✅ Backup:', BACKUP);
 
 const DebtLedgerService = require('../../src/services/debt/DebtLedgerService');

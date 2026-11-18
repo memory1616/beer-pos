@@ -11,10 +11,11 @@ TS="$(date +%Y%m%d_%H%M%S)"
 
 echo "=== [1/4] Backup database ==="
 cd "$APP_DIR"
-cp -a database.sqlite "backups/database.sqlite.pre-debt-oncreate.${TS}.bak" 2>/dev/null || {
-  mkdir -p backups
-  cp -a database.sqlite "backups/database.sqlite.pre-debt-oncreate.${TS}.bak"
-}
+mkdir -p backups
+# ⚠️ Dùng VACUUM INTO (không `cp`) vì DB ở chế độ WAL: `cp database.sqlite`
+# chỉ copy các page ĐÃ CHECKPOINT → backup thiếu đơn hàng mới nhất.
+sqlite3 database.sqlite "VACUUM INTO 'backups/database.sqlite.pre-debt-oncreate.${TS}.bak';" 2>/dev/null \
+  || cp -a database.sqlite "backups/database.sqlite.pre-debt-oncreate.${TS}.bak"
 echo "Backup: backups/database.sqlite.pre-debt-oncreate.${TS}.bak"
 
 echo "=== [2/4] Pull code ==="

@@ -29,7 +29,9 @@ rows.forEach((r) => console.log('  ', JSON.stringify(r)));
 if (process.argv.includes('--apply')) {
   const TS = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
   const BACKUP = `/var/www/beer-pos/backups/database.sqlite.pre-testcust-cleanup.${TS}.bak`;
-  fs.copyFileSync(DB_PATH, BACKUP);
+  // ⚠️ VACUUM INTO (không copyFile) vì DB ở chế độ WAL — copy thô sẽ thiếu
+  // các transaction chưa checkpoint (mất đơn hàng mới nhất trong backup).
+  db.exec(`VACUUM INTO '${BACKUP}'`);
   console.log('\nBackup:', BACKUP);
 
   const ids = rows.map((r) => r.id);

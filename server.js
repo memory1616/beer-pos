@@ -14,6 +14,10 @@ const os = require('os');
 const crypto = require('crypto');
 const logger = require('./src/utils/logger');
 const db = require('./database');
+const Database = require('better-sqlite3');
+const DB_FILE = process.env.DB_PATH
+  ? path.resolve(process.env.DB_PATH)
+  : path.join(__dirname, 'database.sqlite');
 const socketServer = require('./src/socket/socketServer');
 const { getSession, AUTH_CONFIG, requireAuth } = require('./middleware/auth');
 const { apiGuard, attachSanitizer, optionalAuth, adminPageGuard } = require('./middleware/permissions');
@@ -715,6 +719,37 @@ app.locals.formatVND = formatVND;
 app.locals.DISTRIBUTOR_NAME = DISTRIBUTOR_NAME;
 
 // ==================== AUTO BACKUP ====================
+/**
+ * Tạo bản sao lưu NHẤT QUÁN của database.
+ *
+ * ⚠️ KHÔNG dùng `fs.copyFile(dbPath, ...)` khi DB ở chế độ WAL!
+ *   File `database.sqlite` chỉ chứa các page đã checkpoint. Mọi transaction
+ *   mới ghi vào `database.sqlite-wal`. Copy mỗi file chính sẽ TẠO BẢN SAO
+ *   THIẾU dữ liệu (mất đơn hàng mới nhất) — và nếu copy cả `-wal`/`-shm` riêng
+ *   lệch thời điểm thì còn có thể hỏng WAL.
+ *
+ *   → Dùng `VACUUM INTO` (SQLite ≥ 3.27): tạo file mới chứa TOÀN BỘ dữ liệu
+ *     đã commit, tự động gộp WAL, không ảnh hưởng DB đang chạy.
+ *
+ * @param {string} destPath - đường dẫn file backup đích (phải chưa tồn tại)
+ */
+async function createConsistentBackup(destPath) {
+  // Xóa file đích nếu đã tồn tại — VACUUM INTO không ghi đè được.
+  try {
+    await fs.promises.unlink(destPath);
+  } catch (_) {
+    /* không tồn tại → bỏ qua */
+  }
+
+  const src = new Database(DB_FILE, { fileMustExist: true });
+  try {
+    src.pragma('busy_timeout = 15000');
+    src.exec(`VACUUM INTO '${destPath.replace(/'/g, "''")}'`);
+  } finally {
+    src.close();
+  }
+}
+
 async function createBackup(options = {}) {
   const backupDir = path.join(__dirname, 'backup');
   const now = new Date();
@@ -728,7 +763,13 @@ async function createBackup(options = {}) {
   const backupFile = path.join(backupDir, `backup-${timestamp}.db`);
 
   try {
-    await fs.promises.copyFile(dbPath, backupFile);
+    // ⚠️ KHÔNG dùng `fs.copyFile(dbPath, ...)` khi DB ở chế độ WAL!
+    //   File `database.sqlite` chỉ chứa các page đã checkpoint; mọi transaction
+    //   mới nằm trong `database.sqlite-wal`. Copy mỗi file chính → bản sao lưu
+    //   THIẾU dữ liệu (mất đơn hàng mới nhất).
+    //   → Dùng `VACUUM INTO`: tạo file mới chứa TOÀN BỘ dữ liệu đã commit,
+    //     tự gộp WAL, không ảnh hưởng DB đang chạy.
+    await createConsistentBackup(backupFile);
 
     // === Integrity check: try to open backup with SQLite ===
     let integrityOk = false;
@@ -744,13 +785,17 @@ async function createBackup(options = {}) {
     }
 
     if (!integrityOk) {
-      logger.warn(`Backup file may be corrupted: ${backupFile}, attempting re-copy...`);
+      logger.warn(`Backup file may be corrupted: ${backupFile}, attempting re-create...`);
       const corruptPath = backupFile.replace('.db', '.corrupt.db');
       try {
         await fs.promises.rename(backupFile, corruptPath);
       } catch (_) {}
-      await fs.promises.copyFile(dbPath, backupFile);
-      logger.info('Backup re-copied successfully');
+      try {
+        await fs.promises.unlink(corruptPath);
+      } catch (_) {}
+      // Tạo lại bằng VACUUM INTO (không copy thô để tránh thiếu dữ liệu WAL)
+      await createConsistentBackup(backupFile);
+      logger.info('Backup re-created successfully');
     }
 
     logger.info(`Auto backup: backup-${timestamp}.db (integrity: ${integrityOk ? 'OK' : 'RECHECKED'})`);

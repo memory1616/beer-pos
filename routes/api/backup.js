@@ -121,8 +121,26 @@ router.post('/restore', async (req, res) => {
     // Bản sao lưu trước khi restore — dùng VACUUM INTO cho nhất quán.
     await createConsistentBackup(path.join(BACKUP_DIR, preRestoreBackup));
 
-    // Copy file backup (đã là file .db hoàn chỉnh) đè lên DB chính.
-    await fs.promises.copyFile(backupPath, DB_PATH);
+    // ⚠️ KHÔNG dùng `fs.copyFile(backupPath, DB_PATH)` khi DB đang chạy!
+    //   App giữ file descriptor mở trên DB cũ; copy đè lên file sẽ khiến
+    //   SQLite đọc trang lẫn giữa DB mới/cũ → mất dữ liệu ngẫu nhiên
+    //   (đúng triệu chứng "đơn hàng tự biến mất").
+    //   → Dùng `VACUUM INTO` từ file backup nguồn sang file DB chính:
+    //     ghi dữ liệu qua đường chuẩn của SQLite, không cần copy thô.
+    const restoreDb = new Database(backupPath, { readonly: true, fileMustExist: true });
+    try {
+      restoreDb.pragma('busy_timeout = 15000');
+      // Ghi vào file tạm cạnh DB chính, rồi mới thay thế (atomic-ish).
+      const tmpRestore = `${DB_PATH}.restoring`;
+      try {
+        await fs.promises.unlink(tmpRestore);
+      } catch (_) {}
+      restoreDb.exec(`VACUUM INTO '${tmpRestore.replace(/'/g, "''")}'`);
+      await fs.promises.copyFile(tmpRestore, DB_PATH);
+      await fs.promises.unlink(tmpRestore);
+    } finally {
+      restoreDb.close();
+    }
 
     // ⚠️ Xóa file WAL/SHM cũ: chúng chứa các page của DB CŨ. Giữ lại sẽ khiến
     //    SQLite áp WAL cũ lên DB mới → dữ liệu bị lẫn/mất. Phải restart server
@@ -135,6 +153,7 @@ router.post('/restore', async (req, res) => {
       }
     }
 
+    logger.warn('[BACKUP] Database restored - server restart REQUIRED');
     res.json({ success: true, message: 'Database restored successfully. Please restart the server.' });
   } catch (error) {
     logger.error('Restore error', { error: error.message });

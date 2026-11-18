@@ -241,14 +241,34 @@ if [ "$HAS_NEW" = "0" ]; then
     # ---- BACKUP DATABASE (dự phòng, KHÔNG restore) ----
     # Chỉ tạo bản sao lưu để phục hồi thủ công nếu cần. KHÔNG copy ngược
     # lại database.sqlite sau khi reset (xem giải thích ở trên).
+    #
+    # ⚠️ Dùng `VACUUM INTO` (không dùng `cp`) vì DB ở chế độ WAL:
+    #   `cp database.sqlite` chỉ copy các page ĐÃ CHECKPOINT — mất đơn hàng
+    #   mới nhất. `VACUUM INTO` tạo file chứa TOÀN BỘ dữ liệu đã commit.
     DB_SAFETY_DIR="/tmp/beerpos-db-safety-$TIMESTAMP"
     mkdir -p "$DB_SAFETY_DIR"
     for dbfile in database.sqlite database_live.sqlite; do
         if [ -f "$dbfile" ]; then
-            cp "$dbfile" "$DB_SAFETY_DIR/" 2>/dev/null \
-                && log "     db safety copy: $dbfile -> $DB_SAFETY_DIR (KHONG restore)"
+            if command -v sqlite3 >/dev/null 2>&1; then
+                sqlite3 "$dbfile" ".backup '$DB_SAFETY_DIR/$dbfile'" 2>/dev/null \
+                    && log "     db safety copy (VACUUM/.backup): $dbfile -> $DB_SAFETY_DIR (KHONG restore)"
+            fi
+            # Copy thô làm fallback (có thể thiếu dữ liệu trong WAL, chỉ để
+            # dự phòng khi không có sqlite3 trên máy).
+            cp "$dbfile" "$DB_SAFETY_DIR/$dbfile.raw" 2>/dev/null \
+                && log "     db raw fallback copy: $dbfile.raw"
         fi
     done
+
+    # ---- GHI NHẬN SỐ ĐƠN TRƯỚC DEPLOY (để phát hiện mất dữ liệu) ----
+    # Đọc TRỰC TIẾP từ file DB đang chạy (sqlite3 tự đọc cả WAL).
+    # Nếu sau deploy số đơn GIẢM → deploy đã làm mất dữ liệu → ABORT.
+    SALES_COUNT_BEFORE=""
+    if command -v sqlite3 >/dev/null 2>&1 && [ -f "$VPS_PATH/database.sqlite" ]; then
+        SALES_COUNT_BEFORE=$(sqlite3 "$VPS_PATH/database.sqlite" \
+            "SELECT COUNT(*) FROM sales;" 2>/dev/null || echo "")
+        [ -n "$SALES_COUNT_BEFORE" ] && log "   Sales count truoc deploy: $SALES_COUNT_BEFORE"
+    fi
 
     # Fetch tu remote
     log "   git fetch origin $GIT_BRANCH..."
@@ -301,6 +321,24 @@ if [ "$HAS_NEW" = "0" ]; then
         exit 7
     fi
     ok "Database present sau reset (KHONG restore tu snapshot)"
+
+    # ---- Safety net #2: phát hiện MẤT DỮ LIỆU (đơn hàng bị "biến mất") ----
+    # So số đơn hàng TRƯỚC và SAU git reset. Nếu giảm → deploy đã làm mất dữ liệu
+    # (thường do copy DB trong lúc PM2 còn chạy, hoặc WAL bị hỏng).
+    # Khi đó: ABORT + KHÔNG restart PM2 (giữ app đang chạy) + cảnh báo admin.
+    if [ -n "$SALES_COUNT_BEFORE" ] && command -v sqlite3 >/dev/null 2>&1; then
+        SALES_COUNT_AFTER=$(sqlite3 "$VPS_PATH/database.sqlite" \
+            "SELECT COUNT(*) FROM sales;" 2>/dev/null || echo "")
+        if [ -n "$SALES_COUNT_AFTER" ] && [ "$SALES_COUNT_AFTER" -lt "$SALES_COUNT_BEFORE" ]; then
+            LOST=$((SALES_COUNT_BEFORE - SALES_COUNT_AFTER))
+            err "MAT DU LIEU: so don giam $SALES_COUNT_BEFORE -> $SALES_COUNT_AFTER (mat $LOST don)"
+            err "Deploy ABORTED - KHONG restart PM2 de giu nguyen app dang chay."
+            err "Kiem tra: $DB_SAFETY_DIR (ban sao luu dung de phuc hoi thu cong)"
+            log_to_file "Deploy ABORTED - data loss detected ($SALES_COUNT_BEFORE -> $SALES_COUNT_AFTER)"
+            exit 8
+        fi
+        log "   Sales count sau reset: ${SALES_COUNT_AFTER:-N/A} (khong giam - OK)"
+    fi
 
     NEW_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
     log "   New HEAD:     $NEW_COMMIT"
