@@ -56,11 +56,14 @@ describe('views/debts.html — lỗi inline onclick & preload', () => {
     expect(handlers.length).toBeGreaterThan(0);
 
     const knownFns = new Set([
-      'openDetail', 'quickEntry', 'showTab', 'openPaymentModal', 'openManualDebtModal',
-      'openAdjustModal', 'unlinkGroup', 'openGroupModal', 'revokePerm', 'openPermModal',
-      'applyReconciliation', 'closeModal', 'submitPayment', 'submitManualDebt',
-      'submitAdjust', 'submitGroup', 'submitPerm', 'event', 'this', 'return',
+      'openDetail', 'quickEntry', 'showTab', 'openPaymentModal',
+      'unlinkGroup', 'openGroupModal', 'revokePerm', 'openPermModal',
+      'applyReconciliation', 'closeModal', 'submitPayment',
+      'submitGroup', 'submitPerm', 'event', 'this', 'return',
       'stopPropagation', 'preventDefault', 'confirm', 'alert',
+      // Modal "Tạo nội dung công nợ"
+      'openClaimContentModal', 'onClaimQRChange', 'copyClaimMessage',
+      'sendClaimZalo', 'regenerateClaimMessage', 'renderClaimQR',
     ]);
 
     const offenders = [];

@@ -398,6 +398,81 @@
       padding: 0 4px;
     }
 
+    /* ── Modal: Nội dung công nợ (nhắc nhở + QR) ──────────────────── */
+    .dbt-modal-box.dbt-modal-box--wide {
+      max-width: 560px;
+    }
+    .dbt-claim-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+    @media (min-width: 520px) {
+      .dbt-claim-grid {
+        grid-template-columns: 1fr 240px;
+        align-items: start;
+      }
+    }
+    .dbt-claim-msg {
+      width: 100%;
+      min-height: 190px;
+      resize: vertical;
+      font-size: 13px;
+      line-height: 1.55;
+      padding: 11px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      font-family: inherit;
+    }
+    .dbt-claim-msg:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+    .dbt-claim-qr {
+      text-align: center;
+    }
+    .dbt-claim-qr-box {
+      background: #fff;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      padding: 10px;
+      display: inline-block;
+    }
+    .dbt-claim-qr-box img {
+      display: block;
+      width: 190px;
+      height: 190px;
+      max-width: 100%;
+      object-fit: contain;
+    }
+    .dbt-claim-qr-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 6px;
+      font-weight: 600;
+      word-break: break-all;
+    }
+    .dbt-claim-warn {
+      background: rgba(245, 158, 11, 0.12);
+      border: 1px solid rgba(245, 158, 11, 0.45);
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size: 12px;
+      line-height: 1.55;
+      color: var(--text-primary);
+      margin-bottom: 12px;
+    }
+    .dbt-claim-warn strong { color: #f59e0b; }
+    .dbt-claim-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 14px;
+      flex-wrap: wrap;
+    }
+    .dbt-claim-actions .dbt-btn { flex: 1 1 auto; min-width: 120px; }
+
     /* ── Toast ──────────────────────────────────────────────────────── */
     .dbt-toast {
       position: fixed;
@@ -811,9 +886,7 @@
           '<div class="dbt-detail-cell"><div class="dbt-detail-label">Số dư cuối kỳ</div><div class="dbt-detail-value ' + (d.balance > 0 ? 'dbt-amount-neg' : '') + '">' + money(d.balance) + '</div></div>' +
         '</div>' +
         '<div class="dbt-btn-row">' +
-          '<button class="dbt-btn" onclick="openPaymentModal(' + cust.id + ')">💵 Nhập thanh toán</button>' +
-          '<button class="dbt-btn dbt-btn-secondary" onclick="openManualDebtModal(' + cust.id + ')">📝 Ghi nợ tay</button>' +
-          (state.isAdmin ? '<button class="dbt-btn dbt-btn-secondary" onclick="openAdjustModal(' + cust.id + ')">⚙️ Điều chỉnh</button>' : '') +
+          '<button class="dbt-btn" onclick="openClaimContentModal(' + cust.id + ')">📨 Tạo nội dung công nợ</button>' +
         '</div>' +
       '</div>' +
 
@@ -1187,6 +1260,299 @@
     }).catch(function () { /* ignore */ });
   }
 
+  // ══════════════════════════════════════════════════════════════════════
+  // MODAL: TẠO NỘI DUNG CÔNG NỢ (nhắc nhở + QR gửi khách)
+  // ══════════════════════════════════════════════════════════════════════
+  // Mục đích: nhân viên cần 1 nút duy nhất để:
+  //   1. Soạn lời nhắc "còn nợ X, thanh toán trước ngày Y" (CẢNH BÁO về
+  //      tiến độ trả thưởng tháng sau — khách nắm trước để chủ động).
+  //   2. Đính kèm mã QR ngân hàng + số tài khoản để khách quét chuyển khoản.
+  //   3. Copy nội dung / gửi qua Zalo (không ghi thay đổi vào sổ — thu tiền
+  //      vẫn dùng nút "Thu Toàn Bộ" / "Thu (1 Phần)" ở panel Thu tiền nhanh).
+  // ──────────────────────────────────────────────────────────────────────
+  var claimState = {
+    qrAccounts: [],
+    qrSelected: null,
+    amount: 0,
+    customerId: null,
+  };
+
+  /**
+   * Tải pool QR ngân hàng (active) — dùng chung endpoint với modal hoá đơn.
+   */
+  function loadClaimQRAccounts() {
+    return api('/api/settings/qr-accounts/active')
+      .then(function (res) {
+        claimState.qrAccounts = Array.isArray(res) ? res : (res.data || []);
+        return claimState.qrAccounts;
+      })
+      .catch(function () {
+        claimState.qrAccounts = [];
+        return [];
+      });
+  }
+
+  /**
+   * Sinh URL ảnh VietQR cho số tiền công nợ.
+   * @param {number} amount - số tiền khách cần trả
+   * @param {object} qr - row qr_accounts đang chọn
+   */
+  function buildClaimQRUrl(amount, qr) {
+    if (!qr) return '';
+    var bankCode = String(qr.bank_code || 'ICB').toUpperCase();
+    var accountNo = String(qr.account_no || '');
+    var accountName = String(qr.account_name || '').toUpperCase();
+    var template = qr.template || 'compact2';
+    var content = String(qr.default_content || 'Thanh toan cong no {invoice_id}');
+    content = content.replace(/\{invoice_id\}/gi, String(claimState.customerId || ''));
+    return 'https://img.vietqr.io/image/' + bankCode + '-' + accountNo + '-' + template +
+      '.png?amount=' + Math.round(Number(amount) || 0) +
+      '&addInfo=' + encodeURIComponent(content) +
+      '&accountName=' + encodeURIComponent(accountName);
+  }
+
+  /**
+   * Sinh nội dung nhắc nhở mặc định.
+   */
+  function buildClaimMessage(cust, balance, orders, dueDateStr) {
+    var name = (cust && cust.name) || 'Quý khách';
+    var lines = [];
+    lines.push('Xin chào ' + name + ',');
+    lines.push('');
+    lines.push('🔔 THÔNG BÁO CÔNG NỢ');
+    lines.push('Số dư công nợ hiện tại: ' + money(balance));
+
+    if (orders && orders.length) {
+      lines.push('Các đơn hàng đang nợ:');
+      orders.slice(0, 8).forEach(function (od) {
+        var rem = Number(od.remaining_amount || 0);
+        lines.push('  • Đơn #' + (od.sale_id || '') + ' (' + (od.sale_date || '') + '): ' + money(rem));
+      });
+      if (orders.length > 8) lines.push('  • ... và ' + (orders.length - 8) + ' đơn khác');
+    }
+
+    lines.push('');
+    if (dueDateStr) {
+      lines.push('⏰ Đề nghị quý khách thanh toán trước ngày ' + dueDateStr + '.');
+    }
+    lines.push('⚠️ Lưu ý: Công nợ chưa được thanh toán đầy đủ sẽ ảnh hưởng đến tiến độ xét thưởng doanh số tháng sau của quý khách.');
+    lines.push('');
+    lines.push('Quý khách vui lòng thanh toán qua mã QR đính kèm hoặc chuyển khoản trực tiếp tới số tài khoản bên dưới.');
+    lines.push('Xin cảm ơn quý khách!');
+    lines.push('— Bia Tươi Gia Huy');
+    return lines.join('\n');
+  }
+
+  /**
+   * Ngày hạn mặc định: cuối tháng hiện tại.
+   */
+  function defaultDueDate() {
+    var now = new Date();
+    var last = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    var d = last.getDate();
+    return String(d).padStart(2, '0') + '/' + String(now.getMonth() + 1).padStart(2, '0') +
+      '/' + now.getFullYear();
+  }
+
+  function openClaimContentModal(customerId) {
+    var id = parseInt(customerId, 10);
+    var d = state.detail;
+    var cust = (d && d.customer) || {};
+    var balance = Number((d && d.balance) || 0);
+    var orders = ((d && d.orderDebts) || []).filter(function (od) {
+      return od.status !== 'paid' && od.status !== 'cancelled' && (od.remaining_amount || 0) > 0;
+    });
+
+    claimState.customerId = id;
+    claimState.amount = balance;
+
+    var dueDate = defaultDueDate();
+    var msg = buildClaimMessage(cust, balance, orders, dueDate);
+
+    // Mở modal NGAY (không chờ tải QR) → không bị giật nếu mạng chậm.
+    showModal('Tạo nội dung công nợ — ' + (cust.name || ''), '' +
+      '<div class="dbt-claim-warn">' +
+        '<strong>⚠️ Cảnh báo về tiến độ trả thưởng:</strong> ' +
+        'Nội dung dưới đây sẽ được gửi cho khách để họ nắm trước rằng công nợ chưa trả sẽ ảnh hưởng đến tiến độ xét thưởng doanh số tháng sau.' +
+      '</div>' +
+      '<div class="dbt-claim-grid">' +
+        '<div>' +
+          '<div class="dbt-field"><label class="dbt-label">Nội dung gửi khách</label>' +
+            '<textarea id="clMessage" class="dbt-claim-msg">' + esc(msg) + '</textarea>' +
+            '<div class="dbt-hint">Có thể sửa nội dung trước khi gửi.</div>' +
+          '</div>' +
+          '<div class="dbt-field"><label class="dbt-label">Hạn thanh toán</label>' +
+            '<input id="clDueDate" class="dbt-input" value="' + esc(dueDate) + '">' +
+            '<div class="dbt-hint">Sửa ngày rồi bấm "Tạo lại nội dung" để cập nhật.</div>' +
+          '</div>' +
+          '<div class="dbt-field"><label class="dbt-label">Số tiền trong QR (đ)</label>' +
+            '<input id="clAmount" class="dbt-input" inputmode="numeric" data-format-number value="' + balance + '">' +
+            '<div class="dbt-hint">Số tiền nhúng vào mã QR (mặc định = số dư công nợ).</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="dbt-claim-qr">' +
+          '<div class="dbt-field"><label class="dbt-label">Tài khoản nhận</label>' +
+            '<select id="clQRSelect" class="dbt-select" onchange="onClaimQRChange(this.value)"></select>' +
+          '</div>' +
+          '<div class="dbt-claim-qr-box" id="clQRBox" style="display:none">' +
+            '<img id="clQRImage" src="" alt="QR thanh toán" onerror="this.style.display=\'none\'">' +
+          '</div>' +
+          '<div class="dbt-claim-qr-label" id="clQRLabel"></div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="dbt-claim-actions">' +
+        '<button class="dbt-btn dbt-btn-secondary" onclick="closeModal()">Hủy</button>' +
+        '<button class="dbt-btn dbt-btn-secondary" onclick="regenerateClaimMessage()">🔄 Tạo lại nội dung</button>' +
+        '<button class="dbt-btn dbt-btn-secondary" onclick="copyClaimMessage()">📋 Sao chép nội dung</button>' +
+        '<button class="dbt-btn" onclick="sendClaimZalo()">💬 Gửi Zalo</button>' +
+      '</div>', true);
+
+    populateClaimQRSelect();
+    // Tải pool QR bất đồng bộ (nếu chưa có) → điền lại dropdown + vẽ QR.
+    ensureClaimQRAccounts();
+    // `initAllNumberFormats` xoá inline oninput → gắn listener thủ công để
+    // cập nhật lại QR khi nhân viên sửa số tiền.
+    var amountInput = document.getElementById('clAmount');
+    if (amountInput) {
+      amountInput.addEventListener('input', renderClaimQR);
+    }
+  }
+
+  /**
+   * Tải pool QR (nếu chưa có) rồi điền dropdown + vẽ QR.
+   */
+  function ensureClaimQRAccounts() {
+    if (claimState.qrAccounts && claimState.qrAccounts.length) {
+      populateClaimQRSelect();
+      return Promise.resolve(claimState.qrAccounts);
+    }
+    return loadClaimQRAccounts().then(function (list) {
+      populateClaimQRSelect();
+      return list;
+    });
+  }
+
+  /**
+   * Tạo lại nội dung nhắc nhở từ dữ liệu hiện tại (dùng sau khi sửa hạn
+   * thanh toán hoặc số tiền).
+   */
+  function regenerateClaimMessage() {
+    var d = state.detail;
+    var cust = (d && d.customer) || {};
+    var orders = ((d && d.orderDebts) || []).filter(function (od) {
+      return od.status !== 'paid' && od.status !== 'cancelled' && (od.remaining_amount || 0) > 0;
+    });
+    var dueEl = document.getElementById('clDueDate');
+    var amountEl = document.getElementById('clAmount');
+    var balance = amountEl ? parseMoney(amountEl.value) : Number((d && d.balance) || 0);
+    var msg = buildClaimMessage(cust, balance, orders, dueEl ? dueEl.value.trim() : '');
+    var ta = document.getElementById('clMessage');
+    if (ta) ta.value = msg;
+    toast('✅ Đã tạo lại nội dung', 'ok');
+  }
+
+  function populateClaimQRSelect() {
+    var select = document.getElementById('clQRSelect');
+    if (!select) return;
+
+    var list = claimState.qrAccounts || [];
+    if (!list.length) {
+      select.innerHTML = '<option value="">— Chưa cấu hình tài khoản —</option>';
+      select.disabled = true;
+      var box = document.getElementById('clQRBox');
+      if (box) box.style.display = 'none';
+      var lbl = document.getElementById('clQRLabel');
+      if (lbl) lbl.textContent = 'Chưa có tài khoản QR. Thêm tại Cài đặt → QR ngân hàng.';
+      return;
+    }
+
+    var html = '';
+    list.forEach(function (qr) {
+      var label = qr.label + ' — ' + qr.bank_code + ' ' + qr.account_no;
+      html += '<option value="' + qr.id + '">' + esc(label) + '</option>';
+    });
+    select.innerHTML = html;
+    select.disabled = false;
+    select.value = String(list[0].id);
+    claimState.qrSelected = list[0];
+    renderClaimQR();
+  }
+
+  function onClaimQRChange(qrId) {
+    var id = parseInt(qrId, 10);
+    var list = claimState.qrAccounts || [];
+    var qr = null;
+    for (var i = 0; i < list.length; i++) {
+      if (parseInt(list[i].id, 10) === id) { qr = list[i]; break; }
+    }
+    claimState.qrSelected = qr;
+    renderClaimQR();
+  }
+
+  function renderClaimQR() {
+    var img = document.getElementById('clQRImage');
+    var box = document.getElementById('clQRBox');
+    var lbl = document.getElementById('clQRLabel');
+    var amountEl = document.getElementById('clAmount');
+    var amount = amountEl ? parseMoney(amountEl.value) : claimState.amount;
+
+    var qr = claimState.qrSelected;
+    if (!qr) {
+      if (box) box.style.display = 'none';
+      return;
+    }
+    var url = buildClaimQRUrl(amount, qr);
+    if (img) { img.src = url; img.style.display = ''; }
+    if (box) box.style.display = '';
+    if (lbl) {
+      lbl.textContent = qr.account_name + ' · ' + qr.bank_code + ' ' + qr.account_no;
+    }
+  }
+
+  /**
+   * Copy nội dung + thông tin tài khoản vào clipboard.
+   */
+  function copyClaimMessage() {
+    var ta = document.getElementById('clMessage');
+    if (!ta) return;
+    var qr = claimState.qrSelected;
+    var text = ta.value;
+    if (qr) {
+      text += '\n\n🏦 Chuyển khoản: ' + qr.bank_code + ' ' + qr.account_no +
+        '\nChủ tài khoản: ' + qr.account_name;
+    }
+    var done = function () { toast('✅ Đã sao chép nội dung', 'ok'); };
+    var fail = function () { toast('✗ Không sao chép được, hãy chọn và copy thủ công', 'err'); };
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(fail);
+    } else {
+      ta.focus();
+      ta.select();
+      try { document.execCommand('copy'); done(); } catch (e) { fail(); }
+    }
+  }
+
+  /**
+   * Gửi nội dung qua Zalo cho khách (mở Zalo với sẵn nội dung).
+   */
+  function sendClaimZalo() {
+    var ta = document.getElementById('clMessage');
+    var cust = (state.detail && state.detail.customer) || {};
+    var phone = String(cust.phone || '').replace(/\D/g, '');
+    if (!phone) { toast('✗ Khách chưa có số điện thoại', 'err'); return; }
+    if (!ta || !ta.value.trim()) { toast('✗ Nội dung trống', 'err'); return; }
+
+    var qr = claimState.qrSelected;
+    var text = ta.value;
+    if (qr) {
+      text += '\n\n🏦 Chuyển khoản: ' + qr.bank_code + ' ' + qr.account_no +
+        '\nChủ tài khoản: ' + qr.account_name;
+    }
+    var url = 'https://zalo.me/' + phone + '?text=' + encodeURIComponent(text);
+    window.open(url, '_blank');
+  }
+
   function openPaymentModal(customerId) {
     showModal('Nhập thanh toán công nợ', '' +
       '<div class="dbt-field"><label class="dbt-label">Khách hàng</label>' +
@@ -1198,31 +1564,6 @@
         '<input id="pmNote" class="dbt-input" placeholder="VD: Khách trả tiền mặt"></div>' +
       '<div class="dbt-btn-row"><button class="dbt-btn dbt-btn-secondary" onclick="closeModal()">Hủy</button>' +
         '<button class="dbt-btn" style="flex:1" onclick="submitPayment()">💵 Ghi nhận thanh toán</button></div>');
-  }
-
-  function openManualDebtModal(customerId) {
-    showModal('Ghi nợ tay (lệnh −)', '' +
-      '<div class="dbt-field"><label class="dbt-label">Khách hàng</label>' +
-        '<select id="mdCustomer" class="dbt-select">' + customerOptions(customerId) + '</select></div>' +
-      '<div class="dbt-field"><label class="dbt-label">Số tiền (đ)</label>' +
-        '<input id="mdAmount" class="dbt-input" inputmode="numeric" data-format-number placeholder="1.000.000">' +
-        '<div class="dbt-hint">⚠️ Bút toán công nợ bổ sung — KHÔNG tạo đơn hàng, KHÔNG thay đổi doanh thu bán hàng.</div></div>' +
-      '<div class="dbt-field"><label class="dbt-label">Lý do</label>' +
-        '<input id="mdNote" class="dbt-input" placeholder="VD: Khách mượn thêm vỏ bình"></div>' +
-      '<div class="dbt-btn-row"><button class="dbt-btn dbt-btn-secondary" onclick="closeModal()">Hủy</button>' +
-        '<button class="dbt-btn" style="flex:1" onclick="submitManualDebt()">📝 Ghi nợ</button></div>');
-  }
-
-  function openAdjustModal(customerId) {
-    showModal('Điều chỉnh công nợ (Admin)', '' +
-      '<div class="dbt-field"><label class="dbt-label">Khách hàng</label>' +
-        '<select id="ajCustomer" class="dbt-select">' + customerOptions(customerId) + '</select></div>' +
-      '<div class="dbt-field"><label class="dbt-label">Số tiền (đ, âm = giảm nợ)</label>' +
-        '<input id="ajAmount" class="dbt-input" inputmode="numeric" data-format-number placeholder="500.000"></div>' +
-      '<div class="dbt-field"><label class="dbt-label">Lý do (bắt buộc)</label>' +
-        '<input id="ajReason" class="dbt-input" placeholder="VD: Chênh lệch doanh thu"></div>' +
-      '<div class="dbt-btn-row"><button class="dbt-btn dbt-btn-secondary" onclick="closeModal()">Hủy</button>' +
-        '<button class="dbt-btn" style="flex:1" onclick="submitAdjust()">⚙️ Điều chỉnh</button></div>');
   }
 
   function openGroupModal() {
@@ -1261,7 +1602,7 @@
     }).join('');
   }
 
-  function showModal(title, html) {
+  function showModal(title, html, wide) {
     var el = document.getElementById('dbtModal');
     if (!el) {
       el = document.createElement('div');
@@ -1270,7 +1611,7 @@
       el.onclick = function (e) { if (e.target === el) closeModal(); };
       document.body.appendChild(el);
     }
-    el.innerHTML = '<div class="dbt-modal-box">' +
+    el.innerHTML = '<div class="dbt-modal-box' + (wide ? ' dbt-modal-box--wide' : '') + '">' +
       '<div class="dbt-modal-title">' + esc(title) + '<button class="dbt-modal-close" onclick="closeModal()">×</button></div>' +
       html + '</div>';
     el.classList.remove('hidden');
@@ -1363,41 +1704,6 @@
     }).then(function (res) {
       closeModal();
       toast('✅ Đã thu ' + money(res.data.appliedAmount) + ' · Còn nợ ' + money(res.data.balanceAfter), 'ok');
-      refreshOverview();
-      if (state.detail) openDetail(state.detailCustomerId);
-    }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
-  }
-
-  function submitManualDebt() {
-    var customerId = parseInt(document.getElementById('mdCustomer').value, 10);
-    var amount = parseMoney(document.getElementById('mdAmount').value);
-    var note = document.getElementById('mdNote').value;
-    if (!customerId || !amount) { toast('✗ Thiếu khách hàng hoặc số tiền', 'err'); return; }
-
-    api(API + '/manual-debt', {
-      method: 'POST',
-      body: JSON.stringify({ customerId: customerId, amount: amount, note: note })
-    }).then(function (res) {
-      closeModal();
-      toast('✅ Đã ghi nợ ' + money(amount) + ' · Còn nợ ' + money(res.data.balanceAfter), 'ok');
-      refreshOverview();
-      if (state.detail) openDetail(state.detailCustomerId);
-    }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
-  }
-
-  function submitAdjust() {
-    var customerId = parseInt(document.getElementById('ajCustomer').value, 10);
-    var amount = parseMoney(document.getElementById('ajAmount').value);
-    var reason = document.getElementById('ajReason').value;
-    if (!customerId || !amount) { toast('✗ Thiếu khách hàng hoặc số tiền', 'err'); return; }
-    if (!reason) { toast('✗ Cần nhập lý do điều chỉnh', 'err'); return; }
-
-    api(API + '/adjust', {
-      method: 'POST',
-      body: JSON.stringify({ customerId: customerId, amount: amount, reason: reason })
-    }).then(function (res) {
-      closeModal();
-      toast('✅ Đã điều chỉnh · Số dư ' + money(res.data.balanceAfter), 'ok');
       refreshOverview();
       if (state.detail) openDetail(state.detailCustomerId);
     }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
@@ -1519,17 +1825,19 @@
   window.openDetail = openDetail;
   window.quickEntry = quickEntry;
   window.closeModal = closeModal;
-  window.submitPayment = submitPayment;
-  window.submitManualDebt = submitManualDebt;
-  window.submitAdjust = submitAdjust;
-  window.submitGroup = submitGroup;
+    window.submitPayment = submitPayment;
+    window.submitGroup = submitGroup;
   window.unlinkGroup = unlinkGroup;
   window.submitPerm = submitPerm;
   window.revokePerm = revokePerm;
   window.applyReconciliation = applyReconciliation;
-  window.openPaymentModal = openPaymentModal;
-  window.openManualDebtModal = openManualDebtModal;
-  window.openAdjustModal = openAdjustModal;
+    window.openPaymentModal = openPaymentModal;
+    window.openClaimContentModal = openClaimContentModal;
+    window.onClaimQRChange = onClaimQRChange;
+    window.renderClaimQR = renderClaimQR;
+    window.copyClaimMessage = copyClaimMessage;
+    window.sendClaimZalo = sendClaimZalo;
+    window.regenerateClaimMessage = regenerateClaimMessage;
   window.openGroupModal = openGroupModal;
   window.openPermModal = openPermModal;
   window.collectAll = collectAll;
