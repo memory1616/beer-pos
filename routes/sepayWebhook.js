@@ -6,7 +6,7 @@
  * ⚠️ PUBLIC — KHÔNG yêu cầu đăng nhập (Sepay gọi từ server bên ngoài).
  *   Bù lại: BẮT BUỘC xác thực chữ ký HMAC-SHA256 hoặc API key.
  *
- * Vì cần raw body để verify HMAC → route dùng `express.raw({type:'*/*'})`
+ * Vì cần raw body để verify HMAC → route dùng `express.raw` với type mọi kiểu
  * và tự parse JSON/Form bên trong.
  *
  * Phản hồi (theo yêu cầu của Sepay):
