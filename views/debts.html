@@ -199,6 +199,100 @@
     .dbt-badge-warn { background: rgba(245,158,11,0.15); color: #f59e0b; }
     .dbt-badge-crit { background: rgba(239,68,68,0.15); color: #ef4444; }
     .dbt-badge-info { background: rgba(59,130,246,0.15); color: #3b82f6; }
+    .dbt-badge-credit { background: rgba(14,165,233,0.15); color: #0ea5e9; }
+
+    /* ── Sepay ───────────────────────────────────────────────────────── */
+    .dbt-sepay-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border-radius: 11px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .dbt-sepay-dot {
+      width: 9px; height: 9px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .dbt-sepay-dot.on { background: #22c55e; box-shadow: 0 0 0 3px rgba(34,197,94,0.18); }
+    .dbt-sepay-dot.off { background: #94a3b8; }
+    .dbt-sepay-dot.warn { background: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,0.18); }
+    .dbt-sepay-code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      color: var(--primary);
+    }
+    .dbt-sepay-url {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11.5px;
+      word-break: break-all;
+      color: var(--text-muted);
+    }
+    .dbt-sepay-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 9px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .dbt-sepay-row:last-child { border-bottom: none; }
+    .dbt-sepay-row-label { font-size: 12.5px; color: var(--text-secondary); }
+    .dbt-sepay-toggle {
+      position: relative;
+      width: 44px; height: 25px;
+      border-radius: 999px;
+      border: none;
+      background: var(--border);
+      cursor: pointer;
+      transition: background 0.18s;
+      flex-shrink: 0;
+    }
+    .dbt-sepay-toggle.on { background: var(--primary); }
+    .dbt-sepay-toggle::after {
+      content: '';
+      position: absolute;
+      top: 3px; left: 3px;
+      width: 19px; height: 19px;
+      border-radius: 50%;
+      background: #fff;
+      transition: transform 0.18s;
+    }
+    .dbt-sepay-toggle.on::after { transform: translateX(19px); }
+    .dbt-sepay-filter {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .dbt-sepay-chip {
+      padding: 6px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--text-secondary);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .dbt-sepay-chip.active {
+      background: var(--primary);
+      color: #000;
+      border-color: var(--primary);
+    }
+    .dbt-sepay-content {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      word-break: break-word;
+      max-width: 220px;
+      line-height: 1.4;
+    }
 
     /* ── Form ───────────────────────────────────────────────────────── */
     .dbt-field { margin-bottom: 14px; }
@@ -781,6 +875,7 @@
   'use strict';
 
   var API = '/api/debt-ledger';
+  var SEPAY_API = '/api/debt-ledger/sepay';
 
   var state = {
     tab: 'overview',
@@ -794,6 +889,10 @@
     bridge: null,
     isAdmin: false,
     loading: false,
+    // Sepay — gạch nợ tự động
+    sepay: null,
+    sepayTx: [],
+    sepayFilter: '',
     // Dấu của lệnh nhập nhanh: '+' (thu tiền) hoặc '−' (ghi nợ).
     // Chọn bằng NÚT vì bàn phím điện thoại không có phím "+".
     quickSign: '+',
@@ -889,6 +988,7 @@
     PAYMENT: ['Thanh toán', 'dbt-badge-payment'],
     ADJUSTMENT: ['Điều chỉnh', 'dbt-badge-adjust'],
     REVERSAL: ['Đảo giao dịch', 'dbt-badge-reversal'],
+    CREDIT: ['Tiền khách nợ lại', 'dbt-badge-credit'],
   };
 
   function txBadge(type) {
@@ -1133,6 +1233,131 @@
       '</div>';
   }
 
+  // ── Render: Sepay ──────────────────────────────────────────────────────
+  var SEPAY_STATUS = {
+    matched: ['Đã gạch nợ', 'dbt-badge-ok'],
+    manual: ['Chờ xử lý', 'dbt-badge-warn'],
+    pending: ['Chờ xử lý', 'dbt-badge-info'],
+    ignored: ['Bỏ qua', 'dbt-badge-info'],
+  };
+
+  function renderSepay() {
+    var s = state.sepay;
+    if (!s) return '<div class="dbt-empty">⏳ Đang tải trạng thái Sepay...</div>';
+
+    var sum = s.summary || {};
+    var configured = s.hasApiToken || s.hasWebhookSecret;
+
+    var statusHtml =
+      '<div class="dbt-sepay-status">' +
+        '<span class="dbt-sepay-dot ' + (configured ? (s.autoSettle ? 'on' : 'warn') : 'off') + '"></span>' +
+        '<div style="flex:1;min-width:0">' +
+          '<div style="font-weight:700;font-size:13px">' +
+            (configured
+              ? (s.autoSettle ? 'Đang hoạt động — tự gạch nợ khi nhận tiền' : 'Đã cấu hình — đang TẮT tự động gạch nợ')
+              : 'Chưa cấu hình — cần nhập API token / webhook secret') +
+          '</div>' +
+          '<div class="dbt-sepay-url" style="margin-top:3px">Webhook: ' +
+            esc(location.origin + (s.webhookUrl || '/webhook/sepay')) +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+    var kpiHtml = '<div class="dbt-kpi-grid">' +
+      '<div class="dbt-kpi"><div class="dbt-kpi-label">Tổng giao dịch</div><div class="dbt-kpi-value">' + (sum.total || 0) + '</div></div>' +
+      '<div class="dbt-kpi"><div class="dbt-kpi-label">Đã gạch nợ</div><div class="dbt-kpi-value" style="color:#22c55e">' + (sum.matched || 0) + '</div></div>' +
+      '<div class="dbt-kpi"><div class="dbt-kpi-label">Chờ xử lý</div><div class="dbt-kpi-value orange">' + ((sum.manual || 0) + (sum.pending || 0)) + '</div></div>' +
+      '<div class="dbt-kpi"><div class="dbt-kpi-label">Tiền khách nợ lại</div><div class="dbt-kpi-value">' + money(sum.credit || 0) + '</div></div>' +
+    '</div>';
+
+    var filters = [
+      { id: '', label: 'Tất cả' },
+      { id: 'manual', label: 'Chờ xử lý' },
+      { id: 'matched', label: 'Đã gạch nợ' },
+      { id: 'ignored', label: 'Bỏ qua' },
+    ];
+    var filterHtml = '<div class="dbt-sepay-filter">' +
+      filters.map(function (f) {
+        return '<button class="dbt-sepay-chip' + (state.sepayFilter === f.id ? ' active' : '') +
+          '" onclick="filterSepay(\'' + f.id + '\')">' + esc(f.label) + '</button>';
+      }).join('') +
+    '</div>';
+
+    var items = state.sepayTx || [];
+    var rows = items.length
+      ? '<div class="dbt-table-wrap"><table class="dbt-table dbt-table--wide"><thead><tr>' +
+        '<th>Thời gian</th><th>Khách</th><th>Nội dung CK</th>' +
+        '<th style="text-align:right">Số tiền</th><th>Trạng thái</th><th></th>' +
+        '</tr></thead><tbody>' +
+        items.map(function (t) {
+          var st = SEPAY_STATUS[t.status] || [t.status, 'dbt-badge-info'];
+          var actions = '';
+          if (t.status === 'manual' || t.status === 'pending') {
+            actions = '<button class="dbt-btn" style="padding:5px 10px;font-size:11.5px" onclick="assignSepayCustomer(' + t.id + ')">Gán khách</button> ' +
+              '<button class="dbt-btn" style="padding:5px 10px;font-size:11.5px" onclick="ignoreSepayTx(' + t.id + ')">Bỏ qua</button>';
+          }
+          var detail = '';
+          if (t.appliedAmount) detail += 'Gạch ' + money(t.appliedAmount);
+          if (t.creditAmount) detail += (detail ? ' · ' : '') + 'Dư ' + money(t.creditAmount);
+          if (detail) detail = '<div class="dbt-muted" style="font-size:11px;margin-top:2px">' + esc(detail) + '</div>';
+
+          return '<tr>' +
+            '<td style="font-size:11.5px;white-space:nowrap">' + esc(fmtDateTime(t.transactionDate)) + '</td>' +
+            '<td>' +
+              (t.customerName
+                ? '<span class="dbt-name">' + esc(t.customerName) + '</span>'
+                : '<span class="dbt-muted">Chưa khớp</span>') +
+              (t.debtCode ? '<div class="dbt-sepay-code" style="font-size:11px">' + esc(t.debtCode) + '</div>' : '') +
+            '</td>' +
+            '<td><div class="dbt-sepay-content">' + esc(t.content || t.description || '—') + '</div></td>' +
+            '<td class="dbt-mono" style="text-align:right">' + money(t.amount) + detail + '</td>' +
+            '<td><span class="dbt-badge ' + st[1] + '">' + esc(st[0]) + '</span></td>' +
+            '<td style="text-align:right;white-space:nowrap">' + actions + '</td>' +
+          '</tr>';
+        }).join('') +
+        '</tbody></table></div>'
+      : '<div class="dbt-empty">📭 Chưa có giao dịch Sepay nào</div>';
+
+    var settingsHtml = '';
+    if (state.isAdmin) {
+      settingsHtml = '<div class="dbt-section" style="margin-top:12px">' +
+        '<div class="dbt-section-title">⚙️ Cấu hình Sepay</div>' +
+        '<div class="dbt-section-desc">Dán API token & webhook secret lấy trong Sepay Dashboard. Sau khi lưu, dán URL webhook ở trên vào Sepay.</div>' +
+        '<div class="dbt-field">' +
+          '<label class="dbt-label">API token</label>' +
+          '<input id="sepApiToken" class="dbt-input" type="password" placeholder="' + (s.hasApiToken ? '•••••••• (đã lưu)' : 'Dán API token') + '">' +
+        '</div>' +
+        '<div class="dbt-field">' +
+          '<label class="dbt-label">Webhook secret</label>' +
+          '<input id="sepWebhookSecret" class="dbt-input" type="password" placeholder="' + (s.hasWebhookSecret ? '•••••••• (đã lưu)' : 'Dán webhook secret') + '">' +
+        '</div>' +
+        '<div class="dbt-field">' +
+          '<label class="dbt-label">Tiền tố mã thanh toán</label>' +
+          '<input id="sepPrefix" class="dbt-input" type="text" value="' + esc(s.paymentCodePrefix || 'DH') + '" placeholder="DH">' +
+        '</div>' +
+        '<div class="dbt-sepay-row">' +
+          '<span class="dbt-sepay-row-label">Tự động gạch nợ khi nhận tiền</span>' +
+          '<button class="dbt-sepay-toggle' + (s.autoSettle ? ' on' : '') + '" id="sepAutoSettle" onclick="toggleSepayAutoSettle()"></button>' +
+        '</div>' +
+        '<div class="dbt-btn-row" style="margin-top:12px">' +
+          '<button class="dbt-btn dbt-btn-primary" onclick="saveSepaySettings()">💾 Lưu cấu hình</button>' +
+          '<button class="dbt-btn" onclick="reconcileSepay()">🔄 Đối soát tay (API)</button>' +
+        '</div>' +
+        '<div class="dbt-hint" style="margin-top:10px">Đối soát tay dùng API Sepay để lấy giao dịch bị lỗi webhook (server restart, mạng lỗi). Tối đa 3 request/giây.</div>' +
+      '</div>';
+    }
+
+    return '<div class="dbt-section">' +
+      '<div class="dbt-section-title">🏦 Sepay — Gạch nợ tự động</div>' +
+      '<div class="dbt-section-desc">Khách quét QR → chuyển tiền → hệ thống tự gạch nợ nhờ mã khách nhúng trong nội dung chuyển khoản.</div>' +
+      statusHtml +
+      kpiHtml +
+      filterHtml +
+      rows +
+      settingsHtml +
+    '</div>';
+  }
+
   // ── Render: Groups (mapping) ───────────────────────────────────────────
   function renderGroups() {
     var rows = state.groups || [];
@@ -1285,6 +1510,7 @@
   var TABS = [
     { id: 'overview', label: '📊 Tổng quan' },
     { id: 'customers', label: '👥 Khách hàng' },
+    { id: 'sepay', label: '🏦 Sepay' },
     { id: 'groups', label: '💬 Nhóm Zalo' },
     { id: 'permissions', label: '🔐 Phân quyền' },
     { id: 'reconciliation', label: '🔍 Đối soát' },
@@ -1300,6 +1526,7 @@
     if (state.tab === 'overview') body = renderOverview();
     else if (state.tab === 'customers') body = renderCustomers();
     else if (state.tab === 'detail') body = renderDetail();
+    else if (state.tab === 'sepay') body = renderSepay();
     else if (state.tab === 'groups') body = renderGroups();
     else if (state.tab === 'permissions') body = renderPermissions();
     else if (state.tab === 'reconciliation') body = renderReconciliation();
@@ -1500,6 +1727,9 @@
     qrSelected: null,
     amount: 0,
     customerId: null,
+    // Mã khách Sepay (KHxxxx) — nhúng vào nội dung chuyển khoản của mã QR
+    // để khi khách quét QR & chuyển tiền, hệ thống tự gạch nợ đúng khách.
+    debtCode: null,
   };
 
   // ══════════════════════════════════════════════════════════════════════
@@ -1575,6 +1805,12 @@
     var template = qr.template || 'compact2';
     var content = String(qr.default_content || 'Thanh toan cong no {invoice_id}');
     content = content.replace(/\{invoice_id\}/gi, String(claimState.customerId || ''));
+    // Sepay: nhúng mã khách (KHxxxx) vào nội dung chuyển khoản → khi khách
+    // quét QR & chuyển tiền, hệ thống tự biết tiền của ai để gạch nợ.
+    if (claimState.debtCode) {
+      content = content.replace(new RegExp('\\b' + claimState.debtCode + '\\b', 'gi'), '');
+      content = (content.replace(/\s+/g, ' ').trim() + ' ' + claimState.debtCode).trim();
+    }
     return 'https://img.vietqr.io/image/' + bankCode + '-' + accountNo + '-' + template +
       '.png?amount=' + Math.round(Number(amount) || 0) +
       '&addInfo=' + encodeURIComponent(content) +
@@ -1627,6 +1863,19 @@
 
     claimState.customerId = id;
     claimState.amount = balance;
+    // Mã khách Sepay (nếu chưa có thì tự sinh) → nhúng vào nội dung CK trong QR
+    claimState.debtCode = (cust && cust.debt_code) || null;
+    if (!claimState.debtCode) {
+      api(SEPAY_API + '/customer-code', {
+        method: 'POST',
+        body: JSON.stringify({ customerId: id }),
+      }).then(function (res) {
+        if (res && res.data && res.data.debtCode) {
+          claimState.debtCode = res.data.debtCode;
+          renderClaimQR();
+        }
+      }).catch(function () { /* không có mã → QR vẫn dùng được */ });
+    }
 
     var msg = buildClaimMessage(cust, balance, orders);
 
@@ -1655,6 +1904,7 @@
             '<img id="clQRImage" src="" alt="QR thanh toán" onerror="this.style.display=\'none\'">' +
           '</div>' +
           '<div class="dbt-claim-qr-label" id="clQRLabel"></div>' +
+          '<div class="dbt-hint" id="clDebtCodeHint" style="margin-top:6px"></div>' +
         '</div>' +
       '</div>' +
       '<div class="dbt-claim-actions">' +
@@ -1876,6 +2126,13 @@
     if (box) box.style.display = '';
     if (lbl) {
       lbl.textContent = qr.account_name + ' · ' + qr.bank_code + ' ' + qr.account_no;
+    }
+    // Gợi ý: mã khách đã nhúng trong nội dung CK → hệ thống tự gạch nợ
+    var hintEl = document.getElementById('clDebtCodeHint');
+    if (hintEl) {
+      hintEl.innerHTML = claimState.debtCode
+        ? '🔖 Mã khách <span class="dbt-sepay-code">' + esc(claimState.debtCode) + '</span> đã được nhúng vào nội dung chuyển khoản — tiền vào là tự gạch nợ.'
+        : '🔖 Mã khách chưa có — sẽ tự sinh sau vài giây.';
     }
   }
 
@@ -2149,8 +2406,94 @@
     }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
   }
 
+  // ── Sepay ──────────────────────────────────────────────────────────────
+  function loadSepay() {
+    state.sepay = null;
+    render();
+    return Promise.all([
+      api(SEPAY_API + '/status'),
+      api(SEPAY_API + '/transactions' + (state.sepayFilter ? '?status=' + state.sepayFilter : '')),
+    ]).then(function (res) {
+      state.sepay = res[0].data;
+      state.sepayTx = (res[1].data && res[1].data.items) || [];
+      render();
+    }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
+  }
+
+  function filterSepay(status) {
+    state.sepayFilter = status || '';
+    loadSepay();
+  }
+
+  function toggleSepayAutoSettle() {
+    var btn = document.getElementById('sepAutoSettle');
+    if (!btn) return;
+    var on = !btn.classList.contains('on');
+    btn.classList.toggle('on', on);
+    if (state.sepay) state.sepay.autoSettle = on;
+  }
+
+  function saveSepaySettings() {
+    var patch = {};
+    var tokenEl = document.getElementById('sepApiToken');
+    var secretEl = document.getElementById('sepWebhookSecret');
+    var prefixEl = document.getElementById('sepPrefix');
+    var autoEl = document.getElementById('sepAutoSettle');
+
+    // Chỉ gửi field có thay đổi (để không xoá secret đã lưu)
+    if (tokenEl && tokenEl.value.trim()) patch.apiToken = tokenEl.value.trim();
+    if (secretEl && secretEl.value.trim()) patch.webhookSecret = secretEl.value.trim();
+    if (prefixEl && prefixEl.value.trim()) patch.paymentCodePrefix = prefixEl.value.trim();
+    if (autoEl) patch.autoSettle = autoEl.classList.contains('on');
+
+    api(SEPAY_API + '/settings', {
+      method: 'POST',
+      body: JSON.stringify(patch),
+    }).then(function () {
+      toast('✅ Đã lưu cấu hình Sepay', 'ok');
+      loadSepay();
+    }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
+  }
+
+  function reconcileSepay() {
+    toast('⏳ Đang đối soát với Sepay...');
+    api(SEPAY_API + '/reconcile', { method: 'POST', body: JSON.stringify({}) })
+      .then(function (res) {
+        var d = res.data || {};
+        toast('✅ Đối soát xong — thêm ' + (d.added || 0) + ', gạch nợ ' + (d.settled || 0) + ', lỗi ' + (d.failed || 0), 'ok');
+        loadSepay();
+        refreshOverview();
+      }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
+  }
+
+  function assignSepayCustomer(txId) {
+    var custId = prompt('Nhập ID khách hàng cần gạch nợ (ví dụ 9):');
+    if (!custId) return;
+    api(SEPAY_API + '/transactions/' + txId + '/assign', {
+      method: 'POST',
+      body: JSON.stringify({ customerId: parseInt(custId, 10) }),
+    }).then(function (res) {
+      var d = res.data || {};
+      toast('✅ Đã gạch nợ ' + money(d.applied || 0) + (d.credit ? ' · Dư ' + money(d.credit) : ''), 'ok');
+      loadSepay();
+      refreshOverview();
+    }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
+  }
+
+  function ignoreSepayTx(txId) {
+    if (!window.confirm('Bỏ qua giao dịch này?')) return;
+    api(SEPAY_API + '/transactions/' + txId + '/ignore', {
+      method: 'POST',
+      body: JSON.stringify({ note: 'Bỏ qua bởi nhân viên' }),
+    }).then(function () {
+      toast('✅ Đã bỏ qua', 'ok');
+      loadSepay();
+    }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
+  }
+
   function loadForTab(tab) {
     if (tab === 'overview' || tab === 'customers') return refreshOverview();
+    if (tab === 'sepay') return loadSepay();
     if (tab === 'groups') return loadGroups();
     if (tab === 'permissions') return loadPermissions();
     if (tab === 'reconciliation') return loadReconciliation();
@@ -2190,6 +2533,13 @@
   window.openPermModal = openPermModal;
   window.collectAll = collectAll;
   window.collectPartial = collectPartial;
+  // Sepay — gạch nợ tự động
+  window.filterSepay = filterSepay;
+  window.toggleSepayAutoSettle = toggleSepayAutoSettle;
+  window.saveSepaySettings = saveSepaySettings;
+  window.reconcileSepay = reconcileSepay;
+  window.assignSepayCustomer = assignSepayCustomer;
+  window.ignoreSepayTx = ignoreSepayTx;
   window.submitCollectPartial = submitCollectPartial;
   // Chọn dấu +/− cho lệnh nhập nhanh (bàn phím mobile không có phím "+")
   window.setQuickSign = setQuickSign;
