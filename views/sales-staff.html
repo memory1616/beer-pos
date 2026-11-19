@@ -534,10 +534,46 @@
       gap: 10px;
     }
     .ss-card-list--attendance .ss-card { margin-bottom: 0; }
-    /* Compact metrics cho card chấm công — tiết kiệm chiều cao */
-    .ss-card-list--attendance .ss-metrics { gap: 6px; margin-bottom: 0; }
-    .ss-card-list--attendance .ss-metric { padding: 6px 8px; }
+    /* Compact metrics cho card chấm công — tiết kiệm chiều cao.
+       ⚠️ PHẢI ép 2 cột: media query 640px đổi `.ss-metrics` thành 4 cột, nhưng
+       card chấm công chỉ rộng ~225px → 4 cột làm mỗi ô ~44px → chữ bị cắt. */
+    .ss-card-list--attendance .ss-metrics {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+      margin-bottom: 0;
+    }
+    .ss-card-list--attendance .ss-metric {
+      padding: 6px 8px;
+      min-width: 0;
+    }
+    .ss-card-list--attendance .ss-metric-label {
+      font-size: 9.5px;
+      letter-spacing: 0.02em;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .ss-card-list--attendance .ss-metric-value { font-size: 12.5px; }
     .ss-card-list--attendance .ss-card-top { margin-bottom: 8px; }
+
+    /* Dải số liệu inline cho card chấm công — thay cho 2 ô KPI vuông bị bóp */
+    .ss-att-stats {
+      display: flex;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: 4px 10px;
+      margin-bottom: 8px;
+      font-size: 11.5px;
+      color: var(--text-secondary);
+    }
+    .ss-att-stat b {
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--text-primary);
+      font-variant-numeric: tabular-nums;
+    }
+    .ss-att-stat--sun { color: var(--warning); }
+    .ss-att-stat--sun b { color: var(--warning); }
   </style>
 </head>
 <body class="body--app">
@@ -1246,11 +1282,13 @@
                     ? '<span class="ss-badge ss-badge--warn">' + r.sundayCount + ' CN</span>'
                     : '<span class="ss-badge ss-badge--muted">0 CN</span>') +
                 '</div>' +
+                '<div class="ss-att-stats">' +
+                  '<span class="ss-att-stat"><b>' + r.count + '</b> ngày đã chấm</span>' +
+                  (r.sundayCount > 0
+                    ? '<span class="ss-att-stat ss-att-stat--sun"><b>' + r.sundayCount + '</b> CN</span>'
+                    : '') +
+                '</div>' +
                 '<div class="ss-metrics">' +
-                  '<div class="ss-metric"><span class="ss-metric-label">Đã chấm</span>' +
-                    '<span class="ss-metric-value">' + r.count + ' ngày</span></div>' +
-                  '<div class="ss-metric"><span class="ss-metric-label">Trong đó CN</span>' +
-                    '<span class="ss-metric-value' + (r.sundayCount > 0 ? ' ss-metric-value--warn' : '') + '">' + r.sundayCount + ' ngày</span></div>' +
                   '<div class="ss-metric" style="grid-column: 1 / -1;">' +
                     '<span class="ss-metric-label">Chi tiết</span>' +
                     (days.length
