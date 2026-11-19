@@ -91,8 +91,16 @@ function cleanup() {
 afterEach(() => cleanup());
 afterAll(() => cleanup());
 
-// ── SQL giống hệt route /api/debt-ledger/overview ───────────────────────────
-function computeTodayDebt() {
+// ── SQL giống HỆT route /api/debt-ledger/overview ──────────────────────────
+//
+// ⚠️ QUAN TRỌNG: phải SCOPE theo khách hàng test.
+//
+// Route production tính KPI trên TOÀN BỘ khách hàng (đúng — admin xem tổng
+// quan toàn hệ thống). Test thì phải cô lập dữ liệu, nếu không sẽ cộng
+// luôn giao dịch THẬT đang có trong DB dev hôm nay → kỳ vọng sai.
+//
+// → Thêm điều kiện `dt.customer_id = ?` và truyền customerId của test.
+function computeTodayDebt(customerId) {
   return db
     .prepare(
       `SELECT COALESCE(SUM(
@@ -104,12 +112,13 @@ function computeTodayDebt() {
                 END), 0) AS total
          FROM debt_transactions dt
         WHERE dt.transaction_type IN ('ORDER_DEBT','MANUAL_DEBT','ADJUSTMENT','REVERSAL')
-          AND date(dt.created_at) = date(?)`
+          AND dt.customer_id = ?
+          AND COALESCE(dt.business_date, date(dt.created_at, '+7 hours')) = date(?)`
     )
-    .get(db.getVietnamDateStr()).total;
+    .get(customerId, db.getBusinessDateStr()).total;
 }
 
-function computeTodayPayment() {
+function computeTodayPayment(customerId) {
   return db
     .prepare(
       `SELECT COALESCE(SUM(
@@ -120,9 +129,10 @@ function computeTodayPayment() {
                 END), 0) AS total
          FROM debt_transactions dt
         WHERE dt.transaction_type IN ('PAYMENT','REVERSAL')
-          AND date(dt.created_at) = date(?)`
+          AND dt.customer_id = ?
+          AND COALESCE(dt.business_date, date(dt.created_at, '+7 hours')) = date(?)`
     )
-    .get(db.getVietnamDateStr()).total;
+    .get(customerId, db.getBusinessDateStr()).total;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -152,7 +162,7 @@ describe('Test 1 — tạo đơn rồi xoá đơn không tính vào tiền thu',
 
     // ⚠️ Hành vi cũ (bug): tiền thu = 210.000đ dù chưa ai trả tiền
     // ✅ Hành vi đúng: tiền thu = 0
-    expect(computeTodayPayment()).toBe(0);
+    expect(computeTodayPayment(cid)).toBe(0);
   });
 
   test('xoá đơn → nợ phát sinh hôm nay = 0 (nợ đã bị đảo)', () => {
@@ -163,7 +173,7 @@ describe('Test 1 — tạo đơn rồi xoá đơn không tính vào tiền thu',
     DebtOrderIntegration.reverseOrderDebt(saleId, { actor: 'tester' });
 
     // ORDER_DEBT 500.000 (+) và REVERSAL 500.000 (−) → nợ phát sinh ròng = 0
-    expect(computeTodayDebt()).toBe(0);
+    expect(computeTodayDebt(cid)).toBe(0);
   });
 
   test('bút toán sau khi xoá đơn đúng kỳ vọng (2 dòng, đúng chiều)', () => {
@@ -205,7 +215,7 @@ describe('Test 2 — thanh toán thật vẫn tính vào tiền thu', () => {
     });
     expect(pay.success).toBe(true);
 
-    expect(computeTodayPayment()).toBe(1000000);
+    expect(computeTodayPayment(cid)).toBe(1000000);
   });
 
   test('xoá đơn SAU khi đã thu tiền → tiền thu ròng = 0 (đã trả lại tiền khách)', () => {
@@ -220,13 +230,13 @@ describe('Test 2 — thanh toán thật vẫn tính vào tiền thu', () => {
       user: { username: 'admin', role: 'ADMIN' },
       saleId,
     });
-    expect(computeTodayPayment()).toBe(2000000);
+    expect(computeTodayPayment(cid)).toBe(2000000);
 
     // Xoá đơn → đảo PAYMENT (REVERSAL INCREASE) → tiền thu ròng về 0
     const rev = DebtOrderIntegration.reverseOrderDebt(saleId, { actor: 'tester' });
     expect(rev.success).toBe(true);
 
-    expect(computeTodayPayment()).toBe(0);
+    expect(computeTodayPayment(cid)).toBe(0);
     expect(DebtLedgerService.computeBalance(cid)).toBe(0);
   });
 
@@ -248,6 +258,6 @@ describe('Test 2 — thanh toán thật vẫn tính vào tiền thu', () => {
     });
 
     // Chỉ 1.000.000đ thu tiền thật — KHÔNG cộng thêm 400.000đ của đơn đã xoá
-    expect(computeTodayPayment()).toBe(1000000);
+    expect(computeTodayPayment(cid)).toBe(1000000);
   });
 });
