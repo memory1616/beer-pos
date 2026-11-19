@@ -409,8 +409,51 @@ describe('OmiCallService — gửi tin nhắn Zalo Personal', () => {
     expect(JSON.parse(sendCall.opts.body).conv_id).toBe('6afe6913fca59218a5d662a9');
   });
 
-  it('giữ nguyên Mongo _id 24 hex, không gọi search', async () => {
+  it('user_not_permision → cấp quyền agent vào nhóm rồi gửi lại', async () => {
     const calls = [];
+    mockFetch(async (url, opts) => {
+      const u = String(url);
+      calls.push({ url: u, opts });
+      if (u.includes('/api/auth')) {
+        // Token có contact_id để cấp quyền
+        const payload = Buffer.from(
+          JSON.stringify({ contact_id: 'CONTACT_1', tenant_id: 'T1' })
+        ).toString('base64url');
+        return jsonResponse({ status_code: 9999, payload: { access_token: `h.${payload}.s` } });
+      }
+      if (u.includes('/omnichannel/channel/get_all')) {
+        return jsonResponse({ status_code: 9999, payload: { zalo_personal: [{ uid: 'CH_UID' }] } });
+      }
+      if (u.includes('/conversation/add_member')) {
+        return jsonResponse({ status_code: 9999, payload: true });
+      }
+      if (u.includes('/omni_conv/message/send_text')) {
+        // Lần đầu bị từ chối, sau khi cấp quyền thì thành công
+        const sent = calls.filter((c) => c.url.includes('/omni_conv/message/send_text')).length;
+        if (sent === 1) {
+          return jsonResponse({ status_code: -9999, message: 'user_not_permision' });
+        }
+        return jsonResponse({ status_code: 9999, payload: { message_id: 'MSG_RETRY' } });
+      }
+      return jsonResponse({ status_code: 9999, payload: {} });
+    });
+
+    const res = await OmiCallService.sendZaloPersonalMessage({
+      convId: '6afe6913fca59218a5d662a9',
+      text: 'Xin chào',
+    });
+
+    expect(res.success).toBe(true);
+    expect(res.messageId).toBe('MSG_RETRY');
+    const addCall = calls.find((c) => c.url.includes('/conversation/add_member'));
+    expect(addCall).toBeDefined();
+    const addBody = JSON.parse(addCall.opts.body);
+    expect(addBody.type).toBe('zalo_personal');
+    expect(addBody.conv).toBe('6afe6913fca59218a5d662a9');
+    expect(addBody.contact_ids).toEqual(['CONTACT_1']);
+  });
+
+  it('giữ nguyên Mongo _id 24 hex, không gọi search', async () => {    const calls = [];
     mockFetch(async (url, opts) => {
       const u = String(url);
       calls.push({ url: u, opts });

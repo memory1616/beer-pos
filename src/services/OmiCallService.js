@@ -487,6 +487,58 @@ async function resolveMongoConvId(ctx = {}, convNumber) {
 }
 
 /**
+ * Gán nhân viên (agent) hiện tại vào một nhóm Zalo nếu chưa có quyền.
+ *
+ * OmiCall trả `user_not_permision` khi agent chưa được gán vào nhóm
+ * (`conv.has_member === false`). Gọi `POST /conversation/add_member` với
+ * `{ type, conv, contact_ids }` để cấp quyền — đây cũng là hành động tương
+ * đương thao tác "Gán nhân viên" trên web app OmiCall.
+ *
+ * @param {object} ctx - { apiKey, baseUrl, token, headers }
+ * @param {string} convMongoId - Mongo `_id` của hội thoại
+ * @returns {Promise<boolean>} true nếu đã có quyền (gán thành công hoặc đã có sẵn)
+ */
+async function ensureAgentInGroup(ctx = {}, convMongoId) {
+  const { apiKey, baseUrl, token, headers } = ctx;
+  const conv = String(convMongoId || '').trim();
+  if (!conv) return false;
+
+  // Lấy contact_id của agent hiện tại từ access token (JWT).
+  let contactId = '';
+  try {
+    const payload = JSON.parse(Buffer.from(String(token).split('.')[1], 'base64url').toString('utf8'));
+    contactId = String(payload.contact_id || '');
+  } catch (_) {
+    contactId = '';
+  }
+  if (!contactId) return false;
+
+  for (const host of resolveMessageHosts(baseUrl)) {
+    try {
+      const res = await fetchWithTimeout(`${host}/conversation/add_member?lng=vi`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          type: 'zalo_personal',
+          conv,
+          contact_ids: [contactId],
+        }),
+      });
+      const raw = await res.text();
+      if (/^\s*<(!doctype|html)/i.test(raw)) continue;
+      const parsed = raw ? JSON.parse(raw) : null;
+      const statusCode = parsed && parsed.status_code;
+      if (res.ok && (statusCode === undefined || Number(statusCode) === 9999)) {
+        return true;
+      }
+    } catch (_) {
+      /* thử host tiếp theo */
+    }
+  }
+  return false;
+}
+
+/**
  * Gửi tin nhắn text vào nhóm Zalo cá nhân (multi-channel OmiCall).
  *
  * @param {object} opts
@@ -553,6 +605,8 @@ async function sendZaloPersonalMessage(opts = {}) {
   let lastError = null;
   // Lỗi "thật" từ API (JSON) — quan trọng hơn lỗi HTML của host web app.
   let apiError = null;
+  // Đã thử cấp quyền agent vào nhóm chưa (tránh gọi lặp).
+  let permissionGranted = false;
 
   for (const host of hosts) {
     for (const path of MESSAGE_PATHS) {
@@ -604,6 +658,24 @@ async function sendZaloPersonalMessage(opts = {}) {
           const msg = (body && (body.message || body.msg)) || `status_code ${statusCode}`;
           lastError = `OmiCall từ chối: ${msg}`;
           apiError = lastError;
+
+          // `user_not_permision` = agent chưa được gán vào nhóm Zalo.
+          // Cấp quyền rồi gửi lại (tương đương thao tác gán nhân viên trên OmiCall).
+          if (!permissionGranted && !opts._retried && /user_not_permision|permission/i.test(String(msg))) {
+            permissionGranted = true;
+            const granted = await ensureAgentInGroup(ctx, convMongoId);
+            if (granted) {
+              const retry = await sendZaloPersonalMessage({
+                ...opts,
+                convId: convMongoId,
+                channelId,
+                _retried: true,
+              });
+              if (retry.success) return retry;
+              lastError = retry.error || lastError;
+              apiError = lastError;
+            }
+          }
           continue;
         }
 
