@@ -306,12 +306,18 @@ describe('OmiCallService — gửi tin nhắn Zalo Personal', () => {
     OmiCallService.clearTokenCache();
   });
 
-  it('POST đúng endpoint + body { convId, text }', async () => {
+  it('POST đúng endpoint + body { conv_id, channel_id, text }', async () => {
     const calls = [];
     mockFetch(async (url, opts) => {
       calls.push({ url: String(url), opts });
       if (String(url).includes('/api/auth')) {
         return jsonResponse({ status_code: 9999, payload: { access_token: 'TOKEN_ABC' } });
+      }
+      if (String(url).includes('/omnichannel/channel/get_all')) {
+        return jsonResponse({
+          status_code: 9999,
+          payload: { zalo_personal: [{ _id: 'CH_1', uid: 'CHANNEL_UID_9' }] },
+        });
       }
       return jsonResponse({ status_code: 9999, payload: { message_id: 'MSG_1' } });
     });
@@ -329,7 +335,36 @@ describe('OmiCallService — gửi tin nhắn Zalo Personal', () => {
     expect(sendCall.url).toContain('lng=vi');
     expect(sendCall.opts.method).toBe('POST');
     expect(sendCall.opts.headers['x-api-key']).toBe('TEST_KEY_123');
-    expect(JSON.parse(sendCall.opts.body)).toEqual({ convId: 'CONV_XYZ', text: 'Xin chào' });
+    expect(JSON.parse(sendCall.opts.body)).toEqual({
+      conv_id: 'CONV_XYZ',
+      channel_id: 'CHANNEL_UID_9',
+      text: 'Xin chào',
+    });
+  });
+
+  it('dùng channelId truyền vào nếu có', async () => {
+    const calls = [];
+    mockFetch(async (url, opts) => {
+      calls.push({ url: String(url), opts });
+      if (String(url).includes('/api/auth')) {
+        return jsonResponse({ status_code: 9999, payload: { access_token: 'TOKEN_ABC' } });
+      }
+      return jsonResponse({ status_code: 9999, payload: { message_id: 'MSG_2' } });
+    });
+
+    const res = await OmiCallService.sendZaloPersonalMessage({
+      convId: 'CONV_XYZ',
+      channelId: 'CHANNEL_FROM_CLIENT',
+      text: 'Xin chào',
+    });
+
+    expect(res.success).toBe(true);
+    const sendCall = calls.find((c) => c.url.includes('/omni_conv/message/send_text'));
+    expect(JSON.parse(sendCall.opts.body)).toEqual({
+      conv_id: 'CONV_XYZ',
+      channel_id: 'CHANNEL_FROM_CLIENT',
+      text: 'Xin chào',
+    });
   });
 
   it('thiếu convId → fail, không gọi API', async () => {

@@ -864,7 +864,7 @@ router.post('/notify/test', requireAuth, requireAdmin, async (req, res) => {
 
 router.post('/notify/test-send', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const { convId, text } = req.body || {};
+    const { convId, channelId, text } = req.body || {};
     if (!convId) {
       return res.status(400).json({ success: false, error: 'Thiếu convId (Conversation ID của nhóm Zalo)' });
     }
@@ -874,6 +874,7 @@ router.post('/notify/test-send', requireAuth, requireAdmin, async (req, res) => 
 
     const result = await OmiCallService.sendZaloPersonalMessage({
       convId: String(convId).trim(),
+      channelId: channelId ? String(channelId).trim() : '',
       text: content,
     });
     if (!result.success) {
@@ -888,9 +889,10 @@ router.post('/notify/test-send', requireAuth, requireAdmin, async (req, res) => 
 
 router.get('/notify/probe', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const { convId, text } = req.query || {};
+    const { convId, channelId, text } = req.query || {};
     const result = await OmiCallService.probeSendEndpoints({
       convId: String(convId || '').trim(),
+      channelId: String(channelId || '').trim(),
       text: String(text || 'BIA TƯƠI — kiểm tra kết nối OmiCall').trim(),
     });
     res.json({ success: true, data: result });

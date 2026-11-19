@@ -367,17 +367,75 @@ function resolveMessageHosts(baseUrl) {
   return hosts;
 }
 
-/** Các path gửi tin multi-channel Zalo cá nhân (thử theo thứ tự). */
-const MESSAGE_PATHS = [
-  '/omni_conv/message/send_text?lng=vi',
-  '/api/omni_conv/message/send_text?lng=vi',
-];
+/**
+ * Các path gửi tin multi-channel Zalo cá nhân (thử theo thứ tự).
+ * Path xác minh từ bundle web app OmiCall: `socialNetwork + "omni_conv/message/send_" + "text"`.
+ */
+const MESSAGE_PATHS = ['/omni_conv/message/send_text?lng=vi', '/omni_conv/message/send_text'];
+
+/**
+ * Sinh danh sách body gửi tin (thử theo thứ tự ưu tiên).
+ *
+ * Body ĐÚNG của OmiCall multi-channel (đã trích từ bundle web app chính thức):
+ *   { conv_id, channel_id, text }
+ *  - `conv_id`    : conv_id của hội thoại (nhóm Zalo) — ví dụ "3580128735721925168"
+ *  - `channel_id` : uid kênh Zalo cá nhân — ví dụ "341323407055424547"
+ *  - `text`       : nội dung tin nhắn
+ *
+ * Các biến thể cũ giữ lại để tương thích với tài khoản dùng API khác.
+ */
+function buildMessageBodies(convId, channelId, text) {
+  const bodies = [];
+  if (channelId) {
+    bodies.push({ label: 'conv_id+channel_id+text', body: { conv_id: convId, channel_id: channelId, text } });
+  }
+  bodies.push({ label: 'conv_id+text', body: { conv_id: convId, text } });
+  bodies.push({ label: 'convId+text', body: { convId, text } });
+  bodies.push({ label: 'convId+message', body: { convId, message: text } });
+  return bodies;
+}
+
+/**
+ * Tự động lấy `channel_id` (uid kênh Zalo cá nhân) của tenant hiện tại.
+ *
+ * OmiCall yêu cầu body gửi tin: `{ conv_id, channel_id, text }`.
+ * `channel_id` là uid của kênh Zalo Personal đang kết nối, lấy từ
+ * `GET|POST /omnichannel/channel/get_all` → `payload.zalo_personal[0].uid`.
+ *
+ * @param {object} ctx - { apiKey, baseUrl, token, headers }
+ * @returns {Promise<string>} channel_id hoặc '' nếu không lấy được
+ */
+async function fetchChannelId(ctx = {}) {
+  const { apiKey, baseUrl, token, headers } = ctx;
+  for (const host of resolveMessageHosts(baseUrl)) {
+    try {
+      const res = await fetchWithTimeout(`${host}/omnichannel/channel/get_all`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({}),
+      });
+      const raw = await res.text();
+      if (/^\s*<(!doctype|html)/i.test(raw)) continue;
+      const parsed = raw ? JSON.parse(raw) : null;
+      const payload = (parsed && parsed.payload) || {};
+      const list = payload.zalo_personal || [];
+      if (!Array.isArray(list) || !list.length) continue;
+      const ch = list[0];
+      const uid = ch.uid || ch.channel_id || ch._id || null;
+      if (uid) return String(uid);
+    } catch (_) {
+      /* thử host tiếp theo */
+    }
+  }
+  return '';
+}
 
 /**
  * Gửi tin nhắn text vào nhóm Zalo cá nhân (multi-channel OmiCall).
  *
  * @param {object} opts
  * @param {string} opts.convId - conversation ID của nhóm Zalo
+ * @param {string} [opts.channelId] - uid kênh Zalo cá nhân (tự lấy nếu thiếu)
  * @param {string} opts.text   - nội dung tin nhắn
  * @param {object} [opts.config] - override apiKey/baseUrl
  * @returns {Promise<{success:boolean, messageId?:string, raw?:any, error?:string}>}
@@ -420,63 +478,71 @@ async function sendZaloPersonalMessage(opts = {}) {
   if (token) headers.Authorization = `Bearer ${token}`;
 
   const hosts = resolveMessageHosts(baseUrl);
+  let channelId = String(opts.channelId || '').trim();
+  if (!channelId) {
+    channelId = await fetchChannelId({ apiKey, baseUrl, token, headers });
+  }
+  const bodies = buildMessageBodies(convId, channelId, text);
   let lastError = null;
 
   for (const host of hosts) {
     for (const path of MESSAGE_PATHS) {
-      const url = `${host}${path}`;
-      let res;
-      let raw = '';
-      try {
-        res = await fetchWithTimeout(url, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ convId, text }),
-        });
-        raw = await res.text();
-      } catch (e) {
-        // Ghi rõ host để admin biết chính xác chỗ nào không gọi được.
-        const cause = (e && e.cause && (e.cause.code || e.cause.message)) || '';
-        lastError = `Không gọi được OmiCall tại ${host}${path.split('?')[0]} (${e.message}${cause ? ' — ' + cause : ''})`;
-        continue;
-      }
-
-      // Host trả HTML → đây là web app, không phải API → thử host/path khác.
-      if (/^\s*<(!doctype|html)/i.test(raw)) {
-        lastError = `OmiCall không phục vụ API tại ${host}${path.split('?')[0]} (trả về HTML)`;
-        continue;
-      }
-
-      let body = null;
-      try {
-        body = raw ? JSON.parse(raw) : null;
-      } catch (_) {
-        body = { message: raw };
-      }
-
-      if (!res.ok) {
-        const msg = (body && (body.message || body.msg || body.error)) || `HTTP ${res.status}`;
-        lastError = `OmiCall gửi tin thất bại tại ${host}${path.split('?')[0]}: ${msg}`;
-        // 401/403 → sai token/key, thử host khác không giúp ích → dừng.
-        if (res.status === 401 || res.status === 403) {
-          return { success: false, error: lastError, raw: body };
+      for (const bv of bodies) {
+        const url = `${host}${path}`;
+        let res;
+        let raw = '';
+        try {
+          res = await fetchWithTimeout(url, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(bv.body),
+          });
+          raw = await res.text();
+        } catch (e) {
+          // Ghi rõ host để admin biết chính xác chỗ nào không gọi được.
+          const cause = (e && e.cause && (e.cause.code || e.cause.message)) || '';
+          lastError = `Không gọi được OmiCall tại ${host}${path.split('?')[0]} (${e.message}${cause ? ' — ' + cause : ''})`;
+          continue;
         }
-        continue;
-      }
 
-      // OmiCall trả { status_code: 9999, payload: {... } } khi thành công.
-      const statusCode = body && body.status_code;
-      if (statusCode !== undefined && Number(statusCode) !== 9999) {
-        const msg = (body && (body.message || body.msg)) || `status_code ${statusCode}`;
-        return { success: false, error: `OmiCall từ chối: ${msg}`, raw: body };
-      }
+        // Host trả HTML → đây là web app, không phải API → thử host/path khác.
+        if (/^\s*<(!doctype|html)/i.test(raw)) {
+          lastError = `OmiCall không phục vụ API tại ${host}${path.split('?')[0]} (trả về HTML)`;
+          continue;
+        }
 
-      const payload = (body && body.payload) || {};
-      return {
-        success: true,
-        messageId: payload.message_id || payload.msgId || payload.id || payload._id || null,
-        raw: body,
-      };
+        let body = null;
+        try {
+          body = raw ? JSON.parse(raw) : null;
+        } catch (_) {
+          body = { message: raw };
+        }
+
+        if (!res.ok) {
+          const msg = (body && (body.message || body.msg || body.error)) || `HTTP ${res.status}`;
+          lastError = `OmiCall gửi tin thất bại tại ${host}${path.split('?')[0]}: ${msg}`;
+          // 401/403 → sai token/key, thử host khác không giúp ích → dừng.
+          if (res.status === 401 || res.status === 403) {
+            return { success: false, error: lastError, raw: body };
+          }
+          continue;
+        }
+
+        // OmiCall trả { status_code: 9999, payload: {... } } khi thành công.
+        const statusCode = body && body.status_code;
+        if (statusCode !== undefined && Number(statusCode) !== 9999) {
+          const msg = (body && (body.message || body.msg)) || `status_code ${statusCode}`;
+          lastError = `OmiCall từ chối: ${msg}`;
+          continue;
+        }
+
+        const payload = (body && body.payload) || {};
+        return {
+          success: true,
+          messageId: payload.message_id || payload.msgId || payload.id || payload._id || null,
+          raw: body,
+        };
+      }
     }
   }
 
@@ -561,12 +627,12 @@ async function probeSendEndpoints(opts = {}) {
   };
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  // Các biến thể body: OmiCall có thể dùng `text` hoặc `message`.
-  const bodyVariants = [
-    { label: 'convId+text', body: { convId, text } },
-    { label: 'convId+message', body: { convId, message: text } },
-    { label: 'conversationId+text', body: { conversationId: convId, text } },
-  ];
+  // Các biến thể body: body ĐÚNG của OmiCall là `{ conv_id, channel_id, text }`.
+  let channelId = String(opts.channelId || '').trim();
+  if (!channelId) {
+    channelId = await fetchChannelId({ apiKey, baseUrl, token, headers });
+  }
+  const bodyVariants = buildMessageBodies(convId, channelId, text);
 
   // Các biến thể path: prefix `/api` có/không, có `lng` trong query.
   const pathVariants = [
@@ -738,12 +804,27 @@ async function listConversations(opts = {}) {
         const statusCode = parsed && parsed.status_code;
         if (res.ok && (statusCode === undefined || Number(statusCode) === 9999)) {
           const payload = (parsed && parsed.payload) || {};
-          const list = Array.isArray(payload)
-            ? payload
-            : payload.items || payload.data || payload.list || payload.conversations || [];
+          // OmiCall trả payload.conversations.items[] — mỗi item có `conv.conv_id`,
+          // `conv.channel_id`, `conv.name`.
+          const convRoot = payload.conversations || payload;
+          let list = Array.isArray(convRoot)
+            ? convRoot
+            : convRoot.items || convRoot.data || convRoot.list || [];
+          list = Array.isArray(list) ? list : [];
+          const conversations = list.map((it) => {
+            const conv = (it && it.conv) || it || {};
+            return {
+              convId: conv.conv_id || conv.id || it.id || null,
+              channelId: conv.channel_id || it.channel_id || null,
+              name: conv.name || conv.nick_name || it.name || null,
+              convType: conv.conv_type || it.type || null,
+              type: it.type || conv.conv_type || null,
+              raw: it,
+            };
+          });
           return {
             success: true,
-            conversations: Array.isArray(list) ? list : [],
+            conversations,
             raw: parsed,
             attempts,
           };
