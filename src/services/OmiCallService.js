@@ -326,14 +326,15 @@ function clearTokenCache() {
  * Sinh danh sách host ứng viên để gửi tin nhắn.
  *
  * Bối cảnh (đã kiểm chứng trực tiếp với server OmiCall):
- *  - `public-v1.omicall.com` là host PUBLIC API của OmiCall — hiện chỉ expose
- *    route `/api/auth` (để lấy access token). Các route nghiệp vụ trả về HTML
- *    của web app, không phải JSON.
+ *  - `public-v1[-stg].omicall.com` là host PUBLIC API — chỉ expose route
+ *    `/api/auth` (lấy access token). Các route nghiệp vụ trả về HTML của web
+ *    app, không phải JSON.
  *  - Route gửi tin multi-channel nằm ở host service riêng:
- *    `social-network-v1.omicrm.com` (prod) / `social-network-v1-stg.omicrm.com` (stg).
- *    Trên bản prod hiện route này chưa được expose ra ngoài (trả HTML SPA).
+ *    `social-network-v1[-stg].omicrm.com`.
+ *    Bản staging trả JSON đúng (401 khi thiếu token hợp lệ); bản production
+ *    hiện trả HTML của web app (route chưa expose ra ngoài).
  *
- * Vì vậy ta thử lần lượt các host suy ra từ base URL đã cấu hình.
+ * Quy tắc: giữ nguyên hậu tố `-stg` khi chuyển đổi giữa các host.
  */
 function resolveMessageHosts(baseUrl) {
   const hosts = [];
@@ -344,18 +345,23 @@ function resolveMessageHosts(baseUrl) {
 
   push(baseUrl);
 
-  // public-v1.omicall.com → social-network-v1.omicrm.com
-  const m = /^https?:\/\/public-v1(?:-stg)?\.(omicall|omicrm)\.com$/i.exec(baseUrl);
+  // public-v1[-stg].<domain> → social-network-v1[-stg].<domain>
+  // Thử cả `.omicall.com` và `.omicrm.com` vì OmiCall dùng cả hai tên miền.
+  const m = /^https?:\/\/public-v1(-stg)?\.(omicall|omicrm)\.com$/i.exec(baseUrl);
   if (m) {
-    push(`https://social-network-v1.${m[2]}.com`);
-    push(`https://social-network-v1-stg.${m[2]}.com`);
+    const suffix = m[1] || '';
+    for (const domain of ['omicrm.com', 'omicall.com']) {
+      push(`https://social-network-v1${suffix}.${domain}`);
+    }
   }
 
-  // social-network-v1.omicrm.com → thêm/bớt hậu tố -stg
+  // social-network-v1[-stg].<domain> → đổi chiều staging ↔ production
   const s = /^https?:\/\/(social-network-v1)(-stg)?\.(omicall|omicrm)\.com$/i.exec(baseUrl);
   if (s) {
-    push(`https://${s[1]}${s[2] ? '' : '-stg'}.${s[3]}.com`);
-    push(`https://${s[1]}-stg.${s[3]}.com`);
+    for (const domain of ['omicrm.com', 'omicall.com']) {
+      push(`https://${s[1]}${s[2] ? '' : '-stg'}.${domain}`);
+      push(`https://${s[1]}-stg.${domain}`);
+    }
   }
 
   return hosts;
@@ -429,7 +435,9 @@ async function sendZaloPersonalMessage(opts = {}) {
         });
         raw = await res.text();
       } catch (e) {
-        lastError = `Không gửi được tin nhắn OmiCall (${e.message})`;
+        // Ghi rõ host để admin biết chính xác chỗ nào không gọi được.
+        const cause = (e && e.cause && (e.cause.code || e.cause.message)) || '';
+        lastError = `Không gọi được OmiCall tại ${host}${path.split('?')[0]} (${e.message}${cause ? ' — ' + cause : ''})`;
         continue;
       }
 
@@ -448,7 +456,7 @@ async function sendZaloPersonalMessage(opts = {}) {
 
       if (!res.ok) {
         const msg = (body && (body.message || body.msg || body.error)) || `HTTP ${res.status}`;
-        lastError = `OmiCall gửi tin thất bại: ${msg}`;
+        lastError = `OmiCall gửi tin thất bại tại ${host}${path.split('?')[0]}: ${msg}`;
         // 401/403 → sai token/key, thử host khác không giúp ích → dừng.
         if (res.status === 401 || res.status === 403) {
           return { success: false, error: lastError, raw: body };

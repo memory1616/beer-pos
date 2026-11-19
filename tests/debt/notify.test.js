@@ -340,6 +340,54 @@ describe('OmiCallService — gửi tin nhắn Zalo Personal', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('tự chuyển sang host social-network-v1 khi host public trả HTML', async () => {
+    const hosts = [];
+    mockFetch(async (url) => {
+      const u = String(url);
+      if (u.includes('/api/auth')) {
+        return jsonResponse({ status_code: 9999, payload: { access_token: 'TOKEN_ABC' } });
+      }
+      hosts.push(u);
+      // Host public-v1 trả HTML (web app) → phải thử host khác
+      if (u.includes('public-v1')) {
+        return new Response('<!DOCTYPE html><html></html>', { status: 200 });
+      }
+      return jsonResponse({ status_code: 9999, payload: { message_id: 'MSG_2' } });
+    });
+
+    const res = await OmiCallService.sendZaloPersonalMessage({
+      convId: 'CONV_XYZ',
+      text: 'Xin chào',
+    });
+
+    expect(res.success).toBe(true);
+    expect(res.messageId).toBe('MSG_2');
+    // Phải có thử host social-network (không chỉ host public)
+    expect(hosts.some((h) => h.includes('social-network'))).toBe(true);
+  });
+
+  it('giữ hậu tố -stg khi chuyển đổi host', async () => {
+    const hosts = [];
+    mockFetch(async (url) => {
+      const u = String(url);
+      if (u.includes('/api/auth')) {
+        return jsonResponse({ status_code: 9999, payload: { access_token: 'TOKEN_ABC' } });
+      }
+      hosts.push(u);
+      return new Response('<!DOCTYPE html><html></html>', { status: 200 });
+    });
+
+    await OmiCallService.sendZaloPersonalMessage({
+      convId: 'C1',
+      text: 'abc',
+      config: { baseUrl: 'https://public-v1-stg.omicall.com' },
+    });
+
+    const snHosts = hosts.filter((h) => h.includes('social-network'));
+    expect(snHosts.length).toBeGreaterThan(0);
+    expect(snHosts.every((h) => h.includes('-stg'))).toBe(true);
+  });
+
   it('status_code khác 9999 → fail', async () => {
     mockFetch(async (url) => {
       if (String(url).includes('/api/auth')) {
