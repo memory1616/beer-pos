@@ -102,7 +102,8 @@ router.get('/:id', (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
   const sale = db.prepare(`
     SELECT s.*, COALESCE(c.name, 'Khách lẻ') as customer_name,
-      c.keg_balance as customer_keg_balance
+      c.keg_balance as customer_keg_balance,
+      c.debt_code as customer_debt_code
     FROM sales s
     LEFT JOIN customers c ON s.customer_id = c.id
     WHERE s.id = ?

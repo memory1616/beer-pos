@@ -518,6 +518,14 @@ function processTransaction(txId, opts = {}) {
   // Phần dư = số tiền nhận - phần gạch (tiền khách nợ lại)
   const credit = roundMoney(Math.max(0, amount - applied));
 
+  // ⚠️ THÔNG TIN HIỂN THỊ (KHÔNG tạo bút toán riêng):
+  // Sổ công nợ dùng SỐ DƯ RÒNG → balance = tổng nợ - tổng đã trả.
+  // Nếu khách đang nợ lại (số dư âm) thì toàn bộ số tiền nhận đều quy về
+  // CREDIT (số dư âm thêm). `deficitOffset` = phần tiền nhận dùng để bù
+  // khoản nợ lại (chỉ để hiển thị cho nhân viên, KHÔNG ghi bút toán vì
+  // ledger đã trừ đúng số tiền nhận rồi).
+  const deficitOffset = balanceBefore < 0 ? roundMoney(Math.min(amount, -balanceBefore)) : 0;
+
   let paymentResult = null;
   let creditResult = null;
 
@@ -591,6 +599,9 @@ function processTransaction(txId, opts = {}) {
   const noteParts = [];
   if (applied > 0) noteParts.push(`Gạch nợ ${applied.toLocaleString('vi-VN')}đ`);
   if (credit > 0) noteParts.push(`Khách nợ lại ${credit.toLocaleString('vi-VN')}đ`);
+  if (deficitOffset > 0 && applied === 0) {
+    noteParts.push(`Bù nợ lại ${deficitOffset.toLocaleString('vi-VN')}đ`);
+  }
   if (applied === 0 && credit === 0) noteParts.push('Không có công nợ để gạch');
 
   db.prepare(
@@ -617,6 +628,7 @@ function processTransaction(txId, opts = {}) {
       balance: balanceAfter,
       applied,
       credit,
+      deficitOffset,
       customerId: customer.id,
       sepayId: tx.sepay_id,
     },
@@ -628,6 +640,7 @@ function processTransaction(txId, opts = {}) {
     amount,
     applied,
     credit,
+    deficitOffset,
     balanceAfter,
   });
 
@@ -639,6 +652,7 @@ function processTransaction(txId, opts = {}) {
     amount,
     applied,
     credit,
+    deficitOffset,
     balanceBefore,
     balanceAfter,
     debtTransactionId: paymentResult ? paymentResult.transactionId : null,

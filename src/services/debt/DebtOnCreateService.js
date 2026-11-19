@@ -174,6 +174,12 @@ function recordDebtOnCreate(opts = {}) {
     createdBy: actor || 'system',
     source: SOURCES.POS,
     idempotencyKey: `order_debt:sale:${id}`,
+    // ⚠️ Khách đang NỢ LẠI hệ thống (số dư âm) vẫn phải ghi được nợ đơn mới.
+    //    Ledger dùng số dư RÒNG → tiền khách nợ lại tự động bù vào đơn này.
+    //    Nếu không cho phép âm, ledger sẽ TỪ CHỐI bút toán → đơn của khách
+    //    không được ghi vào sổ công nợ (mất dữ liệu nợ).
+    allowNegativeBalance: true,
+    keepNegativeBalance: true,
     businessDate: orderBusinessDate,
   });
 
@@ -187,27 +193,44 @@ function recordDebtOnCreate(opts = {}) {
   }
 
   // 6. Cập nhật bảng chiếu `order_debts` (UI cũ / driver portal) + payment_status
+  //    ⚠️ KHÁCH ĐANG NỢ LẠI (số dư âm) → tiền nợ lại tự động bù vào đơn mới
+  //    (ledger dùng số dư RÒNG). Nếu không cập nhật `paid_amount`, bảng chiếu
+  //    sẽ ghi đơn mới còn nợ trọn vẹn trong khi ledger đã bù → LỆCH DỮ LIỆU,
+  //    và `allocateToOrders` sau đó sẽ gạch trùng.
   try {
+    // Tiền khách đang nợ lại hệ thống (số dư âm trước khi ghi nợ đơn này)
+    // → dùng để bù vào chính đơn này.
+    const creditBalance = balanceBefore < 0 ? DebtLedgerService.roundMoney(-balanceBefore) : 0;
+    const offsetAmount = Math.min(value, creditBalance);
+
     const proj = db.prepare('SELECT * FROM order_debts WHERE sale_id = ?').get(id);
+    const basePaid = proj ? proj.paid_amount || 0 : 0;
+    const newPaid = basePaid + offsetAmount;
+    const newRemaining = Math.max(0, value - newPaid);
+    const status = newRemaining <= 0 ? 'paid' : 'pending';
+
     if (proj) {
-      const newRemaining = Math.max(0, proj.original_amount - (proj.paid_amount || 0));
-      const status = newRemaining <= 0 ? 'paid' : 'pending';
       db.prepare(
         `UPDATE order_debts
-            SET original_amount = ?, remaining_amount = ?, status = ?,
+            SET original_amount = ?, paid_amount = ?, remaining_amount = ?, status = ?,
                 updated_at = CURRENT_TIMESTAMP
           WHERE id = ?`
-      ).run(value, newRemaining, status, proj.id);
+      ).run(value, newPaid, newRemaining, status, proj.id);
     } else {
       db.prepare(
         `INSERT INTO order_debts
            (sale_id, customer_id, original_amount, paid_amount, remaining_amount, status)
-         VALUES (?, ?, ?, 0, ?, 'pending')`
-      ).run(id, custId, value, value);
+         VALUES (?, ?, ?, ?, ?, ?)`
+      ).run(id, custId, value, newPaid, newRemaining, status);
     }
+    // `sales.payment_status`: 'paid' nếu đơn đã được bù hết bằng tiền nợ lại,
+    // ngược lại 'unpaid' (giữ nguyên nếu đã 'paid' từ trước).
     db.prepare(
-      "UPDATE sales SET payment_status = 'unpaid' WHERE id = ? AND payment_status != 'paid'"
-    ).run(id);
+      `UPDATE sales SET payment_status = ? WHERE id = ? AND payment_status != 'paid'`
+    ).run(status === 'paid' ? 'paid' : 'unpaid', id);
+    if (status === 'paid') {
+      db.prepare("UPDATE sales SET payment_status = 'paid' WHERE id = ?").run(id);
+    }
   } catch (e) {
     logger.error('[DEBT_ON_CREATE] update projection error', { saleId: id, error: e.message });
   }

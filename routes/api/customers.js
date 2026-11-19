@@ -228,6 +228,15 @@ router.post('/', (req, res) => {
     );
     const customerId = result.lastInsertRowid;
 
+    // ── SEPAY: gán mã khách (KHxxxx) ngay khi tạo khách ────────────────
+    // Mã khách được nhúng vào nội dung chuyển khoản trên QR → hệ thống tự
+    // biết tiền của ai để gạch nợ. Không có mã → QR hoá đơn không gạch được.
+    try {
+      require('../../src/services/debt/DebtSepayService').ensureCustomerDebtCode(customerId);
+    } catch (debtCodeErr) {
+      console.error('[CUSTOMER] Gán mã khách Sepay lỗi:', debtCodeErr.message);
+    }
+
     // Assign devices (fridges) to the new customer
     const now = new Date().toISOString();
     const numHorizontal = parseInt(horizontal_fridge) || 0;

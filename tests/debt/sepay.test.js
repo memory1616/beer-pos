@@ -287,6 +287,89 @@ describe('Gạch nợ qua Sepay', () => {
     expect(DebtLedgerService.computeBalance(c.id)).toBe(-150000);
   });
 
+  // ── Trường hợp khách đang nợ lại (số dư âm) ───────────────────────────
+  // Sổ công nợ dùng SỐ DƯ RÒNG: balance = tổng nợ - tổng đã trả.
+  // → khi khách nợ lại 500k mà chuyển 1.000.000đ, cả 1.000.000đ đều quy về
+  //    CREDIT → số dư -1.500.000đ (khách nợ lại hệ thống nhiều hơn).
+  test('khách đang nợ lại 500k, chuyển 1.000.000đ → toàn bộ là CREDIT, số dư -1.500.000đ',
+    () => {
+      const c = makeCustomer('Deficit');
+      addDebt(c.id, 500000);
+      // Trả dư 1.000.000đ khi nợ 500k → còn nợ lại 500k
+      DebtSepayService.handleWebhook(
+        makePayload({ content: `CONG NO ${c.code}`, transferAmount: 1000000 })
+      );
+      expect(DebtLedgerService.computeBalance(c.id)).toBe(-500000);
+
+      // Chuyển tiếp 1.000.000đ → không có nợ để gạch → toàn bộ thành CREDIT
+      const res = DebtSepayService.handleWebhook(
+        makePayload({ content: `CONG NO ${c.code}`, transferAmount: 1000000 })
+      );
+      expect(res.settlement.applied).toBe(0);
+      expect(res.settlement.credit).toBe(1000000);
+      expect(res.settlement.deficitOffset).toBe(500000);
+      expect(DebtLedgerService.computeBalance(c.id)).toBe(-1500000);
+    }
+  );
+
+  test('khách nợ lại 500k, mua thêm 300k → net -200k, chuyển 1.000.000đ → credit 1.000.000',
+    () => {
+      const c = makeCustomer('DeficitMix');
+      // Trả dư khi chưa có nợ → nợ lại 500k
+      DebtSepayService.handleWebhook(
+        makePayload({ content: `CONG NO ${c.code}`, transferAmount: 500000 })
+      );
+      expect(DebtLedgerService.computeBalance(c.id)).toBe(-500000);
+
+      // Khách vay thêm 300k → net -200k
+      // ⚠️ ORDER_DEBT khi số dư âm → ledger phải cho phép (net balance)
+      const addRes = DebtLedgerService.recordTransaction({
+        customerId: c.id,
+        transactionType: TRANSACTION_TYPES.ORDER_DEBT,
+        amount: 300000,
+        direction: 'INCREASE',
+        description: 'nợ mới',
+        source: 'POS',
+        allowNegativeBalance: true,
+        keepNegativeBalance: true,
+      });
+      expect(addRes.success).toBe(true);
+      expect(DebtLedgerService.computeBalance(c.id)).toBe(-200000);
+
+      // Chuyển 1.000.000đ → không có nợ dương để gạch → toàn bộ thành CREDIT
+      const res = DebtSepayService.handleWebhook(
+        makePayload({ content: `CONG NO ${c.code}`, transferAmount: 1000000 })
+      );
+      expect(res.settlement.applied).toBe(0);
+      expect(res.settlement.credit).toBe(1000000);
+      expect(DebtLedgerService.computeBalance(c.id)).toBe(-1200000);
+    }
+  );
+
+  test('chuyển thiếu → gạch một phần, giữ nguyên phần còn nợ', () => {
+    const c = makeCustomer('Under');
+    addDebt(c.id, 1000000);
+    const res = DebtSepayService.handleWebhook(
+      makePayload({ content: `CONG NO ${c.code}`, transferAmount: 400000 })
+    );
+    expect(res.settlement.applied).toBe(400000);
+    expect(res.settlement.credit).toBe(0);
+    expect(res.settlement.deficitOffset).toBe(0);
+    expect(DebtLedgerService.computeBalance(c.id)).toBe(600000);
+  });
+
+  test('chuyển đúng số nợ → gạch hết, số dư = 0', () => {
+    const c = makeCustomer('Exact');
+    addDebt(c.id, 750000);
+    const res = DebtSepayService.handleWebhook(
+      makePayload({ content: `CONG NO ${c.code}`, transferAmount: 750000 })
+    );
+    expect(res.settlement.applied).toBe(750000);
+    expect(res.settlement.credit).toBe(0);
+    expect(res.settlement.deficitOffset).toBe(0);
+    expect(DebtLedgerService.computeBalance(c.id)).toBe(0);
+  });
+
   test('webhook lặp (retry) → KHÔNG gạch 2 lần', () => {
     const c = makeCustomer('Idem');
     addDebt(c.id, 500000);

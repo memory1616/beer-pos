@@ -1052,7 +1052,7 @@ router.get('/export', (req, res) => {
 
 // GET /api/sales/:id - Lấy chi tiết hóa đơn
 router.get('/:id', (req, res) => {
-  const sale = db.prepare(`SELECT s.*, COALESCE(c.name, 'Khách lẻ') as customer_name FROM sales s LEFT JOIN customers c ON s.customer_id = c.id WHERE s.id = ?`).get(req.params.id);
+  const sale = db.prepare(`SELECT s.*, COALESCE(c.name, 'Khách lẻ') as customer_name, c.debt_code as customer_debt_code FROM sales s LEFT JOIN customers c ON s.customer_id = c.id WHERE s.id = ?`).get(req.params.id);
   if (!sale) return res.status(404).json({ error: 'Not found' });
   const items = db.prepare(`
     SELECT si.*, p.name, p.slug as product_slug, p.type

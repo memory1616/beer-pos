@@ -521,7 +521,8 @@ function normalizeInvoice(sale) {
     customer: {
       id: cid != null ? Number(cid) : null,
       name: sale.customer_name || sale.customerName || 'Khách lẻ',
-      keg_balance: sale.customer_keg_balance != null ? Number(sale.customer_keg_balance) : null
+      keg_balance: sale.customer_keg_balance != null ? Number(sale.customer_keg_balance) : null,
+      debt_code: sale.customer_debt_code || sale.debt_code || null
     },
     items: items,
     totalAmount: totalAmount,
@@ -542,6 +543,15 @@ function normalizeInvoice(sale) {
 
 /**
  * Generate VietQR payment URL
+ *
+ * ⚠️ SEPAY — nhúng mã khách (KHxxxx) vào nội dung chuyển khoản.
+ *   VietQR đóng gói nội dung vào mã QR (EMV/napas 24 từ trường chứa
+ *   "Thanh toan" + nội dung). Ngân hàng chuyển nội dung đó sang nội dung
+ *   giao dịch thật → SePay đọc được mã khách → hệ thống tự gạch nợ.
+ *
+ *   Nội dung gốc của bạn được GIỮ NGUYÊN, mã khách được THÊM VÀO CUỐI.
+ *   Ví dụ: "Chuyen khoan" → "Chuyen khoan KH0007"
+ *
  * @param {object} invoice - invoice object with id and totalAmount
  * @returns {string} VietQR image URL
  */
@@ -571,6 +581,25 @@ function generateVietQR(invoice) {
 
   // Xử lý nội dung: thay {invoice_id} bằng số hóa đơn
   var content = defaultContent.replace(/\{invoice_id\}/gi, invoiceId);
+
+  // ── SEPAY: thêm mã khách (KHxxxx) ───────────────────────────────────
+  // VietQR đóng gói nội dung vào mã QR → ngân hàng chuyển nội dung đó sang
+  // nội dung giao dịch thật → SePay đọc được mã khách → hệ thống tự gạch nợ.
+  // Mã khách đã được gán sẵn cho mọi khách (migration 061 + POST /api/customers).
+  var debtCode = invoice && invoice.customer ? invoice.customer.debt_code : null;
+  if (debtCode) {
+    // Bỏ mã cũ nếu nội dung mặc định đã chứa mã → tránh lặp "KH0001 KH0001"
+    var safeCode = String(debtCode).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    content = content.replace(new RegExp('\\b' + safeCode + '\\b', 'gi'), '');
+    content = (content.replace(/\s+/g, ' ').trim() + ' ' + debtCode).trim();
+  }
+
+  // VietQR giới hạn nội dung (~50 ký tự) — cắt bớt nhưng LUÔN giữ mã khách.
+  if (content.length > 50) {
+    var suffix = debtCode ? ' ' + debtCode : '';
+    var head = content.slice(0, Math.max(0, 50 - suffix.length)).trim();
+    content = (head + suffix).trim();
+  }
 
   var encodedContent = encodeURIComponent(content);
   var encodedName = encodeURIComponent(accountName.toUpperCase());

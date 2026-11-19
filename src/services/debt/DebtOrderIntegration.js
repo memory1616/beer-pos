@@ -292,6 +292,10 @@ function recordOrderDebtOnDelivered(saleId, opts = {}) {
     createdBy: opts.actor || 'system',
     source: opts.source || SOURCES.POS,
     idempotencyKey: orderDebtKey(id),
+    // Khách đang nợ lại (số dư âm) vẫn phải ghi được nợ đơn mới.
+    // Ledger dùng số dư RÒNG → tiền khách nợ lại tự động bù vào đơn này.
+    allowNegativeBalance: true,
+    keepNegativeBalance: true,
     businessDate: sale.date || db.getBusinessDateStr(),
   });
 

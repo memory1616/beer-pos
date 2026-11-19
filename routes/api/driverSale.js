@@ -615,7 +615,7 @@ router.get('/:id', requireDriver, (req, res) => {
     }
 
     const customer = sale.customer_id
-      ? db.prepare('SELECT id, name, keg_balance FROM customers WHERE id = ?').get(sale.customer_id)
+      ? db.prepare('SELECT id, name, keg_balance, debt_code FROM customers WHERE id = ?').get(sale.customer_id)
       : null;
 
     const items = db
@@ -637,6 +637,7 @@ router.get('/:id', requireDriver, (req, res) => {
         ...safeSale,
         customer_name: customer ? customer.name : 'Khách lẻ',
         customer_keg_balance: customer ? customer.keg_balance : 0,
+        customer_debt_code: customer ? customer.debt_code : null,
         items,
       },
     });
