@@ -940,6 +940,23 @@ function runSepayDebtSettlementMigration(db) {
   }
 }
 
+// ── Debt Zalo notify via OmiCall migration (062) ─────────────────────────────
+// Gửi tin nhắn thông báo công nợ tới nhóm Zalo của khách qua OmiCall
+// (kênh Zalo Personal multi-channel). Tạo bảng `debt_notifications` (nhật ký
+// gửi) + seed settings OmiCall (API key, base URL, bật/tắt).
+// Chạy ĐỘC LẬP, idempotent.
+function runDebtZaloNotifyMigration(db) {
+  try {
+    const migration = require('./migrations/062_debt_zalo_notify_omicall');
+    migration.up(db);
+    log('[DEBT_NOTIFY] Migration 062 applied');
+    return { success: true };
+  } catch (e) {
+    log('[DEBT_NOTIFY] Migration error: ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
 // ── Utility: Generate UUID ─────────────────────────────────────────────────────
 
 function generateUUID() {
@@ -976,6 +993,7 @@ module.exports = {
   runSaleDispatchStatusMigration,
   runSaleRegionDispatchBackfillMigration,
   runSepayDebtSettlementMigration,
+  runDebtZaloNotifyMigration,
   generateUUID,
   getCurrentVersion,
   setVersion,

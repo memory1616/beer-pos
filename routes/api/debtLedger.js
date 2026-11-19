@@ -43,6 +43,8 @@ const DebtCommandService = require('../../src/services/debt/DebtCommandService')
 const DebtZaloBridge = require('../../src/services/debt/DebtZaloBridge');
 const DebtAuditService = require('../../src/services/debt/DebtAuditService');
 const DebtReconciliationService = require('../../src/services/debt/DebtReconciliationService');
+const DebtNotifyService = require('../../src/services/debt/DebtNotifyService');
+const OmiCallService = require('../../src/services/OmiCallService');
 const { PLATFORMS, GROUP_STATUS, SOURCES } = require('../../src/services/debt/constants');
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -783,6 +785,108 @@ router.get('/audit', requireAuth, requireAdmin, (req, res) => {
     res.json({ success: true, data: rows });
   } catch (e) {
     logger.error('[DEBT_LEDGER] audit error', { error: e.message });
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// THÔNG BÁO ZALO QUA OMICALL
+//   GET  /api/debt-ledger/notify/settings  — Cấu hình (mask API key)
+//   POST /api/debt-ledger/notify/settings  — Lưu cấu hình (ADMIN)
+//   POST /api/debt-ledger/notify/test      — Kiểm tra kết nối (ADMIN)
+//   POST /api/debt-ledger/notify/test-send — Gửi tin thử tới 1 group (ADMIN)
+//   GET  /api/debt-ledger/notify/history   — Lịch sử gửi
+// ═══════════════════════════════════════════════════════════════════════════
+router.get('/notify/settings', requireAuth, (req, res) => {
+  try {
+    res.json({
+      success: true,
+      data: {
+        ...OmiCallService.getPublicConfig(),
+        summary: DebtNotifyService.getSummary(),
+      },
+    });
+  } catch (e) {
+    logger.error('[DEBT_NOTIFY_API] settings error', { error: e.message });
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+router.post('/notify/settings', requireAuth, requireAdmin, (req, res) => {
+  try {
+    const body = req.body || {};
+    const result = OmiCallService.saveConfig({
+      apiKey: body.apiKey,
+      baseUrl: body.baseUrl,
+      enabled: body.enabled,
+      channel: body.channel,
+      notifyManualDebt: body.notifyManualDebt,
+      title: body.title,
+    });
+    if (!result.success) {
+      return res.status(400).json({ success: false, error: result.error });
+    }
+    res.json({ success: true, data: OmiCallService.getPublicConfig() });
+  } catch (e) {
+    logger.error('[DEBT_NOTIFY_API] save settings error', { error: e.message });
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+router.post('/notify/test', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const body = req.body || {};
+    const config = {
+      apiKey: body.apiKey !== undefined ? body.apiKey : undefined,
+      baseUrl: body.baseUrl !== undefined ? body.baseUrl : undefined,
+    };
+    const result = await OmiCallService.testConnection(config);
+    if (!result.success) {
+      return res.status(400).json({ success: false, error: result.error });
+    }
+    res.json({ success: true, message: 'Kết nối OmiCall thành công' });
+  } catch (e) {
+    logger.error('[DEBT_NOTIFY_API] test error', { error: e.message });
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+router.post('/notify/test-send', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { convId, text } = req.body || {};
+    if (!convId) {
+      return res.status(400).json({ success: false, error: 'Thiếu convId (Conversation ID của nhóm Zalo)' });
+    }
+    const content =
+      String(text || '').trim() ||
+      '🔔 BIA TƯƠI — Tin nhắn thử nghiệm từ Sổ công nợ. Hệ thống thông báo tự động khi ghi nhận thanh toán.';
+
+    const result = await OmiCallService.sendZaloPersonalMessage({
+      convId: String(convId).trim(),
+      text: content,
+    });
+    if (!result.success) {
+      return res.status(400).json({ success: false, error: result.error });
+    }
+    res.json({ success: true, data: { messageId: result.messageId } });
+  } catch (e) {
+    logger.error('[DEBT_NOTIFY_API] test-send error', { error: e.message });
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+router.get('/notify/history', requireAuth, (req, res) => {
+  try {
+    const { status, customerId, limit, offset } = req.query || {};
+    const result = DebtNotifyService.listHistory({
+      status,
+      customerId,
+      limit,
+      offset,
+    });
+    res.json({ success: true, data: result });
+  } catch (e) {
+    logger.error('[DEBT_NOTIFY_API] history error', { error: e.message });
     res.status(500).json({ success: false, error: e.message });
   }
 });

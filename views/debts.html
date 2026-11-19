@@ -893,6 +893,9 @@
     sepay: null,
     sepayTx: [],
     sepayFilter: '',
+    // Thông báo Zalo qua OmiCall
+    notify: null,
+    notifyHistory: null,
     // Dấu của lệnh nhập nhanh: '+' (thu tiền) hoặc '−' (ghi nợ).
     // Chọn bằng NÚT vì bàn phím điện thoại không có phím "+".
     quickSign: '+',
@@ -1412,8 +1415,128 @@
 
     return '<div class="dbt-section">' +
       '<div class="dbt-section-title">💬 Nhóm Zalo ↔ Khách hàng</div>' +
-      '<div class="dbt-section-desc">Mỗi khách có thể liên kết nhiều nhóm Zalo cá nhân. Hệ thống KHÔNG dùng Zalo OA.</div>' +
+      '<div class="dbt-section-desc">Mỗi khách có thể liên kết nhiều nhóm Zalo cá nhân. Hệ thống KHÔNG dùng Zalo OA. <b>Group ID</b> = Conversation ID (conv_id) của nhóm trong OmiCall — dùng để gửi tin nhắn thông báo công nợ (xem tab 🔔 Thông báo Zalo).</div>' +
       body + addBtn +
+    '</div>';
+  }
+
+  // ── Render: Thông báo Zalo (OmiCall) ────────────────────────────────────
+  function renderNotify() {
+    var n = state.notify;
+    if (!n) return '<div class="dbt-empty">⏳ Đang tải cấu hình thông báo...</div>';
+
+    var sum = n.summary || {};
+    var configured = !!n.hasApiKey;
+
+    var statusHtml =
+      '<div class="dbt-sepay-status">' +
+        '<span class="dbt-sepay-dot ' + (configured && n.enabled ? 'on' : (configured ? 'warn' : 'off')) + '"></span>' +
+        '<div style="flex:1;min-width:0">' +
+          '<div style="font-weight:700;font-size:13px">' +
+            (!configured
+              ? 'Chưa cấu hình — cần nhập OmiCall API key'
+              : (n.enabled
+                ? 'Đang hoạt động — tự gửi tin nhắn khi ghi nhận thanh toán'
+                : 'Đã cấu hình — đang TẮT gửi tin nhắn')) +
+          '</div>' +
+          '<div class="dbt-sepay-url" style="margin-top:3px">Kênh: ' + esc(n.channel || '—') +
+            ' · Base URL: ' + esc(n.baseUrl || '—') +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+    var kpiHtml = '<div class="dbt-kpi-grid">' +
+      '<div class="dbt-kpi"><div class="dbt-kpi-label">Tổng lần gửi</div><div class="dbt-kpi-value">' + (sum.total || 0) + '</div></div>' +
+      '<div class="dbt-kpi"><div class="dbt-kpi-label">Thành công</div><div class="dbt-kpi-value" style="color:#22c55e">' + (sum.sent || 0) + '</div></div>' +
+      '<div class="dbt-kpi"><div class="dbt-kpi-label">Thất bại</div><div class="dbt-kpi-value" style="color:#ef4444">' + (sum.failed || 0) + '</div></div>' +
+      '<div class="dbt-kpi"><div class="dbt-kpi-label">Bỏ qua</div><div class="dbt-kpi-value">' + (sum.skipped || 0) + '</div></div>' +
+    '</div>';
+
+    var guideHtml = '<div class="dbt-section" style="margin-bottom:12px;border-left:3px solid var(--primary)">' +
+      '<div class="dbt-section-title">📋 Cách hoạt động</div>' +
+      '<div style="font-size:13px;line-height:1.9;color:var(--text-secondary)">' +
+        '<div><b>1.</b> Mỗi khách cần được liên kết với <b>một nhóm Zalo</b> (tab <b>💬 Nhóm Zalo</b>). Giá trị "Group ID" là <b>Conversation ID (conv_id)</b> của nhóm trong hệ thống OmiCall multi-channel.</div>' +
+        '<div><b>2.</b> Khi sổ công nợ ghi nhận tiền khách trả (khách quét QR hoá đơn qua Sepay, hoặc nhân viên ghi nợ tay / lệnh <b>+</b>), hệ thống tự gửi tin nhắn vào nhóm Zalo của khách: <b>đã nhận bao nhiêu, còn nợ bao nhiêu</b>.</div>' +
+        '<div><b>3.</b> Khách chuyển <b>DƯ</b> → tin nhắn ghi rõ phần tiền còn dư. Khách chuyển <b>THIẾU</b> → hệ thống gạch một phần, tin nhắn báo rõ số dư còn nợ.</div>' +
+        '<div><b>4.</b> Gửi tin nhắn <b>KHÔNG</b> làm hỏng việc ghi sổ công nợ — nếu OmiCall lỗi, giao dịch vẫn được ghi bình thường và lỗi nằm trong bảng lịch sử bên dưới.</div>' +
+      '</div>' +
+    '</div>';
+
+    var settingsHtml = '';
+    if (state.isAdmin) {
+      settingsHtml = '<div class="dbt-section" style="margin-top:12px">' +
+        '<div class="dbt-section-title">⚙️ Cấu hình OmiCall</div>' +
+        '<div class="dbt-section-desc">Lấy API key tại omicall.com → Cài đặt → API, dán vào đây rồi bấm Lưu.</div>' +
+        '<div class="dbt-field">' +
+          '<label class="dbt-label">OmiCall API key</label>' +
+          '<input id="omiApiKey" class="dbt-input" type="password" placeholder="' + (n.hasApiKey ? '•••••••• (đã lưu — ' + esc(n.apiKeyMasked || '') + ')' : 'Dán API key của bạn') + '">' +
+          '<div class="dbt-hint">📍 omicall.com → Cài đặt → API → tạo API key. Để trống nếu không muốn thay đổi key đã lưu.</div>' +
+        '</div>' +
+        '<div class="dbt-field">' +
+          '<label class="dbt-label">Base URL</label>' +
+          '<input id="omiBaseUrl" class="dbt-input" type="text" value="' + esc(n.baseUrl || 'https://public-v1.omicall.com') + '">' +
+          '<div class="dbt-hint">Production: <b>https://public-v1.omicall.com</b> · Staging: <b>https://public-v1-stg.omicall.com</b></div>' +
+        '</div>' +
+        '<div class="dbt-field">' +
+          '<label class="dbt-label">Tiêu đề tin nhắn</label>' +
+          '<input id="omiTitle" class="dbt-input" type="text" value="' + esc(n.title || '') + '">' +
+        '</div>' +
+        '<div class="dbt-sepay-row">' +
+          '<span class="dbt-sepay-row-label">Tự động gửi tin nhắn khi ghi nhận thanh toán</span>' +
+          '<button class="dbt-sepay-toggle' + (n.enabled ? ' on' : '') + '" id="omiEnabled" onclick="toggleNotifyEnabled()"></button>' +
+        '</div>' +
+        '<div class="dbt-sepay-row">' +
+          '<span class="dbt-sepay-row-label">Gửi cả khi ghi nợ tay (lệnh −)</span>' +
+          '<button class="dbt-sepay-toggle' + (n.notifyManualDebt ? ' on' : '') + '" id="omiManualDebt" onclick="toggleNotifyManualDebt()"></button>' +
+        '</div>' +
+        '<div class="dbt-btn-row" style="margin-top:12px">' +
+          '<button class="dbt-btn" onclick="saveNotifySettings()">💾 Lưu cấu hình</button>' +
+          '<button class="dbt-btn" onclick="testOmiCallConnection()">🔌 Kiểm tra kết nối</button>' +
+          '<button class="dbt-btn" onclick="openNotifyTestSendModal()">✉️ Gửi tin thử</button>' +
+        '</div>' +
+      '</div>';
+    }
+
+    // Lịch sử gửi
+    var hist = state.notifyHistory;
+    var items = (hist && hist.items) || [];
+    var historyHtml =
+      '<div class="dbt-section" style="margin-top:12px">' +
+        '<div class="dbt-section-title">📨 Lịch sử gửi tin nhắn</div>' +
+        (items.length
+          ? '<div class="dbt-table-wrap"><table class="dbt-table dbt-table--wide"><thead><tr>' +
+            '<th>Thời gian</th><th>Khách</th><th>Loại</th>' +
+            '<th style="text-align:right">Số tiền</th><th style="text-align:right">Số dư sau</th>' +
+            '<th>Trạng thái</th><th>Ghi chú</th>' +
+            '</tr></thead><tbody>' +
+            items.map(function (x) {
+              var badge = x.status === 'sent'
+                ? '<span class="dbt-badge dbt-badge-ok">Đã gửi</span>'
+                : (x.status === 'failed'
+                  ? '<span class="dbt-badge dbt-badge-crit">Lỗi</span>'
+                  : '<span class="dbt-badge dbt-badge-warn">Bỏ qua</span>');
+              return '<tr>' +
+                '<td style="font-size:11.5px;white-space:nowrap">' + esc(fmtDateTime(x.created_at)) + '</td>' +
+                '<td class="dbt-name">' + esc(x.customer_name || x.customer_ref_name || '—') + '</td>' +
+                '<td class="dbt-muted">' + esc(x.event_type || '') + '</td>' +
+                '<td class="dbt-mono" style="text-align:right">' + money(x.amount) + '</td>' +
+                '<td class="dbt-mono" style="text-align:right">' + money(x.balance_after) + '</td>' +
+                '<td>' + badge + '</td>' +
+                '<td class="dbt-muted" style="font-size:11px">' + esc(x.error || '') + '</td>' +
+              '</tr>';
+            }).join('') +
+            '</tbody></table></div>'
+          : '<div class="dbt-empty">📭 Chưa có tin nhắn nào được gửi</div>') +
+      '</div>';
+
+    return '<div class="dbt-section">' +
+      '<div class="dbt-section-title">🔔 Thông báo công nợ qua Zalo (OmiCall)</div>' +
+      '<div class="dbt-section-desc">Tự động báo khách trong nhóm Zalo khi sổ công nợ ghi nhận tiền — khách biết ngay đã nhận bao nhiêu và còn nợ bao nhiêu.</div>' +
+      statusHtml +
+      guideHtml +
+      kpiHtml +
+      settingsHtml +
+      historyHtml +
     '</div>';
   }
 
@@ -1539,6 +1662,7 @@
     { id: 'customers', label: '👥 Khách hàng' },
     { id: 'sepay', label: '🏦 Sepay' },
     { id: 'groups', label: '💬 Nhóm Zalo' },
+    { id: 'notify', label: '🔔 Thông báo Zalo' },
     { id: 'permissions', label: '🔐 Phân quyền' },
     { id: 'reconciliation', label: '🔍 Đối soát' },
     { id: 'bridge', label: '🔌 Zalo Bridge' },
@@ -1555,6 +1679,7 @@
     else if (state.tab === 'detail') body = renderDetail();
     else if (state.tab === 'sepay') body = renderSepay();
     else if (state.tab === 'groups') body = renderGroups();
+    else if (state.tab === 'notify') body = renderNotify();
     else if (state.tab === 'permissions') body = renderPermissions();
     else if (state.tab === 'reconciliation') body = renderReconciliation();
     else if (state.tab === 'bridge') body = renderBridge();
@@ -2200,7 +2325,8 @@
       '<div class="dbt-field"><label class="dbt-label">Khách hàng</label>' +
         '<select id="gpCustomer" class="dbt-select">' + customerOptions() + '</select></div>' +
       '<div class="dbt-field"><label class="dbt-label">Group ID</label>' +
-        '<input id="gpGroupId" class="dbt-input" placeholder="VD: 1234567890"></div>' +
+        '<input id="gpGroupId" class="dbt-input" placeholder="VD: 1234567890">' +
+        '<div class="dbt-hint">Đây là <b>Conversation ID (conv_id)</b> của nhóm Zalo trong hệ thống OmiCall multi-channel — dùng để gửi tin nhắn thông báo công nợ tới nhóm.</div></div>' +
       '<div class="dbt-field"><label class="dbt-label">Tên nhóm</label>' +
         '<input id="gpGroupName" class="dbt-input" placeholder="VD: Nhóm Zalo Anh Hùng"></div>' +
       '<div class="dbt-field"><label class="dbt-label">Nền tảng</label>' +
@@ -2433,6 +2559,125 @@
     }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
   }
 
+  // ── Thông báo Zalo (OmiCall) ───────────────────────────────────────────
+  function loadNotify() {
+    state.notify = null;
+    state.notifyHistory = null;
+    render();
+    return Promise.all([
+      api(API + '/notify/settings'),
+      api(API + '/notify/history?limit=100'),
+      // Danh sách nhóm Zalo để chọn khi gửi tin thử
+      state.groups && state.groups.length ? Promise.resolve({ data: state.groups }) : api(API + '/groups'),
+    ]).then(function (res) {
+      state.notify = res[0].data;
+      state.notifyHistory = res[1].data;
+      state.groups = res[2].data || [];
+      render();
+    }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
+  }
+
+  function toggleNotifyEnabled() {
+    var btn = document.getElementById('omiEnabled');
+    if (!btn) return;
+    var on = !btn.classList.contains('on');
+    btn.classList.toggle('on', on);
+    if (state.notify) state.notify.enabled = on;
+  }
+
+  function toggleNotifyManualDebt() {
+    var btn = document.getElementById('omiManualDebt');
+    if (!btn) return;
+    var on = !btn.classList.contains('on');
+    btn.classList.toggle('on', on);
+    if (state.notify) state.notify.notifyManualDebt = on;
+  }
+
+  function saveNotifySettings() {
+    var keyEl = document.getElementById('omiApiKey');
+    var baseEl = document.getElementById('omiBaseUrl');
+    var titleEl = document.getElementById('omiTitle');
+    var enEl = document.getElementById('omiEnabled');
+    var mdEl = document.getElementById('omiManualDebt');
+
+    var patch = {};
+    if (keyEl && keyEl.value.trim()) patch.apiKey = keyEl.value.trim();
+    if (baseEl && baseEl.value.trim()) patch.baseUrl = baseEl.value.trim();
+    if (titleEl && titleEl.value.trim()) patch.title = titleEl.value.trim();
+    if (enEl) patch.enabled = enEl.classList.contains('on');
+    if (mdEl) patch.notifyManualDebt = mdEl.classList.contains('on');
+
+    api(API + '/notify/settings', {
+      method: 'POST',
+      body: JSON.stringify(patch),
+    }).then(function () {
+      toast('✅ Đã lưu cấu hình thông báo', 'ok');
+      loadNotify();
+    }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
+  }
+
+  function testOmiCallConnection() {
+    toast('⏳ Đang kiểm tra kết nối OmiCall...');
+    var keyEl = document.getElementById('omiApiKey');
+    var baseEl = document.getElementById('omiBaseUrl');
+    var patch = {};
+    if (keyEl && keyEl.value.trim()) patch.apiKey = keyEl.value.trim();
+    if (baseEl && baseEl.value.trim()) patch.baseUrl = baseEl.value.trim();
+
+    api(API + '/notify/test', {
+      method: 'POST',
+      body: JSON.stringify(patch),
+    }).then(function () {
+      toast('✅ Kết nối OmiCall thành công', 'ok');
+    }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
+  }
+
+  function openNotifyTestSendModal() {
+    var groups = state.groups || [];
+    var opts = groups.map(function (g) {
+      return '<option value="' + esc(g.group_id) + '">' +
+        esc((g.customer_name || ('#' + g.customer_id)) + ' — ' + (g.group_name || g.group_id)) +
+        '</option>';
+    }).join('');
+    var body =
+      '<div class="dbt-field">' +
+        '<label class="dbt-label">Chọn nhóm Zalo</label>' +
+        '<select id="ntConvId" class="dbt-select">' +
+          (opts ? opts : '<option value="">— Chưa có nhóm nào được liên kết —</option>') +
+        '</select>' +
+        '<div class="dbt-hint">Danh sách lấy từ tab "Nhóm Zalo". Nếu chưa có, dán Conversation ID (conv_id) của nhóm lấy từ OmiCall.</div>' +
+      '</div>' +
+      '<div class="dbt-field">' +
+        '<label class="dbt-label">Conversation ID (conv_id)</label>' +
+        '<input id="ntConvManual" class="dbt-input" type="text" placeholder="VD: 6a1b2c3d4e5f...">' +
+      '</div>' +
+      '<div class="dbt-field">' +
+        '<label class="dbt-label">Nội dung tin nhắn</label>' +
+        '<textarea id="ntText" class="dbt-input" rows="3" placeholder="Để trống để dùng tin nhắn mặc định"></textarea>' +
+      '</div>';
+    showModal('✉️ Gửi tin thử qua OmiCall', body +
+      '<div class="dbt-btn-row">' +
+        '<button class="dbt-btn dbt-btn-secondary" onclick="closeModal()">Huỷ</button>' +
+        '<button class="dbt-btn" style="flex:1" onclick="sendNotifyTest()">✉️ Gửi tin</button>' +
+      '</div>');
+  }
+
+  function sendNotifyTest() {
+    var selEl = document.getElementById('ntConvId');
+    var manEl = document.getElementById('ntConvManual');
+    var txtEl = document.getElementById('ntText');
+    var convId = (manEl && manEl.value.trim()) || (selEl && selEl.value) || '';
+    if (!convId) { toast('✗ Chưa chọn nhóm Zalo', 'err'); return; }
+
+    api(API + '/notify/test-send', {
+      method: 'POST',
+      body: JSON.stringify({ convId: convId, text: txtEl ? txtEl.value : '' }),
+    }).then(function () {
+      toast('✅ Đã gửi tin nhắn thử', 'ok');
+      closeModal();
+    }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
+  }
+
   // ── Sepay ──────────────────────────────────────────────────────────────
   function loadSepay() {
     state.sepay = null;
@@ -2522,6 +2767,7 @@
     if (tab === 'overview' || tab === 'customers') return refreshOverview();
     if (tab === 'sepay') return loadSepay();
     if (tab === 'groups') return loadGroups();
+    if (tab === 'notify') return loadNotify();
     if (tab === 'permissions') return loadPermissions();
     if (tab === 'reconciliation') return loadReconciliation();
     if (tab === 'bridge') return loadBridge();
@@ -2568,6 +2814,14 @@
   window.assignSepayCustomer = assignSepayCustomer;
   window.ignoreSepayTx = ignoreSepayTx;
   window.submitCollectPartial = submitCollectPartial;
+  // Thông báo Zalo qua OmiCall
+  window.loadNotify = loadNotify;
+  window.toggleNotifyEnabled = toggleNotifyEnabled;
+  window.toggleNotifyManualDebt = toggleNotifyManualDebt;
+  window.saveNotifySettings = saveNotifySettings;
+  window.testOmiCallConnection = testOmiCallConnection;
+  window.openNotifyTestSendModal = openNotifyTestSendModal;
+  window.sendNotifyTest = sendNotifyTest;
   // Chọn dấu +/− cho lệnh nhập nhanh (bàn phím mobile không có phím "+")
   window.setQuickSign = setQuickSign;
 })();

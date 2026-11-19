@@ -26,6 +26,7 @@ const db = require('../../../database');
 const logger = require('../../utils/logger');
 const DebtLedgerService = require('./DebtLedgerService');
 const DebtAuditService = require('./DebtAuditService');
+const DebtNotifyService = require('./DebtNotifyService');
 const { TRANSACTION_TYPES, SOURCES, REFERENCE_TYPES } = require('./constants');
 
 // ── Trạng thái giao dịch Sepay ───────────────────────────────────────────────
@@ -642,6 +643,20 @@ function processTransaction(txId, opts = {}) {
     credit,
     deficitOffset,
     balanceAfter,
+  });
+
+  // ── 3b. Gửi tin nhắn Zalo thông báo công nợ (KHÔNG chặn nghiệp vụ) ────
+  //    Fire-and-forget: lỗi OmiCall không được làm hỏng giao dịch đã gạch.
+  DebtNotifyService.notifyPaymentAsync({
+    customerId: customer.id,
+    customerName: customer.name,
+    amount,
+    applied,
+    credit,
+    balanceBefore,
+    balanceAfter,
+    source: 'SEPAY',
+    transactionId: paymentResult ? paymentResult.transactionId : null,
   });
 
   return {

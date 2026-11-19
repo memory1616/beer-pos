@@ -16,6 +16,7 @@ const db = require('../../../database');
 const logger = require('../../utils/logger');
 const DebtLedgerService = require('./DebtLedgerService');
 const DebtAuditService = require('./DebtAuditService');
+const DebtNotifyService = require('./DebtNotifyService');
 const DebtPermissionService = require('./DebtPermissionService');
 const { TRANSACTION_TYPES, SOURCES, REFERENCE_TYPES } = require('./constants');
 
@@ -159,6 +160,18 @@ function recordPayment(opts = {}) {
     actorId: (user && user.username) || null,
     beforeData: { balance: balanceBefore },
     afterData: { balance: result.balanceAfter, amount: value, saleId: saleId || null },
+  });
+
+  // 7. Gửi tin nhắn Zalo thông báo "đã nhận tiền" (KHÔNG chặn nghiệp vụ)
+  DebtNotifyService.notifyPaymentAsync({
+    customerId: custId,
+    amount: value,
+    applied: value,
+    credit: 0,
+    balanceBefore,
+    balanceAfter: result.balanceAfter,
+    source: source || SOURCES.MANUAL_UI,
+    transactionId: result.transactionId,
   });
 
   return {

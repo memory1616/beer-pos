@@ -23,6 +23,7 @@ const logger = require('../../utils/logger');
 const DebtLedgerService = require('./DebtLedgerService');
 const DebtPermissionService = require('./DebtPermissionService');
 const DebtAuditService = require('./DebtAuditService');
+const DebtNotifyService = require('./DebtNotifyService');
 const {
   TRANSACTION_TYPES,
   SOURCES,
@@ -390,6 +391,34 @@ function handleMessage(message = {}) {
 
   // 10. Trả lời (chỉ gửi sau khi transaction đã COMMIT)
   const customer = db.prepare('SELECT name FROM customers WHERE id = ?').get(customerId);
+
+  // 10b. Gửi tin nhắn Zalo thông báo công nợ (KHÔNG chặn nghiệp vụ)
+  //     - Lệnh `+` → thông báo "đã nhận tiền"
+  //     - Lệnh `-` → thông báo "ghi nợ tay" (tuỳ chọn, mặc định TẮT)
+  if (isPayment) {
+    DebtNotifyService.notifyPaymentAsync({
+      customerId,
+      customerName: customer?.name || '',
+      amount: parsed.amount,
+      applied: parsed.amount,
+      credit: 0,
+      balanceBefore,
+      balanceAfter: result.balanceAfter,
+      source: 'COMMAND',
+      transactionId: result.transactionId,
+    });
+  } else {
+    DebtNotifyService.notifyManualDebtAsync({
+      customerId,
+      customerName: customer?.name || '',
+      amount: parsed.amount,
+      balanceBefore,
+      balanceAfter: result.balanceAfter,
+      source: 'COMMAND',
+      transactionId: result.transactionId,
+    });
+  }
+
   const reply = buildResultReply({
     sign: parsed.sign,
     units: parsed.units,
