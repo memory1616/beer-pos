@@ -182,24 +182,38 @@ function extractAuthError(body, fallback) {
 /**
  * Thử lấy access token theo nhiều chiến lược gọi /api/auth.
  *
- * Kiểm chứng thực tế trên server OmiCall:
- *  - Production (`public-v1.omicall.com`): CHỈ nhận `POST` → `GET` trả 405.
- *  - Staging (`public-v1-stg.omicall.com`): nhận `GET ?apiKey=` (và POST cũng được).
- *  - `POST` thiếu `tenantId` → upstream lỗi HTTP 500 → phải luôn gửi kèm
- *    `tenantId` (kể cả chuỗi rỗng) và `lng`.
+ * Kiểm chứng thực tế trên server OmiCall (2026-11):
  *
- * Thứ tự: POST trước (đúng với production), GET làm fallback (staging).
+ *  | Môi trường | GET ?apiKey=          | POST body {apiKey,...}          |
+ *  |------------|----------------------|---------------------------------|
+ *  | production | ❌ 405 Method allowed  | ✅ đọc apiKey trong body        |
+ *  | staging    | ✅ đọc apiKey trong QS  | ❌ "api_key_is_required"        |
+ *
+ *  → Chiến lược chung cho cả hai: `POST ?apiKey=<key>` + body có `apiKey`.
+ *    Các chiến lược còn lại làm fallback.
+ *
+ *  LƯU Ý: `POST` thiếu `tenantId` → upstream lỗi HTTP 500 → luôn gửi kèm
+ *  `tenantId` (kể cả chuỗi rỗng) và `lng`.
  */
 async function requestAuthToken(baseUrl, apiKey) {
+  const encodedKey = encodeURIComponent(apiKey);
   const attempts = [
+    // 1. POST + apiKey ở CẢ query lẫn body → hoạt động với production & staging
+    {
+      method: 'POST',
+      url: `${baseUrl}/api/auth?apiKey=${encodedKey}`,
+      body: { apiKey, tenantId: '', lng: 'vi' },
+    },
+    // 2. POST chỉ body → production đọc apiKey trong body
     {
       method: 'POST',
       url: `${baseUrl}/api/auth`,
       body: { apiKey, tenantId: '', lng: 'vi' },
     },
+    // 3. GET + query → staging (và tài liệu chính thức)
     {
       method: 'GET',
-      url: `${baseUrl}/api/auth?apiKey=${encodeURIComponent(apiKey)}`,
+      url: `${baseUrl}/api/auth?apiKey=${encodedKey}`,
       body: null,
     },
   ];
@@ -236,12 +250,21 @@ async function requestAuthToken(baseUrl, apiKey) {
     const detail = extractAuthError(body, `HTTP ${res.status}`);
     lastError = new Error(`OmiCall auth thất bại: ${detail}`);
 
-    // Lỗi "cấu trúc request sai" (HTTP 405/404/500) → thử chiến lược kế tiếp.
-    // Lỗi "API key sai" (HTTP 200 + status_code -9999) → dừng luôn, key sai thì
-    // các chiến lược khác cũng sẽ cho kết quả tương tự.
-    if (res.ok && body && body.status_code !== undefined && Number(body.status_code) !== 9999) {
-      break;
+    if (!res.ok) {
+      // Lỗi HTTP (405/404/500) → thử chiến lược kế tiếp.
+      continue;
     }
+
+    // HTTP 200 nhưng OmiCall từ chối:
+    //  - "api_key_is_required" → OmiCall KHÔNG đọc được key ở vị trí này
+    //    → thử chiến lược khác (đặt key ở chỗ khác).
+    //  - "auth_invalid"/"api_key_invalid" → key sai → dừng luôn, các chiến lược
+    //    khác cũng cho kết quả tương tự.
+    const code = String((body && (body.message || body.msg)) || '').trim();
+    if (code === 'api_key_is_required' || code === 'api_key_required' || code === 'tenant_required') {
+      continue;
+    }
+    break;
   }
 
   throw lastError || new Error('OmiCall auth thất bại: không xác định được lỗi');

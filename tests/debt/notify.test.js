@@ -176,9 +176,9 @@ describe('OmiCallService — access token', () => {
     OmiCallService.clearTokenCache();
   });
 
-  it('lấy token từ POST /api/auth (production chỉ nhận POST)', async () => {
+  it('lấy token từ POST /api/auth?apiKey= (dùng được cho cả prod lẫn staging)', async () => {
     const fetchMock = mockFetch(async (url, options) => {
-      expect(String(url)).toContain('/api/auth');
+      expect(String(url)).toContain('/api/auth?apiKey=TEST_KEY_123');
       expect(options.method).toBe('POST');
       const body = JSON.parse(options.body);
       expect(body.apiKey).toBe('TEST_KEY_123');
@@ -192,18 +192,22 @@ describe('OmiCallService — access token', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it('fallback sang GET /api/auth?apiKey= khi POST bị 405 (staging)', async () => {
+  it('fallback: POST bị 405 → thử POST body-only rồi GET (staging)', async () => {
+    const seen = [];
     const fetchMock = mockFetch(async (url, options) => {
-      if (options.method === 'POST') {
+      seen.push({ url: String(url), method: options.method });
+      if (options.method === 'POST' && !String(url).includes('?apiKey=')) {
         return jsonResponse({ error: 'Method not allowed' }, 405);
       }
-      expect(String(url)).toContain('/api/auth?apiKey=TEST_KEY_123');
+      if (options.method === 'POST') {
+        return jsonResponse({ status_code: -9999, message: 'api_key_is_required' });
+      }
       return jsonResponse({ status_code: 9999, payload: { access_token: 'TOKEN_STG' } });
     });
 
     const token = await OmiCallService.getAccessToken();
     expect(token).toBe('TOKEN_STG');
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(seen.map((s) => s.method)).toEqual(['POST', 'POST', 'GET']);
   });
 
   it('không retry khi API key sai (status_code -9999) — báo message rõ ràng', async () => {
