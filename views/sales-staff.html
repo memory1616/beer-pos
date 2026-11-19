@@ -375,8 +375,12 @@
       gap: 8px;
       margin-top: 4px;
     }
-    .ss-actions--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    .ss-actions .ss-btn { min-width: 0; padding: 0 8px; font-size: 12.5px; }
+    .ss-actions--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
+    .ss-actions .ss-btn { min-width: 0; padding: 0 6px; font-size: 12px; }
+    /* Nút trong card hẹp: cắt bớt chữ thay vì tràn ra ngoài */
+    .ss-actions .ss-btn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* Hàng 3 nút trong card ~225px → chữ nhỏ lại để vừa */
+    .ss-actions--3 .ss-btn { font-size: 11.5px; padding: 0 4px; letter-spacing: -0.1px; }
 
     /* ── Empty state ──────────────────────────────────────────────── */
     .ss-empty {
@@ -516,7 +520,6 @@
     /* ── Responsive ───────────────────────────────────────────────── */
     @media (min-width: 640px) {
       .ss-content { padding: 16px 20px 28px; max-width: 820px; margin: 0 auto; }
-      .ss-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
       .ss-card-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
       .ss-card-list .ss-card { margin-bottom: 0; }
       .ss-sheet { border-radius: 22px; margin-bottom: 0; }
@@ -524,6 +527,25 @@
     @media (min-width: 1000px) {
       .ss-content { max-width: 980px; }
       .ss-card-list--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+
+    /* ⚠️ Grid theo CONTAINER THỰC, không theo viewport.
+       Lý do: media query chỉ biết chiều rộng CỬA SỔ, nhưng `.ss-content` nằm
+       trong layout có sidebar → ở viewport 1000px container thực chỉ ~500px.
+       Nếu dùng `repeat(3, minmax(0,1fr))` → mỗi card bị bóp còn ~147px →
+       tên/phone bị cắt, nút "🏪 Khách" không vừa.
+       `auto-fill` + `minmax(210px, 1fr)` → số cột tự co theo container thật. */
+    .ss-card-list--auto {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+      gap: 10px;
+    }
+    .ss-card-list--auto .ss-card { margin-bottom: 0; }
+
+    /* Metrics: cũng theo container, tránh 4 cột bị bóp trong card hẹp.
+       min 92px → ở card 225px cho 2 cột, ở card 460px cho 4 cột. */
+    .ss-metrics--auto {
+      grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
     }
 
     /* Danh sách chấm công: dùng auto-fill để card KHÔNG bị bóp quá hẹp
@@ -601,7 +623,7 @@
           </div>
           <button type="button" class="ss-btn ss-btn--primary" onclick="openAddStaffModal()">+ Thêm Sales</button>
         </div>
-        <div id="staffList" class="ss-card-list ss-card-list--3">
+        <div id="staffList" class="ss-card-list ss-card-list--auto">
           <div class="ss-empty"><div class="ss-empty-icon">⏳</div>Đang tải...</div>
         </div>
       </div>
@@ -697,7 +719,7 @@
           <input type="checkbox" id="showInactiveDrivers" onchange="loadDriverList()">
           Hiện cả tài xế đã khoá
         </label>
-        <div id="driverList" class="ss-card-list ss-card-list--3">
+        <div id="driverList" class="ss-card-list ss-card-list--auto">
           <div class="ss-empty"><div class="ss-empty-icon">⏳</div>Đang tải...</div>
         </div>
         <div class="ss-info">
@@ -1482,7 +1504,7 @@
                 ? '<span class="ss-badge ss-badge--warn">TK bị khoá</span>'
                 : '<span class="ss-badge ss-badge--ok">Hoạt động</span>')) +
           '</div>' +
-          '<div class="ss-metrics">' +
+          '<div class="ss-metrics ss-metrics--auto">' +
             '<div class="ss-metric"><span class="ss-metric-label">Lương/tháng</span><span class="ss-metric-value">' + formatVND(d.monthly_salary || 0) + '</span></div>' +
             '<div class="ss-metric"><span class="ss-metric-label">Lương/ngày</span><span class="ss-metric-value">' + formatVND(daily) + '</span></div>' +
             '<div class="ss-metric"><span class="ss-metric-label">Ngày vào làm</span><span class="ss-metric-value">' + (d.start_date ? formatDate(d.start_date) : 'Chưa khai báo') + '</span></div>' +
@@ -1490,8 +1512,8 @@
           '</div>' +
           '<div class="ss-actions ss-actions--3">' +
             '<button type="button" class="ss-btn ss-btn--sm" onclick="openDriverModal(' + d.id + ')">✏️ Sửa</button>' +
-            '<button type="button" class="ss-btn ss-btn--sm" onclick="openDriverSalaryModal(' + d.id + ')">💵 Lương</button>' +
-            '<button type="button" class="ss-btn ss-btn--sm" onclick="resetDriverPassword(' + d.id + ')">🔑 Đổi MK</button>' +
+            '<button type="button" class="ss-btn ss-btn--sm" onclick="openDriverSalaryModal(' + d.id + ')" title="Sửa lương">💵 Lương</button>' +
+            '<button type="button" class="ss-btn ss-btn--sm" onclick="resetDriverPassword(' + d.id + ')" title="Đổi mật khẩu">🔑 MK</button>' +
           '</div>' +
           '<div class="ss-actions" style="margin-top: 8px;">' +
             (locked
@@ -1669,7 +1691,7 @@
           '<span class="ss-total-label">Tổng lương ' + escapeHtml(monthVal) + '</span>' +
           '<span class="ss-total-value">' + formatVND(totalPay) + '</span>' +
         '</div>' +
-        '<div class="ss-card-list ss-card-list--3">' +
+        '<div class="ss-card-list ss-card-list--auto">' +
           driverSalarySummary.map(function (d) {
             return '<div class="ss-card' + (d.active ? '' : ' ss-card--dim') + '">' +
               '<div class="ss-card-top">' +
@@ -1682,7 +1704,7 @@
                   ? '<span class="ss-badge ss-badge--ok">Đã trả</span>'
                   : '<span class="ss-badge ss-badge--warn">Chưa trả</span>') +
               '</div>' +
-              '<div class="ss-metrics">' +
+              '<div class="ss-metrics ss-metrics--auto">' +
                 '<div class="ss-metric"><span class="ss-metric-label">Ngày làm</span><span class="ss-metric-value">' + (d.workDays || 0) + ' ngày</span></div>' +
                 '<div class="ss-metric"><span class="ss-metric-label">Lương/ngày</span><span class="ss-metric-value">' + formatVND(d.dailyRate || 0) + '</span></div>' +
                 '<div class="ss-metric"><span class="ss-metric-label">Lương theo ngày</span><span class="ss-metric-value">' + formatVND(d.proratedBase || 0) + '</span></div>' +
@@ -2057,7 +2079,8 @@
             '<div class="ss-avatar">' + escapeHtml(initials(s.name)) + '</div>' +
             '<div class="ss-card-title-wrap">' +
               '<div class="ss-card-title">' + escapeHtml(s.name) + '</div>' +
-              '<div class="ss-card-sub">📱 ' + escapeHtml(s.phone || 'Chưa có') + ' · ' + (s.total_customers || 0) + ' cửa hàng</div>' +
+              '<div class="ss-card-sub">📱 ' + escapeHtml(s.phone || 'Chưa có') + '</div>' +
+              '<div class="ss-card-sub">🏪 ' + (s.total_customers || 0) + ' cửa hàng</div>' +
             '</div>' +
           '</div>' +
           '<div class="ss-actions ss-actions--3">' +
@@ -2207,7 +2230,7 @@
           '<span class="ss-total-label">Tổng lương phải trả</span>' +
           '<span class="ss-total-value">' + formatVND(total) + '</span>' +
         '</div>' +
-        '<div class="ss-card-list ss-card-list--3">' +
+        '<div class="ss-card-list ss-card-list--auto">' +
           list.map(function (s) {
             return '<div class="ss-card ss-card--tap' + (selectedStaffId == s.id ? ' ss-card--selected' : '') + '" onclick="selectStaff(' + s.id + ')">' +
               '<div class="ss-card-top">' +
@@ -2220,7 +2243,7 @@
                   ? '<span class="ss-badge ss-badge--ok">Đã trả</span>'
                   : '<span class="ss-badge ss-badge--warn">Chưa trả</span>') +
               '</div>' +
-              '<div class="ss-metrics">' +
+              '<div class="ss-metrics ss-metrics--auto">' +
                 '<div class="ss-metric"><span class="ss-metric-label">Tổng lít</span><span class="ss-metric-value">' + (s.totalLiters || 0) + ' L</span></div>' +
                 '<div class="ss-metric"><span class="ss-metric-label">Lương/lít</span><span class="ss-metric-value">' + formatVND(s.salary_per_liter || 1000) + '</span></div>' +
                 '<div class="ss-metric"><span class="ss-metric-label">Lương</span><span class="ss-metric-value">' + formatVND(s.totalSalary || 0) + '</span></div>' +
