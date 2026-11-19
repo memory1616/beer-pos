@@ -644,7 +644,7 @@ async function sendZaloPersonalMessage(opts = {}) {
         if (!res.ok) {
           const msg = (body && (body.message || body.msg || body.error)) || `HTTP ${res.status}`;
           lastError = `OmiCall gửi tin thất bại tại ${host}${path.split('?')[0]}: ${msg}`;
-          apiError = lastError;
+          if (!apiError) apiError = lastError;
           // 401/403 → sai token/key, thử host khác không giúp ích → dừng.
           if (res.status === 401 || res.status === 403) {
             return { success: false, error: lastError, raw: body };
@@ -657,7 +657,9 @@ async function sendZaloPersonalMessage(opts = {}) {
         if (statusCode !== undefined && Number(statusCode) !== 9999) {
           const msg = (body && (body.message || body.msg)) || `status_code ${statusCode}`;
           lastError = `OmiCall từ chối: ${msg}`;
-          apiError = lastError;
+          // Giữ lại lỗi ĐẦU TIÊN (lỗi thật). Các biến thể body sau chỉ cho
+          // `invalid_param` — không có giá trị chẩn đoán, không ghi đè lỗi gốc.
+          if (!apiError) apiError = lastError;
 
           // `user_not_permision` = agent chưa được gán vào nhóm Zalo.
           // Cấp quyền rồi gửi lại (tương đương thao tác gán nhân viên trên OmiCall).
