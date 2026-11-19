@@ -1476,11 +1476,11 @@
     if (state.isAdmin) {
       settingsHtml = '<div class="dbt-section" style="margin-top:12px">' +
         '<div class="dbt-section-title">⚙️ Cấu hình OmiCall</div>' +
-        '<div class="dbt-section-desc">Lấy API key tại omicall.com → Cài đặt → API, dán vào đây rồi bấm Lưu.</div>' +
+        '<div class="dbt-section-desc">Lấy API key trong phần quản trị OmiCall rồi dán vào đây, bấm Lưu. Nếu chưa có key, liên hệ OmiCall (Live Chat tại omicrm.com) để được cấp.</div>' +
         '<div class="dbt-field">' +
           '<label class="dbt-label">OmiCall API key</label>' +
           '<input id="omiApiKey" class="dbt-input" type="password" placeholder="' + (n.hasApiKey ? '•••••••• (đã lưu — ' + esc(n.apiKeyMasked || '') + ')' : 'Dán API key của bạn') + '">' +
-          '<div class="dbt-hint">📍 omicall.com → Cài đặt → API → tạo API key. Để trống nếu không muốn thay đổi key đã lưu.</div>' +
+          '<div class="dbt-hint">📍 <b>omicall.com</b> → đăng nhập tài khoản quản trị → nhấp vào <b>tên tài khoản</b> (góc trên bên phải) → <b>Cấu hình</b> → <b>Quản lý API</b> → <b>Tạo mới API</b> → copy chuỗi API key vừa tạo.<br>💡 Nếu tài khoản của bạn không hiện mục <b>Quản lý API</b>, OmiCall chưa cấp key cho tài khoản đó — nhờ bộ phận hỗ trợ OmiCall cấp (Live Chat: <b>omicrm.com</b>).<br>ℹ️ Để trống ô này nếu không muốn thay đổi key đã lưu.</div>' +
         '</div>' +
         '<div class="dbt-field">' +
           '<label class="dbt-label">Base URL</label>' +
