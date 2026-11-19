@@ -2388,16 +2388,56 @@
     showModal('Liên kết nhóm Zalo ↔ Khách hàng', '' +
       '<div class="dbt-field"><label class="dbt-label">Khách hàng</label>' +
         '<select id="gpCustomer" class="dbt-select">' + customerOptions() + '</select></div>' +
+      '<div class="dbt-field"><label class="dbt-label">Nhóm Zalo (OmiCall)</label>' +
+        '<button class="dbt-btn dbt-btn-secondary" style="width:100%" onclick="loadOmiGroups()">🔄 Tải danh sách nhóm từ OmiCall</button>' +
+        '<select id="gpOmiGroup" class="dbt-select" style="margin-top:8px" onchange="onPickOmiGroup()">' +
+          '<option value="">— Chọn nhóm Zalo —</option></select>' +
+        '<div class="dbt-hint">Chỉ hiển thị <b>nhóm Zalo</b> (không hiển thị chat cá nhân) để tránh gửi nhầm cho khách.</div></div>' +
       '<div class="dbt-field"><label class="dbt-label">Group ID</label>' +
-        '<input id="gpGroupId" class="dbt-input" placeholder="VD: 1234567890">' +
-        '<div class="dbt-hint">Đây là <b>Conversation ID (conv_id)</b> của nhóm Zalo trong hệ thống OmiCall multi-channel — dùng để gửi tin nhắn thông báo công nợ tới nhóm.</div></div>' +
+        '<input id="gpGroupId" class="dbt-input" placeholder="VD: 6afe6913fca59218a5d662a9" readonly>' +
+        '<div class="dbt-hint">Đây là <b>Conversation ID</b> của nhóm Zalo trong hệ thống OmiCall multi-channel — dùng để gửi tin nhắn thông báo công nợ tới nhóm.</div></div>' +
       '<div class="dbt-field"><label class="dbt-label">Tên nhóm</label>' +
-        '<input id="gpGroupName" class="dbt-input" placeholder="VD: Nhóm Zalo Anh Hùng"></div>' +
+        '<input id="gpGroupName" class="dbt-input" placeholder="VD: Nhóm Zalo Anh Hùng" readonly></div>' +
       '<div class="dbt-field"><label class="dbt-label">Nền tảng</label>' +
         '<select id="gpPlatform" class="dbt-select"><option value="zalo_personal">Zalo cá nhân</option></select>' +
         '<div class="dbt-hint">Chỉ hỗ trợ nhóm Zalo cá nhân. Hệ thống KHÔNG dùng Zalo OA.</div></div>' +
       '<div class="dbt-btn-row"><button class="dbt-btn dbt-btn-secondary" onclick="closeModal()">Hủy</button>' +
         '<button class="dbt-btn" style="flex:1" onclick="submitGroup()">💬 Liên kết</button></div>');
+  }
+
+  /**
+   * Tải danh sách nhóm Zalo từ OmiCall (chỉ lấy nhóm, bỏ qua chat cá nhân).
+   */
+  function loadOmiGroups() {
+    var sel = document.getElementById('gpOmiGroup');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">⏳ Đang tải…</option>';
+    api(API + '/notify/conversations?size=100&groupsOnly=1').then(function (res) {
+      var list = (res.data && res.data.conversations) || [];
+      var groups = list.filter(function (c) { return c.convSubType === 'group'; });
+      if (!groups.length) {
+        sel.innerHTML = '<option value="">— Không tìm thấy nhóm Zalo nào —</option>';
+        toast('⚠ Không tìm thấy nhóm Zalo nào trong OmiCall', 'err');
+        return;
+      }
+      sel.innerHTML = '<option value="">— Chọn nhóm Zalo —</option>' + groups.map(function (c) {
+        return '<option value="' + esc(c.convId) + '" data-name="' + esc(c.name || '') + '">' +
+          esc(c.name || '(không tên)') + '</option>';
+      }).join('');
+      toast('✅ Đã tải ' + groups.length + ' nhóm Zalo', 'ok');
+    }).catch(function (e) {
+      sel.innerHTML = '<option value="">— Lỗi tải danh sách —</option>';
+      toast('✗ ' + e.message, 'err');
+    });
+  }
+
+  function onPickOmiGroup() {
+    var sel = document.getElementById('gpOmiGroup');
+    if (!sel) return;
+    var opt = sel.options[sel.selectedIndex];
+    if (!opt || !opt.value) return;
+    document.getElementById('gpGroupId').value = opt.value;
+    document.getElementById('gpGroupName').value = opt.getAttribute('data-name') || '';
   }
 
   function openPermModal() {

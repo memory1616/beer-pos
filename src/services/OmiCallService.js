@@ -376,11 +376,15 @@ const MESSAGE_PATHS = ['/omni_conv/message/send_text?lng=vi', '/omni_conv/messag
 /**
  * Sinh danh sách body gửi tin (thử theo thứ tự ưu tiên).
  *
- * Body ĐÚNG của OmiCall multi-channel (đã trích từ bundle web app chính thức):
+ * Body ĐÚNG của OmiCall multi-channel (đã trích từ bundle web app chính thức
+ * và kiểm chứng bằng request thật):
  *   { conv_id, channel_id, text }
- *  - `conv_id`    : conv_id của hội thoại (nhóm Zalo) — ví dụ "3580128735721925168"
+ *  - `conv_id`    : **Mongo `_id` của hội thoại** — ví dụ "6afe6913fca59218a5d662a9"
+ *                   (KHÔNG phải `conv.conv_id` dạng số, và KHÔNG phải id của kênh)
  *  - `channel_id` : uid kênh Zalo cá nhân — ví dụ "341323407055424547"
  *  - `text`       : nội dung tin nhắn
+ *
+ * Nếu truyền `conv_id` dạng số (`conv.conv_id`) → OmiCall trả `user_not_permision`.
  *
  * Các biến thể cũ giữ lại để tương thích với tài khoản dùng API khác.
  */
@@ -425,6 +429,62 @@ async function fetchChannelId(ctx = {}) {
       if (uid) return String(uid);
     } catch (_) {
       /* thử host tiếp theo */
+    }
+  }
+  return '';
+}
+
+/**
+ * Tự động tra cứu Mongo `_id` của hội thoại khi người dùng chỉ có `conv.conv_id`
+ * (dạng số) — ví dụ "3580128735721925168".
+ *
+ * OmiCall yêu cầu `conv_id` là **Mongo `_id`** (24 ký tự hex) của hội thoại.
+ * Nếu truyền số → OmiCall trả `user_not_permision`.
+ *
+ * @param {object} ctx - { apiKey, baseUrl, token, headers }
+ * @param {string} convNumber - conv_id dạng số
+ * @returns {Promise<string>} Mongo `_id` hoặc '' nếu không tra cứu được
+ */
+async function resolveMongoConvId(ctx = {}, convNumber) {
+  const target = String(convNumber || '').trim();
+  if (!target) return '';
+  // Đã là Mongo _id (24 hex) → giữ nguyên
+  if (/^[a-f0-9]{24}$/i.test(target)) return target;
+
+  const { baseUrl, headers } = ctx;
+  for (const host of resolveMessageHosts(baseUrl)) {
+    for (let page = 1; page <= 10; page++) {
+      try {
+        const res = await fetchWithTimeout(
+          `${host}/omi_v2/omnichannel/search_v4?page=${page}&size=100`,
+          {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              types: [],
+              keyword: '',
+              sort: { field_code: 'last_message_time', is_asc: true },
+              is_session: false,
+              channel_ids: [],
+              is_blocked: false,
+            }),
+          }
+        );
+        const raw = await res.text();
+        if (/^\s*<(!doctype|html)/i.test(raw)) break;
+        const parsed = raw ? JSON.parse(raw) : null;
+        const payload = (parsed && parsed.payload) || {};
+        const convRoot = payload.conversations || payload;
+        const items = Array.isArray(convRoot) ? convRoot : convRoot.items || [];
+        if (!Array.isArray(items) || !items.length) break;
+        const hit = items.find((it) => {
+          const conv = (it && it.conv) || {};
+          return String(conv.conv_id || '') === target || String(it.id || '') === target;
+        });
+        if (hit) return String(hit.id || (hit.conv || {})._id || '');
+      } catch (_) {
+        break;
+      }
     }
   }
   return '';
@@ -478,11 +538,22 @@ async function sendZaloPersonalMessage(opts = {}) {
   if (token) headers.Authorization = `Bearer ${token}`;
 
   const hosts = resolveMessageHosts(baseUrl);
+  const ctx = { apiKey, baseUrl, token, headers };
+
   let channelId = String(opts.channelId || '').trim();
   if (!channelId) {
-    channelId = await fetchChannelId({ apiKey, baseUrl, token, headers });
+    channelId = await fetchChannelId(ctx);
   }
-  const bodies = buildMessageBodies(convId, channelId, text);
+
+  // `conv_id` phải là Mongo `_id` (24 hex). Nếu người dùng dán `conv.conv_id`
+  // dạng số → tra cứu lại để lấy Mongo id tương ứng.
+  let convMongoId = convId;
+  if (!/^[a-f0-9]{24}$/i.test(convMongoId)) {
+    const resolved = await resolveMongoConvId(ctx, convMongoId);
+    if (resolved) convMongoId = resolved;
+  }
+
+  const bodies = buildMessageBodies(convMongoId, channelId, text);
   let lastError = null;
 
   for (const host of hosts) {
@@ -628,11 +699,17 @@ async function probeSendEndpoints(opts = {}) {
   if (token) headers.Authorization = `Bearer ${token}`;
 
   // Các biến thể body: body ĐÚNG của OmiCall là `{ conv_id, channel_id, text }`.
+  const ctx = { apiKey, baseUrl, token, headers };
   let channelId = String(opts.channelId || '').trim();
   if (!channelId) {
-    channelId = await fetchChannelId({ apiKey, baseUrl, token, headers });
+    channelId = await fetchChannelId(ctx);
   }
-  const bodyVariants = buildMessageBodies(convId, channelId, text);
+  let convMongoId = convId;
+  if (!/^[a-f0-9]{24}$/i.test(convMongoId)) {
+    const resolved = await resolveMongoConvId(ctx, convMongoId);
+    if (resolved) convMongoId = resolved;
+  }
+  const bodyVariants = buildMessageBodies(convMongoId, channelId, text);
 
   // Các biến thể path: prefix `/api` có/không, có `lng` trong query.
   const pathVariants = [
@@ -757,6 +834,8 @@ async function listConversations(opts = {}) {
   const page = Number(opts.page) || 1;
   const size = Math.min(100, Number(opts.size) || 20);
   const keyword = String(opts.keyword || '').trim();
+  const allPages = opts.allPages !== false;
+  const maxPages = Math.min(20, Number(opts.maxPages) || 10);
 
   const body = {
     types: [],
@@ -814,17 +893,35 @@ async function listConversations(opts = {}) {
           const conversations = list.map((it) => {
             const conv = (it && it.conv) || it || {};
             return {
-              convId: conv.conv_id || conv.id || it.id || null,
+              // Mongo `_id` của hội thoại — ĐÂY là giá trị phải dùng khi gửi tin.
+              convId: it.id || conv._id || null,
+              // conv_id dạng số của hội thoại (KHÔNG dùng để gửi tin).
+              convNumber: conv.conv_id || null,
               channelId: conv.channel_id || it.channel_id || null,
               name: conv.name || conv.nick_name || it.name || null,
               convType: conv.conv_type || it.type || null,
+              convSubType: conv.conv_sub_type || null,
               type: it.type || conv.conv_type || null,
               raw: it,
             };
           });
-          return {
+
+          // Gom nhiều trang để tìm hết nhóm Zalo (nhóm thường nằm ở trang sau).
+          if (allPages && page < maxPages) {
+            const next = await listConversations({
+              ...opts,
+              config: { apiKey, baseUrl },
+              page: page + 1,
+              _collected: [...(opts._collected || []), ...conversations],
+            });
+            if (next.success) {
+              return { success: true, conversations: next.conversations, raw: parsed, attempts };
+            }
+          }
+
+          const collected = opts._collected || [];          return {
             success: true,
-            conversations,
+            conversations: [...collected, ...conversations],
             raw: parsed,
             attempts,
           };

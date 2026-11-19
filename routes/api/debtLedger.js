@@ -904,16 +904,22 @@ router.get('/notify/probe', requireAuth, requireAdmin, async (req, res) => {
 
 router.get('/notify/conversations', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const { keyword, page, size } = req.query || {};
+    const { keyword, page, size, all, groupsOnly } = req.query || {};
     const result = await OmiCallService.listConversations({
       keyword: keyword ? String(keyword) : '',
       page: Number(page) || 1,
-      size: Number(size) || 20,
+      size: Number(size) || 100,
+      allPages: all !== '0',
     });
     if (!result.success) {
       return res.status(400).json({ success: false, error: result.error, attempts: result.attempts || [] });
     }
-    res.json({ success: true, data: { conversations: result.conversations } });
+    let conversations = result.conversations || [];
+    // Chỉ trả về nhóm Zalo (bỏ chat cá nhân) — tránh gửi nhầm cho khách.
+    if (groupsOnly === '1') {
+      conversations = conversations.filter((c) => c.convSubType === 'group');
+    }
+    res.json({ success: true, data: { conversations } });
   } catch (e) {
     logger.error('[DEBT_NOTIFY_API] conversations error', { error: e.message });
     res.status(500).json({ success: false, error: e.message });

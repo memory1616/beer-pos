@@ -375,6 +375,65 @@ describe('OmiCallService — gửi tin nhắn Zalo Personal', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('tự tra cứu Mongo _id khi convId là conv_id dạng số', async () => {
+    const calls = [];
+    mockFetch(async (url, opts) => {
+      const u = String(url);
+      calls.push({ url: u, opts });
+      if (u.includes('/api/auth')) {
+        return jsonResponse({ status_code: 9999, payload: { access_token: 'TOKEN_ABC' } });
+      }
+      if (u.includes('/omnichannel/channel/get_all')) {
+        return jsonResponse({ status_code: 9999, payload: { zalo_personal: [{ uid: 'CH_UID' }] } });
+      }
+      if (u.includes('/omi_v2/omnichannel/search_v4')) {
+        return jsonResponse({
+          status_code: 9999,
+          payload: {
+            conversations: {
+              items: [{ id: '6afe6913fca59218a5d662a9', conv: { conv_id: '3580128735721925168' } }],
+            },
+          },
+        });
+      }
+      return jsonResponse({ status_code: 9999, payload: { message_id: 'MSG_3' } });
+    });
+
+    const res = await OmiCallService.sendZaloPersonalMessage({
+      convId: '3580128735721925168',
+      text: 'Xin chào',
+    });
+
+    expect(res.success).toBe(true);
+    const sendCall = calls.find((c) => c.url.includes('/omni_conv/message/send_text'));
+    expect(JSON.parse(sendCall.opts.body).conv_id).toBe('6afe6913fca59218a5d662a9');
+  });
+
+  it('giữ nguyên Mongo _id 24 hex, không gọi search', async () => {
+    const calls = [];
+    mockFetch(async (url, opts) => {
+      const u = String(url);
+      calls.push({ url: u, opts });
+      if (u.includes('/api/auth')) {
+        return jsonResponse({ status_code: 9999, payload: { access_token: 'TOKEN_ABC' } });
+      }
+      if (u.includes('/omnichannel/channel/get_all')) {
+        return jsonResponse({ status_code: 9999, payload: { zalo_personal: [{ uid: 'CH_UID' }] } });
+      }
+      return jsonResponse({ status_code: 9999, payload: { message_id: 'MSG_4' } });
+    });
+
+    const res = await OmiCallService.sendZaloPersonalMessage({
+      convId: '6afe6913fca59218a5d662a9',
+      text: 'Xin chào',
+    });
+
+    expect(res.success).toBe(true);
+    expect(calls.some((c) => c.url.includes('search_v4'))).toBe(false);
+    const sendCall = calls.find((c) => c.url.includes('/omni_conv/message/send_text'));
+    expect(JSON.parse(sendCall.opts.body).conv_id).toBe('6afe6913fca59218a5d662a9');
+  });
+
   it('tự chuyển sang host social-network-v1 khi host public trả HTML', async () => {
     const hosts = [];
     mockFetch(async (url) => {
