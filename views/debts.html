@@ -2684,19 +2684,30 @@
   }
 
   function testOmiCallConnection() {
-    toast('⏳ Đang kiểm tra kết nối OmiCall...');
     var keyEl = document.getElementById('omiApiKey');
     var baseEl = document.getElementById('omiBaseUrl');
     var patch = {};
     if (keyEl && keyEl.value.trim()) patch.apiKey = keyEl.value.trim();
     if (baseEl && baseEl.value.trim()) patch.baseUrl = baseEl.value.trim();
 
+    // Chưa có key nào (không nhập, cũng chưa lưu) → báo ngay, không gọi API
+    var savedHasKey = state.notify && state.notify.hasApiKey;
+    if (!patch.apiKey && !savedHasKey) {
+      toast('✗ Chưa có OmiCall API key. Dán key vào ô "OmiCall API key" rồi thử lại.', 'err');
+      return;
+    }
+
+    toast('⏳ Đang kiểm tra kết nối OmiCall...');
     api(API + '/notify/test', {
       method: 'POST',
       body: JSON.stringify(patch),
     }).then(function () {
       toast('✅ Kết nối OmiCall thành công', 'ok');
-    }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
+    }).catch(function (e) {
+      var msg = (e && e.message) || 'Lỗi không xác định';
+      toast('✗ ' + msg, 'err');
+      console.warn('[OmiCall] Kiểm tra kết nối thất bại:', e);
+    });
   }
 
   function openNotifyTestSendModal() {

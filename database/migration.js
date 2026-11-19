@@ -973,6 +973,21 @@ function runSepayAutoPollMigration(db) {
   }
 }
 
+// ── Customer closure migration (064) ───────────────────────────────────────────
+// Phiếu "Chốt khách ngừng bán": lưu dấu vết thu hồi vỏ + hàng, hoàn cọc,
+// chốt công nợ và lưu trữ khách. Chạy ĐỘC LẬP, idempotent.
+function runCustomerClosureMigration(db) {
+  try {
+    const migration = require('./migrations/064_customer_closure');
+    migration.up(db);
+    log('[CUSTOMER_CLOSURE] Migration 064 applied');
+    return { success: true };
+  } catch (e) {
+    log('[CUSTOMER_CLOSURE] Migration error: ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
 // ── Utility: Generate UUID ─────────────────────────────────────────────────────
 
 function generateUUID() {
@@ -1011,6 +1026,7 @@ module.exports = {
   runSepayDebtSettlementMigration,
   runDebtZaloNotifyMigration,
   runSepayAutoPollMigration,
+  runCustomerClosureMigration,
   generateUUID,
   getCurrentVersion,
   setVersion,

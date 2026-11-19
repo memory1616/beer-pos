@@ -302,6 +302,99 @@
     .cd-quick-btn-order { background: var(--accent-dim); border-color: rgba(252,213,53,0.2); }
     .cd-quick-btn-keg { background: var(--info-dim); border-color: rgba(59,122,254,0.2); }
     .cd-quick-btn-history { background: var(--warning-dim); border-color: rgba(240,185,11,0.2); }
+    .cd-quick-btn-close { background: var(--danger-dim); border-color: rgba(239,68,68,0.25); grid-column: 1 / -1; }
+
+    /* ============================================================
+       2b. MODAL CHỐT KHÁCH
+    ============================================================ */
+    .cd-closure-sheet { max-width: 520px; width: 94%; }
+    .cd-closure-section {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 12px;
+      background: var(--bg-secondary, var(--card));
+    }
+    .cd-closure-section-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .cd-closure-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .cd-closure-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .cd-closure-field label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .cd-closure-input {
+      width: 100%;
+      padding: 9px 10px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--text-primary);
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .cd-closure-hint {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 8px;
+      line-height: 1.5;
+    }
+    .cd-closure-radio {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 9px 10px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      margin-bottom: 6px;
+      cursor: pointer;
+    }
+    .cd-closure-radio input { margin-top: 2px; }
+    .cd-closure-radio-label { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+    .cd-closure-radio-desc { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .cd-closure-item-row {
+      display: grid;
+      grid-template-columns: 1fr 72px 100px 30px;
+      gap: 6px;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .cd-closure-summary {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: var(--accent-dim);
+      border: 1px solid rgba(252,213,53,0.25);
+      margin-bottom: 12px;
+    }
+    .cd-closure-summary-label { font-size: 12px; color: var(--text-muted); font-weight: 600; }
+    .cd-closure-summary-value { font-size: 18px; font-weight: 800; color: var(--accent); }
+    .cd-closure-checkbox {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
 
     /* ============================================================
        3. KPI DASHBOARD
@@ -1802,6 +1895,280 @@
       }
     }
 
+    // ══════════════════════════════════════════════════════════
+    // CHỐT KHÁCH NGỪNG BÁN — thu hồi vỏ + hàng + cọc + công nợ
+    // ══════════════════════════════════════════════════════════
+    var _closurePreview = null;
+    var _closureItemSeq = 0;
+
+    function openClosureModal() {
+      var modal = document.getElementById('closureModal');
+      if (modal) modal.classList.remove('hidden');
+      loadClosurePreview();
+    }
+
+    function closeClosureModal() {
+      var modal = document.getElementById('closureModal');
+      if (modal) modal.classList.add('hidden');
+      _closurePreview = null;
+    }
+
+    async function loadClosurePreview() {
+      var infoEl = document.getElementById('closureModalInfo');
+      if (infoEl) infoEl.innerHTML = '<div class="text-center py-4 text-muted">Đang tải...</div>';
+      try {
+        var res = await fetch('/api/customers/' + customerId + '/closure-preview');
+        var data = await res.json();
+        if (!data.success) {
+          if (infoEl) infoEl.innerHTML = '<div class="cd-payment-warning">' + (data.error || 'Lỗi tải dữ liệu') + '</div>';
+          return;
+        }
+        _closurePreview = data.preview;
+        renderClosurePreview();
+      } catch (err) {
+        if (infoEl) infoEl.innerHTML = '<div class="cd-payment-warning">Lỗi kết nối</div>';
+      }
+    }
+
+    function renderClosurePreview() {
+      var p = _closurePreview;
+      if (!p) return;
+      var c = p.customer;
+
+      var infoEl = document.getElementById('closureModalInfo');
+      if (infoEl) {
+        infoEl.innerHTML = `
+          <div class="cd-payment-info-row">
+            <span style="color:var(--text-muted);font-size:12px;">Khách hàng</span>
+            <span style="font-weight:700;color:var(--text-primary);">${c.name}</span>
+          </div>
+          <div class="cd-payment-info-row" style="padding-top:8px;margin-top:4px;border-top:1px solid var(--border);">
+            <span style="font-size:12px;color:var(--text-muted);">Công nợ</span>
+            <span style="font-weight:700;color:${p.debt.balance > 0 ? 'var(--danger)' : 'var(--success)'};">${formatVND(p.debt.balance)}</span>
+          </div>
+          <div class="cd-payment-info-row" style="padding-top:6px;">
+            <span style="font-size:12px;color:var(--text-muted);">Tiền cọc</span>
+            <span style="font-weight:700;color:var(--text-primary);">${formatVND(c.deposit)}</span>
+          </div>
+          ${p.pendingDeliveries > 0 ? `<div class="cd-payment-info-row" style="padding-top:6px;">
+            <span style="font-size:12px;color:var(--text-muted);">Đơn giao chưa hoàn tất</span>
+            <span style="font-weight:700;color:var(--warning);">${p.pendingDeliveries} đơn sẽ bị huỷ</span>
+          </div>` : ''}
+        `;
+      }
+
+      // Vỏ bình
+      var totalKegs = (c.kegBalance || 0);
+      var kegsEmpty = document.getElementById('closureKegsEmpty');
+      var kegsFull = document.getElementById('closureKegsFull');
+      var kegsLost = document.getElementById('closureKegsLost');
+      if (kegsEmpty) kegsEmpty.value = totalKegs;
+      if (kegsFull) kegsFull.value = 0;
+      if (kegsLost) kegsLost.value = 0;
+
+      var kegsHint = document.getElementById('closureKegsHint');
+      if (kegsHint) {
+        kegsHint.innerHTML = `Khách đang giữ <strong>${totalKegs} vỏ</strong>. Vỏ rỗng → kho chờ nạp lại; vỏ còn đầy → về kho (kèm hoàn tiền); vỏ mất → ghi nhận mất vỏ.`;
+      }
+
+      // Cọc
+      var depInput = document.getElementById('closureDepositRefund');
+      if (depInput) depInput.value = c.deposit || 0;
+      var depHint = document.getElementById('closureDepositHint');
+      if (depHint) {
+        depHint.innerHTML = `Khách đang cọc <strong>${formatVND(c.deposit)}</strong>. Nhập 0 nếu không hoàn cọc.`;
+      }
+
+      // Danh sách hàng — mặc định trống, người dùng tự thêm món cần thu hồi
+      var listEl = document.getElementById('closureItemsList');
+      if (listEl) listEl.innerHTML = '<div class="cd-closure-hint" style="margin:0 0 8px;">Chưa thêm món hàng nào. Nhấn "+ Thêm món hàng" để nhập hàng tồn ở quán.</div>';
+      _closureItemSeq = 0;
+
+      // Chọn loại vỏ đầy được thu hồi
+      var kegSel = document.getElementById('closureKegProductId');
+      var kegField = document.getElementById('closureKegProductField');
+      var kegProducts = p.kegProducts || [];
+      if (kegSel) {
+        kegSel.innerHTML = kegProducts.map(function (k) {
+          return '<option value="' + k.id + '">' + k.name + ' — ' + formatVND(k.price) + '</option>';
+        }).join('');
+      }
+      if (kegField) kegField.style.display = kegProducts.length ? 'block' : 'none';
+
+      // Mô tả chế độ công nợ
+      var offDesc = document.getElementById('closureDebtOffsetDesc');
+      if (offDesc) {
+        offDesc.textContent = p.debt.balance > 0
+          ? `Dùng tiền hoàn (hàng + cọc) để trừ nợ ${formatVND(p.debt.balance)}. Phần dư sẽ ghi nhận khách nợ lại hệ thống.`
+          : 'Khách không có nợ. Tiền hoàn sẽ ghi nhận khách nợ lại hệ thống.';
+      }
+
+      calcClosureTotals();
+    }
+
+    function addClosureItemRow(productId, unitPrice) {
+      var listEl = document.getElementById('closureItemsList');
+      if (!listEl || !_closurePreview) return;
+      var products = _closurePreview.goodsProducts || _closurePreview.products || [];
+      var seq = ++_closureItemSeq;
+
+      var options = products.map(function (p) {
+        return '<option value="' + p.id + '"' + (String(p.id) === String(productId) ? ' selected' : '') + '>' +
+          p.name + ' — ' + formatVND(p.price) + '</option>';
+      }).join('');
+
+      var row = document.createElement('div');
+      row.className = 'cd-closure-item-row';
+      row.setAttribute('data-seq', String(seq));
+      row.innerHTML = `
+        <select class="cd-closure-input" onchange="closureItemProductChanged(this)">${options}</select>
+        <input type="number" class="cd-closure-input" min="0" step="0.01" value="0"
+          oninput="calcClosureTotals()" placeholder="SL">
+        <input type="number" class="cd-closure-input" min="0" step="1000" value="${unitPrice || 0}"
+          oninput="calcClosureTotals()" placeholder="Đơn giá">
+        <button onclick="this.parentNode.remove(); calcClosureTotals()" class="cd-closure-input"
+          style="cursor:pointer;padding:6px;color:var(--danger);">✕</button>
+      `;
+      listEl.appendChild(row);
+      calcClosureTotals();
+    }
+
+    function closureItemProductChanged(selectEl) {
+      var row = selectEl.closest('.cd-closure-item-row');
+      if (!row || !_closurePreview) return;
+      var priceInput = row.querySelectorAll('input')[1];
+      var pid = parseInt(selectEl.value, 10);
+      var found = (_closurePreview.goodsProducts || _closurePreview.products || []).find(function (p) { return p.id === pid; });
+      if (found && priceInput) priceInput.value = found.price;
+      calcClosureTotals();
+    }
+
+    function calcClosureTotals() {
+      if (!_closurePreview) return;
+      var total = 0;
+      var rows = document.querySelectorAll('#closureItemsList .cd-closure-item-row');
+      rows.forEach(function (row) {
+        var inputs = row.querySelectorAll('input');
+        var qty = parseFloat(inputs[0] && inputs[0].value) || 0;
+        var price = parseFloat(inputs[1] && inputs[1].value) || 0;
+        total += qty * price;
+      });
+
+      // Vỏ còn đầy = bia chưa bán → hoàn tiền theo giá của khách
+      var kFull = parseInt(document.getElementById('closureKegsFull')?.value, 10) || 0;
+      var kegSel = document.getElementById('closureKegProductId');
+      var kegPrice = 0;
+      if (kFull > 0 && kegSel) {
+        var kpid = parseInt(kegSel.value, 10);
+        var kfound = (_closurePreview.kegProducts || []).find(function (k) { return k.id === kpid; });
+        kegPrice = kfound ? kfound.price : 0;
+        total += kegPrice * kFull;
+      }
+
+      var deposit = parseFloat(document.getElementById('closureDepositRefund')?.value) || 0;
+      var totalRefund = total + deposit;
+
+      var el = document.getElementById('closureTotalRefund');
+      if (el) el.textContent = formatVND(totalRefund);
+
+      // Cảnh báo vượt số vỏ
+      var warn = document.getElementById('closureWarning');
+      var kegBalance = _closurePreview.customer.kegBalance || 0;
+      var kEmpty = parseInt(document.getElementById('closureKegsEmpty')?.value, 10) || 0;
+      var kLost = parseInt(document.getElementById('closureKegsLost')?.value, 10) || 0;
+      var kTotal = kEmpty + kFull + kLost;
+
+      var msgs = [];
+      if (kTotal > kegBalance) {
+        msgs.push('Tổng vỏ xử lý (' + kTotal + ') vượt quá số vỏ khách đang giữ (' + kegBalance + ').');
+      }
+      var mode = (document.querySelector('input[name="closureDebtMode"]:checked') || {}).value || 'offset';
+      if (mode === 'offset' && totalRefund > 0) {
+        var debt = _closurePreview.debt.balance;
+        if (debt > 0 && totalRefund > debt) {
+          msgs.push('Tiền hoàn vượt công nợ ' + formatVND(debt) + ' → sẽ ghi nhận khách nợ lại hệ thống ' + formatVND(totalRefund - debt) + '.');
+        }
+      }
+      if (warn) {
+        if (msgs.length) {
+          warn.textContent = msgs.join(' ');
+          warn.classList.remove('hidden');
+        } else {
+          warn.classList.add('hidden');
+        }
+      }
+    }
+
+    async function submitClosure() {
+      if (!_closurePreview) return;
+      var warn = document.getElementById('closureWarning');
+      var btn = document.querySelector('#closureModal button[onclick="submitClosure()"]');
+
+      var kegBalance = _closurePreview.customer.kegBalance || 0;
+      var kEmpty = parseInt(document.getElementById('closureKegsEmpty')?.value, 10) || 0;
+      var kFull = parseInt(document.getElementById('closureKegsFull')?.value, 10) || 0;
+      var kLost = parseInt(document.getElementById('closureKegsLost')?.value, 10) || 0;
+      if (kEmpty + kFull + kLost > kegBalance) {
+        if (warn) {
+          warn.textContent = 'Tổng vỏ xử lý vượt quá số vỏ khách đang giữ.';
+          warn.classList.remove('hidden');
+        }
+        return;
+      }
+
+      var items = [];
+      document.querySelectorAll('#closureItemsList .cd-closure-item-row').forEach(function (row) {
+        var selectEl = row.querySelector('select');
+        var inputs = row.querySelectorAll('input');
+        var qty = parseFloat(inputs[0] && inputs[0].value) || 0;
+        var price = parseFloat(inputs[1] && inputs[1].value) || 0;
+        if (qty > 0 && selectEl) {
+          items.push({
+            productId: parseInt(selectEl.value, 10),
+            quantity: qty,
+            unitPrice: price
+          });
+        }
+      });
+
+      var payload = {
+        kegsEmpty: kEmpty,
+        kegsFull: kFull,
+        kegsLost: kLost,
+        kegProductId: parseInt(document.getElementById('closureKegProductId')?.value, 10) || null,
+        items: items,
+        depositRefund: parseFloat(document.getElementById('closureDepositRefund')?.value) || 0,
+        debtMode: (document.querySelector('input[name="closureDebtMode"]:checked') || {}).value || 'offset',
+        archive: !!(document.getElementById('closureArchive')?.checked),
+        note: document.getElementById('closureNote')?.value || ''
+      };
+
+      if (btn) { btn.disabled = true; btn.innerText = 'Đang xử lý...'; }
+      try {
+        var res = await fetch('/api/customers/' + customerId + '/closure', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        var data = await res.json();
+        if (data.success) {
+          closeClosureModal();
+          var msg = 'Đã chốt khách (' + data.closureNo + ')';
+          if (typeof showToast === 'function') showToast(msg, 'success');
+          else alert(msg);
+          // Reload trang để cập nhật số liệu
+          setTimeout(function () { location.reload(); }, 800);
+        } else {
+          if (warn) { warn.textContent = data.error || 'Lỗi'; warn.classList.remove('hidden'); }
+          if (typeof showToast === 'function') showToast(data.error || 'Lỗi', 'error');
+        }
+      } catch (err) {
+        if (warn) { warn.textContent = 'Lỗi kết nối'; warn.classList.remove('hidden'); }
+      } finally {
+        if (btn) { btn.disabled = false; btn.innerText = '🔚 Xác nhận chốt'; }
+      }
+    }
+
     // ── Load Debt History (Mobile Banking Style) ───────────
     async function loadDebtHistory() {
       const container = document.getElementById('debtContent');
@@ -1822,6 +2189,17 @@
         const orderDebts = data.orderDebts || [];
         const history = data.history || [];
         const currentDebt = customer.debt || 0;
+
+        // Đồng bộ KPI + số dư dùng chung (để nút "Thu tiền" dùng đúng số dư sổ)
+        window.__currentDebt = currentDebt;
+        const kpiDebtEl = document.getElementById('kpiDebt');
+        if (kpiDebtEl) {
+          kpiDebtEl.textContent = formatVND(currentDebt);
+          kpiDebtEl.className = 'cd-kpi-value cd-counter';
+          if (currentDebt >= 5000000) kpiDebtEl.classList.add('danger');
+          else if (currentDebt > 0) kpiDebtEl.classList.add('warning');
+          else kpiDebtEl.classList.add('success');
+        }
 
         let isGreen = currentDebt === 0;
         let headerClass = isGreen ? 'cd-debt-header-green' : '';
@@ -2163,6 +2541,10 @@
               <button onclick="switchTab('history')" class="cd-quick-btn cd-quick-btn-history">
                 <span class="cd-quick-btn-icon">📋</span>
                 <span>Lịch sử</span>
+              </button>
+              <button onclick="openClosureModal()" class="cd-quick-btn cd-quick-btn-close">
+                <span class="cd-quick-btn-icon">🔚</span>
+                <span>Chốt khách / Thu hồi</span>
               </button>
             </div>
 
@@ -3269,6 +3651,122 @@
       });
     }
   </script>
+
+  <!-- ════════════════════════════════════════════════════════════
+       MODAL CHỐT KHÁCH NGỪNG BÁN — thu hồi vỏ + hàng + cọc + công nợ
+  ════════════════════════════════════════════════════════════ -->
+  <div id="closureModal" class="customer-invoice-overlay hidden">
+    <div class="customer-invoice-sheet cd-closure-sheet">
+      <div class="customer-invoice-header">
+        <div class="customer-invoice-title">🔚 Chốt khách ngừng bán</div>
+        <button onclick="closeClosureModal()" class="customer-invoice-close">×</button>
+      </div>
+      <div class="customer-invoice-body" style="overflow-y:auto;">
+        <div id="closureModalInfo" class="cd-payment-info" style="margin-bottom:12px;"></div>
+
+        <!-- 1. VỎ BÌNH -->
+        <div class="cd-closure-section">
+          <div class="cd-closure-section-title">📦 Vỏ bình đang giữ</div>
+          <div class="cd-closure-grid-3">
+            <div class="cd-closure-field">
+              <label>Vỏ rỗng</label>
+              <input type="number" id="closureKegsEmpty" min="0" value="0" class="cd-closure-input"
+                oninput="calcClosureTotals()">
+            </div>
+            <div class="cd-closure-field">
+              <label>Vỏ còn đầy</label>
+              <input type="number" id="closureKegsFull" min="0" value="0" class="cd-closure-input"
+                oninput="calcClosureTotals()">
+            </div>
+            <div class="cd-closure-field">
+              <label>Vỏ mất</label>
+              <input type="number" id="closureKegsLost" min="0" value="0" class="cd-closure-input"
+                oninput="calcClosureTotals()">
+            </div>
+          </div>
+          <div class="cd-closure-field" id="closureKegProductField" style="margin-top:10px;display:none;">
+            <label>Loại vỏ đầy được thu hồi</label>
+            <select id="closureKegProductId" class="cd-closure-input" onchange="calcClosureTotals()"></select>
+          </div>
+          <div class="cd-closure-hint" id="closureKegsHint"></div>
+        </div>
+
+        <!-- 2. HÀNG TỒN Ở QUÁN -->
+        <div class="cd-closure-section">
+          <div class="cd-closure-section-title">🍺 Bia / hàng tồn ở quán</div>
+          <div id="closureItemsList"></div>
+          <button onclick="addClosureItemRow()" class="cd-closure-input" style="width:100%;cursor:pointer;padding:8px;font-size:13px;">
+            + Thêm món hàng
+          </button>
+          <div class="cd-closure-hint">Giá lấy theo giá riêng của khách (nếu có), không có thì dùng giá bán. Số lượng nhập ở đây được trả lại kho.</div>
+        </div>
+
+        <!-- 3. CỌC -->
+        <div class="cd-closure-section">
+          <div class="cd-closure-section-title">💰 Hoàn cọc</div>
+          <div class="cd-closure-field">
+            <label>Tiền cọc hoàn lại (đ)</label>
+            <input type="number" id="closureDepositRefund" min="0" value="0" class="cd-closure-input"
+              oninput="calcClosureTotals()">
+          </div>
+          <div class="cd-closure-hint" id="closureDepositHint"></div>
+        </div>
+
+        <!-- 4. CÔNG NỢ -->
+        <div class="cd-closure-section">
+          <div class="cd-closure-section-title">📒 Cách xử lý công nợ</div>
+          <label class="cd-closure-radio">
+            <input type="radio" name="closureDebtMode" value="offset" checked onchange="calcClosureTotals()">
+            <span>
+              <span class="cd-closure-radio-label">Cấn trừ vào công nợ</span>
+              <span class="cd-closure-radio-desc" id="closureDebtOffsetDesc">Dùng tiền hoàn để trừ nợ khách. Phần dư sẽ ghi nhận khách nợ lại.</span>
+            </span>
+          </label>
+          <label class="cd-closure-radio">
+            <input type="radio" name="closureDebtMode" value="writeoff" onchange="calcClosureTotals()">
+            <span>
+              <span class="cd-closure-radio-label">Xóa sạch nợ (chấp nhận không thu được)</span>
+              <span class="cd-closure-radio-desc">Công nợ của khách về 0, tiền hoàn trả mặt.</span>
+            </span>
+          </label>
+          <label class="cd-closure-radio">
+            <input type="radio" name="closureDebtMode" value="keep" onchange="calcClosureTotals()">
+            <span>
+              <span class="cd-closure-radio-label">Giữ nguyên công nợ</span>
+              <span class="cd-closure-radio-desc">Khách vẫn còn nợ hệ thống, tiền hoàn trả mặt.</span>
+            </span>
+          </label>
+        </div>
+
+        <!-- 5. LƯU TRỮ -->
+        <div class="cd-closure-section">
+          <label class="cd-closure-checkbox">
+            <input type="checkbox" id="closureArchive" checked>
+            <span>📦 Lưu trữ khách (không hiển thị trong danh sách, tắt tài khoản công nợ)</span>
+          </label>
+        </div>
+
+        <!-- 6. GHI CHÚ -->
+        <div class="cd-closure-section">
+          <div class="cd-closure-field">
+            <label>Ghi chú</label>
+            <input type="text" id="closureNote" class="cd-closure-input" placeholder="VD: Khách nghỉ kinh doanh từ 20/11">
+          </div>
+        </div>
+
+        <div class="cd-closure-summary">
+          <span class="cd-closure-summary-label">Tổng tiền hoàn khách</span>
+          <span class="cd-closure-summary-value" id="closureTotalRefund">0 đ</span>
+        </div>
+
+        <div id="closureWarning" class="cd-payment-warning hidden"></div>
+        <div style="display:flex;gap:8px;">
+          <button onclick="closeClosureModal()" class="cd-payment-cancel">Huỷ</button>
+          <button onclick="submitClosure()" class="cd-payment-confirm">🔚 Xác nhận chốt</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <div id="modalContainer"></div>
 

@@ -656,7 +656,8 @@ async function networkFirst(request) {
     const req = request.mode === 'navigate'
       ? new Request(request, { cache: 'no-store' })
       : new Request(request, { cache: 'no-store' });
-    const resp = await fetch(req);
+    // Retry 502/503/504 + mất kết nối (deploy đang restart) trước khi kết luận offline
+    const resp = await networkFetchWithRetry(req, 2, 1200);
     // KHÔNG cachePut cho navigation — không lưu page vào SW cache
     return resp;
   } catch {

@@ -209,6 +209,66 @@ describe('OmiCallService — access token', () => {
   });
 });
 
+describe('OmiCallService — testConnection (nút "Kiểm tra kết nối")', () => {
+  beforeEach(() => {
+    OmiCallService.clearTokenCache();
+  });
+
+  it('nhận apiKey/baseUrl TRỰC TIẾP (dạng phẳng) — dùng để test key MỚI chưa lưu', async () => {
+    const calls = [];
+    mockFetch(async (url) => {
+      calls.push(String(url));
+      return jsonResponse({ status_code: 9999, payload: { access_token: 'TOKEN_NEW' } });
+    });
+
+    const res = await OmiCallService.testConnection({
+      apiKey: 'BRAND_NEW_KEY',
+      baseUrl: 'https://public-v1.omicall.com',
+    });
+
+    expect(res.success).toBe(true);
+    expect(calls[0]).toContain('apiKey=BRAND_NEW_KEY');
+  });
+
+  it('vẫn hỗ trợ dạng lồng { config: {...} }', async () => {
+    const calls = [];
+    mockFetch(async (url) => {
+      calls.push(String(url));
+      return jsonResponse({ status_code: 9999, payload: { access_token: 'TOKEN_NEW' } });
+    });
+
+    const res = await OmiCallService.testConnection({
+      config: { apiKey: 'NESTED_KEY', baseUrl: 'https://public-v1.omicall.com' },
+    });
+
+    expect(res.success).toBe(true);
+    expect(calls[0]).toContain('apiKey=NESTED_KEY');
+  });
+
+  it('không có key nào → fail với message rõ ràng', async () => {
+    const saved = readSetting('omicall_api_key');
+    setSetting('omicall_api_key', '');
+    OmiCallService.clearTokenCache();
+
+    const res = await OmiCallService.testConnection({});
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/Chưa cấu hình OmiCall API key/);
+
+    setSetting('omicall_api_key', saved);
+  });
+
+  it('API key sai → trả lỗi từ OmiCall (không throw)', async () => {
+    mockFetch(async () => jsonResponse({ message: 'invalid api key' }, 401));
+
+    const res = await OmiCallService.testConnection({
+      apiKey: 'WRONG_KEY',
+      baseUrl: 'https://public-v1.omicall.com',
+    });
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/OmiCall auth thất bại/);
+  });
+});
+
 describe('OmiCallService — gửi tin nhắn Zalo Personal', () => {
   beforeEach(() => {
     OmiCallService.clearTokenCache();

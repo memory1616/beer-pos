@@ -445,12 +445,19 @@ class DebtService {
       source: tx.source,
     }));
 
+    // Số dư công nợ theo SỔ CÔNG NỢ (ledger) — nguồn sự thật duy nhất.
+    // `customers.debt` chỉ là MIRROR → có thể lệch với ledger.
+    // Ghi đè `customer.debt` để UI cũ (trang chi tiết khách, driver portal)
+    // hiển thị KHỚP với trang "Sổ công nợ".
+    const ledgerBalance = DebtLedgerService.computeBalance(customerId);
+    customer.debt = ledgerBalance;
+
     return {
       customer,
       orderDebts,
       payments,
       history,
-      totalDebt: customer.debt || 0,
+      totalDebt: ledgerBalance,
       unpaidCount: orderDebts.filter((od) => od.status !== 'paid').length,
     };
   }

@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require('../../database');
 const logger = require('../../src/utils/logger');
 const AuditService = require('../../src/services/AuditService');
+const DebtLedgerService = require('../../src/services/debt/DebtLedgerService');
 
 // Helper: log keg balance adjustment to keg_transactions_log
 function logKegBalanceChange(customerId, change, note, req) {
@@ -114,6 +115,13 @@ router.get('/debt', (req, res) => {
       WHERE (c.debt > 0 OR c.deposit > 0) AND c.archived = 0
       ORDER BY c.debt DESC
     `).all();
+
+    // Công nợ theo SỔ CÔNG NỢ (ledger) — nguồn sự thật duy nhất.
+    // `customers.debt` chỉ là MIRROR → có thể lệch với ledger.
+    const debtBalances = DebtLedgerService.computeBalances(customers.map((c) => c.id));
+    for (const c of customers) {
+      c.debt = debtBalances.get(c.id) || 0;
+    }
 
     res.json(customers);
   } catch (err) {

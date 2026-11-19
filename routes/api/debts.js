@@ -10,6 +10,7 @@ const router = express.Router();
 
 const db = require('../../database');
 const { DebtService } = require('../../src/services');
+const DebtLedgerService = require('../../src/services/debt/DebtLedgerService');
 const { cache, cacheKeys } = require('../../src/cache');
 
 // ── In-memory request deduplication (chống double-click) ──────
@@ -49,6 +50,14 @@ router.get('/', (req, res) => {
     if (offset) filters.offset = parseInt(offset);
 
     const debts = DebtService.getAllDebts(filters);
+
+    // Công nợ theo SỔ CÔNG NỢ (ledger) — nguồn sự thật duy nhất.
+    // `customers.debt` chỉ là MIRROR → có thể lệch với ledger.
+    const debtBalances = DebtLedgerService.computeBalances(debts.map((d) => d.id));
+    for (const d of debts) {
+      d.debt = debtBalances.get(d.id) || 0;
+    }
+
     const totalDebt = debts.reduce((sum, d) => sum + (d.debt || 0), 0);
 
     res.json({ success: true, data: debts, summary: { totalDebt, count: debts.length } });
@@ -67,19 +76,40 @@ router.get('/summary', (req, res) => {
 
     const summary = db.prepare(`
       SELECT
-        (SELECT COALESCE(SUM(debt), 0) FROM customers WHERE archived = 0) as total_debt,
         (SELECT COALESCE(SUM(deposit), 0) FROM customers WHERE archived = 0) as total_deposit,
-        (SELECT COUNT(*) FROM customers WHERE debt > 0 AND archived = 0) as debt_customers,
         (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE date >= ?) as payments_this_month
     `).get(monthStartStr);
 
-    const topDebts = db.prepare(`
-      SELECT id, name, phone, debt, last_order_date
-      FROM customers WHERE debt > 0 AND archived = 0
-      ORDER BY debt DESC LIMIT 5
-    `).all();
+    // Công nợ theo SỔ CÔNG NỢ (ledger) — nguồn sự thật duy nhất.
+    // `customers.debt` chỉ là MIRROR → có thể lệch với ledger.
+    const accounts = DebtLedgerService.listAccounts({ limit: 500 });
+    const totalDebt = accounts.reduce((s, a) => s + Math.max(0, a.balance || 0), 0);
+    const debtCustomerCount = accounts.filter((a) => (a.balance || 0) > 0).length;
 
-    res.json({ success: true, data: { ...summary, topDebts } });
+    const topDebts = [...accounts]
+      .filter((a) => (a.balance || 0) > 0)
+      .sort((a, b) => b.balance - a.balance)
+      .slice(0, 5)
+      .map((a) => {
+        const c = db.prepare('SELECT last_order_date FROM customers WHERE id = ?').get(a.id);
+        return {
+          id: a.id,
+          name: a.name,
+          phone: a.phone,
+          debt: a.balance,
+          last_order_date: c ? c.last_order_date : null,
+        };
+      });
+
+    res.json({
+      success: true,
+      data: {
+        ...summary,
+        total_debt: totalDebt,
+        debt_customers: debtCustomerCount,
+        topDebts,
+      },
+    });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
   }

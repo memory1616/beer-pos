@@ -6,6 +6,8 @@ const socketServer = require('../../src/socket/socketServer');
 const AuditService = require('../../src/services/AuditService');
 const RegionService = require('../../src/services/RegionService');
 const GeocodeService = require('../../src/services/GeocodeService');
+const CustomerClosureService = require('../../src/services/CustomerClosureService');
+const DebtLedgerService = require('../../src/services/debt/DebtLedgerService');
 const emitCustomer = (customer) => { try { if (socketServer) socketServer.emitCustomerUpdated(customer); } catch (_) {} };
 const emitKeg = () => { try { if (socketServer) socketServer.emitKegUpdated(); } catch (_) {} };
 
@@ -163,7 +165,12 @@ router.get('/:id', (req, res) => {
     `).get(id);
     customer.last_sale_days_ago = lastSale ? lastSale.days_ago : null;
     customer.last_sale_date = lastSale ? lastSale.date : null;
-    
+
+    // Công nợ theo SỔ CÔNG NỢ (ledger) — nguồn sự thật duy nhất, KHỚP với
+    // trang "Sổ công nợ" và KPI "Công nợ hiện tại".
+    // `customers.debt` chỉ là MIRROR → có thể lệch với ledger.
+    customer.debt = DebtLedgerService.computeBalance(id);
+
     // PERFORMANCE: ?fields= for single customer detail
     const { fields } = req.query;
     if (fields) {
@@ -554,10 +561,10 @@ router.put('/:id/archive', (req, res) => {
   try {
     if (willArchive && existing.keg_balance > 0) {
       const totalKegs = existing.keg_balance;
-      const kegsToCollect = (collectKegs !== undefined && collectKegs !== null)
+      kegsToCollect = (collectKegs !== undefined && collectKegs !== null)
         ? Math.min(Math.max(0, parseInt(collectKegs)), totalKegs)
         : totalKegs;
-      const kegsLost = totalKegs - kegsToCollect;
+      kegsLost = totalKegs - kegsToCollect;
 
       // Get current stats BEFORE any updates
       const statsBefore = db.prepare('SELECT inventory, empty_collected, customer_holding, lost FROM keg_stats WHERE id = 1').get();
@@ -642,6 +649,97 @@ emitCustomer(updated);
   } catch (err) {
     logger.error('Error archiving customer', { error: err.message, stack: err.stack });
     res.status(500).json({ error: 'Lỗi khi lưu trữ khách hàng' });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CHỐT KHÁCH NGỪNG BÁN — thu hồi vỏ + hàng + hoàn cọc + chốt công nợ
+// ═══════════════════════════════════════════════════════════════════════════
+
+// GET /api/customers/:id/closure-preview — số liệu sơ bộ cho màn "Chốt khách"
+router.get('/:id/closure-preview', (req, res) => {
+  const id = validateId(req.params.id);
+  if (!id) {
+    return res.status(400).json({ error: 'ID không hợp lệ' });
+  }
+
+  try {
+    const result = CustomerClosureService.preview(id);
+    if (!result.success) {
+      return res.status(404).json({ error: result.error });
+    }
+    res.json(result);
+  } catch (err) {
+    logger.error('Error loading closure preview', { error: err.message, stack: err.stack });
+    res.status(500).json({ error: 'Lỗi tải dữ liệu chốt khách: ' + err.message });
+  }
+});
+
+// POST /api/customers/:id/closure — thực hiện chốt khách
+router.post('/:id/closure', (req, res) => {
+  const id = validateId(req.params.id);
+  if (!id) {
+    return res.status(400).json({ error: 'ID không hợp lệ' });
+  }
+
+  const body = req.body || {};
+  const kegsEmpty = parseInt(body.kegsEmpty, 10) || 0;
+  const kegsFull = parseInt(body.kegsFull, 10) || 0;
+  const kegsLost = parseInt(body.kegsLost, 10) || 0;
+  const depositRefund = parseFloat(body.depositRefund) || 0;
+
+  if (kegsEmpty < 0 || kegsFull < 0 || kegsLost < 0 || depositRefund < 0) {
+    return res.status(400).json({ error: 'Số liệu không được âm' });
+  }
+  if (!Array.isArray(body.items)) {
+    body.items = [];
+  }
+
+  try {
+    const result = CustomerClosureService.close(id, {
+      kegsEmpty,
+      kegsFull,
+      kegsLost,
+      kegProductId: body.kegProductId,
+      items: body.items,
+      depositRefund,
+      debtMode: body.debtMode,
+      archive: body.archive,
+      note: body.note,
+    }, req);
+
+    if (!result.success) {
+      return res.status(400).json({ error: result.error });
+    }
+
+    const updated = db.prepare('SELECT * FROM customers WHERE id = ?').get(id);
+    emitCustomer(updated);
+    emitKeg();
+
+    logger.info(`[Customer Closure] #${id} → ${result.result.closureNo}`);
+    res.json({ success: true, ...result.result });
+  } catch (err) {
+    logger.error('Error closing customer', { error: err.message, stack: err.stack });
+    res.status(500).json({ error: 'Lỗi khi chốt khách: ' + err.message });
+  }
+});
+
+// GET /api/customers/:id/closures — lịch sử phiếu chốt
+router.get('/:id/closures', (req, res) => {
+  const id = validateId(req.params.id);
+  if (!id) {
+    return res.status(400).json({ error: 'ID không hợp lệ' });
+  }
+
+  try {
+    const result = CustomerClosureService.listClosures(id, req.query.limit);
+    if (!result.success) {
+      return res.status(400).json({ error: result.error });
+    }
+    res.json(result);
+  } catch (err) {
+    logger.error('Error listing closures', { error: err.message });
+    res.status(500).json({ error: 'Lỗi tải lịch sử chốt khách' });
   }
 });
 
@@ -761,14 +859,19 @@ router.get('/:id/stats', (req, res) => {
     WHERE customer_id = ? AND archived = 0 ORDER BY date DESC LIMIT 1
   `).get(customerId);
 
-  // Lấy keg_balance trong 1 query duy nhất (thay vì query riêng ở res.json)
+  // Lấy keg_balance + công nợ trong 1 query duy nhất (thay vì query riêng ở res.json)
   const customer = db.prepare('SELECT keg_balance FROM customers WHERE id = ?').get(customerId);
+
+  // Công nợ theo SỔ CÔNG NỢ (ledger) — nguồn sự thật duy nhất, KHỚP với
+  // trang "Sổ công nợ" (views/debts.html). `customers.debt` chỉ là MIRROR.
+  const currentDebt = DebtLedgerService.computeBalance(customerId);
 
   res.json({
     kegBalance: customer ? customer.keg_balance : 0,
     totalRevenue,
     monthlyRevenue,
     monthlyKegs,
+    currentDebt,
     lastSaleDate: lastSale ? lastSale.date : null,
     lastSaleDaysAgo: lastSale ? Math.floor(lastSale.days_ago) : null
   });
@@ -928,11 +1031,10 @@ router.get('/:id/monthly-beer-detail', (req, res) => {
 router.get('/:id/debt', (req, res) => {
   const customerId = parseInt(req.params.id);
 
-  // Get current debt from customers table (source of truth)
-  const customer = db.prepare(`
-    SELECT debt FROM customers WHERE id = ? AND archived = 0
-  `).get(customerId);
-  const currentDebt = customer ? (customer.debt || 0) : 0;
+  // Số dư công nợ theo SỔ CÔNG NỢ (ledger) — nguồn sự thật duy nhất.
+  // `customers.debt` chỉ là MIRROR → có thể lệch với ledger.
+  const customer = db.prepare('SELECT id FROM customers WHERE id = ? AND archived = 0').get(customerId);
+  const currentDebt = customer ? DebtLedgerService.computeBalance(customerId) : 0;
 
   // Get debt transactions (sales and payments)
   const transactions = db.prepare(`

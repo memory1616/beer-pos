@@ -295,15 +295,34 @@ async function sendZaloPersonalMessage(opts = {}) {
 }
 
 /**
- * Kiểm tra kết nối (dùng cho nút "Test" trong UI).
+ * Kiểm tra kết nối (dùng cho nút "Kiểm tra kết nối" trong UI).
+ *
+ * @param {object} [opts] — có thể truyền trực tiếp `{ apiKey, baseUrl }`
+ *   hoặc dạng lồng `{ config: { apiKey, baseUrl } }` (tương thích ngược).
+ *   Giá trị truyền vào ĐƯỢC ưu tiên hơn giá trị đã lưu trong `settings`,
+ *   để admin có thể test API key MỚI trước khi bấm "Lưu cấu hình".
+ *
  * @returns {Promise<{success:boolean, error?:string}>}
  */
 async function testConnection(opts = {}) {
   try {
-    const cfg = { ...getConfig(), ...(opts.config || {}) };
-    if (!String(cfg.apiKey || '').trim()) {
-      return { success: false, error: 'Chưa cấu hình OmiCall API key' };
+    const override = opts.config || {};
+    const cfg = { ...getConfig(), ...override };
+    // Cho phép truyền phẳng: { apiKey, baseUrl }
+    if (opts.apiKey !== undefined && opts.apiKey !== null) {
+      cfg.apiKey = String(opts.apiKey).trim();
     }
+    if (opts.baseUrl !== undefined && opts.baseUrl !== null) {
+      cfg.baseUrl = normalizeBaseUrl(opts.baseUrl);
+    }
+
+    if (!String(cfg.apiKey || '').trim()) {
+      return {
+        success: false,
+        error: 'Chưa cấu hình OmiCall API key. Hãy dán API key vào ô bên trên rồi thử lại.',
+      };
+    }
+
     await getAccessToken({
       apiKey: cfg.apiKey,
       baseUrl: cfg.baseUrl,
