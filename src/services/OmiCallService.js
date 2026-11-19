@@ -753,6 +753,99 @@ async function listConversations(opts = {}) {
   };
 }
 
+/**
+ * Chẩn đoán tài khoản OmiCall: kênh đã kết nối + thử liệt kê hội thoại.
+ *
+ * Mục đích: xác định chính xác vì sao `send_text` trả `invalid_param`:
+ *  - Tài khoản chưa bật module "đa kênh"/"Zalo cá nhân" → cần bật ở OmiCall.
+ *  - `convId` không thuộc tenant → cần lấy đúng id.
+ *
+ * @returns {Promise<{success:boolean, data?:object, error?:string}>}
+ */
+async function diagnoseAccount(opts = {}) {
+  const cfg = { ...getConfig(), ...(opts.config || {}) };
+  const apiKey = String(cfg.apiKey || '').trim();
+  const baseUrl = normalizeBaseUrl(cfg.baseUrl);
+  if (!apiKey) return { success: false, error: 'Chưa cấu hình OmiCall API key' };
+
+  let token = null;
+  let tokenError = null;
+  try {
+    token = await getAccessToken({ apiKey, baseUrl, force: true });
+  } catch (e) {
+    tokenError = e.message;
+  }
+
+  const headers = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+    'x-api-key': apiKey,
+  };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const probes = [];
+  const run = async (label, host, path, method, body) => {
+    let res;
+    let raw = '';
+    try {
+      res = await fetchWithTimeout(`${host}${path}`, {
+        method,
+        headers,
+        ...(body ? { body: JSON.stringify(body) } : {}),
+      });
+      raw = await res.text();
+    } catch (e) {
+      probes.push({ label, host, path, http: 0, result: 'FETCH_FAIL', detail: e.message });
+      return;
+    }
+    let parsed = null;
+    try {
+      parsed = raw ? JSON.parse(raw) : null;
+    } catch (_) {
+      parsed = null;
+    }
+    const isHtml = /^\s*<(!doctype|html)/i.test(raw);
+    probes.push({
+      label,
+      host,
+      path,
+      http: res.status,
+      result: isHtml ? 'HTML' : res.ok ? 'OK' : 'ERR',
+      status_code: parsed && parsed.status_code !== undefined ? parsed.status_code : null,
+      message: (parsed && (parsed.message || parsed.msg)) || '',
+      payload: parsed && parsed.payload !== undefined ? parsed.payload : undefined,
+    });
+  };
+
+  for (const host of resolveMessageHosts(baseUrl)) {
+    await run('channels', host, '/omnichannel/channel/get_all', 'POST', {});
+    await run('channel_all', host, '/omnichannel/channel/get_all', 'GET', null);
+    await run('conv_search', host, '/omi_v2/omichannel/search_v4', 'POST', {
+      types: [],
+      keyword: '',
+      sort: { field_code: 'last_message_time', is_asc: true },
+      is_session: false,
+      channel_ids: [],
+    });
+    await run('conv_search_get', host, '/omi_v2/omichannel/search_v4', 'GET', null);
+  }
+
+  // Tenant info trên host public (xác nhận token thuộc đúng doanh nghiệp)
+  for (const host of resolveMessageHosts(baseUrl)) {
+    if (!/public-v1/i.test(host)) continue;
+    await run('tenant_detail', host, '/api/tenant/detail', 'POST', {});
+  }
+
+  return {
+    success: true,
+    data: {
+      tokenObtained: !!token,
+      tokenError,
+      probes,
+    },
+  };
+}
+
 module.exports = {
   DEFAULT_BASE_URL,
   getConfig,
@@ -764,4 +857,5 @@ module.exports = {
   testConnection,
   probeSendEndpoints,
   listConversations,
+  diagnoseAccount,
 };

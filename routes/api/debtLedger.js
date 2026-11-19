@@ -918,6 +918,16 @@ router.get('/notify/conversations', requireAuth, requireAdmin, async (req, res) 
   }
 });
 
+router.get('/notify/diagnose', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const result = await OmiCallService.diagnoseAccount({});
+    res.json({ success: true, data: result.data || result });
+  } catch (e) {
+    logger.error('[DEBT_NOTIFY_API] diagnose error', { error: e.message });
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 router.get('/notify/history', requireAuth, (req, res) => {
   try {
     const { status, customerId, limit, offset } = req.query || {};
