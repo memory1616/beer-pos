@@ -346,22 +346,18 @@ function resolveMessageHosts(baseUrl) {
   push(baseUrl);
 
   // public-v1[-stg].<domain> → social-network-v1[-stg].<domain>
-  // Thử cả `.omicall.com` và `.omicrm.com` vì OmiCall dùng cả hai tên miền.
+  // Chỉ `.omicrm.com` phục vụ API multi-channel; `.omicall.com` chỉ là web app.
   const m = /^https?:\/\/public-v1(-stg)?\.(omicall|omicrm)\.com$/i.exec(baseUrl);
   if (m) {
     const suffix = m[1] || '';
-    for (const domain of ['omicrm.com', 'omicall.com']) {
-      push(`https://social-network-v1${suffix}.${domain}`);
-    }
+    push(`https://social-network-v1${suffix}.omicrm.com`);
   }
 
   // social-network-v1[-stg].<domain> → đổi chiều staging ↔ production
   const s = /^https?:\/\/(social-network-v1)(-stg)?\.(omicall|omicrm)\.com$/i.exec(baseUrl);
   if (s) {
-    for (const domain of ['omicrm.com', 'omicall.com']) {
-      push(`https://${s[1]}${s[2] ? '' : '-stg'}.${domain}`);
-      push(`https://${s[1]}-stg.${domain}`);
-    }
+    push(`https://${s[1]}${s[2] ? '' : '-stg'}.omicrm.com`);
+    push(`https://${s[1]}-stg.omicrm.com`);
   }
 
   return hosts;
@@ -555,6 +551,8 @@ async function sendZaloPersonalMessage(opts = {}) {
 
   const bodies = buildMessageBodies(convMongoId, channelId, text);
   let lastError = null;
+  // Lỗi "thật" từ API (JSON) — quan trọng hơn lỗi HTML của host web app.
+  let apiError = null;
 
   for (const host of hosts) {
     for (const path of MESSAGE_PATHS) {
@@ -592,6 +590,7 @@ async function sendZaloPersonalMessage(opts = {}) {
         if (!res.ok) {
           const msg = (body && (body.message || body.msg || body.error)) || `HTTP ${res.status}`;
           lastError = `OmiCall gửi tin thất bại tại ${host}${path.split('?')[0]}: ${msg}`;
+          apiError = lastError;
           // 401/403 → sai token/key, thử host khác không giúp ích → dừng.
           if (res.status === 401 || res.status === 403) {
             return { success: false, error: lastError, raw: body };
@@ -604,6 +603,7 @@ async function sendZaloPersonalMessage(opts = {}) {
         if (statusCode !== undefined && Number(statusCode) !== 9999) {
           const msg = (body && (body.message || body.msg)) || `status_code ${statusCode}`;
           lastError = `OmiCall từ chối: ${msg}`;
+          apiError = lastError;
           continue;
         }
 
@@ -620,6 +620,7 @@ async function sendZaloPersonalMessage(opts = {}) {
   return {
     success: false,
     error:
+      apiError ||
       lastError ||
       'Không tìm được endpoint gửi tin OmiCall. Kiểm tra lại Base URL (thử https://public-v1-stg.omicall.com nếu tài khoản OmiCall của bạn thuộc môi trường staging).',
   };
