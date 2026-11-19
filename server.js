@@ -248,14 +248,27 @@ async function loadDeployState() {
 
 /**
  * Đọc state deploy từ đĩa mà KHÔNG ghi đè file.
- * Dùng cho /deploy/status: deploy.sh ghi deploy-state.json sau khi PM2 restart
- * (process Node cũ đã chết nên không cập nhật được in-memory).
+ * Dùng cho /deploy/status và /health: deploy.sh ghi deploy-state.json sau khi
+ * PM2 restart (process Node cũ đã chết nên không cập nhật được in-memory).
  */
 async function refreshDeployStateFromDisk() {
   try {
     const raw = await fsPromises.readFile(DEPLOY_STATE_FILE, 'utf8');
     const disk = JSON.parse(raw);
     if (!disk || typeof disk !== 'object') return;
+
+    // Nếu file ghi 'running' nhưng đã quá 60s → deploy bị kẹt (process chết)
+    // → coi như 'interrupted' trong memory (không ghi đè file).
+    if (disk.status === 'running') {
+      const startedAt = disk.started_at ? new Date(disk.started_at).getTime() : 0;
+      const ageMs = startedAt ? Date.now() - startedAt : Infinity;
+      if (ageMs > 60 * 1000) {
+        disk.status = 'interrupted';
+        disk.finished_at = disk.finished_at || new Date().toISOString();
+        disk.error = disk.error || 'Deploy bị gián đoạn (process khởi động lại giữa chừng)';
+      }
+    }
+
     // Chỉ nhận state mới hơn state đang có trong memory
     const diskTime = new Date(disk.finished_at || disk.last_deploy_at || 0).getTime() || 0;
     const memTime = new Date(deployState.finished_at || deployState.last_deploy_at || 0).getTime() || 0;
@@ -1300,9 +1313,13 @@ app.get('/api/ping', (req, res) => {
 });
 
 // ==================== COMPREHENSIVE HEALTH CHECK ====================
-app.get('/health', (req, res) => {
+app.get('/health', async (req, res) => {
   const checks = { ok: true, timestamp: new Date().toISOString(), checks: {} };
   const status = { http: 200 };
+
+  // Đọc state deploy từ đĩa (deploy.sh ghi state sau PM2 restart, lúc này
+  // process Node cũ đã chết nên không cập nhật được in-memory).
+  await refreshDeployStateFromDisk();
 
   // DB check
   try {
