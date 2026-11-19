@@ -659,6 +659,9 @@ async function probeSendEndpoints(opts = {}) {
  * Dùng để admin lấy đúng `convId` của nhóm Zalo thay vì tự đoán — OmiCall
  * trả `invalid_param` khi convId không tồn tại trong tenant của API key.
  *
+ * ⚠️ Endpoint là `/omi_v2/omnichannel/...` (có chữ **n** trong "omnichannel").
+ *    Bản `omichannel` (thiếu n) trong một số tài liệu cũ trả 404.
+ *
  * @param {object} opts
  * @param {string} [opts.keyword] - từ khoá lọc
  * @param {number} [opts.page]
@@ -685,64 +688,76 @@ async function listConversations(opts = {}) {
   };
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const params = {
-    page: Number(opts.page) || 1,
-    size: Math.min(100, Number(opts.size) || 20),
-    lng: 'vi',
+  const page = Number(opts.page) || 1;
+  const size = Math.min(100, Number(opts.size) || 20);
+  const keyword = String(opts.keyword || '').trim();
+
+  const body = {
+    types: [],
+    keyword,
+    sort: { field_code: 'last_message_time', is_asc: true },
+    is_session: false,
+    is_blocked: false,
+    channel_ids: [],
   };
-  if (opts.keyword) params.keyword = String(opts.keyword).trim();
 
   const attempts = [];
   for (const host of resolveMessageHosts(baseUrl)) {
-    for (const path of ['/omi_v2/omichannel/search_v4', '/api/omi_v2/omichannel/search_v4']) {
-      const qs = new URLSearchParams(params).toString();
-      let res;
-      let raw = '';
-      try {
-        res = await fetchWithTimeout(`${host}${path}?${qs}`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ page: params.page, size: params.size, keyword: params.keyword || '' }),
+    const paths = [
+      `/omi_v2/omnichannel/search_v4?page=${page}&size=${size}`,
+      `/omi_v2/omnichannel/search_v4?page=${page}&size=${size}&lng=vi`,
+    ];
+    for (const path of paths) {
+      for (const method of ['POST', 'GET']) {
+        let res;
+        let raw = '';
+        try {
+          res = await fetchWithTimeout(`${host}${path}`, {
+            method,
+            headers,
+            ...(method === 'POST' ? { body: JSON.stringify(body) } : {}),
+          });
+          raw = await res.text();
+        } catch (e) {
+          attempts.push({ host, path, method, http: 0, result: 'FETCH_FAIL', detail: e.message });
+          continue;
+        }
+
+        if (/^\s*<(!doctype|html)/i.test(raw)) {
+          attempts.push({ host, path, method, http: res.status, result: 'HTML' });
+          continue;
+        }
+
+        let parsed = null;
+        try {
+          parsed = raw ? JSON.parse(raw) : null;
+        } catch (_) {
+          parsed = { message: raw };
+        }
+
+        const statusCode = parsed && parsed.status_code;
+        if (res.ok && (statusCode === undefined || Number(statusCode) === 9999)) {
+          const payload = (parsed && parsed.payload) || {};
+          const list = Array.isArray(payload)
+            ? payload
+            : payload.items || payload.data || payload.list || payload.conversations || [];
+          return {
+            success: true,
+            conversations: Array.isArray(list) ? list : [],
+            raw: parsed,
+            attempts,
+          };
+        }
+
+        attempts.push({
+          host,
+          path,
+          method,
+          http: res.status,
+          result: 'ERR',
+          detail: (parsed && (parsed.message || parsed.msg)) || `HTTP ${res.status}`,
         });
-        raw = await res.text();
-      } catch (e) {
-        attempts.push({ host, path, http: 0, result: 'FETCH_FAIL', detail: e.message });
-        continue;
       }
-
-      if (/^\s*<(!doctype|html)/i.test(raw)) {
-        attempts.push({ host, path, http: res.status, result: 'HTML' });
-        continue;
-      }
-
-      let body = null;
-      try {
-        body = raw ? JSON.parse(raw) : null;
-      } catch (_) {
-        body = { message: raw };
-      }
-
-      const statusCode = body && body.status_code;
-      if (res.ok && (statusCode === undefined || Number(statusCode) === 9999)) {
-        const payload = (body && body.payload) || {};
-        const list = Array.isArray(payload)
-          ? payload
-          : payload.items || payload.data || payload.list || payload.conversations || [];
-        return {
-          success: true,
-          conversations: Array.isArray(list) ? list : [],
-          raw: body,
-          attempts,
-        };
-      }
-
-      attempts.push({
-        host,
-        path,
-        http: res.status,
-        result: 'ERR',
-        detail: (body && (body.message || body.msg)) || `HTTP ${res.status}`,
-      });
     }
   }
 
@@ -819,15 +834,14 @@ async function diagnoseAccount(opts = {}) {
 
   for (const host of resolveMessageHosts(baseUrl)) {
     await run('channels', host, '/omnichannel/channel/get_all', 'POST', {});
-    await run('channel_all', host, '/omnichannel/channel/get_all', 'GET', null);
-    await run('conv_search', host, '/omi_v2/omichannel/search_v4', 'POST', {
+    await run('conv_search', host, '/omi_v2/omnichannel/search_v4?page=1&size=20', 'POST', {
       types: [],
       keyword: '',
       sort: { field_code: 'last_message_time', is_asc: true },
       is_session: false,
       channel_ids: [],
     });
-    await run('conv_search_get', host, '/omi_v2/omichannel/search_v4', 'GET', null);
+    await run('conv_search_get', host, '/omi_v2/omnichannel/search_v4?page=1&size=20', 'GET', null);
   }
 
   // Tenant info trên host public (xác nhận token thuộc đúng doanh nghiệp)
