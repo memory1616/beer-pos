@@ -886,6 +886,20 @@ router.post('/notify/test-send', requireAuth, requireAdmin, async (req, res) => 
   }
 });
 
+router.get('/notify/probe', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { convId, text } = req.query || {};
+    const result = await OmiCallService.probeSendEndpoints({
+      convId: String(convId || '').trim(),
+      text: String(text || 'BIA TƯƠI — kiểm tra kết nối OmiCall').trim(),
+    });
+    res.json({ success: true, data: result });
+  } catch (e) {
+    logger.error('[DEBT_NOTIFY_API] probe error', { error: e.message });
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 router.get('/notify/history', requireAuth, (req, res) => {
   try {
     const { status, customerId, limit, offset } = req.query || {};

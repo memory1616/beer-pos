@@ -528,6 +528,131 @@ async function testConnection(opts = {}) {
   }
 }
 
+/**
+ * Thử nhiều biến thể endpoint + body để tìm đúng cách gửi tin Zalo cá nhân.
+ *
+ * Dùng để chẩn đoán khi OmiCall trả `invalid_param`: mỗi biến thể được thử
+ * với cùng một convId/text, trả về ma trận kết quả để admin thấy chính xác
+ * host/path/body nào được OmiCall chấp nhận.
+ *
+ * @returns {Promise<{attempts:Array, best?:object}>}
+ */
+async function probeSendEndpoints(opts = {}) {
+  const convId = String(opts.convId || '').trim();
+  const text = String(opts.text || 'test').trim();
+  const cfg = { ...getConfig(), ...(opts.config || {}) };
+  const apiKey = String(cfg.apiKey || '').trim();
+  const baseUrl = normalizeBaseUrl(cfg.baseUrl);
+
+  if (!apiKey) return { attempts: [], error: 'Chưa cấu hình OmiCall API key' };
+  if (!convId) return { attempts: [], error: 'Thiếu convId' };
+
+  let token = null;
+  try {
+    token = await getAccessToken({ apiKey, baseUrl, force: true });
+  } catch (e) {
+    return { attempts: [], error: e.message };
+  }
+
+  const headers = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+    'x-api-key': apiKey,
+  };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  // Các biến thể body: OmiCall có thể dùng `text` hoặc `message`.
+  const bodyVariants = [
+    { label: 'convId+text', body: { convId, text } },
+    { label: 'convId+message', body: { convId, message: text } },
+    { label: 'conversationId+text', body: { conversationId: convId, text } },
+  ];
+
+  // Các biến thể path: prefix `/api` có/không, có `lng` trong query.
+  const pathVariants = [
+    { label: 'no-prefix+?lng', path: '/omni_conv/message/send_text?lng=vi' },
+    { label: 'no-prefix', path: '/omni_conv/message/send_text' },
+    { label: '/api+?lng', path: '/api/omni_conv/message/send_text?lng=vi' },
+    { label: '/api', path: '/api/omni_conv/message/send_text' },
+  ];
+
+  const hosts = resolveMessageHosts(baseUrl);
+  const attempts = [];
+
+  for (const host of hosts) {
+    for (const pv of pathVariants) {
+      for (const bv of bodyVariants) {
+        let res;
+        let raw = '';
+        try {
+          res = await fetchWithTimeout(`${host}${pv.path}`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(bv.body),
+          });
+          raw = await res.text();
+        } catch (e) {
+          attempts.push({
+            host,
+            path: pv.path,
+            body: bv.label,
+            http: 0,
+            result: 'FETCH_FAIL',
+            detail: e.message + ((e.cause && e.cause.code) ? ' — ' + e.cause.code : ''),
+          });
+          continue;
+        }
+
+        let body = null;
+        try {
+          body = raw ? JSON.parse(raw) : null;
+        } catch (_) {
+          body = null;
+        }
+
+        if (/^\s*<(!doctype|html)/i.test(raw)) {
+          attempts.push({
+            host,
+            path: pv.path,
+            body: bv.label,
+            http: res.status,
+            result: 'HTML',
+            detail: 'web app, không phải API',
+          });
+          continue;
+        }
+
+        const statusCode = body && body.status_code;
+        const msg = (body && (body.message || body.msg)) || '';
+        let result;
+        if (res.ok && (statusCode === undefined || Number(statusCode) === 9999)) {
+          result = 'OK';
+        } else if (res.status === 401 || res.status === 403) {
+          result = 'AUTH';
+        } else if (msg === 'invalid_param') {
+          result = 'INVALID_PARAM';
+        } else {
+          result = 'ERR';
+        }
+
+        attempts.push({
+          host,
+          path: pv.path,
+          body: bv.label,
+          http: res.status,
+          status_code: statusCode ?? null,
+          result,
+          detail: msg || (res.ok ? '' : `HTTP ${res.status}`),
+          raw: result === 'OK' ? body : undefined,
+        });
+      }
+    }
+  }
+
+  const best = attempts.find((a) => a.result === 'OK');
+  return { attempts, best: best || null };
+}
+
 module.exports = {
   DEFAULT_BASE_URL,
   getConfig,
@@ -537,4 +662,5 @@ module.exports = {
   clearTokenCache,
   sendZaloPersonalMessage,
   testConnection,
+  probeSendEndpoints,
 };
