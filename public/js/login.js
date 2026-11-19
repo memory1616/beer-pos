@@ -185,14 +185,31 @@
 
   // ── Register Service Worker ───────────────────────────────
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.getRegistration().then(function (reg) {
-      if (!reg) {
-        var swVer = (typeof window !== 'undefined' && window.APP_VERSION)
-          ? window.APP_VERSION
-          : Date.now();
-        navigator.serviceWorker.register('/sw.v2.js?v=' + swVer)
-          .catch(function (e) { /* SW register failed silently */ });
-      }
+    var swVer = (typeof window !== 'undefined' && window.APP_VERSION)
+      ? window.APP_VERSION
+      : Date.now();
+
+    // ⚠️ PHẢI đăng ký LẠI mỗi lần (không chỉ khi chưa có reg).
+    // Nếu chỉ register khi `!reg`: SW cũ giữ nguyên URL script `/sw.v2.js?v=<hash cũ>`,
+    // và Nginx cache `.js` 30 ngày → browser tải đúng bản cũ đó → SW KHÔNG BAO GIỜ
+    // được update → mọi fix trong sw.v2.js không tới được client.
+    //
+    // updateViaCache: 'none' → buộc browser bypass HTTP cache khi tải script SW.
+    navigator.serviceWorker.register('/sw.v2.js?v=' + swVer, { updateViaCache: 'none' })
+      .then(function (reg) {
+        // Ép kiểm tra bản mới ngay (kể cả khi SW đang active)
+        if (reg && typeof reg.update === 'function') {
+          reg.update().catch(function () { /* im lặng */ });
+        }
+      })
+      .catch(function (e) { /* SW register failed silently */ });
+
+    // Khi quay lại tab → kiểm tra SW update thêm một lần nữa
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState !== 'visible') return;
+      navigator.serviceWorker.getRegistration().then(function (reg) {
+        if (reg && typeof reg.update === 'function') reg.update().catch(function () {});
+      });
     });
   }
 

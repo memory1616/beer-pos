@@ -59,12 +59,44 @@ GIT_BRANCH="${GIT_BRANCH:-main}"
 LOCK_FILE="/tmp/beerpos-deploy.lock"
 LOG_PREFIX="[DEPLOY $TIMESTAMP]"
 DEPLOY_LOG="$VPS_PATH/logs/deploy.log"
+DEPLOY_STATE_FILE="$VPS_PATH/logs/deploy-state.json"
 
 # ---- Helpers ----
 log()  { echo "$LOG_PREFIX $1"; }
 ok()   { echo "$LOG_PREFIX [OK] $1"; }
 warn() { echo "$LOG_PREFIX [WARN] $1"; }
 err()  { echo "$LOG_PREFIX [ERROR] $1" >&2; }
+
+# ── Ghi trạng thái deploy vào logs/deploy-state.json ──────────────────────
+# ⚠️ QUAN TRỌNG: deploy.sh chạy `pm2 restart beer-pos` → giết chính process
+# Node đang chạy webhook. Callback execFile trong server.js KHÔNG bao giờ
+# được gọi → file state mãi mãi ở status='running' → /deploy/status và
+# /health báo "đang deploy" vĩnh viễn (UI admin bị kẹt).
+#
+# → deploy.sh tự ghi trạng thái cuối cùng. Khi Node restart, nó đọc file này
+#   và thấy đúng kết quả thật (success/failed).
+write_deploy_state() {
+    local status="$1"
+    local error_msg="${2:-}"
+    if ! command -v node >/dev/null 2>&1; then
+        return 0
+    fi
+    mkdir -p "$(dirname "$DEPLOY_STATE_FILE")"
+    node -e '
+const fs = require("fs");
+const path = process.argv[1];
+const status = process.argv[2];
+const errorMsg = process.argv[3] || null;
+let state = {};
+try { state = JSON.parse(fs.readFileSync(path, "utf8")) || {}; } catch (e) { state = {}; }
+state.status = status;
+state.finished_at = new Date().toISOString();
+state.error = errorMsg;
+if (status === "success") { state.rate_limit_until = Date.now() + 30000; }
+fs.writeFileSync(path, JSON.stringify(state, null, 2));
+' "$DEPLOY_STATE_FILE" "$status" "$error_msg" 2>/dev/null || true
+    log "   deploy-state.json -> status=$status"
+}
 
 # Append to log file
 log_to_file() {
@@ -318,6 +350,7 @@ if [ "$HAS_NEW" = "0" ]; then
     if [ ! -f "$VPS_PATH/database.sqlite" ]; then
         err "database.sqlite KHONG TON TAI - ABORT deploy (khong tao DB rong)"
         log_to_file "Deploy ABORTED - database.sqlite missing"
+        write_deploy_state "failed" "database.sqlite missing - deploy aborted"
         exit 7
     fi
     ok "Database present sau reset (KHONG restore tu snapshot)"
@@ -335,6 +368,7 @@ if [ "$HAS_NEW" = "0" ]; then
             err "Deploy ABORTED - KHONG restart PM2 de giu nguyen app dang chay."
             err "Kiem tra: $DB_SAFETY_DIR (ban sao luu dung de phuc hoi thu cong)"
             log_to_file "Deploy ABORTED - data loss detected ($SALES_COUNT_BEFORE -> $SALES_COUNT_AFTER)"
+            write_deploy_state "failed" "Data loss detected - deploy aborted"
             exit 8
         fi
         log "   Sales count sau reset: ${SALES_COUNT_AFTER:-N/A} (khong giam - OK)"
@@ -346,6 +380,7 @@ if [ "$HAS_NEW" = "0" ]; then
         log "   Khong co commit moi (HEAD khong doi) - skip phan con lai"
         ok "Nothing to deploy - code da la moi nhat"
         log_to_file "Deploy skipped - no new commits"
+        write_deploy_state "success"
         exit 0
     fi
     ok "Git pull xong: $OLD_COMMIT -> $NEW_COMMIT"
@@ -517,6 +552,7 @@ done
 if [ "$SYNTAX_ERROR" = "1" ]; then
     err "Syntax errors found - deploy ABORTED"
     log_to_file "Deploy ABORTED - syntax errors"
+    write_deploy_state "failed" "Syntax errors - deploy aborted"
     exit 3
 fi
 
@@ -539,6 +575,7 @@ if [ -f "$VPS_PATH/package.json" ]; then
         if ! npm install --production --no-audit --no-fund 2>&1 | tail -15; then
             err "npm install FAILED"
             log_to_file "Deploy FAILED - npm install error"
+            write_deploy_state "failed" "npm install failed"
             exit 4
         fi
         # better-sqlite3 needs rebuild for the Node binary
@@ -587,12 +624,14 @@ if [ -f "$VPS_PATH/ecosystem.config.js" ]; then
     if ! pm2 restart ecosystem.config.js --update-env 2>&1 | tail -10; then
         err "pm2 restart FAILED (ecosystem.config.js)"
         log_to_file "Deploy FAILED - pm2 restart error"
+        write_deploy_state "failed" "pm2 restart failed (ecosystem.config.js)"
         exit 5
     fi
 else
     if ! pm2 restart beer-pos --update-env 2>&1 | tail -10; then
         err "pm2 restart FAILED"
         log_to_file "Deploy FAILED - pm2 restart error"
+        write_deploy_state "failed" "pm2 restart failed"
         exit 5
     fi
 fi
@@ -609,10 +648,12 @@ HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "$HEALTH_URL" 2>
 if [ "$HTTP_CODE" = "200" ]; then
     ok "Health: OK ($HEALTH_URL -> 200)"
     log_to_file "Health check OK"
+    write_deploy_state "success"
 else
     err "Health: FAILED ($HEALTH_URL -> $HTTP_CODE)"
     err "Check: pm2 logs beer-pos --lines 50"
     log_to_file "Deploy FAILED - health check returned $HTTP_CODE"
+    write_deploy_state "failed" "Health check returned $HTTP_CODE"
     exit 6
 fi
 

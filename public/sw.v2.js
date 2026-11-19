@@ -474,6 +474,52 @@ function getDeviceIdFromScope(scope) {
 
 // ─── Fetch Handler ───────────────────────────────────────────────────────────
 
+/**
+ * Fetch qua mạng, có retry khi gặp lỗi tạm thời.
+ *
+ * ⚠️ VÌ SAO CẦN: Trước đây khi fetch reject (mất kết nối) SW trả ngay
+ * Response 503 tổng hợp. Response này KHÔNG hề tới Nginx → không có trace
+ * trong access.log, nhưng DevTools vẫn hiện "503" và người dùng tưởng server
+ * lỗi. Thực tế server vẫn xử lý request thành công (log có 200).
+ *
+ * → Giờ: retry 2 lần (mỗi lần nghỉ ~1.2s) trước khi kết luận offline.
+ * Lỗi 502/503/504 từ server (deploy đang restart) cũng được retry.
+ */
+async function networkFetchWithRetry(request, retries = 2, delayMs = 1200) {
+  let lastError = null;
+
+  // Clone MỘT LẦN: request body chỉ đọc được 1 lần, tạo Request lại nhiều
+  // lần sẽ lỗi "body stream already read".
+  let baseRequest;
+  try {
+    baseRequest = request.clone();
+  } catch {
+    baseRequest = request;
+  }
+
+  for (let i = 0; i <= retries; i++) {
+    try {
+      const req = (i === 0) ? request : baseRequest.clone();
+      const resp = await fetch(new Request(req, { cache: 'no-store' }));
+
+      // Server trả 502/503/504 → có thể do deploy đang restart → thử lại
+      if ([502, 503, 504].indexOf(resp.status) !== -1 && i < retries) {
+        await new Promise(r => setTimeout(r, delayMs));
+        continue;
+      }
+      return resp;
+    } catch (e) {
+      lastError = e;
+      if (i < retries) {
+        await new Promise(r => setTimeout(r, delayMs));
+        continue;
+      }
+    }
+  }
+
+  throw lastError || new Error('Network unavailable');
+}
+
 self.addEventListener('fetch', event => {
   const url = event.request.url;
 
@@ -486,7 +532,7 @@ self.addEventListener('fetch', event => {
       parsed.pathname === '/js/realtime.js' ||
       parsed.pathname === '/db.js') {
     event.respondWith(
-      fetch(new Request(event.request, { cache: 'no-store' }))
+      networkFetchWithRetry(event.request)
         .catch(() => new Response(JSON.stringify({ error: 'Network unavailable' }), {
           status: 503, headers: { 'Content-Type': 'application/json' }
         }))
@@ -497,7 +543,7 @@ self.addEventListener('fetch', event => {
   // Auth/login — always live, never cache
   if (parsed.pathname.startsWith('/api/auth') || parsed.pathname.startsWith('/auth')) {
     event.respondWith(
-      fetch(new Request(event.request, { cache: 'no-store' }))
+      networkFetchWithRetry(event.request)
         .catch(() => new Response(JSON.stringify({ error: 'Network unavailable' }), {
           status: 503, headers: { 'Content-Type': 'application/json' }
         }))
@@ -508,7 +554,7 @@ self.addEventListener('fetch', event => {
   // Sale history — always fresh from server
   if (parsed.pathname === '/sale/history') {
     event.respondWith(
-      fetch(new Request(event.request, { cache: 'no-store' }))
+      networkFetchWithRetry(event.request)
         .catch(() => new Response(JSON.stringify({ error: 'Network unavailable' }), {
           status: 503, headers: { 'Content-Type': 'application/json' }
         }))
@@ -545,7 +591,7 @@ self.addEventListener('fetch', event => {
   // Stale data causes stock mismatch, price errors, and data race conditions.
   if (parsed.pathname.startsWith('/api/') && event.request.method === 'GET') {
     event.respondWith(
-      fetch(new Request(event.request, { cache: 'no-store' }))
+      networkFetchWithRetry(event.request)
         .catch(() => new Response(JSON.stringify({ error: 'Network unavailable' }), {
           status: 503, headers: { 'Content-Type': 'application/json' }
         }))
@@ -556,7 +602,7 @@ self.addEventListener('fetch', event => {
   // Page data endpoints (/sale/data, /purchases/data, etc.) — never cache
   if (parsed.pathname.endsWith('/data') && event.request.method === 'GET') {
     event.respondWith(
-      fetch(new Request(event.request, { cache: 'no-store' }))
+      networkFetchWithRetry(event.request)
         .catch(() => new Response(JSON.stringify({ error: 'Network unavailable' }), {
           status: 503, headers: { 'Content-Type': 'application/json' }
         }))
@@ -567,7 +613,7 @@ self.addEventListener('fetch', event => {
   // Sale individual record — always fresh from server (used by invoice modal)
   if (parsed.pathname.match(/^\/sale\/\d+$/) && event.request.method === 'GET') {
     event.respondWith(
-      fetch(new Request(event.request, { cache: 'no-store' }))
+      networkFetchWithRetry(event.request)
         .catch(() => new Response(JSON.stringify({ error: 'Network unavailable' }), {
           status: 503, headers: { 'Content-Type': 'application/json' }
         }))
@@ -692,7 +738,10 @@ async function invalidateRelatedCaches(url) {
 
 async function handleMutation(request) {
   try {
-    const response = await fetch(new Request(request, { cache: 'no-store' }));
+    // Retry khi lỗi tạm thời (502/503/504) hoặc mất kết nối tạm thời.
+    // Lý do: trước đây 1 lần fetch reject → SW trả 503 tổng hợp → user thấy
+    // "503" dù server thực ra đã xử lý xong request. Giờ retry 2 lần.
+    const response = await networkFetchWithRetry(request, 2, 1500);
     if (response && response.ok) {
       await invalidateRelatedCaches(request.url);
       notifyClients({ type: 'DATA_INVALIDATED', path: new URL(request.url).pathname, at: Date.now() });

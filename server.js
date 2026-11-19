@@ -219,8 +219,54 @@ async function loadDeployState() {
   try {
     const raw = await fsPromises.readFile(DEPLOY_STATE_FILE, 'utf8');
     deployState = { ...deployState, ...JSON.parse(raw) };
+
+    // ── Khôi phục trạng thái deploy bị KẸT do PM2 restart ──────────────
+    // deploy.sh chạy `pm2 restart beer-pos` → giết chính process Node đang
+    // chạy runDeploySh() → callback execFile KHÔNG bao giờ chạy → file
+    // deploy-state.json mãi mãi ở status='running' → /deploy/status & UI
+    // báo "đang deploy" vĩnh viễn.
+    //
+    // Dấu hiệu: process Node vừa khởi động lại mà file lại ghi 'running'.
+    // Trong trường hợp đó deploy trước đã bị giết dở → đánh dấu interrupted.
+    // (deploy.sh vẫn ghi đè state cuối cùng khi nó chạy xong.)
+    if (deployState.status === 'running') {
+      const startedAt = deployState.started_at ? new Date(deployState.started_at).getTime() : 0;
+      const ageMs = startedAt ? Date.now() - startedAt : Infinity;
+      // < 60s: có thể deploy khác đang chạy song song → giữ nguyên
+      if (ageMs > 60 * 1000) {
+        deployState.status = 'interrupted';
+        deployState.finished_at = new Date().toISOString();
+        deployState.error = 'Deploy bị gián đoạn (process khởi động lại giữa chừng)';
+        logger.warn('Deploy state was stuck at running — marked as interrupted', { age_ms: ageMs });
+        await saveDeployState();
+      }
+    }
   } catch {
     // First run - state file may not exist yet
+  }
+}
+
+/**
+ * Đọc state deploy từ đĩa mà KHÔNG ghi đè file.
+ * Dùng cho /deploy/status: deploy.sh ghi deploy-state.json sau khi PM2 restart
+ * (process Node cũ đã chết nên không cập nhật được in-memory).
+ */
+async function refreshDeployStateFromDisk() {
+  try {
+    const raw = await fsPromises.readFile(DEPLOY_STATE_FILE, 'utf8');
+    const disk = JSON.parse(raw);
+    if (!disk || typeof disk !== 'object') return;
+    // Chỉ nhận state mới hơn state đang có trong memory
+    const diskTime = new Date(disk.finished_at || disk.last_deploy_at || 0).getTime() || 0;
+    const memTime = new Date(deployState.finished_at || deployState.last_deploy_at || 0).getTime() || 0;
+    if (disk.status === 'running' && deployState.status !== 'running') {
+      // deploy đang chạy (do deploy.sh ghi) → cập nhật
+      deployState = { ...deployState, ...disk };
+    } else if (diskTime >= memTime) {
+      deployState = { ...deployState, ...disk };
+    }
+  } catch {
+    // Không có file → giữ state in-memory
   }
 }
 
@@ -455,7 +501,11 @@ app.use('/webhook/sepay', require('./routes/sepayWebhook'));
 // ── Deploy status: GET /deploy/status ───────────────────────────
 // (Khong can auth cho status - chi la thong tin deploy)
 // Neu can protect, them check bearer token o day.
-app.get('/deploy/status', (req, res) => {
+app.get('/deploy/status', async (req, res) => {
+  // Đọc lại state từ đĩa: deploy.sh ghi deploy-state.json SAU khi PM2 restart
+  // (lúc này process Node cũ đã chết, không thể cập nhật in-memory).
+  // → /deploy/status phải đọc file để thấy trạng thái thật.
+  await refreshDeployStateFromDisk();
   res.json({
     ok: true,
     state: deployState,

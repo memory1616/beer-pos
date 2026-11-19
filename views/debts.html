@@ -955,6 +955,15 @@
     return isNaN(d.getTime()) ? String(s) : d.toLocaleString('vi-VN');
   }
 
+  /**
+   * Gọi API có xử lý lỗi tạm thời.
+   *
+   * Lỗi 502/503/504 hoặc mất kết nối thường xảy ra khi server đang deploy
+   * (PM2 restart) — đây là lỗi TẠM THỜI, tự thử lại 1-2 lần thường thành công.
+   * Ngoài ra Service Worker có thể tổng hợp response 503 khi offline.
+   */
+  var TRANSIENT_STATUS = [502, 503, 504];
+
   function api(url, options) {
     var opts = Object.assign({
       headers: { 'Content-Type': 'application/json' }
@@ -965,15 +974,33 @@
       return fetch(url, Object.assign({ credentials: 'include' }, opts));
     };
 
-    return doFetch().then(function (r) {
-      return r.json().then(function (data) {
-        if (!r.ok) {
-          var msg = (data && (data.error || data.message)) || ('HTTP ' + r.status);
-          throw new Error(msg);
+    var attempt = function (retry) {
+      return doFetch().then(function (r) {
+        return r.json().catch(function () { return null; }).then(function (data) {
+          if (!r.ok) {
+            if (TRANSIENT_STATUS.indexOf(r.status) !== -1) {
+              var err = new Error('Máy chủ đang khởi động lại, vui lòng thử lại sau vài giây');
+              err.transient = true;
+              throw err;
+            }
+            var msg = (data && (data.error || data.message)) || ('HTTP ' + r.status);
+            throw new Error(msg);
+          }
+          return data;
+        });
+      }).catch(function (e) {
+        // Lỗi tạm thời (502/503/504 hoặc mất kết nối) → thử lại nếu còn lượt
+        var transient = e && (e.transient || !(e instanceof Error) || /Failed to fetch|NetworkError|load failed/i.test(e.message || ''));
+        if (transient && retry > 0) {
+          return new Promise(function (resolve) {
+            setTimeout(function () { resolve(attempt(retry - 1)); }, 1200);
+          });
         }
-        return data;
+        throw e;
       });
-    });
+    };
+
+    return attempt(2);
   }
 
   function toast(msg, kind) {
