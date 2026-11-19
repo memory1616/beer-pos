@@ -1593,26 +1593,6 @@
           : '<div class="dbt-empty">📭 Chưa có tin nhắn nào được gửi</div>') +
       '</div>';
 
-    var blocked = n.blockedGroups || [];
-    var blockedHtml = '';
-    if (state.isAdmin) {
-      blockedHtml = '<div class="dbt-section" style="margin-top:12px;border-left:3px solid #ef4444">' +
-        '<div class="dbt-section-title">🚫 Nhóm Zalo KHÔNG được gửi tin</div>' +
-        '<div class="dbt-section-desc">Danh sách nhóm bị chặn — hệ thống <b>tuyệt đối không gửi</b> tin nhắn vào các nhóm này (kể cả khi ghi nhận thanh toán). Dùng để tránh gửi nhầm cho khách.</div>' +
-        (blocked.length
-          ? '<div class="dbt-table-wrap"><table class="dbt-table"><thead><tr><th>Group ID</th><th style="text-align:right">Thao tác</th></tr></thead><tbody>' +
-            blocked.map(function (id) {
-              return '<tr><td class="dbt-mono" style="font-size:11px">' + esc(id) + '</td>' +
-                '<td style="text-align:right"><button class="dbt-btn dbt-btn-danger dbt-btn-sm" onclick="unblockGroup(\'' + esc(id) + '\')">Bỏ chặn</button></td></tr>';
-            }).join('') +
-            '</tbody></table></div>'
-          : '<div class="dbt-empty">✅ Chưa chặn nhóm nào</div>') +
-        '<div class="dbt-btn-row" style="margin-top:12px">' +
-          '<button class="dbt-btn dbt-btn-secondary" onclick="openBlockGroupModal()">➕ Chặn một nhóm</button>' +
-        '</div>' +
-      '</div>';
-    }
-
     return '<div class="dbt-section">' +
       '<div class="dbt-section-title">🔔 Thông báo công nợ qua Zalo (OmiCall)</div>' +
       '<div class="dbt-section-desc">Tự động báo khách trong nhóm Zalo khi sổ công nợ ghi nhận tiền — khách biết ngay đã nhận bao nhiêu và còn nợ bao nhiêu.</div>' +
@@ -1620,77 +1600,8 @@
       guideHtml +
       kpiHtml +
       settingsHtml +
-      blockedHtml +
       historyHtml +
     '</div>';
-  }
-
-  /** Mở modal chọn nhóm Zalo để thêm vào danh sách cấm. */
-  function openBlockGroupModal() {
-    showModal('🚫 Chặn nhóm Zalo (không gửi tin)', '' +
-      '<div class="dbt-field"><label class="dbt-label">Nhóm Zalo (OmiCall)</label>' +
-        '<button class="dbt-btn dbt-btn-secondary" style="width:100%" onclick="loadOmiGroupsForBlock()">🔄 Tải danh sách nhóm từ OmiCall</button>' +
-        '<select id="bgOmiGroup" class="dbt-select" style="margin-top:8px" onchange="onPickBlockGroup()">' +
-          '<option value="">— Chọn nhóm Zalo —</option></select>' +
-        '<div class="dbt-hint">Chỉ hiển thị <b>nhóm Zalo</b> (không hiển thị chat cá nhân).</div></div>' +
-      '<div class="dbt-field"><label class="dbt-label">Group ID</label>' +
-        '<input id="bgGroupId" class="dbt-input" placeholder="Chọn ở trên" readonly></div>' +
-      '<div class="dbt-btn-row"><button class="dbt-btn dbt-btn-secondary" onclick="closeModal()">Hủy</button>' +
-        '<button class="dbt-btn dbt-btn-danger" style="flex:1" onclick="submitBlockGroup()">🚫 Chặn nhóm này</button></div>');
-  }
-
-  function loadOmiGroupsForBlock() {
-    var sel = document.getElementById('bgOmiGroup');
-    if (!sel) return;
-    sel.innerHTML = '<option value="">⏳ Đang tải…</option>';
-    api(API + '/notify/conversations?size=100&groupsOnly=1').then(function (res) {
-      var list = (res.data && res.data.conversations) || [];
-      var groups = list.filter(function (c) { return c.convSubType === 'group'; });
-      if (!groups.length) {
-        sel.innerHTML = '<option value="">— Không tìm thấy nhóm Zalo nào —</option>';
-        toast('⚠ Không tìm thấy nhóm Zalo nào trong OmiCall', 'err');
-        return;
-      }
-      sel.innerHTML = '<option value="">— Chọn nhóm Zalo —</option>' + groups.map(function (c) {
-        return '<option value="' + esc(c.convId) + '" data-name="' + esc(c.name || '') + '">' +
-          esc(c.name || '(không tên)') + '</option>';
-      }).join('');
-      toast('✅ Đã tải ' + groups.length + ' nhóm Zalo', 'ok');
-    }).catch(function (e) {
-      sel.innerHTML = '<option value="">— Lỗi tải danh sách —</option>';
-      toast('✗ ' + e.message, 'err');
-    });
-  }
-
-  function onPickBlockGroup() {
-    var sel = document.getElementById('bgOmiGroup');
-    if (!sel) return;
-    var opt = sel.options[sel.selectedIndex];
-    if (!opt || !opt.value) return;
-    document.getElementById('bgGroupId').value = opt.value;
-  }
-
-  function submitBlockGroup() {
-    var convId = (document.getElementById('bgGroupId').value || '').trim();
-    if (!convId) { toast('✗ Chưa chọn nhóm Zalo', 'err'); return; }
-    api(API + '/notify/blocked-groups', {
-      method: 'POST',
-      body: JSON.stringify({ convId: convId })
-    }).then(function () {
-      closeModal();
-      toast('✅ Đã chặn nhóm — hệ thống sẽ không gửi tin vào nhóm này', 'ok');
-      loadNotify();
-    }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
-  }
-
-  function unblockGroup(convId) {
-    api(API + '/notify/blocked-groups', {
-      method: 'POST',
-      body: JSON.stringify({ removeConvId: convId })
-    }).then(function () {
-      toast('✅ Đã bỏ chặn nhóm', 'ok');
-      loadNotify();
-    }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
   }
 
   // ── Render: Permissions ────────────────────────────────────────────────
@@ -2841,6 +2752,7 @@
   }
 
   function openNotifyTestSendModal() {
+    // CHỈ cho phép gửi thử vào nhóm đã liên kết trong tab "Nhóm Zalo" của Sổ công nợ.
     var groups = state.groups || [];
     var opts = groups.map(function (g) {
       return '<option value="' + esc(g.group_id) + '">' +
@@ -2853,11 +2765,7 @@
         '<select id="ntConvId" class="dbt-select">' +
           (opts ? opts : '<option value="">— Chưa có nhóm nào được liên kết —</option>') +
         '</select>' +
-        '<div class="dbt-hint">Danh sách lấy từ tab "Nhóm Zalo". Nếu chưa có, dán Conversation ID (conv_id) của nhóm lấy từ OmiCall.</div>' +
-      '</div>' +
-      '<div class="dbt-field">' +
-        '<label class="dbt-label">Conversation ID (conv_id)</label>' +
-        '<input id="ntConvManual" class="dbt-input" type="text" placeholder="VD: 6a1b2c3d4e5f...">' +
+        '<div class="dbt-hint">Chỉ gửi thử vào nhóm đã liên kết trong tab <b>💬 Nhóm Zalo</b> của Sổ công nợ.</div>' +
       '</div>' +
       '<div class="dbt-field">' +
         '<label class="dbt-label">Nội dung tin nhắn</label>' +
@@ -2872,9 +2780,9 @@
 
   function sendNotifyTest() {
     var selEl = document.getElementById('ntConvId');
-    var manEl = document.getElementById('ntConvManual');
     var txtEl = document.getElementById('ntText');
-    var convId = (manEl && manEl.value.trim()) || (selEl && selEl.value) || '';
+    // CHỈ gửi vào nhóm đã liên kết trong Sổ công nợ — không nhận conv_id tự do.
+    var convId = (selEl && selEl.value) || '';
     if (!convId) { toast('✗ Chưa chọn nhóm Zalo', 'err'); return; }
 
     api(API + '/notify/test-send', {
@@ -3015,13 +2923,6 @@
     window.submitPayment = submitPayment;
     window.submitGroup = submitGroup;
   window.unlinkGroup = unlinkGroup;
-  window.openBlockGroupModal = openBlockGroupModal;
-  window.loadOmiGroupsForBlock = loadOmiGroupsForBlock;
-  window.onPickBlockGroup = onPickBlockGroup;
-  window.submitBlockGroup = submitBlockGroup;
-  window.unblockGroup = unblockGroup;
-  window.loadOmiGroups = loadOmiGroups;
-  window.onPickOmiGroup = onPickOmiGroup;
   window.submitPerm = submitPerm;
   window.revokePerm = revokePerm;
   window.applyReconciliation = applyReconciliation;

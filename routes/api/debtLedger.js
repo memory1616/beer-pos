@@ -833,7 +833,6 @@ router.post('/notify/settings', requireAuth, requireAdmin, (req, res) => {
       channel: body.channel,
       notifyManualDebt: body.notifyManualDebt,
       title: body.title,
-      blockedGroups: body.blockedGroups,
     });
     if (!result.success) {
       return res.status(400).json({ success: false, error: result.error });
@@ -845,48 +844,8 @@ router.post('/notify/settings', requireAuth, requireAdmin, (req, res) => {
   }
 });
 
-// ── Danh sách nhóm Zalo KHÔNG được gửi tin (chống gửi nhầm cho khách) ────────
-router.get('/notify/blocked-groups', requireAuth, requireAdmin, (req, res) => {
+router.post('/notify/test', requireAuth, requireAdmin, async (req, res) => {
   try {
-    res.json({ success: true, data: { blockedGroups: OmiCallService.getPublicConfig().blockedGroups || [] } });
-  } catch (e) {
-    logger.error('[DEBT_NOTIFY_API] blocked-groups error', { error: e.message });
-    res.status(500).json({ success: false, error: e.message });
-  }
-});
-
-router.post('/notify/blocked-groups', requireAuth, requireAdmin, (req, res) => {
-  try {
-    const body = req.body || {};
-    let list = [];
-    if (Array.isArray(body.blockedGroups)) list = body.blockedGroups;
-    else if (typeof body.blockedGroups === 'string') {
-      list = OmiCallService.parseBlockedGroups(body.blockedGroups);
-    }
-
-    // Thêm 1 nhóm vào danh sách cấm
-    if (body.convId) {
-      const id = String(body.convId).trim();
-      if (id && !list.includes(id)) list.push(id);
-    }
-    // Xoá 1 nhóm khỏi danh sách cấm
-    if (body.removeConvId) {
-      const id = String(body.removeConvId).trim();
-      list = list.filter((x) => x !== id);
-    }
-
-    const result = OmiCallService.saveConfig({ blockedGroups: list });
-    if (!result.success) {
-      return res.status(400).json({ success: false, error: result.error });
-    }
-    res.json({ success: true, data: { blockedGroups: OmiCallService.getPublicConfig().blockedGroups || [] } });
-  } catch (e) {
-    logger.error('[DEBT_NOTIFY_API] save blocked-groups error', { error: e.message });
-    res.status(500).json({ success: false, error: e.message });
-  }
-});
-
-router.post('/notify/test', requireAuth, requireAdmin, async (req, res) => {  try {
     const body = req.body || {};
     const config = {
       apiKey: body.apiKey !== undefined ? body.apiKey : undefined,
@@ -909,12 +868,30 @@ router.post('/notify/test-send', requireAuth, requireAdmin, async (req, res) => 
     if (!convId) {
       return res.status(400).json({ success: false, error: 'Thiếu convId (Conversation ID của nhóm Zalo)' });
     }
+    const targetConvId = String(convId).trim();
+
+    // Chỉ cho gửi thử vào nhóm ĐÃ liên kết trong tab "Nhóm Zalo" của Sổ công nợ
+    // → tránh gửi nhầm vào nhóm không liên quan / chat cá nhân.
+    const linked = db
+      .prepare(
+        `SELECT id FROM debt_customer_groups
+          WHERE group_id = ? AND status = 'active'
+          LIMIT 1`
+      )
+      .get(targetConvId);
+    if (!linked) {
+      return res.status(400).json({
+        success: false,
+        error: 'Nhóm Zalo này chưa được liên kết trong Sổ công nợ (tab 💬 Nhóm Zalo) — không gửi.',
+      });
+    }
+
     const content =
       String(text || '').trim() ||
       '🔔 BIA TƯƠI — Tin nhắn thử nghiệm từ Sổ công nợ. Hệ thống thông báo tự động khi ghi nhận thanh toán.';
 
     const result = await OmiCallService.sendZaloPersonalMessage({
-      convId: String(convId).trim(),
+      convId: targetConvId,
       channelId: channelId ? String(channelId).trim() : '',
       text: content,
     });

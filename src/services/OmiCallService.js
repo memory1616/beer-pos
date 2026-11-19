@@ -99,33 +99,7 @@ function getConfig() {
     channel: getSetting('debt_notify_channel', 'omicall_zalo_personal'),
     notifyManualDebt: getSetting('debt_notify_manual_debt', '0') === '1',
     title: getSetting('debt_notify_title', 'BIA TƯƠI — Cập nhật công nợ'),
-    // Danh sách conv_id (Mongo _id) KHÔNG được gửi tin — chống gửi nhầm.
-    blockedGroups: parseBlockedGroups(getSetting('debt_notify_blocked_groups', '')),
   };
-}
-
-/**
- * Parse danh sách nhóm bị chặn (phân tách bằng dấu phẩy).
- * @param {string} raw
- * @returns {string[]}
- */
-function parseBlockedGroups(raw) {
-  return String(raw || '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
-
-/**
- * Kiểm tra 1 conv_id có nằm trong danh sách cấm hay không.
- * @param {string} convId
- * @returns {boolean}
- */
-function isGroupBlocked(convId, config) {
-  const id = String(convId || '').trim();
-  if (!id) return false;
-  const blocked = (config && config.blockedGroups) || getConfig().blockedGroups || [];
-  return blocked.includes(id);
 }
 
 /** Cấu hình cho UI (KHÔNG trả api key dạng rõ). */
@@ -138,7 +112,6 @@ function getPublicConfig() {
     channel: cfg.channel,
     notifyManualDebt: cfg.notifyManualDebt,
     title: cfg.title,
-    blockedGroups: cfg.blockedGroups,
     apiKeyMasked: cfg.apiKey
       ? cfg.apiKey.slice(0, 4) + '••••••' + cfg.apiKey.slice(-4)
       : '',
@@ -170,12 +143,6 @@ function saveConfig(patch = {}) {
     }
     if (patch.title !== undefined && patch.title !== null) {
       setSetting('debt_notify_title', String(patch.title));
-    }
-    if (patch.blockedGroups !== undefined && patch.blockedGroups !== null) {
-      const list = Array.isArray(patch.blockedGroups)
-        ? patch.blockedGroups
-        : parseBlockedGroups(patch.blockedGroups);
-      setSetting('debt_notify_blocked_groups', list.join(','));
     }
     // Đổi API key/base URL → xoá cache token (token cũ không dùng được)
     if (patch.apiKey !== undefined || patch.baseUrl !== undefined) {
@@ -599,15 +566,6 @@ async function sendZaloPersonalMessage(opts = {}) {
     return { success: false, error: 'Chưa cấu hình OmiCall API key' };
   }
 
-  // Nhóm nằm trong danh sách cấm → KHÔNG gửi (chống gửi nhầm cho khách).
-  if (isGroupBlocked(convId, cfg)) {
-    return {
-      success: false,
-      error: `Nhóm Zalo ${convId} nằm trong danh sách cấm gửi tin — đã bỏ qua.`,
-      blocked: true,
-    };
-  }
-
   let token = null;
   try {
     token = await getAccessToken({ apiKey, baseUrl });
@@ -641,15 +599,6 @@ async function sendZaloPersonalMessage(opts = {}) {
   if (!/^[a-f0-9]{24}$/i.test(convMongoId)) {
     const resolved = await resolveMongoConvId(ctx, convMongoId);
     if (resolved) convMongoId = resolved;
-  }
-
-  // Check lại sau khi resolve: Mongo _id cũng có thể nằm trong danh sách cấm.
-  if (convMongoId !== convId && isGroupBlocked(convMongoId, cfg)) {
-    return {
-      success: false,
-      error: `Nhóm Zalo ${convMongoId} nằm trong danh sách cấm gửi tin — đã bỏ qua.`,
-      blocked: true,
-    };
   }
 
   const bodies = buildMessageBodies(convMongoId, channelId, text);
@@ -1176,6 +1125,4 @@ module.exports = {
   probeSendEndpoints,
   listConversations,
   diagnoseAccount,
-  isGroupBlocked,
-  parseBlockedGroups,
 };
