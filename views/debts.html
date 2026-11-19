@@ -1263,6 +1263,25 @@
         '</div>' +
       '</div>';
 
+    // Hướng dẫn 3 bước khi chưa cấu hình — giúp người dùng không bị "mất".
+    var guideHtml = '';
+    if (!configured) {
+      guideHtml = '<div class="dbt-section" style="margin-bottom:12px;border-left:3px solid var(--primary)">' +
+        '<div class="dbt-section-title">📋 Làm 3 bước để bật tự động gạch nợ</div>' +
+        '<div style="font-size:13px;line-height:1.9;color:var(--text-secondary)">' +
+          '<div><b>1.</b> Vào <span class="dbt-sepay-code">my.sepay.vn</span> → menu <b>Tích hợp → Webhooks</b> → bấm <b>+ Thêm webhook</b>.</div>' +
+          '<div>&nbsp;&nbsp;&nbsp;&nbsp;<b>Bước 1 – Cơ bản:</b> Tên "Gạch nợ Bia Tươi" · URL = <span class="dbt-sepay-code">' +
+            esc(location.origin + (s.webhookUrl || '/webhook/sepay')) +
+          '</span> · Loại sự kiện = <b>Tiền vào</b> · Content-Type = <b>application/json</b> · Bật "Tự động gửi lại".</div>' +
+          '<div>&nbsp;&nbsp;&nbsp;&nbsp;<b>Bước 2 – Tài khoản:</b> Chọn <b>Tất cả tài khoản</b> (để mọi TK ngân hàng đều bắn webhook).</div>' +
+          '<div>&nbsp;&nbsp;&nbsp;&nbsp;<b>Bước 3 – Bảo mật:</b> Chọn <b>HMAC-SHA256</b> → bấm nút tạo <b>Secret Key</b> → <b>copy ngay</b> (SePay chỉ hiện 1 lần).</div>' +
+          '<div><b>2.</b> Quay lại tab này → dán Secret Key vào ô <b>Webhook secret</b> → bấm <b>💾 Lưu cấu hình</b>.</div>' +
+          '<div><b>3.</b> (Tuỳ chọn) Lấy API token: <b>Cấu hình Công ty → API Access → + Thêm API</b> → dán vào ô <b>API token</b> → Lưu. Dùng để bấm nút "Đối soát tay" khi webhook lỗi.</div>' +
+          '<div style="margin-top:8px">💡 Kiểm tra ngay: trong SePay bấm <b>⋮ → Gửi thử</b> trên webhook vừa tạo. Giao dịch thử sẽ hiện ở bảng bên dưới (trạng thái "Chờ xử lý" nếu nội dung chưa có mã khách).</div>' +
+        '</div>' +
+      '</div>';
+    }
+
     var kpiHtml = '<div class="dbt-kpi-grid">' +
       '<div class="dbt-kpi"><div class="dbt-kpi-label">Tổng giao dịch</div><div class="dbt-kpi-value">' + (sum.total || 0) + '</div></div>' +
       '<div class="dbt-kpi"><div class="dbt-kpi-label">Đã gạch nợ</div><div class="dbt-kpi-value" style="color:#22c55e">' + (sum.matched || 0) + '</div></div>' +
@@ -1322,18 +1341,21 @@
     if (state.isAdmin) {
       settingsHtml = '<div class="dbt-section" style="margin-top:12px">' +
         '<div class="dbt-section-title">⚙️ Cấu hình Sepay</div>' +
-        '<div class="dbt-section-desc">Dán API token & webhook secret lấy trong Sepay Dashboard. Sau khi lưu, dán URL webhook ở trên vào Sepay.</div>' +
+        '<div class="dbt-section-desc">Lấy 2 khóa bên dưới từ tài khoản SePay của bạn, dán vào đây rồi bấm Lưu.</div>' +
         '<div class="dbt-field">' +
-          '<label class="dbt-label">API token</label>' +
-          '<input id="sepApiToken" class="dbt-input" type="password" placeholder="' + (s.hasApiToken ? '•••••••• (đã lưu)' : 'Dán API token') + '">' +
+          '<label class="dbt-label">API token (để đối soát tay)</label>' +
+          '<input id="sepApiToken" class="dbt-input" type="password" placeholder="' + (s.hasApiToken ? '•••••••• (đã lưu)' : 'VD: 64 ký tự alphanumeric') + '">' +
+          '<div class="dbt-hint">📍 my.sepay.vn → Cấu hình Công ty → API Access → + Thêm API → Trạng thái: Hoạt động → copy API Token.</div>' +
         '</div>' +
         '<div class="dbt-field">' +
-          '<label class="dbt-label">Webhook secret</label>' +
-          '<input id="sepWebhookSecret" class="dbt-input" type="password" placeholder="' + (s.hasWebhookSecret ? '•••••••• (đã lưu)' : 'Dán webhook secret') + '">' +
+          '<label class="dbt-label">Webhook secret (để nhận giao dịch tự động)</label>' +
+          '<input id="sepWebhookSecret" class="dbt-input" type="password" placeholder="' + (s.hasWebhookSecret ? '•••••••• (đã lưu)' : 'Dán Secret Key') + '">' +
+          '<div class="dbt-hint">📍 my.sepay.vn → Tích hợp → Webhooks → + Thêm webhook → Bước 3 "Bảo mật" → chọn HMAC-SHA256 → bấm nút tạo Secret Key → copy ngay (chỉ hiện 1 lần).</div>' +
         '</div>' +
         '<div class="dbt-field">' +
           '<label class="dbt-label">Tiền tố mã thanh toán</label>' +
           '<input id="sepPrefix" class="dbt-input" type="text" value="' + esc(s.paymentCodePrefix || 'DH') + '" placeholder="DH">' +
+          '<div class="dbt-hint">Khớp với "tiền tố mã thanh toán" bạn cấu hình trong SePay (Công ty → Cấu hình chung → Cấu trúc mã thanh toán). Mặc định "DH".</div>' +
         '</div>' +
         '<div class="dbt-sepay-row">' +
           '<span class="dbt-sepay-row-label">Tự động gạch nợ khi nhận tiền</span>' +
@@ -1343,7 +1365,7 @@
           '<button class="dbt-btn" onclick="saveSepaySettings()">💾 Lưu cấu hình</button>' +
           '<button class="dbt-btn" onclick="reconcileSepay()">🔄 Đối soát tay (API)</button>' +
         '</div>' +
-        '<div class="dbt-hint" style="margin-top:10px">Đối soát tay dùng API Sepay để lấy giao dịch bị lỗi webhook (server restart, mạng lỗi). Tối đa 3 request/giây.</div>' +
+        '<div class="dbt-hint" style="margin-top:10px">Sau khi lưu, copy URL webhook ở trên và dán vào ô "URL" khi tạo webhook trong SePay. Dùng nút <b>⋮ → Gửi thử</b> để kiểm tra ngay.</div>' +
       '</div>';
     }
 
@@ -1351,6 +1373,7 @@
       '<div class="dbt-section-title">🏦 Sepay — Gạch nợ tự động</div>' +
       '<div class="dbt-section-desc">Khách quét QR → chuyển tiền → hệ thống tự gạch nợ nhờ mã khách nhúng trong nội dung chuyển khoản.</div>' +
       statusHtml +
+      guideHtml +
       kpiHtml +
       filterHtml +
       rows +

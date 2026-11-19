@@ -39,8 +39,9 @@ function parseBody(raw) {
 
 /**
  * Xác thực request:
- *  1. HMAC-SHA256 (header `X-Sepay-Signature`) với `webhook_secret`
- *  2. API key (header `Authorization: Bearer <api_token>` hoặc `X-Api-Key`)
+ *  1. HMAC-SHA256 (header `X-SePay-Signature` + `X-SePay-Timestamp`)
+ *  2. API key — SePay gửi `Authorization: Apikey <key>` (webhook)
+ *     hoặc `Authorization: Bearer <api_token>` (OAuth / API key)
  *  3. Nếu chưa cấu hình gì → TỪ CHỐI (tránh ghi bút toán từ request giả mạo)
  */
 function authenticate(req, rawBody) {
@@ -50,37 +51,51 @@ function authenticate(req, rawBody) {
     return {
       valid: false,
       status: 503,
-      error: 'Chưa cấu hình Sepay (webhook secret / API token) — không nhận giao dịch',
+      error:
+        'Chưa cấu hình Sepay (webhook secret / API token) — không nhận giao dịch',
     };
   }
 
-  // 1) HMAC
+  // 1) HMAC-SHA256
   if (settings.webhookSecret) {
     const signature =
-      req.get('X-Sepay-Signature') ||
+      req.get('X-SePay-Signature') ||
       req.get('x-sepay-signature') ||
+      req.get('X-Sepay-Signature') ||
       req.get('X-Signature') ||
       null;
     if (signature) {
+      const timestamp =
+        req.get('X-SePay-Timestamp') ||
+        req.get('x-sepay-timestamp') ||
+        req.get('X-Sepay-Timestamp') ||
+        null;
       const check = DebtSepayService.verifyWebhookSignature(
         rawBody,
         signature,
-        settings.webhookSecret
+        settings.webhookSecret,
+        timestamp
       );
-      if (check.valid) return { valid: true, method: 'hmac' };
-      return { valid: false, status: 401, error: 'Chữ ký webhook không hợp lệ' };
+      if (check.valid) return { valid: true, method: check.method };
+      const msg =
+        check.reason === 'TIMESTAMP_EXPIRED'
+          ? 'Chữ ký webhook quá hạn (lệch đồng hồ server)'
+          : 'Chữ ký webhook không hợp lệ';
+      return { valid: false, status: 401, error: msg };
     }
   }
 
   // 2) API key
   if (settings.apiToken) {
     const auth = req.get('Authorization') || '';
+    // SePay dùng `Apikey <key>` cho webhook API Key; `Bearer <key>` cho OAuth.
+    const apikey = auth.replace(/^Apikey\s+/i, '').trim();
     const bearer = auth.replace(/^Bearer\s+/i, '').trim();
-    if (bearer && bearer === settings.apiToken) {
+    if ((apikey && apikey === settings.apiToken) || (bearer && bearer === settings.apiToken)) {
       return { valid: true, method: 'api_key' };
     }
     const apiKeyHeader =
-      req.get('X-Api-Key') || req.get('X-Sepay-Api-Key') || req.get('Apikey');
+      req.get('X-Api-Key') || req.get('X-SePay-Api-Key') || req.get('Apikey');
     if (apiKeyHeader && apiKeyHeader === settings.apiToken) {
       return { valid: true, method: 'api_key' };
     }

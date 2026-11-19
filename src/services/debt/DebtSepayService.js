@@ -294,21 +294,63 @@ function setCustomerDebtCode(customerId, code) {
 // ── Xác thực webhook ─────────────────────────────────────────────────────────
 
 /**
- * Xác thực chữ ký HMAC-SHA256 của Sepay.
- * Header: `X-Sepay-Signature` (hex hoặc base64).
+ * Xác thực chữ ký HMAC-SHA256 của SePay.
+ *
+ * Theo tài liệu SePay (https://developer.sepay.vn/vi/sepay-webhooks/xac-thuc):
+ *   - Header `X-SePay-Signature` có dạng `sha256={hex_hash}`
+ *   - Header `X-SePay-Timestamp` = Unix timestamp (giây) lúc ký
+ *   - Chuỗi được ký: `{timestamp}.{raw_body}`  (DẤU CHẤM nối, KHÔNG phải body)
+ *   - Hash: HMAC-SHA256 với Secret Key → hex
+ *
+ * ⚠️ Phải dùng RAW BODY (bytes gốc). Nếu middleware đã parse JSON rồi
+ *    stringify lại thì chữ ký lệch (thứ tự khóa, escape Unicode, whitespace).
+ *
+ * @param {Buffer|string} rawBody - raw body
+ * @param {string} signature - giá trị header `X-SePay-Signature`
+ * @param {string} secret - Secret Key
+ * @param {number} [timestamp] - giá trị header `X-SePay-Timestamp` (Unix giây)
+ * @param {object} [opts] { maxAgeSec } - cửa sổ chống replay (mặc định 300s)
  */
-function verifyWebhookSignature(rawBody, signature, secret) {
+function verifyWebhookSignature(rawBody, signature, secret, timestamp, opts = {}) {
   if (!secret) return { valid: false, reason: 'NO_SECRET' };
   if (!signature) return { valid: false, reason: 'NO_SIGNATURE' };
-  const expectedHex = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
-  const expectedB64 = crypto.createHmac('sha256', secret).update(rawBody).digest('base64');
 
-  const sig = String(signature).trim();
-  const a = Buffer.from(sig);
-  const b = Buffer.from(expectedHex);
-  const c = Buffer.from(expectedB64);
-  if (a.length === b.length && crypto.timingSafeEqual(a, b)) return { valid: true };
-  if (a.length === c.length && crypto.timingSafeEqual(a, c)) return { valid: true };
+  const maxAgeSec = opts.maxAgeSec === undefined ? 300 : opts.maxAgeSec;
+
+  // ── Chống replay: timestamp lệch quá cửa sổ cho phép → từ chối ──────────
+  // Bỏ qua nếu SePay không gửi timestamp (mode tương thích cũ).
+  const ts = Number(timestamp);
+  if (Number.isFinite(ts) && ts > 0 && maxAgeSec > 0) {
+    const skew = Math.abs(Math.floor(Date.now() / 1000) - ts);
+    if (skew > maxAgeSec) {
+      return { valid: false, reason: 'TIMESTAMP_EXPIRED', skew };
+    }
+  }
+
+  const body = Buffer.isBuffer(rawBody) ? rawBody : Buffer.from(String(rawBody || ''), 'utf8');
+
+  // SePay gửi `sha256={hex}` — hỗ trợ thêm bản hex trần để tương thích.
+  const raw = String(signature).trim();
+  const hex = raw.startsWith('sha256=') ? raw.slice('sha256='.length) : raw;
+
+  // ── Chuỗi ký ───────────────────────────────────────────────────────────
+  //  • Có timestamp (cách chuẩn của SePay): `{timestamp}.{raw_body}`
+  //  • Không có timestamp (tương thích): chỉ `{raw_body}`
+  const hasTimestamp = Number.isFinite(ts) && ts > 0;
+  const expected = hasTimestamp
+    ? crypto
+        .createHmac('sha256', secret)
+        .update(`${ts}.`)
+        .update(body)
+        .digest('hex')
+    : crypto.createHmac('sha256', secret).update(body).digest('hex');
+
+  const a = Buffer.from(hex);
+  const b = Buffer.from(expected);
+  if (a.length === b.length && crypto.timingSafeEqual(a, b)) {
+    return { valid: true, method: hasTimestamp ? 'hmac-sha256' : 'hmac-legacy' };
+  }
+
   return { valid: false, reason: 'INVALID_SIGNATURE' };
 }
 
@@ -681,9 +723,16 @@ function handleWebhook(payload, opts = {}) {
 // ── Đối soát qua API ─────────────────────────────────────────────────────────
 
 /**
- * Gọi API Sepay lấy danh sách giao dịch (dùng cho đối soát bù webhook).
+ * Gọi API SePay v2 lấy danh sách giao dịch (dùng cho đối soát bù webhook).
  *
- * @param {object} [opts] { from, to, page, perPage }
+ * API v2: GET https://userapi.sepay.vn/v2/transactions
+ *   - Auth: `Authorization: Bearer <API_TOKEN>`
+ *   - Response: `{ status, data: [...], meta: { pagination: {...} } }`
+ *   - Field trong `data` dùng SNAKE_CASE (`transaction_content`, `amount_in`, ...),
+ *     khác với payload webhook (camelCase) → cần chuẩn hoá.
+ *   - Rate limit: 3 request/giây → trả 429 nếu vượt.
+ *
+ * @param {object} [opts] { from, to, page, perPage, sinceId }
  * @returns {Promise<{success:boolean, transactions?:Array, error?:string}>}
  */
 async function fetchTransactions(opts = {}) {
@@ -695,6 +744,7 @@ async function fetchTransactions(opts = {}) {
   const url = new URL(`${SEPAY_API_BASE}/transactions`);
   if (opts.from) url.searchParams.set('transaction_date_from', opts.from);
   if (opts.to) url.searchParams.set('transaction_date_to', opts.to);
+  if (opts.sinceId) url.searchParams.set('since_id', opts.sinceId);
   url.searchParams.set('per_page', String(Math.min(100, opts.perPage || 100)));
   url.searchParams.set('page', String(opts.page || 1));
   // Sắp xếp tăng dần để `since_id` bắt đúng những giao dịch mới
@@ -715,27 +765,76 @@ async function fetchTransactions(opts = {}) {
         status: res.status,
         body: text.slice(0, 300),
       });
-      return {
-        success: false,
-        error:
-          res.status === 429
-            ? 'Sepay giới hạn tốc độ (tối đa 3 request/giây) — thử lại sau'
-            : `Lỗi API Sepay (HTTP ${res.status})`,
-      };
+      if (res.status === 401) {
+        return { success: false, error: 'API token không hợp lệ hoặc đã bị vô hiệu' };
+      }
+      if (res.status === 429) {
+        return {
+          success: false,
+          error: 'Sepay giới hạn tốc độ (tối đa 3 request/giây) — thử lại sau',
+        };
+      }
+      return { success: false, error: `Lỗi API Sepay (HTTP ${res.status})` };
     }
 
     const json = await res.json();
-    const list = Array.isArray(json.transactions)
-      ? json.transactions
-      : Array.isArray(json.data)
-        ? json.data
+
+    // API v2 luôn dùng key `data`; key `transactions` là của v1 (giữ để tương thích).
+    const list = Array.isArray(json.data)
+      ? json.data
+      : Array.isArray(json.transactions)
+        ? json.transactions
         : [];
 
-    return { success: true, transactions: list, raw: json };
+    const normalized = list.map(normalizeApiTransaction);
+    const pagination = (json.meta && json.meta.pagination) || {};
+
+    return {
+      success: true,
+      transactions: normalized,
+      pagination: {
+        total: pagination.total || 0,
+        currentPage: pagination.current_page || 1,
+        lastPage: pagination.last_page || 1,
+        hasMore: !!pagination.has_more,
+      },
+      raw: json,
+    };
   } catch (e) {
     logger.error('[SEPAY] fetchTransactions error', { error: e.message });
     return { success: false, error: e.message };
   }
+}
+
+/**
+ * Chuẩn hoá giao dịch từ API v2 (snake_case) về format nội bộ (camelCase),
+ * để `storeTransaction` xử lý giống hệt payload webhook.
+ */
+function normalizeApiTransaction(t = {}) {
+  const transferType = String(t.transfer_type || 'in').toLowerCase();
+  // API v2 tách amount_in / amount_out; webhook dùng transferAmount + transferType.
+  const amount = t.transfer_amount !== undefined && t.transfer_amount !== null
+    ? t.transfer_amount
+    : transferType === 'out'
+      ? (t.amount_out || 0)
+      : (t.amount_in || 0);
+
+  return {
+    id: t.id,
+    gateway: t.bank_brand_name || t.gateway || null,
+    accountNumber: t.account_number || null,
+    subAccount: t.va || t.sub_account || null,
+    code: t.code || null,
+    content: t.transaction_content || t.content || null,
+    description: t.description || null,
+    transferType,
+    transferAmount: amount,
+    accumulated: t.accumulated || 0,
+    referenceCode: t.reference_number || t.reference_code || null,
+    transactionDate: t.transaction_date || t.transactionDate || null,
+    // `webhook_success`: 1 = đã gửi webhook thành công, 0 = thất bại/chưa gửi.
+    webhookSuccess: t.webhook_success === undefined ? null : t.webhook_success,
+  };
 }
 
 /**
@@ -757,9 +856,30 @@ async function reconcile(opts = {}) {
   let duplicates = 0;
   let settled = 0;
   let failed = 0;
+  let total = 0;
   const results = [];
+  const all = [];
 
-  for (const t of fetched.transactions || []) {
+  // Đọc HẾT các trang (per_page tối đa 100). Rate limit SePay = 3 req/giây
+  // → nghỉ 350ms giữa các lần gọi để không bị 429.
+  let page = 1;
+  let hasMore = true;
+  const MAX_PAGES = 20; // chặn runaway
+  while (hasMore && page <= MAX_PAGES) {
+    const fetched = await fetchTransactions({ from, to, perPage: 100, page });
+    if (!fetched.success) {
+      if (all.length === 0) return fetched;
+      break; // đã lấy được phần nào → vẫn xử lý phần đó
+    }
+    const list = fetched.transactions || [];
+    total += list.length;
+    all.push(...list);
+    hasMore = !!(fetched.pagination && fetched.pagination.hasMore) && list.length > 0;
+    page += 1;
+    if (hasMore) await sleep(350);
+  }
+
+  for (const t of all) {
     const stored = storeTransaction(t);
     if (!stored.success) {
       failed += 1;
@@ -782,13 +902,18 @@ async function reconcile(opts = {}) {
     success: true,
     from,
     to,
-    total: (fetched.transactions || []).length,
+    total,
     added,
     duplicates,
     settled,
     failed,
     results,
   };
+}
+
+/** Chờ (ms) — dùng để giữ nhịp rate limit của SePay (3 req/giây). */
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function formatSepayDate(d) {
@@ -982,6 +1107,7 @@ module.exports = {
   processTransaction,
   handleWebhook,
   fetchTransactions,
+  normalizeApiTransaction,
   reconcile,
   listTransactions,
   getSummary,

@@ -71,8 +71,30 @@ afterAll(() => {
   DebtSepayService.saveSettings({ webhookSecret: null, apiToken: null });
 });
 
+/**
+ * Cách SePay ký (https://developer.sepay.vn/vi/sepay-webhooks/xac-thuc):
+ *   HMAC-SHA256 secret trên chuỗi `{timestamp}.{raw_body}` → hex
+ *   header: `X-SePay-Signature: sha256={hex}` + `X-SePay-Timestamp: {ts}`
+ */
 function sign(body) {
-  return crypto.createHmac('sha256', SECRET).update(body).digest('hex');
+  const ts = Math.floor(Date.now() / 1000);
+  const hex = crypto
+    .createHmac('sha256', SECRET)
+    .update(`${ts}.`)
+    .update(body)
+    .digest('hex');
+  return { signature: `sha256=${hex}`, timestamp: String(ts) };
+}
+
+function postSigned(body) {
+  const raw = JSON.stringify(body);
+  const { signature, timestamp } = sign(raw);
+  return request(app)
+    .post('/webhook/sepay')
+    .set('X-SePay-Signature', signature)
+    .set('X-SePay-Timestamp', timestamp)
+    .set('Content-Type', 'application/json')
+    .send(raw);
 }
 
 describe('POST /webhook/sepay — xác thực', () => {
@@ -94,15 +116,30 @@ describe('POST /webhook/sepay — xác thực', () => {
 
   test('không có mã khách → vẫn 200 (giao dịch được lưu chờ xử lý)', async () => {
     const body = { id: 'ROUTE_NOMATCH', transferAmount: 100000, content: 'CK KHONG MA' };
-    const raw = JSON.stringify(body);
-    const res = await request(app)
-      .post('/webhook/sepay')
-      .set('X-Sepay-Signature', sign(Buffer.from(raw)))
-      .set('Content-Type', 'application/json')
-      .send(raw);
+    const res = await postSigned(body);
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ success: true });
+  });
+
+  test('timestamp quá cũ → 401 (chống replay)', async () => {
+    const body = { id: 'ROUTE_REPLAY', transferAmount: 100000 };
+    const raw = JSON.stringify(body);
+    const oldTs = Math.floor(Date.now() / 1000) - 7200;
+    const hex = crypto
+      .createHmac('sha256', SECRET)
+      .update(`${oldTs}.`)
+      .update(raw)
+      .digest('hex');
+
+    const res = await request(app)
+      .post('/webhook/sepay')
+      .set('X-SePay-Signature', `sha256=${hex}`)
+      .set('X-SePay-Timestamp', String(oldTs))
+      .set('Content-Type', 'application/json')
+      .send(raw);
+
+    expect(res.status).toBe(401);
   });
 });
 
@@ -115,13 +152,8 @@ describe('POST /webhook/sepay — gạch nợ', () => {
       transactionDate: '2026-11-18 10:00:00',
       transferType: 'in',
     };
-    const raw = JSON.stringify(body);
 
-    const res = await request(app)
-      .post('/webhook/sepay')
-      .set('X-Sepay-Signature', sign(Buffer.from(raw)))
-      .set('Content-Type', 'application/json')
-      .send(raw);
+    const res = await postSigned(body);
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ success: true });
@@ -135,21 +167,11 @@ describe('POST /webhook/sepay — gạch nợ', () => {
       content: `THANH TOAN CONG NO ${debtCode}`,
       transferType: 'in',
     };
-    const raw = JSON.stringify(body);
-    const sig = sign(Buffer.from(raw));
 
-    const r1 = await request(app)
-      .post('/webhook/sepay')
-      .set('X-Sepay-Signature', sig)
-      .set('Content-Type', 'application/json')
-      .send(raw);
+    const r1 = await postSigned(body);
     expect(r1.status).toBe(200);
 
-    const r2 = await request(app)
-      .post('/webhook/sepay')
-      .set('X-Sepay-Signature', sig)
-      .set('Content-Type', 'application/json')
-      .send(raw);
+    const r2 = await postSigned(body);
     expect(r2.status).toBe(200);
 
     // Chỉ 1 bút toán PAYMENT
@@ -187,13 +209,8 @@ describe('POST /webhook/sepay — gạch nợ', () => {
       content: `CONG NO ${code}`,
       transferType: 'in',
     };
-    const raw = JSON.stringify(body);
 
-    const res = await request(app)
-      .post('/webhook/sepay')
-      .set('X-Sepay-Signature', sign(Buffer.from(raw)))
-      .set('Content-Type', 'application/json')
-      .send(raw);
+    const res = await postSigned(body);
 
     expect(res.status).toBe(200);
     expect(DebtLedgerService.computeBalance(cid)).toBe(-150000);

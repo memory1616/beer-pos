@@ -417,22 +417,54 @@ describe('Xử lý thủ công giao dịch chờ', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Xác thực webhook
+// Xác thực webhook HMAC-SHA256
 // ═══════════════════════════════════════════════════════════════════════════
 describe('Xác thực webhook HMAC-SHA256', () => {
   const crypto = require('crypto');
   const secret = 'test-secret-123';
 
-  test('chữ ký đúng → hợp lệ', () => {
+  /**
+   * Cách SePay ký (https://developer.sepay.vn/vi/sepay-webhooks/xac-thuc):
+   *   chuỗi ký = `{timestamp}.{raw_body}` → HMAC-SHA256 → hex
+   *   header: `X-SePay-Signature: sha256={hex}`
+   */
+  function signSePay(rawBody, timestamp) {
+    const hex = crypto
+      .createHmac('sha256', secret)
+      .update(`${timestamp}.`)
+      .update(rawBody)
+      .digest('hex');
+    return `sha256=${hex}`;
+  }
+
+  test('chữ ký đúng (format SePay) → hợp lệ', () => {
     const body = Buffer.from(JSON.stringify({ id: 1 }));
-    const sig = crypto.createHmac('sha256', secret).update(body).digest('hex');
-    const res = DebtSepayService.verifyWebhookSignature(body, sig, secret);
+    const ts = Math.floor(Date.now() / 1000);
+    const res = DebtSepayService.verifyWebhookSignature(
+      body,
+      signSePay(body, ts),
+      secret,
+      ts
+    );
+    expect(res.valid).toBe(true);
+    expect(res.method).toBe('hmac-sha256');
+  });
+
+  test('chữ ký đúng nhưng thiếu prefix sha256= → vẫn hợp lệ', () => {
+    const body = Buffer.from(JSON.stringify({ id: 1 }));
+    const ts = Math.floor(Date.now() / 1000);
+    const hex = crypto
+      .createHmac('sha256', secret)
+      .update(`${ts}.`)
+      .update(body)
+      .digest('hex');
+    const res = DebtSepayService.verifyWebhookSignature(body, hex, secret, ts);
     expect(res.valid).toBe(true);
   });
 
   test('chữ ký sai → không hợp lệ', () => {
     const body = Buffer.from(JSON.stringify({ id: 1 }));
-    const res = DebtSepayService.verifyWebhookSignature(body, 'deadbeef', secret);
+    const res = DebtSepayService.verifyWebhookSignature(body, 'sha256=deadbeef', secret);
     expect(res.valid).toBe(false);
   });
 
@@ -440,12 +472,76 @@ describe('Xác thực webhook HMAC-SHA256', () => {
     const body = Buffer.from('{}');
     const res = DebtSepayService.verifyWebhookSignature(body, null, secret);
     expect(res.valid).toBe(false);
+    expect(res.reason).toBe('NO_SIGNATURE');
   });
 
   test('thiếu secret → không hợp lệ', () => {
     const body = Buffer.from('{}');
     const res = DebtSepayService.verifyWebhookSignature(body, 'abc', null);
     expect(res.valid).toBe(false);
+    expect(res.reason).toBe('NO_SECRET');
+  });
+
+  test('timestamp quá cũ (>5 phút) → từ chối chống replay', () => {
+    const body = Buffer.from(JSON.stringify({ id: 1 }));
+    const oldTs = Math.floor(Date.now() / 1000) - 3600;
+    const res = DebtSepayService.verifyWebhookSignature(
+      body,
+      signSePay(body, oldTs),
+      secret,
+      oldTs
+    );
+    expect(res.valid).toBe(false);
+    expect(res.reason).toBe('TIMESTAMP_EXPIRED');
+  });
+
+  test('thiếu timestamp → vẫn verify được (chữ ký trên body thuần)', () => {
+    const body = Buffer.from(JSON.stringify({ id: 1 }));
+    const hex = crypto.createHmac('sha256', secret).update(body).digest('hex');
+    const res = DebtSepayService.verifyWebhookSignature(body, hex, secret, null);
+    expect(res.valid).toBe(true);
+    expect(res.method).toBe('hmac-legacy');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Chuẩn hoá giao dịch từ API v2 (snake_case → camelCase)
+// ═══════════════════════════════════════════════════════════════════════════
+describe('Chuẩn hoá giao dịch API SePay v2', () => {
+  test('map field snake_case của API v2', () => {
+    const t = DebtSepayService.normalizeApiTransaction({
+      id: 'uuid-1',
+      transaction_date: '2026-11-18 10:00:00',
+      account_number: '0933620773',
+      va: 'VA001',
+      code: 'KH0001',
+      transfer_type: 'in',
+      amount_in: 250000,
+      amount_out: 0,
+      accumulated: 500000,
+      transaction_content: 'CONG NO KH0001',
+      reference_number: 'FT123',
+      bank_brand_name: 'VPB',
+    });
+
+    expect(t.id).toBe('uuid-1');
+    expect(t.transactionDate).toBe('2026-11-18 10:00:00');
+    expect(t.content).toBe('CONG NO KH0001');
+    expect(t.transferAmount).toBe(250000);
+    expect(t.referenceCode).toBe('FT123');
+    expect(t.gateway).toBe('VPB');
+    expect(t.code).toBe('KH0001');
+  });
+
+  test('giao dịch tiền ra lấy amount_out', () => {
+    const t = DebtSepayService.normalizeApiTransaction({
+      id: 'uuid-2',
+      transfer_type: 'out',
+      amount_in: 0,
+      amount_out: 90000,
+    });
+    expect(t.transferAmount).toBe(90000);
+    expect(t.transferType).toBe('out');
   });
 });
 
