@@ -77,24 +77,28 @@
     .dbt-kpi-sub { font-size: 10.5px; color: var(--text-muted); margin-top: 2px; }
 
     /* ── Tabs ────────────────────────────────────────────────────────── */
+    /* Nhiều tab (8) → KHÔNG tràn ngang.
+       `overflow-x: auto` khiến các tab cuối nằm ngoài khung nhìn và bị "che"
+       (không có thanh cuộn nhìn thấy được trên desktop).
+       Lưới 4 cột → mọi tab luôn hiện đủ, không cần cuộn ngang. */
     .dbt-tabs {
-      display: flex;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 6px;
-      overflow-x: auto;
       padding: 4px 0 12px;
-      -webkit-overflow-scrolling: touch;
     }
     .dbt-tab {
-      flex: 0 0 auto;
-      padding: 8px 14px;
+      padding: 8px 6px;
       border-radius: 10px;
       border: 1px solid var(--border);
       background: var(--card);
       color: var(--text-secondary);
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 600;
       cursor: pointer;
-      white-space: nowrap;
+      text-align: center;
+      line-height: 1.25;
+      min-width: 0;
       transition: all 0.15s;
     }
     .dbt-tab.active {
@@ -103,6 +107,12 @@
       border-color: var(--primary);
     }
     .dbt-tab:hover:not(.active) { border-color: var(--primary); }
+
+    /* Màn hình hẹp (điện thoại): 4 cột → mỗi cột ~85px, chữ phải vừa 1 dòng. */
+    @media (max-width: 430px) {
+      .dbt-tabs { gap: 5px; }
+      .dbt-tab { font-size: 11px; padding: 8px 4px; }
+    }
 
     /* ── Panel / section ────────────────────────────────────────────── */
     .dbt-section {
@@ -1662,10 +1672,10 @@
     { id: 'customers', label: '👥 Khách hàng' },
     { id: 'sepay', label: '🏦 Sepay' },
     { id: 'groups', label: '💬 Nhóm Zalo' },
-    { id: 'notify', label: '🔔 Thông báo Zalo' },
+    { id: 'notify', label: '🔔 Thông báo' },
     { id: 'permissions', label: '🔐 Phân quyền' },
     { id: 'reconciliation', label: '🔍 Đối soát' },
-    { id: 'bridge', label: '🔌 Zalo Bridge' },
+    { id: 'bridge', label: '🔌 Bridge' },
   ];
 
   function render() {
