@@ -891,6 +891,62 @@ cron.schedule('* * * * *', async () => {
   timezone: 'Asia/Ho_Chi_Minh',
 });
 
+// ==================== SEPAY AUTO-POLL (tự động gạch nợ) ====================
+// Webhook `POST /webhook/sepay` là đường CHÍNH (real-time ~ vài giây).
+// Nhưng nếu webhook chưa cấu hình / cấu hình sai / SePay gửi lỗi → hệ thống
+// sẽ không tự gạch nợ, buộc nhân viên bấm tay "🔄 Đối soát tay (API)".
+//
+// Cron này là LƯỚI AN TOÀN: mỗi N phút (mặc định 5) tự gọi API SePay lấy giao
+// dịch mới → lưu → gạch nợ tự động. Idempotent theo `sepay_id` UNIQUE nên
+// chạy song song với webhook vẫn an toàn (không gạch 2 lần).
+//
+// Chu kỳ đọc từ `sepay_settings.auto_poll_interval_min` → có thể đổi trong
+// UI (tab 🏦 Sepay) mà không cần restart server.
+cron.schedule('* * * * *', async () => {
+  try {
+    const DebtSepayService = require('./src/services/debt/DebtSepayService');
+    const settings = DebtSepayService.getSettings();
+
+    // Chưa cấu hình API token → bỏ qua im lặng (không spam log).
+    if (!settings.apiToken) return;
+    if (!settings.autoPollEnabled) return;
+
+    // Chỉ chạy khi tới chu kỳ (cron chạy mỗi phút).
+    const intervalMin = Math.max(1, Number(settings.autoPollIntervalMin) || 5);
+    const nowMin = Math.floor(Date.now() / 60000);
+    if (nowMin % intervalMin !== 0) return;
+
+    const result = await DebtSepayService.autoReconcile();
+    if (!result || !result.success) {
+      if (result && result.reason !== 'NO_API_TOKEN' && result.reason !== 'LOCKED') {
+        logger.warn('[SEPAY] auto-poll chưa hoàn tất', {
+          reason: result && result.reason,
+          error: result && result.error,
+        });
+      }
+      return;
+    }
+
+    // Realtime — báo admin vừa có giao dịch được gạch nợ
+    if (result.added > 0 || result.settled > 0) {
+      const io = socketServer.getIO();
+      if (io) {
+        io.to('admin').emit('debt:updated', { action: 'sepay_auto_poll' });
+        io.to('admin').emit('sepay:received', {
+          amount: 0,
+          added: result.added,
+          settled: result.settled,
+          auto: true,
+        });
+      }
+    }
+  } catch (e) {
+    logger.error('[SEPAY] auto-poll cron error', { error: e.message });
+  }
+}, {
+  timezone: 'Asia/Ho_Chi_Minh',
+});
+
 // ==================== ZALO OA TOKEN REFRESH ====================
 // Zalo OA access token chỉ sống 25 giờ, refresh token sống 3 tháng (dùng 1 lần).
 // Cron refresh mỗi ngày lúc 03:00 để token luôn sẵn sàng cho báo cáo tối.

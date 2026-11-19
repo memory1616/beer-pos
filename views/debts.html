@@ -1260,15 +1260,28 @@
 
     var sum = s.summary || {};
     var configured = s.hasApiToken || s.hasWebhookSecret;
+    var hasToken = !!s.hasApiToken;
+    var pollOn = s.autoPollEnabled !== false;
+
+    var statusLine;
+    if (!configured) {
+      statusLine = 'Chưa cấu hình — cần nhập API token / webhook secret';
+    } else if (!s.autoSettle) {
+      statusLine = 'Đã cấu hình — đang TẮT tự động gạch nợ';
+    } else if (pollOn && hasToken) {
+      statusLine = 'Đang hoạt động — tự gạch nợ tự động (tối đa ' + (s.autoPollIntervalMin || 5) + ' phút)';
+    } else if (pollOn && !hasToken) {
+      statusLine = 'Đang hoạt động — nhận qua webhook (cần API token để bật tự đối soát dự phòng)';
+    } else {
+      statusLine = 'Đang hoạt động — tự gạch nợ khi nhận tiền';
+    }
 
     var statusHtml =
       '<div class="dbt-sepay-status">' +
         '<span class="dbt-sepay-dot ' + (configured ? (s.autoSettle ? 'on' : 'warn') : 'off') + '"></span>' +
         '<div style="flex:1;min-width:0">' +
           '<div style="font-weight:700;font-size:13px">' +
-            (configured
-              ? (s.autoSettle ? 'Đang hoạt động — tự gạch nợ khi nhận tiền' : 'Đã cấu hình — đang TẮT tự động gạch nợ')
-              : 'Chưa cấu hình — cần nhập API token / webhook secret') +
+            esc(statusLine) +
           '</div>' +
           '<div class="dbt-sepay-url" style="margin-top:3px">Webhook: ' +
             esc(location.origin + (s.webhookUrl || '/webhook/sepay')) +
@@ -1374,11 +1387,21 @@
           '<span class="dbt-sepay-row-label">Tự động gạch nợ khi nhận tiền</span>' +
           '<button class="dbt-sepay-toggle' + (s.autoSettle ? ' on' : '') + '" id="sepAutoSettle" onclick="toggleSepayAutoSettle()"></button>' +
         '</div>' +
+        '<div class="dbt-sepay-row">' +
+          '<span class="dbt-sepay-row-label">Tự động đối soát định kỳ (dự phòng webhook)</span>' +
+          '<button class="dbt-sepay-toggle' + (s.autoPollEnabled !== false ? ' on' : '') + '" id="sepAutoPoll" onclick="toggleSepayAutoPoll()"></button>' +
+        '</div>' +
+        '<div class="dbt-field">' +
+          '<label class="dbt-label">Chu kỳ tự động đối soát (phút)</label>' +
+          '<input id="sepAutoPollInterval" class="dbt-input" type="number" min="1" max="1440" value="' + (s.autoPollIntervalMin || 5) + '">' +
+          '<div class="dbt-hint">Hệ thống tự gọi API SePay mỗi <b>X phút</b> để lấy giao dịch mới và gạch nợ — kể cả khi webhook SePay lỗi hoặc chưa cấu hình. Khuyến nghị <b>5 phút</b>. Nếu không có API token thì tính năng này không hoạt động (webhook vẫn chạy bình thường).</div>' +
+        '</div>' +
         '<div class="dbt-btn-row" style="margin-top:12px">' +
           '<button class="dbt-btn" onclick="saveSepaySettings()">💾 Lưu cấu hình</button>' +
           '<button class="dbt-btn" onclick="reconcileSepay()">🔄 Đối soát tay (API)</button>' +
         '</div>' +
         '<div class="dbt-hint" style="margin-top:10px">Sau khi lưu, copy URL webhook ở trên và dán vào ô "URL" khi tạo webhook trong SePay. Dùng nút <b>⋮ → Gửi thử</b> để kiểm tra ngay.</div>' +
+        '<div class="dbt-hint" style="margin-top:8px">💡 Nút <b>"🔄 Đối soát tay (API)"</b> chỉ là công cụ dự phòng — bấm để đối soát ngay lập tức. Bình thường hệ thống <b>tự gạch nợ</b> trong vài giây (webhook) hoặc tối đa <b>X phút</b> (auto-poll), bạn không cần bấm gì.</div>' +
       '</div>';
     }
 
@@ -2715,18 +2738,33 @@
     if (state.sepay) state.sepay.autoSettle = on;
   }
 
+  function toggleSepayAutoPoll() {
+    var btn = document.getElementById('sepAutoPoll');
+    if (!btn) return;
+    var on = !btn.classList.contains('on');
+    btn.classList.toggle('on', on);
+    if (state.sepay) state.sepay.autoPollEnabled = on;
+  }
+
   function saveSepaySettings() {
     var patch = {};
     var tokenEl = document.getElementById('sepApiToken');
     var secretEl = document.getElementById('sepWebhookSecret');
     var prefixEl = document.getElementById('sepPrefix');
     var autoEl = document.getElementById('sepAutoSettle');
+    var pollEl = document.getElementById('sepAutoPoll');
+    var pollIntEl = document.getElementById('sepAutoPollInterval');
 
     // Chỉ gửi field có thay đổi (để không xoá secret đã lưu)
     if (tokenEl && tokenEl.value.trim()) patch.apiToken = tokenEl.value.trim();
     if (secretEl && secretEl.value.trim()) patch.webhookSecret = secretEl.value.trim();
     if (prefixEl && prefixEl.value.trim()) patch.paymentCodePrefix = prefixEl.value.trim();
     if (autoEl) patch.autoSettle = autoEl.classList.contains('on');
+    if (pollEl) patch.autoPollEnabled = pollEl.classList.contains('on');
+    if (pollIntEl) {
+      var iv = parseInt(pollIntEl.value, 10);
+      if (!isNaN(iv) && iv >= 1) patch.autoPollIntervalMin = iv;
+    }
 
     api(SEPAY_API + '/settings', {
       method: 'POST',
@@ -2819,6 +2857,7 @@
   // Sepay — gạch nợ tự động
   window.filterSepay = filterSepay;
   window.toggleSepayAutoSettle = toggleSepayAutoSettle;
+  window.toggleSepayAutoPoll = toggleSepayAutoPoll;
   window.saveSepaySettings = saveSepaySettings;
   window.reconcileSepay = reconcileSepay;
   window.assignSepayCustomer = assignSepayCustomer;

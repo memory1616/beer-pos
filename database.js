@@ -29,7 +29,7 @@ try {
   }
 
   // Run driver portal migration (idempotent, chạy độc lập version gate)
-  const { runDriverPortalMigration, runDriverStaffMigration, runDriverKegReceiptMigration, runDriverWorkDaysMigration, runDriverSalaryAdvanceMigration, runMissingBusinessTablesMigration, runDailyReportNotifyMigration, runAuditLogMigration, runDriverPushMigration, runZaloOauthMigration, runDebtManagementMigration, runDebtSaleCreditFlagMigration, runBusinessDayCutoffMigration, runAuditLogUnificationMigration, runDriverAttendanceMigration, runBusinessRegionsMigration, runSaleDispatchStatusMigration, runSaleRegionDispatchBackfillMigration, runSepayDebtSettlementMigration, runDebtZaloNotifyMigration } = require('./database/migration');
+  const { runDriverPortalMigration, runDriverStaffMigration, runDriverKegReceiptMigration, runDriverWorkDaysMigration, runDriverSalaryAdvanceMigration, runMissingBusinessTablesMigration, runDailyReportNotifyMigration, runAuditLogMigration, runDriverPushMigration, runZaloOauthMigration, runDebtManagementMigration, runDebtSaleCreditFlagMigration, runBusinessDayCutoffMigration, runAuditLogUnificationMigration, runDriverAttendanceMigration, runBusinessRegionsMigration, runSaleDispatchStatusMigration, runSaleRegionDispatchBackfillMigration, runSepayDebtSettlementMigration, runDebtZaloNotifyMigration, runSepayAutoPollMigration } = require('./database/migration');
   const driverResult = runDriverPortalMigration(db);
   if (driverResult.success) {
     logger.log('[MIGRATION] Driver portal schema ready');
@@ -149,6 +149,12 @@ try {
   const debtNotifyResult = runDebtZaloNotifyMigration(db);
   if (debtNotifyResult.success) {
     logger.log('[MIGRATION] Debt Zalo notify (OmiCall) schema ready');
+  }
+
+  // Run Sepay auto-poll migration (063) — tự động đối soát định kỳ
+  const sepayAutoPollResult = runSepayAutoPollMigration(db);
+  if (sepayAutoPollResult.success) {
+    logger.log('[MIGRATION] Sepay auto-poll schema ready');
   }
 } catch (error) {
   logger.error('[MIGRATION] Migration error:', error.message);

@@ -660,3 +660,142 @@ describe('Truy vấn giao dịch Sepay', () => {
     expect(DebtSepayService.sepayBusinessDate(null)).toBeNull();
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Auto-poll (063) — tự động đối soát định kỳ qua API SePay
+// ═══════════════════════════════════════════════════════════════════════════
+describe('Auto-poll — tự động đối soát định kỳ', () => {
+  const origSettings = DebtSepayService.getSettings();
+
+  afterEach(() => {
+    // Khôi phục cấu hình gốc sau mỗi test.
+    db.prepare(
+      `UPDATE sepay_settings
+          SET api_token = ?, webhook_secret = ?, auto_settle = ?,
+              auto_poll_enabled = ?, auto_poll_interval_min = ?, auto_poll_lookback_days = ?
+        WHERE id = 1`
+    ).run(
+      origSettings.apiToken,
+      origSettings.webhookSecret,
+      origSettings.autoSettle ? 1 : 0,
+      origSettings.autoPollEnabled ? 1 : 0,
+      origSettings.autoPollIntervalMin,
+      origSettings.autoPollLookbackDays
+    );
+    db.prepare('DELETE FROM settings WHERE key LIKE ?').run('sepay_auto_poll_%');
+  });
+
+  test('migration 063 thêm đủ 3 cột cấu hình auto-poll', () => {
+    const cols = db
+      .prepare('PRAGMA table_info(sepay_settings)')
+      .all()
+      .map((c) => c.name);
+    expect(cols).toContain('auto_poll_enabled');
+    expect(cols).toContain('auto_poll_interval_min');
+    expect(cols).toContain('auto_poll_lookback_days');
+  });
+
+  test('getSettings trả về cấu hình auto-poll với giá trị mặc định hợp lý', () => {
+    const s = DebtSepayService.getSettings();
+    expect(typeof s.autoPollEnabled).toBe('boolean');
+    expect(s.autoPollIntervalMin).toBeGreaterThanOrEqual(1);
+    expect(s.autoPollLookbackDays).toBeGreaterThanOrEqual(1);
+  });
+
+  test('saveSettings lưu được autoPollEnabled / autoPollIntervalMin', () => {
+    const res = DebtSepayService.saveSettings({
+      autoPollEnabled: false,
+      autoPollIntervalMin: 12,
+    });
+    expect(res.success).toBe(true);
+
+    const s = DebtSepayService.getSettings();
+    expect(s.autoPollEnabled).toBe(false);
+    expect(s.autoPollIntervalMin).toBe(12);
+  });
+
+  test('autoReconcile bỏ qua im lặng khi chưa có API token', async () => {
+    db.prepare('UPDATE sepay_settings SET api_token = NULL WHERE id = 1').run();
+    const res = await DebtSepayService.autoReconcile();
+    expect(res.success).toBe(false);
+    expect(res.skipped).toBe(true);
+    expect(res.reason).toBe('NO_API_TOKEN');
+  });
+
+  test('autoReconcile bỏ qua khi đã TẮT auto-poll', async () => {
+    db.prepare(
+      "UPDATE sepay_settings SET api_token = 'dummy-token', auto_poll_enabled = 0 WHERE id = 1"
+    ).run();
+    const res = await DebtSepayService.autoReconcile();
+    expect(res.success).toBe(false);
+    expect(res.skipped).toBe(true);
+    expect(res.reason).toBe('AUTO_POLL_DISABLED');
+  });
+
+  test('autoReconcile gọi API, gạch nợ và KHÔNG gạch 2 lần khi chạy lại', async () => {
+    const c = makeCustomer('AutoPoll');
+    addDebt(c.id, 100000);
+
+    // Mock API SePay trả về 1 giao dịch tiền vào có mã khách.
+    const sepayId = `ZZSEP_AUTOPOLL_${Date.now()}`;
+    const originalFetch = global.fetch;
+    global.fetch = jest.fn(async (url) => {
+      if (String(url).includes('/v2/transactions')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            status: 200,
+            data: [
+              {
+                id: sepayId,
+                gateway: 'VPB',
+                account_number: '0933620773',
+                transaction_content: `CONG NO ${c.code}`,
+                transfer_type: 'in',
+                transfer_amount: 100000,
+                transaction_date: '2026-11-18 09:00:00',
+              },
+            ],
+            meta: { pagination: { total: 1, current_page: 1, last_page: 1, has_more: false } },
+          }),
+        };
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    try {
+      db.prepare(
+        "UPDATE sepay_settings SET api_token = 'dummy-token', auto_poll_enabled = 1 WHERE id = 1"
+      ).run();
+
+      const res1 = await DebtSepayService.autoReconcile();
+      expect(res1.success).toBe(true);
+      expect(res1.added).toBe(1);
+      expect(res1.settled).toBe(1);
+
+      // Số dư khách phải được gạch đúng 1 lần.
+      const cust = db
+        .prepare('SELECT debt FROM customers WHERE id = ?')
+        .get(c.id);
+      expect(Math.round(cust.debt)).toBe(0);
+
+      // Chạy lần 2 → idempotent, KHÔNG gạch thêm.
+      const res2 = await DebtSepayService.autoReconcile();
+      expect(res2.success).toBe(true);
+      expect(res2.added).toBe(0);
+
+      const cust2 = db
+        .prepare('SELECT debt FROM customers WHERE id = ?')
+        .get(c.id);
+      expect(Math.round(cust2.debt)).toBe(0);
+
+      const txRows = db
+        .prepare('SELECT COUNT(*) AS c FROM sepay_transactions WHERE sepay_id = ?')
+        .get(sepayId);
+      expect(txRows.c).toBe(1);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+});

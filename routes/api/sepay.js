@@ -73,6 +73,10 @@ router.get('/status', requireAuth, requireStaff, (req, res) => {
         bankAccounts: settings.bankAccounts,
         autoSettle: settings.autoSettle,
         webhookUrl: '/webhook/sepay',
+        // Auto-poll: đối soát định kỳ qua API → tự gạch nợ dù webhook lỗi
+        autoPollEnabled: settings.autoPollEnabled,
+        autoPollIntervalMin: settings.autoPollIntervalMin,
+        autoPollLookbackDays: settings.autoPollLookbackDays,
       },
     });
   } catch (e) {
@@ -107,8 +111,16 @@ router.get('/transactions', requireAuth, requireStaff, (req, res) => {
 // ═══════════════════════════════════════════════════════════════════════════
 router.post('/settings', requireAuth, requireAdmin, (req, res) => {
   try {
-    const { apiToken, webhookSecret, bankAccounts, paymentCodePrefix, autoSettle } =
-      req.body || {};
+    const {
+      apiToken,
+      webhookSecret,
+      bankAccounts,
+      paymentCodePrefix,
+      autoSettle,
+      autoPollEnabled,
+      autoPollIntervalMin,
+      autoPollLookbackDays,
+    } = req.body || {};
 
     const result = DebtSepayService.saveSettings({
       apiToken: apiToken !== undefined ? apiToken : undefined,
@@ -116,6 +128,12 @@ router.post('/settings', requireAuth, requireAdmin, (req, res) => {
       bankAccounts: bankAccounts !== undefined ? bankAccounts : undefined,
       paymentCodePrefix: paymentCodePrefix !== undefined ? paymentCodePrefix : undefined,
       autoSettle: autoSettle !== undefined ? !!autoSettle : undefined,
+      autoPollEnabled:
+        autoPollEnabled !== undefined ? !!autoPollEnabled : undefined,
+      autoPollIntervalMin:
+        autoPollIntervalMin !== undefined ? autoPollIntervalMin : undefined,
+      autoPollLookbackDays:
+        autoPollLookbackDays !== undefined ? autoPollLookbackDays : undefined,
     });
 
     if (!result.success) {

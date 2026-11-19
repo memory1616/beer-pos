@@ -957,6 +957,22 @@ function runDebtZaloNotifyMigration(db) {
   }
 }
 
+// ── Sepay auto-poll migration (063) ────────────────────────────────────────────
+// Bổ sung cột cấu hình cho cơ chế tự động đối soát định kỳ qua API SePay.
+// Nhờ đó hệ thống TỰ gạch nợ (mỗi N phút) kể cả khi webhook lỗi/chưa cấu hình.
+// Chạy ĐỘC LẬP, idempotent (kiểm tra PRAGMA table_info trước khi ADD COLUMN).
+function runSepayAutoPollMigration(db) {
+  try {
+    const migration = require('./migrations/063_sepay_auto_poll');
+    migration.up(db);
+    log('[SEPAY] Migration 063 applied');
+    return { success: true };
+  } catch (e) {
+    log('[SEPAY] Migration error: ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
 // ── Utility: Generate UUID ─────────────────────────────────────────────────────
 
 function generateUUID() {
@@ -994,6 +1010,7 @@ module.exports = {
   runSaleRegionDispatchBackfillMigration,
   runSepayDebtSettlementMigration,
   runDebtZaloNotifyMigration,
+  runSepayAutoPollMigration,
   generateUUID,
   getCurrentVersion,
   setVersion,

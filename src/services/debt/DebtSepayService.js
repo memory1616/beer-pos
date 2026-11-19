@@ -56,6 +56,9 @@ function getSettings() {
         bankAccounts: [],
         paymentCodePrefix: 'DH',
         autoSettle: true,
+        autoPollEnabled: true,
+        autoPollIntervalMin: 5,
+        autoPollLookbackDays: 3,
       };
     }
     let accounts = [];
@@ -70,6 +73,11 @@ function getSettings() {
       bankAccounts: Array.isArray(accounts) ? accounts : [],
       paymentCodePrefix: row.payment_code_prefix || 'DH',
       autoSettle: row.auto_settle !== 0,
+      // Tự động đối soát định kỳ qua API Sepay (dự phòng cho webhook).
+      // Bật mặc định để hệ thống TỰ gạch nợ dù webhook lỗi/chưa cấu hình.
+      autoPollEnabled: row.auto_poll_enabled !== 0,
+      autoPollIntervalMin: Number(row.auto_poll_interval_min || 5),
+      autoPollLookbackDays: Number(row.auto_poll_lookback_days || 3),
     };
   } catch (e) {
     logger.error('[SEPAY] getSettings error', { error: e.message });
@@ -79,6 +87,9 @@ function getSettings() {
       bankAccounts: [],
       paymentCodePrefix: 'DH',
       autoSettle: false,
+      autoPollEnabled: false,
+      autoPollIntervalMin: 5,
+      autoPollLookbackDays: 3,
     };
   }
 }
@@ -106,18 +117,35 @@ function saveSettings(patch = {}) {
         patch.autoSettle !== undefined
           ? (patch.autoSettle ? 1 : 0)
           : current.auto_settle ?? 1,
+      auto_poll_enabled:
+        patch.autoPollEnabled !== undefined
+          ? (patch.autoPollEnabled ? 1 : 0)
+          : current.auto_poll_enabled ?? 1,
+      auto_poll_interval_min:
+        patch.autoPollIntervalMin !== undefined
+          ? Math.max(1, Math.min(1440, parseInt(patch.autoPollIntervalMin, 10) || 5))
+          : current.auto_poll_interval_min ?? 5,
+      auto_poll_lookback_days:
+        patch.autoPollLookbackDays !== undefined
+          ? Math.max(1, Math.min(30, parseInt(patch.autoPollLookbackDays, 10) || 3))
+          : current.auto_poll_lookback_days ?? 3,
     };
     db.prepare(
       `UPDATE sepay_settings
           SET api_token = ?, webhook_secret = ?, bank_accounts = ?,
-              payment_code_prefix = ?, auto_settle = ?, updated_at = CURRENT_TIMESTAMP
+              payment_code_prefix = ?, auto_settle = ?,
+              auto_poll_enabled = ?, auto_poll_interval_min = ?,
+              auto_poll_lookback_days = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = 1`
     ).run(
       next.api_token,
       next.webhook_secret,
       next.bank_accounts,
       next.payment_code_prefix,
-      next.auto_settle
+      next.auto_settle,
+      next.auto_poll_enabled,
+      next.auto_poll_interval_min,
+      next.auto_poll_lookback_days
     );
     return { success: true };
   } catch (e) {
@@ -940,6 +968,107 @@ async function reconcile(opts = {}) {
   };
 }
 
+// ── Tự động đối soát định kỳ (auto-poll) ───────────────────────────────────
+
+const AUTO_POLL_LAST_RUN_KEY = 'sepay_auto_poll_last_run';
+const AUTO_POLL_LOCK_KEY = 'sepay_auto_poll_lock';
+
+/**
+ * Đối soát TỰ ĐỘNG theo lịch — chạy bởi cron trong `server.js`.
+ *
+ * Mục đích: bảo đảm hệ thống LUÔN tự gạch nợ khi khách chuyển tiền, kể cả khi:
+ *   - Webhook SePay chưa cấu hình / cấu hình sai / SePay gửi lỗi.
+ *   - Server mất mạng, khởi động lại giữa chừng.
+ *
+ * Webhook vẫn là đường chính (real-time ~ vài giây). Auto-poll là lưới an toàn
+ * (bù trễ tối đa `autoPollIntervalMin` phút).
+ *
+ * Idempotent: dựa trên `sepay_transactions.sepay_id` UNIQUE → chạy lại không
+ * gạch nợ 2 lần.
+ *
+ * @param {object} [opts] { force }
+ * @returns {Promise<object>}
+ */
+async function autoReconcile(opts = {}) {
+  const settings = getSettings();
+
+  // Chưa cấu hình API token → không làm gì (tránh spam log mỗi lần cron chạy).
+  if (!settings.apiToken) {
+    return { success: false, skipped: true, reason: 'NO_API_TOKEN' };
+  }
+  if (!settings.autoPollEnabled && !opts.force) {
+    return { success: false, skipped: true, reason: 'AUTO_POLL_DISABLED' };
+  }
+
+  // Khoá chống chạy song song (cron trùng nhau khi server chậm).
+  const lockAt = Number(getSetting(AUTO_POLL_LOCK_KEY, '0')) || 0;
+  if (!opts.force && Date.now() - lockAt < 120000) {
+    return { success: false, skipped: true, reason: 'LOCKED' };
+  }
+  setSetting(AUTO_POLL_LOCK_KEY, String(Date.now()));
+
+  try {
+    const now = new Date();
+    const to = formatSepayDate(now);
+
+    // Lần đầu chạy → lùi `autoPollLookbackDays` ngày để không bỏ sót giao
+    // dịch xảy ra lúc server đang tắt. Các lần sau → lùi 30 phút (đệm).
+    const lastRun = getSetting(AUTO_POLL_LAST_RUN_KEY, '');
+    const lookbackMs = lastRun
+      ? 30 * 60 * 1000
+      : Math.max(1, settings.autoPollLookbackDays) * 24 * 60 * 60 * 1000;
+    const from = formatSepayDate(new Date(now.getTime() - lookbackMs));
+
+    const result = await reconcile({ from, to });
+
+    if (!result.success) {
+      logger.warn('[SEPAY] auto-poll failed', { error: result.error });
+      return result;
+    }
+
+    setSetting(AUTO_POLL_LAST_RUN_KEY, now.toISOString());
+
+    if (result.added > 0 || result.settled > 0) {
+      logger.info('[SEPAY] auto-poll settled', {
+        from,
+        to,
+        added: result.added,
+        settled: result.settled,
+        failed: result.failed,
+      });
+    }
+
+    return { ...result, auto: true };
+  } catch (e) {
+    logger.error('[SEPAY] autoReconcile error', { error: e.message });
+    return { success: false, error: e.message };
+  } finally {
+    setSetting(AUTO_POLL_LOCK_KEY, '0');
+  }
+}
+
+/** Đọc/ghi setting dạng key-value (bảng `settings`). */
+function getSetting(key, fallback = null) {
+  try {
+    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
+    return row && row.value !== undefined && row.value !== null ? row.value : fallback;
+  } catch (_) {
+    return fallback;
+  }
+}
+
+function setSetting(key, value) {
+  try {
+    db.prepare(
+      'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value'
+    ).run(key, value === null || value === undefined ? '' : String(value));
+    return true;
+  } catch (e) {
+    logger.error('[SEPAY] setSetting error', { key, error: e.message });
+    return false;
+  }
+}
+
 /** Chờ (ms) — dùng để giữ nhịp rate limit của SePay (3 req/giây). */
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -1138,6 +1267,7 @@ module.exports = {
   fetchTransactions,
   normalizeApiTransaction,
   reconcile,
+  autoReconcile,
   listTransactions,
   getSummary,
   assignCustomerAndSettle,
