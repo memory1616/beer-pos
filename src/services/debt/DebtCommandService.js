@@ -139,6 +139,9 @@ function parseCommand(content, opts = {}) {
 
 /**
  * Tìm khách hàng theo groupId của Zalo.
+ *
+ * ⚠️ CHỈ lấy nhóm đang ACTIVE: nhóm đã gỡ (status='inactive') không còn
+ * liên kết → tin nhắn từ nhóm đó không được ghi công nợ nữa.
  */
 function findCustomerByGroup(groupId, platform = PLATFORMS.ZALO_PERSONAL) {
   if (!groupId) return null;
@@ -146,7 +149,7 @@ function findCustomerByGroup(groupId, platform = PLATFORMS.ZALO_PERSONAL) {
     const row = db
       .prepare(
         `SELECT customer_id, group_name, status FROM debt_customer_groups
-          WHERE platform = ? AND group_id = ?`
+          WHERE platform = ? AND group_id = ? AND status = 'active'`
       )
       .get(platform, String(groupId));
     if (!row) return null;

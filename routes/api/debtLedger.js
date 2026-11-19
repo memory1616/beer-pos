@@ -249,7 +249,8 @@ router.get('/customers', requireAuth, (req, res) => {
     }
 
     // Nhóm Zalo liên kết + trạng thái tài khoản
-    const groups = db.prepare('SELECT customer_id, platform, group_id, group_name, status FROM debt_customer_groups').all();
+    // CHỈ lấy nhóm đang active (nhóm đã gỡ không được gửi tin nữa)
+    const groups = db.prepare("SELECT customer_id, platform, group_id, group_name, status FROM debt_customer_groups WHERE status = 'active'").all();
     const groupMap = new Map();
     for (const g of groups) {
       if (!groupMap.has(g.customer_id)) groupMap.set(g.customer_id, []);
@@ -313,7 +314,7 @@ router.get('/customers/:id', requireAuth, (req, res) => {
       .prepare('SELECT * FROM debt_accounts WHERE customer_id = ?')
       .get(customerId);
     const groups = db
-      .prepare('SELECT * FROM debt_customer_groups WHERE customer_id = ?')
+      .prepare("SELECT * FROM debt_customer_groups WHERE customer_id = ? AND status = 'active'")
       .all(customerId);
     const orderDebts = db
       .prepare(
@@ -492,11 +493,21 @@ router.post('/reverse', requireAuth, requireAdmin, (req, res) => {
 // ═══════════════════════════════════════════════════════════════════════════
 router.get('/groups', requireAuth, (req, res) => {
   try {
+    // ⚠️ Mặc định CHỈ trả nhóm đang liên kết (status='active').
+    // Nhóm đã gỡ (status='inactive') vẫn còn trong DB để giữ dấu vết, nhưng
+    // không được hiển thị trong danh sách → nếu trả cả, dòng đã "Gỡ" vẫn
+    // hiện lại trên UI và user tưởng thao tác thất bại.
+    // Dùng ?include_inactive=1 khi cần xem lịch sử (audit).
+    const includeInactive = ['1', 'true', 'yes'].includes(
+      String(req.query.include_inactive || '').toLowerCase()
+    );
+
     const rows = db
       .prepare(
         `SELECT g.*, c.name AS customer_name
            FROM debt_customer_groups g
            LEFT JOIN customers c ON c.id = g.customer_id
+          ${includeInactive ? '' : "WHERE g.status = 'active'"}
           ORDER BY c.name, g.group_name`
       )
       .all();

@@ -1450,7 +1450,10 @@
 
   // ── Render: Groups (mapping) ───────────────────────────────────────────
   function renderGroups() {
-    var rows = state.groups || [];
+    // Chỉ hiển thị nhóm ĐANG liên kết (status='active').
+    // Backend đã lọc, nhưng lọc thêm ở UI để chắc chắn dòng đã "Gỡ" biến mất
+    // ngay cả khi response đến từ cache cũ.
+    var rows = (state.groups || []).filter(function (g) { return g.status === 'active'; });
     var body = rows.length
       ? '<div class="dbt-table-wrap"><table class="dbt-table dbt-table--wide"><thead><tr>' +
         '<th>Khách</th><th>Nhóm</th><th>Platform</th><th>Trạng thái</th>' +
@@ -2548,6 +2551,10 @@
     if (!window.confirm('Gỡ liên kết nhóm Zalo này?')) return;
     api(API + '/groups/' + id, { method: 'DELETE' }).then(function () {
       toast('✅ Đã gỡ liên kết', 'ok');
+      // Xoá khỏi state NGAY để dòng biến mất tức thì (không phụ thuộc
+      // request GET lại) → tránh cảm giác "đã gỡ nhưng vẫn hiện".
+      state.groups = (state.groups || []).filter(function (g) { return g.id !== id; });
+      render();
       loadGroups();
     }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
   }

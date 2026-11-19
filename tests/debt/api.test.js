@@ -495,6 +495,39 @@ describe('Nhóm Zalo (mapping)', () => {
     expect(after.status).toBe('inactive');
   });
 
+  test('GET /groups KHÔNG trả nhóm đã gỡ (inactive)', async () => {
+    const cid = makeCustomer(0);
+    await request(app)
+      .post('/api/debt-ledger/groups')
+      .set(ADMIN)
+      .send({ customerId: cid, groupId: 'g_gone' });
+
+    const row = db.prepare('SELECT id FROM debt_customer_groups WHERE group_id = ?').get('g_gone');
+    await request(app).delete(`/api/debt-ledger/groups/${row.id}`).set(ADMIN);
+
+    const res = await request(app).get('/api/debt-ledger/groups').set(ADMIN);
+    expect(res.status).toBe(200);
+    const ids = (res.body.data || []).map((g) => g.id);
+    expect(ids).not.toContain(row.id);
+    expect((res.body.data || []).every((g) => g.status === 'active')).toBe(true);
+  });
+
+  test('GET /groups?include_inactive=1 trả cả nhóm đã gỡ', async () => {
+    const cid = makeCustomer(0);
+    await request(app)
+      .post('/api/debt-ledger/groups')
+      .set(ADMIN)
+      .send({ customerId: cid, groupId: 'g_hist' });
+
+    const row = db.prepare('SELECT id FROM debt_customer_groups WHERE group_id = ?').get('g_hist');
+    await request(app).delete(`/api/debt-ledger/groups/${row.id}`).set(ADMIN);
+
+    const res = await request(app).get('/api/debt-ledger/groups?include_inactive=1').set(ADMIN);
+    expect(res.status).toBe(200);
+    const ids = (res.body.data || []).map((g) => g.id);
+    expect(ids).toContain(row.id);
+  });
+
   test('staff không được quản lý nhóm', async () => {
     const res = await request(app)
       .post('/api/debt-ledger/groups')
