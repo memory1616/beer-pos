@@ -5,10 +5,16 @@
  *  1. Quản lý access token (lấy qua API key, hạn 24h → cache trong bộ nhớ).
  *  2. Gửi tin nhắn text vào nhóm Zalo cá nhân qua multi-channel OmiCall.
  *
- * Endpoint (xác nhận từ bundle chính thức VIHATTeam/OMICALL-MCP):
- *   GET  {base}/api/auth?apiKey=<API_KEY>
- *        → { status_code: 9999, payload: { access_token: "..." } }
- *        → access token hạn 24h.
+ * Endpoint (đã kiểm chứng trực tiếp với server OmiCall production):
+ *   POST {base}/api/auth
+ *        body: { apiKey, tenantId: "", lng: "vi" }
+ *        → { status_code: 9999, payload: { access_token: "..." } } khi thành công
+ *        → { status_code: -9999, message: "auth_invalid" | "api_key_invalid" | ... }
+ *        LƯU Ý: production (public-v1.omicall.com) KHÔNG chấp nhận GET /api/auth
+ *        (trả HTTP 405 "Method not allowed"). Chỉ staging mới nhận GET.
+ *        Nếu POST thiếu `tenantId` → upstream trả HTTP 500 ("Error Occurred!!!").
+ *
+ *   GET  {base}/api/auth?apiKey=<API_KEY>   ← chỉ dùng làm fallback (staging)
  *
  *   POST {base}/omni_conv/message/send_text?lng=vi
  *        headers: 'x-api-key': <API_KEY>  (+ 'Authorization': Bearer <token>)
@@ -151,6 +157,112 @@ function saveConfig(patch = {}) {
 
 // ── Access token ─────────────────────────────────────────────────────────────
 
+/** Map mã lỗi của OmiCall sang thông báo tiếng Việt dễ hiểu. */
+const AUTH_ERROR_MESSAGES = {
+  auth_invalid: 'API key không hợp lệ (OmiCall trả về auth_invalid)',
+  api_key_invalid: 'API key không hợp lệ (OmiCall trả về api_key_invalid)',
+  api_key_is_required: 'OmiCall không nhận được API key',
+  api_key_disabled: 'API key đã bị vô hiệu hóa',
+  key_disabled: 'API key đã bị vô hiệu hóa',
+  tenant_required: 'Thiếu tenantId khi xác thực OmiCall',
+  unauthorized: 'API key không có quyền truy cập',
+  forbidden: 'API key không có quyền truy cập',
+};
+
+/** Rút thông điệp lỗi có nghĩa từ body OmiCall. */
+function extractAuthError(body, fallback) {
+  if (!body || typeof body !== 'object') return fallback;
+  const raw = body.message || body.msg || body.error || body.error_message || '';
+  const code = String(raw || '').trim();
+  if (!code) return fallback;
+  if (AUTH_ERROR_MESSAGES[code]) return AUTH_ERROR_MESSAGES[code];
+  return code;
+}
+
+/**
+ * Thử lấy access token theo nhiều chiến lược gọi /api/auth.
+ *
+ * Kiểm chứng thực tế trên server OmiCall:
+ *  - Production (`public-v1.omicall.com`): CHỈ nhận `POST` → `GET` trả 405.
+ *  - Staging (`public-v1-stg.omicall.com`): nhận `GET ?apiKey=` (và POST cũng được).
+ *  - `POST` thiếu `tenantId` → upstream lỗi HTTP 500 → phải luôn gửi kèm
+ *    `tenantId` (kể cả chuỗi rỗng) và `lng`.
+ *
+ * Thứ tự: POST trước (đúng với production), GET làm fallback (staging).
+ */
+async function requestAuthToken(baseUrl, apiKey) {
+  const attempts = [
+    {
+      method: 'POST',
+      url: `${baseUrl}/api/auth`,
+      body: { apiKey, tenantId: '', lng: 'vi' },
+    },
+    {
+      method: 'GET',
+      url: `${baseUrl}/api/auth?apiKey=${encodeURIComponent(apiKey)}`,
+      body: null,
+    },
+  ];
+
+  let lastError = null;
+
+  for (const attempt of attempts) {
+    let res;
+    let body = null;
+    try {
+      res = await fetchWithTimeout(attempt.url, {
+        method: attempt.method,
+        headers: {
+          Accept: 'application/json',
+          ...(attempt.body ? { 'Content-Type': 'application/json' } : {}),
+        },
+        ...(attempt.body ? { body: JSON.stringify(attempt.body) } : {}),
+      });
+      const raw = await res.text();
+      try {
+        body = raw ? JSON.parse(raw) : null;
+      } catch (_) {
+        body = { message: raw };
+      }
+    } catch (e) {
+      lastError = new Error(`Không gọi được OmiCall (${e.message})`);
+      continue;
+    }
+
+    const token = extractToken(body);
+    if (token) return token;
+
+    // Ghi nhớ lỗi để báo ra nếu mọi chiến lược đều thất bại.
+    const detail = extractAuthError(body, `HTTP ${res.status}`);
+    lastError = new Error(`OmiCall auth thất bại: ${detail}`);
+
+    // Lỗi "cấu trúc request sai" (HTTP 405/404/500) → thử chiến lược kế tiếp.
+    // Lỗi "API key sai" (HTTP 200 + status_code -9999) → dừng luôn, key sai thì
+    // các chiến lược khác cũng sẽ cho kết quả tương tự.
+    if (res.ok && body && body.status_code !== undefined && Number(body.status_code) !== 9999) {
+      break;
+    }
+  }
+
+  throw lastError || new Error('OmiCall auth thất bại: không xác định được lỗi');
+}
+
+/** Rút access token từ nhiều vị trí trong payload OmiCall. */
+function extractToken(body) {
+  if (!body || typeof body !== 'object') return null;
+  const candidates = [
+    body.payload && body.payload.access_token,
+    body.access_token,
+    body.data && body.data.access_token,
+    body.payload && body.payload.accessToken,
+    body.token,
+  ];
+  for (const c of candidates) {
+    if (c) return String(c);
+  }
+  return null;
+}
+
 /**
  * Lấy access token (cache 24h).
  * @param {object} [opts] { apiKey, baseUrl, force }
@@ -171,27 +283,7 @@ async function getAccessToken(opts = {}) {
     return cached.token;
   }
 
-  const url = `${baseUrl}/api/auth?apiKey=${encodeURIComponent(apiKey)}`;
-  let res;
-  let body = null;
-  try {
-    res = await fetchWithTimeout(url, { method: 'GET', headers: { Accept: 'application/json' } });
-    const raw = await res.text();
-    try {
-      body = raw ? JSON.parse(raw) : null;
-    } catch (_) {
-      body = { message: raw };
-    }
-  } catch (e) {
-    throw new Error(`Không gọi được OmiCall (${e.message})`);
-  }
-
-  const token = body && body.payload && body.payload.access_token;
-  if (!token) {
-    const msg =
-      (body && (body.message || body.msg)) || `HTTP ${res.status}`;
-    throw new Error(`OmiCall auth thất bại: ${msg}`);
-  }
+  const token = await requestAuthToken(baseUrl, apiKey);
 
   tokenCache.set(cacheKey, {
     token: String(token),
@@ -206,6 +298,51 @@ function clearTokenCache() {
 }
 
 // ── Gửi tin nhắn ─────────────────────────────────────────────────────────────
+
+/**
+ * Sinh danh sách host ứng viên để gửi tin nhắn.
+ *
+ * Bối cảnh (đã kiểm chứng trực tiếp với server OmiCall):
+ *  - `public-v1.omicall.com` là host PUBLIC API của OmiCall — hiện chỉ expose
+ *    route `/api/auth` (để lấy access token). Các route nghiệp vụ trả về HTML
+ *    của web app, không phải JSON.
+ *  - Route gửi tin multi-channel nằm ở host service riêng:
+ *    `social-network-v1.omicrm.com` (prod) / `social-network-v1-stg.omicrm.com` (stg).
+ *    Trên bản prod hiện route này chưa được expose ra ngoài (trả HTML SPA).
+ *
+ * Vì vậy ta thử lần lượt các host suy ra từ base URL đã cấu hình.
+ */
+function resolveMessageHosts(baseUrl) {
+  const hosts = [];
+  const push = (h) => {
+    const v = normalizeBaseUrl(h);
+    if (v && !hosts.includes(v)) hosts.push(v);
+  };
+
+  push(baseUrl);
+
+  // public-v1.omicall.com → social-network-v1.omicrm.com
+  const m = /^https?:\/\/public-v1(?:-stg)?\.(omicall|omicrm)\.com$/i.exec(baseUrl);
+  if (m) {
+    push(`https://social-network-v1.${m[2]}.com`);
+    push(`https://social-network-v1-stg.${m[2]}.com`);
+  }
+
+  // social-network-v1.omicrm.com → thêm/bớt hậu tố -stg
+  const s = /^https?:\/\/(social-network-v1)(-stg)?\.(omicall|omicrm)\.com$/i.exec(baseUrl);
+  if (s) {
+    push(`https://${s[1]}${s[2] ? '' : '-stg'}.${s[3]}.com`);
+    push(`https://${s[1]}-stg.${s[3]}.com`);
+  }
+
+  return hosts;
+}
+
+/** Các path gửi tin multi-channel Zalo cá nhân (thử theo thứ tự). */
+const MESSAGE_PATHS = [
+  '/omni_conv/message/send_text?lng=vi',
+  '/api/omni_conv/message/send_text?lng=vi',
+];
 
 /**
  * Gửi tin nhắn text vào nhóm Zalo cá nhân (multi-channel OmiCall).
@@ -246,7 +383,6 @@ async function sendZaloPersonalMessage(opts = {}) {
     }
   }
 
-  const url = `${baseUrl}/omni_conv/message/send_text?lng=vi`;
   const headers = {
     'Content-Type': 'application/json',
     Accept: 'application/json',
@@ -254,43 +390,70 @@ async function sendZaloPersonalMessage(opts = {}) {
   };
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  let res;
-  let raw = '';
-  try {
-    res = await fetchWithTimeout(url, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ convId, text }),
-    });
-    raw = await res.text();
-  } catch (e) {
-    return { success: false, error: `Không gửi được tin nhắn OmiCall (${e.message})` };
+  const hosts = resolveMessageHosts(baseUrl);
+  let lastError = null;
+
+  for (const host of hosts) {
+    for (const path of MESSAGE_PATHS) {
+      const url = `${host}${path}`;
+      let res;
+      let raw = '';
+      try {
+        res = await fetchWithTimeout(url, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ convId, text }),
+        });
+        raw = await res.text();
+      } catch (e) {
+        lastError = `Không gửi được tin nhắn OmiCall (${e.message})`;
+        continue;
+      }
+
+      // Host trả HTML → đây là web app, không phải API → thử host/path khác.
+      if (/^\s*<(!doctype|html)/i.test(raw)) {
+        lastError = `OmiCall không phục vụ API tại ${host}${path.split('?')[0]} (trả về HTML)`;
+        continue;
+      }
+
+      let body = null;
+      try {
+        body = raw ? JSON.parse(raw) : null;
+      } catch (_) {
+        body = { message: raw };
+      }
+
+      if (!res.ok) {
+        const msg = (body && (body.message || body.msg || body.error)) || `HTTP ${res.status}`;
+        lastError = `OmiCall gửi tin thất bại: ${msg}`;
+        // 401/403 → sai token/key, thử host khác không giúp ích → dừng.
+        if (res.status === 401 || res.status === 403) {
+          return { success: false, error: lastError, raw: body };
+        }
+        continue;
+      }
+
+      // OmiCall trả { status_code: 9999, payload: {... } } khi thành công.
+      const statusCode = body && body.status_code;
+      if (statusCode !== undefined && Number(statusCode) !== 9999) {
+        const msg = (body && (body.message || body.msg)) || `status_code ${statusCode}`;
+        return { success: false, error: `OmiCall từ chối: ${msg}`, raw: body };
+      }
+
+      const payload = (body && body.payload) || {};
+      return {
+        success: true,
+        messageId: payload.message_id || payload.msgId || payload.id || payload._id || null,
+        raw: body,
+      };
+    }
   }
 
-  let body = null;
-  try {
-    body = raw ? JSON.parse(raw) : null;
-  } catch (_) {
-    body = { message: raw };
-  }
-
-  if (!res.ok) {
-    const msg = (body && (body.message || body.msg)) || `HTTP ${res.status}`;
-    return { success: false, error: `OmiCall gửi tin thất bại: ${msg}`, raw: body };
-  }
-
-  // OmiCall trả { status_code: 9999, payload: {... } } khi thành công.
-  const statusCode = body && body.status_code;
-  if (statusCode !== undefined && Number(statusCode) !== 9999) {
-    const msg = (body && (body.message || body.msg)) || `status_code ${statusCode}`;
-    return { success: false, error: `OmiCall từ chối: ${msg}`, raw: body };
-  }
-
-  const payload = (body && body.payload) || {};
   return {
-    success: true,
-    messageId: payload.message_id || payload.msgId || payload.id || null,
-    raw: body,
+    success: false,
+    error:
+      lastError ||
+      'Không tìm được endpoint gửi tin OmiCall. Kiểm tra lại Base URL (thử https://public-v1-stg.omicall.com nếu tài khoản OmiCall của bạn thuộc môi trường staging).',
   };
 }
 

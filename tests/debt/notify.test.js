@@ -176,14 +176,42 @@ describe('OmiCallService — access token', () => {
     OmiCallService.clearTokenCache();
   });
 
-  it('lấy token từ GET /api/auth?apiKey=', async () => {
-    const fetchMock = mockFetch(async (url) => {
-      expect(String(url)).toContain('/api/auth?apiKey=TEST_KEY_123');
+  it('lấy token từ POST /api/auth (production chỉ nhận POST)', async () => {
+    const fetchMock = mockFetch(async (url, options) => {
+      expect(String(url)).toContain('/api/auth');
+      expect(options.method).toBe('POST');
+      const body = JSON.parse(options.body);
+      expect(body.apiKey).toBe('TEST_KEY_123');
+      expect(body).toHaveProperty('tenantId', '');
+      expect(body).toHaveProperty('lng', 'vi');
       return jsonResponse({ status_code: 9999, payload: { access_token: 'TOKEN_ABC' } });
     });
 
     const token = await OmiCallService.getAccessToken();
     expect(token).toBe('TOKEN_ABC');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('fallback sang GET /api/auth?apiKey= khi POST bị 405 (staging)', async () => {
+    const fetchMock = mockFetch(async (url, options) => {
+      if (options.method === 'POST') {
+        return jsonResponse({ error: 'Method not allowed' }, 405);
+      }
+      expect(String(url)).toContain('/api/auth?apiKey=TEST_KEY_123');
+      return jsonResponse({ status_code: 9999, payload: { access_token: 'TOKEN_STG' } });
+    });
+
+    const token = await OmiCallService.getAccessToken();
+    expect(token).toBe('TOKEN_STG');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('không retry khi API key sai (status_code -9999) — báo message rõ ràng', async () => {
+    const fetchMock = mockFetch(async () =>
+      jsonResponse({ status_code: -9999, message: 'auth_invalid', payload: null })
+    );
+
+    await expect(OmiCallService.getAccessToken()).rejects.toThrow(/không hợp lệ/);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -216,8 +244,8 @@ describe('OmiCallService — testConnection (nút "Kiểm tra kết nối")', ()
 
   it('nhận apiKey/baseUrl TRỰC TIẾP (dạng phẳng) — dùng để test key MỚI chưa lưu', async () => {
     const calls = [];
-    mockFetch(async (url) => {
-      calls.push(String(url));
+    mockFetch(async (url, options) => {
+      calls.push({ url: String(url), body: options.body });
       return jsonResponse({ status_code: 9999, payload: { access_token: 'TOKEN_NEW' } });
     });
 
@@ -227,13 +255,13 @@ describe('OmiCallService — testConnection (nút "Kiểm tra kết nối")', ()
     });
 
     expect(res.success).toBe(true);
-    expect(calls[0]).toContain('apiKey=BRAND_NEW_KEY');
+    expect(JSON.parse(calls[0].body).apiKey).toBe('BRAND_NEW_KEY');
   });
 
   it('vẫn hỗ trợ dạng lồng { config: {...} }', async () => {
     const calls = [];
-    mockFetch(async (url) => {
-      calls.push(String(url));
+    mockFetch(async (url, options) => {
+      calls.push({ url: String(url), body: options.body });
       return jsonResponse({ status_code: 9999, payload: { access_token: 'TOKEN_NEW' } });
     });
 
@@ -242,7 +270,7 @@ describe('OmiCallService — testConnection (nút "Kiểm tra kết nối")', ()
     });
 
     expect(res.success).toBe(true);
-    expect(calls[0]).toContain('apiKey=NESTED_KEY');
+    expect(JSON.parse(calls[0].body).apiKey).toBe('NESTED_KEY');
   });
 
   it('không có key nào → fail với message rõ ràng', async () => {
