@@ -1273,7 +1273,7 @@
           '<div>&nbsp;&nbsp;&nbsp;&nbsp;<b>Bước 1 – Cơ bản:</b> Tên "Gạch nợ Bia Tươi" · URL = <span class="dbt-sepay-code">' +
             esc(location.origin + (s.webhookUrl || '/webhook/sepay')) +
           '</span> · Loại sự kiện = <b>Tiền vào</b> · Content-Type = <b>application/json</b> · Bật "Tự động gửi lại".</div>' +
-          '<div>&nbsp;&nbsp;&nbsp;&nbsp;<b>Bước 2 – Tài khoản:</b> Chọn <b>Tất cả tài khoản</b> (để mọi TK ngân hàng đều bắn webhook).</div>' +
+          '<div>&nbsp;&nbsp;&nbsp;&nbsp;<b>Bước 2 – Tài khoản:</b> Chọn <b>Tất cả tài khoản</b> (để mọi TK ngân hàng đều bắn webhook). Nếu bạn dùng "mã thanh toán" SePay thì mới chọn tiền tố mã — nếu không thì <b>không đặt bộ lọc</b> để không bỏ sót giao dịch.</div>' +
           '<div>&nbsp;&nbsp;&nbsp;&nbsp;<b>Bước 3 – Bảo mật:</b> Chọn <b>HMAC-SHA256</b> → bấm nút tạo <b>Secret Key</b> → <b>copy ngay</b> (SePay chỉ hiện 1 lần).</div>' +
           '<div><b>2.</b> Quay lại tab này → dán Secret Key vào ô <b>Webhook secret</b> → bấm <b>💾 Lưu cấu hình</b>.</div>' +
           '<div><b>3.</b> (Tuỳ chọn) Lấy API token: <b>Cấu hình Công ty → API Access → + Thêm API</b> → dán vào ô <b>API token</b> → Lưu. Dùng để bấm nút "Đối soát tay" khi webhook lỗi.</div>' +
@@ -1353,9 +1353,9 @@
           '<div class="dbt-hint">📍 my.sepay.vn → Tích hợp → Webhooks → + Thêm webhook → Bước 3 "Bảo mật" → chọn HMAC-SHA256 → bấm nút tạo Secret Key → copy ngay (chỉ hiện 1 lần).</div>' +
         '</div>' +
         '<div class="dbt-field">' +
-          '<label class="dbt-label">Tiền tố mã thanh toán</label>' +
+          '<label class="dbt-label">Tiền tố mã thanh toán của SePay (tuỳ chọn)</label>' +
           '<input id="sepPrefix" class="dbt-input" type="text" value="' + esc(s.paymentCodePrefix || 'DH') + '" placeholder="DH">' +
-          '<div class="dbt-hint">Khớp với "tiền tố mã thanh toán" bạn cấu hình trong SePay (Công ty → Cấu hình chung → Cấu trúc mã thanh toán). Mặc định "DH".</div>' +
+          '<div class="dbt-hint">Chỉ dùng nếu bạn dùng tính năng "mã thanh toán" của SePay (mã dạng <b>DH123</b>). Hệ thống luôn tự nhận mã khách <b>KHxxxx</b> nhúng trong nội dung chuyển khoản — không cần cấu hình gì thêm. <b>Để trống</b> nếu bạn không dùng mã thanh toán SePay (khi đó không đặt bộ lọc tiền tố khi tạo webhook).</div>' +
         '</div>' +
         '<div class="dbt-sepay-row">' +
           '<span class="dbt-sepay-row-label">Tự động gạch nợ khi nhận tiền</span>' +
