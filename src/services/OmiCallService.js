@@ -653,6 +653,106 @@ async function probeSendEndpoints(opts = {}) {
   return { attempts, best: best || null };
 }
 
+/**
+ * Liệt kê hội thoại (conversation) đang có trên tài khoản OmiCall.
+ *
+ * Dùng để admin lấy đúng `convId` của nhóm Zalo thay vì tự đoán — OmiCall
+ * trả `invalid_param` khi convId không tồn tại trong tenant của API key.
+ *
+ * @param {object} opts
+ * @param {string} [opts.keyword] - từ khoá lọc
+ * @param {number} [opts.page]
+ * @param {number} [opts.size]
+ * @returns {Promise<{success:boolean, conversations?:Array, raw?:any, error?:string}>}
+ */
+async function listConversations(opts = {}) {
+  const cfg = { ...getConfig(), ...(opts.config || {}) };
+  const apiKey = String(cfg.apiKey || '').trim();
+  const baseUrl = normalizeBaseUrl(cfg.baseUrl);
+  if (!apiKey) return { success: false, error: 'Chưa cấu hình OmiCall API key' };
+
+  let token = null;
+  try {
+    token = await getAccessToken({ apiKey, baseUrl, force: true });
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+
+  const headers = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+    'x-api-key': apiKey,
+  };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const params = {
+    page: Number(opts.page) || 1,
+    size: Math.min(100, Number(opts.size) || 20),
+    lng: 'vi',
+  };
+  if (opts.keyword) params.keyword = String(opts.keyword).trim();
+
+  const attempts = [];
+  for (const host of resolveMessageHosts(baseUrl)) {
+    for (const path of ['/omi_v2/omichannel/search_v4', '/api/omi_v2/omichannel/search_v4']) {
+      const qs = new URLSearchParams(params).toString();
+      let res;
+      let raw = '';
+      try {
+        res = await fetchWithTimeout(`${host}${path}?${qs}`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ page: params.page, size: params.size, keyword: params.keyword || '' }),
+        });
+        raw = await res.text();
+      } catch (e) {
+        attempts.push({ host, path, http: 0, result: 'FETCH_FAIL', detail: e.message });
+        continue;
+      }
+
+      if (/^\s*<(!doctype|html)/i.test(raw)) {
+        attempts.push({ host, path, http: res.status, result: 'HTML' });
+        continue;
+      }
+
+      let body = null;
+      try {
+        body = raw ? JSON.parse(raw) : null;
+      } catch (_) {
+        body = { message: raw };
+      }
+
+      const statusCode = body && body.status_code;
+      if (res.ok && (statusCode === undefined || Number(statusCode) === 9999)) {
+        const payload = (body && body.payload) || {};
+        const list = Array.isArray(payload)
+          ? payload
+          : payload.items || payload.data || payload.list || payload.conversations || [];
+        return {
+          success: true,
+          conversations: Array.isArray(list) ? list : [],
+          raw: body,
+          attempts,
+        };
+      }
+
+      attempts.push({
+        host,
+        path,
+        http: res.status,
+        result: 'ERR',
+        detail: (body && (body.message || body.msg)) || `HTTP ${res.status}`,
+      });
+    }
+  }
+
+  return {
+    success: false,
+    error: 'Không tìm được endpoint liệt kê hội thoại OmiCall',
+    attempts,
+  };
+}
+
 module.exports = {
   DEFAULT_BASE_URL,
   getConfig,
@@ -663,4 +763,5 @@ module.exports = {
   sendZaloPersonalMessage,
   testConnection,
   probeSendEndpoints,
+  listConversations,
 };

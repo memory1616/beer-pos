@@ -900,6 +900,24 @@ router.get('/notify/probe', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
+router.get('/notify/conversations', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { keyword, page, size } = req.query || {};
+    const result = await OmiCallService.listConversations({
+      keyword: keyword ? String(keyword) : '',
+      page: Number(page) || 1,
+      size: Number(size) || 20,
+    });
+    if (!result.success) {
+      return res.status(400).json({ success: false, error: result.error, attempts: result.attempts || [] });
+    }
+    res.json({ success: true, data: { conversations: result.conversations } });
+  } catch (e) {
+    logger.error('[DEBT_NOTIFY_API] conversations error', { error: e.message });
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 router.get('/notify/history', requireAuth, (req, res) => {
   try {
     const { status, customerId, limit, offset } = req.query || {};
