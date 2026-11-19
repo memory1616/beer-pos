@@ -539,6 +539,27 @@
     }
 
     load();
+
+    // ── Đồng bộ real-time ───────────────────────────────────────────────
+    // Khi Admin SỬA ĐƠN (đổi số lượng) hoặc tạo/xoá đơn, số lượng "cần giao"
+    // trên trang chủ phải cập nhật ngay — tài xế không cần reload.
+    //
+    // ⚠️ BẮT BUỘC: trang này phải nạp `/js/driver/sync.js` (đã thêm vào
+    // views/driver/index.html), nếu không `window.DrvSync` không tồn tại và
+    // các listener dưới đây không bao giờ chạy.
+    if (window.DrvSync && typeof window.DrvSync.onChange === 'function') {
+      window.DrvSync.onChange(function (reason) {
+        // Bỏ qua lý do focus/visibility — đã có xử lý riêng (refresh khi
+        // quay lại tab) trong sync.js; gọi lại ở đây sẽ tải trùng.
+        if (reason === 'focus' || reason === 'visibility') return;
+        loadStats();
+      });
+    }
+
+    // Quay lại tab → làm mới số liệu (phòng trường hợp socket bị ngắt).
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) loadStats();
+    });
   }
 
   if (document.readyState === 'loading') {

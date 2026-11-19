@@ -243,6 +243,149 @@ class DeliveryService {
   }
 
   /**
+   * Đồng bộ phiếu giao với `sale_items` mới nhất của đơn.
+   *
+   * BỐI CẢNH:
+   *  - `delivery_record_items.expected_quantity` là bản SAO CHÉP số lượng cần
+   *    giao tại thời điểm phiếu giao được tạo.
+   *  - Trang Giao hàng của tài xế hiển thị "Cần giao: N" từ chính cột này.
+   *  - Khi Admin SỬA ĐƠN (đổi số lượng / đổi sản phẩm) mà không đồng bộ
+   *    lại → tài xế vẫn thấy số lượng CŨ → giao thiếu/thừa hàng.
+   *
+   * HÀNH VI:
+   *  - Với mỗi item trong `delivery_record_items`:
+   *    • Còn sản phẩm trong đơn → cập nhật `expected_quantity` = số lượng mới.
+   *    • Không còn trong đơn → đánh dấu `expected_quantity = 0` (giữ dòng để
+   *      không phá lịch sử, nhưng không còn yêu cầu giao).
+   *  - Thêm dòng cho sản phẩm MỚI có trong đơn nhưng chưa có trong phiếu giao.
+   *  - Cập nhật `delivery_records.expected_kegs` = tổng lít (không tính PET).
+   *
+   * KHÔNG đụng vào `delivered_quantity` (số đã giao thực tế).
+   */
+  static syncRecordWithSaleItems(saleId) {
+    const saleIdNum = parseInt(saleId, 10);
+    if (!Number.isFinite(saleIdNum)) return { success: false, error: 'saleId không hợp lệ' };
+
+    // Lấy các phiếu giao của đơn này (chưa hoàn tất mới cần đồng bộ;
+    // đơn đã giao xong thì giữ nguyên lịch sử).
+    const records = db
+      .prepare(
+        `SELECT id FROM delivery_records
+          WHERE sale_id = ?
+            AND status IN ('PENDING', 'IN_PROGRESS', 'DISCREPANCY')`
+      )
+      .all(saleIdNum);
+
+    if (!records.length) return { success: true, updated: 0 };
+
+    // Số lượng mới theo product_id (gộp cả hàng thưởng vào sản phẩm gốc)
+    // ⚠️ `sale_items` KHÔNG có cột `product_name` — tên lấy từ `products.name`.
+    const newItems = db
+      .prepare(
+        `SELECT si.product_id, si.product_slug,
+                COALESCE(p.name, si.product_slug, '') AS product_name,
+                COALESCE(si.quantity, 0) AS quantity,
+                COALESCE(p.type, '') AS product_type
+           FROM sale_items si
+           LEFT JOIN products p ON p.id = si.product_id
+          WHERE si.sale_id = ?`
+      )
+      .all(saleIdNum);
+
+    const byProduct = new Map();
+    for (const it of newItems) {
+      const key = it.product_id != null ? `id:${it.product_id}` : `name:${it.product_name || ''}`;
+      const prev = byProduct.get(key);
+      if (prev) {
+        prev.quantity += it.quantity || 0;
+      } else {
+        byProduct.set(key, {
+          product_id: it.product_id,
+          product_name: it.product_name || '',
+          product_slug: it.product_slug || '',
+          quantity: it.quantity || 0,
+          product_type: it.product_type || '',
+        });
+      }
+    }
+
+    const expectedKegs = newItems
+      .filter((i) => i.product_type !== 'pet')
+      .reduce((sum, i) => sum + (i.quantity || 0), 0);
+
+    let updatedRows = 0;
+
+    for (const rec of records) {
+      const existingItems = db
+        .prepare('SELECT * FROM delivery_record_items WHERE delivery_id = ? ORDER BY id')
+        .all(rec.id);
+
+      const seenKeys = new Set();
+
+      for (const ex of existingItems) {
+        // Khớp theo product_id; nếu dòng cũ không có product_id (dữ liệu cũ)
+        // → khớp theo tên sản phẩm.
+        const key = ex.product_id != null
+          ? `id:${ex.product_id}`
+          : `name:${ex.product_name || ''}`;
+        const match = byProduct.get(key);
+
+        if (match) {
+          seenKeys.add(key);
+          if ((ex.expected_quantity || 0) !== match.quantity) {
+            db.prepare(
+              'UPDATE delivery_record_items SET expected_quantity = ? WHERE id = ?'
+            ).run(match.quantity, ex.id);
+            updatedRows++;
+          }
+        } else {
+          // Sản phẩm đã bị gỡ khỏi đơn → không còn cần giao
+          if ((ex.expected_quantity || 0) !== 0) {
+            db.prepare(
+              'UPDATE delivery_record_items SET expected_quantity = 0 WHERE id = ?'
+            ).run(ex.id);
+            updatedRows++;
+          }
+        }
+      }
+
+      // Thêm dòng cho sản phẩm mới có trong đơn
+      for (const [key, match] of byProduct.entries()) {
+        if (seenKeys.has(key)) continue;
+        // Bỏ qua nếu đã có dòng cùng tên (dòng cũ không có product_id)
+        const alreadyByName = existingItems.some(
+          (ex) => ex.product_id == null && ex.product_name === match.product_name
+        );
+        if (alreadyByName) continue;
+
+        db.prepare(
+          `INSERT INTO delivery_record_items
+             (delivery_id, product_id, product_name, expected_quantity,
+              delivered_quantity, is_reward, note)
+           VALUES (?, ?, ?, ?, 0, 0, NULL)`
+        ).run(rec.id, match.product_id, match.product_name, match.quantity);
+        updatedRows++;
+      }
+
+      db.prepare(
+        `UPDATE delivery_records
+            SET expected_kegs = ?, updated_at = datetime('now')
+          WHERE id = ?`
+      ).run(expectedKegs, rec.id);
+    }
+
+    if (updatedRows > 0) {
+      logger.info('[DeliveryService] syncRecordWithSaleItems updated', {
+        saleId: saleIdNum,
+        records: records.length,
+        rows: updatedRows,
+      });
+    }
+
+    return { success: true, updated: updatedRows, records: records.length };
+  }
+
+  /**
    * Tạo (hoặc lấy) delivery record cho 1 đơn bán.
    * Nếu record đã tồn tại → trả về record cũ (idempotent, tránh nhân đôi).
    */

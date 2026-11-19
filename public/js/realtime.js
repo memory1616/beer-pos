@@ -313,7 +313,7 @@
       var key = 'order:created:' + (data && data.id ? data.id : '');
       if (_shouldDebounce(key)) return;
       log('EVENT', 'order:created received', data);
-      triggerRefetch(['orders', 'reports', 'dashboard']);
+      triggerRefetch(['orders', 'reports', 'dashboard', 'deliveries', 'sales']);
       bcastSend('sync', { source: 'socket' });
     });
 
@@ -321,7 +321,9 @@
       var key = 'order:updated:' + (data && data.id ? data.id : '');
       if (_shouldDebounce(key)) return;
       log('EVENT', 'order:updated received', data);
-      triggerRefetch(['orders', 'reports', 'dashboard']);
+      // 'deliveries' → trang Giao hàng của tài xế refresh (số lượng cần giao
+      // thay đổi khi Admin sửa đơn).
+      triggerRefetch(['orders', 'reports', 'dashboard', 'deliveries', 'sales']);
       bcastSend('sync', { source: 'socket' });
     });
 

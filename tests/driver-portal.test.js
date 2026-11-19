@@ -617,6 +617,127 @@ describe('Driver Portal — RBAC & Data Protection', () => {
   });
 
   // ═══════════════════════════════════════════════════════════════════════
+  // REGRESSION: Admin sửa đơn → số lượng "Cần giao" trên trang Giao hàng
+  // của tài xế phải cập nhật theo (nếu không, tài xế giao thiếu/thừa hàng).
+  describe('F1b. Đồng bộ số lượng cần giao khi Admin sửa đơn', () => {
+    const DeliveryService = require('../src/services/DeliveryService');
+    let syncSaleId;
+    let syncDeliveryId;
+
+    beforeAll(() => {
+      const today = new Date().toISOString().split('T')[0];
+      const s = db
+        .prepare(
+          `INSERT INTO sales (customer_id, date, type, total, driver_username, created_at)
+           VALUES (?, ?, 'sale', 100000, ?, datetime('now'))`
+        )
+        .run(testCustomerId, today, TEST_DRIVER);
+      syncSaleId = s.lastInsertRowid;
+
+      db.prepare(
+        `INSERT INTO sale_items (sale_id, product_id, quantity, price, cost_price)
+         VALUES (?, ?, 10, 21000, 11000)`
+      ).run(syncSaleId, testProductId);
+
+      // Tạo phiếu giao (như tài xế bấm "Giao hàng")
+      const rec = DeliveryService.ensureRecord(syncSaleId, TEST_DRIVER);
+      syncDeliveryId = rec.delivery.id;
+    });
+
+    afterAll(() => {
+      try {
+        db.prepare('DELETE FROM delivery_record_items WHERE delivery_id = ?').run(syncDeliveryId);
+        db.prepare('DELETE FROM delivery_events WHERE delivery_id = ?').run(syncDeliveryId);
+        db.prepare('DELETE FROM delivery_records WHERE id = ?').run(syncDeliveryId);
+        db.prepare('DELETE FROM sale_items WHERE sale_id = ?').run(syncSaleId);
+        db.prepare('DELETE FROM sales WHERE id = ?').run(syncSaleId);
+      } catch (_) {}
+    });
+
+    test('phiếu giao ban đầu có expected_quantity = số lượng trong đơn', () => {
+      const items = db
+        .prepare('SELECT * FROM delivery_record_items WHERE delivery_id = ?')
+        .all(syncDeliveryId);
+      expect(items.length).toBe(1);
+      expect(items[0].expected_quantity).toBe(10);
+    });
+
+    test('Admin sửa đơn (10 → 25) → expected_quantity được cập nhật', () => {
+      // Admin đổi số lượng trong sale_items
+      db.prepare('UPDATE sale_items SET quantity = 25 WHERE sale_id = ?').run(syncSaleId);
+
+      const res = DeliveryService.syncRecordWithSaleItems(syncSaleId);
+      expect(res.success).toBe(true);
+      expect(res.updated).toBeGreaterThan(0);
+
+      const items = db
+        .prepare('SELECT * FROM delivery_record_items WHERE delivery_id = ?')
+        .all(syncDeliveryId);
+      expect(items[0].expected_quantity).toBe(25);
+
+      const rec = db
+        .prepare('SELECT * FROM delivery_records WHERE id = ?')
+        .get(syncDeliveryId);
+      expect(rec.expected_kegs).toBe(25);
+    });
+
+    test('Admin bỏ sản phẩm khỏi đơn → expected_quantity = 0', () => {
+      db.prepare('DELETE FROM sale_items WHERE sale_id = ?').run(syncSaleId);
+
+      DeliveryService.syncRecordWithSaleItems(syncSaleId);
+
+      const items = db
+        .prepare('SELECT * FROM delivery_record_items WHERE delivery_id = ?')
+        .all(syncDeliveryId);
+      expect(items.length).toBe(1); // giữ dòng (không phá lịch sử)
+      expect(items[0].expected_quantity).toBe(0);
+    });
+
+    test('Admin thêm sản phẩm mới vào đơn → thêm dòng vào phiếu giao', () => {
+      const prod2 = db
+        .prepare(
+          `INSERT INTO products (slug, name, stock, cost_price, sell_price, type, archived)
+           VALUES ('test_beer_sku_2', 'Bia Test SKU 2', 100, 11000, 20000, 'keg', 0)`
+        )
+        .run();
+      const pid2 = prod2.lastInsertRowid;
+
+      db.prepare(
+        `INSERT INTO sale_items (sale_id, product_id, quantity, price, cost_price)
+         VALUES (?, ?, 7, 21000, 11000)`
+      ).run(syncSaleId, pid2);
+
+      DeliveryService.syncRecordWithSaleItems(syncSaleId);
+
+      const items = db
+        .prepare('SELECT * FROM delivery_record_items WHERE delivery_id = ? ORDER BY id')
+        .all(syncDeliveryId);
+      expect(items.length).toBe(2);
+      const newItem = items.find((i) => i.product_id === pid2);
+      expect(newItem).toBeTruthy();
+      expect(newItem.expected_quantity).toBe(7);
+
+      db.prepare('DELETE FROM delivery_record_items WHERE product_id = ?').run(pid2);
+      db.prepare('DELETE FROM sale_items WHERE product_id = ?').run(pid2);
+      db.prepare('DELETE FROM products WHERE id = ?').run(pid2);
+    });
+
+    test('đơn đã DELIVERED không bị đồng bộ (giữ nguyên lịch sử giao)', () => {
+      db.prepare(
+        `UPDATE delivery_records SET status = 'DELIVERED' WHERE id = ?`
+      ).run(syncDeliveryId);
+      db.prepare('UPDATE sale_items SET quantity = 99 WHERE sale_id = ?').run(syncSaleId);
+
+      DeliveryService.syncRecordWithSaleItems(syncSaleId);
+
+      const items = db
+        .prepare('SELECT * FROM delivery_record_items WHERE delivery_id = ?')
+        .all(syncDeliveryId);
+      expect(items[0].expected_quantity).not.toBe(99);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════
   describe('F2. Phạm vi giao hàng — own_plus_unassigned', () => {
     let unassignedSaleId;
     let otherDriverSaleId;

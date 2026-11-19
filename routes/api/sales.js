@@ -1854,6 +1854,21 @@ router.put('/:id', (req, res) => {
     db.prepare('UPDATE sales SET customer_id = ?, total = ?, profit = ?, promo_type = ?, promo_free_liters = ? WHERE id = ?')
       .run(customerId, newTotal, newProfit, promoInfo ? promoInfo.promoType : null, promoInfo ? promoInfo.totalFree : 0, saleId);
 
+    // ── ĐỒNG BỘ PHIẾU GIAO (delivery_records) với đơn vừa sửa ────────────
+    // ⚠️ QUAN TRỌNG: Trang Giao hàng của tài xế hiển thị "Cần giao: N"
+    // lấy từ `delivery_record_items.expected_quantity` — bản SAO CHÉP tại thời
+    // điểm phiếu giao được tạo. Nếu Admin sửa đơn (đổi số lượng) mà KHÔNG
+    // cập nhật lại bảng này → tài xế vẫn thấy số lượng CŨ → giao thiếu/thừa.
+    //
+    // → Đồng bộ `expected_quantity` theo sale_items mới, và cập nhật
+    //   `delivery_records.expected_kegs` cho khớp.
+    try {
+      const DeliveryService = require('../../src/services/DeliveryService');
+      DeliveryService.syncRecordWithSaleItems(saleId);
+    } catch (syncErr) {
+      logger.error('[SALE UPDATE] Sync delivery items error', { error: syncErr.message, saleId });
+    }
+
     // ── Điều chỉnh công nợ nếu đơn có ghi nợ ─────────────────
     // Dùng SỔ CÔNG NỢ (ledger): tạo bút toán ADJUSTMENT gắn với đơn,
     // KHÔNG sửa/xoá bút toán gốc. Chỉ áp dụng khi đơn đã ghi công nợ
