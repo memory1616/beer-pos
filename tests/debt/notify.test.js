@@ -453,6 +453,19 @@ describe('OmiCallService — gửi tin nhắn Zalo Personal', () => {
     expect(addBody.contact_ids).toEqual(['CONTACT_1']);
   });
 
+  it('nhóm nằm trong danh sách cấm → KHÔNG gửi, KHÔNG gọi API', async () => {
+    const fetchMock = mockFetch(async () => jsonResponse({}));
+    const res = await OmiCallService.sendZaloPersonalMessage({
+      convId: '6afe6913fca59218a5d662b0',
+      text: 'abc',
+      config: { blockedGroups: ['6afe6913fca59218a5d662b0'] },
+    });
+    expect(res.success).toBe(false);
+    expect(res.blocked).toBe(true);
+    expect(res.error).toMatch(/cấm/i);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('giữ nguyên Mongo _id 24 hex, không gọi search', async () => {    const calls = [];
     mockFetch(async (url, opts) => {
       const u = String(url);

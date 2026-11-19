@@ -833,6 +833,7 @@ router.post('/notify/settings', requireAuth, requireAdmin, (req, res) => {
       channel: body.channel,
       notifyManualDebt: body.notifyManualDebt,
       title: body.title,
+      blockedGroups: body.blockedGroups,
     });
     if (!result.success) {
       return res.status(400).json({ success: false, error: result.error });
@@ -844,8 +845,48 @@ router.post('/notify/settings', requireAuth, requireAdmin, (req, res) => {
   }
 });
 
-router.post('/notify/test', requireAuth, requireAdmin, async (req, res) => {
+// ── Danh sách nhóm Zalo KHÔNG được gửi tin (chống gửi nhầm cho khách) ────────
+router.get('/notify/blocked-groups', requireAuth, requireAdmin, (req, res) => {
   try {
+    res.json({ success: true, data: { blockedGroups: OmiCallService.getPublicConfig().blockedGroups || [] } });
+  } catch (e) {
+    logger.error('[DEBT_NOTIFY_API] blocked-groups error', { error: e.message });
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+router.post('/notify/blocked-groups', requireAuth, requireAdmin, (req, res) => {
+  try {
+    const body = req.body || {};
+    let list = [];
+    if (Array.isArray(body.blockedGroups)) list = body.blockedGroups;
+    else if (typeof body.blockedGroups === 'string') {
+      list = OmiCallService.parseBlockedGroups(body.blockedGroups);
+    }
+
+    // Thêm 1 nhóm vào danh sách cấm
+    if (body.convId) {
+      const id = String(body.convId).trim();
+      if (id && !list.includes(id)) list.push(id);
+    }
+    // Xoá 1 nhóm khỏi danh sách cấm
+    if (body.removeConvId) {
+      const id = String(body.removeConvId).trim();
+      list = list.filter((x) => x !== id);
+    }
+
+    const result = OmiCallService.saveConfig({ blockedGroups: list });
+    if (!result.success) {
+      return res.status(400).json({ success: false, error: result.error });
+    }
+    res.json({ success: true, data: { blockedGroups: OmiCallService.getPublicConfig().blockedGroups || [] } });
+  } catch (e) {
+    logger.error('[DEBT_NOTIFY_API] save blocked-groups error', { error: e.message });
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+router.post('/notify/test', requireAuth, requireAdmin, async (req, res) => {  try {
     const body = req.body || {};
     const config = {
       apiKey: body.apiKey !== undefined ? body.apiKey : undefined,
