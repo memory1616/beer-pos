@@ -135,6 +135,46 @@
       color: #3b82f6;
       font-weight: 600;
     }
+
+    /* ── Mã khách hàng (ID) — bấm để sao chép ───────────────── */
+    .cd-hero-id {
+      font-size: 12px;
+      color: var(--text-secondary);
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      margin-top: 5px;
+      padding: 2px 8px;
+      border: 1px dashed var(--border);
+      border-radius: 6px;
+      background: var(--bg-hover);
+      cursor: pointer;
+      user-select: none;
+      transition: border-color .15s, color .15s;
+      width: fit-content;
+    }
+    .cd-hero-id:hover {
+      border-color: var(--primary, #fcd535);
+      color: var(--text-primary);
+    }
+    .cd-hero-id::before {
+      content: '🔢';
+      font-size: 11px;
+    }
+    .cd-hero-id b {
+      color: var(--text-primary);
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+    .cd-hero-id__copy {
+      font-size: 10px;
+      opacity: .65;
+      margin-left: 2px;
+    }
+    .cd-hero-id.is-copied {
+      border-color: #22c55e;
+      color: #22c55e;
+    }
     .cd-hero-actions {
       display: flex;
       flex-direction: column;
@@ -2085,6 +2125,12 @@
                   <div class="cd-hero-name" id="heroName">Đang tải...</div>
                   <div class="cd-hero-phone" id="heroPhone">—</div>
                   <div class="cd-hero-sales">Sales: <span id="heroSales">—</span></div>
+                  <!-- Mã khách hàng — bấm để sao chép -->
+                  <div class="cd-hero-id" id="heroId" onclick="copyCustomerId()"
+                       role="button" tabindex="0"
+                       title="Bấm để sao chép mã khách hàng">
+                    Mã KH: <b id="heroIdValue">—</b><span class="cd-hero-id__copy">📋</span>
+                  </div>
                 </div>
                 <div class="cd-hero-actions">
                   <button onclick="callCustomer()" class="cd-hero-btn cd-hero-btn-call" id="btnCall" title="Gọi điện">📞</button>
@@ -2347,6 +2393,68 @@
       if (phone) window.location.href = 'https://zalo.me/' + phone;
     }
 
+    // ── Copy Mã khách hàng ─────────────────────────────────────
+    // Bấm vào chip "Mã KH: KH0006 (#14)" ở hero card → copy mã vào clipboard.
+    // Tiện khi tra cứu/gọi khách qua điện thoại: báo "KH0006".
+    function copyCustomerId() {
+      const id = customerData && customerData.id != null ? customerData.id : null;
+      const code = customerData && customerData.debt_code ? customerData.debt_code : null;
+      if (id == null && !code) return;
+      // Ưu tiên mã KH (thân thiện, dùng cho đối soát) — kèm ID số sau.
+      const text = code
+        ? (id != null ? code + ' (#' + id + ')' : code)
+        : '#' + id;
+
+      const onCopied = function () {
+        const chip = document.getElementById('heroId');
+        const val = document.getElementById('heroIdValue');
+        if (chip) chip.classList.add('is-copied');
+        if (val) val.textContent = text + ' ✓';
+        if (typeof showToast === 'function') showToast('Đã sao chép mã khách hàng ' + text, 'success');
+        setTimeout(function () {
+          if (chip) chip.classList.remove('is-copied');
+          if (val) val.textContent = text;
+        }, 1600);
+      };
+
+      const onFail = function () {
+        if (typeof showToast === 'function') showToast('Không sao chép được, hãy chọn và copy thủ công', 'error');
+      };
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(onCopied).catch(function () {
+          // Fallback cho trình duyệt không hỗ trợ clipboard API (http, cũ)
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          try {
+            document.execCommand('copy');
+            onCopied();
+          } catch (e) {
+            onFail();
+          }
+          document.body.removeChild(ta);
+        });
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+          document.execCommand('copy');
+          onCopied();
+        } catch (e) {
+          onFail();
+        }
+        document.body.removeChild(ta);
+      }
+    }
+
     // ── Month Options ─────────────────────────────────────────
     function getMonthOptions() {
       const now = new Date();
@@ -2380,9 +2488,20 @@
           const heroRegion = document.getElementById('heroRegion');
           const heroRegionDriver = document.getElementById('heroRegionDriver');
           const heroRegionDriverWrap = document.getElementById('heroRegionDriverWrap');
+          const heroIdValue = document.getElementById('heroIdValue');
 
           if (heroName) heroName.textContent = data.name || 'Khách hàng';
           if (heroPhone) heroPhone.textContent = data.phone || 'Chưa có SĐT';
+
+          // Mã khách hàng — dùng để tra cứu nhanh, bấm để sao chép.
+          // Hiển thị mã KH (debt_code) nếu đã có (dùng cho đối soát Sepay),
+          // kèm ID số trong ngoặc để tra cứu nội bộ.
+          if (heroIdValue) {
+            const code = data.debt_code;
+            heroIdValue.textContent = code
+              ? (data.id != null ? code + ' (#' + data.id + ')' : code)
+              : (data.id != null ? '#' + data.id : '—');
+          }
           if (heroAvatar) heroAvatar.textContent = (data.name || 'K').charAt(0).toUpperCase();
 
           // Khu vực khách hàng + tài xế phụ trách

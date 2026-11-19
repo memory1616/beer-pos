@@ -168,7 +168,7 @@ router.get('/:id', (req, res) => {
     const { fields } = req.query;
     if (fields) {
       const requestedFields = fields.split(',').map(f => f.trim()).filter(Boolean);
-      const allowed = ['id','name','phone','address','debt','deposit','keg_balance','lat','lng','last_order_date','archived','monthly_expected','exclude_expected','horizontal_fridge','vertical_fridge','note','updated_at','region_id'];
+      const allowed = ['id','name','phone','address','debt','deposit','keg_balance','lat','lng','last_order_date','archived','monthly_expected','exclude_expected','horizontal_fridge','vertical_fridge','note','updated_at','region_id','debt_code'];
       const valid = requestedFields.filter(f => allowed.includes(f));
       if (valid.length > 0) {
         return res.json(valid.reduce((obj, f) => { obj[f] = customer[f]; return obj; }, {}));
