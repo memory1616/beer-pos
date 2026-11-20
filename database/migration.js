@@ -988,6 +988,21 @@ function runCustomerClosureMigration(db) {
   }
 }
 
+// ── Customer closure devices migration (065) ───────────────────────────────────
+// Phiếu chốt khách ngừng bán: ghi lại THIẾT BỊ (tủ lạnh) thu hồi về kho.
+// Chạy ĐỘC LẬP, idempotent.
+function runCustomerClosureDevicesMigration(db) {
+  try {
+    const migration = require('./migrations/065_customer_closure_devices');
+    migration.up(db);
+    log('[CUSTOMER_CLOSURE_DEVICES] Migration 065 applied');
+    return { success: true };
+  } catch (e) {
+    log('[CUSTOMER_CLOSURE_DEVICES] Migration error: ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
 // ── Utility: Generate UUID ─────────────────────────────────────────────────────
 
 function generateUUID() {
@@ -1027,6 +1042,7 @@ module.exports = {
   runDebtZaloNotifyMigration,
   runSepayAutoPollMigration,
   runCustomerClosureMigration,
+  runCustomerClosureDevicesMigration,
   generateUUID,
   getCurrentVersion,
   setVersion,

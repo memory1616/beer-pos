@@ -76,6 +76,21 @@ function makeDelivery(customerId, status = 'PENDING') {
   return info.lastInsertRowid;
 }
 
+const createdDevices = [];
+
+function makeDevice(customerId, type = 'vertical') {
+  const name = `__CLOSURE_DEV_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const info = db
+    .prepare(
+      `INSERT INTO devices (name, type, serial_number, status, customer_id, assigned_date, created_at, updated_at, deleted)
+       VALUES (?, ?, ?, 'in_use', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0)`
+    )
+    .run(name, type, `SN-${Math.random().toString(36).slice(2, 8).toUpperCase()}`, customerId);
+  createdDevices.push(info.lastInsertRowid);
+  db.prepare('UPDATE customers SET vertical_fridge = vertical_fridge + 1 WHERE id = ?').run(customerId);
+  return info.lastInsertRowid;
+}
+
 function makeDebt(customerId, amount) {
   return DebtLedgerService.recordTransaction({
     customerId,
@@ -96,6 +111,7 @@ function cleanup() {
   }
   for (const id of createdCustomers) {
     try {
+      db.prepare('DELETE FROM customer_closure_devices WHERE closure_id IN (SELECT id FROM customer_closures WHERE customer_id = ?)').run(id);
       db.prepare('DELETE FROM customer_closure_items WHERE closure_id IN (SELECT id FROM customer_closures WHERE customer_id = ?)').run(id);
       db.prepare('DELETE FROM customer_closures WHERE customer_id = ?').run(id);
     } catch (_) {}
@@ -111,10 +127,14 @@ function cleanup() {
     try { db.prepare('DELETE FROM product_audit_log WHERE product_id = ?').run(id); } catch (_) {}
     try { db.prepare('DELETE FROM products WHERE id = ?').run(id); } catch (_) {}
   }
+  for (const id of createdDevices) {
+    try { db.prepare('DELETE FROM devices WHERE id = ?').run(id); } catch (_) {}
+  }
   createdDeliveries.length = 0;
   createdSales.length = 0;
   createdCustomers.length = 0;
   createdProducts.length = 0;
+  createdDevices.length = 0;
 }
 
 afterEach(() => cleanup());
@@ -429,5 +449,175 @@ describe('CustomerClosureService — lịch sử & mã phiếu', () => {
     expect(list.closures).toHaveLength(1);
     expect(list.closures[0].closure_no).toBe(res.result.closureNo);
     expect(list.closures[0].items).toHaveLength(1);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VỎ CÒN ĐẦY NHIỀU LOẠI (vàng/đen/...) — case thực tế khách 44
+// ═══════════════════════════════════════════════════════════════════════════
+describe('CustomerClosureService.close — vỏ còn đầy nhiều loại', () => {
+  test('29 vỏ vàng + 9 vỏ đen → tồn kho tăng đúng từng loại, hoàn tiền theo giá khách', () => {
+    const goldId = makeKegProduct();
+    const blackId = makeKegProduct();
+    const cid = makeCustomer({ kegBalance: 110 });
+
+    // Giá riêng của khách
+    db.prepare('INSERT INTO prices (customer_id, product_id, price) VALUES (?, ?, ?)')
+      .run(cid, goldId, 21000);
+    db.prepare('INSERT INTO prices (customer_id, product_id, price) VALUES (?, ?, ?)')
+      .run(cid, blackId, 27000);
+
+    const res = CustomerClosureService.close(cid, {
+      kegsEmpty: 72,          // 110 - 38 vỏ đầy
+      kegsFull: 0,
+      kegsLost: 0,
+      fullKegs: [
+        { productId: goldId, quantity: 29 },
+        { productId: blackId, quantity: 9 },
+      ],
+      items: [],
+      depositRefund: 0,
+      debtMode: 'keep',
+      archive: false,
+    });
+
+    expect(res.success).toBe(true);
+    expect(res.result.kegsFull).toBe(38);
+
+    const gold = db.prepare('SELECT stock FROM products WHERE id=?').get(goldId).stock;
+    const black = db.prepare('SELECT stock FROM products WHERE id=?').get(blackId).stock;
+    expect(gold).toBe(29);
+    expect(black).toBe(9);
+
+    // Hoàn tiền = 29*21000 + 9*27000 = 609000 + 243000 = 852000
+    expect(res.result.totalGoodsAmount).toBe(852000);
+    expect(res.result.fullKegs).toHaveLength(2);
+
+    // Ghi vào closure_items
+    const items = db
+      .prepare('SELECT * FROM customer_closure_items WHERE closure_id=?')
+      .all(res.result.closureId);
+    expect(items).toHaveLength(2);
+
+    // keg_balance giảm đúng 38 (72 rỗng + 38 đầy = 110 → còn 0)
+    const cust = db.prepare('SELECT keg_balance FROM customers WHERE id=?').get(cid);
+    expect(cust.keg_balance).toBe(0);
+  });
+
+  test('vỏ đầy vượt số vỏ khách giữ → từ chối', () => {
+    const goldId = makeKegProduct();
+    const cid = makeCustomer({ kegBalance: 10 });
+    const res = CustomerClosureService.close(cid, {
+      kegsEmpty: 0, kegsFull: 0, kegsLost: 0,
+      fullKegs: [{ productId: goldId, quantity: 20 }],
+      items: [], depositRefund: 0, debtMode: 'keep', archive: false,
+    });
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/vượt quá/);
+  });
+
+  test('trùng loại vỏ đầy → gộp dồn', () => {
+    const goldId = makeKegProduct();
+    const cid = makeCustomer({ kegBalance: 20 });
+    const res = CustomerClosureService.close(cid, {
+      kegsEmpty: 0, kegsFull: 0, kegsLost: 0,
+      fullKegs: [
+        { productId: goldId, quantity: 5 },
+        { productId: goldId, quantity: 7 },
+      ],
+      items: [], depositRefund: 0, debtMode: 'keep', archive: false,
+    });
+    expect(res.success).toBe(true);
+    expect(res.result.kegsFull).toBe(12);
+    expect(res.result.fullKegs).toHaveLength(1);
+    expect(db.prepare('SELECT stock FROM products WHERE id=?').get(goldId).stock).toBe(12);
+  });
+
+  test('fullKegs rỗng → vẫn hỗ trợ cách cũ (kegsFull + kegProductId)', () => {
+    const goldId = makeKegProduct();
+    const cid = makeCustomer({ kegBalance: 10 });
+    const res = CustomerClosureService.close(cid, {
+      kegsEmpty: 0, kegsFull: 4, kegsLost: 0,
+      kegProductId: goldId,
+      items: [], depositRefund: 0, debtMode: 'keep', archive: false,
+    });
+    expect(res.success).toBe(true);
+    expect(db.prepare('SELECT stock FROM products WHERE id=?').get(goldId).stock).toBe(4);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// THU HỒI THIẾT BỊ (tủ lạnh)
+// ═══════════════════════════════════════════════════════════════════════════
+describe('CustomerClosureService.close — thu hồi thiết bị', () => {
+  test('thiết bị được trả về kho + ghi phiếu + số tủ khách về 0', () => {
+    const cid = makeCustomer({ kegBalance: 0 });
+    const devId = makeDevice(cid, 'vertical');
+
+    const res = CustomerClosureService.close(cid, {
+      kegsEmpty: 0, kegsFull: 0, kegsLost: 0,
+      items: [], deviceIds: [devId],
+      depositRefund: 0, debtMode: 'keep', archive: false,
+    });
+
+    expect(res.success).toBe(true);
+    expect(res.result.devicesReturned).toBe(1);
+
+    const dev = db.prepare('SELECT * FROM devices WHERE id=?').get(devId);
+    expect(dev.status).toBe('available');
+    expect(dev.customer_id).toBeNull();
+    expect(dev.assigned_date).toBeNull();
+
+    const cust = db.prepare('SELECT vertical_fridge, horizontal_fridge FROM customers WHERE id=?').get(cid);
+    expect(cust.vertical_fridge).toBe(0);
+
+    const closure = db.prepare('SELECT * FROM customer_closures WHERE id=?').get(res.result.closureId);
+    expect(closure.devices_returned).toBe(1);
+
+    const devs = db
+      .prepare('SELECT * FROM customer_closure_devices WHERE closure_id=?')
+      .all(res.result.closureId);
+    expect(devs).toHaveLength(1);
+    expect(devs[0].device_id).toBe(devId);
+  });
+
+  test('thiết bị không thuộc khách → từ chối', () => {
+    const cid = makeCustomer({ kegBalance: 0 });
+    const otherCid = makeCustomer({ kegBalance: 0 });
+    const devId = makeDevice(otherCid, 'horizontal');
+
+    const res = CustomerClosureService.close(cid, {
+      kegsEmpty: 0, kegsFull: 0, kegsLost: 0,
+      items: [], deviceIds: [devId],
+      depositRefund: 0, debtMode: 'keep', archive: false,
+    });
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/không thuộc khách/i);
+  });
+
+  test('preview trả về danh sách thiết bị của khách', () => {
+    const cid = makeCustomer({ kegBalance: 0 });
+    const devId = makeDevice(cid, 'vertical');
+    const res = CustomerClosureService.preview(cid);
+    expect(res.success).toBe(true);
+    expect(res.preview.devices).toHaveLength(1);
+    expect(res.preview.devices[0].id).toBe(devId);
+    expect(res.preview.defaults.deviceIds).toEqual([devId]);
+  });
+
+  test('không chọn thiết bị → giữ nguyên gán cho khách', () => {
+    const cid = makeCustomer({ kegBalance: 0 });
+    const devId = makeDevice(cid, 'vertical');
+
+    const res = CustomerClosureService.close(cid, {
+      kegsEmpty: 0, kegsFull: 0, kegsLost: 0,
+      items: [], deviceIds: [],
+      depositRefund: 0, debtMode: 'keep', archive: false,
+    });
+    expect(res.success).toBe(true);
+    expect(res.result.devicesReturned).toBe(0);
+    const dev = db.prepare('SELECT * FROM devices WHERE id=?').get(devId);
+    expect(dev.customer_id).toBe(cid);
+    expect(dev.status).toBe('in_use');
   });
 });

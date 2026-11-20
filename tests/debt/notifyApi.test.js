@@ -174,7 +174,29 @@ describe('POST /notify/test', () => {
 // POST /notify/test-send
 // ═══════════════════════════════════════════════════════════════════════════
 describe('POST /notify/test-send', () => {
-  it('ADMIN gửi tin thử thành công', async () => {
+  // Nhóm Zalo phải được LIÊN KẾT trong Sổ công nợ mới được gửi.
+  const LINKED_CONV = 'CONV_TEST_LINKED';
+  const UNLINKED_CONV = 'CONV_TEST_UNLINKED';
+  let linkId = null;
+
+  beforeAll(() => {
+    const cust = db.prepare("SELECT id FROM customers WHERE archived = 0 LIMIT 1").get();
+    const info = db
+      .prepare(
+        `INSERT INTO debt_customer_groups (customer_id, platform, group_id, group_name, status, created_at, updated_at)
+         VALUES (?, 'zalo_personal', ?, '__TEST_NHOM__', 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+      )
+      .run(cust.id, LINKED_CONV);
+    linkId = info.lastInsertRowid;
+  });
+
+  afterAll(() => {
+    if (linkId) {
+      try { db.prepare('DELETE FROM debt_customer_groups WHERE id = ?').run(linkId); } catch (_) {}
+    }
+  });
+
+  it('ADMIN gửi tin thử thành công vào nhóm ĐÃ liên kết', async () => {
     global.fetch = jest.fn(async (url) => {
       if (String(url).includes('/api/auth')) {
         return jsonResponse({ status_code: 9999, payload: { access_token: 'T' } });
@@ -186,9 +208,27 @@ describe('POST /notify/test-send', () => {
     const res = await request(app)
       .post('/api/debt-ledger/notify/test-send')
       .set(ADMIN)
-      .send({ convId: 'CONV_TEST', text: 'xin chào' });
+      .send({ convId: LINKED_CONV, text: 'xin chào' });
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
+  });
+
+  it('nhóm CHƯA liên kết trong Sổ công nợ → 400 (không gửi)', async () => {
+    global.fetch = jest.fn(async (url) => {
+      if (String(url).includes('/api/auth')) {
+        return jsonResponse({ status_code: 9999, payload: { access_token: 'T' } });
+      }
+      return jsonResponse({ status_code: 9999, payload: { message_id: 'MSG_T' } });
+    });
+    OmiCallService.clearTokenCache();
+
+    const res = await request(app)
+      .post('/api/debt-ledger/notify/test-send')
+      .set(ADMIN)
+      .send({ convId: UNLINKED_CONV, text: 'xin chào' });
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error).toMatch(/chưa được liên kết/i);
   });
 
   it('thiếu convId → 400', async () => {
@@ -203,7 +243,7 @@ describe('POST /notify/test-send', () => {
     const res = await request(app)
       .post('/api/debt-ledger/notify/test-send')
       .set(STAFF)
-      .send({ convId: 'X' });
+      .send({ convId: LINKED_CONV });
     expect(res.status).toBe(403);
   });
 });

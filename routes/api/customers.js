@@ -694,6 +694,12 @@ router.post('/:id/closure', (req, res) => {
   if (!Array.isArray(body.items)) {
     body.items = [];
   }
+  if (!Array.isArray(body.fullKegs)) {
+    body.fullKegs = [];
+  }
+  if (!Array.isArray(body.deviceIds)) {
+    body.deviceIds = [];
+  }
 
   try {
     const result = CustomerClosureService.close(id, {
@@ -701,7 +707,9 @@ router.post('/:id/closure', (req, res) => {
       kegsFull,
       kegsLost,
       kegProductId: body.kegProductId,
+      fullKegs: body.fullKegs,
       items: body.items,
+      deviceIds: body.deviceIds,
       depositRefund,
       debtMode: body.debtMode,
       archive: body.archive,

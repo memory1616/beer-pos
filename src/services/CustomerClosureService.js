@@ -10,6 +10,12 @@
  *        • vỏ ĐẦY (còn bia) → về kho    → `products.stock += n` (loại keg)
  *        • vỏ MẤT            → `keg_stats.lost += n`
  *      → `customers.keg_balance` giảm tương ứng, `keg_stats.customer_holding` đồng bộ.
+ *      → VỎ ĐẦY có thể thu hồi NHIỀU LOẠI (vàng/đen/...) → `fullKegs: [{productId, quantity}]`.
+ *
+ *   2. THU HỒI THIẾT BỊ (tủ lạnh) đang đặt ở quán:
+ *      → ghi vào phiếu `customer_closure_devices`
+ *      → trả về kho: `devices.status = 'available'`, `customer_id = NULL`
+ *      → `customers.horizontal_fridge` / `vertical_fridge` về 0.
  *
  *   2. THU HỒI HÀNG TỒN Ở QUÁN: bia/chai/hộp còn nằm ở quán (chưa bán hết).
  *      → về kho (`products.stock += qty`) + HOÀN TIỀN theo giá của khách.
@@ -217,6 +223,16 @@ function preview(customerId) {
   const kegProducts = allProducts.filter((p) => p.type === 'keg');
   const goodsProducts = allProducts.filter((p) => p.type !== 'keg');
 
+  // Thiết bị (tủ lạnh) đang đặt ở quán → sẽ thu hồi về kho
+  const devices = db
+    .prepare(
+      `SELECT id, name, type, serial_number, status, assigned_date
+         FROM devices
+        WHERE customer_id = ? AND deleted = 0
+        ORDER BY id ASC`
+    )
+    .all(id);
+
   return {
     success: true,
     preview: {
@@ -243,6 +259,7 @@ function preview(customerId) {
       products: allProducts,
       kegProducts,
       goodsProducts,
+      devices,
       pendingDeliveries: pendingDeliveries?.c || 0,
       pendingSales: pendingSales?.c || 0,
       lastSale: lastSale || null,
@@ -251,6 +268,8 @@ function preview(customerId) {
         kegsEmpty: toInt(customer.keg_balance),
         kegsFull: 0,
         kegsLost: 0,
+        fullKegs: [],
+        deviceIds: devices.map((d) => d.id),
         depositRefund: deposit,
         debtMode: DEBT_MODES.OFFSET,
         archive: true,
@@ -270,7 +289,10 @@ function preview(customerId) {
  *   - kegsEmpty        {number}  số vỏ rỗng thu hồi về kho chờ nạp
  *   - kegsFull         {number}  số vỏ còn đầy bia → về kho đầy (hoàn tiền)
  *   - kegsLost         {number}  số vỏ mất
+ *   - fullKegs         {Array}   [{productId, quantity}] vỏ ĐẦY theo từng loại
+ *                                   (vàng/đen/...) — dùng khi khách giữ nhiều loại
  *   - items            {Array}   [{productId, quantity, unitPrice?}] hàng tồn ở quán
+ *   - deviceIds        {Array}   [id] thiết bị (tủ lạnh) cần thu hồi về kho
  *   - depositRefund    {number}  tiền cọc hoàn lại (0..deposit)
  *   - debtMode         {string}  'offset' | 'writeoff' | 'keep'
  *   - archive          {boolean} lưu trữ khách hay không
@@ -291,14 +313,72 @@ function close(customerId, payload = {}, req = null) {
   // ── Chuẩn hoá input ───────────────────────────────────────────────────────
   const kegBalance = toInt(customer.keg_balance);
   const kegsEmpty = Math.max(0, toInt(payload.kegsEmpty));
-  const kegsFull = Math.max(0, toInt(payload.kegsFull));
   const kegsLost = Math.max(0, toInt(payload.kegsLost));
+
+  // Vỏ ĐẦY: hỗ trợ NHIỀU LOẠI (vàng/đen/...) qua `fullKegs`.
+  // Nếu không có `fullKegs` → dùng `kegsFull` + `kegProductId` (cách cũ, 1 loại).
+  const rawFullKegs = Array.isArray(payload.fullKegs) ? payload.fullKegs : [];
+  const fullKegs = [];
+  for (const fk of rawFullKegs) {
+    const productId = toInt(fk && fk.productId);
+    const quantity = Math.max(0, toInt(fk && fk.quantity));
+    if (!productId || !(quantity > 0)) continue;
+    const product = db
+      .prepare("SELECT id, name, type FROM products WHERE id = ? AND type = 'keg'")
+      .get(productId);
+    if (!product) continue;
+    fullKegs.push({
+      productId: product.id,
+      productName: product.name,
+      quantity,
+    });
+  }
+
+  // Gộp trùng loại (nếu UI gửi trùng) — cộng dồn số lượng.
+  const mergedFullKegs = [];
+  const byProduct = new Map();
+  for (const fk of fullKegs) {
+    const prev = byProduct.get(fk.productId);
+    if (prev) {
+      prev.quantity += fk.quantity;
+    } else {
+      const copy = { ...fk };
+      byProduct.set(fk.productId, copy);
+      mergedFullKegs.push(copy);
+    }
+  }
+
+  let kegsFull = 0;
+  if (mergedFullKegs.length > 0) {
+    kegsFull = mergedFullKegs.reduce((s, fk) => s + fk.quantity, 0);
+  } else {
+    kegsFull = Math.max(0, toInt(payload.kegsFull));
+  }
 
   const kegsTotal = kegsEmpty + kegsFull + kegsLost;
   if (kegsTotal > kegBalance) {
     return {
       success: false,
       error: `Tổng vỏ xử lý (${kegsTotal}) vượt quá số vỏ khách đang giữ (${kegBalance})`,
+    };
+  }
+
+  // Thiết bị (tủ lạnh) cần thu hồi — chỉ nhận thiết bị ĐANG gán cho khách này.
+  const deviceIds = Array.isArray(payload.deviceIds)
+    ? [...new Set(payload.deviceIds.map((v) => toInt(v)).filter((v) => v > 0))]
+    : [];
+  const devices = deviceIds.length
+    ? db
+        .prepare(
+          `SELECT id, name, type, serial_number FROM devices
+            WHERE customer_id = ? AND deleted = 0 AND id IN (${deviceIds.map(() => '?').join(',')})`
+        )
+        .all(id, ...deviceIds)
+    : [];
+  if (devices.length !== deviceIds.length) {
+    return {
+      success: false,
+      error: 'Có thiết bị không thuộc khách hàng này hoặc đã bị xoá — vui lòng tải lại trang.',
     };
   }
 
@@ -385,49 +465,55 @@ function close(customerId, payload = {}, req = null) {
     }
     if (kegsFull > 0) {
       // Vỏ còn đầy → trả về kho dưới dạng vỏ ĐẦY (products.stock của loại keg).
-      // Cho phép chỉ định loại vỏ; mặc định lấy sản phẩm keg đầu tiên.
-      const kegProduct = (() => {
-        if (payload.kegProductId) {
-          const p = db
-            .prepare("SELECT id, name, sell_price FROM products WHERE id = ? AND type = 'keg'")
-            .get(toInt(payload.kegProductId));
-          if (p) return p;
-        }
-        return db
-          .prepare("SELECT id, name, sell_price FROM products WHERE type = 'keg' AND archived = 0 ORDER BY id ASC LIMIT 1")
-          .get();
-      })();
-      if (kegProduct) {
-        db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(
-          kegsFull,
-          kegProduct.id
-        );
+      // Hỗ trợ NHIỀU LOẠI: `mergedFullKegs` (vàng/đen/...). Nếu rỗng → fallback 1 loại.
+      const kegList =
+        mergedFullKegs.length > 0
+          ? mergedFullKegs
+          : (() => {
+              const p = payload.kegProductId
+                ? db
+                    .prepare(
+                      "SELECT id, name, sell_price FROM products WHERE id = ? AND type = 'keg'"
+                    )
+                    .get(toInt(payload.kegProductId))
+                : db
+                    .prepare(
+                      "SELECT id, name, sell_price FROM products WHERE type = 'keg' AND archived = 0 ORDER BY id ASC LIMIT 1"
+                    )
+                    .get();
+              return p ? [{ productId: p.id, productName: p.name, quantity: kegsFull }] : [];
+            })();
+
+      for (const keg of kegList) {
+        const qty = Math.max(0, toInt(keg.quantity));
+        if (!qty) continue;
+
+        db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(qty, keg.productId);
         AuditService.logStock({
-          productId: kegProduct.id,
+          productId: keg.productId,
           type: 'restore',
-          quantity: kegsFull,
+          quantity: qty,
           reason: 'customer_closure',
           refType: 'customer_closure',
           customerName: customer.name,
-          note: `Thu hồi ${kegsFull} vỏ còn đầy khi chốt khách ${closureNo}`,
+          note: `Thu hồi ${qty} vỏ còn đầy (${keg.productName || ''}) khi chốt khách ${closureNo}`.trim(),
           req,
         });
-        syncKegInventory();
 
         // Vỏ còn đầy = bia CHƯA BÁN → hoàn tiền theo giá của khách cho loại vỏ này
-        const kegPrice = getCustomerPrice(id, kegProduct.id);
+        const kegPrice = getCustomerPrice(id, keg.productId);
         if (kegPrice > 0) {
-          const kegAmount = roundMoney(kegPrice * kegsFull);
           fullKegGoods.push({
-            productId: kegProduct.id,
-            productName: kegProduct.name,
+            productId: keg.productId,
+            productName: keg.productName,
             productType: 'keg',
-            quantity: kegsFull,
+            quantity: qty,
             unitPrice: kegPrice,
-            amount: kegAmount,
+            amount: roundMoney(kegPrice * qty),
           });
         }
       }
+      if (kegList.length > 0) syncKegInventory();
     }
 
     // 2b. Vỏ còn đầy = bia chưa bán → gộp vào hàng hoàn tiền
@@ -537,8 +623,8 @@ function close(customerId, payload = {}, req = null) {
             kegs_empty, kegs_full, kegs_lost,
             total_goods_amount, deposit_refund, total_refund,
             debt_before, debt_mode, debt_after, cash_refund,
-            archived, note, actor_username)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            devices_returned, archived, note, actor_username)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         closureNo,
@@ -555,6 +641,7 @@ function close(customerId, payload = {}, req = null) {
         debtMode,
         debtAfter,
         cashRefund,
+        devices.length,
         shouldArchive ? 1 : 0,
         note,
         actor
@@ -578,6 +665,49 @@ function close(customerId, payload = {}, req = null) {
           item.amount
         );
       }
+    }
+
+    // 6b. Thu hồi THIẾT BỊ (tủ lạnh) → trả về kho + ghi phiếu
+    if (devices.length > 0) {
+      const insertDevice = db.prepare(
+        `INSERT INTO customer_closure_devices
+           (closure_id, device_id, device_name, device_type, serial_number, note)
+         VALUES (?, ?, ?, ?, ?, ?)`
+      );
+      for (const dev of devices) {
+        db.prepare(
+          `UPDATE devices
+              SET status = 'available',
+                  customer_id = NULL,
+                  assigned_date = NULL,
+                  note = COALESCE(note, '') || ?,
+                  updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?`
+        ).run(` | Thu hồi khi chốt khách ${closureNo}`, dev.id);
+
+        insertDevice.run(
+          closureId,
+          dev.id,
+          dev.name,
+          dev.type,
+          dev.serial_number,
+          `Thu hồi khi chốt khách ${closureNo}`
+        );
+      }
+      // Đồng bộ số tủ của khách về 0 (tính lại từ devices còn gán).
+      const remainingH = db
+        .prepare(
+          "SELECT COUNT(*) AS c FROM devices WHERE customer_id = ? AND type = 'horizontal' AND status = 'in_use' AND deleted = 0"
+        )
+        .get(id).c;
+      const remainingV = db
+        .prepare(
+          "SELECT COUNT(*) AS c FROM devices WHERE customer_id = ? AND type = 'vertical' AND status = 'in_use' AND deleted = 0"
+        )
+        .get(id).c;
+      db.prepare(
+        'UPDATE customers SET horizontal_fridge = ?, vertical_fridge = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+      ).run(remainingH, remainingV, id);
     }
 
     // 7. Đơn giao chưa hoàn tất → FAILED (khách đã ngừng bán)
@@ -642,6 +772,10 @@ function close(customerId, payload = {}, req = null) {
       });
     }
     if (kegsFull > 0) {
+      const detail =
+        mergedFullKegs.length > 0
+          ? mergedFullKegs.map((k) => `${k.quantity} ${k.productName}`).join(', ')
+          : `${kegsFull} vỏ`;
       AuditService.logKeg({
         type: 'collect',
         quantity: kegsFull,
@@ -651,7 +785,7 @@ function close(customerId, payload = {}, req = null) {
         emptyAfter: statsAfter.emptyCollected,
         holdingAfter: statsAfter.customerHolding,
         lostAfter: statsAfter.lost,
-        note: `Thu hồi ${kegsFull} vỏ còn đầy khi chốt khách ${closureNo}`,
+        note: `Thu hồi vỏ còn đầy khi chốt khách ${closureNo} (${detail})`,
         req,
       });
     }
@@ -676,6 +810,9 @@ function close(customerId, payload = {}, req = null) {
       kegsEmpty,
       kegsFull,
       kegsLost,
+      fullKegs: mergedFullKegs,
+      devicesReturned: devices.length,
+      devices: devices.map((d) => ({ id: d.id, name: d.name, type: d.type })),
       totalGoodsAmount,
       depositRefund,
       totalRefund,
@@ -707,6 +844,8 @@ function close(customerId, payload = {}, req = null) {
     kegsEmpty: result.kegsEmpty,
     kegsFull: result.kegsFull,
     kegsLost: result.kegsLost,
+    fullKegs: result.fullKegs,
+    devicesReturned: result.devicesReturned,
     totalRefund: result.totalRefund,
     debtBefore: result.debtBefore,
     debtAfter: result.debtAfter,
@@ -732,9 +871,13 @@ function listClosures(customerId, limit = 20) {
   const itemStmt = db.prepare(
     'SELECT * FROM customer_closure_items WHERE closure_id = ? ORDER BY id ASC'
   );
+  const deviceStmt = db.prepare(
+    'SELECT * FROM customer_closure_devices WHERE closure_id = ? ORDER BY id ASC'
+  );
   const withItems = closures.map((c) => ({
     ...c,
     items: itemStmt.all(c.id),
+    devices: deviceStmt.all(c.id),
   }));
 
   return { success: true, closures: withItems };
