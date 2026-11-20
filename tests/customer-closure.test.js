@@ -621,3 +621,69 @@ describe('CustomerClosureService.close — thu hồi thiết bị', () => {
     expect(dev.status).toBe('in_use');
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TỦ CÒN THIẾU BẢN GHI (dữ liệu cũ chỉ lưu số đếm ở customers.*_fridge)
+// ═══════════════════════════════════════════════════════════════════════════
+describe('CustomerClosureService — tủ còn thiếu bản ghi', () => {
+  test('preview báo số tủ thiếu bản ghi', () => {
+    const cid = makeCustomer({ kegBalance: 0 });
+    // Không có dòng devices nào, nhưng customers khai 1 tủ nằm + 1 tủ đứng
+    db.prepare('UPDATE customers SET horizontal_fridge = 1, vertical_fridge = 1 WHERE id = ?').run(cid);
+
+    const res = CustomerClosureService.preview(cid);
+    expect(res.success).toBe(true);
+    expect(res.preview.devices).toHaveLength(0);
+    expect(res.preview.missingDevices.count).toBeGreaterThan(0);
+    expect(res.preview.defaults.includeMissingDevices).toBe(true);
+  });
+
+  test('tick thu hồi tủ thiếu → tự tạo bản ghi rồi trả về kho', () => {
+    const cid = makeCustomer({ kegBalance: 0 });
+    db.prepare('UPDATE customers SET horizontal_fridge = 1 WHERE id = ?').run(cid);
+
+    const res = CustomerClosureService.close(cid, {
+      kegsEmpty: 0, kegsFull: 0, kegsLost: 0,
+      items: [], deviceIds: [], includeMissingDevices: true,
+      depositRefund: 0, debtMode: 'keep', archive: false,
+    });
+
+    expect(res.success).toBe(true);
+    expect(res.result.devicesCreated).toBe(1);
+    expect(res.result.devicesReturned).toBe(1);
+
+    // Tủ mới phải tồn tại trong bảng devices và đã về kho
+    const dev = db.prepare("SELECT * FROM devices WHERE customer_id IS NULL AND type = 'horizontal' AND deleted = 0 ORDER BY id DESC LIMIT 1").get();
+    expect(dev).toBeTruthy();
+    expect(dev.status).toBe('available');
+    expect(dev.customer_id).toBeNull();
+
+    // Số tủ của khách về 0
+    const cust = db.prepare('SELECT horizontal_fridge, vertical_fridge FROM customers WHERE id=?').get(cid);
+    expect(cust.horizontal_fridge).toBe(0);
+
+    // Ghi phiếu
+    const devs = db
+      .prepare('SELECT * FROM customer_closure_devices WHERE closure_id=?')
+      .all(res.result.closureId);
+    expect(devs).toHaveLength(1);
+  });
+
+  test('KHÔNG tick → không tạo bản ghi, số tủ giữ nguyên', () => {
+    const cid = makeCustomer({ kegBalance: 0 });
+    db.prepare('UPDATE customers SET horizontal_fridge = 1 WHERE id = ?').run(cid);
+
+    const before = db.prepare("SELECT COUNT(*) AS c FROM devices WHERE type = 'horizontal'").get().c;
+
+    const res = CustomerClosureService.close(cid, {
+      kegsEmpty: 0, kegsFull: 0, kegsLost: 0,
+      items: [], deviceIds: [], includeMissingDevices: false,
+      depositRefund: 0, debtMode: 'keep', archive: false,
+    });
+
+    expect(res.success).toBe(true);
+    expect(res.result.devicesCreated).toBe(0);
+    const after = db.prepare("SELECT COUNT(*) AS c FROM devices WHERE type = 'horizontal'").get().c;
+    expect(after).toBe(before);
+  });
+});

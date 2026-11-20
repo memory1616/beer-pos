@@ -75,10 +75,62 @@ function getCustomer(customerId) {
   if (!id || Number.isNaN(id)) return null;
   return db
     .prepare(
-      `SELECT id, name, phone, address, deposit, keg_balance, debt, archived, note
+      `SELECT id, name, phone, address, deposit, keg_balance, debt, archived, note,
+              horizontal_fridge, vertical_fridge
          FROM customers WHERE id = ?`
     )
     .get(id);
+}
+
+/**
+ * Thiết bị (tủ lạnh) của khách + các tủ CÒN THIẾU bản ghi.
+ *
+ * Dữ liệu cũ chỉ lưu SỐ ĐẾM ở `customers.horizontal_fridge` /
+ * `vertical_fridge` mà không tạo dòng tương ứng trong bảng `devices`.
+ * → Số tủ trong UI có thể NHIỀU hơn số dòng thật trong `devices`.
+ *
+ * Hàm này trả về:
+ *   - `devices`      : các dòng thật đang gán cho khách (thu hồi được).
+ *   - `missingCount` : số tủ còn thiếu bản ghi (tự tạo khi chốt).
+ *   - `missingType`  : loại tủ còn thiếu ('horizontal' | 'vertical').
+ */
+function getCustomerDevices(customerId) {
+  const id = parseInt(customerId, 10);
+  if (!id) return { devices: [], missingCount: 0, missingType: null };
+
+  const devices = db
+    .prepare(
+      `SELECT id, name, type, serial_number, status, assigned_date
+         FROM devices
+        WHERE customer_id = ? AND deleted = 0
+        ORDER BY id ASC`
+    )
+    .all(id);
+
+  const customer = getCustomer(id);
+  if (!customer) return { devices, missingCount: 0, missingType: null };
+
+  const actualH = devices.filter((d) => d.type === 'horizontal').length;
+  const actualV = devices.filter((d) => d.type === 'vertical').length;
+
+  const declaredH = toInt(customer.horizontal_fridge);
+  const declaredV = toInt(customer.vertical_fridge);
+
+  const missingH = Math.max(0, declaredH - actualH);
+  const missingV = Math.max(0, declaredV - actualV);
+
+  // Ưu tiên tủ nằm trước (nếu cả hai đều thiếu → báo cáo chung).
+  let missingCount = 0;
+  let missingType = null;
+  if (missingH > 0) {
+    missingCount = missingH;
+    missingType = 'horizontal';
+  } else if (missingV > 0) {
+    missingCount = missingV;
+    missingType = 'vertical';
+  }
+
+  return { devices, missingCount, missingType };
 }
 
 /**
@@ -224,14 +276,8 @@ function preview(customerId) {
   const goodsProducts = allProducts.filter((p) => p.type !== 'keg');
 
   // Thiết bị (tủ lạnh) đang đặt ở quán → sẽ thu hồi về kho
-  const devices = db
-    .prepare(
-      `SELECT id, name, type, serial_number, status, assigned_date
-         FROM devices
-        WHERE customer_id = ? AND deleted = 0
-        ORDER BY id ASC`
-    )
-    .all(id);
+  const devInfo = getCustomerDevices(id);
+  const devices = devInfo.devices;
 
   return {
     success: true,
@@ -244,6 +290,8 @@ function preview(customerId) {
         deposit,
         kegBalance: toInt(customer.keg_balance),
         archived: !!customer.archived,
+        horizontalFridge: toInt(customer.horizontal_fridge),
+        verticalFridge: toInt(customer.vertical_fridge),
       },
       debt: {
         balance: debtBalance,
@@ -260,6 +308,16 @@ function preview(customerId) {
       kegProducts,
       goodsProducts,
       devices,
+      missingDevices: {
+        count: devInfo.missingCount,
+        type: devInfo.missingType,
+        typeLabel:
+          devInfo.missingType === 'horizontal'
+            ? 'Tủ nằm'
+            : devInfo.missingType === 'vertical'
+              ? 'Tủ đứng'
+              : '',
+      },
       pendingDeliveries: pendingDeliveries?.c || 0,
       pendingSales: pendingSales?.c || 0,
       lastSale: lastSale || null,
@@ -270,6 +328,7 @@ function preview(customerId) {
         kegsLost: 0,
         fullKegs: [],
         deviceIds: devices.map((d) => d.id),
+        includeMissingDevices: devInfo.missingCount > 0,
         depositRefund: deposit,
         debtMode: DEBT_MODES.OFFSET,
         archive: true,
@@ -381,6 +440,21 @@ function close(customerId, payload = {}, req = null) {
       error: 'Có thiết bị không thuộc khách hàng này hoặc đã bị xoá — vui lòng tải lại trang.',
     };
   }
+
+  // Tủ CÒN THIẾU bản ghi (dữ liệu cũ chỉ lưu số đếm ở customers.*_fridge).
+  // Nếu người dùng tick "thu hồi cả tủ chưa có bản ghi" → tự tạo bản ghi thiết bị
+  // (gán cho khách) rồi thu hồi như bình thường → kho luôn nhất quán.
+  const devInfo = getCustomerDevices(id);
+  const includeMissing =
+    payload.includeMissingDevices === true ||
+    payload.includeMissingDevices === 'true' ||
+    payload.includeMissingDevices === 1;
+  const missingDevicesToCreate =
+    includeMissing && devInfo.missingCount > 0
+      ? Array.from({ length: devInfo.missingCount }, () => ({
+          type: devInfo.missingType,
+        }))
+      : [];
 
   const rawItems = Array.isArray(payload.items) ? payload.items : [];
   const items = [];
@@ -615,7 +689,46 @@ function close(customerId, payload = {}, req = null) {
       cashRefund = totalRefund;
     }
 
-    // 6. Ghi phiếu chốt
+    // 6. Tạo bản ghi cho TỦ CÒN THIẾU (dữ liệu cũ chỉ lưu số đếm ở customers.*_fridge).
+    //    Thiết bị mới được gán cho khách → sẽ thu hồi ở bước 6b.
+    const devicesToReturn = [...devices];
+
+    if (missingDevicesToCreate.length > 0) {
+      const typeLabel = missingDevicesToCreate[0].type === 'horizontal' ? 'Tủ nằm' : 'Tủ đứng';
+      const maxIdx = db
+        .prepare(
+          `SELECT COALESCE(MAX(CAST(REPLACE(name, 'Tủ nằm ', '') AS INTEGER)), 0) AS m
+             FROM devices WHERE type = 'horizontal'`
+        )
+        .get()?.m || 0;
+      const maxIdxV = db
+        .prepare(
+          `SELECT COALESCE(MAX(CAST(REPLACE(name, 'Tủ đứng ', '') AS INTEGER)), 0) AS m
+             FROM devices WHERE type = 'vertical'`
+        )
+        .get()?.m || 0;
+
+      for (let i = 0; i < missingDevicesToCreate.length; i++) {
+        const type = missingDevicesToCreate[i].type;
+        const seqNo = (type === 'horizontal' ? maxIdx : maxIdxV) + i + 1;
+        const devName = `${typeLabel} ${seqNo}`;
+        const infoDev = db
+          .prepare(
+            `INSERT INTO devices (name, type, status, customer_id, assigned_date, created_at, updated_at, deleted)
+             VALUES (?, ?, 'in_use', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0)`
+          )
+          .run(devName, type, id);
+        devicesToReturn.push({
+          id: infoDev.lastInsertRowid,
+          name: devName,
+          type,
+          serial_number: null,
+          isNew: true,
+        });
+      }
+    }
+
+    // 6b. Ghi phiếu chốt
     const info = db
       .prepare(
         `INSERT INTO customer_closures
@@ -641,7 +754,7 @@ function close(customerId, payload = {}, req = null) {
         debtMode,
         debtAfter,
         cashRefund,
-        devices.length,
+        devicesToReturn.length,
         shouldArchive ? 1 : 0,
         note,
         actor
@@ -667,14 +780,14 @@ function close(customerId, payload = {}, req = null) {
       }
     }
 
-    // 6b. Thu hồi THIẾT BỊ (tủ lạnh) → trả về kho + ghi phiếu
-    if (devices.length > 0) {
+    // 6c. Thu hồi THIẾT BỊ (tủ lạnh) → trả về kho + ghi phiếu
+    if (devicesToReturn.length > 0) {
       const insertDevice = db.prepare(
         `INSERT INTO customer_closure_devices
            (closure_id, device_id, device_name, device_type, serial_number, note)
          VALUES (?, ?, ?, ?, ?, ?)`
       );
-      for (const dev of devices) {
+      for (const dev of devicesToReturn) {
         db.prepare(
           `UPDATE devices
               SET status = 'available',
@@ -811,8 +924,9 @@ function close(customerId, payload = {}, req = null) {
       kegsFull,
       kegsLost,
       fullKegs: mergedFullKegs,
-      devicesReturned: devices.length,
-      devices: devices.map((d) => ({ id: d.id, name: d.name, type: d.type })),
+      devicesReturned: devicesToReturn.length,
+      devicesCreated: missingDevicesToCreate.length,
+      devices: devicesToReturn.map((d) => ({ id: d.id, name: d.name, type: d.type })),
       totalGoodsAmount,
       depositRefund,
       totalRefund,
@@ -846,6 +960,7 @@ function close(customerId, payload = {}, req = null) {
     kegsLost: result.kegsLost,
     fullKegs: result.fullKegs,
     devicesReturned: result.devicesReturned,
+    devicesCreated: result.devicesCreated,
     totalRefund: result.totalRefund,
     debtBefore: result.debtBefore,
     debtAfter: result.debtAfter,
@@ -891,5 +1006,6 @@ module.exports = {
   // helper nội bộ (test)
   _getCustomerPrice: getCustomerPrice,
   _getCustomerProductPrices: getCustomerProductPrices,
+  _getCustomerDevices: getCustomerDevices,
   _nextClosureNo: nextClosureNo,
 };

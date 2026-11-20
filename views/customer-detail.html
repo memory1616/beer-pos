@@ -1972,7 +1972,7 @@
       var kegsLost = document.getElementById('closureKegsLost');
       if (kegsEmpty) kegsEmpty.value = totalKegs;
       if (kegsFull) kegsFull.value = 0;
-      if (kegsLost) kegsLost.value = 0;
+      if (kegsLost) { kegsLost.value = 0; delete kegsLost.dataset.touched; }
 
       var kegsHint = document.getElementById('closureKegsHint');
       if (kegsHint) {
@@ -1993,8 +1993,9 @@
       var devices = p.devices || [];
       var devSection = document.getElementById('closureDevicesSection');
       var devList = document.getElementById('closureDevicesList');
+      var missing = p.missingDevices || { count: 0, type: null, typeLabel: '' };
       if (devList) {
-        devList.innerHTML = devices.length
+        var devHtml = devices.length
           ? devices.map(function (d) {
               var typeLabel = d.type === 'horizontal' ? 'Tủ nằm' : 'Tủ đứng';
               return `
@@ -2003,9 +2004,24 @@
                   <span>🧊 ${d.name} <span style="font-weight:400;color:var(--text-muted);font-size:11px;">(${typeLabel}${d.serial_number ? ' · ' + d.serial_number : ''})</span></span>
                 </label>`;
             }).join('')
-          : '<div class="cd-closure-hint" style="margin:0;">Khách không có thiết bị nào đang đặt tại quán.</div>';
+          : '';
+
+        // Tủ còn THIẾU bản ghi (dữ liệu cũ chỉ lưu số đếm) → cho tick thu hồi.
+        if (missing.count > 0) {
+          devHtml += `
+            <label class="cd-closure-checkbox" style="margin-bottom:6px;padding:8px 10px;">
+              <input type="checkbox" class="cd-closure-missing-device" value="${missing.count}" checked>
+              <span>🧊 ${missing.count} ${missing.typeLabel || 'tủ'} chưa có trong danh sách thiết bị
+                <span style="font-weight:400;color:var(--text-muted);font-size:11px;">(tự tạo bản ghi khi chốt)</span></span>
+            </label>`;
+        }
+
+        if (!devHtml) {
+          devHtml = '<div class="cd-closure-hint" style="margin:0;">Khách không có thiết bị nào đang đặt tại quán.</div>';
+        }
+        devList.innerHTML = devHtml;
       }
-      if (devSection) devSection.style.display = devices.length ? 'block' : 'none';
+      if (devSection) devSection.style.display = devices.length || missing.count > 0 ? 'block' : 'none';
 
       // Cọc
       var depInput = document.getElementById('closureDepositRefund');
@@ -2019,6 +2035,15 @@
       var listEl = document.getElementById('closureItemsList');
       if (listEl) listEl.innerHTML = '<div class="cd-closure-hint" style="margin:0 0 8px;">Chưa thêm món hàng nào. Nhấn "+ Thêm món hàng" để nhập hàng tồn ở quán.</div>';
       _closureItemSeq = 0;
+
+      // Ẩn mục "hàng tồn ở quán" khi không có món nào khác ngoài bia (bia đã xử lý ở vỏ đầy)
+      var goodsSection = document.getElementById('closureGoodsSection');
+      var nonKegGoods = (_closurePreview.goodsProducts || []).filter(function (p) { return p.type !== 'keg'; });
+      if (goodsSection) goodsSection.style.display = nonKegGoods.length ? 'block' : 'none';
+      var goodsBody = document.getElementById('closureGoodsBody');
+      if (goodsBody) goodsBody.style.display = 'none';
+      var goodsIcon = document.getElementById('closureGoodsToggleIcon');
+      if (goodsIcon) goodsIcon.textContent = '▸';
 
       // Mô tả chế độ công nợ
       var offDesc = document.getElementById('closureDebtOffsetDesc');
@@ -2065,6 +2090,16 @@
       var pid = parseInt(selectEl.value, 10);
       var found = (_closurePreview.goodsProducts || _closurePreview.products || []).find(function (p) { return p.id === pid; });
       if (found && priceInput) priceInput.value = found.price;
+      calcClosureTotals();
+    }
+
+    function toggleClosureGoods() {
+      var body = document.getElementById('closureGoodsBody');
+      var icon = document.getElementById('closureGoodsToggleIcon');
+      if (!body) return;
+      var open = body.style.display !== 'none';
+      body.style.display = open ? 'none' : 'block';
+      if (icon) icon.textContent = open ? '▸' : '▾';
       calcClosureTotals();
     }
 
@@ -2145,6 +2180,13 @@
       var msgs = [];
       if (kTotal > kegBalance) {
         msgs.push('Tổng vỏ xử lý (' + kTotal + ') vượt quá số vỏ khách đang giữ (' + kegBalance + ').');
+      } else if (kTotal < kegBalance) {
+        // Gợi ý: phần vỏ chưa xử lý → có thể là vỏ mất
+        var remain = kegBalance - kTotal;
+        var kLostInput = document.getElementById('closureKegsLost');
+        if (kLostInput && !kLostInput.dataset.touched) {
+          kLostInput.value = remain;
+        }
       }
       var mode = (document.querySelector('input[name="closureDebtMode"]:checked') || {}).value || 'offset';
       if (mode === 'offset' && totalRefund > 0) {
@@ -2217,6 +2259,12 @@
         }
       });
 
+      // Tủ còn THIẾU bản ghi → có tick thu hồi không?
+      var includeMissingDevices = false;
+      document.querySelectorAll('#closureDevicesList .cd-closure-missing-device').forEach(function (cb) {
+        if (cb.checked) includeMissingDevices = true;
+      });
+
       var payload = {
         kegsEmpty: kEmpty,
         kegsFull: kFull,
@@ -2224,6 +2272,7 @@
         fullKegs: fullKegs,
         items: items,
         deviceIds: deviceIds,
+        includeMissingDevices: includeMissingDevices,
         depositRefund: parseFloat(document.getElementById('closureDepositRefund')?.value) || 0,
         debtMode: (document.querySelector('input[name="closureDebtMode"]:checked') || {}).value || 'offset',
         archive: !!(document.getElementById('closureArchive')?.checked),
@@ -3768,7 +3817,7 @@
             <div class="cd-closure-field">
               <label>Vỏ mất</label>
               <input type="number" id="closureKegsLost" min="0" value="0" class="cd-closure-input"
-                oninput="calcClosureTotals()">
+                oninput="this.dataset.touched='1'; calcClosureTotals()">
             </div>
           </div>
 
@@ -3798,14 +3847,22 @@
           </div>
         </div>
 
-        <!-- 3. HÀNG TỒN Ở QUÁN -->
-        <div class="cd-closure-section">
-          <div class="cd-closure-section-title">📦 Bia / hàng tồn ở quán</div>
-          <div id="closureItemsList"></div>
-          <button onclick="addClosureItemRow()" class="cd-closure-input" style="width:100%;cursor:pointer;padding:8px;font-size:13px;">
-            + Thêm món hàng
+        <!-- 4. HÀNG TỒN Ở QUÁN (thu gọn mặc định — chỉ mở khi khách còn hàng khác bia) -->
+        <div class="cd-closure-section" id="closureGoodsSection" style="display:none;">
+          <button onclick="toggleClosureGoods()" class="cd-closure-input"
+            style="width:100%;cursor:pointer;padding:9px;font-size:13px;font-weight:600;text-align:left;">
+            <span id="closureGoodsToggleIcon">▸</span> <span id="closureGoodsToggleLabel">📦 Hàng tồn khác ở quán</span>
           </button>
-          <div class="cd-closure-hint">Giá lấy theo giá riêng của khách (nếu có), không có thì dùng giá bán. Số lượng nhập ở đây được trả lại kho.</div>
+          <div id="closureGoodsBody" style="display:none;margin-top:10px;">
+            <div id="closureItemsList"></div>
+            <button onclick="addClosureItemRow()" class="cd-closure-input" style="width:100%;cursor:pointer;padding:8px;font-size:13px;">
+              + Thêm món hàng
+            </button>
+            <div class="cd-closure-hint">
+              Bia bình đã tính ở mục <strong>🍺 Vỏ còn đầy</strong> — không cần khai lại ở đây.<br>
+              Mục này dành cho hàng khác (chai, lon, hộp…). Giá lấy theo giá riêng của khách nếu có.
+            </div>
+          </div>
         </div>
 
         <!-- 4. CỌC -->

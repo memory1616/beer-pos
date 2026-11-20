@@ -710,6 +710,7 @@ router.post('/:id/closure', (req, res) => {
       fullKegs: body.fullKegs,
       items: body.items,
       deviceIds: body.deviceIds,
+      includeMissingDevices: body.includeMissingDevices,
       depositRefund,
       debtMode: body.debtMode,
       archive: body.archive,
