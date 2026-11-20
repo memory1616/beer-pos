@@ -24,7 +24,8 @@
  *
  *   4. CHỐT CÔNG NỢ: số dư sổ công nợ của khách được xử lý theo 1 trong 3 chế độ:
  *        • `offset`   : dùng tiền hoàn (hàng + cọc) để CẤN TRỪ nợ khách.
- *                       Nếu tiền hoàn > nợ → phần dư ghi thành CREDIT (khách nợ lại hệ thống).
+ *                       Nếu tiền hoàn > nợ → phần DƯ được TRẢ MẶT cho khách
+ *                       (số dư công nợ về 0, KHÔNG ghi khách nợ lại hệ thống).
  *        • `writeoff` : XÓA SẠCH nợ (chấp nhận không thu được nữa) → ADJUSTMENT giảm về 0.
  *        • `keep`     : GIỮ NGUYÊN nợ (khách còn nợ hệ thống), chỉ ghi nhận hoàn tiền mặt.
  *
@@ -374,7 +375,7 @@ function close(customerId, payload = {}, req = null) {
   const kegsEmpty = Math.max(0, toInt(payload.kegsEmpty));
   const kegsLost = Math.max(0, toInt(payload.kegsLost));
 
-  // Vỏ ĐẦY: hỗ trợ NHIỀU LOẠI (vàng/đen/...) qua `fullKegs`.
+  // HÀNG CÒN ĐẦY: hỗ trợ NHIỀU LOẠI (vàng/đen/chai/lon/...) qua `fullKegs`.
   // Nếu không có `fullKegs` → dùng `kegsFull` + `kegProductId` (cách cũ, 1 loại).
   const rawFullKegs = Array.isArray(payload.fullKegs) ? payload.fullKegs : [];
   const fullKegs = [];
@@ -382,13 +383,16 @@ function close(customerId, payload = {}, req = null) {
     const productId = toInt(fk && fk.productId);
     const quantity = Math.max(0, toInt(fk && fk.quantity));
     if (!productId || !(quantity > 0)) continue;
+    // Nhận MỌI loại sản phẩm đang kinh doanh (keg, pet, lon, hộp…) —
+    // khách còn bia trong vỏ VÀ hàng khác (chai/lon) đều khai ở đây.
     const product = db
-      .prepare("SELECT id, name, type FROM products WHERE id = ? AND type = 'keg'")
+      .prepare('SELECT id, name, type FROM products WHERE id = ? AND archived = 0')
       .get(productId);
     if (!product) continue;
     fullKegs.push({
       productId: product.id,
       productName: product.name,
+      productType: product.type,
       quantity,
     });
   }
@@ -407,10 +411,18 @@ function close(customerId, payload = {}, req = null) {
     }
   }
 
+  // Tách 2 nhóm:
+  //   • `kegTypeList` : sản phẩm loại KEG (bia bình) → tính vào số vỏ khách giữ,
+  //                     trả về kho dưới dạng vỏ ĐẦY.
+  //   • `otherTypeList`: hàng khác (chai/lon/hộp) → chỉ là hàng tồn ở quán,
+  //                     KHÔNG tính vào số vỏ.
+  const kegTypeList = mergedFullKegs.filter((fk) => fk.productType === 'keg');
+  const otherTypeList = mergedFullKegs.filter((fk) => fk.productType !== 'keg');
+
   let kegsFull = 0;
-  if (mergedFullKegs.length > 0) {
-    kegsFull = mergedFullKegs.reduce((s, fk) => s + fk.quantity, 0);
-  } else {
+  if (kegTypeList.length > 0) {
+    kegsFull = kegTypeList.reduce((s, fk) => s + fk.quantity, 0);
+  } else if (otherTypeList.length === 0) {
     kegsFull = Math.max(0, toInt(payload.kegsFull));
   }
 
@@ -537,12 +549,12 @@ function close(customerId, payload = {}, req = null) {
         'UPDATE keg_stats SET lost = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1'
       ).run(statsBefore.lost + kegsLost);
     }
-    if (kegsFull > 0) {
+    if (kegsFull > 0 || otherTypeList.length > 0) {
       // Vỏ còn đầy → trả về kho dưới dạng vỏ ĐẦY (products.stock của loại keg).
-      // Hỗ trợ NHIỀU LOẠI: `mergedFullKegs` (vàng/đen/...). Nếu rỗng → fallback 1 loại.
+      // Hỗ trợ NHIỀU LOẠI: `kegTypeList` (vàng/đen/...). Nếu rỗng → fallback 1 loại.
       const kegList =
-        mergedFullKegs.length > 0
-          ? mergedFullKegs
+        kegTypeList.length > 0
+          ? kegTypeList
           : (() => {
               const p = payload.kegProductId
                 ? db
@@ -555,7 +567,9 @@ function close(customerId, payload = {}, req = null) {
                       "SELECT id, name, sell_price FROM products WHERE type = 'keg' AND archived = 0 ORDER BY id ASC LIMIT 1"
                     )
                     .get();
-              return p ? [{ productId: p.id, productName: p.name, quantity: kegsFull }] : [];
+              return p
+                ? [{ productId: p.id, productName: p.name, productType: 'keg', quantity: kegsFull }]
+                : [];
             })();
 
       for (const keg of kegList) {
@@ -588,6 +602,34 @@ function close(customerId, payload = {}, req = null) {
         }
       }
       if (kegList.length > 0) syncKegInventory();
+
+      // HÀNG KHÁC (chai/lon/hộp) còn ở quán → về kho + hoàn tiền theo giá khách.
+      for (const it of otherTypeList) {
+        const qty = Math.max(0, toInt(it.quantity));
+        if (!qty) continue;
+        db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(qty, it.productId);
+        AuditService.logStock({
+          productId: it.productId,
+          type: 'restore',
+          quantity: qty,
+          reason: 'customer_closure',
+          refType: 'customer_closure',
+          customerName: customer.name,
+          note: `Thu hồi ${qty} ${it.productName || ''} khi chốt khách ${closureNo}`.trim(),
+          req,
+        });
+        const price = getCustomerPrice(id, it.productId);
+        if (price > 0) {
+          fullKegGoods.push({
+            productId: it.productId,
+            productName: it.productName,
+            productType: it.productType || 'pet',
+            quantity: qty,
+            unitPrice: price,
+            amount: roundMoney(price * qty),
+          });
+        }
+      }
     }
 
     // 2b. Vỏ còn đầy = bia chưa bán → gộp vào hàng hoàn tiền
@@ -642,27 +684,13 @@ function close(customerId, payload = {}, req = null) {
         debtAfter = res.balanceAfter;
         debtTx.push({ type: 'offset', amount: applied, balanceAfter: res.balanceAfter });
       }
-      // Phần tiền hoàn vượt quá nợ → khách NỢ LẠI hệ thống → ghi CREDIT
+      // Phần tiền hoàn VƯỢT nợ → TRẢ MẶT cho khách, số dư công nợ về 0.
+      //   • Không ghi CREDIT (khách không nợ lại hệ thống).
+      //   • Tiền mặt thực trả = totalRefund - nợ đã cấn trừ.
       const excess = roundMoney(totalRefund - applied);
       if (excess > 0) {
-        const res = DebtLedgerService.recordTransaction({
-          customerId: id,
-          transactionType: TRANSACTION_TYPES.CREDIT,
-          amount: excess,
-          direction: DebtLedgerService.DIRECTION.DECREASE,
-          referenceType: REFERENCE_TYPES.MANUAL,
-          referenceId: closureNo,
-          description: `Chốt khách — khách nợ lại hệ thống (${excess.toLocaleString('vi-VN')}đ)`,
-          createdBy: actor,
-          source: SOURCES.MANUAL_UI,
-          idempotencyKey: `closure:${closureNo}:credit`,
-          allowNegativeBalance: true,
-          keepNegativeBalance: true,
-        });
-        if (!res.success) throw new Error(res.error || 'Không ghi được bút toán credit');
-        debtAfter = res.balanceAfter;
         cashRefund = excess;
-        debtTx.push({ type: 'credit', amount: excess, balanceAfter: res.balanceAfter });
+        debtTx.push({ type: 'cash', amount: excess, balanceAfter: debtAfter });
       }
     } else if (debtMode === DEBT_MODES.WRITEOFF && debtBefore > 0) {
       const res = DebtLedgerService.recordTransaction({
@@ -886,8 +914,8 @@ function close(customerId, payload = {}, req = null) {
     }
     if (kegsFull > 0) {
       const detail =
-        mergedFullKegs.length > 0
-          ? mergedFullKegs.map((k) => `${k.quantity} ${k.productName}`).join(', ')
+        kegTypeList.length > 0
+          ? kegTypeList.map((k) => `${k.quantity} ${k.productName}`).join(', ')
           : `${kegsFull} vỏ`;
       AuditService.logKeg({
         type: 'collect',

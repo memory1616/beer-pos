@@ -65,6 +65,19 @@ function makeKegProduct() {
   return info.lastInsertRowid;
 }
 
+/** Tạo sản phẩm KHÔNG phải keg (chai/lon/hộp). */
+function makeOtherProduct(type = 'pet', sellPrice = 15000) {
+  const name = `__CLOSURE_OTHER_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const info = db
+    .prepare(
+      `INSERT INTO products (name, slug, stock, sell_price, type, archived, created_at)
+       VALUES (?, ?, 0, ?, ?, 0, CURRENT_TIMESTAMP)`
+    )
+    .run(name, `closure-other-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, sellPrice, type);
+  createdProducts.push(info.lastInsertRowid);
+  return info.lastInsertRowid;
+}
+
 function makeDelivery(customerId, status = 'PENDING') {
   const info = db
     .prepare(
@@ -321,7 +334,7 @@ describe('CustomerClosureService.close — cọc & công nợ', () => {
     expect(DebtLedgerService.computeBalance(cid)).toBe(200000);
   });
 
-  test('offset: tiền hoàn vượt nợ → ghi CREDIT, số dư âm', () => {
+  test('offset: tiền hoàn vượt nợ → trả MẶT phần dư, số dư về 0', () => {
     const cid = makeCustomer({ deposit: 800000 });
     makeDebt(cid, 500000);
 
@@ -330,9 +343,13 @@ describe('CustomerClosureService.close — cọc & công nợ', () => {
       debtMode: 'offset', archive: false,
     });
     expect(res.success).toBe(true);
-    expect(res.result.debtAfter).toBe(-300000);
+    // 800.000 hoàn − 500.000 nợ = 300.000 trả mặt cho khách
     expect(res.result.cashRefund).toBe(300000);
-    expect(DebtLedgerService.computeBalance(cid)).toBe(-300000);
+    // Số dư công nợ về 0 (KHÔNG ghi CREDIT → không âm)
+    expect(res.result.debtAfter).toBe(0);
+    expect(DebtLedgerService.computeBalance(cid)).toBe(0);
+    // Không có bút toán CREDIT
+    expect(res.result.debtTransactions.some((t) => t.type === 'credit')).toBe(false);
   });
 
   test('writeoff: xóa sạch nợ', () => {
@@ -542,7 +559,58 @@ describe('CustomerClosureService.close — vỏ còn đầy nhiều loại', () 
       items: [], depositRefund: 0, debtMode: 'keep', archive: false,
     });
     expect(res.success).toBe(true);
+    expect(db.prepare('SELECT stock FROM products WHERE id=?').get(goldId).stock).toBe(4);  });
+
+  test('hàng KHÔNG phải keg (chai/lon) trong fullKegs → về kho + hoàn tiền, KHÔNG tính vào số vỏ', () => {
+    const goldId = makeKegProduct();
+    const petId = makeOtherProduct('pet', 15000);
+    const cid = makeCustomer({ kegBalance: 10 });
+
+    db.prepare('INSERT INTO prices (customer_id, product_id, price) VALUES (?, ?, ?)')
+      .run(cid, goldId, 21000);
+    db.prepare('INSERT INTO prices (customer_id, product_id, price) VALUES (?, ?, ?)')
+      .run(cid, petId, 12000);
+
+    const res = CustomerClosureService.close(cid, {
+      kegsEmpty: 6, kegsFull: 0, kegsLost: 0,
+      fullKegs: [
+        { productId: goldId, quantity: 4 },   // vỏ keg → tính vào số vỏ
+        { productId: petId, quantity: 20 },   // chai → KHÔNG tính vào số vỏ
+      ],
+      items: [], depositRefund: 0, debtMode: 'keep', archive: false,
+    });
+
+    expect(res.success).toBe(true);
+    // Chỉ 4 vỏ keg tính vào số vỏ
+    expect(res.result.kegsFull).toBe(4);
+    // keg_balance = 10 - (6 rỗng + 4 đầy) = 0
+    expect(db.prepare('SELECT keg_balance FROM customers WHERE id=?').get(cid).keg_balance).toBe(0);
+    // Tồn kho: keg +4, pet +20
     expect(db.prepare('SELECT stock FROM products WHERE id=?').get(goldId).stock).toBe(4);
+    expect(db.prepare('SELECT stock FROM products WHERE id=?').get(petId).stock).toBe(20);
+    // Hoàn tiền = 4*21000 + 20*12000 = 84000 + 240000 = 324000
+    expect(res.result.totalGoodsAmount).toBe(324000);
+  });
+
+  test('hàng KHÔNG phải keg gửi qua `items` → về kho + hoàn tiền', () => {
+    const petId = makeOtherProduct('pet', 15000);
+    const cid = makeCustomer({ kegBalance: 0 });
+
+    db.prepare('INSERT INTO prices (customer_id, product_id, price) VALUES (?, ?, ?)')
+      .run(cid, petId, 12000);
+
+    const res = CustomerClosureService.close(cid, {
+      kegsEmpty: 0, kegsFull: 0, kegsLost: 0,
+      fullKegs: [],
+      items: [{ productId: petId, quantity: 12 }],
+      depositRefund: 0, debtMode: 'keep', archive: false,
+    });
+
+    expect(res.success).toBe(true);
+    expect(db.prepare('SELECT stock FROM products WHERE id=?').get(petId).stock).toBe(12);
+    expect(res.result.totalGoodsAmount).toBe(144000);
+    // Không có vỏ nào bị trừ
+    expect(db.prepare('SELECT keg_balance FROM customers WHERE id=?').get(cid).keg_balance).toBe(0);
   });
 });
 

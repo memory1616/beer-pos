@@ -551,6 +551,34 @@
       background: var(--danger-dim, rgba(239,68,68,0.08));
       border-color: rgba(239,68,68,0.2);
     }
+    /* Select chọn sản phẩm + nút Thêm */
+    .cd-closure-fullkeg-add {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 6px;
+      margin-top: 4px;
+    }
+    .cd-closure-fullkeg-add select.cd-closure-input {
+      appearance: none;
+      background-image: linear-gradient(45deg, transparent 50%, var(--text-muted) 50%),
+                        linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);
+      background-position: calc(100% - 14px) 52%, calc(100% - 9px) 52%;
+      background-size: 5px 5px, 5px 5px;
+      background-repeat: no-repeat;
+      padding-right: 26px;
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .cd-closure-fullkeg-addbtn {
+      cursor: pointer;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #1a1408;
+      background: var(--accent);
+      border-color: transparent;
+      white-space: nowrap;
+    }
     @media (max-width: 420px) {
       .cd-closure-fullkeg-row { grid-template-columns: 1fr 54px 26px; }
       .cd-closure-fullkeg-unit { display: none; }
@@ -2152,15 +2180,24 @@
         kegsHint.innerHTML = `Vỏ rỗng → kho chờ nạp lại · Vỏ còn đầy → <strong>về kho</strong> (kèm hoàn tiền) · Vỏ mất → ghi nhận mất vỏ.`;
       }
 
-      // VỎ CÒN ĐẦY theo từng loại (vàng/đen/...)
+      // HÀNG CÒN ĐẦY — danh sách CHƯA khai + select chứa ĐẦY ĐỦ sản phẩm đang kinh doanh.
       _closureFullKegSeq = 0;
       var fullKegList = document.getElementById('closureFullKegsList');
       if (fullKegList) {
-        fullKegList.innerHTML = '<div class="cd-closure-hint" style="margin:0 0 8px;">Chưa nhập vỏ còn đầy. Nhấn "+ Thêm loại vỏ còn đầy" nếu khách còn bia trong vỏ.</div>';
+        fullKegList.innerHTML = '<div class="cd-closure-hint" style="margin:0 0 8px;">Chưa khai hàng còn ở quán. Chọn sản phẩm bên dưới rồi bấm "+ Thêm".</div>';
+      }
+      // Select: ĐẦY ĐỦ sản phẩm đang kinh doanh (keg + pet + mọi loại khác).
+      var allProducts = p.products || [];
+      var prodSelect = document.getElementById('closureFullKegProduct');
+      if (prodSelect) {
+        var opts = allProducts.map(function (pr) {
+          var tag = pr.type === 'keg' ? '🍺 vỏ' : (pr.type === 'pet' ? '🧴 chai' : '📦');
+          return '<option value="' + pr.id + '">' + tag + ' ' + pr.name + ' — ' + formatVND(pr.price) + '</option>';
+        }).join('');
+        prodSelect.innerHTML = opts || '<option value="">— Không có sản phẩm —</option>';
       }
       var fullKegBlock = document.getElementById('closureFullKegsBlock');
-      var kegProducts = p.kegProducts || [];
-      if (fullKegBlock) fullKegBlock.style.display = kegProducts.length ? 'block' : 'none';
+      if (fullKegBlock) fullKegBlock.style.display = allProducts.length ? 'block' : 'none';
 
       // THIẾT BỊ cần thu hồi (mặc định tick hết — khách ngừng bán → trả hết về kho)
       var devices = p.devices || [];
@@ -2208,8 +2245,8 @@
       var offDesc = document.getElementById('closureDebtOffsetDesc');
       if (offDesc) {
         offDesc.textContent = p.debt.balance > 0
-          ? `Dùng tiền hoàn (hàng + cọc) để trừ nợ ${formatVND(p.debt.balance)}. Phần dư sẽ ghi nhận khách nợ lại hệ thống.`
-          : 'Khách không có nợ. Tiền hoàn sẽ ghi nhận khách nợ lại hệ thống.';
+          ? `Dùng tiền hoàn (hàng + cọc) để trừ nợ ${formatVND(p.debt.balance)}. Phần dư trả mặt cho khách.`
+          : 'Khách không có nợ. Toàn bộ tiền hoàn trả mặt cho khách.';
       }
 
       calcClosureTotals();
@@ -2243,17 +2280,31 @@
       setBadge('closureBadgeDebt', modeLabel, true);
     }
 
-    // ── VỎ CÒN ĐẦY theo từng loại (vàng/đen/...) ──────────────────────────
+    // ── HÀNG CÒN ĐẦY theo từng loại (vỏ bia/chai/lon/hộp) ────────────────
     function addClosureFullKegRow(productId, quantity) {
       var listEl = document.getElementById('closureFullKegsList');
       if (!listEl || !_closurePreview) return;
-      var kegProducts = _closurePreview.kegProducts || [];
-      if (!kegProducts.length) return;
-      var seq = ++_closureFullKegSeq;
 
-      var options = kegProducts.map(function (k) {
-        return '<option value="' + k.id + '"' + (String(k.id) === String(productId) ? ' selected' : '') + '>' +
-          k.name + ' — ' + formatVND(k.price) + '</option>';
+      // Lấy productId từ select nếu không truyền vào.
+      if (!productId) {
+        var sel = document.getElementById('closureFullKegProduct');
+        productId = sel ? parseInt(sel.value, 10) : 0;
+      }
+      if (!productId) return;
+
+      var allProducts = _closurePreview.products || [];
+      var selected = allProducts.find(function (pr) { return pr.id === productId; });
+      if (!selected) return;
+
+      var seq = ++_closureFullKegSeq;
+      var isKeg = selected.type === 'keg';
+      var unitLabel = isKeg ? 'vỏ' : 'sản';
+
+      // Danh sách trong dòng: ĐẦY ĐỦ sản phẩm đang kinh doanh.
+      var options = allProducts.map(function (pr) {
+        var tag = pr.type === 'keg' ? '🍺' : (pr.type === 'pet' ? '🧴' : '📦');
+        return '<option value="' + pr.id + '"' + (String(pr.id) === String(productId) ? ' selected' : '') + '>' +
+          tag + ' ' + pr.name + ' — ' + formatVND(pr.price) + '</option>';
       }).join('');
 
       var row = document.createElement('div');
@@ -2263,7 +2314,7 @@
         <select class="cd-closure-input" onchange="calcClosureTotals()">${options}</select>
         <input type="number" class="cd-closure-input" min="0" step="1" value="${quantity || 0}"
           oninput="calcClosureTotals()" placeholder="SL">
-        <div class="cd-closure-fullkeg-unit">vỏ</div>
+        <div class="cd-closure-fullkeg-unit">${unitLabel}</div>
         <button onclick="this.parentNode.remove(); calcClosureTotals()" class="cd-closure-input cd-closure-fullkeg-del"
           title="Xoá dòng">✕</button>
       `;
@@ -2278,8 +2329,10 @@
       if (!_closurePreview) return;
       var total = 0;
 
-      // Vỏ còn đầy (theo từng loại) = bia chưa bán → hoàn tiền theo giá của khách
-      var kegProducts = _closurePreview.kegProducts || [];
+      // Hàng còn đầy (theo từng loại):
+      //   • loại KEG  → tính vào số vỏ khách đang giữ (kFull)
+      //   • loại khác → chỉ hoàn tiền, KHÔNG tính vào số vỏ
+      var allProducts = _closurePreview.products || [];
       var fullKegRows = document.querySelectorAll('#closureFullKegsList .cd-closure-fullkeg-row');
       var kFull = 0;
       fullKegRows.forEach(function (row) {
@@ -2287,13 +2340,14 @@
         var qtyInput = row.querySelector('input');
         var qty = parseInt(qtyInput && qtyInput.value, 10) || 0;
         if (qty <= 0 || !sel) return;
-        kFull += qty;
         var pid = parseInt(sel.value, 10);
-        var found = kegProducts.find(function (k) { return k.id === pid; });
-        total += (found ? found.price : 0) * qty;
+        var found = allProducts.find(function (k) { return k.id === pid; });
+        if (!found) return;
+        if (found.type === 'keg') kFull += qty;
+        total += found.price * qty;
       });
 
-      // Đồng bộ ô "Vỏ còn đầy" (readonly) = tổng vỏ đầy
+      // Đồng bộ ô "Vỏ còn đầy" (readonly) = tổng vỏ đầy (chỉ loại keg)
       var kFullInput = document.getElementById('closureKegsFull');
       if (kFullInput) kFullInput.value = kFull;
 
@@ -2336,7 +2390,8 @@
       if (mode === 'offset' && totalRefund > 0) {
         var debt = _closurePreview.debt.balance;
         if (debt > 0 && totalRefund > debt) {
-          msgs.push('Tiền hoàn vượt công nợ ' + formatVND(debt) + ' → sẽ ghi nhận khách nợ lại hệ thống ' + formatVND(totalRefund - debt) + '.');
+          msgs.push('Tiền hoàn ' + formatVND(totalRefund) + ' > công nợ ' + formatVND(debt) +
+            ' → trừ ' + formatVND(debt) + ' vào nợ, còn lại trả mặt khách ' + formatVND(totalRefund - debt) + '.');
         }
       }
       if (warn) {
@@ -2360,16 +2415,26 @@
       var kEmpty = parseInt(document.getElementById('closureKegsEmpty')?.value, 10) || 0;
       var kLost = parseInt(document.getElementById('closureKegsLost')?.value, 10) || 0;
 
-      // Vỏ còn đầy theo từng loại (vàng/đen/...)
+      // Hàng còn đầy theo từng loại (vỏ bia/chai/lon/hộp)
+      //   • loại KEG  → `fullKegs` (tính vào số vỏ khách giữ)
+      //   • loại khác → `items` (hàng tồn, KHÔNG tính vào số vỏ)
+      var allProducts = _closurePreview.products || [];
       var fullKegs = [];
+      var items = [];
       var kFull = 0;
       document.querySelectorAll('#closureFullKegsList .cd-closure-fullkeg-row').forEach(function (row) {
         var selectEl = row.querySelector('select');
         var qtyInput = row.querySelector('input');
         var qty = parseInt(qtyInput && qtyInput.value, 10) || 0;
-        if (qty > 0 && selectEl) {
-          fullKegs.push({ productId: parseInt(selectEl.value, 10), quantity: qty });
+        if (!(qty > 0) || !selectEl) return;
+        var pid = parseInt(selectEl.value, 10);
+        var found = allProducts.find(function (pr) { return pr.id === pid; });
+        if (!found) return;
+        if (found.type === 'keg') {
+          fullKegs.push({ productId: pid, quantity: qty });
           kFull += qty;
+        } else {
+          items.push({ productId: pid, quantity: qty, unitPrice: found.price });
         }
       });
 
@@ -2380,8 +2445,6 @@
         }
         return;
       }
-
-      var items = [];
 
       // Thiết bị thu hồi (chỉ những cái được tick)
       var deviceIds = [];
@@ -3979,17 +4042,20 @@
               </div>
             </div>
 
-            <!-- VỎ CÒN ĐẦY — nhập theo từng loại (vàng/đen/...) -->
+            <!-- HÀNG CÒN ĐẦY — nhập theo từng loại (vỏ bia/chai/lon/hộp) -->
             <div id="closureFullKegsBlock" style="margin-top:12px;">
               <div class="cd-closure-section-title" style="font-size:12px;margin-bottom:6px;">
-                🍺 Vỏ còn đầy — theo từng loại
+                🍺 Hàng còn đầy ở quán — theo từng loại
               </div>
               <div id="closureFullKegsList"></div>
-              <button onclick="addClosureFullKegRow()" class="cd-closure-input" style="width:100%;cursor:pointer;padding:8px;font-size:13px;">
-                + Thêm loại vỏ còn đầy
-              </button>
+              <div class="cd-closure-fullkeg-add">
+                <select id="closureFullKegProduct" class="cd-closure-input"
+                  onchange="addClosureFullKegRow()"></select>
+                <button onclick="addClosureFullKegRow()" class="cd-closure-input cd-closure-fullkeg-addbtn">+ Thêm</button>
+              </div>
               <div class="cd-closure-hint">
-                Vỏ còn đầy = bia chưa bán hết → <strong>về kho</strong> và được hoàn tiền theo giá của khách.
+                Chọn sản phẩm đang kinh doanh rồi bấm <strong>+ Thêm</strong> để khai số lượng.<br>
+                Vỏ bia còn đầy → <strong>về kho</strong> (tính vào số vỏ khách giữ) · Chai/lon/hộp → về kho nhưng <strong>không</strong> tính vào vỏ.
               </div>
             </div>
 
@@ -4044,7 +4110,7 @@
               <input type="radio" name="closureDebtMode" value="offset" checked onchange="calcClosureTotals()">
               <span>
                 <span class="cd-closure-radio-label">Cấn trừ vào công nợ</span>
-                <span class="cd-closure-radio-desc" id="closureDebtOffsetDesc">Dùng tiền hoàn để trừ nợ khách. Phần dư sẽ ghi nhận khách nợ lại.</span>
+                <span class="cd-closure-radio-desc" id="closureDebtOffsetDesc">Dùng tiền hoàn để trừ nợ khách. Phần dư trả mặt cho khách.</span>
               </span>
             </label>
             <label class="cd-closure-radio">
