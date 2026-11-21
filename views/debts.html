@@ -141,6 +141,96 @@
       margin-bottom: 12px;
     }
 
+    /* ── Nhóm Zalo: bộ lọc + ô tìm kiếm + nút sao chép ─────────── */
+    .dbt-filter-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .dbt-filter-bar .dbt-input,
+    .dbt-filter-bar .dbt-select {
+      flex: 1;
+      min-width: 140px;
+      margin: 0;
+    }
+    /* Chip bộ lọc nhanh */
+    .dbt-chips {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .dbt-chip {
+      padding: 5px 11px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--card-soft);
+      color: var(--text-secondary);
+      font-size: 11.5px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s;
+    }
+    .dbt-chip:hover { border-color: var(--primary); color: var(--text-primary); }
+    .dbt-chip.active {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: var(--btn-primary-color, #000);
+    }
+    .dbt-chip-count {
+      display: inline-block;
+      margin-left: 4px;
+      opacity: 0.75;
+      font-weight: 700;
+    }
+    /* Ô tìm kiếm nhóm Zalo trong modal */
+    .dbt-search-wrap {
+      position: relative;
+      margin-top: 8px;
+    }
+    .dbt-search-wrap .dbt-input { padding-left: 32px; margin: 0; }
+    .dbt-search-icon {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      pointer-events: none;
+      font-size: 13px;
+      opacity: 0.55;
+    }
+    /* Nút sao chép Group ID */
+    .dbt-copy-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 6px 11px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--card-soft);
+      color: var(--text-secondary);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s;
+    }
+    .dbt-copy-btn:hover { border-color: var(--primary); color: var(--text-primary); }
+    .dbt-copy-btn.ok {
+      background: rgba(34,197,94,0.14);
+      border-color: rgba(34,197,94,0.45);
+      color: #16a34a;
+    }
+    .dbt-copy-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    /* Input có thể copy (không readonly) */
+    .dbt-input--copyable {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12.5px;
+      letter-spacing: 0.2px;
+    }
+
     /* ── Bảng ───────────────────────────────────────────────────────── */
     .dbt-table-wrap { overflow-x: auto; margin: 0 -4px; }
     /* ⚠️ KHÔNG ép `min-width` cứng cho MỌI bảng:
@@ -903,6 +993,11 @@
     bridge: null,
     isAdmin: false,
     loading: false,
+    // Bộ lọc tab "Nhóm Zalo": 'linked' | 'unlinked' | 'all'
+    groupFilter: 'linked',
+    // Nhóm Zalo đã tải từ OmiCall (cache client-side để lọc không gọi lại API)
+    omiGroupQuery: '',
+    omiGroupPage: 1,
     // Sepay — gạch nợ tự động
     sepay: null,
     sepayTx: [],
@@ -1458,22 +1553,97 @@
     // Backend đã lọc, nhưng lọc thêm ở UI để chắc chắn dòng đã "Gỡ" biến mất
     // ngay cả khi response đến từ cache cũ.
     var rows = (state.groups || []).filter(function (g) { return g.status === 'active'; });
-    var body = rows.length
-      ? '<div class="dbt-table-wrap"><table class="dbt-table dbt-table--wide"><thead><tr>' +
-        '<th>Khách</th><th>Nhóm</th><th>Platform</th><th>Trạng thái</th>' +
-        (state.isAdmin ? '<th></th>' : '') +
-        '</tr></thead><tbody>' +
-        rows.map(function (g) {
-          return '<tr>' +
-            '<td class="dbt-name">' + esc(g.customer_name || ('#' + g.customer_id)) + '</td>' +
-            '<td>' + esc(g.group_name || g.group_id) + '</td>' +
-            '<td class="dbt-muted">' + esc(g.platform) + '</td>' +
-            '<td><span class="dbt-badge ' + (g.status === 'active' ? 'dbt-badge-ok' : 'dbt-badge-warn') + '">' + esc(g.status) + '</span></td>' +
-            (state.isAdmin ? '<td style="text-align:right"><button class="dbt-btn dbt-btn-danger dbt-btn-sm" onclick="unlinkGroup(' + g.id + ')">Gỡ</button></td>' : '') +
-          '</tr>';
-        }).join('') +
-        '</tbody></table></div>'
-      : '<div class="dbt-empty">Chưa liên kết nhóm Zalo nào</div>';
+
+    // ── Danh sách KHÁCH CHƯA liên kết nhóm Zalo ──────────────────────
+    // Mục đích: nhanh chóng thấy khách nào còn thiếu nhóm để link.
+    // Nguồn: state.groups (mapping) + state.customers[].groups (mapping từ API).
+    var linkedIds = {};
+    rows.forEach(function (g) { linkedIds[String(g.customer_id)] = true; });
+    (state.customers || []).forEach(function (c) {
+      if (c.groups && c.groups.length) linkedIds[String(c.id)] = true;
+    });
+    var unlinked = (state.customers || []).filter(function (c) {
+      return !linkedIds[String(c.id)];
+    });
+
+    var filter = state.groupFilter || 'linked';
+
+    // Chips bộ lọc
+    var chips = [
+      { id: 'linked', label: '🔗 Đã liên kết', count: rows.length },
+      { id: 'unlinked', label: '⚠️ Chưa liên kết', count: unlinked.length },
+      { id: 'all', label: '📋 Tất cả khách', count: (state.customers || []).length },
+    ].map(function (ch) {
+      return '<button class="dbt-chip' + (filter === ch.id ? ' active' : '') +
+        '" onclick="setGroupFilter(\'' + ch.id + '\')">' + ch.label +
+        '<span class="dbt-chip-count">' + ch.count + '</span></button>';
+    }).join('');
+
+    // ── Nội dung theo filter ──────────────────────────────────────────
+    var body = '';
+
+    if (filter === 'linked') {
+      body = rows.length
+        ? '<div class="dbt-table-wrap"><table class="dbt-table dbt-table--wide"><thead><tr>' +
+          '<th>Khách</th><th>Nhóm</th><th>Platform</th><th>Trạng thái</th>' +
+          (state.isAdmin ? '<th></th>' : '') +
+          '</tr></thead><tbody>' +
+          rows.map(function (g) {
+            return '<tr>' +
+              '<td class="dbt-name">' + esc(g.customer_name || ('#' + g.customer_id)) + '</td>' +
+              '<td>' + esc(g.group_name || g.group_id) + '</td>' +
+              '<td class="dbt-muted">' + esc(g.platform) + '</td>' +
+              '<td><span class="dbt-badge ' + (g.status === 'active' ? 'dbt-badge-ok' : 'dbt-badge-warn') + '">' + esc(g.status) + '</span></td>' +
+              (state.isAdmin ? '<td style="text-align:right"><button class="dbt-btn dbt-btn-danger dbt-btn-sm" onclick="unlinkGroup(' + g.id + ')">Gỡ</button></td>' : '') +
+            '</tr>';
+          }).join('') +
+          '</tbody></table></div>'
+        : '<div class="dbt-empty">Chưa liên kết nhóm Zalo nào</div>';
+
+    } else if (filter === 'unlinked') {
+      body = unlinked.length
+        ? '<div class="dbt-table-wrap"><table class="dbt-table"><thead><tr>' +
+          '<th>Khách</th><th>SĐT</th><th>Công nợ</th><th></th>' +
+          '</tr></thead><tbody>' +
+          unlinked.map(function (c) {
+            var debt = Number(c.balance || 0);
+            return '<tr>' +
+              '<td class="dbt-name">' + esc(c.name) + ' (#' + c.id + ')</td>' +
+              '<td class="dbt-muted">' + esc(c.phone || '—') + '</td>' +
+              '<td class="dbt-muted">' + (debt > 0 ? money(debt) : '—') + '</td>' +
+              (state.isAdmin
+                ? '<td style="text-align:right"><button class="dbt-btn dbt-btn-sm" onclick="openGroupModalFor(' + c.id + ')">💬 Liên kết</button></td>'
+                : '<td></td>') +
+            '</tr>';
+          }).join('') +
+          '</tbody></table></div>' +
+          '<div class="dbt-hint" style="margin-top:10px">💡 Bấm <b>💬 Liên kết</b> để gán nhóm Zalo cho khách này. Khách có công nợ > 0 nên gán nhóm để nhận thông báo tự động.</div>'
+        : '<div class="dbt-empty">✅ Tất cả khách hàng đều đã có nhóm Zalo</div>';
+
+    } else {
+      // Tất cả khách — đánh dấu khách đã có nhóm
+      var allC = (state.customers || []);
+      body = allC.length
+        ? '<div class="dbt-table-wrap"><table class="dbt-table"><thead><tr>' +
+          '<th>Khách</th><th>Nhóm Zalo</th><th></th>' +
+          '</tr></thead><tbody>' +
+          allC.map(function (c) {
+            var mine = rows.filter(function (g) { return String(g.customer_id) === String(c.id); });
+            if (!mine.length && c.groups && c.groups.length) {
+              mine = c.groups.map(function (g) { return { group_name: g.group_name, group_id: g.group_id }; });
+            }
+            var names = mine.map(function (g) { return g.group_name || g.group_id; }).join(', ');
+            return '<tr>' +
+              '<td class="dbt-name">' + esc(c.name) + ' (#' + c.id + ')</td>' +
+              '<td class="dbt-muted">' + (mine.length ? esc(names) : '<span style="color:var(--warning)">— Chưa có —</span>') + '</td>' +
+              (state.isAdmin
+                ? '<td style="text-align:right"><button class="dbt-btn dbt-btn-sm" onclick="openGroupModalFor(' + c.id + ')">💬 Liên kết</button></td>'
+                : '<td></td>') +
+            '</tr>';
+          }).join('') +
+          '</tbody></table></div>'
+        : '<div class="dbt-empty">Chưa có khách hàng</div>';
+    }
 
     var addBtn = state.isAdmin
       ? '<div class="dbt-btn-row" style="margin-top:12px">' +
@@ -1483,8 +1653,17 @@
     return '<div class="dbt-section">' +
       '<div class="dbt-section-title">💬 Nhóm Zalo ↔ Khách hàng</div>' +
       '<div class="dbt-section-desc">Mỗi khách có thể liên kết nhiều nhóm Zalo cá nhân. Hệ thống KHÔNG dùng Zalo OA. <b>Group ID</b> = Conversation ID (conv_id) của nhóm trong OmiCall — dùng để gửi tin nhắn thông báo công nợ (xem tab 🔔 Thông báo Zalo).</div>' +
+      '<div class="dbt-chips">' + chips + '</div>' +
       body + addBtn +
     '</div>';
+  }
+
+  /**
+   * Đổi bộ lọc tab "Nhóm Zalo" (đã liên kết / chưa liên kết / tất cả).
+   */
+  function setGroupFilter(filter) {
+    state.groupFilter = filter;
+    render();
   }
 
   // ── Render: Thông báo Zalo (OmiCall) ────────────────────────────────────
@@ -2388,20 +2567,28 @@
         '<button class="dbt-btn" style="flex:1" onclick="submitPayment()">💵 Ghi nhận thanh toán</button></div>');
   }
 
-  function openGroupModal() {
+  function openGroupModal(customerId) {
     showModal('Liên kết nhóm Zalo ↔ Khách hàng', '' +
       '<div class="dbt-field"><label class="dbt-label">Khách hàng</label>' +
-        '<select id="gpCustomer" class="dbt-select">' + customerOptions() + '</select></div>' +
+        '<select id="gpCustomer" class="dbt-select">' + customerOptions(customerId) + '</select></div>' +
       '<div class="dbt-field"><label class="dbt-label">Nhóm Zalo (OmiCall)</label>' +
-        '<button class="dbt-btn dbt-btn-secondary" style="width:100%" onclick="loadOmiGroups()">🔄 Tải danh sách nhóm từ OmiCall</button>' +
+        '<button class="dbt-btn dbt-btn-secondary" style="width:100%" id="gpLoadBtn" onclick="loadOmiGroups()">🔄 Tải danh sách nhóm từ OmiCall</button>' +
+        '<div class="dbt-search-wrap">' +
+          '<span class="dbt-search-icon">🔍</span>' +
+          '<input id="gpGroupSearch" class="dbt-input" placeholder="Lọc theo tên nhóm…" ' +
+            'oninput="filterOmiGroups(this.value)" autocomplete="off"></div>' +
         '<select id="gpOmiGroup" class="dbt-select" style="margin-top:8px" onchange="onPickOmiGroup()">' +
           '<option value="">— Chọn nhóm Zalo —</option></select>' +
-        '<div class="dbt-hint">Chỉ hiển thị <b>nhóm Zalo</b> (không hiển thị chat cá nhân) để tránh gửi nhầm cho khách.</div></div>' +
+        '<div class="dbt-hint" id="gpGroupCount">Chỉ hiển thị <b>nhóm Zalo</b> (không hiển thị chat cá nhân) để tránh gửi nhầm cho khách.</div></div>' +
       '<div class="dbt-field"><label class="dbt-label">Group ID</label>' +
-        '<input id="gpGroupId" class="dbt-input" placeholder="VD: 6afe6913fca59218a5d662a9" readonly>' +
-        '<div class="dbt-hint">Đây là <b>Conversation ID</b> của nhóm Zalo trong hệ thống OmiCall multi-channel — dùng để gửi tin nhắn thông báo công nợ tới nhóm.</div></div>' +
+        '<div style="display:flex;gap:8px;align-items:stretch">' +
+          '<input id="gpGroupId" class="dbt-input dbt-input--copyable" placeholder="VD: 6afe6913fca59218a5d662a9" ' +
+            'onfocus="this.select()" onkeydown="if(event.key===\'Enter\'){this.select();}">' +
+          '<button class="dbt-copy-btn" id="gpCopyBtn" onclick="copyGroupId()" disabled>📋<span>Chép</span></button>' +
+        '</div>' +
+        '<div class="dbt-hint">Đây là <b>Conversation ID</b> của nhóm Zalo trong hệ thống OmiCall multi-channel — dùng để gửi tin nhắn thông báo công nợ tới nhóm. Bấm <b>📋 Chép</b> để sao chép.</div></div>' +
       '<div class="dbt-field"><label class="dbt-label">Tên nhóm</label>' +
-        '<input id="gpGroupName" class="dbt-input" placeholder="VD: Nhóm Zalo Anh Hùng" readonly></div>' +
+        '<input id="gpGroupName" class="dbt-input" placeholder="VD: Nhóm Zalo Anh Hùng"></div>' +
       '<div class="dbt-field"><label class="dbt-label">Nền tảng</label>' +
         '<select id="gpPlatform" class="dbt-select"><option value="zalo_personal">Zalo cá nhân</option></select>' +
         '<div class="dbt-hint">Chỉ hỗ trợ nhóm Zalo cá nhân. Hệ thống KHÔNG dùng Zalo OA.</div></div>' +
@@ -2410,38 +2597,176 @@
   }
 
   /**
-   * Tải danh sách nhóm Zalo từ OmiCall (chỉ lấy nhóm, bỏ qua chat cá nhân).
+   * Mở modal liên kết cho 1 khách cụ thể (dùng từ bộ lọc "Chưa liên kết").
    */
-  function loadOmiGroups() {
+  function openGroupModalFor(customerId) {
+    openGroupModal(customerId);
+  }
+
+  // Cache nhóm đã tải để lọc client-side không gọi lại API.
+  var _omiGroupsCache = [];
+
+  /**
+   * Tải danh sách nhóm Zalo từ OmiCall (chỉ lấy nhóm, bỏ qua chat cá nhân).
+   *
+   * Lưu ý: OmiCall chỉ trả về 1 trang hội thoại mỗi request. Backend đã tự
+   * gom tối đa 10 trang, nhưng để không bỏ sót nhóm ở các trang sâu hơn ta
+   * cho phép tải thêm trang khi người dùng bấm "Tải thêm".
+   */
+  function loadOmiGroups(append) {
     var sel = document.getElementById('gpOmiGroup');
+    var btn = document.getElementById('gpLoadBtn');
+    var countEl = document.getElementById('gpGroupCount');
     if (!sel) return;
-    sel.innerHTML = '<option value="">⏳ Đang tải…</option>';
-    api(API + '/notify/conversations?size=100&groupsOnly=1').then(function (res) {
+
+    var page = append ? (state.omiGroupPage || 1) + 1 : 1;
+
+    if (!append) {
+      _omiGroupsCache = [];
+      state.omiGroupPage = 1;
+      sel.innerHTML = '<option value="">⏳ Đang tải…</option>';
+    } else {
+      var optMore = document.createElement('option');
+      optMore.value = '';
+      optMore.textContent = '⏳ Đang tải thêm…';
+      sel.appendChild(optMore);
+    }
+    if (btn) btn.disabled = true;
+
+    api(API + '/notify/conversations?size=100&page=' + page + '&groupsOnly=1').then(function (res) {
       var list = (res.data && res.data.conversations) || [];
       var groups = list.filter(function (c) { return c.convSubType === 'group'; });
-      if (!groups.length) {
+
+      // Gộp, loại trùng theo convId
+      var seen = {};
+      var merged = _omiGroupsCache.slice();
+      merged.forEach(function (g) { seen[g.convId] = true; });
+      groups.forEach(function (g) {
+        if (!seen[g.convId]) { seen[g.convId] = true; merged.push(g); }
+      });
+      _omiGroupsCache = merged;
+      state.omiGroupPage = page;
+
+      if (!_omiGroupsCache.length) {
         sel.innerHTML = '<option value="">— Không tìm thấy nhóm Zalo nào —</option>';
         toast('⚠ Không tìm thấy nhóm Zalo nào trong OmiCall', 'err');
         return;
       }
-      sel.innerHTML = '<option value="">— Chọn nhóm Zalo —</option>' + groups.map(function (c) {
-        return '<option value="' + esc(c.convId) + '" data-name="' + esc(c.name || '') + '">' +
-          esc(c.name || '(không tên)') + '</option>';
-      }).join('');
-      toast('✅ Đã tải ' + groups.length + ' nhóm Zalo', 'ok');
+
+      renderOmiGroupOptions();
+
+      if (countEl) {
+        countEl.innerHTML = 'Đã tải <b>' + _omiGroupsCache.length + '</b> nhóm Zalo' +
+          (groups.length >= 100 ? ' · <a href="#" onclick="loadOmiGroups(true);return false;">Tải thêm nhóm</a>' : '');
+      }
+      toast('✅ Đã tải ' + _omiGroupsCache.length + ' nhóm Zalo', 'ok');
     }).catch(function (e) {
-      sel.innerHTML = '<option value="">— Lỗi tải danh sách —</option>';
+      if (!append) sel.innerHTML = '<option value="">— Lỗi tải danh sách —</option>';
       toast('✗ ' + e.message, 'err');
+    }).then(function () {
+      if (btn) btn.disabled = false;
     });
+  }
+
+  /**
+   * Render lại danh sách option nhóm (dùng sau khi tải hoặc khi lọc).
+   */
+  function renderOmiGroupOptions() {
+    var sel = document.getElementById('gpOmiGroup');
+    if (!sel) return;
+    var q = String((state.omiGroupQuery || '')).toLowerCase().trim();
+    var list = _omiGroupsCache;
+    if (q) {
+      list = list.filter(function (g) {
+        return String(g.name || '').toLowerCase().indexOf(q) >= 0 ||
+               String(g.convId || '').toLowerCase().indexOf(q) >= 0;
+      });
+    }
+    sel.innerHTML = '<option value="">— Chọn nhóm Zalo —</option>' + list.map(function (c) {
+      return '<option value="' + esc(c.convId) + '" data-name="' + esc(c.name || '') + '">' +
+        esc(c.name || '(không tên)') + '</option>';
+    }).join('');
+  }
+
+  /**
+   * Lọc danh sách nhóm theo tên (client-side, không gọi lại API).
+   */
+  function filterOmiGroups(query) {
+    state.omiGroupQuery = query || '';
+    renderOmiGroupOptions();
+    var countEl = document.getElementById('gpGroupCount');
+    if (countEl && _omiGroupsCache.length) {
+      var sel = document.getElementById('gpOmiGroup');
+      var shown = sel ? sel.options.length - 1 : 0;
+      var q = String(state.omiGroupQuery || '').trim();
+      countEl.innerHTML = (q
+        ? 'Lọc "<b>' + esc(q) + '</b>": <b>' + shown + '</b>/' + _omiGroupsCache.length + ' nhóm'
+        : 'Đã tải <b>' + _omiGroupsCache.length + '</b> nhóm Zalo');
+    }
   }
 
   function onPickOmiGroup() {
     var sel = document.getElementById('gpOmiGroup');
     if (!sel) return;
     var opt = sel.options[sel.selectedIndex];
-    if (!opt || !opt.value) return;
-    document.getElementById('gpGroupId').value = opt.value;
-    document.getElementById('gpGroupName').value = opt.getAttribute('data-name') || '';
+    if (!opt || !opt.value) {
+      var idEl0 = document.getElementById('gpGroupId');
+      var nameEl0 = document.getElementById('gpGroupName');
+      var copyBtn0 = document.getElementById('gpCopyBtn');
+      if (idEl0) idEl0.value = '';
+      if (nameEl0) nameEl0.value = '';
+      if (copyBtn0) copyBtn0.disabled = true;
+      return;
+    }
+    var idEl = document.getElementById('gpGroupId');
+    var nameEl = document.getElementById('gpGroupName');
+    var copyBtn = document.getElementById('gpCopyBtn');
+    if (idEl) idEl.value = opt.value;
+    if (nameEl) nameEl.value = opt.getAttribute('data-name') || '';
+    if (copyBtn) copyBtn.disabled = !opt.value;
+  }
+
+  /**
+   * Sao chép Group ID vào clipboard.
+   * Fallback cho trình duyệt không hỗ trợ navigator.clipboard (HTTP cũ, Safari
+   * khi không secure context) → dùng execCommand('copy').
+   */
+  function copyGroupId() {
+    var input = document.getElementById('gpGroupId');
+    var btn = document.getElementById('gpCopyBtn');
+    if (!input) return;
+    var val = String(input.value || '');
+    if (!val) { toast('⚠ Chưa có Group ID để sao chép', 'err'); return; }
+
+    var done = function () {
+      if (btn) {
+        btn.classList.add('ok');
+        btn.innerHTML = '✓<span>Đã chép</span>';
+        setTimeout(function () {
+          btn.classList.remove('ok');
+          btn.innerHTML = '📋<span>Chép</span>';
+        }, 1800);
+      }
+      toast('✅ Đã sao chép Group ID', 'ok');
+    };
+
+    var fallback = function () {
+      input.removeAttribute('readonly');
+      input.focus();
+      input.select();
+      input.setSelectionRange(0, val.length);
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (_) { ok = false; }
+      input.setAttribute('readonly', '');
+      if (ok) { done(); }
+      else { toast('⚠ Không copy được — hãy bấm vào ô và copy thủ công', 'err'); }
+    };
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(val).then(done).catch(fallback);
+    } else {
+      fallback();
+    }
   }
 
   function openPermModal() {
@@ -2642,8 +2967,20 @@
 
   // ── Loaders ────────────────────────────────────────────────────────────
   function loadGroups() {
-    return api(API + '/groups').then(function (res) {
+    // Cần cả danh sách KHÁCH để dựng bộ lọc "Chưa liên kết nhóm Zalo".
+    // Nếu chưa có customers → gọi /customers trước.
+    var needCustomers = !(state.customers && state.customers.length);
+    var pGroups = api(API + '/groups').then(function (res) {
       state.groups = res.data || [];
+    });
+    var p = needCustomers
+      ? pGroups.then(function () {
+          return api(API + '/customers').then(function (res) {
+            state.customers = res.data || [];
+          }).catch(function () { /* giữ nguyên danh sách cũ */ });
+        })
+      : pGroups;
+    return p.then(function () {
       render();
     }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
   }
@@ -2938,8 +3275,12 @@
     window.openClaimPreviewModal = openClaimPreviewModal;
     window.regenerateClaimMessage = regenerateClaimMessage;
   window.openGroupModal = openGroupModal;
+  window.openGroupModalFor = openGroupModalFor;
+  window.setGroupFilter = setGroupFilter;
   window.loadOmiGroups = loadOmiGroups;
   window.onPickOmiGroup = onPickOmiGroup;
+  window.filterOmiGroups = filterOmiGroups;
+  window.copyGroupId = copyGroupId;
   window.openPermModal = openPermModal;
   window.collectAll = collectAll;
   window.collectPartial = collectPartial;

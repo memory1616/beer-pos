@@ -383,8 +383,9 @@ describe('views/debts.html — bảng vừa màn hình điện thoại', () => {
 
   test('các bảng nhiều cột ĐỀU dùng --wide (giữ được cuộn ngang)', () => {
     const tables = html.match(/<table class="dbt-table[^"]*"/g) || [];
-    // 9 bảng: top debtors (hẹp) + 8 bảng rộng (gồm bảng giao dịch Sepay + bảng lịch sử thông báo)
-    expect(tables).toHaveLength(9);
+    // 11 bảng: top debtors (hẹp) + 8 bảng rộng (giao dịch Sepay + lịch sử thông báo)
+    //         + 2 bảng hẹp mới của tab Nhóm Zalo ("chưa liên kết" & "tất cả khách")
+    expect(tables).toHaveLength(11);
     const wide = tables.filter((t) => t.includes('dbt-table--wide'));
     expect(wide).toHaveLength(8);
   });
@@ -442,5 +443,86 @@ describe('views/debts.html — inline onclick phải có hàm global tương ứ
       (n) => !allowed.has(n) && !exported.has(n) && !defined.has(n)
     );
     expect(missing).toEqual([]);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Nhóm Zalo — bộ lọc "chưa liên kết" + ô tìm kiếm + sao chép Group ID
+// ═══════════════════════════════════════════════════════════════════════════
+describe('views/debts.html — bộ lọc & thao tác với nhóm Zalo', () => {
+  test('tab Nhóm Zalo có bộ lọc: đã liên kết / chưa liên kết / tất cả', () => {
+    expect(html).toMatch(/function\s+setGroupFilter\s*\(/);
+    expect(html).toMatch(/window\.setGroupFilter\s*=\s*setGroupFilter/);
+    // 3 chip bộ lọc
+    expect(html).toMatch(/Đã liên kết/);
+    expect(html).toMatch(/Chưa liên kết/);
+    expect(html).toMatch(/Tất cả khách/);
+  });
+
+  test('danh sách khách CHƯA liên kết nhóm được dựng từ state.groups + customer.groups', () => {
+    const fn = html.slice(
+      html.indexOf('function renderGroups('),
+      html.indexOf('function setGroupFilter(')
+    );
+    expect(fn).toMatch(/var\s+linkedIds\s*=\s*\{\}/);
+    expect(fn).toMatch(/c\.groups\s*&&\s*c\.groups\.length/);
+    expect(fn).toMatch(/var\s+unlinked\s*=/);
+  });
+
+  test('nút Liên kết trong danh sách chưa liên kết gọi openGroupModalFor(customerId)', () => {
+    expect(html).toMatch(/function\s+openGroupModalFor\s*\(/);
+    expect(html).toMatch(/window\.openGroupModalFor\s*=\s*openGroupModalFor/);
+    expect(html).toMatch(/onclick="openGroupModalFor\(' \+ c\.id \+ '\)"/);
+  });
+
+  test('modal có ô tìm kiếm nhóm (lọc client-side, không gọi lại API)', () => {
+    expect(html).toMatch(/id="gpGroupSearch"/);
+    expect(html).toMatch(/function\s+filterOmiGroups\s*\(/);
+    expect(html).toMatch(/window\.filterOmiGroups\s*=\s*filterOmiGroups/);
+    expect(html).toMatch(/function\s+renderOmiGroupOptions\s*\(/);
+  });
+
+  test('Group ID KHÔNG readonly + có nút sao chép', () => {
+    const modal = html.slice(
+      html.indexOf('function openGroupModal('),
+      html.indexOf('function openGroupModalFor(')
+    );
+    // input gpGroupId không được readonly (readonly làm không copy được)
+    expect(modal).toMatch(/id="gpGroupId"/);
+    expect(modal).not.toMatch(/id="gpGroupId"[^>]*readonly/);
+    // có nút copy
+    expect(modal).toMatch(/id="gpCopyBtn"/);
+    expect(html).toMatch(/function\s+copyGroupId\s*\(/);
+    expect(html).toMatch(/window\.copyGroupId\s*=\s*copyGroupId/);
+  });
+
+  test('copyGroupId có fallback execCommand cho trình duyệt không hỗ trợ clipboard API', () => {
+    const fn = html.slice(
+      html.indexOf('function copyGroupId('),
+      html.indexOf('function openPermModal(')
+    );
+    expect(fn).toMatch(/navigator\.clipboard/);
+    expect(fn).toMatch(/execCommand\('copy'\)/);
+    expect(fn).toMatch(/\.catch\(fallback\)/);
+  });
+
+  test('loadOmiGroups hỗ trợ tải thêm trang (không bỏ sót nhóm)', () => {
+    const fn = html.slice(
+      html.indexOf('function loadOmiGroups('),
+      html.indexOf('function renderOmiGroupOptions(')
+    );
+    expect(fn).toMatch(/page=/);
+    expect(fn).toMatch(/append/);
+    expect(fn).toMatch(/state\.omiGroupPage/);
+    // loại trùng theo convId
+    expect(fn).toMatch(/seen\[g\.convId\]/);
+  });
+
+  test('tab Nhóm Zalo load cả danh sách khách để dựng bộ lọc', () => {
+    const fn = html.slice(
+      html.indexOf('function loadGroups()'),
+      html.indexOf('function loadPermissions()')
+    );
+    expect(fn).toMatch(/API \+ '\/customers'/);
   });
 });
