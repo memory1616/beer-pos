@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="glow" cx="0.5" cy="0.42" r="0.62">
+      <stop offset="0%" stop-color="#ffcf4d" stop-opacity="0.42"/>
+      <stop offset="100%" stop-color="#f5b800" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="beer" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffd34d"/>
+      <stop offset="35%" stop-color="#f2a413"/>
+      <stop offset="78%" stop-color="#d97b06"/>
+      <stop offset="100%" stop-color="#a94f02"/>
+    </linearGradient>
+    <linearGradient id="beerSide" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.40"/>
+      <stop offset="30%" stop-color="#ffffff" stop-opacity="0.04"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.40"/>
+    </linearGradient>
+    <linearGradient id="foam" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#eadfc2"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.85"/>
+      <stop offset="50%" stop-color="#ffd76a" stop-opacity="0.65"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.75"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <clipPath id="glassClip">
+      <path d="M196 128 L204 372 Q204 388 220 388 L292 388 Q308 388 308 372 L316 128 Z"/>
+    </clipPath>
+  </defs>
+
+  <rect width="512" height="512" fill="#0b0e11"/>
+  <rect width="512" height="512" fill="url(#glow)"/>
+
+  <g opacity="0.10" transform="rotate(-18 256 256)">
+    <rect x="70" y="-60" width="34" height="640" fill="#ffd76a"/>
+    <rect x="200" y="-60" width="14" height="640" fill="#ffd76a"/>
+    <rect x="392" y="-60" width="26" height="640" fill="#ffd76a"/>
+  </g>
+
+  <g transform="translate(51.2 51.2) scale(0.8)">
+    <path d="M196 128 L204 372 Q204 388 220 388 L292 388 Q308 388 308 372 L316 128 Z"
+          fill="#0f1418" fill-opacity="0.55" stroke="url(#rim)" stroke-width="6"/>
+    <g clip-path="url(#glassClip)">
+      <rect x="190" y="160" width="132" height="230" fill="url(#beer)"/>
+      <rect x="190" y="160" width="132" height="230" fill="url(#beerSide)"/>
+      <path d="M190 172 Q210 162 232 170 Q254 158 276 168 Q298 158 320 168 L322 140 L190 140 Z" fill="url(#foam)"/>
+      <g fill="url(#foam)">
+        <circle cx="212" cy="150" r="16"/>
+        <circle cx="238" cy="142" r="19"/>
+        <circle cx="264" cy="150" r="15"/>
+        <circle cx="290" cy="142" r="18"/>
+      </g>
+      <ellipse cx="228" cy="250" rx="22" ry="80" fill="#fff6cf" opacity="0.16"/>
+    </g>
+    <ellipse cx="256" cy="129" rx="62" ry="12" fill="none" stroke="url(#rim)" stroke-width="6"/>
+    <ellipse cx="256" cy="130" rx="56" ry="9" fill="#fffaf0" opacity="0.15"/>
+    <path d="M208 156 L216 360" stroke="url(#sheen)" stroke-width="9" stroke-linecap="round" opacity="0.72"/>
+  </g>
+
+  <g fill="#ffffff" opacity="0.26">
+    <circle cx="236" cy="200" r="4"/>
+    <circle cx="258" cy="238" r="3"/>
+    <circle cx="288" cy="216" r="3.5"/>
+    <circle cx="276" cy="270" r="2.5"/>
+    <circle cx="230" cy="290" r="3"/>
+  </g>
+</svg>

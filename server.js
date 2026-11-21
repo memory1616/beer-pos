@@ -1073,6 +1073,15 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'landing.html'));
 });
 
+// Hướng dẫn cài app lên iPhone (Add to Home Screen) — public, không cần login.
+// Đăng ký TRƯỚC guard để tài xế / khách cũng xem được.
+app.get('/install', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.sendFile(path.join(__dirname, 'views', 'install.html'));
+});
+
 // ==================== DRIVER PORTAL PAGES ====================
 // Guard trang HTML quản trị: tài xế (role DRIVER) bị chặn ở BACKEND.
 // Phải mount TRƯỚC mọi route trả HTML quản trị.

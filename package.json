@@ -27,6 +27,7 @@
     "dev": "node server.js",
     "build": "echo 'No build step required'",
     "build:vendor": "node scripts/build-vendor.js",
+    "build:icons": "node scripts/gen-app-icons.js",
     "bump:version": "node scripts/bump-version.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

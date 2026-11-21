@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Cài app trên iPhone — BeerPOS</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#0B0E11">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="BeerPOS">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="icon" type="image/png" href="/icons/favicon-32.png">
+<link rel="stylesheet" href="/css/unified.css">
+  <link rel="stylesheet" href="/css/install-prompt.css?v=20261121a">
+<style>
+  .inst-wrap { max-width: 560px; margin: 0 auto; padding: calc(24px + var(--safe-area-top)) 16px calc(40px + var(--safe-area-bottom)); }
+  .inst-hero { text-align: center; padding: 16px 0 24px; }
+  .inst-hero img { width: 96px; height: 96px; border-radius: 22px; box-shadow: 0 12px 32px rgba(0,0,0,.5); }
+  .inst-hero h1 { margin: 14px 0 6px; font-size: 22px; font-weight: 800; }
+  .inst-hero p { margin: 0; color: var(--text-secondary); font-size: 13px; }
+  .inst-card { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 16px; padding: 18px; margin-bottom: 14px; }
+  .inst-card h2 { margin: 0 0 4px; font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .inst-card > .inst-sub { margin: 0 0 14px; font-size: 12px; color: var(--text-secondary); }
+  .inst-steps { list-style: none; margin: 0; padding: 0; counter-reset: s; }
+  .inst-steps li { counter-increment: s; position: relative; padding: 8px 0 8px 34px; font-size: 14px; line-height: 1.5; }
+  .inst-steps li::before { content: counter(s); position: absolute; left: 0; top: 8px; width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: #0B0E11; font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+  .inst-note { font-size: 12px; color: var(--text-secondary); background: rgba(252,213,53,.08); border-left: 3px solid var(--accent); padding: 10px 12px; border-radius: 0 8px 8px 0; margin-top: 12px; }
+  .inst-badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 20px; background: rgba(252,213,53,.15); color: var(--accent); margin-bottom: 10px; }
+  .inst-links { display: flex; gap: 10px; margin-top: 8px; }
+  .inst-btn { flex: 1; text-align: center; padding: 12px; border-radius: 12px; background: var(--bg-primary, #0B0E11); border: 1px solid var(--border, #2B3139); color: var(--text-primary, #EAECEF); text-decoration: none; font-size: 14px; font-weight: 600; }
+  .inst-btn.primary { background: var(--accent); color: #0B0E11; border-color: transparent; }
+</style>
+  <script src="/js/install-prompt.js?v=20261121a" defer></script>
+</head>
+<body>
+  <div class="inst-hero">
+    <img src="/apple-touch-icon.png" alt="BeerPOS">
+    <h1>BeerPOS trên iPhone</h1>
+    <p>Cài app lên màn hình chính — chạy toàn màn hình, offline, có thông báo</p>
+  </div>
+
+  <div class="inst-card">
+    <span class="inst-badge">iPhone &amp; iPad</span>
+    <h2>Cài app (2 phút)</h2>
+    <p class="inst-sub">Dùng Safari — Chrome trên iOS không cài được app.</p>
+    <ol class="inst-steps">
+      <li>Mở Safari, vào địa chỉ <strong>biatuoitayninh.store</strong></li>
+      <li>Bấm nút <strong>Chia sẻ</strong> (biểu tượng mũi tên lên, ở giữa thanh công cụ)</li>
+      <li>Cuộn xuống, chọn <strong>Thêm vào Màn hình chính</strong></li>
+      <li>Bấm <strong>Thêm</strong> → app xuất hiện với icon ly bia</li>
+      <li>Mở app từ màn hình chính (không mở từ Safari nữa)</li>
+    </ol>
+    <div class="inst-note">
+      Yêu cầu iOS 16.4 trở lên để nhận <strong>thông báo đơn hàng</strong> khi app đang đóng.
+    </div>
+  </div>
+
+  <div class="inst-card">
+    <h2>Sau khi cài xong</h2>
+    <ol class="inst-steps">
+      <li>Đăng nhập một lần — phiên đăng nhập được ghi nhớ</li>
+      <li>Cho phép <strong>Thông báo</strong> khi hệ thống hỏi (để nhận đơn mới)</li>
+      <li>Cho phép <strong>Vị trí</strong> (để tài xế chụp vị trí giao hàng)</li>
+      <li>Bật <strong>Chế độ Offline</strong>: vào Cài đặt → Tên ứng dụng → Dữ liệu mạng</li>
+    </ol>
+  </div>
+
+  <div class="inst-card">
+    <h2>Trải nghiệm giống app native</h2>
+    <ul class="inst-steps">
+      <li>Không còn thanh địa chỉ Safari khi mở từ màn hình chính</li>
+      <li>Vuốt lên dưới = đóng app (không phải chuyển tab)</li>
+      <li>Ghi đơn khi mất mạng → tự đồng bộ lại khi có mạng</li>
+      <li>Dữ liệu tự cập nhật, không cần cài lại app</li>
+    </ul>
+  </div>
+
+  <div class="inst-links">
+    <a class="inst-btn primary" href="/dashboard">Vào ứng dụng</a>
+    <a class="inst-btn" href="/driver">Trang tài xế</a>
+  </div>
+</div>
+</body>
+</html>

@@ -14,7 +14,7 @@
 // because ALL contexts use the SAME version number from ONE source.
 // ─────────────────────────────────────────────────────
 
-const DB_VERSION = 45; // ← bump khi schema thay đổi (v45: thêm /report/* vào no-cache để mobile & desktop luôn thấy data mới nhất)
+const DB_VERSION = 47; // ← bump khi schema thay đổi (v47: refresh SW cache sau khi thay bộ icon PWA/iOS mới + thêm trang /install)
 
 const DB_NAME    = 'BeerPOS';
 const STORE_META = '_meta';
@@ -211,6 +211,18 @@ if (window._dbInitialized) {
     return tx.table('customers').toCollection().modify(c => {
       if (c.region_id === undefined) c.region_id = null;
     });
+  });
+
+  // v47: Bump version để force SW đổi cache namespace → tải bộ icon PWA/iOS mới
+  //   + trang hướng dẫn cài app (/install). Không đổi schema.
+  _db.version(47).stores({
+    customers:   '++id, name, phone, deposit, keg_balance, archived, is_deleted, region_id, synced',
+    products:    '++id, name, slug, stock, cost_price, sell_price, is_deleted, synced',
+    sales:       '++id, createdAt, customer_id, customer_name, date, total, total_amount, profit, total_profit, synced, distance_km, duration_min, route_index, route_polyline',
+    sale_items:  '++id, sale_id, product_id, product_slug, product_name, quantity, price, cost_price, profit, profit_estimated, synced',
+    sync_queue:  '++id, entity, action, data, url, method, synced, created_at, retry_count',
+    expenses:    '++id, type, amount, note, date, synced',
+    orders_queue:'++id, customerId, items, total, profit, deliverKegs, returnKegs, type, note, created_at, synced'
   });
 
   // ─── Safe DB open with retries ─────────────────────────────────────────────

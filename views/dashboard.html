@@ -23,7 +23,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="BeerPOS">
-  <link rel="apple-touch-icon" href="/icons/icon-180.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="icon" type="image/png" href="/icons/icon-192.png">
 
   <!-- PERFORMANCE: Preload critical path — layout.js needed for first paint -->
@@ -37,6 +37,7 @@
   <link rel="prefetch" href="/js/stock.js">
 
   <link rel="stylesheet" href="/css/unified.css?v=20250718">
+  <link rel="stylesheet" href="/css/install-prompt.css?v=20261121a">
 
   <!-- Critical-first: auth, dark-mode (sync, blocks page render) -->
   <script src="/js/auth.js"></script>
@@ -624,6 +625,7 @@
       .dsh-hub-card-cta { display: none; }
     }
   </style>
+  <script src="/js/install-prompt.js?v=20261121a" defer></script>
 </head>
 <body class="bg-main text-primary min-h-screen">
   <!-- CLS Prevention: Skeleton rendered immediately on HTML parse -->

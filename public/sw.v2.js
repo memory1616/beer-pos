@@ -26,6 +26,7 @@ const MAX_CACHE   = 100; // entries — prevent unbounded cache growth
 // ─── App Shell — must cache for instant PWA load ────────────────────────────
 const APP_SHELL = [
   '/', '/index.html', '/manifest.json',
+  '/apple-touch-icon.png', '/icons/icon-192.png', '/icons/icon-512.png',
   '/icon-192.png', '/icon-512.png',
   '/css/unified.css',
   '/js/layout.js', '/js/auth.js', '/js/dark-mode.js',
@@ -85,7 +86,7 @@ async function writeVersionToMeta(version) {
 let _dbPromise = null;
 let _DB_VERSION = null;
 let _CACHE_NAME = null;
-const DEFAULT_DB_VERSION = 44;
+const DEFAULT_DB_VERSION = 47;
 const DEFAULT_CACHE_NAME = `beer-pos-v${DEFAULT_DB_VERSION}`;
 
 // Resolve version from _meta store, then open at that exact version.
