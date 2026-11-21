@@ -154,3 +154,24 @@ describe('Header safe-area (iPhone notch) — không bị lọt vào vùng notch
     expect(css).not.toMatch(/\.topbar\s*\{[^}]*padding:\s*0\s+16px/);
   });
 });
+
+describe('Modal hoá đơn — nút đóng không bị chìm dưới notch iOS', () => {
+  const css = fs.readFileSync(path.join(ROOT, 'public', 'css', 'unified.css'), 'utf8');
+
+  it('.inv-pos-header có padding-top tính safe-area', () => {
+    const block = css.match(/\.inv-pos-header\s*\{[^}]*\}/);
+    expect(block).toBeTruthy();
+    expect(block[0]).toMatch(/padding-top:\s*calc\([^)]*var\(--safe-area-top\)/);
+  });
+
+  it('.inv-close có vùng chạm >= 44px', () => {
+    expect(css).toMatch(/\.inv-close::before\s*\{[^}]*inset:\s*-6px/);
+  });
+
+  it('nút đóng tồn tại trong modal hoá đơn của admin và tài xế', () => {
+    for (const f of ['views/sales.html', 'views/driver/sale.html']) {
+      const html = fs.readFileSync(path.join(ROOT, f), 'utf8');
+      expect(html).toMatch(/class="inv-close"/);
+    }
+  });
+});

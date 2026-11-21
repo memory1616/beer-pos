@@ -5159,14 +5159,19 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   .inv-pos.ultra-compact .qr { width: 100px; }
 }
 
-/* Header — fixed */
+/* Header — fixed
+   safe-area (iOS notch): khi modal fullscreen trên mobile, sheet bám sát đỉnh
+   màn hình (top:0) nên nút × nằm trong vùng notch → không thấy được.
+   padding-top = safe-area-top đẩy header xuống dưới vùng notch. */
 .inv-pos-header {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 10px 14px 8px;
+  padding-top: calc(10px + var(--safe-area-top));
   flex-shrink: 0;
   border-bottom: 1px solid var(--border);
+  background: var(--card);
 }
 
 .inv-pos-title {
@@ -5198,9 +5203,29 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   justify-content: center;
   flex-shrink: 0;
   transition: background 0.15s;
+  /* vùng chạm >= 44px trên mobile (Apple HIG) */
+  position: relative;
+}
+
+.inv-close::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
 }
 
 .inv-close:hover { background: var(--red); color: #fff; }
+
+/* Mobile: nút đóng to + đậm hơn để dễ thấy/bấm trên iPhone */
+@media (max-width: 480px) {
+  .inv-close {
+    width: 40px;
+    height: 40px;
+    font-size: 24px;
+    color: var(--text-primary);
+    background: var(--bg-hover, rgba(0,0,0,0.06));
+  }
+  .inv-close::before { inset: -4px; }
+}
 
 /* Body: allow content to grow naturally, push actions to bottom */
 .inv-pos-body {
@@ -5440,6 +5465,8 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   display: flex;
   gap: 8px;
   padding: 8px 14px 10px;
+  /* safe-area bottom (iPhone home indicator) */
+  padding-bottom: calc(10px + var(--safe-area-bottom));
   flex-shrink: 0;
   border-top: 1px solid var(--border);
 }

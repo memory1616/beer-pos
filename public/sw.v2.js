@@ -86,7 +86,7 @@ async function writeVersionToMeta(version) {
 let _dbPromise = null;
 let _DB_VERSION = null;
 let _CACHE_NAME = null;
-const DEFAULT_DB_VERSION = 47;
+const DEFAULT_DB_VERSION = 48;
 const DEFAULT_CACHE_NAME = `beer-pos-v${DEFAULT_DB_VERSION}`;
 
 // Resolve version from _meta store, then open at that exact version.

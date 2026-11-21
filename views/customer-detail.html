@@ -25,7 +25,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
-  <link rel="stylesheet" href="/css/unified.css?v=20250718">
+  <link rel="stylesheet" href="/css/unified.css?v=20261121b">
   <link rel="stylesheet" href="/css/install-prompt.css?v=20261121a">
   <script src="/js/auth.js"></script>
   <script src="/js/dark-mode.js"></script>
@@ -1551,6 +1551,14 @@
       align-items: center;
       justify-content: center;
       transition: all 0.2s;
+      position: relative;
+      flex-shrink: 0;
+    }
+    /* vùng chạm >= 44px (Apple HIG) */
+    .customer-invoice-close::before {
+      content: '';
+      position: absolute;
+      inset: -6px;
     }
     .customer-invoice-close:hover { background: rgba(0,0,0,0.3); }
     .customer-invoice-body {
