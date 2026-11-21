@@ -482,6 +482,15 @@ describe('views/debts.html — bộ lọc & thao tác với nhóm Zalo', () => {
     expect(html).toMatch(/function\s+renderOmiGroupOptions\s*\(/);
   });
 
+  test('có ô tìm nhóm trên SERVER (Enter) — dành cho nhóm vừa tạo', () => {
+    // Nhóm Zalo vừa tạo (chưa có tin nhắn) không có trong danh sách mặc định
+    // → phải tìm được bằng keyword (tên nhóm hoặc convId).
+    expect(html).toMatch(/function\s+searchOmiGroups\s*\(/);
+    expect(html).toMatch(/window\.searchOmiGroups\s*=\s*searchOmiGroups/);
+    expect(html).toMatch(/keyword=/);
+    expect(html).toMatch(/searchOmiGroups\(this\.value\)/);
+  });
+
   test('Group ID KHÔNG readonly + có nút sao chép', () => {
     const modal = html.slice(
       html.indexOf('function openGroupModal('),
@@ -503,7 +512,9 @@ describe('views/debts.html — bộ lọc & thao tác với nhóm Zalo', () => {
     );
     expect(fn).toMatch(/navigator\.clipboard/);
     expect(fn).toMatch(/execCommand\('copy'\)/);
-    expect(fn).toMatch(/\.catch\(fallback\)/);
+    // Clipboard API bị reject → phải gọi fallback execCommand
+    expect(fn).toMatch(/\.catch\(function\s*\(\)/);
+    expect(fn).toMatch(/fallback\(\)/);
   });
 
   test('loadOmiGroups hỗ trợ tải thêm trang (không bỏ sót nhóm)', () => {

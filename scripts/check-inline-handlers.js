@@ -4,7 +4,11 @@ const path = require('path');
 const BUILTIN = new Set([
   'if','for','while','return','parseInt','parseFloat','Number','String','Boolean','Array','Object',
   'JSON','Math','alert','confirm','prompt','require','fetch','decodeURIComponent','encodeURIComponent',
-  'setTimeout','setInterval','isNaN','eval','this','event','e','fn',
+  'setTimeout','setInterval',  'isNaN','eval','this','event','e','fn',
+  // Method calls (không phải function reference): el.remove(), e.preventDefault(), ...
+  'remove','add','replace','open','preventDefault','stopPropagation','stopImmediatePropagation',
+  'blur','focus','click','submit','reset','scrollIntoView','getAttribute','setAttribute',
+  'hasAttribute','removeAttribute','closest','contains','appendChild','removeChild','insertBefore',
 ]);
 
 const HANDLER_RE = /(?:onclick|onchange|onsubmit|oninput|onkeyup|onkeydown|onblur|onfocus|onload)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;

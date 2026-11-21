@@ -911,11 +911,22 @@ async function listConversations(opts = {}) {
   const keyword = String(opts.keyword || '').trim();
   const allPages = opts.allPages !== false;
   const maxPages = Math.min(20, Number(opts.maxPages) || 10);
+  // Chiều sắp xếp:
+  //  - 'asc'  (mặc định): last_message_time TĂNG dần → hội thoại CŨ trước.
+  //  - 'desc': last_message_time GIẢM dần → hội thoại MỚI trước.
+  //
+  // ⚠️ Vì sao cần CẢ HAI?
+  //  Nhóm Zalo vừa tạo chưa có tin nhắn nào → last_message_time rất nhỏ (hoặc null).
+  //  Với sort tăng dần, các nhóm mới bị đẩy xuống CUỐI danh sách → vượt quá
+  //  giới hạn mà OmiCall trả về (~337 mục) → KHÔNG THỤY được trong danh sách.
+  //  Với sort giảm dần, nhóm mới nằm ở đầu → luôn thấy được.
+  //  → Gom cả 2 chiều rồi gộp (loại trùng convId) để không bỏ sót nhóm nào.
+  const sortDir = opts.sortDir === 'desc' ? 'desc' : 'asc';
 
   const body = {
     types: [],
     keyword,
-    sort: { field_code: 'last_message_time', is_asc: true },
+    sort: { field_code: 'last_message_time', is_asc: sortDir !== 'desc' },
     is_session: false,
     is_blocked: false,
     channel_ids: [],
@@ -994,7 +1005,8 @@ async function listConversations(opts = {}) {
             }
           }
 
-          const collected = opts._collected || [];          return {
+          const collected = opts._collected || [];
+          return {
             success: true,
             conversations: [...collected, ...conversations],
             raw: parsed,
@@ -1019,6 +1031,60 @@ async function listConversations(opts = {}) {
     error: 'Không tìm được endpoint liệt kê hội thoại OmiCall',
     attempts,
   };
+}
+
+/**
+ * Liệt kê hội thoại, gom CẢ HAI chiều sắp xếp (cũ→mới và mới→cũ).
+ *
+ * ⚠️ Vì sao cần gom cả hai?
+ *  OmiCall `search_v4` chỉ trả về khoảng ~337 hội thoại đầu tiên theo thứ tự
+ *  `last_message_time`. Nhóm Zalo **vừa tạo** chưa có tin nhắn nên có
+ *  `last_message_time` rất nhỏ → xếp cuối danh sách khi sort TĂNG dần →
+ *  **không bao giờ xuất hiện** trong danh sách nhóm dù nhóm đã tồn tại.
+ *  (Người dùng phải biết convId và tìm bằng keyword mới thấy.)
+ *
+ *  → Gọi cả 2 chiều rồi gộp theo convId → nhóm mới lẫn nhóm cũ đều có.
+ *
+ * @param {object} opts
+ * @returns {Promise<{success:boolean, conversations?:Array, error?:string}>}
+ */
+async function listConversationsBoth(opts = {}) {
+  // Gọi qua module.exports để có thể mock/override trong test.
+  const fetchList = module.exports.listConversations || listConversations;
+
+  // Không có keyword → gom cả 2 chiều. Có keyword → 1 chiều là đủ (kết quả đã
+  // lọc sẵn và nhỏ).
+  if (opts.keyword) {
+    return fetchList(opts);
+  }
+
+  const [asc, desc] = await Promise.all([
+    fetchList({ ...opts, sortDir: 'asc' }),
+    fetchList({ ...opts, sortDir: 'desc' }),
+  ]);
+
+  const merged = [];
+  const seen = new Set();
+  for (const res of [asc, desc]) {
+    if (!res || !res.success) continue;
+    for (const c of res.conversations || []) {
+      const key = String(c.convId || c.raw?.id || '');
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      merged.push(c);
+    }
+  }
+
+  if (!merged.length) {
+    const failed = !asc?.success ? asc : desc;
+    return {
+      success: false,
+      error: failed?.error || 'Không lấy được danh sách hội thoại OmiCall',
+      attempts: [...(asc?.attempts || []), ...(desc?.attempts || [])],
+    };
+  }
+
+  return { success: true, conversations: merged };
 }
 
 /**
@@ -1124,5 +1190,6 @@ module.exports = {
   testConnection,
   probeSendEndpoints,
   listConversations,
+  listConversationsBoth,
   diagnoseAccount,
 };

@@ -923,12 +923,17 @@ router.get('/notify/probe', requireAuth, requireAdmin, async (req, res) => {
 router.get('/notify/conversations', requireAuth, requireAdmin, async (req, res) => {
   try {
     const { keyword, page, size, all, groupsOnly } = req.query || {};
-    const result = await OmiCallService.listConversations({
+    const opts = {
       keyword: keyword ? String(keyword) : '',
       page: Number(page) || 1,
       size: Number(size) || 100,
       allPages: all !== '0',
-    });
+    };
+    // Không có keyword → gom CẢ 2 chiều sort (cũ→mới + mới→cũ) để không bỏ sót
+    // nhóm Zalo vừa tạo (chưa có tin nhắn → xếp cuối khi sort tăng dần).
+    const result = keyword
+      ? await OmiCallService.listConversations(opts)
+      : await OmiCallService.listConversationsBoth(opts);
     if (!result.success) {
       return res.status(400).json({ success: false, error: result.error, attempts: result.attempts || [] });
     }

@@ -2575,15 +2575,16 @@
         '<button class="dbt-btn dbt-btn-secondary" style="width:100%" id="gpLoadBtn" onclick="loadOmiGroups()">🔄 Tải danh sách nhóm từ OmiCall</button>' +
         '<div class="dbt-search-wrap">' +
           '<span class="dbt-search-icon">🔍</span>' +
-          '<input id="gpGroupSearch" class="dbt-input" placeholder="Lọc theo tên nhóm…" ' +
+          '<input id="gpGroupSearch" class="dbt-input" placeholder="Tìm nhóm theo tên (gõ rồi Enter)…" ' +
+            'onkeydown="if(event.key===\'Enter\'){event.preventDefault();searchOmiGroups(this.value);}" ' +
             'oninput="filterOmiGroups(this.value)" autocomplete="off"></div>' +
         '<select id="gpOmiGroup" class="dbt-select" style="margin-top:8px" onchange="onPickOmiGroup()">' +
           '<option value="">— Chọn nhóm Zalo —</option></select>' +
-        '<div class="dbt-hint" id="gpGroupCount">Chỉ hiển thị <b>nhóm Zalo</b> (không hiển thị chat cá nhân) để tránh gửi nhầm cho khách.</div></div>' +
+        '<div class="dbt-hint" id="gpGroupCount">Chỉ hiển thị <b>nhóm Zalo</b> (không hiển thị chat cá nhân) để tránh gửi nhầm cho khách. <b>Nhóm vừa tạo</b> (chưa có tin nhắn) không có trong danh sách mặc định — gõ tên nhóm hoặc Group ID rồi nhấn <b>Enter</b> để tìm.</div></div>' +
       '<div class="dbt-field"><label class="dbt-label">Group ID</label>' +
         '<div style="display:flex;gap:8px;align-items:stretch">' +
           '<input id="gpGroupId" class="dbt-input dbt-input--copyable" placeholder="VD: 6afe6913fca59218a5d662a9" ' +
-            'onfocus="this.select()" onkeydown="if(event.key===\'Enter\'){this.select();}">' +
+            'onfocus="this.select()" onclick="this.select()">' +
           '<button class="dbt-copy-btn" id="gpCopyBtn" onclick="copyGroupId()" disabled>📋<span>Chép</span></button>' +
         '</div>' +
         '<div class="dbt-hint">Đây là <b>Conversation ID</b> của nhóm Zalo trong hệ thống OmiCall multi-channel — dùng để gửi tin nhắn thông báo công nợ tới nhóm. Bấm <b>📋 Chép</b> để sao chép.</div></div>' +
@@ -2669,6 +2670,54 @@
   }
 
   /**
+   * Tìm nhóm Zalo trên SERVER (OmiCall keyword search).
+   *
+   * ⚠️ Cần thiết vì OmiCall chỉ trả về ~337 hội thoại đầu theo last_message_time.
+   * Nhóm vừa tạo (chưa có tin nhắn) xếp CUỐI → không có trong danh sách mặc định,
+   * nhưng LUÔN tìm được bằng keyword (tên nhóm hoặc convId).
+   */
+  function searchOmiGroups(query) {
+    var sel = document.getElementById('gpOmiGroup');
+    var countEl = document.getElementById('gpGroupCount');
+    if (!sel) return;
+    var kw = String(query || '').trim();
+    if (!kw) { loadOmiGroups(); return; }
+
+    sel.innerHTML = '<option value="">⏳ Đang tìm "' + esc(kw) + '"…</option>';
+
+    api(API + '/notify/conversations?size=100&keyword=' + encodeURIComponent(kw)).then(function (res) {
+      var list = (res.data && res.data.conversations) || [];
+      var groups = list.filter(function (c) { return c.convSubType === 'group'; });
+      // Gộp vào cache để lọc client-side tiếp vẫn thấy
+      var seen = {};
+      var merged = _omiGroupsCache.slice();
+      merged.forEach(function (g) { seen[g.convId] = true; });
+      groups.forEach(function (g) {
+        if (!seen[g.convId]) { seen[g.convId] = true; merged.push(g); }
+      });
+      _omiGroupsCache = merged;
+
+      if (!groups.length) {
+        sel.innerHTML = '<option value="">— Không tìm thấy nhóm nào khớp "' + esc(kw) + '"</option>';
+        if (countEl) countEl.innerHTML = 'Không tìm thấy nhóm nào khớp "<b>' + esc(kw) + '</b>". Thử tìm theo <b>Group ID</b>.';
+        return;
+      }
+      state.omiGroupQuery = '';
+      var searchInput = document.getElementById('gpGroupSearch');
+      if (searchInput) searchInput.value = '';
+      renderOmiGroupOptions();
+      if (countEl) {
+        countEl.innerHTML = 'Tìm "<b>' + esc(kw) + '</b>": <b>' + groups.length + '</b> nhóm' +
+          ' · <a href="#" onclick="loadOmiGroups();return false;">Xem tất cả</a>';
+      }
+      toast('✅ Tìm thấy ' + groups.length + ' nhóm', 'ok');
+    }).catch(function (e) {
+      sel.innerHTML = '<option value="">— Lỗi tìm kiếm —</option>';
+      toast('✗ ' + e.message, 'err');
+    });
+  }
+
+  /**
    * Render lại danh sách option nhóm (dùng sau khi tải hoặc khi lọc).
    */
   function renderOmiGroupOptions() {
@@ -2750,22 +2799,33 @@
       toast('✅ Đã sao chép Group ID', 'ok');
     };
 
+    // Ưu tiên execCommand('copy') vì:
+    //  1. Chạy ĐỒNG BỘ trong user gesture → copy được ngay, không cần permission.
+    //  2. navigator.clipboard.writeText() bị Chrome reject (NotAllowedError) khi
+    //     document không có focus hoặc gọi ngoài user gesture.
+    //  3. Safari iOS cũng hỗ trợ execCommand khi input đang được select.
     var fallback = function () {
       input.removeAttribute('readonly');
       input.focus();
       input.select();
-      input.setSelectionRange(0, val.length);
+      try { input.setSelectionRange(0, val.length); } catch (_) {}
       var ok = false;
       try { ok = document.execCommand('copy'); } catch (_) { ok = false; }
       input.setAttribute('readonly', '');
-      if (ok) { done(); }
-      else { toast('⚠ Không copy được — hãy bấm vào ô và copy thủ công', 'err'); }
+      if (ok) { done(); return true; }
+      return false;
     };
 
+    // Thử clipboard API trước (Chrome desktop, secure context, có permission)
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(val).then(done).catch(fallback);
-    } else {
-      fallback();
+      navigator.clipboard.writeText(val).then(done).catch(function () {
+        // Clipboard API bị từ chối → fallback execCommand
+        if (!fallback()) {
+          toast('⚠ Không copy được — hãy bấm vào ô và copy thủ công', 'err');
+        }
+      });
+    } else if (!fallback()) {
+      toast('⚠ Không copy được — hãy bấm vào ô và copy thủ công', 'err');
     }
   }
 
@@ -3280,6 +3340,7 @@
   window.loadOmiGroups = loadOmiGroups;
   window.onPickOmiGroup = onPickOmiGroup;
   window.filterOmiGroups = filterOmiGroups;
+  window.searchOmiGroups = searchOmiGroups;
   window.copyGroupId = copyGroupId;
   window.openPermModal = openPermModal;
   window.collectAll = collectAll;
