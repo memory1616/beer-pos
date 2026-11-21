@@ -41,10 +41,60 @@
   }
 
   var deferredPrompt = null;
+  var barVisible = false;
+
+  /**
+   * Gọi prompt() của Chrome để mở hộp thoại cài app.
+   * Được tách riêng để dùng được cả khi beforeinstallprompt đến SAU khi banner
+   * đã hiển thị (iOS-style banner) — khi đó cần đổi nút "Hướng dẫn" thành "Cài ngay".
+   */
+  function doPromptInstall() {
+    if (!deferredPrompt) return;
+    var p = deferredPrompt;
+    deferredPrompt = null;
+    try { p.prompt(); } catch (_) {}
+    if (p.userChoice && p.userChoice.then) {
+      p.userChoice.then(function (choice) {
+        if (choice && choice.outcome === 'accepted') {
+          markDismissed();
+          var bar = document.getElementById('installPromptBar');
+          if (bar) bar.remove();
+          barVisible = false;
+        }
+      });
+    }
+  }
+
+  /**
+   * Gắn handler cho nút hành động.
+   * Dùng 1 listener duy nhất + cờ mode để tránh addEventListener chồng lên nhau
+   * khi beforeinstallprompt đến muộn (sau khi banner đã hiện).
+   */
+  function bindAction(action) {
+    if (action.dataset.ipbBound === '1') return;
+    action.dataset.ipbBound = '1';
+    action.addEventListener('click', function () {
+      if (deferredPrompt) {
+        doPromptInstall();
+      } else {
+        window.location.href = '/install';
+      }
+    });
+  }
 
   window.addEventListener('beforeinstallprompt', function (e) {
+    // preventDefault() để chặn mini-infobar native của Chrome.
+    // Hệ quả: Chrome sẽ log cảnh báo "Banner not shown..." — ĐÂY LÀ THÔNG BÁO
+    // THÔNG TỦ, KHÔNG PHẢI LỖI. Nút "Cài ngay" trong banner của app vẫn hoạt động
+    // vì gọi deferredPrompt.prompt().
     e.preventDefault();
     deferredPrompt = e;
+    // Nếu banner đã hiện (iOS-style) → đổi sang chế độ có nút cài trực tiếp
+    var action = document.getElementById('ipbAction');
+    if (action && barVisible) {
+      action.textContent = 'Cài ngay';
+      bindAction(action);
+    }
   });
 
   function buildUI() {
@@ -69,37 +119,30 @@
     if (document.getElementById('installPromptBar')) return;
 
     var bar = buildUI();
+    barVisible = true;
     var msg = bar.querySelector('#ipbMsg');
     var action = bar.querySelector('#ipbAction');
     var close = bar.querySelector('#ipbClose');
 
     if (deferredPrompt) {
       // Chrome Android — cài trực tiếp
-      action.addEventListener('click', function () {
-        deferredPrompt.prompt();
-        deferredPrompt.userChoice.then(function () {
-          markDismissed();
-          bar.remove();
-          deferredPrompt = null;
-        });
-      });
+      action.textContent = 'Cài ngay';
     } else {
       // iOS Safari — hướng dẫn thủ công
       msg.textContent = 'Bấm nút Chia sẻ (⬆) rồi chọn "Thêm vào Màn hình chính".';
-      action.addEventListener('click', function () {
-        window.location.href = '/install';
-      });
     }
+    bindAction(action);
 
     close.addEventListener('click', function () {
       markDismissed();
+      barVisible = false;
       bar.remove();
     });
 
     // Tự ẩn sau 20s
     setTimeout(function () {
       bar.classList.add('ipb-hide');
-      setTimeout(function () { bar.remove(); }, 400);
+      setTimeout(function () { barVisible = false; bar.remove(); }, 400);
     }, 20000);
   }
 

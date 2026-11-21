@@ -397,3 +397,50 @@ describe('views/debts.html — bảng vừa màn hình điện thoại', () => {
     expect(joined).toContain('text-overflow: ellipsis');
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Inline handler phải được expose ra window (IIFE → global scope)
+// ═══════════════════════════════════════════════════════════════════════════
+describe('views/debts.html — inline onclick phải có hàm global tương ứng', () => {
+  test('loadOmiGroups và onPickOmiGroup được expose ra window', () => {
+    // Nếu thiếu → click nút "Tải danh sách nhóm từ OmiCall" báo
+    // "ReferenceError: loadOmiGroups is not defined"
+    expect(html).toMatch(/window\.loadOmiGroups\s*=\s*loadOmiGroups/);
+    expect(html).toMatch(/window\.onPickOmiGroup\s*=\s*onPickOmiGroup/);
+  });
+
+  test('mọi hàm được gọi trong inline onclick/onchange đều tồn tại', () => {
+    // Gom tất cả hàm được gọi trong attribute inline (kể cả trong string động)
+    const called = new Set();
+    const attrRe = /(?:onclick|onchange|onsubmit|oninput|onkeyup|onblur)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
+    let m;
+    while ((m = attrRe.exec(html)) !== null) {
+      const code = m[1] || m[2] || '';
+      const callRe = /([A-Za-z_$][\w$]*)\s*\(/g;
+      let c;
+      while ((c = callRe.exec(code)) !== null) called.add(c[1]);
+    }
+
+    const allowed = new Set([
+      'event', 'this', 'return', 'stopPropagation', 'preventDefault',
+      'confirm', 'alert', 'prompt', 'parseInt', 'parseFloat', 'Number', 'String',
+      'Boolean', 'Array', 'Object', 'JSON', 'Math', 'setTimeout', 'clearTimeout',
+      'require', 'fetch', 'isNaN', 'fn', 'remove', 'add', 'replace', 'open',
+    ]);
+
+    // Hàm phải được: (a) export ra window, hoặc (b) khai báo trong file
+    const exported = new Set();
+    const exportRe = /window\.([A-Za-z_$][\w$]*)\s*=/g;
+    while ((m = exportRe.exec(html)) !== null) exported.add(m[1]);
+    const defined = new Set();
+    const defRe = /(?:^|\s)function\s+([A-Za-z_$][\w$]*)/g;
+    while ((m = defRe.exec(html)) !== null) defined.add(m[1]);
+    const declRe = /(?:^|\s)(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=/g;
+    while ((m = declRe.exec(html)) !== null) defined.add(m[1]);
+
+    const missing = [...called].filter(
+      (n) => !allowed.has(n) && !exported.has(n) && !defined.has(n)
+    );
+    expect(missing).toEqual([]);
+  });
+});
