@@ -181,6 +181,41 @@ describe('Trích mã khách từ nội dung chuyển khoản', () => {
     expect(DebtSepayService.normalizeCode('kh 00a1')).toBe('KH00A1');
     expect(DebtSepayService.normalizeCode('đặng hàng')).toBe('DANGHANG');
   });
+
+  // ── Bug regex greedy: nuốt số từ phần ngày giờ phía sau ────────────────
+  test('nội dung có ngày giờ phía sau KH0006 → lấy đúng KH0006', () => {
+    // Nội dung thực tế từ ngân hàng:
+    // "NHAN TU 19870337 TRACE 283352 ND 1121 KH0006-211126-18:37:58 6325ASCB02XFGAPD"
+    // Bản cũ (bỏ hết dấu phân tách + regex greedy KH\d{3,8}) → "KH00062111" (SAI)
+    const content =
+      'NHAN TU 19870337 TRACE 283352 ND 1121 KH0006-211126-18:37:58 6325ASCB02XFGAPD';
+    expect(DebtSepayService.extractDebtCode({ content })).toBe('KH0006');
+  });
+
+  test('mã KHxxxx đứng sau dấu gạch ngang → lấy đúng 4 chữ số', () => {
+    expect(DebtSepayService.extractDebtCode({ content: 'ND 1121 KH0012-211126-18:37:58 ABC' })).toBe('KH0012');
+  });
+
+  test('mã KHxxxx ở giữa nội dung (không có ngày giờ) vẫn đúng', () => {
+    expect(DebtSepayService.extractDebtCode({ content: 'ND 1118 KH0020 FT26325134949006' })).toBe('KH0020');
+  });
+
+  test('mã KHxxxx ở cuối nội dung vẫn đúng', () => {
+    expect(DebtSepayService.extractDebtCode({ content: 'NHAN TU 10000783913 TRACE 300905 ND 1113 KH0016' })).toBe('KH0016');
+  });
+
+  test('nội dung dài có nhiều chữ số liên tiếp → không nuốt quá 4 chữ số', () => {
+    const content = 'NHAN TU 19870337 TRACE 283352 ND 1121 KH0025-211126-18:37:58 6325ASCB02XFGAPD';
+    expect(DebtSepayService.extractDebtCode({ content })).toBe('KH0025');
+  });
+
+  test('mã KH dài hơn 4 chữ số vẫn được hỗ trợ (fallback)', () => {
+    expect(DebtSepayService.extractDebtCode({ content: 'NO PHAT SINH KH12345' })).toBe('KH12345');
+  });
+
+  test('không có KH → không khớp nhầm chuỗi số dài', () => {
+    expect(DebtSepayService.extractDebtCode({ content: 'ND 1121 211126183758 6325ASCB02XFGAPD' })).toBe('');
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════

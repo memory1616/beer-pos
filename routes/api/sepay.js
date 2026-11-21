@@ -152,6 +152,8 @@ router.post('/settings', requireAuth, requireAdmin, (req, res) => {
 router.post('/reconcile', requireAuth, requireAdmin, async (req, res) => {
   try {
     const { from, to } = req.body || {};
+    // Sửa mã khách lưu sai (do regex greedy) TRƯỚC khi đối soát
+    const repair = DebtSepayService.repairDebtCodes();
     const result = await DebtSepayService.reconcile({
       from,
       to,
@@ -170,12 +172,30 @@ router.post('/reconcile', requireAuth, requireAdmin, async (req, res) => {
         added: result.added,
         settled: result.settled,
         failed: result.failed,
+        repairedCodes: repair.fixed,
       });
     }
 
-    res.json({ success: true, data: result });
+    res.json({ success: true, data: { ...result, repairedCodes: repair } });
   } catch (e) {
     logger.error('[SEPAY_API] reconcile error', { error: e.message });
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// D2. SỬA MÃ KHÁCH LƯU SAI TRONG GIAO DỊCH SEPAY
+// ───────────────────────────────────────────────────────────────────────────
+// Giao dịch có nội dung kiểu "…KH0006-211126-18:37:58…" trước đây bị trích
+// sai mã thành "KH00062111" (regex greedy nuốt phần ngày giờ).
+// Endpoint này trích lại mã đúng cho toàn bộ giao dịch đã lưu.
+// ═══════════════════════════════════════════════════════════════════════════
+router.post('/repair-codes', requireAuth, requireAdmin, (req, res) => {
+  try {
+    const result = DebtSepayService.repairDebtCodes();
+    res.json({ success: true, data: result });
+  } catch (e) {
+    logger.error('[SEPAY_API] repair-codes error', { error: e.message });
     res.status(500).json({ success: false, error: e.message });
   }
 });

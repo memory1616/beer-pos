@@ -170,9 +170,58 @@ function normalizeCode(raw) {
 }
 
 /**
+ * Chuẩn hóa GIỮ dấu phân tách (dấu gạch ngang, chấm, gạch dưới) — dùng để
+ * trích mã khách mà KHÔNG bị dính số từ phần ngày/giờ phía sau.
+ *
+ * ⚠️ Vì sao cần?
+ *  Nội dung chuyển khoản thực tế của ngân hàng có dạng:
+ *    "ND 1121 KH0006-211126-18:37:58 6325ASCB02XFGAPD"
+ *  Nếu bỏ hết ký tự phân tách → "…KH00062111263758…" → regex `KH\d{3,8}` greedy
+ *  sẽ nuốt 8 chữ số → "KH00062111" (SAI, khách thật là KH0006).
+ *  Giữ dấu phân tách → "KH0006" tách riêng → match chính xác.
+ */
+function normalizeWithSeparators(raw) {
+  if (!raw) return '';
+  return String(raw)
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toUpperCase()
+    // Giữ A-Z, 0-9 và các dấu phân tách: - . _ / : space
+    .replace(/[^A-Z0-9\-._/:\s]/g, ' ');
+}
+
+/**
+ * Trích mã khách KHxxxx từ chuỗi đã chuẩn hóa (giữ dấu phân tách).
+ *
+ * Chiến lược khớp (theo thứ tự ưu tiên):
+ *  1. `KH` + đúng 4 chữ số, đứng riêng (sau khi bỏ dấu phân tách vẫn là
+ *     ranh giới token) → mã chuẩn do hệ thống sinh (KH0001…KH9999).
+ *  2. `KH` + 3..8 chữ số → fallback cho mã dài hơn (KH12345).
+ *
+ * ⚠️ Không dùng regex greedy `KH\d{3,8}` trên chuỗi đã bỏ dấu phân tách —
+ *    sẽ nuốt số từ phần ngày giờ phía sau.
+ */
+function matchDebtCodeIn(normalized) {
+  if (!normalized) return '';
+
+  // 1) Ưu tiên mã 4 chữ số có ranh giới rõ ràng (không bị số khác dính vào).
+  //    Đồng thời chấp nhận cả trường hợp KH0006-211126 (dấu gạch ngang phía sau).
+  const m4 = normalized.match(/(?:^|[^A-Z0-9])KH(\d{4})(?![0-9])/);
+  if (m4) return 'KH' + m4[1];
+
+  // 2) Fallback: mã KH + 3..8 chữ số (mã dài hơn 4 chữ số).
+  const mLong = normalized.match(/(?:^|[^A-Z0-9])KH(\d{3,8})(?![0-9])/);
+  if (mLong) return 'KH' + mLong[1];
+
+  return '';
+}
+
+/**
  * Trích mã khách (`debt_code`) ra từ nội dung / mã / mô tả giao dịch.
  *
- * Mã khách dạng `KH` + 4 chữ số (VD: KH0007) → regex `/\bKH\d{3,8}\b/`.
+ * Mã khách dạng `KH` + 4 chữ số (VD: KH0007).
  * Ngoài ra hỗ trợ tiền tố mã thanh toán do Sepay cấu hình (`code` field),
  * ví dụ prefix "DH" → "DH0007".
  */
@@ -186,11 +235,11 @@ function extractDebtCode(payload) {
   ];
 
   // 1) Mã `debt_code` dạng KHxxxx (ưu tiên cao nhất)
+  //    Dùng chuẩn hóa GIỮ dấu phân tách để không bị nuốt số từ phần ngày giờ.
   for (const c of candidates) {
     if (!c) continue;
-    const norm = normalizeCode(c);
-    const m = norm.match(/KH\d{3,8}/);
-    if (m) return m[0];
+    const code = matchDebtCodeIn(normalizeWithSeparators(c));
+    if (code) return code;
   }
 
   // 2) Mã dạng prefix + số (theo cấu hình Sepay), VD prefix "DH" → DH0007
@@ -199,10 +248,13 @@ function extractDebtCode(payload) {
   if (prefix && prefix !== 'KH') {
     for (const c of candidates) {
       if (!c) continue;
-      const norm = normalizeCode(c);
+      const norm = normalizeWithSeparators(c);
       const escaped = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const m = norm.match(new RegExp(escaped + '\\d{3,8}'));
-      if (m) return m[0];
+      // Ưu tiên prefix + đúng 4 chữ số
+      const m4 = norm.match(new RegExp('(?:^|[^A-Z0-9])' + escaped + '(\\d{4})(?![0-9])'));
+      if (m4) return escaped + m4[1];
+      const m = norm.match(new RegExp('(?:^|[^A-Z0-9])' + escaped + '(\\d{3,8})(?![0-9])'));
+      if (m) return escaped + m[1];
     }
   }
 
@@ -1249,13 +1301,82 @@ function buildTransferContent(customerId, extra) {
   return base ? `${base} ${code}` : code;
 }
 
+/**
+ * Sửa `debt_code` cho các giao dịch Sepay đã lưu SAI do regex greedy.
+ *
+ * ⚠️ Lỗi lịch sử:
+ *  Bản cũ bỏ hết ký tự phân tách rồi match `KH\d{3,8}` (greedy) → với nội dung
+ *  "…KH0006-211126-18:37:58…" mã bị nuốt thành "KH00062111" (sai).
+ *
+ * Hàm này:
+ *  1. Trích lại mã ĐÚNG từ `content` (giữ dấu phân tách + ưu tiên 4 chữ số).
+ *  2. Chỉ ghi khi mã mới khác mã cũ.
+ *  3. Nếu giao dịch đã gạch nợ (customer_id khác null) → KHÔNG đụng vào,
+ *     chỉ cập nhật trường `debt_code` cho đúng để hiển thị/đối soát.
+ *
+ * @returns {{scanned:number, fixed:number, details:Array}}
+ */
+function repairDebtCodes() {
+  const result = { scanned: 0, fixed: 0, details: [] };
+  let rows = [];
+  try {
+    rows = db
+      .prepare(
+        `SELECT id, content, description, code, debt_code, customer_id, status
+           FROM sepay_transactions
+          WHERE debt_code IS NOT NULL`
+      )
+      .all();
+  } catch (e) {
+    logger.error('[SEPAY] repairDebtCodes scan error', { error: e.message });
+    return result;
+  }
+
+  const update = db.prepare('UPDATE sepay_transactions SET debt_code = ? WHERE id = ?');
+
+  for (const row of rows) {
+    result.scanned += 1;
+    const fixed = matchDebtCodeIn(normalizeWithSeparators(row.content || ''))
+      || matchDebtCodeIn(normalizeWithSeparators(row.description || ''))
+      || matchDebtCodeIn(normalizeWithSeparators(row.code || ''));
+    if (!fixed || fixed === row.debt_code) continue;
+
+    try {
+      update.run(fixed, row.id);
+      result.fixed += 1;
+      result.details.push({
+        id: row.id,
+        old: row.debt_code,
+        new: fixed,
+        matchedCustomer: !!row.customer_id,
+      });
+    } catch (e) {
+      logger.error('[SEPAY] repairDebtCodes update error', {
+        id: row.id,
+        error: e.message,
+      });
+    }
+  }
+
+  if (result.fixed > 0) {
+    logger.info('[SEPAY] repairDebtCodes fixed', {
+      scanned: result.scanned,
+      fixed: result.fixed,
+    });
+  }
+  return result;
+}
+
 module.exports = {
   TX_STATUS,
   SEPAY_API_BASE,
   getSettings,
   saveSettings,
   normalizeCode,
+  normalizeWithSeparators,
+  matchDebtCodeIn,
   extractDebtCode,
+  repairDebtCodes,
   findCustomerByDebtCode,
   generateDebtCode,
   ensureCustomerDebtCode,

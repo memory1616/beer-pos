@@ -1525,6 +1525,7 @@
         '<div class="dbt-btn-row" style="margin-top:12px">' +
           '<button class="dbt-btn" onclick="saveSepaySettings()">💾 Lưu cấu hình</button>' +
           '<button class="dbt-btn" onclick="reconcileSepay()">🔄 Đối soát tay (API)</button>' +
+          '<button class="dbt-btn dbt-btn-secondary" onclick="repairSepayCodes()">🔧 Sửa mã khách</button>' +
         '</div>' +
         '<div class="dbt-hint" style="margin-top:10px">Sau khi lưu, copy URL webhook ở trên và dán vào ô "URL" khi tạo webhook trong SePay. Dùng nút <b>⋮ → Gửi thử</b> để kiểm tra ngay.</div>' +
         '<div class="dbt-hint" style="margin-top:8px">💡 Nút <b>"🔄 Đối soát tay (API)"</b> chỉ là công cụ dự phòng — bấm để đối soát ngay lập tức. Bình thường hệ thống <b>tự gạch nợ</b> trong vài giây (webhook) hoặc tối đa <b>X phút</b> (auto-poll), bạn không cần bấm gì.</div>' +
@@ -3264,9 +3265,33 @@
     api(SEPAY_API + '/reconcile', { method: 'POST', body: JSON.stringify({}) })
       .then(function (res) {
         var d = res.data || {};
-        toast('✅ Đối soát xong — thêm ' + (d.added || 0) + ', gạch nợ ' + (d.settled || 0) + ', lỗi ' + (d.failed || 0), 'ok');
+        var msg = '✅ Đối soát xong — thêm ' + (d.added || 0) + ', gạch nợ ' + (d.settled || 0) + ', lỗi ' + (d.failed || 0);
+        var repaired = d.repairedCodes && d.repairedCodes.fixed;
+        if (repaired) msg += ' · đã sửa ' + repaired + ' mã khách';
+        toast(msg, 'ok');
         loadSepay();
         refreshOverview();
+      }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
+  }
+
+  /**
+   * Sửa mã khách lưu sai trong giao dịch Sepay.
+   *
+   * ⚠️ Lỗi lịch sử: bản cũ bỏ hết dấu phân tách rồi match `KH\d{3,8}` (greedy)
+   * → nội dung "…KH0006-211126-18:37:58…" bị trích thành "KH00062111".
+   * Nút này trích lại mã đúng cho toàn bộ giao dịch đã lưu.
+   */
+  function repairSepayCodes() {
+    toast('⏳ Đang sửa mã khách trong giao dịch Sepay...');
+    api(SEPAY_API + '/repair-codes', { method: 'POST', body: JSON.stringify({}) })
+      .then(function (res) {
+        var d = res.data || {};
+        if (d.fixed) {
+          toast('✅ Đã sửa ' + d.fixed + '/' + d.scanned + ' mã khách', 'ok');
+        } else {
+          toast('✅ Tất cả mã khách đều đúng (không cần sửa)', 'ok');
+        }
+        loadSepay();
       }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
   }
 
@@ -3351,6 +3376,7 @@
   window.toggleSepayAutoPoll = toggleSepayAutoPoll;
   window.saveSepaySettings = saveSepaySettings;
   window.reconcileSepay = reconcileSepay;
+  window.repairSepayCodes = repairSepayCodes;
   window.assignSepayCustomer = assignSepayCustomer;
   window.ignoreSepayTx = ignoreSepayTx;
   window.submitCollectPartial = submitCollectPartial;
