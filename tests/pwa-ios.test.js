@@ -128,3 +128,29 @@ describe('Service Worker app shell', () => {
     expect(swJs).toContain('/icons/icon-192.png');
   });
 });
+
+describe('Header safe-area (iPhone notch) — không bị lọt vào vùng notch', () => {
+  const css = fs.readFileSync(path.join(ROOT, 'public', 'css', 'unified.css'), 'utf8');
+
+  it('.topbar dùng padding-top = safe-area', () => {
+    const block = css.match(/\.topbar\s*\{[^}]*\}/);
+    expect(block).toBeTruthy();
+    expect(block[0]).toMatch(/padding-top:\s*var\(--safe-area-top\)/);
+    expect(block[0]).toMatch(/box-sizing:\s*border-box/);
+  });
+
+  it('.app-header (block layout) dùng padding-top = safe-area', () => {
+    const blocks = css.match(/\.app-header\s*\{[^}]*\}/g) || [];
+    // Chỉ block có layout (chứa position: fixed) mới cần padding-top safe-area.
+    // Block theme override chỉ đổi background → không yêu cầu.
+    const layoutBlocks = blocks.filter((b) => /position:\s*fixed/.test(b));
+    expect(layoutBlocks.length).toBeGreaterThan(0);
+    for (const b of layoutBlocks) {
+      expect(b).toMatch(/padding-top:\s*var\(--safe-area-top\)/);
+    }
+  });
+
+  it('KHÔNG dùng padding: 0 16px (sẽ xoá padding-top safe-area)', () => {
+    expect(css).not.toMatch(/\.topbar\s*\{[^}]*padding:\s*0\s+16px/);
+  });
+});
