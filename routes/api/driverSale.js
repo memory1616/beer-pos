@@ -426,10 +426,11 @@ router.get('/promotions/customer/:customerId/overview', requireDriver, (req, res
         promotionEndDate: settings.endDate,
         newShop: newShopInfo,
         newShopSettings: {
+          // QUY TẮC 2026-11-22: quán mới chỉ tặng bia vàng, tỉ lệ áp dụng cho TỔNG vàng+đen.
           goldBuy: settings.newShopGoldBuy,
           goldFree: settings.newShopGoldFree,
-          blackBuy: settings.newShopBlackBuy,
-          blackFree: settings.newShopBlackFree,
+          blackBuy: settings.newShopGoldBuy,
+          blackFree: 0,
         },
         rewardTiers: settings.rewardTiers,
         monthlyReward: rewardInfo,

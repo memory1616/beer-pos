@@ -1633,11 +1633,10 @@ function updatePromoPreview() {
 
   if (qtyGold <= 0 && qtyBlack <= 0) { hidePromoPreview(); return; }
 
-  // Lấy settings từ server, fallback về mặc định 10/20
+  // Lấy settings từ server, fallback về mặc định 10/1
+  // QUY TẮC 2026-11-22: quán mới CHỈ tặng bia vàng, tỉ lệ áp dụng cho TỔNG vàng+đen.
   var goldBuy = saleState.promoSettings?.newShopGoldBuy || 10;
   var goldFree = saleState.promoSettings?.newShopGoldFree || 1;
-  var blackBuy = saleState.promoSettings?.newShopBlackBuy || 20;
-  var blackFree = saleState.promoSettings?.newShopBlackFree || 1;
 
   // QUY TẮC 2026-11-22: preview phải theo TỔNG sản lượng THÁNG MỞ QUÁN.
   // → Gọi API để lấy tổng tháng (chính xác), fallback tính local nếu lỗi.
@@ -1652,14 +1651,14 @@ function updatePromoPreview() {
         var d = data.data;
         saleState.newShopSummary = d || null;
         if (!d || !d.eligible) { hidePromoPreview(); return; }
-        renderPromoPreview(d.yellowReward || 0, d.blackReward || 0,
+        renderPromoPreview(d.yellowReward || 0, 0,
           (d.yellowVolume || 0) + (d.blackVolume || 0));
       })
       .catch(function() {
         // Fallback: tính local theo đơn hiện tại
         renderPromoPreview(
-          Math.floor(qtyGold / goldBuy) * goldFree,
-          Math.floor(qtyBlack / blackBuy) * blackFree,
+          Math.floor((qtyGold + qtyBlack) / goldBuy) * goldFree,
+          0,
           qtyGold + qtyBlack
         );
       });
@@ -1668,8 +1667,8 @@ function updatePromoPreview() {
 
   // Fallback khi chưa chọn khách
   renderPromoPreview(
-    Math.floor(qtyGold / goldBuy) * goldFree,
-    Math.floor(qtyBlack / blackBuy) * blackFree,
+    Math.floor((qtyGold + qtyBlack) / goldBuy) * goldFree,
+    0,
     qtyGold + qtyBlack
   );
 }
@@ -1723,20 +1722,19 @@ function buildPromoDetailHtml() {
   var freeGold = 0;
   var freeBlack = 0;
 
-  // Lấy settings từ server, fallback về mặc định 10/20
+  // Lấy settings từ server, fallback về mặc định 10/1
+  // QUY TẮC 2026-11-22: quán mới CHỈ tặng bia vàng, tỉ lệ áp dụng cho TỔNG vàng+đen.
   var goldBuy = saleState.promoSettings?.newShopGoldBuy || 10;
   var goldFree = saleState.promoSettings?.newShopGoldFree || 1;
-  var blackBuy = saleState.promoSettings?.newShopBlackBuy || 20;
-  var blackFree = saleState.promoSettings?.newShopBlackFree || 1;
 
   // QUY TẮC 2026-11-22: ưu tiên số liệu TỔNG THÁNG từ API (đã cache ở saleState.newShopSummary)
   var sum = saleState.newShopSummary;
   if (sum && sum.eligible) {
     freeGold = sum.yellowReward || 0;
-    freeBlack = sum.blackReward || 0;
+    freeBlack = 0;
   } else {
-    freeGold = Math.floor(qtyGold / goldBuy) * goldFree;
-    freeBlack = Math.floor(qtyBlack / blackBuy) * blackFree;
+    freeGold = Math.floor((qtyGold + qtyBlack) / goldBuy) * goldFree;
+    freeBlack = 0;
   }
   if (freeGold <= 0 && freeBlack <= 0) return '';
 

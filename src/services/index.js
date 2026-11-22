@@ -68,9 +68,11 @@ class PromotionService {
       }
       return {
         newShopEnabled: !!settings.new_shop_enabled,
-        // KHONG con newShopDays - chi dung created_day de xac dinh quan moi
+        // QUY TẮC 2026-11-22: quán mới CHỈ tặng bia VÀNG.
+        // Tỉ lệ áp dụng cho TỔNG sản lượng (cả vàng lẫn đen).
         newShopGoldBuy: settings.new_shop_gold_buy || 10,
         newShopGoldFree: settings.new_shop_gold_free || 1,
+        // newShopBlackBuy/Free giữ lại để tương thích DB cũ nhưng KHÔNG dùng tính thưởng nữa.
         newShopBlackBuy: settings.new_shop_black_buy || 20,
         newShopBlackFree: settings.new_shop_black_free || 1,
         rewardEnabled: !!settings.reward_enabled,
@@ -151,7 +153,8 @@ class PromotionService {
   _getDefaultSettings() {
     return {
       newShopEnabled: true,
-      // KHONG con newShopDays - chi dung created_day de xac dinh quan moi
+      // QUY TẮC 2026-11-22: quán mới CHỈ tặng bia VÀNG.
+      // newShopGoldBuy = số lít MUA (cả vàng lẫn đen) → newShopGoldFree lít bia VÀNG tặng.
       newShopGoldBuy: 10,
       newShopGoldFree: 1,
       newShopBlackBuy: 20,
@@ -271,8 +274,10 @@ class PromotionService {
         firstOrderDate: customer.created_at,
         buyGold: settings.newShopGoldBuy,
         freeGold: settings.newShopGoldFree,
-        buyBlack: settings.newShopBlackBuy,
-        freeBlack: settings.newShopBlackFree,
+        // QUY TẮC 2026-11-22: quán mới chỉ tặng bia vàng, tỉ lệ áp dụng cho tổng vàng+đen.
+        // Giữ buyBlack/freeBlack để tương thích client cũ nhưng không dùng tính thưởng.
+        buyBlack: settings.newShopGoldBuy,
+        freeBlack: 0,
         promotionEnabled: true
       };
     }
@@ -526,9 +531,9 @@ class PromotionService {
    *
    * QUY TẮC MỚI (2026-11-22):
    *   "Quán mới" = THÁNG MỞ quán (tháng có created_at).
-   *   Tổng sản lượng TRONG THÁNG áp dụng theo cài đặt:
-   *     + Bia vàng: newShopGoldBuy lít mua → newShopGoldFree lít tặng
-   *     + Bia đen : newShopBlackBuy lít mua → newShopBlackFree lít tặng
+   *   Tổng sản lượng TRONG THÁNG (bia VÀNG + bia ĐEN cộng lại) áp dụng:
+   *     → newShopGoldBuy lít mua → newShopGoldFree lít BIA VÀNG tặng
+   *   ⚠️ Quán mới CHỈ tặng BIA VÀNG (không tặng bia đen).
    *   KHÔNG cộng dồn qua tháng.
    *
    * ⚠️ KHÁC VỚI BẢN CŨ:
@@ -549,12 +554,13 @@ class PromotionService {
 
     // Không có customerId → giữ hành vi cũ (tính theo đơn) cho tương thích
     if (!customerId) {
-      const freeGold = Math.floor(quantityGold / settings.newShopGoldBuy) * settings.newShopGoldFree;
-      const freeBlack = Math.floor(quantityBlack / settings.newShopBlackBuy) * settings.newShopBlackFree;
+      // QUY TẮC 2026-11-22: gộp vàng + đen, chỉ tặng bia vàng
+      const totalL = (Number(quantityGold) || 0) + (Number(quantityBlack) || 0);
+      const freeGold = Math.floor(totalL / settings.newShopGoldBuy) * settings.newShopGoldFree;
       return {
         freeGold,
-        freeBlack,
-        totalFree: freeGold + freeBlack,
+        freeBlack: 0,
+        totalFree: freeGold,
         promoType: 'NEW_SHOP'
       };
     }
@@ -628,18 +634,21 @@ class PromotionService {
     const totalGold = prevGold + (Number(quantityGold) || 0);
     const totalBlack = prevBlack + (Number(quantityBlack) || 0);
 
-    // Tổng thưởng theo tỉ lệ cấu hình
-    const entitledGold = Math.floor(totalGold / settings.newShopGoldBuy) * settings.newShopGoldFree;
-    const entitledBlack = Math.floor(totalBlack / settings.newShopBlackBuy) * settings.newShopBlackFree;
+    // QUY TẮC 2026-11-22: quán mới CHỈ tặng bia VÀNG.
+    // Tỉ lệ "mua X tặng Y" áp dụng cho TỔNG sản lượng (vàng + đen cộng lại).
+    const totalLiters = totalGold + totalBlack;
+    const entitledGold = Math.floor(totalLiters / settings.newShopGoldBuy) * settings.newShopGoldFree;
 
     // Chỉ trả PHẦN VƯỢT MỐC chưa được tặng (tránh tặng trùng)
-    const freeGold = Math.max(0, entitledGold - alreadyGiftGold);
-    const freeBlack = Math.max(0, entitledBlack - alreadyGiftBlack);
+    // alreadyGiftGold = tổng lít đã tặng (vàng + đen) trong tháng.
+    const alreadyGifted = alreadyGiftGold + alreadyGiftBlack;
+    const freeGold = Math.max(0, entitledGold - alreadyGifted);
+    const freeBlack = 0;
 
     return {
       freeGold,
       freeBlack,
-      totalFree: freeGold + freeBlack,
+      totalFree: freeGold,
       promoType: 'NEW_SHOP'
     };
   }
@@ -648,9 +657,9 @@ class PromotionService {
    * Tính thưởng "N tặng M" cho THÁNG MỞ QUÁN dựa trên tổng sản lượng tháng đó.
    *
    * QUY TẮC (2026-11-22):
-   *   - Tổng sản lượng trong THÁNG MỞ quán áp dụng theo cài đặt:
-   *       + Bia vàng: newShopGoldBuy lít mua → newShopGoldFree lít tặng
-   *       + Bia đen : newShopBlackBuy lít mua → newShopBlackFree lít tặng
+   *   - Tổng sản lượng trong THÁNG MỞ quán (bia vàng + bia đen CỘNG LẠI) áp dụng:
+   *       → newShopGoldBuy lít mua → newShopGoldFree lít BIA VÀNG tặng
+   *   - ⚠️ Quán mới CHỈ tặng BIA VÀNG (blackReward luôn = 0)
    *   - KHÔNG cộng dồn qua các tháng (mỗi tháng reset độc lập)
    *   - CHỈ tính lít MUA THẬT (si.price > 0), không tính lít tặng
    *   - CHỈ tính bia bình (keg), không tính pet/chai/box
@@ -696,9 +705,10 @@ class PromotionService {
       else yellowVolume += q;
     }
 
-    // Floor theo tỉ lệ cấu hình
-    const yellowReward = Math.floor(yellowVolume / settings.newShopGoldBuy) * settings.newShopGoldFree;
-    const blackReward = Math.floor(blackVolume / settings.newShopBlackBuy) * settings.newShopBlackFree;
+    // QUY TẮC 2026-11-22: gộp vàng + đen, chỉ tặng bia vàng
+    const totalLiters = yellowVolume + blackVolume;
+    const yellowReward = Math.floor(totalLiters / settings.newShopGoldBuy) * settings.newShopGoldFree;
+    const blackReward = 0;
 
     return {
       yellowReward,
@@ -1491,7 +1501,7 @@ class PromotionService {
     if (program === 'NEW_CUSTOMER') {
       // ── THÁNG MỞ QUÁN → thưởng "10 tặng 1" (không dùng tier doanh số) ──
       // Quy tắc 2026-11-22:
-      //   - Tỉ lệ theo cài đặt (mặc định 10L vàng → tặng 1L vàng; bia đen cài riêng)
+      //   - Tỉ lệ theo cài đặt (mặc định 10L tổng vàng+đen → tặng 1L BIA VÀNG)
       //   - KHÔNG cộng dồn qua tháng → mỗi tháng reset
       //   - Trả vào đơn hàng đầu tiên của tháng sau (như thưởng doanh số)
       const newShopCalc = this.calculateNewShopMonthlyReward(customerId, rewardYear, rewardMonthNum);

@@ -117,8 +117,10 @@ router.get('/settings', (req, res) => {
 /**
  * PUT /api/promotions/settings
  * Lưu cấu hình hệ thống khuyến mãi
- * Body: { newShopEnabled, newShopGoldBuy, newShopGoldFree, newShopBlackBuy, newShopBlackFree, rewardEnabled, startDate, endDate }
+ * Body: { newShopEnabled, newShopGoldBuy, newShopGoldFree, rewardEnabled, startDate, endDate }
  * LUUU Y: newShopDays da bang chi ngay duoc xac dinh theo created_day (ko con la tham so)
+ * QUY TẮC 2026-11-22: quán mới CHỈ tặng bia vàng, tỉ lệ áp dụng cho TỔNG vàng+đen
+ *   → newShopBlackBuy/Free KHÔNG còn dùng (giữ trong DB để tương thích).
  * BIA INOX V2: rewardTiers là CỐ ĐỊNH 300L→20L, 500L→40L - bỏ qua từ payload.
  */
 router.put('/settings', (req, res) => {
@@ -127,8 +129,6 @@ router.put('/settings', (req, res) => {
       newShopEnabled,
       newShopGoldBuy,
       newShopGoldFree,
-      newShopBlackBuy,
-      newShopBlackFree,
       rewardEnabled,
       startDate,
       endDate
@@ -142,8 +142,6 @@ router.put('/settings', (req, res) => {
       // KHONG con newShopDays - chi dung created_day de xac dinh quan moi
       newShopGoldBuy: newShopGoldBuy !== undefined ? parseInt(newShopGoldBuy) || 10 : undefined,
       newShopGoldFree: newShopGoldFree !== undefined ? parseInt(newShopGoldFree) || 1 : undefined,
-      newShopBlackBuy: newShopBlackBuy !== undefined ? parseInt(newShopBlackBuy) || 20 : undefined,
-      newShopBlackFree: newShopBlackFree !== undefined ? parseInt(newShopBlackFree) || 1 : undefined,
       rewardEnabled: rewardEnabled !== undefined ? !!rewardEnabled : undefined,
       rewardTiers: FIXED_TIERS,
       startDate: startDate || null,
@@ -157,7 +155,7 @@ router.put('/settings', (req, res) => {
 
     logger.info('[PROMOTION] Settings updated', {
       newShopEnabled, newShopGoldBuy, newShopGoldFree,
-      newShopBlackBuy, newShopBlackFree, rewardEnabled,
+      rewardEnabled,
       rewardTiers: FIXED_TIERS,
       startDate, endDate
     });
@@ -771,11 +769,12 @@ router.get('/customer/:customerId/overview', (req, res) => {
         promotionEndDate: settings.endDate,
         newShop: newShopInfo,
         newShopSettings: {
-          // KHONG con days - chi dung created_day de xac dinh (ngay 09+)
+          // QUY TẮC 2026-11-22: quán mới chỉ tặng bia vàng, tỉ lệ áp dụng cho TỔNG vàng+đen.
           goldBuy: settings.newShopGoldBuy,
           goldFree: settings.newShopGoldFree,
-          blackBuy: settings.newShopBlackBuy,
-          blackFree: settings.newShopBlackFree
+          // Tương thích client cũ — không dùng tính thưởng.
+          blackBuy: settings.newShopGoldBuy,
+          blackFree: 0
         },
         rewardTiers: settings.rewardTiers,
         monthlyReward: rewardInfo

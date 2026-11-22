@@ -261,7 +261,7 @@
       // Info Banner
       '<div class="info-banner">',
         '<p><strong>Chỉ áp dụng cho đơn hàng mới.</strong> Thay đổi cài đặt KHÔNG làm sai dữ liệu cũ, KHÔNG reset lịch sử, KHÔNG tính lại đơn cũ.</p>',
-        '<p style="margin-top:8px;"><strong style="color:#a855f7;">Quy tắc quan trọng:</strong> <span style="color:#6b7280;">Quán mới = <strong>tháng mở quán</strong> (tháng tạo khách, không quan tâm mở ngày nào). Trong tháng đó áp dụng tỉ lệ "mua X tặng Y" theo <strong>tổng sản lượng cả tháng</strong> (không cộng dồn qua tháng). Phần thưởng được trả vào <strong>đơn hàng đầu tiên của tháng sau</strong>, giống thưởng doanh số. Từ tháng sau trở đi áp dụng thưởng doanh số như bình thường.</span></p>',
+        '<p style="margin-top:8px;"><strong style="color:#a855f7;">Quy tắc quan trọng:</strong> <span style="color:#6b7280;">Quán mới = <strong>tháng mở quán</strong> (tháng tạo khách, không quan tâm mở ngày nào). Trong tháng đó áp dụng tỉ lệ "mua X tặng Y" theo <strong>tổng sản lượng cả tháng</strong> (bia vàng + bia đen cộng lại, không cộng dồn qua tháng). <strong style="color:#f97316;">Phần thưởng luôn là BIA VÀNG.</strong> Phần thưởng được trả vào <strong>đơn hàng đầu tiên của tháng sau</strong>, giống thưởng doanh số. Từ tháng sau trở đi áp dụng thưởng doanh số như bình thường.</span></p>',
       '</div>',
 
       // SECTION 1: KHUYẾN MÃI QUÁN MỚI
@@ -283,9 +283,10 @@
 
         '<div id="newShopFields">',
           '<div class="promo-divider"></div>',
-          '<div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:10px;">Bia vàng</div>',
+          '<div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Tỉ lệ "mua X tặng Y"</div>',
+          '<div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;line-height:1.5;">Tính trên <strong>tổng sản lượng cả tháng</strong> (bia vàng + bia đen cộng lại). <strong style="color:#f97316;">Phần thưởng luôn là BIA VÀNG.</strong></div>',
 
-          // Bia vang: Mua
+          // Mua
           '<div class="promo-input-row">',
             '<div class="promo-input-label">Mua</div>',
             '<div class="promo-input-wrap">',
@@ -293,31 +294,11 @@
               '<span class="promo-input-suffix">L</span>',
             '</div>',
           '</div>',
-          // Bia vang: Tang
+          // Tang
           '<div class="promo-input-row">',
-            '<div class="promo-input-label">Tặng</div>',
+            '<div class="promo-input-label">Tặng bia vàng</div>',
             '<div class="promo-input-wrap">',
               '<input type="number" id="goldFree" class="promo-input" value="1" min="1" max="50" oninput="onSettingsChanged()">',
-              '<span class="promo-input-suffix">L</span>',
-            '</div>',
-          '</div>',
-
-          '<div class="promo-divider"></div>',
-          '<div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:10px;">Bia đen</div>',
-
-          // Bia den: Mua
-          '<div class="promo-input-row">',
-            '<div class="promo-input-label">Mua</div>',
-            '<div class="promo-input-wrap">',
-              '<input type="number" id="blackBuy" class="promo-input" value="20" min="1" max="100" oninput="onSettingsChanged()">',
-              '<span class="promo-input-suffix">L</span>',
-            '</div>',
-          '</div>',
-          // Bia den: Tang
-          '<div class="promo-input-row">',
-            '<div class="promo-input-label">Tặng</div>',
-            '<div class="promo-input-wrap">',
-              '<input type="number" id="blackFree" class="promo-input" value="1" min="1" max="50" oninput="onSettingsChanged()">',
               '<span class="promo-input-suffix">L</span>',
             '</div>',
           '</div>',
@@ -426,8 +407,6 @@
       el = document.getElementById('toggleNewShop'); if (el) el.checked = !!s.newShopEnabled;
       el = document.getElementById('goldBuy'); if (el) el.value = s.newShopGoldBuy || 10;
       el = document.getElementById('goldFree'); if (el) el.value = s.newShopGoldFree || 1;
-      el = document.getElementById('blackBuy'); if (el) el.value = s.newShopBlackBuy || 20;
-      el = document.getElementById('blackFree'); if (el) el.value = s.newShopBlackFree || 1;
       toggleNewShopFields(s.newShopEnabled);
 
       el = document.getElementById('toggleReward'); if (el) el.checked = !!s.rewardEnabled;
@@ -577,8 +556,6 @@
           newShopEnabled: document.getElementById('toggleNewShop').checked,
           newShopGoldBuy: parseInt(document.getElementById('goldBuy').value) || 10,
           newShopGoldFree: parseInt(document.getElementById('goldFree').value) || 1,
-          newShopBlackBuy: parseInt(document.getElementById('blackBuy').value) || 20,
-          newShopBlackFree: parseInt(document.getElementById('blackFree').value) || 1,
           rewardEnabled: document.getElementById('toggleReward').checked,
           // BIA INOX V2: tier cố định 300L→20L, 500L→40L. KHÔNG gửi rewardTiers.
           startDate: document.getElementById('startDate').value || null,
