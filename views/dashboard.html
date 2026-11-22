@@ -1333,11 +1333,13 @@
   <!-- ========== CUSTOMIZE SETTINGS HUB MODAL ========== -->
   <!-- z-index phải CAO HƠN header cố định (z-index:200) + padding-top bù chiều cao header
        để modal không bị header che và luôn nằm trọn trong viewport. -->
+  <!-- Dùng token --z-modal (10000) → cao hơn bottom nav (999) và header (1000).
+       padding-top bù header cố định (56px), padding-bottom bù bottom nav (64px). -->
   <div id="hubCustomizeModal" class="fixed inset-0 hidden items-center justify-center p-4"
        onclick="onHubCustomizeOverlayClick(event)"
-       style="z-index:250;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding-top:calc(56px + 1rem);padding-bottom:1rem;">
+       style="z-index:var(--z-modal, 10000);background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding-top:calc(56px + 1rem);padding-bottom:calc(64px + 1rem);">
     <div class="w-full max-w-md flex flex-col"
-         style="max-height:calc(100vh - 56px - 2rem);background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,0.4);">
+         style="max-height:calc(100vh - 56px - 64px - 2rem);background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,0.4);overflow:hidden;">
       <div class="flex justify-between items-center mb-1 shrink-0">
         <h3 class="font-bold text-lg" style="color:var(--text-primary);">⚡ Tùy chỉnh ô hiển thị</h3>
         <button onclick="closeHubCustomizeModal()" class="text-2xl hover:opacity-70" style="color:var(--text-secondary);line-height:1;background:none;border:none;cursor:pointer;padding:0 4px;" aria-label="Đóng">✕</button>
