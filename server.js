@@ -609,6 +609,36 @@ app.get('/version.json', (req, res) => {
   res.send(JSON.stringify(meta, null, 2));
 });
 
+// ─── Cache-busting redirect cho asset JS/CSS có ?v= cũ (2026-11-22) ────────
+// Nhiều view load script ĐỘNG bằng `loadScript('/db.js?v=20260430a')` — URL
+// nằm trong inline JS nên regex inject ?v=APP_VERSION của server KHÔNG bắt
+// được. Hệ quả: URL giữ nguyên qua mọi lần deploy → browser dùng bản HTTP
+// cache cũ (từng `immutable` 30 ngày) → client chạy code cũ mãi mãi.
+//
+// Fix: nếu request asset local có ?v= khác APP_VERSION → 302 redirect sang
+// ?v=APP_VERSION. URL mới → browser tải file mới, cache theo URL mới.
+// Bỏ qua nếu ?v= đã bằng APP_VERSION (tránh loop) và nếu không có ?v=.
+app.use((req, res, next) => {
+  if (req.method !== 'GET') return next();
+  const p = req.path;
+  const isLocalCode = p.startsWith('/js/')
+    || p.startsWith('/css/')
+    || p === '/db.js'
+    || p === '/sw.js'
+    || p === '/sw.v2.js'
+    || p === '/sync.js'
+    || p === '/sync-orders.js';
+  if (!isLocalCode) return next();
+
+  const q = req.query.v;
+  if (q === undefined) return next();
+  if (String(q) === APP_VERSION) return next();
+
+  const newUrl = `${req.originalUrl.split('?')[0]}?v=${APP_VERSION}`;
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.redirect(302, newUrl);
+});
+
 app.use(express.static(path.join(__dirname, 'public'), {
   setHeaders(res, filePath) {
     // Asset có content-hash trong tên (vd. hero-freezer.edbb3639.webp)

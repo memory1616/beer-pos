@@ -355,22 +355,22 @@
 
       /* Load scripts */
       if (window._dbScriptLoaded) {
-        await loadScript('/sync-orders.js?v=20260603');
+        await loadScript('/sync-orders.js?v=' + (window.APP_VERSION || 'dev'));
         await loadScript('/js/fuzzy-search.js');
         await loadScript('/js/product-grid.js');
         await loadSalesData();
         return;
       }
       window._dbScriptLoaded = true;
-      await loadScript('/js/utils.js?v=20260211-toast');
+      await loadScript('/js/utils.js?v=' + (window.APP_VERSION || 'dev'));
       await loadScript('/js/format.js');
-      await loadScript('/db.js?v=20260430a');
-      await loadScript('/sync-orders.js?v=20260603');
+      await loadScript('/db.js?v=' + (window.APP_VERSION || 'dev'));
+      await loadScript('/sync-orders.js?v=' + (window.APP_VERSION || 'dev'));
       await loadScript('https://cdn.jsdelivr.net/npm/fuse.js@7.0.0/dist/fuse.min.js');
       await loadScript('/js/fuzzy-search.js');
       await loadScript('/js/product-grid.js');
       await loadScript('/socket.io/socket.io.js');
-      await loadScript('/js/sales.js?v=20261116r');
+      await loadScript('/js/sales.js?v=' + (window.APP_VERSION || 'dev'));
       await loadSalesData();
     })();
 

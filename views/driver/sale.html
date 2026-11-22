@@ -363,14 +363,14 @@
 
       /* ═══ 4. Load scripts — ĐÚNG THỨ TỰ ═══ */
       // 4a. Script dùng chung với Admin
-      await loadScript('/js/utils.js?v=20261116s-toast');
+      await loadScript('/js/utils.js?v=' + (window.APP_VERSION || 'dev'));
       await loadScript('/js/format.js');
       await loadScript('/js/fuzzy-search.js');
       await loadScript('/js/product-grid.js');
       await loadScript('/js/toast.js');
 
       // 4b. MODULE SALE GỐC CỦA ADMIN — nạp nguyên file, KHÔNG sửa 1 dòng
-      await loadScript('/js/sales.js?v=20261116s');
+      await loadScript('/js/sales.js?v=' + (window.APP_VERSION || 'dev'));
 
       // 4c. Tải dữ liệu (shim sẽ tự rewrite '/sale/data' → '/api/driver/sale/data')
       await loadSalesData();

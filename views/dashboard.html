@@ -1096,7 +1096,7 @@
       }
 
       var s1 = document.createElement('script');
-      s1.src = '/db.js?v=20260430a';
+      s1.src = '/db.js?v=' + (window.APP_VERSION || 'dev');
       document.head.appendChild(s1);
 
       var s2 = document.createElement('script');

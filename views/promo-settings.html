@@ -670,7 +670,7 @@
       s1.src = '/js/vendor/dexie.min.js?v=20260405';
       s1.onload = function() {
         var s = document.createElement('script');
-        s.src = '/db.js?v=20260430a';
+        s.src = '/db.js?v=' + (window.APP_VERSION || 'dev');
         document.head.appendChild(s);
       };
       document.head.appendChild(s1);
