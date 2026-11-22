@@ -588,6 +588,11 @@
     .dsh-hub-card-push-notify .dsh-hub-card-icon { background: rgba(250,204,21,0.15); }
     .dsh-hub-card-debts .dsh-hub-card-icon { background: rgba(16,185,129,0.15); }
     .dsh-hub-card-debts .dsh-hub-card-cta { background: rgba(16,185,129,0.12); color: #10b981; }
+    .dsh-hub-card-regions .dsh-hub-card-icon { background: rgba(14,165,233,0.15); }
+    .dsh-hub-card-audit-log .dsh-hub-card-icon { background: rgba(100,116,139,0.15); }
+    .dsh-hub-card-purchases .dsh-hub-card-icon { background: rgba(249,115,22,0.15); }
+    .dsh-hub-card-devices .dsh-hub-card-icon { background: rgba(139,92,246,0.15); }
+    .dsh-hub-card-expenses .dsh-hub-card-icon { background: rgba(239,68,68,0.15); }
     .dsh-hub-card-body { flex: 1; min-width: 0; }
     .dsh-hub-card-name {
       font-size: 14px;
@@ -620,6 +625,11 @@
     .dsh-hub-card-report-notify .dsh-hub-card-cta { background: rgba(168,85,247,0.12); color: #a855f7; }
     .dsh-hub-card-sessions .dsh-hub-card-cta { background: rgba(239,68,68,0.12); color: #ef4444; }
     .dsh-hub-card-push-notify .dsh-hub-card-cta { background: rgba(250,204,21,0.12); color: #facc15; }
+    .dsh-hub-card-regions .dsh-hub-card-cta { background: rgba(14,165,233,0.12); color: #0ea5e9; }
+    .dsh-hub-card-audit-log .dsh-hub-card-cta { background: rgba(100,116,139,0.12); color: #64748b; }
+    .dsh-hub-card-purchases .dsh-hub-card-cta { background: rgba(249,115,22,0.12); color: #f97316; }
+    .dsh-hub-card-devices .dsh-hub-card-cta { background: rgba(139,92,246,0.12); color: #8b5cf6; }
+    .dsh-hub-card-expenses .dsh-hub-card-cta { background: rgba(239,68,68,0.12); color: #ef4444; }
     .dsh-hub-card:hover .dsh-hub-card-cta { filter: brightness(1.1); }
     @media (max-width: 640px) {
       .dsh-hub-card-cta { display: none; }
@@ -853,29 +863,25 @@
               </div>
             </div>
 
-            <!-- CÀI ĐẶT HỆ THỐNG — Hub gom KM / QR / Sales -->
+            <!-- CÀI ĐẶT HỆ THỐNG — Hub gom các trang cấu hình
+                 Thứ tự: theo mức độ dùng hằng ngày (nghiệp vụ chính trước) -->
             <div class="dsh-settings-hub" id="dshSettingsHub">
               <div class="dsh-settings-hub-header">
                 <div class="dsh-settings-hub-icon">⚙️</div>
                 <div>
-                  <div class="dsh-settings-hub-title">Cài đặt hệ thống</div>
+                  <div class="dsh-hub-card-name">Cài đặt hệ thống</div>
                   <div class="dsh-settings-hub-sub">Quản trị &amp; cấu hình</div>
                 </div>
               </div>
               <div class="dsh-settings-hub-grid" id="dshSettingsHubGrid">
-                <a href="/promo-settings" class="dsh-hub-card dsh-hub-card-promo" data-permission="promo">
-                  <div class="dsh-hub-card-icon">🎁</div>
+                <!-- ⚠️ THỨ TỰ: xếp theo mức độ dùng hằng ngày (nghiệp vụ chính
+                     trước, cấu hình kỹ thuật sau). Thứ tự này được test ở
+                     tests/dashboard-hub-order.test.js — sửa thì cập nhật test. -->
+                <a href="/debts" class="dsh-hub-card dsh-hub-card-debts" data-permission="debts">
+                  <div class="dsh-hub-card-icon">📒</div>
                   <div class="dsh-hub-card-body">
-                    <div class="dsh-hub-card-name">Khuyến mãi</div>
-                    <div class="dsh-hub-card-desc">Cấu hình chương trình khuyến mãi</div>
-                  </div>
-                  <div class="dsh-hub-card-cta">Mở ›</div>
-                </a>
-                <a href="/qr-settings" class="dsh-hub-card dsh-hub-card-qr" data-permission="qr">
-                  <div class="dsh-hub-card-icon">💳</div>
-                  <div class="dsh-hub-card-body">
-                    <div class="dsh-hub-card-name">QR Thanh toán</div>
-                    <div class="dsh-hub-card-desc">Quản lý mã QR nhận tiền</div>
+                    <div class="dsh-hub-card-name">Sổ công nợ</div>
+                    <div class="dsh-hub-card-desc">Theo dõi &amp; ghi nhận công nợ</div>
                   </div>
                   <div class="dsh-hub-card-cta">Mở ›</div>
                 </a>
@@ -887,35 +893,19 @@
                   </div>
                   <div class="dsh-hub-card-cta">Mở ›</div>
                 </a>
-                <a href="/report-notify" class="dsh-hub-card dsh-hub-card-report-notify" data-permission="reportNotify">
-                  <div class="dsh-hub-card-icon">📨</div>
+                <a href="/qr-settings" class="dsh-hub-card dsh-hub-card-qr" data-permission="qr">
+                  <div class="dsh-hub-card-icon">💳</div>
                   <div class="dsh-hub-card-body">
-                    <div class="dsh-hub-card-name">Báo cáo tự động</div>
-                    <div class="dsh-hub-card-desc">Gửi báo cáo hằng ngày qua Zalo</div>
+                    <div class="dsh-hub-card-name">QR Thanh toán</div>
+                    <div class="dsh-hub-card-desc">Quản lý mã QR nhận tiền</div>
                   </div>
                   <div class="dsh-hub-card-cta">Mở ›</div>
                 </a>
-                <a href="/sessions" class="dsh-hub-card dsh-hub-card-sessions" data-permission="sessions">
-                  <div class="dsh-hub-card-icon">🔐</div>
+                <a href="/promo-settings" class="dsh-hub-card dsh-hub-card-promo" data-permission="promo">
+                  <div class="dsh-hub-card-icon">🎁</div>
                   <div class="dsh-hub-card-body">
-                    <div class="dsh-hub-card-name">Phiên đăng nhập</div>
-                    <div class="dsh-hub-card-desc">Xem &amp; huỷ phiên từ xa</div>
-                  </div>
-                  <div class="dsh-hub-card-cta">Mở ›</div>
-                </a>
-                <a href="/audit-log" class="dsh-hub-card dsh-hub-card-audit-log" data-permission="auditLog">
-                  <div class="dsh-hub-card-icon">📜</div>
-                  <div class="dsh-hub-card-body">
-                    <div class="dsh-hub-card-name">Nhật ký hệ thống</div>
-                    <div class="dsh-hub-card-desc">Xem ai đã làm gì</div>
-                  </div>
-                  <div class="dsh-hub-card-cta">Mở ›</div>
-                </a>
-                <a href="/push-notify" class="dsh-hub-card dsh-hub-card-push-notify" data-permission="pushNotify">
-                  <div class="dsh-hub-card-icon">🔔</div>
-                  <div class="dsh-hub-card-body">
-                    <div class="dsh-hub-card-name">Thông báo tài xế</div>
-                    <div class="dsh-hub-card-desc">Đẩy đơn giao tới điện thoại</div>
+                    <div class="dsh-hub-card-name">Khuyến mãi</div>
+                    <div class="dsh-hub-card-desc">Cấu hình chương trình khuyến mãi</div>
                   </div>
                   <div class="dsh-hub-card-cta">Mở ›</div>
                 </a>
@@ -927,11 +917,59 @@
                   </div>
                   <div class="dsh-hub-card-cta">Mở ›</div>
                 </a>
-                <a href="/debts" class="dsh-hub-card dsh-hub-card-debts" data-permission="debts">
-                  <div class="dsh-hub-card-icon">📒</div>
+                <a href="/report-notify" class="dsh-hub-card dsh-hub-card-report-notify" data-permission="reportNotify">
+                  <div class="dsh-hub-card-icon">📨</div>
                   <div class="dsh-hub-card-body">
-                    <div class="dsh-hub-card-name">Sổ công nợ</div>
-                    <div class="dsh-hub-card-desc">Theo dõi &amp; ghi nhận công nợ</div>
+                    <div class="dsh-hub-card-name">Báo cáo tự động</div>
+                    <div class="dsh-hub-card-desc">Gửi báo cáo hằng ngày qua Zalo</div>
+                  </div>
+                  <div class="dsh-hub-card-cta">Mở ›</div>
+                </a>
+                <a href="/audit-log" class="dsh-hub-card dsh-hub-card-audit-log" data-permission="auditLog">
+                  <div class="dsh-hub-card-icon">📜</div>
+                  <div class="dsh-hub-card-body">
+                    <div class="dsh-hub-card-name">Nhật ký hệ thống</div>
+                    <div class="dsh-hub-card-desc">Xem ai đã làm gì</div>
+                  </div>
+                  <div class="dsh-hub-card-cta">Mở ›</div>
+                </a>
+                <a href="/sessions" class="dsh-hub-card dsh-hub-card-sessions" data-permission="sessions">
+                  <div class="dsh-hub-card-icon">🔐</div>
+                  <div class="dsh-hub-card-body">
+                    <div class="dsh-hub-card-name">Phiên đăng nhập</div>
+                    <div class="dsh-hub-card-desc">Xem &amp; huỷ phiên từ xa</div>
+                  </div>
+                  <div class="dsh-hub-card-cta">Mở ›</div>
+                </a>
+                <a href="/push-notify" class="dsh-hub-card dsh-hub-card-push-notify" data-permission="pushNotify">
+                  <div class="dsh-hub-card-icon">🔔</div>
+                  <div class="dsh-hub-card-body">
+                    <div class="dsh-hub-card-name">Thông báo tài xế</div>
+                    <div class="dsh-hub-card-desc">Đẩy đơn giao tới điện thoại</div>
+                  </div>
+                  <div class="dsh-hub-card-cta">Mở ›</div>
+                </a>
+                <a href="/purchases" class="dsh-hub-card dsh-hub-card-purchases" data-permission="purchases">
+                  <div class="dsh-hub-card-icon">🛒</div>
+                  <div class="dsh-hub-card-body">
+                    <div class="dsh-hub-card-name">Mua hàng &amp; Kho</div>
+                    <div class="dsh-hub-card-desc">Nhập hàng, vỏ bình, tồn kho</div>
+                  </div>
+                  <div class="dsh-hub-card-cta">Mở ›</div>
+                </a>
+                <a href="/devices" class="dsh-hub-card dsh-hub-card-devices" data-permission="devices">
+                  <div class="dsh-hub-card-icon">📱</div>
+                  <div class="dsh-hub-card-body">
+                    <div class="dsh-hub-card-name">Thiết bị</div>
+                    <div class="dsh-hub-card-desc">Quản lý máy &amp; thiết bị giao</div>
+                  </div>
+                  <div class="dsh-hub-card-cta">Mở ›</div>
+                </a>
+                <a href="/expenses" class="dsh-hub-card dsh-hub-card-expenses" data-permission="expenses">
+                  <div class="dsh-hub-card-icon">💸</div>
+                  <div class="dsh-hub-card-body">
+                    <div class="dsh-hub-card-name">Chi phí</div>
+                    <div class="dsh-hub-card-desc">Theo dõi chi phí hằng tháng</div>
                   </div>
                   <div class="dsh-hub-card-cta">Mở ›</div>
                 </a>
