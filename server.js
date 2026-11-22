@@ -619,7 +619,7 @@ app.get('/version.json', (req, res) => {
 // ?v=APP_VERSION. URL mới → browser tải file mới, cache theo URL mới.
 // Bỏ qua nếu ?v= đã bằng APP_VERSION (tránh loop) và nếu không có ?v=.
 app.use((req, res, next) => {
-  if (req.method !== 'GET') return next();
+  if (req.method !== 'GET' && req.method !== 'HEAD') return next();
   const p = req.path;
   const isLocalCode = p.startsWith('/js/')
     || p.startsWith('/css/')
