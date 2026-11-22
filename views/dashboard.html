@@ -1021,7 +1021,7 @@
             <div class="spinner mx-auto"></div>
             <div class="text-muted mt-2">Đang tải...</div>
           </div>
-          <div id="contentSection" class="hidden" style="padding-bottom:100px">
+          <div id="contentSection" class="hidden" style="padding-bottom:100px;display:none">
             <!-- Header: date -->
             <div class="flex items-center justify-between mb-4 px-1">
               <div class="text-xs text-muted font-medium" id="dashboardDate"></div>
@@ -1289,8 +1289,10 @@
         .finally(() => {
           var loading = document.getElementById('loading');
           var contentSection = document.getElementById('contentSection');
-          if (loading) loading.classList.add('hidden');
-          if (contentSection) contentSection.classList.remove('hidden');
+          // ⚠️ unified.css KHÔNG có rule .hidden { display:none } generic
+          // → dùng display trực tiếp để ẩn/hiện chắc chắn hoạt động.
+          if (loading) loading.style.display = 'none';
+          if (contentSection) contentSection.style.display = '';
           // Hide splash overlay
           var splash = document.getElementById('app-splash');
           if (splash) {
@@ -1461,21 +1463,23 @@
     const saveSection = document.getElementById('alertSaveSection');
 
     if (tab === 'alert') {
-      alertTab.classList.remove('hidden');
-      cloudTab.classList.add('hidden');
+      // ⚠️ unified.css KHÔNG có rule .hidden { display:none } generic
+      // → dùng display trực tiếp để chắc chắn ẩn/hiện hoạt động.
+      alertTab.style.display = '';
+      cloudTab.style.display = 'none';
       alertBtn.style.color = 'var(--primary)';
       alertBtn.style.borderBottom = '2px solid var(--primary)';
       cloudBtn.style.color = 'var(--text-secondary)';
       cloudBtn.style.borderBottom = '2px solid transparent';
-      saveSection.classList.remove('hidden');
+      saveSection.style.display = '';
     } else {
-      alertTab.classList.add('hidden');
-      cloudTab.classList.remove('hidden');
+      alertTab.style.display = 'none';
+      cloudTab.style.display = '';
       alertBtn.style.color = 'var(--text-secondary)';
       alertBtn.style.borderBottom = '2px solid transparent';
       cloudBtn.style.color = 'var(--primary)';
       cloudBtn.style.borderBottom = '2px solid var(--primary)';
-      saveSection.classList.add('hidden');
+      saveSection.style.display = 'none';
       // refreshCloudTab defined in sync.js (loaded async via requestIdleCallback)
       if (typeof refreshCloudTab === 'function') {
         refreshCloudTab();
