@@ -941,6 +941,7 @@
 
       modal.classList.remove('hidden');
       modal.classList.add('flex');
+      modal.style.display = 'flex';
       // Luôn cuộn list về đầu khi mở (tránh mở ở giữa danh sách → tưởng thiếu ô)
       list.scrollTop = 0;
     }
@@ -951,6 +952,7 @@
       if (!modal) return;
       modal.classList.add('hidden');
       modal.classList.remove('flex');
+      modal.style.display = 'none';
     }
 
     /** Click ra ngoài vùng modal → đóng */
@@ -1289,10 +1291,10 @@
         .finally(() => {
           var loading = document.getElementById('loading');
           var contentSection = document.getElementById('contentSection');
-          // ⚠️ unified.css KHÔNG có rule .hidden { display:none } generic
-          // → dùng display trực tiếp để ẩn/hiện chắc chắn hoạt động.
-          if (loading) loading.style.display = 'none';
-          if (contentSection) contentSection.style.display = '';
+          // Ẩn/hiện: bỏ class .hidden (rule display:none trong unified.css)
+          // và set display trực tiếp để chắc chắn hoạt động.
+          if (loading) { loading.classList.add('hidden'); loading.style.display = 'none'; }
+          if (contentSection) { contentSection.classList.remove('hidden'); contentSection.style.display = ''; }
           // Hide splash overlay
           var splash = document.getElementById('app-splash');
           if (splash) {
@@ -1463,23 +1465,23 @@
     const saveSection = document.getElementById('alertSaveSection');
 
     if (tab === 'alert') {
-      // ⚠️ unified.css KHÔNG có rule .hidden { display:none } generic
-      // → dùng display trực tiếp để chắc chắn ẩn/hiện hoạt động.
-      alertTab.style.display = '';
-      cloudTab.style.display = 'none';
+      // Ẩn/hiện: bỏ class .hidden (rule display:none trong unified.css)
+      // kèm display trực tiếp để chắc chắn hoạt động.
+      alertTab.classList.remove('hidden'); alertTab.style.display = '';
+      cloudTab.classList.add('hidden');    cloudTab.style.display = 'none';
       alertBtn.style.color = 'var(--primary)';
       alertBtn.style.borderBottom = '2px solid var(--primary)';
       cloudBtn.style.color = 'var(--text-secondary)';
       cloudBtn.style.borderBottom = '2px solid transparent';
-      saveSection.style.display = '';
+      saveSection.classList.remove('hidden'); saveSection.style.display = '';
     } else {
-      alertTab.style.display = 'none';
-      cloudTab.style.display = '';
+      alertTab.classList.add('hidden');    alertTab.style.display = 'none';
+      cloudTab.classList.remove('hidden'); cloudTab.style.display = '';
       alertBtn.style.color = 'var(--text-secondary)';
       alertBtn.style.borderBottom = '2px solid transparent';
       cloudBtn.style.color = 'var(--primary)';
       cloudBtn.style.borderBottom = '2px solid var(--primary)';
-      saveSection.style.display = 'none';
+      saveSection.classList.add('hidden'); saveSection.style.display = 'none';
       // refreshCloudTab defined in sync.js (loaded async via requestIdleCallback)
       if (typeof refreshCloudTab === 'function') {
         refreshCloudTab();
@@ -1512,12 +1514,14 @@
     switchSettingsTab('alert');
     modal.classList.remove('hidden');
     modal.classList.add('flex');
+    modal.style.display = 'flex';
   }
 
   function closeAlertSettings() {
     const modal = document.getElementById('alertSettingsModal');
     modal.classList.add('hidden');
     modal.classList.remove('flex');
+    modal.style.display = 'none';
   }
 
   /** Click ra ngoài vùng modal → đóng */
