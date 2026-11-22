@@ -458,7 +458,7 @@ async function fetchChannelId(ctx = {}) {
       }
       const value = String(uid);
       channelIdCache.set(cacheKey, { value, expiresAt: Date.now() + CHANNEL_ID_TTL_MS });
-      logger.log('[OMICALL] channel_id đã lấy', { host, channelId: value });
+      logger.info('[OMICALL] channel_id đã lấy', { host, channelId: value });
       return value;
     } catch (e) {
       const cause = (e && e.cause && (e.cause.code || e.cause.message)) || '';
