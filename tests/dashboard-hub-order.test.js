@@ -19,6 +19,7 @@ const EXPECTED_ORDER = [
   '/qr-settings',  // 💳 QR Thanh toán
   '/promo-settings', // 🎁 Khuyến mãi
   '/regions',      // 🗺️ Khu vực giao hàng
+  '/preorders',    // 📅 Đặt hàng trước
   '/report-notify', // 📨 Báo cáo tự động
   '/audit-log',    // 📜 Nhật ký hệ thống
   '/sessions',     // 🔐 Phiên đăng nhập

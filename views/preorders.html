@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <script>
+  (function () {
+    var k = 'theme';
+    var sys = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    var saved = localStorage.getItem(k);
+    var theme = (saved === 'light' || saved === 'dark') ? saved : sys;
+    document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.classList.remove('light', 'dark');
+    document.documentElement.classList.add(theme);
+  })();
+  </script>
+  <script>window.BASE_PATH = '/';</script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Đặt hàng trước</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0B0E11">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="BeerPOS">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/png" href="/icon-192.png">
+  <link rel="stylesheet" href="/css/unified.css?v=20261122a">
+  <script src="/js/auth.js"></script>
+  <script src="/js/dark-mode.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>requireAuth();</script>
+  <style>
+    .po-page { max-width: 1180px; margin: 0 auto; padding: 12px 12px 96px; }
+
+    .po-hero {
+      background: linear-gradient(135deg, rgba(252,213,53,.14), rgba(255,255,255,.03));
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+    .po-hero-title { font-size: 18px; font-weight: 800; color: var(--text-primary); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .po-hero-desc { font-size: 12.5px; color: var(--text-muted); line-height: 1.6; margin-top: 6px; }
+
+    .po-section {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+    .po-section-title { font-size: 15px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+    .po-section-desc { font-size: 12px; color: var(--text-muted); line-height: 1.55; margin-bottom: 12px; }
+
+    .po-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+    .po-input, .po-select {
+      height: 38px; padding: 0 10px;
+      border-radius: 9px; border: 1px solid var(--border);
+      background: var(--bg-secondary); color: var(--text-primary); font-size: 13px;
+      box-sizing: border-box;
+    }
+    .po-btn {
+      height: 38px; padding: 0 14px;
+      border-radius: 9px; border: 1px solid var(--border);
+      background: var(--bg-secondary); color: var(--text-primary);
+      font-size: 13px; font-weight: 600; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .po-btn:hover { background: var(--card-soft); }
+    .po-btn--primary { background: var(--accent, #FCD535); color: #1a1a1a; border-color: transparent; }
+    .po-btn--danger { color: #f87171; }
+    .po-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+    .po-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .po-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 720px; }
+    .po-table th {
+      text-align: left; padding: 9px 8px; font-size: 11px; font-weight: 700;
+      color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em;
+      border-bottom: 1px solid var(--border); white-space: nowrap;
+    }
+    .po-table td { padding: 10px 8px; border-bottom: 1px solid var(--border); color: var(--text-primary); vertical-align: middle; }
+    .po-table tr:last-child td { border-bottom: none; }
+
+    .po-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 9px; border-radius: 999px;
+      font-size: 11px; font-weight: 700; white-space: nowrap;
+    }
+    .po-badge--wait { background: rgba(251,146,60,.15); color: #fb923c; }
+    .po-badge--done { background: rgba(74,222,128,.15); color: #4ade80; }
+
+    .po-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+    .po-stat {
+      padding: 12px; border-radius: 12px;
+      background: var(--card-soft, rgba(255,255,255,.03));
+      border: 1px solid var(--border);
+    }
+    .po-stat-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; font-weight: 700; }
+    .po-stat-value { font-size: 22px; font-weight: 800; color: var(--text-primary); margin-top: 4px; }
+    .po-stat-value--sm { font-size: 15px; }
+
+    .po-empty { padding: 32px 12px; text-align: center; color: var(--text-muted); font-size: 13px; }
+    .po-note {
+      font-size: 12px; line-height: 1.6; color: var(--text-muted);
+      padding: 10px 12px; border-radius: 10px;
+      background: rgba(251,146,60,.08); border: 1px solid rgba(251,146,60,.25);
+    }
+  </style>
+</head>
+<body>
+<div class="po-page">
+  <!-- HERO -->
+  <div class="po-hero">
+    <div class="po-hero-title">
+      📅 Đặt hàng trước
+      <span class="po-badge po-badge--wait" id="poWaitingBadge">— đơn chờ</span>
+    </div>
+    <div class="po-hero-desc">
+      Đơn đặt trước do Admin tạo cho <strong>ngày giao mong muốn</strong>. Đơn <strong>chưa ghi nhận doanh thu</strong> và
+      <strong>chưa hiện cho tài xế</strong> cho tới khi hệ thống tự động đẩy vào giao hàng lúc
+      <strong id="poReleaseTimeText">07:00 sáng</strong> của ngày giao — đúng lúc đó doanh thu mới được ghi nhận
+      và tài xế phụ trách khu vực nhận được thông báo.
+    </div>
+  </div>
+
+  <!-- THỐNG KÊ -->
+  <div class="po-section">
+    <div class="po-section-title">📊 Tình trạng</div>
+    <div class="po-section-desc">Cấu hình giờ đẩy đơn và xem lịch đơn đang chờ theo từng ngày giao.</div>
+    <div class="po-stat-grid">
+      <div class="po-stat">
+        <div class="po-stat-label">Giờ đẩy đơn</div>
+        <div class="po-stat-value po-stat-value--sm" id="poReleaseHour">07:00</div>
+      </div>
+      <div class="po-stat">
+        <div class="po-stat-label">Chờ hôm nay</div>
+        <div class="po-stat-value" id="poWaitingToday">0</div>
+      </div>
+      <div class="po-stat">
+        <div class="po-stat-label">Tổng đang chờ</div>
+        <div class="po-stat-value" id="poTotalWaiting">0</div>
+      </div>
+      <div class="po-stat">
+        <div class="po-stat-label">Đơn sắp tới</div>
+        <div class="po-stat-value po-stat-value--sm" id="poUpcomingText">—</div>
+      </div>
+    </div>
+    <div class="po-toolbar" style="margin-top:12px">
+      <label style="font-size:12px;color:var(--text-muted)">Giờ đẩy đơn</label>
+      <select class="po-select" id="poReleaseHourSelect"></select>
+      <button class="po-btn" onclick="saveReleaseHour()">💾 Lưu</button>
+      <button class="po-btn" onclick="runRelease(true)">🔍 Xem trước khi đẩy</button>
+      <button class="po-btn po-btn--primary" onclick="runRelease(false)">🚀 Đẩy đơn hôm nay</button>
+    </div>
+  </div>
+
+  <!-- DANH SÁCH -->
+  <div class="po-section">
+    <div class="po-section-title">📋 Đơn đặt trước</div>
+    <div class="po-section-desc">
+      Lọc theo trạng thái và ngày giao. Đơn ở trạng thái <strong>Chờ</strong> có thể đẩy ngay hoặc huỷ.
+    </div>
+    <div class="po-toolbar">
+      <select class="po-select" id="poStatusFilter" onchange="loadPreorders()">
+        <option value="ALL">Tất cả trạng thái</option>
+        <option value="SCHEDULED">Chờ đẩy</option>
+        <option value="RELEASED">Đã đẩy</option>
+      </select>
+      <input type="date" class="po-input" id="poDateFilter" onchange="loadPreorders()">
+      <button class="po-btn" onclick="clearFilters()">🔄 Xoá lọc</button>
+    </div>
+    <div class="po-table-wrap">
+      <table class="po-table">
+        <thead>
+          <tr>
+            <th>Ngày giao</th>
+            <th>Khách</th>
+            <th>Tổng tiền</th>
+            <th>Vỏ</th>
+            <th>Tài xế</th>
+            <th>Trạng thái</th>
+            <th>Thao tác</th>
+          </tr>
+        </thead>
+        <tbody id="poTableBody">
+          <tr><td colspan="7" class="po-empty">Đang tải…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+function escHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
+function formatVND(n) {
+  var v = Number(n) || 0;
+  return v.toLocaleString('vi-VN') + 'đ';
+}
+
+function formatDate(iso) {
+  if (!iso) return '—';
+  var p = String(iso).split('-');
+  if (p.length !== 3) return iso;
+  return p[2] + '/' + p[1] + '/' + p[0];
+}
+
+var poSettings = { releaseHour: 7, releaseTime: '07:00' };
+
+function toast(msg, type) {
+  if (typeof showToast === 'function') { showToast(msg, type || 'info'); return; }
+  alert(msg);
+}
+
+function initReleaseHourOptions() {
+  var sel = document.getElementById('poReleaseHourSelect');
+  var html = '';
+  for (var h = 0; h < 24; h++) {
+    var v = h < 10 ? '0' + h : String(h);
+    html += '<option value="' + h + '">' + v + ':00</option>';
+  }
+  sel.innerHTML = html;
+  sel.value = poSettings.releaseHour;
+}
+
+function loadSettings() {
+  return fetch('/api/preorders/settings')
+    .then(function (r) { return r.json(); })
+    .then(function (j) {
+      if (!j.success) throw new Error(j.error || 'Lỗi tải cấu hình');
+      var d = j.data || {};
+      poSettings.releaseHour = d.releaseHour != null ? d.releaseHour : 7;
+      poSettings.releaseTime = d.releaseTime || ('0' + poSettings.releaseHour).slice(-2) + ':00';
+      document.getElementById('poReleaseHour').textContent = poSettings.releaseTime;
+      document.getElementById('poReleaseTimeText').textContent = poSettings.releaseTime + ' sáng';
+      document.getElementById('poWaitingToday').textContent = d.waitingToday != null ? d.waitingToday : 0;
+      document.getElementById('poWaitingBadge').textContent = (d.waitingToday || 0) + ' đơn chờ';
+      initReleaseHourOptions();
+
+      var up = d.upcoming || [];
+      var total = up.reduce(function (a, x) { return a + (x.count || 0); }, 0);
+      document.getElementById('poTotalWaiting').textContent = total;
+      document.getElementById('poUpcomingText').textContent = up.length
+        ? up.slice(0, 3).map(function (x) { return formatDate(x.date) + ' (' + x.count + ')'; }).join(' · ')
+        : 'Không có';
+      return j;
+    });
+}
+
+function saveReleaseHour() {
+  var hour = parseInt(document.getElementById('poReleaseHourSelect').value, 10);
+  fetch('/api/preorders/settings', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ releaseHour: hour })
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (j) {
+      if (!j.success) { toast(j.error || 'Lỗi lưu', 'error'); return; }
+      toast('✅ Đã lưu giờ đẩy đơn', 'success');
+      loadSettings();
+    })
+    .catch(function (e) { toast('Lỗi: ' + e.message, 'error'); });
+}
+
+function runRelease(dryRun) {
+  var label = dryRun ? 'Xem trước danh sách sẽ đẩy' : 'Đẩy toàn bộ đơn hôm nay vào giao hàng';
+  if (!dryRun && !confirm('Xác nhận ' + label + '?\n\nĐơn sẽ ghi nhận doanh thu và báo tài xế.')) return;
+
+  fetch('/api/preorders/run', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ dryRun: !!dryRun })
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (j) {
+      if (!j.success) { toast(j.error || 'Lỗi chạy', 'error'); return; }
+      var d = j.data || {};
+      if (dryRun) {
+        toast('🔍 Có ' + (d.total || 0) + ' đơn sẽ được đẩy ngày ' + formatDate(d.date), 'info');
+      } else {
+        toast('🚀 Đã đẩy ' + (d.released || 0) + '/' + (d.total || 0) + ' đơn' +
+          (d.failed ? ' — ' + d.failed + ' lỗi' : ''), d.failed ? 'warning' : 'success');
+      }
+      loadPreorders();
+      loadSettings();
+    })
+    .catch(function (e) { toast('Lỗi: ' + e.message, 'error'); });
+}
+
+function loadPreorders() {
+  var status = document.getElementById('poStatusFilter').value || 'ALL';
+  var date = document.getElementById('poDateFilter').value || '';
+  var url = '/api/preorders?status=' + encodeURIComponent(status);
+  if (date) url += '&date=' + encodeURIComponent(date);
+
+  var tbody = document.getElementById('poTableBody');
+  tbody.innerHTML = '<tr><td colspan="7" class="po-empty">Đang tải…</td></tr>';
+
+  fetch(url)
+    .then(function (r) { return r.json(); })
+    .then(function (j) {
+      if (!j.success) { tbody.innerHTML = '<tr><td colspan="7" class="po-empty">Lỗi: ' + escHtml(j.error) + '</td></tr>'; return; }
+      var rows = j.data || [];
+      if (!rows.length) {
+        tbody.innerHTML = '<tr><td colspan="7" class="po-empty">Chưa có đơn đặt trước nào.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = rows.map(function (s) {
+        var isWait = s.preorder_status === 'SCHEDULED';
+        var badge = isWait
+          ? '<span class="po-badge po-badge--wait">⏳ Chờ đẩy</span>'
+          : '<span class="po-badge po-badge--done">✅ Đã đẩy</span>';
+        var actions = '';
+        if (isWait) {
+          actions =
+            '<button class="po-btn" onclick="releaseOne(' + s.id + ')">🚀 Đẩy ngay</button> ' +
+            '<button class="po-btn po-btn--danger" onclick="cancelOne(' + s.id + ')">✕ Huỷ</button>';
+        } else {
+          actions = '<span style="font-size:11px;color:var(--text-muted)">' +
+            (s.preorder_released_at ? escHtml(String(s.preorder_released_at).slice(0, 16)) : '—') + '</span>';
+        }
+        return '<tr>' +
+          '<td><strong>' + escHtml(formatDate(s.preorder_date)) + '</strong></td>' +
+          '<td>' + escHtml(s.customer_name || 'Khách lẻ') +
+            (s.customer_phone ? '<div style="font-size:11px;color:var(--text-muted)">' + escHtml(s.customer_phone) + '</div>' : '') +
+          '</td>' +
+          '<td>' + escHtml(formatVND(s.total)) + '</td>' +
+          '<td>' + (s.deliver_kegs || 0) + '</td>' +
+          '<td>' + escHtml(s.driver_username || '—') + '</td>' +
+          '<td>' + badge + '</td>' +
+          '<td>' + actions + '</td>' +
+        '</tr>';
+      }).join('');
+    })
+    .catch(function (e) {
+      document.getElementById('poTableBody').innerHTML =
+        '<tr><td colspan="7" class="po-empty">Lỗi: ' + escHtml(e.message) + '</td></tr>';
+    });
+}
+
+function releaseOne(id) {
+  if (!confirm('Đẩy đơn #' + id + ' vào giao hàng ngay?\n\nDoanh thu sẽ được ghi nhận và tài xế sẽ nhận thông báo.')) return;
+  fetch('/api/preorders/' + id + '/release', { method: 'POST' })
+    .then(function (r) { return r.json(); })
+    .then(function (j) {
+      if (!j.success) { toast(j.error || 'Lỗi', 'error'); return; }
+      toast('🚀 Đã đẩy đơn #' + id, 'success');
+      loadPreorders(); loadSettings();
+    })
+    .catch(function (e) { toast('Lỗi: ' + e.message, 'error'); });
+}
+
+function cancelOne(id) {
+  if (!confirm('Huỷ đơn đặt trước #' + id + '?\n\nĐơn sẽ trở lại đơn bán thường (giao ngay).')) return;
+  fetch('/api/preorders/' + id + '/cancel', { method: 'POST' })
+    .then(function (r) { return r.json(); })
+    .then(function (j) {
+      if (!j.success) { toast(j.error || 'Lỗi', 'error'); return; }
+      toast('✅ Đã huỷ đơn #' + id, 'success');
+      loadPreorders(); loadSettings();
+    })
+    .catch(function (e) { toast('Lỗi: ' + e.message, 'error'); });
+}
+
+function clearFilters() {
+  document.getElementById('poStatusFilter').value = 'ALL';
+  document.getElementById('poDateFilter').value = '';
+  loadPreorders();
+}
+
+loadSettings().then(loadPreorders).catch(function (e) { toast('Lỗi: ' + e.message, 'error'); });
+</script>
+</body>
+</html>

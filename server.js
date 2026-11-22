@@ -973,6 +973,41 @@ cron.schedule('5 0 1 * *', async () => {
   timezone: 'Asia/Ho_Chi_Minh',
 });
 
+// ==================== PRE-ORDER RELEASE (đặt hàng trước) ====================
+// Đơn đặt trước (Admin tạo cho ngày giao mong muốn) được đẩy vào giao hàng
+// lúc 07:00 sáng của NGÀY GIAO. Lúc đó: ghi nhận doanh thu, gán tài xế theo
+// khu vực, tạo phiếu giao + báo tài xế (Socket.IO + Web Push).
+//
+// Vì giờ đẩy có thể đổi trong UI mà không cần restart server, cron chạy mỗi
+// phút và so sánh với giờ đã cấu hình (`settings.preorder_release_hour`,
+// mặc định 07). Idempotent: chỉ xử lý đơn còn `preorder_status = 'SCHEDULED'`.
+cron.schedule('* * * * *', async () => {
+  try {
+    const PreOrderService = require('./src/services/PreOrderService');
+    const hour = PreOrderService.getReleaseHour();
+    const now = new Date();
+    // Giờ Việt Nam (server đã set TZ=Asia/Ho_Chi_Minh, nhưng tính lại cho chắc).
+    const vnHour = Number(
+      new Date(now.getTime() + 7 * 60 * 60 * 1000).toISOString().slice(11, 13)
+    );
+    if (vnHour !== hour) return;
+
+    const result = await PreOrderService.releaseDuePreOrders({});
+    if (result.total > 0) {
+      logger.info('[PRE-ORDER] Release done', {
+        date: result.date,
+        total: result.total,
+        released: result.released,
+        failed: result.failed,
+      });
+    }
+  } catch (e) {
+    logger.error('[PRE-ORDER] Release cron error', { error: e.message });
+  }
+}, {
+  timezone: 'Asia/Ho_Chi_Minh',
+});
+
 // ==================== DAILY REPORT NOTIFY (Zalo/Telegram) ====================
 // Gửi báo cáo bán hàng tự động mỗi tối theo giờ cấu hình trong
 // `settings.report_notify_time` (mặc định 21:30, giờ VN).
@@ -1196,6 +1231,8 @@ app.get('/customers', (req, res) => sendPageNoCache(req, res, 'customers.html'))
 app.get('/customer/:id', (req, res) => sendPageNoCache(req, res, 'customer-detail.html'));
 app.get('/stock', (req, res) => sendPageNoCache(req, res, 'stock.html'));
 app.get('/promo-settings', (req, res) => sendPageNoCache(req, res, 'promo-settings.html'));
+// Đặt hàng trước — quản lý đơn chờ 07:00 ngày giao
+app.get('/preorders', (req, res) => sendPageNoCache(req, res, 'preorders.html'));
 app.get('/qr-settings', (req, res) => sendPageNoCache(req, res, 'qr-settings.html'));
 app.get('/report-notify', (req, res) => sendPageNoCache(req, res, 'report-notify.html'));
 // A4 — Quản lý phiên đăng nhập (xem / huỷ phiên từ xa)
@@ -1273,6 +1310,9 @@ app.use('/api/debts', require('./routes/api/debts'));
 app.use('/api/debt-ledger/sepay', require('./routes/api/sepay'));
 app.use('/api/debt-ledger', require('./routes/api/debtLedger'));
 app.use('/api/promotions', require('./routes/api/promotions'));
+// Đặt hàng trước (pre-order) — chỉ Admin. Đơn chờ 07:00 ngày giao mới được
+// đẩy vào giao hàng (ghi nhận doanh thu + gán tài xế).
+app.use('/api/preorders', require('./routes/api/preorders'));
 app.use('/api/segments', require('./routes/api/segments'));
 app.use('/api/sales-staff', require('./routes/api/sales-staff'));
 

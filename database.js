@@ -29,7 +29,7 @@ try {
   }
 
   // Run driver portal migration (idempotent, chạy độc lập version gate)
-  const { runDriverPortalMigration, runDriverStaffMigration, runDriverKegReceiptMigration, runDriverWorkDaysMigration, runDriverSalaryAdvanceMigration, runMissingBusinessTablesMigration, runDailyReportNotifyMigration, runAuditLogMigration, runDriverPushMigration, runZaloOauthMigration, runDebtManagementMigration, runDebtSaleCreditFlagMigration, runBusinessDayCutoffMigration, runAuditLogUnificationMigration, runDriverAttendanceMigration, runBusinessRegionsMigration, runSaleDispatchStatusMigration, runSaleRegionDispatchBackfillMigration, runSepayDebtSettlementMigration, runDebtZaloNotifyMigration, runSepayAutoPollMigration, runCustomerClosureMigration, runCustomerClosureDevicesMigration } = require('./database/migration');
+  const { runDriverPortalMigration, runDriverStaffMigration, runDriverKegReceiptMigration, runDriverWorkDaysMigration, runDriverSalaryAdvanceMigration, runMissingBusinessTablesMigration, runDailyReportNotifyMigration, runAuditLogMigration, runDriverPushMigration, runZaloOauthMigration, runDebtManagementMigration, runDebtSaleCreditFlagMigration, runBusinessDayCutoffMigration, runAuditLogUnificationMigration, runDriverAttendanceMigration, runBusinessRegionsMigration, runSaleDispatchStatusMigration, runSaleRegionDispatchBackfillMigration, runSepayDebtSettlementMigration, runDebtZaloNotifyMigration, runSepayAutoPollMigration, runCustomerClosureMigration, runCustomerClosureDevicesMigration, runSalePreorderMigration } = require('./database/migration');
   const driverResult = runDriverPortalMigration(db);
   if (driverResult.success) {
     logger.log('[MIGRATION] Driver portal schema ready');
@@ -167,6 +167,12 @@ try {
   const customerClosureDevicesResult = runCustomerClosureDevicesMigration(db);
   if (customerClosureDevicesResult.success) {
     logger.log('[MIGRATION] Customer closure devices schema ready');
+  }
+
+  // Run sale preorder migration (066) — đặt hàng trước (đẩy lúc 07:00 ngày giao)
+  const salePreorderResult = runSalePreorderMigration(db);
+  if (salePreorderResult.success) {
+    logger.log('[MIGRATION] Sale preorder schema ready');
   }
 } catch (error) {
   logger.error('[MIGRATION] Migration error:', error.message);

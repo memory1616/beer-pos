@@ -91,6 +91,11 @@ function deleteSaleRestoringInventory(saleId) {
       // Nếu skip MONTHLY_BONUS thì xóa sale có gắn thưởng sẽ KHÔNG revert lít mua → sai.
       // Lưu ý: KHÔNG revert reward_* (logic đó handle ở B2).
       if (sale.customer_id && sale.type === 'sale') {
+        // ⚠️ Đơn ĐẶT TRƯỚC CHƯA RELEASE: chưa cộng sản lượng lúc tạo
+        // (sản lượng chỉ cộng khi release vào ngày giao) → KHÔNG hoàn trả
+        // ở đây, nếu không sẽ trừ nhầm (âm).
+        const wasPendingPreorder = sale.preorder_status === 'SCHEDULED';
+
         // Bia Inox V2: lấy product_name để tách yellow/black
         const items = db.prepare(`
           SELECT si.quantity, p.name AS product_name
@@ -107,7 +112,7 @@ function deleteSaleRestoringInventory(saleId) {
           if (PromotionService.classifyBeer(item.product_name) === 'black') blackLiters += q;
           else yellowLiters += q;
         }
-        if (paidLiters > 0) {
+        if (paidLiters > 0 && !wasPendingPreorder) {
           // Revert customer_monthly_stats.purchased_liters (theo tháng NGHIỆP VỤ của đơn)
           //
           // ⚠️ `sales.date` là NGÀY NGHIỆP VỜ (cutoff 19:00) → đơn tạo sau 19h

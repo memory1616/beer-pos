@@ -21,6 +21,7 @@ const DriverAttendanceService = require('../../src/services/DriverAttendanceServ
 const RegionService = require('../../src/services/RegionService');
 const GeocodeService = require('../../src/services/GeocodeService');
 const DebtLedgerService = require('../../src/services/debt/DebtLedgerService');
+const PreOrderSQL = require('../../src/services/PreOrderSQL');
 const { ROLE_DRIVER } = require('../../middleware/permissions');
 const { PromotionService } = require('../../src/services');
 
@@ -331,6 +332,7 @@ router.get('/home', requireDriver, (req, res) => {
           AND s.archived = 0
           AND s.deleted = 0
           AND (s.driver_username = ? OR s.driver_username IS NULL OR s.driver_username = '')
+          AND ${PreOrderSQL.COUNTED_FILTER}
         GROUP BY DATE(s.date)
       `
       )
@@ -366,6 +368,7 @@ router.get('/home', requireDriver, (req, res) => {
             AND s.deleted = 0
             AND DATE(s.date) BETWEEN ? AND ?
             AND s.driver_username = ?
+            AND ${PreOrderSQL.COUNTED_FILTER}
           UNION ALL
           -- Nguồn B: vỏ thu trên phiếu giao CỦA TÀI XẾ (màn "Xác nhận giao")
           -- order_key = sale_id (dùng -id cho phiếu không gắn đơn) → cùng đơn
@@ -430,6 +433,7 @@ router.get('/home', requireDriver, (req, res) => {
           AND s.deleted = 0
           AND DATE(s.date) BETWEEN ? AND ?
           AND s.driver_username = ?
+          AND ${PreOrderSQL.COUNTED_FILTER}
         GROUP BY DATE(s.date)
       `
       )
@@ -512,6 +516,7 @@ router.get('/home', requireDriver, (req, res) => {
           AND (c.archived = 0 OR c.id IS NULL)
           AND (s.driver_username = ? OR s.driver_username IS NULL OR s.driver_username = '')
           AND (dr.id IS NULL OR dr.status NOT IN ('DELIVERED'))
+          AND ${PreOrderSQL.COUNTED_FILTER}
         ORDER BY (dr.status IS NULL) DESC,
                  CASE dr.status WHEN 'IN_PROGRESS' THEN 0 ELSE 1 END,
                  s.sale_time IS NULL, s.sale_time, s.id DESC
@@ -559,6 +564,7 @@ router.get('/home', requireDriver, (req, res) => {
           AND s.deleted = 0
           AND COALESCE(DATE(s.created_on), DATE(s.date)) = ?
           AND (s.driver_username = ? OR s.driver_username IS NULL OR s.driver_username = '')
+          AND ${PreOrderSQL.COUNTED_FILTER}
           AND s.id IN (
             SELECT s2.id FROM sales s2
             LEFT JOIN delivery_records dr2
@@ -569,6 +575,7 @@ router.get('/home', requireDriver, (req, res) => {
               AND COALESCE(DATE(s2.created_on), DATE(s2.date)) = ?
               AND (s2.driver_username = ? OR s2.driver_username IS NULL OR s2.driver_username = '')
               AND (dr2.id IS NULL OR dr2.status NOT IN ('DELIVERED'))
+              AND COALESCE(s2.preorder_status, '') != 'SCHEDULED'
           )
         GROUP BY slug, name, ptype
         ORDER BY qty DESC
@@ -628,7 +635,14 @@ router.get('/sales', requireDriver, (req, res) => {
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 30));
     const offset = (page - 1) * limit;
 
-    const where = ["s.driver_username = ?", "s.type = 'sale'", "s.archived = 0", "s.deleted = 0"];
+    const where = [
+      "s.driver_username = ?",
+      "s.type = 'sale'",
+      "s.archived = 0",
+      "s.deleted = 0",
+      // Đơn đặt trước CHƯA release → chưa giao → tài xế chưa thấy.
+      "COALESCE(s.preorder_status, '') != 'SCHEDULED'",
+    ];
     const params = [req.user.username];
 
     // PHÂN QUYỀN THEO KHU VỰC: tài xế chỉ thấy đơn thuộc khu vực được
@@ -1145,6 +1159,7 @@ router.get('/delivery/page-data', requireDriver, (req, res) => {
            AND COALESCE(DATE(s.created_on), DATE(s.date)) = ?
            AND c.archived = 0
            AND (s.driver_username = ? OR s.driver_username IS NULL OR s.driver_username = '')
+           AND ${PreOrderSQL.COUNTED_FILTER}
          ORDER BY s.date DESC`
       )
       .all(req.user.username, today, req.user.username);

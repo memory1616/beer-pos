@@ -76,7 +76,8 @@ router.get('/history', (req, res) => {
   const sales = db.prepare(`
     SELECT s.id, s.date, s.sale_time, s.total, s.type, s.status,
       COALESCE(c.name, 'Khách lẻ') as customer_name,
-      s.deliver_kegs, s.return_kegs
+      s.deliver_kegs, s.return_kegs,
+      s.preorder_status, s.preorder_date, s.preorder_released_at
     FROM sales s
     LEFT JOIN customers c ON s.customer_id = c.id
     ${whereClause}

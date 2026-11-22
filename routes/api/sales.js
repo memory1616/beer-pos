@@ -12,6 +12,7 @@ const DebtOnCreateService = require('../../src/services/debt/DebtOnCreateService
 const AuditService = require('../../src/services/AuditService');
 const KegBalanceService = require('../../src/services/KegBalanceService');
 const RegionService = require('../../src/services/RegionService');
+const PreOrderSQL = require('../../src/services/PreOrderSQL');
 
 // ========== HELPER: Resolve product by id (numeric) or slug ==========
 function resolveProduct(query) {
@@ -75,6 +76,17 @@ function getEffectivePrice(product, priceMap) {
 async function notifyAssignedDriver(saleId, driverUsername) {
   const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId);
   if (!sale) return;
+
+  // ⚠️ Đơn ĐẶT TRƯỚC chưa được đẩy vào giao hàng → KHÔNG báo tài xế.
+  // Phiếu giao + thông báo chỉ được tạo khi PreOrderService release đơn
+  // vào ngày giao (07:00 sáng).
+  if (sale.preorder_status === 'SCHEDULED') {
+    logger.info('[api/sales] skip notify — pre-order chưa tới ngày giao', {
+      saleId,
+      preorderDate: sale.preorder_date,
+    });
+    return;
+  }
 
   const customer = sale.customer_id
     ? db
@@ -144,6 +156,42 @@ async function notifyAssignedDriver(saleId, driverUsername) {
 router.post('/', async (req, res) => {
   const { customerId, items, deliverKegs = 0, returnKegs = 0, debt = false, staffId } = req.body;
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // ĐẶT HÀNG TRƯỚC (PRE-ORDER)
+  // ═══════════════════════════════════════════════════════════════════════
+  // Admin có thể tạo đơn cho ngày giao mong muốn. Đơn đặt trước:
+  //  - CHƯA ghi nhận doanh thu, CHƯA hiện cho tài xế.
+  //  - Được hệ thống đẩy vào giao hàng lúc 07:00 sáng ngày giao.
+  //
+  // ⚠️ CHỈ ADMIN được đặt trước (tài xế chỉ giao đơn trong ngày).
+  const requesterRole = req.user?.role || 'ADMIN';
+  const rawPreorderDate = req.body?.preorderDate;
+  const wantsPreorder = rawPreorderDate !== undefined && rawPreorderDate !== null && String(rawPreorderDate).trim() !== '';
+
+  if (wantsPreorder && requesterRole !== 'ADMIN') {
+    logger.warn('[api/sales] Non-admin tried to create pre-order', {
+      requester: req.user?.username,
+      role: requesterRole,
+    });
+    return res.status(403).json({
+      error: 'Chỉ quản trị viên mới được tạo đơn đặt trước',
+      code: 'PREORDER_FORBIDDEN',
+    });
+  }
+
+  let preorderDate = null;
+  if (wantsPreorder) {
+    const PreOrderService = require('../../src/services/PreOrderService');
+    const check = PreOrderService.validateScheduleDate(rawPreorderDate);
+    if (!check.valid) {
+      return res.status(400).json({
+        error: check.error,
+        code: 'INVALID_PREORDER_DATE',
+      });
+    }
+    preorderDate = PreOrderService.normalizeScheduleDate(rawPreorderDate);
+  }
+
   // driverUsername: tài xế phụ trách đơn.
   //  - Driver Portal tự tạo đơn → forward từ routes/api/driverSale.js.
   //  - Admin gán đơn cho tài xế cụ thể qua UI (mới) → truyền driverUsername.
@@ -161,7 +209,6 @@ router.post('/', async (req, res) => {
   // Admin/tài xế chỉ định tài xế TAY → đơn sẽ được đánh dấu 'MANUAL'.
   const explicitDriver = !!driverUsername;
 
-  const requesterRole = req.user?.role || 'ADMIN';
   if (requesterRole !== 'ADMIN' && driverUsername && driverUsername !== req.user?.username) {
     logger.warn('[api/sales] Driver tried to assign another driver', {
       requester: req.user?.username,
@@ -442,7 +489,9 @@ router.post('/', async (req, res) => {
       // ⚠️ `date` = NGÀY NGHIỆP VỤ (cutoff 19:00 → đơn tạo sau 19h thuộc ngày mai).
       //    `created_on` = ngày LỊCH THỰC (dùng cho Driver Portal giữ đơn hôm nay).
       const createdOn = db.getVietnamDateStr();
-      const saleDate = db.getBusinessDateStr();
+      // Đơn ĐẶT TRƯỚC: `date` = ngày giao mong muốn (để khi release, doanh thu
+      // rơi đúng vào ngày giao). Đơn thường: `date` = ngày nghiệp vụ như cũ.
+      const saleDate = preorderDate || db.getBusinessDateStr();
       const saleTime = db.getVietnamTimeStr();
       // Trạng thái điều phố: AUTO (tự gán) / MANUAL (Admin chọn tay) /
       // UNASSIGNED (không tìm được tài xế → chờ Admin điều phố).
@@ -451,7 +500,8 @@ router.post('/', async (req, res) => {
         autoDispatch,
         explicitDriver,
       });
-      const saleResult = db.prepare('INSERT INTO sales (customer_id, sales_id, date, created_on, sale_time, total, profit, deliver_kegs, return_kegs, keg_balance_after, type, promo_free_liters, promo_type, driver_username, is_credit, region_id, region_name, region_driver_username, dispatch_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(customerId, staffId || null, saleDate, createdOn, saleTime, total, profit, finalDeliverKegs, returnKegs, newKegBalance, 'sale', promoFreeTotal, promoInfo ? promoInfo.promoType : null, driverUsername, debt && customerId ? 1 : 0, regionSnapshot.regionId, regionSnapshot.regionName, driverUsername || regionSnapshot.driverUsername, dispatchStatus);
+      const preorderStatus = preorderDate ? 'SCHEDULED' : null;
+      const saleResult = db.prepare('INSERT INTO sales (customer_id, sales_id, date, created_on, sale_time, total, profit, deliver_kegs, return_kegs, keg_balance_after, type, promo_free_liters, promo_type, driver_username, is_credit, region_id, region_name, region_driver_username, dispatch_status, preorder_status, preorder_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(customerId, staffId || null, saleDate, createdOn, saleTime, total, profit, finalDeliverKegs, returnKegs, newKegBalance, 'sale', promoFreeTotal, promoInfo ? promoInfo.promoType : null, driverUsername, debt && customerId ? 1 : 0, regionSnapshot.regionId, regionSnapshot.regionName, driverUsername || regionSnapshot.driverUsername, dispatchStatus, preorderStatus, preorderDate);
       const saleId = saleResult.lastInsertRowid;
 
       if (!saleId) throw new Error('Sale creation failed — no lastInsertRowid');
@@ -479,7 +529,11 @@ router.post('/', async (req, res) => {
             yellowLiters += q;
           }
         }
-        if (paidLiters > 0) {
+        if (paidLiters > 0 && !preorderDate) {
+          // ⚠️ Đơn ĐẶT TRƯỚC: KHÔNG cộng sản lượng lúc tạo.
+          // Sản lượng chỉ được cộng khi PreOrderService release đơn vào ngày
+          // giao (07:00 sáng) → khớp đúng với doanh thu.
+          // (PreOrderService.addMonthlyVolume() lo phần này.)
           // Check promotion_enabled
           const custForStats = db.prepare('SELECT promotion_enabled FROM customers WHERE id = ?').get(customerId);
           if (!custForStats || custForStats.promotion_enabled !== 0) {
@@ -497,6 +551,13 @@ router.post('/', async (req, res) => {
           } else {
             console.log('[PROMO] Customer', customerId, 'has promotions disabled — skipping monthly stats update');
           }
+        } else if (paidLiters > 0 && preorderDate) {
+          logger.info('[api/sales] pre-order — sản lượng chờ tới ngày giao', {
+            saleId,
+            customerId,
+            preorderDate,
+            liters: paidLiters,
+          });
         }
       }
 
@@ -664,7 +725,10 @@ router.post('/', async (req, res) => {
     // Nếu khách đủ điều kiện thưởng tháng trước VÀ KHÔNG đang trong thời gian quán mới
     // QUY TẮC: Khách đang hưởng KM quán mới sẽ KHÔNG nhận thưởng tháng
     let autoRewardResult = null;
-    if (customerId) {
+    // ⚠️ Đơn ĐẶT TRƯỚC: KHÔNG gắn thưởng lúc tạo.
+    // Thưởng phải gắn vào đơn THỰC SỰ GIAO (đơn đầu tiên của tháng sau) —
+    // đơn đặt trước chưa giao nên chưa được coi là "đơn hàng đầu tiên".
+    if (customerId && !preorderDate) {
       // Kiểm tra tháng trả thưởng (tháng trước) có nằm trong thời gian áp dụng KM không
       // B6/B9: Dùng local time của server. Server đã set TZ=Asia/Ho_Chi_Minh (server.js:3).
       //        src/services/index.js cũng lock TZ để defense-in-depth cho backfill scripts.
@@ -787,7 +851,22 @@ router.post('/', async (req, res) => {
       debtSkipped: debtResult?.skipped ? debtResult.reason : null,
       debtLimitWarning,
       promo: promoInfo,
-      autoReward: autoRewardResult
+      autoReward: autoRewardResult,
+      // Đặt hàng trước — thông tin cho UI hiển thị xác nhận
+      preorder: preorderDate
+        ? {
+            status: 'SCHEDULED',
+            date: preorderDate,
+            releaseHour: (() => {
+              try {
+                const PreOrderService = require('../../src/services/PreOrderService');
+                return PreOrderService.getReleaseHour();
+              } catch (_) {
+                return 7;
+              }
+            })(),
+          }
+        : null,
     });
   } catch (err) {
     console.error('[SALE ERROR]', err);
@@ -917,7 +996,7 @@ router.get('/', (req, res) => {
   let saleFields = 's.*';
   if (fields) {
     const requestedFields = fields.split(',').map(f => f.trim()).filter(Boolean);
-    const allowed = ['id','date','total','profit','customer_id','deliver_kegs','return_kegs','keg_balance_after','type','status','note','payment_status','distance_km','duration_min','route_index','route_polyline','returned_amount','returned_quantity','returned_profit'];
+    const allowed = ['id','date','total','profit','customer_id','deliver_kegs','return_kegs','keg_balance_after','type','status','note','payment_status','distance_km','duration_min','route_index','route_polyline','returned_amount','returned_quantity','returned_profit','preorder_status','preorder_date','preorder_released_at','driver_username'];
     const valid = requestedFields.filter(f => allowed.includes(f));
     if (valid.length > 0) saleFields = 's.' + valid.join(', s.');
   }
@@ -1653,6 +1732,7 @@ router.post('/:id/restore', (req, res) => {
             AND p.type = 'keg'
             AND CAST(strftime('%Y', s.date) AS INTEGER) = ?
             AND CAST(strftime('%m', s.date) AS INTEGER) = ?
+            AND ${PreOrderSQL.COUNTED_FILTER}
           GROUP BY s.customer_id
         `).run(sale.customer_id, year, month);
 
@@ -2126,6 +2206,7 @@ router.post('/sync-volume', (req, res) => {
           AND p.type = 'keg'
           AND CAST(strftime('%Y', s.date) AS INTEGER) = ?
           AND CAST(strftime('%m', s.date) AS INTEGER) = ?
+          AND ${PreOrderSQL.COUNTED_FILTER}
       `).all(customerId, targetYear, targetMonth);
 
       let totalLiters = 0, yellowLiters = 0, blackLiters = 0;
@@ -2202,6 +2283,7 @@ router.post('/sync-volume', (req, res) => {
         AND p.type = 'keg'
         AND CAST(strftime('%Y', s.date) AS INTEGER) = ?
         AND CAST(strftime('%m', s.date) AS INTEGER) = ?
+        AND ${PreOrderSQL.COUNTED_FILTER}
     `).all(targetYear, targetMonth);
 
     // Group by customer

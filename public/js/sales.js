@@ -86,6 +86,7 @@ let saleState = {
   qrAccountsCache: [],  // Danh sách QR account active
   currentInvoiceQR: null,  // QR đang chọn cho hoá đơn hiện tại
   driverUsername: null,  // Tài xế được gán đơn (Admin chọn)
+  preorderDate: null,  // Ngày giao của đơn đặt trước (YYYY-MM-DD, null = giao ngay)
   driversCache: null  // Danh sách tài xế (lazy-load 1 lần)
 };
 
@@ -417,6 +418,16 @@ function renderSaleHistory(sales, page, totalPages) {
     if (s.type === 'replacement') typeLabel = '<span style="color:var(--warning);font-size:11px;margin-left:6px;">Đổi lỗi</span>';
     else if (s.type === 'damage_return') typeLabel = '<span style="color:var(--red);font-size:11px;margin-left:6px;">Trả hàng</span>';
 
+    // Badge đơn đặt trước (chờ giao 07:00 / đã đẩy giao)
+    var preorderLabel = '';
+    if (s.preorder_status === 'SCHEDULED') {
+      preorderLabel = '<span class="sale-history-preorder sale-history-preorder--wait">⏰ Đặt trước: ' +
+        escHtml(formatVnDate(s.preorder_date)) + ' (Chờ giao 07:00)</span>';
+    } else if (s.preorder_status === 'RELEASED') {
+      preorderLabel = '<span class="sale-history-preorder sale-history-preorder--done">📦 Đã đẩy giao ' +
+        escHtml(formatVnDate(s.preorder_date)) + '</span>';
+    }
+
     // Hiển thị kegs info
     var kegsInfo = '';
     if (totalLiters > 0 || s.deliver_kegs > 0 || s.return_kegs > 0) {
@@ -433,6 +444,7 @@ function renderSaleHistory(sales, page, totalPages) {
         '<div class="sale-history-total">' + totalStr + '</div>' +
       '</div>' +
       '<div class="sale-history-meta">#' + s.id + ' · ' + dateStr + '</div>' +
+      (preorderLabel ? '<div class="sale-history-preorder-row">' + preorderLabel + '</div>' : '') +
       '<div class="sale-history-items">' + escHtml(itemNames) + '</div>' +
       kegsInfo +
       '<div class="sale-history-actions">' +
@@ -1870,6 +1882,103 @@ window.setSaleDriver = function (username) {
 };
 
 /**
+ * ════════════════════════════════════════════════════════════════════════
+ * ĐẶT HÀNG TRƯỚC (PRE-ORDER)
+ * ════════════════════════════════════════════════════════════════════════
+ * Admin có thể chọn "Ngày giao" thay vì giao ngay. Đơn đặt trước:
+ *  - CHƯA ghi nhận doanh thu, CHƯA hiện cho tài xế.
+ *  - Được hệ thống đẩy vào giao hàng lúc 07:00 sáng của ngày giao.
+ *
+ * ⚠️ Driver Portal dùng CHUNG file sales.js này → tài xế KHÔNG được đặt trước.
+ */
+
+/** Ngày hôm nay theo giờ Việt Nam (YYYY-MM-DD). */
+function todayVnStr() {
+  var now = new Date();
+  var vn = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+  return vn.getUTCFullYear() + '-' +
+    String(vn.getUTCMonth() + 1).padStart(2, '0') + '-' +
+    String(vn.getUTCDate()).padStart(2, '0');
+}
+
+/** Ngày mai (YYYY-MM-DD) theo giờ Việt Nam. */
+function tomorrowVnStr() {
+  var now = new Date();
+  var vn = new Date(now.getTime() + 7 * 60 * 60 * 1000 + 24 * 60 * 60 * 1000);
+  return vn.getUTCFullYear() + '-' +
+    String(vn.getUTCMonth() + 1).padStart(2, '0') + '-' +
+    String(vn.getUTCDate()).padStart(2, '0');
+}
+
+/** Định dạng ngày kiểu Việt Nam: 25/11/2026 */
+function formatVnDate(iso) {
+  if (!iso) return '';
+  var p = String(iso).split('-');
+  if (p.length !== 3) return iso;
+  return p[2] + '/' + p[1] + '/' + p[0];
+}
+
+/**
+ * HTML phần chọn ngày giao (đặt hàng trước).
+ * Chỉ Admin mới thấy.
+ */
+function buildPreorderHtml() {
+  if (window.APP_MODE === 'driver') return '';
+
+  var today = todayVnStr();
+  var tomorrow = tomorrowVnStr();
+  var selected = saleState.preorderDate || '';
+
+  var options = '<option value="">— Giao ngay hôm nay —</option>';
+  // Cho phép đặt trước tối đa 30 ngày tới.
+  for (var i = 0; i <= 30; i++) {
+    var d = new Date();
+    var vn = new Date(d.getTime() + 7 * 60 * 60 * 1000 + i * 24 * 60 * 60 * 1000);
+    var iso = vn.getUTCFullYear() + '-' +
+      String(vn.getUTCMonth() + 1).padStart(2, '0') + '-' +
+      String(vn.getUTCDate()).padStart(2, '0');
+    var label = formatVnDate(iso);
+    if (i === 0) label += ' (hôm nay)';
+    else if (i === 1) label += ' (ngày mai)';
+    options += '<option value="' + iso + '"' + (selected === iso ? ' selected' : '') + '>' + label + '</option>';
+  }
+
+  return '<div class="pos-modal-preorder">' +
+    '<label class="pos-modal-preorder__label" for="sale-preorder-date">📅 Ngày giao hàng</label>' +
+    '<select id="sale-preorder-date" class="pos-modal-preorder__select" onchange="window.setSalePreorderDate(this.value)">' +
+      options +
+    '</select>' +
+    '<div class="pos-modal-preorder__hint" id="sale-preorder-hint">' +
+      (selected
+        ? '⏰ Đơn đặt trước — sẽ được đẩy vào giao hàng lúc <strong>07:00 sáng ' + escHtml(formatVnDate(selected)) + '</strong> và ghi nhận doanh thu từ thời điểm đó.'
+        : 'Giao ngay trong ngày. Chọn ngày khác để <strong>đặt hàng trước</strong> (tự động đẩy vào giao hàng lúc 07:00 sáng ngày giao).') +
+    '</div>' +
+  '</div>';
+}
+
+/**
+ * Ghi lại ngày giao đã chọn.
+ * @param {string} value - YYYY-MM-DD hoặc '' (giao ngay)
+ */
+window.setSalePreorderDate = function (value) {
+  saleState.preorderDate = value || null;
+
+  var hint = document.getElementById('sale-preorder-hint');
+  if (hint) {
+    hint.innerHTML = saleState.preorderDate
+      ? '⏰ Đơn đặt trước — sẽ được đẩy vào giao hàng lúc <strong>07:00 sáng ' +
+        escHtml(formatVnDate(saleState.preorderDate)) + '</strong> và ghi nhận doanh thu từ thời điểm đó.'
+      : 'Giao ngay trong ngày. Chọn ngày khác để <strong>đặt hàng trước</strong> (tự động đẩy vào giao hàng lúc 07:00 sáng ngày giao).';
+  }
+
+  // Đơn đặt trước chưa giao → chưa gán tài xế (hệ thống sẽ gán khi đến giờ).
+  var driverWrap = document.querySelector('.pos-modal-driver');
+  if (driverWrap) {
+    driverWrap.style.display = saleState.preorderDate ? 'none' : '';
+  }
+};
+
+/**
  * Refresh riêng phần banner + select trong modal thanh toán (không render
  * lại toàn modal → không mất trạng thái items/giá).
  */
@@ -1947,6 +2056,7 @@ function openCheckoutModal() {
     '<div class="pos-modal-customer">👤 ' + escHtml(customerName) + '</div>' +
     itemsHtml +
     buildPromoDetailHtml() +
+    buildPreorderHtml() +
     buildDriverAssignHtml() +
     '<div class="pos-modal-summary">' +
       '<div class="pos-modal-summary-label">Tổng cộng</div>' +
@@ -1959,6 +2069,12 @@ function openCheckoutModal() {
 
   modal.classList.remove('hidden');
   document.body.classList.add('modal-open');
+
+  // Đơn đặt trước → ẩn ô chọn tài xế (hệ thống sẽ gán khi đẩy vào giao hàng).
+  if (saleState.preorderDate) {
+    var driverWrap = document.querySelector('.pos-modal-driver');
+    if (driverWrap) driverWrap.style.display = 'none';
+  }
 
   // Nạp danh sách tài xế (bất đồng bộ) → cập nhật select + banner sau khi có data
   // (chỉ Admin — Driver Portal không có ô này)
@@ -2016,6 +2132,13 @@ function submitSale() {
     payload.driverUsername = saleState.driverUsername;
   }
 
+  // ĐẶT HÀNG TRƯỚC: chỉ khi TẠO MỚI (đơn đã tạo không thể đổi ngày giao).
+  // Server sẽ lưu `preorder_status = 'SCHEDULED'` + `preorder_date` và đẩy
+  // đơn vào giao hàng lúc 07:00 sáng ngày giao.
+  if (!isEditing && saleState.preorderDate) {
+    payload.preorderDate = saleState.preorderDate;
+  }
+
   var url = isEditing ? '/api/sales/' + editingSaleId : '/api/sales';
   var method = isEditing ? 'PUT' : 'POST';
 
@@ -2044,6 +2167,17 @@ function submitSale() {
         promoMsg = ' | 🎁 Tặng ' + parts.join(' ');
       }
       showToast((isEditing ? 'Cập nhật thành công!' : 'Bán hàng thành công!') + promoMsg, 'success');
+
+      // Đơn đặt trước → thông báo rõ thời điểm sẽ giao.
+      if (data.preorder && data.preorder.date) {
+        var relHour = String(data.preorder.releaseHour != null ? data.preorder.releaseHour : 7);
+        var relTime = relHour.length < 2 ? '0' + relHour : relHour;
+        showToast(
+          '📅 Đơn đặt trước — sẽ giao vào ' + formatVnDate(data.preorder.date) +
+            ' lúc ' + relTime + ':00 sáng',
+          'warning'
+        );
+      }
 
       // ⚠️ Cảnh báo vượt hạn mức công nợ (KHÔNG chặn bán hàng)
       if (data.debtLimitWarning && data.debtLimitWarning.limitExceeded) {
@@ -2089,6 +2223,7 @@ function resetSaleState() {
   saleState.isInNewShopPeriod = false;
   saleState.canReceiveReward = false;
   saleState.driverUsername = null;
+  saleState.preorderDate = null;
   editingSaleId = null;
   hideNewShopBadge();
   hidePromoPreview();

@@ -99,6 +99,7 @@ const DRIVER_DENIED_PATH_PREFIXES = [
   '/api/kegs',
   '/api/stock',
   '/api/promotions',
+  '/api/preorders',  // Đặt hàng trước — chỉ ADMIN
 ];
 
 // ── Field bị loại bỏ khỏi response cho DRIVER ───────────────────────────────
@@ -301,6 +302,7 @@ const ADMIN_ONLY_PAGES = [
   '/audit-log',     // A3 — nhật ký hệ thống (chỉ ADMIN)
   '/push-notify',   // Web Push cho tài xế — cấu hình (chỉ ADMIN)
   '/regions',       // Quản lý khu vực giao hàng & phân công tài xế (chỉ ADMIN)
+  '/preorders',     // Đặt hàng trước — quản lý đơn chờ 07:00 ngày giao (chỉ ADMIN)
 ];
 
 function adminPageGuard(req, res, next) {

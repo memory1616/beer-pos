@@ -8,6 +8,7 @@ const RegionService = require('../../src/services/RegionService');
 const GeocodeService = require('../../src/services/GeocodeService');
 const CustomerClosureService = require('../../src/services/CustomerClosureService');
 const DebtLedgerService = require('../../src/services/debt/DebtLedgerService');
+const PreOrderSQL = require('../../src/services/PreOrderSQL');
 const emitCustomer = (customer) => { try { if (socketServer) socketServer.emitCustomerUpdated(customer); } catch (_) {} };
 const emitKeg = () => { try { if (socketServer) socketServer.emitKegUpdated(); } catch (_) {} };
 
@@ -96,6 +97,7 @@ router.get('/', (req, res) => {
         WHERE s.type = 'sale' AND s.archived = 0
           AND strftime('%Y', s.date) = ? AND strftime('%m', s.date) = ?
           AND si.price > 0 AND p.type = 'keg'
+          AND ${PreOrderSQL.COUNTED_FILTER}
         GROUP BY customer_id
       ) cm ON cm.customer_id = c.id
       WHERE c.archived = 0${regionClause}
@@ -135,6 +137,7 @@ router.get('/alerts', (req, res) => {
       FROM sales s
       JOIN sale_items si ON si.sale_id = s.id
       WHERE s.type = 'sale' AND s.date >= ?
+        AND ${PreOrderSQL.COUNTED_FILTER}
       GROUP BY s.customer_id
     ) mc ON mc.customer_id = c.id
     WHERE c.archived = 0
@@ -843,23 +846,25 @@ router.get('/:id/stats', (req, res) => {
   const currentMonth = month ? parseInt(month) : new Date().getMonth() + 1;
   
   // Tổng doanh thu (chỉ tính type='sale')
+  // ⚠️ Loại trừ đơn đặt trước CHƯA giao (chưa ghi nhận doanh thu).
   const totalRevenue = db.prepare(`
-    SELECT COALESCE(SUM(total), 0) as revenue FROM sales WHERE customer_id = ? AND type = 'sale' AND archived = 0
+    SELECT COALESCE(SUM(total), 0) as revenue FROM sales WHERE customer_id = ? AND type = 'sale' AND archived = 0 AND ${PreOrderSQL.COUNTED_FILTER_NO_ALIAS}
   `).get(customerId).revenue;
-  
+
   // Doanh thu tháng này (chỉ tính type='sale')
   const monthlyRevenue = db.prepare(`
-    SELECT COALESCE(SUM(total), 0) as revenue FROM sales 
-    WHERE customer_id = ? AND type = 'sale' AND archived = 0 AND strftime('%Y', date) = ? AND strftime('%m', date) = ?
+    SELECT COALESCE(SUM(total), 0) as revenue FROM sales
+    WHERE customer_id = ? AND type = 'sale' AND archived = 0 AND strftime('%Y', date) = ? AND strftime('%m', date) = ? AND ${PreOrderSQL.COUNTED_FILTER_NO_ALIAS}
   `).get(customerId, currentYear.toString(), currentMonth.toString().padStart(2, '0')).revenue;
-  
+
   // Số bình tháng này (chỉ tính type='sale' và price > 0 để loại sản phẩm thưởng)
   const monthlyKegs = db.prepare(`
-    SELECT COALESCE(SUM(si.quantity), 0) as kegs FROM sales s
+    SELECT COALESCE(SUM(si.quantity), 0) AS kegs FROM sales s
     JOIN sale_items si ON si.sale_id = s.id
-    WHERE s.customer_id = ? AND s.type = 'sale' AND s.archived = 0 
+    WHERE s.customer_id = ? AND s.type = 'sale' AND s.archived = 0
       AND strftime('%Y', s.date) = ? AND strftime('%m', s.date) = ?
       AND si.price > 0
+      AND ${PreOrderSQL.COUNTED_FILTER}
   `).get(customerId, currentYear.toString(), currentMonth.toString().padStart(2, '0')).kegs;
   
   // Lần giao gần nhất
@@ -915,9 +920,9 @@ router.get('/:id/sales', (req, res) => {
   let monthlyQty = 0;
   if (year && month) {
     const monthData = db.prepare(`
-      SELECT 
-        (SELECT COALESCE(SUM(total), 0) FROM sales WHERE customer_id = ? AND type = 'sale' AND archived = 0 AND strftime('%Y-%m', date) = ?) as total,
-        (SELECT COALESCE(SUM(quantity), 0) FROM sale_items WHERE sale_id IN (SELECT id FROM sales WHERE customer_id = ? AND type = 'sale' AND archived = 0 AND strftime('%Y-%m', date) = ?)) as qty
+      SELECT
+        (SELECT COALESCE(SUM(total), 0) FROM sales WHERE customer_id = ? AND type = 'sale' AND archived = 0 AND strftime('%Y-%m', date) = ? AND ${PreOrderSQL.COUNTED_FILTER_NO_ALIAS}) as total,
+        (SELECT COALESCE(SUM(quantity), 0) FROM sale_items WHERE sale_id IN (SELECT id FROM sales WHERE customer_id = ? AND type = 'sale' AND archived = 0 AND strftime('%Y-%m', date) = ? AND ${PreOrderSQL.COUNTED_FILTER_NO_ALIAS})) as qty
     `).get(customerId, `${year}-${month.padStart(2, '0')}`, customerId, `${year}-${month.padStart(2, '0')}`);
     monthlyTotal = monthData.total;
     monthlyQty = monthData.qty;

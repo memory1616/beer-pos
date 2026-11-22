@@ -1003,6 +1003,23 @@ function runCustomerClosureDevicesMigration(db) {
   }
 }
 
+// ── Sale preorder migration (066) ─────────────────────────────────────────────
+// Đặt hàng trước: Admin tạo đơn cho ngày giao mong muốn. Đơn CHỜ tới 07:00 sáng
+// ngày giao mới được đẩy vào giao hàng (ghi nhận doanh thu + gán tài xế).
+// Thêm 3 cột: `sales.preorder_status`, `sales.preorder_date`,
+// `sales.preorder_released_at`. Chạy ĐỘC LẬP, idempotent.
+function runSalePreorderMigration(db) {
+  try {
+    const migration = require('./migrations/066_sale_preorder');
+    migration.up(db);
+    log('[SALE_PREORDER] Migration 066 applied');
+    return { success: true };
+  } catch (e) {
+    log('[SALE_PREORDER] Migration error: ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
 // ── Utility: Generate UUID ─────────────────────────────────────────────────────
 
 function generateUUID() {
@@ -1043,6 +1060,7 @@ module.exports = {
   runSepayAutoPollMigration,
   runCustomerClosureMigration,
   runCustomerClosureDevicesMigration,
+  runSalePreorderMigration,
   generateUUID,
   getCurrentVersion,
   setVersion,
