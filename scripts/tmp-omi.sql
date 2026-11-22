@@ -1,8 +1,8 @@
 .mode list
 .headers off
-SELECT '=== SCHEMA debt_notifications:';
-SELECT sql FROM sqlite_master WHERE type='table' AND name='debt_notifications';
-SELECT '=== SCHEMA debt_customer_groups:';
-SELECT sql FROM sqlite_master WHERE type='table' AND name='debt_customer_groups';
-SELECT '=== FAILED ROWS:';
-SELECT * FROM debt_notifications WHERE status='failed' ORDER BY id DESC LIMIT 5;
+SELECT '=== SENT ROWS:';
+SELECT id || ' | ' || created_at || ' | ' || COALESCE(customer_name,'-') || ' | grp=' || COALESCE(group_id,'-') || ' | ' || event_type || ' | ' || status || ' | err=' || COALESCE(error,'')
+FROM debt_notifications WHERE status='sent' ORDER BY id DESC LIMIT 12;
+SELECT '=== ALL GROUPS:';
+SELECT id || ' | cust=' || customer_id || ' | ' || platform || ' | ' || group_id || ' | ' || COALESCE(group_name,'-') || ' | ' || status
+FROM debt_customer_groups ORDER BY id DESC LIMIT 25;
