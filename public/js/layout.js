@@ -164,6 +164,8 @@ function autoInjectBottomNav() {
     '/purchases': '/purchases',
     '/kegs':     '/kegs',
     '/customers': '/customers',
+    '/preorders': '/preorders',
+    '/regions':  '/regions',
   };
   const activePage = pageMap[path] || '/';
   container.innerHTML = getBottomNav(activePage);

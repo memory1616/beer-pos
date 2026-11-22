@@ -24,13 +24,20 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="icon" type="image/png" href="/icon-192.png">
-  <link rel="stylesheet" href="/css/unified.css?v=20261122a">
+  <link rel="stylesheet" href="/css/unified.css?v=20261122b">
   <script src="/js/auth.js"></script>
   <script src="/js/dark-mode.js"></script>
   <script src="/js/layout.js"></script>
   <script>requireAuth();</script>
   <style>
-    .po-page { max-width: 1180px; margin: 0 auto; padding: 12px 12px 96px; }
+    /* ── Trang: bọc trong app shell, chừa chỗ cho bottom nav ─────────── */
+    body.body--app { overflow-x: hidden; }
+
+    .po-page {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 12px 12px calc(var(--bottomnav-height) + var(--safe-area-bottom) + 20px);
+    }
 
     .po-hero {
       background: linear-gradient(135deg, rgba(252,213,53,.14), rgba(255,255,255,.03));
@@ -39,8 +46,21 @@
       padding: 16px;
       margin-bottom: 14px;
     }
-    .po-hero-title { font-size: 18px; font-weight: 800; color: var(--text-primary); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-    .po-hero-desc { font-size: 12.5px; color: var(--text-muted); line-height: 1.6; margin-top: 6px; }
+    .po-hero-title {
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .po-hero-desc {
+      font-size: 12.5px;
+      color: var(--text-muted);
+      line-height: 1.6;
+      margin-top: 6px;
+    }
 
     .po-section {
       background: var(--card);
@@ -49,65 +69,228 @@
       padding: 14px;
       margin-bottom: 14px;
     }
-    .po-section-title { font-size: 15px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
-    .po-section-desc { font-size: 12px; color: var(--text-muted); line-height: 1.55; margin-bottom: 12px; }
+    .po-section-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+    .po-section-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.55;
+      margin-bottom: 12px;
+    }
 
-    .po-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
-    .po-input, .po-select {
-      height: 38px; padding: 0 10px;
-      border-radius: 9px; border: 1px solid var(--border);
-      background: var(--bg-secondary); color: var(--text-primary); font-size: 13px;
+    /* ── Toolbar: xuống dòng trên màn hình nhỏ ─────────────────────────── */
+    .po-toolbar {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .po-input,
+    .po-select {
+      height: 38px;
+      padding: 0 10px;
+      border-radius: 9px;
+      border: 1px solid var(--border);
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      font-size: 13px;
       box-sizing: border-box;
+      min-width: 0;
     }
+    .po-input { flex: 1 1 130px; }
+    .po-select { flex: 0 1 auto; }
     .po-btn {
-      height: 38px; padding: 0 14px;
-      border-radius: 9px; border: 1px solid var(--border);
-      background: var(--bg-secondary); color: var(--text-primary);
-      font-size: 13px; font-weight: 600; cursor: pointer;
-      display: inline-flex; align-items: center; gap: 6px;
+      height: 38px;
+      padding: 0 14px;
+      border-radius: 9px;
+      border: 1px solid var(--border);
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      white-space: nowrap;
+      flex: 0 0 auto;
+      min-height: 38px;
     }
-    .po-btn:hover { background: var(--card-soft); }
-    .po-btn--primary { background: var(--accent, #FCD535); color: #1a1a1a; border-color: transparent; }
+    .po-btn:hover { background: var(--card-soft, var(--bg-hover)); }
+    .po-btn:active { transform: scale(.98); }
+    .po-btn--primary {
+      background: var(--primary, #FCD535);
+      color: #1a1a1a;
+      border-color: transparent;
+    }
     .po-btn--danger { color: #f87171; }
     .po-btn:disabled { opacity: .5; cursor: not-allowed; }
+    .po-btn--sm { height: 32px; min-height: 32px; padding: 0 10px; font-size: 12px; }
 
-    .po-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-    .po-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 720px; }
-    .po-table th {
-      text-align: left; padding: 9px 8px; font-size: 11px; font-weight: 700;
-      color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em;
-      border-bottom: 1px solid var(--border); white-space: nowrap;
+    /* ── Thống kê: lưới co giãn ──────────────────────────────────────── */
+    .po-stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 10px;
     }
-    .po-table td { padding: 10px 8px; border-bottom: 1px solid var(--border); color: var(--text-primary); vertical-align: middle; }
+    .po-stat {
+      padding: 12px;
+      border-radius: 12px;
+      background: var(--card-soft, rgba(255,255,255,.03));
+      border: 1px solid var(--border);
+      min-width: 0;
+    }
+    .po-stat-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      font-weight: 700;
+    }
+    .po-stat-value {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--text-primary);
+      margin-top: 4px;
+      overflow-wrap: anywhere;
+    }
+    .po-stat-value--sm { font-size: 15px; }
+
+    /* ── Bảng: chuyển sang card dạng block trên màn hình nhỏ ───────────── */
+    .po-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .po-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      min-width: 700px;
+    }
+    .po-table th {
+      text-align: left;
+      padding: 9px 8px;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    .po-table td {
+      padding: 10px 8px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-primary);
+      vertical-align: middle;
+    }
     .po-table tr:last-child td { border-bottom: none; }
+    .po-table .po-col-actions { white-space: nowrap; }
+    .po-table .po-col-actions .po-btn + .po-btn { margin-left: 6px; }
 
     .po-badge {
-      display: inline-flex; align-items: center; gap: 4px;
-      padding: 3px 9px; border-radius: 999px;
-      font-size: 11px; font-weight: 700; white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
     }
     .po-badge--wait { background: rgba(251,146,60,.15); color: #fb923c; }
     .po-badge--done { background: rgba(74,222,128,.15); color: #4ade80; }
 
-    .po-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
-    .po-stat {
-      padding: 12px; border-radius: 12px;
-      background: var(--card-soft, rgba(255,255,255,.03));
-      border: 1px solid var(--border);
-    }
-    .po-stat-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; font-weight: 700; }
-    .po-stat-value { font-size: 22px; font-weight: 800; color: var(--text-primary); margin-top: 4px; }
-    .po-stat-value--sm { font-size: 15px; }
-
     .po-empty { padding: 32px 12px; text-align: center; color: var(--text-muted); font-size: 13px; }
+
     .po-note {
-      font-size: 12px; line-height: 1.6; color: var(--text-muted);
-      padding: 10px 12px; border-radius: 10px;
-      background: rgba(251,146,60,.08); border: 1px solid rgba(251,146,60,.25);
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--text-muted);
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: rgba(251,146,60,.08);
+      border: 1px solid rgba(251,146,60,.25);
+    }
+
+    /* ── Responsive ────────────────────────────────────────────────────── */
+    @media (max-width: 720px) {
+      .po-page { padding: 10px 10px calc(var(--bottomnav-height) + var(--safe-area-bottom) + 16px); }
+      .po-hero { padding: 13px; border-radius: 14px; }
+      .po-hero-title { font-size: 16px; }
+      .po-section { padding: 12px; border-radius: 14px; }
+
+      /* Thống kê: 2 cột trên mobile */
+      .po-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+      .po-stat { padding: 10px; }
+      .po-stat-value { font-size: 19px; }
+
+      /* Toolbar: nút chiếm hết hàng */
+      .po-toolbar { gap: 6px; }
+      .po-toolbar > .po-select,
+      .po-toolbar > .po-input { flex: 1 1 100%; }
+      .po-toolbar > .po-btn { flex: 1 1 auto; }
+
+      /* Bảng → card dạng block */
+      .po-table-wrap { overflow-x: visible; }
+      .po-table { min-width: 0; display: block; }
+      .po-table thead { display: none; }
+      .po-table tbody { display: block; }
+      .po-table tr {
+        display: block;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 10px 12px;
+        margin-bottom: 10px;
+        background: var(--card-soft, rgba(255,255,255,.03));
+      }
+      .po-table td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        padding: 5px 0;
+        border-bottom: 1px dashed var(--border);
+        text-align: right;
+        min-width: 0;
+      }
+      .po-table td:last-child { border-bottom: none; }
+      .po-table td::before {
+        content: attr(data-label);
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        text-align: left;
+        flex: 0 0 auto;
+      }
+      .po-table td > * { min-width: 0; overflow-wrap: anywhere; }
+      .po-table .po-col-actions { white-space: normal; padding-top: 8px; }
+      .po-table .po-col-actions .po-btn { flex: 1 1 auto; margin-left: 0 !important; }
+      .po-table .po-col-actions .po-btn + .po-btn { margin-left: 6px !important; }
+    }
+
+    @media (max-width: 380px) {
+      .po-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .po-stat-value { font-size: 17px; }
+      .po-stat-value--sm { font-size: 14px; }
+    }
+
+    /* Desktop rộng: bảng đầy đàng */
+    @media (min-width: 900px) {
+      .po-page { padding: 20px 20px calc(var(--bottomnav-height) + var(--safe-area-bottom) + 24px); }
+      .po-stat-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
     }
   </style>
 </head>
-<body>
+<body class="body--app">
 <div class="po-page">
   <!-- HERO -->
   <div class="po-hero">
@@ -146,10 +329,9 @@
       </div>
     </div>
     <div class="po-toolbar" style="margin-top:12px">
-      <label style="font-size:12px;color:var(--text-muted)">Giờ đẩy đơn</label>
-      <select class="po-select" id="poReleaseHourSelect"></select>
-      <button class="po-btn" onclick="saveReleaseHour()">💾 Lưu</button>
-      <button class="po-btn" onclick="runRelease(true)">🔍 Xem trước khi đẩy</button>
+      <select class="po-select" id="poReleaseHourSelect" aria-label="Giờ đẩy đơn"></select>
+      <button class="po-btn" onclick="saveReleaseHour()">💾 Lưu giờ</button>
+      <button class="po-btn" onclick="runRelease(true)">🔍 Xem trước</button>
       <button class="po-btn po-btn--primary" onclick="runRelease(false)">🚀 Đẩy đơn hôm nay</button>
     </div>
   </div>
@@ -161,12 +343,12 @@
       Lọc theo trạng thái và ngày giao. Đơn ở trạng thái <strong>Chờ</strong> có thể đẩy ngay hoặc huỷ.
     </div>
     <div class="po-toolbar">
-      <select class="po-select" id="poStatusFilter" onchange="loadPreorders()">
+      <select class="po-select" id="poStatusFilter" onchange="loadPreorders()" aria-label="Lọc trạng thái">
         <option value="ALL">Tất cả trạng thái</option>
         <option value="SCHEDULED">Chờ đẩy</option>
         <option value="RELEASED">Đã đẩy</option>
       </select>
-      <input type="date" class="po-input" id="poDateFilter" onchange="loadPreorders()">
+      <input type="date" class="po-input" id="poDateFilter" onchange="loadPreorders()" aria-label="Lọc ngày giao">
       <button class="po-btn" onclick="clearFilters()">🔄 Xoá lọc</button>
     </div>
     <div class="po-table-wrap">
@@ -189,6 +371,9 @@
     </div>
   </div>
 </div>
+
+<!-- BOTTOM NAV (điều hướng chính) -->
+<div id="bottomNavContainer"></div>
 
 <script>
 function escHtml(s) {
@@ -218,6 +403,7 @@ function toast(msg, type) {
 
 function initReleaseHourOptions() {
   var sel = document.getElementById('poReleaseHourSelect');
+  if (!sel) return;
   var html = '';
   for (var h = 0; h < 24; h++) {
     var v = h < 10 ? '0' + h : String(h);
@@ -318,22 +504,22 @@ function loadPreorders() {
         var actions = '';
         if (isWait) {
           actions =
-            '<button class="po-btn" onclick="releaseOne(' + s.id + ')">🚀 Đẩy ngay</button> ' +
-            '<button class="po-btn po-btn--danger" onclick="cancelOne(' + s.id + ')">✕ Huỷ</button>';
+            '<button class="po-btn po-btn--sm" onclick="releaseOne(' + s.id + ')">🚀 Đẩy ngay</button>' +
+            '<button class="po-btn po-btn--sm po-btn--danger" onclick="cancelOne(' + s.id + ')">✕ Huỷ</button>';
         } else {
           actions = '<span style="font-size:11px;color:var(--text-muted)">' +
             (s.preorder_released_at ? escHtml(String(s.preorder_released_at).slice(0, 16)) : '—') + '</span>';
         }
         return '<tr>' +
-          '<td><strong>' + escHtml(formatDate(s.preorder_date)) + '</strong></td>' +
-          '<td>' + escHtml(s.customer_name || 'Khách lẻ') +
+          '<td data-label="Ngày giao"><strong>' + escHtml(formatDate(s.preorder_date)) + '</strong></td>' +
+          '<td data-label="Khách"><div>' + escHtml(s.customer_name || 'Khách lẻ') + '</div>' +
             (s.customer_phone ? '<div style="font-size:11px;color:var(--text-muted)">' + escHtml(s.customer_phone) + '</div>' : '') +
           '</td>' +
-          '<td>' + escHtml(formatVND(s.total)) + '</td>' +
-          '<td>' + (s.deliver_kegs || 0) + '</td>' +
-          '<td>' + escHtml(s.driver_username || '—') + '</td>' +
-          '<td>' + badge + '</td>' +
-          '<td>' + actions + '</td>' +
+          '<td data-label="Tổng tiền">' + escHtml(formatVND(s.total)) + '</td>' +
+          '<td data-label="Vỏ">' + (s.deliver_kegs || 0) + '</td>' +
+          '<td data-label="Tài xế">' + escHtml(s.driver_username || '—') + '</td>' +
+          '<td data-label="Trạng thái">' + badge + '</td>' +
+          '<td data-label="Thao tác" class="po-col-actions">' + actions + '</td>' +
         '</tr>';
       }).join('');
     })
@@ -373,6 +559,7 @@ function clearFilters() {
   loadPreorders();
 }
 
+// Bottom nav được auto-inject bởi layout.js (autoInjectBottomNav)
 loadSettings().then(loadPreorders).catch(function (e) { toast('Lỗi: ' + e.message, 'error'); });
 </script>
 </body>

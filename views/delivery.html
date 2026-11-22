@@ -1,6 +1,18 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
+  <script>
+  // Bootstrap theme sớm (tránh nháy trắng) — đồng bộ với các trang khác.
+  (function () {
+    var k = 'theme';
+    var sys = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    var saved = localStorage.getItem(k);
+    var theme = (saved === 'light' || saved === 'dark') ? saved : sys;
+    document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.classList.remove('light', 'dark');
+    document.documentElement.classList.add(theme);
+  })();
+  </script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Giao hàng</title>
@@ -15,7 +27,7 @@
     body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #0f0f1a; color: #fff; }
     .header { background: #1a1a2e; padding: 15px; display: flex; justify-content: space-between; align-items: center; }
     .header h1 { margin: 0; font-size: 18px; }
-    .content { padding: 15px; padding-bottom: calc(var(--bottomnav-height) + var(--safe-area-bottom) + 15px); }
+    .content { padding: 15px; padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px) + 15px); }
     #map { height: 250px; width: 100%; border-radius: 10px; background: #1a1a2e; }
 
     /* Nút chuyển lớp bản đồ (Google / Vệ tinh / Tối) */
@@ -52,17 +64,13 @@
     .leaflet-container { background: #1a1a2e !important; }
   </style>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="/css/bottomnav.css?v=20261122a">
   <link rel="preload" href="/js/layout.js" as="script">
   <script src="/js/layout.js"></script>
-  <script>
-  function initPage() {
-    document.body.insertAdjacentHTML("beforeend", getBottomNav("/sale"));
-  }
-  </script>
   <script src="/js/install-prompt.js?v=20261121b" defer></script>
   <link rel="stylesheet" href="/css/install-prompt.css?v=20261121a">
 </head>
-<body onload="initPage()">
+<body>
   <div class="header">
     <h1>🚚 Giao hàng</h1>
     <button onclick="showSettings()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#fff;">⚙️</button>
@@ -255,6 +263,8 @@
     render();
   </script>
 
+  <!-- BOTTOM NAV (điều hướng chính) -->
+  <div id="bottomNavContainer"></div>
 
 </body>
 </html>

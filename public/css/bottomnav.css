@@ -1,0 +1,103 @@
+/* ============================================================
+   BOTTOM NAV — Standalone stylesheet
+   ------------------------------------------------------------
+   Dùng cho các trang KHÔNG load `unified.css` (delivery, expenses,
+   report, …). `unified.css` đã chứa sẵn phần này — file này là bản
+   rút gọn độc lập để những trang đó vẫn có bottom nav đúng style.
+
+   Bản rút gọn có fallback token nội bộ nên không phụ thuộc tokens.css.
+   ============================================================ */
+
+.bottomnav {
+  --bn-height: 64px;
+  --bn-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --bn-bg: #161a20;
+  --bn-border: rgba(255, 255, 255, 0.08);
+  --bn-muted: #8b95a5;
+  --bn-active: #fcd535;
+  --bn-space-1: 4px;
+  --bn-space-2: 8px;
+
+  height: calc(var(--bn-height) + var(--bn-safe-bottom));
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--bn-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid var(--bn-border);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  text-align: center;
+  font-size: 10px;
+  max-width: 500px;
+  margin: 0 auto;
+  z-index: 60;
+  padding-bottom: var(--bn-safe-bottom);
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+/* Áp dụng token hệ thống khi trang có unified.css/tokens.css */
+html[data-theme="dark"] .bottomnav,
+:root[data-theme="dark"] .bottomnav {
+  --bn-bg: #161a20;
+  --bn-border: rgba(255, 255, 255, 0.08);
+  --bn-muted: #8b95a5;
+  --bn-active: #fcd535;
+}
+
+html[data-theme="light"] .bottomnav,
+:root[data-theme="light"] .bottomnav {
+  --bn-bg: #ffffff;
+  --bn-border: rgba(0, 0, 0, 0.08);
+  --bn-muted: #64748b;
+  --bn-active: #b8860b;
+}
+
+.bottomnav a,
+.bottomnav .nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  color: var(--bn-muted);
+  text-decoration: none;
+  transition: color 0.15s ease, transform 0.1s ease;
+  padding: var(--bn-space-2) var(--bn-space-1);
+  min-height: 44px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bottomnav a:active,
+.bottomnav .nav-item:active {
+  transform: scale(0.94);
+}
+
+.bottomnav a .icon,
+.bottomnav .nav-item-icon {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.bottomnav a img,
+.bottomnav .nav-item img {
+  width: 22px;
+  height: 22px;
+}
+
+.bottomnav a .label,
+.bottomnav .nav-item-label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.bottomnav a.active,
+.bottomnav .nav-item.active {
+  color: var(--bn-active);
+  font-weight: 600;
+}
