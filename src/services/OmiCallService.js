@@ -44,6 +44,13 @@ const TOKEN_REFRESH_MARGIN_MS = 30 * 60 * 1000;
 // Cache token trong RAM (mỗi tiến trình). key = apiKey|baseUrl
 const tokenCache = new Map();
 
+// Cache channel_id trong RAM. key = channel|apiKey|baseUrl
+// channel_id (uid kênh Zalo cá nhân) hiếm khi đổi → cache 30 phút để không
+// phải gọi /omnichannel/channel/get_all cho mỗi tin nhắn (và để giữ được
+// channel_id khi phiên Zalo chập chờn, tránh rơi vào lỗi "error_occurred").
+const channelIdCache = new Map();
+const CHANNEL_ID_TTL_MS = 30 * 60 * 1000;
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function getSetting(key, fallback = '') {
@@ -402,11 +409,28 @@ function buildMessageBodies(convId, channelId, text) {
  * `channel_id` là uid của kênh Zalo Personal đang kết nối, lấy từ
  * `GET|POST /omnichannel/channel/get_all` → `payload.zalo_personal[0].uid`.
  *
+ * ⚠️ BUG ĐÃ SỬA (2026-11-22) — `channel_id` RỖNG gây lỗi "error_occurred":
+ *  - Hàm này trước đây NUỐT IM LẶNG mọi lỗi (`catch (_) {}`) → khi phiên Zalo
+ *    bị gián đoạn, `channel_id` trả về `''` mà không ai biết.
+ *  - Body gửi `{ conv_id, channel_id: '', text }` → OmiCall trả `error_occurred`
+ *    (lỗi chung, không nói rõ nguyên nhân) → tin nhắn KHÔNG gửi được.
+ *  - Fix: cache `channel_id` trong RAM, ghi log mọi lỗi, và trả về '' kèm lý do
+ *    để tầng trên BIẾT chứ không gửi tin với channel_id rỗng.
+ *
  * @param {object} ctx - { apiKey, baseUrl, token, headers }
  * @returns {Promise<string>} channel_id hoặc '' nếu không lấy được
  */
 async function fetchChannelId(ctx = {}) {
   const { apiKey, baseUrl, token, headers } = ctx;
+
+  // Cache trong RAM — channel_id hiếm khi đổi, không cần gọi lại mỗi tin.
+  const cacheKey = `channel|${apiKey}|${baseUrl}`;
+  const cached = channelIdCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.value;
+  }
+
+  const failures = [];
   for (const host of resolveMessageHosts(baseUrl)) {
     try {
       const res = await fetchWithTimeout(`${host}/omnichannel/channel/get_all`, {
@@ -415,18 +439,37 @@ async function fetchChannelId(ctx = {}) {
         body: JSON.stringify({}),
       });
       const raw = await res.text();
-      if (/^\s*<(!doctype|html)/i.test(raw)) continue;
+      if (/^\s*<(!doctype|html)/i.test(raw)) {
+        failures.push(`${host}: trả HTML (web app, không phải API)`);
+        continue;
+      }
       const parsed = raw ? JSON.parse(raw) : null;
       const payload = (parsed && parsed.payload) || {};
       const list = payload.zalo_personal || [];
-      if (!Array.isArray(list) || !list.length) continue;
+      if (!Array.isArray(list) || !list.length) {
+        failures.push(`${host}: không có kênh zalo_personal trong payload`);
+        continue;
+      }
       const ch = list[0];
       const uid = ch.uid || ch.channel_id || ch._id || null;
-      if (uid) return String(uid);
-    } catch (_) {
-      /* thử host tiếp theo */
+      if (!uid) {
+        failures.push(`${host}: kênh zalo_personal không có uid/channel_id`);
+        continue;
+      }
+      const value = String(uid);
+      channelIdCache.set(cacheKey, { value, expiresAt: Date.now() + CHANNEL_ID_TTL_MS });
+      logger.log('[OMICALL] channel_id đã lấy', { host, channelId: value });
+      return value;
+    } catch (e) {
+      const cause = (e && e.cause && (e.cause.code || e.cause.message)) || '';
+      failures.push(`${host}: ${e.message}${cause ? ' — ' + cause : ''}`);
     }
   }
+
+  // Không lấy được → ghi log để admin thấy nguyên nhân thật thay vì "error_occurred".
+  logger.error('[OMICALL] Không lấy được channel_id — tin nhắn sẽ KHÔNG gửi được', {
+    failures,
+  });
   return '';
 }
 
@@ -608,9 +651,22 @@ async function sendZaloPersonalMessage(opts = {}) {
   // Đã thử cấp quyền agent vào nhóm chưa (tránh gọi lặp).
   let permissionGranted = false;
 
+  // ⚠️ 2026-11-22: KHÔNG gửi biến thể body có `channel_id` rỗng.
+  // OmiCall trả `error_occurred` (lỗi chung, khó chẩn đoán) khi body chứa
+  // channel_id rỗng — biến thể này chỉ làm hỏng không giúp ích.
+  // Nếu không lấy được channel_id → báo lỗi rõ ràng ngay, đừng gửi tin.
+  if (!channelId && !opts.channelId) {
+    logger.error('[OMICALL] Thiếu channel_id — bỏ qua gửi tin để tránh lỗi error_occurred', {
+      convId: convMongoId,
+    });
+  }
+  const sendableBodies = channelId
+    ? bodies
+    : bodies.filter((bv) => bv.label !== 'conv_id+channel_id+text');
+
   for (const host of hosts) {
     for (const path of MESSAGE_PATHS) {
-      for (const bv of bodies) {
+      for (const bv of sendableBodies) {
         const url = `${host}${path}`;
         let res;
         let raw = '';
@@ -661,6 +717,16 @@ async function sendZaloPersonalMessage(opts = {}) {
           // `invalid_param` — không có giá trị chẩn đoán, không ghi đè lỗi gốc.
           if (!apiError) apiError = lastError;
 
+          logger.error('[OMICALL] Gửi tin bị từ chối', {
+            host,
+            path: path.split('?')[0],
+            body: bv.label,
+            http: res.status,
+            status_code: statusCode ?? null,
+            message: msg,
+            has_channel_id: !!channelId,
+          });
+
           // `user_not_permision` = agent chưa được gán vào nhóm Zalo.
           // Cấp quyền rồi gửi lại (tương đương thao tác gán nhân viên trên OmiCall).
           if (!permissionGranted && !opts._retried && /user_not_permision|permission/i.test(String(msg))) {
@@ -678,6 +744,35 @@ async function sendZaloPersonalMessage(opts = {}) {
               apiError = lastError;
             }
           }
+
+          // `error_occurred` = lỗi CHUNG của upstream, thường do phiên Zalo
+          // bị gián đoạn (token hết hạn / kênh mất kết nối tạm thời) — KHÔNG
+          // phải lỗi cấu hình. Ghi nhận lỗi tạm thời → thử lại với token MỚI
+          // và channel_id lấy lại (bỏ qua cache cũ).
+          // (2026-11-22: lỗi này làm 4 tin công nợ không gửi được.)
+          if (
+            !opts._retried
+            && !permissionGranted
+            && /error_occurred/i.test(String(msg))
+          ) {
+            logger.warn('[OMICALL] error_occurred — thử lại với token mới và channel_id mới', {
+              host,
+              convId: convMongoId,
+            });
+            // Bỏ cache token + channel_id để lấy lại từ upstream.
+            clearTokenCache();
+            channelIdCache.clear();
+            const retry = await sendZaloPersonalMessage({
+              ...opts,
+              convId: convMongoId,
+              _retried: true,
+              _retryReason: 'error_occurred',
+            });
+            if (retry.success) return retry;
+            lastError = retry.error || lastError;
+            apiError = lastError;
+          }
+
           continue;
         }
 
@@ -697,6 +792,12 @@ async function sendZaloPersonalMessage(opts = {}) {
       apiError ||
       lastError ||
       'Không tìm được endpoint gửi tin OmiCall. Kiểm tra lại Base URL (thử https://public-v1-stg.omicall.com nếu tài khoản OmiCall của bạn thuộc môi trường staging).',
+    // Gợi ý hành động cho admin khi lỗi là "tạm thời" (upstream chập chờn).
+    hint: /error_occurred/i.test(String(apiError || lastError || ''))
+      ? 'Lỗi tạm thời từ phía OmiCall (phiên Zalo bị gián đoạn). Hãy thử gửi lại sau vài phút — tin nhắn sẽ tự gửi khi kênh Zalo kết nối lại.'
+      : (!channelId
+        ? 'Không lấy được channel_id (kênh Zalo cá nhân) — hãy kiểm tra kênh Zalo trên OmiCall đã đăng nhập và kết nối chưa.'
+        : null),
   };
 }
 
