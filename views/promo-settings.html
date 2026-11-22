@@ -261,19 +261,19 @@
       // Info Banner
       '<div class="info-banner">',
         '<p><strong>Chỉ áp dụng cho đơn hàng mới.</strong> Thay đổi cài đặt KHÔNG làm sai dữ liệu cũ, KHÔNG reset lịch sử, KHÔNG tính lại đơn cũ.</p>',
-        '<p style="margin-top:8px;"><strong style="color:#a855f7;">Quy tắc quan trọng:</strong> <span style="color:#6b7280;">Khách hàng chỉ được hưởng <em>một</em> loại khuyến mãi tại một thời điểm. Quán mới (trong N ngày đầu) sẽ KHÔNG nhận thưởng tháng.</span></p>',
+        '<p style="margin-top:8px;"><strong style="color:#a855f7;">Quy tắc quan trọng:</strong> <span style="color:#6b7280;">Quán mới = <strong>tháng mở quán</strong> (tháng tạo khách, không quan tâm mở ngày nào). Trong tháng đó áp dụng tỉ lệ "mua X tặng Y" theo <strong>tổng sản lượng cả tháng</strong> (không cộng dồn qua tháng). Phần thưởng được trả vào <strong>đơn hàng đầu tiên của tháng sau</strong>, giống thưởng doanh số. Từ tháng sau trở đi áp dụng thưởng doanh số như bình thường.</span></p>',
       '</div>',
 
       // SECTION 1: KHUYẾN MÃI QUÁN MỚI
       '<div class="promo-section">',
         '<div class="promo-section-title">&#128293; Khuyến mãi quán mới</div>',
-        '<div class="promo-section-desc">Áp dụng cho quán mới trong N ngày đầu tiên. <strong style="color:#a855f7;">Quán đang hưởng KM này sẽ không nhận thưởng tháng.</strong></div>',
+        '<div class="promo-section-desc">Áp dụng cho <strong>tháng mở quán</strong> (tháng tạo khách). Tổng sản lượng trong tháng áp dụng theo tỉ lệ bên dưới; thưởng trả vào đơn đầu tiên tháng sau.</div>',
 
         // Toggle
         '<div class="promo-toggle-row">',
           '<div>',
             '<div class="promo-toggle-label">Bật khuyến mãi quán mới</div>',
-            '<div class="promo-toggle-desc">Tặng bia khi mua đủ số lượng</div>',
+            '<div class="promo-toggle-desc">Tặng bia theo tổng sản lượng tháng mở quán</div>',
           '</div>',
           '<label class="toggle-switch">',
             '<input type="checkbox" id="toggleNewShop" checked onchange="onSettingsChanged()">',
@@ -282,15 +282,6 @@
         '</div>',
 
         '<div id="newShopFields">',
-          // Số ngày áp dụng
-          '<div class="promo-input-row">',
-            '<div class="promo-input-label">Số ngày áp dụng</div>',
-            '<div class="promo-input-wrap">',
-              '<input type="number" id="newShopDays" class="promo-input" value="30" min="1" max="365" oninput="onSettingsChanged()">',
-              '<span class="promo-input-suffix">ngày</span>',
-            '</div>',
-          '</div>',
-
           '<div class="promo-divider"></div>',
           '<div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:10px;">Bia vàng</div>',
 
@@ -433,7 +424,6 @@
     function renderSettings(s) {
       var el;
       el = document.getElementById('toggleNewShop'); if (el) el.checked = !!s.newShopEnabled;
-      el = document.getElementById('newShopDays'); if (el) el.value = s.newShopDays || 30;
       el = document.getElementById('goldBuy'); if (el) el.value = s.newShopGoldBuy || 10;
       el = document.getElementById('goldFree'); if (el) el.value = s.newShopGoldFree || 1;
       el = document.getElementById('blackBuy'); if (el) el.value = s.newShopBlackBuy || 20;
@@ -585,7 +575,6 @@
       try {
         var payload = {
           newShopEnabled: document.getElementById('toggleNewShop').checked,
-          newShopDays: parseInt(document.getElementById('newShopDays').value) || 30,
           newShopGoldBuy: parseInt(document.getElementById('goldBuy').value) || 10,
           newShopGoldFree: parseInt(document.getElementById('goldFree').value) || 1,
           newShopBlackBuy: parseInt(document.getElementById('blackBuy').value) || 20,

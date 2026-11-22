@@ -33,9 +33,13 @@ const DebtService = require('./DebtService');
 // PROMOTION SERVICE - Business logic cho khuyến mãi
 // Bao gồm: khuyến mãi quán mới và thưởng doanh số theo tháng
 //
-// QUY TẮC:
-// - Quán mới: tạo ngày 09+ trong tháng → tháng tạo = NEW_CUSTOMER
-// - Từ tháng kế tiếp: tham gia thưởng sản lượng MONTHLY_VOLUME
+// QUY TẮC (2026-11-22):
+// - "Quán mới" = THÁNG MỞ quán (tháng có created_at) — KHÔNG phụ thuộc ngày nào
+// - Tháng mở quán: tổng sản lượng trong tháng áp dụng tỉ lệ "mua X tặng Y"
+//   (cài đặt riêng cho bia vàng / bia đen), KHÔNG cộng dồn qua tháng
+// - Thưởng quán mới được trả vào ĐƠN HÀNG ĐẦU TIÊN của tháng sau
+//   (giống cơ chế thưởng doanh số)
+// - Từ tháng sau trở đi: tham gia thưởng sản lượng MONTHLY_VOLUME
 // - Mỗi khách mỗi tháng chỉ một CTKM, không trùng lặp
 // ============================================================
 class PromotionService {
@@ -222,7 +226,7 @@ class PromotionService {
    * Kiểm tra khách hàng có phải "quán mới"
    * Quán mới = tạo từ ngày 09 trở đi trong tháng hiện tại (không đếm ngày)
    */
-  isNewShopEligible(customerId) {
+  isNewShopEligible(customerId, targetMonth = null, targetYear = null) {
     const settings = this.getSystemPromotionSettings();
     if (!settings.newShopEnabled) {
       return { eligible: false, reason: 'Khuyến mãi quán mới đã bị tắt' };
@@ -243,14 +247,26 @@ class PromotionService {
       return { eligible: false, reason: 'Khách đã tắt khuyến mãi quán mới', promotionEnabled: false };
     }
 
+    // ── QUY TẮC MỚI (2026-11-22) ────────────────────────────────────────
+    // "Quán mới" = THÁNG MỞ quán = tháng có `created_at` của khách.
+    // KHÔNG cần biết mở ngày nào trong tháng — tháng đó là tháng mở.
+    // Tháng sau trở đi → áp dụng thưởng doanh số như bình thường.
     const created = new Date(customer.created_at);
-    const now = new Date();
-    const isSameMonth = created.getMonth() === now.getMonth() && created.getFullYear() === now.getFullYear();
-    const isDay09Plus = created.getDate() >= 9;
+    const openYear = created.getFullYear();
+    const openMonth = created.getMonth() + 1;
 
-    if (isSameMonth && isDay09Plus) {
+    // Tháng đang xét (mặc định = tháng hiện tại)
+    const now = new Date();
+    const checkMonth = targetMonth ? Number(targetMonth) : now.getMonth() + 1;
+    const checkYear = targetYear ? Number(targetYear) : now.getFullYear();
+
+    const isOpenMonth = checkYear === openYear && checkMonth === openMonth;
+
+    if (isOpenMonth) {
       return {
         eligible: true,
+        openYear,
+        openMonth,
         createdDay: created.getDate(),
         firstOrderDate: customer.created_at,
         buyGold: settings.newShopGoldBuy,
@@ -260,7 +276,13 @@ class PromotionService {
         promotionEnabled: true
       };
     }
-    return { eligible: false, reason: 'Không thuộc chương trình quán mới', promotionEnabled: true };
+    return {
+      eligible: false,
+      openYear,
+      openMonth,
+      reason: 'Không thuộc tháng mở quán',
+      promotionEnabled: true
+    };
   }
 
   /**
@@ -276,9 +298,9 @@ class PromotionService {
   /**
    * Xác định chương trình khuyến mãi cho khách hàng trong một tháng cụ thể
    *
-   * Quy tắc:
-   * - Nếu tháng đó thuộc giai đoạn Quán mới (tạo ngày 09+) → NEW_CUSTOMER
-   * - Nếu tháng đó đã có đơn MONTHLY_BONUS → NEW_CUSTOMER (đã hưởng quán mới)
+   * QUY TẮC MỚI (2026-11-22):
+   * - Tháng MỞ quán (tháng có created_at) → NEW_CUSTOMER ("10 tặng 1")
+   * - Tháng đó đã có đơn NEW_SHOP → NEW_CUSTOMER (đã hưởng quán mới)
    * - Nếu không thuộc quán mới và đủ điều kiện thưởng sản lượng → MONTHLY_VOLUME
    * - Ngược lại → NONE
    *
@@ -292,16 +314,13 @@ class PromotionService {
     if (!customer) return 'NONE';
 
     const created = new Date(customer.created_at);
-    const createdDay = created.getDate();
     const createdMonth = created.getMonth() + 1;
     const createdYear = created.getFullYear();
 
-    // Kiểm tra nếu tháng này là THÁNG TẠO khách hàng
-    // QUY TẮC NGHIỆP VỤ (Q1_A):
-    //   - Khách tạo ngày 01-08 → VẪN được tham gia thưởng sản lượng ngay tháng tạo
-    //   - Khách tạo ngày 09+   → tháng tạo là NEW_CUSTOMER (quán mới)
+    // QUY TẮC MỚI: THÁNG MỞ QUÁN = tháng có created_at (không phụ thuộc ngày nào).
+    // Tháng mở → NEW_CUSTOMER (áp dụng "10 tặng 1").
     const isCreationMonth = (createdYear === year && createdMonth === month);
-    if (isCreationMonth && createdDay >= 9) {
+    if (isCreationMonth) {
       return 'NEW_CUSTOMER';
     }
 
@@ -422,10 +441,13 @@ class PromotionService {
   }
 
   /**
-   * Xác định loại khuyến mãi dựa trên ngày tạo khách hàng và tháng target
-   * Quy tắc:
-   *   - Ngày 01-08: tham gia thưởng doanh số từ ngày tạo
-   *   - Ngày 09+: tháng tạo là quán mới, bắt đầu từ tháng kế tiếp
+   * Xác định loại khuyến mãi dựa trên tháng mở quán và tháng target
+   *
+   * QUY TẮC MỚI (2026-11-22):
+   *   - Tháng MỞ quán (tháng có created_at) → áp dụng "10 tặng 1" (quán mới)
+   *   - Tháng sau trở đi → áp dụng thưởng doanh số như bình thường
+   *   Không cần biết mở ngày nào trong tháng.
+   *
    * @param {object} customer - customer object có created_at
    * @param {number} targetMonth - tháng cần kiểm tra (1-12)
    * @param {number} targetYear - năm cần kiểm tra
@@ -442,49 +464,37 @@ class PromotionService {
       return { rewardEligible: false, newShopEligible: false, reason: 'Ngoài thời gian khuyến mãi', promotionStartDate: null };
     }
 
-    // Tính ngày bắt đầu khuyến mãi
+    // Tính ngày bắt đầu khuyến mãi (= ngày 01 tháng mở quán)
     const promotionStartDate = this.getPromotionStartDate(customer);
     const created = new Date(customer.created_at);
-    const createdDay = created.getDate();
     const createdMonth = created.getMonth() + 1;
     const createdYear = created.getFullYear();
 
-    const sameMonth = (targetMonth === createdMonth && targetYear === createdYear);
+    const isOpenMonth = (targetMonth === createdMonth && targetYear === createdYear);
 
-    if (sameMonth) {
-      // Trong tháng tạo khách
-      if (createdDay <= 8) {
-        // Ngày 01-08: tham gia thưởng doanh số
-        const canReward = customer.reward_enabled !== 0 && settings.rewardEnabled;
-        return {
-          rewardEligible: canReward,
-          newShopEligible: false,
-          promotionStartDate,
-          reason: canReward
-            ? 'Tham gia thưởng doanh số tháng ' + targetMonth
-            : 'Không tham gia thưởng doanh số'
-        };
-      } else {
-        // Ngày 09+: quán mới trong tháng tạo, không thưởng tháng này
-        return {
-          rewardEligible: false,
-          newShopEligible: settings.newShopEnabled && customer.new_shop_enabled !== 0,
-          promotionStartDate,
-          reason: 'Hưởng KM Quán mới trong tháng ' + targetMonth + '. Từ tháng ' + (targetMonth === 12 ? '1' : targetMonth + 1) + ' tham gia thưởng doanh số.'
-        };
-      }
-    } else {
-      // Khác tháng tạo: luôn tham gia thưởng doanh số
-      const canReward = customer.reward_enabled !== 0 && settings.rewardEnabled;
+    if (isOpenMonth) {
+      // THÁNG MỞ QUÁN → hưởng "10 tặng 1"
+      const newShopOk = settings.newShopEnabled && customer.new_shop_enabled !== 0;
       return {
-        rewardEligible: canReward,
-        newShopEligible: false,
+        rewardEligible: false,
+        newShopEligible: newShopOk,
         promotionStartDate,
-        reason: canReward
-          ? 'Tham gia thưởng doanh số tháng ' + targetMonth
-          : 'Không tham gia thưởng doanh số'
+        reason: newShopOk
+          ? 'Hưởng KM Quán mới trong tháng ' + targetMonth + '. Từ tháng ' + (targetMonth === 12 ? '1' : targetMonth + 1) + ' tham gia thưởng doanh số.'
+          : 'Không tham gia KM Quán mới'
       };
     }
+
+    // Tháng sau trở đi → thưởng doanh số
+    const canReward = customer.reward_enabled !== 0 && settings.rewardEnabled;
+    return {
+      rewardEligible: canReward,
+      newShopEligible: false,
+      promotionStartDate,
+      reason: canReward
+        ? 'Tham gia thưởng doanh số tháng ' + targetMonth
+        : 'Không tham gia thưởng doanh số'
+    };
   }
 
   /**
@@ -512,19 +522,120 @@ class PromotionService {
   }
 
   /**
-   * Tính lít được tặng cho quán mới theo từng loại bia
-   * @param {number} quantityGold - số lít bia vàng mua
-   * @param {number} quantityBlack - số lít bia đen mua
+   * Tính lít được tặng cho quán mới — THEO TỔNG SẢN LƯỢNG THÁNG MỞ QUÁN.
+   *
+   * QUY TẮC MỚI (2026-11-22):
+   *   "Quán mới" = THÁNG MỞ quán (tháng có created_at).
+   *   Tổng sản lượng TRONG THÁNG áp dụng theo cài đặt:
+   *     + Bia vàng: newShopGoldBuy lít mua → newShopGoldFree lít tặng
+   *     + Bia đen : newShopBlackBuy lít mua → newShopBlackFree lít tặng
+   *   KHÔNG cộng dồn qua tháng.
+   *
+   * ⚠️ KHÁC VỚI BẢN CŨ:
+   *   Bản cũ tính theo lít trong ĐƠN HIỆN TẠI (tặng tức thì, mỗi đơn một
+   *   lần) → dễ tặng trùng. Bản mới tính theo TỔNG THÁNG và chỉ trả phần
+   *   "VƯỢT MỐC" chưa được tặng (trừ phần đã tặng trong các đơn trước).
+   *
+   * @param {number} quantityGold - số lít bia vàng trong đơn này
+   * @param {number} quantityBlack - số lít bia đen trong đơn này
+   * @param {number} [customerId] - để biết khách nào (bắt buộc để tính tổng tháng)
    * @returns {{ freeGold, freeBlack, totalFree, promoType }}
    */
-  calculateNewShopPromotion(quantityGold = 0, quantityBlack = 0) {
+  calculateNewShopPromotion(quantityGold = 0, quantityBlack = 0, customerId = null) {
     const settings = this.getSystemPromotionSettings();
     if (!settings.newShopEnabled) {
       return { freeGold: 0, freeBlack: 0, totalFree: 0, promoType: null };
     }
 
-    const freeGold = Math.floor(quantityGold / settings.newShopGoldBuy) * settings.newShopGoldFree;
-    const freeBlack = Math.floor(quantityBlack / settings.newShopBlackBuy) * settings.newShopBlackFree;
+    // Không có customerId → giữ hành vi cũ (tính theo đơn) cho tương thích
+    if (!customerId) {
+      const freeGold = Math.floor(quantityGold / settings.newShopGoldBuy) * settings.newShopGoldFree;
+      const freeBlack = Math.floor(quantityBlack / settings.newShopBlackBuy) * settings.newShopBlackFree;
+      return {
+        freeGold,
+        freeBlack,
+        totalFree: freeGold + freeBlack,
+        promoType: 'NEW_SHOP'
+      };
+    }
+
+    // Tính theo TỔNG sản lượng tháng mở quán (đã gồm đơn đang tạo)
+    const customer = db.prepare('SELECT created_at FROM customers WHERE id = ?').get(customerId);
+    if (!customer || !customer.created_at) {
+      return { freeGold: 0, freeBlack: 0, totalFree: 0, promoType: null };
+    }
+    const created = new Date(customer.created_at);
+    const openYear = created.getFullYear();
+    const openMonth = created.getMonth() + 1;
+
+    const now = new Date();
+    const curYear = now.getFullYear();
+    const curMonth = now.getMonth() + 1;
+
+    // Chỉ áp dụng trong tháng mở quán
+    if (curYear !== openYear || curMonth !== openMonth) {
+      return { freeGold: 0, freeBlack: 0, totalFree: 0, promoType: null };
+    }
+
+    // Tổng lít đã MUA trong tháng (trước đơn này) — chỉ tính lít trả tiền thật
+    const before = db.prepare(`
+      SELECT p.name AS product_name, COALESCE(SUM(si.quantity), 0) AS quantity
+        FROM sales s
+        JOIN sale_items si ON si.sale_id = s.id
+        JOIN products p ON p.id = si.product_id
+       WHERE s.customer_id = ?
+         AND s.type = 'sale'
+         AND s.archived = 0
+         AND si.price > 0
+         AND p.type = 'keg'
+         AND strftime('%Y', s.date) = ?
+         AND strftime('%m', s.date) = ?
+    `).all(customerId, String(openYear), String(openMonth).padStart(2, '0'));
+
+    let prevGold = 0;
+    let prevBlack = 0;
+    for (const row of before) {
+      const q = Number(row.quantity) || 0;
+      if (this.classifyBeer(row.product_name) === 'black') prevBlack += q;
+      else prevGold += q;
+    }
+
+    // Phần ĐÃ TẶNG trong tháng (tính từ các đơn NEW_SHOP trước đó)
+    const gifted = db.prepare(`
+      SELECT p.name AS product_name, COALESCE(SUM(si.quantity), 0) AS quantity
+        FROM sales s
+        JOIN sale_items si ON si.sale_id = s.id
+        JOIN products p ON p.id = si.product_id
+       WHERE s.customer_id = ?
+         AND s.type = 'sale'
+         AND s.archived = 0
+         AND s.promo_type = 'NEW_SHOP'
+         AND si.price = 0
+         AND p.type = 'keg'
+         AND strftime('%Y', s.date) = ?
+         AND strftime('%m', s.date) = ?
+    `).all(customerId, String(openYear), String(openMonth).padStart(2, '0'));
+
+    let alreadyGiftGold = 0;
+    let alreadyGiftBlack = 0;
+    for (const row of gifted) {
+      const q = Number(row.quantity) || 0;
+      if (this.classifyBeer(row.product_name) === 'black') alreadyGiftBlack += q;
+      else alreadyGiftGold += q;
+    }
+
+    // Tổng tháng = đã mua trước đơn này + đơn này
+    const totalGold = prevGold + (Number(quantityGold) || 0);
+    const totalBlack = prevBlack + (Number(quantityBlack) || 0);
+
+    // Tổng thưởng theo tỉ lệ cấu hình
+    const entitledGold = Math.floor(totalGold / settings.newShopGoldBuy) * settings.newShopGoldFree;
+    const entitledBlack = Math.floor(totalBlack / settings.newShopBlackBuy) * settings.newShopBlackFree;
+
+    // Chỉ trả PHẦN VƯỢT MỐC chưa được tặng (tránh tặng trùng)
+    const freeGold = Math.max(0, entitledGold - alreadyGiftGold);
+    const freeBlack = Math.max(0, entitledBlack - alreadyGiftBlack);
+
     return {
       freeGold,
       freeBlack,
@@ -533,38 +644,90 @@ class PromotionService {
     };
   }
 
+  /**
+   * Tính thưởng "N tặng M" cho THÁNG MỞ QUÁN dựa trên tổng sản lượng tháng đó.
+   *
+   * QUY TẮC (2026-11-22):
+   *   - Tổng sản lượng trong THÁNG MỞ quán áp dụng theo cài đặt:
+   *       + Bia vàng: newShopGoldBuy lít mua → newShopGoldFree lít tặng
+   *       + Bia đen : newShopBlackBuy lít mua → newShopBlackFree lít tặng
+   *   - KHÔNG cộng dồn qua các tháng (mỗi tháng reset độc lập)
+   *   - CHỈ tính lít MUA THẬT (si.price > 0), không tính lít tặng
+   *   - CHỈ tính bia bình (keg), không tính pet/chai/box
+   *
+   * @param {number} customerId
+   * @param {number} year - năm của tháng mở quán
+   * @param {number} month - tháng mở quán (1-12)
+   * @returns {{ yellowReward: number, blackReward: number, totalReward: number, yellowVolume: number, blackVolume: number }}
+   */
+  calculateNewShopMonthlyReward(customerId, year, month) {
+    const settings = this.getSystemPromotionSettings();
+    const empty = {
+      yellowReward: 0,
+      blackReward: 0,
+      totalReward: 0,
+      yellowVolume: 0,
+      blackVolume: 0
+    };
+    if (!settings.newShopEnabled) return empty;
+
+    const monthStr = String(month).padStart(2, '0');
+
+    // Lít MUA THẬT trong tháng (loại phần tặng price = 0)
+    const rows = db.prepare(`
+      SELECT p.name AS product_name, si.quantity AS quantity
+        FROM sales s
+        JOIN sale_items si ON si.sale_id = s.id
+        JOIN products p ON p.id = si.product_id
+       WHERE s.customer_id = ?
+         AND s.type = 'sale'
+         AND s.archived = 0
+         AND si.price > 0
+         AND p.type = 'keg'
+         AND strftime('%Y', s.date) = ?
+         AND strftime('%m', s.date) = ?
+    `).all(customerId, String(year), monthStr);
+
+    let yellowVolume = 0;
+    let blackVolume = 0;
+    for (const row of rows) {
+      const q = Number(row.quantity) || 0;
+      if (this.classifyBeer(row.product_name) === 'black') blackVolume += q;
+      else yellowVolume += q;
+    }
+
+    // Floor theo tỉ lệ cấu hình
+    const yellowReward = Math.floor(yellowVolume / settings.newShopGoldBuy) * settings.newShopGoldFree;
+    const blackReward = Math.floor(blackVolume / settings.newShopBlackBuy) * settings.newShopBlackFree;
+
+    return {
+      yellowReward,
+      blackReward,
+      totalReward: yellowReward + blackReward,
+      yellowVolume,
+      blackVolume
+    };
+  }
+
   // ── 2. THƯỞNG DOANH SỐ THÁNG ────────────────────────────
 
   /**
    * Lấy ngày bắt đầu tham gia khuyến mãi sản lượng của khách
-   * Quy tắc:
-   *   - Ngày tạo 01-08: bắt đầu từ ngày tạo
-   *   - Ngày tạo 09+: bắt đầu từ ngày 01 của tháng kế tiếp
+   *
+   * QUY TẮC MỚI (2026-11-22):
+   *   "Quán mới" = THÁNG MỞ quán (tháng có created_at).
+   *   Ngày bắt đầu = ngày 01 của tháng mở quán.
+   *   Không cần biết mở ngày nào trong tháng.
+   *
    * @returns {string} YYYY-MM-DD
    */
   getPromotionStartDate(customer) {
     if (!customer || !customer.created_at) return null;
 
     const created = new Date(customer.created_at);
-    const day = created.getDate();
-
-    if (day <= 8) {
-      // Bắt đầu từ ngày tạo - format date thành YYYY-MM-DD
-      const y = created.getFullYear();
-      const m = String(created.getMonth() + 1).padStart(2, '0');
-      const d = String(created.getDate()).padStart(2, '0');
-      return `${y}-${m}-${d}`;
-    } else {
-      // Bắt đầu từ ngày 01 của tháng kế tiếp
-      // B7: Dùng local date components thay vì toISOString() để tránh lệch ngày
-      //     khi server ở TZ khác Asia/Ho_Chi_Minh (boundary ngày 31).
-      //     new Date(year, month, 1) tự động cuộn ngày nếu month vượt phạm vi
-      //     (ví dụ: month=12 → next year, month=0 → prev year).
-      const nextMonth = new Date(created.getFullYear(), created.getMonth() + 1, 1);
-      const y = nextMonth.getFullYear();
-      const m = String(nextMonth.getMonth() + 1).padStart(2, '0');
-      return `${y}-${m}-01`;
-    }
+    const y = created.getFullYear();
+    const m = String(created.getMonth() + 1).padStart(2, '0');
+    return `${y}-${m}-01`;
   }
 
   /**
@@ -1326,17 +1489,58 @@ class PromotionService {
 
     const program = this.determinePromotionProgram(customerId, rewardYear, rewardMonthNum);
     if (program === 'NEW_CUSTOMER') {
+      // ── THÁNG MỞ QUÁN → thưởng "10 tặng 1" (không dùng tier doanh số) ──
+      // Quy tắc 2026-11-22:
+      //   - Tỉ lệ theo cài đặt (mặc định 10L vàng → tặng 1L vàng; bia đen cài riêng)
+      //   - KHÔNG cộng dồn qua tháng → mỗi tháng reset
+      //   - Trả vào đơn hàng đầu tiên của tháng sau (như thưởng doanh số)
+      const newShopCalc = this.calculateNewShopMonthlyReward(customerId, rewardYear, rewardMonthNum);
+      if (newShopCalc.totalReward <= 0) {
+        return {
+          eligible: false,
+          rewardLiters: 0,
+          yellowReward: 0,
+          blackReward: 0,
+          mode: null,
+          tier: null,
+          alreadyClaimed: false,
+          rewardMonth: rewardMonthNum,
+          rewardYear,
+          reason: 'Chưa đủ điều kiện "10 tặng 1" trong tháng mở quán'
+        };
+      }
+
+      const newShopClaimed = db.prepare(`
+        SELECT COUNT(*) as cnt FROM reward_history
+        WHERE customer_id = ? AND note LIKE ?
+      `).get(customerId, `%tháng ${rewardMonthNum}/${rewardYear}%`);
+      const nsClaimed = newShopClaimed && newShopClaimed.cnt > 0;
+
+      const nsTier = `NEW_SHOP_${newShopCalc.totalReward}L`;
+      if (!nsClaimed) {
+        const nsProductId = (newShopCalc.yellowReward > 0 ? this._findRewardProduct('gold')?.id : null)
+          || (newShopCalc.blackReward > 0 ? this._findRewardProduct('black')?.id : null);
+        db.prepare(`
+          INSERT OR REPLACE INTO pending_rewards
+            (customer_id, reward_month, reward_year, reward_liters, reward_yellow_liters, reward_black_liters, mode, reward_tier, product_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          customerId, rewardMonthNum, rewardYear,
+          newShopCalc.totalReward, newShopCalc.yellowReward, newShopCalc.blackReward,
+          'NEW_SHOP', nsTier, nsProductId
+        );
+      }
+
       return {
-        eligible: false,
-        rewardLiters: 0,
-        yellowReward: 0,
-        blackReward: 0,
-        mode: null,
-        tier: null,
-        alreadyClaimed: false,
+        eligible: !nsClaimed,
+        rewardLiters: newShopCalc.totalReward,
+        yellowReward: newShopCalc.yellowReward,
+        blackReward: newShopCalc.blackReward,
+        mode: 'NEW_SHOP',
+        tier: nsTier,
+        alreadyClaimed: nsClaimed,
         rewardMonth: rewardMonthNum,
-        rewardYear,
-        reason: 'Thuộc chương trình Quán mới, không nhận thưởng sản lượng'
+        rewardYear
       };
     }
 
@@ -1442,8 +1646,9 @@ class PromotionService {
    * @param {number} blackReward
    * @param {number} [rewardMonth]
    * @param {number} [rewardYear]
+   * @param {string} [rewardSource] - 'MONTHLY_BONUS' (mặc định) | 'NEW_SHOP_BONUS'
    */
-  attachRewardToSale(customerId, saleId, rewardLiters, tier, rewardMonth, rewardYear, yellowReward, blackReward) {
+  attachRewardToSale(customerId, saleId, rewardLiters, tier, rewardMonth, rewardYear, yellowReward, blackReward, rewardSource) {
     // KIỂM TRA AN TOÀN: Kiểm tra reward_history trước khi gắn
     const actualRewardMonth = (rewardMonth !== undefined && rewardMonth !== null) ? rewardMonth : null;
     const actualRewardYear = (rewardYear !== undefined && rewardYear !== null) ? rewardYear : null;
@@ -1476,10 +1681,10 @@ class PromotionService {
       // Fallback: lấy bất kỳ keg nào (cần cost_price để tính COGS)
       const anyProduct = db.prepare('SELECT id, cost_price FROM products WHERE archived = 0 AND type = \'keg\' ORDER BY id ASC LIMIT 1').get();
       if (!anyProduct) return { success: false, error: 'Không tìm thấy sản phẩm' };
-      return this._doAttachReward(customerId, saleId, anyProduct.id, rewardLiters, tier, finalRewardMonth, finalRewardYear, yellowReward, blackReward, null, null, anyProduct.cost_price);
+      return this._doAttachReward(customerId, saleId, anyProduct.id, rewardLiters, tier, finalRewardMonth, finalRewardYear, yellowReward, blackReward, null, null, anyProduct.cost_price, rewardSource);
     }
 
-    return this._doAttachReward(customerId, saleId, null, rewardLiters, tier, finalRewardMonth, finalRewardYear, yellowReward, blackReward, goldProduct, blackProduct);
+    return this._doAttachReward(customerId, saleId, null, rewardLiters, tier, finalRewardMonth, finalRewardYear, yellowReward, blackReward, goldProduct, blackProduct, null, rewardSource);
   }
 
   /**
@@ -1488,9 +1693,17 @@ class PromotionService {
    * @param {object} blackProduct (optional)
    * @param {number} fallbackCostPrice (optional) - dùng khi goldProduct/blackProduct null
    */
-  _doAttachReward(customerId, saleId, productId, rewardLiters, tier, rewardMonth, rewardYear, yellowReward, blackReward, goldProduct, blackProduct, fallbackCostPrice) {
+  _doAttachReward(customerId, saleId, productId, rewardLiters, tier, rewardMonth, rewardYear, yellowReward, blackReward, goldProduct, blackProduct, fallbackCostPrice, rewardSource) {
     yellowReward = yellowReward || 0;
     blackReward = blackReward || 0;
+    // QUY TẮC 2026-11-22: phân biệt nguồn thưởng
+    //   - 'NEW_SHOP_BONUS' → thưởng "10 tặng 1" của tháng mở quán
+    //   - 'MONTHLY_BONUS'  → thưởng doanh số (mặc định)
+    rewardSource = rewardSource || 'MONTHLY_BONUS';
+    const salePromoType = rewardSource === 'NEW_SHOP_BONUS' ? 'NEW_SHOP_BONUS' : 'MONTHLY_BONUS';
+    const rewardNoteLabel = rewardSource === 'NEW_SHOP_BONUS'
+      ? 'Thưởng quán mới'
+      : 'Thưởng sản lượng';
 
     const tx = db.transaction(() => {
       // 1. Thêm item vào sale hiện tại (price=0)
@@ -1499,8 +1712,8 @@ class PromotionService {
       if (yellowReward > 0 && goldProduct) {
         db.prepare(`
           INSERT INTO sale_items (sale_id, product_id, quantity, price, cost_price, profit, paid_quantity, reward_quantity, reward_source, reward_month, reward_year)
-          VALUES (?, ?, ?, 0, ?, 0, 0, ?, 'MONTHLY_BONUS', ?, ?)
-        `).run(saleId, goldProduct.id, yellowReward, goldProduct.cost_price || 0, yellowReward, rewardMonth, rewardYear);
+          VALUES (?, ?, ?, 0, ?, 0, 0, ?, ?, ?, ?)
+        `).run(saleId, goldProduct.id, yellowReward, goldProduct.cost_price || 0, yellowReward, rewardSource, rewardMonth, rewardYear);
         db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(yellowReward, goldProduct.id);
 
         const customer = db.prepare('SELECT name FROM customers WHERE id = ?').get(customerId);
@@ -1512,15 +1725,15 @@ class PromotionService {
           refId: saleId,
           refType: 'sale',
           customerName: customer?.name || '',
-          note: `Trả thưởng sản lượng tháng ${rewardMonth}/${rewardYear} - bia vàng`,
+          note: `Trả ${rewardNoteLabel} tháng ${rewardMonth}/${rewardYear} - bia vàng`,
         });
       }
 
       if (blackReward > 0 && blackProduct) {
         db.prepare(`
           INSERT INTO sale_items (sale_id, product_id, quantity, price, cost_price, profit, paid_quantity, reward_quantity, reward_source, reward_month, reward_year)
-          VALUES (?, ?, ?, 0, ?, 0, 0, ?, 'MONTHLY_BONUS', ?, ?)
-        `).run(saleId, blackProduct.id, blackReward, blackProduct.cost_price || 0, blackReward, rewardMonth, rewardYear);
+          VALUES (?, ?, ?, 0, ?, 0, 0, ?, ?, ?, ?)
+        `).run(saleId, blackProduct.id, blackReward, blackProduct.cost_price || 0, blackReward, rewardSource, rewardMonth, rewardYear);
         db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(blackReward, blackProduct.id);
 
         const customer = db.prepare('SELECT name FROM customers WHERE id = ?').get(customerId);
@@ -1532,7 +1745,7 @@ class PromotionService {
           refId: saleId,
           refType: 'sale',
           customerName: customer?.name || '',
-          note: `Trả thưởng sản lượng tháng ${rewardMonth}/${rewardYear} - bia đen`,
+          note: `Trả ${rewardNoteLabel} tháng ${rewardMonth}/${rewardYear} - bia đen`,
         });
       }
 
@@ -1540,8 +1753,8 @@ class PromotionService {
       if (yellowReward === 0 && blackReward === 0 && productId) {
         db.prepare(`
           INSERT INTO sale_items (sale_id, product_id, quantity, price, cost_price, profit, paid_quantity, reward_quantity, reward_source, reward_month, reward_year)
-          VALUES (?, ?, ?, 0, ?, 0, 0, ?, 'MONTHLY_BONUS', ?, ?)
-        `).run(saleId, productId, rewardLiters, fallbackCostPrice || 0, rewardLiters, rewardMonth, rewardYear);
+          VALUES (?, ?, ?, 0, ?, 0, 0, ?, ?, ?, ?)
+        `).run(saleId, productId, rewardLiters, fallbackCostPrice || 0, rewardLiters, rewardSource, rewardMonth, rewardYear);
         db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(rewardLiters, productId);
       }
 
@@ -1552,13 +1765,13 @@ class PromotionService {
       // B19: Cast tháng/năm sang TEXT để tránh concat với REAL (note lỡ có '.0')
       db.prepare(`
         UPDATE sales SET
-          promo_type = 'MONTHLY_BONUS',
+          promo_type = ?,
           reward_liters_used = ?,
           promo_free_liters = COALESCE(promo_free_liters, 0) + ?,
           deliver_kegs = deliver_kegs + ?,
-          note = COALESCE(note, '') || ' | Trả thưởng sản lượng tháng ' || CAST(? AS TEXT) || '/' || CAST(? AS TEXT) || ?
+          note = COALESCE(note, '') || ' | Trả ' || ? || ' tháng ' || CAST(? AS TEXT) || '/' || CAST(? AS TEXT) || ?
         WHERE id = ?
-      `).run(rewardLiters, rewardLiters, rewardLiters, rewardMonth, rewardYear, noteSuffix, saleId);
+      `).run(salePromoType, rewardLiters, rewardLiters, rewardLiters, rewardNoteLabel, rewardMonth, rewardYear, noteSuffix, saleId);
 
       // 3b. Cập nhật sales.profit = SUM(quantity * price - quantity * cost_price) cho TẤT CẢ items
       // Đảm bảo profit bao gồm cả COGS của bia tặng (reward có price=0 nhưng cost_price > 0)
@@ -1575,7 +1788,7 @@ class PromotionService {
       db.prepare(`
         INSERT INTO reward_history (customer_id, reward_tier, reward_liters, reward_yellow_liters, reward_black_liters, note)
         VALUES (?, ?, ?, ?, ?, ?)
-      `).run(customerId, tier, rewardLiters, yellowReward, blackReward, `Trả thưởng sản lượng tháng ${rewardMonth}/${rewardYear} - tự động qua hóa đơn đầu tiên${noteSuffix}`);
+      `).run(customerId, tier, rewardLiters, yellowReward, blackReward, `Trả ${rewardNoteLabel} tháng ${rewardMonth}/${rewardYear} - tự động qua hóa đơn đầu tiên${noteSuffix}`);
 
       // 6. Cập nhật customer_monthly_stats (cập nhật tháng thưởng)
       const existingStats = db.prepare(`
@@ -1739,7 +1952,9 @@ class PromotionService {
         `).get(customer.id, checkMonth, checkYear);
 
         // Xác định chương trình nên áp dụng
-        const shouldBeNewCustomer = (checkYear === createdYear && checkMonth === createdMonth && createdDay >= 9);
+        // QUY TẮC 2026-11-22: "Quán mới" = THÁNG MỞ quán (tháng có created_at),
+        // KHÔNG phụ thuộc ngày nào trong tháng.
+        const shouldBeNewCustomer = (checkYear === createdYear && checkMonth === createdMonth);
 
         // Kiểm tra xung đột
         const hasNewShopSale = newShopSales && newShopSales.cnt > 0;
@@ -1817,7 +2032,10 @@ class PromotionService {
   // ── 5. STATS PROMOTION ──────────────────────────────────
 
   /**
-   * Lấy số quán mới trong tháng hiện tại (tạo ngày 09+)
+   * Lấy số quán mới trong tháng hiện tại.
+   *
+   * QUY TẮC 2026-11-22: "Quán mới" = THÁNG MỞ quán (tháng có created_at),
+   * KHÔNG phụ thuộc mở ngày nào trong tháng.
    */
   getActiveNewShopCount() {
     const settings = this.getSystemPromotionSettings();
@@ -1828,14 +2046,13 @@ class PromotionService {
     const month = now.getMonth() + 1;
     const monthStr = String(month).padStart(2, '0');
 
-    // Đếm khách tạo trong tháng hiện tại với ngày >= 9
+    // Đếm khách tạo trong tháng hiện tại (tháng mở quán)
     const result = db.prepare(`
       SELECT COUNT(*) as count
       FROM customers
       WHERE archived = 0
         AND strftime('%Y', created_at) = ?
         AND strftime('%m', created_at) = ?
-        AND CAST(strftime('%d', created_at) AS INTEGER) >= 9
         AND promotion_enabled = 1
     `).get(String(year), monthStr);
     return result ? result.count : 0;

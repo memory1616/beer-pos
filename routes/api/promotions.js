@@ -440,6 +440,82 @@ router.get('/new-shop/calculate', (req, res) => {
 });
 
 /**
+ * GET /api/promotions/new-shop/monthly-summary/:customerId
+ *
+ * Trả về tổng sản lượng + số lít đã tặng trong THÁNG MỞ QUÁN của khách.
+ *
+ * QUY TẮC 2026-11-22:
+ *   "Quán mới" = tháng có created_at (không phụ thuộc ngày nào).
+ *   Tổng sản lượng tháng áp dụng tỉ lệ "mua X tặng Y" theo cài đặt.
+ *   KHÔNG cộng dồn qua tháng.
+ *
+ * Frontend dùng endpoint này để preview chính xác (không chỉ tính đơn hiện tại).
+ */
+router.get('/new-shop/monthly-summary/:customerId', (req, res) => {
+  try {
+    const customerId = parseInt(req.params.customerId);
+    if (!customerId) return res.status(400).json({ success: false, error: 'ID không hợp lệ' });
+
+    const customer = db.prepare('SELECT created_at FROM customers WHERE id = ?').get(customerId);
+    if (!customer || !customer.created_at) {
+      return res.json({
+        success: true,
+        data: {
+          eligible: false,
+          reason: 'Không tìm thấy khách hàng',
+          yellowVolume: 0,
+          blackVolume: 0,
+          yellowReward: 0,
+          blackReward: 0,
+          totalReward: 0
+        }
+      });
+    }
+
+    const created = new Date(customer.created_at);
+    const openYear = created.getFullYear();
+    const openMonth = created.getMonth() + 1;
+    const now = new Date();
+    const isOpenMonth = now.getFullYear() === openYear && now.getMonth() + 1 === openMonth;
+
+    if (!isOpenMonth) {
+      return res.json({
+        success: true,
+        data: {
+          eligible: false,
+          openYear,
+          openMonth,
+          reason: 'Không thuộc tháng mở quán',
+          yellowVolume: 0,
+          blackVolume: 0,
+          yellowReward: 0,
+          blackReward: 0,
+          totalReward: 0
+        }
+      });
+    }
+
+    const calc = PromotionService.calculateNewShopMonthlyReward(customerId, openYear, openMonth);
+    res.json({
+      success: true,
+      data: {
+        eligible: true,
+        openYear,
+        openMonth,
+        yellowVolume: calc.yellowVolume,
+        blackVolume: calc.blackVolume,
+        yellowReward: calc.yellowReward,
+        blackReward: calc.blackReward,
+        totalReward: calc.totalReward
+      }
+    });
+  } catch (e) {
+    logger.error('new-shop monthly-summary error:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+/**
  * GET /api/promotions/reward/status/:customerId
  * Lấy trạng thái thưởng tháng của khách
  */
@@ -893,10 +969,11 @@ router.post('/reward/auto-generate', (req, res) => {
 
     const txn = db.transaction(() => {
       for (const cust of customers) {
-        // Bỏ qua tháng tạo khách + ngày 09+ (NEW_CUSTOMER / quán mới)
+        // Bỏ qua THÁNG MỞ QUÁN (NEW_CUSTOMER / quán mới)
+        // QUY TẮC 2026-11-22: tháng mở quán = tháng có created_at (không phụ thuộc ngày nào)
         const created = new Date(cust.created_at);
-        if (created.getFullYear() === year && (created.getMonth() + 1) === month && created.getDate() >= 9) {
-          results.skipped_newcustomer.push({ id: cust.id, name: cust.name, reason: 'thang tao + ngay >=9' });
+        if (created.getFullYear() === year && (created.getMonth() + 1) === month) {
+          results.skipped_newcustomer.push({ id: cust.id, name: cust.name, reason: 'thang mo quan' });
           continue;
         }
 

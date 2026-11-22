@@ -79,6 +79,7 @@ let saleState = {
   newShopCreatedDay: null,
   promotionEnabled: true,
   promoSettings: null,  // Cài đặt khuyến mãi từ server
+  newShopSummary: null,  // Tổng sản lượng + lít tặng trong tháng mở quán (từ API)
   isInNewShopPeriod: false,  // Khách đang trong thời gian quán mới
   canReceiveReward: false,  // Có thể nhận thưởng tháng
   qrConfig: null,  // Cài đặt QR fallback từ server
@@ -1360,13 +1361,18 @@ function isNewShopCustomer(customer) {
   return getNewShopCreatedDay(customer) !== null;
 }
 
+/**
+ * Khách có đang ở THÁNG MỞ QUÁN không?
+ *
+ * QUY TẮC 2026-11-22: "Quán mới" = tháng có created_at (không phụ thuộc ngày nào).
+ * Trả về ngày tạo để hiển thị badge, hoặc null nếu không phải tháng mở quán.
+ */
 function getNewShopCreatedDay(customer) {
-  if (!customer.created_at) return null;
+  if (!customer || !customer.created_at) return null;
   var created = new Date(customer.created_at);
   var now = new Date();
   var isSameMonth = created.getMonth() === now.getMonth() && created.getFullYear() === now.getFullYear();
-  var isDay09Plus = created.getDate() >= 9;
-  return (isSameMonth && isDay09Plus) ? created.getDate() : null;
+  return isSameMonth ? created.getDate() : null;
 }
 
 function renderCustomerDropdown(list) {
@@ -1379,7 +1385,7 @@ function renderCustomerDropdown(list) {
     dropdown.innerHTML = list.map(function(c) {
       var createdDay = getNewShopCreatedDay(c);
       var badge = createdDay
-        ? '<span style="background:#ffedd5;color:#c2410c;font-size:11px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:6px;white-space:nowrap;">🔥 Quán mới ngày ' + createdDay + '</span>'
+        ? '<span style="background:#ffedd5;color:#c2410c;font-size:11px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:6px;white-space:nowrap;">🔥 Quán mới tháng này</span>'
         : '';
       return '<div class="customer-dd-item" onclick="selectCustomer(\'' + c.id + '\', \'' + escAttr(c.name || '') + '\')">' +
         '<span style="font-weight:600;">' + escHtml(c.name || 'Khách') + '</span>' +
@@ -1419,6 +1425,7 @@ function selectCustomer(customerId, customerName) {
   // Reset promo state immediately (trước async API response)
   saleState.newShopEligible = false;
   saleState.newShopCreatedDay = null;
+  saleState.newShopSummary = null;
   saleState.promotionEnabled = true;
   hideNewShopBadge();
   hidePromoPreview();
@@ -1542,7 +1549,7 @@ function showNewShopActiveNotice(newShop) {
   var el = document.getElementById('newShopActiveNotice');
   if (el && newShop) {
     el.classList.remove('hidden');
-    el.innerHTML = '<span style="font-size:12px;">&#128293;</span> Khách đang trong thời gian quán mới (tạo ngày <b>' + newShop.createdDay + '</b>)<br><span style="font-size:11px;color:#6b7280;">(thưởng tháng sẽ được áp dụng sau khi hết thời gian quán mới)</span>';
+    el.innerHTML = '<span style="font-size:12px;">&#128293;</span> Khách đang ở <b>tháng mở quán</b> — áp dụng KM "mua X tặng Y" theo tổng sản lượng tháng này<br><span style="font-size:11px;color:#6b7280;">(thưởng sản lượng sẽ áp dụng từ tháng sau)</span>';
   }
 }
 
@@ -1577,7 +1584,7 @@ function showNewShopBadge(createdDay) {
   var badge = document.getElementById('newShopBadge');
   if (badge) {
     badge.classList.remove('hidden');
-    badge.innerHTML = '<span style="font-size:14px;">🔥</span> Quán mới ngày <b>' + createdDay + '</b><br><span style="font-size:11px;color:#92400e;">Mua 10L vàng tặng 1L | Mua 20L đen tặng 1L</span>';
+    badge.innerHTML = '<span style="font-size:14px;">🔥</span> <b>Quán mới — tháng mở quán</b><br><span style="font-size:11px;color:#92400e;">Mua 10L vàng tặng 1L | Mua 20L đen tặng 1L</span>';
   }
 }
 
@@ -1620,9 +1627,43 @@ function updatePromoPreview() {
   var blackBuy = saleState.promoSettings?.newShopBlackBuy || 20;
   var blackFree = saleState.promoSettings?.newShopBlackFree || 1;
 
-  // Calculate free liters
-  var freeGold = Math.floor(qtyGold / goldBuy) * goldFree;
-  var freeBlack = Math.floor(qtyBlack / blackBuy) * blackFree;
+  // QUY TẮC 2026-11-22: preview phải theo TỔNG sản lượng THÁNG MỞ QUÁN.
+  // → Gọi API để lấy tổng tháng (chính xác), fallback tính local nếu lỗi.
+  var custId = saleState.customerId;
+  if (custId) {
+    fetch('/api/promotions/new-shop/monthly-summary/' + custId, { cache: 'no-store' })
+      .then(function(res) { return safeJson(res); })
+      .then(function(data) {
+        if (!data || !data.success) return;
+        // Guard: khách đã đổi → bỏ qua
+        if (String(saleState.customerId) !== String(custId)) return;
+        var d = data.data;
+        saleState.newShopSummary = d || null;
+        if (!d || !d.eligible) { hidePromoPreview(); return; }
+        renderPromoPreview(d.yellowReward || 0, d.blackReward || 0,
+          (d.yellowVolume || 0) + (d.blackVolume || 0));
+      })
+      .catch(function() {
+        // Fallback: tính local theo đơn hiện tại
+        renderPromoPreview(
+          Math.floor(qtyGold / goldBuy) * goldFree,
+          Math.floor(qtyBlack / blackBuy) * blackFree,
+          qtyGold + qtyBlack
+        );
+      });
+    return;
+  }
+
+  // Fallback khi chưa chọn khách
+  renderPromoPreview(
+    Math.floor(qtyGold / goldBuy) * goldFree,
+    Math.floor(qtyBlack / blackBuy) * blackFree,
+    qtyGold + qtyBlack
+  );
+}
+
+/** Vẽ preview KM quán mới (dùng chung cho cả nhánh API và fallback local) */
+function renderPromoPreview(freeGold, freeBlack, totalVolume) {
   var totalFree = freeGold + freeBlack;
   if (totalFree <= 0) { hidePromoPreview(); return; }
 
@@ -1633,7 +1674,7 @@ function updatePromoPreview() {
   var el = document.getElementById('promoPreview');
   if (el) {
     el.classList.remove('hidden');
-    el.innerHTML = '🎁 Khuyến mãi quán mới: ' + lines.join(' | ');
+    el.innerHTML = '🎁 KM quán mới (tổng tháng ' + totalVolume + 'L): ' + lines.join(' | ');
   }
 }
 
@@ -1676,8 +1717,15 @@ function buildPromoDetailHtml() {
   var blackBuy = saleState.promoSettings?.newShopBlackBuy || 20;
   var blackFree = saleState.promoSettings?.newShopBlackFree || 1;
 
-  freeGold = Math.floor(qtyGold / goldBuy) * goldFree;
-  freeBlack = Math.floor(qtyBlack / blackBuy) * blackFree;
+  // QUY TẮC 2026-11-22: ưu tiên số liệu TỔNG THÁNG từ API (đã cache ở saleState.newShopSummary)
+  var sum = saleState.newShopSummary;
+  if (sum && sum.eligible) {
+    freeGold = sum.yellowReward || 0;
+    freeBlack = sum.blackReward || 0;
+  } else {
+    freeGold = Math.floor(qtyGold / goldBuy) * goldFree;
+    freeBlack = Math.floor(qtyBlack / blackBuy) * blackFree;
+  }
   if (freeGold <= 0 && freeBlack <= 0) return '';
 
   var lines = [];

@@ -312,7 +312,9 @@ router.get('/data', (req, res) => {
     },
     promoStats: (function() {
       try {
-        // Count active new shops in current month (created day >= 9)
+        // Count active new shops in current month
+        // QUY TẮC 2026-11-22: "Quán mới" = THÁNG MỞ quán (tháng có created_at),
+        // KHÔNG phụ thuộc mở ngày nào trong tháng.
         const now = new Date();
         const year = now.getFullYear();
         const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -322,7 +324,6 @@ router.get('/data', (req, res) => {
           WHERE archived = 0
             AND strftime('%Y', created_at) = ?
             AND strftime('%m', created_at) = ?
-            AND CAST(strftime('%d', created_at) AS INTEGER) >= 9
         `).get(String(year), month);
         const newShops = activeNewShops ? activeNewShops.cnt : 0;
 

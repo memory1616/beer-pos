@@ -1502,8 +1502,9 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS promotion_settings (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     -- KHUYEN MÃI QUAN MOI
+    -- "Quán mới" = THÁNG MỞ quán (tháng có created_at) — không dùng new_shop_days
     new_shop_enabled INTEGER DEFAULT 1,
-    new_shop_days INTEGER DEFAULT 30,
+    new_shop_days INTEGER DEFAULT 30,  -- legacy, không còn dùng
     new_shop_gold_buy INTEGER DEFAULT 10,
     new_shop_gold_free INTEGER DEFAULT 1,
     new_shop_black_buy INTEGER DEFAULT 20,

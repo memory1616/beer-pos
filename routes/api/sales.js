@@ -408,7 +408,7 @@ router.post('/', async (req, res) => {
             if (beerType === 'black') quantityBlack += item.quantity;
             else quantityGold += item.quantity;
           }
-          promoInfo = PromotionService.calculateNewShopPromotion(quantityGold, quantityBlack);
+          promoInfo = PromotionService.calculateNewShopPromotion(quantityGold, quantityBlack, customerId);
           if (promoInfo.totalFree > 0) {
             console.log('[NEW SHOP PROMO]', promoInfo);
           }
@@ -693,7 +693,33 @@ router.post('/', async (req, res) => {
         const program = PromotionService.determinePromotionProgram(customerId, rewardYear, rewardMonthNum);
 
         if (program === 'NEW_CUSTOMER') {
-          console.log('[AUTO REWARD] Bo qua vi khach', customerId, 'thuoc chuong trinh QUAN MOI thang', rewardMonthNum, '/', rewardYear, '- khong nhan thuong san luong');
+          // QUY TẮC MỚI (2026-11-22): tháng mở quán được thưởng "10 tặng 1"
+          // theo tổng sản lượng tháng đó, trả vào đơn đầu tiên tháng sau.
+          console.log('[AUTO REWARD] Thang', rewardMonthNum, '/', rewardYear, 'la thang MO QUAN — tinh thuong "10 tang 1"');
+          const claimedThisMonth = db.prepare(`
+            SELECT COUNT(*) as cnt FROM reward_history
+            WHERE customer_id = ? AND note LIKE ?
+          `).get(customerId, `%tháng ${rewardMonthNum}/${rewardYear}%`);
+
+          if (!claimedThisMonth || claimedThisMonth.cnt === 0) {
+            const rewardInfo = PromotionService.getRewardForPrevMonth(customerId);
+            if (rewardInfo && rewardInfo.eligible && rewardInfo.rewardLiters > 0) {
+              autoRewardResult = PromotionService.attachRewardToSale(
+                customerId,
+                saleId,
+                rewardInfo.rewardLiters,
+                rewardInfo.tier,
+                rewardInfo.rewardMonth,
+                rewardInfo.rewardYear,
+                rewardInfo.yellowReward,
+                rewardInfo.blackReward,
+                'NEW_SHOP_BONUS'
+              );
+              if (autoRewardResult && autoRewardResult.success) {
+                console.log('[AUTO REWARD] Da gan thuong QUAN MOI vao don', customerId, ':', rewardInfo.rewardLiters, 'L - thang', rewardInfo.rewardMonth, '/', rewardInfo.rewardYear);
+              }
+            }
+          }
         } else if (program === 'NONE') {
           console.log('[AUTO REWARD] Bo qua vi khach', customerId, 'khong du dieu kien thuong thang', rewardMonthNum, '/', rewardYear);
         } else {
@@ -1689,12 +1715,13 @@ router.put('/:id', (req, res) => {
     }
     logger.info(`[api/sales] Sale found: type=${currentSale.type}, current total=${currentSale.total}`);
 
-    // P0.2: Chặn sửa đơn có MONTHLY_BONUS để bảo toàn reward_history, customer_monthly_stats,
-    //        stock và promo_type. Nếu cần sửa, phải xóa đơn rồi tạo lại.
+    // P0.2: Chặn sửa đơn có MONTHLY_BONUS / NEW_SHOP_BONUS để bảo toàn reward_history,
+    //        customer_monthly_stats, stock và promo_type. Nếu cần sửa, phải xóa đơn rồi tạo lại.
     const isMonthlyBonus =
       currentSale.promo_type === 'MONTHLY_BONUS' ||
+      currentSale.promo_type === 'NEW_SHOP_BONUS' ||
       (currentSale.reward_liters_used || 0) > 0 ||
-      (currentSale.note && /Trả thưởng sản lượng tháng\s+\d+\/\d+/.test(currentSale.note));
+      (currentSale.note && /Trả\s+(thưởng sản lượng|Thưởng quán mới)\s+tháng\s+\d+\/\d+/i.test(currentSale.note));
     if (isMonthlyBonus) {
       logger.warn(`[api/sales] Refuse to edit MONTHLY_BONUS sale ${saleId}`);
       return res.status(400).json({
@@ -1763,9 +1790,11 @@ router.put('/:id', (req, res) => {
       // Kiểm tra xem khách có đủ điều kiện quán mới không
       const newShopCheck = PromotionService.isNewShopEligible(customerId);
       if (newShopCheck.eligible) {
-        const settings = PromotionService.getSystemPromotionSettings();
-        const freeGold = Math.floor(qtyGold / settings.newShopGoldBuy) * settings.newShopGoldFree;
-        const freeBlack = Math.floor(qtyBlack / settings.newShopBlackBuy) * settings.newShopBlackFree;
+        // QUY TẮC 2026-11-22: tính theo TỔNG sản lượng tháng mở quán,
+        // chỉ trả phần VƯỢT MỐC chưa được tặng (tránh tặng trùng).
+        const promoCalc = PromotionService.calculateNewShopPromotion(qtyGold, qtyBlack, customerId);
+        const freeGold = promoCalc.freeGold;
+        const freeBlack = promoCalc.freeBlack;
 
         if (freeGold > 0) {
           const goldProduct = db.prepare(`SELECT id, name, slug FROM products WHERE archived = 0 AND type = 'keg' AND name NOT LIKE '%Đen%' AND name NOT LIKE '%Den%' AND name NOT LIKE '%den%' ORDER BY id ASC LIMIT 1`).get();

@@ -154,9 +154,12 @@ function deleteSaleRestoringInventory(saleId) {
       //   1. promo_type === 'MONTHLY_BONUS' (chưa archive)
       //   2. reward_liters_used > 0 (đã từng gắn thưởng)
       //   3. note có chứa "Trả thưởng sản lượng tháng X/YYYY" (các note phổ biến)
+      // QUY TẮC 2026-11-22: thêm promo_type 'NEW_SHOP_BONUS' (thưởng quán mới)
+      //   và note "Trả Thưởng quán mới tháng X/YYYY".
       const isMonthlyBonus = sale.promo_type === 'MONTHLY_BONUS'
+        || sale.promo_type === 'NEW_SHOP_BONUS'
         || (sale.reward_liters_used && sale.reward_liters_used > 0)
-        || (sale.note && /Trả thưởng sản lượng tháng\s+\d+\/\d+/.test(sale.note));
+        || (sale.note && /Trả\s+(thưởng sản lượng|Thưởng quán mới)\s+tháng\s+\d+\/\d+/i.test(sale.note));
 
       if (sale.customer_id && isMonthlyBonus) {
         db.prepare("UPDATE customers SET reward_claimed = 0, reward_claimed_at = NULL WHERE id = ?").run(sale.customer_id);
