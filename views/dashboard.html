@@ -1375,21 +1375,28 @@
   </div>
 
   <!-- ========== ALERT + CLOUD SETTINGS MODAL ========== -->
-  <div id="alertSettingsModal" class="fixed inset-0 hidden items-center justify-center p-4 z-50" style="background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);">
-    <div class="w-full max-w-sm max-h-[90vh] overflow-y-auto rounded-2xl" style="background:var(--card);border:1px solid var(--border);padding:24px;box-shadow:0 20px 60px rgba(0,0,0,0.4);">
-      <div class="flex justify-between items-center mb-4">
+  <!-- z-index dùng token --z-modal (10000) → cao hơn header (1000) và bottom nav (999).
+       padding-top/-bottom bù header cố định (56px) và bottom nav (64px). -->
+  <div id="alertSettingsModal" class="fixed inset-0 hidden items-center justify-center p-4"
+       onclick="onAlertSettingsOverlayClick(event)"
+       style="z-index:var(--z-modal, 10000);background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding-top:calc(56px + 1rem);padding-bottom:calc(64px + 1rem);">
+    <div class="w-full max-w-sm flex flex-col"
+         style="max-height:calc(100vh - 56px - 64px - 2rem);background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,0.4);overflow:hidden;">
+      <div class="flex justify-between items-center mb-3 shrink-0">
         <h3 class="font-bold text-lg" style="color:var(--text-primary);">⚙️ Cài đặt</h3>
-        <button onclick="closeAlertSettings()" class="text-2xl leading-none hover:opacity-70" style="color:var(--text-secondary);">✕</button>
+        <button onclick="closeAlertSettings()" class="text-2xl hover:opacity-70" style="color:var(--text-secondary);line-height:1;background:none;border:none;cursor:pointer;padding:0 4px;" aria-label="Đóng">✕</button>
       </div>
 
       <!-- Tab Navigation -->
-      <div class="flex mb-4" style="border-bottom:1px solid var(--border);">
+      <div class="flex mb-3 shrink-0" style="border-bottom:1px solid var(--border);">
         <button id="tabAlertBtn" onclick="switchSettingsTab('alert')"
-          class="flex-1 py-2 text-sm font-medium text-center" style="color:var(--primary);border-bottom:2px solid var(--primary);">⚠️ Cảnh báo</button>
+          class="flex-1 text-sm font-medium text-center" style="padding:8px 0;color:var(--primary);border-bottom:2px solid var(--primary);">⚠️ Cảnh báo</button>
         <button id="tabCloudBtn" onclick="switchSettingsTab('cloud')"
-          class="flex-1 py-2 text-sm font-medium text-center" style="color:var(--text-secondary);border-bottom:2px solid transparent;">☁️ Cloud</button>
+          class="flex-1 text-sm font-medium text-center" style="padding:8px 0;color:var(--text-secondary);border-bottom:2px solid transparent;">☁️ Cloud</button>
       </div>
 
+      <!-- Nội dung tab: cuộn riêng, nút Lưu luôn nhìn thấy -->
+      <div class="overflow-y-auto" style="flex:1 1 auto;min-height:0;-webkit-overflow-scrolling:touch;">
       <!-- Tab: Cảnh báo -->
       <div id="tabAlert" class="space-y-4">
         <div>
@@ -1413,30 +1420,31 @@
           <div id="cloudStatusText" style="color:var(--text-secondary);">Đang kiểm tra...</div>
         </div>
 
-        <button id="becomeCloudBtn" class="w-full text-left p-3 rounded-xl" style="background:var(--bg-hover);border:2px solid var(--info);">
+        <button id="becomeCloudBtn" class="w-full p-3 rounded-xl" style="background:var(--bg-hover);border:2px solid var(--info);text-align:left;">
           <div class="font-semibold" style="color:var(--info);">🖥️ Dùng máy này làm Cloud</div>
-          <div class="text-xs mt-0.5" style="color:var(--text-secondary);">Các thiết bị khác tự động phát hiện máy này</div>
+          <div class="text-xs" style="color:var(--text-secondary);margin-top:2px;">Các thiết bị khác tự động phát hiện máy này</div>
         </button>
 
-        <button id="scanCloudBtn" class="w-full text-left p-3 rounded-xl" style="background:var(--bg-hover);border:2px solid var(--border);">
+        <button id="scanCloudBtn" class="w-full p-3 rounded-xl" style="background:var(--bg-hover);border:2px solid var(--border);text-align:left;">
           <div class="font-semibold" style="color:var(--text-primary);">🔍 Tìm Cloud trong mạng LAN</div>
-          <div id="scanStatus" class="text-xs mt-0.5" style="color:var(--text-secondary);">Quét các máy trong mạng...</div>
+          <div id="scanStatus" class="text-xs" style="color:var(--text-secondary);margin-top:2px;">Quét các máy trong mạng...</div>
         </button>
 
         <div class="rounded-xl p-3" style="background:var(--bg-hover);border:1px solid var(--border);">
           <div class="text-xs font-semibold mb-2" style="color:var(--text-primary);">Hoặc nhập thủ công:</div>
           <input id="cloudUrlInput" type="url" placeholder="http://192.168.1.x:3001"
                  class="w-full rounded-lg px-3 py-2 text-sm mb-2" style="background:var(--card);border:1px solid var(--border);color:var(--text-primary);">
-          <button id="saveCloudUrlBtn" class="w-full h-10 text-sm font-medium rounded-lg" style="background:var(--primary);color:var(--text-on-dark);">
+          <button id="saveCloudUrlBtn" class="w-full text-sm font-medium rounded-lg" style="height:40px;background:var(--primary);color:var(--text-on-dark);border:none;">
             💾 Lưu URL Cloud
           </button>
         </div>
       </div>
+      </div>
 
       <!-- Chỉ nút Lưu cho tab Cảnh báo -->
-      <div id="alertSaveSection" class="flex gap-2 mt-6">
-        <button onclick="closeAlertSettings()" class="flex-1 h-12 text-sm font-medium rounded-lg" style="background:var(--bg-hover);color:var(--text-secondary);">Hủy</button>
-        <button onclick="saveAlertSettings()" class="flex-1 h-12 text-sm font-medium rounded-lg" style="background:var(--primary);color:var(--text-on-dark);">💾 Lưu</button>
+      <div id="alertSaveSection" class="flex gap-2 shrink-0" style="margin-top:16px;">
+        <button onclick="closeAlertSettings()" class="flex-1 text-sm font-medium rounded-lg" style="height:48px;background:var(--bg-hover);color:var(--text-secondary);border:none;">Hủy</button>
+        <button onclick="saveAlertSettings()" class="flex-1 text-sm font-medium rounded-lg" style="height:48px;background:var(--primary);color:var(--text-on-dark);border:none;">💾 Lưu</button>
       </div>
     </div>
   </div>
@@ -1506,6 +1514,11 @@
     const modal = document.getElementById('alertSettingsModal');
     modal.classList.add('hidden');
     modal.classList.remove('flex');
+  }
+
+  /** Click ra ngoài vùng modal → đóng */
+  function onAlertSettingsOverlayClick(e) {
+    if (e.target && e.target.id === 'alertSettingsModal') closeAlertSettings();
   }
 
   async function saveAlertSettings() {
