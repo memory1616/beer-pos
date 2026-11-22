@@ -1,5 +1,5 @@
-const db = require('./database');
-const ps = require('./src/services');
+const db = require('../database');
+const ps = require('../src/services');
 
 const rows = db.prepare(
   "SELECT id, name, created_at FROM customers WHERE created_at >= '2026-10-01' ORDER BY created_at DESC LIMIT 8"
