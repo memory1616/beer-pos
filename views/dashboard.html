@@ -498,6 +498,80 @@
       border-bottom: 1px solid var(--border);
       background: linear-gradient(135deg, rgba(252,213,53,0.06) 0%, transparent 100%);
     }
+    /* Nút tùy chỉnh ô hiển thị — đẩy sang phải header */
+    .dsh-hub-header-text { flex: 1; min-width: 0; }
+    .dsh-hub-customize-btn {
+      margin-left: auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 12px;
+      border-radius: 9px;
+      border: 1px solid var(--border);
+      background: var(--bg-hover);
+      color: var(--text-secondary);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+      white-space: nowrap;
+      font-family: inherit;
+      flex-shrink: 0;
+    }
+    .dsh-hub-customize-btn:hover {
+      background: var(--bg-active);
+      color: var(--text-primary);
+      border-color: var(--primary);
+    }
+    .dsh-hub-customize-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+    @media (max-width: 640px) {
+      .dsh-hub-customize-btn span.dsh-hub-customize-label { display: none; }
+      .dsh-hub-customize-btn { padding: 7px 10px; }
+    }
+    /* Modal tùy chỉnh ô hiển thị */
+    .dsh-hub-picker-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 11px 12px;
+      border-radius: 11px;
+      border: 1px solid var(--border);
+      background: var(--bg-hover);
+      cursor: pointer;
+      transition: border-color 0.15s ease, background 0.15s ease;
+      user-select: none;
+    }
+    .dsh-hub-picker-item:hover { border-color: var(--primary); }
+    .dsh-hub-picker-item.is-off { opacity: 0.55; }
+    .dsh-hub-picker-item.is-off .dsh-hub-picker-name { text-decoration: line-through; }
+    .dsh-hub-picker-toggle {
+      width: 38px;
+      height: 22px;
+      border-radius: 999px;
+      background: var(--border);
+      position: relative;
+      flex-shrink: 0;
+      transition: background 0.2s ease;
+      margin-left: auto;
+    }
+    .dsh-hub-picker-item.is-on .dsh-hub-picker-toggle {
+      background: linear-gradient(135deg, #FCD535, #F0B90B);
+    }
+    .dsh-hub-picker-toggle::after {
+      content: '';
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+      transition: transform 0.2s ease;
+    }
+    .dsh-hub-picker-item.is-on .dsh-hub-picker-toggle::after {
+      transform: translateX(16px);
+    }
     [data-theme="light"] .dsh-settings-hub-header {
       background: linear-gradient(135deg, rgba(252,213,53,0.08) 0%, transparent 100%);
     }
@@ -807,6 +881,127 @@
       }
     }
 
+    // ============================================================
+    // SETTINGS HUB — TÙY CHỈNH Ô HIỂN THỊ
+    // Người dùng chọn ô nào muốn ẩn/hiện trong #dshSettingsHubGrid.
+    // Lưu danh sách permission bị tắt vào localStorage
+    // (key: hub_disabled_permissions) → tương thích với logic
+    // userHasPermission() / applySettingsHubPermissions() ở trên.
+    // ============================================================
+
+    /** Đọc danh sách permission đang bị tắt */
+    function getHubDisabledPermissions() {
+      try {
+        var arr = JSON.parse(localStorage.getItem('hub_disabled_permissions') || '[]');
+        return Array.isArray(arr) ? arr : [];
+      } catch (e) { return []; }
+    }
+
+    /** Lấy danh sách card trong hub kèm thông tin hiển thị */
+    function getHubCardEntries() {
+      var grid = document.getElementById('dshSettingsHubGrid');
+      if (!grid) return [];
+      var cards = grid.querySelectorAll('.dsh-hub-card');
+      return Array.prototype.map.call(cards, function (card) {
+        var iconEl = card.querySelector('.dsh-hub-card-icon');
+        var nameEl = card.querySelector('.dsh-hub-card-name');
+        return {
+          perm: card.getAttribute('data-permission') || '',
+          icon: iconEl ? iconEl.textContent.trim() : '•',
+          name: nameEl ? nameEl.textContent.trim() : ''
+        };
+      }).filter(function (e) { return !!e.perm; });
+    }
+
+    /** Mở modal tùy chỉnh — dựng danh sách ô */
+    function openHubCustomizeModal() {
+      var list = document.getElementById('hubCustomizeList');
+      var modal = document.getElementById('hubCustomizeModal');
+      if (!list || !modal) return;
+
+      var disabled = getHubDisabledPermissions();
+      var entries = getHubCardEntries();
+
+      if (!entries.length) {
+        list.innerHTML = '<div class="text-xs text-center py-6" style="color:var(--text-muted);">Không tìm thấy ô nào để tùy chỉnh.</div>';
+      } else {
+        list.innerHTML = entries.map(function (e) {
+          var isOn = disabled.indexOf(e.perm) === -1;
+          return '<div class="dsh-hub-picker-item ' + (isOn ? 'is-on' : 'is-off') + '"' +
+                 ' data-perm="' + escapeAttr(e.perm) + '"' +
+                 ' onclick="toggleHubPickerItem(this)"' +
+                 ' role="switch" aria-checked="' + (isOn ? 'true' : 'false') + '" tabindex="0"' +
+                 ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();toggleHubPickerItem(this);}">' +
+                 '<span style="font-size:18px;" aria-hidden="true">' + escapeHtml(e.icon) + '</span>' +
+                 '<span class="dsh-hub-picker-name text-sm font-semibold" style="color:var(--text-primary);">' + escapeHtml(e.name) + '</span>' +
+                 '<span class="dsh-hub-picker-toggle" aria-hidden="true"></span>' +
+                 '</div>';
+        }).join('');
+      }
+
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    /** Đóng modal */
+    function closeHubCustomizeModal() {
+      var modal = document.getElementById('hubCustomizeModal');
+      if (!modal) return;
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    /** Bật/tắt một ô trong modal */
+    function toggleHubPickerItem(el) {
+      if (!el) return;
+      var isOn = el.classList.contains('is-on');
+      el.classList.toggle('is-on', !isOn);
+      el.classList.toggle('is-off', isOn);
+      el.setAttribute('aria-checked', isOn ? 'false' : 'true');
+    }
+
+    /** Bật/tắt tất cả các ô */
+    function hubCustomizeSelectAll(showAll) {
+      var list = document.getElementById('hubCustomizeList');
+      if (!list) return;
+      var items = list.querySelectorAll('.dsh-hub-picker-item');
+      Array.prototype.forEach.call(items, function (el) {
+        el.classList.toggle('is-on', !!showAll);
+        el.classList.toggle('is-off', !showAll);
+        el.setAttribute('aria-checked', showAll ? 'true' : 'false');
+      });
+    }
+
+    /** Lưu lựa chọn → localStorage → áp dụng ngay */
+    function saveHubCustomize() {
+      var list = document.getElementById('hubCustomizeList');
+      if (!list) return;
+      var items = list.querySelectorAll('.dsh-hub-picker-item');
+      var disabled = [];
+      Array.prototype.forEach.call(items, function (el) {
+        var perm = el.getAttribute('data-perm');
+        if (perm && !el.classList.contains('is-on')) disabled.push(perm);
+      });
+      try {
+        localStorage.setItem('hub_disabled_permissions', JSON.stringify(disabled));
+      } catch (e) { /* ignore quota error */ }
+      applySettingsHubPermissions();
+      closeHubCustomizeModal();
+      if (typeof showToast === 'function') showToast('Đã lưu cài đặt hiển thị', 'success');
+    }
+
+    /** Escape HTML để tránh injection tên ô */
+    function escapeHtml(str) {
+      return String(str == null ? '' : str)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    /** Escape thuộc tính HTML */
+    function escapeAttr(str) {
+      return escapeHtml(str);
+    }
+
     (async () => {
       try {
         if (typeof loadVersion === 'function') await loadVersion();
@@ -864,10 +1059,15 @@
             <div class="dsh-settings-hub" id="dshSettingsHub">
               <div class="dsh-settings-hub-header">
                 <div class="dsh-settings-hub-icon">⚙️</div>
-                <div>
+                <div class="dsh-hub-header-text">
                   <div class="dsh-hub-card-name">Cài đặt hệ thống</div>
                   <div class="dsh-settings-hub-sub">Quản trị &amp; cấu hình</div>
                 </div>
+                <button type="button" class="dsh-hub-customize-btn" id="dshHubCustomizeBtn"
+                        onclick="openHubCustomizeModal()" title="Tùy chỉnh ô hiển thị">
+                  <span aria-hidden="true">⚡</span>
+                  <span class="dsh-hub-customize-label">Tùy chỉnh</span>
+                </button>
               </div>
               <div class="dsh-settings-hub-grid" id="dshSettingsHubGrid">
                 <!-- ⚠️ THỨ TỰ: xếp theo mức độ dùng hằng ngày (nghiệp vụ chính
@@ -1122,6 +1322,41 @@
       }
     }
   </script>
+
+  <!-- ========== CUSTOMIZE SETTINGS HUB MODAL ========== -->
+  <div id="hubCustomizeModal" class="fixed inset-0 hidden items-center justify-center p-4 z-50" style="background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);">
+    <div class="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl" style="background:var(--card);border:1px solid var(--border);padding:24px;box-shadow:0 20px 60px rgba(0,0,0,0.4);">
+      <div class="flex justify-between items-center mb-1">
+        <h3 class="font-bold text-lg" style="color:var(--text-primary);">⚡ Tùy chỉnh ô hiển thị</h3>
+        <button onclick="closeHubCustomizeModal()" class="text-2xl leading-none hover:opacity-70" style="color:var(--text-secondary);" aria-label="Đóng">✕</button>
+      </div>
+      <p class="text-xs mb-4" style="color:var(--text-muted);line-height:1.5;">
+        Chọn ô nào muốn <strong style="color:var(--text-secondary);">hiển thị</strong> trong mục
+        <strong style="color:var(--text-secondary);">Cài đặt hệ thống</strong>. Tắt ô sẽ ẩn khỏi dashboard.
+        Lựa chọn được lưu trên thiết bị này.
+      </p>
+
+      <div id="hubCustomizeList" class="space-y-2"></div>
+
+      <div class="flex gap-2 mt-5">
+        <button type="button" onclick="hubCustomizeSelectAll(true)"
+          class="flex-1 py-2 rounded-xl text-sm font-semibold"
+          style="background:var(--bg-hover);border:1px solid var(--border);color:var(--text-secondary);">Hiện tất cả</button>
+        <button type="button" onclick="hubCustomizeSelectAll(false)"
+          class="flex-1 py-2 rounded-xl text-sm font-semibold"
+          style="background:var(--bg-hover);border:1px solid var(--border);color:var(--text-secondary);">Ẩn tất cả</button>
+      </div>
+
+      <div class="flex gap-2 mt-3">
+        <button type="button" onclick="closeHubCustomizeModal()"
+          class="flex-1 py-2.5 rounded-xl text-sm font-semibold"
+          style="background:var(--bg-hover);border:1px solid var(--border);color:var(--text-secondary);">Đóng</button>
+        <button type="button" onclick="saveHubCustomize()"
+          class="flex-1 py-2.5 rounded-xl text-sm font-bold"
+          style="background:linear-gradient(135deg,#FCD535,#F0B90B);color:#1a1a1a;border:none;">💾 Lưu</button>
+      </div>
+    </div>
+  </div>
 
   <!-- ========== ALERT + CLOUD SETTINGS MODAL ========== -->
   <div id="alertSettingsModal" class="fixed inset-0 hidden items-center justify-center p-4 z-50" style="background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);">
