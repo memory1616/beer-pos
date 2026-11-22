@@ -724,9 +724,17 @@ app.use((req, res, next) => {
         }
 
         // Inject version busting: append/replace ?v=APP_VERSION to JS and CSS files
+        // QUY TẮC 2026-11-22: mọi asset JS/CSS LOCAL phải đổi URL theo git hash,
+        // nếu không client sẽ dùng bản cache cũ (immutable 30d) sau mỗi lần deploy.
+        // Bao gồm cả /db.js (file gốc ở public/, nằm ngoài /js/).
         html = html.replace(/(<\s*(?:script|img|link)\s+[^>]*(?:src|href)\s*=\s*["'])(\/[^"']+)(")/gi, (match, prefix, path, suffix) => {
-          // Only bust version for local /js/ and /css/ assets
-          if (path.startsWith('/js/') || path.startsWith('/css/') || path === '/sw.js') {
+          // Chỉ bust version cho asset local: /js/, /css/, /db.js, /sw.js
+          const isLocalCode = path.startsWith('/js/')
+            || path.startsWith('/css/')
+            || path === '/db.js'
+            || path === '/sw.js'
+            || path === '/sw.v2.js';
+          if (isLocalCode) {
             // Remove existing ?v= param to avoid double ?v=...&v=...
             const cleanPath = path.replace(/\?v=[^&]*/, '');
             return `${prefix}${cleanPath}?v=${APP_VERSION}${suffix}`;
