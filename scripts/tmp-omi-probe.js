@@ -14,8 +14,8 @@ async function getToken() {
 }
 
 const TARGETS = {
-  'TEST  ...d662b0': '6afe6913fca59218a5d662b0',
-  'FAIL  ...d662ad': '6afe6913fca59218a5d662ad',
+  'TEST ...d662b0': '6afe6913fca59218a5d662b0',
+  'FAIL ...d662ad': '6afe6913fca59218a5d662ad',
 };
 
 (async () => {
@@ -25,17 +25,10 @@ const TARGETS = {
     'x-api-key': APIKEY, Authorization: `Bearer ${token}`,
   };
 
-  console.log('=== channel/get_all (chi doc):');
-  const chRes = await fetch(`${BASE}/omnichannel/channel/get_all`, { method: 'POST', headers, body: '{}' });
-  const chJson = await chRes.json();
-  const zp = (chJson.payload || {}).zalo_personal || [];
-  console.log('zalo_personal:', JSON.stringify(zp, null, 1).slice(0, 1200));
-
-  console.log('\n=== search_v4: tim conv cua 2 nhom tren (chi doc):');
+  const found = {};
   for (const [label, id] of Object.entries(TARGETS)) {
-    let found = null;
     for (const dir of [false, true]) {
-      for (let page = 1; page <= 5 && !found; page++) {
+      for (let page = 1; page <= 5 && !found[label]; page++) {
         const res = await fetch(`${BASE}/omi_v2/omnichannel/search_v4?page=${page}&size=100`, {
           method: 'POST', headers,
           body: JSON.stringify({ types: [], keyword: '', is_session: false, channel_ids: [], is_blocked: false, sort: { field_code: 'last_message_time', is_asc: dir } }),
@@ -47,15 +40,25 @@ const TARGETS = {
         const items = Array.isArray(root) ? root : root.items || [];
         if (!items.length) break;
         const hit = items.find((it) => String(it.id || '') === id);
-        if (hit) { found = hit; break; }
+        if (hit) found[label] = hit;
       }
     }
-    if (!found) { console.log(`\n--- ${label} (${id}): KHONG TIM THAY trong search_v4`); continue; }
-    const c = found.conv || {};
-    console.log(`\n--- ${label} (${id}):`);
-    console.log('    conv_id=', c.conv_id, '| name=', c.name);
-    console.log('    channel_id=', c.channel_id);
-    console.log('    has_member=', c.has_member, '| members=', JSON.stringify(c.members || []).slice(0, 300));
-    console.log('    conv keys=', Object.keys(c).join(','));
+  }
+
+  for (const [label, it] of Object.entries(found)) {
+    const c = it.conv || {};
+    console.log(`\n=== ${label}`);
+    console.log('  conv_type      =', JSON.stringify(c.conv_type));
+    console.log('  conv_sub_type  =', JSON.stringify(c.conv_sub_type));
+    console.log('  provider       =', JSON.stringify(c.provider));
+    console.log('  status         =', JSON.stringify(c.status));
+    console.log('  is_blocked     =', c.is_blocked);
+    console.log('  is_deleted     =', c.is_deleted);
+    console.log('  receiving_group_id =', JSON.stringify(c.receiving_group_id));
+    console.log('  distributing_group_id =', JSON.stringify(c.distributing_group_id));
+    console.log('  social_user_id =', JSON.stringify(c.social_user_id));
+    console.log('  chat_x_id      =', JSON.stringify(c.chat_x_id));
+    console.log('  total_message_size =', c.total_message_size);
+    console.log('  last_message   =', JSON.stringify(c.last_message).slice(0, 300));
   }
 })().catch((e) => { console.error('FATAL', e.message); process.exit(1); });
