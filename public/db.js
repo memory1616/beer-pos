@@ -14,7 +14,7 @@
 // because ALL contexts use the SAME version number from ONE source.
 // ─────────────────────────────────────────────────────
 
-const DB_VERSION = 48; // ← bump khi schema thay đổi (v48: refresh SW cache sau khi fix nút đóng modal hoá đơn bị chìm dưới notch iOS)
+const DB_VERSION = 49; // ← bump khi schema thay đổi (v49: refresh SW cache sau khi đổi quy tắc KM quán mới = tháng mở quán + thưởng "10 tặng 1" theo tổng tháng)
 
 const DB_NAME    = 'BeerPOS';
 const STORE_META = '_meta';
@@ -225,9 +225,10 @@ if (window._dbInitialized) {
     orders_queue:'++id, customerId, items, total, profit, deliverKegs, returnKegs, type, note, created_at, synced'
   });
 
-  // v48: Bump version để force SW đổi cache namespace → nạp lại unified.css
-  //   (fix nút đóng modal hoá đơn bị chìm dưới notch iOS). Không đổi schema.
-  _db.version(48).stores({
+  // v49: Bump version để force SW đổi cache namespace → nạp lại sales.js
+  //   (đổi quy tắc KM quán mới = tháng mở quán + thưởng "10 tặng 1" theo tổng tháng).
+  //   Không đổi schema.
+  _db.version(49).stores({
     customers:   '++id, name, phone, deposit, keg_balance, archived, is_deleted, region_id, synced',
     products:    '++id, name, slug, stock, cost_price, sell_price, is_deleted, synced',
     sales:       '++id, createdAt, customer_id, customer_name, date, total, total_amount, profit, total_profit, synced, distance_km, duration_min, route_index, route_polyline',
