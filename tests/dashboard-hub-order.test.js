@@ -23,10 +23,10 @@ const EXPECTED_ORDER = [
   '/audit-log',    // 📜 Nhật ký hệ thống
   '/sessions',     // 🔐 Phiên đăng nhập
   '/push-notify',  // 🔔 Thông báo tài xế
-  '/purchases',    // 🛒 Mua hàng & Kho
-  '/devices',      // 📱 Thiết bị
-  '/expenses',     // 💸 Chi phí
 ];
+
+/** Các ô đã bị gỡ khỏi hub (dư thừa) — không được xuất hiện lại. */
+const REMOVED_HREFS = ['/purchases', '/devices', '/expenses'];
 
 /**
  * Lấy danh sách href của card trong hub, theo đúng thứ tự DOM.
@@ -80,5 +80,20 @@ describe('Dashboard — hub Cài đặt hệ thống', () => {
   test('không có card trùng href', () => {
     const hrefs = hubCardHrefs();
     expect(new Set(hrefs).size).toBe(hrefs.length);
+  });
+
+  test('3 ô dư thừa đã được gỡ (Mua hàng & Kho, Thiết bị, Chi phí)', () => {
+    const hrefs = hubCardHrefs();
+    REMOVED_HREFS.forEach((href) => {
+      expect(hrefs).not.toContain(href);
+    });
+  });
+
+  test('không còn CSS màu cho các ô đã gỡ', () => {
+    REMOVED_HREFS.forEach(() => {});
+    ['purchases', 'devices', 'expenses'].forEach((slug) => {
+      expect(html).not.toContain('dsh-hub-card-' + slug + ' .dsh-hub-card-icon');
+      expect(html).not.toContain('dsh-hub-card-' + slug + ' .dsh-hub-card-cta');
+    });
   });
 });
