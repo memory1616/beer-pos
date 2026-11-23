@@ -4,6 +4,7 @@ const db = require('../database');
 const logger = require('../src/utils/logger');
 const fs = require('fs');
 const path = require('path');
+const PreOrderSQL = require('../src/services/PreOrderSQL');
 
 const DISTRIBUTOR_NAME = process.env.DISTRIBUTOR_NAME || 'Bia Tuoi Gia Huy';
 
@@ -25,7 +26,7 @@ router.get('/', (req, res) => {
         WHERE s.archived = 0 
           AND s.deleted = 0
           AND s.type = 'sale'
-          AND COALESCE(DATE(s.created_on), DATE(s.date)) = ?
+          AND ${PreOrderSQL.DELIVERY_DATE_EXPR} = ?
           AND c.archived = 0
         ORDER BY s.date DESC
       `).all(today);

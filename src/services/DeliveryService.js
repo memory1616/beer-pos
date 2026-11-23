@@ -41,6 +41,7 @@ const DebtOrderIntegration = require('./debt/DebtOrderIntegration');
 const AuditService = require('./AuditService');
 const KegBalanceService = require('./KegBalanceService');
 const RegionService = require('./RegionService');
+const PreOrderSQL = require('./PreOrderSQL');
 
 class DeliveryService {
   /**
@@ -108,7 +109,7 @@ class DeliveryService {
           AND s.archived = 0
           AND s.deleted = 0
           AND c.archived = 0
-          AND COALESCE(DATE(s.created_on), DATE(s.date)) = ?
+          AND ${PreOrderSQL.DELIVERY_DATE_EXPR} = ?
           AND (
                 s.driver_username = ?
              OR s.driver_username IS NULL
@@ -941,7 +942,7 @@ class DeliveryService {
         SELECT COUNT(*) AS cnt, COALESCE(SUM(s.total), 0) AS total_amount
         FROM sales s
         WHERE s.driver_username = ?
-          AND COALESCE(DATE(s.created_on), DATE(s.date)) = ?
+          AND ${PreOrderSQL.DELIVERY_DATE_EXPR} = ?
           AND s.type = 'sale'
           AND s.archived = 0
           AND (s.customer_id IS NULL OR s.customer_id = 0)
@@ -959,7 +960,7 @@ class DeliveryService {
         LEFT JOIN products p ON p.id = si.product_id
         LEFT JOIN delivery_records dr
                ON dr.sale_id = s.id AND dr.driver_username = ?
-        WHERE COALESCE(DATE(s.created_on), DATE(s.date)) = ?
+        WHERE ${PreOrderSQL.DELIVERY_DATE_EXPR} = ?
           AND s.type = 'sale'
           AND s.archived = 0
           AND (dr.id IS NULL OR dr.status != 'DELIVERED')
@@ -978,7 +979,7 @@ class DeliveryService {
         JOIN customers c ON c.id = s.customer_id
         LEFT JOIN delivery_records dr
                ON dr.sale_id = s.id AND dr.driver_username = ?
-        WHERE COALESCE(DATE(s.created_on), DATE(s.date)) = ?
+        WHERE ${PreOrderSQL.DELIVERY_DATE_EXPR} = ?
           AND s.type = 'sale' AND s.archived = 0
           AND c.archived = 0
           AND (dr.id IS NULL OR dr.status != 'DELIVERED')

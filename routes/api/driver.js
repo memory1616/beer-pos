@@ -512,7 +512,7 @@ router.get('/home', requireDriver, (req, res) => {
         WHERE s.type = 'sale'
           AND s.archived = 0
           AND s.deleted = 0
-          AND COALESCE(DATE(s.created_on), DATE(s.date)) = ?
+          AND ${PreOrderSQL.DELIVERY_DATE_EXPR} = ?
           AND (c.archived = 0 OR c.id IS NULL)
           AND (s.driver_username = ? OR s.driver_username IS NULL OR s.driver_username = '')
           AND (dr.id IS NULL OR dr.status NOT IN ('DELIVERED'))
@@ -562,7 +562,7 @@ router.get('/home', requireDriver, (req, res) => {
         WHERE s.type = 'sale'
           AND s.archived = 0
           AND s.deleted = 0
-          AND COALESCE(DATE(s.created_on), DATE(s.date)) = ?
+          AND ${PreOrderSQL.DELIVERY_DATE_EXPR} = ?
           AND (s.driver_username = ? OR s.driver_username IS NULL OR s.driver_username = '')
           AND ${PreOrderSQL.COUNTED_FILTER}
           AND s.id IN (
@@ -572,7 +572,7 @@ router.get('/home', requireDriver, (req, res) => {
             WHERE s2.type = 'sale'
               AND s2.archived = 0
               AND s2.deleted = 0
-              AND COALESCE(DATE(s2.created_on), DATE(s2.date)) = ?
+              AND ${PreOrderSQL.DELIVERY_DATE_EXPR.replace(/\bs\./g, 's2.')} = ?
               AND (s2.driver_username = ? OR s2.driver_username IS NULL OR s2.driver_username = '')
               AND (dr2.id IS NULL OR dr2.status NOT IN ('DELIVERED'))
               AND COALESCE(s2.preorder_status, '') != 'SCHEDULED'
@@ -1156,7 +1156,7 @@ router.get('/delivery/page-data', requireDriver, (req, res) => {
          WHERE s.archived = 0
            AND s.deleted = 0
            AND s.type = 'sale'
-           AND COALESCE(DATE(s.created_on), DATE(s.date)) = ?
+           AND ${PreOrderSQL.DELIVERY_DATE_EXPR} = ?
            AND c.archived = 0
            AND (s.driver_username = ? OR s.driver_username IS NULL OR s.driver_username = '')
            AND ${PreOrderSQL.COUNTED_FILTER}

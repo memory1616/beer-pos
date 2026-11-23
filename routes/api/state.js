@@ -12,6 +12,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../../database');
 const logger = require('../../src/utils/logger');
+const PreOrderSQL = require('../../src/services/PreOrderSQL');
 
 // ── GET /api/state/full ──────────────────────────────────────────────────────
 
@@ -57,7 +58,7 @@ router.get('/full', (req, res) => {
                s.created_at, s.updated_at, s.version
         FROM sales s
         LEFT JOIN customers c ON s.customer_id = c.id
-        WHERE COALESCE(DATE(s.created_on), DATE(s.date)) = ?
+        WHERE ${PreOrderSQL.DELIVERY_DATE_EXPR} = ?
           AND (s.deleted = 0 OR s.deleted IS NULL)
         ORDER BY s.id DESC
       `).all(today);

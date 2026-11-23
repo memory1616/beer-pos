@@ -18,6 +18,7 @@
 const db = require('../../database');
 const logger = require('../utils/logger');
 const AuditLogService = require('./AuditLogService');
+const PreOrderSQL = require('./PreOrderSQL');
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -1481,7 +1482,7 @@ function listUnassignedSales(opts = {}) {
   const params = [];
   let dateClause = '';
   if (date) {
-    dateClause = ' AND COALESCE(DATE(s.created_on), DATE(s.date)) = ?';
+    dateClause = ` AND ${PreOrderSQL.DELIVERY_DATE_EXPR} = ?`;
     params.push(date);
   }
   const rows = db
