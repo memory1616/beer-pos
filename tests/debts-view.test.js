@@ -383,9 +383,10 @@ describe('views/debts.html — bảng vừa màn hình điện thoại', () => {
 
   test('các bảng nhiều cột ĐỀU dùng --wide (giữ được cuộn ngang)', () => {
     const tables = html.match(/<table class="dbt-table[^"]*"/g) || [];
-    // 11 bảng: top debtors (hẹp) + 8 bảng rộng (giao dịch Sepay + lịch sử thông báo)
+    // 12 bảng: top debtors (hẹp) + 8 bảng rộng (giao dịch Sepay + lịch sử thông báo)
     //         + 2 bảng hẹp mới của tab Nhóm Zalo ("chưa liên kết" & "tất cả khách")
-    expect(tables).toHaveLength(11);
+    //         + 1 bảng "số tài khoản ngân hàng" của gạch nợ thông minh
+    expect(tables).toHaveLength(12);
     const wide = tables.filter((t) => t.includes('dbt-table--wide'));
     expect(wide).toHaveLength(8);
   });

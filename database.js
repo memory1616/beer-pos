@@ -29,7 +29,7 @@ try {
   }
 
   // Run driver portal migration (idempotent, chạy độc lập version gate)
-  const { runDriverPortalMigration, runDriverStaffMigration, runDriverKegReceiptMigration, runDriverWorkDaysMigration, runDriverSalaryAdvanceMigration, runMissingBusinessTablesMigration, runDailyReportNotifyMigration, runAuditLogMigration, runDriverPushMigration, runZaloOauthMigration, runDebtManagementMigration, runDebtSaleCreditFlagMigration, runBusinessDayCutoffMigration, runAuditLogUnificationMigration, runDriverAttendanceMigration, runBusinessRegionsMigration, runSaleDispatchStatusMigration, runSaleRegionDispatchBackfillMigration, runSepayDebtSettlementMigration, runDebtZaloNotifyMigration, runSepayAutoPollMigration, runCustomerClosureMigration, runCustomerClosureDevicesMigration, runSalePreorderMigration } = require('./database/migration');
+  const { runDriverPortalMigration, runDriverStaffMigration, runDriverKegReceiptMigration, runDriverWorkDaysMigration, runDriverSalaryAdvanceMigration, runMissingBusinessTablesMigration, runDailyReportNotifyMigration, runAuditLogMigration, runDriverPushMigration, runZaloOauthMigration, runDebtManagementMigration, runDebtSaleCreditFlagMigration, runBusinessDayCutoffMigration, runAuditLogUnificationMigration, runDriverAttendanceMigration, runBusinessRegionsMigration, runSaleDispatchStatusMigration, runSaleRegionDispatchBackfillMigration, runSepayDebtSettlementMigration, runDebtZaloNotifyMigration, runSepayAutoPollMigration, runCustomerClosureMigration, runCustomerClosureDevicesMigration, runSalePreorderMigration, runSepaySmartMatchingMigration } = require('./database/migration');
   const driverResult = runDriverPortalMigration(db);
   if (driverResult.success) {
     logger.log('[MIGRATION] Driver portal schema ready');
@@ -173,6 +173,13 @@ try {
   const salePreorderResult = runSalePreorderMigration(db);
   if (salePreorderResult.success) {
     logger.log('[MIGRATION] Sale preorder schema ready');
+  }
+
+  // Run Sepay smart matching migration (067) — gạch nợ thông minh
+  // (nhận diện khách theo số tài khoản người gửi, không cần mã QR)
+  const sepaySmartResult = runSepaySmartMatchingMigration(db);
+  if (sepaySmartResult.success) {
+    logger.log('[MIGRATION] Sepay smart matching schema ready');
   }
 } catch (error) {
   logger.error('[MIGRATION] Migration error:', error.message);

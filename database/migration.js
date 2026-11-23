@@ -1020,6 +1020,23 @@ function runSalePreorderMigration(db) {
   }
 }
 
+// ── Sepay smart matching migration (067) ──────────────────────────────────────
+// Gạch nợ thông minh: lưu số tài khoản ngân hàng của khách + thông tin người
+// gửi & cách khớp trên mỗi giao dịch Sepay. Khách CK theo số tài khoản (không
+// quét mã QR) → hệ thống tự nhận diện & gạch nợ.
+// Chạy ĐỘC LẬP, idempotent.
+function runSepaySmartMatchingMigration(db) {
+  try {
+    const migration = require('./migrations/067_sepay_smart_matching');
+    migration.up(db);
+    log('[SEPAY_SMART] Migration 067 applied');
+    return { success: true };
+  } catch (e) {
+    log('[SEPAY_SMART] Migration error: ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
 // ── Utility: Generate UUID ─────────────────────────────────────────────────────
 
 function generateUUID() {
@@ -1061,6 +1078,7 @@ module.exports = {
   runCustomerClosureMigration,
   runCustomerClosureDevicesMigration,
   runSalePreorderMigration,
+  runSepaySmartMatchingMigration,
   generateUUID,
   getCurrentVersion,
   setVersion,

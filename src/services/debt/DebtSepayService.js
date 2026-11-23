@@ -285,6 +285,475 @@ function findCustomerByDebtCode(code) {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// GẠCH NỢ THÔNG MINH — nhận diện khách KHÔNG CẦN mã QR
+// ─────────────────────────────────────────────────────────────────────────────
+// Khách thường chuyển theo SỐ TÀI KHOẢN (nhận số TK từ QR ngân hàng rồi
+// nhập tay) → nội dung CK KHÔNG chứa mã KH. Nội dung thực tế:
+//
+//   "NHAN TU 1988888779779 TRACE 104688 ND BUI TRUONG VAN chuyen tien"
+//   "NHAN TU 0671004149757 TRACE 836311 ND MBVCB.17123650534 ... KH0001..."
+//
+// Ta trích 2 thông tin từ nội dung:
+//   • SỐ TÀI KHOẢN người gửi  (sau "NHAN TU" / "TU" / "FROM")
+//   • TÊN người gửi          (sau "ND" / "TU" + tên)
+//
+// rồi khớp khách theo thứ tự độ tin cậy giảm dần.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Chuẩn hóa số tài khoản: chỉ giữ chữ số, bỏ khoảng trắng/gạch. */
+function normalizeAccount(raw) {
+  if (!raw) return '';
+  return String(raw).replace(/\D/g, '');
+}
+
+/**
+ * Trích số tài khoản người gửi từ nội dung chuyển khoản.
+ *
+ * Nhận diện các mẫu thực tế của ngân hàng VN:
+ *   • "NHAN TU 1988888779779 ..."        (SePay / VietQR)
+ *   • "TU 1988888779779 ..."             (viết tắt)
+ *   • "FROM 1988888779779 ..."
+ *   • "MBVCB.17123650534..."             (mã ngân hàng đứng trước)
+ *
+ * ⚠️ Số tài khoản ngân hàng VN thường 10..14 chữ số. Ta loại các số quá
+ *    ngắn (≤4) vì dễ trùng với số tiền / mã giao dịch.
+ *
+ * @returns {string} số tài khoản đã chuẩn hóa (rỗng nếu không tìm thấy)
+ */
+function extractSenderAccount(payload) {
+  const raw = [
+    payload.content,
+    payload.description,
+    payload.transaction_content,
+    payload.transfer_content,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toUpperCase();
+
+  if (!raw) return '';
+
+  // 1) Rõ ràng nhất: "NHAN TU <số>" / "TU <số>" / "FROM <số>"
+  const labeled = raw.match(/(?:NHAN\s+TU|TU|FROM|CHUYEN\s+TU)\s+([0-9][0-9\s.-]{7,20}[0-9])/);
+  if (labeled) {
+    const acc = normalizeAccount(labeled[1]);
+    if (acc.length >= 8 && acc.length <= 20) return acc;
+  }
+
+  // 2) Ngân hàng ghi mã ngân hàng + số TK liền nhau: "MBVCB.17123650534..."
+  const bankCode = raw.match(/\b[A-Z]{4,6}\.([0-9]{9,16})\b/);
+  if (bankCode) return normalizeAccount(bankCode[1]);
+
+  // 3) Dự phòng: số dài 10..14 chữ số đứng riêng trong nội dung.
+  //    Chỉ lấy số đầu tiên tìm thấy (thường là số TK).
+  const loose = raw.match(/(?:^|[^0-9])([0-9]{10,14})(?![0-9])/);
+  if (loose) return loose[1];
+
+  return '';
+}
+
+/**
+ * Chuẩn hóa tên người gửi để so khớp: bỏ dấu, bỏ khoảng trắng thừa,
+ * uppercase.
+ */
+function normalizeName(raw) {
+  if (!raw) return '';
+  return String(raw)
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .replace(/[^A-Za-z\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase();
+}
+
+/**
+ * Trích tÊN người gửi từ nội dung chuyển khoản.
+ *
+ * Mẫu thực tế:
+ *   • "NHAN TU 1988888779779 TRACE 104688 ND BUI TRUONG VAN chuyen tien"
+ *   • "ND NGUYEN VAN A"
+ *   • "TU NGUYEN VAN A"
+ *
+ * ⚠️ Phần sau "ND"/"TU" có thể chứa mã ngân hàng, mã giao dịch, mã KH...
+ *    → ta cắt tại các từ khoá đặc trưng và giới hạn độ dài.
+ *
+ * @returns {string} tên đã chuẩn hóa (rỗng nếu không tìm thấy)
+ */
+function extractSenderName(payload) {
+  const raw = [
+    payload.content,
+    payload.description,
+    payload.transaction_content,
+    payload.transfer_content,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toUpperCase();
+
+  if (!raw) return '';
+
+  // Các từ khoá báo hiệu phần sau KHÔNG phải tên.
+  const STOP_WORDS = [
+    'CHUYEN',
+    'TIEN',
+    'THANH',
+    'TOAN',
+    'TRACE',
+    'MBVCB',
+    'VIETCOMBANK',
+    'TECHCOMBANK',
+    'BIDV',
+    'AGRIBANK',
+    'MBBANK',
+    'ACB',
+    'VPBANK',
+    'SHB',
+    'TPBANK',
+    'CTI',
+    'VIB',
+    'MSB',
+    'OCB',
+    'SCB',
+    'KH',
+    'DH',
+    'GHI',
+    'NO',
+    'STK',
+    'TK',
+    'SO',
+    'HD',
+    'GD',
+    'REF',
+    'FWD',
+  ];
+
+  // Ưu tiên "ND <tên>" — mẫu phổ biến nhất.
+  const patterns = [
+    /\bND\s+([A-ZÀ-Ỹ]{2,}(?:\s+[A-ZÀ-Ỹ]{2,}){0,5})/,
+    /\bTU\s+([A-ZÀ-Ỹ]{2,}(?:\s+[A-ZÀ-Ỹ]{2,}){0,5})/,
+    /\bFROM\s+([A-ZÀ-Ỹ]{2,}(?:\s+[A-ZÀ-Ỹ]{2,}){0,5})/,
+  ];
+
+  for (const re of patterns) {
+    const m = raw.match(re);
+    if (!m) continue;
+
+    let name = m[1].trim();
+
+    // Cắt tại từ khoá dừng đầu tiên.
+    for (const w of STOP_WORDS) {
+      const idx = name.indexOf(' ' + w);
+      if (idx > 0) {
+        name = name.slice(0, idx);
+        break;
+      }
+      if (name.startsWith(w + ' ')) {
+        name = '';
+        break;
+      }
+    }
+
+    name = name.trim();
+
+    // Loại bỏ mã ngân hàng đứng đầu (VD "MBVCB", "VCB", "TECHCOMBANK") —
+    // đây không phải tên người gửi.
+    const BANK_TOKENS = [
+      'MBVCB',
+      'VIETCOMBANK',
+      'TECHCOMBANK',
+      'BIDV',
+      'AGRIBANK',
+      'MBBANK',
+      'ACB',
+      'VPBANK',
+      'SHB',
+      'TPBANK',
+      'CTI',
+      'VIB',
+      'MSB',
+      'OCB',
+      'SCB',
+      'VCB',
+      'TCB',
+      'EBA',
+      'VCCB',
+      'VTC',
+      'BVB',
+      'LPB',
+      'PGB',
+      'STB',
+      'CBB',
+      'KLB',
+      'MBS',
+      'SEA',
+      'VAB',
+      'VRB',
+      'ACB',
+      'CITI',
+      'HSBC',
+      'DAB',
+    ];
+    for (const t of BANK_TOKENS) {
+      if (name === t) return ''; // chỉ có mã ngân hàng → không phải tên
+    }
+
+    if (name.length >= 3 && name.length <= 60) return normalizeName(name);
+  }
+
+  return '';
+}
+
+/**
+ * Tìm khách hàng theo SỐ TÀI KHOẢN ngân hàng đã đăng ký.
+ *
+ * @returns {object|null} khách hàng (hoặc null)
+ */
+function findCustomerByBankAccount(account) {
+  const acc = normalizeAccount(account);
+  if (!acc) return null;
+  try {
+    return (
+      db
+        .prepare(
+          `SELECT id, name, phone, debt, debt_code, bank_account, bank_account_name
+             FROM customers
+            WHERE REPLACE(REPLACE(REPLACE(COALESCE(bank_account,''),' ',''),'-',''),'.','') = ?
+            LIMIT 1`
+        )
+        .get(acc) || null
+    );
+  } catch (e) {
+    logger.error('[SEPAY] findCustomerByBankAccount error', { error: e.message });
+    return null;
+  }
+}
+
+/**
+ * Tìm khách theo TÊN người gửi (so khớp "chứa" — tên người gửi có thể
+ * chỉ là một phần của tên khai trong hệ thống).
+ *
+ * ⚠️ Trả về mảng ứng viên để caller đánh giá mức độ khớp.
+ *
+ * @returns {Array<{customer:object, score:number}>}
+ */
+function findCustomersByName(name, limit = 5) {
+  const norm = normalizeName(name);
+  if (!norm || norm.length < 3) return [];
+
+  // Chỉ lấy khách còn hoạt động, có nợ > 0 hoặc từng giao dịch (để có ngữ cảnh).
+  const rows = db
+    .prepare(
+      `SELECT id, name, phone, debt, debt_code, bank_account, bank_account_name
+         FROM customers
+        WHERE COALESCE(deleted, 0) = 0 AND COALESCE(archived, 0) = 0
+        LIMIT 5000`
+    )
+    .all();
+
+  const results = [];
+  for (const row of rows) {
+    const custNorm = normalizeName(row.name);
+    if (!custNorm) continue;
+
+    let score = 0;
+    // 1) Khớp với TÊN CHỦ TÀI KHOẢN đã đăng ký (mạnh nhất) — đây là tên
+    //    thật của người gửi, do nhân viên nhập tay.
+    const holderNorm = normalizeName(row.bank_account_name);
+    if (holderNorm) {
+      if (holderNorm === norm) score = Math.max(score, 0.92);
+      else if (holderNorm.includes(norm) || norm.includes(holderNorm)) {
+        score = Math.max(score, 0.85);
+      }
+    }
+
+    if (custNorm === norm) {
+      score = Math.max(score, 0.9); // trùng tuyệt đối
+    } else if (custNorm.includes(norm) || norm.includes(custNorm)) {
+      score = Math.max(score, 0.75); // trùng một phần (VD "BUI TRUONG VAN" ⊂ "BUI TRUONG VAN QN")
+    } else {
+      // So khớp theo tập TỪ: càng nhiều từ chung càng tin cậy.
+      const custWords = custNorm.split(' ').filter((w) => w.length >= 2);
+      const sentWords = norm.split(' ').filter((w) => w.length >= 2);
+      if (custWords.length && sentWords.length) {
+        const common = sentWords.filter((w) => custWords.includes(w)).length;
+        const ratio = common / Math.max(custWords.length, sentWords.length);
+        if (ratio >= 0.99) score = Math.max(score, 0.8);
+        else if (ratio >= 0.6) score = Math.max(score, 0.6);
+      }
+    }
+
+    if (score > 0) {
+      results.push({ customer: row, score });
+    }
+  }
+
+  results.sort((a, b) => b.score - a.score);
+  return results.slice(0, limit);
+}
+
+/**
+ * Tìm khách theo SỐ TIỀN giao dịch khớp đúng số nợ đang chờ trả.
+ * (Suy đoán — chỉ dùng khi được bật & có đúng 1 ứng viên.)
+ *
+ * @returns {Array<{customer:object, score:number}>}
+ */
+function findCustomersByAmount(amount, limit = 5) {
+  const value = roundMoney(amount);
+  if (!(value > 0)) return [];
+
+  try {
+    const rows = db
+      .prepare(
+        `SELECT c.id, c.name, c.phone, c.debt, c.debt_code, c.bank_account, c.bank_account_name
+           FROM customers c
+          WHERE COALESCE(c.deleted, 0) = 0 AND COALESCE(c.archived, 0) = 0 AND c.debt >= ?
+          LIMIT 500`
+      )
+      .all(value);
+
+    return rows.map((customer) => ({ customer, score: 0.5 }));
+  } catch (e) {
+    logger.error('[SEPAY] findCustomersByAmount error', { error: e.message });
+    return [];
+  }
+}
+
+/**
+ * Gạch nợ THÔNG MINH — dự đoán khách hàng từ giao dịch Sepay.
+ *
+ * Thứ tự chiến lược (độ tin cậy giảm dần):
+ *   1. Mã `KHxxxx` trong nội dung                → 1.00
+ *   2. Số tài khoản người gửi khớp KH đã đăng ký → 0.95
+ *   3. Tên người gửi trùng/khớp gần đúng KH      → 0.90 (tối đa)
+ *   4. Số tiền khớp đúng nợ của KH (suy đoán)    → 0.50
+ *
+ * Nếu có NHIỀU ứng viên cùng điểm → KHÔNG tự quyết, trả về danh sách để
+ * nhân viên chọn (giao dịch vẫn vào hàng chờ `manual`).
+ *
+ * @param {object} tx - row của `sepay_transactions`
+ * @returns {{customer:object|null, method:string, confidence:number, candidates:Array}}
+ */
+function smartMatchCustomer(tx) {
+  const settings = {
+    enabled: getSetting('sepay_smart_match_enabled', '1') !== '0',
+    byName: getSetting('sepay_smart_match_by_name', '1') !== '0',
+    byAmount: getSetting('sepay_smart_match_by_amount', '0') !== '0',
+    minConfidence: parseFloat(getSetting('sepay_smart_min_confidence', '0.9')) || 0.9,
+  };
+
+  const empty = { customer: null, method: '', confidence: 0, candidates: [] };
+
+  if (!settings.enabled) return empty;
+
+  // ── Chiến lược 1: mã KH ────────────────────────────────────────────────
+  if (tx.debt_code) {
+    const byCode = findCustomerByDebtCode(tx.debt_code);
+    if (byCode) {
+      return {
+        customer: byCode,
+        method: 'debt_code',
+        confidence: 1.0,
+        candidates: [],
+      };
+    }
+  }
+
+  // ── Chiến lược 2: số tài khoản người gửi ───────────────────────────────
+  const senderAccount =
+    normalizeAccount(tx.sender_account) || extractSenderAccount(tx);
+  if (senderAccount) {
+    const byAccount = findCustomerByBankAccount(senderAccount);
+    if (byAccount) {
+      return {
+        customer: byAccount,
+        method: 'bank_account',
+        confidence: 0.95,
+        candidates: [],
+      };
+    }
+  }
+
+  // ── Chiến lược 3: tên người gửi ───────────────────────────────────────
+  if (settings.byName) {
+    const senderName = normalizeName(tx.sender_name) || extractSenderName(tx);
+    if (senderName) {
+      const byName = findCustomersByName(senderName, 5);
+
+      // Chỉ nhận ứng viên ĐỦ TIN CẬY (điểm >= ngưỡng).
+      const confident = byName.filter((r) => r.score >= settings.minConfidence);
+
+      if (confident.length === 1) {
+        return {
+          customer: confident[0].customer,
+          method: 'name',
+          confidence: confident[0].score,
+          candidates: [],
+        };
+      }
+
+      if (confident.length > 1) {
+        // Nhiều ứng viên cùng điểm cao → không tự quyết.
+        return {
+          customer: null,
+          method: 'name_ambiguous',
+          confidence: confident[0].score,
+          candidates: confident.map((r) => ({
+            id: r.customer.id,
+            name: r.customer.name,
+            score: r.score,
+          })),
+        };
+      }
+
+      // Có ứng viên nhưng điểm thấp (mơ hồ) → ghi ra để nhân viên xem xét.
+      if (byName.length > 0) {
+        return {
+          customer: null,
+          method: 'name_weak',
+          confidence: byName[0].score,
+          candidates: byName.map((r) => ({
+            id: r.customer.id,
+            name: r.customer.name,
+            score: r.score,
+          })),
+        };
+      }
+    }
+  }
+
+  // ── Chiến lược 4: số tiền (suy đoán) ─────────────────────────────────
+  if (settings.byAmount) {
+    const amount = roundMoney(tx.transfer_amount);
+    const byAmount = findCustomersByAmount(amount, 5);
+    if (byAmount.length === 1 && 0.5 >= settings.minConfidence) {
+      return {
+        customer: byAmount[0].customer,
+        method: 'amount',
+        confidence: 0.5,
+        candidates: [],
+      };
+    }
+    if (byAmount.length > 1) {
+      return {
+        customer: null,
+        method: 'amount_ambiguous',
+        confidence: 0.5,
+        candidates: byAmount.map((r) => ({
+          id: r.customer.id,
+          name: r.customer.name,
+          score: r.score,
+        })),
+      };
+    }
+  }
+
+  return empty;
+}
+
 /** Sinh mã khách mới (KHxxxx) — không trùng mã đã có. */
 function generateDebtCode() {
   try {
@@ -459,14 +928,18 @@ function storeTransaction(payload) {
     }
 
     const debtCode = extractDebtCode(payload);
+    // Gạch nợ thông minh: trích số TK + tên người gửi ngay khi lưu để
+    // hệ thống có thể nhận diện khách NGAY CẢ KHI không có mã QR.
+    const senderAccount = extractSenderAccount(payload);
+    const senderName = extractSenderName(payload);
 
     const info = db
       .prepare(
         `INSERT INTO sepay_transactions
            (sepay_id, gateway, account_number, sub_account, code, content, description,
             transfer_type, transfer_amount, accumulated, reference_code, transaction_date,
-            debt_code, status, raw_payload)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            debt_code, status, raw_payload, sender_account, sender_name)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         sepayId,
@@ -483,7 +956,9 @@ function storeTransaction(payload) {
         payload.transaction_date || payload.transactionDate || null,
         debtCode || null,
         TX_STATUS.PENDING,
-        JSON.stringify(payload)
+        JSON.stringify(payload),
+        senderAccount || null,
+        senderName || null
       );
 
     return { success: true, transactionId: info.lastInsertRowid };
@@ -537,25 +1012,75 @@ function processTransaction(txId, opts = {}) {
 
   // ── 1. Khớp khách hàng ────────────────────────────────────────────────
   let customer = null;
+  let matchMethod = '';
+  let matchConfidence = 0;
+  let matchCandidates = [];
+
   if (tx.customer_id) {
     customer = db
       .prepare('SELECT id, name, phone, debt, debt_code FROM customers WHERE id = ?')
       .get(tx.customer_id);
+    matchMethod = customer ? 'manual' : '';
   }
+
   if (!customer && tx.debt_code) {
     customer = findCustomerByDebtCode(tx.debt_code);
+    if (customer) {
+      matchMethod = 'debt_code';
+      matchConfidence = 1.0;
+    }
+  }
+
+  // ── 1b. GẠCH NỢ THÔNG MINH ───────────────────────────────────────────
+  //    Khách chuyển theo SỐ TÀI KHOẢN (không quét mã QR) → nội dung không
+  //    có mã KH. Hệ thống tự nhận diện qua số TK người gửi / tên người gửi.
+  if (!customer) {
+    const smart = smartMatchCustomer(tx);
+    matchMethod = smart.method || matchMethod;
+    matchConfidence = smart.confidence;
+    matchCandidates = smart.candidates || [];
+
+    if (smart.customer) {
+      customer = smart.customer;
+    } else if (matchCandidates.length > 0) {
+      // Nhiều ứng viên → ghi lại để nhân viên chọn nhanh trong UI.
+      db.prepare(
+        `UPDATE sepay_transactions
+            SET match_method = ?, match_confidence = ?, match_candidates = ?,
+                processed_at = CURRENT_TIMESTAMP, note = ?
+          WHERE id = ?`
+      ).run(
+        matchMethod,
+        matchConfidence,
+        JSON.stringify(matchCandidates),
+        `Nhiều khách hàng có thể khớp (${matchCandidates
+          .map((c) => c.name)
+          .join(', ')}) — cần nhân viên chọn`,
+        tx.id
+      );
+      return {
+        success: false,
+        code: 'AMBIGUOUS_CUSTOMER',
+        error: 'Nhiều khách hàng có thể khớp — cần nhân viên chọn',
+        transactionId: tx.id,
+        candidates: matchCandidates,
+      };
+    }
   }
 
   if (!customer) {
     db.prepare(
       `UPDATE sepay_transactions
-          SET status = ?, processed_at = CURRENT_TIMESTAMP, note = ?
+          SET status = ?, processed_at = CURRENT_TIMESTAMP, note = ?,
+              match_method = ?, match_confidence = ?
         WHERE id = ?`
     ).run(
       TX_STATUS.MANUAL,
       tx.debt_code
         ? `Không tìm thấy khách với mã "${tx.debt_code}" — cần nhân viên xử lý`
         : 'Không tìm thấy mã khách trong nội dung chuyển khoản — cần nhân viên xử lý',
+      matchMethod || null,
+      matchConfidence || null,
       tx.id
     );
     return {
@@ -688,7 +1213,8 @@ function processTransaction(txId, opts = {}) {
   db.prepare(
     `UPDATE sepay_transactions
         SET status = ?, customer_id = ?, applied_amount = ?, credit_amount = ?,
-            debt_transaction_id = ?, processed_at = CURRENT_TIMESTAMP, note = ?
+            debt_transaction_id = ?, processed_at = CURRENT_TIMESTAMP, note = ?,
+            match_method = ?, match_confidence = ?, match_candidates = NULL
       WHERE id = ?`
   ).run(
     TX_STATUS.MATCHED,
@@ -697,6 +1223,8 @@ function processTransaction(txId, opts = {}) {
     credit,
     paymentResult ? paymentResult.transactionId : null,
     noteParts.join(' · '),
+    matchMethod || null,
+    matchConfidence || null,
     tx.id
   );
 
@@ -751,6 +1279,8 @@ function processTransaction(txId, opts = {}) {
     balanceBefore,
     balanceAfter,
     debtTransactionId: paymentResult ? paymentResult.transactionId : null,
+    matchMethod: matchMethod || null,
+    matchConfidence: matchConfidence || null,
   };
 }
 
@@ -1196,6 +1726,23 @@ function listTransactions(filters = {}) {
       status: r.status,
       appliedAmount: roundMoney(r.applied_amount || 0),
       creditAmount: roundMoney(r.credit_amount || 0),
+      // ── Gạch nợ thông minh ────────────────────────────────────────────
+      senderAccount: r.sender_account || null,
+      senderName: r.sender_name || null,
+      matchMethod: r.match_method || null,
+      matchConfidence:
+        r.match_confidence === null || r.match_confidence === undefined
+          ? null
+          : Number(r.match_confidence),
+      matchCandidates: (() => {
+        if (!r.match_candidates) return [];
+        try {
+          const parsed = JSON.parse(r.match_candidates);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch (_) {
+          return [];
+        }
+      })(),
       note: r.note,
       createdAt: r.created_at,
       processedAt: r.processed_at,
@@ -1367,6 +1914,198 @@ function repairDebtCodes() {
   return result;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// QUẢN LÝ SỐ TÀI KHOẢN NGÂN HÀNG CỦA KHÁCH
+// ─────────────────────────────────────────────────────────────────────────────
+// Cho phép đăng ký số tài khoản (VD "1988888779779") cho 1 khách → hệ thống
+// tự nhận diện giao dịch gửi từ số TK đó, KHÔNG CẦN quét mã QR.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Lưu số tài khoản ngân hàng cho khách.
+ *
+ * @param {number} customerId
+ * @param {string} accountNumber - số tài khoản (VD "1988888779779")
+ * @param {string} [accountHolder] - tên chủ tài khoản (VD "BUI TRUONG VAN")
+ * @returns {{success:boolean, error?:string, accountNumber?:string}}
+ */
+function setCustomerBankAccount(customerId, accountNumber, accountHolder) {
+  const custId = parseInt(customerId, 10);
+  if (!custId || Number.isNaN(custId)) {
+    return { success: false, error: 'customerId không hợp lệ' };
+  }
+
+  const acc = normalizeAccount(accountNumber);
+  if (!acc || acc.length < 6 || acc.length > 20) {
+    return {
+      success: false,
+      error: 'Số tài khoản không hợp lệ (cần 6-20 chữ số)',
+    };
+  }
+
+  try {
+    const cust = db.prepare('SELECT id, name FROM customers WHERE id = ?').get(custId);
+    if (!cust) return { success: false, error: 'Không tìm thấy khách hàng' };
+
+    // Cảnh báo nếu số TK đã thuộc khách khác.
+    const owner = db
+      .prepare(
+        `SELECT id, name FROM customers
+          WHERE REPLACE(REPLACE(REPLACE(COALESCE(bank_account,''),' ',''),'-',''),'.','') = ?
+            AND id <> ?`
+      )
+      .get(acc, custId);
+
+    if (owner) {
+      return {
+        success: false,
+        error: `Số tài khoản đang thuộc khách "${owner.name}" (ID ${owner.id})`,
+      };
+    }
+
+    const holder = accountHolder ? String(accountHolder).trim() : null;
+
+    db.prepare(
+      `UPDATE customers
+          SET bank_account = ?, bank_account_name = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?`
+    ).run(acc, holder, custId);
+
+    logger.info('[SEPAY] setCustomerBankAccount', { customerId: custId, account: acc });
+
+    return { success: true, accountNumber: acc, accountHolder: holder };
+  } catch (e) {
+    logger.error('[SEPAY] setCustomerBankAccount error', { error: e.message });
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Xoá số tài khoản ngân hàng của khách.
+ * @returns {{success:boolean, error?:string}}
+ */
+function clearCustomerBankAccount(customerId) {
+  const custId = parseInt(customerId, 10);
+  if (!custId || Number.isNaN(custId)) {
+    return { success: false, error: 'customerId không hợp lệ' };
+  }
+  try {
+    db.prepare(
+      `UPDATE customers
+          SET bank_account = NULL, bank_account_name = NULL, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?`
+    ).run(custId);
+    return { success: true };
+  } catch (e) {
+    logger.error('[SEPAY] clearCustomerBankAccount error', { error: e.message });
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Danh sách khách đã đăng ký số tài khoản (kèm số giao dịch đã khớp).
+ */
+function listCustomerBankAccounts() {
+  try {
+    return db
+      .prepare(
+        `SELECT c.id, c.name, c.phone, c.debt, c.debt_code,
+                c.bank_account, c.bank_account_name,
+                (SELECT COUNT(*) FROM sepay_transactions t
+                  WHERE t.customer_id = c.id AND t.sender_account IS NOT NULL
+                    AND t.sender_account <> '') AS matched_by_account
+           FROM customers c
+          WHERE c.bank_account IS NOT NULL AND TRIM(c.bank_account) <> ''
+            AND COALESCE(c.deleted, 0) = 0
+          ORDER BY c.name COLLATE NOCASE`
+      )
+      .all();
+  } catch (e) {
+    logger.error('[SEPAY] listCustomerBankAccounts error', { error: e.message });
+    return [];
+  }
+}
+
+/**
+ * Đối soát LẠI toàn bộ giao dịch đang `manual`/`pending` bằng gạch nợ thông minh.
+ *
+ * Dùng khi vừa đăng ký số tài khoản cho khách → các giao dịch cũ đang chờ
+ * sẽ được khớp & gạch nợ ngay.
+ *
+ * @returns {Promise<{scanned:number, settled:number, failed:number, details:Array}>}
+ */
+async function resmartMatchPending(opts = {}) {
+  const result = { scanned: 0, settled: 0, failed: 0, details: [] };
+
+  let rows = [];
+  try {
+    rows = db
+      .prepare(
+        `SELECT id FROM sepay_transactions
+          WHERE status IN ('manual', 'pending')
+            AND transfer_type = 'in'
+            AND COALESCE(applied_amount, 0) = 0
+          ORDER BY id`
+      )
+      .all();
+  } catch (e) {
+    logger.error('[SEPAY] resmartMatchPending scan error', { error: e.message });
+    return result;
+  }
+
+  for (const row of rows) {
+    result.scanned += 1;
+    try {
+      const tx = db.prepare('SELECT * FROM sepay_transactions WHERE id = ?').get(row.id);
+
+      // Bổ sung sender_account/sender_name nếu giao dịch cũ chưa có.
+      if (!tx.sender_account || !tx.sender_name) {
+        const acc = extractSenderAccount(tx);
+        const nm = extractSenderName(tx);
+        if (acc || nm) {
+          db.prepare(
+            'UPDATE sepay_transactions SET sender_account = ?, sender_name = ? WHERE id = ?'
+          ).run(acc || tx.sender_account, nm || tx.sender_name, tx.id);
+          tx.sender_account = acc || tx.sender_account;
+          tx.sender_name = nm || tx.sender_name;
+        }
+      }
+
+      const out = processTransaction(tx.id, { user: opts.user, force: true });
+      if (out.success) {
+        result.settled += 1;
+        result.details.push({
+          id: tx.id,
+          customerId: out.customerId,
+          method: out.matchMethod || null,
+          ok: true,
+        });
+      } else {
+        result.failed += 1;
+        result.details.push({
+          id: tx.id,
+          code: out.code || null,
+          ok: false,
+        });
+      }
+    } catch (e) {
+      result.failed += 1;
+      logger.error('[SEPAY] resmartMatchPending item error', {
+        id: row.id,
+        error: e.message,
+      });
+    }
+  }
+
+  logger.info('[SEPAY] resmartMatchPending done', {
+    scanned: result.scanned,
+    settled: result.settled,
+    failed: result.failed,
+  });
+
+  return result;
+}
+
 module.exports = {
   TX_STATUS,
   SEPAY_API_BASE,
@@ -1381,6 +2120,21 @@ module.exports = {
   generateDebtCode,
   ensureCustomerDebtCode,
   setCustomerDebtCode,
+  // ── Gạch nợ thông minh ──────────────────────────────────────────────
+  normalizeAccount,
+  normalizeName,
+  getSetting,
+  setSetting,
+  extractSenderAccount,
+  extractSenderName,
+  findCustomerByBankAccount,
+  findCustomersByName,
+  findCustomersByAmount,
+  smartMatchCustomer,
+  setCustomerBankAccount,
+  clearCustomerBankAccount,
+  listCustomerBankAccounts,
+  resmartMatchPending,
   verifyWebhookSignature,
   storeTransaction,
   processTransaction,

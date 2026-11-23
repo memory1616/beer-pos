@@ -77,6 +77,12 @@ router.get('/status', requireAuth, requireStaff, (req, res) => {
         autoPollEnabled: settings.autoPollEnabled,
         autoPollIntervalMin: settings.autoPollIntervalMin,
         autoPollLookbackDays: settings.autoPollLookbackDays,
+        // Gạch nợ thông minh: nhận diện khách theo số TK / tên người gửi
+        smartMatchEnabled: DebtSepayService.getSetting('sepay_smart_match_enabled', '1') !== '0',
+        smartMatchByName: DebtSepayService.getSetting('sepay_smart_match_by_name', '1') !== '0',
+        smartMatchMinConfidence: parseFloat(
+          DebtSepayService.getSetting('sepay_smart_min_confidence', '0.9')
+        ) || 0.9,
       },
     });
   } catch (e) {
@@ -275,6 +281,114 @@ router.post('/customer-code', requireAuth, requireStaff, (req, res) => {
     res.json({ success: true, data: { debtCode: result.debtCode } });
   } catch (e) {
     logger.error('[SEPAY_API] customer-code error', { error: e.message });
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// H. GẠCH NỢ THÔNG MINH — số tài khoản ngân hàng của khách
+// ─────────────────────────────────────────────────────────────────────────────
+// Khách chuyển theo SỐ TÀI KHOẢN (không quét mã QR) → nội dung CK không
+// có mã KH. Đăng ký số TK cho khách → hệ thống tự nhận diện & gạch nợ.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** GET /api/debt-ledger/sepay/bank-accounts — danh sách khách đã đăng ký số TK. */
+router.get('/bank-accounts', requireAuth, requireStaff, (req, res) => {
+  try {
+    const items = DebtSepayService.listCustomerBankAccounts();
+    res.json({ success: true, data: items });
+  } catch (e) {
+    logger.error('[SEPAY_API] bank-accounts error', { error: e.message });
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+/**
+ * POST /api/debt-ledger/sepay/bank-accounts
+ * Đăng ký số tài khoản cho khách → hệ thống tự gạch nợ khi khách CK từ số TK.
+ * Body: { customerId, accountNumber, accountHolder? }
+ */
+router.post('/bank-accounts', requireAuth, requireStaff, async (req, res) => {
+  try {
+    const { customerId, accountNumber, accountHolder } = req.body || {};
+    const result = DebtSepayService.setCustomerBankAccount(
+      customerId,
+      accountNumber,
+      accountHolder
+    );
+
+    if (!result.success) {
+      return res.status(400).json({ success: false, error: result.error });
+    }
+
+    // Gán xong → thử đối soát lại các giao dịch đang chờ (có thể khớp ngay).
+    let resmart = null;
+    try {
+      const pending = db
+        .prepare(
+          `SELECT COUNT(*) AS c FROM sepay_transactions
+            WHERE status IN ('manual','pending') AND transfer_type = 'in'`
+        )
+        .get();
+      if (pending && pending.c > 0) {
+        resmart = await DebtSepayService.resmartMatchPending({ user: req.user });
+      }
+    } catch (e) {
+      logger.error('[SEPAY_API] resmart after set account error', { error: e.message });
+    }
+
+    const io = req.app.get('io');
+    if (io && resmart && resmart.settled > 0) {
+      io.to('admin').emit('debt:updated', { action: 'sepay_smart_match' });
+      io.to('admin').emit('sepay:reconciled', {
+        added: resmart.settled,
+        settled: resmart.settled,
+        failed: resmart.failed,
+      });
+    }
+
+    res.json({ success: true, data: { ...result, resmart } });
+  } catch (e) {
+    logger.error('[SEPAY_API] set bank account error', { error: e.message });
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+/** DELETE /api/debt-ledger/sepay/bank-accounts/:customerId — gỡ số TK. */
+router.delete('/bank-accounts/:customerId', requireAuth, requireAdmin, (req, res) => {
+  try {
+    const result = DebtSepayService.clearCustomerBankAccount(req.params.customerId);
+    if (!result.success) {
+      return res.status(400).json({ success: false, error: result.error });
+    }
+    res.json({ success: true });
+  } catch (e) {
+    logger.error('[SEPAY_API] clear bank account error', { error: e.message });
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+/**
+ * POST /api/debt-ledger/sepay/smart-rematch
+ * Chạy lại gạch nợ thông minh cho toàn bộ giao dịch đang chờ (manual/pending).
+ */
+router.post('/smart-rematch', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const result = await DebtSepayService.resmartMatchPending({ user: req.user });
+
+    const io = req.app.get('io');
+    if (io && result.settled > 0) {
+      io.to('admin').emit('debt:updated', { action: 'sepay_smart_match' });
+      io.to('admin').emit('sepay:reconciled', {
+        added: result.settled,
+        settled: result.settled,
+        failed: result.failed,
+      });
+    }
+
+    res.json({ success: true, data: result });
+  } catch (e) {
+    logger.error('[SEPAY_API] smart-rematch error', { error: e.message });
     res.status(500).json({ success: false, error: e.message });
   }
 });

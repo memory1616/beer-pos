@@ -1002,6 +1002,8 @@
     sepay: null,
     sepayTx: [],
     sepayFilter: '',
+    // Gạch nợ thông minh — số tài khoản ngân hàng của khách
+    sepayBankAccounts: [],
     // Thông báo Zalo qua OmiCall
     notify: null,
     notifyHistory: null,
@@ -1472,6 +1474,22 @@
           if (t.creditAmount) detail += (detail ? ' · ' : '') + 'Dư ' + money(t.creditAmount);
           if (detail) detail = '<div class="dbt-muted" style="font-size:11px;margin-top:2px">' + esc(detail) + '</div>';
 
+          // Nhãn cách khớp (gạch nợ thông minh)
+          var MATCH_LABEL = {
+            debt_code: '🎯 Mã KH',
+            bank_account: '🏦 Số TK',
+            name: '👤 Tên',
+            amount: '💰 Số tiền',
+            manual: '✋ Gán tay',
+          };
+          var matchTag = '';
+          if (t.matchMethod && t.matchMethod !== 'manual') {
+            matchTag = '<div class="dbt-muted" style="font-size:11px;margin-top:2px">' +
+              esc(MATCH_LABEL[t.matchMethod] || t.matchMethod) +
+              (t.senderAccount ? ' · ' + esc(t.senderAccount) : '') +
+              '</div>';
+          }
+
           return '<tr>' +
             '<td style="font-size:11.5px;white-space:nowrap">' + esc(fmtDateTime(t.transactionDate)) + '</td>' +
             '<td>' +
@@ -1479,6 +1497,7 @@
                 ? '<span class="dbt-name">' + esc(t.customerName) + '</span>'
                 : '<span class="dbt-muted">Chưa khớp</span>') +
               (t.debtCode ? '<div class="dbt-sepay-code" style="font-size:11px">' + esc(t.debtCode) + '</div>' : '') +
+              matchTag +
             '</td>' +
             '<td><div class="dbt-sepay-content">' + esc(t.content || t.description || '—') + '</div></td>' +
             '<td class="dbt-mono" style="text-align:right">' + money(t.amount) + detail + '</td>' +
@@ -1488,6 +1507,41 @@
         }).join('') +
         '</tbody></table></div>'
       : '<div class="dbt-empty">📭 Chưa có giao dịch Sepay nào</div>';
+
+    // ── Gạch nợ thông minh: số tài khoản ngân hàng của khách ───────────
+    var accounts = state.sepayBankAccounts || [];
+    var smartHtml = '';
+    if (state.isAdmin) {
+      var accRows = accounts.length
+        ? '<div class="dbt-table-wrap"><table class="dbt-table"><thead><tr>' +
+            '<th>Khách</th><th>Số tài khoản</th><th>Chủ TK</th>' +
+            '<th style="text-align:right">Đã khớp</th><th></th>' +
+          '</tr></thead><tbody>' +
+          accounts.map(function (a) {
+            return '<tr>' +
+              '<td class="dbt-name">' + esc(a.name) + ' (#' + a.id + ')</td>' +
+              '<td class="dbt-mono">' + esc(a.bank_account) + '</td>' +
+              '<td class="dbt-muted">' + esc(a.bank_account_name || '—') + '</td>' +
+              '<td style="text-align:right" class="dbt-muted">' + (a.matched_by_account || 0) + '</td>' +
+              '<td style="text-align:right"><button class="dbt-btn dbt-btn-sm" onclick="openSepayBankAccountModal(' + a.id + ')">✏️ Sửa</button></td>' +
+            '</tr>';
+          }).join('') +
+          '</tbody></table></div>'
+        : '<div class="dbt-empty">Chưa đăng ký số tài khoản nào cho khách</div>';
+
+      smartHtml = '<div class="dbt-section" style="margin-top:12px">' +
+        '<div class="dbt-section-title">🧠 Gạch nợ thông minh — nhận diện khách theo số tài khoản</div>' +
+        '<div class="dbt-section-desc">Khách chuyển khoản theo SỐ TÀI KHOẢN (không quét mã QR) → nội dung CK không có mã KH. Đăng ký số tài khoản của khách ở đây, hệ thống sẽ tự nhận diện & gạch nợ — không cần nhân viên gán tay.</div>' +
+        '<div class="dbt-hint" style="margin:0 0 12px;padding:8px 10px;border-left:3px solid var(--primary);background:var(--card-soft);border-radius:0 6px 6px 0">' +
+          '💡 Nội dung CK thực tế: <code>NHAN TU 1988888779779 TRACE 104688 ND BUI TRUONG VAN chuyen tien</code> → hệ thống tự lấy <b>số tài khoản gửi</b> & <b>tên người gửi</b> để dò khách.' +
+        '</div>' +
+        accRows +
+        '<div class="dbt-btn-row" style="margin-top:12px">' +
+          '<button class="dbt-btn" onclick="openSepayBankAccountModal(null)">➕ Đăng ký số tài khoản</button>' +
+          '<button class="dbt-btn dbt-btn-secondary" onclick="sepaySmartRematch()">🧠 Khớp lại giao dịch chờ</button>' +
+        '</div>' +
+      '</div>';
+    }
 
     var settingsHtml = '';
     if (state.isAdmin) {
@@ -1544,6 +1598,7 @@
       kpiHtml +
       filterHtml +
       rows +
+      smartHtml +
       settingsHtml +
     '</div>';
   }
@@ -3203,9 +3258,11 @@
     return Promise.all([
       api(SEPAY_API + '/status'),
       api(SEPAY_API + '/transactions' + (state.sepayFilter ? '?status=' + state.sepayFilter : '')),
+      api(SEPAY_API + '/bank-accounts'),
     ]).then(function (res) {
       state.sepay = res[0].data;
       state.sepayTx = (res[1].data && res[1].data.items) || [];
+      state.sepayBankAccounts = res[2].data || [];
       render();
     }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
   }
@@ -3318,6 +3375,70 @@
       toast('✅ Đã bỏ qua', 'ok');
       loadSepay();
     }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
+  }
+
+  // ── Gạch nợ thông minh: đăng ký số tài khoản cho khách ──────────────
+  function openSepayBankAccountModal(customerId) {
+    var acc = null;
+    (state.sepayBankAccounts || []).forEach(function (a) {
+      if (String(a.id) === String(customerId)) acc = a;
+    });
+
+    var cid = acc ? acc.id : '';
+    var name = acc ? acc.name : '';
+    if (!acc) {
+      var raw = prompt('Nhập ID khách hàng cần đăng ký số tài khoản (ví dụ 29):');
+      if (!raw) return;
+      cid = parseInt(raw, 10);
+      if (!cid || isNaN(cid)) { toast('✗ ID khách không hợp lệ', 'err'); return; }
+    }
+
+    var number = prompt(
+      'Số tài khoản ngân hàng của khách ' + (name || ('#' + cid)) +
+      '\n(VD: 1988888779779)\n\n' +
+      '→ Hệ thống sẽ tự nhận diện giao dịch gửi từ số tài khoản này.',
+      acc ? acc.bank_account : ''
+    );
+    if (number === null) return;
+    number = String(number).replace(/\D/g, '');
+    if (!number) { toast('✗ Số tài khoản không được để trống', 'err'); return; }
+
+    var holder = prompt('Tên chủ tài khoản (VD: BUI TRUONG VAN) — có thể bỏ trống:', acc ? (acc.bank_account_name || '') : '');
+    if (holder === null) holder = '';
+
+    api(SEPAY_API + '/bank-accounts', {
+      method: 'POST',
+      body: JSON.stringify({
+        customerId: cid,
+        accountNumber: number,
+        accountHolder: holder || null,
+      }),
+    }).then(function (res) {
+      var d = res.data || {};
+      var msg = '✅ Đã đăng ký số TK ' + d.accountNumber + ' cho khách #' + cid;
+      if (d.resmart && d.resmart.settled > 0) {
+        msg += ' · Đã gạch nợ ' + d.resmart.settled + ' giao dịch chờ';
+      }
+      toast(msg, 'ok');
+      loadSepay();
+      refreshOverview();
+    }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
+  }
+
+  function sepaySmartRematch() {
+    if (!window.confirm('Chạy lại gạch nợ thông minh cho toàn bộ giao dịch đang chờ?')) return;
+    api(SEPAY_API + '/smart-rematch', { method: 'POST' })
+      .then(function (res) {
+        var d = res.data || {};
+        toast(
+          '🧠 Đã xử lý ' + d.scanned + ' giao dịch · gạch nợ ' + d.settled +
+          ' · còn lại ' + d.failed,
+          d.settled > 0 ? 'ok' : 'info'
+        );
+        loadSepay();
+        refreshOverview();
+      })
+      .catch(function (e) { toast('✗ ' + e.message, 'err'); });
   }
 
   function loadForTab(tab) {
