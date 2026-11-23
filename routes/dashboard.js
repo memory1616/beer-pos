@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../database');
 const path = require('path');
+const { newShopExcludeFilter } = require('../src/services/PreOrderSQL');
 
 const DISTRIBUTOR_NAME = 'Bia Tươi Gia Huy';
 
@@ -222,9 +223,10 @@ router.get('/data', (req, res) => {
     AND (exclude_expected IS NULL OR exclude_expected = 0)
     AND last_order_date IS NOT NULL
     AND julianday('now') - julianday(last_order_date) >= ?
+    AND ${newShopExcludeFilter('', monthStartStr)}
     ORDER BY days DESC
     LIMIT 10
-  `).all(customerAlertDays);
+  `).all(customerAlertDays, monthStartStr);
 
   // KPI alerts: khách tháng trước dưới mức Kỳ vọng bình/tháng (chung)
   const prevMonthDate = new Date(now.getTime() + 7 * 60 * 60 * 1000);
@@ -249,10 +251,11 @@ router.get('/data', (req, res) => {
     ) mc ON mc.customer_id = c.id
     WHERE c.archived = 0
     AND (c.exclude_expected IS NULL OR c.exclude_expected = 0)
+    AND ${newShopExcludeFilter('c', prevMonthStart)}
     AND ROUND(?) - COALESCE(mc.prev_month_qty, 0) > 0
     ORDER BY shortfall DESC
     LIMIT 10
-  `).all(monthlyExpected, prevMonthStart, prevMonthEnd, monthlyExpected);
+  `).all(monthlyExpected, prevMonthStart, prevMonthEnd, prevMonthStart, monthlyExpected);
   
   // Get monthly expenses
   const monthExpenses = db.prepare(`

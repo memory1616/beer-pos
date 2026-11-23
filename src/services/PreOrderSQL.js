@@ -67,6 +67,34 @@ const DELIVERY_DATE_EXPR_NO_ALIAS = `CASE
     ELSE COALESCE(DATE(created_on), DATE(date))
   END`;
 
+/**
+ * Bo khoi canh bao doanh so khach MO QUAN trong ky danh gia.
+ *
+ * Ly do: khach moi mo quan trong ky danh gia (hoac sau do) CHUA co don nao
+ * trong ky do -> so luong = 0 -> luon "thieu hut" so voi ky vong.
+ * Day la canh bao SAI (khach moi chua co co hoi mua).
+ *
+ * QUY TAC (2026-11-23):
+ *   - Chi canh bao khach da TON TAI TRUOC ngay dau ky danh gia.
+ *   - "Quan moi" = THANG MO QUAN = thang co `created_at` (khop voi
+ *     PromotionService.isNewShopEligible).
+ *   - Thang MO QUAN thuoc ky danh gia: thang do chi moi co 1 phan -> cung
+ *     khong fair so voi ky vong ca thang -> cung loai.
+ *
+ * Vi du:
+ *   - KPI alerts danh gia thang 10/2026 -> loai khach tao tu 01/10/2026.
+ *   - Customers alerts danh gia thang 11/2026 -> loai khach tao tu 01/11/2026.
+ *
+ * @param {string} alias - alias bang khach (vi du 'c'), rong neu khong dung
+ * @param {string} periodStart - ngay dau ky danh gia (YYYY-MM-DD)
+ * @returns {string} dieu kien SQL (dung cho WHERE)
+ */
+function newShopExcludeFilter(alias, periodStart) {
+  const p = alias ? alias + '.' : '';
+  // Khach khong co created_at -> coi nhu khach cu -> van canh bao.
+  return `(${p}created_at IS NULL OR date(${p}created_at) < date(?))`;
+}
+
 module.exports = {
   COUNTED_FILTER,
   COUNTED_FILTER_NO_ALIAS,
@@ -74,6 +102,7 @@ module.exports = {
   PENDING_FILTER_NO_ALIAS,
   DELIVERY_DATE_EXPR,
   DELIVERY_DATE_EXPR_NO_ALIAS,
+  newShopExcludeFilter,
   // Alias cũ — giữ để không phá code đang gọi.
   REVENUE_FILTER: COUNTED_FILTER,
   REVENUE_FILTER_NO_ALIAS: COUNTED_FILTER_NO_ALIAS,

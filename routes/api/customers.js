@@ -142,10 +142,11 @@ router.get('/alerts', (req, res) => {
     ) mc ON mc.customer_id = c.id
     WHERE c.archived = 0
     AND (c.exclude_expected IS NULL OR c.exclude_expected = 0)
+    AND ${PreOrderSQL.newShopExcludeFilter('c', monthStartStr)}
     AND ROUND(?) - COALESCE(mc.monthly_qty, 0) > 0
     ORDER BY shortfall DESC
     LIMIT 10
-  `).all(expectedUnits, monthStartStr, expectedUnits);
+  `).all(expectedUnits, monthStartStr, monthStartStr, expectedUnits);
 
   res.json(alerts);
 });
