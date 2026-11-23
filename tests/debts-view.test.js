@@ -445,6 +445,50 @@ describe('views/debts.html — inline onclick phải có hàm global tương ứ
     );
     expect(missing).toEqual([]);
   });
+
+  test('MỌI hàm gọi trong inline handler đều PHẢI export ra window', () => {
+    // ⚠️ BUG ĐÃ GẶP (23/11/2026): "Uncaught ReferenceError: resendNotify is
+    //    not defined" — hàm được khai báo trong IIFE nhưng inline onclick
+    //    chạy ở GLOBAL scope nên không thấy hàm.
+    //
+    //    Hàm khai báo trong file KHÔNG đủ — phải có `window.<tên> = <tên>`.
+    //    Test cũ chỉ kiểm "có khai báo" → bỏ sót. Test này kiểm export thật.
+    const called = new Set();
+    const attrRe = /(?:onclick|onchange|onsubmit|oninput|onkeyup|onblur)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
+    let m;
+    while ((m = attrRe.exec(html)) !== null) {
+      const code = m[1] || m[2] || '';
+      const callRe = /([A-Za-z_$][\w$]*)\s*\(/g;
+      let c;
+      while ((c = callRe.exec(code)) !== null) called.add(c[1]);
+    }
+
+    const exported = new Set();
+    const exportRe = /window\.([A-Za-z_$][\w$]*)\s*=/g;
+    while ((m = exportRe.exec(html)) !== null) exported.add(m[1]);
+
+    // Hàm dựng sẵn của trình duyệt — không cần export.
+    const browserBuiltins = new Set([
+      'event', 'this', 'return', 'stopPropagation', 'preventDefault',
+      'confirm', 'alert', 'prompt', 'parseInt', 'parseFloat', 'Number', 'String',
+      'Boolean', 'Array', 'Object', 'JSON', 'Math', 'setTimeout', 'clearTimeout',
+      'require', 'fetch', 'isNaN', 'fn', 'remove', 'add', 'replace', 'open',
+      // Method của DOM element: this.select(), input.focus()...
+      'select', 'focus', 'blur', 'click', 'submit', 'reset',
+    ]);
+
+    const notExported = [...called].filter(
+      (n) => !browserBuiltins.has(n) && !exported.has(n)
+    );
+    expect(notExported).toEqual([]);
+  });
+
+  test('các hàm gạch nợ thông minh & gửi lại thông báo được expose', () => {
+    expect(html).toMatch(/window\.resendNotify\s*=\s*resendNotify/);
+    expect(html).toMatch(/window\.openSepayBankAccountModal\s*=\s*openSepayBankAccountModal/);
+    expect(html).toMatch(/window\.sepaySmartRematch\s*=\s*sepaySmartRematch/);
+    expect(html).toMatch(/window\.jsArg\s*=\s*jsArg/);
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════

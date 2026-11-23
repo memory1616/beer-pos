@@ -3562,6 +3562,13 @@
   window.testOmiCallConnection = testOmiCallConnection;
   window.openNotifyTestSendModal = openNotifyTestSendModal;
   window.sendNotifyTest = sendNotifyTest;
+  window.resendNotify = resendNotify;
+  // Gạch nợ thông minh (Sepay)
+  window.openSepayBankAccountModal = openSepayBankAccountModal;
+  window.sepaySmartRematch = sepaySmartRematch;
+  // Helper escape chuỗi cho inline onclick — PHẢI export vì inline handler
+  // chạy ở global scope (không thấy hàm trong IIFE).
+  window.jsArg = jsArg;
   // Chọn dấu +/− cho lệnh nhập nhanh (bàn phím mobile không có phím "+")
   window.setQuickSign = setQuickSign;
 })();
