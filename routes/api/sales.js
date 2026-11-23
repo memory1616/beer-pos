@@ -180,6 +180,7 @@ router.post('/', async (req, res) => {
   }
 
   let preorderDate = null;
+  let preorderSaleTime = null;
   if (wantsPreorder) {
     const PreOrderService = require('../../src/services/PreOrderService');
     const check = PreOrderService.validateScheduleDate(rawPreorderDate);
@@ -190,6 +191,9 @@ router.post('/', async (req, res) => {
       });
     }
     preorderDate = PreOrderService.normalizeScheduleDate(rawPreorderDate);
+    // ⚠️ Đơn ĐẶT TRƯỚC: giờ bán = 00:00:00 ngày giao (chưa giao → chưa có
+    // giờ thực tế). Giúp đơn đứng đầu danh sách giao hàng.
+    preorderSaleTime = PreOrderService.getSaleTime(preorderDate);
   }
 
   // driverUsername: tài xế phụ trách đơn.
@@ -492,7 +496,9 @@ router.post('/', async (req, res) => {
       // Đơn ĐẶT TRƯỚC: `date` = ngày giao mong muốn (để khi release, doanh thu
       // rơi đúng vào ngày giao). Đơn thường: `date` = ngày nghiệp vụ như cũ.
       const saleDate = preorderDate || db.getBusinessDateStr();
-      const saleTime = db.getVietnamTimeStr();
+      // Đơn ĐẶT TRƯỚC → giờ bán = 00:00:00 ngày giao.
+      // Đơn thường → giờ thực tế (giờ VN) như cũ.
+      const saleTime = preorderSaleTime || db.getVietnamTimeStr();
       // Trạng thái điều phố: AUTO (tự gán) / MANUAL (Admin chọn tay) /
       // UNASSIGNED (không tìm được tài xế → chờ Admin điều phố).
       const dispatchStatus = RegionService.computeDispatchStatus({

@@ -91,6 +91,26 @@ function setReleaseHour(hour) {
 }
 
 /**
+ * Giờ bán (`sale_time`) của đơn đặt trước = 00:00:00 ngày giao.
+ *
+ * ⚠️ YÊU CẦU NGHIỆP VỤ (2026-11-23):
+ *   Đơn đặt trước KHÔNG có "giờ bán thực tế" (nó chưa giao). Đặt giờ = 0h
+ *   ngày giao giúp:
+ *     - Đơn đứng ĐẦU danh sách giao hàng (sắp xếp theo `sale_time` tăng dần)
+ *       → tài xế giao những đơn chờ lâu nhất trước.
+ *     - Hiển thị thống nhất: đơn đặt trước hiện "00:00" ở mọi danh sách.
+ *
+ *   Đơn THƯỜNG giữ nguyên `db.getVietnamTimeStr()` (giờ thực tế).
+ *
+ * @param {string|null} preorderDate - ngày giao YYYY-MM-DD (null = đơn thường)
+ * @returns {string} HH:MM:SS
+ */
+function getSaleTime(preorderDate) {
+  if (!preorderDate) return db.getVietnamTimeStr();
+  return '00:00:00';
+}
+
+/**
  * Kiểm tra ngày giao mong muốn có hợp lệ không (không trong quá khứ).
  * @param {string} dateStr - YYYY-MM-DD
  * @returns {{valid:boolean, error?:string}}
@@ -413,6 +433,7 @@ module.exports = {
   DEFAULT_RELEASE_HOUR,
   normalizeScheduleDate,
   validateScheduleDate,
+  getSaleTime,
   getReleaseHour,
   setReleaseHour,
   listScheduled,
