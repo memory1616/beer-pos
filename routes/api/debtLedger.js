@@ -844,6 +844,43 @@ router.post('/notify/settings', requireAuth, requireAdmin, (req, res) => {
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// GỬI LẠI THÔNG BÁO BỊ MẤT
+// ─────────────────────────────────────────────────────────────────────────────
+// Thông báo Zalo gửi bất đồng bộ → nếu tiến trình kết thúc sớm (script CLI,
+// restart server) thì tin nhắn mất im lặng. Endpoint này quét lại các giao
+// dịch đã gạch nợ nhưng chưa có log thông báo → gửi lại ngay.
+// ═══════════════════════════════════════════════════════════════════════════
+router.post('/notify/retry-missing', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const body = req.body || {};
+    const result = await DebtNotifyService.retryMissingNotifications({
+      limit: body.limit,
+      lookbackDays: body.lookbackDays,
+    });
+
+    if (result.error === 'DISABLED') {
+      return res.status(400).json({ success: false, error: 'Tính năng thông báo đang TẮT' });
+    }
+    if (result.error === 'CHANNEL_MISMATCH') {
+      return res.status(400).json({
+        success: false,
+        error: 'Kênh thông báo hiện tại không phải Zalo cá nhân (OmiCall)',
+      });
+    }
+
+    const io = req.app.get('io');
+    if (io && result.sent > 0) {
+      io.to('admin').emit('debt:notified', { sent: result.sent });
+    }
+
+    res.json({ success: true, data: result });
+  } catch (e) {
+    logger.error('[DEBT_NOTIFY_API] retry-missing error', { error: e.message });
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 router.post('/notify/test', requireAuth, requireAdmin, async (req, res) => {
   try {
     const body = req.body || {};

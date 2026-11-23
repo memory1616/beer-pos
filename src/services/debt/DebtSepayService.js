@@ -1610,6 +1610,25 @@ async function autoReconcile(opts = {}) {
 
     setSetting(AUTO_POLL_LAST_RUN_KEY, now.toISOString());
 
+    // ── Bù thông báo Zalo bị mất ────────────────────────────────────────
+    //    Thông báo gửi bất đồng bộ (fire-and-forget) → nếu tiến trình bị kết
+    //    thúc sớm (script CLI, restart server) thì tin nhắn mất im lặng.
+    //    Cron này (chạy trong PM2, tiến trình sống lâu) sẽ quét lại các giao
+    //    dịch đã gạch nợ nhưng chưa có log thông báo → gửi lại.
+    try {
+      const retry = await DebtNotifyService.retryMissingNotifications();
+      if (retry.sent > 0) {
+        logger.info('[SEPAY] auto-poll resent missing Zalo notifications', {
+          sent: retry.sent,
+          failed: retry.failed,
+        });
+      }
+    } catch (e) {
+      logger.error('[SEPAY] auto-poll retry notifications error', {
+        error: e.message,
+      });
+    }
+
     if (result.added > 0 || result.settled > 0) {
       logger.info('[SEPAY] auto-poll settled', {
         from,

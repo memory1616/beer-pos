@@ -1806,6 +1806,15 @@
     var historyHtml =
       '<div class="dbt-section" style="margin-top:12px">' +
         '<div class="dbt-section-title">📨 Lịch sử gửi tin nhắn</div>' +
+        (state.isAdmin
+          ? '<div class="dbt-btn-row" style="margin:0 0 10px">' +
+              '<button class="dbt-btn dbt-btn-secondary" onclick="retryMissingNotify()">📤 Gửi lại tin bị mất</button>' +
+            '</div>' +
+            '<div class="dbt-hint" style="margin:0 0 10px;padding:8px 10px;border-left:3px solid var(--primary);background:var(--card-soft);border-radius:0 6px 6px 0">' +
+              '💡 Dùng khi khách báo <b>chưa nhận được tin thông báo</b>. Hệ thống quét các giao dịch đã gạch nợ nhưng chưa từng gửi tin → gửi lại ngay. ' +
+              '(Hệ thống cũng tự quét lại mỗi khoảng 5 phút.)' +
+            '</div>'
+          : '') +
         (items.length
           ? '<div class="dbt-table-wrap"><table class="dbt-table dbt-table--wide"><thead><tr>' +
             '<th>Thời gian</th><th>Khách</th><th>Loại</th>' +
@@ -3150,8 +3159,24 @@
     if (state.notify) state.notify.enabled = on;
   }
 
-  function toggleNotifyManualDebt() {
-    var btn = document.getElementById('omiManualDebt');
+  /** Gửi lại các tin thông báo bị mất (giao dịch đã gạch nợ nhưng chưa gửi tin). */
+  function retryMissingNotify() {
+    if (!window.confirm('Gửi lại tin thông báo cho các giao dịch đã gạch nợ nhưng chưa gửi tin nhắn?')) return;
+    api(API + '/notify/retry-missing', { method: 'POST' })
+      .then(function (res) {
+        var d = res.data || {};
+        toast(
+          d.sent > 0
+            ? '📤 Đã gửi lại ' + d.sent + ' tin thông báo' + (d.failed ? ' · ' + d.failed + ' lỗi' : '')
+            : '✅ Không có tin nào bị mất (đã kiểm tra ' + d.scanned + ' giao dịch)',
+          d.sent > 0 ? 'ok' : 'info'
+        );
+        loadNotify();
+      })
+      .catch(function (e) { toast('✗ ' + e.message, 'err'); });
+  }
+
+  function toggleNotifyManualDebt() {    var btn = document.getElementById('omiManualDebt');
     if (!btn) return;
     var on = !btn.classList.contains('on');
     btn.classList.toggle('on', on);

@@ -461,6 +461,115 @@ function listHistory(opts = {}) {
   }
 }
 
+/**
+ * Gửi LẠI thông báo cho các giao dịch đã gạch nợ nhưng CHƯA có log thông báo.
+ *
+ * ⚠️ VÌ SAO CẦN?
+ *  Thông báo Zalo được gửi bất đồng bộ (`notifyPaymentAsync`) → fire-and-forget.
+ *  Nếu tiến trình bị kết thúc trước khi promise hoàn tất (VD: chạy script
+ *  CLI gạch nợ rồi `process.exit()`, hoặc server restart giữa chừng) → thông
+ *  báo bị MẤT im lặng, khách không nhận được tin.
+ *
+ *  Hàm này quét các giao dịch `matched` chưa từng có log `payment` → gửi lại.
+ *  Được gọi từ auto-poll cron (chạy trong PM2 → tiến trình sống lâu) nên tự
+ *  khắc phục được mà không cần nhân viên can thiệp.
+ *
+ * @param {object} [opts] { limit, lookbackDays }
+ * @returns {Promise<{scanned:number, sent:number, failed:number, details:Array}>}
+ */
+async function retryMissingNotifications(opts = {}) {
+  const result = { scanned: 0, sent: 0, failed: 0, details: [] };
+
+  const cfg = OmiCallService.getConfig();
+  if (!cfg.enabled) {
+    result.error = 'DISABLED';
+    return result;
+  }
+  if (cfg.channel !== CHANNEL) {
+    result.error = 'CHANNEL_MISMATCH';
+    return result;
+  }
+
+  const limit = Math.min(parseInt(opts.limit, 10) || 50, 200);
+  const lookbackDays = Math.min(parseInt(opts.lookbackDays, 10) || 7, 60);
+
+  let rows = [];
+  try {
+    rows = db
+      .prepare(
+        `SELECT t.id, t.customer_id, t.transfer_amount, t.applied_amount,
+                t.credit_amount, t.transaction_date, t.sepay_id,
+                c.name AS customer_name
+           FROM sepay_transactions t
+           JOIN customers c ON c.id = t.customer_id
+          WHERE t.status = 'matched'
+            AND t.transfer_type = 'in'
+            AND t.applied_amount > 0
+            AND t.transaction_date >= datetime('now', ?)
+            AND NOT EXISTS (
+              SELECT 1 FROM debt_notifications n
+               WHERE n.transaction_id = t.debt_transaction_id
+                 AND n.event_type = ?
+                 AND n.status = ?
+            )
+          ORDER BY t.id DESC
+          LIMIT ?`
+      )
+      .all(`-${lookbackDays} days`, EVENT_TYPES.PAYMENT, STATUS.SENT, limit);
+  } catch (e) {
+    logger.error('[DEBT_NOTIFY] retryMissingNotifications scan error', {
+      error: e.message,
+    });
+    result.error = e.message;
+    return result;
+  }
+
+  for (const row of rows) {
+    result.scanned += 1;
+    try {
+      const out = await notifyPayment({
+        customerId: row.customer_id,
+        customerName: row.customer_name,
+        amount: roundMoney(row.transfer_amount),
+        applied: roundMoney(row.applied_amount),
+        credit: roundMoney(row.credit_amount),
+        balanceBefore: 0, // không có sẵn → tin nhắn vẫn đúng nghĩa (số tiền + số dư)
+        balanceAfter: 0,
+        source: 'SEPAY',
+        transactionId: row.debt_transaction_id,
+      });
+
+      if (out.status === STATUS.SENT) {
+        result.sent += 1;
+      } else {
+        result.failed += 1;
+      }
+      result.details.push({
+        txId: row.id,
+        customerId: row.customer_id,
+        status: out.status,
+        error: out.error || null,
+      });
+    } catch (e) {
+      result.failed += 1;
+      logger.error('[DEBT_NOTIFY] retryMissingNotifications item error', {
+        txId: row.id,
+        error: e.message,
+      });
+    }
+  }
+
+  if (result.sent > 0) {
+    logger.info('[DEBT_NOTIFY] retryMissingNotifications sent', {
+      scanned: result.scanned,
+      sent: result.sent,
+      failed: result.failed,
+    });
+  }
+
+  return result;
+}
+
 /** Thống kê nhanh (để hiển thị KPI trên UI). */
 function getSummary() {
   try {
@@ -496,6 +605,7 @@ module.exports = {
   notifyManualDebt,
   notifyPaymentAsync,
   notifyManualDebtAsync,
+  retryMissingNotifications,
   findConvId,
   listHistory,
   getSummary,
