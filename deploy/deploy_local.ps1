@@ -448,10 +448,27 @@ $failItems = @()
 
 foreach ($item in $items) {
     $local = Join-Path $ProjectRoot $item
-    if ($UseHostAlias) {
-        $remote = "${sshTarget}:${StagingPath}/"
+    # ⚠️ `scp file remote:staging/` đặt file vào ROOT của staging (KHÔNG giữ
+    # cấu trúc thư mục con) → staging có "realtime.js" thay vì "js/realtime.js"
+    # → deploy.sh copy sai chỗ → file trên server KHÔNG BAO GIỜ được cập nhật.
+    # → Copy vào ĐÚNG đường dẫn đích: staging/<thư mục cha>/<tên file>.
+    # ⚠️ `Split-Path -Parent` trả dấu `\` (Windows) → phải đổi sang `/`
+    #    vì đường dẫn trên Linux.
+    $itemDir = (Split-Path -Parent $item) -replace '\\', '/'
+    if ($itemDir -and $itemDir -ne ".") {
+        $mkdirCmd = "mkdir -p `"${StagingPath}/${itemDir}`""
+        ssh @sshCommon $sshTarget $mkdirCmd 2>&1 | Out-Null
+        if ($UseHostAlias) {
+            $remote = "${sshTarget}:${StagingPath}/${itemDir}/"
+        } else {
+            $remote = "${User}@${ServerHost}:${StagingPath}/${itemDir}/"
+        }
     } else {
-        $remote = "${User}@${ServerHost}:${StagingPath}/"
+        if ($UseHostAlias) {
+            $remote = "${sshTarget}:${StagingPath}/"
+        } else {
+            $remote = "${User}@${ServerHost}:${StagingPath}/"
+        }
     }
     $output = scp @scpArgs $local $remote 2>&1
     if ($LASTEXITCODE -eq 0) {

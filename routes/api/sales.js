@@ -440,8 +440,19 @@ router.post('/', async (req, res) => {
     }
 
     // ========== KHUYẾN MÃI QUÁN MỚI ==========
-    // Kiểm tra và tính lít tặng nếu là quán mới (CHỈ tính bia bình keg, KHÔNG tính pet)
-    // Chỉ áp dụng nếu customer.promotion_enabled !== 0 và KHÔNG phải đơn MONTHLY_BONUS
+    // QUY TẮC 2026-11-23 (sửa lỗi tặng trùng):
+    //   Thưởng "N tặng M" của tháng mở quán KHÔNG được tặng ngay trong đơn.
+    //   Nó giống hệt thưởng doanh số: được tính theo TỔNG sản lượng tháng mở quán
+    //   rồi trả vào ĐƠN HÀNG ĐẦU TIÊN CỦA THÁNG KẾ TIẾP (xem block
+    //   "TỰ ĐỘNG GẮN THƯỞNG" bên dưới, nhánh program === 'NEW_CUSTOMER').
+    //
+    //   Trước đây đơn tạo gọi `calculateNewShopPromotion()` → cộng lít tặng
+    //   (price=0) NGAY vào đơn + `deliver_kegs` + trừ kho. Sau đó tháng sau
+    //   auto-claim lại gắn thêm lần nữa (promo_type='NEW_SHOP_BONUS') →
+    //   TẶNG TRÙNG 2 LẦN cho cùng 1 tháng.
+    //
+    //   → Ở ĐÂY chỉ gắn NHÃN `NEW_SHOP` (để báo cáo/dashboard nhận biết khách
+    //     đang trong tháng mở quán) và KHÔNG cộng lít tặng, KHÔNG trừ kho.
     let promoInfo = null;
     if (customerId) {
       // Lấy customer.promotion_enabled
@@ -451,18 +462,9 @@ router.post('/', async (req, res) => {
       if (promoEnabled) {
         const newShopCheck = PromotionService.isNewShopEligible(customerId);
         if (newShopCheck.eligible) {
-          let quantityGold = 0;
-          let quantityBlack = 0;
-          for (const item of saleItems) {
-            if (item.type !== 'keg') continue; // bỏ qua pet/box
-            const beerType = PromotionService.classifyBeer(item.productName);
-            if (beerType === 'black') quantityBlack += item.quantity;
-            else quantityGold += item.quantity;
-          }
-          promoInfo = PromotionService.calculateNewShopPromotion(quantityGold, quantityBlack, customerId);
-          if (promoInfo.totalFree > 0) {
-            console.log('[NEW SHOP PROMO]', promoInfo);
-          }
+          // Nhãn đơn thuộc tháng mở quán — KHÔNG kèm lít tặng.
+          promoInfo = { freeGold: 0, freeBlack: 0, totalFree: 0, promoType: 'NEW_SHOP' };
+          console.log('[NEW SHOP] Đơn thuộc tháng mở quán — thưởng sẽ trả ở đơn đầu tiên tháng sau');
         }
       } else {
         console.log('[PROMO] Customer', customerId, 'has promotions disabled — skipping new shop promo');
@@ -575,83 +577,23 @@ router.post('/', async (req, res) => {
           .run(saleId, item.productId, item.productSlug, item.quantity, item.price, item.cost_price, item.profit, item.price);
       }
 
-      // ========== XỬ LÝ KHUYẾN MÃI QUÁN MỚI: Tặng bia cùng loại ==========
-      // Bia tặng không tính vào doanh thu nhưng vẫn trừ kho
-      if (promoInfo && customerId) {
-        const customerNameRec = db.prepare('SELECT name FROM customers WHERE id = ?').get(customerId);
-
-        // --- Bia vàng tặng: tìm sản phẩm bia vàng đầu tiên (không phải bia đen) ---
-        if (promoInfo.freeGold > 0) {
-          const goldProduct = db.prepare(`
-            SELECT id, name, slug, cost_price FROM products
-            WHERE archived = 0 AND type = 'keg'
-              AND name NOT LIKE '%Đen%'
-              AND name NOT LIKE '%ĐEN%'
-              AND name NOT LIKE '%den%'
-              AND name NOT LIKE '%Guinness%'
-              AND name NOT LIKE '%guinness%'
-              AND name NOT LIKE '%Kilkenny%'
-              AND name NOT LIKE '%kilkenny%'
-              AND name NOT LIKE '%Murphy%'
-              AND name NOT LIKE '%murphy%'
-              AND name NOT LIKE '%Smithwick%'
-              AND name NOT LIKE '%smithwick%'
-            ORDER BY id ASC LIMIT 1
-          `).get();
-          if (goldProduct) {
-            db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(promoInfo.freeGold, goldProduct.id);
-            db.prepare('INSERT INTO sale_items (sale_id, product_id, product_slug, quantity, price, cost_price, profit, price_at_time) VALUES (?, ?, ?, ?, 0, 0, 0, 0)')
-              .run(saleId, goldProduct.id, goldProduct.slug || '', promoInfo.freeGold);
-            AuditService.logStock({
-              productId: goldProduct.id,
-              type: 'export',
-              quantity: promoInfo.freeGold,
-              reason: 'promo_new_shop',
-              refId: saleId,
-              refType: 'sale',
-              customerName: customerNameRec?.name || '',
-              note: `Khuyến mãi quán mới: +${promoInfo.freeGold}L bia vàng`,
-              req,
-            });
-          }
-        }
-
-        // --- Bia đen tặng: tìm sản phẩm bia đen đầu tiên ---
-        if (promoInfo.freeBlack > 0) {
-          const blackProduct = db.prepare(`
-            SELECT id, name, slug, cost_price FROM products
-            WHERE archived = 0 AND type = 'keg'
-              AND (name LIKE '%Đen%'
-               OR name LIKE '%ĐEN%'
-               OR name LIKE '%den%'
-               OR name LIKE '%Guinness%'
-               OR name LIKE '%guinness%'
-               OR name LIKE '%Kilkenny%'
-               OR name LIKE '%kilkenny%'
-               OR name LIKE '%Murphy%'
-               OR name LIKE '%murphy%'
-               OR name LIKE '%Smithwick%'
-               OR name LIKE '%smithwick%')
-            ORDER BY id ASC LIMIT 1
-          `).get();
-          if (blackProduct) {
-            db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(promoInfo.freeBlack, blackProduct.id);
-            db.prepare('INSERT INTO sale_items (sale_id, product_id, product_slug, quantity, price, cost_price, profit, price_at_time) VALUES (?, ?, ?, ?, 0, 0, 0, 0)')
-              .run(saleId, blackProduct.id, blackProduct.slug || '', promoInfo.freeBlack);
-            AuditService.logStock({
-              productId: blackProduct.id,
-              type: 'export',
-              quantity: promoInfo.freeBlack,
-              reason: 'promo_new_shop',
-              refId: saleId,
-              refType: 'sale',
-              customerName: customerNameRec?.name || '',
-              note: `Khuyến mãi quán mới: +${promoInfo.freeBlack}L bia đen`,
-              req,
-            });
-          }
-        }
-      }
+      // ========== KHUYẾN MÃI QUÁN MỚI: KHÔNG TẶNG NGAY TRONG ĐƠN ==========
+      // QUY TẮC 2026-11-23: thưởng "N tặng M" của tháng mở quán được trả vào
+      // ĐƠN ĐẦU TIÊN CỦA THÁNG KẾ TIẾP (giống hệt thưởng doanh số), KHÔNG
+      // tặng ngay trong đơn của tháng mở quán.
+      //
+      // Block cũ từng:
+      //   1. Tìm sản phẩm bia vàng / bia đen đầu tiên
+      //   2. UPDATE products SET stock = stock - ? (trừ kho NGAY)
+      //   3. INSERT sale_items với price = 0 (lít tặng NGAY trong đơn)
+      //   4. AuditService.logStock('promo_new_shop')
+      //
+      // → ĐÃ XOÁ (2026-11-23) vì gây TẶNG TRÙNG: đơn tháng mở quán đã tặng
+      //   ngay, tháng sau auto-reward lại gắn tiếp 'NEW_SHOP_BONUS' → 2 lần.
+      //
+      // Hiện tại `promoInfo` chỉ mang NHÃN `promoType = 'NEW_SHOP'` để báo cáo
+      // nhận biết đơn thuộc tháng mở quán. Lít tặng thực sự được gắn bởi
+      // block "TỰ ĐỘNG GẮN THƯỞNG" (promo_type = 'NEW_SHOP_BONUS').
 
       // ========== HARD VALIDATION: verify ALL sale_items were inserted ==========
       const insertedCount = db.prepare('SELECT COUNT(*) as count FROM sale_items WHERE sale_id = ?').get(saleId);
@@ -1859,50 +1801,15 @@ router.put('/:id', (req, res) => {
     }
 
     // ── XỬ LÝ KHUYẾN MÃI QUÁN MỚI (nếu có) ─────────────────
-    // Tính lại promo dựa trên customer hiện tại, không phụ thuộc promo_type cũ
+    // QUY TẮC 2026-11-23: KHÔNG tặng ngay khi sửa đơn.
+    // Thưởng quán mới được trả ở ĐƠN ĐẦU TIÊN THÁNG KẾ TIẾP (như thưởng doanh số).
+    // Nếu sửa đơn vẫn cộng lít tặng → tặng trùng (đã xảy ra ở đơn 1145).
     let promoInfo = null;
     if (customerId) {
-      // Đếm số lít mua trong đơn mới (chỉ tính bia, không tính sản phẩm khác)
-      let qtyGold = 0;
-      let qtyBlack = 0;
-      for (const item of items) {
-        const product = resolveProduct(item.productId || item.productSlug);
-        if (!product || product.type !== 'keg') continue;
-        const beerType = PromotionService.classifyBeer(product.name);
-        if (beerType === 'black') qtyBlack += item.quantity;
-        else qtyGold += item.quantity;
-      }
-
-      // Kiểm tra xem khách có đủ điều kiện quán mới không
       const newShopCheck = PromotionService.isNewShopEligible(customerId);
       if (newShopCheck.eligible) {
-        // QUY TẮC 2026-11-22: tính theo TỔNG sản lượng tháng mở quán,
-        // chỉ trả phần VƯỢT MỐC chưa được tặng (tránh tặng trùng).
-        const promoCalc = PromotionService.calculateNewShopPromotion(qtyGold, qtyBlack, customerId);
-        const freeGold = promoCalc.freeGold;
-        const freeBlack = promoCalc.freeBlack;
-
-        if (freeGold > 0) {
-          const goldProduct = db.prepare(`SELECT id, name, slug FROM products WHERE archived = 0 AND type = 'keg' AND name NOT LIKE '%Đen%' AND name NOT LIKE '%Den%' AND name NOT LIKE '%den%' ORDER BY id ASC LIMIT 1`).get();
-          if (goldProduct) {
-            db.prepare('INSERT INTO sale_items (sale_id, product_id, product_slug, quantity, price, cost_price, profit, price_at_time) VALUES (?, ?, ?, ?, 0, 0, 0, 0)')
-              .run(saleId, goldProduct.id, goldProduct.slug || '', freeGold);
-            db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(freeGold, goldProduct.id);
-            console.log('[SALE UPDATE] Added promo gold:', freeGold, 'L');
-          }
-        }
-
-        if (freeBlack > 0) {
-          const blackProduct = db.prepare(`SELECT id, name, slug FROM products WHERE archived = 0 AND type = 'keg' AND (name LIKE '%Đen%' OR name LIKE '%Den%' OR name LIKE '%den%') ORDER BY id ASC LIMIT 1`).get();
-          if (blackProduct) {
-            db.prepare('INSERT INTO sale_items (sale_id, product_id, product_slug, quantity, price, cost_price, profit, price_at_time) VALUES (?, ?, ?, ?, 0, 0, 0, 0)')
-              .run(saleId, blackProduct.id, blackProduct.slug || '', freeBlack);
-            db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(freeBlack, blackProduct.id);
-            console.log('[SALE UPDATE] Added promo black:', freeBlack, 'L');
-          }
-        }
-
-        promoInfo = { freeGold, freeBlack, totalFree: freeGold + freeBlack, promoType: 'NEW_SHOP' };
+        // Chỉ giữ nhãn `NEW_SHOP`, KHÔNG cộng lít tặng / KHÔNG trừ kho.
+        promoInfo = { freeGold: 0, freeBlack: 0, totalFree: 0, promoType: 'NEW_SHOP' };
       }
     }
 

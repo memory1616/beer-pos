@@ -420,6 +420,24 @@
       var items = detail.items || [];
       var events = detail.events || [];
 
+      // ── Phiếu đã ĐỐI SOÁT (chỉ 1 lần) ──────────────────────────────────
+      // Mỗi hóa đơn giao hàng chỉ được đối soát 1 lần → sau khi đã đối soát,
+      // tài xế KHÔNG ghi lại số liệu (chỉ quản lý mới sửa được).
+      var isReconciled = !!(detail.reconciled_at && String(detail.reconciled_at).trim());
+      var isConfirmedBy = !!(detail.confirmed_by && String(detail.confirmed_by).trim());
+      var lockNotice = (isReconciled || isConfirmedBy)
+        ? '<div class="ds-keg-note" style="margin-bottom:10px">' +
+            '🔒 <strong>Số liệu đã xác nhận</strong>' +
+            (detail.reconciled_at
+              ? ' · Đã đối soát lúc ' + esc(detail.reconciled_at)
+              : '') +
+            (detail.confirmed_by
+              ? ' · Người xác nhận: ' + esc(detail.confirmed_by)
+              : '') +
+            ' — không thể sửa. Liên hệ quản lý nếu cần điều chỉnh.' +
+          '</div>'
+        : '';
+
       var itemsHtml = '<div class="ds-section__title">Số lượng giao</div>' +
         (items.length
           ? '<div class="ds-dl-list">' + items.map(function (it) {
@@ -448,7 +466,8 @@
           }).join('') + '</div>'
         : '';
 
-      return itemsHtml +
+      return lockNotice +
+        itemsHtml +
         '<div class="ds-kegs ds-mt-3">' +
           '<div class="ds-field">' +
             '<label class="ds-label" for="dl-keg-deliver">📦 Vỏ giao đi</label>' +
@@ -483,11 +502,15 @@
         '</div>' +
         '<div class="ds-btn-row ds-mt-3">' +
           '<button class="ds-btn ds-btn--ghost" data-act="start" type="button">Bắt đầu giao</button>' +
-          '<button class="ds-btn ds-btn--success" data-act="confirm" type="button">Xác nhận giao</button>' +
+          '<button class="ds-btn ds-btn--success" data-act="confirm" type="button"' +
+            (isReconciled ? ' disabled title="Phiếu đã đối soát — chỉ quản lý mới sửa được"' : '') +
+          '>Xác nhận giao</button>' +
         '</div>' +
         '<div class="ds-btn-row ds-mt-2">' +
           '<button class="ds-btn ds-btn--warn" data-act="fail" type="button">Giao thất bại</button>' +
-          '<button class="ds-btn ds-btn--danger" data-act="disc" type="button">Có sai lệch</button>' +
+          '<button class="ds-btn ds-btn--danger" data-act="disc" type="button"' +
+            (isReconciled ? ' disabled title="Phiếu đã đối soát — chỉ quản lý mới sửa được"' : '') +
+          '>Có sai lệch</button>' +
         '</div>' +
         historyHtml;
     }
@@ -621,11 +644,27 @@
             return;
           }
         } catch (err) {
-          window.Drv.toast(err.message || 'Lỗi thao tác giao hàng', 'error');
+          window.Drv.toast(deliveryErrorMessage(err), 'error');
         } finally {
           btn.disabled = false;
         }
       }, { signal: abort.signal });
+    }
+
+    /**
+     * Thông báo lỗi thân thiện cho tài xế.
+     *  - `ALREADY_RECONCILED` (409): phiếu đã đối soát 1 lần → không ghi lại.
+     *  - `MANAGEMENT_REQUIRED` (403): số liệu đã xác nhận → liên hệ quản lý.
+     */
+    function deliveryErrorMessage(err) {
+      var code = err && err.data && err.data.code;
+      if (code === 'ALREADY_RECONCILED') {
+        return 'Phiếu này đã được đối soát — mỗi hóa đơn giao hàng chỉ đối soát 1 lần. Nếu cần sửa, liên hệ quản lý.';
+      }
+      if (code === 'MANAGEMENT_REQUIRED') {
+        return 'Số liệu đã xác nhận — chỉ quản lý mới được sửa. Vui lòng liên hệ quản lý.';
+      }
+      return (err && err.message) || 'Lỗi thao tác giao hàng';
     }
 
     async function toggleDeliveryDetail(c, card) {

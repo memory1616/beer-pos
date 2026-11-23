@@ -194,9 +194,10 @@ function optionalAuth(req, res, next) {
   const adminCookieToken = req.cookies?.session_token;
   const driverCookieToken = req.cookies?.driver_session_token;
   const headerToken = req.headers.authorization?.replace('Bearer ', '');
-  // Thứ tự ưu tiên giống requireAuth: header > driver cookie > admin cookie.
+  const queryToken = req.query?.token;
+  // Thứ tự ưu tiên giống requireAuth: header > driver cookie > admin cookie > query.
   // Nếu không, cookie admin sẽ "đè" session driver → resolve sai role.
-  const token = headerToken || driverCookieToken || adminCookieToken;
+  const token = headerToken || driverCookieToken || adminCookieToken || queryToken;
 
   if (token) {
     try {

@@ -503,6 +503,27 @@ async function networkFetchWithRetry(request, retries = 2, delayMs = 1200) {
       const req = (i === 0) ? request : baseRequest.clone();
       const resp = await fetch(new Request(req, { cache: 'no-store' }));
 
+      // ── Server redirect 302 (vd. /js/x.js?v=CŨ → /js/x.js?v=APP_VERSION) ────
+      // Chrome KHÔNG follow redirect khi request mang `cache: 'no-store'` →
+      // fetch reject với TypeError → SW fallback trả 503 JSON → browser nạp
+      // JSON như JavaScript → "Uncaught SyntaxError: Unexpected token ':'".
+      //
+      // → Tự resolve redirect thủ công: đọc `Location`, fetch lại URL đó
+      //   (vẫn no-store nhưng KHÔNG dùng Request wrapper) → browser nhận JS.
+      if (resp.type === 'opaqueredirect' || (resp.status >= 300 && resp.status < 400)) {
+        const loc = resp.headers.get('Location');
+        if (loc) {
+          const nextUrl = new URL(loc, request.url).toString();
+          const resp2 = await fetch(nextUrl, { cache: 'no-store', redirect: 'follow' });
+          if (resp2.ok || resp2.status === 200) return resp2;
+          if (i < retries) {
+            await new Promise(r => setTimeout(r, delayMs));
+            continue;
+          }
+          return resp2;
+        }
+      }
+
       // Server trả 502/503/504 → có thể do deploy đang restart → thử lại
       if ([502, 503, 504].indexOf(resp.status) !== -1 && i < retries) {
         await new Promise(r => setTimeout(r, delayMs));
@@ -526,6 +547,17 @@ self.addEventListener('fetch', event => {
 
   const parsed = new URL(url);
 
+  // ── Fallback cho file JS/CSS ───────────────────────────────────────────────
+  // Nếu trả JSON cho một request .js → browser nạp JSON như JavaScript →
+  // "Uncaught SyntaxError: Unexpected token ':'" → script chết trong im lặng
+  // (window.Realtime = undefined, socket không bao giờ kết nối).
+  // → Trả body rỗng + Content-Type đúng (application/javascript) để lỗi
+  //   hiện ra là "Script error / 503" dễ chẩn đoán, không phá script khác.
+  const jsFallback = () => new Response('', {
+    status: 503,
+    headers: { 'Content-Type': 'application/javascript; charset=utf-8' }
+  });
+
   // ── CRITICAL: Never cache realtime-related files ────────────────────────────
   // Socket.IO protocol files and realtime client MUST always be fresh.
   // Caching stale versions causes connection failures and duplicate events.
@@ -534,9 +566,7 @@ self.addEventListener('fetch', event => {
       parsed.pathname === '/db.js') {
     event.respondWith(
       networkFetchWithRetry(event.request)
-        .catch(() => new Response(JSON.stringify({ error: 'Network unavailable' }), {
-          status: 503, headers: { 'Content-Type': 'application/json' }
-        }))
+        .catch(() => jsFallback())
     );
     return;
   }
@@ -625,9 +655,14 @@ self.addEventListener('fetch', event => {
   // App Shell & static assets → Cache-First
   event.respondWith(
     cacheFirst(event.request)
-      .catch(() => new Response(JSON.stringify({ error: 'Offline', offline: true }), {
-        status: 503, headers: { 'Content-Type': 'application/json' }
-      }))
+      .catch(() => {
+        // File JS/CSS → trả body rỗng đúng MIME (không trả JSON, tránh
+        // SyntaxError làm chết script). Các loại khác → JSON báo offline.
+        if (/\.(?:js|css)$/i.test(parsed.pathname)) return jsFallback();
+        return new Response(JSON.stringify({ error: 'Offline', offline: true }), {
+          status: 503, headers: { 'Content-Type': 'application/json' }
+        });
+      })
   );
 });
 

@@ -527,19 +527,21 @@ class PromotionService {
   }
 
   /**
+   * ⚠️ LEGACY (2026-11-23) — CHỈ DÙNG ĐỂ XEM TRƯỚC, KHÔNG TẶNG ĐƠN.
+   *
    * Tính lít được tặng cho quán mới — THEO TỔNG SẢN LƯỢNG THÁNG MỞ QUÁN.
    *
-   * QUY TẮC MỚI (2026-11-22):
+   * QUY TẮC (2026-11-22):
    *   "Quán mới" = THÁNG MỞ quán (tháng có created_at).
    *   Tổng sản lượng TRONG THÁNG (bia VÀNG + bia ĐEN cộng lại) áp dụng:
    *     → newShopGoldBuy lít mua → newShopGoldFree lít BIA VÀNG tặng
    *   ⚠️ Quán mới CHỈ tặng BIA VÀNG (không tặng bia đen).
    *   KHÔNG cộng dồn qua tháng.
    *
-   * ⚠️ KHÁC VỚI BẢN CŨ:
-   *   Bản cũ tính theo lít trong ĐƠN HIỆN TẠI (tặng tức thì, mỗi đơn một
-   *   lần) → dễ tặng trùng. Bản mới tính theo TỔNG THÁNG và chỉ trả phần
-   *   "VƯỢT MỐC" chưa được tặng (trừ phần đã tặng trong các đơn trước).
+   * KHÔNG BAO GIỜ dùng hàm này để cộng lít tặng vào đơn nữa — sẽ gây TẶNG
+   * TRÙNG (đơn tháng mở quán tặng ngay + auto-reward tháng sau tặng lần 2).
+   * Luồng đúng duy nhất: `calculateNewShopMonthlyReward()` → `attachRewardToSale(..., 'NEW_SHOP_BONUS')`
+   * vào ĐƠN ĐẦU TIÊN THÁNG KẾ TIẾP.
    *
    * @param {number} quantityGold - số lít bia vàng trong đơn này
    * @param {number} quantityBlack - số lít bia đen trong đơn này

@@ -42,6 +42,18 @@ function requireDriver(req, res, next) {
   next();
 }
 
+// ── Helper: map lỗi nghiệp vụ giao hàng → HTTP status ──────────────────────
+//
+//  - `MANAGEMENT_REQUIRED` → 403 (số liệu đã xác nhận, cần quyền quản lý)
+//  - `ALREADY_RECONCILED` → 409 (phiếu đã đối soát, không đối soát lần 2)
+//  - còn lại → 400 (lỗi input/nghiệp vụ thường)
+function deliveryErrorStatus(result) {
+  if (!result) return 400;
+  if (result.code === 'MANAGEMENT_REQUIRED') return 403;
+  if (result.code === 'ALREADY_RECONCILED') return 409;
+  return 400;
+}
+
 // ── Helper: forward request nội bộ sang router sales chuẩn ─────────────────
 /**
  * Gọi lại handler gốc của POST /api/sales để dùng đúng logic nghiệp vụ
@@ -1312,9 +1324,12 @@ router.patch('/deliveries/:id/status', requireDriver, (req, res) => {
     const result = DeliveryService.updateStatus(id, status, req.user.username, {
       note,
       failureReason,
+      user: req.user,
     });
 
-    if (!result.success) return res.status(400).json({ error: result.error });
+    if (!result.success) {
+      return res.status(deliveryErrorStatus(result)).json({ error: result.error, code: result.code });
+    }
     res.json(result);
   } catch (err) {
     logger.error('[driver] update delivery status error', { error: err.message });
@@ -1323,19 +1338,30 @@ router.patch('/deliveries/:id/status', requireDriver, (req, res) => {
 });
 
 // POST /api/driver/deliveries/:id/confirm — xác nhận số lượng giao + vỏ thu
+//
+// ⚠️ HAI KHOÁ NGHIỆP VỤ:
+//  1. `ALREADY_RECONCILED` → mỗi hóa đơn giao hàng chỉ đối soát 1 lần.
+//  2. `MANAGEMENT_REQUIRED` → số liệu đã xác nhận chỉ quản lý mới sửa được.
 router.post('/deliveries/:id/confirm', requireDriver, (req, res) => {
   try {
     const id = parseInt(req.params.id);
     if (!id) return res.status(400).json({ error: 'ID đơn giao không hợp lệ' });
 
     const { items, collectedKegs, note } = req.body || {};
-    const result = DeliveryService.confirmDelivery(id, req.user.username, {
-      items: Array.isArray(items) ? items : [],
-      collectedKegs,
-      note,
-    });
+    const result = DeliveryService.confirmDelivery(
+      id,
+      req.user.username,
+      {
+        items: Array.isArray(items) ? items : [],
+        collectedKegs,
+        note,
+      },
+      { user: req.user }
+    );
 
-    if (!result.success) return res.status(400).json({ error: result.error });
+    if (!result.success) {
+      return res.status(deliveryErrorStatus(result)).json({ error: result.error, code: result.code });
+    }
     res.json(result);
   } catch (err) {
     logger.error('[driver] confirm delivery error', { error: err.message });
@@ -1349,8 +1375,12 @@ router.post('/deliveries/:id/discrepancy', requireDriver, (req, res) => {
     const id = parseInt(req.params.id);
     if (!id) return res.status(400).json({ error: 'ID đơn giao không hợp lệ' });
 
-    const result = DeliveryService.recordDiscrepancy(id, req.user.username, req.body || {});
-    if (!result.success) return res.status(400).json({ error: result.error });
+    const result = DeliveryService.recordDiscrepancy(id, req.user.username, req.body || {}, {
+      user: req.user,
+    });
+    if (!result.success) {
+      return res.status(deliveryErrorStatus(result)).json({ error: result.error, code: result.code });
+    }
     res.json(result);
   } catch (err) {
     logger.error('[driver] discrepancy error', { error: err.message });
@@ -1365,8 +1395,15 @@ router.post('/deliveries/:id/kegs', requireDriver, (req, res) => {
     if (!id) return res.status(400).json({ error: 'ID đơn giao không hợp lệ' });
 
     const { collectedKegs } = req.body || {};
-    const result = DeliveryService.updateCollectedKegs(id, req.user.username, collectedKegs);
-    if (!result.success) return res.status(400).json({ error: result.error });
+    const result = DeliveryService.updateCollectedKegs(
+      id,
+      req.user.username,
+      collectedKegs,
+      { user: req.user }
+    );
+    if (!result.success) {
+      return res.status(deliveryErrorStatus(result)).json({ error: result.error, code: result.code });
+    }
     res.json(result);
   } catch (err) {
     logger.error('[driver] update kegs error', { error: err.message });
@@ -1609,8 +1646,11 @@ router.get('/promotions/overview/:customerId', requireDriver, (req, res) => {
         newShopSettings: {
           goldBuy: settings.newShopGoldBuy,
           goldFree: settings.newShopGoldFree,
-          blackBuy: settings.newShopBlackBuy,
-          blackFree: settings.newShopBlackFree,
+          // QUY TẮC 2026-11-22: quán mới CHỈ tặng bia vàng, tỉ lệ áp dụng cho
+          // TỔNG sản lượng (vàng + đen). Giữ key cũ cho client tương thích,
+          // nhưng giá trị phản ánh quy tắc mới (đen = 0).
+          blackBuy: settings.newShopGoldBuy,
+          blackFree: 0,
         },
         monthlyReward: rewardInfo,
       },

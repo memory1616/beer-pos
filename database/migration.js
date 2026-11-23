@@ -1037,6 +1037,21 @@ function runSepaySmartMatchingMigration(db) {
   }
 }
 
+// Đối soát phiếu giao hàng 1 lần + khoá số liệu đã xác nhận:
+// thêm `delivery_records.reconciled_at` / `reconciled_by` / `confirmed_by`.
+// Chạy ĐỘC LẬP, idempotent.
+function runDeliveryReconciliationLockMigration(db) {
+  try {
+    const migration = require('./migrations/068_delivery_reconciliation_lock');
+    migration.up(db);
+    log('[DELIVERY_RECON_LOCK] Migration 068 applied');
+    return { success: true };
+  } catch (e) {
+    log('[DELIVERY_RECON_LOCK] Migration error: ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
 // ── Utility: Generate UUID ─────────────────────────────────────────────────────
 
 function generateUUID() {
@@ -1079,6 +1094,7 @@ module.exports = {
   runCustomerClosureDevicesMigration,
   runSalePreorderMigration,
   runSepaySmartMatchingMigration,
+  runDeliveryReconciliationLockMigration,
   generateUUID,
   getCurrentVersion,
   setVersion,

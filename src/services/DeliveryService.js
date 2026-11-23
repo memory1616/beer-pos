@@ -43,6 +43,49 @@ const KegBalanceService = require('./KegBalanceService');
 const RegionService = require('./RegionService');
 const PreOrderSQL = require('./PreOrderSQL');
 
+// ── Phân quyền sửa số liệu đã xác nhận ─────────────────────────────────────
+//
+// NGHIỆP VỤ (2026-11-23): "Mỗi hóa đơn giao hàng chỉ được đối soát một lần"
+// + "Không cho sửa số liệu đã xác nhận nếu không có quyền quản lý".
+//
+// 2 nguyên tắc tách biệt:
+//  1. `reconciled_at` — phiếu đã ĐỐI SOÁT → không đối soát/ghi lại lần 2.
+//     Áp dụng cho MỌI vai trò (kể cả Admin) trừ khi có `force`.
+//  2. Số liệu ĐÃ XÁC NHẬN (phiếu `DELIVERED` / `DISCREPANCY`) → chỉ vai
+//     trò có quyền quản lý mới được sửa. Tài xế (DRIVER) bị chặn.
+
+// Vai trò được phép sửa số liệu đã xác nhận.
+const MANAGEMENT_ROLES = ['ADMIN', 'MANAGER'];
+
+// Trạng thái phiếu mà số liệu THƯỜNG đã được xác nhận (dùng để hiển thị
+// cảnh báo trong UI). ⚠️ Logic khoá thực tế KHÔNG dựa vào status mà dựa vào
+// dấu vết `confirmed_by` / `reconciled_at` — xem `hasConfirmedFigures()`.
+const CONFIRMED_STATUSES = [DELIVERY_STATUS.DELIVERED, DELIVERY_STATUS.DISCREPANCY];
+
+/**
+ * Kiểm tra người dùng có quyền quản lý (được sửa số liệu đã xác nhận) không.
+ *
+ * @param {object} user - req.user (session) hoặc { username, role }
+ * @returns {boolean}
+ */
+function hasManagementRole(user) {
+  if (!user) return false;
+  const role = String(user.role || '').toUpperCase();
+  if (MANAGEMENT_ROLES.includes(role)) return true;
+
+  // Session không có role → tra cứu `app_users` (fallback an toàn).
+  const username = user.username || user.app_user_name;
+  if (!username) return false;
+  try {
+    const row = db
+      .prepare('SELECT role FROM app_users WHERE username = ? AND active = 1')
+      .get(username);
+    return !!row && MANAGEMENT_ROLES.includes(String(row.role || '').toUpperCase());
+  } catch (_) {
+    return false;
+  }
+}
+
 class DeliveryService {
   /**
    * Lấy danh sách đơn cần giao cho 1 tài xế trong ngày.
@@ -387,6 +430,124 @@ class DeliveryService {
   }
 
   /**
+   * Lấy phiếu giao theo id (không giới hạn tài xế — dùng cho admin).
+   */
+  static getRecordById(deliveryId) {
+    const id = parseInt(deliveryId, 10);
+    if (!id || Number.isNaN(id)) return null;
+    return db.prepare('SELECT * FROM delivery_records WHERE id = ?').get(id) || null;
+  }
+
+  /**
+   * PHIẾU ĐÃ ĐỐI SOÁT CHƯA?
+   *
+   * Nguyên tắc: "Mỗi hóa đơn giao hàng chỉ được đối soát một lần."
+   * → `reconciled_at` non-NULL ⇒ phiếu đã đối soát ⇒ không ghi lại lần 2.
+   *
+   * @param {number} deliveryId
+   * @returns {{reconciled:boolean, reconciledAt:string|null, reconciledBy:string|null}}
+   */
+  static getReconciliationState(deliveryId) {
+    const record = DeliveryService.getRecordById(deliveryId);
+    if (!record) {
+      return { reconciled: false, reconciledAt: null, reconciledBy: null };
+    }
+    return {
+      reconciled: !!(record.reconciled_at && String(record.reconciled_at).trim() !== ''),
+      reconciledAt: record.reconciled_at || null,
+      reconciledBy: record.reconciled_by || null,
+    };
+  }
+
+  /**
+   * Đánh dấu phiếu giao đã ĐỐI SOÁT (chỉ 1 lần).
+   * Dùng idempotent: nếu đã đối soát → không ghi đè (giữ dấu vết lần đầu).
+   *
+   * @param {number} deliveryId
+   * @param {string} actorUsername
+   * @returns {{success:boolean, alreadyReconciled:boolean, reconciledAt?:string}}
+   */
+  static markReconciled(deliveryId, actorUsername) {
+    const state = DeliveryService.getReconciliationState(deliveryId);
+    if (state.reconciled) {
+      return {
+        success: true,
+        alreadyReconciled: true,
+        reconciledAt: state.reconciledAt,
+        reconciledBy: state.reconciledBy,
+      };
+    }
+
+    const now = db.getVietnamDateStr() + ' ' + db.getVietnamTimeStr();
+    db.prepare(
+      `UPDATE delivery_records
+          SET reconciled_at = ?, reconciled_by = ?, updated_at = datetime('now')
+        WHERE id = ? AND (reconciled_at IS NULL OR reconciled_at = '')`
+    ).run(now, actorUsername || null, deliveryId);
+
+    DeliveryService.logEvent(deliveryId, 'RECONCILED', null, null, actorUsername, {
+      reconciledAt: now,
+    });
+
+    return { success: true, alreadyReconciled: false, reconciledAt: now };
+  }
+
+  /**
+   * PHIẾU ĐÃ CÓ SỐ LIỆU XÁC NHẬN CHƯA?
+   *
+   * Dấu hiệu số liệu đã được XÁC NHẬN (có số lít giao / số vỏ thu thực tế):
+   *   - `confirmed_by` non-NULL  → đã bấm "Xác nhận giao" (ghi số liệu).
+   *   - `reconciled_at` non-NULL → đã đối soát phiếu.
+   *
+   * ⚠️ KHÔNG dựa vào `status`:
+   *   - `DELIVERED` có thể chỉ là tài xế bấm nhanh "Xong" (updateStatus)
+   *     mà CHƯA nhập số liệu giao → vẫn phải cho phép ghi sai lệch / số vỏ.
+   *   - Ngược lại, phiếu đã nhập số liệu thì khoá lại, không cho tài xế
+   *     sửa vô lý (đúng yêu cầu "không cho sửa số liệu đã xác nhận").
+   *
+   * @param {object} record - row `delivery_records`
+   * @returns {boolean}
+   */
+  static hasConfirmedFigures(record) {
+    if (!record) return false;
+    const confirmedBy = record.confirmed_by && String(record.confirmed_by).trim() !== '';
+    const reconciled = record.reconciled_at && String(record.reconciled_at).trim() !== '';
+    return !!(confirmedBy || reconciled);
+  }
+
+  /**
+   * KIỂM TRA QUYỀN SỬA SỐ LIỆU ĐÃ XÁC NHẬN.
+   *
+   * Nguyên tắc: "Không cho sửa số liệu đã xác nhận nếu không có quyền quản lý."
+   * - Phiếu CHƯA nhập số liệu xác nhận → ai cũng sửa được.
+   * - Phiếu ĐÃ nhập số liệu xác nhận / đã đối soát → CHỈ quản lý.
+   *
+   * @param {object} record - row `delivery_records`
+   * @param {object} user - req.user
+   * @returns {{allowed:boolean, code?:string, error?:string, reason?:string}}
+   */
+  static canEditConfirmed(record, user) {
+    if (!record) return { allowed: true };
+
+    if (!DeliveryService.hasConfirmedFigures(record)) {
+      // Chưa xác nhận số liệu → mọi vai trò được phép sửa.
+      return { allowed: true };
+    }
+
+    if (hasManagementRole(user)) {
+      return { allowed: true, reason: 'Quản lý được phép sửa số liệu đã xác nhận' };
+    }
+
+    return {
+      allowed: false,
+      code: 'MANAGEMENT_REQUIRED',
+      error:
+        `Phiếu giao #${record.id} đã xác nhận số liệu — ` +
+        'chỉ quản lý mới được sửa số liệu đã xác nhận',
+    };
+  }
+
+  /**
    * Tạo (hoặc lấy) delivery record cho 1 đơn bán.
    * Nếu record đã tồn tại → trả về record cũ (idempotent, tránh nhân đôi).
    */
@@ -493,6 +654,11 @@ class DeliveryService {
 
   /**
    * Cập nhật trạng thái đơn giao.
+   *
+   * @param {number} deliveryId
+   * @param {string} toStatus
+   * @param {string} driverUsername
+   * @param {object} [opts] - { note, failureReason, user, force }
    */
   static updateStatus(deliveryId, toStatus, driverUsername, opts = {}) {
     const record = db
@@ -502,6 +668,21 @@ class DeliveryService {
 
     if (!Object.values(DELIVERY_STATUS).includes(toStatus)) {
       return { success: false, error: 'Trạng thái không hợp lệ' };
+    }
+
+    // ── KHOÁ SỐ LIỆU ĐÃ XÁC NHẬN ─────────────────────────────────────────
+    // Phiếu đã DELIVERED / DISCREPANCY → chỉ quản lý mới đổi được trạng thái
+    // (tránh tài xế tự hạ trạng thái để ghi lại số liệu đã xác nhận).
+    const editCheck = DeliveryService.canEditConfirmed(record, opts.user);
+    if (!editCheck.allowed && record.status !== toStatus) {
+      logger.warn('[DeliveryService] updateStatus blocked — confirmed data', {
+        deliveryId,
+        driver: driverUsername,
+        from: record.status,
+        to: toStatus,
+        code: editCheck.code,
+      });
+      return { success: false, error: editCheck.error, code: editCheck.code };
     }
 
     const allowed = ALLOWED_TRANSITIONS[record.status] || [];
@@ -577,12 +758,56 @@ class DeliveryService {
   /**
    * Xác nhận số lượng giao thực tế (từng sản phẩm) + số vỏ thu hồi.
    * Tính missing/excess/damaged tự động so với expected.
+   *
+   * @param {number} deliveryId
+   * @param {string} driverUsername - username tài xế (hoặc admin sửa hộ)
+   * @param {object} payload
+   * @param {object} [opts]
+   * @param {object} [opts.user] - req.user (dùng để kiểm tra quyền quản lý)
+   * @param {boolean} [opts.force] - admin có quyền ghi đè (bỏ qua khoá đối soát)
    */
-  static confirmDelivery(deliveryId, driverUsername, payload = {}) {
+  static confirmDelivery(deliveryId, driverUsername, payload = {}, opts = {}) {
     const record = db
       .prepare('SELECT * FROM delivery_records WHERE id = ? AND driver_username = ?')
       .get(deliveryId, driverUsername);
     if (!record) return { success: false, error: 'Không tìm thấy đơn giao' };
+
+    // ── ĐỐI SOÁT 1 LẦN (kiểm tra TRƯỚC) ────────────────────────────────
+    // Phiếu đã đối soát → không ghi lại số liệu lần 2 (trừ khi admin force).
+    // ⚠️ Thứ tự quan trọng: kiểm tra "đã đối soát" TRƯỚC "đã xác nhận" để
+    //    thông báo cho người dùng chính xác nguyên nhân bị chặn. Nếu đảo
+    //    thứ tự, phiếu đã DELIVERED luôn trả về MANAGEMENT_REQUIRED và che
+    //    mất thông báo "đã đối soát".
+    const reconState = DeliveryService.getReconciliationState(deliveryId);
+    if (reconState.reconciled && !opts.force) {
+      logger.warn('[DeliveryService] confirmDelivery blocked — already reconciled', {
+        deliveryId,
+        driver: driverUsername,
+        reconciledAt: reconState.reconciledAt,
+        reconciledBy: reconState.reconciledBy,
+      });
+      return {
+        success: false,
+        code: 'ALREADY_RECONCILED',
+        error:
+          `Phiếu giao #${deliveryId} đã được đối soát` +
+          (reconState.reconciledAt ? ` (${reconState.reconciledAt})` : '') +
+          ' — mỗi hóa đơn giao hàng chỉ được đối soát một lần',
+      };
+    }
+
+    // ── KHOÁ SỐ LIỆU ĐÃ XÁC NHẬN ─────────────────────────────────────────
+    // Phiếu đã DELIVERED / DISCREPANCY → chỉ quản lý mới sửa được.
+    const editCheck = DeliveryService.canEditConfirmed(record, opts.user);
+    if (!editCheck.allowed) {
+      logger.warn('[DeliveryService] confirmDelivery blocked — confirmed data', {
+        deliveryId,
+        driver: driverUsername,
+        status: record.status,
+        code: editCheck.code,
+      });
+      return { success: false, error: editCheck.error, code: editCheck.code };
+    }
 
     const items = payload.items || [];
     const collectedKegs = payload.collectedKegs !== undefined ? parseInt(payload.collectedKegs) : 0;
@@ -640,7 +865,8 @@ class DeliveryService {
           `UPDATE delivery_records
            SET delivered_liters = ?, missing_liters = ?, excess_liters = ?, damaged_liters = ?,
                collected_kegs = ?, status = ?, completed_at = ?,
-               note = COALESCE(?, note), updated_at = datetime('now')
+               note = COALESCE(?, note), confirmed_by = ?,
+               updated_at = datetime('now')
            WHERE id = ?`
         ).run(
           totalDelivered,
@@ -651,6 +877,7 @@ class DeliveryService {
           nextStatus,
           nextStatus === DELIVERY_STATUS.DELIVERED ? db.getVietnamDateStr() + ' ' + db.getVietnamTimeStr() : null,
           note,
+          driverUsername,
           deliveryId
         );
 
@@ -698,6 +925,23 @@ class DeliveryService {
 
       const summary = tx();
       const updated = db.prepare('SELECT * FROM delivery_records WHERE id = ?').get(deliveryId);
+
+      // ── ĐÁNH DẤU ĐÃ ĐỐI SOÁT (chỉ 1 lần) ──────────────────────────────
+      // Xác nhận số liệu giao = hoàn tất đối soát phiếu. Ghi `reconciled_at`
+      // để các lần ghi sau bị chặn ("Mỗi hóa đơn giao hàng chỉ được đối soát
+      // một lần"). `markReconciled` idempotent → không ghi đè dấu vết lần đầu.
+      try {
+        const recon = DeliveryService.markReconciled(deliveryId, driverUsername);
+        if (recon && !recon.alreadyReconciled) {
+          updated.reconciled_at = recon.reconciledAt;
+          updated.reconciled_by = recon.reconciledBy || driverUsername;
+        }
+      } catch (reconErr) {
+        logger.error('[DeliveryService] markReconciled error', {
+          error: reconErr.message,
+          deliveryId,
+        });
+      }
 
       // ── SỔ CÔNG NỢ: ghi công nợ khi đơn được giao thành công sạch ─────
       // Chỉ ghi khi trạng thái MỚI là DELIVERED (sạch). DISCREPANCY → KHÔNG ghi.
@@ -817,12 +1061,47 @@ class DeliveryService {
 
   /**
    * Ghi nhận sai lệch (thiếu / thừa / hư hỏng) — dùng khi giao xong nhưng có vấn đề.
+   *
+   * @param {number} deliveryId
+   * @param {string} driverUsername
+   * @param {object} payload
+   * @param {object} [opts] - { user, force }
    */
-  static recordDiscrepancy(deliveryId, driverUsername, payload = {}) {
+  static recordDiscrepancy(deliveryId, driverUsername, payload = {}, opts = {}) {
     const record = db
       .prepare('SELECT * FROM delivery_records WHERE id = ? AND driver_username = ?')
         .get(deliveryId, driverUsername);
     if (!record) return { success: false, error: 'Không tìm thấy đơn giao' };
+
+    // ── ĐỐI SOÁT 1 LẦN (kiểm tra TRƯỚC) ────────────────────────────────
+    const reconState = DeliveryService.getReconciliationState(deliveryId);
+    if (reconState.reconciled && !opts.force) {
+      logger.warn('[DeliveryService] recordDiscrepancy blocked — already reconciled', {
+        deliveryId,
+        driver: driverUsername,
+        reconciledAt: reconState.reconciledAt,
+      });
+      return {
+        success: false,
+        code: 'ALREADY_RECONCILED',
+        error:
+          `Phiếu giao #${deliveryId} đã được đối soát` +
+          (reconState.reconciledAt ? ` (${reconState.reconciledAt})` : '') +
+          ' — mỗi hóa đơn giao hàng chỉ được đối soát một lần',
+      };
+    }
+
+    // ── KHOÁ SỐ LIỆU ĐÃ XÁC NHẬN ─────────────────────────────────────────
+    const editCheck = DeliveryService.canEditConfirmed(record, opts.user);
+    if (!editCheck.allowed) {
+      logger.warn('[DeliveryService] recordDiscrepancy blocked — confirmed data', {
+        deliveryId,
+        driver: driverUsername,
+        status: record.status,
+        code: editCheck.code,
+      });
+      return { success: false, error: editCheck.error, code: editCheck.code };
+    }
 
     const missing = Number(payload.missingLiters || 0) || 0;
     const excess = Number(payload.excessLiters || 0) || 0;
@@ -863,12 +1142,30 @@ class DeliveryService {
   /**
    * Cập nhật số vỏ keg đã thu hồi trên đơn.
    * Dùng lại cơ chế cập nhật vỏ của hệ thống (keg_stats + customer balance).
+   *
+   * @param {number} deliveryId
+   * @param {string} driverUsername
+   * @param {number} collectedKegs
+   * @param {object} [opts] - { user, force }
    */
-  static updateCollectedKegs(deliveryId, driverUsername, collectedKegs) {
+  static updateCollectedKegs(deliveryId, driverUsername, collectedKegs, opts = {}) {
     const record = db
       .prepare('SELECT * FROM delivery_records WHERE id = ? AND driver_username = ?')
       .get(deliveryId, driverUsername);
     if (!record) return { success: false, error: 'Không tìm thấy đơn giao' };
+
+    // ── KHOÁ SỐ LIỆU ĐÃ XÁC NHẬN ─────────────────────────────────────────
+    // Số vỏ thu là một phần của số liệu đã xác nhận → cùng quy tắc khoá.
+    const editCheck = DeliveryService.canEditConfirmed(record, opts.user);
+    if (!editCheck.allowed) {
+      logger.warn('[DeliveryService] updateCollectedKegs blocked — confirmed data', {
+        deliveryId,
+        driver: driverUsername,
+        status: record.status,
+        code: editCheck.code,
+      });
+      return { success: false, error: editCheck.error, code: editCheck.code };
+    }
 
     const collected = parseInt(collectedKegs) || 0;
     if (collected < 0) return { success: false, error: 'Số vỏ thu không hợp lệ' };
@@ -1041,3 +1338,7 @@ module.exports = DeliveryService;
 module.exports.DELIVERY_STATUS = DELIVERY_STATUS;
 module.exports.STATUS_LABELS = STATUS_LABELS;
 module.exports.ALLOWED_TRANSITIONS = ALLOWED_TRANSITIONS;
+// Khoá đối soát 1 lần + phân quyền sửa số liệu đã xác nhận.
+module.exports.MANAGEMENT_ROLES = MANAGEMENT_ROLES;
+module.exports.CONFIRMED_STATUSES = CONFIRMED_STATUSES;
+module.exports.hasManagementRole = hasManagementRole;

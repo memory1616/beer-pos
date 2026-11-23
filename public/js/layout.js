@@ -268,7 +268,11 @@ function restoreButtonLoading(btnState) {
     window.__BEERPOS_REALTIME_LOADING__ = true;
 
     var script = document.createElement('script');
-    script.src = '/js/realtime.js?v=20261113a';
+    // Dùng APP_VERSION do server inject (nếu có) → luôn khớp cache-busting
+    // của server. Hardcode version cũ sẽ bị server redirect 302 → SW không
+    // follow → 503 JSON → script chết → socket không bao giờ kết nối.
+    var v = window.APP_VERSION || '20261113a';
+    script.src = '/js/realtime.js?v=' + encodeURIComponent(v);
     script.defer = true;
     script.onload = function () {
       window.__BEERPOS_REALTIME_LOADING__ = false;

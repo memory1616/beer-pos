@@ -742,7 +742,15 @@ app.use((req, res, next) => {
 
   res.sendFile = function(filepath, options, callback) {
     if (String(filepath).endsWith('.html')) {
-      const isAdmin = mode === 'admin';
+      // ── Driver Portal: LUÔN là mode 'driver' ───────────────────────────────
+      // getAppMode() dựa vào Host header (giaohang.* / x-app-mode). Khi mở
+      // trực tiếp localhost:3111/driver/... thì Host = 'localhost' → mode
+      // fallback thành 'admin' → window.APP_MODE sai → socket kết nối sai
+      // room (admin) → tài xế KHÔNG nhận được event cập nhật đơn.
+      // → Ép 'driver' cho mọi trang /driver/* bất kể Host.
+      const isDriverPage = /[\\/]views[\\/]driver[\\/]/.test(filepath)
+        || /[\\/]views[\\/]driver[\\/]/.test(String(options && options.root || ''));
+      const isAdmin = !isDriverPage && mode === 'admin';
       const basePath = isAdmin ? '/' : null;
 
       return fs.readFile(filepath, 'utf8', (err, html) => {
@@ -773,8 +781,9 @@ app.use((req, res, next) => {
         });
 
         // Inject app context globals
+        const effectiveMode = isDriverPage ? 'driver' : mode;
         const ctxScript = `<script>
-window.APP_MODE = '${mode}';
+window.APP_MODE = '${effectiveMode}';
 window.BASE_PATH = ${basePath ? `'${basePath}'` : 'null'};
 window.APP_VERSION = '${APP_VERSION}';
 </script>`;
@@ -1597,6 +1606,11 @@ const server = app.listen(PORT, HOST, () => {
   // Socket.IO is integrated with the Express HTTP server and works through Nginx
   // with the proper Upgrade headers on the /socket.io/ location.
   socketServer.init(server);
+
+  // Cho các route gọi `req.app.get('io')` dùng được (vd: routes/api/sales.js
+  // emit 'keg:updated' khi sửa đơn). Trước đây thiếu dòng này → io = undefined
+  // → emit im lặng fail → trang Admin/Giao hàng không cập nhật số vỏ.
+  app.set('io', socketServer.getIO());
 
   const networkIPs = getNetworkIPs();
   logger.info('Beer POS Pro v2 started');

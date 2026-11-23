@@ -109,7 +109,11 @@
 
     window.__BEERPOS_REALTIME_LOADING__ = true;
     var script = document.createElement('script');
-    script.src = '/js/realtime.js?v=20261113a';
+    // Dùng APP_VERSION do server inject (nếu có) → luôn khớp cache-busting
+    // của server. Hardcode version cũ sẽ bị server redirect 302 → SW không
+    // follow → 503 JSON → script chết → socket không bao giờ kết nối.
+    var v = window.APP_VERSION || '20261113a';
+    script.src = '/js/realtime.js?v=' + encodeURIComponent(v);
     script.defer = true;
     script.onload = function () { window.__BEERPOS_REALTIME_LOADING__ = false; };
     script.onerror = function () { window.__BEERPOS_REALTIME_LOADING__ = false; };
@@ -121,9 +125,10 @@
   //  - notify.js: hiển thị banner + âm báo + rung khi nhận `order:assigned`.
   //  - push.js  : đăng ký Web Push (Service Worker) cho thiết bị tài xế.
   function loadNotifyModules() {
+    var v = window.APP_VERSION || '20261113a';
     var files = [
-      '/js/driver/notify.js?v=20261113a',
-      '/js/driver/push.js?v=20261113a'
+      '/js/driver/notify.js?v=' + encodeURIComponent(v),
+      '/js/driver/push.js?v=' + encodeURIComponent(v)
     ];
     files.forEach(function (src) {
       if (document.querySelector('script[src="' + src + '"]')) return;

@@ -309,8 +309,20 @@
     // Each event triggers a targeted refetch via window.loadData / dispatchEvent
     // Anti-duplicate: same event+key within EMIT_DEBOUNCE ms is debounced
 
+    /**
+     * Lấy id đơn từ payload của event order:*.
+     * Server gửi `{ sale: {...} }` (xem socketServer.emitOrderUpdated) →
+     * `data.id` KHÔNG tồn tại. Nếu dùng `data.id` → key luôn rỗng → mọi
+     * event gộp chung 1 debounce key → các đơn sửa liên tiếp bị nuốt mất.
+     */
+    function orderEventKey(data) {
+      var sale = data && (data.sale || data.order);
+      var id = (sale && (sale.id || sale.order_id)) || (data && data.id) || '';
+      return String(id);
+    }
+
     _socket.on('order:created', function (data) {
-      var key = 'order:created:' + (data && data.id ? data.id : '');
+      var key = 'order:created:' + orderEventKey(data);
       if (_shouldDebounce(key)) return;
       log('EVENT', 'order:created received', data);
       triggerRefetch(['orders', 'reports', 'dashboard', 'deliveries', 'sales']);
@@ -318,7 +330,7 @@
     });
 
     _socket.on('order:updated', function (data) {
-      var key = 'order:updated:' + (data && data.id ? data.id : '');
+      var key = 'order:updated:' + orderEventKey(data);
       if (_shouldDebounce(key)) return;
       log('EVENT', 'order:updated received', data);
       // 'deliveries' → trang Giao hàng của tài xế refresh (số lượng cần giao
@@ -328,7 +340,7 @@
     });
 
     _socket.on('order:deleted', function (data) {
-      var key = 'order:deleted:' + (data && data.id ? data.id : '');
+      var key = 'order:deleted:' + orderEventKey(data);
       if (_shouldDebounce(key)) return;
       log('EVENT', 'order:deleted received', data);
       triggerRefetch(['orders', 'reports', 'dashboard']);

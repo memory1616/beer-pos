@@ -17,6 +17,7 @@ const fs = require('fs');
 const path = require('path');
 const logger = require('../../src/utils/logger');
 const UserService = require('../../src/services/UserService');
+const DeliveryService = require('../../src/services/DeliveryService');
 const { ROLE_ADMIN, ROLE_DRIVER } = require('../../middleware/permissions');
 
 // ── Chỉ ADMIN ──────────────────────────────────────────────────────────────
@@ -177,6 +178,152 @@ router.get('/logs/error', requireAdmin, (req, res) => {
     res.type('text/plain').send(found + '\n' + (tail || '(empty)'));
   } catch (err) {
     res.status(500).json({ error: 'Không đọc được log: ' + err.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// QUẢN LÝ PHIẾU GIAO HÀNG (ADMIN)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Nghiệp vụ (2026-11-23):
+//  1. "Mỗi hóa đơn giao hàng chỉ được đối soát một lần."
+//  2. "Không cho sửa số liệu đã xác nhận nếu không có quyền quản lý."
+//
+// → Ở đây CHỈ quản lý (ADMIN) được phép:
+//   - Xem phiếu giao đã đối soát (báo cáo).
+//   - Sửa lại số liệu đã xác nhận (có `force` → ghi đè khoá đối soát, có
+//     audit log đầy đủ).
+
+// GET /api/admin/deliveries/reconciliation — danh sách phiếu giao đã đối soát
+router.get('/deliveries/reconciliation', requireAdmin, (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit || '100', 10), 500);
+    const offset = parseInt(req.query.offset || '0', 10) || 0;
+    const onlyReconciled = req.query.reconciled !== '0';
+
+    const where = onlyReconciled
+      ? "WHERE dr.reconciled_at IS NOT NULL AND dr.reconciled_at <> ''"
+      : '';
+
+    const rows = db
+      .prepare(
+        `SELECT dr.id, dr.sale_id, dr.customer_id, dr.driver_username,
+                dr.status, dr.delivered_liters, dr.missing_liters, dr.excess_liters,
+                dr.damaged_liters, dr.collected_kegs, dr.expected_kegs,
+                dr.reconciled_at, dr.reconciled_by, dr.confirmed_by,
+                dr.scheduled_date, dr.completed_at,
+                c.name AS customer_name
+           FROM delivery_records dr
+           LEFT JOIN customers c ON c.id = dr.customer_id
+           ${where}
+          ORDER BY dr.reconciled_at DESC, dr.id DESC
+          LIMIT ? OFFSET ?`
+      )
+      .all(limit, offset);
+
+    const total = db
+      .prepare(
+        `SELECT COUNT(*) AS c FROM delivery_records dr
+          ${onlyReconciled ? "WHERE dr.reconciled_at IS NOT NULL AND dr.reconciled_at <> ''" : ''}`
+      )
+      .get()?.c || 0;
+
+    res.json({ success: true, deliveries: rows, total, limit, offset });
+  } catch (err) {
+    logger.error('[admin/deliveries/reconciliation] list error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi tải danh sách phiếu giao đã đối soát' });
+  }
+});
+
+// GET /api/admin/deliveries/:id — chi tiết phiếu giao (items + lịch sử)
+router.get('/deliveries/:id', requireAdmin, (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!id || Number.isNaN(id)) {
+      return res.status(400).json({ error: 'ID phiếu giao không hợp lệ' });
+    }
+
+    const record = DeliveryService.getRecordById(id);
+    if (!record) {
+      return res.status(404).json({ error: 'Không tìm thấy phiếu giao' });
+    }
+
+    const items = db
+      .prepare('SELECT * FROM delivery_record_items WHERE delivery_id = ? ORDER BY id')
+      .all(id);
+    const events = db
+      .prepare('SELECT * FROM delivery_events WHERE delivery_id = ? ORDER BY id DESC')
+      .all(id);
+    const customer = record.customer_id
+      ? db.prepare('SELECT id, name, phone FROM customers WHERE id = ?').get(record.customer_id)
+      : null;
+
+    res.json({ success: true, delivery: record, items, events, customer });
+  } catch (err) {
+    logger.error('[admin/deliveries/detail] error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi tải chi tiết phiếu giao' });
+  }
+});
+
+// PUT /api/admin/deliveries/:id/confirm — quản lý sửa lại số liệu đã xác nhận
+//
+// ⚠️ Đây là đường DUY NHẤT để ghi đè khoá "đối soát 1 lần" / "số liệu đã
+//    xác nhận". Mọi thao tác đều ghi `delivery_events` (audit trail).
+router.put('/deliveries/:id/confirm', requireAdmin, (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!id || Number.isNaN(id)) {
+      return res.status(400).json({ error: 'ID phiếu giao không hợp lệ' });
+    }
+
+    const record = DeliveryService.getRecordById(id);
+    if (!record) {
+      return res.status(404).json({ error: 'Không tìm thấy phiếu giao' });
+    }
+
+    const { items, collectedKegs, note } = req.body || {};
+    const result = DeliveryService.confirmDelivery(
+      id,
+      record.driver_username,
+      {
+        items: Array.isArray(items) ? items : [],
+        collectedKegs: collectedKegs !== undefined ? collectedKegs : record.collected_kegs,
+        note: note || `Sửa lại bởi quản lý (${req.user.username})`,
+      },
+      { user: req.user, force: true }
+    );
+
+    if (!result.success) {
+      const status = result.code === 'MANAGEMENT_REQUIRED' ? 403 : 400;
+      return res.status(status).json({ error: result.error, code: result.code });
+    }
+
+    res.json(result);
+  } catch (err) {
+    logger.error('[admin/deliveries/confirm] error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi cập nhật phiếu giao: ' + err.message });
+  }
+});
+
+// POST /api/admin/deliveries/:id/reconcile — đánh dấu phiếu đã đối soát
+// (dùng khi phiếu được giao ngoài hệ thống và cần khoá lại 1 lần).
+router.post('/deliveries/:id/reconcile', requireAdmin, (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!id || Number.isNaN(id)) {
+      return res.status(400).json({ error: 'ID phiếu giao không hợp lệ' });
+    }
+
+    const record = DeliveryService.getRecordById(id);
+    if (!record) {
+      return res.status(404).json({ error: 'Không tìm thấy phiếu giao' });
+    }
+
+    const result = DeliveryService.markReconciled(id, req.user.username);
+    res.json({ success: true, ...result });
+  } catch (err) {
+    logger.error('[admin/deliveries/reconcile] error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi đánh dấu đối soát: ' + err.message });
   }
 });
 

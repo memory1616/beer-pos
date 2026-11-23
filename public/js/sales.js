@@ -1561,7 +1561,10 @@ function showNewShopActiveNotice(newShop) {
   var el = document.getElementById('newShopActiveNotice');
   if (el && newShop) {
     el.classList.remove('hidden');
-    el.innerHTML = '<span style="font-size:12px;">&#128293;</span> Khách đang ở <b>tháng mở quán</b> — áp dụng KM "mua X tặng Y" theo tổng sản lượng tháng này<br><span style="font-size:11px;color:#6b7280;">(thưởng sản lượng sẽ áp dụng từ tháng sau)</span>';
+    var buy = saleState.promoSettings?.newShopGoldBuy || 10;
+    var free = saleState.promoSettings?.newShopGoldFree || 1;
+    el.innerHTML = '<span style="font-size:12px;">&#128293;</span> Khách đang ở <b>tháng mở quán</b> — áp dụng KM "' + buy + 'L tặng ' + free + 'L bia vàng" theo tổng sản lượng tháng này<br>' +
+      '<span style="font-size:11px;color:#6b7280;">(thưởng sẽ được gắn vào đơn đầu tiên của tháng sau)</span>';
   }
 }
 
@@ -1596,7 +1599,16 @@ function showNewShopBadge(createdDay) {
   var badge = document.getElementById('newShopBadge');
   if (badge) {
     badge.classList.remove('hidden');
-    badge.innerHTML = '<span style="font-size:14px;">🔥</span> <b>Quán mới — tháng mở quán</b><br><span style="font-size:11px;color:#92400e;">Mua 10L vàng tặng 1L | Mua 20L đen tặng 1L</span>';
+    // QUY TẮC 2026-11-23: đọc tỉ lệ THỰC TẾ từ server (promoSettings).
+    // Text hardcode "Mua 10L vàng tặng 1L | Mua 20L đen tặng 1L" là quy tắc CŨ
+    // (đã bỏ từ 2026-11-22): quán mới CHỈ tặng BIA VÀNG, tỉ lệ áp dụng cho
+    // TỔNG sản lượng (vàng + đen cộng lại).
+    var buy = saleState.promoSettings?.newShopGoldBuy || 10;
+    var free = saleState.promoSettings?.newShopGoldFree || 1;
+    badge.innerHTML =
+      '<span style="font-size:14px;">🔥</span> <b>Quán mới — tháng mở quán</b><br>' +
+      '<span style="font-size:11px;color:#92400e;">Mua ' + buy + 'L (vàng + đen) tặng ' + free + 'L bia vàng</span><br>' +
+      '<span style="font-size:11px;color:#92400e;">⏳ Thưởng trả vào đơn đầu tiên của tháng sau</span>';
   }
 }
 
@@ -1685,7 +1697,8 @@ function renderPromoPreview(freeGold, freeBlack, totalVolume) {
   var el = document.getElementById('promoPreview');
   if (el) {
     el.classList.remove('hidden');
-    el.innerHTML = '🎁 KM quán mới (tổng tháng ' + totalVolume + 'L): ' + lines.join(' | ');
+    el.innerHTML = '🎁 KM quán mới (tổng tháng ' + totalVolume + 'L): ' + lines.join(' | ') +
+      '<br><span style="font-size:11px;color:#6b7280;">⏳ Trả vào đơn đầu tiên của tháng sau</span>';
   }
 }
 
@@ -1742,10 +1755,15 @@ function buildPromoDetailHtml() {
   if (freeGold > 0) lines.push('<div style="color:#f97316;font-size:13px;">🎁 Bia vàng — Tặng khuyến mãi: <b>+' + freeGold + 'L</b></div>');
   if (freeBlack > 0) lines.push('<div style="color:#f97316;font-size:13px;">🎁 Bia đen — Tặng khuyến mãi: <b>+' + freeBlack + 'L</b></div>');
 
+  var totalVolume = (sum && sum.eligible)
+    ? ((sum.yellowVolume || 0) + (sum.blackVolume || 0))
+    : (qtyGold + qtyBlack);
+
   return '<div style="margin:8px 0;padding:8px;background:linear-gradient(135deg,rgba(249,115,22,0.1),rgba(234,179,8,0.1));border:1px solid rgba(249,115,22,0.3);border-radius:8px;">' +
-    '<div style="font-size:11px;color:#f97316;font-weight:700;margin-bottom:4px;">🎁 KHUYẾN MÃI QUÁN MỚI</div>' +
+    '<div style="font-size:11px;color:#f97316;font-weight:700;margin-bottom:4px;">🎁 KHUYẾN MÃI QUÁN MỚI (tổng tháng ' + totalVolume + 'L)</div>' +
     lines.join('') +
-    '<div style="font-size:11px;color:#92400e;margin-top:4px;">Lít tặng KHÔNG tính vào doanh thu</div>' +
+    '<div style="font-size:11px;color:#92400e;margin-top:4px;">Mua ' + goldBuy + 'L (vàng + đen) tặng ' + goldFree + 'L bia vàng</div>' +
+    '<div style="font-size:11px;color:#6b7280;margin-top:2px;">⏳ Thưởng được gắn vào đơn đầu tiên của tháng sau (lít tặng KHÔNG tính doanh thu)</div>' +
   '</div>';
 }
 

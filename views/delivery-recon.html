@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <script>
+  (function () {
+    var k = 'theme';
+    var sys = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    var saved = localStorage.getItem(k);
+    var theme = (saved === 'light' || saved === 'dark') ? saved : sys;
+    document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.classList.remove('light', 'dark');
+    document.documentElement.classList.add(theme);
+  })();
+  </script>
+  <script>window.BASE_PATH = '/';</script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Quản lý phiếu giao hàng</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0B0E11">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="BeerPOS">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/png" href="/icon-192.png">
+  <link rel="stylesheet" href="/css/unified.css?v=20261121b">
+  <link rel="stylesheet" href="/css/install-prompt.css?v=20261121a">
+  <script src="/js/auth.js"></script>
+  <script src="/js/dark-mode.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>requireAuth();</script>
+  <style>
+    .dl-page { max-width: 1180px; margin: 0 auto; padding: 12px 12px 96px; }
+    .dl-hero {
+      background: linear-gradient(135deg, rgba(252,213,53,.14), rgba(255,255,255,.03));
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+    .dl-hero-title { font-size: 18px; font-weight: 800; color: var(--text-primary); display: flex; align-items: center; gap: 8px; }
+    .dl-hero-desc { font-size: 12.5px; color: var(--text-muted); line-height: 1.6; margin-top: 6px; }
+
+    .dl-section {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+    .dl-section-title { font-size: 15px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+    .dl-section-desc { font-size: 12px; color: var(--text-muted); line-height: 1.55; margin-bottom: 12px; }
+
+    .dl-toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+    .dl-select, .dl-input {
+      height: 38px; padding: 0 10px;
+      border-radius: 9px; border: 1px solid var(--border);
+      background: var(--bg-secondary); color: var(--text-primary); font-size: 13px;
+    }
+    .dl-btn {
+      height: 38px; padding: 0 14px; border: none; border-radius: 9px;
+      font-size: 13px; font-weight: 700; cursor: pointer;
+      background: var(--primary); color: #0B0E11; min-width: 44px;
+    }
+    .dl-btn--ghost { background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border); }
+    .dl-btn--danger { background: rgba(239,68,68,.15); color: #f87171; border: 1px solid rgba(239,68,68,.3); }
+    .dl-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+    .dl-stat-grid { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); margin-bottom: 12px; }
+    .dl-stat {
+      background: var(--bg-secondary); border: 1px solid var(--border);
+      border-radius: 11px; padding: 10px 12px;
+    }
+    .dl-stat-label { font-size: 11px; color: var(--text-muted); margin-bottom: 3px; }
+    .dl-stat-value { font-size: 16px; font-weight: 800; color: var(--text-primary); }
+    .dl-stat-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+    .dl-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .dl-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 780px; }
+    .dl-table th {
+      text-align: left; padding: 9px 8px; font-size: 11px; font-weight: 700;
+      color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em;
+      border-bottom: 1px solid var(--border); white-space: nowrap;
+    }
+    .dl-table td { padding: 10px 8px; border-bottom: 1px solid var(--border); color: var(--text-primary); vertical-align: middle; }
+    .dl-table tr:last-child td { border-bottom: none; }
+    .dl-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+    .dl-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 9px; border-radius: 999px;
+      font-size: 11px; font-weight: 700; white-space: nowrap;
+    }
+    .dl-badge--ok { background: rgba(74,222,128,.15); color: #4ade80; }
+    .dl-badge--warn { background: rgba(249,115,22,.15); color: #fb923c; }
+    .dl-badge--err { background: rgba(239,68,68,.15); color: #f87171; }
+    .dl-badge--none { background: rgba(148,163,184,.16); color: #94a3b8; }
+    .dl-badge--lock { background: rgba(252,213,53,.16); color: var(--primary); }
+
+    .dl-empty { text-align: center; padding: 22px 10px; color: var(--text-muted); font-size: 13px; }
+
+    /* Modal sửa số liệu */
+    .dl-modal {
+      position: fixed; inset: 0; z-index: 1000;
+      background: rgba(0,0,0,.6);
+      display: flex; align-items: center; justify-content: center;
+      padding: 16px;
+    }
+    .dl-modal[hidden] { display: none; }
+    .dl-modal-box {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 16px; padding: 16px;
+      width: 100%; max-width: 560px;
+      max-height: 90vh; overflow-y: auto;
+    }
+    .dl-modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .dl-modal-title { font-size: 16px; font-weight: 800; color: var(--text-primary); }
+    .dl-modal-close {
+      background: none; border: none; color: var(--text-muted);
+      font-size: 22px; cursor: pointer; line-height: 1; padding: 4px 8px;
+    }
+    .dl-field { margin-bottom: 12px; }
+    .dl-label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 5px; font-weight: 600; }
+    .dl-item-row {
+      display: grid; grid-template-columns: 1fr 92px 92px;
+      gap: 8px; align-items: center;
+      padding: 8px 0; border-bottom: 1px solid var(--border);
+    }
+    .dl-item-row:last-child { border-bottom: none; }
+    .dl-item-name { font-size: 13px; color: var(--text-primary); font-weight: 600; }
+    .dl-item-expected { font-size: 11px; color: var(--text-muted); font-weight: 400; }
+    .dl-hint { font-size: 11.5px; color: var(--text-muted); line-height: 1.6; margin-top: 8px; }
+
+    .dl-toast {
+      position: fixed; left: 50%; transform: translateX(-50%);
+      bottom: 24px; z-index: 999; padding: 11px 18px; border-radius: 11px;
+      font-size: 13px; font-weight: 700; box-shadow: 0 8px 26px rgba(0,0,0,.35);
+      background: var(--primary); color: #0B0E11; max-width: calc(100vw - 32px);
+    }
+    .dl-toast--err { background: #ef4444; color: #fff; }
+
+    @media (max-width: 640px) {
+      .dl-page { padding: 10px 10px 96px; }
+      .dl-hero-title { font-size: 16px; }
+      .dl-item-row { grid-template-columns: 1fr 76px 76px; }
+    }
+  </style>
+  <script src="/js/install-prompt.js?v=20261121b" defer></script>
+</head>
+<body class="bg-main text-primary body--app">
+  <div id="app"></div>
+
+  <main class="page-content app-main">
+    <div class="dl-page">
+
+      <div class="dl-hero">
+        <div class="dl-hero-title">🚚 Quản lý phiếu giao hàng</div>
+        <div class="dl-hero-desc">
+          Mỗi hóa đơn giao hàng chỉ được <strong>đối soát một lần</strong>.
+          Số liệu đã xác nhận bị khoá — chỉ quản lý mới được sửa lại (mọi thay đổi đều được ghi nhật ký).
+        </div>
+      </div>
+
+      <!-- Thống kê -->
+      <div class="dl-section">
+        <div class="dl-section-title">📊 Tổng quan</div>
+        <div class="dl-stat-grid" id="dlStats">
+          <div class="dl-stat">
+            <div class="dl-stat-label">Đang tải…</div>
+            <div class="dl-stat-value">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bộ lọc + danh sách -->
+      <div class="dl-section">
+        <div class="dl-section-title">📋 Danh sách phiếu giao</div>
+        <div class="dl-section-desc">
+          Phiếu đã đối soát hiện badge 🔒. Bấm "Sửa số liệu" để quản lý điều chỉnh (ghi đè khoá 1 lần, có audit log).
+        </div>
+        <div class="dl-toolbar">
+          <select class="dl-select" id="dlFilter">
+            <option value="1">🔒 Đã đối soát</option>
+            <option value="0">📋 Tất cả phiếu</option>
+          </select>
+          <select class="dl-select" id="dlStatus">
+            <option value="">Tất cả trạng thái</option>
+            <option value="PENDING">Chờ giao</option>
+            <option value="IN_PROGRESS">Đang giao</option>
+            <option value="DELIVERED">Đã giao</option>
+            <option value="DISCREPANCY">Sai lệch</option>
+            <option value="FAILED">Thất bại</option>
+          </select>
+          <input class="dl-input" id="dlSearch" type="search" placeholder="Tìm phiếu / khách / tài xế…" style="flex:1; min-width:180px;">
+          <button class="dl-btn dl-btn--ghost" id="dlRefresh">🔄 Tải lại</button>
+        </div>
+        <div class="dl-table-wrap">
+          <table class="dl-table">
+            <thead>
+              <tr>
+                <th>Phiếu</th>
+                <th>Khách</th>
+                <th>Tài xế</th>
+                <th>Trạng thái</th>
+                <th class="dl-num">Lít giao</th>
+                <th class="dl-num">Vỏ thu</th>
+                <th>Đối soát</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="dlBody">
+              <tr><td colspan="8" class="dl-empty">Đang tải…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Modal sửa số liệu -->
+  <div class="dl-modal" id="dlModal" hidden>
+    <div class="dl-modal-box">
+      <div class="dl-modal-head">
+        <div class="dl-modal-title" id="dlModalTitle">Sửa số liệu phiếu giao</div>
+        <button class="dl-modal-close" id="dlModalClose" aria-label="Đóng">✕</button>
+      </div>
+      <div id="dlModalBody"></div>
+      <div class="dl-toolbar" style="margin-top:14px; margin-bottom:0;">
+        <button class="dl-btn" id="dlSave">💾 Lưu số liệu</button>
+        <button class="dl-btn dl-btn--ghost" id="dlCancel">Huỷ</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="bottomNavContainer"></div>
+
+  <script src="/js/delivery-recon.js?v=20261123a"></script>
+  <script>
+    (function () {
+      var app = document.getElementById('app');
+      if (!app) return;
+      app.innerHTML = getHeader('Quản lý phiếu giao hàng', '🚚');
+    })();
+  </script>
+</body>
+</html>

@@ -3537,7 +3537,11 @@
 
         let newShopDesc = '';
         if (newShopInfo && newShopInfo.eligible) {
-          newShopDesc = 'Mua ' + (window.__newShopSettings ? window.__newShopSettings.goldBuy : newShopInfo.buyGold) + 'L vàng + ' + (window.__newShopSettings ? window.__newShopSettings.goldFree : newShopInfo.freeGold) + 'L | Mua ' + (window.__newShopSettings ? window.__newShopSettings.blackBuy : newShopInfo.buyBlack) + 'L đen + ' + (window.__newShopSettings ? window.__newShopSettings.blackFree : newShopInfo.freeBlack) + 'L';
+          // QUY TẮC 2026-11-22: quán mới CHỈ tặng BIA VÀNG, tỉ lệ áp dụng cho
+          // TỔNG sản lượng (vàng + đen cộng lại). Không còn khúc "Mua 20L đen tặng 1L".
+          const nsBuy = window.__newShopSettings ? window.__newShopSettings.goldBuy : newShopInfo.buyGold;
+          const nsFree = window.__newShopSettings ? window.__newShopSettings.goldFree : newShopInfo.freeGold;
+          newShopDesc = 'Mua ' + nsBuy + 'L (vàng + đen) tặng ' + nsFree + 'L bia vàng — thưởng trả vào đơn đầu tiên của tháng sau';
         }
 
         // Nhãn badge CTKM tổng

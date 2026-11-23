@@ -29,7 +29,7 @@ try {
   }
 
   // Run driver portal migration (idempotent, chạy độc lập version gate)
-  const { runDriverPortalMigration, runDriverStaffMigration, runDriverKegReceiptMigration, runDriverWorkDaysMigration, runDriverSalaryAdvanceMigration, runMissingBusinessTablesMigration, runDailyReportNotifyMigration, runAuditLogMigration, runDriverPushMigration, runZaloOauthMigration, runDebtManagementMigration, runDebtSaleCreditFlagMigration, runBusinessDayCutoffMigration, runAuditLogUnificationMigration, runDriverAttendanceMigration, runBusinessRegionsMigration, runSaleDispatchStatusMigration, runSaleRegionDispatchBackfillMigration, runSepayDebtSettlementMigration, runDebtZaloNotifyMigration, runSepayAutoPollMigration, runCustomerClosureMigration, runCustomerClosureDevicesMigration, runSalePreorderMigration, runSepaySmartMatchingMigration } = require('./database/migration');
+  const { runDriverPortalMigration, runDriverStaffMigration, runDriverKegReceiptMigration, runDriverWorkDaysMigration, runDriverSalaryAdvanceMigration, runMissingBusinessTablesMigration, runDailyReportNotifyMigration, runAuditLogMigration, runDriverPushMigration, runZaloOauthMigration, runDebtManagementMigration, runDebtSaleCreditFlagMigration, runBusinessDayCutoffMigration, runAuditLogUnificationMigration, runDriverAttendanceMigration, runBusinessRegionsMigration, runSaleDispatchStatusMigration, runSaleRegionDispatchBackfillMigration, runSepayDebtSettlementMigration, runDebtZaloNotifyMigration, runSepayAutoPollMigration, runCustomerClosureMigration, runCustomerClosureDevicesMigration, runSalePreorderMigration, runSepaySmartMatchingMigration, runDeliveryReconciliationLockMigration } = require('./database/migration');
   const driverResult = runDriverPortalMigration(db);
   if (driverResult.success) {
     logger.log('[MIGRATION] Driver portal schema ready');
@@ -180,6 +180,14 @@ try {
   const sepaySmartResult = runSepaySmartMatchingMigration(db);
   if (sepaySmartResult.success) {
     logger.log('[MIGRATION] Sepay smart matching schema ready');
+  }
+
+  // Run delivery reconciliation lock migration (068)
+  // - Đối soát mỗi phiếu giao chỉ 1 lần (`reconciled_at`)
+  // - Khoá số liệu đã xác nhận (`confirmed_by`) → chỉ quản lý mới sửa được
+  const deliveryReconLockResult = runDeliveryReconciliationLockMigration(db);
+  if (deliveryReconLockResult.success) {
+    logger.log('[MIGRATION] Delivery reconciliation lock schema ready');
   }
 } catch (error) {
   logger.error('[MIGRATION] Migration error:', error.message);
