@@ -1007,6 +1007,8 @@
     // Thông báo Zalo qua OmiCall
     notify: null,
     notifyHistory: null,
+    // Giao dịch đã gạch nợ nhưng chưa gửi tin thông báo Zalo
+    notifyMissing: [],
     // Dấu của lệnh nhập nhanh: '+' (thu tiền) hoặc '−' (ghi nợ).
     // Chọn bằng NÚT vì bàn phím điện thoại không có phím "+".
     quickSign: '+',
@@ -1803,18 +1805,40 @@
     // Lịch sử gửi
     var hist = state.notifyHistory;
     var items = (hist && hist.items) || [];
+
+    // ── Tin chưa gửi (giao dịch đã gạch nợ nhưng không có log thông báo) ──
+    //    CHỈ LIỆT KÊ — không tự động gửi. Nhân viên bấm "Gửi lại" từng dòng.
+    var missing = state.notifyMissing || [];
+    var missingHtml = '';
+    if (state.isAdmin) {
+      missingHtml =
+        '<div class="dbt-section" style="margin-top:12px">' +
+          '<div class="dbt-section-title">📮 Tin chưa gửi (' + missing.length + ')</div>' +
+          '<div class="dbt-section-desc">Các giao dịch đã gạch nợ nhưng tin thông báo chưa tới khách (VD: server restart đúng lúc gửi). <b>Bấm "Gửi lại"</b> để gửi tin cho từng khách.</div>' +
+          (missing.length
+            ? '<div class="dbt-table-wrap"><table class="dbt-table dbt-table--wide"><thead><tr>' +
+                '<th>Thời gian</th><th>Khách</th><th>Nhóm Zalo</th>' +
+                '<th style="text-align:right">Số tiền</th><th style="text-align:right">Còn nợ</th>' +
+                '<th></th>' +
+              '</tr></thead><tbody>' +
+              missing.map(function (m) {
+                return '<tr>' +
+                  '<td style="font-size:11.5px;white-space:nowrap">' + esc(fmtDateTime(m.transactionDate)) + '</td>' +
+                  '<td class="dbt-name">' + esc(m.customerName) + '</td>' +
+                  '<td class="dbt-muted">' + esc(m.groupName || '⚠️ Chưa liên kết nhóm') + '</td>' +
+                  '<td class="dbt-mono" style="text-align:right">' + money(m.amount) + '</td>' +
+                  '<td class="dbt-mono" style="text-align:right">' + money(m.balanceAfter) + '</td>' +
+                  '<td style="text-align:right"><button class="dbt-btn dbt-btn-sm" onclick="resendNotify(' + m.txId + ', ' + jsArg(m.customerName) + ')">📤 Gửi lại</button></td>' +
+                '</tr>';
+              }).join('') +
+              '</tbody></table></div>'
+            : '<div class="dbt-empty">✅ Không có tin nào bị mất</div>') +
+        '</div>';
+    }
+
     var historyHtml =
       '<div class="dbt-section" style="margin-top:12px">' +
         '<div class="dbt-section-title">📨 Lịch sử gửi tin nhắn</div>' +
-        (state.isAdmin
-          ? '<div class="dbt-btn-row" style="margin:0 0 10px">' +
-              '<button class="dbt-btn dbt-btn-secondary" onclick="retryMissingNotify()">📤 Gửi lại tin bị mất</button>' +
-            '</div>' +
-            '<div class="dbt-hint" style="margin:0 0 10px;padding:8px 10px;border-left:3px solid var(--primary);background:var(--card-soft);border-radius:0 6px 6px 0">' +
-              '💡 Dùng khi khách báo <b>chưa nhận được tin thông báo</b>. Hệ thống quét các giao dịch đã gạch nợ nhưng chưa từng gửi tin → gửi lại ngay. ' +
-              '(Hệ thống cũng tự quét lại mỗi khoảng 5 phút.)' +
-            '</div>'
-          : '') +
         (items.length
           ? '<div class="dbt-table-wrap"><table class="dbt-table dbt-table--wide"><thead><tr>' +
             '<th>Thời gian</th><th>Khách</th><th>Loại</th>' +
@@ -1848,6 +1872,7 @@
       guideHtml +
       kpiHtml +
       settingsHtml +
+      missingHtml +
       historyHtml +
     '</div>';
   }
@@ -3143,10 +3168,13 @@
       api(API + '/notify/history?limit=100'),
       // Danh sách nhóm Zalo để chọn khi gửi tin thử
       state.groups && state.groups.length ? Promise.resolve({ data: state.groups }) : api(API + '/groups'),
+      // Giao dịch đã gạch nợ nhưng chưa gửi tin (chỉ liệt kê, không gửi)
+      api(API + '/notify/missing?lookbackDays=30'),
     ]).then(function (res) {
       state.notify = res[0].data;
       state.notifyHistory = res[1].data;
       state.groups = res[2].data || [];
+      state.notifyMissing = (res[3].data && res[3].data.items) || [];
       render();
     }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
   }
@@ -3159,18 +3187,18 @@
     if (state.notify) state.notify.enabled = on;
   }
 
-  /** Gửi lại các tin thông báo bị mất (giao dịch đã gạch nợ nhưng chưa gửi tin). */
-  function retryMissingNotify() {
-    if (!window.confirm('Gửi lại tin thông báo cho các giao dịch đã gạch nợ nhưng chưa gửi tin nhắn?')) return;
-    api(API + '/notify/retry-missing', { method: 'POST' })
-      .then(function (res) {
-        var d = res.data || {};
-        toast(
-          d.sent > 0
-            ? '📤 Đã gửi lại ' + d.sent + ' tin thông báo' + (d.failed ? ' · ' + d.failed + ' lỗi' : '')
-            : '✅ Không có tin nào bị mất (đã kiểm tra ' + d.scanned + ' giao dịch)',
-          d.sent > 0 ? 'ok' : 'info'
-        );
+  /**
+   * Gửi lại tin thông báo cho 1 giao dịch (được nhân viên xác nhận).
+   * ⚠️ Gửi THẬT vào nhóm Zalo của khách — luôn hỏi trước.
+   */
+  function resendNotify(txId, customerName) {
+    if (!window.confirm('Gửi tin thông báo công nợ tới nhóm Zalo của "' + customerName + '"?')) return;
+    api(API + '/notify/resend', {
+      method: 'POST',
+      body: JSON.stringify({ txId: txId }),
+    })
+      .then(function () {
+        toast('📤 Đã gửi lại tin thông báo', 'ok');
         loadNotify();
       })
       .catch(function (e) { toast('✗ ' + e.message, 'err'); });

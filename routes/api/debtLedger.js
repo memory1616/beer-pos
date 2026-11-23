@@ -845,38 +845,56 @@ router.post('/notify/settings', requireAuth, requireAdmin, (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// GỬI LẠI THÔNG BÁO BỊ MẤT
+// TIN THÔNG BÁO CHƯA GỬI
 // ─────────────────────────────────────────────────────────────────────────────
-// Thông báo Zalo gửi bất đồng bộ → nếu tiến trình kết thúc sớm (script CLI,
-// restart server) thì tin nhắn mất im lặng. Endpoint này quét lại các giao
-// dịch đã gạch nợ nhưng chưa có log thông báo → gửi lại ngay.
+// ⚠️ NGUYÊN TẮC: KHÔNG tự động gửi tin vào nhóm Zalo của khách.
+//    Endpoint này CHỈ LIỆT KÊ các giao dịch đã gạch nợ nhưng chưa gửi tin.
+//    Việc gửi thật → nhân viên bấm nút "Gửi lại" cho từng giao dịch.
 // ═══════════════════════════════════════════════════════════════════════════
-router.post('/notify/retry-missing', requireAuth, requireAdmin, async (req, res) => {
-  try {
-    const body = req.body || {};
-    const result = await DebtNotifyService.retryMissingNotifications({
-      limit: body.limit,
-      lookbackDays: body.lookbackDays,
-    });
 
-    if (result.error === 'DISABLED') {
-      return res.status(400).json({ success: false, error: 'Tính năng thông báo đang TẮT' });
+/** GET /api/debt-ledger/notify/missing — danh sách giao dịch thiếu thông báo. */
+router.get('/notify/missing', requireAuth, requireStaff, (req, res) => {
+  try {
+    const result = DebtNotifyService.listMissingNotifications({
+      limit: req.query.limit,
+      lookbackDays: req.query.lookbackDays,
+    });
+    res.json({ success: true, data: result });
+  } catch (e) {
+    logger.error('[DEBT_NOTIFY_API] missing error', { error: e.message });
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+/**
+ * POST /api/debt-ledger/notify/resend — gửi lại thông báo cho 1 giao dịch.
+ * Body: { txId }
+ *
+ * ⚠️ Gửi thật vào nhóm Zalo của khách → chỉ gọi khi nhân viên xác nhận.
+ */
+router.post('/notify/resend', requireAuth, requireStaff, async (req, res) => {
+  try {
+    const { txId } = req.body || {};
+    if (!txId) {
+      return res.status(400).json({ success: false, error: 'Thiếu txId' });
     }
-    if (result.error === 'CHANNEL_MISMATCH') {
+
+    const result = await DebtNotifyService.resendNotificationForTx(txId);
+    if (!result.success && result.status !== 'sent') {
       return res.status(400).json({
         success: false,
-        error: 'Kênh thông báo hiện tại không phải Zalo cá nhân (OmiCall)',
+        error: result.error || 'Gửi thông báo thất bại',
       });
     }
 
     const io = req.app.get('io');
-    if (io && result.sent > 0) {
-      io.to('admin').emit('debt:notified', { sent: result.sent });
+    if (io) {
+      io.to('admin').emit('debt:notified', { customerId: result.customerId });
     }
 
     res.json({ success: true, data: result });
   } catch (e) {
-    logger.error('[DEBT_NOTIFY_API] retry-missing error', { error: e.message });
+    logger.error('[DEBT_NOTIFY_API] resend error', { error: e.message });
     res.status(500).json({ success: false, error: e.message });
   }
 });

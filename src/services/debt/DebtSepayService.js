@@ -1610,21 +1610,23 @@ async function autoReconcile(opts = {}) {
 
     setSetting(AUTO_POLL_LAST_RUN_KEY, now.toISOString());
 
-    // ── Bù thông báo Zalo bị mất ────────────────────────────────────────
+    // ── Cảnh báo thông báo Zalo bị mất (CHỈ GHI LOG, KHÔNG GỬI) ─────────
     //    Thông báo gửi bất đồng bộ (fire-and-forget) → nếu tiến trình bị kết
     //    thúc sớm (script CLI, restart server) thì tin nhắn mất im lặng.
-    //    Cron này (chạy trong PM2, tiến trình sống lâu) sẽ quét lại các giao
-    //    dịch đã gạch nợ nhưng chưa có log thông báo → gửi lại.
+    //
+    //    ⚠️ NGUYÊN TẮC: KHÔNG BAO GIỜ tự động gửi tin vào nhóm Zalo của
+    //    khách. Hệ thống chỉ GHI NHẬN số lượng bị thiếu để nhân viên vào
+    //    tab "Thông báo" kiểm tra & bấm "Gửi lại" thủ công.
     try {
-      const retry = await DebtNotifyService.retryMissingNotifications();
-      if (retry.sent > 0) {
-        logger.info('[SEPAY] auto-poll resent missing Zalo notifications', {
-          sent: retry.sent,
-          failed: retry.failed,
+      const missing = DebtNotifyService.listMissingNotifications({ lookbackDays: 7 });
+      if (missing.scanned > 0) {
+        logger.warn('[SEPAY] Có giao dịch đã gạch nợ nhưng chưa gửi tin Zalo', {
+          count: missing.scanned,
+          hint: 'Vào Sổ công nợ → tab Thông báo → bấm "Tin chưa gửi" để gửi lại',
         });
       }
     } catch (e) {
-      logger.error('[SEPAY] auto-poll retry notifications error', {
+      logger.error('[SEPAY] auto-poll check missing notifications error', {
         error: e.message,
       });
     }

@@ -462,7 +462,40 @@ function listHistory(opts = {}) {
 }
 
 /**
- * Gửi LẠI thông báo cho các giao dịch đã gạch nợ nhưng CHƯA có log thông báo.
+ * Tính số dư công nợ hiện tại của khách (từ ledger).
+ *
+ * ⚠️ Cục bộ thay vì require `DebtLedgerService` để tránh phụ thuộc vòng
+ *    (`DebtLedgerService` ← `DebtSepayService` ← `DebtNotifyService`).
+ *    Logic giống hệt `DebtLedgerService.computeBalance()`.
+ *
+ * @param {number} customerId
+ * @returns {number} số dư (>0 = còn nợ, <0 = khách đang có dư)
+ */
+function computeBalance(customerId) {
+  try {
+    const row = db
+      .prepare(
+        `SELECT COALESCE(
+                  SUM(CASE WHEN direction = 'INCREASE' THEN amount ELSE -amount END),
+                  0
+                ) AS balance
+           FROM debt_transactions
+          WHERE customer_id = ?`
+      )
+      .get(customerId);
+    return roundMoney(row ? row.balance : 0);
+  } catch (e) {
+    logger.error('[DEBT_NOTIFY] computeBalance error', { error: e.message });
+    return 0;
+  }
+}
+
+/**
+ * QUÉT các giao dịch đã gạch nợ nhưng CHƯA có log thông báo.
+ *
+ * ⚠️ NGUYÊN TẮC: KHÔNG BAO GIỜ tự động gửi tin vào nhóm Zalo của khách.
+ *    Hàm này CHỈ ĐỌC & LIỆT KÊ danh sách giao dịch bị thiếu thông báo.
+ *    Việc gửi thật phải do nhân viên bấm nút & xác nhận rõ ràng.
  *
  * ⚠️ VÌ SAO CẦN?
  *  Thông báo Zalo được gửi bất đồng bộ (`notifyPaymentAsync`) → fire-and-forget.
@@ -470,26 +503,10 @@ function listHistory(opts = {}) {
  *  CLI gạch nợ rồi `process.exit()`, hoặc server restart giữa chừng) → thông
  *  báo bị MẤT im lặng, khách không nhận được tin.
  *
- *  Hàm này quét các giao dịch `matched` chưa từng có log `payment` → gửi lại.
- *  Được gọi từ auto-poll cron (chạy trong PM2 → tiến trình sống lâu) nên tự
- *  khắc phục được mà không cần nhân viên can thiệp.
- *
  * @param {object} [opts] { limit, lookbackDays }
- * @returns {Promise<{scanned:number, sent:number, failed:number, details:Array}>}
+ * @returns {{scanned:number, items:Array}} danh sách giao dịch thiếu thông báo
  */
-async function retryMissingNotifications(opts = {}) {
-  const result = { scanned: 0, sent: 0, failed: 0, details: [] };
-
-  const cfg = OmiCallService.getConfig();
-  if (!cfg.enabled) {
-    result.error = 'DISABLED';
-    return result;
-  }
-  if (cfg.channel !== CHANNEL) {
-    result.error = 'CHANNEL_MISMATCH';
-    return result;
-  }
-
+function listMissingNotifications(opts = {}) {
   const limit = Math.min(parseInt(opts.limit, 10) || 50, 200);
   const lookbackDays = Math.min(parseInt(opts.lookbackDays, 10) || 7, 60);
 
@@ -497,77 +514,110 @@ async function retryMissingNotifications(opts = {}) {
   try {
     rows = db
       .prepare(
-        `SELECT t.id, t.customer_id, t.transfer_amount, t.applied_amount,
+        `SELECT t.id AS tx_id, t.customer_id, t.transfer_amount, t.applied_amount,
                 t.credit_amount, t.transaction_date, t.sepay_id,
-                c.name AS customer_name
+                t.debt_transaction_id,
+                c.name AS customer_name,
+                (SELECT g.group_name FROM debt_customer_groups g
+                  WHERE g.customer_id = c.id AND g.platform = 'zalo_personal'
+                    AND g.status = 'active' ORDER BY g.id DESC LIMIT 1) AS group_name
            FROM sepay_transactions t
            JOIN customers c ON c.id = t.customer_id
           WHERE t.status = 'matched'
             AND t.transfer_type = 'in'
             AND t.applied_amount > 0
+            AND t.debt_transaction_id IS NOT NULL
             AND t.transaction_date >= datetime('now', ?)
             AND NOT EXISTS (
               SELECT 1 FROM debt_notifications n
                WHERE n.transaction_id = t.debt_transaction_id
                  AND n.event_type = ?
-                 AND n.status = ?
             )
           ORDER BY t.id DESC
           LIMIT ?`
       )
-      .all(`-${lookbackDays} days`, EVENT_TYPES.PAYMENT, STATUS.SENT, limit);
+      .all(`-${lookbackDays} days`, EVENT_TYPES.PAYMENT, limit);
   } catch (e) {
-    logger.error('[DEBT_NOTIFY] retryMissingNotifications scan error', {
+    logger.error('[DEBT_NOTIFY] listMissingNotifications scan error', {
       error: e.message,
     });
-    result.error = e.message;
-    return result;
+    return { scanned: 0, items: [], error: e.message };
   }
 
-  for (const row of rows) {
-    result.scanned += 1;
-    try {
-      const out = await notifyPayment({
-        customerId: row.customer_id,
-        customerName: row.customer_name,
-        amount: roundMoney(row.transfer_amount),
-        applied: roundMoney(row.applied_amount),
-        credit: roundMoney(row.credit_amount),
-        balanceBefore: 0, // không có sẵn → tin nhắn vẫn đúng nghĩa (số tiền + số dư)
-        balanceAfter: 0,
-        source: 'SEPAY',
-        transactionId: row.debt_transaction_id,
-      });
+  const items = rows.map((row) => {
+    const balanceAfter = computeBalance(row.customer_id);
+    const balanceBefore = roundMoney(balanceAfter + roundMoney(row.applied_amount));
+    return {
+      txId: row.tx_id,
+      debtTransactionId: row.debt_transaction_id,
+      customerId: row.customer_id,
+      customerName: row.customer_name,
+      groupName: row.group_name || null,
+      amount: roundMoney(row.transfer_amount),
+      applied: roundMoney(row.applied_amount),
+      credit: roundMoney(row.credit_amount),
+      balanceBefore,
+      balanceAfter,
+      transactionDate: row.transaction_date,
+    };
+  });
 
-      if (out.status === STATUS.SENT) {
-        result.sent += 1;
-      } else {
-        result.failed += 1;
-      }
-      result.details.push({
-        txId: row.id,
-        customerId: row.customer_id,
-        status: out.status,
-        error: out.error || null,
-      });
-    } catch (e) {
-      result.failed += 1;
-      logger.error('[DEBT_NOTIFY] retryMissingNotifications item error', {
-        txId: row.id,
-        error: e.message,
-      });
-    }
+  return { scanned: items.length, items };
+}
+
+/**
+ * Gửi thông báo cho MỘT giao dịch cụ thể (được nhân viên xác nhận).
+ *
+ * ⚠️ KHÔNG tự động — chỉ gọi khi admin bấm nút "Gửi lại" cho từng mục.
+ *
+ * @param {number} txId - id của `sepay_transactions`
+ */
+async function resendNotificationForTx(txId, opts = {}) {
+  const id = parseInt(txId, 10);
+  if (!id || Number.isNaN(id)) {
+    return { success: false, error: 'txId không hợp lệ' };
   }
 
-  if (result.sent > 0) {
-    logger.info('[DEBT_NOTIFY] retryMissingNotifications sent', {
-      scanned: result.scanned,
-      sent: result.sent,
-      failed: result.failed,
-    });
+  let row = null;
+  try {
+    row = db
+      .prepare(
+        `SELECT t.id AS tx_id, t.customer_id, t.transfer_amount, t.applied_amount,
+                t.credit_amount, t.debt_transaction_id, t.transaction_date,
+                c.name AS customer_name
+           FROM sepay_transactions t
+           JOIN customers c ON c.id = t.customer_id
+          WHERE t.id = ?`
+      )
+      .get(id);
+  } catch (e) {
+    return { success: false, error: e.message };
   }
 
-  return result;
+  if (!row) return { success: false, error: 'Không tìm thấy giao dịch' };
+
+  const balanceAfter = computeBalance(row.customer_id);
+  const balanceBefore = roundMoney(balanceAfter + roundMoney(row.applied_amount));
+
+  const out = await notifyPayment({
+    customerId: row.customer_id,
+    customerName: row.customer_name,
+    amount: roundMoney(row.transfer_amount),
+    applied: roundMoney(row.applied_amount),
+    credit: roundMoney(row.credit_amount),
+    balanceBefore,
+    balanceAfter,
+    source: 'SEPAY',
+    transactionId: row.debt_transaction_id,
+  });
+
+  return {
+    success: out.status === STATUS.SENT,
+    status: out.status,
+    error: out.error || null,
+    customerId: row.customer_id,
+    customerName: row.customer_name,
+  };
 }
 
 /** Thống kê nhanh (để hiển thị KPI trên UI). */
@@ -605,7 +655,8 @@ module.exports = {
   notifyManualDebt,
   notifyPaymentAsync,
   notifyManualDebtAsync,
-  retryMissingNotifications,
+  listMissingNotifications,
+  resendNotificationForTx,
   findConvId,
   listHistory,
   getSummary,
