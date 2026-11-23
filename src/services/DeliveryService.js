@@ -304,19 +304,26 @@ class DeliveryService {
    *  - Thêm dòng cho sản phẩm MỚI có trong đơn nhưng chưa có trong phiếu giao.
    *  - Cập nhật `delivery_records.expected_kegs` = tổng lít (không tính PET).
    *
-   * KHÔNG đụng vào `delivered_quantity` (số đã giao thực tế).
+   * KHÔNG đụng vào `delivered_quantity` (số đã giao thực tế) — lịch sử giao
+   * của tài xế được giữ nguyên.
+   *
+   * ⚠️ Phiếu `DELIVERED` CŨNG được đồng bộ `expected_quantity`/`expected_kegs`
+   *    (nhưng giữ nguyên `delivered_quantity`). Lý do: trang Giao hàng hiển thị
+   *    "Cần giao: N" lấy từ `delivery_record_items.expected_quantity` — nếu Admin
+   *    sửa đơn ĐÃ GIAO mà phiếu giữ số cũ → tài xế thấy sai số vỏ phải giao
+   *    (lỗi "sửa đơn không cập nhật số vỏ kéng được giao").
    */
   static syncRecordWithSaleItems(saleId) {
     const saleIdNum = parseInt(saleId, 10);
     if (!Number.isFinite(saleIdNum)) return { success: false, error: 'saleId không hợp lệ' };
 
-    // Lấy các phiếu giao của đơn này (chưa hoàn tất mới cần đồng bộ;
-    // đơn đã giao xong thì giữ nguyên lịch sử).
+    // Lấy TẤT CẢ phiếu giao của đơn này (kể cả đã DELIVERED) → đồng bộ số
+    // lượng "cần giao" cho khớp với đơn. KHÔNG đụng `delivered_quantity`.
     const records = db
       .prepare(
         `SELECT id FROM delivery_records
           WHERE sale_id = ?
-            AND status IN ('PENDING', 'IN_PROGRESS', 'DISCREPANCY')`
+            AND status IN ('PENDING', 'IN_PROGRESS', 'DISCREPANCY', 'DELIVERED')`
       )
       .all(saleIdNum);
 

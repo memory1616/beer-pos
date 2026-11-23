@@ -722,18 +722,41 @@ describe('Driver Portal — RBAC & Data Protection', () => {
       db.prepare('DELETE FROM products WHERE id = ?').run(pid2);
     });
 
-    test('đơn đã DELIVERED không bị đồng bộ (giữ nguyên lịch sử giao)', () => {
+    test('đơn đã DELIVERED: expected_quantity ĐƯỢC đồng bộ nhưng giữ nguyên lịch sử giao', () => {
       db.prepare(
         `UPDATE delivery_records SET status = 'DELIVERED' WHERE id = ?`
       ).run(syncDeliveryId);
-      db.prepare('UPDATE sale_items SET quantity = 99 WHERE sale_id = ?').run(syncSaleId);
+      // Ghi lại số đã giao thực tế trước khi đồng bộ
+      db.prepare(
+        'UPDATE delivery_record_items SET delivered_quantity = 99 WHERE delivery_id = ?'
+      ).run(syncDeliveryId);
+      // Đảm bảo đơn CÓ dòng sản phẩm (test trước đã xóa sale_items)
+      const existing = db
+        .prepare('SELECT id FROM sale_items WHERE sale_id = ? LIMIT 1')
+        .get(syncSaleId);
+      if (!existing) {
+        db.prepare(
+          `INSERT INTO sale_items (sale_id, product_id, quantity, price, cost_price)
+           VALUES (?, ?, 99, 19000, 11000)`
+        ).run(syncSaleId, testProductId);
+      } else {
+        db.prepare('UPDATE sale_items SET quantity = 99 WHERE id = ?').run(existing.id);
+      }
 
       DeliveryService.syncRecordWithSaleItems(syncSaleId);
 
       const items = db
         .prepare('SELECT * FROM delivery_record_items WHERE delivery_id = ?')
         .all(syncDeliveryId);
-      expect(items[0].expected_quantity).not.toBe(99);
+      // Số "cần giao" phải khớp đơn (Admin sửa 99 → tài xế thấy 99)
+      expect(items[0].expected_quantity).toBe(99);
+      // NHƯNG số "đã giao thực tế" phải giữ nguyên (không phá lịch sử)
+      expect(items[0].delivered_quantity).toBe(99);
+
+      const rec = db
+        .prepare('SELECT * FROM delivery_records WHERE id = ?')
+        .get(syncDeliveryId);
+      expect(rec.expected_kegs).toBe(99);
     });
   });
 
