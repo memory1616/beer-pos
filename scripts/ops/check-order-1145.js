@@ -29,3 +29,5 @@ if (s) {
 }
 
 db.close();
+// Cron job trong `database.js` giữ event loop sống → phải exit tường minh.
+process.exit(0);

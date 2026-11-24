@@ -23,3 +23,5 @@ try {
 } catch (e) { console.log('WH err', e.message); }
 
 db.close();
+// Cron job trong `database.js` giữ event loop sống → phải exit tường minh.
+process.exit(0);

@@ -29,3 +29,6 @@ const stockNeg = db.prepare('SELECT COUNT(*) c FROM products WHERE stock < 0').g
 console.log('Sản phẩm có stock âm:', stockNeg.c);
 
 db.close();
+// ⚠️ `database.js` khởi động cron job (backup 2AM) → giữ event loop sống →
+// process không tự thoại sau db.close(). Phải exit tường minh.
+process.exit(0);
