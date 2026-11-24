@@ -807,6 +807,10 @@ function renderInvoiceModalContent(invoice, saleIdForActions) {
     });
   }
 
+  // Thông báo TÍCH LUỸ + DỰ KIẾN THƯỞNG cho khách mới mở quán trong tháng.
+  // Hiển thị NGAY DƯỚI header modal hóa đơn (`.inv-newshop-note`).
+  renderInvoiceNewShopNote(invoice);
+
   var totalDisplay = invoice.totalAmount;
   if (!Number.isFinite(totalDisplay) || totalDisplay == null) {
     totalDisplay = (invoice.items || []).reduce(function(sum, it) { return sum + (it.quantity || 0) * (it.price || 0); }, 0);
@@ -1523,6 +1527,14 @@ function checkMonthlyReward(customerId) {
 
       // Nếu đang trong thời gian quán mới, hiển thị thông báo
       if (overview.isInNewShopPeriod) {
+        // Ưu tiên tỉ lệ từ server (overview.newShopSettings) — luôn đúng với
+        // cài đặt hiện tại, không phụ thuộc lúc loadPromoSettings hoàn tất.
+        var ns = overview.newShopSettings || {};
+        if (ns.goldBuy && ns.goldFree) {
+          saleState.promoSettings = saleState.promoSettings || {};
+          saleState.promoSettings.newShopGoldBuy = ns.goldBuy;
+          saleState.promoSettings.newShopGoldFree = ns.goldFree;
+        }
         showNewShopActiveNotice(overview.newShop);
       } else {
         hideNewShopActiveNotice();
@@ -2707,6 +2719,9 @@ function updateSale() {
   // Clear volume promo cache so it refetches fresh data after edit
   _volumePromoCache = {};
   _volumePromoCacheTime = 0;
+  // Clear new-shop summary cache (tích luỹ + dự kiến thưởng) too
+  _newShopSummaryCache = {};
+  _newShopSummaryCacheTime = 0;
   submitSale();
 }
 
@@ -2720,6 +2735,12 @@ function closeInvoice() {
   overlay.style.pointerEvents = 'none';
   document.body.classList.remove('modal-open');
   window._invoiceContext = null;
+  // Ẩn thông báo tích luỹ (khách mới mở quán) — tránh hiện nhầm khi mở lại
+  var nsNote = document.getElementById('invNewShopNote');
+  if (nsNote) {
+    nsNote.classList.add('hidden');
+    nsNote.innerHTML = '';
+  }
 }
 
 window.closeInvoice = closeInvoice;
@@ -2770,6 +2791,104 @@ function isPromoPeriodActive() {
 var _volumePromoCache = {};
 var _volumePromoCacheTime = 0;
 var _volumePromoCacheTTL = 60000; // 1 phút
+
+// ── Thông báo tích luỹ + dự kiến thưởng (KHÁCH MỚI MỞ QUÁN) ─────────────
+// Cache riêng cho endpoint monthly-summary (dữ liệu tháng mở quán)
+var _newShopSummaryCache = {};
+var _newShopSummaryCacheTime = 0;
+var _newShopSummaryCacheTTL = 60000; // 1 phút
+
+/**
+ * Render thông báo tích luỹ + dự kiến thưởng cho khách MỚI MỞ QUÁN,
+ * hiển thị NGAY DƯỚI header modal hóa đơn (`#invNewShopNote`).
+ *
+ * Nội dung:
+ *   • Sản lượng đã tích luỹ trong tháng mở quán (bia vàng + bia đen)
+ *   • Dự kiến thưởng (lít bia vàng) sẽ trả vào đơn đầu tiên của tháng sau
+ *   • Nếu chưa đủ mốc → số lít còn thiếu
+ *
+ * Dùng API `/api/promotions/new-shop/monthly-summary/:customerId` —
+ * số liệu đã gồm cả đơn đang xem trong hóa đơn.
+ */
+function renderInvoiceNewShopNote(invoice) {
+  var el = document.getElementById('invNewShopNote');
+  if (!el) return;
+  el.classList.add('hidden');
+  el.innerHTML = '';
+
+  var customerId = invoice && invoice.customer && invoice.customer.id;
+  if (!customerId) return;
+
+  var customer = getCustomer(customerId);
+  if (!customer) return;
+  if (customer.promotion_enabled === 0) return;
+
+  var settings = saleState.promoSettings;
+  if (settings && settings.newShopEnabled === false) return;
+  if (!isPromoPeriodActive()) return;
+
+  // Cache theo khách + tháng mở quán
+  var now = Date.now();
+  var cacheKey = 'ns_' + customerId;
+  var cached = _newShopSummaryCache[cacheKey];
+  var useCache = cached && (now - _newShopSummaryCacheTime) <= _newShopSummaryCacheTTL;
+
+  if (useCache) {
+    paintInvoiceNewShopNote(el, cached);
+    return;
+  }
+
+  fetch('/api/promotions/new-shop/monthly-summary/' + customerId, { cache: 'no-store' })
+    .then(function(res) { return safeJson(res); })
+    .then(function(data) {
+      if (!data || !data.success || !data.data) return;
+      var d = data.data;
+      if (!d.eligible) return;
+      _newShopSummaryCache[cacheKey] = d;
+      _newShopSummaryCacheTime = now;
+      // Guard: modal đã đóng / đang xem đơn khác → không vẽ nhầm
+      var modal = document.getElementById('invoiceModal');
+      if (modal && modal.classList.contains('hidden')) return;
+      paintInvoiceNewShopNote(el, d);
+    })
+    .catch(function() { /* im lặng — không chặn việc xem hóa đơn */ });
+}
+
+/** Vẽ nội dung thông báo tích luỹ lên element #invNewShopNote */
+function paintInvoiceNewShopNote(el, d) {
+  if (!el || !d) return;
+  var buy = saleState.promoSettings?.newShopGoldBuy || 10;
+  var free = saleState.promoSettings?.newShopGoldFree || 1;
+
+  var yellow = Number(d.yellowVolume) || 0;
+  var black = Number(d.blackVolume) || 0;
+  var total = yellow + black;
+  var reward = Number(d.totalReward) || 0;
+
+  // Số lít còn thiếu để đạt mốc thưởng tiếp theo
+  var earned = Math.floor(total / buy) * free;
+  var litersToNext = Math.max(0, (earned + 1) * buy - total);
+  var nextReward = earned + free;
+
+  var volDetail = black > 0
+    ? ' (vàng ' + yellow + 'L + đen ' + black + 'L)'
+    : (yellow > 0 ? ' (vàng ' + yellow + 'L)' : '');
+
+  var html =
+    '<div class="inv-newshop-note__title">&#128293; Tháng mở quán — KM "' + buy + 'L tặng ' + free + 'L bia vàng"</div>' +
+    '<div class="inv-newshop-note__row">&#128290; Đã tích luỹ: <strong>' + total + 'L</strong>' + volDetail + '</div>';
+
+  if (reward > 0) {
+    html += '<div class="inv-newshop-note__row">&#127942; Dự kiến thưởng tháng này: <strong>' + reward + 'L bia vàng</strong></div>';
+  } else {
+    html += '<div class="inv-newshop-note__row">&#127942; Dự kiến thưởng tháng này: <strong>0L</strong> ' +
+      '(cần thêm <strong>' + litersToNext + 'L</strong> để đạt mốc ' + nextReward + 'L)</div>';
+  }
+  html += '<div class="inv-newshop-note__hint">&#9200; Thưởng được gắn vào đơn đầu tiên của tháng sau</div>';
+
+  el.innerHTML = html;
+  el.classList.remove('hidden');
+}
 
 /**
  * Build promotion note for invoice display.

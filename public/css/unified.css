@@ -5183,6 +5183,46 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   flex: 1;
 }
 
+/* Tích luỹ + dự kiến thưởng cho KHÁCH MỚI MỞ QUÁN trong tháng.
+   Đặt NGAY DƯỚI header modal hóa đơn → người bán nhìn thấy ngay khi mở hóa đơn. */
+.inv-newshop-note {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.14), rgba(234, 179, 8, 0.14));
+  border-bottom: 1px solid rgba(249, 115, 22, 0.32);
+  font-size: 11px;
+  line-height: 1.5;
+  color: #c2410c;
+}
+
+.inv-newshop-note.hidden {
+  display: none !important;
+}
+
+.inv-newshop-note__title {
+  font-weight: 700;
+  font-size: 11px;
+  color: #ea580c;
+  margin-bottom: 3px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.inv-newshop-note__row {
+  color: #9a3412;
+}
+
+.inv-newshop-note__row strong {
+  color: #c2410c;
+  font-weight: 700;
+}
+
+.inv-newshop-note__hint {
+  color: #78716c;
+  font-size: 10px;
+}
+
 .inv-pos-order {
   font-size: 14px;
   font-weight: 700;
