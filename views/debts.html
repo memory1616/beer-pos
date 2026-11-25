@@ -74,9 +74,9 @@
       line-height: 1.2;
       word-break: break-word;
     }
-    .dbt-kpi-value.red { color: #ef4444; }
-    .dbt-kpi-value.green { color: #22c55e; }
-    .dbt-kpi-value.orange { color: #f59e0b; }
+    .dbt-kpi-value.red { color: var(--color-danger-text); }
+    .dbt-kpi-value.green { color: var(--color-success-text); }
+    .dbt-kpi-value.orange { color: var(--color-warning-text); }
     .dbt-kpi-sub { font-size: 10.5px; color: var(--text-muted); margin-top: 2px; }
 
     /* ── Tabs ────────────────────────────────────────────────────────── */
@@ -117,6 +117,15 @@
       .dbt-tab { font-size: 11px; padding: 8px 4px; }
     }
 
+    /* ── Mô tả tab (ngay dưới dãy tab) ─────────────────────────────── */
+    .dbt-tab-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.5;
+      padding: 0 2px;
+      margin: -6px 0 14px;
+    }
+
     /* ── Panel / section ────────────────────────────────────────────── */
     .dbt-section {
       background: var(--card);
@@ -139,6 +148,96 @@
       color: var(--text-muted);
       line-height: 1.5;
       margin-bottom: 12px;
+    }
+
+    /* ── Khối gọn gàng (accordion) ──────────────────────────────────────
+       Dùng cho phần "Lịch sử" / "Chi tiết" — mặc định THU GỌN để
+       trang gọn, bấm vào mới mở. Không tốn dòng khi chưa cần xem. */
+    .dbt-collapse {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 14px;
+      background: var(--card);
+    }
+    .dbt-collapse > summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--text-primary);
+      user-select: none;
+      transition: background 0.15s;
+    }
+    .dbt-collapse > summary::-webkit-details-marker { display: none; }
+    .dbt-collapse > summary:hover { background: var(--card-soft); }
+    /* Mũi tên xoay khi mở */
+    .dbt-collapse > summary::after {
+      content: '▾';
+      margin-left: auto;
+      font-size: 11px;
+      color: var(--text-muted);
+      transition: transform 0.18s;
+      flex-shrink: 0;
+    }
+    .dbt-collapse[open] > summary::after { transform: rotate(180deg); }
+    .dbt-collapse__body {
+      padding: 0 14px 14px;
+      border-top: 1px solid var(--border);
+    }
+    /* Badge đếm số lượng bên phải tiêu đề accordion */
+    .dbt-collapse__count {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 22px;
+      height: 20px;
+      padding: 0 7px;
+      border-radius: 999px;
+      background: var(--primary);
+      color: var(--btn-primary-color, #000);
+      font-size: 11px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+    }
+    .dbt-collapse__count.is-muted {
+      background: var(--card-soft);
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+    }
+
+    /* ── Card "Cài đặt" đặt ở ĐẦU trang ────────────────────────────────
+       Nền nhạt + viền trái màu để lập tức thấy "phần cần cấu hình". */
+    .dbt-settings-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--primary);
+      border-radius: 14px;
+      padding: 15px;
+      margin-bottom: 14px;
+    }
+    .dbt-settings-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .dbt-settings-grid .dbt-field { margin-bottom: 0; }
+    /* Màn hình hẹp: 1 cột */
+    @media (max-width: 640px) {
+      .dbt-settings-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ── Hàng công tắc dùng chung ────────────────────────────────────── */
+    .dbt-action-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-top: 12px;
     }
 
     /* ── Nhóm Zalo: bộ lọc + ô tìm kiếm + nút sao chép ─────────── */
@@ -279,8 +378,8 @@
     .dbt-table tr.clickable:hover td { background: var(--bg-secondary); }
     .dbt-name { font-weight: 700; color: var(--text-primary); }
     .dbt-mono { font-variant-numeric: tabular-nums; font-weight: 700; }
-    .dbt-amount-neg { color: #ef4444; }
-    .dbt-amount-pos { color: #22c55e; }
+    .dbt-amount-neg { color: var(--color-danger-text); }
+    .dbt-amount-pos { color: var(--color-success-text); }
     .dbt-muted { color: var(--text-muted); font-size: 11px; }
 
     /* ── Badge ──────────────────────────────────────────────────────── */
@@ -292,17 +391,17 @@
       font-weight: 700;
       white-space: nowrap;
     }
-    .dbt-badge-order { background: rgba(59,130,246,0.15); color: #3b82f6; }
-    .dbt-badge-payment { background: rgba(34,197,94,0.15); color: #22c55e; }
-    .dbt-badge-manual { background: rgba(245,158,11,0.15); color: #f59e0b; }
-    .dbt-badge-adjust { background: rgba(168,85,247,0.15); color: #a855f7; }
-    .dbt-badge-reversal { background: rgba(239,68,68,0.15); color: #ef4444; }
-    .dbt-badge-opening { background: rgba(100,116,139,0.18); color: #94a3b8; }
-    .dbt-badge-ok { background: rgba(34,197,94,0.15); color: #22c55e; }
-    .dbt-badge-warn { background: rgba(245,158,11,0.15); color: #f59e0b; }
-    .dbt-badge-crit { background: rgba(239,68,68,0.15); color: #ef4444; }
-    .dbt-badge-info { background: rgba(59,130,246,0.15); color: #3b82f6; }
-    .dbt-badge-credit { background: rgba(14,165,233,0.15); color: #0ea5e9; }
+    .dbt-badge-order { background: var(--color-info-bg); color: var(--color-info-text); }
+    .dbt-badge-payment { background: var(--color-success-bg); color: var(--color-success-text); }
+    .dbt-badge-manual { background: var(--color-warning-bg); color: var(--color-warning-text); }
+    .dbt-badge-adjust { background: var(--color-promotion-bg); color: var(--color-promotion-text); }
+    .dbt-badge-reversal { background: var(--color-danger-bg); color: var(--color-danger-text); }
+    .dbt-badge-opening { background: var(--bg-hover); color: var(--text-secondary); }
+    .dbt-badge-ok { background: var(--color-success-bg); color: var(--color-success-text); }
+    .dbt-badge-warn { background: var(--color-warning-bg); color: var(--color-warning-text); }
+    .dbt-badge-crit { background: var(--color-danger-bg); color: var(--color-danger-text); }
+    .dbt-badge-info { background: var(--color-info-bg); color: var(--color-info-text); }
+    .dbt-badge-credit { background: var(--color-info-bg); color: var(--color-info-text); }
 
     /* ── Sepay ───────────────────────────────────────────────────────── */
     .dbt-sepay-status {
@@ -321,9 +420,9 @@
       border-radius: 50%;
       flex-shrink: 0;
     }
-    .dbt-sepay-dot.on { background: #22c55e; box-shadow: 0 0 0 3px rgba(34,197,94,0.18); }
-    .dbt-sepay-dot.off { background: #94a3b8; }
-    .dbt-sepay-dot.warn { background: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,0.18); }
+    .dbt-sepay-dot.on { background: var(--color-success-text); box-shadow: 0 0 0 3px var(--color-success-bg); }
+    .dbt-sepay-dot.off { background: var(--text-disabled); }
+    .dbt-sepay-dot.warn { background: var(--color-warning-text); box-shadow: 0 0 0 3px var(--color-warning-bg); }
     .dbt-sepay-code {
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
       font-weight: 700;
@@ -444,7 +543,7 @@
       color: var(--text-primary);
       border: 1px solid var(--border);
     }
-    .dbt-btn-danger { background: rgba(239,68,68,0.15); color: #ef4444; }
+    .dbt-btn-danger { background: var(--color-danger-bg); color: var(--color-danger-text); border: 1px solid var(--color-danger-border); }
     .dbt-btn-sm { height: 32px; padding: 0 12px; font-size: 12px; border-radius: 8px; }
     .dbt-btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
 
@@ -465,10 +564,10 @@
       cursor: pointer;
       transition: all 0.15s;
     }
-    .dbt-quick-btn.plus:hover { border-color: #22c55e; color: #22c55e; }
-    .dbt-quick-btn.minus:hover { border-color: #f59e0b; color: #f59e0b; }
+    .dbt-quick-btn.plus:hover { border-color: var(--color-success-text); color: var(--color-success-text); }
+    .dbt-quick-btn.minus:hover { border-color: var(--color-warning-text); color: var(--color-warning-text); }
     .dbt-quick-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-    .dbt-quick-btn.partial:hover { border-color: #3b82f6; color: #3b82f6; }
+    .dbt-quick-btn.partial:hover { border-color: var(--color-info-text); color: var(--color-info-text); }
 
     /* ── Chọn dấu +/− (bàn phím điện thoại KHÔNG có phím "+") ─────────── */
     .dbt-sign {
@@ -493,13 +592,13 @@
       gap: 6px;
     }
     .dbt-sign-btn.active.plus {
-      background: #22c55e;
-      border-color: #22c55e;
+      background: var(--color-success-text);
+      border-color: var(--color-success-text);
       color: #fff;
     }
     .dbt-sign-btn.active.minus {
-      background: #f59e0b;
-      border-color: #f59e0b;
+      background: var(--color-warning-text);
+      border-color: var(--color-warning-text);
       color: #fff;
     }
     .dbt-sign-btn:active { transform: scale(0.97); }
@@ -520,8 +619,8 @@
       font-weight: 800;
       flex-shrink: 0;
     }
-    .dbt-amount-badge.plus { color: #22c55e; border-color: #22c55e; }
-    .dbt-amount-badge.minus { color: #f59e0b; border-color: #f59e0b; }
+    .dbt-amount-badge.plus { color: var(--color-success-text); border-color: var(--color-success-text); }
+    .dbt-amount-badge.minus { color: var(--color-warning-text); border-color: var(--color-warning-text); }
 
     /* ── Panel thu tiền nhanh (mở khi click vào 1 khách) ─────────────── */
     .dbt-collect {
@@ -544,10 +643,10 @@
     .dbt-collect-amount {
       font-size: 15px;
       font-weight: 800;
-      color: #ef4444;
+      color: var(--color-danger-text);
       font-variant-numeric: tabular-nums;
     }
-    .dbt-collect-amount.zero { color: #22c55e; }
+    .dbt-collect-amount.zero { color: var(--color-success-text); }
     .dbt-collect-hint {
       font-size: 11.5px;
       color: var(--text-muted);
@@ -661,7 +760,7 @@
       color: var(--text-primary);
       margin-bottom: 12px;
     }
-    .dbt-claim-warn strong { color: #f59e0b; }
+    .dbt-claim-warn strong { color: var(--color-warning-text); }
     .dbt-claim-actions {
       display: flex;
       gap: 8px;
@@ -912,8 +1011,8 @@
       max-width: 90vw;
       box-shadow: 0 8px 24px rgba(0,0,0,0.3);
     }
-    .dbt-toast.ok { border-color: #22c55e; color: #22c55e; }
-    .dbt-toast.err { border-color: #ef4444; color: #ef4444; }
+    .dbt-toast.ok { border-color: var(--color-success-border); color: var(--color-success-text); }
+    .dbt-toast.err { border-color: var(--color-danger-border); color: var(--color-danger-text); }
 
     .dbt-empty {
       text-align: center;
@@ -1358,22 +1457,38 @@
         '</div>' +
       '</div>' +
 
-      '<div class="dbt-section">' +
-        '<div class="dbt-section-title">🧾 Đơn hàng đang nợ (' + openOrders.length + ')</div>' +
-        '<div class="dbt-section-desc">Nhận tiền từ khách → bấm "💵 Nhập thanh toán" ở trên để ghi vào sổ.</div>' +
-        orderRows +
-      '</div>' +
+      '<details class="dbt-collapse"' + (openOrders.length ? ' open' : '') + '>' +
+        '<summary>🧾 Đơn hàng đang nợ' +
+          (openOrders.length
+            ? '<span class="dbt-collapse__count">' + openOrders.length + '</span>'
+            : '<span class="dbt-collapse__count is-muted">0</span>') +
+        '</summary>' +
+        '<div class="dbt-collapse__body">' +
+          '<div class="dbt-hint" style="margin:12px 0 0;padding:8px 10px;border-left:3px solid var(--primary);background:var(--card-soft);border-radius:0 6px 6px 0">' +
+            'Nhận tiền từ khách → bấm "💵 Nhập thanh toán" ở trên để ghi vào sổ.' +
+          '</div>' +
+          orderRows +
+        '</div>' +
+      '</details>' +
 
-      '<div class="dbt-section">' +
-        '<div class="dbt-section-title">📜 Lịch sử giao dịch</div>' +
-        txRows +
-      '</div>' +
+      '<details class="dbt-collapse">' +
+        '<summary>📜 Lịch sử giao dịch' +
+          '<span class="dbt-collapse__count is-muted">' + ((d.transactions || []).length) + '</span>' +
+        '</summary>' +
+        '<div class="dbt-collapse__body">' + txRows + '</div>' +
+      '</details>' +
 
-      '<div class="dbt-section">' +
-        '<div class="dbt-section-title">💬 Nhóm Zalo liên kết</div>' +
-        '<div class="dbt-section-desc">Nhóm Zalo cá nhân (không dùng Zalo OA). Nhân viên được phân công có thể ghi lệnh +/− trong nhóm.</div>' +
-        groups +
-      '</div>';
+      '<details class="dbt-collapse">' +
+        '<summary>💬 Nhóm Zalo liên kết' +
+          '<span class="dbt-collapse__count is-muted">' + ((d.groups || []).length) + '</span>' +
+        '</summary>' +
+        '<div class="dbt-collapse__body">' +
+          '<div class="dbt-hint" style="margin:12px 0 0;padding:8px 10px;border-left:3px solid var(--primary);background:var(--card-soft);border-radius:0 6px 6px 0">' +
+            'Nhóm Zalo cá nhân (không dùng Zalo OA). Nhân viên được phân công có thể ghi lệnh +/− trong nhóm.' +
+          '</div>' +
+          groups +
+        '</div>' +
+      '</details>';
   }
 
   // ── Render: Sepay ──────────────────────────────────────────────────────
@@ -1440,7 +1555,7 @@
 
     var kpiHtml = '<div class="dbt-kpi-grid">' +
       '<div class="dbt-kpi"><div class="dbt-kpi-label">Tổng giao dịch</div><div class="dbt-kpi-value">' + (sum.total || 0) + '</div></div>' +
-      '<div class="dbt-kpi"><div class="dbt-kpi-label">Đã gạch nợ</div><div class="dbt-kpi-value" style="color:#22c55e">' + (sum.matched || 0) + '</div></div>' +
+      '<div class="dbt-kpi"><div class="dbt-kpi-label">Đã gạch nợ</div><div class="dbt-kpi-value" style="color:var(--color-success-text)">' + (sum.matched || 0) + '</div></div>' +
       '<div class="dbt-kpi"><div class="dbt-kpi-label">Chờ xử lý</div><div class="dbt-kpi-value orange">' + ((sum.manual || 0) + (sum.pending || 0)) + '</div></div>' +
       '<div class="dbt-kpi"><div class="dbt-kpi-label">Tiền khách nợ lại</div><div class="dbt-kpi-value">' + money(sum.credit || 0) + '</div></div>' +
     '</div>';
@@ -1459,8 +1574,12 @@
     '</div>';
 
     var items = state.sepayTx || [];
+    // Mở mặc định nếu có giao dịch CHỜ XỬ LÝ (cần nhân viên gán tay) → không bỏ sót
+    var pendingCount = items.filter(function (t) {
+      return t.status === 'manual' || t.status === 'pending';
+    }).length;
     var rows = items.length
-      ? '<div class="dbt-table-wrap"><table class="dbt-table dbt-table--wide"><thead><tr>' +
+      ? '<div class="dbt-table-wrap" style="margin-top:12px"><table class="dbt-table dbt-table--wide"><thead><tr>' +
         '<th>Thời gian</th><th>Khách</th><th>Nội dung CK</th>' +
         '<th style="text-align:right">Số tiền</th><th>Trạng thái</th><th></th>' +
         '</tr></thead><tbody>' +
@@ -1508,7 +1627,21 @@
           '</tr>';
         }).join('') +
         '</tbody></table></div>'
-      : '<div class="dbt-empty">📭 Chưa có giao dịch Sepay nào</div>';
+      : '<div class="dbt-empty" style="margin-top:12px">📭 Chưa có giao dịch Sepay nào</div>';
+
+    // Bảng giao dịch gói trong accordion — mặc định thu gọn để trang gọn,
+    // tự mở nếu có giao dịch chờ xử lý.
+    var txTableHtml = '<details class="dbt-collapse"' + (pendingCount > 0 ? ' open' : '') + '>' +
+      '<summary>📜 Lịch sử giao dịch' +
+        (pendingCount > 0
+          ? '<span class="dbt-collapse__count">' + pendingCount + '</span>'
+          : '<span class="dbt-collapse__count is-muted">' + items.length + '</span>') +
+      '</summary>' +
+      '<div class="dbt-collapse__body">' +
+        filterHtml +
+        rows +
+      '</div>' +
+    '</details>';
 
     // ── Gạch nợ thông minh: số tài khoản ngân hàng của khách ───────────
     var accounts = state.sepayBankAccounts || [];
@@ -1531,77 +1664,80 @@
           '</tbody></table></div>'
         : '<div class="dbt-empty">Chưa đăng ký số tài khoản nào cho khách</div>';
 
-      smartHtml = '<div class="dbt-section" style="margin-top:12px">' +
-        '<div class="dbt-section-title">🧠 Gạch nợ thông minh — nhận diện khách theo số tài khoản</div>' +
-        '<div class="dbt-section-desc">Khách chuyển khoản theo SỐ TÀI KHOẢN (không quét mã QR) → nội dung CK không có mã KH. Đăng ký số tài khoản của khách ở đây, hệ thống sẽ tự nhận diện & gạch nợ — không cần nhân viên gán tay.</div>' +
-        '<div class="dbt-hint" style="margin:0 0 12px;padding:8px 10px;border-left:3px solid var(--primary);background:var(--card-soft);border-radius:0 6px 6px 0">' +
-          '💡 Nội dung CK thực tế: <code>NHAN TU 1988888779779 TRACE 104688 ND BUI TRUONG VAN chuyen tien</code> → hệ thống tự lấy <b>số tài khoản gửi</b> & <b>tên người gửi</b> để dò khách.' +
+      smartHtml = '<details class="dbt-collapse" style="margin-top:12px">' +
+        '<summary>🧠 Gạch nợ thông minh — nhận diện khách theo số tài khoản' +
+          '<span class="dbt-collapse__count is-muted">' + accounts.length + '</span>' +
+        '</summary>' +
+        '<div class="dbt-collapse__body">' +
+          '<div class="dbt-hint" style="margin:12px 0 0;padding:8px 10px;border-left:3px solid var(--primary);background:var(--card-soft);border-radius:0 6px 6px 0">' +
+            '💡 Khách chuyển khoản theo SỐ TÀI KHOẢN (không quét mã QR) → nội dung CK không có mã KH. Đăng ký số tài khoản của khách ở đây, hệ thống sẽ tự nhận diện & gạch nợ — không cần nhân viên gán tay.<br>' +
+            'Nội dung CK thực tế: <code>NHAN TU 1988888779779 TRACE 104688 ND BUI TRUONG VAN chuyen tien</code> → hệ thống tự lấy <b>số tài khoản gửi</b> & <b>tên người gửi</b> để dò khách.' +
+          '</div>' +
+          accRows +
+          '<div class="dbt-action-bar">' +
+            '<button class="dbt-btn" onclick="openSepayBankAccountModal(null)">➕ Đăng ký số tài khoản</button>' +
+            '<button class="dbt-btn dbt-btn-secondary" onclick="sepaySmartRematch()">🧠 Khớp lại giao dịch chờ</button>' +
+          '</div>' +
         '</div>' +
-        accRows +
-        '<div class="dbt-btn-row" style="margin-top:12px">' +
-          '<button class="dbt-btn" onclick="openSepayBankAccountModal(null)">➕ Đăng ký số tài khoản</button>' +
-          '<button class="dbt-btn dbt-btn-secondary" onclick="sepaySmartRematch()">🧠 Khớp lại giao dịch chờ</button>' +
-        '</div>' +
-      '</div>';
+      '</details>';
     }
 
     var settingsHtml = '';
     if (state.isAdmin) {
-      settingsHtml = '<div class="dbt-section" style="margin-top:12px">' +
-        '<div class="dbt-section-title">⚙️ Cấu hình Sepay</div>' +
-        '<div class="dbt-section-desc">Lấy 2 khóa bên dưới từ tài khoản SePay của bạn, dán vào đây rồi bấm Lưu.</div>' +
-        '<div class="dbt-field">' +
-          '<label class="dbt-label">API token (để đối soát tay)</label>' +
-          '<input id="sepApiToken" class="dbt-input" type="password" placeholder="' + (s.hasApiToken ? '•••••••• (đã lưu)' : 'VD: 64 ký tự alphanumeric') + '">' +
-          '<div class="dbt-hint">📍 my.sepay.vn → Cấu hình Công ty → API Access → + Thêm API → Trạng thái: Hoạt động → copy API Token.</div>' +
+      settingsHtml = '<details class="dbt-collapse"' + (configured ? '' : ' open') + ' style="margin-bottom:14px">' +
+        '<summary>⚙️ Cấu hình SePay' +
+          '<span class="dbt-collapse__count' + (configured ? ' is-muted' : '') + '">' + (configured ? '✓' : '!') + '</span>' +
+        '</summary>' +
+        '<div class="dbt-collapse__body">' +
+          '<div class="dbt-settings-grid" style="margin-top:12px">' +
+            '<div class="dbt-field">' +
+              '<label class="dbt-label">API token (để đối soát tay)</label>' +
+              '<input id="sepApiToken" class="dbt-input" type="password" placeholder="' + (s.hasApiToken ? '•••••••• (đã lưu)' : 'VD: 64 ký tự alphanumeric') + '">' +
+              '<div class="dbt-hint">📍 my.sepay.vn → Cấu hình Công ty → API Access → + Thêm API → Trạng thái: Hoạt động → copy API Token.</div>' +
+            '</div>' +
+            '<div class="dbt-field">' +
+              '<label class="dbt-label">Webhook secret (nhận giao dịch tự động)</label>' +
+              '<input id="sepWebhookSecret" class="dbt-input" type="password" placeholder="' + (s.hasWebhookSecret ? '•••••••• (đã lưu)' : 'Dán Secret Key') + '">' +
+              '<div class="dbt-hint">📍 my.sepay.vn → Tích hợp → Webhooks → + Thêm webhook → Bước 3 "Bảo mật" → HMAC-SHA256 → tạo Secret Key → copy ngay (chỉ hiện 1 lần).</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="dbt-field" style="margin-top:12px">' +
+            '<label class="dbt-label">Tiền tố mã thanh toán của SePay (tuỳ chọn)</label>' +
+            '<input id="sepPrefix" class="dbt-input" type="text" value="' + esc(s.paymentCodePrefix || 'DH') + '" placeholder="DH">' +
+            '<div class="dbt-hint">Chỉ dùng nếu bạn dùng tính năng "mã thanh toán" của SePay (mã dạng <b>DH123</b>). Hệ thống luôn tự nhận mã khách <b>KHxxxx</b> nhúng trong nội dung chuyển khoản — không cần cấu hình gì thêm. <b>Để trống</b> nếu bạn không dùng mã thanh toán SePay.</div>' +
+          '</div>' +
+          '<div class="dbt-field" style="margin-top:12px;max-width:280px">' +
+            '<label class="dbt-label">Chu kỳ tự động đối soát (phút)</label>' +
+            '<input id="sepAutoPollInterval" class="dbt-input" type="number" min="1" max="1440" value="' + (s.autoPollIntervalMin || 5) + '">' +
+            '<div class="dbt-hint">Hệ thống tự gọi API SePay mỗi <b>X phút</b> để lấy giao dịch mới và gạch nợ — kể cả khi webhook lỗi. Khuyến nghị <b>5 phút</b>. Cần API token.</div>' +
+          '</div>' +
+          '<div class="dbt-sepay-row">' +
+            '<span class="dbt-sepay-row-label">Tự động gạch nợ khi nhận tiền</span>' +
+            '<button class="dbt-sepay-toggle' + (s.autoSettle ? ' on' : '') + '" id="sepAutoSettle" onclick="toggleSepayAutoSettle()"></button>' +
+          '</div>' +
+          '<div class="dbt-sepay-row">' +
+            '<span class="dbt-sepay-row-label">Tự động đối soát định kỳ (dự phòng webhook)</span>' +
+            '<button class="dbt-sepay-toggle' + (s.autoPollEnabled !== false ? ' on' : '') + '" id="sepAutoPoll" onclick="toggleSepayAutoPoll()"></button>' +
+          '</div>' +
+          '<div class="dbt-action-bar">' +
+            '<button class="dbt-btn" onclick="saveSepaySettings()">💾 Lưu cấu hình</button>' +
+            '<button class="dbt-btn dbt-btn-secondary" onclick="reconcileSepay()">🔄 Đối soát tay (API)</button>' +
+            '<button class="dbt-btn dbt-btn-secondary" onclick="repairSepayCodes()">🔧 Sửa mã khách</button>' +
+          '</div>' +
+          '<div class="dbt-hint" style="margin-top:10px">Sau khi lưu, copy URL webhook ở trên và dán vào ô "URL" khi tạo webhook trong SePay. Dùng nút <b>⋮ → Gửi thử</b> để kiểm tra ngay.</div>' +
         '</div>' +
-        '<div class="dbt-field">' +
-          '<label class="dbt-label">Webhook secret (để nhận giao dịch tự động)</label>' +
-          '<input id="sepWebhookSecret" class="dbt-input" type="password" placeholder="' + (s.hasWebhookSecret ? '•••••••• (đã lưu)' : 'Dán Secret Key') + '">' +
-          '<div class="dbt-hint">📍 my.sepay.vn → Tích hợp → Webhooks → + Thêm webhook → Bước 3 "Bảo mật" → chọn HMAC-SHA256 → bấm nút tạo Secret Key → copy ngay (chỉ hiện 1 lần).</div>' +
-        '</div>' +
-        '<div class="dbt-field">' +
-          '<label class="dbt-label">Tiền tố mã thanh toán của SePay (tuỳ chọn)</label>' +
-          '<input id="sepPrefix" class="dbt-input" type="text" value="' + esc(s.paymentCodePrefix || 'DH') + '" placeholder="DH">' +
-          '<div class="dbt-hint">Chỉ dùng nếu bạn dùng tính năng "mã thanh toán" của SePay (mã dạng <b>DH123</b>). Hệ thống luôn tự nhận mã khách <b>KHxxxx</b> nhúng trong nội dung chuyển khoản — không cần cấu hình gì thêm. <b>Để trống</b> nếu bạn không dùng mã thanh toán SePay (khi đó không đặt bộ lọc tiền tố khi tạo webhook).</div>' +
-        '</div>' +
-        '<div class="dbt-sepay-row">' +
-          '<span class="dbt-sepay-row-label">Tự động gạch nợ khi nhận tiền</span>' +
-          '<button class="dbt-sepay-toggle' + (s.autoSettle ? ' on' : '') + '" id="sepAutoSettle" onclick="toggleSepayAutoSettle()"></button>' +
-        '</div>' +
-        '<div class="dbt-sepay-row">' +
-          '<span class="dbt-sepay-row-label">Tự động đối soát định kỳ (dự phòng webhook)</span>' +
-          '<button class="dbt-sepay-toggle' + (s.autoPollEnabled !== false ? ' on' : '') + '" id="sepAutoPoll" onclick="toggleSepayAutoPoll()"></button>' +
-        '</div>' +
-        '<div class="dbt-field">' +
-          '<label class="dbt-label">Chu kỳ tự động đối soát (phút)</label>' +
-          '<input id="sepAutoPollInterval" class="dbt-input" type="number" min="1" max="1440" value="' + (s.autoPollIntervalMin || 5) + '">' +
-          '<div class="dbt-hint">Hệ thống tự gọi API SePay mỗi <b>X phút</b> để lấy giao dịch mới và gạch nợ — kể cả khi webhook SePay lỗi hoặc chưa cấu hình. Khuyến nghị <b>5 phút</b>. Nếu không có API token thì tính năng này không hoạt động (webhook vẫn chạy bình thường).</div>' +
-        '</div>' +
-        '<div class="dbt-btn-row" style="margin-top:12px">' +
-          '<button class="dbt-btn" onclick="saveSepaySettings()">💾 Lưu cấu hình</button>' +
-          '<button class="dbt-btn" onclick="reconcileSepay()">🔄 Đối soát tay (API)</button>' +
-          '<button class="dbt-btn dbt-btn-secondary" onclick="repairSepayCodes()">🔧 Sửa mã khách</button>' +
-        '</div>' +
-        '<div class="dbt-hint" style="margin-top:10px">Sau khi lưu, copy URL webhook ở trên và dán vào ô "URL" khi tạo webhook trong SePay. Dùng nút <b>⋮ → Gửi thử</b> để kiểm tra ngay.</div>' +
-        '<div class="dbt-hint" style="margin-top:8px">💡 Nút <b>"🔄 Đối soát tay (API)"</b> chỉ là công cụ dự phòng — bấm để đối soát ngay lập tức. Bình thường hệ thống <b>tự gạch nợ</b> trong vài giây (webhook) hoặc tối đa <b>X phút</b> (auto-poll), bạn không cần bấm gì.</div>' +
-      '</div>';
+      '</details>';
     }
 
     return '<div class="dbt-section">' +
       '<div class="dbt-section-title">🏦 Sepay — Gạch nợ tự động</div>' +
       '<div class="dbt-section-desc">Khách quét QR → chuyển tiền → hệ thống tự gạch nợ nhờ mã khách nhúng trong nội dung chuyển khoản.</div>' +
-      '<div class="dbt-hint" style="margin:0 0 12px;padding:8px 10px;border-left:3px solid var(--primary);background:var(--card-soft);border-radius:0 6px 6px 0">' +
-        '💡 <b>QR trên hoá đơn bán hàng cũng đã tự nhúng mã khách</b> (VD: "Chuyen khoan KH0007") — khách quét QR ngay tại bàn là hệ thống tự biết tiền của ai để gạch nợ, không cần nhân viên gán tay.' +
-        ' Chuyển THIẾU sẽ gạch một phần (phân bổ vào đơn cũ nhất trước); chuyển DƯ sẽ gạch hết nợ còn lại và ghi nhận phần dư là <b>"tiền khách nợ lại"</b> (số dư âm) — dùng để trừ vào đơn sau.' +
-      '</div>' +
+      settingsHtml +
       statusHtml +
       guideHtml +
       kpiHtml +
-      filterHtml +
-      rows +
+      txTableHtml +
       smartHtml +
-      settingsHtml +
     '</div>';
   }
 
@@ -1751,8 +1887,8 @@
 
     var kpiHtml = '<div class="dbt-kpi-grid">' +
       '<div class="dbt-kpi"><div class="dbt-kpi-label">Tổng lần gửi</div><div class="dbt-kpi-value">' + (sum.total || 0) + '</div></div>' +
-      '<div class="dbt-kpi"><div class="dbt-kpi-label">Thành công</div><div class="dbt-kpi-value" style="color:#22c55e">' + (sum.sent || 0) + '</div></div>' +
-      '<div class="dbt-kpi"><div class="dbt-kpi-label">Thất bại</div><div class="dbt-kpi-value" style="color:#ef4444">' + (sum.failed || 0) + '</div></div>' +
+      '<div class="dbt-kpi"><div class="dbt-kpi-label">Thành công</div><div class="dbt-kpi-value" style="color:var(--color-success-text)">' + (sum.sent || 0) + '</div></div>' +
+      '<div class="dbt-kpi"><div class="dbt-kpi-label">Thất bại</div><div class="dbt-kpi-value" style="color:var(--color-danger-text)">' + (sum.failed || 0) + '</div></div>' +
       '<div class="dbt-kpi"><div class="dbt-kpi-label">Bỏ qua</div><div class="dbt-kpi-value">' + (sum.skipped || 0) + '</div></div>' +
     '</div>';
 
@@ -1768,38 +1904,42 @@
 
     var settingsHtml = '';
     if (state.isAdmin) {
-      settingsHtml = '<div class="dbt-section" style="margin-top:12px">' +
-        '<div class="dbt-section-title">⚙️ Cấu hình OmiCall</div>' +
-        '<div class="dbt-section-desc">Lấy API key trong phần quản trị OmiCall rồi dán vào đây, bấm Lưu. Nếu chưa có key, liên hệ OmiCall (Live Chat tại omicrm.com) để được cấp.</div>' +
-        '<div class="dbt-field">' +
-          '<label class="dbt-label">OmiCall API key</label>' +
-          '<input id="omiApiKey" class="dbt-input" type="password" placeholder="' + (n.hasApiKey ? '•••••••• (đã lưu — ' + esc(n.apiKeyMasked || '') + ')' : 'Dán API key của bạn') + '">' +
-          '<div class="dbt-hint">📍 <b>omicall.com</b> → đăng nhập tài khoản quản trị → nhấp vào <b>tên tài khoản</b> (góc trên bên phải) → <b>Cấu hình</b> → <b>Quản lý API</b> → <b>Tạo mới API</b> → copy chuỗi API key vừa tạo.<br>💡 Nếu tài khoản của bạn không hiện mục <b>Quản lý API</b>, OmiCall chưa cấp key cho tài khoản đó — nhờ bộ phận hỗ trợ OmiCall cấp (Live Chat: <b>omicrm.com</b>).<br>ℹ️ Để trống ô này nếu không muốn thay đổi key đã lưu.</div>' +
+      settingsHtml = '<details class="dbt-collapse"' + (configured ? '' : ' open') + ' style="margin-bottom:14px">' +
+        '<summary>⚙️ Cấu hình OmiCall' +
+          '<span class="dbt-collapse__count' + (configured ? ' is-muted' : '') + '">' + (configured ? '✓' : '!') + '</span>' +
+        '</summary>' +
+        '<div class="dbt-collapse__body">' +
+          '<div class="dbt-settings-grid" style="margin-top:12px">' +
+            '<div class="dbt-field">' +
+              '<label class="dbt-label">OmiCall API key</label>' +
+              '<input id="omiApiKey" class="dbt-input" type="password" placeholder="' + (n.hasApiKey ? '•••••••• (đã lưu — ' + esc(n.apiKeyMasked || '') + ')' : 'Dán API key của bạn') + '">' +
+              '<div class="dbt-hint">📍 <b>omicall.com</b> → đăng nhập tài khoản quản trị → nhấp vào <b>tên tài khoản</b> → <b>Cấu hình</b> → <b>Quản lý API</b> → <b>Tạo mới API</b> → copy chuỗi API key.<br>ℹ️ Để trống ô này nếu không muốn thay đổi key đã lưu.</div>' +
+            '</div>' +
+            '<div class="dbt-field">' +
+              '<label class="dbt-label">Base URL</label>' +
+              '<input id="omiBaseUrl" class="dbt-input" type="text" value="' + esc(n.baseUrl || 'https://public-v1.omicall.com') + '">' +
+              '<div class="dbt-hint">Production: <b>https://public-v1.omicall.com</b> · Staging: <b>https://public-v1-stg.omicall.com</b></div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="dbt-field" style="margin-top:12px">' +
+            '<label class="dbt-label">Tiêu đề tin nhắn</label>' +
+            '<input id="omiTitle" class="dbt-input" type="text" value="' + esc(n.title || '') + '">' +
+          '</div>' +
+          '<div class="dbt-sepay-row">' +
+            '<span class="dbt-sepay-row-label">Tự động gửi tin nhắn khi ghi nhận thanh toán</span>' +
+            '<button class="dbt-sepay-toggle' + (n.enabled ? ' on' : '') + '" id="omiEnabled" onclick="toggleNotifyEnabled()"></button>' +
+          '</div>' +
+          '<div class="dbt-sepay-row">' +
+            '<span class="dbt-sepay-row-label">Gửi cả khi ghi nợ tay (lệnh −)</span>' +
+            '<button class="dbt-sepay-toggle' + (n.notifyManualDebt ? ' on' : '') + '" id="omiManualDebt" onclick="toggleNotifyManualDebt()"></button>' +
+          '</div>' +
+          '<div class="dbt-action-bar">' +
+            '<button class="dbt-btn" onclick="saveNotifySettings()">💾 Lưu cấu hình</button>' +
+            '<button class="dbt-btn dbt-btn-secondary" onclick="testOmiCallConnection()">🔌 Kiểm tra kết nối</button>' +
+            '<button class="dbt-btn dbt-btn-secondary" onclick="openNotifyTestSendModal()">✉️ Gửi tin thử</button>' +
+          '</div>' +
         '</div>' +
-        '<div class="dbt-field">' +
-          '<label class="dbt-label">Base URL</label>' +
-          '<input id="omiBaseUrl" class="dbt-input" type="text" value="' + esc(n.baseUrl || 'https://public-v1.omicall.com') + '">' +
-          '<div class="dbt-hint">Production: <b>https://public-v1.omicall.com</b> · Staging: <b>https://public-v1-stg.omicall.com</b><br>' +
-          'ℹ️ Nếu tài khoản OmiCall của bạn đang dùng thử nghiệm (staging), hãy đổi sang <b>https://public-v1-stg.omicall.com</b> — môi trường production hiện chưa mở API gửi tin multi-channel.</div>' +
-        '</div>' +
-        '<div class="dbt-field">' +
-          '<label class="dbt-label">Tiêu đề tin nhắn</label>' +
-          '<input id="omiTitle" class="dbt-input" type="text" value="' + esc(n.title || '') + '">' +
-        '</div>' +
-        '<div class="dbt-sepay-row">' +
-          '<span class="dbt-sepay-row-label">Tự động gửi tin nhắn khi ghi nhận thanh toán</span>' +
-          '<button class="dbt-sepay-toggle' + (n.enabled ? ' on' : '') + '" id="omiEnabled" onclick="toggleNotifyEnabled()"></button>' +
-        '</div>' +
-        '<div class="dbt-sepay-row">' +
-          '<span class="dbt-sepay-row-label">Gửi cả khi ghi nợ tay (lệnh −)</span>' +
-          '<button class="dbt-sepay-toggle' + (n.notifyManualDebt ? ' on' : '') + '" id="omiManualDebt" onclick="toggleNotifyManualDebt()"></button>' +
-        '</div>' +
-        '<div class="dbt-btn-row" style="margin-top:12px">' +
-          '<button class="dbt-btn" onclick="saveNotifySettings()">💾 Lưu cấu hình</button>' +
-          '<button class="dbt-btn" onclick="testOmiCallConnection()">🔌 Kiểm tra kết nối</button>' +
-          '<button class="dbt-btn" onclick="openNotifyTestSendModal()">✉️ Gửi tin thử</button>' +
-        '</div>' +
-      '</div>';
+      '</details>';
     }
 
     // Lịch sử gửi
@@ -1812,11 +1952,18 @@
     var missingHtml = '';
     if (state.isAdmin) {
       missingHtml =
-        '<div class="dbt-section" style="margin-top:12px">' +
-          '<div class="dbt-section-title">📮 Tin chưa gửi (' + missing.length + ')</div>' +
-          '<div class="dbt-section-desc">Các giao dịch đã gạch nợ nhưng tin thông báo chưa tới khách (VD: server restart đúng lúc gửi). <b>Bấm "Gửi lại"</b> để gửi tin cho từng khách.</div>' +
-          (missing.length
-            ? '<div class="dbt-table-wrap"><table class="dbt-table dbt-table--wide"><thead><tr>' +
+        '<details class="dbt-collapse"' + (missing.length ? ' open' : '') + ' style="margin-top:12px">' +
+          '<summary>📮 Tin chưa gửi' +
+            (missing.length
+              ? '<span class="dbt-collapse__count">' + missing.length + '</span>'
+              : '<span class="dbt-collapse__count is-muted">0</span>') +
+          '</summary>' +
+          '<div class="dbt-collapse__body">' +
+            (missing.length
+              ? '<div class="dbt-hint" style="margin:12px 0 0;padding:8px 10px;border-left:3px solid var(--primary);background:var(--card-soft);border-radius:0 6px 6px 0">' +
+                'Các giao dịch đã gạch nợ nhưng tin thông báo chưa tới khách (VD: server restart đúng lúc gửi). <b>Bấm "Gửi lại"</b> để gửi tin cho từng khách.' +
+              '</div>' +
+              '<div class="dbt-table-wrap" style="margin-top:12px"><table class="dbt-table dbt-table--wide"><thead><tr>' +
                 '<th>Thời gian</th><th>Khách</th><th>Nhóm Zalo</th>' +
                 '<th style="text-align:right">Số tiền</th><th style="text-align:right">Còn nợ</th>' +
                 '<th></th>' +
@@ -1832,15 +1979,19 @@
                 '</tr>';
               }).join('') +
               '</tbody></table></div>'
-            : '<div class="dbt-empty">✅ Không có tin nào bị mất</div>') +
-        '</div>';
+              : '<div class="dbt-empty" style="margin-top:12px">✅ Không có tin nào bị mất</div>') +
+          '</div>' +
+        '</details>';
     }
 
     var historyHtml =
-      '<div class="dbt-section" style="margin-top:12px">' +
-        '<div class="dbt-section-title">📨 Lịch sử gửi tin nhắn</div>' +
+      '<details class="dbt-collapse" style="margin-top:12px">' +
+        '<summary>📨 Lịch sử gửi tin nhắn' +
+          '<span class="dbt-collapse__count is-muted">' + items.length + '</span>' +
+        '</summary>' +
+        '<div class="dbt-collapse__body">' +
         (items.length
-          ? '<div class="dbt-table-wrap"><table class="dbt-table dbt-table--wide"><thead><tr>' +
+          ? '<div class="dbt-table-wrap" style="margin-top:12px"><table class="dbt-table dbt-table--wide"><thead><tr>' +
             '<th>Thời gian</th><th>Khách</th><th>Loại</th>' +
             '<th style="text-align:right">Số tiền</th><th style="text-align:right">Số dư sau</th>' +
             '<th>Trạng thái</th><th>Ghi chú</th>' +
@@ -1862,16 +2013,17 @@
               '</tr>';
             }).join('') +
             '</tbody></table></div>'
-          : '<div class="dbt-empty">📭 Chưa có tin nhắn nào được gửi</div>') +
-      '</div>';
+          : '<div class="dbt-empty" style="margin-top:12px">📭 Chưa có tin nhắn nào được gửi</div>') +
+        '</div>' +
+      '</details>';
 
     return '<div class="dbt-section">' +
       '<div class="dbt-section-title">🔔 Thông báo công nợ qua Zalo (OmiCall)</div>' +
       '<div class="dbt-section-desc">Tự động báo khách trong nhóm Zalo khi sổ công nợ ghi nhận tiền — khách biết ngay đã nhận bao nhiêu và còn nợ bao nhiêu.</div>' +
+      settingsHtml +
       statusHtml +
       guideHtml +
       kpiHtml +
-      settingsHtml +
       missingHtml +
       historyHtml +
     '</div>';
@@ -2005,6 +2157,19 @@
     { id: 'bridge', label: '🔌 Bridge' },
   ];
 
+  // Mô tả ngắn cho từng tab → hiển thị ngay dưới dãy tab,
+  // giúp người dùng biết mình đang ở đâu và tab này dùng để làm gì.
+  var TAB_DESC = {
+    overview: 'Số tổng công nợ, nợ phát sinh & tiền thu hôm nay. Ghi nhanh thu tiền / ghi nợ tại đây.',
+    customers: 'Danh sách khách đang nợ. Bấm vào 1 khách để xem chi tiết & thu tiền.',
+    sepay: 'Cấu hình kết nối ngân hàng SePay để tự động gạch nợ khi khách chuyển khoản.',
+    groups: 'Liên kết từng khách với nhóm Zalo để gửi thông báo công nợ tự động.',
+    notify: 'Cấu hình OmiCall để tự động báo khách trong nhóm Zalo khi ghi nhận thanh toán.',
+    permissions: 'Phân quyền nhân viên được ghi thanh toán / ghi nợ cho từng khách hàng.',
+    reconciliation: 'Đối chiếu đơn hàng với bút toán sổ công nợ, phát hiện sai lệch.',
+    bridge: 'Trạng thái kết nối Zalo Personal Bridge (nhận lệnh +/− trong nhóm Zalo).',
+  };
+
   function render() {
     var tabsHtml = TABS.map(function (t) {
       return '<button class="dbt-tab' + (state.tab === t.id ? ' active' : '') + '" onclick="showTab(\'' + t.id + '\')">' + t.label + '</button>';
@@ -2021,17 +2186,24 @@
     else if (state.tab === 'reconciliation') body = renderReconciliation();
     else if (state.tab === 'bridge') body = renderBridge();
 
+    // Dải mô tả tab (ẩn ở tab "detail" vì có tiêu đề riêng của khách)
+    var descHtml = (state.tab !== 'detail' && TAB_DESC[state.tab])
+      ? '<div class="dbt-tab-desc">' + esc(TAB_DESC[state.tab]) + '</div>'
+      : '';
+
     document.getElementById('app').innerHTML =
       (typeof getHeader === 'function' ? getHeader('Sổ công nợ', '📒') : '') +
       (typeof getContent === 'function'
         ? getContent(
             '<div class="dbt-page">' +
               '<div class="dbt-tabs">' + tabsHtml + '</div>' +
+              descHtml +
               '<div id="dbtBody">' + body + '</div>' +
             '</div>'
           )
         : '<div class="dbt-page" style="padding:16px">' +
             '<div class="dbt-tabs">' + tabsHtml + '</div>' +
+            descHtml +
             '<div id="dbtBody">' + body + '</div>' +
           '</div>') +
       (typeof getBottomNav === 'function' ? getBottomNav('/dashboard') : '');

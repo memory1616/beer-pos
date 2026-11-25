@@ -53,6 +53,77 @@
       margin-bottom: 16px;
       line-height: 1.5;
     }
+
+    /* ── Khối gọn gàng (accordion) ──────────────────────────────────────
+       Lịch sử / phần phụ → mặc định thu gọn, bấm để mở. */
+    .rn-collapse {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+    .rn-collapse > summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-primary);
+      user-select: none;
+      transition: background 0.15s;
+    }
+    .rn-collapse > summary::-webkit-details-marker { display: none; }
+    .rn-collapse > summary:hover { background: var(--card-soft); }
+    .rn-collapse > summary::after {
+      content: '▾';
+      margin-left: auto;
+      font-size: 11px;
+      color: var(--text-muted);
+      transition: transform 0.18s;
+      flex-shrink: 0;
+    }
+    .rn-collapse[open] > summary::after { transform: rotate(180deg); }
+    .rn-collapse__body {
+      padding: 0 16px 16px;
+      border-top: 1px solid var(--border);
+    }
+    .rn-collapse__count {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 22px;
+      height: 20px;
+      padding: 0 7px;
+      border-radius: 999px;
+      background: var(--primary);
+      color: var(--btn-primary-color, #000);
+      font-size: 11px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+    }
+    .rn-collapse__count.is-muted {
+      background: var(--card-soft);
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+    }
+
+    /* Card "Cài đặt" đặt ở ĐẦU trang — viền trái màu để lập tức thấy */
+    .rn-settings {
+      border-left: 3px solid var(--primary);
+    }
+    .rn-settings-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .rn-settings-grid .rn-field { margin-bottom: 0; }
+    @media (max-width: 640px) {
+      .rn-settings-grid { grid-template-columns: 1fr; }
+    }
     .rn-field {
       margin-bottom: 14px;
     }
@@ -221,9 +292,9 @@
       font-weight: 700;
       margin-left: 6px;
     }
-    .rn-badge-ok { background: rgba(34,197,94,0.15); color: #22c55e; }
-    .rn-badge-off { background: rgba(148,163,184,0.15); color: #94a3b8; }
-    .rn-badge-err { background: rgba(239,68,68,0.15); color: #ef4444; }
+    .rn-badge-ok { background: var(--color-success-bg); color: var(--color-success-text); }
+    .rn-badge-off { background: var(--bg-hover); color: var(--text-secondary); }
+    .rn-badge-err { background: var(--color-danger-bg); color: var(--color-danger-text); }
     .rn-history-item {
       padding: 10px 0;
       border-bottom: 1px solid var(--border);
@@ -254,7 +325,7 @@
       color: var(--text-secondary);
       line-height: 1.55;
     }
-    .rn-info-banner strong { color: #3b82f6; }
+    .rn-info-banner strong { color: var(--color-info-text); }
     .rn-info-banner ol {
       margin: 8px 0 0;
       padding-left: 20px;
@@ -425,27 +496,32 @@
         'Hệ thống tự so sánh với hôm qua và tuần trước để bạn thấy xu hướng ngay trên tin nhắn.' +
       '</div>' +
 
-      '<div class="rn-section">' +
-        '<div class="rn-section-title">⏰ Lịch gửi</div>' +
-        '<div class="rn-section-desc">Báo cáo được gửi tự động mỗi ngày. Hệ thống tự bỏ qua nếu ngày đó đã gửi thành công.</div>' +
+      // ── CÀI ĐẶT — đặt ở ĐẦU trang ────────────────────────────────────
+      '<div class="rn-section rn-settings">' +
+        '<div class="rn-section-title">⚙️ Cài đặt gửi báo cáo</div>' +
+        '<div class="rn-section-desc">Chọn giờ gửi & kênh nhận, dán token bên dưới rồi bấm Lưu.</div>' +
 
-        '<div class="rn-toggle-row">' +
-          '<div class="rn-toggle-info">' +
-            '<div style="font-size:14px;font-weight:600;color:var(--text-primary)">Bật gửi tự động</div>' +
-            '<div style="font-size:11px;color:var(--text-muted);margin-top:2px">Tắt thì hệ thống không gửi tin nhắn nào</div>' +
+        '<div class="rn-settings-grid">' +
+          '<div class="rn-field">' +
+            '<div class="rn-toggle-row" style="padding:0">' +
+              '<div class="rn-toggle-info">' +
+                '<div style="font-size:14px;font-weight:600;color:var(--text-primary)">Bật gửi tự động</div>' +
+                '<div style="font-size:11px;color:var(--text-muted);margin-top:2px">Tắt thì hệ thống không gửi tin nhắn nào</div>' +
+              '</div>' +
+              '<label class="rn-switch">' +
+                '<input type="checkbox" id="rnEnabled"' + (c.enabled ? ' checked' : '') + '>' +
+                '<span class="rn-slider"></span>' +
+              '</label>' +
+            '</div>' +
           '</div>' +
-          '<label class="rn-switch">' +
-            '<input type="checkbox" id="rnEnabled"' + (c.enabled ? ' checked' : '') + '>' +
-            '<span class="rn-slider"></span>' +
-          '</label>' +
+          '<div class="rn-field">' +
+            '<label class="rn-label" for="rnTime">Giờ gửi (giờ Việt Nam)</label>' +
+            '<input class="rn-input" id="rnTime" type="time" value="' + esc(c.time) + '">' +
+            '<div class="rn-hint">Báo cáo được gửi tự động mỗi ngày. Hệ thống tự bỏ qua nếu ngày đó đã gửi thành công.</div>' +
+          '</div>' +
         '</div>' +
 
-        '<div class="rn-field">' +
-          '<label class="rn-label" for="rnTime">Giờ gửi (giờ Việt Nam)</label>' +
-          '<input class="rn-input" id="rnTime" type="time" value="' + esc(c.time) + '">' +
-        '</div>' +
-
-        '<div class="rn-field">' +
+        '<div class="rn-field" style="margin-top:14px">' +
           '<label class="rn-label" for="rnChannel">Kênh gửi</label>' +
           '<select class="rn-select" id="rnChannel">' +
             c.channels.map(function (ch) {
@@ -453,20 +529,24 @@
             }).join('') +
           '</select>' +
         '</div>' +
-      '</div>' +
 
-      '<div class="rn-section">' +
-        '<div class="rn-section-title">🔑 Thông tin kênh nhận</div>' +
-        '<div class="rn-section-desc">Trạng thái cấu hình các kênh hiện có.</div>' +
-        channelsHtml +
-        '<div style="height:14px"></div>' +
-        (zaloFields || '') + (tgFields || '') + (whFields || '') +
-      '</div>' +
+        '<details class="rn-collapse" style="margin:14px 0 0;background:var(--card-soft)">' +
+          '<summary>🔑 Thông tin kênh nhận & token' +
+            '<span class="rn-collapse__count' + (c.channels.some(function (ch) { return ch.configured; }) ? ' is-muted' : '') + '">' +
+              (c.channels.some(function (ch) { return ch.configured; }) ? '✓' : '!') +
+            '</span>' +
+          '</summary>' +
+          '<div class="rn-collapse__body">' +
+            '<div style="margin-top:14px">' + channelsHtml + '</div>' +
+            '<div style="height:14px"></div>' +
+            (zaloFields || '') + (tgFields || '') + (whFields || '') +
+          '</div>' +
+        '</details>' +
 
-      '<div class="rn-section">' +
-        '<div class="rn-section-title">💾 Lưu cấu hình</div>' +
-        '<button class="rn-btn" id="rnSave">💾 Lưu cấu hình</button>' +
-        '<div class="rn-status" id="rnStatus"></div>' +
+        '<div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">' +
+          '<button class="rn-btn" id="rnSave">💾 Lưu cấu hình</button>' +
+          '<div class="rn-status" id="rnStatus"></div>' +
+        '</div>' +
       '</div>';
     }
 
@@ -491,23 +571,30 @@
 
     function render() {
       var c = state.config;
+      var histCount = (state.history || []).length;
       var inner =
         renderConfig() +
-        '<div class="rn-section">' +
-          '<div class="rn-section-title">🧪 Xem thử & gửi ngay</div>' +
-          '<div class="rn-section-desc">Xem trước nội dung tin nhắn, hoặc gửi thử ngay để kiểm tra kênh đã cấu hình đúng chưa.</div>' +
-          '<div class="rn-btn-row">' +
-            '<button class="rn-btn rn-btn-secondary" id="rnPreview">👁 Xem thử</button>' +
-            '<button class="rn-btn" id="rnSend">📤 Gửi ngay</button>' +
+        '<details class="rn-collapse">' +
+          '<summary>🧪 Xem thử & gửi ngay</summary>' +
+          '<div class="rn-collapse__body">' +
+            '<div class="rn-hint" style="margin:14px 0 0">Xem trước nội dung tin nhắn, hoặc gửi thử ngay để kiểm tra kênh đã cấu hình đúng chưa.</div>' +
+            '<div class="rn-btn-row" style="margin-top:12px">' +
+              '<button class="rn-btn rn-btn-secondary" id="rnPreview">👁 Xem thử</button>' +
+              '<button class="rn-btn" id="rnSend">📤 Gửi ngay</button>' +
+            '</div>' +
+            '<div class="rn-status" id="rnSendStatus"></div>' +
+            '<div class="rn-preview" id="rnPreviewBox" style="display:none"></div>' +
           '</div>' +
-          '<div class="rn-status" id="rnSendStatus"></div>' +
-          '<div class="rn-preview" id="rnPreviewBox" style="display:none"></div>' +
-        '</div>' +
-        '<div class="rn-section">' +
-          '<div class="rn-section-title">🕘 Lịch sử gửi</div>' +
-          '<div class="rn-section-desc">20 lần gửi gần nhất.</div>' +
-          '<div id="rnHistory">' + renderHistory(state.history) + '</div>' +
-        '</div>';
+        '</details>' +
+        '<details class="rn-collapse">' +
+          '<summary>🕘 Lịch sử gửi' +
+            '<span class="rn-collapse__count is-muted" id="rnHistoryCount">' + histCount + '</span>' +
+          '</summary>' +
+          '<div class="rn-collapse__body">' +
+            '<div class="rn-hint" style="margin:14px 0 0">20 lần gửi gần nhất.</div>' +
+            '<div id="rnHistory" style="margin-top:10px">' + renderHistory(state.history) + '</div>' +
+          '</div>' +
+        '</details>';
 
       document.getElementById('app').innerHTML =
         (typeof getHeader === 'function' ? getHeader('Báo cáo tự động', '📨') : '') +
@@ -786,6 +873,9 @@
         state.history = data.history || [];
         var el = document.getElementById('rnHistory');
         if (el) el.innerHTML = renderHistory(state.history);
+        // Cập nhật badge đếm số lần gửi (lịch sử tải SAU lần render đầu)
+        var badge = document.getElementById('rnHistoryCount');
+        if (badge) badge.textContent = state.history.length;
       } catch (_) {
         state.history = [];
       }

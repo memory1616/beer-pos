@@ -176,36 +176,172 @@
   --opacity-muted:     0.6;
 }
 
+/* =====================   SEMANTIC COLOR TOKENS   =====================
+   Mỗi nghiệp vụ dùng MỘT semantic token. Mỗi theme cung cấp giá trị riêng
+   cho cùng token đó → cùng ý nghĩa nghiệp vụ, khác biểu hiện trực quan.
+
+   Token gốc (--success, --danger…) KHÔNG đổi → mọi code cũ vẫn chạy đúng.
+   Token semantic bổ sung cho các case cần biến thể theo theme. */
+
+/* ── Semantic: SUCCESS (tổng thanh toán, doanh thu, giao vỏ) ── */
+:root {
+  --color-success:        var(--success);
+  --color-success-bg:     var(--success-dim);
+  --color-success-border: rgba(14, 203, 129, 0.35);
+  --color-success-text:   var(--success);
+}
+
+/* ── Semantic: DANGER (thu vỏ, công nợ quá hạn) ── */
+:root {
+  --color-danger:        var(--danger);
+  --color-danger-bg:     var(--danger-dim);
+  --color-danger-border: rgba(246, 70, 93, 0.35);
+  --color-danger-text:   var(--danger);
+}
+
+/* ── Semantic: WARNING (đang giữ vỏ, sản lượng tích lũy, tiến độ thưởng) ── */
+:root {
+  --color-warning:        var(--warning);
+  --color-warning-bg:     var(--warning-dim);
+  --color-warning-border: rgba(240, 185, 11, 0.35);
+  --color-warning-text:   var(--warning);
+}
+
+/* ── Semantic: INFO (thông tin hệ thống) ── */
+:root {
+  --color-info:        var(--info);
+  --color-info-bg:     var(--info-dim);
+  --color-info-border: rgba(59, 122, 254, 0.35);
+  --color-info-text:   var(--info);
+}
+
+/* ── Semantic: PROMOTION (thưởng quán mới, thưởng sản lượng tháng) ── */
+:root {
+  --color-promotion:        #B66CFF;
+  --color-promotion-bg:     rgba(182, 108, 255, 0.14);
+  --color-promotion-border: rgba(182, 108, 255, 0.40);
+  --color-promotion-text:   #DDD6FE;
+  --color-promotion-strong: #F0ABFC;
+}
+
+/* ── Card thưởng trên hoá đơn (`.promo-note--volume`) ──
+   Mỗi biến thể có bộ token riêng:
+     is-reward  → tím (đã đạt mốc / thưởng quán mới)
+     is-pending → cam  (chưa đạt mốc) */
+:root {
+  --promo-card-bg:        #1E1B2E;
+  --promo-card-border:    #7C3AED;
+
+  --promo-title:          #C084FC;
+  --promo-text:           #DDD6FE;
+  --promo-strong:         #F0ABFC;
+
+  --promo-pending-bg:      rgba(245, 158, 11, 0.18);
+  --promo-pending-border:  rgba(245, 158, 11, 0.45);
+  --promo-pending-title:   #FBBF24;
+  --promo-pending-text:    #FDE68A;
+  --promo-pending-strong:  #FCD34D;
+
+  --promo-newshop-bg:      rgba(251, 191, 36, 0.20);
+  --promo-newshop-border:  rgba(251, 191, 36, 0.50);
+  --promo-newshop-title:   #FCD34D;
+  --promo-newshop-text:    #FEF3C7;
+  --promo-newshop-strong:  #FBBF24;
+}
+
 /* =====================   LIGHT MODE TOKENS   ===================== */
 :root.light,
 :root[data-theme="light"] {
-  /* Background */
-  --bg-primary:      #FFFFFF;
-  --bg-secondary:    #F5F5F5;
+  /* Background — Stripe inspired (nền xám nhạt, card trắng) */
+  --bg-primary:      #F8FAFC;
+  --bg-secondary:    #F1F5F9;
   --bg-card:        #FFFFFF;
-  --bg-hover:       #F0F0F0;
+  --bg-hover:       #F1F5F9;
 
   /* Text */
-  --text-primary:    #1E2329;
-  --text-secondary:  #707A8A;
-  --text-disabled:   #B7BDC6;
+  --text-primary:    #1E293B;
+  --text-secondary:  #475569;
+  --text-disabled:   #94A3B8;
   --text-on-dark:    #EAECEF;
-  --text-on-light:   #1E2329;
+  --text-on-light:   #1E293B;
 
   /* Border */
-  --border:          #EAECEF;
-  --border-strong:    #D0D5DD;
+  --border:          #E2E8F0;
+  --border-strong:    #CBD5E1;
 
   /* Shadows */
-  --shadow-xs:     0 1px 2px rgba(0, 0, 0, 0.06);
-  --shadow-sm:     0 2px 8px rgba(0, 0, 0, 0.08);
-  --shadow-md:     0 4px 16px rgba(0, 0, 0, 0.10);
-  --shadow-lg:     0 8px 32px rgba(0, 0, 0, 0.12);
-  --shadow-xl:     0 16px 48px rgba(0, 0, 0, 0.16);
-  --shadow-primary: 0 4px 14px rgba(252, 213, 53, 0.22);
-  --shadow-success: 0 4px 14px rgba(14, 203, 129, 0.2);
-  --shadow-danger:  0 4px 14px rgba(246, 70, 93, 0.2);
-  --shadow-info:    0 4px 14px rgba(59, 122, 254, 0.2);
+  --shadow-xs:     0 1px 2px rgba(15, 23, 42, 0.05);
+  --shadow-sm:     0 2px 8px rgba(15, 23, 42, 0.06);
+  --shadow-md:     0 4px 16px rgba(15, 23, 42, 0.08);
+  --shadow-lg:     0 8px 32px rgba(15, 23, 42, 0.10);
+  --shadow-xl:     0 16px 48px rgba(15, 23, 42, 0.14);
+  --shadow-primary: 0 4px 14px rgba(245, 158, 11, 0.24);
+  --shadow-success: 0 4px 14px rgba(21, 128, 61, 0.20);
+  --shadow-danger:  0 4px 14px rgba(220, 38, 38, 0.20);
+  --shadow-info:    0 4px 14px rgba(29, 78, 216, 0.20);
+
+  /* ── Semantic: sắc độ đậm hơn để đạt WCAG AA trên nền sáng ── */
+  --success:        #15803D;
+  --success-dim:    rgba(21, 128, 61, 0.10);
+  --success-hover:  #166534;
+  --success-shadow: rgba(21, 128, 61, 0.25);
+
+  --danger:         #DC2626;
+  --danger-dim:     rgba(220, 38, 38, 0.10);
+  --danger-hover:   #B91C1C;
+  --danger-shadow:  rgba(220, 38, 38, 0.25);
+
+  --warning:        #946200;
+  --warning-dim:    rgba(146, 98, 0, 0.12);
+  --info:           #1D4ED8;
+  --info-dim:       rgba(29, 78, 216, 0.10);
+  --info-shadow:    rgba(29, 78, 216, 0.25);
+
+  --color-success:        var(--success);
+  --color-success-bg:     var(--success-dim);
+  --color-success-border: rgba(21, 128, 61, 0.30);
+  --color-success-text:   var(--success);
+
+  --color-danger:        var(--danger);
+  --color-danger-bg:     var(--danger-dim);
+  --color-danger-border: rgba(220, 38, 38, 0.30);
+  --color-danger-text:   var(--danger);
+
+  --color-warning:        var(--warning);
+  --color-warning-bg:     var(--warning-dim);
+  --color-warning-border: rgba(146, 98, 0, 0.30);
+  --color-warning-text:   var(--warning);
+
+  --color-info:        var(--info);
+  --color-info-bg:     var(--info-dim);
+  --color-info-border: rgba(29, 78, 216, 0.30);
+  --color-info-text:   var(--info);
+
+  --color-promotion:        #6D28D9;
+  --color-promotion-bg:     #F5F0FF;
+  --color-promotion-border: #8B5CF6;
+  --color-promotion-text:   #5B21B6;
+  --color-promotion-strong: #5B21B6;
+
+  /* ── Card thưởng trên hoá đơn — nền tím nhạt, chữ tím đậm ── */
+  --promo-card-bg:        #F5F0FF;
+  --promo-card-border:    #8B5CF6;
+
+  --promo-title:          #6D28D9;
+  --promo-text:           #5B21B6;
+  --promo-strong:         #5B21B6;
+
+  --promo-pending-bg:      #FFFBEB;
+  --promo-pending-border:  #FCD34D;
+  --promo-pending-title:   #946200;
+  --promo-pending-text:    #78350F;
+  --promo-pending-strong:  #78350F;
+
+  --promo-newshop-bg:      #FFFBEB;
+  --promo-newshop-border:  #FCD34D;
+  --promo-newshop-title:   #946200;
+  --promo-newshop-text:    #78350F;
+  --promo-newshop-strong:  #78350F;
 }
 
 /* =====================   DARK MODE (EXPLICIT)   ===================== */
@@ -238,6 +374,53 @@
   --shadow-success: 0 4px 14px rgba(14, 203, 129, 0.25);
   --shadow-danger:  0 4px 14px rgba(246, 70, 93, 0.25);
   --shadow-info:    0 4px 14px rgba(59, 122, 254, 0.25);
+
+  /* ── Semantic tokens (explicit) ── */
+  --color-success:        #0ECB81;
+  --color-success-bg:     rgba(14, 203, 129, 0.12);
+  --color-success-border: rgba(14, 203, 129, 0.35);
+  --color-success-text:   #0ECB81;
+
+  --color-danger:        #F6465D;
+  --color-danger-bg:     rgba(246, 70, 93, 0.12);
+  --color-danger-border: rgba(246, 70, 93, 0.35);
+  --color-danger-text:   #F6465D;
+
+  --color-warning:        #F0B90B;
+  --color-warning-bg:     rgba(240, 185, 11, 0.12);
+  --color-warning-border: rgba(240, 185, 11, 0.35);
+  --color-warning-text:   #F0B90B;
+
+  --color-info:        #3B7AFE;
+  --color-info-bg:     rgba(59, 122, 254, 0.12);
+  --color-info-border: rgba(59, 122, 254, 0.35);
+  --color-info-text:   #3B7AFE;
+
+  --color-promotion:        #B66CFF;
+  --color-promotion-bg:     rgba(182, 108, 255, 0.14);
+  --color-promotion-border: rgba(182, 108, 255, 0.40);
+  --color-promotion-text:   #DDD6FE;
+  --color-promotion-strong: #F0ABFC;
+
+  /* ── Card thưởng trên hoá đơn (dark) ── */
+  --promo-card-bg:        #1E1B2E;
+  --promo-card-border:    #A78BFA;
+
+  --promo-title:          #C084FC;
+  --promo-text:           #DDD6FE;
+  --promo-strong:         #F0ABFC;
+
+  --promo-pending-bg:      rgba(245, 158, 11, 0.18);
+  --promo-pending-border:  rgba(245, 158, 11, 0.45);
+  --promo-pending-title:   #FBBF24;
+  --promo-pending-text:    #FDE68A;
+  --promo-pending-strong:  #FCD34D;
+
+  --promo-newshop-bg:      rgba(251, 191, 36, 0.20);
+  --promo-newshop-border:  rgba(251, 191, 36, 0.50);
+  --promo-newshop-title:   #FCD34D;
+  --promo-newshop-text:    #FEF3C7;
+  --promo-newshop-strong:  #FBBF24;
 }
 
 /* =====================   STATUS / CONTEXT TOKENS   ===================== */

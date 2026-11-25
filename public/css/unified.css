@@ -1024,12 +1024,12 @@ button:active, a:active { transform: scale(0.97); }
   white-space: nowrap;
 }
 
-.badge-success  { background: rgba(34,197,94,0.15);  color: var(--green); }
-.badge-warning  { background: rgba(249,115,22,0.15);  color: var(--warning); }
-.badge-danger   { background: rgba(220,38,38,0.15);  color: var(--red); }
-.badge-info     { background: rgba(59,130,246,0.15);  color: var(--info); }
-.badge-primary  { background: rgba(245,158,11,0.15);  color: var(--primary); }
-.badge-secondary { background: rgba(100,116,139,0.15); color: var(--text-secondary); }
+.badge-success  { background: var(--color-success-bg);  color: var(--color-success-text); }
+.badge-warning  { background: var(--color-warning-bg);  color: var(--color-warning-text); }
+.badge-danger   { background: var(--color-danger-bg);   color: var(--color-danger-text); }
+.badge-info     { background: var(--color-info-bg);     color: var(--color-info-text); }
+.badge-primary  { background: var(--primary-dim);       color: var(--primary-hover); }
+.badge-secondary { background: var(--bg-hover);         color: var(--text-secondary); }
 
 /* =========================   FORM ELEMENTS — Binance Finance Style === */
 input, select {
@@ -3582,15 +3582,15 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   font-weight: 600;
   line-height: 1.5;
 }
-.badge-pill.bp-success  { background: var(--green-dim);  color: var(--green); }
-.badge-pill.bp-danger   { background: var(--red-dim);    color: var(--red); }
-.badge-pill.bp-warning  { background: var(--primary-dim); color: var(--primary-hover); }
-.badge-pill.bp-info     { background: rgba(59,130,246,0.15); color: var(--info); }
-.badge-pill.bp-muted    { background: rgba(107,114,128,0.15); color: var(--text-muted); }
-[data-theme="dark"] .badge-pill.bp-success  { background: var(--green-dim); color: var(--green); }
-[data-theme="dark"] .badge-pill.bp-danger   { background: var(--red-dim); color: var(--red); }
-[data-theme="dark"] .badge-pill.bp-warning  { background: var(--primary-dim); color: var(--primary); }
-[data-theme="dark"] .badge-pill.bp-info     { background: rgba(59,130,246,0.15); color: var(--info); }
+.badge-pill.bp-success  { background: var(--color-success-bg);  color: var(--color-success-text); }
+.badge-pill.bp-danger   { background: var(--color-danger-bg);    color: var(--color-danger-text); }
+.badge-pill.bp-warning  { background: var(--color-warning-bg);  color: var(--color-warning-text); }
+.badge-pill.bp-info     { background: var(--color-info-bg);     color: var(--color-info-text); }
+.badge-pill.bp-muted    { background: var(--bg-hover);          color: var(--text-secondary); }
+[data-theme="dark"] .badge-pill.bp-success  { background: var(--color-success-bg); color: var(--color-success-text); }
+[data-theme="dark"] .badge-pill.bp-danger   { background: var(--color-danger-bg);  color: var(--color-danger-text); }
+[data-theme="dark"] .badge-pill.bp-warning  { background: var(--color-warning-bg); color: var(--color-warning-text); }
+[data-theme="dark"] .badge-pill.bp-info     { background: var(--color-info-bg);    color: var(--color-info-text); }
 
 /* Revenue mini cards (dashboard) — compact list style */
 .card.card--revenue-mini {
@@ -3970,11 +3970,11 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   flex-shrink: 0;
 }
 
-.section-card-icon.icon-green  { background: var(--green-dim); }
-.section-card-icon.icon-red    { background: var(--red-dim); }
-.section-card-icon.icon-blue   { background: rgba(59,130,246,0.12); }
+.section-card-icon.icon-green  { background: var(--color-success-bg); }
+.section-card-icon.icon-red    { background: var(--color-danger-bg); }
+.section-card-icon.icon-blue   { background: var(--color-info-bg); }
 .section-card-icon.icon-gold   { background: var(--primary-dim); }
-.section-card-icon.icon-purple  { background: rgba(139,92,246,0.12); }
+.section-card-icon.icon-purple  { background: var(--color-promotion-bg); }
 
 .section-card-title {
   font-size: 14px;
@@ -4963,10 +4963,10 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
   text-overflow: ellipsis;
 }
 
-.toast.success { border-color: var(--green); background: var(--green-dim); color: var(--green); }
-.toast.error   { border-color: var(--red);   background: var(--red-dim);   color: var(--red); }
-.toast.info    { border-color: var(--info); background: rgba(59,130,246,0.12); color: var(--info); }
-.toast.warning { border-color: var(--primary); background: var(--primary-dim); color: var(--primary-hover); }
+.toast.success { border-color: var(--color-success-border); background: var(--color-success-bg); color: var(--color-success-text); }
+.toast.error   { border-color: var(--color-danger-border);  background: var(--color-danger-bg);  color: var(--color-danger-text); }
+.toast.info    { border-color: var(--color-info-border);    background: var(--color-info-bg);    color: var(--color-info-text); }
+.toast.warning { border-color: var(--color-warning-border); background: var(--color-warning-bg); color: var(--color-warning-text); }
 
 @keyframes toast-in {
   from { opacity: 0; transform: translateX(-50%) translateY(16px); }
@@ -5147,12 +5147,14 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
     overflow-y: auto;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
   }
-  
+
   .inv-pos-inner {
     flex: 1;
     display: flex;
     flex-direction: column;
+    overflow: visible;
   }
   
   .inv-pos.ultra-compact .invoice-total-value { font-size: 22px; }
@@ -5184,43 +5186,9 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
 }
 
 /* Tích luỹ + dự kiến thưởng cho KHÁCH MỚI MỞ QUÁN trong tháng.
-   Đặt NGAY DƯỚI header modal hóa đơn → người bán nhìn thấy ngay khi mở hóa đơn. */
-.inv-newshop-note {
-  flex-shrink: 0;
-  padding: 8px 14px;
-  background: linear-gradient(135deg, rgba(249, 115, 22, 0.14), rgba(234, 179, 8, 0.14));
-  border-bottom: 1px solid rgba(249, 115, 22, 0.32);
-  font-size: 11px;
-  line-height: 1.5;
-  color: #c2410c;
-}
-
+   Đặt cạnh Card "Khuyến mãi Sản lượng Tháng" (ngay dưới danh sách sản phẩm). */
 .inv-newshop-note.hidden {
   display: none !important;
-}
-
-.inv-newshop-note__title {
-  font-weight: 700;
-  font-size: 11px;
-  color: #ea580c;
-  margin-bottom: 3px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.inv-newshop-note__row {
-  color: #9a3412;
-}
-
-.inv-newshop-note__row strong {
-  color: #c2410c;
-  font-weight: 700;
-}
-
-.inv-newshop-note__hint {
-  color: #78716c;
-  font-size: 10px;
 }
 
 .inv-pos-order {
@@ -5268,23 +5236,29 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
 }
 
 /* Body: allow content to grow naturally, push actions to bottom */
+/* ── Modal invoice: chỉ 1 container scroll duy nhất ──
+   `.inv-pos-body` là vùng cuộn; `.inv-pos-inner` chỉ lo bố trí (flex column).
+   Trước đây CẢ HAI đều `overflow-y:auto` → 2 vùng cuộn lồng nhau gây
+   nhảy/jank khi cuộn và co giãn màn hình. */
 .inv-pos-body {
   overflow-y: auto;
   overflow-x: hidden;
   display: flex;
   flex-direction: column;
-  min-height: 0;
   flex: 1;
   min-height: 0; /* Critical for flex child scroll */
+  /* Ổn định khi cuộn trên iOS: không cho overscroll lan sang trang ngoài */
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .inv-pos-inner {
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: visible;
   display: flex;
   flex-direction: column;
-  min-height: 0;
   flex: 1;
+  min-height: 0;
 }
 
 /* Actions — fixed bottom */
@@ -5498,6 +5472,129 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
 .invoice-promo-note {
   padding: 0 clamp(12px, 4vw, 16px);
   flex-shrink: 0;
+}
+
+/* ── Card "Khuyến mãi Sản lượng Tháng" ────────────────────────────────
+   Chữ lớn + màu tươi sáng, NHƯNG không bao giờ tràn / xuống dòng:
+   • `font-size` dùng clamp() → co giãn theo màn hình
+   • mỗi dòng là 1 flex row: label + value, value tự co (ellipsis) nếu dài
+   • số liệu (`<strong>`) dùng tabular-nums để không nhảy khi đổi số
+
+   MÀU: dùng token `--promo-*` (định nghĩa trong tokens.css cho từng theme).
+   → Light Mode dùng nền tím nhạt + chữ tím đậm (WCAG AA).
+   → Dark Mode giữ nguyên phong cách tím tối cũ. */
+.promo-note--volume {
+  margin: 6px 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: clamp(11px, 3.1vw, 13px);
+  line-height: 1.45;
+  overflow-wrap: break-word;
+  color: var(--promo-text);
+  background: var(--promo-card-bg);
+  border: 1px solid var(--promo-card-border);
+}
+
+/* Biến thể: ĐÃ ĐẠT MỐC (tím — nổi bật) */
+.promo-note--volume.is-reward {
+  background: var(--promo-card-bg);
+  border-color: var(--promo-card-border);
+}
+
+/* Biến thể: CHƯA ĐẠT MỐC (cam) */
+.promo-note--volume.is-pending {
+  background: var(--promo-pending-bg);
+  border-color: var(--promo-pending-border);
+}
+
+.promo-note--volume .promo-note__title {
+  font-weight: 800;
+  font-size: clamp(12px, 3.4vw, 14px);
+  letter-spacing: 0.2px;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  color: var(--promo-title);
+}
+
+.promo-note--volume.is-pending .promo-note__title {
+  color: var(--promo-pending-title);
+}
+
+/* Mỗi dòng nội dung: 1 hàng, tự co nếu dài → KHÔNG xuống dòng */
+.promo-note--volume .promo-note__row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.promo-note--volume .promo-note__row + .promo-note__row {
+  margin-top: 4px;
+}
+
+.promo-note--volume .promo-note__row > span:first-child {
+  flex: 0 0 auto;
+}
+
+/* Phần giá trị: co lại + ellipsis nếu dài hơn 1 hàng */
+.promo-note--volume .promo-note__row > span:last-child {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.promo-note--volume.is-reward .promo-note__row {
+  color: var(--promo-text);
+}
+
+.promo-note--volume.is-pending .promo-note__row {
+  color: var(--promo-pending-text);
+}
+
+.promo-note--volume strong {
+  font-weight: 800;
+  color: var(--promo-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.promo-note--volume.is-reward strong {
+  color: var(--promo-strong);
+}
+
+.promo-note--volume.is-pending strong {
+  color: var(--promo-pending-strong);
+}
+
+/* ── Card "🏆 Thưởng quán mới" (khách mới mở quán trong tháng) ──
+   Dùng CHUNG hệ style với Card "Khuyến mãi Sản lượng Tháng"
+   (`.promo-note--volume`) → đồng nhất về cỡ chữ + cách không tràn. */
+.invoice-promo-note--newshop.hidden {
+  display: none !important;
+}
+
+/* Biến thể màu: hổ phách / cam tươi sáng */
+.promo-note--volume.is-newshop {
+  background: var(--promo-newshop-bg);
+  border-color: var(--promo-newshop-border);
+}
+
+.promo-note--volume.is-newshop .promo-note__title {
+  color: var(--promo-newshop-title);
+}
+
+.promo-note--volume.is-newshop .promo-note__row {
+  color: var(--promo-newshop-text);
+}
+
+.promo-note--volume.is-newshop strong {
+  color: var(--promo-newshop-strong);
 }
 
 /* Actions — fixed bottom */
@@ -6398,16 +6495,16 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
 
 /* Admin đang ghi đè tài xế */
 .pos-modal-driver__banner--override {
-  background: rgba(250, 204, 21, 0.12);
-  border-color: rgba(250, 204, 21, 0.35);
-  color: #facc15;
+  background: var(--color-warning-bg);
+  border-color: var(--color-warning-border);
+  color: var(--color-warning-text);
 }
 
 /* Khu vực chưa có tài xế / khách chưa có khu vực */
 .pos-modal-driver__banner--warn {
-  background: rgba(251, 146, 60, 0.12);
-  border-color: rgba(251, 146, 60, 0.35);
-  color: #fb923c;
+  background: var(--color-warning-bg);
+  border-color: var(--color-warning-border);
+  color: var(--color-warning-text);
 }
 
 .pos-modal-driver__region {
@@ -6534,13 +6631,13 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
 }
 
 .sale-history-preorder--wait {
-  background: rgba(251, 146, 60, 0.15);
-  color: #fb923c;
+  background: var(--color-warning-bg);
+  color: var(--color-warning-text);
 }
 
 .sale-history-preorder--done {
-  background: rgba(74, 222, 128, 0.15);
-  color: #4ade80;
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
 }
 
 .sale-history-actions {

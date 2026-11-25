@@ -72,6 +72,30 @@ describe('deploy.sh không sửa file version.json trên đĩa', () => {
   });
 });
 
+describe('Cache-busting asset dùng BUILD_ID (không dùng git hash)', () => {
+  test('inject ?v= trong HTML dùng BUILD_ID', () => {
+    // Khi deploy file CSS/JS mà chưa commit, git hash không đổi
+    // → client giữ asset cũ trong cache → giao diện không cập nhật.
+    // BUILD_ID đổi mỗi lần restart PM2 → luôn lấy asset mới.
+    expect(serverSrc).toMatch(/\?v=\$\{BUILD_ID\}/);
+  });
+
+  test('redirect 302 cho asset sai version dùng BUILD_ID', () => {
+    const idx = serverSrc.indexOf("if (String(q) === BUILD_ID) return next();");
+    expect(idx).toBeGreaterThan(-1);
+    const block = serverSrc.slice(idx, idx + 400);
+    expect(block).toContain('?v=${BUILD_ID}');
+  });
+
+  test('inject version trong HTML KHÔNG dùng APP_VERSION cho asset', () => {
+    const idx = serverSrc.indexOf('cleanPath}?v=');
+    expect(idx).toBeGreaterThan(-1);
+    const line = serverSrc.slice(idx, idx + 40);
+    expect(line).toContain('BUILD_ID');
+    expect(line).not.toContain('APP_VERSION');
+  });
+});
+
 describe('GitHub Actions deploy trỏ đúng thư mục app', () => {
   test('không còn hardcode /root/beer-pos', () => {
     expect(workflowSrc).not.toContain('bash /root/beer-pos/deploy/deploy.sh');

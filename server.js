@@ -632,9 +632,12 @@ app.use((req, res, next) => {
 
   const q = req.query.v;
   if (q === undefined) return next();
-  if (String(q) === APP_VERSION) return next();
+  if (String(q) === BUILD_ID) return next();
 
-  const newUrl = `${req.originalUrl.split('?')[0]}?v=${APP_VERSION}`;
+  // Dùng BUILD_ID (đổi mỗi lần restart PM2) thay vì APP_VERSION (git hash).
+  // Lý do: khi deploy file CSS/JS mà chưa commit, git hash không đổi
+  // → client vẫn giữ asset cũ trong cache → giao diện không cập nhật.
+  const newUrl = `${req.originalUrl.split('?')[0]}?v=${BUILD_ID}`;
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
   res.redirect(302, newUrl);
 });
@@ -775,7 +778,9 @@ app.use((req, res, next) => {
           if (isLocalCode) {
             // Remove existing ?v= param to avoid double ?v=...&v=...
             const cleanPath = path.replace(/\?v=[^&]*/, '');
-            return `${prefix}${cleanPath}?v=${APP_VERSION}${suffix}`;
+            // BUILD_ID đổi mỗi lần restart → client luôn lấy asset mới nhất,
+            // kể cả khi deploy mà chưa commit (git hash không đổi).
+            return `${prefix}${cleanPath}?v=${BUILD_ID}${suffix}`;
           }
           return match;
         });

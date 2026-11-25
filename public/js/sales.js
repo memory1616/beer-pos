@@ -768,14 +768,14 @@ function renderInvoiceModalContent(invoice, saleIdForActions) {
     var isUltra = modal && modal.classList.contains('ultra-compact');
     var isFree = item.price === 0 || item.price === null || item.price === undefined;
     var nameHtml = isFree
-      ? '<div class="invoice-item-name" style="color:#f97316;">🎁 ' + escHtml(shortName) + ' <small style="color:#f97316;font-size:10px;">TẶNG</small></div>'
+      ? '<div class="invoice-item-name" style="color:var(--color-warning-text);">🎁 ' + escHtml(shortName) + ' <small style="color:var(--color-warning-text);font-size:10px;">TẶNG</small></div>'
       : '<div class="invoice-item-name">' + escHtml(shortName) + '</div>';
     return '<div class="invoice-item">' +
       '<div class="invoice-item-left">' +
         nameHtml +
-        (isUltra ? '' : '<small>x' + item.quantity + ' · ' + (isFree ? '<span style="color:#f97316;">Miễn phí</span>' : formatVND(item.price)) + '</small>') +
+        (isUltra ? '' : '<small>x' + item.quantity + ' · ' + (isFree ? '<span style="color:var(--color-warning-text);">Miễn phí</span>' : formatVND(item.price)) + '</small>') +
       '</div>' +
-      '<div class="invoice-item-total">' + (isUltra ? item.quantity + ' × ' : '') + (isFree ? '<span style="color:#f97316;">Miễn phí</span>' : formatVND(lineTotal)) + '</div>' +
+      '<div class="invoice-item-total">' + (isUltra ? item.quantity + ' × ' : '') + (isFree ? '<span style="color:var(--color-warning-text);">Miễn phí</span>' : formatVND(lineTotal)) + '</div>' +
     '</div>';
   }).join('');
 
@@ -803,12 +803,13 @@ function renderInvoiceModalContent(invoice, saleIdForActions) {
     buildVolumePromoNote(invoice).then(function(html) {
       if (html && promoNoteEl) {
         promoNoteEl.innerHTML = html;
+        // Card vừa thêm → chiều cao modal đổi → scale lại (tránh modal nhảy)
+        if (typeof autoScaleInvoiceModal === 'function') autoScaleInvoiceModal();
       }
     });
   }
 
-  // Thông báo TÍCH LUỸ + DỰ KIẾN THƯỞNG cho khách mới mở quán trong tháng.
-  // Hiển thị NGAY DƯỚI header modal hóa đơn (`.inv-newshop-note`).
+  // Card "🏆 Thưởng quán mới" cho khách mới mở quán trong tháng.
   renderInvoiceNewShopNote(invoice);
 
   var totalDisplay = invoice.totalAmount;
@@ -853,39 +854,74 @@ function showInvoiceModalElement() {
   autoScaleInvoiceModal();
 }
 
-/* Auto-scale invoice modal to fit within 90vh without scroll — desktop only */
+/* Auto-scale invoice modal to fit within 90vh without scroll — desktop only.
+ *
+ * ỔN ĐỊNH khi co giãn màn hình / cuộn:
+ *   • Chỉ dùng `transform: scale()` — KHÔNG set `width`/`maxWidth` inline
+ *     (set width inline khiến modal bị "kẹt" width cũ khi resize → nhảy layout).
+ *   • Luôn reset sạch transform trước khi đo (đo trên transform cũ sẽ sai).
+ *   • `transform-origin: top center` + `translateY` để modal luôn canh giữa.
+ */
 function autoScaleInvoiceModal() {
   var modal = document.querySelector('.inv-pos');
   if (!modal) return;
   // Skip scaling on mobile — let CSS handle 100dvh
   if (window.innerWidth <= 480) {
     modal.style.transform = '';
-    modal.style.width = '100%';
-    modal.style.maxWidth = '100%';
+    modal.style.width = '';
+    modal.style.maxWidth = '';
     modal.style.marginBottom = '';
     return;
   }
   // Wait for render
   requestAnimationFrame(function() {
+    // Reset transform TRƯỚC khi đo — nếu không, chiều cao đo được đã bị scale cũ
+    var prevTransform = modal.style.transform;
+    var prevWidth = modal.style.width;
+    var prevMaxWidth = modal.style.maxWidth;
+    modal.style.transform = 'none';
+    modal.style.width = '';
+    modal.style.maxWidth = '';
+
     var modalRect = modal.getBoundingClientRect();
     var viewportHeight = window.innerHeight;
     var maxHeight = viewportHeight * 0.9;
-    if (modalRect.height > maxHeight) {
+    var needsScale = modalRect.height > maxHeight;
+
+    if (needsScale) {
       var scale = maxHeight / modalRect.height;
       // Limit minimum scale to keep text readable
       scale = Math.max(scale, 0.7);
       modal.style.transformOrigin = 'top center';
       modal.style.transform = 'scale(' + scale + ')';
-      // Adjust width to maintain aspect ratio
-      modal.style.width = (420 * scale) + 'px';
-      modal.style.maxWidth = (420 * scale) + 'px';
+      // Canh giữa theo cả chiều ngang sau khi scale
       modal.style.marginBottom = '0';
     } else {
       modal.style.transform = '';
-      modal.style.width = '';
-      modal.style.maxWidth = '';
+      modal.style.marginBottom = '';
     }
   });
+}
+
+/* Gọi lại auto-scale khi kích thước cửa sổ / hướng màn hình đổi
+   (mobile: vuốt xoay, resize split-screen; desktop: co giãn cửa sổ). */
+if (typeof window !== 'undefined' && !window._invResizeBound) {
+  window._invResizeBound = true;
+  var _invResizeTimer = null;
+  var _invRelayout = function() {
+    if (_invResizeTimer) clearTimeout(_invResizeTimer);
+    _invResizeTimer = setTimeout(function() {
+      var overlay = document.getElementById('invoiceModal');
+      if (overlay && !overlay.classList.contains('hidden')) {
+        autoScaleInvoiceModal();
+      }
+    }, 120);
+  };
+  window.addEventListener('resize', _invRelayout);
+  window.addEventListener('orientationchange', _invRelayout);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', _invRelayout);
+  }
 }
 
 /**
@@ -1401,7 +1437,7 @@ function renderCustomerDropdown(list) {
     dropdown.innerHTML = list.map(function(c) {
       var createdDay = getNewShopCreatedDay(c);
       var badge = createdDay
-        ? '<span style="background:#ffedd5;color:#c2410c;font-size:11px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:6px;white-space:nowrap;">🔥 Quán mới tháng này</span>'
+        ? '<span style="background:var(--color-warning-bg);color:var(--color-warning-text);font-size:11px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:6px;white-space:nowrap;">🔥 Quán mới tháng này</span>'
         : '';
       return '<div class="customer-dd-item" onclick="selectCustomer(\'' + c.id + '\', \'' + escAttr(c.name || '') + '\')">' +
         '<span style="font-weight:600;">' + escHtml(c.name || 'Khách') + '</span>' +
@@ -1557,7 +1593,7 @@ function showMonthlyRewardBadge(reward) {
     } else {
       remainingText = '<b>' + (reward.remainingReward || 0) + 'L</b>';
     }
-    el.innerHTML = '<span style="font-size:14px;">&#127942;</span> Thưởng tháng: ' + remainingText + ' còn có thể nhận<br><span style="font-size:11px;color:#6b7280;">(thưởng sẽ được gắn vào đơn đầu tiên)</span>';
+    el.innerHTML = '<span style="font-size:14px;">&#127942;</span> Thưởng tháng: ' + remainingText + ' còn có thể nhận<br><span style="font-size:11px;color:var(--text-secondary);">(thưởng sẽ được gắn vào đơn đầu tiên)</span>';
   }
 }
 
@@ -1576,7 +1612,7 @@ function showNewShopActiveNotice(newShop) {
     var buy = saleState.promoSettings?.newShopGoldBuy || 10;
     var free = saleState.promoSettings?.newShopGoldFree || 1;
     el.innerHTML = '<span style="font-size:12px;">&#128293;</span> Khách đang ở <b>tháng mở quán</b> — áp dụng KM "' + buy + 'L tặng ' + free + 'L bia vàng" theo tổng sản lượng tháng này<br>' +
-      '<span style="font-size:11px;color:#6b7280;">(thưởng sẽ được gắn vào đơn đầu tiên của tháng sau)</span>';
+      '<span style="font-size:11px;color:var(--text-secondary);">(thưởng sẽ được gắn vào đơn đầu tiên của tháng sau)</span>';
   }
 }
 
@@ -1619,8 +1655,8 @@ function showNewShopBadge(createdDay) {
     var free = saleState.promoSettings?.newShopGoldFree || 1;
     badge.innerHTML =
       '<span style="font-size:14px;">🔥</span> <b>Quán mới — tháng mở quán</b><br>' +
-      '<span style="font-size:11px;color:#92400e;">Mua ' + buy + 'L (vàng + đen) tặng ' + free + 'L bia vàng</span><br>' +
-      '<span style="font-size:11px;color:#92400e;">⏳ Thưởng trả vào đơn đầu tiên của tháng sau</span>';
+      '<span style="font-size:11px;color:var(--color-warning-text);">Mua ' + buy + 'L (vàng + đen) tặng ' + free + 'L bia vàng</span><br>' +
+      '<span style="font-size:11px;color:var(--color-warning-text);">⏳ Thưởng trả vào đơn đầu tiên của tháng sau</span>';
   }
 }
 
@@ -1710,7 +1746,7 @@ function renderPromoPreview(freeGold, freeBlack, totalVolume) {
   if (el) {
     el.classList.remove('hidden');
     el.innerHTML = '🎁 KM quán mới (tổng tháng ' + totalVolume + 'L): ' + lines.join(' | ') +
-      '<br><span style="font-size:11px;color:#6b7280;">⏳ Trả vào đơn đầu tiên của tháng sau</span>';
+      '<br><span style="font-size:11px;color:var(--text-secondary);">⏳ Trả vào đơn đầu tiên của tháng sau</span>';
   }
 }
 
@@ -1764,18 +1800,18 @@ function buildPromoDetailHtml() {
   if (freeGold <= 0 && freeBlack <= 0) return '';
 
   var lines = [];
-  if (freeGold > 0) lines.push('<div style="color:#f97316;font-size:13px;">🎁 Bia vàng — Tặng khuyến mãi: <b>+' + freeGold + 'L</b></div>');
-  if (freeBlack > 0) lines.push('<div style="color:#f97316;font-size:13px;">🎁 Bia đen — Tặng khuyến mãi: <b>+' + freeBlack + 'L</b></div>');
+  if (freeGold > 0) lines.push('<div style="color:var(--color-warning-text);font-size:13px;">🎁 Bia vàng — Tặng khuyến mãi: <b>+' + freeGold + 'L</b></div>');
+  if (freeBlack > 0) lines.push('<div style="color:var(--color-warning-text);font-size:13px;">🎁 Bia đen — Tặng khuyến mãi: <b>+' + freeBlack + 'L</b></div>');
 
   var totalVolume = (sum && sum.eligible)
     ? ((sum.yellowVolume || 0) + (sum.blackVolume || 0))
     : (qtyGold + qtyBlack);
 
-  return '<div style="margin:8px 0;padding:8px;background:linear-gradient(135deg,rgba(249,115,22,0.1),rgba(234,179,8,0.1));border:1px solid rgba(249,115,22,0.3);border-radius:8px;">' +
-    '<div style="font-size:11px;color:#f97316;font-weight:700;margin-bottom:4px;">🎁 KHUYẾN MÃI QUÁN MỚI (tổng tháng ' + totalVolume + 'L)</div>' +
+  return '<div style="margin:8px 0;padding:8px;background:var(--color-warning-bg);border:1px solid var(--color-warning-border);border-radius:8px;">' +
+    '<div style="font-size:11px;color:var(--color-warning-text);font-weight:700;margin-bottom:4px;">🎁 KHUYẾN MÃI QUÁN MỚI (tổng tháng ' + totalVolume + 'L)</div>' +
     lines.join('') +
-    '<div style="font-size:11px;color:#92400e;margin-top:4px;">Mua ' + goldBuy + 'L (vàng + đen) tặng ' + goldFree + 'L bia vàng</div>' +
-    '<div style="font-size:11px;color:#6b7280;margin-top:2px;">⏳ Thưởng được gắn vào đơn đầu tiên của tháng sau (lít tặng KHÔNG tính doanh thu)</div>' +
+    '<div style="font-size:11px;color:var(--color-warning-text);margin-top:4px;">Mua ' + goldBuy + 'L (vàng + đen) tặng ' + goldFree + 'L bia vàng</div>' +
+    '<div style="font-size:11px;color:var(--text-secondary);margin-top:2px;">⏳ Thưởng được gắn vào đơn đầu tiên của tháng sau (lít tặng KHÔNG tính doanh thu)</div>' +
   '</div>';
 }
 
@@ -2799,13 +2835,13 @@ var _newShopSummaryCacheTime = 0;
 var _newShopSummaryCacheTTL = 60000; // 1 phút
 
 /**
- * Render thông báo tích luỹ + dự kiến thưởng cho khách MỚI MỞ QUÁN,
- * hiển thị NGAY DƯỚI header modal hóa đơn (`#invNewShopNote`).
+ * Render Card "🏆 Thưởng quán mới" cho khách MỚI MỞ QUÁN trong tháng.
+ * Hiển thị CẠNH Card "Khuyến mãi Sản lượng Tháng" (`#invNewShopNote`).
  *
  * Nội dung:
- *   • Sản lượng đã tích luỹ trong tháng mở quán (bia vàng + bia đen)
- *   • Dự kiến thưởng (lít bia vàng) sẽ trả vào đơn đầu tiên của tháng sau
- *   • Nếu chưa đủ mốc → số lít còn thiếu
+ *   • 📈 Tích lũy: tổng sản lượng + chi tiết bia vàng / bia đen
+ *   • 🎁 Thưởng: số lít + loại bia được thưởng (chưa đủ mốc → số lít còn thiếu)
+ *   • ⏰ Trả thưởng: đơn đầu tiên của tháng kế tiếp sau tháng mở quán
  *
  * Dùng API `/api/promotions/new-shop/monthly-summary/:customerId` —
  * số liệu đã gồm cả đơn đang xem trong hóa đơn.
@@ -2822,6 +2858,10 @@ function renderInvoiceNewShopNote(invoice) {
   var customer = getCustomer(customerId);
   if (!customer) return;
   if (customer.promotion_enabled === 0) return;
+  // Khách có thể được admin tắt RIÊNG "khuyến mãi quán mới" (new_shop_enabled)
+  // → không hiển thị Card "🏆 Thưởng quán mới".
+  // (null = chưa set → coi như đang bật, khớp với backend)
+  if (customer.new_shop_enabled === 0) return;
 
   var settings = saleState.promoSettings;
   if (settings && settings.newShopEnabled === false) return;
@@ -2853,8 +2893,7 @@ function renderInvoiceNewShopNote(invoice) {
     })
     .catch(function() { /* im lặng — không chặn việc xem hóa đơn */ });
 }
-
-/** Vẽ nội dung thông báo tích luỹ lên element #invNewShopNote */
+/** Vẽ Card "🏆 Thưởng quán mới" lên element #invNewShopNote */
 function paintInvoiceNewShopNote(el, d) {
   if (!el || !d) return;
   var buy = saleState.promoSettings?.newShopGoldBuy || 10;
@@ -2863,31 +2902,49 @@ function paintInvoiceNewShopNote(el, d) {
   var yellow = Number(d.yellowVolume) || 0;
   var black = Number(d.blackVolume) || 0;
   var total = yellow + black;
-  var reward = Number(d.totalReward) || 0;
+  var yellowReward = Number(d.yellowReward) || 0;
+  var blackReward = Number(d.blackReward) || 0;
+  var totalReward = Number(d.totalReward) || 0;
 
-  // Số lít còn thiếu để đạt mốc thưởng tiếp theo
-  var earned = Math.floor(total / buy) * free;
-  var litersToNext = Math.max(0, (earned + 1) * buy - total);
-  var nextReward = earned + free;
+  // ── Dòng "📈 Tích lũy": tổng + chi tiết từng loại bia ──
+  var accumTitle = 'Vàng ' + yellow + 'L, Đen ' + black + 'L (Tổng ' + total + 'L)';
+  var accumLine = '<div class="promo-note__row" title="' + escAttr(accumTitle) + '"><span>&#128200; Tích lũy</span><span>Vàng <strong>' + yellow + 'L</strong>, Đen <strong>' + black + 'L</strong> (Tổng ' + total + 'L)</span></div>';
 
-  var volDetail = black > 0
-    ? ' (vàng ' + yellow + 'L + đen ' + black + 'L)'
-    : (yellow > 0 ? ' (vàng ' + yellow + 'L)' : '');
-
-  var html =
-    '<div class="inv-newshop-note__title">&#128293; Tháng mở quán — KM "' + buy + 'L tặng ' + free + 'L bia vàng"</div>' +
-    '<div class="inv-newshop-note__row">&#128290; Đã tích luỹ: <strong>' + total + 'L</strong>' + volDetail + '</div>';
-
-  if (reward > 0) {
-    html += '<div class="inv-newshop-note__row">&#127942; Dự kiến thưởng tháng này: <strong>' + reward + 'L bia vàng</strong></div>';
+  // ── Dòng "🎁 Thưởng": số lượng + loại bia được thưởng ──
+  var rewardLine;
+  if (totalReward > 0) {
+    var rewardParts = [];
+    if (yellowReward > 0) rewardParts.push('<strong>' + yellowReward + 'L Bia Vàng</strong>');
+    if (blackReward > 0) rewardParts.push('<strong>' + blackReward + 'L Bia Đen</strong>');
+    if (!rewardParts.length) rewardParts.push('<strong>' + totalReward + 'L</strong>');
+    var rewardTitle = rewardParts.join(' + ').replace(/<[^>]+>/g, '');
+    rewardLine = '<div class="promo-note__row" title="' + escAttr(rewardTitle) + '"><span>&#127873; Thưởng</span><span>' + rewardParts.join(' + ') + '</span></div>';
   } else {
-    html += '<div class="inv-newshop-note__row">&#127942; Dự kiến thưởng tháng này: <strong>0L</strong> ' +
-      '(cần thêm <strong>' + litersToNext + 'L</strong> để đạt mốc ' + nextReward + 'L)</div>';
+    // Chưa đủ mốc — chỉ ra số lít còn thiếu (không đổi công thức, chỉ hiển thị)
+    var earned = Math.floor(total / buy) * free;
+    var litersToNext = Math.max(0, (earned + 1) * buy - total);
+    var nextReward = earned + free;
+    var pendingTitle = 'Cần thêm ' + litersToNext + 'L để đạt mốc ' + nextReward + 'L';
+    rewardLine = '<div class="promo-note__row" title="' + escAttr(pendingTitle) + '"><span>&#127873; Thưởng</span><span><strong>0L</strong> (cần thêm <strong>' + litersToNext + 'L</strong> → <strong>' + nextReward + 'L</strong>)</span></div>';
   }
-  html += '<div class="inv-newshop-note__hint">&#9200; Thưởng được gắn vào đơn đầu tiên của tháng sau</div>';
+  // ── Dòng "⏰ Thời gian trả thưởng": đúng thời điểm theo chính sách ──
+  // Thưởng quán mới được gắn vào ĐƠN ĐẦU TIÊN của THÁNG KẾ TIẾP sau tháng mở quán.
+  var payMonth = Number(d.openMonth) + 1;
+  var payYear = Number(d.openYear);
+  if (payMonth > 12) { payMonth = 1; payYear = payYear + 1; }
+  var payLabel = 'Đơn đầu tiên tháng ' + payMonth + '/' + payYear;
+  var timeLine = '<div class="promo-note__row" title="' + escAttr(payLabel) + '"><span>&#9200; Trả thưởng</span><span><strong>' + payLabel + '</strong></span></div>';
 
-  el.innerHTML = html;
+  el.innerHTML =
+    '<div class="promo-note promo-note--volume promo-note--newshop is-newshop">' +
+      '<div class="promo-note__title">&#127942; Thưởng quán mới</div>' +
+      accumLine +
+      rewardLine +
+      timeLine +
+    '</div>';
   el.classList.remove('hidden');
+  // Card vừa thêm → chiều cao modal đổi → cần scale lại (tránh modal nhảy/nhô)
+  if (typeof autoScaleInvoiceModal === 'function') autoScaleInvoiceModal();
 }
 
 /**
@@ -2987,10 +3044,10 @@ async function buildVolumePromoNote(invoice) {
     var yVol = monthlyReward.yellowVolume || 0;
     var bVol = monthlyReward.blackVolume || 0;
     var totalVol = (yVol || 0) + (bVol || 0);
-    return '<div class="promo-note" style="margin:10px 0;padding:10px 12px;background:rgba(168,85,247,0.1);border:1px solid rgba(168,85,247,0.3);border-radius:8px;font-size:11px;line-height:1.5;">' +
-      '<div style="font-weight:700;color:#9333ea;margin-bottom:4px;">&#127942; Khuyến mãi Sản lượng Tháng</div>' +
-      '<div style="color:#7e22ce;">&#127882; Đơn trả thưởng' + bonusMonthLabel + ' ' + rewardBreakdown + '</div>' +
-      '<div style="color:#6b21a8;margin-top:4px;">Đã tích lũy tháng này: <strong>' + totalVol + 'L</strong> (Vàng: ' + yVol + 'L, Đen: ' + bVol + 'L)</div>' +
+    return '<div class="promo-note promo-note--volume is-reward">' +
+      '<div class="promo-note__title">&#127942; Khuyến mãi Sản lượng Tháng</div>' +
+      '<div class="promo-note__row"><span>&#127881; Đơn trả thưởng' + bonusMonthLabel + '</span><span>' + rewardBreakdown + '</span></div>' +
+      '<div class="promo-note__row"><span>&#128200; Đã tích lũy tháng này</span><span><strong>' + totalVol + 'L</strong> (Vàng: ' + yVol + 'L, Đen: ' + bVol + 'L)</span></div>' +
     '</div>';
   }
 
@@ -3023,28 +3080,33 @@ async function buildVolumePromoNote(invoice) {
     var rewardLines = [];
     if (yellowReward > 0) rewardLines.push('<strong>' + yellowReward + 'L Bia Vàng</strong>');
     if (blackReward > 0) rewardLines.push('<strong>' + blackReward + 'L Bia Đen</strong>');
+    var accumText = 'Vàng ' + yellowVolume + 'L, Đen ' + blackVolume + 'L (Tổng ' + monthlyLiters + 'L, ' + progressModeLabel + ')';
+    // Hiển thị gọn (bỏ nhãn chế độ) → tránh bị cắt trên màn hình hẹp; nhãn chế độ nằm ở tooltip
     noteHtml =
-      '<div class="promo-note" style="margin:10px 0;padding:10px 12px;background:rgba(168,85,247,0.1);border:1px solid rgba(168,85,247,0.3);border-radius:8px;font-size:11px;line-height:1.5;">' +
-        '<div style="font-weight:700;color:#9333ea;margin-bottom:4px;">&#127942; Khuyến mãi Sản lượng Tháng</div>' +
-        '<div style="color:#7e22ce;">&#127881; Thưởng: ' + rewardLines.join(' + ') + '</div>' +
-        '<div style="color:#6b21a8;margin-top:4px;">Tích lũy: Vàng <strong>' + yellowVolume + 'L</strong>, Đen <strong>' + blackVolume + 'L</strong> (Tổng ' + monthlyLiters + 'L, ' + progressModeLabel + ')</div>' +
+      '<div class="promo-note promo-note--volume is-reward">' +
+        '<div class="promo-note__title">&#127942; Khuyến mãi Sản lượng Tháng</div>' +
+        '<div class="promo-note__row" title="' + escAttr(rewardLines.join(' + ').replace(/<[^>]+>/g, '')) + '"><span>&#127881; Thưởng</span><span>' + rewardLines.join(' + ') + '</span></div>' +
+        '<div class="promo-note__row" title="' + escAttr(accumText) + '"><span>&#128200; Tích lũy</span><span>Vàng <strong>' + yellowVolume + 'L</strong>, Đen <strong>' + blackVolume + 'L</strong> (Tổng ' + monthlyLiters + 'L)</span></div>' +
       '</div>';
   } else if (nextThreshold && litersToNext > 0) {
     // Có mốc tiếp theo
     var nextLabel = monthlyReward.nextTier || ('Mốc ' + nextThreshold + 'L');
+    var accumText2 = 'Vàng ' + yellowVolume + 'L, Đen ' + blackVolume + 'L (Tổng ' + monthlyLiters + 'L)';
+    var needText = litersToNext + 'L để đạt ' + nextLabel;
     noteHtml =
-      '<div class="promo-note" style="margin:10px 0;padding:10px 12px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:8px;font-size:11px;line-height:1.5;">' +
-        '<div style="font-weight:700;color:#d97706;margin-bottom:4px;">&#127919; Khuyến mãi Sản lượng Tháng</div>' +
-        '<div style="color:#92400e;">Tích lũy: Vàng <strong>' + yellowVolume + 'L</strong>, Đen <strong>' + blackVolume + 'L</strong> (Tổng ' + monthlyLiters + 'L)</div>' +
-        '<div style="color:#b45309;margin-top:4px;">Còn <strong>' + litersToNext + 'L</strong> để đạt <strong>' + nextLabel + '</strong>.</div>' +
+      '<div class="promo-note promo-note--volume is-pending">' +
+        '<div class="promo-note__title">&#127919; Khuyến mãi Sản lượng Tháng</div>' +
+        '<div class="promo-note__row" title="' + escAttr(accumText2) + '"><span>&#128200; Tích lũy</span><span>Vàng <strong>' + yellowVolume + 'L</strong>, Đen <strong>' + blackVolume + 'L</strong> (Tổng ' + monthlyLiters + 'L)</span></div>' +
+        '<div class="promo-note__row" title="' + escAttr(needText) + '"><span>&#127919; Cần thêm</span><span><strong>' + litersToNext + 'L</strong> để đạt <strong>' + nextLabel + '</strong></span></div>' +
       '</div>';
   } else if (monthlyLiters > 0) {
     // Có mua nhưng chưa đạt mốc nào
+    var accumText3 = 'Vàng ' + yellowVolume + 'L, Đen ' + blackVolume + 'L (Tổng ' + monthlyLiters + 'L)';
     noteHtml =
-      '<div class="promo-note" style="margin:10px 0;padding:10px 12px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:8px;font-size:11px;line-height:1.5;">' +
-        '<div style="font-weight:700;color:#d97706;margin-bottom:4px;">&#127919; Khuyến mãi Sản lượng Tháng</div>' +
-        '<div style="color:#92400e;">Tích lũy: Vàng <strong>' + yellowVolume + 'L</strong>, Đen <strong>' + blackVolume + 'L</strong> (Tổng ' + monthlyLiters + 'L)</div>' +
-        '<div style="color:#b45309;margin-top:4px;">Chưa đạt mốc thưởng nào. Cần tối thiểu 300L.</div>' +
+      '<div class="promo-note promo-note--volume is-pending">' +
+        '<div class="promo-note__title">&#127919; Khuyến mãi Sản lượng Tháng</div>' +
+        '<div class="promo-note__row" title="' + escAttr(accumText3) + '"><span>&#128200; Tích lũy</span><span>Vàng <strong>' + yellowVolume + 'L</strong>, Đen <strong>' + blackVolume + 'L</strong> (Tổng ' + monthlyLiters + 'L)</span></div>' +
+        '<div class="promo-note__row"><span>&#9888;</span><span>Chưa đạt mốc thưởng nào. Cần tối thiểu 300L.</span></div>' +
       '</div>';
   }
 

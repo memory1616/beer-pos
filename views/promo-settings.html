@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="vi">
 <head>
   <script>
@@ -176,9 +176,9 @@
       font-weight: 700;
       min-width: 36px;
     }
-    .tier-badge-1 { background: rgba(59,130,246,0.15); color: #3b82f6; }
-    .tier-badge-2 { background: rgba(245,158,11,0.15); color: #f59e0b; }
-    .tier-badge-3 { background: rgba(168,85,247,0.15); color: #a855f7; }
+    .tier-badge-1 { background: var(--color-info-bg); color: var(--color-info-text); }
+    .tier-badge-2 { background: var(--color-warning-bg); color: var(--color-warning-text); }
+    .tier-badge-3 { background: var(--color-promotion-bg); color: var(--color-promotion-text); }
     .info-banner {
       padding: 12px 14px;
       border-radius: 10px;
@@ -196,11 +196,11 @@
       color: var(--warning);
     }
     .info-banner.purple {
-      background: rgba(168,85,247,0.08);
-      border-color: rgba(168,85,247,0.2);
+      background: var(--color-promotion-bg);
+      border-color: var(--color-promotion-border);
     }
     .info-banner.purple strong {
-      color: #a855f7;
+      color: var(--color-promotion-text);
     }
     .warning-note {
       padding: 10px 12px;
@@ -243,7 +243,7 @@
           '<div class="promo-input-label">Ngày bắt đầu</div>',
           '<div class="promo-input-wrap">',
             '<input type="date" id="startDate" class="promo-input" style="width:150px;" onchange="onSettingsChanged()">',
-            '<span class="promo-input-suffix" style="color:#6b7280;">(không bắt buộc)</span>',
+            '<span class="promo-input-suffix" style="color:var(--text-secondary);">(không bắt buộc)</span>',
           '</div>',
         '</div>',
 
@@ -251,7 +251,7 @@
           '<div class="promo-input-label">Ngày kết thúc</div>',
           '<div class="promo-input-wrap">',
             '<input type="date" id="endDate" class="promo-input" style="width:150px;" onchange="onSettingsChanged()">',
-            '<span class="promo-input-suffix" style="color:#6b7280;">(không bắt buộc)</span>',
+            '<span class="promo-input-suffix" style="color:var(--text-secondary);">(không bắt buộc)</span>',
           '</div>',
         '</div>',
 
@@ -261,7 +261,7 @@
       // Info Banner
       '<div class="info-banner">',
         '<p><strong>Chỉ áp dụng cho đơn hàng mới.</strong> Thay đổi cài đặt KHÔNG làm sai dữ liệu cũ, KHÔNG reset lịch sử, KHÔNG tính lại đơn cũ.</p>',
-        '<p style="margin-top:8px;"><strong style="color:#a855f7;">Quy tắc quan trọng:</strong> <span style="color:#6b7280;">Quán mới = <strong>tháng mở quán</strong> (tháng tạo khách, không quan tâm mở ngày nào). Trong tháng đó áp dụng tỉ lệ "mua X tặng Y" theo <strong>tổng sản lượng cả tháng</strong> (bia vàng + bia đen cộng lại, không cộng dồn qua tháng). <strong style="color:#f97316;">Phần thưởng luôn là BIA VÀNG.</strong> Phần thưởng được trả vào <strong>đơn hàng đầu tiên của tháng sau</strong>, giống thưởng doanh số. Từ tháng sau trở đi áp dụng thưởng doanh số như bình thường.</span></p>',
+        '<p style="margin-top:8px;"><strong style="color:var(--color-promotion-text);">Quy tắc quan trọng:</strong> <span style="color:var(--text-secondary);">Quán mới = <strong>tháng mở quán</strong> (tháng tạo khách, không quan tâm mở ngày nào). Trong tháng đó áp dụng tỉ lệ "mua X tặng Y" theo <strong>tổng sản lượng cả tháng</strong> (bia vàng + bia đen cộng lại, không cộng dồn qua tháng). <strong style="color:var(--color-warning-text);">Phần thưởng luôn là BIA VÀNG.</strong> Phần thưởng được trả vào <strong>đơn hàng đầu tiên của tháng sau</strong>, giống thưởng doanh số. Từ tháng sau trở đi áp dụng thưởng doanh số như bình thường.</span></p>',
       '</div>',
 
       // SECTION 1: KHUYẾN MÃI QUÁN MỚI
@@ -284,7 +284,7 @@
         '<div id="newShopFields">',
           '<div class="promo-divider"></div>',
           '<div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Tỉ lệ "mua X tặng Y"</div>',
-          '<div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;line-height:1.5;">Tính trên <strong>tổng sản lượng cả tháng</strong> (bia vàng + bia đen cộng lại). <strong style="color:#f97316;">Phần thưởng luôn là BIA VÀNG.</strong></div>',
+          '<div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;line-height:1.5;">Tính trên <strong>tổng sản lượng cả tháng</strong> (bia vàng + bia đen cộng lại). <strong style="color:var(--color-warning-text);">Phần thưởng luôn là BIA VÀNG.</strong></div>',
 
           // Mua
           '<div class="promo-input-row">',
@@ -312,7 +312,7 @@
       // SECTION 2: THƯỞNG DOANH SỐ THÁNG
       '<div class="promo-section">',
         '<div class="promo-section-title">&#127942; Thưởng doanh số tháng</div>',
-        '<div class="promo-section-desc">Khách đạt sản lượng sẽ được thưởng bia. <strong style="color:var(--warning);">Chỉ nhận mức cao nhất.</strong> <span style="color:#a855f7;"><strong>Lưu ý:</strong> Khách đang trong thời gian quán mới sẽ không nhận thưởng tháng.</span></div>',
+        '<div class="promo-section-desc">Khách đạt sản lượng sẽ được thưởng bia. <strong style="color:var(--warning);">Chỉ nhận mức cao nhất.</strong> <span style="color:var(--color-promotion-text);"><strong>Lưu ý:</strong> Khách đang trong thời gian quán mới sẽ không nhận thưởng tháng.</span></div>',
 
         // Toggle
         '<div class="promo-toggle-row">',
@@ -329,13 +329,13 @@
         '<div id="rewardFields">',
           // BIA INOX V2: Quy tắc cố định
           '<div class="info-banner purple">',
-            '<p><strong style="color:#a855f7;">Quy tắc nhận thưởng (Bia Inox V2):</strong></p>',
+            '<p><strong style="color:var(--color-promotion-text);">Quy tắc nhận thưởng (Bia Inox V2):</strong></p>',
             '<p style="margin-top:6px;">&#8226; <strong>Chỉ bia Vàng:</strong> 300L&rarr;20L Vàng, 500L&rarr;40L Vàng</p>',
             '<p>&#8226; <strong>Chỉ bia Đen:</strong> 300L&rarr;20L Đen, 500L&rarr;40L Đen</p>',
             '<p>&#8226; <strong>Cả Vàng + Đen cùng &ge;300L:</strong> thưởng riêng từng loại (20V+20Đ hoặc 40V+40Đ)</p>',
             '<p>&#8226; <strong>Mua cả 2 nhưng không cùng &ge;300L:</strong> tính theo <em>tổng hỗn hợp</em>, thưởng bằng <strong>Bia Vàng</strong></p>',
             '<p>&#8226; <strong>Mốc 300 + 500 KHÔNG cộng dồn.</strong> 500L chỉ thưởng 40L, không phải 60L.</p>',
-            '<p style="margin-top:8px;"><span style="color:#6b7280;">&#128161; Tier là cố định theo chương trình. Đơn hàng đầu tiên trong tháng (tháng trả thưởng) sẽ tự động trả thưởng nếu đủ điều kiện.</span></p>',
+            '<p style="margin-top:8px;"><span style="color:var(--text-secondary);">&#128161; Tier là cố định theo chương trình. Đơn hàng đầu tiên trong tháng (tháng trả thưởng) sẽ tự động trả thưởng nếu đủ điều kiện.</span></p>',
           '</div>',
 
           // Tier cố định (hiển thị read-only)
@@ -439,7 +439,7 @@
       var end = endDate ? new Date(endDate) : null;
 
       if (!start && !end) {
-        statusEl.innerHTML = '<span style="color:#22c55e;">&#10003; Đang áp dụng vô thời hạn</span>';
+        statusEl.innerHTML = '<span style="color:var(--color-success-text);">&#10003; Đang áp dụng vô thời hạn</span>';
         return;
       }
 
@@ -461,8 +461,8 @@
       }
 
       statusEl.innerHTML = isActive
-        ? '<span style="color:#22c55e;">&#10003; ' + statusText + '</span>'
-        : '<span style="color:#f59e0b;">&#9203; ' + statusText + '</span>';
+        ? '<span style="color:var(--color-success-text);">&#10003; ' + statusText + '</span>'
+        : '<span style="color:var(--color-warning-text);">&#9203; ' + statusText + '</span>';
     }
 
     function formatDate(dateStr) {
