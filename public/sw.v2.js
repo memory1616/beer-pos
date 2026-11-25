@@ -24,12 +24,20 @@ const MAX_RETRIES = 6;
 const MAX_CACHE   = 100; // entries — prevent unbounded cache growth
 
 // ─── App Shell — must cache for instant PWA load ────────────────────────────
+// ⚠️ KHÔNG đưa JS/CSS vào đây.
+// Lý do (2026-11-25): server đã version URL asset theo CONTENT-HASH
+// (`/css/unified.css?v=<hash>`), nên mỗi lần file thay đổi → URL mới →
+// browser tải bản mới. Nếu SW cache thêm bản KHÔNG có `?v=` (như
+// `/css/unified.css`), Cache-First sẽ trả bản CŨ từ SW cache vĩnh viễn
+// → phải Ctrl+F5 mới thấy giao diện mới.
+//
+// Giải pháp: JS/CSS dùng Network-First (xem fetch handler). HTTP cache của
+// browser vẫn phục vụ nhanh vì URL đã versioned + `Cache-Control: immutable`.
+// Khi offline → SW fallback về bản cache (vẫn dùng được app).
 const APP_SHELL = [
   '/', '/index.html', '/manifest.json',
   '/apple-touch-icon.png', '/icons/icon-192.png', '/icons/icon-512.png',
   '/icon-192.png', '/icon-512.png',
-  '/css/unified.css',
-  '/js/layout.js', '/js/auth.js', '/js/dark-mode.js',
 ];
 
 // ─── Cloud URL (set by main thread) ──────────────────────────────────────────
@@ -652,6 +660,16 @@ self.addEventListener('fetch', event => {
     return;
   }
 
+  // ── JS/CSS local → Network-First (2026-11-25) ────────────────────────────
+  // Server version URL asset theo content-hash → URL đổi = nội dung mới.
+  // Network-First đảm bảo SW KHÔNG bao giờ trả bản JS/CSS cũ từ cache.
+  // HTTP cache của browser vẫn nhanh (URL versioned + immutable 1 năm).
+  // Khi offline → fallback về bản đã cache (app vẫn chạy được).
+  if (/\.(?:js|css)$/i.test(parsed.pathname) && parsed.pathname.startsWith('/')) {
+    event.respondWith(networkFirstAsset(event.request));
+    return;
+  }
+
   // App Shell & static assets → Cache-First
   event.respondWith(
     cacheFirst(event.request)
@@ -701,6 +719,36 @@ async function networkFirst(request) {
     return cached || new Response(JSON.stringify({ error: 'Offline', offline: true }), {
       status: 503, headers: { 'Content-Type': 'application/json' }
     });
+  }
+}
+
+/**
+ * Network-First cho JS/CSS versioned (2026-11-25).
+ *
+ * Khác networkFirst() ở chỗ:
+ *  - KHÔNG dùng `cache: 'no-store'` → vẫn được HTTP cache của browser phục vụ
+ *    (URL đã versioned theo content-hash + server set `immutable` 1 năm).
+ *    → reload trang vẫn nhanh, không tải lại từ server mỗi lần.
+ *  - CÓ cachePut vào SW cache → offline vẫn dùng được app.
+ *
+ * Vì sao không Cache-First?
+ *  Cache-First sẽ trả bản JS/CSS CŨ từ SW cache dù server đã deploy bản
+ *  mới → user phải Ctrl+F5. Network-First luôn hỏi server trước, nên
+ *  URL mới (content-hash) → bản mới; URL cũ → server 302 sang URL mới.
+ */
+async function networkFirstAsset(request) {
+  try {
+    // Giữ HTTP cache của browser (default) — URL versioned nên an toàn.
+    const resp = await networkFetchWithRetry(request, 2, 1200);
+    if (resp && resp.ok) {
+      try { await cachePut(request, resp.clone()); } catch { /* quota đầy → bỏ qua */ }
+    }
+    return resp;
+  } catch {
+    // Offline → trả bản đã cache (app vẫn chạy được)
+    const cached = await caches.match(request);
+    if (cached) return cached;
+    return jsFallback();
   }
 }
 

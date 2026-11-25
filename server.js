@@ -27,6 +27,8 @@ const helmet = require('helmet');
 // Error handling middleware
 const { errorHandler, notFoundHandler, requestLogger } = require('./middleware/errorHandler');
 const { cache } = require('./middleware/cache');
+// Content-hash per-file cho cache-busting asset (xem src/utils/assetVersion.js)
+const { assetVersion, invalidateAssetCache } = require('./src/utils/assetVersion');
 
 // ── Global error handlers — prevent silent crash ───────────────────────────
 process.on('unhandledRejection', (reason, promise) => {
@@ -611,13 +613,14 @@ app.get('/version.json', (req, res) => {
 
 // ─── Cache-busting redirect cho asset JS/CSS có ?v= cũ (2026-11-22) ────────
 // Nhiều view load script ĐỘNG bằng `loadScript('/db.js?v=20260430a')` — URL
-// nằm trong inline JS nên regex inject ?v=APP_VERSION của server KHÔNG bắt
-// được. Hệ quả: URL giữ nguyên qua mọi lần deploy → browser dùng bản HTTP
+// nằm trong inline JS nên regex inject ?v= của server KHÔNG bắt được.
+// Hệ quả: URL giữ nguyên qua mọi lần deploy → browser dùng bản HTTP
 // cache cũ (từng `immutable` 30 ngày) → client chạy code cũ mãi mãi.
 //
-// Fix: nếu request asset local có ?v= khác APP_VERSION → 302 redirect sang
-// ?v=APP_VERSION. URL mới → browser tải file mới, cache theo URL mới.
-// Bỏ qua nếu ?v= đã bằng APP_VERSION (tránh loop) và nếu không có ?v=.
+// Fix: nếu request asset local có ?v= khác hash hiện tại của file đó
+// → 302 redirect sang ?v=<hash>. URL mới → browser tải file mới.
+// 2026-11-25: đổi từ APP_VERSION (git hash) sang content-hash per-file
+// (src/utils/assetVersion.js) → deploy không cần commit, không cần restart PM2.
 app.use((req, res, next) => {
   if (req.method !== 'GET' && req.method !== 'HEAD') return next();
   const p = req.path;
@@ -632,12 +635,14 @@ app.use((req, res, next) => {
 
   const q = req.query.v;
   if (q === undefined) return next();
-  if (String(q) === BUILD_ID) return next();
 
-  // Dùng BUILD_ID (đổi mỗi lần restart PM2) thay vì APP_VERSION (git hash).
-  // Lý do: khi deploy file CSS/JS mà chưa commit, git hash không đổi
-  // → client vẫn giữ asset cũ trong cache → giao diện không cập nhật.
-  const newUrl = `${req.originalUrl.split('?')[0]}?v=${BUILD_ID}`;
+  // Hash hiện tại của file trên đĩa (mtime+size). Nếu file không tồn tại
+  // → không redirect (để express.static trả 404 bình thường).
+  const current = assetVersion(p);
+  if (!current) return next();
+  if (String(q) === current) return next();
+
+  const newUrl = `${req.originalUrl.split('?')[0]}?v=${current}`;
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
   res.redirect(302, newUrl);
 });
@@ -657,6 +662,11 @@ app.use(express.static(path.join(__dirname, 'public'), {
       res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     } else if (/[\\/]fonts[\\/]/.test(filePath)) {
       res.setHeader('Cache-Control', 'public, max-age=86400');
+    } else if (/\.(js|css)$/i.test(filePath)) {
+      // JS/CSS local có ?v=<content-hash> → URL đổi mỗi khi file đổi.
+      // → cache dài hạn (1 năm) là an toàn: URL mới = nội dung mới.
+      // Không có ?v= → cache ngắn để không bị stale.
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     }
   },
 }));
@@ -764,9 +774,11 @@ app.use((req, res, next) => {
           html = html.replace('<head>', '<head><base href="/">');
         }
 
-        // Inject version busting: append/replace ?v=APP_VERSION to JS and CSS files
-        // QUY TẮC 2026-11-22: mọi asset JS/CSS LOCAL phải đổi URL theo git hash,
-        // nếu không client sẽ dùng bản cache cũ (immutable 30d) sau mỗi lần deploy.
+        // Inject version busting: append/replace ?v=<content-hash> to JS and CSS files
+        // QUY TẮC 2026-11-25: version = hash(mtime+size) của CHÍNH file đó.
+        //  - Deploy ghi file mới → hash đổi → URL đổi → browser tải bản mới.
+        //  - KHÔNG cần commit (git hash không đổi) và KHÔNG cần restart PM2
+        //    (BUILD_ID không đổi) → không bao giờ phải Ctrl+F5.
         // Bao gồm cả /db.js (file gốc ở public/, nằm ngoài /js/).
         html = html.replace(/(<\s*(?:script|img|link)\s+[^>]*(?:src|href)\s*=\s*["'])(\/[^"']+)(")/gi, (match, prefix, path, suffix) => {
           // Chỉ bust version cho asset local: /js/, /css/, /db.js, /sw.js
@@ -778,9 +790,11 @@ app.use((req, res, next) => {
           if (isLocalCode) {
             // Remove existing ?v= param to avoid double ?v=...&v=...
             const cleanPath = path.replace(/\?v=[^&]*/, '');
-            // BUILD_ID đổi mỗi lần restart → client luôn lấy asset mới nhất,
-            // kể cả khi deploy mà chưa commit (git hash không đổi).
-            return `${prefix}${cleanPath}?v=${BUILD_ID}${suffix}`;
+            // Hash nội dung riêng cho từng file: file nào đổi thì chỉ file
+            // đó đổi URL → các file khác vẫn được cache như cũ (nhanh hơn).
+            const ver = assetVersion(cleanPath);
+            if (!ver) return match; // file không tồn tại → giữ nguyên
+            return `${prefix}${cleanPath}?v=${ver}${suffix}`;
           }
           return match;
         });

@@ -72,27 +72,28 @@ describe('deploy.sh không sửa file version.json trên đĩa', () => {
   });
 });
 
-describe('Cache-busting asset dùng BUILD_ID (không dùng git hash)', () => {
-  test('inject ?v= trong HTML dùng BUILD_ID', () => {
+describe('Cache-busting asset dùng content-hash per-file (2026-11-25)', () => {
+  test('inject ?v= trong HTML dùng assetVersion()', () => {
     // Khi deploy file CSS/JS mà chưa commit, git hash không đổi
     // → client giữ asset cũ trong cache → giao diện không cập nhật.
-    // BUILD_ID đổi mỗi lần restart PM2 → luôn lấy asset mới.
-    expect(serverSrc).toMatch(/\?v=\$\{BUILD_ID\}/);
+    // Content-hash per-file: file đổi → URL đổi → không cần Ctrl+F5.
+    expect(serverSrc).toMatch(/\?v=\$\{ver\}/);
+    expect(serverSrc).toContain('const ver = assetVersion(cleanPath);');
   });
 
-  test('redirect 302 cho asset sai version dùng BUILD_ID', () => {
-    const idx = serverSrc.indexOf("if (String(q) === BUILD_ID) return next();");
+  test('redirect 302 cho asset sai version dùng content-hash', () => {
+    const idx = serverSrc.indexOf('const current = assetVersion(p);');
     expect(idx).toBeGreaterThan(-1);
     const block = serverSrc.slice(idx, idx + 400);
-    expect(block).toContain('?v=${BUILD_ID}');
+    expect(block).toContain('?v=${current}');
   });
 
   test('inject version trong HTML KHÔNG dùng APP_VERSION cho asset', () => {
     const idx = serverSrc.indexOf('cleanPath}?v=');
     expect(idx).toBeGreaterThan(-1);
     const line = serverSrc.slice(idx, idx + 40);
-    expect(line).toContain('BUILD_ID');
     expect(line).not.toContain('APP_VERSION');
+    expect(line).not.toContain('BUILD_ID');
   });
 });
 

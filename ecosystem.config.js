@@ -61,6 +61,16 @@ module.exports = {
         CLOUD_DOMAIN: envOr('CLOUD_DOMAIN', 'https://admin.biatuoitayninh.store'),
         SESSION_SECRET: sessionSecret || 'change-me-to-a-long-random-string-in-production',
         GITHUB_WEBHOOK_SECRET: envOr('GITHUB_WEBHOOK_SECRET', ''),
+        // BUILD_ID: đánh dấu lần build, dùng cho cache-busting asset.
+        // PHẢI khai báo ở đây — vì `pm2 restart ecosystem.config.js` ghi đè
+        // env của app bằng khối `env:` này, kể cả khi deploy.sh có export
+        // BUILD_ID từ shell. Thiếu dòng này → server.js fallback về git hash
+        // (APP_VERSION) → URL ?v= không đổi → client giữ CSS/JS cũ trong
+        // cache → phải Ctrl+F5 mới thấy giao diện mới.
+        // Nếu shell không có BUILD_ID → tự sinh timestamp (đổi mỗi lần restart).
+        BUILD_ID: (process.env.BUILD_ID && process.env.BUILD_ID.length > 0)
+          ? process.env.BUILD_ID
+          : String(Date.now()),
       },
 
       // ── Dev env (--env dev) ──────────────────────────────────────────
