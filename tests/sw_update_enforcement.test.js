@@ -103,11 +103,46 @@ describe('sw.v2.js dọn cache cũ khi activate', () => {
     expect(block).toContain('cache.delete(req)');
   });
 
+  test('activate xoá cả entry logo/icon không có ?v=', () => {
+    // Logo nằm trong URL của file JS → không phải lúc nào cũng có `?v=`.
+    // Nếu SW cache URL không versioned → đổi logo user không thấy.
+    const idx = swSrc.indexOf("addEventListener('activate'");
+    const block = swSrc.slice(idx, idx + 2400);
+    expect(block).toContain('isBrand');
+    expect(block).toContain("p.startsWith('/brand/')");
+    expect(block).toContain("p.startsWith('/icons/')");
+    expect(block).toContain("/apple-touch-icon.png");
+  });
+
   test('activate xoá TRƯỚC khi clients.claim()', () => {
     const idx = swSrc.indexOf("addEventListener('activate'");
     const block = swSrc.slice(idx, idx + 2000);
     const staleIdx = block.indexOf('staleAssets');
     expect(staleIdx).toBeGreaterThan(-1);
     expect(block.indexOf('clients.claim()')).toBeGreaterThan(staleIdx);
+  });
+});
+
+describe('sw.v2.js KHÔNG cache-first logo/icon', () => {
+  test('logo/icon dùng Network-First (không trả ảnh cũ từ cache)', () => {
+    const idx = swSrc.indexOf("addEventListener('fetch'");
+    expect(idx).toBeGreaterThan(-1);
+    const block = swSrc.slice(idx, idx + 12000);
+    const brandIdx = block.indexOf("parsed.pathname.startsWith('/brand/')");
+    expect(brandIdx).toBeGreaterThan(-1);
+    // Phải nằm trong nhánh respondWith(networkFirstAsset(...))
+    const segment = block.slice(brandIdx, brandIdx + 600);
+    expect(segment).toContain('networkFirstAsset');
+    // Và phải TRƯỚC nhánh cacheFirst (để được ưu tiên)
+    expect(segment.indexOf('networkFirstAsset')).toBeLessThan(
+      block.indexOf('cacheFirst(event.request)')
+    );
+  });
+
+  test('apple-touch-icon + favicon.ico cũng Network-First', () => {
+    const idx = swSrc.indexOf("addEventListener('fetch'");
+    const block = swSrc.slice(idx, idx + 12000);
+    expect(block).toContain("parsed.pathname === '/apple-touch-icon.png'");
+    expect(block).toContain("parsed.pathname === '/favicon.ico'");
   });
 });

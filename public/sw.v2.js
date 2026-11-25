@@ -351,10 +351,12 @@ self.addEventListener('activate', event => {
       const stale = all.filter(k => k !== cname);
       await Promise.all(stale.map(k => caches.delete(k)));
 
-      // ── Xoá entry JS/CSS KHÔNG có `?v=` trong cache hiện tại (2026-11-25)
+      // ── Xoá entry JS/CSS + logo/icon KHÔNG có `?v=` trong cache hiện tại ─────
       // Đây chính là nguồn gây "phải Ctrl+F5":
       //   SW cũ (Cache-First) đã cache `/css/unified.css` (không query)
       //   → sau khi deploy file mới, SW vẫn trả bản CŨ từ cache đó.
+      //   Tương tự: `/brand/logo-96.png` (URL nằm trong JS, không có `?v=`)
+      //   → đổi logo mà SW vẫn trả ảnh cũ.
       // Xoá các entry này → SW buộc phải hỏi network → nhận bản mới
       // (URL versioned theo content-hash → browser cache vẫn nhanh).
       try {
@@ -362,10 +364,15 @@ self.addEventListener('activate', event => {
         const keys = await cache.keys();
         const staleAssets = keys.filter(req => {
           try {
-            const p = new URL(req.url).pathname;
-            if (!/\.(?:js|css)$/i.test(p)) return false;
+            const u = new URL(req.url);
+            const p = u.pathname;
+            const isCode = /\.(?:js|css)$/i.test(p);
+            const isBrand = /\.(?:png|jpe?g|webp|svg|ico)$/i.test(p) &&
+              (p.startsWith('/brand/') || p.startsWith('/icons/') ||
+               p === '/apple-touch-icon.png' || p === '/favicon.ico');
+            if (!isCode && !isBrand) return false;
             // Giữ lại bản có `?v=` (đã versioned) — chỉ xoá bản không query.
-            return new URL(req.url).searchParams.get('v') === null;
+            return u.searchParams.get('v') === null;
           } catch {
             return false;
           }
@@ -689,6 +696,20 @@ self.addEventListener('fetch', event => {
   // HTTP cache của browser vẫn nhanh (URL versioned + immutable 1 năm).
   // Khi offline → fallback về bản đã cache (app vẫn chạy được).
   if (/\.(?:js|css)$/i.test(parsed.pathname) && parsed.pathname.startsWith('/')) {
+    event.respondWith(networkFirstAsset(event.request));
+    return;
+  }
+
+  // ── Logo thương hiệu / app icon → Network-First (2026-11-25) ──────────────
+  // Vì sao không Cache-First?
+  //  URL logo nằm trong file JS (`<img src="/brand/logo-96.png">`) nên KHÔNG
+  //  phải lúc nào cũng có `?v=`. Nếu Cache-First cache URL không versioned,
+  //  SW sẽ trả ảnh CŨ vĩnh viễn → đổi logo mà user không thấy → Ctrl+F5.
+  // Network-First: luôn hỏi server trước (URL có hash vẫn được HTTP cache
+  // phục vụ nhanh), offline thì fallback về bản đã cache.
+  if (/\.(?:png|jpe?g|webp|svg|ico)$/i.test(parsed.pathname) &&
+      (parsed.pathname.startsWith('/brand/') || parsed.pathname.startsWith('/icons/') ||
+       parsed.pathname === '/apple-touch-icon.png' || parsed.pathname === '/favicon.ico')) {
     event.respondWith(networkFirstAsset(event.request));
     return;
   }
