@@ -850,14 +850,20 @@ app.use((req, res, next) => {
 
         // Inject app context globals
         const effectiveMode = isDriverPage ? 'driver' : mode;
+        const brandHash = assetVersion('/brand/logo-96.png') || '';
         const ctxScript = `<script>
 window.APP_MODE = '${effectiveMode}';
 window.BASE_PATH = ${basePath ? `'${basePath}'` : 'null'};
 window.APP_VERSION = '${APP_VERSION}';
+window.BRAND_VERSION = '${brandHash}';
 </script>`;
 
         if (!html.includes('window.APP_MODE')) {
-          html = html.replace('</head>', ctxScript + '</head>');
+          // ⚠️ Phải inject NGAY SAU <head> (trước mọi <script src>) để
+          // window.BRAND_VERSION có sẵn khi layout.js chạy.
+          // Nếu inject cuối </head> mà layout.js nằm trong <head> → layout.js
+          // đọc BRAND_VERSION lúc init → rỗng → logo không có ?v= → cache cũ.
+          html = html.replace(/<head(\s[^>]*)?>/i, (m, attrs) => m + ctxScript);
         }
 
         // ── Ép SW update trên MỌI trang (2026-11-25) ────────────────────────

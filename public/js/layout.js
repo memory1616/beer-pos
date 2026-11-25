@@ -3,9 +3,11 @@
 // ============================================================
 
 let appVersion = '1.0.0';
-// Content-hash của logo thương hiệu (từ /version.json) → cache-buster cho
-// <img src="/brand/logo-*.png"> (URL nằm trong JS nên server không inject ?v=).
-let brandVersion = '';
+// Content-hash của logo thương hiệu → cache-buster cho
+// <img src="/brand/logo-*.png"> (URL nằm trong JS nên server không inject
+// được ?v=). Server inject sẵn `window.BRAND_VERSION` vào HTML → đọc đồng
+// bộ, không phụ thuộc thứ tự load. Fallback: fetch('/version.json').
+let brandVersion = (typeof window !== 'undefined' && window.BRAND_VERSION) || '';
 
 // ── Global shared state (used by stock.js, sales.js, customers.js, etc.) ──────
 // Must be declared before any page-specific scripts that reference window.store
@@ -17,10 +19,10 @@ async function loadVersion() {
     const res = await fetch('/version.json');
     const data = await res.json();
     appVersion = data.version || '1.0.0';
-    brandVersion = data.brand || '';
+    if (!brandVersion) brandVersion = data.brand || '';
   } catch (e) {
     appVersion = '1.0.0';
-    brandVersion = '';
+    if (!brandVersion) brandVersion = '';
   }
 }
 
@@ -39,7 +41,7 @@ function getHeaderWithActions(title, icons, actions) {
   return `
     <header class="topbar app-header" role="banner">
       <div class="header-logo">
-        <img class="header-logo-icon" src="/brand/logo-96.png?v=${brandVersion}" alt="" width="30" height="30" decoding="async">
+        <img class="header-logo-icon" src="/brand/logo-96.png${brandVersion ? '?v=' + brandVersion : ''}" alt="" width="30" height="30" decoding="async">
         <div class="header-logo-text">
           <span class="header-title-text">${title}</span>
           <span class="header-version-text">v${appVersion}</span>

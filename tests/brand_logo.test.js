@@ -52,12 +52,30 @@ describe('Logo dùng content-hash làm cache-buster', () => {
     expect(serverSrc).toContain('meta.brand = assetVersion(');
   });
 
-  test('layout.js đọc brand từ /version.json', () => {
+  test('server inject window.BRAND_VERSION vào HTML (đồng bộ, không race)', () => {
+    expect(serverSrc).toContain('window.BRAND_VERSION');
+    const idx = serverSrc.indexOf('window.BRAND_VERSION');
+    const block = serverSrc.slice(idx - 300, idx + 100);
+    expect(block).toContain("assetVersion('/brand/logo-96.png')");
+  });
+
+  test('BRAND_VERSION phải inject TRƯỚC mọi <script src> (tránh race)', () => {
+    // Nếu inject cuối </head> mà layout.js nằm trong <head> → layout.js đọc
+    // BRAND_VERSION lúc init → rỗng → logo không có ?v= → cache ảnh cũ.
+    const idx = serverSrc.indexOf('window.BRAND_VERSION');
+    const block = serverSrc.slice(idx, idx + 700);
+    expect(block).toContain("html.replace(/<head(\\s[^>]*)?>/i");
+    expect(block).not.toContain("html.replace('</head>', ctxScript + '</head>')");
+  });
+
+  test('layout.js đọc brand từ window.BRAND_VERSION', () => {
+    expect(layoutSrc).toContain('window.BRAND_VERSION');
     expect(layoutSrc).toContain('brandVersion = data.brand');
   });
 
-  test('header logo có kèm ?v=${brandVersion}', () => {
-    expect(layoutSrc).toContain('/brand/logo-96.png?v=${brandVersion}');
+  test('header logo có kèm ?v= brandVersion (khi có giá trị)', () => {
+    expect(layoutSrc).toContain('/brand/logo-96.png${brandVersion');
+    expect(layoutSrc).toContain("'?v=' + brandVersion");
   });
 });
 
