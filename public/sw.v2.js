@@ -350,6 +350,29 @@ self.addEventListener('activate', event => {
       const all   = await caches.keys();
       const stale = all.filter(k => k !== cname);
       await Promise.all(stale.map(k => caches.delete(k)));
+
+      // ── Xoá entry JS/CSS KHÔNG có `?v=` trong cache hiện tại (2026-11-25)
+      // Đây chính là nguồn gây "phải Ctrl+F5":
+      //   SW cũ (Cache-First) đã cache `/css/unified.css` (không query)
+      //   → sau khi deploy file mới, SW vẫn trả bản CŨ từ cache đó.
+      // Xoá các entry này → SW buộc phải hỏi network → nhận bản mới
+      // (URL versioned theo content-hash → browser cache vẫn nhanh).
+      try {
+        const cache = await caches.open(cname);
+        const keys = await cache.keys();
+        const staleAssets = keys.filter(req => {
+          try {
+            const p = new URL(req.url).pathname;
+            if (!/\.(?:js|css)$/i.test(p)) return false;
+            // Giữ lại bản có `?v=` (đã versioned) — chỉ xoá bản không query.
+            return new URL(req.url).searchParams.get('v') === null;
+          } catch {
+            return false;
+          }
+        });
+        await Promise.all(staleAssets.map(req => cache.delete(req)));
+      } catch { /* im lặng — cache API có thể không khả dụng */ }
+
       self.clients.claim();
     })
   );

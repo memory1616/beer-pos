@@ -196,11 +196,14 @@
     }, { timeout: 8000 });
 
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistration().then(function (reg) {
-        if (!reg) {
-          navigator.serviceWorker.register('/sw.v2.js?v=20260422a').catch(function () {});
-        }
-      });
+      // Đăng ký SW: luôn update (không guard theo controller) — xem
+      // public/js/sw-register.js để hiểu lý do (tránh kẹt SW cũ → Ctrl+F5).
+      (function () {
+        var s = document.createElement('script');
+        s.src = '/js/sw-register.js?v=' + Date.now();
+        s.async = true;
+        document.head.appendChild(s);
+      })();
     }
   </script>
 

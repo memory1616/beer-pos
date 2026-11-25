@@ -1325,12 +1325,13 @@
       document.head.appendChild(s2);
     }, { timeout: 5000 });
 
+    // Đăng ký SW: luôn update, dùng timestamp + updateViaCache:'none'
+    // (xem public/js/sw-register.js để hiểu lý do không dùng guard !controller)
     if ('serviceWorker' in navigator) {
-      // Guard: only register if no SW is already active (avoids duplicate registration)
-      if (!navigator.serviceWorker.controller) {
-        const swVersion = (typeof window !== 'undefined' && window.APP_VERSION) ? window.APP_VERSION : '1';
-        navigator.serviceWorker.register('/sw.v2.js?v=' + swVersion).catch(function() {});
-      }
+      const swScript = document.createElement('script');
+      swScript.src = '/js/sw-register.js?v=' + Date.now();
+      swScript.async = true;
+      document.head.appendChild(swScript);
     }
   </script>
 
@@ -1703,21 +1704,14 @@
     }, 3000);
   }
 
-  // PART 5: Đăng ký SW — dùng getRegistration() guard để tránh trùng lặp
+  // PART 5: Đăng ký SW — luôn update (không guard theo controller)
+  // Dùng helper dùng chung: /js/sw-register.js
+  // (đăng ký lại + updateViaCache:'none' + reg.update() + reload 1 lần khi có bản mới)
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.getRegistration().then(function (reg) {
-      if (!reg) {
-        var swVer = (typeof window !== 'undefined' && window.APP_VERSION) ? window.APP_VERSION : '1';
-        navigator.serviceWorker.register('/sw.v2.js?v=' + swVer).then(function (reg2) {
-          // Registered
-          reg2.addEventListener('updatefound', function () {
-            if (typeof showToast === 'function') {
-              showToast('App đã được cập nhật — tải lại trang để dùng phiên bản mới', 'info');
-            }
-          });
-        }).catch(function (e) { /* Silent SW registration fail */ });
-      }
-    });
+    var swScript2 = document.createElement('script');
+    swScript2.src = '/js/sw-register.js?v=' + Date.now();
+    swScript2.async = true;
+    document.head.appendChild(swScript2);
   }
 
   </script>

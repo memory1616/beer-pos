@@ -663,10 +663,22 @@ app.use(express.static(path.join(__dirname, 'public'), {
     } else if (/[\\/]fonts[\\/]/.test(filePath)) {
       res.setHeader('Cache-Control', 'public, max-age=86400');
     } else if (/\.(js|css)$/i.test(filePath)) {
-      // JS/CSS local có ?v=<content-hash> → URL đổi mỗi khi file đổi.
-      // → cache dài hạn (1 năm) là an toàn: URL mới = nội dung mới.
-      // Không có ?v= → cache ngắn để không bị stale.
-      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      // ⚠️ Service Worker script: TUYỆT ĐỐI KHÔNG cache.
+      // Lý do (2026-11-25): SW tự quản lý version qua URL đăng ký
+      // (`/sw.v2.js?v=<version>`). Nếu server cache script 1 năm
+      // (`immutable`), browser sẽ KHÔNG bao giờ tải lại script để so sánh
+      // byte → SW mới (chứa fix cache-busting) KHÔNG BAO GIỜ được cài →
+      // SW cũ cứ tiếp tục cache JS/CSS kiểu Cache-First → user phải Ctrl+F5.
+      // `no-store` buộc browser luôn hỏi server → luôn thấy bản mới.
+      if (/[\\/]sw(\.v\d+)?\.js$/i.test(filePath)) {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+      } else {
+        // JS/CSS local có ?v=<content-hash> → URL đổi mỗi khi file đổi.
+        // → cache dài hạn (1 năm) là an toàn: URL mới = nội dung mới.
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      }
     }
   },
 }));
@@ -809,6 +821,42 @@ window.APP_VERSION = '${APP_VERSION}';
 
         if (!html.includes('window.APP_MODE')) {
           html = html.replace('</head>', ctxScript + '</head>');
+        }
+
+        // ── Ép SW update trên MỌI trang (2026-11-25) ────────────────────────
+        // Vì sao inject ở đây thay vì chỉ dựa vào layout.js:
+        //   layout.js có thể đang bị SW cache bản CŨ (Cache-First) → trong bản
+        //   cũ đó chưa có logic đăng ký SW → SW mới không bao giờ được cài →
+        //   SW cũ tiếp tục cache JS/CSS → user phải Ctrl+F5.
+        //   Script inline này KHÔNG phụ thuộc file nào → chạy được ở mọi trang.
+        //
+        //   `?v=<content-hash của sw.v2.js>`: URL đổi mỗi khi SW code đổi →
+        //   browser tải script mới → so sánh byte → cài SW mới.
+        //   `updateViaCache:'none'`: bypass HTTP cache khi tải script SW.
+        //   `reg.update()`: ép kiểm tra ngay cả khi SW đang active.
+        const swVer = assetVersion('/sw.v2.js');
+        if (swVer) {
+          const swUpdateScript = `<script>
+(function(){
+  if (!('serviceWorker' in navigator)) return;
+  if (window.__beerSWUpdateInjected) return;
+  window.__beerSWUpdateInjected = true;
+  try {
+    navigator.serviceWorker.register('/sw.v2.js?v=${swVer}', { updateViaCache: 'none' })
+      .then(function (reg) {
+        if (reg && typeof reg.update === 'function') reg.update().catch(function(){});
+        if (reg && reg.waiting) {
+          try { sessionStorage.setItem('swReloadedForUpdate','1'); } catch(e){}
+          window.location.reload();
+        }
+      })
+      .catch(function(){});
+  } catch (e) { /* im lặng */ }
+})();
+</script>`;
+          if (!html.includes('__beerSWUpdateInjected')) {
+            html = html.replace('</head>', swUpdateScript + '</head>');
+          }
         }
 
         // No-cache for HTML to ensure fresh content on refresh

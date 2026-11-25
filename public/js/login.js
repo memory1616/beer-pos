@@ -185,9 +185,11 @@
 
   // ── Register Service Worker ───────────────────────────────
   if ('serviceWorker' in navigator) {
-    var swVer = (typeof window !== 'undefined' && window.APP_VERSION)
-      ? window.APP_VERSION
-      : Date.now();
+    // ⚠️ URL script SW phải LUÔN MỚI (timestamp), không dùng APP_VERSION.
+    // APP_VERSION = git hash → chỉ đổi khi commit. Deploy mà chưa commit
+    // → URL SW giữ nguyên → browser so sánh byte thấy "không đổi" → KHÔNG
+    // update → SW cũ (Cache-First JS/CSS) vẫn trả CSS cũ → phải Ctrl+F5.
+    var swVer = Date.now();
 
     // ⚠️ PHẢI đăng ký LẠI mỗi lần (không chỉ khi chưa có reg).
     // Nếu chỉ register khi `!reg`: SW cũ giữ nguyên URL script `/sw.v2.js?v=<hash cũ>`,
@@ -200,6 +202,11 @@
         // Ép kiểm tra bản mới ngay (kể cả khi SW đang active)
         if (reg && typeof reg.update === 'function') {
           reg.update().catch(function () { /* im lặng */ });
+        }
+        // SW mới đang chờ activate → reload 1 lần để áp dụng (không lặp)
+        if (reg && reg.waiting) {
+          try { sessionStorage.setItem('swReloadedForUpdate', '1'); } catch (e) {}
+          window.location.reload();
         }
       })
       .catch(function (e) { /* SW register failed silently */ });

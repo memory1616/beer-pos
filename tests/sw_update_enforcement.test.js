@@ -1,0 +1,102 @@
+/**
+ * Test: SW phải được cập nhật tự động, không cần Ctrl+F5.
+ *
+ * Chuỗi sự cố đã gặp (2026-11-25):
+ *  1. SW cũ dùng Cache-First cho JS/CSS → cache `/css/unified.css` (không
+ *     có `?v=`) → deploy file mới vẫn trả bản cũ từ cache.
+ *  2. layout.js (bản cũ trong cache) chưa có logic đăng ký SW mới →
+ *     SW mới không bao giờ được cài → vòng lặp.
+ *  3. Server trả `sw.v2.js` với `immutable, max-age=1 năm` → browser không
+ *     bao giờ tải lại script SW để so sánh byte → SW mới không được cài.
+ *
+ * Ba nhóm test dưới đây chốt lại 3 điểm đó.
+ */
+const fs = require('fs');
+const path = require('path');
+
+const ROOT = path.join(__dirname, '..');
+const serverSrc = fs.readFileSync(path.join(ROOT, 'server.js'), 'utf8');
+const layoutSrc = fs.readFileSync(path.join(ROOT, 'public', 'js', 'layout.js'), 'utf8');
+const swSrc = fs.readFileSync(path.join(ROOT, 'public', 'sw.v2.js'), 'utf8');
+
+describe('SW script KHÔNG bị cache dài hạn', () => {
+  test('server.js set no-store cho sw.js / sw.v2.js', () => {
+    const idx = serverSrc.indexOf('sw(\\.v\\d+)?\\.js$/i.test(filePath)');
+    expect(idx).toBeGreaterThan(-1);
+    const block = serverSrc.slice(idx, idx + 500);
+    expect(block).toContain('no-store');
+    expect(block).toContain('max-age=0');
+  });
+
+  test('KHÔNG set immutable cho SW script (chỉ ở nhánh else)', () => {
+    const idx = serverSrc.indexOf('sw(\\.v\\d+)?\\.js$/i.test(filePath)');
+    expect(idx).toBeGreaterThan(-1);
+    const block = serverSrc.slice(idx, idx + 700);
+    const elseIdx = block.indexOf('} else {');
+    expect(elseIdx).toBeGreaterThan(-1);
+    expect(block.slice(0, elseIdx)).not.toContain('immutable');
+  });
+});
+
+describe('SW update được ép trên MỌI trang', () => {
+  test('server.js inject script đăng ký SW vào HTML', () => {
+    expect(serverSrc).toContain('__beerSWUpdateInjected');
+  });
+
+  test('script inject dùng content-hash của sw.v2.js', () => {
+    const idx = serverSrc.indexOf("assetVersion('/sw.v2.js')");
+    expect(idx).toBeGreaterThan(-1);
+    const block = serverSrc.slice(idx, idx + 1000);
+    expect(block).toContain("register('/sw.v2.js?v=${swVer}'");
+    expect(block).toContain("updateViaCache: 'none'");
+    expect(block).toContain('reg.update()');
+  });
+
+  test('script inject xử lý reg.waiting → reload 1 lần (không lặp)', () => {
+    const idx = serverSrc.indexOf('__beerSWUpdateInjected');
+    const block = serverSrc.slice(idx, idx + 1400);
+    expect(block).toContain('reg.waiting');
+    expect(block).toContain('swReloadedForUpdate');
+    expect(block).toContain('location.reload()');
+  });
+});
+
+describe('layout.js đăng ký SW (global, mọi trang)', () => {
+  test('layout.js có logic đăng ký SW', () => {
+    expect(layoutSrc).toContain('__beerSWRegistered');
+    expect(layoutSrc).toContain('sw.v2.js?v=');
+  });
+
+  test('layout.js KHÔNG dùng guard !controller (tránh kẹt SW cũ)', () => {
+    // Bỏ qua comment — chỉ kiểm tra code thực thi.
+    const code = layoutSrc
+      .split('\n')
+      .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+      .join('\n');
+    expect(code).not.toMatch(/if\s*\(\s*!navigator\.serviceWorker\.controller\s*\)/);
+  });
+
+  test('layout.js dùng updateViaCache none + reg.update()', () => {
+    expect(layoutSrc).toContain("updateViaCache: 'none'");
+    expect(layoutSrc).toContain('reg.update()');
+  });
+});
+
+describe('sw.v2.js dọn cache cũ khi activate', () => {
+  test('activate xoá entry JS/CSS không có ?v=', () => {
+    const idx = swSrc.indexOf("addEventListener('activate'");
+    expect(idx).toBeGreaterThan(-1);
+    const block = swSrc.slice(idx, idx + 2000);
+    expect(block).toContain('staleAssets');
+    expect(block).toContain("searchParams.get('v') === null");
+    expect(block).toContain('cache.delete(req)');
+  });
+
+  test('activate xoá TRƯỚC khi clients.claim()', () => {
+    const idx = swSrc.indexOf("addEventListener('activate'");
+    const block = swSrc.slice(idx, idx + 2000);
+    const staleIdx = block.indexOf('staleAssets');
+    expect(staleIdx).toBeGreaterThan(-1);
+    expect(block.indexOf('clients.claim()')).toBeGreaterThan(staleIdx);
+  });
+});

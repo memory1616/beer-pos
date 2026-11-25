@@ -196,6 +196,69 @@ if (typeof document !== 'undefined') {
   }
 }
 
+// ── Đăng ký Service Worker (global) ─────────────────────────────────────────
+// Đặt ở layout.js vì file này được load ở MỌI trang (admin + driver).
+// Nhờ đó mọi lần mở app đều kích hoạt kiểm tra SW update → SW mới luôn
+// được cài, không bị kẹt bản cũ (bản cũ cache JS/CSS kiểu Cache-First
+// → trả file cũ từ cache → user phải Ctrl+F5).
+//
+// ⚠️ KHÔNG dùng guard `if (!navigator.serviceWorker.controller)`:
+//    SW cũ đang active sẽ khiến guard bỏ qua → SW mới không bao giờ
+//    được cài. Xem public/js/sw-register.js để hiểu chi tiết.
+(function () {
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+  if (window.__beerSWRegistered) return; // tránh đăng ký trùng trong 1 trang
+  window.__beerSWRegistered = true;
+
+  var swUrl = '/sw.v2.js?v=' + Date.now();
+  var RELOAD_FLAG = 'swReloadedForUpdate';
+
+  function reloadOnce(sw) {
+    if (!sw) return;
+    try { if (sessionStorage.getItem(RELOAD_FLAG)) return; } catch (e) { /* im lặng */ }
+    function doReload() {
+      try { sessionStorage.setItem(RELOAD_FLAG, '1'); } catch (e) { /* im lặng */ }
+      window.location.reload();
+    }
+    if (sw.state === 'activated') { doReload(); return; }
+    sw.addEventListener('statechange', function () {
+      if (sw.state === 'activated') doReload();
+    });
+  }
+
+  // updateViaCache:'none' → browser bypass HTTP cache (Nginx cache .js 30 ngày)
+  navigator.serviceWorker.register(swUrl, { updateViaCache: 'none' })
+    .then(function (reg) {
+      // Ép kiểm tra bản mới ngay, kể cả khi SW đang active.
+      if (reg && typeof reg.update === 'function') {
+        reg.update().catch(function () { /* im lặng */ });
+      }
+      if (reg && reg.waiting) reloadOnce(reg.waiting);
+      if (reg && typeof reg.addEventListener === 'function') {
+        reg.addEventListener('updatefound', function () {
+          var sw = reg.installing;
+          if (!sw) return;
+          sw.addEventListener('statechange', function () {
+            if (sw.state === 'installed' && navigator.serviceWorker.controller) {
+              reloadOnce(sw);
+            }
+          });
+        });
+      }
+    })
+    .catch(function () { /* đăng ký thất bại → im lặng, app vẫn chạy */ });
+
+  // Khi tab quay lại foreground → kiểm tra update thêm lần nữa
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState !== 'visible') return;
+    navigator.serviceWorker.getRegistration().then(function (reg) {
+      if (reg && typeof reg.update === 'function') {
+        reg.update().catch(function () { /* im lặng */ });
+      }
+    }).catch(function () { /* im lặng */ });
+  });
+})();
+
 // ── Button loading state helpers ─────────────────────────────────────────────
 // Used by stock.js, sales.js, purchases.js, expenses.js, and others.
 // Defined early so they're available before realtime.js loads (which is deferred).
