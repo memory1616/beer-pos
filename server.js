@@ -636,6 +636,8 @@ app.use((req, res, next) => {
 
   const isLocalCode = p.startsWith('/js/')
     || p.startsWith('/css/')
+    || p.startsWith('/brand/')
+    || p.startsWith('/icons/')
     || p === '/db.js'
     || p === '/sync.js'
     || p === '/sync-orders.js';
@@ -662,7 +664,7 @@ app.use(express.static(path.join(__dirname, 'public'), {
     // File KHÔNG có hash (vd. video-poster.svg) → cache ngắn hơn để cập nhật kịp.
     if (/\.[0-9a-f]{8}\.(webp|png|jpg|jpeg|mp4|svg|woff2?)$/i.test(filePath)) {
       res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-    } else if (/[\\/](landing-assets|icons)[\\/]/.test(filePath)) {
+    } else if (/[\\/](landing-assets|icons|brand)[\\/]/.test(filePath)) {
       res.setHeader('Cache-Control', 'public, max-age=86400');
     } else if (/[\\/]fonts[\\/].*\.woff2$/i.test(filePath)) {
       // Font self-host (Be Vietnam Pro): tên file đã content-addressed sẵn từ Google
@@ -801,9 +803,12 @@ app.use((req, res, next) => {
         //    (BUILD_ID không đổi) → không bao giờ phải Ctrl+F5.
         // Bao gồm cả /db.js (file gốc ở public/, nằm ngoài /js/).
         html = html.replace(/(<\s*(?:script|img|link)\s+[^>]*(?:src|href)\s*=\s*["'])(\/[^"']+)(")/gi, (match, prefix, path, suffix) => {
-          // Chỉ bust version cho asset local: /js/, /css/, /db.js, /sw.js
+          // Chỉ bust version cho asset local: /js/, /css/, /brand/, /icons/, /db.js
           const isLocalCode = path.startsWith('/js/')
             || path.startsWith('/css/')
+            || path.startsWith('/brand/')
+            || path.startsWith('/icons/')
+            || path === '/apple-touch-icon.png'
             || path === '/db.js'
             || path === '/sw.js'
             || path === '/sw.v2.js';

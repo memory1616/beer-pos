@@ -34,7 +34,7 @@ function getHeaderWithActions(title, icons, actions) {
   return `
     <header class="topbar app-header" role="banner">
       <div class="header-logo">
-        <span class="header-logo-icon" aria-hidden="true">${icons}</span>
+        <img class="header-logo-icon" src="/brand/logo-96.png" alt="" width="30" height="30" decoding="async">
         <div class="header-logo-text">
           <span class="header-title-text">${title}</span>
           <span class="header-version-text">v${appVersion}</span>

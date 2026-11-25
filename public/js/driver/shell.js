@@ -117,7 +117,7 @@
     return '' +
       '<aside class="ds-sidebar" aria-label="Điều hướng chính">' +
         '<div class="ds-side__brand">' +
-          '<span class="ds-side__logo" aria-hidden="true">🍺</span>' +
+          '<img class="ds-side__logo" src="/brand/logo-64.png" alt="" width="40" height="40" decoding="async">' +
           '<span class="ds-side__brandtext">' +
             '<span class="ds-side__name">Cổng Tài xế</span>' +
             '<span class="ds-side__tag">Bia Tươi Tây Ninh</span>' +

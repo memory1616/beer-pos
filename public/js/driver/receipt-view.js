@@ -57,7 +57,7 @@
 
         '<header class="rp-head">' +
           '<div class="rp-brand">' +
-            '<div class="rp-brand__logo">🍺</div>' +
+            '<img class="rp-brand__logo" src="/brand/logo-64.png" alt="" width="40" height="40" decoding="async">' +
             '<div>' +
               '<div class="rp-brand__name">BIA TƯƠI TÂY NINH</div>' +
               '<div class="rp-brand__sub">Cổng Tài xế · Phiếu giao nhận</div>' +

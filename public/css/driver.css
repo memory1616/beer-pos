@@ -1306,12 +1306,9 @@ body.body--app .page-content {
   width: 42px;
   height: 42px;
   flex: 0 0 42px;
-  display: grid;
-  place-items: center;
-  font-size: 1.3rem;
+  object-fit: contain;
+  display: block;
   border-radius: 13px;
-  background: var(--drv-grad-gold-strong);
-  box-shadow: 0 6px 18px rgba(240, 185, 11, .26);
 }
 
 .drv-home-header__brandtext { min-width: 0; }

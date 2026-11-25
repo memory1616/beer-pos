@@ -3653,9 +3653,11 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
 }
 
 .header-logo-icon {
-  font-size: 20px;
+  width: 30px;
+  height: 30px;
   flex-shrink: 0;
-  line-height: 1;
+  object-fit: contain;
+  display: block;
 }
 
 .header-logo-text {
@@ -5670,12 +5672,9 @@ input:invalid:not(:placeholder-shown) { border-color: var(--red) !important; }
 .login-logo {
   width: 64px;
   height: 64px;
-  background: var(--primary);
   border-radius: var(--radius-xl);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 36px;
+  object-fit: contain;
+  display: block;
   margin: 0 auto 20px;
 }
 
