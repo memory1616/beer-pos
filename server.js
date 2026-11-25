@@ -624,11 +624,19 @@ app.get('/version.json', (req, res) => {
 app.use((req, res, next) => {
   if (req.method !== 'GET' && req.method !== 'HEAD') return next();
   const p = req.path;
+
+  // ⚠️ Service Worker script: TUYỆT ĐỐI KHÔNG redirect (2026-11-25).
+  // Browser từ chối đăng ký SW nếu script URL bị redirect:
+  //   "SecurityError: The script resource is behind a redirect, which is disallowed."
+  // → SW mới không bao giờ được cài → SW cũ (Cache-First JS/CSS) tiếp tục
+  //   trả file cũ từ cache → user phải Ctrl+F5.
+  // SW tự quản lý version qua URL đăng ký (`?v=<content-hash>`), nên
+  // không cần redirect: URL mới → browser tải script mới → SW mới được cài.
+  if (p === '/sw.js' || p === '/sw.v2.js') return next();
+
   const isLocalCode = p.startsWith('/js/')
     || p.startsWith('/css/')
     || p === '/db.js'
-    || p === '/sw.js'
-    || p === '/sw.v2.js'
     || p === '/sync.js'
     || p === '/sync-orders.js';
   if (!isLocalCode) return next();

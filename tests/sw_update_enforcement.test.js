@@ -36,6 +36,17 @@ describe('SW script KHÔNG bị cache dài hạn', () => {
     expect(elseIdx).toBeGreaterThan(-1);
     expect(block.slice(0, elseIdx)).not.toContain('immutable');
   });
+
+  test('KHÔNG redirect SW script (browser chặn SW đứng sau redirect)', () => {
+    // Browser: "SecurityError: The script resource is behind a redirect,
+    // which is disallowed." → SW mới không bao giờ được cài.
+    const idx = serverSrc.indexOf("if (p === '/sw.js' || p === '/sw.v2.js') return next();");
+    expect(idx).toBeGreaterThan(-1);
+    // Đặt TRƯỚC logic redirect (dòng if (String(q) === current) return next())
+    const redirectIdx = serverSrc.indexOf('if (String(q) === current) return next();');
+    expect(redirectIdx).toBeGreaterThan(-1);
+    expect(idx).toBeLessThan(redirectIdx);
+  });
 });
 
 describe('SW update được ép trên MỌI trang', () => {
