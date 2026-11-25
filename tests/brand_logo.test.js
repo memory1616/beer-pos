@@ -92,8 +92,9 @@ describe('Asset logo tồn tại và đúng kích thước', () => {
 
   test('logo.png có nền trong suốt (không phải ảnh trắng đặc)', () => {
     const buf = fs.readFileSync(path.join(brandDir, 'logo.png'));
-    // PNG color type 6 = RGBA
-    expect(buf[25]).toBe(6);
+    // PNG color type: 6 = RGBA, 3 = palette (có alpha channel)
+    // Cả hai đều hỗ trợ nền trong suốt.
+    expect([3, 6]).toContain(buf[25]);
   });
 
   test('mọi app icon có kích thước vuông', () => {

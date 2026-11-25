@@ -130,18 +130,36 @@ def save_opt(im, path, colors=64):
     return os.path.getsize(path)
 
 
+def save_rgba_opt(im, path, colors=64):
+    """Luu PNG voi palette toi uu (giữ alpha).
+
+    RGBA chỉ quantize được bằng FASTOCTREE (MEDIANCUT không hỗ trợ alpha).
+    → dùng mode P (palette, color type 3): có alpha channel, file nhỏ hơn
+      RGBA ~3 lần (192KB vs 557KB cho logo 1024px) và trình duyệt hỗ trợ đầy đủ.
+    """
+    im = im.convert('RGBA')
+    # Gom alpha về 2 mức (0 hoặc 255) trước → ảnh sắc nét hơn + nhỏ hơn
+    a = im.getchannel('A').point(lambda v: 0 if v < 128 else 255)
+    im.putalpha(a)
+    q = im.quantize(colors=colors, method=Image.FASTOCTREE)
+    q.save(path, optimize=True)
+    return os.path.getsize(path)
+
+
 def main():
     os.makedirs(os.path.join(ROOT, 'public', 'brand'), exist_ok=True)
     src = Image.open(SRC).convert('RGB')
     logo = remove_bg(src)
 
-    logo.save(os.path.join(ROOT, 'public', 'brand', 'logo.png'))
-    logo.resize((512, 512), Image.LANCZOS).save(os.path.join(ROOT, 'public', 'brand', 'logo-512.png'))
-    fit_square(logo, 512, pad_ratio=0.10).save(os.path.join(ROOT, 'public', 'brand', 'logo-maskable.png'))
+    save_rgba_opt(logo, os.path.join(ROOT, 'public', 'brand', 'logo.png'), colors=64)
+    save_rgba_opt(logo.resize((512, 512), Image.LANCZOS),
+                  os.path.join(ROOT, 'public', 'brand', 'logo-512.png'), colors=64)
+    save_rgba_opt(fit_square(logo, 512, pad_ratio=0.10),
+                  os.path.join(ROOT, 'public', 'brand', 'logo-maskable.png'), colors=64)
     # Ban nho cho header / sidebar / login (nen trong suot)
     for s in (64, 96, 192):
-        logo.resize((s, s), Image.LANCZOS).save(
-            os.path.join(ROOT, 'public', 'brand', 'logo-%d.png' % s))
+        save_rgba_opt(logo.resize((s, s), Image.LANCZOS),
+                      os.path.join(ROOT, 'public', 'brand', 'logo-%d.png' % s), colors=64)
 
     DARK = (10, 14, 20, 255)
     for size in (16, 32, 180, 192, 512, 1024):
