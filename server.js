@@ -604,6 +604,10 @@ app.get('/version.json', (req, res) => {
   }
   meta.build = BUILD_ID;
   meta.date = new Date().toISOString().slice(0, 10);
+  // Content-hash của logo thương hiệu → frontend dùng làm cache-buster
+  // cho <img src="/brand/logo-*.png?v=..."> (URL nằm trong JS nên server
+  // KHÔNG inject được ?v= → phải lấy từ đây).
+  meta.brand = assetVersion('/brand/logo-96.png') || '';
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   res.set('Pragma', 'no-cache');
   res.set('Expires', '0');
@@ -636,8 +640,6 @@ app.use((req, res, next) => {
 
   const isLocalCode = p.startsWith('/js/')
     || p.startsWith('/css/')
-    || p.startsWith('/brand/')
-    || p.startsWith('/icons/')
     || p === '/db.js'
     || p === '/sync.js'
     || p === '/sync-orders.js';
@@ -651,6 +653,28 @@ app.use((req, res, next) => {
   const current = assetVersion(p);
   if (!current) return next();
   if (String(q) === current) return next();
+
+  const newUrl = `${req.originalUrl.split('?')[0]}?v=${current}`;
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.redirect(302, newUrl);
+});
+
+// ── Logo thương hiệu & app icon: LUÔN redirect sang URL có content-hash ──────
+// Vì sao riêng? Ảnh logo nằm trong URL của JS/HTML, có thể không kèm `?v=`.
+// Nếu URL không có hash mà nginx cache 30 ngày (`immutable`) → đổi logo mà
+// browser vẫn hiện ảnh cũ → phải Ctrl+F5.
+// Ở đây: URL không có `?v=` (hoặc sai) → 302 sang `?v=<hash>`.
+// URL có hash đúng → express.static phục vụ, `immutable` an toàn vì
+// nội dung file không đổi khi hash không đổi.
+app.use((req, res, next) => {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+  const p = req.path;
+  const isBrandAsset = p.startsWith('/brand/') || p.startsWith('/icons/');
+  if (!isBrandAsset) return next();
+
+  const current = assetVersion(p);
+  if (!current) return next();          // file không tồn tại → 404 bình thường
+  if (String(req.query.v) === current) return next();  // đã đúng hash
 
   const newUrl = `${req.originalUrl.split('?')[0]}?v=${current}`;
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');

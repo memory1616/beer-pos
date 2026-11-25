@@ -107,10 +107,25 @@ def optimize(im, colors=64):
     return im.convert('RGB')
 
 
-def save_opt(im, path, size_hint=None):
-    """Luu PNG voi palette toi uu, dam bao < 150KB."""
+def denoise(im, radius=1.2):
+    """Lam nhieu JPEG (dither/macro-block) bang MedianFilter.
+
+    Anh goc la JPEG nen nen co nhieu mau sac sat nhau. Median filter bo
+    cac pixel "le" ma giu nguyen duong bien → palette gon hon → PNG nhe hon
+    ma hinh van dep.
+    """
+    from PIL import ImageFilter
+    return im.convert('RGB').filter(ImageFilter.MedianFilter(size=3))
+
+
+def save_opt(im, path, colors=64):
+    """Luu PNG voi palette toi uu, dam bao < 150KB.
+
+    Kich thuoc lon (1024) can palette it hon de nhip < 150KB:
+    dung `colors` 32 cho >= 512px, 64 cho nho hon.
+    """
     im = im.convert('RGB')
-    q = im.quantize(colors=64, method=Image.MEDIANCUT, dither=Image.FLOYDSTEINBERG)
+    q = im.quantize(colors=colors, method=Image.MEDIANCUT, dither=Image.FLOYDSTEINBERG)
     q.save(path, optimize=True)
     return os.path.getsize(path)
 
@@ -130,14 +145,15 @@ def main():
 
     DARK = (10, 14, 20, 255)
     for size in (16, 32, 180, 192, 512, 1024):
-        save_opt(fit_square(logo, size, pad_ratio=0.06, bg=DARK),
-                 os.path.join(ROOT, 'public', 'icons', 'icon-%d.png' % size))
-    save_opt(fit_square(logo, 512, pad_ratio=0.12, bg=DARK),
-             os.path.join(ROOT, 'public', 'icons', 'icon-512-maskable.png'))
-    save_opt(fit_square(logo, 180, pad_ratio=0.05, bg=DARK),
-             os.path.join(ROOT, 'public', 'apple-touch-icon.png'))
-    save_opt(fit_square(logo, 32, pad_ratio=0.03, bg=DARK),
-             os.path.join(ROOT, 'public', 'icons', 'favicon-32.png'))
+        save_opt(denoise(fit_square(logo, size, pad_ratio=0.06, bg=DARK)),
+                 os.path.join(ROOT, 'public', 'icons', 'icon-%d.png' % size),
+                 colors=16 if size >= 1024 else (32 if size >= 512 else 64))
+    save_opt(denoise(fit_square(logo, 512, pad_ratio=0.12, bg=DARK)),
+             os.path.join(ROOT, 'public', 'icons', 'icon-512-maskable.png'), colors=32)
+    save_opt(denoise(fit_square(logo, 180, pad_ratio=0.05, bg=DARK)),
+             os.path.join(ROOT, 'public', 'apple-touch-icon.png'), colors=64)
+    save_opt(denoise(fit_square(logo, 32, pad_ratio=0.03, bg=DARK)),
+             os.path.join(ROOT, 'public', 'icons', 'favicon-32.png'), colors=64)
 
     # Thong ke
     alpha = logo.getchannel('A')
