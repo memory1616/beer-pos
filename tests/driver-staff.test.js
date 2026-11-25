@@ -21,7 +21,7 @@ jest.setTimeout(20000);
 function buildApp() {
   const express = require('express');
   const cookieParser = require('cookie-parser');
-  const { requireAuth, login } = require('../middleware/auth');
+  const { requireAuth } = require('../middleware/auth');
   const { apiGuard, attachSanitizer } = require('../middleware/permissions');
 
   const app = express();

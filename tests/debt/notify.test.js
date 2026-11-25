@@ -194,7 +194,7 @@ describe('OmiCallService — access token', () => {
 
   it('fallback: POST bị 405 → thử POST body-only rồi GET (staging)', async () => {
     const seen = [];
-    const fetchMock = mockFetch(async (url, options) => {
+    mockFetch(async (url, options) => {
       seen.push({ url: String(url), method: options.method });
       if (options.method === 'POST' && !String(url).includes('?apiKey=')) {
         return jsonResponse({ error: 'Method not allowed' }, 405);

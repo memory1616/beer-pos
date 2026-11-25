@@ -32,11 +32,11 @@
     if (userOverride === DEFAULTS.light || userOverride === DEFAULTS.dark) {
       return userOverride; // User da set → dung y het
     }
-    // Auto mode: thu system truoc
-    var systemTheme = getSystemTheme();
-    if (systemTheme) return systemTheme;
-    // Fallback: theo gio
-    return getTimeTheme();
+    // Auto mode: theo gio (06:00-18:00 → light) truoc,
+    // fallback sang system prefers-color-scheme neu user chua chon.
+    var timeTheme = getTimeTheme();
+    if (timeTheme) return timeTheme;
+    return getSystemTheme();
   }
 
   // ── Core: apply theme len DOM ─────────────────────────────────
@@ -88,7 +88,9 @@
 
   // ── Timer: kiem tra doi gio moi phut ───────────────────────────
   (function startTimeWatcher() {
-    setInterval(function () {
+    var lastCheckedHour = new Date().getHours();
+
+    function check() {
       var saved = localStorage.getItem(STORAGE_KEY);
       if (saved && saved !== 'auto') return; // Co user override → bo qua
       var theme = resolveTheme(saved);
@@ -97,7 +99,19 @@
         apply(theme);
         updateIcon(theme);
       }
-    }, 60 * 1000);
+      lastCheckedHour = new Date().getHours();
+    }
+
+    // Check lai khi tab quay lai focus (user lam viec o tab khac roi quay lai)
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden) return;
+      // Chi check neu da sang gio moi (tranh DOM write khong can)
+      if (new Date().getHours() !== lastCheckedHour) check();
+    });
+
+    window.addEventListener('focus', function () {
+      if (new Date().getHours() !== lastCheckedHour) check();
+    });
   })();
 
   // ── PUBLIC: khoi tao — goi TRUOC body render (trong <head>) ────

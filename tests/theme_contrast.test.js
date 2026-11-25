@@ -9,7 +9,7 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { contrastRatio, composite } = require('./helpers/contrast');
+const { contrastRatio } = require('./helpers/contrast');
 
 const UNIFIED = path.join(__dirname, '..', 'public', 'css', 'unified.css');
 const css = fs.readFileSync(UNIFIED, 'utf8');
@@ -84,7 +84,6 @@ describe('Contrast Card thưởng (promo-note--volume) — WCAG 2.1 AA', () => {
     const failures = [];
 
     Object.keys(THEMES).forEach((theme) => {
-      const t = THEMES[theme];
       const cardBg = TEXT_TOKEN_MAP['--promo-card-bg'][theme];
       const isLight = theme === 'light';
 

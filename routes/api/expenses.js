@@ -17,13 +17,6 @@ const EXPENSE_TYPES = {
   'Khác': 'other'
 };
 
-const TYPE_ICONS = {
-  'fuel': '⛽',
-  'food': '🍜',
-  'repair': '🔧',
-  'other': '📦'
-};
-
 // Get all expenses (exclude archived)
 router.get('/', (req, res) => {
   try {

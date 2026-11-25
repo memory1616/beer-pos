@@ -6,7 +6,6 @@ const { spawn } = require('child_process');
 const http = require('http');
 const path = require('path');
 const os = require('os');
-const fs = require('fs');
 const WebSocket = require('ws');
 
 const BASE = process.env.BASE || 'http://localhost:3000';
@@ -44,8 +43,7 @@ class CDP {
   const cleanup = () => { try { chrome.kill(); } catch (e) {} };
   process.on('exit', cleanup);
 
-  let ver = null;
-  for (let i = 0; i < 40; i++) { try { ver = JSON.parse(await httpGet(`http://127.0.0.1:${PORT}/json/version`)); break; } catch (e) { await sleep(250); } }
+  for (let i = 0; i < 40; i++) { try { await httpGet(`http://127.0.0.1:${PORT}/json/version`); break; } catch (e) { await sleep(250); } }
   const targets = JSON.parse(await httpGet(`http://127.0.0.1:${PORT}/json/list`));
   const page = targets.find((t) => t.type === 'page');
   const ws = new WebSocket(page.webSocketDebuggerUrl, { perMessageDeflate: false });

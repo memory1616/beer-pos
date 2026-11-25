@@ -117,7 +117,7 @@ function cleanup() {
 let adminApp;
 let driverAApp;
 let driverBApp;
-let regionIds = {};
+const regionIds = {};
 
 beforeAll(() => {
   migration058.up(db);

@@ -91,7 +91,7 @@ class NotAvailableZaloAdapter {
   /**
    * Gửi phản hồi vào nhóm (no-op).
    */
-  async sendToGroup(groupId, text) {
+  async sendToGroup(groupId) {
     logger.warn('[DEBT_ZALO] sendToGroup() không khả dụng — bỏ qua', { groupId });
     return { success: false, available: false, error: this.reason };
   }

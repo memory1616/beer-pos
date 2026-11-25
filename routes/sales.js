@@ -4,7 +4,6 @@ const db = require('../database');
 const path = require('path');
 const logger = require('../src/utils/logger');
 
-const DISTRIBUTOR_NAME = 'Bia Tươi Gia Huy';
 
 
 // GET /sale - Serve HTML file
@@ -60,7 +59,7 @@ router.get('/history', (req, res) => {
   const month = req.query.month ? parseInt(req.query.month) : null;
 
   let whereClause = "WHERE s.type IN ('sale', 'replacement', 'damage_return') AND s.archived = 0";
-  let params = [];
+  const params = [];
 
   if (year && month) {
     const yStr = String(year);

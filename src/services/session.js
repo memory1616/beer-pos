@@ -7,7 +7,6 @@
 const db = require('../../database');
 const logger = require('../utils/logger');
 
-const STORAGE_KEY = 'beer_pos_current_session';
 
 /**
  * Get today's date string (YYYY-MM-DD)

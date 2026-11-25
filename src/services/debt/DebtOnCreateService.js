@@ -81,7 +81,7 @@ function getMaxDebt() {
  *            limitExceeded?:boolean, currentDebt?:number, maxDebt?:number}}
  */
 function recordDebtOnCreate(opts = {}) {
-  const { saleId, customerId, amount, customerName, actor, force = false, dryRun = false } = opts;
+  const { saleId, customerId, amount, actor, force = false, dryRun = false } = opts;
 
   const id = parseInt(saleId, 10);
   const custId = parseInt(customerId, 10);

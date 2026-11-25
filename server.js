@@ -26,9 +26,8 @@ const helmet = require('helmet');
 
 // Error handling middleware
 const { errorHandler, notFoundHandler, requestLogger } = require('./middleware/errorHandler');
-const { cache } = require('./middleware/cache');
 // Content-hash per-file cho cache-busting asset (xem src/utils/assetVersion.js)
-const { assetVersion, invalidateAssetCache } = require('./src/utils/assetVersion');
+const { assetVersion } = require('./src/utils/assetVersion');
 
 // ── Global error handlers — prevent silent crash ───────────────────────────
 process.on('unhandledRejection', (reason, promise) => {
@@ -69,21 +68,28 @@ const HOST = process.env.HOST || '0.0.0.0';
 
 // Environment: 'admin' | 'public' | 'driver'
 // Logic phát hiện nằm ở src/utils/appMode.js (dùng chung với test).
-const {
-  getAppMode,
-  ADMIN_DOMAIN,
-  PUBLIC_DOMAIN,
-  DRIVER_DOMAIN,
-} = require('./src/utils/appMode');
+const { getAppMode } = require('./src/utils/appMode');
 
 // Rate limiting — skip /api/discover (LAN scan pings) and /api/auth/me (login check)
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 200,
+  // 600 req/15 phut. Trước đây 200 → admin mở app nhiều trang + realtime poll
+  // là đủ để dính 429, và TẤT CẢ thiết bị trong LAN cùng IP bị chặn chung.
+  max: 600,
   message: { error: 'Quá nhiều yêu cầu, vui lòng thử lại sau' },
   standardHeaders: true,
   legacyHeaders: false,
   validate: { xForwardedForHeader: false },
+  // Ưu tiên PHIÊN đăng nhập thay vì IP: mỗi người dùng 1 quota riêng,
+  // nhiều thiết bị cùng LAN không đụng quota của nhau.
+  keyGenerator: (req) => {
+    const auth = req.headers.authorization || '';
+    if (auth.startsWith('Bearer ')) return 'u:' + auth.slice(7, 47);
+    const ck = req.cookies && req.cookies.session_token;
+    if (ck) return 'u:' + String(ck).slice(0, 40);
+    // Chưa đăng nhập → theo IP (dùng ipKeyGenerator để xử lý đúng IPv6).
+    return 'ip:' + ipKeyGenerator(req.ip);
+  },
   skip: (req) => {
     if (req.path === '/discover' || req.path === '/auth/me') return true;
     // Driver Portal có limiter riêng (thấy bên dưới) — không áp limiter chung.
@@ -433,8 +439,6 @@ async function handleDeployWebhook(req, res, opts = {}) {
   }
 
   const ref = payload.ref || (payload.ref_override || 'manual');
-  const message = payload.message || payload.head_commit?.message || 'Manual deploy';
-  const commit = payload.head_commit?.id || payload.commit || null;
   const deployId = payload.deploy_id || req.get('x-deploy-id') || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
   // 3. Idempotency check (same deployId within TTL = skip)
@@ -856,6 +860,7 @@ window.APP_MODE = '${effectiveMode}';
 window.BASE_PATH = ${basePath ? `'${basePath}'` : 'null'};
 window.APP_VERSION = '${APP_VERSION}';
 window.BRAND_VERSION = '${brandHash}';
+window.SW_VERSION = '${assetVersion('/sw.v2.js') || APP_VERSION}';
 </script>`;
 
         if (!html.includes('window.APP_MODE')) {
@@ -863,7 +868,7 @@ window.BRAND_VERSION = '${brandHash}';
           // window.BRAND_VERSION có sẵn khi layout.js chạy.
           // Nếu inject cuối </head> mà layout.js nằm trong <head> → layout.js
           // đọc BRAND_VERSION lúc init → rỗng → logo không có ?v= → cache cũ.
-          html = html.replace(/<head(\s[^>]*)?>/i, (m, attrs) => m + ctxScript);
+          html = html.replace(/<head(\s[^>]*)?>/i, (m) => m + ctxScript);
         }
 
         // ── Ép SW update trên MỌI trang (2026-11-25) ────────────────────────
@@ -884,13 +889,48 @@ window.BRAND_VERSION = '${brandHash}';
   if (!('serviceWorker' in navigator)) return;
   if (window.__beerSWUpdateInjected) return;
   window.__beerSWUpdateInjected = true;
+  var RELOAD_FLAG = 'swReloadedForUpdate';
+  var RELOAD_TTL = 30 * 60 * 1000;
+  function canReload() {
+    try {
+      var last = parseInt(sessionStorage.getItem(RELOAD_FLAG) || '0', 10);
+      return !(last && (Date.now() - last) < RELOAD_TTL);
+    } catch (e) { return true; }
+  }
+  function markReloaded() {
+    try { sessionStorage.setItem(RELOAD_FLAG, String(Date.now())); } catch (e) {}
+  }
+  function activateAndReload(sw) {
+    if (!sw || !canReload()) return;
+    // SW khong tu skipWaiting() (tranh vong lap reload) → client yeu cau.
+    try { if (sw.postMessage) sw.postMessage({ type: 'SKIP_WAITING' }); } catch (e) {}
+    var done = function () {
+      if (!canReload()) return;
+      markReloaded();
+      window.location.reload();
+    };
+    if (sw.state === 'activated') { done(); return; }
+    sw.addEventListener('statechange', function () {
+      if (sw.state === 'activated') done();
+    });
+  }
   try {
     navigator.serviceWorker.register('/sw.v2.js?v=${swVer}', { updateViaCache: 'none' })
       .then(function (reg) {
         if (reg && typeof reg.update === 'function') reg.update().catch(function(){});
         if (reg && reg.waiting) {
-          try { sessionStorage.setItem('swReloadedForUpdate','1'); } catch(e){}
-          window.location.reload();
+          activateAndReload(reg.waiting);
+        }
+        if (reg && typeof reg.addEventListener === 'function') {
+          reg.addEventListener('updatefound', function () {
+            var sw = reg.installing;
+            if (!sw) return;
+            sw.addEventListener('statechange', function () {
+              if (sw.state === 'installed' && navigator.serviceWorker.controller) {
+                activateAndReload(sw);
+              }
+            });
+          });
         }
       })
       .catch(function(){});
@@ -976,7 +1016,7 @@ async function createConsistentBackup(destPath) {
   }
 }
 
-async function createBackup(options = {}) {
+async function createBackup() {
   const backupDir = path.join(__dirname, 'backup');
   const now = new Date();
   const today = now.toISOString().split('T')[0];
@@ -984,7 +1024,6 @@ async function createBackup(options = {}) {
   const minute = String(now.getMinutes()).padStart(2, '0');
 
   if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
-  const dbPath = path.join(__dirname, 'database.sqlite');
   const timestamp = `${today}-${hour}${minute}`;
   const backupFile = path.join(backupDir, `backup-${timestamp}.db`);
 
@@ -1057,7 +1096,7 @@ async function cleanupOldBackupsAsync(backupDir) {
 }
 
 cron.schedule('0 23 * * *', async () => {
-  await createBackup({ daily: true });
+  await createBackup();
 }, {
   timezone: 'Asia/Ho_Chi_Minh',
 });
@@ -1365,6 +1404,8 @@ app.get('/debts', (req, res) => sendPageNoCache(req, res, 'debts.html'));
 app.get('/so-cong-no', (req, res) => res.redirect('/debts'));
 app.get('/purchases', (req, res) => sendPageNoCache(req, res, 'purchases.html'));
 app.get('/kegs', (req, res) => sendPageNoCache(req, res, 'kegs.html'));
+// A3 — Đối soát phiếu giao (khoá số liệu 1 lần, có audit log)
+app.get('/delivery-recon', (req, res) => sendPageNoCache(req, res, 'delivery-recon.html'));
 // /report is handled by routes/report.js (serves full HTML page)
 // Lưu ý: KHÔNG có route /backup — views/backup.html đã bị gỡ bỏ (dead code).
 // API backup vẫn hoạt động tại /api/backup/* (quản lý backup qua API).
@@ -1657,7 +1698,7 @@ app.get('/api/discover', (req, res) => {
 });
 
 // ==================== ERROR HANDLER ====================
-app.use((err, req, res, next) => {
+app.use((err, req, res, _next) => {
   logger.error('Unhandled server error', { message: err.message, stack: err.stack });
   if (err.message?.includes('SQLITE_CANTOPEN')) {
     return res.status(503).json({ error: 'Database not available' });

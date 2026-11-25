@@ -162,20 +162,9 @@ router.get('/delta', (req, res) => {
       SELECT * FROM keg_stats WHERE id = 1
     `).get();
 
-    // Action logs since lastSync
-    // Bảng `action_logs` đã bị bỏ (migration 056 — bảng chết, không ai ghi vào).
-    // Truy vấn có thể lỗi nếu bảng không tồn tại → bọc try/catch cho an toàn.
-    try {
-      delta.actionLogs = db.prepare(`
-        SELECT uuid, action, entity, entity_id, payload, created_at
-        FROM action_logs
-        WHERE created_at >= ?
-        ORDER BY created_at ASC
-        LIMIT 100
-      `).all(sinceDate);
-    } catch (_) {
-      delta.actionLogs = [];
-    }
+    // `action_logs` đã bị migration 056 drop vĩnh viễn (bảng chết) →
+    // không còn truy vấn. Client đọc `delta.actionLogs` (luôn = []).
+    delta.actionLogs = [];
 
     delta.meta = {
       timestamp: new Date().toISOString(),
@@ -280,7 +269,7 @@ router.post('/batch', (req, res) => {
         let result;
 
         switch (`${entity}:${action}`) {
-          case 'expense:create':
+          case 'expense:create': {
             const expResult = db.prepare(`
               INSERT INTO expenses (uuid, category, type, amount, description, date, time, version)
               VALUES (?, ?, ?, ?, ?, ?, ?, 1)
@@ -295,6 +284,7 @@ router.post('/batch', (req, res) => {
             );
             result = { success: true, id: expResult.lastInsertRowid };
             break;
+          }
 
           case 'sale:update':
             db.prepare(`

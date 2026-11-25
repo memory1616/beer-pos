@@ -601,7 +601,7 @@ function findCustomersByName(name, limit = 5) {
  *
  * @returns {Array<{customer:object, score:number}>}
  */
-function findCustomersByAmount(amount, limit = 5) {
+function findCustomersByAmount(amount) {
   const value = roundMoney(amount);
   if (!(value > 0)) return [];
 
@@ -728,7 +728,7 @@ function smartMatchCustomer(tx) {
   // ── Chiến lược 4: số tiền (suy đoán) ─────────────────────────────────
   if (settings.byAmount) {
     const amount = roundMoney(tx.transfer_amount);
-    const byAmount = findCustomersByAmount(amount, 5);
+    const byAmount = findCustomersByAmount(amount);
     if (byAmount.length === 1 && 0.5 >= settings.minConfidence) {
       return {
         customer: byAmount[0].customer,

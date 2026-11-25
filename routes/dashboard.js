@@ -4,7 +4,6 @@ const db = require('../database');
 const path = require('path');
 const { newShopExcludeFilter } = require('../src/services/PreOrderSQL');
 
-const DISTRIBUTOR_NAME = 'Bia Tươi Gia Huy';
 
 
 // Helper: get Vietnam date string (YYYY-MM-DD) - fix timezone for cloud servers
@@ -365,13 +364,13 @@ router.get('/data', (req, res) => {
 
         const nearTierCustomers = nearTier.map(function(c) {
           // Bia Inox V2: dùng promotionCalc để tính next tier chính xác
-          var PromoCalc = require('../src/services/promotionCalc');
-          var yellowV = c.yellowLiters || 0;
-          var blackV = c.blackLiters || 0;
-          var tierCalc = PromoCalc.calculatePromotion(yellowV, blackV);
-          var nextInfo = PromoCalc.getNextTierProgress(yellowV, blackV);
-          var totalLiters = (yellowV || 0) + (blackV || 0);
-          var nextTierLabel;
+          const PromoCalc = require('../src/services/promotionCalc');
+          const yellowV = c.yellowLiters || 0;
+          const blackV = c.blackLiters || 0;
+          const tierCalc = PromoCalc.calculatePromotion(yellowV, blackV);
+          const nextInfo = PromoCalc.getNextTierProgress(yellowV, blackV);
+          const totalLiters = (yellowV || 0) + (blackV || 0);
+          let nextTierLabel;
           if (tierCalc.totalReward >= 40) {
             nextTierLabel = 'Đã đạt tối đa';
           } else if (nextInfo.nextThreshold === 300) {
@@ -381,8 +380,8 @@ router.get('/data', (req, res) => {
           } else {
             nextTierLabel = '—';
           }
-          var toNext = nextInfo.litersToNext || 0;
-          var pct = nextInfo.nextThreshold
+          const toNext = nextInfo.litersToNext || 0;
+          const pct = nextInfo.nextThreshold
             ? Math.min(100, Math.round((totalLiters / nextInfo.nextThreshold) * 100))
             : 100;
           return {

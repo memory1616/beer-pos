@@ -52,12 +52,6 @@ function q1(sql, ...params) {
   return row;
 }
 
-function sqlite(sql) {
-  return execSync(
-    `cd /var/www/beer-pos && sqlite3 database.sqlite ${JSON.stringify(sql)}`,
-    { encoding: 'utf8' }
-  ).trim();
-}
 
 (async () => {
   // ── 1. Login ─────────────────────────────────────────────────────────────

@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const logger = require('../src/utils/logger');
 
-const DISTRIBUTOR_NAME = process.env.DISTRIBUTOR_NAME || 'Bia Tuoi Gia Huy';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PROXY BẢN ĐỒ — /map-tiles/:z/:x/:y.jpg

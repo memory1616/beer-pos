@@ -89,7 +89,7 @@ const DELIVERY_DATE_EXPR_NO_ALIAS = `CASE
  * @param {string} periodStart - ngay dau ky danh gia (YYYY-MM-DD)
  * @returns {string} dieu kien SQL (dung cho WHERE)
  */
-function newShopExcludeFilter(alias, periodStart) {
+function newShopExcludeFilter(alias) {
   const p = alias ? alias + '.' : '';
   // Khach khong co created_at -> coi nhu khach cu -> van canh bao.
   return `(${p}created_at IS NULL OR date(${p}created_at) < date(?))`;

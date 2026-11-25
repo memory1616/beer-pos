@@ -43,13 +43,6 @@ const db = require(path.join(__dirname, '..', '..', 'database'));
 const DRY_RUN = process.argv.includes('--dry-run');
 
 /** Lấy tên bia để phân loại vàng/đen (dùng cùng logic với PromotionService). */
-const BLACK_KEYWORDS = ['guinness', 'kilkenny', 'murphy', 'black', 'đen', 'smithwick'];
-function classifyBeer(name) {
-  if (!name) return 'gold';
-  const n = String(name).toLowerCase();
-  for (const k of BLACK_KEYWORDS) if (n.indexOf(k) !== -1) return 'black';
-  return 'gold';
-}
 
 // ── Tìm đơn bị ảnh hưởng ────────────────────────────────────────────────────
 // Lấy CẢ đơn active (archived = 0) LẪN đơn archived (archived = 1).

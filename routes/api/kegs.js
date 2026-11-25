@@ -76,7 +76,6 @@ router.post('/state', (req, res) => {
   const { emptyCollected, inventory, note } = req.body;
 
   try {
-    const beforeState = getKegState();
     let didAdjust = false;
 
     // Update empty_collected if provided
@@ -413,8 +412,6 @@ router.post('/return', (req, res) => {
       // 3. Cập nhật empty_collected (thu thêm → +; trả lại → -)
       //    ⚠️ CHO PHÉP ÂM: thu vỏ rỗng từ khách bù được vào số âm.
       if (newlyCollected > 0 || newlyReturnedToCustomer > 0) {
-        const stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
-        const currentEmpty = stats?.empty_collected || 0;
         const newEmpty = KegBalanceService.peekEmptyCollected(
           newlyCollected - newlyReturnedToCustomer
         );
@@ -523,8 +520,8 @@ router.get('/history', (req, res) => {
   const offset = (page - 1) * limit;
 
   try {
-    let where = [];
-    let params = [];
+    const where = [];
+    const params = [];
 
     if (type) { where.push('type = ?'); params.push(type); }
     if (customer_id) { where.push('customer_id = ?'); params.push(parseInt(customer_id)); }
@@ -562,16 +559,13 @@ router.get('/history-summary', (req, res) => {
   const { period = 'week' } = req.query; // day | week | month
 
   try {
-    let dateGroup, dateFormat;
+    let dateGroup;
     if (period === 'day') {
       dateGroup = "strftime('%Y-%m-%d', date)";
-      dateFormat = '%Y-%m-%d';
     } else if (period === 'month') {
       dateGroup = "strftime('%Y-%m', date)";
-      dateFormat = '%Y-%m';
     } else {
       dateGroup = "strftime('%Y-W%W', date)";
-      dateFormat = '%Y-W%W';
     }
 
     const summary = db.prepare(`

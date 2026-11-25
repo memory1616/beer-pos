@@ -3,7 +3,6 @@ const router = express.Router();
 const db = require('../database');
 const path = require('path');
 
-const DISTRIBUTOR_NAME = 'Bia Tươi Gia Huy';
 
 
 // GET /stock - Serve HTML file

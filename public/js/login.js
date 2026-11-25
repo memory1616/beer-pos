@@ -185,11 +185,17 @@
 
   // ── Register Service Worker ───────────────────────────────
   if ('serviceWorker' in navigator) {
-    // ⚠️ URL script SW phải LUÔN MỚI (timestamp), không dùng APP_VERSION.
-    // APP_VERSION = git hash → chỉ đổi khi commit. Deploy mà chưa commit
-    // → URL SW giữ nguyên → browser so sánh byte thấy "không đổi" → KHÔNG
-    // update → SW cũ (Cache-First JS/CSS) vẫn trả CSS cũ → phải Ctrl+F5.
-    var swVer = Date.now();
+    // ⚠️ Dùng version HASH ỔN ĐỊNH (APP_VERSION), KHÔNG dùng Date.now().
+    //
+    // BUG (2026-11-25): timestamp tạo URL MỚI mỗi lần load → browser coi là
+    // SW mới → install → skipWaiting() → activate → clients.claim() → reload
+    // → lặp lại (reload liên tục, app không dùng được).
+    //
+    // APP_VERSION = git hash (server inject sau <head>, luôn có sẵn trước
+    // script này) → cùng bản deploy → cùng URL → browser so sánh byte →
+    // không install lại → không reload. Khi deploy bản mới, hash đổi → SW
+    // mới được cài đúng 1 lần.
+    var swVer = window.SW_VERSION || window.APP_VERSION || '38';
 
     // ⚠️ PHẢI đăng ký LẠI mỗi lần (không chỉ khi chưa có reg).
     // Nếu chỉ register khi `!reg`: SW cũ giữ nguyên URL script `/sw.v2.js?v=<hash cũ>`,

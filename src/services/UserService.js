@@ -127,7 +127,7 @@ class UserService {
   }
 
   /** Đổi mật khẩu (bởi chính user hoặc admin) */
-  static changePassword(id, newPassword, actorRole = ROLE_ADMIN) {
+  static changePassword(id, newPassword) {
     const strength = validatePasswordStrength(newPassword);
     if (!strength.valid) return { success: false, error: strength.error };
     try {

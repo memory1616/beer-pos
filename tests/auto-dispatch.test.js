@@ -105,7 +105,7 @@ function cleanup() {
 
 let adminApp;
 let driverAApp;
-let regionIds = {};
+const regionIds = {};
 
 beforeAll(() => {
   migration058.up(db);
@@ -577,7 +577,6 @@ describe('M. Đổi khu vực khách hàng → tái điều phố đơn chưa ho
 // ═══════════════════════════════════════════════════════════════════════════
 describe('N. Đổi tài xế phụ trách khu vực → đơn & phiếu giao đi theo', () => {
   let cust;
-  let prod;
 
   function createSaleFor(customerId, regionId, driverUsername) {
     const today = db.getVietnamDateStr();

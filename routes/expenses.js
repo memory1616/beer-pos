@@ -14,18 +14,16 @@ function formatVND(amount) {
 router.get('/', (req, res, next) => {
   try {
   const today = new Date().toISOString().split('T')[0];
-  const { month, year, filter } = req.query;
+  const { year, filter } = req.query;
 
   const now = new Date();
   let startStr;
   let endStr;
   let labelThangNam;
-  let filterMode = filter || 'all'; // 'year', 'all'
+  const filterMode = filter || 'all'; // 'year', 'all'
 
   const vnForLabel = new Date(now.getTime() + 7 * 60 * 60 * 1000);
   const currentYear = vnForLabel.getUTCFullYear();
-  const currentMonth = vnForLabel.getUTCMonth() + 1;
-  const selectedMonth = month ? parseInt(month, 10) : currentMonth;
   const selectedYear = year ? parseInt(year, 10) : currentYear;
 
   if (filterMode === 'all') {
@@ -131,7 +129,7 @@ router.get('/', (req, res, next) => {
     'Khác': '📋'
   };
   // Add custom category icons
-  for (var ci = 0; ci < customCategories.length; ci++) {
+  for (let ci = 0; ci < customCategories.length; ci++) {
     categoryIcons[customCategories[ci].name] = customCategories[ci].icon;
   }
 

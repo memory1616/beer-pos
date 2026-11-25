@@ -572,7 +572,7 @@ function listMissingNotifications(opts = {}) {
  *
  * @param {number} txId - id của `sepay_transactions`
  */
-async function resendNotificationForTx(txId, opts = {}) {
+async function resendNotificationForTx(txId) {
   const id = parseInt(txId, 10);
   if (!id || Number.isNaN(id)) {
     return { success: false, error: 'txId không hợp lệ' };

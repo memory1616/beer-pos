@@ -11,8 +11,19 @@ const SECRET = process.env.WEBHOOK_SECRET || '';
 const GIT_DIR = process.env.BEER_POS_DIR || '/root/beer-pos';
 const DEPLOY_SCRIPT = process.env.BEER_POS_DEPLOY_SCRIPT || `${GIT_DIR}/deploy/deploy.sh`;
 
+
+
 function log(level, msg) {
-  // Deployment logging — silenced for clean output
+  // Deployment logging — ghi ra stdout/stderr theo muc do
+  const ts = new Date().toISOString();
+  const line = `[deploy ${ts}] ${level}: ${msg}`;
+  if (level === 'ERROR') {
+    console.error(line);
+  } else if (level === 'WARN') {
+    console.warn(line);
+  } else {
+    console.log(line);
+  }
 }
 
 function verifySignature(payload, signature) {

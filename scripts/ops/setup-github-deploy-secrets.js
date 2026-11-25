@@ -12,7 +12,6 @@
  * Chạy:  node scripts/ops/setup-github-deploy-secrets.js
  */
 const https = require('https');
-const crypto = require('crypto');
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');

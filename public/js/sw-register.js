@@ -28,8 +28,16 @@
 
   if (!('serviceWorker' in navigator)) return;
 
-  // URL script SW kèm timestamp → luôn là URL mới → không bao giờ dùng bản cache.
-  var swUrl = '/sw.v2.js?v=' + Date.now();
+  // URL script SW kèm version HASH ỔN ĐỊNH (không dùng Date.now()).
+  //
+  // ⚠️ BUG (2026-11-25): `?v=Date.now()` tạo URL MỚI mỗi lần load trang →
+  // browser luôn coi đó là SW mới → install → skipWaiting() → activate →
+  // clients.claim() → reload → lặp lại (reload liên tục).
+  //
+  // Sửa: dùng hash version từ /version.json (fallback: window.APP_VERSION).
+  // Cùng hash → cùng URL → browser so sánh byte → KHÔNG install lại →
+  // KHÔNG reload.
+  var swUrl = '/sw.v2.js?v=' + (window.SW_VERSION || window.APP_VERSION || '38');
 
   // Cờ đánh dấu: đã reload vì SW update trong phiên này chưa.
   var RELOAD_FLAG = 'swReloadedForUpdate';
@@ -44,7 +52,7 @@
 
         // Nếu có SW mới đang chờ activate → reload 1 lần để áp dụng.
         if (reg && reg.waiting) {
-          reloadOnceWhenActivated(reg.waiting);
+          activateAndReload(reg.waiting);
         }
         if (reg && typeof reg.addEventListener === 'function') {
           reg.addEventListener('updatefound', function () {
@@ -52,7 +60,7 @@
             if (!sw) return;
             sw.addEventListener('statechange', function () {
               if (sw.state === 'installed' && navigator.serviceWorker.controller) {
-                reloadOnceWhenActivated(sw);
+                activateAndReload(sw);
               }
             });
           });
@@ -72,11 +80,21 @@
     }
   }
 
-  function reloadOnceWhenActivated(sw) {
+  // Yeu cau SW moi activate ngay + reload 1 lan (co han).
+  function activateAndReload(sw) {
     if (!sw) return;
-    if (sessionStorage.getItem(RELOAD_FLAG)) return;
+    try {
+      var last = parseInt(sessionStorage.getItem(RELOAD_FLAG) || '0', 10);
+      if (last && (Date.now() - last) < RELOAD_TTL) return;
+    } catch (e) { /* im lặng */ }
+
+    // SW khong tu skipWaiting() (tranh vong lap) → client yeu cau.
+    try {
+      if (sw.postMessage) sw.postMessage({ type: 'SKIP_WAITING' });
+    } catch (e) { /* im lặng */ }
+
     var doReload = function () {
-      try { sessionStorage.setItem(RELOAD_FLAG, '1'); } catch (e) { /* im lặng */ }
+      try { sessionStorage.setItem(RELOAD_FLAG, String(Date.now())); } catch (e) { /* im lặng */ }
       window.location.reload();
     };
     if (sw.state === 'activated') { doReload(); return; }

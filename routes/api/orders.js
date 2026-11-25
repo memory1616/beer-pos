@@ -68,7 +68,7 @@ router.get('/', (req, res) => {
     const since = req.query.since || null; // ISO timestamp for incremental sync
 
     let whereClause = "WHERE s.type IN ('sale', 'replacement', 'damage_return') AND s.archived = 0";
-    let params = [];
+    const params = [];
 
     if (since) {
       whereClause += " AND (s.updated_at > ? OR s.created_at > ?)";

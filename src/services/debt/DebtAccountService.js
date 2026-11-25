@@ -14,7 +14,6 @@ const {
   TRANSACTION_TYPES,
   SOURCES,
   REFERENCE_TYPES,
-  EVENT_TYPES,
   ACCOUNT_STATUS,
 } = require('./constants');
 const DebtLedgerService = require('./DebtLedgerService');

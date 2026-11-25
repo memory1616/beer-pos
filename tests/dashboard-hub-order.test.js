@@ -22,6 +22,7 @@ const EXPECTED_ORDER = [
   '/preorders',    // 📅 Đặt hàng trước
   '/report-notify', // 📨 Báo cáo tự động
   '/audit-log',    // 📜 Nhật ký hệ thống
+  '/delivery-recon', // 🚚 Đối soát phiếu giao
   '/sessions',     // 🔐 Phiên đăng nhập
   '/push-notify',  // 🔔 Thông báo tài xế
 ];

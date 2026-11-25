@@ -65,7 +65,7 @@ function makeSale(customerId, total, opts = {}) {
   return info.lastInsertRowid;
 }
 
-function makeDelivery(saleId, customerId, status = 'PENDING') {
+function _makeDelivery(saleId, customerId, status = 'PENDING') {
   const info = db
     .prepare(
       `INSERT INTO delivery_records (sale_id, customer_id, driver_username, status,

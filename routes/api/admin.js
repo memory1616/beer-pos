@@ -200,10 +200,28 @@ router.get('/deliveries/reconciliation', requireAdmin, (req, res) => {
     const limit = Math.min(parseInt(req.query.limit || '100', 10), 500);
     const offset = parseInt(req.query.offset || '0', 10) || 0;
     const onlyReconciled = req.query.reconciled !== '0';
+    const status = req.query.status ? String(req.query.status).trim().toUpperCase() : '';
+    const search = req.query.search ? String(req.query.search).trim() : '';
 
-    const where = onlyReconciled
-      ? "WHERE dr.reconciled_at IS NOT NULL AND dr.reconciled_at <> ''"
-      : '';
+    // WHERE dong — dung parameterized de tranh SQL injection.
+    const clauses = [];
+    const params = [];
+    if (onlyReconciled) {
+      clauses.push("dr.reconciled_at IS NOT NULL AND dr.reconciled_at <> ''");
+    }
+    if (status) {
+      clauses.push('dr.status = ?');
+      params.push(status);
+    }
+    if (search) {
+      clauses.push(
+        '(CAST(dr.id AS TEXT) LIKE ? OR CAST(dr.sale_id AS TEXT) LIKE ? ' +
+        'OR IFNULL(c.name, \'\') LIKE ? OR IFNULL(dr.driver_username, \'\') LIKE ?)'
+      );
+      const like = '%' + search + '%';
+      params.push(like, like, like, like);
+    }
+    const where = clauses.length ? 'WHERE ' + clauses.join(' AND ') : '';
 
     const rows = db
       .prepare(
@@ -219,14 +237,16 @@ router.get('/deliveries/reconciliation', requireAdmin, (req, res) => {
           ORDER BY dr.reconciled_at DESC, dr.id DESC
           LIMIT ? OFFSET ?`
       )
-      .all(limit, offset);
+      .all(...params, limit, offset);
 
+    // COUNT dùng CHUNG `where` → dùng cùng bộ params.
     const total = db
       .prepare(
         `SELECT COUNT(*) AS c FROM delivery_records dr
-          ${onlyReconciled ? "WHERE dr.reconciled_at IS NOT NULL AND dr.reconciled_at <> ''" : ''}`
+           LEFT JOIN customers c ON c.id = dr.customer_id
+          ${where}`
       )
-      .get()?.c || 0;
+      .get(...params)?.c || 0;
 
     res.json({ success: true, deliveries: rows, total, limit, offset });
   } catch (err) {

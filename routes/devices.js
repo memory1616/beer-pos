@@ -4,7 +4,7 @@ const db = require('../database');
 const logger = require('../src/utils/logger');
 
 // GET /devices - Serve devices page
-router.get('/', (req, res, next) => {
+router.get('/', (req, res) => {
   res.sendFile(require('path').join(__dirname, '../views', 'devices.html'));
 });
 

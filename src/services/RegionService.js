@@ -1067,9 +1067,9 @@ function assignSaleDriver(saleId, driverUsername, opts = {}) {
   }
 
   // Ghi đè khu vực (tái điều phố khi khách đổi khu vực)
-  if (opts.hasOwnProperty('regionId')) {
+  if (Object.prototype.hasOwnProperty.call(opts, 'regionId')) {
     regionId = opts.regionId ?? null;
-    regionName = opts.hasOwnProperty('regionName')
+    regionName = Object.prototype.hasOwnProperty.call(opts, 'regionName')
       ? (opts.regionName ?? null)
       : (regionId ? regionName : null);
   }

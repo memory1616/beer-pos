@@ -219,3 +219,8 @@ scripts/.responsive-manifest.json
 /check_open_files.py
 /check_wal.py
 /check_firewall.*
+
+# Script scratch trong deploy/ (KHÔNG commit)
+deploy/_tmp_*
+deploy/_check_*
+deploy/_diag_*

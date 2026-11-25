@@ -421,7 +421,7 @@ function buildMessageBodies(convId, channelId, text) {
  * @returns {Promise<string>} channel_id hoặc '' nếu không lấy được
  */
 async function fetchChannelId(ctx = {}) {
-  const { apiKey, baseUrl, token, headers } = ctx;
+  const { apiKey, baseUrl, headers } = ctx;
 
   // Cache trong RAM — channel_id hiếm khi đổi, không cần gọi lại mỗi tin.
   const cacheKey = `channel|${apiKey}|${baseUrl}`;
@@ -542,7 +542,7 @@ async function resolveMongoConvId(ctx = {}, convNumber) {
  * @returns {Promise<boolean>} true nếu đã có quyền (gán thành công hoặc đã có sẵn)
  */
 async function ensureAgentInGroup(ctx = {}, convMongoId) {
-  const { apiKey, baseUrl, token, headers } = ctx;
+  const { baseUrl, token, headers } = ctx;
   const conv = String(convMongoId || '').trim();
   if (!conv) return false;
 

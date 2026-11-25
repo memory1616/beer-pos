@@ -54,7 +54,7 @@ function asyncHandler(fn) {
  * Global error handler middleware
  * Must be registered AFTER all routes
  */
-function errorHandler(err, req, res, next) {
+function errorHandler(err, req, res, _next) {
   // Log error
   logger.error('Request error', {
     method: req.method,

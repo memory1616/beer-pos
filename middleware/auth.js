@@ -54,8 +54,7 @@ let cleanupHandle = null;
 try {
   cleanupHandle = setInterval(() => {
     const now = Date.now();
-    const cleaned = db.prepare(`DELETE FROM auth_sessions WHERE expires_at < ?`).run(now).changes;
-    if (cleaned > 0) {}
+    db.prepare(`DELETE FROM auth_sessions WHERE expires_at < ?`).run(now);
   }, 30 * 60 * 1000);
   // unref() để timer không giữ process sống (nhất quán với middleware/cache.js)
   if (cleanupHandle && typeof cleanupHandle.unref === 'function') {

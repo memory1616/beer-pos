@@ -682,6 +682,17 @@ class PromotionService {
     };
     if (!settings.newShopEnabled) return empty;
 
+    // ── Cờ bật/tắt ở mức KHÁCH HÀNG ────────────────────────────────────
+    // Khách có thể được admin tắt riêng "khuyến mãi quán mới"
+    // (customers.new_shop_enabled) hoặc tắt chung "tham gia CTKM"
+    // (customers.promotion_enabled) → KHÔNG được hưởng quán mới.
+    const cust = db
+      .prepare('SELECT promotion_enabled, new_shop_enabled FROM customers WHERE id = ?')
+      .get(customerId);
+    if (!cust) return empty;
+    if (cust.promotion_enabled === 0) return empty;
+    if (cust.new_shop_enabled === 0) return empty;
+
     const monthStr = String(month).padStart(2, '0');
 
     // Lít MUA THẬT trong tháng (loại phần tặng price = 0)
@@ -851,7 +862,7 @@ class PromotionService {
     // Tính next tier progress
     const nextTierInfo = promotionCalc.getNextTierProgress(yellowVolume, blackVolume);
     let progressToNext = 0;
-    let litersToNext = nextTierInfo.litersToNext;
+    const litersToNext = nextTierInfo.litersToNext;
     if (nextTierInfo.nextThreshold && nextTierInfo.nextThreshold > 0) {
       // Dùng volume tương ứng với mode để tính %
       let progressVolume = totalVolume;
@@ -1014,7 +1025,7 @@ class PromotionService {
    * @param {number} productId - chỉ dùng làm fallback; hàm tự tìm product vàng/đen
    * @returns {{ success, saleId, rewardLiters, yellowReward, blackReward, tier }}
    */
-  claimMonthlyReward(customerId, productId) {
+  claimMonthlyReward(customerId, _productId) {
     const status = this.getRewardStatus(customerId);
     if (!status) return { success: false, error: 'Không tìm thấy khách hàng' };
     if (!status.hasRemaining) return { success: false, error: 'Đã nhận đủ thưởng hoặc chưa đủ điều kiện' };
@@ -1266,7 +1277,6 @@ class PromotionService {
    * BIA INOX V2: Hỗ trợ yellowReward + blackReward.
    */
   savePendingReward(customerId, rewardMonth, rewardYear, liters, tier, yellowReward, blackReward, mode) {
-    const monthStr = String(rewardMonth).padStart(2, '0');
     try {
       db.prepare(`
         INSERT OR REPLACE INTO pending_rewards 
@@ -1460,8 +1470,6 @@ class PromotionService {
     const pending = this.getPendingReward(customerId);
     if (!pending) return null;
 
-    const { reward_month, reward_year, reward_liters } = pending;
-    const rewardMonthName = this._getMonthName(reward_month);
 
     // Thêm reward vào hóa đơn
     const result = this.addPendingRewardToSale(currentSaleId, customerId);
@@ -1923,7 +1931,6 @@ class PromotionService {
 
     for (const customer of customers) {
       const created = new Date(customer.created_at);
-      const createdDay = created.getDate();
       const createdMonth = created.getMonth() + 1;
       const createdYear = created.getFullYear();
 
@@ -1958,7 +1965,7 @@ class PromotionService {
         `).get(customer.id, `%tháng ${checkMonth}/${checkYear}%`);
 
         // Kiểm tra pending_rewards
-        const pendingReward = db.prepare(`
+        db.prepare(`
           SELECT * FROM pending_rewards
           WHERE customer_id = ? AND reward_month = ? AND reward_year = ?
         `).get(customer.id, checkMonth, checkYear);
@@ -2118,7 +2125,6 @@ class PromotionService {
    * Tính giảm giá cho 1 đơn hàng
    */
   calculateDiscount(cart) {
-    const { customerId, subtotal } = cart;
     const activePromotions = this.getActivePromotions();
 
     let totalDiscount = 0;

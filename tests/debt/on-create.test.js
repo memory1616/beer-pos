@@ -17,7 +17,6 @@ process.env.NODE_ENV = 'test';
 const db = require('../../database');
 const DebtLedgerService = require('../../src/services/debt/DebtLedgerService');
 const DebtOnCreateService = require('../../src/services/debt/DebtOnCreateService');
-const { TRANSACTION_TYPES } = require('../../src/services/debt/constants');
 
 jest.setTimeout(20000);
 

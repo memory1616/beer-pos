@@ -877,8 +877,6 @@ router.post('/update-kegs', (req, res) => {
       //    ⚠️ CHO PHÉP ÂM: thu vỏ rỗng từ khách BÙ ĐƯỢC vào số âm (vỏ tạm ứng
       //       trước nhà máy). Xem src/services/KegBalanceService.js.
       if (newlyCollected > 0 || newlyReturnedToCustomer > 0) {
-        const stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
-        const currentEmpty = stats?.empty_collected || 0;
         const newEmpty = KegBalanceService.peekEmptyCollected(
           newlyCollected - newlyReturnedToCustomer
         );
@@ -911,7 +909,6 @@ router.post('/update-kegs', (req, res) => {
     // Nếu không, màn Giao hàng sẽ hiển thị số vỏ thu khác với modal giao/thu vỏ
     // ở màn Bán hàng → tồn vỏ khách bị lệch.
     try {
-      const DeliveryService = require('../../src/services/DeliveryService');
       const linked = db
         .prepare('SELECT id FROM delivery_records WHERE sale_id = ? ORDER BY id DESC LIMIT 1')
         .get(saleId);
@@ -950,7 +947,7 @@ router.get('/', (req, res) => {
   }
   
   let whereClause = "WHERE s.type IN ('sale', 'replacement', 'damage_return') AND s.archived = 0";
-  let params = [];
+  const params = [];
   
   if (month) {
     whereClause += " AND strftime('%Y-%m', s.date) = ?";
@@ -1268,13 +1265,11 @@ router.post('/:id/return', (req, res) => {
     // Lấy chi tiết sản phẩm trong hóa đơn
     const items = db.prepare('SELECT * FROM sale_items WHERE sale_id = ?').all(saleId);
     
-    let totalReturnProfit = 0;
     
     if (returnType === 'stock_return') {
       // Trả lại kho - cộng lại tồn kho sản phẩm
       for (const item of items) {
         db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(item.quantity, item.product_id);
-        totalReturnProfit += item.profit || 0;
         // Audit log — product stock returned
         const customerName = sale.customer_id
           ? (db.prepare('SELECT name FROM customers WHERE id = ?').get(sale.customer_id) || {}).name
@@ -1293,12 +1288,19 @@ router.post('/:id/return', (req, res) => {
       }
     } else if (returnType === 'damage_return') {
       // Bia lỗi - ghi nhận vào bảng hàng lỗi, không cộng kho
+      //
+      // ⚠️ BUG FIX (2026-11-25): `totalReturnProfit` TRƯỚC đây được cộng ở đây
+      // nhưng CHƯA BAO GIỜ khai báo trong handler này (biến cùng tên chỉ tồn
+      // tại ở handler `POST /:id/return-items`) → ReferenceError → API trả 500
+      // mỗi lần trả bia lỗi, dù DB đã cập nhật stock/damaged.
+      //
+      // Handler này set `profit = 0` cho đơn (xem UPDATE sales bên dưới) nên
+      // lợi nhuận hàng lỗi không cần cộng dồn — chỉ cần ghi nhận kho lỗi.
       for (const item of items) {
         db.prepare('UPDATE products SET damaged_stock = damaged_stock + ? WHERE id = ?').run(item.quantity, item.product_id);
         db.prepare('INSERT INTO damaged_products (product_id, quantity, reason) VALUES (?, ?, ?)').run(
           item.product_id, item.quantity, reason || 'Bia lỗi/hư'
         );
-        totalReturnProfit += item.profit || 0;
       }
     }
     
@@ -1310,9 +1312,7 @@ router.post('/:id/return', (req, res) => {
     if (sale.customer_id) {
       const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(sale.customer_id);
       if (customer) {
-        const currentKegBalance = customer.keg_balance || 0;
         // Trừ đi số vỏ đã giao, cộng lại số vỏ đã thu
-        const newKegBalance = currentKegBalance - deliverKegs + returnKegs;
         updateCustomerKegBalance(sale.customer_id, -deliverKegs, returnKegs);
       }
     }
@@ -1322,8 +1322,7 @@ router.post('/:id/return', (req, res) => {
     if (addToInventory && deliverKegs > 0) {
       // Lấy số vỏ rỗng hiện tại từ keg_stats
       const stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
-      const currentEmpty = stats?.empty_collected || 0;
-      const newEmpty = currentEmpty + deliverKegs;
+      const newEmpty = (stats?.empty_collected || 0) + deliverKegs;
       
       // Cập nhật kho vỏ rỗng
       db.prepare('UPDATE keg_stats SET empty_collected = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run(newEmpty);
@@ -1439,8 +1438,6 @@ router.post('/:id/return-items', (req, res) => {
     if (sale.customer_id && returnedKegs > 0) {
       const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(sale.customer_id);
       if (customer) {
-        const currentKegBalance = customer.keg_balance || 0;
-        const newKegBalance = currentKegBalance - returnedKegs;
         updateCustomerKegBalance(sale.customer_id, 0, returnedKegs);
       }
     }
@@ -1450,8 +1447,7 @@ router.post('/:id/return-items', (req, res) => {
     if (addToInventory && returnedKegs > 0) {
       // Lấy số vỏ rỗng hiện tại từ keg_stats
       const stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
-      const currentEmpty = stats?.empty_collected || 0;
-      const newEmpty = currentEmpty + returnedKegs;
+      const newEmpty = (stats?.empty_collected || 0) + returnedKegs;
       
       // Cập nhật kho vỏ rỗng
       db.prepare('UPDATE keg_stats SET empty_collected = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run(newEmpty);
@@ -1788,7 +1784,7 @@ router.put('/:id', (req, res) => {
       }
 
       // Luôn dùng item.price từ frontend — đây là giá đã được UI tính theo khách hàng
-      let price = item.price || product.sell_price || 0;
+      const price = item.price || product.sell_price || 0;
 
       const costPrice = product.cost_price || 0;
       const itemProfit = (price - costPrice) * item.quantity;
@@ -1949,7 +1945,7 @@ router.post('/:id/restore-inventory', (req, res) => {
     }
 
     // Kiểm tra xem đơn đã hoàn kho chưa (archived = 1)
-    if (sale.archived != 1) {
+    if (sale.archived !== 1) {
       return res.status(400).json({ error: 'Chỉ áp dụng cho đơn hàng đã xóa (archived)' });
     }
 

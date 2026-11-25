@@ -11,7 +11,6 @@ const css = fs.readFileSync(path.join(ROOT, 'public', 'css', 'landing.css'), 'ut
 const serverJs = fs.readFileSync(path.join(ROOT, 'server.js'), 'utf8');
 const sitemap = fs.readFileSync(path.join(ROOT, 'public', 'sitemap.xml'), 'utf8');
 
-const assetsDir = path.join(ROOT, 'public', 'landing-assets');
 const homeImgDir = path.join(ROOT, 'public', 'images', 'home');
 
 // ════════════════════════════════════════════════════════════════════

@@ -2,7 +2,6 @@
  * SaleService - Business logic cho sales
  */
 const db = require('../../database');
-const logger = require('../utils/logger');
 
 class SaleService {
   constructor() {

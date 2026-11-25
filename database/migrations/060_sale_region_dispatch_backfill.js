@@ -42,13 +42,6 @@ const migration = {
         return false;
       }
     };
-    const hasColumn = (table, col) => {
-      try {
-        return db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === col);
-      } catch (_) {
-        return false;
-      }
-    };
 
     if (!hasTable('sales') || !hasTable('business_regions')) return;
 

@@ -62,264 +62,258 @@ function deleteSaleRestoringInventory(saleId) {
 
   // Begin transaction
   const deleteSaleTx = db.transaction(() => {
-    try {
-      // ===== A. RESTORE PRODUCT STOCK =====
-      if (shouldReverseProductStock(sale)) {
-        for (const item of items) {
-          db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(item.quantity, item.product_id);
+    // ===== A. RESTORE PRODUCT STOCK =====
+    if (shouldReverseProductStock(sale)) {
+      for (const item of items) {
+        db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(item.quantity, item.product_id);
 
-          // Audit log — stock restored when sale is deleted
-          const customer = sale.customer_id
-            ? db.prepare('SELECT name FROM customers WHERE id = ?').get(sale.customer_id)
-            : null;
-          AuditService.logStock({
-            productId: item.product_id,
-            type: 'restore',
-            quantity: item.quantity,
-            reason: 'sale_delete',
-            refId: id,
-            refType: 'sale',
-            customerName: customer ? customer.name : null,
-            note: 'Hoàn kho do xóa đơn',
-          });
-        }
-      }
-
-      // ===== B1. RESTORE purchased_liters trong customer_monthly_stats =====
-      // Bia Inox V2: REVERT PHẦN MUA (price>0) cho cả MONTHLY_BONUS sale
-      // vì MONTHLY_BONUS sale vẫn có items mua thật (price>0) + items thưởng (price=0).
-      // Nếu skip MONTHLY_BONUS thì xóa sale có gắn thưởng sẽ KHÔNG revert lít mua → sai.
-      // Lưu ý: KHÔNG revert reward_* (logic đó handle ở B2).
-      if (sale.customer_id && sale.type === 'sale') {
-        // ⚠️ Đơn ĐẶT TRƯỚC CHƯA RELEASE: chưa cộng sản lượng lúc tạo
-        // (sản lượng chỉ cộng khi release vào ngày giao) → KHÔNG hoàn trả
-        // ở đây, nếu không sẽ trừ nhầm (âm).
-        const wasPendingPreorder = sale.preorder_status === 'SCHEDULED';
-
-        // Bia Inox V2: lấy product_name để tách yellow/black
-        const items = db.prepare(`
-          SELECT si.quantity, p.name AS product_name
-          FROM sale_items si
-          JOIN products p ON p.id = si.product_id
-          WHERE si.sale_id = ? AND si.price > 0 AND p.type = 'keg'
-        `).all(sale.id);
-        let paidLiters = 0;
-        let yellowLiters = 0;
-        let blackLiters = 0;
-        for (const item of items) {
-          const q = Number(item.quantity) || 0;
-          paidLiters += q;
-          if (PromotionService.classifyBeer(item.product_name) === 'black') blackLiters += q;
-          else yellowLiters += q;
-        }
-        if (paidLiters > 0 && !wasPendingPreorder) {
-          // Revert customer_monthly_stats.purchased_liters (theo tháng NGHIỆP VỤ của đơn)
-          //
-          // ⚠️ `sales.date` là NGÀY NGHIỆP VỜ (cutoff 19:00) → đơn tạo sau 19h
-          //    thuộc tháng sau. Phải dùng ĐÚNG tháng này để khớp với lúc tạo đơn
-          //    (`routes/api/sales.js` → updateCustomerMonthlyStats).
-          //    Parse thẳng từ chuỗi 'YYYY-MM-DD' để tránh lệch múi giờ.
-          const saleParts = String(sale.date || '').split('-');
-          const saleYear = Number(saleParts[0]);
-          const saleMonth = Number(saleParts[1]);
-
-          // Revert customers.monthly_purchased_liters — chỉ khi tháng nghiệp vụ
-          // của đơn trùng tháng lịch thực hiện tại (counter là số liệu tháng
-          // đang chạy). Nếu khác tháng → bỏ qua (net zero với lúc tạo đơn).
-          const nowParts = db.getVietnamDateStr().split('-');
-          if (
-            saleYear === Number(nowParts[0]) &&
-            saleMonth === Number(nowParts[1]) &&
-            !Number.isNaN(saleYear) &&
-            !Number.isNaN(saleMonth)
-          ) {
-            db.prepare('UPDATE customers SET monthly_purchased_liters = MAX(0, monthly_purchased_liters - ?) WHERE id = ?').run(paidLiters, sale.customer_id);
-          }
-
-          if (!Number.isNaN(saleYear) && !Number.isNaN(saleMonth)) {
-            const existingStats = db.prepare(`
-              SELECT id, purchased_liters FROM customer_monthly_stats
-              WHERE customer_id = ? AND year = ? AND month = ?
-            `).get(sale.customer_id, saleYear, saleMonth);
-            if (existingStats) {
-              db.prepare(`
-                UPDATE customer_monthly_stats SET
-                  purchased_liters = MAX(0, purchased_liters - ?),
-                  purchased_yellow_liters = MAX(0, COALESCE(purchased_yellow_liters, 0) - ?),
-                  purchased_black_liters = MAX(0, COALESCE(purchased_black_liters, 0) - ?)
-                WHERE id = ?
-              `).run(paidLiters, yellowLiters, blackLiters, existingStats.id);
-            }
-          }
-        }
-      }
-
-      // ===== B2. REVERT reward_claimed nếu xóa đơn có gắn thưởng tháng trước =====
-      // B15: Phát hiện MONTHLY_BONUS qua nhiều dấu hiệu (defense-in-depth):
-      //   1. promo_type === 'MONTHLY_BONUS' (chưa archive)
-      //   2. reward_liters_used > 0 (đã từng gắn thưởng)
-      //   3. note có chứa "Trả thưởng sản lượng tháng X/YYYY" (các note phổ biến)
-      // QUY TẮC 2026-11-22: thêm promo_type 'NEW_SHOP_BONUS' (thưởng quán mới)
-      //   và note "Trả Thưởng quán mới tháng X/YYYY".
-      const isMonthlyBonus = sale.promo_type === 'MONTHLY_BONUS'
-        || sale.promo_type === 'NEW_SHOP_BONUS'
-        || (sale.reward_liters_used && sale.reward_liters_used > 0)
-        || (sale.note && /Trả\s+(thưởng sản lượng|Thưởng quán mới)\s+tháng\s+\d+\/\d+/i.test(sale.note));
-
-      if (sale.customer_id && isMonthlyBonus) {
-        db.prepare("UPDATE customers SET reward_claimed = 0, reward_claimed_at = NULL WHERE id = ?").run(sale.customer_id);
-
-        // Tìm tháng/năm thưởng từ nhiều nguồn: note pattern, hoặc monthly_stats của khách
-        const rewardNoteMatch = (sale.note || '').match(/tháng\s+(\d+)\/(\d+)/);
-        let rewardMonth = null;
-        let rewardYear = null;
-
-        if (rewardNoteMatch) {
-          rewardMonth = Number(rewardNoteMatch[1]);
-          rewardYear = Number(rewardNoteMatch[2]);
-        } else {
-          // Fallback: tìm trong customer_monthly_stats tháng reward_claimed = 1 (chưa reset)
-          const lastClaimed = db.prepare(`
-            SELECT year, month FROM customer_monthly_stats
-            WHERE customer_id = ? AND reward_claimed = 1
-            ORDER BY year DESC, month DESC LIMIT 1
-          `).get(sale.customer_id);
-          if (lastClaimed) {
-            rewardMonth = lastClaimed.month;
-            rewardYear = lastClaimed.year;
-          }
-        }
-
-        if (rewardMonth !== null && rewardYear !== null) {
-          logger.info('[ORDER DELETE] Reverting MONTHLY_BONUS reward', { customerId: sale.customer_id, month: rewardMonth, year: rewardYear });
-
-          db.prepare(`
-            UPDATE customer_monthly_stats
-            SET reward_claimed = 0,
-                reward_claimed_at = NULL,
-                reward_claimed_liters = 0,
-                reward_claimed_sale_id = NULL,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE customer_id = ? AND year = ? AND month = ?
-          `).run(sale.customer_id, rewardYear, rewardMonth);
-
-          // Xóa reward_history của tháng tương ứng (để đơn mới có thể gắn lại thưởng)
-          db.prepare(`
-            DELETE FROM reward_history
-            WHERE customer_id = ? AND note LIKE ?
-          `).run(sale.customer_id, `%tháng ${rewardMonth}/${rewardYear}%`);
-
-          logger.info('[ORDER DELETE] Cleared reward_history', { customerId: sale.customer_id, month: rewardMonth, year: rewardYear });
-        } else {
-          logger.warn('[ORDER DELETE] MONTHLY_BONUS detected but cannot determine month/year', { customerId: sale.customer_id });
-        }
-
-        // Xóa pending_rewards tương ứng nếu có (để tránh bị gắn thưởng lại khi tạo đơn mới)
-        if (rewardMonth !== null && rewardYear !== null) {
-          db.prepare('DELETE FROM pending_rewards WHERE customer_id = ? AND reward_month = ? AND reward_year = ?')
-            .run(sale.customer_id, rewardMonth, rewardYear);
-          logger.info('[ORDER DELETE] Cleared pending_rewards', { customerId: sale.customer_id, month: rewardMonth, year: rewardYear });
-        }
-      }
-
-      // ===== B3. RESET first_order_date nếu đây là đơn đầu tiên =====
-      // Khi xóa đơn đầu tiên, khách có thể nhận thưởng đơn đầu tiên tháng mới
-      if (sale.customer_id && sale.type === 'sale') {
-        const customer = db.prepare('SELECT first_order_date FROM customers WHERE id = ?').get(sale.customer_id);
-        if (customer && customer.first_order_date) {
-          // Kiểm tra xem đây có phải đơn đầu tiên không (đơn có ngày sớm nhất)
-          const earliestSale = db.prepare(`
-            SELECT id, date FROM sales
-            WHERE customer_id = ? AND type = 'sale' AND archived = 0 AND id != ?
-            ORDER BY date ASC, id ASC
-            LIMIT 1
-          `).get(sale.customer_id, id);
-
-          // Nếu không còn đơn nào khác HOẶC đơn này là đơn sớm nhất → reset first_order_date
-          if (!earliestSale || earliestSale.date > sale.date) {
-            db.prepare("UPDATE customers SET first_order_date = NULL WHERE id = ?").run(sale.customer_id);
-            logger.info('[ORDER DELETE] Reset first_order_date', { customerId: sale.customer_id });
-          }
-        }
-      }
-
-      // ===== C. RESTORE KEG BALANCE (nếu có customer) =====
-      if (sale.customer_id && (sale.deliver_kegs !== 0 || sale.return_kegs !== 0)) {
-        const customer = db.prepare('SELECT keg_balance FROM customers WHERE id = ?').get(sale.customer_id);
-        const currentBalance = customer ? customer.keg_balance : 0;
-        const restoredBalance = currentBalance - sale.deliver_kegs + sale.return_kegs;
-        db.prepare('UPDATE customers SET keg_balance = ? WHERE id = ?').run(restoredBalance, sale.customer_id);
-      }
-
-      // ===== D. RESTORE EMPTY COLLECTED (nếu đơn đã thu vỏ rỗng từ khách) =====
-      // ⚠️ CHO PHÉP ÂM — xem src/services/KegBalanceService.js
-      if (sale.return_kegs && sale.return_kegs > 0) {
-        const stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
-        const currentEmpty = stats?.empty_collected || 0;
-        const newEmpty = KegBalanceService.peekEmptyCollected(-sale.return_kegs);
-        db.prepare('UPDATE keg_stats SET empty_collected = ? WHERE id = 1').run(newEmpty);
-
-        const updatedStats = db.prepare('SELECT inventory, empty_collected, customer_holding, lost FROM keg_stats WHERE id = 1').get();
-        const customerForLog = sale.customer_id
+        // Audit log — stock restored when sale is deleted
+        const customer = sale.customer_id
           ? db.prepare('SELECT name FROM customers WHERE id = ?').get(sale.customer_id)
           : null;
-        AuditService.logKeg({
-          type: 'sale_delete',
-          quantity: -sale.return_kegs,
-          inventoryAfter: updatedStats?.inventory || 0,
-          emptyAfter: updatedStats?.empty_collected || 0,
-          holdingAfter: updatedStats?.customer_holding || 0,
-          lostAfter: updatedStats?.lost || 0,
-          customerId: sale.customer_id || null,
-          customerName: customerForLog ? customerForLog.name : null,
-          note: `Hoàn vỏ khi xóa đơn #${id}${customerForLog ? ' (khách: ' + customerForLog.name + ')' : ''}`,
+        AuditService.logStock({
+          productId: item.product_id,
+          type: 'restore',
+          quantity: item.quantity,
+          reason: 'sale_delete',
+          refId: id,
+          refType: 'sale',
+          customerName: customer ? customer.name : null,
+          note: 'Hoàn kho do xóa đơn',
         });
       }
+    }
 
-      // ===== E. SYNC KEG STATS =====
-      const inventoryResult = db.prepare(db.SQL_KEG_WAREHOUSE_RAW_STOCK).get();
-      const totalHolding = db.prepare("SELECT COALESCE(SUM(keg_balance), 0) as total FROM customers").get();
-      db.prepare(`
-        UPDATE keg_stats
-        SET inventory = ?, customer_holding = ?, updated_at = CURRENT_TIMESTAMP
-        WHERE id = 1
-      `).run(inventoryResult.total, totalHolding.total);
+    // ===== B1. RESTORE purchased_liters trong customer_monthly_stats =====
+    // Bia Inox V2: REVERT PHẦN MUA (price>0) cho cả MONTHLY_BONUS sale
+    // vì MONTHLY_BONUS sale vẫn có items mua thật (price>0) + items thưởng (price=0).
+    // Nếu skip MONTHLY_BONUS thì xóa sale có gắn thưởng sẽ KHÔNG revert lít mua → sai.
+    // Lưu ý: KHÔNG revert reward_* (logic đó handle ở B2).
+    if (sale.customer_id && sale.type === 'sale') {
+      // ⚠️ Đơn ĐẶT TRƯỚC CHƯA RELEASE: chưa cộng sản lượng lúc tạo
+      // (sản lượng chỉ cộng khi release vào ngày giao) → KHÔNG hoàn trả
+      // ở đây, nếu không sẽ trừ nhầm (âm).
+      const wasPendingPreorder = sale.preorder_status === 'SCHEDULED';
 
-      // ===== F. DỌN PHIẾU GIAO (delivery_records) CỦA ĐƠN ĐÃ XOÁ =====
-      // BUG FIX: Xoá đơn (soft-delete) nhưng GIỮ delivery_records → khi đơn
-      // được khôi phục (POST /api/sales/:id/restore) hoặc tạo lại với cùng id,
-      // trang Giao hàng vẫn thấy dr.status='DELIVERED' cũ → ĐƠN KHÔNG HIỆN Ở
-      // TRANG GIAO HÀNG (nhưng vẫn hiện ở trang Admin) → LỆCH 2 TRANG.
-      //
-      // Fix: khi xoá đơn → xoá luôn phiếu giao + items + events của đơn đó.
-      // Đơn bị xoá = đơn không còn tồn tại → phiếu giao cũng không còn ý nghĩa.
-      // (Nếu cần audit, `delivery_events` đã ghi lại lịch sử trước khi xoá.)
-      try {
-        const drIds = db
-          .prepare('SELECT id FROM delivery_records WHERE sale_id = ?')
-          .all(id)
-          .map((r) => r.id);
+      // Bia Inox V2: lấy product_name để tách yellow/black
+      const items = db.prepare(`
+        SELECT si.quantity, p.name AS product_name
+        FROM sale_items si
+        JOIN products p ON p.id = si.product_id
+        WHERE si.sale_id = ? AND si.price > 0 AND p.type = 'keg'
+      `).all(sale.id);
+      let paidLiters = 0;
+      let yellowLiters = 0;
+      let blackLiters = 0;
+      for (const item of items) {
+        const q = Number(item.quantity) || 0;
+        paidLiters += q;
+        if (PromotionService.classifyBeer(item.product_name) === 'black') blackLiters += q;
+        else yellowLiters += q;
+      }
+      if (paidLiters > 0 && !wasPendingPreorder) {
+        // Revert customer_monthly_stats.purchased_liters (theo tháng NGHIỆP VỤ của đơn)
+        //
+        // ⚠️ `sales.date` là NGÀY NGHIỆP VỜ (cutoff 19:00) → đơn tạo sau 19h
+        //    thuộc tháng sau. Phải dùng ĐÚNG tháng này để khớp với lúc tạo đơn
+        //    (`routes/api/sales.js` → updateCustomerMonthlyStats).
+        //    Parse thẳng từ chuỗi 'YYYY-MM-DD' để tránh lệch múi giờ.
+        const saleParts = String(sale.date || '').split('-');
+        const saleYear = Number(saleParts[0]);
+        const saleMonth = Number(saleParts[1]);
 
-        for (const drId of drIds) {
-          db.prepare('DELETE FROM delivery_record_items WHERE delivery_id = ?').run(drId);
-          db.prepare('DELETE FROM delivery_events WHERE delivery_id = ?').run(drId);
+        // Revert customers.monthly_purchased_liters — chỉ khi tháng nghiệp vụ
+        // của đơn trùng tháng lịch thực hiện tại (counter là số liệu tháng
+        // đang chạy). Nếu khác tháng → bỏ qua (net zero với lúc tạo đơn).
+        const nowParts = db.getVietnamDateStr().split('-');
+        if (
+          saleYear === Number(nowParts[0]) &&
+          saleMonth === Number(nowParts[1]) &&
+          !Number.isNaN(saleYear) &&
+          !Number.isNaN(saleMonth)
+        ) {
+          db.prepare('UPDATE customers SET monthly_purchased_liters = MAX(0, monthly_purchased_liters - ?) WHERE id = ?').run(paidLiters, sale.customer_id);
         }
-        if (drIds.length) {
-          db.prepare('DELETE FROM delivery_records WHERE sale_id = ?').run(id);
+
+        if (!Number.isNaN(saleYear) && !Number.isNaN(saleMonth)) {
+          const existingStats = db.prepare(`
+            SELECT id, purchased_liters FROM customer_monthly_stats
+            WHERE customer_id = ? AND year = ? AND month = ?
+          `).get(sale.customer_id, saleYear, saleMonth);
+          if (existingStats) {
+            db.prepare(`
+              UPDATE customer_monthly_stats SET
+                purchased_liters = MAX(0, purchased_liters - ?),
+                purchased_yellow_liters = MAX(0, COALESCE(purchased_yellow_liters, 0) - ?),
+                purchased_black_liters = MAX(0, COALESCE(purchased_black_liters, 0) - ?)
+              WHERE id = ?
+            `).run(paidLiters, yellowLiters, blackLiters, existingStats.id);
+          }
         }
-        db.prepare('UPDATE sales SET delivery_status = NULL WHERE id = ?').run(id);
-        logger.info('[ORDER DELETE] Cleaned delivery_records', { saleId: id, count: drIds.length });
-      } catch (drErr) {
-        // Không được fail xoá đơn vì lỗi dọn phiếu giao.
-        logger.error('[ORDER DELETE] Clean delivery_records error', { saleId: id, error: drErr.message });
+      }
+    }
+
+    // ===== B2. REVERT reward_claimed nếu xóa đơn có gắn thưởng tháng trước =====
+    // B15: Phát hiện MONTHLY_BONUS qua nhiều dấu hiệu (defense-in-depth):
+    //   1. promo_type === 'MONTHLY_BONUS' (chưa archive)
+    //   2. reward_liters_used > 0 (đã từng gắn thưởng)
+    //   3. note có chứa "Trả thưởng sản lượng tháng X/YYYY" (các note phổ biến)
+    // QUY TẮC 2026-11-22: thêm promo_type 'NEW_SHOP_BONUS' (thưởng quán mới)
+    //   và note "Trả Thưởng quán mới tháng X/YYYY".
+    const isMonthlyBonus = sale.promo_type === 'MONTHLY_BONUS'
+      || sale.promo_type === 'NEW_SHOP_BONUS'
+      || (sale.reward_liters_used && sale.reward_liters_used > 0)
+      || (sale.note && /Trả\s+(thưởng sản lượng|Thưởng quán mới)\s+tháng\s+\d+\/\d+/i.test(sale.note));
+
+    if (sale.customer_id && isMonthlyBonus) {
+      db.prepare("UPDATE customers SET reward_claimed = 0, reward_claimed_at = NULL WHERE id = ?").run(sale.customer_id);
+
+      // Tìm tháng/năm thưởng từ nhiều nguồn: note pattern, hoặc monthly_stats của khách
+      const rewardNoteMatch = (sale.note || '').match(/tháng\s+(\d+)\/(\d+)/);
+      let rewardMonth = null;
+      let rewardYear = null;
+
+      if (rewardNoteMatch) {
+        rewardMonth = Number(rewardNoteMatch[1]);
+        rewardYear = Number(rewardNoteMatch[2]);
+      } else {
+        // Fallback: tìm trong customer_monthly_stats tháng reward_claimed = 1 (chưa reset)
+        const lastClaimed = db.prepare(`
+          SELECT year, month FROM customer_monthly_stats
+          WHERE customer_id = ? AND reward_claimed = 1
+          ORDER BY year DESC, month DESC LIMIT 1
+        `).get(sale.customer_id);
+        if (lastClaimed) {
+          rewardMonth = lastClaimed.month;
+          rewardYear = lastClaimed.year;
+        }
       }
 
-      // ===== G. SOFT DELETE =====
-      db.prepare('UPDATE sales SET archived = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(id);
+      if (rewardMonth !== null && rewardYear !== null) {
+        logger.info('[ORDER DELETE] Reverting MONTHLY_BONUS reward', { customerId: sale.customer_id, month: rewardMonth, year: rewardYear });
 
-    } catch (err) {
-      throw err;
+        db.prepare(`
+          UPDATE customer_monthly_stats
+          SET reward_claimed = 0,
+              reward_claimed_at = NULL,
+              reward_claimed_liters = 0,
+              reward_claimed_sale_id = NULL,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE customer_id = ? AND year = ? AND month = ?
+        `).run(sale.customer_id, rewardYear, rewardMonth);
+
+        // Xóa reward_history của tháng tương ứng (để đơn mới có thể gắn lại thưởng)
+        db.prepare(`
+          DELETE FROM reward_history
+          WHERE customer_id = ? AND note LIKE ?
+        `).run(sale.customer_id, `%tháng ${rewardMonth}/${rewardYear}%`);
+
+        logger.info('[ORDER DELETE] Cleared reward_history', { customerId: sale.customer_id, month: rewardMonth, year: rewardYear });
+      } else {
+        logger.warn('[ORDER DELETE] MONTHLY_BONUS detected but cannot determine month/year', { customerId: sale.customer_id });
+      }
+
+      // Xóa pending_rewards tương ứng nếu có (để tránh bị gắn thưởng lại khi tạo đơn mới)
+      if (rewardMonth !== null && rewardYear !== null) {
+        db.prepare('DELETE FROM pending_rewards WHERE customer_id = ? AND reward_month = ? AND reward_year = ?')
+          .run(sale.customer_id, rewardMonth, rewardYear);
+        logger.info('[ORDER DELETE] Cleared pending_rewards', { customerId: sale.customer_id, month: rewardMonth, year: rewardYear });
+      }
     }
+
+    // ===== B3. RESET first_order_date nếu đây là đơn đầu tiên =====
+    // Khi xóa đơn đầu tiên, khách có thể nhận thưởng đơn đầu tiên tháng mới
+    if (sale.customer_id && sale.type === 'sale') {
+      const customer = db.prepare('SELECT first_order_date FROM customers WHERE id = ?').get(sale.customer_id);
+      if (customer && customer.first_order_date) {
+        // Kiểm tra xem đây có phải đơn đầu tiên không (đơn có ngày sớm nhất)
+        const earliestSale = db.prepare(`
+          SELECT id, date FROM sales
+          WHERE customer_id = ? AND type = 'sale' AND archived = 0 AND id != ?
+          ORDER BY date ASC, id ASC
+          LIMIT 1
+        `).get(sale.customer_id, id);
+
+        // Nếu không còn đơn nào khác HOẶC đơn này là đơn sớm nhất → reset first_order_date
+        if (!earliestSale || earliestSale.date > sale.date) {
+          db.prepare("UPDATE customers SET first_order_date = NULL WHERE id = ?").run(sale.customer_id);
+          logger.info('[ORDER DELETE] Reset first_order_date', { customerId: sale.customer_id });
+        }
+      }
+    }
+
+    // ===== C. RESTORE KEG BALANCE (nếu có customer) =====
+    if (sale.customer_id && (sale.deliver_kegs !== 0 || sale.return_kegs !== 0)) {
+      const customer = db.prepare('SELECT keg_balance FROM customers WHERE id = ?').get(sale.customer_id);
+      const currentBalance = customer ? customer.keg_balance : 0;
+      const restoredBalance = currentBalance - sale.deliver_kegs + sale.return_kegs;
+      db.prepare('UPDATE customers SET keg_balance = ? WHERE id = ?').run(restoredBalance, sale.customer_id);
+    }
+
+    // ===== D. RESTORE EMPTY COLLECTED (nếu đơn đã thu vỏ rỗng từ khách) =====
+    // ⚠️ CHO PHÉP ÂM — xem src/services/KegBalanceService.js
+    if (sale.return_kegs && sale.return_kegs > 0) {
+      const newEmpty = KegBalanceService.peekEmptyCollected(-sale.return_kegs);
+      db.prepare('UPDATE keg_stats SET empty_collected = ? WHERE id = 1').run(newEmpty);
+
+      const updatedStats = db.prepare('SELECT inventory, empty_collected, customer_holding, lost FROM keg_stats WHERE id = 1').get();
+      const customerForLog = sale.customer_id
+        ? db.prepare('SELECT name FROM customers WHERE id = ?').get(sale.customer_id)
+        : null;
+      AuditService.logKeg({
+        type: 'sale_delete',
+        quantity: -sale.return_kegs,
+        inventoryAfter: updatedStats?.inventory || 0,
+        emptyAfter: updatedStats?.empty_collected || 0,
+        holdingAfter: updatedStats?.customer_holding || 0,
+        lostAfter: updatedStats?.lost || 0,
+        customerId: sale.customer_id || null,
+        customerName: customerForLog ? customerForLog.name : null,
+        note: `Hoàn vỏ khi xóa đơn #${id}${customerForLog ? ' (khách: ' + customerForLog.name + ')' : ''}`,
+      });
+    }
+
+    // ===== E. SYNC KEG STATS =====
+    const inventoryResult = db.prepare(db.SQL_KEG_WAREHOUSE_RAW_STOCK).get();
+    const totalHolding = db.prepare("SELECT COALESCE(SUM(keg_balance), 0) as total FROM customers").get();
+    db.prepare(`
+      UPDATE keg_stats
+      SET inventory = ?, customer_holding = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = 1
+    `).run(inventoryResult.total, totalHolding.total);
+
+    // ===== F. DỌN PHIẾU GIAO (delivery_records) CỦA ĐƠN ĐÃ XOÁ =====
+    // BUG FIX: Xoá đơn (soft-delete) nhưng GIỮ delivery_records → khi đơn
+    // được khôi phục (POST /api/sales/:id/restore) hoặc tạo lại với cùng id,
+    // trang Giao hàng vẫn thấy dr.status='DELIVERED' cũ → ĐƠN KHÔNG HIỆN Ở
+    // TRANG GIAO HÀNG (nhưng vẫn hiện ở trang Admin) → LỆCH 2 TRANG.
+    //
+    // Fix: khi xoá đơn → xoá luôn phiếu giao + items + events của đơn đó.
+    // Đơn bị xoá = đơn không còn tồn tại → phiếu giao cũng không còn ý nghĩa.
+    // (Nếu cần audit, `delivery_events` đã ghi lại lịch sử trước khi xoá.)
+    try {
+      const drIds = db
+        .prepare('SELECT id FROM delivery_records WHERE sale_id = ?')
+        .all(id)
+        .map((r) => r.id);
+
+      for (const drId of drIds) {
+        db.prepare('DELETE FROM delivery_record_items WHERE delivery_id = ?').run(drId);
+        db.prepare('DELETE FROM delivery_events WHERE delivery_id = ?').run(drId);
+      }
+      if (drIds.length) {
+        db.prepare('DELETE FROM delivery_records WHERE sale_id = ?').run(id);
+      }
+      db.prepare('UPDATE sales SET delivery_status = NULL WHERE id = ?').run(id);
+      logger.info('[ORDER DELETE] Cleaned delivery_records', { saleId: id, count: drIds.length });
+    } catch (drErr) {
+      // Không được fail xoá đơn vì lỗi dọn phiếu giao.
+      logger.error('[ORDER DELETE] Clean delivery_records error', { saleId: id, error: drErr.message });
+    }
+
+    // ===== G. SOFT DELETE =====
+    db.prepare('UPDATE sales SET archived = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(id);
+
   });
 
   try {

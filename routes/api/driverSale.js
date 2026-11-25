@@ -370,6 +370,108 @@ router.get('/promotions/new-shop/check/:customerId', requireDriver, (req, res) =
   }
 });
 
+// GET /api/driver/sale/promotions/new-shop/monthly-summary/:customerId
+// Shape GIỐNG HỆT GET /api/promotions/new-shop/monthly-summary/:customerId của Admin
+// → đảm bảo `public/js/sales.js` dùng lại được nguyên logic hiển thị Card "Thưởng quán mới".
+router.get('/promotions/new-shop/monthly-summary/:customerId', requireDriver, (req, res) => {
+  try {
+    const customerId = parseInt(req.params.customerId);
+    if (!customerId) return res.status(400).json({ success: false, error: 'ID không hợp lệ' });
+
+    const customer = db
+      .prepare('SELECT created_at, promotion_enabled, new_shop_enabled FROM customers WHERE id = ? AND archived = 0')
+      .get(customerId);
+    if (!customer || !customer.created_at) {
+      return res.json({
+        success: true,
+        data: {
+          eligible: false,
+          reason: 'Không tìm thấy khách hàng',
+          yellowVolume: 0,
+          blackVolume: 0,
+          yellowReward: 0,
+          blackReward: 0,
+          totalReward: 0,
+        },
+      });
+    }
+
+    // ── Cờ bật/tắt ở mức KHÁCH HÀNG ────────────────────────────────────
+    // Khách bị admin tắt riêng "khuyến mãi quán mới" (new_shop_enabled)
+    // hoặc tắt chung "tham gia CTKM" (promotion_enabled) → không hiển thị card.
+    if (customer.promotion_enabled === 0) {
+      return res.json({
+        success: true,
+        data: {
+          eligible: false,
+          reason: 'Khách đã tắt tham gia CTKM',
+          yellowVolume: 0,
+          blackVolume: 0,
+          yellowReward: 0,
+          blackReward: 0,
+          totalReward: 0,
+        },
+      });
+    }
+
+    if (customer.new_shop_enabled === 0) {
+      return res.json({
+        success: true,
+        data: {
+          eligible: false,
+          reason: 'Khách đã tắt khuyến mãi quán mới',
+          yellowVolume: 0,
+          blackVolume: 0,
+          yellowReward: 0,
+          blackReward: 0,
+          totalReward: 0,
+        },
+      });
+    }
+
+    const created = new Date(customer.created_at);
+    const openYear = created.getFullYear();
+    const openMonth = created.getMonth() + 1;
+    const now = new Date();
+    const isOpenMonth = now.getFullYear() === openYear && now.getMonth() + 1 === openMonth;
+
+    if (!isOpenMonth) {
+      return res.json({
+        success: true,
+        data: {
+          eligible: false,
+          openYear,
+          openMonth,
+          reason: 'Không thuộc tháng mở quán',
+          yellowVolume: 0,
+          blackVolume: 0,
+          yellowReward: 0,
+          blackReward: 0,
+          totalReward: 0,
+        },
+      });
+    }
+
+    const calc = PromotionService.calculateNewShopMonthlyReward(customerId, openYear, openMonth);
+    res.json({
+      success: true,
+      data: {
+        eligible: true,
+        openYear,
+        openMonth,
+        yellowVolume: calc.yellowVolume,
+        blackVolume: calc.blackVolume,
+        yellowReward: calc.yellowReward,
+        blackReward: calc.blackReward,
+        totalReward: calc.totalReward,
+      },
+    });
+  } catch (err) {
+    logger.error('[driver-sale] new-shop monthly-summary error', { error: err.message });
+    res.status(500).json({ success: false, error: 'Lỗi khi tải tổng hợp khuyến mãi quán mới' });
+  }
+});
+
 // GET /api/driver/sale/promotions/customer/:customerId/overview
 // Shape GIỐNG HỆT GET /api/promotions/customer/:customerId/overview của Admin
 // → đảm bảo `public/js/sales.js` dùng lại được nguyên logic hiển thị badge.

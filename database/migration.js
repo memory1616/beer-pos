@@ -9,9 +9,8 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-const Database = require('better-sqlite3');
-const path = require('path');
-const fs = require('fs');
+
+const logger = require('../src/utils/logger');
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -19,25 +18,12 @@ const MIGRATION_VERSION = 2026062701;
 const SCHEMA_VERSION_KEY = 'schema_version';
 const BUSINESS_FEATURES_VERSION = 2026041602;
 
-// Các bảng cần thêm metadata
-const META_TABLES = [
-  'customers',
-  'products',
-  'sales',
-  'sale_items',
-  'purchases',
-  'purchase_items',
-  'expenses',
-  'payments',
-  'devices',
-  'prices',
-  'keg_transactions_log'
-];
-
 // ── Helper Functions ─────────────────────────────────────────────────────────
 
+// Log progress migration. TRUOC DAY ham nay co body rong → mọi loi migration
+// bi nuot im lang, khong debug duoc. Dung logger.info de co trace khi can.
 function log(message) {
-  // Migration progress — use custom logger, not console.log
+  logger.info(`[MIGRATION] ${message}`);
 }
 
 function getCurrentVersion(db) {
@@ -134,46 +120,6 @@ function migrateAddMetadata(db) {
   return added;
 }
 
-// ── Migration: Create Action Logs Table ──────────────────────────────────────
-
-function migrateCreateActionLogs(db) {
-  log('Bắt đầu migration: Tạo bảng action_logs');
-
-  try {
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS action_logs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        uuid TEXT UNIQUE NOT NULL,
-        action TEXT NOT NULL,
-        entity TEXT NOT NULL,
-        entity_id TEXT,
-        entity_uuid TEXT,
-        actor_id TEXT,
-        actor_name TEXT,
-        payload TEXT,
-        previous_state TEXT,
-        ip_address TEXT,
-        user_agent TEXT,
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-        synced INTEGER DEFAULT 0,
-        synced_at TEXT
-      )
-    `);
-
-    // Indexes
-    db.exec(`CREATE INDEX IF NOT EXISTS idx_action_logs_entity ON action_logs(entity, entity_id)`);
-    db.exec(`CREATE INDEX IF NOT EXISTS idx_action_logs_action ON action_logs(action)`);
-    db.exec(`CREATE INDEX IF NOT EXISTS idx_action_logs_created ON action_logs(created_at DESC)`);
-    db.exec(`CREATE INDEX IF NOT EXISTS idx_action_logs_uuid ON action_logs(uuid)`);
-    db.exec(`CREATE INDEX IF NOT EXISTS idx_action_logs_synced ON action_logs(synced)`);
-
-    log('Hoàn thành: Đã tạo bảng action_logs');
-    return true;
-  } catch (e) {
-    log(`Lỗi tạo action_logs: ${e.message}`);
-    return false;
-  }
-}
 
 // ── Migration: Create Sync Queue Table (Enhanced) ─────────────────────────────
 

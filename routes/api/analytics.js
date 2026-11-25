@@ -3,13 +3,6 @@ const router = express.Router();
 const db = require('../../database');
 const logger = require('../../src/utils/logger');
 
-function formatVND(amount) {
-  if (amount === null || amount === undefined || amount === '') return '0 đ';
-  const num = Number(amount);
-  if (isNaN(num)) return '0 đ';
-  return new Intl.NumberFormat('vi-VN').format(num) + ' đ';
-}
-
 function vnDateExpr(column) {
   return `date(datetime(${column}, '+7 hours'))`;
 }

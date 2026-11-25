@@ -4,8 +4,6 @@ const db = require('../../database');
 const routingService = require('../../src/services/routingService');
 const logger = require('../../src/utils/logger');
 
-const { decodePolyline } = routingService;
-
 /**
  * GET /api/routing/route - Get route between two points
  * Query: originLat, originLng, destLat, destLng

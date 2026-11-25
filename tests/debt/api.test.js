@@ -18,7 +18,6 @@ const DebtLedgerService = require('../../src/services/debt/DebtLedgerService');
 const DebtAccountService = require('../../src/services/debt/DebtAccountService');
 const DebtReconciliationService = require('../../src/services/debt/DebtReconciliationService');
 const debtLedgerRouter = require('../../routes/api/debtLedger');
-const { TRANSACTION_TYPES } = require('../../src/services/debt/constants');
 
 jest.setTimeout(25000);
 
@@ -542,7 +541,7 @@ describe('Nhóm Zalo (mapping)', () => {
 // ═══════════════════════════════════════════════════════════════════════════
 describe('Truy vấn tổng quan', () => {
   test('overview trả KPI + top nợ', async () => {
-    const cid = makeCustomer(2000000);
+    makeCustomer(2000000);
     const res = await request(app).get('/api/debt-ledger/overview').set(ADMIN);
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);

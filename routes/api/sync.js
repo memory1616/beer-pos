@@ -4,7 +4,6 @@ const db = require('../../database');
 const logger = require('../../src/utils/logger');
 const { deleteSaleRestoringInventory } = require('../../src/services/saleDelete');
 const RegionService = require('../../src/services/RegionService');
-const { isValidId, isPositiveNumber, sanitizeString } = require('../../middleware/validation');
 
 /**
  * Tự động điều phố đơn theo khu vực của khách hàng.
@@ -171,7 +170,7 @@ const ENTITY_TO_TABLE = {
 // ============ BATCH SYNC (PRIMARY) ============
 // POST /api/sync/batch - Batch sync multiple items in one request
 router.post('/batch', async (req, res) => {
-  const { deviceId, items = [] } = req.body;
+  const { items = [] } = req.body;
 
   if (!Array.isArray(items) || items.length === 0) {
     return res.json({ success: true, results: [], summary: { total: 0, succeeded: 0, failed: 0, duplicates: 0 } });
@@ -271,7 +270,6 @@ router.post('/batch', async (req, res) => {
 // GET /api/sync/delta?since=timestamp - Get changes since timestamp
 router.get('/delta', (req, res) => {
   const sinceTimestamp = parseInt(req.query.since) || 0;
-  const since = new Date(sinceTimestamp).toISOString();
 
   try {
     const changes = {};

@@ -364,7 +364,7 @@ describe('Đối soát lại giao dịch đang chờ (resmartMatchPending)', () 
         transferAmount: 300000,
       })
     );
-    let processed = DebtSepayService.processTransaction(stored.transactionId, {
+    const processed = DebtSepayService.processTransaction(stored.transactionId, {
       force: true,
     });
     expect(processed.success).toBe(false);

@@ -5,7 +5,6 @@
 process.env.NODE_ENV = 'test';
 
 const db = require('../database');
-const DebtLedgerService = require('../src/services/debt/DebtLedgerService');
 const DebtReconciliationService = require('../src/services/debt/DebtReconciliationService');
 
 function money(n) {

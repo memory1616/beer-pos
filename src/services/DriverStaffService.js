@@ -360,7 +360,6 @@ class DriverStaffService {
       attendanceDates,
     });
 
-    const base = Number(record ? record.base_salary : 0) || 0;
     const bonus = Number(record ? record.bonus : 0) || 0;
     const deduction = Number(record ? record.deduction : 0) || 0;
 
@@ -454,7 +453,6 @@ class DriverStaffService {
       return { success: false, error: 'Phạt/trừ không hợp lệ' };
     }
 
-    const total = Math.round((base + bonus - deduction) * 100) / 100;
     const note = payload.note !== undefined ? payload.note || null : existing ? existing.note : null;
 
     // ── Tính lương theo ngày làm ──────────────────────────────────────────
@@ -745,7 +743,6 @@ class DriverStaffService {
         .get(driverId, year, month);
       if (!record) return null;
 
-      const driver = DriverStaffService.getById(driverId);
       const salary = DriverStaffService.getMonthlySalary(driverId, year, month);
 
       db.prepare(

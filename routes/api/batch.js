@@ -24,10 +24,7 @@ const express = require('express');
 const router = express.Router();
 
 const {
-  SaleService,
-  InventoryService,
   DebtService,
-  PromotionService,
   AnalyticsService
 } = require('../../src/services');
 
@@ -433,10 +430,11 @@ function getDateRange(period) {
     case 'week':
       startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
       break;
-    case 'month':
+    case 'month': {
       const d = new Date();
       startDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
       break;
+    }
     case 'year':
       startDate = `${new Date().getFullYear()}-01-01`;
       break;

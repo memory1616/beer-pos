@@ -42,7 +42,7 @@ function makeCustomer(nameSuffix, debt = 0) {
   return info.lastInsertRowid;
 }
 
-function makeSale(customerId, total) {
+function _makeSale(customerId, total) {
   const info = db
     .prepare(
       `INSERT INTO sales (customer_id, date, total, profit, type, status, payment_status, created_at)

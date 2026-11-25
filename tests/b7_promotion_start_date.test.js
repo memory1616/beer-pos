@@ -50,7 +50,7 @@ describe('B7 — ngày bắt đầu KM quán mới (THÁNG MỞ QUÁN)', () => {
     ['2026-07-25 00:00', '2026-07-01', 'Ngày 25 tháng 7 -> start = 1/7'],
   ];
 
-  test.each(cases)('created=%s -> %s (%s)', (created, expected, desc) => {
+  test.each(cases)('created=%s -> %s (%s)', (created, expected) => {
     expect(getPromotionStartDate({ created_at: created })).toBe(expected);
   });
 

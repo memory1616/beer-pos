@@ -1032,7 +1032,6 @@ class DeliveryService {
     // ⚠️ CHO PHÉP ÂM: thu vỏ rỗng từ khách bù được vào số âm (vỏ tạm ứng
     //    trước nhà máy). Xem src/services/KegBalanceService.js.
     const stats = db.prepare('SELECT inventory, empty_collected FROM keg_stats WHERE id = 1').get();
-    const currentEmpty = stats?.empty_collected || 0;
     const newlyCollected = Math.max(0, delta);
     const newlyReturnedToCustomer = Math.max(0, -delta);
     const newEmpty = KegBalanceService.peekEmptyCollected(

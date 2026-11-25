@@ -313,7 +313,6 @@ class BatchCache {
 // EXPORT
 // ============================================================
 const cache = new CacheLayer();
-const batchCache = new BatchCache();
 
 module.exports = {
   cache,

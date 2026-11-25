@@ -476,7 +476,7 @@ router.get('/home', requireDriver, (req, res) => {
     // Mảng 31 ngày (đủ số ngày trong tháng)
     const totalDays = daysInMonth(month);
     const daily = [];
-    let monthTotals = { orders: 0, liters: 0, kegs: 0, kegsNet: 0 };
+    const monthTotals = { orders: 0, liters: 0, kegs: 0, kegsNet: 0 };
     for (let i = 1; i <= totalDays; i++) {
       const d = `${month}-${String(i).padStart(2, '0')}`;
       const v = byDate[d] || { orders: 0, liters: 0, kegs: 0, kegsNet: 0 };

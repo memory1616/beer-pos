@@ -454,7 +454,6 @@ function handleMessage(message = {}) {
  */
 function buildResultReply({
   sign,
-  units,
   amount,
   customerName,
   senderId,

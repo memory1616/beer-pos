@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 /** Tìm & xoá khách test còn sót (SMOKE / __DEBT_ / __TEST_). */
 const path = require('path');
-const fs = require('fs');
 const Database = require(path.join('/var/www/beer-pos', 'node_modules', 'better-sqlite3'));
 
 const DB_PATH = '/var/www/beer-pos/database.sqlite';

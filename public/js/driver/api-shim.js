@@ -18,6 +18,7 @@
  *    GET  /api/products             → GET  /api/driver/sale/products
  *    GET  /api/promotions/settings  → GET  /api/driver/sale/promotions/settings
  *    GET  /api/promotions/new-shop/check/:id → .../sale/promotions/new-shop/check/:id
+ *    GET  /api/promotions/new-shop/monthly-summary/:id → .../sale/promotions/new-shop/monthly-summary/:id
  *    GET  /api/promotions/customer/:id/overview → .../sale/promotions/customer/:id/overview
  *    GET  /api/settings/qr-config   → GET  /api/driver/sale/qr-config
  *    GET  /api/settings/qr-accounts/active → GET /api/driver/sale/qr-accounts/active
@@ -49,6 +50,7 @@
   // Prefix map — khớp bằng `startsWith`, phần hậu tố được giữ nguyên.
   var PREFIX_MAP = [
     ['/api/promotions/new-shop/check/', BASE + '/promotions/new-shop/check/'],
+    ['/api/promotions/new-shop/monthly-summary/', BASE + '/promotions/new-shop/monthly-summary/'],
     ['/api/promotions/customer/', BASE + '/promotions/customer/'],
     ['/api/kegs/deliver', BASE + '/kegs/deliver'],
     ['/api/kegs/collect', BASE + '/kegs/collect'],

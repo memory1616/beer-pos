@@ -45,6 +45,11 @@ const APP_SHELL = [
 let _swCloudUrl = null;
 
 self.addEventListener('message', event => {
+  // ── Client yeu cau activate ngay (chi 1 lan, khi co ban SW moi that su) ──
+  if (event.data?.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+    return;
+  }
   if (event.data?.type === 'SET_CLOUD_URL') {
     _swCloudUrl = event.data.url || null;
   }
@@ -336,7 +341,10 @@ self.addEventListener('install', event => {
           )
         );
         const ok = results.filter(r => r.status === 'fulfilled').length;
-        self.skipWaiting();
+        // ⚠️ KHÔNG gọi self.skipWaiting() ở đây.
+        // skipWaiting() + clients.claim() kích hoạt SW mới NGAY LẬP → controller
+        // đổi → client reload → URL SW đổi → SW mới lại → LẶP (reload liên tục).
+        // Thay vào đó client chủ động yêu cầu skip qua postMessage('SKIP_WAITING').
       })
   );
 });
@@ -380,7 +388,10 @@ self.addEventListener('activate', event => {
         await Promise.all(staleAssets.map(req => cache.delete(req)));
       } catch { /* im lặng — cache API có thể không khả dụng */ }
 
-      self.clients.claim();
+      // ⚠️ KHÔNG gọi self.clients.claim() ngay.
+      // clients.claim() chiếm quyền control các tab đang mở → controller đổi
+      // → client script reload → vòng lặp reload.
+      // Client sẽ tự reload 1 lần khi nhận thông điệp SW_READY (xem client).
     })
   );
 });

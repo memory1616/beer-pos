@@ -217,14 +217,23 @@ if (typeof document !== 'undefined') {
   if (window.__beerSWRegistered) return; // tránh đăng ký trùng trong 1 trang
   window.__beerSWRegistered = true;
 
-  var swUrl = '/sw.v2.js?v=' + Date.now();
+  var swUrl = '/sw.v2.js?v=' + (window.SW_VERSION || window.APP_VERSION || '38');
+  // Co han 30 phut: reload 1 lan / 30 phut, dung de tranh vong lap.
   var RELOAD_FLAG = 'swReloadedForUpdate';
+  var RELOAD_TTL = 30 * 60 * 1000;
 
   function reloadOnce(sw) {
     if (!sw) return;
-    try { if (sessionStorage.getItem(RELOAD_FLAG)) return; } catch (e) { /* im lặng */ }
+    try {
+      var last = parseInt(sessionStorage.getItem(RELOAD_FLAG) || '0', 10);
+      if (last && (Date.now() - last) < RELOAD_TTL) return;
+    } catch (e) { /* im lặng */ }
+    // SW khong tu skipWaiting() (tranh vong lap) → client yeu cau.
+    try {
+      if (sw.postMessage) sw.postMessage({ type: 'SKIP_WAITING' });
+    } catch (e) { /* im lặng */ }
     function doReload() {
-      try { sessionStorage.setItem(RELOAD_FLAG, '1'); } catch (e) { /* im lặng */ }
+      try { sessionStorage.setItem(RELOAD_FLAG, String(Date.now())); } catch (e) { /* im lặng */ }
       window.location.reload();
     }
     if (sw.state === 'activated') { doReload(); return; }

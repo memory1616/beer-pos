@@ -36,7 +36,7 @@ function isNonNegativeInt(val) {
 // Sanitize string (trim, remove dangerous chars)
 function sanitizeString(str, maxLen = 500) {
   if (typeof str !== 'string') return '';
-  return str.trim().slice(0, maxLen).replace(/[\x00-\x1F\x7F]/g, '');
+  return str.trim().slice(0, maxLen).replace(/\p{Cc}/gu, '');
 }
 
 // Validate array of IDs
@@ -119,7 +119,7 @@ const schemas = {
 };
 
 // Generic validator middleware factory
-function validate(schemaName, options = {}) {
+function validate(schemaName) {
   const schema = schemas[schemaName];
   if (!schema) {
     return (req, res, next) => next();

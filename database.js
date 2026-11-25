@@ -614,12 +614,6 @@ try {
   // Column already exists, ignore
 }
 
-// Migration: Add fridge counts to customers
-try {
-} catch (e) {
-  // Columns already exist
-}
-
 // Index for customer alerts (tìm khách lâu ngày chưa mua)
 try {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_customer_last_order ON customers(last_order_date)`);
@@ -741,45 +735,35 @@ try {
   const productsNeedingSlug = db.prepare("SELECT id, name FROM products WHERE slug IS NULL OR slug = ''").all();
   const updateSlug = db.prepare('UPDATE products SET slug = ? WHERE id = ?');
   productsNeedingSlug.forEach(function(p) {
-    var slug = toSlug(p.name);
+    const slug = toSlug(p.name);
     if (slug) {
       updateSlug.run(slug, p.id);
     }
   });
-  if (productsNeedingSlug.length > 0) {
-  }
 } catch (e) {
 }
 
 // Seed product_slug in prices table (backfill from product slug)
 try {
-  var updatedPrices = 0;
-  var priceRows = db.prepare("SELECT pr.id, p.slug FROM prices pr JOIN products p ON pr.product_id = p.id WHERE pr.product_slug IS NULL OR pr.product_slug = ''").all();
-  var updatePriceSlug = db.prepare('UPDATE prices SET product_slug = ? WHERE id = ?');
+  const priceRows = db.prepare("SELECT pr.id, p.slug FROM prices pr JOIN products p ON pr.product_id = p.id WHERE pr.product_slug IS NULL OR pr.product_slug = ''").all();
+  const updatePriceSlug = db.prepare('UPDATE prices SET product_slug = ? WHERE id = ?');
   priceRows.forEach(function(r) {
     if (r.slug) {
       updatePriceSlug.run(r.slug, r.id);
-      updatedPrices++;
     }
   });
-  if (updatedPrices > 0) {
-  }
 } catch (e) {
 }
 
 // Seed product_slug in sale_items table (backfill from product slug)
 try {
-  var updatedItems = 0;
-  var itemRows = db.prepare("SELECT si.id, p.slug FROM sale_items si JOIN products p ON si.product_id = p.id WHERE si.product_slug IS NULL OR si.product_slug = ''").all();
-  var updateItemSlug = db.prepare('UPDATE sale_items SET product_slug = ? WHERE id = ?');
+  const itemRows = db.prepare("SELECT si.id, p.slug FROM sale_items si JOIN products p ON si.product_id = p.id WHERE si.product_slug IS NULL OR si.product_slug = ''").all();
+  const updateItemSlug = db.prepare('UPDATE sale_items SET product_slug = ? WHERE id = ?');
   itemRows.forEach(function(r) {
     if (r.slug) {
       updateItemSlug.run(r.slug, r.id);
-      updatedItems++;
     }
   });
-  if (updatedItems > 0) {
-  }
 } catch (e) {
 }
 
@@ -825,38 +809,6 @@ db.exec(`
     value TEXT
   );
 `);
-// Helper function to add to sync queue
-function addToSyncQueue(entity, entityId, action, data) {
-  try {
-    db.prepare(`
-      INSERT INTO sync_queue (entity, entity_id, action, data)
-      VALUES (?, ?, ?, ?)
-    `).run(entity, entityId, action, JSON.stringify(data));
-  } catch (e) {
-    console.error('Error adding to sync queue:', e);
-  }
-}
-
-// Helper function to get pending sync items
-function getPendingSyncItems(limit = 50) {
-  return db.prepare(`
-    SELECT * FROM sync_queue
-    WHERE synced = 0
-    ORDER BY created_at ASC
-    LIMIT ?
-  `).all(limit);
-}
-
-// Helper function to mark as synced
-function markAsSynced(ids) {
-  if (!ids || ids.length === 0) return;
-  const placeholders = ids.map(() => '?').join(',');
-  db.prepare(`
-    UPDATE sync_queue
-    SET synced = 1
-    WHERE id IN (${placeholders})
-  `).run(...ids);
-}
 
 // Seed initial data if empty
 const productCount = db.prepare('SELECT COUNT(*) as count FROM products').get();

@@ -57,7 +57,7 @@ describe('SW update được ép trên MỌI trang', () => {
   test('script inject dùng content-hash của sw.v2.js', () => {
     const idx = serverSrc.indexOf("assetVersion('/sw.v2.js')");
     expect(idx).toBeGreaterThan(-1);
-    const block = serverSrc.slice(idx, idx + 1000);
+    const block = serverSrc.slice(idx, idx + 3000);
     expect(block).toContain("register('/sw.v2.js?v=${swVer}'");
     expect(block).toContain("updateViaCache: 'none'");
     expect(block).toContain('reg.update()');
@@ -65,10 +65,25 @@ describe('SW update được ép trên MỌI trang', () => {
 
   test('script inject xử lý reg.waiting → reload 1 lần (không lặp)', () => {
     const idx = serverSrc.indexOf('__beerSWUpdateInjected');
-    const block = serverSrc.slice(idx, idx + 1400);
+    const block = serverSrc.slice(idx, idx + 3000);
     expect(block).toContain('reg.waiting');
     expect(block).toContain('swReloadedForUpdate');
     expect(block).toContain('location.reload()');
+  });
+
+  test('script inject yêu cầu SKIP_WAITING (SW không tự activate)', () => {
+    // SW mới KHÔNG tự skipWaiting()/clients.claim() → nếu client không yêu cầu
+    // SKIP_WAITING thì SW mới kẹt ở trạng thái 'waiting' → user reload vô hạn.
+    const idx = serverSrc.indexOf('__beerSWUpdateInjected');
+    const block = serverSrc.slice(idx, idx + 3000);
+    expect(block).toContain("type: 'SKIP_WAITING'");
+  });
+
+  test('cờ reload có hạn 30 phút (chống vòng lặp reload)', () => {
+    const idx = serverSrc.indexOf('__beerSWUpdateInjected');
+    const block = serverSrc.slice(idx, idx + 3000);
+    expect(block).toContain('RELOAD_TTL');
+    expect(block).toContain('Date.now()');
   });
 });
 
@@ -114,12 +129,78 @@ describe('sw.v2.js dọn cache cũ khi activate', () => {
     expect(block).toContain("/apple-touch-icon.png");
   });
 
-  test('activate xoá TRƯỚC khi clients.claim()', () => {
+  test('activate KHÔNG tự clients.claim() (tránh vòng lặp reload)', () => {
+    // clients.claim() chiếm quyền control các tab đang mở → controller đổi
+    // → client reload → SW URL đổi → SW mới lại → LẶP.
+    // Client chủ động reload 1 lần qua activateAndReload() + SKIP_WAITING.
     const idx = swSrc.indexOf("addEventListener('activate'");
-    const block = swSrc.slice(idx, idx + 2000);
+    const block = swSrc.slice(idx, idx + 3000);
+    const code = block
+      .split('\n')
+      .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+      .join('\n');
+    expect(code).not.toContain('self.clients.claim()');
+  });
+
+  test('activate xoá entry JS/CSS không có ?v= TRƯỚC khi kết thúc', () => {
+    const idx = swSrc.indexOf("addEventListener('activate'");
+    const block = swSrc.slice(idx, idx + 3000);
     const staleIdx = block.indexOf('staleAssets');
     expect(staleIdx).toBeGreaterThan(-1);
-    expect(block.indexOf('clients.claim()')).toBeGreaterThan(staleIdx);
+    expect(block).toContain('cache.delete(req)');
+  });
+});
+
+describe('sw.v2.js KHÔNG tự skipWaiting (chống reload loop)', () => {
+  test('install KHÔNG gọi self.skipWaiting()', () => {
+    const idx = swSrc.indexOf("addEventListener('install'");
+    const block = swSrc.slice(idx, idx + 1500);
+    const code = block
+      .split('\n')
+      .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+      .join('\n');
+    expect(code).not.toContain('self.skipWaiting()');
+  });
+
+  test('có handler message SKIP_WAITING để client kích hoạt SW có chủ đích', () => {
+    expect(swSrc).toContain("'SKIP_WAITING'");
+    const idx = swSrc.indexOf("'SKIP_WAITING'");
+    const block = swSrc.slice(idx, idx + 300);
+    expect(block).toContain('self.skipWaiting()');
+  });
+});
+
+describe('Service Worker dùng 1 nguồn version ổn định (chống reload loop)', () => {
+  test('server inject window.SW_VERSION (content-hash sw.v2.js)', () => {
+    expect(serverSrc).toContain('window.SW_VERSION');
+  });
+
+  test('client KHÔNG dùng Date.now() cho URL script SW', () => {
+    // `?v=Date.now()` → URL MỚI mỗi lần load → browser cài SW mới → reload lặp.
+    const clients = ['layout.js', 'sw-register.js', 'login.js'];
+    for (const f of clients) {
+      const src = fs.readFileSync(path.join(ROOT, 'public', 'js', f), 'utf8');
+      const code = src
+        .split('\n')
+        .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+        .join('\n');
+      expect(code).not.toMatch(/sw\.v2\.js\?v=['"]?\s*\+\s*Date\.now\(\)/);
+      expect(code).not.toMatch(/swVer\s*=\s*Date\.now\(\)/);
+    }
+  });
+
+  test('client dùng SW_VERSION (fallback APP_VERSION) cho URL script SW', () => {
+    for (const f of ['layout.js', 'sw-register.js', 'login.js']) {
+      const src = fs.readFileSync(path.join(ROOT, 'public', 'js', f), 'utf8');
+      expect(src).toContain('SW_VERSION');
+    }
+  });
+
+  test('client có cờ reload có hạn (RELOAD_TTL)', () => {
+    for (const f of ['layout.js', 'sw-register.js']) {
+      const src = fs.readFileSync(path.join(ROOT, 'public', 'js', f), 'utf8');
+      expect(src).toContain('RELOAD_TTL');
+    }
   });
 });
 

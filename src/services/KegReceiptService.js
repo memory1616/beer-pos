@@ -93,8 +93,6 @@ const KegReceiptService = {
       // 2. Cộng vỏ rỗng về kho chờ nạp lại
       //    ⚠️ CHO PHÉP ÂM: thu vỏ từ khách BÙ ĐƯỢC vào số âm (vỏ tạm ứng
       //       trước nhà máy). Xem src/services/KegBalanceService.js.
-      const stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
-      const currentEmpty = stats?.empty_collected || 0;
       const newEmpty = KegBalanceService.peekEmptyCollected(kegs);
       db.prepare(
         "UPDATE keg_stats SET empty_collected = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1"
@@ -264,8 +262,6 @@ const KegReceiptService = {
         updateCustomerKegBalance(row.customer_id, diff > 0 ? diff : 0, diff < 0 ? -diff : 0);
 
         // Đồng bộ vỏ rỗng trong kho (CHO PHÉP ÂM — xem KegBalanceService)
-        const stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
-        const currentEmpty = stats?.empty_collected || 0;
         const newEmpty = KegBalanceService.peekEmptyCollected(-diff);
         db.prepare(
           'UPDATE keg_stats SET empty_collected = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1'
@@ -355,8 +351,6 @@ const KegReceiptService = {
       }
 
       // 2. Trừ vỏ rỗng trong kho (CHO PHÉP ÂM — xem KegBalanceService)
-      const stats = db.prepare('SELECT empty_collected FROM keg_stats WHERE id = 1').get();
-      const currentEmpty = stats?.empty_collected || 0;
       const newEmpty = KegBalanceService.peekEmptyCollected(-kegs);
       db.prepare(
         'UPDATE keg_stats SET empty_collected = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1'

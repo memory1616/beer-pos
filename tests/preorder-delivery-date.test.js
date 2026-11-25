@@ -77,7 +77,6 @@ function createPreorderSale(preorderDate, createdOn, status = 'SCHEDULED') {
 
 /** Chạy biểu thức ngày giao trên 1 row thật trong DB. */
 function deliveryDateOf(saleId) {
-  const row = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId);
   return db
     .prepare(
       `SELECT CASE

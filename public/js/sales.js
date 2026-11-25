@@ -366,7 +366,11 @@ function populateSaleHistoryMonthFilter() {
   sel.addEventListener('change', function(e) {
     onSaleHistoryMonthChange(e.target.value);
   });
-  onSaleHistoryMonthChange(defaultVal);
+  // ⚠️ CHỈ set state, KHÔNG gọi loadSaleHistory() ở đây.
+  // initSalesPage() gọi loadSaleHistory() ngay sau → tránh fetch trùng 2 lần.
+  saleHistoryYear = y;
+  saleHistoryMonth = m;
+  saleHistoryPage = 1;
 }
 
 function renderSaleHistory(sales, page, totalPages) {

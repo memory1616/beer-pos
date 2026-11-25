@@ -454,13 +454,46 @@ router.get('/new-shop/monthly-summary/:customerId', (req, res) => {
     const customerId = parseInt(req.params.customerId);
     if (!customerId) return res.status(400).json({ success: false, error: 'ID không hợp lệ' });
 
-    const customer = db.prepare('SELECT created_at FROM customers WHERE id = ?').get(customerId);
+    const customer = db.prepare('SELECT created_at, promotion_enabled, new_shop_enabled FROM customers WHERE id = ?').get(customerId);
     if (!customer || !customer.created_at) {
       return res.json({
         success: true,
         data: {
           eligible: false,
           reason: 'Không tìm thấy khách hàng',
+          yellowVolume: 0,
+          blackVolume: 0,
+          yellowReward: 0,
+          blackReward: 0,
+          totalReward: 0
+        }
+      });
+    }
+
+    // ── Cờ bật/tắt ở mức KHÁCH HÀNG ────────────────────────────────────
+    // Khách bị admin tắt riêng "khuyến mãi quán mới" (new_shop_enabled)
+    // hoặc tắt chung "tham gia CTKM" (promotion_enabled) → không hiển thị card.
+    if (customer.promotion_enabled === 0) {
+      return res.json({
+        success: true,
+        data: {
+          eligible: false,
+          reason: 'Khách đã tắt tham gia CTKM',
+          yellowVolume: 0,
+          blackVolume: 0,
+          yellowReward: 0,
+          blackReward: 0,
+          totalReward: 0
+        }
+      });
+    }
+
+    if (customer.new_shop_enabled === 0) {
+      return res.json({
+        success: true,
+        data: {
+          eligible: false,
+          reason: 'Khách đã tắt khuyến mãi quán mới',
           yellowVolume: 0,
           blackVolume: 0,
           yellowReward: 0,

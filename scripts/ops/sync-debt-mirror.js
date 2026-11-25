@@ -93,7 +93,6 @@ fs.mkdirSync(path.dirname(BACKUP), { recursive: true });
 db.exec(`VACUUM INTO '${BACKUP.replace(/'/g, "''")}'`);
 console.log('\n✅ Backup:', BACKUP);
 
-const DebtLedgerService = require('../../src/services/debt/DebtLedgerService');
 const DebtAccountService = require('../../src/services/debt/DebtAccountService');
 const DebtAuditService = require('../../src/services/debt/DebtAuditService');
 

@@ -304,6 +304,7 @@ const ADMIN_ONLY_PAGES = [
   '/push-notify',   // Web Push cho tài xế — cấu hình (chỉ ADMIN)
   '/regions',       // Quản lý khu vực giao hàng & phân công tài xế (chỉ ADMIN)
   '/preorders',     // Đặt hàng trước — quản lý đơn chờ 07:00 ngày giao (chỉ ADMIN)
+  '/delivery-recon', // A3 — đối soát phiếu giao (chỉ ADMIN)
 ];
 
 function adminPageGuard(req, res, next) {

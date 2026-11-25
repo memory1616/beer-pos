@@ -2,7 +2,6 @@
  * InventoryService - Business logic cho inventory
  */
 const db = require('../../database');
-const logger = require('../utils/logger');
 const AuditService = require('./AuditService');
 
 class InventoryService {
