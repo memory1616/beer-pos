@@ -141,4 +141,16 @@ describe('Không còn emoji logo ở vị trí thương hiệu', () => {
     expect(shell).toContain('class="ds-side__logo" src="/brand/logo-64.png');
     expect(receipt).toContain('class="rp-brand__logo" src="/brand/logo-64.png');
   });
+
+  test('driver shell + receipt kèm cache-buster brandQ()', () => {
+    const shell = fs.readFileSync(path.join(ROOT, 'public', 'js', 'driver', 'shell.js'), 'utf8');
+    const receipt = fs.readFileSync(path.join(ROOT, 'public', 'js', 'driver', 'receipt-view.js'), 'utf8');
+    for (const src of [shell, receipt]) {
+      expect(src).toContain('function brandQ()');
+      expect(src).toContain('window.BRAND_VERSION');
+      expect(src).toContain("'?v=' + v");
+    }
+    expect(shell).toContain("' + brandQ() + '");
+    expect(receipt).toContain("' + brandQ() + '");
+  });
 });

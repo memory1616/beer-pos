@@ -21,6 +21,15 @@
 (function () {
   'use strict';
 
+  /* Cache-buster cho URL logo thương hiệu.
+   * Server inject `window.BRAND_VERSION` vào HTML (content-hash của file
+   * logo) → thêm vào query để đổi logo là URL đổi → browser tự tải bản
+   * mới, không cần Ctrl+F5. */
+  function brandQ() {
+    var v = (typeof window !== 'undefined' && window.BRAND_VERSION) || '';
+    return v ? '?v=' + v : '';
+  }
+
   /* ═══════════════════════════════════════════════════════════════════
    * Điều hướng
    * mobile  : 4 mục — Tổng quan · Bán hàng · Giao hàng · Tài khoản
@@ -117,7 +126,7 @@
     return '' +
       '<aside class="ds-sidebar" aria-label="Điều hướng chính">' +
         '<div class="ds-side__brand">' +
-          '<img class="ds-side__logo" src="/brand/logo-64.png" alt="" width="40" height="40" decoding="async">' +
+          '<img class="ds-side__logo" src="/brand/logo-64.png' + brandQ() + '" alt="" width="40" height="40" decoding="async">' +
           '<span class="ds-side__brandtext">' +
             '<span class="ds-side__name">Cổng Tài xế</span>' +
             '<span class="ds-side__tag">Bia Tươi Tây Ninh</span>' +

@@ -13,6 +13,12 @@
 (function () {
   'use strict';
 
+  /* Cache-buster cho URL logo thương hiệu (xem giải thích ở driver/shell.js). */
+  function brandQ() {
+    var v = (typeof window !== 'undefined' && window.BRAND_VERSION) || '';
+    return v ? '?v=' + v : '';
+  }
+
   function esc(s) {
     return String(s === null || s === undefined ? '' : s)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;')
@@ -57,7 +63,7 @@
 
         '<header class="rp-head">' +
           '<div class="rp-brand">' +
-            '<img class="rp-brand__logo" src="/brand/logo-64.png" alt="" width="40" height="40" decoding="async">' +
+            '<img class="rp-brand__logo" src="/brand/logo-64.png' + brandQ() + '" alt="" width="40" height="40" decoding="async">' +
             '<div>' +
               '<div class="rp-brand__name">BIA TƯƠI TÂY NINH</div>' +
               '<div class="rp-brand__sub">Cổng Tài xế · Phiếu giao nhận</div>' +
