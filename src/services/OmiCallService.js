@@ -595,6 +595,38 @@ async function ensureAgentInGroup(ctx = {}, convMongoId) {
       /* thử host tiếp theo */
     }
   }
+
+  // Bước 2: JOIN phiên chat (route `omi_v2/conversation/join`).
+  // Route này được trích từ bundle web app OmiCall (hàm `socialAllocatingAction`
+  // với `isJoin: true` → `POST omi_v2/conversation/join`).
+  // Body: { type: 'omni_conv', id, kind, channel_id, isEnableSession }.
+  // Đã kiểm chứng: nhóm có `joined_agents = null` → sau khi join,
+  // `joined_agents` có agent và `has_member` = true.
+  const channelId = await fetchChannelId(ctx);
+  for (const host of resolveMessageHosts(baseUrl)) {
+    try {
+      const res = await fetchWithTimeout(`${host}/omi_v2/conversation/join?lng=vi`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          type: 'omni_conv',
+          id: conv,
+          kind: 'zalo_personal',
+          channel_id: channelId,
+          isEnableSession: true,
+        }),
+      });
+      const raw = await res.text();
+      if (/^\s*<(!doctype|html)/i.test(raw)) continue;
+      const parsed = raw ? JSON.parse(raw) : null;
+      const statusCode = parsed && parsed.status_code;
+      if (res.ok && (statusCode === undefined || Number(statusCode) === 9999) && parsed && parsed.payload) {
+        return true;
+      }
+    } catch (_) {
+      /* thử host tiếp theo */
+    }
+  }
   return false;
 }
 

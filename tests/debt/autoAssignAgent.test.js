@@ -109,10 +109,16 @@ describe('OmiCallService — route gán agent ĐÚNG', () => {
     expect(body).not.toMatch(/redistribute_from_list/);
     expect(body).not.toMatch(/redistribute_type:\s*'remove'/);
   });
-
   test('export hàm assignAgentToGroup', () => {
     expect(OMI_SRC).toMatch(/async function assignAgentToGroup/);
     expect(OMI_SRC).toMatch(/assignAgentToGroup,/);
+  });
+
+  test('có bước 2: join session qua omi_v2/conversation/join', () => {
+    expect(OMI_SRC).toMatch(/omi_v2\/conversation\/join/);
+    expect(OMI_SRC).toMatch(/type:\s*'omni_conv'/);
+    expect(OMI_SRC).toMatch(/kind:\s*'zalo_personal'/);
+    expect(OMI_SRC).toMatch(/isEnableSession:\s*true/);
   });
 });
 
