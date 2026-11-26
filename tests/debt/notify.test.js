@@ -445,12 +445,12 @@ describe('OmiCallService — gửi tin nhắn Zalo Personal', () => {
 
     expect(res.success).toBe(true);
     expect(res.messageId).toBe('MSG_RETRY');
-    const addCall = calls.find((c) => c.url.includes('/conversation/add_member'));
+    const addCall = calls.find((c) => c.url.includes('/conversation/add_member_from_list'));
     expect(addCall).toBeDefined();
     const addBody = JSON.parse(addCall.opts.body);
-    expect(addBody.type).toBe('zalo_personal');
-    expect(addBody.conv).toBe('6afe6913fca59218a5d662a9');
-    expect(addBody.contact_ids).toEqual(['CONTACT_1']);
+    expect(addBody.id).toBe('6afe6913fca59218a5d662a9');
+    expect(addBody.assign_agent_option.ids).toEqual(['CONTACT_1']);
+    expect(addBody.assign_agent_option.allocate_type).toBe('SPECIFIC');
   });
 
   it('giữ nguyên Mongo _id 24 hex, không gọi search', async () => {    const calls = [];

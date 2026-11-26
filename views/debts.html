@@ -3232,9 +3232,14 @@
     api(API + '/groups', {
       method: 'POST',
       body: JSON.stringify({ customerId: customerId, groupId: groupId, groupName: groupName, platform: platform })
-    }).then(function () {
+    }).then(function (res) {
       closeModal();
-      toast('✅ Đã liên kết nhóm Zalo', 'ok');
+      var d = (res && res.data) || {};
+      if (d.agentAssigned) {
+        toast('✅ Đã liên kết nhóm Zalo và tự động gán nhân viên', 'ok');
+      } else {
+        toast('✅ Đã liên kết nhóm Zalo — ⚠️ Chưa gán được nhân viên, vào OmiCall gán tay nếu tin không gửi được', 'err');
+      }
       loadGroups();
     }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
   }

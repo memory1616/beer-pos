@@ -518,7 +518,7 @@ router.get('/groups', requireAuth, (req, res) => {
   }
 });
 
-router.post('/groups', requireAuth, requireAdmin, (req, res) => {
+router.post('/groups', requireAuth, requireAdmin, async (req, res) => {
   try {
     const { customerId, groupId, groupName, platform } = req.body || {};
     const custId = parseInt(customerId, 10);
@@ -567,7 +567,31 @@ router.post('/groups', requireAuth, requireAdmin, (req, res) => {
       });
     }
 
-    res.json({ success: true });
+    // Tự động gán agent hiện tại vào nhóm Zalo.
+    // Nếu không gán được, các tin thông báo công nợ sau này sẽ bị OmiCall từ chối
+    // với lỗi `error_occurred` → admin phải tự vào web app OmiCall gán tay.
+    // Fail-open: lỗi ở đây KHÔNG được làm hỏng việc liên kết nhóm.
+    let agentAssigned = false;
+    let agentAssignNote = '';
+    try {
+      const assign = await OmiCallService.assignAgentToGroup(String(groupId));
+      agentAssigned = !!assign.assigned;
+      agentAssignNote = assign.reason || '';
+    } catch (e) {
+      agentAssignNote = e.message;
+      logger.warn('[DEBT_LEDGER] Không gán được agent vào nhóm Zalo', {
+        groupId: String(groupId),
+        error: e.message,
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        agentAssigned,
+        agentAssignNote: agentAssigned ? '' : agentAssignNote,
+      },
+    });
   } catch (e) {
     logger.error('[DEBT_LEDGER] link group error', { error: e.message });
     res.status(500).json({ success: false, error: e.message });

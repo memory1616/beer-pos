@@ -532,10 +532,23 @@ async function resolveMongoConvId(ctx = {}, convNumber) {
 /**
  * Gán nhân viên (agent) hiện tại vào một nhóm Zalo nếu chưa có quyền.
  *
- * OmiCall trả `user_not_permision` khi agent chưa được gán vào nhóm
- * (`conv.has_member === false`). Gọi `POST /conversation/add_member` với
- * `{ type, conv, contact_ids }` để cấp quyền — đây cũng là hành động tương
- * đương thao tác "Gán nhân viên" trên web app OmiCall.
+ * ⚠️ QUAN TRỌNG (2026-11-26) — dùng `add_member_from_list`, KHÔNG dùng `add_member`:
+ *  - `POST /conversation/add_member` (body `{type, conv, contact_ids}`) trả HTTP 200
+ *    với `payload: true` nhưng **KHÔNG hề thay đổi** trạng thái nhóm
+ *    (`conv.has_member` vẫn `false`, `chat_session.joined_agents` vẫn `null`)
+ *    → tin nhắn sau đó vẫn bị OmiCall từ chối với `error_occurred`.
+ *  - `POST /conversation/add_member_from_list` với body
+ *    `{ id: <conv_mongo_id>, assign_agent_option: { ids: [contact_id], agent_groups: [],
+ *      priority_agent_of_contact: null, allocate_type: 'SPECIFIC' } }`
+ *    mới thực sự gán agent: `has_member` false→true, `joined_agents` null→[contact_id],
+ *    `member_ids` được bổ sung.
+ *
+ * Body này được trích từ bundle web app chính thức của OmiCall
+ * (hàm `updateReceivingMember` → `assign_agent_option.ids`).
+ *
+ * ⚠️ TUYỆT ĐỐI KHÔNG dùng `conversation/redistribute_from_list` với
+ * `redistribute_type: 'remove'` — nó **GỠ agent khỏi nhóm** (đã kiểm chứng:
+ * `has_member` true→false, `member_ids` bị xoá).
  *
  * @param {object} ctx - { apiKey, baseUrl, token, headers }
  * @param {string} convMongoId - Mongo `_id` của hội thoại
@@ -558,13 +571,17 @@ async function ensureAgentInGroup(ctx = {}, convMongoId) {
 
   for (const host of resolveMessageHosts(baseUrl)) {
     try {
-      const res = await fetchWithTimeout(`${host}/conversation/add_member?lng=vi`, {
+      const res = await fetchWithTimeout(`${host}/conversation/add_member_from_list?lng=vi`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          type: 'zalo_personal',
-          conv,
-          contact_ids: [contactId],
+          id: conv,
+          assign_agent_option: {
+            ids: [contactId],
+            agent_groups: [],
+            priority_agent_of_contact: null,
+            allocate_type: 'SPECIFIC',
+          },
         }),
       });
       const raw = await res.text();
@@ -579,6 +596,63 @@ async function ensureAgentInGroup(ctx = {}, convMongoId) {
     }
   }
   return false;
+}
+
+/**
+ * Gán agent hiện tại vào nhóm Zalo (dùng khi admin liên kết nhóm trong Sổ công nợ).
+ *
+ * Mục đích: sau khi liên kết, agent phải có quyền trong nhóm thì tin thông báo
+ * công nợ mới gửi được. Trước đây admin phải tự vào web app OmiCall để gán,
+ * rất dễ quên → nhóm bị "treo" và mọi tin đều fail với `error_occurred`.
+ *
+ * Hàm này FAIL-OPEN: lỗi không chặn việc liên kết nhóm (chỉ ghi log).
+ *
+ * @param {string} convId - Mongo `_id` của hội thoại (nhóm Zalo)
+ * @returns {Promise<{assigned:boolean, reason?:string}>}
+ */
+async function assignAgentToGroup(convId) {
+  const conv = String(convId || '').trim();
+  if (!conv) return { assigned: false, reason: 'Thiếu convId' };
+
+  const cfg = getConfig();
+  const apiKey = String(cfg.apiKey || '').trim();
+  const baseUrl = normalizeBaseUrl(cfg.baseUrl);
+  if (!apiKey) {
+    return { assigned: false, reason: 'Chưa cấu hình OmiCall API key' };
+  }
+
+  let token = null;
+  try {
+    token = await getAccessToken({ apiKey, baseUrl });
+  } catch (e) {
+    try {
+      token = await getAccessToken({ apiKey, baseUrl, force: true });
+    } catch (e2) {
+      logger.warn('[OMICALL] Không lấy được token để gán agent vào nhóm', {
+        convId: conv,
+        error: e2.message,
+      });
+      return { assigned: false, reason: e2.message };
+    }
+  }
+
+  const headers = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+    'x-api-key': apiKey,
+  };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const ctx = { apiKey, baseUrl, token, headers };
+  const granted = await ensureAgentInGroup(ctx, conv);
+  if (granted) {
+    logger.info('[OMICALL] Đã gán agent vào nhóm Zalo', { convId: conv });
+    return { assigned: true };
+  }
+  logger.warn('[OMICALL] Không gán được agent vào nhóm Zalo (có thể agent đã có quyền)', {
+    convId: conv,
+  });
+  return { assigned: false, reason: 'OmiCall không xác nhận gán agent' };
 }
 
 /**
@@ -1312,6 +1386,7 @@ module.exports = {
   getAccessToken,
   clearTokenCache,
   sendZaloPersonalMessage,
+  assignAgentToGroup,
   testConnection,
   probeSendEndpoints,
   listConversations,
