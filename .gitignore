@@ -224,3 +224,7 @@ scripts/.responsive-manifest.json
 deploy/_tmp_*
 deploy/_check_*
 deploy/_diag_*
+deploy/_fix_*
+deploy/_assets.py
+deploy/_cleanup_junk.py
+deploy/_gen_*.py
