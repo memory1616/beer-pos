@@ -62,23 +62,74 @@ function getCustomerName(customerId, fallback) {
 
 /**
  * Tìm convId (conversation ID OmiCall) của nhóm Zalo đang active của khách.
- * @returns {string|null}
+ *
+ * Trả về kèm `group_name` để khi gửi tin bị lỗi "error_occurred" (conv đã
+ * chết vì agent rời nhóm Zalo) hệ thống có thể TỰ ĐỘNG tìm conv mới đang
+ * sống cùng tên và gửi lại — không bắt buộc admin phải liên kết lại tay.
+ *
+ * @returns {{convId:string|null, groupName:string|null, rowId:number|null}}
  */
 function findConvId(customerId) {
   try {
     const row = db
       .prepare(
-        `SELECT group_id FROM debt_customer_groups
+        `SELECT id, group_id, group_name FROM debt_customer_groups
           WHERE customer_id = ? AND platform = ? AND status = 'active'
           ORDER BY id DESC LIMIT 1`
       )
       .get(customerId, PLATFORMS.ZALO_PERSONAL);
-    return row && row.group_id ? String(row.group_id) : null;
+    if (!row || !row.group_id) return { convId: null, groupName: null, rowId: null };
+    return {
+      convId: String(row.group_id),
+      groupName: row.group_name ? String(row.group_name) : null,
+      rowId: row.id,
+    };
   } catch (e) {
     logger.error('[DEBT_NOTIFY] findConvId error', { error: e.message });
-    return null;
+    return { convId: null, groupName: null, rowId: null };
   }
 }
+
+/**
+ * Cập nhật convId của nhóm Zalo sau khi hệ thống tự chuyển sang conv mới
+ * (auto-heal) → lần gửi sau dùng đúng conv đang sống.
+ */
+function saveHealedConvId(rowId, newConvId) {
+  if (!rowId || !newConvId) return false;
+  try {
+    // Coi nhom moi da duoc lien ket cho khach khac?
+    // (UNIQUE(platform, group_id) se bao loi neu ghi de)
+    const dup = db
+      .prepare(
+        `SELECT id FROM debt_customer_groups
+          WHERE platform = ? AND group_id = ? AND id != ?
+          LIMIT 1`
+      )
+      .get(PLATFORMS.ZALO_PERSONAL, String(newConvId), rowId);
+    if (dup) {
+      logger.warn('[DEBT_NOTIFY] Conv moi da duoc lien ket cho nhom khac - bo qua auto-heal', {
+        rowId,
+        newConvId: String(newConvId),
+        duplicateRowId: dup.id,
+      });
+      return false;
+    }
+    db.prepare(
+      `UPDATE debt_customer_groups
+          SET group_id = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?`
+    ).run(String(newConvId), rowId);
+    logger.warn('[DEBT_NOTIFY] Đã cập nhật convId nhóm Zalo sang conv đang sống', {
+      rowId,
+      newConvId: String(newConvId),
+    });
+    return true;
+  } catch (e) {
+    logger.error('[DEBT_NOTIFY] saveHealedConvId error', { error: e.message });
+    return false;
+  }
+}
+
 
 /** Ghi 1 dòng nhật ký thông báo. */
 function writeLog(entry = {}) {
@@ -255,7 +306,8 @@ async function notifyPayment(opts = {}) {
   }
 
   // 3. Tìm nhóm Zalo của khách
-  const convId = findConvId(customerId);
+  const group = findConvId(customerId);
+  let convId = group.convId;
   if (!convId) {
     writeLog({
       customerId,
@@ -285,7 +337,18 @@ async function notifyPayment(opts = {}) {
   });
 
   // 4. Gửi
-  const result = await OmiCallService.sendZaloPersonalMessage({ convId, text: content });
+  const result = await OmiCallService.sendZaloPersonalMessage({
+    convId,
+    text: content,
+    groupName: group.groupName,
+  });
+
+  // Auto-heal: conv đã chết → OmiCall tự tị chuyển sang conv đang sống.
+  // Lưu link để dững lại conv mới để không bị lỗi lại.
+  if (result && result.healedTo && result.healedTo !== convId) {
+    saveHealedConvId(group.rowId, result.healedTo);
+    convId = result.healedTo;
+  }
 
   if (result.success) {
     writeLog({
@@ -352,7 +415,8 @@ async function notifyManualDebt(opts = {}) {
     return { status: STATUS.SKIPPED, error: 'ALREADY_NOTIFIED' };
   }
 
-  const convId = findConvId(customerId);
+  const group = findConvId(customerId);
+  let convId = group.convId;
   if (!convId) {
     return { status: STATUS.SKIPPED, error: 'NO_GROUP' };
   }
@@ -364,7 +428,18 @@ async function notifyManualDebt(opts = {}) {
     title: cfg.title,
   });
 
-  const result = await OmiCallService.sendZaloPersonalMessage({ convId, text: content });
+  const result = await OmiCallService.sendZaloPersonalMessage({
+    convId,
+    text: content,
+    groupName: group.groupName,
+  });
+
+  // Auto-heal: conv đã chết → OmiCall tự tị chuyển sang conv đang sống.
+  // Lưu link để dững lại conv mới để không bị lỗi lại.
+  if (result && result.healedTo && result.healedTo !== convId) {
+    saveHealedConvId(group.rowId, result.healedTo);
+    convId = result.healedTo;
+  }
 
   writeLog({
     customerId,

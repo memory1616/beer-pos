@@ -2842,7 +2842,7 @@
             'oninput="filterOmiGroups(this.value)" autocomplete="off"></div>' +
         '<select id="gpOmiGroup" class="dbt-select" style="margin-top:8px" onchange="onPickOmiGroup()">' +
           '<option value="">— Chọn nhóm Zalo —</option></select>' +
-        '<div class="dbt-hint" id="gpGroupCount">Chỉ hiển thị <b>nhóm Zalo</b> (không hiển thị chat cá nhân) để tránh gửi nhầm cho khách. <b>Nhóm vừa tạo</b> (chưa có tin nhắn) không có trong danh sách mặc định — gõ tên nhóm hoặc Group ID rồi nhấn <b>Enter</b> để tìm.</div></div>' +
+        '<div class="dbt-hint" id="gpGroupCount">Chỉ hiển thị <b>nhóm Zalo đang hoạt động</b> (không hiển thị nhóm đã chết) (không hiển thị chat cá nhân) để tránh gửi nhầm cho khách. <b>Nhóm vừa tạo</b> (chưa có tin nhắn) không có trong danh sách mặc định — gõ tên nhóm hoặc Group ID rồi nhấn <b>Enter</b> để tìm.</div></div>' +
       '<div class="dbt-field"><label class="dbt-label">Group ID</label>' +
         '<div style="display:flex;gap:8px;align-items:stretch">' +
           '<input id="gpGroupId" class="dbt-input dbt-input--copyable" placeholder="VD: 6afe6913fca59218a5d662a9" ' +
@@ -2898,7 +2898,10 @@
 
     api(API + '/notify/conversations?size=100&page=' + page + '&groupsOnly=1').then(function (res) {
       var list = (res.data && res.data.conversations) || [];
-      var groups = list.filter(function (c) { return c.convSubType === 'group'; });
+      // Chỉ nhóm Zalo đANG SỐNG (bỏ conv đã chết do agent rỗi nhóm).
+      var groups = list.filter(function (c) {
+        return c.convSubType === 'group' && !c.isStale;
+      });
 
       // Gộp, loại trùng theo convId
       var seen = {};
@@ -2917,6 +2920,12 @@
       }
 
       renderOmiGroupOptions();
+
+      // Backend tu dong va link nhom Zalo dang tro den conv da chet.
+      var healed = (res.data && res.data.healedLinks) || [];
+      if (healed.length) {
+        toast('✅ Đã tự động cập nhật ' + healed.length + ' nhóm Zalo đã chết → nhóm mới', 'ok');
+      }
 
       if (countEl) {
         countEl.innerHTML = 'Đã tải <b>' + _omiGroupsCache.length + '</b> nhóm Zalo' +
@@ -2949,7 +2958,10 @@
 
     api(API + '/notify/conversations?size=100&keyword=' + encodeURIComponent(kw)).then(function (res) {
       var list = (res.data && res.data.conversations) || [];
-      var groups = list.filter(function (c) { return c.convSubType === 'group'; });
+      // Chỉ nhóm Zalo đANG SỐNG (bỏ conv đã chết do agent rỗi nhóm).
+      var groups = list.filter(function (c) {
+        return c.convSubType === 'group' && !c.isStale;
+      });
       // Gộp vào cache để lọc client-side tiếp vẫn thấy
       var seen = {};
       var merged = _omiGroupsCache.slice();
@@ -2994,8 +3006,11 @@
       });
     }
     sel.innerHTML = '<option value="">— Chọn nhóm Zalo —</option>' + list.map(function (c) {
+      // Hiện ID để phân biệt 2 conv trùng tên không bị nhầm.
+      var label = esc(c.name || '(không tên)');
+      var shortId = String(c.convId || '').slice(-6);
       return '<option value="' + esc(c.convId) + '" data-name="' + esc(c.name || '') + '">' +
-        esc(c.name || '(không tên)') + '</option>';
+        label + ' · <span style="opacity:.6">#' + esc(shortId) + '</span></option>';
     }).join('');
   }
 

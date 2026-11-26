@@ -1017,11 +1017,94 @@ router.get('/notify/conversations', requireAuth, requireAdmin, async (req, res) 
       return res.status(400).json({ success: false, error: result.error, attempts: result.attempts || [] });
     }
     let conversations = result.conversations || [];
+
     // Chỉ trả về nhóm Zalo (bỏ chat cá nhân) — tránh gửi nhầm cho khách.
     if (groupsOnly === '1') {
       conversations = conversations.filter((c) => c.convSubType === 'group');
     }
-    res.json({ success: true, data: { conversations } });
+
+    // ── Tự động vá link nhóm Zalo đang trỏ vào conv ĐÃ CHẾT ────────────────
+    // Khi agent rời nhóm Zalo rồi vào lại, OmiCall tạo conv MỚI cho cùng
+    // nhóm và giữ conv CŨ (đã chết) trong danh sách. Link trong DB vẫn trỏ
+    // về conv cũ → mọi tin công nợ đều fail với "error_occurred".
+    //
+    // → Dùng danh sách conv vừa tải để tự tìm conv sống cùng tên và sửa link.
+    //    Nhờ vậy admin không bao giờ phải tự liên kết lại nhóm.
+    const healedLinks = [];
+    try {
+      const liveByName = new Map();
+      for (const c of conversations) {
+        if (c.isStale) continue;
+        const nameKey = String(c.name || '').trim().toLowerCase();
+        if (!nameKey) continue;
+        const prev = liveByName.get(nameKey);
+        if (!prev || Number(c.lastActivityAt || 0) > Number(prev.lastActivityAt || 0)) {
+          liveByName.set(nameKey, c);
+        }
+      }
+
+      const links = db
+        .prepare(
+          `SELECT g.id, g.customer_id, g.group_id, g.group_name
+             FROM debt_customer_groups g
+            WHERE g.platform = ? AND g.status = 'active'`
+        )
+        .all(PLATFORMS.ZALO_PERSONAL);
+
+      const updateStmt = db.prepare(
+        `UPDATE debt_customer_groups
+            SET group_id = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?`
+      );
+
+      for (const link of links) {
+        const nameKey = String(link.group_name || '').trim().toLowerCase();
+        if (!nameKey) continue;
+        const live = liveByName.get(nameKey);
+        if (!live) continue;
+        if (String(live.convId) === String(link.group_id)) continue;
+
+        // Link hiện tại có phải conv đã chết không? Chỉ sửa khi chắc chắn.
+        const staleConv = conversations.find((c) => String(c.convId) === String(link.group_id));
+        const isKnownStale = staleConv && staleConv.isStale;
+        const notInList = !staleConv && !keyword;
+        if (!isKnownStale && !notInList) continue;
+
+        // UNIQUE(platform, group_id): conv moi da duoc lien ket cho nhom khac
+        // thi khong ghi de - chi dung conv da chet de gan lai.
+        const dup = db
+          .prepare(
+            `SELECT id FROM debt_customer_groups
+              WHERE platform = ? AND group_id = ? AND id != ?
+              LIMIT 1`
+          )
+          .get(PLATFORMS.ZALO_PERSONAL, String(live.convId), link.id);
+        if (dup) continue;
+
+        updateStmt.run(String(live.convId), link.id);
+        healedLinks.push({
+          rowId: link.id,
+          customerId: link.customer_id,
+          groupName: link.group_name,
+          oldConvId: link.group_id,
+          newConvId: live.convId,
+        });
+        logger.warn('[DEBT_LEDGER] Đã tự động vá link nhóm Zalo sang conv đang sống', {
+          rowId: link.id,
+          oldConvId: link.group_id,
+          newConvId: live.convId,
+          groupName: link.group_name,
+        });
+      }
+    } catch (e) {
+      logger.warn('[DEBT_LEDGER] Không vá được link nhóm Zalo đã chết', { error: e.message });
+    }
+
+    res.json({
+      success: true,
+      data: { conversations, healedLinks },
+    });
+
   } catch (e) {
     logger.error('[DEBT_NOTIFY_API] conversations error', { error: e.message });
     res.status(500).json({ success: false, error: e.message });

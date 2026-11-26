@@ -50,7 +50,6 @@ const tokenCache = new Map();
 // channel_id khi phiên Zalo chập chờn, tránh rơi vào lỗi "error_occurred").
 const channelIdCache = new Map();
 const CHANNEL_ID_TTL_MS = 30 * 60 * 1000;
-
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function getSetting(key, fallback = '') {
@@ -888,8 +887,39 @@ async function sendZaloPersonalMessage(opts = {}) {
               continue;
             }
 
-            // 2) Không cấp được quyền → coi là lỗi tạm thời → thử lại với
-            //    token MỚI và channel_id lấy lại (bỏ qua cache cũ).
+            // 2) Không cấp được quyền → có thể conv đã CHẾT (agent đã rời
+            //    nhóm Zalo → OmiCall tạo conv MỚI cho cùng nhóm).
+            //    → Tự động tìm conv còn sống và gửi lại (auto-heal).
+            if (!opts._retried && opts.groupName) {
+              const healed = await resolveLiveConvId({
+                convId: convMongoId,
+                groupName: opts.groupName,
+              });
+              if (healed.changed && healed.convId !== convMongoId) {
+                logger.warn('[OMICALL] Conv đã chết — tự động chuyển sang conv sống mới', {
+                  oldConvId: convMongoId,
+                  newConvId: healed.convId,
+                  groupName: opts.groupName,
+                  staleReason: healed.staleReason,
+                });
+                const retryHealed = await sendZaloPersonalMessage({
+                  ...opts,
+                  convId: healed.convId,
+                  channelId: '',
+                  _retried: true,
+                  _retryReason: 'auto_heal_stale_conv',
+                  _healedFrom: convMongoId,
+                });
+                if (retryHealed.success) {
+                  return { ...retryHealed, healedFrom: convMongoId, healedTo: healed.convId };
+                }
+                lastError = retryHealed.error || lastError;
+                apiError = lastError;
+              }
+            }
+
+            // 3) Vẫn lỗi → coi là lỗi tạm thời → thử lại với token MỚI và
+            //    channel_id lấy lại (bỏ qua cache cũ).
             clearTokenCache();
             channelIdCache.clear();
             const retry = await sendZaloPersonalMessage({
@@ -1209,7 +1239,7 @@ async function listConversations(opts = {}) {
           list = Array.isArray(list) ? list : [];
           const conversations = list.map((it) => {
             const conv = (it && it.conv) || it || {};
-            return {
+            const mapped = {
               // Mongo `_id` của hội thoại — ĐÂY là giá trị phải dùng khi gửi tin.
               convId: it.id || conv._id || null,
               // conv_id dạng số của hội thoại (KHÔNG dùng để gửi tin).
@@ -1221,6 +1251,9 @@ async function listConversations(opts = {}) {
               type: it.type || conv.conv_type || null,
               raw: it,
             };
+            // Gắn nhãn "còn sống / đã chết" để UI bỏ qua nhóm không dùng được.
+            Object.assign(mapped, classifyConversationState(mapped));
+            return mapped;
           });
 
           // Gom nhiều trang để tìm hết nhóm Zalo (nhóm thường nằm ở trang sau).
@@ -1265,6 +1298,66 @@ async function listConversations(opts = {}) {
 }
 
 /**
+ * Phan loai trang thai hoi thoai (conversation) cua OmiCall.
+ *
+ * WHY: khi agent ROI nhom Zalo va VAO LAI, OmiCall tao mot conversation MOI
+ * (id khac) cho cung mot nhom, con conversation CU van nam trong danh sach
+ * va trung TEN. Neu khong phan biet, nguoi dung se bam nham conversation da
+ * chet -> moi lien ket -> gui tin luon loi "error_occurred".
+ *
+ * Signals (da kiem chung truc tiep tren server OmiCall production):
+ *  - conv.status === 'inactive'  -> OmiCall danh dau nhom da ket thuc.
+ *  - conv.last_message.type === 'activity' va khong co message_id
+ *    -> tin cuoi cung chi la su kien agent vao nhom, chua co tin nhan nao.
+ *  - conv.chat_session.joined_agents rong -> khong con agent nao trong nhom.
+ */
+function classifyConversationState(c) {
+  const raw = (c && c.raw) || {};
+  const conv = raw.conv || {};
+  const cs = conv.chat_session || {};
+  const lm = conv.last_message || {};
+
+  const staleReasons = [];
+
+  if (conv.status === 'inactive') {
+    staleReasons.push('OmiCall danh dau nhom da ket thuc (da roi nhom)');
+  }
+
+  if (lm.type === 'activity' && !lm.message_id) {
+    staleReasons.push('Tin nhan cuoi cung chi la hoat dong (agent moi vao nhom), chua co tin nhan nao');
+  }
+
+  const joined = cs.joined_agents;
+  if (Array.isArray(joined) && joined.length === 0) {
+    staleReasons.push('Khong con nhan vien nao duoc gan vao nhom');
+  }
+
+  const isStale = staleReasons.length > 0;
+
+  // Nhom chua duoc gan agent (has_member=false) -> van gui duoc sau khi
+  // tu dong gan, nen KHONG coi la stale.
+  const hasMember = raw.has_member === true;
+  const joinedCount = Array.isArray(joined) ? joined.length : null;
+  const needsAgent = !hasMember && (joinedCount === null || joinedCount === 0);
+
+  return {
+    isAlive: !isStale,
+    alive: !isStale,
+    isStale,
+    needsAgent,
+    hasMember,
+    staleReason: isStale ? staleReasons.join('; ') : '',
+    // Thoi diem hoat dong cuoi cung -> dung de sap xep "nhom moi nhat len dau".
+    lastActivityAt: Number(
+      (conv.last_message_info && conv.last_message_info.send_time) ||
+        conv.last_updated_date ||
+        conv.created_date ||
+        0
+    ) || 0,
+  };
+}
+
+/**
  * Liệt kê hội thoại, gom CẢ HAI chiều sắp xếp (cũ→mới và mới→cũ).
  *
  * ⚠️ Vì sao cần gom cả hai?
@@ -1286,7 +1379,15 @@ async function listConversationsBoth(opts = {}) {
   // Không có keyword → gom cả 2 chiều. Có keyword → 1 chiều là đủ (kết quả đã
   // lọc sẵn và nhỏ).
   if (opts.keyword) {
-    return fetchList(opts);
+    const one = await fetchList(opts);
+    if (!one || !one.success) return one;
+    const pickedKw = pickLiveConversations(one.conversations || []);
+    return {
+      success: true,
+      conversations: pickedKw.list,
+      total: pickedKw.total,
+      stale: pickedKw.staleCount,
+    };
   }
 
   const [asc, desc] = await Promise.all([
@@ -1306,6 +1407,11 @@ async function listConversationsBoth(opts = {}) {
     }
   }
 
+  // ── Loại conversation "đã chết" + gộp trùng TÊN ────────────────────────────
+  // Khi agent rời nhóm rồi vào lại, OmiCall tạo conv MỚI (id khác) cho cùng
+  // một nhóm và giữ lại conv CŨ (conv đã chết) — hai conv TRÙNG TÊN.
+  // Chỉ giữ conv còn sống cho mỗi tên, ưu tiên conv hoạt động gần nhất
+  // → nút "Tải nhóm" luôn trả về nhóm MỚI nhất, không còn conv chết.
   if (!merged.length) {
     const failed = !asc?.success ? asc : desc;
     return {
@@ -1314,8 +1420,13 @@ async function listConversationsBoth(opts = {}) {
       attempts: [...(asc?.attempts || []), ...(desc?.attempts || [])],
     };
   }
+  const picked = pickLiveConversations(merged);
+  const unique = picked.list;
 
-  return { success: true, conversations: merged };
+  // Sắp xếp: nhóm hoạt động gần nhất lên đầu (nhóm mới tạo luôn nằm trên).
+  unique.sort((a, b) => Number(b.lastActivityAt || 0) - Number(a.lastActivityAt || 0));
+
+  return { success: true, conversations: unique, total: picked.total, stale: picked.staleCount };
 }
 
 /**
@@ -1410,6 +1521,170 @@ async function diagnoseAccount(opts = {}) {
   };
 }
 
+/**
+ * T\u00ecm conversation \u0111ANG S\u1ed0NG m\u1ed1i nh\u1ea5t theo t\u00e9n nh\u00f3m Zalo.
+ *
+ * WHY: khi agent r\u1ed7i nh\u00f3m r\u1ed3i v\u00e0o l\u1ea1i, OmiCall t\u1ea1o conv M\u1ed0I (id kh\u00e1c)
+ * cho c\u00f9ng m\u1ed9t nh\u00f3m. Conv c\u0169 v\u1eabn n\u1e1m trong DB \u0111\u1ec3 li\u00ean k\u1eb7t \u2192 g\u1eedi tin
+ * lu\u00f4n l\u1ed7i "error_occurred". H\u00e0m n\u00e0y gi\u1e5i t\u00ean nh\u00f3m \u2192 tr\u1ea3 v\u1ec1 conv s\u1ed1ng.
+ *
+ * @param {string} name - t\u00e9n nh\u00f3m Zalo (kh\u00f4ng ph\u00e2i bi\u1ec7t)
+ * @returns {Promise<{found:boolean, convId?:string, name?:string, reason?:string}>}
+ */
+async function findLiveConversationByName(name) {
+  const kw = String(name || '').trim();
+  if (!kw) return { found: false, reason: 'Thi\u1ebfu t\u00e9n nh\u00f3m' };
+
+  const res = await listConversationsBoth({ keyword: kw, size: 100 });
+  if (!res || !res.success) {
+    return { found: false, reason: (res && res.error) || 'Kh\u00f4ng l\u1ea5y \u0111\u01b0\u1ee3c danh s\u00e1ch h\u1ed9i tho\u1ea1i OmiCall' };
+  }
+
+  const want = kw.toLowerCase();
+  const groups = (res.conversations || []).filter((c) => c.convSubType === 'group');
+  const exact = groups.filter((c) => String(c.name || '').trim().toLowerCase() === want);
+  const alive = exact.filter((c) => !c.isStale);
+  const pool = alive.length ? alive : exact;
+
+  if (!pool.length) {
+    return { found: false, reason: 'Kh\u00f4ng t\u00ecm th\u1ea5y nh\u00f3m Zalo \u0111\u00fang ho\u1ea1t \u0111\u1ed9ng tr\u00ean OmiCall' };
+  }
+
+  // M\u1ed1i nh\u1ea5t theo th\u1eddi gian ho\u1ea1t \u0111\u1ed9ng.
+  pool.sort((a, b) => Number(b.lastActivityAt || 0) - Number(a.lastActivityAt || 0));
+  const best = pool[0];
+  return {
+    found: true,
+    convId: best.convId,
+    name: best.name,
+    channelId: best.channelId,
+    lastActivityAt: best.lastActivityAt || 0,
+  };
+}
+
+/**
+ * Ch\u1ecdnh danh s\u00e1ch conversation \u0111\u1ec3 d\u00f9ng \u0111\u01b0\u1ee3c g\u1eedi tin.
+ *
+ * 1. LO\u1ea1I conversation "\u0111\u00e3 ch\u1ebft" (agent \u0111\u00e3 r\u1ed7i nh\u00f3m / m\u1ea5t quy\u1ec1n).
+ * 2. G\u1ed9P conversation tr\u00f9ng T\u00caN \u2014 gi\u1eef conv ho\u1ea1t \u0111\u1ed9ng g\u1ea7n nh\u1ea5t.
+ * 3. S\u1eafp x\u1ebfp nh\u00f3m ho\u1ea1t \u0111\u1ed9ng g\u1ea7n nh\u1ea5t l\u00ean \u0111\u1ea7u.
+ *
+ * @param {Array} conversations
+ * @returns {{list: Array, staleCount: number, total: number}}
+ */
+function pickLiveConversations(conversations) {
+  const merged = Array.isArray(conversations) ? conversations : [];
+
+  const byName = new Map();
+  const list = [];
+
+  for (const c of merged) {
+    if (c.isStale) {
+      logger.info('[OMICALL] B\u1ec7 qua conversation \u0111\u00e3 ch\u1ebft', {
+        convId: c.convId,
+        name: c.name,
+        reason: c.staleReason,
+      });
+      continue;
+    }
+    const nameKey = String(c.name || '').trim().toLowerCase();
+    if (!nameKey) {
+      list.push(c);
+      continue;
+    }
+    const prev = byName.get(nameKey);
+    if (!prev) {
+      byName.set(nameKey, c);
+      list.push(c);
+      continue;
+    }
+    // C\u00f9ng t\u00ean \u2192 gi\u1eef conv ho\u1ea1t \u0111\u1ed9ng g\u1ea7n nh\u1ea5t.
+    const prevAt = Number(prev.lastActivityAt || 0);
+    const curAt = Number(c.lastActivityAt || 0);
+    if (curAt > prevAt) {
+      const idx = list.indexOf(prev);
+      if (idx >= 0) list[idx] = c;
+      byName.set(nameKey, c);
+    }
+  }
+
+  list.sort((a, b) => Number(b.lastActivityAt || 0) - Number(a.lastActivityAt || 0));
+
+  return { list, staleCount: merged.length - list.length, total: merged.length };
+}
+
+/**
+ * T\u00edm convId \u0111ANG S\u1ed0NG cho m\u1ed9t nh\u00f3m Zalo \u0111\u00e3 bi\u1ebft link sai.
+ *
+ * WHY: khi agent r\u1ed7i nh\u00f3m r\u1ed3i v\u00e0o l\u1ea1i, OmiCall t\u1ea1o conv M\u1ed0I (id kh\u00e1c)
+ * cho c\u00f9ng m\u1ed9t nh\u00f3m. Conv c\u0169 v\u1eabn n\u1e1m trong DB \u0111\u1ec3 li\u00ean k\u1eb7t \u2192 g\u1eedi tin
+ * lu\u00f4n l\u1ed7i "error_occurred". H\u00e0m n\u00e0y t\u1ef1 \u0111\u1ed9ng tra c\u1ee9u conv \u0111ang d\u00f9ng
+ * v\u00e0 tr\u1ea3 v\u1ec1 conv s\u1ed1ng m\u1ed1i nh\u1ea5t c\u00f9ng t\u00ean.
+ *
+ * @param {object} opts
+ * @param {string} opts.convId   - convId \u0111ang l\u01b0u (c\u00f3 th\u0111\u00e3 ch\u1ebft)
+ * @param {string} opts.groupName - t\u00ean nh\u00f3m Zalo (d\u00f9ng \u0111\u1ec3 t\u00ecm conv m\u1ed1i)
+ * @returns {Promise<{convId:string, changed:boolean, staleReason:string, reason:string}>}
+ */
+async function resolveLiveConvId(opts = {}) {
+  const current = String(opts.convId || '').trim();
+  const groupName = String(opts.groupName || '').trim();
+
+  const out = {
+    convId: current,
+    changed: false,
+    staleReason: '',
+    reason: '',
+  };
+
+  if (!current) {
+    out.reason = 'Thi\u1ebfu convId';
+    return out;
+  }
+
+  // C\u1ea7n t\u00ean nh\u00f3m \u0111\u1ec3 t\u00ecm conv thay th\u1ebf.
+  if (!groupName) {
+    out.reason = 'Thi\u1ebfu t\u00ean nh\u00f3m \u0111\u1ec3 t\u00ecm conv thay th\u1ebf';
+    return out;
+  }
+
+  const res = await listConversationsBoth({ keyword: groupName, size: 100 });
+  if (!res || !res.success) {
+    out.reason = (res && res.error) || 'Kh\u00f4ng l\u1ea5y \u0111\u01b0\u1ee3c danh s\u00e1ch nh\u00f3m OmiCall';
+    return out;
+  }
+
+  const want = groupName.trim().toLowerCase();
+  const sameName = (res.conversations || []).filter(
+    (c) => String(c.name || '').trim().toLowerCase() === want
+  );
+
+  // Conv \u0111ang d\u00f9ng c\u00f3 c\u00f2n s\u1ed1ng trong danh s\u00e1ch \u2192 gi\u1eef nguy\u00ean.
+  const mine = sameName.find((c) => String(c.convId) === current);
+  if (mine && !mine.isStale) {
+    out.reason = 'Conv hi\u1ec7n t\u1ea1i v\u1eabn c\u00f2n s\u1ed1ng';
+    return out;
+  }
+
+  // Conv \u0111ang d\u00f9ng \u0111\u00e3 ch\u1ebft \u2192 t\u00ecm conv s\u1ed1ng kh\u00e1c c\u00f9ng t\u00ean.
+  const alive = sameName.filter((c) => !c.isStale && String(c.convId) !== current);
+  if (!alive.length) {
+    out.staleReason = (mine && mine.staleReason) || 'Conv \u0111ang d\u00f9ng kh\u00f4ng c\u00f2n s\u1ed1ng';
+    out.reason = alive.length
+      ? 'Kh\u00f4ng t\u00ecm th\u1ea5y conv s\u1ed1ng thay th\u1ebf'
+      : 'Kh\u00f4ng t\u00ecm th\u1ea5y nh\u00f3m Zalo n\u00e0o kh\u00e1c \u0111ang ho\u1ea1t \u0111\u1ed9ng';
+    return out;
+  }
+
+  alive.sort((a, b) => Number(b.lastActivityAt || 0) - Number(a.lastActivityAt || 0));
+  const best = alive[0];
+  out.convId = best.convId;
+  out.changed = true;
+  out.staleReason = (mine && mine.staleReason) || 'Conv c\u0169 \u0111\u00e3 ch\u1ebft';
+  out.reason = '\u0110\u00e3 t\u1ef1 \u0111\u1ed9ng sang conv s\u1ed1ng m\u1ed1i nh\u1ea5t';
+  return out;
+}
+
 module.exports = {
   DEFAULT_BASE_URL,
   getConfig,
@@ -1419,6 +1694,10 @@ module.exports = {
   clearTokenCache,
   sendZaloPersonalMessage,
   assignAgentToGroup,
+  classifyConversationState,
+  pickLiveConversations,
+  findLiveConversationByName,
+  resolveLiveConvId,
   testConnection,
   probeSendEndpoints,
   listConversations,
