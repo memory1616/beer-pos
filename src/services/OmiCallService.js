@@ -745,21 +745,45 @@ async function sendZaloPersonalMessage(opts = {}) {
             }
           }
 
-          // `error_occurred` = lỗi CHUNG của upstream, thường do phiên Zalo
-          // bị gián đoạn (token hết hạn / kênh mất kết nối tạm thời) — KHÔNG
-          // phải lỗi cấu hình. Ghi nhận lỗi tạm thời → thử lại với token MỚI
-          // và channel_id lấy lại (bỏ qua cache cũ).
-          // (2026-11-22: lỗi này làm 4 tin công nợ không gửi được.)
+          // `error_occurred` = lỗi CHUNG của upstream. Có 2 nguyên nhân phổ biến:
+          //  1. Agent CHƯA được gán vào nhóm Zalo (đã quan sát 2026-11-26: nhóm
+          //     'A Công - Gò Chai' trả error_occurred trong khi nhóm khác dùng
+          //     CÙNG channel_id + CÙNG body lại gửi OK → khác biệt duy nhất là
+          //     quyền của agent trong nhóm).
+          //  2. Phiên Zalo bị gián đoạn (token hết hạn / kênh mất kết nối tạm thời).
+          //
+          // → Xử lý: THỬ cấp quyền agent vào nhóm TRƯỚC (giống `user_not_permision`),
+          //   rồi mới thử lại với token MỚI + channel_id MỚI.
           if (
             !opts._retried
             && !permissionGranted
             && /error_occurred/i.test(String(msg))
           ) {
-            logger.warn('[OMICALL] error_occurred — thử lại với token mới và channel_id mới', {
+            logger.warn('[OMICALL] error_occurred — thử cấp quyền agent vào nhóm, rồi thử lại', {
               host,
               convId: convMongoId,
+              has_channel_id: !!channelId,
             });
-            // Bỏ cache token + channel_id để lấy lại từ upstream.
+
+            // 1) Cấp quyền agent vào nhóm (nếu được) → gửi lại ngay.
+            permissionGranted = true;
+            const granted = await ensureAgentInGroup(ctx, convMongoId);
+            if (granted) {
+              const retryAfterGrant = await sendZaloPersonalMessage({
+                ...opts,
+                convId: convMongoId,
+                channelId,
+                _retried: true,
+                _retryReason: 'error_occurred_after_grant',
+              });
+              if (retryAfterGrant.success) return retryAfterGrant;
+              lastError = retryAfterGrant.error || lastError;
+              apiError = lastError;
+              continue;
+            }
+
+            // 2) Không cấp được quyền → coi là lỗi tạm thời → thử lại với
+            //    token MỚI và channel_id lấy lại (bỏ qua cache cũ).
             clearTokenCache();
             channelIdCache.clear();
             const retry = await sendZaloPersonalMessage({
