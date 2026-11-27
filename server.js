@@ -1770,6 +1770,21 @@ const server = app.listen(PORT, HOST, () => {
   const urls = [`http://localhost:${PORT}`, `http://127.0.0.1:${PORT}`];
   networkIPs.forEach(({ ip }) => urls.push(`http://${ip}:${PORT}`));
   logger.info(`Access URLs: ${urls.join(', ')}`);
+
+  // ── Worker thông báo công nợ (durable queue) ──────────────────────────
+  //  Worker đọc job từ `debt_notification_jobs`, gửi qua provider adapter
+  //  (mock | omicall) và cập nhật trạng thái + lịch sử.
+  //  Bật/tắt qua `NOTIFICATION_WORKER_ENABLED` hoặc
+  //  `settings.debt_notify_worker_enabled`.
+  try {
+    const NotificationWorker = require('./src/services/notify/NotificationWorker');
+    const workerResult = NotificationWorker.startBackgroundWorker();
+    if (workerResult && workerResult.success) {
+      logger.info('[NOTIFY_WORKER] Worker nền đã khởi động');
+    }
+  } catch (e) {
+    logger.error('[NOTIFY_WORKER] Không khởi động được worker nền', { error: e.message });
+  }
 });
 
 server.on('error', (err) => {

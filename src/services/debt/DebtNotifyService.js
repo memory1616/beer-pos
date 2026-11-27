@@ -1,26 +1,38 @@
 /**
- * DebtNotifyService — Gửi tin nhắn thông báo công nợ tới nhóm Zalo của khách
+ * DebtNotifyService — Điều phối thông báo công nợ
  * ─────────────────────────────────────────────────────────────────────────────
  * Mục tiêu:
  *  Khi sổ công nợ GHI NHẬN TIỀN khách trả (qua Sepay hoặc ghi tay), hệ thống
- *  tự gửi tin nhắn vào nhóm Zalo cá nhân của khách (qua OmiCall multi-channel)
- *  để thông báo: đã nhận bao nhiêu, còn nợ bao nhiêu.
+ *  tự gửi tin nhắn vào nhóm Zalo cá nhân của khách để thông báo: đã nhận bao
+ *  nhiêu, còn nợ bao nhiêu.
+ *
+ * KIẾN TRÚC (tách nghiệp vụ khỏi phương thức gửi tin):
+ *
+ *   Payment Service
+ *     → DebtNotifyService.notifyPaymentAsync()   [tạo sự kiện]
+ *     → NotificationJobService.enqueueJob()        [ghi job vào DB — outbox]
+ *     → NotificationWorker                         [lease → gửi → cập nhật]
+ *     → Notification Provider Adapter              [mock | omicall | ...]
  *
  * Nguyên tắc (bất di bất dịch):
- *  1. **KHÔNG BAO GIỜ** chặn/lỗi nghiệp vụ ghi sổ công nợ. Mọi lỗi HTTP được
+ *  1. **KHÔNG BAO GIỜ** chặn/lỗi nghiệp vụ ghi sổ công nợ. Mọi lỗi được
  *     nuốt và ghi log `debt_notifications` với status = 'failed'.
  *  2. **BẤT ĐỒNG BỘ** — gọi qua `.catch()` / `setImmediate`, không `await`
- *     trong luồng ghi bút toán (tránh chậm/nghẽn khi OmiCall timeout).
- *  3. Idempotent theo `transaction_id` + `event_type` → không gửi trùng khi
- *     webhook retry (Sepay giữ nguyên id qua các lần retry).
+ *     trong luồng ghi bút toán (tránh chậm/nghẽn khi provider timeout).
+ *  3. Idempotent theo `transaction_id` + `event_type` + `group_id` → không gửi
+ *     trùng khi webhook retry (Sepay giữ nguyên id qua các lần retry).
+ *  4. Nội dung tin nhắn được CHỤP LẠI (snapshot) tại thời điểm tạo job →
+ *     retry không dựng lại từ số dư công nợ mới.
  *
  *  Nhóm Zalo của khách lấy từ bảng `debt_customer_groups`
- *  (platform = 'zalo_personal', status = 'active').
+ *  (platform = 'zalo_personal', status = 'active') — theo ràng buộc 1:1.
  */
 
 const db = require('../../../database');
 const logger = require('../../utils/logger');
 const OmiCallService = require('../OmiCallService');
+const NotificationJobService = require('../notify/NotificationJobService');
+const ProviderFactory = require('../notify/provider');
 const { PLATFORMS } = require('./constants');
 
 // ── Hằng số ──────────────────────────────────────────────────────────────────
@@ -61,33 +73,27 @@ function getCustomerName(customerId, fallback) {
 }
 
 /**
- * Tìm convId (conversation ID OmiCall) của nhóm Zalo đang active của khách.
+ * Tìm Group ID (conversation ID) của nhóm Zalo đang active của khách.
  *
- * Trả về kèm `group_name` để khi gửi tin bị lỗi "error_occurred" (conv đã
- * chết vì agent rời nhóm Zalo) hệ thống có thể TỰ ĐỘNG tìm conv mới đang
- * sống cùng tên và gửi lại — không bắt buộc admin phải liên kết lại tay.
+ * ⚠️ ĐÃ ĐỔI: trước đây dùng `ORDER BY id DESC LIMIT 1` (chọn nhóm "mới nhất"
+ *    để giải quyết dữ liệu trùng) → vi phạm nguyên tắc 1 khách = 1 nhóm.
+ *    Nay dùng `NotificationJobService.findCustomerGroup()`:
+ *      • đúng 1 dòng active → dùng dòng đó.
+ *      • > 1 dòng active   → KHÔNG gửi, trả về `ambiguous: true` (báo cáo lỗi
+ *        dữ liệu thay vì gửi nhầm nhóm).
  *
- * @returns {{convId:string|null, groupName:string|null, rowId:number|null}}
+ * @returns {{convId:string|null, groupName:string|null, rowId:number|null,
+ *            ambiguous:boolean, activeCount:number}}
  */
 function findConvId(customerId) {
-  try {
-    const row = db
-      .prepare(
-        `SELECT id, group_id, group_name FROM debt_customer_groups
-          WHERE customer_id = ? AND platform = ? AND status = 'active'
-          ORDER BY id DESC LIMIT 1`
-      )
-      .get(customerId, PLATFORMS.ZALO_PERSONAL);
-    if (!row || !row.group_id) return { convId: null, groupName: null, rowId: null };
-    return {
-      convId: String(row.group_id),
-      groupName: row.group_name ? String(row.group_name) : null,
-      rowId: row.id,
-    };
-  } catch (e) {
-    logger.error('[DEBT_NOTIFY] findConvId error', { error: e.message });
-    return { convId: null, groupName: null, rowId: null };
-  }
+  const g = NotificationJobService.findCustomerGroup(customerId);
+  return {
+    convId: g.groupId,
+    groupName: g.groupName,
+    rowId: g.rowId,
+    ambiguous: g.ambiguous,
+    activeCount: g.activeCount,
+  };
 }
 
 /**
@@ -139,8 +145,9 @@ function writeLog(entry = {}) {
         `INSERT INTO debt_notifications
            (customer_id, customer_name, channel, group_id, event_type,
             amount, applied_amount, credit_amount, balance_before, balance_after,
-            content, status, error, source, transaction_id, sent_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            content, status, error, source, transaction_id, sent_at,
+            job_id, provider, delivery_status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         entry.customerId ?? null,
@@ -158,7 +165,10 @@ function writeLog(entry = {}) {
         entry.error ?? null,
         entry.source ?? null,
         entry.transactionId ?? null,
-        entry.status === STATUS.SENT ? new Date().toISOString() : null
+        entry.status === STATUS.SENT ? new Date().toISOString() : null,
+        entry.jobId ?? null,
+        entry.provider ?? null,
+        entry.deliveryStatus ?? null
       );
     return info.lastInsertRowid;
   } catch (e) {
@@ -263,7 +273,12 @@ function buildDebtMessage(opts = {}) {
 // ── Hàm chính ────────────────────────────────────────────────────────────────
 
 /**
- * Gửi thông báo "đã nhận tiền" tới nhóm Zalo của khách.
+ * Gửi thông báo "đã nhận tiền" tới nhóm Zalo của khách — THEO KIỂU ĐỒNG BỘ,
+ * dùng provider trực tiếp (giữ nguyên hành vi cũ, dùng cho luồng "gửi lại"
+ * thủ công & test).
+ *
+ * ⚠️ Hàm này vẫn được giữ để tương thích ngược. Luồng thanh toán CHÍNH dùng
+ *    `notifyPaymentAsync()` (enqueue job → worker).
  *
  * LUÔN trả về Promise đã resolve (không reject) — lỗi chỉ nằm trong log DB.
  *
@@ -319,11 +334,13 @@ async function notifyPayment(opts = {}) {
       balanceBefore,
       balanceAfter,
       status: STATUS.SKIPPED,
-      error: 'Chưa liên kết nhóm Zalo cho khách này',
+      error: group.ambiguous
+        ? 'Khách đang liên kết nhiều nhóm Zalo — cần sửa dữ liệu (1 khách = 1 nhóm)'
+        : 'Chưa liên kết nhóm Zalo cho khách này',
       source,
       transactionId,
     });
-    return { status: STATUS.SKIPPED, error: 'NO_GROUP' };
+    return { status: STATUS.SKIPPED, error: group.ambiguous ? 'AMBIGUOUS_GROUP' : 'NO_GROUP' };
   }
 
   const content = buildPaymentMessage({
@@ -336,15 +353,15 @@ async function notifyPayment(opts = {}) {
     title: cfg.title,
   });
 
-  // 4. Gửi
-  const result = await OmiCallService.sendZaloPersonalMessage({
-    convId,
+  // 4. Gửi (dùng provider đang cấu hình → có thể là mock khi chạy local)
+  const provider = ProviderFactory.getProvider();
+  const result = await provider.sendMessage({
+    groupId: convId,
     text: content,
     groupName: group.groupName,
   });
 
-  // Auto-heal: conv đã chết → OmiCall tự tị chuyển sang conv đang sống.
-  // Lưu link để dững lại conv mới để không bị lỗi lại.
+  // Auto-heal: conv đã chết → OmniCall tự chuyển sang conv đang sống.
   if (result && result.healedTo && result.healedTo !== convId) {
     saveHealedConvId(group.rowId, result.healedTo);
     convId = result.healedTo;
@@ -365,6 +382,8 @@ async function notifyPayment(opts = {}) {
       status: STATUS.SENT,
       source,
       transactionId,
+      provider: provider.name,
+      deliveryStatus: result.deliveryStatus,
     });
     logger.info('[DEBT_NOTIFY] Sent payment notification', {
       customerId,
@@ -386,12 +405,14 @@ async function notifyPayment(opts = {}) {
     balanceAfter,
     content,
     status: STATUS.FAILED,
-    error: result.error || 'Gửi thất bại',
+    error: result.errorMessage || 'Gửi thất bại',
     source,
     transactionId,
+    provider: provider.name,
+    deliveryStatus: result.deliveryStatus,
   });
-  logger.error('[DEBT_NOTIFY] Send failed', { customerId, error: result.error });
-  return { status: STATUS.FAILED, error: result.error };
+  logger.error('[DEBT_NOTIFY] Send failed', { customerId, error: result.errorMessage });
+  return { status: STATUS.FAILED, error: result.errorMessage };
 }
 
 /**
@@ -428,14 +449,14 @@ async function notifyManualDebt(opts = {}) {
     title: cfg.title,
   });
 
-  const result = await OmiCallService.sendZaloPersonalMessage({
-    convId,
+  const provider = ProviderFactory.getProvider();
+  const result = await provider.sendMessage({
+    groupId: convId,
     text: content,
     groupName: group.groupName,
   });
 
-  // Auto-heal: conv đã chết → OmiCall tự tị chuyển sang conv đang sống.
-  // Lưu link để dững lại conv mới để không bị lỗi lại.
+  // Auto-heal: conv đã chết → OmniCall tự chuyển sang conv đang sống.
   if (result && result.healedTo && result.healedTo !== convId) {
     saveHealedConvId(group.rowId, result.healedTo);
     convId = result.healedTo;
@@ -451,15 +472,186 @@ async function notifyManualDebt(opts = {}) {
     balanceAfter,
     content,
     status: result.success ? STATUS.SENT : STATUS.FAILED,
-    error: result.success ? null : result.error || 'Gửi thất bại',
+    error: result.success ? null : result.errorMessage || 'Gửi thất bại',
     source,
     transactionId,
+    provider: provider.name,
+    deliveryStatus: result.deliveryStatus,
   });
 
   return result.success
     ? { status: STATUS.SENT }
-    : { status: STATUS.FAILED, error: result.error };
+    : { status: STATUS.FAILED, error: result.errorMessage };
 }
+
+// ── Đường đi chính: enqueue job (outbox) ────────────────────────────────────
+
+/**
+ * Tạo job thông báo cho sự kiện thanh toán (KHÔNG gửi tin ngay).
+ *
+ * Đây là đường đi CHÍNH cho mọi luồng thanh toán. Job được ghi vào DB → bền vững
+ * (không mất khi restart), có retry, có idempotency.
+ *
+ * @param {object} opts — giống notifyPayment
+ * @returns {{success:boolean, jobId?:number, status?:string, error?:string}}
+ */
+function enqueuePaymentNotification(opts = {}) {
+  try {
+    const cfg = OmiCallService.getConfig();
+
+    // Thông báo đang tắt → không tạo job.
+    if (!cfg.enabled) {
+      return { success: true, status: 'skipped', error: 'DISABLED' };
+    }
+
+    const customerId = parseInt(opts.customerId, 10);
+    const customerName = getCustomerName(customerId, opts.customerName);
+    const amount = roundMoney(opts.amount);
+    const balanceBefore = roundMoney(opts.balanceBefore);
+    const balanceAfter = roundMoney(opts.balanceAfter);
+    const credit = roundMoney(opts.credit);
+    const applied = roundMoney(opts.applied !== undefined ? opts.applied : amount - credit);
+
+    // Tìm nhóm (chỉ để dựng nội dung & kiểm tra 1:1).
+    const group = findConvId(customerId);
+
+    const content = group.convId
+      ? buildPaymentMessage({
+          customerName,
+          amount,
+          balanceBefore,
+          balanceAfter,
+          credit,
+          source: opts.source,
+          title: cfg.title,
+        })
+      : null;
+
+    return NotificationJobService.enqueueJob({
+      customerId,
+      customerName,
+      transactionId: opts.transactionId ?? null,
+      eventType: EVENT_TYPES.PAYMENT,
+      content,
+      amount,
+      applied,
+      credit,
+      balanceBefore,
+      balanceAfter,
+      source: opts.source || null,
+      provider: ProviderFactory.getProviderName(),
+    });
+  } catch (e) {
+    logger.error('[DEBT_NOTIFY] enqueuePaymentNotification error', { error: e.message });
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Dựng payload (options cho NotificationJobService.enqueueJob) cho sự kiện
+ * thanh toán — DÙNG ĐƯỢC BÊN TRONG TRANSACTION thanh toán (transactional outbox).
+ *
+ * ⚠️ Hàm này KHÔNG gọi provider, KHÔNG ghi DB (trừ việc đọc) → an toàn khi
+ *    chạy trong transaction. Lỗi bất kỳ phải được bắt bởi caller.
+ *
+ * @param {object} ctx
+ * @param {number} ctx.customerId
+ * @param {string} ctx.customerName
+ * @param {number} ctx.transactionId
+ * @param {number} ctx.amount
+ * @param {number} ctx.balanceBefore
+ * @param {number} ctx.balanceAfter
+ * @param {number} [ctx.credit]
+ * @param {number} [ctx.applied]
+ * @param {string} [ctx.source]
+ * @returns {object|null} options cho enqueueJob, hoặc null nếu không cần gửi
+ */
+function buildPaymentNotificationPayload(ctx = {}) {
+  const cfg = OmiCallService.getConfig();
+
+  // Thông báo đang tắt → không tạo job.
+  if (!cfg.enabled) return null;
+
+  const customerId = parseInt(ctx.customerId, 10);
+  if (!customerId || Number.isNaN(customerId)) return null;
+
+  const customerName = ctx.customerName || getCustomerName(customerId);
+  const amount = roundMoney(ctx.amount);
+  const balanceBefore = roundMoney(ctx.balanceBefore);
+  const balanceAfter = roundMoney(ctx.balanceAfter);
+  const credit = roundMoney(ctx.credit);
+  const applied = roundMoney(ctx.applied !== undefined ? ctx.applied : amount - credit);
+
+  // Tìm nhóm (chỉ để dựng nội dung & kiểm tra 1:1).
+  const group = findConvId(customerId);
+
+  const content = group.convId
+    ? buildPaymentMessage({
+        customerName,
+        amount,
+        balanceBefore,
+        balanceAfter,
+        credit,
+        source: ctx.source,
+        title: cfg.title,
+      })
+    : null;
+
+  return {
+    customerId,
+    customerName,
+    transactionId: ctx.transactionId ?? null,
+    eventType: EVENT_TYPES.PAYMENT,
+    content,
+    amount,
+    applied,
+    credit,
+    balanceBefore,
+    balanceAfter,
+    source: ctx.source || null,
+    provider: ProviderFactory.getProviderName(),
+  };
+}
+
+/**
+ * Tạo job thông báo cho bút toán ghi nợ tay.
+ */
+function enqueueManualDebtNotification(opts = {}) {
+  try {
+    const cfg = OmiCallService.getConfig();
+    if (!cfg.enabled || !cfg.notifyManualDebt) {
+      return { success: true, status: 'skipped', error: 'DISABLED' };
+    }
+
+    const customerId = parseInt(opts.customerId, 10);
+    const customerName = getCustomerName(customerId, opts.customerName);
+    const amount = roundMoney(opts.amount);
+    const balanceAfter = roundMoney(opts.balanceAfter);
+
+    const group = findConvId(customerId);
+    const content = group.convId
+      ? buildDebtMessage({ customerName, amount, balanceAfter, title: cfg.title })
+      : null;
+
+    return NotificationJobService.enqueueJob({
+      customerId,
+      customerName,
+      transactionId: opts.transactionId ?? null,
+      eventType: EVENT_TYPES.MANUAL_DEBT,
+      content,
+      amount,
+      balanceBefore: roundMoney(opts.balanceBefore),
+      balanceAfter,
+      source: opts.source || null,
+      provider: ProviderFactory.getProviderName(),
+    });
+  } catch (e) {
+    logger.error('[DEBT_NOTIFY] enqueueManualDebtNotification error', { error: e.message });
+    return { success: false, error: e.message };
+  }
+}
+
+// ── Dispatch ─────────────────────────────────────────────────────────────────
 
 /**
  * Gửi thông báo bất đồng bộ (fire-and-forget) — dùng trong luồng ghi bút toán.
@@ -470,10 +662,16 @@ async function notifyManualDebt(opts = {}) {
  */
 function dispatch(kind, payload) {
   try {
-    const task = kind === 'manual_debt' ? notifyManualDebt(payload) : notifyPayment(payload);
+    // Ưu tiên đường đi qua hàng đợi bền vững (outbox) — KHÔNG gọi provider
+    // trực tiếp trong luồng thanh toán.
+    const task =
+      kind === 'manual_debt'
+        ? Promise.resolve(enqueueManualDebtNotification(payload))
+        : Promise.resolve(enqueuePaymentNotification(payload));
+
     Promise.resolve(task)
       .then((r) => {
-        if (r && r.status === STATUS.FAILED) {
+        if (r && r.success === false) {
           logger.error('[DEBT_NOTIFY] Dispatch failed', { kind, error: r.error });
         }
       })
@@ -687,7 +885,7 @@ async function resendNotificationForTx(txId) {
   });
 
   return {
-    success: out.status === STATUS.SENT,
+  success: out.status === STATUS.SENT,
     status: out.status,
     error: out.error || null,
     customerId: row.customer_id,
@@ -730,6 +928,9 @@ module.exports = {
   notifyManualDebt,
   notifyPaymentAsync,
   notifyManualDebtAsync,
+  enqueuePaymentNotification,
+  enqueueManualDebtNotification,
+  buildPaymentNotificationPayload,
   listMissingNotifications,
   resendNotificationForTx,
   findConvId,

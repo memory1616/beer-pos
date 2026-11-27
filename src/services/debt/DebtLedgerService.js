@@ -23,6 +23,8 @@ const {
   ACCOUNT_STATUS,
 } = require('./constants');
 const DebtAuditService = require('./DebtAuditService');
+// Lazy-require để tránh circular dependency (notify → debt → notify)
+const NotificationJobService = require('../notify/NotificationJobService');
 
 const DIRECTION = {
   INCREASE: 'INCREASE',
@@ -183,6 +185,14 @@ function syncMirror(customerId, balance) {
  * @param {string} [opts.businessDate] - ngày NGHIỆP VỤ của bút toán (YYYY-MM-DD).
  *   Mặc định = ngày nghiệp vụ hiện tại (cutoff 19:00) → bút toán ghi sau 19:00
  *   thuộc ngày mai, KHÔNG tính vào KPI "hôm nay".
+ * @param {Function} [opts.buildNotification] - CALLBACK TRANSACTIONAL OUTBOX.
+ *   Nếu có, được gọi BÊN TRONG cùng transaction sau khi ghi bút toán, với
+ *   ctx = { transactionId, customerId, amount, balanceBefore, balanceAfter }.
+ *   Callback trả về object options cho `NotificationJobService.enqueueJob()`
+ *   (hoặc { skip: true } để bỏ qua). Nhờ vậy bút toán + job thông báo được
+ *   ghi ATOMIC — không thể xảy ra "payment đã commit nhưng job chưa tạo".
+ *   ⚠️ Callback PHẢI tự bắt lỗi (lỗi thông báo KHÔNG được làm hỏng
+ *      nghiệp vụ thanh toán).
  * @returns {{success:boolean, transactionId?:number, balanceBefore?:number, balanceAfter?:number, error?:string, duplicate?:boolean}}
  */
 function recordTransaction(opts = {}) {
@@ -201,6 +211,7 @@ function recordTransaction(opts = {}) {
     keepNegativeBalance = false,
     allowArchivedCustomer = false,
     businessDate = null,
+    buildNotification = null,
   } = opts;
 
   const custId = parseInt(customerId, 10);
@@ -308,11 +319,43 @@ function recordTransaction(opts = {}) {
     beforeData: { balance: balanceBefore, transactionType, amount: value },
     afterData: { balance: balanceAfter, transactionType, amount: value },
   });
+
+    // 8b. TRANSACTIONAL OUTBOX — ghi job thông báo trong CÙNG transaction
+    //     với bút toán. Nhờ vậy không thể xảy ra "payment đã commit nhưng
+    //     job chưa tạo" (không cần reconciliation).
+    //     ⚠️ Lỗi thông báo KHÔNG được làm hỏng nghiệp vụ thanh toán →
+    //        callback được bọc try/catch riêng.
+    let notificationJob = null;
+    if (typeof buildNotification === 'function') {
+      try {
+        const payload = buildNotification({
+          transactionId,
+          customerId: custId,
+          customerName: customer.name,
+          amount: value,
+          balanceBefore,
+          balanceAfter,
+          transactionType,
+        });
+        if (payload && payload.skip !== true) {
+          notificationJob =
+            NotificationJobService.insertJobInTransaction(payload) || null;
+        }
+      } catch (e) {
+        logger.error('[DEBT_LEDGER] buildNotification error (không ảnh hưởng payment)', {
+          transactionId,
+          customerId: custId,
+          error: e.message,
+        });
+      }
+    }
+
     return {
       success: true,
       transactionId,
       balanceBefore,
       balanceAfter,
+      notificationJob,
     };
   });
 

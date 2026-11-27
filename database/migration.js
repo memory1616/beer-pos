@@ -998,6 +998,22 @@ function runDeliveryReconciliationLockMigration(db) {
   }
 }
 
+// ── Debt notification jobs migration (069) ───────────────────────────────────
+// Hàng đợi bền vững (durable queue) cho thông báo công nợ + ràng buộc 1:1
+// (1 khách ↔ 1 nhóm Zalo) trên `debt_customer_groups`.
+// Chạy ĐỘC LẬP, idempotent. KHÔNG tạo unique index nếu dữ liệu đang trùng.
+function runDebtNotificationJobsMigration(db) {
+  try {
+    const migration = require('./migrations/069_debt_notification_jobs');
+    migration.up(db);
+    log('[DEBT_NOTIFY_JOBS] Migration 069 applied');
+    return { success: true };
+  } catch (e) {
+    log('[DEBT_NOTIFY_JOBS] Migration error: ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
 // ── Utility: Generate UUID ─────────────────────────────────────────────────────
 
 function generateUUID() {
@@ -1041,6 +1057,7 @@ module.exports = {
   runSalePreorderMigration,
   runSepaySmartMatchingMigration,
   runDeliveryReconciliationLockMigration,
+  runDebtNotificationJobsMigration,
   generateUUID,
   getCurrentVersion,
   setVersion,

@@ -29,7 +29,7 @@ try {
   }
 
   // Run driver portal migration (idempotent, chạy độc lập version gate)
-  const { runDriverPortalMigration, runDriverStaffMigration, runDriverKegReceiptMigration, runDriverWorkDaysMigration, runDriverSalaryAdvanceMigration, runMissingBusinessTablesMigration, runDailyReportNotifyMigration, runAuditLogMigration, runDriverPushMigration, runZaloOauthMigration, runDebtManagementMigration, runDebtSaleCreditFlagMigration, runBusinessDayCutoffMigration, runAuditLogUnificationMigration, runDriverAttendanceMigration, runBusinessRegionsMigration, runSaleDispatchStatusMigration, runSaleRegionDispatchBackfillMigration, runSepayDebtSettlementMigration, runDebtZaloNotifyMigration, runSepayAutoPollMigration, runCustomerClosureMigration, runCustomerClosureDevicesMigration, runSalePreorderMigration, runSepaySmartMatchingMigration, runDeliveryReconciliationLockMigration } = require('./database/migration');
+  const { runDriverPortalMigration, runDriverStaffMigration, runDriverKegReceiptMigration, runDriverWorkDaysMigration, runDriverSalaryAdvanceMigration, runMissingBusinessTablesMigration, runDailyReportNotifyMigration, runAuditLogMigration, runDriverPushMigration, runZaloOauthMigration, runDebtManagementMigration, runDebtSaleCreditFlagMigration, runBusinessDayCutoffMigration, runAuditLogUnificationMigration, runDriverAttendanceMigration, runBusinessRegionsMigration, runSaleDispatchStatusMigration, runSaleRegionDispatchBackfillMigration, runSepayDebtSettlementMigration, runDebtZaloNotifyMigration, runSepayAutoPollMigration, runCustomerClosureMigration, runCustomerClosureDevicesMigration, runSalePreorderMigration, runSepaySmartMatchingMigration, runDeliveryReconciliationLockMigration, runDebtNotificationJobsMigration } = require('./database/migration');
   const driverResult = runDriverPortalMigration(db);
   if (driverResult.success) {
     logger.log('[MIGRATION] Driver portal schema ready');
@@ -188,6 +188,14 @@ try {
   const deliveryReconLockResult = runDeliveryReconciliationLockMigration(db);
   if (deliveryReconLockResult.success) {
     logger.log('[MIGRATION] Delivery reconciliation lock schema ready');
+  }
+
+  // Run debt notification jobs migration (069)
+  // - Hàng đợi bền vững `debt_notification_jobs` (durable queue / outbox)
+  // - Ràng buộc 1 khách ↔ 1 nhóm Zalo (unique index nếu dữ liệu không trùng)
+  const debtNotifyJobsResult = runDebtNotificationJobsMigration(db);
+  if (debtNotifyJobsResult.success) {
+    logger.log('[MIGRATION] Debt notification jobs schema ready');
   }
 } catch (error) {
   logger.error('[MIGRATION] Migration error:', error.message);

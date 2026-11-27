@@ -335,6 +335,20 @@ function handleMessage(message = {}) {
     source: message.source || SOURCES.ZALO,
     idempotencyKey: `zalo:${platform}:${messageId}`,
     allowNegativeBalance: !isPayment,
+    buildNotification: isPayment
+      ? (ctx) =>
+          DebtNotifyService.buildPaymentNotificationPayload({
+            customerId: ctx.customerId,
+            customerName: ctx.customerName,
+            transactionId: ctx.transactionId,
+            amount: ctx.amount,
+            balanceBefore: ctx.balanceBefore,
+            balanceAfter: ctx.balanceAfter,
+            applied: parsed.amount,
+            credit: 0,
+            source: 'COMMAND',
+          })
+      : null,
   });
 
   if (!result.success) {
@@ -399,17 +413,19 @@ function handleMessage(message = {}) {
   //     - Lệnh `+` → thông báo "đã nhận tiền"
   //     - Lệnh `-` → thông báo "ghi nợ tay" (tuỳ chọn, mặc định TẮT)
   if (isPayment) {
-    DebtNotifyService.notifyPaymentAsync({
-      customerId,
-      customerName: customer?.name || '',
-      amount: parsed.amount,
-      applied: parsed.amount,
-      credit: 0,
-      balanceBefore,
-      balanceAfter: result.balanceAfter,
-      source: 'COMMAND',
-      transactionId: result.transactionId,
-    });
+    if (!result.notificationJob) {
+      DebtNotifyService.notifyPaymentAsync({
+        customerId,
+        customerName: customer?.name || '',
+        amount: parsed.amount,
+        applied: parsed.amount,
+        credit: 0,
+        balanceBefore,
+        balanceAfter: result.balanceAfter,
+        source: 'COMMAND',
+        transactionId: result.transactionId,
+      });
+    }
   } else {
     DebtNotifyService.notifyManualDebtAsync({
       customerId,

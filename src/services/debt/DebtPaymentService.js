@@ -69,7 +69,9 @@ function recordPayment(opts = {}) {
     };
   }
 
-  // 3. Ghi bút toán
+  // 3. Ghi bút toán (+ TẠO JOB THÔNG BÁO TRONG CÙNG TRANSACTION — outbox)
+  //    → bút toán và job thông báo atomic: không thể có "payment đã commit
+  //      nhưng job chưa tạo".
   const result = DebtLedgerService.recordTransaction({
     customerId: custId,
     transactionType: TRANSACTION_TYPES.PAYMENT,
@@ -81,6 +83,18 @@ function recordPayment(opts = {}) {
     createdBy: (user && user.username) || null,
     source: source || SOURCES.MANUAL_UI,
     idempotencyKey: idempotencyKey || null,
+    buildNotification: (ctx) =>
+      DebtNotifyService.buildPaymentNotificationPayload({
+        customerId: ctx.customerId,
+        customerName: ctx.customerName,
+        transactionId: ctx.transactionId,
+        amount: ctx.amount,
+        balanceBefore: ctx.balanceBefore,
+        balanceAfter: ctx.balanceAfter,
+        applied: value,
+        credit: 0,
+        source: source || SOURCES.MANUAL_UI,
+      }),
   });
 
   if (!result.success) {
@@ -163,16 +177,21 @@ function recordPayment(opts = {}) {
   });
 
   // 7. Gửi tin nhắn Zalo thông báo "đã nhận tiền" (KHÔNG chặn nghiệp vụ)
-  DebtNotifyService.notifyPaymentAsync({
-    customerId: custId,
-    amount: value,
-    applied: value,
-    credit: 0,
-    balanceBefore,
-    balanceAfter: result.balanceAfter,
-    source: source || SOURCES.MANUAL_UI,
-    transactionId: result.transactionId,
-  });
+  //    → Ưu tiên job đã tạo TRONG transaction (outbox). Chỉ gọi fallback
+  //      (enqueue bên ngoài) khi job chưa được tạo (VD: bút toán bị trùng
+  //      idempotency → không có transaction mới, nhưng cũng không cần job mới).
+  if (!result.notificationJob) {
+    DebtNotifyService.notifyPaymentAsync({
+      customerId: custId,
+      amount: value,
+      applied: value,
+      credit: 0,
+      balanceBefore,
+      balanceAfter: result.balanceAfter,
+      source: source || SOURCES.MANUAL_UI,
+      transactionId: result.transactionId,
+    });
+  }
 
   return {
     success: true,

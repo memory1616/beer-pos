@@ -1108,6 +1108,12 @@
     notifyHistory: null,
     // Giao dịch đã gạch nợ nhưng chưa gửi tin thông báo Zalo
     notifyMissing: [],
+    // Hàng đợi thông báo bền vững (debt_notification_jobs)
+    notifyJobs: null,
+    notifyJobSummary: null,
+    notifyProviderStatus: null,
+    // Bộ lọc trạng thái job: '' = tất cả
+    notifyJobFilter: '',
     // Dấu của lệnh nhập nhanh: '+' (thu tiền) hoặc '−' (ghi nợ).
     // Chọn bằng NÚT vì bàn phím điện thoại không có phím "+".
     quickSign: '+',
@@ -1779,16 +1785,23 @@
     if (filter === 'linked') {
       body = rows.length
         ? '<div class="dbt-table-wrap"><table class="dbt-table dbt-table--wide"><thead><tr>' +
-          '<th>Khách</th><th>Nhóm</th><th>Platform</th><th>Trạng thái</th>' +
+          '<th>Khách</th><th>Nhóm</th><th>Group ID</th><th>Trạng thái</th><th>Ngày liên kết</th>' +
           (state.isAdmin ? '<th></th>' : '') +
           '</tr></thead><tbody>' +
           rows.map(function (g) {
             return '<tr>' +
               '<td class="dbt-name">' + esc(g.customer_name || ('#' + g.customer_id)) + '</td>' +
-              '<td>' + esc(g.group_name || g.group_id) + '</td>' +
-              '<td class="dbt-muted">' + esc(g.platform) + '</td>' +
-              '<td><span class="dbt-badge ' + (g.status === 'active' ? 'dbt-badge-ok' : 'dbt-badge-warn') + '">' + esc(g.status) + '</span></td>' +
-              (state.isAdmin ? '<td style="text-align:right"><button class="dbt-btn dbt-btn-danger dbt-btn-sm" onclick="unlinkGroup(' + g.id + ')">Gỡ</button></td>' : '') +
+              '<td>' + esc(g.group_name || '—') + '</td>' +
+              '<td class="dbt-muted" style="font-size:11px">' + esc(g.group_id || '—') + '</td>' +
+              '<td><span class="dbt-badge ' + (g.status === 'active' ? 'dbt-badge-ok' : 'dbt-badge-warn') + '">' +
+                (g.status === 'active' ? 'Đang liên kết' : 'Đã gỡ') + '</span></td>' +
+              '<td class="dbt-muted" style="font-size:11px">' + esc(fmtDateTime(g.created_at)) + '</td>' +
+              (state.isAdmin
+                ? '<td style="text-align:right;white-space:nowrap">' +
+                    '<button class="dbt-btn dbt-btn-sm" onclick="openGroupModalFor(' + g.customer_id + ')">✏️ Sửa</button> ' +
+                    '<button class="dbt-btn dbt-btn-sm dbt-btn-danger" onclick="unlinkGroup(' + g.id + ')">Gỡ</button>' +
+                  '</td>'
+                : '') +
             '</tr>';
           }).join('') +
           '</tbody></table></div>'
@@ -1846,7 +1859,7 @@
 
     return '<div class="dbt-section">' +
       '<div class="dbt-section-title">💬 Nhóm Zalo ↔ Khách hàng</div>' +
-      '<div class="dbt-section-desc">Mỗi khách có thể liên kết nhiều nhóm Zalo cá nhân. Hệ thống KHÔNG dùng Zalo OA. <b>Group ID</b> = Conversation ID (conv_id) của nhóm trong OmiCall — dùng để gửi tin nhắn thông báo công nợ (xem tab 🔔 Thông báo Zalo).</div>' +
+      '<div class="dbt-section-desc">Quy tắc <b>1 khách = 1 nhóm Zalo = 1 Group ID</b>. Hệ thống KHÔNG dùng Zalo OA. <b>Group ID</b> = Conversation ID (conv_id) của nhóm trong OmiCall — dùng để gửi tin nhắn thông báo công nợ (xem tab 🔔 Thông báo).</div>' +
       '<div class="dbt-chips">' + chips + '</div>' +
       body + addBtn +
     '</div>';
@@ -1984,6 +1997,33 @@
         '</details>';
     }
 
+    // ── Provider status (KHÔNG hiển thị credential) ──────────────────────
+    var ps = state.notifyProviderStatus;
+    var providerStatusHtml = '';
+    if (ps) {
+      var pDot = ps.simulated ? 'warn' : (ps.available ? 'on' : 'off');
+      var pLabel = ps.simulated
+        ? 'Provider MÔ PHỎNG (LOCAL) — tin nhắn KHÔNG được gửi vào Zalo thật'
+        : (ps.available
+          ? 'Provider "' + (ps.configuredProvider || ps.provider) + '" đang hoạt động'
+          : 'Provider "' + (ps.configuredProvider || ps.provider) + '" không khả dụng');
+      providerStatusHtml =
+        '<div class="dbt-sepay-status" style="margin-bottom:12px">' +
+          '<span class="dbt-sepay-dot ' + pDot + '"></span>' +
+          '<div style="flex:1;min-width:0">' +
+            '<div style="font-weight:700;font-size:13px">' + esc(pLabel) + '</div>' +
+            '<div class="dbt-sepay-url" style="margin-top:3px">' +
+              'Provider: <b>' + esc(ps.configuredProvider || ps.provider || '—') + '</b>' +
+              (ps.configured === false ? ' · ⚠️ Chưa cấu hình' : '') +
+              (ps.reason ? ' · ' + esc(ps.reason) : '') +
+            '</div>' +
+          '</div>' +
+          '<button class="dbt-btn dbt-btn-sm dbt-btn-secondary" onclick="checkProviderConnection()">🔌 Kiểm tra</button>' +
+        '</div>';
+    }
+
+    // ── Hàng đợi thông báo (durable queue) ─────────────────────────────
+    var jobQueueHtml = renderJobQueue();
     var historyHtml =
       '<details class="dbt-collapse" style="margin-top:12px">' +
         '<summary>📨 Lịch sử gửi tin nhắn' +
@@ -2018,15 +2058,165 @@
       '</details>';
 
     return '<div class="dbt-section">' +
-      '<div class="dbt-section-title">🔔 Thông báo công nợ qua Zalo (OmiCall)</div>' +
+      '<div class="dbt-section-title">🔔 Thông báo công nợ qua Zalo</div>' +
       '<div class="dbt-section-desc">Tự động báo khách trong nhóm Zalo khi sổ công nợ ghi nhận tiền — khách biết ngay đã nhận bao nhiêu và còn nợ bao nhiêu.</div>' +
+      providerStatusHtml +
       settingsHtml +
       statusHtml +
       guideHtml +
       kpiHtml +
+      jobQueueHtml +
       missingHtml +
       historyHtml +
     '</div>';
+  }
+
+  // ── Render: Hàng đợi thông báo (durable queue) ─────────────────────────
+  //  Hiển thị các job thông báo đang chờ / lỗi / đã gửi, kèm nút gửi lại.
+  var JOB_STATUS_LABEL = {
+    queued: 'Đang chờ',
+    processing: 'Đang xử lý',
+    sent: 'Đã gửi',
+    retry: 'Chờ thử lại',
+    failed: 'Lỗi',
+    no_group: 'Chưa có nhóm',
+    cancelled: 'Đã huỷ',
+    unknown: 'Không xác định',
+  };
+
+  function jobBadge(status) {
+    var cls = 'dbt-badge-info';
+    if (status === 'sent') cls = 'dbt-badge-ok';
+    else if (status === 'failed') cls = 'dbt-badge-crit';
+    else if (status === 'retry' || status === 'unknown' || status === 'no_group') cls = 'dbt-badge-warn';
+    else if (status === 'cancelled') cls = 'dbt-badge';
+    var label = JOB_STATUS_LABEL[status] || status || '-';
+    return '<span class="dbt-badge ' + cls + '">' + esc(label) + '</span>';
+  }
+
+
+  function renderJobQueue() {
+    var data = state.notifyJobs;
+    var sum = state.notifyJobSummary || {};
+
+    var kpi =
+      '<div class="dbt-kpi-grid">' +
+        '<div class="dbt-kpi"><div class="dbt-kpi-label">Tổng job</div><div class="dbt-kpi-value">' + (sum.total || 0) + '</div></div>' +
+        '<div class="dbt-kpi"><div class="dbt-kpi-label">Đã gửi</div><div class="dbt-kpi-value" style="color:var(--color-success-text)">' + (sum.sent || 0) + '</div></div>' +
+        '<div class="dbt-kpi"><div class="dbt-kpi-label">Đang chờ</div><div class="dbt-kpi-value">' + ((sum.queued || 0) + (sum.processing || 0) + (sum.retry || 0)) + '</div></div>' +
+        '<div class="dbt-kpi"><div class="dbt-kpi-label">Lỗi</div><div class="dbt-kpi-value" style="color:var(--color-danger-text)">' + ((sum.failed || 0) + (sum.unknown || 0)) + '</div></div>' +
+        '<div class="dbt-kpi"><div class="dbt-kpi-label">Chưa có nhóm</div><div class="dbt-kpi-value">' + (sum.no_group || 0) + '</div></div>' +
+      '</div>';
+
+    var filters = [
+      { id: '', label: 'Tất cả', count: sum.total || 0 },
+      { id: 'queued,processing,retry', label: 'Đang chờ', count: (sum.queued || 0) + (sum.processing || 0) + (sum.retry || 0) },
+      { id: 'sent', label: 'Thành công', count: sum.sent || 0 },
+      { id: 'failed', label: 'Lỗi', count: sum.failed || 0 },
+      { id: 'no_group', label: 'Chưa có nhóm', count: sum.no_group || 0 },
+      { id: 'unknown', label: 'Không xác định', count: sum.unknown || 0 },
+    ];
+    var chips = filters.map(function (f) {
+      return '<button class="dbt-chip' + (state.notifyJobFilter === f.id ? ' active' : '') +
+        '" onclick="setNotifyJobFilter(' + jsArg(f.id) + ')">' + esc(f.label) +
+        '<span class="dbt-chip-count">' + f.count + '</span></button>';
+    }).join('');
+
+
+    var items = (data && data.items) || [];
+    var rowsHtml = items.length
+      ? '<div class="dbt-table-wrap" style="margin-top:12px"><table class="dbt-table dbt-table--wide"><thead><tr>' +
+        '<th>Thời gian</th><th>Khách</th><th>Group ID</th>' +
+        '<th style="text-align:right">Số tiền</th><th>Provider</th>' +
+        '<th>Trạng thái</th><th style="text-align:right">Lần thử</th><th></th>' +
+        '</tr></thead><tbody>' +
+        items.map(function (j) {
+          var canRetry = j.status !== 'sent' && j.status !== 'cancelled';
+          var retryBtn = '';
+          if (canRetry) {
+            var isUnknown = j.status === 'unknown';
+            retryBtn = '<button class="dbt-btn dbt-btn-sm" onclick="retryNotifyJob(' + j.id + ', ' +
+              (isUnknown ? 'true' : 'false') + ')">📤 Gửi lại</button>';
+          }
+          var err = j.last_error
+            ? '<div class="dbt-hint" style="margin:2px 0 0;font-size:10.5px;color:var(--color-danger-text)">' + esc(j.last_error) + '</div>'
+            : '';
+          return '<tr>' +
+            '<td style="font-size:11.5px;white-space:nowrap">' + esc(fmtDateTime(j.created_at)) + '</td>' +
+            '<td class="dbt-name">' + esc(j.customer_name || j.customer_ref_name || ('#' + j.customer_id)) + '</td>' +
+            '<td class="dbt-muted" style="font-size:11px">' + esc(j.group_id || '—') + '</td>' +
+            '<td class="dbt-mono" style="text-align:right">' + money(j.amount) + '</td>' +
+            '<td class="dbt-muted" style="font-size:11px">' + esc(j.provider || '—') + '</td>' +
+            '<td>' + jobBadge(j.status) + err + '</td>' +
+            '<td class="dbt-mono" style="text-align:right">' + (j.attempts || 0) + '/' + (j.max_attempts || 5) + '</td>' +
+            '<td style="text-align:right">' + retryBtn + '</td>' +
+          '</tr>';
+        }).join('') +
+        '</tbody></table></div>'
+      : '<div class="dbt-empty" style="margin-top:12px">📭 Chưa có job thông báo nào</div>';
+
+    return '<details class="dbt-collapse" style="margin-top:12px" open>' +
+      '<summary>🧾 Hàng đợi thông báo' +
+        '<span class="dbt-collapse__count">' + (sum.total || 0) + '</span>' +
+      '</summary>' +
+      '<div class="dbt-collapse__body">' +
+        '<div class="dbt-hint" style="margin:12px 0 0;padding:8px 10px;border-left:3px solid var(--primary);background:var(--card-soft);border-radius:0 6px 6px 0">' +
+          'Mỗi lần ghi nhận thanh toán sẽ tạo <b>1 job</b> trong hàng đợi bền vững. Worker nền tự gửi & thử lại khi lỗi. ' +
+          'Job đã gửi thành công <b>không</b> gửi lại được (tránh gửi trùng cho khách).' +
+        '</div>' +
+        kpi +
+        '<div class="dbt-chips" style="margin-top:12px">' + chips + '</div>' +
+        rowsHtml +
+      '</div>' +
+    '</details>';
+  }
+
+
+  /**
+   * Đổi bộ lọc trạng thái của hàng đợi thông báo.
+   */
+  function setNotifyJobFilter(status) {
+    state.notifyJobFilter = status || '';
+    loadNotifyJobs();
+  }
+
+  /**
+   * Gửi lại 1 job thông báo.
+   *
+   * ⚠️ Job trạng thái 'unknown' (không xác định kết quả) → BẮT BUỘC xác nhận
+   *    mạnh hơn vì tin có thể đã tới khách → gửi lại có thể gây TRÙNG.
+   */
+  function retryNotifyJob(jobId, isUnknown) {
+    var msg = isUnknown
+      ? 'Job này đang ở trạng thái "không xác định" — tin CÓ THỂ đã gửi tới khách.\n\n' +
+        'Gửi lại có thể gây thông báo TRÙNG. Chỉ tiếp tục nếu bạn đã kiểm tra nhóm Zalo và chắc chắn khách chưa nhận tin.\n\nTiếp tục?'
+      : 'Gửi lại thông báo công nợ cho khách này?';
+    if (!window.confirm(msg)) return;
+
+    api(API + '/notify/jobs/' + jobId + '/retry', {
+      method: 'POST',
+      body: JSON.stringify({ force: isUnknown === true }),
+    })
+      .then(function () {
+        toast('📤 Đã đưa job vào hàng đợi gửi lại', 'ok');
+        loadNotifyJobs();
+      })
+      .catch(function (e) { toast('✗ ' + e.message, 'err'); });
+  }
+
+  /**
+   * Kiểm tra kết nối provider (không gửi tin).
+   */
+  function checkProviderConnection() {
+    toast('⏳ Đang kiểm tra kết nối provider…');
+    api(API + '/notify/provider-status')
+      .then(function (res) {
+        var d = res.data || {};
+        state.notifyProviderStatus = d;
+        render();
+        toast(d.available ? '✅ Provider sẵn sàng: ' + (d.configuredProvider || d.provider) : '⚠️ ' + (d.reason || 'Provider không khả dụng'), d.available ? 'ok' : 'err');
+      })
+      .catch(function (e) { toast('✗ ' + e.message, 'err'); });
   }
 
   // ── Render: Permissions ────────────────────────────────────────────────
@@ -2830,9 +3020,23 @@
   }
 
   function openGroupModal(customerId) {
-    showModal('Liên kết nhóm Zalo ↔ Khách hàng', '' +
+    // Prefill khi SỬA nhóm đã liên kết (1 khách = 1 nhóm).
+    var existing = null;
+    var cid = customerId ? parseInt(customerId, 10) : null;
+    if (cid) {
+      existing = (state.groups || []).filter(function (g) {
+        return String(g.customer_id) === String(cid) && g.status === 'active';
+      })[0] || null;
+    }
+    var isEdit = !!existing;
+    showModal(isEdit ? 'Sửa nhóm Zalo của khách' : 'Liên kết nhóm Zalo ↔ Khách hàng', '' +
+      (isEdit
+        ? '<div class="dbt-hint" style="margin-bottom:10px;padding:8px 10px;border-left:3px solid var(--primary);background:var(--card-soft);border-radius:0 6px 6px 0">' +
+            'Quy tắc <b>1 khách = 1 nhóm</b>: sửa ở đây sẽ <b>thay thế</b> nhóm cũ (không tạo nhóm thứ 2).' +
+          '</div>'
+        : '') +
       '<div class="dbt-field"><label class="dbt-label">Khách hàng</label>' +
-        '<select id="gpCustomer" class="dbt-select">' + customerOptions(customerId) + '</select></div>' +
+        '<select id="gpCustomer" class="dbt-select"' + (isEdit ? ' disabled' : '') + '>' + customerOptions(customerId) + '</select></div>' +
       '<div class="dbt-field"><label class="dbt-label">Nhóm Zalo (OmiCall)</label>' +
         '<button class="dbt-btn dbt-btn-secondary" style="width:100%" id="gpLoadBtn" onclick="loadOmiGroups()">🔄 Tải danh sách nhóm từ OmiCall</button>' +
         '<div class="dbt-search-wrap">' +
@@ -2846,17 +3050,20 @@
       '<div class="dbt-field"><label class="dbt-label">Group ID</label>' +
         '<div style="display:flex;gap:8px;align-items:stretch">' +
           '<input id="gpGroupId" class="dbt-input dbt-input--copyable" placeholder="VD: 6afe6913fca59218a5d662a9" ' +
+            'value="' + (existing ? esc(existing.group_id || '') : '') + '" ' +
             'onfocus="this.select()" onclick="this.select()">' +
           '<button class="dbt-copy-btn" id="gpCopyBtn" onclick="copyGroupId()" disabled>📋<span>Chép</span></button>' +
         '</div>' +
         '<div class="dbt-hint">Đây là <b>Conversation ID</b> của nhóm Zalo trong hệ thống OmiCall multi-channel — dùng để gửi tin nhắn thông báo công nợ tới nhóm. Bấm <b>📋 Chép</b> để sao chép.</div></div>' +
       '<div class="dbt-field"><label class="dbt-label">Tên nhóm</label>' +
-        '<input id="gpGroupName" class="dbt-input" placeholder="VD: Nhóm Zalo Anh Hùng"></div>' +
+        '<input id="gpGroupName" class="dbt-input" placeholder="VD: Nhóm Zalo Anh Hùng" ' +
+          'value="' + (existing ? esc(existing.group_name || '') : '') + '"></div>' +
       '<div class="dbt-field"><label class="dbt-label">Nền tảng</label>' +
         '<select id="gpPlatform" class="dbt-select"><option value="zalo_personal">Zalo cá nhân</option></select>' +
         '<div class="dbt-hint">Chỉ hỗ trợ nhóm Zalo cá nhân. Hệ thống KHÔNG dùng Zalo OA.</div></div>' +
       '<div class="dbt-btn-row"><button class="dbt-btn dbt-btn-secondary" onclick="closeModal()">Hủy</button>' +
-        '<button class="dbt-btn" style="flex:1" onclick="submitGroup()">💬 Liên kết</button></div>');
+        '<button class="dbt-btn" style="flex:1" onclick="submitGroup()">' +
+          (isEdit ? '💾 Lưu thay đổi' : '💬 Liên kết') + '</button></div>');
   }
 
   /**
@@ -3244,19 +3451,17 @@
     var platform = document.getElementById('gpPlatform').value;
     if (!customerId || !groupId) { toast('✗ Thiếu khách hàng hoặc Group ID', 'err'); return; }
 
-    api(API + '/groups', {
+    api(API + '/notify/customer-groups', {
       method: 'POST',
       body: JSON.stringify({ customerId: customerId, groupId: groupId, groupName: groupName, platform: platform })
-    }).then(function (res) {
+    }).then(function () {
       closeModal();
-      var d = (res && res.data) || {};
-      if (d.agentAssigned) {
-        toast('✅ Đã liên kết nhóm Zalo và tự động gán nhân viên', 'ok');
-      } else {
-        toast('✅ Đã liên kết nhóm Zalo — ⚠️ Chưa gán được nhân viên, vào OmiCall gán tay nếu tin không gửi được', 'err');
-      }
+      toast('✅ Đã liên kết nhóm Zalo cho khách', 'ok');
       loadGroups();
-    }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
+      if (state.tab === 'notify') loadNotify();
+    }).catch(function (e) {
+      toast('✗ ' + (e.message || 'Không liên kết được'), 'err');
+    });
   }
 
   function unlinkGroup(id) {
@@ -3362,11 +3567,34 @@
       state.groups && state.groups.length ? Promise.resolve({ data: state.groups }) : api(API + '/groups'),
       // Giao dịch đã gạch nợ nhưng chưa gửi tin (chỉ liệt kê, không gửi)
       api(API + '/notify/missing?lookbackDays=30'),
+      // Hàng đợi thông báo bền vững + thống kê + trạng thái provider
+      api(API + '/notify/jobs?limit=100' + (state.notifyJobFilter ? '&status=' + encodeURIComponent(state.notifyJobFilter) : '')),
+      api(API + '/notify/summary'),
+      api(API + '/notify/provider-status'),
     ]).then(function (res) {
       state.notify = res[0].data;
       state.notifyHistory = res[1].data;
       state.groups = res[2].data || [];
       state.notifyMissing = (res[3].data && res[3].data.items) || [];
+      state.notifyJobs = res[4].data || null;
+      state.notifyJobSummary = (res[5].data && res[5].data.jobs) || null;
+      state.notifyProviderStatus = res[6].data || null;
+      render();
+    }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
+  }
+
+  /**
+   * Tải lại riêng hàng đợi thông báo (dùng sau khi gửi lại / bộ lọc đổi).
+   */
+  function loadNotifyJobs() {
+    var q = '/notify/jobs?limit=100' +
+      (state.notifyJobFilter ? '&status=' + encodeURIComponent(state.notifyJobFilter) : '');
+    return Promise.all([
+      api(API + q),
+      api(API + '/notify/summary'),
+    ]).then(function (res) {
+      state.notifyJobs = res[0].data || null;
+      state.notifyJobSummary = (res[1].data && res[1].data.jobs) || null;
       render();
     }).catch(function (e) { toast('✗ ' + e.message, 'err'); });
   }
@@ -3755,6 +3983,10 @@
   window.openNotifyTestSendModal = openNotifyTestSendModal;
   window.sendNotifyTest = sendNotifyTest;
   window.resendNotify = resendNotify;
+  // Hàng đợi thông báo (notification jobs) + trạng thái provider
+  window.setNotifyJobFilter = setNotifyJobFilter;
+  window.retryNotifyJob = retryNotifyJob;
+  window.checkProviderConnection = checkProviderConnection;
   // Gạch nợ thông minh (Sepay)
   window.openSepayBankAccountModal = openSepayBankAccountModal;
   window.sepaySmartRematch = sepaySmartRematch;

@@ -1149,6 +1149,21 @@ function processTransaction(txId, opts = {}) {
       idempotencyKey: `sepay:${tx.sepay_id}:payment`,
       allowNegativeBalance: true,
       businessDate: sepayBusinessDate(tx.transaction_date),
+      buildNotification: (ctx) =>
+        DebtNotifyService.buildPaymentNotificationPayload({
+          customerId: ctx.customerId,
+          customerName: customer.name,
+          transactionId: ctx.transactionId,
+          amount,
+          balanceBefore,
+          // Số dư cuối = balanceBefore - applied - credit (CẢ HAI bút toán đều
+          // DECREASE) → tính trước để nội dung tin khớp với luồng cũ, dù job
+          // được tạo TRONG transaction của bút toán PAYMENT.
+          balanceAfter: roundMoney(balanceBefore - applied - credit),
+          applied,
+          credit,
+          source: 'SEPAY',
+        }),
     });
 
     if (!paymentResult.success) {
@@ -1254,18 +1269,22 @@ function processTransaction(txId, opts = {}) {
   });
 
   // ── 3b. Gửi tin nhắn Zalo thông báo công nợ (KHÔNG chặn nghiệp vụ) ────
-  //    Fire-and-forget: lỗi OmiCall không được làm hỏng giao dịch đã gạch.
-  DebtNotifyService.notifyPaymentAsync({
-    customerId: customer.id,
-    customerName: customer.name,
-    amount,
-    applied,
-    credit,
-    balanceBefore,
-    balanceAfter,
-    source: 'SEPAY',
-    transactionId: paymentResult ? paymentResult.transactionId : null,
-  });
+  //    Ưu tiên job đã tạo TRONG transaction (outbox). Chỉ fallback enqueue
+  //    bên ngoài khi job chưa được tạo (VD: applied = 0 → không có bút toán
+  //    PAYMENT, nhưng vẫn có thể cần thông báo hoàn trả).
+  if (!paymentResult || !paymentResult.notificationJob) {
+    DebtNotifyService.notifyPaymentAsync({
+      customerId: customer.id,
+      customerName: customer.name,
+      amount,
+      applied,
+      credit,
+      balanceBefore,
+      balanceAfter,
+      source: 'SEPAY',
+      transactionId: paymentResult ? paymentResult.transactionId : null,
+    });
+  }
 
   return {
     success: true,

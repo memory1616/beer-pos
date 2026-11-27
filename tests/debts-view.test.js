@@ -383,12 +383,12 @@ describe('views/debts.html — bảng vừa màn hình điện thoại', () => {
 
   test('các bảng nhiều cột ĐỀU dùng --wide (giữ được cuộn ngang)', () => {
     const tables = html.match(/<table class="dbt-table[^"]*"/g) || [];
-    // 13 bảng: top debtors (hẹp) + 9 bảng rộng (giao dịch Sepay + lịch sử thông báo
-    //         + bảng "Tin chưa gửi") + 2 bảng hẹp mới của tab Nhóm Zalo
-    //         ("chưa liên kết" & "tất cả khách")
-    expect(tables).toHaveLength(13);
+    // 14 bảng: top debtors (hẹp) + 10 bảng rộng (giao dịch Sepay + lịch sử thông báo
+    //         + bảng "Tin chưa gửi" + bảng hàng đợi thông báo) + 2 bảng hẹp mới
+    //         của tab Nhóm Zalo ("chưa liên kết" & "tất cả khách")
+    expect(tables).toHaveLength(14);
     const wide = tables.filter((t) => t.includes('dbt-table--wide'));
-    expect(wide).toHaveLength(9);
+    expect(wide).toHaveLength(10);
   });
 
   test('.dbt-table--narrow giữ cột tiền nowrap + tên cắt gọn', () => {
@@ -580,5 +580,196 @@ describe('views/debts.html — bộ lọc & thao tác với nhóm Zalo', () => {
       html.indexOf('function loadPermissions()')
     );
     expect(fn).toMatch(/API \+ '\/customers'/);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Hàng đợi thông báo Zalo + trạng thái provider (views/debts.html)
+// ═══════════════════════════════════════════════════════════════════════════
+describe('views/debts.html — hàng đợi thông báo Zalo', () => {
+  test('có renderJobQueue + jobBadge + bộ lọc trạng thái', () => {
+    expect(html).toMatch(/function\s+renderJobQueue\s*\(/);
+    expect(html).toMatch(/function\s+jobBadge\s*\(/);
+    expect(html).toMatch(/function\s+setNotifyJobFilter\s*\(/);
+    expect(html).toMatch(/window\.setNotifyJobFilter\s*=\s*setNotifyJobFilter/);
+  });
+
+  test('bộ lọc có đủ 6 trạng thái nghiệp vụ', () => {
+    const fn = html.slice(
+      html.indexOf('function renderJobQueue('),
+      html.indexOf('function setNotifyJobFilter(')
+    );
+    expect(fn).toMatch(/label:\s*'Tất cả'/);
+    expect(fn).toMatch(/label:\s*'Đang chờ'/);
+    expect(fn).toMatch(/label:\s*'Thành công'/);
+    expect(fn).toMatch(/label:\s*'Lỗi'/);
+    expect(fn).toMatch(/label:\s*'Chưa có nhóm'/);
+    expect(fn).toMatch(/label:\s*'Không xác định'/);
+    expect(fn).toMatch(/'queued,processing,retry'/);
+    expect(fn).toMatch(/id:\s*'sent'/);
+    expect(fn).toMatch(/id:\s*'failed'/);
+    expect(fn).toMatch(/id:\s*'no_group'/);
+    expect(fn).toMatch(/id:\s*'unknown'/);
+  });
+
+  test('jobBadge hiển thị đủ 8 trạng thái job', () => {
+    const fn = html.slice(
+      html.indexOf('var JOB_STATUS_LABEL'),
+      html.indexOf('function renderJobQueue(')
+    );
+    ['queued', 'processing', 'sent', 'retry', 'failed', 'no_group', 'cancelled', 'unknown'].forEach((s) => {
+      expect(fn).toMatch(new RegExp(s + ':'));
+    });
+  });
+
+  test('bảng hàng đợi hiển thị Group ID, provider, số lần thử', () => {
+    const fn = html.slice(
+      html.indexOf('function renderJobQueue('),
+      html.indexOf('function setNotifyJobFilter(')
+    );
+    expect(fn).toMatch(/Group ID/);
+    expect(fn).toMatch(/Provider/);
+    expect(fn).toMatch(/Lần thử/);
+    expect(fn).toMatch(/j\.attempts/);
+    expect(fn).toMatch(/j\.max_attempts/);
+    expect(fn).toMatch(/j\.last_error/);
+  });
+
+  test('job đã sent / cancelled KHÔNG có nút gửi lại', () => {
+    const fn = html.slice(
+      html.indexOf('function renderJobQueue('),
+      html.indexOf('function setNotifyJobFilter(')
+    );
+    expect(fn).toMatch(/j\.status\s*!==\s*'sent'\s*&&\s*j\.status\s*!==\s*'cancelled'/);
+  });
+
+  test('retryNotifyJob có xác nhận + cảnh báo TRÙNG cho trạng thái unknown', () => {
+    const fn = html.slice(
+      html.indexOf('function retryNotifyJob('),
+      html.indexOf('function checkProviderConnection(')
+    );
+    expect(fn).toMatch(/window\.confirm\(/);
+    expect(fn).toMatch(/isUnknown/);
+    expect(fn).toMatch(/TRÙNG/);
+    expect(html).toMatch(/window\.retryNotifyJob\s*=\s*retryNotifyJob/);
+  });
+
+  test('retryNotifyJob gọi API /notify/jobs/:id/retry với cờ force cho unknown', () => {
+    const fn = html.slice(
+      html.indexOf('function retryNotifyJob('),
+      html.indexOf('function checkProviderConnection(')
+    );
+    expect(fn).toMatch(/\/notify\/jobs\/' \+ jobId \+ '\/retry'/);
+    expect(fn).toMatch(/force:/);
+  });
+
+  test('loadNotifyJobs gọi đúng 2 API: jobs + summary', () => {
+    const fn = html.slice(
+      html.indexOf('function loadNotifyJobs('),
+      html.indexOf('function loadSepay(')
+    );
+    expect(fn).toMatch(/\/notify\/jobs/);
+    expect(fn).toMatch(/\/notify\/summary/);
+    expect(fn).toMatch(/state\.notifyJobFilter/);
+  });
+
+  test('loadNotify vẫn load được lịch sử cũ (tương thích ngược)', () => {
+    const fn = html.slice(
+      html.indexOf('function loadNotify('),
+      html.indexOf('function loadNotifyJobs(')
+    );
+    expect(fn).toMatch(/\/notify\/history/);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Trạng thái provider (views/debts.html)
+// ═══════════════════════════════════════════════════════════════════════════
+describe('views/debts.html — trạng thái provider', () => {
+  test('hiển thị provider hiện tại + nút kiểm tra kết nối', () => {
+    expect(html).toMatch(/function\s+checkProviderConnection\s*\(/);
+    expect(html).toMatch(/window\.checkProviderConnection\s*=\s*checkProviderConnection/);
+    expect(html).toMatch(/\/notify\/provider-status/);
+    expect(html).toMatch(/onclick="checkProviderConnection\(\)"/);
+  });
+
+  test('provider MÔ PHỎNG được ghi nhãn rõ ràng (không giả vờ gửi thật)', () => {
+    const fn = html.slice(
+      html.indexOf('function renderNotify('),
+      html.indexOf('var JOB_STATUS_LABEL')
+    );
+    expect(fn).toMatch(/MÔ PHỎNG/);
+    expect(fn).toMatch(/KHÔNG được gửi vào Zalo thật/);
+  });
+
+  test('KHÔNG render token / cookie / mật khẩu lên giao diện', () => {
+    const notifyFn = html.slice(
+      html.indexOf('function renderNotify('),
+      html.indexOf('var JOB_STATUS_LABEL')
+    );
+    // Không được đẩy giá trị credential thô ra giao diện.
+    // (Ô nhập type="password" là hành vi có sẵn, không phải rò rỉ giá trị.)
+    expect(notifyFn).not.toMatch(/\bapiKey\b(?!\s*Masked)/);
+    expect(notifyFn).not.toMatch(/cookie/i);
+    expect(notifyFn).not.toMatch(/webhookSecret/i);
+    expect(notifyFn).not.toMatch(/access[_ ]?token/i);
+    // Chỉ được hiển thị TRẠNG THÁI có/không (boolean), không hiển thị giá trị
+    expect(notifyFn).toMatch(/hasApiKey/);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Quản lý nhóm Zalo 1:1 (views/debts.html)
+// ═══════════════════════════════════════════════════════════════════════════
+describe('views/debts.html — quản lý nhóm Zalo 1:1', () => {
+  test('submitGroup gọi API /notify/customer-groups (không phải /groups cũ)', () => {
+    const fn = html.slice(
+      html.indexOf('function submitGroup('),
+      html.indexOf('function unlinkGroup(')
+    );
+    expect(fn).toMatch(/\/notify\/customer-groups/);
+    expect(fn).not.toMatch(/API \+ '\/groups'/);
+  });
+
+  test('submitGroup gửi đủ customerId + groupId + groupName + platform', () => {
+    const fn = html.slice(
+      html.indexOf('function submitGroup('),
+      html.indexOf('function unlinkGroup(')
+    );
+    expect(fn).toMatch(/customerId/);
+    expect(fn).toMatch(/groupId/);
+    expect(fn).toMatch(/groupName/);
+    expect(fn).toMatch(/platform/);
+  });
+
+  test('mô tả tab Nhóm Zalo nói rõ quy tắc 1 khách = 1 nhóm Zalo', () => {
+    expect(html).toMatch(/1 khách\s*=\s*1 nhóm Zalo\s*=\s*1 Group ID/);
+  });
+
+  test('renderGroups hiển thị Group ID + ngày liên kết', () => {
+    const fn = html.slice(
+      html.indexOf('function renderGroups('),
+      html.indexOf('function setGroupFilter(')
+    );
+    expect(fn).toMatch(/Group ID/);
+    expect(fn).toMatch(/Ngày liên kết|linked_at/);
+  });
+
+  test('có thao tác Gỡ liên kết (unlink) và Sửa', () => {
+    const fn = html.slice(
+      html.indexOf('function renderGroups('),
+      html.indexOf('function setGroupFilter(')
+    );
+    expect(fn).toMatch(/unlinkGroup|\/customer-groups\//);
+    expect(html).toMatch(/window\.unlinkGroup\s*=\s*unlinkGroup/);
+  });
+
+  test('openGroupModal hỗ trợ chế độ SỬA (prefill + khoá chọn khách)', () => {
+    const fn = html.slice(
+      html.indexOf('function openGroupModal('),
+      html.indexOf('function submitGroup(')
+    );
+    expect(fn).toMatch(/editMode|isEdit|mapping/i);
+    expect(fn).toMatch(/disabled/);
   });
 });

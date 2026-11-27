@@ -45,6 +45,9 @@ const DebtAuditService = require('../../src/services/debt/DebtAuditService');
 const DebtReconciliationService = require('../../src/services/debt/DebtReconciliationService');
 const DebtNotifyService = require('../../src/services/debt/DebtNotifyService');
 const OmiCallService = require('../../src/services/OmiCallService');
+const NotificationJobService = require('../../src/services/notify/NotificationJobService');
+const CustomerGroupService = require('../../src/services/notify/CustomerGroupService');
+const ProviderFactory = require('../../src/services/notify/provider');
 const { PLATFORMS, GROUP_STATUS, SOURCES } = require('../../src/services/debt/constants');
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -539,11 +542,32 @@ router.post('/groups', requireAuth, requireAdmin, async (req, res) => {
       return res.status(404).json({ success: false, error: 'Không tìm thấy khách hàng' });
     }
 
+    // ⚠️ RÀNG BUỘC 1 KHÁCH = 1 NHÓM (bảo toàn tương thích endpoint cũ):
+    //    Nếu khách này đang có 1 nhóm KHÁC → từ chối, không tạo nhóm thứ 2.
+    //    (Trường hợp hợp lệ: đổi group id của chính nhóm đang active.)
+    const ownGroup = db
+      .prepare(
+        `SELECT id, group_id FROM debt_customer_groups
+          WHERE customer_id = ? AND platform = ?`
+      )
+      .get(custId, plat);
+    if (ownGroup && String(ownGroup.group_id) !== String(groupId)) {
+      return res.status(400).json({
+        success: false,
+        error:
+          'Khách hàng đang được liên kết với 1 nhóm Zalo khác. ' +
+          'Quy tắc 1 khách = 1 nhóm: hãy gỡ liên kết cũ trước khi liên kết nhóm mới.',
+        code: 'CUSTOMER_ALREADY_HAS_GROUP',
+        data: { existingGroupId: ownGroup.group_id },
+      });
+    }
+
     const existing = db
       .prepare('SELECT id, customer_id FROM debt_customer_groups WHERE platform = ? AND group_id = ?')
       .get(plat, String(groupId));
 
     if (existing) {
+      // Chuyển nhóm sang khách mới → khách cũ mất nhóm (vẫn đúng 1:1).
       db.prepare(
         `UPDATE debt_customer_groups
             SET customer_id = ?, group_name = ?, status = ?, updated_at = CURRENT_TIMESTAMP
@@ -1133,6 +1157,285 @@ router.get('/notify/history', requireAuth, (req, res) => {
     res.json({ success: true, data: result });
   } catch (e) {
     logger.error('[DEBT_NOTIFY_API] history error', { error: e.message });
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// THÔNG BÁO ZALO — HÀNG ĐỢI BỀN VỮNG (notification jobs) + PROVIDER
+//   GET  /api/debt-ledger/notify/jobs            — Danh sách job
+//   GET  /api/debt-ledger/notify/summary         — Thống kê theo trạng thái
+//   POST /api/debt-ledger/notify/jobs/:id/retry  — Gửi lại (ADMIN/STAFF)
+//   POST /api/debt-ledger/notify/jobs/:id/cancel — Huỷ job (ADMIN)
+//   GET  /api/debt-ledger/notify/provider-status — Trạng thái provider
+//   GET  /api/debt-ledger/notify/customer-groups       — Danh sách liên kết
+//   GET  /api/debt-ledger/notify/customer-groups/:cid  — Liên kết của 1 khách
+//   POST /api/debt-ledger/notify/customer-groups       — Liên kết (ADMIN)
+//   PATCH /api/debt-ledger/notify/customer-groups/:id  — Sửa (ADMIN)
+//   DELETE /api/debt-ledger/notify/customer-groups/:id — Gỡ (ADMIN)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** GET /notify/jobs — danh sách notification job (lọc theo status/khách/tx). */
+router.get('/notify/jobs', requireAuth, requireStaff, (req, res) => {
+  try {
+    const { status, customerId, transactionId, provider, limit, offset } = req.query || {};
+    const result = NotificationJobService.listJobs({
+      status,
+      customerId,
+      transactionId,
+      provider,
+      limit,
+      offset,
+    });
+    res.json({ success: true, data: result });
+  } catch (e) {
+    logger.error('[DEBT_NOTIFY_API] jobs error', { error: e.message });
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+/** GET /notify/summary — thống kê job + lịch sử gửi. */
+router.get('/notify/summary', requireAuth, requireStaff, (req, res) => {
+  try {
+    res.json({
+      success: true,
+      data: {
+        jobs: NotificationJobService.getSummary(),
+        history: DebtNotifyService.getSummary(),
+        provider: ProviderFactory.getProviderName(),
+        simulated: ProviderFactory.isSimulated(),
+      },
+    });
+  } catch (e) {
+    logger.error('[DEBT_NOTIFY_API] summary error', { error: e.message });
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+/**
+ * POST /notify/jobs/:id/retry — đưa job về hàng đợi để gửi lại.
+ * Body: { force: boolean } — `force` bắt buộc cho job 'unknown'.
+ */
+router.post('/notify/jobs/:id/retry', requireAuth, requireStaff, (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!id || Number.isNaN(id)) {
+      return res.status(400).json({ success: false, error: 'id không hợp lệ' });
+    }
+    const body = req.body || {};
+    const force = body.force === true || body.force === 'true' || body.force === 1;
+
+    const result = NotificationJobService.retryJob(id, { force });
+    if (!result.success) {
+      const status = result.code === 'REQUIRES_VERIFICATION' ? 409 : 400;
+      return res.status(status).json({
+        success: false,
+        error: result.error,
+        code: result.code || 'RETRY_FAILED',
+      });
+    }
+    res.json({ success: true, data: result });
+  } catch (e) {
+    logger.error('[DEBT_NOTIFY_API] retry job error', { error: e.message });
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+/** POST /notify/jobs/:id/cancel — huỷ job chưa gửi (ADMIN). */
+router.post('/notify/jobs/:id/cancel', requireAuth, requireAdmin, (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!id || Number.isNaN(id)) {
+      return res.status(400).json({ success: false, error: 'id không hợp lệ' });
+    }
+    const reason = (req.body && req.body.reason) || 'Huỷ bởi quản trị';
+    const result = NotificationJobService.cancelJob(id, reason);
+    if (!result.success) {
+      return res.status(400).json({ success: false, error: result.error });
+    }
+    res.json({ success: true, data: result });
+  } catch (e) {
+    logger.error('[DEBT_NOTIFY_API] cancel job error', { error: e.message });
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+/** GET /notify/provider-status — trạng thái provider (KHÔNG lộ credential). */
+router.get('/notify/provider-status', requireAuth, requireStaff, (req, res) => {
+  try {
+    const name = ProviderFactory.getProviderName();
+    const provider = ProviderFactory.getProvider(name);
+    res.json({
+      success: true,
+      data: {
+        ...provider.getProviderStatus(),
+        configuredProvider: name,
+        simulated: ProviderFactory.isSimulated(name),
+      },
+    });
+  } catch (e) {
+    logger.error('[DEBT_NOTIFY_API] provider status error', { error: e.message });
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+/** GET /notify/customer-groups — danh sách liên kết khách ↔ nhóm. */
+router.get('/notify/customer-groups', requireAuth, requireStaff, (req, res) => {
+  try {
+    const includeInactive = ['1', 'true', 'yes'].includes(
+      String(req.query.include_inactive || '').toLowerCase()
+    );
+    const rows = CustomerGroupService.list({
+      includeInactive,
+      customerId: req.query.customerId,
+      platform: req.query.platform,
+    });
+    res.json({ success: true, data: rows });
+  } catch (e) {
+    logger.error('[DEBT_NOTIFY_API] customer-groups error', { error: e.message });
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+/** GET /notify/customer-groups/:customerId — liên kết của 1 khách. */
+router.get('/notify/customer-groups/:customerId', requireAuth, requireStaff, (req, res) => {
+  try {
+    const custId = parseInt(req.params.customerId, 10);
+    if (!custId || Number.isNaN(custId)) {
+      return res.status(400).json({ success: false, error: 'customerId không hợp lệ' });
+    }
+    if (!canAccessCustomer(req, custId)) {
+      return res.status(403).json({
+        success: false,
+        error: 'Bạn không có quyền xem thông tin của khách hàng này',
+        code: 'NO_PERMISSION',
+      });
+    }
+    const row = CustomerGroupService.findByCustomer(custId, PLATFORMS.ZALO_PERSONAL);
+    res.json({
+      success: true,
+      data: {
+        linked: !!row && row.status === GROUP_STATUS.ACTIVE,
+        group: row || null,
+      },
+    });
+  } catch (e) {
+    logger.error('[DEBT_NOTIFY_API] customer-group detail error', { error: e.message });
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+/**
+ * POST /notify/customer-groups — liên kết (hoặc đổi) nhóm Zalo cho khách.
+ * Body: { customerId, groupId, groupName }
+ */
+router.post('/notify/customer-groups', requireAuth, requireAdmin, (req, res) => {
+  try {
+    const body = req.body || {};
+    const result = CustomerGroupService.upsert({
+      customerId: body.customerId,
+      groupId: body.groupId,
+      groupName: body.groupName,
+      platform: body.platform || PLATFORMS.ZALO_PERSONAL,
+      status: body.status,
+    });
+    if (!result.success) {
+      return res.status(result.code === 'CUSTOMER_NOT_FOUND' ? 404 : 400).json({
+        success: false,
+        error: result.error,
+        code: result.code,
+        data: result.data || null,
+      });
+    }
+    DebtAuditService.record({
+      action: DebtAuditService.AUDIT_ACTIONS.GROUP_LINK,
+      actorId: req.user?.username || null,
+      afterData: {
+        customerId: parseInt(body.customerId, 10),
+        groupId: String(body.groupId || ''),
+      },
+    });
+    res.json({ success: true, data: result.data });
+  } catch (e) {
+    logger.error('[DEBT_NOTIFY_API] create customer-group error', { error: e.message });
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+/**
+ * PATCH /notify/customer-groups/:id — sửa tên nhóm / bật-tắt / đổi group id.
+ * Body: { groupId?, groupName?, status? }
+ */
+router.patch('/notify/customer-groups/:id', requireAuth, requireAdmin, (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!id || Number.isNaN(id)) {
+      return res.status(400).json({ success: false, error: 'id không hợp lệ' });
+    }
+    const body = req.body || {};
+
+    // Chỉ đổi trạng thái bật/tắt.
+    if (body.status && body.groupId === undefined) {
+      const result = CustomerGroupService.setStatus(id, body.status);
+      if (!result.success) {
+        return res.status(result.code === 'NOT_FOUND' ? 404 : 400).json({
+          success: false,
+          error: result.error,
+          code: result.code,
+        });
+      }
+      return res.json({ success: true, data: result.data });
+    }
+
+    // Sửa / đổi group id → dùng chung logic upsert (theo customer hiện tại).
+    const existing = db
+      .prepare('SELECT * FROM debt_customer_groups WHERE id = ?')
+      .get(id);
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'Không tìm thấy liên kết' });
+    }
+    const result = CustomerGroupService.upsert({
+      customerId: existing.customer_id,
+      groupId: body.groupId !== undefined ? body.groupId : existing.group_id,
+      groupName: body.groupName !== undefined ? body.groupName : existing.group_name,
+      platform: existing.platform,
+      status: body.status || existing.status,
+      // PATCH = thao tác quản trị sửa/đổi nhóm của chính khách đó → cho phép.
+      allowChange: true,
+    });
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        error: result.error,
+        code: result.code,
+        data: result.data || null,
+      });
+    }
+    res.json({ success: true, data: result.data });
+  } catch (e) {
+    logger.error('[DEBT_NOTIFY_API] update customer-group error', { error: e.message });
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+/** DELETE /notify/customer-groups/:id — gỡ liên kết (không xoá vật lý). */
+router.delete('/notify/customer-groups/:id', requireAuth, requireAdmin, (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!id || Number.isNaN(id)) {
+      return res.status(400).json({ success: false, error: 'id không hợp lệ' });
+    }
+    const result = CustomerGroupService.unlink(id);
+    if (!result.success) {
+      return res.status(result.code === 'NOT_FOUND' ? 404 : 400).json({
+        success: false,
+        error: result.error,
+        code: result.code,
+      });
+    }
+    res.json({ success: true, data: result.data });
+  } catch (e) {
+    logger.error('[DEBT_NOTIFY_API] delete customer-group error', { error: e.message });
     res.status(500).json({ success: false, error: e.message });
   }
 });
