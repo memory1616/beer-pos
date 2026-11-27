@@ -128,6 +128,26 @@
         '<div class="ds-list" id="home-keg-list"></div>' +
       '</section>' +
 
+      /* ── Tiền mặt đã thu trong ngày ── */
+      '<section class="ds-section ds-mt-4 ds-home__cash" id="home-cash-section">' +
+        '<div class="ds-section__head">' +
+          '<h2 class="ds-section__title">💵 Tiền mặt đã thu</h2>' +
+          '<span class="ds-section__badge" id="home-cash-count">0</span>' +
+        '</div>' +
+        '<div class="ds-stats ds-mt-2">' +
+          '<div class="ds-stat ds-stat--info">' +
+            '<span class="ds-stat__value" id="home-cash-total">0</span>' +
+            '<span class="ds-stat__label">Tổng tiền mặt (đ)</span>' +
+          '</div>' +
+          '<div class="ds-stat ds-stat--ok">' +
+            '<span class="ds-stat__value" id="home-cash-applied">0</span>' +
+            '<span class="ds-stat__label">Đã gạch công nợ (đ)</span>' +
+          '</div>' +
+        '</div>' +
+        '<div class="ds-keg-note ds-mt-2" id="home-cash-note"></div>' +
+        '<div class="ds-list ds-mt-3" id="home-cash-list"></div>' +
+      '</section>' +
+
       /* ── Gợi ý / lỗi ── */
       '<div class="ds-mt-3" id="home-hint" hidden></div>';
   }
@@ -228,6 +248,7 @@
       renderStatsTitle(data);
       renderLoad(data);
       renderEstimatedSalary(data);
+      loadCashReport();
       showHint('', false);
     } catch (err) {
       setText('home-orders', '—');
@@ -392,6 +413,72 @@
         var netEl = document.getElementById('home-salary-net');
         if (netEl) netEl.textContent = D.money(Math.max(0, (s.netAmount !== undefined ? s.netAmount : s.amount) || 0));
       }
+    }
+  }
+
+  /**
+   * Báo cáo tiền mặt đã thu trong ngày.
+   * Nguồn: GET /api/driver/cash-report?date=
+   */
+  async function loadCashReport() {
+    var totalEl = document.getElementById('home-cash-total');
+    var appliedEl = document.getElementById('home-cash-applied');
+    var listEl = document.getElementById('home-cash-list');
+    var noteEl = document.getElementById('home-cash-note');
+    var countEl = document.getElementById('home-cash-count');
+    if (!totalEl || !appliedEl) return;
+
+    try {
+      var rep = await D.api.cashReport(state.date || undefined);
+      var total = Number(rep.totalAmount) || 0;
+      var applied = Number(rep.appliedAmount) || 0;
+      var credit = Number(rep.creditAmount) || 0;
+
+      totalEl.textContent = D.num(total);
+      appliedEl.textContent = D.num(applied);
+      if (countEl) countEl.textContent = D.num(rep.collectionCount || 0);
+
+      if (noteEl) {
+        if (!rep.collectionCount) {
+          noteEl.textContent = 'Hôm nay chưa thu tiền mặt nào.';
+        } else if (credit > 0) {
+          noteEl.textContent =
+            'Đã thu ' + D.num(total) + 'đ · gạch công nợ ' + D.num(applied) +
+            'đ · khách nộp trước ' + D.num(credit) + 'đ.';
+        } else {
+          noteEl.textContent =
+            'Đã thu ' + D.num(total) + 'đ · gạch công nợ ' + D.num(applied) + 'đ.';
+        }
+      }
+
+      // Danh sách khoản thu
+      if (listEl) {
+        var cols = rep.collections || [];
+        if (!cols.length) {
+          listEl.innerHTML = '';
+        } else {
+          listEl.innerHTML = cols.map(function (c) {
+            return '<div class="ds-row">' +
+              '<span class="ds-row__lead" aria-hidden="true">💵</span>' +
+              '<span class="ds-row__body">' +
+                '<span class="ds-row__title">' + escapeHtml(c.customer_name || 'Khách lẻ') + '</span>' +
+                '<span class="ds-row__meta">' + escapeHtml(c.collection_no || '') +
+                  (c.credit_amount > 0
+                    ? ' · nộp trước ' + D.num(c.credit_amount) + 'đ'
+                    : '') +
+                '</span>' +
+              '</span>' +
+              '<span class="ds-row__tail">' +
+                '<span class="ds-qty"><b>' + D.num(c.amount) + '</b><i>đ</i></span>' +
+              '</span>' +
+            '</div>';
+          }).join('');
+        }
+      }
+    } catch (err) {
+      totalEl.textContent = '—';
+      appliedEl.textContent = '—';
+      if (noteEl) noteEl.textContent = 'Không tải được báo cáo tiền mặt.';
     }
   }
 

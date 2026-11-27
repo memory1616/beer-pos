@@ -18,6 +18,7 @@ const router = express.Router();
 const logger = require('../../src/utils/logger');
 const DriverStaffService = require('../../src/services/DriverStaffService');
 const DriverAttendanceService = require('../../src/services/DriverAttendanceService');
+const DriverCashService = require('../../src/services/DriverCashService');
 const { requireAdmin } = require('./admin');
 
 // ── Helper: parse year/month an toàn ────────────────────────────────────────
@@ -61,6 +62,27 @@ router.get('/salary/summary', requireAdmin, (req, res) => {
   } catch (err) {
     logger.error('[admin/driver-staff] salary summary error', { error: err.message });
     res.status(500).json({ error: 'Lỗi khi tải bảng lương tài xế' });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TIỀN MẶT TÀI XẾ — báo cáo tiền mặt đã thu
+// ═══════════════════════════════════════════════════════════════════════════
+//
+//  • GET  /api/admin/driver-staff/cash/summary?date= → tổng hợp ngày
+//
+// PHẢI đặt TRƯỚC '/:id' để không bị route generic bắt trước.
+
+// GET /api/admin/driver-staff/cash/summary?date=
+router.get('/cash/summary', requireAdmin, (req, res) => {
+  try {
+    const date = req.query.date || null;
+    const result = DriverCashService.getAdminDailyOverview(date);
+    if (!result.success) return res.status(400).json({ error: result.error });
+    res.json(result);
+  } catch (err) {
+    logger.error('[admin/driver-staff] cash summary error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi tải báo cáo tiền mặt' });
   }
 });
 

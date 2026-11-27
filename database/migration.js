@@ -1014,6 +1014,21 @@ function runDebtNotificationJobsMigration(db) {
   }
 }
 
+// ── Driver cash collections migration (070) ─────────────────────────────────
+// Thu tiền mặt của tài xế tại điểm giao + phiếu bàn giao tiền mặt cuối ngày.
+// Chạy ĐỘC LẬP, idempotent. Rollback an toàn: chỉ gỡ 2 bảng mới.
+function runDriverCashCollectionsMigration(db) {
+  try {
+    const migration = require('./migrations/070_driver_cash_collections');
+    migration.up(db);
+    log('[DRIVER_CASH] Migration 070 applied');
+    return { success: true };
+  } catch (e) {
+    log('[DRIVER_CASH] Migration error: ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
 // ── Utility: Generate UUID ─────────────────────────────────────────────────────
 
 function generateUUID() {
@@ -1058,6 +1073,7 @@ module.exports = {
   runSepaySmartMatchingMigration,
   runDeliveryReconciliationLockMigration,
   runDebtNotificationJobsMigration,
+  runDriverCashCollectionsMigration,
   generateUUID,
   getCurrentVersion,
   setVersion,

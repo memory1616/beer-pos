@@ -15,6 +15,7 @@
 
 const db = require('../../../database');
 const logger = require('../../utils/logger');
+const RegionService = require('../RegionService');
 const { PERMISSION_STATUS } = require('./constants');
 
 // ── Roles ───────────────────────────────────────────────────────────────────
@@ -94,11 +95,14 @@ function isAssignedToCustomer(staffId, customerId) {
  * Kiểm tra 1 nhân viên có quyền ghi nhận thanh toán cho khách hàng.
  * - ADMIN → luôn có (kể cả khi chưa được phân công).
  * - STAFF → phải được phân công (`can_record_payment = 1`).
- * - DRIVER / CUSTOMER → không.
+ * - DRIVER → được ghi tiền mặt tại điểm giao cho khách THUỘC KHU VỰC
+ *   phụ trách (xem `canDriverRecordPayment`).
+ * - CUSTOMER → không.
  */
 function canRecordPayment(user, customerId) {
   const u = normalizeUser(user);
   if (u.isAdmin) return true;
+  if (u.isDriver) return canDriverRecordPayment(u.username, customerId);
   if (!u.isStaff) return false;
 
   try {
@@ -116,11 +120,47 @@ function canRecordPayment(user, customerId) {
 }
 
 /**
+ * Tài xế có được ghi nhận thanh toán (tiền mặt) cho khách hàng này không?
+ *
+ * Nguyên tắc: tài xế chỉ thu tiền mặt của khách THUỘC KHU VỰC mình phụ
+ * trách (đồng bộ với quy tắc chặn ở `POST /api/driver/payments`).
+ * - Khách có khu vực thuộc phạm vi phụ trách → OK.
+ * - Tài xế CHƯA được phân công khu vực nào → bypass (chế độ chưa áp
+ *   dụng phân quyền khu vực) — giữ hành vi cũ, không phá vỡ vận hành.
+ *
+ * @param {string} username - username tài xế
+ * @param {number} customerId
+ * @returns {boolean}
+ */
+function canDriverRecordPayment(username, customerId) {
+  const custId = parseInt(customerId, 10);
+  if (!username || !custId || Number.isNaN(custId)) return false;
+
+  try {
+    const customer = db
+      .prepare('SELECT id, name, region_id FROM customers WHERE id = ?')
+      .get(custId);
+    if (!customer) return false;
+
+    const access = RegionService.canDriverAccessCustomer(customer, username, 'DRIVER');
+    if (access.allowed) return true;
+
+    return RegionService.canBypassRegionCheck(access.code, username);
+  } catch (e) {
+    logger.error('[DEBT_PERM] canDriverRecordPayment error', { error: e.message });
+    return false;
+  }
+}
+
+/**
  * Quyền ghi nợ tay (lệnh `-`): giống quyền ghi thanh toán (nhân viên được phân công).
+ * ⚠️ Tài xế KHÔNG được ghi nợ tay — chỉ ghi được khoản thu tiền mặt
+ *    (qua `canDriverRecordPayment`).
  */
 function canRecordManualDebt(user, customerId) {
   const u = normalizeUser(user);
   if (u.isAdmin) return true;
+  if (u.isDriver) return false;
   return canRecordPayment(user, customerId);
 }
 
@@ -274,6 +314,7 @@ module.exports = {
   normalizeUser,
   isAssignedToCustomer,
   canRecordPayment,
+  canDriverRecordPayment,
   canRecordManualDebt,
   canViewCustomer,
   hasAction,

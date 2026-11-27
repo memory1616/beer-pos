@@ -30,7 +30,10 @@ const STATUS_LABELS = {
 const ALLOWED_TRANSITIONS = {
   PENDING: ['IN_PROGRESS', 'DELIVERED', 'FAILED'],
   IN_PROGRESS: ['DELIVERED', 'FAILED', 'PENDING'],
-  DELIVERED: ['DISCREPANCY'],
+  // DELIVERED → có thể quay lại IN_PROGRESS khi đơn ĐÃ THU VỎ (tự động
+  // chuyển sang ĐÃ GIAO) mà tài xế chưa xác nhận số liệu → vẫn cần giao nốt.
+  // Việc hạ trạng thái bị chặn bởi `canEditConfirmed()` khi số liệu đã xác nhận.
+  DELIVERED: ['DISCREPANCY', 'IN_PROGRESS'],
   FAILED: ['PENDING', 'IN_PROGRESS', 'DISCREPANCY'],
   DISCREPANCY: ['IN_PROGRESS', 'DELIVERED'],
 };
@@ -162,6 +165,9 @@ class DeliveryService {
           AND (
                 dr.id IS NULL
              OR dr.status NOT IN ('DELIVERED')
+             OR (COALESCE(dr.collected_kegs, 0) > 0
+                 AND COALESCE(dr.confirmed_by, '') = ''
+                 AND COALESCE(dr.reconciled_at, '') = '')
           )
         ORDER BY dr.status IS NOT NULL, dr.status = 'IN_PROGRESS' DESC,
                  COALESCE(c.name, 'Khách lẻ'), s.id DESC
@@ -283,7 +289,27 @@ class DeliveryService {
       .prepare('SELECT * FROM delivery_events WHERE delivery_id = ? ORDER BY id DESC')
       .all(deliveryId);
 
-    return { ...record, items, events };
+    // Số dư công nợ hiện tại của khách (theo SỔ CÔNG NỢ — nguồn sự thật).
+    // Dùng để tài xế biết khách còn nợ bao nhiêu khi thu tiền mặt.
+    let debtBalance = 0;
+    if (record.customer_id) {
+      try {
+        const d = db
+          .prepare(
+            `SELECT COALESCE(
+                      SUM(CASE WHEN direction = 'INCREASE' THEN amount ELSE -amount END), 0
+                    ) AS balance
+               FROM debt_transactions
+              WHERE customer_id = ?`
+          )
+          .get(record.customer_id);
+        debtBalance = d ? Math.round((d.balance || 0) * 100) / 100 : 0;
+      } catch (_) {
+        debtBalance = 0;
+      }
+    }
+
+    return { ...record, items, events, debt_balance: debtBalance };
   }
 
   /**
@@ -1198,15 +1224,73 @@ class DeliveryService {
           );
         }
 
-        DeliveryService.logEvent(deliveryId, 'KEGS_UPDATED', record.status, record.status, driverUsername, {
-          collectedKegs: collected,
-          delta,
-        });
+        // ── TỰ ĐỘNG CHUYỂN "ĐÃ GIAO" KHI CÓ THU VỎ ────────────────────────
+        // Nghiệp vụ: tài xế thu vỏ rỗng tại điểm giao ⇒ đơn coi như đã giao.
+        // KHÔNG set `confirmed_by` / `reconciled_at` → tài xế vẫn chỉnh được
+        // số vỏ / số lít giao cho tới khi bấm "Xác nhận giao"
+        // (xem `hasConfirmedFigures()`).
+        const autoDeliver =
+          collected > 0 &&
+          (record.status === DELIVERY_STATUS.PENDING ||
+            record.status === DELIVERY_STATUS.IN_PROGRESS) &&
+          !DeliveryService.hasConfirmedFigures(record);
+
+        if (autoDeliver) {
+          const now = db.getVietnamDateStr() + ' ' + db.getVietnamTimeStr();
+          db.prepare(
+            `UPDATE delivery_records
+                SET status = ?, completed_at = ?, updated_at = datetime('now')
+              WHERE id = ?`
+          ).run(DELIVERY_STATUS.DELIVERED, now, deliveryId);
+          try {
+            db.prepare('UPDATE sales SET delivery_status = ? WHERE id = ?').run(
+              DELIVERY_STATUS.DELIVERED,
+              record.sale_id
+            );
+          } catch (_) {}
+        }
+
+        DeliveryService.logEvent(
+          deliveryId,
+          autoDeliver ? 'STATUS_CHANGED' : 'KEGS_UPDATED',
+          record.status,
+          autoDeliver ? DELIVERY_STATUS.DELIVERED : record.status,
+          driverUsername,
+          {
+            collectedKegs: collected,
+            delta,
+            ...(autoDeliver ? { reason: 'AUTO_DELIVERED_ON_KEG_COLLECTION' } : {}),
+          }
+        );
+
+        return { autoDeliver };
       });
 
-      tx();
+      const result = tx();
+
+      // ── SỔ CÔNG NỢ: ghi công nợ khi đơn chuyển sang DELIVERED ──────────
+      // (lỗi sổ công nợ KHÔNG được làm hỏng luồng giao hàng)
+      if (result.autoDeliver) {
+        try {
+          DebtOrderIntegration.onDeliveryStatusChanged({
+            saleId: record.sale_id,
+            fromStatus: record.status,
+            toStatus: DELIVERY_STATUS.DELIVERED,
+            actor: driverUsername,
+          });
+        } catch (debtErr) {
+          logger.error('[DeliveryService] debt integration error (auto delivered)', {
+            error: debtErr.message,
+          });
+        }
+      }
+
       const updated = db.prepare('SELECT * FROM delivery_records WHERE id = ?').get(deliveryId);
-      return { success: true, delivery: updated };
+      return {
+        success: true,
+        delivery: updated,
+        autoDelivered: !!result.autoDeliver,
+      };
     } catch (e) {
       logger.error('[DeliveryService] updateCollectedKegs error', { error: e.message });
       return { success: false, error: e.message };

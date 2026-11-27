@@ -18,6 +18,7 @@ const KegReceiptService = require('../../src/services/KegReceiptService');
 const DriverSalaryCalculator = require('../../src/services/DriverSalaryCalculator');
 const DriverStaffService = require('../../src/services/DriverStaffService');
 const DriverAttendanceService = require('../../src/services/DriverAttendanceService');
+const DriverCashService = require('../../src/services/DriverCashService');
 const RegionService = require('../../src/services/RegionService');
 const GeocodeService = require('../../src/services/GeocodeService');
 const DebtLedgerService = require('../../src/services/debt/DebtLedgerService');
@@ -527,7 +528,10 @@ router.get('/home', requireDriver, (req, res) => {
           AND ${PreOrderSQL.DELIVERY_DATE_EXPR} = ?
           AND (c.archived = 0 OR c.id IS NULL)
           AND (s.driver_username = ? OR s.driver_username IS NULL OR s.driver_username = '')
-          AND (dr.id IS NULL OR dr.status NOT IN ('DELIVERED'))
+          AND (dr.id IS NULL OR dr.status NOT IN ('DELIVERED')
+               OR (COALESCE(dr.collected_kegs, 0) > 0
+                   AND COALESCE(dr.confirmed_by, '') = ''
+                   AND COALESCE(dr.reconciled_at, '') = ''))
           AND ${PreOrderSQL.COUNTED_FILTER}
         ORDER BY (dr.status IS NULL) DESC,
                  CASE dr.status WHEN 'IN_PROGRESS' THEN 0 ELSE 1 END,
@@ -586,7 +590,10 @@ router.get('/home', requireDriver, (req, res) => {
               AND s2.deleted = 0
               AND ${PreOrderSQL.DELIVERY_DATE_EXPR.replace(/\bs\./g, 's2.')} = ?
               AND (s2.driver_username = ? OR s2.driver_username IS NULL OR s2.driver_username = '')
-              AND (dr2.id IS NULL OR dr2.status NOT IN ('DELIVERED'))
+              AND (dr2.id IS NULL OR dr2.status NOT IN ('DELIVERED')
+                   OR (COALESCE(dr2.collected_kegs, 0) > 0
+                       AND COALESCE(dr2.confirmed_by, '') = ''
+                       AND COALESCE(dr2.reconciled_at, '') = ''))
               AND COALESCE(s2.preorder_status, '') != 'SCHEDULED'
           )
         GROUP BY slug, name, ptype
@@ -1534,6 +1541,85 @@ router.post('/payments', requireDriver, (req, res) => {
   } catch (err) {
     logger.error('[driver] payment error', { error: err.message });
     res.status(500).json({ error: 'Lỗi khi ghi nhận thanh toán: ' + err.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// THU TIỀN MẶT + BÁO CÁO TIỀN MẶT (tài xế)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+//  • POST /api/driver/cash-collections — tài xế nhận tiền mặt của khách tại
+//    điểm giao → ghi vào sổ công nợ (PAYMENT) + bảng thu tiền mặt.
+//  • GET  /api/driver/cash-report      — tổng hợp tiền mặt đã thu trong ngày.
+
+// POST /api/driver/cash-collections — ghi nhận thu tiền mặt tại điểm giao
+router.post('/cash-collections', requireDriver, (req, res) => {
+  try {
+    const body = req.body || {};
+    const custId = parseInt(body.customerId || body.customer_id);
+    const amountValue = parseFloat(body.amount);
+    const saleId = body.saleId || body.sale_id ? parseInt(body.saleId || body.sale_id) : null;
+    const deliveryId =
+      body.deliveryId || body.delivery_id ? parseInt(body.deliveryId || body.delivery_id) : null;
+
+    if (!custId || Number.isNaN(custId)) {
+      return res.status(400).json({ error: 'Thiếu khách hàng' });
+    }
+    if (!amountValue || Number.isNaN(amountValue) || amountValue <= 0) {
+      return res.status(400).json({ error: 'Số tiền mặt không hợp lệ' });
+    }
+
+    // Idempotency: cho phép client gửi khoá để chống double-click.
+    const idempotencyKey =
+      body.idempotencyKey ||
+      body.idempotency_key ||
+      `driver-cash:${req.user.username}:${custId}:${deliveryId || saleId || 0}:${amountValue}:${db
+        .getBusinessDateStr()
+        .replace(/-/g, '')}`;
+
+    const result = DriverCashService.recordCollection({
+      customerId: custId,
+      amount: amountValue,
+      driverUsername: req.user.username,
+      saleId,
+      deliveryId,
+      note: body.note || `Thu tiền mặt tại điểm giao - ${req.user.username}`,
+      idempotencyKey,
+      user: req.user,
+    });
+
+    if (!result.success) {
+      const status = result.code === 'NO_PERMISSION' ? 403 : 400;
+      return res.status(status).json({ error: result.error, code: result.code });
+    }
+
+    res.status(201).json({
+      success: true,
+      collection: result.collection,
+      appliedAmount: result.appliedAmount,
+      creditAmount: result.creditAmount,
+      balanceBefore: result.balanceBefore,
+      balanceAfter: result.balanceAfter,
+      transactionId: result.transactionId,
+      creditTransactionId: result.creditTransactionId,
+      duplicate: !!result.duplicate,
+    });
+  } catch (err) {
+    logger.error('[driver] cash collection error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi ghi nhận tiền mặt: ' + err.message });
+  }
+});
+
+// GET /api/driver/cash-report — tổng hợp tiền mặt đã thu trong ngày
+router.get('/cash-report', requireDriver, (req, res) => {
+  try {
+    const date = req.query.date || db.getBusinessDateStr();
+    const result = DriverCashService.getDailySummary(req.user.username, date);
+    if (!result.success) return res.status(400).json({ error: result.error });
+    res.json(result);
+  } catch (err) {
+    logger.error('[driver] cash report error', { error: err.message });
+    res.status(500).json({ error: 'Lỗi khi tải báo cáo tiền mặt' });
   }
 });
 

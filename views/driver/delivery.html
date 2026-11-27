@@ -455,6 +455,24 @@
             }).join('') + '</div>'
           : '<div class="ds-muted" style="font-size:var(--ds-f-sm)">Không có chi tiết sản phẩm</div>');
 
+      // ── Thu tiền mặt tại điểm giao ───────────────────────────────────────
+      // Khách trả tiền mặt → tài xế nhận & xác nhận → ghi vào sổ công nợ.
+      // Số tiền nhận được tính vào "tiền mặt cần nộp cuối ngày".
+      var cashHtml =
+        '<div class="ds-kegs ds-mt-3" data-cash-box>' +
+          '<div class="ds-section__title">💵 Thu tiền mặt</div>' +
+          '<div class="ds-keg-note">Công nợ hiện tại của khách: <strong>' +
+            window.Drv.num(detail.debt_balance || 0) + 'đ</strong></div>' +
+          '<div class="ds-field ds-mt-2">' +
+            '<label class="ds-label" for="dl-cash-amount">Số tiền mặt nhận (đ)</label>' +
+            '<input class="ds-input" id="dl-cash-amount" type="number" inputmode="numeric" ' +
+              'min="0" step="1000" placeholder="0">' +
+          '</div>' +
+          '<button class="ds-btn ds-btn--primary ds-btn--sm ds-mt-2" data-act="cash" type="button"' +
+            (detail.customer_id ? '' : ' disabled title="Đơn không có khách hàng"') +
+          '>Nhận tiền mặt & ghi công nợ</button>' +
+        '</div>';
+
       var historyHtml = events.length
         ? '<div class="ds-section__title">Lịch sử</div>' +
           '<div class="ds-dl-list">' + events.slice(0, 5).map(function (e) {
@@ -500,6 +518,7 @@
             '<input class="ds-input" data-disc="damaged" type="number" inputmode="numeric" min="0" value="0"></div>' +
           '<button class="ds-btn ds-btn--danger ds-btn--sm" data-act="save-disc" type="button">Lưu sai lệch</button>' +
         '</div>' +
+        cashHtml +
         '<div class="ds-btn-row ds-mt-3">' +
           '<button class="ds-btn ds-btn--ghost" data-act="start" type="button">Bắt đầu giao</button>' +
           '<button class="ds-btn ds-btn--success" data-act="confirm" type="button"' +
@@ -515,7 +534,8 @@
         historyHtml;
     }
 
-    function bindPanel(panel, deliveryId, card, saleId) {
+    function bindPanel(panel, deliveryId, card, saleId, detail) {
+      detail = detail || {};
       // panel là element CỐ ĐỊNH của card (chỉ innerHTML bị xoá khi đóng).
       // → Mỗi lần mở lại sẽ chồng thêm listener 'click', khiến bấm
       //   "Xác nhận giao" gửi API nhiều lần. Dùng AbortController để
@@ -548,10 +568,37 @@
         var kegDeliverEl = panel.querySelector('#dl-keg-deliver');
         var noteEl = panel.querySelector('#dl-note');
         var discBox = panel.querySelector('.ds-disc');
+        var cashEl = panel.querySelector('#dl-cash-amount');
 
         try {
           if (act === 'disc') {
             if (discBox) discBox.classList.add('is-open');
+            return;
+          }
+
+          // ── Nhận tiền mặt tại điểm giao ───────────────────────────────────
+          if (act === 'cash') {
+            var cashValue = cashEl ? (parseFloat(cashEl.value) || 0) : 0;
+            if (cashValue <= 0) {
+              btn.disabled = false;
+              window.Drv.toast('Vui lòng nhập số tiền mặt', 'warning');
+              return;
+            }
+            var cashRes = await window.Drv.api.post('/api/driver/cash-collections', {
+              customerId: detail.customer_id,
+              amount: cashValue,
+              saleId: saleId,
+              deliveryId: deliveryId,
+              note: 'Thu tiền mặt tại điểm giao'
+            });
+            var appliedAmt = cashRes.appliedAmount || 0;
+            var creditAmt = cashRes.creditAmount || 0;
+            var cashMsg = 'Đã nhận ' + window.Drv.num(cashValue) + 'đ';
+            if (appliedAmt > 0) cashMsg += ' · gạch nợ ' + window.Drv.num(appliedAmt) + 'đ';
+            if (creditAmt > 0) cashMsg += ' · khách nộp trước ' + window.Drv.num(creditAmt) + 'đ';
+            window.Drv.toast(cashMsg, 'success');
+            if (cashEl) cashEl.value = '';
+            await reloadDeliveries();
             return;
           }
 
@@ -700,7 +747,7 @@
       panel.classList.add('is-open');
       card.classList.add('is-open');
       panel.innerHTML = buildPanel(detail);
-      bindPanel(panel, deliveryId, card, detail.sale_id || c.sale_id);
+      bindPanel(panel, deliveryId, card, detail.sale_id || c.sale_id, detail);
 
       // Cuộn ô "Vỏ thu về" vào giữa khung nhìn khi mở panel.
       try {

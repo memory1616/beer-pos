@@ -29,7 +29,7 @@ try {
   }
 
   // Run driver portal migration (idempotent, chạy độc lập version gate)
-  const { runDriverPortalMigration, runDriverStaffMigration, runDriverKegReceiptMigration, runDriverWorkDaysMigration, runDriverSalaryAdvanceMigration, runMissingBusinessTablesMigration, runDailyReportNotifyMigration, runAuditLogMigration, runDriverPushMigration, runZaloOauthMigration, runDebtManagementMigration, runDebtSaleCreditFlagMigration, runBusinessDayCutoffMigration, runAuditLogUnificationMigration, runDriverAttendanceMigration, runBusinessRegionsMigration, runSaleDispatchStatusMigration, runSaleRegionDispatchBackfillMigration, runSepayDebtSettlementMigration, runDebtZaloNotifyMigration, runSepayAutoPollMigration, runCustomerClosureMigration, runCustomerClosureDevicesMigration, runSalePreorderMigration, runSepaySmartMatchingMigration, runDeliveryReconciliationLockMigration, runDebtNotificationJobsMigration } = require('./database/migration');
+  const { runDriverPortalMigration, runDriverStaffMigration, runDriverKegReceiptMigration, runDriverWorkDaysMigration, runDriverSalaryAdvanceMigration, runMissingBusinessTablesMigration, runDailyReportNotifyMigration, runAuditLogMigration, runDriverPushMigration, runZaloOauthMigration, runDebtManagementMigration, runDebtSaleCreditFlagMigration, runBusinessDayCutoffMigration, runAuditLogUnificationMigration, runDriverAttendanceMigration, runBusinessRegionsMigration, runSaleDispatchStatusMigration, runSaleRegionDispatchBackfillMigration, runSepayDebtSettlementMigration, runDebtZaloNotifyMigration, runSepayAutoPollMigration, runCustomerClosureMigration, runCustomerClosureDevicesMigration, runSalePreorderMigration, runSepaySmartMatchingMigration, runDeliveryReconciliationLockMigration, runDebtNotificationJobsMigration, runDriverCashCollectionsMigration } = require('./database/migration');
   const driverResult = runDriverPortalMigration(db);
   if (driverResult.success) {
     logger.log('[MIGRATION] Driver portal schema ready');
@@ -196,6 +196,14 @@ try {
   const debtNotifyJobsResult = runDebtNotificationJobsMigration(db);
   if (debtNotifyJobsResult.success) {
     logger.log('[MIGRATION] Debt notification jobs schema ready');
+  }
+
+  // Run driver cash collections migration (070)
+  // - Thu tiền mặt của tài xế tại điểm giao (`driver_cash_collections`)
+  // - Phiếu bàn giao tiền mặt cuối ngày (`driver_cash_handovers`)
+  const driverCashResult = runDriverCashCollectionsMigration(db);
+  if (driverCashResult.success) {
+    logger.log('[MIGRATION] Driver cash collections schema ready');
   }
 } catch (error) {
   logger.error('[MIGRATION] Migration error:', error.message);

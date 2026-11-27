@@ -254,6 +254,15 @@
     },
     customerDebts: function (id) { return api('/api/driver/debts/' + id); },
 
+    // ── Tiền mặt tài xế ──
+    recordCashCollection: function (b) {
+      return api('/api/driver/cash-collections', { method: 'POST', body: b });
+    },
+    cashReport: function (date) {
+      var qs = date ? '?date=' + encodeURIComponent(date) : '';
+      return api('/api/driver/cash-report' + qs);
+    },
+
     // ── POS nâng cao (khuyến mãi, QR, vỏ, đổi lỗi, trạng thái thanh toán) ──
     promotionsOverview: function (customerId) {
       return api('/api/driver/promotions/overview/' + encodeURIComponent(customerId));

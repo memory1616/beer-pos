@@ -45,6 +45,7 @@ const SOURCES = {
   RECONCILIATION: 'RECONCILIATION', // Xử lý kết quả đối soát
   MIGRATION: 'MIGRATION', // Migrate dữ liệu cũ
   SYSTEM: 'SYSTEM', // Hệ thống (cron, tự động)
+  DRIVER_CASH: 'DRIVER_CASH', // Tài xế thu tiền mặt tại điểm giao
 };
 
 // ── Loại tham chiếu ────────────────────────────────────────────────────────────
