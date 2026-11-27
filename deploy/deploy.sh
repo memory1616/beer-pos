@@ -657,6 +657,31 @@ else
     exit 6
 fi
 
+# ---- 8. Deploy gateway Zalo (service riêng, PM2 riêng) -------------------
+# Gateway chay bang process rieng (`beerpos-zalo-gateway`) nen `git reset --hard`
+# o tren DA cap nhat source cua no, nhung process van chay code CU.
+# -> Phai deploy lai rieng gateway de process moi nap source moi.
+#
+# KHONG dung co che PRESERVE_DIRS cho gateway: file `.env`, `node_modules/`,
+# `data/`, `logs/` da duoc .gitignore nen `git reset --hard` khong cham vao,
+# va viec copy nguoc source cu se lam mat code moi.
+GATEWAY_DIR="$VPS_PATH/beerpos-zalo-gateway"
+if [ -f "$GATEWAY_DIR/deploy.sh" ]; then
+    log ""
+    log "=== Deploying Zalo gateway (beerpos-zalo-gateway) ==="
+    if bash "$GATEWAY_DIR/deploy.sh" >>"$DEPLOY_LOG" 2>&1; then
+        ok "Gateway deployed - pm2 beerpos-zalo-gateway online"
+        log_to_file "Gateway deployed OK"
+    else
+        # KHONG abort deploy app chinh: app van chay binh thuong, gateway
+        # co the tam thoi hong va khong gan voi luong giao dich chinh.
+        warn "Gateway deploy FAILED - app chinh van OK. Kiem tra: pm2 logs beerpos-zalo-gateway"
+        log_to_file "Gateway deploy FAILED (non-fatal)"
+    fi
+else
+    log "   (khong co beerpos-zalo-gateway/deploy.sh - bo qua)"
+fi
+
 # Final commit hash
 NEW_COMMIT=$(cd "$VPS_PATH" && git rev-parse HEAD 2>/dev/null || echo "unknown")
 echo ""
