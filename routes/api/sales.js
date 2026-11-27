@@ -908,14 +908,53 @@ router.post('/update-kegs', (req, res) => {
     // cập nhật `collected_kegs` cho khớp với `sales.return_kegs`.
     // Nếu không, màn Giao hàng sẽ hiển thị số vỏ thu khác với modal giao/thu vỏ
     // ở màn Bán hàng → tồn vỏ khách bị lệch.
+    //
+    // ⚠️ QUAN TRỌNG: phải gọi `autoDeliverOnKegCollection` để đơn chuyển
+    // sang "ĐÃ GIAO" khi tài xế thu vỏ từ MÀN BÁN HÀNG (đường này).
+    // Nếu chỉ UPDATE `collected_kegs` bằng raw SQL → đơn kẹt ở "Chờ giao"
+    // dù đã thu vỏ (bug gặp thực tế ở đơn #1170).
     try {
       const linked = db
-        .prepare('SELECT id FROM delivery_records WHERE sale_id = ? ORDER BY id DESC LIMIT 1')
+        .prepare('SELECT * FROM delivery_records WHERE sale_id = ? ORDER BY id DESC LIMIT 1')
         .get(saleId);
       if (linked) {
+        const DeliveryService = require('../../src/services/DeliveryService');
+        const prevCollected = linked.collected_kegs || 0;
+
         db.prepare(
           "UPDATE delivery_records SET collected_kegs = ?, updated_at = datetime('now') WHERE id = ?"
         ).run(returned, linked.id);
+
+        // Tự chuyển ĐÃ GIAO nếu đơn đang chờ/đang giao và chưa xác nhận số liệu.
+        const autoResult = DeliveryService.autoDeliverOnKegCollection(
+          linked,
+          returned,
+          req.user && req.user.username ? req.user.username : null
+        );
+
+        if (autoResult.autoDeliver) {
+          try {
+            const DebtOrderIntegration = require('../../src/services/debt/DebtOrderIntegration');
+            DebtOrderIntegration.onDeliveryStatusChanged({
+              saleId,
+              fromStatus: autoResult.fromStatus,
+              toStatus: autoResult.toStatus,
+              actor: req.user && req.user.username ? req.user.username : null,
+            });
+          } catch (debtErr) {
+            logger.error('[api/sales] debt integration error (auto delivered)', {
+              error: debtErr.message,
+            });
+          }
+        }
+
+        logger.info('[api/sales] Đồng bộ vỏ thu cho phiếu giao', {
+          deliveryId: linked.id,
+          saleId,
+          prevCollected,
+          collected: returned,
+          autoDelivered: autoResult.autoDeliver,
+        });
       }
     } catch (e) {
       logger.error('Sync delivery collected_kegs error', { error: e.message });

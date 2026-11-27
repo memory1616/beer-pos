@@ -188,6 +188,107 @@ describe('DeliveryService — thu vỏ tự chuyển ĐÃ GIAO', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// 2b. Helper `autoDeliverOnKegCollection` — dùng chung cho MỌI đường ghi vỏ
+//
+// ⚠️ BUG THỰC TẾ (đơn #1170, 2026-11-27):
+//   Tài xế thu vỏ từ MÀN BÁN HÀNG (`POST /api/sales/update-kegs`) → đường này
+//   ghi `collected_kegs` bằng raw SQL, KHÔNG gọi `updateCollectedKegs()`
+//   → đơn kẹt ở "Chờ giao" dù đã thu 91 vỏ.
+//   → Mọi đường ghi `collected_kegs` phải gọi helper dùng chung.
+// ═══════════════════════════════════════════════════════════════════════════
+describe('DeliveryService.autoDeliverOnKegCollection — helper dùng chung', () => {
+  it('PENDING + thu vỏ > 0 → chuyển DELIVERED, ghi event STATUS_CHANGED', () => {
+    const customerId = makeCustomer(uniq('__CASHEL_C'));
+    const driver = makeDriver('__CASHEL_DRV');
+    const saleId = makeSale(customerId, driver, 100000);
+    const deliveryId = makeDelivery(saleId, customerId, driver);
+
+    const record = db.prepare('SELECT * FROM delivery_records WHERE id = ?').get(deliveryId);
+    const res = DeliveryService.autoDeliverOnKegCollection(record, 5, driver);
+
+    expect(res.autoDeliver).toBe(true);
+    expect(res.fromStatus).toBe('PENDING');
+    expect(res.toStatus).toBe('DELIVERED');
+
+    const after = db.prepare('SELECT * FROM delivery_records WHERE id = ?').get(deliveryId);
+    expect(after.status).toBe('DELIVERED');
+    expect(after.completed_at).toBeTruthy();
+
+    const sale = db.prepare('SELECT delivery_status FROM sales WHERE id = ?').get(saleId);
+    expect(sale.delivery_status).toBe('DELIVERED');
+
+    const evt = db
+      .prepare('SELECT * FROM delivery_events WHERE delivery_id = ? ORDER BY id DESC LIMIT 1')
+      .get(deliveryId);
+    expect(evt.event_type).toBe('STATUS_CHANGED');
+    expect(evt.to_status).toBe('DELIVERED');
+    expect(evt.payload).toContain('AUTO_DELIVERED_ON_KEG_COLLECTION');
+  });
+
+  it('IN_PROGRESS + thu vỏ > 0 → chuyển DELIVERED', () => {
+    const customerId = makeCustomer(uniq('__CASHEL2_C'));
+    const driver = makeDriver('__CASHEL2_DRV');
+    const saleId = makeSale(customerId, driver, 100000);
+    const deliveryId = makeDelivery(saleId, customerId, driver);
+
+    db.prepare("UPDATE delivery_records SET status = 'IN_PROGRESS' WHERE id = ?").run(deliveryId);
+
+    const record = db.prepare('SELECT * FROM delivery_records WHERE id = ?').get(deliveryId);
+    const res = DeliveryService.autoDeliverOnKegCollection(record, 3, driver);
+
+    expect(res.autoDeliver).toBe(true);
+    const after = db.prepare('SELECT status FROM delivery_records WHERE id = ?').get(deliveryId);
+    expect(after.status).toBe('DELIVERED');
+  });
+
+  it('thu vỏ = 0 → KHÔNG chuyển', () => {
+    const customerId = makeCustomer(uniq('__CASHEL3_C'));
+    const driver = makeDriver('__CASHEL3_DRV');
+    const saleId = makeSale(customerId, driver, 100000);
+    const deliveryId = makeDelivery(saleId, customerId, driver);
+
+    const record = db.prepare('SELECT * FROM delivery_records WHERE id = ?').get(deliveryId);
+    const res = DeliveryService.autoDeliverOnKegCollection(record, 0, driver);
+
+    expect(res.autoDeliver).toBe(false);
+    const after = db.prepare('SELECT status FROM delivery_records WHERE id = ?').get(deliveryId);
+    expect(after.status).toBe('PENDING');
+  });
+
+  it('phiếu ĐÃ xác nhận số liệu → KHÔNG tự chuyển (giữ nguyên)', () => {
+    const customerId = makeCustomer(uniq('__CASHEL4_C'));
+    const driver = makeDriver('__CASHEL4_DRV');
+    const saleId = makeSale(customerId, driver, 100000);
+    const deliveryId = makeDelivery(saleId, customerId, driver);
+
+    db.prepare(
+      "UPDATE delivery_records SET status = 'DELIVERED', confirmed_by = ? WHERE id = ?"
+    ).run(driver, deliveryId);
+
+    const record = db.prepare('SELECT * FROM delivery_records WHERE id = ?').get(deliveryId);
+    const res = DeliveryService.autoDeliverOnKegCollection(record, 9, driver);
+
+    expect(res.autoDeliver).toBe(false);
+  });
+
+  it('đơn đã DELIVERED (không xác nhận) → giữ DELIVERED, không ghi event trùng', () => {
+    const customerId = makeCustomer(uniq('__CASHEL5_C'));
+    const driver = makeDriver('__CASHEL5_DRV');
+    const saleId = makeSale(customerId, driver, 100000);
+    const deliveryId = makeDelivery(saleId, customerId, driver);
+
+    db.prepare("UPDATE delivery_records SET status = 'DELIVERED' WHERE id = ?").run(deliveryId);
+
+    const record = db.prepare('SELECT * FROM delivery_records WHERE id = ?').get(deliveryId);
+    const res = DeliveryService.autoDeliverOnKegCollection(record, 4, driver);
+
+    expect(res.autoDeliver).toBe(false);
+    const after = db.prepare('SELECT status FROM delivery_records WHERE id = ?').get(deliveryId);
+    expect(after.status).toBe('DELIVERED');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 // 3. Ghi nhận tiền mặt vào sổ công nợ
 // ═══════════════════════════════════════════════════════════════════════════
 describe('DriverCashService.recordCollection', () => {

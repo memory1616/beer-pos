@@ -1225,43 +1225,25 @@ class DeliveryService {
         }
 
         // ── TỰ ĐỘNG CHUYỂN "ĐÃ GIAO" KHI CÓ THU VỎ ────────────────────────
-        // Nghiệp vụ: tài xế thu vỏ rỗng tại điểm giao ⇒ đơn coi như đã giao.
-        // KHÔNG set `confirmed_by` / `reconciled_at` → tài xế vẫn chỉnh được
-        // số vỏ / số lít giao cho tới khi bấm "Xác nhận giao"
-        // (xem `hasConfirmedFigures()`).
-        const autoDeliver =
-          collected > 0 &&
-          (record.status === DELIVERY_STATUS.PENDING ||
-            record.status === DELIVERY_STATUS.IN_PROGRESS) &&
-          !DeliveryService.hasConfirmedFigures(record);
-
-        if (autoDeliver) {
-          const now = db.getVietnamDateStr() + ' ' + db.getVietnamTimeStr();
-          db.prepare(
-            `UPDATE delivery_records
-                SET status = ?, completed_at = ?, updated_at = datetime('now')
-              WHERE id = ?`
-          ).run(DELIVERY_STATUS.DELIVERED, now, deliveryId);
-          try {
-            db.prepare('UPDATE sales SET delivery_status = ? WHERE id = ?').run(
-              DELIVERY_STATUS.DELIVERED,
-              record.sale_id
-            );
-          } catch (_) {}
-        }
-
-        DeliveryService.logEvent(
-          deliveryId,
-          autoDeliver ? 'STATUS_CHANGED' : 'KEGS_UPDATED',
-          record.status,
-          autoDeliver ? DELIVERY_STATUS.DELIVERED : record.status,
-          driverUsername,
-          {
-            collectedKegs: collected,
-            delta,
-            ...(autoDeliver ? { reason: 'AUTO_DELIVERED_ON_KEG_COLLECTION' } : {}),
-          }
+        // Dùng helper dùng chung để mọi đường ghi `collected_kegs` đều hành
+        // xử giống nhau (xem `autoDeliverOnKegCollection`).
+        const autoResult = DeliveryService.autoDeliverOnKegCollection(
+          record,
+          collected,
+          driverUsername
         );
+        const autoDeliver = autoResult.autoDeliver;
+
+        if (!autoDeliver) {
+          DeliveryService.logEvent(
+            deliveryId,
+            'KEGS_UPDATED',
+            record.status,
+            record.status,
+            driverUsername,
+            { collectedKegs: collected, delta }
+          );
+        }
 
         return { autoDeliver };
       });
@@ -1397,6 +1379,75 @@ class DeliveryService {
       walkinOrders: walkin.cnt || 0,
       stops: stops.length,
       stopList: stops,
+    };
+  }
+
+  /**
+   * TỰ ĐỘNG CHUYỂN "ĐÃ GIAO" KHI CÓ THU VỎ (helper dùng chung).
+   *
+   * ⚠️ VÌ SAO CẦN HELPER RIÊNG?
+   * `collected_kegs` được ghi từ NHIỀU nơi:
+   *   1. `POST /api/driver/deliveries/:id/kegs` → `updateCollectedKegs()`
+   *   2. `POST /api/sales/update-kegs` (màn Bán hàng, cả bản forward của
+   *      tài xế `POST /api/driver/sale/update-kegs`) → raw SQL.
+   * Nếu chỉ xử lý ở (1) thì tài xế thu vỏ từ màn Bán hàng sẽ KHÔNG bao giờ
+   * chuyển sang ĐÃ GIAO → đơn kẹt ở "Chờ giao" dù đã thu vỏ.
+   * → Mọi đường ghi `collected_kegs` đều PHẢI gọi helper này.
+   *
+   * Nghiệp vụ: tài xế thu vỏ rỗng tại điểm giao ⇒ đơn coi như đã giao.
+   * KHÔNG set `confirmed_by` / `reconciled_at` → tài xế vẫn chỉnh được
+   * số vỏ / số lít giao cho tới khi bấm "Xác nhận giao"
+   * (xem `hasConfirmedFigures()`).
+   *
+   * @param {object} record - row `delivery_records` (đọc TRƯỚC khi cập nhật)
+   * @param {number} collected - số vỏ thu mới
+   * @param {string} actorUsername - tài xế thực hiện
+   * @returns {{autoDeliver:boolean, fromStatus:?string, toStatus:?string}}
+   */
+  static autoDeliverOnKegCollection(record, collected, actorUsername) {
+    const value = parseInt(collected) || 0;
+
+    const eligible =
+      value > 0 &&
+      record &&
+      (record.status === DELIVERY_STATUS.PENDING ||
+        record.status === DELIVERY_STATUS.IN_PROGRESS) &&
+      !DeliveryService.hasConfirmedFigures(record);
+
+    if (!eligible) {
+      return { autoDeliver: false, fromStatus: record ? record.status : null, toStatus: null };
+    }
+
+    const now = db.getVietnamDateStr() + ' ' + db.getVietnamTimeStr();
+    db.prepare(
+      `UPDATE delivery_records
+          SET status = ?, completed_at = ?, updated_at = datetime('now')
+        WHERE id = ?`
+    ).run(DELIVERY_STATUS.DELIVERED, now, record.id);
+
+    try {
+      db.prepare('UPDATE sales SET delivery_status = ? WHERE id = ?').run(
+        DELIVERY_STATUS.DELIVERED,
+        record.sale_id
+      );
+    } catch (_) {}
+
+    DeliveryService.logEvent(
+      record.id,
+      'STATUS_CHANGED',
+      record.status,
+      DELIVERY_STATUS.DELIVERED,
+      actorUsername,
+      {
+        collectedKegs: value,
+        reason: 'AUTO_DELIVERED_ON_KEG_COLLECTION',
+      }
+    );
+
+    return {
+      autoDeliver: true,
+      fromStatus: record.status,
+      toStatus: DELIVERY_STATUS.DELIVERED,
     };
   }
 
