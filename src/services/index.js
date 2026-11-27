@@ -754,6 +754,105 @@ class PromotionService {
   }
 
   /**
+   * Tính sản lượng MUA trong một KỲ (tháng/năm), tuỳ chọn giới hạn theo
+   * một MỐC THỜI GIAN (point-in-time).
+   * ─────────────────────────────────────────────────────────────────────────────
+   * @param {number} customerId
+   * @param {number} year
+   * @param {number} month (1-12)
+   * @param {object} [cutoff] - { ts: number, saleId: number }
+   *        ts = mốc thời gian (ms epoch). Chỉ tính đơn có
+   *        `sale_ts < ts` hoặc (`sale_ts = ts` VÀ `sale.id <= saleId`).
+   *        → cho phép tính "tích luỹ tại thời điểm đơn X được tạo".
+   * @returns {{ total: number, yellow: number, black: number }}
+   */
+  calculatePurchasedLitersInPeriod(customerId, year, month, cutoff = null) {
+    const monthStr = String(month).padStart(2, '0');
+    const monthStart = `${year}-${monthStr}-01`;
+
+    // Ngày bắt đầu tham gia KM của khách (ngày 01 tháng mở quán).
+    // Sản lượng chỉ tính từ ngày này trở đi.
+    const customer = db.prepare('SELECT created_at FROM customers WHERE id = ?').get(customerId);
+    if (!customer) return { total: 0, yellow: 0, black: 0 };
+    const effectiveStartDate = this.getPromotionStartDate(customer);
+    const queryStartDate = effectiveStartDate && effectiveStartDate > monthStart ? effectiveStartDate : monthStart;
+
+    // Bia Inox V2: Lấy product_name để classify vàng/đen ngay trong query.
+    // QUAN TRỌNG: chỉ tính item có si.price > 0 (loại bỏ bia tặng), chỉ tính keg.
+    //
+    // `sale_ts` = mốc thời gian của đơn dạng chuỗi 'YYYY-MM-DD HH:MM:SS' (giờ VN):
+    //   - sales.date dài 19 ký tự (đã có giờ) → dùng luôn
+    //   - sales.date dài 10 ký tự → ghép với sales.sale_time (mặc định 00:00:00)
+    // So sánh CHUỖI (ISO-like) an toàn hơn so sánh epoch (tránh lệch múi giờ UTC).
+    const SALE_TS_SQL = `
+      CASE
+        WHEN length(s.date) >= 19 THEN substr(s.date, 1, 19)
+        ELSE s.date || ' ' || COALESCE(NULLIF(s.sale_time, ''), '00:00:00')
+      END
+    `;
+
+    let rows;
+    if (cutoff && cutoff.ts) {
+      // POINT-IN-TIME: chỉ lấy đơn đã có tại mốc thời gian.
+      //   - `sale_ts <  cutoff.ts` → đơn có trước
+      //   - `sale_ts =  cutoff.ts` VÀ `s.id <= cutoff.saleId` → đơn cùng giây (gồm chính nó)
+      rows = db.prepare(`
+        SELECT p.name AS product_name, si.quantity AS quantity
+        FROM sales s
+        JOIN sale_items si ON si.sale_id = s.id
+        JOIN products p ON p.id = si.product_id
+        WHERE s.customer_id = ?
+          AND s.type = 'sale'
+          AND s.archived = 0
+          AND si.price > 0
+          AND p.type = 'keg'
+          AND s.date >= ?
+          AND strftime('%Y', s.date) = ?
+          AND strftime('%m', s.date) = ?
+          AND (
+            (${SALE_TS_SQL}) < ?
+            OR ((${SALE_TS_SQL}) = ? AND s.id <= ?)
+          )
+    `).all(
+        customerId,
+        queryStartDate,
+        String(year),
+        monthStr,
+        cutoff.ts,
+        cutoff.ts,
+        cutoff.saleId != null ? cutoff.saleId : Number.MAX_SAFE_INTEGER
+      );
+    } else {
+      rows = db.prepare(`
+        SELECT p.name AS product_name, si.quantity AS quantity
+        FROM sales s
+        JOIN sale_items si ON si.sale_id = s.id
+        JOIN products p ON p.id = si.product_id
+        WHERE s.customer_id = ?
+          AND s.type = 'sale'
+          AND s.archived = 0
+          AND si.price > 0
+          AND p.type = 'keg'
+          AND s.date >= ?
+          AND strftime('%Y', s.date) = ?
+          AND strftime('%m', s.date) = ?
+    `).all(customerId, queryStartDate, String(year), monthStr);
+    }
+
+    let total = 0, yellow = 0, black = 0;
+    for (const row of rows) {
+      const q = Number(row.quantity) || 0;
+      total += q;
+      if (this.classifyBeer(row.product_name) === 'black') {
+        black += q;
+      } else {
+        yellow += q;
+      }
+    }
+    return { total, yellow, black };
+  }
+
+  /**
    * Tính sản lượng tháng hiện tại (CHỈ tính lít MUA thực trả, KHÔNG tính lít tặng)
    * Bia tặng khuyến mãi có si.price = 0 nên được lọc ra
    * LUÔN query real-time để đảm bảo đúng sau khi sửa/xóa đơn hàng
@@ -832,13 +931,48 @@ class PromotionService {
    *   monthlyLiters
    * }}
    */
+  /**
+   * Tính thưởng sản lượng tháng HIỆN TẠI.
+   * Dùng cho: form bán hàng (badge thưởng), dashboard, báo cáo.
+   *
+   * ⚠️ KHÔNG dùng hàm này cho modal hoá đơn của đơn CŨ — số liệu phải theo
+   *    thời điểm của chính đơn đó → dùng `calculateMonthlyRewardAt()`.
+   */
   calculateMonthlyReward(customerId) {
+    const now = new Date();
+    return this.calculateMonthlyRewardAt(customerId, {
+      year: now.getFullYear(),
+      month: now.getMonth() + 1,
+    });
+  }
+
+  /**
+   * Tính thưởng sản lượng cho MỘT KỲ (tháng/năm) — hỗ trợ POINT-IN-TIME.
+   * ─────────────────────────────────────────────────────────────────────────────
+   * `options.cutoff` = { ts, saleId } → chỉ tính các đơn ĐÃ CÓ tại thời điểm đó
+   * (đơn có `ts` < cutoff.ts, hoặc `ts` = cutoff.ts nhưng id nhỏ hơn/đúng saleId).
+   * Nếu không truyền cutoff → tính TOÀN BỘ tháng (dùng cho báo cáo thưởng cuối tháng).
+   *
+   * ⚠️ Thời gian áp dụng KM được kiểm tra theo THÁNG ĐANG XÉT (không phải "hiện tại")
+   *    → xem lại đơn cũ vẫn ra đúng kết quả thời điểm đó.
+   */
+  calculateMonthlyRewardAt(customerId, options = {}) {
+    const { year, month } = options;
+    const cutoff = options.cutoff || null;
+
     const settings = this.getSystemPromotionSettings();
     if (!settings.rewardEnabled) {
       return this._buildEmptyRewardResult();
     }
 
-    if (!this.isWithinPromotionPeriod()) {
+    if (!year || !month) {
+      return this._buildEmptyRewardResult();
+    }
+
+    // Thời gian áp dụng: theo tháng đang xét (snapshot), không theo "now"
+    const monthStart = new Date(year, month - 1, 1);
+    const monthEnd = new Date(year, month, 0, 23, 59, 59, 999);
+    if (!this._isMonthInPromotionPeriod(monthStart, monthEnd)) {
       const result = this._buildEmptyRewardResult();
       result.outOfPeriod = true;
       return result;
@@ -850,13 +984,13 @@ class PromotionService {
     }
 
     // Bia Inox V2: dùng calculatePromotion() - single source of truth
-    const purchase = this.calculateMonthlyPurchasedLiters(customerId);
+    const purchase = this.calculatePurchasedLitersInPeriod(customerId, year, month, cutoff);
     const { yellow: yellowVolume, black: blackVolume, total: totalVolume } = purchase;
 
     const calc = promotionCalc.calculatePromotion(yellowVolume, blackVolume);
 
     // Đã nhận thưởng tháng này chưa (giữ logic cũ cho backward compat)
-    const claimedLiters = this._getHighestRewardClaimed(customerId);
+    const claimedLiters = this._getHighestRewardClaimed(customerId, year, month);
     const remainingReward = Math.max(0, calc.totalReward - claimedLiters);
 
     // Tính next tier progress
@@ -927,6 +1061,133 @@ class PromotionService {
     };
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  // POINT-IN-TIME — Số liệu KM tại thời điểm của MỘT ĐƠN
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * Lấy mốc thời gian (chuỗi 'YYYY-MM-DD HH:MM:SS') của một đơn.
+   * - sales.date dài 19 → đã có giờ (đơn cũ) → dùng luôn.
+   * - sales.date dài 10 → ghép sales.sale_time (giờ VN), mặc định 00:00:00.
+   *
+   * @param {object} sale - row từ bảng `sales`
+   * @returns {string|null} 'YYYY-MM-DD HH:MM:SS'
+   */
+  getSaleTimestamp(sale) {
+    if (!sale || !sale.date) return null;
+    const date = String(sale.date);
+    if (date.length >= 19) return date.slice(0, 19);
+    const time = sale.sale_time && String(sale.sale_time).trim()
+      ? String(sale.sale_time).trim()
+      : '00:00:00';
+    return `${date} ${time.length === 5 ? time + ':00' : time}`;
+  }
+
+  /**
+   * Tính số liệu KM sản lượng **tại thời điểm đơn hàng được tạo**.
+   * ─────────────────────────────────────────────────────────────────────────────
+   * Dùng cho MODAL HOÁ ĐƠN: khi mở lại một đơn cũ, số liệu "Tích luỹ / Thưởng /
+   * Cần thêm" phải đúng với thời điểm đơn đó, KHÔNG phải số liệu live hiện tại.
+   *
+   * Logic:
+   *   1. Xác định tháng nghiệp vụ của đơn (sales.date).
+   *   2. Tính sản lượng của khách trong tháng đó, CHỈ tính các đơn đã có
+   *      TRƯỚC (hoặc đúng bằng) thời điểm của đơn → tích luỹ tại thời điểm đó.
+   *   3. Áp dụng công thức thưởng (promotionCalc) trên số liệu tích luỹ đó.
+   *
+   * @param {number} saleId
+   * @returns {object|null} { month, year, ts, monthlyReward, isNewShop, newShopReward }
+   */
+  getVolumePromoSnapshotForSale(saleId) {
+    const sale = db.prepare(`
+      SELECT id, customer_id, date, sale_time, promo_type, reward_liters_used, promo_free_liters
+      FROM sales WHERE id = ?
+    `).get(saleId);
+    if (!sale || !sale.customer_id) return null;
+
+    const ts = this.getSaleTimestamp(sale);
+    if (!ts) return null;
+
+    const datePart = ts.slice(0, 10);
+    const year = Number(datePart.slice(0, 4));
+    const month = Number(datePart.slice(5, 7));
+
+    const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(sale.customer_id);
+    if (!customer) return null;
+
+    const settings = this.getSystemPromotionSettings();
+
+    // ── Quán mới (tháng mở quán) ─────────────────────────────────────────
+    // Số liệu tích luỹ của tháng mở quán, tính tới thời điểm đơn.
+    const created = new Date(customer.created_at);
+    const openYear = created.getFullYear();
+    const openMonth = created.getMonth() + 1;
+    const isOpenMonth = year === openYear && month === openMonth;
+
+    let newShopReward = null;
+    if (isOpenMonth && settings.newShopEnabled
+        && customer.promotion_enabled !== 0 && customer.new_shop_enabled !== 0) {
+      const purchase = this.calculatePurchasedLitersInPeriod(
+        sale.customer_id, year, month, { ts, saleId: sale.id }
+      );
+      const totalLiters = purchase.yellow + purchase.black;
+      const yellowReward = Math.floor(totalLiters / (settings.newShopGoldBuy || 10)) * (settings.newShopGoldFree || 1);
+      newShopReward = {
+        eligible: true,
+        openYear,
+        openMonth,
+        yellowVolume: purchase.yellow,
+        blackVolume: purchase.black,
+        yellowReward,
+        blackReward: 0,
+        totalReward: yellowReward,
+      };
+    }
+
+    // ── Thưởng sản lượng tháng ──────────────────────────────────────────
+    // Đơn TRẢ THƯỞNG (MONTHLY_BONUS / NEW_SHOP_BONUS): số liệu phải là của
+    // THÁNG ĐƯỢC THƯỞNG (tháng trước tháng của đơn), tính TRỌN tháng đó.
+    const isRewardSale = sale.promo_type === 'MONTHLY_BONUS'
+      || sale.promo_type === 'NEW_SHOP_BONUS'
+      || (sale.reward_liters_used || 0) > 0;
+
+    // Tháng hiển thị: đơn thường → tháng của đơn; đơn trả thưởng → tháng được thưởng.
+    let displayYear = year;
+    let displayMonth = month;
+    if (isRewardSale) {
+      displayMonth = month - 1;
+      if (displayMonth <= 0) { displayMonth = 12; displayYear = year - 1; }
+    }
+
+    let monthlyReward = null;
+    const rewardEligible = this.getPromotionEligibility(customer, displayMonth, displayYear).rewardEligible;
+    if (rewardEligible && customer.promotion_enabled !== 0 && customer.reward_enabled !== 0) {
+      // Đơn trả thưởng → tính TRỌN tháng được thưởng (không cutoff).
+      // Đơn thường → tính tới thời điểm đơn (point-in-time).
+      const cutoff = isRewardSale ? null : { ts, saleId: sale.id };
+      monthlyReward = this.calculateMonthlyRewardAt(sale.customer_id, {
+        year: displayYear,
+        month: displayMonth,
+        cutoff,
+      });
+    }
+
+    return {
+      saleId: sale.id,
+      customerId: sale.customer_id,
+      month: displayMonth,
+      year: displayYear,
+      saleMonth: month,
+      saleYear: year,
+      ts,
+      isOpenMonth,
+      isRewardSale,
+      isNewShop: !!(newShopReward && newShopReward.eligible),
+      newShopReward,
+      monthlyReward,
+    };
+  }
+
   _getNextTier(tiers, currentLiters) {
     for (const tier of tiers) {
       if (tier.threshold > currentLiters) {
@@ -939,19 +1200,22 @@ class PromotionService {
   /**
    * Lấy reward tier cao nhất đã nhận (từ lịch sử)
    * BIA INOX V2: Tính cả yellowReward + blackReward đã nhận.
+   * @param {number} customerId
+   * @param {number} [year] - năm (mặc định = năm hiện tại)
+   * @param {number} [month] - tháng (mặc định = tháng hiện tại)
    * @returns {{ yellow: number, black: number, total: number }}
    */
-  _getHighestRewardClaimed(customerId) {
+  _getHighestRewardClaimed(customerId, year = null, month = null) {
     const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth() + 1;
+    const y = year || now.getFullYear();
+    const m = month || now.getMonth() + 1;
 
     const history = db.prepare(`
       SELECT reward_claimed_liters FROM customer_monthly_stats
       WHERE customer_id = ? AND year = ? AND month = ? AND reward_claimed = 1
-    `).get(customerId, year, month);
+    `).get(customerId, y, m);
 
-    // Bia Inox V2: Tính riêng yellow/black đã nhận trong tháng hiện tại
+    // Bia Inox V2: Tính riêng yellow/black đã nhận trong tháng đang xét
     const rewardsByType = db.prepare(`
       SELECT COALESCE(SUM(reward_yellow_liters), 0) as yellow,
              COALESCE(SUM(reward_black_liters), 0) as black
@@ -959,7 +1223,7 @@ class PromotionService {
       WHERE customer_id = ?
         AND strftime('%Y', claimed_at) = ?
         AND strftime('%m', claimed_at) = ?
-    `).get(customerId, String(year), String(month).padStart(2, '0'));
+    `).get(customerId, String(y), String(m).padStart(2, '0'));
 
     const total = history ? (history.reward_claimed_liters || 0) : 0;
     return {

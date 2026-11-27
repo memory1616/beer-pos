@@ -2832,6 +2832,33 @@ var _volumePromoCache = {};
 var _volumePromoCacheTime = 0;
 var _volumePromoCacheTTL = 60000; // 1 phút
 
+// ── Cache POINT-IN-TIME: so lieu KM tai thoi diem cua tung don ──
+// Key = saleId. Giu lai ngay (khong TTL ngan) vi snapshot la BAT BIEN
+// theo don (mo lai don cu → cung so lieu).
+var _volumeSnapshotCache = {};
+
+/**
+ * Fetch so lieu KM sản lượng POINT-IN-TIME cho 1 don.
+ * @param {number} saleId
+ * @returns {Promise<object|null>}
+ */
+async function fetchVolumePromoSnapshot(saleId) {
+  if (!saleId) return null;
+  var key = String(saleId);
+  if (_volumeSnapshotCache[key]) return _volumeSnapshotCache[key];
+  try {
+    var res = await fetch('/api/promotions/sale/' + saleId + '/volume-snapshot', { cache: 'no-store' });
+    var data = await safeJson(res);
+    if (data && data.success && data.data) {
+      _volumeSnapshotCache[key] = data.data;
+      return data.data;
+    }
+  } catch (e) {
+    console.error('[fetchVolumePromoSnapshot] fetch error:', e);
+  }
+  return null;
+}
+
 // ── Thông báo tích luỹ + dự kiến thưởng (KHÁCH MỚI MỞ QUÁN) ─────────────
 // Cache riêng cho endpoint monthly-summary (dữ liệu tháng mở quán)
 var _newShopSummaryCache = {};
@@ -2870,6 +2897,19 @@ function renderInvoiceNewShopNote(invoice) {
   var settings = saleState.promoSettings;
   if (settings && settings.newShopEnabled === false) return;
   if (!isPromoPeriodActive()) return;
+
+  // ── POINT-IN-TIME ────────────────────────────────────────────────────
+  // Đơn đã lưu → dùng snapshot (số liệu tích luỹ TẠI THỜI ĐIỂM đơn đó).
+  var snapSaleId = invoice && invoice.id != null ? parseInt(invoice.id, 10) : NaN;
+  if (Number.isFinite(snapSaleId) && snapSaleId > 0) {
+    fetchVolumePromoSnapshot(snapSaleId).then(function(snap) {
+      if (!snap || !snap.newShopReward) return;
+      var modal = document.getElementById('invoiceModal');
+      if (modal && modal.classList.contains('hidden')) return;
+      paintInvoiceNewShopNote(el, snap.newShopReward);
+    }).catch(function() {});
+    return;
+  }
 
   // Cache theo khách + tháng mở quán
   var now = Date.now();
@@ -2959,64 +2999,18 @@ function paintInvoiceNewShopNote(el, d) {
  * NOTE: Completed customers only show on the day they achieve final tier.
  * NOTE: Customers in "new shop" period don't participate in volume reward.
  */
-async function buildVolumePromoNote(invoice) {
-  // Get customer ID from invoice
-  var customerId = invoice && invoice.customer && invoice.customer.id;
-  if (!customerId) return '';
-
-  // Get customer from cache
-  var customer = getCustomer(customerId);
-  if (!customer) return '';
-
-  // Check if customer has promotions disabled
-  if (customer.promotion_enabled === 0) return '';
-
-  // Get promotion settings from saleState
-  var settings = saleState.promoSettings;
-  if (!settings || !settings.rewardEnabled) return '';
-
-  // Check if promotion period is active
-  if (!isPromoPeriodActive()) return '';
-
-  // Check if customer is eligible for monthly reward
-  var customerRewardEnabled = customer.reward_enabled !== 0;
-  if (!customerRewardEnabled) return '';
-
-  // Fetch reward data from API if cache is empty or expired
-  var now = Date.now();
-  // Cache key includes customer + month + year so edits in same month use same cache
-  var invoiceDate = invoice && invoice.date ? invoice.date : new Date().toISOString().split('T')[0];
-  var invParts = invoiceDate.split('-');
-  var cacheMonth = invParts.length >= 2 ? invParts[1] : String(new Date().getMonth() + 1).padStart(2, '0');
-  var cacheYear = invParts.length >= 1 ? invParts[0] : String(new Date().getFullYear());
-  var cacheKey = 'customer_' + customerId + '_' + cacheYear + '_' + cacheMonth;
-  
-  if (!_volumePromoCache[cacheKey] || (now - _volumePromoCacheTime) > _volumePromoCacheTTL) {
-    try {
-      var res = await fetch('/api/promotions/customer/' + customerId + '/overview', { cache: 'no-store' });
-      var data = await safeJson(res);
-      if (data && data.success && data.data) {
-        _volumePromoCache[cacheKey] = data.data;
-        _volumePromoCacheTime = now;
-      }
-    } catch (e) {
-      console.error('[buildVolumePromoNote] fetch error:', e);
-    }
-  }
-
-  var rewardData = _volumePromoCache[cacheKey];
-  if (!rewardData) return '';
-
-  // Check if customer is in new shop period - don't show volume reward if in new shop
-  if (rewardData.isNewShopPromotion) return '';
-
-  // Check if can receive reward
-  if (!rewardData.isRewardEligible) return '';
-
-  // Get reward data
-  var monthlyReward = rewardData.monthlyReward;
+/**
+ * Render HTML Card "Khuyn mai San luong Thang" tu du lieu monthlyReward.
+ * Dung chung cho 2 nguon:
+ *   - snapshot POINT-IN-TIME (modal hoa don cu) -> snap != null
+ *   - du lieu live (duong dan moi trong thang)  -> snap == null
+ * @param {object} monthlyReward
+ * @param {object} invoice
+ * @param {object|null} snap
+ * @returns {string} HTML
+ */
+function renderVolumePromoNoteHtml(monthlyReward, invoice, snap) {
   if (!monthlyReward) return '';
-
   // Check if this invoice has MONTHLY_BONUS (đơn trả thưởng) - hiển thị thông tin thưởng, không hiển thị tích lũy
   if (invoice.promo_type === 'MONTHLY_BONUS' || invoice.reward_liters_used > 0) {
     // Bia Inox V2: hiển thị chi tiết Vàng/Đen nếu có
@@ -3034,9 +3028,12 @@ async function buildVolumePromoNote(invoice) {
       rewardBreakdown = '<strong>+' + rewardLiters + 'L</strong>';
     }
     var bonusMonthText = '';
-    // Bonus month is the PREVIOUS month of the invoice date
-    // (e.g., invoice on 07/01/2026 = bonus for June)
-    if (invoice.date) {
+    // Thang duoc thuong:
+    //   - co snapshot (point-in-time) -> thang tinh tu backend (chinh xac)
+    //   - khong co snapshot -> thang truoc cua thang cua hoa don
+    if (snap && snap.month) {
+      bonusMonthText = String(snap.month);
+    } else if (invoice.date) {
       var parts = invoice.date.split('-');
       if (parts.length >= 2) {
         var m = parseInt(parts[1], 10) - 1; // previous month
@@ -3045,13 +3042,14 @@ async function buildVolumePromoNote(invoice) {
       }
     }
     var bonusMonthLabel = bonusMonthText ? ' tháng ' + bonusMonthText : '';
+    var accumLabel = snap ? 'Đã tích lũy (tháng ' + snap.month + ')' : 'Đã tích lũy tháng này';
     var yVol = monthlyReward.yellowVolume || 0;
     var bVol = monthlyReward.blackVolume || 0;
     var totalVol = (yVol || 0) + (bVol || 0);
     return '<div class="promo-note promo-note--volume is-reward">' +
       '<div class="promo-note__title">&#127942; Khuyến mãi Sản lượng Tháng</div>' +
       '<div class="promo-note__row"><span>&#127881; Đơn trả thưởng' + bonusMonthLabel + '</span><span>' + rewardBreakdown + '</span></div>' +
-      '<div class="promo-note__row"><span>&#128200; Đã tích lũy tháng này</span><span><strong>' + totalVol + 'L</strong> (Vàng: ' + yVol + 'L, Đen: ' + bVol + 'L)</span></div>' +
+      '<div class="promo-note__row"><span>&#128200; ' + accumLabel + '</span><span><strong>' + totalVol + 'L</strong> (Vàng: ' + yVol + 'L, Đen: ' + bVol + 'L)</span></div>' +
     '</div>';
   }
 
@@ -3114,7 +3112,85 @@ async function buildVolumePromoNote(invoice) {
       '</div>';
   }
 
+
   return noteHtml;
+}
+
+async function buildVolumePromoNote(invoice) {
+  // Get customer ID from invoice
+  var customerId = invoice && invoice.customer && invoice.customer.id;
+  if (!customerId) return '';
+
+  // ── POINT-IN-TIME ────────────────────────────────────────────────────
+  // Đơn đã lưu (có id) → lấy snapshot theo đúng thời điểm đơn được tạo.
+  // Nếu không có snapshot (đơn walk-in / lỗi API) → fallback về luồng live bên dưới.
+  var saleId = invoice.id != null ? parseInt(invoice.id, 10) : NaN;
+  if (Number.isFinite(saleId) && saleId > 0) {
+    var snap = await fetchVolumePromoSnapshot(saleId);
+    if (snap) {
+      // Khách đang trong tháng mở quán → Card "Thưởng quán mới" hiển thị riêng.
+      if (snap.isNewShop) return '';
+      if (snap.monthlyReward) {
+        return renderVolumePromoNoteHtml(snap.monthlyReward, invoice, snap);
+      }
+      return '';
+    }
+  }
+
+  // Get customer from cache
+  var customer = getCustomer(customerId);
+  if (!customer) return '';
+
+  // Check if customer has promotions disabled
+  if (customer.promotion_enabled === 0) return '';
+
+  // Get promotion settings from saleState
+  var settings = saleState.promoSettings;
+  if (!settings || !settings.rewardEnabled) return '';
+
+  // Check if promotion period is active
+  if (!isPromoPeriodActive()) return '';
+
+  // Check if customer is eligible for monthly reward
+  var customerRewardEnabled = customer.reward_enabled !== 0;
+  if (!customerRewardEnabled) return '';
+
+  // Fetch reward data from API if cache is empty or expired
+  var now = Date.now();
+  // Cache key includes customer + month + year so edits in same month use same cache
+  var invoiceDate = invoice && invoice.date ? invoice.date : new Date().toISOString().split('T')[0];
+  var invParts = invoiceDate.split('-');
+  var cacheMonth = invParts.length >= 2 ? invParts[1] : String(new Date().getMonth() + 1).padStart(2, '0');
+  var cacheYear = invParts.length >= 1 ? invParts[0] : String(new Date().getFullYear());
+  var cacheKey = 'customer_' + customerId + '_' + cacheYear + '_' + cacheMonth;
+  
+  if (!_volumePromoCache[cacheKey] || (now - _volumePromoCacheTime) > _volumePromoCacheTTL) {
+    try {
+      var res = await fetch('/api/promotions/customer/' + customerId + '/overview', { cache: 'no-store' });
+      var data = await safeJson(res);
+      if (data && data.success && data.data) {
+        _volumePromoCache[cacheKey] = data.data;
+        _volumePromoCacheTime = now;
+      }
+    } catch (e) {
+      console.error('[buildVolumePromoNote] fetch error:', e);
+    }
+  }
+
+  var rewardData = _volumePromoCache[cacheKey];
+  if (!rewardData) return '';
+
+  // Check if customer is in new shop period - don't show volume reward if in new shop
+  if (rewardData.isNewShopPromotion) return '';
+
+  // Check if can receive reward
+  if (!rewardData.isRewardEligible) return '';
+
+  // Get reward data
+  var monthlyReward = rewardData.monthlyReward;
+  if (!monthlyReward) return '';
+
+  return renderVolumePromoNoteHtml(monthlyReward, invoice, null);
 }
 
 // ============================================================

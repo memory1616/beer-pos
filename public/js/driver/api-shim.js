@@ -20,6 +20,7 @@
  *    GET  /api/promotions/new-shop/check/:id → .../sale/promotions/new-shop/check/:id
  *    GET  /api/promotions/new-shop/monthly-summary/:id → .../sale/promotions/new-shop/monthly-summary/:id
  *    GET  /api/promotions/customer/:id/overview → .../sale/promotions/customer/:id/overview
+ *    GET  /api/promotions/sale/:id/volume-snapshot → .../sale/promotions/sale/:id/volume-snapshot
  *    GET  /api/settings/qr-config   → GET  /api/driver/sale/qr-config
  *    GET  /api/settings/qr-accounts/active → GET /api/driver/sale/qr-accounts/active
  *    POST /api/kegs/deliver         → POST /api/driver/sale/kegs/deliver
@@ -52,6 +53,7 @@
     ['/api/promotions/new-shop/check/', BASE + '/promotions/new-shop/check/'],
     ['/api/promotions/new-shop/monthly-summary/', BASE + '/promotions/new-shop/monthly-summary/'],
     ['/api/promotions/customer/', BASE + '/promotions/customer/'],
+    ['/api/promotions/sale/', BASE + '/promotions/sale/'],
     ['/api/kegs/deliver', BASE + '/kegs/deliver'],
     ['/api/kegs/collect', BASE + '/kegs/collect'],
     ['/api/sales/update-kegs', BASE + '/update-kegs'],

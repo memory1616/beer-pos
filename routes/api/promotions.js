@@ -746,6 +746,28 @@ router.post('/reward/claim-highest', (req, res) => {
  * Tổng quan khuyến mãi của 1 khách (quán mới + thưởng tháng)
  * Dùng cho POS khi chọn khách
  */
+/**
+ * GET /api/promotions/sale/:saleId/volume-snapshot
+ * Point-in-time: so lieu KM san luong TAI THOI DIEM don hang duoc tao.
+ * Dung cho MODAL HOA DON (mo lai don cu -> hien thi dung so lieu luc do).
+ */
+router.get('/sale/:saleId/volume-snapshot', (req, res) => {
+  try {
+    const saleId = parseInt(req.params.saleId);
+    if (!saleId) return res.status(400).json({ success: false, error: 'ID khong hop le' });
+
+    const snapshot = PromotionService.getVolumePromoSnapshotForSale(saleId);
+    if (!snapshot) {
+      return res.status(404).json({ success: false, error: 'Khong tim thay don hoac don khong co khach hang' });
+    }
+
+    res.json({ success: true, data: snapshot });
+  } catch (e) {
+    logger.error('volume-snapshot error:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 router.get('/customer/:customerId/overview', (req, res) => {
   try {
     const customerId = parseInt(req.params.customerId);

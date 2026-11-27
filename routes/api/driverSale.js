@@ -472,6 +472,26 @@ router.get('/promotions/new-shop/monthly-summary/:customerId', requireDriver, (r
   }
 });
 
+// GET /api/driver/sale/promotions/sale/:saleId/volume-snapshot
+// Point-in-time: so lieu KM san luong TAI THOI DIEM don hang duoc tao.
+// Shape giong het GET /api/promotions/sale/:saleId/volume-snapshot cua Admin.
+router.get('/promotions/sale/:saleId/volume-snapshot', requireDriver, (req, res) => {
+  try {
+    const saleId = parseInt(req.params.saleId);
+    if (!saleId) return res.status(400).json({ success: false, error: 'ID khong hop le' });
+
+    const snapshot = PromotionService.getVolumePromoSnapshotForSale(saleId);
+    if (!snapshot) {
+      return res.status(404).json({ success: false, error: 'Khong tim thay don hoac don khong co khach hang' });
+    }
+
+    res.json({ success: true, data: snapshot });
+  } catch (err) {
+    logger.error('[driver-sale] volume-snapshot error', { error: err.message });
+    res.status(500).json({ success: false, error: 'Loi khi tai so lieu khuyen mai' });
+  }
+});
+
 // GET /api/driver/sale/promotions/customer/:customerId/overview
 // Shape GIỐNG HỆT GET /api/promotions/customer/:customerId/overview của Admin
 // → đảm bảo `public/js/sales.js` dùng lại được nguyên logic hiển thị badge.
