@@ -94,7 +94,16 @@ PORT=$(grep -E '^PORT=' .env | cut -d= -f2 | tr -d '"'"'"' \r')
 PORT=${PORT:-3100}
 
 log "Health check http://$HOST:$PORT/health ..."
-code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "http://$HOST:$PORT/health" || echo "000")
+# Cho server kip khoi dong (node + migrate + worker) truoc khi probe.
+code="000"
+for attempt in 1 2 3 4 5 6 7 8 9 10; do
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "http://$HOST:$PORT/health" || echo "000")
+  if [ "$code" = "200" ]; then
+    break
+  fi
+  log "  attempt $attempt: health=$code, thu lai sau 2s..."
+  sleep 2
+done
 if [ "$code" = "200" ]; then
   ok "Health OK (200)"
   log "Deploy SUCCESS - gateway chay tai http://$HOST:$PORT"
