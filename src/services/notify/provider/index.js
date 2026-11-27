@@ -4,6 +4,8 @@
  * Provider hiện có:
  *  - 'mock'    : MockZaloAdapter — mô phỏng cho LOCAL DEVELOPMENT / test.
  *  - 'omicall' : OmniCallAdapter — provider đang chạy production.
+ *  - 'gateway' : GatewayAdapter — BeerPOS Zalo Gateway (dịch vụ độc lập).
+ *  - 'disabled': không gửi thông báo nào (tắt hoàn toàn).
  *
  * Provider tương lai:
  *  - Chỉ được thêm vào SAU khi có API hợp lệ & được xác minh thực tế.
@@ -28,11 +30,14 @@ const logger = require('../../../utils/logger');
 const db = require('../../../../database');
 const { MockZaloAdapter } = require('./MockZaloAdapter');
 const { OmniCallAdapter } = require('./OmniCallAdapter');
+const { GatewayAdapter } = require('./GatewayAdapter');
 
 /** Tên provider hợp lệ. */
 const PROVIDERS = {
   MOCK: 'mock',
   OMICALL: 'omicall',
+  GATEWAY: 'gateway',
+  DISABLED: 'disabled',
 };
 
 const registry = new Map();
@@ -59,6 +64,8 @@ function createProvider(name) {
   switch (name) {
     case PROVIDERS.OMICALL:
       return new OmniCallAdapter();
+    case PROVIDERS.GATEWAY:
+      return new GatewayAdapter();
     case PROVIDERS.MOCK:
     default:
       return new MockZaloAdapter();
@@ -104,12 +111,24 @@ function isSimulated(name) {
   return String(name || getProviderName()).trim().toLowerCase() === PROVIDERS.MOCK;
 }
 
+/**
+ * Provider có phải Gateway không.
+ *
+ * ⚠️ Với Gateway, `gateway_groups` là nguồn sự thật (source of truth) về
+ *    liên kết khách ↔ nhóm. BeerPOS giữ `debt_customer_groups` chỉ để
+ *    tương thích & dự phòng → KHÔNG được chặn job chỉ vì thiếu group cục bộ.
+ */
+function isGateway(name) {
+  return String(name || getProviderName()).trim().toLowerCase() === PROVIDERS.GATEWAY;
+}
+
 module.exports = {
   PROVIDERS,
   getProvider,
   getProviderName,
   getConfiguredProviderName,
   isSimulated,
+  isGateway,
   resetProviders,
   createProvider,
 };

@@ -52,6 +52,24 @@ const STATUS = {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
+/**
+ * Cờ bật/tắt thông báo CHUNG cho toàn hệ thống (không gắn với OmniCall).
+ *
+ * ⚠️ Vì sao không đọc trực tiếp từ `OmiCallService.getConfig().enabled`?
+ *    Khi chuyển sang Gateway, cờ bật/tắt vẫn phải có hiệu lực — nếu đọc từ
+ *    OmiCallService thì Gateway sẽ bị "tắt" ngầm khi OmniCall chưa cấu hình.
+ *
+ * @returns {boolean}
+ */
+function isNotifyEnabled() {
+  try {
+    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('debt_notify_enabled');
+    return !!(row && String(row.value) === '1');
+  } catch (_) {
+    return false;
+  }
+}
+
 function roundMoney(n) {
   return Math.round((Number(n) || 0) * 100) / 100;
 }
@@ -94,6 +112,17 @@ function findConvId(customerId) {
     ambiguous: g.ambiguous,
     activeCount: g.activeCount,
   };
+}
+
+/**
+ * Provider đang chạy có phải Gateway không?
+ *
+ * ⚠️ Với Gateway, mapping khách ↔ nhóm nằm ở `gateway_groups` (nguồn sự thật).
+ *    BeerPOS giữ `debt_customer_groups` chỉ để tương thích & dự phòng →
+ *    KHÔNG được chặn thông báo chỉ vì thiếu mapping cục bộ.
+ */
+function isGatewayProvider() {
+  return ProviderFactory.isGateway();
 }
 
 /**
@@ -308,7 +337,7 @@ async function notifyPayment(opts = {}) {
   const transactionId = opts.transactionId ?? null;
 
   // 1. Tắt → bỏ qua (không ghi log để tránh rác bảng)
-  if (!cfg.enabled) {
+  if (!isNotifyEnabled()) {
     return { status: STATUS.SKIPPED, error: 'DISABLED' };
   }
   if (cfg.channel !== CHANNEL) {
@@ -429,7 +458,7 @@ async function notifyManualDebt(opts = {}) {
   const source = opts.source || null;
   const transactionId = opts.transactionId ?? null;
 
-  if (!cfg.enabled || !cfg.notifyManualDebt) {
+  if (!isNotifyEnabled() || !cfg.notifyManualDebt) {
     return { status: STATUS.SKIPPED, error: 'DISABLED' };
   }
   if (alreadyNotified(transactionId, EVENT_TYPES.MANUAL_DEBT)) {
@@ -500,7 +529,7 @@ function enqueuePaymentNotification(opts = {}) {
     const cfg = OmiCallService.getConfig();
 
     // Thông báo đang tắt → không tạo job.
-    if (!cfg.enabled) {
+    if (!isNotifyEnabled()) {
       return { success: true, status: 'skipped', error: 'DISABLED' };
     }
 
@@ -514,8 +543,10 @@ function enqueuePaymentNotification(opts = {}) {
 
     // Tìm nhóm (chỉ để dựng nội dung & kiểm tra 1:1).
     const group = findConvId(customerId);
+    // Gateway tự tra mapping → vẫn dựng nội dung dù BeerPOS chưa có group.
+    const needsGroup = !isGatewayProvider();
 
-    const content = group.convId
+    const content = group.convId || !needsGroup
       ? buildPaymentMessage({
           customerName,
           amount,
@@ -570,7 +601,7 @@ function buildPaymentNotificationPayload(ctx = {}) {
   const cfg = OmiCallService.getConfig();
 
   // Thông báo đang tắt → không tạo job.
-  if (!cfg.enabled) return null;
+  if (!isNotifyEnabled()) return null;
 
   const customerId = parseInt(ctx.customerId, 10);
   if (!customerId || Number.isNaN(customerId)) return null;
@@ -584,8 +615,10 @@ function buildPaymentNotificationPayload(ctx = {}) {
 
   // Tìm nhóm (chỉ để dựng nội dung & kiểm tra 1:1).
   const group = findConvId(customerId);
+  // Gateway tự tra mapping → vẫn dựng nội dung dù BeerPOS chưa có group.
+  const needsGroup = !isGatewayProvider();
 
-  const content = group.convId
+  const content = group.convId || !needsGroup
     ? buildPaymentMessage({
         customerName,
         amount,
@@ -619,7 +652,7 @@ function buildPaymentNotificationPayload(ctx = {}) {
 function enqueueManualDebtNotification(opts = {}) {
   try {
     const cfg = OmiCallService.getConfig();
-    if (!cfg.enabled || !cfg.notifyManualDebt) {
+    if (!isNotifyEnabled() || !cfg.notifyManualDebt) {
       return { success: true, status: 'skipped', error: 'DISABLED' };
     }
 
@@ -629,7 +662,8 @@ function enqueueManualDebtNotification(opts = {}) {
     const balanceAfter = roundMoney(opts.balanceAfter);
 
     const group = findConvId(customerId);
-    const content = group.convId
+    const needsGroup = !isGatewayProvider();
+    const content = group.convId || !needsGroup
       ? buildDebtMessage({ customerName, amount, balanceAfter, title: cfg.title })
       : null;
 
@@ -922,6 +956,8 @@ module.exports = {
   CHANNEL,
   EVENT_TYPES,
   STATUS,
+  isGatewayProvider,
+  isNotifyEnabled,
   buildPaymentMessage,
   buildDebtMessage,
   notifyPayment,

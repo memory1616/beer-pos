@@ -53,6 +53,14 @@ const JOB_EVENT_TYPES = {
   MANUAL_DEBT: 'manual_debt',
 };
 
+/**
+ * Tên provider Gateway.
+ *
+ * ⚠️ Khi provider = gateway, mapping khách ↔ nhóm nằm ở Gateway
+ *    (`gateway_groups`) — BeerPOS KHÔNG chặn job chỉ vì thiếu group cục bộ.
+ */
+const PROVIDER_GATEWAY = 'gateway';
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function roundMoney(n) {
@@ -186,8 +194,14 @@ function enqueueJob(opts = {}) {
   const group = findCustomerGroup(customerId);
   const provider = String(opts.provider || getSetting('debt_notify_provider', 'mock')).trim();
 
+  // ── Provider GATEWAY: mapping nằm ở Gateway (`gateway_groups`) ──────────
+  // Gateway tự tra Group ID từ Customer ID. BeerPOS giữ `debt_customer_groups`
+  // chỉ để tương thích & dự phòng → KHÔNG chặn job khi thiếu group cục bộ.
+  // Job vẫn được tạo (queued) để Gateway tra cứu & báo lại nếu chưa liên kết.
+  const isGateway = provider.toLowerCase() === PROVIDER_GATEWAY;
+
   // ── Không có nhóm hợp lệ → job 'no_group' (KHÔNG gửi, KHÔNG phải lỗi) ────
-  if (!group.groupId) {
+  if (!group.groupId && !isGateway) {
     const reason = group.ambiguous
       ? 'Khách đang liên kết nhiều nhóm Zalo — cần sửa dữ liệu (1 khách = 1 nhóm)'
       : 'Chưa liên kết nhóm Zalo cho khách này';
@@ -244,11 +258,14 @@ function enqueueJob(opts = {}) {
     }
   }
 
-  // ── Có nhóm → tạo job 'queued' ───────────────────────────────────────────
+  // ── Có nhóm (hoặc provider=GATEWAY) → tạo job 'queued' ──────────────────
+  // Gateway tự tra Group ID → dùng placeholder trong idempotency key khi
+  // BeerPOS chưa có mapping cục bộ.
+  const groupKey = group.groupId || (isGateway ? 'GATEWAY_LOOKUP' : 'NO_GROUP');
   const key = buildIdempotencyKey({
     customerId,
     eventType,
-    groupId: group.groupId,
+    groupId: groupKey,
     transactionId: opts.transactionId,
   });
 
@@ -793,6 +810,7 @@ module.exports = {
   JOB_STATUS,
   JOB_EVENT_TYPES,
   TERMINAL_STATUSES,
+  PROVIDER_GATEWAY,
   buildIdempotencyKey,
   findCustomerGroup,
   enqueueJob,

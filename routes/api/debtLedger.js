@@ -48,6 +48,7 @@ const OmiCallService = require('../../src/services/OmiCallService');
 const NotificationJobService = require('../../src/services/notify/NotificationJobService');
 const CustomerGroupService = require('../../src/services/notify/CustomerGroupService');
 const ProviderFactory = require('../../src/services/notify/provider');
+const GatewayClient = require('../../src/services/notify/GatewayClient');
 const { PLATFORMS, GROUP_STATUS, SOURCES } = require('../../src/services/debt/constants');
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -863,6 +864,8 @@ router.get('/notify/settings', requireAuth, (req, res) => {
       data: {
         ...OmiCallService.getPublicConfig(),
         summary: DebtNotifyService.getSummary(),
+        provider: ProviderFactory.getProviderName(),
+        gateway: GatewayClient.getPublicConfig(),
       },
     });
   } catch (e) {
@@ -888,6 +891,90 @@ router.post('/notify/settings', requireAuth, requireAdmin, (req, res) => {
     res.json({ success: true, data: OmiCallService.getPublicConfig() });
   } catch (e) {
     logger.error('[DEBT_NOTIFY_API] save settings error', { error: e.message });
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BEERPOS ZALO GATEWAY (dịch vụ độc lập)
+//   POST /api/debt-ledger/notify/gateway/settings  — Lưu cấu hình (ADMIN)
+//   GET  /api/debt-ledger/notify/gateway/health    — Kiểm tra Gateway (STAFF)
+//   POST /api/debt-ledger/notify/gateway/provider  — Đổi provider (ADMIN)
+// ⚠️ Rollback: chỉ cần đổi `debt_notify_provider` về 'omicall'.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** POST /notify/gateway/settings — lưu URL / API key của Gateway. */
+router.post('/notify/gateway/settings', requireAuth, requireAdmin, (req, res) => {
+  try {
+    const body = req.body || {};
+    const result = GatewayClient.saveConfig({
+      apiKey: body.apiKey,
+      baseUrl: body.baseUrl,
+      timeoutMs: body.timeoutMs,
+    });
+    if (!result.success) {
+      return res.status(400).json({ success: false, error: result.error });
+    }
+    res.json({ success: true, data: GatewayClient.getPublicConfig() });
+  } catch (e) {
+    logger.error('[DEBT_NOTIFY_API] save gateway settings error', { error: e.message });
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+/** GET /notify/gateway/health — kiểm tra Gateway còn sống không. */
+router.get('/notify/gateway/health', requireAuth, requireStaff, async (req, res) => {
+  try {
+    const result = await GatewayClient.health();
+    res.json({
+      success: true,
+      data: {
+        ...GatewayClient.getPublicConfig(),
+        reachable: !!result.success,
+        status: result.status,
+        gateway: result.data || null,
+        error: result.error || null,
+      },
+    });
+  } catch (e) {
+    logger.error('[DEBT_NOTIFY_API] gateway health error', { error: e.message });
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+/**
+ * POST /notify/gateway/provider — đổi kênh gửi.
+ * Body: { provider: 'omicall' | 'gateway' | 'mock' | 'disabled' }
+ *
+ * ⚠️ CHỈ cho phép một phương thức gửi hoạt động cho cùng một sự kiện.
+ * ⚠️ Đổi provider KHÔNG xoá dữ liệu — rollback chỉ là đổi ngược giá trị.
+ */
+router.post('/notify/gateway/provider', requireAuth, requireAdmin, (req, res) => {
+  try {
+    const requested = String((req.body || {}).provider || '').trim().toLowerCase();
+    const allowed = Object.values(ProviderFactory.PROVIDERS);
+    if (!allowed.includes(requested)) {
+      return res.status(400).json({
+        success: false,
+        error: `Provider không hợp lệ. Chọn một trong: ${allowed.join(', ')}`,
+      });
+    }
+
+    const previous = ProviderFactory.getProviderName();
+    db.prepare(
+      'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value'
+    ).run('debt_notify_provider', requested);
+
+    // Xoá cache provider để lần gọi sau dùng provider mới.
+    ProviderFactory.resetProviders();
+
+    logger.info('[DEBT_NOTIFY_API] Đổi provider thông báo', { previous, current: requested });
+    res.json({
+      success: true,
+      data: { previous, current: requested },
+    });
+  } catch (e) {
+    logger.error('[DEBT_NOTIFY_API] switch provider error', { error: e.message });
     res.status(500).json({ success: false, error: e.message });
   }
 });

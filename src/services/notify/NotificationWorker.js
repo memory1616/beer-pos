@@ -29,6 +29,23 @@ const WORKER_STATE = {
 /** Singleton. */
 let _instance = null;
 
+/**
+ * Idempotency key dùng chung giữa BeerPOS và Gateway.
+ *
+ * ⚠️ Cùng format ở cả 2 hệ thống → nếu chuyển đổi qua lại giữa OmniCall và
+ *    Gateway thì vẫn KHÔNG gửi trùng cho cùng 1 giao dịch.
+ *
+ * - Có transaction_id → key ổn định (chống gửi trùng khi webhook retry).
+ * - Không có transaction_id → key theo thời điểm + khách (mỗi lần gọi là 1 job).
+ */
+function buildGatewayIdempotencyKey(job = {}) {
+  const txId = job.transaction_id;
+  if (txId !== null && txId !== undefined && txId !== '' && !Number.isNaN(Number(txId))) {
+    return `payment-notification:${Number(txId)}`;
+  }
+  return `payment-notification:${job.customer_id}:${job.id}`;
+}
+
 class NotificationWorker {
   constructor(opts = {}) {
     this.workerId = String(opts.workerId || `notify-worker-${process.pid}`);
@@ -182,9 +199,13 @@ class NotificationWorker {
   async processJob(job) {
     const jobId = job.id;
     const groupId = String(job.group_id || '').trim();
+    const providerName = String(job.provider || '').trim().toLowerCase();
+    const isGateway = providerName === ProviderFactory.PROVIDERS.GATEWAY;
 
-    // Không có group id → 'no_group' (không gửi).
-    if (!groupId) {
+    // Provider GATEWAY tự tra cứu Group ID từ Customer ID (mapping nằm ở
+    // `gateway_groups`) → KHÔNG chặn job vì thiếu group cục bộ.
+    // BeerPOS giữ `debt_customer_groups` chỉ để tương thích & dự phòng.
+    if (!groupId && !isGateway) {
       NotificationJobService.markFailed(
         jobId,
         {
@@ -210,6 +231,12 @@ class NotificationWorker {
         groupId,
         text: job.content_snapshot || '',
         groupName: job.group_name_snapshot || null,
+        // Gateway tra cứu theo customerId → PHẢI truyền customerId.
+        customerId: job.customer_id,
+        paymentId: job.transaction_id ?? null,
+        // Idempotency key dùng chung cho cả 2 hệ thống → không gửi trùng khi
+        // webhook retry (SePay giữ nguyên transaction_id qua các lần retry).
+        idempotencyKey: buildGatewayIdempotencyKey(job),
       });
     } catch (e) {
       logger.error('[NOTIFY_WORKER] Provider ném exception', {
@@ -229,14 +256,14 @@ class NotificationWorker {
       NotificationJobService.markSent(jobId, result);
       this._writeHistory(job, {
         status: 'sent',
-        groupId,
+        groupId: groupId || null,
         providerMessageId: result.providerMessageId,
         deliveryStatus: result.deliveryStatus,
       });
       logger.info('[NOTIFY_WORKER] Đã gửi thông báo', {
         jobId,
         customerId: job.customer_id,
-        groupId,
+        groupId: groupId || null,
         provider: job.provider,
       });
       return { status: 'sent' };
@@ -392,4 +419,5 @@ module.exports = {
   createWorker,
   stopWorker,
   startBackgroundWorker,
+  buildGatewayIdempotencyKey,
 };

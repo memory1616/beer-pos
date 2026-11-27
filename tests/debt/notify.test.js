@@ -66,7 +66,7 @@ function readSetting(key) {
 const savedSettings = {};
 function snapshotSettings() {
   ['omicall_api_key', 'omicall_base_url', 'debt_notify_enabled', 'debt_notify_channel',
-    'debt_notify_manual_debt', 'debt_notify_title'].forEach((k) => {
+    'debt_notify_manual_debt', 'debt_notify_title', 'debt_notify_provider'].forEach((k) => {
     savedSettings[k] = readSetting(k);
   });
 }
@@ -106,6 +106,9 @@ beforeAll(() => {
   setSetting('debt_notify_channel', 'omicall_zalo_personal');
   setSetting('debt_notify_manual_debt', '0');
   setSetting('debt_notify_title', 'BIA TƯƠI — Cập nhật công nợ');
+  // ⚠️ Test này kiểm tra luồng OmniCall → cố định provider 'omicall'
+  //    để không phụ thuộc cấu hình provider trong DB dev.
+  setSetting('debt_notify_provider', 'omicall');
   OmiCallService.clearTokenCache();
 });
 

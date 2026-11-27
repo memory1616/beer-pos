@@ -66,8 +66,10 @@
   };
 
   function statusBadge(st) {
-    var cls = STATUS_BADGE[st] || 'none';
-    return '<span class="dl-badge dl-badge--' + esc(st || 'none') + '">' + esc(label) + '</span>';
+    var key = st || 'none';
+    var cls = STATUS_BADGE[key] || 'none';
+    var text = STATUS_LABEL[key] || key;
+    return '<span class="dl-badge dl-badge--' + esc(cls) + '">' + esc(text) + '</span>';
   }
 
   function lockBadge(r) {
@@ -75,7 +77,7 @@
       return '<span class="dl-badge dl-badge--lock" title="' + esc(fmtTime(r.reconciled_at)) +
         ' by ' + esc(r.reconciled_by || '') + '">🔒 Đã đối soát</span>';
     }
-    return '<span class=\"dl-badge dl-badge--none\">📋 Chưa đối soát</span>';
+    return '<span class="dl-badge dl-badge--none">📋 Chưa đối soát</span>';
   }
 
   function showError(msg) {
