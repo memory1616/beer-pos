@@ -13,7 +13,8 @@
     "testPathIgnorePatterns": [
       "/node_modules/",
       "/backups/",
-      "/\\.backup/"
+      "/\\.backup/",
+      "/beerpos-zalo-gateway/"
     ],
     "collectCoverageFrom": [
       "routes/**/*.js",

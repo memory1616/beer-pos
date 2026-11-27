@@ -1,0 +1,42 @@
+{
+  "name": "beerpos-zalo-gateway",
+  "version": "1.0.0",
+  "description": "BeerPOS Notification Gateway - quan ly lien khach hang voi nhom Zalo, hang doi thong bao, lich su gui tin",
+  "main": "src/server.js",
+  "private": true,
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "migrate": "node scripts/migrate.js",
+    "migrate:down": "node scripts/migrate.js --down",
+    "seed": "node scripts/seed.js",
+    "reset": "node scripts/reset.js",
+    "backup": "node scripts/backup.js",
+    "test": "jest --runInBand --forceExit"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "better-sqlite3": "^9.4.5",
+    "compression": "^1.7.4",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.4.1",
+    "helmet": "^7.1.0",
+    "winston": "^3.13.1"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^6.3.4"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ],
+    "setupFilesAfterEnv": [
+      "<rootDir>/tests/setup.js"
+    ],
+    "testTimeout": 20000
+  }
+}

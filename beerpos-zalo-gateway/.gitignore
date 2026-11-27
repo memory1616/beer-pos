@@ -1,0 +1,12 @@
+node_modules/
+data/
+logs/
+coverage/
+
+# KHONG commit API key that
+.env
+.env.local
+.env.*.local
+
+*.log
+testout.txt

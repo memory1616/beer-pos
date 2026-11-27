@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BeerPOS Notification Gateway</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div class="layout">
+
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="brand-title">🍺 BeerPOS Gateway</div>
+      <div class="brand-sub">Notification Gateway</div>
+    </div>
+    <nav class="nav" id="nav">
+      <div class="nav-item active" data-page="dashboard"><span class="nav-icon">▦</span> Tổng quan</div>
+      <div class="nav-item" data-page="account"><span class="nav-icon">⚡</span> Kết nối tài khoản</div>
+      <div class="nav-item" data-page="groups"><span class="nav-icon">👥</span> Nhóm khách hàng</div>
+      <div class="nav-item" data-page="queue"><span class="nav-icon">⇅</span> Hàng đợi</div>
+      <div class="nav-item" data-page="history"><span class="nav-icon">✉</span> Lịch sử gửi tin</div>
+      <div class="nav-item" data-page="settings"><span class="nav-icon">⚙</span> Cấu hình</div>
+    </nav>
+    <div class="sidebar-foot">
+      <div id="sidebar-provider">Provider: —</div>
+      <div id="sidebar-version">v —</div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="header">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="menu-toggle" id="menuToggle">☰</button>
+        <h1 id="pageTitle">Tổng quan</h1>
+      </div>
+      <div class="header-right">
+        <span class="badge badge-neutral" id="gatewayBadge">Đang kết nối…</span>
+      </div>
+    </header>
+
+    <div class="content" id="content">
+      <div id="view-root"></div>
+    </div>
+  </div>
+</div>
+
+<div id="toast-host"></div>
+<div id="modal-host"></div>
+
+<script src="/js/api.js"></script>
+<script src="/js/ui.js"></script>
+<script src="/js/page-dashboard.js"></script>
+<script src="/js/page-groups.js"></script>
+<script src="/js/page-import.js"></script>
+<script src="/js/page-queue.js"></script>
+<script src="/js/page-settings.js"></script>
+<script src="/js/app.js"></script>
+</body>
+</html>
