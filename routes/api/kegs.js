@@ -372,6 +372,25 @@ router.post('/return', (req, res) => {
     const sale = db.prepare('SELECT customer_id, deliver_kegs, return_kegs FROM sales WHERE id = ?').get(sale_id);
     if (!sale) return res.status(404).json({ error: 'Không tìm thấy hóa đơn' });
 
+    // ── KHOÁ THEO NGÀY GIAO (2026-11-27) ────────────────────────────────
+    // Đơn đã giao/đã thu vỏ qua nhiều ngày → KHÔNG được sửa số liệu vỏ.
+    const DeliveryService = require('../../src/services/DeliveryService');
+    const linked = db
+      .prepare('SELECT * FROM delivery_records WHERE sale_id = ? ORDER BY id DESC LIMIT 1')
+      .get(sale_id);
+    if (linked) {
+      const force = req.body && req.body.force === true;
+      const editCheck = DeliveryService.canEditConfirmed(linked, req.user, { force });
+      if (!editCheck.allowed) {
+        return res.status(403).json({
+          error: editCheck.error,
+          code: editCheck.code,
+          deliveryDate: editCheck.deliveryDate,
+          daysPassed: editCheck.daysPassed,
+        });
+      }
+    }
+
     const customerId = sale.customer_id;
     if (!customerId) {
       return res.status(400).json({ error: 'Đơn này không có khách hàng' });

@@ -10,6 +10,76 @@
  */
 
 // Trạng thái đơn giao hàng
+
+// ─────────────────────────────────────────────────────────────────────────────
+// KHOÁ THEO NGÀY GIAO (next_day) — 2026-11-27
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// VẤN ĐỀ: "những đơn đã giao, đã thu vỏ qua nhiều ngày nhưng vẫn sửa được"
+// → đơn giao ngày 20/11, đến 27/11 vẫn sửa số liệu vỏ/đơn thoải mái.
+//
+// QUY TẮC (người dùng chốt: next_day + backfill_lock + admin_force):
+//   1. `next_day` — Phiếu giao chỉ SỬA ĐƯỢC trong NGÀY GIAO THỰC TẾ.
+//      Hôm sau (theo ngày lịch thực VN) → KHOÁ.
+//   2. `backfill_lock` — Phiếu giao thuộc NGÀY HỒM TRƯỚC (hoặc xa hơn)
+//      mà BÂY GIỜ mới được nhập số liệu → coi như "nhập liệu trễ"
+//      (backfill) → KHOÁ, trừ khi có override.
+//   3. `admin_force` — Quản lý (ADMIN/MANAGER) có thể vượt khoá bằng cờ
+//      `force: true` (ghi log audit để truy vết).
+//
+// NGUỒN NGÀY GIAO THỰC TẾ (theo thứ tự ưu tiên):
+//   1. `completed_at` — thời điểm tài xế xác nhận giao xong.
+//   2. `scheduled_date` — ngày lịch giao (dùng để backfill khi chưa xong).
+//   3. `created_at` — ngày tạo phiếu.
+//
+// ⚠️ So sánh theo NGÀY LỊCH THỰC (giờ VN), không theo "ngày nghiệp vụ"
+//    (cutoff 19:00 đã bỏ từ 2026-11-18 → xem database.js).
+//
+// MÃ LỖI:
+//   - `EDIT_LOCKED_PAST_DAY`  — đã qua ngày giao, cần override.
+//   - `MANAGEMENT_REQUIRED`   — cần quyền quản lý (đã có sẵn).
+
+/** Số ngày tối đa được phép sửa sau ngày giao (0 = chỉ trong ngày giao). */
+const EDIT_LOCK_DAYS = 0;
+
+/**
+ * Lấy ngày giao THỰC TẾ của phiếu (YYYY-MM-DD).
+ *
+ * @param {object} record - row `delivery_records`
+ * @returns {string|null}
+ */
+function getDeliveryActualDate(record) {
+  if (!record) return null;
+
+  const take = (v) => {
+    if (!v) return null;
+    const s = String(v).trim();
+    if (!s) return null;
+    // 'YYYY-MM-DD HH:MM:SS' → 'YYYY-MM-DD'
+    const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+    return m ? m[1] : null;
+  };
+
+  return take(record.completed_at)
+    || take(record.scheduled_date)
+    || take(record.created_at);
+}
+
+/**
+ * Tính số ngày đã trôi qua từ ngày giao đến hôm nay (>= 0).
+ *
+ * @param {string} dateStr - 'YYYY-MM-DD'
+ * @param {string} [todayStr] - 'YYYY-MM-DD' (mặc định: hôm nay giờ VN)
+ * @returns {number} số ngày (0 = cùng ngày)
+ */
+function daysSince(dateStr, todayStr = db.getVietnamDateStr()) {
+  if (!dateStr || !todayStr) return 0;
+  const a = Date.parse(`${dateStr}T00:00:00Z`);
+  const b = Date.parse(`${todayStr}T00:00:00Z`);
+  if (Number.isNaN(a) || Number.isNaN(b)) return 0;
+  return Math.max(0, Math.round((b - a) / 86400000));
+}
+
 const DELIVERY_STATUS = {
   PENDING: 'PENDING',           // Chờ giao
   IN_PROGRESS: 'IN_PROGRESS',   // Đang giao
@@ -555,12 +625,23 @@ class DeliveryService {
    * - Phiếu CHƯA nhập số liệu xác nhận → ai cũng sửa được.
    * - Phiếu ĐÃ nhập số liệu xác nhận / đã đối soát → CHỈ quản lý.
    *
+   * ⚠️ Ngoài ra có KHOÁ THEO NGÀY (2026-11-27): phiếu giao thuộc ngày HỒM
+   *    TRƯỚC trở đi → khoá số liệu, kể cả quản lý, trừ khi có `force`.
+   *    Xem `checkDeliveryDateLock()`.
+   *
    * @param {object} record - row `delivery_records`
    * @param {object} user - req.user
+   * @param {object} [opts] - { force: boolean }
    * @returns {{allowed:boolean, code?:string, error?:string, reason?:string}}
    */
-  static canEditConfirmed(record, user) {
+  static canEditConfirmed(record, user, opts = {}) {
     if (!record) return { allowed: true };
+
+    // ── KHOÁ THEO NGÀY GIAO (next_day) ───────────────────────────────────
+    // Đặt TRƯỚC khi kiểm tra "đã xác nhận" vì đây là ràng buộc CHẶT HƠN:
+    // đơn giao 3 ngày trước mà chưa nhập số liệu (backfill) cũng bị chặn.
+    const dateLock = DeliveryService.checkDeliveryDateLock(record, user, opts);
+    if (!dateLock.allowed) return dateLock;
 
     if (!DeliveryService.hasConfirmedFigures(record)) {
       // Chưa xác nhận số liệu → mọi vai trò được phép sửa.
@@ -577,6 +658,74 @@ class DeliveryService {
       error:
         `Phiếu giao #${record.id} đã xác nhận số liệu — ` +
         'chỉ quản lý mới được sửa số liệu đã xác nhận',
+    };
+  }
+
+  /**
+   * KHOÁ THEO NGÀY GIAO (next_day + backfill_lock + admin_force)
+   * ─────────────────────────────────────────────────────────────────────────
+   * Phiếu giao chỉ được sửa số liệu trong NGÀY GIAO THỰC TẾ.
+   * Hôm sau trở đi → khoá, trừ khi quản lý dùng cờ `force`.
+   *
+   * @param {object} record - row `delivery_records`
+   * @param {object} user - req.user
+   * @param {object} [opts] - { force: boolean }
+   * @returns {{allowed:boolean, code?:string, error?:string, reason?:string, deliveryDate?:string, daysPassed?:number}}
+   */
+  static checkDeliveryDateLock(record, user, opts = {}) {
+    if (!record) return { allowed: true };
+
+    const deliveryDate = getDeliveryActualDate(record);
+    if (!deliveryDate) {
+      // Không xác định được ngày giao → không khoá (an toàn, tránh chặn nhầm).
+      return { allowed: true };
+    }
+
+    const today = db.getVietnamDateStr();
+    const daysPassed = daysSince(deliveryDate, today);
+
+    // Trong ngày giao → OK cho mọi vai trò.
+    if (daysPassed <= EDIT_LOCK_DAYS) {
+      return {
+        allowed: true,
+        reason: `Trong ngày giao (${deliveryDate})`,
+        deliveryDate,
+        daysPassed,
+      };
+    }
+
+    // ── Quá ngày giao ────────────────────────────────────────────────────
+    // Quản lý có thể vượt khoá bằng `force` (admin_force) — ghi log audit.
+    if (opts.force && hasManagementRole(user)) {
+      logger.warn('[DeliveryService] date lock OVERRIDDEN by management', {
+        deliveryId: record.id,
+        deliveryDate,
+        daysPassed,
+        actor: user.username || user.app_user_name || null,
+        role: user.role || null,
+      });
+      return {
+        allowed: true,
+        reason: `Quản lý vượt khoá ngày giao (${deliveryDate}, ${daysPassed} ngày trước)`,
+        deliveryDate,
+        daysPassed,
+        overridden: true,
+      };
+    }
+
+    const err =
+      `Phiếu giao #${record.id} ngày ${deliveryDate} đã qua ${daysPassed} ngày — ` +
+      'không được sửa số liệu giao/thu vỏ. ' +
+      (hasManagementRole(user)
+        ? 'Quản lý có thể sửa với tuỳ chọn ghi đè (force).'
+        : 'Liên hệ quản lý để sửa.');
+
+    return {
+      allowed: false,
+      code: 'EDIT_LOCKED_PAST_DAY',
+      error: err,
+      deliveryDate,
+      daysPassed,
     };
   }
 
@@ -706,7 +855,7 @@ class DeliveryService {
     // ── KHOÁ SỐ LIỆU ĐÃ XÁC NHẬN ─────────────────────────────────────────
     // Phiếu đã DELIVERED / DISCREPANCY → chỉ quản lý mới đổi được trạng thái
     // (tránh tài xế tự hạ trạng thái để ghi lại số liệu đã xác nhận).
-    const editCheck = DeliveryService.canEditConfirmed(record, opts.user);
+    const editCheck = DeliveryService.canEditConfirmed(record, opts.user, opts);
     if (!editCheck.allowed && record.status !== toStatus) {
       logger.warn('[DeliveryService] updateStatus blocked — confirmed data', {
         deliveryId,
@@ -831,7 +980,7 @@ class DeliveryService {
 
     // ── KHOÁ SỐ LIỆU ĐÃ XÁC NHẬN ─────────────────────────────────────────
     // Phiếu đã DELIVERED / DISCREPANCY → chỉ quản lý mới sửa được.
-    const editCheck = DeliveryService.canEditConfirmed(record, opts.user);
+    const editCheck = DeliveryService.canEditConfirmed(record, opts.user, opts);
     if (!editCheck.allowed) {
       logger.warn('[DeliveryService] confirmDelivery blocked — confirmed data', {
         deliveryId,
@@ -1124,7 +1273,7 @@ class DeliveryService {
     }
 
     // ── KHOÁ SỐ LIỆU ĐÃ XÁC NHẬN ─────────────────────────────────────────
-    const editCheck = DeliveryService.canEditConfirmed(record, opts.user);
+    const editCheck = DeliveryService.canEditConfirmed(record, opts.user, opts);
     if (!editCheck.allowed) {
       logger.warn('[DeliveryService] recordDiscrepancy blocked — confirmed data', {
         deliveryId,
@@ -1188,7 +1337,7 @@ class DeliveryService {
 
     // ── KHOÁ SỐ LIỆU ĐÃ XÁC NHẬN ─────────────────────────────────────────
     // Số vỏ thu là một phần của số liệu đã xác nhận → cùng quy tắc khoá.
-    const editCheck = DeliveryService.canEditConfirmed(record, opts.user);
+    const editCheck = DeliveryService.canEditConfirmed(record, opts.user, opts);
     if (!editCheck.allowed) {
       logger.warn('[DeliveryService] updateCollectedKegs blocked — confirmed data', {
         deliveryId,
@@ -1483,3 +1632,7 @@ module.exports.ALLOWED_TRANSITIONS = ALLOWED_TRANSITIONS;
 module.exports.MANAGEMENT_ROLES = MANAGEMENT_ROLES;
 module.exports.CONFIRMED_STATUSES = CONFIRMED_STATUSES;
 module.exports.hasManagementRole = hasManagementRole;
+// Khoá theo ngày giao (next_day + backfill_lock + admin_force).
+module.exports.EDIT_LOCK_DAYS = EDIT_LOCK_DAYS;
+module.exports.getDeliveryActualDate = getDeliveryActualDate;
+module.exports.daysSince = daysSince;

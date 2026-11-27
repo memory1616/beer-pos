@@ -314,7 +314,10 @@ router.put('/deliveries/:id/confirm', requireAdmin, (req, res) => {
     );
 
     if (!result.success) {
-      const status = result.code === 'MANAGEMENT_REQUIRED' ? 403 : 400;
+      const status =
+        result.code === 'MANAGEMENT_REQUIRED' || result.code === 'EDIT_LOCKED_PAST_DAY'
+          ? 403
+          : 400;
       return res.status(status).json({ error: result.error, code: result.code });
     }
 

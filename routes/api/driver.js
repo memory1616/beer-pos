@@ -51,6 +51,8 @@ function requireDriver(req, res, next) {
 function deliveryErrorStatus(result) {
   if (!result) return 400;
   if (result.code === 'MANAGEMENT_REQUIRED') return 403;
+  // Khoá theo ngày giao → 403 (không đủ quyền sửa số liệu quá hạn).
+  if (result.code === 'EDIT_LOCKED_PAST_DAY') return 403;
   if (result.code === 'ALREADY_RECONCILED') return 409;
   return 400;
 }

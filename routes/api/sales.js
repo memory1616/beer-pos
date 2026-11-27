@@ -835,6 +835,26 @@ router.post('/update-kegs', (req, res) => {
     const sale = db.prepare('SELECT deliver_kegs, return_kegs FROM sales WHERE id = ?').get(saleId);
     if (!sale) return res.status(404).json({ error: 'Không tìm thấy hóa đơn' });
 
+    // ── KHOÁ THEO NGÀY GIAO (2026-11-27) ────────────────────────────────
+    // Đơn đã giao/đã thu vỏ qua nhiều ngày → KHÔNG được sửa số liệu vỏ.
+    // Quản lý (ADMIN/MANAGER) có thể vượt khoá với `force: true`.
+    const DeliveryService = require('../../src/services/DeliveryService');
+    const linked = db
+      .prepare('SELECT * FROM delivery_records WHERE sale_id = ? ORDER BY id DESC LIMIT 1')
+      .get(saleId);
+    if (linked) {
+      const force = req.body && req.body.force === true;
+      const editCheck = DeliveryService.canEditConfirmed(linked, req.user, { force });
+      if (!editCheck.allowed) {
+        return res.status(403).json({
+          error: editCheck.error,
+          code: editCheck.code,
+          deliveryDate: editCheck.deliveryDate,
+          daysPassed: editCheck.daysPassed,
+        });
+      }
+    }
+
     const prevDeliver = sale.deliver_kegs || 0;
     const prevReturned = sale.return_kegs || 0;
 
@@ -914,11 +934,7 @@ router.post('/update-kegs', (req, res) => {
     // Nếu chỉ UPDATE `collected_kegs` bằng raw SQL → đơn kẹt ở "Chờ giao"
     // dù đã thu vỏ (bug gặp thực tế ở đơn #1170).
     try {
-      const linked = db
-        .prepare('SELECT * FROM delivery_records WHERE sale_id = ? ORDER BY id DESC LIMIT 1')
-        .get(saleId);
       if (linked) {
-        const DeliveryService = require('../../src/services/DeliveryService');
         const prevCollected = linked.collected_kegs || 0;
 
         db.prepare(
@@ -1791,6 +1807,34 @@ router.put('/:id', (req, res) => {
         error: 'Đơn hàng đã gắn thưởng sản lượng, không thể sửa. Vui lòng xóa đơn rồi tạo lại.',
         code: 'MONTHLY_BONUS_PROTECTED'
       });
+    }
+
+    // ── KHOÁ THEO NGÀY GIAO (2026-11-27) ────────────────────────────────
+    // Đơn đã giao/đã thu vỏ qua nhiều ngày → KHÔNG được sửa (kể cả số vỏ
+    // giao/thu trong `deliver_kegs` / `return_kegs`).
+    // Quản lý (ADMIN/MANAGER) vượt khoá được với `force: true`.
+    {
+      const DeliveryService = require('../../src/services/DeliveryService');
+      const linked = db
+        .prepare('SELECT * FROM delivery_records WHERE sale_id = ? ORDER BY id DESC LIMIT 1')
+        .get(saleId);
+      if (linked) {
+        const force = req.body && req.body.force === true;
+        const editCheck = DeliveryService.canEditConfirmed(linked, req.user, { force });
+        if (!editCheck.allowed) {
+          logger.warn('[api/sales] PUT blocked — date lock', {
+            saleId,
+            deliveryId: linked.id,
+            code: editCheck.code,
+          });
+          return res.status(403).json({
+            error: editCheck.error,
+            code: editCheck.code,
+            deliveryDate: editCheck.deliveryDate,
+            daysPassed: editCheck.daysPassed,
+          });
+        }
+      }
     }
 
     const oldItems = db.prepare('SELECT * FROM sale_items WHERE sale_id = ?').all(saleId);
