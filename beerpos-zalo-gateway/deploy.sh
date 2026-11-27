@@ -97,7 +97,8 @@ log "Health check http://$HOST:$PORT/health ..."
 # Cho server kip khoi dong (node + migrate + worker) truoc khi probe.
 code="000"
 for attempt in 1 2 3 4 5 6 7 8 9 10; do
-  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "http://$HOST:$PORT/health" || echo "000")
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "http://$HOST:$PORT/health" 2>/dev/null) || code="000"
+  [ -n "$code" ] || code="000"
   if [ "$code" = "200" ]; then
     break
   fi
