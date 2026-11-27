@@ -38,6 +38,11 @@
 process.env.TZ = 'Asia/Ho_Chi_Minh';
 
 const path = require('path');
+// [DB GUARD] Chống ghi nhầm vào DB vận hành (2026-11-27).
+// [DB GUARD] Chạy trên bản sao: set DB_PATH=<file .sqlite sao>
+// [DB GUARD] Ghi có chủ đích lên DB thật: node backfill-newshop-immediate-gift.js --allow-prod-write
+const guard = require('../../src/utils/dbWriteGuard');
+guard.requireSafeDb({ context: 'ghi dữ liệu: backfill-newshop-immediate-gift.js', allowWrite: true });
 const db = require(path.join(__dirname, '..', '..', 'database'));
 
 const DRY_RUN = process.argv.includes('--dry-run');

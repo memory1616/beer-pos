@@ -20,6 +20,11 @@
  *   node scripts/ops/backfill-delivery-expected-kegs.js --apply
  */
 
+// [DB GUARD] Chống ghi nhầm vào DB vận hành (2026-11-27).
+// [DB GUARD] Chạy trên bản sao: set DB_PATH=<file .sqlite sao>
+// [DB GUARD] Ghi có chủ đích lên DB thật: node backfill-delivery-expected-kegs.js --allow-prod-write
+const guard = require('../../src/utils/dbWriteGuard');
+guard.requireSafeDb({ context: 'chỉ đọc: backfill-delivery-expected-kegs.js', allowWrite: false });
 const db = require('../../database');
 const DeliveryService = require('../../src/services/DeliveryService');
 

@@ -15,6 +15,20 @@ if (process.env.DB_PATH) {
   logger.log(`[DB] Using custom database path: ${dbPath}`);
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// GUARD CHỐNG GHI NHẦM LÊN DB VẬN HÀNH
+// ═══════════════════════════════════════════════════════════════════════════
+// `src/utils/dbWriteGuard.js` cảnh báo khi mở DB vận hành mà KHÔNG có DB_PATH.
+// Đây là trường hợp nguy hiểm nhất: script/migration chạy ngoài ý muốn sẽ
+// GHI vào dữ liệu vận hành (đơn giả, công nợ, vỏ bình, khuyến mãi...).
+// Ở production, app vẫn phải chạy với DB thật → KHÔNG chặn.
+try {
+  const guard = require('./src/utils/dbWriteGuard');
+  guard.assertDatabaseWritable(dbPath);
+} catch (_) {
+  // Guard là lớp phòng thủ — không được làm app fail vì lỗi guard.
+}
+
 // Run database migrations
 try {
   const { runMigrations, runBusinessFeaturesMigration } = require('./database/migration');

@@ -1,5 +1,10 @@
 process.env.TZ = 'Asia/Ho_Chi_Minh';
 const path = require('path');
+// [DB GUARD] Chống ghi nhầm vào DB vận hành (2026-11-27).
+// [DB GUARD] Chạy trên bản sao: set DB_PATH=<file .sqlite sao>
+// [DB GUARD] Ghi có chủ đích lên DB thật: node check-reward-history.js --allow-prod-write
+const guard = require('../../src/utils/dbWriteGuard');
+guard.requireSafeDb({ context: 'chỉ đọc: check-reward-history.js', allowWrite: false });
 const db = require(path.join(__dirname, '..', '..', 'database'));
 
 console.log('=== REWARD_HISTORY có NEW_SHOP ===');

@@ -19,6 +19,11 @@
  *   node scripts/ops/backfill-delivery-recon-lock.js --apply
  */
 
+// [DB GUARD] Chống ghi nhầm vào DB vận hành (2026-11-27).
+// [DB GUARD] Chạy trên bản sao: set DB_PATH=<file .sqlite sao>
+// [DB GUARD] Ghi có chủ đích lên DB thật: node backfill-delivery-recon-lock.js --allow-prod-write
+const guard = require('../../src/utils/dbWriteGuard');
+guard.requireSafeDb({ context: 'ghi dữ liệu: backfill-delivery-recon-lock.js', allowWrite: true });
 const db = require('../../database');
 
 const APPLY = process.argv.includes('--apply');

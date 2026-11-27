@@ -1,5 +1,58 @@
 # Hướng dẫn cài Watchdog + Auto-start cho beer-pos
 
+## 0. ⚠️ AN TOÀN DỮ LIỆU — KHÔNG GHI VÀO DB VẬN HÀNH (từ 2026-11-27)
+
+> **Nguyên tắc: "KHÔNG được đụng đến dữ liệu chính."**
+
+Mọi script trong `scripts/ops/` đều phải qua **guard** trước khi mở DB.
+Guard nằm ở `src/utils/dbWriteGuard.js` (shim: `scripts/ops/guard.js`).
+
+### Cách chạy an toàn
+
+```bash
+# 1) CHẠY TRÊN BẢN SAO (khuyến nghị cho mọi script kiểm thử)
+set DB_PATH=<đường dẫn file .sqlite sao>
+node scripts/ops/xxx.js
+
+# 2) Script CHỈ ĐỌC — không cần DB_PATH, không chặn
+#    (đã cấu hình allowWrite: false trong từng script)
+
+# 3) Ghi CÓ CHỦ ĐÍCH lên DB thật — phải có cờ tường minh
+node scripts/ops/xxx.js --allow-prod-write
+```
+
+### Ma trận quyền
+
+| Tình huống | Kết quả |
+|---|---|
+| Script ghi, không `DB_PATH`, không cờ | ❌ **BỊ CHẶN** (throw `DB_WRITE_GUARD_BLOCKED`) |
+| Script ghi, `DB_PATH` → bản sao | ✅ Chạy bình thường |
+| `NODE_ENV=production` | ❌ **CHẶN TUYỆT ĐỐI** (không cờ nào vượt được) |
+| `DB_PATH` trỏ DB thật + `--allow-prod-write` | ✅ Được (có log audit cảnh báo) |
+| Script chỉ đọc (`allowWrite: false`) | ✅ Chạy (đọc không làm hỏng dữ liệu) |
+
+### Thêm guard vào script mới
+
+```javascript
+// ĐẶT TRƯỚC require database — require DB cũng chạy migration (ghi)!
+const guard = require('../../src/utils/dbWriteGuard');
+guard.requireSafeDb({ context: 'ghi dữ liệu: ten-script.js', allowWrite: true });
+const db = require('../../database');
+```
+
+### ⚠️ Script Node chạy trực tiếp trên server
+
+`require('database')` khởi động **cron job nền** (backup 2AM, promotion backfill)
+→ process **không bao giờ thoát** → treo terminal. Luôn set:
+
+```javascript
+process.env.DISABLE_BACKGROUND_JOBS = '1';
+```
+
+Hoặc dùng `sqlite3` CLI cho truy vấn chỉ đọc.
+
+---
+
 ## 1. PM2 tự khởi động cùng OS (sau reboot)
 
 ```bash

@@ -1,5 +1,10 @@
 // Script CLI độc lập → tắt cron backup nền để process thoát sau khi in kết quả.
 process.env.DISABLE_BACKGROUND_JOBS = '1';
+// [DB GUARD] Chống ghi nhầm vào DB vận hành (2026-11-27).
+// [DB GUARD] Chạy trên bản sao: set DB_PATH=<file .sqlite sao>
+// [DB GUARD] Ghi có chủ đích lên DB thật: node fix_device_customer.js --allow-prod-write
+const guard = require('../../src/utils/dbWriteGuard');
+guard.requireSafeDb({ context: 'ghi dữ liệu: fix_device_customer.js', allowWrite: true });
 const db = require('../../database');
 
 // Fix customer 16 - recount actual devices

@@ -2,6 +2,11 @@
  * Kiểm tra trạng thái khoá đối soát của các phiếu giao hiện có.
  * Script kiểm tra (read-only) — dùng để quyết định có cần backfill hay không.
  */
+// [DB GUARD] Chống ghi nhầm vào DB vận hành (2026-11-27).
+// [DB GUARD] Chạy trên bản sao: set DB_PATH=<file .sqlite sao>
+// [DB GUARD] Ghi có chủ đích lên DB thật: node check-delivery-recon-lock.js --allow-prod-write
+const guard = require('../../src/utils/dbWriteGuard');
+guard.requireSafeDb({ context: 'chỉ đọc: check-delivery-recon-lock.js', allowWrite: false });
 const db = require('../../database');
 
 const rows = db
