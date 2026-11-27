@@ -35,9 +35,10 @@ async function main() {
   }
   app.locals.worker = worker;
 
-  const server = app.listen(config.port, () => {
+  const server = app.listen(config.port, config.host, () => {
     logger.info('[BOOT] BeerPOS Zalo Gateway da chay', {
       port: config.port,
+      host: config.host,
       env: config.env,
       provider: config.provider.name,
       worker: config.worker.enabled,
@@ -45,7 +46,9 @@ async function main() {
     });
     // eslint-disable-next-line no-console
     console.log(
-      `\n  BeerPOS Notification Gateway\n  → http://localhost:${config.port}\n  → Health: http://localhost:${config.port}/health\n`
+      `\n  BeerPOS Notification Gateway\n` +
+        `  → http://${config.host}:${config.port}\n` +
+        `  → Health: http://${config.host}:${config.port}/health\n`
     );
   });
 

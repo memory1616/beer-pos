@@ -54,6 +54,8 @@ const config = {
   isTest,
   isProduction: NODE_ENV === 'production',
   port: int(process.env.PORT, 3100),
+  /** Bind address. Production nen bind 127.0.0.1 (chi truy cap noi bo). */
+  host: (process.env.HOST || '0.0.0.0').trim(),
 
   database: {
     path: path.resolve(
