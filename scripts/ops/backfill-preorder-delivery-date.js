@@ -141,3 +141,7 @@ const remaining = db
 
 console.log(`Còn lại phiếu lệch (chưa giao): ${remaining.c}`);
 console.log('Hoàn tất.');
+
+// ⚠️ `database.js` bật cron backup → tiến trình KHÔNG tự thoát.
+// Thoát tường minh để lệnh SSH/CI trả về sạch (không treo vô hạn).
+process.exit(0);

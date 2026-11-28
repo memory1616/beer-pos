@@ -1,0 +1,7 @@
+fix(ops): backfill-preorder-delivery-date thoát tường minh sau khi ghi
+
+`database.js` bật cron backup → tiến trình script KHÔNG tự thoát → lệnh
+SSH/CI chạy `--apply` bị treo vô hạn (dữ liệu đã ghi xong nhưng lệnh không
+kết thúc).
+
+Thêm `process.exit(0)` sau bước verify.
