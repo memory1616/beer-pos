@@ -209,6 +209,10 @@ describe('B. Tạo đơn hàng — date và created_on đều là ngày lịch t
         .send({
           customerId: testCustomerId,
           items: [{ productId: testProductId, quantity: 1 }],
+          // force: true — khách đã có 1 đơn trong ngày (quy tắc 1 khách /
+          // 1 ngày giao = 1 đơn). Test này kiểm tra NGÀY, không kiểm tra
+          // chặn đơn trùng.
+          force: true,
         });
 
       expect(res.status).toBe(200);

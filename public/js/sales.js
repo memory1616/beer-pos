@@ -32,6 +32,34 @@ async function safeJson(res) {
   }
 }
 
+/**
+ * SAFE JSON (giữ lỗi HTTP) — dùng khi cần biết server TỪ CHỐI vì lý do gì.
+ * Khác safeJson: trả về body JSON của lỗi 4xx/5xx (vd 409 DUPLICATE_SAME_DAY_SALE)
+ * thay vì null (null dễ bị hiểu nhầm là "mất mạng").
+ */
+async function safeJsonKeepError(res) {
+  if (!res || !res.ok) {
+    try {
+      const text = await res.clone().text();
+      if (text) {
+        try {
+          const parsed = JSON.parse(text);
+          if (parsed.offline || (parsed.error && String(parsed.error).toLowerCase().includes('offline'))) {
+            return { _offline: true, _raw: text };
+          }
+          return parsed;
+        } catch (_) {}
+      }
+    } catch (_) {}
+    return null;
+  }
+  try {
+    return await res.json();
+  } catch (e) {
+    return null;
+  }
+}
+
 // ============================================================
 // STATE
 // ============================================================
@@ -2216,7 +2244,7 @@ function submitSale() {
     body: JSON.stringify(payload)
   })
   .then(function(res) {
-    return safeJson(res);
+    return safeJsonKeepError(res);
   })
   .then(function(data) {
     // ── Handle offline / non-JSON gracefully ──────────────────────
@@ -2272,7 +2300,16 @@ function submitSale() {
         openInvoiceModal(invoiceSaleId);
       }
     } else {
-      showToast(data.error || 'Lỗi khi bán hàng', 'error');
+      // ĐƠN TRÙNG trong ngày (409): khách đã có đơn → hướng dẫn mở đơn cũ.
+      if (data.code === 'DUPLICATE_SAME_DAY_SALE') {
+        showToast(
+          (data.error || 'Khách này đã có đơn trong ngày.') +
+            (data.duplicateSaleId ? ' Mở đơn #' + data.duplicateSaleId + ' để điều chỉnh.' : ''),
+          'error'
+        );
+      } else {
+        showToast(data.error || 'Lỗi khi bán hàng', 'error');
+      }
       if (btn) { btn.disabled = false; btn.innerHTML = isEditing ? '💾 Cập nhật đơn' : '✅ BÁN HÀNG'; }
     }
   })

@@ -189,6 +189,12 @@
         err.retryAfterSec = parseInt(res.headers.get('Retry-After') || '0', 10) || 60;
         notifyRateLimited(err.retryAfterSec);
       }
+      // ĐƠN TRÙNG trong ngày (409) → nhấn mạnh để tài xế mở đơn cũ ra sửa,
+      // tránh tạo đơn mới rồi giao 2 lần cho cùng 1 khách.
+      if (res.status === 409 && data && data.code === 'DUPLICATE_SAME_DAY_SALE') {
+        err.duplicateSale = true;
+        err.duplicateSaleId = data.duplicateSaleId || null;
+      }
       throw err;
     }
     return data;

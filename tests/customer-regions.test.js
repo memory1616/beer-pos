@@ -531,6 +531,9 @@ describe('I/J. Đơn chờ điều phối & Admin điều phối', () => {
       .send({
         customerId: custA,
         items: [{ productId: getProduct().id, quantity: 1, price: getProduct().sell_price }],
+        // Khách đã có 1 đơn (saleUnassigned) trong ngày → cần force để tạo
+        // đơn thứ 2 (quy tắc 1 khách / 1 ngày giao = 1 đơn).
+        force: true,
       });
     expect(res.status).toBe(200);
 
@@ -550,6 +553,8 @@ describe('I/J. Đơn chờ điều phối & Admin điều phối', () => {
         customerId: custA,
         driverUsername: DRIVER_B,
         items: [{ productId: getProduct().id, quantity: 1, price: getProduct().sell_price }],
+        // Khách đã có 1 đơn trong ngày → force (xem test trên).
+        force: true,
       });
     expect(res.status).toBe(200);
 
@@ -559,6 +564,17 @@ describe('I/J. Đơn chờ điều phối & Admin điều phối', () => {
     const list = await request(adminApp).get('/api/admin/regions/dispatch/unassigned');
     const ids = list.body.sales.map((s) => s.id);
     expect(ids).not.toContain(sale.id);
+  });
+
+  test('khách đã có đơn trong ngày → API chặn tạo đơn thứ 2 (409)', async () => {
+    const res = await request(adminApp)
+      .post('/api/sales')
+      .send({
+        customerId: custA,
+        items: [{ productId: getProduct().id, quantity: 1, price: getProduct().sell_price }],
+      });
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe('DUPLICATE_SAME_DAY_SALE');
   });
 
   test('đơn đã gán tài xế KHÔNG nằm trong danh sách chờ', async () => {

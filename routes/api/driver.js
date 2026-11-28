@@ -500,7 +500,14 @@ router.get('/home', requireDriver, (req, res) => {
     // HÀNG CẦN GIAO HÔM NAY — các đơn hôm nay chưa giao xong
     //   - Chưa có phiếu giao (dr.id IS NULL) → chờ giao
     //   - Có phiếu giao nhưng chưa DELIVERED → đang giao / thất bại / sai lệch
-    //     (đồng bộ với DeliveryService.getList: FAILED vẫn cần giao lại)
+    //     (đồng bộ với DeliveryService.listForDriver: FAILED vẫn cần giao lại)
+    //
+    // ⚠️ SỬA 2026-11-28: đơn đã DELIVERED → KHÔNG hiện "cần giao" nữa.
+    //   Trước đây còn nhánh OR (collected_kegs > 0 AND chưa confirmed_by AND
+    //   chưa reconciled_at) → phiếu #137 (đơn #1180 Pino, 25 đen + 10 vàng)
+    //   đã DELIVERED lúc 16:10 nhưng `confirmed_by` rỗng (tài xế bấm nhanh
+    //   "Xong" → chỉ set status, KHÔNG set confirmed_by) → vẫn hiện trong
+    //   danh sách "cần giao" dù đã giao đủ.
     // Phạm vi: đơn của chính tài xế + đơn Admin tạo chưa gán tài xế
     const pendingDeliveries = db
       .prepare(
@@ -530,10 +537,7 @@ router.get('/home', requireDriver, (req, res) => {
           AND ${PreOrderSQL.DELIVERY_DATE_EXPR} = ?
           AND (c.archived = 0 OR c.id IS NULL)
           AND (s.driver_username = ? OR s.driver_username IS NULL OR s.driver_username = '')
-          AND (dr.id IS NULL OR dr.status NOT IN ('DELIVERED')
-               OR (COALESCE(dr.collected_kegs, 0) > 0
-                   AND COALESCE(dr.confirmed_by, '') = ''
-                   AND COALESCE(dr.reconciled_at, '') = ''))
+          AND (dr.id IS NULL OR dr.status NOT IN ('DELIVERED'))
           AND ${PreOrderSQL.COUNTED_FILTER}
         ORDER BY (dr.status IS NULL) DESC,
                  CASE dr.status WHEN 'IN_PROGRESS' THEN 0 ELSE 1 END,
@@ -592,10 +596,7 @@ router.get('/home', requireDriver, (req, res) => {
               AND s2.deleted = 0
               AND ${PreOrderSQL.DELIVERY_DATE_EXPR.replace(/\bs\./g, 's2.')} = ?
               AND (s2.driver_username = ? OR s2.driver_username IS NULL OR s2.driver_username = '')
-              AND (dr2.id IS NULL OR dr2.status NOT IN ('DELIVERED')
-                   OR (COALESCE(dr2.collected_kegs, 0) > 0
-                       AND COALESCE(dr2.confirmed_by, '') = ''
-                       AND COALESCE(dr2.reconciled_at, '') = ''))
+              AND (dr2.id IS NULL OR dr2.status NOT IN ('DELIVERED'))
               AND COALESCE(s2.preorder_status, '') != 'SCHEDULED'
           )
         GROUP BY slug, name, ptype

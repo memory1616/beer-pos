@@ -293,11 +293,14 @@ describe('K. Đơn tự động điều phố về tài xế phụ trách khu v�
     });
 
     // Đơn MỚI → về B.
+    // force: true — khách đã có 1 đơn trong ngày (quy tắc 1 khách / 1 ngày
+    // giao = 1 đơn). Test này kiểm tra ĐIỀU PHỐ, không kiểm tra chặn trùng.
     const second = await request(adminApp)
       .post('/api/sales')
       .send({
         customerId: custInA,
         items: [{ productId: prod.id, quantity: 1, price: prod.sell_price }],
+        force: true,
       });
     expect(db.prepare('SELECT driver_username FROM sales WHERE id = ?').get(second.body.id).driver_username).toBe(DRIVER_B);
 

@@ -329,6 +329,45 @@ router.post('/', async (req, res) => {
 
   console.log('[SALE CREATE]', { customerId, itemsCount: items.length, items: items });
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // CHẶN ĐƠN TRÙNG — 1 KHÁCH / 1 NGÀY GIAO = 1 ĐƠN
+  // ═══════════════════════════════════════════════════════════════════════
+  // Ngày giao của đơn MỚI:
+  //   - Đơn đặt trước → `preorder_date` (ngày giao mong muốn).
+  //   - Đơn thường      → `created_on` (ngày lập đơn, giờ VN).
+  //
+  // ⚠️ Nguyên nhân: trước đây KHÔNG có check nào → tài xế có thể tạo 2 đơn
+  //    cho cùng 1 khách trong cùng 1 ngày (đã xảy ra 28/11: đơn đặt trước
+  //    bị xoá nhầm rồi tạo lại đơn thường cho cùng khách) → giao 2 lần cho
+  //    1 khách, số liệu vỏ/lít sai.
+  //
+  // Vượt khoá: Admin/tài xế truyền `force: true` (ghi log audit).
+  const DuplicateSaleCheck = require('../../src/services/DuplicateSaleCheck');
+  const duplicateDeliveryDate = preorderDate || db.getVietnamDateStr();
+  const duplicateCheck = DuplicateSaleCheck.checkDuplicateSale({
+    customerId,
+    deliveryDate: duplicateDeliveryDate,
+    force: req.body?.force === true,
+    actor: req.user?.username || null,
+  });
+  if (duplicateCheck.duplicate) {
+    logger.warn('[api/sales] duplicate sale blocked', {
+      requester: req.user?.username,
+      customerId,
+      deliveryDate: duplicateDeliveryDate,
+      existingSaleId: duplicateCheck.sale?.id,
+      existingPreorderStatus: duplicateCheck.sale?.preorder_status,
+    });
+    return res.status(409).json({
+      error: duplicateCheck.error,
+      code: duplicateCheck.code,
+      duplicateSaleId: duplicateCheck.sale?.id || null,
+      duplicateSaleDate: duplicateCheck.sale?.date || null,
+      duplicatePreorderStatus: duplicateCheck.sale?.preorder_status || null,
+      deliveryDate: duplicateDeliveryDate,
+    });
+  }
+
   try {
     let total = 0;
     let profit = 0;

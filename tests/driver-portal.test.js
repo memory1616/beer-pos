@@ -895,7 +895,7 @@ describe('Driver Portal — RBAC & Data Protection', () => {
       await request(app)
         .post('/api/driver/sales')
         .set('Authorization', 'Bearer ' + driverToken)
-        .send({ customerId: testCustomerId, items: [{ productId: testProductId, quantity: 1 }] });
+        .send({ customerId: testCustomerId, items: [{ productId: testProductId, quantity: 1 }], force: true });
       const after = db.prepare('SELECT COUNT(*) AS c FROM sales').get().c;
       expect(after).toBe(before + 1);
     });

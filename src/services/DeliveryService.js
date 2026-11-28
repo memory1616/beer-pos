@@ -66,6 +66,44 @@ function getDeliveryActualDate(record) {
 }
 
 /**
+ * NGÀY GIAO DỰ KIẾN của 1 đơn — dùng cho `delivery_records.scheduled_date`.
+ *
+ * ⚠️ VÌ SAO CẦN HÀM NÀY (sửa bug 2026-11-28):
+ *   Đơn ĐẶT TRƯỚC có ngày giao là `preorder_date` (đặt hôm nay, giao ngày
+ *   mai) — KHÁC `created_on` (ngày lập đơn). Trước đây `ensureRecord()`
+ *   gán `scheduled_date = created_on` cho MỌI đơn → phiếu giao của đơn đặt
+ *   trước bị ghi sai ngày (lệch trước ngày giao):
+ *     - Tài xế KHÔNG thấy đơn ở màn "Giao hàng" của đúng ngày giao.
+ *     - Khoá sửa theo ngày giao (EDIT_LOCKED_PAST_DAY) lệch 1 ngày.
+ *
+ *   → Đơn đặt trước (đã RELEASED): dùng `preorder_date`.
+ *   → Đơn thường: dùng `created_on` (giữ nguyên hành vi cũ).
+ *
+ * @param {object} sale - row `sales`
+ * @returns {string} YYYY-MM-DD
+ */
+function getScheduledDateForSale(sale) {
+  if (!sale) return db.getVietnamDateStr();
+
+  const take = (v) => {
+    if (!v) return null;
+    const m = String(v).trim().match(/^(\d{4}-\d{2}-\d{2})/);
+    return m ? m[1] : null;
+  };
+
+  // Đơn đặt trước đã release → ngày giao mong muốn.
+  if (sale.preorder_status === 'RELEASED') {
+    const preorderDate = take(sale.preorder_date);
+    if (preorderDate) return preorderDate;
+  }
+
+  // Đơn thường → ngày lịch thực tạo đơn.
+  return take(sale.created_on)
+    || take(sale.date)
+    || db.getVietnamDateStr();
+}
+
+/**
  * Tính số ngày đã trôi qua từ ngày giao đến hôm nay (>= 0).
  *
  * @param {string} dateStr - 'YYYY-MM-DD'
@@ -235,9 +273,6 @@ class DeliveryService {
           AND (
                 dr.id IS NULL
              OR dr.status NOT IN ('DELIVERED')
-             OR (COALESCE(dr.collected_kegs, 0) > 0
-                 AND COALESCE(dr.confirmed_by, '') = ''
-                 AND COALESCE(dr.reconciled_at, '') = '')
           )
         ORDER BY dr.status IS NOT NULL, dr.status = 'IN_PROGRESS' DESC,
                  COALESCE(c.name, 'Khách lẻ'), s.id DESC
@@ -793,11 +828,18 @@ class DeliveryService {
           sale.customer_id || null,
           driverUsername,
           DELIVERY_STATUS.PENDING,
-          // `scheduled_date` = ngày LỊCH THỰC giao (dùng `created_on`).
-          // Đơn tạo sau 19:00 vẫn thuộc lịch giao HÔM NAY (quyết định
-          // "keep-visible" cho Driver Portal), dù `sales.date` đã lùi sang
-          // ngày nghiệp vụ ngày mai.
-          sale.created_on || sale.date || db.getVietnamDateStr(),
+          // ── NGÀY GIAO CỦA PHIẾU ─────────────────────────────────────────
+          // Đơn ĐẶT TRƯỚC (RELEASED): ngày giao THỰC SỰ = `preorder_date`
+          //   (ngày giao mong muốn). KHÔNG dùng `created_on` — đó là ngày LẬP
+          //   đơn, lệch trước ngày giao → phiếu rơi sang ngày hôm trước →
+          //   tài xế không thấy đơn ở màn "Giao hàng" của ngày giao, và
+          //   khoá sửa theo ngày giao (EDIT_LOCKED_PAST_DAY) lệch 1 ngày.
+          //
+          // Đơn THƯỒNG: `created_on` = ngày LỊCH THỰC giao (đơn tạo sau
+          //   19:00 vẫn thuộc lịch giao HÔM NAY — quyết định "keep-visible"
+          //   cho Driver Portal), dù `sales.date` đã lùi sang ngày nghiệp vụ
+          //   ngày mai.
+          DeliveryService.getScheduledDateForSale(sale),
           expectedKegs
         );
 
@@ -1635,4 +1677,5 @@ module.exports.hasManagementRole = hasManagementRole;
 // Khoá theo ngày giao (next_day + backfill_lock + admin_force).
 module.exports.EDIT_LOCK_DAYS = EDIT_LOCK_DAYS;
 module.exports.getDeliveryActualDate = getDeliveryActualDate;
+module.exports.getScheduledDateForSale = getScheduledDateForSale;
 module.exports.daysSince = daysSince;
